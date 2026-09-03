@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "status": "PENDENTE",
+  "baseNormativa": "3.62",
+  "solutionSchema": "3.68",
+  "note": "Valores permanecem nulos até decisão de governança/infra. A Solution não infere retenção, RPO ou RTO a partir de defaults de Development.",
+  "itemProcessed": {
+    "status": "PENDENTE",
+    "detailRetentionDays": null
+  },
+  "bronze": {
+    "status": "PENDENTE",
+    "retentionDays": null,
+    "orphanGraceHours": null,
+    "scanIntervalMinutes": null,
+    "maxObjectsPerCycle": null
+  },
+  "dr": {
+    "status": "PENDENTE",
+    "rpoMinutes": null,
+    "rtoMinutes": null,
+    "backupFrequencyMinutes": null,
+    "restoreEvidencePath": null,
+    "restoreEvidenceSha256": null
+  },
+  "approval": null
+}

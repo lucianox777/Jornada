@@ -1,0 +1,52 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="white", pad="0.2", nodesep="0.35", ranksep="0.65"];
+  node [shape=plain, fontname="Arial"];
+  edge [fontname="Arial", color="#5F6B7A"];
+  ref [label=<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5">
+      <TR><TD BGCOLOR="#EEF2F7"><B>REFERÊNCIA / CONTROLE</B></TD></TR>
+      <TR><TD ALIGN="LEFT">ref.gestor</TD></TR>
+      <TR><TD ALIGN="LEFT">ref.tipo_registro / tipo_registro_versao</TD></TR>
+      <TR><TD ALIGN="LEFT">controle.credencial_api</TD></TR>
+      <TR><TD ALIGN="LEFT">controle.restricao_projecao_jornada_versao</TD></TR>
+      <TR><TD ALIGN="LEFT">controle.api_evento / api_evento_pessoa</TD></TR>
+    </TABLE>>];
+  ingestao [label=<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5">
+      <TR><TD BGCOLOR="#F6EBDD"><B>INGESTÃO / SILVER</B></TD></TR>
+      <TR><TD ALIGN="LEFT">ingestao.entrega / lote / arquivo / item_processado</TD></TR>
+      <TR><TD ALIGN="LEFT">silver.pessoa_observacao / registro_observacao</TD></TR>
+      <TR><TD ALIGN="LEFT">silver.pessoa_campo_verificacao_observacao</TD></TR>
+      <TR><TD ALIGN="LEFT">silver.referencia_territorial_observacao</TD></TR>
+    </TABLE>>];
+  ident [label=<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5">
+      <TR><TD BGCOLOR="#F3E7F6"><B>IDENTIDADE / LINKAGE</B></TD></TR>
+      <TR><TD ALIGN="LEFT">identidade.identity_map / estado_evento</TD></TR>
+      <TR><TD ALIGN="LEFT">identidade.vinculo_fonte</TD></TR>
+      <TR><TD ALIGN="LEFT">modelo_linkage / parametro_linkage</TD></TR>
+      <TR><TD ALIGN="LEFT">frequencia_linkage / estatistica_linkage</TD></TR>
+      <TR><TD ALIGN="LEFT">linkage_run / linkage_run_item / linkage_resultado</TD></TR>
+      <TR><TD ALIGN="LEFT">correcao_identidade / caso_conflito</TD></TR>
+    </TABLE>>];
+  qual [label=<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5">
+      <TR><TD BGCOLOR="#FFF4D6"><B>QUALIDADE / DIVERGÊNCIAS</B></TD></TR>
+      <TR><TD ALIGN="LEFT">qualidade.qc_registro_implementacao</TD></TR>
+      <TR><TD ALIGN="LEFT">qualidade.qc_registro_resultado</TD></TR>
+      <TR><TD ALIGN="LEFT">qualidade.divergencia_gestor</TD></TR>
+      <TR><TD ALIGN="LEFT">qualidade.possibilidade_regra / resultado</TD></TR>
+    </TABLE>>];
+  gold [label=<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5">
+      <TR><TD BGCOLOR="#E7F1E8"><B>GOLD / SERVING</B></TD></TR>
+      <TR><TD ALIGN="LEFT">gold.pessoa / pessoa_atributo</TD></TR>
+      <TR><TD ALIGN="LEFT">gold.beneficio_concedido / servico_prestado</TD></TR>
+      <TR><TD ALIGN="LEFT">serving.v_pessoa</TD></TR>
+      <TR><TD ALIGN="LEFT">serving.registro_integrado + views BI</TD></TR>
+    </TABLE>>];
+  ref -> ingestao -> ident -> gold;
+  ident -> qual -> gold;
+  ref -> qual;
+  ref -> gold [label="projeção / controle"];
+}

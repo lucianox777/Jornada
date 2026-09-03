@@ -1,0 +1,17 @@
+Jornada do Cidadão - Fase 1
+Base Normativa: v3.62
+Solution Engenharia: v3.85
+Data: 2026-09-02
+
+Predecessor Git verificável: jornada-solution-v3.84.
+
+Mudanças v3.85:
+- adiciona InternalsVisibleTo("Jornada.Integration.Tests") aos assemblies Jornada.Api, Jornada.Processor.Worker e Jornada.Bronze.Maintenance.Worker, corrigindo os 54 CS0122 observados na primeira compilação real da v3.84;
+- corrige local-db.ps1 para não usar $Args como parâmetro de função, preservando corretamente os argumentos enviados a docker compose e sqlcmd;
+- adiciona preflight explícito do Docker Engine e diagnóstico fail-fast quando o container SQL Server não é criado ou encerra antes de ficar healthy;
+- corrige o mesmo conflito com $Args nos helpers SQL de local-backup-restore-drill.ps1 e local-scale.ps1;
+- technical-closure-gate passa a exigir os friend assemblies de Integration e a rejeitar parâmetros PowerShell [string[]]$Args nos scripts locais;
+- packages.lock.json permanecem byte-a-byte inalterados em relação à v3.84; os dois locks que já estavam PENDING_TRUSTED_DOTNET_RESTORE continuam pendentes até restore real.
+
+Base Normativa v3.62 e SolutionSchema v3.68 permanecem inalterados.
+A v3.85 não declara build/test runtime aprovado até nova execução em .NET 8 + Docker/SQL Server 2022.

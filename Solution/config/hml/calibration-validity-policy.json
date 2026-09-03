@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "status": "VIGENTE",
+  "maximumApprovalAgeDays": 180,
+  "invalidateWhen": [
+    "solutionSchemaChanges",
+    "linkageAlgorithmVersionChanges",
+    "environmentProfileChanges",
+    "corpusDefinitionChanges"
+  ],
+  "requiredApprovalContext": [
+    "sourceGitTag",
+    "solutionSchema",
+    "environmentProfile",
+    "corpusDefinitionSha256",
+    "technicalFingerprintSha256"
+  ],
+  "note": "Aprovações HML expiram por idade e tornam-se inválidas se o fingerprint técnico dos componentes/harnesses calibrados mudar. Mudança apenas documental/release não invalida por si só.",
+  "technicalFingerprintInputs": [
+    "database/Jornada_Fase1.sql",
+    "src/Jornada.Api/**/*.cs",
+    "src/Jornada.Processor.Worker/**/*.cs",
+    "src/Jornada.Bronze.Storage/**/*.cs",
+    "src/Jornada.Bronze.Maintenance.Worker/**/*.cs",
+    "src/Jornada.Operations.Maintenance.Worker/**/*.cs",
+    "src/Jornada.Linkage.Parameters.Worker/**/*.cs",
+    "src/Jornada.Linkage.Runner/**/*.cs",
+    "src/Jornada.Pipeline.Coordination/**/*.cs",
+    "src/Jornada.Harness.Scale/**/*.cs",
+    "src/Jornada.Linkage.Evaluation/**/*.cs",
+    "scripts/local-scale.sh",
+    "scripts/linkage-evaluation-smoke.sh",
+    "scripts/api-projection-load-harness.py",
+    "scripts/local-sql-performance-evidence.sh",
+    "database/Jornada_HML_SQL_Performance_Evidence.sql"
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f380000000000000002002",
+  "position": {
+    "x": 330,
+    "y": 40,
+    "z": 1002,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 1002
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Territorializacao"
+                    }
+                  },
+                  "Property": "Cobertura Territorial Resolvida"
+                }
+              },
+              "queryRef": "Territorializacao.Cobertura Territorial Resolvida",
+              "nativeQueryRef": "Cobertura Territorial Resolvida"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Cobertura resolvida'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

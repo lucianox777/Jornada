@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f380000000000000002201",
+  "position": {
+    "x": 30,
+    "y": 40,
+    "z": 1001,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 1001
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ManutencaoBronze"
+                    }
+                  },
+                  "Property": "Objetos Examinados Bronze"
+                }
+              },
+              "queryRef": "ManutencaoBronze.Objetos Examinados Bronze",
+              "nativeQueryRef": "Objetos Examinados Bronze"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Objetos examinados'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

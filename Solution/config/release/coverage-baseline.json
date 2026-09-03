@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "release": "v3.76",
+  "status": "PENDENTE_PRIMEIRA_EXECUCAO",
+  "approvedLineRate": null,
+  "approvedBranchRate": null,
+  "maximumRegressionPercentagePoints": 0.0,
+  "evidenceSha256": null,
+  "approvedAt": null,
+  "approvedBy": null,
+  "note": "A primeira execução real produz cobertura auditável. Após homologação, o gate opera como ratchet e não permite regressão sem atualização explícita do baseline."
+}

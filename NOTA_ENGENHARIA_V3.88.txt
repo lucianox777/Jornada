@@ -1,0 +1,17 @@
+NOTA DE ENGENHARIA — v3.88
+
+Escopo: correção física do índice Bronze e compatibilidade do harness Integration com Docker Engine de API anterior, sem mudança da Base Normativa v3.62 ou do SolutionSchema v3.68.
+
+1. Índice Bronze
+A coluna bronze.entrega_arquivo.objeto_chave permanece NVARCHAR(1024). O índice antigo usava essa coluna como chave física e o SQL Server advertiu que a chave poderia atingir 2048 bytes, acima do limite de 1700 bytes de índice nonclustered.
+
+A v3.88 cria IX_bronze_entrega_arquivo_payload_sha256 sobre payload_sha256 CHAR(64), mantém objeto_chave como INCLUDE e remove o índice físico antigo. As duas consultas de referência/expurgo passam a filtrar pelo SHA-256 indexado e confirmar também objeto_chave, preservando a semântica content-addressed e eliminando o risco de insert/update por chave larga.
+
+2. Testcontainers / Docker API
+A execução externa mostrou Testcontainers.MsSql 4.14 tentando Docker API 1.44 contra um Docker Server que anuncia máximo 1.41. Antes de construir o container, a fixture consulta `docker version --format {{.Server.APIVersion}}`; somente quando o servidor é anterior a 1.44 e DOCKER_API_VERSION não foi definido pelo operador, a fixture reduz a variável para a API máxima anunciada. Em servidores >=1.44, o default do Testcontainers é preservado.
+
+3. Evidência predecessora
+Na v3.87: bootstrap SQL local concluiu; `dotnet restore --locked-mode` concluiu; build Release com `-warnaserror` concluiu com 0 warnings/0 errors; 153/153 Unit passaram. Os 58 testes Integration foram bloqueados no OneTimeSetUp pela incompatibilidade de API Docker, portanto nenhum resultado funcional Integration é reivindicado.
+
+4. Garantia
+O ambiente de empacotamento não possui .NET, Docker, PowerShell ou SQL Server. A v3.88 passa gates estáticos e permanece pendente de reexecução runtime externa.

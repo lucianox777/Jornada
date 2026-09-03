@@ -1,0 +1,86 @@
+{
+  "versao": 2,
+  "descricao": "Catálogo de atributos transversais da Fase 1. Declara temporalidade e cardinalidade; novos atributos SINGLE ou com regra de instância suportada não exigem alteração de gold.pessoa.",
+  "atributos": [
+    {
+      "codigo": "ENDERECO_RESIDENCIAL",
+      "nome": "Endereço residencial",
+      "formatoCodigo": "ENDERECO_CANONICO_V1",
+      "regraTemporalCodigo": "REFERENCIA_EVIDENCIA_OU_VERIFICADO_EM_V1",
+      "tiposEvidenciaAceitos": [
+        "DOCUMENTO",
+        "FONTE_INSTITUCIONAL",
+        "VERIFICACAO_PRESENCIAL"
+      ],
+      "descricao": "Endereço cadastral de residência. Na Fase 1, quando puder servir de fallback territorial DOMICILIAR, o Gestor deve declarar situacaoGeografia; RESOLVIDA exige Distrito, Subprefeitura e referenciaMalha.",
+      "cardinalidade": "SINGLE",
+      "chaveInstanciaCodigo": "UNICA_V1"
+    },
+    {
+      "codigo": "ENDERECO_CASA_ABRIGO_SIGILOSA",
+      "nome": "Endereço de casa-abrigo-sigilosa",
+      "formatoCodigo": "ENDERECO_CANONICO_V1",
+      "regraTemporalCodigo": "REFERENCIA_EVIDENCIA_OU_VERIFICADO_EM_V1",
+      "tiposEvidenciaAceitos": [
+        "FONTE_INSTITUCIONAL"
+      ],
+      "descricao": "Endereço sigiloso declarado exclusivamente pelo próprio serviço de casa-abrigo-sigilosa. Não é inferido pela Jornada, não classifica a Pessoa como protegida, não alimenta Referência Territorial e não é projetado a Gestor diferente do responsável.",
+      "cardinalidade": "SINGLE",
+      "chaveInstanciaCodigo": "UNICA_V1"
+    },
+    {
+      "codigo": "REFERENCIA_TERRITORIAL",
+      "nome": "Referência territorial da Pessoa",
+      "formatoCodigo": "REFERENCIA_TERRITORIAL_V1",
+      "regraTemporalCodigo": "REFERENCIA_EVIDENCIA_OU_VERIFICADO_EM_V1",
+      "tiposEvidenciaAceitos": [
+        "FONTE_INSTITUCIONAL",
+        "VERIFICACAO_PRESENCIAL"
+      ],
+      "descricao": "Vínculo territorial temporal para política pública; não é sinônimo de domicílio civil. Naturezas: DOMICILIAR, ACOLHIMENTO_INSTITUCIONAL, REFERENCIA_TERRITORIAL_DECLARADA. Na Fase 1 a territorialização é responsabilidade do Gestor: situacaoGeografia é obrigatória e RESOLVIDA exige Distrito, Subprefeitura e referenciaMalha.",
+      "cardinalidade": "SINGLE",
+      "chaveInstanciaCodigo": "UNICA_V1"
+    },
+    {
+      "codigo": "TELEFONE_CONTATO",
+      "nome": "Telefone de contato",
+      "formatoCodigo": "TELEFONE_V1",
+      "regraTemporalCodigo": "REFERENCIA_EVIDENCIA_OU_VERIFICADO_EM_V1",
+      "tiposEvidenciaAceitos": [
+        "DOCUMENTO",
+        "FONTE_INSTITUCIONAL",
+        "VERIFICACAO_PRESENCIAL"
+      ],
+      "cardinalidade": "MULTI",
+      "chaveInstanciaCodigo": "TELEFONE_BR_CANONICO_V2",
+      "descricao": "Telefone de contato multivalorado. Números distintos normalizados podem permanecer simultaneamente vigentes; nova evidência do mesmo número versiona a mesma instância e a simples omissão em observação posterior não encerra outros números."
+    },
+    {
+      "codigo": "EMAIL_CONTATO",
+      "nome": "E-mail de contato",
+      "formatoCodigo": "EMAIL_V1",
+      "regraTemporalCodigo": "REFERENCIA_EVIDENCIA_OU_VERIFICADO_EM_V1",
+      "tiposEvidenciaAceitos": [
+        "DOCUMENTO",
+        "FONTE_INSTITUCIONAL",
+        "VERIFICACAO_PRESENCIAL"
+      ],
+      "cardinalidade": "MULTI",
+      "chaveInstanciaCodigo": "EMAIL_CANONICO_V2",
+      "descricao": "E-mail de contato multivalorado. EMAIL_CANONICO_V2 remove apenas SPACE/TAB/CR/LF/NBSP nas extremidades, exige exatamente um @ com partes não vazias e converte somente ASCII A-Z para a-z, preservando os demais codepoints sem normalização Unicode."
+    },
+    {
+      "codigo": "NOME_SOCIAL",
+      "nome": "Nome social",
+      "formatoCodigo": "TEXTO_UTF8_V1",
+      "regraTemporalCodigo": "REFERENCIA_EVIDENCIA_OU_VERIFICADO_EM_V1",
+      "tiposEvidenciaAceitos": [
+        "DOCUMENTO",
+        "FONTE_INSTITUCIONAL",
+        "VERIFICACAO_PRESENCIAL"
+      ],
+      "cardinalidade": "SINGLE",
+      "chaveInstanciaCodigo": "UNICA_V1"
+    }
+  ]
+}

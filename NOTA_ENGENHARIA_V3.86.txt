@@ -1,0 +1,12 @@
+NOTA DE ENGENHARIA — v3.86
+
+Correção orientada por execução real da v3.85.
+
+1. EVIDÊNCIA EXTERNA
+Docker Desktop/Compose baixou a imagem SQL Server 2022, criou rede e volume e iniciou `jornada-sqlserver-local`. A falha ocorreu depois, no acompanhamento de health: a versão de Docker Compose em uso rejeitou o template Go customizado `{{.Name}}|{{.State}}|{{.Health}}`.
+
+2. COMPATIBILIDADE DOCKER COMPOSE
+`local-db.ps1` passa a executar `docker compose ... ps --format json sqlserver` e interpreta a saída via `ConvertFrom-Json`. A decisão de health usa os campos estruturados `State` e `Health`, com fallback para `Status` quando necessário. O script falha explicitamente para JSON inválido, container ausente, estado `unhealthy`, saída prematura ou timeout.
+
+3. ESCOPO
+Não há alteração de Base Normativa, SolutionSchema, DDL, contratos públicos, projetos C# ou dependências NuGet. A pendência de tornar os pré-requisitos Docker mais explícitos na documentação/especificação permanece registrada para atualização documental posterior.

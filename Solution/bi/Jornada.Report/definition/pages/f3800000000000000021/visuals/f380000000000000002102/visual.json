@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f380000000000000002102",
+  "position": {
+    "x": 330,
+    "y": 40,
+    "z": 1002,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 1002
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "CargaInicial"
+                    }
+                  },
+                  "Property": "Pessoas por Hora Ativa"
+                }
+              },
+              "queryRef": "CargaInicial.Pessoas por Hora Ativa",
+              "nativeQueryRef": "Pessoas por Hora Ativa"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Pessoas/hora ativa'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

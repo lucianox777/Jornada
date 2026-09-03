@@ -1,0 +1,99 @@
+table Registros
+
+	measure 'Aviso Fatos e Pessoas' = "Registros contabiliza todas as ocorrências vigentes declaradas. Indicadores de Pessoas consideram somente fatos com identidade canônica atribuída."
+
+	measure 'Registros pendentes/conflitantes' = CALCULATE(COUNTROWS(Registros),Registros[estado_atribuicao_identidade]<>"ATRIBUIDA")
+		formatString: #,##0
+
+	measure 'Registros' = COUNTROWS(Registros)
+		formatString: #,##0
+
+	measure 'Benefícios' = CALCULATE(COUNTROWS(Registros),Registros[natureza]="BENEFICIO")
+		formatString: #,##0
+
+	measure 'Serviços Prestados' = CALCULATE(COUNTROWS(Registros),Registros[natureza]="SERVICO")
+		formatString: #,##0
+
+	column registro_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: registro_id
+
+	column natureza
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza
+
+	column codigo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: codigo
+
+	column nome
+		dataType: string
+		summarizeBy: none
+		sourceColumn: nome
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column estado_atribuicao_identidade
+		dataType: string
+		summarizeBy: none
+		sourceColumn: estado_atribuicao_identidade
+
+	column data_referencia
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_referencia
+
+	column ocorrido_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: ocorrido_em
+
+	column situacao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: situacao
+
+	column source_observacao_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: source_observacao_id
+
+	column subprefeitura
+		dataType: string
+		summarizeBy: none
+		sourceColumn: subprefeitura
+
+	column distrito
+		dataType: string
+		summarizeBy: none
+		sourceColumn: distrito
+
+	column natureza_referencia_territorial
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza_referencia_territorial
+
+	column entrega_completa
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: entrega_completa
+
+	column qc_resultado
+		dataType: string
+		summarizeBy: none
+		sourceColumn: qc_resultado
+
+	partition Registros = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_registros"]}[Data]
+			in
+				Data

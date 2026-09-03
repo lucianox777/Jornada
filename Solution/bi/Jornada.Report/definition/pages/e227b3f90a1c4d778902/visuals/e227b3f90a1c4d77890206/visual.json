@@ -1,0 +1,55 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "e227b3f90a1c4d77890206",
+  "position": {
+    "x": 650,
+    "y": 220,
+    "z": 9650,
+    "height": 430,
+    "width": 570,
+    "tabOrder": 9650
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeServicos"
+                    }
+                  },
+                  "Property": "nome_servico"
+                }
+              },
+              "queryRef": "QualidadeServicos.nome_servico",
+              "nativeQueryRef": "nome_servico"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeServicos"
+                    }
+                  },
+                  "Property": "QC Divergente %"
+                }
+              },
+              "queryRef": "QualidadeServicos.QC Divergente %",
+              "nativeQueryRef": "QC Divergente %"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

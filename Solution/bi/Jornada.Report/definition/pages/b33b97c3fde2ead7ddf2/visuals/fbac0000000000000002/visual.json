@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "fbac0000000000000002",
+  "position": {
+    "x": 770,
+    "y": 40,
+    "z": 4000,
+    "height": 130,
+    "width": 220,
+    "tabOrder": 4000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Linkage"
+                    }
+                  },
+                  "Property": "Não resolvidos"
+                }
+              },
+              "queryRef": "Linkage.Não resolvidos",
+              "nativeQueryRef": "Não resolvidos"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Não resolvidos'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

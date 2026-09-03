@@ -1,0 +1,40 @@
+# Release seal files: generated from a tagged clean tree. RELEASE_INFO.txt is source-controlled because tag/provenance gates depend on it.
+MANIFESTO_ARQUIVOS.txt
+SHA256SUMS.txt
+*.zip
+!Solution/tests/fixtures/bronze/restore-drill.zip
+
+# Build/test outputs anywhere in the repository.
+**/bin/
+**/obj/
+**/.vs/
+**/TestResults/
+**/*.user
+**/*.suo
+**/__pycache__/
+**/*.pyc
+
+# Local Docker/runtime configuration and data.
+.env
+.env.local
+.env.*.local
+!.env.example
+.local/
+artifacts/
+dist/
+
+# Power BI Desktop local/generated state.
+**/.pbi/
+**/localSettings.json
+**/cache.abf
+**/*.pbix
+**/*.pbit
+
+# Runtime object stores / staging.
+Solution/data/bronze/**
+!Solution/data/bronze/.gitkeep
+Solution/data/staging/**
+
+# Local secret overrides. Synthetic Development fixtures explicitly tracked remain outside these patterns.
+Solution/config/security/*.local.json
+Solution/config/security/*.local.env

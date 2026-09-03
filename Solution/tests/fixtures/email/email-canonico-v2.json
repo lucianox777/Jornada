@@ -1,0 +1,92 @@
+{
+  "rule": "EMAIL_CANONICO_V2",
+  "envelopeTrimUnicodeCodePoints": [
+    9,
+    10,
+    13,
+    32,
+    160
+  ],
+  "lowercase": "ASCII_A_Z_ONLY",
+  "unicodeNormalization": "NONE",
+  "cases": [
+    {
+      "id": "ascii-basic",
+      "input": "Pessoa@Example.TEST",
+      "valid": true,
+      "expected": "pessoa@example.test"
+    },
+    {
+      "id": "envelope-space",
+      "input": "  Pessoa@Example.TEST  ",
+      "valid": true,
+      "expected": "pessoa@example.test"
+    },
+    {
+      "id": "envelope-controls",
+      "input": "\tPessoa@Example.TEST\r\n",
+      "valid": true,
+      "expected": "pessoa@example.test"
+    },
+    {
+      "id": "envelope-nbsp",
+      "input": " Pessoa@Example.TEST ",
+      "valid": true,
+      "expected": "pessoa@example.test"
+    },
+    {
+      "id": "nonascii-uppercase-preserved",
+      "input": "JOSÉ@EXAMPLE.ORG",
+      "valid": true,
+      "expected": "josÉ@example.org"
+    },
+    {
+      "id": "nonascii-lowercase-preserved",
+      "input": "José@Example.org",
+      "valid": true,
+      "expected": "josé@example.org"
+    },
+    {
+      "id": "decomposed-preserved",
+      "input": "José@Example.org",
+      "valid": true,
+      "expected": "josé@example.org"
+    },
+    {
+      "id": "unicode-local-domain",
+      "input": "δοκιμή@Παράδειγμα.δοκιμή",
+      "valid": true,
+      "expected": "δοκιμή@Παράδειγμα.δοκιμή"
+    },
+    {
+      "id": "missing-at",
+      "input": "pessoa.example.org",
+      "valid": false,
+      "expected": null
+    },
+    {
+      "id": "multiple-at",
+      "input": "pessoa@@example.org",
+      "valid": false,
+      "expected": null
+    },
+    {
+      "id": "empty-local",
+      "input": "@example.org",
+      "valid": false,
+      "expected": null
+    },
+    {
+      "id": "empty-domain",
+      "input": "pessoa@",
+      "valid": false,
+      "expected": null
+    },
+    {
+      "id": "blank",
+      "input": " \t\r\n ",
+      "valid": false,
+      "expected": null
+    }
+  ]
+}

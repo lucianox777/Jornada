@@ -1,0 +1,96 @@
+table Catalogo
+
+	measure 'Itens Catálogo' = DISTINCTCOUNT(Catalogo[codigo])
+		formatString: #,##0
+
+	measure 'Versões Ativas' = CALCULATE(COUNTROWS(Catalogo),Catalogo[status]="ATIVA")
+		formatString: #,##0
+
+	column natureza
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza
+
+	column codigo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: codigo
+
+	column nome
+		dataType: string
+		summarizeBy: none
+		sourceColumn: nome
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column versao
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: versao
+
+	column vigencia_inicio
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: vigencia_inicio
+
+	column vigencia_fim
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: vigencia_fim
+
+	column tipo_medida
+		dataType: string
+		summarizeBy: none
+		sourceColumn: tipo_medida
+
+	column regime_vigencia
+		dataType: string
+		summarizeBy: none
+		sourceColumn: regime_vigencia
+
+	column data_inicio_permitida_concessao
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_inicio_permitida_concessao
+
+	column data_fim_permitida_concessao
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_fim_permitida_concessao
+
+	column monitorar_atraso
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: monitorar_atraso
+
+	column prazo_recebimento_dias
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: prazo_recebimento_dias
+
+	column marco_atraso_codigo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: marco_atraso_codigo
+
+	column qc_status
+		dataType: string
+		summarizeBy: none
+		sourceColumn: qc_status
+
+	column status
+		dataType: string
+		summarizeBy: none
+		sourceColumn: status
+
+	partition Catalogo = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_catalogo"]}[Data]
+			in
+				Data

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f330000000000000000204",
+  "position": {
+    "x": 930,
+    "y": 40,
+    "z": 1930,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 1930
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeIdentidadeOrigem"
+                    }
+                  },
+                  "Property": "Taxa Sem Candidato no Bloco"
+                }
+              },
+              "queryRef": "QualidadeIdentidadeOrigem.Taxa Sem Candidato no Bloco",
+              "nativeQueryRef": "Taxa Sem Candidato no Bloco"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Sem candidato no bloco'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

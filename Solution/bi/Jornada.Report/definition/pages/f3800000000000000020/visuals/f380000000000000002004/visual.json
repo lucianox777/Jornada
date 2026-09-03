@@ -1,0 +1,77 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f380000000000000002004",
+  "position": {
+    "x": 650,
+    "y": 220,
+    "z": 9004,
+    "height": 430,
+    "width": 570,
+    "tabOrder": 9004
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Territorializacao"
+                    }
+                  },
+                  "Property": "situacao_geografia"
+                }
+              },
+              "queryRef": "Territorializacao.situacao_geografia",
+              "nativeQueryRef": "situacao_geografia"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Territorializacao"
+                    }
+                  },
+                  "Property": "Pessoas Observacao"
+                }
+              },
+              "queryRef": "Territorializacao.Pessoas Observacao",
+              "nativeQueryRef": "Pessoas Observacao"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Situação geográfica'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

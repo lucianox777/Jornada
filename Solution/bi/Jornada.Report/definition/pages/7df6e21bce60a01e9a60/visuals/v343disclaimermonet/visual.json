@@ -1,0 +1,52 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "v343disclaimermonet",
+  "position": {
+    "x": 60,
+    "y": 660,
+    "z": 9500,
+    "height": 45,
+    "width": 1160,
+    "tabOrder": 9500
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "BeneficiosConcedidos"
+                    }
+                  },
+                  "Property": "Aviso Monetário"
+                }
+              },
+              "queryRef": "BeneficiosConcedidos.Aviso Monetário",
+              "nativeQueryRef": "Aviso Monetário"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

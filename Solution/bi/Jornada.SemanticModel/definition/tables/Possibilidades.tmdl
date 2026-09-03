@@ -1,0 +1,55 @@
+table Possibilidades
+
+	measure 'Aviso Institucional' = "Benefícios e serviços compatíveis com o perfil disponível, sujeitos à análise do Gestor responsável."
+
+	measure 'Possibilidades Compatíveis' = COUNTROWS(Possibilidades)
+		formatString: #,##0
+
+	column natureza
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza
+
+	column codigo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: codigo
+
+	column nome
+		dataType: string
+		summarizeBy: none
+		sourceColumn: nome
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column regra_versao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: regra_versao
+
+	column avaliado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: avaliado_em
+
+	column validade_ate
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: validade_ate
+
+	column motivo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: motivo
+
+	partition Possibilidades = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_possibilidades"]}[Data]
+			in
+				Data

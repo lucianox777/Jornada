@@ -1,0 +1,27 @@
+Jornada Fase 1 — Nota de Engenharia v3.79
+Base normativa: v3.62
+Solution Engenharia: v3.79
+Schema persistido esperado: Base 3.62 / SolutionSchema 3.68
+
+Release orientada pela primeira execução real de build + Unit Tests após a v3.78.
+Não altera DDL funcional, contratos normativos nem regras de negócio.
+
+Evidência externa já observada (resumo anonimizado):
+- .NET SDK 8.0.424 / Visual Studio 2022;
+- build da v3.78 após o ajuste de namespace TrustedProxy: 0 erros (warnings de analyzer permanecem para triagem posterior);
+- primeira bateria Unit: 99 total, 95 PASS, 4 FAIL, 0 SKIP;
+- o log bruto não é distribuído no pacote porque contém identificadores locais da estação.
+
+Correções consolidadas nesta release:
+1. TrustedProxyConfigurationTests: ForwardedHeadersOptions passa a importar Microsoft.AspNetCore.Builder, seu namespace público correto.
+2. ApiHttpPipelineTests/Ingestion_without_access_key_is_rejected_before_zip_validation: fixture Production fornece BronzeStorage:RootPath e IngestionStaging:RootPath absolutos, temporários e autocontidos; a proteção fail-closed de Production permanece intacta.
+3. DeterministicIngestionZipTests: o teste do timestamp compara o DateTime civil gravado no ZIP, sem exigir um offset que o timestamp DOS/ZIP não representa; o teste byte-a-byte continua sendo a prova principal de determinismo.
+4. JsonSchemaSubsetValidatorTests: a fixture ENDERECO_RESIDENCIAL passa a declarar situacaoGeografia=RESOLVIDA; a fixture REFERENCIA_TERRITORIAL passa a declarar situacaoGeografia=RESOLVIDA e referenciaMalha, alinhada ao schema vigente sem reabrir a decisão territorial.
+
+Próximo passo obrigatório:
+1. extrair a v3.79 em pasta nova;
+2. dotnet restore Jornada.sln --use-lock-file (ou --locked-mode quando os locks reais já estiverem versionados);
+3. dotnet build Jornada.sln;
+4. repetir os 99 Unit Tests e exigir 99 PASS / 0 FAIL / 0 SKIP antes de avançar.
+
+Esta montagem não possui .NET/SQL Server e, portanto, não declara o build/test da própria v3.79 como executado localmente.

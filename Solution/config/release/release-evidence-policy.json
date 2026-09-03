@@ -1,0 +1,598 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "RELEASE_EVIDENCE_V5",
+  "requiredArtifacts": [
+    {
+      "name": "release-static-gates",
+      "checks": [
+        {
+          "glob": "**/openapi.txt",
+          "kind": "text",
+          "contains": [
+            "OPENAPI CONTRACT GATE: OK"
+          ]
+        },
+        {
+          "glob": "**/technical-closure.txt",
+          "kind": "text",
+          "contains": [
+            "TECHNICAL CLOSURE GATE: OK"
+          ]
+        },
+        {
+          "glob": "**/powerbi-static.txt",
+          "kind": "text",
+          "contains": [
+            "POWER BI STATIC GATE: OK"
+          ]
+        },
+        {
+          "glob": "**/hml-config.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/possibility-rules.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/config/hml/parameters.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status"
+          ]
+        },
+        {
+          "glob": "**/config/hml/performance-baseline.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status"
+          ]
+        },
+        {
+          "glob": "**/config/hml/linkage-evaluation-policy.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status"
+          ]
+        },
+        {
+          "glob": "**/config/possibilities/rule-catalog.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "catalogVersion",
+            "rules"
+          ]
+        },
+        {
+          "glob": "**/authorization-matrix.txt",
+          "kind": "text",
+          "contains": [
+            "AUTHORIZATION MATRIX GATE: OK"
+          ]
+        },
+        {
+          "glob": "**/security-surface.txt",
+          "kind": "text",
+          "contains": [
+            "SECURITY SURFACE GATE: OK"
+          ]
+        },
+        {
+          "glob": "**/compatibility-matrix.txt",
+          "kind": "text",
+          "contains": [
+            "COMPATIBILITY MATRIX GATE: OK"
+          ]
+        },
+        {
+          "glob": "**/observability-contract.txt",
+          "kind": "text",
+          "contains": [
+            "OBSERVABILITY CONTRACT GATE: OK"
+          ]
+        },
+        {
+          "glob": "**/hml-staleness.txt",
+          "kind": "text",
+          "contains": [
+            "HML STALENESS GATE: OK"
+          ]
+        },
+        {
+          "glob": "**/config/security/authorization-matrix.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "routes"
+          ]
+        },
+        {
+          "glob": "**/config/security/data-minimization-policy.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status"
+          ]
+        },
+        {
+          "glob": "**/config/release/compatibility-matrix.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "cases"
+          ]
+        },
+        {
+          "glob": "**/config/observability/metrics-slo-catalog.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "metrics",
+            "slos"
+          ]
+        },
+        {
+          "glob": "**/config/hml/calibration-validity-policy.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "maximumApprovalAgeDays"
+          ]
+        },
+        {
+          "glob": "**/environment-preflight.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/governance-readiness.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/scheduler-contract.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/sql-performance-selftest.txt",
+          "kind": "text",
+          "contains": [
+            "SQL PERFORMANCE EVIDENCE GATE SELF-TEST: OK"
+          ]
+        },
+        {
+          "glob": "**/api-projection-selftest.txt",
+          "kind": "text",
+          "contains": [
+            "API PROJECTION EVIDENCE GATE SELF-TEST: OK"
+          ]
+        },
+        {
+          "glob": "**/config/governance/schema-approvals.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "contracts"
+          ]
+        },
+        {
+          "glob": "**/config/governance/retention-dr-policy.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "dr"
+          ]
+        },
+        {
+          "glob": "**/config/governance/identity-pending-lifecycle.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "states"
+          ]
+        },
+        {
+          "glob": "**/config/operations/scheduler-jobs.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "jobs"
+          ]
+        },
+        {
+          "glob": "**/config/release/environment-requirements.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "profiles"
+          ]
+        },
+        {
+          "glob": "**/config/hml/sql-performance-policy.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "requireQueryStoreReadWrite"
+          ]
+        },
+        {
+          "glob": "**/config/hml/api-projection-load-policy.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "batchSizes"
+          ]
+        },
+        {
+          "glob": "**/contract-backward-compatibility.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/ddl-destructive-change.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/dependency-drift.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/source-sanity.txt",
+          "kind": "text",
+          "contains": [
+            "SOURCE SANITY GATE: OK"
+          ]
+        },
+        {
+          "glob": "**/workflow-action-pins.txt",
+          "kind": "text",
+          "contains": [
+            "WORKFLOW ACTION PIN GATE: OK"
+          ]
+        },
+        {
+          "glob": "**/config/release/ddl-change-policy.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "allowlist"
+          ]
+        },
+        {
+          "glob": "**/config/release/coverage-baseline.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "maximumRegressionPercentagePoints"
+          ]
+        },
+        {
+          "glob": "**/config/release/dependency-drift-policy.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "allowedChanges"
+          ]
+        },
+        {
+          "glob": "**/config/security/source-sanity-policy.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status"
+          ]
+        },
+        {
+          "glob": "**/json-schema-meta.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/architecture-dependencies.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/config/release/architecture-dependencies.json",
+          "kind": "json",
+          "requiredFields": [
+            "schemaVersion",
+            "status",
+            "projects"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "nuget-lockfiles",
+      "checks": [
+        {
+          "glob": "**/summary.json",
+          "kind": "json",
+          "requiredFields": [
+            "projectCount",
+            "combinedSha256"
+          ],
+          "minimums": {
+            "projectCount": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "unit-test-evidence",
+      "checks": [
+        {
+          "glob": "**/summary.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/coverage-summary.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/coverage.cobertura.xml",
+          "kind": "file"
+        }
+      ]
+    },
+    {
+      "name": "openapi-runtime-evidence",
+      "checks": [
+        {
+          "glob": "**/summary.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/openapi-runtime.trx",
+          "kind": "file"
+        }
+      ]
+    },
+    {
+      "name": "integration-test-evidence",
+      "checks": [
+        {
+          "glob": "**/summary.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        }
+      ]
+    },
+    {
+      "name": "fault-injection-evidence",
+      "checks": [
+        {
+          "glob": "**/summary.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        }
+      ]
+    },
+    {
+      "name": "sbom-cyclonedx",
+      "checks": [
+        {
+          "glob": "**/*.json",
+          "kind": "json",
+          "equals": {
+            "bomFormat": "CycloneDX"
+          }
+        }
+      ]
+    },
+    {
+      "name": "linkage-evaluation-smoke",
+      "checks": [
+        {
+          "glob": "**/evidence-gate-summary.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        }
+      ]
+    },
+    {
+      "name": "ddl-upgrade-evidence",
+      "checks": [
+        {
+          "glob": "**/result.txt",
+          "kind": "text",
+          "contains": [
+            "runtime_smoke=true",
+            "idempotent=true",
+            "schema_marker_exact=true"
+          ]
+        },
+        {
+          "glob": "**/invariant-summary.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        }
+      ]
+    },
+    {
+      "name": "local-e2e-evidence",
+      "checks": [
+        {
+          "glob": "**/evidence.json",
+          "kind": "json",
+          "equals": {
+            "status": "OK",
+            "idempotencyKeyReplaySameEntrega": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "bronze-restore-drill",
+      "checks": [
+        {
+          "glob": "**/report.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS",
+            "sourceVerifyPassed": true,
+            "restoredVerifyPassed": true,
+            "missingObjectDetected": true,
+            "corruptObjectDetected": true,
+            "finalVerifyPassed": true,
+            "deepVerifyPassed": true,
+            "gcDryRunPlanPassed": true
+          }
+        },
+        {
+          "glob": "**/deep-summary.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        }
+      ]
+    },
+    {
+      "name": "scale-harness-smoke",
+      "checks": [
+        {
+          "glob": "**/scale-smoke-validation.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        }
+      ]
+    },
+    {
+      "name": "release-source-provenance",
+      "checks": [
+        {
+          "glob": "**/SOURCE_PROVENANCE.json",
+          "kind": "json",
+          "requiredFields": [
+            "bundleSha256",
+            "current",
+            "predecessor"
+          ]
+        },
+        {
+          "glob": "**/*.bundle",
+          "kind": "file"
+        }
+      ]
+    },
+    {
+      "name": "deterministic-build-evidence",
+      "checks": [
+        {
+          "glob": "**/summary.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/build1.sha256",
+          "kind": "file"
+        },
+        {
+          "glob": "**/build2.sha256",
+          "kind": "file"
+        }
+      ]
+    },
+    {
+      "name": "security-analysis-evidence",
+      "checks": [
+        {
+          "glob": "**/vulnerability-summary.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/sarif-summary.json",
+          "kind": "json",
+          "equals": {
+            "status": "PASS"
+          }
+        },
+        {
+          "glob": "**/source-sanity.txt",
+          "kind": "text",
+          "contains": [
+            "SOURCE SANITY GATE: OK"
+          ]
+        },
+        {
+          "glob": "**/action-pins.txt",
+          "kind": "text",
+          "contains": [
+            "WORKFLOW ACTION PIN GATE: OK"
+          ]
+        }
+      ]
+    }
+  ],
+  "note": "Promoção V5 preserva V4 e acrescenta conformidade OpenAPI em runtime para as 18 operações, meta-validação do catálogo JSON Schema, backward compatibility ampliado e gate de dependências arquiteturais. Analyzers Recommended entram inicialmente sem promoção automática a erro antes do primeiro baseline de compilação."
+}

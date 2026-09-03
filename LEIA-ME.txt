@@ -1,0 +1,185 @@
+Jornada do Cidadão - pacote completo convergente
+
+Base normativa: v3.62
+Solution de engenharia: v3.90
+
+ATUALIZAÇÃO v3.90
+- corrige local-clean.ps1 para não abortar quando .vs/CopilotIndices contém arquivo bloqueado; .vs passa a ser best-effort e a limpeza continua;
+- local-validate-release.ps1 permanece o único validador canônico; local-validate-release-r4.ps1 não integra o pacote;
+- mantém integralmente as correções da v3.89 para banco Integration JornadaIntegrationTest_<guid>;
+- nenhum PackageReference, DDL funcional, Base Normativa ou SolutionSchema foi alterado.
+
+HISTÓRICO v3.89
+- corrige o nome do banco descartável Integration para JornadaIntegrationTest_<guid>, preservando os guards que exigem Test/Dev/Local;
+- incorpora scripts/local-clean.ps1 como limpeza canônica, removendo recursos/saídas locais sem apagar a imagem SQL Server;
+- incorpora scripts/local-validate-release.ps1 como validação canônica com restore --locked-mode explícito de Solution, Unit e Integration, build Release, Unit e Integration;
+- o validador força Testcontainers descartável e não reutiliza connection string residual do shell;
+- local-validate-release-r4.ps1 e variantes temporárias não fazem parte do pacote;
+- evidência v3.88: build Release 0/0, Unit 153/153, build Integration 0/0 e Integration 58 executados (5 PASS / 53 FAIL), com as 53 falhas causadas pelo nome do banco sem Test/Dev/Local;
+- nenhum PackageReference, Base Normativa ou SolutionSchema foi alterado.
+
+ATUALIZAÇÃO v3.88
+- substitui o índice Bronze sobre objeto_chave NVARCHAR(1024), que podia atingir 2048 bytes de chave, por índice em payload_sha256 CHAR(64), mantendo objeto_chave como INCLUDE e sem truncar a coluna;
+- consultas de GC/retenção passam a usar SHA indexado + confirmação de objeto_chave;
+- Integration reduz DOCKER_API_VERSION somente quando o Docker Server anuncia máximo inferior a 1.44, preservando override explícito;
+- evidência externa predecessora: restore locked OK, build Release 0/0, Unit 153/153; Integration bloqueada no setup por API 1.44 vs 1.41;
+- nenhum PackageReference, Base Normativa ou SolutionSchema foi alterado.
+
+ATUALIZAÇÃO v3.87
+- hardening do bootstrap/DDL após execução real: SETs de sessão explícitos, sqlcmd -I e SQL dinâmico via sp_executesql;
+- corrige Msg 1934 (QUOTED_IDENTIFIER) e o padrão que provocou Msg 102 próximo a QUOTENAME;
+- Base Normativa v3.62 e SolutionSchema v3.68 permanecem inalterados.
+
+ATUALIZAÇÃO v3.86
+- corrige o health check do `local-db.ps1` para compatibilidade com Docker Compose que rejeita templates Go customizados em `ps --format`;
+- passa a consumir `docker compose ps --format json` e `ConvertFrom-Json`, com diagnóstico explícito de JSON inválido/unhealthy/saída prematura;
+- preserva integralmente as correções v3.85 de friend assembly e encaminhamento PowerShell;
+- locks NuGet não mudam em relação à v3.85; os dois já pendentes continuam exigindo restore --locked-mode real;
+- Base Normativa v3.62 e SolutionSchema 3.68 permanecem inalterados.
+
+ATUALIZAÇÃO v3.85
+- corrige os 54 CS0122 observados na compilação real da v3.84 adicionando Jornada.Integration.Tests como friend assembly apenas nos três assemblies que expõem internals aos testes;
+- corrige o encaminhamento de argumentos em local-db.ps1, local-backup-restore-drill.ps1 e local-scale.ps1, eliminando o conflito com a variável automática PowerShell $args;
+- local-db.ps1 agora falha cedo quando o Docker Engine não está ativo e diagnostica container ausente/encerrado antes do health check;
+- technical-closure-gate passa a proteger esses dois invariantes;
+- locks NuGet não mudam em relação à v3.84; os dois já marcados como pendentes continuam exigindo restore --locked-mode real;
+- Base Normativa v3.62 e SolutionSchema 3.68 permanecem inalterados.
+
+ATUALIZAÇÃO v3.84
+- completa a separação Unit/Integration: Testcontainers existe somente em Jornada.Integration.Tests;
+- reduz Integration a sete ProjectReference diretos e mantém a matriz de arquitetura exata;
+- corrige FaultInjection no CI/scripts locais para o assembly Integration e local-test para executar ambos os projetos;
+- endurece nuget-lock-gate contra dependência Direct excedente;
+- declara a proveniência dos locks sem afirmar restore inexistente: 12 herdados da v3.83 e 2 derivados por poda de grafo, pendentes de confirmação por restore --locked-mode;
+- Base Normativa v3.62 e SolutionSchema 3.68 permanecem inalterados.
+
+ATUALIZAÇÃO v3.83
+- restaura a estrutura canônica do pacote com `Solution/`, workflow CI e selagem/reprodutibilidade;
+- cria o projeto C# dedicado `Jornada.Integration.Tests` e move para ele a suíte Integration/Testcontainers;
+- inclui `Resumo_Executivo_Especificacao_Tecnica_Jornada_v1.1.docx`;
+- inclui a pasta `Documentos/Projeto_Integracao_Beneficios_Servicos_Sociais/` com ficha DOCX/PDF e apresentação;
+- Base Normativa v3.62 e SolutionSchema 3.68 permanecem inalterados.
+
+Origem e convergência:
+- esta release unifica os fechamentos conhecidos da linha Base v3.61 / Solution v3.66 com a correção mais forte de recomposição Gold da Solution v3.67;
+- o ZIP binário exato da v3.66 não está materializado neste runtime. Por isso não há SHA inventado para ele: as mudanças foram reimplementadas a partir do histórico da conversa e da auditoria detalhada fornecida;
+- a v3.67 reconstruída está materializada e tem SHA-256 bb98c9e0aa25b7e683861af965a5606ad93a70a91168e0efcbd0c1ac18a3cf62;
+- o baseline integral v3.65 está materializado e tem SHA-256 1f4eac25f64fb3072c86e987249c707a0ec099b1ef35d7d99722fd043bd16830.
+
+Fechamentos herdados da v3.68:
+- identidade.sp_recompor_gold_pessoa preserva a solução v3.67: fonte materializada em @src, XACT_ABORT e ownership transacional;
+- EMAIL_CONTATO passa a usar EMAIL_CANONICO_V2, com trim contratado, exatamente um @, lowercase somente ASCII A-Z e nenhuma normalização Unicode implícita; SQL e C# consomem vetores compartilhados;
+- migração de e-mail legado é fail-closed (51087), sem COALESCE silencioso para regra antiga;
+- contratos 51110-51119 possuem cobertura direta preparada; 51114 é validado antes do INSERT em @o para não ser mascarado por PK;
+- /health/ready exige marcadores exatos de schema Base 3.62 / Solution 3.68 e objetos essenciais;
+- atributos MULTI não geram CONFLITO_EVIDENCIA apenas por diferenças textuais que convergem à mesma chave canônica;
+- SBOM deriva Base/Solution de RELEASE_INFO.txt;
+- baseline imediato de upgrade é o DDL/seed v3.65;
+- Modelo Físico v1.39 explicita inventário nominal 53/53 das tabelas do DDL;
+- Especificação v3.62 corrige TELEFONE_CONTATO para TELEFONE_BR_CANONICO_V2 e formaliza EMAIL_CANONICO_V2.
+
+Limites de validação deste ambiente:
+- não há SDK .NET, SQL Server, Docker ou PowerShell disponíveis para executar restore/build/test/integration/upgrade/E2E reais;
+- o empacotamento v3.90 não alega restore local; os 14 locks permanecem byte-a-byte iguais à v3.84. A execução externa v3.87 aceitou restore --locked-mode, mas a promoção formal continua exigindo evidência do pipeline;
+- calibração de linkage, Blocking V2 e parâmetros dependentes de HML/dados reais permanecem externos.
+
+Consulte RELEASE_INFO.txt, RELATORIO_VALIDACAO_ENGENHARIA.txt e Solution/docs/Runbook_Testes_Tecnicos.md.
+
+Fechamento herdado da engenharia v3.69 - continuidade e promocao:
+- predecessor direto v3.68 materializado e verificado por SHA-256;
+- Git bundle auto-contido v3.68 -> v3.69 em Solution/supply-chain/source/;
+- SOURCE_PROVENANCE.json + release-source-gate.py tornam tags/ancestralidade verificaveis;
+- tags de release nao podem regenerar packages.lock.json: locks devem estar versionados e restore roda em --locked-mode;
+- a engineering release v3.69 mantem compatibilidade com o schema funcional Base 3.62 / SolutionSchema 3.68.
+
+Fechamento de engenharia v3.70 - evidência de execução:
+- fault injection em CI produz TRX dedicado e falha se qualquer teste crítico for skipped/não executado;
+- restore SQL+Bronze injeta faults de objeto ausente e corrompido, exige detecção fail-closed e PASS final;
+- scale harness produz JSON validado sem impor thresholds artificiais antes de HML;
+- gate estático Power BI valida 22 páginas PBIR, visuais, TMDL e fontes serving;
+- promoção de tag passa a depender de restore Bronze e scale smoke;
+- technical-closure-gate não exige mais SOURCE_PROVENANCE antes da etapa que a gera.
+
+
+Fechamento de engenharia v3.71 - zero-skip em toda a suíte de release:
+- Unit e Integration completos passam a produzir TRX dedicado e exigir zero skipped/not-executed/inconclusive;
+- FaultInjection mantém evidência separada e a mesma política fail-closed;
+- ausência determinística de contrato Pessoa e massa Bronze deixa de usar Assert.Ignore e passa a falhar a fixture;
+- technical-closure-gate inventaria Assert.Ignore e aceita somente ausência explícita de conexão SQL ou permissão KILL como condições ambientais locais;
+- Base normativa e schema permanecem 3.62 / 3.68.
+
+
+Fechamento de engenharia v3.72 - contratos executáveis de HML:
+- parâmetros HML passam a ter contrato machine-readable com aprovação rastreável por evidência/SHA;
+- desempenho pode ser julgado contra baseline versionado assim que HML o aprovar;
+- blocking V1/V2 candidato e transportabilidade de m ganham evidence gate sem promoção automática;
+- hml-readiness-gate.sh agrega as condições em modo estrito e falha enquanto os dados reais não existirem.
+
+
+Fechamento de engenharia v3.73 - evidência agregada, propriedades e regras governadas:
+- RELEASE_EVIDENCE.json consolida hashes das evidências obrigatórias de promoção;
+- property/fuzz tests determinísticos ampliam CPF, telefone, e-mail e ZIP canônico;
+- replay/invariantes de identidade e concorrência de oito contendores entram na suíte SQL;
+- framework de Possibilidades passa a ter catálogo versionado, gate, loader fail-closed e simulador de impacto; catálogo real permanece PENDENTE/vazio;
+- massa sintética passa a produzir colisões controladas e deslocamentos de nascimento parametrizáveis.
+
+Fechamento de engenharia v3.74 - segurança, compatibilidade e operabilidade verificáveis:
+- matriz machine-readable cobre as 15 rotas /api protegidas e credenciais permitidas;
+- gate de minimização varre logs da Solution e impede interpolação direta de Exception.Message/identificadores sensíveis;
+- compatibilidade N-1/N e invariantes pré/pós-upgrade passam a ser contratos executáveis;
+- Bronze.Verify ganha inventário físico profundo e plano DRY_RUN_ONLY de GC, integrado ao drill de restore;
+- métricas, SLOs e alertas são catalogados; thresholds continuam PENDENTE_HML;
+- aprovações HML expiram por idade e por fingerprint técnico dos componentes/harnesses calibrados.
+
+Atualização de engenharia v3.75:
+- schemas contratuais passam a ter inventário SHA-256 e contrato explícito de aprovação;
+- retenção/DR e política de identidades sem resolução ganham contratos machine-readable, sem valores inventados;
+- scheduler corporativo passa a ter catálogo executável de jobs, mantendo cadência/owner/retry PENDENTE_HML;
+- preflight de ambiente verifica toolchain/configuração mínima por perfil;
+- HML ganha evidência estruturada de Query Store/waits/deadlocks e consulta em lotes 1/10/100/1000, sem PII na evidência;
+- hml-readiness em modo estrito exige esses contratos aprovados além dos gates anteriores.
+
+
+Fechamento de engenharia v3.76 - hardening estático, compatibilidade e supply chain:
+- compatibilidade retroativa de OpenAPI e JSON Schemas é comparada contra a tag predecessora;
+- alterações DDL potencialmente destrutivas exigem allowlist/migração explícita;
+- drift de dependências é governado e ações GitHub ficam pinadas por SHA completo;
+- build passa a ser determinístico e executado em duplicidade no CI para comparação por hash;
+- cobertura passa a produzir evidência Cobertura e ratchet assim que o primeiro baseline for aprovado;
+- CodeQL/SARIF e auditoria NuGet estruturada bloqueiam achados de severidade alta/crítica;
+- a evidência consolidada, o bundle fonte e o SBOM recebem attestation OIDC/Sigstore no workflow de promoção;
+- o runbook de SBOM deixa de forçar uma versão antiga e passa a derivar a versão de RELEASE_INFO.txt.
+
+Fechamento de engenharia v3.77 - runtime de contrato, schemas e arquitetura:
+- as 18 operações OpenAPI ganham suíte runtime dedicada com TRX/zero-skip no CI;
+- backward compatibility passa a cobrir requiredness de parâmetros, schemas, security/scopes, headers, nullable/format e bounds;
+- os 16 JSON Schemas passam por meta-validação Draft 2020-12, $id e $ref;
+- analyzers .NET ficam explicitamente em AnalysisLevel 8.0-recommended, ainda sem promover CAxxxx a erro antes do primeiro baseline real;
+- cleanup best-effort deixa rastro técnico sem mascarar o erro original;
+- matriz de ProjectReference bloqueia acoplamento arquitetural invertido;
+- release evidence é elevada para V5; Base normativa/schema continuam 3.62/3.68.
+
+Fechamento de engenharia v3.78 - primeira consolidação de build real:
+- corrige 13 causas concretas reveladas ao compilar a v3.77 em VS2022/.NET 8.0.424;
+- elimina NU1601 do Bronze.Verify e erros C# confirmados em API, linkage, processor e testes;
+- desambigua WebApplicationFactory por marcador público do assembly Jornada.Api;
+- corrige compatibilidade NUnit 4 e fluxos nullable dos testes já alcançados pelo compilador;
+- não declara build completo como PASS neste ambiente: a v3.78 deve ser compilada no VS2022 para continuar a descoberta por execução;
+- Base normativa e schema persistido permanecem 3.62 / 3.68.
+
+Fechamento de engenharia v3.79 - primeiro ciclo Unit após build real:
+- registra build externo com 0 erros após correção do namespace ForwardedHeadersOptions;
+- registra primeira bateria Unit com 99 total / 95 PASS / 4 FAIL / 0 SKIP, sem distribuir o log bruto da estação;
+- corrige a fixture Production de ingestão com paths temporários absolutos sem relaxar o fail-closed de HML/Produção;
+- corrige o teste de timestamp ZIP para a semântica realmente persistida pelo formato;
+- alinha duas fixtures territoriais ao schema vigente de situacaoGeografia/referenciaMalha;
+- a v3.79 deve repetir build + 99 Unit Tests antes de avançar para OpenAPI runtime/SQL; Base normativa/schema permanecem 3.62/3.68.
+
+Fechamento de engenharia v3.80 - analyzers fail-closed e Unit/OpenAPI runtime sem SQL:
+- a execução externa da v3.79 chegou a 99 total / 98 PASS / 1 FAIL / 0 SKIP; o único failure remanescente era infraestrutura do teste HTTP, não regra de negócio;
+- IApiAuditSink e ISqlReadinessProbe separam a infraestrutura SQL do pipeline HTTP testável;
+- ApiHttpPipelineTests e OpenApiRuntimeConformanceTests substituem auditoria/readiness por doubles em memória e não abrem SQL Server;
+- a fixture Production usa UseSetting para injetar Bronze/Staging absolutos antes do Program top-level;
+- warnings de confiabilidade observados foram corrigidos e CodeAnalysisTreatWarningsAsErrors passa a true;
+- exceções de analyzer puramente estilísticas/micro-otimização ficam explícitas e justificadas em Solution/.editorconfig e docs/Analyzer_Policy_v3.80.md;
+- Integration/FaultInjection continuam deliberadamente em SQL Server real; Base normativa/schema permanecem 3.62/3.68.

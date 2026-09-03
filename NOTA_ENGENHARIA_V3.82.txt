@@ -1,0 +1,27 @@
+﻿Jornada do Cidadão - Fase 1
+Base Normativa: v3.62
+Solution Engenharia: v3.82
+Data: 2026-09-02
+
+Origem: checkout da Solution Engenharia v3.81 + documentacao preservada do pacote v3.81 quando disponivel + infraestrutura Integration/Testcontainers.
+
+Estado da engenharia na v3.82:
+- Build: ENCERRADO;
+- Unit: ENCERRADO (99/99 no último ciclo registrado);
+- Integration: NAO EXECUTADO AINDA;
+- próxima fronteira: SQL Server isolado + suíte Integration real.
+
+Mudanças v3.82:
+- Testcontainers.MsSql 4.14.0;
+- SQL Server 2022 CU26 fixado por digest;
+- banco JornadaIntegration_<guid> exclusivo por execução;
+- Pooling=false;
+- preservação de SQL externo;
+- opt-out explícito para banco externo já provisionado;
+- serialização contra concorrência acidental do runner;
+- smoke tests de engine, rollback, CHECK e locks;
+- Resumo Executivo e documentação de Integration em Documentos/.
+
+A geração do pacote NÃO executa Integration por padrão. Isso é deliberado:
+a infraestrutura é incorporada primeiro; a próxima atividade técnica é executar
+TestCategory=Integration contra SQL Server real e tratar os achados.

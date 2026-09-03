@@ -1,0 +1,24 @@
+{
+  "gestor": "SEHAB",
+  "codigo": "AA01",
+  "versao": 1,
+  "status": "ATIVA",
+  "regrasTexto": "Regras sintéticas de desenvolvimento.",
+  "qcStatus": "IMPLEMENTADO",
+  "tipoMedida": "MONETARIO",
+  "natureza": "BENEFICIO",
+  "qcImplementationVersion": "AA01.QC.v1",
+  "qcRule": "VALOR_CONCEDIDO_POSITIVO_V1",
+  "fatoFase1": "BENEFICIO_CONCEDIDO",
+  "chaveRegistroOrigemObrigatoria": true,
+  "operacoesRegistro": [
+    "INCLUSAO",
+    "ALTERACAO",
+    "RETIFICACAO",
+    "EXCLUSAO"
+  ],
+  "versionamento": "INTERNO_JORNADA_POR_HASH_CANONICO",
+  "regimeVigencia": "PRAZO_INDETERMINADO",
+  "dataInicioPermitidaConcessao": null,
+  "dataFimPermitidaConcessao": null
+}

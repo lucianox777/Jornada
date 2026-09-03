@@ -1,0 +1,14 @@
+NOTA DE ENGENHARIA — v3.85
+
+Correção orientada por execução real da v3.84.
+
+1. FRIEND ASSEMBLY
+A separação física dos testes de integração criou um novo assembly, Jornada.Integration.Tests, mas três assemblies de produção ainda expunham internals apenas a Jornada.Tests. A compilação real revelou 54 erros CS0122 em tipos e métodos internos. A v3.85 adiciona o novo friend assembly sem ampliar a API pública.
+
+2. POWERSHELL / DOCKER
+Os helpers locais usavam $Args como nome de parâmetro. Em PowerShell, $args é variável automática e o encaminhamento de argumentos foi perdido, fazendo docker compose ser chamado sem o subcomando up e levando, em seguida, a "No such object: jornada-sqlserver-local". A v3.85 usa parâmetros explícitos ComposeArgs/SqlCmdArgs e chamadas nomeadas.
+
+3. HARDENING
+local-db.ps1 verifica Docker Engine antes de operar, usa docker compose ps para acompanhar health e mostra logs em saída prematura/timeout. O mesmo padrão de parâmetro foi corrigido em backup/restore drill e scale harness. technical-closure-gate bloqueia a regressão dos friend assemblies e do padrão [string[]]$Args.
+
+Não há alteração de Base Normativa, schema, contrato público ou dependências NuGet.

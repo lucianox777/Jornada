@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "status": "VIGENTE",
+  "forbiddenLogIdentifiers": [
+    "cpf",
+    "email",
+    "telefone",
+    "phone",
+    "accesskey",
+    "access_key",
+    "authorization",
+    "token",
+    "senha",
+    "password",
+    "body",
+    "headers"
+  ],
+  "allowedLoggerSourceFragments": [
+    "CorrelationId",
+    "AuditPersistenceMs",
+    "Quantidade",
+    "temporário",
+    "Falha no ciclo",
+    "LostToken"
+  ],
+  "sensitiveHeaders": [
+    "X-Jornada-Access-Key",
+    "X-Jornada-Agente-CPF",
+    "Authorization"
+  ],
+  "note": "Gate estático impede que valores sensíveis sejam interpolados em ILogger. O CPF de agente deve ser removido dos headers e persistido somente como hash."
+}

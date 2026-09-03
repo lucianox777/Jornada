@@ -1,0 +1,59 @@
+table Territorializacao
+
+	measure 'Pessoas Observacao' = SUM(Territorializacao[pessoas_observacao])
+		formatString: #,##0
+
+	measure 'Pessoas Resolvidas' = CALCULATE(SUM(Territorializacao[pessoas_observacao]), Territorializacao[situacao_geografia] = "RESOLVIDA")
+		formatString: #,##0
+
+	measure 'Cobertura Territorial Resolvida' = DIVIDE([Pessoas Resolvidas],[Pessoas Observacao])
+		formatString: 0.0%
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column source_as_of
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: source_as_of
+
+	column natureza_referencia_territorial
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza_referencia_territorial
+
+	column situacao_geografia
+		dataType: string
+		summarizeBy: none
+		sourceColumn: situacao_geografia
+
+	column referencia_malha
+		dataType: string
+		summarizeBy: none
+		sourceColumn: referencia_malha
+
+	column subprefeitura
+		dataType: string
+		summarizeBy: none
+		sourceColumn: subprefeitura
+
+	column distrito
+		dataType: string
+		summarizeBy: none
+		sourceColumn: distrito
+
+	column pessoas_observacao
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: pessoas_observacao
+
+	partition Territorializacao = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_territorializacao"]}[Data]
+			in
+				Data

@@ -1,0 +1,23 @@
+JORNADA FASE 1 — RELEASE DE ENGENHARIA v3.88
+
+Base Normativa: v3.62
+SolutionSchema: v3.68
+Solution Engenharia: v3.88
+Predecessora Git: v3.87
+
+Mudanças v3.88:
+- substitui IX_bronze_entrega_arquivo_objeto_chave (chave NVARCHAR(1024), máximo teórico 2048 bytes) por IX_bronze_entrega_arquivo_payload_sha256 sobre CHAR(64);
+- objeto_chave permanece NVARCHAR(1024) e passa a ser INCLUDE; nenhuma informação é truncada;
+- consultas de proteção contra expurgo usam payload_sha256 + objeto_chave, preservando confirmação exata;
+- fixture Integration negocia para baixo DOCKER_API_VERSION apenas quando o Docker Server anuncia máximo inferior a 1.44 e o operador não definiu override;
+- technical-closure-gate bloqueia reintrodução do índice largo e ausência da proteção Docker API;
+- nenhum PackageReference foi alterado.
+
+Evidência externa da v3.87:
+- bootstrap SQL local: OK, com warning do índice agora corrigido;
+- restore --locked-mode: OK;
+- build Release -warnaserror: OK, 0 warnings, 0 errors;
+- Unit: 153/153 PASS;
+- Integration: 58/58 bloqueados no OneTimeSetUp por API Docker 1.44 > servidor 1.41; não houve execução funcional dos casos.
+
+A v3.88 não declara Integration/runtime aprovado até nova execução real.

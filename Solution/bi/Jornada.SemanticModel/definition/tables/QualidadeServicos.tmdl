@@ -1,0 +1,161 @@
+table QualidadeServicos
+
+	measure 'Registros' = COUNTROWS(QualidadeServicos)
+		formatString: #,##0
+
+	measure 'Entrega Completa %' = DIVIDE(SUM(QualidadeServicos[entrega_completa]),COUNTROWS(QualidadeServicos))
+		formatString: 0.0%
+
+	measure 'Geografia %' = DIVIDE(SUM(QualidadeServicos[geografia_preenchida]),COUNTROWS(QualidadeServicos))
+		formatString: 0.0%
+
+	measure 'Data Hora Preenchida %' = DIVIDE(SUM(QualidadeServicos[data_hora_preenchida]),COUNTROWS(QualidadeServicos))
+		formatString: 0.0%
+
+	measure 'Unidade Preenchida %' = DIVIDE(SUM(QualidadeServicos[unidade_servico_preenchida]),COUNTROWS(QualidadeServicos))
+		formatString: 0.0%
+
+	measure 'Situacao Preenchida %' = DIVIDE(SUM(QualidadeServicos[situacao_preenchida]),COUNTROWS(QualidadeServicos))
+		formatString: 0.0%
+
+	measure 'QC Implementado %' = DIVIDE(SUM(QualidadeServicos[qc_implementado]),COUNTROWS(QualidadeServicos))
+		formatString: 0.0%
+
+	measure 'QC Valido %' = DIVIDE(SUM(QualidadeServicos[qc_valido]),COUNTROWS(QualidadeServicos))
+		formatString: 0.0%
+
+	measure 'QC Divergente %' = DIVIDE(SUM(QualidadeServicos[qc_divergente]),COUNTROWS(QualidadeServicos))
+		formatString: 0.0%
+
+	measure 'QC Nao Verificavel %' = DIVIDE(SUM(QualidadeServicos[qc_nao_verificavel]),COUNTROWS(QualidadeServicos))
+		formatString: 0.0%
+
+	measure 'Com Versionamento %' = DIVIDE(SUM(QualidadeServicos[possui_versionamento]),COUNTROWS(QualidadeServicos))
+		formatString: 0.0%
+
+	measure 'Retificacao Vigente %' = DIVIDE(SUM(QualidadeServicos[retificacao_vigente]),COUNTROWS(QualidadeServicos))
+		formatString: 0.0%
+
+	column registro_observacao_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: registro_observacao_id
+
+	column registro_origem_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: registro_origem_id
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column servico
+		dataType: string
+		summarizeBy: none
+		sourceColumn: servico
+
+	column nome_servico
+		dataType: string
+		summarizeBy: none
+		sourceColumn: nome_servico
+
+	column source_as_of
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: source_as_of
+
+	column subprefeitura
+		dataType: string
+		summarizeBy: none
+		sourceColumn: subprefeitura
+
+	column distrito
+		dataType: string
+		summarizeBy: none
+		sourceColumn: distrito
+
+	column versao_interna
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: versao_interna
+
+	column operacao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: operacao
+
+	column entrega_completa
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: entrega_completa
+
+	column geografia_preenchida
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: geografia_preenchida
+
+	column data_hora_preenchida
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: data_hora_preenchida
+
+	column unidade_servico_preenchida
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: unidade_servico_preenchida
+
+	column situacao_preenchida
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: situacao_preenchida
+
+	column qc_implementado
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: qc_implementado
+
+	column qc_valido
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: qc_valido
+
+	column qc_divergente
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: qc_divergente
+
+	column qc_nao_verificavel
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: qc_nao_verificavel
+
+	column qtd_regras_qc
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: qtd_regras_qc
+
+	column possui_versionamento
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: possui_versionamento
+
+	column retificacao_vigente
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: retificacao_vigente
+
+	column natureza_referencia_territorial
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza_referencia_territorial
+
+	partition QualidadeServicos = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_qualidade_servicos_prestados"]}[Data]
+			in
+				Data

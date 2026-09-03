@@ -1,0 +1,26 @@
+Jornada Fase 1 — Nota de Engenharia v3.78
+Base normativa: v3.62
+Solution Engenharia: v3.78
+Schema persistido esperado: Base 3.62 / SolutionSchema 3.68
+
+Release de consolidação dos primeiros defeitos concretos descobertos por compilação real da v3.77 em Visual Studio 2022 com .NET SDK 8.0.424.
+Não altera DDL funcional nem regra normativa. Não declara build v3.78 como PASS neste ambiente, pois o container de montagem não possui .NET.
+
+Correções consolidadas:
+1. Jornada.Bronze.Verify: Microsoft.Extensions.Configuration.EnvironmentVariables 8.0.1 -> 8.0.0, evitando NU1601/resolução indevida para 9.0.0.
+2. PossibilityRules: corrige overload inválido de StartsWith com char + StringComparison; usa StartsWith('/') e elimina também CA1865.
+3. Jornada.Api Program: adiciona using Microsoft.Data.SqlClient para os handlers de SqlException.
+4. LinkageParametersWorker: amostra m persiste matchedPairs.Count em vez da variável inexistente matchedSampleSize.
+5. SqlProbabilisticIdentityLinkage: margin passa a ser explicitamente decimal? para o ramo null/decimal.
+6. ProcessorWorker: classe passa a internal, coerente com dependências internas e registro no mesmo assembly.
+7. IngestionProcessor: remove variável ex não utilizada de InvalidDataException sem reintroduzir Exception.Message em log.
+8. CanonicalJsonHashTests: corrige raw string multilinha do teste de hash de pessoa.
+9. PossibilityRuleEngineTests: corrige interpolated raw string com $$$ e {{{sha}}}.
+10. Testes HTTP/OpenAPI: adiciona ApiEntryPointMarker no assembly Jornada.Api e usa WebApplicationFactory<ApiEntryPointMarker>, removendo ambiguidade entre os dois tipos top-level Program.
+11. ProcessorRepositoryTests: torna explícita a prova de não-null após Assert.That por reservedBatch = batch! nos dois cenários apontados pelo compilador.
+12. IngestionContractTests: valida Path.GetFileName antes de usá-lo como chave notnull de Dictionary.
+13. SqlGovernanceArtifactTests: importa NUnit.Framework.Legacy para StringAssert no NUnit 4.2.2.
+
+A correção manual transitória `new new WebApplicationFactory<...>` vista durante a sessão não pertence à v3.77 e, portanto, não é contada como defeito de release; a v3.78 contém diretamente a forma correta.
+
+Próximo passo obrigatório após instalar/substituir pela v3.78: executar `dotnet restore Jornada.sln --use-lock-file` (se locks ainda não existirem) e `dotnet build Jornada.sln` no VS2022/.NET 8.0.424. Novos erros reais devem ser registrados antes de seguir para testes.

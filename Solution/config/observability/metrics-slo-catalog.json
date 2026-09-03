@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "status": "PENDENTE_HML",
+  "baseNormativa": "3.62",
+  "solutionSchema": "3.68",
+  "note": "A presença, nomes e dimensões das métricas são contratos técnicos; thresholds, SLOs e condições de alerta permanecem PENDENTE até HML.",
+  "metrics": [
+    {
+      "id": "jornada.api.request.duration",
+      "component": "API",
+      "kind": "histogram",
+      "unit": "ms",
+      "requiredDimensions": [
+        "route",
+        "method",
+        "statusClass"
+      ],
+      "thresholdStatus": "PENDENTE"
+    },
+    {
+      "id": "jornada.api.audit.persistence.duration",
+      "component": "API",
+      "kind": "histogram",
+      "unit": "ms",
+      "requiredDimensions": [],
+      "thresholdStatus": "PENDENTE"
+    },
+    {
+      "id": "jornada.bronze.maintenance.scanned",
+      "component": "BronzeMaintenance",
+      "kind": "counter",
+      "unit": "objects",
+      "requiredDimensions": [],
+      "thresholdStatus": "PENDENTE"
+    },
+    {
+      "id": "jornada.bronze.maintenance.deleted",
+      "component": "BronzeMaintenance",
+      "kind": "counter",
+      "unit": "objects",
+      "requiredDimensions": [],
+      "thresholdStatus": "PENDENTE"
+    },
+    {
+      "id": "jornada.bronze.maintenance.lock_miss",
+      "component": "BronzeMaintenance",
+      "kind": "counter",
+      "unit": "objects",
+      "requiredDimensions": [],
+      "thresholdStatus": "PENDENTE"
+    },
+    {
+      "id": "jornada.bronze.maintenance.storage_error",
+      "component": "BronzeMaintenance",
+      "kind": "counter",
+      "unit": "errors",
+      "requiredDimensions": [],
+      "thresholdStatus": "PENDENTE"
+    },
+    {
+      "id": "jornada.processor.delivery.duration",
+      "component": "Processor",
+      "kind": "histogram",
+      "unit": "ms",
+      "requiredDimensions": [
+        "result"
+      ],
+      "thresholdStatus": "PENDENTE"
+    },
+    {
+      "id": "jornada.pipeline.lost_token",
+      "component": "PipelineCoordination",
+      "kind": "counter",
+      "unit": "events",
+      "requiredDimensions": [
+        "operation"
+      ],
+      "thresholdStatus": "PENDENTE"
+    },
+    {
+      "id": "jornada.linkage.run.duration",
+      "component": "LinkageRunner",
+      "kind": "histogram",
+      "unit": "ms",
+      "requiredDimensions": [
+        "mode"
+      ],
+      "thresholdStatus": "PENDENTE"
+    },
+    {
+      "id": "jornada.identity.pending.age",
+      "component": "Identity",
+      "kind": "histogram",
+      "unit": "minutes",
+      "requiredDimensions": [
+        "state"
+      ],
+      "thresholdStatus": "PENDENTE"
+    }
+  ],
+  "slos": [
+    {
+      "id": "API_AVAILABILITY",
+      "metric": "jornada.api.request.duration",
+      "status": "PENDENTE",
+      "objective": null,
+      "window": null,
+      "approvedAtUtc": null,
+      "approvedBy": null,
+      "evidence": null
+    },
+    {
+      "id": "PROCESSOR_LATENCY",
+      "metric": "jornada.processor.delivery.duration",
+      "status": "PENDENTE",
+      "objective": null,
+      "window": null,
+      "approvedAtUtc": null,
+      "approvedBy": null,
+      "evidence": null
+    },
+    {
+      "id": "IDENTITY_PENDING_AGE",
+      "metric": "jornada.identity.pending.age",
+      "status": "PENDENTE",
+      "objective": null,
+      "window": null,
+      "approvedAtUtc": null,
+      "approvedBy": null,
+      "evidence": null
+    }
+  ],
+  "alerts": [
+    {
+      "id": "BRONZE_STORAGE_ERRORS",
+      "metric": "jornada.bronze.maintenance.storage_error",
+      "status": "PENDENTE",
+      "severity": "CRITICAL",
+      "condition": null,
+      "window": null,
+      "approvedAtUtc": null,
+      "approvedBy": null,
+      "evidence": null
+    },
+    {
+      "id": "PIPELINE_LOST_TOKEN",
+      "metric": "jornada.pipeline.lost_token",
+      "status": "PENDENTE",
+      "severity": "CRITICAL",
+      "condition": null,
+      "window": null,
+      "approvedAtUtc": null,
+      "approvedBy": null,
+      "evidence": null
+    },
+    {
+      "id": "API_DEGRADATION",
+      "metric": "jornada.api.request.duration",
+      "status": "PENDENTE",
+      "severity": "WARNING",
+      "condition": null,
+      "window": null,
+      "approvedAtUtc": null,
+      "approvedBy": null,
+      "evidence": null
+    },
+    {
+      "id": "IDENTITY_PENDING_AGING",
+      "metric": "jornada.identity.pending.age",
+      "status": "PENDENTE",
+      "severity": "WARNING",
+      "condition": null,
+      "window": null,
+      "approvedAtUtc": null,
+      "approvedBy": null,
+      "evidence": null
+    }
+  ]
+}

@@ -1,0 +1,161 @@
+{
+  "environment": "Development",
+  "generatedAt": "2026-08-28T21:51:00-03:00",
+  "warning": "SOMENTE DESENVOLVIMENTO/TESTE. Chaves sintéticas pré-geradas; a API recusa este arquivo fora de Development.",
+  "credentials": [
+    {
+      "credentialId": "11111111-1111-4111-8111-111111111113",
+      "type": "BENEFICIO",
+      "publicCode": "AA01",
+      "gestorCodigo": "SEHAB",
+      "tipoCodigo": "AA01",
+      "accessKey": "t6pXwhOWz1ztpZp5gXULtDkAHFRz3G7MdpBft49XXPk",
+      "scopes": [
+        "jornada.pessoas.read"
+      ],
+      "authorizedResourceCodes": [
+        "AA01"
+      ]
+    },
+    {
+      "credentialId": "11111111-1111-4111-8111-111111111117",
+      "type": "BENEFICIO",
+      "publicCode": "AR01",
+      "gestorCodigo": "SMADS",
+      "tipoCodigo": "AR01",
+      "accessKey": "8Q772L2gctHvrCO-y9e_ZL8hlgr9d0UqixGS7vQ-Msg",
+      "scopes": [
+        "jornada.pessoas.read"
+      ],
+      "authorizedResourceCodes": [
+        "AR01"
+      ]
+    },
+    {
+      "credentialId": "11111111-1111-4111-8111-111111111118",
+      "type": "BENEFICIO",
+      "publicCode": "POT1",
+      "gestorCodigo": "SMDET",
+      "tipoCodigo": "POT1",
+      "accessKey": "1aPLC5UnjFc4JYW3n9W8jgH_qXrfNJUsKkWqeUc2tbk",
+      "scopes": [
+        "jornada.pessoas.read"
+      ],
+      "authorizedResourceCodes": [
+        "POT1"
+      ]
+    },
+    {
+      "credentialId": "11111111-1111-4111-8111-111111111119",
+      "type": "SERVICO",
+      "publicCode": "CPO1",
+      "gestorCodigo": "SMADS",
+      "tipoCodigo": "CPO1",
+      "accessKey": "sSyoFOp66x_bRWJFK_-TR-aG7B5PVJi5qQR3byD3Z80",
+      "scopes": [
+        "jornada.pessoas.read"
+      ],
+      "authorizedResourceCodes": [
+        "CPO1"
+      ]
+    },
+    {
+      "credentialId": "11111111-1111-4111-8111-111111111114",
+      "type": "SERVICO",
+      "publicCode": "CRA1",
+      "gestorCodigo": "SMADS",
+      "tipoCodigo": "CRA1",
+      "accessKey": "eQTCG1VDUIwFi7_mEbF5nNLQIwkNmiCkqy_iNa6I8Dc",
+      "scopes": [
+        "jornada.pessoas.read"
+      ],
+      "authorizedResourceCodes": [
+        "CRA1"
+      ]
+    },
+    {
+      "credentialId": "11111111-1111-4111-8111-111111111111",
+      "type": "GESTOR",
+      "publicCode": "SEHAB",
+      "gestorCodigo": "SEHAB",
+      "tipoCodigo": null,
+      "accessKey": "KcUBZuLvRCu0lKN6xmXdjGKhPTgluG1Wu0sFB36lvTY",
+      "scopes": [
+        "jornada.identidade.resolve",
+        "jornada.ingestao.write",
+        "jornada.ingestao.status",
+        "jornada.pessoas.read",
+        "jornada.registros.read",
+        "jornada.possibilidades.read",
+        "jornada.identidade.conflitos.read",
+        "jornada.identidade.corrigir"
+      ],
+      "authorizedResourceCodes": [
+        "AA01"
+      ]
+    },
+    {
+      "credentialId": "11111111-1111-4111-8111-111111111112",
+      "type": "GESTOR",
+      "publicCode": "SMADS",
+      "gestorCodigo": "SMADS",
+      "tipoCodigo": null,
+      "accessKey": "ZMsqKXKIkzdEWbIikg_yHZQ0WQlVmoc9meYsD0k9lBI",
+      "scopes": [
+        "jornada.identidade.resolve",
+        "jornada.ingestao.write",
+        "jornada.ingestao.status",
+        "jornada.pessoas.read",
+        "jornada.registros.read",
+        "jornada.possibilidades.read",
+        "jornada.identidade.conflitos.read",
+        "jornada.identidade.corrigir"
+      ],
+      "authorizedResourceCodes": [
+        "AR01",
+        "CPO1",
+        "CRA1"
+      ]
+    },
+    {
+      "credentialId": "11111111-1111-4111-8111-111111111116",
+      "type": "GESTOR",
+      "publicCode": "SMDET",
+      "gestorCodigo": "SMDET",
+      "tipoCodigo": null,
+      "accessKey": "k3CB3Yc4JBENNVHhW3onAeFhv8ys0RotzIJcBoY0E98",
+      "scopes": [
+        "jornada.identidade.resolve",
+        "jornada.ingestao.write",
+        "jornada.ingestao.status",
+        "jornada.pessoas.read",
+        "jornada.registros.read",
+        "jornada.possibilidades.read",
+        "jornada.identidade.conflitos.read",
+        "jornada.identidade.corrigir"
+      ],
+      "authorizedResourceCodes": [
+        "POT1"
+      ]
+    },
+    {
+      "credentialId": "11111111-1111-4111-8111-111111111115",
+      "type": "GESTOR",
+      "publicCode": "SMS",
+      "gestorCodigo": "SMS",
+      "tipoCodigo": null,
+      "accessKey": "pcMhABQoEIsXGq4WjWg69ybRwpC77OQj6px0J0paw2s",
+      "scopes": [
+        "jornada.identidade.resolve",
+        "jornada.ingestao.write",
+        "jornada.ingestao.status",
+        "jornada.pessoas.read",
+        "jornada.registros.read",
+        "jornada.possibilidades.read",
+        "jornada.identidade.conflitos.read",
+        "jornada.identidade.corrigir"
+      ],
+      "authorizedResourceCodes": []
+    }
+  ]
+}

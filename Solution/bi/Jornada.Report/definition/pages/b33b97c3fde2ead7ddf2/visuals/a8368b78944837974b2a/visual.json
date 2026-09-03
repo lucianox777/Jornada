@@ -1,0 +1,55 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "a8368b78944837974b2a",
+  "position": {
+    "x": 60,
+    "y": 220,
+    "z": 9000,
+    "height": 430,
+    "width": 1160,
+    "tabOrder": 9000
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Linkage"
+                    }
+                  },
+                  "Property": "gestor"
+                }
+              },
+              "queryRef": "Linkage.gestor",
+              "nativeQueryRef": "gestor"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Linkage"
+                    }
+                  },
+                  "Property": "Cobertura UUID"
+                }
+              },
+              "queryRef": "Linkage.Cobertura UUID",
+              "nativeQueryRef": "Cobertura UUID"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

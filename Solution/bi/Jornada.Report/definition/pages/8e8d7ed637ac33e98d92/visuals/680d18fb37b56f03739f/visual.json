@@ -1,0 +1,55 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "680d18fb37b56f03739f",
+  "position": {
+    "x": 60,
+    "y": 220,
+    "z": 9000,
+    "height": 430,
+    "width": 1160,
+    "tabOrder": 9000
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "PendenciasIdentidade"
+                    }
+                  },
+                  "Property": "gestor"
+                }
+              },
+              "queryRef": "PendenciasIdentidade.gestor",
+              "nativeQueryRef": "gestor"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "PendenciasIdentidade"
+                    }
+                  },
+                  "Property": "Pendências"
+                }
+              },
+              "queryRef": "PendenciasIdentidade.Pendências",
+              "nativeQueryRef": "Pendências"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

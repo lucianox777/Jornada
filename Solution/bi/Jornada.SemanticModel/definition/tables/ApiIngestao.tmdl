@@ -1,0 +1,78 @@
+table ApiIngestao
+
+	measure 'Requisições API' = COUNTROWS(ApiIngestao)
+		formatString: #,##0
+
+	measure 'Requisições API - últimos 10 min' = CALCULATE(COUNTROWS(ApiIngestao), ApiIngestao[ocorrido_em] >= NOW() - TIME(0,10,0))
+		formatString: #,##0
+
+	measure 'Erros API' = SUM(ApiIngestao[erro])
+		formatString: #,##0
+
+	measure 'Latência Média ms' = AVERAGE(ApiIngestao[duracao_ms])
+		formatString: #,##0
+
+	measure 'Pessoas Consultadas' = SUM(ApiIngestao[qtd_pessoas])
+		formatString: #,##0
+
+
+
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column rota
+		dataType: string
+		summarizeBy: none
+		sourceColumn: rota
+
+	column metodo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: metodo
+
+	column status_http
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: status_http
+
+	column duracao_ms
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: duracao_ms
+
+	column bytes_recebidos
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: bytes_recebidos
+
+	column recurso_codigo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: recurso_codigo
+
+	column qtd_pessoas
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: qtd_pessoas
+
+	column ocorrido_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: ocorrido_em
+
+	column erro
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: erro
+
+	partition ApiIngestao = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_api"]}[Data]
+			in
+				Data

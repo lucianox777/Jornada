@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "94ec1fe8c1a6609673b1",
+  "position": {
+    "x": 30,
+    "y": 40,
+    "z": 1000,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 1000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "PendenciasIdentidade"
+                    }
+                  },
+                  "Property": "Pendências"
+                }
+              },
+              "queryRef": "PendenciasIdentidade.Pendências",
+              "nativeQueryRef": "Pendências"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Pendências'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

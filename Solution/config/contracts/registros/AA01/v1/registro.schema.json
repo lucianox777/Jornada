@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "codigoPessoaOrigem",
+    "codigoRegistroOrigem",
+    "operacao",
+    "dataInicioConcessao",
+    "valorConcedido"
+  ],
+  "properties": {
+    "codigoPessoaOrigem": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "codigoRegistroOrigem": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "operacao": {
+      "type": "string",
+      "enum": [
+        "INCLUSAO",
+        "ALTERACAO",
+        "RETIFICACAO",
+        "EXCLUSAO"
+      ]
+    },
+    "dataInicioConcessao": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "dataFimConcessao": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "dataEventoConcessao": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "situacao": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 80
+    },
+    "valorConcedido": {
+      "type": [
+        "number",
+        "null"
+      ]
+    }
+  },
+  "$id": "https://jornada.pmspsp.local/contracts/registros/AA01/v1/registro.schema.json",
+  "additionalProperties": false
+}

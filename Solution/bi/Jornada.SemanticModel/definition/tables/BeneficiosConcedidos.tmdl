@@ -1,0 +1,182 @@
+table BeneficiosConcedidos
+
+	measure 'Benefícios Concedidos' = COUNTROWS(BeneficiosConcedidos)
+		formatString: #,##0
+
+	measure 'Benefícios pendentes/conflitantes' = CALCULATE(COUNTROWS(BeneficiosConcedidos),BeneficiosConcedidos[estado_atribuicao_identidade]<>"ATRIBUIDA")
+		formatString: #,##0
+
+	measure 'Valor pendente/conflitante' = CALCULATE(SUM(BeneficiosConcedidos[valor_concedido]),BeneficiosConcedidos[estado_atribuicao_identidade]<>"ATRIBUIDA")
+		formatString: R$ #,##0.00
+
+	measure 'Aviso Fatos e Pessoas' = "Fatos contabilizam todas as ocorrências vigentes declaradas pelos Gestores. Indicadores de Pessoas consideram somente fatos com identidade canônica atribuída."
+
+	measure 'Aviso Monetário' = "Não representa pagamento ocorrido, despesa orçamentária ou desembolso. Fatos incluem ocorrências pendentes/conflitantes de identidade; indicadores de Pessoas usam somente fatos atribuídos."
+
+	measure 'Tipos de Benefício' = DISTINCTCOUNT(BeneficiosConcedidos[beneficio])
+		formatString: #,##0
+
+	measure 'Gestores' = DISTINCTCOUNT(BeneficiosConcedidos[gestor])
+		formatString: #,##0
+
+	measure 'Soma Valores Concedidos' = SUM(BeneficiosConcedidos[valor_concedido])
+		formatString: R$ #,##0.00
+
+	column beneficio_observacao_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: beneficio_observacao_id
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column beneficio
+		dataType: string
+		summarizeBy: none
+		sourceColumn: beneficio
+
+	column nome_beneficio
+		dataType: string
+		summarizeBy: none
+		sourceColumn: nome_beneficio
+
+	column tipo_medida
+		dataType: string
+		summarizeBy: none
+		sourceColumn: tipo_medida
+
+	column regime_vigencia
+		dataType: string
+		summarizeBy: none
+		sourceColumn: regime_vigencia
+
+	column data_inicio_permitida_concessao
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_inicio_permitida_concessao
+
+	column data_fim_permitida_concessao
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_fim_permitida_concessao
+
+	column estado_atribuicao_identidade
+		dataType: string
+		summarizeBy: none
+		sourceColumn: estado_atribuicao_identidade
+
+	column data_inicio_concessao
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_inicio_concessao
+
+	column data_fim_concessao
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_fim_concessao
+
+	column data_evento_concessao
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_evento_concessao
+
+	column valor_concedido
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: valor_concedido
+
+	column quantidade
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: quantidade
+
+	column unidade_medida
+		dataType: string
+		summarizeBy: none
+		sourceColumn: unidade_medida
+
+	column source_as_of
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: source_as_of
+
+	column subprefeitura
+		dataType: string
+		summarizeBy: none
+		sourceColumn: subprefeitura
+
+	column distrito
+		dataType: string
+		summarizeBy: none
+		sourceColumn: distrito
+
+	column entrega_completa
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: entrega_completa
+
+	column qc_resultado
+		dataType: string
+		summarizeBy: none
+		sourceColumn: qc_resultado
+
+	column qc_especifico_implementado
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: qc_especifico_implementado
+
+	column registro_origem_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: registro_origem_id
+
+	column codigo_registro_origem
+		dataType: string
+		summarizeBy: none
+		sourceColumn: codigo_registro_origem
+
+	column versao_interna
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: versao_interna
+
+	column operacao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: operacao
+
+	column status_analitico
+		dataType: string
+		summarizeBy: none
+		sourceColumn: status_analitico
+
+	column vigencia_versao_inicio
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: vigencia_versao_inicio
+
+	column vigencia_versao_fim
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: vigencia_versao_fim
+
+	column natureza_referencia_territorial
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza_referencia_territorial
+
+	column referencia_territorial_observacao_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: referencia_territorial_observacao_id
+
+	partition BeneficiosConcedidos = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_beneficios_concedidos"]}[Data]
+			in
+				Data

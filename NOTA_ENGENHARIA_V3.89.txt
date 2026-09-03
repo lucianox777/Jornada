@@ -1,0 +1,18 @@
+NOTA DE ENGENHARIA — v3.89
+
+Escopo: correção de isolamento da suíte Integration e incorporação dos scripts locais canônicos de limpeza/validação, sem mudança da Base Normativa v3.62 ou do SolutionSchema v3.68.
+
+1. Achado runtime da v3.88
+A correção de compatibilidade Docker API da v3.88 funcionou o suficiente para a suíte Integration criar a infraestrutura e iniciar 58 casos. Cinco passaram. Os outros 53 falharam pelo mesmo guard de segurança: os testes só aceitam banco cujo nome contenha Test, Dev ou Local, mas a fixture criava JornadaIntegration_<guid>.
+
+2. Correção
+O banco descartável passa a ser JornadaIntegrationTest_<guid>. O guard não é relaxado nem removido; a correção alinha o nome gerado pela própria fixture com a política fail-closed já existente.
+
+3. Limpeza canônica
+scripts/local-clean.ps1 passa a ser artefato oficial. Remove recursos Docker da Jornada, volume SQL local, configuração .env, evidências e outputs locais, bin/obj e Bronze local, sem remover a imagem do SQL Server. Também remove somente variantes temporárias conhecidas do validador.
+
+4. Validação canônica
+scripts/local-validate-release.ps1 passa a ser artefato oficial. Após limpeza completa, executa restores explícitos em --locked-mode para Solution, Unit e Integration, compila Release com warnings como erro, verifica as DLLs, executa Unit, valida Docker e executa Integration em banco Testcontainers descartável.
+
+5. Garantia
+O ambiente de empacotamento não possui .NET, Docker, PowerShell ou SQL Server. A v3.89 passa apenas validações estáticas locais deste empacotamento e permanece pendente de reexecução runtime externa.

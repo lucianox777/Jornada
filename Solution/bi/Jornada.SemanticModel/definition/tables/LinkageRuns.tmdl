@@ -1,0 +1,169 @@
+table LinkageRuns
+
+	measure 'Execuções de linkage' = COUNTROWS(LinkageRuns)
+		formatString: #,0
+
+	measure 'Pessoas avaliadas em runs' = SUM(LinkageRuns[avaliados])
+		formatString: #,0
+
+	measure 'Resolvidos em runs' = SUM(LinkageRuns[resolvidos])
+		formatString: #,0
+
+	measure 'Conflitos em runs' = SUM(LinkageRuns[conflitos])
+		formatString: #,0
+
+
+	measure 'Sem candidato no bloco' = SUM(LinkageRuns[sem_candidato_no_bloco])
+		formatString: #,0
+
+	measure 'Duração média run (s)' = DIVIDE(AVERAGE(LinkageRuns[duracao_ms]),1000)
+		formatString: #,0.0
+
+	column linkage_run_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: linkage_run_id
+
+	column modelo_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: modelo_id
+
+	column modelo_versao
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: modelo_versao
+
+	column algoritmo_versao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: algoritmo_versao
+
+	column tipo_run
+		dataType: string
+		summarizeBy: none
+		sourceColumn: tipo_run
+
+	column status
+		dataType: string
+		summarizeBy: none
+		sourceColumn: status
+
+	column gestor_codigo_filtro
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor_codigo_filtro
+
+	column pessoa_observacao_id_filtro
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: pessoa_observacao_id_filtro
+
+	column limite_solicitado
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: limite_solicitado
+
+	column avaliados
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: avaliados
+
+	column resolvidos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: resolvidos
+
+	column nao_resolvidos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: nao_resolvidos
+
+	column conflitos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: conflitos
+
+	column sem_candidato_no_bloco
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: sem_candidato_no_bloco
+
+	column iniciado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: iniciado_em
+
+	column finalizado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: finalizado_em
+
+	column snapshot_capturado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: snapshot_capturado_em
+
+	column amostra_metodo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: amostra_metodo
+
+	column amostra_pool_tamanho
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: amostra_pool_tamanho
+
+	column amostra_m_tamanho
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: amostra_m_tamanho
+
+	column amostra_u_tamanho
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: amostra_u_tamanho
+
+	column prior_referencia
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: prior_referencia
+
+	column prior_block_min
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: prior_block_min
+
+	column prior_block_max
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: prior_block_max
+
+	column min_m_independent_pairs
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: min_m_independent_pairs
+
+	column duracao_ms
+		dataType: int64
+		summarizeBy: average
+		sourceColumn: duracao_ms
+
+	column t_linkage
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: t_linkage
+
+	column conflict_margin
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: conflict_margin
+
+	partition LinkageRuns = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_linkage_runs"]}[Data]
+			in
+				Data

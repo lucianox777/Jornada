@@ -1,0 +1,20 @@
+{
+  "rule": "TELEFONE_BR_CANONICO_V2",
+  "envelopeTrimUnicodeCodePoints": [9, 10, 13, 32, 160],
+  "cases": [
+    { "id": "br_nacional_11", "input": "11 99999-0001", "valid": true, "expected": "5511999990001" },
+    { "id": "br_nacional_10", "input": "11 3333-0001", "valid": true, "expected": "551133330001" },
+    { "id": "br_mais55", "input": "+55 (11) 99999-0001", "valid": true, "expected": "5511999990001" },
+    { "id": "br_0055", "input": "00 55 11 99999-0001", "valid": true, "expected": "5511999990001" },
+    { "id": "br_e164_sem_mais", "input": "5511999990001", "valid": true, "expected": "5511999990001" },
+    { "id": "internacional_eua", "input": "+1 (212) 555-0100", "valid": true, "expected": "12125550100" },
+    { "id": "internacional_00", "input": "00 351 21 123 4567", "valid": true, "expected": "351211234567" },
+    { "id": "trim_space", "input": "  +55 (11) 99999-0001  ", "valid": true, "expected": "5511999990001" },
+    { "id": "trim_tab_cr_lf", "input": "\t+1 (212) 555-0100\r\n", "valid": true, "expected": "12125550100" },
+    { "id": "trim_nbsp", "input": "\u00a0+55 (11) 99999-0001\u00a0", "valid": true, "expected": "5511999990001" },
+    { "id": "invalido_sem_ddd", "input": "99999-0001", "valid": false, "expected": null },
+    { "id": "invalido_internacional_curto", "input": "+1 234-567", "valid": false, "expected": null },
+    { "id": "invalido_internacional_longo", "input": "+123 456 789 012 345 6", "valid": false, "expected": null },
+    { "id": "vazio", "input": "   ", "valid": false, "expected": null }
+  ]
+}

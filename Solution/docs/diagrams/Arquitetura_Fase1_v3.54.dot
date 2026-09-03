@@ -1,0 +1,22 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="white", pad="0.2", nodesep="0.5", ranksep="0.8"];
+  node [shape=box, style="rounded", fontname="Arial"];
+  edge [fontname="Arial", color="#5F6B7A"];
+  gestores [label="Gestores / Sistemas finalísticos\npublicam fatos e consultam a Jornada"];
+  api [label="Jornada.Api\ncredencial + scope + recurso\nsem finalidade declarada\nrate limit por endpoint"];
+  bronze [label="Bronze\nZIP íntegro + retenção"];
+  proc [label="Processor\nSilver → Identidade → Gold/Serving"];
+  person [label="Pessoa\nsem fronteira populacional por Gestor/Tipo"];
+  control [label="Governança / Controle SQL\ncredenciais + scopes/recursos\nrestrições negativas versionadas de projeção\nauditoria HTTP de fatos observáveis\ncatálogo de contratos com SHA-256 aprovado\nmetadados versionados de vigência/janela de concessão"];
+  ops [label="Operations Maintenance\nwatchdog observacional\nsem ação corretiva"];
+  sched [label="Scheduler corporativo PRODAM\nagendamento / recorrência / retry\nfora da Solution"];
+  bi [label="Power BI Desktop homologado\nPBIP/PBIR/TMDL → serving.v_bi_*\nGateway/publicação corporativos"];
+  gestores -> api -> bronze -> proc -> person -> bi;
+  sched -> proc [style=dashed,label="serviço contínuo / supervisão"];
+  sched -> ops [style=dashed,label="hospedagem"];
+  sched -> bi [style=dashed,label="refresh/publicação externos"];
+  control -> api;
+  control -> proc;
+  ops -> control [style=dashed,label="somente leitura / logs"];
+  person -> api [label="consultas"];
+}

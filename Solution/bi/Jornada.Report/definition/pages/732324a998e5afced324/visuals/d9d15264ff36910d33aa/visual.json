@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "d9d15264ff36910d33aa",
+  "position": {
+    "x": 30,
+    "y": 40,
+    "z": 1000,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 1000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Registros"
+                    }
+                  },
+                  "Property": "Registros"
+                }
+              },
+              "queryRef": "Registros.Registros",
+              "nativeQueryRef": "Registros"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Registros'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

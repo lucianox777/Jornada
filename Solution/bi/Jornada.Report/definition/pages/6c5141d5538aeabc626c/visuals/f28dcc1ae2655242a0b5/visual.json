@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f28dcc1ae2655242a0b5",
+  "position": {
+    "x": 30,
+    "y": 40,
+    "z": 1000,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 1000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Catalogo"
+                    }
+                  },
+                  "Property": "Itens Catálogo"
+                }
+              },
+              "queryRef": "Catalogo.Itens Catálogo",
+              "nativeQueryRef": "Itens Catálogo"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Itens Catálogo'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

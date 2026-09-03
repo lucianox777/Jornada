@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f330000000000000000103",
+  "position": {
+    "x": 630,
+    "y": 40,
+    "z": 1630,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 1630
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeEnvios"
+                    }
+                  },
+                  "Property": "Taxa Retransmissao"
+                }
+              },
+              "queryRef": "QualidadeEnvios.Taxa Retransmissao",
+              "nativeQueryRef": "Taxa Retransmissao"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Taxa retransmissão'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

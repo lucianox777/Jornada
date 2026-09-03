@@ -1,0 +1,55 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "b6eec4c39d953a7b8cb9",
+  "position": {
+    "x": 60,
+    "y": 220,
+    "z": 9000,
+    "height": 430,
+    "width": 1160,
+    "tabOrder": 9000
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "BeneficiosPessoas"
+                    }
+                  },
+                  "Property": "gestor"
+                }
+              },
+              "queryRef": "BeneficiosPessoas.gestor",
+              "nativeQueryRef": "gestor"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "BeneficiosPessoas"
+                    }
+                  },
+                  "Property": "Pessoas com Benefícios Concedidos"
+                }
+              },
+              "queryRef": "BeneficiosPessoas.Pessoas com Benefícios Concedidos",
+              "nativeQueryRef": "Pessoas com Benefícios Concedidos"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

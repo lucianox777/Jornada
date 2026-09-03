@@ -1,0 +1,20 @@
+Jornada Fase 1 — Nota de Engenharia v3.76
+Base normativa: v3.62
+Solution Engenharia: v3.76
+Schema persistido esperado: Base 3.62 / SolutionSchema 3.68
+
+Release exclusivamente de hardening estático/supply-chain. Não altera DDL funcional nem regra normativa.
+
+Fechamentos:
+- compatibilidade retroativa OpenAPI + 16 JSON Schemas contra v3.75;
+- gate fail-closed de mudanças DDL destrutivas;
+- drift de PackageReference governado (coverlet.collector somente de testes);
+- source sanity e pin de GitHub Actions por SHA completo;
+- warnings-as-errors e determinismo centralizados em Directory.Build.props;
+- cobertura Cobertura + baseline/ratchet PENDENTE_PRIMEIRA_EXECUCAO;
+- build duplo determinístico no CI;
+- CodeQL/SARIF e auditoria estruturada de vulnerabilidades NuGet;
+- attestation OIDC/Sigstore do RELEASE_EVIDENCE, source bundle/provenance e SBOM;
+- runbook SBOM deixa de forçar --version 3.60 e volta a derivar versão do RELEASE_INFO.
+
+Nenhuma evidência .NET/CodeQL/attestation foi fabricada localmente.

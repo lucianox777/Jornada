@@ -1,0 +1,55 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f330000000000000000106",
+  "position": {
+    "x": 650,
+    "y": 220,
+    "z": 9650,
+    "height": 430,
+    "width": 570,
+    "tabOrder": 9650
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeEnvios"
+                    }
+                  },
+                  "Property": "sistema_origem"
+                }
+              },
+              "queryRef": "QualidadeEnvios.sistema_origem",
+              "nativeQueryRef": "sistema_origem"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeEnvios"
+                    }
+                  },
+                  "Property": "Taxa Retransmissao"
+                }
+              },
+              "queryRef": "QualidadeEnvios.Taxa Retransmissao",
+              "nativeQueryRef": "Taxa Retransmissao"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "status": "VIGENTE",
+  "note": "Matriz exata de ProjectReference permitidos. O objetivo é impedir acoplamento invertido entre contratos, coordenação, infraestrutura, API e workers; projetos de teste também devem declarar somente dependências diretas necessárias.",
+  "projects": {
+    "Jornada.Contracts": [],
+    "Jornada.Bronze.Storage": [],
+    "Jornada.Ingestion": [
+      "Jornada.Contracts"
+    ],
+    "Jornada.Pipeline.Coordination": [
+      "Jornada.Contracts"
+    ],
+    "Jornada.Api": [
+      "Jornada.Bronze.Storage",
+      "Jornada.Contracts",
+      "Jornada.Ingestion"
+    ],
+    "Jornada.Bronze.Verify": [
+      "Jornada.Bronze.Storage"
+    ],
+    "Jornada.Bronze.Maintenance.Worker": [
+      "Jornada.Contracts",
+      "Jornada.Bronze.Storage"
+    ],
+    "Jornada.Operations.Maintenance.Worker": [
+      "Jornada.Contracts",
+      "Jornada.Bronze.Storage"
+    ],
+    "Jornada.Linkage.Evaluation": [
+      "Jornada.Contracts"
+    ],
+    "Jornada.Linkage.Parameters.Worker": [
+      "Jornada.Pipeline.Coordination",
+      "Jornada.Contracts"
+    ],
+    "Jornada.Linkage.Runner": [
+      "Jornada.Pipeline.Coordination",
+      "Jornada.Contracts"
+    ],
+    "Jornada.Processor.Worker": [
+      "Jornada.Bronze.Storage",
+      "Jornada.Pipeline.Coordination",
+      "Jornada.Contracts",
+      "Jornada.Ingestion"
+    ],
+    "Jornada.Tests": [
+      "Jornada.Bronze.Storage",
+      "Jornada.Bronze.Maintenance.Worker",
+      "Jornada.Operations.Maintenance.Worker",
+      "Jornada.Pipeline.Coordination",
+      "Jornada.Contracts",
+      "Jornada.Api",
+      "Jornada.Ingestion",
+      "Jornada.Linkage.Parameters.Worker",
+      "Jornada.Processor.Worker",
+      "Jornada.Linkage.Runner"
+    ],
+    "Jornada.Integration.Tests": [
+      "Jornada.Bronze.Storage",
+      "Jornada.Bronze.Maintenance.Worker",
+      "Jornada.Operations.Maintenance.Worker",
+      "Jornada.Pipeline.Coordination",
+      "Jornada.Contracts",
+      "Jornada.Api",
+      "Jornada.Processor.Worker"
+    ]
+  }
+}

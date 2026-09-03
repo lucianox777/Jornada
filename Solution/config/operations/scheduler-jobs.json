@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "status": "PENDENTE_HML",
+  "note": "Contrato do scheduler corporativo. A Solution não contém scheduler; cadências, owner e retry reais devem ser aprovados no ambiente.",
+  "mutualExclusionGroups": [
+    [
+      "LINKAGE_GENERATE_DRAFT",
+      "LINKAGE_INCREMENTAL",
+      "LINKAGE_REPLAY",
+      "LINKAGE_FULL",
+      "LINKAGE_MODEL_VALIDATION"
+    ]
+  ],
+  "jobs": [
+    {
+      "id": "PROCESSOR_WORKER",
+      "kind": "CONTINUOUS_WORKER",
+      "project": "src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj",
+      "operation": "PROCESSOR",
+      "status": "PENDENTE_HML",
+      "cadence": null,
+      "owner": null,
+      "retryPolicy": null,
+      "dependsOn": []
+    },
+    {
+      "id": "OPERATIONS_MAINTENANCE",
+      "kind": "CONTINUOUS_WORKER",
+      "project": "src/Jornada.Operations.Maintenance.Worker/Jornada.Operations.Maintenance.Worker.csproj",
+      "operation": "MAINTENANCE",
+      "status": "PENDENTE_HML",
+      "cadence": null,
+      "owner": null,
+      "retryPolicy": null,
+      "dependsOn": []
+    },
+    {
+      "id": "BRONZE_MAINTENANCE",
+      "kind": "CONTINUOUS_WORKER",
+      "project": "src/Jornada.Bronze.Maintenance.Worker/Jornada.Bronze.Maintenance.Worker.csproj",
+      "operation": "BRONZE_GC",
+      "status": "PENDENTE_HML",
+      "cadence": null,
+      "owner": null,
+      "retryPolicy": null,
+      "dependsOn": []
+    },
+    {
+      "id": "LINKAGE_GENERATE_DRAFT",
+      "kind": "RUN_ONCE",
+      "project": "src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj",
+      "operation": "GENERATE_DRAFT",
+      "status": "PENDENTE_HML",
+      "cadence": null,
+      "owner": null,
+      "retryPolicy": null,
+      "dependsOn": []
+    },
+    {
+      "id": "LINKAGE_VALIDATE",
+      "kind": "RUN_ONCE",
+      "project": "src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj",
+      "operation": "VALIDATE",
+      "status": "PENDENTE_HML",
+      "cadence": null,
+      "owner": null,
+      "retryPolicy": null,
+      "dependsOn": [
+        "LINKAGE_GENERATE_DRAFT"
+      ]
+    },
+    {
+      "id": "LINKAGE_ACTIVATE",
+      "kind": "RUN_ONCE",
+      "project": "src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj",
+      "operation": "ACTIVATE",
+      "status": "PENDENTE_HML",
+      "cadence": null,
+      "owner": null,
+      "retryPolicy": null,
+      "dependsOn": [
+        "LINKAGE_VALIDATE"
+      ]
+    },
+    {
+      "id": "LINKAGE_INCREMENTAL",
+      "kind": "RUN_ONCE",
+      "project": "src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj",
+      "operation": "INCREMENTAL",
+      "status": "PENDENTE_HML",
+      "cadence": null,
+      "owner": null,
+      "retryPolicy": null,
+      "dependsOn": []
+    },
+    {
+      "id": "LINKAGE_REPLAY",
+      "kind": "EXCEPTIONAL",
+      "project": "src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj",
+      "operation": "REPLAY",
+      "status": "PENDENTE_HML",
+      "cadence": null,
+      "owner": null,
+      "retryPolicy": null,
+      "dependsOn": []
+    },
+    {
+      "id": "LINKAGE_FULL",
+      "kind": "EXCEPTIONAL",
+      "project": "src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj",
+      "operation": "FULL",
+      "status": "PENDENTE_HML",
+      "cadence": null,
+      "owner": null,
+      "retryPolicy": null,
+      "dependsOn": []
+    },
+    {
+      "id": "LINKAGE_MODEL_VALIDATION",
+      "kind": "EXCEPTIONAL",
+      "project": "src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj",
+      "operation": "MODEL_VALIDATION",
+      "status": "PENDENTE_HML",
+      "cadence": null,
+      "owner": null,
+      "retryPolicy": null,
+      "dependsOn": []
+    }
+  ],
+  "approval": null
+}

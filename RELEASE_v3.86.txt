@@ -1,0 +1,17 @@
+Jornada do Cidadão - Fase 1
+Base Normativa: v3.62
+Solution Engenharia: v3.86
+Data: 2026-09-02
+
+Predecessor Git verificável: jornada-solution-v3.85.
+
+Mudanças v3.86:
+- corrige local-db.ps1 após execução real da v3.85 em Docker Desktop/Compose no Windows;
+- substitui o template Go customizado de `docker compose ps` por `--format json`, evitando a falha `format value ... could not be parsed`;
+- interpreta o estado do container com `ConvertFrom-Json`, usando Name/Service, State, Health e fallback de Status;
+- adiciona falha explícita quando o SQL Server entra em estado `unhealthy` e mantém logs para diagnóstico;
+- technical-closure-gate passa a exigir o caminho JSON e a rejeitar o template incompatível;
+- packages.lock.json permanecem byte-a-byte inalterados em relação à v3.85 e continuam com a mesma proveniência/pêndencia de restore confiável.
+
+Base Normativa v3.62 e SolutionSchema v3.68 permanecem inalterados.
+A v3.86 não declara build/test runtime aprovado até nova execução em .NET 8 + Docker/SQL Server 2022.

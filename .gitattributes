@@ -1,0 +1,31 @@
+# Stable text normalization for cross-platform development/release.
+* text=auto
+
+*.cs text eol=lf
+*.csproj text eol=lf
+*.sln text eol=crlf
+*.props text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.sql text eol=lf
+*.sh text eol=lf
+*.ps1 text eol=crlf
+*.tmdl text eol=lf
+*.pbip text eol=lf
+*.pbir text eol=lf
+*.pbism text eol=lf
+*.dot text eol=lf
+
+# Binary artifacts.
+*.docx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.zip binary
+*.pbix binary
+*.pbit binary

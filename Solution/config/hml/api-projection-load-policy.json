@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "status": "PENDENTE",
+  "endpoint": "POST /api/v1/pessoas/consulta",
+  "batchSizes": [
+    1,
+    10,
+    100,
+    1000
+  ],
+  "note": "O harness mede status/latência/contagem sem persistir UUIDs ou payloads. Limites de latência permanecem PENDENTE HML.",
+  "maxP95MillisecondsByBatchSize": {
+    "1": null,
+    "10": null,
+    "100": null,
+    "1000": null
+  },
+  "approvedAtUtc": null,
+  "approvedBy": null,
+  "evidence": null,
+  "approvalContext": null
+}

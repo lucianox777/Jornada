@@ -1,0 +1,30 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+TestResults/
+
+# Power BI local/generated artifacts
+**/.pbi/
+**/localSettings.json
+**/cache.abf
+*.pbix
+*.pbit
+
+# Local non-versioned overrides/secrets (test-access-keys.json is intentionally versioned synthetic fixture)
+config/security/*.local.json
+config/security/*.local.env
+
+# Runtime Bronze object store (Development default only)
+data/bronze/**
+!data/bronze/.gitkeep
+
+# Local Docker configuration
+.env
+.env.local
+.env.*.local
+!.env.example
+.local/
+artifacts/
+dist/

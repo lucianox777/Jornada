@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "status": "PENDENTE",
+  "baseNormativa": "3.62",
+  "solutionSchema": "3.68",
+  "note": "Inventário criptográfico dos schemas contratuais. APROVADO exige aprovação individual e evidência real; hashes não equivalem a assinatura institucional.",
+  "contracts": [
+    {
+      "path": "config/contracts/gestores/SEHAB/pessoa/v1/pessoa.json",
+      "sha256": "578abdaf4072e69c51c980b507ce61853df08ff3888b27ee9723896740a81911",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SEHAB/pessoa/v1/pessoa.schema.json",
+      "sha256": "5de6ddecfe95db8575ed321b83fb0eb1801cf3f6767406701f3146d0f474fd44",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SMADS/pessoa/v1/pessoa.json",
+      "sha256": "4679f5424f673eea88fec3800eff510661aa62ea92aca054fbb874e1eb0de229",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SMADS/pessoa/v1/pessoa.schema.json",
+      "sha256": "a382a796a9b08b68bad09854b59fad6d64e6f0280812bfc604266bf6845f41f1",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SMDET/pessoa/v1/pessoa.json",
+      "sha256": "2f406c06eb2c11bbf6638295d0f40c9b30e70804003b2c59c6a807c9c8f6e906",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SMDET/pessoa/v1/pessoa.schema.json",
+      "sha256": "dae81766352934486e1d1ef319261911d549fe987817e10f38fd5e0aa6bf4743",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SMS/pessoa/v1/pessoa.json",
+      "sha256": "688cd802519bc5281e2c1350792bce4445a05b6d2c1776d1af9fe6eb6047ae8a",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SMS/pessoa/v1/pessoa.schema.json",
+      "sha256": "a3eee657504e51e0d54960b1e87dd24450b1a3d70f4b6ae9a5647c104b39e9a0",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/AA01/v1/pessoa.schema.json",
+      "sha256": "30f12102f5a6043f092f3af601ded82bc4e7268c3fdb34d326a91d2e547f5e94",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/AA01/v1/registro.json",
+      "sha256": "568f297059bd5e7b51b751a4d3e9aba969c3c0ddd563b2986ba08bd37db431b6",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/AA01/v1/registro.schema.json",
+      "sha256": "e51e4948e7355dc6a95fd6386d429319228774209d07bb175ec63319ac85e055",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/AR01/v1/pessoa.schema.json",
+      "sha256": "cfc653b792de1d56d9748ff939ef78b0849ad901f607baddc8559b4b2dcdfa41",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/AR01/v1/registro.json",
+      "sha256": "0bb4c6b9ba04bd7af51745b64b64c126aaf7a35ba48d583951f985b857458b7b",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/AR01/v1/registro.schema.json",
+      "sha256": "3c301cad57b97350406590ce3374e59485a2643c0abbc734a37d222f2b9086d8",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/CAS1/v1/pessoa.schema.json",
+      "sha256": "5de1477d65cfdfd19e7b24771c8bc9a791d18fdc22813ee60d4ea73a8fdec0c8",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/CAS1/v1/registro.json",
+      "sha256": "ae91737ec2dfb04ea27515baa1f2dc1311ebdaa868c4157ebc2dfd93d4bfd2b5",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/CAS1/v1/registro.schema.json",
+      "sha256": "392fb177f9ecb075375632916b55f84033759113bb4d2256f3e7d718bbb0ba18",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/CPO1/v1/pessoa.schema.json",
+      "sha256": "06ae0e7812be6666b3b1630547b057b48c0bfa0777d7cfc525f970c6b7e036c5",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/CPO1/v1/registro.json",
+      "sha256": "4654cfbb7e1f1f559be262d7163b9ac80da38bfc575f94fdbbc92bd0c39b611b",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/CPO1/v1/registro.schema.json",
+      "sha256": "adc382a7602c0b556ea752422c151735e4b54b7b66cdf749d000cf88e76b3312",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/CRA1/v1/pessoa.schema.json",
+      "sha256": "4d715b2cc259f5dd5869a6d50c25f84cbbc390bace6721c663fd3afb2d0d6edc",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/CRA1/v1/registro.json",
+      "sha256": "bdc5b8caf2c2062ebdaa64d9bf6986748bba04d8335ca27062ee0cd681e21f64",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/CRA1/v1/registro.schema.json",
+      "sha256": "fe10e8f81ff29b90379239540f7a94759febba5b2c6be1863e3953cd4dc2da95",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/POT1/v1/pessoa.schema.json",
+      "sha256": "efe204199e2f27e461f1436c079c2055167e03432cad244a6fd6c3b2f84f6614",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/POT1/v1/registro.json",
+      "sha256": "ca8bbdf9759dbd1eab007fca62053c8db870c91ef5e903492cf0b73efe1af410",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/registros/POT1/v1/registro.schema.json",
+      "sha256": "acd5fe36696ed0fd3427fcee2717c44d1aec81d39bd6e5e21bf0784a53c1f007",
+      "status": "PENDENTE",
+      "approval": null
+    }
+  ],
+  "approvalContext": null
+}

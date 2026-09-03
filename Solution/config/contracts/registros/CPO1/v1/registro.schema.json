@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "codigoPessoaOrigem",
+    "codigoRegistroOrigem",
+    "operacao",
+    "dataHoraServico"
+  ],
+  "properties": {
+    "codigoPessoaOrigem": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "codigoRegistroOrigem": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "operacao": {
+      "type": "string",
+      "enum": [
+        "INCLUSAO",
+        "ALTERACAO",
+        "RETIFICACAO",
+        "EXCLUSAO"
+      ]
+    },
+    "dataHoraServico": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "unidadeServico": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 200
+    },
+    "situacao": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 80
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://jornada.pmspsp.local/contracts/registros/CPO1/v1/registro.schema.json"
+}

@@ -1,0 +1,575 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Jornada do Cidadão API v1",
+    "version": "1.0.0",
+    "description": "Contrato de superfície HTTP da Fase 1. O gate automatizado exige correspondência exata entre método/rota e Jornada.Api/Program.cs."
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "jornada_get_01",
+        "summary": "Compatibilidade de liveness",
+        "responses": {
+          "200": {
+            "description": "Processo vivo"
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "operationId": "jornada_get_02",
+        "summary": "Liveness da API",
+        "responses": {
+          "200": {
+            "description": "Processo vivo"
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "jornada_get_03",
+        "summary": "Readiness de SQL/Bronze/staging",
+        "responses": {
+          "200": {
+            "description": "SQL, Bronze e staging prontos"
+          },
+          "503": {
+            "description": "Uma ou mais dependências essenciais não estão prontas"
+          }
+        }
+      }
+    },
+    "/api/v1/identidade/resolver": {
+      "post": {
+        "operationId": "jornada_post_04",
+        "summary": "Resolve CPF para UUID existente",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        }
+      }
+    },
+    "/api/v1/ingestao/entregas": {
+      "post": {
+        "operationId": "jornada_post_05",
+        "summary": "Recebe Entrega ZIP",
+        "responses": {
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          },
+          "202": {
+            "description": "Entrega aceita ou replay idempotente da mesma Entrega"
+          },
+          "413": {
+            "description": "ZIP excede 250 MiB compactados"
+          },
+          "409": {
+            "description": "Idempotency-Key já usada para conteúdo diferente"
+          },
+          "503": {
+            "description": "Staging/Bronze temporariamente indisponível"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/zip": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ingestao/entregas/{entregaId}": {
+      "get": {
+        "operationId": "jornada_get_06",
+        "summary": "Consulta status da Entrega",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          },
+          "404": {
+            "description": "Entrega não encontrada"
+          }
+        },
+        "parameters": [
+          {
+            "name": "entregaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/identidade/conflitos/detalhe": {
+      "post": {
+        "operationId": "jornada_post_07",
+        "summary": "Consulta detalhe de conflito",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        }
+      }
+    },
+    "/api/v1/identidade/correcoes": {
+      "post": {
+        "operationId": "jornada_post_08",
+        "summary": "Registra correção governada",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        }
+      }
+    },
+    "/api/v1/identidade/casos": {
+      "post": {
+        "operationId": "jornada_post_09",
+        "summary": "Registra caso de identidade",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        }
+      }
+    },
+    "/api/v1/identidade/casos/{casoId}/aplicar": {
+      "post": {
+        "operationId": "jornada_post_10",
+        "summary": "Aplica caso governado",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "casoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/divergencias": {
+      "get": {
+        "operationId": "jornada_get_11",
+        "summary": "Lista divergências",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        }
+      }
+    },
+    "/api/v1/divergencias/{divergenciaId}/desfecho": {
+      "post": {
+        "operationId": "jornada_post_12",
+        "summary": "Registra desfecho de divergência",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "divergenciaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/pessoas/{pessoaUuid}": {
+      "get": {
+        "operationId": "jornada_get_13",
+        "summary": "Consulta projeção da Pessoa",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "pessoaUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/pessoas/consulta": {
+      "post": {
+        "operationId": "jornada_post_14",
+        "summary": "Consulta lote de Pessoas",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        }
+      }
+    },
+    "/api/v1/pessoas/{pessoaUuid}/registros": {
+      "get": {
+        "operationId": "jornada_get_15",
+        "summary": "Consulta Registros da Pessoa",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "pessoaUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/pessoas/{pessoaUuid}/beneficios-concedidos": {
+      "get": {
+        "operationId": "jornada_get_16",
+        "summary": "Consulta Benefícios Concedidos",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "pessoaUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/pessoas/{pessoaUuid}/servicos-prestados": {
+      "get": {
+        "operationId": "jornada_get_17",
+        "summary": "Consulta Serviços Prestados",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "pessoaUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/pessoas/{pessoaUuid}/possibilidades": {
+      "get": {
+        "operationId": "jornada_get_18",
+        "summary": "Consulta Possibilidades",
+        "responses": {
+          "200": {
+            "description": "Resposta processada"
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "pessoaUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "JornadaAccessKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Jornada-Access-Key"
+      },
+      "JornadaGestor": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Jornada-Gestor"
+      },
+      "JornadaBeneficio": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Jornada-Beneficio"
+      },
+      "JornadaServico": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Jornada-Servico"
+      }
+    }
+  },
+  "x-jornada-contract-gate": {
+    "scope": "method+normalized-path",
+    "source": "src/Jornada.Api/Program.cs"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "e127b3f90a1c4d77890105",
+  "position": {
+    "x": 30,
+    "y": 220,
+    "z": 9030,
+    "height": 430,
+    "width": 570,
+    "tabOrder": 9030
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeBeneficios"
+                    }
+                  },
+                  "Property": "gestor"
+                }
+              },
+              "queryRef": "QualidadeBeneficios.gestor",
+              "nativeQueryRef": "gestor"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeBeneficios"
+                    }
+                  },
+                  "Property": "Geografia %"
+                }
+              },
+              "queryRef": "QualidadeBeneficios.Geografia %",
+              "nativeQueryRef": "Geografia %"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

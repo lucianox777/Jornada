@@ -1,0 +1,3 @@
+expression SqlServer = "localhost,14333" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+
+expression SqlDatabase = "JornadaLocal" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]

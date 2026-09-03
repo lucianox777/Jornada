@@ -1,0 +1,136 @@
+table Atrasos
+
+	measure 'Registros Monitorados' = COUNTROWS(Atrasos)
+		formatString: #,##0
+
+	measure 'Registros em Atraso' = CALCULATE(COUNTROWS(Atrasos),Atrasos[status_atraso]="EM_ATRASO")
+		formatString: #,##0
+
+	measure '% em Atraso' = DIVIDE([Registros em Atraso],[Registros Monitorados])
+		formatString: 0.0%
+
+	measure '% no Prazo' = DIVIDE(CALCULATE(COUNTROWS(Atrasos),Atrasos[status_atraso]="NO_PRAZO"),[Registros Monitorados])
+		formatString: 0.0%
+
+	measure 'Atraso Médio (dias)' = AVERAGEX(FILTER(Atrasos,Atrasos[status_atraso]="EM_ATRASO"),Atrasos[dias_atraso])
+		formatString: 0.0
+
+	measure 'Atraso Máximo (dias)' = MAX(Atrasos[dias_atraso])
+		formatString: #,##0
+
+	measure 'Atraso P95 (dias)' = PERCENTILEX.INC(FILTER(Atrasos,Atrasos[status_atraso]="EM_ATRASO"),Atrasos[dias_atraso],0.95)
+		formatString: 0.0
+
+	column registro_observacao_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: registro_observacao_id
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column natureza
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza
+
+	column codigo_tipo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: codigo_tipo
+
+	column nome_tipo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: nome_tipo
+
+	column versao
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: versao
+
+	column prazo_recebimento_dias
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: prazo_recebimento_dias
+
+	column marco_atraso_codigo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: marco_atraso_codigo
+
+	column data_marco_atraso
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_marco_atraso
+
+	column recebido_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: recebido_em
+
+	column data_recebimento_sla
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_recebimento_sla
+
+	column source_as_of
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: source_as_of
+
+	column dias_para_recebimento
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: dias_para_recebimento
+
+	column dias_atraso
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: dias_atraso
+
+	column status_atraso
+		dataType: string
+		summarizeBy: none
+		sourceColumn: status_atraso
+
+	column faixa_atraso
+		dataType: string
+		summarizeBy: none
+		sourceColumn: faixa_atraso
+
+	column subprefeitura
+		dataType: string
+		summarizeBy: none
+		sourceColumn: subprefeitura
+
+	column distrito
+		dataType: string
+		summarizeBy: none
+		sourceColumn: distrito
+
+	column entrega_completa
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: entrega_completa
+
+	column qc_resultado
+		dataType: string
+		summarizeBy: none
+		sourceColumn: qc_resultado
+
+	column natureza_referencia_territorial
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza_referencia_territorial
+
+	partition Atrasos = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_atrasos"]}[Data]
+			in
+				Data

@@ -1,0 +1,164 @@
+table Linkage
+
+	measure 'Cobertura UUID' = DIVIDE(SUM(Linkage[possui_uuid]),COUNTROWS(Linkage))
+		formatString: 0.0%
+
+	measure 'Resolução por CPF' = DIVIDE(SUM(Linkage[resolvido_cpf]),COUNTROWS(Linkage))
+		formatString: 0.0%
+
+	measure 'Fallback probabilístico' = DIVIDE(SUM(Linkage[resolvido_fallback]),COUNTROWS(Linkage))
+		formatString: 0.0%
+
+	measure 'Não resolvidos' = DIVIDE(CALCULATE(COUNTROWS(Linkage),Linkage[status]="NAO_RESOLVIDO"),COUNTROWS(Linkage))
+		formatString: 0.0%
+
+	measure 'Conflitos' = DIVIDE(CALCULATE(COUNTROWS(Linkage),Linkage[status]="CONFLITO"),COUNTROWS(Linkage))
+		formatString: 0.0%
+
+
+	measure 'Sem candidato no bloco' = DIVIDE(SUM(Linkage[sem_candidato_no_bloco]),COUNTROWS(Linkage))
+		formatString: 0.0%
+
+	measure 'Score médio fallback' = CALCULATE(AVERAGE(Linkage[score]),Linkage[metodo_resolucao]="LINKAGE_PROBABILISTICO")
+		formatString: 0.000
+
+	column pessoa_observacao_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: pessoa_observacao_id
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column source_as_of
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: source_as_of
+
+	column status
+		dataType: string
+		summarizeBy: none
+		sourceColumn: status
+
+	column metodo_resolucao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: metodo_resolucao
+
+	column score
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: score
+
+	column possui_uuid
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: possui_uuid
+
+	column resolvido_cpf
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: resolvido_cpf
+
+	column resolvido_fallback
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: resolvido_fallback
+
+	column modelo_fallback_versao
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: modelo_fallback_versao
+
+	column subprefeitura
+		dataType: string
+		summarizeBy: none
+		sourceColumn: subprefeitura
+
+	column distrito
+		dataType: string
+		summarizeBy: none
+		sourceColumn: distrito
+
+
+	column linkage_run_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: linkage_run_id
+
+	column tipo_run
+		dataType: string
+		summarizeBy: none
+		sourceColumn: tipo_run
+
+	column linkage_run_status
+		dataType: string
+		summarizeBy: none
+		sourceColumn: linkage_run_status
+
+	column linkage_run_iniciado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: linkage_run_iniciado_em
+
+	column linkage_run_finalizado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: linkage_run_finalizado_em
+
+	column t_linkage
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: t_linkage
+
+	column sistema_origem
+		dataType: string
+		summarizeBy: none
+		sourceColumn: sistema_origem
+
+
+	column sem_candidato_no_bloco
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: sem_candidato_no_bloco
+
+	column motivo_linkage
+		dataType: string
+		summarizeBy: none
+		sourceColumn: motivo_linkage
+
+	column cpf_preenchido
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: cpf_preenchido
+
+	column cpf_ausente_motivo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: cpf_ausente_motivo
+
+	column nascimento_0101
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: nascimento_0101
+
+	column geografia_preenchida
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: geografia_preenchida
+
+	column natureza_referencia_territorial
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza_referencia_territorial
+
+	partition Linkage = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_linkage"]}[Data]
+			in
+				Data

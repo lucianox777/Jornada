@@ -1,0 +1,15 @@
+NOTA DE ENGENHARIA — v3.90
+
+Escopo: hardening do script canônico de limpeza local, sem mudança da Base Normativa v3.62 ou do SolutionSchema v3.68.
+
+1. Achado runtime da v3.89
+O Windows recusou a remoção de .vs/Jornada/CopilotIndices/.../CodeChunks.db porque o arquivo estava aberto por outro processo. Como ErrorActionPreference=Stop e .vs era tratado como diretório obrigatório, a limpeza inteira era abortada.
+
+2. Correção
+.vs é cache da IDE e não participa da validade de restore/build/test. A v3.90 o trata separadamente em best-effort: Remove-Item usa ErrorAction Stop dentro de try/catch, gera warning se algum arquivo estiver bloqueado e prossegue. A limpeza de bin/obj e demais artefatos relevantes continua estrita.
+
+3. Validação canônica
+scripts/local-validate-release.ps1 permanece o único script oficial de execução e mantém a sequência de restore locked explícito, build Release, Unit, preflight Docker, build Integration e Integration em Testcontainers descartável.
+
+4. Garantia
+O ambiente de empacotamento não possui .NET, Docker, PowerShell ou SQL Server. A v3.90 passa validações estáticas locais e permanece pendente de reexecução runtime externa.

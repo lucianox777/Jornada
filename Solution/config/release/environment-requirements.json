@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "status": "VIGENTE",
+  "profiles": {
+    "ci-linux": {
+      "platform": "linux",
+      "tools": [
+        {
+          "name": "python3",
+          "minimumVersion": "3.11"
+        },
+        {
+          "name": "git",
+          "minimumVersion": "2.30"
+        },
+        {
+          "name": "docker",
+          "minimumVersion": "20.10"
+        },
+        {
+          "name": "dotnet",
+          "exactVersion": "8.0.424"
+        },
+        {
+          "name": "bash",
+          "required": true
+        }
+      ],
+      "requiredEnvironment": []
+    },
+    "hml-runtime": {
+      "platform": "any",
+      "tools": [
+        {
+          "name": "python3",
+          "minimumVersion": "3.11"
+        },
+        {
+          "name": "git",
+          "minimumVersion": "2.30"
+        },
+        {
+          "name": "dotnet",
+          "exactVersion": "8.0.424"
+        }
+      ],
+      "requiredEnvironment": [
+        "JORNADA_TEST_SQL_CONNECTION",
+        "JORNADA_HML_PERFORMANCE_REPORT",
+        "JORNADA_HML_LINKAGE_REPORT",
+        "JORNADA_HML_ENVIRONMENT_PROFILE"
+      ]
+    },
+    "powerbi-authoring": {
+      "platform": "windows",
+      "tools": [
+        {
+          "name": "pwsh",
+          "minimumVersion": "7.4"
+        }
+      ],
+      "requiredEnvironment": [
+        "JORNADA_POWERBI_DESKTOP_VERSION",
+        "JORNADA_POWERBI_GATEWAY_ENVIRONMENT"
+      ]
+    }
+  },
+  "note": "Preflight verifica presença/versão/configuração; não substitui teste de conectividade/funcionalidade do ambiente."
+}

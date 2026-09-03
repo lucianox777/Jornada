@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "b858cabe0274a233f546",
+  "position": {
+    "x": 330,
+    "y": 40,
+    "z": 2000,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 2000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QC"
+                    }
+                  },
+                  "Property": "QC Implementado %"
+                }
+              },
+              "queryRef": "QC.QC Implementado %",
+              "nativeQueryRef": "QC Implementado %"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'QC Implementado %'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

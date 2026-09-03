@@ -1,0 +1,55 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f330000000000000000205",
+  "position": {
+    "x": 30,
+    "y": 220,
+    "z": 9030,
+    "height": 430,
+    "width": 570,
+    "tabOrder": 9030
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeIdentidadeOrigem"
+                    }
+                  },
+                  "Property": "gestor"
+                }
+              },
+              "queryRef": "QualidadeIdentidadeOrigem.gestor",
+              "nativeQueryRef": "gestor"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeIdentidadeOrigem"
+                    }
+                  },
+                  "Property": "Pessoas Observadas"
+                }
+              },
+              "queryRef": "QualidadeIdentidadeOrigem.Pessoas Observadas",
+              "nativeQueryRef": "Pessoas Observadas"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

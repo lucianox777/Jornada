@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "e127b3f90a1c4d77890104",
+  "position": {
+    "x": 930,
+    "y": 40,
+    "z": 1930,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 1930
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeBeneficios"
+                    }
+                  },
+                  "Property": "QC Divergente %"
+                }
+              },
+              "queryRef": "QualidadeBeneficios.QC Divergente %",
+              "nativeQueryRef": "QC Divergente %"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'QC Divergente %'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

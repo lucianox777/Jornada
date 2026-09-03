@@ -1,0 +1,84 @@
+table QualidadePessoa
+
+	measure 'Observações Pessoa' = COUNTROWS(QualidadePessoa)
+		formatString: #,##0
+
+	measure 'CPF %' = DIVIDE(SUM(QualidadePessoa[cpf_preenchido]),COUNTROWS(QualidadePessoa))
+		formatString: 0.0%
+
+	measure 'Geografia %' = DIVIDE(SUM(QualidadePessoa[geografia_preenchida]),COUNTROWS(QualidadePessoa))
+		formatString: 0.0%
+
+	column pessoa_observacao_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: pessoa_observacao_id
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column source_as_of
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: source_as_of
+
+	column subprefeitura
+		dataType: string
+		summarizeBy: none
+		sourceColumn: subprefeitura
+
+	column distrito
+		dataType: string
+		summarizeBy: none
+		sourceColumn: distrito
+
+	column cpf_preenchido
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: cpf_preenchido
+
+	column nome_preenchido
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: nome_preenchido
+
+	column nascimento_preenchido
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: nascimento_preenchido
+
+	column nome_mae_preenchido
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: nome_mae_preenchido
+
+	column geografia_preenchida
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: geografia_preenchida
+
+	column status_cpf
+		dataType: string
+		summarizeBy: none
+		sourceColumn: status_cpf
+
+	column cpf_ausente_motivo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: cpf_ausente_motivo
+
+	column natureza_referencia_territorial
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza_referencia_territorial
+
+	partition QualidadePessoa = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_qualidade_pessoa"]}[Data]
+			in
+				Data

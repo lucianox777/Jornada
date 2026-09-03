@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "c7a2fd907ae7aa860b01",
+  "position": {
+    "x": 20,
+    "y": 40,
+    "z": 1000,
+    "height": 130,
+    "width": 220,
+    "tabOrder": 1000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Linkage"
+                    }
+                  },
+                  "Property": "Cobertura UUID"
+                }
+              },
+              "queryRef": "Linkage.Cobertura UUID",
+              "nativeQueryRef": "Cobertura UUID"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Cobertura UUID'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

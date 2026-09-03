@@ -1,0 +1,52 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "v346avisofatospessoasserv",
+  "position": {
+    "x": 60,
+    "y": 660,
+    "z": 9600,
+    "height": 45,
+    "width": 1160,
+    "tabOrder": 9600
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ServicosPrestados"
+                    }
+                  },
+                  "Property": "Aviso Fatos e Pessoas"
+                }
+              },
+              "queryRef": "ServicosPrestados.Aviso Fatos e Pessoas",
+              "nativeQueryRef": "Aviso Fatos e Pessoas"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

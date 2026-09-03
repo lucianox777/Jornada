@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "status": "PENDENTE",
+  "note": "Thresholds permanecem nulos até HML. O coletor registra Query Store, bloqueios e waits sem julgar números antes de baseline.",
+  "requireQueryStoreReadWrite": true,
+  "maximumBlockedRequests": null,
+  "maximumLockWaitSeconds": null,
+  "maximumDeadlocksPerWindow": null,
+  "approvedAtUtc": null,
+  "approvedBy": null,
+  "evidence": null,
+  "approvalContext": null
+}

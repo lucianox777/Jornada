@@ -1,0 +1,72 @@
+table RetencaoBronze
+
+	measure 'Referências Bronze expurgadas' = SUM(RetencaoBronze[referencias_expurgadas])
+		formatString: #,##0
+
+	measure 'Objetos físicos removidos' = SUM(RetencaoBronze[objetos_fisicos_removidos])
+		formatString: #,##0
+
+	measure 'Objetos compartilhados preservados' = SUM(RetencaoBronze[objetos_compartilhados_preservados])
+		formatString: #,##0
+
+	measure 'Falhas de retenção Bronze' = SUM(RetencaoBronze[falhas_storage])
+		formatString: #,##0
+
+	column ciclo_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: ciclo_id
+
+	column iniciado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: iniciado_em
+
+	column finalizado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: finalizado_em
+
+	column duracao_segundos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: duracao_segundos
+
+	column candidatos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: candidatos
+
+	column referencias_expurgadas
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: referencias_expurgadas
+
+	column objetos_fisicos_removidos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: objetos_fisicos_removidos
+
+	column objetos_compartilhados_preservados
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: objetos_compartilhados_preservados
+
+	column locks_nao_adquiridos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: locks_nao_adquiridos
+
+	column falhas_storage
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: falhas_storage
+
+	partition RetencaoBronze = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_retencao_bronze"]}[Data]
+			in
+				Data

@@ -1,0 +1,15 @@
+NOTA DE ENGENHARIA — v3.87
+
+Escopo: correção de compatibilidade de execução do DDL, sem mudança de modelo.
+
+1. Sessão SQL
+O DDL agora torna explícitas as opções SET necessárias a índices filtrados e outros objetos sensíveis a opções de sessão. O bootstrap local adiciona sqlcmd -I como proteção redundante.
+
+2. SQL dinâmico
+Construções em que QUOTENAME era avaliado diretamente dentro de EXEC(...) foram substituídas por variável NVARCHAR(MAX) e sys.sp_executesql. A mudança preserva a instrução final e não altera o schema lógico.
+
+3. Baselines
+Os baselines executados pelos testes de upgrade recebem o mesmo hardening sintático/sessão, para que o ensaio parta de um artefato realmente executável no mesmo SQL Server/sqlcmd da release.
+
+4. Garantia
+A validação local desta embalagem é estática; não há .NET, Docker, PowerShell ou SQL Server disponíveis no ambiente de empacotamento. A confirmação runtime permanece pendente da execução externa.

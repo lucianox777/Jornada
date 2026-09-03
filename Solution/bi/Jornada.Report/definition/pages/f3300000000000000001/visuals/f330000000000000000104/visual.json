@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f330000000000000000104",
+  "position": {
+    "x": 930,
+    "y": 40,
+    "z": 1930,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 1930
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeEnvios"
+                    }
+                  },
+                  "Property": "Entregas com Falha"
+                }
+              },
+              "queryRef": "QualidadeEnvios.Entregas com Falha",
+              "nativeQueryRef": "Entregas com Falha"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Entregas com falha'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

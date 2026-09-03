@@ -1,0 +1,32 @@
+digraph G {
+  graph [rankdir=LR, bgcolor="white", pad="0.2", nodesep="0.45", ranksep="0.75"];
+  node [shape=plain, fontname="Arial"];
+  edge [fontname="Arial", color="#5F6B7A"];
+  cred [label=<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+      <TR><TD BGCOLOR="#E8EEF7"><B>controle.credencial_api</B></TD></TR>
+      <TR><TD ALIGN="LEFT">Gestor + tipo da credencial + scopes</TD></TR>
+      <TR><TD ALIGN="LEFT">recursos autorizados / secret_ref</TD></TR>
+      <TR><TD ALIGN="LEFT">sem catálogo de finalidade declarada</TD></TR>
+    </TABLE>>];
+  policy [shape=box, style="rounded", label="MunicipalAccessPolicyEngine\n\ncredencial + scope + recurso\nNENHUM vínculo prévio com Pessoa\ncompartilhada entre credenciais autorizadas"];
+  restriction [label=<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+      <TR><TD BGCOLOR="#F6EBDD"><B>controle.restricao_projecao_jornada_versao</B></TD></TR>
+      <TR><TD ALIGN="LEFT">Gestor responsável / Gestor consumidor</TD></TR>
+      <TR><TD ALIGN="LEFT">alvo_tipo + alvo_codigo</TD></TR>
+      <TR><TD ALIGN="LEFT">base legal / justificativa / ato / vigência</TD></TR>
+      <TR><TD ALIGN="LEFT">ausência de regra ATIVA = permite</TD></TR>
+    </TABLE>>];
+  audit [label=<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6">
+      <TR><TD BGCOLOR="#E7F1E8"><B>controle.api_evento / api_evento_pessoa</B></TD></TR>
+      <TR><TD ALIGN="LEFT">credencial + Gestor + correlation_id</TD></TR>
+      <TR><TD ALIGN="LEFT">rota / método / status / duração</TD></TR>
+      <TR><TD ALIGN="LEFT">recurso + Pessoa(s) consultada(s)</TD></TR>
+      <TR><TD ALIGN="LEFT">HMAC do agente somente quando fornecido</TD></TR>
+    </TABLE>>];
+  rate [shape=box, style="rounded", label="AuthenticatedRateLimitGuard\n\nbuckets por classe de endpoint\nINGESTAO / IDENTIDADE / PESSOA / STANDARD\npartição por CredentialId autenticado"];
+  cred -> policy -> restriction -> audit;
+  cred -> rate -> audit;
+}

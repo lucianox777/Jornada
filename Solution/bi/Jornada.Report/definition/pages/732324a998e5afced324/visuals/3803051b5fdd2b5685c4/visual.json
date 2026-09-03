@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "3803051b5fdd2b5685c4",
+  "position": {
+    "x": 630,
+    "y": 40,
+    "z": 3000,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 3000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Registros"
+                    }
+                  },
+                  "Property": "Serviços Prestados"
+                }
+              },
+              "queryRef": "Registros.Serviços",
+              "nativeQueryRef": "Serviços Prestados"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Serviços Prestados'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

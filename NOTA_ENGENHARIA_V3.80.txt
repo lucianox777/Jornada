@@ -1,0 +1,31 @@
+Jornada Fase 1 — Nota de Engenharia v3.80
+Base normativa: v3.62
+Solution Engenharia: v3.80
+Schema persistido esperado: Base 3.62 / SolutionSchema 3.68
+
+Release de consolidação do primeiro baseline compilável + execução unitária real.
+Não altera DDL funcional, schema persistido, contratos normativos nem regras de negócio.
+
+Evidência externa precedente, anonimizada:
+- .NET SDK 8.0.424 / Visual Studio 2022;
+- build real: 0 erros;
+- v3.79 Unit: 99 total, 98 PASS, 1 FAIL, 0 SKIP;
+- único failure restante: teste HTTP de ingestão ainda alcançava configuração/infraestrutura real antes da asserção de autenticação.
+
+Mudanças da v3.80:
+1. Test seam explícito da API: IApiAuditSink/SqlApiAuditSink separam middleware de auditoria da persistência SQL.
+2. Test seam explícito de readiness: ISqlReadinessProbe/SqlSchemaReadinessProbe separam o contrato HTTP do probe SQL real.
+3. ApiHttpPipelineTests e OpenApiRuntimeConformanceTests usam InMemoryApiAuditSink e InMemorySqlReadinessProbe; Unit/OpenAPI runtime não abrem SQL Server.
+4. A fixture de ingestão usa IWebHostBuilder.UseSetting para Bronze/Staging absolutos antes da execução do Program top-level, preservando o fail-closed de Production.
+5. Warnings de confiabilidade observados no primeiro build real foram corrigidos: cultura invariável, comparação ordinal, DisposeAsync/base, paramName, defaults e cache de JsonSerializerOptions.
+6. .NET analyzers passam a fail-closed: CodeAnalysisTreatWarningsAsErrors=true. Exceções puramente estilísticas/micro-otimização são documentadas e versionadas em .editorconfig, sem renomear códigos de contrato nem romper abstrações.
+
+Limite importante:
+- testes Unit/OpenAPI runtime são sem SQL;
+- testes Integration/FaultInjection continuam usando SQL Server real por desenho, porque validam semântica T-SQL, transações, locks, constraints e concorrência.
+
+Próximo passo obrigatório no ambiente .NET 8.0.424:
+1. dotnet restore Jornada.sln --use-lock-file
+2. dotnet build Jornada.sln
+3. dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --configuration Debug --no-build --filter "TestCategory=Unit"
+4. exigir 99 PASS / 0 FAIL / 0 SKIP e zero warnings não aceitos pela política.

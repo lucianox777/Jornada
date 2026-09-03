@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "dotnetSdk": "8.0.424",
+  "githubActions": {
+    "actions/checkout": {
+      "tagHint": "v4.2.2",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    "actions/setup-dotnet": {
+      "tagHint": "v4.3.1",
+      "sha": "67a3573c9a986a3f9c594539f4ab511d57bb3ce9"
+    },
+    "actions/upload-artifact": {
+      "tagHint": "v4.6.2",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    "actions/download-artifact": {
+      "tagHint": "v4.2.1",
+      "sha": "95815c38cf2ff2164869cbab79da8d1f422bc89e"
+    }
+  },
+  "sqlServerImage": {
+    "tagHint": "2022-CU26-ubuntu-22.04",
+    "digest": "sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89",
+    "engineBuild": "16.0.4265.3"
+  }
+}

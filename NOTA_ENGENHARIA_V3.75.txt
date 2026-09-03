@@ -1,0 +1,22 @@
+Jornada Fase 1 — Nota de Engenharia v3.75
+Base normativa: v3.62
+Solution Engenharia: v3.75
+Schema persistido esperado: Base 3.62 / SolutionSchema 3.68
+
+Release estritamente de engenharia. Não altera regra normativa nem DDL funcional.
+
+Fechamentos adicionais implementáveis sem fabricar HML/governança:
+- schema-approvals.json: inventário SHA-256 integral de config/contracts e rito fail-closed de aprovação por conteúdo;
+- retention-dr-policy.json: retenção de item_processado/Bronze e RPO/RTO deixam de existir apenas em prosa;
+- identity-pending-lifecycle.json: PENDENTE_PROBABILISTICO/NAO_RESOLVIDO/CONFLITO passam a exigir decisão explícita; autoMutate permanece false;
+- scheduler-jobs.json: 10 jobs/operações inventariados sem inventar ferramenta, cadence, owner ou retry;
+- environment-requirements.json + environment-preflight-gate.py: toolchain/configuração mínima por perfil;
+- Jornada_HML_SQL_Performance_Evidence.sql + gate: Query Store, bloqueios, waits e deadlocks em evidência agregada sem PII;
+- api-projection-load-harness.py + gate: mede POST /pessoas/consulta em lotes 1/10/100/1000 sem persistir UUIDs/payloads/respostas;
+- hml-readiness passa a exigir governança, scheduler, ambiente, SQL e API além dos contratos de desempenho/linkage anteriores;
+- release evidence V3 inclui esses novos contratos/gates.
+
+Estado verdadeiro desta montagem:
+- contratos externos permanecem PENDENTE/PENDENTE_HML;
+- nenhum valor de retenção/RPO/RTO/cadência/threshold foi inferido;
+- não há packages.lock.json, execução .NET/SQL/Docker/Power BI Desktop ou aprovação institucional fabricada.

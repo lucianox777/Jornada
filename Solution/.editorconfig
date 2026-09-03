@@ -1,0 +1,22 @@
+root = true
+
+[*.cs]
+# Jornada is an application/service solution, not a CLS-consumable public library.
+dotnet_diagnostic.CA1014.severity = none
+
+# Uppercase underscore enum values are persisted/serialized contract codes and descriptive
+# NUnit method names intentionally use snake-like wording. Renaming would be contract churn.
+dotnet_diagnostic.CA1707.severity = none
+
+# Source-generated LoggerMessage conversion is a performance optimization. Existing structured
+# logs are semantically correct; retain readability until profiling identifies hot logging paths.
+dotnet_diagnostic.CA1848.severity = none
+
+# Interface/read-only collection types are intentional architecture boundaries. Do not replace
+# them by concrete implementations solely for micro-optimization.
+dotnet_diagnostic.CA1859.severity = none
+
+# Small literal arrays and instance helper methods are retained where they improve locality/readability;
+# these two diagnostics are micro-optimizations with no correctness impact.
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA1822.severity = none

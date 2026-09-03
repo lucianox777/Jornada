@@ -1,0 +1,55 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f330000000000000000105",
+  "position": {
+    "x": 30,
+    "y": 220,
+    "z": 9030,
+    "height": 430,
+    "width": 570,
+    "tabOrder": 9030
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeEnvios"
+                    }
+                  },
+                  "Property": "gestor"
+                }
+              },
+              "queryRef": "QualidadeEnvios.gestor",
+              "nativeQueryRef": "gestor"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeEnvios"
+                    }
+                  },
+                  "Property": "Itens Recebidos"
+                }
+              },
+              "queryRef": "QualidadeEnvios.Itens Recebidos",
+              "nativeQueryRef": "Itens Recebidos"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

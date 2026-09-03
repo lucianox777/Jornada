@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "status": "VIGENTE",
+  "allowedInsecureSqlGlobs": [
+    ".github/workflows/ci.yml",
+    "Solution/scripts/local-*.sh",
+    "Solution/scripts/local-*.ps1",
+    "Solution/docs/Runbook_Desenvolvimento_Local.md",
+    "Solution/src/*/appsettings.json"
+  ],
+  "allowedPasswordLiteralGlobs": [
+    ".github/workflows/ci.yml",
+    "Solution/.env.example",
+    "Solution/scripts/local-*.sh",
+    "Solution/scripts/local-*.ps1",
+    "Solution/docs/Runbook_Desenvolvimento_Local.md"
+  ],
+  "forbiddenTokenPrefixes": [
+    "ghp_",
+    "github_pat_",
+    "AKIA",
+    "ASIA"
+  ],
+  "note": "Exceções são apenas Development/CI sintético. Produção não pode distribuir credencial, chave privada ou TLS SQL enfraquecido."
+}

@@ -1,0 +1,27 @@
+JORNADA FASE 1 — RELEASE DE ENGENHARIA v3.89
+
+Base Normativa: v3.62
+SolutionSchema: v3.68
+Solution Engenharia: v3.89
+Predecessora Git: v3.88
+
+Mudanças v3.89:
+- corrige o banco descartável criado pela fixture Integration de JornadaIntegration_<guid> para JornadaIntegrationTest_<guid>;
+- preserva integralmente os guards fail-closed que recusam bancos sem Test/Dev/Local;
+- adiciona scripts/local-clean.ps1 como limpeza canônica: remove recursos Docker locais, .env, .local, TestResults, artifacts/dist, .vs, bin/obj e Bronze local, preservando a imagem SQL Server;
+- adiciona scripts/local-validate-release.ps1 como validação canônica: restore --locked-mode explícito da Solution, Unit e Integration; build Release; Unit; preflight Docker; build Integration; Integration;
+- o validador força o caminho Testcontainers descartável e restaura overrides do shell ao terminar;
+- variantes temporárias local-validate-release-v2.ps1 e local-validate-release-r4.ps1 não fazem parte da release;
+- nenhum PackageReference, DDL funcional, Base Normativa ou SolutionSchema foi alterado.
+
+Evidência externa da v3.88:
+- restore locked da Solution: OK;
+- restore locked explícito de Jornada.Tests: OK;
+- restore locked explícito de Jornada.Integration.Tests: OK;
+- build Release da Solution: 0 warnings / 0 errors;
+- Unit: 153/153 PASS;
+- build explícito de Jornada.Integration.Tests: 0 warnings / 0 errors;
+- Integration: 58 casos iniciados; 5 PASS / 53 FAIL;
+- as 53 falhas tinham a mesma causa: o guard de segurança exigia Test/Dev/Local no nome do banco, enquanto a fixture v3.88 gerava JornadaIntegration_<guid>.
+
+A v3.89 não declara Integration/runtime aprovado até nova execução real.

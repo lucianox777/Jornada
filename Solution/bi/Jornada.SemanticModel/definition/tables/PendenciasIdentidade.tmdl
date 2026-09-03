@@ -1,0 +1,95 @@
+table PendenciasIdentidade
+
+	measure 'Pendências' = COUNTROWS(PendenciasIdentidade)
+		formatString: #,##0
+
+	measure 'Conflitos' = CALCULATE(COUNTROWS(PendenciasIdentidade),PendenciasIdentidade[linkage_status]="CONFLITO")
+		formatString: #,##0
+
+	measure 'CPF Ausente' = CALCULATE(COUNTROWS(PendenciasIdentidade),PendenciasIdentidade[motivo]="SEM_CPF" || PendenciasIdentidade[motivo]="EM_REGULARIZACAO" || PendenciasIdentidade[motivo]="NAO_INFORMADO_ORIGEM")
+		formatString: #,##0
+
+	measure 'Pendências > 365 dias' = CALCULATE(COUNTROWS(PendenciasIdentidade),PendenciasIdentidade[dias_pendente]>365)
+		formatString: #,##0
+
+	measure 'P95 Dias Pendentes' = PERCENTILEX.INC(PendenciasIdentidade,PendenciasIdentidade[dias_pendente],0.95)
+		formatString: #,##0
+
+	column pessoa_observacao_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: pessoa_observacao_id
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column source_as_of
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: source_as_of
+
+	column subprefeitura
+		dataType: string
+		summarizeBy: none
+		sourceColumn: subprefeitura
+
+	column distrito
+		dataType: string
+		summarizeBy: none
+		sourceColumn: distrito
+
+	column motivo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: motivo
+
+	column prioridade
+		dataType: string
+		summarizeBy: none
+		sourceColumn: prioridade
+
+	column score
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: score
+
+	column linkage_status
+		dataType: string
+		summarizeBy: none
+		sourceColumn: linkage_status
+
+	column metodo_resolucao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: metodo_resolucao
+
+	column pendente_desde
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: pendente_desde
+
+	column dias_pendente
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: dias_pendente
+
+	column faixa_envelhecimento
+		dataType: string
+		summarizeBy: none
+		sourceColumn: faixa_envelhecimento
+
+	column natureza_referencia_territorial
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza_referencia_territorial
+
+	partition PendenciasIdentidade = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_pendencias_identidade"]}[Data]
+			in
+				Data

@@ -1,0 +1,18 @@
+Jornada do Cidadão - Fase 1
+Base Normativa: v3.62
+Solution Engenharia: v3.84
+Data: 2026-09-02
+
+Predecessor Git verificável: jornada-solution-v3.83.
+
+Mudanças v3.84:
+- Testcontainers.MsSql removido de Jornada.Tests; Unit/OpenAPI runtime não dependem de Docker/Testcontainers;
+- Jornada.Integration.Tests reduzido a sete ProjectReference diretos efetivamente usados pela suíte;
+- architecture-dependency-gate continua exato e passa a fixar a fronteira reduzida de Integration;
+- CI e scripts locais de FaultInjection passam a executar Jornada.Integration.Tests, onde os testes realmente residem;
+- local-test executa explicitamente Unit e Integration após o build;
+- nuget-lock-gate passa a rejeitar dependência Direct excedente no lock;
+- proveniência dos locks ganha manifesto/gate próprio e declara sem ambiguidade que o ambiente de empacotamento não executou dotnet restore.
+
+Base Normativa v3.62 e SolutionSchema v3.68 permanecem inalterados.
+Os dois locks afetados pela mudança de dependências foram derivados deterministicamente do grafo v3.83 e permanecem PENDENTES de confirmação por dotnet restore --locked-mode no CI/ambiente confiável; nenhum restore local é alegado.

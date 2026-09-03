@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "5c65881c93484ae73b52",
+  "position": {
+    "x": 330,
+    "y": 40,
+    "z": 2000,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 2000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Ingestao"
+                    }
+                  },
+                  "Property": "Entregas Completas"
+                }
+              },
+              "queryRef": "Ingestao.Entregas Completas",
+              "nativeQueryRef": "Entregas Completas"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Entregas Completas'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,197 @@
+table QualidadeBeneficios
+
+	measure 'Registros' = COUNTROWS(QualidadeBeneficios)
+		formatString: #,##0
+
+	measure 'Entrega Completa %' = DIVIDE(SUM(QualidadeBeneficios[entrega_completa]),COUNTROWS(QualidadeBeneficios))
+		formatString: 0.0%
+
+	measure 'Geografia %' = DIVIDE(SUM(QualidadeBeneficios[geografia_preenchida]),COUNTROWS(QualidadeBeneficios))
+		formatString: 0.0%
+
+	measure 'Medida Preenchida %' = DIVIDE(SUM(QualidadeBeneficios[medida_preenchida]),COUNTROWS(QualidadeBeneficios))
+		formatString: 0.0%
+
+	measure 'Vigencia Coerente %' = DIVIDE(SUM(QualidadeBeneficios[vigencia_coerente]),COUNTROWS(QualidadeBeneficios))
+		formatString: 0.0%
+
+	measure 'Vigencia Conforme Regime %' = DIVIDE(SUM(QualidadeBeneficios[vigencia_conforme_regime]),COUNTROWS(QualidadeBeneficios))
+		formatString: 0.0%
+
+	measure 'Concessao na Janela %' = DIVIDE(SUM(QualidadeBeneficios[concessao_na_janela_permitida]),SUM(QualidadeBeneficios[concessao_janela_verificavel]))
+		formatString: 0.0%
+
+	measure 'Concessao Janela Verificavel %' = DIVIDE(SUM(QualidadeBeneficios[concessao_janela_verificavel]),COUNTROWS(QualidadeBeneficios))
+		formatString: 0.0%
+
+	measure 'QC Implementado %' = DIVIDE(SUM(QualidadeBeneficios[qc_implementado]),COUNTROWS(QualidadeBeneficios))
+		formatString: 0.0%
+
+	measure 'QC Valido %' = DIVIDE(SUM(QualidadeBeneficios[qc_valido]),COUNTROWS(QualidadeBeneficios))
+		formatString: 0.0%
+
+	measure 'QC Divergente %' = DIVIDE(SUM(QualidadeBeneficios[qc_divergente]),COUNTROWS(QualidadeBeneficios))
+		formatString: 0.0%
+
+	measure 'QC Nao Verificavel %' = DIVIDE(SUM(QualidadeBeneficios[qc_nao_verificavel]),COUNTROWS(QualidadeBeneficios))
+		formatString: 0.0%
+
+	measure 'Com Versionamento %' = DIVIDE(SUM(QualidadeBeneficios[possui_versionamento]),COUNTROWS(QualidadeBeneficios))
+		formatString: 0.0%
+
+	measure 'Retificacao Vigente %' = DIVIDE(SUM(QualidadeBeneficios[retificacao_vigente]),COUNTROWS(QualidadeBeneficios))
+		formatString: 0.0%
+
+	column registro_observacao_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: registro_observacao_id
+
+	column registro_origem_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: registro_origem_id
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column beneficio
+		dataType: string
+		summarizeBy: none
+		sourceColumn: beneficio
+
+	column nome_beneficio
+		dataType: string
+		summarizeBy: none
+		sourceColumn: nome_beneficio
+
+	column tipo_medida
+		dataType: string
+		summarizeBy: none
+		sourceColumn: tipo_medida
+
+	column regime_vigencia
+		dataType: string
+		summarizeBy: none
+		sourceColumn: regime_vigencia
+
+	column data_inicio_permitida_concessao
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_inicio_permitida_concessao
+
+	column data_fim_permitida_concessao
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_fim_permitida_concessao
+
+	column source_as_of
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: source_as_of
+
+	column subprefeitura
+		dataType: string
+		summarizeBy: none
+		sourceColumn: subprefeitura
+
+	column distrito
+		dataType: string
+		summarizeBy: none
+		sourceColumn: distrito
+
+	column versao_interna
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: versao_interna
+
+	column operacao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: operacao
+
+	column entrega_completa
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: entrega_completa
+
+	column geografia_preenchida
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: geografia_preenchida
+
+	column medida_preenchida
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: medida_preenchida
+
+	column vigencia_coerente
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: vigencia_coerente
+
+	column vigencia_conforme_regime
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: vigencia_conforme_regime
+
+	column concessao_na_janela_permitida
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: concessao_na_janela_permitida
+
+	column concessao_janela_verificavel
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: concessao_janela_verificavel
+
+	column qc_implementado
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: qc_implementado
+
+	column qc_valido
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: qc_valido
+
+	column qc_divergente
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: qc_divergente
+
+	column qc_nao_verificavel
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: qc_nao_verificavel
+
+	column qtd_regras_qc
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: qtd_regras_qc
+
+	column possui_versionamento
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: possui_versionamento
+
+	column retificacao_vigente
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: retificacao_vigente
+
+	column natureza_referencia_territorial
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza_referencia_territorial
+
+	partition QualidadeBeneficios = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_qualidade_beneficios_concedidos"]}[Data]
+			in
+				Data

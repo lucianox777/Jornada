@@ -1,0 +1,77 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f380000000000000002103",
+  "position": {
+    "x": 30,
+    "y": 220,
+    "z": 9003,
+    "height": 430,
+    "width": 570,
+    "tabOrder": 9003
+  },
+  "visual": {
+    "visualType": "lineChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "CargaInicial"
+                    }
+                  },
+                  "Property": "hora_utc"
+                }
+              },
+              "queryRef": "CargaInicial.hora_utc",
+              "nativeQueryRef": "hora_utc"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "CargaInicial"
+                    }
+                  },
+                  "Property": "pessoas_processadas"
+                }
+              },
+              "queryRef": "CargaInicial.pessoas_processadas",
+              "nativeQueryRef": "pessoas_processadas"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Vazão horária'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

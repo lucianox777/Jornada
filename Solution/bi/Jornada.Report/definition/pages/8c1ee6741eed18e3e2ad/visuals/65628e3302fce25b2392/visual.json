@@ -1,0 +1,55 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "65628e3302fce25b2392",
+  "position": {
+    "x": 60,
+    "y": 220,
+    "z": 9000,
+    "height": 430,
+    "width": 1160,
+    "tabOrder": 9000
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QC"
+                    }
+                  },
+                  "Property": "gestor"
+                }
+              },
+              "queryRef": "QC.gestor",
+              "nativeQueryRef": "gestor"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QC"
+                    }
+                  },
+                  "Property": "Registros QC"
+                }
+              },
+              "queryRef": "QC.Registros QC",
+              "nativeQueryRef": "Registros QC"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "status": "PENDENTE",
+  "decision": "SEM_DECISAO",
+  "approvedAtUtc": null,
+  "approvedBy": null,
+  "evidence": null,
+  "minimumLabeledNoCpfPairs": null,
+  "minimumCpfAnchoredIndependentPairs": null,
+  "minimumV1Recall": null,
+  "minimumV2CandidateRecall": null,
+  "maximumCandidateExpansionRatio": null,
+  "maximumNomeTotalVariation": null,
+  "maximumNomeMaeTotalVariation": null,
+  "maximumDataNascimentoExactAbsoluteDelta": null,
+  "note": "V2 nunca é promovido automaticamente. Uma política APROVADA apenas torna a evidência comparável a critérios formalmente homologados.",
+  "approvalContext": null
+}

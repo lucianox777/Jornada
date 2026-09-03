@@ -1,0 +1,19 @@
+@startuml
+title CPF compartilhado / identidade em conflito
+actor "Sistema finalístico" as F
+participant "Processor" as P
+database "Silver" as S
+participant "Identity Resolution" as I
+database "Gold factual" as G
+queue "Divergências" as D
+participant "BI factual" as B
+participant "Jornada individual" as J
+F -> P: Fato válido para sujeito/CPF declarado
+P -> S: Preserva declaração original
+P -> I: Resolve CPF
+I --> P: CONFLITO / sem UUID
+P -> G: Materializa fato\ncpf_declarado preservado\npessoa_uuid=NULL\nestado=CONFLITO_IDENTIDADE
+P -> D: Publica divergência ao Gestor
+G -> B: Conta fato e valor normalmente
+G -x J: Não projeta conteúdo individual
+@enduml

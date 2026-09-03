@@ -1,0 +1,21 @@
+{
+    "schemaVersion": 1,
+    "release": "Jornada Fase 1",
+    "baseNormativa": "v3.62",
+    "solutionEngenharia": "v3.90",
+    "sourceScope": "release_tree_excluding_generated_seal_and_embedded_bundle",
+    "bundlePath": "Solution/supply-chain/source/Jornada_Source_v3.89_v3.90.bundle",
+    "bundleSha256": "d5e92c616a99d05526f5e598934f8ca3bcf43494768a2f8a54ab46732bd1cc84",
+    "predecessor": {
+        "tag": "jornada-solution-v3.89",
+        "commit": "b22ea4f59e4edae6bb93c7a5c72eca3c4968b671",
+        "tree": "217f78bf04e96a8a5ecac8bc7a52ed60890d99d3",
+        "trackedFileCount": 600
+    },
+    "current": {
+        "tag": "jornada-solution-v3.90",
+        "commit": "8c1eac9689cc9ca00993384beb9fa6a727927a45",
+        "tree": "615e6aa8eed8c81d304df8b4e266e9c4348d5bb8",
+        "trackedFileCount": 604
+    }
+}

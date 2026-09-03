@@ -1,0 +1,84 @@
+table Ingestao
+
+	measure 'Entregas' = COUNTROWS(Ingestao)
+		formatString: #,##0
+
+	measure 'Entregas Completas' = CALCULATE(COUNTROWS(Ingestao), Ingestao[status] = "PROCESSADA")
+		formatString: #,##0
+
+	measure 'Entregas Incompletas' = CALCULATE(COUNTROWS(Ingestao), Ingestao[status] <> "PROCESSADA")
+		formatString: #,##0
+
+	column entrega_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: entrega_id
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column contexto_entrega
+		dataType: string
+		summarizeBy: none
+		sourceColumn: contexto_entrega
+
+	column natureza
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza
+
+	column codigo_tipo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: codigo_tipo
+
+	column nome_tipo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: nome_tipo
+
+	column status
+		dataType: string
+		summarizeBy: none
+		sourceColumn: status
+
+	column lotes_validos
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: lotes_validos
+
+	column lote_total_declarado
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: lote_total_declarado
+
+	column data_referencia
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_referencia
+
+	column first_seen_at
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: first_seen_at
+
+	column ultima_atualizacao
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: ultima_atualizacao
+
+	column duracao_minutos
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: duracao_minutos
+
+	partition Ingestao = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_entregas"]}[Data]
+			in
+				Data

@@ -1,0 +1,39 @@
+table CargaInicial
+
+	measure 'Pessoas Processadas Carga Inicial' = SUM(CargaInicial[pessoas_processadas])
+		formatString: #,##0
+
+	measure 'Pessoas por Hora Ativa' = MAX(CargaInicial[pessoas_por_hora_ativa])
+		formatString: #,##0.00
+
+	measure 'Modo Carga Inicial Ativo' = MAXX(CargaInicial, IF(CargaInicial[modo_carga_inicial],1,0))
+		formatString: 0
+
+	column hora_utc
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: hora_utc
+
+	column pessoas_processadas
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: pessoas_processadas
+
+	column modo_carga_inicial
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: modo_carga_inicial
+
+	column pessoas_por_hora_ativa
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: pessoas_por_hora_ativa
+
+	partition CargaInicial = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_carga_inicial"]}[Data]
+			in
+				Data

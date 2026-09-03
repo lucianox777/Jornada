@@ -1,0 +1,14 @@
+@startuml
+title Fato sem CPF e resolução probabilística posterior
+actor "Sistema finalístico" as F
+participant "Processor" as P
+database "Gold factual" as G
+participant "Linkage Runner" as L
+database "Vínculos de identidade" as V
+participant "Jornada individual" as J
+F -> P: Fato + codigoPessoaOrigem\nCPF ausente com motivo
+P -> G: Materializa fato\nestado=PENDENTE_IDENTIDADE\npessoa_uuid=NULL
+L -> V: Publica vínculo probabilístico resolvido
+V -> G: Sincroniza atribuição corrente\npessoa_uuid=UUID\nestado=ATRIBUIDA
+G -> J: Fato passa a integrar Jornada do UUID
+@enduml

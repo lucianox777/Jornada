@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "d1000000000000000003",
+  "position": {
+    "x": 510,
+    "y": 40,
+    "z": 3000,
+    "height": 130,
+    "width": 220,
+    "tabOrder": 3000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Atrasos"
+                    }
+                  },
+                  "Property": "% em Atraso"
+                }
+              },
+              "queryRef": "Atrasos.% em Atraso",
+              "nativeQueryRef": "% em Atraso"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'% em Atraso'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

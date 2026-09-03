@@ -1,0 +1,82 @@
+table ManutencaoBronze
+
+	measure 'Objetos Examinados Bronze' = SUM(ManutencaoBronze[objetos_examinados])
+		formatString: #,##0
+
+	measure 'Orfaos Removidos' = SUM(ManutencaoBronze[orfaos_removidos])
+		formatString: #,##0
+
+	measure 'Temporarios Removidos' = SUM(ManutencaoBronze[temporarios_removidos])
+		formatString: #,##0
+
+	measure 'Falhas Storage Bronze' = SUM(ManutencaoBronze[falhas_storage])
+		formatString: #,##0
+
+	measure 'Locks Nao Adquiridos Bronze' = SUM(ManutencaoBronze[locks_nao_adquiridos])
+		formatString: #,##0
+
+	column ciclo_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: ciclo_id
+	column iniciado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: iniciado_em
+	column finalizado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: finalizado_em
+	column duracao_segundos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: duracao_segundos
+	column bucket_inicial
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: bucket_inicial
+	column after_inicial
+		dataType: string
+		summarizeBy: none
+		sourceColumn: after_inicial
+	column bucket_proximo
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: bucket_proximo
+	column after_proximo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: after_proximo
+	column objetos_examinados
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: objetos_examinados
+	column orfaos_removidos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: orfaos_removidos
+	column temporarios_removidos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: temporarios_removidos
+	column locks_nao_adquiridos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: locks_nao_adquiridos
+	column falhas_storage
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: falhas_storage
+	column orfao_mais_antigo_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: orfao_mais_antigo_em
+
+	partition ManutencaoBronze = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_manutencao_bronze"]}[Data]
+			in
+				Data

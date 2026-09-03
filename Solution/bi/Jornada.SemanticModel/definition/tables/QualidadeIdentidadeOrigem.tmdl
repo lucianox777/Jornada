@@ -1,0 +1,106 @@
+table QualidadeIdentidadeOrigem
+
+	measure 'Pessoas Observadas' = COUNTROWS(QualidadeIdentidadeOrigem)
+		formatString: #,##0
+	measure 'Cobertura CPF' = DIVIDE(SUM(QualidadeIdentidadeOrigem[cpf_preenchido]),COUNTROWS(QualidadeIdentidadeOrigem))
+		formatString: 0.0%
+	measure 'Cobertura UUID' = DIVIDE(SUM(QualidadeIdentidadeOrigem[possui_uuid]),COUNTROWS(QualidadeIdentidadeOrigem))
+		formatString: 0.0%
+	measure 'Taxa Sem Candidato no Bloco' = DIVIDE(SUM(QualidadeIdentidadeOrigem[sem_candidato_no_bloco]),CALCULATE(COUNTROWS(QualidadeIdentidadeOrigem),QualidadeIdentidadeOrigem[metodo_resolucao]="LINKAGE_PROBABILISTICO" || QualidadeIdentidadeOrigem[metodo_resolucao]="PENDENTE_PROBABILISTICO"))
+		formatString: 0.0%
+	measure 'Conflitos' = SUM(QualidadeIdentidadeOrigem[conflito])
+		formatString: #,##0
+	measure 'Nascimento 01/01' = DIVIDE(SUM(QualidadeIdentidadeOrigem[nascimento_0101]),COUNTROWS(QualidadeIdentidadeOrigem))
+		formatString: 0.0%
+	measure 'Geografia Preenchida' = DIVIDE(SUM(QualidadeIdentidadeOrigem[geografia_preenchida]),COUNTROWS(QualidadeIdentidadeOrigem))
+		formatString: 0.0%
+
+	column pessoa_observacao_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: pessoa_observacao_id
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+	column sistema_origem
+		dataType: string
+		summarizeBy: none
+		sourceColumn: sistema_origem
+	column source_as_of
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: source_as_of
+	column status
+		dataType: string
+		summarizeBy: none
+		sourceColumn: status
+	column metodo_resolucao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: metodo_resolucao
+	column score
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: score
+	column possui_uuid
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: possui_uuid
+	column resolvido_cpf
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: resolvido_cpf
+	column resolvido_fallback
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: resolvido_fallback
+	column nao_resolvido
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: nao_resolvido
+	column conflito
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: conflito
+	column sem_candidato_no_bloco
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: sem_candidato_no_bloco
+	column motivo_linkage
+		dataType: string
+		summarizeBy: none
+		sourceColumn: motivo_linkage
+	column cpf_preenchido
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: cpf_preenchido
+	column cpf_ausente_motivo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: cpf_ausente_motivo
+	column nascimento_0101
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: nascimento_0101
+	column geografia_preenchida
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: geografia_preenchida
+	column subprefeitura
+		dataType: string
+		summarizeBy: none
+		sourceColumn: subprefeitura
+	column distrito
+		dataType: string
+		summarizeBy: none
+		sourceColumn: distrito
+
+	partition QualidadeIdentidadeOrigem = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_qualidade_identidade_origem"]}[Data]
+			in
+				Data

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "release": "v3.90",
+  "predecessorTag": "jornada-solution-v3.89",
+  "status": "VIGENTE",
+  "allowlist": [],
+  "note": "v3.90 não altera DDL funcional em relação à v3.89; qualquer alteração destrutiva deve ser bloqueada."
+}

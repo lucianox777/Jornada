@@ -1,0 +1,171 @@
+table QualidadeEnvios
+
+	measure 'Entregas Recebidas' = COUNTROWS(QualidadeEnvios)
+		formatString: #,##0
+
+	measure 'Taxa Processada' = DIVIDE(SUM(QualidadeEnvios[processada]),COUNTROWS(QualidadeEnvios))
+		formatString: 0.0%
+
+	measure 'Itens Recebidos' = SUM(QualidadeEnvios[itens_recebidos])
+		formatString: #,##0
+
+	measure 'Pessoas Recebidas' = SUM(QualidadeEnvios[pessoas_recebidas])
+		formatString: #,##0
+
+	measure 'Registros Recebidos' = SUM(QualidadeEnvios[registros_recebidos])
+		formatString: #,##0
+
+	measure 'Retransmissoes Identicas' = SUM(QualidadeEnvios[retransmitidos])
+		formatString: #,##0
+
+	measure 'Taxa Retransmissao' = DIVIDE(SUM(QualidadeEnvios[retransmitidos]),SUM(QualidadeEnvios[itens_recebidos]))
+		formatString: 0.0%
+
+	measure 'Entregas com Falha' = SUM(QualidadeEnvios[com_falha])
+		formatString: #,##0
+
+	measure 'Zero Fatos no Periodo' = SUM(QualidadeEnvios[zero_fatos_no_periodo])
+		formatString: #,##0
+
+	measure 'Tentativas Processor' = SUM(QualidadeEnvios[tentativas_processamento])
+		formatString: #,##0
+
+	measure 'Recuperacoes Lease' = SUM(QualidadeEnvios[recuperacoes_lease])
+		formatString: #,##0
+
+	measure 'Lotes Poison' = SUM(QualidadeEnvios[lotes_poison])
+		formatString: #,##0
+
+	column entrega_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: entrega_id
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+	column sistema_origem
+		dataType: string
+		summarizeBy: none
+		sourceColumn: sistema_origem
+	column natureza
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza
+	column contexto_entrega
+		dataType: string
+		summarizeBy: none
+		sourceColumn: contexto_entrega
+	column codigo_tipo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: codigo_tipo
+	column nome_tipo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: nome_tipo
+	column status
+		dataType: string
+		summarizeBy: none
+		sourceColumn: status
+	column data_referencia
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_referencia
+	column recebido_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: recebido_em
+	column bytes_recebidos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: bytes_recebidos
+	column entrega_completa
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: entrega_completa
+	column processada
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: processada
+	column com_falha
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: com_falha
+	column itens_recebidos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: itens_recebidos
+	column pessoas_recebidas
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: pessoas_recebidas
+	column registros_recebidos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: registros_recebidos
+	column retransmitidos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: retransmitidos
+	column novas_versoes
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: novas_versoes
+	column incluidos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: incluidos
+	column taxa_retransmissao
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: taxa_retransmissao
+	column zero_fatos_no_periodo
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: zero_fatos_no_periodo
+	column lotes
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: lotes
+	column lotes_processados
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: lotes_processados
+	column lotes_rejeitados
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: lotes_rejeitados
+	column lotes_quarentena
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: lotes_quarentena
+	column lotes_poison
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: lotes_poison
+	column tentativas_processamento
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: tentativas_processamento
+	column recuperacoes_lease
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: recuperacoes_lease
+	column erro_codigo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: erro_codigo
+	column duracao_minutos
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: duracao_minutos
+
+	partition QualidadeEnvios = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_qualidade_envios"]}[Data]
+			in
+				Data

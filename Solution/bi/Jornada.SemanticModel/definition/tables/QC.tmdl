@@ -1,0 +1,74 @@
+table QC
+
+	measure 'Registros QC' = COUNTROWS(QC)
+		formatString: #,##0
+
+	measure 'QC Implementado %' = DIVIDE(CALCULATE(COUNTROWS(QC),QC[qc_implementacao]="IMPLEMENTADO"),COUNTROWS(QC))
+		formatString: 0.0%
+
+	measure 'Divergentes %' = DIVIDE(CALCULATE(COUNTROWS(QC),QC[resultado]="DIVERGENTE"),COUNTROWS(QC))
+		formatString: 0.0%
+
+	column registro_observacao_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: registro_observacao_id
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column natureza
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza
+
+	column codigo_tipo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: codigo_tipo
+
+	column nome_tipo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: nome_tipo
+
+	column versao
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: versao
+
+	column source_as_of
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: source_as_of
+
+	column qc_implementacao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: qc_implementacao
+
+	column resultado
+		dataType: string
+		summarizeBy: none
+		sourceColumn: resultado
+
+	column regra_codigo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: regra_codigo
+
+	column motivo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: motivo
+
+	partition QC = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_qc"]}[Data]
+			in
+				Data

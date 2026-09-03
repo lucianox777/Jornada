@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "release": "v3.90",
+  "baseNormativa": "v3.62",
+  "solutionSchema": "v3.68",
+  "sourceRelease": "v3.84",
+  "packagingEnvironment": {
+    "dotnetAvailable": false,
+    "dockerAvailable": false,
+    "nugetRestoreExecuted": false
+  },
+  "assurance": "NO_RESTORE_CLAIMED",
+  "locks": [
+    {
+      "path": "src/Jornada.Api/packages.lock.json",
+      "origin": "INHERITED_UNCHANGED_FROM_V3.84",
+      "sourceSha256": "a2dd9012ede57583348052d4a83a7af71ac224ce413c3aee2288285141184a85",
+      "sha256": "a2dd9012ede57583348052d4a83a7af71ac224ce413c3aee2288285141184a85",
+      "note": "Conteúdo do lock herdado byte-a-byte da v3.84.",
+      "verificationStatus": "INHERITED_RESTORE_GRAPH_REQUIRES_RELEASE_LOCKED_RESTORE"
+    },
+    {
+      "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
+      "origin": "INHERITED_UNCHANGED_FROM_V3.84",
+      "sourceSha256": "7d1520742805694c6a9eb05f1e7b8cd9b9572c978c8eb9a755cb57ee60801ddf",
+      "sha256": "7d1520742805694c6a9eb05f1e7b8cd9b9572c978c8eb9a755cb57ee60801ddf",
+      "note": "Conteúdo do lock herdado byte-a-byte da v3.84.",
+      "verificationStatus": "INHERITED_RESTORE_GRAPH_REQUIRES_RELEASE_LOCKED_RESTORE"
+    },
+    {
+      "path": "src/Jornada.Bronze.Storage/packages.lock.json",
+      "origin": "INHERITED_UNCHANGED_FROM_V3.84",
+      "sourceSha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
+      "sha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
+      "note": "Conteúdo do lock herdado byte-a-byte da v3.84.",
+      "verificationStatus": "INHERITED_RESTORE_GRAPH_REQUIRES_RELEASE_LOCKED_RESTORE"
+    },
+    {
+      "path": "src/Jornada.Bronze.Verify/packages.lock.json",
+      "origin": "INHERITED_UNCHANGED_FROM_V3.84",
+      "sourceSha256": "1317e0ef6ff64f8cfb4bb03bef7626c969ad5868e6a403402b30193710b11c46",
+      "sha256": "1317e0ef6ff64f8cfb4bb03bef7626c969ad5868e6a403402b30193710b11c46",
+      "note": "Conteúdo do lock herdado byte-a-byte da v3.84.",
+      "verificationStatus": "INHERITED_RESTORE_GRAPH_REQUIRES_RELEASE_LOCKED_RESTORE"
+    },
+    {
+      "path": "src/Jornada.Contracts/packages.lock.json",
+      "origin": "INHERITED_UNCHANGED_FROM_V3.84",
+      "sourceSha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
+      "sha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
+      "note": "Conteúdo do lock herdado byte-a-byte da v3.84.",
+      "verificationStatus": "INHERITED_RESTORE_GRAPH_REQUIRES_RELEASE_LOCKED_RESTORE"
+    },
+    {
+      "path": "src/Jornada.Ingestion/packages.lock.json",
+      "origin": "INHERITED_UNCHANGED_FROM_V3.84",
+      "sourceSha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9",
+      "sha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9",
+      "note": "Conteúdo do lock herdado byte-a-byte da v3.84.",
+      "verificationStatus": "INHERITED_RESTORE_GRAPH_REQUIRES_RELEASE_LOCKED_RESTORE"
+    },
+    {
+      "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
+      "origin": "INHERITED_UNCHANGED_FROM_V3.84",
+      "sourceSha256": "ff40971c9524193fddd81cc387a2349d30355dc25dc20728d15cdd360cc31c93",
+      "sha256": "ff40971c9524193fddd81cc387a2349d30355dc25dc20728d15cdd360cc31c93",
+      "note": "Conteúdo do lock herdado byte-a-byte da v3.84.",
+      "verificationStatus": "INHERITED_RESTORE_GRAPH_REQUIRES_RELEASE_LOCKED_RESTORE"
+    },
+    {
+      "path": "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
+      "origin": "INHERITED_UNCHANGED_FROM_V3.84",
+      "sourceSha256": "124aa2d5c9c8f7a9f8a5d711976437e651fa348c35088af60ebbe830f353bd59",
+      "sha256": "124aa2d5c9c8f7a9f8a5d711976437e651fa348c35088af60ebbe830f353bd59",
+      "note": "Conteúdo do lock herdado byte-a-byte da v3.84.",
+      "verificationStatus": "INHERITED_RESTORE_GRAPH_REQUIRES_RELEASE_LOCKED_RESTORE"
+    },
+    {
+      "path": "src/Jornada.Linkage.Runner/packages.lock.json",
+      "origin": "INHERITED_UNCHANGED_FROM_V3.84",
+      "sourceSha256": "124aa2d5c9c8f7a9f8a5d711976437e651fa348c35088af60ebbe830f353bd59",
+      "sha256": "124aa2d5c9c8f7a9f8a5d711976437e651fa348c35088af60ebbe830f353bd59",
+      "note": "Conteúdo do lock herdado byte-a-byte da v3.84.",
+      "verificationStatus": "INHERITED_RESTORE_GRAPH_REQUIRES_RELEASE_LOCKED_RESTORE"
+    },
+    {
+      "path": "src/Jornada.Operations.Maintenance.Worker/packages.lock.json",
+      "origin": "INHERITED_UNCHANGED_FROM_V3.84",
+      "sourceSha256": "7d1520742805694c6a9eb05f1e7b8cd9b9572c978c8eb9a755cb57ee60801ddf",
+      "sha256": "7d1520742805694c6a9eb05f1e7b8cd9b9572c978c8eb9a755cb57ee60801ddf",
+      "note": "Conteúdo do lock herdado byte-a-byte da v3.84.",
+      "verificationStatus": "INHERITED_RESTORE_GRAPH_REQUIRES_RELEASE_LOCKED_RESTORE"
+    },
+    {
+      "path": "src/Jornada.Pipeline.Coordination/packages.lock.json",
+      "origin": "INHERITED_UNCHANGED_FROM_V3.84",
+      "sourceSha256": "ff40971c9524193fddd81cc387a2349d30355dc25dc20728d15cdd360cc31c93",
+      "sha256": "ff40971c9524193fddd81cc387a2349d30355dc25dc20728d15cdd360cc31c93",
+      "note": "Conteúdo do lock herdado byte-a-byte da v3.84.",
+      "verificationStatus": "INHERITED_RESTORE_GRAPH_REQUIRES_RELEASE_LOCKED_RESTORE"
+    },
+    {
+      "path": "src/Jornada.Processor.Worker/packages.lock.json",
+      "origin": "INHERITED_UNCHANGED_FROM_V3.84",
+      "sourceSha256": "e196ff530cabadd6a9e77a9163ace97b28571fb08431d2ea20ab982afbedf83b",
+      "sha256": "e196ff530cabadd6a9e77a9163ace97b28571fb08431d2ea20ab982afbedf83b",
+      "note": "Conteúdo do lock herdado byte-a-byte da v3.84.",
+      "verificationStatus": "INHERITED_RESTORE_GRAPH_REQUIRES_RELEASE_LOCKED_RESTORE"
+    },
+    {
+      "path": "tests/Jornada.Integration.Tests/packages.lock.json",
+      "origin": "INHERITED_PENDING_FROM_V3.84",
+      "sourceSha256": "633f0f57cdc304c99683e41b624968c0d1d590b99d35eadd4748b74de91024ee",
+      "sha256": "633f0f57cdc304c99683e41b624968c0d1d590b99d35eadd4748b74de91024ee",
+      "note": "Lock herdado byte-a-byte da v3.84; já estava pendente de confirmação por restore confiável.",
+      "verificationStatus": "PENDING_TRUSTED_DOTNET_RESTORE"
+    },
+    {
+      "path": "tests/Jornada.Tests/packages.lock.json",
+      "origin": "INHERITED_PENDING_FROM_V3.84",
+      "sourceSha256": "e774f5e4689d81712c66d2d9c49e0de15f8f9d79154f9c79aa623472ffc6f7b0",
+      "sha256": "e774f5e4689d81712c66d2d9c49e0de15f8f9d79154f9c79aa623472ffc6f7b0",
+      "note": "Lock herdado byte-a-byte da v3.84; já estava pendente de confirmação por restore confiável.",
+      "verificationStatus": "PENDING_TRUSTED_DOTNET_RESTORE"
+    }
+  ],
+  "promotionRequirements": [
+    "dotnet SDK 8.0.424",
+    "python3 scripts/nuget-lock-gate.py --root .",
+    "dotnet restore Jornada.sln --locked-mode",
+    "release tag promotion must fail if locked restore changes/rejects the committed graph"
+  ],
+  "externalEvidence": {
+    "sourceRelease": "v3.88",
+    "date": "2026-09-02",
+    "dotnetSdk": "8.0.424",
+    "lockedRestoreSolution": "PASS",
+    "lockedRestoreUnit": "PASS",
+    "lockedRestoreIntegration": "PASS",
+    "note": "Evidência externa do operador herdada; o ambiente de empacotamento v3.90 continua sem executar restore."
+  }
+}

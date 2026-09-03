@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "8afd6d20e31595068da3",
+  "position": {
+    "x": 270,
+    "y": 40,
+    "z": 2000,
+    "height": 130,
+    "width": 220,
+    "tabOrder": 2000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Linkage"
+                    }
+                  },
+                  "Property": "Resolução por CPF"
+                }
+              },
+              "queryRef": "Linkage.Resolução por CPF",
+              "nativeQueryRef": "Resolução por CPF"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Resolução por CPF'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

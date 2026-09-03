@@ -1,0 +1,19 @@
+@startuml
+title Fato com identidade resolvida
+actor "Sistema finalístico" as F
+participant "API / Bronze" as A
+participant "Processor" as P
+database "Silver" as S
+participant "Identity Resolution" as I
+database "Gold factual" as G
+participant "Serving / BI" as B
+participant "Jornada individual" as J
+F -> A: Entrega ZIP\nPessoa + Registro
+A -> P: Lote disponível
+P -> S: Persiste observações e proveniência
+P -> I: Resolve sujeito declarado
+I --> P: PESSOA_UUID resolvido
+P -> G: Materializa fato\ncpf_declarado snapshot\nestado=ATRIBUIDA
+G -> B: Fato entra nos agregados
+G -> J: Projeção individual por UUID
+@enduml

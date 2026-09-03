@@ -1,0 +1,129 @@
+table ServicosPrestados
+
+	measure 'Aviso Fatos e Pessoas' = "Fatos contabilizam todas as ocorrências vigentes declaradas pelos Gestores. Indicadores de Pessoas consideram somente fatos com identidade canônica atribuída."
+
+	measure 'Serviços pendentes/conflitantes' = CALCULATE(COUNTROWS(ServicosPrestados),ServicosPrestados[estado_atribuicao_identidade]<>"ATRIBUIDA")
+		formatString: #,##0
+
+	measure 'Serviços Prestados' = COUNTROWS(ServicosPrestados)
+		formatString: #,##0
+
+	measure 'Tipos de Serviço' = DISTINCTCOUNT(ServicosPrestados[servico])
+		formatString: #,##0
+
+	measure 'Gestores de Serviços Prestados' = DISTINCTCOUNT(ServicosPrestados[gestor])
+		formatString: #,##0
+
+	column servico_observacao_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: servico_observacao_id
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column servico
+		dataType: string
+		summarizeBy: none
+		sourceColumn: servico
+
+	column nome_servico
+		dataType: string
+		summarizeBy: none
+		sourceColumn: nome_servico
+
+	column estado_atribuicao_identidade
+		dataType: string
+		summarizeBy: none
+		sourceColumn: estado_atribuicao_identidade
+
+	column data_hora_servico
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_hora_servico
+
+	column unidade_servico
+		dataType: string
+		summarizeBy: none
+		sourceColumn: unidade_servico
+
+	column situacao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: situacao
+
+	column source_as_of
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: source_as_of
+
+	column subprefeitura
+		dataType: string
+		summarizeBy: none
+		sourceColumn: subprefeitura
+
+	column distrito
+		dataType: string
+		summarizeBy: none
+		sourceColumn: distrito
+
+	column entrega_completa
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: entrega_completa
+
+	column registro_origem_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: registro_origem_id
+
+	column codigo_registro_origem
+		dataType: string
+		summarizeBy: none
+		sourceColumn: codigo_registro_origem
+
+	column versao_interna
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: versao_interna
+
+	column operacao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: operacao
+
+	column status_analitico
+		dataType: string
+		summarizeBy: none
+		sourceColumn: status_analitico
+
+	column vigencia_versao_inicio
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: vigencia_versao_inicio
+
+	column vigencia_versao_fim
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: vigencia_versao_fim
+
+	column natureza_referencia_territorial
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza_referencia_territorial
+
+	column referencia_territorial_observacao_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: referencia_territorial_observacao_id
+
+	partition ServicosPrestados = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_servicos_prestados"]}[Data]
+			in
+				Data

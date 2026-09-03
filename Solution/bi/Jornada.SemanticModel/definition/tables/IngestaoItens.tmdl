@@ -1,0 +1,97 @@
+table IngestaoItens
+
+	measure 'Itens Recebidos' = COUNTROWS(IngestaoItens)
+		formatString: #,##0
+
+	measure 'Retransmissoes Identicas' = SUM(IngestaoItens[retransmitido])
+		formatString: #,##0
+
+	measure 'Novas Versoes' = SUM(IngestaoItens[nova_versao])
+		formatString: #,##0
+
+	measure 'Taxa de Retransmissao' = DIVIDE([Retransmissoes Identicas], [Itens Recebidos])
+		formatString: 0.00%
+
+	column item_processado_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: item_processado_id
+
+	column lote_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: lote_id
+
+	column entrega_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: entrega_id
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column sistema_origem
+		dataType: string
+		summarizeBy: none
+		sourceColumn: sistema_origem
+
+	column natureza
+		dataType: string
+		summarizeBy: none
+		sourceColumn: natureza
+
+	column codigo_tipo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: codigo_tipo
+
+	column classe_item
+		dataType: string
+		summarizeBy: none
+		sourceColumn: classe_item
+
+	column codigo_origem
+		dataType: string
+		summarizeBy: none
+		sourceColumn: codigo_origem
+
+	column resultado
+		dataType: string
+		summarizeBy: none
+		sourceColumn: resultado
+
+	column versao_interna
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: versao_interna
+
+	column data_referencia
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: data_referencia
+
+	column processado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: processado_em
+
+	column retransmitido
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: retransmitido
+
+	column nova_versao
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: nova_versao
+
+	partition IngestaoItens = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_ingestao_itens"]}[Data]
+			in
+				Data

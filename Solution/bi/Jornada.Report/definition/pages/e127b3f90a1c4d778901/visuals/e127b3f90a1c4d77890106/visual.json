@@ -1,0 +1,55 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "e127b3f90a1c4d77890106",
+  "position": {
+    "x": 650,
+    "y": 220,
+    "z": 9650,
+    "height": 430,
+    "width": 570,
+    "tabOrder": 9650
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeBeneficios"
+                    }
+                  },
+                  "Property": "nome_beneficio"
+                }
+              },
+              "queryRef": "QualidadeBeneficios.nome_beneficio",
+              "nativeQueryRef": "nome_beneficio"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeBeneficios"
+                    }
+                  },
+                  "Property": "QC Divergente %"
+                }
+              },
+              "queryRef": "QualidadeBeneficios.QC Divergente %",
+              "nativeQueryRef": "QC Divergente %"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

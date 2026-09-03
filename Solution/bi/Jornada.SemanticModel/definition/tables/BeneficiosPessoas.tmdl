@@ -1,0 +1,28 @@
+table BeneficiosPessoas
+
+	measure 'Pessoas com Benefícios Concedidos' = IF(ISINSCOPE(BeneficiosPessoas[gestor]),CALCULATE(SUM(BeneficiosPessoas[pessoas]),BeneficiosPessoas[escopo]="GESTOR"),CALCULATE(MAX(BeneficiosPessoas[pessoas]),BeneficiosPessoas[escopo]="TOTAL"))
+		formatString: #,##0
+
+	column escopo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: escopo
+
+	column gestor
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor
+
+	column pessoas
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: pessoas
+
+	partition BeneficiosPessoas = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_beneficios_pessoas"]}[Data]
+			in
+				Data

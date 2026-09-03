@@ -1,0 +1,22 @@
+@startuml
+title Correção governada sem reescrever o fato declarado
+actor "Gestor finalístico" as F
+queue "Divergências" as D
+participant "API Jornada" as A
+database "Vínculos de identidade" as V
+database "Gold factual" as G
+participant "BI" as B
+participant "Jornada individual" as J
+D -> F: Indício de conflito
+F -> A: Desfecho / ato / agrupamentos explícitos
+A -> V: Aplica correção governada\nappend-only
+V -> G: Atualiza somente atribuição corrente\npessoa_uuid / estado
+note right of G
+cpf_declarado, sistema_origem e
+codigo_pessoa_origem permanecem
+imutáveis na versão factual
+end note
+G -> B: Mesmo fato permanece contado
+G -> J: Projeta no UUID correto após resolução
+A -> D: Encerra divergência com desfecho
+@enduml

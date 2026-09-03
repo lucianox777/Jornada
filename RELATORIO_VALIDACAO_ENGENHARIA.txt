@@ -1,0 +1,77 @@
+JORNADA DO CIDADÃO — RELATÓRIO DE VALIDAÇÃO DE ENGENHARIA
+Base Normativa: v3.62
+SolutionSchema: v3.68
+Solution Engenharia: v3.90
+Data: 2026-09-02
+
+ESCOPO DA RELEASE
+- Correção de engenharia sobre a v3.89; Base Normativa v3.62 e SolutionSchema v3.68 permanecem inalterados.
+- A execução externa da v3.89 revelou falha no script local-clean.ps1 ao tentar remover cache .vs bloqueado por Visual Studio/Copilot/ServiceHub.
+- O arquivo observado foi .vs/Jornada/CopilotIndices/.../CodeChunks.db, aberto por outro processo.
+- A v3.90 trata somente .vs em best-effort, sem enfraquecer a limpeza necessária de Docker, bin/obj, TestResults, .local, artifacts/dist, .env e Bronze local.
+- local-validate-release.ps1 permanece o único validador canônico; local-validate-release-r4.ps1 não integra a release.
+
+SCRIPT CANÔNICO DE LIMPEZA
+- Solution/scripts/local-clean.ps1 permanece artefato oficial.
+- .vs é cache não normativo da IDE e agora é removido em best-effort com try/catch.
+- Lock em .vs gera warning e a limpeza continua.
+- bin/obj continuam remoção estrita, pois interferem na reprodutibilidade de build/test.
+- Recursos Docker locais da Jornada e volume SQL continuam removidos; a imagem SQL Server permanece preservada.
+- Variantes temporárias local-validate-release-v2.ps1 e local-validate-release-r4.ps1 são removidas se existirem numa árvore local reutilizada, mas não integram o pacote.
+
+SCRIPT CANÔNICO DE VALIDAÇÃO
+- Solution/scripts/local-validate-release.ps1 continua a única versão oficial.
+- Restore --locked-mode explícito da Solution, Jornada.Tests e Jornada.Integration.Tests.
+- Build Release da Solution e builds explícitos dos assemblies de teste com warnings como erro.
+- Verificação física das DLLs antes da execução.
+- Unit seguido de preflight Docker e Integration Testcontainers descartável.
+- Banco descartável permanece JornadaIntegrationTest_<guid>, preservando os guards Test/Dev/Local.
+
+EVIDÊNCIA EXTERNA DA PREDECESSORA v3.89
+- local-clean.ps1 iniciou em Windows.
+- A remoção de .vs falhou em CodeChunks.db porque o arquivo estava em uso por outro processo.
+- A exceção abortou a limpeza antes da validação; portanto restore/build/test da v3.89 não foram reavaliados nessa tentativa.
+- A falha é classificada como defeito de robustez do script de limpeza de cache da IDE, não como falha de schema, banco ou testes.
+
+LOCKS NUGET / DEPENDÊNCIAS
+- Total de packages.lock.json: 14.
+- Nenhum PackageReference ou packages.lock.json foi alterado frente à v3.89.
+- combinedSha256 dos locks: 65016df6c55d4b24ff529115509db842293173479910399436df9d6991e8bdfb.
+- O empacotamento v3.90 não executou restore e mantém assurance NO_RESTORE_CLAIMED.
+- dependency-drift-gate: PASS — 0 alterações de PackageReference frente à v3.89.
+
+DDL / CONTRATOS
+- Nenhum DDL funcional foi alterado frente à v3.89.
+- ddl-destructive-change-gate: PASS — 0 linhas sensíveis / 0 exceções; predecessor v3.89.
+- contract-backward-compatibility-gate: PASS — 18 paths / 16 JSON schemas; predecessor v3.89.
+
+PROVENIÊNCIA GIT
+- Predecessor verificável: jornada-solution-v3.89 / b22ea4f59e4edae6bb93c7a5c72eca3c4968b671
+- Release corrente: jornada-solution-v3.90 / 8c1eac9689cc9ca00993384beb9fa6a727927a45
+- Tree corrente: 615e6aa8eed8c81d304df8b4e266e9c4348d5bb8
+- Arquivos rastreados na tag: 604
+- Bundle: Solution/supply-chain/source/Jornada_Source_v3.89_v3.90.bundle
+- Bundle SHA-256: d5e92c616a99d05526f5e598934f8ca3bcf43494768a2f8a54ab46732bd1cc84
+- release-source-gate: PASS para tag/ancestralidade no checkout antes do empacotamento final.
+
+GATES ESTÁTICOS EXECUTADOS
+- technical-closure-gate.py: PASS.
+- release-source-gate.py --repo: PASS.
+- source-sanity-gate.py: PASS — 604 caminhos rastreados.
+- workflow-action-pin-gate.py: PASS — 19 referências de Actions fixadas por SHA completo.
+- openapi-contract-gate.py: PASS — 18 métodos/rotas.
+- json-schema-meta-gate.py: PASS — 16 schemas / 16 IDs únicos / 0 refs.
+- architecture-dependency-gate.py: PASS — 14 projetos.
+- dependency-drift-gate.py: PASS — 0 alterações de dependência.
+- contract-backward-compatibility-gate.py: PASS — predecessor v3.89.
+- ddl-destructive-change-gate.py: PASS — 0 linhas sensíveis / 0 exceções; predecessor v3.89.
+- ddl-destructive-change-gate.py --self-test: PASS.
+- analyzer-cleanliness-gate.py: PASS — 116 arquivos C#.
+- powerbi-static-gate.py: PASS — 22 páginas / 29 TMDL.
+- nuget-lock-gate.py: PASS — 14 projetos; combined SHA acima.
+- nuget-lock-provenance-gate.py: PASS — 14 locks / 2 pendentes herdados.
+
+LIMITES DA VALIDAÇÃO LOCAL DE EMPACOTAMENTO
+- O ambiente de empacotamento não possui dotnet, Docker, PowerShell ou SQL Server.
+- Não foi executado restore/build/test/runtime da v3.90 neste ambiente.
+- A v3.90 permanece pendente de confirmação externa de local-clean + local-validate-release.

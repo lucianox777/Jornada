@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "99aa2a0198e187141b9c",
+  "position": {
+    "x": 30,
+    "y": 40,
+    "z": 1000,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 1000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ApiIngestao"
+                    }
+                  },
+                  "Property": "Requisições API"
+                }
+              },
+              "queryRef": "ApiIngestao.Requisições API",
+              "nativeQueryRef": "Requisições API"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Requisições API'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

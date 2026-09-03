@@ -1,0 +1,23 @@
+Jornada Fase 1 — Nota de Engenharia v3.74
+Base normativa: v3.62
+Solution Engenharia: v3.74
+Schema persistido esperado: Base 3.62 / SolutionSchema 3.68
+
+Esta é uma release estritamente de engenharia. Não altera regra normativa nem versão do schema.
+
+Fechamentos técnicos locais:
+- authorization-matrix.json + gate: as 15 rotas /api protegidas ficam inventariadas com credencial e permission esperadas;
+- data-minimization-policy + security-surface-gate: logs de toda a Solution não podem interpolar identificadores sensíveis nem Exception.Message controlável pela origem; API mantém projeção por allowlist;
+- compatibility-matrix.json + gate: explicita current/current, rejeição de schema antigo, upgrade v3.65->v3.68 e reaplicação idempotente;
+- Jornada_Upgrade_Invariants.sql + gate: compara contagens e invariantes estruturais antes/depois do upgrade;
+- Jornada.Bronze.Verify --deep + --gc-plan: inventário físico/hash, órfãos e plano DRY_RUN_ONLY; o verificador nunca exclui objetos;
+- restore drill passa a provar casos ausente/corrompido, verificação profunda e candidato controlado de GC sem deleção;
+- metrics-slo-catalog.json + JornadaTelemetry: métricas técnicas estáveis, SLOs/alertas ainda PENDENTE_HML;
+- calibration-validity-policy + hml-staleness-gate: aprovação expira por idade e por alteração do fingerprint técnico dos componentes/harnesses calibrados.
+
+Não fabricado nesta montagem:
+- packages.lock.json;
+- dotnet restore/build/test;
+- SQL Server/Docker/PowerShell;
+- Power BI Desktop/Gateway;
+- thresholds, SLOs, alertas e parâmetros HML aprovados.

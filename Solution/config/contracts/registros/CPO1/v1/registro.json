@@ -1,0 +1,21 @@
+{
+  "gestor": "SMADS",
+  "codigo": "CPO1",
+  "versao": 1,
+  "status": "ATIVA",
+  "regrasTexto": "Regras sintéticas de desenvolvimento.",
+  "qcStatus": "NAO_IMPLEMENTADO",
+  "natureza": "SERVICO",
+  "fatoFase1": "SERVICO_PRESTADO",
+  "chaveRegistroOrigemObrigatoria": true,
+  "operacoesRegistro": [
+    "INCLUSAO",
+    "ALTERACAO",
+    "RETIFICACAO",
+    "EXCLUSAO"
+  ],
+  "versionamento": "INTERNO_JORNADA_POR_HASH_CANONICO",
+  "regimeVigencia": "NAO_APLICAVEL",
+  "dataInicioPermitidaConcessao": null,
+  "dataFimPermitidaConcessao": null
+}

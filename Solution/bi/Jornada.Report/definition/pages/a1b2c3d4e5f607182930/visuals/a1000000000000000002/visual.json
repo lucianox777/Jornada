@@ -1,0 +1,55 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "a1000000000000000002",
+  "position": {
+    "x": 60,
+    "y": 220,
+    "z": 9000,
+    "height": 430,
+    "width": 1160,
+    "tabOrder": 9000
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ServicosPessoas"
+                    }
+                  },
+                  "Property": "nome_servico"
+                }
+              },
+              "queryRef": "ServicosPessoas.nome_servico",
+              "nativeQueryRef": "nome_servico"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ServicosPessoas"
+                    }
+                  },
+                  "Property": "Pessoas com Serviços Prestados"
+                }
+              },
+              "queryRef": "ServicosPessoas.Pessoas com Serviços Prestados",
+              "nativeQueryRef": "Pessoas com Serviços Prestados"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

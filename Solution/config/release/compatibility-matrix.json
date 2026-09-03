@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "release": "v3.76",
+  "baseNormativa": "3.62",
+  "solutionSchema": "3.68",
+  "status": "VIGENTE",
+  "cases": [
+    {
+      "id": "API_CURRENT_SCHEMA_CURRENT",
+      "apiRelease": "v3.76",
+      "databaseSolutionSchema": "3.68",
+      "expected": "ALLOW"
+    },
+    {
+      "id": "API_CURRENT_SCHEMA_V365",
+      "apiRelease": "v3.76",
+      "databaseSolutionSchema": "3.65",
+      "expected": "DENY_SQL_SCHEMA_INCOMPATIVEL"
+    },
+    {
+      "id": "UPGRADE_V365_TO_CURRENT",
+      "fromSolutionSchema": "3.65",
+      "toSolutionSchema": "3.68",
+      "expected": "REQUIRE_PASS"
+    },
+    {
+      "id": "DDL_REAPPLY_CURRENT",
+      "fromSolutionSchema": "3.68",
+      "toSolutionSchema": "3.68",
+      "expected": "IDEMPOTENT"
+    }
+  ],
+  "note": "Compatibilidade é explícita e fail-closed: API corrente aceita somente schema 3.68; versões antigas devem passar pelo upgrade validado."
+}

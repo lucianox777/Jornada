@@ -1,0 +1,16 @@
+Jornada do Cidadão - Fase 1
+Base Normativa: v3.62
+Solution Engenharia: v3.83
+Data: 2026-09-02
+
+Origem técnica: tag verificável jornada-solution-v3.80 + snapshot do pacote Solution Engenharia v3.82 + reorganização v3.83.
+
+Mudanças v3.83:
+- projeto dedicado Jornada.Integration.Tests;
+- estrutura canônica de pacote e CI restaurada;
+- Resumo Executivo v1.1 incluído;
+- Projeto de Integração de Benefícios e Serviços Sociais incluído;
+- proveniência/manifestos/relatório de validação restaurados.
+
+Base Normativa v3.62 e SolutionSchema v3.68 permanecem inalterados.
+Integration continua pendente de execução completa contra SQL Server real.

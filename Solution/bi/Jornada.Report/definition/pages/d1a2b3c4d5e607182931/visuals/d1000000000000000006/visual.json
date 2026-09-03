@@ -1,0 +1,77 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "d1000000000000000006",
+  "position": {
+    "x": 650,
+    "y": 220,
+    "z": 10000,
+    "height": 430,
+    "width": 570,
+    "tabOrder": 10000
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Atrasos"
+                    }
+                  },
+                  "Property": "faixa_atraso"
+                }
+              },
+              "queryRef": "Atrasos.faixa_atraso",
+              "nativeQueryRef": "faixa_atraso"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Atrasos"
+                    }
+                  },
+                  "Property": "Registros Monitorados"
+                }
+              },
+              "queryRef": "Atrasos.Registros Monitorados",
+              "nativeQueryRef": "Registros Monitorados"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Distribuição por faixa de atraso'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

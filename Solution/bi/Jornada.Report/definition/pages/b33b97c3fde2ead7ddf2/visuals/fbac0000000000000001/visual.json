@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "fbac0000000000000001",
+  "position": {
+    "x": 520,
+    "y": 40,
+    "z": 3000,
+    "height": 130,
+    "width": 220,
+    "tabOrder": 3000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Linkage"
+                    }
+                  },
+                  "Property": "Fallback probabilístico"
+                }
+              },
+              "queryRef": "Linkage.Fallback probabilístico",
+              "nativeQueryRef": "Fallback probabilístico"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Fallback probabilístico'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

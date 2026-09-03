@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "9b436286fbd6716b9cc4",
+  "position": {
+    "x": 330,
+    "y": 40,
+    "z": 2000,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 2000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "RegistrosPessoas"
+                    }
+                  },
+                  "Property": "Pessoas com Registros"
+                }
+              },
+              "queryRef": "RegistrosPessoas.Pessoas com Registros",
+              "nativeQueryRef": "Pessoas com Registros"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Pessoas com Registros'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

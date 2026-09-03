@@ -1,0 +1,17 @@
+Jornada Fase 1 — Nota de Engenharia v3.77
+Base normativa: v3.62
+Solution Engenharia: v3.77
+Schema persistido esperado: Base 3.62 / SolutionSchema 3.68
+
+Release exclusivamente de hardening técnico. Não altera DDL funcional nem regra normativa.
+
+Seis fechamentos desta release:
+1. OpenAPI runtime conformance: suíte WebApplicationFactory cobre as 18 operações e exige que status runtime esteja declarado; corpos JSON precisam ser bem formados e Content-Type é conferido quando o contrato o especifica. O CI produz TRX próprio e zero-skip.
+2. Backward compatibility ampliado: parâmetro existente opcional→obrigatório, schema/style/explode, security/scopes, headers, media types, nullable, format, exclusive bounds e demais restrições passam a bloquear quebra retroativa.
+3. JSON Schema meta-validation: os 16 contratos exigem Draft 2020-12, $id absoluto/único, keywords válidas e $ref resolvível.
+4. Analyzers graduais: SDK analyzers explicitamente habilitados, AnalysisLevel 8.0-recommended + code style em build. CodeAnalysisTreatWarningsAsErrors=false evita transformar o primeiro baseline desconhecido de CAxxxx em bloqueio artificial; warnings do compilador permanecem erro.
+5. Cleanup best-effort observável: os três catches realmente silenciosos de temporários/readiness/staging continuam sem mascarar o erro original, mas agora deixam TraceWarning sem path, mensagem externa ou PII.
+6. Architecture dependency gate: matriz explícita dos 13 projetos impede ProjectReference invertido e preserva Contracts/Bronze.Storage como folhas sem dependências internas.
+
+A política agregada de evidências sobe para RELEASE_EVIDENCE_V5.
+Nenhuma execução .NET/SQL foi fabricada localmente.

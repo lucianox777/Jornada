@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f330000000000000000202",
+  "position": {
+    "x": 330,
+    "y": 40,
+    "z": 1330,
+    "height": 130,
+    "width": 270,
+    "tabOrder": 1330
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "QualidadeIdentidadeOrigem"
+                    }
+                  },
+                  "Property": "Cobertura CPF"
+                }
+              },
+              "queryRef": "QualidadeIdentidadeOrigem.Cobertura CPF",
+              "nativeQueryRef": "Cobertura CPF"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Cobertura CPF'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

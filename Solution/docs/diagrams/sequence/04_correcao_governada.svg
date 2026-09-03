@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1270" height="720" viewBox="0 0 1270 720">
+<rect width="100%" height="100%" fill="white"/>
+<text x="635.0" y="42" text-anchor="middle" font-family="Arial" font-size="25" font-weight="bold">Correção governada preserva a declaração original</text>
+<rect x="0.0" y="68" width="140" height="42" rx="6" fill="#f3f4f6" stroke="#555"/>
+<text x="70.0" y="94" text-anchor="middle" font-family="Arial" font-size="13">Gestor finalístico</text>
+<line x1="70.0" y1="110" x2="70.0" y2="650" stroke="#888" stroke-dasharray="5,5"/>
+<rect x="188.33333333333337" y="68" width="140" height="42" rx="6" fill="#f3f4f6" stroke="#555"/>
+<text x="258.33333333333337" y="94" text-anchor="middle" font-family="Arial" font-size="13">Divergências</text>
+<line x1="258.33333333333337" y1="110" x2="258.33333333333337" y2="650" stroke="#888" stroke-dasharray="5,5"/>
+<rect x="376.6666666666667" y="68" width="140" height="42" rx="6" fill="#f3f4f6" stroke="#555"/>
+<text x="446.6666666666667" y="94" text-anchor="middle" font-family="Arial" font-size="13">API Jornada</text>
+<line x1="446.6666666666667" y1="110" x2="446.6666666666667" y2="650" stroke="#888" stroke-dasharray="5,5"/>
+<rect x="565.0" y="68" width="140" height="42" rx="6" fill="#f3f4f6" stroke="#555"/>
+<text x="635.0" y="94" text-anchor="middle" font-family="Arial" font-size="13">Vínculos de identidade</text>
+<line x1="635.0" y1="110" x2="635.0" y2="650" stroke="#888" stroke-dasharray="5,5"/>
+<rect x="753.3333333333334" y="68" width="140" height="42" rx="6" fill="#f3f4f6" stroke="#555"/>
+<text x="823.3333333333334" y="94" text-anchor="middle" font-family="Arial" font-size="13">Gold factual</text>
+<line x1="823.3333333333334" y1="110" x2="823.3333333333334" y2="650" stroke="#888" stroke-dasharray="5,5"/>
+<rect x="941.6666666666666" y="68" width="140" height="42" rx="6" fill="#f3f4f6" stroke="#555"/>
+<text x="1011.6666666666666" y="94" text-anchor="middle" font-family="Arial" font-size="13">BI</text>
+<line x1="1011.6666666666666" y1="110" x2="1011.6666666666666" y2="650" stroke="#888" stroke-dasharray="5,5"/>
+<rect x="1130.0" y="68" width="140" height="42" rx="6" fill="#f3f4f6" stroke="#555"/>
+<text x="1200.0" y="94" text-anchor="middle" font-family="Arial" font-size="13">Jornada individual</text>
+<line x1="1200.0" y1="110" x2="1200.0" y2="650" stroke="#888" stroke-dasharray="5,5"/>
+<line x1="258.33333333333337" y1="145" x2="80.0" y2="145" stroke="#222" stroke-width="1.6"/>
+<polygon points="70.0,145 82.0,140 82.0,150" fill="#222"/>
+<text x="164.16666666666669" y="136" text-anchor="middle" font-family="Arial" font-size="12">Indício de conflito</text>
+<line x1="70.0" y1="216.42857142857144" x2="436.6666666666667" y2="216.42857142857144" stroke="#222" stroke-width="1.6"/>
+<polygon points="446.6666666666667,216.42857142857144 434.6666666666667,211.42857142857144 434.6666666666667,221.42857142857144" fill="#222"/>
+<text x="258.33333333333337" y="207.42857142857144" text-anchor="middle" font-family="Arial" font-size="12">Desfecho + ato + agrupamentos</text>
+<line x1="446.6666666666667" y1="287.8571428571429" x2="625.0" y2="287.8571428571429" stroke="#222" stroke-width="1.6"/>
+<polygon points="635.0,287.8571428571429 623.0,282.8571428571429 623.0,292.8571428571429" fill="#222"/>
+<text x="540.8333333333334" y="278.8571428571429" text-anchor="middle" font-family="Arial" font-size="12">Correção governada append-only</text>
+<line x1="635.0" y1="359.28571428571433" x2="813.3333333333334" y2="359.28571428571433" stroke="#222" stroke-width="1.6"/>
+<polygon points="823.3333333333334,359.28571428571433 811.3333333333334,354.28571428571433 811.3333333333334,364.28571428571433" fill="#222"/>
+<text x="729.1666666666667" y="350.28571428571433" text-anchor="middle" font-family="Arial" font-size="12">Atualiza só atribuição corrente</text>
+<line x1="823.3333333333334" y1="430.7142857142858" x2="1001.6666666666666" y2="430.7142857142858" stroke="#222" stroke-width="1.6"/>
+<polygon points="1011.6666666666666,430.7142857142858 999.6666666666666,425.7142857142858 999.6666666666666,435.7142857142858" fill="#222"/>
+<text x="917.5" y="421.7142857142858" text-anchor="middle" font-family="Arial" font-size="12">Mesmo fato continua contado</text>
+<line x1="823.3333333333334" y1="502.1428571428572" x2="1190.0" y2="502.1428571428572" stroke="#222" stroke-width="1.6"/>
+<polygon points="1200.0,502.1428571428572 1188.0,497.1428571428572 1188.0,507.1428571428572" fill="#222"/>
+<text x="1011.6666666666667" y="493.1428571428572" text-anchor="middle" font-family="Arial" font-size="12">Projeta no UUID correto</text>
+<line x1="446.6666666666667" y1="573.5714285714287" x2="268.33333333333337" y2="573.5714285714287" stroke="#222" stroke-width="1.6"/>
+<polygon points="258.33333333333337,573.5714285714287 270.33333333333337,568.5714285714287 270.33333333333337,578.5714285714287" fill="#222"/>
+<text x="352.5" y="564.5714285714287" text-anchor="middle" font-family="Arial" font-size="12">Encerra com desfecho</text>
+</svg>

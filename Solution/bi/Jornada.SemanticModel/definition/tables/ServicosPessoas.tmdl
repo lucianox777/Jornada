@@ -1,0 +1,28 @@
+table ServicosPessoas
+
+	measure 'Pessoas com Serviços Prestados' = IF(ISINSCOPE(ServicosPessoas[nome_servico]),CALCULATE(SUM(ServicosPessoas[pessoas]),ServicosPessoas[escopo]="SERVICO"),CALCULATE(MAX(ServicosPessoas[pessoas]),ServicosPessoas[escopo]="TOTAL"))
+		formatString: #,##0
+
+	column escopo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: escopo
+
+	column nome_servico
+		dataType: string
+		summarizeBy: none
+		sourceColumn: nome_servico
+
+	column pessoas
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: pessoas
+
+	partition ServicosPessoas = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_servicos_pessoas"]}[Data]
+			in
+				Data

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "d1000000000000000004",
+  "position": {
+    "x": 750,
+    "y": 40,
+    "z": 4000,
+    "height": 130,
+    "width": 220,
+    "tabOrder": 4000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Atrasos"
+                    }
+                  },
+                  "Property": "Atraso Médio (dias)"
+                }
+              },
+              "queryRef": "Atrasos.Atraso Médio (dias)",
+              "nativeQueryRef": "Atraso Médio (dias)"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Atraso Médio (dias)'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

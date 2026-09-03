@@ -1,0 +1,10 @@
+{
+  "gestor": "SMADS",
+  "versao": 1,
+  "status": "ATIVA",
+  "descricao": "Contrato cadastral versionado de Pessoas do Gestor SMADS.",
+  "resolucaoIdentidade": {
+    "rotaNormal": "CPF_DETERMINISTICO",
+    "fallbackSemCpf": "PENDENTE_PROBABILISTICO"
+  }
+}

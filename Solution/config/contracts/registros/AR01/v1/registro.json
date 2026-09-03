@@ -1,0 +1,22 @@
+{
+  "gestor": "SMADS",
+  "codigo": "AR01",
+  "versao": 1,
+  "status": "ATIVA",
+  "regrasTexto": "Regras sintéticas de desenvolvimento.",
+  "qcStatus": "NAO_IMPLEMENTADO",
+  "tipoMedida": "MONETARIO",
+  "natureza": "BENEFICIO",
+  "fatoFase1": "BENEFICIO_CONCEDIDO",
+  "chaveRegistroOrigemObrigatoria": true,
+  "operacoesRegistro": [
+    "INCLUSAO",
+    "ALTERACAO",
+    "RETIFICACAO",
+    "EXCLUSAO"
+  ],
+  "versionamento": "INTERNO_JORNADA_POR_HASH_CANONICO",
+  "regimeVigencia": "PRAZO_INDETERMINADO",
+  "dataInicioPermitidaConcessao": null,
+  "dataFimPermitidaConcessao": null
+}

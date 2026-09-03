@@ -1,0 +1,19 @@
+JORNADA FASE 1 — RELEASE DE ENGENHARIA v3.90
+
+Base Normativa: v3.62
+SolutionSchema: v3.68
+Solution Engenharia: v3.90
+Predecessora Git: v3.89
+
+Mudanças v3.90:
+- corrige scripts/local-clean.ps1 para não abortar quando .vs contém arquivo bloqueado por Visual Studio/Copilot/ServiceHub, como CopilotIndices\CodeChunks.db;
+- .vs passa a ser cache best-effort: tenta remover, registra warning em caso de lock e continua a limpeza;
+- bin/obj, TestResults, .local, artifacts/dist, .env, Bronze local e recursos Docker permanecem parte da limpeza efetiva;
+- scripts/local-validate-release.ps1 permanece o único validador canônico, com restore locked explícito, build dos projetos de teste e Integration Testcontainers;
+- local-validate-release-r4.ps1 não integra a release;
+- nenhum PackageReference, DDL funcional, Base Normativa ou SolutionSchema foi alterado.
+
+Evidência externa da v3.89:
+- local-clean.ps1 iniciou, mas abortou ao tentar remover .vs\Jornada\CopilotIndices\...\CodeChunks.db, mantido aberto por outro processo;
+- a falha ocorreu na limpeza de cache da IDE e não constitui falha de build, banco ou teste;
+- a v3.90 ainda não declara runtime aprovado até nova execução real.
