@@ -285,7 +285,7 @@ jobs:
           dotnet list Jornada.sln package --vulnerable --include-transitive --format json > .local/security/nuget-vulnerabilities.json
           python3 scripts/vulnerability-evidence-gate.py .local/security/nuget-vulnerabilities.json --summary .local/security/vulnerability-summary.json
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           languages: csharp
           build-mode: manual
