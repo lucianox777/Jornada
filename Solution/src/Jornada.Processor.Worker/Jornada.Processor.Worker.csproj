@@ -4,7 +4,7 @@
     <ProjectReference Include="..\Jornada.Pipeline.Coordination\Jornada.Pipeline.Coordination.csproj" />
     <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
     <ProjectReference Include="..\Jornada.Ingestion\Jornada.Ingestion.csproj" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
   </ItemGroup>
 </Project>
