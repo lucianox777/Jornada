@@ -1,0 +1,9 @@
+RELEASE v4.05 - 04/09/2026
+Base Normativa v3.64
+SolutionSchema 3.69
+
+Correcao de engenharia da v4.04, sem mudanca normativa ou de contrato de dominio.
+- Corrige aspas sobre-escapadas no SQL dinamico de migracao da vigencia de Beneficio Concedido.
+- local-validate-release.ps1 executa local-clean.ps1 sempre antes do restore/build/test.
+- Unit e Integration passam a produzir TRX dedicados em TestResults\Release.
+- Mantem os nomes canonicos scripts\local-clean.ps1 e scripts\local-validate-release.ps1.
