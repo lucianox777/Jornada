@@ -9,10 +9,10 @@ manifest(){
   test -s "$target" || { echo 'DETERMINISTIC BUILD GATE: FAIL: nenhum artefato Release encontrado' >&2; exit 1; }
 }
 cd "$ROOT"
-dotnet clean Jornada.sln --configuration Release --no-restore >/dev/null
+dotnet clean Jornada.sln --configuration Release >/dev/null
 dotnet build Jornada.sln --configuration Release --no-restore >/dev/null
 manifest "$OUT/build1.sha256"
-dotnet clean Jornada.sln --configuration Release --no-restore >/dev/null
+dotnet clean Jornada.sln --configuration Release >/dev/null
 dotnet build Jornada.sln --configuration Release --no-restore >/dev/null
 manifest "$OUT/build2.sha256"
 if ! diff -u "$OUT/build1.sha256" "$OUT/build2.sha256" > "$OUT/diff.txt"; then
