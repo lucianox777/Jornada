@@ -108,18 +108,18 @@ try {
 
     if ((Scalar "SELECT COUNT(*) FROM bronze.entrega_arquivo WHERE entrega_id='$id1';") -ne '1') { throw 'Bronze não materializada.' }
     if ((Scalar "SELECT COUNT(*) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$id1';") -ne '1') { throw 'Silver não materializada.' }
-    if ((Scalar "SELECT COUNT(*) FROM gold.pessoa WHERE cpf='11144477735';") -ne '1') { throw 'Gold Pessoa ausente.' }
-    if ((Scalar "SELECT COUNT(*) FROM serving.v_beneficios_concedidos_pessoa WHERE codigo_registro_origem='AA-2026-004711';") -ne '1') { throw 'Serving factual ausente.' }
+    if ((Scalar "SELECT COUNT(*) FROM gold.pessoa WHERE cpf='70819234532';") -ne '1') { throw 'Gold Pessoa ausente.' }
+    if ((Scalar "SELECT COUNT(*) FROM serving.v_beneficios_concedidos_pessoa WHERE codigo_registro_origem='E2E-AA01-2026-000001';") -ne '1') { throw 'Serving factual ausente.' }
 
     $resolve = Join-Path $Out 'resolve.json'; $resolveCode = Join-Path $Out 'resolve.code'
-    $code = (& curl.exe -sS -o $resolve -w '%{http_code}' -X POST "$ApiUrl/api/v1/identidade/resolver" -H 'Content-Type: application/json' -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $accessKey" --data '{"cpf":"11144477735"}' | Out-String).Trim()
+    $code = (& curl.exe -sS -o $resolve -w '%{http_code}' -X POST "$ApiUrl/api/v1/identidade/resolver" -H 'Content-Type: application/json' -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $accessKey" --data '{"cpf":"70819234532"}' | Out-String).Trim()
     Set-Content -Encoding ascii $resolveCode $code; if ($code -ne '200') { throw 'Resolver API falhou.' }
     $pessoaUuid = (Read-Json $resolve).pessoaUuid; if ([string]::IsNullOrWhiteSpace($pessoaUuid)) { throw 'Resolver não retornou UUID.' }
     $code = (& curl.exe -sS -o (Join-Path $Out 'person.json') -w '%{http_code}' "$ApiUrl/api/v1/pessoas/$pessoaUuid" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $accessKey" | Out-String).Trim()
     if ($code -ne '200') { throw 'Retorno da Pessoa pela API falhou.' }
     $records = Join-Path $Out 'records.json'
     $code = (& curl.exe -sS -o $records -w '%{http_code}' "$ApiUrl/api/v1/pessoas/$pessoaUuid/registros" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $accessKey" | Out-String).Trim()
-    if ($code -ne '200' -or -not ((Get-Content -Raw $records).Contains('AA-2026-004711'))) { throw 'Registro esperado não voltou pela API.' }
+    if ($code -ne '200' -or -not ((Get-Content -Raw $records).Contains('E2E-AA01-2026-000001'))) { throw 'Registro esperado não voltou pela API.' }
 
     $post2 = Join-Path $Out 'post2.json'; $post2Code = Join-Path $Out 'post2.code'
     Post-Delivery 'local-e2e-002' $post2 $post2Code
@@ -128,7 +128,7 @@ try {
     Wait-Processed $id2 (Join-Path $Out 'status2.json')
     $retrans = [int](Scalar "SELECT COUNT(*) FROM ingestao.item_processado ip JOIN ingestao.lote l ON l.lote_id=ip.lote_id WHERE l.entrega_id='$id2' AND ip.resultado='RETRANSMITIDO';")
     if ($retrans -lt 2) { throw "Retransmissão não foi reconhecida; itens=$retrans." }
-    if ((Scalar "SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem='AA-2026-004711' AND status_analitico='VIGENTE';") -ne '1') { throw 'Retransmissão duplicou a versão Gold vigente.' }
+    if ((Scalar "SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem='E2E-AA01-2026-000001' AND status_analitico='VIGENTE';") -ne '1') { throw 'Retransmissão duplicou a versão Gold vigente.' }
 
     [ordered]@{
         status='OK'; generatedAtUtc=[DateTimeOffset]::UtcNow.ToString('O'); firstEntregaId=$id1; retransmissionEntregaId=$id2

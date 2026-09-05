@@ -116,12 +116,12 @@ id_same="$(json_get "$OUT/post-idempotent.json" entregaId)"
 # Evidência das camadas após o caminho HTTP -> Bronze -> Processor -> Silver -> Gold -> Serving.
 [[ "$(scalar "SELECT COUNT(*) FROM bronze.entrega_arquivo WHERE entrega_id='$id1';")" == 1 ]] || { echo 'ERRO: Bronze não materializada.' >&2; exit 6; }
 [[ "$(scalar "SELECT COUNT(*) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$id1';")" == 1 ]] || { echo 'ERRO: Silver não materializada.' >&2; exit 6; }
-[[ "$(scalar "SELECT COUNT(*) FROM gold.pessoa WHERE cpf='11144477735';")" == 1 ]] || { echo 'ERRO: Gold Pessoa ausente.' >&2; exit 6; }
-[[ "$(scalar "SELECT COUNT(*) FROM serving.v_beneficios_concedidos_pessoa WHERE codigo_registro_origem='AA-2026-004711';")" == 1 ]] || { echo 'ERRO: Serving factual ausente.' >&2; exit 6; }
+[[ "$(scalar "SELECT COUNT(*) FROM gold.pessoa WHERE cpf='70819234532';")" == 1 ]] || { echo 'ERRO: Gold Pessoa ausente.' >&2; exit 6; }
+[[ "$(scalar "SELECT COUNT(*) FROM serving.v_beneficios_concedidos_pessoa WHERE codigo_registro_origem='E2E-AA01-2026-000001';")" == 1 ]] || { echo 'ERRO: Serving factual ausente.' >&2; exit 6; }
 
 curl -sS -o "$OUT/resolve.json" -w '%{http_code}' -X POST "$API_URL/api/v1/identidade/resolver" \
   -H 'Content-Type: application/json' -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $access_key" \
-  --data '{"cpf":"11144477735"}' > "$OUT/resolve.code"
+  --data '{"cpf":"70819234532"}' > "$OUT/resolve.code"
 [[ "$(cat "$OUT/resolve.code")" == 200 ]] || { echo 'ERRO: resolver API falhou.' >&2; exit 7; }
 pessoa_uuid="$(json_get "$OUT/resolve.json" pessoaUuid)"
 [[ -n "$pessoa_uuid" && "$pessoa_uuid" != None ]] || { echo 'ERRO: resolver não retornou UUID.' >&2; exit 7; }
@@ -129,7 +129,7 @@ curl -sS -o "$OUT/person.json" -w '%{http_code}' "$API_URL/api/v1/pessoas/$pesso
 [[ "$(cat "$OUT/person.code")" == 200 ]] || { echo 'ERRO: retorno da Pessoa pela API falhou.' >&2; exit 7; }
 curl -sS -o "$OUT/records.json" -w '%{http_code}' "$API_URL/api/v1/pessoas/$pessoa_uuid/registros" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $access_key" > "$OUT/records.code"
 [[ "$(cat "$OUT/records.code")" == 200 ]] || { echo 'ERRO: retorno de Registros pela API falhou.' >&2; exit 7; }
-grep -q 'AA-2026-004711' "$OUT/records.json" || { echo 'ERRO: registro esperado não voltou pela API.' >&2; exit 7; }
+grep -q 'E2E-AA01-2026-000001' "$OUT/records.json" || { echo 'ERRO: registro esperado não voltou pela API.' >&2; exit 7; }
 
 # Nova Entrega lógica com os mesmos bytes prova retransmissão de itens sem nova versão Gold.
 post_delivery 'local-e2e-002' "$OUT/post2.json" "$OUT/post2.code"
@@ -138,7 +138,7 @@ id2="$(json_get "$OUT/post2.json" entregaId)"; [[ "$id2" != "$id1" ]] || exit 8
 wait_processed "$id2" "$OUT/status2.json"
 retrans="$(scalar "SELECT COUNT(*) FROM ingestao.item_processado ip JOIN ingestao.lote l ON l.lote_id=ip.lote_id WHERE l.entrega_id='$id2' AND ip.resultado='RETRANSMITIDO';")"
 [[ "$retrans" -ge 2 ]] || { echo "ERRO: retransmissão não foi reconhecida; itens=$retrans" >&2; exit 8; }
-[[ "$(scalar "SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem='AA-2026-004711' AND status_analitico='VIGENTE';")" == 1 ]] || { echo 'ERRO: retransmissão duplicou a versão Gold vigente.' >&2; exit 8; }
+[[ "$(scalar "SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem='E2E-AA01-2026-000001' AND status_analitico='VIGENTE';")" == 1 ]] || { echo 'ERRO: retransmissão duplicou a versão Gold vigente.' >&2; exit 8; }
 
 python3 - "$OUT/evidence.json" "$id1" "$id2" "$pessoa_uuid" "$retrans" <<'PY'
 import json,sys,datetime
