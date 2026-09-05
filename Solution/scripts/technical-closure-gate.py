@@ -1204,8 +1204,15 @@ def main() -> None:
     require((ROOT / "src/Jornada.Linkage.Parameters.Worker/LinkageParametersWorker.cs").read_text(encoding="utf-8"), ["Value = matchedPairs.Count;"], "amostra m compilável")
     require((ROOT / "src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs").read_text(encoding="utf-8"), ["decimal? margin ="], "margem nullable explícita")
     require((ROOT / "src/Jornada.Processor.Worker/ProcessorWorker.cs").read_text(encoding="utf-8"), ["internal sealed class ProcessorWorker("], "acessibilidade ProcessorWorker")
-    if "catch (InvalidDataException ex)" in (ROOT / "src/Jornada.Processor.Worker/IngestionProcessor.cs").read_text(encoding="utf-8"):
-        fail("IngestionProcessor voltou a declarar InvalidDataException ex sem uso")
+    ingestion_processor = (ROOT / "src/Jornada.Processor.Worker/IngestionProcessor.cs").read_text(encoding="utf-8")
+    require(ingestion_processor, [
+        "catch (InvalidDataException ex)",
+        "ClassifyValidationStage(ex)",
+        "private static string ClassifyValidationStage(InvalidDataException exception)",
+        "Etapa={ValidationStage}",
+    ], "diagnóstico seguro de validação do Processor")
+    if 'logger.LogWarning(ex, "Entrega {EntregaId} rejeitada' in ingestion_processor or 'logger.LogError(ex, "Entrega {EntregaId} rejeitada' in ingestion_processor:
+        fail("IngestionProcessor não pode registrar a exceção bruta da rejeição de validação")
     require((ROOT / "tests/Jornada.Tests/Unit/PossibilityRuleEngineTests.cs").read_text(encoding="utf-8"), ['var json = $$$"""', '"{{{sha}}}"'], "raw string interpolada de Possibilidades")
     require((ROOT / "tests/Jornada.Tests/Unit/SqlGovernanceArtifactTests.cs").read_text(encoding="utf-8"), ["using NUnit.Framework.Legacy;"], "NUnit 4 StringAssert")
 
