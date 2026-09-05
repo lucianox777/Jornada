@@ -128,8 +128,11 @@ pessoa_uuid="$(json_get "$OUT/resolve.json" pessoaUuid)"
 curl -sS -o "$OUT/person.json" -w '%{http_code}' "$API_URL/api/v1/pessoas/$pessoa_uuid" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $access_key" > "$OUT/person.code"
 [[ "$(cat "$OUT/person.code")" == 200 ]] || { echo 'ERRO: retorno da Pessoa pela API falhou.' >&2; exit 7; }
 curl -sS -o "$OUT/records.json" -w '%{http_code}' "$API_URL/api/v1/pessoas/$pessoa_uuid/registros" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $access_key" > "$OUT/records.code"
-[[ "$(cat "$OUT/records.code")" == 200 ]] || { echo 'ERRO: retorno de Registros pela API falhou.' >&2; exit 7; }
-grep -q 'E2E-AA01-2026-000001' "$OUT/records.json" || { echo 'ERRO: registro esperado não voltou pela API.' >&2; exit 7; }
+[[ "$(cat "$OUT/records.code")" == 200 ]] || { echo 'ERRO: retorno genérico de Registros pela API falhou.' >&2; exit 7; }
+grep -q '"codigo":"AA01"' "$OUT/records.json" || { echo 'ERRO: tipo AA01 esperado não voltou na projeção genérica.' >&2; exit 7; }
+curl -sS -o "$OUT/benefits.json" -w '%{http_code}' "$API_URL/api/v1/pessoas/$pessoa_uuid/beneficios-concedidos" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $access_key" > "$OUT/benefits.code"
+[[ "$(cat "$OUT/benefits.code")" == 200 ]] || { echo 'ERRO: retorno especializado de Benefícios Concedidos falhou.' >&2; exit 7; }
+grep -q 'E2E-AA01-2026-000001' "$OUT/benefits.json" || { echo 'ERRO: codigoRegistroOrigem esperado não voltou na projeção especializada.' >&2; exit 7; }
 
 # Nova Entrega lógica com os mesmos bytes prova retransmissão de itens sem nova versão Gold.
 post_delivery 'local-e2e-002' "$OUT/post2.json" "$OUT/post2.code"

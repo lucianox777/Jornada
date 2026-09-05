@@ -119,7 +119,10 @@ try {
     if ($code -ne '200') { throw 'Retorno da Pessoa pela API falhou.' }
     $records = Join-Path $Out 'records.json'
     $code = (& curl.exe -sS -o $records -w '%{http_code}' "$ApiUrl/api/v1/pessoas/$pessoaUuid/registros" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $accessKey" | Out-String).Trim()
-    if ($code -ne '200' -or -not ((Get-Content -Raw $records).Contains('E2E-AA01-2026-000001'))) { throw 'Registro esperado não voltou pela API.' }
+    if ($code -ne '200' -or -not ((Get-Content -Raw $records).Contains('"codigo":"AA01"'))) { throw 'Tipo AA01 esperado não voltou na projeção genérica.' }
+    $benefits = Join-Path $Out 'benefits.json'
+    $code = (& curl.exe -sS -o $benefits -w '%{http_code}' "$ApiUrl/api/v1/pessoas/$pessoaUuid/beneficios-concedidos" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $accessKey" | Out-String).Trim()
+    if ($code -ne '200' -or -not ((Get-Content -Raw $benefits).Contains('E2E-AA01-2026-000001'))) { throw 'codigoRegistroOrigem esperado não voltou na projeção especializada.' }
 
     $post2 = Join-Path $Out 'post2.json'; $post2Code = Join-Path $Out 'post2.code'
     Post-Delivery 'local-e2e-002' $post2 $post2Code
