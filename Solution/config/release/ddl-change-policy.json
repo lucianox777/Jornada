@@ -1,8 +1,14 @@
 {
   "schemaVersion": 1,
-  "release": "v4.03",
-  "predecessorTag": "jornada-solution-v4.02",
+  "release": "v4.05",
+  "predecessorTag": "jornada-solution-v4.04",
   "status": "VIGENTE",
-  "allowlist": [],
-  "note": "v4.03 é correção documental institucional; não altera Jornada_Fase1.sql e preserva byte-a-byte o DDL/seed funcional da v4.02."
+  "allowlist": [
+    {
+      "sha256": "6e39678324befef0a28e6847408d075240aecb99ccf7aa16bc5a967260d2c2fe",
+      "justification": "A constraint ck_atributo_transversal_chave do predecessor v3.65/v4.04 aceita apenas o vocabulário V1 e precisa ser removida imediatamente antes da migração controlada para TELEFONE_BR_CANONICO_V2 e EMAIL_CANONICO_V2. O DDL corrente recria a constraint autoritativa após a conversão, portanto não há janela persistente sem integridade declarativa.",
+      "migrationEvidence": "scripts/local-ddl-upgrade.sh executa baseline v3.65, injeta dados legados V1, aplica Jornada_Fase1.sql, valida convergência de telefone/e-mail, preservação de sentinela, invariantes, runtime smoke e reaplicação idempotente; job ddl-upgrade do CI run 152 passou integralmente."
+    }
+  ],
+  "note": "v4.05 governa explicitamente a substituição transitória da constraint de chave de atributo necessária à migração V1→V2; nenhuma tabela ou coluna é descartada."
 }
