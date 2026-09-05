@@ -17,10 +17,10 @@
   "lockGraphGeneration": {
     "sdk": "8.0.424",
     "command": "dotnet restore Jornada.sln --use-lock-file --force-evaluate",
-    "diagnosticRunId": 33992862659,
+    "diagnosticRunId": "CI_REGENERATED_ON_CANDIDATE_V405",
     "lockCount": 15,
     "nugetLockGate": "PASS",
-    "combinedSha256": "eb83f6ef00bc601e176117e7696ff6c2637aa46b880cbcbca3fd68d20490afaf"
+    "combinedSha256": "54ab67b512dacaef757844610d26643891f91f0b34aa72b72c81b2beecf9c6d7"
   },
   "locks": [
     {
@@ -130,8 +130,8 @@
     {
       "path": "tests/Jornada.Integration.Tests/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "e258736e08e404606a6d60afee48a7cbb140535e7ca4ba1973b7676de994414b",
-      "sha256": "e258736e08e404606a6d60afee48a7cbb140535e7ca4ba1973b7676de994414b",
+      "sourceSha256": "5045efa5b94af6679fc218ec8a2c633de50d9ee1683a7cead65ffb01a03977d7",
+      "sha256": "5045efa5b94af6679fc218ec8a2c633de50d9ee1683a7cead65ffb01a03977d7",
       "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },

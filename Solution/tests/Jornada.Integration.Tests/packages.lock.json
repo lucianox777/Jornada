@@ -764,6 +764,12 @@
           "Jornada.Contracts": "[1.0.0, )"
         }
       },
+      "jornada.operational.sql": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Data.SqlClient": "[5.2.2, )"
+        }
+      },
       "jornada.operations.maintenance.worker": {
         "type": "Project",
         "dependencies": {
@@ -792,12 +798,6 @@
           "Jornada.Pipeline.Coordination": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[5.2.2, )",
           "Microsoft.Extensions.Hosting": "[8.0.1, )"
-        }
-      },
-      "jornada.operational.sql": {
-        "type": "Project",
-        "dependencies": {
-          "Microsoft.Data.SqlClient": "[5.2.2, )"
         }
       }
     }
