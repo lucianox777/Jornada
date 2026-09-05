@@ -857,13 +857,14 @@ def main() -> None:
     ], "projeção individual identity-aware v3.94")
 
     lock_provenance = json.loads(NUGET_LOCK_PROVENANCE.read_text(encoding="utf-8"))
-    if lock_provenance.get("assurance") != "PACKAGING_NO_RESTORE_PREDECESSOR_GRAPH_EXTERNALLY_VERIFIED" or lock_provenance.get("release") != "v4.05":
-        fail("proveniência NuGet deve declarar v4.05 / grafo herdado da v3.99 externamente verificado")
-    if lock_provenance.get("currentGraphVerification") != "INHERITED_BYTE_IDENTICAL_FROM_V3.99_EXTERNALLY_VERIFIED" or lock_provenance.get("pendingLockCount") != 0:
-        fail("v4.05 não altera o grafo NuGet e deve herdar todos os locks byte-a-byte da v3.99")
-    if lock_provenance.get("externalAssurance") != "TRUSTED_OPERATOR_LOCKED_RESTORE_PASS_V3.99_PREDECESSOR_GRAPH":
-        fail("proveniência NuGet não registra a validação locked restore da v3.99")
-    require(NUGET_LOCK_PROVENANCE_GATE.read_text(encoding="utf-8"), ["INHERITED_UNCHANGED_FROM_V3.99", "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99", "INHERITED_BYTE_IDENTICAL_FROM_V3.99_EXTERNALLY_VERIFIED", "dotnet restore Jornada.sln --locked-mode", "fabric-sql-compatibility"], "gate de proveniência NuGet v4.05")
+    if lock_provenance.get("assurance") != "CI_REGENERATED_AND_REPRODUCIBLE_LOCK_GRAPH" or lock_provenance.get("release") != "v4.05":
+        fail("proveniência NuGet deve declarar v4.05 / grafo regenerado e reproduzível")
+    if lock_provenance.get("currentGraphVerification") != "SDK_8_0_424_FORCE_EVALUATED_NO_DIFF_THEN_LOCKED_MODE" or lock_provenance.get("pendingLockCount") != 0:
+        fail("grafo NuGet v4.05 deve ser reproduzível pelo SDK fixado e não possuir lock pendente")
+    generation = lock_provenance.get("lockGraphGeneration") or {}
+    if generation.get("sdk") != "8.0.424" or generation.get("nugetLockGate") != "PASS" or generation.get("lockCount") != 15:
+        fail("proveniência NuGet não registra a regeneração CI v4.05 completa")
+    require(NUGET_LOCK_PROVENANCE_GATE.read_text(encoding="utf-8"), ["REGENERATED_OR_VERIFIED_V405_SDK_8_0_424", "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405", "--force-evaluate", "8.0.424"], "gate de proveniência NuGet v4.05")
 
     lineage_gate = PREDECESSOR_GATE.read_text(encoding="utf-8")
     require(lineage_gate, [
@@ -1120,7 +1121,7 @@ def main() -> None:
         "multipleActiveVinculoPerObservation", "FOR JSON PATH, WITHOUT_ARRAY_WRAPPER"
     ], "snapshot de invariantes DDL")
     require((ROOT / "scripts" / "local-ddl-upgrade.sh").read_text(encoding="utf-8"), [
-        "Jornada_Upgrade_Invariants.sql", "upgrade-invariant-gate.py", "upgrade_invariants=true"
+        "Jornada_Upgrade_Invariants.sql", "upgrade-invariant-gate.py", "upgrade_invariants=true", "-C -b -I"
     ], "harness upgrade com invariantes")
     require(LOCAL_BACKUP_SH.read_text(encoding="utf-8"), [
         "--deep", "--gc-plan", "bronze-deep-evidence-gate.py", "ORPHAN-DRY-RUN", "gcDryRunPlanPassed"

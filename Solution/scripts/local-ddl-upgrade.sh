@@ -19,7 +19,7 @@ set -a; source "$ENV_FILE"; set +a
 mkdir -p "$ROOT/.local/ddl-upgrade"
 
 compose(){ (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
-sqlcmd(){ compose exec -T -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b "$@"; }
+sqlcmd(){ compose exec -T -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I "$@"; }
 wait_healthy(){ for _ in $(seq 1 60); do [[ "$(docker inspect -f '{{.State.Health.Status}}' jornada-sqlserver-local 2>/dev/null || true)" == healthy ]] && return 0; sleep 2; done; echo "ERRO: SQL Server não ficou healthy." >&2; exit 3; }
 fingerprint(){ local tag="$1" out="$ROOT/.local/ddl-upgrade/fingerprint-$tag.txt"; sqlcmd -d "$DB" -i /workspace/database/Jornada_Dev_DdlFingerprint.sql -W -h -1 > "$out"; sed -i '/^[[:space:]]*$/d' "$out"; sha256sum "$out" | awk '{print $1}'; }
 assert_sentinel(){ local n; n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM ref.gestor WHERE codigo='ZZ_UPGRADE_SENTINEL' AND nome='Sentinela DDL Upgrade';" | tr -d '[:space:]')"; [[ "$n" == 1 ]] || { echo "ERRO: dado sentinela não foi preservado." >&2; exit 4; }; }

@@ -11,6 +11,11 @@ dotnet --version | grep -Fx '8.0.424' >/dev/null || {
   exit 3
 }
 dotnet restore Jornada.sln --use-lock-file --force-evaluate
+if ! git diff --quiet -- '**/packages.lock.json'; then
+  echo "ERRO: force-evaluate alterou packages.lock.json versionado; atualize locks e proveniência." >&2
+  git diff --stat -- '**/packages.lock.json' >&2
+  exit 4
+fi
 python3 scripts/nuget-lock-gate.py --root . --summary "$OUT/summary.json"
 python3 scripts/nuget-lock-provenance-gate.py --root . --summary "$OUT/provenance-summary.json"
 dotnet restore Jornada.sln --locked-mode

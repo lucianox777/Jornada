@@ -3,166 +3,166 @@
   "release": "v4.05",
   "baseNormativa": "v3.64",
   "solutionSchema": "v3.69",
-  "sourceRelease": "v3.99",
+  "sourceRelease": "v4.05",
   "packagingEnvironment": {
-    "dotnetAvailable": false,
+    "dotnetAvailable": true,
     "dockerAvailable": false,
     "powershellAvailable": false,
     "sqlServerAvailable": false,
-    "nugetRestoreExecuted": false
+    "nugetRestoreExecuted": true
   },
-  "assurance": "PACKAGING_NO_RESTORE_PREDECESSOR_GRAPH_EXTERNALLY_VERIFIED",
-  "currentGraphVerification": "INHERITED_BYTE_IDENTICAL_FROM_V3.99_EXTERNALLY_VERIFIED",
+  "assurance": "CI_REGENERATED_AND_REPRODUCIBLE_LOCK_GRAPH",
+  "currentGraphVerification": "SDK_8_0_424_FORCE_EVALUATED_NO_DIFF_THEN_LOCKED_MODE",
   "pendingLockCount": 0,
+  "lockGraphGeneration": {
+    "sdk": "8.0.424",
+    "command": "dotnet restore Jornada.sln --use-lock-file --force-evaluate",
+    "diagnosticRunId": 33992862659,
+    "lockCount": 15,
+    "nugetLockGate": "PASS",
+    "combinedSha256": "eb83f6ef00bc601e176117e7696ff6c2637aa46b880cbcbca3fd68d20490afaf"
+  },
   "locks": [
     {
       "path": "src/Jornada.Api/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
-      "sourceSha256": "8fc3af8ec74bb8e980b90ba3d2d826c09fde00b0b45906b9d472234d4f99acc2",
-      "sha256": "8fc3af8ec74bb8e980b90ba3d2d826c09fde00b0b45906b9d472234d4f99acc2",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "sourceSha256": "56c8cf2ddb431551c3cda94a553355e311d03220d57b30a967864e3c97b77c80",
+      "sha256": "56c8cf2ddb431551c3cda94a553355e311d03220d57b30a967864e3c97b77c80",
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
-      "sourceSha256": "277e5d4ced5be1bd2a7b8affa24efdfdfa0b263cf98e2c53c68d3d6c174e0ca8",
-      "sha256": "277e5d4ced5be1bd2a7b8affa24efdfdfa0b263cf98e2c53c68d3d6c174e0ca8",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "sourceSha256": "d65c966f9010c1a5e19a17ee43de0e0faef42dd88d7320385933526f768b9c0a",
+      "sha256": "d65c966f9010c1a5e19a17ee43de0e0faef42dd88d7320385933526f768b9c0a",
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Bronze.Storage/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
       "sourceSha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
       "sha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Bronze.Verify/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
-      "sourceSha256": "59b11b1c5c14e2206182b0e5c46796bf3362bee17217dc884c260620c136218f",
-      "sha256": "59b11b1c5c14e2206182b0e5c46796bf3362bee17217dc884c260620c136218f",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "sourceSha256": "19b63c90775b33d30f5a20fe344738e5f184c27fbf41a25fe8ca21ccf1b74d32",
+      "sha256": "19b63c90775b33d30f5a20fe344738e5f184c27fbf41a25fe8ca21ccf1b74d32",
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Contracts/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
       "sourceSha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
       "sha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Ingestion/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
       "sourceSha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9",
       "sha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
-      "sourceSha256": "87165fc3443f2ecb996412c4c9108d078ded2a13813f36a5fff186e4ffba072b",
-      "sha256": "87165fc3443f2ecb996412c4c9108d078ded2a13813f36a5fff186e4ffba072b",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "sourceSha256": "c331f034270ee921421df9a6dbac14778f6341abdde37b7654ac8e06cfdb6a03",
+      "sha256": "c331f034270ee921421df9a6dbac14778f6341abdde37b7654ac8e06cfdb6a03",
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
-      "sourceSha256": "4a3cce936eed7b19b321df53351b0d949013391fd5653e7fc00bd95d7e211f4e",
-      "sha256": "4a3cce936eed7b19b321df53351b0d949013391fd5653e7fc00bd95d7e211f4e",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "sourceSha256": "b0cd7623a042691baaf2083b90ba4cdaf5930e75b5e2947b45162dd5ae027ade",
+      "sha256": "b0cd7623a042691baaf2083b90ba4cdaf5930e75b5e2947b45162dd5ae027ade",
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Linkage.Runner/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
-      "sourceSha256": "4a3cce936eed7b19b321df53351b0d949013391fd5653e7fc00bd95d7e211f4e",
-      "sha256": "4a3cce936eed7b19b321df53351b0d949013391fd5653e7fc00bd95d7e211f4e",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "sourceSha256": "b0cd7623a042691baaf2083b90ba4cdaf5930e75b5e2947b45162dd5ae027ade",
+      "sha256": "b0cd7623a042691baaf2083b90ba4cdaf5930e75b5e2947b45162dd5ae027ade",
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Operational.Sql/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
-      "sourceSha256": "f53239d610c77419ccea308b33c9c699a6af80e133ee9e8cae449fad16d28217",
-      "sha256": "f53239d610c77419ccea308b33c9c699a6af80e133ee9e8cae449fad16d28217",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "sourceSha256": "ff4450a4d1e91d4e5d96dafa98309a4d67562bc46f520d23bd175c10188eeb27",
+      "sha256": "ff4450a4d1e91d4e5d96dafa98309a4d67562bc46f520d23bd175c10188eeb27",
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Operations.Maintenance.Worker/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
-      "sourceSha256": "277e5d4ced5be1bd2a7b8affa24efdfdfa0b263cf98e2c53c68d3d6c174e0ca8",
-      "sha256": "277e5d4ced5be1bd2a7b8affa24efdfdfa0b263cf98e2c53c68d3d6c174e0ca8",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "sourceSha256": "d65c966f9010c1a5e19a17ee43de0e0faef42dd88d7320385933526f768b9c0a",
+      "sha256": "d65c966f9010c1a5e19a17ee43de0e0faef42dd88d7320385933526f768b9c0a",
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Pipeline.Coordination/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
-      "sourceSha256": "87165fc3443f2ecb996412c4c9108d078ded2a13813f36a5fff186e4ffba072b",
-      "sha256": "87165fc3443f2ecb996412c4c9108d078ded2a13813f36a5fff186e4ffba072b",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "sourceSha256": "c331f034270ee921421df9a6dbac14778f6341abdde37b7654ac8e06cfdb6a03",
+      "sha256": "c331f034270ee921421df9a6dbac14778f6341abdde37b7654ac8e06cfdb6a03",
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Processor.Worker/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
-      "sourceSha256": "c92465683938751511057276c9d3ce8d23300a61827421c4899a099795fbbfc8",
-      "sha256": "c92465683938751511057276c9d3ce8d23300a61827421c4899a099795fbbfc8",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "sourceSha256": "d37d6cdc9d0ad23fcc7d5c5970ce2b08329656755146559ad8e343f24a373594",
+      "sha256": "d37d6cdc9d0ad23fcc7d5c5970ce2b08329656755146559ad8e343f24a373594",
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
       "sourceSha256": "e258736e08e404606a6d60afee48a7cbb140535e7ca4ba1973b7676de994414b",
       "sha256": "e258736e08e404606a6d60afee48a7cbb140535e7ca4ba1973b7676de994414b",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "tests/Jornada.Tests/packages.lock.json",
-      "origin": "INHERITED_UNCHANGED_FROM_V3.99",
-      "sourceSha256": "dfa12de1aec36abc9ee7dd3c86be9d23372799983a4668ee113ccaa100b54e70",
-      "sha256": "dfa12de1aec36abc9ee7dd3c86be9d23372799983a4668ee113ccaa100b54e70",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
-      "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "sourceSha256": "cea9fe6abb24c0eaf3eb015e5c581a4f8ca61f48dd34cf00feba8698e5814b39",
+      "sha256": "cea9fe6abb24c0eaf3eb015e5c581a4f8ca61f48dd34cf00feba8698e5814b39",
+      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     }
   ],
   "promotionRequirements": [
-    "dotnet SDK 8.x homologado",
+    "dotnet SDK exatamente 8.0.424 (global.json)",
+    "dotnet restore Jornada.sln --use-lock-file --force-evaluate sem alterar packages.lock.json",
     "python3 scripts/nuget-lock-gate.py --root .",
+    "python3 scripts/nuget-lock-provenance-gate.py --root .",
     "dotnet restore Jornada.sln --locked-mode",
     "dotnet build Jornada.sln -c Release --no-restore",
     "executar Unit + Integration da v4.05 após o locked restore",
     "executar scripts/fabric-sql-compatibility.ps1 ou .sh quando houver ambiente Fabric e for necessária nova homologação",
-    "release tag promotion must fail if locked restore changes/rejects the committed graph"
+    "release tag promotion must fail if force-evaluate changes or locked restore rejects the committed graph"
   ],
-  "externalAssurance": "TRUSTED_OPERATOR_LOCKED_RESTORE_PASS_V3.99_PREDECESSOR_GRAPH",
-  "externalEvidence": {
+  "predecessorEvidence": {
     "sourceRelease": "v3.99",
     "date": "2026-09-03",
-    "scriptVersion": "2026.09.03-v3.99",
+    "scope": "RUNTIME_PREDECESSOR_ONLY_NOT_CURRENT_LOCK_BYTES",
     "lockedRestoreSolution": "PASS",
     "lockedRestoreUnit": "PASS",
     "lockedRestoreIntegration": "PASS",
-    "buildSolution": "PASS",
-    "buildUnit": "PASS",
-    "unitTests": "PASS_COUNT_NOT_REPORTED_IN_SUMMARY",
-    "docker": "PASS",
-    "sqlImageDigest": "PASS",
-    "sqlEngineCheckdb": "PASS",
-    "buildIntegration": "PASS",
-    "integrationTests": "PASS_COUNT_NOT_REPORTED_IN_SUMMARY",
     "localReleaseValidation": "PASS",
-    "applicability": "VERIFIES_V3.99_LOCK_GRAPH_AND_PREDECESSOR_RUNTIME;V4.05_LOCKS_BYTE_IDENTICAL;DOES_NOT_VERIFY_V4.05_CODE_RUNTIME",
     "evidenceFile": "../Documentos/Evidencia_Runtime_v3.99_2026-09-03.md"
   }
 }

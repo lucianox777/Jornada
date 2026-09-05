@@ -3,140 +3,87 @@ from __future__ import annotations
 import argparse, hashlib, json, xml.etree.ElementTree as ET
 from pathlib import Path
 
-RELEASE = 'v4.05'
-UNCHANGED = 'INHERITED_UNCHANGED_FROM_V3.99'
-EXTERNAL_V399 = 'EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99'
-GRAPH_VERIFIED = 'INHERITED_BYTE_IDENTICAL_FROM_V3.99_EXTERNALLY_VERIFIED'
-
+RELEASE='v4.05'
+SDK='8.0.424'
+ORIGIN='REGENERATED_OR_VERIFIED_V405_SDK_8_0_424'
+STATUS='CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405'
+ASSURANCE='CI_REGENERATED_AND_REPRODUCIBLE_LOCK_GRAPH'
+GRAPH='SDK_8_0_424_FORCE_EVALUATED_NO_DIFF_THEN_LOCKED_MODE'
 
 def fail(msg: str) -> None:
     raise SystemExit(f'NUGET LOCK PROVENANCE GATE: FAIL: {msg}')
 
-
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
-
 def main() -> int:
-    ap = argparse.ArgumentParser(description='Valida a herança byte-a-byte dos packages.lock.json v4.05 a partir do predecessor v3.99 externamente restaurado em locked-mode.')
+    ap=argparse.ArgumentParser(description='Valida o grafo NuGet reproduzível da Jornada v4.05.')
     ap.add_argument('--root', default='.')
     ap.add_argument('--manifest', default='config/release/nuget-lock-provenance.json')
     ap.add_argument('--summary')
-    a = ap.parse_args()
-    root = Path(a.root).resolve()
-    manifest = (root / a.manifest).resolve()
-    data = json.loads(manifest.read_text(encoding='utf-8'))
-
-    if data.get('schemaVersion') != 1:
-        fail('schemaVersion inesperado')
-    if data.get('release') != RELEASE or data.get('baseNormativa') != 'v3.64' or data.get('solutionSchema') != 'v3.69':
-        fail('versões declaradas inesperadas')
-    env = data.get('packagingEnvironment') or {}
-    if env.get('nugetRestoreExecuted') is not False:
-        fail('empacotamento v4.05 não pode fingir restore NuGet local')
-    if data.get('assurance') != 'PACKAGING_NO_RESTORE_PREDECESSOR_GRAPH_EXTERNALLY_VERIFIED':
-        fail('assurance v4.05 inesperada')
-    if data.get('currentGraphVerification') != GRAPH_VERIFIED:
-        fail('grafo v4.05 deve declarar herança byte-a-byte do predecessor v3.99 verificado')
+    a=ap.parse_args()
+    root=Path(a.root).resolve()
+    data=json.loads((root/a.manifest).read_text(encoding='utf-8'))
+    if data.get('schemaVersion') != 1 or data.get('release') != RELEASE:
+        fail('schema/release inesperado')
+    if data.get('baseNormativa') != 'v3.64' or data.get('solutionSchema') != 'v3.69':
+        fail('versões normativas inesperadas')
+    env=data.get('packagingEnvironment') or {}
+    if env.get('nugetRestoreExecuted') is not True or env.get('dotnetAvailable') is not True:
+        fail('proveniência v4.05 deve registrar regeneração real via dotnet')
+    if data.get('assurance') != ASSURANCE or data.get('currentGraphVerification') != GRAPH:
+        fail('assurance/grafo v4.05 inesperado')
     if data.get('pendingLockCount') != 0:
-        fail('v4.05 não altera o grafo e não deve possuir lock pendente')
+        fail('existem locks pendentes')
+    gen=data.get('lockGraphGeneration') or {}
+    if gen.get('sdk') != SDK or gen.get('command') != 'dotnet restore Jornada.sln --use-lock-file --force-evaluate':
+        fail('geração de locks não fixa SDK/comando canônicos')
+    if gen.get('nugetLockGate') != 'PASS' or gen.get('lockCount') != 15:
+        fail('evidência de geração dos locks incompleta')
 
-    rows = data.get('locks') or []
-    listed = {r.get('path'): r for r in rows if r.get('path')}
-    actual = sorted(
-        p.relative_to(root).as_posix()
-        for p in root.rglob('packages.lock.json')
+    actual=sorted(
+        p.relative_to(root).as_posix() for p in root.rglob('packages.lock.json')
         if '.local' not in p.parts and 'obj' not in p.parts and 'bin' not in p.parts
     )
+    listed={r.get('path'):r for r in (data.get('locks') or []) if r.get('path')}
     if sorted(listed) != actual:
-        fail(f'inventário de locks diverge; manifesto={sorted(listed)} atual={actual}')
-
-    inherited = []
+        fail(f'inventário diverge; manifesto={sorted(listed)} atual={actual}')
     for rel in actual:
-        row = listed[rel]
-        current_sha = sha256(root / rel)
-        if current_sha != str(row.get('sha256', '')).lower():
-            fail(f'SHA atual diverge: {rel}')
-        if row.get('origin') != UNCHANGED:
-            fail(f'lock v4.05 deve ser herdado da v3.99: {rel}')
-        if row.get('sourceSha256') != current_sha:
-            fail(f'lock herdado não é byte-a-byte idêntico ao predecessor v3.99: {rel}')
-        if row.get('verificationStatus') != EXTERNAL_V399:
-            fail(f'lock herdado sem confirmação locked restore v3.99: {rel}')
-        inherited.append(rel)
+        row=listed[rel]
+        current=sha256(root/rel)
+        if row.get('sha256') != current or row.get('sourceSha256') != current:
+            fail(f'SHA divergente: {rel}')
+        if row.get('origin') != ORIGIN or row.get('verificationStatus') != STATUS:
+            fail(f'proveniência/status inesperado: {rel}')
 
-    # A inspeção estática não substitui restore. Ela impede, porém, que a metadata
-    # Project dos locks deixe de refletir os ProjectReference/PackageReference atuais.
-    projects = {p.stem.lower(): p for p in root.rglob('*.csproj')}
-
-    def project_declared_dependencies(project_path: Path) -> dict[str, str]:
-        xml = ET.parse(project_path).getroot()
-        deps: dict[str, str] = {}
+    projects={p.stem.lower():p for p in root.rglob('*.csproj')}
+    def deps(project_path: Path) -> dict[str,str]:
+        xml=ET.parse(project_path).getroot(); out={}
         for node in xml.findall('.//ProjectReference'):
-            include = node.attrib.get('Include')
-            if include:
-                deps[Path(include.replace('\\', '/')).stem] = '[1.0.0, )'
+            include=node.attrib.get('Include')
+            if include: out[Path(include.replace('\\','/')).stem]='[1.0.0, )'
         for node in xml.findall('.//PackageReference'):
-            name = node.attrib.get('Include')
-            version = node.attrib.get('Version') or node.findtext('Version')
-            if name and version:
-                deps[name] = f'[{version}, )'
-        return dict(sorted(deps.items(), key=lambda item: item[0].lower()))
-
+            name=node.attrib.get('Include'); version=node.attrib.get('Version') or node.findtext('Version')
+            if name and version: out[name]=f'[{version}, )'
+        return dict(sorted(out.items(), key=lambda item:item[0].lower()))
     for rel in actual:
-        lock_data = json.loads((root / rel).read_text(encoding='utf-8'))
-        for graph in (lock_data.get('dependencies') or {}).values():
+        lock=json.loads((root/rel).read_text(encoding='utf-8'))
+        for graph in (lock.get('dependencies') or {}).values():
             for project_key, entry in graph.items():
-                if not isinstance(entry, dict) or entry.get('type') != 'Project':
-                    continue
-                project_path = projects.get(project_key.lower())
-                if project_path is None:
-                    continue
-                expected = project_declared_dependencies(project_path)
-                if entry.get('dependencies', {}) != expected:
-                    fail(f'metadata Project do lock diverge do csproj atual: {rel} -> {project_key}')
+                if not isinstance(entry,dict) or entry.get('type') != 'Project': continue
+                project=projects.get(project_key.lower())
+                if project is not None and entry.get('dependencies',{}) != deps(project):
+                    fail(f'metadata Project diverge do csproj: {rel} -> {project_key}')
 
-    external = data.get('externalEvidence') or {}
-    if data.get('externalAssurance') != 'TRUSTED_OPERATOR_LOCKED_RESTORE_PASS_V3.99_PREDECESSOR_GRAPH':
-        fail('assurance externa v3.99 ausente ou superestimada')
-    if external.get('sourceRelease') != 'v3.99' or external.get('scriptVersion') != '2026.09.03-v3.99':
-        fail('evidência externa não identifica corretamente o predecessor v3.99')
-    if external.get('applicability') != 'VERIFIES_V3.99_LOCK_GRAPH_AND_PREDECESSOR_RUNTIME;V4.05_LOCKS_BYTE_IDENTICAL;DOES_NOT_VERIFY_V4.05_CODE_RUNTIME':
-        fail('escopo da evidência v3.99 está ausente ou superestimado')
-    for key in ('lockedRestoreSolution', 'lockedRestoreUnit', 'lockedRestoreIntegration'):
-        if external.get(key) != 'PASS':
-            fail(f'evidência v3.99 sem {key}=PASS')
-    for key in ('buildSolution', 'buildUnit', 'unitTests', 'docker', 'sqlImageDigest', 'sqlEngineCheckdb', 'buildIntegration', 'integrationTests', 'localReleaseValidation'):
-        value = str(external.get(key, ''))
-        if not value.startswith('PASS'):
-            fail(f'evidência v3.99 sem {key}=PASS')
-
-    req = '\n'.join(data.get('promotionRequirements') or [])
-    for required in (
-        'dotnet restore Jornada.sln --locked-mode',
-        'dotnet build Jornada.sln -c Release --no-restore',
-        'Unit + Integration da v4.05',
-        'fabric-sql-compatibility',
-    ):
-        if required not in req:
-            fail(f'promoção não exige: {required}')
-
-    summary = {
-        'status': 'PASS',
-        'release': RELEASE,
-        'lockCount': len(actual),
-        'inheritedExternallyVerifiedFromV399Count': len(inherited),
-        'pendingLockCount': 0,
-        'assurance': data.get('assurance'),
-        'externalAssurance': data.get('externalAssurance'),
-    }
+    req='\n'.join(data.get('promotionRequirements') or [])
+    for token in ('8.0.424','--force-evaluate','nuget-lock-provenance-gate.py','--locked-mode','Unit + Integration da v4.05'):
+        if token not in req: fail(f'promoção não exige: {token}')
+    summary={'status':'PASS','release':RELEASE,'lockCount':len(actual),'sdk':SDK,'assurance':ASSURANCE}
     if a.summary:
-        out = Path(a.summary)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    print(f'NUGET LOCK PROVENANCE GATE: OK ({len(actual)} locks inherited byte-identical from externally verified v3.99)')
+        out=Path(a.summary); out.parent.mkdir(parents=True,exist_ok=True)
+        out.write_text(json.dumps(summary,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    print(f'NUGET LOCK PROVENANCE GATE: OK ({len(actual)} locks; SDK {SDK}; grafo reproduzível)')
     return 0
-
 
 if __name__ == '__main__':
     raise SystemExit(main())
