@@ -1125,7 +1125,10 @@ def main() -> None:
     ], "harness upgrade com invariantes")
     require(LOCAL_BACKUP_SH.read_text(encoding="utf-8"), [
         "--deep", "--gc-plan", "bronze-deep-evidence-gate.py", "ORPHAN-DRY-RUN", "gcDryRunPlanPassed",
-        "compose exec -T -u 0 sqlserver cat \"/var/opt/mssql/backup/$BACKUP_FILE\" > \"$EVID/$BACKUP_FILE\""
+        "compose exec -T -u 0 sqlserver cat \"/var/opt/mssql/backup/$BACKUP_FILE\" > \"$EVID/$BACKUP_FILE\"",
+        "SEED_CANONICAL_SHA=\"8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2\"",
+        "printf 'PK\\003\\004' > \"$SEED_CANONICAL_DEST\"",
+        "--minimum-count 1 --deep --report"
     ], "restore Bronze profundo/dry-run")
     require(LOCAL_BACKUP_PS.read_text(encoding="utf-8"), [
         "--deep", "--gc-plan", "bronze-deep-evidence-gate.py", "JORNADA-ORPHAN-DRY-RUN", "gcDryRunPlanPassed"

@@ -15,6 +15,13 @@ sqlcmd() { compose exec -T -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserve
 scalar() { sqlcmd -d "$1" -h -1 -W -Q "SET NOCOUNT ON; $2" | tr -d '\r' | sed '/^[[:space:]]*$/d' | tail -1; }
 SHA="$(sha256sum "$FIXTURE" | awk '{print $1}')"; LENGTH="$(wc -c < "$FIXTURE" | tr -d ' ')"
 KEY="sha256/${SHA:0:2}/${SHA:2:2}/${SHA}.zip"; DEST="$ROOT/data/bronze/$KEY"; mkdir -p "$(dirname "$DEST")"; cp "$FIXTURE" "$DEST"
+SEED_CANONICAL_SHA="8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2"
+SEED_CANONICAL_KEY="sha256/8d/cc/${SEED_CANONICAL_SHA}.zip"
+SEED_CANONICAL_DEST="$ROOT/data/bronze/$SEED_CANONICAL_KEY"
+mkdir -p "$(dirname "$SEED_CANONICAL_DEST")"
+printf 'PK\003\004' > "$SEED_CANONICAL_DEST"
+[[ "$(sha256sum "$SEED_CANONICAL_DEST" | awk '{print $1}')" == "$SEED_CANONICAL_SHA" ]] || { echo "ERRO: objeto Bronze canônico do seed com hash inesperado." >&2; exit 3; }
+[[ "$(wc -c < "$SEED_CANONICAL_DEST" | tr -d ' ')" == "4" ]] || { echo "ERRO: objeto Bronze canônico do seed deve ter 4 bytes." >&2; exit 3; }
 sqlcmd -d "$DB" -v DRILL_SHA="$SHA" DRILL_LENGTH="$LENGTH" -i /workspace/database/Jornada_Dev_BackupDrill.sql
 
 cd "$ROOT"
@@ -73,11 +80,11 @@ fi
 dotnet run --project src/Jornada.Bronze.Verify --configuration Release --no-build -- --entrega-id "$DRILL_ID" --minimum-count 1 | tee "$EVID/final-verify.txt"
 
 # Verificação profunda + plano de GC exclusivamente DRY-RUN. Cria um órfão físico antigo controlado
-# para provar que o inventário diferencia a referência da entrega do drill de candidato de expurgo sem apagar nada.
+# para provar que o inventário diferencia referências válidas de candidato de expurgo sem apagar nada.
 ORPHAN_TMP="$EVID/orphan-fixture.zip"; cp "$FIXTURE" "$ORPHAN_TMP"; printf '\nJORNADA-ORPHAN-DRY-RUN\n' >> "$ORPHAN_TMP"
 ORPHAN_SHA="$(sha256sum "$ORPHAN_TMP" | awk '{print $1}')"; ORPHAN_KEY="sha256/${ORPHAN_SHA:0:2}/${ORPHAN_SHA:2:2}/${ORPHAN_SHA}.zip"
 mkdir -p "$RESTORED_BRONZE/$(dirname "$ORPHAN_KEY")"; cp "$ORPHAN_TMP" "$RESTORED_BRONZE/$ORPHAN_KEY"; touch -d '48 hours ago' "$RESTORED_BRONZE/$ORPHAN_KEY"
-dotnet run --project src/Jornada.Bronze.Verify --configuration Release --no-build -- --entrega-id "$DRILL_ID" --minimum-count 1 --deep --report "$EVID/deep-report.json" --gc-plan "$EVID/gc-plan.json" --orphan-grace-hours 24 | tee "$EVID/deep-verify.txt"
+dotnet run --project src/Jornada.Bronze.Verify --configuration Release --no-build -- --minimum-count 1 --deep --report "$EVID/deep-report.json" --gc-plan "$EVID/gc-plan.json" --orphan-grace-hours 24 | tee "$EVID/deep-verify.txt"
 python3 "$ROOT/scripts/bronze-deep-evidence-gate.py" "$EVID/deep-report.json" "$EVID/gc-plan.json" --minimum-gc-candidates 1 --summary "$EVID/deep-summary.json"
 
 sqlcmd -Q "ALTER DATABASE [$RESTORE_DB] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$RESTORE_DB];"
