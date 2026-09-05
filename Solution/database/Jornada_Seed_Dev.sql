@@ -1,3 +1,10 @@
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET ARITHABORT ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET NUMERIC_ROUNDABORT OFF;
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
@@ -65,9 +72,9 @@ DECLARE @aa BIGINT=(SELECT tipo_registro_id FROM ref.tipo_registro WHERE codigo=
 
 DECLARE @tipos TABLE(tipo_registro_id BIGINT,regras NVARCHAR(200),schema_pessoa NVARCHAR(255),schema_pessoa_hash BINARY(32),schema_registro NVARCHAR(255),schema_registro_hash BINARY(32),tipo_medida NVARCHAR(30),qc NVARCHAR(20),regime_vigencia NVARCHAR(30),data_inicio_permitida_concessao DATE,data_fim_permitida_concessao DATE,monitorar_atraso BIT,prazo_recebimento_dias INT,marco_atraso_codigo NVARCHAR(30),origina_endereco_casa_abrigo_sigilosa BIT);
 INSERT @tipos VALUES
-(@aa,'Regras sintéticas AA01.','config/contracts/registros/AA01/v1/pessoa.schema.json',0x30f12102f5a6043f092f3af601ded82bc4e7268c3fdb34d326a91d2e547f5e94,'config/contracts/registros/AA01/v1/registro.schema.json',0xe51e4948e7355dc6a95fd6386d429319228774209d07bb175ec63319ac85e055,'MONETARIO','IMPLEMENTADO','PRAZO_INDETERMINADO',NULL,NULL,1,7,'DATA_EVENTO_CONCESSAO',0),
-(@ar,'Regras sintéticas AR01.','config/contracts/registros/AR01/v1/pessoa.schema.json',0xcfc653b792de1d56d9748ff939ef78b0849ad901f607baddc8559b4b2dcdfa41,'config/contracts/registros/AR01/v1/registro.schema.json',0x3c301cad57b97350406590ce3374e59485a2643c0abbc734a37d222f2b9086d8,'MONETARIO','NAO_IMPLEMENTADO','PRAZO_INDETERMINADO',NULL,NULL,1,7,'DATA_EVENTO_CONCESSAO',0),
-(@pot,'Regras sintéticas POT1.','config/contracts/registros/POT1/v1/pessoa.schema.json',0xefe204199e2f27e461f1436c079c2055167e03432cad244a6fd6c3b2f84f6614,'config/contracts/registros/POT1/v1/registro.schema.json',0xacd5fe36696ed0fd3427fcee2717c44d1aec81d39bd6e5e21bf0784a53c1f007,'MONETARIO','IMPLEMENTADO','PRAZO_INDETERMINADO',NULL,NULL,1,7,'DATA_EVENTO_CONCESSAO',0),
+(@aa,'Regras sintéticas AA01.','config/contracts/registros/AA01/v1/pessoa.schema.json',0x30f12102f5a6043f092f3af601ded82bc4e7268c3fdb34d326a91d2e547f5e94,'config/contracts/registros/AA01/v1/registro.schema.json',0xcfb1de16dd73839dba6982f92ee0abe778bd67f4de2c79f9be5cb4b08f291da4,'MONETARIO','IMPLEMENTADO','PRAZO_INDETERMINADO',NULL,NULL,1,7,'DATA_EVENTO_CONCESSAO',0),
+(@ar,'Regras sintéticas AR01.','config/contracts/registros/AR01/v1/pessoa.schema.json',0xcfc653b792de1d56d9748ff939ef78b0849ad901f607baddc8559b4b2dcdfa41,'config/contracts/registros/AR01/v1/registro.schema.json',0xfb25b6bd16596e817a667d39ecae933de90362fa5a0d7cd014f41f034f8c446d,'MONETARIO','NAO_IMPLEMENTADO','PRAZO_INDETERMINADO',NULL,NULL,1,7,'DATA_EVENTO_CONCESSAO',0),
+(@pot,'Regras sintéticas POT1.','config/contracts/registros/POT1/v1/pessoa.schema.json',0xefe204199e2f27e461f1436c079c2055167e03432cad244a6fd6c3b2f84f6614,'config/contracts/registros/POT1/v1/registro.schema.json',0xe9dea336183debb4576952e39f6110e7e72f10df27971428d1e3d223359b510c,'MONETARIO','IMPLEMENTADO','PRAZO_INDETERMINADO',NULL,NULL,1,7,'DATA_EVENTO_CONCESSAO',0),
 (@cras,'Regras sintéticas CRA1.','config/contracts/registros/CRA1/v1/pessoa.schema.json',0x4d715b2cc259f5dd5869a6d50c25f84cbbc390bace6721c663fd3afb2d0d6edc,'config/contracts/registros/CRA1/v1/registro.schema.json',0xfe10e8f81ff29b90379239540f7a94759febba5b2c6be1863e3953cd4dc2da95,'SEM_MEDIDA','NAO_IMPLEMENTADO','NAO_APLICAVEL',NULL,NULL,1,7,'DATA_HORA_SERVICO',0),
 (@cpop,'Regras sintéticas CPO1.','config/contracts/registros/CPO1/v1/pessoa.schema.json',0x06ae0e7812be6666b3b1630547b057b48c0bfa0777d7cfc525f970c6b7e036c5,'config/contracts/registros/CPO1/v1/registro.schema.json',0xadc382a7602c0b556ea752422c151735e4b54b7b66cdf749d000cf88e76b3312,'SEM_MEDIDA','NAO_IMPLEMENTADO','NAO_APLICAVEL',NULL,NULL,1,7,'DATA_HORA_SERVICO',0),
 (@cas1,'Regras sintéticas CAS1 - casa-abrigo-sigilosa.','config/contracts/registros/CAS1/v1/pessoa.schema.json',0x5de1477d65cfdfd19e7b24771c8bc9a791d18fdc22813ee60d4ea73a8fdec0c8,'config/contracts/registros/CAS1/v1/registro.schema.json',0x392fb177f9ecb075375632916b55f84033759113bb4d2256f3e7d718bbb0ba18,'SEM_MEDIDA','NAO_IMPLEMENTADO','NAO_APLICAVEL',NULL,NULL,0,NULL,NULL,1);
