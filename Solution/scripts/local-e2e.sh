@@ -91,6 +91,10 @@ scalar(){ compose_sql "SET NOCOUNT ON; $1" | tail -1 | tr -d '[:space:]'; }
 actual_aa01_hash="$(sha256sum "$ROOT/config/contracts/registros/AA01/v1/registro.schema.json" | awk '{print $1}')"
 expected_aa01_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),trv.schema_registro_sha256,2)) FROM ref.tipo_registro tr JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_id=tr.tipo_registro_id WHERE tr.codigo='AA01' AND trv.status='ATIVA';")"
 echo "E2E CONTRACT DIGEST: AA01 source=$actual_aa01_hash catalog=$expected_aa01_hash"
+actual_aa01_person_hash="$(sha256sum "$ROOT/config/contracts/registros/AA01/v1/pessoa.schema.json" | awk '{print $1}')"
+expected_aa01_person_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),trv.schema_pessoa_sha256,2)) FROM ref.tipo_registro tr JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_id=tr.tipo_registro_id WHERE tr.codigo='AA01' AND trv.status='ATIVA';")"
+echo "E2E PERSON CONTRACT DIGEST: AA01 source=$actual_aa01_person_hash catalog=$expected_aa01_person_hash"
+[[ -n "$expected_aa01_person_hash" && "$actual_aa01_person_hash" == "$expected_aa01_person_hash" ]] || { echo 'ERRO: digest de pessoa AA01 diverge entre arquivo e catálogo antes do Processor.' >&2; exit 11; }
 [[ -n "$expected_aa01_hash" && "$actual_aa01_hash" == "$expected_aa01_hash" ]] || { echo 'ERRO: digest AA01 diverge entre arquivo e catálogo antes do Processor.' >&2; exit 10; }
 
 post_delivery 'local-e2e-001' "$OUT/post1.json" "$OUT/post1.code"

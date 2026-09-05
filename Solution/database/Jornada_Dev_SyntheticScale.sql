@@ -146,7 +146,7 @@ SELECT po.pessoa_origem_id,@lotSmdet,@gSmdet,po.codigo_pessoa_origem,1,
             WHEN n.n%10=0 THEN DATEADD(DAY,CONVERT(INT,n.n%365),CONVERT(DATE,'1900-01-01')) ELSE g.nascimento END,
        CASE WHEN n.n%8=0 THEN REPLACE(g.mae,N'Mae ',N'M. ') ELSE g.mae END,
        UPPER(CASE WHEN n.n%8=0 THEN REPLACE(g.mae,N'Mae ',N'M. ') ELSE g.mae END),
-       DATEADD(SECOND,CONVERT(INT,n.n%3600),'2026-08-31T01:00:00+00:00')
+       DATEADD(SECOND,CONVERT(INT,n.n%3600),CONVERT(datetimeoffset(0),'2026-08-31T01:00:00+00:00'))
 FROM #n n
 JOIN #gold g ON g.n=((n.n-1)%@people)+1
 JOIN silver.pessoa_origem po ON po.sistema_origem_id=@soSmdet AND po.codigo_pessoa_origem=CONCAT('SCALE-PEND-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),n.n),10))

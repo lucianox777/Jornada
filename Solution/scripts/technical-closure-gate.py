@@ -1216,8 +1216,9 @@ def main() -> None:
         fail("TrustedProxyConfigurationTests voltou ao namespace incorreto de ForwardedHeadersOptions")
     api_http_tests = (ROOT / "tests/Jornada.Tests/Unit/ApiHttpPipelineTests.cs").read_text(encoding="utf-8")
     require(api_http_tests, [
-        'builder.UseSetting("BronzeStorage:RootPath", bronzeRoot)',
-        'builder.UseSetting("IngestionStaging:RootPath", stagingRoot)',
+        'builder.ConfigureAppConfiguration((_, config) =>',
+        '["BronzeStorage:RootPath"] = bronzeRoot',
+        '["IngestionStaging:RootPath"] = stagingRoot',
         'InMemoryApiAuditSink',
         'InMemorySqlReadinessProbe',
         'Path.GetTempPath()',
