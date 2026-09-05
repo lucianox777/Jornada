@@ -1,0 +1,5 @@
+RELEASE v4.04 - 04/09/2026
+Base Normativa v3.64
+
+Mudanca funcional controlada na Fase 1: normalizacao da situacao de vigencia da concessao.
+Mudanca conceitual sem runtime: previsao de Pagamento e Recebimento como fatos futuros distintos da Concessao.

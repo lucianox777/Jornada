@@ -1,0 +1,16 @@
+Jornada do Cidadão — Solution Engenharia v3.98
+Base Normativa v3.62 | SolutionSchema v3.68
+Data: 03/09/2026
+Natureza: release documental — hierarquia de requisitos da Fase 1
+
+Conteúdo novo/organizado:
+- Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.0 (MD/DOCX/PDF)
+- Documentos/Requisitos/01_Requisitos_de_Negocio_Jornada_v1.1 (MD/DOCX/PDF)
+- Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.0 (MD/DOCX/PDF)
+- Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.0 (MD/DOCX/PDF)
+- Documentos/Requisitos/04_Requisitos_Tecnicos_Jornada_v1.1 (MD/DOCX/PDF)
+- Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.0 (MD/DOCX/PDF)
+- Documentos/Requisitos/requirements-map.json
+
+Contagens controladas: RN=36; RF=50; RNF=33; RT=65.
+A v3.98 não muda comportamento funcional; a última evidência runtime funcional continua sendo v3.95 com Unit 153/153 e Integration 58/58.

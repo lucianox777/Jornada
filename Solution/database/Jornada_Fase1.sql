@@ -1764,24 +1764,24 @@ GO
 
 IF COL_LENGTH('silver.registro_observacao','situacao') IS NOT NULL
  EXEC(N'
-   IF EXISTS(SELECT 1 FROM silver.registro_observacao WHERE natureza=''''BENEFICIO'''' AND situacao IS NOT NULL AND situacao NOT IN(''''VIGENTE'''',''''SUSPENSA'''',''''ENCERRADA'''',''''ENCERRADO''''))
+   IF EXISTS(SELECT 1 FROM silver.registro_observacao WHERE natureza=''BENEFICIO'' AND situacao IS NOT NULL AND situacao NOT IN(''VIGENTE'',''SUSPENSA'',''ENCERRADA'',''ENCERRADO''))
       THROW 51989,''Valor legado de situacao de Beneficio sem mapeamento canonico de vigencia.'',1;
    UPDATE silver.registro_observacao
-      SET situacao_vigencia=CASE WHEN situacao IN(''''ENCERRADA'''',''''ENCERRADO'''') THEN ''''ENCERRADA'''' ELSE situacao END,
-          motivo_encerramento=CASE WHEN situacao IN(''''ENCERRADA'''',''''ENCERRADO'''') THEN ''''TERMINO_REGULAR'''' ELSE NULL END,
-          situacao_vigencia_desde=CASE WHEN situacao IN(''''ENCERRADA'''',''''ENCERRADO'''') THEN COALESCE(data_fim_concessao,data_evento_concessao) ELSE NULL END,
+      SET situacao_vigencia=CASE WHEN situacao IN(''ENCERRADA'',''ENCERRADO'') THEN ''ENCERRADA'' ELSE situacao END,
+          motivo_encerramento=CASE WHEN situacao IN(''ENCERRADA'',''ENCERRADO'') THEN ''TERMINO_REGULAR'' ELSE NULL END,
+          situacao_vigencia_desde=CASE WHEN situacao IN(''ENCERRADA'',''ENCERRADO'') THEN COALESCE(data_fim_concessao,data_evento_concessao) ELSE NULL END,
           situacao=NULL
-    WHERE natureza=''''BENEFICIO'''' AND situacao_vigencia IS NULL AND situacao IS NOT NULL;');
+    WHERE natureza=''BENEFICIO'' AND situacao_vigencia IS NULL AND situacao IS NOT NULL;');
 GO
 
 IF COL_LENGTH('gold.beneficio_concedido','situacao') IS NOT NULL
  EXEC(N'
-   IF EXISTS(SELECT 1 FROM gold.beneficio_concedido WHERE situacao IS NOT NULL AND situacao NOT IN(''''VIGENTE'''',''''SUSPENSA'''',''''ENCERRADA'''',''''ENCERRADO''''))
+   IF EXISTS(SELECT 1 FROM gold.beneficio_concedido WHERE situacao IS NOT NULL AND situacao NOT IN(''VIGENTE'',''SUSPENSA'',''ENCERRADA'',''ENCERRADO''))
       THROW 51990,''Valor legado de situacao de Beneficio Concedido sem mapeamento canonico de vigencia.'',1;
    UPDATE gold.beneficio_concedido
-      SET situacao_vigencia=CASE WHEN situacao IN(''''ENCERRADA'''',''''ENCERRADO'''') THEN ''''ENCERRADA'''' ELSE situacao END,
-          motivo_encerramento=CASE WHEN situacao IN(''''ENCERRADA'''',''''ENCERRADO'''') THEN ''''TERMINO_REGULAR'''' ELSE NULL END,
-          situacao_vigencia_desde=CASE WHEN situacao IN(''''ENCERRADA'''',''''ENCERRADO'''') THEN COALESCE(data_fim_concessao,data_evento_concessao) ELSE NULL END
+      SET situacao_vigencia=CASE WHEN situacao IN(''ENCERRADA'',''ENCERRADO'') THEN ''ENCERRADA'' ELSE situacao END,
+          motivo_encerramento=CASE WHEN situacao IN(''ENCERRADA'',''ENCERRADO'') THEN ''TERMINO_REGULAR'' ELSE NULL END,
+          situacao_vigencia_desde=CASE WHEN situacao IN(''ENCERRADA'',''ENCERRADO'') THEN COALESCE(data_fim_concessao,data_evento_concessao) ELSE NULL END
     WHERE situacao_vigencia IS NULL AND situacao IS NOT NULL;');
 GO
 

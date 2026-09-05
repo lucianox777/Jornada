@@ -1,14 +1,10 @@
 {
   "schemaVersion": 1,
-  "release": "v4.04",
-  "predecessorTag": "jornada-solution-v4.03",
-  "mode": "PRE_DEPLOYMENT_BASELINE_RESET",
+  "release": "v4.05",
+  "predecessorTag": "jornada-solution-v4.04",
+  "mode": "NO_BREAKING_CHANGE_EXPECTED",
   "deployed": false,
-  "allowedBreakingSchemas": [
-    "Solution/config/contracts/registros/AA01/v1/registro.schema.json",
-    "Solution/config/contracts/registros/AR01/v1/registro.schema.json",
-    "Solution/config/contracts/registros/POT1/v1/registro.schema.json"
-  ],
-  "justification": "Contratos v1 de Beneficio ainda nao implantados/publicados externamente. A v4.04 redefine a baseline pre-implantacao para a terminologia canonica minima de vigencia. A excecao e restrita aos tres schemas declarados e nao se aplica a OpenAPI, seguranca, outros contratos ou releases apos implantacao.",
-  "postDeploymentRule": "Qualquer alteracao incompatível apos publicacao/implantacao deve criar nova versao de contrato; PRE_DEPLOYMENT_BASELINE_RESET nao pode ser reutilizado."
+  "allowedBreakingSchemas": [],
+  "justification": "A v4.05 corrige somente engenharia de DDL e orquestracao da validacao local. Nenhuma quebra de OpenAPI ou JSON Schema e esperada em relacao a v4.04.",
+  "postDeploymentRule": "Qualquer alteracao incompatível apos publicacao/implantacao deve criar nova versao de contrato. A excecao PRE_DEPLOYMENT_BASELINE_RESET usada na v4.04 nao e reutilizada nesta release."
 }

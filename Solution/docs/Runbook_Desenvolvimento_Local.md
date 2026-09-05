@@ -38,18 +38,19 @@ O padrão expõe SQL Server em `localhost:14333`, cria `JornadaLocal` e aplica, 
 
 A massa é sintética. `.env` é ignorado pelo Git.
 
-## Limpeza completa e validação Release — v3.96
+## Limpeza completa e validação Release — v4.05
 
 Quando quiser reproduzir uma execução a partir do zero:
 
 A validação canônica preserva a imagem SQL durante a limpeza, mas antes dos Integration verifica o digest fixado no `docker-compose.yml`, sobe um probe descartável, consulta a versão do engine e executa `DBCC CHECKDB(master)`. Se o próprio engine não iniciar, há uma única tentativa automática de remover a imagem (somente se não estiver em uso por outro container), fazer novo `docker pull` pelo mesmo digest e repetir o probe. Falha funcional de teste não aciona reinstalação do SQL.
 
 ```powershell
-.\scripts\local-clean.ps1
 .\scripts\local-validate-release.ps1
 ```
 
-`local-clean.ps1` remove recursos Docker locais da Jornada, o volume SQL, `.env`, `.local`, `TestResults`, `bin/obj` e o Bronze local, mas **preserva a imagem Docker do SQL Server**. O cache `.vs` é tentado em best-effort: se Visual Studio/Copilot mantiver um arquivo aberto, o script avisa e continua porque esse cache não participa do restore/build/test. O validador seguinte executa restores explícitos em `--locked-mode` para a Solution e os dois projetos de teste antes de compilar.
+`local-validate-release.ps1` chama `local-clean.ps1` **sempre no início**, portanto não é necessário executar a limpeza separadamente para a validação canônica. `local-clean.ps1` continua disponível com o mesmo nome para limpeza manual: remove recursos Docker locais da Jornada, o volume SQL, `.env`, `.local`, `TestResults`, `bin/obj` e o Bronze local, mas **preserva a imagem Docker do SQL Server**. O cache `.vs` é tentado em best-effort: se Visual Studio/Copilot mantiver um arquivo aberto, o script avisa e continua porque esse cache não participa do restore/build/test.
+
+Após a limpeza, o validador executa restores explícitos em `--locked-mode` para a Solution e os dois projetos de teste antes de compilar. Unit e Integration geram evidências TRX em `TestResults/Release/Jornada.Unit.Release.trx` e `TestResults/Release/Jornada.Integration.Release.trx`. Quando um test run falha e o VSTest consegue produzir o TRX, o arquivo é preservado e seu caminho é informado antes do erro final.
 
 `local-validate-release.ps1` não reutiliza `JORNADA_TEST_SQL_CONNECTION` residual do shell: a suíte Integration sobe um SQL Server descartável via Testcontainers e cria `JornadaIntegration_Test_<guid>`. O token `Test` é intencional e mantém os guards fail-closed da suíte ativos.
 

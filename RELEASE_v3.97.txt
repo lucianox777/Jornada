@@ -1,0 +1,33 @@
+JORNADA FASE 1 — RELEASE DE ENGENHARIA v3.97
+
+Base Normativa: v3.62
+SolutionSchema: v3.68
+Solution Engenharia: v3.97
+Data: 03/09/2026
+
+Natureza da release:
+- incorporação do documento versionado Requisitos Técnicos Jornada v1.0;
+- manutenção de Requisitos de Negócio v1.0 e Requisitos Técnicos v1.0 como baselines separados e rastreáveis;
+- atualização documental, metadados de release e rótulos dos scripts canônicos;
+- nenhuma alteração funcional, DDL, contrato, produção ou dependência NuGet.
+
+Documento de Requisitos Técnicos:
+- versão própria v1.0;
+- 65 requisitos técnicos;
+- rastreabilidade aos 36 Requisitos de Negócio v1.0;
+- derivado da Especificação Técnica Jornada v3.62, SolutionSchema v3.68 e decisões de engenharia materializadas até v3.96;
+- entregue em MD, DOCX e PDF;
+- não substitui a Base Normativa, o DDL, contratos versionados, ADRs ou runbooks.
+
+Decisão documental:
+- Requisitos de Negócio e Requisitos Técnicos permanecem separados para permitir ciclos de aprovação/versionamento independentes;
+- a relação RN -> RT é registrada no próprio documento técnico;
+- mudança técnica que não altera necessidade de negócio não força nova versão do baseline de negócio.
+
+Evidência runtime herdada:
+- a v3.97 não altera comportamento funcional da v3.96/v3.95;
+- evidência externa v3.95 permanece: restore locked PASS, build 0/0, Unit 153/153, SQL digest/engine/CHECKDB PASS, Integration 58/58 PASS.
+
+Limite de evidência:
+- o runtime foi executado externamente pelo operador na v3.95;
+- HML, Produção, RIPD, calibração e evidências dependentes de dados reais continuam sujeitos aos gates próprios.

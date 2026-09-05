@@ -1,0 +1,27 @@
+JORNADA FASE 1 — RELEASE DE ENGENHARIA v3.91
+
+Base Normativa: v3.62
+SolutionSchema: v3.68
+Solution Engenharia: v3.91
+Data: 02/09/2026
+
+Mudanças v3.91:
+- corrige identidade.sp_abrir_caso_conflito_identidade: UPDATE de identity_map volta a declarar FROM identidade.identity_map im;
+- corrige ReserveNextAsync removendo SequentialAccess da leitura escalar fora de ordem do ReservedBatch;
+- SqlBatchRunner restaura SET NOCOUNT OFF e SET XACT_ABORT OFF após aplicar DDL/seed, evitando contaminar a sessão dos cenários Integration;
+- Jornada_Seed_Dev.sql torna as três Entregas canônicas convergentes, restaurando status/lease/Bronze após cenários destrutivos;
+- fixture territorial passa a informar situacao_geografia='NAO_RESOLVIDA_ORIGEM';
+- banco isolado passa a JornadaIntegration_Test_<guid>: mantém token Test dos guards e o prefixo JornadaIntegration_ exigido pela prova de isolamento;
+- scripts local-clean.ps1 e local-validate-release.ps1 permanecem canônicos e identificados como v3.91; não existe local-validate-release-r4.ps1 na release;
+- nenhum PackageReference, Base Normativa ou SolutionSchema é alterado.
+
+Evidência externa predecessora v3.90:
+- limpeza local: PASS;
+- restore locked Solution/Unit/Integration: PASS;
+- build Release: 0 warnings / 0 errors;
+- Unit: 153/153 PASS;
+- Integration: 30 PASS / 28 FAIL / 58 total; as falhas foram usadas como evidência de correção desta v3.91.
+
+Limite de evidência:
+- o ambiente de empacotamento não dispõe de .NET, Docker, PowerShell ou SQL Server;
+- a v3.91 recebe validação estática e permanece com runtime pendente até nova execução real do operador.

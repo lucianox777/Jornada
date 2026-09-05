@@ -1,0 +1,28 @@
+Jornada do Cidadão — Solution Engenharia v4.00
+Base Normativa v3.62 | SolutionSchema v3.68
+Data: 03/09/2026
+Natureza: harness de compatibilidade — SQL Database in Microsoft Fabric
+
+Principais alterações:
+- registra a validação runtime externa completa da v3.99 como predecessor aprovado em SQL Server;
+- mantém `Jornada.Operational.Sql` como única implementação do Adapter operacional;
+- introduz `JORNADA_TEST_SQL_TARGET` com `SQL_SERVER_2022` (default) e `FABRIC_SQL_DATABASE`;
+- alvo Fabric exige `JORNADA_TEST_SQL_USE_EXISTING_DATABASE=true` e banco Test/Dev/Local pré-provisionado;
+- fixture de Integration desabilita pooling também em banco externo e não cria/remove item Fabric;
+- adiciona `scripts/fabric-sql-compatibility.ps1` e `.sh` com gates, locked restore, build Release e Integration sem skips;
+- validação local Release força `SQL_SERVER_2022`, evitando contaminação por variável residual;
+- adiciona documentação `Solution/docs/Fabric_SQL_Compatibility.md`.
+
+Não muda:
+- Base Normativa v3.62;
+- SolutionSchema v3.68;
+- `database/Jornada_Fase1.sql` e seed;
+- contratos OpenAPI/JSON;
+- regras de identidade, UUID, linkage, Gold/Serving, autorização e auditoria;
+- versões de PackageReference / grafo NuGet da v3.99;
+- Adapter de produção: continua único, sem `FabricSqlAdapter`.
+
+Validação:
+- a v3.99 possui evidência externa reportada em 03/09/2026 com restore Solution/Unit/Integration, builds, Unit, Docker, imagem SQL/digest, SQL engine+CHECKDB e Integration todos OK;
+- o ambiente de empacotamento da v4.00 não possui dotnet/Docker/PowerShell, portanto executa somente gates estáticos disponíveis;
+- a v4.00 ainda requer revalidação local SQL Server pelo script canônico e, separadamente, execução do harness Fabric para produzir a evidência do experimento.

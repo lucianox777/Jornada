@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse, hashlib, json, xml.etree.ElementTree as ET
 from pathlib import Path
 
-RELEASE = 'v4.04'
+RELEASE = 'v4.05'
 UNCHANGED = 'INHERITED_UNCHANGED_FROM_V3.99'
 EXTERNAL_V399 = 'EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99'
 GRAPH_VERIFIED = 'INHERITED_BYTE_IDENTICAL_FROM_V3.99_EXTERNALLY_VERIFIED'
@@ -18,7 +18,7 @@ def sha256(path: Path) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description='Valida a herança byte-a-byte dos packages.lock.json v4.04 a partir do predecessor v3.99 externamente restaurado em locked-mode.')
+    ap = argparse.ArgumentParser(description='Valida a herança byte-a-byte dos packages.lock.json v4.05 a partir do predecessor v3.99 externamente restaurado em locked-mode.')
     ap.add_argument('--root', default='.')
     ap.add_argument('--manifest', default='config/release/nuget-lock-provenance.json')
     ap.add_argument('--summary')
@@ -33,13 +33,13 @@ def main() -> int:
         fail('versões declaradas inesperadas')
     env = data.get('packagingEnvironment') or {}
     if env.get('nugetRestoreExecuted') is not False:
-        fail('empacotamento v4.04 não pode fingir restore NuGet local')
+        fail('empacotamento v4.05 não pode fingir restore NuGet local')
     if data.get('assurance') != 'PACKAGING_NO_RESTORE_PREDECESSOR_GRAPH_EXTERNALLY_VERIFIED':
-        fail('assurance v4.04 inesperada')
+        fail('assurance v4.05 inesperada')
     if data.get('currentGraphVerification') != GRAPH_VERIFIED:
-        fail('grafo v4.04 deve declarar herança byte-a-byte do predecessor v3.99 verificado')
+        fail('grafo v4.05 deve declarar herança byte-a-byte do predecessor v3.99 verificado')
     if data.get('pendingLockCount') != 0:
-        fail('v4.04 não altera o grafo e não deve possuir lock pendente')
+        fail('v4.05 não altera o grafo e não deve possuir lock pendente')
 
     rows = data.get('locks') or []
     listed = {r.get('path'): r for r in rows if r.get('path')}
@@ -58,7 +58,7 @@ def main() -> int:
         if current_sha != str(row.get('sha256', '')).lower():
             fail(f'SHA atual diverge: {rel}')
         if row.get('origin') != UNCHANGED:
-            fail(f'lock v4.04 deve ser herdado da v3.99: {rel}')
+            fail(f'lock v4.05 deve ser herdado da v3.99: {rel}')
         if row.get('sourceSha256') != current_sha:
             fail(f'lock herdado não é byte-a-byte idêntico ao predecessor v3.99: {rel}')
         if row.get('verificationStatus') != EXTERNAL_V399:
@@ -101,7 +101,7 @@ def main() -> int:
         fail('assurance externa v3.99 ausente ou superestimada')
     if external.get('sourceRelease') != 'v3.99' or external.get('scriptVersion') != '2026.09.03-v3.99':
         fail('evidência externa não identifica corretamente o predecessor v3.99')
-    if external.get('applicability') != 'VERIFIES_V3.99_LOCK_GRAPH_AND_PREDECESSOR_RUNTIME;V4.04_LOCKS_BYTE_IDENTICAL;DOES_NOT_VERIFY_V4.04_CODE_RUNTIME':
+    if external.get('applicability') != 'VERIFIES_V3.99_LOCK_GRAPH_AND_PREDECESSOR_RUNTIME;V4.05_LOCKS_BYTE_IDENTICAL;DOES_NOT_VERIFY_V4.05_CODE_RUNTIME':
         fail('escopo da evidência v3.99 está ausente ou superestimado')
     for key in ('lockedRestoreSolution', 'lockedRestoreUnit', 'lockedRestoreIntegration'):
         if external.get(key) != 'PASS':
@@ -115,7 +115,7 @@ def main() -> int:
     for required in (
         'dotnet restore Jornada.sln --locked-mode',
         'dotnet build Jornada.sln -c Release --no-restore',
-        'Unit + Integration da v4.04',
+        'Unit + Integration da v4.05',
         'fabric-sql-compatibility',
     ):
         if required not in req:

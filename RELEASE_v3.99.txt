@@ -1,0 +1,27 @@
+Jornada do Cidadão — Solution Engenharia v3.99
+Base Normativa v3.62 | SolutionSchema v3.68
+Data: 03/09/2026
+Natureza: refatoração de infraestrutura — Adapter do banco operacional
+
+Principais alterações:
+- cria o projeto `Jornada.Operational.Sql` com `IOperationalSqlAdapter` e `OperationalSqlAdapter`;
+- centraliza criação e abertura de conexões `Microsoft.Data.SqlClient` dos componentes operacionais;
+- API, Processor, Linkage, Maintenance, Bronze.Verify e Linkage.Evaluation deixam de instanciar `SqlConnection` diretamente;
+- sessões com `sp_getapplock` + `LockOwner='Session'` usam conexão dedicada com `Pooling=false` e `Enlist=false`;
+- mantém uma única implementação SQL; não existe Adapter específico de Fabric nesta versão;
+- adiciona testes unitários da fronteira e documentação `Solution/docs/Operational_SQL_Adapter.md`;
+- atualiza matriz de dependências, locks NuGet e gates estáticos para a nova fronteira.
+
+Não muda:
+- Base Normativa v3.62;
+- SolutionSchema v3.68;
+- `database/Jornada_Fase1.sql` e seed;
+- contratos OpenAPI/JSON;
+- regras de identidade, UUID, linkage, Gold/Serving, autorização e auditoria;
+- requisitos RN/RF/RNF/RT da baseline v3.98.
+
+Validação:
+- ambiente de empacotamento sem `dotnet`, Docker ou PowerShell: somente validação estática;
+- locks alterados pela inclusão do ProjectReference do Adapter ficam `PENDING_LOCKED_RESTORE_V3.99`;
+- a evidência externa v3.95 (Unit 153/153 e Integration 58/58) é histórica e não é atribuída à v3.99;
+- antes de promoção runtime, executar restore `--locked-mode`, build Release e suítes Unit/Integration reais.

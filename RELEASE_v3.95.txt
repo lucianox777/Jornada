@@ -1,0 +1,35 @@
+JORNADA FASE 1 — RELEASE DE ENGENHARIA v3.95
+
+Base Normativa: v3.62
+SolutionSchema: v3.68
+Solution Engenharia: v3.95
+Data: 03/09/2026
+
+Natureza da release:
+- correção do único resíduo revelado pela execução Integration real da v3.94;
+- hardening da validação local do SQL Server Docker, com digest fixado, probe de engine e recuperação controlada;
+- não altera Base Normativa, SolutionSchema, DDL corrente, contratos de API, código de produção ou dependências NuGet.
+
+Evidência externa predecessora v3.94:
+- local-clean.ps1: PASS; cache .vs bloqueado tratado como best-effort;
+- restore --locked-mode Solution/Unit/Integration: PASS;
+- build Release: PASS, 0 warnings / 0 errors;
+- Unit: 153/153 PASS;
+- Integration: 57 PASS / 1 FAIL / 58 total.
+
+Único resíduo v3.94:
+- Transaction_failure_after_partial_persistence_rolls_back_silver_identity_and_gold esperava zero linhas em todo o lote, mas o lote de seed reutilizado já continha 2 pessoa_observacao e 2 item_processado anteriores ao cenário.
+- a falha não demonstrou perda de atomicidade; demonstrou escopo incorreto da asserção.
+
+Correções v3.95:
+- o teste de rollback conta somente pessoa/atributos/item_processado dos códigos PROC-V325-ROLLBACK-A/B e continua exigindo zero identity_map/gold para os CPFs do cenário;
+- a reserva do lote permanece fora da transação e o teste continua exigindo status VALIDANDO após o rollback, provando recuperabilidade por stale recovery;
+- local-validate-release.ps1 extrai a imagem SQL canônica do docker-compose.yml e exige pin @sha256;
+- se a imagem não existir localmente, faz pull do digest fixado;
+- cria probe descartável, executa SELECT/versão e DBCC CHECKDB(master);
+- se o engine falhar, tenta uma única recuperação segura: só remove a imagem se não houver outro container dependente, faz novo pull pelo mesmo digest e repete o probe;
+- a suíte Integration é forçada a usar a mesma imagem canônica por JORNADA_TEST_SQL_IMAGE durante a execução, restaurando qualquer override do operador no final.
+
+Limite de evidência:
+- o ambiente de empacotamento não dispõe de .NET, Docker, PowerShell ou SQL Server;
+- a v3.95 recebe validação estática local e permanece com runtime Integration pendente até nova execução real do operador.

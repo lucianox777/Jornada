@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static fail-closed gate for v4.04 technical closure, runtime contract conformance, SQL target compatibility, architecture, supply-chain, governance and HML execution contracts."""
+"""Static fail-closed gate for v4.05 technical closure, runtime contract conformance, SQL target compatibility, architecture, supply-chain, governance and HML execution contracts."""
 from __future__ import annotations
 import hashlib
 import json
@@ -432,14 +432,14 @@ def main() -> None:
     release_info = RELEASE_INFO.read_text(encoding="utf-8")
     require(release_info, [
         "base_normativa=v3.64",
-        "solution_engenharia=v4.04",
+        "solution_engenharia=v4.05",
         "schema_base_normativa=v3.62",
         "schema_solution=v3.69",
         "origem_engenharia_anterior_1_materializada=true",
-        "origem_engenharia_anterior_1_sha256=d0077f837402900ffbb0fb579305fad51912caa2b33374a94c8bd73f7918fbe1",
-        "source_git_tag=jornada-solution-v4.04",
-        "source_git_predecessor_tag=jornada-solution-v4.03",
-        "source_git_bundle=Solution/supply-chain/source/Jornada_Source_v4.03_v4.04.bundle",
+        "origem_engenharia_anterior_1_sha256=e18beb63aad7683ac749e2e5f2b600540c33fd7f92513ca2223daa684a3f6e19",
+        "source_git_tag=jornada-solution-v4.05",
+        "source_git_predecessor_tag=jornada-solution-v4.04",
+        "source_git_bundle=Solution/supply-chain/source/Jornada_Source_v4.04_v4.05.bundle",
         "source_git_provenance=SOURCE_PROVENANCE.json",
     ], "RELEASE_INFO corrente")
 
@@ -598,7 +598,7 @@ def main() -> None:
 
     local_clean = LOCAL_CLEAN_PS.read_text(encoding="utf-8-sig")
     require(local_clean, [
-        "$ScriptVersion = '2026.09.04-v4.03'",
+        "$ScriptVersion = '2026.09.04-v4.05'",
         "docker compose",
         "'down','-v','--remove-orphans'",
         "Where-Object { $_.Name -in @('bin','obj') }",
@@ -607,11 +607,11 @@ def main() -> None:
         "Esse cache não é necessário para restore/build/test. A limpeza continuará.",
         "local-validate-release-r4.ps1",
         "Imagem Docker do SQL Server preservada; local-validate-release.ps1 validará digest e engine.",
-    ], "local-clean canônico v4.03")
+    ], "local-clean canônico v4.05")
 
     local_validate = LOCAL_VALIDATE_RELEASE_PS.read_text(encoding="utf-8-sig")
     require(local_validate, [
-        "$ScriptVersion = '2026.09.04-v4.03'",
+        "$ScriptVersion = '2026.09.04-v4.05'",
         "@('restore', $Solution, '--locked-mode')",
         "@('restore', $UnitProject, '--locked-mode')",
         "@('restore', $IntegrationProject, '--locked-mode')",
@@ -630,7 +630,16 @@ def main() -> None:
         "@('pull',$image)",
         "$env:JORNADA_TEST_SQL_IMAGE = $canonicalSqlImage",
         "'9/9 Testes Integration'",
-    ], "local-validate-release canônico v4.03")
+        "$CleanScript = Join-Path $PSScriptRoot 'local-clean.ps1'",
+        "& $CleanScript",
+        "$TestResultsDir = Join-Path $Root 'TestResults\\Release'",
+        "Jornada.Unit.Release.trx",
+        "Jornada.Integration.Release.trx",
+        '--logger "trx;LogFileName=$trxName"',
+        "--results-directory $TestResultsDir",
+    ], "local-validate-release canônico v4.05")
+    if local_validate.find("& $CleanScript") > local_validate.find("@('restore', $Solution, '--locked-mode')"):
+        fail("local-validate-release deve executar local-clean.ps1 antes do primeiro restore")
     if "@('image','rm','-f'" in local_validate:
         fail("recuperação SQL não pode force-remover imagem potencialmente compartilhada")
     if (ROOT / "scripts" / "local-validate-release-r4.ps1").exists():
@@ -663,6 +672,14 @@ def main() -> None:
     ], "SQL dinâmico DDL v3.88")
 
     current_ddl = DDL.read_text(encoding="utf-8-sig")
+    if "''''BENEFICIO''''" in current_ddl or "''''ENCERRADA''''" in current_ddl:
+        fail("migração de vigência voltou a sobre-escapar literais dentro de SQL dinâmico")
+    require(current_ddl, [
+        "WHERE natureza=''BENEFICIO''",
+        "NOT IN(''VIGENTE'',''SUSPENSA'',''ENCERRADA'',''ENCERRADO'')",
+        "THEN ''ENCERRADA''",
+        "THEN ''TERMINO_REGULAR''",
+    ], "SQL dinâmico de migração de vigência v4.05")
     require(current_ddl, [
         "IX_bronze_entrega_arquivo_payload_sha256",
         "CREATE INDEX IX_bronze_entrega_arquivo_payload_sha256 ON bronze.entrega_arquivo(payload_sha256)",
@@ -840,13 +857,13 @@ def main() -> None:
     ], "projeção individual identity-aware v3.94")
 
     lock_provenance = json.loads(NUGET_LOCK_PROVENANCE.read_text(encoding="utf-8"))
-    if lock_provenance.get("assurance") != "PACKAGING_NO_RESTORE_PREDECESSOR_GRAPH_EXTERNALLY_VERIFIED" or lock_provenance.get("release") != "v4.04":
-        fail("proveniência NuGet deve declarar v4.04 / grafo herdado da v3.99 externamente verificado")
+    if lock_provenance.get("assurance") != "PACKAGING_NO_RESTORE_PREDECESSOR_GRAPH_EXTERNALLY_VERIFIED" or lock_provenance.get("release") != "v4.05":
+        fail("proveniência NuGet deve declarar v4.05 / grafo herdado da v3.99 externamente verificado")
     if lock_provenance.get("currentGraphVerification") != "INHERITED_BYTE_IDENTICAL_FROM_V3.99_EXTERNALLY_VERIFIED" or lock_provenance.get("pendingLockCount") != 0:
-        fail("v4.04 não altera o grafo NuGet e deve herdar todos os locks byte-a-byte da v3.99")
+        fail("v4.05 não altera o grafo NuGet e deve herdar todos os locks byte-a-byte da v3.99")
     if lock_provenance.get("externalAssurance") != "TRUSTED_OPERATOR_LOCKED_RESTORE_PASS_V3.99_PREDECESSOR_GRAPH":
         fail("proveniência NuGet não registra a validação locked restore da v3.99")
-    require(NUGET_LOCK_PROVENANCE_GATE.read_text(encoding="utf-8"), ["INHERITED_UNCHANGED_FROM_V3.99", "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99", "INHERITED_BYTE_IDENTICAL_FROM_V3.99_EXTERNALLY_VERIFIED", "dotnet restore Jornada.sln --locked-mode", "fabric-sql-compatibility"], "gate de proveniência NuGet v4.04")
+    require(NUGET_LOCK_PROVENANCE_GATE.read_text(encoding="utf-8"), ["INHERITED_UNCHANGED_FROM_V3.99", "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99", "INHERITED_BYTE_IDENTICAL_FROM_V3.99_EXTERNALLY_VERIFIED", "dotnet restore Jornada.sln --locked-mode", "fabric-sql-compatibility"], "gate de proveniência NuGet v4.05")
 
     lineage_gate = PREDECESSOR_GATE.read_text(encoding="utf-8")
     require(lineage_gate, [
@@ -876,9 +893,9 @@ def main() -> None:
     # os verifica. Se estiverem presentes no pacote distribuído, também os auditamos aqui.
     if SOURCE_PROVENANCE.is_file():
         provenance = json.loads(SOURCE_PROVENANCE.read_text(encoding="utf-8"))
-        if provenance.get("solutionEngenharia") != "v4.04" or provenance.get("baseNormativa") != "v3.64":
+        if provenance.get("solutionEngenharia") != "v4.05" or provenance.get("baseNormativa") != "v3.64":
             fail("SOURCE_PROVENANCE declara versões inesperadas")
-        if provenance.get("current", {}).get("tag") != "jornada-solution-v4.04" or provenance.get("predecessor", {}).get("tag") != "jornada-solution-v4.03":
+        if provenance.get("current", {}).get("tag") != "jornada-solution-v4.05" or provenance.get("predecessor", {}).get("tag") != "jornada-solution-v4.04":
             fail("SOURCE_PROVENANCE declara cadeia Git inesperada")
         bundle = ROOT.parent / str(provenance.get("bundlePath", ""))
         if not bundle.is_file():

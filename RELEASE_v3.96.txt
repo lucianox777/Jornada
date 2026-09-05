@@ -1,0 +1,32 @@
+JORNADA FASE 1 — RELEASE DE ENGENHARIA v3.96
+
+Base Normativa: v3.62
+SolutionSchema: v3.68
+Solution Engenharia: v3.96
+Data: 03/09/2026
+
+Natureza da release:
+- fechamento de evidência runtime da v3.95;
+- incorporação do documento versionado Requisitos de Negócio Jornada v1.0;
+- atualização de proveniência e documentação corrente;
+- nenhuma alteração funcional, DDL, contrato, produção ou dependência NuGet.
+
+Evidência externa v3.95:
+- restore locked Solution/Unit/Integration: PASS;
+- build Release: PASS, 0 warnings / 0 errors;
+- Unit: 153/153 PASS;
+- imagem SQL fixada por digest: OK e reutilizada do cache local;
+- SQL Server ProductVersion 16.0.4265.3;
+- DBCC CHECKDB(master): OK;
+- Integration: 58/58 PASS;
+- validação local Release: PASS.
+
+Documento de Requisitos de Negócio:
+- versão própria v1.0;
+- rastreável à Especificação Técnica Jornada v3.62;
+- entregue em MD, DOCX e PDF;
+- não substitui a Base Normativa.
+
+Limite de evidência:
+- o runtime foi executado externamente pelo operador, não no ambiente de empacotamento;
+- HML, Produção, RIPD, calibração e evidências dependentes de dados reais continuam sujeitos aos seus gates próprios.

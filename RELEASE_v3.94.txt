@@ -1,0 +1,29 @@
+JORNADA FASE 1 — RELEASE DE ENGENHARIA v3.94
+
+Base Normativa: v3.62
+SolutionSchema: v3.68
+Solution Engenharia: v3.94
+Data: 03/09/2026
+
+Natureza da release:
+- correções residuais reveladas pela execução Integration real da v3.93;
+- uma correção de produção na validação de atributos COMPROVADO e três correções de teste/fixture/seed;
+- não altera Base Normativa, SolutionSchema, DDL corrente, contratos de API ou dependências NuGet.
+
+Evidência externa predecessora v3.93:
+- local-clean.ps1: PASS; cache .vs bloqueado foi tratado como best-effort;
+- restore --locked-mode Solution/Unit/Integration: PASS;
+- build Release: PASS, 0 warnings / 0 errors;
+- Unit: 153/153 PASS;
+- Integration: 54 PASS / 4 FAIL / 58 total.
+
+Correções v3.94:
+- Processor valida COMPROVADO sem verificadoEm antes do INSERT Silver, mantendo a validação dentro da transação para preservar a prova de rollback;
+- teste concorrente reconhece que READPAST pode retornar null transitório e exige progresso no poll seguinte, mantendo a prova de lotes distintos;
+- teste de persistência atômica conta somente pessoa/registro/item pertencentes ao cenário PROC-V325/REG-PROC-V325;
+- seed DEV restaura avaliações canônicas de possibilidade por linha, mesmo após invalidação por correção/fusão de identidade;
+- teste do seed compara a projeção individual com fatos VIGENTES e ATRIBUIDOS, coerente com o contrato atual.
+
+Limite de evidência:
+- o ambiente de empacotamento não dispõe de .NET, Docker, PowerShell ou SQL Server;
+- a v3.94 recebe validação estática local e permanece com runtime Integration pendente até nova execução real do operador.

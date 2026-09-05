@@ -1,0 +1,29 @@
+JORNADA FASE 1 — RELEASE DE ENGENHARIA v3.92
+
+Base Normativa: v3.62
+SolutionSchema: v3.68
+Solution Engenharia: v3.92
+Data: 03/09/2026
+
+Natureza da release:
+- correção de precisão documental/proveniência sobre a v3.91;
+- nenhuma alteração funcional de runtime, DDL, contrato, dependência, seed ou fixture;
+- as correções funcionais da v3.91 permanecem byte-a-byte inalteradas, exceto comentário/versionamento dos scripts locais.
+
+Correções v3.92:
+- descreve corretamente o SQL 208: o DDL usava `UPDATE im` sem vincular o alias por `FROM identidade.identity_map im`; não caracteriza o defeito genericamente como "UPDATE identity_map sem FROM";
+- corrige o comentário de `scripts/local-validate-release.ps1` para o nome corrente `JornadaIntegration_Test_<guid>`;
+- registra que a análise v3.91 identificou e tratou seis grupos de causa-raiz, mas a completude dessa decomposição só pode ser confirmada pela próxima execução Integration;
+- mantém separadas a evidência externa real de restore `--locked-mode` da v3.90 e a assurance formal `NO_RESTORE_CLAIMED` do ambiente de empacotamento; os locks não são promovidos por inferência;
+- atualiza metadados/gates para predecessor verificável v3.91.
+
+Evidência externa disponível:
+- v3.90: restore locked Solution/Unit/Integration PASS;
+- v3.90: build Release 0 warnings / 0 errors;
+- v3.90: Unit 153/153 PASS;
+- v3.90: Integration 30 PASS / 28 FAIL / 58 total.
+
+Limite de evidência:
+- v3.91 ainda não foi reexecutada pelo operador;
+- v3.92 não altera as correções funcionais v3.91 e também permanece com runtime Integration pendente;
+- o ambiente de empacotamento não dispõe de .NET, Docker, PowerShell ou SQL Server.

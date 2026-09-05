@@ -1,0 +1,29 @@
+JORNADA FASE 1 — RELEASE DE ENGENHARIA v3.93
+
+Base Normativa: v3.62
+SolutionSchema: v3.68
+Solution Engenharia: v3.93
+Data: 03/09/2026
+
+Natureza da release:
+- correção funcional de idempotência do DDL corrente;
+- não altera Base Normativa, SolutionSchema, contratos de API ou dependências NuGet;
+- não reescreve baselines históricos.
+
+Evidência externa predecessora v3.92:
+- local-clean.ps1: PASS; cache .vs bloqueado foi tratado como best-effort e não interrompeu a limpeza;
+- restore --locked-mode Solution/Unit/Integration: PASS;
+- build Release: PASS, 0 warnings / 0 errors;
+- Unit: 153/153 PASS;
+- Integration: 29 PASS / 29 FAIL / 58 total;
+- as 29 falhas registraram o mesmo SQL Server 547 em ck_vinculo_metodo durante reaplicação do DDL.
+
+Correção v3.93:
+- o bloco de compatibilidade/reentrada anterior ao v3.44 deixa de rebaixar ck_vinculo_metodo para um domínio que exclui CONFLITO_GOVERNADO;
+- ck_vinculo_modelo no mesmo ponto recebe a regra final de CONFLITO_GOVERNADO;
+- a definição evolutiva v3.44 permanece como estado final canônico;
+- technical-closure-gate passa a bloquear regressão desse cenário de reentrada.
+
+Limite de evidência:
+- o ambiente de empacotamento não dispõe de .NET, Docker, PowerShell ou SQL Server;
+- a v3.93 recebe validação estática local e permanece com runtime Integration pendente até nova execução real do operador.

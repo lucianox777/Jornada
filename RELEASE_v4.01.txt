@@ -1,0 +1,35 @@
+Jornada do Cidadão — Solution Engenharia v4.01
+Base Normativa v3.62 | SolutionSchema v3.68
+Data: 03/09/2026
+Natureza: portabilidade Microsoft SQL — desenvolvimento local + homologação Fabric condicional
+
+Principais alterações:
+- consolida o harness Fabric corrigido após execução real contra SQL Database in Microsoft Fabric;
+- registra evidência externa de 58/58 Integration PASS, 0 falhas e 0 skips no Fabric;
+- mantém SQL Server 2022 local/Testcontainers como baseline obrigatória de desenvolvimento, CI e validação ordinária;
+- torna Fabric um alvo adicional de homologação, executado somente quando houver ambiente Test/Dev/Local disponibilizado;
+- nenhuma connection string Fabric é distribuída no pacote; conexão é configuração externa/local ignorada pelo Git;
+- mantém uma única implementação `OperationalSqlAdapter`, sem `FabricSqlAdapter` ou DDL alternativo;
+- corrige o teste de oito contendores para medir disputa realmente simultânea e elimina falso resultado por liberação temporal do vencedor;
+- adiciona reset seguro do banco Fabric Test/Dev/Local antes da suíte, evitando contaminação por execuções anteriores;
+- usa Microsoft Entra Device Code Flow no harness PowerShell, com relay do código ao console;
+- aceita TRX 100% aprovado como evidência autoritativa quando Windows PowerShell não expõe `ExitCode` do processo após `Start-Process`;
+- harness Fabric PowerShell/POSIX não depende de Python.
+
+Decisão arquitetural:
+- desenvolvimento e release ordinária continuam independentes do Fabric;
+- compatibilidade funcional atual foi comprovada nas duas hospedagens Microsoft SQL;
+- a escolha de produção permanece aberta e deverá ser fundamentada em avaliação técnica comparativa com carga representativa, incluindo desempenho, escalabilidade, disponibilidade, custo, segurança e operação.
+
+Não muda:
+- Base Normativa v3.62;
+- SolutionSchema v3.68;
+- `database/Jornada_Fase1.sql` e seed;
+- contratos OpenAPI/JSON;
+- regras de identidade, UUID, linkage, Gold/Serving, autorização e auditoria;
+- versões de PackageReference / grafo NuGet.
+
+Validação:
+- SQL Server predecessor: validação local canônica reportada com restore/build/Unit/Docker/SQL/Integration todos OK;
+- Fabric: execução externa em 03/09/2026, 58/58 Integration PASS, 0 skips, duração reportada de 4m48s;
+- ambiente de empacotamento não possui .NET/Docker/PowerShell; a v4.01 requer reexecução do `local-validate-release.ps1` após instalação do pacote para validação byte-a-byte da release consolidada.

@@ -1,7 +1,7 @@
-param()
+﻿param()
 
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = '2026.09.04-v4.03'
+$ScriptVersion = '2026.09.04-v4.05'
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Solution = Join-Path $Root 'Jornada.sln'
@@ -10,6 +10,10 @@ $IntegrationProject = Join-Path $Root 'tests\Jornada.Integration.Tests\Jornada.I
 $UnitDll = Join-Path $Root 'tests\Jornada.Tests\bin\Release\net8.0\Jornada.Tests.dll'
 $IntegrationDll = Join-Path $Root 'tests\Jornada.Integration.Tests\bin\Release\net8.0\Jornada.Integration.Tests.dll'
 $ComposeFile = Join-Path $Root 'docker-compose.yml'
+$CleanScript = Join-Path $PSScriptRoot 'local-clean.ps1'
+$TestResultsDir = Join-Path $Root 'TestResults\Release'
+$UnitTrx = Join-Path $TestResultsDir 'Jornada.Unit.Release.trx'
+$IntegrationTrx = Join-Path $TestResultsDir 'Jornada.Integration.Release.trx'
 
 function Invoke-Checked {
     param(
@@ -24,6 +28,46 @@ function Invoke-Checked {
 
     if ($LASTEXITCODE -ne 0) {
         throw "$Step falhou (exit code $LASTEXITCODE)."
+    }
+}
+
+function Invoke-TestChecked {
+    param(
+        [Parameter(Mandatory=$true)][string]$Project,
+        [Parameter(Mandatory=$true)][string]$Step,
+        [Parameter(Mandatory=$true)][string]$TrxPath
+    )
+
+    Write-Host ''
+    Write-Host "=== $Step ==="
+
+    if (Test-Path -LiteralPath $TrxPath) {
+        Remove-Item -LiteralPath $TrxPath -Force
+    }
+
+    $trxName = [System.IO.Path]::GetFileName($TrxPath)
+    & dotnet test $Project `
+        --configuration Release `
+        --no-build `
+        --no-restore `
+        --logger "trx;LogFileName=$trxName" `
+        --results-directory $TestResultsDir
+    $exitCode = $LASTEXITCODE
+
+    if (Test-Path -LiteralPath $TrxPath) {
+        $trx = Get-Item -LiteralPath $TrxPath
+        Write-Host "TRX gerado: $($trx.FullName)"
+        Write-Host "Tamanho TRX: $($trx.Length) bytes"
+    }
+    elseif ($exitCode -eq 0) {
+        throw "$Step concluiu sem gerar o TRX esperado: $TrxPath"
+    }
+    else {
+        Write-Warning "$Step falhou e o TRX esperado não foi gerado: $TrxPath"
+    }
+
+    if ($exitCode -ne 0) {
+        throw "$Step falhou (exit code $exitCode). Evidência TRX: $TrxPath"
     }
 }
 
@@ -241,7 +285,7 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     throw '.NET SDK não encontrado no PATH.'
 }
 
-foreach ($required in @($Solution, $UnitProject, $IntegrationProject)) {
+foreach ($required in @($Solution, $UnitProject, $IntegrationProject, $CleanScript)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "Arquivo obrigatório não encontrado: $required"
     }
@@ -265,6 +309,17 @@ try {
     Write-Host " ScriptVersion: $ScriptVersion"
     Write-Host '==================================================='
     Write-Host "Raiz: $Root"
+
+    Write-Host ''
+    Write-Host '=== Pré-validação: limpeza canônica ==='
+    & $CleanScript
+    if (-not $?) {
+        throw 'local-clean.ps1 falhou.'
+    }
+    Write-Host 'Clean: OK'
+
+    New-Item -ItemType Directory -Path $TestResultsDir -Force | Out-Null
+    Write-Host "Resultados TRX: $TestResultsDir"
     Write-Host "dotnet: $(& dotnet --version)"
     Write-Host 'Solution contém Jornada.Integration.Tests: OK'
     Write-Host 'Alvo obrigatório de desenvolvimento/release: SQL_SERVER_2022 local/Testcontainers'
@@ -307,16 +362,7 @@ try {
         -Step '5/9 Build explícito Jornada.Tests'
 
     Assert-FileExists -Path $UnitDll -Description 'DLL Unit'
-
-    Invoke-Checked `
-        -Command 'dotnet' `
-        -CommandArgs @(
-            'test', $UnitProject,
-            '--configuration', 'Release',
-            '--no-build',
-            '--no-restore'
-        ) `
-        -Step '6/9 Testes Unit'
+    Invoke-TestChecked -Project $UnitProject -Step '6/9 Testes Unit' -TrxPath $UnitTrx
 
     Write-Host ''
     Write-Host '=== 7/9 Verificando Docker + imagem SQL + engine ==='
@@ -347,32 +393,26 @@ try {
     Remove-Item Env:JORNADA_TEST_SQL_USE_EXISTING_DATABASE -ErrorAction SilentlyContinue
     Remove-Item Env:JORNADA_TEST_SQL_RESET_EXISTING_DATABASE -ErrorAction SilentlyContinue
     $env:JORNADA_TEST_SQL_TARGET = 'SQL_SERVER_2022'
-
-    Invoke-Checked `
-        -Command 'dotnet' `
-        -CommandArgs @(
-            'test', $IntegrationProject,
-            '--configuration', 'Release',
-            '--no-build',
-            '--no-restore'
-        ) `
-        -Step '9/9 Testes Integration'
+    Invoke-TestChecked -Project $IntegrationProject -Step '9/9 Testes Integration' -TrxPath $IntegrationTrx
 
     Write-Host ''
     Write-Host '==================================================='
     Write-Host 'VALIDAÇÃO LOCAL RELEASE CONCLUÍDA COM SUCESSO'
     Write-Host "ScriptVersion:        $ScriptVersion"
+    Write-Host 'Clean:                OK'
     Write-Host 'Restore Solution:     OK'
     Write-Host 'Restore Unit:         OK'
     Write-Host 'Restore Integration:  OK'
     Write-Host 'Build Solution:       OK'
     Write-Host 'Build Unit:           OK'
     Write-Host 'Testes Unit:          OK'
+    Write-Host "TRX Unit:              $UnitTrx"
     Write-Host 'Docker:               OK'
     Write-Host 'Imagem SQL/digest:     OK'
     Write-Host 'SQL engine + CHECKDB: OK'
     Write-Host 'Build Integration:    OK'
     Write-Host 'Testes Integration:   OK'
+    Write-Host "TRX Integration:       $IntegrationTrx"
     Write-Host '==================================================='
 }
 finally {

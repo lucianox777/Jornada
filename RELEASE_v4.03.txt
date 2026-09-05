@@ -1,0 +1,21 @@
+Jornada do Cidadao - Solution Engenharia v4.03
+Base Normativa v3.63 | Schema persistido Base 3.62 | SolutionSchema v3.68
+Data: 04/09/2026
+Natureza: correcao documental institucional, sem mudanca funcional de runtime
+
+Correcao realizada:
+- corrige para SGM/SEPE a sigla institucional da area requisitante em todos os artefatos vigentes onde ainda estava incorreta;
+- corrige explicitamente Area requisitante e Autor na Especificacao Tecnica Jornada v3.63;
+- corrige referencias institucionais na Especificacao, Anexo de Arquitetura, Anexo de Pendencias, Resumo Executivo e familia de Requisitos;
+- regenera os PDFs correspondentes aos DOCX alterados.
+
+Sem mudanca funcional:
+- Base Normativa permanece v3.63;
+- schema persistido permanece Base 3.62 / SolutionSchema v3.68;
+- DDL, contratos, arquitetura, regras de negocio e dependencias NuGet nao mudam;
+- permanece a arquitetura Microsoft Fabric consolidada na v4.02.
+
+Validacao da v4.03:
+- todos os DOCX alterados foram renderizados e comparados com a versao anterior; as diferencas visuais ficaram restritas aos pontos da sigla corrigida;
+- os PDFs correspondentes foram regenerados e verificados quanto a consistencia da sigla SGM/SEPE;
+- o ambiente de empacotamento nao possui .NET/Docker/PowerShell; nao e alegada nova execucao runtime.

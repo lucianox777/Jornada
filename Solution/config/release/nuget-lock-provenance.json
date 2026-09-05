@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "release": "v4.04",
+  "release": "v4.05",
   "baseNormativa": "v3.64",
   "solutionSchema": "v3.69",
   "sourceRelease": "v3.99",
@@ -20,7 +20,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "8fc3af8ec74bb8e980b90ba3d2d826c09fde00b0b45906b9d472234d4f99acc2",
       "sha256": "8fc3af8ec74bb8e980b90ba3d2d826c09fde00b0b45906b9d472234d4f99acc2",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -28,7 +28,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "277e5d4ced5be1bd2a7b8affa24efdfdfa0b263cf98e2c53c68d3d6c174e0ca8",
       "sha256": "277e5d4ced5be1bd2a7b8affa24efdfdfa0b263cf98e2c53c68d3d6c174e0ca8",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -36,7 +36,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
       "sha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -44,7 +44,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "59b11b1c5c14e2206182b0e5c46796bf3362bee17217dc884c260620c136218f",
       "sha256": "59b11b1c5c14e2206182b0e5c46796bf3362bee17217dc884c260620c136218f",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -52,7 +52,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
       "sha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -60,7 +60,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9",
       "sha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -68,7 +68,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "87165fc3443f2ecb996412c4c9108d078ded2a13813f36a5fff186e4ffba072b",
       "sha256": "87165fc3443f2ecb996412c4c9108d078ded2a13813f36a5fff186e4ffba072b",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -76,7 +76,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "4a3cce936eed7b19b321df53351b0d949013391fd5653e7fc00bd95d7e211f4e",
       "sha256": "4a3cce936eed7b19b321df53351b0d949013391fd5653e7fc00bd95d7e211f4e",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -84,7 +84,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "4a3cce936eed7b19b321df53351b0d949013391fd5653e7fc00bd95d7e211f4e",
       "sha256": "4a3cce936eed7b19b321df53351b0d949013391fd5653e7fc00bd95d7e211f4e",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -92,7 +92,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "f53239d610c77419ccea308b33c9c699a6af80e133ee9e8cae449fad16d28217",
       "sha256": "f53239d610c77419ccea308b33c9c699a6af80e133ee9e8cae449fad16d28217",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -100,7 +100,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "277e5d4ced5be1bd2a7b8affa24efdfdfa0b263cf98e2c53c68d3d6c174e0ca8",
       "sha256": "277e5d4ced5be1bd2a7b8affa24efdfdfa0b263cf98e2c53c68d3d6c174e0ca8",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -108,7 +108,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "87165fc3443f2ecb996412c4c9108d078ded2a13813f36a5fff186e4ffba072b",
       "sha256": "87165fc3443f2ecb996412c4c9108d078ded2a13813f36a5fff186e4ffba072b",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -116,7 +116,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "c92465683938751511057276c9d3ce8d23300a61827421c4899a099795fbbfc8",
       "sha256": "c92465683938751511057276c9d3ce8d23300a61827421c4899a099795fbbfc8",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -124,7 +124,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "e258736e08e404606a6d60afee48a7cbb140535e7ca4ba1973b7676de994414b",
       "sha256": "e258736e08e404606a6d60afee48a7cbb140535e7ca4ba1973b7676de994414b",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     },
     {
@@ -132,7 +132,7 @@
       "origin": "INHERITED_UNCHANGED_FROM_V3.99",
       "sourceSha256": "dfa12de1aec36abc9ee7dd3c86be9d23372799983a4668ee113ccaa100b54e70",
       "sha256": "dfa12de1aec36abc9ee7dd3c86be9d23372799983a4668ee113ccaa100b54e70",
-      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.04 não altera PackageReference nem o grafo NuGet.",
+      "note": "Lock byte-a-byte herdado da v3.99, cujo restore --locked-mode foi reportado como PASS pelo operador em 03/09/2026. A v4.05 não altera PackageReference nem o grafo NuGet.",
       "verificationStatus": "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99"
     }
   ],
@@ -141,7 +141,7 @@
     "python3 scripts/nuget-lock-gate.py --root .",
     "dotnet restore Jornada.sln --locked-mode",
     "dotnet build Jornada.sln -c Release --no-restore",
-    "executar Unit + Integration da v4.04 após o locked restore",
+    "executar Unit + Integration da v4.05 após o locked restore",
     "executar scripts/fabric-sql-compatibility.ps1 ou .sh quando houver ambiente Fabric e for necessária nova homologação",
     "release tag promotion must fail if locked restore changes/rejects the committed graph"
   ],
@@ -162,7 +162,7 @@
     "buildIntegration": "PASS",
     "integrationTests": "PASS_COUNT_NOT_REPORTED_IN_SUMMARY",
     "localReleaseValidation": "PASS",
-    "applicability": "VERIFIES_V3.99_LOCK_GRAPH_AND_PREDECESSOR_RUNTIME;V4.04_LOCKS_BYTE_IDENTICAL;DOES_NOT_VERIFY_V4.04_CODE_RUNTIME",
+    "applicability": "VERIFIES_V3.99_LOCK_GRAPH_AND_PREDECESSOR_RUNTIME;V4.05_LOCKS_BYTE_IDENTICAL;DOES_NOT_VERIFY_V4.05_CODE_RUNTIME",
     "evidenceFile": "../Documentos/Evidencia_Runtime_v3.99_2026-09-03.md"
   }
 }

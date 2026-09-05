@@ -1,7 +1,7 @@
-param()
+﻿param()
 
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = '2026.09.04-v4.03'
+$ScriptVersion = '2026.09.04-v4.05'
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $EnvFile = Join-Path $Root '.env'

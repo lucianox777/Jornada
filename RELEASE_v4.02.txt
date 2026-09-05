@@ -1,0 +1,22 @@
+Jornada do Cidadao - Solution Engenharia v4.02
+Base Normativa v3.63 | Schema persistido Base 3.62 | SolutionSchema v3.68
+Data: 04/09/2026
+Natureza: alinhamento normativo/arquitetural com Microsoft Fabric, sem mudanca funcional de runtime
+
+Principais alteracoes:
+- incorpora Especificacao Tecnica Jornada v3.63 como fonte normativa vigente;
+- atualiza a arquitetura para maior aderencia a proposta PRODAM de utilizacao do Microsoft Fabric;
+- define SQL Database in Microsoft Fabric como ambiente relacional operacional preferencial de HML/Producao;
+- reserva SQL Analytics Endpoint/OneLake ao caminho analitico/BI, fora da escrita e do caminho transacional sincrono das APIs;
+- mantem SQL Server 2022 Developer local/Docker como referencia de desenvolvimento, CI e testes independentes do Fabric;
+- preserva OperationalSqlAdapter unico, sem bifurcacao de regra de negocio por hospedagem;
+- preserva DDL, schema persistido Base 3.62 / SolutionSchema 3.68, contratos e dependencias NuGet.
+
+Evidencia preservada:
+- SQL Server: validacao local predecessora reportada com restore/build/Unit/Docker/SQL/Integration todos OK;
+- Fabric: execucao externa 58/58 Integration PASS, 0 falhas, 0 skips, incluindo concorrencia de oito contendores.
+
+Validacao da v4.02:
+- o ambiente de empacotamento nao possui .NET/Docker/PowerShell;
+- foram executados os gates estaticos disponiveis e a validacao de proveniencia Git;
+- a release deve ser reexecutada com scripts/local-validate-release.ps1 no ambiente local para fechar evidencia runtime byte-a-byte.
