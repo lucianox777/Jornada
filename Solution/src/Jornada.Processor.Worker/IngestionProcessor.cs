@@ -138,6 +138,10 @@ internal sealed class IngestionProcessor(
     private static string ClassifyValidationStage(InvalidDataException exception)
     {
         var message = exception.Message;
+        var stack = exception.StackTrace ?? string.Empty;
+        if (stack.Contains("ParsePersons", StringComparison.Ordinal)) return "PESSOAS";
+        if (stack.Contains("ParseFacts", StringComparison.Ordinal)) return "REGISTROS";
+        if (stack.Contains("ValidateEnvelopeAgainstDatabase", StringComparison.Ordinal)) return "ENVELOPE";
         if (message.Contains("manifest.json", StringComparison.OrdinalIgnoreCase)) return "MANIFEST";
         if (message.Contains("pessoas.jsonl", StringComparison.OrdinalIgnoreCase)) return "PESSOAS";
         if (message.Contains("registros.jsonl", StringComparison.OrdinalIgnoreCase)) return "REGISTROS";

@@ -676,7 +676,7 @@ public sealed class LinkageParametersWorker(
                     SELECT 1 FROM identidade.parametro_linkage
                     WHERE modelo_id=@modelo_id
                       AND (
-                        ((nome LIKE 'M[_]%' OR nome LIKE 'U[_]%' OR nome IN('PRIOR_MATCH_PROBABILITY','PRIOR_BLOCK_MIN','PRIOR_BLOCK_MAX')) AND (valor<=0 OR valor>=1))
+                        ((((nome LIKE 'M[_]%' OR nome LIKE 'U[_]%') AND nome NOT IN('M_SAMPLE_SIZE','U_SAMPLE_SIZE')) OR nome IN('PRIOR_MATCH_PROBABILITY','PRIOR_BLOCK_MIN','PRIOR_BLOCK_MAX')) AND (valor<=0 OR valor>=1))
                         OR (nome='T_LINKAGE' AND (valor<=0 OR valor>1))
                         OR (nome='CONFLICT_MARGIN' AND (valor<=0 OR valor>=1))
                       )

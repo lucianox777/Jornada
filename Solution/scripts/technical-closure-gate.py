@@ -1209,8 +1209,13 @@ def main() -> None:
         "catch (InvalidDataException ex)",
         "ClassifyValidationStage(ex)",
         "private static string ClassifyValidationStage(InvalidDataException exception)",
+        "exception.StackTrace",
         "Etapa={ValidationStage}",
     ], "diagnóstico seguro de validação do Processor")
+    linkage_parameters_worker = (ROOT / "src/Jornada.Linkage.Parameters.Worker/LinkageParametersWorker.cs").read_text(encoding="utf-8")
+    require(linkage_parameters_worker, [
+        "nome NOT IN('M_SAMPLE_SIZE','U_SAMPLE_SIZE')",
+    ], "domínio probabilístico não pode tratar tamanhos de amostra como probabilidade")
     if 'logger.LogWarning(ex, "Entrega {EntregaId} rejeitada' in ingestion_processor or 'logger.LogError(ex, "Entrega {EntregaId} rejeitada' in ingestion_processor:
         fail("IngestionProcessor não pode registrar a exceção bruta da rejeição de validação")
     require((ROOT / "tests/Jornada.Tests/Unit/PossibilityRuleEngineTests.cs").read_text(encoding="utf-8"), ['var json = $$$"""', '"{{{sha}}}"'], "raw string interpolada de Possibilidades")
