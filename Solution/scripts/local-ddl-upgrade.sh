@@ -49,7 +49,8 @@ sqlcmd -d "$DB" -i "/workspace/$BASELINE_SEED_REL"
 sqlcmd -d "$DB" -Q "DECLARE @id BIGINT=(SELECT pessoa_atributo_observacao_id FROM silver.pessoa_atributo_observacao WHERE source_record_id='SEH001-TEL-1'); UPDATE silver.pessoa_atributo_observacao SET valor=N'00 55 11 99999-0001',atributo_instancia_chave='005511999990001' WHERE pessoa_atributo_observacao_id=@id; UPDATE gold.pessoa_atributo SET valor=N'00 55 11 99999-0001',atributo_instancia_chave='005511999990001' WHERE pessoa_atributo_observacao_id=@id AND vigencia_fim IS NULL;"
 sqlcmd -d "$DB" -Q "DECLARE @id BIGINT=(SELECT pessoa_atributo_observacao_id FROM silver.pessoa_atributo_observacao WHERE source_record_id='SEH002-EMAIL-1'); UPDATE silver.pessoa_atributo_observacao SET valor=N'JOSÉ@EXAMPLE.ORG',atributo_instancia_chave=N'josé@example.org' WHERE pessoa_atributo_observacao_id=@id; UPDATE gold.pessoa_atributo SET valor=N'JOSÉ@EXAMPLE.ORG',atributo_instancia_chave=N'josé@example.org' WHERE pessoa_atributo_observacao_id=@id AND vigencia_fim IS NULL;"
 baseline_hash="$(fingerprint baseline)"
-sqlcmd -d "$DB" -i /workspace/database/Jornada_Upgrade_Invariants.sql -W -h -1 -w 65535 | tr -d "\r\n" > "$ROOT/.local/ddl-upgrade/invariants-before.json"
+# FOR JSON retorna NVARCHAR(MAX); -y 0 evita truncamento do payload que seria entregue ao gate Python.
+sqlcmd -d "$DB" -i /workspace/database/Jornada_Upgrade_Invariants.sql -y 0 -h -1 -w 65535 | tr -d "\r\n" > "$ROOT/.local/ddl-upgrade/invariants-before.json"
 
 sqlcmd -d "$DB" -i /workspace/database/Jornada_Fase1.sql
 assert_sentinel
@@ -62,7 +63,7 @@ first_hash="$(fingerprint current-first)"
 sqlcmd -d "$DB" -i /workspace/database/Jornada_Fase1.sql
 assert_sentinel
 second_hash="$(fingerprint current-second)"
-sqlcmd -d "$DB" -i /workspace/database/Jornada_Upgrade_Invariants.sql -W -h -1 -w 65535 | tr -d "\r\n" > "$ROOT/.local/ddl-upgrade/invariants-after.json"
+sqlcmd -d "$DB" -i /workspace/database/Jornada_Upgrade_Invariants.sql -y 0 -h -1 -w 65535 | tr -d "\r\n" > "$ROOT/.local/ddl-upgrade/invariants-after.json"
 python3 "$ROOT/scripts/upgrade-invariant-gate.py" "$ROOT/.local/ddl-upgrade/invariants-before.json" "$ROOT/.local/ddl-upgrade/invariants-after.json" --summary "$ROOT/.local/ddl-upgrade/invariant-summary.json"
 
 [[ "$first_hash" == "$second_hash" ]] || { echo "ERRO: fingerprint do DDL mudou na segunda aplicação; idempotência violada." >&2; exit 5; }
