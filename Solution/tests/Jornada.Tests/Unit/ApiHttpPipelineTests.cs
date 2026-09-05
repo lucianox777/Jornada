@@ -15,22 +15,35 @@ public sealed class ApiHttpPipelineTests
     [Test]
     public async Task Production_without_corporate_identity_fails_closed_before_business_service()
     {
-        await using var factory = new WebApplicationFactory<ApiEntryPointMarker>().WithWebHostBuilder(builder =>
+        var root = Path.Combine(Path.GetTempPath(), $"jornada-api-prod-{Guid.NewGuid():N}");
+        var bronzeRoot = Path.Combine(root, "bronze");
+        var stagingRoot = Path.Combine(root, "staging");
+        try
         {
-            builder.UseEnvironment("Production");
-            builder.ConfigureTestServices(services =>
+            await using var factory = new WebApplicationFactory<ApiEntryPointMarker>().WithWebHostBuilder(builder =>
             {
-                services.AddSingleton<IApiAuditSink, InMemoryApiAuditSink>();
-                services.AddSingleton<ISqlReadinessProbe>(new InMemorySqlReadinessProbe(ready: false));
+                builder.UseEnvironment("Production");
+                builder.UseSetting("BronzeStorage:RootPath", bronzeRoot);
+                builder.UseSetting("IngestionStaging:RootPath", stagingRoot);
+                builder.ConfigureTestServices(services =>
+                {
+                    services.AddSingleton<IApiAuditSink, InMemoryApiAuditSink>();
+                    services.AddSingleton<ISqlReadinessProbe>(new InMemorySqlReadinessProbe(ready: false));
+                });
             });
-        });
-        using var client = factory.CreateClient();
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/identidade/resolver")
-        { Content = JsonContent.Create(new { cpf = "52998224725" }) };
-        request.Headers.TryAddWithoutValidation("X-Jornada-Gestor", "SMADS");
-        request.Headers.TryAddWithoutValidation("X-Jornada-Access-Key", "nao-deve-ser-aceita");
-        var response = await client.SendAsync(request);
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+            using var client = factory.CreateClient();
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/identidade/resolver")
+            { Content = JsonContent.Create(new { cpf = "52998224725" }) };
+            request.Headers.TryAddWithoutValidation("X-Jornada-Gestor", "SMADS");
+            request.Headers.TryAddWithoutValidation("X-Jornada-Access-Key", "nao-deve-ser-aceita");
+            var response = await client.SendAsync(request);
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     [Test]
