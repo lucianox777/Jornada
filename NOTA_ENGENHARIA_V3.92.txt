@@ -1,0 +1,11 @@
+NOTA DE ENGENHARIA — v3.92
+
+A revisão da v3.91 encontrou inconsistências de redação, não novos defeitos funcionais. A v3.92 corrige a documentação antes da próxima reexecução runtime.
+
+1. SQL 208: a formulação precisa é `UPDATE im` sem o vínculo `FROM identidade.identity_map im`. O erro observado foi de resolução do alvo/alias (`Invalid object name 'im'`, 208), não uma afirmação genérica de que qualquer UPDATE da tabela exigiria FROM.
+2. SequentialAccess: a evidência v3.90 mostra que `ReserveNextAsync` lia o ordinal 7 e depois retornava ao ordinal 0; com SequentialAccess, o provider já exigia ordinal 8 ou superior. A correção funcional v3.91 (reader sem SequentialAccess) permanece inalterada.
+3. Banco Integration: o nome corrente é `JornadaIntegration_Test_<guid>`. Um comentário residual do validador ainda dizia `JornadaIntegrationTest_<guid>` e foi corrigido.
+4. Causalidade das 28 falhas: a v3.91 identificou e tratou seis grupos sustentados pelo log/código. A v3.92 evita declarar que esses seis grupos explicam definitivamente todas as 28 falhas antes da reexecução; isso é uma hipótese operacional a ser confirmada pelo próximo run.
+5. NuGet: o restore `--locked-mode` da v3.90 é evidência externa real de compatibilidade do grafo. O ambiente de empacotamento continua sem executar restore e a proveniência conserva `NO_RESTORE_CLAIMED`/estados pendentes conforme a política fail-closed existente.
+
+Nenhum código funcional, DDL, PackageReference, packages.lock.json, Base Normativa ou SolutionSchema é alterado nesta release.

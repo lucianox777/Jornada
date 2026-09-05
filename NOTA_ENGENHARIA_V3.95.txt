@@ -1,0 +1,24 @@
+NOTA DE ENGENHARIA — v3.95
+
+A execução real da v3.94 manteve restore/build/Unit verdes e elevou a suíte Integration para 57 PASS / 1 FAIL. Os três resíduos anteriores da v3.93 desapareceram; restou somente a prova de rollback do Processor.
+
+Resíduo único
+- o teste Transaction_failure_after_partial_persistence_rolls_back_silver_identity_and_gold reutiliza um lote canônico já populado pelo seed DEV;
+- a asserção v3.94 contava todas as linhas silver.pessoa_observacao e ingestao.item_processado do lote e esperava zero;
+- o log observou 2/2, compatível com estado canônico preexistente e não com as linhas PROC-V325-ROLLBACK-A/B criadas pelo cenário;
+- identity_map e gold já estavam escopados aos identificadores do cenário.
+
+Correção
+- as contagens Silver e item_processado passam a filtrar exclusivamente PROC-V325-ROLLBACK-A e PROC-V325-ROLLBACK-B;
+- a prova continua exigindo zero após InvalidDataException, portanto qualquer persistência parcial do cenário ainda falha o teste;
+- o status VALIDANDO continua esperado porque a reserva ocorre antes e fora da transação de PersistValidatedAsync.
+
+Hardening SQL local aprovado pelo operador
+- local-clean.ps1 continua removendo container/volume/rede da Jornada e preservando a imagem SQL;
+- local-validate-release.ps1 valida a imagem exata fixada por digest no Compose;
+- imagem ausente é baixada pelo digest; imagem presente é reutilizada;
+- um container probe descartável executa o engine real, consulta ProductVersion e roda DBCC CHECKDB(master);
+- falha do próprio engine aciona no máximo uma reinstalação da imagem, sem force-remover imagem usada por outro container;
+- falha funcional de teste não é tratada como corrupção do SQL Server.
+
+Não há alteração de Base Normativa v3.62, SolutionSchema v3.68, DDL corrente, código de produção, PackageReference ou packages.lock.json. O runtime v3.95 permanece pendente até nova execução externa.

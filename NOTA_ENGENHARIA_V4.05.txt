@@ -1,0 +1,9 @@
+Jornada Solution Engenharia v4.05
+Base Normativa v3.64 | SolutionSchema 3.69
+
+- Corrige o defeito de quoting do DDL v4.04 observado em SQL Server 2022: o SQL dinamico produzia literais com aspas duplicadas e Msg 102 proximo a BENEFICIO/ENCERRADA.
+- O log externo mostrou 158/158 Unit PASS e 45/58 Integration FAIL, todos os 45 com o mesmo erro de sintaxe do bootstrap DDL; a correcao e concentrada e nao altera a semantica de vigencia.
+- local-validate-release.ps1 chama local-clean.ps1 incondicionalmente antes da validacao.
+- Os dois test runs geram TRX: TestResults\Release\Jornada.Unit.Release.trx e Jornada.Integration.Release.trx. O TRX e preservado inclusive quando o test run falha, quando o vstest consegue gera-lo.
+- Scripts PowerShell canonicos passam a ser distribuidos com BOM UTF-8 para Windows PowerShell interpretar corretamente os acentos.
+- technical-closure-gate.py passa a bloquear regressao de sobre-escape nos literais dinamicos e exige clean-before-restore + TRX no validador.

@@ -1,0 +1,28 @@
+NOTA DE ENGENHARIA — v3.96
+
+A v3.96 é uma release de fechamento documental/evidência sobre a v3.95, sem mudança funcional.
+
+Evidência runtime externa incorporada — v3.95
+- restore --locked-mode Solution: PASS;
+- restore --locked-mode Jornada.Tests: PASS;
+- restore --locked-mode Jornada.Integration.Tests: PASS;
+- build Release: PASS, 0 warnings / 0 errors;
+- Unit: 153/153 PASS;
+- Docker Engine: OK;
+- imagem SQL canônica por digest: OK, cache local reutilizado;
+- SQL Server ProductVersion: 16.0.4265.3;
+- DBCC CHECKDB(master): OK;
+- Integration: 58/58 PASS;
+- validação local Release: PASS.
+
+Documento novo
+- Requisitos de Negócio Jornada v1.0, derivado da Especificação Técnica v3.62;
+- formatos: MD, DOCX e PDF em Documentos/;
+- o documento não substitui a Base Normativa e possui controle de versão próprio.
+
+Proveniência
+- o empacotamento continua sem executar restore local e preserva NO_RESTORE_CLAIMED;
+- a evidência externa confiável v3.95 confirma o grafo locked usado pela Solution, Unit e Integration;
+- v3.96 não altera PackageReference ou packages.lock.json.
+
+Não há alteração de Base Normativa v3.62, SolutionSchema v3.68, DDL corrente, contratos de API ou código de produção.

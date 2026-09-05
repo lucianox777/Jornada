@@ -1,0 +1,24 @@
+NOTA DE ENGENHARIA — v3.98
+
+A v3.98 é uma release documental sobre a v3.97, sem mudança funcional.
+
+Organização de Engenharia de Requisitos — Fase 1
+- cria Documentos/Requisitos como diretório canônico da família de requisitos;
+- Índice Mestre v1.0 define a hierarquia RN -> RF/RNF -> RT -> evidências;
+- Requisitos de Negócio v1.1 preserva os 36 RN e retira dos critérios de aceite itens puramente técnicos;
+- Requisitos Funcionais v1.0 cria 50 RF derivados dos RN e da Especificação Técnica v3.62;
+- Requisitos Não Funcionais v1.0 organiza os 33 RNF canônicos da Seção 17, sem alterar seu texto normativo;
+- Requisitos Técnicos v1.1 preserva os 65 RT e os posiciona como camada de realização;
+- Matriz de Rastreabilidade v1.0 liga RN -> RF -> RNF -> RT -> evidência e contém coberturas por RF/RNF;
+- requirements-map.json permite auditoria automática de cobertura.
+
+Decisão de governança documental
+- RN, RF, RNF e RT possuem ciclos de versão independentes;
+- a Matriz é obrigatória para análise de impacto e não substitui a Base Normativa;
+- requisitos específicos de stakeholders permanecem nos RN/RF na Fase 1; não se cria quinto baseline agora.
+
+Evidência runtime
+- não há nova execução runtime atribuída ao ambiente de empacotamento;
+- permanece válida a evidência externa v3.95: restore locked Solution/Unit/Integration PASS; build Release 0/0; Unit 153/153 PASS; Docker/SQL digest/engine/CHECKDB PASS; Integration 58/58 PASS.
+
+Não há alteração de Base Normativa v3.62, SolutionSchema v3.68, DDL corrente, contratos de API, código de produção ou dependências NuGet.

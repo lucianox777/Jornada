@@ -1,0 +1,24 @@
+NOTA DE ENGENHARIA — v3.94
+
+A execução real da v3.93 confirmou a correção de reentrada DDL: o bloqueador SQL 547 em ck_vinculo_metodo desapareceu. Restore/build/Unit permaneceram verdes e a suíte Integration evoluiu para 54 PASS / 4 FAIL.
+
+Quatro resíduos observados
+1. Reserva concorrente
+- com UPDLOCK/READPAST/ROWLOCK, uma tentativa concorrente pode retornar null transitoriamente;
+- o worker real já trata null como ausência momentânea e repete o poll;
+- o teste passa a provar segurança (nunca o mesmo lote) e progresso no poll seguinte, em vez de exigir que dois polls simultâneos retornem lote no mesmo instante.
+
+2. Contagens de persistência atômica
+- o teste contava toda a massa do lote/entrega compartilhados e absorvia registros de cenários anteriores;
+- as contagens agora são escopadas aos códigos PROC-V325 e REG-PROC-V325 criados pelo próprio caso.
+
+3. COMPROVADO sem verificadoEm
+- a constraint Silver ck_pat_comprovado convertia entrada semanticamente inválida em SqlException 547 antes da validação de aplicação;
+- PersistPersonAsync passa a lançar InvalidDataException antes do INSERT do atributo, ainda dentro da transação, preservando a prova de rollback após trabalho parcial.
+
+4. Seed/projeção individual
+- correções/fusões de identidade invalidam avaliações derivadas de possibilidade; o seed antigo só as recriava se a tabela inteira estivesse vazia;
+- o seed DEV passa a restaurar cada avaliação canônica ausente;
+- o teste de registros individuais passa a comparar serving.v_registros_pessoa com fatos VIGENTES/ATRIBUIDOS, sem confundir fatos pendentes/conflitantes presentes em serving.registro_integrado.
+
+Não há alteração de Base Normativa v3.62, SolutionSchema v3.68, DDL corrente, PackageReference ou packages.lock.json. O runtime v3.94 permanece pendente até nova execução externa.

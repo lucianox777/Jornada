@@ -1,0 +1,12 @@
+NOTA DE ENGENHARIA — v3.91
+
+A execução real da v3.90 avançou a validação até a suíte Integration completa: 30 de 58 casos passaram e 28 falharam. As falhas não foram tratadas como 28 defeitos independentes. A análise do log e do código reduziu-as a grupos de causa-raiz reproduzíveis.
+
+1. SQL 208 / Invalid object name 'im': UPDATE em identidade.sp_abrir_caso_conflito_identidade não declarava FROM identidade.identity_map im. Corrigido no DDL corrente.
+2. SqlDataReader SequentialAccess: ReserveNextAsync lia ordinal 7 e depois voltava ao ordinal 0. Como a linha contém apenas dados escalares, o reader deixa de usar SequentialAccess.
+3. Estado de sessão: DDL/seed deixam NOCOUNT ON e XACT_ABORT ON. SqlBatchRunner agora restaura NOCOUNT OFF/XACT_ABORT OFF depois do bootstrap para não alterar contagem de linhas nem abortar transações negativas dos testes.
+4. Fixture DEV compartilhada: cenários de retenção/processor modificam as três Entregas canônicas. O seed passa a restaurar deterministicamente Entrega, Bronze e Lote dessas IDs antes do recálculo de completude.
+5. Territorial: o insert de teste passa a preencher a coluna NOT NULL situacao_geografia com NAO_RESOLVIDA_ORIGEM.
+6. Isolamento: JornadaIntegration_Test_<guid> satisfaz simultaneamente os guards Test/Dev/Local e a prova de prefixo JornadaIntegration_.
+
+A v3.91 não altera Base Normativa v3.62, SolutionSchema v3.68 ou dependências NuGet. O ambiente de empacotamento não executa .NET/SQL/Docker; portanto o fechamento runtime da v3.91 depende de nova execução externa.

@@ -1,9 +1,118 @@
-Jornada do Cidadão - pacote completo convergente
+﻿Jornada do Cidadão - pacote completo convergente
 
-Base normativa: v3.62
-Solution de engenharia: v3.90
+Base normativa: v3.64
+Schema persistido: Base 3.62 / SolutionSchema 3.69
+Solution de engenharia: v4.05
 
-ATUALIZAÇÃO v3.90
+
+ATUALIZACAO DE ENGENHARIA v4.05
+- corrige o SQL dinamico da migracao de vigencia introduzida na v4.04;
+- local-validate-release.ps1 chama local-clean.ps1 sempre antes do restore/build/test;
+- Unit e Integration geram TRX dedicados em TestResults\Release;
+- mantém Base Normativa v3.64 e SolutionSchema 3.69;
+- requer nova validacao runtime local completa.
+
+ATUALIZACAO NORMATIVA/ENGENHARIA v4.04
+- introduz situacaoVigencia VIGENTE|SUSPENSA|ENCERRADA, situacaoVigenciaDesde e motivoEncerramento restrito;
+- formaliza conceitualmente Concessao, Pagamento e Recebimento, implementando apenas Concessao na Fase 1.
+
+
+ATUALIZACAO DOCUMENTAL v4.03
+- corrige para SGM/SEPE a identificacao institucional da area requisitante em todos os artefatos vigentes onde a sigla estava incorreta;
+- corrige Area requisitante e Autor da Especificacao Tecnica Jornada v3.63;
+- regenera os PDFs correspondentes aos DOCX alterados;
+- nao altera Base Normativa v3.63, schema persistido Base 3.62 / SolutionSchema v3.68, arquitetura, DDL, contratos, codigo ou dependencias.
+
+ATUALIZACAO NORMATIVA v3.63 / ENGENHARIA v4.02
+- incorpora Especificacao Tecnica Jornada v3.63 como fonte normativa vigente;
+- a atualizacao busca maior aderencia a arquitetura proposta pela PRODAM para Microsoft Fabric;
+- SQL Database in Microsoft Fabric passa a ser o ambiente relacional operacional preferencial de HML/Producao;
+- SQL Analytics Endpoint/OneLake permanecem no caminho analitico/BI, fora da escrita operacional e do caminho transacional sincrono das APIs;
+- SQL Server 2022 Developer local/Docker permanece referencia de desenvolvimento, CI e testes independentes do Fabric;
+- o schema persistido continua Base 3.62 / SolutionSchema 3.68; DDL, contratos e regras de negocio nao mudam;
+- a evidencia Fabric 58/58 da linha v4.01 permanece valida como evidencia de compatibilidade funcional do nucleo SQL.
+
+ATUALIZAÇÃO v4.01
+- consolida a compatibilidade funcional do mesmo núcleo relacional com SQL Server 2022 e SQL Database in Microsoft Fabric;
+- evidência externa Fabric: 58/58 Integration PASS, 0 falhas, 0 skips, incluindo o cenário concorrente de oito contendores;
+- mantém SQL Server 2022 local/Testcontainers como baseline obrigatória de desenvolvimento, CI e validação ordinária;
+- Fabric é homologação adicional e condicional, executada somente quando houver banco Test/Dev/Local externo disponível;
+- nenhuma connection string Fabric é distribuída; configuração opcional local permanece em `.local/`, ignorado pelo Git;
+- mantém `OperationalSqlAdapter` único, sem `FabricSqlAdapter`, DDL alternativo ou branch funcional por hospedagem;
+- escolha de produção fica condicionada a avaliação técnica comparativa sob carga representativa, não apenas à compatibilidade funcional;
+- não altera Base Normativa v3.62, SolutionSchema v3.68, DDL, contratos ou dependências NuGet.
+
+ATUALIZAÇÃO v4.00
+- incorpora como evidência externa a validação local Release completa da v3.99 (ScriptVersion 2026.09.03-v3.99), com restore/build/Unit/Docker/SQL/Integration todos OK;
+- preserva `Jornada.Operational.Sql` como Adapter único, sem `FabricSqlAdapter` e sem branch funcional por hospedagem;
+- adiciona `JORNADA_TEST_SQL_TARGET` com baseline `SQL_SERVER_2022` e alvo experimental `FABRIC_SQL_DATABASE`;
+- adiciona harnesses `fabric-sql-compatibility.ps1/.sh` para executar a mesma Solution e a suíte Integration contra banco Fabric Test/Dev pré-provisionado;
+- a validação local canônica força explicitamente `SQL_SERVER_2022`, evitando contaminação por variável de ambiente residual;
+- não altera DDL, contratos, dependências NuGet, Base Normativa v3.62, SolutionSchema v3.68 ou requisitos.
+
+HISTÓRICO v3.99
+- cria `Jornada.Operational.Sql` como Adapter fino do banco operacional Microsoft SQL;
+- centraliza conexões da API, Processor, Linkage, Maintenance e utilitários;
+- sessões com LockOwner=Session passam a usar perfil dedicado sem pooling/enlistment;
+- mantém uma única implementação SQL e não introduz caminho específico de Fabric antes de teste real;
+- DDL, contratos, Base Normativa v3.62, SolutionSchema v3.68 e requisitos v3.98 permanecem inalterados.
+
+HISTÓRICO v3.98
+- organiza Documentos/Requisitos como família formal de Engenharia de Requisitos da Fase 1;
+- RN v1.1: 36 requisitos de negócio, semanticamente preservados e com critérios de aceite apenas de negócio;
+- RF v1.0: 50 requisitos funcionais que descrevem o comportamento observável da solução;
+- RNF v1.0: 33 requisitos não funcionais canônicos extraídos da Seção 17 da Especificação Técnica v3.62;
+- RT v1.1: 65 requisitos técnicos preservados e explicitamente posicionados como camada de realização;
+- adiciona Índice Mestre, Matriz RN -> RF -> RNF -> RT -> evidência e mapa JSON para auditoria automática;
+- não altera DDL, produção, contratos, dependências, Base Normativa ou SolutionSchema.
+
+HISTÓRICO v3.97
+- adiciona Requisitos Técnicos Jornada v1.0 em MD/DOCX/PDF na pasta Documentos;
+- mantém Requisitos de Negócio v1.0 e Requisitos Técnicos v1.0 como baselines separados, com matriz RN -> RT;
+- o documento técnico consolida 65 RT rastreáveis aos 36 RN e à Especificação Técnica v3.62;
+- atualiza documentação, metadados e rótulos dos scripts canônicos;
+- não altera DDL corrente, produção, contratos, dependências, Base Normativa ou SolutionSchema.
+
+HISTÓRICO v3.96
+- incorpora evidência runtime externa v3.95: restore locked Solution/Unit/Integration PASS, build Release 0/0, Unit 153/153 e Integration 58/58;
+- validação SQL v3.95 confirmou digest da imagem, cache local, SQL Server ProductVersion 16.0.4265.3 e DBCC CHECKDB(master) OK;
+- adiciona Requisitos de Negócio Jornada v1.0 em MD/DOCX/PDF na pasta Documentos;
+- formaliza a evidência externa dos locks sem alegar restore no ambiente de empacotamento;
+- não altera DDL corrente, produção, contratos, dependências, Base Normativa ou SolutionSchema.
+
+HISTÓRICO v3.95
+- execução externa v3.94: restore locked PASS, build Release 0/0, Unit 153/153, Integration 57 PASS / 1 FAIL / 58;
+- corrige o escopo da última prova de rollback sem relaxar atomicidade;
+- local-validate-release.ps1 valida imagem SQL por digest, engine real e DBCC CHECKDB(master);
+- execução externa posterior da própria v3.95 encerrou em 58/58 Integration PASS.
+
+HISTÓRICO v3.94
+- execução externa v3.93: restore locked PASS, build Release 0/0, Unit 153/153, Integration 54 PASS / 4 FAIL / 58;
+- o bloqueador ck_vinculo_metodo da v3.92 desapareceu;
+- valida COMPROVADO/verificadoEm antes da constraint Silver, corrige isolamento das contagens, progresso READPAST e convergência do seed DEV;
+- runtime Integration v3.94 encerrou posteriormente em 57 PASS / 1 FAIL / 58.
+HISTÓRICO v3.93
+- execução externa v3.92: restore locked PASS, build Release 0/0, Unit 153/153, Integration 29 PASS / 29 FAIL / 58;
+- as 29 falhas convergiram para SQL Server 547 em ck_vinculo_metodo durante reaplicação do DDL;
+- corrige o bloco de compatibilidade/reentrada para aceitar CONFLITO_GOVERNADO em ck_vinculo_metodo e ck_vinculo_modelo antes do bloco v3.44;
+- baselines históricos permanecem intactos;
+- adiciona regressão estática no technical-closure-gate;
+- runtime Integration v3.93 permanece pendente.
+
+HISTÓRICO v3.92
+- release de precisão documental/proveniência; não alterou runtime/DDL da v3.91;
+- corrigiu descrição do SQL 208, comentário do banco Integration e formulação causal antes da reexecução.
+
+HISTÓRICO v3.91
+- corrige o UPDATE de identity_map em identidade.sp_abrir_caso_conflito_identidade que produzia SQL 208 / Invalid object name 'im';
+- corrige a leitura do ReservedBatch removendo SequentialAccess incompatível com a ordem dos campos;
+- restaura NOCOUNT OFF/XACT_ABORT OFF após DDL/seed nos testes Integration;
+- torna o seed DEV convergente para suas três Entregas canônicas após cenários destrutivos;
+- corrige a fixture territorial para preencher situacao_geografia e adota banco JornadaIntegration_Test_<guid>;
+- evidência predecessora v3.90: build 0/0, Unit 153/153, Integration 30 PASS / 28 FAIL / 58 total;
+- nenhum PackageReference, Base Normativa ou SolutionSchema foi alterado; runtime v3.91 ainda requer reexecução.
+
+HISTÓRICO v3.90
 - corrige local-clean.ps1 para não abortar quando .vs/CopilotIndices contém arquivo bloqueado; .vs passa a ser best-effort e a limpeza continua;
 - local-validate-release.ps1 permanece o único validador canônico; local-validate-release-r4.ps1 não integra o pacote;
 - mantém integralmente as correções da v3.89 para banco Integration JornadaIntegrationTest_<guid>;
@@ -80,7 +189,7 @@ Fechamentos herdados da v3.68:
 
 Limites de validação deste ambiente:
 - não há SDK .NET, SQL Server, Docker ou PowerShell disponíveis para executar restore/build/test/integration/upgrade/E2E reais;
-- o empacotamento v3.90 não alega restore local; os 14 locks permanecem byte-a-byte iguais à v3.84. A execução externa v3.87 aceitou restore --locked-mode, mas a promoção formal continua exigindo evidência do pipeline;
+- o empacotamento v3.96 não alega restore local; os 14 locks permanecem byte-a-byte iguais à v3.84. A execução externa v3.95 confirmou restore --locked-mode da Solution, Unit e Integration com o grafo atual; a evidência externa é registrada separadamente da execução do ambiente de empacotamento;
 - calibração de linkage, Blocking V2 e parâmetros dependentes de HML/dados reais permanecem externos.
 
 Consulte RELEASE_INFO.txt, RELATORIO_VALIDACAO_ENGENHARIA.txt e Solution/docs/Runbook_Testes_Tecnicos.md.

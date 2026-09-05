@@ -1,0 +1,9 @@
+Jornada Solution Engenharia v4.04
+Base Normativa v3.64
+
+- Benefício Concedido: situacaoVigencia = VIGENTE | SUSPENSA | ENCERRADA.
+- situacaoVigenciaDesde opcional.
+- motivoEncerramento apenas para ENCERRADA: TERMINO_REGULAR | CANCELAMENTO | CESSACAO.
+- Sem OUTRO, NAO_CLASSIFICADA ou NAO_INICIADA.
+- Concessao/Pagamento/Recebimento formalizados conceitualmente; somente Concessao implementada na Fase 1.
+- Gate de backward compatibility preservado fail-closed: as 9 quebras detectadas nos schemas AA01/AR01/POT1 v1 são aceitas somente por policy explícita PRE_DEPLOYMENT_BASELINE_RESET, restrita a esses três arquivos e inválida após implantação/publicação.

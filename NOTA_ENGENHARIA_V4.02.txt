@@ -1,0 +1,21 @@
+NOTA DE ENGENHARIA - v4.02
+
+Objetivo
+- incorporar a Especificacao Tecnica v3.63 e alinhar a documentacao de engenharia a arquitetura Microsoft Fabric proposta pela PRODAM.
+
+Decisao arquitetural
+- SQL Database in Microsoft Fabric e o ambiente relacional operacional preferencial de HML/Producao;
+- SQL Analytics Endpoint/OneLake pertencem ao caminho analitico/BI e nao substituem o banco transacional;
+- SQL Server 2022 Developer permanece a referencia para desenvolvimento, CI e testes ordinarios independentes do Fabric;
+- a mesma implementacao Microsoft SQL, DDL e Microsoft.Data.SqlClient e preservada nos dois ambientes.
+
+Sem mudanca funcional
+- schema persistido continua Base 3.62 / SolutionSchema 3.68;
+- database/Jornada_Fase1.sql e seed nao mudam;
+- contratos OpenAPI/JSON nao mudam;
+- identidade, linkage, Gold/Serving, autorizacao e auditoria nao mudam;
+- PackageReference e packages.lock.json nao mudam.
+
+Evidencia
+- a compatibilidade Fabric permanece sustentada pela execucao externa de 58/58 Integration PASS da linha v4.01;
+- a v4.02 nao alega nova execucao runtime no ambiente de empacotamento.

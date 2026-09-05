@@ -1,0 +1,16 @@
+NOTA DE ENGENHARIA — v3.93
+
+A execução real da v3.92 confirmou restore/build/Unit e executou os 58 casos Integration. O resultado bruto foi 29 PASS / 29 FAIL, mas as 29 falhas convergiram para o mesmo bloqueador: SQL Server 547 ao reaplicar o DDL, na recriação de ck_vinculo_metodo sobre identidade.vinculo_fonte contendo linhas CONFLITO_GOVERNADO já válidas no schema final.
+
+Causa-raiz
+- o bloco de compatibilidade histórico v3.42 derrubava e recriava ck_vinculo_metodo/ck_vinculo_modelo com domínio anterior à evolução v3.44;
+- em banco já evoluído, uma reaplicação passava primeiro por esse domínio antigo e falhava antes de alcançar o bloco v3.44 que reamplia as constraints;
+- portanto o DDL corrente não era idempotente sobre estado final válido.
+
+Correção v3.93
+- o bloco de reentrada v3.42 passa a aceitar CONFLITO_GOVERNADO em ck_vinculo_metodo;
+- ck_vinculo_modelo no mesmo bloco passa a aceitar CONFLITO_GOVERNADO com score/modelo/UUID nulos, exatamente como o estado final v3.44;
+- o bloco de criação inicial da tabela e os baselines históricos não são reescritos: a correção é mínima e atua somente na reaplicação do DDL corrente sobre banco já existente;
+- technical-closure-gate ganha regressão fail-closed exigindo que tanto o bloco de reentrada quanto o bloco v3.44 reconheçam CONFLITO_GOVERNADO.
+
+Não há alteração de Base Normativa v3.62, SolutionSchema v3.68, PackageReference ou packages.lock.json. O runtime v3.93 permanece pendente até nova execução externa.

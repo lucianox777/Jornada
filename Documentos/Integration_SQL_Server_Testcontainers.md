@@ -1,8 +1,8 @@
 # Integration - SQL Server isolado com Testcontainers
 
 **Base Normativa:** v3.62
-**Solution Engenharia:** v3.90
-**Data:** 02/09/2026
+**Solution Engenharia:** v3.96
+**Data:** 03/09/2026
 
 
 ## Projeto dedicado
@@ -16,7 +16,7 @@ Desde a v3.83, Integration não compartilha o assembly de `Jornada.Tests`; na v3
 
    `mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89`
 
-3. Com `JORNADA_TEST_SQL_CONNECTION`, a conexão é tratada como conexão-base do servidor. Por padrão, a fixture cria um banco exclusivo `JornadaIntegrationTest_<guid>` e publica connection string com `Pooling=false`.
+3. Com `JORNADA_TEST_SQL_CONNECTION`, a conexão é tratada como conexão-base do servidor. Por padrão, a fixture cria um banco exclusivo `JornadaIntegration_Test_<guid>` e publica connection string com `Pooling=false`.
 4. Somente quando `JORNADA_TEST_SQL_USE_EXISTING_DATABASE=true` a suíte usa literalmente o banco externo informado. Esse modo deve ser usado apenas quando CI/HML já provisionou banco exclusivo para o job.
 5. Ao final, o banco criado pela fixture é removido e a variável de conexão é restaurada.
 6. O bootstrap funcional do schema permanece nas fixtures de domínio existentes; a fixture de infraestrutura não duplica `Jornada_Fase1.sql` ou seed.
@@ -29,7 +29,7 @@ A suíte é serializada para impedir concorrência acidental entre fixtures que 
 
 A suíte requer `Testcontainers.MsSql` versão `4.14.0`.
 
-A dependência está declarada somente em `tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj`. O ambiente de empacotamento da v3.90 não possui .NET SDK e **não alega ter executado restore**. Os `packages.lock.json` permanecem byte-a-byte herdados da linha v3.84; a execução externa da v3.88 aceitou restore `--locked-mode` também para o projeto Integration. A promoção continua exigindo restore bloqueado em ambiente confiável. A origem é auditável em `Solution/config/release/nuget-lock-provenance.json`.
+A dependência está declarada somente em `tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj`. O ambiente de empacotamento da v3.96 não possui .NET SDK e **não alega ter executado restore**. Os `packages.lock.json` permanecem byte-a-byte herdados da linha v3.84; a execução externa da v3.95 confirmou restore `--locked-mode` da Solution, de `Jornada.Tests` e de `Jornada.Integration.Tests` com o grafo atual. A evidência externa é registrada separadamente da capacidade do ambiente de empacotamento em `Solution/config/release/nuget-lock-provenance.json`.
 
 ## Friend assemblies
 
@@ -45,11 +45,17 @@ Os testes de integração exercitam internals deliberadamente sem torná-los API
 
 Sem conexão SQL externa, Docker Desktop deve estar disponível em Linux containers.
 
-## Isolamento e guard de nome — v3.90
+## Reentrada DDL e evidência runtime — v3.93
 
-A execução real da v3.88 mostrou que o container e a DLL Integration já eram iniciados corretamente, mas 53 dos 58 casos eram bloqueados pelos próprios guards fail-closed porque a fixture criava `JornadaIntegration_<guid>`, nome que não contém `Test`, `Dev` ou `Local`. A correção preservada desde a v3.89 corrige a origem do problema: o banco descartável passa a se chamar `JornadaIntegrationTest_<guid>`. Os guards de segurança **não foram relaxados**.
+A execução externa da v3.92 confirmou restore/build/Unit e executou os 58 Integration: 29 PASS / 29 FAIL. Todas as 29 falhas registraram SQL Server 547 em `ck_vinculo_metodo` durante reaplicação do DDL. A v3.93 corrige o bloco de compatibilidade anterior ao v3.44 para aceitar `CONFLITO_GOVERNADO` em `ck_vinculo_metodo` e `ck_vinculo_modelo`, evitando rebaixamento temporário do domínio sobre banco já evoluído. Baselines históricos permanecem intactos.
 
-Os scripts canônicos `scripts/local-clean.ps1` e `scripts/local-validate-release.ps1` também passam a fazer parte da Solution. O validador restaura explicitamente os dois projetos de teste em `--locked-mode`, compila cada assembly necessário e força o caminho Testcontainers descartável para impedir que um override residual do shell aponte os testes para um banco não isolado.
+## Isolamento e regressões de runtime — v3.92
+
+A execução real da v3.90 confirmou que o Testcontainers, a DLL e os 58 casos Integration são executáveis no ambiente do operador: 30 passaram e 28 falharam. A correção funcional v3.91 mantém os guards que exigem `Test`/`Dev`/`Local` e usa `JornadaIntegration_Test_<guid>` para satisfazer simultaneamente a prova de prefixo `JornadaIntegration_`; a v3.92 apenas corrige documentação/proveniência.
+
+O mesmo ciclo corrigiu cinco causas adicionais observadas nessa execução: referência ausente de `identity_map` no DDL, `SequentialAccess` com leitura fora de ordem no Processor, opções `NOCOUNT/XACT_ABORT` vazando do bootstrap, seed DEV não convergente após testes destrutivos e fixture territorial sem `situacao_geografia`.
+
+Os scripts canônicos continuam sendo `scripts/local-clean.ps1` e `scripts/local-validate-release.ps1`; variantes temporárias como `local-validate-release-r4.ps1` não integram a release. Desde a v4.05, `local-validate-release.ps1` invoca `local-clean.ps1` automaticamente no início e produz TRX dedicados para Unit e Integration em `TestResults/Release/`; os nomes dos dois scripts canônicos permanecem inalterados.
 
 ## Compatibilidade de API Docker — v3.88
 
@@ -68,7 +74,7 @@ A credencial precisa poder criar/remover o banco temporário.
 ## Banco externo já provisionado
 
 ```powershell
-$env:JORNADA_TEST_SQL_CONNECTION = "Server=...;Database=JornadaIntegrationTest_build_123;..."
+$env:JORNADA_TEST_SQL_CONNECTION = "Server=...;Database=JornadaIntegration_Test_build_123;..."
 $env:JORNADA_TEST_SQL_USE_EXISTING_DATABASE = "true"
 ```
 
@@ -77,3 +83,19 @@ Nesse modo o pipeline assume explicitamente a responsabilidade pelo isolamento.
 ## Provas de infraestrutura
 
 `SqlServerRuntimeIntegrationTests` valida engine SQL Server 2022, isolamento, `Pooling=false`, rollback, CHECK 547, lock real e timeout 1222.
+
+## Resíduos Integration — v3.94
+
+A execução externa da v3.93 confirmou a correção de reentrada DDL e terminou em 54 PASS / 4 FAIL. A v3.94 tratou os quatro resíduos: poll concorrente `READPAST` com progresso eventual, contagens escopadas ao cenário de teste, validação `COMPROVADO` antes da constraint Silver e seed DEV de possibilidades convergente por linha. A execução posterior da v3.94 chegou a 57 PASS / 1 FAIL; o resíduo final é tratado na v3.95.
+
+
+## Preflight e recuperação local — v3.95
+
+`local-validate-release.ps1` lê a imagem SQL do `docker-compose.yml`, exige referência fixada por `@sha256`, reutiliza o cache quando presente e faz `docker pull` somente quando ausente. Antes dos Integration, um container descartável valida inicialização do SQL Server, `SERVERPROPERTY('ProductVersion')` e `DBCC CHECKDB(master)`.
+
+Se esse probe do próprio engine falhar, a rotina tenta uma única recuperação: verifica se a imagem não está em uso por outro container, remove o image ID sem `--force`, baixa novamente o mesmo digest e repete o probe. Erros de DDL, constraints, testes ou código da Jornada não são tratados como corrupção da imagem.
+
+
+## Fechamento runtime — v3.95 / incorporado na v3.96
+
+A execução real da v3.95 concluiu com restore locked Solution/Unit/Integration PASS, build 0 warnings / 0 errors, Unit 153/153 PASS, digest da imagem SQL canônica OK, SQL Server ProductVersion 16.0.4265.3, `DBCC CHECKDB(master)` OK e Integration **58/58 PASS**. A v3.96 não modifica a infraestrutura Integration; apenas incorpora a evidência ao pacote e fecha a proveniência documental.

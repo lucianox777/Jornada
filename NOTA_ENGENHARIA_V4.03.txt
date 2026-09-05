@@ -1,0 +1,16 @@
+NOTA DE ENGENHARIA - v4.03
+
+Objetivo
+- corrigir a identificacao institucional da area requisitante para SGM/SEPE em todos os pontos vigentes.
+
+Escopo da correcao
+- Especificacao Tecnica Jornada v3.63, inclusive Area requisitante, Autor, papeis institucionais, fora de escopo e historico de versoes;
+- Anexo de Arquitetura;
+- Anexo de Pendencias de Desenvolvimento;
+- Resumo Executivo;
+- Requisitos de Negocio e Indice Mestre de Requisitos;
+- PDFs correspondentes aos DOCX alterados.
+
+Sem mudanca de engenharia funcional
+- arquitetura, codigo, DDL, SolutionSchema, contratos e PackageReference permanecem inalterados;
+- Base Normativa continua v3.63 e schema persistido continua Base 3.62 / SolutionSchema v3.68.

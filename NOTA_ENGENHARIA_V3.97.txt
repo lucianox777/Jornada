@@ -1,0 +1,25 @@
+NOTA DE ENGENHARIA — v3.97
+
+A v3.97 é uma release documental sobre a v3.96, sem mudança funcional.
+
+Documento novo
+- Requisitos Técnicos Jornada v1.0;
+- formatos: MD, DOCX e PDF em Documentos/;
+- 65 requisitos técnicos organizados por plataforma, contratos, ingestão/Bronze, Processor, identidade, Gold, API/acesso, Referência Territorial, BI, segurança/privacidade, operação/NFR e testes/release;
+- matriz explícita de rastreabilidade dos 36 RN do Requisitos de Negócio v1.0 para os RT correspondentes.
+
+Decisão de governança documental
+- Requisitos de Negócio v1.0 e Requisitos Técnicos v1.0 permanecem documentos separados;
+- o motivo é permitir ciclo de aprovação institucional estável para RN e evolução técnica independente para RT;
+- a Base Normativa v3.62 continua sendo a autoridade superior.
+
+Evidência runtime
+- não há nova execução runtime atribuída ao ambiente de empacotamento;
+- permanece incorporada a evidência externa v3.95: restore --locked-mode Solution/Unit/Integration PASS; build Release 0 warnings / 0 errors; Unit 153/153 PASS; Docker/SQL digest/engine/CHECKDB PASS; Integration 58/58 PASS.
+
+Proveniência NuGet
+- v3.97 não altera PackageReference ou packages.lock.json;
+- empacotamento preserva NO_RESTORE_CLAIMED;
+- a evidência externa v3.95 continua sendo a assurance runtime dos locks atuais.
+
+Não há alteração de Base Normativa v3.62, SolutionSchema v3.68, DDL corrente, contratos de API ou código de produção.

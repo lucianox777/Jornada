@@ -1,0 +1,32 @@
+NOTA DE ENGENHARIA — v3.99
+
+Objetivo
+- introduzir o padrão Adapter antes de qualquer decisão de hospedagem SQL Server x SQL Database in Microsoft Fabric;
+- desacoplar os componentes funcionais da criação/configuração direta de conexões sem criar uma abstração genérica de banco desnecessária.
+
+Implementação
+- novo assembly `Jornada.Operational.Sql`;
+- `IOperationalSqlAdapter` expõe conexões normais e sessões dedicadas;
+- `OperationalSqlAdapter` usa `Microsoft.Data.SqlClient` e permanece a única implementação;
+- não há `FabricSqlAdapter`, `if (fabric)` ou ramificação de regra funcional por plataforma;
+- diferenças futuras só serão especializadas após incompatibilidade real demonstrada pelos mesmos DDL/testes.
+
+Sessões dedicadas
+- `Pooling=false` e `Enlist=false` são centralizados para locks `LockOwner='Session'`;
+- gate serial do pipeline, coordenação Bronze da API, GC Bronze e retenção Bronze passam pela fronteira comum;
+- locks `LockOwner='Transaction'` continuam usando conexões normais.
+
+Compatibilidade futura
+- o próximo experimento deve apontar a mesma Solution para um SQL Database in Microsoft Fabric;
+- aplicar DDL/seed e executar Integration antes de decidir se a implementação única é suficiente;
+- alterações nos testes não podem simplesmente remover as asserções que detectarem incompatibilidades.
+
+Governança
+- Base Normativa v3.62 e SolutionSchema v3.68 permanecem intactos;
+- RN/RF/RNF/RT v3.98 permanecem válidos e não foram renumerados;
+- DDL e contratos não mudam.
+
+Validação runtime
+- não executada neste ambiente por ausência de dotnet/Docker/PowerShell;
+- locks atualizados são declarados como pendentes de restore locked v3.99;
+- a evidência v3.95 permanece histórica, não é prova de execução da v3.99.

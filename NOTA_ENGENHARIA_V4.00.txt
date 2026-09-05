@@ -1,0 +1,35 @@
+NOTA DE ENGENHARIA — v4.00
+
+Objetivo
+- transformar o experimento Fabric definido na v3.99 em execução reproduzível, sem antecipar uma segunda implementação do Adapter.
+
+Fechamento da v3.99
+- o operador reportou `VALIDAÇÃO LOCAL RELEASE CONCLUÍDA COM SUCESSO` com ScriptVersion 2026.09.03-v3.99;
+- restore locked da Solution, Unit e Integration: OK;
+- build Solution/Unit/Integration: OK;
+- Unit e Integration: OK;
+- Docker, digest da imagem SQL, engine e CHECKDB: OK;
+- portanto os packages.lock da v3.99 deixam de estar pendentes e passam a ser predecessor externamente verificado para a v4.00.
+
+Implementação v4.00
+- `JORNADA_TEST_SQL_TARGET=SQL_SERVER_2022` é o alvo padrão;
+- `JORNADA_TEST_SQL_TARGET=FABRIC_SQL_DATABASE` exige banco externo pré-provisionado;
+- a fixture normaliza Pooling=false e exige nome Test/Dev/Local no banco externo;
+- o caminho Fabric não executa CREATE/DROP DATABASE e não altera o lifecycle do item no workspace;
+- a suíte mantém DDL/seed e asserções funcionais; somente a asserção específica de major version 16 fica restrita ao alvo SQL Server 2022;
+- scripts Fabric executam locked restore, build e Integration com gate de zero skips.
+
+Arquitetura
+- permanece uma única implementação `OperationalSqlAdapter`;
+- não existe `FabricSqlAdapter`, `if (fabric)` em regra funcional ou DDL alternativo;
+- especialização futura só pode nascer de incompatibilidade reproduzível observada no experimento.
+
+Governança
+- Base Normativa v3.62, SolutionSchema v3.68 e requisitos RN/RF/RNF/RT permanecem intactos;
+- DDL e contratos não mudam;
+- nenhuma credencial Fabric é persistida no repositório pelo harness.
+
+Validação runtime v4.00
+- não executada no ambiente de empacotamento por ausência de dotnet/Docker/PowerShell;
+- primeiro revalidar a v4.00 na baseline SQL Server canônica;
+- depois executar `fabric-sql-compatibility.ps1/.sh` contra banco Fabric dedicado Test/Dev e registrar qualquer incompatibilidade sem relaxar a suíte.
