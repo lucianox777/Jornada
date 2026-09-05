@@ -1,8 +1,22 @@
 SET NOCOUNT ON;
+
+-- O baseline v3.65 ainda não materializa bronze.entrega. O snapshot de upgrade
+-- precisa ser executável tanto antes quanto depois da migração; tabelas que ainda
+-- não existem no predecessor começam em zero e passam a ser exigidas normalmente
+-- no estado corrente.
+DECLARE @bronzeEntrega BIGINT=0;
+IF OBJECT_ID(N'bronze.entrega',N'U') IS NOT NULL
+BEGIN
+    EXEC sys.sp_executesql
+        N'SELECT @valor=COUNT_BIG(*) FROM bronze.entrega;',
+        N'@valor BIGINT OUTPUT',
+        @valor=@bronzeEntrega OUTPUT;
+END;
+
 DECLARE @snapshot NVARCHAR(MAX)=(
 SELECT
   (SELECT COUNT_BIG(*) FROM ref.gestor) AS [counts.gestor],
-  (SELECT COUNT_BIG(*) FROM bronze.entrega) AS [counts.bronzeEntrega],
+  @bronzeEntrega AS [counts.bronzeEntrega],
   (SELECT COUNT_BIG(*) FROM bronze.entrega_arquivo) AS [counts.bronzeArquivo],
   (SELECT COUNT_BIG(*) FROM silver.pessoa_observacao) AS [counts.silverPessoaObservacao],
   (SELECT COUNT_BIG(*) FROM identidade.pessoa) AS [counts.identidadePessoa],
