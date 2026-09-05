@@ -181,6 +181,19 @@ IF COL_LENGTH('ref.atributo_transversal','cardinalidade') IS NULL
  ALTER TABLE ref.atributo_transversal ADD cardinalidade NVARCHAR(10) NOT NULL CONSTRAINT df_atributo_transversal_cardinalidade_upgrade DEFAULT('SINGLE') WITH VALUES;
 IF COL_LENGTH('ref.atributo_transversal','chave_instancia_codigo') IS NULL
  ALTER TABLE ref.atributo_transversal ADD chave_instancia_codigo NVARCHAR(80) NOT NULL CONSTRAINT df_atributo_transversal_chave_upgrade DEFAULT('UNICA_V1') WITH VALUES;
+IF OBJECT_ID(N'ref.atributo_transversal', N'U') IS NOT NULL
+AND EXISTS (
+    SELECT 1
+    FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'ref.atributo_transversal')
+      AND name = N'ck_atributo_transversal_chave'
+)
+    ALTER TABLE ref.atributo_transversal
+    DROP CONSTRAINT ck_atributo_transversal_chave;
+GO
+
+-- Compatibilidade de upgrade: o baseline v3.65 restringe o vocabulário V1.
+-- A constraint corrente é recriada adiante, após a migração dos valores V2.
 UPDATE ref.atributo_transversal SET cardinalidade='MULTI',chave_instancia_codigo='TELEFONE_BR_CANONICO_V2' WHERE atributo_codigo='TELEFONE_CONTATO';
 UPDATE ref.atributo_transversal SET cardinalidade='MULTI',chave_instancia_codigo='EMAIL_CANONICO_V2' WHERE atributo_codigo='EMAIL_CONTATO';
 UPDATE ref.atributo_transversal SET cardinalidade='SINGLE',chave_instancia_codigo='UNICA_V1' WHERE atributo_codigo NOT IN('TELEFONE_CONTATO','EMAIL_CONTATO');

@@ -88,6 +88,10 @@ compose_sql(){
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d "$DB" -W -h -1 -Q "$1") | tr -d '\r' | sed '/^[[:space:]]*$/d'
 }
 scalar(){ compose_sql "SET NOCOUNT ON; $1" | tail -1 | tr -d '[:space:]'; }
+actual_aa01_hash="$(sha256sum "$ROOT/config/contracts/registros/AA01/v1/registro.schema.json" | awk '{print $1}')"
+expected_aa01_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),trv.schema_registro_sha256,2)) FROM ref.tipo_registro tr JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_id=tr.tipo_registro_id WHERE tr.codigo='AA01' AND trv.status='ATIVA';")"
+echo "E2E CONTRACT DIGEST: AA01 source=$actual_aa01_hash catalog=$expected_aa01_hash"
+[[ -n "$expected_aa01_hash" && "$actual_aa01_hash" == "$expected_aa01_hash" ]] || { echo 'ERRO: digest AA01 diverge entre arquivo e catálogo antes do Processor.' >&2; exit 10; }
 
 post_delivery 'local-e2e-001' "$OUT/post1.json" "$OUT/post1.code"
 [[ "$(cat "$OUT/post1.code")" == 202 ]] || { echo "ERRO: POST inicial não retornou 202" >&2; cat "$OUT/post1.json" >&2; exit 4; }
