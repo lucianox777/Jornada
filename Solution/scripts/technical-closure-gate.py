@@ -1207,9 +1207,13 @@ def main() -> None:
     ingestion_processor = (ROOT / "src/Jornada.Processor.Worker/IngestionProcessor.cs").read_text(encoding="utf-8")
     require(ingestion_processor, [
         "catch (InvalidDataException ex)",
-        "ClassifyValidationStage(ex)",
-        "private static string ClassifyValidationStage(InvalidDataException exception)",
+        "ClassifyValidationStage(ex, validationPhase)",
+        "private static string ClassifyValidationStage(InvalidDataException exception, string validationPhase)",
         "exception.StackTrace",
+        "validationPhase = \"PARSE\"",
+        "validationPhase = \"PERSISTENCIA\"",
+        "PERSISTENCIA_ATRIBUTO",
+        "PERSISTENCIA_TERRITORIO",
         "Etapa={ValidationStage}",
     ], "diagnóstico seguro de validação do Processor")
     linkage_parameters_worker = (ROOT / "src/Jornada.Linkage.Parameters.Worker/LinkageParametersWorker.cs").read_text(encoding="utf-8")

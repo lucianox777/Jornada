@@ -28,6 +28,7 @@ internal sealed class IngestionProcessor(
         if (batch is null) return false;
         var deliverySw = Stopwatch.StartNew();
         var telemetryResult = "UNKNOWN";
+        var validationPhase = "RESERVA";
 
         using var workCts = CancellationTokenSource.CreateLinkedTokenSource(ct, pipelineLease.LostToken);
         using var heartbeatStop = new CancellationTokenSource();
@@ -36,8 +37,11 @@ internal sealed class IngestionProcessor(
 
         try
         {
+            validationPhase = "BRONZE";
             await using var payload = await bronzeStore.OpenReadAsync(batch.ObjetoChave, workCts.Token);
+            validationPhase = "PARSE";
             var package = OriginTerritorialGeography.ApplyResolutionTimestamp(parser.Parse(batch, payload));
+            validationPhase = "PERSISTENCIA";
             await repository.PersistValidatedAsync(batch, package, workCts.Token);
             logger.LogInformation(
                 "Entrega {EntregaId} processada. Lote={LoteId} Tentativa={Attempt} Pessoas={Pessoas} Registros={Registros}",
@@ -73,7 +77,7 @@ internal sealed class IngestionProcessor(
             // somente uma classificação estável da etapa, nunca o texto da exceção.
             logger.LogWarning(
                 "Entrega {EntregaId} rejeitada durante validação. Lote={LoteId}. Motivo=PACOTE_OU_CONTRATO_INVALIDO Etapa={ValidationStage}",
-                batch.EntregaId, batch.LoteId, ClassifyValidationStage(ex));
+                batch.EntregaId, batch.LoteId, ClassifyValidationStage(ex, validationPhase));
             return true;
         }
         catch (BronzeObjectIntegrityException ex)
@@ -135,11 +139,26 @@ internal sealed class IngestionProcessor(
         }
     }
 
-    private static string ClassifyValidationStage(InvalidDataException exception)
+    private static string ClassifyValidationStage(InvalidDataException exception, string validationPhase)
     {
         var message = exception.Message;
         var stack = exception.StackTrace ?? string.Empty;
-        if (stack.Contains("ParsePersons", StringComparison.Ordinal)) return "PESSOAS";
+
+        if (string.Equals(validationPhase, "PERSISTENCIA", StringComparison.Ordinal))
+        {
+            if (stack.Contains("ResolveAttributeIdentityRuleAsync", StringComparison.Ordinal)
+                || stack.Contains("TransversalAttributeInstanceKey", StringComparison.Ordinal)) return "PERSISTENCIA_ATRIBUTO";
+            if (stack.Contains("EnsureGeographyIdsAsync", StringComparison.Ordinal)
+                || stack.Contains("InsertTerritorialReferenceAsync", StringComparison.Ordinal)
+                || stack.Contains("SelectTerritorialReferenceAsync", StringComparison.Ordinal)) return "PERSISTENCIA_TERRITORIO";
+            if (stack.Contains("PersistFactAsync", StringComparison.Ordinal)
+                || stack.Contains("MaterializeBenefitGrantedAsync", StringComparison.Ordinal)
+                || stack.Contains("MaterializeServiceProvidedAsync", StringComparison.Ordinal)) return "PERSISTENCIA_REGISTRO";
+            if (stack.Contains("PersistPersonAsync", StringComparison.Ordinal)) return "PERSISTENCIA_PESSOA";
+            return "PERSISTENCIA";
+        }
+
+        if (stack.Contains("ParsePeople", StringComparison.Ordinal)) return "PESSOAS";
         if (stack.Contains("ParseFacts", StringComparison.Ordinal)) return "REGISTROS";
         if (stack.Contains("ValidateEnvelopeAgainstDatabase", StringComparison.Ordinal)) return "ENVELOPE";
         if (message.Contains("manifest.json", StringComparison.OrdinalIgnoreCase)) return "MANIFEST";
@@ -149,7 +168,7 @@ internal sealed class IngestionProcessor(
             || message.Contains("SHA-256", StringComparison.OrdinalIgnoreCase)) return "CONTRATO";
         if (message.Contains("filename", StringComparison.OrdinalIgnoreCase)
             || message.Contains("metadados persistidos", StringComparison.OrdinalIgnoreCase)) return "ENVELOPE";
-        return "PACOTE";
+        return string.Equals(validationPhase, "PARSE", StringComparison.Ordinal) ? "PARSE" : "PACOTE";
     }
 
     private async Task HeartbeatLoopAsync(ReservedBatch batch, CancellationTokenSource workCts, CancellationToken ct)
