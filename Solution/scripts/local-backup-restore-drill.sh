@@ -30,6 +30,10 @@ dotnet run --project src/Jornada.Bronze.Verify --configuration Release --no-buil
 
 BACKUP_FILE="${DB}_v370.bak"; rm -f "$ROOT/.local/sql-backup/$BACKUP_FILE"
 sqlcmd -Q "BACKUP DATABASE [$DB] TO DISK=N'/var/opt/mssql/backup/$BACKUP_FILE' WITH INIT,CHECKSUM,STATS=10; RESTORE VERIFYONLY FROM DISK=N'/var/opt/mssql/backup/$BACKUP_FILE' WITH CHECKSUM;"
+# O SQL Server cria o .bak como usuário mssql dentro do bind mount. O diretório 0777
+# não altera o modo do arquivo recém-criado; torne a evidência legível pelo runner antes
+# de copiá-la para o diretório versionado do drill.
+compose exec -T sqlserver chmod a+r "/var/opt/mssql/backup/$BACKUP_FILE"
 DATA_LOGICAL="$(scalar "$DB" "SELECT TOP(1) name FROM sys.database_files WHERE type_desc='ROWS' ORDER BY file_id;")"
 LOG_LOGICAL="$(scalar "$DB" "SELECT TOP(1) name FROM sys.database_files WHERE type_desc='LOG' ORDER BY file_id;")"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"; EVID="$ROOT/.local/backup-drill/$STAMP"; mkdir -p "$EVID"

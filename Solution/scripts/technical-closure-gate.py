@@ -1124,7 +1124,8 @@ def main() -> None:
         "Jornada_Upgrade_Invariants.sql", "upgrade-invariant-gate.py", "upgrade_invariants=true", "-C -b -I"
     ], "harness upgrade com invariantes")
     require(LOCAL_BACKUP_SH.read_text(encoding="utf-8"), [
-        "--deep", "--gc-plan", "bronze-deep-evidence-gate.py", "ORPHAN-DRY-RUN", "gcDryRunPlanPassed"
+        "--deep", "--gc-plan", "bronze-deep-evidence-gate.py", "ORPHAN-DRY-RUN", "gcDryRunPlanPassed",
+        "chmod a+r \"/var/opt/mssql/backup/$BACKUP_FILE\""
     ], "restore Bronze profundo/dry-run")
     require(LOCAL_BACKUP_PS.read_text(encoding="utf-8"), [
         "--deep", "--gc-plan", "bronze-deep-evidence-gate.py", "JORNADA-ORPHAN-DRY-RUN", "gcDryRunPlanPassed"
