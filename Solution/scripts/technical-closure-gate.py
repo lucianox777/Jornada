@@ -152,6 +152,19 @@ def require(text: str, snippets: list[str], context: str) -> None:
 
 def main() -> None:
     sql = DDL.read_text(encoding="utf-8")
+
+    # Regressões runtime reconstruídas v3.91-v3.94.
+    abrir_caso = last_proc(sql, "identidade.sp_abrir_caso_conflito_identidade")
+    require(abrir_caso, ["UPDATE im SET estado='EM_CONFLITO'", "FROM identidade.identity_map im"], "sp_abrir_caso_conflito_identidade identity_map")
+    if "UPDATE im SET estado='EM_CONFLITO',estado_motivo='CONFLITO_GOVERNADO',estado_em=SYSDATETIMEOFFSET()\n WHERE" in abrir_caso:
+        fail("sp_abrir_caso_conflito_identidade voltou a usar alias im sem FROM")
+    vinculo_metodo_defs = re.findall(r"(?:CONSTRAINT ck_vinculo_metodo|ADD CONSTRAINT ck_vinculo_metodo)\s+CHECK\(metodo_resolucao IN\(([^)]*)\)\)", sql, re.I)
+    if len(vinculo_metodo_defs) < 3 or any("CONFLITO_GOVERNADO" not in d for d in vinculo_metodo_defs):
+        fail("todas as definições/reentradas de ck_vinculo_metodo devem aceitar CONFLITO_GOVERNADO")
+    vinculo_modelo_defs = re.findall(r"(?:CONSTRAINT ck_vinculo_modelo|ADD CONSTRAINT ck_vinculo_modelo) CHECK\((.*?)\)\);", sql, re.I | re.S)
+    if len(vinculo_modelo_defs) < 3 or any("CONFLITO_GOVERNADO" not in d for d in vinculo_modelo_defs):
+        fail("todas as definições/reentradas de ck_vinculo_modelo devem aceitar CONFLITO_GOVERNADO")
+
     tx_snippets = [
         "SET XACT_ABORT ON",
         "DECLARE @jornada_own_tran BIT=CASE WHEN @@TRANCOUNT=0 THEN 1 ELSE 0 END",
@@ -207,6 +220,8 @@ def main() -> None:
             fail(f"procedure multi-write sem transação autocontida/explícita: {name}")
 
     reservation = RESERVATION.read_text(encoding="utf-8")
+    if "CommandBehavior.SequentialAccess" in reservation:
+        fail("ReservedBatch não pode usar SequentialAccess com leitura de ordinais fora de ordem")
     retry = method_block(reservation, "public async Task<ProcessingFailureOutcome> ScheduleRetryOrPoisonAsync", "private async Task MarkFailedAsync")
     failed = method_block(reservation, "private async Task MarkFailedAsync", "private static async Task SetProcessingAsync")
     cs_tx = [
@@ -447,7 +462,7 @@ def main() -> None:
     ], "compatibilidade Docker API/Testcontainers v3.88")
 
     require(integration_setup, [
-        'JornadaIntegrationTest_{Guid.NewGuid():N}',
+        'JornadaIntegration_Test_{Guid.NewGuid():N}',
     ], "isolamento Integration v3.90")
     if '_isolatedDatabaseName = $"JornadaIntegration_{Guid.NewGuid():N}"' in integration_setup:
         fail("fixture Integration voltou a gerar banco sem token Test/Dev/Local")

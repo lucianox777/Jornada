@@ -65,7 +65,7 @@ public sealed class SqlServerIntegrationSetUp
             source = $"Testcontainers / {image}";
         }
 
-        _isolatedDatabaseName = $"JornadaIntegrationTest_{Guid.NewGuid():N}";
+        _isolatedDatabaseName = $"JornadaIntegration_Test_{Guid.NewGuid():N}";
         _databaseAdministrationConnectionString = BuildMasterConnectionString(serverConnectionString);
 
         try

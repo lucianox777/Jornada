@@ -181,6 +181,10 @@ internal sealed partial class SqlProcessorRepository
         var attributeInstances = new HashSet<string>(StringComparer.Ordinal);
         foreach (var attribute in person.Atributos)
         {
+            if (string.Equals(attribute.StatusEvidencia, "COMPROVADO", StringComparison.OrdinalIgnoreCase)
+                && attribute.VerificadoEm is null)
+                throw new InvalidDataException($"Atributo COMPROVADO exige verificadoEm: {attribute.AtributoCodigo}.");
+
             var identityRule = await ResolveAttributeIdentityRuleAsync(connection, tx, attribute.AtributoCodigo, ct);
             var instanceKey = TransversalAttributeInstanceKey.Compute(identityRule.Cardinality, identityRule.InstanceKeyRule, attribute.Valor);
             if (!attributeInstances.Add(attribute.AtributoCodigo + "\u001f" + instanceKey))

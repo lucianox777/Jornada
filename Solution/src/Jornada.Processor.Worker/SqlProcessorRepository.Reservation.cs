@@ -148,7 +148,7 @@ internal sealed partial class SqlProcessorRepository
         commandLoad.Parameters.AddWithValue("@lote_id", loteId.Value);
         commandLoad.Parameters.AddWithValue("@lease_id", leaseId);
         commandLoad.Parameters.Add(new SqlParameter("@lease_owner", SqlDbType.NVarChar, 200) { Value = leaseOwner[..Math.Min(200, leaseOwner.Length)] });
-        await using var batchReader = await commandLoad.ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct);
+        await using var batchReader = await commandLoad.ExecuteReaderAsync(ct);
         if (!await batchReader.ReadAsync(ct))
             throw new InvalidOperationException("Lote reservado não pôde ser recarregado ou lease foi perdido.");
 

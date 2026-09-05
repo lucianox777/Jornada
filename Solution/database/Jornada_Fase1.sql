@@ -1248,12 +1248,13 @@ IF OBJECT_ID('identidade.vinculo_fonte','U') IS NULL CREATE TABLE identidade.vin
  linkage_run_id UNIQUEIDENTIFIER NULL, resolvido_em DATETIMEOFFSET(7) NULL, motivo NVARCHAR(120) NULL,
  CONSTRAINT ck_vinculo_status CHECK(status IN('RESOLVIDO','NAO_RESOLVIDO','CONFLITO')),
  CONSTRAINT ck_vinculo_status_uuid CHECK((status='RESOLVIDO' AND pessoa_uuid IS NOT NULL) OR (status IN('NAO_RESOLVIDO','CONFLITO') AND pessoa_uuid IS NULL)),
- CONSTRAINT ck_vinculo_metodo CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA')),
+ CONSTRAINT ck_vinculo_metodo CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO')),
  CONSTRAINT ck_vinculo_modelo CHECK(
     (metodo_resolucao='CPF_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='PENDENTE_PROBABILISTICO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL) OR
     (metodo_resolucao='LINKAGE_PROBABILISTICO' AND score IS NOT NULL AND modelo_id IS NOT NULL) OR
-    (metodo_resolucao='CORRECAO_GOVERNADA' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NOT NULL)));
+    (metodo_resolucao='CORRECAO_GOVERNADA' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NOT NULL) OR
+    (metodo_resolucao='CONFLITO_GOVERNADO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL)));
 GO
 IF COL_LENGTH('identidade.vinculo_fonte','linkage_run_id') IS NULL
  ALTER TABLE identidade.vinculo_fonte ADD linkage_run_id UNIQUEIDENTIFIER NULL;
@@ -1278,7 +1279,7 @@ IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(
  ALTER TABLE identidade.vinculo_fonte DROP CONSTRAINT ck_vinculo_metodo;
 GO
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_metodo
- CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA'));
+ CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
 GO
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID('identidade.vinculo_fonte') AND name='ck_vinculo_modelo')
  ALTER TABLE identidade.vinculo_fonte DROP CONSTRAINT ck_vinculo_modelo;
@@ -1287,7 +1288,8 @@ ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_modelo
     (metodo_resolucao='CPF_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='PENDENTE_PROBABILISTICO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL) OR
     (metodo_resolucao='LINKAGE_PROBABILISTICO' AND score IS NOT NULL AND modelo_id IS NOT NULL) OR
-    (metodo_resolucao='CORRECAO_GOVERNADA' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NOT NULL));
+    (metodo_resolucao='CORRECAO_GOVERNADA' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NOT NULL) OR
+    (metodo_resolucao='CONFLITO_GOVERNADO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL));
 GO
 
 -- v3.43: correção governada de identidade. Não há CRUD genérico de UUID: toda reassociação exige ato, justificativa e trilha institucional.
@@ -2609,6 +2611,7 @@ BEGIN
  SELECT obs,NULL,'CONFLITO_GOVERNADO',NULL,'CONFLITO',NULL,1,NULL,@motivo FROM @o;
  UPDATE p SET status='EM_CONFLITO' FROM identidade.pessoa p WHERE p.pessoa_uuid IN(SELECT uuid FROM @o WHERE uuid IS NOT NULL) AND p.status='ATIVO';
  UPDATE im SET estado='EM_CONFLITO',estado_motivo='CONFLITO_GOVERNADO',estado_em=SYSDATETIMEOFFSET()
+ FROM identidade.identity_map im
  WHERE vigencia_fim IS NULL AND estado='ATIVO' AND pessoa_uuid IN(SELECT uuid FROM @o WHERE uuid IS NOT NULL);
  UPDATE b SET pessoa_uuid=NULL,estado_atribuicao_identidade='CONFLITO_IDENTIDADE',atualizado_em=SYSDATETIMEOFFSET()
  FROM gold.beneficio_concedido b JOIN silver.registro_observacao ro ON ro.registro_observacao_id=b.registro_observacao_id JOIN @o o ON o.obs=ro.pessoa_observacao_id WHERE b.status_analitico='VIGENTE';
