@@ -10,8 +10,8 @@ public sealed class CanonicalJsonHashTests
     [Test]
     public void Canonical_hash_ignores_property_order_and_external_control_fields()
     {
-        using var a = JsonDocument.Parse("""{"codigoRegistroOrigem":"AA-1","operacao":"INCLUSAO","valorConcedido":600,"situacao":"VIGENTE"}""");
-        using var b = JsonDocument.Parse("""{"situacao":"VIGENTE","valorConcedido":600.0,"operacao":"RETIFICACAO","codigoRegistroOrigem":"AA-1"}""");
+        using var a = JsonDocument.Parse("""{"codigoRegistroOrigem":"AA-1","operacao":"INCLUSAO","valorConcedido":600,"situacaoVigencia":"VIGENTE"}""");
+        using var b = JsonDocument.Parse("""{"situacaoVigencia":"VIGENTE","valorConcedido":600.0,"operacao":"RETIFICACAO","codigoRegistroOrigem":"AA-1"}""");
         Assert.That(CanonicalJsonHash.Compute(a.RootElement, "codigoRegistroOrigem", "operacao"),
             Is.EqualTo(CanonicalJsonHash.Compute(b.RootElement, "codigoRegistroOrigem", "operacao")));
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static fail-closed gate for v3.90 technical closure, runtime contract conformance, compatibility, architecture, supply-chain, governance and HML execution contracts."""
+"""Static fail-closed gate for v4.04 technical closure, runtime contract conformance, SQL target compatibility, architecture, supply-chain, governance and HML execution contracts."""
 from __future__ import annotations
 import hashlib
 import json
@@ -9,6 +9,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 DDL = ROOT / "database" / "Jornada_Fase1.sql"
+SEED = ROOT / "database" / "Jornada_Seed_Dev.sql"
 RESERVATION = ROOT / "src" / "Jornada.Processor.Worker" / "SqlProcessorRepository.Reservation.cs"
 PHONE_CS = ROOT / "src" / "Jornada.Processor.Worker" / "TransversalAttributeInstanceKey.cs"
 MATERIALIZATION_CS = ROOT / "src" / "Jornada.Processor.Worker" / "SqlProcessorRepository.Materialization.cs"
@@ -32,6 +33,28 @@ SOURCE_GATE = ROOT / "scripts" / "release-source-gate.py"
 SOURCE_BUNDLE_BUILDER = ROOT / "scripts" / "build-release-source-bundle.sh"
 RELEASE_INFO = ROOT.parent / "RELEASE_INFO.txt"
 SOURCE_PROVENANCE = ROOT.parent / "SOURCE_PROVENANCE.json"
+REQ_DIR = ROOT.parent / "Documentos" / "Requisitos"
+MASTER_REQ_MD = REQ_DIR / "00_Indice_Mestre_Requisitos_Jornada_v1.0.md"
+MASTER_REQ_DOCX = REQ_DIR / "00_Indice_Mestre_Requisitos_Jornada_v1.0.docx"
+MASTER_REQ_PDF = REQ_DIR / "00_Indice_Mestre_Requisitos_Jornada_v1.0.pdf"
+BUSINESS_REQ_MD = REQ_DIR / "01_Requisitos_de_Negocio_Jornada_v1.1.md"
+BUSINESS_REQ_DOCX = REQ_DIR / "01_Requisitos_de_Negocio_Jornada_v1.1.docx"
+BUSINESS_REQ_PDF = REQ_DIR / "01_Requisitos_de_Negocio_Jornada_v1.1.pdf"
+FUNCTIONAL_REQ_MD = REQ_DIR / "02_Requisitos_Funcionais_Jornada_v1.0.md"
+FUNCTIONAL_REQ_DOCX = REQ_DIR / "02_Requisitos_Funcionais_Jornada_v1.0.docx"
+FUNCTIONAL_REQ_PDF = REQ_DIR / "02_Requisitos_Funcionais_Jornada_v1.0.pdf"
+NONFUNCTIONAL_REQ_MD = REQ_DIR / "03_Requisitos_Nao_Funcionais_Jornada_v1.0.md"
+NONFUNCTIONAL_REQ_DOCX = REQ_DIR / "03_Requisitos_Nao_Funcionais_Jornada_v1.0.docx"
+NONFUNCTIONAL_REQ_PDF = REQ_DIR / "03_Requisitos_Nao_Funcionais_Jornada_v1.0.pdf"
+TECHNICAL_REQ_MD = REQ_DIR / "04_Requisitos_Tecnicos_Jornada_v1.1.md"
+TECHNICAL_REQ_DOCX = REQ_DIR / "04_Requisitos_Tecnicos_Jornada_v1.1.docx"
+TECHNICAL_REQ_PDF = REQ_DIR / "04_Requisitos_Tecnicos_Jornada_v1.1.pdf"
+TRACEABILITY_REQ_MD = REQ_DIR / "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.0.md"
+TRACEABILITY_REQ_DOCX = REQ_DIR / "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.0.docx"
+TRACEABILITY_REQ_PDF = REQ_DIR / "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.0.pdf"
+REQUIREMENTS_MAP = REQ_DIR / "requirements-map.json"
+RUNTIME_EVIDENCE_V395 = ROOT.parent / "Documentos" / "Evidencia_Runtime_v3.95_2026-09-03.md"
+RUNTIME_EVIDENCE_V399 = ROOT.parent / "Documentos" / "Evidencia_Runtime_v3.99_2026-09-03.md"
 ROOT_GITIGNORE = ROOT.parent / ".gitignore"
 GIT_RELEASE_RUNBOOK = ROOT / "docs" / "Runbook_Git_Release.md"
 RELEASE_INFO_SH = ROOT / "scripts" / "generate-release-info.sh"
@@ -112,6 +135,19 @@ ARCHITECTURE_POLICY = ROOT / "config" / "release" / "architecture-dependencies.j
 LOCAL_DB_PS = ROOT / "scripts" / "local-db.ps1"
 LOCAL_CLEAN_PS = ROOT / "scripts" / "local-clean.ps1"
 LOCAL_VALIDATE_RELEASE_PS = ROOT / "scripts" / "local-validate-release.ps1"
+OPERATIONAL_SQL_ADAPTER = ROOT / "src" / "Jornada.Operational.Sql" / "OperationalSqlAdapter.cs"
+OPERATIONAL_SQL_ADAPTER_CSPROJ = ROOT / "src" / "Jornada.Operational.Sql" / "Jornada.Operational.Sql.csproj"
+OPERATIONAL_SQL_ADAPTER_TESTS = ROOT / "tests" / "Jornada.Tests" / "OperationalSqlAdapterTests.cs"
+OPERATIONAL_SQL_ADAPTER_DOC = ROOT / "docs" / "Operational_SQL_Adapter.md"
+FABRIC_SQL_COMPAT_DOC = ROOT / "docs" / "Fabric_SQL_Compatibility.md"
+FABRIC_SQL_COMPAT_PS = ROOT / "scripts" / "fabric-sql-compatibility.ps1"
+FABRIC_SQL_COMPAT_SH = ROOT / "scripts" / "fabric-sql-compatibility.sh"
+SQL_INTEGRATION_ENV = ROOT / "tests" / "Jornada.Integration.Tests" / "Integration" / "Infrastructure" / "SqlIntegrationEnvironment.cs"
+SQL_RUNTIME_INTEGRATION_TESTS = ROOT / "tests" / "Jornada.Integration.Tests" / "Integration" / "SqlServerRuntimeIntegrationTests.cs"
+API_SQL_SERVICES = ROOT / "src" / "Jornada.Api" / "SqlApiServices.cs"
+PIPELINE_COORDINATOR = ROOT / "src" / "Jornada.Pipeline.Coordination" / "SqlPipelineCoordinator.cs"
+BRONZE_MAINTENANCE = ROOT / "src" / "Jornada.Bronze.Maintenance.Worker" / "BronzeMaintenance.cs"
+DELIVERY_BRONZE_RETENTION = ROOT / "src" / "Jornada.Operations.Maintenance.Worker" / "DeliveryBronzeRetentionWorker.cs"
 FRIEND_ASSEMBLY_FILES = [
     ROOT / "src" / "Jornada.Api" / "Properties" / "AssemblyInfo.cs",
     ROOT / "src" / "Jornada.Processor.Worker" / "Properties" / "AssemblyInfo.cs",
@@ -153,18 +189,16 @@ def require(text: str, snippets: list[str], context: str) -> None:
 def main() -> None:
     sql = DDL.read_text(encoding="utf-8")
 
-    # Regressões runtime reconstruídas v3.91-v3.94.
-    abrir_caso = last_proc(sql, "identidade.sp_abrir_caso_conflito_identidade")
-    require(abrir_caso, ["UPDATE im SET estado='EM_CONFLITO'", "FROM identidade.identity_map im"], "sp_abrir_caso_conflito_identidade identity_map")
-    if "UPDATE im SET estado='EM_CONFLITO',estado_motivo='CONFLITO_GOVERNADO',estado_em=SYSDATETIMEOFFSET()\n WHERE" in abrir_caso:
-        fail("sp_abrir_caso_conflito_identidade voltou a usar alias im sem FROM")
-    vinculo_metodo_defs = re.findall(r"(?:CONSTRAINT ck_vinculo_metodo|ADD CONSTRAINT ck_vinculo_metodo)\s+CHECK\(metodo_resolucao IN\(([^)]*)\)\)", sql, re.I)
-    if len(vinculo_metodo_defs) < 3 or any("CONFLITO_GOVERNADO" not in d for d in vinculo_metodo_defs):
-        fail("todas as definições/reentradas de ck_vinculo_metodo devem aceitar CONFLITO_GOVERNADO")
-    vinculo_modelo_defs = re.findall(r"(?:CONSTRAINT ck_vinculo_modelo|ADD CONSTRAINT ck_vinculo_modelo) CHECK\((.*?)\)\);", sql, re.I | re.S)
-    if len(vinculo_modelo_defs) < 3 or any("CONFLITO_GOVERNADO" not in d for d in vinculo_modelo_defs):
-        fail("todas as definições/reentradas de ck_vinculo_modelo devem aceitar CONFLITO_GOVERNADO")
-
+    # Regressão v3.93: a reaplicação do bloco de compatibilidade v3.42 não pode
+    # rebaixar temporariamente o domínio de vinculo_fonte antes do bloco v3.44.
+    # Existem duas definições pós-criação que precisam aceitar CONFLITO_GOVERNADO:
+    # o bloco de compatibilidade/reentrada e o bloco evolutivo v3.44.
+    metodo_final = "CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'))"
+    modelo_conflict = "(metodo_resolucao='CONFLITO_GOVERNADO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL)"
+    if sql.count(metodo_final) < 2:
+        fail("ck_vinculo_metodo: bloco de reentrada e bloco v3.44 devem aceitar CONFLITO_GOVERNADO")
+    if sql.count(modelo_conflict) < 2:
+        fail("ck_vinculo_modelo: bloco de reentrada e bloco v3.44 devem aceitar CONFLITO_GOVERNADO")
     tx_snippets = [
         "SET XACT_ABORT ON",
         "DECLARE @jornada_own_tran BIT=CASE WHEN @@TRANCOUNT=0 THEN 1 ELSE 0 END",
@@ -220,8 +254,6 @@ def main() -> None:
             fail(f"procedure multi-write sem transação autocontida/explícita: {name}")
 
     reservation = RESERVATION.read_text(encoding="utf-8")
-    if "CommandBehavior.SequentialAccess" in reservation:
-        fail("ReservedBatch não pode usar SequentialAccess com leitura de ordinais fora de ordem")
     retry = method_block(reservation, "public async Task<ProcessingFailureOutcome> ScheduleRetryOrPoisonAsync", "private async Task MarkFailedAsync")
     failed = method_block(reservation, "private async Task MarkFailedAsync", "private static async Task SetProcessingAsync")
     cs_tx = [
@@ -258,7 +290,7 @@ def main() -> None:
         "Jornada.BaseNormativa",
         "@value=N'3.62'",
         "Jornada.SolutionSchema",
-        "@value=N'3.68'",
+        "@value=N'3.69'",
     ], "EMAIL_CANONICO_V2 / schema marker SQL")
     email_v2_block = method_block(phone_cs, "private static string NormalizeEmailV2", "\n    }\n}")
     if ".Normalize(" in email_v2_block or "ToLowerInvariant" in email_v2_block:
@@ -285,7 +317,7 @@ def main() -> None:
         "Jornada.BaseNormativa",
         "@base=N'3.62'",
         "Jornada.SolutionSchema",
-        "@solution=N'3.68'",
+        "@solution=N'3.69'",
         "SQL_SCHEMA_INCOMPATIVEL",
         "ref.fn_email_canonico_v2",
         "identidade.sp_recompor_gold_pessoa",
@@ -399,17 +431,65 @@ def main() -> None:
         fail("SBOM voltou a conter versão normativa/solution hardcoded antiga")
     release_info = RELEASE_INFO.read_text(encoding="utf-8")
     require(release_info, [
-        "base_normativa=v3.62",
-        "solution_engenharia=v3.90",
+        "base_normativa=v3.64",
+        "solution_engenharia=v4.04",
         "schema_base_normativa=v3.62",
-        "schema_solution=v3.68",
+        "schema_solution=v3.69",
         "origem_engenharia_anterior_1_materializada=true",
-        "origem_engenharia_anterior_1_sha256=17eb7e0ed7a7d598b8bb41e63572c2ac37553714b00eceddc0ecf6554aafd818",
-        "source_git_tag=jornada-solution-v3.90",
-        "source_git_predecessor_tag=jornada-solution-v3.89",
-        "source_git_bundle=Solution/supply-chain/source/Jornada_Source_v3.89_v3.90.bundle",
+        "origem_engenharia_anterior_1_sha256=d0077f837402900ffbb0fb579305fad51912caa2b33374a94c8bd73f7918fbe1",
+        "source_git_tag=jornada-solution-v4.04",
+        "source_git_predecessor_tag=jornada-solution-v4.03",
+        "source_git_bundle=Solution/supply-chain/source/Jornada_Source_v4.03_v4.04.bundle",
         "source_git_provenance=SOURCE_PROVENANCE.json",
     ], "RELEASE_INFO corrente")
+
+    # v3.99: fronteira fina de acesso operacional Microsoft SQL. A regra estrutural é
+    # centralizar a criação/abertura de SqlConnection sem esconder T-SQL ou criar um
+    # caminho Fabric específico antes de incompatibilidade comprovada.
+    for artifact in (OPERATIONAL_SQL_ADAPTER, OPERATIONAL_SQL_ADAPTER_CSPROJ, OPERATIONAL_SQL_ADAPTER_TESTS, OPERATIONAL_SQL_ADAPTER_DOC):
+        if not artifact.is_file() or artifact.stat().st_size <= 0:
+            fail(f"artefato Operational SQL Adapter ausente/vazio: {artifact.relative_to(ROOT)}")
+    adapter_source = OPERATIONAL_SQL_ADAPTER.read_text(encoding="utf-8")
+    require(adapter_source, [
+        "public interface IOperationalSqlAdapter",
+        "SqlConnection CreateConnection()",
+        "SqlConnection CreateDedicatedSessionConnection()",
+        "Task<SqlConnection> OpenAsync",
+        "Task<SqlConnection> OpenDedicatedSessionAsync",
+        "Pooling = false",
+        "Enlist = false",
+        "Não existe comportamento específico de Fabric",
+    ], "Operational SQL Adapter v3.99")
+    require(OPERATIONAL_SQL_ADAPTER_CSPROJ.read_text(encoding="utf-8"), [
+        'PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2"',
+    ], "csproj Operational SQL Adapter v3.99")
+    adapter_tests = OPERATIONAL_SQL_ADAPTER_TESTS.read_text(encoding="utf-8")
+    require(adapter_tests, [
+        "Rejects_empty_connection_string",
+        "Normal_connection_preserves_configured_sql_properties",
+        "Dedicated_session_disables_pooling_and_automatic_enlistment",
+        "Assert.That(builder.Pooling, Is.False)",
+        "Assert.That(builder.Enlist, Is.False)",
+    ], "testes unitários do Operational SQL Adapter v3.99")
+    require(OPERATIONAL_SQL_ADAPTER_DOC.read_text(encoding="utf-8"), [
+        "IOperationalSqlAdapter", "SQL Database in Microsoft Fabric", "`if (fabric)`",
+        "`FabricSqlAdapter`",
+    ], "documentação Operational SQL Adapter v3.99")
+
+    direct_sql_connection = re.compile(r"\bnew\s+SqlConnection\s*\(")
+    direct_offenders = []
+    for source in sorted((ROOT / "src").rglob("*.cs")):
+        if source.resolve() == OPERATIONAL_SQL_ADAPTER.resolve():
+            continue
+        if direct_sql_connection.search(source.read_text(encoding="utf-8")):
+            direct_offenders.append(source.relative_to(ROOT).as_posix())
+    if direct_offenders:
+        fail("new SqlConnection fora do Operational SQL Adapter: " + ", ".join(direct_offenders))
+
+    require(API_SQL_SERVICES.read_text(encoding="utf-8"), ["OpenDedicatedSessionAsync(ct)", "LockOwner='Session'"], "sessão dedicada da ingestão/API v3.99")
+    require(PIPELINE_COORDINATOR.read_text(encoding="utf-8"), ["CreateDedicatedSessionConnection()", "IOperationalSqlAdapter"], "sessões dedicadas do pipeline v3.99")
+    require(BRONZE_MAINTENANCE.read_text(encoding="utf-8"), ["OpenDedicatedSessionAsync(ct)", "IOperationalSqlAdapter"], "sessão dedicada Bronze Maintenance v3.99")
+    require(DELIVERY_BRONZE_RETENTION.read_text(encoding="utf-8"), ["OpenDedicatedSessionAsync(ct)", "IOperationalSqlAdapter"], "sessão dedicada Delivery Bronze Retention v3.99")
 
     unit_csproj = TEST_CSPROJ.read_text(encoding="utf-8")
     integration_csproj = INTEGRATION_TEST_CSPROJ.read_text(encoding="utf-8")
@@ -463,13 +543,62 @@ def main() -> None:
 
     require(integration_setup, [
         'JornadaIntegration_Test_{Guid.NewGuid():N}',
-    ], "isolamento Integration v3.90")
+    ], "isolamento Integration v3.91")
     if '_isolatedDatabaseName = $"JornadaIntegration_{Guid.NewGuid():N}"' in integration_setup:
         fail("fixture Integration voltou a gerar banco sem token Test/Dev/Local")
 
+    # v4.03: o mesmo assembly Integration pode apontar para SQL Server 2022 ou para
+    # SQL Database in Microsoft Fabric, sem alterar DDL/seed e sem criar Adapter específico.
+    # SQL Server permanece baseline local/CI; Fabric é homologação adicional e condicional.
+    sql_env = SQL_INTEGRATION_ENV.read_text(encoding="utf-8")
+    require(sql_env, [
+        'TargetVariable = "JORNADA_TEST_SQL_TARGET"',
+        'SqlServer2022Target = "SQL_SERVER_2022"',
+        'FabricSqlDatabaseTarget = "FABRIC_SQL_DATABASE"',
+        'IsFabricSqlDatabase',
+    ], "seleção explícita do alvo SQL v4.03")
+    require(integration_setup, [
+        "JORNADA_TEST_SQL_TARGET=FABRIC_SQL_DATABASE exige",
+        "JORNADA_TEST_SQL_USE_EXISTING_DATABASE=true",
+        "EnsureIntegrationDatabaseNameIsSafe",
+        "Pooling = false",
+        "SELECT DB_NAME();",
+        "Integration SQL target:",
+    ], "fixture externa/Fabric v4.03")
+    runtime_target_tests = SQL_RUNTIME_INTEGRATION_TESTS.read_text(encoding="utf-8")
+    require(runtime_target_tests, [
+        "ConfiguredSqlTargetIsReachableAndEngineContractIsExplicitAsync",
+        "SqlServer2022Target",
+        "Is.EqualTo(16)",
+        "UseExistingExternalDatabase",
+        "builder.Pooling, Is.False",
+    ], "prova de alvo SQL v4.03")
+    for artifact in (FABRIC_SQL_COMPAT_DOC, FABRIC_SQL_COMPAT_PS, FABRIC_SQL_COMPAT_SH):
+        if not artifact.is_file() or artifact.stat().st_size <= 0:
+            fail(f"harness Fabric ausente/vazio: {artifact.relative_to(ROOT)}")
+    require(FABRIC_SQL_COMPAT_DOC.read_text(encoding="utf-8"), [
+        "FABRIC_SQL_DATABASE", "JORNADA_FABRIC_SQL_CONNECTION", "Microsoft Entra",
+        "58/58", "FabricSqlAdapter", "baseline obrigatória", "ensaios não funcionais",
+        "nenhuma connection string Fabric é distribuída",
+    ], "documentação Fabric v4.03")
+    require(FABRIC_SQL_COMPAT_PS.read_text(encoding="utf-8-sig"), [
+        "JORNADA_FABRIC_SQL_CONNECTION", "$env:JORNADA_TEST_SQL_TARGET = 'FABRIC_SQL_DATABASE'",
+        "$env:JORNADA_TEST_SQL_USE_EXISTING_DATABASE = 'true'",
+        "$env:JORNADA_TEST_SQL_RESET_EXISTING_DATABASE = 'true'",
+        "Active Directory Device Code Flow", "'restore', 'Jornada.sln', '--locked-mode'",
+        "'restore', $Project, '--locked-mode'", "Write-TrxSummary",
+        "FABRIC SQL COMPATIBILITY: OK", "Python: NÃO utilizado",
+    ], "harness Fabric PowerShell v4.03")
+    require(FABRIC_SQL_COMPAT_SH.read_text(encoding="utf-8"), [
+        "JORNADA_FABRIC_SQL_CONNECTION", "JORNADA_TEST_SQL_TARGET=FABRIC_SQL_DATABASE",
+        "JORNADA_TEST_SQL_USE_EXISTING_DATABASE=true",
+        "JORNADA_TEST_SQL_RESET_EXISTING_DATABASE=true", "dotnet restore Jornada.sln --locked-mode",
+        "not_executed", "FABRIC SQL COMPATIBILITY: OK", "Python: NÃO utilizado",
+    ], "harness Fabric shell v4.03")
+
     local_clean = LOCAL_CLEAN_PS.read_text(encoding="utf-8-sig")
     require(local_clean, [
-        "$ScriptVersion = '2026.09.02-v3.90'",
+        "$ScriptVersion = '2026.09.04-v4.03'",
         "docker compose",
         "'down','-v','--remove-orphans'",
         "Where-Object { $_.Name -in @('bin','obj') }",
@@ -477,12 +606,12 @@ def main() -> None:
         "Cache .vs do Visual Studio",
         "Esse cache não é necessário para restore/build/test. A limpeza continuará.",
         "local-validate-release-r4.ps1",
-        "Imagem Docker do SQL Server preservada.",
-    ], "local-clean canônico v3.90")
+        "Imagem Docker do SQL Server preservada; local-validate-release.ps1 validará digest e engine.",
+    ], "local-clean canônico v4.03")
 
     local_validate = LOCAL_VALIDATE_RELEASE_PS.read_text(encoding="utf-8-sig")
     require(local_validate, [
-        "$ScriptVersion = '2026.09.02-v3.90'",
+        "$ScriptVersion = '2026.09.04-v4.03'",
         "@('restore', $Solution, '--locked-mode')",
         "@('restore', $UnitProject, '--locked-mode')",
         "@('restore', $IntegrationProject, '--locked-mode')",
@@ -490,8 +619,20 @@ def main() -> None:
         "Assert-FileExists -Path $IntegrationDll",
         "Remove-Item Env:JORNADA_TEST_SQL_CONNECTION",
         "Remove-Item Env:JORNADA_TEST_SQL_USE_EXISTING_DATABASE",
+        "$env:JORNADA_TEST_SQL_TARGET = 'SQL_SERVER_2022'",
+        "JornadaIntegration_Test_<guid>",
+        "Get-CanonicalSqlServerImage",
+        "@sha256:[0-9a-fA-F]{64}$",
+        "docker image inspect",
+        "DBCC CHECKDB (N'master') WITH NO_INFOMSGS, ALL_ERRORMSGS",
+        "Recuperação da imagem SQL: OK",
+        "@('image','rm',$imageId)",
+        "@('pull',$image)",
+        "$env:JORNADA_TEST_SQL_IMAGE = $canonicalSqlImage",
         "'9/9 Testes Integration'",
-    ], "local-validate-release canônico v3.90")
+    ], "local-validate-release canônico v4.03")
+    if "@('image','rm','-f'" in local_validate:
+        fail("recuperação SQL não pode force-remover imagem potencialmente compartilhada")
     if (ROOT / "scripts" / "local-validate-release-r4.ps1").exists():
         fail("variante temporária local-validate-release-r4.ps1 não pode integrar a release")
 
@@ -530,10 +671,182 @@ def main() -> None:
     if "CREATE INDEX IX_bronze_entrega_arquivo_objeto_chave ON bronze.entrega_arquivo(objeto_chave)" in current_ddl:
         fail("DDL corrente voltou a indexar NVARCHAR(1024) objeto_chave como chave física (>1700 bytes)")
 
+    # Regressões reveladas pela execução real da v3.90.
+    require(current_ddl, [
+        "UPDATE im SET estado='EM_CONFLITO'",
+        "FROM identidade.identity_map im",
+        "WHERE im.vigencia_fim IS NULL AND im.estado='ATIVO'",
+    ], "UPDATE identity_map governado v3.91")
+
+    release_info_text = RELEASE_INFO.read_text(encoding="utf-8")
+    require(release_info_text, [
+        "V399_LOCKED_RESTORE_SOLUTION_PASS",
+        "V399_LOCKED_RESTORE_UNIT_PASS",
+        "V399_LOCKED_RESTORE_INTEGRATION_PASS",
+        "V399_BUILD_SOLUTION_PASS",
+        "V399_UNIT_TESTS_PASS",
+        "V399_SQL_IMAGE_DIGEST_PASS",
+        "V399_SQL_ENGINE_CHECKDB_PASS",
+        "V399_INTEGRATION_TESTS_PASS",
+        "V399_LOCAL_RELEASE_VALIDATION_PASS",
+    ], "evidência runtime externa v3.99 preservada na v4.03")
+
+
+    # Baseline documental introduzido na v3.98 e preservado na v3.99: RN/RF/RNF/RT + matriz única de rastreabilidade.
+    requirement_artifacts = (
+        MASTER_REQ_MD, MASTER_REQ_DOCX, MASTER_REQ_PDF,
+        BUSINESS_REQ_MD, BUSINESS_REQ_DOCX, BUSINESS_REQ_PDF,
+        FUNCTIONAL_REQ_MD, FUNCTIONAL_REQ_DOCX, FUNCTIONAL_REQ_PDF,
+        NONFUNCTIONAL_REQ_MD, NONFUNCTIONAL_REQ_DOCX, NONFUNCTIONAL_REQ_PDF,
+        TECHNICAL_REQ_MD, TECHNICAL_REQ_DOCX, TECHNICAL_REQ_PDF,
+        TRACEABILITY_REQ_MD, TRACEABILITY_REQ_DOCX, TRACEABILITY_REQ_PDF,
+        REQUIREMENTS_MAP, RUNTIME_EVIDENCE_V395, RUNTIME_EVIDENCE_V399,
+    )
+    for artifact in requirement_artifacts:
+        if not artifact.is_file() or artifact.stat().st_size <= 0:
+            fail(f"artefato documental baseline v3.98 ausente/vazio: {artifact.relative_to(ROOT.parent)}")
+    if (ROOT.parent / "Documentos" / "Requisitos_de_Negocio_Jornada_v1.0.md").exists() or (ROOT.parent / "Documentos" / "Requisitos_Tecnicos_Jornada_v1.0.md").exists():
+        fail("baselines RN/RT antigos não podem permanecer duplicados na raiz de Documentos")
+    business_text = BUSINESS_REQ_MD.read_text(encoding="utf-8")
+    functional_text = FUNCTIONAL_REQ_MD.read_text(encoding="utf-8")
+    nonfunctional_text = NONFUNCTIONAL_REQ_MD.read_text(encoding="utf-8")
+    technical_text = TECHNICAL_REQ_MD.read_text(encoding="utf-8")
+    trace_text = TRACEABILITY_REQ_MD.read_text(encoding="utf-8")
+    master_text = MASTER_REQ_MD.read_text(encoding="utf-8")
+    if len(re.findall(r"(?m)^### RN-\d{3} - ", business_text)) != 36:
+        fail("Requisitos de Negócio v1.1 deve conter exatamente 36 RN")
+    if len(re.findall(r"(?m)^#### RF-\d{3} - ", functional_text)) != 50:
+        fail("Requisitos Funcionais v1.0 deve conter exatamente 50 RF")
+    if len(re.findall(r"(?m)^### RNF\d{2} - ", nonfunctional_text)) != 33:
+        fail("Requisitos Não Funcionais v1.0 deve conter exatamente 33 RNF")
+    if len(re.findall(r"(?m)^#### RT-\d{3} - ", technical_text)) != 65:
+        fail("Requisitos Técnicos v1.1 deve conter exatamente 65 RT")
+    require(master_text, ["RN - Requisitos de Negócio", "RF - Requisitos Funcionais", "RNF - Requisitos Não Funcionais", "RT - Requisitos Técnicos", "Matriz de Rastreabilidade"], "Índice Mestre de Requisitos v1.0")
+    require(business_text, ["Versão do documento:** 1.1", "RN-004 - Constituir a Gold de Pessoas de forma evolutiva", "RN-036 - Manter biometria como evolução e não como núcleo cadastral", "Matriz_Rastreabilidade_Requisitos_Jornada_v1.0"], "Requisitos de Negócio v1.1")
+    require(functional_text, ["Versão do documento:** 1.0", "RF-001", "RF-050", "Rastreabilidade de qualidade/técnica"], "Requisitos Funcionais v1.0")
+    require(nonfunctional_text, ["Versão do documento:** 1.0", "RNF01", "RNF33", "Seção 17"], "Requisitos Não Funcionais v1.0")
+    require(technical_text, ["Versão do documento:** 1.1", "RT-001", "RT-065", "camada de realização"], "Requisitos Técnicos v1.1")
+    require(trace_text, ["RN -> RF -> RNF -> RT -> EVIDÊNCIA", "Cobertura por RF", "Cobertura por RNF", "Todos os 65 RT"], "Matriz de Rastreabilidade v1.0")
+    req_map = json.loads(REQUIREMENTS_MAP.read_text(encoding="utf-8"))
+    if req_map.get("counts") != {"RN": 36, "RF": 50, "RNF": 33, "RT": 65}:
+        fail("requirements-map.json declara contagens inesperadas")
+    expected_rn = {f"RN-{i:03d}" for i in range(1, 37)}
+    expected_rf = {f"RF-{i:03d}" for i in range(1, 51)}
+    expected_rnf = {f"RNF{i:02d}" for i in range(1, 34)}
+    expected_rt = {f"RT-{i:03d}" for i in range(1, 66)}
+    if set(req_map.get("rn_to_rf", {})) != expected_rn:
+        fail("requirements-map.json não cobre os 36 RN")
+    mapped_rf = {x for values in req_map.get("rn_to_rf", {}).values() for x in values}
+    mapped_rnf = {x for values in req_map.get("rn_to_rnf", {}).values() for x in values}
+    mapped_rt = {x for values in req_map.get("rn_to_rt", {}).values() for x in values}
+    if mapped_rf != expected_rf or mapped_rnf != expected_rnf or mapped_rt != expected_rt:
+        fail("requirements-map.json possui requisito órfão em RF/RNF/RT")
+    require(RUNTIME_EVIDENCE_V395.read_text(encoding="utf-8"), [
+        "V395_LOCKED_RESTORE_SOLUTION_PASS", "V395_BUILD_RELEASE_0_WARNINGS_0_ERRORS",
+        "V395_UNIT_153_OF_153_PASS", "V395_DBCC_CHECKDB_MASTER_OK", "V395_INTEGRATION_58_OF_58_PASS",
+    ], "evidência runtime v3.95")
+    require(RUNTIME_EVIDENCE_V399.read_text(encoding="utf-8"), [
+        "ScriptVersion:        2026.09.03-v3.99",
+        "V399_LOCKED_RESTORE_SOLUTION_PASS",
+        "V399_LOCKED_RESTORE_UNIT_PASS",
+        "V399_LOCKED_RESTORE_INTEGRATION_PASS",
+        "V399_BUILD_SOLUTION_PASS",
+        "V399_UNIT_TESTS_PASS",
+        "V399_SQL_ENGINE_CHECKDB_PASS",
+        "V399_INTEGRATION_TESTS_PASS",
+        "A síntese reportada não informa contagens individuais de testes",
+    ], "evidência runtime v3.99")
+
+    # O defeito v3.92 só é evitado se o bloco de compatibilidade anterior ao v3.44
+    # já reconhecer o estado final. O count>=2 acima protege reentrada + bloco v3.44.
+    if "v3.93: este bloco de compatibilidade pode ser reaplicado" not in current_ddl:
+        fail("DDL corrente não documenta/protege a reentrada v3.93")
+
+    reservation = (ROOT / "src" / "Jornada.Processor.Worker" / "SqlProcessorRepository.Reservation.cs").read_text(encoding="utf-8")
+    if "ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct)" in reservation:
+        fail("ReserveNext voltou a usar SequentialAccess com leitura fora de ordem")
+    require(reservation, ["await commandLoad.ExecuteReaderAsync(ct)"], "reader de reserva v3.91")
+
+    sql_batch_runner = (ROOT / "tests" / "Jornada.Integration.Tests" / "Integration" / "SqlBatchRunner.cs").read_text(encoding="utf-8")
+    require(sql_batch_runner, [
+        "SET NOCOUNT OFF; SET XACT_ABORT OFF;",
+    ], "reset de opções de sessão Integration v3.91")
+
+    seed_dev = SEED.read_text(encoding="utf-8-sig")
+    require(seed_dev, [
+        "v3.91: a fixture DEV é convergente",
+        "estado_armazenamento='DISPONIVEL',expurgo_iniciado_em=NULL,expurgado_em=NULL,retencao_motivo=NULL",
+        "WHERE lote_id=@lotPessoa",
+        "WHERE lote_id=@lotBen",
+        "WHERE lote_id=@lotS",
+    ], "seed DEV convergente v3.91")
+
+    seed_tests = (ROOT / "tests" / "Jornada.Integration.Tests" / "Integration" / "SeedDatabaseTests.cs").read_text(encoding="utf-8")
+    require(seed_tests, [
+        "situacao_geografia,origem_geografia",
+        "'NAO_RESOLVIDA_ORIGEM'",
+    ], "fixture territorial coerente v3.91")
+
+    # Regressões v3.94: quatro resíduos da execução externa v3.93.
+    persistence = (ROOT / "src" / "Jornada.Processor.Worker" / "SqlProcessorRepository.Persistence.cs").read_text(encoding="utf-8")
+    require(persistence, [
+        'string.Equals(attribute.StatusEvidencia, "COMPROVADO", StringComparison.OrdinalIgnoreCase)',
+        '!attribute.VerificadoEm.HasValue',
+        'throw new InvalidDataException($"Atributo COMPROVADO sem verificadoEm:',
+    ], "validação COMPROVADO antes da constraint Silver v3.94")
+    validation_pos = persistence.find('string.Equals(attribute.StatusEvidencia, "COMPROVADO", StringComparison.OrdinalIgnoreCase)')
+    insert_pos = persistence.find('INSERT silver.pessoa_atributo_observacao(', validation_pos)
+    if validation_pos < 0 or insert_pos < 0 or validation_pos > insert_pos:
+        fail("validação COMPROVADO deve ocorrer antes do INSERT Silver do atributo")
+
+    require(processor_tests, [
+        "codigo_pessoa_origem='PROC-V325'",
+        "codigo_registro_origem='REG-PROC-V325'",
+        "Worker que perdeu a primeira disputa deve progredir no poll seguinte.",
+        "first = await firstRepository.ReserveNextAsync",
+        "second = await secondRepository.ReserveNextAsync",
+    ], "isolamento e progresso concorrente dos testes Processor v3.94")
+    processor_worker = (ROOT / "src" / "Jornada.Processor.Worker" / "ProcessorWorker.cs").read_text(encoding="utf-8")
+    require(processor_worker, [
+        "var processed = await processor.ProcessNextAsync(stoppingToken);",
+        "if (!processed)",
+        "await Task.Delay(TimeSpan.FromMilliseconds(Math.Max(100, options.PollingMilliseconds)), stoppingToken);",
+    ], "contrato de poll eventual do Processor v3.94")
+
+    # Regressão v3.95: a prova de rollback não pode confundir linhas canônicas
+    # preexistentes do lote de seed com persistência parcial do cenário.
+    require(processor_tests, [
+        "codigo_pessoa_origem IN('PROC-V325-ROLLBACK-A','PROC-V325-ROLLBACK-B')",
+        "po.codigo_pessoa_origem IN('PROC-V325-ROLLBACK-A','PROC-V325-ROLLBACK-B')",
+        "codigo_origem IN('PROC-V325-ROLLBACK-A','PROC-V325-ROLLBACK-B')",
+        "identificador IN('31415926590','27182818205')",
+        "cpf IN('31415926590','27182818205')",
+        'Is.EqualTo("VALIDANDO")',
+    ], "escopo da prova de rollback Processor v3.95")
+
+    require(seed_dev, [
+        "v3.94: avaliações de possibilidade",
+        "WHERE pessoa_uuid=@u1 AND tipo_registro_versao_id=@arv",
+        "WHERE pessoa_uuid=@u2 AND tipo_registro_versao_id=@potv",
+        "WHERE pessoa_uuid=@u5 AND tipo_registro_versao_id=@arv",
+        "WHERE pessoa_uuid=@u3 AND tipo_registro_versao_id=@crv",
+    ], "seed DEV de possibilidades convergente v3.94")
+    if "IF NOT EXISTS(SELECT 1 FROM qualidade.avaliacao_possibilidade)" in seed_dev:
+        fail("seed DEV voltou à guarda global não convergente de avaliacao_possibilidade")
+    require(seed_tests, [
+        "registrosAtribuidos",
+        "estado_atribuicao_identidade='ATRIBUIDA'",
+        "registros, Is.EqualTo(registrosAtribuidos)",
+    ], "projeção individual identity-aware v3.94")
+
     lock_provenance = json.loads(NUGET_LOCK_PROVENANCE.read_text(encoding="utf-8"))
-    if lock_provenance.get("assurance") != "NO_RESTORE_CLAIMED" or lock_provenance.get("release") != "v3.90":
-        fail("proveniência NuGet deve declarar v3.90 / NO_RESTORE_CLAIMED")
-    require(NUGET_LOCK_PROVENANCE_GATE.read_text(encoding="utf-8"), ["PENDING_TRUSTED_DOTNET_RESTORE", "INHERITED_UNCHANGED_FROM_V3.84", "INHERITED_PENDING_FROM_V3.84", "dotnet restore Jornada.sln --locked-mode"], "gate de proveniência NuGet")
+    if lock_provenance.get("assurance") != "PACKAGING_NO_RESTORE_PREDECESSOR_GRAPH_EXTERNALLY_VERIFIED" or lock_provenance.get("release") != "v4.04":
+        fail("proveniência NuGet deve declarar v4.04 / grafo herdado da v3.99 externamente verificado")
+    if lock_provenance.get("currentGraphVerification") != "INHERITED_BYTE_IDENTICAL_FROM_V3.99_EXTERNALLY_VERIFIED" or lock_provenance.get("pendingLockCount") != 0:
+        fail("v4.04 não altera o grafo NuGet e deve herdar todos os locks byte-a-byte da v3.99")
+    if lock_provenance.get("externalAssurance") != "TRUSTED_OPERATOR_LOCKED_RESTORE_PASS_V3.99_PREDECESSOR_GRAPH":
+        fail("proveniência NuGet não registra a validação locked restore da v3.99")
+    require(NUGET_LOCK_PROVENANCE_GATE.read_text(encoding="utf-8"), ["INHERITED_UNCHANGED_FROM_V3.99", "EXTERNAL_LOCKED_RESTORE_CONFIRMED_V3.99", "INHERITED_BYTE_IDENTICAL_FROM_V3.99_EXTERNALLY_VERIFIED", "dotnet restore Jornada.sln --locked-mode", "fabric-sql-compatibility"], "gate de proveniência NuGet v4.04")
 
     lineage_gate = PREDECESSOR_GATE.read_text(encoding="utf-8")
     require(lineage_gate, [
@@ -563,9 +876,9 @@ def main() -> None:
     # os verifica. Se estiverem presentes no pacote distribuído, também os auditamos aqui.
     if SOURCE_PROVENANCE.is_file():
         provenance = json.loads(SOURCE_PROVENANCE.read_text(encoding="utf-8"))
-        if provenance.get("solutionEngenharia") != "v3.90" or provenance.get("baseNormativa") != "v3.62":
+        if provenance.get("solutionEngenharia") != "v4.04" or provenance.get("baseNormativa") != "v3.64":
             fail("SOURCE_PROVENANCE declara versões inesperadas")
-        if provenance.get("current", {}).get("tag") != "jornada-solution-v3.90" or provenance.get("predecessor", {}).get("tag") != "jornada-solution-v3.89":
+        if provenance.get("current", {}).get("tag") != "jornada-solution-v4.04" or provenance.get("predecessor", {}).get("tag") != "jornada-solution-v4.03":
             fail("SOURCE_PROVENANCE declara cadeia Git inesperada")
         bundle = ROOT.parent / str(provenance.get("bundlePath", ""))
         if not bundle.is_file():
@@ -694,8 +1007,9 @@ def main() -> None:
     pipeline_tests = (ROOT / "tests" / "Jornada.Integration.Tests" / "Integration" / "PipelineCoordinationTests.cs").read_text(encoding="utf-8")
     require(pipeline_tests, [
         "Eight_simultaneous_processor_contenders_have_exactly_one_winner_and_gate_recovers",
-        "Enumerable.Range(0, 8)", "Volatile.Read(ref acquired), Is.EqualTo(1)"
-    ], "concorrência determinística")
+        "const int contenderCount = 8", "Enumerable.Range(0, contenderCount)",
+        "allAttemptsCompleted", "Volatile.Read(ref acquired), Is.EqualTo(1)"
+    ], "concorrência determinística v4.03")
 
     possibility_engine = (ROOT / "src" / "Jornada.Contracts" / "PossibilityRules.cs").read_text(encoding="utf-8")
     require(possibility_engine, [
@@ -835,8 +1149,8 @@ def main() -> None:
         "ANALYZER CLEANLINESS GATE: OK", "CodeAnalysisTreatWarningsAsErrors", "InvariantCulture", "base.DisposeAsync"
     ], "baseline de warnings de analyzer")
     architecture = json.loads(ARCHITECTURE_POLICY.read_text(encoding="utf-8"))
-    if architecture.get("status") != "VIGENTE" or len(architecture.get("projects") or {}) != 14:
-        fail("architecture-dependencies.json deve cobrir os 14 projetos")
+    if architecture.get("status") != "VIGENTE" or len(architecture.get("projects") or {}) != 15:
+        fail("architecture-dependencies.json deve cobrir os 15 projetos")
     require(OPENAPI_RUNTIME_TESTS.read_text(encoding="utf-8"), [
         '[Category("OpenApiRuntime")]', "Runtime_response_matches_declared_status_media_and_json_shape",
         "Runtime_probe_catalog_covers_every_openapi_operation_once", "/health/ready", "/api/v1/pessoas/{pessoaUuid}/possibilidades"
@@ -990,7 +1304,7 @@ def main() -> None:
     require(LOCAL_FAULT_SH.read_text(encoding="utf-8"), ["Jornada.Integration.Tests/Jornada.Integration.Tests.csproj", "TestCategory=FaultInjection"], "fault injection local sh no projeto Integration")
     require(LOCAL_FAULT_PS.read_text(encoding="utf-8"), ["Jornada.Integration.Tests/Jornada.Integration.Tests.csproj", "TestCategory=FaultInjection"], "fault injection local ps1 no projeto Integration")
 
-    print(f"TECHNICAL CLOSURE GATE: OK ({len(procedures)} closure procedures; {audited_multiwrite} multi-write procedures audited; {len(cases)} phone vectors; {len(email_cases)} email vectors; 51110-51119 contracts; schema 3.62/3.68 readiness; Git source provenance; zero-skip unit/integration/fault gates; fault/restore/scale/PowerBI gates wired; executable HML baseline/linkage contracts; deterministic property/replay/concurrency tests; governed Possibilities; aggregate release evidence; authorization/security/compatibility/observability contracts; Bronze deep+GC dry-run; upgrade invariants; HML staleness; governance/scheduler/environment contracts; SQL/API HML evidence gates; runtime OpenAPI conformance; extended backward compatibility; JSON Schema meta-validation; architecture dependency gate; fail-closed analyzer policy; in-memory unit/runtime API infrastructure; observable best-effort cleanup; backward contract+DDL+dependency drift gates; source/action pin security; coverage ratchet; deterministic build; CodeQL/SARIF+NuGet vulnerability gates; OIDC attestation wired; tag promotion fail-closed; runtime SQL smoke wired)")
+    print(f"TECHNICAL CLOSURE GATE: OK ({len(procedures)} closure procedures; {audited_multiwrite} multi-write procedures audited; {len(cases)} phone vectors; {len(email_cases)} email vectors; 51110-51119 contracts; schema 3.62/3.69 readiness; Git source provenance; zero-skip unit/integration/fault gates; fault/restore/scale/PowerBI gates wired; executable HML baseline/linkage contracts; deterministic property/replay/concurrency tests; governed Possibilities; aggregate release evidence; authorization/security/compatibility/observability contracts; Bronze deep+GC dry-run; upgrade invariants; HML staleness; governance/scheduler/environment contracts; SQL/API HML evidence gates; runtime OpenAPI conformance; extended backward compatibility; JSON Schema meta-validation; architecture dependency gate; fail-closed analyzer policy; in-memory unit/runtime API infrastructure; observable best-effort cleanup; backward contract+DDL+dependency drift gates; source/action pin security; coverage ratchet; deterministic build; CodeQL/SARIF+NuGet vulnerability gates; OIDC attestation wired; tag promotion fail-closed; runtime SQL smoke wired)")
 
 
 if __name__ == "__main__":

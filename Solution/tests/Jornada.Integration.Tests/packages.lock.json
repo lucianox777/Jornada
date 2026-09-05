@@ -738,6 +738,7 @@
           "Jornada.Bronze.Storage": "[1.0.0, )",
           "Jornada.Contracts": "[1.0.0, )",
           "Jornada.Ingestion": "[1.0.0, )",
+          "Jornada.Operational.Sql": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[5.2.2, )"
         }
       },
@@ -746,6 +747,7 @@
         "dependencies": {
           "Jornada.Bronze.Storage": "[1.0.0, )",
           "Jornada.Contracts": "[1.0.0, )",
+          "Jornada.Operational.Sql": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[5.2.2, )",
           "Microsoft.Extensions.Hosting": "[8.0.1, )"
         }
@@ -767,6 +769,7 @@
         "dependencies": {
           "Jornada.Bronze.Storage": "[1.0.0, )",
           "Jornada.Contracts": "[1.0.0, )",
+          "Jornada.Operational.Sql": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[5.2.2, )",
           "Microsoft.Extensions.Hosting": "[8.0.1, )"
         }
@@ -775,6 +778,7 @@
         "type": "Project",
         "dependencies": {
           "Jornada.Contracts": "[1.0.0, )",
+          "Jornada.Operational.Sql": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[5.2.2, )"
         }
       },
@@ -784,9 +788,16 @@
           "Jornada.Bronze.Storage": "[1.0.0, )",
           "Jornada.Contracts": "[1.0.0, )",
           "Jornada.Ingestion": "[1.0.0, )",
+          "Jornada.Operational.Sql": "[1.0.0, )",
           "Jornada.Pipeline.Coordination": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[5.2.2, )",
           "Microsoft.Extensions.Hosting": "[8.0.1, )"
+        }
+      },
+      "jornada.operational.sql": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Data.SqlClient": "[5.2.2, )"
         }
       }
     }

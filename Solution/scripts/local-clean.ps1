@@ -1,7 +1,7 @@
-﻿param()
+param()
 
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = '2026.09.02-v3.90'
+$ScriptVersion = '2026.09.04-v4.03'
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $EnvFile = Join-Path $Root '.env'
@@ -219,6 +219,6 @@ Remove-Item Env:JORNADA_TEST_SQL_USE_EXISTING_DATABASE -ErrorAction SilentlyCont
 Write-Host ''
 Write-Host '==================================================='
 Write-Host 'LIMPEZA CONCLUÍDA'
-Write-Host 'Imagem Docker do SQL Server preservada.'
+Write-Host 'Imagem Docker do SQL Server preservada; local-validate-release.ps1 validará digest e engine.'
 Write-Host 'Para validar: .\scripts\local-validate-release.ps1'
 Write-Host '==================================================='

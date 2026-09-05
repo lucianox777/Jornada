@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <ItemGroup>
+    <ProjectReference Include="..\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj" />
     <ProjectReference Include="..\Jornada.Bronze.Storage\Jornada.Bronze.Storage.csproj" />
     <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
     <ProjectReference Include="..\Jornada.Ingestion\Jornada.Ingestion.csproj" />

@@ -42,6 +42,7 @@ public sealed class SeedDatabaseTests
         var jsonSilver = await ScalarAsync(connection, "SELECT COUNT(*) FROM sys.columns WHERE object_id=OBJECT_ID('silver.registro_observacao') AND name='dados_json'");
         var servicosBi = await ScalarAsync(connection, "SELECT COUNT(*) FROM serving.v_bi_servicos_prestados");
         var registros = await ScalarAsync(connection, "SELECT COUNT(*) FROM serving.v_registros_pessoa");
+        var registrosAtribuidos = await ScalarAsync(connection, "SELECT COUNT(*) FROM serving.registro_integrado WHERE status_analitico='VIGENTE' AND estado_atribuicao_identidade='ATRIBUIDA'");
         var possibilidades = await ScalarAsync(connection, "SELECT COUNT(*) FROM serving.v_possibilidades_compativeis");
         var linkageRuns = await ScalarAsync(connection, "SELECT COUNT(*) FROM identidade.linkage_run");
         var linkageResultados = await ScalarAsync(connection, "SELECT COUNT(*) FROM identidade.linkage_resultado");
@@ -148,7 +149,9 @@ WHERE c.credencial_id<>x.credencial_id;");
             Assert.That(jsonGold, Is.Zero);
             Assert.That(jsonSilver, Is.Zero);
             Assert.That(servicosBi, Is.GreaterThanOrEqualTo(2));
-            Assert.That(registros, Is.GreaterThanOrEqualTo(beneficios + servicos));
+            Assert.That(registros, Is.EqualTo(registrosAtribuidos),
+                "A projeção individual deve expor somente fatos VIGENTES com identidade ATRIBUIDA; fatos pendentes/conflitantes permanecem apenas nas projeções factuais agregáveis.");
+            Assert.That(registros, Is.GreaterThanOrEqualTo(1));
             Assert.That(possibilidades, Is.GreaterThanOrEqualTo(3));
             Assert.That(linkageRuns, Is.GreaterThanOrEqualTo(1));
             Assert.That(linkageResultados, Is.GreaterThanOrEqualTo(2));
@@ -319,8 +322,8 @@ WHERE c.credencial_id<>x.credencial_id;");
                 rt.Transaction = tx;
                 rt.CommandText = """
                     INSERT silver.referencia_territorial_observacao(
-                        pessoa_atributo_observacao_id,natureza_referencia,fonte_semantica,subprefeitura_id,distrito_id,origem_geografia,referencia_malha,resolvido_em)
-                    VALUES(@attr,'ACOLHIMENTO_INSTITUCIONAL','REFERENCIA_TERRITORIAL',NULL,NULL,NULL,NULL,NULL);
+                        pessoa_atributo_observacao_id,natureza_referencia,fonte_semantica,subprefeitura_id,distrito_id,situacao_geografia,origem_geografia,referencia_malha,resolvido_em)
+                    VALUES(@attr,'ACOLHIMENTO_INSTITUCIONAL','REFERENCIA_TERRITORIAL',NULL,NULL,'NAO_RESOLVIDA_ORIGEM',NULL,NULL,NULL);
                     """;
                 rt.Parameters.AddWithValue("@attr", attributeId);
                 await rt.ExecuteNonQueryAsync();

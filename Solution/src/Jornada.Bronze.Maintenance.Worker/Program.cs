@@ -1,7 +1,11 @@
+using Jornada.Operational.Sql;
 using Jornada.Bronze.Maintenance.Worker;
 using Jornada.Bronze.Storage;
 
 var builder = Host.CreateApplicationBuilder(args);
+var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
+    ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
+builder.Services.AddSingleton<IOperationalSqlAdapter>(new OperationalSqlAdapter(jornadaConnectionString));
 builder.Services.Configure<BronzeMaintenanceOptions>(builder.Configuration.GetSection("BronzeMaintenance"));
 
 builder.Services.AddSingleton<IBronzeObjectStore>(_ =>

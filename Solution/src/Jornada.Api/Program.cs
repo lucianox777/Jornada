@@ -1,10 +1,11 @@
+using Jornada.Operational.Sql;
+using Microsoft.Data.SqlClient;
 using System.Net.Http.Headers;
 using Jornada.Contracts;
 using Jornada.Bronze.Storage;
 using Jornada.Ingestion;
 using Jornada.Api;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -32,10 +33,12 @@ else
 }
 
 // Implementações SQL reais das superfícies que não dependem de infraestrutura corporativa externa.
-builder.Services.AddSingleton<SqlConnectionFactory>();
+var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
+    ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
+builder.Services.AddSingleton<IOperationalSqlAdapter>(new OperationalSqlAdapter(jornadaConnectionString));
 builder.Services.AddSingleton<IApiAuditSink, SqlApiAuditSink>();
 builder.Services.AddSingleton<ISqlReadinessProbe, SqlSchemaReadinessProbe>();
-builder.Services.AddSingleton<IContractResolver>(sp => new CatalogBackedContractResolver(repositoryRoot, sp.GetRequiredService<SqlConnectionFactory>()));
+builder.Services.AddSingleton<IContractResolver>(sp => new CatalogBackedContractResolver(repositoryRoot, sp.GetRequiredService<IOperationalSqlAdapter>()));
 builder.Services.AddSingleton(_ => new AgentCpfPseudonymizer(builder.Configuration, builder.Environment, repositoryRoot));
 
 var bronzeProvider = builder.Configuration["BronzeStorage:Provider"] ?? "FileSystem";

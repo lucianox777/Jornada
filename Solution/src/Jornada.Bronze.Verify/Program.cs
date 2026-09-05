@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Jornada.Bronze.Storage;
-using Microsoft.Data.SqlClient;
+using Jornada.Operational.Sql;
 using Microsoft.Extensions.Configuration;
 
 if (args.Any(a => a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a.Equals("-h", StringComparison.OrdinalIgnoreCase)))
@@ -51,6 +51,7 @@ for (var i = 0; i < args.Length; i++)
 
 var configuration = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory()).AddJsonFile("appsettings.json", optional: true).AddEnvironmentVariables().Build();
 var connectionString = configuration.GetConnectionString("Jornada") ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
+var operationalSql = new OperationalSqlAdapter(connectionString);
 var root = configuration["BronzeStorage:RootPath"];
 if (string.IsNullOrWhiteSpace(root) || !Path.IsPathRooted(root)) throw new InvalidOperationException("BronzeStorage:RootPath absoluto é obrigatório para verificação de restore.");
 var store = new FileSystemBronzeObjectStore(root);
@@ -58,9 +59,8 @@ var store = new FileSystemBronzeObjectStore(root);
 var checkedCount = 0; var missing = 0; var divergent = 0; var unavailable = 0; var keyHashMismatch = 0; var metadataConflicts = 0;
 var referenced = new HashSet<string>(StringComparer.Ordinal);
 var metadata = new Dictionary<string, (string Sha, long Length)>(StringComparer.Ordinal);
-await using (var connection = new SqlConnection(connectionString))
+await using (var connection = await operationalSql.OpenAsync())
 {
-    await connection.OpenAsync();
     await using var command = connection.CreateCommand();
     command.CommandText = """
         SELECT objeto_chave,payload_sha256,tamanho_bytes,entrega_id

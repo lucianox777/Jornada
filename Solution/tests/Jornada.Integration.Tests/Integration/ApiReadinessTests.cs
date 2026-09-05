@@ -1,6 +1,6 @@
+using Jornada.Operational.Sql;
 using Jornada.Api;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
 
 namespace Jornada.Tests.Integration;
 
@@ -25,13 +25,7 @@ public sealed class ApiReadinessTests
         Directory.CreateDirectory(staging);
         try
         {
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:Jornada"] = connectionString
-                })
-                .Build();
-            var connections = new SqlConnectionFactory(configuration);
+            var connections = new OperationalSqlAdapter(connectionString!);
 
             var probe = new ApiReadinessProbe(
                 new SqlSchemaReadinessProbe(connections),

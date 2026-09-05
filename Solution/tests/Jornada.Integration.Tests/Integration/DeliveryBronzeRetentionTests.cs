@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using Jornada.Bronze.Storage;
 using Jornada.Operations.Maintenance.Worker;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -57,8 +57,7 @@ public sealed class DeliveryBronzeRetentionTests
                 await prepare.ExecuteNonQueryAsync();
             }
 
-            var cfg = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?> { ["ConnectionStrings:Jornada"] = connectionString }).Build();
-            var worker = new DeliveryBronzeRetentionWorker(cfg, objectStore,
+            var worker = new DeliveryBronzeRetentionWorker(new OperationalSqlAdapter(connectionString!), objectStore,
                 Options.Create(new DeliveryBronzeRetentionOptions { Enabled=true, RetentionDays=30, MaxRowsPerCycle=100, IntervalMinutes=60, ObjectLockTimeoutSeconds=1 }),
                 NullLogger<DeliveryBronzeRetentionWorker>.Instance);
             await worker.RunCycleAsync(new DeliveryBronzeRetentionOptions { Enabled=true, RetentionDays=30, MaxRowsPerCycle=100, IntervalMinutes=60, ObjectLockTimeoutSeconds=1 }, CancellationToken.None);
@@ -128,9 +127,8 @@ public sealed class DeliveryBronzeRetentionTests
                 await prepare.ExecuteNonQueryAsync();
             }
 
-            var cfg = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?> { ["ConnectionStrings:Jornada"] = connectionString }).Build();
             var opts = new DeliveryBronzeRetentionOptions { Enabled=true, RetentionDays=30, MaxRowsPerCycle=100, IntervalMinutes=60, ObjectLockTimeoutSeconds=1 };
-            var worker = new DeliveryBronzeRetentionWorker(cfg, store, Options.Create(opts), NullLogger<DeliveryBronzeRetentionWorker>.Instance);
+            var worker = new DeliveryBronzeRetentionWorker(new OperationalSqlAdapter(connectionString!), store, Options.Create(opts), NullLogger<DeliveryBronzeRetentionWorker>.Instance);
             await worker.RunCycleAsync(opts, CancellationToken.None);
 
             await using var verify = connection.CreateCommand();

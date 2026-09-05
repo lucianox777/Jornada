@@ -181,9 +181,15 @@ internal sealed partial class SqlProcessorRepository
         var attributeInstances = new HashSet<string>(StringComparer.Ordinal);
         foreach (var attribute in person.Atributos)
         {
+            // A constraint Silver também protege este contrato, mas a camada de aplicação deve
+            // classificar o pacote inválido antes de deixar o SQL Server converter o defeito de
+            // entrada em SqlException 547. Mantemos a validação dentro da transação para que os
+            // testes de atomicidade ainda cubram rollback após persistência parcial do lote.
             if (string.Equals(attribute.StatusEvidencia, "COMPROVADO", StringComparison.OrdinalIgnoreCase)
-                && attribute.VerificadoEm is null)
-                throw new InvalidDataException($"Atributo COMPROVADO exige verificadoEm: {attribute.AtributoCodigo}.");
+                && !attribute.VerificadoEm.HasValue)
+            {
+                throw new InvalidDataException($"Atributo COMPROVADO sem verificadoEm: {attribute.AtributoCodigo}.");
+            }
 
             var identityRule = await ResolveAttributeIdentityRuleAsync(connection, tx, attribute.AtributoCodigo, ct);
             var instanceKey = TransversalAttributeInstanceKey.Compute(identityRule.Cardinality, identityRule.InstanceKeyRule, attribute.Valor);
@@ -346,11 +352,11 @@ internal sealed partial class SqlProcessorRepository
                 INSERT silver.registro_observacao(
                     registro_origem_id,codigo_registro_origem,versao_interna,operacao,conteudo_hash,
                     lote_id,gestor_id,natureza,tipo_registro_id,tipo_registro_versao_id,pessoa_observacao_id,
-                    data_inicio_concessao,data_fim_concessao,data_evento_concessao,data_hora_servico,unidade_servico,situacao,valor_concedido,quantidade,unidade,source_as_of)
+                    data_inicio_concessao,data_fim_concessao,data_evento_concessao,data_hora_servico,unidade_servico,situacao,situacao_vigencia,situacao_vigencia_desde,motivo_encerramento,valor_concedido,quantidade,unidade,source_as_of)
                 OUTPUT INSERTED.registro_observacao_id
                 VALUES(@registro_origem_id,@codigo_registro,@versao_interna,@operacao,@hash,
                        @lote_id,@gestor_id,@natureza,@tipo_id,@tipo_versao_id,@pessoa_obs,
-                       @data_inicio_concessao,@data_fim_concessao,@data_evento_concessao,@data_hora,@unidade_servico,@situacao,@valor_concedido,@quantidade,@unidade,@source_as_of);
+                       @data_inicio_concessao,@data_fim_concessao,@data_evento_concessao,@data_hora,@unidade_servico,@situacao,@situacao_vigencia,@situacao_vigencia_desde,@motivo_encerramento,@valor_concedido,@quantidade,@unidade,@source_as_of);
                 """;
             insert.Parameters.AddWithValue("@registro_origem_id", source.RegistroOrigemId);
             insert.Parameters.Add(new SqlParameter("@codigo_registro", SqlDbType.NVarChar, 255) { Value = fact.CodigoRegistroOrigem });
@@ -369,6 +375,9 @@ internal sealed partial class SqlProcessorRepository
             AddNullableDto(insert, "@data_hora", fact.DataHoraServico);
             AddNullable(insert, "@unidade_servico", SqlDbType.NVarChar, 200, fact.UnidadeServico);
             AddNullable(insert, "@situacao", SqlDbType.NVarChar, 80, fact.Situacao);
+            AddNullable(insert, "@situacao_vigencia", SqlDbType.NVarChar, 20, fact.SituacaoVigencia);
+            AddNullableDate(insert, "@situacao_vigencia_desde", fact.SituacaoVigenciaDesde);
+            AddNullable(insert, "@motivo_encerramento", SqlDbType.NVarChar, 30, fact.MotivoEncerramento);
             AddNullableDecimal(insert, "@valor_concedido", SqlDbType.Decimal, 18, 2, fact.ValorConcedido);
             AddNullableDecimal(insert, "@quantidade", SqlDbType.Decimal, 18, 4, fact.Quantidade);
             AddNullable(insert, "@unidade", SqlDbType.NVarChar, 50, fact.Unidade);

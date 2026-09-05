@@ -1,0 +1,1188 @@
+%PDF-1.4
+%âãÏÓ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R 22 0 R] /Count 10 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 3288 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Requisitos de Negócio - Jornada do Cidadão - Fase 1) Tj
+T*
+() Tj
+T*
+(Versão do documento: 1.1  ) Tj
+T*
+(Data: 03/09/2026  ) Tj
+T*
+(Base normativa: Especificação Técnica Jornada v3.62  ) Tj
+T*
+(SolutionSchema: SolutionSchema v3.68  ) Tj
+T*
+(Release de incorporação: Solution Engenharia v3.98  ) Tj
+T*
+(Status: BASELINE DE NEGÓCIO - ORGANIZADO NA HIERARQUIA RN -> RF/RNF -> RT) Tj
+T*
+() Tj
+T*
+(> Este documento consolida requisitos de negócio derivados da Especificação Técnica Jornada ) Tj
+T*
+(v3.62. Ele integra a família documental de Requisitos da Fase 1 e ocupa o nível mais alto da) Tj
+T*
+( hierarquia RN -> RF/RNF -> RT. Não substitui a Base Normativa; em caso de divergência, ) Tj
+T*
+(prevalece a Base Normativa vigente e sua alteração formal.) Tj
+T*
+() Tj
+T*
+(1. Finalidade) Tj
+T*
+() Tj
+T*
+(Registrar, em linguagem de negócio e com rastreabilidade, os resultados que a Jornada do ) Tj
+T*
+(Cidadão - Fase 1 deve entregar à Prefeitura de São Paulo, aos Gestores finalísticos e às ) Tj
+T*
+(áreas de governança. O documento separa a necessidade de negócio da solução técnica usada ) Tj
+T*
+(para implementá-la.) Tj
+T*
+() Tj
+T*
+(2. Objetivos de negócio) Tj
+T*
+() Tj
+T*
+(- Criar referência municipal transversal de Pessoa sem substituir os cadastros setoriais.) Tj
+T*
+(- Consolidar Benefícios Concedidos e Serviços Prestados com origem, temporalidade e ) Tj
+T*
+(identidade preservadas.) Tj
+T*
+(- Melhorar interoperabilidade, qualidade cadastral, visão territorial e capacidade analítica) Tj
+T*
+( das políticas sociais.) Tj
+T*
+(- Permitir compartilhamento municipal autorizado com controles objetivos, exceções negativas) Tj
+T*
+( versionadas e auditoria.) Tj
+T*
+(- Tornar incerteza, cobertura de identidade e qualidade visíveis nos produtos analíticos e ) Tj
+T*
+(de consulta.) Tj
+T*
+(- Preservar competência administrativa dos Gestores: a Jornada referencia, integra e ) Tj
+T*
+(informa; não concede benefício nem altera automaticamente o sistema finalístico.) Tj
+T*
+() Tj
+T*
+(3. Partes interessadas e responsabilidades) Tj
+T*
+() Tj
+T*
+(| Parte | Responsabilidade de negócio |) Tj
+T*
+(|---|---|) Tj
+T*
+(| SGM/SEPE | Área requisitante; governança institucional e contratual da Jornada. |) Tj
+T*
+(| PRODAM-SP | Operadora de tecnologia; implementação e operação da plataforma. |) Tj
+T*
+(| Gestores finalísticos | Controladores dos respectivos dados; responsáveis por regras ) Tj
+T*
+(declaradas, qualidade, territorialização, contratos setoriais e decisões administrativas. |) Tj
+T*
+(| Áreas de governança, proteção de dados e auditoria | Supervisão de compartilhamento, LGPD,) Tj
+T*
+( retenção, auditoria, controles e entrada em produção. |) Tj
+T*
+(| Sistemas finalísticos autorizados | Consumidores das APIs da Jornada para consulta e ) Tj
+T*
+(interoperabilidade; mantêm a experiência e a decisão no domínio setorial. |) Tj
+T*
+() Tj
+T*
+(4. Escopo de negócio da Fase 1) Tj
+T*
+() Tj
+T*
+(A Fase 1 cobre integração padronizada de Pessoas e fatos, identidade municipal, Gold Pessoas) Tj
+T*
+( e Gold Registros, Referência Territorial, qualidade, APIs de consulta, Possibilidades ) Tj
+T*
+(compatíveis, BI, governança, auditoria e proteção de dados. A solução permanece sobrejacente) Tj
+T*
+( aos sistemas dos Gestores.) Tj
+T*
+() Tj
+T*
+(5. Requisitos de Negócio) Tj
+T*
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 2995 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(RN-001 - Consolidar a Jornada sem substituir os sistemas finalísticos) Tj
+T*
+() Tj
+T*
+(Requisito. A Jornada deve funcionar como camada municipal de consolidação, identidade e ) Tj
+T*
+(interoperabilidade sobre os sistemas existentes, preservando os sistemas transacionais dos ) Tj
+T*
+(Gestores como sistemas de origem e decisão.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. A implantação não exige descontinuação nem substituição de) Tj
+T*
+( sistema transacional do Gestor; alterações cadastrais e atos administrativos continuam ) Tj
+T*
+(registrados na origem.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 2.2, 4 e 5 da Especificação Técnica v3.62) Tj
+T*
+() Tj
+T*
+(RN-002 - Padronizar a integração municipal de Pessoas e fatos) Tj
+T*
+() Tj
+T*
+(Requisito. Os Gestores devem enviar Pessoas, Benefícios Concedidos e Serviços Prestados por ) Tj
+T*
+(contrato padronizado, inclusive em períodos sem fatos ou com atualização exclusivamente ) Tj
+T*
+(cadastral.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Uma Entrega pode conter zero registros factuais, desde que) Tj
+T*
+( preserve o envelope e as Pessoas necessárias; os fatos enviados mantêm identidade estável ) Tj
+T*
+(na origem.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 2.1 e 7 da Especificação Técnica v3.62) Tj
+T*
+() Tj
+T*
+(RN-003 - Preservar origem, temporalidade e linhagem) Tj
+T*
+() Tj
+T*
+(Requisito. Todo dado consolidado deve manter procedência suficiente para identificar Gestor,) Tj
+T*
+( Tipo/versão, identidade no sistema de origem, período de referência e estado de ) Tj
+T*
+(processamento.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Consultas e produtos analíticos conseguem rastrear o dado ) Tj
+T*
+(à origem e à versão contratual que o produziu.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 4, 6 e 15 da Especificação Técnica v3.62) Tj
+T*
+() Tj
+T*
+(RN-004 - Constituir a Gold de Pessoas de forma evolutiva) Tj
+T*
+() Tj
+T*
+(Requisito. A primeira fonte integrada que individualize uma Pessoa deve poder constituir uma) Tj
+T*
+( Gold válida, sem exigir uma base-verdade externa ou segunda fonte prévia.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. A primeira fonte individualizável resulta em Pessoa Golden) Tj
+T*
+( utilizável como baseline; BASELINEFONTEUNICA não é tratado como staging, quarentena ou dado) Tj
+T*
+( provisório.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 4.1, especialmente itens sobre constituição evolutiva da Gold) Tj
+T*
+() Tj
+T*
+(RN-005 - Manter uma identificação municipal estável da Pessoa) Tj
+T*
+() Tj
+T*
+(Requisito. A Jornada deve manter um identificador técnico canônico e estável para a Pessoa, ) Tj
+T*
+(preservando histórico quando houver correções, separações ou fusões governadas.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Correções de atributos não trocam o UUID; ) Tj
+T*
+(fusões/separações preservam rastreabilidade histórica e sucessão quando aplicável.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 4.1 e governança de identidade da Especificação Técnica v3.62) Tj
+T*
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 2859 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(RN-006 - Usar CPF como rota determinística com trava conservadora) Tj
+T*
+() Tj
+T*
+(Requisito. CPF válido é a rota normal de resolução determinística, mas não pode vincular ) Tj
+T*
+(automaticamente uma nova observação a uma identidade existente quando o núcleo cadastral ) Tj
+T*
+(indicar divergência forte.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Em divergência forte, a observação permanece sem ) Tj
+T*
+(atribuição canônica e o conflito é explicitamente materializado para tratamento governado.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 4.1 e ajustes de integridade v3.42/v3.46) Tj
+T*
+() Tj
+T*
+(RN-007 - Não descartar Pessoas admitidas sem CPF) Tj
+T*
+() Tj
+T*
+(Requisito. Quando o contrato permitir exceção sem CPF, a Pessoa deve permanecer processável ) Tj
+T*
+(em estado não resolvido/pendente, com possibilidade de resolução posterior conforme política) Tj
+T*
+( aplicável.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. A ausência admitida de CPF não elimina o registro; o ) Tj
+T*
+(estado de identidade e a pendência de regularização ficam explícitos.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 4.1 e 7.13.5) Tj
+T*
+() Tj
+T*
+(RN-008 - Separar núcleo de identidade de atributos transversais) Tj
+T*
+() Tj
+T*
+(Requisito. CPF, nome, data de nascimento e nome da mãe compõem o núcleo fixo de identidade; ) Tj
+T*
+(endereço, telefone, e-mail e demais atributos transversais seguem catálogo, cardinalidade e ) Tj
+T*
+(evidência próprios.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. O modelo e as consultas distinguem o núcleo fixo dos ) Tj
+T*
+(atributos transversais, permitindo múltiplos contatos quando o catálogo assim definir.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 4 da Especificação Técnica v3.62) Tj
+T*
+() Tj
+T*
+(RN-009 - Promover valores Golden pela qualidade da evidência) Tj
+T*
+() Tj
+T*
+(Requisito. A precedência de valores transversais deve decorrer da qualidade, pertinência e ) Tj
+T*
+(temporalidade da evidência, e não da Secretaria/Gestor que a produziu.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Evidência documental válida pode corrigir o valor Golden ) Tj
+T*
+(mesmo contra maioria de fontes; a divergência restante continua visível para convergência ) Tj
+T*
+(cadastral.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 4.1 e Catálogo Municipal de Evidências) Tj
+T*
+() Tj
+T*
+(RN-010 - Permitir produção distribuída de evidência) Tj
+T*
+() Tj
+T*
+(Requisito. Agentes municipais habilitados dos Gestores participantes devem poder registrar ) Tj
+T*
+(verificação documental válida para os atributos efetivamente comprovados, segundo governança) Tj
+T*
+( aplicável.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. O Gestor que produz a evidência não recebe precedência ) Tj
+T*
+(automática; o ato é auditável e submetido ao catálogo de evidências.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 4.1 e § 15.5) Tj
+T*
+() Tj
+T*
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 2943 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(RN-011 - Separar fatos administrativos da Gold cadastral) Tj
+T*
+() Tj
+T*
+(Requisito. Benefícios Concedidos e Serviços Prestados não devem ser tratados como atributos ) Tj
+T*
+(cadastrais da Pessoa; devem compor histórico factual próprio.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. A Gold Pessoas contém referência cadastral; a Gold ) Tj
+T*
+(Registros contém fatos de Benefícios Concedidos e Serviços Prestados com origem e ) Tj
+T*
+(temporalidade preservadas.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 4 da Especificação Técnica v3.62) Tj
+T*
+() Tj
+T*
+(RN-012 - Preservar fato válido mesmo sem atribuição canônica) Tj
+T*
+() Tj
+T*
+(Requisito. Um fato finalístico válido deve permanecer disponível na Gold Registros mesmo ) Tj
+T*
+(quando a identidade canônica da Pessoa estiver pendente ou em conflito.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. O fato preserva sujeito/identificador declarado pela ) Tj
+T*
+(origem e pode ter PESSOAUUID ausente sem ser descartado.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 4 da Especificação Técnica v3.62) Tj
+T*
+() Tj
+T*
+(RN-013 - Distinguir Possibilidade de fato, direito e decisão) Tj
+T*
+() Tj
+T*
+(Requisito. Possibilidades calculadas devem ser tratadas como compatibilidades informativas ) Tj
+T*
+(para consideração futura, nunca como concessão, fato ocorrido, direito adquirido ou decisão ) Tj
+T*
+(administrativa.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. A API e o BI exibem Possibilidades separadamente dos ) Tj
+T*
+(Registros e com ressalva de análise pelo Gestor responsável.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 10.4.3, 10.5 e 12.6.13) Tj
+T*
+() Tj
+T*
+(RN-014 - Versionar regras que alteram significado de negócio) Tj
+T*
+() Tj
+T*
+(Requisito. Tipos de Benefício/Serviço, contratos, regras, SLA, QC e avaliadores de ) Tj
+T*
+(Possibilidades devem ser versionados quando houver mudança material de significado.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Uma mudança material gera nova versão imutável e ) Tj
+T*
+(auditável; não reutiliza campo ou versão histórica com nova semântica.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 15.2 a 15.4) Tj
+T*
+() Tj
+T*
+(RN-015 - Manter Referência Territorial separada de endereço civil) Tj
+T*
+() Tj
+T*
+(Requisito. A análise territorial deve usar uma Referência Territorial própria, que não se ) Tj
+T*
+(confunde com ENDERECORESIDENCIAL nem com endereço de correspondência.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Distrito/Subprefeitura usados em análise derivam da ) Tj
+T*
+(Referência Territorial selecionada e mantêm natureza, situação geográfica e linhagem.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 2.1, 4 e 8 da Especificação Técnica v3.62) Tj
+T*
+() Tj
+T*
+(RN-016 - Responsabilizar a origem pela territorialização) Tj
+T*
+() Tj
+T*
+(Requisito. O Gestor/origem deve declarar a situação geográfica da Pessoa e, quando ) Tj
+T*
+(resolvida, informar Distrito, Subprefeitura e referência de malha exigidos pelo contrato.) Tj
+T*
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 2897 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Critério de aceitação de negócio. A plataforma aceita explicitamente estados não resolvidos ) Tj
+T*
+(e não depende de chamada geográfica online Pessoa-a-Pessoa para completar a carga.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. Ajuste operacional v3.38 e § 2.1) Tj
+T*
+() Tj
+T*
+(RN-017 - Aplicar precedência territorial explícita) Tj
+T*
+() Tj
+T*
+(Requisito. Quando houver múltiplas referências territoriais candidatas, a seleção deve ) Tj
+T*
+(obedecer à regra: referência explícita, depois qualidade da evidência, depois recência.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. O resultado territorial é determinístico e auditável ) Tj
+T*
+(segundo essa ordem de precedência.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. Ajuste territorial v3.33 e regras de Referência Territorial) Tj
+T*
+() Tj
+T*
+(RN-018 - Disponibilizar consulta da Pessoa aos sistemas autorizados) Tj
+T*
+() Tj
+T*
+(Requisito. Sistemas finalísticos autorizados devem poder consultar a identificação municipal) Tj
+T*
+( da Pessoa e projeções permitidas por API, sem acesso direto às tabelas físicas da Gold.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. A consulta ocorre por contrato e autorização; não requer ) Tj
+T*
+(acesso SQL às tabelas Golden.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 2.1, 4 e 10) Tj
+T*
+() Tj
+T*
+(RN-019 - Adotar compartilhamento municipal padrão da Pessoa autorizada) Tj
+T*
+() Tj
+T*
+(Requisito. O núcleo público da Pessoa deve ser compartilhável entre credenciais municipais ) Tj
+T*
+(autorizadas com scopes aplicáveis, sem exigir relação prévia da origem com a Pessoa.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Credencial autorizada localiza/consulta a Pessoa segundo ) Tj
+T*
+(seu scope e recurso; ausência de relação prévia não bloqueia a existência da Pessoa na ) Tj
+T*
+(projeção.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 4 e § 10.6) Tj
+T*
+() Tj
+T*
+(RN-020 - Permitir restrições setoriais como exceções negativas) Tj
+T*
+() Tj
+T*
+(Requisito. O Gestor responsável deve poder declarar restrições versionadas que reduzam ) Tj
+T*
+(atributos transversais, Registros ou Possibilidades retornados a consumidores determinados, ) Tj
+T*
+(sem criar permissões inexistentes.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Na ausência de restrição ativa aplicável, vale a projeção ) Tj
+T*
+(municipal padrão; uma restrição só reduz o retorno e é versionada, justificada e auditável.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 10.6.1) Tj
+T*
+() Tj
+T*
+(RN-021 - Proteger informação territorial especialmente sigilosa) Tj
+T*
+() Tj
+T*
+(Requisito. Informações classificadas como endereço de casa-abrigo sigilosa devem permanecer ) Tj
+T*
+(fail-closed entre Gestores, independentemente da existência de restrição manual adicional.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Consumidor de outro Gestor não recebe esse atributo mesmo ) Tj
+T*
+(se não houver regra manual de projeção.) Tj
+T*
+() Tj
+T*
+ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 15 0 R >>
+endobj
+15 0 obj
+<< /Length 2923 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Rastreabilidade. Regra de projeção sigilosa consolidada na Especificação Técnica v3.62) Tj
+T*
+() Tj
+T*
+(RN-022 - Manter decisão e escrita cadastral no Gestor finalístico) Tj
+T*
+() Tj
+T*
+(Requisito. A Jornada não deve alterar automaticamente a base transacional do Gestor nem ) Tj
+T*
+(transformar Gold/Possibilidade em decisão administrativa.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Correção cadastral continua na origem; a Gold é referência) Tj
+T*
+( de dados e a decisão finalística permanece sob competência do Gestor.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 2.2, 4 e 5) Tj
+T*
+() Tj
+T*
+(RN-023 - Estabelecer controles de qualidade antes do consumo) Tj
+T*
+() Tj
+T*
+(Requisito. Controles de qualidade devem existir antes da formação operacional da Gold, dos ) Tj
+T*
+(indicadores de política pública e das APIs de consumo finalístico.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Nenhum produto de política pública entra em produção sem ) Tj
+T*
+(informações mínimas de origem, atualidade, cobertura de resolução e qualidade do conjunto ) Tj
+T*
+(que o sustenta.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 6 - Quality Control Plane) Tj
+T*
+() Tj
+T*
+(RN-024 - Evidenciar cobertura e incerteza nos indicadores) Tj
+T*
+() Tj
+T*
+(Requisito. Produtos analíticos devem informar cobertura de resolução de identidade e, quando) Tj
+T*
+( usarem linkage probabilístico, versão do modelo, distribuição de scores e cobertura ) Tj
+T*
+(pertinente.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. O consumidor consegue distinguir vínculos determinísticos,) Tj
+T*
+( pendentes e probabilísticos e interpretar o indicador sem ocultar incerteza.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 4.1 e 6) Tj
+T*
+() Tj
+T*
+(RN-025 - Oferecer BI municipal sobre Pessoas, fatos, qualidade e território) Tj
+T*
+() Tj
+T*
+(Requisito. A Jornada deve disponibilizar visão analítica para políticas sociais, cobrindo ) Tj
+T*
+(Pessoas, Benefícios Concedidos, Serviços Prestados, qualidade, territorialização, atraso e ) Tj
+T*
+(possibilidades, conforme disponibilidade dos dados.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. O Power BI consome camada Serving estável; dimensões ) Tj
+T*
+(Gestor e tempo são expostas quando aplicáveis e território vem acompanhado de cobertura.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 2.1, § 12 e anexos de BI) Tj
+T*
+() Tj
+T*
+(RN-026 - Manter consultas individualizadas fora do BI) Tj
+T*
+() Tj
+T*
+(Requisito. Consultas individualizadas para atendimento devem ocorrer nos sistemas ) Tj
+T*
+(finalísticos por APIs autorizadas, e não por um portal individual central da Jornada ou por ) Tj
+T*
+(identificadores individuais no modelo analítico padrão.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. O BI padrão permanece orientado a análise e minimização; o) Tj
+T*
+( atendimento individual acontece na aplicação do Gestor.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 12.2 e regras de minimização) Tj
+T*
+() Tj
+T*
+ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 17 0 R >>
+endobj
+17 0 obj
+<< /Length 2956 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(RN-027 - Medir tempestividade de recebimento por Tipo e versão) Tj
+T*
+() Tj
+T*
+(Requisito. Cada Tipo/versão sujeito a SLA deve poder declarar prazo e marco factual de ) Tj
+T*
+(recebimento, preservando a semântica do programa/serviço.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. O indicador separa no prazo, atraso e casos não avaliáveis) Tj
+T*
+( e usa a data civil de São Paulo para calendário institucional.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 15.3 e Anexo de SLA/Atraso v1.22) Tj
+T*
+() Tj
+T*
+(RN-028 - Suportar carga inicial sem degradar governança de identidade) Tj
+T*
+() Tj
+T*
+(Requisito. A implantação deve permitir carga inicial em volume, tratando a primeira fonte ) Tj
+T*
+(individualizada como Gold baseline e controlando a execução de linkage probabilístico ) Tj
+T*
+(durante a formação do corpus.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. A primeira carga não fica indefinidamente em staging; ) Tj
+T*
+(Pessoas individualizadas formam Gold válida, enquanto estados pendentes permanecem ) Tj
+T*
+(explicitamente tratados.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 4.1 e ajustes operacionais de carga inicial v3.38) Tj
+T*
+() Tj
+T*
+(RN-029 - Garantir rastreabilidade e auditoria de atos sensíveis) Tj
+T*
+() Tj
+T*
+(Requisito. Acessos individuais, correções de identidade, fusões/separações, mudanças de ) Tj
+T*
+(versão, execução de QC e avaliação de Possibilidades devem possuir trilha auditável.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. A trilha contém os elementos mínimos definidos para o ato,) Tj
+T*
+( sem registrar dados pessoais desnecessários ou segredos em log.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 13.5, 13.6 e 15.6) Tj
+T*
+() Tj
+T*
+(RN-030 - Aplicar minimização e proteção de dados pessoais) Tj
+T*
+() Tj
+T*
+(Requisito. Cada tipologia deve declarar somente os campos necessários à finalidade e o ) Tj
+T*
+(ambiente analítico/logs não deve expor CPF ou outros dados individuais além do necessário.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Campos não declarados não são cedidos; CPF não aparece no ) Tj
+T*
+(modelo semântico padrão do Power BI, logs HTTP, auditoria de acesso ou mensagens de erro.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 14.5 e 14.5.1) Tj
+T*
+() Tj
+T*
+(RN-031 - Definir governança de retenção antes da produção) Tj
+T*
+() Tj
+T*
+(Requisito. A Jornada não deve adotar retenção indefinida de dados pessoais e deve ativar ) Tj
+T*
+(expurgo/consolidação somente após decisão formal de governança.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Políticas de retenção e seus parâmetros são aprovados ) Tj
+T*
+(antes de produção e preservam métricas/auditoria necessárias.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 14.4) Tj
+T*
+() Tj
+T*
+(RN-032 - Exigir avaliação de impacto antes da produção) Tj
+T*
+() Tj
+T*
+(Requisito. A entrada em produção deve ser condicionada à avaliação de impacto à proteção de ) Tj
+T*
+(dados pessoais e à definição formal dos papéis e ativos transversais.) Tj
+T*
+ET
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 19 0 R >>
+endobj
+19 0 obj
+<< /Length 2824 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Critério de aceitação de negócio. RIPD e decisões sobre controladoria, base legal, acesso, ) Tj
+T*
+(retenção e responsabilidade por evidência estão concluídos antes de produção.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 14.2 e 14.6) Tj
+T*
+() Tj
+T*
+(RN-033 - Formalizar responsabilidades institucionais) Tj
+T*
+() Tj
+T*
+(Requisito. SGM/SEPE, PRODAM e Gestores finalísticos devem operar com responsabilidades ) Tj
+T*
+(distintas e explícitas, sem deslocar para a Jornada decisões administrativas dos órgãos ) Tj
+T*
+(responsáveis.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Papéis de requisitante/governança, operador técnico e ) Tj
+T*
+(controlador/dono do dado estão formalizados e refletidos nos processos operacionais.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 3 e 15.1) Tj
+T*
+() Tj
+T*
+(RN-034 - Manter interlocução técnica e qualidade por Gestor) Tj
+T*
+() Tj
+T*
+(Requisito. Cada Gestor deve manter interlocutor técnico designado para integração, qualidade) Tj
+T*
+( cadastral e cumprimento do cronograma de implantação.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Há responsável identificado por origem e acompanhamento de) Tj
+T*
+( indicadores de qualidade e integração.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 3.4) Tj
+T*
+() Tj
+T*
+(RN-035 - Permitir expansão a novos Gestores e Tipos) Tj
+T*
+() Tj
+T*
+(Requisito. A arquitetura e o modelo de negócio devem suportar inclusão de novos Gestores, ) Tj
+T*
+(Tipos de Benefício e Tipos de Serviço por configuração/versionamento, sem redesenho ) Tj
+T*
+(estrutural da Jornada.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. Nova origem ou novo Tipo é incorporável por contratos, ) Tj
+T*
+(catálogos, regras e autorização versionados, preservando compatibilidade histórica.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. §§ 3.3, 7, 15.2 e 15.4) Tj
+T*
+() Tj
+T*
+(RN-036 - Manter biometria como evolução e não como núcleo cadastral) Tj
+T*
+() Tj
+T*
+(Requisito. Biometria e identificação facial podem ser incorporadas evolutivamente como ) Tj
+T*
+(mecanismos de verificação/autenticação, sem substituir CPF, nome, data de nascimento e nome ) Tj
+T*
+(da mãe nem se tornarem atributos civis do núcleo Golden.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação de negócio. A adoção futura depende de regras de proteção de dados, ) Tj
+T*
+(segurança e atos normativos específicos; ausência de biometria não inviabiliza a Fase 1.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade. § 3.4) Tj
+T*
+() Tj
+T*
+(6. Regras de negócio consolidadas) Tj
+T*
+() Tj
+T*
+(| Regra | Tema | Definição |) Tj
+T*
+(|---|---|---|) Tj
+T*
+(| RN-REG-01 | Gold de primeira fonte | A primeira fonte individualizável estabelece baseline) Tj
+T*
+( válido; corroboração só existe com outra fonte independente comparável. |) Tj
+T*
+(| RN-REG-02 | Fato x atribuição | Fato válido e atribuição canônica da Pessoa são dimensões ) Tj
+T*
+ET
+endstream
+endobj
+20 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 21 0 R >>
+endobj
+21 0 obj
+<< /Length 3445 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(distintas; conflito de identidade não apaga o fato finalístico. |) Tj
+T*
+(| RN-REG-03 | Possibilidade | COMPATIVEL significa apenas compatibilidade calculada; nunca ) Tj
+T*
+(elegibilidade automática, direito ou concessão. |) Tj
+T*
+(| RN-REG-04 | Territorialidade | Referência Territorial é vínculo analítico temporal e não ) Tj
+T*
+(sinônimo de domicílio civil. |) Tj
+T*
+(| RN-REG-05 | Compartilhamento | Autorização técnica usa credencial, scope e recurso; ) Tj
+T*
+(restrições setoriais são exceções negativas de projeção. |) Tj
+T*
+(| RN-REG-06 | Gold não vinculante | A Gold é referência municipal de dados e não impõe ) Tj
+T*
+(atualização automática aos sistemas finalísticos. |) Tj
+T*
+(| RN-REG-07 | Evolução aditiva | Mudança material de conceito exige nova ) Tj
+T*
+(versão/campo/contrato; histórico não é reutilizado com nova semântica. |) Tj
+T*
+(| RN-REG-08 | Retenção | Retenção de dado pessoal exige política aprovada; não há retenção ) Tj
+T*
+(indefinida por padrão. |) Tj
+T*
+() Tj
+T*
+(7. Fora de escopo) Tj
+T*
+() Tj
+T*
+(- Substituição dos sistemas transacionais dos Gestores.) Tj
+T*
+(- Concessão, suspensão, cancelamento ou pagamento de benefício pela Jornada.) Tj
+T*
+(- Atendimento direto ao munícipe pela SGM/SEPE ou por aplicação central da Jornada.) Tj
+T*
+(- Unificação de meios de pagamento.) Tj
+T*
+(- Edição direta do cadastro transacional dos Gestores pela Jornada.) Tj
+T*
+(- Transformação de Possibilidade em concessão, direito ou decisão automática.) Tj
+T*
+(- Uso de biometria/identificação facial como substituto do núcleo cadastral na Fase 1.) Tj
+T*
+() Tj
+T*
+(8. Critérios de aceite de negócio da Fase 1) Tj
+T*
+() Tj
+T*
+(1. Gestores conseguem integrar Pessoas e fatos por contratos versionados, preservando origem) Tj
+T*
+( e temporalidade.) Tj
+T*
+(2. Primeira fonte individualizável constitui Gold baseline sem exigir segunda fonte.) Tj
+T*
+(3. Conflitos e pendências de identidade ficam explícitos e não geram atribuição canônica ) Tj
+T*
+(indevida.) Tj
+T*
+(4. Fatos válidos permanecem preservados mesmo quando a identidade canônica estiver pendente.) Tj
+T*
+(5. Consultas e produtos analíticos distinguem Pessoa, Registros, Possibilidades, qualidade, ) Tj
+T*
+(cobertura e Referência Territorial segundo as regras de negócio.) Tj
+T*
+(6. Compartilhamento, restrições setoriais, auditoria, retenção e proteção de dados estão ) Tj
+T*
+(governados antes de Produção.) Tj
+T*
+() Tj
+T*
+(Os critérios técnicos de build, testes, desempenho, segurança e operação pertencem aos ) Tj
+T*
+(documentos RNF/RT e à Matriz de Rastreabilidade.) Tj
+T*
+() Tj
+T*
+(9. Rastreabilidade e controle de mudança) Tj
+T*
+() Tj
+T*
+(Este baseline foi derivado da Especificação Técnica Jornada v3.62 e dos anexos normativos ) Tj
+T*
+(vigentes no pacote. A versão 1.1 reorganiza o documento na família de Requisitos da Fase 1 e) Tj
+T*
+( é incorporada pela Solution Engenharia v3.98 sem alterar Base Normativa v3.62 nem ) Tj
+T*
+(SolutionSchema v3.68. A rastreabilidade completa encontra-se em ) Tj
+T*
+(MatrizRastreabilidadeRequisitosJornadav1.0.) Tj
+T*
+() Tj
+T*
+(Mudança material em requisito de negócio deve gerar nova versão deste documento e, quando ) Tj
+T*
+(afetar regra normativa, contrato, dado ou comportamento da plataforma, deve ser refletida ) Tj
+T*
+(por alteração formal da especificação correspondente.) Tj
+T*
+() Tj
+T*
+(10. Histórico de versões) Tj
+T*
+() Tj
+T*
+(| Versão | Data | Alteração |) Tj
+T*
+(|---|---|---|) Tj
+T*
+ET
+endstream
+endobj
+22 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 23 0 R >>
+endobj
+23 0 obj
+<< /Length 393 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(| 1.0 | 03/09/2026 | Baseline inicial consolidado a partir da Especificação Técnica Jornada ) Tj
+T*
+(v3.62; incorporado na Solution Engenharia v3.96. |) Tj
+T*
+(| 1.1 | 03/09/2026 | Reorganização documental na hierarquia RN -> RF/RNF -> RT; critérios de) Tj
+T*
+( aceite técnicos foram remetidos aos documentos próprios; sem mudança semântica dos 36 RN. |) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 24
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000183 00000 n 
+0000000280 00000 n 
+0000000406 00000 n 
+0000003745 00000 n 
+0000003871 00000 n 
+0000006917 00000 n 
+0000007043 00000 n 
+0000009953 00000 n 
+0000010081 00000 n 
+0000013076 00000 n 
+0000013204 00000 n 
+0000016153 00000 n 
+0000016281 00000 n 
+0000019256 00000 n 
+0000019384 00000 n 
+0000022392 00000 n 
+0000022520 00000 n 
+0000025396 00000 n 
+0000025524 00000 n 
+0000029021 00000 n 
+0000029149 00000 n 
+trailer
+<< /Size 24 /Root 1 0 R >>
+startxref
+29593
+%%EOF

@@ -2,6 +2,7 @@ using System.Data;
 using System.Diagnostics;
 using Jornada.Bronze.Storage;
 using Jornada.Contracts;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
 
@@ -31,15 +32,12 @@ internal sealed record BronzeMaintenanceCycleResult(
     int StorageErrors,
     DateTimeOffset? OldestOrphanSeen);
 
-internal sealed class BronzeMaintenanceRepository(IConfiguration configuration)
+internal sealed class BronzeMaintenanceRepository(IOperationalSqlAdapter operationalSql)
 {
-    private readonly string connectionString = configuration.GetConnectionString("Jornada")
-        ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 
     public async Task<BronzeMaintenanceCursor> GetCursorAsync(CancellationToken ct)
     {
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT bucket_cursor,after_object_key FROM controle.bronze_manutencao_estado WHERE estado_id=1;";
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -50,8 +48,7 @@ internal sealed class BronzeMaintenanceRepository(IConfiguration configuration)
 
     public async Task SaveCycleAsync(BronzeMaintenanceCycleResult cycle, CancellationToken ct)
     {
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         await using var command = connection.CreateCommand();
         command.Transaction = tx;
@@ -95,8 +92,7 @@ internal sealed class BronzeMaintenanceRepository(IConfiguration configuration)
     {
         var hash = BronzeObjectCoordination.Sha256FromObjectKey(candidate.ObjectKey);
         var resource = BronzeObjectCoordination.LockResourceForSha256(hash);
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenDedicatedSessionAsync(ct);
 
         var lockHeld = await AcquireAsync(connection, resource, Math.Max(0, lockTimeoutSeconds) * 1000, ct);
         if (!lockHeld) return (false, true);

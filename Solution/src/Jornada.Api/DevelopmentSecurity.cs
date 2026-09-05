@@ -1,3 +1,4 @@
+using Jornada.Operational.Sql;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -118,7 +119,7 @@ internal sealed class FileSystemContractResolver : IContractResolver
 
 internal sealed class CatalogBackedContractResolver(
     string repositoryRoot,
-    SqlConnectionFactory connections) : IContractResolver
+    IOperationalSqlAdapter connections) : IContractResolver
 {
     public async Task<string> ResolvePersonSchemaAsync(AccessContext context, CancellationToken ct)
     {

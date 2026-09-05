@@ -1,5 +1,6 @@
 using System.Data;
 using Jornada.Bronze.Storage;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
 
@@ -23,13 +24,11 @@ internal sealed record DeliveryRetentionOutcome(bool ReferenceExpired, bool Obje
 /// O mesmo app lock por SHA usado pela API/GC fecha a corrida com escrita, deduplicação e manutenção.
 /// </summary>
 public sealed class DeliveryBronzeRetentionWorker(
-    IConfiguration configuration,
+    IOperationalSqlAdapter operationalSql,
     IBronzeObjectMaintenanceStore store,
     IOptions<DeliveryBronzeRetentionOptions> options,
     ILogger<DeliveryBronzeRetentionWorker> logger) : BackgroundService
 {
-    private readonly string connectionString = configuration.GetConnectionString("Jornada")
-        ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -76,8 +75,7 @@ public sealed class DeliveryBronzeRetentionWorker(
     private async Task<List<DeliveryRetentionCandidate>> LoadCandidatesAsync(DateTimeOffset cutoff, int maxRows, CancellationToken ct)
     {
         var result = new List<DeliveryRetentionCandidate>();
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT TOP(@max) b.entrega_id,b.objeto_chave,b.payload_sha256,b.estado_armazenamento
@@ -99,8 +97,7 @@ public sealed class DeliveryBronzeRetentionWorker(
     private async Task<DeliveryRetentionOutcome> ProcessCandidateAsync(DeliveryRetentionCandidate candidate, DateTimeOffset cutoff, int timeoutSeconds, CancellationToken ct)
     {
         var resource = BronzeObjectCoordination.LockResourceForSha256(candidate.Sha256);
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenDedicatedSessionAsync(ct);
         if (!await AcquireAsync(connection, resource, Math.Max(0, timeoutSeconds) * 1000, ct))
             return new DeliveryRetentionOutcome(false,false,false,true,false);
 
@@ -169,8 +166,7 @@ public sealed class DeliveryBronzeRetentionWorker(
 
     private async Task SaveCycleAsync(DateTimeOffset started, DateTimeOffset finished, int candidates, int expired, int deleted, int shared, int locks, int storageErrors, CancellationToken ct)
     {
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT controle.entrega_retencao_ciclo(iniciado_em,finalizado_em,candidatos,referencias_expurgadas,objetos_fisicos_removidos,objetos_compartilhados_preservados,locks_nao_adquiridos,falhas_storage)

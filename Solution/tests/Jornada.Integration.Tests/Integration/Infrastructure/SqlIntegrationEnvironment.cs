@@ -5,6 +5,9 @@ internal static class SqlIntegrationEnvironment
     internal const string ConnectionStringVariable = "JORNADA_TEST_SQL_CONNECTION";
     internal const string ImageVariable = "JORNADA_TEST_SQL_IMAGE";
     internal const string UseExistingDatabaseVariable = "JORNADA_TEST_SQL_USE_EXISTING_DATABASE";
+    internal const string TargetVariable = "JORNADA_TEST_SQL_TARGET";
+    internal const string SqlServer2022Target = "SQL_SERVER_2022";
+    internal const string FabricSqlDatabaseTarget = "FABRIC_SQL_DATABASE";
 
     // SQL Server 2022 CU26 / Ubuntu 22.04, fixado por tag + digest.
     // Microsoft Artifact Registry, publicado em 2026-07-16.
@@ -25,4 +28,29 @@ internal static class SqlIntegrationEnvironment
     internal static bool UseExistingExternalDatabase =>
         bool.TryParse(Environment.GetEnvironmentVariable(UseExistingDatabaseVariable), out var value)
         && value;
+
+    internal static string Target
+    {
+        get
+        {
+            var configured = Environment.GetEnvironmentVariable(TargetVariable);
+            if (string.IsNullOrWhiteSpace(configured))
+            {
+                return SqlServer2022Target;
+            }
+
+            var normalized = configured.Trim().ToUpperInvariant();
+            return normalized switch
+            {
+                SqlServer2022Target => SqlServer2022Target,
+                FabricSqlDatabaseTarget => FabricSqlDatabaseTarget,
+                _ => throw new InvalidOperationException(
+                    $"{TargetVariable} inválido: '{configured}'. Valores aceitos: " +
+                    $"{SqlServer2022Target} ou {FabricSqlDatabaseTarget}."),
+            };
+        }
+    }
+
+    internal static bool IsFabricSqlDatabase =>
+        string.Equals(Target, FabricSqlDatabaseTarget, StringComparison.Ordinal);
 }

@@ -344,6 +344,12 @@
       },
       "jornada.bronze.storage": {
         "type": "Project"
+      },
+      "jornada.operational.sql": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Data.SqlClient": "[5.2.2, )"
+        }
       }
     }
   }

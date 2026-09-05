@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Data;
 using Jornada.Contracts;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Runner;
@@ -13,6 +14,7 @@ namespace Jornada.Linkage.Runner;
 /// </summary>
 public sealed class SqlProbabilisticIdentityLinkage(
     IConfiguration configuration,
+    IOperationalSqlAdapter operationalSql,
     ILogger<SqlProbabilisticIdentityLinkage> logger) : IProbabilisticIdentityLinkage
 {
     private readonly ConcurrentDictionary<Guid, LinkageModel> modelCache = new();
@@ -132,8 +134,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
     private async Task<LinkageModel> LoadActiveModelAsync(CancellationToken ct)
     {
-        await using var connection = new SqlConnection(GetConnectionString());
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         var idCommand = new SqlCommand(
             "SELECT modelo_id FROM identidade.modelo_linkage WHERE status='ATIVO'", connection);
         var modelId = await idCommand.ExecuteScalarAsync(ct);
@@ -144,8 +145,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
     private async Task<LinkageModel> LoadModelByVersionAsync(int version, CancellationToken ct)
     {
-        await using var connection = new SqlConnection(GetConnectionString());
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         var command = new SqlCommand(
             "SELECT modelo_id FROM identidade.modelo_linkage WHERE versao=@versao AND status IN('VALIDADO','ATIVO','INATIVO')",
             connection);
@@ -158,8 +158,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
     private async Task<LinkageModel> LoadModelByIdAsync(Guid modelId, CancellationToken ct)
     {
-        await using var connection = new SqlConnection(GetConnectionString());
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
 
         var command = new SqlCommand(
             """
@@ -226,8 +225,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
             configuration.GetValue("ProbabilisticLinkage:MaxCandidatesPerBlock", 100000),
             1000, 1000000);
 
-        await using var connection = new SqlConnection(GetConnectionString());
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         var command = new SqlCommand(
             """
             SELECT TOP (@max_plus_one) pessoa_uuid, nome_completo, data_nascimento, nome_mae
@@ -259,10 +257,6 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
         return result;
     }
-
-    private string GetConnectionString() =>
-        configuration.GetConnectionString("Jornada")
-        ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 
     private sealed record GoldCandidate(Guid PessoaUuid, string NomeCompleto, DateOnly DataNascimento, string NomeMae);
     private sealed record CandidateScore(Guid PessoaUuid, decimal Score);

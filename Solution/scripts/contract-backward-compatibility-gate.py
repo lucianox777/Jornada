@@ -201,6 +201,56 @@ def compare_openapi(old,new,errs):
                     else: compatible_response(deref(old,schema_for_media(om)),deref(new,schema_for_media(nm)),f'OpenAPI response {code} {method.upper()} {path} {c}',errs)
 
 
+def load_policy(path:Path|None, repo:Path, predecessor_tag:str):
+    if path is None:
+        candidate=repo/'Solution/config/release/contract-compatibility-policy.json'
+        if not candidate.is_file():
+            return None
+        path=candidate
+    elif not path.is_absolute():
+        path=repo/path
+    if not path.is_file():
+        fail(f'policy de compatibilidade ausente: {path}')
+    try:
+        data=json.loads(path.read_text(encoding='utf-8'))
+    except Exception as exc:
+        fail(f'policy de compatibilidade inválida: {exc}')
+    if data.get('schemaVersion') != 1:
+        fail('policy de compatibilidade com schemaVersion inválido')
+    if data.get('predecessorTag') != predecessor_tag:
+        fail(f'policy predecessorTag divergente: {data.get("predecessorTag")} != {predecessor_tag}')
+    return data
+
+
+def apply_explicit_predeployment_reset(errs:list[str], policy:dict|None):
+    """Permite somente quebras de JSON Schema explicitamente declaradas para baseline pré-implantação.
+
+    OpenAPI, segurança e quaisquer contratos não declarados continuam fail-closed. A exceção é deliberadamente
+    estreita e não constitui mecanismo geral de waiver pós-publicação.
+    """
+    if not errs or policy is None:
+        return errs, []
+    if policy.get('mode') != 'PRE_DEPLOYMENT_BASELINE_RESET' or policy.get('deployed') is not False:
+        return errs, []
+    allowed=policy.get('allowedBreakingSchemas') or []
+    if not isinstance(allowed,list) or not allowed:
+        fail('policy PRE_DEPLOYMENT_BASELINE_RESET sem allowedBreakingSchemas')
+    allowed=set(str(x) for x in allowed)
+    waived=[]; remaining=[]
+    for err in errs:
+        matched=next((rel for rel in allowed if err.startswith(rel+':') or err.startswith(rel+'.')),None)
+        if matched:
+            waived.append(err)
+        else:
+            remaining.append(err)
+    # Todo schema declarado precisa realmente ter uma quebra detectada: evita policy órfã/ampla demais.
+    seen={rel for rel in allowed if any(e.startswith(rel+':') or e.startswith(rel+'.') for e in waived)}
+    orphan=sorted(allowed-seen)
+    if orphan:
+        fail(f'policy declara schemas sem quebra detectada: {orphan}')
+    return remaining, waived
+
+
 def selftest():
     errs=[]
     compare_parameter({'required':False,'schema':{'type':'string'}},{'required':True,'schema':{'type':'string'}},'p',errs)
@@ -227,10 +277,11 @@ def selftest():
 
 
 def main():
-    ap=argparse.ArgumentParser(); ap.add_argument('--repo',default='.'); ap.add_argument('--release-info',default='RELEASE_INFO.txt'); ap.add_argument('--summary'); ap.add_argument('--self-test',action='store_true'); a=ap.parse_args()
+    ap=argparse.ArgumentParser(); ap.add_argument('--repo',default='.'); ap.add_argument('--release-info',default='RELEASE_INFO.txt'); ap.add_argument('--policy'); ap.add_argument('--summary'); ap.add_argument('--self-test',action='store_true'); a=ap.parse_args()
     if a.self_test: return selftest()
     repo=Path(a.repo).resolve(); ri=info(repo/a.release_info); pred=ri.get('source_git_predecessor_tag')
     if not pred: fail('source_git_predecessor_tag ausente')
+    policy=load_policy(Path(a.policy) if a.policy else None, repo, pred)
     errs=[]
     old=git_json(repo,pred,'Solution/openapi/jornada-v1.openapi.json'); new=json.loads((repo/'Solution/openapi/jornada-v1.openapi.json').read_text(encoding='utf-8'))
     compare_openapi(old,new,errs)
@@ -240,11 +291,15 @@ def main():
         cur=repo/rel
         if not cur.is_file(): errs.append(f'JSON Schema removido: {rel}'); continue
         compatible_acceptance(git_json(repo,pred,rel),json.loads(cur.read_text(encoding='utf-8')),rel,errs)
+    detected=list(errs)
+    errs,waived=apply_explicit_predeployment_reset(errs, policy)
     status='PASS' if not errs else 'FAIL'
     summary={'status':status,'predecessorTag':pred,'openApiPathsChecked':len(old.get('paths',{})),'jsonSchemasChecked':len(schemas),'breakingChanges':errs,
+             'detectedBreakingChanges':detected,'explicitPredeploymentBaselineReset':waived,
              'checks':['existing-parameter-requiredness','parameter-schema/style','security/scopes','response-headers','request/response-media','nullable/format/bounds','json-schema-acceptance']}
     if a.summary:
         Path(a.summary).parent.mkdir(parents=True,exist_ok=True); Path(a.summary).write_text(json.dumps(summary,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
     if errs: fail('; '.join(errs[:12]))
-    print(f'CONTRACT BACKWARD COMPATIBILITY GATE: OK ({len(old.get("paths",{}))} paths; {len(schemas)} JSON schemas; predecessor={pred}; checks=extended)')
+    suffix=f'; predeployment-reset={len(waived)} explicit breaking checks' if waived else ''
+    print(f'CONTRACT BACKWARD COMPATIBILITY GATE: OK ({len(old.get("paths",{}))} paths; {len(schemas)} JSON schemas; predecessor={pred}; checks=extended{suffix})')
 if __name__=='__main__': main()

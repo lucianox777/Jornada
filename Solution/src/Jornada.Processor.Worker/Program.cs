@@ -1,3 +1,4 @@
+using Jornada.Operational.Sql;
 using Jornada.Bronze.Storage;
 using Jornada.Pipeline.Coordination;
 using Jornada.Contracts;
@@ -39,13 +40,14 @@ builder.Services.AddSingleton<IBronzeObjectStore>(_ =>
     return new FileSystemBronzeObjectStore(root);
 });
 
+var operationalSql = new OperationalSqlAdapter(jornadaConnectionString);
+builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
 builder.Services.AddSingleton(new SqlPipelineCoordinator(
-    jornadaConnectionString,
+    operationalSql,
     TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("PipelineCoordination:HeartbeatSeconds", 5))),
     TimeSpan.FromSeconds(Math.Max(1, builder.Configuration.GetValue("PipelineCoordination:ExclusiveIntentTimeoutSeconds", 5)))));
 builder.Services.AddSingleton(new ProcessorRuntimeIdentity(
     $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}"));
-builder.Services.AddSingleton<ProcessorSqlConnectionFactory>();
 builder.Services.AddSingleton<IIdentityMapRepository, SqlIdentityMapRepository>();
 builder.Services.AddSingleton<SqlProcessorRepository>();
 builder.Services.AddSingleton<RegistryQualityEngine>();

@@ -2,6 +2,7 @@ using System.Data;
 using System.Globalization;
 using Jornada.Contracts;
 using Jornada.Pipeline.Coordination;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Parameters.Worker;
@@ -23,6 +24,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 public sealed class LinkageParametersWorker(
     ILogger<LinkageParametersWorker> logger,
     IConfiguration configuration,
+    IOperationalSqlAdapter operationalSql,
     SqlPipelineCoordinator pipelineCoordinator,
     IHostApplicationLifetime applicationLifetime) : BackgroundService
 {
@@ -96,8 +98,7 @@ public sealed class LinkageParametersWorker(
 
     private async Task<bool> IsInitialLoadModeActiveAsync(CancellationToken ct)
     {
-        await using var connection = new SqlConnection(GetJornadaConnectionString());
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT ativo FROM controle.modo_carga_inicial WHERE estado_id=1;";
         return Convert.ToBoolean(await command.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
@@ -116,8 +117,7 @@ public sealed class LinkageParametersWorker(
         var threshold = Math.Clamp(configuration.GetValue("LinkageParameters:TLinkage", 0.95m), 0.5m, 0.999999m);
         var conflictMargin = Math.Clamp(configuration.GetValue("LinkageParameters:ConflictMargin", 0.03m), 0.0001m, 0.5m);
 
-        await using var connection = new SqlConnection(GetJornadaConnectionString());
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await operationalSql.OpenAsync(cancellationToken);
 
 
         var drainTimeoutSeconds = Math.Max(30,
@@ -627,8 +627,7 @@ public sealed class LinkageParametersWorker(
 
     private async Task ValidateDraftAsync(int version, CancellationToken cancellationToken)
     {
-        await using var connection = new SqlConnection(GetJornadaConnectionString());
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await operationalSql.OpenAsync(cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
@@ -707,8 +706,7 @@ public sealed class LinkageParametersWorker(
 
     private async Task ActivateValidatedAsync(int version, CancellationToken cancellationToken)
     {
-        await using var connection = new SqlConnection(GetJornadaConnectionString());
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await operationalSql.OpenAsync(cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
@@ -758,10 +756,6 @@ public sealed class LinkageParametersWorker(
             throw;
         }
     }
-
-    private string GetJornadaConnectionString() =>
-        configuration.GetConnectionString("Jornada")
-        ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 
     private sealed record PopulationStatistics(
         long PopulationSize,

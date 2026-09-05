@@ -4,6 +4,7 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj" />
     <ProjectReference Include="..\..\src\Jornada.Bronze.Storage\Jornada.Bronze.Storage.csproj" />
     <ProjectReference Include="..\..\src\Jornada.Bronze.Maintenance.Worker\Jornada.Bronze.Maintenance.Worker.csproj" />
     <ProjectReference Include="..\..\src\Jornada.Operations.Maintenance.Worker\Jornada.Operations.Maintenance.Worker.csproj" />

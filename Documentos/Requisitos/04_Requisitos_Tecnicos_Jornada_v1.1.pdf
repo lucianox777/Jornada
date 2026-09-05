@@ -1,0 +1,2339 @@
+%PDF-1.4
+%âãÏÓ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R 22 0 R 24 0 R 26 0 R 28 0 R 30 0 R 32 0 R 34 0 R 36 0 R 38 0 R 40 0 R] /Count 19 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 3166 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Requisitos Técnicos - Jornada do Cidadão - Fase 1) Tj
+T*
+() Tj
+T*
+(Versão do documento: 1.1  ) Tj
+T*
+(Data: 03/09/2026  ) Tj
+T*
+(Base normativa: Especificação Técnica Jornada v3.62  ) Tj
+T*
+(SolutionSchema: SolutionSchema v3.68  ) Tj
+T*
+(Família de requisitos relacionada: RN v1.1; RF v1.0; RNF v1.0; Matriz de Rastreabilidade ) Tj
+T*
+(v1.0  ) Tj
+T*
+(Release de incorporação: Solution Engenharia v3.98  ) Tj
+T*
+(Status: BASELINE TÉCNICO - CAMADA DE REALIZAÇÃO DA HIERARQUIA RN -> RF/RNF -> RT) Tj
+T*
+() Tj
+T*
+(> Este documento consolida a camada de realização técnica da Fase 1. Os RF definem o ) Tj
+T*
+(comportamento da solução; os RNF definem atributos de qualidade e restrições; os RT ) Tj
+T*
+(especificam tecnologia, arquitetura, persistência, segurança, operação e mecanismos ) Tj
+T*
+(concretos para materializá-los. Ele não substitui a Base Normativa, DDL, contratos, ADRs nem) Tj
+T*
+( runbooks.) Tj
+T*
+() Tj
+T*
+(1. Finalidade) Tj
+T*
+() Tj
+T*
+(Registrar, em linguagem de engenharia e com rastreabilidade, os requisitos que a ) Tj
+T*
+(implementação da Jornada do Cidadão - Fase 1 deve satisfazer para materializar os Requisitos) Tj
+T*
+( de Negócio v1.1 e a Especificação Técnica v3.62. O documento transforma decisões normativas) Tj
+T*
+( e de arquitetura em obrigações técnicas verificáveis, sem misturar necessidade de negócio ) Tj
+T*
+(com detalhe de implementação.) Tj
+T*
+() Tj
+T*
+(2. Posição na hierarquia de requisitos) Tj
+T*
+() Tj
+T*
+(A família documental da Fase 1 adota quatro camadas: RN \(necessidade/resultado de negócio\), ) Tj
+T*
+(RF \(comportamento funcional da solução\), RNF \(qualidades e restrições\) e RT \(realização ) Tj
+T*
+(técnica\). Os 65 RT deste baseline permanecem válidos; a versão 1.1 apenas os posiciona ) Tj
+T*
+(explicitamente na camada técnica e remete a rastreabilidade cruzada ao documento mestre.) Tj
+T*
+() Tj
+T*
+(A relação completa RN -> RF -> RNF -> RT -> evidência está em ) Tj
+T*
+(MatrizRastreabilidadeRequisitosJornadav1.0.) Tj
+T*
+() Tj
+T*
+(3. Escopo técnico da Fase 1) Tj
+T*
+() Tj
+T*
+(- Plataforma .NET 8/C# 12 e SQL Server para a implementação normativa.) Tj
+T*
+(- Contratos JSON/OpenAPI/DDL versionados e configuração como código.) Tj
+T*
+(- Recepção ZIP v2, Bronze externa content-addressed, Processor assíncrono e estados ) Tj
+T*
+(operacionais.) Tj
+T*
+(- Resolução determinística e probabilística de identidade, Gold Pessoas, Gold Registros e ) Tj
+T*
+(governança de divergências.) Tj
+T*
+(- APIs de Pessoa, Registros e Possibilidades com autorização, projeção, auditoria e ) Tj
+T*
+(minimização.) Tj
+T*
+(- Referência Territorial, Serving/BI, segurança, proteção de dados, observabilidade, ) Tj
+T*
+(operação e continuidade.) Tj
+T*
+(- Testes reprodutíveis, restore locked, SQL Server real em Integration e gates de promoção ) Tj
+T*
+(para HML/Produção.) Tj
+T*
+() Tj
+T*
+(4. Princípios técnicos) Tj
+T*
+() Tj
+T*
+(- Contratos antes da implementação: interfaces compartilhadas são estáveis, versionadas e ) Tj
+T*
+(revisadas.) Tj
+T*
+(- Fail closed em integridade e identidade: dúvida de integridade, autorização ou conflito de) Tj
+T*
+( identidade não é resolvida por heurística silenciosa.) Tj
+T*
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 2892 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(- Evidência e replay: dados de entrada, decisões de identidade e publicações mantêm origem, ) Tj
+T*
+(versão e histórico suficientes para auditoria/reexecução.) Tj
+T*
+(- Separação de responsabilidades: API recebe, Processor materializa, Runner resolve fallback) Tj
+T*
+( probabilístico, BI analisa e Gestores finalísticos mantêm decisão administrativa.) Tj
+T*
+(- Operação observável: locks, leases, filas, runs, retries e alertas são mensuráveis e ) Tj
+T*
+(recuperáveis.) Tj
+T*
+(- Segurança por minimização: segredos, payloads e identificadores civis não são propagados ) Tj
+T*
+(além do necessário.) Tj
+T*
+() Tj
+T*
+(5. Requisitos Técnicos) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5.1 Plataforma e base tecnológica) Tj
+T*
+() Tj
+T*
+(RT-001 - Padronizar a plataforma de execução em .NET 8 e C# 12) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Todo código C# da Fase 1 deve compilar para net8.0, com C# 12 definido de) Tj
+T*
+( forma centralizada e sem divergência de linguagem entre projetos da Solution.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Build Release da Solution e dos projetos de teste conclui sem) Tj
+T*
+( erro; o framework e a versão da linguagem são centralmente verificáveis.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-001, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 17, RNF01; § 18.1) Tj
+T*
+() Tj
+T*
+(RT-002 - Adotar SQL Server como tecnologia relacional normativa) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A persistência relacional normativa da Fase 1 deve usar SQL Server, com ) Tj
+T*
+(DDL, constraints, procedures, views e testes de integração compatíveis com o motor ) Tj
+T*
+(homologado.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. O DDL e o seed reais são aplicados em SQL Server e os testes ) Tj
+T*
+(de integração exercitam o mesmo mecanismo relacional previsto para a solução.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 17, RNF02 e RNF12; atualização v3.54) Tj
+T*
+() Tj
+T*
+(RT-003 - Manter a Solution autocontida quanto aos componentes normativos) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A Solution não deve depender, para compilar ou executar o fluxo ) Tj
+T*
+(normativo, de componente histórico ausente de Jornada.sln ou de artefato externo não ) Tj
+T*
+(declarado.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Uma restauração e build limpos da Solution resolvem todos os ) Tj
+T*
+(projetos normativos e não exigem binários históricos não versionados.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-001, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 17, RNF18; § 18.1) Tj
+T*
+() Tj
+T*
+(RT-004 - Externalizar configuração e secrets por ambiente) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Endpoints, credenciais técnicas, chaves, certificados, parâmetros de ) Tj
+T*
+(banco e demais secrets devem ser substituíveis por configuração de ambiente, sem recompilar ) Tj
+T*
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 2731 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(aplicações e sem versionar segredo em repositório.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. HML pode alterar secret/configuração sem rebuild; varredura ) Tj
+T*
+(do repositório não encontra chaves operacionais versionadas.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-029, RN-030, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 13.2 a 13.4; § 17, RNF17) Tj
+T*
+() Tj
+T*
+(RT-005 - Vincular releases de engenharia a fonte Git identificável) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Cada release de engenharia deve estar vinculada a commit/tag Git e ) Tj
+T*
+(possuir proveniência suficiente para reconstruir ou auditar o estado-fonte distribuído.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. O pacote registra tag, commit, predecessor e bundle/fonte ) Tj
+T*
+(correspondente, sem atribuir ao ambiente de empacotamento evidências que não foram ) Tj
+T*
+(executadas nele.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-014, RN-029, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. atualização v3.54; governança § 15.2 e § 15.8) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5.2 Contratos e versionamento) Tj
+T*
+() Tj
+T*
+(RT-006 - Versionar contratos de Pessoa por Gestor) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Cada Gestor deve possuir contrato cadastral de Pessoa versionado em ) Tj
+T*
+(config/contracts/gestores/<GESTOR>/pessoa/vN, com metadados e JSON Schema correspondentes.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. A ingestão seleciona o contrato pela versão declarada e ) Tj
+T*
+(rejeita payload incompatível com o schema ativado.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-002, RN-014, RN-034, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 5.2; §§ 6.1 a 6.3) Tj
+T*
+() Tj
+T*
+(RT-007 - Versionar contratos factuais por Tipo e Natureza) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Cada Tipo de Benefício ou Serviço deve possuir versão contratual própria,) Tj
+T*
+( com Natureza, metadados, pessoa.schema.json e registro.schema.json aplicáveis.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Mudança material de regra, vigência, medida ou contrato exige) Tj
+T*
+( nova versão; o código de Tipo permanece estável.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-002, RN-011, RN-014, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 5.1 e 5.2; § 15.3) Tj
+T*
+() Tj
+T*
+(RT-008 - Impedir mutação incompatível de schema ativado) Tj
+T*
+() Tj
+T*
+(Requisito técnico. JSON Schema ativado é imutável; alteração incompatível de contrato, API ) Tj
+T*
+(ou view Serving deve produzir nova versão formal.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Comparação entre versões evidencia evolução explícita e não ) Tj
+T*
+(reutiliza versão histórica com semântica incompatível.) Tj
+T*
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 2581 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Rastreabilidade de negócio. RN-014, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 5.2; § 17, RNF13; § 15.4) Tj
+T*
+() Tj
+T*
+(RT-009 - Estabilizar contratos compartilhados para trabalho paralelo) Tj
+T*
+() Tj
+T*
+(Requisito técnico. DDL contratual, OpenAPI/DTOs, interfaces públicas, schemas e views ) Tj
+T*
+(serving.vbi devem ter ownership e revisão formal quando alterados, evitando edição cruzada ) Tj
+T*
+(informal entre frentes.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Mudança em fronteira compartilhada é rastreável por ) Tj
+T*
+(revisão/PR e comunicação aos consumidores; frentes podem evoluir em paralelo após o gate ) Tj
+T*
+(inicial.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-033, RN-034, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 18.1 e 18.2; § 17, RNF19) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5.3 Ingestão e Bronze) Tj
+T*
+() Tj
+T*
+(RT-010 - Receber cada Entrega em envelope ZIP v2 único) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A unidade externa de ingestão deve ser um ZIP v2 contendo exatamente ) Tj
+T*
+(manifest.json, pessoas.jsonl e registros.jsonl; registros.jsonl pode estar vazio.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. O endpoint aceita entrega exclusivamente cadastral e entrega ) Tj
+T*
+(factual no mesmo envelope, validando a presença e os nomes canônicos dos três arquivos.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-002, RN-003) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 6.1) Tj
+T*
+() Tj
+T*
+(RT-011 - Garantir cobertura mínima de Pessoas referenciadas pela Entrega) Tj
+T*
+() Tj
+T*
+(Requisito técnico. pessoas.jsonl deve conter as Pessoas incluídas/alteradas no período e ) Tj
+T*
+(todas as Pessoas referenciadas pelos fatos da mesma Entrega.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Nenhum Registro factual aceito referencia uma Pessoa ausente ) Tj
+T*
+(do contexto mínimo exigido pelo contrato da Entrega.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-002, RN-003, RN-012) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 6.1) Tj
+T*
+() Tj
+T*
+(RT-012 - Aplicar limites físicos e proteção contra ZIP bomb) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A implementação de referência deve impor limites de até 250 MB ) Tj
+T*
+(compactados, 2 GB descompactados e 64 KB para manifest.json, com orçamento descompactado ) Tj
+T*
+(aplicado durante a leitura.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Pacote que excede limites é rejeitado sem descompressão ) Tj
+T*
+(ilimitada nem alocação descontrolada.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-030) Tj
+T*
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 2725 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 6.1; § 17, RNF03; limites da implementação de ) Tj
+T*
+(referência) Tj
+T*
+() Tj
+T*
+(RT-013 - Autenticar e autorizar a Entrega antes do processamento pesado) Tj
+T*
+() Tj
+T*
+(Requisito técnico. POST /api/v1/ingestao/entregas deve exigir Código do Gestor, chave de ) Tj
+T*
+(acesso, Idempotency-Key e contexto contratual coerente com o Gestor autenticado.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Tipo/Sistema de Origem não pertencente ao Gestor é recusado ) Tj
+T*
+(antes da validação pesada e antes da materialização funcional.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-002, RN-029, RN-034) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 6.2 e 6.3; § 13) Tj
+T*
+() Tj
+T*
+(RT-014 - Validar integridade do payload por SHA-256 e nome canônico) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A API deve calcular o SHA-256 dos bytes recebidos e exigir ) Tj
+T*
+(correspondência com o hash do filename canônico ) Tj
+T*
+(ENTREGA<GESTOR><SISTEMAORIGEM>v2<sha256>.zip.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Divergência entre nome e conteúdo rejeita a chamada antes da ) Tj
+T*
+(recepção; a resposta não ecoa indevidamente o hash calculado.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-023, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 6.2 e 6.3) Tj
+T*
+() Tj
+T*
+(RT-015 - Garantir idempotência por Gestor e Idempotency-Key) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Mesma Idempotency-Key com mesmo conteúdo deve devolver o recebimento ) Tj
+T*
+(existente sem duplicar processamento; mesma chave com conteúdo diferente deve retornar ) Tj
+T*
+(conflito e gerar auditoria.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Testes comprovam replay idêntico sem duplicação e conflito ) Tj
+T*
+(409 para reutilização divergente da chave.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-023, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 6.3; § 17, RNF04) Tj
+T*
+() Tj
+T*
+(RT-016 - Persistir Bronze fora do SQL por chave content-addressed) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Os bytes do ZIP Bronze devem residir em armazenamento externo durável, ) Tj
+T*
+(imutável e content-addressed por SHA-256; SQL Server persiste somente metadados e ) Tj
+T*
+(objetochave, sem VARBINARY\(MAX\).) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Objeto é escrito antes da linha SQL, permanece na chave ) Tj
+T*
+(sha256/ab/cd/<hash>.zip e pode ser recuperado enquanto existir referência válida.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-029, RN-030, RN-031) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 6.4; § 17, RNF32) Tj
+T*
+() Tj
+T*
+(RT-017 - Falhar fechado em corrupção ou indisponibilidade da Bronze) Tj
+T*
+ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 15 0 R >>
+endobj
+15 0 obj
+<< /Length 2709 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Requisito técnico. Objeto canônico já existente deve ser revalidado por SHA-256; corrupção ) Tj
+T*
+(ou falha temporária de armazenamento deve ser tratada como falha de infraestrutura, sem ) Tj
+T*
+(aceitar silenciosamente conteúdo divergente.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Recepção retorna 503 + Retry-After quando aplicável; ) Tj
+T*
+(GC/expurgo físico só ocorre após confirmação coordenada de ausência de referências e ) Tj
+T*
+(carência.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-023, RN-029, RN-031) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 6.4; § 17, RNF33) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5.4 Processor e resiliência) Tj
+T*
+() Tj
+T*
+(RT-018 - Executar processamento pesado de forma assíncrona ao depósito) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A API deve realizar apenas validações de borda e persistência da Entrega;) Tj
+T*
+( parsing completo, validação estrutural e materialização Silver/Gold devem ocorrer no ) Tj
+T*
+(Jornada.Processor.Worker.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. POST de ingestão retorna 202 após recepção válida e o ) Tj
+T*
+(processamento pesado pode prosseguir independentemente da conexão do cliente.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-002, RN-023, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 6.2; § 6.6) Tj
+T*
+() Tj
+T*
+(RT-019 - Registrar resultado individual de Pessoas e Registros processados) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Cada item processado deve gerar ocorrência de resultado individual em ) Tj
+T*
+(ingestao.itemprocessado, distinguindo inclusão, versionamento, retransmissão, exclusão e ) Tj
+T*
+(reabertura.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. A observabilidade permite identificar retransmissão idêntica ) Tj
+T*
+(sem criar nova observação Silver e medir resultado por classe de item.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-023, RN-024) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 6.3) Tj
+T*
+() Tj
+T*
+(RT-020 - Manter persistência funcional transacional e atômica por lote) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Materializações Silver, identidade, Gold e estados associados de um lote ) Tj
+T*
+(devem respeitar transação e rollback; falha intermediária não pode deixar publicação ) Tj
+T*
+(funcional parcial.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Fault injection após persistência parcial resulta em zero ) Tj
+T*
+(efeitos do cenário que deveria ter sido revertido.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-012, RN-023, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 6.5 a 6.7; § 17, RNF06) Tj
+T*
+() Tj
+T*
+(RT-021 - Suportar lease, fencing, heartbeat, retry e estado POISON) Tj
+T*
+ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 17 0 R >>
+endobj
+17 0 obj
+<< /Length 2693 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Requisito técnico. O Processor deve reservar trabalho com lease/fencing token, renovar ) Tj
+T*
+(heartbeat, recuperar leases expirados, aplicar retry com backoff e encerrar em POISON após ) Tj
+T*
+(limite de tentativas.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Workers concorrentes não processam o mesmo lote válido ) Tj
+T*
+(simultaneamente; lease expirado é cercado e não pode persistir após nova reserva.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-029, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 16.3; atualização v3.33) Tj
+T*
+() Tj
+T*
+(RT-022 - Serializar mutações do corpus integrado nos jobs críticos) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Processor, Parameters GENERATEDRAFT e Linkage Runner devem respeitar gate) Tj
+T*
+( serial de corpus com locks/leases explícitos, permitindo recepção API/Bronze enquanto a ) Tj
+T*
+(materialização integrada está congelada.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Jobs analíticos não observam corpus parcialmente mutável; ) Tj
+T*
+(intenção exclusiva evita starvation e possui timeouts finitos.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-024, RN-028) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 17, RNF26 e RNF28; atualizações v3.35/v3.36) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5.5 Identidade) Tj
+T*
+() Tj
+T*
+(RT-023 - Usar PESSOAUUID aleatório e independente do CPF) Tj
+T*
+() Tj
+T*
+(Requisito técnico. O identificador canônico interno deve ser UNIQUEIDENTIFIER aleatório, sem) Tj
+T*
+( derivação criptográfica ou determinística do CPF.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Alteração/correção de CPF ou atributos não exige troca do ) Tj
+T*
+(UUID já canônico, salvo operações governadas de fusão/separação.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-005, RN-006, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 7.2; § 17, RNF05) Tj
+T*
+() Tj
+T*
+(RT-024 - Resolver CPF válido pela rota determinística com trava de consistência) Tj
+T*
+() Tj
+T*
+(Requisito técnico. CPF válido deve ser a rota normal de resolução, mas a associação a ) Tj
+T*
+(identitymap existente deve falhar fechada quando o núcleo cadastral indicar divergência ) Tj
+T*
+(forte.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Conflito não produz atribuição canônica automática e é ) Tj
+T*
+(materializado para governança.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-005, RN-006, RN-023) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 7.3 a 7.5; atualizações v3.42/v3.46) Tj
+T*
+() Tj
+T*
+(RT-025 - Preservar Pessoas sem CPF em estado processável) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Quando o contrato admitir CPF ausente, a Pessoa deve permanecer em Silver) Tj
+T*
+ET
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 19 0 R >>
+endobj
+19 0 obj
+<< /Length 2780 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+( e em estado de identidade pendente/nao resolvido, sem descarte por ausência do documento.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Registro sem CPF admitido pode ser reavaliado posteriormente ) Tj
+T*
+(pelo linkage probabilístico.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-007, RN-024) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 7.5, 7.9 e 7.13) Tj
+T*
+() Tj
+T*
+(RT-026 - Executar linkage probabilístico em Runner independente e run-once) Tj
+T*
+() Tj
+T*
+(Requisito técnico. O fallback probabilístico deve ser executado pelo Jornada.Linkage.Runner,) Tj
+T*
+( independente do Processor, schedulável externamente e parametrizado por modo, escopo, batch) Tj
+T*
+( e paralelismo.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. O Processor determinístico continua operando quando o ) Tj
+T*
+(Runner/Parameters estiver indisponível; registros sem CPF permanecem pendentes.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-006, RN-007, RN-023, RN-028) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 7.5 a 7.7; § 16.5; § 17, RNF23) Tj
+T*
+() Tj
+T*
+(RT-027 - Congelar modelo e universo de cada linkagerun) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Cada linkagerun deve capturar uma única versão imutável do modelo antes ) Tj
+T*
+(do primeiro score e materializar o universo exato do run, sem misturar ) Tj
+T*
+(modeloid/modeloversao.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Resultados históricos são append-only e só runs PUBLICADOS ) Tj
+T*
+(alimentam a visão corrente.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-005, RN-024, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 7.6 e 7.6.1; § 17, RNF21, RNF22 e RNF24) Tj
+T*
+() Tj
+T*
+(RT-028 - Aplicar blocking e limites sem truncamento silencioso) Tj
+T*
+() Tj
+T*
+(Requisito técnico. O linkage deve usar blocking definido, incluindo data de nascimento exata) Tj
+T*
+( no baseline, e não pode truncar silenciosamente blocos de candidatos que excedam limite ) Tj
+T*
+(operacional.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Bloco acima do limite falha o run e exige revisão explícita ) Tj
+T*
+(da configuração; ausência de candidato é observável.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-006, RN-024) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 7.4 a 7.7; § 17, RNF25) Tj
+T*
+() Tj
+T*
+(RT-029 - Versionar e ativar parâmetros probabilísticos por transição auditável) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Parâmetros de linkage devem possuir ciclo de geração/validação/ativação ) Tj
+T*
+(versionado; um modelo novo só substitui o ativo por transição explícita e auditável.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Modelo em RASCUNHO/VALIDAÇÃO não passa a ativo por overwrite;) Tj
+T*
+( replay referencia modelo/versão original.) Tj
+T*
+() Tj
+T*
+ET
+endstream
+endobj
+20 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 21 0 R >>
+endobj
+21 0 obj
+<< /Length 2542 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Rastreabilidade de negócio. RN-014, RN-024, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 7.6.1; § 17, RNF16) Tj
+T*
+() Tj
+T*
+(RT-030 - Governar fusão e separação histórica de identidades) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Fusão/separação de UUIDs deve ocorrer apenas por operação governada, com ) Tj
+T*
+(preflight de consistência, sucessor canônico quando aplicável e migração auditável de ) Tj
+T*
+(identificadores ativos.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Fusão 1?N, cadeia inválida/cíclica, CPF divergente ou ) Tj
+T*
+(absorção parcial são recusadas por erro contratual antes de mutações.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-005, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 7.12; atualizações v3.58-v3.60) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5.6 Gold, evidência e fatos) Tj
+T*
+() Tj
+T*
+(RT-031 - Separar fisicamente Gold Pessoas de Gold Registros) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A Camada Ouro deve manter famílias canônicas distintas para ) Tj
+T*
+(identidade/atributos cadastrais e para histórico factual de Benefícios Concedidos e Serviços) Tj
+T*
+( Prestados.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Fatos não são armazenados como atributos cadastrais e ) Tj
+T*
+(consultas distinguem Pessoa de Registro.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-011, RN-013) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 8; § 17, RNF14) Tj
+T*
+() Tj
+T*
+(RT-032 - Permitir bootstrap evolutivo da Gold Pessoas) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A primeira observação elegível de uma Pessoa, com individualização ) Tj
+T*
+(suficiente, deve poder constituir baseline Golden sem segunda fonte ou modelo probabilístico) Tj
+T*
+( prévio.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. BASELINEFONTEUNICA é estado Golden válido e pode ser ) Tj
+T*
+(posteriormente corroborado/corrigido por evidência superior.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-004, RN-009, RN-028) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 8.1, 8.9 e 8.11) Tj
+T*
+() Tj
+T*
+(RT-033 - Preservar fato válido mesmo sem PESSOAUUID canônico) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Gold Registros deve aceitar fato finalístico válido com PESSOAUUID ) Tj
+T*
+(ausente quando a identidade estiver pendente/conflitante, preservando o identificador ) Tj
+T*
+(declarado pela origem.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. O fato permanece consultável/auditável sem forçar atribuição ) Tj
+T*
+(canônica indevida.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-012, RN-023) Tj
+T*
+ET
+endstream
+endobj
+22 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 23 0 R >>
+endobj
+23 0 obj
+<< /Length 2600 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 8.8; atualização normativa v3.45) Tj
+T*
+() Tj
+T*
+(RT-034 - Aplicar precedência de evidência por catálogo e temporalidade) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A seleção Golden de atributos transversais deve considerar evidência ) Tj
+T*
+(comprovada, pertinência, temporalidade, provenance e corroboração, sem precedência ) Tj
+T*
+(automática por Secretaria/Gestor.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Evidência documental válida pode substituir valor Golden e ) Tj
+T*
+(toda alteração mantém histórico/proveniência.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-008, RN-009, RN-010, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 8.3 a 8.7; § 15.5) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5.7 API e acesso) Tj
+T*
+() Tj
+T*
+(RT-035 - Autorizar antes da leitura funcional) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Endpoints de identidade, Pessoa, Registros e Possibilidades devem ) Tj
+T*
+(autorizar por credencial autenticada, scope e recurso antes de executar a leitura funcional.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Credencial sem autorização recebe 401/403 sem leitura de ) Tj
+T*
+(dados; autorização não depende de vínculo prévio da Pessoa com a credencial.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-018, RN-019, RN-020, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 10.6; § 17, RNF29) Tj
+T*
+() Tj
+T*
+(RT-036 - Não criar UUID por consulta de resolução) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A API de resolução deve consultar identidade existente; operações de ) Tj
+T*
+(consulta não podem criar automaticamente nova Pessoa/UUID.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Consulta de CPF inexistente retorna estado apropriado sem ) Tj
+T*
+(mutação do mapa de identidade.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-005, RN-018, RN-022) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 10.2) Tj
+T*
+() Tj
+T*
+(RT-037 - Projetar Pessoa pelo schema autorizado da credencial) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A consulta cadastral deve aplicar cumulativamente o JSON Schema ) Tj
+T*
+(autorizado da credencial e eventuais restrições negativas versionadas do Gestor responsável.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Campo fora da projeção autorizada não é retornado; ausência ) Tj
+T*
+(de restrição ativa mantém a projeção municipal padrão prevista.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-018, RN-019, RN-020, RN-022) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 10.4.1; § 10.6) Tj
+T*
+() Tj
+T*
+(RT-038 - Separar fisicamente Registros de Possibilidades) Tj
+T*
+ET
+endstream
+endobj
+24 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 25 0 R >>
+endobj
+25 0 obj
+<< /Length 2768 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Requisito técnico. APIs, DTOs e projeções de Registros e Possibilidades devem permanecer ) Tj
+T*
+(semanticamente e fisicamente distinguíveis.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Nenhum endpoint de Possibilidades é utilizado como fonte ) Tj
+T*
+(factual de Benefício Concedido/Serviço Prestado e a resposta explicita a natureza calculada.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-011, RN-012, RN-013) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 10.4.2, 10.4.3 e 10.5; § 17, RNF14) Tj
+T*
+() Tj
+T*
+(RT-039 - Auditar todo acesso individual e em lote) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Cada acesso individual deve registrar credencial/Gestor, rota, recurso e ) Tj
+T*
+(UUID-alvo; consulta em lote deve registrar todos os UUIDs do evento sem persistir CPF, nome,) Tj
+T*
+( payload, access key ou finalidade declarada.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Trilha de auditoria permite reconstruir quem acessou qual ) Tj
+T*
+(recurso e quando, sem duplicar conteúdo pessoal desnecessário.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-029, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 10.8, 13.5 e 15.6; § 17, RNF30) Tj
+T*
+() Tj
+T*
+(RT-040 - Aplicar rate limit pós-autenticação e proxy confiável) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Rate limiting funcional deve usar CredentialId + classe de endpoint; ) Tj
+T*
+(X-Forwarded-For só pode ser aceito quando Forwarded Headers estiver configurado com proxies ) Tj
+T*
+(explicitamente confiáveis.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Sem lista confiável, middleware de forwarded headers ) Tj
+T*
+(permanece desabilitado e o endereço observado na conexão é usado.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-029, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 13.6; § 17, RNF29 e RNF31) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5.8 Referência Territorial) Tj
+T*
+() Tj
+T*
+(RT-041 - Modelar Referência Territorial separada de endereço civil) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A solução deve manter Referência Territorial como conceito transversal ) Tj
+T*
+(próprio, separado de ENDERECORESIDENCIAL e ENDERECOCORRESPONDENCIA, inclusive quando existir) Tj
+T*
+( apenas Distrito/Subprefeitura.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Consultas/BI territoriais usam a referência selecionada e não) Tj
+T*
+( confundem endereço civil com referência de política pública.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-015, RN-025) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 11; atualizações v3.28-v3.32; § 17, RNF07) Tj
+T*
+() Tj
+T*
+(RT-042 - Proibir inferência territorial automática por local de atendimento) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Unidade/local de atendimento não pode substituir automaticamente a ) Tj
+T*
+ET
+endstream
+endobj
+26 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 27 0 R >>
+endobj
+27 0 obj
+<< /Length 2582 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Referência Territorial da Pessoa; ACOLHIMENTOINSTITUCIONAL exige declaração explícita da ) Tj
+T*
+(fonte de que aquele local é a referência no período.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Nenhuma rotina deriva referência territorial somente do local) Tj
+T*
+( onde o serviço foi prestado.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-015, RN-016, RN-021) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 11; atualização v3.28) Tj
+T*
+() Tj
+T*
+(RT-043 - Preservar snapshot territorial utilizado pelos fatos) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Quando houver territorialização, o fato Gold/Serving deve referenciar o ) Tj
+T*
+(snapshot exato de Referência Territorial aplicável, com natureza, situação geográfica e ) Tj
+T*
+(provenance preservadas.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Mudança futura da referência não reescreve retrospectivamente) Tj
+T*
+( o snapshot territorial associado ao fato histórico.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-016, RN-017, RN-025) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 11; atualizações v3.31-v3.32) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5.9 BI e indicadores) Tj
+T*
+() Tj
+T*
+(RT-044 - Tratar views serving.vbi como contratos estáveis) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Views serving.vbi devem constituir contrato estável entre engenharia e ) Tj
+T*
+(Power BI; alteração incompatível exige versionamento formal e comunicação.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. PBIP/BI não depende de tabela interna não contratada quando ) Tj
+T*
+(existe view Serving canônica.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-025, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 12.7; § 17, RNF10 e RNF13) Tj
+T*
+() Tj
+T*
+(RT-045 - Parametrizar o PBIP sem credenciais versionadas) Tj
+T*
+() Tj
+T*
+(Requisito técnico. O projeto Power BI deve abrir com parâmetros de servidor/banco e não deve) Tj
+T*
+( conter credenciais operacionais versionadas.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Arquivo PBIP pode ser apontado para local/HML por parâmetro e) Tj
+T*
+( secrets permanecem externos.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-025, RN-030, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 12.7; § 17, RNF11) Tj
+T*
+() Tj
+T*
+(RT-046 - Expor qualidade, cobertura e incerteza no BI) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Dashboards devem mostrar ingestão, qualidade de pacotes, identidade por ) Tj
+T*
+(origem, QC, pendências, territorialidade, retransmissões e estados de incerteza, sem ocultar) Tj
+T*
+( denominadores e coberturas.) Tj
+T*
+() Tj
+T*
+ET
+endstream
+endobj
+28 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 29 0 R >>
+endobj
+29 0 obj
+<< /Length 2655 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Critério de aceitação técnica. Indicadores distinguem resolvido determinístico, ) Tj
+T*
+(probabilístico, não resolvido, conflito e ausência de candidato quando aplicável.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-024, RN-025) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 12.6 e 19.1 a 19.8) Tj
+T*
+() Tj
+T*
+(RT-047 - Manter consulta individual fora do Power BI) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Consulta individual de Pessoa, Registros e Possibilidades deve ocorrer ) Tj
+T*
+(por APIs/sistemas finalísticos; o BI é camada analítica e não mecanismo de consulta ) Tj
+T*
+(operacional individualizada.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. PBIP não precisa expor tela operacional de consulta ) Tj
+T*
+(individual; sistemas autorizados usam API.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-018, RN-025, RN-026) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 12.2; princípios da Camada 5) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5.10 Segurança, privacidade e governança) Tj
+T*
+() Tj
+T*
+(RT-048 - Autenticar integrações e consumidores por código + chave/certificado conforme ) Tj
+T*
+(perfil) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A solução deve exigir autenticação técnica para ingestão e consultas, com) Tj
+T*
+( credenciais segregadas por Gestor/Tipo e scopes mínimos aplicáveis.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Chave inválida não acessa recurso; rotação e substituição de ) Tj
+T*
+(secret são possíveis sem mudança de código.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-018, RN-029, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 13.2 e 13.3) Tj
+T*
+() Tj
+T*
+(RT-049 - Minimizar dados em logs e telemetria) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Logs não podem conter payload integral, access key, CPF/nome ) Tj
+T*
+(desnecessário ou outros identificadores civis além do mínimo operacional.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Revisão de logs de erro, API e auditoria evidencia uso de ) Tj
+T*
+(identificadores técnicos/UUID quando suficiente.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-029, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. §§ 13.5 e 14.5; § 17, RNF08) Tj
+T*
+() Tj
+T*
+(RT-050 - Manter CPF restrito às camadas operacionais autorizadas) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Na Fase 1, CPF pode existir nas estruturas operacionais necessárias à ) Tj
+T*
+(identidade, mas não deve ser propagado a observabilidade/BI como dimensão nem exposto sem ) Tj
+T*
+(autorização contratual.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Dashboards e métricas de cobertura de CPF usam ) Tj
+T*
+(contagens/status sem revelar valores individuais.) Tj
+T*
+ET
+endstream
+endobj
+30 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 31 0 R >>
+endobj
+31 0 obj
+<< /Length 2713 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Rastreabilidade de negócio. RN-006, RN-024, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 14.5.1; atualização v3.30) Tj
+T*
+() Tj
+T*
+(RT-051 - Aplicar retenção e expurgo por classe de ativo) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Bronze, Gold, evidências, auditoria e estruturas derivadas devem possuir ) Tj
+T*
+(política de retenção compatível com finalidade, base legal e governança, incluindo cinco ) Tj
+T*
+(anos para registros de acesso/auditoria conforme baseline.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Expurgo é executável sem quebrar recuperabilidade ) Tj
+T*
+(referencial; Produção só inicia com parâmetros de retenção aprovados.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-029, RN-030, RN-031) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 14.4; tabela de retenção; § 15) Tj
+T*
+() Tj
+T*
+(RT-052 - Proteger estruturalmente endereço de casa-abrigo sigilosa) Tj
+T*
+() Tj
+T*
+(Requisito técnico. ENDERECOCASAABRIGOSIGILOSA deve ter origem exclusiva em Tipo SERVICO ) Tj
+T*
+(habilitado, não gerar marcador público de Pessoa protegida, não alimentar territorialização ) Tj
+T*
+(e não ser projetado cross-Gestor.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Testes de projeção e territorialização comprovam ausência de ) Tj
+T*
+(vazamento desse atributo para consumidores não autorizados.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-021, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. atualização normativa v3.57) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5.11 Operação e requisitos não funcionais) Tj
+T*
+() Tj
+T*
+(RT-053 - Disponibilizar health checks, heartbeat e telemetria operacional) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Componentes residentes devem possuir health check/heartbeat e componentes) Tj
+T*
+( run-once devem registrar status/telemetria de execução, inclusive linkagerun.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. HML permite detectar componente indisponível, run estagnado, ) Tj
+T*
+(backlog e lease expirado sem inspeção manual do banco.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-024, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 16.4; § 17, RNF09) Tj
+T*
+() Tj
+T*
+(RT-054 - Manter PipelineWatchdog somente observacional) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Alertas como LINKAGERUNSTALE, MODELGENERATIONSTALE, PROCESSORLEASEEXPIRED) Tj
+T*
+( e PROCESSORBACKLOGOLD devem informar incidente sem autorizar mutação automática de estado ) Tj
+T*
+(funcional.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Disparo de alerta não executa correção cadastral, publicação ) Tj
+T*
+(ou reprocessamento destrutivo por conta própria.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-022, RN-023, RN-029) Tj
+T*
+ET
+endstream
+endobj
+32 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 33 0 R >>
+endobj
+33 0 obj
+<< /Length 2693 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 16.4; atualização v3.53) Tj
+T*
+() Tj
+T*
+(RT-055 - Usar scheduler corporativo externo para jobs recorrentes) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A Fase 1 não deve implementar scheduler próprio; recorrência e ) Tj
+T*
+(encadeamento de Parameters, Runner e verificações run-once devem usar mecanismo corporativo ) Tj
+T*
+(homologado com logs, retry limitado e não sobreposição.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Runbook registra comando, argumentos, início/fim, exit code e) Tj
+T*
+( identidade técnica do disparo.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-033, RN-034) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 16.6) Tj
+T*
+() Tj
+T*
+(RT-056 - Degradar sem bloquear o caminho determinístico) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Indisponibilidade do Parameters Worker/Runner não pode bloquear recepção ) Tj
+T*
+(nem processamento determinístico de Pessoas com CPF válido; pendências sem CPF aguardam ) Tj
+T*
+(reexecução posterior.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Falha do componente probabilístico não transforma carga ) Tj
+T*
+(determinística válida em indisponibilidade sistêmica.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-006, RN-007, RN-023, RN-028) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 16.5) Tj
+T*
+() Tj
+T*
+(RT-057 - Processar corpus de escala sem carregamento integral em memória) Tj
+T*
+() Tj
+T*
+(Requisito técnico. Parameters Worker e rotinas analíticas de escala devem usar ) Tj
+T*
+(streaming/agregação SQL e amostras limitadas, evitando materializar toda a Gold em memória ) Tj
+T*
+(ou persistir frequências de alta cardinalidade desnecessárias.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Teste/harness de escala demonstra memória limitada e ausência) Tj
+T*
+( de dependência de carregamento populacional integral.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-024, RN-028, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 17, RNF15 e RNF27; atualização v3.55) Tj
+T*
+() Tj
+T*
+(RT-058 - Medir desempenho em HML antes de definir SLA de Produção) Tj
+T*
+() Tj
+T*
+(Requisito técnico. HML deve medir p50, p95, vazão, duração de estágios, backlog e tempos dos) Tj
+T*
+( jobs; SLA definitivo de Produção não é fixado pela Fase 1 sem evidência de dimensionamento.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Relatório de HML contém métricas de capacidade suficientes ) Tj
+T*
+(para subsidiar sizing e metas posteriores.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-027, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 17, RNF20; §§ 16.4 e 19.1) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5.12 Testes, release e aceite) Tj
+T*
+ET
+endstream
+endobj
+34 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 35 0 R >>
+endobj
+35 0 obj
+<< /Length 2928 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(RT-059 - Exercitar DDL e seed reais em testes de integração) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A suíte Integration deve aplicar o DDL e o seed reais de SQL Server, em ) Tj
+T*
+(banco isolado por execução, para detectar incompatibilidades do motor, constraints, ) Tj
+T*
+(procedures e reentrada do schema.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Execução local canônica cria banco descartável e os testes ) Tj
+T*
+(não dependem de banco compartilhado preexistente.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-029, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 17, RNF12; atualizações v3.54/v3.55) Tj
+T*
+() Tj
+T*
+(RT-060 - Restaurar dependências em modo locked para validação de release) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A validação local de release deve restaurar Solution, Unit e Integration ) Tj
+T*
+(em --locked-mode antes de build/test, garantindo que o grafo resolvido corresponda aos ) Tj
+T*
+(packages.lock.json versionados.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Alteração não declarada no grafo falha o restore locked; ) Tj
+T*
+(release registra separadamente evidência executada externamente e claims do ambiente de ) Tj
+T*
+(empacotamento.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-014, RN-029, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. engenharia reprodutível derivada de atualização v3.54; ) Tj
+T*
+(baseline Solution v3.95/v3.96) Tj
+T*
+() Tj
+T*
+(RT-061 - Validar SQL Server local por imagem fixada em digest) Tj
+T*
+() Tj
+T*
+(Requisito técnico. O ambiente local de integração deve usar a imagem SQL Server homologada ) Tj
+T*
+(por tag + digest; o script deve reutilizar cache quando íntegro e realizar pull somente ) Tj
+T*
+(quando ausente ou quando a recuperação controlada do engine exigir.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Validação informa imagem/digest, confirma engine real e não ) Tj
+T*
+(interpreta falha funcional de teste como corrupção da imagem.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. atualização v3.54; baseline de engenharia v3.95) Tj
+T*
+() Tj
+T*
+(RT-062 - Verificar integridade básica do engine SQL antes da Integration) Tj
+T*
+() Tj
+T*
+(Requisito técnico. O preflight local deve confirmar Docker Engine, conexão SQL, ) Tj
+T*
+(ProductVersion e DBCC CHECKDB\(master\), com uma única tentativa controlada de re-pull quando ) Tj
+T*
+(houver evidência de falha do próprio engine.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Falha de constraint/procedure da aplicação não dispara ) Tj
+T*
+(reinstalação; falha de engine/cache pode acionar recuperação segura e auditável.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-029, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. baseline de engenharia v3.95; operação § 16) Tj
+T*
+() Tj
+T*
+(RT-063 - Tratar warnings e testes como gates de qualidade) Tj
+T*
+ET
+endstream
+endobj
+36 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 37 0 R >>
+endobj
+37 0 obj
+<< /Length 2812 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Requisito técnico. CI/validação de release deve compilar em Release com warnings controlados) Tj
+T*
+( como erro quando configurado e executar Unit + Integration relevantes antes de promoção.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Build 0 erros e suítes aprovadas são pré-condição de baseline) Tj
+T*
+( técnico; exceções precisam de registro formal e não podem ser mascaradas.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-029, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. atualização v3.30; § 18.4) Tj
+T*
+() Tj
+T*
+(RT-064 - Demonstrar fluxo ponta a ponta em HML antes de Produção) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A HML deve demonstrar autenticação, ingestão v2, ) Tj
+T*
+(Bronze?Silver?Gold/Serving, identidade, Referência Territorial, QC, APIs, Possibilidades, ) Tj
+T*
+(Power BI, logs, métricas, auditoria, watchdog e scheduler corporativo.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Promoção para Produção requer evidência dos critérios de ) Tj
+T*
+(aceite técnico da Fase 1 e dos gates de governança ainda externos à validação local.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-025, RN-029, RN-031, RN-032, RN-033, RN-034) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 18.4; §§ 13 a 16) Tj
+T*
+() Tj
+T*
+(RT-065 - Manter biometria fora do núcleo técnico da Fase 1) Tj
+T*
+() Tj
+T*
+(Requisito técnico. A Fase 1 não deve depender de biometria para constituir, consultar ou ) Tj
+T*
+(manter a Pessoa canônica; eventual biometria futura deve ser tratada como evolução ) Tj
+T*
+(específica, com contrato, governança e proteção próprios.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação técnica. Build, ingestão, resolução determinística, Gold e APIs ) Tj
+T*
+(funcionam sem componente biométrico; nenhuma ausência de biometria bloqueia o fluxo ) Tj
+T*
+(normativo da Fase 1.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-036) Tj
+T*
+() Tj
+T*
+(Rastreabilidade normativa/técnica. § 20 - Fora de escopo; diretriz de evolução da identidade) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(6. Rastreabilidade resumida RN -> RT \(legado compatível\)) Tj
+T*
+() Tj
+T*
+(| Requisito de Negócio | Requisitos Técnicos relacionados |) Tj
+T*
+(|---|---|) Tj
+T*
+(| RN-001 | RT-001, RT-003 |) Tj
+T*
+(| RN-002 | RT-006, RT-007, RT-010, RT-011, RT-013, RT-018 |) Tj
+T*
+(| RN-003 | RT-002, RT-010, RT-011, RT-014, RT-015, RT-016, RT-017, RT-019, RT-020, RT-027, ) Tj
+T*
+(RT-043 |) Tj
+T*
+(| RN-004 | RT-032 |) Tj
+T*
+(| RN-005 | RT-023, RT-024, RT-027, RT-030, RT-036 |) Tj
+T*
+(| RN-006 | RT-023, RT-024, RT-026, RT-028, RT-050, RT-056 |) Tj
+T*
+(| RN-007 | RT-025, RT-026, RT-056 |) Tj
+T*
+(| RN-008 | RT-034 |) Tj
+T*
+(| RN-009 | RT-032, RT-034 |) Tj
+T*
+(| RN-010 | RT-034 |) Tj
+T*
+(| RN-011 | RT-007, RT-031, RT-038 |) Tj
+T*
+(| RN-012 | RT-011, RT-020, RT-033, RT-038 |) Tj
+T*
+ET
+endstream
+endobj
+38 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 39 0 R >>
+endobj
+39 0 obj
+<< /Length 3199 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(| RN-013 | RT-031, RT-038 |) Tj
+T*
+(| RN-014 | RT-005, RT-006, RT-007, RT-008, RT-029, RT-060 |) Tj
+T*
+(| RN-015 | RT-041, RT-042 |) Tj
+T*
+(| RN-016 | RT-042, RT-043 |) Tj
+T*
+(| RN-017 | RT-043 |) Tj
+T*
+(| RN-018 | RT-035, RT-036, RT-037, RT-047, RT-048 |) Tj
+T*
+(| RN-019 | RT-035, RT-037 |) Tj
+T*
+(| RN-020 | RT-035, RT-037 |) Tj
+T*
+(| RN-021 | RT-042, RT-052 |) Tj
+T*
+(| RN-022 | RT-036, RT-037, RT-054 |) Tj
+T*
+(| RN-023 | RT-012, RT-014, RT-015, RT-017, RT-018, RT-019, RT-020, RT-021, RT-022, RT-024, ) Tj
+T*
+(RT-026, RT-033, RT-046, RT-053, RT-054, RT-056, RT-057, RT-058, RT-059, RT-061, RT-062, ) Tj
+T*
+(RT-063, RT-064 |) Tj
+T*
+(| RN-024 | RT-019, RT-022, RT-025, RT-027, RT-028, RT-029, RT-046, RT-050, RT-053, RT-057 |) Tj
+T*
+(| RN-025 | RT-041, RT-043, RT-044, RT-045, RT-046, RT-047, RT-064 |) Tj
+T*
+(| RN-026 | RT-047 |) Tj
+T*
+(| RN-027 | RT-058 |) Tj
+T*
+(| RN-028 | RT-022, RT-026, RT-032, RT-056, RT-057 |) Tj
+T*
+(| RN-029 | RT-004, RT-005, RT-013, RT-014, RT-015, RT-016, RT-017, RT-020, RT-021, RT-027, ) Tj
+T*
+(RT-029, RT-030, RT-034, RT-035, RT-039, RT-040, RT-048, RT-049, RT-051, RT-054, RT-059, ) Tj
+T*
+(RT-060, RT-062, RT-063, RT-064 |) Tj
+T*
+(| RN-030 | RT-004, RT-012, RT-016, RT-023, RT-039, RT-040, RT-045, RT-049, RT-050, RT-051, ) Tj
+T*
+(RT-052 |) Tj
+T*
+(| RN-031 | RT-016, RT-017, RT-051, RT-064 |) Tj
+T*
+(| RN-032 | RT-064 |) Tj
+T*
+(| RN-033 | RT-004, RT-005, RT-009, RT-045, RT-048, RT-053, RT-055, RT-058, RT-059, RT-060, ) Tj
+T*
+(RT-061, RT-062, RT-063, RT-064 |) Tj
+T*
+(| RN-034 | RT-006, RT-009, RT-013, RT-055, RT-064 |) Tj
+T*
+(| RN-035 | RT-001, RT-002, RT-003, RT-006, RT-007, RT-008, RT-009, RT-018, RT-021, RT-044, ) Tj
+T*
+(RT-057 |) Tj
+T*
+(| RN-036 | RT-065 |) Tj
+T*
+() Tj
+T*
+(7. Critérios gerais de aceite técnico) Tj
+T*
+() Tj
+T*
+(- O requisito técnico deve possuir evidência verificável por teste, inspeção de artefato, ) Tj
+T*
+(observabilidade, runbook ou homologação, conforme sua natureza.) Tj
+T*
+(- Gates locais não substituem HML, Produção, RIPD, calibração ou governança quando o ) Tj
+T*
+(requisito depender desses ambientes/atos.) Tj
+T*
+(- Uma aprovação de runtime vale somente para o commit/release e ambiente documentados; ) Tj
+T*
+(alteração funcional relevante exige nova evidência.) Tj
+T*
+(- Teste alterado para refletir o contrato correto deve continuar provando o comportamento, ) Tj
+T*
+(sem simplesmente remover a asserção que detectou o defeito.) Tj
+T*
+(- Falha de componente de infraestrutura deve ser distinguida de falha funcional da ) Tj
+T*
+(aplicação; recuperação automática não pode mascarar erro de negócio/DDL.) Tj
+T*
+() Tj
+T*
+(8. Fora de escopo deste documento) Tj
+T*
+() Tj
+T*
+(- Reescrever a Especificação Técnica v3.62 ou redefinir regra normativa.) Tj
+T*
+(- Fixar SLA definitivo de Produção antes das medições de HML.) Tj
+T*
+(- Aprovar RIPD, retenção de Produção, regras setoriais ou calibração probabilística ) Tj
+T*
+(dependente de dados reais.) Tj
+T*
+(- Substituir runbooks, ADRs, contratos JSON/OpenAPI, DDL ou documentação de operação ) Tj
+T*
+(detalhada.) Tj
+T*
+(- Transformar Possibilidades em decisão administrativa, direito ou fato ocorrido.) Tj
+T*
+() Tj
+T*
+(9. Controle de versão) Tj
+T*
+ET
+endstream
+endobj
+40 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 41 0 R >>
+endobj
+41 0 obj
+<< /Length 556 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(| Versão | Data | Síntese | Incorporação |) Tj
+T*
+(|---|---|---|---|) Tj
+T*
+(| 1.0 | 03/09/2026 | Baseline inicial de 65 requisitos técnicos, com rastreabilidade aos 36 ) Tj
+T*
+(Requisitos de Negócio v1.0 e à Especificação Técnica v3.62. | Solution Engenharia v3.97 |) Tj
+T*
+(| 1.1 | 03/09/2026 | Reclassificação documental: RT passa a ser explicitamente a camada de ) Tj
+T*
+(realização de RF/RNF; conteúdo técnico dos 65 RT preservado e matriz completa externalizada.) Tj
+T*
+( | Solution Engenharia v3.98 |) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 42
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000246 00000 n 
+0000000343 00000 n 
+0000000469 00000 n 
+0000003686 00000 n 
+0000003812 00000 n 
+0000006755 00000 n 
+0000006881 00000 n 
+0000009663 00000 n 
+0000009791 00000 n 
+0000012424 00000 n 
+0000012552 00000 n 
+0000015329 00000 n 
+0000015457 00000 n 
+0000018218 00000 n 
+0000018346 00000 n 
+0000021091 00000 n 
+0000021219 00000 n 
+0000024051 00000 n 
+0000024179 00000 n 
+0000026773 00000 n 
+0000026901 00000 n 
+0000029553 00000 n 
+0000029681 00000 n 
+0000032501 00000 n 
+0000032629 00000 n 
+0000035263 00000 n 
+0000035391 00000 n 
+0000038098 00000 n 
+0000038226 00000 n 
+0000040991 00000 n 
+0000041119 00000 n 
+0000043864 00000 n 
+0000043992 00000 n 
+0000046972 00000 n 
+0000047100 00000 n 
+0000049964 00000 n 
+0000050092 00000 n 
+0000053343 00000 n 
+0000053471 00000 n 
+trailer
+<< /Size 42 /Root 1 0 R >>
+startxref
+54078
+%%EOF

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Data;
 using Jornada.Contracts;
 using Jornada.Pipeline.Coordination;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Runner;
@@ -16,6 +17,7 @@ namespace Jornada.Linkage.Runner;
 /// </summary>
 public sealed class ProbabilisticLinkageBatchRunner(
     IConfiguration configuration,
+    IOperationalSqlAdapter operationalSql,
     IProbabilisticIdentityLinkage linkage,
     SqlPipelineCoordinator pipelineCoordinator,
     ILogger<ProbabilisticLinkageBatchRunner> logger) : IProbabilisticLinkageBatchRunner
@@ -158,8 +160,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
         DateTimeOffset started,
         CancellationToken ct)
     {
-        await using var connection = new SqlConnection(GetConnectionString());
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
 
         var materializeCommandTimeoutSeconds = Math.Max(
             30,
@@ -273,8 +274,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
         int take,
         CancellationToken ct)
     {
-        await using var connection = new SqlConnection(GetConnectionString());
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         var command = new SqlCommand(
             """
             SELECT TOP (@take)
@@ -353,8 +353,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
     {
         if (decisions.Count == 0) return;
 
-        await using var connection = new SqlConnection(GetConnectionString());
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         try
         {
@@ -402,8 +401,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
     private async Task<LinkageRunStatus> PublishAsync(
         Guid runId, long eligible, long evaluated, DateTimeOffset finished, CancellationToken ct)
     {
-        await using var connection = new SqlConnection(GetConnectionString());
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         try
         {
@@ -511,8 +509,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
         if (eligible != evaluated)
             throw new InvalidOperationException("Run sem publicação também exige processamento completo do universo congelado.");
 
-        await using var connection = new SqlConnection(GetConnectionString());
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         var command = new SqlCommand(
             """
             UPDATE identidade.linkage_run
@@ -530,8 +527,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
     private async Task MarkTerminalAsync(
         Guid runId, LinkageRunStatus status, DateTimeOffset finished, string error, CancellationToken ct)
     {
-        await using var connection = new SqlConnection(GetConnectionString());
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         var command = new SqlCommand(
             """
             UPDATE identidade.linkage_run
@@ -606,10 +602,6 @@ public sealed class ProbabilisticLinkageBatchRunner(
             maxRecords = request.MaxRecords,
             publish = request.Publish
         });
-
-    private string GetConnectionString() =>
-        configuration.GetConnectionString("Jornada")
-        ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 
     private sealed record MaterializedRunUniverse(long HighWatermarkObservationId, long Eligible);
 

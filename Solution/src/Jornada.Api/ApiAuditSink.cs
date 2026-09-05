@@ -1,3 +1,4 @@
+using Jornada.Operational.Sql;
 using System.Data;
 using Jornada.Contracts;
 using Microsoft.AspNetCore.Routing;
@@ -14,7 +15,7 @@ internal interface IApiAuditSink
 /// Persistência SQL da trilha de auditoria. O middleware depende da abstração IApiAuditSink para
 /// permitir teste de pipeline totalmente em memória sem abrir conexão com banco.
 /// </summary>
-internal sealed class SqlApiAuditSink(SqlConnectionFactory connections) : IApiAuditSink
+internal sealed class SqlApiAuditSink(IOperationalSqlAdapter connections) : IApiAuditSink
 {
     public async Task PersistAsync(HttpContext http, Guid correlationId, long elapsedMs, CancellationToken ct)
     {

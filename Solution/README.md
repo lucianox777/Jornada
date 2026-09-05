@@ -1,12 +1,12 @@
-# Jornada — Solution de Referência (Fase 1) — engenharia v3.90
+# Jornada — Solution de Referência (Fase 1) — engenharia v4.03
 
-> **Base normativa vigente: v3.62; schema persistido esperado: Base 3.62 / SolutionSchema 3.68.** A release de engenharia v3.90 preserva a semântica funcional da Base 3.62/SolutionSchema 3.68, mantém os hardenings SQL/Bronze/Docker da v3.88 e corrige o isolamento da suíte Integration para que o banco descartável satisfaça os próprios guards fail-closed Test/Dev/Local. Também incorpora scripts canônicos de limpeza e validação local. Veja `../RELEASE_INFO.txt` e `docs/Governanca_Tecnica_Readiness.md`.
+> **Base normativa vigente: v3.64; schema persistido esperado: Base 3.62 / SolutionSchema 3.69.** A engenharia v4.04 incorpora a terminologia canônica mínima de vigência do Benefício Concedido (`VIGENTE`, `SUSPENSA`, `ENCERRADA`) e registra conceitualmente Concessão, Pagamento e Recebimento como fatos distintos, mantendo Pagamento e Recebimento fora do runtime da Fase 1. O DDL, contratos, Processor, API/Serving, QC e testes foram ajustados para a vigência canônica; SQL Database in Microsoft Fabric permanece o ambiente relacional operacional preferencial de HML/Produção.
 
-Stack: **C# 12 / .NET 8**, Microsoft SQL Server e Power BI Project (PBIP/TMDL/PBIR).
+Stack: **C# 12 / .NET 8**, Microsoft SQL (SQL Database in Microsoft Fabric como ambiente operacional preferencial de HML/Produção; SQL Server 2022 Developer como baseline local de desenvolvimento/CI/testes) e Power BI Project (PBIP/TMDL/PBIR).
 
 Desenvolvimento local recomendado: **SQL Server 2022 Developer em Docker**, explicitamente `MSSQL_PID=Developer`, sem uso permitido em Produção. `docker-compose.yml` + `scripts/local-db.*` criam `JornadaLocal`, aplicam DDL/seed e permitem executar os testes SQL sem instalar SQL Server no host. O repositório Git é a fonte oficial dos artefatos editáveis; releases usam tag `jornada-fase1-vX.YY` e registram o commit em `RELEASE_INFO.txt`. Veja `docs/Runbook_Desenvolvimento_Local.md`, `docs/Runbook_Testes_Tecnicos.md` e `docs/Runbook_Git_Release.md`.
 
-### Limpeza e validação local canônicas — v3.90
+### Limpeza e validação local canônicas — v4.03
 
 Na raiz `Solution`:
 
@@ -15,7 +15,7 @@ Na raiz `Solution`:
 .\scripts\local-validate-release.ps1
 ```
 
-`local-clean.ps1` remove banco/volume/container locais e saídas `bin/obj`, preserva a imagem Docker do SQL Server e trata `.vs` apenas em best-effort para não abortar quando Visual Studio/Copilot mantém cache aberto. `local-validate-release.ps1` executa restore `--locked-mode`, build Release, Unit e Integration; a Integration usa Testcontainers com banco descartável `JornadaIntegrationTest_<guid>`.
+`local-clean.ps1` remove banco/volume/container locais e saídas `bin/obj`, preserva a imagem Docker do SQL Server e trata `.vs` apenas em best-effort para não abortar quando Visual Studio/Copilot mantém cache aberto. `local-validate-release.ps1` executa restore `--locked-mode`, build Release, Unit e Integration; a Integration usa Testcontainers com banco descartável `JornadaIntegration_Test_<guid>`.
 
 A `Jornada.Api` é a borda externa oficial. O processamento Bronze→Silver→Gold/Serving e o linkage são internos e auditáveis.
 
@@ -154,9 +154,10 @@ O projeto está em `bi/` e consome somente `serving.v_bi_*`. As tabelas semânti
 
 - `docs/API.md` — contrato HTTP resumido.
 - `docs/Bronze_Operacao.md` — integridade, 503/retry, GC seguro, ZIP determinístico e backup/restore da Bronze.
+- `docs/Operational_SQL_Adapter.md` — fronteira de persistência relacional operacional e plano de compatibilidade SQL Server/Fabric SQL.
 - `docs/README.md` — notas técnicas complementares.
 - `config/security/README.md` — política das chaves sintéticas.
-- `../Documentos/Especificacao_Tecnica_Jornada_v3.62.docx` — fonte normativa desta distribuição. A Referência Territorial permanece a fonte geográfica da visualização territorial; a v3.47 preserva a trava de consistência do CPF, os casos governados de identidade e a independência entre ocorrência factual e atribuição canônica.
+- `../Documentos/Especificacao_Tecnica_Jornada_v3.63.docx` — fonte normativa desta distribuição. A Referência Territorial permanece a fonte geográfica da visualização territorial; a v3.47 preserva a trava de consistência do CPF, os casos governados de identidade e a independência entre ocorrência factual e atribuição canônica.
 
 ## Compartilhamento municipal por padrão — vigente na v3.55
 

@@ -85,13 +85,33 @@ public sealed class RegistryQualityTests
         Assert.That(result?.Resultado, Is.EqualTo("NAO_VERIFICAVEL"));
     }
 
+
+    [Test]
+    public void Ended_concession_requires_canonical_end_reason()
+    {
+        var engine = new RegistryQualityEngine(Array.Empty<IRegistryQualityEvaluator>());
+        var fact = new ParsedFact("P1", "R1", RegistroOperacao.INCLUSAO, new string('a',64), new DateOnly(2026,1,1), new DateOnly(2026,6,30),
+            null, null, null, null, "ENCERRADA", new DateOnly(2026,6,30), null, 100m, null, null);
+        var result = engine.Evaluate(Batch("NAO_IMPLEMENTADO"), fact);
+        Assert.That(result?.RegraCodigo, Is.EqualTo("MOTIVO_ENCERRAMENTO_INVALIDO_V1"));
+    }
+
+    [Test]
+    public void Canonical_end_reason_is_accepted()
+    {
+        var engine = new RegistryQualityEngine(Array.Empty<IRegistryQualityEvaluator>());
+        var fact = new ParsedFact("P1", "R1", RegistroOperacao.INCLUSAO, new string('a',64), new DateOnly(2026,1,1), new DateOnly(2026,6,30),
+            null, null, null, null, "ENCERRADA", new DateOnly(2026,6,30), "TERMINO_REGULAR", 100m, null, null);
+        Assert.That(engine.Evaluate(Batch("NAO_IMPLEMENTADO"), fact), Is.Null);
+    }
+
     private static ParsedFact BenefitFact(decimal value, DateOnly? dataInicioConcessao = null, DateOnly? dataFimConcessao = null) =>
         new("P1", "R1", RegistroOperacao.INCLUSAO, new string('a',64), dataInicioConcessao ?? new DateOnly(2026, 6, 1), dataFimConcessao,
-            null, null, null, "ATIVO", value, null, null);
+            null, null, null, null, "VIGENTE", null, null, value, null, null);
 
     private static ParsedFact BenefitFactWithoutStart(decimal value) =>
         new("P1", "R1", RegistroOperacao.INCLUSAO, new string('a',64), null, null,
-            null, null, null, "ATIVO", value, null, null);
+            null, null, null, null, "VIGENTE", null, null, value, null, null);
 
     private static ReservedBatch Batch(
         string qcStatus,

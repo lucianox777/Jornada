@@ -280,20 +280,20 @@ IF NOT EXISTS(SELECT 1 FROM gold.pessoa_atributo WHERE pessoa_uuid=@u2 AND atrib
  FROM silver.pessoa_atributo_observacao pa WHERE pa.pessoa_observacao_id=@p2 AND pa.atributo_codigo='EMAIL_CONTATO' AND pa.status_evidencia='COMPROVADO';
 
 -- Identidades estáveis dos Benefícios Concedidos no sistema finalístico.
-DECLARE @rBen TABLE(codigo NVARCHAR(255), pessoa_observacao_id BIGINT, data_inicio_concessao DATE, data_fim_concessao DATE, data_evento_concessao DATE, situacao NVARCHAR(80), valor_concedido DECIMAL(18,2), hash CHAR(64));
+DECLARE @rBen TABLE(codigo NVARCHAR(255), pessoa_observacao_id BIGINT, data_inicio_concessao DATE, data_fim_concessao DATE, data_evento_concessao DATE, situacao_vigencia NVARCHAR(20), situacao_vigencia_desde DATE, motivo_encerramento NVARCHAR(30), valor_concedido DECIMAL(18,2), hash CHAR(64));
 INSERT @rBen VALUES
- ('AA-2026-004711',@p1,'2026-01-01',NULL,'2026-08-25','VIGENTE',600,REPLICATE('a',64)),
- ('AA-2026-004712',@p2,'2026-02-01',NULL,'2026-08-19','VIGENTE',700,REPLICATE('b',64)),
- ('AA-2026-004713',@p3,'2026-03-01',NULL,'2026-08-10','VIGENTE',650,REPLICATE('c',64)),
- ('AA-2026-004714',@p4,'2026-04-01','2026-07-31','2026-08-01','ENCERRADO',600,REPLICATE('d',64)),
- ('AA-2026-004715',@p5,'2026-05-01',NULL,'2026-08-27','VIGENTE',600,REPLICATE('e',64)),
- ('AA-2026-004716',@p6,'2026-06-01',NULL,'2026-07-20','VIGENTE',700,REPLICATE('f',64));
+ ('AA-2026-004711',@p1,'2026-01-01',NULL,'2026-08-25','VIGENTE',NULL,NULL,600,REPLICATE('a',64)),
+ ('AA-2026-004712',@p2,'2026-02-01',NULL,'2026-08-19','VIGENTE',NULL,NULL,700,REPLICATE('b',64)),
+ ('AA-2026-004713',@p3,'2026-03-01',NULL,'2026-08-10','VIGENTE',NULL,NULL,650,REPLICATE('c',64)),
+ ('AA-2026-004714',@p4,'2026-04-01','2026-07-31','2026-08-01','ENCERRADA','2026-08-01','TERMINO_REGULAR',600,REPLICATE('d',64)),
+ ('AA-2026-004715',@p5,'2026-05-01',NULL,'2026-08-27','VIGENTE',NULL,NULL,600,REPLICATE('e',64)),
+ ('AA-2026-004716',@p6,'2026-06-01',NULL,'2026-07-20','VIGENTE',NULL,NULL,700,REPLICATE('f',64));
 INSERT silver.registro_origem(sistema_origem_id,codigo_registro_origem,natureza,tipo_registro_id)
 SELECT @soSehab,r.codigo,'BENEFICIO',@aa FROM @rBen r
 WHERE NOT EXISTS(SELECT 1 FROM silver.registro_origem o WHERE o.sistema_origem_id=@soSehab AND o.codigo_registro_origem=r.codigo);
 IF NOT EXISTS(SELECT 1 FROM silver.registro_observacao WHERE lote_id=@lotBen)
- INSERT silver.registro_observacao(registro_origem_id,codigo_registro_origem,versao_interna,operacao,conteudo_hash,lote_id,gestor_id,natureza,tipo_registro_id,tipo_registro_versao_id,pessoa_observacao_id,data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao,valor_concedido,source_as_of)
- SELECT o.registro_origem_id,r.codigo,1,'INCLUSAO',r.hash,@lotBen,@gSehab,'BENEFICIO',@aa,@aav,r.pessoa_observacao_id,r.data_inicio_concessao,r.data_fim_concessao,r.data_evento_concessao,r.situacao,r.valor_concedido,'2026-08-27T00:00:00-03:00'
+ INSERT silver.registro_observacao(registro_origem_id,codigo_registro_origem,versao_interna,operacao,conteudo_hash,lote_id,gestor_id,natureza,tipo_registro_id,tipo_registro_versao_id,pessoa_observacao_id,data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao_vigencia,situacao_vigencia_desde,motivo_encerramento,valor_concedido,source_as_of)
+ SELECT o.registro_origem_id,r.codigo,1,'INCLUSAO',r.hash,@lotBen,@gSehab,'BENEFICIO',@aa,@aav,r.pessoa_observacao_id,r.data_inicio_concessao,r.data_fim_concessao,r.data_evento_concessao,r.situacao_vigencia,r.situacao_vigencia_desde,r.motivo_encerramento,r.valor_concedido,'2026-08-27T00:00:00-03:00'
  FROM @rBen r JOIN silver.registro_origem o ON o.sistema_origem_id=@soSehab AND o.codigo_registro_origem=r.codigo;
 IF NOT EXISTS(SELECT 1 FROM qualidade.qc_registro_implementacao WHERE tipo_registro_versao_id=@aav)
  INSERT qualidade.qc_registro_implementacao VALUES(@aav,'AA01.QC.v1','IMPLEMENTADO');
@@ -303,11 +303,11 @@ IF NOT EXISTS(SELECT 1 FROM qualidade.qc_registro_resultado)
  INSERT qualidade.qc_registro_resultado(registro_observacao_id,resultado,regra_codigo,motivo,executado_em)
  SELECT registro_observacao_id,CASE WHEN registro_observacao_id%4=0 THEN 'DIVERGENTE' ELSE 'VALIDO' END,CASE WHEN registro_observacao_id%4=0 THEN 'R03' END,CASE WHEN registro_observacao_id%4=0 THEN 'Valor fora da faixa sintética.' END,'2026-08-27T09:02:00-03:00' FROM silver.registro_observacao WHERE lote_id=@lotBen;
 IF NOT EXISTS(SELECT 1 FROM gold.beneficio_concedido)
- INSERT gold.beneficio_concedido(registro_observacao_id,registro_origem_id,codigo_registro_origem,versao_interna,operacao,status_analitico,pessoa_origem_id,sistema_origem_id,codigo_pessoa_origem,cpf_declarado,cpf_ausente_motivo,pessoa_uuid,estado_atribuicao_identidade,gestor_id,tipo_registro_id,tipo_registro_versao_id,entrega_id,data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,valor_concedido,quantidade,unidade,source_as_of,qc_resultado,qc_especifico_implementado,vigencia_versao_inicio,vigencia_versao_fim)
- SELECT ro.registro_observacao_id,ro.registro_origem_id,ro.codigo_registro_origem,ro.versao_interna,ro.operacao,'VIGENTE',po.pessoa_origem_id,pori.sistema_origem_id,po.codigo_pessoa_origem,po.cpf,po.cpf_ausente_motivo,vf.pessoa_uuid,'ATRIBUIDA',ro.gestor_id,ro.tipo_registro_id,ro.tipo_registro_versao_id,@entBen,ro.data_inicio_concessao,ro.data_fim_concessao,ro.data_evento_concessao,ro.situacao,pg.referencia_territorial_observacao_id,pg.natureza_referencia,pg.subprefeitura_id,pg.distrito_id,ro.valor_concedido,ro.quantidade,ro.unidade,ro.source_as_of,COALESCE(qr.resultado,'VALIDO'),1,ro.registrado_em,NULL
+ INSERT gold.beneficio_concedido(registro_observacao_id,registro_origem_id,codigo_registro_origem,versao_interna,operacao,status_analitico,pessoa_origem_id,sistema_origem_id,codigo_pessoa_origem,cpf_declarado,cpf_ausente_motivo,pessoa_uuid,estado_atribuicao_identidade,gestor_id,tipo_registro_id,tipo_registro_versao_id,entrega_id,data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao_vigencia,situacao_vigencia_desde,motivo_encerramento,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,valor_concedido,quantidade,unidade,source_as_of,qc_resultado,qc_especifico_implementado,vigencia_versao_inicio,vigencia_versao_fim)
+ SELECT ro.registro_observacao_id,ro.registro_origem_id,ro.codigo_registro_origem,ro.versao_interna,ro.operacao,'VIGENTE',po.pessoa_origem_id,pori.sistema_origem_id,po.codigo_pessoa_origem,po.cpf,po.cpf_ausente_motivo,vf.pessoa_uuid,'ATRIBUIDA',ro.gestor_id,ro.tipo_registro_id,ro.tipo_registro_versao_id,@entBen,ro.data_inicio_concessao,ro.data_fim_concessao,ro.data_evento_concessao,ro.situacao_vigencia,ro.situacao_vigencia_desde,ro.motivo_encerramento,pg.referencia_territorial_observacao_id,pg.natureza_referencia,pg.subprefeitura_id,pg.distrito_id,ro.valor_concedido,ro.quantidade,ro.unidade,ro.source_as_of,COALESCE(qr.resultado,'VALIDO'),1,ro.registrado_em,NULL
  FROM silver.registro_observacao ro JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=ro.pessoa_observacao_id JOIN silver.pessoa_origem pori ON pori.pessoa_origem_id=po.pessoa_origem_id LEFT JOIN silver.v_pessoa_referencia_territorial pg ON pg.pessoa_observacao_id=po.pessoa_observacao_id JOIN identidade.v_vinculo_corrente vf ON vf.pessoa_observacao_id=po.pessoa_observacao_id AND vf.pessoa_uuid IS NOT NULL LEFT JOIN qualidade.qc_registro_resultado qr ON qr.registro_observacao_id=ro.registro_observacao_id WHERE ro.lote_id=@lotBen AND ro.natureza='BENEFICIO';
-INSERT serving.registro_integrado(registro_observacao_id,registro_origem_id,codigo_registro_origem,versao_interna,operacao,status_analitico,pessoa_origem_id,sistema_origem_id,codigo_pessoa_origem,cpf_declarado,cpf_ausente_motivo,pessoa_uuid,estado_atribuicao_identidade,gestor_id,natureza,tipo_registro_id,tipo_registro_versao_id,entrega_id,entrega_completa,data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,valor_concedido,quantidade,unidade,source_as_of,qc_resultado,qc_especifico_implementado,vigencia_versao_inicio,vigencia_versao_fim)
-SELECT b.registro_observacao_id,b.registro_origem_id,b.codigo_registro_origem,b.versao_interna,b.operacao,b.status_analitico,b.pessoa_origem_id,b.sistema_origem_id,b.codigo_pessoa_origem,b.cpf_declarado,b.cpf_ausente_motivo,b.pessoa_uuid,b.estado_atribuicao_identidade,b.gestor_id,'BENEFICIO',b.tipo_registro_id,b.tipo_registro_versao_id,b.entrega_id,1,b.data_inicio_concessao,b.data_fim_concessao,b.data_evento_concessao,b.situacao,b.referencia_territorial_observacao_id,b.natureza_referencia_territorial,b.subprefeitura_referencia_id,b.distrito_referencia_id,b.valor_concedido,b.quantidade,b.unidade,b.source_as_of,b.qc_resultado,b.qc_especifico_implementado,b.vigencia_versao_inicio,b.vigencia_versao_fim FROM gold.beneficio_concedido b
+INSERT serving.registro_integrado(registro_observacao_id,registro_origem_id,codigo_registro_origem,versao_interna,operacao,status_analitico,pessoa_origem_id,sistema_origem_id,codigo_pessoa_origem,cpf_declarado,cpf_ausente_motivo,pessoa_uuid,estado_atribuicao_identidade,gestor_id,natureza,tipo_registro_id,tipo_registro_versao_id,entrega_id,entrega_completa,data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao_vigencia,situacao_vigencia_desde,motivo_encerramento,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,valor_concedido,quantidade,unidade,source_as_of,qc_resultado,qc_especifico_implementado,vigencia_versao_inicio,vigencia_versao_fim)
+SELECT b.registro_observacao_id,b.registro_origem_id,b.codigo_registro_origem,b.versao_interna,b.operacao,b.status_analitico,b.pessoa_origem_id,b.sistema_origem_id,b.codigo_pessoa_origem,b.cpf_declarado,b.cpf_ausente_motivo,b.pessoa_uuid,b.estado_atribuicao_identidade,b.gestor_id,'BENEFICIO',b.tipo_registro_id,b.tipo_registro_versao_id,b.entrega_id,1,b.data_inicio_concessao,b.data_fim_concessao,b.data_evento_concessao,b.situacao_vigencia,b.situacao_vigencia_desde,b.motivo_encerramento,b.referencia_territorial_observacao_id,b.natureza_referencia_territorial,b.subprefeitura_referencia_id,b.distrito_referencia_id,b.valor_concedido,b.quantidade,b.unidade,b.source_as_of,b.qc_resultado,b.qc_especifico_implementado,b.vigencia_versao_inicio,b.vigencia_versao_fim FROM gold.beneficio_concedido b
 WHERE NOT EXISTS(SELECT 1 FROM serving.registro_integrado ri WHERE ri.registro_observacao_id=b.registro_observacao_id);
 
 -- Entrega factual: Pessoas relacionadas + Serviços Prestados (CRA1).
@@ -361,9 +361,21 @@ WHERE NOT EXISTS(SELECT 1 FROM serving.registro_integrado ri WHERE ri.registro_o
 -- Possibilidades: avaliações derivadas, nunca fatos nem declaração de direito.
 IF NOT EXISTS(SELECT 1 FROM qualidade.possibilidade_implementacao)
  INSERT qualidade.possibilidade_implementacao(natureza,tipo_registro_versao_id,implementacao_versao,status) VALUES('BENEFICIO',@arv,'AR01.POSS.v1','IMPLEMENTADO'),('BENEFICIO',@potv,'POT1.POSS.v1','IMPLEMENTADO'),('SERVICO',@crv,'CRA1.POSS.v1','IMPLEMENTADO');
-IF NOT EXISTS(SELECT 1 FROM qualidade.avaliacao_possibilidade)
- INSERT qualidade.avaliacao_possibilidade(pessoa_uuid,natureza,tipo_registro_versao_id,resultado,motivo,implementacao_versao,avaliado_em,validade_ate) VALUES
- (@u1,'BENEFICIO',@arv,'COMPATIVEL','Perfil sintético compatível com critérios preliminares.','AR01.POSS.v1','2026-08-27','2026-09-27'),(@u2,'BENEFICIO',@potv,'COMPATIVEL','Perfil sintético compatível com critérios preliminares.','POT1.POSS.v1','2026-08-27','2026-09-27'),(@u5,'BENEFICIO',@arv,'NAO_AVALIAVEL','Dados insuficientes para avaliação automática.','AR01.POSS.v1','2026-08-27',NULL),(@u3,'SERVICO',@crv,'COMPATIVEL','Geografia residencial enriquecida e perfil sintéticos compatíveis com serviço de referência.','CRA1.POSS.v1','2026-08-27','2026-09-27');
+-- v3.94: avaliações de possibilidade são derivadas e podem ser invalidadas por correções/fusões
+-- de identidade. O seed DEV deve ser convergente por linha canônica, não apenas quando a tabela
+-- inteira está vazia, para que uma reaplicação restaure o fixture sem duplicar avaliações.
+IF NOT EXISTS(SELECT 1 FROM qualidade.avaliacao_possibilidade WHERE pessoa_uuid=@u1 AND tipo_registro_versao_id=@arv AND implementacao_versao='AR01.POSS.v1' AND avaliado_em='2026-08-27')
+ INSERT qualidade.avaliacao_possibilidade(pessoa_uuid,natureza,tipo_registro_versao_id,resultado,motivo,implementacao_versao,avaliado_em,validade_ate)
+ VALUES(@u1,'BENEFICIO',@arv,'COMPATIVEL','Perfil sintético compatível com critérios preliminares.','AR01.POSS.v1','2026-08-27','2026-09-27');
+IF NOT EXISTS(SELECT 1 FROM qualidade.avaliacao_possibilidade WHERE pessoa_uuid=@u2 AND tipo_registro_versao_id=@potv AND implementacao_versao='POT1.POSS.v1' AND avaliado_em='2026-08-27')
+ INSERT qualidade.avaliacao_possibilidade(pessoa_uuid,natureza,tipo_registro_versao_id,resultado,motivo,implementacao_versao,avaliado_em,validade_ate)
+ VALUES(@u2,'BENEFICIO',@potv,'COMPATIVEL','Perfil sintético compatível com critérios preliminares.','POT1.POSS.v1','2026-08-27','2026-09-27');
+IF NOT EXISTS(SELECT 1 FROM qualidade.avaliacao_possibilidade WHERE pessoa_uuid=@u5 AND tipo_registro_versao_id=@arv AND implementacao_versao='AR01.POSS.v1' AND avaliado_em='2026-08-27')
+ INSERT qualidade.avaliacao_possibilidade(pessoa_uuid,natureza,tipo_registro_versao_id,resultado,motivo,implementacao_versao,avaliado_em,validade_ate)
+ VALUES(@u5,'BENEFICIO',@arv,'NAO_AVALIAVEL','Dados insuficientes para avaliação automática.','AR01.POSS.v1','2026-08-27',NULL);
+IF NOT EXISTS(SELECT 1 FROM qualidade.avaliacao_possibilidade WHERE pessoa_uuid=@u3 AND tipo_registro_versao_id=@crv AND implementacao_versao='CRA1.POSS.v1' AND avaliado_em='2026-08-27')
+ INSERT qualidade.avaliacao_possibilidade(pessoa_uuid,natureza,tipo_registro_versao_id,resultado,motivo,implementacao_versao,avaliado_em,validade_ate)
+ VALUES(@u3,'SERVICO',@crv,'COMPATIVEL','Geografia residencial enriquecida e perfil sintéticos compatíveis com serviço de referência.','CRA1.POSS.v1','2026-08-27','2026-09-27');
 
 -- Eventos sintéticos: não armazenam chave de acesso.
 DECLARE @agentSehabHash BINARY(32)=0xe3a9c69f0991a00b93ff5a1108b4b1f50bb827ceaa72cc7ed842035e80acb135; -- HMAC DEV de CPF sintético 52998224725.
@@ -381,6 +393,69 @@ INSERT controle.api_evento_pessoa(api_evento_id,pessoa_uuid)
 SELECT ae.api_evento_id,ae.pessoa_uuid FROM controle.api_evento ae
 WHERE ae.pessoa_uuid IS NOT NULL
   AND NOT EXISTS(SELECT 1 FROM controle.api_evento_pessoa ep WHERE ep.api_evento_id=ae.api_evento_id AND ep.pessoa_uuid=ae.pessoa_uuid);
+
+-- v3.91: a fixture DEV é convergente para as três Entregas canônicas.
+-- Testes de retenção/processor exercitam transições destrutivas sobre essas linhas; uma nova
+-- execução do seed deve restaurar exatamente o estado canônico, sem depender da ordem dos testes.
+UPDATE ingestao.entrega
+   SET payload_sha256='8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',
+       bytes_recebidos=4,status='PROCESSADA',data_referencia='2026-08-27T00:00:00-03:00',
+       recebido_em='2026-08-27T11:00:00+00:00',ultima_atualizacao='2026-08-27T08:03:00-03:00'
+ WHERE entrega_id=@entPessoa;
+UPDATE bronze.entrega_arquivo
+   SET nome_arquivo='ENTREGA_SMS_SAUDE_v2_8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip',
+       content_type='application/zip',
+       objeto_chave='sha256/8d/cc/8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip',
+       payload_sha256='8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',
+       tamanho_bytes=4,recebido_em='2026-08-27T11:00:00+00:00',
+       estado_armazenamento='DISPONIVEL',expurgo_iniciado_em=NULL,expurgado_em=NULL,retencao_motivo=NULL
+ WHERE entrega_id=@entPessoa;
+UPDATE ingestao.lote
+   SET status='PROCESSADO',erro_codigo=NULL,tentativa_count=0,recuperacao_count=0,
+       ultima_tentativa_em=NULL,proxima_tentativa_em=NULL,lease_id=NULL,lease_owner=NULL,
+       lease_adquirido_em=NULL,heartbeat_em=NULL,lease_expira_em=NULL,poison_em=NULL,
+       criado_em='2026-08-27T08:00:01-03:00',atualizado_em='2026-08-27T08:03:00-03:00'
+ WHERE lote_id=@lotPessoa;
+
+UPDATE ingestao.entrega
+   SET payload_sha256='8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',
+       bytes_recebidos=4,status='PROCESSADA',data_referencia='2026-08-27T00:00:00-03:00',
+       recebido_em='2026-08-27T12:00:00+00:00',ultima_atualizacao='2026-08-27T09:03:00-03:00'
+ WHERE entrega_id=@entBen;
+UPDATE bronze.entrega_arquivo
+   SET nome_arquivo='ENTREGA_SEHAB_HABITACAO_v2_8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip',
+       content_type='application/zip',
+       objeto_chave='sha256/8d/cc/8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip',
+       payload_sha256='8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',
+       tamanho_bytes=4,recebido_em='2026-08-27T12:00:00+00:00',
+       estado_armazenamento='DISPONIVEL',expurgo_iniciado_em=NULL,expurgado_em=NULL,retencao_motivo=NULL
+ WHERE entrega_id=@entBen;
+UPDATE ingestao.lote
+   SET status='PROCESSADO',erro_codigo=NULL,tentativa_count=0,recuperacao_count=0,
+       ultima_tentativa_em=NULL,proxima_tentativa_em=NULL,lease_id=NULL,lease_owner=NULL,
+       lease_adquirido_em=NULL,heartbeat_em=NULL,lease_expira_em=NULL,poison_em=NULL,
+       criado_em='2026-08-27T09:00:01-03:00',atualizado_em='2026-08-27T09:03:00-03:00'
+ WHERE lote_id=@lotBen;
+
+UPDATE ingestao.entrega
+   SET payload_sha256='8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',
+       bytes_recebidos=4,status='PROCESSADA',data_referencia='2026-08-27T00:00:00-03:00',
+       recebido_em='2026-08-27T13:00:00+00:00',ultima_atualizacao='2026-08-27T10:01:00-03:00'
+ WHERE entrega_id=@entS;
+UPDATE bronze.entrega_arquivo
+   SET nome_arquivo='ENTREGA_SMADS_ASSISTENCIA_v2_8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip',
+       content_type='application/zip',
+       objeto_chave='sha256/8d/cc/8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip',
+       payload_sha256='8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',
+       tamanho_bytes=4,recebido_em='2026-08-27T13:00:00+00:00',
+       estado_armazenamento='DISPONIVEL',expurgo_iniciado_em=NULL,expurgado_em=NULL,retencao_motivo=NULL
+ WHERE entrega_id=@entS;
+UPDATE ingestao.lote
+   SET status='PROCESSADO',erro_codigo=NULL,tentativa_count=0,recuperacao_count=0,
+       ultima_tentativa_em=NULL,proxima_tentativa_em=NULL,lease_id=NULL,lease_owner=NULL,
+       lease_adquirido_em=NULL,heartbeat_em=NULL,lease_expira_em=NULL,poison_em=NULL,
+       criado_em='2026-08-27T10:00:01-03:00',atualizado_em='2026-08-27T10:01:00-03:00'
+ WHERE lote_id=@lotS;
 
 -- Recalcula o indicador derivado de completude a partir dos lotes internos.
 DECLARE @recalc UNIQUEIDENTIFIER;

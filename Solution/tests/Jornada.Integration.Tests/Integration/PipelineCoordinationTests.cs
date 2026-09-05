@@ -199,32 +199,56 @@ public sealed class PipelineCoordinationTests
     public async Task Eight_simultaneous_processor_contenders_have_exactly_one_winner_and_gate_recovers()
     {
         var connectionString = RequireIntegrationConnection();
+        const int contenderCount = 8;
         var start = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseWinner = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allAttemptsCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var acquired = 0;
-        var tasks = Enumerable.Range(0, 8).Select(async _ =>
+        var attemptsCompleted = 0;
+        var tasks = Enumerable.Range(0, contenderCount).Select(async _ =>
         {
             var coordinator = new SqlPipelineCoordinator(connectionString);
             await start.Task;
-            await using var lease = await coordinator.TryAcquireProcessorBatchAsync(CancellationToken.None);
+
+            PipelineCoordinationLease? lease = null;
+            try
+            {
+                lease = await coordinator.TryAcquireProcessorBatchAsync(CancellationToken.None);
+            }
+            finally
+            {
+                if (Interlocked.Increment(ref attemptsCompleted) == contenderCount)
+                    allAttemptsCompleted.TrySetResult(true);
+            }
+
             if (lease is null) return 0;
-            Interlocked.Increment(ref acquired);
-            await releaseWinner.Task;
-            return 1;
+            await using (lease)
+            {
+                Interlocked.Increment(ref acquired);
+                await releaseWinner.Task;
+                return 1;
+            }
         }).ToArray();
 
         start.SetResult(true);
         try
         {
-            for (var i = 0; i < 100 && Volatile.Read(ref acquired) == 0; i++) await Task.Delay(50);
-            await Task.Delay(250);
-            Assert.That(Volatile.Read(ref acquired), Is.EqualTo(1), "O gate global deve admitir exatamente um vencedor simultâneo.");
+            // Em endpoint remoto (Fabric/Azure SQL), abrir oito sessões pode levar muito mais que
+            // 250 ms. O vencedor só pode ser liberado depois que TODOS os contendores concluíram
+            // sua tentativa de LockTimeout=0; caso contrário chegadas tardias viram vencedores
+            // sequenciais e o teste deixa de medir exclusão simultânea.
+            var completed = await Task.WhenAny(allAttemptsCompleted.Task, Task.Delay(TimeSpan.FromSeconds(60)));
+            Assert.That(completed, Is.SameAs(allAttemptsCompleted.Task),
+                "Os oito contendores devem concluir a tentativa de aquisição antes da liberação do vencedor.");
+            Assert.That(Volatile.Read(ref acquired), Is.EqualTo(1),
+                "O gate global deve admitir exatamente um vencedor enquanto todos os contendores disputam o mesmo lease.");
         }
         finally
         {
-            // Nunca deixe o vencedor bloqueado caso a asserção falhe: evita teste órfão segurando applock.
+            // Nunca deixe vencedor(es) bloqueado(s) caso a asserção falhe.
             releaseWinner.TrySetResult(true);
         }
+
         var winners = (await Task.WhenAll(tasks)).Sum();
         Assert.That(winners, Is.EqualTo(1));
 

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "release": "v3.90",
-  "predecessorTag": "jornada-solution-v3.89",
+  "release": "v4.03",
+  "predecessorTag": "jornada-solution-v4.02",
   "status": "VIGENTE",
   "allowlist": [],
-  "note": "v3.90 não altera DDL funcional em relação à v3.89; qualquer alteração destrutiva deve ser bloqueada."
+  "note": "v4.03 é correção documental institucional; não altera Jornada_Fase1.sql e preserva byte-a-byte o DDL/seed funcional da v4.02."
 }

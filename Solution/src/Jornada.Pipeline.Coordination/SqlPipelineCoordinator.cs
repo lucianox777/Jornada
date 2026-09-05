@@ -1,5 +1,6 @@
 using Jornada.Contracts;
 using System.Data;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Pipeline.Coordination;
@@ -21,7 +22,7 @@ public sealed class SqlPipelineCoordinator
     public const string ExclusiveRequestResource = "Jornada.Pipeline.ExclusiveRequest";
     public const string CorpusResource = "Jornada.Pipeline.Corpus";
 
-    private readonly string connectionString;
+    private readonly IOperationalSqlAdapter operationalSql;
     private readonly TimeSpan heartbeatInterval;
     private readonly TimeSpan exclusiveIntentTimeout;
 
@@ -29,16 +30,16 @@ public sealed class SqlPipelineCoordinator
         string connectionString,
         TimeSpan? heartbeatInterval = null,
         TimeSpan? exclusiveIntentTimeout = null)
+        : this(new OperationalSqlAdapter(connectionString), heartbeatInterval, exclusiveIntentTimeout)
     {
-        if (string.IsNullOrWhiteSpace(connectionString))
-            throw new ArgumentException("Connection string da Jornada é obrigatória para coordenação do pipeline.", nameof(connectionString));
+    }
 
-        var builder = new SqlConnectionStringBuilder(connectionString)
-        {
-            Pooling = false,
-            Enlist = false
-        };
-        this.connectionString = builder.ConnectionString;
+    public SqlPipelineCoordinator(
+        IOperationalSqlAdapter operationalSql,
+        TimeSpan? heartbeatInterval = null,
+        TimeSpan? exclusiveIntentTimeout = null)
+    {
+        this.operationalSql = operationalSql ?? throw new ArgumentNullException(nameof(operationalSql));
         this.heartbeatInterval = heartbeatInterval is { } hb && hb > TimeSpan.Zero ? hb : TimeSpan.FromSeconds(5);
         this.exclusiveIntentTimeout = exclusiveIntentTimeout is { } it && it >= TimeSpan.Zero ? it : TimeSpan.FromSeconds(5);
     }
@@ -49,7 +50,7 @@ public sealed class SqlPipelineCoordinator
     /// </summary>
     public async Task<PipelineCoordinationLease?> TryAcquireProcessorBatchAsync(CancellationToken cancellationToken)
     {
-        var connection = new SqlConnection(connectionString);
+        var connection = operationalSql.CreateDedicatedSessionConnection();
         try
         {
             await connection.OpenAsync(cancellationToken);
@@ -105,7 +106,7 @@ public sealed class SqlPipelineCoordinator
             throw new ArgumentException("Nome do job exclusivo é obrigatório.", nameof(ownerName));
         ArgumentOutOfRangeException.ThrowIfLessThan(currentBatchDrainTimeout, TimeSpan.Zero);
 
-        var connection = new SqlConnection(connectionString);
+        var connection = operationalSql.CreateDedicatedSessionConnection();
         try
         {
             await connection.OpenAsync(cancellationToken);

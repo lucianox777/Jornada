@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "baseNormativa": "3.62",
-  "solutionSchema": "3.68",
+  "solutionSchema": "3.69",
   "status": "PENDENTE",
   "note": "Valores de HML/Produção não são inferidos dos defaults técnicos. Cada aprovação exige valor, evidência, data e responsável reais.",
   "parameters": [

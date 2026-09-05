@@ -1,28 +1,11 @@
 using System.Data;
 using Jornada.Contracts;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Processor.Worker;
 
-internal sealed class ProcessorSqlConnectionFactory
-{
-    private readonly string _connectionString;
-
-    public ProcessorSqlConnectionFactory(IConfiguration configuration)
-    {
-        _connectionString = configuration.GetConnectionString("Jornada")
-            ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
-    }
-
-    public async Task<SqlConnection> OpenAsync(CancellationToken ct)
-    {
-        var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(ct);
-        return connection;
-    }
-}
-
-internal sealed class SqlIdentityMapRepository(ProcessorSqlConnectionFactory connections) : IIdentityMapRepository
+internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connections) : IIdentityMapRepository
 {
     public async Task<InternalIdentityResolution> ResolveOrCreateByCpfAsync(
         string cpf,
@@ -259,10 +242,10 @@ internal sealed class SqlIdentityMapRepository(ProcessorSqlConnectionFactory con
 
 internal sealed partial class SqlProcessorRepository
 {
-    private readonly ProcessorSqlConnectionFactory connections;
+    private readonly IOperationalSqlAdapter connections;
     private readonly RegistryQualityEngine quality;
 
-    public SqlProcessorRepository(ProcessorSqlConnectionFactory connections, RegistryQualityEngine quality)
+    public SqlProcessorRepository(IOperationalSqlAdapter connections, RegistryQualityEngine quality)
     {
         this.connections = connections;
         this.quality = quality;

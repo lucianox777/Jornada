@@ -111,7 +111,7 @@ public sealed class SqlGovernanceArtifactTests
             StringAssert.Contains("Jornada.BaseNormativa", sql);
             StringAssert.Contains("@value=N'3.62'", sql);
             StringAssert.Contains("Jornada.SolutionSchema", sql);
-            StringAssert.Contains("@value=N'3.68'", sql);
+            StringAssert.Contains("@value=N'3.69'", sql);
         });
     }
 

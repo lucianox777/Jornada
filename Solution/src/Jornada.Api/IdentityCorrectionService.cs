@@ -1,3 +1,4 @@
+using Jornada.Operational.Sql;
 using System.Data;
 using System.Text.Json;
 using Jornada.Contracts;
@@ -5,7 +6,7 @@ using Microsoft.Data.SqlClient;
 
 namespace Jornada.Api;
 
-internal sealed class SqlIdentityCorrectionService(SqlConnectionFactory connections) : IIdentityCorrectionService
+internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connections) : IIdentityCorrectionService
 {
     public async Task<IdentityConflictDetailResponse?> GetConflictAsync(
         AccessContext context, IdentityConflictDetailRequest request, CancellationToken ct)

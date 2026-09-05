@@ -75,6 +75,18 @@ internal sealed class RegistryQualityEngine(IEnumerable<IRegistryQualityEvaluato
             return new RegistryQcEvaluation("DIVERGENTE", "DATA_FIM_CONCESSAO_OBRIGATORIA_V1",
                 "Tipo com prazo determinado exige dataFimConcessao.");
 
+        if (fact.SituacaoVigencia is not ("VIGENTE" or "SUSPENSA" or "ENCERRADA"))
+            return new RegistryQcEvaluation("DIVERGENTE", "SITUACAO_VIGENCIA_INVALIDA_V1",
+                "situacaoVigencia deve ser VIGENTE, SUSPENSA ou ENCERRADA.");
+
+        if (fact.SituacaoVigencia == "ENCERRADA" && fact.MotivoEncerramento is not ("TERMINO_REGULAR" or "CANCELAMENTO" or "CESSACAO"))
+            return new RegistryQcEvaluation("DIVERGENTE", "MOTIVO_ENCERRAMENTO_INVALIDO_V1",
+                "Concessão ENCERRADA exige motivoEncerramento TERMINO_REGULAR, CANCELAMENTO ou CESSACAO.");
+
+        if (fact.SituacaoVigencia != "ENCERRADA" && fact.MotivoEncerramento is not null)
+            return new RegistryQcEvaluation("DIVERGENTE", "MOTIVO_ENCERRAMENTO_FORA_DE_CONTEXTO_V1",
+                "motivoEncerramento somente se aplica a concessão ENCERRADA.");
+
         return null;
     }
 

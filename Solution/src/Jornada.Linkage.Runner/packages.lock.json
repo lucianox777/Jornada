@@ -549,6 +549,13 @@
         "type": "Project",
         "dependencies": {
           "Jornada.Contracts": "[1.0.0, )",
+          "Jornada.Operational.Sql": "[1.0.0, )",
+          "Microsoft.Data.SqlClient": "[5.2.2, )"
+        }
+      },
+      "jornada.operational.sql": {
+        "type": "Project",
+        "dependencies": {
           "Microsoft.Data.SqlClient": "[5.2.2, )"
         }
       }

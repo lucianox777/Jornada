@@ -1,0 +1,206 @@
+%PDF-1.4
+%âãÏÓ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 2783 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Índice Mestre de Requisitos - Jornada do Cidadão - Fase 1) Tj
+T*
+() Tj
+T*
+(Versão do documento: 1.0  ) Tj
+T*
+(Data: 03/09/2026  ) Tj
+T*
+(Base normativa: Especificação Técnica Jornada v3.62  ) Tj
+T*
+(SolutionSchema: SolutionSchema v3.68  ) Tj
+T*
+(Release de incorporação: Solution Engenharia v3.98  ) Tj
+T*
+(Status: PORTA DE ENTRADA DA FAMÍLIA DE REQUISITOS) Tj
+T*
+() Tj
+T*
+(1. Estrutura adotada) Tj
+T*
+() Tj
+T*
+(A Fase 1 passa a organizar requisitos por nível de abstração:) Tj
+T*
+() Tj
+T*
+(text) Tj
+T*
+(RN - Requisitos de Negócio) Tj
+T*
+(        ?) Tj
+T*
+(RF - Requisitos Funcionais ??????) Tj
+T*
+(        ?                        ?) Tj
+T*
+(RNF - Requisitos Não Funcionais ?) Tj
+T*
+(        ?                        ?) Tj
+T*
+(RT - Requisitos Técnicos <???????) Tj
+T*
+(        ?) Tj
+T*
+(Testes / Gates / Evidências) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(A seta representa rastreabilidade, não dependência de versão. Um RN pode produzir vários RF;) Tj
+T*
+( um RNF pode afetar diversos RF; um RT pode realizar simultaneamente RF e RNF.) Tj
+T*
+() Tj
+T*
+(2. Baselines da Fase 1) Tj
+T*
+() Tj
+T*
+(| Camada | Documento | Versão | Quantidade | Pergunta respondida |) Tj
+T*
+(|---|---|---:|---:|---|) Tj
+T*
+(| RN | Requisitos de Negócio Jornada | 1.1 | 36 | Por que / qual resultado institucional? |) Tj
+T*
+(| RF | Requisitos Funcionais Jornada | 1.0 | 50 | O que a solução deve fazer? |) Tj
+T*
+(| RNF | Requisitos Não Funcionais Jornada | 1.0 | 33 | Com quais qualidades/restrições? |) Tj
+T*
+(| RT | Requisitos Técnicos Jornada | 1.1 | 65 | Como a engenharia materializa RF/RNF? |) Tj
+T*
+(| Matriz | Matriz de Rastreabilidade | 1.0 | 36 cadeias RN | Como requisito e evidência se ) Tj
+T*
+(conectam? |) Tj
+T*
+() Tj
+T*
+(3. Regra de governança) Tj
+T*
+() Tj
+T*
+(- RN muda por decisão de negócio/institucional.) Tj
+T*
+(- RF muda quando o comportamento esperado da solução muda.) Tj
+T*
+(- RNF muda quando qualidade, capacidade, segurança, compatibilidade ou restrição normativa ) Tj
+T*
+(muda; os RNF canônicos da Fase 1 permanecem subordinados à Especificação Técnica v3.62.) Tj
+T*
+(- RT pode evoluir por arquitetura, plataforma, segurança, operação ou implementação sem ) Tj
+T*
+(alterar necessariamente RN/RF.) Tj
+T*
+(- Mudança material deve atualizar a Matriz de Rastreabilidade e indicar impacto nas camadas ) Tj
+T*
+(relacionadas.) Tj
+T*
+() Tj
+T*
+(4. Requisitos das partes interessadas) Tj
+T*
+() Tj
+T*
+(A Fase 1 não cria um quinto baseline separado de stakeholder requirements. Necessidades ) Tj
+T*
+(específicas de SGM/SEPE, PRODAM, Gestores, governança e consumidores autorizados permanecem ) Tj
+T*
+(registradas nos RN e especializadas nos RF. Se a complexidade institucional exigir, essa ) Tj
+T*
+(camada pode ser criada futuramente sem renumerar os baselines atuais.) Tj
+T*
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 916 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(5. Ordem recomendada de leitura) Tj
+T*
+() Tj
+T*
+(1. 01RequisitosdeNegocioJornadav1.1) Tj
+T*
+(2. 02RequisitosFuncionaisJornadav1.0) Tj
+T*
+(3. 03RequisitosNaoFuncionaisJornadav1.0) Tj
+T*
+(4. 04RequisitosTecnicosJornadav1.1) Tj
+T*
+(5. 05MatrizRastreabilidadeRequisitosJornadav1.0) Tj
+T*
+() Tj
+T*
+(6. Relação com os demais artefatos) Tj
+T*
+() Tj
+T*
+(A família de requisitos não substitui a Especificação Técnica v3.62, SolutionSchema v3.68, ) Tj
+T*
+(DDL, OpenAPI, JSON Schemas, ADRs, runbooks ou evidências de teste. Ela organiza a intenção e) Tj
+T*
+( a rastreabilidade entre esses artefatos.) Tj
+T*
+() Tj
+T*
+(7. Controle de versão) Tj
+T*
+() Tj
+T*
+(| Versão | Data | Síntese | Incorporação |) Tj
+T*
+(|---|---|---|---|) Tj
+T*
+(| 1.0 | 03/09/2026 | Institui a hierarquia RN/RF/RNF/RT e a matriz única de rastreabilidade ) Tj
+T*
+(para a Fase 1. | Solution Engenharia v3.98 |) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000127 00000 n 
+0000000224 00000 n 
+0000000350 00000 n 
+0000003184 00000 n 
+0000003310 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+4276
+%%EOF

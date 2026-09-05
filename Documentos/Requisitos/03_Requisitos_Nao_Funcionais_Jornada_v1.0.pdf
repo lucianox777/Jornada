@@ -1,0 +1,968 @@
+%PDF-1.4
+%âãÏÓ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R] /Count 8 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 2029 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Requisitos Não Funcionais - Jornada do Cidadão - Fase 1) Tj
+T*
+() Tj
+T*
+(Versão do documento: 1.0  ) Tj
+T*
+(Data: 03/09/2026  ) Tj
+T*
+(Base normativa: Especificação Técnica Jornada v3.62 - § 17  ) Tj
+T*
+(SolutionSchema: SolutionSchema v3.68  ) Tj
+T*
+(Release de incorporação: Solution Engenharia v3.98  ) Tj
+T*
+(Status: BASELINE RNF CANÔNICO DA FASE 1) Tj
+T*
+() Tj
+T*
+(> Os 33 requisitos abaixo preservam o conteúdo normativo da Seção 17 da Especificação ) Tj
+T*
+(Técnica v3.62. A categorização e as relações com RN/RF/RT são organizacionais e não alteram ) Tj
+T*
+(sua semântica.) Tj
+T*
+() Tj
+T*
+(1. Finalidade) Tj
+T*
+() Tj
+T*
+(Separar atributos de qualidade, restrições e propriedades transversais dos comportamentos ) Tj
+T*
+(funcionais \(RF\) e das escolhas de realização \(RT\).) Tj
+T*
+() Tj
+T*
+(2. Requisitos Não Funcionais) Tj
+T*
+() Tj
+T*
+(RNF01 - Plataforma) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Todo código C# da Fase 1 deve compilar para net8.0 com C# 12 definido ) Tj
+T*
+(centralmente.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-001, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-049) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-001) Tj
+T*
+() Tj
+T*
+(RNF02 - Plataforma) Tj
+T*
+() Tj
+T*
+(Requisito normativo. SQL Server é a única tecnologia relacional normativa da Fase 1.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. —) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-002) Tj
+T*
+() Tj
+T*
+(RNF03 - Capacidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. A API deve suportar payloads de até 10.000 Pessoas e 10.000 Registros ) Tj
+T*
+(por lote, com limite físico de corpo configurável.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-002, RN-023, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-001, RF-003) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-012) Tj
+T*
+() Tj
+T*
+(RNF04 - Confiabilidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Escrita deve ser idempotente por cliente + Idempotency-Key.) Tj
+T*
+() Tj
+T*
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 1898 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Rastreabilidade de negócio. RN-003, RN-023, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-007) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-015) Tj
+T*
+() Tj
+T*
+(RNF05 - Identidade/Privacidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. PESSOAUUID usa UNIQUEIDENTIFIER aleatório, sem derivação de CPF.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-005, RN-006, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-012, RF-019) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-023) Tj
+T*
+() Tj
+T*
+(RNF06 - Confiabilidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. O Processor deve ser reiniciável sem duplicar materializações.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-012, RN-023, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-024) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-020) Tj
+T*
+() Tj
+T*
+(RNF07 - Resiliência) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Falha de enriquecimento geográfico não bloqueia Pessoa/Registro; ) Tj
+T*
+(ausência é reprocessável.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-015, RN-016, RN-023, RN-024) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-029, RF-031, RF-032) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-041) Tj
+T*
+() Tj
+T*
+(RNF08 - Privacidade/Logs) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Logs não podem conter payload integral nem identificadores civis ) Tj
+T*
+(desnecessários.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-029, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. —) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-049) Tj
+T*
+() Tj
+T*
+(RNF09 - Observabilidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. HML deve possuir health check/heartbeat para componentes residentes e ) Tj
+T*
+(telemetria/status de execução para o Jornada.Linkage.Runner run-once.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-024, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-047) Tj
+T*
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 1922 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Realização técnica principal. RT-053) Tj
+T*
+() Tj
+T*
+(RNF10 - Compatibilidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Views serving.vbi são contratos estáveis com a equipe Power BI.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-025, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-041, RF-042, RF-049) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-044) Tj
+T*
+() Tj
+T*
+(RNF11 - Configuração/Segurança) Tj
+T*
+() Tj
+T*
+(Requisito normativo. O PBIP deve abrir usando parâmetros de servidor/banco, sem credenciais ) Tj
+T*
+(versionadas.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-025, RN-030, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-042) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-045) Tj
+T*
+() Tj
+T*
+(RNF12 - Testabilidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Testes de integração devem exercitar o DDL/seed reais de SQL Server.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-023, RN-029, RN-033, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. —) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-002, RT-059) Tj
+T*
+() Tj
+T*
+(RNF13 - Compatibilidade/Versionamento) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Mudança incompatível de JSON Schema, API ou view Serving exige ) Tj
+T*
+(versionamento formal.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-014, RN-025, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-003, RF-041, RF-042, RF-045, RF-049) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-008, RT-044) Tj
+T*
+() Tj
+T*
+(RNF14 - Integridade semântica) Tj
+T*
+() Tj
+T*
+(Requisito normativo. A consulta de Registros e a de Possibilidades devem permanecer ) Tj
+T*
+(semanticamente e fisicamente distinguíveis.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-011, RN-012, RN-013) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-022, RF-026, RF-027, RF-036, RF-037) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-031, RT-038) Tj
+T*
+() Tj
+T*
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 1873 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(RNF15 - Escalabilidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. O Parameters Worker deve processar corpus populacional em ) Tj
+T*
+(streaming/agregação sem requerer carregamento integral em memória.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-024, RN-028, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. —) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-057) Tj
+T*
+() Tj
+T*
+(RNF16 - Auditabilidade/Modelo) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Um modelo de linkage novo só pode substituir o ativo por transição de ) Tj
+T*
+(estado auditável.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-014, RN-024, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-017, RF-045) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-029) Tj
+T*
+() Tj
+T*
+(RNF17 - Configuração/Segurança) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Autenticação e secrets devem ser substituíveis por configuração de HML ) Tj
+T*
+(sem recompilar aplicações.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-029, RN-030, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. —) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-004) Tj
+T*
+() Tj
+T*
+(RNF18 - Manutenibilidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. A Solution não deve depender de componente histórico não incluído em ) Tj
+T*
+(Jornada.sln.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-001, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-049) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-003) Tj
+T*
+() Tj
+T*
+(RNF19 - Manutenibilidade/Paralelização) Tj
+T*
+() Tj
+T*
+(Requisito normativo. O projeto deve permitir paralelização das frentes por contratos ) Tj
+T*
+(definidos no primeiro mês.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-033, RN-034, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-049) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-009) Tj
+T*
+() Tj
+T*
+(RNF20 - Desempenho) Tj
+T*
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 2206 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Requisito normativo. A latência/SLA definitivo de Produção fica fora da Fase 1; HML deve ) Tj
+T*
+(medir p50/p95 e vazão para subsidiar dimensionamento.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-027, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-044) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-058) Tj
+T*
+() Tj
+T*
+(RNF21 - Reprodutibilidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Cada linkagerun deve capturar uma única versão imutável do modelo antes) Tj
+T*
+( do primeiro score; nenhum run pode misturar modeloid/modeloversao.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-005, RN-024, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-006, RF-017) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-027) Tj
+T*
+() Tj
+T*
+(RNF22 - Escalabilidade/Auditoria) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Resultados probabilísticos históricos são append-only; para escala ) Tj
+T*
+(municipal não se persistem todos os candidatos comparados, apenas os dois melhores e a ) Tj
+T*
+(decisão por observação/run.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-005, RN-024, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-006, RF-017) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-027) Tj
+T*
+() Tj
+T*
+(RNF23 - Operabilidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. O linkage probabilístico deve ser executado em Jornada.Linkage.Runner ) Tj
+T*
+(independente, run-once e schedulável, com modelo e parâmetros de execução congelados no ) Tj
+T*
+(linkagerun.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-006, RN-007, RN-023, RN-028) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-015, RF-016) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-026) Tj
+T*
+() Tj
+T*
+(RNF24 - Consistência) Tj
+T*
+() Tj
+T*
+(Requisito normativo. A visibilidade dos resultados de um linkagerun deve ser logicamente ) Tj
+T*
+(atômica: lotes podem ser persistidos em transações independentes, mas somente status ) Tj
+T*
+(PUBLICADO alimenta identidade.vvinculocorrente.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-005, RN-024, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-006, RF-017) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-027) Tj
+T*
+ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 15 0 R >>
+endobj
+15 0 obj
+<< /Length 2590 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(RNF25 - Integridade/Fail-closed) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Nenhum bloco de candidatos pode ser truncado silenciosamente; exceder o) Tj
+T*
+( limite operacional deve falhar o run e exigir revisão explícita do blocking/configuração.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-006, RN-024) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-016) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-028) Tj
+T*
+() Tj
+T*
+(RNF26 - Concorrência/Consistência) Tj
+T*
+() Tj
+T*
+(Requisito normativo. GENERATEDRAFT do Parameters Worker e o Linkage Runner devem executar ) Tj
+T*
+(sob janela exclusiva do corpus integrado obtida pelo gate serial da Fase 1. A API/Bronze ) Tj
+T*
+(permanece disponível; o Processor termina o lote corrente e não inicia outro até a ) Tj
+T*
+(liberação. Não há requisito de SNAPSHOT isolation nem de ALLOWSNAPSHOTISOLATION.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-024, RN-028) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-009, RF-048) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-022) Tj
+T*
+() Tj
+T*
+(RNF27 - Escalabilidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. A geração de parâmetros não pode exigir carregamento integral da Gold ) Tj
+T*
+(em memória nem persistir frequências de alta cardinalidade por modelo no baseline; profiling) Tj
+T*
+( de escala deve ocorrer no SQL Server e m/u por amostras limitadas.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-024, RN-028, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. —) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-057) Tj
+T*
+() Tj
+T*
+(RNF28 - Concorrência/Disponibilidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Recebimento e jobs analíticos podem coexistir: commits da API continuam) Tj
+T*
+( em Ingestão/Bronze, enquanto a materialização Silver/Gold/identidade é serializada. ) Tj
+T*
+(Parameters GENERATEDRAFT e Runner declaram intenção exclusiva antes de aguardar o lote ) Tj
+T*
+(corrente do Processor drenar, impedindo starvation por novos lotes. Os comandos SQL críticos) Tj
+T*
+( devem possuir timeout finito e a HML deve calibrar tempo de drenagem, duração dos jobs e ) Tj
+T*
+(backlog operacional.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-024, RN-028) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-009, RF-048) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-022) Tj
+T*
+() Tj
+T*
+(RNF29 - Segurança/Autorização) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Endpoints de identidade, Pessoa, Registros e Possibilidades devem ) Tj
+T*
+(autorizar pela credencial, scope e recurso antes da leitura funcional; nenhuma credencial ) Tj
+T*
+ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 17 0 R >>
+endobj
+17 0 obj
+<< /Length 2713 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(autorizada depende de vínculo prévio da Pessoa. Cardinalidade é propriedade do endpoint e ) Tj
+T*
+(rate limits pós-autenticação usam CredentialId + classe de endpoint.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-018, RN-019, RN-020, RN-029, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-033, RF-034, RF-035, RF-038, RF-040) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-035, RT-040) Tj
+T*
+() Tj
+T*
+(RNF30 - Auditoria/Privacidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Todo acesso individual deve gerar trilha auditável com ) Tj
+T*
+(credencial/Gestor/rota/recurso e UUID-alvo; consultas em lote devem registrar todos os UUIDs) Tj
+T*
+( do evento sem persistir CPF, nome, payload, access key ou finalidade declarada.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-029, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-039) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-039) Tj
+T*
+() Tj
+T*
+(RNF31 - Segurança de rede) Tj
+T*
+() Tj
+T*
+(Requisito normativo. A aplicação não deve confiar diretamente em X-Forwarded-For. Forwarded ) Tj
+T*
+(Headers só pode ser habilitado com proxies explicitamente confiáveis por ambiente; sem lista) Tj
+T*
+( de proxies, o middleware permanece desabilitado e o rate limit usa o endereço observado na ) Tj
+T*
+(conexão.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-029, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-040) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-040) Tj
+T*
+() Tj
+T*
+(RNF32 - Armazenamento/Durabilidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. Os bytes do ZIP Bronze não devem ser persistidos em VARBINARY\(MAX\) no ) Tj
+T*
+(banco funcional. Devem residir em armazenamento externo durável por chave lógica content-) Tj
+T*
+(addressed derivada do SHA-256, com escrita idempotente objeto-antes-da-linha e chave ) Tj
+T*
+(relativa independente da raiz física.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-029, RN-030, RN-031) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-008) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-016) Tj
+T*
+() Tj
+T*
+(RNF33 - Integridade/Recuperabilidade) Tj
+T*
+() Tj
+T*
+(Requisito normativo. A Bronze externa deve falhar fechada quanto à integridade e ao ciclo de) Tj
+T*
+( vida: objeto canônico existente é revalidado por SHA-256; falha temporária/corrupção na ) Tj
+T*
+(recepção retorna HTTP 503 com Retry-After; GC/expurgo físico só ocorre sob coordenação ) Tj
+T*
+(exclusiva por objeto após confirmação de zero referências e carência; todo objeto ) Tj
+T*
+(referenciado por backup SQL restaurável deve permanecer recuperável. Geradores homologados ) Tj
+T*
+(devem possuir perfil de ZIP determinístico para deduplicação de reenvios integrais ) Tj
+T*
+(inalterados.) Tj
+T*
+ET
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 19 0 R >>
+endobj
+19 0 obj
+<< /Length 943 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-023, RN-029, RN-031) Tj
+T*
+() Tj
+T*
+(Rastreabilidade funcional. RF-008, RF-046) Tj
+T*
+() Tj
+T*
+(Realização técnica principal. RT-017) Tj
+T*
+() Tj
+T*
+(3. Observações de aceite) Tj
+T*
+() Tj
+T*
+(- RNF de HML/Produção dependem das evidências do ambiente correspondente; a validação local ) Tj
+T*
+(não as substitui.) Tj
+T*
+(- RNF de segurança e governança podem exigir evidência técnica e ato institucional.) Tj
+T*
+(- Mudança no texto canônico de RNF exige alteração formal da Base Normativa; este documento ) Tj
+T*
+(apenas organiza a rastreabilidade.) Tj
+T*
+() Tj
+T*
+(4. Controle de versão) Tj
+T*
+() Tj
+T*
+(| Versão | Data | Síntese | Incorporação |) Tj
+T*
+(|---|---|---|---|) Tj
+T*
+(| 1.0 | 03/09/2026 | Extração organizada dos 33 RNF normativos da Seção 17 da Especificação ) Tj
+T*
+(Técnica v3.62, com rastreabilidade RN/RF/RT. | Solution Engenharia v3.98 |) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 20
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000168 00000 n 
+0000000265 00000 n 
+0000000391 00000 n 
+0000002471 00000 n 
+0000002597 00000 n 
+0000004546 00000 n 
+0000004672 00000 n 
+0000006645 00000 n 
+0000006773 00000 n 
+0000008698 00000 n 
+0000008826 00000 n 
+0000011084 00000 n 
+0000011212 00000 n 
+0000013854 00000 n 
+0000013982 00000 n 
+0000016747 00000 n 
+0000016875 00000 n 
+trailer
+<< /Size 20 /Root 1 0 R >>
+startxref
+17869
+%%EOF

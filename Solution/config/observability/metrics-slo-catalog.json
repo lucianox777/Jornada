@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "status": "PENDENTE_HML",
   "baseNormativa": "3.62",
-  "solutionSchema": "3.68",
+  "solutionSchema": "3.69",
   "note": "A presença, nomes e dimensões das métricas são contratos técnicos; thresholds, SLOs e condições de alerta permanecem PENDENTE até HML.",
   "metrics": [
     {

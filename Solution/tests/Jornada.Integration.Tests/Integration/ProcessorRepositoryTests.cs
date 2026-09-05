@@ -1,7 +1,7 @@
+using Jornada.Operational.Sql;
 using Jornada.Contracts;
 using Jornada.Processor.Worker;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
 
 namespace Jornada.Tests.Integration;
 
@@ -142,8 +142,8 @@ public sealed class ProcessorRepositoryTests
         var person = new ParsedPerson(
             "PROC-V325", new string('a',64), "TX-PROC-V325", "98765432100", null, "Pessoa Teste Processor", new DateOnly(1990,1,1), "Mae Teste", [], []);
         var fact = reservedBatch.Natureza == IntegrationNature.BENEFICIO
-            ? new ParsedFact("PROC-V325", "REG-PROC-V325", RegistroOperacao.INCLUSAO, new string('b',64), DateOnly.FromDateTime(DateTime.UtcNow.Date), null, null, null, null, "ATIVO", 25m, null, null)
-            : new ParsedFact("PROC-V325", "REG-PROC-V325", RegistroOperacao.INCLUSAO, new string('b',64), null, null, null, DateTimeOffset.UtcNow, "UNIDADE TESTE", "REALIZADO", null, null, null);
+            ? new ParsedFact("PROC-V325", "REG-PROC-V325", RegistroOperacao.INCLUSAO, new string('b',64), DateOnly.FromDateTime(DateTime.UtcNow.Date), null, null, null, null, null, "VIGENTE", null, null, 25m, null, null)
+            : new ParsedFact("PROC-V325", "REG-PROC-V325", RegistroOperacao.INCLUSAO, new string('b',64), null, null, null, DateTimeOffset.UtcNow, "UNIDADE TESTE", "REALIZADO", null, null, null, null, null, null);
         var manifest = new IngestionPackageManifest(2, reservedBatch.PessoaSchemaVersao,
             reservedBatch.CodigoSistemaOrigem, reservedBatch.Natureza, reservedBatch.CodigoTipo, reservedBatch.TipoVersao, reservedBatch.DataReferencia);
 
@@ -154,10 +154,14 @@ public sealed class ProcessorRepositoryTests
         using var query = verify.CreateCommand();
         query.CommandText = """
             SELECT l.status,e.status,COALESCE(c.entrega_completa,0),
-                   (SELECT COUNT(*) FROM silver.pessoa_observacao WHERE lote_id=l.lote_id),
-                   (SELECT COUNT(*) FROM silver.registro_observacao WHERE lote_id=l.lote_id),
-                   (SELECT COUNT(*) FROM serving.registro_integrado WHERE entrega_id=e.entrega_id AND entrega_completa=1),
-                   (SELECT COUNT(*) FROM ingestao.item_processado WHERE lote_id=l.lote_id)
+                   (SELECT COUNT(*) FROM silver.pessoa_observacao
+                     WHERE lote_id=l.lote_id AND codigo_pessoa_origem='PROC-V325'),
+                   (SELECT COUNT(*) FROM silver.registro_observacao
+                     WHERE lote_id=l.lote_id AND codigo_registro_origem='REG-PROC-V325'),
+                   (SELECT COUNT(*) FROM serving.registro_integrado
+                     WHERE entrega_id=e.entrega_id AND codigo_registro_origem='REG-PROC-V325' AND entrega_completa=1),
+                   (SELECT COUNT(*) FROM ingestao.item_processado
+                     WHERE lote_id=l.lote_id AND codigo_origem IN('PROC-V325','REG-PROC-V325'))
             FROM ingestao.lote l JOIN ingestao.entrega e ON e.entrega_id=l.entrega_id
             LEFT JOIN ingestao.v_entrega_completude c ON c.entrega_id=e.entrega_id
             WHERE l.lote_id=@id;
@@ -211,7 +215,7 @@ public sealed class ProcessorRepositoryTests
             "Pedro Henrique Santos", new DateOnly(2017,8,21), "Joana Santos", [], []);
         var fact = new ParsedFact(
             "CPF-COMPARTILHADO-FILHO", "REG-CPF-COMPARTILHADO", RegistroOperacao.INCLUSAO, new string('f',64),
-            DateOnly.FromDateTime(DateTime.UtcNow.Date), null, null, null, null, "ATIVO", 25m, null, null);
+            DateOnly.FromDateTime(DateTime.UtcNow.Date), null, null, null, null, null, "VIGENTE", null, null, 25m, null, null);
         var manifest = new IngestionPackageManifest(2, batch!.PessoaSchemaVersao,
             batch.CodigoSistemaOrigem, batch.Natureza, batch.CodigoTipo, batch.TipoVersao, batch.DataReferencia);
 
@@ -279,7 +283,7 @@ public sealed class ProcessorRepositoryTests
             "Pessoa Sem CPF", new DateOnly(1991,4,13), "Mae Sem CPF", [], []);
         var fact = new ParsedFact(
             "16899535009", "REG-OPAQUE-CODE", RegistroOperacao.INCLUSAO, new string('b',64),
-            DateOnly.FromDateTime(DateTime.UtcNow.Date), null, null, null, null, "ATIVO", 10m, null, null);
+            DateOnly.FromDateTime(DateTime.UtcNow.Date), null, null, null, null, null, "VIGENTE", null, null, 10m, null, null);
         var manifest = new IngestionPackageManifest(2, batch!.PessoaSchemaVersao,
             batch.CodigoSistemaOrigem, batch.Natureza, batch.CodigoTipo, batch.TipoVersao, batch.DataReferencia);
         await repository.PersistValidatedAsync(batch, new ParsedPackage(manifest, [person], [fact]), CancellationToken.None);
@@ -395,11 +399,25 @@ public sealed class ProcessorRepositoryTests
             firstRepository.ReserveNextAsync(CancellationToken.None),
             secondRepository.ReserveNextAsync(CancellationToken.None));
 
+        // READPAST é fail-fast por desenho: sob contenção o SQL Server pode fazer uma tentativa
+        // retornar null mesmo havendo outro lote que ficará visível no próximo poll (por exemplo,
+        // se a granularidade efetiva do lock for maior que uma linha). O contrato do worker é
+        // segurança + progresso eventual; ProcessorWorker já repete o poll quando recebe null.
+        var first = reservations[0];
+        var second = reservations[1];
+        Assert.That(first is not null || second is not null, Is.True,
+            "Ao menos um worker deve reservar trabalho durante a disputa concorrente.");
+
+        if (first is null)
+            first = await firstRepository.ReserveNextAsync(CancellationToken.None);
+        if (second is null)
+            second = await secondRepository.ReserveNextAsync(CancellationToken.None);
+
         Assert.Multiple(() =>
         {
-            Assert.That(reservations[0], Is.Not.Null);
-            Assert.That(reservations[1], Is.Not.Null);
-            Assert.That(reservations[0]!.LoteId, Is.Not.EqualTo(reservations[1]!.LoteId),
+            Assert.That(first, Is.Not.Null, "Worker que perdeu a primeira disputa deve progredir no poll seguinte.");
+            Assert.That(second, Is.Not.Null, "Worker que perdeu a primeira disputa deve progredir no poll seguinte.");
+            Assert.That(first!.LoteId, Is.Not.EqualTo(second!.LoteId),
                 "UPDLOCK/READPAST deve impedir dois workers de reservar o mesmo lote.");
         });
     }
@@ -448,12 +466,15 @@ public sealed class ProcessorRepositoryTests
         using var query = verify.CreateCommand();
         query.CommandText = """
             SELECT
-              (SELECT COUNT(*) FROM silver.pessoa_observacao WHERE lote_id=@lote),
+              (SELECT COUNT(*) FROM silver.pessoa_observacao
+                WHERE lote_id=@lote AND codigo_pessoa_origem IN('PROC-V325-ROLLBACK-A','PROC-V325-ROLLBACK-B')),
               (SELECT COUNT(*) FROM silver.pessoa_atributo_observacao pa
-                JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=pa.pessoa_observacao_id WHERE po.lote_id=@lote),
+                JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=pa.pessoa_observacao_id
+                WHERE po.lote_id=@lote AND po.codigo_pessoa_origem IN('PROC-V325-ROLLBACK-A','PROC-V325-ROLLBACK-B')),
               (SELECT COUNT(*) FROM identidade.identity_map WHERE identificador IN('31415926590','27182818205')),
               (SELECT COUNT(*) FROM gold.pessoa WHERE cpf IN('31415926590','27182818205')),
-              (SELECT COUNT(*) FROM ingestao.item_processado WHERE lote_id=@lote),
+              (SELECT COUNT(*) FROM ingestao.item_processado
+                WHERE lote_id=@lote AND codigo_origem IN('PROC-V325-ROLLBACK-A','PROC-V325-ROLLBACK-B')),
               (SELECT status FROM ingestao.lote WHERE lote_id=@lote);
             """;
         query.Parameters.AddWithValue("@lote", reservedBatch.LoteId);
@@ -647,11 +668,8 @@ public sealed class ProcessorRepositoryTests
 
     private static SqlProcessorRepository CreateRepository(string connectionString)
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Jornada"] = connectionString })
-            .Build();
         return new SqlProcessorRepository(
-            new ProcessorSqlConnectionFactory(configuration),
+            new OperationalSqlAdapter(connectionString!),
             new RegistryQualityEngine(new IRegistryQualityEvaluator[]
             {
                 new PositiveGrantedValueRegistryQcEvaluator("AA01", 1),

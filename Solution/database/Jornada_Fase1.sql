@@ -1074,6 +1074,9 @@ IF OBJECT_ID('silver.registro_observacao','U') IS NULL CREATE TABLE silver.regis
  data_hora_servico DATETIMEOFFSET(7) NULL,
  unidade_servico NVARCHAR(200) NULL,
  situacao NVARCHAR(80) NULL,
+ situacao_vigencia NVARCHAR(20) NULL,
+ situacao_vigencia_desde DATE NULL,
+ motivo_encerramento NVARCHAR(30) NULL,
  valor_concedido DECIMAL(18,2) NULL,
  quantidade DECIMAL(18,4) NULL,
  unidade NVARCHAR(50) NULL,
@@ -1248,13 +1251,12 @@ IF OBJECT_ID('identidade.vinculo_fonte','U') IS NULL CREATE TABLE identidade.vin
  linkage_run_id UNIQUEIDENTIFIER NULL, resolvido_em DATETIMEOFFSET(7) NULL, motivo NVARCHAR(120) NULL,
  CONSTRAINT ck_vinculo_status CHECK(status IN('RESOLVIDO','NAO_RESOLVIDO','CONFLITO')),
  CONSTRAINT ck_vinculo_status_uuid CHECK((status='RESOLVIDO' AND pessoa_uuid IS NOT NULL) OR (status IN('NAO_RESOLVIDO','CONFLITO') AND pessoa_uuid IS NULL)),
- CONSTRAINT ck_vinculo_metodo CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO')),
+ CONSTRAINT ck_vinculo_metodo CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA')),
  CONSTRAINT ck_vinculo_modelo CHECK(
     (metodo_resolucao='CPF_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='PENDENTE_PROBABILISTICO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL) OR
     (metodo_resolucao='LINKAGE_PROBABILISTICO' AND score IS NOT NULL AND modelo_id IS NOT NULL) OR
-    (metodo_resolucao='CORRECAO_GOVERNADA' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NOT NULL) OR
-    (metodo_resolucao='CONFLITO_GOVERNADO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL)));
+    (metodo_resolucao='CORRECAO_GOVERNADA' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NOT NULL)));
 GO
 IF COL_LENGTH('identidade.vinculo_fonte','linkage_run_id') IS NULL
  ALTER TABLE identidade.vinculo_fonte ADD linkage_run_id UNIQUEIDENTIFIER NULL;
@@ -1278,6 +1280,8 @@ GO
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID('identidade.vinculo_fonte') AND name='ck_vinculo_metodo')
  ALTER TABLE identidade.vinculo_fonte DROP CONSTRAINT ck_vinculo_metodo;
 GO
+-- v3.93: este bloco de compatibilidade pode ser reaplicado sobre banco já evoluído até v3.44+.
+-- Não pode rebaixar temporariamente o domínio e rejeitar linhas CONFLITO_GOVERNADO já válidas.
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_metodo
  CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
 GO
@@ -1728,7 +1732,7 @@ IF OBJECT_ID('gold.beneficio_concedido','U') IS NULL CREATE TABLE gold.beneficio
  tipo_registro_id BIGINT NOT NULL REFERENCES ref.tipo_registro(tipo_registro_id),
  tipo_registro_versao_id BIGINT NOT NULL REFERENCES ref.tipo_registro_versao(tipo_registro_versao_id),
  entrega_id UNIQUEIDENTIFIER NOT NULL REFERENCES ingestao.entrega(entrega_id),
- data_inicio_concessao DATE NULL, data_fim_concessao DATE NULL, data_evento_concessao DATE NULL, situacao NVARCHAR(80) NULL,
+ data_inicio_concessao DATE NULL, data_fim_concessao DATE NULL, data_evento_concessao DATE NULL, situacao_vigencia NVARCHAR(20) NOT NULL, situacao_vigencia_desde DATE NULL, motivo_encerramento NVARCHAR(30) NULL,
  referencia_territorial_observacao_id BIGINT NULL REFERENCES silver.referencia_territorial_observacao(referencia_territorial_observacao_id),
  natureza_referencia_territorial NVARCHAR(50) NULL,
  subprefeitura_referencia_id BIGINT NULL REFERENCES ref.subprefeitura(subprefeitura_id), distrito_referencia_id BIGINT NULL REFERENCES ref.distrito(distrito_id),
@@ -1746,6 +1750,49 @@ IF COL_LENGTH('gold.beneficio_concedido','data_inicio') IS NOT NULL AND COL_LENG
 IF COL_LENGTH('gold.beneficio_concedido','data_fim') IS NOT NULL AND COL_LENGTH('gold.beneficio_concedido','data_fim_concessao') IS NULL EXEC sp_rename 'gold.beneficio_concedido.data_fim','data_fim_concessao','COLUMN';
 IF COL_LENGTH('gold.beneficio_concedido','data_evento') IS NOT NULL AND COL_LENGTH('gold.beneficio_concedido','data_evento_concessao') IS NULL EXEC sp_rename 'gold.beneficio_concedido.data_evento','data_evento_concessao','COLUMN';
 IF COL_LENGTH('gold.beneficio_concedido','valor_monetario') IS NOT NULL AND COL_LENGTH('gold.beneficio_concedido','valor_concedido') IS NULL EXEC sp_rename 'gold.beneficio_concedido.valor_monetario','valor_concedido','COLUMN';
+-- v3.64 / SolutionSchema 3.69: terminologia mínima comum de vigência da concessão.
+-- O projeto ainda está em pré-implantação. Para permitir o upgrade dos baselines técnicos anteriores,
+-- somente os valores legados explicitamente conhecidos (VIGENTE, SUSPENSA, ENCERRADA/ENCERRADO)
+-- são migrados. Qualquer outro valor legado de Benefício falha fechado e exige decisão/mapeamento do Gestor.
+IF COL_LENGTH('silver.registro_observacao','situacao_vigencia') IS NULL ALTER TABLE silver.registro_observacao ADD situacao_vigencia NVARCHAR(20) NULL;
+IF COL_LENGTH('silver.registro_observacao','situacao_vigencia_desde') IS NULL ALTER TABLE silver.registro_observacao ADD situacao_vigencia_desde DATE NULL;
+IF COL_LENGTH('silver.registro_observacao','motivo_encerramento') IS NULL ALTER TABLE silver.registro_observacao ADD motivo_encerramento NVARCHAR(30) NULL;
+IF COL_LENGTH('gold.beneficio_concedido','situacao_vigencia') IS NULL ALTER TABLE gold.beneficio_concedido ADD situacao_vigencia NVARCHAR(20) NULL;
+IF COL_LENGTH('gold.beneficio_concedido','situacao_vigencia_desde') IS NULL ALTER TABLE gold.beneficio_concedido ADD situacao_vigencia_desde DATE NULL;
+IF COL_LENGTH('gold.beneficio_concedido','motivo_encerramento') IS NULL ALTER TABLE gold.beneficio_concedido ADD motivo_encerramento NVARCHAR(30) NULL;
+GO
+
+IF COL_LENGTH('silver.registro_observacao','situacao') IS NOT NULL
+ EXEC(N'
+   IF EXISTS(SELECT 1 FROM silver.registro_observacao WHERE natureza=''''BENEFICIO'''' AND situacao IS NOT NULL AND situacao NOT IN(''''VIGENTE'''',''''SUSPENSA'''',''''ENCERRADA'''',''''ENCERRADO''''))
+      THROW 51989,''Valor legado de situacao de Beneficio sem mapeamento canonico de vigencia.'',1;
+   UPDATE silver.registro_observacao
+      SET situacao_vigencia=CASE WHEN situacao IN(''''ENCERRADA'''',''''ENCERRADO'''') THEN ''''ENCERRADA'''' ELSE situacao END,
+          motivo_encerramento=CASE WHEN situacao IN(''''ENCERRADA'''',''''ENCERRADO'''') THEN ''''TERMINO_REGULAR'''' ELSE NULL END,
+          situacao_vigencia_desde=CASE WHEN situacao IN(''''ENCERRADA'''',''''ENCERRADO'''') THEN COALESCE(data_fim_concessao,data_evento_concessao) ELSE NULL END,
+          situacao=NULL
+    WHERE natureza=''''BENEFICIO'''' AND situacao_vigencia IS NULL AND situacao IS NOT NULL;');
+GO
+
+IF COL_LENGTH('gold.beneficio_concedido','situacao') IS NOT NULL
+ EXEC(N'
+   IF EXISTS(SELECT 1 FROM gold.beneficio_concedido WHERE situacao IS NOT NULL AND situacao NOT IN(''''VIGENTE'''',''''SUSPENSA'''',''''ENCERRADA'''',''''ENCERRADO''''))
+      THROW 51990,''Valor legado de situacao de Beneficio Concedido sem mapeamento canonico de vigencia.'',1;
+   UPDATE gold.beneficio_concedido
+      SET situacao_vigencia=CASE WHEN situacao IN(''''ENCERRADA'''',''''ENCERRADO'''') THEN ''''ENCERRADA'''' ELSE situacao END,
+          motivo_encerramento=CASE WHEN situacao IN(''''ENCERRADA'''',''''ENCERRADO'''') THEN ''''TERMINO_REGULAR'''' ELSE NULL END,
+          situacao_vigencia_desde=CASE WHEN situacao IN(''''ENCERRADA'''',''''ENCERRADO'''') THEN COALESCE(data_fim_concessao,data_evento_concessao) ELSE NULL END
+    WHERE situacao_vigencia IS NULL AND situacao IS NOT NULL;');
+GO
+
+IF EXISTS(SELECT 1 FROM gold.beneficio_concedido WHERE situacao_vigencia IS NULL)
+ THROW 51991,'Beneficio Concedido legado sem situacaoVigencia canonica apos migracao.',1;
+ALTER TABLE gold.beneficio_concedido ALTER COLUMN situacao_vigencia NVARCHAR(20) NOT NULL;
+GO
+
+-- A coluna genérica situacao não integra mais a estrutura física especializada de Benefício.
+IF COL_LENGTH('gold.beneficio_concedido','situacao') IS NOT NULL
+ EXEC(N'ALTER TABLE gold.beneficio_concedido DROP COLUMN situacao;');
 GO
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('gold.beneficio_concedido') AND name='UX_beneficio_concedido_corrente')
  CREATE UNIQUE INDEX UX_beneficio_concedido_corrente ON gold.beneficio_concedido(registro_origem_id) WHERE status_analitico='VIGENTE';
@@ -1783,7 +1830,7 @@ CREATE OR ALTER VIEW gold.v_registros_jornada AS
 SELECT CONCAT('B:',b.beneficio_concedido_id) registro_id,b.pessoa_uuid,CAST('BENEFICIO' AS NVARCHAR(30)) natureza,
        g.codigo gestor,tr.codigo codigo_tipo,tr.nome nome_tipo,
        COALESCE(CAST(b.data_evento_concessao AS DATETIMEOFFSET),CAST(b.data_inicio_concessao AS DATETIMEOFFSET),b.source_as_of) ocorrido_em,
-       b.source_as_of data_referencia,b.situacao,b.registro_observacao_id source_observacao_id
+       b.source_as_of data_referencia,b.situacao_vigencia situacao,b.registro_observacao_id source_observacao_id
 FROM gold.beneficio_concedido b JOIN ref.tipo_registro tr ON tr.tipo_registro_id=b.tipo_registro_id JOIN ref.gestor g ON g.gestor_id=b.gestor_id
 WHERE b.status_analitico='VIGENTE'
 UNION ALL
@@ -1810,6 +1857,7 @@ IF OBJECT_ID('serving.registro_integrado','U') IS NULL CREATE TABLE serving.regi
  entrega_id UNIQUEIDENTIFIER NOT NULL REFERENCES ingestao.entrega(entrega_id),
  entrega_completa BIT NOT NULL,
  data_inicio_concessao DATE NULL, data_fim_concessao DATE NULL, data_evento_concessao DATE NULL,
+ situacao_vigencia NVARCHAR(20) NULL, situacao_vigencia_desde DATE NULL, motivo_encerramento NVARCHAR(30) NULL,
  data_hora_servico DATETIMEOFFSET(7) NULL, unidade_servico NVARCHAR(200) NULL,
  situacao NVARCHAR(80) NULL,
  referencia_territorial_observacao_id BIGINT NULL REFERENCES silver.referencia_territorial_observacao(referencia_territorial_observacao_id),
@@ -1834,6 +1882,22 @@ IF COL_LENGTH('serving.registro_integrado','data_inicio') IS NOT NULL AND COL_LE
 IF COL_LENGTH('serving.registro_integrado','data_fim') IS NOT NULL AND COL_LENGTH('serving.registro_integrado','data_fim_concessao') IS NULL EXEC sp_rename 'serving.registro_integrado.data_fim','data_fim_concessao','COLUMN';
 IF COL_LENGTH('serving.registro_integrado','data_evento') IS NOT NULL AND COL_LENGTH('serving.registro_integrado','data_evento_concessao') IS NULL EXEC sp_rename 'serving.registro_integrado.data_evento','data_evento_concessao','COLUMN';
 IF COL_LENGTH('serving.registro_integrado','valor_monetario') IS NOT NULL AND COL_LENGTH('serving.registro_integrado','valor_concedido') IS NULL EXEC sp_rename 'serving.registro_integrado.valor_monetario','valor_concedido','COLUMN';
+GO
+-- v3.64 / SolutionSchema 3.69: vigência canônica também na projeção Serving.
+IF COL_LENGTH('serving.registro_integrado','situacao_vigencia') IS NULL ALTER TABLE serving.registro_integrado ADD situacao_vigencia NVARCHAR(20) NULL;
+IF COL_LENGTH('serving.registro_integrado','situacao_vigencia_desde') IS NULL ALTER TABLE serving.registro_integrado ADD situacao_vigencia_desde DATE NULL;
+IF COL_LENGTH('serving.registro_integrado','motivo_encerramento') IS NULL ALTER TABLE serving.registro_integrado ADD motivo_encerramento NVARCHAR(30) NULL;
+GO
+
+-- Serving herda a semântica consolidada da Gold; o campo genérico situacao fica reservado a Serviço.
+UPDATE ri
+   SET ri.situacao_vigencia=b.situacao_vigencia,
+       ri.situacao_vigencia_desde=b.situacao_vigencia_desde,
+       ri.motivo_encerramento=b.motivo_encerramento,
+       ri.situacao=NULL
+  FROM serving.registro_integrado ri
+  JOIN gold.beneficio_concedido b ON b.registro_observacao_id=ri.registro_observacao_id
+ WHERE ri.natureza='BENEFICIO' AND ri.situacao_vigencia IS NULL;
 GO
 -- Migração aditiva v3.31 para instalações anteriores ao modelo de Referência Territorial.
 IF COL_LENGTH('gold.beneficio_concedido','referencia_territorial_observacao_id') IS NULL ALTER TABLE gold.beneficio_concedido ADD referencia_territorial_observacao_id BIGINT NULL REFERENCES silver.referencia_territorial_observacao(referencia_territorial_observacao_id);
@@ -1909,7 +1973,7 @@ CREATE OR ALTER VIEW serving.v_beneficios_concedidos_pessoa AS
 SELECT bc.beneficio_concedido_id,bc.pessoa_uuid,g.codigo gestor,tr.codigo beneficio,tr.nome nome_beneficio,
        trv.versao versao_tipo,bc.versao_interna,bc.operacao,bc.status_analitico,bc.codigo_registro_origem,trv.tipo_medida,
        trv.regime_vigencia,trv.data_inicio_permitida_concessao,trv.data_fim_permitida_concessao,
-       bc.data_inicio_concessao,bc.data_fim_concessao,bc.data_evento_concessao,bc.situacao,bc.valor_concedido,bc.quantidade,
+       bc.data_inicio_concessao,bc.data_fim_concessao,bc.data_evento_concessao,bc.situacao_vigencia,bc.situacao_vigencia_desde,bc.motivo_encerramento,bc.valor_concedido,bc.quantidade,
        bc.unidade unidade_medida,bc.source_as_of data_referencia,bc.qc_resultado,COALESCE(bc.qc_especifico_implementado,0) qc_especifico_implementado
 FROM gold.beneficio_concedido bc
 JOIN ref.tipo_registro tr ON tr.tipo_registro_id=bc.tipo_registro_id
@@ -2612,7 +2676,7 @@ BEGIN
  UPDATE p SET status='EM_CONFLITO' FROM identidade.pessoa p WHERE p.pessoa_uuid IN(SELECT uuid FROM @o WHERE uuid IS NOT NULL) AND p.status='ATIVO';
  UPDATE im SET estado='EM_CONFLITO',estado_motivo='CONFLITO_GOVERNADO',estado_em=SYSDATETIMEOFFSET()
  FROM identidade.identity_map im
- WHERE vigencia_fim IS NULL AND estado='ATIVO' AND pessoa_uuid IN(SELECT uuid FROM @o WHERE uuid IS NOT NULL);
+ WHERE im.vigencia_fim IS NULL AND im.estado='ATIVO' AND im.pessoa_uuid IN(SELECT uuid FROM @o WHERE uuid IS NOT NULL);
  UPDATE b SET pessoa_uuid=NULL,estado_atribuicao_identidade='CONFLITO_IDENTIDADE',atualizado_em=SYSDATETIMEOFFSET()
  FROM gold.beneficio_concedido b JOIN silver.registro_observacao ro ON ro.registro_observacao_id=b.registro_observacao_id JOIN @o o ON o.obs=ro.pessoa_observacao_id WHERE b.status_analitico='VIGENTE';
  UPDATE s SET pessoa_uuid=NULL,estado_atribuicao_identidade='CONFLITO_IDENTIDADE',atualizado_em=SYSDATETIMEOFFSET()
@@ -2659,7 +2723,7 @@ GO
 CREATE OR ALTER VIEW gold.v_registros_jornada AS
 SELECT CONCAT('B:',b.beneficio_concedido_id) registro_id,b.pessoa_uuid,CAST('BENEFICIO' AS NVARCHAR(30)) natureza,
        g.codigo gestor,tr.codigo codigo_tipo,tr.nome nome_tipo,COALESCE(CAST(b.data_evento_concessao AS DATETIMEOFFSET),CAST(b.data_inicio_concessao AS DATETIMEOFFSET),b.source_as_of) ocorrido_em,
-       b.source_as_of data_referencia,b.situacao,b.registro_observacao_id source_observacao_id
+       b.source_as_of data_referencia,b.situacao_vigencia situacao,b.registro_observacao_id source_observacao_id
 FROM gold.beneficio_concedido b JOIN ref.tipo_registro tr ON tr.tipo_registro_id=b.tipo_registro_id JOIN ref.gestor g ON g.gestor_id=b.gestor_id
 WHERE b.status_analitico='VIGENTE' AND b.estado_atribuicao_identidade='ATRIBUIDA'
 UNION ALL
@@ -2670,7 +2734,7 @@ GO
 CREATE OR ALTER VIEW serving.v_beneficios_concedidos_pessoa AS
 SELECT bc.beneficio_concedido_id,bc.pessoa_uuid,g.codigo gestor,tr.codigo beneficio,tr.nome nome_beneficio,
        trv.versao versao_tipo,bc.versao_interna,bc.operacao,bc.status_analitico,bc.codigo_registro_origem,trv.tipo_medida,
-       bc.data_inicio_concessao,bc.data_fim_concessao,bc.data_evento_concessao,bc.situacao,bc.valor_concedido,bc.quantidade,bc.unidade unidade_medida,bc.source_as_of data_referencia,bc.qc_resultado,COALESCE(bc.qc_especifico_implementado,0) qc_especifico_implementado
+       bc.data_inicio_concessao,bc.data_fim_concessao,bc.data_evento_concessao,bc.situacao_vigencia,bc.situacao_vigencia_desde,bc.motivo_encerramento,bc.valor_concedido,bc.quantidade,bc.unidade unidade_medida,bc.source_as_of data_referencia,bc.qc_resultado,COALESCE(bc.qc_especifico_implementado,0) qc_especifico_implementado
 FROM gold.beneficio_concedido bc JOIN ref.tipo_registro tr ON tr.tipo_registro_id=bc.tipo_registro_id JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_versao_id=bc.tipo_registro_versao_id JOIN ref.gestor g ON g.gestor_id=bc.gestor_id
 WHERE bc.status_analitico='VIGENTE' AND bc.estado_atribuicao_identidade='ATRIBUIDA';
 GO
@@ -3207,13 +3271,27 @@ WHERE status_analitico='VIGENTE' AND estado_atribuicao_identidade='ATRIBUIDA';
 GO
 
 
--- v3.68: marcador persistente de compatibilidade de schema para /health/ready.
+-- v3.69: marcador persistente de compatibilidade de schema para /health/ready após inclusão da vigência canônica de Benefício Concedido.
 IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa')
  EXEC sys.sp_updateextendedproperty @name=N'Jornada.BaseNormativa',@value=N'3.62';
 ELSE
  EXEC sys.sp_addextendedproperty @name=N'Jornada.BaseNormativa',@value=N'3.62';
 IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema')
- EXEC sys.sp_updateextendedproperty @name=N'Jornada.SolutionSchema',@value=N'3.68';
+ EXEC sys.sp_updateextendedproperty @name=N'Jornada.SolutionSchema',@value=N'3.69';
 ELSE
- EXEC sys.sp_addextendedproperty @name=N'Jornada.SolutionSchema',@value=N'3.68';
+ EXEC sys.sp_addextendedproperty @name=N'Jornada.SolutionSchema',@value=N'3.69';
+GO
+
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE name='CK_beneficio_concedido_situacao_vigencia')
+ ALTER TABLE gold.beneficio_concedido ADD CONSTRAINT CK_beneficio_concedido_situacao_vigencia CHECK(situacao_vigencia IN('VIGENTE','SUSPENSA','ENCERRADA'));
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE name='CK_beneficio_concedido_motivo_encerramento')
+ ALTER TABLE gold.beneficio_concedido ADD CONSTRAINT CK_beneficio_concedido_motivo_encerramento CHECK((situacao_vigencia='ENCERRADA' AND motivo_encerramento IN('TERMINO_REGULAR','CANCELAMENTO','CESSACAO')) OR (situacao_vigencia IN('VIGENTE','SUSPENSA') AND motivo_encerramento IS NULL));
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE name='CK_silver_registro_situacao_vigencia')
+ ALTER TABLE silver.registro_observacao ADD CONSTRAINT CK_silver_registro_situacao_vigencia CHECK(natureza<>'BENEFICIO' OR (situacao_vigencia IS NOT NULL AND situacao_vigencia IN('VIGENTE','SUSPENSA','ENCERRADA')));
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE name='CK_silver_registro_motivo_encerramento')
+ ALTER TABLE silver.registro_observacao ADD CONSTRAINT CK_silver_registro_motivo_encerramento CHECK(natureza<>'BENEFICIO' OR ((situacao_vigencia='ENCERRADA' AND motivo_encerramento IN('TERMINO_REGULAR','CANCELAMENTO','CESSACAO')) OR (situacao_vigencia IN('VIGENTE','SUSPENSA') AND motivo_encerramento IS NULL)));
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE name='CK_serving_situacao_vigencia')
+ ALTER TABLE serving.registro_integrado ADD CONSTRAINT CK_serving_situacao_vigencia CHECK(natureza<>'BENEFICIO' OR (situacao_vigencia IS NOT NULL AND situacao_vigencia IN('VIGENTE','SUSPENSA','ENCERRADA')));
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE name='CK_serving_motivo_encerramento')
+ ALTER TABLE serving.registro_integrado ADD CONSTRAINT CK_serving_motivo_encerramento CHECK(natureza<>'BENEFICIO' OR ((situacao_vigencia='ENCERRADA' AND motivo_encerramento IN('TERMINO_REGULAR','CANCELAMENTO','CESSACAO')) OR (situacao_vigencia IN('VIGENTE','SUSPENSA') AND motivo_encerramento IS NULL)));
 GO

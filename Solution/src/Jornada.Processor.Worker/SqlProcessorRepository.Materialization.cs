@@ -20,10 +20,10 @@ internal sealed partial class SqlProcessorRepository
                 INSERT gold.beneficio_concedido(
                     registro_observacao_id,registro_origem_id,codigo_registro_origem,versao_interna,operacao,status_analitico,
                     pessoa_origem_id,sistema_origem_id,codigo_pessoa_origem,cpf_declarado,cpf_ausente_motivo,pessoa_uuid,estado_atribuicao_identidade,gestor_id,tipo_registro_id,tipo_registro_versao_id,entrega_id,
-                    data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,valor_concedido,quantidade,unidade,
+                    data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao_vigencia,situacao_vigencia_desde,motivo_encerramento,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,valor_concedido,quantidade,unidade,
                     source_as_of,qc_resultado,qc_especifico_implementado,vigencia_versao_inicio,vigencia_versao_fim)
                 VALUES(@registro,@registro_origem,@codigo_registro,@versao_interna,@operacao,'VIGENTE',
-                       @pessoa_origem,@sistema_origem,@codigo_pessoa,@cpf_declarado,@cpf_ausente,@uuid,@estado_atribuicao,@gestor,@tipo,@tipo_versao,@entrega,@data_inicio_concessao,@data_fim_concessao,@data_evento_concessao,@situacao,@referencia_territorial,@natureza_referencia,@subprefeitura,@distrito,
+                       @pessoa_origem,@sistema_origem,@codigo_pessoa,@cpf_declarado,@cpf_ausente,@uuid,@estado_atribuicao,@gestor,@tipo,@tipo_versao,@entrega,@data_inicio_concessao,@data_fim_concessao,@data_evento_concessao,@situacao_vigencia,@situacao_vigencia_desde,@motivo_encerramento,@referencia_territorial,@natureza_referencia,@subprefeitura,@distrito,
                        @valor_concedido,@quantidade,@unidade,@source,@qc,@qc_impl,@vigencia_inicio,NULL);
                 """;
             AddBenefitGrantedParameters(gold, batch, person, registroOrigemId, versaoInterna, recordId, fact, evaluation, versionedAt);
@@ -36,10 +36,10 @@ internal sealed partial class SqlProcessorRepository
             INSERT serving.registro_integrado(
                 registro_observacao_id,registro_origem_id,codigo_registro_origem,versao_interna,operacao,status_analitico,
                 pessoa_origem_id,sistema_origem_id,codigo_pessoa_origem,cpf_declarado,cpf_ausente_motivo,pessoa_uuid,estado_atribuicao_identidade,gestor_id,natureza,tipo_registro_id,tipo_registro_versao_id,entrega_id,entrega_completa,
-                data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,valor_concedido,quantidade,unidade,
+                data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao_vigencia,situacao_vigencia_desde,motivo_encerramento,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,valor_concedido,quantidade,unidade,
                 source_as_of,qc_resultado,qc_especifico_implementado,vigencia_versao_inicio,vigencia_versao_fim)
             VALUES(@registro,@registro_origem,@codigo_registro,@versao_interna,@operacao,'VIGENTE',
-                   @pessoa_origem,@sistema_origem,@codigo_pessoa,@cpf_declarado,@cpf_ausente,@uuid,@estado_atribuicao,@gestor,'BENEFICIO',@tipo,@tipo_versao,@entrega,0,@data_inicio_concessao,@data_fim_concessao,@data_evento_concessao,@situacao,@referencia_territorial,@natureza_referencia,@subprefeitura,@distrito,
+                   @pessoa_origem,@sistema_origem,@codigo_pessoa,@cpf_declarado,@cpf_ausente,@uuid,@estado_atribuicao,@gestor,'BENEFICIO',@tipo,@tipo_versao,@entrega,0,@data_inicio_concessao,@data_fim_concessao,@data_evento_concessao,@situacao_vigencia,@situacao_vigencia_desde,@motivo_encerramento,@referencia_territorial,@natureza_referencia,@subprefeitura,@distrito,
                    @valor_concedido,@quantidade,@unidade,@source,@qc,@qc_impl,@vigencia_inicio,NULL);
             """;
         AddBenefitGrantedParameters(serving, batch, person, registroOrigemId, versaoInterna, recordId, fact, evaluation, versionedAt);
@@ -175,7 +175,9 @@ internal sealed partial class SqlProcessorRepository
         AddNullableDate(command, "@data_inicio_concessao", fact.DataInicioConcessao);
         AddNullableDate(command, "@data_fim_concessao", fact.DataFimConcessao);
         AddNullableDate(command, "@data_evento_concessao", fact.DataEventoConcessao);
-        AddNullable(command, "@situacao", SqlDbType.NVarChar, 80, fact.Situacao);
+        AddNullable(command, "@situacao_vigencia", SqlDbType.NVarChar, 20, fact.SituacaoVigencia);
+        AddNullableDate(command, "@situacao_vigencia_desde", fact.SituacaoVigenciaDesde);
+        AddNullable(command, "@motivo_encerramento", SqlDbType.NVarChar, 30, fact.MotivoEncerramento);
         AddNullableDecimal(command, "@valor_concedido", SqlDbType.Decimal, 18, 2, fact.ValorConcedido);
         AddNullableDecimal(command, "@quantidade", SqlDbType.Decimal, 18, 4, fact.Quantidade);
         AddNullable(command, "@unidade", SqlDbType.NVarChar, 50, fact.Unidade);

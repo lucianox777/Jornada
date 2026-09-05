@@ -35,8 +35,8 @@ assert_email_v2(){
 }
 assert_schema_marker(){
   local n
-  n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT CASE WHEN CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'))=N'3.62' AND CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'))=N'3.68' THEN 1 ELSE 0 END;" | tr -d '[:space:]')"
-  [[ "$n" == 1 ]] || { echo "ERRO: marcador de versão do schema não está em Base 3.62 / Solution 3.68." >&2; exit 8; }
+  n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT CASE WHEN CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'))=N'3.62' AND CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'))=N'3.69' THEN 1 ELSE 0 END;" | tr -d '[:space:]')"
+  [[ "$n" == 1 ]] || { echo "ERRO: marcador de versão do schema não está em Base 3.62 / Solution 3.69." >&2; exit 8; }
 }
 
 compose up -d sqlserver; wait_healthy

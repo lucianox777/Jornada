@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Contracts", "src\Jornada.Contracts\Jornada.Contracts.csproj", "{C1D94534-0FC6-5CEE-BA6A-5409505D991F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Operational.Sql", "src\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj", "{90BBBAD0-70FA-442C-A628-036F0D7D7C8B}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Pipeline.Coordination", "src\Jornada.Pipeline.Coordination\Jornada.Pipeline.Coordination.csproj", "{63F8CC6A-B394-503E-AF26-7DFB1EBCB9CC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Bronze.Storage", "src\Jornada.Bronze.Storage\Jornada.Bronze.Storage.csproj", "{B58D0AD7-66F5-4D2A-B81B-BE2DA45274B1}"
@@ -39,6 +41,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Documentation", "Documentat
 		docs\Retencao_Item_Processado.md = docs\Retencao_Item_Processado.md
 		docs\HML_Observabilidade_SQL.md = docs\HML_Observabilidade_SQL.md
 		docs\Runbook_Testes_Tecnicos.md = docs\Runbook_Testes_Tecnicos.md
+		docs\Operational_SQL_Adapter.md = docs\Operational_SQL_Adapter.md
 		database\Jornada_Dev_SyntheticScale.sql = database\Jornada_Dev_SyntheticScale.sql
 		database\Jornada_Dev_BackupDrill.sql = database\Jornada_Dev_BackupDrill.sql
 		database\Jornada_HML_Observabilidade.sql = database\Jornada_HML_Observabilidade.sql
@@ -110,6 +113,10 @@ Global
 		{8F1E462C-2D41-4B56-9D4B-6CA29331A7E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8F1E462C-2D41-4B56-9D4B-6CA29331A7E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8F1E462C-2D41-4B56-9D4B-6CA29331A7E8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{90BBBAD0-70FA-442C-A628-036F0D7D7C8B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{90BBBAD0-70FA-442C-A628-036F0D7D7C8B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{90BBBAD0-70FA-442C-A628-036F0D7D7C8B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{90BBBAD0-70FA-442C-A628-036F0D7D7C8B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 		{39ABF14F-7B65-5090-82BE-079AA6EAA783}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{39ABF14F-7B65-5090-82BE-079AA6EAA783}.Debug|Any CPU.Build.0 = Debug|Any CPU

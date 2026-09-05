@@ -1,4 +1,4 @@
-# Documentação técnica complementar — base normativa v3.62 / engenharia v3.76
+# Documentação técnica complementar — base normativa v3.63 / engenharia v4.03
 
 - `API.md` - contrato funcional resumido da API vigente.
 - `Bronze_Operacao.md` - runbook da Bronze externa: integridade, GC, locks por objeto, backup/restore e ZIP determinístico.
@@ -10,7 +10,7 @@
 - `Possibilidades_Regras.md` - motor versionado, catálogo governado e dry-run de regras de Possibilidades.
 - `../tests/fixtures/ingestao/` - payloads de referência usados como fixtures dos testes automatizados.
 
-A fonte normativa é `../../Documentos/Especificacao_Tecnica_Jornada_v3.62.docx`. A base normativa v3.62 preserva a Referência Territorial como fonte territorial única da visualização; ENDERECO_RESIDENCIAL permanece cadastral e não existe persistência geográfica paralela.
+A fonte normativa é `../../Documentos/Especificacao_Tecnica_Jornada_v3.64.docx`. A v3.64 mantém a Base persistida 3.62 e eleva o SolutionSchema para 3.69 ao incorporar a vigência canônica do Benefício Concedido; Pagamento e Recebimento permanecem apenas conceituais na Fase 1. A Referência Territorial permanece a fonte territorial única da visualização; ENDERECO_RESIDENCIAL permanece cadastral e não existe persistência geográfica paralela.
 
 ## Material histórico
 
@@ -73,6 +73,7 @@ A Pessoa é compartilhada em âmbito municipal por qualquer credencial autorizad
 ## Engenharia local, release e harnesses v3.55
 
 - `Runbook_Desenvolvimento_Local.md`: SQL Server 2022 Developer em Docker, bootstrap, reset e testes.
+- `Fabric_SQL_Compatibility.md`: harness v4.00 para provar compatibilidade da mesma Solution/DDL/Integration em SQL Database in Microsoft Fabric sem criar Adapter específico antes da evidência.
 - `Runbook_Git_Release.md`: Git como fonte oficial, proteção de segredos, tag e `RELEASE_INFO.txt`.
 - `Runbook_Operacao.md`: scheduler corporativo/HML; não é substituído pelo Compose local.
 

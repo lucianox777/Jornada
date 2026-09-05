@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+﻿﻿[CmdletBinding()]
 param(
     [string]$RepositoryRoot = (Get-Location).Path,
     [switch]$RunTests
@@ -22,7 +22,7 @@ if (-not (Test-Path $sourceIntegration)) {
 $targetIntegration = Join-Path $repo 'tests\Jornada.Integration.Tests\Integration'
 New-Item -ItemType Directory -Force -Path $targetIntegration | Out-Null
 
-Write-Host 'Aplicando infraestrutura de Integration - Solution Engenharia v3.90...'
+Write-Host 'Aplicando infraestrutura de Integration - Solution Engenharia v4.01...'
 Copy-Item -Path (Join-Path $sourceIntegration '*') -Destination $targetIntegration -Recurse -Force
 
 # Materializa a dependência no projeto real. O dotnet CLI preserva o formato do projeto e

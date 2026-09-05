@@ -1,4 +1,4 @@
-# Jornada - desenvolvimento e teste local — base normativa v3.62 / engenharia v3.90
+# Jornada - desenvolvimento e teste local — base normativa v3.62 / engenharia v3.96
 
 ## Objetivo
 
@@ -38,9 +38,11 @@ O padrão expõe SQL Server em `localhost:14333`, cria `JornadaLocal` e aplica, 
 
 A massa é sintética. `.env` é ignorado pelo Git.
 
-## Limpeza completa e validação Release — v3.90
+## Limpeza completa e validação Release — v3.96
 
 Quando quiser reproduzir uma execução a partir do zero:
+
+A validação canônica preserva a imagem SQL durante a limpeza, mas antes dos Integration verifica o digest fixado no `docker-compose.yml`, sobe um probe descartável, consulta a versão do engine e executa `DBCC CHECKDB(master)`. Se o próprio engine não iniciar, há uma única tentativa automática de remover a imagem (somente se não estiver em uso por outro container), fazer novo `docker pull` pelo mesmo digest e repetir o probe. Falha funcional de teste não aciona reinstalação do SQL.
 
 ```powershell
 .\scripts\local-clean.ps1
@@ -49,7 +51,7 @@ Quando quiser reproduzir uma execução a partir do zero:
 
 `local-clean.ps1` remove recursos Docker locais da Jornada, o volume SQL, `.env`, `.local`, `TestResults`, `bin/obj` e o Bronze local, mas **preserva a imagem Docker do SQL Server**. O cache `.vs` é tentado em best-effort: se Visual Studio/Copilot mantiver um arquivo aberto, o script avisa e continua porque esse cache não participa do restore/build/test. O validador seguinte executa restores explícitos em `--locked-mode` para a Solution e os dois projetos de teste antes de compilar.
 
-`local-validate-release.ps1` não reutiliza `JORNADA_TEST_SQL_CONNECTION` residual do shell: a suíte Integration sobe um SQL Server descartável via Testcontainers e cria `JornadaIntegrationTest_<guid>`. O token `Test` é intencional e mantém os guards fail-closed da suíte ativos.
+`local-validate-release.ps1` não reutiliza `JORNADA_TEST_SQL_CONNECTION` residual do shell: a suíte Integration sobe um SQL Server descartável via Testcontainers e cria `JornadaIntegration_Test_<guid>`. O token `Test` é intencional e mantém os guards fail-closed da suíte ativos.
 
 Se o ZIP tiver sido baixado da Internet e o Windows propagar Mark-of-the-Web aos `.ps1`, execute uma vez:
 
@@ -136,3 +138,8 @@ Execute `scripts/local-sql-runtime-smoke.sh` (ou `.ps1`) com o SQL Server local 
 Antes de build/test, execute `python3 scripts/technical-closure-gate.py` e `python3 scripts/openapi-contract-gate.py`. O gate técnico cobre telefone/e-mail V2, migração fail-closed, 51110–51119, ordem do 51114, supressão de falso conflito MULTI, readiness Base 3.62/Solution 3.68, SBOM por RELEASE_INFO e smoke SQL.
 
 Para verificar um predecessor materializado, use `python3 scripts/predecessor-integrity-gate.py --artifact origem_engenharia_anterior_N=/caminho/pacote.zip`. Em promoção formal, acrescente `--require-all-predecessors`; a ausência de qualquer predecessor declarado bloqueia a promoção.
+
+
+## Evidência externa v3.95 incorporada na v3.96
+
+A execução real do fluxo acima concluiu com restore locked Solution/Unit/Integration PASS, build 0 warnings / 0 errors, Unit 153/153, digest da imagem SQL OK, ProductVersion 16.0.4265.3, DBCC CHECKDB(master) OK e Integration 58/58 PASS. O registro está em `../Documentos/Evidencia_Runtime_v3.95_2026-09-03.md` no pacote completo.

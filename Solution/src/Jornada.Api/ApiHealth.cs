@@ -1,3 +1,4 @@
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Api;
@@ -16,7 +17,7 @@ internal interface ISqlReadinessProbe
     Task<ApiReadinessCheck> CheckAsync(CancellationToken ct);
 }
 
-internal sealed class SqlSchemaReadinessProbe(SqlConnectionFactory connections) : ISqlReadinessProbe
+internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections) : ISqlReadinessProbe
 {
     public async Task<ApiReadinessCheck> CheckAsync(CancellationToken ct)
     {
@@ -29,7 +30,7 @@ internal sealed class SqlSchemaReadinessProbe(SqlConnectionFactory connections) 
                 DECLARE @base NVARCHAR(32)=CONVERT(NVARCHAR(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'));
                 DECLARE @solution NVARCHAR(32)=CONVERT(NVARCHAR(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));
                 SELECT CASE WHEN
-                    @base=N'3.62' AND @solution=N'3.68'
+                    @base=N'3.62' AND @solution=N'3.69'
                     AND OBJECT_ID(N'ref.gestor',N'U') IS NOT NULL
                     AND OBJECT_ID(N'ingestao.entrega',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.pessoa',N'U') IS NOT NULL

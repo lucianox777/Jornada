@@ -1,0 +1,1530 @@
+%PDF-1.4
+%âãÏÓ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R 22 0 R 24 0 R 26 0 R] /Count 12 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 2558 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Requisitos Funcionais - Jornada do Cidadão - Fase 1) Tj
+T*
+() Tj
+T*
+(Versão do documento: 1.0  ) Tj
+T*
+(Data: 03/09/2026  ) Tj
+T*
+(Base normativa: Especificação Técnica Jornada v3.62  ) Tj
+T*
+(SolutionSchema: SolutionSchema v3.68  ) Tj
+T*
+(Requisitos de Negócio: Requisitos de Negócio Jornada v1.1  ) Tj
+T*
+(Release de incorporação: Solution Engenharia v3.98  ) Tj
+T*
+(Status: BASELINE FUNCIONAL DA FASE 1) Tj
+T*
+() Tj
+T*
+(> Este documento descreve o que a solução deve fazer para materializar os Requisitos de ) Tj
+T*
+(Negócio. Ele evita detalhes de tecnologia sempre que possível; atributos de ) Tj
+T*
+(qualidade/restrições pertencem ao RNF e mecanismos de implementação pertencem ao RT.) Tj
+T*
+() Tj
+T*
+(1. Finalidade) Tj
+T*
+() Tj
+T*
+(Definir comportamentos observáveis da Jornada do Cidadão - Fase 1, com critérios de ) Tj
+T*
+(aceitação e rastreabilidade aos RN.) Tj
+T*
+() Tj
+T*
+(2. Regra de classificação) Tj
+T*
+() Tj
+T*
+(- RN: resultado ou necessidade institucional.) Tj
+T*
+(- RF: comportamento/serviço que a solução deve executar.) Tj
+T*
+(- RNF: qualidade, restrição, capacidade ou propriedade transversal.) Tj
+T*
+(- RT: escolha ou obrigação de engenharia para realizar RF/RNF.) Tj
+T*
+() Tj
+T*
+(3. Requisitos Funcionais) Tj
+T*
+() Tj
+T*
+(3.1 Integração, contratos e processamento) Tj
+T*
+() Tj
+T*
+(RF-001 - Receber Entrega padronizada da Fase 1) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve receber uma Entrega de um Gestor em envelope ) Tj
+T*
+(padronizado, contendo os artefatos cadastrais e factuais previstos pelo contrato vigente.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. A Entrega válida é registrada e recebe identificador/estado) Tj
+T*
+( de recepção; estrutura incompatível é recusada de forma explícita.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-002, RN-003) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF03; RT: RT-010) Tj
+T*
+() Tj
+T*
+(RF-002 - Validar origem, autenticação e contexto contratual) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve identificar e autenticar o Gestor remetente e validar se) Tj
+T*
+( Sistema de Origem, Tipo e versão informados pertencem ao contexto autorizado.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Origem incompatível ou não autorizada é recusada antes da ) Tj
+T*
+(materialização funcional.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-002, RN-029, RN-034) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-013, RT-048) Tj
+T*
+() Tj
+T*
+(RF-003 - Validar contrato, schema e versão do conteúdo) Tj
+T*
+() Tj
+T*
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 2722 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Requisito funcional. O sistema deve validar Pessoas e Registros contra os contratos e ) Tj
+T*
+(versões aplicáveis, sem reinterpretar silenciosamente conteúdo incompatível.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Conteúdo fora do contrato é rejeitado com diagnóstico ) Tj
+T*
+(compatível com o estágio de processamento.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-002, RN-014, RN-023, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF03, RNF13; RT: RT-006, RT-007, RT-008, RT-013) Tj
+T*
+() Tj
+T*
+(RF-004 - Aceitar Entrega sem fatos e atualização exclusivamente cadastral) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve aceitar Entregas com zero Benefícios/Serviços quando o ) Tj
+T*
+(envelope e as Pessoas necessárias estiverem válidos.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Uma carga exclusivamente cadastral pode concluir ) Tj
+T*
+(processamento sem criar fatos artificiais.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-002) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-010, RT-011) Tj
+T*
+() Tj
+T*
+(RF-005 - Garantir cobertura das Pessoas referenciadas) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve assegurar que cada fato da Entrega possua a ) Tj
+T*
+(Pessoa/identificador de origem necessário ao processamento conforme o contrato.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Referências quebradas ou ausentes são identificadas antes ) Tj
+T*
+(da publicação funcional.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-002, RN-003, RN-023) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-011) Tj
+T*
+() Tj
+T*
+(RF-006 - Registrar origem, período, versão, estado e linhagem) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve registrar metadados suficientes para rastrear cada ) Tj
+T*
+(Entrega, Pessoa e fato ao Gestor, Sistema de Origem, período de referência, contrato/versão ) Tj
+T*
+(e estados de processamento.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Consultas de auditoria conseguem remontar a origem e o ) Tj
+T*
+(encadeamento do processamento.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF21, RNF22, RNF24; RT: RT-010, RT-014, RT-019, ) Tj
+T*
+(RT-027, RT-043) Tj
+T*
+() Tj
+T*
+(RF-007 - Aplicar idempotência de recepção e processamento) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve reconhecer reenvio idêntico e impedir duplicação ) Tj
+T*
+(funcional, distinguindo reutilização divergente da mesma chave de idempotência.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Reenvio idêntico não duplica materializações; colisão ) Tj
+T*
+(divergente é tratada como conflito.) Tj
+T*
+() Tj
+T*
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 2546 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Rastreabilidade de negócio. RN-003, RN-023, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF04; RT: RT-015) Tj
+T*
+() Tj
+T*
+(RF-008 - Armazenar e recuperar Bronze imutável) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve preservar os bytes originais da Entrega em camada Bronze) Tj
+T*
+( durável e recuperável enquanto houver referência válida.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Uma Entrega aceita pode ser reaberta para ) Tj
+T*
+(verificação/reprocessamento sem depender do remetente.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-030, RN-031) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF32, RNF33; RT: RT-016, RT-017) Tj
+T*
+() Tj
+T*
+(RF-009 - Processar Entregas de forma assíncrona) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve desacoplar recepção da materialização pesada, permitindo) Tj
+T*
+( que o processamento continue após o aceite da Entrega.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. A indisponibilidade momentânea do processamento não ) Tj
+T*
+(invalida uma recepção já confirmada.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-002, RN-023, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF26, RNF28; RT: RT-018, RT-021, RT-022) Tj
+T*
+() Tj
+T*
+(RF-010 - Registrar resultado individual de Pessoas e Registros) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve registrar o resultado de processamento de cada Pessoa e ) Tj
+T*
+(Registro, incluindo retransmissão, inclusão, versionamento, rejeição ou reabertura quando ) Tj
+T*
+(aplicável.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. É possível medir e auditar o destino de cada item ) Tj
+T*
+(processado.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-023, RN-024) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-019) Tj
+T*
+() Tj
+T*
+(3.2 Pessoa, identidade e evidência) Tj
+T*
+() Tj
+T*
+(RF-011 - Constituir Gold de Pessoas a partir da primeira fonte individualizável) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve permitir que a primeira fonte válida e individualizável ) Tj
+T*
+(constitua a referência Golden inicial da Pessoa.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. A primeira fonte não fica em staging indefinido nem exige ) Tj
+T*
+(corroboração prévia de outra origem.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-004, RN-009, RN-028) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-032) Tj
+T*
+() Tj
+T*
+(RF-012 - Criar e manter identificador canônico estável da Pessoa) Tj
+T*
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 2554 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Requisito funcional. O sistema deve atribuir e manter PESSOAUUID canônico, preservando ) Tj
+T*
+(histórico e sucessão em operações governadas.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Correções de atributos não trocam o UUID sem operação de ) Tj
+T*
+(identidade explicitamente governada.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-005) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF05; RT: RT-023, RT-030) Tj
+T*
+() Tj
+T*
+(RF-013 - Resolver CPF válido pela rota determinística) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve usar CPF válido como rota normal de resolução ) Tj
+T*
+(determinística da identidade, sujeito às travas de consistência cadastral.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. CPF compatível resolve a identidade sem score ) Tj
+T*
+(probabilístico; divergência forte não é aceita silenciosamente.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-005, RN-006) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-024) Tj
+T*
+() Tj
+T*
+(RF-014 - Materializar conflito de identidade para tratamento governado) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve registrar explicitamente conflito quando a resolução ) Tj
+T*
+(automática não puder atribuir uma Pessoa com segurança.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. O conflito permanece consultável/auditável e não gera ) Tj
+T*
+(atribuição canônica indevida.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-006, RN-024, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-024, RT-030) Tj
+T*
+() Tj
+T*
+(RF-015 - Preservar Pessoa admitida sem CPF) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve manter processável a Pessoa cujo contrato admita ) Tj
+T*
+(ausência de CPF, em estado de identidade não resolvido ou pendente.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. A ausência admitida de CPF não elimina a Pessoa nem cria ) Tj
+T*
+(CPF sintético.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-007, RN-024) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF23; RT: RT-025, RT-026) Tj
+T*
+() Tj
+T*
+(RF-016 - Executar linkage probabilístico sobre identidades pendentes) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve permitir avaliar, por processo separado, Pessoas ) Tj
+T*
+(elegíveis ao fallback probabilístico.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. O resultado probabilístico é versionado e não bloqueia a ) Tj
+T*
+(rota determinística.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-006, RN-007, RN-024, RN-028) Tj
+T*
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 2700 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF23, RNF25; RT: RT-026, RT-028) Tj
+T*
+() Tj
+T*
+(RF-017 - Versionar e publicar modelos e runs de linkage) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve registrar modelo, parâmetros, universo e estado de cada ) Tj
+T*
+(linkagerun, publicando apenas resultados concluídos segundo a governança.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Um replay identifica o modelo/versão utilizados e não ) Tj
+T*
+(mistura versões dentro do mesmo run.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-014, RN-024, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF16, RNF21, RNF22, RNF24; RT: RT-027, RT-029) Tj
+T*
+() Tj
+T*
+(RF-018 - Governar correção, fusão e separação de identidades) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve executar correções estruturais de identidade somente por) Tj
+T*
+( operações governadas e auditáveis, preservando sucessão e histórico.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Operações inválidas são recusadas antes de mutação parcial ) Tj
+T*
+(e operações válidas deixam trilha completa.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-005, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-030) Tj
+T*
+() Tj
+T*
+(RF-019 - Manter núcleo de identidade separado dos atributos transversais) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve tratar CPF, nome, data de nascimento e nome da mãe como ) Tj
+T*
+(núcleo de identidade e manter contatos/endereço/outros atributos no modelo transversal ) Tj
+T*
+(apropriado.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Consultas e persistência distinguem núcleo fixo de ) Tj
+T*
+(atributos multivalorados/versionáveis.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-008) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF05; RT: RT-023, RT-034) Tj
+T*
+() Tj
+T*
+(RF-020 - Registrar evidência para atributos transversais) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve registrar origem, método, temporalidade e evidência ) Tj
+T*
+(aplicáveis a valores transversais, incluindo verificação documental quando admitida.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. A evidência pode ser auditada sem conferir precedência ) Tj
+T*
+(automática ao órgão que a produziu.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-009, RN-010, RN-029) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-034) Tj
+T*
+() Tj
+T*
+(RF-021 - Recalcular valor Golden por evidência e temporalidade) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve selecionar/recompor o valor Golden transversal de acordo) Tj
+T*
+( com catálogo de evidências, pertinência e temporalidade.) Tj
+T*
+ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 15 0 R >>
+endobj
+15 0 obj
+<< /Length 2448 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Critério de aceitação funcional. Mudança de evidência pode alterar o valor Golden sem apagar) Tj
+T*
+( divergências históricas relevantes.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-009, RN-010) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-034) Tj
+T*
+() Tj
+T*
+(3.3 Fatos, qualidade e Possibilidades) Tj
+T*
+() Tj
+T*
+(RF-022 - Materializar Benefícios e Serviços como fatos administrativos) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve persistir Benefícios Concedidos e Serviços Prestados em ) Tj
+T*
+(histórico factual próprio, distinto da Gold cadastral.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Fatos mantêm Tipo, origem, temporalidade e identificador ) Tj
+T*
+(estável da origem.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-011) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF14; RT: RT-031, RT-033) Tj
+T*
+() Tj
+T*
+(RF-023 - Preservar fato válido sem atribuição canônica) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve manter fato finalístico válido mesmo quando PESSOAUUID ) Tj
+T*
+(estiver ausente por identidade pendente ou conflitada.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. O fato permanece disponível com sujeito/identificador ) Tj
+T*
+(declarado pela origem.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-012) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-033) Tj
+T*
+() Tj
+T*
+(RF-024 - Reprocessar e recompor materializações de forma idempotente) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve permitir reprocessamento/recomposição controlada de ) Tj
+T*
+(Silver, identidade e Gold sem duplicar estado de negócio.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Replay do mesmo conjunto produz estado funcional ) Tj
+T*
+(equivalente e rastreável.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-023, RN-028) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF06; RT: RT-020, RT-032, RT-033) Tj
+T*
+() Tj
+T*
+(RF-025 - Executar controles de qualidade e registrar seus resultados) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve aplicar regras de qualidade pertinentes à Entrega, ) Tj
+T*
+(Pessoa e Registro e tornar os resultados observáveis.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Falhas/bloqueios de QC são identificáveis por regra/versão ) Tj
+T*
+(e não desaparecem no agregado.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-024, RN-029) Tj
+T*
+() Tj
+T*
+ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 17 0 R >>
+endobj
+17 0 obj
+<< /Length 2557 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-019, RT-046, RT-064) Tj
+T*
+() Tj
+T*
+(RF-026 - Calcular Possibilidades por avaliadores versionados) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve executar regras de Possibilidade versionadas sobre dados) Tj
+T*
+( elegíveis, registrando resultado e versão do avaliador.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. O resultado COMPATIVEL é reproduzível pela versão da regra ) Tj
+T*
+(e não é convertido em fato/concessão.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-013, RN-014) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF14; RT: RT-038, RT-064) Tj
+T*
+() Tj
+T*
+(RF-027 - Separar Possibilidades de Registros) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve armazenar e consultar Possibilidades em estrutura e ) Tj
+T*
+(endpoint semanticamente distintos dos fatos administrativos.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Nenhuma Possibilidade aparece como Benefício/Serviço ) Tj
+T*
+(ocorrido.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-011, RN-013) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF14; RT: RT-038) Tj
+T*
+() Tj
+T*
+(RF-028 - Expor cobertura, pendência e incerteza) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve disponibilizar indicadores que permitam distinguir ) Tj
+T*
+(cobertura de identidade, pendências, conflitos e qualidade para interpretação analítica.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. BI/serving conseguem diferenciar população resolvida, não ) Tj
+T*
+(resolvida e outras dimensões de incerteza previstas.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-024, RN-025) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-046) Tj
+T*
+() Tj
+T*
+(3.4 Referência Territorial) Tj
+T*
+() Tj
+T*
+(RF-029 - Receber e armazenar Referência Territorial própria) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve tratar Referência Territorial como informação temporal ) Tj
+T*
+(própria, distinta de endereço residencial/correspondência.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. O vínculo territorial registra natureza, situação e origem ) Tj
+T*
+(aplicáveis.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-015, RN-016, RN-021) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF07; RT: RT-041, RT-043) Tj
+T*
+() Tj
+T*
+(RF-030 - Selecionar Referência Territorial por precedência explícita) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve aplicar a precedência territorial definida entre ) Tj
+T*
+(declaração explícita, evidência e recência.) Tj
+T*
+ET
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 19 0 R >>
+endobj
+19 0 obj
+<< /Length 2433 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+() Tj
+T*
+(Critério de aceitação funcional. A seleção territorial é determinística e rastreável aos ) Tj
+T*
+(candidatos avaliados.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-015, RN-017) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-041, RT-043) Tj
+T*
+() Tj
+T*
+(RF-031 - Não inferir residência por local de atendimento) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema não deve transformar automaticamente endereço de ) Tj
+T*
+(equipamento/atendimento em Referência Territorial da Pessoa.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Apenas situações explicitamente admitidas pela origem/regra) Tj
+T*
+( podem produzir referência territorial.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-016, RN-021) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF07; RT: RT-042) Tj
+T*
+() Tj
+T*
+(RF-032 - Preservar snapshot territorial utilizado pelo fato) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve preservar, quando aplicável, o recorte territorial ) Tj
+T*
+(associado ao fato no momento relevante.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Recomposição cadastral posterior não reescreve ) Tj
+T*
+(silenciosamente o contexto territorial histórico do fato.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-003, RN-016, RN-017) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF07; RT: RT-043) Tj
+T*
+() Tj
+T*
+(3.5 APIs, acesso e auditoria) Tj
+T*
+() Tj
+T*
+(RF-033 - Resolver identidade por endpoint autorizado sem criar UUID) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve permitir resolução autorizada de identidade já existente) Tj
+T*
+( sem criar Pessoa nova como efeito colateral da consulta.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Consulta sem identidade resolvida retorna resultado ) Tj
+T*
+(negativo/pendente conforme contrato e não materializa UUID.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-018, RN-022) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF29; RT: RT-035, RT-036) Tj
+T*
+() Tj
+T*
+(RF-034 - Consultar Pessoa por UUID) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve disponibilizar consulta individual da Pessoa canônica ) Tj
+T*
+(aos consumidores autorizados.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Resposta identifica a Pessoa e seus campos permitidos sem ) Tj
+T*
+(exigir acesso direto às tabelas Gold.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-018, RN-026) Tj
+T*
+() Tj
+T*
+ET
+endstream
+endobj
+20 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 21 0 R >>
+endobj
+21 0 obj
+<< /Length 2626 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Rastreabilidade de qualidade/técnica. RNF: RNF29; RT: RT-035, RT-037) Tj
+T*
+() Tj
+T*
+(RF-035 - Projetar Pessoa conforme credencial, recurso e política) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve projetar somente os campos autorizados para a ) Tj
+T*
+(credencial, incluindo exceções negativas setoriais aplicáveis.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Duas credenciais com políticas distintas podem receber ) Tj
+T*
+(projeções distintas da mesma Pessoa.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-018, RN-019, RN-020, RN-021, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF29; RT: RT-035, RT-037) Tj
+T*
+() Tj
+T*
+(RF-036 - Consultar Registros por Pessoa) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve disponibilizar consulta dos fatos administrativos ) Tj
+T*
+(associados à Pessoa conforme autorização e cardinalidade do endpoint.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Registros retornados preservam Tipo/origem/temporalidade e ) Tj
+T*
+(não incluem Possibilidades.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-018, RN-026) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF14; RT: RT-038) Tj
+T*
+() Tj
+T*
+(RF-037 - Consultar Possibilidades separadamente) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve disponibilizar consulta de Possibilidades em endpoint ) Tj
+T*
+(próprio e com ressalva semântica adequada.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Resposta não mistura Possibilidades com Registros nem as ) Tj
+T*
+(apresenta como direito/concessão.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-013, RN-018, RN-026) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF14; RT: RT-038) Tj
+T*
+() Tj
+T*
+(RF-038 - Aplicar autorização, scopes, recursos e restrições negativas) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve autorizar cada operação pela credencial, scope e recurso) Tj
+T*
+( antes da leitura ou escrita funcional.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Operação não autorizada é negada sem depender de vínculo ) Tj
+T*
+(prévio da Pessoa com o Gestor consumidor.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-019, RN-020, RN-021, RN-029, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF29; RT: RT-035, RT-037, RT-048) Tj
+T*
+() Tj
+T*
+(RF-039 - Auditar acessos individuais e em lote) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve gerar trilha de auditoria para consultas protegidas e ) Tj
+T*
+(atos sensíveis, com os identificadores mínimos definidos.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. É possível atribuir o acesso à ) Tj
+T*
+ET
+endstream
+endobj
+22 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 23 0 R >>
+endobj
+23 0 obj
+<< /Length 2497 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(credencial/Gestor/rota/recurso sem armazenar segredos ou payload desnecessário.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-029, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF30; RT: RT-039) Tj
+T*
+() Tj
+T*
+(RF-040 - Aplicar controle de taxa por credencial e classe de endpoint) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve limitar consumo conforme credencial e classe do endpoint) Tj
+T*
+( após autenticação.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Rate limit não usa identidade civil como chave e respeita a) Tj
+T*
+( configuração de proxy confiável do ambiente.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-018, RN-029, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF29, RNF31; RT: RT-040) Tj
+T*
+() Tj
+T*
+(3.6 Serving, BI e tempestividade) Tj
+T*
+() Tj
+T*
+(RF-041 - Publicar contratos Serving estáveis para consumo analítico) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve disponibilizar views serving.vbi como interface estável ) Tj
+T*
+(para o modelo analítico.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Alteração incompatível da interface Serving é versionada e ) Tj
+T*
+(comunicada.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-025, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF10, RNF13; RT: RT-044) Tj
+T*
+() Tj
+T*
+(RF-042 - Disponibilizar BI municipal de Pessoas, fatos, qualidade e território) Tj
+T*
+() Tj
+T*
+(Requisito funcional. A solução deve alimentar o BI da Fase 1 com dimensões e métricas ) Tj
+T*
+(previstas para Pessoas, fatos, qualidade, cobertura, Possibilidades e território.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Painéis conseguem representar o escopo municipal sem ) Tj
+T*
+(depender de consulta individual nominativa.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-024, RN-025, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF10, RNF11, RNF13; RT: RT-044, RT-045, RT-046) Tj
+T*
+() Tj
+T*
+(RF-043 - Manter consulta individual fora do Power BI) Tj
+T*
+() Tj
+T*
+(Requisito funcional. A solução deve manter consultas individualizadas nos endpoints ) Tj
+T*
+(operacionais autorizados, e não no modelo semântico padrão do BI.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. O PBIP padrão não é usado como mecanismo de consulta ) Tj
+T*
+(nominativa de Pessoa.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-026, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-047) Tj
+T*
+() Tj
+T*
+ET
+endstream
+endobj
+24 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 25 0 R >>
+endobj
+25 0 obj
+<< /Length 2706 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(RF-044 - Medir tempestividade e atraso de recebimento) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve calcular/fornecer elementos para medir SLA de ) Tj
+T*
+(recebimento por Tipo/versão e período de referência.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Indicadores distinguem prazo esperado, recebimento e atraso) Tj
+T*
+( segundo regra versionada.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-027, RN-025, RN-034) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF20; RT: RT-058) Tj
+T*
+() Tj
+T*
+(3.7 Governança operacional e evolução) Tj
+T*
+() Tj
+T*
+(RF-045 - Versionar contratos, regras, QC, SLA e avaliadores) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve manter versões imutáveis/auditáveis quando houver ) Tj
+T*
+(mudança material de contrato ou regra de negócio operacional.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Histórico continua interpretável pela versão que estava ) Tj
+T*
+(vigente quando o evento foi processado.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-014, RN-029, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF13, RNF16; RT: RT-005, RT-006, RT-007, RT-008,) Tj
+T*
+( RT-029) Tj
+T*
+() Tj
+T*
+(RF-046 - Executar retenção, consolidação e expurgo somente por política aprovada) Tj
+T*
+() Tj
+T*
+(Requisito funcional. O sistema deve permitir configurar e executar ciclo de retenção/expurgo) Tj
+T*
+( por classe de ativo apenas quando a governança correspondente estiver habilitada.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Rotina desabilitada não expurga dados; ativação é ) Tj
+T*
+(parametrizada, auditável e preserva dependências necessárias.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-031, RN-029, RN-030) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF33; RT: RT-017, RT-051) Tj
+T*
+() Tj
+T*
+(RF-047 - Disponibilizar saúde, status e telemetria operacional) Tj
+T*
+() Tj
+T*
+(Requisito funcional. A solução deve expor sinais de saúde, execução, backlog e falhas ) Tj
+T*
+(necessários à operação e ao aceite técnico.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Operação consegue distinguir indisponibilidade de ) Tj
+T*
+(componente, atraso de pipeline e falha funcional.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-029, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF09; RT: RT-053, RT-054, RT-061, RT-062, ) Tj
+T*
+(RT-063, RT-064) Tj
+T*
+() Tj
+T*
+(RF-048 - Orquestrar jobs run-once e janelas exclusivas sem bloquear recepção) Tj
+T*
+() Tj
+T*
+(Requisito funcional. A solução deve permitir agendamento externo dos jobs recorrentes e ) Tj
+T*
+(coordenar janelas exclusivas do corpus quando exigidas, mantendo a recepção Bronze ) Tj
+T*
+ET
+endstream
+endobj
+26 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 27 0 R >>
+endobj
+27 0 obj
+<< /Length 2208 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(disponível.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Jobs críticos respeitam gates/leases e não observam corpus ) Tj
+T*
+(parcialmente mutável.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-023, RN-028, RN-033) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF26, RNF28; RT: RT-022, RT-055, RT-056) Tj
+T*
+() Tj
+T*
+(RF-049 - Incorporar novos Gestores e Tipos por configuração e versionamento) Tj
+T*
+() Tj
+T*
+(Requisito funcional. A solução deve permitir incluir nova origem, Tipo de Benefício ou Tipo ) Tj
+T*
+(de Serviço por contratos, catálogos, autorização e configuração versionados.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. A expansão não exige redesenho estrutural nem quebra ) Tj
+T*
+(histórico de versões anteriores.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-034, RN-035) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: RNF01, RNF10, RNF13, RNF18, RNF19; RT: RT-001, ) Tj
+T*
+(RT-003, RT-006, RT-007, RT-008, RT-009, RT-044) Tj
+T*
+() Tj
+T*
+(RF-050 - Operar a Fase 1 sem dependência de biometria) Tj
+T*
+() Tj
+T*
+(Requisito funcional. Todas as funções normativas da Fase 1 devem operar sem biometria; ) Tj
+T*
+(eventual mecanismo biométrico futuro deve entrar como evolução específica.) Tj
+T*
+() Tj
+T*
+(Critério de aceitação funcional. Ingestão, identidade, Gold, APIs e BI funcionam ) Tj
+T*
+(integralmente sem dado ou componente biométrico.) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de negócio. RN-036) Tj
+T*
+() Tj
+T*
+(Rastreabilidade de qualidade/técnica. RNF: —; RT: RT-065) Tj
+T*
+() Tj
+T*
+(4. Fora de escopo funcional) Tj
+T*
+() Tj
+T*
+(- Decisão administrativa de concessão/suspensão/cancelamento de benefício.) Tj
+T*
+(- Edição do cadastro transacional dos Gestores pela Jornada.) Tj
+T*
+(- Consulta nominativa pelo Power BI.) Tj
+T*
+(- Biometria como requisito de funcionamento da Fase 1.) Tj
+T*
+(- SLA definitivo de Produção antes das medições de HML.) Tj
+T*
+() Tj
+T*
+(5. Controle de versão) Tj
+T*
+() Tj
+T*
+(| Versão | Data | Síntese | Incorporação |) Tj
+T*
+(|---|---|---|---|) Tj
+T*
+(| 1.0 | 03/09/2026 | Baseline inicial de 50 RF derivados dos 36 RN e da Especificação ) Tj
+T*
+(Técnica v3.62. | Solution Engenharia v3.98 |) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 28
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000197 00000 n 
+0000000294 00000 n 
+0000000420 00000 n 
+0000003029 00000 n 
+0000003155 00000 n 
+0000005928 00000 n 
+0000006054 00000 n 
+0000008651 00000 n 
+0000008779 00000 n 
+0000011385 00000 n 
+0000011513 00000 n 
+0000014265 00000 n 
+0000014393 00000 n 
+0000016893 00000 n 
+0000017021 00000 n 
+0000019630 00000 n 
+0000019758 00000 n 
+0000022243 00000 n 
+0000022371 00000 n 
+0000025049 00000 n 
+0000025177 00000 n 
+0000027726 00000 n 
+0000027854 00000 n 
+0000030612 00000 n 
+0000030740 00000 n 
+trailer
+<< /Size 28 /Root 1 0 R >>
+startxref
+33000
+%%EOF

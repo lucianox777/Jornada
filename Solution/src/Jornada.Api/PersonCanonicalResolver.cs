@@ -1,3 +1,4 @@
+using Jornada.Operational.Sql;
 using System.Data;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
@@ -10,7 +11,7 @@ internal interface IPersonCanonicalResolver
     Task<IReadOnlyDictionary<Guid, Guid>> ResolveManyAsync(IReadOnlyCollection<Guid> pessoaUuids, CancellationToken ct);
 }
 
-internal sealed class SqlPersonCanonicalResolver(SqlConnectionFactory connections) : IPersonCanonicalResolver
+internal sealed class SqlPersonCanonicalResolver(IOperationalSqlAdapter connections) : IPersonCanonicalResolver
 {
     public async Task<Guid?> ResolveAsync(Guid pessoaUuid, CancellationToken ct)
     {

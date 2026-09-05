@@ -2,8 +2,8 @@ using System.Data;
 using System.Security.Cryptography;
 using Jornada.Bronze.Maintenance.Worker;
 using Jornada.Bronze.Storage;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
 
 namespace Jornada.Tests.Integration;
 
@@ -30,11 +30,7 @@ public sealed class BronzeMaintenanceTests
             await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
         }
 
-        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>
-        {
-            ["ConnectionStrings:Jornada"] = connectionString
-        }).Build();
-        var repository = new BronzeMaintenanceRepository(config);
+        var repository = new BronzeMaintenanceRepository(new OperationalSqlAdapter(connectionString!));
         var root = Path.Combine(Path.GetTempPath(), "jornada-bronze-gc-" + Guid.NewGuid().ToString("N"));
         try
         {
@@ -74,11 +70,7 @@ public sealed class BronzeMaintenanceTests
             await SqlBatchRunner.ExecuteFileAsync(schemaConnection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
         }
 
-        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>
-        {
-            ["ConnectionStrings:Jornada"] = connectionString
-        }).Build();
-        var repository = new BronzeMaintenanceRepository(config);
+        var repository = new BronzeMaintenanceRepository(new OperationalSqlAdapter(connectionString!));
         var root = Path.Combine(Path.GetTempPath(), "jornada-bronze-gc-lock-" + Guid.NewGuid().ToString("N"));
         try
         {

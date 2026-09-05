@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj" />
     <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
   </ItemGroup>

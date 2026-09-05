@@ -1,7 +1,11 @@
+using Jornada.Operational.Sql;
 using Jornada.Bronze.Storage;
 using Jornada.Operations.Maintenance.Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
+var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
+    ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
+builder.Services.AddSingleton<IOperationalSqlAdapter>(new OperationalSqlAdapter(jornadaConnectionString));
 builder.Services.AddOptions<ItemProcessedRetentionOptions>()
     .Bind(builder.Configuration.GetSection("ItemProcessedRetention"))
     .Validate(o => !o.Enabled || o.DetailRetentionDays > 0,

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "release": "v3.90",
-  "predecessorTag": "jornada-solution-v3.89",
+  "release": "v4.03",
+  "predecessorTag": "jornada-solution-v4.02",
   "status": "VIGENTE",
   "allowedChanges": [],
-  "note": "v3.90 altera somente scripts/documentação de limpeza/validação local sem alterar PackageReference. Qualquer drift de dependência em relação à v3.89 deve ser bloqueado."
+  "note": "v4.03 é correção documental institucional; não altera PackageReference nem versões de dependências frente à v4.02."
 }

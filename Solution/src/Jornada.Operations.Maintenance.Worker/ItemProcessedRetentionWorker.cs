@@ -1,4 +1,4 @@
-using Microsoft.Data.SqlClient;
+using Jornada.Operational.Sql;
 using Microsoft.Extensions.Options;
 
 namespace Jornada.Operations.Maintenance.Worker;
@@ -13,12 +13,10 @@ public sealed record ItemProcessedRetentionOptions
 }
 
 public sealed class ItemProcessedRetentionWorker(
-    IConfiguration configuration,
+    IOperationalSqlAdapter operationalSql,
     IOptions<ItemProcessedRetentionOptions> options,
     ILogger<ItemProcessedRetentionWorker> logger) : BackgroundService
 {
-    private readonly string connectionString = configuration.GetConnectionString("Jornada")
-        ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -48,8 +46,7 @@ public sealed class ItemProcessedRetentionWorker(
         if (cfg.DetailRetentionDays <= 0)
             throw new InvalidOperationException("ItemProcessedRetention:DetailRetentionDays deve ser > 0 quando a retenção estiver habilitada.");
         var cutoff = DateTimeOffset.UtcNow.AddDays(-cfg.DetailRetentionDays);
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = "ingestao.sp_consolidar_expurgar_item_processado";
         command.CommandType = System.Data.CommandType.StoredProcedure;

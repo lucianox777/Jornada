@@ -4,7 +4,7 @@
 ## Saúde operacional e limite de borda — engenharia v3.69
 
 - `GET /health` e `GET /health/live`: liveness do processo; `/health` é mantido por compatibilidade.
-- `GET /health/ready`: readiness de SQL, diretório Bronze e staging; retorna `503` quando uma dependência essencial não está pronta. O SQL só fica `READY` quando o banco declara `Jornada.BaseNormativa=3.62` e `Jornada.SolutionSchema=3.68` e contém os objetos essenciais; banco vazio, antigo ou incompatível retorna `SQL_SCHEMA_INCOMPATIVEL`.
+- `GET /health/ready`: readiness de SQL, diretório Bronze e staging; retorna `503` quando uma dependência essencial não está pronta. O SQL só fica `READY` quando o banco declara `Jornada.BaseNormativa=3.62` e `Jornada.SolutionSchema=3.69` e contém os objetos essenciais; banco vazio, antigo ou incompatível retorna `SQL_SCHEMA_INCOMPATIVEL`.
 - O teto contratual do ZIP continua 250 MiB. A implementação ajusta `IHttpMaxRequestBodySizeFeature` somente em `POST /api/v1/ingestao/entregas`, antes da leitura do corpo. Proxy/ingress corporativo continua responsável por permitir ao menos o mesmo tamanho.
 - Rate limits de aplicação são configuráveis na seção `ApiRateLimiting`; mudança de HML não exige recompilar.
 - O contrato máquina está em `openapi/jornada-v1.openapi.json` e `scripts/openapi-contract-gate.py` falha se método+rota divergirem do `Program.cs`.
@@ -193,7 +193,7 @@ A mesma chave de Pessoa com conteúdo diferente cria nova versão cadastral inte
 
 ### Benefício Concedido
 
-Desde a v3.48, os nomes canônicos são exclusivamente `dataInicioConcessao`, `dataFimConcessao`, `dataEventoConcessao` e `valorConcedido`. Os aliases genéricos `dataInicio`, `dataFim`, `dataEvento`, `valorMonetario` e `valor` não integram o contrato de Benefício. `regimeVigencia` e a janela permitida de concessão são metadados versionados do Tipo, geridos no catálogo, e não são enviados em cada ocorrência.
+Desde a v3.48, os nomes canônicos de temporalidade/valor são exclusivamente `dataInicioConcessao`, `dataFimConcessao`, `dataEventoConcessao` e `valorConcedido`. A v3.64 acrescenta a terminologia mínima comum de vigência: `situacaoVigencia` = `VIGENTE | SUSPENSA | ENCERRADA`; `situacaoVigenciaDesde` é opcional; `motivoEncerramento` é obrigatório somente em `ENCERRADA` e admite `TERMINO_REGULAR | CANCELAMENTO | CESSACAO`. Os aliases genéricos `dataInicio`, `dataFim`, `dataEvento`, `valorMonetario` e `valor` não integram o contrato de Benefício. `regimeVigencia` e a janela permitida de concessão são metadados versionados do Tipo, geridos no catálogo, e não são enviados em cada ocorrência.
 
 Exemplo de linha em `registros.jsonl`:
 
@@ -204,7 +204,7 @@ Exemplo de linha em `registros.jsonl`:
   "operacao": "INCLUSAO",
   "dataInicioConcessao": "2026-01-01",
   "dataEventoConcessao": "2026-08-25",
-  "situacao": "VIGENTE",
+  "situacaoVigencia": "VIGENTE",
   "valorConcedido": 600.00
 }
 ```

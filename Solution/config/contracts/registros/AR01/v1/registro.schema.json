@@ -6,6 +6,7 @@
     "codigoRegistroOrigem",
     "operacao",
     "dataInicioConcessao",
+    "situacaoVigencia",
     "valorConcedido"
   ],
   "properties": {
@@ -49,12 +50,32 @@
       ],
       "format": "date"
     },
-    "situacao": {
+    "situacaoVigencia": {
+      "type": "string",
+      "enum": [
+        "VIGENTE",
+        "SUSPENSA",
+        "ENCERRADA"
+      ]
+    },
+    "situacaoVigenciaDesde": {
       "type": [
         "string",
         "null"
       ],
-      "maxLength": 80
+      "format": "date"
+    },
+    "motivoEncerramento": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "TERMINO_REGULAR",
+        "CANCELAMENTO",
+        "CESSACAO",
+        null
+      ]
     },
     "valorConcedido": {
       "type": [
@@ -64,5 +85,41 @@
     }
   },
   "$id": "https://jornada.pmspsp.local/contracts/registros/AR01/v1/registro.schema.json",
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "situacaoVigencia": {
+            "const": "ENCERRADA"
+          }
+        },
+        "required": [
+          "situacaoVigencia"
+        ]
+      },
+      "then": {
+        "required": [
+          "motivoEncerramento"
+        ],
+        "properties": {
+          "motivoEncerramento": {
+            "type": "string",
+            "enum": [
+              "TERMINO_REGULAR",
+              "CANCELAMENTO",
+              "CESSACAO"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "motivoEncerramento": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
 }

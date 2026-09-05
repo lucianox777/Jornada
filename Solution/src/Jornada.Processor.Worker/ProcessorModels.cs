@@ -101,6 +101,9 @@ internal sealed record ParsedFact(
     DateTimeOffset? DataHoraServico,
     string? UnidadeServico,
     string? Situacao,
+    string? SituacaoVigencia,
+    DateOnly? SituacaoVigenciaDesde,
+    string? MotivoEncerramento,
     decimal? ValorConcedido,
     decimal? Quantidade,
     string? Unidade);
@@ -338,7 +341,10 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
                     OptionalDate(json, "dataEventoConcessao"),
                     null,
                     null,
-                    OptionalString(json, "situacao"),
+                    null,
+                    RequiredString(json, "situacaoVigencia"),
+                    OptionalDate(json, "situacaoVigenciaDesde"),
+                    OptionalString(json, "motivoEncerramento"),
                     OptionalDecimal(json, "valorConcedido"),
                     OptionalDecimal(json, "quantidade"),
                     OptionalString(json, "unidade"));
@@ -356,6 +362,9 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
                     RequiredDateTimeOffset(json, "dataHoraServico"),
                     OptionalString(json, "unidadeServico"),
                     OptionalString(json, "situacao"),
+                    null,
+                    null,
+                    null,
                     null,
                     null,
                     null);

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "VIGENTE",
-  "note": "Matriz exata de ProjectReference permitidos. O objetivo é impedir acoplamento invertido entre contratos, coordenação, infraestrutura, API e workers; projetos de teste também devem declarar somente dependências diretas necessárias.",
+  "note": "Matriz exata de ProjectReference permitidos. v4.03 preserva Jornada.Operational.Sql como Adapter fino único da família Microsoft SQL; SQL Database in Microsoft Fabric é preferencial em HML/Produção e SQL Server 2022 permanece baseline local/CI/testes, sem branch funcional por hospedagem.",
   "projects": {
     "Jornada.Contracts": [],
     "Jornada.Bronze.Storage": [],
@@ -9,42 +9,52 @@
       "Jornada.Contracts"
     ],
     "Jornada.Pipeline.Coordination": [
+      "Jornada.Operational.Sql",
       "Jornada.Contracts"
     ],
     "Jornada.Api": [
+      "Jornada.Operational.Sql",
       "Jornada.Bronze.Storage",
       "Jornada.Contracts",
       "Jornada.Ingestion"
     ],
     "Jornada.Bronze.Verify": [
+      "Jornada.Operational.Sql",
       "Jornada.Bronze.Storage"
     ],
     "Jornada.Bronze.Maintenance.Worker": [
+      "Jornada.Operational.Sql",
       "Jornada.Contracts",
       "Jornada.Bronze.Storage"
     ],
     "Jornada.Operations.Maintenance.Worker": [
+      "Jornada.Operational.Sql",
       "Jornada.Contracts",
       "Jornada.Bronze.Storage"
     ],
     "Jornada.Linkage.Evaluation": [
+      "Jornada.Operational.Sql",
       "Jornada.Contracts"
     ],
     "Jornada.Linkage.Parameters.Worker": [
+      "Jornada.Operational.Sql",
       "Jornada.Pipeline.Coordination",
       "Jornada.Contracts"
     ],
     "Jornada.Linkage.Runner": [
+      "Jornada.Operational.Sql",
       "Jornada.Pipeline.Coordination",
       "Jornada.Contracts"
     ],
     "Jornada.Processor.Worker": [
+      "Jornada.Operational.Sql",
       "Jornada.Bronze.Storage",
       "Jornada.Pipeline.Coordination",
       "Jornada.Contracts",
       "Jornada.Ingestion"
     ],
     "Jornada.Tests": [
+      "Jornada.Operational.Sql",
       "Jornada.Bronze.Storage",
       "Jornada.Bronze.Maintenance.Worker",
       "Jornada.Operations.Maintenance.Worker",
@@ -57,6 +67,7 @@
       "Jornada.Linkage.Runner"
     ],
     "Jornada.Integration.Tests": [
+      "Jornada.Operational.Sql",
       "Jornada.Bronze.Storage",
       "Jornada.Bronze.Maintenance.Worker",
       "Jornada.Operations.Maintenance.Worker",
@@ -64,6 +75,7 @@
       "Jornada.Contracts",
       "Jornada.Api",
       "Jornada.Processor.Worker"
-    ]
+    ],
+    "Jornada.Operational.Sql": []
   }
 }

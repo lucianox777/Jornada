@@ -18,5 +18,12 @@ internal static class SqlBatchRunner
             command.CommandTimeout = 120;
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
+
+        // Os scripts de bootstrap usam NOCOUNT/XACT_ABORT para execução fail-closed.
+        // Essas opções são de sessão e não devem vazar para a lógica dos testes que reutiliza a conexão:
+        // NOCOUNT ON altera ExecuteNonQuery para -1 e XACT_ABORT ON invalida transações de cenários negativos.
+        using var resetSession = connection.CreateCommand();
+        resetSession.CommandText = "SET NOCOUNT OFF; SET XACT_ABORT OFF;";
+        await resetSession.ExecuteNonQueryAsync(cancellationToken);
     }
 }

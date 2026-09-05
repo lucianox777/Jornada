@@ -11,19 +11,41 @@ namespace Jornada.Tests.Integration;
 public sealed class SqlServerRuntimeIntegrationTests
 {
     [Test]
-    public async Task ContainerUsesSqlServer2022EngineAsync()
+    public async Task ConfiguredSqlTargetIsReachableAndEngineContractIsExplicitAsync()
     {
         await using var connection = new SqlConnection(SqlIntegrationEnvironment.ConnectionString);
         await connection.OpenAsync().ConfigureAwait(false);
 
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT CAST(SERVERPROPERTY('ProductMajorVersion') AS int);";
+        command.CommandText = "SELECT CAST(SERVERPROPERTY('ProductMajorVersion') AS nvarchar(32));";
 
-        var major = Convert.ToInt32(
+        var majorText = Convert.ToString(
             await command.ExecuteScalarAsync().ConfigureAwait(false),
             System.Globalization.CultureInfo.InvariantCulture);
 
-        Assert.That(major, Is.EqualTo(16), "A suíte Integration está contratada para SQL Server 2022.");
+        Assert.That(majorText, Is.Not.Null.And.Not.Empty,
+            "O endpoint Microsoft SQL deve expor ProductMajorVersion.");
+
+        if (string.Equals(
+                SqlIntegrationEnvironment.Target,
+                SqlIntegrationEnvironment.SqlServer2022Target,
+                StringComparison.Ordinal))
+        {
+            Assert.That(
+                int.Parse(majorText!, System.Globalization.CultureInfo.InvariantCulture),
+                Is.EqualTo(16),
+                "A baseline local/CI continua contratada para SQL Server 2022.");
+        }
+        else
+        {
+            Assert.That(SqlIntegrationEnvironment.IsFabricSqlDatabase, Is.True);
+            Assert.That(SqlIntegrationEnvironment.UseExistingExternalDatabase, Is.True,
+                "Fabric deve usar banco de compatibilidade pré-provisionado e isolado.");
+
+            var builder = new SqlConnectionStringBuilder(SqlIntegrationEnvironment.ConnectionString);
+            Assert.That(builder.InitialCatalog, Is.Not.Null.And.Not.Empty,
+                "O alvo Fabric deve declarar explicitamente o banco de compatibilidade.");
+        }
     }
 
     [Test]
@@ -38,6 +60,15 @@ public sealed class SqlServerRuntimeIntegrationTests
         {
             Assert.That(builder.InitialCatalog, Does.StartWith("JornadaIntegration_"),
                 "O banco deve ser exclusivo por execução quando não há opt-out explícito.");
+        }
+        else
+        {
+            Assert.That(
+                builder.InitialCatalog.Contains("test", StringComparison.OrdinalIgnoreCase)
+                || builder.InitialCatalog.Contains("dev", StringComparison.OrdinalIgnoreCase)
+                || builder.InitialCatalog.Contains("local", StringComparison.OrdinalIgnoreCase),
+                Is.True,
+                "Banco externo de Integration deve ser explicitamente não produtivo.");
         }
     }
 

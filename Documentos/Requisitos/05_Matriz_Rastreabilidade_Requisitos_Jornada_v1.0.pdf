@@ -1,0 +1,609 @@
+%PDF-1.4
+%âãÏÓ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R] /Count 5 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 4119 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(Matriz de Rastreabilidade de Requisitos - Jornada do Cidadão - Fase 1) Tj
+T*
+() Tj
+T*
+(Versão do documento: 1.0  ) Tj
+T*
+(Data: 03/09/2026  ) Tj
+T*
+(Base normativa: Especificação Técnica Jornada v3.62  ) Tj
+T*
+(Release de incorporação: Solution Engenharia v3.98  ) Tj
+T*
+(Status: MATRIZ MESTRA RN -> RF -> RNF -> RT -> EVIDÊNCIA) Tj
+T*
+() Tj
+T*
+(> Esta matriz é o ponto único de rastreabilidade entre os quatro níveis de requisitos. As ) Tj
+T*
+(listas são intencionalmente de muitos-para-muitos; não significam que cada RT implemente ) Tj
+T*
+(isoladamente todo o RN.) Tj
+T*
+() Tj
+T*
+(1. Matriz por Requisito de Negócio) Tj
+T*
+() Tj
+T*
+(| RN | RF relacionados | RNF relacionados | RT relacionados | Evidência principal |) Tj
+T*
+(|---|---|---|---|---|) Tj
+T*
+(| RN-001 Consolidar a Jornada sem substituir os sistemas finalísticos | — | RNF01, RNF18 | ) Tj
+T*
+(RT-001, RT-003 | Integration: ProcessorRepositoryTests/SeedDatabaseTests; contract and ) Tj
+T*
+(release gates conforme domínio |) Tj
+T*
+(| RN-002 Padronizar a integração municipal de Pessoas e fatos | RF-001, RF-002, RF-003, ) Tj
+T*
+(RF-004, RF-005, RF-009 | RNF03 | RT-006, RT-007, RT-010, RT-011, RT-013, RT-018 | ) Tj
+T*
+(Integration: ProcessorRepositoryTests/SeedDatabaseTests; contract and release gates conforme) Tj
+T*
+( domínio |) Tj
+T*
+(| RN-003 Preservar origem, temporalidade e linhagem | RF-001, RF-005, RF-006, RF-007, ) Tj
+T*
+(RF-008, RF-010, RF-024, RF-032 | RNF02, RNF04, RNF06, RNF12, RNF21, RNF22, RNF24, RNF32, ) Tj
+T*
+(RNF33 | RT-002, RT-010, RT-011, RT-014, RT-015, RT-016, RT-017, RT-019, RT-020, RT-027, ) Tj
+T*
+(RT-043 | Integration: ProcessorRepositoryTests/SeedDatabaseTests; contract and release gates) Tj
+T*
+( conforme domínio |) Tj
+T*
+(| RN-004 Constituir a Gold de Pessoas de forma evolutiva | RF-011 | — | RT-032 | ) Tj
+T*
+(Integration: IdentityGovernanceTests, IdentityReplayInvariantTests; Unit: ) Tj
+T*
+(IdentityResolutionCoordinatorTests/FellegiSunterScoringTests |) Tj
+T*
+(| RN-005 Manter uma identificação municipal estável da Pessoa | RF-012, RF-013, RF-018 | ) Tj
+T*
+(RNF05, RNF21, RNF22, RNF24 | RT-023, RT-024, RT-027, RT-030, RT-036 | Integration: ) Tj
+T*
+(IdentityGovernanceTests, IdentityReplayInvariantTests; Unit: ) Tj
+T*
+(IdentityResolutionCoordinatorTests/FellegiSunterScoringTests |) Tj
+T*
+(| RN-006 Usar CPF como rota determinística com trava conservadora | RF-013, RF-014, RF-016 |) Tj
+T*
+( RNF05, RNF23, RNF25 | RT-023, RT-024, RT-026, RT-028, RT-050, RT-056 | Integration: ) Tj
+T*
+(IdentityGovernanceTests, IdentityReplayInvariantTests; Unit: ) Tj
+T*
+(IdentityResolutionCoordinatorTests/FellegiSunterScoringTests |) Tj
+T*
+(| RN-007 Não descartar Pessoas admitidas sem CPF | RF-015, RF-016 | RNF23 | RT-025, RT-026, ) Tj
+T*
+(RT-056 | Integration: IdentityGovernanceTests, IdentityReplayInvariantTests; Unit: ) Tj
+T*
+(IdentityResolutionCoordinatorTests/FellegiSunterScoringTests |) Tj
+T*
+(| RN-008 Separar núcleo de identidade de atributos transversais | RF-019 | — | RT-034 | ) Tj
+T*
+(Integration: IdentityGovernanceTests, IdentityReplayInvariantTests; Unit: ) Tj
+T*
+(IdentityResolutionCoordinatorTests/FellegiSunterScoringTests |) Tj
+T*
+(| RN-009 Promover valores Golden pela qualidade da evidência | RF-011, RF-020, RF-021 | — | ) Tj
+T*
+(RT-032, RT-034 | Integration: IdentityGovernanceTests, IdentityReplayInvariantTests; Unit: ) Tj
+T*
+(IdentityResolutionCoordinatorTests/FellegiSunterScoringTests |) Tj
+T*
+(| RN-010 Permitir produção distribuída de evidência | RF-020, RF-021 | — | RT-034 | ) Tj
+T*
+(Integration: IdentityGovernanceTests, IdentityReplayInvariantTests; Unit: ) Tj
+T*
+(IdentityResolutionCoordinatorTests/FellegiSunterScoringTests |) Tj
+T*
+(| RN-011 Separar fatos administrativos da Gold cadastral | RF-022, RF-027 | RNF14 | RT-007, ) Tj
+T*
+(RT-031, RT-038 | Integration: ProcessorRepositoryTests, OperationalAtomicityTests, ) Tj
+T*
+(SeedDatabaseTests; gates de contratos/QC |) Tj
+T*
+(| RN-012 Preservar fato válido mesmo sem atribuição canônica | RF-023 | RNF06, RNF14 | ) Tj
+T*
+(RT-011, RT-020, RT-033, RT-038 | Integration: ProcessorRepositoryTests, ) Tj
+T*
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 4826 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(OperationalAtomicityTests, SeedDatabaseTests; gates de contratos/QC |) Tj
+T*
+(| RN-013 Distinguir Possibilidade de fato, direito e decisão | RF-026, RF-027, RF-037 | ) Tj
+T*
+(RNF14 | RT-031, RT-038 | Integration: ProcessorRepositoryTests, OperationalAtomicityTests, ) Tj
+T*
+(SeedDatabaseTests; gates de contratos/QC |) Tj
+T*
+(| RN-014 Versionar regras que alteram significado de negócio | RF-003, RF-017, RF-026, ) Tj
+T*
+(RF-045 | RNF13, RNF16 | RT-005, RT-006, RT-007, RT-008, RT-029, RT-060 | Integration: ) Tj
+T*
+(ProcessorRepositoryTests, OperationalAtomicityTests, SeedDatabaseTests; gates de ) Tj
+T*
+(contratos/QC |) Tj
+T*
+(| RN-015 Manter Referência Territorial separada de endereço civil | RF-029, RF-030 | RNF07 |) Tj
+T*
+( RT-041, RT-042 | Integration: SeedDatabaseTests; Unit: ) Tj
+T*
+(GeographicEnrichmentTests/ConfidentialShelterAddressPolicyTests |) Tj
+T*
+(| RN-016 Responsabilizar a origem pela territorialização | RF-029, RF-031, RF-032 | RNF07 | ) Tj
+T*
+(RT-042, RT-043 | Integration: SeedDatabaseTests; Unit: ) Tj
+T*
+(GeographicEnrichmentTests/ConfidentialShelterAddressPolicyTests |) Tj
+T*
+(| RN-017 Aplicar precedência territorial explícita | RF-030, RF-032 | — | RT-043 | ) Tj
+T*
+(Integration: SeedDatabaseTests; Unit: ) Tj
+T*
+(GeographicEnrichmentTests/ConfidentialShelterAddressPolicyTests |) Tj
+T*
+(| RN-018 Disponibilizar consulta da Pessoa aos sistemas autorizados | RF-033, RF-034, ) Tj
+T*
+(RF-035, RF-036, RF-037, RF-040 | RNF29 | RT-035, RT-036, RT-037, RT-047, RT-048 | Unit: ) Tj
+T*
+(AuthorizationMatrixContractTests, AccessPolicyTests, ApiHttpPipelineTests, ) Tj
+T*
+(ApiRateLimitingTests; Integration: ApiReadinessTests; security gates |) Tj
+T*
+(| RN-019 Adotar compartilhamento municipal padrão da Pessoa autorizada | RF-035, RF-038 | ) Tj
+T*
+(RNF29 | RT-035, RT-037 | Unit: AuthorizationMatrixContractTests, AccessPolicyTests, ) Tj
+T*
+(ApiHttpPipelineTests, ApiRateLimitingTests; Integration: ApiReadinessTests; security gates |) Tj
+T*
+(| RN-020 Permitir restrições setoriais como exceções negativas | RF-035, RF-038 | RNF29 | ) Tj
+T*
+(RT-035, RT-037 | Unit: AuthorizationMatrixContractTests, AccessPolicyTests, ) Tj
+T*
+(ApiHttpPipelineTests, ApiRateLimitingTests; Integration: ApiReadinessTests; security gates |) Tj
+T*
+(| RN-021 Proteger informação territorial especialmente sigilosa | RF-029, RF-031, RF-035, ) Tj
+T*
+(RF-038 | — | RT-042, RT-052 | Integration: SeedDatabaseTests; Unit: ) Tj
+T*
+(GeographicEnrichmentTests/ConfidentialShelterAddressPolicyTests |) Tj
+T*
+(| RN-022 Manter decisão e escrita cadastral no Gestor finalístico | RF-033 | — | RT-036, ) Tj
+T*
+(RT-037, RT-054 | Unit: AuthorizationMatrixContractTests, AccessPolicyTests, ) Tj
+T*
+(ApiHttpPipelineTests, ApiRateLimitingTests; Integration: ApiReadinessTests; security gates |) Tj
+T*
+(| RN-023 Estabelecer controles de qualidade antes do consumo | RF-003, RF-005, RF-007, ) Tj
+T*
+(RF-009, RF-010, RF-024, RF-025, RF-047, RF-048 | RNF03, RNF04, RNF06, RNF07, RNF09, RNF12, ) Tj
+T*
+(RNF15, RNF20, RNF23, RNF26, RNF27, RNF28, RNF33 | RT-012, RT-014, RT-015, RT-017, RT-018, ) Tj
+T*
+(RT-019, RT-020, RT-021, RT-022, RT-024, RT-026, RT-033, RT-046, RT-053, RT-054, RT-056, ) Tj
+T*
+(RT-057, RT-058, RT-059, RT-061, RT-062, RT-063, RT-064 | Integration: ) Tj
+T*
+(ProcessorRepositoryTests, OperationalAtomicityTests, SeedDatabaseTests; gates de ) Tj
+T*
+(contratos/QC |) Tj
+T*
+(| RN-024 Evidenciar cobertura e incerteza nos indicadores | RF-010, RF-014, RF-015, RF-016, ) Tj
+T*
+(RF-017, RF-025, RF-028, RF-042 | RNF07, RNF09, RNF15, RNF16, RNF21, RNF22, RNF24, RNF25, ) Tj
+T*
+(RNF26, RNF27, RNF28 | RT-019, RT-022, RT-025, RT-027, RT-028, RT-029, RT-046, RT-050, ) Tj
+T*
+(RT-053, RT-057 | Integration: ProcessorRepositoryTests, OperationalAtomicityTests, ) Tj
+T*
+(SeedDatabaseTests; gates de contratos/QC |) Tj
+T*
+(| RN-025 Oferecer BI municipal sobre Pessoas, fatos, qualidade e território | RF-028, ) Tj
+T*
+(RF-041, RF-042, RF-044 | RNF10, RNF11, RNF13 | RT-041, RT-043, RT-044, RT-045, RT-046, ) Tj
+T*
+(RT-047, RT-064 | powerbi-static-gate; serving contracts; Anexo BI/SLA; evidência HML quando ) Tj
+T*
+(aplicável |) Tj
+T*
+(| RN-026 Manter consultas individualizadas fora do BI | RF-034, RF-036, RF-037, RF-043 | — |) Tj
+T*
+( RT-047 | Unit: AuthorizationMatrixContractTests, AccessPolicyTests, ApiHttpPipelineTests, ) Tj
+T*
+(ApiRateLimitingTests; Integration: ApiReadinessTests; security gates |) Tj
+T*
+(| RN-027 Medir tempestividade de recebimento por Tipo e versão | RF-044 | RNF20 | RT-058 | ) Tj
+T*
+(powerbi-static-gate; serving contracts; Anexo BI/SLA; evidência HML quando aplicável |) Tj
+T*
+(| RN-028 Suportar carga inicial sem degradar governança de identidade | RF-011, RF-016, ) Tj
+T*
+(RF-024, RF-048 | RNF15, RNF23, RNF26, RNF27, RNF28 | RT-022, RT-026, RT-032, RT-056, RT-057 ) Tj
+T*
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 4405 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(| Integration: IdentityGovernanceTests, IdentityReplayInvariantTests; Unit: ) Tj
+T*
+(IdentityResolutionCoordinatorTests/FellegiSunterScoringTests |) Tj
+T*
+(| RN-029 Garantir rastreabilidade e auditoria de atos sensíveis | RF-002, RF-006, RF-007, ) Tj
+T*
+(RF-014, RF-017, RF-018, RF-020, RF-025, RF-038, RF-039, RF-040, RF-045, RF-046, RF-047 | ) Tj
+T*
+(RNF04, RNF06, RNF08, RNF12, RNF16, RNF17, RNF21, RNF22, RNF24, RNF29, RNF30, RNF31, RNF32, ) Tj
+T*
+(RNF33 | RT-004, RT-005, RT-013, RT-014, RT-015, RT-016, RT-017, RT-020, RT-021, RT-027, ) Tj
+T*
+(RT-029, RT-030, RT-034, RT-035, RT-039, RT-040, RT-048, RT-049, RT-051, RT-054, RT-059, ) Tj
+T*
+(RT-060, RT-062, RT-063, RT-064 | Unit: AuthorizationMatrixContractTests, AccessPolicyTests, ) Tj
+T*
+(ApiHttpPipelineTests, ApiRateLimitingTests; Integration: ApiReadinessTests; security gates |) Tj
+T*
+(| RN-030 Aplicar minimização e proteção de dados pessoais | RF-008, RF-035, RF-038, RF-039, ) Tj
+T*
+(RF-040, RF-042, RF-043, RF-046 | RNF03, RNF05, RNF08, RNF11, RNF17, RNF29, RNF30, RNF31, ) Tj
+T*
+(RNF32 | RT-004, RT-012, RT-016, RT-023, RT-039, RT-040, RT-045, RT-049, RT-050, RT-051, ) Tj
+T*
+(RT-052 | Unit: AuthorizationMatrixContractTests, AccessPolicyTests, ApiHttpPipelineTests, ) Tj
+T*
+(ApiRateLimitingTests; Integration: ApiReadinessTests; security gates |) Tj
+T*
+(| RN-031 Definir governança de retenção antes da produção | RF-008, RF-046 | RNF32, RNF33 | ) Tj
+T*
+(RT-016, RT-017, RT-051, RT-064 | governance/release gates, runbooks e homologação; runtime ) Tj
+T*
+(local v3.95 para gates executáveis localmente |) Tj
+T*
+(| RN-032 Exigir avaliação de impacto antes da produção | — | — | RT-064 | governance/release) Tj
+T*
+( gates, runbooks e homologação; runtime local v3.95 para gates executáveis localmente |) Tj
+T*
+(| RN-033 Formalizar responsabilidades institucionais | RF-047, RF-048 | RNF09, RNF11, RNF12,) Tj
+T*
+( RNF17, RNF19, RNF20 | RT-004, RT-005, RT-009, RT-045, RT-048, RT-053, RT-055, RT-058, ) Tj
+T*
+(RT-059, RT-060, RT-061, RT-062, RT-063, RT-064 | governance/release gates, runbooks e ) Tj
+T*
+(homologação; runtime local v3.95 para gates executáveis localmente |) Tj
+T*
+(| RN-034 Manter interlocução técnica e qualidade por Gestor | RF-002, RF-044, RF-049 | RNF19) Tj
+T*
+( | RT-006, RT-009, RT-013, RT-055, RT-064 | governance/release gates, runbooks e ) Tj
+T*
+(homologação; runtime local v3.95 para gates executáveis localmente |) Tj
+T*
+(| RN-035 Permitir expansão a novos Gestores e Tipos | RF-003, RF-009, RF-041, RF-045, RF-049) Tj
+T*
+( | RNF01, RNF02, RNF10, RNF12, RNF13, RNF15, RNF18, RNF19, RNF27 | RT-001, RT-002, RT-003, ) Tj
+T*
+(RT-006, RT-007, RT-008, RT-009, RT-018, RT-021, RT-044, RT-057 | governance/release gates, ) Tj
+T*
+(runbooks e homologação; runtime local v3.95 para gates executáveis localmente |) Tj
+T*
+(| RN-036 Manter biometria como evolução e não como núcleo cadastral | RF-050 | — | RT-065 | ) Tj
+T*
+(governance/release gates, runbooks e homologação; runtime local v3.95 para gates executáveis) Tj
+T*
+( localmente |) Tj
+T*
+() Tj
+T*
+(2. Cobertura por RF) Tj
+T*
+() Tj
+T*
+(| RF | RN de origem | RNF associados | RT de realização |) Tj
+T*
+(|---|---|---|---|) Tj
+T*
+(| RF-001 | RN-002, RN-003 | RNF03 | RT-010 |) Tj
+T*
+(| RF-002 | RN-002, RN-029, RN-034 | — | RT-013, RT-048 |) Tj
+T*
+(| RF-003 | RN-002, RN-014, RN-023, RN-035 | RNF03, RNF13 | RT-006, RT-007, RT-008, RT-013 |) Tj
+T*
+(| RF-004 | RN-002 | — | RT-010, RT-011 |) Tj
+T*
+(| RF-005 | RN-002, RN-003, RN-023 | — | RT-011 |) Tj
+T*
+(| RF-006 | RN-003, RN-029 | RNF21, RNF22, RNF24 | RT-010, RT-014, RT-019, RT-027, RT-043 |) Tj
+T*
+(| RF-007 | RN-003, RN-023, RN-029 | RNF04 | RT-015 |) Tj
+T*
+(| RF-008 | RN-003, RN-030, RN-031 | RNF32, RNF33 | RT-016, RT-017 |) Tj
+T*
+(| RF-009 | RN-002, RN-023, RN-035 | RNF26, RNF28 | RT-018, RT-021, RT-022 |) Tj
+T*
+(| RF-010 | RN-003, RN-023, RN-024 | — | RT-019 |) Tj
+T*
+(| RF-011 | RN-004, RN-009, RN-028 | — | RT-032 |) Tj
+T*
+(| RF-012 | RN-005 | RNF05 | RT-023, RT-030 |) Tj
+T*
+(| RF-013 | RN-005, RN-006 | — | RT-024 |) Tj
+T*
+(| RF-014 | RN-006, RN-024, RN-029 | — | RT-024, RT-030 |) Tj
+T*
+(| RF-015 | RN-007, RN-024 | RNF23 | RT-025, RT-026 |) Tj
+T*
+(| RF-016 | RN-006, RN-007, RN-024, RN-028 | RNF23, RNF25 | RT-026, RT-028 |) Tj
+T*
+(| RF-017 | RN-014, RN-024, RN-029 | RNF16, RNF21, RNF22, RNF24 | RT-027, RT-029 |) Tj
+T*
+(| RF-018 | RN-005, RN-029 | — | RT-030 |) Tj
+T*
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 3051 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(| RF-019 | RN-008 | RNF05 | RT-023, RT-034 |) Tj
+T*
+(| RF-020 | RN-009, RN-010, RN-029 | — | RT-034 |) Tj
+T*
+(| RF-021 | RN-009, RN-010 | — | RT-034 |) Tj
+T*
+(| RF-022 | RN-011 | RNF14 | RT-031, RT-033 |) Tj
+T*
+(| RF-023 | RN-012 | — | RT-033 |) Tj
+T*
+(| RF-024 | RN-003, RN-023, RN-028 | RNF06 | RT-020, RT-032, RT-033 |) Tj
+T*
+(| RF-025 | RN-023, RN-024, RN-029 | — | RT-019, RT-046, RT-064 |) Tj
+T*
+(| RF-026 | RN-013, RN-014 | RNF14 | RT-038, RT-064 |) Tj
+T*
+(| RF-027 | RN-011, RN-013 | RNF14 | RT-038 |) Tj
+T*
+(| RF-028 | RN-024, RN-025 | — | RT-046 |) Tj
+T*
+(| RF-029 | RN-015, RN-016, RN-021 | RNF07 | RT-041, RT-043 |) Tj
+T*
+(| RF-030 | RN-015, RN-017 | — | RT-041, RT-043 |) Tj
+T*
+(| RF-031 | RN-016, RN-021 | RNF07 | RT-042 |) Tj
+T*
+(| RF-032 | RN-003, RN-016, RN-017 | RNF07 | RT-043 |) Tj
+T*
+(| RF-033 | RN-018, RN-022 | RNF29 | RT-035, RT-036 |) Tj
+T*
+(| RF-034 | RN-018, RN-026 | RNF29 | RT-035, RT-037 |) Tj
+T*
+(| RF-035 | RN-018, RN-019, RN-020, RN-021, RN-030 | RNF29 | RT-035, RT-037 |) Tj
+T*
+(| RF-036 | RN-018, RN-026 | RNF14 | RT-038 |) Tj
+T*
+(| RF-037 | RN-013, RN-018, RN-026 | RNF14 | RT-038 |) Tj
+T*
+(| RF-038 | RN-019, RN-020, RN-021, RN-029, RN-030 | RNF29 | RT-035, RT-037, RT-048 |) Tj
+T*
+(| RF-039 | RN-029, RN-030 | RNF30 | RT-039 |) Tj
+T*
+(| RF-040 | RN-018, RN-029, RN-030 | RNF29, RNF31 | RT-040 |) Tj
+T*
+(| RF-041 | RN-025, RN-035 | RNF10, RNF13 | RT-044 |) Tj
+T*
+(| RF-042 | RN-024, RN-025, RN-030 | RNF10, RNF11, RNF13 | RT-044, RT-045, RT-046 |) Tj
+T*
+(| RF-043 | RN-026, RN-030 | — | RT-047 |) Tj
+T*
+(| RF-044 | RN-027, RN-025, RN-034 | RNF20 | RT-058 |) Tj
+T*
+(| RF-045 | RN-014, RN-029, RN-035 | RNF13, RNF16 | RT-005, RT-006, RT-007, RT-008, RT-029 |) Tj
+T*
+(| RF-046 | RN-031, RN-029, RN-030 | RNF33 | RT-017, RT-051 |) Tj
+T*
+(| RF-047 | RN-023, RN-029, RN-033 | RNF09 | RT-053, RT-054, RT-061, RT-062, RT-063, RT-064 |) Tj
+T*
+(| RF-048 | RN-023, RN-028, RN-033 | RNF26, RNF28 | RT-022, RT-055, RT-056 |) Tj
+T*
+(| RF-049 | RN-034, RN-035 | RNF01, RNF10, RNF13, RNF18, RNF19 | RT-001, RT-003, RT-006, ) Tj
+T*
+(RT-007, RT-008, RT-009, RT-044 |) Tj
+T*
+(| RF-050 | RN-036 | — | RT-065 |) Tj
+T*
+() Tj
+T*
+(3. Cobertura por RNF) Tj
+T*
+() Tj
+T*
+(| RNF | RF afetados | RT de realização |) Tj
+T*
+(|---|---|---|) Tj
+T*
+(| RNF01 | RF-049 | RT-001 |) Tj
+T*
+(| RNF02 | — | RT-002 |) Tj
+T*
+(| RNF03 | RF-001, RF-003 | RT-012 |) Tj
+T*
+(| RNF04 | RF-007 | RT-015 |) Tj
+T*
+(| RNF05 | RF-012, RF-019 | RT-023 |) Tj
+T*
+(| RNF06 | RF-024 | RT-020 |) Tj
+T*
+(| RNF07 | RF-029, RF-031, RF-032 | RT-041 |) Tj
+T*
+(| RNF08 | — | RT-049 |) Tj
+T*
+(| RNF09 | RF-047 | RT-053 |) Tj
+T*
+(| RNF10 | RF-041, RF-042, RF-049 | RT-044 |) Tj
+T*
+(| RNF11 | RF-042 | RT-045 |) Tj
+T*
+(| RNF12 | — | RT-002, RT-059 |) Tj
+T*
+(| RNF13 | RF-003, RF-041, RF-042, RF-045, RF-049 | RT-008, RT-044 |) Tj
+T*
+(| RNF14 | RF-022, RF-026, RF-027, RF-036, RF-037 | RT-031, RT-038 |) Tj
+T*
+(| RNF15 | — | RT-057 |) Tj
+T*
+(| RNF16 | RF-017, RF-045 | RT-029 |) Tj
+T*
+(| RNF17 | — | RT-004 |) Tj
+T*
+(| RNF18 | RF-049 | RT-003 |) Tj
+T*
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 1419 >>
+stream
+BT
+/F1 9 Tf
+12 TL
+50 790 Td
+(| RNF19 | RF-049 | RT-009 |) Tj
+T*
+(| RNF20 | RF-044 | RT-058 |) Tj
+T*
+(| RNF21 | RF-006, RF-017 | RT-027 |) Tj
+T*
+(| RNF22 | RF-006, RF-017 | RT-027 |) Tj
+T*
+(| RNF23 | RF-015, RF-016 | RT-026 |) Tj
+T*
+(| RNF24 | RF-006, RF-017 | RT-027 |) Tj
+T*
+(| RNF25 | RF-016 | RT-028 |) Tj
+T*
+(| RNF26 | RF-009, RF-048 | RT-022 |) Tj
+T*
+(| RNF27 | — | RT-057 |) Tj
+T*
+(| RNF28 | RF-009, RF-048 | RT-022 |) Tj
+T*
+(| RNF29 | RF-033, RF-034, RF-035, RF-038, RF-040 | RT-035, RT-040 |) Tj
+T*
+(| RNF30 | RF-039 | RT-039 |) Tj
+T*
+(| RNF31 | RF-040 | RT-040 |) Tj
+T*
+(| RNF32 | RF-008 | RT-016 |) Tj
+T*
+(| RNF33 | RF-008, RF-046 | RT-017 |) Tj
+T*
+() Tj
+T*
+(4. Cobertura e regras de manutenção) Tj
+T*
+() Tj
+T*
+(- Todos os 36 RN devem aparecer na Seção 1.) Tj
+T*
+(- Todos os 50 RF devem aparecer na Seção 2.) Tj
+T*
+(- Todos os 33 RNF normativos devem aparecer na Seção 3.) Tj
+T*
+(- Todos os 65 RT devem estar referenciados por pelo menos um RN/RF/RNF ou ser explicitamente) Tj
+T*
+( classificados como infraestrutura transversal.) Tj
+T*
+(- Mudança material em qualquer camada exige revisão desta matriz e das evidências ) Tj
+T*
+(correspondentes.) Tj
+T*
+() Tj
+T*
+(5. Controle de versão) Tj
+T*
+() Tj
+T*
+(| Versão | Data | Síntese | Incorporação |) Tj
+T*
+(|---|---|---|---|) Tj
+T*
+(| 1.0 | 03/09/2026 | Matriz inicial RN -> RF -> RNF -> RT -> evidência da Fase 1. | Solution) Tj
+T*
+( Engenharia v3.98 |) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 14
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000147 00000 n 
+0000000244 00000 n 
+0000000370 00000 n 
+0000004540 00000 n 
+0000004666 00000 n 
+0000009543 00000 n 
+0000009669 00000 n 
+0000014125 00000 n 
+0000014253 00000 n 
+0000017356 00000 n 
+0000017484 00000 n 
+trailer
+<< /Size 14 /Root 1 0 R >>
+startxref
+18955
+%%EOF

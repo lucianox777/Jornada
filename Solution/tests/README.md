@@ -15,6 +15,13 @@ A categoria `Integration` foi separada fisicamente em `Jornada.Integration.Tests
 
 
 
+## Compatibilidade SQL Database in Microsoft Fabric — v4.00
+
+A suíte Integration aceita dois alvos explícitos via `JORNADA_TEST_SQL_TARGET`: `SQL_SERVER_2022` (padrão local/CI) e `FABRIC_SQL_DATABASE`. O alvo Fabric exige `JORNADA_TEST_SQL_USE_EXISTING_DATABASE=true` e um banco não produtivo pré-provisionado cujo nome contenha `Test`, `Dev` ou `Local`; a fixture não cria nem remove o item de banco no workspace.
+
+Use `scripts/fabric-sql-compatibility.ps1` ou `scripts/fabric-sql-compatibility.sh`, definindo `JORNADA_FABRIC_SQL_CONNECTION` com autenticação Microsoft Entra. O harness executa gates estáticos, restore `--locked-mode`, build Release e toda a suíte Integration com `--forbid-skipped`. A connection string não é persistida pelo script.
+
+
 ## Compatibilidade Testcontainers/Docker — v3.88
 
 A v3.87 compilou em Release com 0 warnings/0 errors e aprovou 153/153 Unit, mas a Integration foi bloqueada no `OneTimeSetUp`: Testcontainers 4.14 tentou API Docker 1.44 contra servidor máximo 1.41. A v3.88 negocia para baixo `DOCKER_API_VERSION` somente quando necessário e respeita qualquer override explícito. Isso é uma correção de infraestrutura; os 58 casos Integration precisam ser reexecutados para produzir evidência funcional.
@@ -244,3 +251,28 @@ memória não reproduziria com fidelidade.
 A v3.80 também ativa analyzer fail-closed: qualquer diagnóstico CA não aceito explicitamente em
 `.editorconfig` passa a bloquear o build. A justificativa das exceções está em
 `docs/Analyzer_Policy_v3.80.md`.
+## Reentrada DDL v3.93
+
+A execução externa da v3.92 rodou os 58 casos: 29 PASS / 29 FAIL. As 29 falhas convergiram para SQL Server 547 em `ck_vinculo_metodo` durante reaplicação de `Jornada_Fase1.sql`. A v3.93 não altera os casos de teste; corrige o DDL corrente para que o bloco de compatibilidade anterior ao v3.44 aceite `CONFLITO_GOVERNADO` em `ck_vinculo_metodo` e `ck_vinculo_modelo`, preservando estado final válido em reentrada.
+
+## Precisão documental v3.92
+
+A v3.92 não altera a lógica da suíte Integration. Corrige apenas a descrição do SQL 208 (`UPDATE im` sem `FROM identidade.identity_map im`), o comentário do validador para `JornadaIntegration_Test_<guid>` e a formulação causal: os seis grupos tratados na v3.91 ainda precisam ser confirmados pela próxima reexecução como explicação suficiente para as 28 falhas v3.90.
+
+## Correções Integration v3.91
+
+A execução externa da v3.90 chegou aos 58 casos (30 PASS / 28 FAIL). A v3.91 fixa as causas-raiz observadas: alias `identity_map` no DDL, reader do Processor sem `SequentialAccess` incompatível, reset `NOCOUNT/XACT_ABORT` no `SqlBatchRunner`, seed DEV convergente, `situacao_geografia` explícita e banco `JornadaIntegration_Test_<guid>`. A aprovação runtime continua dependente de nova execução real.
+
+## Resíduos Integration v3.94
+
+A execução externa da v3.93 chegou a 54 PASS / 4 FAIL. Os quatro resíduos são tratados sem desabilitar testes: a disputa `READPAST` prova exclusão mútua e progresso no poll seguinte; o cenário de persistência conta somente códigos que ele próprio cria; a entrada `COMPROVADO` sem `verificadoEm` é rejeitada pela aplicação antes da constraint Silver; e o seed DEV restaura avaliações derivadas por linha, enquanto a projeção individual é comparada ao subconjunto `VIGENTE` + `ATRIBUIDA`.
+
+
+## Resíduo Integration v3.95
+
+A execução externa da v3.94 chegou a 57 PASS / 1 FAIL. O único cenário restante (`Transaction_failure_after_partial_persistence_rolls_back_silver_identity_and_gold`) já recebia a `InvalidDataException` esperada, mas a asserção posterior contava todo o lote reaproveitado do seed. A v3.95 escopa Silver e `item_processado` a `PROC-V325-ROLLBACK-A/B`; identity/gold continuam escopados aos CPFs do cenário. A exigência permanece zero para qualquer efeito parcial do próprio cenário.
+
+
+## Fechamento runtime v3.95 / release v3.96
+
+A execução externa da v3.95 encerrou a suíte dedicada em **58 PASS / 0 FAIL / 0 SKIP / 58 total**, com Unit **153/153 PASS**, restore `--locked-mode` e build Release 0 warnings / 0 errors. A v3.96 apenas incorpora essa evidência e documentação; não altera os testes funcionais nem a produção.

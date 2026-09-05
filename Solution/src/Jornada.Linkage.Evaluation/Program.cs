@@ -2,6 +2,7 @@ using System.Data;
 using System.Globalization;
 using System.Text.Json;
 using Jornada.Contracts;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
 const string Purpose = "DEV_HML_ONLY_NO_PUBLICATION";
@@ -20,8 +21,8 @@ var labels = LabelCsv.Read(options.LabelsPath!);
 if (labels.Count == 0)
     throw new InvalidOperationException("A amostra rotulada está vazia.");
 
-await using var connection = new SqlConnection(connectionString);
-await connection.OpenAsync();
+var operationalSql = new OperationalSqlAdapter(connectionString);
+await using var connection = await operationalSql.OpenAsync();
 
 var evaluator = new LinkageEvaluation(connection, options.CommandTimeoutSeconds);
 var labeledPairs = await evaluator.LoadLabeledNoCpfPairsAsync(labels);

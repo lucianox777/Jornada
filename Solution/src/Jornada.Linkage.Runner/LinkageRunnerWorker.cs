@@ -1,12 +1,12 @@
-using Microsoft.Data.SqlClient;
 using System.Diagnostics;
 using Jornada.Contracts;
+using Jornada.Operational.Sql;
 
 namespace Jornada.Linkage.Runner;
 
 public sealed class LinkageRunnerWorker(
     LinkageRunOptions options,
-    IConfiguration configuration,
+    IOperationalSqlAdapter operationalSql,
     IProbabilisticLinkageBatchRunner runner,
     IHostApplicationLifetime lifetime,
     ILogger<LinkageRunnerWorker> logger) : BackgroundService
@@ -16,7 +16,7 @@ public sealed class LinkageRunnerWorker(
         var runSw = Stopwatch.StartNew();
         try
         {
-            if (await IsInitialLoadModeActiveAsync(configuration, stoppingToken))
+            if (await IsInitialLoadModeActiveAsync(operationalSql, stoppingToken))
             {
                 logger.LogWarning("Runner não iniciado porque controle.modo_carga_inicial está ativo. Processor deve drenar a primeira carga antes do linkage.");
                 return;
@@ -57,12 +57,9 @@ public sealed class LinkageRunnerWorker(
             lifetime.StopApplication();
         }
     }
-    private static async Task<bool> IsInitialLoadModeActiveAsync(IConfiguration configuration, CancellationToken ct)
+    private static async Task<bool> IsInitialLoadModeActiveAsync(IOperationalSqlAdapter operationalSql, CancellationToken ct)
     {
-        var cs = configuration.GetConnectionString("Jornada")
-            ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
-        await using var connection = new SqlConnection(cs);
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT ativo FROM controle.modo_carga_inicial WHERE estado_id=1;";
         return Convert.ToBoolean(await command.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);

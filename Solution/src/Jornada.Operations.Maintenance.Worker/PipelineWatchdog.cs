@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Jornada.Contracts;
+using Jornada.Operational.Sql;
 using Microsoft.Extensions.Options;
 
 namespace Jornada.Operations.Maintenance.Worker;
@@ -120,12 +121,10 @@ public static class PipelineWatchdogEvaluator
 }
 
 public sealed class PipelineWatchdogWorker(
-    IConfiguration configuration,
+    IOperationalSqlAdapter operationalSql,
     IOptions<PipelineWatchdogOptions> options,
     ILogger<PipelineWatchdogWorker> logger) : BackgroundService
 {
-    private readonly string connectionString = configuration.GetConnectionString("Jornada")
-        ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -190,8 +189,7 @@ public sealed class PipelineWatchdogWorker(
 
     private async Task RecordIdentityPendingAgeMetricsAsync(CancellationToken ct)
     {
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandTimeout = 30;
         command.CommandText = """
@@ -209,8 +207,7 @@ public sealed class PipelineWatchdogWorker(
 
     private async Task<PipelineWatchdogSnapshot> ReadSnapshotAsync(CancellationToken ct)
     {
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandTimeout = 30;
         command.CommandText = """

@@ -1,3 +1,4 @@
+using Jornada.Operational.Sql;
 using System.Collections.Concurrent;
 using System.Data;
 using System.Text.Json;
@@ -8,7 +9,7 @@ using Microsoft.Data.SqlClient;
 
 namespace Jornada.Api;
 
-internal sealed class SqlIdentityResolutionService(SqlConnectionFactory connections) : IIdentityResolutionService
+internal sealed class SqlIdentityResolutionService(IOperationalSqlAdapter connections) : IIdentityResolutionService
 {
     public async Task<IdentityResolutionResponse> ResolveAsync(AccessContext context, IdentityResolutionRequest request, CancellationToken ct)
     {
@@ -68,7 +69,7 @@ internal static class BronzeStorageHttpFailureMapper
     };
 }
 
-internal sealed class SqlIngestionService(SqlConnectionFactory connections, IBronzeObjectStore bronzeStore) : IIngestionService
+internal sealed class SqlIngestionService(IOperationalSqlAdapter connections, IBronzeObjectStore bronzeStore) : IIngestionService
 {
     public async Task<IngestionReceipt> ReceivePackageAsync(
         AccessContext context,
@@ -90,7 +91,8 @@ internal sealed class SqlIngestionService(SqlConnectionFactory connections, IBro
 
         // v3.37: o lock Shared por objeto fecha a corrida com o GC. A API o mantém desde antes do
         // PutIfAbsent até o commit da referência SQL. O GC usa o mesmo recurso em modo Exclusive.
-        await using var connection = await connections.OpenAsync(ct);
+        // LockOwner=Session exige sessão física dedicada: sem pooling e sem enlistment automático.
+        await using var connection = await connections.OpenDedicatedSessionAsync(ct);
         var objectLockResource = BronzeObjectCoordination.LockResourceForSha256(sha256);
         var objectLockHeld = await AcquireSessionAppLockAsync(connection, objectLockResource, "Shared", 30_000, ct);
         if (!objectLockHeld)
@@ -345,7 +347,7 @@ internal sealed class SqlIngestionService(SqlConnectionFactory connections, IBro
 }
 
 internal sealed class SqlPersonProjectionService(
-    SqlConnectionFactory connections,
+    IOperationalSqlAdapter connections,
     IContractResolver contracts) : IPersonProjectionService
 {
     public async Task<PersonProjectionResponse?> GetAsync(AccessContext context, Guid pessoaUuid, CancellationToken ct)
@@ -616,7 +618,7 @@ internal sealed class SqlPersonProjectionService(
     }
 }
 
-internal sealed class SqlRegistrosQueryService(SqlConnectionFactory connections) : IRegistrosQueryService
+internal sealed class SqlRegistrosQueryService(IOperationalSqlAdapter connections) : IRegistrosQueryService
 {
     public async Task<IReadOnlyList<RegistroJornadaDto>> GetRegistrosAsync(
         AccessContext context, Guid pessoaUuid, string? natureza, string? codigo, DateOnly? desde, DateOnly? ate, CancellationToken ct)
@@ -660,7 +662,7 @@ internal sealed class SqlRegistrosQueryService(SqlConnectionFactory connections)
         command.CommandText = """
             SELECT b.beneficio_concedido_id,b.pessoa_uuid,b.gestor,b.beneficio,b.nome_beneficio,b.versao_tipo,
                    b.versao_interna,b.operacao,b.status_analitico,b.codigo_registro_origem,b.tipo_medida,
-                   b.data_inicio_concessao,b.data_fim_concessao,b.data_evento_concessao,b.situacao,b.valor_concedido,b.quantidade,b.unidade_medida,
+                   b.data_inicio_concessao,b.data_fim_concessao,b.data_evento_concessao,b.situacao_vigencia,b.situacao_vigencia_desde,b.motivo_encerramento,b.valor_concedido,b.quantidade,b.unidade_medida,
                    b.data_referencia,b.qc_resultado,b.qc_especifico_implementado
             FROM serving.v_beneficios_concedidos_pessoa b
             JOIN ref.gestor gr ON gr.codigo=b.gestor
@@ -686,8 +688,10 @@ internal sealed class SqlRegistrosQueryService(SqlConnectionFactory connections)
                 reader.IsDBNull(11) ? null : DateOnly.FromDateTime(reader.GetDateTime(11)),
                 reader.IsDBNull(12) ? null : DateOnly.FromDateTime(reader.GetDateTime(12)),
                 reader.IsDBNull(13) ? null : DateOnly.FromDateTime(reader.GetDateTime(13)),
-                reader.NullableString(14), reader.NullableDecimal(15), reader.NullableDecimal(16), reader.NullableString(17),
-                reader.GetDateTimeOffset(18), reader.NullableString(19), Convert.ToBoolean(reader.GetValue(20), System.Globalization.CultureInfo.InvariantCulture)));
+                reader.GetString(14),
+                reader.IsDBNull(15) ? null : DateOnly.FromDateTime(reader.GetDateTime(15)),
+                reader.NullableString(16), reader.NullableDecimal(17), reader.NullableDecimal(18), reader.NullableString(19),
+                reader.GetDateTimeOffset(20), reader.NullableString(21), Convert.ToBoolean(reader.GetValue(22), System.Globalization.CultureInfo.InvariantCulture)));
         }
         return result;
     }
@@ -743,7 +747,7 @@ internal sealed class SqlRegistrosQueryService(SqlConnectionFactory connections)
         command.Parameters.Add(new SqlParameter(name, SqlDbType.Date) { Value = value.HasValue ? value.Value.ToDateTime(TimeOnly.MinValue) : DBNull.Value });
 }
 
-internal sealed class SqlPossibilidadesQueryService(SqlConnectionFactory connections) : IPossibilidadesQueryService
+internal sealed class SqlPossibilidadesQueryService(IOperationalSqlAdapter connections) : IPossibilidadesQueryService
 {
     public async Task<IReadOnlyList<PossibilidadeCompativelDto>> GetCompativeisAsync(
         AccessContext context, Guid pessoaUuid, string? natureza, string? codigo, CancellationToken ct)
