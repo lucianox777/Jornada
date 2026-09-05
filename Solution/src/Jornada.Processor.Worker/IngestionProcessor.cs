@@ -65,15 +65,15 @@ internal sealed class IngestionProcessor(
             logger.LogWarning("Processamento cancelado porque o lease do lote {LoteId} foi perdido.", batch.LoteId);
             return true;
         }
-        catch (InvalidDataException)
+        catch (InvalidDataException ex)
         {
             telemetryResult = "REJECTED";
             await repository.MarkRejectedAsync(batch, "PACOTE_OU_CONTRATO_INVALIDO", CancellationToken.None);
-            // A mensagem da exceção pode incorporar identificadores fornecidos pela origem.
-            // O log registra apenas o código técnico estável; detalhes permanecem fora da telemetria textual.
+            // A mensagem pode incorporar identificadores fornecidos pela origem. Registre
+            // somente uma classificação estável da etapa, nunca o texto da exceção.
             logger.LogWarning(
-                "Entrega {EntregaId} rejeitada durante validação. Lote={LoteId}. Motivo=PACOTE_OU_CONTRATO_INVALIDO",
-                batch.EntregaId, batch.LoteId);
+                "Entrega {EntregaId} rejeitada durante validação. Lote={LoteId}. Motivo=PACOTE_OU_CONTRATO_INVALIDO Etapa={ValidationStage}",
+                batch.EntregaId, batch.LoteId, ClassifyValidationStage(ex));
             return true;
         }
         catch (BronzeObjectIntegrityException ex)
@@ -133,6 +133,19 @@ internal sealed class IngestionProcessor(
             try { await heartbeatTask; }
             catch (OperationCanceledException) { }
         }
+    }
+
+    private static string ClassifyValidationStage(InvalidDataException exception)
+    {
+        var message = exception.Message;
+        if (message.Contains("manifest.json", StringComparison.OrdinalIgnoreCase)) return "MANIFEST";
+        if (message.Contains("pessoas.jsonl", StringComparison.OrdinalIgnoreCase)) return "PESSOAS";
+        if (message.Contains("registros.jsonl", StringComparison.OrdinalIgnoreCase)) return "REGISTROS";
+        if (message.Contains("schema", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("SHA-256", StringComparison.OrdinalIgnoreCase)) return "CONTRATO";
+        if (message.Contains("filename", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("metadados persistidos", StringComparison.OrdinalIgnoreCase)) return "ENVELOPE";
+        return "PACOTE";
     }
 
     private async Task HeartbeatLoopAsync(ReservedBatch batch, CancellationTokenSource workCts, CancellationToken ct)

@@ -5,7 +5,9 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Jornada.Api;
+using Jornada.Bronze.Storage;
 
 namespace Jornada.Tests.Unit;
 
@@ -34,6 +36,13 @@ public sealed class ApiHttpPipelineTests
                 });
                 builder.ConfigureTestServices(services =>
                 {
+                    // Program captura os caminhos operacionais durante a construção do host.
+                    // Em teste de Production, substituímos somente os serviços de filesystem
+                    // por instâncias temporárias sem relaxar a configuração real de Produção.
+                    services.RemoveAll<IngestionStagingStore>();
+                    services.AddSingleton(new IngestionStagingStore(stagingRoot));
+                    services.RemoveAll<IBronzeObjectStore>();
+                    services.AddSingleton<IBronzeObjectStore>(new FileSystemBronzeObjectStore(bronzeRoot));
                     services.AddSingleton<IApiAuditSink, InMemoryApiAuditSink>();
                     services.AddSingleton<ISqlReadinessProbe>(new InMemorySqlReadinessProbe(ready: false));
                 });
@@ -75,6 +84,10 @@ public sealed class ApiHttpPipelineTests
                 });
                 builder.ConfigureTestServices(services =>
                 {
+                    services.RemoveAll<IngestionStagingStore>();
+                    services.AddSingleton(new IngestionStagingStore(stagingRoot));
+                    services.RemoveAll<IBronzeObjectStore>();
+                    services.AddSingleton<IBronzeObjectStore>(new FileSystemBronzeObjectStore(bronzeRoot));
                     services.AddSingleton<IApiAuditSink, InMemoryApiAuditSink>();
                     services.AddSingleton<ISqlReadinessProbe>(new InMemorySqlReadinessProbe(ready: false));
                 });
