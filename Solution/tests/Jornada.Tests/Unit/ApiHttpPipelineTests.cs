@@ -3,6 +3,7 @@ using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Jornada.Api;
 
@@ -23,8 +24,14 @@ public sealed class ApiHttpPipelineTests
             await using var factory = new WebApplicationFactory<ApiEntryPointMarker>().WithWebHostBuilder(builder =>
             {
                 builder.UseEnvironment("Production");
-                builder.UseSetting("BronzeStorage:RootPath", bronzeRoot);
-                builder.UseSetting("IngestionStaging:RootPath", stagingRoot);
+                builder.ConfigureAppConfiguration((_, config) =>
+                {
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["BronzeStorage:RootPath"] = bronzeRoot,
+                        ["IngestionStaging:RootPath"] = stagingRoot
+                    });
+                });
                 builder.ConfigureTestServices(services =>
                 {
                     services.AddSingleton<IApiAuditSink, InMemoryApiAuditSink>();
@@ -57,9 +64,15 @@ public sealed class ApiHttpPipelineTests
             await using var factory = new WebApplicationFactory<ApiEntryPointMarker>().WithWebHostBuilder(builder =>
             {
                 builder.UseEnvironment("Production");
-                // UseSetting entra na configuração de host antes do Program top-level ler os caminhos.
-                builder.UseSetting("BronzeStorage:RootPath", bronzeRoot);
-                builder.UseSetting("IngestionStaging:RootPath", stagingRoot);
+                // As rotas operacionais de Produção continuam absolutas; o teste injeta raízes temporárias na configuração da aplicação.
+                builder.ConfigureAppConfiguration((_, config) =>
+                {
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["BronzeStorage:RootPath"] = bronzeRoot,
+                        ["IngestionStaging:RootPath"] = stagingRoot
+                    });
+                });
                 builder.ConfigureTestServices(services =>
                 {
                     services.AddSingleton<IApiAuditSink, InMemoryApiAuditSink>();
