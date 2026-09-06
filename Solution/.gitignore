@@ -25,6 +25,12 @@ data/bronze/**
 .env.local
 .env.*.local
 !.env.example
+
+# Windows production installer local secrets/config
+install/windows-production/Jornada.Production.json
+install/windows-production/*.local.json
+**/integrador.config.json
+
 .local/
 artifacts/
 dist/
