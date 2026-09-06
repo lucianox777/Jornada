@@ -1,0 +1,127 @@
+{
+  "installationRoot": "C:\\Program Files\\Jornada",
+  "dataRoot": "D:\\Jornada",
+  "dotnet": {
+    "installIfMissing": true,
+    "hostingBundleUrl": "https://aka.ms/dotnet/8.0/dotnet-hosting-win.exe"
+  },
+  "docker": {
+    "mode": "None",
+    "mobyInstallScriptUrl": "https://raw.githubusercontent.com/microsoft/Windows-Containers/Main/helpful_tools/Install-DockerCE/install-docker-ce.ps1"
+  },
+  "sql": {
+    "mode": "Existing",
+    "connectionString": "Server=SQLPROD;Database=Jornada;Integrated Security=true;Encrypt=true;TrustServerCertificate=false",
+    "initializeDatabase": true,
+    "setupExe": "D:\\Installers\\SQL2022\\setup.exe",
+    "edition": "Standard",
+    "instanceName": "MSSQLSERVER",
+    "sqlSysAdminAccounts": [
+      "DOMINIO\\GrupoDBA"
+    ],
+    "productKeyEnvironmentVariable": "JORNADA_SQL_PID",
+    "userDataDirectory": "D:\\Jornada\\SqlData",
+    "userLogDirectory": "E:\\Jornada\\SqlLog",
+    "tempDbDirectory": "D:\\Jornada\\SqlTempDb",
+    "backupDirectory": "E:\\Jornada\\SqlBackup"
+  },
+  "http": {
+    "apiUrls": "http://127.0.0.1:5080",
+    "resultadoUrls": "http://127.0.0.1:5081",
+    "jornadaApiBaseUrl": "http://127.0.0.1:5080"
+  },
+  "runtime": {
+    "environment": {
+      "DOTNET_ENVIRONMENT": "Production",
+      "ASPNETCORE_ENVIRONMENT": "Production",
+      "Processor__PollingMilliseconds": "1000"
+    }
+  },
+  "integrator": {
+    "enabled": false,
+    "gestor": "SEHAB",
+    "accessKey": "CHANGE_ME",
+    "endpoints": {
+      "envio": "https://jornada.prefeitura.gov.br/api/v1/ingestao/entregas",
+      "resultado": "https://jornada.prefeitura.gov.br/api/v1/ingestao/resultados/{nomeArquivo}"
+    },
+    "polling": {
+      "intervalSeconds": 5,
+      "timeoutSeconds": 3600
+    },
+    "diretorioSaida": "resultados"
+  },
+  "taskAccount": {
+    "user": "SYSTEM",
+    "passwordEnvironmentVariable": ""
+  },
+  "tasks": [
+    {
+      "name": "Jornada-Api",
+      "enabled": true,
+      "component": "Api",
+      "trigger": { "type": "AtStartup" },
+      "arguments": [],
+      "environment": {}
+    },
+    {
+      "name": "Jornada-ResultadoApi",
+      "enabled": true,
+      "component": "ResultadoApi",
+      "trigger": { "type": "AtStartup" },
+      "arguments": [],
+      "environment": {}
+    },
+    {
+      "name": "Jornada-Processor",
+      "enabled": true,
+      "component": "Processor",
+      "trigger": { "type": "AtStartup" },
+      "arguments": [],
+      "environment": {}
+    },
+    {
+      "name": "Jornada-OperationsMaintenance",
+      "enabled": true,
+      "component": "OperationsMaintenance",
+      "trigger": { "type": "AtStartup" },
+      "arguments": [],
+      "environment": {}
+    },
+    {
+      "name": "Jornada-BronzeMaintenance",
+      "enabled": true,
+      "component": "BronzeMaintenance",
+      "trigger": { "type": "AtStartup" },
+      "arguments": [],
+      "environment": {}
+    },
+    {
+      "name": "Jornada-Linkage-GenerateDraft",
+      "enabled": false,
+      "component": "LinkageParameters",
+      "trigger": { "type": "Weekly", "days": ["Sunday"], "at": "02:00" },
+      "arguments": [],
+      "environment": {
+        "LinkageParameters__Operation": "GENERATE_DRAFT",
+        "LinkageParameters__RunOnce": "true"
+      }
+    },
+    {
+      "name": "Jornada-Linkage-Incremental",
+      "enabled": false,
+      "component": "LinkageRunner",
+      "trigger": { "type": "Daily", "at": "03:00" },
+      "arguments": ["--mode", "INCREMENTAL", "--publish", "true", "--requested-by", "WINDOWS_TASK", "--reason", "scheduled-production-run"],
+      "environment": {}
+    },
+    {
+      "name": "Jornada-Integrator-EnviarTodos",
+      "enabled": false,
+      "component": "Integrator",
+      "trigger": { "type": "Daily", "at": "01:00" },
+      "arguments": ["--enviar-todos", "--config", "integrador.config.json"],
+      "environment": {}
+    }
+  ]
+}
