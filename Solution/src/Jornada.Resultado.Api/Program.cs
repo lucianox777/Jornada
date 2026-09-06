@@ -63,9 +63,9 @@ internal static class ResultadoNomeArquivo
         var value = raw.Trim();
         if (value.Length > 260
             || !value.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
-            || value.Contains("/", StringComparison.Ordinal)
-            || value.Contains("\\", StringComparison.Ordinal)
-            || value.Contains(":", StringComparison.Ordinal))
+            || value.Contains('/')
+            || value.Contains('\\')
+            || value.Contains(':'))
             throw new ArgumentException("nomeArquivo deve ser o nome exato do ZIP enviado, sem caminho.");
 
         return value;
