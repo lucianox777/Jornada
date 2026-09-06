@@ -1188,8 +1188,8 @@ def main() -> None:
         "ANALYZER CLEANLINESS GATE: OK", "CodeAnalysisTreatWarningsAsErrors", "InvariantCulture", "base.DisposeAsync"
     ], "baseline de warnings de analyzer")
     architecture = json.loads(ARCHITECTURE_POLICY.read_text(encoding="utf-8"))
-    if architecture.get("status") != "VIGENTE" or len(architecture.get("projects") or {}) != 15:
-        fail("architecture-dependencies.json deve cobrir os 15 projetos")
+    if architecture.get("status") != "VIGENTE" or len(architecture.get("projects") or {}) != 18:
+        fail("architecture-dependencies.json deve cobrir os 18 projetos")
     require(OPENAPI_RUNTIME_TESTS.read_text(encoding="utf-8"), [
         '[Category("OpenApiRuntime")]', "Runtime_response_matches_declared_status_media_and_json_shape",
         "Runtime_probe_catalog_covers_every_openapi_operation_once", "/health/ready", "/api/v1/pessoas/{pessoaUuid}/possibilidades"

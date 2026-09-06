@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "VIGENTE",
-  "note": "Matriz exata de ProjectReference permitidos. Jornada.Resultado.Api e Jornada.Integrador.CSharp são projetos de borda sem dependência por ProjectReference do núcleo da plataforma.",
+  "note": "Matriz exata de ProjectReference permitidos. Jornada.Integrador.CSharp é cliente de borda sem dependência do núcleo; Jornada.Resultado.Api depende do adapter Jornada.Operational.Sql; Jornada.Integrador.Tests depende somente do cliente C#.",
   "projects": {
     "Jornada.Contracts": [],
     "Jornada.Bronze.Storage": [],
@@ -77,7 +77,12 @@
       "Jornada.Processor.Worker"
     ],
     "Jornada.Operational.Sql": [],
-    "Jornada.Resultado.Api": [],
-    "Jornada.Integrador.CSharp": []
+    "Jornada.Resultado.Api": [
+      "Jornada.Operational.Sql"
+    ],
+    "Jornada.Integrador.CSharp": [],
+    "Jornada.Integrador.Tests": [
+      "Jornada.Integrador.CSharp"
+    ]
   }
 }
