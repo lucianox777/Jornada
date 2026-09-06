@@ -105,7 +105,7 @@ ParsedPerson Person(ParsedPackage template, string source, string cpf, int versi
     node["codigoPessoaOrigem"] = source;
     node["cpf"] = cpf;
     node["sourceTransactionId"] = $"{source}-TX-{version}";
-    node["nomeCompleto"] = conflicting ? "Pessoa Sintética Divergente" : "Pessoa Sintética de Regressão";
+    node["nomeCompleto"] = conflicting ? "Roberto Almeida" : "Pessoa Sintética de Regressão";
     if (conflicting) node["dataNascimento"] = "1991-02-03";
     var attrs = node["atributosTransversais"]!.AsArray();
     attrs[0]!["sourceRecordId"] = $"{source}-END-{version}";
@@ -117,7 +117,7 @@ ParsedPerson Person(ParsedPackage template, string source, string cpf, int versi
         CodigoPessoaOrigem = source,
         Cpf = cpf,
         SourceTransactionId = $"{source}-TX-{version}",
-        NomeCompleto = conflicting ? "Pessoa Sintética Divergente" : "Pessoa Sintética de Regressão",
+        NomeCompleto = conflicting ? "Roberto Almeida" : "Pessoa Sintética de Regressão",
         DataNascimento = conflicting ? new DateOnly(1991, 2, 3) : original.DataNascimento,
         ConteudoHash = PersonHash(node),
         Atributos = new[] { originalAttribute with
@@ -298,6 +298,19 @@ cases.Add("stale-lease-rollback");
 var conflict = await PrepareAsync();
 var conflictingSource = "PG-CONFLICT-" + runTag;
 var conflictingPerson = Person(conflict.Package, conflictingSource, cpf, conflicting: true);
+// CPF_CORE_CONSISTENCY_V1 requires two independent strong signals:
+// LOW name similarity and a different birth date. The old synthetic
+// names shared a prefix and scored 0.9203, so they were not LOW.
+var existingCore = new IdentityCore(personV1.NomeCompleto, personV1.DataNascimento, personV1.NomeMae);
+var incomingCore = new IdentityCore(conflictingPerson.NomeCompleto, conflictingPerson.DataNascimento, conflictingPerson.NomeMae);
+var assessment = CpfIdentityConsistency.Evaluate(existingCore, incomingCore);
+Check(assessment.IsConflict && assessment.Nome == NameComparisonState.LOW && !assessment.DataNascimentoIgual
+    && assessment.Motivo == CpfIdentityConsistency.SharedCpfSuspectedReason,
+    "A fixture não satisfaz a política canônica de conflito de CPF.");
+Check(!CpfIdentityConsistency.Evaluate(existingCore, existingCore with { DataNascimento = incomingCore.DataNascimento }).IsConflict,
+    "Diferença isolada de nascimento não deve provocar conflito.");
+Check(!CpfIdentityConsistency.Evaluate(existingCore, existingCore with { NomeCompleto = incomingCore.NomeCompleto }).IsConflict,
+    "Diferença isolada de nome não deve provocar conflito.");
 await RunAsync(conflict.Batch, Package(conflict.Package, conflictingPerson));
 Check(await TextAsync("SELECT estado FROM identidade.identity_map WHERE tipo='CPF' AND identificador=@cpf AND vigencia_fim IS NULL", ("@cpf", cpf)) == "EM_CONFLITO",
     "CPF incompatível não suspendeu o mapa determinístico.");
