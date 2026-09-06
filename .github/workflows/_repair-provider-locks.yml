@@ -65,7 +65,7 @@ jobs:
           data['pendingLockCount']=0
           generation=data.setdefault('lockGraphGeneration',{})
           generation['sdk']='8.0.424'
-          generation['command']='targeted provider restore --force-evaluate + solution --locked-mode'
+          generation['command']='dotnet restore Jornada.sln --use-lock-file --force-evaluate'
           generation['diagnosticRunId']='CI_REPAIRED_TRANSITIVE_PROVIDER_LOCKS'
           generation['lockCount']=len(rows)
           generation['nugetLockGate']='PASS'
