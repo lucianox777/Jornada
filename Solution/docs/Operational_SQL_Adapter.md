@@ -4,10 +4,10 @@
 
 A Jornada mantém acesso explícito ao banco operacional, sem Entity Framework e sem tentar esconder diferenças reais entre os SGBDs.
 
-A arquitetura passa a ter duas fronteiras complementares:
+A arquitetura tem duas fronteiras complementares:
 
 - `IOperationalSqlAdapter`: fronteira legada fortemente tipada em `SqlConnection`, preservada para todo o código SQL Server/Fabric já homologado;
-- `IOperationalDatabaseAdapter`: nova fronteira ADO.NET neutra baseada em `DbConnection`, usada por componentes que já possuem implementação multi-provider.
+- `IOperationalDatabaseAdapter`: fronteira ADO.NET neutra baseada em `DbConnection`, usada por componentes que já possuem implementação multi-provider.
 
 A migração é incremental. Nenhum componente existente é obrigado a trocar de provider antes de ter DDL, SQL, concorrência e testes equivalentes no PostgreSQL.
 
@@ -30,7 +30,7 @@ A migração é incremental. Nenhum componente existente é obrigado a trocar de
 
 ## SQL Server / Fabric
 
-`OperationalSqlAdapter` continua implementando `IOperationalSqlAdapter` e agora também implementa `IOperationalDatabaseAdapter`.
+`OperationalSqlAdapter` continua implementando `IOperationalSqlAdapter` e também implementa `IOperationalDatabaseAdapter`.
 
 O comportamento existente não mudou:
 
@@ -39,6 +39,8 @@ O comportamento existente não mudou:
 - sessões dedicadas com `Pooling=false` e `Enlist=false`;
 - `sp_getapplock` e demais construções T-SQL continuam no caminho SQL Server;
 - SQL Database in Microsoft Fabric continua pertencendo à família Microsoft SQL enquanto o protocolo e o T-SQL usados pela Jornada forem compatíveis.
+
+A aplicação não introduz `if (fabric)` na lógica funcional. Não existe comportamento específico de Fabric no adapter Microsoft SQL enquanto nenhuma diferença concreta for demonstrada por teste.
 
 ## PostgreSQL
 
@@ -77,7 +79,9 @@ Os recursos lógicos permanecem os mesmos:
 
 O CI PostgreSQL prova que um job exclusivo impede a aquisição do corpus pelo Processor e que, após a liberação, o Processor volta a adquirir o lock.
 
-## Primeira fatia funcional multi-provider
+## Fatias funcionais multi-provider já implementadas
+
+### Resultado de processamento
 
 `Jornada.Resultado.Api` é o primeiro serviço operacional executado nos dois providers.
 
@@ -88,22 +92,59 @@ Ele usa `IOperationalDatabaseAdapter` e mantém diferenças pequenas de dialeto 
 
 Consultas estruturalmente comuns usam `DbConnection`, `DbCommand`, `DbParameter` e `DbDataReader`.
 
-O workflow `jornada-postgresql-adapter` executa PostgreSQL real em container, aplica o DDL duas vezes para provar idempotência, testa advisory locks e chama o endpoint HTTP de resultado até a leitura das tabelas PostgreSQL.
+### Metadados de ingestão
+
+`PostgreSqlIngestionMetadataStore` implementa no PostgreSQL a parte relacional do recebimento:
+
+- resolve Gestor, `codigoSistemaOrigem`, schema de Pessoa e Tipo/versão;
+- registra atomicamente `ingestao.entrega`, referência Bronze e lote inicial;
+- usa `ON CONFLICT(gestor_id,idempotency_key)` para idempotência;
+- retransmissão do mesmo conteúdo retorna a Entrega original;
+- reutilização da chave para hash/tamanho diferentes é rejeitada.
+
+O objeto Bronze continua sendo persistido pelo `IBronzeObjectStore` antes do registro relacional. A `Jornada.Api` principal ainda não é declarada PostgreSQL porque outros serviços da API continuam SQL Server específicos.
+
+### Reserva do Processor
+
+`PostgreSqlProcessorLeaseStore` implementa o ciclo de lease da fila operacional:
+
+- `FOR UPDATE SKIP LOCKED` substitui semanticamente `UPDLOCK + READPAST` na reserva concorrente;
+- fencing por `lease_id + lease_owner`;
+- heartbeat e renovação do lease;
+- recuperação de lease expirado;
+- retry exponencial / poison;
+- finalização em rejeição ou quarentena;
+- recomposição do estado da Entrega por `ingestao.recalcular_entrega`.
+
+Essa fatia porta **reserva e ciclo de vida do lote**, mas ainda não a materialização Silver/Gold realizada pelo `SqlProcessorRepository`.
+
+## SEHAB no PostgreSQL
+
+O fixture de integração preserva as decisões de contrato da SEHAB:
+
+- Gestor: `SEHAB`;
+- `codigoSistemaOrigem`: `HabitaSampa`;
+- schema de Pessoa: v1;
+- `AA01`: Auxílio Aluguel, Tipo v1;
+- `AE01`: Auxílio Emergencial, Tipo v1;
+- ambos são benefícios distintos e não compartilham regra factual por conveniência.
+
+O CSV real da SEHAB é somente fonte para conversão/teste externo. A fronteira da Jornada continua sendo o ZIP JSON canônico.
 
 ## DDL PostgreSQL atual
 
-O diretório `database/postgresql/` contém neste momento:
+O diretório `database/postgresql/` contém:
 
 - `Jornada_Resultado_Core.sql`;
+- `Jornada_Ingestion_Processor_Core.sql`;
 - `Jornada_Resultado_Core_Smoke.sql`.
 
-Esse DDL representa **somente a primeira fatia operacional necessária à Resultado API e aos testes do adapter**. Ele não é ainda um substituto integral de `database/Jornada_Fase1.sql`.
+Os scripts são reaplicados no CI para provar idempotência. Eles representam somente as fatias já portadas e **não são ainda substituto integral** de `database/Jornada_Fase1.sql`.
 
 Ainda precisam ser portados e testados antes de PostgreSQL poder ser declarado backend completo da Jornada:
 
-- ingestão transacional completa;
-- Processor e reserva concorrente de lotes;
-- Silver;
+- integração da `Jornada.Api` principal com o provider PostgreSQL, incluindo coordenação Bronze;
+- persistência Silver de Pessoa e fatos;
 - Gold;
 - identidade e correções governadas;
 - linkage completo;
