@@ -31,6 +31,7 @@ var sourcePersonJson = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(f
 var sourceFactJson = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(fixture, "registros.jsonl")))!;
 var reference = new DateTimeOffset(2026, 8, 27, 0, 0, 0, TimeSpan.FromHours(-3));
 var runTag = Guid.NewGuid().ToString("N")[..12];
+var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
 var cases = new List<string>();
 var sequence = 0;
 
@@ -351,6 +352,6 @@ var evidence = new
 };
 var evidencePath = Path.Combine(root, ".local", "postgresql-processor-regression", "evidence.json");
 Directory.CreateDirectory(Path.GetDirectoryName(evidencePath)!);
-await File.WriteAllTextAsync(evidencePath, JsonSerializer.Serialize(evidence, new JsonSerializerOptions { WriteIndented = true }));
-Console.WriteLine(JsonSerializer.Serialize(evidence, new JsonSerializerOptions { WriteIndented = true }));
+await File.WriteAllTextAsync(evidencePath, JsonSerializer.Serialize(evidence, jsonOptions));
+Console.WriteLine(JsonSerializer.Serialize(evidence, jsonOptions));
 Console.WriteLine("POSTGRESQL PROCESSOR REGRESSION: OK");
