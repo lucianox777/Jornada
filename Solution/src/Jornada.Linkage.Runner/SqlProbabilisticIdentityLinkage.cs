@@ -15,6 +15,10 @@ namespace Jornada.Linkage.Runner;
 /// data exata, mesmo mês/ano com variação de dia, mesmo dia/ano com variação de mês,
 /// transposição dia/mês e pequena tolerância configurável de ano. Nome/nome da mãe
 /// apenas estreitam os passes mais amplos; não decidem identidade.
+///
+/// Modelos V1 permanecem compatíveis e continuam usando exclusivamente a data completa
+/// exata como bloco. Os passes ampliados só são habilitados quando o modelo publicado
+/// contém os parâmetros V2 de dia/mês/ano.
 /// </summary>
 public sealed class SqlProbabilisticIdentityLinkage(
     IConfiguration configuration,
@@ -60,7 +64,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
             : await LoadModelByIdAsync(modeloId, ct);
 
         modelCache[modeloId] = model;
-        var candidates = await LoadCandidatesAsync(observation, ct);
+        var birthComponentScoring = SupportsBirthComponentScoring(model);
+        var candidates = await LoadCandidatesAsync(observation, birthComponentScoring, ct);
 
         if (candidates.Count == 0)
         {
@@ -73,7 +78,9 @@ public sealed class SqlProbabilisticIdentityLinkage(
                 null,
                 null,
                 model.ModelId,
-                "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_COMPONENTE");
+                birthComponentScoring
+                    ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_COMPONENTE"
+                    : "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO");
         }
 
         var scored = candidates
@@ -138,6 +145,20 @@ public sealed class SqlProbabilisticIdentityLinkage(
             blockCandidateCount,
             observation.DataNascimento,
             candidate.DataNascimento);
+    }
+
+    private static bool SupportsBirthComponentScoring(LinkageModel model)
+    {
+        if (!model.Parameters.TryGetValue("BLOCKING_BIRTH_COMPONENTS_V2", out var enabled) || enabled < 1m)
+            return false;
+
+        var required = new[]
+        {
+            "M_NASC_DIA_EXACT", "M_NASC_DIA_DIFF", "U_NASC_DIA_EXACT", "U_NASC_DIA_DIFF",
+            "M_NASC_MES_EXACT", "M_NASC_MES_DIFF", "U_NASC_MES_EXACT", "U_NASC_MES_DIFF",
+            "M_NASC_ANO_EXACT", "M_NASC_ANO_DIFF", "U_NASC_ANO_EXACT", "U_NASC_ANO_DIFF"
+        };
+        return required.All(model.Parameters.ContainsKey);
     }
 
     private async Task<LinkageModel> LoadActiveModelAsync(CancellationToken ct)
@@ -224,7 +245,10 @@ public sealed class SqlProbabilisticIdentityLinkage(
         return model;
     }
 
-    private async Task<IReadOnlyList<GoldCandidate>> LoadCandidatesAsync(IdentityObservation observation, CancellationToken ct)
+    private async Task<IReadOnlyList<GoldCandidate>> LoadCandidatesAsync(
+        IdentityObservation observation,
+        bool birthComponentScoring,
+        CancellationToken ct)
     {
         // Nunca truncamos silenciosamente um bloco: isso poderia excluir o verdadeiro match.
         // O limite é apenas um guard rail operacional; excedê-lo falha o run e exige
@@ -234,8 +258,6 @@ public sealed class SqlProbabilisticIdentityLinkage(
             1000, 1000000);
 
         var birthDate = observation.DataNascimento;
-        var monthStart = new DateOnly(birthDate.Year, birthDate.Month, 1);
-        var monthEnd = monthStart.AddMonths(1);
 
         await using var connection = await operationalSql.OpenAsync(ct);
         var command = new SqlCommand
@@ -246,79 +268,84 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
         var unionParts = new List<string>
         {
-            // Passo 1: maior recall e baixo volume esperado; nenhuma dependência de nome.
+            // V1 e V2: data completa exata permanece o primeiro passe.
             "SELECT pessoa_uuid, nome_completo, data_nascimento, nome_mae FROM gold.pessoa WHERE data_nascimento=@exact_date"
         };
-
         command.Parameters.Add("@exact_date", SqlDbType.Date).Value = birthDate.ToDateTime(TimeOnly.MinValue);
-        command.Parameters.Add("@month_start", SqlDbType.Date).Value = monthStart.ToDateTime(TimeOnly.MinValue);
-        command.Parameters.Add("@month_end", SqlDbType.Date).Value = monthEnd.ToDateTime(TimeOnly.MinValue);
 
-        var initialPredicates = new List<string>();
-        if (TryInitial(observation.NomeCompleto, out var nameInitial))
+        if (birthComponentScoring)
         {
-            command.Parameters.Add("@nome_inicial", SqlDbType.NVarChar, 1).Value = nameInitial;
-            initialPredicates.Add("LEFT(LTRIM(nome_completo),1)=@nome_inicial");
-        }
-        if (TryInitial(observation.NomeMae, out var motherInitial))
-        {
-            command.Parameters.Add("@mae_inicial", SqlDbType.NVarChar, 1).Value = motherInitial;
-            initialPredicates.Add("LEFT(LTRIM(nome_mae),1)=@mae_inicial");
-        }
+            var monthStart = new DateOnly(birthDate.Year, birthDate.Month, 1);
+            var monthEnd = monthStart.AddMonths(1);
+            command.Parameters.Add("@month_start", SqlDbType.Date).Value = monthStart.ToDateTime(TimeOnly.MinValue);
+            command.Parameters.Add("@month_end", SqlDbType.Date).Value = monthEnd.ToDateTime(TimeOnly.MinValue);
 
-        if (initialPredicates.Count > 0)
-        {
-            var initialFilter = $"({string.Join(" OR ", initialPredicates)})";
+            var initialPredicates = new List<string>();
+            if (TryInitial(observation.NomeCompleto, out var nameInitial))
+            {
+                command.Parameters.Add("@nome_inicial", SqlDbType.NVarChar, 1).Value = nameInitial;
+                initialPredicates.Add("LEFT(LTRIM(nome_completo),1)=@nome_inicial");
+            }
+            if (TryInitial(observation.NomeMae, out var motherInitial))
+            {
+                command.Parameters.Add("@mae_inicial", SqlDbType.NVarChar, 1).Value = motherInitial;
+                initialPredicates.Add("LEFT(LTRIM(nome_mae),1)=@mae_inicial");
+            }
 
-            // Passo 2: ano+mês iguais, permitindo erro no dia.
-            unionParts.Add(
-                $"SELECT pessoa_uuid, nome_completo, data_nascimento, nome_mae FROM gold.pessoa " +
-                $"WHERE data_nascimento>=@month_start AND data_nascimento<@month_end AND {initialFilter}");
+            if (initialPredicates.Count > 0)
+            {
+                var initialFilter = $"({string.Join(" OR ", initialPredicates)})";
 
-            // Passo 3: ano+dia iguais em qualquer mês válido, permitindo erro no mês.
-            var sameDayDates = Enumerable.Range(1, 12)
-                .Select(month => TryDate(birthDate.Year, month, birthDate.Day))
+                // Passo 2: ano+mês iguais, permitindo erro no dia.
+                unionParts.Add(
+                    $"SELECT pessoa_uuid, nome_completo, data_nascimento, nome_mae FROM gold.pessoa " +
+                    $"WHERE data_nascimento>=@month_start AND data_nascimento<@month_end AND {initialFilter}");
+
+                // Passo 3: ano+dia iguais em qualquer mês válido, permitindo erro no mês.
+                var sameDayDates = Enumerable.Range(1, 12)
+                    .Select(month => TryDate(birthDate.Year, month, birthDate.Day))
+                    .Where(x => x.HasValue)
+                    .Select(x => x!.Value)
+                    .Distinct()
+                    .ToArray();
+                var sameDayNames = AddDateParameters(command, "same_day", sameDayDates);
+                if (sameDayNames.Count > 0)
+                {
+                    unionParts.Add(
+                        $"SELECT pessoa_uuid, nome_completo, data_nascimento, nome_mae FROM gold.pessoa " +
+                        $"WHERE data_nascimento IN ({string.Join(",", sameDayNames)}) AND {initialFilter}");
+                }
+            }
+
+            // Passo 4: troca dia/mês (ex.: 05/06 <-> 06/05), quando forma data válida.
+            var swapped = TryDate(birthDate.Year, birthDate.Day, birthDate.Month);
+            if (swapped is { } swappedDate && swappedDate != birthDate)
+            {
+                command.Parameters.Add("@swapped_date", SqlDbType.Date).Value = swappedDate.ToDateTime(TimeOnly.MinValue);
+                unionParts.Add(
+                    "SELECT pessoa_uuid, nome_completo, data_nascimento, nome_mae FROM gold.pessoa WHERE data_nascimento=@swapped_date");
+            }
+
+            // Passo 5: tolerância pequena de ano para erros comuns de digitação/registro.
+            // O ano permanece uma evidência separada no score e, portanto, discordância
+            // não é tratada como identidade automática.
+            var yearTolerance = Math.Clamp(
+                configuration.GetValue("ProbabilisticLinkage:BirthYearTolerance", 1),
+                0, 2);
+            var neighborYearDates = Enumerable.Range(-yearTolerance, yearTolerance * 2 + 1)
+                .Where(offset => offset != 0)
+                .Select(offset => TryDate(birthDate.Year + offset, birthDate.Month, birthDate.Day))
                 .Where(x => x.HasValue)
                 .Select(x => x!.Value)
                 .Distinct()
                 .ToArray();
-            var sameDayNames = AddDateParameters(command, "same_day", sameDayDates);
-            if (sameDayNames.Count > 0)
+            var neighborYearNames = AddDateParameters(command, "neighbor_year", neighborYearDates);
+            if (neighborYearNames.Count > 0)
             {
                 unionParts.Add(
                     $"SELECT pessoa_uuid, nome_completo, data_nascimento, nome_mae FROM gold.pessoa " +
-                    $"WHERE data_nascimento IN ({string.Join(",", sameDayNames)}) AND {initialFilter}");
+                    $"WHERE data_nascimento IN ({string.Join(",", neighborYearNames)})");
             }
-        }
-
-        // Passo 4: troca dia/mês (ex.: 05/06 <-> 06/05), quando forma data válida.
-        var swapped = TryDate(birthDate.Year, birthDate.Day, birthDate.Month);
-        if (swapped is { } swappedDate && swappedDate != birthDate)
-        {
-            command.Parameters.Add("@swapped_date", SqlDbType.Date).Value = swappedDate.ToDateTime(TimeOnly.MinValue);
-            unionParts.Add(
-                "SELECT pessoa_uuid, nome_completo, data_nascimento, nome_mae FROM gold.pessoa WHERE data_nascimento=@swapped_date");
-        }
-
-        // Passo 5: tolerância pequena de ano para erros comuns de digitação/registro.
-        // O ano permanece uma evidência separada no score e, portanto, discordância
-        // não é tratada como identidade automática.
-        var yearTolerance = Math.Clamp(
-            configuration.GetValue("ProbabilisticLinkage:BirthYearTolerance", 1),
-            0, 2);
-        var neighborYearDates = Enumerable.Range(-yearTolerance, yearTolerance * 2 + 1)
-            .Where(offset => offset != 0)
-            .Select(offset => TryDate(birthDate.Year + offset, birthDate.Month, birthDate.Day))
-            .Where(x => x.HasValue)
-            .Select(x => x!.Value)
-            .Distinct()
-            .ToArray();
-        var neighborYearNames = AddDateParameters(command, "neighbor_year", neighborYearDates);
-        if (neighborYearNames.Count > 0)
-        {
-            unionParts.Add(
-                $"SELECT pessoa_uuid, nome_completo, data_nascimento, nome_mae FROM gold.pessoa " +
-                $"WHERE data_nascimento IN ({string.Join(",", neighborYearNames)})");
         }
 
         command.Parameters.Add("@max_plus_one", SqlDbType.Int).Value = maxCandidates + 1;
