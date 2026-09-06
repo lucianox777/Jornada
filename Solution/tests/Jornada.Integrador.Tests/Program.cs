@@ -4,6 +4,12 @@ internal static class Program
     {
         var failures = new List<string>();
 
+        Check(failures, "recognizes /help", JornadaIntegrator.IsHelpRequest(["/help"]));
+        Check(failures, "recognizes --help", JornadaIntegrator.IsHelpRequest(["--help"]));
+        Check(failures, "recognizes -h", JornadaIntegrator.IsHelpRequest(["-h"]));
+        Check(failures, "empty args are not explicit help", !JornadaIntegrator.IsHelpRequest([]));
+        Check(failures, "help with extra args is rejected as explicit help", !JornadaIntegrator.IsHelpRequest(["--help", "extra"]));
+
         Check(
             failures,
             "accepts exact ZIP filename",
