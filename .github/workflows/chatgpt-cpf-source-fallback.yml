@@ -20,7 +20,18 @@ jobs:
         with:
           dotnet-version: '8.0.x'
       - name: Apply transformation
-        run: python3 Solution/scripts/_once_cpf_fallback.py
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Solution/scripts/_once_cpf_fallback.py')
+          text = p.read_text(encoding='utf-8')
+          old = "end = text.index('\\n\\n-- Catálogo de QC por Tipo/Versão.', start)"
+          new = "end = text.index('\\n\\n-- Credenciais no banco guardam somente secret_ref.', start)"
+          if old not in text:
+              raise SystemExit('marcador antigo do seed não encontrado')
+          p.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          python3 Solution/scripts/_once_cpf_fallback.py
       - name: Validate static gates
         working-directory: Solution
         run: |
