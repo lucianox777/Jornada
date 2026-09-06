@@ -40,7 +40,7 @@ O comportamento existente não mudou:
 - `sp_getapplock` e demais construções T-SQL continuam no caminho SQL Server;
 - SQL Database in Microsoft Fabric continua pertencendo à família Microsoft SQL enquanto o protocolo e o T-SQL usados pela Jornada forem compatíveis.
 
-A aplicação não introduz `if (fabric)` na lógica funcional. Não existe comportamento específico de Fabric no adapter Microsoft SQL enquanto nenhuma diferença concreta for demonstrada por teste.
+A aplicação não introduz `if (fabric)` na lógica funcional. Não existe comportamento específico de Fabric no adapter Microsoft SQL enquanto nenhuma diferença concreta for demonstrada por teste. **Não existe `FabricSqlAdapter`**: Fabric reutiliza `OperationalSqlAdapter` e `Microsoft.Data.SqlClient`.
 
 ## PostgreSQL
 
