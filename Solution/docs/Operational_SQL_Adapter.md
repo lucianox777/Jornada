@@ -6,10 +6,10 @@ A Jornada mantém acesso explícito ao banco operacional, sem Entity Framework e
 
 A arquitetura tem duas fronteiras complementares:
 
-- `IOperationalSqlAdapter`: fronteira legada fortemente tipada em `SqlConnection`, preservada para todo o código SQL Server/Fabric já homologado;
-- `IOperationalDatabaseAdapter`: fronteira ADO.NET neutra baseada em `DbConnection`, usada por componentes que já possuem implementação multi-provider.
+- `IOperationalSqlAdapter`: fronteira legada fortemente tipada em `SqlConnection`, preservada para o código SQL Server/Fabric já homologado;
+- `IOperationalDatabaseAdapter`: fronteira ADO.NET neutra baseada em `DbConnection`, usada por componentes que possuem implementação multi-provider.
 
-A migração é incremental. Nenhum componente existente é obrigado a trocar de provider antes de ter DDL, SQL, concorrência e testes equivalentes no PostgreSQL.
+A migração é incremental. Nenhum componente troca de provider antes de ter DDL, SQL, concorrência e testes equivalentes no PostgreSQL.
 
 ## Providers
 
@@ -30,7 +30,7 @@ A migração é incremental. Nenhum componente existente é obrigado a trocar de
 
 ## SQL Server / Fabric
 
-`OperationalSqlAdapter` continua implementando `IOperationalSqlAdapter` e também implementa `IOperationalDatabaseAdapter`.
+`OperationalSqlAdapter` continua implementando `IOperationalSqlAdapter` e também `IOperationalDatabaseAdapter`.
 
 O comportamento existente não mudou:
 
@@ -38,9 +38,9 @@ O comportamento existente não mudou:
 - conexões normais com pooling conforme configuração;
 - sessões dedicadas com `Pooling=false` e `Enlist=false`;
 - `sp_getapplock` e demais construções T-SQL continuam no caminho SQL Server;
-- SQL Database in Microsoft Fabric continua pertencendo à família Microsoft SQL enquanto o protocolo e o T-SQL usados pela Jornada forem compatíveis.
+- SQL Database in Microsoft Fabric permanece na família Microsoft SQL enquanto o protocolo e o T-SQL usados pela Jornada forem compatíveis.
 
-A aplicação não introduz `if (fabric)` na lógica funcional. Não existe comportamento específico de Fabric no adapter Microsoft SQL enquanto nenhuma diferença concreta for demonstrada por teste. **Não existe `FabricSqlAdapter`**: Fabric reutiliza `OperationalSqlAdapter` e `Microsoft.Data.SqlClient`.
+A aplicação não introduz `if (fabric)` na lógica funcional. Não existe `FabricSqlAdapter`: Fabric reutiliza `OperationalSqlAdapter` e `Microsoft.Data.SqlClient`.
 
 ## PostgreSQL
 
@@ -51,7 +51,7 @@ Ele fornece:
 - conexão normal PostgreSQL;
 - sessão dedicada com `Pooling=false` e `Enlist=false`;
 - ciclo de vida assíncrono via `DbConnection`;
-- seleção explícita por `Database:Provider=PostgreSql` nos componentes já portados.
+- seleção explícita por `Database:Provider=PostgreSql` nos componentes portados.
 
 Não existe Entity Framework na implementação PostgreSQL.
 
@@ -79,11 +79,11 @@ Os recursos lógicos permanecem os mesmos:
 
 O CI PostgreSQL prova que um job exclusivo impede a aquisição do corpus pelo Processor e que, após a liberação, o Processor volta a adquirir o lock.
 
-## Fatias funcionais multi-provider já implementadas
+## Fatias funcionais multi-provider implementadas
 
 ### Resultado de processamento
 
-`Jornada.Resultado.Api` é o primeiro serviço operacional executado nos dois providers.
+`Jornada.Resultado.Api` executa nos dois providers.
 
 Ele usa `IOperationalDatabaseAdapter` e mantém diferenças pequenas de dialeto em `ResultadoDatabaseDialect`, por exemplo:
 
@@ -104,9 +104,11 @@ Consultas estruturalmente comuns usam `DbConnection`, `DbCommand`, `DbParameter`
 
 O objeto Bronze continua sendo persistido pelo `IBronzeObjectStore` antes do registro relacional. A `Jornada.Api` principal ainda não é declarada PostgreSQL porque outros serviços da API continuam SQL Server específicos.
 
-### Reserva do Processor
+### Processor PostgreSQL
 
-`PostgreSqlProcessorLeaseStore` implementa o ciclo de lease da fila operacional:
+O Processor possui agora fronteiras neutras para repositório e coordenação, com implementações específicas por provider.
+
+`PostgreSqlProcessorLeaseStore` e seu adapter implementam o ciclo operacional da fila:
 
 - `FOR UPDATE SKIP LOCKED` substitui semanticamente `UPDLOCK + READPAST` na reserva concorrente;
 - fencing por `lease_id + lease_owner`;
@@ -116,43 +118,62 @@ O objeto Bronze continua sendo persistido pelo `IBronzeObjectStore` antes do reg
 - finalização em rejeição ou quarentena;
 - recomposição do estado da Entrega por `ingestao.recalcular_entrega`.
 
-Essa fatia porta **reserva e ciclo de vida do lote**, mas ainda não a materialização Silver/Gold realizada pelo `SqlProcessorRepository`.
+`PostgreSqlProcessorRepository` implementa a persistência transacional do pacote validado:
+
+- versionamento e retransmissão idempotente de Pessoa;
+- resolução determinística por CPF, conflito de identificador e pendência quando o CPF não está disponível;
+- observações Silver de Pessoa, verificação documental e atributos transversais;
+- referência territorial e geografia declarada pela origem;
+- Gold Pessoa com baseline de fonte única/corroborado/divergente;
+- versionamento de fatos de benefício e serviço;
+- QC factual;
+- Gold de benefício/serviço e `serving.registro_integrado`;
+- publicação de `entrega_completa` somente após a Entrega atingir `PROCESSADA`;
+- rollback transacional e fencing do lease antes da publicação final.
+
+A implementação PostgreSQL **não declara paridade do subsistema analítico de Linkage Fellegi–Sunter**. Observações sem CPF permanecem pendentes para o fluxo probabilístico explícito; a portabilidade do Runner/calibração/modelos de Linkage é uma etapa própria.
 
 ## SEHAB no PostgreSQL
 
-O fixture de integração preserva as decisões de contrato da SEHAB:
+O código técnico do sistema de origem segue o mesmo contrato canônico do envelope e do SQL Server:
 
 - Gestor: `SEHAB`;
-- `codigoSistemaOrigem`: `HabitaSampa`;
-- schema de Pessoa: v1;
-- `AA01`: Auxílio Aluguel, Tipo v1;
-- `AE01`: Auxílio Emergencial, Tipo v1;
-- ambos são benefícios distintos e não compartilham regra factual por conveniência.
+- `codigoSistemaOrigem`: `SEHAB`;
+- nome de exibição do sistema: `HabitaSampa`;
+- `codigoSistemaOrigem` aceita somente `A-Z`, `0-9`, `_` e `-`;
+- schema de Pessoa usado no runtime E2E: v2;
+- `AA01`: Auxílio Aluguel, Tipo v1.
 
-O CSV real da SEHAB é somente fonte para conversão/teste externo. A fronteira da Jornada continua sendo o ZIP JSON canônico.
+Os smokes legados de metadados também mantêm AA01/AE01 como Tipos distintos. O CSV real da SEHAB é somente fonte para conversão/teste externo; a fronteira da Jornada continua sendo o ZIP JSON canônico.
 
 ## DDL PostgreSQL atual
 
-O diretório `database/postgresql/` contém:
+O diretório `database/postgresql/` contém, entre outros:
 
 - `Jornada_Resultado_Core.sql`;
 - `Jornada_Ingestion_Processor_Core.sql`;
-- `Jornada_Resultado_Core_Smoke.sql`.
+- `Jornada_Processor_Persistence_Core.sql`;
+- `Jornada_Resultado_Core_Smoke.sql`;
+- `Jornada_Processor_Persistence_Smoke.sql`.
 
-Os scripts são reaplicados no CI para provar idempotência. Eles representam somente as fatias já portadas e **não são ainda substituto integral** de `database/Jornada_Fase1.sql`.
+Os cores são reaplicados no CI para provar idempotência. O workflow PostgreSQL também executa o Worker real com um ZIP canônico na Bronze e exige o caminho:
 
-Ainda precisam ser portados e testados antes de PostgreSQL poder ser declarado backend completo da Jornada:
+```text
+Bronze -> Processor Worker -> Silver -> Identidade -> Gold -> Serving
+```
 
-- integração da `Jornada.Api` principal com o provider PostgreSQL, incluindo coordenação Bronze;
-- persistência Silver de Pessoa e fatos;
-- Gold;
-- identidade e correções governadas;
-- linkage completo;
-- manutenção e retenção;
-- views/Serving/BI dependentes do banco;
+Esse teste usa os schemas reais SEHAB Pessoa v2 e AA01 v1 e valida seus SHA-256 antes da persistência.
+
+Os scripts ainda não são substituto integral de `database/Jornada_Fase1.sql`. Permanecem fora da paridade PostgreSQL completa, principalmente:
+
+- integração da `Jornada.Api` principal com o provider PostgreSQL, incluindo toda a borda de recebimento/autorização;
+- correções governadas completas de identidade;
+- Runner, calibração, modelos e replay do Linkage Fellegi–Sunter;
+- manutenção e retenção integrais;
+- views/BI ainda dependentes de objetos Microsoft SQL não portados;
 - auditoria completa;
-- DDL integral e seeds;
-- testes E2E HTTP → Bronze → Silver → Gold → Serving.
+- DDL/seeds integrais de toda a Solution;
+- E2E HTTP da API principal até Gold/Serving no PostgreSQL.
 
 ## Regra de arquitetura
 
@@ -175,7 +196,7 @@ Database__Provider=SqlServer
 ConnectionStrings__Jornada=<connection string Microsoft SQL>
 ```
 
-PostgreSQL, somente para componentes/fatias já portados:
+PostgreSQL, somente para componentes/fatias portados:
 
 ```text
 Database__Provider=PostgreSql

@@ -8,25 +8,15 @@ FIXTURE="$OUT/fixture"
 PACKAGES="$OUT/packages"
 CID="$(docker ps -q --filter publish=5432 | head -1)"
 DELIVERY_ID='72000000-0000-4000-8000-000000000001'
-BATCH_ID='72000000-0000-4000-8000-000000000002'
 CPF='70819234532'
 RECORD_CODE='E2E-AA01-2026-000001'
 
 test -n "$CID"
 rm -rf "$OUT"
 mkdir -p "$BRONZE" "$FIXTURE" "$PACKAGES"
+cp "$ROOT/tests/fixtures/ingestao/AA01_v2/manifest.json" "$FIXTURE/manifest.json"
 cp "$ROOT/tests/fixtures/ingestao/AA01_v2/pessoas.jsonl" "$FIXTURE/pessoas.jsonl"
 cp "$ROOT/tests/fixtures/ingestao/AA01_v2/registros.jsonl" "$FIXTURE/registros.jsonl"
-
-python3 - "$ROOT/tests/fixtures/ingestao/AA01_v2/manifest.json" "$FIXTURE/manifest.json" <<'PY'
-import json,sys
-src,dst=sys.argv[1:3]
-obj=json.load(open(src,encoding='utf-8'))
-obj['codigoSistemaOrigem']='HabitaSampa'
-with open(dst,'w',encoding='utf-8',newline='\n') as f:
-    json.dump(obj,f,ensure_ascii=False,indent=2)
-    f.write('\n')
-PY
 
 package="$(python3 "$ROOT/scripts/build-ingestion-fixture.py" --fixture "$FIXTURE" --gestor SEHAB --output-dir "$PACKAGES")"
 filename="$(basename "$package")"
@@ -46,8 +36,10 @@ INSERT INTO ref.gestor(codigo,nome)
 VALUES('SEHAB','Secretaria Municipal de Habitação')
 ON CONFLICT(codigo) DO UPDATE SET nome=EXCLUDED.nome,ativo=TRUE;
 
+-- codigoSistemaOrigem é identificador técnico canônico (A-Z/0-9/_/-).
+-- HabitaSampa permanece apenas o nome de exibição do sistema finalístico.
 INSERT INTO ref.sistema_origem(gestor_id,codigo,nome)
-SELECT gestor_id,'HabitaSampa','HabitaSampa' FROM ref.gestor WHERE codigo='SEHAB'
+SELECT gestor_id,'SEHAB','HabitaSampa' FROM ref.gestor WHERE codigo='SEHAB'
 ON CONFLICT(gestor_id,codigo) DO UPDATE SET nome=EXCLUDED.nome,ativo=TRUE;
 
 INSERT INTO ref.gestor_pessoa_versao(gestor_id,versao)
@@ -99,7 +91,7 @@ SELECT
     :'package_sha',:'package_size'::bigint,'RECEBIDA','2026-08-27T00:00:00-03:00'::timestamptz,
     CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
 FROM ref.gestor g
-JOIN ref.sistema_origem so ON so.gestor_id=g.gestor_id AND so.codigo='HabitaSampa'
+JOIN ref.sistema_origem so ON so.gestor_id=g.gestor_id AND so.codigo='SEHAB'
 JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id AND gpv.versao=2
 JOIN ref.tipo_registro tr ON tr.codigo='AA01'
 JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_id=tr.tipo_registro_id AND trv.versao=1
@@ -190,6 +182,8 @@ json.dump({
   'generatedAtUtc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
   'databaseProvider':'PostgreSql',
   'deliveryId':delivery,
+  'codigoSistemaOrigem':'SEHAB',
+  'sistemaOrigemNome':'HabitaSampa',
   'packageSha256':sha,
   'canonicalFileName':filename,
   'layers':['Bronze','Processor Worker','Silver','Identidade','Gold','Serving'],

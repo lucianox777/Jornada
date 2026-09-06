@@ -153,7 +153,7 @@ jobs:
 
       - name: Prove Resultado API on PostgreSQL
         run: |
-          NAME='ENTREGA_SEHAB_HabitaSampa_v2_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.zip'
+          NAME='ENTREGA_SEHAB_SEHAB_v2_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.zip'
           curl -fsS "http://127.0.0.1:5098/api/v1/ingestao/resultados/$NAME" \
             -H 'X-Jornada-Gestor: SEHAB' \
             -H 'X-Jornada-Access-Key: synthetic-ci-key' \
@@ -161,7 +161,7 @@ jobs:
           jq -e '.databaseProvider == "PostgreSql"' .local/postgresql-e2e/result.json
           jq -e '.finalizado == true' .local/postgresql-e2e/result.json
           jq -e '.entrega.gestor == "SEHAB"' .local/postgresql-e2e/result.json
-          jq -e '.entrega.codigoSistemaOrigem == "HabitaSampa"' .local/postgresql-e2e/result.json
+          jq -e '.entrega.codigoSistemaOrigem == "SEHAB"' .local/postgresql-e2e/result.json
           jq -e '.entrega.codigoTipo == "AA01"' .local/postgresql-e2e/result.json
           jq -e '.processamento.itensDetalhadosDisponiveis == 2' .local/postgresql-e2e/result.json
           jq -e '.processamento.itensConsolidados == 3' .local/postgresql-e2e/result.json

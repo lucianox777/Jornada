@@ -13,7 +13,7 @@ internal static class Program
         Check(
             failures,
             "accepts exact ZIP filename",
-            JornadaIntegrator.ValidateZipFileName("ENTREGA_SEHAB_HabitaSampa_v2_exemplo.zip") == "ENTREGA_SEHAB_HabitaSampa_v2_exemplo.zip");
+            JornadaIntegrator.ValidateZipFileName("ENTREGA_SEHAB_SEHAB_v2_exemplo.zip") == "ENTREGA_SEHAB_SEHAB_v2_exemplo.zip");
 
         Check(failures, "rejects SHA-256", ThrowsArgument(() => JornadaIntegrator.ValidateZipFileName(new string('a', 64))));
         Check(failures, "rejects Unix path", ThrowsArgument(() => JornadaIntegrator.ValidateZipFileName("/tmp/entrega.zip")));
@@ -35,14 +35,14 @@ internal static class Program
         var parsed = JornadaIntegrator.ParseArgs(new[]
         {
             "--resultado",
-            "ENTREGA_SEHAB_HabitaSampa_v2_exemplo.zip",
+            "ENTREGA_SEHAB_SEHAB_v2_exemplo.zip",
             "--config",
             "config.json",
             "--saida",
             "resultado.json"
         });
         Check(failures, "parses result command", parsed.Mode == "--resultado");
-        Check(failures, "parses ZIP filename", parsed.Value == "ENTREGA_SEHAB_HabitaSampa_v2_exemplo.zip");
+        Check(failures, "parses ZIP filename", parsed.Value == "ENTREGA_SEHAB_SEHAB_v2_exemplo.zip");
         Check(failures, "parses config path", parsed.ConfigPath == "config.json");
         Check(failures, "parses output path", parsed.OutputPath == "resultado.json");
 

@@ -13,7 +13,7 @@ static PostgreSqlIngestionMetadataRequest Request(
     char hashChar,
     long bytes) => new(
         "SEHAB",
-        "HabitaSampa",
+        "SEHAB",
         1,
         "BENEFICIO",
         type,
@@ -22,7 +22,7 @@ static PostgreSqlIngestionMetadataRequest Request(
         new string(hashChar, 64),
         bytes,
         new DateTimeOffset(2026, 7, 17, 0, 0, 0, TimeSpan.Zero),
-        $"ENTREGA_SEHAB_HabitaSampa_v2_{new string(hashChar, 64)}.zip",
+        $"ENTREGA_SEHAB_SEHAB_v2_{new string(hashChar, 64)}.zip",
         $"sha256/{hashChar}{hashChar}/{new string(hashChar, 64)}",
         new string(hashChar, 64),
         bytes);
@@ -69,8 +69,8 @@ if (r1.LoteId == r2.LoteId)
 var types = new HashSet<string?>(reserved.Select(x => x!.CodigoTipo), StringComparer.Ordinal);
 if (!types.SetEquals(new string?[] { "AA01", "AE01" }))
     throw new InvalidOperationException("Reservas não preservaram AA01 e AE01 como Tipos distintos.");
-if (reserved.Any(x => x!.CodigoSistemaOrigem != "HabitaSampa" || x.PessoaSchemaVersao != 1 || x.TipoVersao != 1))
-    throw new InvalidOperationException("Reserva perdeu HabitaSampa/schema v1.");
+if (reserved.Any(x => x!.CodigoSistemaOrigem != "SEHAB" || x.PessoaSchemaVersao != 1 || x.TipoVersao != 1))
+    throw new InvalidOperationException("Reserva perdeu codigoSistemaOrigem=SEHAB/schema v1.");
 
 if (await leases.ReserveNextAsync("pg-worker-c", TimeSpan.FromMinutes(2)) is not null)
     throw new InvalidOperationException("Não deveria existir terceiro lote pendente.");
