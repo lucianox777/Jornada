@@ -7,6 +7,7 @@ on:
       - 'Solution/Directory.Build.props'
       - 'Solution/src/Jornada.Operational.Sql/**'
       - 'Solution/src/Jornada.Pipeline.Coordination/**'
+      - 'Solution/src/Jornada.Processor.Worker/**'
       - 'Solution/src/Jornada.Resultado.Api/**'
       - 'Solution/database/postgresql/**'
       - 'Solution/scripts/postgresql-adapter-smoke.cs'
@@ -18,6 +19,7 @@ on:
       - 'Solution/Directory.Build.props'
       - 'Solution/src/Jornada.Operational.Sql/**'
       - 'Solution/src/Jornada.Pipeline.Coordination/**'
+      - 'Solution/src/Jornada.Processor.Worker/**'
       - 'Solution/src/Jornada.Resultado.Api/**'
       - 'Solution/database/postgresql/**'
       - 'Solution/scripts/postgresql-adapter-smoke.cs'
@@ -61,23 +63,29 @@ jobs:
         run: |
           dotnet restore src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj --locked-mode
           dotnet restore src/Jornada.Pipeline.Coordination/Jornada.Pipeline.Coordination.csproj --locked-mode
+          dotnet restore src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj --locked-mode
           dotnet restore src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj --locked-mode
 
       - name: Build PostgreSQL-capable components
         run: |
           dotnet build src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj -c Release --no-restore -warnaserror
           dotnet build src/Jornada.Pipeline.Coordination/Jornada.Pipeline.Coordination.csproj -c Release --no-restore -warnaserror
+          dotnet build src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj -c Release --no-restore -warnaserror
           dotnet build src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj -c Release --no-restore -warnaserror
 
-      - name: Apply PostgreSQL operational core and smoke fixture
+      - name: Apply PostgreSQL operational and materialization cores twice
         run: |
           CID=$(docker ps -q --filter publish=5432 | head -1)
           test -n "$CID"
-          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core.sql
-          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Ingestion_Processor_Core.sql
-          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core.sql
-          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Ingestion_Processor_Core.sql
+          for PASS in 1 2; do
+            echo "DDL idempotency pass $PASS"
+            docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core.sql
+            docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Ingestion_Processor_Core.sql
+            docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Materialization_Core.sql
+          done
           docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core_Smoke.sql
+          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Materialization_Core_Smoke.sql \
+            | tee .local/postgresql-materialization-smoke.txt
 
       - name: Run PostgreSQL adapter and advisory-lock smoke
         run: |
@@ -164,6 +172,7 @@ jobs:
           path: |
             Solution/.local/postgresql-e2e
             Solution/.local/postgresql-ingestion-processor-smoke
+            Solution/.local/postgresql-materialization-smoke.txt
           if-no-files-found: ignore
           include-hidden-files: true
           retention-days: 30
