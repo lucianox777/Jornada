@@ -22,7 +22,11 @@ var options = new ProcessorOptions
 var repositoryRoot = FindRepositoryRoot(builder.Environment.ContentRootPath);
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
+var databaseProvider = builder.Configuration["Database:Provider"] ?? OperationalDatabaseProviders.SqlServer;
+var operationalDatabase = OperationalDatabaseAdapterFactory.Create(databaseProvider, jornadaConnectionString);
+
 builder.Services.AddSingleton(options);
+builder.Services.AddSingleton<IOperationalDatabaseAdapter>(operationalDatabase);
 builder.Services.AddSingleton<IBronzeObjectStore>(_ =>
 {
     var provider = builder.Configuration["BronzeStorage:Provider"] ?? "FileSystem";
@@ -40,24 +44,53 @@ builder.Services.AddSingleton<IBronzeObjectStore>(_ =>
     return new FileSystemBronzeObjectStore(root);
 });
 
-var operationalSql = new OperationalSqlAdapter(jornadaConnectionString);
-builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
-var pipelineCoordinator = new SqlPipelineCoordinator(
-    operationalSql,
-    TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("PipelineCoordination:HeartbeatSeconds", 5))),
-    TimeSpan.FromSeconds(Math.Max(1, builder.Configuration.GetValue("PipelineCoordination:ExclusiveIntentTimeoutSeconds", 5))));
-builder.Services.AddSingleton(pipelineCoordinator);
-builder.Services.AddSingleton<IProcessorPipelineCoordinator>(
-    new SqlProcessorPipelineCoordinatorAdapter(pipelineCoordinator));
+var coordinationHeartbeat = TimeSpan.FromSeconds(Math.Max(5,
+    builder.Configuration.GetValue("PipelineCoordination:HeartbeatSeconds", 5)));
+var exclusiveIntentTimeout = TimeSpan.FromSeconds(Math.Max(1,
+    builder.Configuration.GetValue("PipelineCoordination:ExclusiveIntentTimeoutSeconds", 5)));
+
 builder.Services.AddSingleton(new ProcessorRuntimeIdentity(
     $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}"));
-builder.Services.AddSingleton<IIdentityMapRepository, SqlIdentityMapRepository>();
-builder.Services.AddSingleton<SqlProcessorRepository>();
-builder.Services.AddSingleton<IProcessorRepository>(sp =>
-    new SqlProcessorRepositoryAdapter(sp.GetRequiredService<SqlProcessorRepository>()));
 builder.Services.AddSingleton<RegistryQualityEngine>();
 builder.Services.AddSingleton<IRegistryQualityEvaluator>(_ => new PositiveGrantedValueRegistryQcEvaluator("AA01", 1));
 builder.Services.AddSingleton<IRegistryQualityEvaluator>(_ => new PositiveGrantedValueRegistryQcEvaluator("POT1", 1));
+
+if (string.Equals(operationalDatabase.Provider, OperationalDatabaseProviders.SqlServer, StringComparison.Ordinal))
+{
+    var operationalSql = operationalDatabase as IOperationalSqlAdapter
+        ?? throw new InvalidOperationException("Provider SqlServer não expôs IOperationalSqlAdapter.");
+    builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
+
+    var pipelineCoordinator = new SqlPipelineCoordinator(
+        operationalSql, coordinationHeartbeat, exclusiveIntentTimeout);
+    builder.Services.AddSingleton(pipelineCoordinator);
+    builder.Services.AddSingleton<IProcessorPipelineCoordinator>(
+        new SqlProcessorPipelineCoordinatorAdapter(pipelineCoordinator));
+    builder.Services.AddSingleton<IIdentityMapRepository, SqlIdentityMapRepository>();
+    builder.Services.AddSingleton<SqlProcessorRepository>();
+    builder.Services.AddSingleton<IProcessorRepository>(sp =>
+        new SqlProcessorRepositoryAdapter(sp.GetRequiredService<SqlProcessorRepository>()));
+}
+else if (string.Equals(operationalDatabase.Provider, OperationalDatabaseProviders.PostgreSql, StringComparison.Ordinal))
+{
+    var pipelineCoordinator = new PostgreSqlPipelineCoordinator(
+        operationalDatabase, coordinationHeartbeat, exclusiveIntentTimeout);
+    builder.Services.AddSingleton(pipelineCoordinator);
+    builder.Services.AddSingleton<IProcessorPipelineCoordinator>(
+        new PostgreSqlProcessorPipelineCoordinatorAdapter(pipelineCoordinator));
+
+    builder.Services.AddSingleton<PostgreSqlProcessorLeaseStore>();
+    builder.Services.AddSingleton<PostgreSqlProcessorLeaseRepositoryAdapter>();
+    builder.Services.AddSingleton<PostgreSqlProcessorRepository>();
+    builder.Services.AddSingleton<IProcessorRepository>(sp =>
+        sp.GetRequiredService<PostgreSqlProcessorRepository>());
+    builder.Services.AddSingleton<IIdentityMapRepository, PostgreSqlIdentityMapRepository>();
+}
+else
+{
+    throw new InvalidOperationException($"Database:Provider não suportado pelo Processor: {operationalDatabase.Provider}.");
+}
+
 builder.Services.AddSingleton(_ => new IngestionPackageParser(repositoryRoot, options));
 builder.Services.AddSingleton<IngestionProcessor>();
 builder.Services.AddHostedService<ProcessorWorker>();
