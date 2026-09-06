@@ -1,0 +1,137 @@
+{
+  "arquivo": {
+    "nome": "DADOS_SEHAB_20240717.zip",
+    "sha256": "305d577839dacf7e3cf09046cfa9b4b58c9793a5b862b896e971578326fbd548",
+    "size_bytes": 35535424,
+    "entradas": 16,
+    "uncompressed_bytes": 179427484
+  },
+  "checks": {
+    "snapshot_16_arquivos": true,
+    "snapshot_row_counts": true,
+    "zip_raw_e_envelope_jornada_v2": false,
+    "motivo_zip_raw_nao_canonico": "arquivo possui 16 CSVs; contrato Jornada exige exatamente manifest.json, pessoas.jsonl e registros.jsonl na raiz",
+    "contrato_pessoa_sehab_existe": true,
+    "contrato_AA01_existe": true,
+    "contrato_AE01_existe": false,
+    "release_declara_pagamento_nao_implementado": true
+  },
+  "datasets": {
+    "row_counts": {
+      "beneficios_cencedidos_aa.csv": 2484518,
+      "beneficios_cencedidos_ce.csv": 6410,
+      "con_cbp_aa.csv": 48679,
+      "con_contatos_emails_aa.csv": 18097,
+      "con_contatos_emails_ce.csv": 34,
+      "con_contatos_endereco_aa.csv": 48688,
+      "con_contatos_endereco_ce.csv": 1060,
+      "con_contatos_telefones_aa.csv": 43967,
+      "con_contatos_telefones_ce.csv": 1325,
+      "con_informações_complementares_aa.csv": 48670,
+      "con_informações_complementares_ce.csv": 1060,
+      "con_relações_familiares_aa.csv": 59323,
+      "con_relações_familiares_ce.csv": 242,
+      "dados_base_central_aa.csv": 45774,
+      "dados_base_central_ce.csv": 6828,
+      "dados_cbp_ce.csv": 5947
+    },
+    "AA01": {
+      "base": {
+        "linhas": 45774,
+        "beneficiarios_unicos": 45774,
+        "linhas_repetidas_por_cpf": 0,
+        "codigos": { "AA01": 45774 },
+        "nomes": { "Auxílio Aluguel": 45774 },
+        "inicio_vigencia_preenchido": 45774,
+        "fim_vigencia_preenchido": 0,
+        "valor_nao_parseavel": 0
+      },
+      "pessoas": {
+        "beneficiarios_unicos": 45774,
+        "core_pessoa_compativel_sem_inventar_dado": 45639,
+        "core_pessoa_incompativel": 135,
+        "motivos": {
+          "SEM_CBP": 25,
+          "NOME_MAE_AUSENTE": 109,
+          "NASCIMENTO_AUSENTE_OU_INVALIDO": 3
+        },
+        "cpfs_duplicados_no_cbp": 0,
+        "conflitos_entre_linhas_cbp_duplicadas": {}
+      },
+      "pagamentos": {
+        "linhas": 2484518,
+        "cpfs_unicos": 45776,
+        "numeros_beneficio_unicos": 45776,
+        "pares_cpf_numero_unicos": 45776,
+        "status": {
+          "Atendido": 335174,
+          "Excluido": 521262,
+          "Ativo": 1618725,
+          "Bloqueado": 9345,
+          "Excluido_sem_aa": 12
+        },
+        "campos_vazios": { "bene_dt_pagamento": 173 },
+        "quantidade_numeros_beneficio_por_cpf": { "1": 45776 },
+        "competencia_min": "201501",
+        "competencia_max": "202407"
+      },
+      "chave_pagamento_vs_base": {
+        "beneficiarios_base_sem_numero_beneficio": 0,
+        "cpfs_pagamento_fora_base": 2
+      }
+    },
+    "AE01": {
+      "base": {
+        "linhas": 6828,
+        "beneficiarios_unicos": 5492,
+        "linhas_repetidas_por_cpf": 1336,
+        "codigos": { "AE01": 6828 },
+        "nomes": { "Auxílio Emergencial R$ 1.000,00": 6828 },
+        "inicio_vigencia_preenchido": 5928,
+        "fim_vigencia_preenchido": 5928,
+        "valor_nao_parseavel": 0
+      },
+      "pessoas": {
+        "beneficiarios_unicos": 5492,
+        "core_pessoa_compativel_sem_inventar_dado": 2673,
+        "core_pessoa_incompativel": 2819,
+        "motivos": {
+          "NOME_MAE_AUSENTE": 2800,
+          "SEM_CBP": 19
+        },
+        "cpfs_duplicados_no_cbp": 424,
+        "conflitos_entre_linhas_cbp_duplicadas": {
+          "cbp_pes_nome": 3,
+          "cbp_pes_nom_mae": 1
+        }
+      },
+      "pagamentos": {
+        "linhas": 6410,
+        "cpfs_unicos": 5492,
+        "numeros_beneficio_unicos": 5954,
+        "pares_cpf_numero_unicos": 5954,
+        "status": { "Não se aplica": 6410 },
+        "campos_vazios": {},
+        "quantidade_numeros_beneficio_por_cpf": {
+          "1": 5077,
+          "2": 368,
+          "3": 47
+        },
+        "competencia_min": "202212",
+        "competencia_max": "202407"
+      },
+      "chave_pagamento_vs_base": {
+        "beneficiarios_base_sem_numero_beneficio": 0,
+        "beneficiarios_com_multiplos_numeros_beneficio": 415
+      }
+    }
+  },
+  "conclusoes": [
+    "O ZIP SEHAB 2024-07-17 não pode ser enviado diretamente à Jornada: precisa de adapter/exportador para o envelope v2.",
+    "AA01 já possui contrato factual, porém a origem não fornece situacaoVigencia de concessão no dados_base_central_aa.csv; inferi-la a partir do status de pagamento alteraria semântica e não é feito no teste as-is.",
+    "AE01 aparece na origem, mas não existe contrato config/contracts/registros/AE01 na Solution v4.05.",
+    "Os CSVs beneficios_cencedidos_* são fatos de pagamento/competência. A release v4.05 declara pagamento/recebimento como escopo conceitual não implementado na Fase 1.",
+    "Parte dos beneficiários não satisfaz o núcleo obrigatório de Pessoa sem inventar dados, principalmente nome da mãe; esses casos devem ser rejeitados/retificados ou a regra normativa deve ser revista formalmente.",
+    "Campos adicionais da origem (RG, gênero, raça, relações familiares etc.) não fazem parte automaticamente do núcleo/transversais atuais; preservá-los na Jornada exige decisão de contrato/catálogo, não descarte silencioso."
+  ]
+}
