@@ -104,7 +104,7 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
         }
         catch
         {
-            await tx.RollbackAsync(CancellationToken.None);
+            await PostgreSqlPersistenceSupport.RollbackPreservingOriginalAsync(tx);
             throw;
         }
     }
@@ -689,7 +689,7 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
         parameter.ParameterName = name;
         parameter.DbType = type;
         if (size.HasValue) parameter.Size = size.Value;
-        parameter.Value = value ?? DBNull.Value;
+        parameter.Value = PostgreSqlPersistenceSupport.NormalizeParameterValue(type, value);
         command.Parameters.Add(parameter);
         return parameter;
     }
@@ -702,7 +702,7 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
         var raw = reader.GetValue(ordinal);
         return raw switch
         {
-            DateTimeOffset dto => dto,
+            DateTimeOffset dto => dto.ToUniversalTime(),
             DateTime dt => new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc)),
             _ => throw new InvalidCastException($"Valor temporal PostgreSQL inesperado: {raw.GetType().FullName}.")
         };
