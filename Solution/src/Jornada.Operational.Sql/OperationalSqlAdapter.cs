@@ -1,39 +1,32 @@
+using System.Data.Common;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Operational.Sql;
 
 /// <summary>
-/// Fronteira única entre os componentes operacionais da Jornada e a família Microsoft SQL.
+/// Fronteira legada fortemente tipada para a família Microsoft SQL.
 ///
-/// A abstração é intencionalmente estreita: SQL Server e SQL Database in Microsoft Fabric usam
-/// o mesmo protocolo/driver e o mesmo T-SQL de aplicação na maior parte do núcleo. Diferenças reais
-/// de plataforma devem ser encapsuladas aqui (ou em adaptadores especializados) somente quando forem
-/// demonstradas por teste, sem introduzir branches de plataforma na lógica funcional.
+/// Novos componentes portáveis devem preferir IOperationalDatabaseAdapter. Esta interface permanece
+/// para que a migração para múltiplos providers seja incremental e não altere o comportamento SQL Server
+/// já homologado.
 /// </summary>
 public interface IOperationalSqlAdapter
 {
-    /// <summary>Cria uma conexão normal, preservando as propriedades configuradas pelo ambiente.</summary>
     SqlConnection CreateConnection();
 
-    /// <summary>
-    /// Cria uma sessão dedicada sem pooling e sem alistamento automático. Use para locks com
-    /// LockOwner='Session' e outros mecanismos cuja vida deve coincidir com a sessão física.
-    /// </summary>
     SqlConnection CreateDedicatedSessionConnection();
 
-    /// <summary>Cria e abre uma conexão normal.</summary>
     Task<SqlConnection> OpenAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Cria e abre uma sessão dedicada.</summary>
     Task<SqlConnection> OpenDedicatedSessionAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>
-/// Adapter operacional Microsoft SQL. Nesta versão existe uma única implementação para SQL Server;
-/// a mesma fronteira será usada no teste de compatibilidade com SQL Database in Microsoft Fabric.
-/// Não existe comportamento específico de Fabric enquanto uma diferença concreta não for comprovada.
+/// Adapter operacional Microsoft SQL. Atende a interface legada fortemente tipada e a nova fronteira
+/// ADO.NET neutra. SQL Database in Microsoft Fabric continua usando este provider enquanto mantiver
+/// compatibilidade com o protocolo/driver Microsoft SQL.
 /// </summary>
-public sealed class OperationalSqlAdapter : IOperationalSqlAdapter
+public sealed class OperationalSqlAdapter : IOperationalSqlAdapter, IOperationalDatabaseAdapter
 {
     private readonly string connectionString;
     private readonly string dedicatedSessionConnectionString;
@@ -53,6 +46,8 @@ public sealed class OperationalSqlAdapter : IOperationalSqlAdapter
         };
         dedicatedSessionConnectionString = dedicated.ConnectionString;
     }
+
+    public string Provider => OperationalDatabaseProviders.SqlServer;
 
     public SqlConnection CreateConnection() => new(connectionString);
 
@@ -87,4 +82,14 @@ public sealed class OperationalSqlAdapter : IOperationalSqlAdapter
             throw;
         }
     }
+
+    DbConnection IOperationalDatabaseAdapter.CreateConnection() => CreateConnection();
+
+    DbConnection IOperationalDatabaseAdapter.CreateDedicatedSessionConnection() => CreateDedicatedSessionConnection();
+
+    async Task<DbConnection> IOperationalDatabaseAdapter.OpenAsync(CancellationToken cancellationToken) =>
+        await OpenAsync(cancellationToken);
+
+    async Task<DbConnection> IOperationalDatabaseAdapter.OpenDedicatedSessionAsync(CancellationToken cancellationToken) =>
+        await OpenDedicatedSessionAsync(cancellationToken);
 }
