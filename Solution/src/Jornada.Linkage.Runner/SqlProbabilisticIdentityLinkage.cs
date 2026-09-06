@@ -238,8 +238,9 @@ public sealed class SqlProbabilisticIdentityLinkage(
         var monthEnd = monthStart.AddMonths(1);
 
         await using var connection = await operationalSql.OpenAsync(ct);
-        var command = new SqlCommand(connection)
+        var command = new SqlCommand
         {
+            Connection = connection,
             CommandTimeout = Math.Max(1, configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900))
         };
 
