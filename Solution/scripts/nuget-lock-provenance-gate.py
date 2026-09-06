@@ -73,8 +73,16 @@ def main() -> int:
             for project_key, entry in graph.items():
                 if not isinstance(entry,dict) or entry.get('type') != 'Project': continue
                 project=projects.get(project_key.lower())
-                if project is not None and entry.get('dependencies',{}) != deps(project):
-                    fail(f'metadata Project diverge do csproj: {rel} -> {project_key}')
+                if project is None:
+                    fail(f'entrada Project sem csproj correspondente: {rel} -> {project_key}')
+                declared=deps(project)
+                # NuGet não promete repetir, na entrada Project do consumidor, todo PackageReference
+                # do projeto referenciado. Exige-se, porém, que todo metadado que ele decidiu registrar
+                # seja declarado pelo csproj e preserve exatamente a versão/range gerado pelo SDK.
+                observed=entry.get('dependencies',{}) or {}
+                unexpected={k:v for k,v in observed.items() if declared.get(k) != v}
+                if unexpected:
+                    fail(f'metadata Project contém dependência não declarada/divergente: {rel} -> {project_key}: {unexpected}')
 
     req='\n'.join(data.get('promotionRequirements') or [])
     for token in ('8.0.424','--force-evaluate','nuget-lock-provenance-gate.py','--locked-mode','Unit + Integration da v4.05'):
