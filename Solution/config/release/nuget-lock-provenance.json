@@ -17,12 +17,20 @@
   "lockGraphGeneration": {
     "sdk": "8.0.424",
     "command": "dotnet restore Jornada.sln --use-lock-file --force-evaluate",
-    "diagnosticRunId": "CI_REGENERATED_ON_CANDIDATE_V405",
-    "lockCount": 15,
+    "diagnosticRunId": "CI_REGENERATED_ON_CANDIDATE_V405_PLUS_INTEGRADOR",
+    "lockCount": 17,
     "nugetLockGate": "PASS",
-    "combinedSha256": "54ab67b512dacaef757844610d26643891f91f0b34aa72b72c81b2beecf9c6d7"
+    "combinedSha256": "2f462aee8d5bd000d40a6cc247dcd4afda8dc1a660c40632484f78079629f45d"
   },
   "locks": [
+    {
+      "path": "clients/Jornada.Integrador.CSharp/packages.lock.json",
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "sourceSha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
+      "sha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
+      "note": "Projeto sem PackageReference externo; lock estrutural net8.0 validado e compilado em workflow próprio.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
+    },
     {
       "path": "src/Jornada.Api/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
@@ -128,6 +136,14 @@
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
+      "path": "src/Jornada.Resultado.Api/packages.lock.json",
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "sourceSha256": "ff4450a4d1e91d4e5d96dafa98309a4d67562bc46f520d23bd175c10188eeb27",
+      "sha256": "ff4450a4d1e91d4e5d96dafa98309a4d67562bc46f520d23bd175c10188eeb27",
+      "note": "Mesmo grafo direto Microsoft.Data.SqlClient 5.2.2 do adapter SQL; compilado em workflow próprio com --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
+    },
+    {
       "path": "tests/Jornada.Integration.Tests/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
       "sourceSha256": "5045efa5b94af6679fc218ec8a2c633de50d9ee1683a7cead65ffb01a03977d7",
@@ -152,6 +168,7 @@
     "dotnet restore Jornada.sln --locked-mode",
     "dotnet build Jornada.sln -c Release --no-restore",
     "executar Unit + Integration da v4.05 após o locked restore",
+    "executar workflow jornada-integrador para Jornada.Resultado.Api e clientes C#/Python",
     "executar scripts/fabric-sql-compatibility.ps1 ou .sh quando houver ambiente Fabric e for necessária nova homologação",
     "release tag promotion must fail if force-evaluate changes or locked restore rejects the committed graph"
   ],

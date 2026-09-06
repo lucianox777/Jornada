@@ -9,6 +9,7 @@ ORIGIN='REGENERATED_OR_VERIFIED_V405_SDK_8_0_424'
 STATUS='CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405'
 ASSURANCE='CI_REGENERATED_AND_REPRODUCIBLE_LOCK_GRAPH'
 GRAPH='SDK_8_0_424_FORCE_EVALUATED_NO_DIFF_THEN_LOCKED_MODE'
+EXPECTED_LOCK_COUNT=17
 
 def fail(msg: str) -> None:
     raise SystemExit(f'NUGET LOCK PROVENANCE GATE: FAIL: {msg}')
@@ -38,7 +39,7 @@ def main() -> int:
     gen=data.get('lockGraphGeneration') or {}
     if gen.get('sdk') != SDK or gen.get('command') != 'dotnet restore Jornada.sln --use-lock-file --force-evaluate':
         fail('geração de locks não fixa SDK/comando canônicos')
-    if gen.get('nugetLockGate') != 'PASS' or gen.get('lockCount') != 15:
+    if gen.get('nugetLockGate') != 'PASS' or gen.get('lockCount') != EXPECTED_LOCK_COUNT:
         fail('evidência de geração dos locks incompleta')
 
     actual=sorted(
@@ -85,5 +86,5 @@ def main() -> int:
     print(f'NUGET LOCK PROVENANCE GATE: OK ({len(actual)} locks; SDK {SDK}; grafo reproduzível)')
     return 0
 
-if __name__ == '__main__':
+if __name__=='__main__':
     raise SystemExit(main())

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "VIGENTE",
-  "note": "Matriz exata de ProjectReference permitidos. v4.03 preserva Jornada.Operational.Sql como Adapter fino único da família Microsoft SQL; SQL Database in Microsoft Fabric é preferencial em HML/Produção e SQL Server 2022 permanece baseline local/CI/testes, sem branch funcional por hospedagem.",
+  "note": "Matriz exata de ProjectReference permitidos. Jornada.Resultado.Api e Jornada.Integrador.CSharp são projetos de borda sem dependência por ProjectReference do núcleo da plataforma.",
   "projects": {
     "Jornada.Contracts": [],
     "Jornada.Bronze.Storage": [],
@@ -76,6 +76,8 @@
       "Jornada.Api",
       "Jornada.Processor.Worker"
     ],
-    "Jornada.Operational.Sql": []
+    "Jornada.Operational.Sql": [],
+    "Jornada.Resultado.Api": [],
+    "Jornada.Integrador.CSharp": []
   }
 }

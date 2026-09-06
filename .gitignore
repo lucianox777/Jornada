@@ -38,3 +38,6 @@ Solution/data/staging/**
 # Local secret overrides. Synthetic Development fixtures explicitly tracked remain outside these patterns.
 Solution/config/security/*.local.json
 Solution/config/security/*.local.env
+**/integrador.config.json
+**/integrador.config.*.json
+!**/integrador.config.example.json
