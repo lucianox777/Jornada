@@ -3,6 +3,8 @@ name: jornada-integrador
 on:
   push:
     paths:
+      - 'Solution/global.json'
+      - 'Solution/Directory.Build.props'
       - 'Solution/clients/Jornada.Integrador.CSharp/**'
       - 'Solution/clients/integrador.config.example.json'
       - 'Solution/src/Jornada.Resultado.Api/**'
@@ -11,6 +13,8 @@ on:
       - '.github/workflows/integrador.yml'
   pull_request:
     paths:
+      - 'Solution/global.json'
+      - 'Solution/Directory.Build.props'
       - 'Solution/clients/Jornada.Integrador.CSharp/**'
       - 'Solution/clients/integrador.config.example.json'
       - 'Solution/src/Jornada.Resultado.Api/**'
