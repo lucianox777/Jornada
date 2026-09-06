@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <Description>CLI C# de integração da Jornada do Cidadão.</Description>
+    <Description>CLI C# de integração da Jornada do Cidadão com envio unitário, envio em lote e consulta por nome do ZIP.</Description>
   </PropertyGroup>
 </Project>
