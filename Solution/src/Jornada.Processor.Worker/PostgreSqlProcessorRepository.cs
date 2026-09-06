@@ -521,7 +521,7 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
         Add(upsert, "@cpf", DbType.AnsiStringFixedLength, cpf, 11);
         Add(upsert, "@status_cpf", DbType.String, cpfStatus, 30);
         Add(upsert, "@nome", DbType.String, name, 500);
-        AddDate(upsert, "@nascimento", birth.Value);
+        AddDate(upsert, "@nascimento", birth);
         Add(upsert, "@mae", DbType.String, mother, 500);
         Add(upsert, "@fontes", DbType.Int32, stats.Value.DistinctManagers);
         Add(upsert, "@concordancia", DbType.String, agreement, 40);
