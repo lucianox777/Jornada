@@ -3,13 +3,19 @@ name: jornada-integrador
 on:
   push:
     paths:
-      - 'Solution/clients/**'
+      - 'Solution/clients/Jornada.Integrador.CSharp/**'
+      - 'Solution/clients/integrador.config.example.json'
       - 'Solution/src/Jornada.Resultado.Api/**'
+      - 'Solution/src/Jornada.Operational.Sql/**'
+      - 'Solution/tests/Jornada.Integrador.Tests/**'
       - '.github/workflows/integrador.yml'
   pull_request:
     paths:
-      - 'Solution/clients/**'
+      - 'Solution/clients/Jornada.Integrador.CSharp/**'
+      - 'Solution/clients/integrador.config.example.json'
       - 'Solution/src/Jornada.Resultado.Api/**'
+      - 'Solution/src/Jornada.Operational.Sql/**'
+      - 'Solution/tests/Jornada.Integrador.Tests/**'
       - '.github/workflows/integrador.yml'
   workflow_dispatch:
 
@@ -34,11 +40,11 @@ jobs:
         run: dotnet restore src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj --locked-mode
       - name: Build resultado service
         run: dotnet build src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj -c Release --no-restore
-      - name: Restore C# integrator locked
-        run: dotnet restore clients/Jornada.Integrador.CSharp/Jornada.Integrador.CSharp.csproj --locked-mode
+      - name: Restore C# integrator tests locked
+        run: dotnet restore tests/Jornada.Integrador.Tests/Jornada.Integrador.Tests.csproj --locked-mode
       - name: Build C# integrator
         run: dotnet build clients/Jornada.Integrador.CSharp/Jornada.Integrador.CSharp.csproj -c Release --no-restore
-      - name: Validate Python integrator
-        run: |
-          python3 -m py_compile clients/python/jornada_integrador.py
-          python3 clients/python/jornada_integrador.py --help >/dev/null
+      - name: Build C# integrator tests
+        run: dotnet build tests/Jornada.Integrador.Tests/Jornada.Integrador.Tests.csproj -c Release --no-restore
+      - name: Run C# integrator tests
+        run: dotnet run --project tests/Jornada.Integrador.Tests/Jornada.Integrador.Tests.csproj -c Release --no-build --no-restore
