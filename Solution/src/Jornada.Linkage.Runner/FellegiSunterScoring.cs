@@ -8,7 +8,9 @@ public static class FellegiSunterScoring
         IReadOnlyDictionary<string, decimal> parameters,
         NameComparisonState nameState,
         NameComparisonState motherNameState,
-        int? blockCandidateCount = null)
+        int? blockCandidateCount = null,
+        DateOnly? leftBirthDate = null,
+        DateOnly? rightBirthDate = null)
     {
         var prior = blockCandidateCount is > 0
             ? CalculateBlockPrior(parameters, blockCandidateCount.Value)
@@ -16,6 +18,17 @@ public static class FellegiSunterScoring
         var logOdds = Logit((double)prior);
         logOdds += LogLikelihoodRatio(parameters, "NOME", nameState);
         logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", motherNameState);
+
+        // V2: nascimento deixa de ser uma evidência indivisível. Dia, mês e ano
+        // contribuem separadamente quando o modelo possui os parâmetros calibrados.
+        // Modelos V1 continuam válidos: se os parâmetros V2 não existirem, a
+        // contribuição dos componentes é neutra.
+        if (leftBirthDate is { } left && rightBirthDate is { } right)
+        {
+            logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_DIA", left.Day == right.Day);
+            logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_MES", left.Month == right.Month);
+            logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_ANO", left.Year == right.Year);
+        }
 
         var posterior = 1d / (1d + Math.Exp(-Math.Clamp(logOdds, -40d, 40d)));
         return Math.Round((decimal)posterior, 8, MidpointRounding.AwayFromZero);
@@ -38,6 +51,19 @@ public static class FellegiSunterScoring
         var m = ClampProbability(Get(parameters, $"M_{attribute}_{suffix}"));
         var u = ClampProbability(Get(parameters, $"U_{attribute}_{suffix}"));
         return Math.Log((double)m / (double)u);
+    }
+
+    private static double TryBinaryLikelihoodRatio(
+        IReadOnlyDictionary<string, decimal> parameters,
+        string attribute,
+        bool exact)
+    {
+        var suffix = exact ? "EXACT" : "DIFF";
+        if (!parameters.TryGetValue($"M_{attribute}_{suffix}", out var m) ||
+            !parameters.TryGetValue($"U_{attribute}_{suffix}", out var u))
+            return 0d;
+
+        return Math.Log((double)ClampProbability(m) / (double)ClampProbability(u));
     }
 
     private static decimal Get(IReadOnlyDictionary<string, decimal> parameters, string name) =>

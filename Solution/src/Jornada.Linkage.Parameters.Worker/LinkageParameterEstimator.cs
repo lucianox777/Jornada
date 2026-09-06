@@ -18,6 +18,11 @@ public sealed record IdentityTrainingPair(
 /// convergiram deterministicamente por CPF ao mesmo UUID e pares não-match amostrados da Gold.
 /// A independência inter-Gestor evita treinar m contra a própria Gold derivada da observação.
 /// Usa suavização de Dirichlet/Laplace para impedir pesos infinitos.
+///
+/// A partir da V2, nascimento é calibrado também em três evidências binárias separadas:
+/// dia, mês e ano. A data completa continua preservada e sua concordância exata continua
+/// registrada para auditoria/backward compatibility, mas o scorer V2 pode atribuir peso
+/// independente a cada componente.
 /// </summary>
 public static class LinkageParameterEstimator
 {
@@ -45,7 +50,8 @@ public static class LinkageParameterEstimator
             ["SMOOTHING_ALPHA"] = smoothingAlpha,
             ["T_LINKAGE"] = threshold,
             ["CONFLICT_MARGIN"] = conflictMargin,
-            ["BLOCKING_EXACT_BIRTH_DATE"] = 1m,
+            ["BLOCKING_EXACT_BIRTH_DATE"] = 0m,
+            ["BLOCKING_BIRTH_COMPONENTS_V2"] = 1m,
             ["PRIOR_MATCH_PROBABILITY"] = EstimateReferencePrior(populationSize, distinctBirthDates),
             ["PRIOR_BLOCK_MIN"] = 0.000001m,
             ["PRIOR_BLOCK_MAX"] = 0.25m
@@ -56,12 +62,44 @@ public static class LinkageParameterEstimator
         AddDistribution(result, "M_NOME_MAE", matchedPairs.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
         AddDistribution(result, "U_NOME_MAE", unmatchedPairs.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
 
-        // Persistimos também as taxas de concordância de nascimento para auditoria/calibração.
-        // Na versão V1 o nascimento é blocking exato e não é somado novamente ao score.
+        // Mantém a taxa da data completa para auditoria e compatibilidade com modelos V1.
         result["M_DATA_NASCIMENTO_EXACT"] = SmoothedBinary(
             matchedPairs.Count(p => p.LeftBirthDate == p.RightBirthDate), matchedPairs.Count, smoothingAlpha);
         result["U_DATA_NASCIMENTO_EXACT"] = SmoothedBinary(
             unmatchedPairs.Count(p => p.LeftBirthDate == p.RightBirthDate), unmatchedPairs.Count, smoothingAlpha);
+
+        // V2: cada componente de nascimento é uma evidência Fellegi-Sunter própria.
+        // Persistimos EXACT e DIFF explicitamente para que o modelo seja auditável.
+        AddBinaryDistribution(
+            result,
+            "M_NASC_DIA",
+            matchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day),
+            smoothingAlpha);
+        AddBinaryDistribution(
+            result,
+            "U_NASC_DIA",
+            unmatchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day),
+            smoothingAlpha);
+        AddBinaryDistribution(
+            result,
+            "M_NASC_MES",
+            matchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month),
+            smoothingAlpha);
+        AddBinaryDistribution(
+            result,
+            "U_NASC_MES",
+            unmatchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month),
+            smoothingAlpha);
+        AddBinaryDistribution(
+            result,
+            "M_NASC_ANO",
+            matchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year),
+            smoothingAlpha);
+        AddBinaryDistribution(
+            result,
+            "U_NASC_ANO",
+            unmatchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year),
+            smoothingAlpha);
 
         return result;
     }
@@ -85,6 +123,26 @@ public static class LinkageParameterEstimator
             target[$"{prefix}_{state}"] = (counts[state] + alpha) / denominator;
     }
 
+    private static void AddBinaryDistribution(
+        IDictionary<string, decimal> target,
+        string prefix,
+        IEnumerable<bool> values,
+        decimal alpha)
+    {
+        long exact = 0;
+        long total = 0;
+        foreach (var value in values)
+        {
+            if (value)
+                exact++;
+            total++;
+        }
+
+        var exactProbability = SmoothedBinary(exact, total, alpha);
+        target[$"{prefix}_EXACT"] = exactProbability;
+        target[$"{prefix}_DIFF"] = 1m - exactProbability;
+    }
+
     private static decimal SmoothedBinary(long positive, long total, decimal alpha) =>
         (positive + alpha) / (total + 2m * alpha);
 
@@ -94,7 +152,7 @@ public static class LinkageParameterEstimator
             return 0.001m;
 
         // Referência global apenas para auditoria/monitoramento. O scorer operacional
-        // condiciona o prior ao tamanho real do bloco observado (aprox. 1/N_bloco).
+        // condiciona o prior ao tamanho real do conjunto de candidatos observado.
         var prior = (decimal)distinctBirthDates / populationSize;
         return Math.Clamp(prior, 0.000001m, 0.25m);
     }
