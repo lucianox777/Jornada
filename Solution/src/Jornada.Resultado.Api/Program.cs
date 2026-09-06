@@ -1,6 +1,6 @@
 using System.Data;
 using System.Net;
-using Microsoft.Data.SqlClient;
+using Jornada.Operational.Sql;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("Jornada")
@@ -8,7 +8,8 @@ var connectionString = builder.Configuration.GetConnectionString("Jornada")
 var jornadaApiBaseUrl = builder.Configuration["JornadaApiBaseUrl"]
     ?? throw new InvalidOperationException("JornadaApiBaseUrl não configurada.");
 
-builder.Services.AddSingleton(new ResultadoOptions(connectionString, jornadaApiBaseUrl));
+builder.Services.AddSingleton<IOperationalSqlAdapter>(new OperationalSqlAdapter(connectionString));
+builder.Services.AddSingleton(new ResultadoOptions(jornadaApiBaseUrl));
 builder.Services.AddSingleton<ResultadoRepository>();
 builder.Services.AddHttpClient();
 
@@ -49,7 +50,7 @@ app.MapGet("/api/v1/ingestao/resultados/{identificador}", async (
 
 app.Run();
 
-internal sealed record ResultadoOptions(string ConnectionString, string JornadaApiBaseUrl);
+internal sealed record ResultadoOptions(string JornadaApiBaseUrl);
 internal sealed record ResultadoCandidate(Guid EntregaId, long EntregasEncontradas);
 internal enum ResultadoIdentificadorTipo { SHA256, NOME_ARQUIVO }
 
@@ -75,12 +76,11 @@ internal static class ResultadoUrl
         new(new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute), relative);
 }
 
-internal sealed class ResultadoRepository(ResultadoOptions options)
+internal sealed class ResultadoRepository(IOperationalSqlAdapter connections)
 {
     public async Task<ResultadoCandidate?> FindLatestAsync(string gestor, ResultadoIdentificador identificador, CancellationToken ct)
     {
-        await using var connection = new SqlConnection(options.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await connections.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT TOP(1) e.entrega_id, COUNT_BIG(*) OVER() AS entregas_encontradas
@@ -92,15 +92,11 @@ internal sealed class ResultadoRepository(ResultadoOptions options)
                 OR (@nome IS NOT NULL AND b.nome_arquivo=@nome))
             ORDER BY e.recebido_em DESC,e.entrega_id DESC;
             """;
-        command.Parameters.Add(new SqlParameter("@gestor", SqlDbType.NVarChar, 30) { Value = gestor });
-        command.Parameters.Add(new SqlParameter("@sha", SqlDbType.Char, 64)
-        {
-            Value = identificador.Tipo == ResultadoIdentificadorTipo.SHA256 ? identificador.Valor : DBNull.Value
-        });
-        command.Parameters.Add(new SqlParameter("@nome", SqlDbType.NVarChar, 260)
-        {
-            Value = identificador.Tipo == ResultadoIdentificadorTipo.NOME_ARQUIVO ? identificador.Valor : DBNull.Value
-        });
+        command.Parameters.Add("@gestor", SqlDbType.NVarChar, 30).Value = gestor;
+        command.Parameters.Add("@sha", SqlDbType.Char, 64).Value =
+            identificador.Tipo == ResultadoIdentificadorTipo.SHA256 ? identificador.Valor : DBNull.Value;
+        command.Parameters.Add("@nome", SqlDbType.NVarChar, 260).Value =
+            identificador.Tipo == ResultadoIdentificadorTipo.NOME_ARQUIVO ? identificador.Valor : DBNull.Value;
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
         return new ResultadoCandidate(reader.GetGuid(0), reader.GetInt64(1));
@@ -108,8 +104,7 @@ internal sealed class ResultadoRepository(ResultadoOptions options)
 
     public async Task<object> GetDetailAsync(ResultadoCandidate candidate, ResultadoIdentificador identificador, CancellationToken ct)
     {
-        await using var connection = new SqlConnection(options.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await connections.OpenAsync(ct);
         var entrega = await LoadDeliveryAsync(connection, candidate.EntregaId, ct);
         var lotes = await LoadLotsAsync(connection, candidate.EntregaId, ct);
         var detailed = await LoadDetailedSummaryAsync(connection, candidate.EntregaId, ct);
@@ -148,7 +143,7 @@ internal sealed class ResultadoRepository(ResultadoOptions options)
         };
     }
 
-    private static async Task<EntregaDetalhe> LoadDeliveryAsync(SqlConnection connection, Guid entregaId, CancellationToken ct)
+    private static async Task<EntregaDetalhe> LoadDeliveryAsync(Microsoft.Data.SqlClient.SqlConnection connection, Guid entregaId, CancellationToken ct)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = """
@@ -164,7 +159,7 @@ internal sealed class ResultadoRepository(ResultadoOptions options)
             LEFT JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_versao_id=e.tipo_registro_versao_id
             WHERE e.entrega_id=@entrega;
             """;
-        command.Parameters.AddWithValue("@entrega", entregaId);
+        command.Parameters.Add("@entrega", SqlDbType.UniqueIdentifier).Value = entregaId;
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) throw new InvalidOperationException("Entrega desapareceu durante a consulta.");
         return new EntregaDetalhe(
@@ -176,7 +171,7 @@ internal sealed class ResultadoRepository(ResultadoOptions options)
             reader.IsDBNull(13) ? null : reader.GetInt32(13));
     }
 
-    private static async Task<List<LoteDetalhe>> LoadLotsAsync(SqlConnection connection, Guid entregaId, CancellationToken ct)
+    private static async Task<List<LoteDetalhe>> LoadLotsAsync(Microsoft.Data.SqlClient.SqlConnection connection, Guid entregaId, CancellationToken ct)
     {
         var lotes = new List<LoteDetalhe>();
         await using var command = connection.CreateCommand();
@@ -188,7 +183,7 @@ internal sealed class ResultadoRepository(ResultadoOptions options)
             WHERE entrega_id=@entrega
             ORDER BY lote_seq,lote_id;
             """;
-        command.Parameters.AddWithValue("@entrega", entregaId);
+        command.Parameters.Add("@entrega", SqlDbType.UniqueIdentifier).Value = entregaId;
         await using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
@@ -203,7 +198,7 @@ internal sealed class ResultadoRepository(ResultadoOptions options)
         return lotes;
     }
 
-    private static async Task<Dictionary<ResultadoKey, long>> LoadDetailedSummaryAsync(SqlConnection connection, Guid entregaId, CancellationToken ct)
+    private static async Task<Dictionary<ResultadoKey, long>> LoadDetailedSummaryAsync(Microsoft.Data.SqlClient.SqlConnection connection, Guid entregaId, CancellationToken ct)
     {
         var result = new Dictionary<ResultadoKey, long>();
         await using var command = connection.CreateCommand();
@@ -214,13 +209,13 @@ internal sealed class ResultadoRepository(ResultadoOptions options)
             WHERE l.entrega_id=@entrega
             GROUP BY ip.classe_item,ip.resultado;
             """;
-        command.Parameters.AddWithValue("@entrega", entregaId);
+        command.Parameters.Add("@entrega", SqlDbType.UniqueIdentifier).Value = entregaId;
         await using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct)) result[new ResultadoKey(reader.GetString(0), reader.GetString(1))] = reader.GetInt64(2);
         return result;
     }
 
-    private static async Task<Dictionary<ResultadoKey, long>> LoadConsolidatedSummaryAsync(SqlConnection connection, Guid entregaId, CancellationToken ct)
+    private static async Task<Dictionary<ResultadoKey, long>> LoadConsolidatedSummaryAsync(Microsoft.Data.SqlClient.SqlConnection connection, Guid entregaId, CancellationToken ct)
     {
         var result = new Dictionary<ResultadoKey, long>();
         await using var command = connection.CreateCommand();
@@ -230,7 +225,7 @@ internal sealed class ResultadoRepository(ResultadoOptions options)
             WHERE entrega_id=@entrega
             GROUP BY classe_item,resultado;
             """;
-        command.Parameters.AddWithValue("@entrega", entregaId);
+        command.Parameters.Add("@entrega", SqlDbType.UniqueIdentifier).Value = entregaId;
         await using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct)) result[new ResultadoKey(reader.GetString(0), reader.GetString(1))] = reader.GetInt64(2);
         return result;
