@@ -37,7 +37,7 @@ jobs:
         run: |
           python3 scripts/technical-closure-gate.py
           python3 scripts/governance-readiness-gate.py --root .
-          python3 scripts/json-schema-meta-gate.py config/contracts
+          python3 scripts/json-schema-meta-gate.py --root .
           git -C .. diff --check
       - name: Build and unit tests
         working-directory: Solution
