@@ -1,5 +1,6 @@
 -- Smoke de persistência do Processor PostgreSQL.
 -- Deve ser executado após Resultado Core + Ingestion Processor Core + Processor Persistence Core.
+-- O código técnico do sistema é SEHAB; HabitaSampa é apenas seu nome de exibição.
 
 DO $$
 DECLARE
@@ -24,7 +25,18 @@ DECLARE
 BEGIN
     SELECT gestor_id INTO STRICT v_gestor FROM ref.gestor WHERE codigo='SEHAB';
     SELECT sistema_origem_id INTO STRICT v_sistema
-      FROM ref.sistema_origem WHERE gestor_id=v_gestor AND codigo='HabitaSampa';
+      FROM ref.sistema_origem WHERE gestor_id=v_gestor AND codigo='SEHAB';
+    IF NOT EXISTS (
+        SELECT 1 FROM ingestao.entrega
+        WHERE entrega_id=v_entrega AND gestor_id=v_gestor AND sistema_origem_id=v_sistema
+    ) THEN
+        RAISE EXCEPTION 'Fixture de Entrega SEHAB não corresponde ao sistema de origem canônico.';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM ingestao.lote WHERE lote_id=v_lote AND entrega_id=v_entrega
+    ) THEN
+        RAISE EXCEPTION 'Fixture de Lote não pertence à Entrega SEHAB esperada.';
+    END IF;
     SELECT tipo_registro_id INTO STRICT v_tipo_aa FROM ref.tipo_registro WHERE codigo='AA01';
     SELECT tipo_registro_versao_id INTO STRICT v_tipo_aa_v1
       FROM ref.tipo_registro_versao WHERE tipo_registro_id=v_tipo_aa AND versao=1;
