@@ -3,6 +3,8 @@ name: jornada-postgresql-adapter
 on:
   push:
     paths:
+      - 'Solution/global.json'
+      - 'Solution/Directory.Build.props'
       - 'Solution/src/Jornada.Operational.Sql/**'
       - 'Solution/src/Jornada.Pipeline.Coordination/**'
       - 'Solution/src/Jornada.Resultado.Api/**'
@@ -12,6 +14,8 @@ on:
       - '.github/workflows/postgresql-adapter.yml'
   pull_request:
     paths:
+      - 'Solution/global.json'
+      - 'Solution/Directory.Build.props'
       - 'Solution/src/Jornada.Operational.Sql/**'
       - 'Solution/src/Jornada.Pipeline.Coordination/**'
       - 'Solution/src/Jornada.Resultado.Api/**'
