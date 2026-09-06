@@ -1,0 +1,62 @@
+name: jornada-postgresql-regression-fixture-fix
+
+on:
+  push:
+    branches:
+      - work/postgresql-persistence-review
+    paths:
+      - .github/workflows/postgresql-regression-fixture-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-reviewed-fixture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: true
+      - name: Correct synthetic conflict and retain canonical policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          path = Path('Solution/scripts/postgresql-processor-regression.cs')
+          actual = subprocess.check_output(['git','hash-object',str(path)], text=True).strip()
+          assert actual == '107c87b9e2e807546657f8f6d9c84c23b3172b25', f'Unexpected regression source: {actual}'
+          text = path.read_text(encoding='utf-8')
+          old_name = 'Pessoa Sintética Divergente'
+          assert text.count(old_name) == 2
+          text = text.replace(old_name, 'Roberto Almeida')
+          old = '''var conflictingPerson = Person(conflict.Package, conflictingSource, cpf, conflicting: true);
+          await RunAsync(conflict.Batch, Package(conflict.Package, conflictingPerson));'''
+          new = '''var conflictingPerson = Person(conflict.Package, conflictingSource, cpf, conflicting: true);
+          // CPF_CORE_CONSISTENCY_V1 requires two independent strong signals:
+          // LOW name similarity and a different birth date. The old synthetic
+          // names shared a prefix and scored 0.9203, so they were not LOW.
+          var existingCore = new IdentityCore(personV1.NomeCompleto, personV1.DataNascimento, personV1.NomeMae);
+          var incomingCore = new IdentityCore(conflictingPerson.NomeCompleto, conflictingPerson.DataNascimento, conflictingPerson.NomeMae);
+          var assessment = CpfIdentityConsistency.Evaluate(existingCore, incomingCore);
+          Check(assessment.IsConflict && assessment.Nome == NameComparisonState.LOW && !assessment.DataNascimentoIgual
+              && assessment.Motivo == CpfIdentityConsistency.SharedCpfSuspectedReason,
+              "A fixture não satisfaz a política canônica de conflito de CPF.");
+          Check(!CpfIdentityConsistency.Evaluate(existingCore, existingCore with { DataNascimento = incomingCore.DataNascimento }).IsConflict,
+              "Diferença isolada de nascimento não deve provocar conflito.");
+          Check(!CpfIdentityConsistency.Evaluate(existingCore, existingCore with { NomeCompleto = incomingCore.NomeCompleto }).IsConflict,
+              "Diferença isolada de nome não deve provocar conflito.");
+          await RunAsync(conflict.Batch, Package(conflict.Package, conflictingPerson));'''
+          assert text.count(old) == 1
+          text = text.replace(old,new,1)
+          path.write_text(text, encoding='utf-8')
+          PY
+          git rm .github/workflows/postgresql-regression-fixture-fix.yml .github/workflows/postgresql-source-review.yml
+          git add Solution/scripts/postgresql-processor-regression.cs
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'test: use canonically incompatible CPF cores in PostgreSQL regression'
+          git push origin HEAD:refs/heads/work/postgresql-persistence-review
