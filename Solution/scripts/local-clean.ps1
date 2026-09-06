@@ -1,4 +1,4 @@
-﻿param()
+param()
 
 $ErrorActionPreference = 'Stop'
 $ScriptVersion = '2026.09.04-v4.05'
@@ -94,6 +94,39 @@ function Remove-DirectoryBestEffort {
     }
 }
 
+function Clear-LocalDirectoryPreservingFabricConnection {
+    param([Parameter(Mandatory=$true)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    $FabricCompatibilityDir = Join-Path $Path 'fabric-sql-compatibility'
+    $FabricConnectionFile = Join-Path $FabricCompatibilityDir 'connection.txt'
+
+    Get-ChildItem -LiteralPath $Path -Force | ForEach-Object {
+        if ($_.PSIsContainer -and $_.FullName -eq $FabricCompatibilityDir) {
+            Get-ChildItem -LiteralPath $_.FullName -Force | Where-Object {
+                $_.FullName -ne $FabricConnectionFile
+            } | ForEach-Object {
+                Remove-Item -LiteralPath $_.FullName -Recurse -Force
+            }
+
+            if (Test-Path -LiteralPath $FabricConnectionFile) {
+                Write-Host "Preservado: $FabricConnectionFile"
+            }
+            elseif (-not (Get-ChildItem -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue)) {
+                Remove-Item -LiteralPath $_.FullName -Force
+            }
+        }
+        else {
+            Remove-Item -LiteralPath $_.FullName -Recurse -Force
+        }
+    }
+
+    Write-Host "Limpo: $Path (connection.txt do Fabric preservado quando existente)"
+}
+
 # Remove somente recursos Docker locais da Jornada.
 # A imagem SQL Server permanece em cache e NÃO é removida.
 if (Test-DockerEngine) {
@@ -158,7 +191,12 @@ Write-Host '=== Arquivos e saídas locais ==='
 
 Remove-FileIfExists -Path $EnvFile
 
-foreach ($dir in @('.local','TestResults','artifacts','dist')) {
+# .local contém apenas artefatos locais descartáveis, exceto a conexão Fabric
+# explicitamente persistida pelo operador. O segredo continua fora do Git e não
+# deve desaparecer quando local-validate-release.ps1 chama esta limpeza.
+Clear-LocalDirectoryPreservingFabricConnection -Path (Join-Path $Root '.local')
+
+foreach ($dir in @('TestResults','artifacts','dist')) {
     Remove-DirectoryIfExists -Path (Join-Path $Root $dir)
 }
 
