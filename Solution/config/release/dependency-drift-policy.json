@@ -3,6 +3,15 @@
   "release": "v4.03",
   "predecessorTag": "jornada-solution-v4.02",
   "status": "VIGENTE",
-  "allowedChanges": [],
-  "note": "v4.03 é correção documental institucional; não altera PackageReference nem versões de dependências frente à v4.02."
+  "allowedChanges": [
+    {
+      "kind": "ADD",
+      "project": "Solution/src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj",
+      "package": "Npgsql",
+      "from": null,
+      "to": "8.0.9",
+      "justification": "Provider ADO.NET PostgreSQL necessário ao adapter operacional explícito; mantém SQL Server intacto e habilita portabilidade testada sem Entity Framework."
+    }
+  ],
+  "note": "A adição de Npgsql é governada e restrita ao adapter operacional; nenhuma dependência ORM foi introduzida."
 }
