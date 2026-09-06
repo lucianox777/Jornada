@@ -103,7 +103,7 @@ jobs:
         run: |
           set -euo pipefail
           dotnet run --project .local/postgresql-processor-regression/Jornada.PostgreSql.Regression.csproj -c Release --no-build --no-restore -- "$PWD" \
-            | tee .local/postgresql-processor-regression/result.txt
+            2>&1 | tee .local/postgresql-processor-regression/result.txt
       - name: Upload regression evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
