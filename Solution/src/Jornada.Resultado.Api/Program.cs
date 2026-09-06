@@ -16,9 +16,9 @@ builder.Services.AddHttpClient();
 var app = builder.Build();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", utc = DateTimeOffset.UtcNow }));
 
-app.MapGet("/api/v1/ingestao/resultados/{identificador}", async (
+app.MapGet("/api/v1/ingestao/resultados/{nomeArquivo}", async (
     HttpRequest http,
-    string identificador,
+    string nomeArquivo,
     ResultadoRepository repository,
     ResultadoOptions options,
     IHttpClientFactory httpClientFactory,
@@ -29,11 +29,11 @@ app.MapGet("/api/v1/ingestao/resultados/{identificador}", async (
     if (string.IsNullOrWhiteSpace(gestor) || string.IsNullOrWhiteSpace(accessKey))
         return Results.Unauthorized();
 
-    ResultadoIdentificador parsed;
-    try { parsed = ResultadoIdentificador.Parse(identificador); }
+    string parsedFileName;
+    try { parsedFileName = ResultadoNomeArquivo.Parse(nomeArquivo); }
     catch (ArgumentException ex) { return Results.BadRequest(new { erro = ex.Message }); }
 
-    var candidate = await repository.FindLatestAsync(gestor, parsed, ct);
+    var candidate = await repository.FindLatestAsync(gestor, parsedFileName, ct);
     if (candidate is null) return Results.NotFound();
 
     using var authRequest = new HttpRequestMessage(
@@ -45,29 +45,31 @@ app.MapGet("/api/v1/ingestao/resultados/{identificador}", async (
     if (authResponse.StatusCode != HttpStatusCode.OK)
         return Results.StatusCode((int)authResponse.StatusCode);
 
-    return Results.Ok(await repository.GetDetailAsync(candidate, parsed, ct));
+    return Results.Ok(await repository.GetDetailAsync(candidate, parsedFileName, ct));
 });
 
 app.Run();
 
 internal sealed record ResultadoOptions(string JornadaApiBaseUrl);
 internal sealed record ResultadoCandidate(Guid EntregaId, long EntregasEncontradas);
-internal enum ResultadoIdentificadorTipo { SHA256, NOME_ARQUIVO }
 
-internal sealed record ResultadoIdentificador(ResultadoIdentificadorTipo Tipo, string Valor)
+internal static class ResultadoNomeArquivo
 {
-    public static ResultadoIdentificador Parse(string raw)
+    public static string Parse(string raw)
     {
-        var value = (raw ?? string.Empty).Trim();
-        if (value.Length == 64 && value.All(IsLowerHex))
-            return new ResultadoIdentificador(ResultadoIdentificadorTipo.SHA256, value);
-        if (value.Length > 260 || !value.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(Path.GetFileName(value), value, StringComparison.Ordinal))
-            throw new ArgumentException("Identificador deve ser SHA-256 hexadecimal minúsculo ou o nome exato do ZIP enviado.");
-        return new ResultadoIdentificador(ResultadoIdentificadorTipo.NOME_ARQUIVO, value);
-    }
+        if (string.IsNullOrWhiteSpace(raw))
+            throw new ArgumentException("nomeArquivo deve ser o nome exato do ZIP enviado, sem caminho.");
 
-    private static bool IsLowerHex(char c) => c is >= '0' and <= '9' or >= 'a' and <= 'f';
+        var value = raw.Trim();
+        if (value.Length > 260
+            || !value.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+            || value.Contains('/')
+            || value.Contains('\\')
+            || value.Contains(':'))
+            throw new ArgumentException("nomeArquivo deve ser o nome exato do ZIP enviado, sem caminho.");
+
+        return value;
+    }
 }
 
 internal static class ResultadoUrl
@@ -78,7 +80,7 @@ internal static class ResultadoUrl
 
 internal sealed class ResultadoRepository(IOperationalSqlAdapter connections)
 {
-    public async Task<ResultadoCandidate?> FindLatestAsync(string gestor, ResultadoIdentificador identificador, CancellationToken ct)
+    public async Task<ResultadoCandidate?> FindLatestAsync(string gestor, string nomeArquivo, CancellationToken ct)
     {
         await using var connection = await connections.OpenAsync(ct);
         await using var command = connection.CreateCommand();
@@ -88,21 +90,17 @@ internal sealed class ResultadoRepository(IOperationalSqlAdapter connections)
             JOIN ref.gestor g ON g.gestor_id=e.gestor_id
             JOIN bronze.entrega_arquivo b ON b.entrega_id=e.entrega_id
             WHERE g.codigo=@gestor
-              AND ((@sha IS NOT NULL AND e.payload_sha256=@sha)
-                OR (@nome IS NOT NULL AND b.nome_arquivo=@nome))
+              AND b.nome_arquivo=@nomeArquivo
             ORDER BY e.recebido_em DESC,e.entrega_id DESC;
             """;
         command.Parameters.Add("@gestor", SqlDbType.NVarChar, 30).Value = gestor;
-        command.Parameters.Add("@sha", SqlDbType.Char, 64).Value =
-            identificador.Tipo == ResultadoIdentificadorTipo.SHA256 ? identificador.Valor : DBNull.Value;
-        command.Parameters.Add("@nome", SqlDbType.NVarChar, 260).Value =
-            identificador.Tipo == ResultadoIdentificadorTipo.NOME_ARQUIVO ? identificador.Valor : DBNull.Value;
+        command.Parameters.Add("@nomeArquivo", SqlDbType.NVarChar, 260).Value = nomeArquivo;
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
         return new ResultadoCandidate(reader.GetGuid(0), reader.GetInt64(1));
     }
 
-    public async Task<object> GetDetailAsync(ResultadoCandidate candidate, ResultadoIdentificador identificador, CancellationToken ct)
+    public async Task<object> GetDetailAsync(ResultadoCandidate candidate, string nomeArquivo, CancellationToken ct)
     {
         await using var connection = await connections.OpenAsync(ct);
         var entrega = await LoadDeliveryAsync(connection, candidate.EntregaId, ct);
@@ -124,10 +122,9 @@ internal sealed class ResultadoRepository(IOperationalSqlAdapter connections)
 
         return new
         {
-            identificadorConsultado = identificador.Valor,
-            tipoIdentificador = identificador.Tipo.ToString(),
+            nomeArquivoConsultado = nomeArquivo,
             finalizado = terminal,
-            entregasEncontradasParaOMesmoArquivo = candidate.EntregasEncontradas,
+            entregasEncontradasParaOMesmoNome = candidate.EntregasEncontradas,
             entrega,
             processamento = new
             {
