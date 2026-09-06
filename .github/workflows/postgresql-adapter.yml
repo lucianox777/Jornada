@@ -12,6 +12,7 @@ on:
       - 'Solution/database/postgresql/**'
       - 'Solution/scripts/postgresql-adapter-smoke.cs'
       - 'Solution/scripts/postgresql-ingestion-processor-smoke.cs'
+      - 'Solution/scripts/postgresql-processor-runtime-smoke.sh'
       - '.github/workflows/postgresql-adapter.yml'
   pull_request:
     paths:
@@ -24,6 +25,7 @@ on:
       - 'Solution/database/postgresql/**'
       - 'Solution/scripts/postgresql-adapter-smoke.cs'
       - 'Solution/scripts/postgresql-ingestion-processor-smoke.cs'
+      - 'Solution/scripts/postgresql-processor-runtime-smoke.sh'
       - '.github/workflows/postgresql-adapter.yml'
   workflow_dispatch:
 
@@ -127,6 +129,9 @@ jobs:
           dotnet run --project .local/postgresql-ingestion-processor-smoke/PostgreSqlIngestionProcessorSmoke.csproj -c Release \
             | tee .local/postgresql-ingestion-processor-smoke/result.txt
 
+      - name: Prove PostgreSQL Processor runtime from Bronze to Gold/Serving
+        run: bash scripts/postgresql-processor-runtime-smoke.sh
+
       - name: Start authorization stub and PostgreSQL Resultado API
         run: |
           mkdir -p .local/postgresql-e2e
@@ -170,6 +175,7 @@ jobs:
           path: |
             Solution/.local/postgresql-e2e
             Solution/.local/postgresql-ingestion-processor-smoke
+            Solution/.local/postgresql-processor-runtime
           if-no-files-found: ignore
           include-hidden-files: true
           retention-days: 30
