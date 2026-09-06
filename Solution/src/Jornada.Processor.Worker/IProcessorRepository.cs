@@ -1,11 +1,10 @@
 namespace Jornada.Processor.Worker;
 
 /// <summary>
-/// Contrato operacional consumido pelo Worker. Cada provider preserva sua própria implementação
-/// de SQL, transações, locking e materialização; parsing, Bronze, retry e telemetria permanecem
-/// compartilhados no Processor.
+/// Contrato de ciclo de vida do lote consumido pelo Worker. Cada provider preserva sua própria
+/// implementação de reserva concorrente, fencing, heartbeat, recuperação e retry/poison.
 /// </summary>
-internal interface IProcessorRepository
+internal interface IProcessorLeaseRepository
 {
     Task<int> RecoverExpiredLeasesAsync(int maxAttempts, CancellationToken ct);
 
@@ -17,11 +16,6 @@ internal interface IProcessorRepository
     Task<bool> HeartbeatAsync(
         ReservedBatch batch,
         TimeSpan leaseDuration,
-        CancellationToken ct);
-
-    Task PersistValidatedAsync(
-        ReservedBatch batch,
-        ParsedPackage package,
         CancellationToken ct);
 
     Task MarkRejectedAsync(
@@ -40,5 +34,18 @@ internal interface IProcessorRepository
         int maxAttempts,
         TimeSpan retryBase,
         TimeSpan retryMax,
+        CancellationToken ct);
+}
+
+/// <summary>
+/// Contrato completo do Processor. Além do ciclo de lease, exige a publicação transacional do
+/// pacote validado em Silver/Identidade/Gold. SQL, transações, locking e materialização continuam
+/// específicos de cada provider; parsing, Bronze, retry e telemetria permanecem compartilhados.
+/// </summary>
+internal interface IProcessorRepository : IProcessorLeaseRepository
+{
+    Task PersistValidatedAsync(
+        ReservedBatch batch,
+        ParsedPackage package,
         CancellationToken ct);
 }
