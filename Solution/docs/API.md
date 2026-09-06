@@ -150,7 +150,7 @@ Exemplo com contexto de Benefício Concedido (o mesmo manifesto é válido mesmo
 {
   "formatoVersao": 2,
   "pessoaSchemaVersao": 1,
-  "codigoSistemaOrigem": "HABITACAO",
+  "codigoSistemaOrigem": "SEHAB",
   "natureza": "BENEFICIO",
   "codigoTipo": "AA01",
   "tipoVersao": 1,
@@ -225,7 +225,7 @@ Exemplos:
 
 ```text
 ENTREGA_SMS_SAUDE_v2_<64-hex>.zip
-ENTREGA_SEHAB_HABITACAO_v2_<64-hex>.zip
+ENTREGA_SEHAB_SEHAB_v2_<64-hex>.zip
 ENTREGA_SMADS_ASSISTENCIA_v2_<64-hex>.zip
 ```
 

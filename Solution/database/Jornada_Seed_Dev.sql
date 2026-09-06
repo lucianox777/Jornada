@@ -41,13 +41,13 @@ DECLARE @gSehab BIGINT=(SELECT gestor_id FROM ref.gestor WHERE codigo='SEHAB'),
         @gSms BIGINT=(SELECT gestor_id FROM ref.gestor WHERE codigo='SMS');
 
 MERGE ref.sistema_origem AS t USING (VALUES
- (@gSehab,'HABITACAO',N'Sistema finalístico de Habitação'),
+ (@gSehab,'SEHAB',N'Sistema finalístico de Habitação'),
  (@gSmads,'ASSISTENCIA',N'Sistema finalístico de Assistência'),
  (@gSmdet,'TRABALHO',N'Sistema finalístico de Trabalho'),
  (@gSms,'SAUDE',N'Sistema finalístico de Saúde')) AS s(gestor_id,codigo,nome)
 ON t.gestor_id=s.gestor_id AND t.codigo=s.codigo
 WHEN NOT MATCHED THEN INSERT(gestor_id,codigo,nome) VALUES(s.gestor_id,s.codigo,s.nome);
-DECLARE @soSehab BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSehab AND codigo='HABITACAO'),
+DECLARE @soSehab BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSehab AND codigo='SEHAB'),
         @soSmads BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSmads AND codigo='ASSISTENCIA'),
         @soSmdet BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSmdet AND codigo='TRABALHO'),
         @soSms BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSms AND codigo='SAUDE');
@@ -214,7 +214,7 @@ IF NOT EXISTS(SELECT 1 FROM ingestao.entrega WHERE entrega_id=@entBen)
  INSERT ingestao.entrega(entrega_id,gestor_id,sistema_origem_id,gestor_pessoa_versao_id,natureza,tipo_registro_id,tipo_registro_versao_id,idempotency_key,payload_sha256,bytes_recebidos,status,data_referencia,recebido_em,ultima_atualizacao)
  VALUES(@entBen,@gSehab,@soSehab,@gpvSehab,'BENEFICIO',@aa,@aav,'dev-entrega-aa01-1','8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',4,'PROCESSADA','2026-08-27T00:00:00-03:00','2026-08-27T12:00:00+00:00','2026-08-27T09:03:00-03:00');
 IF NOT EXISTS(SELECT 1 FROM bronze.entrega_arquivo WHERE entrega_id=@entBen)
- INSERT bronze.entrega_arquivo(entrega_id,nome_arquivo,content_type,objeto_chave,payload_sha256,tamanho_bytes,recebido_em) VALUES(@entBen,'ENTREGA_SEHAB_HABITACAO_v2_8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','application/zip','sha256/8d/cc/8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',4,'2026-08-27T12:00:00+00:00');
+ INSERT bronze.entrega_arquivo(entrega_id,nome_arquivo,content_type,objeto_chave,payload_sha256,tamanho_bytes,recebido_em) VALUES(@entBen,'ENTREGA_SEHAB_SEHAB_v2_8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','application/zip','sha256/8d/cc/8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',4,'2026-08-27T12:00:00+00:00');
 IF NOT EXISTS(SELECT 1 FROM ingestao.lote WHERE lote_id=@lotBen)
  INSERT ingestao.lote(lote_id,entrega_id,lote_seq,lote_total,qtd_pessoas,qtd_registros,status,criado_em,atualizado_em) VALUES(@lotBen,@entBen,1,1,6,6,'PROCESSADO','2026-08-27T09:00:01-03:00','2026-08-27T09:03:00-03:00');
 IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH001') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSehab,'SEH001');
@@ -430,7 +430,7 @@ UPDATE ingestao.entrega
        recebido_em='2026-08-27T12:00:00+00:00',ultima_atualizacao='2026-08-27T09:03:00-03:00'
  WHERE entrega_id=@entBen;
 UPDATE bronze.entrega_arquivo
-   SET nome_arquivo='ENTREGA_SEHAB_HABITACAO_v2_8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip',
+   SET nome_arquivo='ENTREGA_SEHAB_SEHAB_v2_8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip',
        content_type='application/zip',
        objeto_chave='sha256/8d/cc/8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip',
        payload_sha256='8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',

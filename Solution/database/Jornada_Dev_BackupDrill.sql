@@ -5,7 +5,7 @@ DECLARE @sha CHAR(64)='$(DRILL_SHA)';
 DECLARE @length BIGINT=$(DRILL_LENGTH);
 DECLARE @entrega UNIQUEIDENTIFIER='35500000-0000-4000-8000-00000000B001';
 DECLARE @g BIGINT=(SELECT gestor_id FROM ref.gestor WHERE codigo='SEHAB');
-DECLARE @so BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@g AND codigo='HABITACAO');
+DECLARE @so BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@g AND codigo='SEHAB');
 DECLARE @gpv BIGINT=(SELECT TOP(1) gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@g AND status='ATIVA' ORDER BY versao DESC);
 IF @sha LIKE '%[^0-9a-f]%' COLLATE Latin1_General_100_BIN2 OR LEN(@sha)<>64 THROW 51560,'DRILL_SHA inválido.',1;
 IF @length<=0 THROW 51561,'DRILL_LENGTH inválido.',1;

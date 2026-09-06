@@ -13,13 +13,13 @@ public sealed class IngestionContractTests
     [Test]
     public void Manifest_uses_single_delivery_envelope_without_external_version_or_family()
     {
-        var manifest = new IngestionPackageManifest(2, 1, "HABITACAO", IntegrationNature.BENEFICIO, "AA01", 1, DateTimeOffset.UtcNow);
+        var manifest = new IngestionPackageManifest(2, 1, "SEHAB", IntegrationNature.BENEFICIO, "AA01", 1, DateTimeOffset.UtcNow);
         var names = typeof(IngestionPackageManifest).GetProperties().Select(p => p.Name).ToArray();
         Assert.Multiple(() =>
         {
             Assert.That(Enum.GetNames<IntegrationNature>(), Is.EquivalentTo(new[] { "BENEFICIO", "SERVICO" }));
             Assert.That(manifest.CodigoTipo, Has.Length.EqualTo(4));
-            Assert.That(manifest.CodigoSistemaOrigem, Is.EqualTo("HABITACAO"));
+            Assert.That(manifest.CodigoSistemaOrigem, Is.EqualTo("SEHAB"));
             Assert.That(names, Does.Not.Contain("FamiliaEntrega"));
             Assert.That(names, Does.Not.Contain("VersaoRegistroOrigem"));
             Assert.That(names, Does.Not.Contain("EntregaId"));
@@ -263,7 +263,7 @@ public sealed class IngestionContractTests
 
     private static string FactualManifest(string natureza, string codigo)
     {
-        var sistema = natureza == "SERVICO" ? "ASSISTENCIA" : "HABITACAO";
+        var sistema = natureza == "SERVICO" ? "ASSISTENCIA" : "SEHAB";
         return $"{{\"formatoVersao\":2,\"pessoaSchemaVersao\":1,\"codigoSistemaOrigem\":\"{sistema}\",\"natureza\":\"{natureza}\",\"codigoTipo\":\"{codigo}\",\"tipoVersao\":1,\"dataReferencia\":\"2026-08-28T00:00:00-03:00\"}}";
     }
 

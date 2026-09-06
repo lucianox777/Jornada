@@ -27,7 +27,7 @@ public sealed class SeedDatabaseTests
 
         var gestores = await ScalarAsync(connection, "SELECT COUNT(*) FROM ref.gestor WHERE codigo IN ('SEHAB','SMADS','SMDET','SMS')");
         var tipos = await ScalarAsync(connection, "SELECT COUNT(*) FROM ref.tipo_registro WHERE codigo IN ('AA01','AR01','POT1','CRA1','CPO1','CAS1')");
-        var sistemasOrigem = await ScalarAsync(connection, "SELECT COUNT(*) FROM ref.sistema_origem WHERE codigo IN ('HABITACAO','ASSISTENCIA','TRABALHO','SAUDE')");
+        var sistemasOrigem = await ScalarAsync(connection, "SELECT COUNT(*) FROM ref.sistema_origem WHERE codigo IN ('SEHAB','ASSISTENCIA','TRABALHO','SAUDE')");
         var pessoasOrigem = await ScalarAsync(connection, "SELECT COUNT(*) FROM silver.pessoa_origem");
         var registrosOrigem = await ScalarAsync(connection, "SELECT COUNT(*) FROM silver.registro_origem");
         var versaoExterna = await ScalarAsync(connection, "SELECT COUNT(*) FROM sys.columns WHERE object_id IN (OBJECT_ID('silver.pessoa_observacao'),OBJECT_ID('silver.registro_observacao')) AND name IN ('versao_registro_origem','versao_pessoa_origem')");
