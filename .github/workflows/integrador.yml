@@ -36,8 +36,12 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '8.0.424'
-      - name: Restore resultado service locked
-        run: dotnet restore src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj --locked-mode
+      - name: Generate resultado service lock
+        run: |
+          dotnet restore src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj --use-lock-file --force-evaluate
+          echo '--- RESULT LOCK BEGIN ---'
+          cat src/Jornada.Resultado.Api/packages.lock.json
+          echo '--- RESULT LOCK END ---'
       - name: Build resultado service
         run: dotnet build src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj -c Release --no-restore
       - name: Restore C# integrator tests locked
