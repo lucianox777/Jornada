@@ -42,10 +42,9 @@ def main() -> None:
                 fail(f"{p.relative_to(ROOT)}:{lineno}: DateTimeOffset.Parse sem InvariantCulture")
             if re.search(r"\.ToString\(\"yyyy-MM-dd\"\)", line):
                 fail(f"{p.relative_to(ROOT)}:{lineno}: DateOnly.ToString sem provider")
-            # Contains(char)/IndexOf(char) are ordinal by definition and CA1847 prefers char overloads.
-            # String overloads still need an explicit comparison mode.
-            if re.search(r'\.(?:Contains|IndexOf)\("[^"]*"\)', line) and "StringComparison." not in line:
-                fail(f"{p.relative_to(ROOT)}:{lineno}: comparação string sem StringComparison")
+
+    # Comparações Contains/IndexOf ficam sob autoridade do Roslyn. Contains(char) é ordinal por definição
+    # e é preferido por CA1847; coleções podem expor Contains(string) com comparador próprio.
 
     if "await base.DisposeAsync();" not in (ROOT / "src/Jornada.Ingestion/IngestionPackageInspector.cs").read_text(encoding="utf-8"):
         fail("DecompressedLimitStream.DisposeAsync não chama base.DisposeAsync")
