@@ -15,9 +15,35 @@ INSERT INTO ref.tipo_registro(codigo,nome)
 VALUES('AA01','Auxílio Aluguel')
 ON CONFLICT(codigo) DO NOTHING;
 
+INSERT INTO ref.tipo_registro(codigo,nome)
+VALUES('AE01','Auxílio Emergencial')
+ON CONFLICT(codigo) DO NOTHING;
+
 INSERT INTO ref.tipo_registro_versao(tipo_registro_id,versao)
-SELECT tipo_registro_id,1 FROM ref.tipo_registro WHERE codigo='AA01'
+SELECT tipo_registro_id,1 FROM ref.tipo_registro WHERE codigo IN('AA01','AE01')
 ON CONFLICT(tipo_registro_id,versao) DO NOTHING;
+
+UPDATE ref.gestor SET ativo=TRUE WHERE codigo='SEHAB';
+UPDATE ref.sistema_origem SET ativo=TRUE
+ WHERE gestor_id=(SELECT gestor_id FROM ref.gestor WHERE codigo='SEHAB') AND codigo='HabitaSampa';
+UPDATE ref.gestor_pessoa_versao
+   SET status='ATIVA',
+       pessoa_schema_ref='config/contracts/pessoas/SEHAB/v1/schema.json',
+       pessoa_schema_sha256=decode(repeat('11',32),'hex')
+ WHERE gestor_id=(SELECT gestor_id FROM ref.gestor WHERE codigo='SEHAB') AND versao=1;
+UPDATE ref.tipo_registro
+   SET gestor_id=(SELECT gestor_id FROM ref.gestor WHERE codigo='SEHAB'),
+       natureza='BENEFICIO',ativo=TRUE
+ WHERE codigo IN('AA01','AE01');
+UPDATE ref.tipo_registro_versao trv
+   SET status='ATIVA',
+       schema_registro_ref=CASE tr.codigo
+           WHEN 'AA01' THEN 'config/contracts/registros/SEHAB/AA01/v1/schema.json'
+           ELSE 'config/contracts/registros/SEHAB/AE01/v1/schema.json' END,
+       schema_registro_sha256=decode(CASE tr.codigo WHEN 'AA01' THEN repeat('22',32) ELSE repeat('33',32) END,'hex'),
+       qc_status='ATIVO',regime_vigencia='VIGENCIA_DECLARADA'
+  FROM ref.tipo_registro tr
+ WHERE tr.tipo_registro_id=trv.tipo_registro_id AND tr.codigo IN('AA01','AE01') AND trv.versao=1;
 
 INSERT INTO ingestao.entrega(
     entrega_id,gestor_id,sistema_origem_id,gestor_pessoa_versao_id,natureza,
