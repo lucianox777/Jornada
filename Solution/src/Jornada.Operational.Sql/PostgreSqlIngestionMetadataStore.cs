@@ -303,13 +303,13 @@ public sealed class PostgreSqlIngestionMetadataStore
     private static void Validate(PostgreSqlIngestionMetadataRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.GestorCodigo)) throw new ArgumentException("GestorCodigo obrigatório.");
-        if (string.IsNullOrWhiteSpace(request.CodigoSistemaOrigem)) throw new ArgumentException("CodigoSistemaOrigem obrigatório.");
-        if (request.PessoaSchemaVersao <= 0) throw new ArgumentOutOfRangeException(nameof(request.PessoaSchemaVersao));
-        if (string.IsNullOrWhiteSpace(request.IdempotencyKey) || request.IdempotencyKey.Length > 200) throw new ArgumentException("IdempotencyKey inválido.");
-        if (request.PayloadSha256.Length != 64 || request.BronzeSha256.Length != 64) throw new ArgumentException("SHA-256 deve ter 64 caracteres hexadecimais.");
-        if (request.BytesRecebidos < 0 || request.BronzeBytes < 0) throw new ArgumentOutOfRangeException(nameof(request.BytesRecebidos));
-        if (request.CodigoTipo is { Length: not 4 }) throw new ArgumentException("CodigoTipo deve ter quatro caracteres.");
+        if (string.IsNullOrWhiteSpace(request.GestorCodigo)) throw new ArgumentException("GestorCodigo obrigatório.", nameof(request));
+        if (string.IsNullOrWhiteSpace(request.CodigoSistemaOrigem)) throw new ArgumentException("CodigoSistemaOrigem obrigatório.", nameof(request));
+        if (request.PessoaSchemaVersao <= 0) throw new ArgumentOutOfRangeException(nameof(request), "PessoaSchemaVersao deve ser positivo.");
+        if (string.IsNullOrWhiteSpace(request.IdempotencyKey) || request.IdempotencyKey.Length > 200) throw new ArgumentException("IdempotencyKey inválido.", nameof(request));
+        if (request.PayloadSha256.Length != 64 || request.BronzeSha256.Length != 64) throw new ArgumentException("SHA-256 deve ter 64 caracteres hexadecimais.", nameof(request));
+        if (request.BytesRecebidos < 0 || request.BronzeBytes < 0) throw new ArgumentOutOfRangeException(nameof(request), "BytesRecebidos/BronzeBytes não podem ser negativos.");
+        if (request.CodigoTipo is { Length: not 4 }) throw new ArgumentException("CodigoTipo deve ter quatro caracteres.", nameof(request));
     }
 
     private static void Add(DbCommand command, string name, object? value)
