@@ -19,6 +19,12 @@ internal static partial class JornadaIntegrator
     {
         try
         {
+            if (IsHelpRequest(args))
+            {
+                PrintUsage();
+                return 0;
+            }
+
             var parsed = ParseArgs(args);
             if (parsed.Mode is not ("--enviar" or "--enviar-todos" or "--resultado"))
             {
@@ -55,6 +61,9 @@ internal static partial class JornadaIntegrator
             return 1;
         }
     }
+
+    internal static bool IsHelpRequest(string[] args) =>
+        args.Length == 1 && args[0] is "/help" or "--help" or "-h";
 
     internal static ParsedArgs ParseArgs(string[] args)
     {
@@ -297,9 +306,23 @@ internal static partial class JornadaIntegrator
 
     private static void PrintUsage()
     {
-        Console.WriteLine("Jornada.Integrador --enviar <arquivo.zip> [--config integrador.config.json]");
-        Console.WriteLine("Jornada.Integrador --enviar-todos [--config integrador.config.json]");
-        Console.WriteLine("Jornada.Integrador --resultado <nome.zip> [--config integrador.config.json] [--saida resultado.json]");
+        Console.WriteLine("Jornada.Integrador");
+        Console.WriteLine();
+        Console.WriteLine("Uso:");
+        Console.WriteLine("  Jornada.Integrador --enviar <arquivo.zip> [--config integrador.config.json]");
+        Console.WriteLine("      Envia um único ZIP.");
+        Console.WriteLine();
+        Console.WriteLine("  Jornada.Integrador --enviar-todos [--config integrador.config.json]");
+        Console.WriteLine("      Envia todos os ZIPs da pasta do executável.");
+        Console.WriteLine("      Após sucesso, move cada arquivo para .\\Enviados\\.");
+        Console.WriteLine();
+        Console.WriteLine("  Jornada.Integrador --resultado <nome.zip> [--config integrador.config.json] [--saida resultado.json]");
+        Console.WriteLine("      Consulta o resultado detalhado do processamento pelo nome exato do ZIP enviado.");
+        Console.WriteLine();
+        Console.WriteLine("Ajuda:");
+        Console.WriteLine("  Jornada.Integrador /help");
+        Console.WriteLine("  Jornada.Integrador --help");
+        Console.WriteLine("  Jornada.Integrador -h");
     }
 
     [GeneratedRegex("[^A-Za-z0-9._-]", RegexOptions.CultureInvariant)]
