@@ -75,6 +75,7 @@ jobs:
 
       - name: Apply PostgreSQL operational and materialization cores twice
         run: |
+          mkdir -p .local
           CID=$(docker ps -q --filter publish=5432 | head -1)
           test -n "$CID"
           for PASS in 1 2; do
