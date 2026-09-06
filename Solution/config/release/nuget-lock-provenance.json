@@ -17,10 +17,10 @@
   "lockGraphGeneration": {
     "sdk": "8.0.424",
     "command": "dotnet restore Jornada.sln --use-lock-file --force-evaluate",
-    "diagnosticRunId": "CI_REGENERATED_POSTGRESQL_INGESTION_PROCESSOR",
+    "diagnosticRunId": "CI_REPAIRED_TRANSITIVE_PROVIDER_LOCKS",
     "lockCount": 18,
     "nugetLockGate": "PASS",
-    "combinedSha256": "07bff9f11c002d7463d890ca74ad83b2eaf2d22d951b2fab70892dba9d71c763"
+    "combinedSha256": "6f276236ec4dfa9b7e5c8ff65f655cbce8623374b12e972f382b6f88d98d106c"
   },
   "locks": [
     {
@@ -138,16 +138,16 @@
     {
       "path": "src/Jornada.Resultado.Api/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "27f68f41203d3ad5ecbd0b7a20ca72c3c0abde272b393e800b2f12536518825e",
-      "sha256": "27f68f41203d3ad5ecbd0b7a20ca72c3c0abde272b393e800b2f12536518825e",
+      "sourceSha256": "cd42199370d325e9dee1a1f154081fe532c4554dd9159f1842cfa3496a13df71",
+      "sha256": "cd42199370d325e9dee1a1f154081fe532c4554dd9159f1842cfa3496a13df71",
       "note": "Grafo transitivo via Jornada.Operational.Sql; lock regenerado pelo SDK 8.0.424 e validado em --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "tests/Jornada.Integrador.Tests/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "94d33636992fe63b6168770cec39658ae9228d9ea1e92bfdb8db65701935d4fc",
-      "sha256": "94d33636992fe63b6168770cec39658ae9228d9ea1e92bfdb8db65701935d4fc",
+      "sourceSha256": "f2ac93068120ecfb9e2a30b3c7b8f5ab7a104d3ddbd0a40cf1365cc095a29208",
+      "sha256": "f2ac93068120ecfb9e2a30b3c7b8f5ab7a104d3ddbd0a40cf1365cc095a29208",
       "note": "Harness C# do integrador sem PackageReference externo; referencia o projeto Jornada.Integrador.CSharp e é validado em --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
