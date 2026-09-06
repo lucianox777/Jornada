@@ -71,11 +71,8 @@ internal sealed record ResultadoIdentificador(ResultadoIdentificadorTipo Tipo, s
 
 internal static class ResultadoUrl
 {
-    public static Uri Combine(string baseUrl, string relative)
-    {
-        var normalized = baseUrl.EndsWith("/", StringComparison.Ordinal) ? baseUrl : baseUrl + "/";
-        return new Uri(new Uri(normalized, UriKind.Absolute), relative);
-    }
+    public static Uri Combine(string baseUrl, string relative) =>
+        new(new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute), relative);
 }
 
 internal sealed class ResultadoRepository(ResultadoOptions options)
