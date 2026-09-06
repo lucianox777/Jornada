@@ -1,0 +1,144 @@
+name: jornada-postgresql-adapter
+
+on:
+  push:
+    paths:
+      - 'Solution/src/Jornada.Operational.Sql/**'
+      - 'Solution/src/Jornada.Pipeline.Coordination/**'
+      - 'Solution/src/Jornada.Resultado.Api/**'
+      - 'Solution/database/postgresql/**'
+      - 'Solution/scripts/postgresql-adapter-smoke.cs'
+      - '.github/workflows/postgresql-adapter.yml'
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Operational.Sql/**'
+      - 'Solution/src/Jornada.Pipeline.Coordination/**'
+      - 'Solution/src/Jornada.Resultado.Api/**'
+      - 'Solution/database/postgresql/**'
+      - 'Solution/scripts/postgresql-adapter-smoke.cs'
+      - '.github/workflows/postgresql-adapter.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgresql-adapter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Solution
+    services:
+      postgres:
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        env:
+          POSTGRES_USER: jornada
+          POSTGRES_DB: JornadaPg
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jornada -d JornadaPg"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      JORNADA_POSTGRESQL_CONNECTION: 'Host=localhost;Port=5432;Database=JornadaPg;Username=jornada;SSL Mode=Disable'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: '8.0.424'
+
+      - name: Restore PostgreSQL provider graph
+        run: |
+          dotnet restore src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj --force-evaluate
+          dotnet restore src/Jornada.Pipeline.Coordination/Jornada.Pipeline.Coordination.csproj --force-evaluate
+          dotnet restore src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj --force-evaluate
+
+      - name: Build PostgreSQL-capable components
+        run: |
+          dotnet build src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj -c Release --no-restore -warnaserror
+          dotnet build src/Jornada.Pipeline.Coordination/Jornada.Pipeline.Coordination.csproj -c Release --no-restore -warnaserror
+          dotnet build src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj -c Release --no-restore -warnaserror
+
+      - name: Apply PostgreSQL result core and smoke fixture
+        run: |
+          CID=$(docker ps -q --filter publish=5432 | head -1)
+          test -n "$CID"
+          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core.sql
+          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core.sql
+          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core_Smoke.sql
+
+      - name: Run PostgreSQL adapter and advisory-lock smoke
+        run: |
+          mkdir -p .local/postgresql-adapter-smoke
+          cat > .local/postgresql-adapter-smoke/PostgreSqlAdapterSmoke.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net8.0</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="../../src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj" />
+              <ProjectReference Include="../../src/Jornada.Pipeline.Coordination/Jornada.Pipeline.Coordination.csproj" />
+              <Compile Include="../../scripts/postgresql-adapter-smoke.cs" Link="Program.cs" />
+            </ItemGroup>
+          </Project>
+          EOF
+          dotnet run --project .local/postgresql-adapter-smoke/PostgreSqlAdapterSmoke.csproj -c Release
+
+      - name: Start authorization stub and PostgreSQL Resultado API
+        run: |
+          mkdir -p .local/postgresql-e2e
+          python3 -c "from http.server import BaseHTTPRequestHandler,HTTPServer; H=type('H',(BaseHTTPRequestHandler,),{'do_GET':lambda s:(s.send_response(200),s.end_headers(),s.wfile.write(b'{}')),'log_message':lambda *a:None}); HTTPServer(('127.0.0.1',5099),H).serve_forever()" > .local/postgresql-e2e/auth.log 2>&1 &
+          echo $! > .local/postgresql-e2e/auth.pid
+          Database__Provider=PostgreSql \
+          ConnectionStrings__Jornada="$JORNADA_POSTGRESQL_CONNECTION" \
+          JornadaApiBaseUrl=http://127.0.0.1:5099 \
+          ASPNETCORE_URLS=http://127.0.0.1:5098 \
+          dotnet run --project src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj -c Release --no-build --no-launch-profile \
+            > .local/postgresql-e2e/resultado.log 2>&1 &
+          echo $! > .local/postgresql-e2e/resultado.pid
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5098/health > .local/postgresql-e2e/health.json; then exit 0; fi
+            sleep 1
+          done
+          cat .local/postgresql-e2e/resultado.log
+          exit 1
+
+      - name: Prove Resultado API on PostgreSQL
+        run: |
+          NAME='ENTREGA_SEHAB_HabitaSampa_v2_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.zip'
+          curl -fsS "http://127.0.0.1:5098/api/v1/ingestao/resultados/$NAME" \
+            -H 'X-Jornada-Gestor: SEHAB' \
+            -H 'X-Jornada-Access-Key: synthetic-ci-key' \
+            > .local/postgresql-e2e/result.json
+          jq -e '.databaseProvider == "PostgreSql"' .local/postgresql-e2e/result.json
+          jq -e '.finalizado == true' .local/postgresql-e2e/result.json
+          jq -e '.entrega.gestor == "SEHAB"' .local/postgresql-e2e/result.json
+          jq -e '.entrega.codigoSistemaOrigem == "HabitaSampa"' .local/postgresql-e2e/result.json
+          jq -e '.entrega.codigoTipo == "AA01"' .local/postgresql-e2e/result.json
+          jq -e '.processamento.itensDetalhadosDisponiveis == 2' .local/postgresql-e2e/result.json
+          jq -e '.processamento.itensConsolidados == 3' .local/postgresql-e2e/result.json
+          echo 'POSTGRESQL RESULT API E2E: OK'
+
+      - name: Upload PostgreSQL evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: postgresql-adapter-evidence
+          path: Solution/.local/postgresql-e2e
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 30
+
+      - name: Stop local processes
+        if: always()
+        run: |
+          test ! -f .local/postgresql-e2e/resultado.pid || kill "$(cat .local/postgresql-e2e/resultado.pid)" 2>/dev/null || true
+          test ! -f .local/postgresql-e2e/auth.pid || kill "$(cat .local/postgresql-e2e/auth.pid)" 2>/dev/null || true
