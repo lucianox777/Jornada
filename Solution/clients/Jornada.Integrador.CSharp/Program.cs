@@ -20,6 +20,12 @@ internal static partial class JornadaIntegrator
         try
         {
             var parsed = ParseArgs(args);
+            if (parsed.Mode is not ("--enviar" or "--enviar-todos" or "--resultado"))
+            {
+                PrintUsage();
+                return 2;
+            }
+
             var config = await LoadConfigAsync(parsed.ConfigPath);
             ValidateConfig(config);
 
@@ -30,14 +36,18 @@ internal static partial class JornadaIntegrator
                 return 0;
             }
 
-            if (parsed.Mode == "--resultado")
+            if (parsed.Mode == "--enviar-todos")
             {
-                await QueryResultAsync(client, config, parsed.Value, parsed.OutputPath);
-                return 0;
+                var result = await SendAllFromDirectoryAsync(
+                    AppContext.BaseDirectory,
+                    path => SendAsync(client, config, path));
+
+                Console.WriteLine($"Lote concluído: {result.Enviados} enviado(s), {result.Falhas} falha(s).");
+                return result.Falhas == 0 ? 0 : 1;
             }
 
-            PrintUsage();
-            return 2;
+            await QueryResultAsync(client, config, parsed.Value, parsed.OutputPath);
+            return 0;
         }
         catch (Exception ex)
         {
@@ -48,17 +58,48 @@ internal static partial class JornadaIntegrator
 
     internal static ParsedArgs ParseArgs(string[] args)
     {
-        if (args.Length < 2) return new ParsedArgs(string.Empty, string.Empty, "integrador.config.json", null);
+        if (args.Length == 0)
+            return new ParsedArgs(string.Empty, string.Empty, "integrador.config.json", null);
+
         var mode = args[0];
-        var value = args[1];
+        var value = string.Empty;
+        var optionStart = 1;
+
+        if (mode is "--enviar" or "--resultado")
+        {
+            if (args.Length < 2)
+                throw new ArgumentException($"{mode} exige um valor.");
+
+            value = args[1];
+            optionStart = 2;
+        }
+        else if (mode != "--enviar-todos")
+        {
+            return new ParsedArgs(mode, value, "integrador.config.json", null);
+        }
+
         var configPath = "integrador.config.json";
         string? outputPath = null;
-        for (var i = 2; i < args.Length; i++)
+        for (var i = optionStart; i < args.Length; i++)
         {
-            if (args[i] == "--config" && i + 1 < args.Length) { configPath = args[++i]; continue; }
-            if (args[i] == "--saida" && i + 1 < args.Length) { outputPath = args[++i]; continue; }
+            if (args[i] == "--config" && i + 1 < args.Length)
+            {
+                configPath = args[++i];
+                continue;
+            }
+
+            if (args[i] == "--saida" && i + 1 < args.Length)
+            {
+                if (mode != "--resultado")
+                    throw new ArgumentException("--saida só pode ser usado com --resultado.");
+
+                outputPath = args[++i];
+                continue;
+            }
+
             throw new ArgumentException($"Parâmetro desconhecido: {args[i]}");
         }
+
         return new ParsedArgs(mode, value, configPath, outputPath);
     }
 
@@ -108,6 +149,65 @@ internal static partial class JornadaIntegrator
         Console.WriteLine(body);
         Console.WriteLine($"SHA-256: {sha}");
         Console.WriteLine($"Nome enviado: {canonicalName}");
+    }
+
+    internal static string[] EnumerateZipFilesForBatch(string directory)
+    {
+        var fullDirectory = Path.GetFullPath(directory);
+        if (!Directory.Exists(fullDirectory))
+            throw new DirectoryNotFoundException($"Pasta do CLI não encontrada: {fullDirectory}");
+
+        return Directory.EnumerateFiles(fullDirectory, "*", SearchOption.TopDirectoryOnly)
+            .Where(path => path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    internal static async Task<BatchSendResult> SendAllFromDirectoryAsync(
+        string directory,
+        Func<string, Task> sender)
+    {
+        ArgumentNullException.ThrowIfNull(sender);
+
+        var fullDirectory = Path.GetFullPath(directory);
+        var zipFiles = EnumerateZipFilesForBatch(fullDirectory);
+        if (zipFiles.Length == 0)
+        {
+            Console.WriteLine($"Nenhum ZIP encontrado em: {fullDirectory}");
+            return new BatchSendResult(0, 0);
+        }
+
+        var sentDirectory = Path.Combine(fullDirectory, "Enviados");
+        var sent = 0;
+        var failures = 0;
+
+        foreach (var zipPath in zipFiles)
+        {
+            var destination = Path.Combine(sentDirectory, Path.GetFileName(zipPath));
+            if (File.Exists(destination))
+            {
+                failures++;
+                Console.Error.WriteLine($"ERRO [{Path.GetFileName(zipPath)}]: já existe arquivo com o mesmo nome em Enviados; o ZIP não foi enviado.");
+                continue;
+            }
+
+            try
+            {
+                Console.WriteLine($"Enviando: {Path.GetFileName(zipPath)}");
+                await sender(zipPath);
+                Directory.CreateDirectory(sentDirectory);
+                File.Move(zipPath, destination);
+                sent++;
+                Console.WriteLine($"Movido para: {destination}");
+            }
+            catch (Exception ex)
+            {
+                failures++;
+                Console.Error.WriteLine($"ERRO [{Path.GetFileName(zipPath)}]: {ex.Message}");
+            }
+        }
+
+        return new BatchSendResult(sent, failures);
     }
 
     private static async Task QueryResultAsync(HttpClient client, IntegratorConfig config, string rawFileName, string? outputPath)
@@ -198,6 +298,7 @@ internal static partial class JornadaIntegrator
     private static void PrintUsage()
     {
         Console.WriteLine("Jornada.Integrador --enviar <arquivo.zip> [--config integrador.config.json]");
+        Console.WriteLine("Jornada.Integrador --enviar-todos [--config integrador.config.json]");
         Console.WriteLine("Jornada.Integrador --resultado <nome.zip> [--config integrador.config.json] [--saida resultado.json]");
     }
 
@@ -207,6 +308,7 @@ internal static partial class JornadaIntegrator
 
 internal sealed record ParsedArgs(string Mode, string Value, string ConfigPath, string? OutputPath);
 internal sealed record ManifestInfo(int FormatoVersao, string CodigoSistemaOrigem);
+internal sealed record BatchSendResult(int Enviados, int Falhas);
 
 internal sealed class IntegratorConfig
 {
