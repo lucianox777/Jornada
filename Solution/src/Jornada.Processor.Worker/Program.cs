@@ -42,14 +42,19 @@ builder.Services.AddSingleton<IBronzeObjectStore>(_ =>
 
 var operationalSql = new OperationalSqlAdapter(jornadaConnectionString);
 builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
-builder.Services.AddSingleton(new SqlPipelineCoordinator(
+var pipelineCoordinator = new SqlPipelineCoordinator(
     operationalSql,
     TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("PipelineCoordination:HeartbeatSeconds", 5))),
-    TimeSpan.FromSeconds(Math.Max(1, builder.Configuration.GetValue("PipelineCoordination:ExclusiveIntentTimeoutSeconds", 5)))));
+    TimeSpan.FromSeconds(Math.Max(1, builder.Configuration.GetValue("PipelineCoordination:ExclusiveIntentTimeoutSeconds", 5))));
+builder.Services.AddSingleton(pipelineCoordinator);
+builder.Services.AddSingleton<IProcessorPipelineCoordinator>(
+    new SqlProcessorPipelineCoordinatorAdapter(pipelineCoordinator));
 builder.Services.AddSingleton(new ProcessorRuntimeIdentity(
     $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}"));
 builder.Services.AddSingleton<IIdentityMapRepository, SqlIdentityMapRepository>();
 builder.Services.AddSingleton<SqlProcessorRepository>();
+builder.Services.AddSingleton<IProcessorRepository>(sp =>
+    new SqlProcessorRepositoryAdapter(sp.GetRequiredService<SqlProcessorRepository>()));
 builder.Services.AddSingleton<RegistryQualityEngine>();
 builder.Services.AddSingleton<IRegistryQualityEvaluator>(_ => new PositiveGrantedValueRegistryQcEvaluator("AA01", 1));
 builder.Services.AddSingleton<IRegistryQualityEvaluator>(_ => new PositiveGrantedValueRegistryQcEvaluator("POT1", 1));

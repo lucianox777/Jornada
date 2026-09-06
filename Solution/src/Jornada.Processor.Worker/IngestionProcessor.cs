@@ -6,10 +6,10 @@ using Jornada.Pipeline.Coordination;
 namespace Jornada.Processor.Worker;
 
 internal sealed class IngestionProcessor(
-    SqlProcessorRepository repository,
+    IProcessorRepository repository,
     IngestionPackageParser parser,
     IBronzeObjectStore bronzeStore,
-    SqlPipelineCoordinator pipelineCoordinator,
+    IProcessorPipelineCoordinator pipelineCoordinator,
     ProcessorRuntimeIdentity runtime,
     ProcessorOptions options,
     ILogger<IngestionProcessor> logger)

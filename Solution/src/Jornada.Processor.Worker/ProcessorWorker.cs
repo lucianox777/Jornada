@@ -2,7 +2,7 @@ namespace Jornada.Processor.Worker;
 
 internal sealed class ProcessorWorker(
     IngestionProcessor processor,
-    SqlProcessorRepository repository,
+    IProcessorRepository repository,
     ProcessorOptions options,
     ILogger<ProcessorWorker> logger) : BackgroundService
 {
