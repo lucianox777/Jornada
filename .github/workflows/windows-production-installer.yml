@@ -95,7 +95,7 @@ jobs:
           $config.installationRoot = 'C:\Jornada-CI'
           $config.dataRoot = 'C:\Jornada-CI-Data'
           $config.sql.mode = 'External'
-          $config.sql.connectionString = 'Server=localhost;Database=Jornada;Integrated Security=true;Encrypt=false'
+          $config.sql.connectionString = 'Server=localhost;Database=Jornada;Integrated Security=true;Encrypt=true;TrustServerCertificate=false'
           $config.sql.initializeDatabase = $false
           $config.integrator.enabled = $false
           foreach ($task in $config.tasks) { $task.enabled = $false }
@@ -105,6 +105,32 @@ jobs:
             -ConfigPath $ciConfig `
             -PayloadRoot "$PWD\.local\windows-production-bundle" `
             -ValidateOnly
+
+      - name: Reject placeholder Integrator access key
+        shell: pwsh
+        run: |
+          $config = Get-Content -Raw install/windows-production/Jornada.Production.example.json | ConvertFrom-Json
+          $config.installationRoot = 'C:\Jornada-CI'
+          $config.dataRoot = 'C:\Jornada-CI-Data'
+          $config.sql.mode = 'External'
+          $config.sql.connectionString = 'Server=localhost;Database=Jornada;Integrated Security=true;Encrypt=true;TrustServerCertificate=false'
+          $config.sql.initializeDatabase = $false
+          $config.integrator.enabled = $true
+          $config.integrator.accessKey = 'CHANGE_ME'
+          foreach ($task in $config.tasks) { $task.enabled = $false }
+          $negativeConfig = "$PWD\.local\Jornada.Production.invalid-key.json"
+          $config | ConvertTo-Json -Depth 30 | Set-Content -Encoding UTF8 $negativeConfig
+          try {
+            .\install\windows-production\Install-JornadaProduction.ps1 `
+              -ConfigPath $negativeConfig `
+              -PayloadRoot "$PWD\.local\windows-production-bundle" `
+              -ValidateOnly
+            throw 'O instalador aceitou accessKey placeholder.'
+          }
+          catch {
+            if ($_.Exception.Message -eq 'O instalador aceitou accessKey placeholder.') { throw }
+            Write-Host 'Placeholder de accessKey rejeitado: OK'
+          }
 
       - name: Verify production bundle manifest
         shell: pwsh
