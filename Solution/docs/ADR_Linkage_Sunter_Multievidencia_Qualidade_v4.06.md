@@ -12,6 +12,7 @@ Status: CANDIDATO — pós Base Normativa v3.64 / master v4.05+
 6. Jaro–Winkler ou outro comparador de nome não é um modelo concorrente ao Fellegi–Sunter: ele apenas produz o estado de concordância que o Fellegi–Sunter pondera.
 7. O calibrador deve poder estimar parâmetros para todas as evidências de identidade explicitamente habilitadas no catálogo de features, e não apenas para nome/nome da mãe/data de nascimento.
 8. Nenhum campo novo entra automaticamente no score. Cada evidência precisa de semântica, normalizador, comparador, política de qualidade e parâmetros `m/u` versionados.
+9. Para linkage probabilístico, a data de nascimento é preservada integralmente, mas sua evidência é decomposta em `NASC_DIA`, `NASC_MES` e `NASC_ANO`, calibrados e pontuados separadamente.
 
 ## 2. Núcleo de identidade pode estar incompleto ou inconsistente
 
@@ -47,6 +48,20 @@ Política de uso no linkage:
 
 Exemplo: nascimento `1500-03-15` permanece armazenado como recebido e aparece no BI como `IMPOSSIVEL`, mas não pode criar nem reforçar a tripla cadastral determinística.
 
+### 3.1. Nascimento: valor original e componentes de linkage
+
+A decomposição para linkage não altera nem substitui `data_nascimento` recebida. Para uma data qualificada como apta, o comparador deriva:
+
+- `NASC_DIA`
+- `NASC_MES`
+- `NASC_ANO`
+
+Cada componente possui estados `EXACT` e `DIFF` com probabilidades `m/u` próprias. Assim, um erro apenas no dia não equivale a uma discordância completa de nascimento; mês e ano ainda podem fornecer evidência positiva. O mesmo vale para erros de mês ou ano.
+
+Se a data estiver ausente, impossível ou não apta à política do modelo, os componentes derivados não podem transformar o valor ruim em evidência positiva. O original continua preservado para auditoria e reavaliação futura.
+
+A data completa continua sendo usada na tripla determinística somente quando estiver íntegra, apta e a combinação for única.
+
 ## 4. Chaves determinísticas municipais
 
 Ordem conceitual:
@@ -81,7 +96,9 @@ Features candidatas iniciais:
 
 - `NOME`
 - `NOME_MAE`
-- `DATA_NASCIMENTO`
+- `NASC_DIA`
+- `NASC_MES`
+- `NASC_ANO`
 - `RG/RNE/documento equivalente`, com escopo e normalização próprios
 - `TELEFONE_CONTATO`
 - `EMAIL_CONTATO`
@@ -93,21 +110,27 @@ Cada feature possui estados de comparação próprios. Ausência em qualquer lad
 
 O calibrador separado estima `m` e `u` por feature/estado sobre amostras controladas do corpus, mantendo versão, snapshot, origem, cobertura e tamanho de amostra. A ativação de uma nova feature exige evidência de calibração e validação antes de publicação do modelo.
 
+A decomposição de nascimento não pressupõe independência perfeita entre dia, mês e ano; a validação/calibração do modelo deve medir o efeito combinado e ajustar `T_LINKAGE` antes da ativação.
+
 ## 7. Blocking / candidate generation em escala municipal
 
 Nunca comparar cada observação com toda a Gold.
 
-O candidate generation pode usar múltiplos passes, conforme evidência disponível, por exemplo:
+A V2 de nascimento usa múltiplos passes, mantendo a busca apoiada no índice existente de `data_nascimento`:
 
-- data de nascimento válida exata;
-- identificador documental normalizado;
-- telefone/e-mail normalizado;
-- combinações de tokens de nome e nome da mãe normalizados;
-- chaves fonéticas somente se um experimento posterior provar ganho e mantiver recall aceitável.
+- data completa exata;
+- mesmo ano+mês, permitindo variação do dia, estreitado por inicial de nome/nome da mãe quando disponível;
+- mesmo ano+dia em meses válidos, permitindo variação do mês, também estreitado por inicial;
+- transposição dia/mês quando a data resultante for válida;
+- pequena tolerância configurável de ano para erros comuns de registro.
+
+Outros passes futuros podem usar identificador documental, telefone/e-mail normalizado e combinações de tokens de nome/nome da mãe. Chaves fonéticas somente entram se um experimento posterior provar ganho e mantiver recall aceitável.
 
 Blocking apenas reduz candidatos. Ele não decide que duas Pessoas são iguais.
 
 Nenhum bloco pode ser truncado silenciosamente: excesso exige novo passe/estratégia ou falha operacional explícita.
+
+Modelos V1 continuam usando apenas data de nascimento completa exata. Os passes V2 só são habilitados quando o modelo publicado contém os parâmetros de nascimento por componente, evitando mudança silenciosa de comportamento de um modelo já ativo.
 
 ## 8. Relatórios de qualidade do BI
 
@@ -119,6 +142,7 @@ Indicadores mínimos:
 - `VALIDA`, `SUSPEITA`, `SENTINELA_PROVAVEL`, `IMPOSSIVEL`, `AUSENTE` e `INCONSISTENTE` por campo;
 - motivos de qualidade por campo;
 - datas de nascimento futuras, idades acima dos limites operacionais e valores sentinela frequentes;
+- qualidade de `NASC_DIA`, `NASC_MES` e `NASC_ANO` derivada da qualidade da data de origem, sem perder o valor original;
 - cobertura de evidências adicionais (telefone, e-mail, documento, endereço etc.);
 - resolução por `CPF_DETERMINISTICO`, `TRIPLA_CADASTRAL_DETERMINISTICA` e `LINKAGE_PROBABILISTICO`;
 - pendências, conflitos, ausência de candidato e distribuição de score/modelo;
@@ -137,12 +161,14 @@ Não há, nesta decisão, restrição adicional para `duas letras + dois dígito
 
 1. preservar/qualificar todo núcleo e evidências de origem;
 2. expor a qualidade no BI;
-3. evoluir normalização de nomes para V2 com remoção de partículas;
-4. permitir núcleo incompleto nos contratos de Pessoa sem perder o registro;
-5. manter `codigoPessoaOrigem` como chave de origem configurada por Gestor/Sistema;
-6. generalizar calibrador e scorer Fellegi–Sunter por catálogo de features;
-7. implementar multi-pass blocking sem Soundex obrigatório;
-8. replay/reavaliação de pendências quando nova fonte/evidência chegar;
-9. validar em HML antes de ativar nova versão do modelo.
+3. decompor nascimento em dia/mês/ano no calibrador e scorer, preservando a data original;
+4. evoluir candidate generation para os passes V2 de nascimento sem alterar modelos V1 já publicados;
+5. evoluir normalização de nomes para V2 com remoção de partículas;
+6. permitir núcleo incompleto nos contratos de Pessoa sem perder o registro;
+7. manter `codigoPessoaOrigem` como chave de origem configurada por Gestor/Sistema;
+8. generalizar calibrador e scorer Fellegi–Sunter por catálogo de features;
+9. implementar multi-pass blocking sem Soundex obrigatório;
+10. replay/reavaliação de pendências quando nova fonte/evidência chegar;
+11. validar em HML antes de ativar nova versão do modelo.
 
-Esta ADR registra a direção arquitetural. Alterações de runtime/DDL devem ser rebased sobre o `master` corrente e passar pelos gates existentes antes de merge.
+Esta ADR registra a direção arquitetural e a primeira implementação V2 de nascimento. Alterações de runtime/DDL devem permanecer compatíveis com o `master` corrente e passar pelos gates existentes antes de merge.
