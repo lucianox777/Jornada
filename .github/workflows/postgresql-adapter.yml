@@ -8,6 +8,7 @@ on:
       - 'Solution/src/Jornada.Resultado.Api/**'
       - 'Solution/database/postgresql/**'
       - 'Solution/scripts/postgresql-adapter-smoke.cs'
+      - 'Solution/scripts/postgresql-ingestion-processor-smoke.cs'
       - '.github/workflows/postgresql-adapter.yml'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - 'Solution/src/Jornada.Resultado.Api/**'
       - 'Solution/database/postgresql/**'
       - 'Solution/scripts/postgresql-adapter-smoke.cs'
+      - 'Solution/scripts/postgresql-ingestion-processor-smoke.cs'
       - '.github/workflows/postgresql-adapter.yml'
   workflow_dispatch:
 
@@ -53,9 +55,9 @@ jobs:
 
       - name: Restore PostgreSQL provider graph
         run: |
-          dotnet restore src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj --force-evaluate
-          dotnet restore src/Jornada.Pipeline.Coordination/Jornada.Pipeline.Coordination.csproj --force-evaluate
-          dotnet restore src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj --force-evaluate
+          dotnet restore src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj --locked-mode
+          dotnet restore src/Jornada.Pipeline.Coordination/Jornada.Pipeline.Coordination.csproj --locked-mode
+          dotnet restore src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj --locked-mode
 
       - name: Build PostgreSQL-capable components
         run: |
@@ -63,12 +65,14 @@ jobs:
           dotnet build src/Jornada.Pipeline.Coordination/Jornada.Pipeline.Coordination.csproj -c Release --no-restore -warnaserror
           dotnet build src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj -c Release --no-restore -warnaserror
 
-      - name: Apply PostgreSQL result core and smoke fixture
+      - name: Apply PostgreSQL operational core and smoke fixture
         run: |
           CID=$(docker ps -q --filter publish=5432 | head -1)
           test -n "$CID"
           docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core.sql
+          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Ingestion_Processor_Core.sql
           docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core.sql
+          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Ingestion_Processor_Core.sql
           docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core_Smoke.sql
 
       - name: Run PostgreSQL adapter and advisory-lock smoke
@@ -91,6 +95,27 @@ jobs:
           </Project>
           EOF
           dotnet run --project .local/postgresql-adapter-smoke/PostgreSqlAdapterSmoke.csproj -c Release
+
+      - name: Run PostgreSQL ingestion and Processor lease smoke
+        run: |
+          mkdir -p .local/postgresql-ingestion-processor-smoke
+          cat > .local/postgresql-ingestion-processor-smoke/PostgreSqlIngestionProcessorSmoke.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net8.0</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="../../src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj" />
+              <Compile Include="../../scripts/postgresql-ingestion-processor-smoke.cs" Link="Program.cs" />
+            </ItemGroup>
+          </Project>
+          EOF
+          dotnet run --project .local/postgresql-ingestion-processor-smoke/PostgreSqlIngestionProcessorSmoke.csproj -c Release \
+            | tee .local/postgresql-ingestion-processor-smoke/result.txt
 
       - name: Start authorization stub and PostgreSQL Resultado API
         run: |
@@ -132,7 +157,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: postgresql-adapter-evidence
-          path: Solution/.local/postgresql-e2e
+          path: |
+            Solution/.local/postgresql-e2e
+            Solution/.local/postgresql-ingestion-processor-smoke
           if-no-files-found: ignore
           include-hidden-files: true
           retention-days: 30
