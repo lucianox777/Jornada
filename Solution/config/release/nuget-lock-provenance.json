@@ -17,7 +17,7 @@
   "lockGraphGeneration": {
     "sdk": "8.0.424",
     "command": "dotnet restore Jornada.sln --use-lock-file --force-evaluate",
-    "diagnosticRunId": "CI_REGENERATED_ON_POSTGRESQL_ADAPTER_CANDIDATE",
+    "diagnosticRunId": "CI_REGENERATED_POSTGRESQL_INGESTION_PROCESSOR",
     "lockCount": 18,
     "nugetLockGate": "PASS",
     "combinedSha256": "07bff9f11c002d7463d890ca74ad83b2eaf2d22d951b2fab70892dba9d71c763"
