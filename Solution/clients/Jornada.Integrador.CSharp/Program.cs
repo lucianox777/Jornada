@@ -46,7 +46,7 @@ internal static partial class JornadaIntegrator
         }
     }
 
-    private static ParsedArgs ParseArgs(string[] args)
+    internal static ParsedArgs ParseArgs(string[] args)
     {
         if (args.Length < 2) return new ParsedArgs(string.Empty, string.Empty, "integrador.config.json", null);
         var mode = args[0];
@@ -70,14 +70,14 @@ internal static partial class JornadaIntegrator
             ?? throw new InvalidDataException("Arquivo de configuração inválido.");
     }
 
-    private static void ValidateConfig(IntegratorConfig config)
+    internal static void ValidateConfig(IntegratorConfig config)
     {
         if (string.IsNullOrWhiteSpace(config.Gestor)) throw new InvalidDataException("gestor é obrigatório no arquivo de configuração.");
         if (string.IsNullOrWhiteSpace(config.AccessKey) || string.Equals(config.AccessKey, "CHANGE_ME", StringComparison.Ordinal))
             throw new InvalidDataException("accessKey deve ser configurada.");
         if (config.Endpoints is null || !Uri.TryCreate(config.Endpoints.Envio, UriKind.Absolute, out _)
-            || string.IsNullOrWhiteSpace(config.Endpoints.Resultado) || !config.Endpoints.Resultado.Contains("{identificador}", StringComparison.Ordinal))
-            throw new InvalidDataException("endpoints.envio deve ser URL absoluta e endpoints.resultado deve conter {identificador}.");
+            || string.IsNullOrWhiteSpace(config.Endpoints.Resultado) || !config.Endpoints.Resultado.Contains("{nomeArquivo}", StringComparison.Ordinal))
+            throw new InvalidDataException("endpoints.envio deve ser URL absoluta e endpoints.resultado deve conter {nomeArquivo}.");
         if (config.Polling.IntervalSeconds < 1 || config.Polling.TimeoutSeconds < config.Polling.IntervalSeconds)
             throw new InvalidDataException("Configuração de polling inválida.");
     }
@@ -110,10 +110,10 @@ internal static partial class JornadaIntegrator
         Console.WriteLine($"Nome enviado: {canonicalName}");
     }
 
-    private static async Task QueryResultAsync(HttpClient client, IntegratorConfig config, string rawIdentifier, string? outputPath)
+    private static async Task QueryResultAsync(HttpClient client, IntegratorConfig config, string rawFileName, string? outputPath)
     {
-        var identifier = await ResolveIdentifierAsync(rawIdentifier);
-        var endpoint = config.Endpoints.Resultado.Replace("{identificador}", Uri.EscapeDataString(identifier), StringComparison.Ordinal);
+        var fileName = ValidateZipFileName(rawFileName);
+        var endpoint = BuildResultEndpoint(config, fileName);
         var deadline = DateTimeOffset.UtcNow.AddSeconds(config.Polling.TimeoutSeconds);
 
         while (true)
@@ -131,7 +131,7 @@ internal static partial class JornadaIntegrator
             if (finalizado)
             {
                 var pretty = JsonSerializer.Serialize(document.RootElement, JsonOptions);
-                var destination = outputPath ?? BuildDefaultOutput(config, identifier);
+                var destination = outputPath ?? BuildDefaultOutput(config, fileName);
                 var fullDestination = Path.GetFullPath(destination);
                 Directory.CreateDirectory(Path.GetDirectoryName(fullDestination) ?? Directory.GetCurrentDirectory());
                 await File.WriteAllTextAsync(fullDestination, pretty + Environment.NewLine, Encoding.UTF8);
@@ -146,21 +146,33 @@ internal static partial class JornadaIntegrator
         }
     }
 
-    private static string BuildDefaultOutput(IntegratorConfig config, string identifier)
+    internal static string ValidateZipFileName(string raw)
     {
-        var safe = InvalidFileNameRegex().Replace(identifier, "_");
-        var directory = string.IsNullOrWhiteSpace(config.DiretorioSaida) ? "." : config.DiretorioSaida;
-        return Path.Combine(directory, $"resultado_{safe}.json");
+        if (string.IsNullOrWhiteSpace(raw))
+            throw new ArgumentException("--resultado exige somente o nome exato do ZIP enviado, sem caminho.");
+
+        var value = raw.Trim();
+        if (value.Length > 260
+            || !value.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+            || value.Contains('/')
+            || value.Contains('\\')
+            || value.Contains(':'))
+            throw new ArgumentException("--resultado exige somente o nome exato do ZIP enviado, sem caminho.");
+
+        return value;
     }
 
-    private static async Task<string> ResolveIdentifierAsync(string raw)
+    internal static string BuildResultEndpoint(IntegratorConfig config, string rawFileName)
     {
-        if (File.Exists(raw)) return await ComputeSha256Async(Path.GetFullPath(raw));
-        var value = raw.Trim();
-        if (ShaRegex().IsMatch(value)) return value;
-        if (value.Length <= 260 && value.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(Path.GetFileName(value), value, StringComparison.Ordinal)) return value;
-        throw new ArgumentException("--resultado exige um SHA-256, o nome exato do ZIP enviado ou o caminho de um ZIP local.");
+        var fileName = ValidateZipFileName(rawFileName);
+        return config.Endpoints.Resultado.Replace("{nomeArquivo}", Uri.EscapeDataString(fileName), StringComparison.Ordinal);
+    }
+
+    private static string BuildDefaultOutput(IntegratorConfig config, string fileName)
+    {
+        var safe = InvalidFileNameRegex().Replace(fileName, "_");
+        var directory = string.IsNullOrWhiteSpace(config.DiretorioSaida) ? "." : config.DiretorioSaida;
+        return Path.Combine(directory, $"resultado_{safe}.json");
     }
 
     private static async Task<string> ComputeSha256Async(string path)
@@ -186,11 +198,8 @@ internal static partial class JornadaIntegrator
     private static void PrintUsage()
     {
         Console.WriteLine("Jornada.Integrador --enviar <arquivo.zip> [--config integrador.config.json]");
-        Console.WriteLine("Jornada.Integrador --resultado <sha256|nome.zip|arquivo.zip> [--config integrador.config.json] [--saida resultado.json]");
+        Console.WriteLine("Jornada.Integrador --resultado <nome.zip> [--config integrador.config.json] [--saida resultado.json]");
     }
-
-    [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]
-    private static partial Regex ShaRegex();
 
     [GeneratedRegex("[^A-Za-z0-9._-]", RegexOptions.CultureInvariant)]
     private static partial Regex InvalidFileNameRegex();
