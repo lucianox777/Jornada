@@ -1,61 +1,144 @@
-# Adapter do Banco Operacional — v4.03
+# Adapter do Banco Operacional
 
 ## Objetivo
 
-`Jornada.Operational.Sql` mantém uma fronteira única entre os componentes operacionais da Jornada e a família Microsoft SQL, sem esconder T-SQL, transações, constraints ou recursos SQL que fazem parte da solução.
+A Jornada mantém acesso explícito ao banco operacional, sem Entity Framework e sem tentar esconder diferenças reais entre os SGBDs.
 
-A release v4.03 preserva a prova de portabilidade do mesmo núcleo relacional entre **SQL Server 2022** e **SQL Database in Microsoft Fabric**. Não existe `FabricSqlAdapter`, DDL alternativo ou regra funcional duplicada por hospedagem.
+A arquitetura passa a ter duas fronteiras complementares:
 
-## Fronteira
+- `IOperationalSqlAdapter`: fronteira legada fortemente tipada em `SqlConnection`, preservada para todo o código SQL Server/Fabric já homologado;
+- `IOperationalDatabaseAdapter`: nova fronteira ADO.NET neutra baseada em `DbConnection`, usada por componentes que já possuem implementação multi-provider.
+
+A migração é incremental. Nenhum componente existente é obrigado a trocar de provider antes de ter DDL, SQL, concorrência e testes equivalentes no PostgreSQL.
+
+## Providers
 
 ```text
-Jornada.Api / Processor / Linkage / Maintenance
-                    |
-                    v
-          IOperationalSqlAdapter
-                    |
-                    v
-           OperationalSqlAdapter
-                    |
-                    v
-          Microsoft.Data.SqlClient
-                    |
-          +---------+----------+
-          |                    |
- SQL Server 2022     SQL Database in Fabric
- DEV/CI/testes       HML/Produção preferencial
+                         Jornada
+                            |
+                IOperationalDatabaseAdapter
+                     /                \
+                    /                  \
+       OperationalSqlAdapter    PostgreSqlOperationalAdapter
+              |                         |
+ Microsoft.Data.SqlClient             Npgsql
+              |                         |
+ SQL Server / Fabric SQL           PostgreSQL
 ```
 
-## Baseline de desenvolvimento
+`OperationalDatabaseAdapterFactory` reconhece `SqlServer` e `PostgreSql`. A ausência de `Database:Provider` mantém `SqlServer` como padrão, preservando retrocompatibilidade.
 
-O desenvolvimento diário, o CI e a validação ordinária de release permanecem em **SQL Server 2022 local/Testcontainers**. Nenhuma conta, capacidade, workspace, usuário ou connection string Fabric é requisito para compilar ou testar a Jornada.
+## SQL Server / Fabric
 
-SQL Database in Microsoft Fabric é o ambiente operacional preferencial de HML/Produção. A suíte de compatibilidade Fabric continua sendo executada somente quando houver ambiente institucional específico disponível; a connection string é configuração externa e não integra o pacote de release.
+`OperationalSqlAdapter` continua implementando `IOperationalSqlAdapter` e agora também implementa `IOperationalDatabaseAdapter`.
 
-## Evidência de compatibilidade
+O comportamento existente não mudou:
 
-Em 03/09/2026 a suíte Integration executou 58/58 testes com sucesso em SQL Database in Microsoft Fabric, sem skips. O cenário concorrente de oito contendores também passou. A evidência confirma a compatibilidade funcional do Adapter único e do DDL atual; não constitui benchmark de performance nem escolha automática de produção.
+- connection string Microsoft SQL;
+- conexões normais com pooling conforme configuração;
+- sessões dedicadas com `Pooling=false` e `Enlist=false`;
+- `sp_getapplock` e demais construções T-SQL continuam no caminho SQL Server;
+- SQL Database in Microsoft Fabric continua pertencendo à família Microsoft SQL enquanto o protocolo e o T-SQL usados pela Jornada forem compatíveis.
 
-## Sessões normais e dedicadas
+## PostgreSQL
 
-A fronteira oferece dois perfis de conexão:
+`PostgreSqlOperationalAdapter` usa Npgsql e implementa `IOperationalDatabaseAdapter`.
 
-- `OpenAsync` / `CreateConnection`: preservam as propriedades normais da connection string do ambiente;
-- `OpenDedicatedSessionAsync` / `CreateDedicatedSessionConnection`: forçam `Pooling=false` e `Enlist=false`.
+Ele fornece:
 
-Sessões dedicadas são obrigatórias para mecanismos com `sp_getapplock` e `LockOwner='Session'`, porque a vida do lock deve coincidir com a sessão física. Locks com `LockOwner='Transaction'` continuam usando conexões normais e são liberados pelo ciclo transacional.
+- conexão normal PostgreSQL;
+- sessão dedicada com `Pooling=false` e `Enlist=false`;
+- ciclo de vida assíncrono via `DbConnection`;
+- seleção explícita por `Database:Provider=PostgreSql` nos componentes já portados.
+
+Não existe Entity Framework na implementação PostgreSQL.
+
+## Coordenação do pipeline
+
+A coordenação concorrente é uma diferença de plataforma deliberadamente explícita.
+
+### Microsoft SQL
+
+`SqlPipelineCoordinator` usa `sp_getapplock` com locks vinculados à sessão.
+
+### PostgreSQL
+
+`PostgreSqlPipelineCoordinator` usa advisory locks vinculados à sessão:
+
+- `pg_try_advisory_lock_shared` para a intenção compartilhada do Processor;
+- `pg_try_advisory_lock` para locks exclusivos;
+- `pg_advisory_unlock_shared` / `pg_advisory_unlock` na liberação;
+- conexão física dedicada sem pooling como proteção final de ciclo de vida.
+
+Os recursos lógicos permanecem os mesmos:
+
+- `Jornada.Pipeline.ExclusiveRequest`;
+- `Jornada.Pipeline.Corpus`.
+
+O CI PostgreSQL prova que um job exclusivo impede a aquisição do corpus pelo Processor e que, após a liberação, o Processor volta a adquirir o lock.
+
+## Primeira fatia funcional multi-provider
+
+`Jornada.Resultado.Api` é o primeiro serviço operacional executado nos dois providers.
+
+Ele usa `IOperationalDatabaseAdapter` e mantém diferenças pequenas de dialeto em `ResultadoDatabaseDialect`, por exemplo:
+
+- SQL Server: `TOP(1)` e `COUNT_BIG`;
+- PostgreSQL: `LIMIT 1` e `COUNT(*)`.
+
+Consultas estruturalmente comuns usam `DbConnection`, `DbCommand`, `DbParameter` e `DbDataReader`.
+
+O workflow `jornada-postgresql-adapter` executa PostgreSQL real em container, aplica o DDL duas vezes para provar idempotência, testa advisory locks e chama o endpoint HTTP de resultado até a leitura das tabelas PostgreSQL.
+
+## DDL PostgreSQL atual
+
+O diretório `database/postgresql/` contém neste momento:
+
+- `Jornada_Resultado_Core.sql`;
+- `Jornada_Resultado_Core_Smoke.sql`.
+
+Esse DDL representa **somente a primeira fatia operacional necessária à Resultado API e aos testes do adapter**. Ele não é ainda um substituto integral de `database/Jornada_Fase1.sql`.
+
+Ainda precisam ser portados e testados antes de PostgreSQL poder ser declarado backend completo da Jornada:
+
+- ingestão transacional completa;
+- Processor e reserva concorrente de lotes;
+- Silver;
+- Gold;
+- identidade e correções governadas;
+- linkage completo;
+- manutenção e retenção;
+- views/Serving/BI dependentes do banco;
+- auditoria completa;
+- DDL integral e seeds;
+- testes E2E HTTP → Bronze → Silver → Gold → Serving.
 
 ## Regra de arquitetura
 
-A lógica funcional não deve conter `if (fabric)` / `if (sqlServer)`. Diferenças de hospedagem devem ser classificadas e demonstradas por teste antes de qualquer especialização.
+Não criar SQL supostamente universal quando os bancos têm mecanismos diferentes.
 
-O ambiente operacional preferencial de HML/Produção é SQL Database in Microsoft Fabric. Ensaios com carga representativa continuam necessários para dimensionamento, capacidade, disponibilidade, segurança, custo e operação, sem introduzir bifurcação funcional do Adapter.
+A regra é:
 
-## O que não muda na v4.03
+1. operações ADO.NET comuns podem usar `IOperationalDatabaseAdapter`;
+2. diferenças reais de dialeto ficam em componentes/dialetos pequenos e explícitos;
+3. locking, bulk, DDL e operações específicas recebem implementação própria por provider;
+4. cada nova fatia PostgreSQL deve ter teste contra PostgreSQL real antes de substituir o caminho SQL Server;
+5. SQL Server/Fabric permanece funcional até a suíte PostgreSQL atingir paridade.
 
-- schema persistido Base 3.62 / SolutionSchema v3.68;
-- `database/Jornada_Fase1.sql` e seed;
-- contratos JSON/OpenAPI;
-- regras de identidade, UUID, linkage, Gold/Serving, autorização e auditoria;
-- dependências NuGet;
-- Bronze física fora do banco funcional.
+## Configuração
+
+SQL Server/Fabric, padrão retrocompatível:
+
+```text
+Database__Provider=SqlServer
+ConnectionStrings__Jornada=<connection string Microsoft SQL>
+```
+
+PostgreSQL, somente para componentes/fatias já portados:
+
+```text
+Database__Provider=PostgreSql
+ConnectionStrings__Jornada=<connection string PostgreSQL>
+```
+
+Não configurar a Solution inteira com `PostgreSql` enquanto a matriz de paridade não estiver completa.
