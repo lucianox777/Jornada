@@ -7,7 +7,8 @@
   },
   "docker": {
     "mode": "None",
-    "mobyInstallScriptUrl": "https://raw.githubusercontent.com/microsoft/Windows-Containers/Main/helpful_tools/Install-DockerCE/install-docker-ce.ps1"
+    "mobyInstallScriptUrl": "https://raw.githubusercontent.com/microsoft/Windows-Containers/Main/helpful_tools/Install-DockerCE/install-docker-ce.ps1",
+    "mobyInstallScriptSha256": "CHANGE_ME_WITH_APPROVED_SHA256"
   },
   "sql": {
     "mode": "Existing",
