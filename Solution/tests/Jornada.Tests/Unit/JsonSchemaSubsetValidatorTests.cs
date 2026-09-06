@@ -121,6 +121,35 @@ public sealed class JsonSchemaSubsetValidatorTests
         Assert.That(() => validator.ParseAndValidate(invalid, "pessoas.jsonl", 2), Throws.TypeOf<InvalidDataException>());
     }
 
+    [Test]
+    public void Person_v2_allows_cpf_as_source_code_fallback_but_rejects_missing_code_without_cpf()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        string? schema = null;
+        while (dir is not null)
+        {
+            var candidate = Path.Combine(dir.FullName, "config", "contracts", "gestores", "SEHAB", "pessoa", "v2", "pessoa.schema.json");
+            if (File.Exists(candidate)) { schema = candidate; break; }
+            dir = dir.Parent;
+        }
+        Assert.That(schema, Is.Not.Null, "Contrato Pessoa v2 da SEHAB deve integrar a fixture de testes.");
+        var validator = JsonSchemaSubsetValidator.Load(schema!);
+        const string valid = """
+        {
+          "cpf":"70819234532","cpfAusenteMotivo":null,"nomeCompleto":"Maria da Silva",
+          "dataNascimento":"1982-04-10","nomeMae":"Ana de Souza"
+        }
+        """;
+        const string invalid = """
+        {
+          "cpf":null,"cpfAusenteMotivo":"SEM_CPF","nomeCompleto":"Pessoa sem código",
+          "dataNascimento":"1982-04-10","nomeMae":"Ana de Souza"
+        }
+        """;
+        Assert.DoesNotThrow(() => validator.ParseAndValidate(valid, "pessoas.jsonl", 1));
+        Assert.That(() => validator.ParseAndValidate(invalid, "pessoas.jsonl", 2), Throws.TypeOf<InvalidDataException>());
+    }
+
     private static string WriteSchema(string text)
     {
         var path = Path.Combine(Path.GetTempPath(), $"jornada-schema-{Guid.NewGuid():N}.json");

@@ -96,7 +96,7 @@ expected_aa01_person_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),trv.schema
 echo "E2E PERSON CONTRACT DIGEST: AA01 source=$actual_aa01_person_hash catalog=$expected_aa01_person_hash"
 [[ -n "$expected_aa01_person_hash" && "$actual_aa01_person_hash" == "$expected_aa01_person_hash" ]] || { echo 'ERRO: digest de pessoa AA01 diverge entre arquivo e catálogo antes do Processor.' >&2; exit 11; }
 [[ -n "$expected_aa01_hash" && "$actual_aa01_hash" == "$expected_aa01_hash" ]] || { echo 'ERRO: digest AA01 diverge entre arquivo e catálogo antes do Processor.' >&2; exit 10; }
-actual_sehab_person_hash="$(sha256sum "$ROOT/config/contracts/gestores/SEHAB/pessoa/v1/pessoa.schema.json" | awk '{print $1}')"
+actual_sehab_person_hash="$(sha256sum "$ROOT/config/contracts/gestores/SEHAB/pessoa/v2/pessoa.schema.json" | awk '{print $1}')"
 expected_sehab_person_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),gpv.pessoa_schema_sha256,2)) FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='SEHAB' AND gpv.status='ATIVA';")"
 echo "E2E GESTOR PERSON CONTRACT DIGEST: SEHAB source=$actual_sehab_person_hash catalog=$expected_sehab_person_hash"
 [[ -n "$expected_sehab_person_hash" && "$actual_sehab_person_hash" == "$expected_sehab_person_hash" ]] || { echo 'ERRO: digest cadastral SEHAB diverge entre arquivo e catálogo antes do Processor.' >&2; exit 12; }

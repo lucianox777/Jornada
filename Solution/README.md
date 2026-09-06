@@ -68,7 +68,7 @@ Desde a v3.48, Benefício Concedido usa vocabulário factual próprio: `data_ini
 
 ### 3. Identidade de origem, versionamento interno e confirmação
 
-Todo manifesto declara `codigoSistemaOrigem`. Toda Pessoa declara `codigoPessoaOrigem`; todo fato declara também `codigoRegistroOrigem`. O namespace das chaves é o sistema de origem, não apenas o Gestor.
+Todo manifesto declara `codigoSistemaOrigem`. A Pessoa declara `codigoPessoaOrigem` ou, quando esse código não existe e o CPF está preenchido, a Jornada deriva `codigoPessoaOrigem` do próprio CPF; todo fato declara também `codigoRegistroOrigem`. Nesse fallback, os fatos devem referenciar a Pessoa usando o CPF como `codigoPessoaOrigem`. O namespace das chaves continua sendo o sistema de origem, não apenas o Gestor.
 
 A finalística **não envia número de versão**. A Jornada calcula hash canônico do conteúdo de negócio. Para a mesma chave de origem: conteúdo idêntico é retransmissão idempotente e não cria nova observação lógica; conteúdo diferente cria automaticamente a próxima `versao_interna`. O campo `operacao` declara somente a semântica da mudança: `INCLUSAO`, `ALTERACAO`, `RETIFICACAO` ou `EXCLUSAO`.
 

@@ -645,6 +645,23 @@ def main() -> None:
     if (ROOT / "scripts" / "local-validate-release-r4.ps1").exists():
         fail("variante temporária local-validate-release-r4.ps1 não pode integrar a release")
 
+    # Pessoa v2: codigoPessoaOrigem pode ser derivado do CPF somente quando o código não veio preenchido.
+    processor_models = (ROOT / "src" / "Jornada.Processor.Worker" / "ProcessorModels.cs").read_text(encoding="utf-8")
+    require(processor_models, [
+        'var sourceCode = OptionalString(json, "codigoPessoaOrigem")',
+        'var cpf = OptionalString(json, "cpf")',
+        'codigoPessoaOrigem ausente exige CPF preenchido para derivação do código de origem.',
+    ], "fallback CPF -> codigoPessoaOrigem")
+    for gestor in ("SEHAB", "SMADS", "SMDET", "SMS"):
+        schema_v2 = ROOT / "config" / "contracts" / "gestores" / gestor / "pessoa" / "v2" / "pessoa.schema.json"
+        if not schema_v2.is_file():
+            fail(f"contrato Pessoa v2 ausente para {gestor}")
+        data = json.loads(schema_v2.read_text(encoding="utf-8"))
+        if "codigoPessoaOrigem" in data.get("required", []):
+            fail(f"Pessoa v2 de {gestor} voltou a exigir codigoPessoaOrigem incondicionalmente")
+        if "cpf" not in data.get("required", []):
+            fail(f"Pessoa v2 de {gestor} deve manter cpf explicitamente presente")
+
     # Regressões reveladas pelo bootstrap real da v3.86: índices filtrados dependiam
     # implicitamente de SETs da sessão e EXEC(...QUOTENAME(...)) não é sintaxe válida.
     required_sql_sets = [

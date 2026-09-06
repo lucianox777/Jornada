@@ -149,7 +149,7 @@ Exemplo com contexto de Benefício Concedido (o mesmo manifesto é válido mesmo
 ```json
 {
   "formatoVersao": 2,
-  "pessoaSchemaVersao": 1,
+  "pessoaSchemaVersao": 2,
   "codigoSistemaOrigem": "SEHAB",
   "natureza": "BENEFICIO",
   "codigoTipo": "AA01",
@@ -162,7 +162,7 @@ Exemplo com contexto de Benefício Concedido (o mesmo manifesto é válido mesmo
 
 Todo manifesto declara `codigoSistemaOrigem`, identificando o sistema finalístico que atribui as chaves locais. Um mesmo Gestor pode possuir vários sistemas; por isso a identidade externa é sempre no namespace do sistema.
 
-- toda Pessoa exige `codigoPessoaOrigem`;
+- toda Pessoa exige `codigoPessoaOrigem` **ou** CPF preenchido; se o código estiver ausente, a Jornada usa o CPF como `codigoPessoaOrigem` interno;
 - todo fato exige `codigoRegistroOrigem`;
 - a finalística **não envia número de versão**.
 

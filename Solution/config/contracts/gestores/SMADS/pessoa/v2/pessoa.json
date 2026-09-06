@@ -1,0 +1,11 @@
+{
+  "gestor": "SMADS",
+  "versao": 2,
+  "status": "ATIVA",
+  "descricao": "Contrato cadastral versionado de Pessoas do Gestor SMADS; codigoPessoaOrigem pode ser derivado do CPF quando ausente.",
+  "resolucaoIdentidade": {
+    "rotaNormal": "CPF_DETERMINISTICO",
+    "fallbackSemCpf": "PENDENTE_PROBABILISTICO"
+  },
+  "codigoPessoaOrigemFallback": "CPF_QUANDO_AUSENTE_E_PREENCHIDO"
+}

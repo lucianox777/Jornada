@@ -169,7 +169,14 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
                 throw new InvalidDataException($"pessoas.jsonl excede o limite de {options.MaxPessoasPorEntrega} registros por Entrega.");
 
             var json = validator.ParseAndValidate(line, "pessoas.jsonl", lineNumber);
-            var sourceCode = RequiredString(json, "codigoPessoaOrigem");
+            var cpf = OptionalString(json, "cpf");
+            var sourceCode = OptionalString(json, "codigoPessoaOrigem");
+            if (string.IsNullOrWhiteSpace(sourceCode))
+            {
+                if (string.IsNullOrWhiteSpace(cpf))
+                    throw new InvalidDataException("pessoas.jsonl: codigoPessoaOrigem ausente exige CPF preenchido para derivação do código de origem.");
+                sourceCode = cpf;
+            }
             if (!sourceCodes.Add(sourceCode))
                 throw new InvalidDataException($"pessoas.jsonl: codigoPessoaOrigem duplicado: {sourceCode}.");
 
@@ -285,7 +292,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
                 sourceCode,
                 CanonicalJsonHash.ComputePerson(json),
                 OptionalString(json, "sourceTransactionId"),
-                OptionalString(json, "cpf"),
+                cpf,
                 OptionalString(json, "cpfAusenteMotivo"),
                 RequiredString(json, "nomeCompleto"),
                 RequiredDate(json, "dataNascimento"),
