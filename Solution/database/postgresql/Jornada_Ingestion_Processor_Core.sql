@@ -17,6 +17,27 @@ ALTER TABLE ref.tipo_registro
     ADD COLUMN IF NOT EXISTS natureza VARCHAR(30) NULL,
     ADD COLUMN IF NOT EXISTS ativo BOOLEAN NOT NULL DEFAULT TRUE;
 
+-- O contrato canônico da Jornada aceita exatamente quatro caracteres alfanuméricos
+-- (por exemplo AA01, AE01 e CRA1), não apenas o padrão legado LLDD.
+ALTER TABLE ref.tipo_registro
+    DROP CONSTRAINT IF EXISTS ck_pg_tipo_codigo_llnn;
+ALTER TABLE ref.tipo_registro
+    ALTER COLUMN codigo TYPE VARCHAR(4) USING BTRIM(codigo);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid='ref.tipo_registro'::regclass
+           AND conname='ck_pg_tipo_codigo_4_alnum'
+    ) THEN
+        ALTER TABLE ref.tipo_registro
+            ADD CONSTRAINT ck_pg_tipo_codigo_4_alnum
+            CHECK (codigo ~ '^[A-Z0-9]{4}$');
+    END IF;
+END;
+$$;
+
 ALTER TABLE ref.tipo_registro_versao
     ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'ATIVA',
     ADD COLUMN IF NOT EXISTS schema_registro_ref VARCHAR(500) NULL,

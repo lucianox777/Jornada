@@ -19,6 +19,11 @@ INSERT INTO ref.tipo_registro(codigo,nome)
 VALUES('AE01','Auxílio Emergencial')
 ON CONFLICT(codigo) DO NOTHING;
 
+-- Prova de compatibilidade com o contrato canônico de quatro caracteres alfanuméricos.
+INSERT INTO ref.tipo_registro(codigo,nome)
+VALUES('CRA1','Smoke tipo alfanumérico')
+ON CONFLICT(codigo) DO NOTHING;
+
 INSERT INTO ref.tipo_registro_versao(tipo_registro_id,versao)
 SELECT tipo_registro_id,1 FROM ref.tipo_registro WHERE codigo IN('AA01','AE01')
 ON CONFLICT(tipo_registro_id,versao) DO NOTHING;
