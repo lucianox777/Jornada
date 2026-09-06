@@ -17,10 +17,10 @@
   "lockGraphGeneration": {
     "sdk": "8.0.424",
     "command": "dotnet restore Jornada.sln --use-lock-file --force-evaluate",
-    "diagnosticRunId": "CI_REGENERATED_ON_CANDIDATE_V405_PLUS_INTEGRADOR",
+    "diagnosticRunId": "CI_REGENERATED_ON_POSTGRESQL_ADAPTER_CANDIDATE",
     "lockCount": 18,
     "nugetLockGate": "PASS",
-    "combinedSha256": "9aa79fc8855b54cf65ca22d556a6a108adb86af877f8127278eeac1d4dcd7ca9"
+    "combinedSha256": "07bff9f11c002d7463d890ca74ad83b2eaf2d22d951b2fab70892dba9d71c763"
   },
   "locks": [
     {
@@ -34,16 +34,16 @@
     {
       "path": "src/Jornada.Api/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "56c8cf2ddb431551c3cda94a553355e311d03220d57b30a967864e3c97b77c80",
-      "sha256": "56c8cf2ddb431551c3cda94a553355e311d03220d57b30a967864e3c97b77c80",
+      "sourceSha256": "c71aea049fb9d79bbb08120517855ec7d8d875647f2462fcd2a062f7ddb5ce6c",
+      "sha256": "c71aea049fb9d79bbb08120517855ec7d8d875647f2462fcd2a062f7ddb5ce6c",
       "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "d65c966f9010c1a5e19a17ee43de0e0faef42dd88d7320385933526f768b9c0a",
-      "sha256": "d65c966f9010c1a5e19a17ee43de0e0faef42dd88d7320385933526f768b9c0a",
+      "sourceSha256": "553d4aa9cfedac56b4d3e4a9d19eeb6a1833db88c6fb4abeb36fc5fcffe1d195",
+      "sha256": "553d4aa9cfedac56b4d3e4a9d19eeb6a1833db88c6fb4abeb36fc5fcffe1d195",
       "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
@@ -58,8 +58,8 @@
     {
       "path": "src/Jornada.Bronze.Verify/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "19b63c90775b33d30f5a20fe344738e5f184c27fbf41a25fe8ca21ccf1b74d32",
-      "sha256": "19b63c90775b33d30f5a20fe344738e5f184c27fbf41a25fe8ca21ccf1b74d32",
+      "sourceSha256": "4990befaaf653646734019cac23e34a1b5628828934adbc79cb9ab00ef8c9587",
+      "sha256": "4990befaaf653646734019cac23e34a1b5628828934adbc79cb9ab00ef8c9587",
       "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
@@ -82,56 +82,56 @@
     {
       "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "c331f034270ee921421df9a6dbac14778f6341abdde37b7654ac8e06cfdb6a03",
-      "sha256": "c331f034270ee921421df9a6dbac14778f6341abdde37b7654ac8e06cfdb6a03",
+      "sourceSha256": "ede0b7e15018bfe57caad533969fc3b3c8c9b0268c9ba88af8a7dc5462b1e052",
+      "sha256": "ede0b7e15018bfe57caad533969fc3b3c8c9b0268c9ba88af8a7dc5462b1e052",
       "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "b0cd7623a042691baaf2083b90ba4cdaf5930e75b5e2947b45162dd5ae027ade",
-      "sha256": "b0cd7623a042691baaf2083b90ba4cdaf5930e75b5e2947b45162dd5ae027ade",
+      "sourceSha256": "827f0b9731a7f180cbcf4645cd2c3bbc6a227cbabf9b74203691bd7229082990",
+      "sha256": "827f0b9731a7f180cbcf4645cd2c3bbc6a227cbabf9b74203691bd7229082990",
       "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Linkage.Runner/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "b0cd7623a042691baaf2083b90ba4cdaf5930e75b5e2947b45162dd5ae027ade",
-      "sha256": "b0cd7623a042691baaf2083b90ba4cdaf5930e75b5e2947b45162dd5ae027ade",
+      "sourceSha256": "827f0b9731a7f180cbcf4645cd2c3bbc6a227cbabf9b74203691bd7229082990",
+      "sha256": "827f0b9731a7f180cbcf4645cd2c3bbc6a227cbabf9b74203691bd7229082990",
       "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Operational.Sql/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "ff4450a4d1e91d4e5d96dafa98309a4d67562bc46f520d23bd175c10188eeb27",
-      "sha256": "ff4450a4d1e91d4e5d96dafa98309a4d67562bc46f520d23bd175c10188eeb27",
+      "sourceSha256": "6aa95a455544f639db990773bbcba370d1506bb80928528a52e8df937eae4c50",
+      "sha256": "6aa95a455544f639db990773bbcba370d1506bb80928528a52e8df937eae4c50",
       "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Operations.Maintenance.Worker/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "d65c966f9010c1a5e19a17ee43de0e0faef42dd88d7320385933526f768b9c0a",
-      "sha256": "d65c966f9010c1a5e19a17ee43de0e0faef42dd88d7320385933526f768b9c0a",
+      "sourceSha256": "553d4aa9cfedac56b4d3e4a9d19eeb6a1833db88c6fb4abeb36fc5fcffe1d195",
+      "sha256": "553d4aa9cfedac56b4d3e4a9d19eeb6a1833db88c6fb4abeb36fc5fcffe1d195",
       "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Pipeline.Coordination/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "c331f034270ee921421df9a6dbac14778f6341abdde37b7654ac8e06cfdb6a03",
-      "sha256": "c331f034270ee921421df9a6dbac14778f6341abdde37b7654ac8e06cfdb6a03",
+      "sourceSha256": "ede0b7e15018bfe57caad533969fc3b3c8c9b0268c9ba88af8a7dc5462b1e052",
+      "sha256": "ede0b7e15018bfe57caad533969fc3b3c8c9b0268c9ba88af8a7dc5462b1e052",
       "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Processor.Worker/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "d37d6cdc9d0ad23fcc7d5c5970ce2b08329656755146559ad8e343f24a373594",
-      "sha256": "d37d6cdc9d0ad23fcc7d5c5970ce2b08329656755146559ad8e343f24a373594",
+      "sourceSha256": "412e880bad31b29b66a3d15fd789e54d9facff54937291ac0719aa780b728dd2",
+      "sha256": "412e880bad31b29b66a3d15fd789e54d9facff54937291ac0719aa780b728dd2",
       "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
@@ -146,24 +146,24 @@
     {
       "path": "tests/Jornada.Integrador.Tests/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "note": "Harness C# do integrador sem PackageReference externo; referencia o projeto Jornada.Integrador.CSharp e é validado em --locked-mode.",
-      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405",
       "sourceSha256": "94d33636992fe63b6168770cec39658ae9228d9ea1e92bfdb8db65701935d4fc",
-      "sha256": "94d33636992fe63b6168770cec39658ae9228d9ea1e92bfdb8db65701935d4fc"
+      "sha256": "94d33636992fe63b6168770cec39658ae9228d9ea1e92bfdb8db65701935d4fc",
+      "note": "Harness C# do integrador sem PackageReference externo; referencia o projeto Jornada.Integrador.CSharp e é validado em --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "tests/Jornada.Integration.Tests/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "5045efa5b94af6679fc218ec8a2c633de50d9ee1683a7cead65ffb01a03977d7",
-      "sha256": "5045efa5b94af6679fc218ec8a2c633de50d9ee1683a7cead65ffb01a03977d7",
+      "sourceSha256": "a3d8f76fcdabf4e95b9b4a19ffc9818dcfcf71e2091a554c659680d0e0790dcb",
+      "sha256": "a3d8f76fcdabf4e95b9b4a19ffc9818dcfcf71e2091a554c659680d0e0790dcb",
       "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "tests/Jornada.Tests/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "cea9fe6abb24c0eaf3eb015e5c581a4f8ca61f48dd34cf00feba8698e5814b39",
-      "sha256": "cea9fe6abb24c0eaf3eb015e5c581a4f8ca61f48dd34cf00feba8698e5814b39",
+      "sourceSha256": "5709551a03c174a817ecc3062864fd42fb32827ce8d87494b7335dd196b886e2",
+      "sha256": "5709551a03c174a817ecc3062864fd42fb32827ce8d87494b7335dd196b886e2",
       "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     }
