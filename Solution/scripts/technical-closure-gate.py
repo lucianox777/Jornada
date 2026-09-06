@@ -879,7 +879,7 @@ def main() -> None:
     if lock_provenance.get("currentGraphVerification") != "SDK_8_0_424_FORCE_EVALUATED_NO_DIFF_THEN_LOCKED_MODE" or lock_provenance.get("pendingLockCount") != 0:
         fail("grafo NuGet v4.05 deve ser reproduzível pelo SDK fixado e não possuir lock pendente")
     generation = lock_provenance.get("lockGraphGeneration") or {}
-    if generation.get("sdk") != "8.0.424" or generation.get("nugetLockGate") != "PASS" or generation.get("lockCount") != 15:
+    if generation.get("sdk") != "8.0.424" or generation.get("nugetLockGate") != "PASS" or generation.get("lockCount") != 18:
         fail("proveniência NuGet não registra a regeneração CI v4.05 completa")
     require(NUGET_LOCK_PROVENANCE_GATE.read_text(encoding="utf-8"), ["REGENERATED_OR_VERIFIED_V405_SDK_8_0_424", "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405", "--force-evaluate", "8.0.424"], "gate de proveniência NuGet v4.05")
 
