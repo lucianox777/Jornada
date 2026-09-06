@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <Description>CLI C# de integração da Jornada do Cidadão.</Description>
   </PropertyGroup>
 </Project>
