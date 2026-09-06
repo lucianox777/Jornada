@@ -18,9 +18,9 @@
     "sdk": "8.0.424",
     "command": "dotnet restore Jornada.sln --use-lock-file --force-evaluate",
     "diagnosticRunId": "CI_REGENERATED_ON_CANDIDATE_V405_PLUS_INTEGRADOR",
-    "lockCount": 17,
+    "lockCount": 18,
     "nugetLockGate": "PASS",
-    "combinedSha256": "2f462aee8d5bd000d40a6cc247dcd4afda8dc1a660c40632484f78079629f45d"
+    "combinedSha256": "9aa79fc8855b54cf65ca22d556a6a108adb86af877f8127278eeac1d4dcd7ca9"
   },
   "locks": [
     {
@@ -138,10 +138,18 @@
     {
       "path": "src/Jornada.Resultado.Api/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "ff4450a4d1e91d4e5d96dafa98309a4d67562bc46f520d23bd175c10188eeb27",
-      "sha256": "ff4450a4d1e91d4e5d96dafa98309a4d67562bc46f520d23bd175c10188eeb27",
-      "note": "Mesmo grafo direto Microsoft.Data.SqlClient 5.2.2 do adapter SQL; compilado em workflow próprio com --locked-mode.",
+      "sourceSha256": "27f68f41203d3ad5ecbd0b7a20ca72c3c0abde272b393e800b2f12536518825e",
+      "sha256": "27f68f41203d3ad5ecbd0b7a20ca72c3c0abde272b393e800b2f12536518825e",
+      "note": "Grafo transitivo via Jornada.Operational.Sql; lock regenerado pelo SDK 8.0.424 e validado em --locked-mode.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
+    },
+    {
+      "path": "tests/Jornada.Integrador.Tests/packages.lock.json",
+      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
+      "note": "Harness C# do integrador sem PackageReference externo; referencia o projeto Jornada.Integrador.CSharp e é validado em --locked-mode.",
+      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405",
+      "sourceSha256": "94d33636992fe63b6168770cec39658ae9228d9ea1e92bfdb8db65701935d4fc",
+      "sha256": "94d33636992fe63b6168770cec39658ae9228d9ea1e92bfdb8db65701935d4fc"
     },
     {
       "path": "tests/Jornada.Integration.Tests/packages.lock.json",
@@ -168,7 +176,7 @@
     "dotnet restore Jornada.sln --locked-mode",
     "dotnet build Jornada.sln -c Release --no-restore",
     "executar Unit + Integration da v4.05 após o locked restore",
-    "executar workflow jornada-integrador para Jornada.Resultado.Api e clientes C#/Python",
+    "executar workflow jornada-integrador para Jornada.Resultado.Api e cliente C#",
     "executar scripts/fabric-sql-compatibility.ps1 ou .sh quando houver ambiente Fabric e for necessária nova homologação",
     "release tag promotion must fail if force-evaluate changes or locked restore rejects the committed graph"
   ],
