@@ -1,5 +1,6 @@
 name: temporary-regenerate-postgresql-locks
 
+# Temporary workflow: remove after exact lock/provenance regeneration succeeds.
 on:
   push:
     paths:
