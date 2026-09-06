@@ -3,7 +3,7 @@
   "accessKey": "CHANGE_ME",
   "endpoints": {
     "envio": "https://jornada.exemplo.prefeitura.sp.gov.br/api/v1/ingestao/entregas",
-    "resultado": "https://jornada-resultado.exemplo.prefeitura.sp.gov.br/api/v1/ingestao/resultados/{identificador}"
+    "resultado": "https://jornada-resultado.exemplo.prefeitura.sp.gov.br/api/v1/ingestao/resultados/{nomeArquivo}"
   },
   "polling": {
     "intervalSeconds": 5,
