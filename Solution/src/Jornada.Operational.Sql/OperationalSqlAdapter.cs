@@ -24,7 +24,8 @@ public interface IOperationalSqlAdapter
 /// <summary>
 /// Adapter operacional Microsoft SQL. Atende a interface legada fortemente tipada e a nova fronteira
 /// ADO.NET neutra. SQL Database in Microsoft Fabric continua usando este provider enquanto mantiver
-/// compatibilidade com o protocolo/driver Microsoft SQL.
+/// compatibilidade com o protocolo/driver Microsoft SQL. Não existe comportamento específico de Fabric
+/// neste adapter: diferenças só serão introduzidas quando demonstradas por teste de compatibilidade.
 /// </summary>
 public sealed class OperationalSqlAdapter : IOperationalSqlAdapter, IOperationalDatabaseAdapter
 {
