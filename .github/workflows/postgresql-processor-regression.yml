@@ -3,11 +3,25 @@ name: jornada-postgresql-processor-regression
 on:
   push:
     paths:
+      - 'Solution/src/Jornada.Processor.Worker/**'
+      - 'Solution/src/Jornada.Operational.Sql/**'
+      - 'Solution/database/postgresql/**'
+      - 'Solution/config/contracts/**'
+      - 'Solution/tests/fixtures/ingestao/AA01_v2/**'
       - 'Solution/scripts/postgresql-processor-regression.cs'
+      - 'Solution/scripts/postgresql-processor-runtime-smoke.sh'
+      - 'Solution/scripts/build-ingestion-fixture.py'
       - '.github/workflows/postgresql-processor-regression.yml'
   pull_request:
     paths:
+      - 'Solution/src/Jornada.Processor.Worker/**'
+      - 'Solution/src/Jornada.Operational.Sql/**'
+      - 'Solution/database/postgresql/**'
+      - 'Solution/config/contracts/**'
+      - 'Solution/tests/fixtures/ingestao/AA01_v2/**'
       - 'Solution/scripts/postgresql-processor-regression.cs'
+      - 'Solution/scripts/postgresql-processor-runtime-smoke.sh'
+      - 'Solution/scripts/build-ingestion-fixture.py'
       - '.github/workflows/postgresql-processor-regression.yml'
   workflow_dispatch:
 
@@ -21,6 +35,7 @@ jobs:
     defaults:
       run:
         working-directory: Solution
+        shell: bash
     services:
       postgres:
         image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
@@ -48,7 +63,6 @@ jobs:
           dotnet restore src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj --locked-mode
           dotnet build src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj -c Release --no-restore -warnaserror
       - name: Install PostgreSQL cores twice and seed synthetic reference data
-        shell: bash
         run: |
           set -euo pipefail
           CID=$(docker ps -q --filter publish=5432 | head -1)
@@ -63,7 +77,6 @@ jobs:
       - name: Prove real Worker Bronze to Gold and Serving
         run: bash scripts/postgresql-processor-runtime-smoke.sh
       - name: Build isolated regression harness
-        shell: bash
         run: |
           set -euo pipefail
           mkdir -p .local/postgresql-processor-regression
@@ -88,6 +101,7 @@ jobs:
           dotnet build .local/postgresql-processor-regression/Jornada.PostgreSql.Regression.csproj -c Release --no-restore -warnaserror
       - name: Prove versioning conflicts rollback and concurrent updates
         run: |
+          set -euo pipefail
           dotnet run --project .local/postgresql-processor-regression/Jornada.PostgreSql.Regression.csproj -c Release --no-build --no-restore -- "$PWD" \
             | tee .local/postgresql-processor-regression/result.txt
       - name: Upload regression evidence
