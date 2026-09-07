@@ -42,7 +42,9 @@ public static class CandidateSamplingEngine
         }));
         var configuration = Fingerprint(seed, "configuration", new
         {
-            CandidateSamplingDesign.Version, BirthBlockingPlan.Version, frame.Reference,
+            SamplingDesignVersion = CandidateSamplingDesign.Version,
+            BlockingPlanVersion = BirthBlockingPlan.Version,
+            frame.Reference,
             options.UseComponents, options.YearTolerance, options.SourceSampleSize,
             Quotas = options.PrimaryPassQuotas.ToArray(), options.MaxSources,
             options.MaxCandidatesPerSource, options.MaxEnumeratedPairs, options.MaxSelectedPairs,
