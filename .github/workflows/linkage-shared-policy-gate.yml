@@ -1,0 +1,33 @@
+name: jornada-linkage-shared-policy-gate
+on:
+  push:
+    paths:
+      - Solution/scripts/technical-closure-gate.py
+      - Solution/scripts/tests/test_linkage_shared_policy_gate.py
+      - Solution/src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs
+      - Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkagePolicy.cs
+      - .github/workflows/linkage-shared-policy-gate.yml
+  pull_request:
+    paths:
+      - Solution/scripts/technical-closure-gate.py
+      - Solution/scripts/tests/test_linkage_shared_policy_gate.py
+      - Solution/src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs
+      - Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkagePolicy.cs
+      - .github/workflows/linkage-shared-policy-gate.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  shared-policy-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Execute fail-closed gate regressions
+        working-directory: Solution
+        run: python3 -m unittest discover -s scripts/tests -p test_linkage_shared_policy_gate.py -v
+      - name: Validate full technical closure gate
+        working-directory: Solution
+        run: python3 scripts/technical-closure-gate.py
