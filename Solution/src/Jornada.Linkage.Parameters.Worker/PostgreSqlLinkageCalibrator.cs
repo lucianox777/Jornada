@@ -104,7 +104,7 @@ public sealed class PostgreSqlLinkageCalibrator
 
     public async Task<Guid> ValidateDraftAsync(int version, CancellationToken ct)
     {
-        if (version <= 0) throw new ArgumentOutOfRangeException(nameof(version));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(version);
         await using var connection = await database.OpenAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         try
