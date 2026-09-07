@@ -1,3 +1,4 @@
+using System.Globalization;
 using Jornada.Linkage.Parameters.Worker;
 using Jornada.Operational.Sql;
 using Npgsql;
@@ -19,7 +20,7 @@ public sealed class PostgreSqlCalibrationSafetyTests
         if (Environment.GetEnvironmentVariable("JORNADA_POSTGRESQL_CALIBRATION_TESTS")!="1" ||
             new NpgsqlConnectionStringBuilder(connectionString).Database!="JornadaPgCalibrationTest")
             throw new InvalidOperationException("Exige opt-in e banco descartável JornadaPgCalibrationTest.");
-        Assert.That(Convert.ToInt64(await ScalarAsync("SELECT count(*) FROM gold.pessoa;")),Is.EqualTo(10));
+        Assert.That(Convert.ToInt64(await ScalarAsync("SELECT count(*) FROM gold.pessoa;"),CultureInfo.InvariantCulture),Is.EqualTo(10));
         calibrator = new PostgreSqlLinkageCalibrator(new PostgreSqlOperationalAdapter(connectionString));
     }
 
@@ -45,7 +46,7 @@ public sealed class PostgreSqlCalibrationSafetyTests
         Assert.ThrowsAsync<PostgresException>(async()=>{await ExecuteAsync("UPDATE identidade.modelo_linkage SET status='ATIVO' WHERE modelo_id=@id;",("id",id));});
         Assert.That(await ModelStatusAsync(id),Is.EqualTo("VALIDADO"));
         Assert.That(await SourceCountsAsync(),Is.EqualTo(before));
-        Assert.That(Convert.ToInt64(await ScalarAsync("SELECT count(*) FROM identidade.modelo_linkage WHERE status='ATIVO';")),Is.Zero);
+        Assert.That(Convert.ToInt64(await ScalarAsync("SELECT count(*) FROM identidade.modelo_linkage WHERE status='ATIVO';"),CultureInfo.InvariantCulture),Is.Zero);
     }
 
     private async Task<string> SourceCountsAsync() => string.Join("/",
