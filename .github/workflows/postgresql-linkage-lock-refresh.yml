@@ -36,18 +36,26 @@ jobs:
           JORNADA_PUSH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          git add -- '**/packages.lock.json' config/release/nuget-lock-provenance.json
+          git add -- ':(top)Solution/**/packages.lock.json' ':(top)Solution/config/release/nuget-lock-provenance.json'
           python3 - <<'PY'
-          import subprocess
-          paths = subprocess.check_output(['git','diff','--cached','--name-only'], text=True).splitlines()
-          assert paths and all(p.endswith('/packages.lock.json') or p == 'config/release/nuget-lock-provenance.json' for p in paths), paths
+          import json, subprocess
+          from pathlib import Path
+          evidence = json.loads(Path('.local/nuget-lock-refresh/refresh-summary.json').read_text(encoding='utf-8'))
+          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          if head != evidence['sourceCommit']:
+              raise SystemExit('Source commit changed after validation.')
+          expected = {'Solution/config/release/nuget-lock-provenance.json'} | {
+              'Solution/' + p for p in evidence['changedLocks']}
+          actual = set(subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines())
+          if actual != expected or not evidence['packageGraphUnchanged'] or evidence['lockedRestore'] != 'PASS':
+              raise SystemExit(f'Unexpected staged files: {sorted(actual ^ expected)}')
           PY
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'chore: regenerate PR32 project-reference locks with SDK 8.0.424'
           ASKPASS="$RUNNER_TEMP/jornada-gh-askpass.sh"
           printf '%s\n' '#!/usr/bin/env bash' 'case "$1" in *Username*) printf "%s\n" x-access-token;; *Password*) printf "%s\n" "$JORNADA_PUSH_TOKEN";; *) exit 1;; esac' > "$ASKPASS"
           chmod 700 "$ASKPASS"
+          trap 'rm -f "$ASKPASS"' EXIT
           GIT_TERMINAL_PROMPT=0 GIT_ASKPASS="$ASKPASS" git -c credential.helper= push origin HEAD:refs/heads/work/postgresql-linkage-v2-candidate-universe
-          rm -f "$ASKPASS"
       - name: Upload refresh evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

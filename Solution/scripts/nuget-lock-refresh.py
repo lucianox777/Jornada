@@ -112,7 +112,9 @@ def main() -> int:
             row['note'] = 'Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.'
     MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
     run('python3', 'scripts/nuget-lock-provenance-gate.py', '--root', '.', '--summary', str(out / 'provenance-summary.json'))
-    changed = set(run('git', 'diff', '--name-only').splitlines())
+    # Git normalmente devolve caminhos relativos à raiz do repositório,
+    # mesmo quando o processo está em Solution. --relative fixa o escopo.
+    changed = set(run('git', 'diff', '--name-only', '--relative').splitlines())
     allowed = {'config/release/nuget-lock-provenance.json', *changes}
     if not changed or changed - allowed:
         fail(f'Unexpected worktree changes: {sorted(changed - allowed)}')
