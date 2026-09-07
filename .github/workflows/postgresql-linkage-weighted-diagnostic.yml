@@ -7,6 +7,8 @@ on:
       - 'Solution/tests/Jornada.Tests/Unit/CandidateWeightedEstimatorTests.cs'
       - 'Solution/tests/Jornada.Tests/Unit/CandidateSamplingTests.cs'
       - 'Solution/tests/Jornada.Tests/Unit/BirthBlockingPlanTests.cs'
+      - 'Solution/scripts/postgresql-linkage-evidence.sh'
+      - 'Solution/scripts/test-postgresql-linkage-evidence.py'
       - '.github/workflows/postgresql-linkage-weighted-diagnostic.yml'
   push:
     paths:
@@ -15,6 +17,8 @@ on:
       - 'Solution/tests/Jornada.Tests/Unit/CandidateWeightedEstimatorTests.cs'
       - 'Solution/tests/Jornada.Tests/Unit/CandidateSamplingTests.cs'
       - 'Solution/tests/Jornada.Tests/Unit/BirthBlockingPlanTests.cs'
+      - 'Solution/scripts/postgresql-linkage-evidence.sh'
+      - 'Solution/scripts/test-postgresql-linkage-evidence.py'
       - '.github/workflows/postgresql-linkage-weighted-diagnostic.yml'
   workflow_dispatch:
 permissions:
@@ -29,6 +33,7 @@ jobs:
         shell: bash
     env:
       JORNADA_LINKAGE_EVIDENCE_DIR: ${{ github.workspace }}/Solution/.local/postgresql-weighted-evidence
+      JORNADA_LINKAGE_EVIDENCE_REQUIRED_STAGES: 'environment restore build unit policy'
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -39,6 +44,8 @@ jobs:
           dotnet-version: '8.0.424'
       - name: Record toolchain and commit
         run: bash scripts/postgresql-linkage-evidence.sh run environment bash -c 'set -euo pipefail; dotnet --info; git rev-parse HEAD'
+      - name: Evidence summary contract regressions
+        run: python3 scripts/test-postgresql-linkage-evidence.py -v
       - name: Restore locked dependencies
         run: bash scripts/postgresql-linkage-evidence.sh run restore dotnet restore tests/Jornada.Tests/Jornada.Tests.csproj --locked-mode -v:normal "-bl:$JORNADA_LINKAGE_EVIDENCE_DIR/restore.binlog;ProjectImports=None"
       - name: Build real workers and tests
@@ -52,6 +59,16 @@ jobs:
       - name: Summarize validation evidence
         if: always()
         run: bash scripts/postgresql-linkage-evidence.sh summary
+      - name: Require scoped evidence completeness
+        if: always()
+        run: |
+          python3 - <<'PYCODE'
+          import json, os, pathlib
+          path = pathlib.Path(os.environ['JORNADA_LINKAGE_EVIDENCE_DIR']) / 'summary.json'
+          summary = json.loads(path.read_text(encoding='utf-8'))
+          if summary['outcome'] != 'passed':
+              raise SystemExit('Required evidence is incomplete or failed')
+          PYCODE
       - name: Upload regression evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
