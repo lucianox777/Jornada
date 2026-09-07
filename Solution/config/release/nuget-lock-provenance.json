@@ -17,10 +17,10 @@
   "lockGraphGeneration": {
     "sdk": "8.0.424",
     "command": "dotnet restore Jornada.sln --use-lock-file --force-evaluate",
-    "diagnosticRunId": "CI_REPAIRED_TRANSITIVE_PROVIDER_LOCKS",
+    "diagnosticRunId": "34089112875",
     "lockCount": 18,
     "nugetLockGate": "PASS",
-    "combinedSha256": "6f276236ec4dfa9b7e5c8ff65f655cbce8623374b12e972f382b6f88d98d106c"
+    "combinedSha256": "6dc88e02c632bcf81075b34d0dc51dd8ef4d933668d0c28e9e2bec1841de7f3a"
   },
   "locks": [
     {
@@ -34,17 +34,17 @@
     {
       "path": "src/Jornada.Api/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "c71aea049fb9d79bbb08120517855ec7d8d875647f2462fcd2a062f7ddb5ce6c",
-      "sha256": "c71aea049fb9d79bbb08120517855ec7d8d875647f2462fcd2a062f7ddb5ce6c",
-      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "sourceSha256": "a4d99399da601091935a6224e0300d107a66ebab0f7d634636bda73a01ff9b2f",
+      "sha256": "a4d99399da601091935a6224e0300d107a66ebab0f7d634636bda73a01ff9b2f",
+      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "553d4aa9cfedac56b4d3e4a9d19eeb6a1833db88c6fb4abeb36fc5fcffe1d195",
-      "sha256": "553d4aa9cfedac56b4d3e4a9d19eeb6a1833db88c6fb4abeb36fc5fcffe1d195",
-      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "sourceSha256": "9dcccf5c92dd08dc15da7b597c7e48e8989e5be637a26ea52713ffce325cfff2",
+      "sha256": "9dcccf5c92dd08dc15da7b597c7e48e8989e5be637a26ea52713ffce325cfff2",
+      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
@@ -58,9 +58,9 @@
     {
       "path": "src/Jornada.Bronze.Verify/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "4990befaaf653646734019cac23e34a1b5628828934adbc79cb9ab00ef8c9587",
-      "sha256": "4990befaaf653646734019cac23e34a1b5628828934adbc79cb9ab00ef8c9587",
-      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "sourceSha256": "6fc533cac82d6b925f6f5d0d165893d8deb87bcbebbfd460cca0af5b3a7ba035",
+      "sha256": "6fc533cac82d6b925f6f5d0d165893d8deb87bcbebbfd460cca0af5b3a7ba035",
+      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
@@ -82,57 +82,57 @@
     {
       "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "ede0b7e15018bfe57caad533969fc3b3c8c9b0268c9ba88af8a7dc5462b1e052",
-      "sha256": "ede0b7e15018bfe57caad533969fc3b3c8c9b0268c9ba88af8a7dc5462b1e052",
-      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "sourceSha256": "1f0b5b7b35d6860bc6dff9cb1d76e1f34e211e8d16a32769facd07f56db755b7",
+      "sha256": "1f0b5b7b35d6860bc6dff9cb1d76e1f34e211e8d16a32769facd07f56db755b7",
+      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "827f0b9731a7f180cbcf4645cd2c3bbc6a227cbabf9b74203691bd7229082990",
-      "sha256": "827f0b9731a7f180cbcf4645cd2c3bbc6a227cbabf9b74203691bd7229082990",
-      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "sourceSha256": "42efeba321ede7a9dc2bfd69308baf7e600d571ae3f45b25fdba9fd22c9d7ee0",
+      "sha256": "42efeba321ede7a9dc2bfd69308baf7e600d571ae3f45b25fdba9fd22c9d7ee0",
+      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Linkage.Runner/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "827f0b9731a7f180cbcf4645cd2c3bbc6a227cbabf9b74203691bd7229082990",
-      "sha256": "827f0b9731a7f180cbcf4645cd2c3bbc6a227cbabf9b74203691bd7229082990",
-      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "sourceSha256": "42efeba321ede7a9dc2bfd69308baf7e600d571ae3f45b25fdba9fd22c9d7ee0",
+      "sha256": "42efeba321ede7a9dc2bfd69308baf7e600d571ae3f45b25fdba9fd22c9d7ee0",
+      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Operational.Sql/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "6aa95a455544f639db990773bbcba370d1506bb80928528a52e8df937eae4c50",
-      "sha256": "6aa95a455544f639db990773bbcba370d1506bb80928528a52e8df937eae4c50",
-      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "sourceSha256": "842642dc77a25af83ec653a4f742a8491503cf0c1f1d2c733ccbb8b5128f673f",
+      "sha256": "842642dc77a25af83ec653a4f742a8491503cf0c1f1d2c733ccbb8b5128f673f",
+      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Operations.Maintenance.Worker/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "553d4aa9cfedac56b4d3e4a9d19eeb6a1833db88c6fb4abeb36fc5fcffe1d195",
-      "sha256": "553d4aa9cfedac56b4d3e4a9d19eeb6a1833db88c6fb4abeb36fc5fcffe1d195",
-      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "sourceSha256": "9dcccf5c92dd08dc15da7b597c7e48e8989e5be637a26ea52713ffce325cfff2",
+      "sha256": "9dcccf5c92dd08dc15da7b597c7e48e8989e5be637a26ea52713ffce325cfff2",
+      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Pipeline.Coordination/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "ede0b7e15018bfe57caad533969fc3b3c8c9b0268c9ba88af8a7dc5462b1e052",
-      "sha256": "ede0b7e15018bfe57caad533969fc3b3c8c9b0268c9ba88af8a7dc5462b1e052",
-      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "sourceSha256": "1f0b5b7b35d6860bc6dff9cb1d76e1f34e211e8d16a32769facd07f56db755b7",
+      "sha256": "1f0b5b7b35d6860bc6dff9cb1d76e1f34e211e8d16a32769facd07f56db755b7",
+      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "src/Jornada.Processor.Worker/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "412e880bad31b29b66a3d15fd789e54d9facff54937291ac0719aa780b728dd2",
-      "sha256": "412e880bad31b29b66a3d15fd789e54d9facff54937291ac0719aa780b728dd2",
-      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "sourceSha256": "5818f70f19fac1c9a677be1c059038ad9d77a346d46bc52260d5a9e14d5ec32e",
+      "sha256": "5818f70f19fac1c9a677be1c059038ad9d77a346d46bc52260d5a9e14d5ec32e",
+      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
@@ -154,17 +154,17 @@
     {
       "path": "tests/Jornada.Integration.Tests/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "a3d8f76fcdabf4e95b9b4a19ffc9818dcfcf71e2091a554c659680d0e0790dcb",
-      "sha256": "a3d8f76fcdabf4e95b9b4a19ffc9818dcfcf71e2091a554c659680d0e0790dcb",
-      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "sourceSha256": "3091caab2bb973443ad89a79579255a43d68e59a73deddbf432af18b2b9f16d8",
+      "sha256": "3091caab2bb973443ad89a79579255a43d68e59a73deddbf432af18b2b9f16d8",
+      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
       "path": "tests/Jornada.Tests/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "5709551a03c174a817ecc3062864fd42fb32827ce8d87494b7335dd196b886e2",
-      "sha256": "5709551a03c174a817ecc3062864fd42fb32827ce8d87494b7335dd196b886e2",
-      "note": "Lock reproduzido/verificado com dotnet SDK 8.0.424 e --use-lock-file --force-evaluate; a promoção exige repetição sem diff seguida de --locked-mode.",
+      "sourceSha256": "110f882d7517dd8caaac2b05f24d140b6147c7f20bd36f6ce7963e3a2de01b7b",
+      "sha256": "110f882d7517dd8caaac2b05f24d140b6147c7f20bd36f6ce7963e3a2de01b7b",
+      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     }
   ],
@@ -189,5 +189,30 @@
     "lockedRestoreIntegration": "PASS",
     "localReleaseValidation": "PASS",
     "evidenceFile": "../Documentos/Evidencia_Runtime_v3.99_2026-09-03.md"
+  },
+  "lockGraphRefresh": {
+    "sourceCommit": "28823145a8a80f4a4a2f4761fc5ef76010642836",
+    "githubRunId": "34089112875",
+    "githubRunAttempt": "1",
+    "sdk": "8.0.424",
+    "scope": "PROJECT_REFERENCE_ONLY",
+    "changedLocks": [
+      "src/Jornada.Api/packages.lock.json",
+      "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
+      "src/Jornada.Bronze.Verify/packages.lock.json",
+      "src/Jornada.Linkage.Evaluation/packages.lock.json",
+      "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
+      "src/Jornada.Linkage.Runner/packages.lock.json",
+      "src/Jornada.Operational.Sql/packages.lock.json",
+      "src/Jornada.Operations.Maintenance.Worker/packages.lock.json",
+      "src/Jornada.Pipeline.Coordination/packages.lock.json",
+      "src/Jornada.Processor.Worker/packages.lock.json",
+      "tests/Jornada.Integration.Tests/packages.lock.json",
+      "tests/Jornada.Tests/packages.lock.json"
+    ],
+    "packageGraphUnchanged": true,
+    "forceEvaluateReproducible": true,
+    "lockedRestore": "PASS",
+    "combinedSha256": "6dc88e02c632bcf81075b34d0dc51dd8ef4d933668d0c28e9e2bec1841de7f3a"
   }
 }
