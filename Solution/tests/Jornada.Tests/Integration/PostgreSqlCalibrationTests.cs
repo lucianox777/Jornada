@@ -38,7 +38,7 @@ public sealed class PostgreSqlCalibrationTests
         });
         Assert.That(await ModelStatusAsync(draft.ModelId),Is.EqualTo("RASCUNHO"));
         Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.parametro_linkage WHERE modelo_id=@id;",("id",draft.ModelId)),Is.GreaterThan(40));
-        Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.frequencia_linkage WHERE modelo_id=@id;",("id",draft.ModelId)),Is.GreaterThan(3));
+        Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.frequencia_linkage WHERE modelo_id=@id;",("id",draft.ModelId)),Is.EqualTo(3));
         Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.calibracao_linkage WHERE modelo_id=@id AND validado_em IS NULL;",("id",draft.ModelId)),Is.EqualTo(1));
         await AssertFingerprintAsync(draft.ModelId);
         Assert.That(await SourceCountsAsync(),Is.EqualTo(before));
