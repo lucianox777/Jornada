@@ -7,10 +7,12 @@ on:
       - 'Solution/Directory.Build.props'
       - 'Solution/src/Jornada.Operational.Sql/**'
       - 'Solution/src/Jornada.Pipeline.Coordination/**'
+      - 'Solution/src/Jornada.Processor.Worker/**'
       - 'Solution/src/Jornada.Resultado.Api/**'
       - 'Solution/database/postgresql/**'
       - 'Solution/scripts/postgresql-adapter-smoke.cs'
       - 'Solution/scripts/postgresql-ingestion-processor-smoke.cs'
+      - 'Solution/scripts/postgresql-processor-runtime-smoke.sh'
       - '.github/workflows/postgresql-adapter.yml'
   pull_request:
     paths:
@@ -18,10 +20,12 @@ on:
       - 'Solution/Directory.Build.props'
       - 'Solution/src/Jornada.Operational.Sql/**'
       - 'Solution/src/Jornada.Pipeline.Coordination/**'
+      - 'Solution/src/Jornada.Processor.Worker/**'
       - 'Solution/src/Jornada.Resultado.Api/**'
       - 'Solution/database/postgresql/**'
       - 'Solution/scripts/postgresql-adapter-smoke.cs'
       - 'Solution/scripts/postgresql-ingestion-processor-smoke.cs'
+      - 'Solution/scripts/postgresql-processor-runtime-smoke.sh'
       - '.github/workflows/postgresql-adapter.yml'
   workflow_dispatch:
 
@@ -61,23 +65,27 @@ jobs:
         run: |
           dotnet restore src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj --locked-mode
           dotnet restore src/Jornada.Pipeline.Coordination/Jornada.Pipeline.Coordination.csproj --locked-mode
+          dotnet restore src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj --locked-mode
           dotnet restore src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj --locked-mode
 
       - name: Build PostgreSQL-capable components
         run: |
           dotnet build src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj -c Release --no-restore -warnaserror
           dotnet build src/Jornada.Pipeline.Coordination/Jornada.Pipeline.Coordination.csproj -c Release --no-restore -warnaserror
+          dotnet build src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj -c Release --no-restore -warnaserror
           dotnet build src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj -c Release --no-restore -warnaserror
 
-      - name: Apply PostgreSQL operational core and smoke fixture
+      - name: Apply PostgreSQL operational and Processor persistence cores
         run: |
           CID=$(docker ps -q --filter publish=5432 | head -1)
           test -n "$CID"
-          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core.sql
-          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Ingestion_Processor_Core.sql
-          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core.sql
-          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Ingestion_Processor_Core.sql
+          for pass in 1 2; do
+            docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core.sql
+            docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Ingestion_Processor_Core.sql
+            docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Processor_Persistence_Core.sql
+          done
           docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core_Smoke.sql
+          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Processor_Persistence_Smoke.sql
 
       - name: Run PostgreSQL adapter and advisory-lock smoke
         run: |
@@ -121,6 +129,9 @@ jobs:
           dotnet run --project .local/postgresql-ingestion-processor-smoke/PostgreSqlIngestionProcessorSmoke.csproj -c Release \
             | tee .local/postgresql-ingestion-processor-smoke/result.txt
 
+      - name: Prove PostgreSQL Processor runtime from Bronze to Gold/Serving
+        run: bash scripts/postgresql-processor-runtime-smoke.sh
+
       - name: Start authorization stub and PostgreSQL Resultado API
         run: |
           mkdir -p .local/postgresql-e2e
@@ -142,7 +153,7 @@ jobs:
 
       - name: Prove Resultado API on PostgreSQL
         run: |
-          NAME='ENTREGA_SEHAB_HabitaSampa_v2_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.zip'
+          NAME='ENTREGA_SEHAB_SEHAB_v2_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.zip'
           curl -fsS "http://127.0.0.1:5098/api/v1/ingestao/resultados/$NAME" \
             -H 'X-Jornada-Gestor: SEHAB' \
             -H 'X-Jornada-Access-Key: synthetic-ci-key' \
@@ -150,7 +161,7 @@ jobs:
           jq -e '.databaseProvider == "PostgreSql"' .local/postgresql-e2e/result.json
           jq -e '.finalizado == true' .local/postgresql-e2e/result.json
           jq -e '.entrega.gestor == "SEHAB"' .local/postgresql-e2e/result.json
-          jq -e '.entrega.codigoSistemaOrigem == "HabitaSampa"' .local/postgresql-e2e/result.json
+          jq -e '.entrega.codigoSistemaOrigem == "SEHAB"' .local/postgresql-e2e/result.json
           jq -e '.entrega.codigoTipo == "AA01"' .local/postgresql-e2e/result.json
           jq -e '.processamento.itensDetalhadosDisponiveis == 2' .local/postgresql-e2e/result.json
           jq -e '.processamento.itensConsolidados == 3' .local/postgresql-e2e/result.json
@@ -164,6 +175,7 @@ jobs:
           path: |
             Solution/.local/postgresql-e2e
             Solution/.local/postgresql-ingestion-processor-smoke
+            Solution/.local/postgresql-processor-runtime
           if-no-files-found: ignore
           include-hidden-files: true
           retention-days: 30

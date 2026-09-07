@@ -64,6 +64,8 @@ O programa:
 5. usa `Idempotency-Key: sha256:<sha256>`;
 6. apresenta o recibo retornado pela Jornada.
 
+`<SISTEMA>` é o `codigoSistemaOrigem` técnico do manifesto e deve obedecer ao contrato canônico `A-Z/0-9/_/-`. O nome de exibição do sistema é metadado separado; por exemplo, a SEHAB usa código técnico `SEHAB` e pode exibir o sistema como `HabitaSampa`.
+
 O CSV da origem nunca é enviado por este programa. O executável recebe o ZIP **já convertido para o envelope JSON padrão da Jornada**.
 
 ## Consulta do resultado final
@@ -72,8 +74,8 @@ Exemplos equivalentes:
 
 ```powershell
 Jornada.Integrador --resultado 305d577839dacf7e3cf09046cfa9b4b58c9793a5b862b896e971578326fbd548
-Jornada.Integrador --resultado ENTREGA_SEHAB_HabitaSampa_v2_305d...zip
-Jornada.Integrador --resultado C:\cargas\ENTREGA_SEHAB_HabitaSampa_v2_305d...zip
+Jornada.Integrador --resultado ENTREGA_SEHAB_SEHAB_v2_305d...zip
+Jornada.Integrador --resultado C:\cargas\ENTREGA_SEHAB_SEHAB_v2_305d...zip
 ```
 
 O cliente consulta o endpoint de resultado até o processamento chegar a `PROCESSADA`, `REJEITADA` ou `QUARENTENA`. Quando finalizado, grava `resultado_<identificador>.json`.
