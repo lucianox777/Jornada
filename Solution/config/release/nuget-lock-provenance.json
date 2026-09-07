@@ -17,10 +17,10 @@
   "lockGraphGeneration": {
     "sdk": "8.0.424",
     "command": "dotnet restore Jornada.sln --use-lock-file --force-evaluate",
-    "diagnosticRunId": "34089112875",
+    "diagnosticRunId": "34090743177",
     "lockCount": 18,
     "nugetLockGate": "PASS",
-    "combinedSha256": "6dc88e02c632bcf81075b34d0dc51dd8ef4d933668d0c28e9e2bec1841de7f3a"
+    "combinedSha256": "660b7fa485e36aca041c78342d6349c2134f5eadeb1d5c995760d18f1743c2e8"
   },
   "locks": [
     {
@@ -138,9 +138,9 @@
     {
       "path": "src/Jornada.Resultado.Api/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "cd42199370d325e9dee1a1f154081fe532c4554dd9159f1842cfa3496a13df71",
-      "sha256": "cd42199370d325e9dee1a1f154081fe532c4554dd9159f1842cfa3496a13df71",
-      "note": "Grafo transitivo via Jornada.Operational.Sql; lock regenerado pelo SDK 8.0.424 e validado em --locked-mode.",
+      "sourceSha256": "a46daca29140d77a81a0d8d76c1ba605c15e95dd603edbf594dfb26e8a685fa2",
+      "sha256": "a46daca29140d77a81a0d8d76c1ba605c15e95dd603edbf594dfb26e8a685fa2",
+      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
@@ -191,28 +191,39 @@
     "evidenceFile": "../Documentos/Evidencia_Runtime_v3.99_2026-09-03.md"
   },
   "lockGraphRefresh": {
-    "sourceCommit": "28823145a8a80f4a4a2f4761fc5ef76010642836",
-    "githubRunId": "34089112875",
+    "sourceCommit": "37d8cf0c838a24b98b624e1a77fc897c21b84894",
+    "githubRunId": "34090743177",
     "githubRunAttempt": "1",
     "sdk": "8.0.424",
     "scope": "PROJECT_REFERENCE_ONLY",
     "changedLocks": [
-      "src/Jornada.Api/packages.lock.json",
-      "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
-      "src/Jornada.Bronze.Verify/packages.lock.json",
-      "src/Jornada.Linkage.Evaluation/packages.lock.json",
-      "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
-      "src/Jornada.Linkage.Runner/packages.lock.json",
-      "src/Jornada.Operational.Sql/packages.lock.json",
-      "src/Jornada.Operations.Maintenance.Worker/packages.lock.json",
-      "src/Jornada.Pipeline.Coordination/packages.lock.json",
-      "src/Jornada.Processor.Worker/packages.lock.json",
-      "tests/Jornada.Integration.Tests/packages.lock.json",
-      "tests/Jornada.Tests/packages.lock.json"
+      "src/Jornada.Resultado.Api/packages.lock.json"
     ],
     "packageGraphUnchanged": true,
     "forceEvaluateReproducible": true,
     "lockedRestore": "PASS",
-    "combinedSha256": "6dc88e02c632bcf81075b34d0dc51dd8ef4d933668d0c28e9e2bec1841de7f3a"
+    "restoreTargets": [
+      "Jornada.sln",
+      "clients/Jornada.Integrador.CSharp/Jornada.Integrador.CSharp.csproj",
+      "src/Jornada.Api/Jornada.Api.csproj",
+      "src/Jornada.Bronze.Maintenance.Worker/Jornada.Bronze.Maintenance.Worker.csproj",
+      "src/Jornada.Bronze.Storage/Jornada.Bronze.Storage.csproj",
+      "src/Jornada.Bronze.Verify/Jornada.Bronze.Verify.csproj",
+      "src/Jornada.Contracts/Jornada.Contracts.csproj",
+      "src/Jornada.Ingestion/Jornada.Ingestion.csproj",
+      "src/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.csproj",
+      "src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj",
+      "src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj",
+      "src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj",
+      "src/Jornada.Operations.Maintenance.Worker/Jornada.Operations.Maintenance.Worker.csproj",
+      "src/Jornada.Pipeline.Coordination/Jornada.Pipeline.Coordination.csproj",
+      "src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj",
+      "src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj",
+      "tests/Jornada.Integrador.Tests/Jornada.Integrador.Tests.csproj",
+      "tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj",
+      "tests/Jornada.Tests/Jornada.Tests.csproj"
+    ],
+    "restoreTargetCount": 18,
+    "combinedSha256": "660b7fa485e36aca041c78342d6349c2134f5eadeb1d5c995760d18f1743c2e8"
   }
 }
