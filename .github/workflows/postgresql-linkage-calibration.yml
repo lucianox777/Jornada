@@ -7,6 +7,7 @@ on:
       - 'Solution/src/Jornada.Operational.Sql/**'
       - 'Solution/database/postgresql/**'
       - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlCalibrationTests.cs'
+      - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlCalibrationSafetyTests.cs'
       - 'Solution/tests/Jornada.Tests/Unit/PostgreSqlCalibrationPolicyTests.cs'
       - 'Solution/scripts/postgresql-linkage-evidence.sh'
       - '.github/workflows/postgresql-linkage-calibration.yml'
@@ -17,6 +18,7 @@ on:
       - 'Solution/src/Jornada.Operational.Sql/**'
       - 'Solution/database/postgresql/**'
       - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlCalibrationTests.cs'
+      - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlCalibrationSafetyTests.cs'
       - 'Solution/tests/Jornada.Tests/Unit/PostgreSqlCalibrationPolicyTests.cs'
       - 'Solution/scripts/postgresql-linkage-evidence.sh'
       - '.github/workflows/postgresql-linkage-calibration.yml'
@@ -70,7 +72,7 @@ jobs:
             CID=$(docker ps -q --filter publish=5432 | head -1)
             test -n "$CID"
             for pass in 1 2; do
-              for core in Jornada_Resultado_Core Jornada_Ingestion_Processor_Core Jornada_Processor_Persistence_Core Jornada_Linkage_Model_Core Jornada_Linkage_Calibration_Core; do
+              for core in Jornada_Resultado_Core Jornada_Ingestion_Processor_Core Jornada_Processor_Persistence_Core Jornada_Linkage_Model_Core Jornada_Linkage_Calibration_Core Jornada_Linkage_Calibration_Safety_Core; do
                 echo "Installing $core (pass $pass)"
                 docker exec -i "$CID" psql -X -v ON_ERROR_STOP=1 -v VERBOSITY=verbose --echo-errors --single-transaction -U jornada -d JornadaPgCalibrationTest < "database/postgresql/$core.sql"
               done
@@ -85,6 +87,9 @@ jobs:
       - name: Real PostgreSQL lifecycle and fault regressions
         run: |
           bash scripts/postgresql-linkage-evidence.sh run integration dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'TestCategory=PostgreSqlCalibration' --logger 'trx;LogFileName=postgresql-calibration.trx' --results-directory "$JORNADA_LINKAGE_EVIDENCE_DIR"
+      - name: Real PostgreSQL calibration safety regressions
+        run: |
+          bash scripts/postgresql-linkage-evidence.sh run safety dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'TestCategory=PostgreSqlCalibrationSafety' --logger 'trx;LogFileName=postgresql-calibration-safety.trx' --results-directory "$JORNADA_LINKAGE_EVIDENCE_DIR"
       - name: Summarize validation evidence
         if: always()
         run: bash scripts/postgresql-linkage-evidence.sh summary
