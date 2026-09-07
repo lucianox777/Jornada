@@ -208,8 +208,9 @@ public sealed class PostgreSqlCalibrationTests
         foreach(var (name,value) in parameters) command.Parameters.AddWithValue(name,value);
         return command;
     }
-    private async Task AssertDbRejectedAsync(string sql,params (string Name,object Value)[] parameters)
+    private Task AssertDbRejectedAsync(string sql,params (string Name,object Value)[] parameters)
     {
         Assert.ThrowsAsync<PostgresException>(async()=>{await ExecuteAsync(sql,parameters);});
+        return Task.CompletedTask;
     }
 }
