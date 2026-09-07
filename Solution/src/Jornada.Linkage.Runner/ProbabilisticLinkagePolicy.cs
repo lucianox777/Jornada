@@ -17,6 +17,13 @@ internal sealed record CandidateScore(Guid PessoaUuid, decimal Score);
 
 internal static class LinkageModelPolicy
 {
+    private static readonly string[] BirthComponentParameters =
+    [
+        "M_NASC_DIA_EXACT", "M_NASC_DIA_DIFF", "U_NASC_DIA_EXACT", "U_NASC_DIA_DIFF",
+        "M_NASC_MES_EXACT", "M_NASC_MES_DIFF", "U_NASC_MES_EXACT", "U_NASC_MES_DIFF",
+        "M_NASC_ANO_EXACT", "M_NASC_ANO_DIFF", "U_NASC_ANO_EXACT", "U_NASC_ANO_DIFF"
+    ];
+
     internal static LinkageModel Create(Guid modelId, int version, string algorithm,
         IReadOnlyDictionary<string, decimal> parameters)
     {
@@ -31,21 +38,21 @@ internal static class LinkageModelPolicy
         var missing = required.Where(x => !parameters.ContainsKey(x)).ToArray();
         if (missing.Length > 0)
             throw new InvalidOperationException($"Modelo incompleto. Parâmetros ausentes: {string.Join(", ", missing)}");
-        return new LinkageModel(modelId, version, algorithm, parameters,
+        var model = new LinkageModel(modelId, version, algorithm, parameters,
             parameters["T_LINKAGE"], parameters["CONFLICT_MARGIN"]);
+        // An enabled V2 must never silently fall back to V1 because its model is incomplete.
+        _ = SupportsBirthComponentScoring(model);
+        return model;
     }
 
     internal static bool SupportsBirthComponentScoring(LinkageModel model)
     {
         if (!model.Parameters.TryGetValue("BLOCKING_BIRTH_COMPONENTS_V2", out var enabled) || enabled < 1m)
             return false;
-        var required = new[]
-        {
-            "M_NASC_DIA_EXACT", "M_NASC_DIA_DIFF", "U_NASC_DIA_EXACT", "U_NASC_DIA_DIFF",
-            "M_NASC_MES_EXACT", "M_NASC_MES_DIFF", "U_NASC_MES_EXACT", "U_NASC_MES_DIFF",
-            "M_NASC_ANO_EXACT", "M_NASC_ANO_DIFF", "U_NASC_ANO_EXACT", "U_NASC_ANO_DIFF"
-        };
-        return required.All(model.Parameters.ContainsKey);
+        var missing = BirthComponentParameters.Where(x => !model.Parameters.ContainsKey(x)).ToArray();
+        if (missing.Length > 0)
+            throw new InvalidOperationException($"Modelo V2 incompleto. Parâmetros de nascimento ausentes: {string.Join(", ", missing)}");
+        return true;
     }
 }
 
