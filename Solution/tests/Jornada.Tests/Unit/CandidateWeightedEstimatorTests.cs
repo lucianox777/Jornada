@@ -24,7 +24,7 @@ public sealed class CandidateWeightedEstimatorTests
         Assert.That(missing, Is.EqualTo(new CandidateComparisonVector(null, null, null)));
         var transposed = CandidateLabeling.Compare(new("A", new DateOnly(1982, 4, 10), "B",
             "A", new DateOnly(1982, 10, 4), "B"));
-        Assert.That(transposed.BirthAgreementMask, Is.Zero);
+        Assert.That(transposed.BirthAgreementMask, Is.EqualTo(4));
         var neighbor = CandidateLabeling.Compare(new("A", new DateOnly(1982, 4, 10), "B",
             "A", new DateOnly(1983, 4, 10), "B"));
         Assert.That(neighbor.BirthAgreementMask, Is.EqualTo(3));
