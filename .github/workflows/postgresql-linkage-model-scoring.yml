@@ -8,6 +8,7 @@ on:
       - 'Solution/src/Jornada.Operational.Sql/**'
       - 'Solution/database/postgresql/**'
       - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlLinkageScoringTests.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/ProbabilisticLinkagePolicyTests.cs'
       - '.github/workflows/postgresql-linkage-model-scoring.yml'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - 'Solution/src/Jornada.Operational.Sql/**'
       - 'Solution/database/postgresql/**'
       - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlLinkageScoringTests.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/ProbabilisticLinkagePolicyTests.cs'
       - '.github/workflows/postgresql-linkage-model-scoring.yml'
   workflow_dispatch:
 
@@ -69,11 +71,11 @@ jobs:
             docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPgLinkageTest < database/postgresql/Jornada_Processor_Persistence_Core.sql
             docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPgLinkageTest < database/postgresql/Jornada_Linkage_Model_Core.sql
           done
-      - name: Existing Fellegi-Sunter unit regressions
+      - name: Existing Fellegi-Sunter and shared policy regressions
         run: |
           set -euo pipefail
           mkdir -p .local/postgresql-linkage-evidence
-          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~FellegiSunterScoringTests' --logger 'trx;LogFileName=linkage-unit.trx' --results-directory .local/postgresql-linkage-evidence
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~FellegiSunterScoringTests|FullyQualifiedName~ProbabilisticLinkagePolicyTests' --logger 'trx;LogFileName=linkage-unit.trx' --results-directory .local/postgresql-linkage-evidence
       - name: Real PostgreSQL model and scoring regression
         run: |
           set -euo pipefail
