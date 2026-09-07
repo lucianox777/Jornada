@@ -117,7 +117,7 @@ public sealed class PostgreSqlCalibrationTests
         var id = await ScalarAsync<Guid>("SELECT modelo_id FROM identidade.modelo_linkage WHERE versao=@version;",("version",previous+1));
         Assert.That(await ModelStatusAsync(id),Is.EqualTo("FALHOU"));
         await AssertNoPartialEvidenceAsync(id);
-        Assert.That(await SourceCountsAsync(),Is.EqualTo(before);
+        Assert.That(await SourceCountsAsync(),Is.EqualTo(before));
         Assert.That(await ActiveCountAsync(),Is.Zero);
     }
 
