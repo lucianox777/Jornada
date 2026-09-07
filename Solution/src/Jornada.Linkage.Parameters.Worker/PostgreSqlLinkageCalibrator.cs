@@ -186,11 +186,11 @@ public sealed class PostgreSqlLinkageCalibrator
                        COUNT(DISTINCT data_nascimento)::bigint,MAX(atualizado_em)
                   FROM gold.pessoa;
                 """, options.CommandTimeoutSeconds);
-            Population population;
+            PopulationProfile population;
             await using (var reader = await profileCommand.ExecuteReaderAsync(ct))
             {
                 if (!await reader.ReadAsync(ct)) throw new InvalidOperationException("Perfil populacional indisponível.");
-                population = new Population(reader.GetInt64(0),reader.GetInt64(1),reader.GetInt64(2),
+                population = new PopulationProfile(reader.GetInt64(0),reader.GetInt64(1),reader.GetInt64(2),
                     reader.GetInt64(3),reader.GetInt64(4),reader.IsDBNull(5) ? null : reader.GetFieldValue<DateTimeOffset>(5));
             }
             // As consultas retornam no máximo SampleSize pares. UUIDs/IDs compõem somente fingerprints.
@@ -401,8 +401,8 @@ public sealed class PostgreSqlLinkageCalibrator
         return await command.ExecuteNonQueryAsync(ct);
     }
 
-    private sealed record Population(long Population,long WithCpf,long DistinctNames,long DistinctMothers,long DistinctBirthDates,DateTimeOffset? MaxUpdatedAt);
+    private sealed record PopulationProfile(long Population,long WithCpf,long DistinctNames,long DistinctMothers,long DistinctBirthDates,DateTimeOffset? MaxUpdatedAt);
     private sealed record PairSample(IReadOnlyList<IdentityTrainingPair> Pairs,string Hash);
     private sealed record Frequency(string Attribute,string Value,long Count);
-    private sealed record Capture(string Token,DateTimeOffset CapturedAt,string Hash,Population Population,PairSample M,PairSample U,IReadOnlyList<Frequency> Frequencies);
+    private sealed record Capture(string Token,DateTimeOffset CapturedAt,string Hash,PopulationProfile Population,PairSample M,PairSample U,IReadOnlyList<Frequency> Frequencies);
 }
