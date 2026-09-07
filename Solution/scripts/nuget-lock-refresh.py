@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Refresh a project-reference-only NuGet graph with SDK-generated evidence."""
 from __future__ import annotations
+from collections.abc import Iterable
 import hashlib
 import json
 import os
@@ -35,6 +36,33 @@ def locks() -> dict[str, bytes]:
     return {p.relative_to(ROOT).as_posix(): p.read_bytes() for p in files}
 
 
+def project_targets(lock_paths: Iterable[str]) -> list[str]:
+    """Every versioned project must have exactly one sibling lock, and vice versa."""
+    lock_paths = set(lock_paths)
+    projects = sorted(p for p in ROOT.rglob('*.csproj')
+                      if not {'bin', 'obj', '.local'} & set(p.parts))
+    targets = []
+    expected_locks = set()
+    for project in projects:
+        if not project.is_file() or project.is_symlink():
+            fail(f'Invalid project file: {project}')
+        rel = project.relative_to(ROOT).as_posix()
+        lock = project.with_name('packages.lock.json')
+        expected_locks.add(lock.relative_to(ROOT).as_posix())
+        targets.append(rel)
+    if expected_locks != lock_paths or len(targets) != EXPECTED_COUNT:
+        fail(f'Project/lock inventory mismatch: missing={sorted(expected_locks - lock_paths)}, '
+             f'unowned={sorted(lock_paths - expected_locks)}; projects={len(targets)}.')
+    return targets
+
+
+def restore_all(targets: list[str], *flags: str) -> None:
+    """Restore the canonical solution and every versioned project, including standalone ones."""
+    run('dotnet', 'restore', 'Jornada.sln', *flags)
+    for target in targets:
+        run('dotnet', 'restore', target, *flags)
+
+
 def graph(data: bytes) -> dict:
     return json.loads(data)['dependencies']
 
@@ -55,6 +83,7 @@ def main() -> int:
     if run('git', 'status', '--porcelain').strip():
         fail('Refresh requires a clean checkout.')
     before = locks()
+    targets = project_targets(before)
     manifest = json.loads(MANIFEST.read_text(encoding='utf-8'))
     if sorted(r['path'] for r in manifest['locks']) != sorted(before):
         fail('Baseline provenance inventory is incomplete.')
@@ -63,7 +92,7 @@ def main() -> int:
             fail(f'Baseline provenance mismatch: {row["path"]}')
     if PROJECT not in before:
         fail('Operational SQL lock missing.')
-    run('dotnet', 'restore', 'Jornada.sln', '--use-lock-file', '--force-evaluate')
+    restore_all(targets, '--use-lock-file', '--force-evaluate')
     after = locks()
     if before.keys() != after.keys():
         fail('The project inventory changed unexpectedly.')
@@ -84,10 +113,12 @@ def main() -> int:
     if not changes:
         fail('No lock change detected; refusing to fabricate a refresh.')
     print('Project-reference-only lock changes:', *changes, sep='\n  ')
-    run('dotnet', 'restore', 'Jornada.sln', '--use-lock-file', '--force-evaluate')
+    restore_all(targets, '--use-lock-file', '--force-evaluate')
     if locks() != after:
         fail('A second force-evaluate changed the generated lock graph.')
-    run('dotnet', 'restore', 'Jornada.sln', '--locked-mode')
+    restore_all(targets, '--locked-mode')
+    if locks() != after:
+        fail('Locked restore changed the generated lock graph.')
     out = ROOT / '.local/nuget-lock-refresh'
     out.mkdir(parents=True, exist_ok=True)
     run('python3', 'scripts/nuget-lock-gate.py', '--root', '.', '--summary', str(out / 'lock-summary.json'))
@@ -100,6 +131,8 @@ def main() -> int:
                 'sdk': SDK, 'scope': 'PROJECT_REFERENCE_ONLY',
                 'changedLocks': changes, 'packageGraphUnchanged': True,
                 'forceEvaluateReproducible': True, 'lockedRestore': 'PASS',
+                'restoreTargets': ['Jornada.sln', *targets],
+                'restoreTargetCount': len(targets),
                 'combinedSha256': summary['combinedSha256']}
     manifest['lockGraphGeneration']['diagnosticRunId'] = os.environ.get('GITHUB_RUN_ID') or 'LOCAL_REFRESH'
     manifest['lockGraphGeneration']['combinedSha256'] = summary['combinedSha256']
@@ -112,12 +145,11 @@ def main() -> int:
             row['note'] = 'Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.'
     MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
     run('python3', 'scripts/nuget-lock-provenance-gate.py', '--root', '.', '--summary', str(out / 'provenance-summary.json'))
-    # Git normalmente devolve caminhos relativos à raiz do repositório,
-    # mesmo quando o processo está em Solution. --relative fixa o escopo.
+    # --relative fixes the paths relative to Solution rather than the Git root.
     changed = set(run('git', 'diff', '--name-only', '--relative').splitlines())
     allowed = {'config/release/nuget-lock-provenance.json', *changes}
-    if not changed or changed - allowed:
-        fail(f'Unexpected worktree changes: {sorted(changed - allowed)}')
+    if changed != allowed:
+        fail(f'Unexpected worktree changes: {sorted(changed ^ allowed)}')
     (out / 'refresh-summary.json').write_text(json.dumps(evidence, indent=2) + '\n', encoding='utf-8')
     print('NuGet refresh verified; ready for a separate, scoped commit.')
     return 0
