@@ -1223,7 +1223,27 @@ def main() -> None:
     require(OPENAPI_RUNTIME_TESTS.read_text(encoding="utf-8"), ["WebApplicationFactory<ApiEntryPointMarker>"], "OpenAPI runtime entry point inequívoco")
     require((ROOT / "tests/Jornada.Tests/Unit/ApiHttpPipelineTests.cs").read_text(encoding="utf-8"), ["WebApplicationFactory<ApiEntryPointMarker>"], "API HTTP entry point inequívoco")
     require((ROOT / "src/Jornada.Linkage.Parameters.Worker/LinkageParametersWorker.cs").read_text(encoding="utf-8"), ["Value = matchedPairs.Count;"], "amostra m compilável")
-    require((ROOT / "src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs").read_text(encoding="utf-8"), ["decimal? margin ="], "margem nullable explícita")
+    # A margem passou para a política compartilhada SQL Server/PostgreSQL.
+    # Aceita o baseline legado ou a delegação explícita, sem enfraquecer a prova.
+    sql_linkage = (ROOT / "src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs").read_text(encoding="utf-8")
+    if "decimal? margin =" in sql_linkage:
+        require(sql_linkage, ["decimal? margin ="], "margem nullable explícita")
+    else:
+        require(sql_linkage, [
+            "return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);",
+        ], "delegação da decisão probabilística SQL Server")
+        shared_policy_path = ROOT / "src/Jornada.Linkage.Runner/ProbabilisticLinkagePolicy.cs"
+        if not shared_policy_path.is_file():
+            fail("política compartilhada de Linkage ausente")
+        shared_policy = shared_policy_path.read_text(encoding="utf-8")
+        require(shared_policy, [
+            "internal static class ProbabilisticLinkageDecisions",
+            "decimal? margin =",
+            "best.Score - secondScore.Value",
+            "best.Score < model.Threshold",
+            "margin!.Value < model.ConflictMargin",
+            "ThenBy(x => x.PessoaUuid)",
+        ], "margem nullable e decisão probabilística compartilhadas")
     require((ROOT / "src/Jornada.Processor.Worker/ProcessorWorker.cs").read_text(encoding="utf-8"), ["internal sealed class ProcessorWorker("], "acessibilidade ProcessorWorker")
     ingestion_processor = (ROOT / "src/Jornada.Processor.Worker/IngestionProcessor.cs").read_text(encoding="utf-8")
     require(ingestion_processor, [
