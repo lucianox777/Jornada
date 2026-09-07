@@ -1,0 +1,41 @@
+name: jornada-linkage-source-snapshot
+on:
+  push:
+    paths:
+      - '.github/workflows/linkage-source-snapshot.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Archive tracked Linkage sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/linkage-source"
+          git archive --format=zip --output="$RUNNER_TEMP/linkage-source/source.zip" HEAD \
+            Solution/src/Jornada.Linkage.Parameters.Worker \
+            Solution/src/Jornada.Linkage.Runner \
+            Solution/src/Jornada.Contracts \
+            Solution/src/Jornada.Operational.Sql \
+            Solution/tests/Jornada.Tests \
+            Solution/database/postgresql \
+            Solution/scripts/postgresql-linkage-evidence.sh \
+            Solution/Directory.Build.props \
+            Solution/global.json \
+            Solution/Jornada.sln \
+            .github/workflows/postgresql-linkage-calibration.yml
+          git rev-parse HEAD > "$RUNNER_TEMP/linkage-source/commit.txt"
+          sha256sum "$RUNNER_TEMP/linkage-source/source.zip" > "$RUNNER_TEMP/linkage-source/source.sha256"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: linkage-source-${{ github.run_id }}
+          path: ${{ runner.temp }}/linkage-source/
+          retention-days: 1
+          if-no-files-found: error
