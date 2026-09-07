@@ -115,64 +115,18 @@ public sealed class PostgreSqlProbabilisticIdentityLinkage : IProbabilisticIdent
     {
         var maxCandidates = Math.Clamp(configuration.GetValue("ProbabilisticLinkage:MaxCandidatesPerBlock", 100000), 1000, 1000000);
         var birthDate = observation.DataNascimento;
+        var yearTolerance = Math.Clamp(configuration.GetValue("ProbabilisticLinkage:BirthYearTolerance", 1), 0, 2);
+        var plan = BirthBlockingPlan.Create(birthDate, observation.NomeCompleto, observation.NomeMae,
+            birthComponentScoring, yearTolerance);
         await using var connection = await database.OpenAsync(ct);
         await using var command = Command(connection, string.Empty);
         command.CommandTimeout = Math.Max(1, configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900));
-        var unionParts = new List<string>
-        {
-            "SELECT pessoa_uuid,nome_completo,data_nascimento,nome_mae FROM gold.pessoa WHERE data_nascimento=@exact_date"
-        };
-        AddDate(command, "@exact_date", birthDate);
-        if (birthComponentScoring)
-        {
-            var monthStart = new DateOnly(birthDate.Year, birthDate.Month, 1);
-            var monthEnd = monthStart.AddMonths(1);
-            AddDate(command, "@month_start", monthStart);
-            AddDate(command, "@month_end", monthEnd);
-            var initialPredicates = new List<string>();
-            if (TryInitial(observation.NomeCompleto, out var nameInitial))
-            {
-                Add(command, "@nome_inicial", DbType.String, nameInitial);
-                initialPredicates.Add("UPPER(LEFT(LTRIM(nome_completo),1))=@nome_inicial");
-            }
-            if (TryInitial(observation.NomeMae, out var motherInitial))
-            {
-                Add(command, "@mae_inicial", DbType.String, motherInitial);
-                initialPredicates.Add("UPPER(LEFT(LTRIM(nome_mae),1))=@mae_inicial");
-            }
-            if (initialPredicates.Count > 0)
-            {
-                var initialFilter = $"({string.Join(" OR ", initialPredicates)})";
-                unionParts.Add($"SELECT pessoa_uuid,nome_completo,data_nascimento,nome_mae FROM gold.pessoa WHERE data_nascimento>=@month_start AND data_nascimento<@month_end AND {initialFilter}");
-                var sameDayDates = Enumerable.Range(1, 12)
-                    .Select(month => TryDate(birthDate.Year, month, birthDate.Day))
-                    .Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
-                var sameDayNames = AddDateParameters(command, "same_day", sameDayDates);
-                if (sameDayNames.Count > 0)
-                    unionParts.Add($"SELECT pessoa_uuid,nome_completo,data_nascimento,nome_mae FROM gold.pessoa WHERE data_nascimento IN ({string.Join(",", sameDayNames)}) AND {initialFilter}");
-            }
-            var swapped = TryDate(birthDate.Year, birthDate.Day, birthDate.Month);
-            if (swapped is { } swappedDate && swappedDate != birthDate)
-            {
-                AddDate(command, "@swapped_date", swappedDate);
-                unionParts.Add("SELECT pessoa_uuid,nome_completo,data_nascimento,nome_mae FROM gold.pessoa WHERE data_nascimento=@swapped_date");
-            }
-            var yearTolerance = Math.Clamp(configuration.GetValue("ProbabilisticLinkage:BirthYearTolerance", 1), 0, 2);
-            var neighborYearDates = Enumerable.Range(-yearTolerance, yearTolerance * 2 + 1)
-                .Where(offset => offset != 0)
-                .Select(offset => TryDate(birthDate.Year + offset, birthDate.Month, birthDate.Day))
-                .Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
-            var neighborYearNames = AddDateParameters(command, "neighbor_year", neighborYearDates);
-            if (neighborYearNames.Count > 0)
-                unionParts.Add($"SELECT pessoa_uuid,nome_completo,data_nascimento,nome_mae FROM gold.pessoa WHERE data_nascimento IN ({string.Join(",", neighborYearNames)})");
-        }
+        var query = PostgreSqlBirthBlockingQuery.Build(command, plan);
         Add(command, "@max_plus_one", DbType.Int32, maxCandidates + 1);
         command.CommandText = $"""
-            WITH candidate AS (
-                {string.Join("\nUNION\n", unionParts)}
-            )
-            SELECT pessoa_uuid,nome_completo,data_nascimento,nome_mae
-            FROM candidate ORDER BY pessoa_uuid LIMIT @max_plus_one;
+            SELECT g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
+            FROM gold.pessoa g WHERE {query.Predicate}
+            ORDER BY g.pessoa_uuid LIMIT @max_plus_one;
             """;
         var result = new List<LinkageCandidate>();
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -201,41 +155,5 @@ public sealed class PostgreSqlProbabilisticIdentityLinkage : IProbabilisticIdent
         parameter.DbType = type;
         parameter.Value = value;
         command.Parameters.Add(parameter);
-    }
-
-    private static void AddDate(DbCommand command, string name, DateOnly date) =>
-        Add(command, name, DbType.Date, date.ToDateTime(TimeOnly.MinValue));
-
-    private static IReadOnlyList<string> AddDateParameters(DbCommand command, string prefix, IReadOnlyList<DateOnly> dates)
-    {
-        var names = new List<string>(dates.Count);
-        for (var i = 0; i < dates.Count; i++)
-        {
-            var name = $"@{prefix}_{i}";
-            AddDate(command, name, dates[i]);
-            names.Add(name);
-        }
-        return names;
-    }
-
-    private static bool TryInitial(string? value, out string initial)
-    {
-        var normalized = value?.Trim();
-        if (string.IsNullOrEmpty(normalized))
-        {
-            initial = string.Empty;
-            return false;
-        }
-        initial = normalized[..1].ToUpperInvariant();
-        return true;
-    }
-
-    private static DateOnly? TryDate(int year, int month, int day)
-    {
-        if (year is < 1 or > 9999 || month is < 1 or > 12 || day < 1)
-            return null;
-        if (day > DateTime.DaysInMonth(year, month))
-            return null;
-        return new DateOnly(year, month, day);
     }
 }
