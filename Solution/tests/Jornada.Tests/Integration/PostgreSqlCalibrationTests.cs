@@ -99,6 +99,7 @@ public sealed class PostgreSqlCalibrationTests
     [Test]
     public async Task ForcedInsertFailure_RollsBackAllEvidenceAndMarksModelFailed()
     {
+        var before = await SourceCountsAsync();
         await ExecuteAsync("""
             CREATE FUNCTION identidade.fn_ci_calibracao_falha() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN IF NEW.nome='T_LINKAGE' THEN RAISE EXCEPTION 'CI forced failure'; END IF; RETURN NEW; END $$;
