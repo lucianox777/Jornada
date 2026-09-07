@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
@@ -123,6 +124,19 @@ public sealed class PostgreSqlCandidateUniverseTests
         Assert.That(leap.PairCount, Is.Zero);
     }
 
+    [Test]
+    public void ScalarConversionAcceptsIntegerAndBigint()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(ToCount(3), Is.EqualTo(3L));
+            Assert.That(ToCount(3L), Is.EqualTo(3L));
+        });
+    }
+
+    private static long ToCount(object value) =>
+        Convert.ToInt64(value, CultureInfo.InvariantCulture);
+
     private static CandidateUniverseSource Source(Guid sourceId, Guid? known) =>
         new(sourceId, new DateOnly(1982, 4, 10), "Maria", "Ana", known);
 
@@ -162,6 +176,6 @@ public sealed class PostgreSqlCandidateUniverseTests
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand(sql, connection);
-        return (long)(await command.ExecuteScalarAsync() ?? throw new InvalidOperationException("Consulta sem valor."));
+        return ToCount(await command.ExecuteScalarAsync() ?? throw new InvalidOperationException("Consulta sem valor."));
     }
 }
