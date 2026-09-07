@@ -7,7 +7,7 @@ using Npgsql;
 
 namespace Jornada.Tests.Integration;
 
-[TestFixture, Category("PostgreSqlLinkage"), NonParallelizable]
+[TestFixture, Category("Integration"), Category("PostgreSqlLinkage"), NonParallelizable]
 public sealed class PostgreSqlLinkageScoringTests
 {
     private static readonly Guid V1 = Guid.Parse("81000000-0000-4000-8000-000000000001");
