@@ -1,3 +1,5 @@
+# Validação solicitada após a atualização do plano GitHub Actions.
+# Este commit não altera comandos, modelos, limiares ou regras de publicação.
 name: jornada-postgresql-linkage-model-scoring
 
 on:
