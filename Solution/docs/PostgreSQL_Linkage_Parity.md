@@ -1,28 +1,28 @@
-# PostgreSQL — Linkage: inventário e primeira fatia
+# PostgreSQL — Linkage: paridade incremental
 
-Base: master `73cc7a4075a5075c9b977cef47b010f976dfc83a`. A implementação PostgreSQL é paralela; SQL Server e Fabric mantêm seus papéis canônicos. Este documento não declara homologação institucional ou de produção.
+A implementação PostgreSQL é paralela. SQL Server e Fabric mantêm seus papéis canônicos. Os gates de CI não constituem homologação institucional, de escala ou de produção.
 
-## Inventário de paridade
+## Componentes
 
-| Componente | SQL Server existente | PostgreSQL após esta fatia | Próximo gate |
-|---|---|---|---|
-| Contratos e normalização de identidade | Compartilhados em Jornada.Contracts | Reutilizados, sem alteração | Validação de novas versões de normalização somente mediante decisão aprovada |
-| Fellegi–Sunter, prior condicionado, limiar e margem | FellegiSunterScoring e SqlProbabilisticIdentityLinkage | Mesmo cálculo e mesma política de decisão, extraídos para uso comum | Evidência de calibração e avaliação em corpus representativo |
-| Modelo e parâmetros m/u | modelo_linkage, parametro_linkage, frequencia_linkage, estatistica_linkage | Catálogo PostgreSQL, leitura versionada e imutabilidade de modelos finalizados | Portar calibrador, evidências de validade e ativação governada |
-| Candidate generation | V1 data exata; V2 cinco passes, sem truncamento silencioso | Mesmos passes e limites, com SQL PostgreSQL e índice de nascimento | Avaliar plano, recall e volume realista |
-| Runner e universo congelado | ProbabilisticLinkageBatchRunner, linkage_run e linkage_run_item | Não portados | Runner PostgreSQL com coordenação exclusiva, checkpoints e recuperação |
-| Resultado e publicação | linkage_resultado, publicação lógica atômica e vínculo corrente | Não portados | Publicação fail-closed, precedência determinística, recomposição Gold/Serving |
-| Calibração | Jornada.Linkage.Parameters.Worker | Não portada | Amostragem independente, m/u, evidência, aprovação e versão imutável |
-| Correção governada e replay | Fluxos SQL Server existentes | Não portados | Separação/fusão histórica, replay e auditoria sem perder fatos |
+| Componente | Estado PostgreSQL | Próximo gate |
+|---|---|---|
+| Contratos, normalização e Fellegi–Sunter | Compartilhados com SQL Server; sem alteração de fórmula ou limiares | Homologação estatística em corpus representativo |
+| Catálogo e scorer | Leitura versionada, V1 e cinco passes V2, limite explícito, política compartilhada | Recall, desempenho, distribuição de candidatos e qualidade dos parâmetros |
+| Calibrador | Captura MVCC, amostras m/u limitadas, evidências e rascunho atômico; validação estrutural sintética | Amostra u representativa dos cinco passes e validação estatística independente |
+| Ativação de modelos | Não implementada; método piloto bloqueado no banco | Fluxo governado com autorização e evidência de homologação |
+| Runner e publicação | Não portados | Universo congelado, coordenação, checkpoints, recuperação e publicação lógica atômica |
+| Correções governadas | Não portadas | Separação, fusão histórica, replay, auditoria e preservação dos fatos |
 
-## Fronteira desta entrega
+## Fronteira da calibração MVCC
 
-O novo scorer é somente leitura e não é registrado no executável do runner. Ele não cria UUID, não grava vínculo, não ativa modelo, não escreve em Gold/Serving e não autoriza uma decisão probabilística a substituir CPF determinístico. O modelo é fixado por UUID, e versões em rascunho são recusadas. O normalizador aceito é `IDENTITY_NORMALIZATION_V1`; não se reinterpretam modelos de outra versão com regras novas.
+O calibrador reutiliza `LinkageParameterEstimator` e preserva os parâmetros e comparadores canônicos. A amostra m usa pares inter-Gestores independentes com resolução determinística por CPF; a amostra u piloto usa UUIDs distintos com CPF, pareados por nascimento exato. A transação de captura é `REPEATABLE READ READ ONLY`. Evidências persistidas incluem fingerprints de IDs e parâmetros, snapshot e estatísticas agregadas, sem copiar nomes, CPF ou pares brutos para o catálogo.
 
-O catálogo é aditivo e mantém a precisão numérica e os metadados de calibração do modelo SQL Server. O índice parcial permite somente um modelo ATIVO. Parâmetros e metadados de modelos validados/publicados são imutáveis; uma versão nova exige novo modelo. A futura ativação deverá validar o conjunto de parâmetros e a evidência de avaliação antes de transicionar o estado, sem editar modelos anteriores.
+A amostra u piloto **não representa a união dos cinco passes V2**. Em especial, a seleção por nascimento exato distorce a frequência de divergências de dia, mês e ano. A suavização não corrige esse viés de seleção. Por isso, modelos reais desse método permanecem em `RASCUNHO`: a validação SQL rejeita sua promoção e um trigger independente impede ativação, inclusive por atualização direta de status ou reclassificação do método. O corpus sintético descartável pode exercitar a validação estrutural, mas seus modelos não podem ser ativados.
 
-O scorer preserva os cinco passes V2, o modo V1 de data exata, o limite explícito de candidatos, o desempate por UUID e os motivos de decisão. Nenhum Soundex, IA generativa, evidência nova ou threshold foi introduzido. O cálculo compartilhado continua usando o prior condicionado ao tamanho real do bloco e os parâmetros m/u já calibrados. A ausência de candidato e a insuficiência de margem não constituem identidade.
+A próxima metodologia deve capturar a população efetiva de candidatos do scorer, com os cinco passes, deduplicação e atribuição de pass de referência, amostragem probabilística documentada e probabilidades de inclusão conhecidas. Deve distinguir a distribuição u condicionada ao blocking da distribuição de pares não condicionados. O tratamento de dependências entre componentes de nascimento e entre atributos precisa ser calibrado e validado, sem presumir independência nem introduzir pesos arbitrários. Antes de habilitar uso real, exigir corpus de avaliação separado, recall, precisão, calibração de probabilidades, análise de falsos vínculos e revisão de T_LINKAGE e margem.
 
-## Próxima entrega
+## Evolução multievidência
 
-Portar o calibrador e o ciclo de validação/ativação de modelos; depois o runner com coordenação PostgreSQL, universo congelado e publicação logicamente atômica. Somente após testes de reprocessamento, perda de lease, concorrência, precedência determinística e recomposição será possível habilitar o fluxo operacional. Escala e homologação devem ter evidências próprias, não apenas smoke tests.
+A ADR de multievidência universal permanece a direção arquitetural: todos os campos preservados são evidências candidatas, inclusive telefone, e-mail e distrito informado pelo Gestor. Nenhum campo entra automaticamente no score. Cada evidência exige semântica, qualidade, normalização, comparador, dependências e parâmetros versionados. Endereço residencial, endereço de residência, referência territorial e local de atendimento não são intercambiáveis. Evidências ausentes ou inválidas não devem ser convertidas em discordância. A ampliação não altera a precedência determinística do CPF nem autoriza fusões inseguras.
+
+Esta entrega não registra o scorer no runner operacional, não cria UUID, não altera vínculos, não publica Gold/Serving e não ativa modelos. Uma futura ativação exige nova migração governada; não basta remover o bloqueio ou mudar o status manualmente.
