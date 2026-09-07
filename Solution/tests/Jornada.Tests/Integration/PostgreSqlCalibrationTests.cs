@@ -20,7 +20,7 @@ public sealed class PostgreSqlCalibrationTests
             new NpgsqlConnectionStringBuilder(connectionString).Database!="JornadaPgCalibrationTest")
             throw new InvalidOperationException("Exige opt-in e banco descartável JornadaPgCalibrationTest.");
         Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.modelo_linkage;"),Is.Zero);
-        Assert.That(await ScalarAsync<long>("SELECT expected_people FROM controle.calibracao_ci_fixture WHERE fixture_id='93000000-0000-4000-8000-000000000001';"),Is.EqualTo(10));
+        Assert.That(await ScalarAsync<int>("SELECT expected_people FROM controle.calibracao_ci_fixture WHERE fixture_id='93000000-0000-4000-8000-000000000001';"),Is.EqualTo(10));
         Assert.That(await ScalarAsync<long>("SELECT count(*) FROM gold.pessoa;"),Is.EqualTo(10));
         Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.vinculo_fonte WHERE ativo;"),Is.EqualTo(18));
         calibrator = new PostgreSqlLinkageCalibrator(new PostgreSqlOperationalAdapter(connectionString));
@@ -208,9 +208,8 @@ public sealed class PostgreSqlCalibrationTests
         foreach(var (name,value) in parameters) command.Parameters.AddWithValue(name,value);
         return command;
     }
-    private Task AssertDbRejectedAsync(string sql,params (string Name,object Value)[] parameters)
+    private async Task AssertDbRejectedAsync(string sql,params (string Name,object Value)[] parameters)
     {
         Assert.ThrowsAsync<PostgresException>(async()=>{await ExecuteAsync(sql,parameters);});
-        return Task.CompletedTask;
     }
 }
