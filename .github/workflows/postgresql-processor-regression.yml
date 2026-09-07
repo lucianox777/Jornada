@@ -1,0 +1,117 @@
+name: jornada-postgresql-processor-regression
+
+on:
+  push:
+    paths:
+      - 'Solution/src/Jornada.Processor.Worker/**'
+      - 'Solution/src/Jornada.Operational.Sql/**'
+      - 'Solution/database/postgresql/**'
+      - 'Solution/config/contracts/**'
+      - 'Solution/tests/fixtures/ingestao/AA01_v2/**'
+      - 'Solution/scripts/postgresql-processor-regression.cs'
+      - 'Solution/scripts/postgresql-processor-runtime-smoke.sh'
+      - 'Solution/scripts/build-ingestion-fixture.py'
+      - '.github/workflows/postgresql-processor-regression.yml'
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Processor.Worker/**'
+      - 'Solution/src/Jornada.Operational.Sql/**'
+      - 'Solution/database/postgresql/**'
+      - 'Solution/config/contracts/**'
+      - 'Solution/tests/fixtures/ingestao/AA01_v2/**'
+      - 'Solution/scripts/postgresql-processor-regression.cs'
+      - 'Solution/scripts/postgresql-processor-runtime-smoke.sh'
+      - 'Solution/scripts/build-ingestion-fixture.py'
+      - '.github/workflows/postgresql-processor-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgresql-processor-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: Solution
+        shell: bash
+    services:
+      postgres:
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        env:
+          POSTGRES_USER: jornada
+          POSTGRES_DB: JornadaPg
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jornada -d JornadaPg"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      JORNADA_POSTGRESQL_CONNECTION: 'Host=localhost;Port=5432;Database=JornadaPg;Username=jornada;SSL Mode=Disable'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.424'
+      - name: Restore and build real Worker
+        run: |
+          dotnet restore src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj --locked-mode
+          dotnet build src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj -c Release --no-restore -warnaserror
+      - name: Install PostgreSQL cores twice and seed synthetic reference data
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=5432 | head -1)
+          test -n "$CID"
+          for pass in 1 2; do
+            docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core.sql
+            docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Ingestion_Processor_Core.sql
+            docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Processor_Persistence_Core.sql
+          done
+          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core_Smoke.sql
+          docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Processor_Persistence_Smoke.sql
+      - name: Prove real Worker Bronze to Gold and Serving
+        run: bash scripts/postgresql-processor-runtime-smoke.sh
+      - name: Build isolated regression harness
+        run: |
+          set -euo pipefail
+          mkdir -p .local/postgresql-processor-regression
+          cat > .local/postgresql-processor-regression/Jornada.PostgreSql.Regression.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net8.0</TargetFramework>
+              <AssemblyName>Jornada.PostgreSql.Regression</AssemblyName>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="../../src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj" />
+              <ProjectReference Include="../../src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj" />
+              <Compile Include="../../scripts/postgresql-processor-regression.cs" Link="Program.cs" />
+            </ItemGroup>
+          </Project>
+          EOF
+          dotnet restore .local/postgresql-processor-regression/Jornada.PostgreSql.Regression.csproj
+          dotnet build .local/postgresql-processor-regression/Jornada.PostgreSql.Regression.csproj -c Release --no-restore -warnaserror
+      - name: Prove versioning conflicts rollback and concurrent updates
+        run: |
+          set -euo pipefail
+          dotnet run --project .local/postgresql-processor-regression/Jornada.PostgreSql.Regression.csproj -c Release --no-build --no-restore -- "$PWD" \
+            2>&1 | tee .local/postgresql-processor-regression/result.txt
+      - name: Upload regression evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: postgresql-processor-regression-evidence
+          path: |
+            Solution/.local/postgresql-processor-runtime/
+            Solution/.local/postgresql-processor-regression/evidence.json
+            Solution/.local/postgresql-processor-regression/result.txt
+          retention-days: 30
+          if-no-files-found: ignore

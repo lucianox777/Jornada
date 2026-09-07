@@ -27,7 +27,7 @@ internal sealed class PostgreSqlIdentityMapRepository(IOperationalDatabaseAdapte
         }
         catch
         {
-            await tx.RollbackAsync(CancellationToken.None);
+            await PostgreSqlPersistenceSupport.RollbackPreservingOriginalAsync(tx);
             throw;
         }
     }
