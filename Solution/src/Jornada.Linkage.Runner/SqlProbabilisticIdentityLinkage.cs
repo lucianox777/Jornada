@@ -52,113 +52,17 @@ public sealed class SqlProbabilisticIdentityLinkage(
     }
 
     public async Task<ProbabilisticLinkageDecision> ResolveWithoutCpfAsync(
-        IdentityObservation observation,
-        Guid modeloId,
-        CancellationToken ct)
+        IdentityObservation observation, Guid modeloId, CancellationToken ct)
     {
         if (!string.IsNullOrWhiteSpace(observation.Cpf))
             throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
-
         var model = modelCache.TryGetValue(modeloId, out var cached)
             ? cached
             : await LoadModelByIdAsync(modeloId, ct);
-
         modelCache[modeloId] = model;
-        var birthComponentScoring = SupportsBirthComponentScoring(model);
-        var candidates = await LoadCandidatesAsync(observation, birthComponentScoring, ct);
-
-        if (candidates.Count == 0)
-        {
-            return new ProbabilisticLinkageDecision(
-                ResolutionStatus.NAO_RESOLVIDO,
-                null,
-                null,
-                0m,
-                null,
-                null,
-                null,
-                model.ModelId,
-                birthComponentScoring
-                    ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_COMPONENTE"
-                    : "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO");
-        }
-
-        var scored = candidates
-            .Select(candidate => new CandidateScore(candidate.PessoaUuid, Score(model, observation, candidate, candidates.Count)))
-            .OrderByDescending(x => x.Score)
-            .ThenBy(x => x.PessoaUuid)
-            .ToArray();
-
-        var best = scored[0];
-        var second = scored.Length > 1 ? scored[1] : null;
-        var secondScore = second?.Score;
-        decimal? margin = secondScore is null ? null : best.Score - secondScore.Value;
-
-        if (best.Score < model.Threshold)
-        {
-            return new ProbabilisticLinkageDecision(
-                ResolutionStatus.NAO_RESOLVIDO,
-                null,
-                best.PessoaUuid,
-                best.Score,
-                second?.PessoaUuid,
-                secondScore,
-                margin,
-                model.ModelId,
-                "ABAIXO_T_LINKAGE");
-        }
-
-        if (second is not null && margin!.Value < model.ConflictMargin)
-        {
-            return new ProbabilisticLinkageDecision(
-                ResolutionStatus.CONFLITO,
-                null,
-                best.PessoaUuid,
-                best.Score,
-                second.PessoaUuid,
-                second.Score,
-                margin,
-                model.ModelId,
-                "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE");
-        }
-
-        return new ProbabilisticLinkageDecision(
-            ResolutionStatus.RESOLVIDO,
-            best.PessoaUuid,
-            best.PessoaUuid,
-            best.Score,
-            second?.PessoaUuid,
-            secondScore,
-            margin,
-            model.ModelId);
-    }
-
-    private decimal Score(LinkageModel model, IdentityObservation observation, GoldCandidate candidate, int blockCandidateCount)
-    {
-        var nameState = IdentityComparison.CompareName(observation.NomeCompleto, candidate.NomeCompleto);
-        var motherState = IdentityComparison.CompareName(observation.NomeMae, candidate.NomeMae);
-
-        return FellegiSunterScoring.CalculatePosterior(
-            model.Parameters,
-            nameState,
-            motherState,
-            blockCandidateCount,
-            observation.DataNascimento,
-            candidate.DataNascimento);
-    }
-
-    private static bool SupportsBirthComponentScoring(LinkageModel model)
-    {
-        if (!model.Parameters.TryGetValue("BLOCKING_BIRTH_COMPONENTS_V2", out var enabled) || enabled < 1m)
-            return false;
-
-        var required = new[]
-        {
-            "M_NASC_DIA_EXACT", "M_NASC_DIA_DIFF", "U_NASC_DIA_EXACT", "U_NASC_DIA_DIFF",
-            "M_NASC_MES_EXACT", "M_NASC_MES_DIFF", "U_NASC_MES_EXACT", "U_NASC_MES_DIFF",
-            "M_NASC_ANO_EXACT", "M_NASC_ANO_DIFF", "U_NASC_ANO_EXACT", "U_NASC_ANO_DIFF"
-        };
-        return required.All(model.Parameters.ContainsKey);
+        var candidates = await LoadCandidatesAsync(observation,
+            LinkageModelPolicy.SupportsBirthComponentScoring(model), ct);
+        return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
     }
 
     private async Task<LinkageModel> LoadActiveModelAsync(CancellationToken ct)
@@ -215,26 +119,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
         if (version is null)
             throw new InvalidOperationException($"Modelo probabilístico {modelId} não encontrado.");
 
-        var required = new[]
-        {
-            "PRIOR_MATCH_PROBABILITY", "PRIOR_BLOCK_MIN", "PRIOR_BLOCK_MAX", "T_LINKAGE", "CONFLICT_MARGIN",
-            "M_NOME_EXACT", "M_NOME_HIGH", "M_NOME_MEDIUM", "M_NOME_LOW",
-            "U_NOME_EXACT", "U_NOME_HIGH", "U_NOME_MEDIUM", "U_NOME_LOW",
-            "M_NOME_MAE_EXACT", "M_NOME_MAE_HIGH", "M_NOME_MAE_MEDIUM", "M_NOME_MAE_LOW",
-            "U_NOME_MAE_EXACT", "U_NOME_MAE_HIGH", "U_NOME_MAE_MEDIUM", "U_NOME_MAE_LOW"
-        };
-
-        var missing = required.Where(x => !parameters.ContainsKey(x)).ToArray();
-        if (missing.Length > 0)
-            throw new InvalidOperationException($"Modelo incompleto. Parâmetros ausentes: {string.Join(", ", missing)}");
-
-        var model = new LinkageModel(
-            modelId,
-            version.Value,
-            algorithm ?? "UNKNOWN",
-            parameters,
-            parameters["T_LINKAGE"],
-            parameters["CONFLICT_MARGIN"]);
+        var model = LinkageModelPolicy.Create(modelId, version.Value, algorithm ?? "UNKNOWN", parameters);
 
         logger.LogInformation(
             "Modelo probabilístico carregado. ModeloId={ModelId}; Versão={Version}; Algoritmo={Algorithm}",
@@ -245,7 +130,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
         return model;
     }
 
-    private async Task<IReadOnlyList<GoldCandidate>> LoadCandidatesAsync(
+    private async Task<IReadOnlyList<LinkageCandidate>> LoadCandidatesAsync(
         IdentityObservation observation,
         bool birthComponentScoring,
         CancellationToken ct)
@@ -358,11 +243,11 @@ public sealed class SqlProbabilisticIdentityLinkage(
             ORDER BY pessoa_uuid;
             """;
 
-        var result = new List<GoldCandidate>();
+        var result = new List<LinkageCandidate>();
         await using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            result.Add(new GoldCandidate(
+            result.Add(new LinkageCandidate(
                 reader.GetGuid(0),
                 reader.GetString(1),
                 DateOnly.FromDateTime(reader.GetDateTime(2)),
@@ -413,14 +298,4 @@ public sealed class SqlProbabilisticIdentityLinkage(
         return new DateOnly(year, month, day);
     }
 
-    private sealed record GoldCandidate(Guid PessoaUuid, string NomeCompleto, DateOnly DataNascimento, string NomeMae);
-    private sealed record CandidateScore(Guid PessoaUuid, decimal Score);
-
-    private sealed record LinkageModel(
-        Guid ModelId,
-        int Version,
-        string AlgorithmVersion,
-        IReadOnlyDictionary<string, decimal> Parameters,
-        decimal Threshold,
-        decimal ConflictMargin);
 }
