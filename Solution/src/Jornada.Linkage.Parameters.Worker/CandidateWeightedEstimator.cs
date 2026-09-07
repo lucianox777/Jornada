@@ -84,5 +84,5 @@ public static class CandidateWeightedEstimator
 
     private static string NameState(NameComparisonState? state) => state?.ToString() ?? "MISSING";
     private static string BirthState(byte? mask) => mask is { } value
-        ? Convert.ToString(value, 2).PadLeft(3, '0') : "MISSING";
+        ? Birth[value] : "MISSING";
 }
