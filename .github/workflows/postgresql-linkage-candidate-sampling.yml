@@ -1,0 +1,98 @@
+name: jornada-postgresql-linkage-candidate-sampling
+on:
+  push:
+    paths:
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/**'
+      - 'Solution/src/Jornada.Contracts/**'
+      - 'Solution/src/Jornada.Operational.Sql/**'
+      - 'Solution/database/postgresql/**'
+      - 'Solution/tests/Jornada.Tests/Unit/CandidateSamplingTests.cs'
+      - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlCandidateSamplingTests.cs'
+      - 'Solution/scripts/postgresql-linkage-evidence.sh'
+      - '.github/workflows/postgresql-linkage-candidate-sampling.yml'
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/**'
+      - 'Solution/src/Jornada.Contracts/**'
+      - 'Solution/src/Jornada.Operational.Sql/**'
+      - 'Solution/database/postgresql/**'
+      - 'Solution/tests/Jornada.Tests/Unit/CandidateSamplingTests.cs'
+      - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlCandidateSamplingTests.cs'
+      - 'Solution/scripts/postgresql-linkage-evidence.sh'
+      - '.github/workflows/postgresql-linkage-candidate-sampling.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  candidate-sampling:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: Solution
+        shell: bash
+    services:
+      postgres:
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        env:
+          POSTGRES_USER: jornada
+          POSTGRES_DB: JornadaPgSamplingTest
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jornada -d JornadaPgSamplingTest"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      JORNADA_POSTGRESQL_CONNECTION: 'Host=localhost;Port=5432;Database=JornadaPgSamplingTest;Username=jornada;SSL Mode=Disable'
+      JORNADA_POSTGRESQL_SAMPLING_TESTS: '1'
+      JORNADA_LINKAGE_EVIDENCE_DIR: ${{ github.workspace }}/Solution/.local/postgresql-sampling-evidence
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.424'
+      - name: Record toolchain and commit
+        run: bash scripts/postgresql-linkage-evidence.sh run environment bash -c 'set -euo pipefail; dotnet --info; git rev-parse HEAD; docker --version; psql --version'
+      - name: Restore locked dependencies
+        run: |
+          bash scripts/postgresql-linkage-evidence.sh run restore dotnet restore tests/Jornada.Tests/Jornada.Tests.csproj --locked-mode -v:normal "-bl:$JORNADA_LINKAGE_EVIDENCE_DIR/restore.binlog;ProjectImports=None"
+      - name: Build real workers and tests
+        run: |
+          bash scripts/postgresql-linkage-evidence.sh run build dotnet build tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-restore -warnaserror -v:normal "-bl:$JORNADA_LINKAGE_EVIDENCE_DIR/build.binlog;ProjectImports=None"
+      - name: Install PostgreSQL cores twice
+        run: |
+          bash scripts/postgresql-linkage-evidence.sh run ddl bash -c '
+            set -euo pipefail
+            CID=$(docker ps -q --filter publish=5432 | head -1)
+            test -n "$CID"
+            for pass in 1 2; do
+              for core in Jornada_Resultado_Core Jornada_Ingestion_Processor_Core Jornada_Processor_Persistence_Core Jornada_Linkage_Model_Core Jornada_Linkage_Calibration_Core Jornada_Linkage_Calibration_Safety_Core; do
+                echo "Installing $core (pass $pass)"
+                docker exec -i "$CID" psql -X -v ON_ERROR_STOP=1 -v VERBOSITY=verbose --echo-errors --single-transaction -U jornada -d JornadaPgSamplingTest < "database/postgresql/$core.sql"
+              done
+            done'
+      - name: Sampling design and shared blocking regressions
+        run: |
+          bash scripts/postgresql-linkage-evidence.sh run unit dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'TestCategory=Unit&(FullyQualifiedName~CandidateSamplingTests|FullyQualifiedName~BirthBlockingPlanTests)' --logger 'trx;LogFileName=sampling-unit.trx' --results-directory "$JORNADA_LINKAGE_EVIDENCE_DIR"
+      - name: Existing shared scoring policy regressions
+        run: |
+          bash scripts/postgresql-linkage-evidence.sh run policy dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~ProbabilisticLinkagePolicyTests' --logger 'trx;LogFileName=linkage-policy.trx' --results-directory "$JORNADA_LINKAGE_EVIDENCE_DIR"
+      - name: Real PostgreSQL two-stage sampling regressions
+        run: |
+          bash scripts/postgresql-linkage-evidence.sh run integration dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'TestCategory=PostgreSqlCandidateSampling' --logger 'trx;LogFileName=postgresql-sampling.trx' --results-directory "$JORNADA_LINKAGE_EVIDENCE_DIR"
+      - name: Summarize validation evidence
+        if: always()
+        run: bash scripts/postgresql-linkage-evidence.sh summary
+      - name: Upload regression evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: postgresql-linkage-candidate-sampling-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/postgresql-sampling-evidence/
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: warn
