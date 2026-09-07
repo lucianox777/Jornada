@@ -18,6 +18,7 @@ public sealed class PostgreSqlLinkageScoringTests
     private static readonly DateOnly Birth = new(1982, 4, 10);
     private const string Name = "Maria da Silva";
     private const string Mother = "Ana de Souza";
+    private const string FixtureIds = "SELECT @a UNION ALL SELECT @b UNION ALL SELECT md5('linkage-cap-'||i)::uuid FROM generate_series(1,1001) AS i";
     private string connectionString = null!;
     private IOperationalDatabaseAdapter database = null!;
     private PostgreSqlProbabilisticIdentityLinkage linkage = null!;
@@ -32,7 +33,6 @@ public sealed class PostgreSqlLinkageScoringTests
             throw new InvalidOperationException("Exige opt-in e banco descartável JornadaPgLinkageTest.");
 
         // Never truncate a pre-existing corpus. The CI must provide a fresh database.
-        // Re-running this destructive-fixture suite requires a new disposable database.
         var existing = await ScalarAsync("""
             SELECT (SELECT COUNT(*) FROM identidade.modelo_linkage)
                  + (SELECT COUNT(*) FROM identidade.pessoa)
@@ -52,16 +52,8 @@ public sealed class PostgreSqlLinkageScoringTests
     [SetUp]
     public async Task ResetAsync()
     {
-        await ExecuteAsync("""
-            DELETE FROM gold.pessoa WHERE pessoa_uuid IN (
-                @a, @b,
-                SELECT md5('linkage-cap-'||i)::uuid FROM generate_series(1,1001) AS i
-            );
-            DELETE FROM identidade.pessoa WHERE pessoa_uuid IN (
-                @a, @b,
-                SELECT md5('linkage-cap-'||i)::uuid FROM generate_series(1,1001) AS i
-            );
-            """, ("a", A), ("b", B));
+        // Only the UUIDs reserved for this fixture can be removed.
+        await ExecuteAsync($"DELETE FROM gold.pessoa WHERE pessoa_uuid IN ({FixtureIds}); DELETE FROM identidade.pessoa WHERE pessoa_uuid IN ({FixtureIds});", ("a", A), ("b", B));
         await ExecuteAsync("""
             UPDATE identidade.modelo_linkage SET status='INATIVO'
             WHERE modelo_id IN (@v1,@v2) AND status='ATIVO';
