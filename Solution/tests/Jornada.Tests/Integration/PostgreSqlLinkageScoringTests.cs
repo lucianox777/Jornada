@@ -30,10 +30,20 @@ public sealed class PostgreSqlLinkageScoringTests
         if (Environment.GetEnvironmentVariable("JORNADA_POSTGRESQL_LINKAGE_TESTS") != "1" ||
             new NpgsqlConnectionStringBuilder(connectionString).Database != "JornadaPgLinkageTest")
             throw new InvalidOperationException("Exige opt-in e banco descartável JornadaPgLinkageTest.");
+
+        // Never truncate a pre-existing corpus. The CI must provide a fresh database.
+        // Re-running this destructive-fixture suite requires a new disposable database.
+        var existing = await ScalarAsync("""
+            SELECT (SELECT COUNT(*) FROM identidade.modelo_linkage)
+                 + (SELECT COUNT(*) FROM identidade.pessoa)
+                 + (SELECT COUNT(*) FROM gold.pessoa)
+                 + (SELECT COUNT(*) FROM silver.pessoa_observacao);
+            """);
+        if (existing != 0)
+            throw new InvalidOperationException("A regressão Linkage exige banco descartável vazio; não serão apagados dados preexistentes.");
+
         database = new PostgreSqlOperationalAdapter(connectionString);
         linkage = CreateLinkage();
-        await ExecuteAsync("TRUNCATE identidade.frequencia_linkage,identidade.estatistica_linkage,identidade.parametro_linkage,identidade.modelo_linkage RESTART IDENTITY CASCADE;");
-        await ExecuteAsync("DELETE FROM gold.pessoa; DELETE FROM identidade.identity_map; DELETE FROM identidade.vinculo_fonte; DELETE FROM identidade.pessoa;");
         await SeedModelAsync(V1, 1, "ATIVO", false);
         await SeedModelAsync(V2, 2, "VALIDADO", true);
         await SeedModelAsync(Draft, 3, "RASCUNHO", false);
@@ -42,8 +52,21 @@ public sealed class PostgreSqlLinkageScoringTests
     [SetUp]
     public async Task ResetAsync()
     {
-        await ExecuteAsync("DELETE FROM gold.pessoa; DELETE FROM identidade.pessoa;");
-        await ExecuteAsync("UPDATE identidade.modelo_linkage SET status='INATIVO' WHERE status='ATIVO'; UPDATE identidade.modelo_linkage SET status='ATIVO' WHERE modelo_id=@id;", ("id", V1));
+        await ExecuteAsync("""
+            DELETE FROM gold.pessoa WHERE pessoa_uuid IN (
+                @a, @b,
+                SELECT md5('linkage-cap-'||i)::uuid FROM generate_series(1,1001) AS i
+            );
+            DELETE FROM identidade.pessoa WHERE pessoa_uuid IN (
+                @a, @b,
+                SELECT md5('linkage-cap-'||i)::uuid FROM generate_series(1,1001) AS i
+            );
+            """, ("a", A), ("b", B));
+        await ExecuteAsync("""
+            UPDATE identidade.modelo_linkage SET status='INATIVO'
+            WHERE modelo_id IN (@v1,@v2) AND status='ATIVO';
+            UPDATE identidade.modelo_linkage SET status='ATIVO' WHERE modelo_id=@v1;
+            """, ("v1", V1), ("v2", V2));
         linkage = CreateLinkage();
     }
 
@@ -92,7 +115,8 @@ public sealed class PostgreSqlLinkageScoringTests
             INSERT INTO identidade.pessoa(pessoa_uuid,status)
             SELECT md5('linkage-cap-'||i)::uuid,'ATIVO' FROM generate_series(1,1001) AS i;
             INSERT INTO gold.pessoa(pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,estado_concordancia)
-            SELECT pessoa_uuid,NULL,'AUSENTE','Maria da Silva',DATE '1982-04-10','Ana de Souza',1,'BASELINE_FONTE_UNICA' FROM identidade.pessoa;
+            SELECT md5('linkage-cap-'||i)::uuid,NULL,'AUSENTE','Maria da Silva',DATE '1982-04-10','Ana de Souza',1,'BASELINE_FONTE_UNICA'
+            FROM generate_series(1,1001) AS i;
             """);
         linkage = CreateLinkage(1000);
         var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await ResolveAsync(V2));
