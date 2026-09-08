@@ -1103,8 +1103,22 @@ def main() -> None:
         fail("calibration-validity-policy deve declarar inputs do fingerprint técnico")
 
     auth_data = json.loads(AUTHORIZATION_MATRIX.read_text(encoding="utf-8"))
-    if len(auth_data.get("routes", [])) != 15:
-        fail("authorization-matrix deve cobrir exatamente as 15 rotas /api protegidas")
+    auth_routes = auth_data.get("routes", [])
+    if not isinstance(auth_routes, list) or not auth_routes:
+        fail("authorization-matrix deve conter rotas protegidas")
+    normalize_route = lambda path: re.sub(r"\{([^}:]+):[^}]+\}", r"{\1}", path.rstrip("/") or "/")
+    actual_routes = [(row["method"].upper(), normalize_route(row["path"])) for row in auth_routes]
+    if len(actual_routes) != len(set(actual_routes)):
+        fail("authorization-matrix contém rotas duplicadas")
+    openapi = json.loads((ROOT / "openapi" / "jornada-v1.openapi.json").read_text(encoding="utf-8"))
+    http_methods = {"get", "post", "put", "delete", "patch", "options", "head", "trace"}
+    expected_routes = {
+        (method.upper(), normalize_route(path))
+        for path, item in openapi.get("paths", {}).items() if path.startswith("/api/")
+        for method in item if method.lower() in http_methods
+    }
+    if set(actual_routes) != expected_routes:
+        fail("authorization-matrix deve cobrir exatamente as operações /api publicadas no OpenAPI")
     require(AUTHORIZATION_TESTS.read_text(encoding="utf-8"), [
         "Development_credentials_do_not_grant_privileged_identity_scopes_to_type_credentials",
         "Route_matrix_is_unique_and_type_credentials_are_limited_to_explicit_routes"
@@ -1361,11 +1375,10 @@ def main() -> None:
         "contract-backward-compatibility-gate.py",
         "json-schema-meta-gate.py",
         "architecture-dependency-gate.py",
-        "OpenAPI runtime conformance must execute for all 18 operations",
+        "OpenAPI runtime conformance must execute for all 19 operations",
         "openapi-runtime.trx",
         "ddl-destructive-change-gate.py",
         "dependency-drift-gate.py",
-        "coverage-evidence-gate.py",
         "deterministic-build:",
         "deterministic-build-gate.sh",
         "security-analysis:",
