@@ -35,22 +35,38 @@ internal sealed class SqlIdentityResolutionService(IOperationalSqlAdapter connec
         await using var connection = await connections.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT TOP(1) pessoa_uuid,estado,estado_motivo,metodo_resolucao
-            FROM identidade.identity_map
-            WHERE tipo='CPF' AND identificador=@cpf AND vigencia_fim IS NULL
-            ORDER BY vigencia_inicio DESC, identity_map_id DESC;
+            SELECT a.pessoa_uuid,
+                   m.estado,
+                   m.estado_motivo,
+                   m.metodo_resolucao
+            FROM identidade.cpf_ancora a
+            OUTER APPLY(
+                SELECT TOP(1) im.estado,im.estado_motivo,im.metodo_resolucao
+                FROM identidade.identity_map im
+                WHERE im.tipo='CPF' AND im.identificador COLLATE Latin1_General_100_BIN2=a.cpf AND im.vigencia_fim IS NULL
+                ORDER BY im.vigencia_inicio DESC,im.identity_map_id DESC
+            ) m
+            WHERE a.cpf=@cpf;
             """;
         command.Parameters.Add(new SqlParameter("@cpf", SqlDbType.Char, 11) { Value = cpf });
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
             return new IdentityResolutionResponse(ResolutionStatus.NAO_RESOLVIDO, null, ResolutionMethod.CPF_DETERMINISTICO, "CPF_NAO_LOCALIZADO");
 
-        var estado = reader.GetString(1);
-        if (string.Equals(estado, "EM_CONFLITO", StringComparison.Ordinal))
-            return new IdentityResolutionResponse(ResolutionStatus.CONFLITO, null, ResolutionMethod.CPF_DETERMINISTICO, CpfIdentityConsistency.IdentifierInConflictReason);
+        var anchorUuid = reader.GetGuid(0);
+        if (!reader.IsDBNull(1) && string.Equals(reader.GetString(1), "EM_CONFLITO", StringComparison.Ordinal))
+            return new IdentityResolutionResponse(
+                ResolutionStatus.CONFLITO,
+                anchorUuid,
+                ResolutionMethod.CPF_DETERMINISTICO,
+                CpfIdentityConsistency.IdentifierInConflictReason);
 
-        var metodo = Enum.TryParse<ResolutionMethod>(reader.GetString(3), ignoreCase: false, out var parsed) ? parsed : ResolutionMethod.CPF_DETERMINISTICO;
-        return new IdentityResolutionResponse(ResolutionStatus.RESOLVIDO, reader.GetGuid(0), metodo);
+        var metodo = !reader.IsDBNull(3)
+            && Enum.TryParse<ResolutionMethod>(reader.GetString(3), ignoreCase: false, out var parsed)
+                ? parsed
+                : ResolutionMethod.CPF_DETERMINISTICO;
+        var motivo = reader.IsDBNull(1) ? "CPF_ANCORA_SEM_MAPA_CORRENTE" : null;
+        return new IdentityResolutionResponse(ResolutionStatus.RESOLVIDO, anchorUuid, metodo, motivo);
     }
 }
 
