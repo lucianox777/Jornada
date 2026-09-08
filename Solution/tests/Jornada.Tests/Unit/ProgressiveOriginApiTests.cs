@@ -68,7 +68,7 @@ public sealed class ProgressiveOriginApiTests
     [Test]
     public void Sql_service_rejects_missing_scope_and_type_before_opening_connection()
     {
-        var service = new SqlProgressiveOriginQueryService(new OperationalSqlAdapter("Server=localhost;Database=JornadaTest;Integrated Security=true;TrustServerCertificate=true"));
+        var service = new SqlProgressiveOriginQueryService(new OperationalSqlAdapter("Server=localhost;Database=JornadaTest;Integrated Security=true"));
         var gestor = new AccessContext(Guid.NewGuid(), AccessCredentialType.GESTOR, "SMADS", "SMADS", null, [], []);
         var type = gestor with { CredentialType = AccessCredentialType.BENEFICIO, Scopes = [ProgressiveOriginApi.Permission] };
         Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await service.GetAsync(gestor, Query, CancellationToken.None));
