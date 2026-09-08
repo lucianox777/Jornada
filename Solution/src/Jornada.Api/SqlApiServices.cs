@@ -43,7 +43,7 @@ internal sealed class SqlIdentityResolutionService(IOperationalSqlAdapter connec
             OUTER APPLY(
                 SELECT TOP(1) im.estado,im.estado_motivo,im.metodo_resolucao
                 FROM identidade.identity_map im
-                WHERE im.tipo='CPF' AND im.identificador=a.cpf AND im.vigencia_fim IS NULL
+                WHERE im.tipo='CPF' AND im.identificador COLLATE Latin1_General_100_BIN2=a.cpf AND im.vigencia_fim IS NULL
                 ORDER BY im.vigencia_inicio DESC,im.identity_map_id DESC
             ) m
             WHERE a.cpf=@cpf;
