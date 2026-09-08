@@ -81,13 +81,15 @@ async Task<object?> Scalar(DbConnection connection, DbTransaction? tx, string sq
 
 async Task SeedCore(DbConnection connection,DbTransaction tx,Guid uuid,string cpf)
 {
+    // O writer compara o núcleo já materializado antes de aceitar uma repetição/reaparição.
+    // A fixture usa exatamente o domínio vigente de Gold: CPF presente e baseline de uma fonte.
     var sql=sqlServer ? """
         IF NOT EXISTS(SELECT 1 FROM gold.pessoa WHERE pessoa_uuid=@uuid)
         INSERT gold.pessoa(pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,estado_concordancia,atualizado_em)
-        VALUES(@uuid,@cpf,'VALIDO','PESSOA TESTE ANCORA','1988-04-12','MAE TESTE ANCORA',1,'CONSISTENTE',SYSDATETIMEOFFSET());
+        VALUES(@uuid,@cpf,'PRESENTE','PESSOA TESTE ANCORA','1988-04-12','MAE TESTE ANCORA',1,'BASELINE_FONTE_UNICA',SYSDATETIMEOFFSET());
         """ : """
         INSERT INTO gold.pessoa(pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,estado_concordancia,atualizado_em)
-        VALUES(@uuid,@cpf,'VALIDO','PESSOA TESTE ANCORA','1988-04-12','MAE TESTE ANCORA',1,'CONSISTENTE',CURRENT_TIMESTAMP)
+        VALUES(@uuid,@cpf,'PRESENTE','PESSOA TESTE ANCORA','1988-04-12','MAE TESTE ANCORA',1,'BASELINE_FONTE_UNICA',CURRENT_TIMESTAMP)
         ON CONFLICT(pessoa_uuid) DO NOTHING;
         """;
     await Execute(connection,tx,sql,("@uuid",DbType.Guid,uuid),("@cpf",DbType.AnsiStringFixedLength,cpf));
