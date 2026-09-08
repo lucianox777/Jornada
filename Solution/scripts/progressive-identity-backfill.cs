@@ -8,7 +8,7 @@ var connectionString = Environment.GetEnvironmentVariable("JORNADA_PROGRESSIVE_C
 var pageSizeText = Environment.GetEnvironmentVariable("JORNADA_PROGRESSIVE_PAGE_SIZE");
 var pageSize = string.IsNullOrWhiteSpace(pageSizeText) ? 100 : int.Parse(pageSizeText, System.Globalization.CultureInfo.InvariantCulture);
 ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
-if (pageSize > 1000) throw new ArgumentOutOfRangeException(nameof(pageSize));
+ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 1000);
 
 var database = OperationalDatabaseAdapterFactory.Create(provider, connectionString);
 var store = new ProgressiveIdentityOriginStore(database);
