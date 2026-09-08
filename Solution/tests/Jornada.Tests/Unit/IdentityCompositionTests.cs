@@ -149,15 +149,17 @@ public sealed class IdentityCompositionTests
     }
 
     [Test]
-    public void Decision_hash_is_order_independent_but_reused_id_with_different_content_is_not()
+    public void Decision_hash_is_order_independent_and_history_is_not_the_replay_ledger()
     {
         var read = Set(Member(A, A), Member(B, B));
         var decision = Decision(IdentityCompositionOperation.FUSAO, read, (A, A), (B, A));
         var first = IdentityCompositionPlanner.Prepare(read, decision);
         var reverse = IdentityCompositionPlanner.Prepare(read, decision with { Assignments = decision.Assignments.Reverse().ToImmutableArray() });
         Assert.That(reverse.RequestHash, Is.EqualTo(first.RequestHash));
-        var used = read with { History = first.HistoryToAppend };
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionPlanner.Prepare(used, decision));
+
+        var withHistoryOnly = read with { History = first.HistoryToAppend };
+        var replanned = IdentityCompositionPlanner.Prepare(withHistoryOnly, decision);
+        Assert.That(replanned.RequestHash, Is.EqualTo(first.RequestHash));
         Assert.That(IdentityCompositionPlanner.Prepare(read, decision with { DecisionId = Guid.NewGuid() }).RequestHash,
             Is.Not.EqualTo(first.RequestHash));
     }
@@ -185,6 +187,16 @@ public sealed class IdentityCompositionTests
         var history = new IdentityCompositionHistory(A, Guid.NewGuid(), ImmutableArray.Create(A, B));
         Assert.Throws<InvalidOperationException>(() => IdentityCompositionPlanner.ResolveHistorical(history,
             ImmutableArray.Create(Member(A, A))));
+    }
+
+    [Test]
+    public void Historical_resolution_rejects_duplicate_or_invalid_current_snapshots()
+    {
+        var history = new IdentityCompositionHistory(A, Guid.NewGuid(), ImmutableArray.Create(A));
+        Assert.Throws<InvalidOperationException>(() => IdentityCompositionPlanner.ResolveHistorical(history,
+            ImmutableArray.Create(Member(A, A), Member(A, A))));
+        Assert.Throws<InvalidOperationException>(() => IdentityCompositionPlanner.ResolveHistorical(history,
+            ImmutableArray.Create(new IdentityCompositionMember(A, null, ProgressiveIdentityStatus.REFERENCIA, 1, null))));
     }
 
     [Test]
