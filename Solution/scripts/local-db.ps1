@@ -12,8 +12,6 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw "Docker nã
 function Test-DockerEngine {
     $previousErrorActionPreference = $ErrorActionPreference
     try {
-        # Windows PowerShell pode transformar stderr de executáveis nativos em NativeCommandError.
-        # Use Continue somente durante o probe para podermos emitir uma mensagem determinística.
         $ErrorActionPreference = 'Continue'
         & docker info --format '{{.ServerVersion}}' *> $null
         $dockerInfoExitCode = $LASTEXITCODE
@@ -64,27 +62,17 @@ function Wait-Healthy {
     Push-Location $Root
     try {
         for ($i=0; $i -lt 60; $i++) {
-            # Compose v2 aceita --format json de forma estável entre versões; templates Go
-            # customizados variam e já falharam em execução real no Windows.
             $rawState = @(& docker compose --env-file $EnvFile ps --format json sqlserver)
             if ($LASTEXITCODE -ne 0) { throw "docker compose ps falhou ($LASTEXITCODE)." }
             $jsonText = ($rawState -join "`n").Trim()
-            if ([string]::IsNullOrWhiteSpace($jsonText)) {
-                throw 'Container SQL Server não foi criado pelo docker compose.'
-            }
-            try {
-                $rows = @($jsonText | ConvertFrom-Json)
-            }
-            catch {
-                throw "Saída JSON inválida de docker compose ps: $jsonText"
-            }
+            if ([string]::IsNullOrWhiteSpace($jsonText)) { throw 'Container SQL Server não foi criado pelo docker compose.' }
+            try { $rows = @($jsonText | ConvertFrom-Json) }
+            catch { throw "Saída JSON inválida de docker compose ps: $jsonText" }
             $row = @($rows | Where-Object { $_.Service -eq 'sqlserver' -or $_.Name -eq 'jornada-sqlserver-local' } | Select-Object -First 1)
             if ($row.Count -eq 0) { throw 'Container SQL Server não foi criado pelo docker compose.' }
             $containerState = [string]$row[0].State
             $health = [string]$row[0].Health
-            if ([string]::IsNullOrWhiteSpace($health) -and $row[0].Status -match '\((healthy|unhealthy|starting)\)') {
-                $health = $Matches[1]
-            }
+            if ([string]::IsNullOrWhiteSpace($health) -and $row[0].Status -match '\((healthy|unhealthy|starting)\)') { $health = $Matches[1] }
             if ($health -eq 'healthy') { return }
             if ($containerState -match 'exited|dead') {
                 & docker compose --env-file $EnvFile logs --tail 80 sqlserver
@@ -105,6 +93,9 @@ function Bootstrap {
     Invoke-SqlCmd -SqlCmdArgs @('-Q', "IF DB_ID(N'$db') IS NULL CREATE DATABASE [$db];")
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', '/workspace/database/Jornada_Fase1.sql')
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', '/workspace/database/Jornada_Seed_Dev.sql')
+    # V1 operacional: depois da massa inicial, reserva também todo CPF histórico do seed.
+    # Em produção, onde não há seed DEV, a mesma migração é aplicada logo após o baseline.
+    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', '/workspace/database/migrations/20260907_Cpf_Ancora.sql')
 }
 
 switch ($Action) {

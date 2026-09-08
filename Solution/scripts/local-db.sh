@@ -43,6 +43,9 @@ bootstrap() {
   sqlcmd -Q "IF DB_ID(N'$JORNADA_SQL_DATABASE') IS NULL CREATE DATABASE [$JORNADA_SQL_DATABASE];"
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/Jornada_Fase1.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/Jornada_Seed_Dev.sql
+  # V1 operacional: depois da massa inicial, reserva também todo CPF histórico do seed.
+  # Em produção, onde não há seed DEV, a mesma migração é aplicada logo após o baseline.
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/migrations/20260907_Cpf_Ancora.sql
 }
 
 case "$ACTION" in
