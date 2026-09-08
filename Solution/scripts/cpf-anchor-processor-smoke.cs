@@ -81,8 +81,6 @@ async Task<object?> Scalar(DbConnection connection, DbTransaction? tx, string sq
 
 async Task SeedCore(DbConnection connection,DbTransaction tx,Guid uuid,string cpf)
 {
-    // O writer compara o núcleo já materializado antes de aceitar uma repetição/reaparição.
-    // A fixture usa exatamente o domínio vigente de Gold: CPF presente e baseline de uma fonte.
     var sql=sqlServer ? """
         IF NOT EXISTS(SELECT 1 FROM gold.pessoa WHERE pessoa_uuid=@uuid)
         INSERT gold.pessoa(pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,estado_concordancia,atualizado_em)
@@ -119,13 +117,12 @@ await using(var tx=await connection.BeginTransactionAsync(IsolationLevel.Seriali
     await tx.CommitAsync();
 }
 
-// Fechar a projeção operacional não remove a âncora; reaparição deve recriar o mapa com o mesmo UUID.
 await using(var connection=await database.OpenAsync())
 await using(var tx=await connection.BeginTransactionAsync(IsolationLevel.Serializable))
 {
     var closeSql=sqlServer
         ? "UPDATE identidade.identity_map SET vigencia_fim=SYSDATETIMEOFFSET(),estado='ENCERRADO',estado_motivo='SMOKE_FECHAMENTO',estado_em=SYSDATETIMEOFFSET() WHERE tipo='CPF' AND identificador=@cpf AND vigencia_fim IS NULL;"
-        : "UPDATE identidade.identity_map SET vigencia_fim=CURRENT_TIMESTAMP,estado='ENCERRADO',estado_motivo='SMOKE_FECHAMENTO',estado_em=CURRENT_TIMESTAMP WHERE tipo='CPF' AND identificador=@cpf AND vigencia_fim IS NULL;";
+        : "UPDATE identidade.identity_map SET vigencia_fim=CURRENT_TIMESTAMP,estado='INATIVO',estado_motivo='SMOKE_FECHAMENTO',estado_em=CURRENT_TIMESTAMP WHERE tipo='CPF' AND identificador=@cpf AND vigencia_fim IS NULL;";
     await Execute(connection,tx,closeSql,("@cpf",DbType.AnsiStringFixedLength,cpf));
     var recovered=await Resolve(connection,tx,cpf);
     Check(recovered.Status==ResolutionStatus.RESOLVIDO && recovered.PessoaUuid==permanent,"Reaparição não recuperou UUID da âncora.");
@@ -134,7 +131,6 @@ await using(var tx=await connection.BeginTransactionAsync(IsolationLevel.Seriali
     await tx.CommitAsync();
 }
 
-// Divergência sintética mapa↔âncora precisa falhar fechada e ser integralmente revertida.
 await using(var connection=await database.OpenAsync())
 await using(var tx=await connection.BeginTransactionAsync(IsolationLevel.Serializable))
 {
@@ -158,7 +154,6 @@ await using(var connection=await database.OpenAsync())
     Check(anchor is Guid a && a==permanent && current is Guid c && c==permanent,"Rollback da divergência alterou âncora ou mapa.");
 }
 
-// Nova constituição abortada não pode deixar Pessoa, mapa ou âncora.
 var rollbackCpf=MakeCpf(527314609);
 Guid rolledBackUuid;
 await using(var connection=await database.OpenAsync())
