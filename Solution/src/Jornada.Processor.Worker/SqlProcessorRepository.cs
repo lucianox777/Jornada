@@ -41,6 +41,10 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
         string? sourceRecordId,
         CancellationToken ct)
     {
+        // A âncora é a autoridade permanente. O range lock é adquirido antes do identity_map
+        // para que duas primeiras aparições simultâneas do mesmo CPF nunca constituam UUIDs concorrentes.
+        var anchorUuid = await LockCpfAnchorAsync(connection, transaction, cpf, ct);
+
         Guid? existingUuid = null;
         long? existingMapId = null;
         string? existingState = null;
@@ -63,8 +67,20 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
             }
         }
 
+        if (anchorUuid.HasValue && existingUuid.HasValue && anchorUuid.Value != existingUuid.Value)
+            throw new InvalidOperationException("CPF_ANCHOR_IDENTITY_MAP_DIVERGENCE: âncora permanente e mapa corrente apontam UUIDs diferentes.");
+
         if (existingUuid.HasValue)
         {
+            // Bases constituídas por caminhos determinísticos antigos passam a reservar a âncora
+            // no primeiro uso do writer V1. A reserva nunca transfere CPF nem UUID.
+            if (!anchorUuid.HasValue)
+            {
+                anchorUuid = await ReserveCpfAnchorAsync(connection, transaction, cpf, existingUuid.Value, ct);
+                if (anchorUuid.Value != existingUuid.Value)
+                    throw new InvalidOperationException("CPF_ANCHOR_RESERVATION_DIVERGENCE: reserva retornou UUID distinto do mapa corrente.");
+            }
+
             if (string.Equals(existingState, "EM_CONFLITO", StringComparison.Ordinal))
             {
                 return new InternalIdentityResolution(
@@ -76,9 +92,6 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
             var existingCore = await LoadExistingCoreAsync(connection, transaction, existingUuid.Value, ct);
             if (existingCore is null)
             {
-                // Um CPF já mapeado não pode ser reutilizado sem um núcleo comparável.
-                // Além de bloquear esta observação, o identificador inteiro entra em conflito para
-                // que CPF->UUID não continue afirmando uma identidade que a plataforma não consegue sustentar.
                 await MarkCpfIdentifierConflictAsync(connection, transaction, existingMapId!.Value, CpfIdentityConsistency.ExistingCoreUnavailableReason, ct);
                 return new InternalIdentityResolution(
                     ResolutionStatus.CONFLITO,
@@ -100,7 +113,34 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
 
             return new InternalIdentityResolution(
                 ResolutionStatus.RESOLVIDO,
-                existingUuid.Value,
+                anchorUuid.Value,
+                ResolutionMethod.CPF_DETERMINISTICO);
+        }
+
+        if (anchorUuid.HasValue)
+        {
+            // Uma âncora sobrevive ao fechamento/limpeza do mapa corrente. Na reaparição,
+            // recupera-se o mesmo UUID e apenas se recompõe a projeção operacional identity_map.
+            var historicalCore = await LoadExistingCoreAsync(connection, transaction, anchorUuid.Value, ct);
+            if (historicalCore is not null)
+            {
+                var assessment = CpfIdentityConsistency.Evaluate(historicalCore, incomingCore);
+                if (assessment.IsConflict)
+                {
+                    return new InternalIdentityResolution(
+                        ResolutionStatus.CONFLITO,
+                        null,
+                        ResolutionMethod.CPF_DETERMINISTICO,
+                        Motivo: assessment.Motivo);
+                }
+            }
+
+            await InsertActiveCpfMapAsync(
+                connection, transaction, anchorUuid.Value, cpf, gestorId, sourceRecordId,
+                "CPF_MAP_RECUPERADO_ANCORA", ct);
+            return new InternalIdentityResolution(
+                ResolutionStatus.RESOLVIDO,
+                anchorUuid.Value,
                 ResolutionMethod.CPF_DETERMINISTICO);
         }
 
@@ -112,6 +152,64 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
             insertPerson.Parameters.AddWithValue("@uuid", created);
             await insertPerson.ExecuteNonQueryAsync(ct);
         }
+
+        var reserved = await ReserveCpfAnchorAsync(connection, transaction, cpf, created, ct);
+        if (reserved != created)
+            throw new InvalidOperationException("CPF_ANCHOR_NEW_PERSON_DIVERGENCE: UUID recém-criado não corresponde à âncora reservada.");
+
+        await InsertActiveCpfMapAsync(
+            connection, transaction, created, cpf, gestorId, sourceRecordId,
+            "CPF_MAP_CRIADO", ct);
+        return new InternalIdentityResolution(
+            ResolutionStatus.RESOLVIDO,
+            created,
+            ResolutionMethod.CPF_DETERMINISTICO);
+    }
+
+    private static async Task<Guid?> LockCpfAnchorAsync(
+        SqlConnection connection, SqlTransaction transaction, string cpf, CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT pessoa_uuid
+              FROM identidade.cpf_ancora WITH(UPDLOCK,HOLDLOCK)
+             WHERE cpf=CONVERT(CHAR(11),@cpf) COLLATE Latin1_General_100_BIN2;
+            """;
+        command.Parameters.Add(new SqlParameter("@cpf", SqlDbType.NVarChar, 64) { Value = cpf });
+        var value = await command.ExecuteScalarAsync(ct);
+        return value is null or DBNull ? null : (Guid)value;
+    }
+
+    private static async Task<Guid> ReserveCpfAnchorAsync(
+        SqlConnection connection, SqlTransaction transaction, string cpf, Guid uuid, CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            DECLARE @resultado UNIQUEIDENTIFIER;
+            EXEC identidade.sp_reservar_cpf_ancora @cpf=@cpf,@pessoa_uuid=@uuid,@uuid_resultado=@resultado OUTPUT;
+            SELECT @resultado;
+            """;
+        command.Parameters.Add(new SqlParameter("@cpf", SqlDbType.NVarChar, 64) { Value = cpf });
+        command.Parameters.AddWithValue("@uuid", uuid);
+        var value = await command.ExecuteScalarAsync(ct);
+        if (value is not Guid reserved || reserved == Guid.Empty)
+            throw new InvalidOperationException("Reserva da âncora CPF não retornou UUID válido.");
+        return reserved;
+    }
+
+    private static async Task<long> InsertActiveCpfMapAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        Guid uuid,
+        string cpf,
+        long? gestorId,
+        string? sourceRecordId,
+        string reason,
+        CancellationToken ct)
+    {
+        long mapId;
         await using (var insertMap = connection.CreateCommand())
         {
             insertMap.Transaction = transaction;
@@ -119,26 +217,26 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
                 INSERT identidade.identity_map(
                     pessoa_uuid,tipo,identificador,vigencia_inicio,gestor_origem_id,source_record_id,metodo_resolucao,estado,estado_motivo,estado_em)
                 OUTPUT INSERTED.identity_map_id
-                VALUES(@uuid,'CPF',@cpf,SYSDATETIMEOFFSET(),@gestor_id,@source_record_id,'CPF_DETERMINISTICO','ATIVO','CPF_MAP_CRIADO',SYSDATETIMEOFFSET());
+                VALUES(@uuid,'CPF',@cpf,SYSDATETIMEOFFSET(),@gestor_id,@source_record_id,'CPF_DETERMINISTICO','ATIVO',@motivo,SYSDATETIMEOFFSET());
                 """;
-            insertMap.Parameters.AddWithValue("@uuid", created);
+            insertMap.Parameters.AddWithValue("@uuid", uuid);
             insertMap.Parameters.Add(new SqlParameter("@cpf", SqlDbType.Char, 11) { Value = cpf });
             insertMap.Parameters.Add(new SqlParameter("@gestor_id", SqlDbType.BigInt) { Value = (object?)gestorId ?? DBNull.Value });
             insertMap.Parameters.Add(new SqlParameter("@source_record_id", SqlDbType.NVarChar, 255) { Value = (object?)sourceRecordId ?? DBNull.Value });
-            var mapId = Convert.ToInt64(await insertMap.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
-            await using var eventInsert = connection.CreateCommand();
-            eventInsert.Transaction = transaction;
-            eventInsert.CommandText = """
-                INSERT identidade.identity_map_estado_evento(identity_map_id,estado_anterior,estado_novo,motivo)
-                VALUES(@map_id,NULL,'ATIVO','CPF_MAP_CRIADO');
-                """;
-            eventInsert.Parameters.AddWithValue("@map_id", mapId);
-            await eventInsert.ExecuteNonQueryAsync(ct);
+            insertMap.Parameters.Add(new SqlParameter("@motivo", SqlDbType.NVarChar, 120) { Value = reason });
+            mapId = Convert.ToInt64(await insertMap.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
         }
-        return new InternalIdentityResolution(
-            ResolutionStatus.RESOLVIDO,
-            created,
-            ResolutionMethod.CPF_DETERMINISTICO);
+
+        await using var eventInsert = connection.CreateCommand();
+        eventInsert.Transaction = transaction;
+        eventInsert.CommandText = """
+            INSERT identidade.identity_map_estado_evento(identity_map_id,estado_anterior,estado_novo,motivo)
+            VALUES(@map_id,NULL,'ATIVO',@motivo);
+            """;
+        eventInsert.Parameters.AddWithValue("@map_id", mapId);
+        eventInsert.Parameters.Add(new SqlParameter("@motivo", SqlDbType.NVarChar, 120) { Value = reason });
+        await eventInsert.ExecuteNonQueryAsync(ct);
+        return mapId;
     }
 
     private static async Task MarkCpfIdentifierConflictAsync(
@@ -171,7 +269,7 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
         history.Parameters.Add(new SqlParameter("@motivo", SqlDbType.NVarChar, 120) { Value = reason });
         await history.ExecuteNonQueryAsync(ct);
 
-        // v3.45: conflito do identificador suspende apenas a atribuição canônica; os fatos permanecem Gold.
+        // Conflito do identificador suspende somente a atribuição canônica; os fatos permanecem Gold.
         await using var suspendFacts = connection.CreateCommand();
         suspendFacts.Transaction = transaction;
         suspendFacts.CommandText = """
@@ -215,9 +313,6 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
             }
         }
 
-        // Fallback para bases migradas ou para um UUID constituído antes da primeira
-        // materialização Gold. A observação recebida nesta transação ainda não possui
-        // vínculo e, portanto, não participa desta consulta.
         await using var silver = connection.CreateCommand();
         silver.Transaction = transaction;
         silver.CommandText = """
@@ -238,7 +333,6 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
             silverReader.GetString(2));
     }
 }
-
 
 internal sealed partial class SqlProcessorRepository
 {
