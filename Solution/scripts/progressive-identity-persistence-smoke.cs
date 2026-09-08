@@ -108,14 +108,14 @@ await using(var cmd=c.CreateCommand())
 {
     cmd.CommandText=legacySql;
     await using var r=await cmd.ExecuteReaderAsync();
-    Check(await r.ReadAsync(),"Fixture legada resolvida ausente.");
+    Check(await r.ReadAsync(),"Fixture legada com vínculo RESOLVIDO ausente.");
     legacySource=r.GetInt64(0);legacyUuid=r.GetGuid(1);
 }
 var legacy=await store.EnsureInitialAsync(legacySource);
-Check(legacy.LegacyCanonicalUuid==legacyUuid && legacy.Status==ProgressiveIdentityStatus.PROVISORIA && legacy.Version==0,"Backfill inventou resolução ou perdeu vínculo legado.");
+Check(legacy.LegacyCanonicalUuid==legacyUuid && legacy.Status==ProgressiveIdentityStatus.PROVISORIA && legacy.Version==0,"Backfill inventou referência ou perdeu vínculo legado.");
 Check(legacy.InitialUuid!=legacyUuid,"UUID inicial deve ter namespace próprio, sem reciclar referência compartilhada.");
 var noCanonical=await ScalarAsync("SELECT canonical_uuid FROM identidade.pessoa_origem_progressiva WHERE pessoa_origem_id=@source",("@source",DbType.Int64,legacySource));
-Check(noCanonical is null or DBNull,"Backfill publicou identidade canônica sem Linkage.");
+Check(noCanonical is null or DBNull,"Backfill publicou referência canônica sem decisão.");
 
 // Backfill em páginas: inclui fontes legadas e novas; deve terminar sem repetir eventos.
 await AddSourceAsync("BACKFILL-1");await AddSourceAsync("BACKFILL-2");
@@ -133,6 +133,9 @@ Check((await store.EnsureInitialAsync(a)).InitialUuid==initial,"Backfill alterou
 
 var forbiddenUuid=Guid.NewGuid();
 await ExpectFailureAsync("UPDATE identidade.pessoa_origem_progressiva SET initial_uuid=@uuid WHERE pessoa_origem_id=@source",("@uuid",DbType.Guid,forbiddenUuid),("@source",DbType.Int64,a));
+// REFERENCIA é um estado válido, mas não pode ser publicado sem recibo da mesma versão.
+await ExpectFailureAsync("UPDATE identidade.pessoa_origem_progressiva SET estado='REFERENCIA',canonical_uuid=@uuid,versao=1,ultima_resolucao_em=CURRENT_TIMESTAMP WHERE pessoa_origem_id=@source",("@uuid",DbType.Guid,initial),("@source",DbType.Int64,a));
+// RESOLVIDA não pertence ao domínio da identidade progressiva V1.
 await ExpectFailureAsync("UPDATE identidade.pessoa_origem_progressiva SET estado='RESOLVIDA',canonical_uuid=@uuid,versao=1,ultima_resolucao_em=CURRENT_TIMESTAMP WHERE pessoa_origem_id=@source",("@uuid",DbType.Guid,initial),("@source",DbType.Int64,a));
 await ExpectFailureAsync("DELETE FROM identidade.pessoa_origem_progressiva_evento WHERE pessoa_origem_id=@source",("@source",DbType.Int64,a));
 await ExpectFailureAsync("DELETE FROM identidade.pessoa_origem_progressiva WHERE pessoa_origem_id=@source",("@source",DbType.Int64,a));
