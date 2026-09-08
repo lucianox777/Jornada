@@ -18,22 +18,23 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: work/progressive-identity-origin-api
-          fetch-depth: 1
+          fetch-depth: 3
           persist-credentials: true
       - name: Apply exactly two guarded changes
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import hashlib
           import subprocess
           from pathlib import Path
 
-          expected_head = 'd63c3c83a3a486d7740c3c2a470ceec8835531d5'
+          expected_parent = '55e6004e45b5459d7ea462d3a62b0d36ed758d32'
+          expected_original = 'd63c3c83a3a486d7740c3c2a470ceec8835531d5'
           branch = 'work/progressive-identity-origin-api'
           parent = subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip()
-          if parent != expected_head:
-              raise SystemExit('Unexpected repair parent; refusing to modify the branch')
+          original = subprocess.check_output(['git', 'rev-parse', 'HEAD^^'], text=True).strip()
+          if parent != expected_parent or original != expected_original:
+              raise SystemExit('Unexpected repair ancestry; refusing to modify the branch')
           if subprocess.check_output(['git', 'branch', '--show-current'], text=True).strip() != branch:
               raise SystemExit('Unexpected branch')
           if subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip():
