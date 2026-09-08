@@ -79,6 +79,16 @@ BEGIN TRY
  WHERE m.tipo='CPF' AND NOT EXISTS(
    SELECT 1 FROM identidade.cpf_ancora a WITH(UPDLOCK,HOLDLOCK)
    WHERE a.cpf=m.identificador COLLATE Latin1_General_100_BIN2);
+ -- Upgrade fail-closed: uma correção já registrada antes desta versão também não
+ -- pode declarar titular diferente da âncora permanente formada pelo mesmo mapa CPF.
+ IF OBJECT_ID('identidade.correcao_identidade','U') IS NOT NULL AND EXISTS(
+   SELECT 1
+   FROM identidade.correcao_identidade c
+   JOIN identidade.identity_map m ON m.identity_map_id=c.identity_map_origem_id AND m.tipo='CPF'
+   LEFT JOIN identidade.cpf_ancora a
+     ON a.cpf=CONVERT(CHAR(11),m.identificador) COLLATE Latin1_General_100_BIN2
+   WHERE a.pessoa_uuid IS NULL OR a.pessoa_uuid<>c.pessoa_uuid_titular)
+  THROW 51360,'Correção governada não pode transferir a âncora CPF permanente.',1;
  COMMIT TRANSACTION;
 END TRY
 BEGIN CATCH
