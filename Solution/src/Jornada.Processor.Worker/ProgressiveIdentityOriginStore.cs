@@ -10,7 +10,11 @@ public sealed record ProgressiveOriginRegistration(
     long SourceId, Guid InitialUuid, Guid? LegacyCanonicalUuid,
     ProgressiveIdentityStatus Status, long Version);
 
-/// <summary>Armazenamento progressivo; criação e origem participam da transação do chamador.</summary>
+/// <summary>
+/// Armazenamento V1 da identidade progressiva. A criação exige uma origem Silver já persistida e
+/// participa da transação do chamador. O lock da origem serializa criações concorrentes.
+/// O store não publica decisões, vínculos canônicos, fatos nem ativa Linkage probabilístico.
+/// </summary>
 public sealed class ProgressiveIdentityOriginStore
 {
     private readonly IOperationalDatabaseAdapter database;
@@ -39,12 +43,14 @@ public sealed class ProgressiveIdentityOriginStore
         }
         catch
         {
+            // Não mascarar a causa original caso o provider já tenha abortado a transação.
             try { await tx.RollbackAsync(CancellationToken.None); }
-            catch (Exception) { /* Preserva a exceção original. */ }
+            catch (Exception) { /* Preserva a exceção da operação original. */ }
             throw;
         }
     }
 
+    /// <summary>Não abre nem confirma a transação informada.</summary>
     public async Task<ProgressiveOriginRegistration> EnsureInitialAsync(
         DbConnection connection, DbTransaction tx, long sourceId, CancellationToken ct = default)
     {
@@ -62,7 +68,10 @@ public sealed class ProgressiveIdentityOriginStore
             if (value is not Guid uuid || uuid==Guid.Empty)
                 throw new InvalidOperationException("Criação progressiva não devolveu UUID válido.");
         }
-        else await command.ExecuteNonQueryAsync(ct);
+        else
+        {
+            await command.ExecuteNonQueryAsync(ct);
+        }
         return await ReadInTransactionAsync(connection, tx, sourceId, ct)
             ?? throw new InvalidOperationException("Criação progressiva não persistiu a referência.");
     }
@@ -74,6 +83,7 @@ public sealed class ProgressiveIdentityOriginStore
         return await ReadInTransactionAsync(connection, null, sourceId, ct);
     }
 
+    /// <summary>Backfill limitado e retomável. Cada origem é confirmada em sua própria transação.</summary>
     public async Task<int> BackfillPageAsync(int maxSources, CancellationToken ct = default)
     {
         if (maxSources is <1 or >1000) throw new ArgumentOutOfRangeException(nameof(maxSources));
@@ -96,15 +106,6 @@ public sealed class ProgressiveIdentityOriginStore
         return ids.Count;
     }
 
-    /// <summary>Compatibilidade de leitura V1. Não aceita estados desconhecidos nem altera o banco.</summary>
-    public static ProgressiveIdentityStatus ParseStatus(string value) => value switch
-    {
-        "PROVISORIA" => ProgressiveIdentityStatus.PROVISORIA,
-        "RESOLVIDA" or "REFERENCIA" => ProgressiveIdentityStatus.REFERENCIA,
-        "INDEFINIDA" => ProgressiveIdentityStatus.INDEFINIDA,
-        _ => throw new InvalidOperationException("Estado progressivo desconhecido no armazenamento.")
-    };
-
     private static async Task<ProgressiveOriginRegistration?> ReadInTransactionAsync(
         DbConnection connection, DbTransaction? tx, long sourceId, CancellationToken ct)
     {
@@ -117,7 +118,10 @@ public sealed class ProgressiveIdentityOriginStore
         var uuid = reader.GetGuid(0);
         if (uuid==Guid.Empty) throw new InvalidOperationException("UUID inicial inválido no armazenamento.");
         var legacy = reader.IsDBNull(1) ? (Guid?)null : reader.GetGuid(1);
-        var status = ParseStatus(reader.GetString(2));
+        var statusText = reader.GetString(2);
+        if (!Enum.TryParse<ProgressiveIdentityStatus>(statusText, false, out var status) ||
+            !Enum.IsDefined(status))
+            throw new InvalidOperationException("Estado progressivo desconhecido no armazenamento.");
         var version = reader.GetInt64(3);
         if (version<0) throw new InvalidOperationException("Versão progressiva inválida.");
         if (await reader.ReadAsync(ct)) throw new InvalidOperationException("Origem possui referências progressivas duplicadas.");
