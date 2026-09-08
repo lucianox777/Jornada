@@ -11,14 +11,14 @@ DECLARE @code NVARCHAR(255)=N'CUTOVER-COMMIT-20260908';
 DECLARE @source BIGINT,@obs BIGINT,@uuid UNIQUEIDENTIFIER,@uuid2 UNIQUEIDENTIFIER;
 IF EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE codigo_pessoa_origem=@code) THROW 51141,'Smoke requer banco limpo.',1;
 
+CREATE TABLE #cutover_obs(pessoa_observacao_id BIGINT NOT NULL);
 BEGIN TRANSACTION;
 INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@sistema,@code);
 SET @source=CONVERT(BIGINT,SCOPE_IDENTITY());
 INSERT silver.pessoa_observacao(
  pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,versao_interna,conteudo_hash,
  cpf,cpf_ausente_motivo,nome_completo,nome_cmp,data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
-OUTPUT INSERTED.pessoa_observacao_id
-INTO #cutover_obs
+OUTPUT INSERTED.pessoa_observacao_id INTO #cutover_obs
 VALUES(@source,@lote,@gestor,@code,1,REPLICATE('a',64),NULL,'SEM_CPF',N'PESSOA CUTOVER',N'PESSOA CUTOVER','1990-01-01',N'MAE CUTOVER',N'MAE CUTOVER',SYSDATETIMEOFFSET());
 SELECT TOP(1) @obs=pessoa_observacao_id FROM #cutover_obs;
 INSERT identidade.vinculo_fonte(pessoa_observacao_id,pessoa_uuid,metodo_resolucao,score,status,modelo_id,ativo,resolvido_em,motivo)
