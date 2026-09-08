@@ -22,6 +22,7 @@ public sealed class ProgressiveOriginApiTests
     private static readonly Guid Canonical = Guid.Parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2");
     private static readonly DateTimeOffset Created = new(2026, 9, 8, 12, 0, 0, TimeSpan.Zero);
     private static readonly ProgressiveOriginQueryRequest Query = new("ASSISTENCIA", "origem-1");
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     [Test]
     public void Request_rejects_missing_oversized_and_control_character_keys()
@@ -59,7 +60,7 @@ public sealed class ProgressiveOriginApiTests
     [Test]
     public void Response_serializes_state_as_string_not_numeric_enum()
     {
-        var json = JsonSerializer.Serialize(Snapshot(ProgressiveIdentityStatus.PROVISORIA, null, 0, null), new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var json = JsonSerializer.Serialize(Snapshot(ProgressiveIdentityStatus.PROVISORIA, null, 0, null), JsonOptions);
         Assert.That(json, Does.Contain("\"estado\":\"PROVISORIA\""));
         Assert.That(json, Does.Not.Contain("\"estado\":0"));
     }
