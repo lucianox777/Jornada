@@ -84,7 +84,7 @@ public static class ProgressiveOriginApi
             if (string.IsNullOrWhiteSpace(gestor) ||
                 !string.IsNullOrWhiteSpace(http.Headers["X-Jornada-Beneficio"].ToString()) ||
                 !string.IsNullOrWhiteSpace(http.Headers["X-Jornada-Servico"].ToString()))
-                return Results.Forbid();
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
             var context = await access.ResolveAsync(
                 new PresentedAccessCredential(AccessCredentialType.GESTOR, gestor, key), ct);
             if (context is null) return Results.Unauthorized();
@@ -93,7 +93,7 @@ public static class ProgressiveOriginApi
             http.HttpContext.Items[ApiContextItems.AccessContext] = context;
             if (context.CredentialType != AccessCredentialType.GESTOR ||
                 !await policy.IsAllowedAsync(context, Permission, null, null, ct))
-                return Results.Forbid();
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
             // O código interno nunca é colocado na URL, em erros ou no resourceCode da auditoria.
             if (!TryValidateRequest(request))
                 return Results.BadRequest(new { erro = "Códigos de origem inválidos." });
