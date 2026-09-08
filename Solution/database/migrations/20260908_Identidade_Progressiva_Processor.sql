@@ -1,4 +1,4 @@
--- Cutover operacional do initial_uuid no Processor (SQL Server).
+-- Cutover operacional do initial_uuid e da REFERENCIA determinística no Processor (SQL Server).
 -- Pré-requisito: Jornada_Identidade_Progressiva.sql aplicado e backfill paginado concluído.
 -- Não ativa Linkage probabilístico e não altera a atribuição canônica do vínculo.
 SET XACT_ABORT ON;
@@ -6,6 +6,7 @@ GO
 IF OBJECT_ID('identidade.pessoa_origem_progressiva','U') IS NULL
    OR OBJECT_ID('identidade.pessoa_origem_progressiva_evento','U') IS NULL
    OR OBJECT_ID('identidade.sp_assegurar_origem_progressiva','P') IS NULL
+   OR OBJECT_ID('identidade.sp_publicar_referencia_progressiva_deterministica','P') IS NULL
     THROW 51130,'Persistência progressiva V1 não instalada; cutover recusado.',1;
 GO
 
@@ -34,6 +35,8 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE @pessoa_origem_id BIGINT;
+    DECLARE @canonical_uuid UNIQUEIDENTIFIER;
+    DECLARE @versao_resultado BIGINT;
     DECLARE @resultado TABLE(
         initial_uuid UNIQUEIDENTIFIER NOT NULL,
         legacy_pessoa_uuid UNIQUEIDENTIFIER NULL,
@@ -61,5 +64,37 @@ BEGIN
     END;
     CLOSE progressiva_novos;
     DEALLOCATE progressiva_novos;
+
+    -- Um mesmo lote não pode publicar dois UUIDs determinísticos para a mesma origem.
+    IF EXISTS(
+        SELECT o.pessoa_origem_id
+          FROM inserted i
+          JOIN silver.pessoa_observacao o ON o.pessoa_observacao_id=i.pessoa_observacao_id
+         WHERE i.metodo_resolucao='CPF_DETERMINISTICO' AND i.status='RESOLVIDO' AND i.pessoa_uuid IS NOT NULL
+         GROUP BY o.pessoa_origem_id
+        HAVING COUNT(DISTINCT i.pessoa_uuid)>1)
+        THROW 51132,'Vínculos CPF determinísticos divergentes para a mesma origem na mesma transação.',1;
+
+    DECLARE progressiva_referencias CURSOR LOCAL FAST_FORWARD FOR
+        SELECT DISTINCT o.pessoa_origem_id,i.pessoa_uuid
+          FROM inserted i
+          JOIN silver.pessoa_observacao o ON o.pessoa_observacao_id=i.pessoa_observacao_id
+         WHERE i.metodo_resolucao='CPF_DETERMINISTICO' AND i.status='RESOLVIDO' AND i.pessoa_uuid IS NOT NULL;
+
+    OPEN progressiva_referencias;
+    FETCH NEXT FROM progressiva_referencias INTO @pessoa_origem_id,@canonical_uuid;
+    WHILE @@FETCH_STATUS=0
+    BEGIN
+        SET @versao_resultado=NULL;
+        EXEC identidade.sp_publicar_referencia_progressiva_deterministica
+             @pessoa_origem_id=@pessoa_origem_id,
+             @canonical_uuid=@canonical_uuid,
+             @evidencia_referencia=N'CPF_ANCORA_DETERMINISTICA',
+             @politica_versao=N'CPF_ANCORA_V1',
+             @versao_resultado=@versao_resultado OUTPUT;
+        FETCH NEXT FROM progressiva_referencias INTO @pessoa_origem_id,@canonical_uuid;
+    END;
+    CLOSE progressiva_referencias;
+    DEALLOCATE progressiva_referencias;
 END;
 GO
