@@ -28,7 +28,7 @@ static void Add(DbCommand command, string name, DbType type, object? value)
 {
     var p=command.CreateParameter();p.ParameterName=name;p.DbType=type;p.Value=value ?? DBNull.Value;command.Parameters.Add(p);
 }
-async Task<object?> ScalarAsync(DbConnection connection, DbTransaction? tx, string sql,
+async Task<object?> ScalarInTransactionAsync(DbConnection connection, DbTransaction? tx, string sql,
     params (string Name, DbType Type, object? Value)[] parameters)
 {
     await using var command=connection.CreateCommand();command.Transaction=tx;command.CommandText=sql;
@@ -38,18 +38,18 @@ async Task<object?> ScalarAsync(DbConnection connection, DbTransaction? tx, stri
 async Task<object?> ScalarAsync(string sql, params (string Name,DbType Type,object? Value)[] parameters)
 {
     await using var connection=await database.OpenAsync();
-    return await ScalarAsync(connection,null,sql,parameters);
+    return await ScalarInTransactionAsync(connection,null,sql,parameters);
 }
 async Task<long> CountAsync(string sql, params (string Name,DbType Type,object? Value)[] parameters) =>
     Convert.ToInt64(await ScalarAsync(sql,parameters),System.Globalization.CultureInfo.InvariantCulture);
-async Task ExpectFailureAsync(Func<Task> action)
+async Task ExpectActionFailureAsync(Func<Task> action)
 {
     try { await action(); }
     catch(DbException) { return; }
     throw new InvalidOperationException("Operação inválida foi aceita pelo banco.");
 }
 async Task ExpectFailureAsync(string sql, params (string Name,DbType Type,object? Value)[] parameters) =>
-    await ExpectFailureAsync(async () => { await ScalarAsync(sql,parameters); });
+    await ExpectActionFailureAsync(async () => { await ScalarAsync(sql,parameters); });
 
 var run=Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
 var code="CMP"+run;
@@ -71,7 +71,7 @@ async Task<Guid> EnsureAsync(long sourceId)
         : "EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source;";
     await using var c=await database.OpenAsync();
     await using var tx=await c.BeginTransactionAsync();
-    var uuid=(Guid)(await ScalarAsync(c,tx,sql,("@source",DbType.Int64,sourceId))
+    var uuid=(Guid)(await ScalarInTransactionAsync(c,tx,sql,("@source",DbType.Int64,sourceId))
         ?? throw new InvalidOperationException("UUID inicial ausente."));
     await tx.CommitAsync();return uuid;
 }
@@ -80,7 +80,7 @@ async Task PublishAsync(long sourceId,Guid uuid)
     var sql=pg ? "SELECT identidade.publicar_referencia_progressiva_deterministica(@source,@uuid,@evidence,@policy);"
         : "DECLARE @version bigint; EXEC identidade.sp_publicar_referencia_progressiva_deterministica @pessoa_origem_id=@source,@canonical_uuid=@uuid,@evidencia_referencia=@evidence,@politica_versao=@policy,@versao_resultado=@version OUTPUT; SELECT @version;";
     await using var c=await database.OpenAsync();await using var tx=await c.BeginTransactionAsync();
-    await ScalarAsync(c,tx,sql,("@source",DbType.Int64,sourceId),("@uuid",DbType.Guid,uuid),
+    await ScalarInTransactionAsync(c,tx,sql,("@source",DbType.Int64,sourceId),("@uuid",DbType.Guid,uuid),
         ("@evidence",DbType.String,"evidence:synthetic"),("@policy",DbType.String,"LEDGER_TEST_V1"));
     await tx.CommitAsync();
 }
@@ -89,7 +89,7 @@ async Task<Guid> ReserveAsync(Guid decision,Guid reservation,DbConnection? conne
     var sql=pg ? "SELECT identidade.reservar_uuid_composicao(@decision,@reservation);"
         : "DECLARE @uuid uniqueidentifier; EXEC identidade.sp_reservar_uuid_composicao @decision_id=@decision,@reserva_id=@reservation,@uuid_resultado=@uuid OUTPUT; SELECT @uuid;";
     var parameters=new[]{("@decision",DbType.Guid,(object?)decision),("@reservation",DbType.Guid,(object?)reservation)};
-    var result=connection is null ? await ScalarAsync(sql,parameters) : await ScalarAsync(connection,tx,sql,parameters);
+    var result=connection is null ? await ScalarAsync(sql,parameters) : await ScalarInTransactionAsync(connection,tx,sql,parameters);
     return result is Guid uuid && uuid!=Guid.Empty ? uuid : throw new InvalidOperationException("Reserva não devolveu UUID válido.");
 }
 async Task<string> RegisterAsync(Guid decision,string request,string plan,string reservations,
@@ -100,7 +100,7 @@ async Task<string> RegisterAsync(Guid decision,string request,string plan,string
     var parameters=new[]{("@decision",DbType.Guid,(object?)decision),("@request",DbType.String,(object?)request),
         ("@plan",DbType.String,(object?)plan),("@reservations",DbType.String,(object?)reservations),
         ("@actor",DbType.String,(object?)"synthetic:ledger-smoke"),("@correlation",DbType.Guid,(object?)Guid.NewGuid())};
-    var result=connection is null ? await ScalarAsync(sql,parameters) : await ScalarAsync(connection,tx,sql,parameters);
+    var result=connection is null ? await ScalarAsync(sql,parameters) : await ScalarInTransactionAsync(connection,tx,sql,parameters);
     return result as string ?? throw new InvalidOperationException("Hash de registro ausente.");
 }
 static string RequestJson(IdentityCompositionDecision d) => JsonSerializer.Serialize(new
@@ -123,7 +123,7 @@ var newUuid=reserved[0];
 Check(reserved.All(id=>id==newUuid),"Reserva concorrente não foi idempotente.");
 Check(await CountAsync("SELECT COUNT(*) FROM identidade.composicao_uuid_reserva WHERE reserva_id=@id",("@id",DbType.Guid,reservationId))==1,"Reserva duplicada.");
 Check(await CountAsync("SELECT COUNT(*) FROM identidade.pessoa WHERE pessoa_uuid=@id",("@id",DbType.Guid,newUuid))==1,"Pessoa reservada ausente ou duplicada.");
-await ExpectFailureAsync(async()=>{await ReserveAsync(Guid.NewGuid(),reservationId);});
+await ExpectActionFailureAsync(async()=>{await ReserveAsync(Guid.NewGuid(),reservationId);});
 
 var read=new IdentityCompositionReadSet(
     ImmutableArray.Create(new IdentityCompositionMember(a,a,ProgressiveIdentityStatus.REFERENCIA,1,null),
@@ -143,10 +143,10 @@ Check(await CountAsync("SELECT COUNT(*) FROM identidade.composicao_plano WHERE d
 Check((await ScalarAsync("SELECT estado FROM identidade.composicao_plano WHERE decision_id=@id",("@id",DbType.Guid,decisionId))) as string=="PREPARADA","Plano foi marcado como aplicado.");
 var persisted=await ScalarAsync("SELECT plan_json FROM identidade.composicao_plano WHERE decision_id=@id",("@id",DbType.Guid,decisionId));
 Check((persisted as string)==planJson,"Payload do plano não foi preservado exatamente.");
-await ExpectFailureAsync(async()=>{await RegisterAsync(decisionId,requestJson,planJson+" ",reservationsJson);});
-await ExpectFailureAsync(async()=>{await RegisterAsync(decisionId,requestJson.Replace("LEDGER_TEST_V1","LEDGER_TEST_V2",StringComparison.Ordinal),planJson,reservationsJson);});
-await ExpectFailureAsync(async()=>{await RegisterAsync(decisionId,requestJson,planJson,"[]");});
-await ExpectFailureAsync(async()=>{await ReserveAsync(decisionId,Guid.NewGuid());});
+await ExpectActionFailureAsync(async()=>{await RegisterAsync(decisionId,requestJson,planJson+" ",reservationsJson);});
+await ExpectActionFailureAsync(async()=>{await RegisterAsync(decisionId,requestJson.Replace("LEDGER_TEST_V1","LEDGER_TEST_V2",StringComparison.Ordinal),planJson,reservationsJson);});
+await ExpectActionFailureAsync(async()=>{await RegisterAsync(decisionId,requestJson,planJson,"[]");});
+await ExpectActionFailureAsync(async()=>{await ReserveAsync(decisionId,Guid.NewGuid());});
 Check(await ReserveAsync(decisionId,reservationId)==newUuid,"Replay de reserva existente deixou de funcionar.");
 
 var rollbackDecision=Guid.NewGuid();var rollbackReservation=Guid.NewGuid();Guid rolledBack;
