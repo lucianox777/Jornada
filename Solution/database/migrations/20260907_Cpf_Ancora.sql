@@ -63,14 +63,18 @@ BEGIN TRY
    CONSTRAINT ck_cpf_ancora_valido CHECK(identidade.fn_cpf_ancora_valido(cpf)=1),
    CONSTRAINT ck_cpf_ancora_uuid CHECK(pessoa_uuid<>'00000000-0000-0000-0000-000000000000'));
  END;
- IF EXISTS(SELECT 1 FROM identidade.cpf_ancora a JOIN identidade.identity_map m ON m.tipo='CPF' AND m.identificador=a.cpf WHERE m.pessoa_uuid<>a.pessoa_uuid)
+ -- O mapa legado pode herdar a collation da base. Toda comparação com a âncora
+ -- normaliza explicitamente para a collation binária da chave permanente.
+ IF EXISTS(SELECT 1 FROM identidade.cpf_ancora a JOIN identidade.identity_map m ON m.tipo='CPF' AND m.identificador COLLATE Latin1_General_100_BIN2=a.cpf WHERE m.pessoa_uuid<>a.pessoa_uuid)
   THROW 51345,'Âncora existente diverge do histórico; não será sobrescrita.',1;
- IF EXISTS(SELECT 1 FROM identidade.cpf_ancora a JOIN identidade.identity_map m ON m.tipo='CPF' AND m.pessoa_uuid=a.pessoa_uuid WHERE m.identificador<>a.cpf)
+ IF EXISTS(SELECT 1 FROM identidade.cpf_ancora a JOIN identidade.identity_map m ON m.tipo='CPF' AND m.pessoa_uuid=a.pessoa_uuid WHERE m.identificador COLLATE Latin1_General_100_BIN2<>a.cpf)
   THROW 51346,'UUID reservado possui outro CPF histórico.',1;
  INSERT identidade.cpf_ancora(cpf,pessoa_uuid)
- SELECT DISTINCT CONVERT(CHAR(11),m.identificador),m.pessoa_uuid
+ SELECT DISTINCT CONVERT(CHAR(11),m.identificador) COLLATE Latin1_General_100_BIN2,m.pessoa_uuid
  FROM identidade.identity_map m
- WHERE m.tipo='CPF' AND NOT EXISTS(SELECT 1 FROM identidade.cpf_ancora a WITH(UPDLOCK,HOLDLOCK) WHERE a.cpf=m.identificador);
+ WHERE m.tipo='CPF' AND NOT EXISTS(
+   SELECT 1 FROM identidade.cpf_ancora a WITH(UPDLOCK,HOLDLOCK)
+   WHERE a.cpf=m.identificador COLLATE Latin1_General_100_BIN2);
  COMMIT TRANSACTION;
 END TRY
 BEGIN CATCH
@@ -91,7 +95,7 @@ AS
 BEGIN
  SET NOCOUNT ON;
  IF @cpf IS NULL OR LEN(@cpf)<>11 OR DATALENGTH(@cpf)<>22 OR identidade.fn_cpf_ancora_valido(CONVERT(CHAR(11),@cpf))=0 THROW 51348,'CPF inválido.',1;
- SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf=CONVERT(CHAR(11),@cpf);
+ SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf=CONVERT(CHAR(11),@cpf) COLLATE Latin1_General_100_BIN2;
 END;
 GO
 -- Reserva explícita; o chamador cria Pessoa e vínculo na mesma transação.
@@ -109,14 +113,15 @@ BEGIN
  IF @own=1 BEGIN TRANSACTION;
  BEGIN TRY
   SET @uuid_resultado=NULL;
-  SELECT @uuid_resultado=pessoa_uuid FROM identidade.cpf_ancora WITH(UPDLOCK,HOLDLOCK) WHERE cpf=CONVERT(CHAR(11),@cpf);
+  SELECT @uuid_resultado=pessoa_uuid FROM identidade.cpf_ancora WITH(UPDLOCK,HOLDLOCK)
+   WHERE cpf=CONVERT(CHAR(11),@cpf) COLLATE Latin1_General_100_BIN2;
   IF @uuid_resultado IS NOT NULL AND @uuid_resultado<>@pessoa_uuid
    THROW 51353,'CPF já possui outro UUID permanente.',1;
   IF @uuid_resultado IS NULL
   BEGIN
    IF EXISTS(SELECT 1 FROM identidade.cpf_ancora WITH(UPDLOCK,HOLDLOCK) WHERE pessoa_uuid=@pessoa_uuid)
     THROW 51354,'UUID já possui outro CPF permanente.',1;
-   INSERT identidade.cpf_ancora(cpf,pessoa_uuid) VALUES(CONVERT(CHAR(11),@cpf),@pessoa_uuid);
+   INSERT identidade.cpf_ancora(cpf,pessoa_uuid) VALUES(CONVERT(CHAR(11),@cpf) COLLATE Latin1_General_100_BIN2,@pessoa_uuid);
    SET @uuid_resultado=@pessoa_uuid;
   END;
   IF @own=1 COMMIT TRANSACTION;
