@@ -1,0 +1,43 @@
+name: patch-cpf-anchor-collation
+
+on:
+  push:
+    branches:
+      - work/cpf-anchor-resolution-api
+    paths:
+      - .github/workflows/_patch-cpf-anchor-collation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: work/cpf-anchor-resolution-api
+          persist-credentials: true
+      - name: Patch collation comparison
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Solution/src/Jornada.Api/SqlApiServices.cs')
+          text = path.read_text(encoding='utf-8')
+          old = "WHERE im.tipo='CPF' AND im.identificador=a.cpf AND im.vigencia_fim IS NULL"
+          new = "WHERE im.tipo='CPF' AND im.identificador COLLATE Latin1_General_100_BIN2=a.cpf AND im.vigencia_fim IS NULL"
+          if text.count(old) != 1:
+              raise SystemExit(f'Comparação esperada não é única: {text.count(old)}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          git diff --check
+          git diff -- Solution/src/Jornada.Api/SqlApiServices.cs
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name 'jornada-ci'
+          git config user.email 'jornada-ci@users.noreply.github.com'
+          git add Solution/src/Jornada.Api/SqlApiServices.cs
+          git commit -m 'fix: normalizar collation na resolução CPF'
+          git push origin HEAD:work/cpf-anchor-resolution-api
