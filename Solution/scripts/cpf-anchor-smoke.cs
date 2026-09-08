@@ -107,6 +107,32 @@ await Negative("CPF inválido não pode ser reservado", async (c,t,cpf,a,b) => {
 await Negative("UUID inexistente não pode ser reservado", async (c,t,cpf,a,b) => {
     await Reserve(c,t,NewCpf(),Guid.NewGuid());
 }, 547, "23503");
+
+// Rastreabilidade permanente: a âncora pode existir sem qualquer mapa CPF legado ou fato ativo.
+// O UUID não é apagado nem recriado quando a pessoa fica temporariamente "órfã" de observações.
+var orphanCpf = NewCpf();
+var orphanUuid = Guid.NewGuid();
+await using (var c = await database.OpenAsync())
+await using (var tx = await c.BeginTransactionAsync(IsolationLevel.Serializable))
+{
+    await InsertPerson(c, tx, orphanUuid);
+    Check(await Reserve(c, tx, orphanCpf, orphanUuid) == orphanUuid, "Âncora órfã não foi reservada.");
+    await tx.CommitAsync();
+}
+await using (var c = await database.OpenAsync())
+{
+    Check(Convert.ToInt64(await Scalar(c, null,
+        "SELECT COUNT(*) FROM identidade.identity_map WHERE tipo='CPF' AND identificador=@cpf;",
+        ("@cpf", orphanCpf)), CultureInfo.InvariantCulture) == 0,
+        "Fixture órfã ganhou identity_map inesperado.");
+    Check(await Lookup(c, null, orphanCpf) == orphanUuid,
+        "CPF órfão deixou de resolver para o UUID permanente.");
+    Check(Convert.ToInt64(await Scalar(c, null,
+        "SELECT COUNT(*) FROM identidade.pessoa WHERE pessoa_uuid=@uuid;", ("@uuid", orphanUuid)),
+        CultureInfo.InvariantCulture) == 1,
+        "Pessoa âncora foi removida ao ficar sem registros associados.");
+}
+
 var concurrentCpf = NewCpf();
 async Task<Guid?> Compete()
 {
@@ -136,4 +162,4 @@ await using (var c = await database.OpenAsync())
     Check(Convert.ToInt64(await Scalar(c,null,"SELECT COUNT(*) FROM identidade.cpf_ancora WHERE cpf=@cpf;",("@cpf",concurrentCpf)),CultureInfo.InvariantCulture)==1,
         "CPF duplicado após concorrência.");
 }
-Console.WriteLine("CPF ANCHOR SMOKE: OK (6 rejeições, idempotência e concorrência)");
+Console.WriteLine("CPF ANCHOR SMOKE: OK (6 rejeições, idempotência, órfão permanente e concorrência)");
