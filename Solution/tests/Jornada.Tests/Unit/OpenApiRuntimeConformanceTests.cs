@@ -80,7 +80,8 @@ public sealed class OpenApiRuntimeConformanceTests
         new(HttpMethod.Get, "/api/v1/pessoas/11111111-1111-1111-1111-111111111111/registros", "/api/v1/pessoas/{pessoaUuid}/registros", "get", null),
         new(HttpMethod.Get, "/api/v1/pessoas/11111111-1111-1111-1111-111111111111/beneficios-concedidos", "/api/v1/pessoas/{pessoaUuid}/beneficios-concedidos", "get", null),
         new(HttpMethod.Get, "/api/v1/pessoas/11111111-1111-1111-1111-111111111111/servicos-prestados", "/api/v1/pessoas/{pessoaUuid}/servicos-prestados", "get", null),
-        new(HttpMethod.Get, "/api/v1/pessoas/11111111-1111-1111-1111-111111111111/possibilidades", "/api/v1/pessoas/{pessoaUuid}/possibilidades", "get", null)
+        new(HttpMethod.Get, "/api/v1/pessoas/11111111-1111-1111-1111-111111111111/possibilidades", "/api/v1/pessoas/{pessoaUuid}/possibilidades", "get", null),
+        new(HttpMethod.Post, "/api/v1/identidade/origens/consulta", "/api/v1/identidade/origens/consulta", "post", Json("{\"codigoSistemaOrigem\":\"ASSISTENCIA\",\"codigoPessoaOrigem\":\"origem-1\"}"))
     ];
 
     public static IEnumerable<TestCaseData> Operations() =>
@@ -137,7 +138,7 @@ public sealed class OpenApiRuntimeConformanceTests
     private static Func<HttpContent> Json(string value) => () => new StringContent(value, Encoding.UTF8, "application/json");
     private static Func<HttpContent> ZipProbe() => () =>
     {
-        var content = new ByteArrayContent([0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        var content = new ByteArrayContent([0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
         return content;
     };
