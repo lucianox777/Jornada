@@ -1,5 +1,5 @@
--- Identidade progressiva: âncora CPF imutável. Migração opt-in, sobre a base normativa instalada.
--- A instalação é transacional e falha antes de alterar dados quando a história é incompatível.
+-- Âncora CPF imutável: migração opt-in, versão de armazenamento V1.
+-- Aplica-se somente sobre a base normativa já instalada.
 SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;
 SET ANSI_PADDING ON;
@@ -43,7 +43,6 @@ BEGIN TRY
  IF @lock_result<0 THROW 51340,'Não foi possível reservar a migração da âncora CPF.',1;
  IF OBJECT_ID('identidade.pessoa','U') IS NULL OR OBJECT_ID('identidade.identity_map','U') IS NULL
   THROW 51341,'Instale a base normativa antes da âncora CPF.',1;
- -- Bloqueia escritores legados até a publicação do trigger.
  DECLARE @locked BIGINT;
  SELECT @locked=COUNT_BIG(*) FROM identidade.identity_map WITH(TABLOCKX,HOLDLOCK);
  IF EXISTS(SELECT 1 FROM identidade.identity_map WHERE tipo='CPF' AND
@@ -87,43 +86,44 @@ BEGIN
  THROW 51347,'Âncora CPF imutável: correções devem reatribuir registros, não transferir a âncora.',1;
 END;
 GO
--- Resolução estável, inclusive quando o mapa corrente está em conflito ou encerrado.
-CREATE OR ALTER PROCEDURE identidade.sp_obter_cpf_ancora @cpf CHAR(11)
+CREATE OR ALTER PROCEDURE identidade.sp_obter_cpf_ancora @cpf NVARCHAR(64)
 AS
 BEGIN
  SET NOCOUNT ON;
- IF identidade.fn_cpf_ancora_valido(@cpf)=0 THROW 51348,'CPF inválido.',1;
- SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf=@cpf;
+ IF @cpf IS NULL OR LEN(@cpf)<>11 OR DATALENGTH(@cpf)<>22 OR identidade.fn_cpf_ancora_valido(CONVERT(CHAR(11),@cpf))=0 THROW 51348,'CPF inválido.',1;
+ SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf=CONVERT(CHAR(11),@cpf);
 END;
 GO
--- Protege também os escritores legados, inclusive correções que tentem transferir o CPF.
-CREATE OR ALTER TRIGGER identidade.tr_identity_map_cpf_ancora ON identidade.identity_map
-AFTER INSERT,UPDATE
+-- Reserva explícita; o chamador cria Pessoa e vínculo na mesma transação.
+-- Não escolhe UUID por score e nunca altera uma âncora existente.
+CREATE OR ALTER PROCEDURE identidade.sp_reservar_cpf_ancora
+ @cpf NVARCHAR(64), @pessoa_uuid UNIQUEIDENTIFIER, @uuid_resultado UNIQUEIDENTIFIER OUTPUT
 AS
 BEGIN
- SET NOCOUNT ON;
- IF EXISTS(SELECT 1 FROM inserted i JOIN deleted d ON d.identity_map_id=i.identity_map_id
-           WHERE (i.tipo='CPF' OR d.tipo='CPF') AND
-           (i.tipo<>d.tipo OR i.identificador<>d.identificador OR i.pessoa_uuid<>d.pessoa_uuid))
-  THROW 51349,'Não é permitido transferir a identidade de um mapa CPF histórico.',1;
- IF NOT EXISTS(SELECT 1 FROM inserted WHERE tipo='CPF') RETURN;
- IF EXISTS(SELECT 1 FROM inserted WHERE tipo='CPF' AND
-           (identidade.fn_cpf_ancora_valido(CONVERT(CHAR(11),identificador))=0 OR LEN(identificador)<>11 OR
-            pessoa_uuid='00000000-0000-0000-0000-000000000000'))
-  THROW 51350,'Vínculo CPF inválido.',1;
- IF EXISTS(SELECT 1 FROM inserted WHERE tipo='CPF' GROUP BY identificador HAVING COUNT(DISTINCT pessoa_uuid)>1)
-  THROW 51351,'CPF com destinos distintos na mesma operação.',1;
- IF EXISTS(SELECT 1 FROM inserted WHERE tipo='CPF' GROUP BY pessoa_uuid HAVING COUNT(DISTINCT identificador)>1)
-  THROW 51352,'UUID com CPFs distintos na mesma operação.',1;
- IF EXISTS(SELECT 1 FROM inserted i JOIN identidade.cpf_ancora a WITH(UPDLOCK,HOLDLOCK) ON a.cpf=i.identificador
-           WHERE i.tipo='CPF' AND a.pessoa_uuid<>i.pessoa_uuid)
-  THROW 51353,'CPF já possui outro UUID permanente.',1;
- IF EXISTS(SELECT 1 FROM inserted i JOIN identidade.cpf_ancora a WITH(UPDLOCK,HOLDLOCK) ON a.pessoa_uuid=i.pessoa_uuid
-           WHERE i.tipo='CPF' AND a.cpf<>i.identificador)
-  THROW 51354,'UUID já possui outro CPF permanente.',1;
- INSERT identidade.cpf_ancora(cpf,pessoa_uuid)
- SELECT DISTINCT CONVERT(CHAR(11),i.identificador),i.pessoa_uuid
- FROM inserted i WHERE i.tipo='CPF'
- AND NOT EXISTS(SELECT 1 FROM identidade.cpf_ancora a WITH(UPDLOCK,HOLDLOCK) WHERE a.cpf=i.identificador);
+ SET NOCOUNT ON; SET XACT_ABORT ON;
+ IF @cpf IS NULL OR LEN(@cpf)<>11 OR DATALENGTH(@cpf)<>22 OR identidade.fn_cpf_ancora_valido(CONVERT(CHAR(11),@cpf))=0
+  THROW 51348,'CPF inválido.',1;
+ IF @pessoa_uuid IS NULL OR @pessoa_uuid='00000000-0000-0000-0000-000000000000'
+  THROW 51355,'UUID de reserva inválido.',1;
+ DECLARE @own BIT=CASE WHEN @@TRANCOUNT=0 THEN 1 ELSE 0 END;
+ IF @own=1 BEGIN TRANSACTION;
+ BEGIN TRY
+  SET @uuid_resultado=NULL;
+  SELECT @uuid_resultado=pessoa_uuid FROM identidade.cpf_ancora WITH(UPDLOCK,HOLDLOCK) WHERE cpf=CONVERT(CHAR(11),@cpf);
+  IF @uuid_resultado IS NOT NULL AND @uuid_resultado<>@pessoa_uuid
+   THROW 51353,'CPF já possui outro UUID permanente.',1;
+  IF @uuid_resultado IS NULL
+  BEGIN
+   IF EXISTS(SELECT 1 FROM identidade.cpf_ancora WITH(UPDLOCK,HOLDLOCK) WHERE pessoa_uuid=@pessoa_uuid)
+    THROW 51354,'UUID já possui outro CPF permanente.',1;
+   INSERT identidade.cpf_ancora(cpf,pessoa_uuid) VALUES(CONVERT(CHAR(11),@cpf),@pessoa_uuid);
+   SET @uuid_resultado=@pessoa_uuid;
+  END;
+  IF @own=1 COMMIT TRANSACTION;
+ END TRY
+ BEGIN CATCH
+  IF @own=1 AND XACT_STATE()<>0 ROLLBACK TRANSACTION;
+  THROW;
+ END CATCH;
 END;
 GO

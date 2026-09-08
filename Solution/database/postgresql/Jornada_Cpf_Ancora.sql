@@ -72,29 +72,18 @@ BEGIN
  RETURN v_uuid;
 END;
 $$;
-CREATE OR REPLACE FUNCTION identidade.fn_identity_map_cpf_ancora() RETURNS trigger
-LANGUAGE plpgsql AS $$
-DECLARE v_uuid UUID; v_cpf CHAR(11);
+-- Reserva explícita: exige UUID de Pessoa existente, nunca um score.
+CREATE OR REPLACE FUNCTION identidade.fn_reservar_cpf_ancora(p_cpf TEXT,p_uuid UUID)
+RETURNS UUID LANGUAGE plpgsql AS $$
+DECLARE v_uuid UUID;
 BEGIN
- IF TG_OP='UPDATE' AND (NEW.tipo='CPF' OR OLD.tipo='CPF') AND
-    (NEW.tipo IS DISTINCT FROM OLD.tipo OR NEW.identificador IS DISTINCT FROM OLD.identificador OR NEW.pessoa_uuid IS DISTINCT FROM OLD.pessoa_uuid) THEN
-  RAISE EXCEPTION 'Não é permitido transferir a identidade de um mapa CPF histórico.';
- END IF;
- IF NEW.tipo<>'CPF' THEN RETURN NEW; END IF;
- IF NOT identidade.fn_cpf_ancora_valido(NEW.identificador) OR length(NEW.identificador)<>11 OR
-    NEW.pessoa_uuid='00000000-0000-0000-0000-000000000000'::uuid THEN
-  RAISE EXCEPTION 'Vínculo CPF inválido.';
- END IF;
- INSERT INTO identidade.cpf_ancora(cpf,pessoa_uuid) VALUES(NEW.identificador::CHAR(11),NEW.pessoa_uuid)
+ IF p_cpf IS NULL OR NOT identidade.fn_cpf_ancora_valido(p_cpf) THEN RAISE EXCEPTION 'CPF inválido.'; END IF;
+ IF p_uuid IS NULL OR p_uuid='00000000-0000-0000-0000-000000000000'::uuid THEN RAISE EXCEPTION 'UUID de reserva inválido.'; END IF;
+ INSERT INTO identidade.cpf_ancora(cpf,pessoa_uuid) VALUES(p_cpf::CHAR(11),p_uuid)
  ON CONFLICT(cpf) DO NOTHING;
- SELECT pessoa_uuid INTO v_uuid FROM identidade.cpf_ancora WHERE cpf=NEW.identificador FOR UPDATE;
- IF v_uuid IS DISTINCT FROM NEW.pessoa_uuid THEN RAISE EXCEPTION 'CPF já possui outro UUID permanente.'; END IF;
- SELECT cpf INTO v_cpf FROM identidade.cpf_ancora WHERE pessoa_uuid=NEW.pessoa_uuid;
- IF v_cpf IS DISTINCT FROM NEW.identificador THEN RAISE EXCEPTION 'UUID já possui outro CPF permanente.'; END IF;
- RETURN NEW;
+ SELECT pessoa_uuid INTO v_uuid FROM identidade.cpf_ancora WHERE cpf=p_cpf FOR UPDATE;
+ IF v_uuid IS DISTINCT FROM p_uuid THEN RAISE EXCEPTION 'CPF já possui outro UUID permanente.'; END IF;
+ RETURN v_uuid;
 END;
 $$;
-DROP TRIGGER IF EXISTS tr_identity_map_cpf_ancora ON identidade.identity_map;
-CREATE TRIGGER tr_identity_map_cpf_ancora BEFORE INSERT OR UPDATE ON identidade.identity_map
-FOR EACH ROW EXECUTE FUNCTION identidade.fn_identity_map_cpf_ancora();
 COMMIT;
