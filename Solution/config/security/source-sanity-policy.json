@@ -4,6 +4,7 @@
   "allowedInsecureSqlGlobs": [
     ".github/workflows/ci.yml",
     ".github/workflows/cpf-anchor.yml",
+    ".github/workflows/cpf-anchor-processor.yml",
     ".github/workflows/identity-progressive-persistence.yml",
     ".github/workflows/identity-operational-cutover.yml",
     "Solution/scripts/local-*.sh",
@@ -14,6 +15,7 @@
   "allowedPasswordLiteralGlobs": [
     ".github/workflows/ci.yml",
     ".github/workflows/cpf-anchor.yml",
+    ".github/workflows/cpf-anchor-processor.yml",
     ".github/workflows/identity-progressive-persistence.yml",
     ".github/workflows/identity-operational-cutover.yml",
     "Solution/.env.example",
