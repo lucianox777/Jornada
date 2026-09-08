@@ -3,6 +3,8 @@
   "status": "VIGENTE",
   "allowedInsecureSqlGlobs": [
     ".github/workflows/ci.yml",
+    ".github/workflows/cpf-anchor.yml",
+    ".github/workflows/identity-progressive-persistence.yml",
     "Solution/scripts/local-*.sh",
     "Solution/scripts/local-*.ps1",
     "Solution/docs/Runbook_Desenvolvimento_Local.md",
@@ -10,6 +12,8 @@
   ],
   "allowedPasswordLiteralGlobs": [
     ".github/workflows/ci.yml",
+    ".github/workflows/cpf-anchor.yml",
+    ".github/workflows/identity-progressive-persistence.yml",
     "Solution/.env.example",
     "Solution/scripts/local-*.sh",
     "Solution/scripts/local-*.ps1",
