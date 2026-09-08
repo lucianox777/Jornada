@@ -64,7 +64,7 @@ case "$ACTION" in
     ;;
   down)
     compose down
-n    ;;
+    ;;
   clean)
     compose down -v
     ;;
