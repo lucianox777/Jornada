@@ -19,44 +19,41 @@ public sealed class SqlProgressiveOriginQueryService(IOperationalSqlAdapter conn
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(request);
-        if (context.CredentialType != AccessCredentialType.GESTOR)
-            throw new UnauthorizedAccessException("Consulta de origem exige credencial GESTOR.");
+        if (context.CredentialType != AccessCredentialType.GESTOR ||
+            !context.Scopes.Contains(ProgressiveOriginApi.Permission, StringComparer.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException("Consulta de origem não autorizada.");
         ProgressiveOriginApi.ValidateRequest(request);
+        if (string.IsNullOrWhiteSpace(context.GestorCodigo) || context.GestorCodigo.Length > 80)
+            throw new UnauthorizedAccessException("Gestor inválido.");
 
         await using var connection = await connections.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         // A restrição de proprietário é aplicada no SQL, não apenas na borda.
-        // Não consultar por UUID, nome ou CPF: o namespace técnico da origem
-        // e o Gestor autenticado são partes obrigatórias da seleção.
+        // O namespace da origem e o Gestor autenticado são partes obrigatórias da seleção.
+        // Comparações binárias impedem que uma chave semelhante seja confundida com outra.
         command.CommandText = """
             SELECT p.sistema_origem_codigo,p.codigo_pessoa_origem,
                    p.initial_uuid,p.canonical_uuid,p.estado,p.versao,
                    p.criado_em,p.atualizado_em,p.ultima_resolucao_em
               FROM serving.v_identidade_origem_progressiva p
-             WHERE p.gestor_codigo=@gestor
-               AND p.sistema_origem_codigo=@sistema
-               AND p.codigo_pessoa_origem=@codigo;
+             WHERE p.gestor_codigo COLLATE Latin1_General_100_BIN2=@gestor
+               AND p.sistema_origem_codigo COLLATE Latin1_General_100_BIN2=@sistema
+               AND p.codigo_pessoa_origem COLLATE Latin1_General_100_BIN2=@codigo;
             """;
         command.Parameters.Add(new SqlParameter("@gestor", SqlDbType.NVarChar, 80) { Value = context.GestorCodigo });
         command.Parameters.Add(new SqlParameter("@sistema", SqlDbType.NVarChar, 80) { Value = request.CodigoSistemaOrigem });
         command.Parameters.Add(new SqlParameter("@codigo", SqlDbType.NVarChar, 255) { Value = request.CodigoPessoaOrigem });
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
-        var initial = reader.GetGuid(2);
-        var canonical = reader.IsDBNull(3) ? (Guid?)null : reader.GetGuid(3);
         var text = reader.GetString(4);
         if (!Enum.TryParse<ProgressiveIdentityStatus>(text, false, out var estado) || !Enum.IsDefined(estado))
             throw new InvalidOperationException("Estado progressivo desconhecido.");
-        var versao = reader.GetInt64(5);
-        var ultima = reader.IsDBNull(8) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(8);
-        if (initial == Guid.Empty || canonical == Guid.Empty || versao < 0 ||
-            (estado == ProgressiveIdentityStatus.PROVISORIA && (versao != 0 || canonical is not null || ultima is not null)) ||
-            (estado == ProgressiveIdentityStatus.REFERENCIA && (versao == 0 || canonical is null || ultima is null)) ||
-            (estado == ProgressiveIdentityStatus.INDEFINIDA && (versao == 0 || canonical is not null || ultima is null)))
-            throw new InvalidOperationException("Estado progressivo inconsistente.");
         var result = new ProgressiveOriginQueryResponse(
-            reader.GetString(0), reader.GetString(1), initial, canonical, estado, versao,
-            reader.GetDateTimeOffset(6), reader.GetDateTimeOffset(7), ultima);
+            reader.GetString(0), reader.GetString(1), reader.GetGuid(2),
+            reader.IsDBNull(3) ? null : reader.GetGuid(3), estado, reader.GetInt64(5),
+            reader.GetDateTimeOffset(6), reader.GetDateTimeOffset(7),
+            reader.IsDBNull(8) ? null : reader.GetDateTimeOffset(8));
+        ProgressiveOriginApi.ValidateSnapshot(result);
         if (await reader.ReadAsync(ct))
             throw new InvalidOperationException("Identidade de origem duplicada.");
         return result;
@@ -75,8 +72,8 @@ public static class ProgressiveOriginApi
             IAccessContextResolver access, IPolicyEngine policy,
             IProgressiveOriginQueryService service, CancellationToken ct) =>
         {
-            // A família de origem aceita exclusivamente GESTOR; chaves de Tipo
-            // não podem usar este endpoint, mesmo se receberem o scope por erro.
+            // Mesma autenticação, contexto de auditoria e limite autenticado da API.
+            // Esta família aceita exclusivamente GESTOR, mesmo se um scope for concedido a um Tipo por erro.
             var key = http.Headers["X-Jornada-Access-Key"].ToString();
             if (string.IsNullOrWhiteSpace(key)) return Results.Unauthorized();
             var gestor = http.Headers["X-Jornada-Gestor"].ToString();
@@ -93,29 +90,57 @@ public static class ProgressiveOriginApi
             if (context.CredentialType != AccessCredentialType.GESTOR ||
                 !await policy.IsAllowedAsync(context, Permission, null, null, ct))
                 return Results.Forbid();
-            // Nunca registrar o código interno em URL, texto de erro ou resourceCode.
-            // A propriedade do sistema é verificada novamente no SELECT.
+            // O código interno nunca é colocado na URL, em erros ou no resourceCode da auditoria.
             if (!TryValidateRequest(request))
                 return Results.BadRequest(new { erro = "Códigos de origem inválidos." });
-            var result = await service.GetAsync(context, request, ct);
-            if (result is null) return Results.NotFound();
-            ApiAuditContext.SetPersons(http.HttpContext,
-                result.CanonicalUuid is { } canonical && canonical != result.InitialUuid
-                    ? [result.InitialUuid, canonical] : [result.InitialUuid]);
-            return Results.Ok(result);
+            try
+            {
+                var result = await service.GetAsync(context, request, ct);
+                if (result is null) return Results.NotFound();
+                ValidateSnapshot(result);
+                ApiAuditContext.SetPersons(http.HttpContext,
+                    result.CanonicalUuid is { } canonical && canonical != result.InitialUuid
+                        ? [result.InitialUuid, canonical] : [result.InitialUuid]);
+                return Results.Ok(result);
+            }
+            catch (SqlException ex) when (ex.Number is 207 or 208)
+            {
+                return Results.Json(new { codigo = "IDENTIDADE_PROGRESSIVA_INDISPONIVEL" },
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
         }).RequireRateLimiting("identity");
         return app;
     }
 
     public static bool TryValidateRequest(ProgressiveOriginQueryRequest? request) =>
         request is not null &&
-        !string.IsNullOrWhiteSpace(request.CodigoSistemaOrigem) &&
-        request.CodigoSistemaOrigem.Length <= 80 &&
-        !string.IsNullOrWhiteSpace(request.CodigoPessoaOrigem) &&
-        request.CodigoPessoaOrigem.Length <= 255;
+        ValidCode(request.CodigoSistemaOrigem, 80) &&
+        ValidCode(request.CodigoPessoaOrigem, 255);
+
+    private static bool ValidCode(string? value, int max) =>
+        !string.IsNullOrWhiteSpace(value) && value.Length <= max &&
+        !value.Any(char.IsControl);
 
     public static void ValidateRequest(ProgressiveOriginQueryRequest request)
     {
         if (!TryValidateRequest(request)) throw new ArgumentException("Códigos de origem inválidos.", nameof(request));
+    }
+
+    public static void ValidateSnapshot(ProgressiveOriginQueryResponse result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        var consistent = result.InitialUuid != Guid.Empty && result.CanonicalUuid != Guid.Empty &&
+            Enum.IsDefined(result.Estado) && result.Versao >= 0 &&
+            result.CriadoEm != default && result.CriadoEm.Offset == TimeSpan.Zero &&
+            result.AtualizadoEm.Offset == TimeSpan.Zero && result.AtualizadoEm >= result.CriadoEm &&
+            (result.UltimaResolucaoEm is null ||
+             (result.UltimaResolucaoEm.Value.Offset == TimeSpan.Zero && result.UltimaResolucaoEm >= result.CriadoEm)) &&
+            (result.Estado == ProgressiveIdentityStatus.PROVISORIA &&
+                 result.Versao == 0 && result.CanonicalUuid is null && result.UltimaResolucaoEm is null ||
+             result.Estado == ProgressiveIdentityStatus.REFERENCIA &&
+                 result.Versao > 0 && result.CanonicalUuid is not null && result.UltimaResolucaoEm is not null ||
+             result.Estado == ProgressiveIdentityStatus.INDEFINIDA &&
+                 result.Versao > 0 && result.CanonicalUuid is null && result.UltimaResolucaoEm is not null);
+        if (!consistent) throw new InvalidOperationException("Estado progressivo inconsistente.");
     }
 }
