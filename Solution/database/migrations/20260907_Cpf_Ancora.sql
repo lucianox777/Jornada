@@ -10,31 +10,35 @@ SET NUMERIC_ROUNDABORT OFF;
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 GO
-CREATE OR ALTER FUNCTION identidade.fn_cpf_ancora_valido(@cpf CHAR(11)) RETURNS BIT
-AS
-BEGIN
- IF @cpf IS NULL OR LEN(@cpf)<>11 OR @cpf COLLATE Latin1_General_100_BIN2 LIKE '%[^0-9]%' RETURN 0;
- IF @cpf=REPLICATE(LEFT(@cpf,1),11) RETURN 0;
- DECLARE @i INT=1,@sum INT=0,@digit INT,@expected INT;
- WHILE @i<=9
+-- A função é referenciada pela CHECK constraint da âncora. SQL Server não permite
+-- CREATE OR ALTER de uma função enquanto essa dependência existe; por isso V1 cria
+-- somente quando ausente. Instalações repetidas preservam função e constraint.
+IF OBJECT_ID('identidade.fn_cpf_ancora_valido','FN') IS NULL
+ EXEC(N'CREATE FUNCTION identidade.fn_cpf_ancora_valido(@cpf CHAR(11)) RETURNS BIT
+ AS
  BEGIN
-  SET @sum=@sum+CONVERT(INT,SUBSTRING(@cpf,@i,1))*(11-@i);
-  SET @i=@i+1;
- END;
- SET @digit=@sum%11;
- SET @expected=CASE WHEN @digit<2 THEN 0 ELSE 11-@digit END;
- IF @expected<>CONVERT(INT,SUBSTRING(@cpf,10,1)) RETURN 0;
- SET @i=1; SET @sum=0;
- WHILE @i<=10
- BEGIN
-  SET @sum=@sum+CONVERT(INT,SUBSTRING(@cpf,@i,1))*(12-@i);
-  SET @i=@i+1;
- END;
- SET @digit=@sum%11;
- SET @expected=CASE WHEN @digit<2 THEN 0 ELSE 11-@digit END;
- IF @expected<>CONVERT(INT,SUBSTRING(@cpf,11,1)) RETURN 0;
- RETURN 1;
-END;
+  IF @cpf IS NULL OR LEN(@cpf)<>11 OR @cpf COLLATE Latin1_General_100_BIN2 LIKE ''%[^0-9]%'' RETURN 0;
+  IF @cpf=REPLICATE(LEFT(@cpf,1),11) RETURN 0;
+  DECLARE @i INT=1,@sum INT=0,@digit INT,@expected INT;
+  WHILE @i<=9
+  BEGIN
+   SET @sum=@sum+CONVERT(INT,SUBSTRING(@cpf,@i,1))*(11-@i);
+   SET @i=@i+1;
+  END;
+  SET @digit=@sum%11;
+  SET @expected=CASE WHEN @digit<2 THEN 0 ELSE 11-@digit END;
+  IF @expected<>CONVERT(INT,SUBSTRING(@cpf,10,1)) RETURN 0;
+  SET @i=1; SET @sum=0;
+  WHILE @i<=10
+  BEGIN
+   SET @sum=@sum+CONVERT(INT,SUBSTRING(@cpf,@i,1))*(12-@i);
+   SET @i=@i+1;
+  END;
+  SET @digit=@sum%11;
+  SET @expected=CASE WHEN @digit<2 THEN 0 ELSE 11-@digit END;
+  IF @expected<>CONVERT(INT,SUBSTRING(@cpf,11,1)) RETURN 0;
+  RETURN 1;
+ END;');
 GO
 BEGIN TRY
  BEGIN TRANSACTION;
