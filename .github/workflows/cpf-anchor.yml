@@ -74,10 +74,10 @@ jobs:
           test -n "$CID"
           sqlcmd() { docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b "$@"; }
           sqlcmd -Q "IF DB_ID('JornadaCpfAnchorTest') IS NULL CREATE DATABASE JornadaCpfAnchorTest;"
-          sqlcmd -d JornadaCpfAnchorTest -i /dev/stdin < database/Jornada_Fase1.sql > .local/cpf-anchor-evidence/sql-base.log
-          sqlcmd -d JornadaCpfAnchorTest -i /dev/stdin < database/Jornada_Seed_Dev.sql > .local/cpf-anchor-evidence/sql-seed.log
+          sqlcmd -d JornadaCpfAnchorTest -i /dev/stdin < database/Jornada_Fase1.sql > .local/cpf-anchor-evidence/sql-base.log 2>&1
+          sqlcmd -d JornadaCpfAnchorTest -i /dev/stdin < database/Jornada_Seed_Dev.sql > .local/cpf-anchor-evidence/sql-seed.log 2>&1
           for pass in 1 2; do
-            sqlcmd -d JornadaCpfAnchorTest -i /dev/stdin < database/migrations/20260907_Cpf_Ancora.sql > ".local/cpf-anchor-evidence/sql-anchor-$pass.log"
+            sqlcmd -d JornadaCpfAnchorTest -i /dev/stdin < database/migrations/20260907_Cpf_Ancora.sql > ".local/cpf-anchor-evidence/sql-anchor-$pass.log" 2>&1
           done
           echo passed > .local/cpf-anchor-evidence/sql-install.result
       - name: Install PostgreSQL baseline and anchor twice
@@ -87,12 +87,12 @@ jobs:
           test -n "$CID"
           pgsql() { docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCpfAnchorTest "$@"; }
           for pass in 1 2; do
-            pgsql < database/postgresql/Jornada_Resultado_Core.sql > ".local/cpf-anchor-evidence/pg-result-$pass.log"
-            pgsql < database/postgresql/Jornada_Ingestion_Processor_Core.sql > ".local/cpf-anchor-evidence/pg-ingestion-$pass.log"
-            pgsql < database/postgresql/Jornada_Processor_Persistence_Core.sql > ".local/cpf-anchor-evidence/pg-persistence-$pass.log"
+            pgsql < database/postgresql/Jornada_Resultado_Core.sql > ".local/cpf-anchor-evidence/pg-result-$pass.log" 2>&1
+            pgsql < database/postgresql/Jornada_Ingestion_Processor_Core.sql > ".local/cpf-anchor-evidence/pg-ingestion-$pass.log" 2>&1
+            pgsql < database/postgresql/Jornada_Processor_Persistence_Core.sql > ".local/cpf-anchor-evidence/pg-persistence-$pass.log" 2>&1
           done
           for pass in 1 2; do
-            pgsql < database/postgresql/Jornada_Cpf_Ancora.sql > ".local/cpf-anchor-evidence/pg-anchor-$pass.log"
+            pgsql < database/postgresql/Jornada_Cpf_Ancora.sql > ".local/cpf-anchor-evidence/pg-anchor-$pass.log" 2>&1
           done
           echo passed > .local/cpf-anchor-evidence/pg-install.result
       - name: Build anchor smoke harness
@@ -120,12 +120,12 @@ jobs:
       - name: Prove SQL Server permanent CPF to UUID
         run: |
           set -euo pipefail
-          dotnet run --project .local/cpf-anchor-harness/CpfAnchorSmoke.csproj -c Release --no-build --no-restore -- SqlServer | tee .local/cpf-anchor-evidence/sql-runtime.log
+          dotnet run --project .local/cpf-anchor-harness/CpfAnchorSmoke.csproj -c Release --no-build --no-restore -- SqlServer 2>&1 | tee .local/cpf-anchor-evidence/sql-runtime.log
           grep -Fx 'CPF ANCHOR SMOKE: OK (6 rejeições, idempotência, órfão permanente e concorrência)' .local/cpf-anchor-evidence/sql-runtime.log
       - name: Prove PostgreSQL permanent CPF to UUID
         run: |
           set -euo pipefail
-          dotnet run --project .local/cpf-anchor-harness/CpfAnchorSmoke.csproj -c Release --no-build --no-restore -- PostgreSql | tee .local/cpf-anchor-evidence/pg-runtime.log
+          dotnet run --project .local/cpf-anchor-harness/CpfAnchorSmoke.csproj -c Release --no-build --no-restore -- PostgreSql 2>&1 | tee .local/cpf-anchor-evidence/pg-runtime.log
           grep -Fx 'CPF ANCHOR SMOKE: OK (6 rejeições, idempotência, órfão permanente e concorrência)' .local/cpf-anchor-evidence/pg-runtime.log
       - name: Require complete evidence
         if: always()
