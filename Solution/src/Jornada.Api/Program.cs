@@ -91,6 +91,7 @@ builder.Services.AddSingleton<IPersonProjectionService, SqlPersonProjectionServi
 builder.Services.AddSingleton<IPersonCanonicalResolver, SqlPersonCanonicalResolver>();
 builder.Services.AddSingleton<IRegistrosQueryService, SqlRegistrosQueryService>();
 builder.Services.AddSingleton<IPossibilidadesQueryService, SqlPossibilidadesQueryService>();
+builder.Services.AddSingleton<IProgressiveOriginQueryService, SqlProgressiveOriginQueryService>();
 var apiRateLimitOptions = builder.Configuration.GetSection(ApiRateLimitOptions.SectionName).Get<ApiRateLimitOptions>() ?? new ApiRateLimitOptions();
 apiRateLimitOptions.Validate();
 builder.Services.AddSingleton(apiRateLimitOptions);
@@ -176,6 +177,9 @@ app.MapPost("/api/v1/identidade/resolver", async (
     }
     return Results.Ok(result);
 }).RequireRateLimiting("identity");
+
+// Consulta de origem: contrato distinto, somente Gestor proprietário e escopo específico.
+app.MapProgressiveOriginApi();
 
 // Uma única Entrega externa por ZIP, sempre com manifest.json + pessoas.jsonl + registros.jsonl.
 // registros.jsonl pode estar vazio; o contexto factual é opcional nesse caso. O nome do ZIP contém seu SHA-256.
@@ -464,9 +468,6 @@ app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}/beneficios-concedidos", async (
     var context = auth.Context!;
     var filterError = ValidateQueryFilters("BENEFICIO", codigo, desde, ate);
     if (filterError is not null) return filterError;
-    ApiAuditContext.SetResourceCode(http.HttpContext, codigo);
-    var canonicalUuid = await canonicalResolver.ResolveAsync(pessoaUuid, ct);
-    if (!canonicalUuid.HasValue) return Results.NotFound();
     ApiAuditContext.SetPersons(http.HttpContext, canonicalUuid.Value == pessoaUuid ? [pessoaUuid] : [pessoaUuid, canonicalUuid.Value]);
     if (!await policy.IsAllowedAsync(context, "jornada.registros.read", codigo, null, ct)) return Results.Forbid();
     if (!await policy.IsAllowedAsync(context, "jornada.registros.read", codigo, canonicalUuid.Value, ct)) return Results.NotFound();
