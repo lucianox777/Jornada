@@ -1,6 +1,9 @@
 namespace Jornada.Contracts;
 
-/// <summary>Estado da referência progressiva; não é estado de CPF, fato ou vínculo legado.</summary>
+/// <summary>
+/// Estado público da identidade progressiva. Não substitui o estado de uma ocorrência factual,
+/// a vigência de um vínculo, a situação operacional de identidade.pessoa nem a âncora CPF.
+/// </summary>
 public enum ProgressiveIdentityStatus
 {
     PROVISORIA,
@@ -8,7 +11,7 @@ public enum ProgressiveIdentityStatus
     INDEFINIDA
 }
 
-/// <summary>Resultado de uma execução, não uma classificação adicional de Pessoa.</summary>
+/// <summary>Resultado de uma execução de resolução, não uma classificação adicional de Pessoa.</summary>
 public enum ProgressiveResolutionOutcome
 {
     NOVA_IDENTIDADE,
@@ -16,7 +19,11 @@ public enum ProgressiveResolutionOutcome
     INDEFINIDA
 }
 
-/// <summary>Referência estável de origem. O UUID inicial nunca é reciclado.</summary>
+/// <summary>
+/// Referência estável de uma identidade de origem. O UUID inicial nunca é reciclado.
+/// CanonicalUuid identifica a referência canônica estabelecida pela política vigente;
+/// não implica certeza absoluta de identidade civil nem validade de toda atribuição factual.
+/// </summary>
 public sealed record ProgressiveIdentitySnapshot(
     Guid InitialUuid,
     Guid? CanonicalUuid,
@@ -27,7 +34,11 @@ public sealed record ProgressiveIdentitySnapshot(
     ProgressiveIdentityDecision? LastDecision,
     Guid? LastExternalAssociationUuid);
 
-/// <summary>Recibo de execução completa. Evidências são opacas e não homologam modelos.</summary>
+/// <summary>
+/// Recibo de uma execução completa. A validade da política, da amostra e das evidências
+/// é atestada pelo executor externo; este contrato não homologa modelos estatísticos.
+/// Referências são opacas e não devem conter CPF ou atributos pessoais em claro.
+/// </summary>
 public sealed record ProgressiveIdentityDecision(
     Guid DecisionId,
     Guid InitialUuid,
@@ -41,10 +52,13 @@ public sealed record ProgressiveIdentityDecision(
     string? ModelVersion = null,
     string? UniverseReference = null);
 
-/// <summary>Núcleo puro; não persiste, não executa score nem altera fatos ou agregados.</summary>
+/// <summary>
+/// Núcleo puro da V1. Não persiste, não executa score, não cria aliases,
+/// não modifica fatos e não realiza fusões ou separações de agregados.
+/// </summary>
 public static class ProgressiveIdentityLifecycle
 {
-    public const string Version = "PROGRESSIVE_IDENTITY_V2";
+    public const string Version = "PROGRESSIVE_IDENTITY_V1";
 
     public static ProgressiveIdentitySnapshot Create(Guid initialUuid, DateTimeOffset createdAt)
     {
@@ -69,6 +83,8 @@ public static class ProgressiveIdentityLifecycle
             (current.LastResolutionAt is { } last && decision.DecidedAt < last))
             throw new ArgumentException("Recibo de resolução incompleto ou incompatível.", nameof(decision));
         RequireUtc(decision.DecidedAt, nameof(decision));
+
+        // Reexecução da mesma decisão é idempotente; reutilizar o ID com outro conteúdo não é.
         if (current.LastDecision is { } previous && previous.DecisionId == decision.DecisionId)
         {
             if (previous != decision)
@@ -85,6 +101,8 @@ public static class ProgressiveIdentityLifecycle
             case ProgressiveResolutionOutcome.NOVA_IDENTIDADE:
                 if (decision.TargetUuid is not null || string.IsNullOrWhiteSpace(decision.UniverseReference))
                     throw new ArgumentException("Nova identidade exige universo completo e não aceita destino.", nameof(decision));
+                // Uma associação anterior não pode ser desfeita implicitamente por ausência de candidatos.
+                // A separação exige recomposição atômica do agregado.
                 if (current.LastExternalAssociationUuid is not null)
                     throw new InvalidOperationException("Associação anterior exige separação explícita antes de retornar ao UUID inicial.");
                 target = current.InitialUuid;
@@ -107,6 +125,7 @@ public static class ProgressiveIdentityLifecycle
             default:
                 throw new ArgumentOutOfRangeException(nameof(decision));
         }
+
         return current with
         {
             CanonicalUuid = target,
