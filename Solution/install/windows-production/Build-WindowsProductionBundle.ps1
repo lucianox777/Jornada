@@ -57,6 +57,9 @@ foreach ($folder in @('governance','hml','observability','operations','possibili
 $databaseDestination = Join-Path $output 'database'
 New-Item -ItemType Directory -Force -Path $databaseDestination | Out-Null
 Copy-Item -Force -Path (Join-Path $solutionRoot 'database\Jornada_Fase1.sql') -Destination $databaseDestination
+$migrationDestination = Join-Path $databaseDestination 'migrations'
+New-Item -ItemType Directory -Force -Path $migrationDestination | Out-Null
+Copy-Item -Force -Path (Join-Path $solutionRoot 'database\migrations\20260907_Cpf_Ancora.sql') -Destination $migrationDestination
 
 $installDestination = Join-Path $output 'install\windows-production'
 New-Item -ItemType Directory -Force -Path $installDestination | Out-Null
