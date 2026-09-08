@@ -1,0 +1,168 @@
+name: jornada-cpf-anchor-processor
+
+on:
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Processor.Worker/SqlProcessorRepository.cs'
+      - 'Solution/src/Jornada.Processor.Worker/PostgreSqlIdentityMapRepository.cs'
+      - 'Solution/scripts/cpf-anchor-processor-smoke.cs'
+      - 'Solution/database/migrations/20260907_Cpf_Ancora.sql'
+      - 'Solution/database/postgresql/Jornada_Cpf_Ancora.sql'
+      - 'Solution/tests/Jornada.Integration.Tests/**'
+      - 'Solution/install/windows-production/**'
+      - 'Solution/config/security/source-sanity-policy.json'
+      - '.github/workflows/cpf-anchor-processor.yml'
+  push:
+    paths:
+      - 'Solution/src/Jornada.Processor.Worker/SqlProcessorRepository.cs'
+      - 'Solution/src/Jornada.Processor.Worker/PostgreSqlIdentityMapRepository.cs'
+      - 'Solution/scripts/cpf-anchor-processor-smoke.cs'
+      - 'Solution/database/migrations/20260907_Cpf_Ancora.sql'
+      - 'Solution/database/postgresql/Jornada_Cpf_Ancora.sql'
+      - 'Solution/tests/Jornada.Integration.Tests/**'
+      - 'Solution/install/windows-production/**'
+      - 'Solution/config/security/source-sanity-policy.json'
+      - '.github/workflows/cpf-anchor-processor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpf-anchor-processor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: Solution
+        shell: bash
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: 'Jornada_Test_2026!Sql'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 20
+      postgres:
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        env:
+          POSTGRES_USER: jornada
+          POSTGRES_DB: JornadaCpfProcessorTest
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jornada -d JornadaCpfProcessorTest"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      JORNADA_SQL_CPF_PROCESSOR_CONNECTION: 'Server=localhost,1433;Database=JornadaCpfProcessorTest;User Id=sa;Password=Jornada_Test_2026!Sql;Encrypt=True;TrustServerCertificate=true'
+      JORNADA_PG_CPF_PROCESSOR_CONNECTION: 'Host=localhost;Port=5432;Database=JornadaCpfProcessorTest;Username=jornada;SSL Mode=Disable'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.424'
+      - name: Record source and build real Worker
+        run: |
+          set -euo pipefail
+          mkdir -p .local/cpf-anchor-processor-evidence
+          git rev-parse HEAD | tee .local/cpf-anchor-processor-evidence/commit.txt
+          git diff --check
+          dotnet restore src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj --locked-mode -v:normal -bl:.local/cpf-anchor-processor-evidence/restore.binlog
+          dotnet build src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj -c Release --no-restore -warnaserror -v:normal -bl:.local/cpf-anchor-processor-evidence/build.binlog
+      - name: Install SQL Server V1 and backfill anchor twice
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=1433 | head -1); test -n "$CID"
+          sqlcmd() { docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b "$@"; }
+          sqlcmd -Q "IF DB_ID('JornadaCpfProcessorTest') IS NULL CREATE DATABASE JornadaCpfProcessorTest;"
+          sqlcmd -d JornadaCpfProcessorTest -i /dev/stdin < database/Jornada_Fase1.sql > .local/cpf-anchor-processor-evidence/sql-base.log 2>&1
+          sqlcmd -d JornadaCpfProcessorTest -i /dev/stdin < database/Jornada_Seed_Dev.sql > .local/cpf-anchor-processor-evidence/sql-seed.log 2>&1
+          for pass in 1 2; do
+            sqlcmd -d JornadaCpfProcessorTest -i /dev/stdin < database/migrations/20260907_Cpf_Ancora.sql > ".local/cpf-anchor-processor-evidence/sql-anchor-$pass.log" 2>&1
+          done
+          echo passed > .local/cpf-anchor-processor-evidence/sql-install.result
+      - name: Install PostgreSQL V1 and anchor twice
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=5432 | head -1); test -n "$CID"
+          pgsql() { docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCpfProcessorTest "$@"; }
+          for pass in 1 2; do
+            pgsql < database/postgresql/Jornada_Resultado_Core.sql > ".local/cpf-anchor-processor-evidence/pg-result-$pass.log" 2>&1
+            pgsql < database/postgresql/Jornada_Ingestion_Processor_Core.sql > ".local/cpf-anchor-processor-evidence/pg-ingestion-$pass.log" 2>&1
+            pgsql < database/postgresql/Jornada_Processor_Persistence_Core.sql > ".local/cpf-anchor-processor-evidence/pg-persistence-$pass.log" 2>&1
+            pgsql < database/postgresql/Jornada_Cpf_Ancora.sql > ".local/cpf-anchor-processor-evidence/pg-anchor-$pass.log" 2>&1
+          done
+          echo passed > .local/cpf-anchor-processor-evidence/pg-install.result
+      - name: Build deterministic writer smoke harness
+        run: |
+          set -euo pipefail
+          mkdir -p .local/cpf-anchor-processor-harness
+          cat > .local/cpf-anchor-processor-harness/CpfAnchorProcessorSmoke.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net8.0</TargetFramework>
+              <AssemblyName>Jornada.Tests</AssemblyName>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="../../src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj" />
+              <ProjectReference Include="../../src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj" />
+              <Compile Include="../../scripts/cpf-anchor-processor-smoke.cs" Link="Program.cs" />
+            </ItemGroup>
+          </Project>
+          EOF
+          dotnet restore .local/cpf-anchor-processor-harness/CpfAnchorProcessorSmoke.csproj -v:normal -bl:.local/cpf-anchor-processor-evidence/harness-restore.binlog
+          dotnet build .local/cpf-anchor-processor-harness/CpfAnchorProcessorSmoke.csproj -c Release --no-restore -warnaserror -v:normal -bl:.local/cpf-anchor-processor-evidence/harness-build.binlog
+      - name: Prove SQL Server writer uses permanent anchor
+        env:
+          JORNADA_CPF_PROCESSOR_PROVIDER: SqlServer
+          JORNADA_CPF_PROCESSOR_CONNECTION: ${{ env.JORNADA_SQL_CPF_PROCESSOR_CONNECTION }}
+        run: |
+          set -euo pipefail
+          dotnet run --project .local/cpf-anchor-processor-harness/CpfAnchorProcessorSmoke.csproj -c Release --no-build --no-restore 2>&1 | tee .local/cpf-anchor-processor-evidence/sql-runtime.log
+          grep -F 'CPF ANCHOR PROCESSOR: OK provider=SqlServer' .local/cpf-anchor-processor-evidence/sql-runtime.log
+      - name: Prove PostgreSQL writer uses permanent anchor
+        env:
+          JORNADA_CPF_PROCESSOR_PROVIDER: PostgreSql
+          JORNADA_CPF_PROCESSOR_CONNECTION: ${{ env.JORNADA_PG_CPF_PROCESSOR_CONNECTION }}
+        run: |
+          set -euo pipefail
+          dotnet run --project .local/cpf-anchor-processor-harness/CpfAnchorProcessorSmoke.csproj -c Release --no-build --no-restore 2>&1 | tee .local/cpf-anchor-processor-evidence/pg-runtime.log
+          grep -F 'CPF ANCHOR PROCESSOR: OK provider=PostgreSql' .local/cpf-anchor-processor-evidence/pg-runtime.log
+      - name: Require complete fail-closed evidence
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, sys
+          root=pathlib.Path('.local/cpf-anchor-processor-evidence')
+          required=['commit.txt','restore.binlog','build.binlog','sql-install.result','pg-install.result','harness-build.binlog','sql-runtime.log','pg-runtime.log']
+          checks={name:(root/name).is_file() and (root/name).stat().st_size>0 for name in required}
+          checks['sql_marker']=checks.get('sql-runtime.log',False) and 'CPF ANCHOR PROCESSOR: OK provider=SqlServer' in (root/'sql-runtime.log').read_text(encoding='utf-8')
+          checks['pg_marker']=checks.get('pg-runtime.log',False) and 'CPF ANCHOR PROCESSOR: OK provider=PostgreSql' in (root/'pg-runtime.log').read_text(encoding='utf-8')
+          outcome='passed' if all(checks.values()) else 'failed'
+          summary={'schema_version':1,'commit':os.environ['GITHUB_SHA'],'outcome':outcome,'checks':checks,'invariants':['anchor_authoritative_before_identity_map','reappearance_recovers_same_uuid','map_anchor_divergence_fails_closed','rollback_leaves_no_anchor_person_or_map'],'probabilistic_linkage_activation':False}
+          (root/'summary.json').write_text(json.dumps(summary,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          print(json.dumps(summary,indent=2,ensure_ascii=False))
+          if outcome!='passed': sys.exit(1)
+          PY
+      - name: Upload CPF Processor evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cpf-anchor-processor-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/cpf-anchor-processor-evidence/
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: error
