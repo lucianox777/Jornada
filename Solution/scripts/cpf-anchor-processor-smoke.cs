@@ -124,8 +124,8 @@ await using(var connection=await database.OpenAsync())
 await using(var tx=await connection.BeginTransactionAsync(IsolationLevel.Serializable))
 {
     var closeSql=sqlServer
-        ? "UPDATE identidade.identity_map SET vigencia_fim=SYSDATETIMEOFFSET(),estado='INATIVO',estado_motivo='SMOKE_FECHAMENTO',estado_em=SYSDATETIMEOFFSET() WHERE tipo='CPF' AND identificador=@cpf AND vigencia_fim IS NULL;"
-        : "UPDATE identidade.identity_map SET vigencia_fim=CURRENT_TIMESTAMP,estado='INATIVO',estado_motivo='SMOKE_FECHAMENTO',estado_em=CURRENT_TIMESTAMP WHERE tipo='CPF' AND identificador=@cpf AND vigencia_fim IS NULL;";
+        ? "UPDATE identidade.identity_map SET vigencia_fim=SYSDATETIMEOFFSET(),estado='ENCERRADO',estado_motivo='SMOKE_FECHAMENTO',estado_em=SYSDATETIMEOFFSET() WHERE tipo='CPF' AND identificador=@cpf AND vigencia_fim IS NULL;"
+        : "UPDATE identidade.identity_map SET vigencia_fim=CURRENT_TIMESTAMP,estado='ENCERRADO',estado_motivo='SMOKE_FECHAMENTO',estado_em=CURRENT_TIMESTAMP WHERE tipo='CPF' AND identificador=@cpf AND vigencia_fim IS NULL;";
     await Execute(connection,tx,closeSql,("@cpf",DbType.AnsiStringFixedLength,cpf));
     var recovered=await Resolve(connection,tx,cpf);
     Check(recovered.Status==ResolutionStatus.RESOLVIDO && recovered.PessoaUuid==permanent,"Reaparição não recuperou UUID da âncora.");
