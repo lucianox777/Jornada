@@ -1,51 +1,65 @@
-# ADR — Identidade progressiva e resolução automática
+# Identidade progressiva — decisão arquitetural e semântica V1
 
-Estado: decisão conceitual aprovada em 2026-09-07; implantação operacional por etapas. Esta ADR complementa a especificação existente e substitui, para a evolução futura, a premissa de que a ausência de CPF impede a criação de identidade. Não declara que o novo comportamento já esteja implantado.
+Estado: decisão conceitual aprovada e implementação estrutural em andamento. Este documento é a referência normativa da identidade progressiva da Jornada. Como a solução ainda não foi publicada, o vocabulário abaixo é nativo da V1; não existe versão pública anterior a ser preservada.
 
 ## Decisão
 
-A Jornada atribuirá um UUID inicial a cada identidade de origem admitida, inclusive sem CPF, de modo idempotente e independente do resultado probabilístico. Esse UUID representa uma hipótese de pessoa, não uma prova de unicidade municipal. A mesma chave estável `(sistema_origem_id, codigo_pessoa_origem)` deve recuperar a mesma referência inicial em retransmissões e versões posteriores. O UUID não será derivado de CPF, nome, nascimento ou outros atributos pessoais. Criação e vinculação à origem devem ocorrer em transação, com unicidade no banco e proteção contra concorrência. O UUID de uma observação versionada não substitui a identidade de origem.
+A Jornada atribui um UUID inicial a cada identidade de origem admitida, inclusive sem CPF, de modo idempotente e independente de resultado probabilístico. Esse UUID representa uma referência técnica estável da origem, não prova de unicidade municipal. A mesma chave `(sistema_origem_id, codigo_pessoa_origem)` recupera a mesma referência inicial em retransmissões e versões posteriores. O UUID não é derivado de CPF, nome, nascimento ou outros atributos pessoais.
 
-A identidade terá somente três estados públicos de resolução:
+Criação e vinculação à origem ocorrem em transação, com unicidade no banco e proteção contra concorrência. O UUID inicial nunca é reciclado ou transferido. Uma observação versionada não cria uma nova identidade de origem.
+
+A identidade progressiva possui exatamente três estados públicos:
 
 | Estado | Significado |
 |---|---|
-| `PROVISORIA` | UUID inicial criado; a resolução ainda não executou para essa identidade. |
-| `RESOLVIDA` | Uma execução concluiu uma associação sustentada ou manteve uma identidade nova após busca completa, dentro do universo e da política declarados. |
-| `INDEFINIDA` | A resolução executou, mas não pôde estabelecer uma associação suficientemente segura. Nenhum destino é escolhido por conveniência. |
+| `PROVISORIA` | UUID inicial criado; ainda não existe referência canônica publicada para a origem. |
+| `REFERENCIA` | Existe uma referência canônica estabelecida segundo a política e as evidências declaradas. Não significa certeza absoluta de identidade civil, titularidade de todos os registros ou autorização irrestrita de compartilhamento. |
+| `INDEFINIDA` | Uma execução completa não pôde estabelecer referência canônica suficientemente segura. Nenhum destino é escolhido por conveniência. |
 
-Esses estados não são níveis de qualidade do CPF nem garantias de verdade definitiva. `RESOLVIDA` é uma conclusão relativa às evidências e versões disponíveis. `INDEFINIDA` não é erro de processamento, conflito documental obrigatório ou fila de aprovação humana. `PROVISORIA` não é usada para indicar que uma identidade já resolvida está sendo reavaliada. Durante reavaliação, a última conclusão permanece identificável até a publicação atômica do novo resultado. Erros, retries e leases pertencem ao processamento técnico, sem criar uma quarta classificação de Pessoa.
+`REFERENCIA` substitui conceitualmente o termo “resolvida” para o **estado da identidade progressiva**. A palavra “resolução” continua válida para o processo técnico que avalia evidências e produz uma decisão. Da mesma forma, `RESOLVIDO` continua válido em `identidade.vinculo_fonte`, onde significa que uma observação possui atribuição corrente. Esses conceitos não devem ser unificados por substituição textual global.
 
-CPF válido e confiável mantém a rota determinística prioritária e suas travas de consistência. CPF ausente, inválido ou não confiável não impede o UUID inicial. Não se aceita CPF inválido como prova determinística, nem se converte automaticamente uma contradição documental em autorização probabilística. O CPF pode participar da evidência probabilística conforme política validada, mas não é um campo comum cujo peso substitua proveniência e qualidade. Rótulos de treinamento não podem ser definidos circularmente pelo próprio atributo que se pretende calibrar.
+Os estados progressivos não são níveis de qualidade do CPF, nem estados de fatos, vínculos ou `identidade.pessoa`. `PROVISORIA` não é reutilizada durante reavaliação: a última referência publicada permanece identificável até a publicação atômica de um novo resultado. Erros, retries, leases e falhas de processamento não criam uma quarta classificação.
+
+## CPF e referência permanente
+
+CPF válido, confiável e admitido mantém a rota determinística prioritária. A âncora CPF→UUID é permanente: não é transferida, reciclada ou substituída por decisão probabilística. A existência de uma âncora não prova que todos os registros associados pertençam ao titular. Uma atribuição incorreta é corrigida nos vínculos e fatos, preservando histórico e a âncora.
+
+CPF ausente, inválido ou não confiável não impede a criação do UUID inicial. CPF inválido não é usado como prova determinística nem transforma automaticamente uma contradição documental em autorização probabilística. O Linkage pode, quando futuramente homologado, associar uma origem sem CPF a uma referência existente, mas não pode fundir automaticamente âncoras de CPFs distintos.
 
 ## Resultados e completude
 
-Após execução completa, a resolução pode manter uma nova identidade, associar a uma existente ou permanecer indefinida. Nenhum candidato suficientemente compatível após busca completa permite manter o UUID inicial como `RESOLVIDA`, sem afirmar inexistência absoluta de duplicatas fora do universo observado. Evidência insuficiente, ambiguidade ou contradição não resolvida produz `INDEFINIDA`, preservando a referência e os registros originais para novas avaliações. Esses resultados são eventos, não classificações adicionais.
+Uma execução completa de resolução pode produzir `NOVA_IDENTIDADE`, `ASSOCIACAO_EXISTENTE` ou `INDEFINIDA`. Esses são resultados de execução, não estados adicionais da Pessoa.
 
-Não se permite transformar limite excedido, consulta incompleta, falha de banco ou corpus truncado em conjunto vazio. Uma execução incompleta não pode publicar conclusão de resolução: deve seguir o mecanismo técnico de retry/falha. A completude institucional e a validade da política devem ser atestadas externamente; um campo booleano ou fingerprint não comprova isso sozinho. A ausência de candidato é relativa ao universo pesquisado e não presume recall perfeito do blocking.
+Quando uma busca completa não encontra candidato suficientemente compatível, a referência canônica pode permanecer no UUID inicial e o estado passa a `REFERENCIA`. Isso não afirma inexistência absoluta de duplicata fora do universo observado. Evidência insuficiente, ambiguidade ou contradição não resolvida produz `INDEFINIDA`.
+
+Limite excedido, consulta incompleta, falha de banco ou corpus truncado não podem ser tratados como conjunto vazio. Execução incompleta não publica referência: segue o mecanismo técnico de retry/falha. A completude do universo e a validade da política precisam ser comprovadas externamente; um booleano ou fingerprint não é prova por si só.
 
 ## UUIDs, composição e reversibilidade
 
-O UUID inicial e a atribuição canônica corrente são conceitos distintos. O primeiro nunca é reciclado nem reassociado silenciosamente a outra pessoa. A atribuição pode evoluir mediante evidência, com referências históricas versionadas. Fusões não apagam UUIDs nem registros originais. Devem registrar participantes, composição anterior, destino, evidências, versão da política/modelo e evento de decisão. A aplicação precisa atualizar vínculos e projeções afetados atomicamente, recompor Gold/Serving e invalidar derivados dependentes.
+`initial_uuid` e `canonical_uuid` são conceitos distintos. O primeiro é imutável. O segundo representa a referência canônica corrente e pode evoluir mediante decisão versionada, evidência e recomposição explícita.
 
-Separações devem identificar o pertencimento de cada observação/registro, preservar referências antigas e produzir sucessores rastreáveis. Um UUID histórico dividido em dois sucessores não pode ser resolvido escolhendo arbitrariamente um deles. Sem sucessor unívoco, a API de resolução histórica deve informar ambiguidade, não devolver um UUID incorreto. A política de sobrevivência e aliases será fechada e testada antes de habilitar fusões automáticas.
+Fusões não apagam UUIDs nem registros originais. Separações preservam referências antigas e produzem sucessores rastreáveis. Um UUID histórico dividido em dois sucessores não pode ser redirecionado arbitrariamente para um deles. Sem sucessor unívoco, a resolução histórica deve informar ambiguidade.
 
-A automação não autoriza toda fusão. Somente políticas e modelos aprovados, com evidência suficiente e capacidade de recomposição, podem alterar composição. Decisões devem ser idempotentes, versionadas e protegidas contra concorrência e escrita obsoleta. Reavaliação não apaga decisões anteriores nem converte implicitamente fusão em separação. Uma decisão indefinida pode suspender uma atribuição canônica insegura, mas não deve destruir histórico nem executar separação incompleta. Retorno ao UUID inicial após associação externa exige evento explícito de recomposição, ainda que automático.
+Uma associação externa anterior não pode ser desfeita implicitamente por ausência de candidatos. Retorno ao UUID inicial exige recomposição explícita. Decisões são idempotentes, versionadas e protegidas contra escrita obsoleta e concorrência.
 
-## Fatos e consultas
+## Fatos e atribuição
 
-A validade de atendimento ou benefício independe da identidade consolidada. A Gold factual continua preservando fatos válidos mesmo com resolução incompleta. O vínculo com UUID inicial não significa identidade municipal confirmada. O estado de resolução da identidade e o estado de atribuição de cada fato são dimensões distintas e não serão fundidos em um enum. A proveniência e as versões do fato permanecem preservadas.
+A validade de atendimento ou benefício independe da consolidação da identidade. Fatos válidos permanecem disponíveis mesmo com identidade `PROVISORIA` ou `INDEFINIDA`. O estado da identidade e o estado de atribuição de cada fato são dimensões diferentes.
 
-Consultas devem informar a semântica da referência e seu estado sem ampliar automaticamente o compartilhamento de dados sensíveis. Identidades provisórias ou indefinidas não autorizam agregar registros de outras origens somente por semelhança. GETs existentes exigem compatibilidade e versionamento; não se altera silenciosamente a semântica de `pessoa_uuid`. Referências históricas divididas não devem redirecionar dados para uma pessoa arbitrária. BI deve distinguir identidades iniciais de identidades canônicas resolvidas, evitando dupla contagem de aliases; agregados factuais não podem perder ocorrências por causa da resolução.
+Os estados factuais `ATRIBUIDA`, `PENDENTE_IDENTIDADE` e `CONFLITO_IDENTIDADE` continuam próprios dos fatos. Uma Pessoa pode possuir `REFERENCIA` e ainda assim determinado registro estar em conflito ou sem atribuição. O vínculo com UUID inicial não significa identidade civil confirmada e não amplia automaticamente acesso entre origens.
 
-## Migração e limites
+## Persistência e operação V1
 
-Esta decisão não revoga imediatamente os estados e constraints atuais de `identidade.vinculo_fonte`, `identidade.pessoa`, Gold ou Serving. A migração será aditiva e versionada, com backfill baseado em evidências, sem fabricar execução de Linkage ou transformar todos os vínculos pendentes em resolvidos. Estados históricos de CPF, vínculo e fato permanecem separados. Não se renomeiam enums por substituição textual global.
+`identidade.pessoa_origem_progressiva` mantém uma linha por `silver.pessoa_origem`, com `initial_uuid` único, `canonical_uuid` opcional, referência legada, estado, versão e timestamps. `identidade.pessoa_origem_progressiva_evento` é append-only e exige recibo correspondente para avanço de versão.
 
-A implantação será dividida em contrato/ADR/inventário; persistência do UUID inicial e estado versionado em ambos os providers; integração transacional do Processor; executor de resolução com modelo congelado aprovado; continuidade de UUID, fusão/separação reversível, APIs e BI; e homologação representativa antes da ativação real. Cada etapa manterá compatibilidade até aprovação dos respectivos testes.
+A instalação V1 de SQL Server e PostgreSQL usa diretamente `PROVISORIA`, `REFERENCIA` e `INDEFINIDA`. Não existe migração pública `RESOLVIDA→REFERENCIA`, alias de enum ou compatibilidade de leitura para uma versão nunca publicada.
 
-Os PRs #33 e #34 permanecem úteis como infraestrutura diagnóstica de amostragem e estimação ponderada. Não autorizam novos thresholds, fusões ou modelos reais. A issue #31 permanece aberta para rótulos independentes, representatividade, dependências multievidência, variância, avaliação e aprovação estatística. Não se cria módulo de Regularização Cadastral nem fila obrigatória de operadores. Correções dos dados de origem e conferência documental permanecem responsabilidade das finalísticas; novas evidências voltam pela integração. SQL Server permanece baseline canônico, PostgreSQL provider operacional paralelo e Fabric camada analítica.
+O backfill de origens é paginado, reentrante e separado da instalação. O cutover operacional falha fechado enquanto houver origem histórica sem `initial_uuid`. Depois do backlog zero, um novo `vinculo_fonte` assegura a referência inicial na mesma transação do Processor. Rollback do lote não pode deixar Pessoa ou referência progressiva órfã.
 
-## Primeira implementação
+A criação do UUID inicial já está integrada ao caminho transacional do Processor. Isso não publica decisão probabilística nem altera Gold/Serving por si só. A próxima integração funcional relevante é usar a âncora CPF permanente de forma universal nos escritores e nas correções governadas.
 
-`ProgressiveIdentityLifecycle` implementa somente o contrato puro de criação e conclusão, com versionamento, recibo idempotente e proteção contra separação implícita. Não persiste, não executa score, não cria aliases, não altera fatos, não realiza fusões/separações e não está registrado no Processor. A associação produzida pelo núcleo ainda precisa ser aplicada pelo futuro executor transacional. O código não comprova autenticidade de evidências, completude institucional ou homologação estatística. A integração deste contrato não ativa o novo comportamento operacional.
+## Limites de ativação
+
+A infraestrutura de amostragem, calibração, scoring e diagnóstico continua sem autorização para ativação probabilística real. A issue #31 permanece o gate independente para corpus representativo, rótulos independentes, recall, calibração, falsos vínculos, subgrupos, variância e aprovação estatística.
+
+Não se cria módulo de Regularização Cadastral nem fila obrigatória de operadores. Correções dos dados de origem e conferência documental continuam responsabilidade das áreas finalísticas; novas evidências retornam pela integração. SQL Server permanece baseline canônico, PostgreSQL provider operacional paralelo e Fabric camada analítica.
