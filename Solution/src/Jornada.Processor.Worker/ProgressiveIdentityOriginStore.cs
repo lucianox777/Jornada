@@ -56,7 +56,7 @@ public sealed class ProgressiveIdentityOriginStore
         DbConnection connection, DbTransaction tx, long sourceId, CancellationToken ct = default)
     {
         ValidateTransaction(connection, tx);
-        if (sourceId<=0) throw new ArgumentOutOfRangeException(nameof(sourceId));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceId);
         await using var command = connection.CreateCommand();
         command.Transaction = tx;
         command.CommandText = postgres
@@ -81,7 +81,7 @@ public sealed class ProgressiveIdentityOriginStore
 
     public async Task<ProgressiveOriginRegistration?> ReadAsync(long sourceId, CancellationToken ct = default)
     {
-        if (sourceId<=0) throw new ArgumentOutOfRangeException(nameof(sourceId));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceId);
         await using var connection = await database.OpenAsync(ct);
         return await ReadInTransactionAsync(connection, null, sourceId, ct);
     }
