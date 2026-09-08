@@ -30,15 +30,19 @@ public sealed class SqlProgressiveOriginQueryService(IOperationalSqlAdapter conn
         await using var command = connection.CreateCommand();
         // A restrição de proprietário é aplicada no SQL, não apenas na borda.
         // O namespace da origem e o Gestor autenticado são partes obrigatórias da seleção.
-        // Comparações binárias impedem que uma chave semelhante seja confundida com outra.
+        // Comparações binárias e DATALENGTH impedem equivalência por case, acento ou
+        // preenchimento de espaços finais, que SQL Server ignora mesmo com BIN2.
         command.CommandText = """
             SELECT p.sistema_origem_codigo,p.codigo_pessoa_origem,
                    p.initial_uuid,p.canonical_uuid,p.estado,p.versao,
                    p.criado_em,p.atualizado_em,p.ultima_resolucao_em
               FROM serving.v_identidade_origem_progressiva p
              WHERE p.gestor_codigo COLLATE Latin1_General_100_BIN2=@gestor
+               AND DATALENGTH(p.gestor_codigo)=DATALENGTH(@gestor)
                AND p.sistema_origem_codigo COLLATE Latin1_General_100_BIN2=@sistema
-               AND p.codigo_pessoa_origem COLLATE Latin1_General_100_BIN2=@codigo;
+               AND DATALENGTH(p.sistema_origem_codigo)=DATALENGTH(@sistema)
+               AND p.codigo_pessoa_origem COLLATE Latin1_General_100_BIN2=@codigo
+               AND DATALENGTH(p.codigo_pessoa_origem)=DATALENGTH(@codigo);
             """;
         command.Parameters.Add(new SqlParameter("@gestor", SqlDbType.NVarChar, 80) { Value = context.GestorCodigo });
         command.Parameters.Add(new SqlParameter("@sistema", SqlDbType.NVarChar, 80) { Value = request.CodigoSistemaOrigem });
@@ -51,8 +55,8 @@ public sealed class SqlProgressiveOriginQueryService(IOperationalSqlAdapter conn
         var result = new ProgressiveOriginQueryResponse(
             reader.GetString(0), reader.GetString(1), reader.GetGuid(2),
             reader.IsDBNull(3) ? null : reader.GetGuid(3), estado, reader.GetInt64(5),
-            reader.GetDateTimeOffset(6), reader.GetDateTimeOffset(7),
-            reader.IsDBNull(8) ? null : reader.GetDateTimeOffset(8));
+            reader.GetDateTimeOffset(6).ToUniversalTime(), reader.GetDateTimeOffset(7).ToUniversalTime(),
+            reader.IsDBNull(8) ? null : reader.GetDateTimeOffset(8).ToUniversalTime());
         ProgressiveOriginApi.ValidateSnapshot(result);
         if (await reader.ReadAsync(ct))
             throw new InvalidOperationException("Identidade de origem duplicada.");
