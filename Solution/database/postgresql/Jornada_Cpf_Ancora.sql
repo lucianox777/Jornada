@@ -1,4 +1,4 @@
--- Âncora CPF imutável, migração opt-in. Exige a base PostgreSQL operacional instalada.
+-- Âncora CPF imutável: componente obrigatório da V1. Exige a base PostgreSQL operacional instalada antes do Worker.
 CREATE OR REPLACE FUNCTION identidade.fn_cpf_ancora_valido(p_cpf TEXT)
 RETURNS BOOLEAN LANGUAGE plpgsql IMMUTABLE STRICT AS $$
 DECLARE i INTEGER; s INTEGER; d INTEGER; expected INTEGER;
