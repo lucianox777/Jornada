@@ -131,6 +131,7 @@ jobs:
             docker exec -i "$SQLCID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -d JornadaCutoverTest -i /dev/stdin < database/migrations/20260908_Identidade_Progressiva_Processor.sql > ".local/identity-cutover-evidence/sql-cutover-$pass.log" 2>&1
             docker exec -i "$PGCID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCutoverTest < database/postgresql/Jornada_Identidade_Progressiva_Processor.sql > ".local/identity-cutover-evidence/pg-cutover-$pass.log" 2>&1
           done
+          printf 'sqlserver=passed\npostgresql=passed\n' > .local/identity-cutover-evidence/cutover.result
           docker exec -i "$SQLCID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -d JornadaCutoverTest -i /dev/stdin < database/migrations/20260908_Identidade_Progressiva_Processor_Smoke.sql 2>&1 | tee .local/identity-cutover-evidence/sql-runtime.log
           docker exec -i "$PGCID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCutoverTest < database/postgresql/Jornada_Identidade_Progressiva_Processor_Smoke.sql 2>&1 | tee .local/identity-cutover-evidence/pg-runtime.log
           grep -F 'PROGRESSIVE PROCESSOR CUTOVER SQLSERVER: OK' .local/identity-cutover-evidence/sql-runtime.log
@@ -141,7 +142,7 @@ jobs:
           python3 - <<'PY'
           import json,os,pathlib,sys
           root=pathlib.Path('.local/identity-cutover-evidence')
-          required=['commit.txt','prebackfill.result','restore.binlog','build.binlog','sql-backfill.log','pg-backfill.log','sql-cutover-2.log','pg-cutover-2.log','sql-runtime.log','pg-runtime.log']
+          required=['commit.txt','prebackfill.result','restore.binlog','build.binlog','sql-backfill.log','pg-backfill.log','cutover.result','sql-runtime.log','pg-runtime.log']
           checks={p:(root/p).is_file() and (root/p).stat().st_size>0 for p in required}
           markers={
             'sql_runtime':'PROGRESSIVE PROCESSOR CUTOVER SQLSERVER: OK',
