@@ -131,11 +131,11 @@ public sealed class ProgressiveIdentityTests
     }
 
     [Test]
-    public void ReferenceStatusIsNotALegacyResolutionOrAnOutcome()
+    public void V1PublishesOnlyTheThreeReferenceStates()
     {
         Assert.That(Enum.GetNames<ProgressiveIdentityStatus>(), Is.EquivalentTo(new[] { "PROVISORIA", "REFERENCIA", "INDEFINIDA" }));
         Assert.That(Enum.GetNames<ProgressiveResolutionOutcome>(), Is.EquivalentTo(new[] { "NOVA_IDENTIDADE", "ASSOCIACAO_EXISTENTE", "INDEFINIDA" }));
-        Assert.That(ProgressiveIdentityLifecycle.Version, Is.EqualTo("PROGRESSIVE_IDENTITY_V2"));
+        Assert.That(ProgressiveIdentityLifecycle.Version, Is.EqualTo("PROGRESSIVE_IDENTITY_V1"));
     }
 
     private static ProgressiveIdentityDecision Decision(ProgressiveIdentitySnapshot state,
