@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Jornada.Contracts;
 
 /// <summary>Consulta da identidade técnica de uma origem, sem executar resolução.</summary>
@@ -15,7 +17,7 @@ public sealed record ProgressiveOriginQueryResponse(
     string CodigoPessoaOrigem,
     Guid InitialUuid,
     Guid? CanonicalUuid,
-    ProgressiveIdentityStatus Estado,
+    [property: JsonConverter(typeof(JsonStringEnumConverter))] ProgressiveIdentityStatus Estado,
     long Versao,
     DateTimeOffset CriadoEm,
     DateTimeOffset AtualizadoEm,
