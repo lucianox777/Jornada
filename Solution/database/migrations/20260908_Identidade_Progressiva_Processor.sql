@@ -1,5 +1,5 @@
 -- Cutover operacional do initial_uuid no Processor (SQL Server).
--- Pré-requisito: Jornada_Identidade_Progressiva.sql aplicado.
+-- Pré-requisito: Jornada_Identidade_Progressiva.sql aplicado e backfill paginado concluído.
 -- Não ativa Linkage probabilístico e não altera a atribuição canônica do vínculo.
 SET XACT_ABORT ON;
 GO
@@ -8,35 +8,18 @@ IF OBJECT_ID('identidade.pessoa_origem_progressiva','U') IS NULL
    OR OBJECT_ID('identidade.sp_assegurar_origem_progressiva','P') IS NULL
     THROW 51130,'Persistência progressiva V1 não instalada; cutover recusado.',1;
 GO
-BEGIN TRANSACTION;
 
--- Fecha o universo existente antes de ativar o gatilho para novas observações.
--- O procedimento é idempotente e mantém eventual UUID inicial já persistido.
-DECLARE @pessoa_origem_id BIGINT;
-DECLARE @resultado TABLE(
-    initial_uuid UNIQUEIDENTIFIER NOT NULL,
-    legacy_pessoa_uuid UNIQUEIDENTIFIER NULL,
-    estado VARCHAR(20) NOT NULL,
-    versao BIGINT NOT NULL
-);
-DECLARE progressiva_backfill CURSOR LOCAL FAST_FORWARD FOR
-    SELECT o.pessoa_origem_id
+-- O backfill histórico é deliberadamente paginado/retomável pelo ProgressiveIdentityOriginStore.
+-- Não varremos toda a população dentro desta migração: isso criaria uma transação longa e
+-- imprópria para uma base municipal. O cutover só pode avançar quando o universo histórico
+-- estiver completamente coberto.
+IF EXISTS(
+    SELECT 1
       FROM silver.pessoa_origem o
       LEFT JOIN identidade.pessoa_origem_progressiva p
         ON p.pessoa_origem_id=o.pessoa_origem_id
-     WHERE p.pessoa_origem_id IS NULL
-     ORDER BY o.pessoa_origem_id;
-OPEN progressiva_backfill;
-FETCH NEXT FROM progressiva_backfill INTO @pessoa_origem_id;
-WHILE @@FETCH_STATUS=0
-BEGIN
-    DELETE FROM @resultado;
-    INSERT INTO @resultado(initial_uuid,legacy_pessoa_uuid,estado,versao)
-        EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@pessoa_origem_id;
-    FETCH NEXT FROM progressiva_backfill INTO @pessoa_origem_id;
-END;
-CLOSE progressiva_backfill;
-DEALLOCATE progressiva_backfill;
+     WHERE p.pessoa_origem_id IS NULL)
+    THROW 51131,'Cutover recusado: conclua o backfill paginado de initial_uuid antes de ativar o Processor.',1;
 GO
 
 -- O Processor insere vinculo_fonte sem OUTPUT. Esse é o primeiro ponto seguro, dentro
@@ -79,18 +62,4 @@ BEGIN
     CLOSE progressiva_novos;
     DEALLOCATE progressiva_novos;
 END;
-GO
-
-IF EXISTS(
-    SELECT 1
-      FROM silver.pessoa_origem o
-      LEFT JOIN identidade.pessoa_origem_progressiva p
-        ON p.pessoa_origem_id=o.pessoa_origem_id
-     WHERE p.pessoa_origem_id IS NULL)
-BEGIN
-    IF @@TRANCOUNT>0 ROLLBACK TRANSACTION;
-    THROW 51131,'Cutover recusado: existem origens Silver sem initial_uuid.',1;
-END;
-
-COMMIT TRANSACTION;
 GO
