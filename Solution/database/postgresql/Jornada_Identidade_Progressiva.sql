@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS identidade.pessoa_origem_progressiva(
  atualizado_em TIMESTAMPTZ NOT NULL,
  CONSTRAINT ck_progressiva_estado CHECK(
   (versao=0 AND estado='PROVISORIA' AND canonical_uuid IS NULL AND ultima_resolucao_em IS NULL AND ultimo_destino_externo_uuid IS NULL)
-  OR (versao>0 AND ((estado='RESOLVIDA' AND canonical_uuid IS NOT NULL) OR (estado='INDEFINIDA' AND canonical_uuid IS NULL)) AND ultima_resolucao_em IS NOT NULL)),
+  OR (versao>0 AND ((estado='REFERENCIA' AND canonical_uuid IS NOT NULL) OR (estado='INDEFINIDA' AND canonical_uuid IS NULL)) AND ultima_resolucao_em IS NOT NULL)),
  CONSTRAINT ck_progressiva_externo CHECK(ultimo_destino_externo_uuid IS NULL OR ultimo_destino_externo_uuid<>initial_uuid AND (canonical_uuid IS NULL OR canonical_uuid=ultimo_destino_externo_uuid)),
  CONSTRAINT ck_progressiva_datas CHECK(atualizado_em>=criado_em AND (ultima_resolucao_em IS NULL OR ultima_resolucao_em>=criado_em))
 );
@@ -36,13 +36,13 @@ CREATE TABLE IF NOT EXISTS identidade.pessoa_origem_progressiva_evento(
  ocorrido_em TIMESTAMPTZ NOT NULL,
  CONSTRAINT uq_progressiva_evento_versao UNIQUE(pessoa_origem_id,versao),
  CONSTRAINT ck_progressiva_evento_tipo CHECK(tipo IN('CRIACAO','RESOLUCAO')),
- CONSTRAINT ck_progressiva_evento_estado CHECK(estado IN('PROVISORIA','RESOLVIDA','INDEFINIDA')),
+ CONSTRAINT ck_progressiva_evento_estado CHECK(estado IN('PROVISORIA','REFERENCIA','INDEFINIDA')),
  CONSTRAINT ck_progressiva_evento_criacao CHECK(
   (tipo='CRIACAO' AND versao=0 AND estado='PROVISORIA' AND canonical_uuid IS NULL AND expected_version IS NULL AND resultado IS NULL AND target_uuid IS NULL AND evidencia_referencia IS NULL AND politica_versao IS NULL AND modelo_versao IS NULL AND universo_referencia IS NULL AND completo IS NULL)
   OR (tipo='RESOLUCAO' AND versao>0 AND expected_version=versao-1 AND completo=TRUE AND evidencia_referencia IS NOT NULL AND politica_versao IS NOT NULL AND resultado IN('NOVA_IDENTIDADE','ASSOCIACAO_EXISTENTE','INDEFINIDA') AND
    ((resultado='INDEFINIDA' AND estado='INDEFINIDA' AND canonical_uuid IS NULL AND target_uuid IS NULL) OR
-    (resultado='NOVA_IDENTIDADE' AND estado='RESOLVIDA' AND canonical_uuid IS NOT NULL AND target_uuid IS NULL AND universo_referencia IS NOT NULL) OR
-    (resultado='ASSOCIACAO_EXISTENTE' AND estado='RESOLVIDA' AND canonical_uuid=target_uuid AND canonical_uuid IS NOT NULL AND target_uuid IS NOT NULL))))
+    (resultado='NOVA_IDENTIDADE' AND estado='REFERENCIA' AND canonical_uuid IS NOT NULL AND target_uuid IS NULL AND universo_referencia IS NOT NULL) OR
+    (resultado='ASSOCIACAO_EXISTENTE' AND estado='REFERENCIA' AND canonical_uuid=target_uuid AND canonical_uuid IS NOT NULL AND target_uuid IS NOT NULL))))
 );
 CREATE OR REPLACE FUNCTION identidade.fn_progressiva_origem_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
@@ -59,7 +59,7 @@ BEGIN
  IF NEW.versao<OLD.versao OR NEW.versao>OLD.versao+1 OR
     (NEW.versao=OLD.versao AND (NEW.estado,NEW.canonical_uuid,NEW.ultima_resolucao_em,NEW.ultimo_destino_externo_uuid)
       IS DISTINCT FROM (OLD.estado,OLD.canonical_uuid,OLD.ultima_resolucao_em,OLD.ultimo_destino_externo_uuid)) THEN
-  RAISE EXCEPTION 'Alteração de resolução exige avanço de uma versão.';
+  RAISE EXCEPTION 'Alteração de referência exige avanço de uma versão.';
  END IF;
  IF NEW.versao<>OLD.versao AND NOT EXISTS(
   SELECT 1 FROM identidade.pessoa_origem_progressiva_evento e
@@ -101,7 +101,8 @@ BEGIN
  IF FOUND THEN RETURN v_uuid; END IF;
  v_uuid:=gen_random_uuid();
  v_now:=CURRENT_TIMESTAMP;
- -- Última versão, não o último vínculo resolvido de alguma versão antiga.
+ -- Última versão, não o último vínculo RESOLVIDO de alguma versão antiga.
+ -- RESOLVIDO é o estado operacional de vinculo_fonte, não estado progressivo.
  SELECT v.pessoa_uuid INTO v_legacy
  FROM silver.pessoa_observacao o
  LEFT JOIN identidade.vinculo_fonte v ON v.pessoa_observacao_id=o.pessoa_observacao_id AND v.ativo AND v.status='RESOLVIDO'
