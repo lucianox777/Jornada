@@ -2,98 +2,157 @@ name: jornada-cpf-anchor
 on:
   pull_request:
     paths:
+      - 'Solution/database/migrations/20260907_Cpf_Ancora.sql'
+      - 'Solution/database/postgresql/Jornada_Cpf_Ancora.sql'
+      - 'Solution/scripts/cpf-anchor-smoke.cs'
+      - 'Solution/docs/ADR_CPF_Ancora_Imutavel.md'
+      - 'Solution/config/security/source-sanity-policy.json'
+      - '.github/workflows/cpf-anchor.yml'
+  push:
+    paths:
+      - 'Solution/database/migrations/20260907_Cpf_Ancora.sql'
+      - 'Solution/database/postgresql/Jornada_Cpf_Ancora.sql'
+      - 'Solution/scripts/cpf-anchor-smoke.cs'
+      - 'Solution/docs/ADR_CPF_Ancora_Imutavel.md'
+      - 'Solution/config/security/source-sanity-policy.json'
       - '.github/workflows/cpf-anchor.yml'
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
-  patch-legacy-atomicity-test:
+  cpf-anchor:
     runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: Solution
+        shell: bash
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: 'Jornada_Test_2026!Sql'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 20
+      postgres:
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        env:
+          POSTGRES_USER: jornada
+          POSTGRES_DB: JornadaCpfAnchorTest
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jornada -d JornadaCpfAnchorTest"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      # Container efêmero de CI: canal cifrado; certificado autoassinado aceito somente pela allowlist CI sintética.
+      JORNADA_TEST_SQL_CONNECTION: 'Server=localhost,1433;Database=JornadaCpfAnchorTest;User Id=sa;Password=Jornada_Test_2026!Sql;Encrypt=True;TrustServerCertificate=true'
+      JORNADA_POSTGRESQL_CONNECTION: 'Host=localhost;Port=5432;Database=JornadaCpfAnchorTest;Username=jornada;SSL Mode=Disable'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: work/cpf-anchor-governed-correction
-          persist-credentials: true
-      - name: Preserve permanent CPF anchor in legacy atomicity fixture
-        shell: bash
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.424'
+      - name: Record source and build
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('Solution/tests/Jornada.Integration.Tests/Integration/IdentityGovernanceTests.cs')
-          text = path.read_text(encoding='utf-8')
-
-          old = '''        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
-
-        const string cpf = "11144477735";
-        long mapId;
-'''
-          new = '''        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260907_Cpf_Ancora.sql"));
-
-        const string cpf = "11144477735";
-        long mapId;
-        Guid anchorUuid;
-'''
-          if text.count(old) != 1:
-              raise SystemExit(f'bootstrap alvo não único: {text.count(old)}')
-          text = text.replace(old, new, 1)
-
-          old = '''            map.CommandText = "SELECT TOP(1) identity_map_id,estado,estado_motivo,estado_em FROM identidade.identity_map WHERE tipo='CPF' AND identificador=@cpf AND vigencia_fim IS NULL;";
-            map.Parameters.AddWithValue("@cpf", cpf);
-            await using var reader = await map.ExecuteReaderAsync(); Assert.That(await reader.ReadAsync(), Is.True);
-            mapId = reader.GetInt64(0); originalState = reader.GetString(1);
-            originalReason = reader.IsDBNull(2) ? null : reader.GetString(2);
-            originalStateAt = reader.IsDBNull(3) ? null : reader.GetDateTimeOffset(3);
-'''
-          new = '''            map.CommandText = """
-                SELECT TOP(1) m.identity_map_id,m.estado,m.estado_motivo,m.estado_em,a.pessoa_uuid
-                FROM identidade.identity_map m
-                JOIN identidade.cpf_ancora a
-                  ON a.cpf=CONVERT(CHAR(11),m.identificador) COLLATE Latin1_General_100_BIN2
-                WHERE m.tipo='CPF' AND m.identificador=@cpf AND m.vigencia_fim IS NULL;
-                """;
-            map.Parameters.AddWithValue("@cpf", cpf);
-            await using var reader = await map.ExecuteReaderAsync(); Assert.That(await reader.ReadAsync(), Is.True);
-            mapId = reader.GetInt64(0); originalState = reader.GetString(1);
-            originalReason = reader.IsDBNull(2) ? null : reader.GetString(2);
-            originalStateAt = reader.IsDBNull(3) ? null : reader.GetDateTimeOffset(3);
-            anchorUuid = reader.GetGuid(4);
-'''
-          if text.count(old) != 1:
-              raise SystemExit(f'query mapa alvo não única: {text.count(old)}')
-          text = text.replace(old, new, 1)
-
-          old = '''        var groups = JsonSerializer.Serialize(new[] { new { grupoCodigo = "NOVO", pessoaUuidDestino = (Guid?)null, pessoaObservacaoIds = observations.ToArray() } });'''
-          new = '''        var groups = JsonSerializer.Serialize(new[] { new { grupoCodigo = "ANCORA", pessoaUuidDestino = (Guid?)anchorUuid, pessoaObservacaoIds = observations.ToArray() } });'''
-          if text.count(old) != 1:
-              raise SystemExit(f'grupo alvo não único: {text.count(old)}')
-          text = text.replace(old, new, 1)
-
-          old = '''            apply.Parameters.AddWithValue("@grupo_titular", "NOVO"); apply.Parameters.AddWithValue("@grupos_json", groups);'''
-          new = '''            apply.Parameters.AddWithValue("@grupo_titular", "ANCORA"); apply.Parameters.AddWithValue("@grupos_json", groups);'''
-          if text.count(old) != 1:
-              raise SystemExit(f'titular alvo não único: {text.count(old)}')
-          text = text.replace(old, new, 1)
-
-          old = '''                Assert.That(peopleAfter, Is.EqualTo(peopleBefore), "UUID novo criado antes da falha deve ser revertido.");'''
-          new = '''                Assert.That(peopleAfter, Is.EqualTo(peopleBefore), "Falha injetada não pode alterar o conjunto de Pessoas.");'''
-          if text.count(old) != 1:
-              raise SystemExit(f'assert alvo não único: {text.count(old)}')
-          text = text.replace(old, new, 1)
-
-          path.write_text(text, encoding='utf-8')
-          PY
+          mkdir -p .local/cpf-anchor-evidence
+          git rev-parse HEAD | tee .local/cpf-anchor-evidence/commit.txt
           git diff --check
-          git diff -- Solution/tests/Jornada.Integration.Tests/Integration/IdentityGovernanceTests.cs
-      - name: Commit patch
-        shell: bash
+          dotnet restore tests/Jornada.Tests/Jornada.Tests.csproj --locked-mode -v:normal -bl:.local/cpf-anchor-evidence/restore.binlog
+          dotnet build tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-restore -warnaserror -v:normal -bl:.local/cpf-anchor-evidence/build.binlog
+      - name: Install SQL Server baseline and anchor twice
         run: |
           set -euo pipefail
-          git config user.name 'jornada-ci'
-          git config user.email 'jornada-ci@users.noreply.github.com'
-          git add Solution/tests/Jornada.Integration.Tests/Integration/IdentityGovernanceTests.cs
-          git commit -m 'test: preservar âncora no cenário de atomicidade CPF'
-          git push origin HEAD:work/cpf-anchor-governed-correction
+          CID=$(docker ps -q --filter publish=1433 | head -1)
+          test -n "$CID"
+          sqlcmd() { docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b "$@"; }
+          sqlcmd -Q "IF DB_ID('JornadaCpfAnchorTest') IS NULL CREATE DATABASE JornadaCpfAnchorTest;"
+          sqlcmd -d JornadaCpfAnchorTest -i /dev/stdin < database/Jornada_Fase1.sql > .local/cpf-anchor-evidence/sql-base.log 2>&1
+          sqlcmd -d JornadaCpfAnchorTest -i /dev/stdin < database/Jornada_Seed_Dev.sql > .local/cpf-anchor-evidence/sql-seed.log 2>&1
+          for pass in 1 2; do
+            sqlcmd -d JornadaCpfAnchorTest -i /dev/stdin < database/migrations/20260907_Cpf_Ancora.sql > ".local/cpf-anchor-evidence/sql-anchor-$pass.log" 2>&1
+          done
+          echo passed > .local/cpf-anchor-evidence/sql-install.result
+      - name: Install PostgreSQL baseline and anchor twice
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=5432 | head -1)
+          test -n "$CID"
+          pgsql() { docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCpfAnchorTest "$@"; }
+          for pass in 1 2; do
+            pgsql < database/postgresql/Jornada_Resultado_Core.sql > ".local/cpf-anchor-evidence/pg-result-$pass.log" 2>&1
+            pgsql < database/postgresql/Jornada_Ingestion_Processor_Core.sql > ".local/cpf-anchor-evidence/pg-ingestion-$pass.log" 2>&1
+            pgsql < database/postgresql/Jornada_Processor_Persistence_Core.sql > ".local/cpf-anchor-evidence/pg-persistence-$pass.log" 2>&1
+          done
+          for pass in 1 2; do
+            pgsql < database/postgresql/Jornada_Cpf_Ancora.sql > ".local/cpf-anchor-evidence/pg-anchor-$pass.log" 2>&1
+          done
+          echo passed > .local/cpf-anchor-evidence/pg-install.result
+      - name: Build anchor smoke harness
+        run: |
+          set -euo pipefail
+          mkdir -p .local/cpf-anchor-harness
+          cat > .local/cpf-anchor-harness/CpfAnchorSmoke.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net8.0</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="../../src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj" />
+              <ProjectReference Include="../../src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj" />
+              <Compile Include="../../scripts/cpf-anchor-smoke.cs" Link="Program.cs" />
+            </ItemGroup>
+          </Project>
+          EOF
+          dotnet restore .local/cpf-anchor-harness/CpfAnchorSmoke.csproj -v:normal -bl:.local/cpf-anchor-evidence/harness-restore.binlog
+          dotnet build .local/cpf-anchor-harness/CpfAnchorSmoke.csproj -c Release --no-restore -warnaserror -v:normal -bl:.local/cpf-anchor-evidence/harness-build.binlog
+      - name: Prove SQL Server permanent CPF to UUID
+        run: |
+          set -euo pipefail
+          dotnet run --project .local/cpf-anchor-harness/CpfAnchorSmoke.csproj -c Release --no-build --no-restore -- SqlServer 2>&1 | tee .local/cpf-anchor-evidence/sql-runtime.log
+          grep -Fx 'CPF ANCHOR SMOKE: OK (6 rejeições, idempotência, órfão permanente e concorrência)' .local/cpf-anchor-evidence/sql-runtime.log
+      - name: Prove PostgreSQL permanent CPF to UUID
+        run: |
+          set -euo pipefail
+          dotnet run --project .local/cpf-anchor-harness/CpfAnchorSmoke.csproj -c Release --no-build --no-restore -- PostgreSql 2>&1 | tee .local/cpf-anchor-evidence/pg-runtime.log
+          grep -Fx 'CPF ANCHOR SMOKE: OK (6 rejeições, idempotência, órfão permanente e concorrência)' .local/cpf-anchor-evidence/pg-runtime.log
+      - name: Require complete evidence
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, sys
+          root=pathlib.Path('.local/cpf-anchor-evidence')
+          required=['commit.txt','restore.binlog','build.binlog','sql-install.result','pg-install.result','harness-build.binlog','sql-runtime.log','pg-runtime.log']
+          checks={name:(root/name).is_file() and (root/name).stat().st_size>0 for name in required}
+          marker='CPF ANCHOR SMOKE: OK (6 rejeições, idempotência, órfão permanente e concorrência)'
+          for name in ['sql-runtime.log','pg-runtime.log']:
+              checks[name+'_passed']=(root/name).is_file() and marker in (root/name).read_text(encoding='utf-8')
+          outcome='passed' if all(checks.values()) else 'failed'
+          summary={'schema_version':1,'commit':os.environ['GITHUB_SHA'],'outcome':outcome,'checks':checks,'invariant':'same_valid_cpf_always_returns_same_uuid_even_without_active_records','operational_activation':False}
+          (root/'summary.json').write_text(json.dumps(summary,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
+          print(json.dumps(summary,indent=2,ensure_ascii=False))
+          if outcome!='passed': sys.exit(1)
+          PY
+      - name: Upload anchor evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cpf-anchor-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/cpf-anchor-evidence/
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: error
