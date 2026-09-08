@@ -4,6 +4,7 @@ using System.Text.Json;
 using Jornada.Api;
 using Jornada.Contracts;
 using Jornada.Bronze.Storage;
+using Jornada.Operational.Sql;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -63,6 +64,16 @@ public sealed class ProgressiveOriginApiTests
         Assert.That(json, Does.Not.Contain("\"estado\":0"));
     }
 
+    [Test]
+    public void Sql_service_rejects_missing_scope_and_type_before_opening_connection()
+    {
+        var service = new SqlProgressiveOriginQueryService(new OperationalSqlAdapter("Server=localhost;Database=JornadaTest;Integrated Security=true;TrustServerCertificate=true"));
+        var gestor = new AccessContext(Guid.NewGuid(), AccessCredentialType.GESTOR, "SMADS", "SMADS", null, [], []);
+        var type = gestor with { CredentialType = AccessCredentialType.BENEFICIO, Scopes = [ProgressiveOriginApi.Permission] };
+        Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await service.GetAsync(gestor, Query, CancellationToken.None));
+        Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await service.GetAsync(type, Query, CancellationToken.None));
+    }
+
     [TestCase("missing", HttpStatusCode.Unauthorized)]
     [TestCase("type", HttpStatusCode.Forbidden)]
     [TestCase("wrong_scope", HttpStatusCode.Forbidden)]
@@ -97,7 +108,12 @@ public sealed class ProgressiveOriginApiTests
                 });
             });
             using var client = factory.CreateClient();
-            var query = scenario == "invalid" ? new ProgressiveOriginQueryRequest("ASSISTENCIA", "\n") : Query;
+            var query = scenario switch
+            {
+                "invalid" => new ProgressiveOriginQueryRequest("ASSISTENCIA", "\n"),
+                "unknown" => new ProgressiveOriginQueryRequest("ASSISTENCIA", "desconhecido"),
+                _ => Query
+            };
             using var request = new HttpRequestMessage(HttpMethod.Post, ProgressiveOriginApi.Route) { Content = JsonContent.Create(query) };
             if (scenario != "missing")
             {
@@ -135,8 +151,8 @@ public sealed class ProgressiveOriginApiTests
         public Task<AccessContext?> ResolveAsync(PresentedAccessCredential credential, CancellationToken ct)
         {
             var scopes = credential.AccessKey == "wrong_scope" ? Array.Empty<string>() : new[] { ProgressiveOriginApi.Permission };
-            var context = new AccessContext(Guid.NewGuid(), credential.Type, credential.PublicCode, "SMADS", null, scopes, []);
-            return Task.FromResult<AccessContext?>(context);
+            var owner = credential.AccessKey == "wrong_owner" ? "SEHAB" : "SMADS";
+            return Task.FromResult<AccessContext?>(new AccessContext(Guid.NewGuid(), credential.Type, credential.PublicCode, owner, null, scopes, []));
         }
     }
 
@@ -155,7 +171,7 @@ public sealed class ProgressiveOriginApiTests
         {
             Calls++;
             return Task.FromResult<ProgressiveOriginQueryResponse?>(request.CodigoPessoaOrigem == "origem-1" && context.GestorCodigo == "SMADS" &&
-                context.PublicCode == "SMADS" && context.Scopes.Contains(ProgressiveOriginApi.Permission)
+                context.Scopes.Contains(ProgressiveOriginApi.Permission)
                 ? Snapshot(ProgressiveIdentityStatus.PROVISORIA, null, 0, null) : null);
         }
     }
