@@ -1,53 +1,59 @@
-# Identidade progressiva — inventário de impacto e plano de migração
+# Identidade progressiva — inventário de impacto e plano de conclusão V1
 
-Base examinada: `master` f10c94a66e489f73efe8b4983a596505d43f47f0 (PR #34). Estado: análise estática e primeira implementação de domínio; não é comprovação de paridade operacional nem autorização de implantação. A ADR_Identidade_Progressiva.md é a referência normativa da evolução. Os caminhos são arquivos reais da árvore; o inventário não afirma que todos os chamadores ou procedimentos já foram migrados.
+Estado: contrato, persistência e cutover transacional do UUID inicial já implementados em SQL Server e PostgreSQL. `ADR_Identidade_Progressiva.md` contém a decisão normativa consolidada. Como a solução ainda não foi publicada, a V1 usa diretamente `PROVISORIA`, `REFERENCIA` e `INDEFINIDA`, sem camada de compatibilidade com vocabulário anterior.
 
 ## Contratos e persistência
 
-| Arquivo / área | Comportamento atual e mudança necessária |
+| Arquivo / área | Estado atual e trabalho restante |
 |---|---|
-| `src/Jornada.Contracts/IdentityLinkageContracts.cs` | `InternalIdentityResolution` aceita UUID nulo; `IIdentityMapRepository` resolve por CPF; fallback não recebe referência inicial de origem. Acrescentar contrato versionado e contexto estável sem alterar silenciosamente o retorno CPF. |
-| `src/Jornada.Contracts/ProgressiveIdentity.cs` | Novo núcleo puro. Estados e transições testados; faltam executor transacional e persistência. Não registrar como serviço operacional nesta etapa. |
-| `src/Jornada.Processor.Worker/IdentityResolutionCoordinator.cs` | CPF válido usa rota determinística; CPF ausente admitido retorna `NAO_RESOLVIDO`, UUID nulo, aguardando Linkage sob demanda. Integrar criação idempotente por origem, sem novo UUID a cada retry e sem retirar a trava de CPF. |
-| `src/Jornada.Processor.Worker/SqlProcessorRepository.cs` | Resolve/cria CPF e persiste vínculos; conflito do mapa suspende atribuições Gold/Serving e pode remover projeção Gold da pessoa. Revisar efeitos de conflito e recomposição, sem substituir suspensão por fusão automática. |
-| `src/Jornada.Processor.Worker/PostgreSqlProcessorRepository.cs` | Persiste Silver, resolução CPF, vínculo e fatos em transação serializável; sem CPF retorna UUID nulo. Implementar semântica equivalente à SQL Server, incluindo retransmissão, lock de origem, backfill e recuperação. |
-| `src/Jornada.Processor.Worker/PostgreSqlIdentityMapRepository.cs` | Mapa determinístico e trava de consistência. Preservar precedência CPF e impedir reaproveitamento inseguro de identificador conflitado. |
-| `src/Jornada.Processor.Worker/IngestionProcessor.cs` e `IProcessorRepository.cs` | Worker publica pacote validado; lease/fencing e transação pertencem ao provider. Não criar UUID fora da transação nem antes de conhecer a chave estável da origem. |
-| `database/Jornada_Fase1.sql` | DDL, constraints, views e procedimentos canônicos de identidade, correção e Gold. Migração aditiva de referência inicial, estado versionado, histórico e aliases, com backfill, testes de upgrade e rollback. Revisar constraints que exigem UUID nulo em estados pendentes. |
-| `database/postgresql/Jornada_Processor_Persistence_Core.sql` | `identidade.pessoa` usa `ATIVO/EM_CONFLITO/INATIVO`; `vinculo_fonte` exige UUID apenas em `RESOLVIDO`. Preservar estado operacional separado e criar constraints/índices equivalentes. Instalação dupla e migração em banco povoado. |
-| `src/Jornada.Linkage.Parameters.Worker/PostgreSqlCandidateSampler.cs`, `CandidateSamplingEngine.cs` | Amostragem diagnóstica por fontes e candidatos. Reutilizar desenho e pesos sem confundir amostra com decisão de fusão. |
-| `src/Jornada.Linkage.Parameters.Worker/CandidateWeightedEstimator.cs`, `CandidateLabeling.cs` | Estimador com rótulos independentes, sem parâmetros operacionais. Manter isolado até validação; UUID diferente não é rótulo negativo automático. |
-| `src/Jornada.Linkage.Parameters.Worker/PostgreSqlLinkageCalibrator.cs` | Piloto com gates de validação. Preservar bloqueio de ativação e substituir estimadores somente mediante validação metodológica. |
-| `src/Jornada.Operational.Sql/PostgreSqlBirthBlockingQuery.cs` e `src/Jornada.Contracts/BirthBlockingPlan.cs` | Blocking compartilhado e versionado. Não inferir inexistência de duplicata a partir de universo incompleto; medir recall antes da publicação real. |
+| `src/Jornada.Contracts/ProgressiveIdentity.cs` | Núcleo V1 com UUID inicial imutável e estados `PROVISORIA`, `REFERENCIA`, `INDEFINIDA`. Resultados da execução continuam `NOVA_IDENTIDADE`, `ASSOCIACAO_EXISTENTE`, `INDEFINIDA`. |
+| `src/Jornada.Processor.Worker/ProgressiveIdentityOriginStore.cs` | Persistência real e backfill paginado para SQL Server/PostgreSQL. Leitura é fail-closed para estados fora do contrato V1. |
+| `database/Jornada_Identidade_Progressiva.sql` | Schema SQL Server V1 nativo, histórico append-only, guardas de versão e procedimento transacional. |
+| `database/postgresql/Jornada_Identidade_Progressiva.sql` | Paridade PostgreSQL do schema V1 e das guardas. |
+| `database/migrations/20260908_Identidade_Progressiva_Processor.sql` e equivalente PostgreSQL | Cutover fail-closed após backlog zero; novas observações asseguram `initial_uuid` dentro da transação do Processor. |
+| `src/Jornada.Processor.Worker/IdentityResolutionCoordinator.cs` | CPF continua com precedência determinística. A publicação futura de referência probabilística permanece desativada. |
+| `src/Jornada.Processor.Worker/SqlProcessorRepository.cs` / `PostgreSqlProcessorRepository.cs` | Persistência factual e de vínculos segue independente da identidade progressiva. Próxima integração relevante: tornar a âncora CPF permanente fonte universal dos writers e das correções. |
+| `src/Jornada.Processor.Worker/*IdentityMapRepository.cs` | Preservar trava determinística por CPF e impedir reaproveitamento inseguro. Evoluir em conjunto com a âncora permanente. |
+| `database/Jornada_Fase1.sql` e `database/postgresql/Jornada_Processor_Persistence_Core.sql` | `identidade.vinculo_fonte.status='RESOLVIDO'` permanece: esse estado significa atribuição de uma observação e não deve ser confundido com `REFERENCIA`. |
+| Linkage Parameters/Calibration/Scoring | Infraestrutura diagnóstica disponível, sem autorização de ativação. Issue #31 continua sendo o gate estatístico independente. |
 
 ## Superfícies externas e derivadas
 
-| Arquivo / área | Impacto |
+| Arquivo / área | Impacto restante |
 |---|---|
-| `docs/API.md` e `openapi/jornada-v1.openapi.json` | Manter compatibilidade da resolução CPF e GETs; criar contrato explícito para referência inicial, estado e resolução histórica. Nunca devolver alias dividido como unívoco. |
-| `src/Jornada.Api/Program.cs` | Revisar handlers de Pessoa, resolução, consulta por UUID, autorização e limites. Não ampliar acesso entre origens apenas porque uma hipótese foi criada. |
-| `config/contracts/pessoa.schema.json` e schemas relacionados | Versionar campos novos e manter contratos anteriores até migração dos consumidores. Não inferir UUID inicial de nome ou CPF. |
-| `database/Jornada_Fase1.sql` — `gold.pessoa`, `serving.v_pessoa`, BI, fatos e Possibilidades | Separar referência de origem, atribuição canônica e estado. Preservar fatos, evitar dupla contagem de aliases e invalidar derivados quando a composição mudar. |
-| `database/postgresql/Jornada_Processor_Persistence_Core.sql` e `Jornada_Resultado_Core.sql` | Paridade de projeções e constraints entre providers. |
-| `docs/ADR_Linkage_Multievidencia_Universal.md` e `ADR_Linkage_Sunter_Multievidencia_Qualidade_v4.06.md` | Complementar a política sem revogar a universalidade das evidências ou a necessidade de calibração. |
-| `docs/PostgreSQL_Linkage_Candidate_Sampling.md` e `PostgreSQL_Linkage_Independent_Labels.md` | Preservar escopo diagnóstico, quadro de fontes, pesos, proveniência e limites de representatividade. |
-| `scripts/technical-closure-gate.py`, `analyzer-cleanliness-gate.py`, gates de arquitetura e workflows CI | Atualizar invariantes somente depois da respectiva migração; não desabilitar checks para permitir a mudança. |
-| Testes SQL, PostgreSQL, API, Processor, Linkage, BI e E2E | Regressões de estados, idempotência, concorrência, referências históricas, fusão/separação, preservação factual e segurança, mantendo testes legados. |
+| `docs/API.md` e `openapi/jornada-v1.openapi.json` | Definir leitura explícita de referência inicial/canônica sem alterar silenciosamente a semântica dos GETs existentes. Referência dividida nunca pode retornar sucessor arbitrário. |
+| `src/Jornada.Api/Program.cs` | Expor referências apenas com autorização e finalidade adequadas; uma `REFERENCIA` não amplia automaticamente o compartilhamento de dados. |
+| Schemas de contratos | Quando a referência for publicada externamente, incluir estado e natureza da referência mantendo fato/atribuição separados. |
+| Gold, Serving, BI e Possibilidades | Preservar fatos mesmo sem referência canônica, evitar dupla contagem quando houver composição e recompor derivados apenas com decisão transacional válida. |
+| Fusões/separações e aliases | Ainda precisam de política de sobrevivência, eventos reversíveis e resolução histórica unívoca ou explicitamente ambígua. |
+| Testes e gates | Manter cobertura de concorrência, rollback, idempotência, segurança, fatos independentes e paridade entre providers. |
 
-## Sequência de execução
+## Sequência de conclusão
 
-**Fatia 1 — contrato e decisão (este PR).** ADR, inventário, núcleo puro e regressões. Nenhuma mudança de DDL ou comportamento operacional. Gate Release com warnings como erros e regressões existentes. A integração não ativa a arquitetura.
+**1 — contrato e semântica V1: implementado.** UUID inicial, três estados progressivos e separação conceitual entre referência, resultado de resolução e vínculo factual.
 
-**Fatia 2 — armazenamento inicial.** Definir modelo relacional, criar migração aditiva em SQL Server e PostgreSQL, chave única de origem, UUID inicial imutável, estado/versionamento e histórico. Testar concorrência, retransmissão, nova versão da mesma origem, rollback, backfill e instalação repetida. Não preencher `RESOLVIDA` retroativamente sem evidência de execução.
+**2 — armazenamento inicial: implementado.** SQL Server e PostgreSQL com chave estável de origem, UUID inicial imutável, versão, histórico append-only, backfill paginado e testes reais.
 
-**Fatia 3 — Processor.** Constituir/reutilizar UUID inicial na mesma transação do registro de origem e vincular fatos sem modificar proveniência. Manter CPF prioritário. Adicionar leitura compatível que diferencie referência inicial de identidade canônica. Testar primeira entrada sem CPF, retransmissão, CPF posterior, CPF inválido, conflito, lote repetido, lease perdido e E2E Bronze→Silver→Gold/Serving. Não habilitar fusão probabilística.
+**3 — cutover do Processor: implementado.** O cutover recusa ativação antes do backfill histórico completo e assegura novas referências na mesma transação do `vinculo_fonte`. Rollback não deixa resíduos.
 
-**Fatia 4 — publicação da resolução.** Executor com modelo congelado aprovado, universo completo, decisões idempotentes e controle de concorrência. Inconclusão não escolhe candidato. Aplicação transacional e recomposição. Reavaliação não redefine identidade como provisória. Sem modelo aprovado, nenhuma resolução probabilística real é publicada.
+**4 — âncora CPF universal: próxima etapa.** Integrar `identidade.cpf_ancora` aos writers SQL Server/PostgreSQL e aos caminhos de correção governada. Um CPF admitido deve sempre recuperar o mesmo UUID permanente, sem transferência de âncora.
 
-**Fatia 5 — composição reversível.** Fechar política de sobrevivência e aliases, implementar eventos de fusão/separação, resolução histórica unívoca ou explicitamente ambígua, reatribuição por observação e recomposição Gold/Serving. Provar que nenhum fato desaparece, UUID não é reciclado e divisão não redireciona dados para a pessoa errada. Versionar GETs e BI e testar autorização.
+**5 — publicação de referência e composição reversível.** Implementar executor de decisão somente após política/modelo aprovados; depois, fusão/separação, aliases, recomposição Gold/Serving e histórico de composição.
 
-**Fatia 6 — validação/ativação.** Corpus representativo e rotulado independentemente; recall, calibração, falsos vínculos, erros de fusão/separação, subgrupos, variância, escala, segurança, migração povoada e aprovação institucional. Ativar somente versões/limiares aprovados. A issue #31 permanece responsável pela validação estatística.
+**6 — APIs e BI.** Expor referência inicial/canônica, estados e ambiguidade histórica sem misturar identidade com fato ou elegibilidade/possibilidade.
+
+**7 — validação e ativação.** Corpus representativo e rótulos independentes; recall, calibração, falsos vínculos, erros de composição, subgrupos, variância, escala e aprovação institucional. A issue #31 permanece obrigatória antes de qualquer ativação probabilística real.
 
 ## Invariantes de aceitação
 
-UUID inicial único por identidade de origem e persistente entre versões. Retries concorrentes não criam duplicatas. Estados públicos somente `PROVISORIA`, `RESOLVIDA`, `INDEFINIDA`. Ausência de CPF não equivale a indefinição; ausência de candidato após busca completa pode produzir nova identidade resolvida. Execução incompleta não publica resultado. UUID histórico nunca é reciclado. Fatos sobrevivem a fusões/separações. Referência dividida não retorna sucessor arbitrário. Não há rótulo negativo inferido apenas de UUID diferente nem ativação de modelos por passar CI. O sistema não exige decisão humana caso a caso, mas mantém política validada, auditoria e correção automática reversível.
+- UUID inicial único por identidade de origem e persistente entre versões.
+- Estados progressivos somente `PROVISORIA`, `REFERENCIA`, `INDEFINIDA`.
+- `REFERENCIA` significa referência canônica estabelecida, não certeza absoluta de identidade civil.
+- `RESOLVIDO` pode existir em `identidade.vinculo_fonte` porque ali descreve atribuição de observação; não é estado progressivo.
+- Ausência de CPF não impede UUID inicial e não equivale a `INDEFINIDA`.
+- Execução incompleta não publica referência.
+- CPF permanente nunca é transferido, reciclado ou substituído por decisão probabilística.
+- Fatos válidos sobrevivem à ausência, conflito ou mudança de referência.
+- UUID histórico nunca é reciclado; separação não redireciona dados para sucessor arbitrário.
+- CI e testes não autorizam por si só ativação de modelo probabilístico.
+- Não há módulo de Regularização Cadastral nem decisão humana obrigatória caso a caso.
