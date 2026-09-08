@@ -1,13 +1,10 @@
 namespace Jornada.Contracts;
 
-/// <summary>
-/// Estado público da resolução progressiva. Não substitui o estado de uma ocorrência
-/// factual, a vigência de um vínculo, nem a situação operacional de identidade.pessoa.
-/// </summary>
+/// <summary>Estado da referência progressiva; não é estado de CPF, fato ou vínculo legado.</summary>
 public enum ProgressiveIdentityStatus
 {
     PROVISORIA,
-    RESOLVIDA,
+    REFERENCIA,
     INDEFINIDA
 }
 
@@ -19,11 +16,7 @@ public enum ProgressiveResolutionOutcome
     INDEFINIDA
 }
 
-/// <summary>
-/// Referência estável de uma identidade de origem. O UUID inicial nunca é reciclado.
-/// CanonicalUuid é uma atribuição proposta/confirmada pelo subsistema de resolução;
-/// não deve ser confundido com o UUID inicial nem usado sem verificar o estado.
-/// </summary>
+/// <summary>Referência estável de origem. O UUID inicial nunca é reciclado.</summary>
 public sealed record ProgressiveIdentitySnapshot(
     Guid InitialUuid,
     Guid? CanonicalUuid,
@@ -34,11 +27,7 @@ public sealed record ProgressiveIdentitySnapshot(
     ProgressiveIdentityDecision? LastDecision,
     Guid? LastExternalAssociationUuid);
 
-/// <summary>
-/// Recibo de uma execução completa. A validade da política, da amostra e das evidências
-/// é atestada pelo executor externo; este contrato não homologa modelos estatísticos.
-/// Referências são opacas e não devem conter CPF ou atributos pessoais em claro.
-/// </summary>
+/// <summary>Recibo de execução completa. Evidências são opacas e não homologam modelos.</summary>
 public sealed record ProgressiveIdentityDecision(
     Guid DecisionId,
     Guid InitialUuid,
@@ -52,13 +41,10 @@ public sealed record ProgressiveIdentityDecision(
     string? ModelVersion = null,
     string? UniverseReference = null);
 
-/// <summary>
-/// Núcleo puro da primeira fatia. Não persiste, não executa score, não cria aliases,
-/// não modifica fatos e não realiza fusões ou separações de agregados.
-/// </summary>
+/// <summary>Núcleo puro; não persiste, não executa score nem altera fatos ou agregados.</summary>
 public static class ProgressiveIdentityLifecycle
 {
-    public const string Version = "PROGRESSIVE_IDENTITY_V1";
+    public const string Version = "PROGRESSIVE_IDENTITY_V2";
 
     public static ProgressiveIdentitySnapshot Create(Guid initialUuid, DateTimeOffset createdAt)
     {
@@ -83,8 +69,6 @@ public static class ProgressiveIdentityLifecycle
             (current.LastResolutionAt is { } last && decision.DecidedAt < last))
             throw new ArgumentException("Recibo de resolução incompleto ou incompatível.", nameof(decision));
         RequireUtc(decision.DecidedAt, nameof(decision));
-
-        // Reexecução da mesma decisão é idempotente; reutilizar o ID com outro conteúdo não é.
         if (current.LastDecision is { } previous && previous.DecisionId == decision.DecisionId)
         {
             if (previous != decision)
@@ -101,12 +85,10 @@ public static class ProgressiveIdentityLifecycle
             case ProgressiveResolutionOutcome.NOVA_IDENTIDADE:
                 if (decision.TargetUuid is not null || string.IsNullOrWhiteSpace(decision.UniverseReference))
                     throw new ArgumentException("Nova identidade exige universo completo e não aceita destino.", nameof(decision));
-                // Uma associação anterior não pode ser desfeita implicitamente por um sorteio
-                // sem candidatos. A separação exige recomposição atômica do agregado.
                 if (current.LastExternalAssociationUuid is not null)
                     throw new InvalidOperationException("Associação anterior exige separação explícita antes de retornar ao UUID inicial.");
                 target = current.InitialUuid;
-                status = ProgressiveIdentityStatus.RESOLVIDA;
+                status = ProgressiveIdentityStatus.REFERENCIA;
                 break;
             case ProgressiveResolutionOutcome.ASSOCIACAO_EXISTENTE:
                 if (decision.TargetUuid is not { } candidate || candidate == Guid.Empty)
@@ -114,7 +96,7 @@ public static class ProgressiveIdentityLifecycle
                 if (current.LastExternalAssociationUuid is { } previousTarget && previousTarget != candidate)
                     throw new InvalidOperationException("Mudança de destino exige recomposição explícita do agregado.");
                 target = candidate;
-                status = ProgressiveIdentityStatus.RESOLVIDA;
+                status = ProgressiveIdentityStatus.REFERENCIA;
                 break;
             case ProgressiveResolutionOutcome.INDEFINIDA:
                 if (decision.TargetUuid is not null)
@@ -125,7 +107,6 @@ public static class ProgressiveIdentityLifecycle
             default:
                 throw new ArgumentOutOfRangeException(nameof(decision));
         }
-
         return current with
         {
             CanonicalUuid = target,
@@ -148,7 +129,7 @@ public static class ProgressiveIdentityLifecycle
                 (current.Version != 0 || current.CanonicalUuid is not null ||
                  current.LastResolutionAt is not null || current.LastDecision is not null ||
                  current.LastExternalAssociationUuid is not null)) ||
-            (current.Status == ProgressiveIdentityStatus.RESOLVIDA && current.CanonicalUuid is null) ||
+            (current.Status == ProgressiveIdentityStatus.REFERENCIA && current.CanonicalUuid is null) ||
             (current.Status == ProgressiveIdentityStatus.INDEFINIDA && current.CanonicalUuid is not null) ||
             (current.Version > 0 && (current.LastResolutionAt is null || current.LastDecision is null)) ||
             (current.LastExternalAssociationUuid is { } prior &&
@@ -163,10 +144,10 @@ public static class ProgressiveIdentityLifecycle
              !receipt.Complete ||
              (receipt.Outcome == ProgressiveResolutionOutcome.INDEFINIDA) !=
                  (current.Status == ProgressiveIdentityStatus.INDEFINIDA) ||
-             (current.Status == ProgressiveIdentityStatus.RESOLVIDA &&
+             (current.Status == ProgressiveIdentityStatus.REFERENCIA &&
                  receipt.Outcome == ProgressiveResolutionOutcome.ASSOCIACAO_EXISTENTE &&
                  receipt.TargetUuid != current.CanonicalUuid) ||
-             (current.Status == ProgressiveIdentityStatus.RESOLVIDA &&
+             (current.Status == ProgressiveIdentityStatus.REFERENCIA &&
                  receipt.Outcome == ProgressiveResolutionOutcome.NOVA_IDENTIDADE &&
                  current.CanonicalUuid != current.InitialUuid)))
             throw new InvalidOperationException("Último recibo não corresponde à versão corrente.");
