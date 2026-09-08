@@ -24,11 +24,11 @@ public sealed class ProgressiveIdentityTests
     }
 
     [Test]
-    public void CompletedSearchWithoutCandidatesResolvesTheInitialIdentity()
+    public void CompletedSearchWithoutCandidatesEstablishesTheInitialReference()
     {
         var state = ProgressiveIdentityLifecycle.Create(Initial, Created);
         var result = ProgressiveIdentityLifecycle.Conclude(state, Decision(state, ProgressiveResolutionOutcome.NOVA_IDENTIDADE));
-        Assert.That(result.Status, Is.EqualTo(ProgressiveIdentityStatus.RESOLVIDA));
+        Assert.That(result.Status, Is.EqualTo(ProgressiveIdentityStatus.REFERENCIA));
         Assert.That(result.CanonicalUuid, Is.EqualTo(Initial));
         Assert.That(result.Version, Is.EqualTo(1));
         Assert.That(result.InitialUuid, Is.EqualTo(Initial));
@@ -41,7 +41,7 @@ public sealed class ProgressiveIdentityTests
         var decision = Decision(state, ProgressiveResolutionOutcome.ASSOCIACAO_EXISTENTE, Existing);
         var result = ProgressiveIdentityLifecycle.Conclude(state, decision);
         Assert.That(result.CanonicalUuid, Is.EqualTo(Existing));
-        Assert.That(result.Status, Is.EqualTo(ProgressiveIdentityStatus.RESOLVIDA));
+        Assert.That(result.Status, Is.EqualTo(ProgressiveIdentityStatus.REFERENCIA));
         Assert.That(result.InitialUuid, Is.EqualTo(Initial));
         Assert.That(ProgressiveIdentityLifecycle.Conclude(result, decision), Is.SameAs(result));
     }
@@ -56,7 +56,7 @@ public sealed class ProgressiveIdentityTests
         Assert.That(result.InitialUuid, Is.EqualTo(Initial));
         var later = ProgressiveIdentityLifecycle.Conclude(result,
             Decision(result, ProgressiveResolutionOutcome.ASSOCIACAO_EXISTENTE, Existing));
-        Assert.That(later.Status, Is.EqualTo(ProgressiveIdentityStatus.RESOLVIDA));
+        Assert.That(later.Status, Is.EqualTo(ProgressiveIdentityStatus.REFERENCIA));
         Assert.That(later.CanonicalUuid, Is.EqualTo(Existing));
         Assert.That(later.Version, Is.EqualTo(2));
     }
@@ -64,8 +64,8 @@ public sealed class ProgressiveIdentityTests
     [Test]
     public void ReevaluationDoesNotCreateAnotherProvisionalState()
     {
-        var first = ProgressiveIdentityLifecycle.Conclude(ProgressiveIdentityLifecycle.Create(Initial, Created),
-            Decision(ProgressiveIdentityLifecycle.Create(Initial, Created), ProgressiveResolutionOutcome.NOVA_IDENTIDADE));
+        var initial = ProgressiveIdentityLifecycle.Create(Initial, Created);
+        var first = ProgressiveIdentityLifecycle.Conclude(initial, Decision(initial, ProgressiveResolutionOutcome.NOVA_IDENTIDADE));
         var second = ProgressiveIdentityLifecycle.Conclude(first, Decision(first, ProgressiveResolutionOutcome.INDEFINIDA));
         Assert.That(second.Status, Is.EqualTo(ProgressiveIdentityStatus.INDEFINIDA));
         Assert.That(second.Version, Is.EqualTo(2));
@@ -117,17 +117,25 @@ public sealed class ProgressiveIdentityTests
     {
         var state = ProgressiveIdentityLifecycle.Create(Initial, Created);
         var decision = Decision(state, ProgressiveResolutionOutcome.NOVA_IDENTIDADE);
-        var resolved = ProgressiveIdentityLifecycle.Conclude(state, decision);
-        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(resolved,
+        var referenced = ProgressiveIdentityLifecycle.Conclude(state, decision);
+        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(referenced,
             decision with { Outcome = ProgressiveResolutionOutcome.INDEFINIDA }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(resolved,
+        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(referenced,
             Decision(state, ProgressiveResolutionOutcome.INDEFINIDA)));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(resolved with { Status = ProgressiveIdentityStatus.PROVISORIA },
-            Decision(resolved, ProgressiveResolutionOutcome.INDEFINIDA)));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(resolved with { Version = -1 },
-            Decision(resolved, ProgressiveResolutionOutcome.INDEFINIDA)));
-        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Conclude(resolved,
-            Decision(resolved, ProgressiveResolutionOutcome.INDEFINIDA) with { DecidedAt = Created.AddMinutes(-1) }));
+        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(referenced with { Status = ProgressiveIdentityStatus.PROVISORIA },
+            Decision(referenced, ProgressiveResolutionOutcome.INDEFINIDA)));
+        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(referenced with { Version = -1 },
+            Decision(referenced, ProgressiveResolutionOutcome.INDEFINIDA)));
+        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Conclude(referenced,
+            Decision(referenced, ProgressiveResolutionOutcome.INDEFINIDA) with { DecidedAt = Created.AddMinutes(-1) }));
+    }
+
+    [Test]
+    public void ReferenceStatusIsNotALegacyResolutionOrAnOutcome()
+    {
+        Assert.That(Enum.GetNames<ProgressiveIdentityStatus>(), Is.EquivalentTo(new[] { "PROVISORIA", "REFERENCIA", "INDEFINIDA" }));
+        Assert.That(Enum.GetNames<ProgressiveResolutionOutcome>(), Is.EquivalentTo(new[] { "NOVA_IDENTIDADE", "ASSOCIACAO_EXISTENTE", "INDEFINIDA" }));
+        Assert.That(ProgressiveIdentityLifecycle.Version, Is.EqualTo("PROGRESSIVE_IDENTITY_V2"));
     }
 
     private static ProgressiveIdentityDecision Decision(ProgressiveIdentitySnapshot state,
