@@ -17,8 +17,9 @@ jobs:
           persist-credentials: true
           ref: work/cpf-anchor-resolution-api
       - name: Replace identity resolution query with permanent CPF anchor authority
-        shell: python
+        shell: bash
         run: |
+          python3 - <<'PY'
           from pathlib import Path
           path = Path('Solution/src/Jornada.Api/SqlApiServices.cs')
           text = path.read_text(encoding='utf-8')
@@ -81,7 +82,9 @@ jobs:
           if old not in text:
               raise SystemExit('Bloco esperado do SqlIdentityResolutionService não encontrado; patch recusado.')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
       - name: Commit patched service
+        shell: bash
         run: |
           git config user.name 'jornada-ci'
           git config user.email 'jornada-ci@users.noreply.github.com'
