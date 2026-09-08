@@ -1,5 +1,5 @@
 -- Cutover operacional do initial_uuid no Processor (PostgreSQL).
--- Pré-requisito: Jornada_Identidade_Progressiva.sql aplicado.
+-- Pré-requisito: Jornada_Identidade_Progressiva.sql aplicado e backfill paginado concluído.
 -- Não ativa Linkage probabilístico e não altera a atribuição canônica do vínculo.
 BEGIN;
 
@@ -12,20 +12,18 @@ BEGIN
  END IF;
 END $$;
 
--- Fecha o universo existente de forma idempotente antes de ativar o gatilho.
+-- O backfill histórico permanece paginado/retomável pelo ProgressiveIdentityOriginStore.
+-- O cutover falha fechado enquanto houver qualquer origem Silver ainda sem initial_uuid.
 DO $$
-DECLARE r RECORD;
 BEGIN
- FOR r IN
-  SELECT o.pessoa_origem_id
+ IF EXISTS(
+  SELECT 1
     FROM silver.pessoa_origem o
     LEFT JOIN identidade.pessoa_origem_progressiva p
       ON p.pessoa_origem_id=o.pessoa_origem_id
-   WHERE p.pessoa_origem_id IS NULL
-   ORDER BY o.pessoa_origem_id
- LOOP
-  PERFORM identidade.assegurar_origem_progressiva(r.pessoa_origem_id);
- END LOOP;
+   WHERE p.pessoa_origem_id IS NULL) THEN
+  RAISE EXCEPTION 'Cutover recusado: conclua o backfill paginado de initial_uuid antes de ativar o Processor.';
+ END IF;
 END $$;
 
 CREATE OR REPLACE FUNCTION identidade.fn_vinculo_fonte_progressiva()
@@ -48,17 +46,5 @@ DROP TRIGGER IF EXISTS tr_vinculo_fonte_progressiva ON identidade.vinculo_fonte;
 CREATE TRIGGER tr_vinculo_fonte_progressiva
 AFTER INSERT ON identidade.vinculo_fonte
 FOR EACH ROW EXECUTE FUNCTION identidade.fn_vinculo_fonte_progressiva();
-
-DO $$
-BEGIN
- IF EXISTS(
-  SELECT 1
-    FROM silver.pessoa_origem o
-    LEFT JOIN identidade.pessoa_origem_progressiva p
-      ON p.pessoa_origem_id=o.pessoa_origem_id
-   WHERE p.pessoa_origem_id IS NULL) THEN
-  RAISE EXCEPTION 'Cutover recusado: existem origens Silver sem initial_uuid.';
- END IF;
-END $$;
 
 COMMIT;
