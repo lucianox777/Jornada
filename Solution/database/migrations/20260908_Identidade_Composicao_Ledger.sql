@@ -85,7 +85,8 @@ BEGIN
  IF @own=1 BEGIN TRANSACTION;
  BEGIN TRY
   DECLARE @lock_result INT,@owner UNIQUEIDENTIFIER;
-  EXEC @lock_result=sys.sp_getapplock @Resource=N'JORNADA:COMPOSICAO:DECISAO:'+CONVERT(NVARCHAR(36),@decision_id),@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=30000;
+  DECLARE @resource NVARCHAR(255)=N'JORNADA:COMPOSICAO:DECISAO:'+CONVERT(NVARCHAR(36),@decision_id);
+  EXEC @lock_result=sys.sp_getapplock @Resource=@resource,@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=30000;
   IF @lock_result<0 THROW 51406,'Não foi possível serializar a decisão.',1;
   SET @uuid_resultado=NULL;
   SELECT @uuid_resultado=pessoa_uuid,@owner=decision_id FROM identidade.composicao_uuid_reserva WITH(UPDLOCK,HOLDLOCK) WHERE reserva_id=@reserva_id;
@@ -147,7 +148,8 @@ BEGIN
  IF @own=1 BEGIN TRANSACTION;
  BEGIN TRY
   DECLARE @lock_result INT,@old_hash CHAR(64),@old_plan CHAR(64),@old_reservas CHAR(64);
-  EXEC @lock_result=sys.sp_getapplock @Resource=N'JORNADA:COMPOSICAO:DECISAO:'+CONVERT(NVARCHAR(36),@decision_id),@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=30000;
+  DECLARE @resource NVARCHAR(255)=N'JORNADA:COMPOSICAO:DECISAO:'+CONVERT(NVARCHAR(36),@decision_id);
+  EXEC @lock_result=sys.sp_getapplock @Resource=@resource,@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=30000;
   IF @lock_result<0 THROW 51406,'Não foi possível serializar a decisão.',1;
   SELECT @old_hash=request_hash,@old_plan=plan_hash,@old_reservas=reservas_hash
    FROM identidade.composicao_plano WITH(UPDLOCK,HOLDLOCK) WHERE decision_id=@decision_id;
