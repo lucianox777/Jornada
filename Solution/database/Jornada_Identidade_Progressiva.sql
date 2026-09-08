@@ -1,4 +1,4 @@
--- Identidade progressiva V1: armazenamento aditivo, sem ativação operacional.
+-- Identidade progressiva V1: armazenamento aditivo, sem ativação probabilística.
 -- Aplicar após Jornada_Fase1.sql, em banco compatível. Requer sqlcmd/GO.
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
@@ -19,7 +19,7 @@ BEGIN
   atualizado_em DATETIMEOFFSET(7) NOT NULL,
   CONSTRAINT ck_progressiva_estado CHECK(
    (versao=0 AND estado='PROVISORIA' AND canonical_uuid IS NULL AND ultima_resolucao_em IS NULL AND ultimo_destino_externo_uuid IS NULL)
-   OR (versao>0 AND ((estado='RESOLVIDA' AND canonical_uuid IS NOT NULL) OR (estado='INDEFINIDA' AND canonical_uuid IS NULL)) AND ultima_resolucao_em IS NOT NULL)),
+   OR (versao>0 AND ((estado='REFERENCIA' AND canonical_uuid IS NOT NULL) OR (estado='INDEFINIDA' AND canonical_uuid IS NULL)) AND ultima_resolucao_em IS NOT NULL)),
   CONSTRAINT ck_progressiva_externo CHECK(ultimo_destino_externo_uuid IS NULL OR ultimo_destino_externo_uuid<>initial_uuid AND (canonical_uuid IS NULL OR canonical_uuid=ultimo_destino_externo_uuid)),
   CONSTRAINT ck_progressiva_datas CHECK(atualizado_em>=criado_em AND (ultima_resolucao_em IS NULL OR ultima_resolucao_em>=criado_em))
  );
@@ -45,13 +45,13 @@ BEGIN
   ocorrido_em DATETIMEOFFSET(7) NOT NULL,
   CONSTRAINT uq_progressiva_evento_versao UNIQUE(pessoa_origem_id,versao),
   CONSTRAINT ck_progressiva_evento_tipo CHECK(tipo IN('CRIACAO','RESOLUCAO')),
-  CONSTRAINT ck_progressiva_evento_estado CHECK(estado IN('PROVISORIA','RESOLVIDA','INDEFINIDA')),
+  CONSTRAINT ck_progressiva_evento_estado CHECK(estado IN('PROVISORIA','REFERENCIA','INDEFINIDA')),
   CONSTRAINT ck_progressiva_evento_criacao CHECK(
    (tipo='CRIACAO' AND versao=0 AND estado='PROVISORIA' AND canonical_uuid IS NULL AND expected_version IS NULL AND resultado IS NULL AND target_uuid IS NULL AND evidencia_referencia IS NULL AND politica_versao IS NULL AND modelo_versao IS NULL AND universo_referencia IS NULL AND completo IS NULL)
    OR (tipo='RESOLUCAO' AND versao>0 AND expected_version=versao-1 AND completo=1 AND evidencia_referencia IS NOT NULL AND politica_versao IS NOT NULL AND resultado IN('NOVA_IDENTIDADE','ASSOCIACAO_EXISTENTE','INDEFINIDA') AND
     ((resultado='INDEFINIDA' AND estado='INDEFINIDA' AND canonical_uuid IS NULL AND target_uuid IS NULL) OR
-     (resultado='NOVA_IDENTIDADE' AND estado='RESOLVIDA' AND canonical_uuid IS NOT NULL AND target_uuid IS NULL AND universo_referencia IS NOT NULL) OR
-     (resultado='ASSOCIACAO_EXISTENTE' AND estado='RESOLVIDA' AND canonical_uuid=target_uuid AND canonical_uuid IS NOT NULL AND target_uuid IS NOT NULL))))
+     (resultado='NOVA_IDENTIDADE' AND estado='REFERENCIA' AND canonical_uuid IS NOT NULL AND target_uuid IS NULL AND universo_referencia IS NOT NULL) OR
+     (resultado='ASSOCIACAO_EXISTENTE' AND estado='REFERENCIA' AND canonical_uuid=target_uuid AND canonical_uuid IS NOT NULL AND target_uuid IS NOT NULL))))
  );
 END;
 GO
@@ -70,7 +70,7 @@ BEGIN
       ISNULL(i.canonical_uuid,'00000000-0000-0000-0000-000000000000')<>ISNULL(d.canonical_uuid,'00000000-0000-0000-0000-000000000000') OR
       ISNULL(i.ultimo_destino_externo_uuid,'00000000-0000-0000-0000-000000000000')<>ISNULL(d.ultimo_destino_externo_uuid,'00000000-0000-0000-0000-000000000000') OR
       ISNULL(i.ultima_resolucao_em,'0001-01-01')<>ISNULL(d.ultima_resolucao_em,'0001-01-01'))))
-   THROW 51112,'Alteração de resolução exige avanço de uma versão.',1;
+   THROW 51112,'Alteração de referência exige avanço de uma versão.',1;
  IF EXISTS(SELECT 1 FROM inserted i JOIN deleted d ON d.pessoa_origem_id=i.pessoa_origem_id
   WHERE i.versao<>d.versao AND NOT EXISTS(
    SELECT 1 FROM identidade.pessoa_origem_progressiva_evento e
@@ -104,8 +104,8 @@ BEGIN
  BEGIN
    SET @uuid=NEWID();
    SET @now=TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00');
-   -- Captura somente a atribuição corrente da última versão, se resolvida.
-   -- É proveniência legada, não conclusão do novo Linkage.
+   -- Captura somente a atribuição corrente da última versão, quando o vínculo está RESOLVIDO.
+   -- RESOLVIDO aqui pertence a vinculo_fonte; é proveniência legada, não estado progressivo.
    SELECT TOP(1) @legacy=v.pessoa_uuid
    FROM silver.pessoa_observacao o
    LEFT JOIN identidade.vinculo_fonte v ON v.pessoa_observacao_id=o.pessoa_observacao_id AND v.ativo=1 AND v.status='RESOLVIDO'

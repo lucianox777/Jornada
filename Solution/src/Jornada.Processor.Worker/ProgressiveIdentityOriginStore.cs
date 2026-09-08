@@ -11,10 +11,9 @@ public sealed record ProgressiveOriginRegistration(
     ProgressiveIdentityStatus Status, long Version);
 
 /// <summary>
-/// Armazenamento V1, opt-in. A criação exige uma origem Silver já persistida e
-/// participa da transação do chamador. O lock da origem serializa criações;
-/// o chamador de uma transação serializável deve reiniciá-la após falha de serialização.
-/// Não publica decisões, vínculos ou fatos.
+/// Armazenamento V1 da identidade progressiva. A criação exige uma origem Silver já persistida e
+/// participa da transação do chamador. O lock da origem serializa criações concorrentes.
+/// O store não publica decisões, vínculos canônicos, fatos nem ativa Linkage probabilístico.
 /// </summary>
 public sealed class ProgressiveIdentityOriginStore
 {
@@ -51,7 +50,7 @@ public sealed class ProgressiveIdentityOriginStore
         }
     }
 
-    /// <summary>Não abre ou confirma transação. O Processor futuro chamará após criar a origem.</summary>
+    /// <summary>Não abre nem confirma a transação informada.</summary>
     public async Task<ProgressiveOriginRegistration> EnsureInitialAsync(
         DbConnection connection, DbTransaction tx, long sourceId, CancellationToken ct = default)
     {
@@ -63,7 +62,6 @@ public sealed class ProgressiveIdentityOriginStore
             ? "SELECT identidade.assegurar_origem_progressiva(@source_id);"
             : "EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source_id;";
         Add(command, "@source_id", DbType.Int64, sourceId);
-        // O SQL Server devolve uma linha de registro; PostgreSQL devolve o UUID.
         if (postgres)
         {
             var value = await command.ExecuteScalarAsync(ct);
@@ -72,7 +70,6 @@ public sealed class ProgressiveIdentityOriginStore
         }
         else
         {
-            // ExecuteNonQuery não depende do número de linhas afetadas pela procedure.
             await command.ExecuteNonQueryAsync(ct);
         }
         return await ReadInTransactionAsync(connection, tx, sourceId, ct)
