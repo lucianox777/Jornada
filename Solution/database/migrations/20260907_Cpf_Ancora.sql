@@ -1,5 +1,5 @@
--- Âncora CPF imutável: migração opt-in, versão de armazenamento V1.
--- Aplica-se somente sobre a base normativa já instalada.
+-- Âncora CPF imutável: componente obrigatório de armazenamento da V1.
+-- Aplica-se somente sobre a base normativa já instalada e antes da execução do Processor.
 SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;
 SET ANSI_PADDING ON;
