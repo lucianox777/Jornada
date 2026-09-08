@@ -18,26 +18,43 @@ jobs:
         with:
           ref: work/cpf-anchor-resolution-api
           persist-credentials: true
-      - name: Patch collation comparison
+      - name: Patch test and normative docs
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          path = Path('Solution/src/Jornada.Api/SqlApiServices.cs')
-          text = path.read_text(encoding='utf-8')
-          old = "WHERE im.tipo='CPF' AND im.identificador=a.cpf AND im.vigencia_fim IS NULL"
-          new = "WHERE im.tipo='CPF' AND im.identificador COLLATE Latin1_General_100_BIN2=a.cpf AND im.vigencia_fim IS NULL"
+
+          test = Path('Solution/tests/Jornada.Integration.Tests/Integration/CpfAnchorResolutionApiTests.cs')
+          text = test.read_text(encoding='utf-8')
+          old = "JOIN identidade.identity_map m ON m.tipo='CPF' AND m.identificador=a.cpf AND m.vigencia_fim IS NULL"
+          new = "JOIN identidade.identity_map m ON m.tipo='CPF' AND m.identificador COLLATE Latin1_General_100_BIN2=a.cpf AND m.vigencia_fim IS NULL"
           if text.count(old) != 1:
-              raise SystemExit(f'Comparação esperada não é única: {text.count(old)}')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+              raise SystemExit(f'Join do teste esperado não é único: {text.count(old)}')
+          test.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          api = Path('Solution/docs/API.md')
+          text = api.read_text(encoding='utf-8')
+          old = "divergência forte gera `EM_CONFLITO`, e `/identidade/resolver` devolve `CONFLITO / CPF_EM_CONFLITO_IDENTIDADE` sem UUID enquanto houver ambiguidade."
+          new = "divergência forte gera `EM_CONFLITO`. A âncora permanente CPF→UUID continua imutável: `/identidade/resolver` devolve `CONFLITO / CPF_EM_CONFLITO_IDENTIDADE` preservando o UUID permanente, enquanto a atribuição factual permanece suspensa até correção governada. Se não houver mapa corrente, o endpoint ainda resolve pela âncora e sinaliza `CPF_ANCORA_SEM_MAPA_CORRENTE`."
+          if text.count(old) != 1:
+              raise SystemExit(f'Texto legado API esperado não é único: {text.count(old)}')
+          api.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          readme = Path('Solution/README.md')
+          text = readme.read_text(encoding='utf-8')
+          old = "enquanto isso, CPF→UUID devolve `CONFLITO / CPF_EM_CONFLITO_IDENTIDADE`, sem UUID."
+          new = "enquanto isso, CPF→UUID devolve `CONFLITO / CPF_EM_CONFLITO_IDENTIDADE` preservando o UUID da âncora permanente; a atribuição factual continua suspensa."
+          if text.count(old) != 1:
+              raise SystemExit(f'Texto legado README esperado não é único: {text.count(old)}')
+          readme.write_text(text.replace(old, new, 1), encoding='utf-8')
           PY
           git diff --check
-          git diff -- Solution/src/Jornada.Api/SqlApiServices.cs
+          git diff -- Solution/tests/Jornada.Integration.Tests/Integration/CpfAnchorResolutionApiTests.cs Solution/docs/API.md Solution/README.md
       - name: Commit patch
         shell: bash
         run: |
           git config user.name 'jornada-ci'
           git config user.email 'jornada-ci@users.noreply.github.com'
-          git add Solution/src/Jornada.Api/SqlApiServices.cs
-          git commit -m 'fix: normalizar collation na resolução CPF'
+          git add Solution/tests/Jornada.Integration.Tests/Integration/CpfAnchorResolutionApiTests.cs Solution/docs/API.md Solution/README.md
+          git commit -m 'test: fixar semântica da âncora na API CPF'
           git push origin HEAD:work/cpf-anchor-resolution-api
