@@ -1,0 +1,60 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Jornada — Identidade progressiva por origem",
+    "version": "1.0.0",
+    "description": "Contrato complementar da API V1. Consulta somente de leitura, restrita ao Gestor proprietário. Não autoriza acesso a fatos nem ativa Linkage probabilístico."
+  },
+  "paths": {
+    "/api/v1/identidade/origens/consulta": {
+      "post": {
+        "operationId": "consultarIdentidadeProgressivaOrigem",
+        "summary": "Consultar a referência progressiva de uma identidade de origem",
+        "description": "Exige credencial GESTOR, scope jornada.identidade.origem.read e propriedade do sistema de origem. A comparação de códigos é exata. Não cria ou altera UUIDs.",
+        "security": [{ "JornadaAccessKey": [] }],
+        "parameters": [
+          { "name": "X-Jornada-Gestor", "in": "header", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 80 } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProgressiveOriginQueryRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Referência corrente no escopo do Gestor.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProgressiveOriginQueryResponse" } } } },
+          "400": { "description": "Corpo ou códigos inválidos." },
+          "401": { "description": "Credencial ausente ou inválida." },
+          "403": { "description": "Tipo de credencial ou scope não autorizado." },
+          "404": { "description": "Não localizado no escopo do Gestor; não distingue inexistência de falta de propriedade." },
+          "429": { "description": "Limite de requisições excedido." },
+          "503": { "description": "Schema ou view de identidade progressiva indisponível.", "content": { "application/json": { "schema": { "type": "object", "properties": { "codigo": { "type": "string", "enum": ["IDENTIDADE_PROGRESSIVA_INDISPONIVEL"] } } } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": { "JornadaAccessKey": { "type": "apiKey", "in": "header", "name": "X-Jornada-Access-Key" } },
+    "schemas": {
+      "ProgressiveOriginQueryRequest": {
+        "type": "object", "required": ["codigoSistemaOrigem", "codigoPessoaOrigem"], "additionalProperties": false,
+        "properties": {
+          "codigoSistemaOrigem": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Namespace técnico de origem, não o nome de exibição." },
+          "codigoPessoaOrigem": { "type": "string", "minLength": 1, "maxLength": 255, "description": "Chave interna da pessoa no sistema de origem; não é CPF." }
+        }
+      },
+      "ProgressiveOriginQueryResponse": {
+        "type": "object", "required": ["codigoSistemaOrigem", "codigoPessoaOrigem", "initialUuid", "canonicalUuid", "estado", "versao", "criadoEm", "atualizadoEm", "ultimaResolucaoEm"],
+        "properties": {
+          "codigoSistemaOrigem": { "type": "string" },
+          "codigoPessoaOrigem": { "type": "string" },
+          "initialUuid": { "type": "string", "format": "uuid", "description": "UUID inicial imutável da identidade de origem." },
+          "canonicalUuid": { "type": "string", "format": "uuid", "nullable": true, "description": "Referência canônica publicada somente com estado REFERENCIA." },
+          "estado": { "type": "string", "enum": ["PROVISORIA", "REFERENCIA", "INDEFINIDA"] },
+          "versao": { "type": "integer", "format": "int64", "minimum": 0 },
+          "criadoEm": { "type": "string", "format": "date-time" },
+          "atualizadoEm": { "type": "string", "format": "date-time" },
+          "ultimaResolucaoEm": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      }
+    }
+  }
+}
