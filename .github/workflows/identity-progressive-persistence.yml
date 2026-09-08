@@ -1,0 +1,178 @@
+name: jornada-identity-progressive-persistence
+on:
+  pull_request:
+    paths:
+      - 'Solution/database/Jornada_Identidade_Progressiva.sql'
+      - 'Solution/database/postgresql/Jornada_Identidade_Progressiva.sql'
+      - 'Solution/src/Jornada.Processor.Worker/ProgressiveIdentityOriginStore.cs'
+      - 'Solution/scripts/progressive-identity-persistence-smoke.cs'
+      - 'Solution/src/Jornada.Contracts/ProgressiveIdentity.cs'
+      - 'Solution/docs/Identidade_Progressiva_Persistencia.md'
+      - 'Solution/config/security/source-sanity-policy.json'
+      - '.github/workflows/identity-progressive-persistence.yml'
+  push:
+    paths:
+      - 'Solution/database/Jornada_Identidade_Progressiva.sql'
+      - 'Solution/database/postgresql/Jornada_Identidade_Progressiva.sql'
+      - 'Solution/src/Jornada.Processor.Worker/ProgressiveIdentityOriginStore.cs'
+      - 'Solution/scripts/progressive-identity-persistence-smoke.cs'
+      - 'Solution/src/Jornada.Contracts/ProgressiveIdentity.cs'
+      - 'Solution/docs/Identidade_Progressiva_Persistencia.md'
+      - 'Solution/config/security/source-sanity-policy.json'
+      - '.github/workflows/identity-progressive-persistence.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  persistence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: Solution
+        shell: bash
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: 'Jornada_Test_2026!Sql'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 20
+      postgres:
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        env:
+          POSTGRES_USER: jornada
+          POSTGRES_DB: JornadaProgressiveTest
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jornada -d JornadaProgressiveTest"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      JORNADA_PROGRESSIVE_SQL_CONNECTION: 'Server=localhost,1433;Database=JornadaProgressiveTest;User Id=sa;Password=Jornada_Test_2026!Sql;TrustServerCertificate=true;Encrypt=True'
+      JORNADA_PROGRESSIVE_POSTGRESQL_CONNECTION: 'Host=localhost;Port=5432;Database=JornadaProgressiveTest;Username=jornada;SSL Mode=Disable'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.424'
+      - name: Record source and restore locked graph
+        run: |
+          set -euo pipefail
+          mkdir -p .local/progressive-persistence-evidence
+          git rev-parse HEAD | tee .local/progressive-persistence-evidence/commit.txt
+          git diff --check
+          dotnet restore tests/Jornada.Tests/Jornada.Tests.csproj --locked-mode -v:normal -bl:.local/progressive-persistence-evidence/restore.binlog
+      - name: Build real projects and run domain regressions
+        run: |
+          set -euo pipefail
+          dotnet build tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-restore -warnaserror -v:normal -bl:.local/progressive-persistence-evidence/build.binlog 2>&1 | tee .local/progressive-persistence-evidence/build.log
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~ProgressiveIdentityTests' --logger 'trx;LogFileName=identity.trx' --results-directory .local/progressive-persistence-evidence 2>&1 | tee .local/progressive-persistence-evidence/test.log
+          python3 scripts/test-evidence-gate.py .local/progressive-persistence-evidence/identity.trx --forbid-skipped --minimum-tests 8 --summary .local/progressive-persistence-evidence/identity-tests.json
+      - name: Install SQL Server baseline and progressive migration twice
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=1433 | head -1)
+          test -n "$CID"
+          sqlcmd() { docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b "$@"; }
+          sqlcmd -Q "IF DB_ID('JornadaProgressiveTest') IS NULL CREATE DATABASE JornadaProgressiveTest;"
+          sqlcmd -d JornadaProgressiveTest -i /dev/stdin < database/Jornada_Fase1.sql > .local/progressive-persistence-evidence/sql-base.log 2>&1
+          sqlcmd -d JornadaProgressiveTest -i /dev/stdin < database/Jornada_Seed_Dev.sql > .local/progressive-persistence-evidence/sql-seed.log 2>&1
+          for pass in 1 2; do
+            sqlcmd -d JornadaProgressiveTest -i /dev/stdin < database/Jornada_Identidade_Progressiva.sql > ".local/progressive-persistence-evidence/sql-migration-$pass.log" 2>&1
+          done
+          echo 'sqlserver_migration=passed' > .local/progressive-persistence-evidence/sql-migration.result
+      - name: Install PostgreSQL populated baseline and migration twice
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=5432 | head -1)
+          test -n "$CID"
+          pgsql() { docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaProgressiveTest "$@"; }
+          for pass in 1 2; do
+            pgsql < database/postgresql/Jornada_Resultado_Core.sql > ".local/progressive-persistence-evidence/pg-result-$pass.log" 2>&1
+            pgsql < database/postgresql/Jornada_Ingestion_Processor_Core.sql > ".local/progressive-persistence-evidence/pg-ingestion-$pass.log" 2>&1
+            pgsql < database/postgresql/Jornada_Processor_Persistence_Core.sql > ".local/progressive-persistence-evidence/pg-persistence-$pass.log" 2>&1
+          done
+          pgsql < database/postgresql/Jornada_Resultado_Core_Smoke.sql > .local/progressive-persistence-evidence/pg-result-smoke.log 2>&1
+          pgsql < database/postgresql/Jornada_Processor_Persistence_Smoke.sql > .local/progressive-persistence-evidence/pg-processor-smoke.log 2>&1
+          for pass in 1 2; do
+            pgsql < database/postgresql/Jornada_Identidade_Progressiva.sql > ".local/progressive-persistence-evidence/pg-migration-$pass.log" 2>&1
+          done
+          echo 'postgresql_migration=passed' > .local/progressive-persistence-evidence/pg-migration.result
+      - name: Build isolated real-database smoke harness
+        run: |
+          set -euo pipefail
+          mkdir -p .local/progressive-persistence-harness
+          cat > .local/progressive-persistence-harness/ProgressivePersistenceSmoke.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net8.0</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="../../src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj" />
+              <ProjectReference Include="../../src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj" />
+              <Compile Include="../../scripts/progressive-identity-persistence-smoke.cs" Link="Program.cs" />
+            </ItemGroup>
+          </Project>
+          EOF
+          dotnet restore .local/progressive-persistence-harness/ProgressivePersistenceSmoke.csproj -v:normal -bl:.local/progressive-persistence-evidence/harness-restore.binlog 2>&1 | tee .local/progressive-persistence-evidence/harness-restore.log
+          dotnet build .local/progressive-persistence-harness/ProgressivePersistenceSmoke.csproj -c Release --no-restore -warnaserror -v:normal -bl:.local/progressive-persistence-evidence/harness-build.binlog 2>&1 | tee .local/progressive-persistence-evidence/harness-build.log
+      - name: Prove SQL Server concurrency, rollback, legacy and backfill
+        run: |
+          set -euo pipefail
+          JORNADA_PROGRESSIVE_PROVIDER=SqlServer JORNADA_PROGRESSIVE_CONNECTION="$JORNADA_PROGRESSIVE_SQL_CONNECTION" \
+            dotnet run --project .local/progressive-persistence-harness/ProgressivePersistenceSmoke.csproj -c Release --no-build --no-restore 2>&1 \
+            | tee .local/progressive-persistence-evidence/sql-runtime.log
+          grep -Fx 'PROGRESSIVE IDENTITY PERSISTENCE: OK (concurrency, retry, rollback, legacy, backfill, immutability)' .local/progressive-persistence-evidence/sql-runtime.log
+      - name: Prove PostgreSQL concurrency, rollback, legacy and backfill
+        run: |
+          set -euo pipefail
+          JORNADA_PROGRESSIVE_PROVIDER=PostgreSql JORNADA_PROGRESSIVE_CONNECTION="$JORNADA_PROGRESSIVE_POSTGRESQL_CONNECTION" \
+            dotnet run --project .local/progressive-persistence-harness/ProgressivePersistenceSmoke.csproj -c Release --no-build --no-restore 2>&1 \
+            | tee .local/progressive-persistence-evidence/pg-runtime.log
+          grep -Fx 'PROGRESSIVE IDENTITY PERSISTENCE: OK (concurrency, retry, rollback, legacy, backfill, immutability)' .local/progressive-persistence-evidence/sql-runtime.log >/dev/null || true
+          grep -Fx 'PROGRESSIVE IDENTITY PERSISTENCE: OK (concurrency, retry, rollback, legacy, backfill, immutability)' .local/progressive-persistence-evidence/pg-runtime.log
+      - name: Publish fail-closed evidence summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,sys
+          root=pathlib.Path('.local/progressive-persistence-evidence')
+          required=['commit.txt','restore.binlog','build.binlog','identity-tests.json','sql-migration.result','pg-migration.result','harness-build.binlog','sql-runtime.log','pg-runtime.log']
+          checks={p:(root/p).is_file() and (root/p).stat().st_size>0 for p in required}
+          try:
+              tests=json.loads((root/'identity-tests.json').read_text())
+              checks['unit_tests']=tests['status']=='PASS' and tests['aggregate']['passed']>=8 and tests['aggregate']['failed']==0 and tests['aggregate']['skipped']==0
+          except (OSError,ValueError,KeyError): checks['unit_tests']=False
+          marker='PROGRESSIVE IDENTITY PERSISTENCE: OK (concurrency, retry, rollback, legacy, backfill, immutability)'
+          for p in ['sql-runtime.log','pg-runtime.log']:
+              checks[p+'_passed']=(root/p).is_file() and marker in (root/p).read_text()
+          outcome='passed' if all(checks.values()) else 'failed'
+          summary={'schema_version':1,'commit':os.environ['GITHUB_SHA'],'outcome':outcome,'checks':checks,'scope':'isolated_storage_only','operational_activation':False}
+          root.mkdir(parents=True,exist_ok=True)
+          (root/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary,indent=2))
+          if outcome!='passed':sys.exit(1)
+          PY
+      - name: Upload persistence evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: progressive-identity-persistence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/progressive-persistence-evidence/
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: error
