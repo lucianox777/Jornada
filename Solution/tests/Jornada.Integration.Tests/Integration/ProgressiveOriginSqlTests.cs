@@ -35,7 +35,7 @@ public sealed class ProgressiveOriginSqlTests
         await using (var source = connection.CreateCommand())
         {
             source.CommandText = "SELECT TOP(1) pessoa_origem_id FROM silver.pessoa_origem ORDER BY pessoa_origem_id;";
-            sourceId = Convert.ToInt64(await source.ExecuteScalarAsync() ?? throw new InvalidOperationException("Fixture sem origem."));
+            sourceId = Convert.ToInt64(await source.ExecuteScalarAsync() ?? throw new InvalidOperationException("Fixture sem origem."), System.Globalization.CultureInfo.InvariantCulture);
         }
         // A única escrita do teste prepara uma referência já existente na Silver.
         // A consulta HTTP/SQL abaixo não cria nem publica identidades.
@@ -85,9 +85,11 @@ public sealed class ProgressiveOriginSqlTests
         Assert.That(await service.GetAsync(other, query, CancellationToken.None), Is.Null);
         Assert.That(await service.GetAsync(context, query with { CodigoSistemaOrigem = "CI_SISTEMA_INEXISTENTE" }, CancellationToken.None), Is.Null);
         Assert.That(await service.GetAsync(context, query with { CodigoPessoaOrigem = "CI_ORIGEM_INEXISTENTE_" + Guid.NewGuid().ToString("N") }, CancellationToken.None), Is.Null);
-        var changedCase = code.ToUpperInvariant() == code ? code.ToLowerInvariant() : code.ToUpperInvariant();
+        var changedCase = string.Equals(code, code.ToUpperInvariant(), StringComparison.Ordinal) ? code.ToLowerInvariant() : code.ToUpperInvariant();
         if (!string.Equals(changedCase, code, StringComparison.Ordinal))
             Assert.That(await service.GetAsync(context, query with { CodigoPessoaOrigem = changedCase }, CancellationToken.None), Is.Null);
+        Assert.That(await service.GetAsync(context, query with { CodigoPessoaOrigem = code + " " }, CancellationToken.None), Is.Null,
+            "Espaços finais não podem ampliar a igualdade de chaves do SQL Server.");
         Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await service.GetAsync(context with { Scopes = [] }, query, CancellationToken.None));
         Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await service.GetAsync(context with { CredentialType = AccessCredentialType.SERVICO }, query, CancellationToken.None));
 
