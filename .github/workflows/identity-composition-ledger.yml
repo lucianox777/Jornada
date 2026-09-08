@@ -1,0 +1,182 @@
+name: jornada-identity-composition-ledger
+on:
+  pull_request:
+    paths:
+      - 'Solution/database/migrations/20260908_Identidade_Composicao_Ledger.sql'
+      - 'Solution/database/postgresql/Jornada_Identidade_Composicao_Ledger.sql'
+      - 'Solution/scripts/identity-composition-ledger-smoke.cs'
+      - 'Solution/docs/ADR_Identidade_Composicao_Reversivel.md'
+      - 'Solution/docs/Identidade_Composicao_Ledger.md'
+      - 'Solution/config/security/source-sanity-policy.json'
+      - '.github/workflows/identity-composition-ledger.yml'
+  push:
+    paths:
+      - 'Solution/database/migrations/20260908_Identidade_Composicao_Ledger.sql'
+      - 'Solution/database/postgresql/Jornada_Identidade_Composicao_Ledger.sql'
+      - 'Solution/scripts/identity-composition-ledger-smoke.cs'
+      - 'Solution/config/security/source-sanity-policy.json'
+      - '.github/workflows/identity-composition-ledger.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ledger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: Solution
+        shell: bash
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: 'Jornada_Test_2026!Sql'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 20
+      postgres:
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        env:
+          POSTGRES_USER: jornada
+          POSTGRES_DB: JornadaCompositionTest
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jornada -d JornadaCompositionTest"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      JORNADA_LEDGER_SQL_CONNECTION: 'Server=localhost,1433;Database=JornadaCompositionTest;User Id=sa;Password=Jornada_Test_2026!Sql;TrustServerCertificate=true;Encrypt=True'
+      JORNADA_LEDGER_POSTGRESQL_CONNECTION: 'Host=localhost;Port=5432;Database=JornadaCompositionTest;Username=jornada;SSL Mode=Disable'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.424'
+      - name: Record source and build locked domain tests
+        run: |
+          set -euo pipefail
+          mkdir -p .local/composition-ledger-evidence
+          git rev-parse HEAD | tee .local/composition-ledger-evidence/commit.txt
+          git diff --check
+          dotnet restore tests/Jornada.Tests/Jornada.Tests.csproj --locked-mode -v:normal -bl:.local/composition-ledger-evidence/restore.binlog
+          dotnet build tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-restore -warnaserror -v:normal -bl:.local/composition-ledger-evidence/build.binlog 2>&1 | tee .local/composition-ledger-evidence/build.log
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~IdentityCompositionTests' --logger 'trx;LogFileName=composition.trx' --results-directory .local/composition-ledger-evidence 2>&1 | tee .local/composition-ledger-evidence/domain-tests.log
+          python3 scripts/test-evidence-gate.py .local/composition-ledger-evidence/composition.trx --forbid-skipped --minimum-tests 13 --summary .local/composition-ledger-evidence/domain-tests.json
+      - name: Build isolated real-database harness
+        run: |
+          set -euo pipefail
+          mkdir -p .local/composition-ledger-harness
+          cat > .local/composition-ledger-harness/CompositionLedgerSmoke.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net8.0</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="../../src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj" />
+              <ProjectReference Include="../../src/Jornada.Contracts/Jornada.Contracts.csproj" />
+              <Compile Include="../../scripts/identity-composition-ledger-smoke.cs" Link="Program.cs" />
+            </ItemGroup>
+          </Project>
+          EOF
+          dotnet restore .local/composition-ledger-harness/CompositionLedgerSmoke.csproj -v:normal -bl:.local/composition-ledger-evidence/harness-restore.binlog 2>&1 | tee .local/composition-ledger-evidence/harness-restore.log
+          dotnet build .local/composition-ledger-harness/CompositionLedgerSmoke.csproj -c Release --no-restore -warnaserror -v:normal -bl:.local/composition-ledger-evidence/harness-build.binlog 2>&1 | tee .local/composition-ledger-evidence/harness-build.log
+      - name: Install SQL Server populated baseline and ledger twice
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=1433 | head -1)
+          test -n "$CID"
+          sqlcmd() { docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b "$@"; }
+          sqlcmd -Q "IF DB_ID('JornadaCompositionTest') IS NULL CREATE DATABASE JornadaCompositionTest;"
+          sqlcmd -d JornadaCompositionTest -i /dev/stdin < database/Jornada_Fase1.sql > .local/composition-ledger-evidence/sql-base.log 2>&1
+          sqlcmd -d JornadaCompositionTest -i /dev/stdin < database/Jornada_Seed_Dev.sql > .local/composition-ledger-evidence/sql-seed.log 2>&1
+          sqlcmd -d JornadaCompositionTest -i /dev/stdin < database/migrations/20260907_Cpf_Ancora.sql > .local/composition-ledger-evidence/sql-anchor.log 2>&1
+          sqlcmd -d JornadaCompositionTest -i /dev/stdin < database/Jornada_Identidade_Progressiva.sql > .local/composition-ledger-evidence/sql-progressive.log 2>&1
+          for pass in 1 2; do
+            sqlcmd -d JornadaCompositionTest -i /dev/stdin < database/migrations/20260908_Identidade_Composicao_Ledger.sql > ".local/composition-ledger-evidence/sql-ledger-$pass.log" 2>&1
+          done
+          echo 'sqlserver_migration=passed' > .local/composition-ledger-evidence/sql-migration.result
+      - name: Install PostgreSQL populated baseline and ledger twice
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=5432 | head -1)
+          test -n "$CID"
+          pgsql() { docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCompositionTest "$@"; }
+          for pass in 1 2; do
+            pgsql < database/postgresql/Jornada_Resultado_Core.sql > ".local/composition-ledger-evidence/pg-result-$pass.log" 2>&1
+            pgsql < database/postgresql/Jornada_Ingestion_Processor_Core.sql > ".local/composition-ledger-evidence/pg-ingestion-$pass.log" 2>&1
+            pgsql < database/postgresql/Jornada_Processor_Persistence_Core.sql > ".local/composition-ledger-evidence/pg-persistence-$pass.log" 2>&1
+          done
+          pgsql < database/postgresql/Jornada_Resultado_Core_Smoke.sql > .local/composition-ledger-evidence/pg-result-smoke.log 2>&1
+          pgsql < database/postgresql/Jornada_Processor_Persistence_Smoke.sql > .local/composition-ledger-evidence/pg-processor-smoke.log 2>&1
+          pgsql < database/postgresql/Jornada_Cpf_Ancora.sql > .local/composition-ledger-evidence/pg-anchor.log 2>&1
+          pgsql < database/postgresql/Jornada_Identidade_Progressiva.sql > .local/composition-ledger-evidence/pg-progressive.log 2>&1
+          for pass in 1 2; do
+            pgsql < database/postgresql/Jornada_Identidade_Composicao_Ledger.sql > ".local/composition-ledger-evidence/pg-ledger-$pass.log" 2>&1
+          done
+          echo 'postgresql_migration=passed' > .local/composition-ledger-evidence/pg-migration.result
+      - name: Prove SQL Server ledger transaction semantics
+        run: |
+          set -euo pipefail
+          JORNADA_LEDGER_PROVIDER=SqlServer JORNADA_LEDGER_CONNECTION="$JORNADA_LEDGER_SQL_CONNECTION" \
+            dotnet run --project .local/composition-ledger-harness/CompositionLedgerSmoke.csproj -c Release --no-build --no-restore 2>&1 | tee .local/composition-ledger-evidence/sql-runtime.log
+          grep -Fx 'IDENTITY COMPOSITION LEDGER: OK (concurrency, replay, rollback, immutability, conservation)' .local/composition-ledger-evidence/sql-runtime.log
+      - name: Prove PostgreSQL ledger transaction semantics
+        run: |
+          set -euo pipefail
+          JORNADA_LEDGER_PROVIDER=PostgreSql JORNADA_LEDGER_CONNECTION="$JORNADA_LEDGER_POSTGRESQL_CONNECTION" \
+            dotnet run --project .local/composition-ledger-harness/CompositionLedgerSmoke.csproj -c Release --no-build --no-restore 2>&1 | tee .local/composition-ledger-evidence/pg-runtime.log
+          grep -Fx 'IDENTITY COMPOSITION LEDGER: OK (concurrency, replay, rollback, immutability, conservation)' .local/composition-ledger-evidence/pg-runtime.log
+      - name: Reinstall ledger over populated records without losing receipts
+        run: |
+          set -euo pipefail
+          SQL_CID=$(docker ps -q --filter publish=1433 | head -1)
+          PG_CID=$(docker ps -q --filter publish=5432 | head -1)
+          docker exec -i "$SQL_CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -d JornadaCompositionTest -i /dev/stdin < database/migrations/20260908_Identidade_Composicao_Ledger.sql > .local/composition-ledger-evidence/sql-populated-upgrade.log 2>&1
+          docker exec -i "$PG_CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCompositionTest < database/postgresql/Jornada_Identidade_Composicao_Ledger.sql > .local/composition-ledger-evidence/pg-populated-upgrade.log 2>&1
+          docker exec -i "$SQL_CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -h -1 -W -d JornadaCompositionTest -Q "SET NOCOUNT ON; IF NOT EXISTS(SELECT 1 FROM identidade.composicao_plano WHERE estado='PREPARADA') THROW 51430,'Upgrade perdeu recibos.',1; SELECT 'PRESERVED';" | grep -Fx PRESERVED
+          docker exec -i "$PG_CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCompositionTest -At -c "SELECT CASE WHEN EXISTS(SELECT 1 FROM identidade.composicao_plano WHERE estado='PREPARADA') THEN 'PRESERVED' ELSE 'FAILED' END;" | grep -Fx PRESERVED
+          echo 'populated_upgrade=passed' > .local/composition-ledger-evidence/populated-upgrade.result
+      - name: Publish fail-closed evidence summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,sys
+          root=pathlib.Path('.local/composition-ledger-evidence')
+          required=['commit.txt','restore.binlog','build.binlog','domain-tests.json','harness-build.binlog','sql-migration.result','pg-migration.result','sql-runtime.log','pg-runtime.log','populated-upgrade.result']
+          checks={p:(root/p).is_file() and (root/p).stat().st_size>0 for p in required}
+          try:
+              tests=json.loads((root/'domain-tests.json').read_text())
+              checks['domain_tests']=tests['status']=='PASS' and tests['aggregate']['passed']>=13 and tests['aggregate']['failed']==0 and tests['aggregate']['skipped']==0
+          except (OSError,ValueError,KeyError):checks['domain_tests']=False
+          marker='IDENTITY COMPOSITION LEDGER: OK (concurrency, replay, rollback, immutability, conservation)'
+          for name in ['sql-runtime.log','pg-runtime.log']:
+              checks[name+'_passed']=(root/name).is_file() and marker in (root/name).read_text()
+          outcome='passed' if all(checks.values()) else 'failed'
+          summary={'schema_version':1,'commit':os.environ['GITHUB_SHA'],'outcome':outcome,'checks':checks,'scope':'preparation_ledger_only','operational_activation':False}
+          root.mkdir(parents=True,exist_ok=True)
+          (root/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary,indent=2))
+          if outcome!='passed':sys.exit(1)
+          PY
+      - name: Upload ledger evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: identity-composition-ledger-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/composition-ledger-evidence/
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: error
