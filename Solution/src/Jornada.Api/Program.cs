@@ -468,6 +468,9 @@ app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}/beneficios-concedidos", async (
     var context = auth.Context!;
     var filterError = ValidateQueryFilters("BENEFICIO", codigo, desde, ate);
     if (filterError is not null) return filterError;
+    ApiAuditContext.SetResourceCode(http.HttpContext, codigo);
+    var canonicalUuid = await canonicalResolver.ResolveAsync(pessoaUuid, ct);
+    if (!canonicalUuid.HasValue) return Results.NotFound();
     ApiAuditContext.SetPersons(http.HttpContext, canonicalUuid.Value == pessoaUuid ? [pessoaUuid] : [pessoaUuid, canonicalUuid.Value]);
     if (!await policy.IsAllowedAsync(context, "jornada.registros.read", codigo, null, ct)) return Results.Forbid();
     if (!await policy.IsAllowedAsync(context, "jornada.registros.read", codigo, canonicalUuid.Value, ct)) return Results.NotFound();
