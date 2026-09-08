@@ -1,0 +1,122 @@
+name: jornada-identity-progressive-serving
+on:
+  pull_request:
+    paths:
+      - 'Solution/database/migrations/20260908_Identidade_Progressiva_Serving.sql'
+      - 'Solution/database/postgresql/Jornada_Identidade_Progressiva_Serving.sql'
+      - 'Solution/docs/Identidade_Progressiva_Serving.md'
+      - '.github/workflows/identity-progressive-serving.yml'
+  push:
+    paths:
+      - 'Solution/database/migrations/20260908_Identidade_Progressiva_Serving.sql'
+      - 'Solution/database/postgresql/Jornada_Identidade_Progressiva_Serving.sql'
+      - 'Solution/docs/Identidade_Progressiva_Serving.md'
+      - '.github/workflows/identity-progressive-serving.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  serving:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: Solution
+        shell: bash
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: 'Jornada_Test_2026!Sql'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 20
+      postgres:
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        env:
+          POSTGRES_USER: jornada
+          POSTGRES_DB: JornadaProgressiveServingTest
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jornada -d JornadaProgressiveServingTest"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Source sanity
+        run: |
+          set -euo pipefail
+          git diff --check
+      - name: SQL Server install twice and prove semantics
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=1433 | head -1)
+          sqlcmd() { docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b "$@"; }
+          sqlcmd -Q "IF DB_ID('JornadaProgressiveServingTest') IS NULL CREATE DATABASE JornadaProgressiveServingTest;"
+          sqlcmd -d JornadaProgressiveServingTest -i /dev/stdin < database/Jornada_Fase1.sql
+          sqlcmd -d JornadaProgressiveServingTest -i /dev/stdin < database/Jornada_Seed_Dev.sql
+          sqlcmd -d JornadaProgressiveServingTest -i /dev/stdin < database/Jornada_Identidade_Progressiva.sql
+          for pass in 1 2; do
+            sqlcmd -d JornadaProgressiveServingTest -i /dev/stdin < database/migrations/20260908_Identidade_Progressiva_Serving.sql
+          done
+          cat <<'SQL' | sqlcmd -d JornadaProgressiveServingTest -i /dev/stdin
+          SET NOCOUNT ON;
+          DECLARE @source BIGINT=(SELECT TOP(1) pessoa_origem_id FROM silver.pessoa_origem ORDER BY pessoa_origem_id);
+          IF @source IS NULL THROW 51371,'Fixture SQL Server sem origem.',1;
+          BEGIN TRAN;
+          EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source;
+          COMMIT;
+          IF NOT EXISTS(SELECT 1 FROM serving.v_identidade_origem_progressiva WHERE pessoa_origem_id=@source AND estado='PROVISORIA' AND canonical_uuid IS NULL AND apta_contagem_pessoa_canonica=0)
+            THROW 51372,'View não preservou PROVISORIA sem contagem canônica.',1;
+          DECLARE @uuid UNIQUEIDENTIFIER=(SELECT initial_uuid FROM identidade.pessoa_origem_progressiva WHERE pessoa_origem_id=@source),@versao BIGINT;
+          BEGIN TRAN;
+          EXEC identidade.sp_publicar_referencia_progressiva_deterministica @pessoa_origem_id=@source,@canonical_uuid=@uuid,@evidencia_referencia=N'CI_DETERMINISTICA',@politica_versao=N'CI_V1',@versao_resultado=@versao OUTPUT;
+          COMMIT;
+          IF NOT EXISTS(SELECT 1 FROM serving.v_identidade_origem_progressiva WHERE pessoa_origem_id=@source AND estado='REFERENCIA' AND canonical_uuid=initial_uuid AND apta_contagem_pessoa_canonica=1 AND versao=@versao)
+            THROW 51373,'View não refletiu REFERENCIA determinística.',1;
+          SELECT 'PROGRESSIVE SERVING SQLSERVER: OK' AS resultado;
+          SQL
+      - name: PostgreSQL install twice and prove semantics
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=5432 | head -1)
+          pgsql() { docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaProgressiveServingTest "$@"; }
+          pgsql < database/postgresql/Jornada_Resultado_Core.sql
+          pgsql < database/postgresql/Jornada_Ingestion_Processor_Core.sql
+          pgsql < database/postgresql/Jornada_Processor_Persistence_Core.sql
+          pgsql < database/postgresql/Jornada_Identidade_Progressiva.sql
+          for pass in 1 2; do
+            pgsql < database/postgresql/Jornada_Identidade_Progressiva_Serving.sql
+          done
+          cat <<'SQL' | pgsql
+          INSERT INTO ref.gestor(codigo,nome) VALUES('CI_SERVING','CI Serving') ON CONFLICT(codigo) DO NOTHING;
+          INSERT INTO ref.sistema_origem(gestor_id,codigo,nome)
+          SELECT gestor_id,'CI_SERVING','CI Serving' FROM ref.gestor WHERE codigo='CI_SERVING'
+          ON CONFLICT(gestor_id,codigo) DO NOTHING;
+          INSERT INTO silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem)
+          SELECT sistema_origem_id,'CI-SERVING-001' FROM ref.sistema_origem WHERE codigo='CI_SERVING'
+          ON CONFLICT(sistema_origem_id,codigo_pessoa_origem) DO NOTHING;
+          SELECT identidade.assegurar_origem_progressiva(pessoa_origem_id)
+          FROM silver.pessoa_origem WHERE codigo_pessoa_origem='CI-SERVING-001';
+          DO $$
+          DECLARE v_source BIGINT; v_uuid UUID; v_ver BIGINT;
+          BEGIN
+            SELECT pessoa_origem_id INTO v_source FROM silver.pessoa_origem WHERE codigo_pessoa_origem='CI-SERVING-001';
+            IF NOT EXISTS(SELECT 1 FROM serving.v_identidade_origem_progressiva WHERE pessoa_origem_id=v_source AND estado='PROVISORIA' AND canonical_uuid IS NULL AND apta_contagem_pessoa_canonica=FALSE) THEN
+              RAISE EXCEPTION 'View não preservou PROVISORIA sem contagem canônica.';
+            END IF;
+            SELECT initial_uuid INTO v_uuid FROM identidade.pessoa_origem_progressiva WHERE pessoa_origem_id=v_source;
+            SELECT identidade.publicar_referencia_progressiva_deterministica(v_source,v_uuid,'CI_DETERMINISTICA','CI_V1') INTO v_ver;
+            IF NOT EXISTS(SELECT 1 FROM serving.v_identidade_origem_progressiva WHERE pessoa_origem_id=v_source AND estado='REFERENCIA' AND canonical_uuid=initial_uuid AND apta_contagem_pessoa_canonica=TRUE AND versao=v_ver) THEN
+              RAISE EXCEPTION 'View não refletiu REFERENCIA determinística.';
+            END IF;
+          END $$;
+          SELECT 'PROGRESSIVE SERVING POSTGRESQL: OK' AS resultado;
+          SQL
