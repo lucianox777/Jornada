@@ -1,0 +1,168 @@
+name: jornada-identity-operational-cutover
+on:
+  pull_request:
+    paths:
+      - 'Solution/database/migrations/20260908_Identidade_Progressiva_Processor.sql'
+      - 'Solution/database/migrations/20260908_Identidade_Progressiva_Processor_Smoke.sql'
+      - 'Solution/database/postgresql/Jornada_Identidade_Progressiva_Processor.sql'
+      - 'Solution/database/postgresql/Jornada_Identidade_Progressiva_Processor_Smoke.sql'
+      - 'Solution/scripts/progressive-identity-backfill.cs'
+      - 'Solution/config/security/source-sanity-policy.json'
+      - '.github/workflows/identity-operational-cutover.yml'
+  push:
+    paths:
+      - 'Solution/database/migrations/20260908_Identidade_Progressiva_Processor.sql'
+      - 'Solution/database/migrations/20260908_Identidade_Progressiva_Processor_Smoke.sql'
+      - 'Solution/database/postgresql/Jornada_Identidade_Progressiva_Processor.sql'
+      - 'Solution/database/postgresql/Jornada_Identidade_Progressiva_Processor_Smoke.sql'
+      - 'Solution/scripts/progressive-identity-backfill.cs'
+      - 'Solution/config/security/source-sanity-policy.json'
+      - '.github/workflows/identity-operational-cutover.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cutover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: Solution
+        shell: bash
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: 'Jornada_Test_2026!Sql'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 20
+      postgres:
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        env:
+          POSTGRES_USER: jornada
+          POSTGRES_DB: JornadaCutoverTest
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jornada -d JornadaCutoverTest"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      JORNADA_CUTOVER_SQL_CONNECTION: 'Server=localhost,1433;Database=JornadaCutoverTest;User Id=sa;Password=Jornada_Test_2026!Sql;TrustServerCertificate=true;Encrypt=True'
+      JORNADA_CUTOVER_PG_CONNECTION: 'Host=localhost;Port=5432;Database=JornadaCutoverTest;Username=jornada;SSL Mode=Disable'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.424'
+      - name: Prepare evidence and databases
+        run: |
+          set -euo pipefail
+          mkdir -p .local/identity-cutover-evidence
+          git rev-parse HEAD | tee .local/identity-cutover-evidence/commit.txt
+          git diff --check
+          SQLCID=$(docker ps -q --filter publish=1433 | head -1); test -n "$SQLCID"
+          PGCID=$(docker ps -q --filter publish=5432 | head -1); test -n "$PGCID"
+          docker exec -i "$SQLCID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -Q "IF DB_ID('JornadaCutoverTest') IS NULL CREATE DATABASE JornadaCutoverTest;"
+          docker exec -i "$SQLCID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -d JornadaCutoverTest -i /dev/stdin < database/Jornada_Fase1.sql > .local/identity-cutover-evidence/sql-base.log 2>&1
+          docker exec -i "$SQLCID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -d JornadaCutoverTest -i /dev/stdin < database/Jornada_Seed_Dev.sql > .local/identity-cutover-evidence/sql-seed.log 2>&1
+          docker exec -i "$SQLCID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -d JornadaCutoverTest -i /dev/stdin < database/Jornada_Identidade_Progressiva.sql > .local/identity-cutover-evidence/sql-storage.log 2>&1
+          for f in database/postgresql/Jornada_Resultado_Core.sql database/postgresql/Jornada_Ingestion_Processor_Core.sql database/postgresql/Jornada_Processor_Persistence_Core.sql; do
+            docker exec -i "$PGCID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCutoverTest < "$f" >> .local/identity-cutover-evidence/pg-base.log 2>&1
+          done
+          docker exec -i "$PGCID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCutoverTest < database/postgresql/Jornada_Resultado_Core_Smoke.sql > .local/identity-cutover-evidence/pg-result-smoke.log 2>&1
+          docker exec -i "$PGCID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCutoverTest < database/postgresql/Jornada_Processor_Persistence_Smoke.sql > .local/identity-cutover-evidence/pg-processor-smoke.log 2>&1
+          docker exec -i "$PGCID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCutoverTest < database/postgresql/Jornada_Identidade_Progressiva.sql > .local/identity-cutover-evidence/pg-storage.log 2>&1
+      - name: Prove cutover fails closed before historical backfill
+        run: |
+          set -euo pipefail
+          SQLCID=$(docker ps -q --filter publish=1433 | head -1)
+          PGCID=$(docker ps -q --filter publish=5432 | head -1)
+          set +e
+          docker exec -i "$SQLCID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -d JornadaCutoverTest -i /dev/stdin < database/migrations/20260908_Identidade_Progressiva_Processor.sql > .local/identity-cutover-evidence/sql-prebackfill.log 2>&1
+          SQLRC=$?
+          docker exec -i "$PGCID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCutoverTest < database/postgresql/Jornada_Identidade_Progressiva_Processor.sql > .local/identity-cutover-evidence/pg-prebackfill.log 2>&1
+          PGRC=$?
+          set -e
+          test "$SQLRC" -ne 0
+          test "$PGRC" -ne 0
+          grep -F 'conclua o backfill paginado' .local/identity-cutover-evidence/sql-prebackfill.log
+          grep -F 'conclua o backfill paginado' .local/identity-cutover-evidence/pg-prebackfill.log
+          printf 'sqlserver=refused\npostgresql=refused\n' > .local/identity-cutover-evidence/prebackfill.result
+      - name: Build bounded backfill runner
+        run: |
+          set -euo pipefail
+          mkdir -p .local/identity-cutover-harness
+          cat > .local/identity-cutover-harness/IdentityCutoverBackfill.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="../../src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj" />
+              <ProjectReference Include="../../src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj" />
+              <Compile Include="../../scripts/progressive-identity-backfill.cs" Link="Program.cs" />
+            </ItemGroup>
+          </Project>
+          EOF
+          dotnet restore .local/identity-cutover-harness/IdentityCutoverBackfill.csproj -v:normal -bl:.local/identity-cutover-evidence/restore.binlog 2>&1 | tee .local/identity-cutover-evidence/restore.log
+          dotnet build .local/identity-cutover-harness/IdentityCutoverBackfill.csproj -c Release --no-restore -warnaserror -v:normal -bl:.local/identity-cutover-evidence/build.binlog 2>&1 | tee .local/identity-cutover-evidence/build.log
+      - name: Complete bounded resumable backfill
+        run: |
+          set -euo pipefail
+          JORNADA_PROGRESSIVE_PROVIDER=SqlServer JORNADA_PROGRESSIVE_CONNECTION="$JORNADA_CUTOVER_SQL_CONNECTION" JORNADA_PROGRESSIVE_PAGE_SIZE=2 \
+            dotnet run --project .local/identity-cutover-harness/IdentityCutoverBackfill.csproj -c Release --no-build --no-restore 2>&1 | tee .local/identity-cutover-evidence/sql-backfill.log
+          JORNADA_PROGRESSIVE_PROVIDER=PostgreSql JORNADA_PROGRESSIVE_CONNECTION="$JORNADA_CUTOVER_PG_CONNECTION" JORNADA_PROGRESSIVE_PAGE_SIZE=2 \
+            dotnet run --project .local/identity-cutover-harness/IdentityCutoverBackfill.csproj -c Release --no-build --no-restore 2>&1 | tee .local/identity-cutover-evidence/pg-backfill.log
+          grep -F 'PROGRESSIVE IDENTITY BACKFILL: OK provider=SqlServer' .local/identity-cutover-evidence/sql-backfill.log
+          grep -F 'PROGRESSIVE IDENTITY BACKFILL: OK provider=PostgreSql' .local/identity-cutover-evidence/pg-backfill.log
+      - name: Activate cutover twice and prove transactional runtime
+        run: |
+          set -euo pipefail
+          SQLCID=$(docker ps -q --filter publish=1433 | head -1)
+          PGCID=$(docker ps -q --filter publish=5432 | head -1)
+          for pass in 1 2; do
+            docker exec -i "$SQLCID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -d JornadaCutoverTest -i /dev/stdin < database/migrations/20260908_Identidade_Progressiva_Processor.sql > ".local/identity-cutover-evidence/sql-cutover-$pass.log" 2>&1
+            docker exec -i "$PGCID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCutoverTest < database/postgresql/Jornada_Identidade_Progressiva_Processor.sql > ".local/identity-cutover-evidence/pg-cutover-$pass.log" 2>&1
+          done
+          docker exec -i "$SQLCID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -d JornadaCutoverTest -i /dev/stdin < database/migrations/20260908_Identidade_Progressiva_Processor_Smoke.sql 2>&1 | tee .local/identity-cutover-evidence/sql-runtime.log
+          docker exec -i "$PGCID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCutoverTest < database/postgresql/Jornada_Identidade_Progressiva_Processor_Smoke.sql 2>&1 | tee .local/identity-cutover-evidence/pg-runtime.log
+          grep -F 'PROGRESSIVE PROCESSOR CUTOVER SQLSERVER: OK' .local/identity-cutover-evidence/sql-runtime.log
+          grep -F 'PROGRESSIVE PROCESSOR CUTOVER POSTGRESQL: OK' .local/identity-cutover-evidence/pg-runtime.log
+      - name: Publish fail-closed evidence summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,sys
+          root=pathlib.Path('.local/identity-cutover-evidence')
+          required=['commit.txt','prebackfill.result','restore.binlog','build.binlog','sql-backfill.log','pg-backfill.log','sql-cutover-2.log','pg-cutover-2.log','sql-runtime.log','pg-runtime.log']
+          checks={p:(root/p).is_file() and (root/p).stat().st_size>0 for p in required}
+          markers={
+            'sql_runtime':'PROGRESSIVE PROCESSOR CUTOVER SQLSERVER: OK',
+            'pg_runtime':'PROGRESSIVE PROCESSOR CUTOVER POSTGRESQL: OK',
+            'sql_backfill':'PROGRESSIVE IDENTITY BACKFILL: OK provider=SqlServer',
+            'pg_backfill':'PROGRESSIVE IDENTITY BACKFILL: OK provider=PostgreSql'}
+          files={'sql_runtime':'sql-runtime.log','pg_runtime':'pg-runtime.log','sql_backfill':'sql-backfill.log','pg_backfill':'pg-backfill.log'}
+          for key,marker in markers.items():
+              p=root/files[key]; checks[key]=p.is_file() and marker in p.read_text()
+          outcome='passed' if all(checks.values()) else 'failed'
+          summary={'schema_version':1,'commit':os.environ['GITHUB_SHA'],'outcome':outcome,'checks':checks,'scope':'progressive_initial_uuid_processor_cutover','probabilistic_linkage_activated':False}
+          (root/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary,indent=2))
+          if outcome!='passed': sys.exit(1)
+          PY
+      - name: Upload cutover evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: progressive-identity-cutover-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/identity-cutover-evidence/
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: error
