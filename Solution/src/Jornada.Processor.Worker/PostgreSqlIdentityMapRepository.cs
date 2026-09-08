@@ -52,6 +52,17 @@ internal static class PostgreSqlIdentityPersistence
         string? sourceRecordId,
         CancellationToken ct)
     {
+        // Serializa a chave CPF antes de consultar a âncora. O advisory lock evita duas
+        // primeiras aparições simultâneas criarem Pessoas candidatas concorrentes.
+        await using (var keyLock = Command(connection, tx,
+                         "SELECT pg_advisory_xact_lock(hashtextextended('JORNADA:CPF_ANCORA:' || @cpf,0));"))
+        {
+            Add(keyLock, "@cpf", DbType.String, cpf, 11);
+            await keyLock.ExecuteNonQueryAsync(ct);
+        }
+
+        var anchorUuid = await LockCpfAnchorAsync(connection, tx, cpf, ct);
+
         Guid? existingUuid = null;
         long? existingMapId = null;
         string? existingState = null;
@@ -74,8 +85,18 @@ internal static class PostgreSqlIdentityPersistence
             }
         }
 
+        if (anchorUuid.HasValue && existingUuid.HasValue && anchorUuid.Value != existingUuid.Value)
+            throw new InvalidOperationException("CPF_ANCHOR_IDENTITY_MAP_DIVERGENCE: âncora permanente e mapa corrente apontam UUIDs diferentes.");
+
         if (existingUuid.HasValue)
         {
+            if (!anchorUuid.HasValue)
+            {
+                anchorUuid = await ReserveCpfAnchorAsync(connection, tx, cpf, existingUuid.Value, ct);
+                if (anchorUuid.Value != existingUuid.Value)
+                    throw new InvalidOperationException("CPF_ANCHOR_RESERVATION_DIVERGENCE: reserva retornou UUID distinto do mapa corrente.");
+            }
+
             if (string.Equals(existingState, "EM_CONFLITO", StringComparison.Ordinal))
             {
                 return new InternalIdentityResolution(
@@ -102,7 +123,27 @@ internal static class PostgreSqlIdentityPersistence
             }
 
             return new InternalIdentityResolution(
-                ResolutionStatus.RESOLVIDO, existingUuid.Value, ResolutionMethod.CPF_DETERMINISTICO);
+                ResolutionStatus.RESOLVIDO, anchorUuid.Value, ResolutionMethod.CPF_DETERMINISTICO);
+        }
+
+        if (anchorUuid.HasValue)
+        {
+            var historicalCore = await LoadExistingCoreAsync(connection, tx, anchorUuid.Value, ct);
+            if (historicalCore is not null)
+            {
+                var assessment = CpfIdentityConsistency.Evaluate(historicalCore, incomingCore);
+                if (assessment.IsConflict)
+                {
+                    return new InternalIdentityResolution(
+                        ResolutionStatus.CONFLITO, null, ResolutionMethod.CPF_DETERMINISTICO, Motivo: assessment.Motivo);
+                }
+            }
+
+            await InsertActiveCpfMapAsync(
+                connection, tx, anchorUuid.Value, cpf, gestorId, sourceRecordId,
+                "CPF_MAP_RECUPERADO_ANCORA", ct);
+            return new InternalIdentityResolution(
+                ResolutionStatus.RESOLVIDO, anchorUuid.Value, ResolutionMethod.CPF_DETERMINISTICO);
         }
 
         var created = Guid.NewGuid();
@@ -113,34 +154,77 @@ internal static class PostgreSqlIdentityPersistence
             await insertPerson.ExecuteNonQueryAsync(ct);
         }
 
+        var reserved = await ReserveCpfAnchorAsync(connection, tx, cpf, created, ct);
+        if (reserved != created)
+            throw new InvalidOperationException("CPF_ANCHOR_NEW_PERSON_DIVERGENCE: UUID recém-criado não corresponde à âncora reservada.");
+
+        await InsertActiveCpfMapAsync(
+            connection, tx, created, cpf, gestorId, sourceRecordId,
+            "CPF_MAP_CRIADO", ct);
+        return new InternalIdentityResolution(
+            ResolutionStatus.RESOLVIDO, created, ResolutionMethod.CPF_DETERMINISTICO);
+    }
+
+    private static async Task<Guid?> LockCpfAnchorAsync(
+        DbConnection connection, DbTransaction tx, string cpf, CancellationToken ct)
+    {
+        await using var command = Command(connection, tx, """
+            SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf=@cpf FOR UPDATE;
+            """);
+        Add(command, "@cpf", DbType.AnsiStringFixedLength, cpf, 11);
+        var value = await command.ExecuteScalarAsync(ct);
+        return value is null or DBNull ? null : (Guid)value;
+    }
+
+    private static async Task<Guid> ReserveCpfAnchorAsync(
+        DbConnection connection, DbTransaction tx, string cpf, Guid uuid, CancellationToken ct)
+    {
+        await using var command = Command(connection, tx,
+            "SELECT identidade.fn_reservar_cpf_ancora(@cpf,@uuid);");
+        Add(command, "@cpf", DbType.String, cpf, 11);
+        Add(command, "@uuid", DbType.Guid, uuid);
+        var value = await command.ExecuteScalarAsync(ct);
+        if (value is not Guid reserved || reserved == Guid.Empty)
+            throw new InvalidOperationException("Reserva da âncora CPF não retornou UUID válido.");
+        return reserved;
+    }
+
+    private static async Task<long> InsertActiveCpfMapAsync(
+        DbConnection connection,
+        DbTransaction tx,
+        Guid uuid,
+        string cpf,
+        long? gestorId,
+        string? sourceRecordId,
+        string reason,
+        CancellationToken ct)
+    {
         long mapId;
         await using (var insertMap = Command(connection, tx, """
             INSERT INTO identidade.identity_map(
                 pessoa_uuid,tipo,identificador,vigencia_inicio,gestor_origem_id,source_record_id,
                 metodo_resolucao,estado,estado_motivo,estado_em)
             VALUES(@uuid,'CPF',@cpf,CURRENT_TIMESTAMP,@gestor_id,@source_record_id,
-                   'CPF_DETERMINISTICO','ATIVO','CPF_MAP_CRIADO',CURRENT_TIMESTAMP)
+                   'CPF_DETERMINISTICO','ATIVO',@motivo,CURRENT_TIMESTAMP)
             RETURNING identity_map_id;
             """))
         {
-            Add(insertMap, "@uuid", DbType.Guid, created);
+            Add(insertMap, "@uuid", DbType.Guid, uuid);
             Add(insertMap, "@cpf", DbType.AnsiStringFixedLength, cpf, 11);
             Add(insertMap, "@gestor_id", DbType.Int64, gestorId);
             Add(insertMap, "@source_record_id", DbType.String, sourceRecordId, 255);
+            Add(insertMap, "@motivo", DbType.String, reason, 120);
             mapId = Convert.ToInt64(await insertMap.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        await using (var stateEvent = Command(connection, tx, """
+        await using var stateEvent = Command(connection, tx, """
             INSERT INTO identidade.identity_map_estado_evento(identity_map_id,estado_anterior,estado_novo,motivo)
-            VALUES(@map_id,NULL,'ATIVO','CPF_MAP_CRIADO');
-            """))
-        {
-            Add(stateEvent, "@map_id", DbType.Int64, mapId);
-            await stateEvent.ExecuteNonQueryAsync(ct);
-        }
-
-        return new InternalIdentityResolution(
-            ResolutionStatus.RESOLVIDO, created, ResolutionMethod.CPF_DETERMINISTICO);
+            VALUES(@map_id,NULL,'ATIVO',@motivo);
+            """);
+        Add(stateEvent, "@map_id", DbType.Int64, mapId);
+        Add(stateEvent, "@motivo", DbType.String, reason, 120);
+        await stateEvent.ExecuteNonQueryAsync(ct);
+        return mapId;
     }
 
     private static async Task MarkCpfIdentifierConflictAsync(
