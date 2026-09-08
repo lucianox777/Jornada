@@ -3,194 +3,37 @@
   "status": "VIGENTE",
   "note": "Matriz técnica de autorização. Não cria escopos institucionais; prova coerência entre endpoints, permission strings e tipos de credencial.",
   "credentials": {
-    "GESTOR": {
-      "resourceOwnership": false
-    },
-    "BENEFICIO": {
-      "resourceOwnership": true
-    },
-    "SERVICO": {
-      "resourceOwnership": true
-    }
+    "GESTOR": { "resourceOwnership": false },
+    "BENEFICIO": { "resourceOwnership": true },
+    "SERVICO": { "resourceOwnership": true }
   },
   "permissions": [
-    {
-      "permission": "jornada.identidade.resolve",
-      "gestor": true,
-      "beneficio": true,
-      "servico": true
-    },
-    {
-      "permission": "jornada.ingestao.write",
-      "gestor": true,
-      "beneficio": true,
-      "servico": true,
-      "resourceOwnershipAlways": true
-    },
-    {
-      "permission": "jornada.ingestao.status",
-      "gestor": true,
-      "beneficio": true,
-      "servico": true,
-      "resourceOwnershipAlways": true
-    },
-    {
-      "permission": "jornada.identidade.conflitos.read",
-      "gestor": true,
-      "beneficio": false,
-      "servico": false
-    },
-    {
-      "permission": "jornada.identidade.corrigir",
-      "gestor": true,
-      "beneficio": false,
-      "servico": false
-    },
-    {
-      "permission": "jornada.pessoas.read",
-      "gestor": true,
-      "beneficio": true,
-      "servico": true
-    },
-    {
-      "permission": "jornada.registros.read",
-      "gestor": true,
-      "beneficio": true,
-      "servico": true
-    },
-    {
-      "permission": "jornada.possibilidades.read",
-      "gestor": true,
-      "beneficio": true,
-      "servico": true
-    }
+    { "permission": "jornada.identidade.resolve", "gestor": true, "beneficio": true, "servico": true },
+    { "permission": "jornada.identidade.origem.read", "gestor": true, "beneficio": false, "servico": false, "sourceSystemOwnershipAlways": true },
+    { "permission": "jornada.ingestao.write", "gestor": true, "beneficio": true, "servico": true, "resourceOwnershipAlways": true },
+    { "permission": "jornada.ingestao.status", "gestor": true, "beneficio": true, "servico": true, "resourceOwnershipAlways": true },
+    { "permission": "jornada.identidade.conflitos.read", "gestor": true, "beneficio": false, "servico": false },
+    { "permission": "jornada.identidade.corrigir", "gestor": true, "beneficio": false, "servico": false },
+    { "permission": "jornada.pessoas.read", "gestor": true, "beneficio": true, "servico": true },
+    { "permission": "jornada.registros.read", "gestor": true, "beneficio": true, "servico": true },
+    { "permission": "jornada.possibilidades.read", "gestor": true, "beneficio": true, "servico": true }
   ],
   "routes": [
-    {
-      "method": "POST",
-      "path": "/api/v1/identidade/resolver",
-      "permission": "jornada.identidade.resolve",
-      "allowedCredentialTypes": [
-        "GESTOR",
-        "BENEFICIO",
-        "SERVICO"
-      ]
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/ingestao/entregas",
-      "permission": "jornada.ingestao.write",
-      "allowedCredentialTypes": [
-        "GESTOR"
-      ]
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/ingestao/entregas/{entregaId}",
-      "permission": "jornada.ingestao.status",
-      "allowedCredentialTypes": [
-        "GESTOR"
-      ]
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/identidade/conflitos/detalhe",
-      "permission": "jornada.identidade.conflitos.read",
-      "allowedCredentialTypes": [
-        "GESTOR"
-      ]
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/identidade/correcoes",
-      "permission": "jornada.identidade.corrigir",
-      "allowedCredentialTypes": [
-        "GESTOR"
-      ]
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/identidade/casos",
-      "permission": "jornada.identidade.corrigir",
-      "allowedCredentialTypes": [
-        "GESTOR"
-      ]
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/identidade/casos/{casoId}/aplicar",
-      "permission": "jornada.identidade.corrigir",
-      "allowedCredentialTypes": [
-        "GESTOR"
-      ]
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/divergencias",
-      "permission": "jornada.identidade.conflitos.read",
-      "allowedCredentialTypes": [
-        "GESTOR"
-      ]
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/divergencias/{divergenciaId}/desfecho",
-      "permission": "jornada.identidade.corrigir",
-      "allowedCredentialTypes": [
-        "GESTOR"
-      ]
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pessoas/{pessoaUuid}",
-      "permission": "jornada.pessoas.read",
-      "allowedCredentialTypes": [
-        "GESTOR",
-        "BENEFICIO",
-        "SERVICO"
-      ]
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pessoas/consulta",
-      "permission": "jornada.pessoas.read",
-      "allowedCredentialTypes": [
-        "GESTOR",
-        "BENEFICIO",
-        "SERVICO"
-      ]
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pessoas/{pessoaUuid}/registros",
-      "permission": "jornada.registros.read",
-      "allowedCredentialTypes": [
-        "GESTOR"
-      ]
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pessoas/{pessoaUuid}/beneficios-concedidos",
-      "permission": "jornada.registros.read",
-      "allowedCredentialTypes": [
-        "GESTOR"
-      ]
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pessoas/{pessoaUuid}/servicos-prestados",
-      "permission": "jornada.registros.read",
-      "allowedCredentialTypes": [
-        "GESTOR"
-      ]
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pessoas/{pessoaUuid}/possibilidades",
-      "permission": "jornada.possibilidades.read",
-      "allowedCredentialTypes": [
-        "GESTOR"
-      ]
-    }
+    { "method": "POST", "path": "/api/v1/identidade/resolver", "permission": "jornada.identidade.resolve", "allowedCredentialTypes": ["GESTOR", "BENEFICIO", "SERVICO"] },
+    { "method": "POST", "path": "/api/v1/identidade/origens/consulta", "permission": "jornada.identidade.origem.read", "allowedCredentialTypes": ["GESTOR"], "sourceSystemOwnershipAlways": true },
+    { "method": "POST", "path": "/api/v1/ingestao/entregas", "permission": "jornada.ingestao.write", "allowedCredentialTypes": ["GESTOR"] },
+    { "method": "GET", "path": "/api/v1/ingestao/entregas/{entregaId}", "permission": "jornada.ingestao.status", "allowedCredentialTypes": ["GESTOR"] },
+    { "method": "POST", "path": "/api/v1/identidade/conflitos/detalhe", "permission": "jornada.identidade.conflitos.read", "allowedCredentialTypes": ["GESTOR"] },
+    { "method": "POST", "path": "/api/v1/identidade/correcoes", "permission": "jornada.identidade.corrigir", "allowedCredentialTypes": ["GESTOR"] },
+    { "method": "POST", "path": "/api/v1/identidade/casos", "permission": "jornada.identidade.corrigir", "allowedCredentialTypes": ["GESTOR"] },
+    { "method": "POST", "path": "/api/v1/identidade/casos/{casoId}/aplicar", "permission": "jornada.identidade.corrigir", "allowedCredentialTypes": ["GESTOR"] },
+    { "method": "GET", "path": "/api/v1/divergencias", "permission": "jornada.identidade.conflitos.read", "allowedCredentialTypes": ["GESTOR"] },
+    { "method": "POST", "path": "/api/v1/divergencias/{divergenciaId}/desfecho", "permission": "jornada.identidade.corrigir", "allowedCredentialTypes": ["GESTOR"] },
+    { "method": "GET", "path": "/api/v1/pessoas/{pessoaUuid}", "permission": "jornada.pessoas.read", "allowedCredentialTypes": ["GESTOR", "BENEFICIO", "SERVICO"] },
+    { "method": "POST", "path": "/api/v1/pessoas/consulta", "permission": "jornada.pessoas.read", "allowedCredentialTypes": ["GESTOR", "BENEFICIO", "SERVICO"] },
+    { "method": "GET", "path": "/api/v1/pessoas/{pessoaUuid}/registros", "permission": "jornada.registros.read", "allowedCredentialTypes": ["GESTOR"] },
+    { "method": "GET", "path": "/api/v1/pessoas/{pessoaUuid}/beneficios-concedidos", "permission": "jornada.registros.read", "allowedCredentialTypes": ["GESTOR"] },
+    { "method": "GET", "path": "/api/v1/pessoas/{pessoaUuid}/servicos-prestados", "permission": "jornada.registros.read", "allowedCredentialTypes": ["GESTOR"] },
+    { "method": "GET", "path": "/api/v1/pessoas/{pessoaUuid}/possibilidades", "permission": "jornada.possibilidades.read", "allowedCredentialTypes": ["GESTOR"] }
   ]
 }
