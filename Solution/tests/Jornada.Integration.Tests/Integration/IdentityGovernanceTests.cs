@@ -529,7 +529,7 @@ public sealed class IdentityGovernanceTests
         }
         Assert.That(observations, Is.Not.Empty);
         var peopleBefore = Convert.ToInt32(await ExecuteScalarAsync(connection, "SELECT COUNT(*) FROM identidade.pessoa;"), System.Globalization.CultureInfo.InvariantCulture);
-        var groups = JsonSerializer.Serialize(new[] { new { grupoCodigo = "NOVO", pessoaUuidDestino = (Guid?)null, pessoaObservacaoIds = observations.ToArray() } });
+        var groups = JsonSerializer.Serialize(new[] { new { grupoCodigo = "NOVO", pessoaUuidDestino = (Guid?)Guid.Parse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1"), pessoaObservacaoIds = observations.ToArray() } });
         const string trigger = "identidade.tr_test_atomic_cpf_correction";
         const string ato = "TESTE-ATOMICIDADE-CPF-V365";
         try
@@ -561,7 +561,7 @@ public sealed class IdentityGovernanceTests
             await using var reader = await verify.ExecuteReaderAsync(); Assert.That(await reader.ReadAsync(), Is.True);
             Assert.Multiple(() =>
             {
-                Assert.That(peopleAfter, Is.EqualTo(peopleBefore), "UUID novo criado antes da falha deve ser revertido.");
+                Assert.That(peopleAfter, Is.EqualTo(peopleBefore), "Falha injetada não pode alterar o conjunto de Pessoas.");
                 Assert.That(reader.GetInt32(0), Is.EqualTo(0), "Cabeçalho da correção deve ser revertido.");
                 Assert.That(reader.GetInt32(1), Is.EqualTo(1), "Mapa CPF original deve permanecer no estado de entrada da procedure.");
             });
