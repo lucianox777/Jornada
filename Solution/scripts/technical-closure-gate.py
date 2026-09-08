@@ -1379,6 +1379,7 @@ def main() -> None:
         "openapi-runtime.trx",
         "ddl-destructive-change-gate.py",
         "dependency-drift-gate.py",
+        "coverage-evidence-gate.py",
         "deterministic-build:",
         "deterministic-build-gate.sh",
         "security-analysis:",

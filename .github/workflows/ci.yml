@@ -179,7 +179,7 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 30
-      - name: OpenAPI runtime conformance must execute for all 18 operations
+      - name: OpenAPI runtime conformance must execute for all 19 operations
         run: |
           mkdir -p .local/test-evidence/openapi-runtime
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --configuration Release --no-build \
