@@ -1,4 +1,4 @@
--- Cutover operacional do initial_uuid no Processor (PostgreSQL).
+-- Cutover operacional do initial_uuid e da REFERENCIA determinística no Processor (PostgreSQL).
 -- Pré-requisito: Jornada_Identidade_Progressiva.sql aplicado e backfill paginado concluído.
 -- Não ativa Linkage probabilístico e não altera a atribuição canônica do vínculo.
 BEGIN;
@@ -7,7 +7,8 @@ DO $$
 BEGIN
  IF to_regclass('identidade.pessoa_origem_progressiva') IS NULL
     OR to_regclass('identidade.pessoa_origem_progressiva_evento') IS NULL
-    OR to_regprocedure('identidade.assegurar_origem_progressiva(bigint)') IS NULL THEN
+    OR to_regprocedure('identidade.assegurar_origem_progressiva(bigint)') IS NULL
+    OR to_regprocedure('identidade.publicar_referencia_progressiva_deterministica(bigint,uuid,character varying,character varying)') IS NULL THEN
   RAISE EXCEPTION 'Persistência progressiva V1 não instalada; cutover recusado.';
  END IF;
 END $$;
@@ -39,6 +40,10 @@ BEGIN
   RAISE EXCEPTION 'Vínculo sem origem Silver válida.';
  END IF;
  PERFORM identidade.assegurar_origem_progressiva(v_source);
+ IF NEW.metodo_resolucao='CPF_DETERMINISTICO' AND NEW.status='RESOLVIDO' AND NEW.pessoa_uuid IS NOT NULL THEN
+  PERFORM identidade.publicar_referencia_progressiva_deterministica(
+    v_source,NEW.pessoa_uuid,'CPF_ANCORA_DETERMINISTICA','CPF_ANCORA_V1');
+ END IF;
  RETURN NEW;
 END $$;
 
