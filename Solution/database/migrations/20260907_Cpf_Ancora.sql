@@ -94,6 +94,28 @@ BEGIN
  THROW 51347,'Âncora CPF imutável: correções devem reatribuir registros, não transferir a âncora.',1;
 END;
 GO
+-- A correção governada pode separar/reassociar observações e fatos, mas o grupo
+-- declarado como titular do CPF deve continuar apontando para a âncora permanente.
+-- A trava fica no cabeçalho auditável da correção para proteger todos os chamadores
+-- sem introduzir trigger no identity_map, que possui writers com OUTPUT INSERTED.
+IF OBJECT_ID('identidade.correcao_identidade','U') IS NOT NULL
+ EXEC(N'CREATE OR ALTER TRIGGER identidade.tr_correcao_identidade_cpf_ancora
+ ON identidade.correcao_identidade
+ AFTER INSERT,UPDATE
+ AS
+ BEGIN
+  SET NOCOUNT ON;
+  IF EXISTS(
+   SELECT 1
+   FROM inserted i
+   JOIN identidade.identity_map m ON m.identity_map_id=i.identity_map_origem_id AND m.tipo=''CPF''
+   LEFT JOIN identidade.cpf_ancora a
+     ON a.cpf=CONVERT(CHAR(11),m.identificador) COLLATE Latin1_General_100_BIN2
+   WHERE a.pessoa_uuid IS NULL OR a.pessoa_uuid<>i.pessoa_uuid_titular
+  )
+   THROW 51360,''Correção governada não pode transferir a âncora CPF permanente.'',1;
+ END;');
+GO
 CREATE OR ALTER PROCEDURE identidade.sp_obter_cpf_ancora @cpf NVARCHAR(64)
 AS
 BEGIN
