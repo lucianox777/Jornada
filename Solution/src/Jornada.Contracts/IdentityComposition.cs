@@ -36,6 +36,7 @@ public sealed record IdentityCompositionChange(
     ProgressiveIdentityStatus BeforeStatus, ProgressiveIdentityStatus AfterStatus,
     long ExpectedVersion, long NewVersion);
 
+/// <summary>Plano puro. RequestHash identifica o conteúdo da decisão; não é recibo nem garantia de replay.</summary>
 public sealed record IdentityCompositionPlan(
     Guid DecisionId, string RequestHash,
     ImmutableArray<IdentityCompositionChange> Changes,
@@ -59,8 +60,9 @@ public static class IdentityCompositionPlanner
             string.IsNullOrWhiteSpace(decision.EvidenceReference) ||
             string.IsNullOrWhiteSpace(decision.PolicyVersion) || decision.Assignments.IsDefaultOrEmpty)
             throw new ArgumentException("Decisão de composição incompleta.", nameof(decision));
-        if (readSet.History.Any(h => h.CompositionId == decision.DecisionId))
-            throw new InvalidOperationException("Decisão já registrada; replay deve usar o recibo persistido.");
+
+        // Idempotência e reutilização de decision_id pertencem ao ledger transacional futuro.
+        // O histórico de agregados não é um ledger de decisões e pode ser vazio em certas operações.
         var members = readSet.Members.ToDictionary(m => m.InitialUuid);
         var assignments = Unique(decision.Assignments, a => a.InitialUuid);
         if (assignments.Count != decision.Assignments.Length || assignments.Keys.Any(id => !members.ContainsKey(id)))
@@ -161,6 +163,9 @@ public static class IdentityCompositionPlanner
         ArgumentNullException.ThrowIfNull(history);
         if (current.IsDefault) throw new ArgumentException("Leitura ausente.", nameof(current));
         var members = Unique(current, m => m.InitialUuid);
+        if (members.Count != current.Length)
+            throw new InvalidOperationException("Leitura histórica contém UUID inicial duplicado.");
+        ValidateMembers(members.Values);
         if (history.ReferenceUuid == Guid.Empty || history.CompositionId == Guid.Empty ||
             history.MemberInitialUuids.IsDefaultOrEmpty ||
             history.MemberInitialUuids.Any(id => id == Guid.Empty) ||
@@ -184,13 +189,7 @@ public static class IdentityCompositionPlanner
         var members = Unique(readSet.Members, m => m.InitialUuid);
         if (members.Count != readSet.Members.Length || members.ContainsKey(Guid.Empty))
             throw new InvalidOperationException("UUID inicial duplicado ou vazio.");
-        foreach (var m in members.Values)
-            if (m.CanonicalUuid == Guid.Empty || m.CpfAnchorUuid == Guid.Empty || m.Version < 0 ||
-                !Enum.IsDefined(m.Status) ||
-                (m.Status == ProgressiveIdentityStatus.REFERENCIA) != (m.CanonicalUuid is not null) ||
-                (m.Status == ProgressiveIdentityStatus.PROVISORIA && m.Version != 0) ||
-                (m.Status != ProgressiveIdentityStatus.PROVISORIA && m.Version == 0))
-                throw new InvalidOperationException("Snapshot progressivo inválido.");
+        ValidateMembers(members.Values);
         if (readSet.ReservedNewUuids.Any(id => id == Guid.Empty) ||
             readSet.ReservedNewUuids.Distinct().Count() != readSet.ReservedNewUuids.Length)
             throw new InvalidOperationException("Reservas inválidas ou duplicadas.");
@@ -201,6 +200,17 @@ public static class IdentityCompositionPlanner
                 h.MemberInitialUuids.Any(id => id == Guid.Empty || !members.ContainsKey(id)) ||
                 h.MemberInitialUuids.Distinct().Count() != h.MemberInitialUuids.Length)
                 throw new InvalidOperationException("Histórico duplicado ou incompleto.");
+    }
+
+    private static void ValidateMembers(IEnumerable<IdentityCompositionMember> members)
+    {
+        foreach (var m in members)
+            if (m.InitialUuid == Guid.Empty || m.CanonicalUuid == Guid.Empty || m.CpfAnchorUuid == Guid.Empty || m.Version < 0 ||
+                !Enum.IsDefined(m.Status) ||
+                (m.Status == ProgressiveIdentityStatus.REFERENCIA) != (m.CanonicalUuid is not null) ||
+                (m.Status == ProgressiveIdentityStatus.PROVISORIA && m.Version != 0) ||
+                (m.Status != ProgressiveIdentityStatus.PROVISORIA && m.Version == 0))
+                throw new InvalidOperationException("Snapshot progressivo inválido.");
     }
 
     private static Dictionary<TKey, TValue> Unique<TKey, TValue>(IEnumerable<TValue> values, Func<TValue, TKey> key)
