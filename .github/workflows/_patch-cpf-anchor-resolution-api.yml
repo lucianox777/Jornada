@@ -1,0 +1,91 @@
+name: patch-cpf-anchor-resolution-api
+
+on:
+  push:
+    paths:
+      - '.github/workflows/_patch-cpf-anchor-resolution-api.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: true
+          ref: work/cpf-anchor-resolution-api
+      - name: Replace identity resolution query with permanent CPF anchor authority
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('Solution/src/Jornada.Api/SqlApiServices.cs')
+          text = path.read_text(encoding='utf-8')
+          old = '''        await using var connection = await connections.OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT TOP(1) pessoa_uuid,estado,estado_motivo,metodo_resolucao
+            FROM identidade.identity_map
+            WHERE tipo='CPF' AND identificador=@cpf AND vigencia_fim IS NULL
+            ORDER BY vigencia_inicio DESC, identity_map_id DESC;
+            """;
+        command.Parameters.Add(new SqlParameter("@cpf", SqlDbType.Char, 11) { Value = cpf });
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            return new IdentityResolutionResponse(ResolutionStatus.NAO_RESOLVIDO, null, ResolutionMethod.CPF_DETERMINISTICO, "CPF_NAO_LOCALIZADO");
+
+        var estado = reader.GetString(1);
+        if (string.Equals(estado, "EM_CONFLITO", StringComparison.Ordinal))
+            return new IdentityResolutionResponse(ResolutionStatus.CONFLITO, null, ResolutionMethod.CPF_DETERMINISTICO, CpfIdentityConsistency.IdentifierInConflictReason);
+
+        var metodo = Enum.TryParse<ResolutionMethod>(reader.GetString(3), ignoreCase: false, out var parsed) ? parsed : ResolutionMethod.CPF_DETERMINISTICO;
+        return new IdentityResolutionResponse(ResolutionStatus.RESOLVIDO, reader.GetGuid(0), metodo);
+'''
+          new = '''        await using var connection = await connections.OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT a.pessoa_uuid,
+                   m.estado,
+                   m.estado_motivo,
+                   m.metodo_resolucao
+            FROM identidade.cpf_ancora a
+            OUTER APPLY(
+                SELECT TOP(1) im.estado,im.estado_motivo,im.metodo_resolucao
+                FROM identidade.identity_map im
+                WHERE im.tipo='CPF' AND im.identificador=a.cpf AND im.vigencia_fim IS NULL
+                ORDER BY im.vigencia_inicio DESC,im.identity_map_id DESC
+            ) m
+            WHERE a.cpf=@cpf;
+            """;
+        command.Parameters.Add(new SqlParameter("@cpf", SqlDbType.Char, 11) { Value = cpf });
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            return new IdentityResolutionResponse(ResolutionStatus.NAO_RESOLVIDO, null, ResolutionMethod.CPF_DETERMINISTICO, "CPF_NAO_LOCALIZADO");
+
+        var anchorUuid = reader.GetGuid(0);
+        if (!reader.IsDBNull(1) && string.Equals(reader.GetString(1), "EM_CONFLITO", StringComparison.Ordinal))
+            return new IdentityResolutionResponse(
+                ResolutionStatus.CONFLITO,
+                anchorUuid,
+                ResolutionMethod.CPF_DETERMINISTICO,
+                CpfIdentityConsistency.IdentifierInConflictReason);
+
+        var metodo = !reader.IsDBNull(3)
+            && Enum.TryParse<ResolutionMethod>(reader.GetString(3), ignoreCase: false, out var parsed)
+                ? parsed
+                : ResolutionMethod.CPF_DETERMINISTICO;
+        var motivo = reader.IsDBNull(1) ? "CPF_ANCORA_SEM_MAPA_CORRENTE" : null;
+        return new IdentityResolutionResponse(ResolutionStatus.RESOLVIDO, anchorUuid, metodo, motivo);
+'''
+          if old not in text:
+              raise SystemExit('Bloco esperado do SqlIdentityResolutionService não encontrado; patch recusado.')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+      - name: Commit patched service
+        run: |
+          git config user.name 'jornada-ci'
+          git config user.email 'jornada-ci@users.noreply.github.com'
+          git add Solution/src/Jornada.Api/SqlApiServices.cs
+          git diff --cached --check
+          git commit -m 'fix: resolver CPF pela âncora permanente'
+          git push origin HEAD:work/cpf-anchor-resolution-api
