@@ -169,7 +169,7 @@ Gold continua materializada desde a primeira fonte. `BASELINE_FONTE_UNICA` é es
 
 ## Integridade global de identidade — vigente na v3.55
 
-- Um CPF que produz `CPF_COMPARTILHADO_SUSPEITO` ou `CPF_NUCLEO_EXISTENTE_INDISPONIVEL` passa a `identidade.identity_map.estado=EM_CONFLITO`; enquanto isso, CPF→UUID devolve `CONFLITO / CPF_EM_CONFLITO_IDENTIDADE`, sem UUID.
+- Um CPF que produz `CPF_COMPARTILHADO_SUSPEITO` ou `CPF_NUCLEO_EXISTENTE_INDISPONIVEL` passa a `identidade.identity_map.estado=EM_CONFLITO`; enquanto isso, CPF→UUID devolve `CONFLITO / CPF_EM_CONFLITO_IDENTIDADE` preservando o UUID da âncora permanente; a atribuição factual continua suspensa.
 - `identidade.identity_map_estado_evento` preserva a trilha de transições do identificador.
 - A correção é governada: `identidade.correcao_identidade`, `correcao_identidade_item` e `sp_aplicar_correcao_identidade` registram ato, justificativa, agrupamentos e reassociações/separações/fusões decididas institucionalmente. A Jornada não infere o titular.
 - Versões ATIVAS de contratos guardam SHA-256 aprovado; API e Processor recalculam o digest dos bytes físicos e falham fechado se uma versão publicada tiver sido substituída in-place, inclusive após restart.

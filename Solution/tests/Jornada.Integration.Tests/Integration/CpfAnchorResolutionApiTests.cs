@@ -36,7 +36,7 @@ public sealed class CpfAnchorResolutionApiTests
             fixture.CommandText = """
                 SELECT a.pessoa_uuid,m.identity_map_id,m.estado,m.estado_motivo,m.estado_em,m.vigencia_fim,m.metodo_resolucao
                 FROM identidade.cpf_ancora a
-                JOIN identidade.identity_map m ON m.tipo='CPF' AND m.identificador=a.cpf AND m.vigencia_fim IS NULL
+                JOIN identidade.identity_map m ON m.tipo='CPF' AND m.identificador COLLATE Latin1_General_100_BIN2=a.cpf AND m.vigencia_fim IS NULL
                 WHERE a.cpf=@cpf;
                 """;
             fixture.Parameters.AddWithValue("@cpf", Cpf);
