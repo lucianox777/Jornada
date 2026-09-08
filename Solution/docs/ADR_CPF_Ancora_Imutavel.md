@@ -1,0 +1,29 @@
+# ADR — CPF como âncora permanente de UUID
+
+Estado: decisão aprovada pelo responsável do projeto em 2026-09-07; implementação operacional por etapas. Complementa `ADR_Identidade_Progressiva.md` e restringe sua política de fusão. Não representa homologação nem ativação da nova resolução.
+
+## Invariante
+
+Um CPF válido, confiável e admitido pela Jornada possui exatamente uma âncora UUID permanente. Uma vez constituída, a associação CPF→UUID não é transferida, apagada, reciclada ou substituída por uma decisão probabilística. Cada UUID de âncora admite no máximo um CPF. Não se exige CPF para criar identidade: pessoas sem CPF recebem UUID inicial próprio e seguem os estados PROVISORIA, RESOLVIDA e INDEFINIDA.
+
+A permanência independe da existência corrente de observações, fatos, vínculos Silver/Gold/Serving ou mapas ativos. Se todos os registros atualmente associados desaparecerem, forem encerrados ou deixarem de ser materializados, a Pessoa e sua âncora CPF→UUID permanecem armazenadas. Esse UUID pode ficar sem registros ativos — operacionalmente órfão — e continua reservado exclusivamente ao mesmo CPF para preservar rastreabilidade. Se o CPF reaparecer em qualquer origem ou versão futura, a resolução deve recuperar o UUID já reservado, nunca criar outro por ausência de dados correntes.
+
+O UUID do CPF é uma referência permanente, não uma garantia de que todos os registros hoje associados pertençam ao titular. Uma atribuição incorreta é corrigida movendo os registros e preservando o histórico, nunca transferindo a âncora. A existência da âncora não autoriza compartilhar dados de uma composição suspeita. A API futura deverá distinguir a consulta da referência estável da liberação de dados canônicos; conflito pode impedir esta última, mas não criar outro UUID para o CPF.
+
+O Linkage pode associar identidades sem CPF a uma âncora existente, mediante política validada, ou manter uma identidade separada. Não pode criar um segundo CPF para uma âncora, alterar uma âncora existente, nem fundir automaticamente duas âncoras de CPFs distintos. Uma correção do dado CPF declarado não modifica o CPF histórico do fato nem transfere a âncora. Situações excepcionais de identificador oficial deverão ser tratadas explicitamente, preservando referências e sem violar o contrato corrente; nenhuma regra de substituição ou sucessão está autorizada nesta etapa.
+
+## Armazenamento inicial
+
+As migrações opt-in `database/migrations/20260907_Cpf_Ancora.sql` e `database/postgresql/Jornada_Cpf_Ancora.sql` criam `identidade.cpf_ancora`, com CPF como chave primária, UUID único e FK para Pessoa. A tabela é append-only, com triggers que rejeitam atualização e exclusão. O CPF é validado estruturalmente, incluindo dígitos verificadores; isso não comprova titularidade. As operações `sp_obter_cpf_ancora`/`fn_obter_cpf_ancora` consultam a referência, e `sp_reservar_cpf_ancora`/`fn_reservar_cpf_ancora` reservam somente um UUID existente de forma transacional e idempotente. Uma tentativa de reservar outro UUID para o mesmo CPF ou outro CPF para o mesmo UUID falha; não há escolha automática de destino.
+
+A FK da âncora para `identidade.pessoa` é deliberada: uma Pessoa que sustenta CPF permanente não pode ser fisicamente removida enquanto a âncora existir, e a própria âncora não admite DELETE. Limpeza de fatos, observações e projeções derivadas não é limpeza da identidade técnica. Eventual política de retenção deve preservar essa referência mínima ou substituí-la apenas por mecanismo normativamente equivalente que mantenha a mesma resolução CPF→UUID.
+
+O backfill examina todos os mapas CPF históricos, inclusive encerrados. Se um CPF tiver UUIDs distintos, um UUID tiver CPFs distintos, houver CPF inválido ou divergência com âncora existente, a migração falha sem escolher o titular e sem modificar os mapas. A reconciliação precisa preservar a história e ser especificada antes da execução. Não se converte toda observação pendente em RESOLVIDA nem se inventa execução de Linkage. Instalação repetida preserva âncoras e instantes de criação.
+
+Esta fatia não instala triggers no `identity_map` legado nem registra automaticamente a nova reserva no Processor. Um trigger adicional nessa tabela quebraria o `OUTPUT INSERTED` atualmente utilizado pelo Processor SQL Server. As rotas legadas, os procedimentos de correção, o backfill de UUID inicial por origem e os contratos públicos precisam ser migrados em conjunto antes do cutover. Até lá, a âncora nova não é a fonte operacional universal e a migração não deve ser aplicada isoladamente em produção. A proteção universal exige que todos os escritores usem a reserva estável e que o mapa corrente seja uma projeção compatível, com testes de concorrência, correção e recuperação.
+
+## Continuidade e próximas etapas
+
+A identidade de origem terá um UUID inicial imutável por `(sistema_origem_id,codigo_pessoa_origem)`; seu vínculo canônico poderá evoluir. Uma origem que posteriormente informa CPF confiável será associada à âncora já existente, ou reservará uma nova quando não houver referência anterior. Não poderá gerar outro UUID para um CPF conhecido. Fusões e separações devem preservar a identidade histórica e recompor Gold/Serving sem alterar a âncora. Uma referência histórica dividida não pode redirecionar dados para um sucessor arbitrário.
+
+A próxima fatia integra a reserva ao Processor SQL Server e PostgreSQL, adapta os procedimentos de correção, implementa o UUID inicial por origem e versiona a leitura das referências. Depois virão composição reversível, APIs e BI. A validação estatística da issue #31 continua necessária antes de ativar decisões probabilísticas reais; a issue #36 acompanha a implantação. Nenhuma aprovação de CI substitui essa validação. Não há fila obrigatória de decisão humana nem módulo de Regularização Cadastral.
