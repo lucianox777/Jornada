@@ -175,7 +175,7 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
         if (!string.IsNullOrWhiteSpace(person.Cpf) && cpf is null)
         {
             identity = new InternalIdentityResolution(
-                ResolutionStatus.CONFLITO, null, ResolutionMethod.CPF_DETERMINISTICO, Motivo: "CPF_INVALIDO");
+                ResolutionStatus.CONFLITO, null, ResolutionMethod.CPF_DETERMINISTICO, Motivo: CpfRules.StructurallyInvalidReason);
         }
         else if (cpf is not null)
         {
