@@ -2,14 +2,24 @@ name: jornada-identity-projection-scope
 on:
   pull_request:
     paths:
-      - 'Solution/src/Jornada.Contracts/IdentityCompositionRecomposition.cs'
+      - 'Solution/src/Jornada.Contracts/IdentityCompositionCanonical.cs'
+      - 'Solution/src/Jornada.Contracts/IdentityCompositionRecomposition*.cs'
       - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionProjectionScopeReader.cs'
+      - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionRecompositionPlanStore.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/IdentityCompositionRecomposition*.cs'
+      - 'Solution/database/migrations/20260909_Identidade_Composicao_Recomposicao_Plano.sql'
+      - 'Solution/database/postgresql/Jornada_Identidade_Composicao_Recomposicao_Plano.sql'
       - 'Solution/scripts/identity-composition-projection-scope-smoke.cs'
       - '.github/workflows/identity-projection-scope.yml'
   push:
     paths:
-      - 'Solution/src/Jornada.Contracts/IdentityCompositionRecomposition.cs'
+      - 'Solution/src/Jornada.Contracts/IdentityCompositionCanonical.cs'
+      - 'Solution/src/Jornada.Contracts/IdentityCompositionRecomposition*.cs'
       - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionProjectionScopeReader.cs'
+      - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionRecompositionPlanStore.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/IdentityCompositionRecomposition*.cs'
+      - 'Solution/database/migrations/20260909_Identidade_Composicao_Recomposicao_Plano.sql'
+      - 'Solution/database/postgresql/Jornada_Identidade_Composicao_Recomposicao_Plano.sql'
       - 'Solution/scripts/identity-composition-projection-scope-smoke.cs'
       - '.github/workflows/identity-projection-scope.yml'
   workflow_dispatch:
@@ -18,7 +28,7 @@ permissions:
 jobs:
   projection-scope:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: Solution
@@ -64,12 +74,15 @@ jobs:
           done
           docker logs "$CID" >&2 || true
           exit 1
-      - name: Build projection scope harness
+      - name: Build and test projection scope contracts
         run: |
           set -euo pipefail
           mkdir -p .local/projection-scope .local/projection-scope-evidence
           git rev-parse HEAD | tee .local/projection-scope-evidence/commit.txt
           git diff --check
+          dotnet restore tests/Jornada.Tests/Jornada.Tests.csproj --locked-mode -v:normal 2>&1 | tee .local/projection-scope-evidence/test-restore.log
+          dotnet build tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-restore -warnaserror -v:normal 2>&1 | tee .local/projection-scope-evidence/test-build.log
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~IdentityCompositionRecomposition' --logger 'trx;LogFileName=recomposition.trx' --results-directory .local/projection-scope-evidence 2>&1 | tee .local/projection-scope-evidence/unit-tests.log
           cat > .local/projection-scope/ProjectionScopeSmoke.csproj <<'EOF'
           <Project Sdk="Microsoft.NET.Sdk">
             <PropertyGroup>
@@ -99,7 +112,12 @@ jobs:
           sqlcmd -d JornadaProjectionScopeTest -i /dev/stdin < database/Jornada_Fase1.sql > .local/projection-scope-evidence/sql-base.log 2>&1
           sqlcmd -d JornadaProjectionScopeTest -i /dev/stdin < database/migrations/20260907_Cpf_Ancora.sql > .local/projection-scope-evidence/sql-anchor.log 2>&1
           sqlcmd -d JornadaProjectionScopeTest -i /dev/stdin < database/Jornada_Identidade_Progressiva.sql > .local/projection-scope-evidence/sql-progressive.log 2>&1
-          printf 'SQL_INSTALL_OK\n' >> .local/projection-scope-evidence/sql-progressive.log
+          sqlcmd -d JornadaProjectionScopeTest -i /dev/stdin < database/migrations/20260908_Identidade_Composicao_Ledger.sql > .local/projection-scope-evidence/sql-ledger.log 2>&1
+          sqlcmd -d JornadaProjectionScopeTest -i /dev/stdin < database/migrations/20260909_Identidade_Composicao_Referencia_Lock.sql > .local/projection-scope-evidence/sql-reference-lock.log 2>&1
+          sqlcmd -d JornadaProjectionScopeTest -i /dev/stdin < database/migrations/20260909_Identidade_Composicao_Aplicacao.sql > .local/projection-scope-evidence/sql-application.log 2>&1
+          sqlcmd -d JornadaProjectionScopeTest -i /dev/stdin < database/migrations/20260909_Identidade_Composicao_Recomposicao_Plano.sql > .local/projection-scope-evidence/sql-recomposition.log 2>&1
+          sqlcmd -d JornadaProjectionScopeTest -i /dev/stdin < database/migrations/20260909_Identidade_Composicao_Recomposicao_Plano.sql > .local/projection-scope-evidence/sql-recomposition-second.log 2>&1
+          printf 'SQL_INSTALL_OK\n' >> .local/projection-scope-evidence/sql-recomposition-second.log
       - name: Install PostgreSQL disposable database
         run: |
           set -euo pipefail
@@ -111,22 +129,27 @@ jobs:
           pgsql < database/postgresql/Jornada_Processor_Persistence_Core.sql > .local/projection-scope-evidence/pg-persistence.log 2>&1
           pgsql < database/postgresql/Jornada_Cpf_Ancora.sql > .local/projection-scope-evidence/pg-anchor.log 2>&1
           pgsql < database/postgresql/Jornada_Identidade_Progressiva.sql > .local/projection-scope-evidence/pg-progressive.log 2>&1
-          printf 'PG_INSTALL_OK\n' >> .local/projection-scope-evidence/pg-progressive.log
-      - name: Prove SQL Server authoritative scope
+          pgsql < database/postgresql/Jornada_Identidade_Composicao_Ledger.sql > .local/projection-scope-evidence/pg-ledger.log 2>&1
+          pgsql < database/postgresql/Jornada_Identidade_Composicao_Referencia_Lock.sql > .local/projection-scope-evidence/pg-reference-lock.log 2>&1
+          pgsql < database/postgresql/Jornada_Identidade_Composicao_Aplicacao.sql > .local/projection-scope-evidence/pg-application.log 2>&1
+          pgsql < database/postgresql/Jornada_Identidade_Composicao_Recomposicao_Plano.sql > .local/projection-scope-evidence/pg-recomposition.log 2>&1
+          pgsql < database/postgresql/Jornada_Identidade_Composicao_Recomposicao_Plano.sql > .local/projection-scope-evidence/pg-recomposition-second.log 2>&1
+          printf 'PG_INSTALL_OK\n' >> .local/projection-scope-evidence/pg-recomposition-second.log
+      - name: Prove SQL Server authoritative scope and planned recomposition
         run: |
           set -euo pipefail
           SQL_PASSWORD="J0rnada_${GITHUB_RUN_ID}_Aa9!"
           CONNECTION="Server=localhost,1433;Database=JornadaProjectionScopeTest;User Id=sa;Password=${SQL_PASSWORD};TrustServerCertificate=true;Encrypt=True"
           JORNADA_PROJECTION_PROVIDER=SqlServer JORNADA_PROJECTION_CONNECTION="$CONNECTION" \
             dotnet run --project .local/projection-scope/ProjectionScopeSmoke.csproj -c Release --no-build --no-restore 2>&1 | tee .local/projection-scope-evidence/sql-runtime.log
-          grep -Fx 'IDENTITY PROJECTION SCOPE: OK (authoritative source closure; no factual or Gold/Serving writes)' .local/projection-scope-evidence/sql-runtime.log
-      - name: Prove PostgreSQL authoritative scope
+          grep -Fx 'IDENTITY PROJECTION SCOPE: OK (authoritative closure + immutable recomposition plan; no factual or Gold/Serving writes)' .local/projection-scope-evidence/sql-runtime.log
+      - name: Prove PostgreSQL authoritative scope and planned recomposition
         run: |
           set -euo pipefail
           CONNECTION='Host=localhost;Port=5432;Database=JornadaProjectionScopeTest;Username=jornada;SSL Mode=Disable'
           JORNADA_PROJECTION_PROVIDER=PostgreSql JORNADA_PROJECTION_CONNECTION="$CONNECTION" \
             dotnet run --project .local/projection-scope/ProjectionScopeSmoke.csproj -c Release --no-build --no-restore 2>&1 | tee .local/projection-scope-evidence/pg-runtime.log
-          grep -Fx 'IDENTITY PROJECTION SCOPE: OK (authoritative source closure; no factual or Gold/Serving writes)' .local/projection-scope-evidence/pg-runtime.log
+          grep -Fx 'IDENTITY PROJECTION SCOPE: OK (authoritative closure + immutable recomposition plan; no factual or Gold/Serving writes)' .local/projection-scope-evidence/pg-runtime.log
       - name: Record fail-closed evidence
         if: always()
         run: |
@@ -134,17 +157,19 @@ jobs:
           python3 - <<'PY'
           import json, pathlib
           root=pathlib.Path('.local/projection-scope-evidence')
-          required=['commit.txt','restore.log','build.log','sql-progressive.log','pg-progressive.log','sql-runtime.log','pg-runtime.log']
+          required=['commit.txt','test-build.log','unit-tests.log','build.log','sql-recomposition-second.log','pg-recomposition-second.log','sql-runtime.log','pg-runtime.log']
           missing=[name for name in required if not (root/name).exists() or (root/name).stat().st_size == 0]
-          ok=(not missing and 'SQL_INSTALL_OK' in (root/'sql-progressive.log').read_text(errors='replace')
-              and 'PG_INSTALL_OK' in (root/'pg-progressive.log').read_text(errors='replace')
-              and all('IDENTITY PROJECTION SCOPE: OK' in (root/name).read_text(errors='replace') for name in ['sql-runtime.log','pg-runtime.log']))
+          marker='IDENTITY PROJECTION SCOPE: OK (authoritative closure + immutable recomposition plan; no factual or Gold/Serving writes)'
+          ok=(not missing and 'SQL_INSTALL_OK' in (root/'sql-recomposition-second.log').read_text(errors='replace')
+              and 'PG_INSTALL_OK' in (root/'pg-recomposition-second.log').read_text(errors='replace')
+              and all(marker in (root/name).read_text(errors='replace') for name in ['sql-runtime.log','pg-runtime.log']))
           (root/'summary.json').write_text(json.dumps({
               'schema':1,'status':'PASS' if ok else 'FAIL','missing':missing,
-              'scope':'authoritative_factual_scope_read_only','sqlserver':ok,'postgresql':ok,
-              'factual_writes':False,'gold_serving_publication':False,'probabilistic_activation':False
+              'scope':'authoritative_factual_scope_and_immutable_recomposition_plan','sqlserver':ok,'postgresql':ok,
+              'applied_required':True,'recomposition_state':'PLANEJADA','factual_writes':False,
+              'gold_serving_publication':False,'probabilistic_activation':False
           },indent=2)+"\n")
-          if not ok: raise SystemExit('projection scope evidence incomplete')
+          if not ok: raise SystemExit('projection scope/recomposition evidence incomplete')
           PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
