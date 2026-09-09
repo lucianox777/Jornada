@@ -6,6 +6,8 @@ on:
       - 'Solution/src/Jornada.Contracts/IdentityCompositionFactualRevalidation.cs'
       - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionAtomicPublication.cs'
       - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionFactualAuthorityReader.cs'
+      - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionCpfAuthorityReader.cs'
+      - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionAuthoritativeReader.cs'
       - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionRecompositionPlanStore.cs'
       - 'Solution/tests/Jornada.Tests/Unit/IdentityCompositionPublicationTests.cs'
       - 'Solution/database/migrations/20260909_Identidade_Composicao_Publicacao.sql'
@@ -18,6 +20,8 @@ on:
       - 'Solution/src/Jornada.Contracts/IdentityCompositionFactualRevalidation.cs'
       - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionAtomicPublication.cs'
       - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionFactualAuthorityReader.cs'
+      - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionCpfAuthorityReader.cs'
+      - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionAuthoritativeReader.cs'
       - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionRecompositionPlanStore.cs'
       - 'Solution/tests/Jornada.Tests/Unit/IdentityCompositionPublicationTests.cs'
       - 'Solution/database/migrations/20260909_Identidade_Composicao_Publicacao.sql'
@@ -122,6 +126,7 @@ jobs:
           sqlcmd -d JornadaAtomicPublicationTest -i /dev/stdin < database/migrations/20260909_Identidade_Composicao_Publicacao.sql > .local/atomic-publication-evidence/sql-publication.log 2>&1
           sqlcmd -d JornadaAtomicPublicationTest -i /dev/stdin < database/migrations/20260909_Identidade_Composicao_Publicacao.sql > .local/atomic-publication-evidence/sql-publication-second.log 2>&1
           sqlcmd -d JornadaAtomicPublicationTest -i /dev/stdin < database/Jornada_Seed_Dev.sql > .local/atomic-publication-evidence/sql-seed.log 2>&1
+          sqlcmd -d JornadaAtomicPublicationTest -i /dev/stdin < database/migrations/20260907_Cpf_Ancora.sql > .local/atomic-publication-evidence/sql-anchor-after-seed.log 2>&1
           printf 'SQL_INSTALL_OK\n' >> .local/atomic-publication-evidence/sql-publication-second.log
       - name: Install PostgreSQL disposable fixture
         run: |
@@ -142,6 +147,7 @@ jobs:
           pgsql < database/postgresql/20260909_Identidade_Composicao_Publicacao.sql > .local/atomic-publication-evidence/pg-publication-second.log 2>&1
           pgsql < database/postgresql/Jornada_Resultado_Core_Smoke.sql > .local/atomic-publication-evidence/pg-result-smoke.log 2>&1
           pgsql < database/postgresql/Jornada_Processor_Persistence_Smoke.sql > .local/atomic-publication-evidence/pg-persistence-smoke.log 2>&1
+          pgsql < database/postgresql/Jornada_Cpf_Ancora.sql > .local/atomic-publication-evidence/pg-anchor-after-smoke.log 2>&1
           printf 'PG_INSTALL_OK\n' >> .local/atomic-publication-evidence/pg-publication-second.log
       - name: Prove SQL Server atomic publication
         run: |
