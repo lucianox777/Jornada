@@ -100,6 +100,7 @@ jobs:
           for file in database/Jornada_Fase1.sql database/migrations/20260907_Cpf_Ancora.sql database/Jornada_Identidade_Progressiva.sql database/migrations/20260908_Identidade_Composicao_Ledger.sql database/migrations/20260909_Identidade_Composicao_Referencia_Lock.sql database/migrations/20260909_Identidade_Composicao_Aplicacao.sql; do
             sqlcmd -d JornadaCompositionApplicationTest -i /dev/stdin < "$file" >> .local/history-runtime-evidence/sql-install.log 2>&1
           done
+          printf '%s\n' 'SECOND_INSTALL_OK' >> .local/history-runtime-evidence/sql-install.log
       - name: Install disposable PostgreSQL
         run: |
           set -euo pipefail
@@ -130,6 +131,7 @@ jobs:
           root=pathlib.Path('.local/history-runtime-evidence')
           required=['commit.txt','restore.binlog','build.binlog','sql-install.log','pg-install.log','sql-runtime.log','pg-runtime.log']
           checks={p:(root/p).is_file() and (root/p).stat().st_size>0 for p in required}
+          checks['sql_install_complete']=checks['sql-install.log'] and 'SECOND_INSTALL_OK' in (root/'sql-install.log').read_text()
           marker='IDENTITY HISTORY CLOSURE: OK (applied receipt, canonical history, authoritative members; no publication)'
           for name in ['sql-runtime.log','pg-runtime.log']:
               checks[name+'_passed']=(root/name).is_file() and marker in (root/name).read_text()
