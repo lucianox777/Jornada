@@ -31,6 +31,25 @@ public static class IdentityCompositionCanonical
         return JsonSerializer.Serialize(plan);
     }
 
+    public static string SerializeRecompositionPlan(IdentityCompositionRecompositionPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        if (plan.DecisionId == Guid.Empty || string.IsNullOrWhiteSpace(plan.CompositionRequestHash) ||
+            plan.AffectedInitialUuids.IsDefault || plan.AffectedReferenceUuids.IsDefault ||
+            plan.PessoaOrigemIds.IsDefault || plan.RegistroObservacaoIds.IsDefault)
+            throw new InvalidOperationException("Plano de recomposição inválido para serialização canônica.");
+        return JsonSerializer.Serialize(new
+        {
+            plan.DecisionId,
+            plan.CompositionRequestHash,
+            AffectedInitialUuids = plan.AffectedInitialUuids.Order().ToArray(),
+            AffectedReferenceUuids = plan.AffectedReferenceUuids.Order().ToArray(),
+            PessoaOrigemIds = plan.PessoaOrigemIds.Order().ToArray(),
+            RegistroObservacaoIds = plan.RegistroObservacaoIds.Order().ToArray(),
+            plan.RequiresFactualRevalidation
+        });
+    }
+
     public static string SerializeReservations(IEnumerable<Guid> reservations)
     {
         ArgumentNullException.ThrowIfNull(reservations);
