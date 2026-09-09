@@ -42,7 +42,7 @@ internal static class IdentityCompositionHistorySmoke
         command.CommandText = "SELECT versao FROM identidade.pessoa_origem_progressiva WHERE initial_uuid=@initial;";
         var parameter = command.CreateParameter(); parameter.ParameterName = "@initial"; parameter.DbType = DbType.Guid;
         parameter.Value = initial; command.Parameters.Add(parameter);
-        return Convert.ToInt64(await command.ExecuteScalarAsync());
+        return Convert.ToInt64(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
     }
     private static void Require(bool condition, string message)
     {
