@@ -27,8 +27,8 @@ public sealed record IdentityCompositionOriginSnapshot(
     long Version);
 
 /// <summary>
-/// Leitor do componente progressivo corrente. Expande a partir das origens declaradas e de todos
-/// os destinos existentes envolvidos até incluir todos os membros das referências afetadas.
+/// Leitor do componente progressivo corrente. Expande a partir das origens declaradas, das
+/// referências correntes envolvidas e dos históricos efetivamente APLICADOS alcançáveis.
 /// Não escreve dados. A autoridade CPF é delegada a um componente separado para evitar inferência
 /// por mera coincidência de canonical_uuid.
 /// </summary>
@@ -36,6 +36,7 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
 {
     private readonly bool postgres;
     private readonly IIdentityCompositionCpfAuthorityReader cpfAuthority;
+    private readonly IdentityCompositionAppliedHistoryStore appliedHistory;
 
     public IdentityCompositionAuthoritativeReader(
         IOperationalDatabaseAdapter database,
@@ -43,6 +44,7 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
     {
         ArgumentNullException.ThrowIfNull(database);
         this.cpfAuthority = cpfAuthority ?? throw new ArgumentNullException(nameof(cpfAuthority));
+        appliedHistory = new IdentityCompositionAppliedHistoryStore(database);
         postgres = database.Provider switch
         {
             OperationalDatabaseProviders.PostgreSql => true,
@@ -87,25 +89,48 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
             .Where(id => id != Guid.Empty)
             .ToHashSet();
 
-        // A expansão é monotônica. Novos membros podem introduzir apenas a mesma referência corrente,
-        // mas o laço mantém o contrato correto caso o armazenamento futuro acrescente outra aresta
-        // autoritativa que exija expansão adicional.
+        var histories = new Dictionary<(Guid DecisionId, Guid ReferenceUuid), IdentityCompositionHistory>();
         var scannedReferences = new HashSet<Guid>();
         while (true)
         {
             var pending = references.Except(scannedReferences).Order().ToArray();
-            if (pending.Length == 0) break;
+            if (pending.Length == 0)
+                break;
+
             foreach (var reference in pending)
             {
                 await LockReferenceAsync(connection, transaction, decision.DecisionId, reference, cancellationToken);
+
                 var referenceMembers = await LoadByCanonicalUuidAsync(connection, transaction, reference, cancellationToken);
                 foreach (var member in referenceMembers)
+                    AddOriginAndReference(origins, references, member);
+
+                var referenceHistory = await appliedHistory.LoadAsync(
+                    connection, transaction, new[] { reference }, cancellationToken);
+                foreach (var history in referenceHistory)
                 {
-                    if (origins.TryGetValue(member.InitialUuid, out var existing) && existing != member)
-                        throw new InvalidOperationException("Leitura autoritativa retornou estados divergentes para a mesma origem.");
-                    origins[member.InitialUuid] = member;
-                    if (member.CanonicalUuid is { } current) references.Add(current);
+                    var key = (history.CompositionId, history.ReferenceUuid);
+                    if (histories.TryGetValue(key, out var previous))
+                    {
+                        if (!previous.MemberInitialUuids.SequenceEqual(history.MemberInitialUuids))
+                            throw new InvalidOperationException("Histórico aplicado divergente para a mesma decisão e referência.");
+                    }
+                    else
+                    {
+                        histories.Add(key, history);
+                    }
+
+                    foreach (var historicalInitialUuid in history.MemberInitialUuids.Order())
+                    {
+                        if (origins.ContainsKey(historicalInitialUuid))
+                            continue;
+                        var historicalOrigin = await LoadByInitialUuidAsync(
+                            connection, transaction, historicalInitialUuid, cancellationToken)
+                            ?? throw new InvalidOperationException("Histórico aplicado referencia origem progressiva inexistente.");
+                        AddOriginAndReference(origins, references, historicalOrigin);
+                    }
                 }
+
                 scannedReferences.Add(reference);
             }
         }
@@ -129,12 +154,27 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
             x.Version,
             anchors[x.InitialUuid])).ToImmutableArray();
 
-        // O histórico efetivado ainda não existe como armazenamento nesta fatia. Passar vazio é
-        // explícito: HistoryToAppend do PREPARADA continua proposta e não é promovido a fato.
+        var appliedHistories = histories.Values
+            .OrderBy(x => x.ReferenceUuid)
+            .ThenBy(x => x.CompositionId)
+            .ToImmutableArray();
+
         return new IdentityCompositionReadSet(
             compositionMembers,
             reservedUuids.Order().ToImmutableArray(),
-            ImmutableArray<IdentityCompositionHistory>.Empty);
+            appliedHistories);
+    }
+
+    private static void AddOriginAndReference(
+        Dictionary<Guid, IdentityCompositionOriginSnapshot> origins,
+        HashSet<Guid> references,
+        IdentityCompositionOriginSnapshot member)
+    {
+        if (origins.TryGetValue(member.InitialUuid, out var existing) && existing != member)
+            throw new InvalidOperationException("Leitura autoritativa retornou estados divergentes para a mesma origem.");
+        origins[member.InitialUuid] = member;
+        if (member.CanonicalUuid is { } current)
+            references.Add(current);
     }
 
     private async Task<IdentityCompositionOriginSnapshot?> LoadByInitialUuidAsync(
@@ -166,7 +206,8 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
         Add(command, "@uuid", DbType.Guid, canonicalUuid);
         var result = new List<IdentityCompositionOriginSnapshot>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken)) result.Add(Read(reader));
+        while (await reader.ReadAsync(cancellationToken))
+            result.Add(Read(reader));
         return result;
     }
 
@@ -198,7 +239,8 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
         CancellationToken cancellationToken)
     {
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken)) return null;
+        if (!await reader.ReadAsync(cancellationToken))
+            return null;
         var value = Read(reader);
         if (await reader.ReadAsync(cancellationToken))
             throw new InvalidOperationException("UUID inicial possui mais de uma origem progressiva.");
