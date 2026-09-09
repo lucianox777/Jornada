@@ -1,0 +1,175 @@
+name: jornada-identity-composition-preapplication
+on:
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Contracts/IdentityComposition*.cs'
+      - 'Solution/src/Jornada.Operational.Sql/IdentityComposition*.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/IdentityComposition*.cs'
+      - 'Solution/scripts/identity-composition-preapplication-smoke.cs'
+      - 'Solution/docs/Identidade_Composicao_PreAplicacao.md'
+      - 'Solution/config/security/source-sanity-policy.json'
+      - '.github/workflows/identity-composition-preapplication.yml'
+  push:
+    paths:
+      - 'Solution/src/Jornada.Contracts/IdentityComposition*.cs'
+      - 'Solution/src/Jornada.Operational.Sql/IdentityComposition*.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/IdentityComposition*.cs'
+      - 'Solution/scripts/identity-composition-preapplication-smoke.cs'
+      - 'Solution/config/security/source-sanity-policy.json'
+      - '.github/workflows/identity-composition-preapplication.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preapplication:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: Solution
+        shell: bash
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: J0rnada_${{ github.run_id }}_Aa9!
+        ports:
+          - 1433:1433
+      postgres:
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        env:
+          POSTGRES_USER: jornada
+          POSTGRES_DB: JornadaCompositionPreApplicationTest
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jornada -d JornadaCompositionPreApplicationTest"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.424'
+      - name: Wait for SQL Server service
+        run: |
+          set -euo pipefail
+          SQL_PASSWORD="J0rnada_${GITHUB_RUN_ID}_Aa9!"
+          CID=$(docker ps -q --filter publish=1433 | head -1)
+          test -n "$CID"
+          for attempt in $(seq 1 30); do
+            if docker exec "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P "$SQL_PASSWORD" -C -Q 'SELECT 1' >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs "$CID" >&2 || true
+          exit 1
+      - name: Record source and build locked composition tests
+        run: |
+          set -euo pipefail
+          mkdir -p .local/composition-preapplication-evidence
+          git rev-parse HEAD | tee .local/composition-preapplication-evidence/commit.txt
+          git diff --check
+          dotnet restore tests/Jornada.Tests/Jornada.Tests.csproj --locked-mode -v:normal -bl:.local/composition-preapplication-evidence/restore.binlog
+          dotnet build tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-restore -warnaserror -v:normal -bl:.local/composition-preapplication-evidence/build.binlog 2>&1 | tee .local/composition-preapplication-evidence/build.log
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~IdentityComposition' --logger 'trx;LogFileName=composition-preapplication.trx' --results-directory .local/composition-preapplication-evidence 2>&1 | tee .local/composition-preapplication-evidence/domain-tests.log
+          python3 scripts/test-evidence-gate.py .local/composition-preapplication-evidence/composition-preapplication.trx --forbid-skipped --minimum-tests 25 --summary .local/composition-preapplication-evidence/domain-tests.json
+      - name: Build isolated real-database harness
+        run: |
+          set -euo pipefail
+          mkdir -p .local/composition-preapplication-harness
+          cat > .local/composition-preapplication-harness/CompositionPreApplicationSmoke.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net8.0</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="../../src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj" />
+              <ProjectReference Include="../../src/Jornada.Contracts/Jornada.Contracts.csproj" />
+              <Compile Include="../../scripts/identity-composition-preapplication-smoke.cs" Link="Program.cs" />
+            </ItemGroup>
+          </Project>
+          EOF
+          dotnet restore .local/composition-preapplication-harness/CompositionPreApplicationSmoke.csproj -v:normal -bl:.local/composition-preapplication-evidence/harness-restore.binlog 2>&1 | tee .local/composition-preapplication-evidence/harness-restore.log
+          dotnet build .local/composition-preapplication-harness/CompositionPreApplicationSmoke.csproj -c Release --no-restore -warnaserror -v:normal -bl:.local/composition-preapplication-evidence/harness-build.binlog 2>&1 | tee .local/composition-preapplication-evidence/harness-build.log
+      - name: Install SQL Server disposable database
+        run: |
+          set -euo pipefail
+          SQL_PASSWORD="J0rnada_${GITHUB_RUN_ID}_Aa9!"
+          CID=$(docker ps -q --filter publish=1433 | head -1)
+          test -n "$CID"
+          sqlcmd() { docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P "$SQL_PASSWORD" -C -b "$@"; }
+          sqlcmd -Q "IF DB_ID('JornadaCompositionPreApplicationTest') IS NULL CREATE DATABASE JornadaCompositionPreApplicationTest;"
+          sqlcmd -d JornadaCompositionPreApplicationTest -i /dev/stdin < database/Jornada_Fase1.sql > .local/composition-preapplication-evidence/sql-base.log 2>&1
+          sqlcmd -d JornadaCompositionPreApplicationTest -i /dev/stdin < database/migrations/20260907_Cpf_Ancora.sql > .local/composition-preapplication-evidence/sql-anchor.log 2>&1
+          sqlcmd -d JornadaCompositionPreApplicationTest -i /dev/stdin < database/Jornada_Identidade_Progressiva.sql > .local/composition-preapplication-evidence/sql-progressive.log 2>&1
+          sqlcmd -d JornadaCompositionPreApplicationTest -i /dev/stdin < database/migrations/20260908_Identidade_Composicao_Ledger.sql > .local/composition-preapplication-evidence/sql-ledger.log 2>&1
+      - name: Install PostgreSQL disposable database
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=5432 | head -1)
+          test -n "$CID"
+          pgsql() { docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCompositionPreApplicationTest "$@"; }
+          pgsql < database/postgresql/Jornada_Resultado_Core.sql > .local/composition-preapplication-evidence/pg-result.log 2>&1
+          pgsql < database/postgresql/Jornada_Ingestion_Processor_Core.sql > .local/composition-preapplication-evidence/pg-ingestion.log 2>&1
+          pgsql < database/postgresql/Jornada_Processor_Persistence_Core.sql > .local/composition-preapplication-evidence/pg-persistence.log 2>&1
+          pgsql < database/postgresql/Jornada_Cpf_Ancora.sql > .local/composition-preapplication-evidence/pg-anchor.log 2>&1
+          pgsql < database/postgresql/Jornada_Identidade_Progressiva.sql > .local/composition-preapplication-evidence/pg-progressive.log 2>&1
+          pgsql < database/postgresql/Jornada_Identidade_Composicao_Ledger.sql > .local/composition-preapplication-evidence/pg-ledger.log 2>&1
+      - name: Prove SQL Server authoritative pre-application
+        run: |
+          set -euo pipefail
+          SQL_PASSWORD="J0rnada_${GITHUB_RUN_ID}_Aa9!"
+          CONNECTION="Server=localhost,1433;Database=JornadaCompositionPreApplicationTest;User Id=sa;Password=${SQL_PASSWORD};TrustServerCertificate=true;Encrypt=True"
+          JORNADA_PREAPPLICATION_PROVIDER=SqlServer JORNADA_PREAPPLICATION_CONNECTION="$CONNECTION" \
+            dotnet run --project .local/composition-preapplication-harness/CompositionPreApplicationSmoke.csproj -c Release --no-build --no-restore 2>&1 | tee .local/composition-preapplication-evidence/sql-runtime.log
+          grep -Fx 'IDENTITY COMPOSITION PREAPPLICATION: OK (authoritative closure, stale rejection, no publication)' .local/composition-preapplication-evidence/sql-runtime.log
+      - name: Prove PostgreSQL authoritative pre-application
+        run: |
+          set -euo pipefail
+          CONNECTION='Host=localhost;Port=5432;Database=JornadaCompositionPreApplicationTest;Username=jornada;SSL Mode=Disable'
+          JORNADA_PREAPPLICATION_PROVIDER=PostgreSql JORNADA_PREAPPLICATION_CONNECTION="$CONNECTION" \
+            dotnet run --project .local/composition-preapplication-harness/CompositionPreApplicationSmoke.csproj -c Release --no-build --no-restore 2>&1 | tee .local/composition-preapplication-evidence/pg-runtime.log
+          grep -Fx 'IDENTITY COMPOSITION PREAPPLICATION: OK (authoritative closure, stale rejection, no publication)' .local/composition-preapplication-evidence/pg-runtime.log
+      - name: Publish fail-closed evidence summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,sys
+          root=pathlib.Path('.local/composition-preapplication-evidence')
+          required=['commit.txt','restore.binlog','build.binlog','domain-tests.json','harness-build.binlog','sql-runtime.log','pg-runtime.log']
+          checks={p:(root/p).is_file() and (root/p).stat().st_size>0 for p in required}
+          try:
+              tests=json.loads((root/'domain-tests.json').read_text())
+              checks['domain_tests']=tests['status']=='PASS' and tests['aggregate']['passed']>=25 and tests['aggregate']['failed']==0 and tests['aggregate']['skipped']==0
+          except (OSError,ValueError,KeyError):checks['domain_tests']=False
+          marker='IDENTITY COMPOSITION PREAPPLICATION: OK (authoritative closure, stale rejection, no publication)'
+          for name in ['sql-runtime.log','pg-runtime.log']:
+              checks[name+'_passed']=(root/name).is_file() and marker in (root/name).read_text()
+          outcome='passed' if all(checks.values()) else 'failed'
+          summary={'schema_version':1,'commit':os.environ['GITHUB_SHA'],'outcome':outcome,'checks':checks,'scope':'governed_preapplication_only','operational_activation':False}
+          root.mkdir(parents=True,exist_ok=True)
+          (root/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary,indent=2))
+          if outcome!='passed':sys.exit(1)
+          PY
+      - name: Upload pre-application evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: identity-composition-preapplication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/composition-preapplication-evidence/
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: error
