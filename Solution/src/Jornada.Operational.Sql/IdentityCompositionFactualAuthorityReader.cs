@@ -134,7 +134,7 @@ public sealed class IdentityCompositionFactualAuthorityReader : IIdentityComposi
               SELECT pessoa_uuid,status
               FROM identidade.vinculo_fonte WITH(UPDLOCK,HOLDLOCK)
               WHERE pessoa_observacao_id=@observation AND ativo=1
-              ORDER BY vinculo_fonte_id;
+              ORDER BY vinculo_id;
               """;
         Add(command, "@observation", DbType.Int64, pessoaObservacaoId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
