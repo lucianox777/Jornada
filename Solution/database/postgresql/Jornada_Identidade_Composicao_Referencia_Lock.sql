@@ -1,5 +1,5 @@
 -- Serialização entre writers determinísticos e composição governada.
--- Usa o mesmo advisory lock lógico que o leitor/aplicador de composição.
+-- Ordem de locks: origem primeiro, referência depois, igual ao leitor de composição.
 BEGIN;
 DO $$
 BEGIN
@@ -29,14 +29,15 @@ BEGIN
   RAISE EXCEPTION 'Publicação de referência exige evidência e política.';
  END IF;
 
- PERFORM pg_advisory_xact_lock(hashtextextended(
-  'JORNADA:COMPOSICAO:REF:' || lower(p_canonical::text),0));
-
  PERFORM identidade.assegurar_origem_progressiva(p_source);
  SELECT initial_uuid,canonical_uuid,estado,versao INTO v_initial,v_current,v_estado,v_version
    FROM identidade.pessoa_origem_progressiva
   WHERE pessoa_origem_id=p_source
   FOR UPDATE;
+
+ PERFORM pg_advisory_xact_lock(hashtextextended(
+  'JORNADA:COMPOSICAO:REF:' || lower(p_canonical::text),0));
+
  IF v_estado='REFERENCIA' AND v_current=p_canonical THEN RETURN v_version; END IF;
  IF v_estado='REFERENCIA' AND v_current IS DISTINCT FROM p_canonical THEN
   RAISE EXCEPTION 'Referência progressiva já aponta outro UUID; correção governada necessária.';
