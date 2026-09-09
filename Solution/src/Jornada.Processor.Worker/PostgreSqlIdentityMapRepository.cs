@@ -52,8 +52,6 @@ internal static class PostgreSqlIdentityPersistence
         string? sourceRecordId,
         CancellationToken ct)
     {
-        // Serializa a chave CPF antes de consultar a âncora. O advisory lock evita duas
-        // primeiras aparições simultâneas criarem Pessoas candidatas concorrentes.
         await using (var keyLock = Command(connection, tx,
                          "SELECT pg_advisory_xact_lock(hashtextextended('JORNADA:CPF_ANCORA:' || @cpf,0));"))
         {
@@ -98,52 +96,40 @@ internal static class PostgreSqlIdentityPersistence
             }
 
             if (string.Equals(existingState, "EM_CONFLITO", StringComparison.Ordinal))
-            {
-                return new InternalIdentityResolution(
-                    ResolutionStatus.CONFLITO, null, ResolutionMethod.CPF_DETERMINISTICO,
-                    Motivo: CpfIdentityConsistency.IdentifierInConflictReason);
-            }
+                return new InternalIdentityResolution(ResolutionStatus.RESOLVIDO, anchorUuid.Value, ResolutionMethod.CPF_DETERMINISTICO);
 
             var existingCore = await LoadExistingCoreAsync(connection, tx, existingUuid.Value, ct);
             if (existingCore is null)
             {
-                await MarkCpfIdentifierConflictAsync(
-                    connection, tx, existingMapId!.Value, CpfIdentityConsistency.ExistingCoreUnavailableReason, ct);
-                return new InternalIdentityResolution(
-                    ResolutionStatus.CONFLITO, null, ResolutionMethod.CPF_DETERMINISTICO,
-                    Motivo: CpfIdentityConsistency.ExistingCoreUnavailableReason);
+                await MarkCpfIdentifierConflictAsync(connection, tx, existingMapId!.Value, CpfIdentityConsistency.ExistingCoreUnavailableReason, ct);
+                return new InternalIdentityResolution(ResolutionStatus.RESOLVIDO, anchorUuid.Value, ResolutionMethod.CPF_DETERMINISTICO);
             }
 
             var assessment = CpfIdentityConsistency.Evaluate(existingCore, incomingCore);
             if (assessment.IsConflict)
             {
                 await MarkCpfIdentifierConflictAsync(connection, tx, existingMapId!.Value, assessment.Motivo!, ct);
-                return new InternalIdentityResolution(
-                    ResolutionStatus.CONFLITO, null, ResolutionMethod.CPF_DETERMINISTICO, Motivo: assessment.Motivo);
+                return new InternalIdentityResolution(ResolutionStatus.RESOLVIDO, anchorUuid.Value, ResolutionMethod.CPF_DETERMINISTICO);
             }
 
-            return new InternalIdentityResolution(
-                ResolutionStatus.RESOLVIDO, anchorUuid.Value, ResolutionMethod.CPF_DETERMINISTICO);
+            return new InternalIdentityResolution(ResolutionStatus.RESOLVIDO, anchorUuid.Value, ResolutionMethod.CPF_DETERMINISTICO);
         }
 
         if (anchorUuid.HasValue)
         {
             var historicalCore = await LoadExistingCoreAsync(connection, tx, anchorUuid.Value, ct);
+            var recoveredMapId = await InsertActiveCpfMapAsync(
+                connection, tx, anchorUuid.Value, cpf, gestorId, sourceRecordId,
+                "CPF_MAP_RECUPERADO_ANCORA", ct);
+
             if (historicalCore is not null)
             {
                 var assessment = CpfIdentityConsistency.Evaluate(historicalCore, incomingCore);
                 if (assessment.IsConflict)
-                {
-                    return new InternalIdentityResolution(
-                        ResolutionStatus.CONFLITO, null, ResolutionMethod.CPF_DETERMINISTICO, Motivo: assessment.Motivo);
-                }
+                    await MarkCpfIdentifierConflictAsync(connection, tx, recoveredMapId, assessment.Motivo!, ct);
             }
 
-            await InsertActiveCpfMapAsync(
-                connection, tx, anchorUuid.Value, cpf, gestorId, sourceRecordId,
-                "CPF_MAP_RECUPERADO_ANCORA", ct);
-            return new InternalIdentityResolution(
-                ResolutionStatus.RESOLVIDO, anchorUuid.Value, ResolutionMethod.CPF_DETERMINISTICO);
+            return new InternalIdentityResolution(ResolutionStatus.RESOLVIDO, anchorUuid.Value, ResolutionMethod.CPF_DETERMINISTICO);
         }
 
         var created = Guid.NewGuid();
@@ -161,26 +147,20 @@ internal static class PostgreSqlIdentityPersistence
         await InsertActiveCpfMapAsync(
             connection, tx, created, cpf, gestorId, sourceRecordId,
             "CPF_MAP_CRIADO", ct);
-        return new InternalIdentityResolution(
-            ResolutionStatus.RESOLVIDO, created, ResolutionMethod.CPF_DETERMINISTICO);
+        return new InternalIdentityResolution(ResolutionStatus.RESOLVIDO, created, ResolutionMethod.CPF_DETERMINISTICO);
     }
 
-    private static async Task<Guid?> LockCpfAnchorAsync(
-        DbConnection connection, DbTransaction tx, string cpf, CancellationToken ct)
+    private static async Task<Guid?> LockCpfAnchorAsync(DbConnection connection, DbTransaction tx, string cpf, CancellationToken ct)
     {
-        await using var command = Command(connection, tx, """
-            SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf=@cpf FOR UPDATE;
-            """);
+        await using var command = Command(connection, tx, "SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf=@cpf FOR UPDATE;");
         Add(command, "@cpf", DbType.AnsiStringFixedLength, cpf, 11);
         var value = await command.ExecuteScalarAsync(ct);
         return value is null or DBNull ? null : (Guid)value;
     }
 
-    private static async Task<Guid> ReserveCpfAnchorAsync(
-        DbConnection connection, DbTransaction tx, string cpf, Guid uuid, CancellationToken ct)
+    private static async Task<Guid> ReserveCpfAnchorAsync(DbConnection connection, DbTransaction tx, string cpf, Guid uuid, CancellationToken ct)
     {
-        await using var command = Command(connection, tx,
-            "SELECT identidade.fn_reservar_cpf_ancora(@cpf,@uuid);");
+        await using var command = Command(connection, tx, "SELECT identidade.fn_reservar_cpf_ancora(@cpf,@uuid);");
         Add(command, "@cpf", DbType.String, cpf, 11);
         Add(command, "@uuid", DbType.Guid, uuid);
         var value = await command.ExecuteScalarAsync(ct);
@@ -190,14 +170,8 @@ internal static class PostgreSqlIdentityPersistence
     }
 
     private static async Task<long> InsertActiveCpfMapAsync(
-        DbConnection connection,
-        DbTransaction tx,
-        Guid uuid,
-        string cpf,
-        long? gestorId,
-        string? sourceRecordId,
-        string reason,
-        CancellationToken ct)
+        DbConnection connection, DbTransaction tx, Guid uuid, string cpf, long? gestorId,
+        string? sourceRecordId, string reason, CancellationToken ct)
     {
         long mapId;
         await using (var insertMap = Command(connection, tx, """
@@ -230,64 +204,32 @@ internal static class PostgreSqlIdentityPersistence
     private static async Task MarkCpfIdentifierConflictAsync(
         DbConnection connection, DbTransaction tx, long identityMapId, string reason, CancellationToken ct)
     {
-        Guid? uuid = null;
-        string? cpf = null;
         await using (var update = Command(connection, tx, """
             UPDATE identidade.identity_map
                SET estado='EM_CONFLITO',estado_motivo=@motivo,estado_em=CURRENT_TIMESTAMP
              WHERE identity_map_id=@id AND estado='ATIVO' AND vigencia_fim IS NULL
-            RETURNING pessoa_uuid,identificador;
+            RETURNING identity_map_id;
             """))
         {
             Add(update, "@id", DbType.Int64, identityMapId);
             Add(update, "@motivo", DbType.String, reason, 120);
-            await using var reader = await update.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct)) return;
-            uuid = reader.GetFieldValue<Guid>(0);
-            cpf = reader.GetString(1);
+            var changed = await update.ExecuteScalarAsync(ct);
+            if (changed is null or DBNull) return;
         }
 
-        await using (var history = Command(connection, tx, """
+        await using var history = Command(connection, tx, """
             INSERT INTO identidade.identity_map_estado_evento(identity_map_id,estado_anterior,estado_novo,motivo)
             VALUES(@id,'ATIVO','EM_CONFLITO',@motivo);
-            """))
-        {
-            Add(history, "@id", DbType.Int64, identityMapId);
-            Add(history, "@motivo", DbType.String, reason, 120);
-            await history.ExecuteNonQueryAsync(ct);
-        }
-
-        foreach (var sql in new[]
-                 {
-                     "UPDATE gold.beneficio_concedido SET pessoa_uuid=NULL,estado_atribuicao_identidade='CONFLITO_IDENTIDADE',atualizado_em=CURRENT_TIMESTAMP WHERE cpf_declarado=@cpf AND status_analitico='VIGENTE';",
-                     "UPDATE gold.servico_prestado SET pessoa_uuid=NULL,estado_atribuicao_identidade='CONFLITO_IDENTIDADE',atualizado_em=CURRENT_TIMESTAMP WHERE cpf_declarado=@cpf AND status_analitico='VIGENTE';",
-                     "UPDATE serving.registro_integrado SET pessoa_uuid=NULL,estado_atribuicao_identidade='CONFLITO_IDENTIDADE',atualizado_em=CURRENT_TIMESTAMP WHERE cpf_declarado=@cpf AND status_analitico='VIGENTE';"
-                 })
-        {
-            await using var suspend = Command(connection, tx, sql);
-            Add(suspend, "@cpf", DbType.AnsiStringFixedLength, cpf, 11);
-            await suspend.ExecuteNonQueryAsync(ct);
-        }
-
-        await using (var person = Command(connection, tx,
-                         "UPDATE identidade.pessoa SET status='EM_CONFLITO',atualizado_em=CURRENT_TIMESTAMP WHERE pessoa_uuid=@uuid AND status='ATIVO';"))
-        {
-            Add(person, "@uuid", DbType.Guid, uuid);
-            await person.ExecuteNonQueryAsync(ct);
-        }
-        await using (var goldPerson = Command(connection, tx, "DELETE FROM gold.pessoa WHERE pessoa_uuid=@uuid;"))
-        {
-            Add(goldPerson, "@uuid", DbType.Guid, uuid);
-            await goldPerson.ExecuteNonQueryAsync(ct);
-        }
+            """);
+        Add(history, "@id", DbType.Int64, identityMapId);
+        Add(history, "@motivo", DbType.String, reason, 120);
+        await history.ExecuteNonQueryAsync(ct);
     }
 
-    private static async Task<IdentityCore?> LoadExistingCoreAsync(
-        DbConnection connection, DbTransaction tx, Guid uuid, CancellationToken ct)
+    private static async Task<IdentityCore?> LoadExistingCoreAsync(DbConnection connection, DbTransaction tx, Guid uuid, CancellationToken ct)
     {
-        await using (var gold = Command(connection, tx, """
-            SELECT nome_completo,data_nascimento,nome_mae FROM gold.pessoa WHERE pessoa_uuid=@uuid;
-            """))
+        await using (var gold = Command(connection, tx,
+                         "SELECT nome_completo,data_nascimento,nome_mae FROM gold.pessoa WHERE pessoa_uuid=@uuid;"))
         {
             Add(gold, "@uuid", DbType.Guid, uuid);
             await using var reader = await gold.ExecuteReaderAsync(ct);
