@@ -65,7 +65,7 @@ public static class IdentityCompositionFactualRevalidationPlanner
             string state;
             if (string.Equals(status, "RESOLVIDO", StringComparison.Ordinal))
             {
-                if (snapshot.AuthoritativePessoaUuid is null or { } when snapshot.AuthoritativePessoaUuid == Guid.Empty)
+                if (!snapshot.AuthoritativePessoaUuid.HasValue || snapshot.AuthoritativePessoaUuid.Value == Guid.Empty)
                     throw new InvalidOperationException("Vínculo RESOLVIDO exige UUID autoritativo.");
                 uuid = snapshot.AuthoritativePessoaUuid;
                 state = "ATRIBUIDA";
