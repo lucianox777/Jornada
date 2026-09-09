@@ -29,7 +29,7 @@ internal sealed class SqlIdentityResolutionService(IOperationalSqlAdapter connec
                 ResolutionStatus.CONFLITO,
                 null,
                 ResolutionMethod.CPF_DETERMINISTICO,
-                "CPF_INVALIDO");
+                CpfRules.StructurallyInvalidReason);
         }
 
         await using var connection = await connections.OpenAsync(ct);
