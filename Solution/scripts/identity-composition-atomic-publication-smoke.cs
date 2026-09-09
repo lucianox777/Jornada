@@ -139,7 +139,26 @@ async Task<(Guid Canonical, long Version)> ProgressiveAsync(Guid initial)
     return (reader.GetGuid(0), reader.GetInt64(1));
 }
 
+async Task MakeCompositionCandidateNonAnchoringAsync(long observationId)
+{
+    await using var connection = await database.OpenAsync();
+    await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+    await using var command = connection.CreateCommand();
+    command.Transaction = transaction;
+    command.CommandText = pg
+        ? "UPDATE identidade.vinculo_fonte SET metodo_resolucao='CORRECAO_GOVERNADA',score=NULL,modelo_id=NULL,motivo='ATOMIC_PUBLICATION_SMOKE_NON_ANCHOR' WHERE pessoa_observacao_id=@obs AND ativo AND status='RESOLVIDO' AND pessoa_uuid IS NOT NULL;"
+        : "UPDATE identidade.vinculo_fonte SET metodo_resolucao='CORRECAO_GOVERNADA',score=NULL,modelo_id=NULL,motivo='ATOMIC_PUBLICATION_SMOKE_NON_ANCHOR' WHERE pessoa_observacao_id=@obs AND ativo=1 AND status='RESOLVIDO' AND pessoa_uuid IS NOT NULL;";
+    Add(command, "@obs", DbType.Int64, observationId);
+    if (await command.ExecuteNonQueryAsync() != 1)
+        throw new InvalidOperationException("Fixture não conseguiu isolar uma autoridade factual não ancorante.");
+    await transaction.CommitAsync();
+}
+
 var candidate = await CandidateAsync();
+// A publicação precisa provar separação entre referência estrutural e autoridade factual sem
+// fabricar uma fusão proibida de âncora CPF. CORRECAO_GOVERNADA mantém o UUID factual corrente,
+// mas, por contrato, não transfere para esta origem a titularidade permanente da âncora observada.
+await MakeCompositionCandidateNonAnchoringAsync(candidate.ObservationId);
 var factualInitial = await EnsureAsync(candidate.SourceId);
 await PublishReferenceAsync(candidate.SourceId, factualInitial);
 var structuralSource = await AddSourceAsync();
