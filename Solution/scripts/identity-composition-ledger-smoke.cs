@@ -55,15 +55,15 @@ var run=Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
 var code="CMP"+run;
 var suffix=pg ? " RETURNING gestor_id;" : "; SELECT CAST(SCOPE_IDENTITY() AS bigint);";
 var gestor=Convert.ToInt64(await ScalarAsync("INSERT INTO ref.gestor(codigo,nome) VALUES(@code,@name)"+suffix,
-    ("@code",DbType.String,code),("@name",DbType.String,"Synthetic composition test")));
+    ("@code",DbType.String,code),("@name",DbType.String,"Synthetic composition test")),System.Globalization.CultureInfo.InvariantCulture);
 suffix=pg ? " RETURNING sistema_origem_id;" : "; SELECT CAST(SCOPE_IDENTITY() AS bigint);";
 var system=Convert.ToInt64(await ScalarAsync("INSERT INTO ref.sistema_origem(gestor_id,codigo,nome) VALUES(@gestor,@code,@name)"+suffix,
-    ("@gestor",DbType.Int64,gestor),("@code",DbType.String,code),("@name",DbType.String,"Synthetic source")));
+    ("@gestor",DbType.Int64,gestor),("@code",DbType.String,code),("@name",DbType.String,"Synthetic source")),System.Globalization.CultureInfo.InvariantCulture);
 async Task<long> AddSourceAsync(string sourceCode)
 {
     var tail=pg ? " RETURNING pessoa_origem_id;" : "; SELECT CAST(SCOPE_IDENTITY() AS bigint);";
     return Convert.ToInt64(await ScalarAsync("INSERT INTO silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@system,@code)"+tail,
-        ("@system",DbType.Int64,system),("@code",DbType.String,sourceCode)));
+        ("@system",DbType.Int64,system),("@code",DbType.String,sourceCode)),System.Globalization.CultureInfo.InvariantCulture);
 }
 async Task<Guid> EnsureAsync(long sourceId)
 {
@@ -131,7 +131,7 @@ var read=new IdentityCompositionReadSet(
     ImmutableArray.Create(newUuid),ImmutableArray<IdentityCompositionHistory>.Empty);
 var decision=new IdentityCompositionDecision(decisionId,IdentityCompositionOperation.FUSAO,
     ImmutableArray.Create(new IdentityCompositionAssignment(a,1,a,ProgressiveIdentityStatus.REFERENCIA),
-        new IdentityCompositionAssignment(b,1,a,ProgressiveIdentityStatus.REFERENCIA)),
+    new IdentityCompositionAssignment(b,1,a,ProgressiveIdentityStatus.REFERENCIA)),
     "evidência:sintética/sem-PII","LEDGER_TEST_V1",DateTimeOffset.UtcNow);
 var plan=IdentityCompositionPlanner.Prepare(read,decision);
 var requestJson=RequestJson(decision);var planJson=JsonSerializer.Serialize(plan);
