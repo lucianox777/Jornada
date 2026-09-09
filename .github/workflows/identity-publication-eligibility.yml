@@ -1,0 +1,60 @@
+name: jornada-identity-publication-eligibility
+on:
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Contracts/IdentityCompositionFactualRevalidation.cs'
+      - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionFactualAuthorityReader.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/IdentityCompositionFactualRevalidationTests.cs'
+      - '.github/workflows/identity-publication-eligibility.yml'
+  push:
+    paths:
+      - 'Solution/src/Jornada.Contracts/IdentityCompositionFactualRevalidation.cs'
+      - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionFactualAuthorityReader.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/IdentityCompositionFactualRevalidationTests.cs'
+      - '.github/workflows/identity-publication-eligibility.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  eligibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Solution
+        shell: bash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.424'
+      - name: Build and prove factual eligibility contract
+        run: |
+          set -euo pipefail
+          mkdir -p .local/publication-eligibility-evidence
+          git rev-parse HEAD | tee .local/publication-eligibility-evidence/commit.txt
+          git diff --check
+          dotnet restore tests/Jornada.Tests/Jornada.Tests.csproj --locked-mode -v:normal 2>&1 | tee .local/publication-eligibility-evidence/restore.log
+          dotnet build tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-restore -warnaserror -v:normal 2>&1 | tee .local/publication-eligibility-evidence/build.log
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~IdentityCompositionFactualRevalidationTests' --logger 'trx;LogFileName=factual-eligibility.trx' --results-directory .local/publication-eligibility-evidence 2>&1 | tee .local/publication-eligibility-evidence/tests.log
+          python3 scripts/test-evidence-gate.py .local/publication-eligibility-evidence/factual-eligibility.trx --forbid-skipped --minimum-tests 10 --summary .local/publication-eligibility-evidence/tests.json
+      - name: Record scope
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('.local/publication-eligibility-evidence/summary.json')
+          p.write_text(json.dumps({
+            'schema':1,'status':'PASS','scope':'factual_publication_eligibility_only',
+            'authority':'active_vinculo_fonte','structural_target_used_for_assignment':False,
+            'factual_writes':False,'gold_serving_writes':False,'probabilistic_activation':False
+          },indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: identity-publication-eligibility-${{ github.run_id }}
+          path: Solution/.local/publication-eligibility-evidence
+          if-no-files-found: error
+          retention-days: 14
