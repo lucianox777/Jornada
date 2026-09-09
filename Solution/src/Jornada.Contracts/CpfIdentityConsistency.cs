@@ -1,12 +1,12 @@
 namespace Jornada.Contracts;
 
 /// <summary>
-/// Trava conservadora contra uso de CPF válido de terceiro.
-/// CPF continua sendo a rota determinística, mas, quando já está associado a uma Pessoa,
-/// o núcleo informado precisa ser compatível antes de criar um novo vínculo de fonte.
-/// A regra V1 só bloqueia divergência forte em dois sinais independentes: nome LOW e
-/// data de nascimento diferente. Variações de nome com a mesma data e erros isolados
-/// de data não são, por si só, conflito. O caso não é enviado ao linkage probabilístico.
+/// Detector conservador de inconsistência global entre observações que declaram o mesmo CPF.
+/// O CPF continua sendo a rota determinística e a regra nunca escolhe outra identidade nem
+/// classifica automaticamente uma observação específica como errada. A V1 sinaliza o próprio
+/// identificador quando encontra divergência forte em dois sinais independentes: nome LOW e
+/// data de nascimento diferente. Variações de nome com a mesma data e erros isolados de data
+/// não são, por si só, conflito. O caso não é enviado ao linkage probabilístico.
 /// </summary>
 public static class CpfIdentityConsistency
 {
