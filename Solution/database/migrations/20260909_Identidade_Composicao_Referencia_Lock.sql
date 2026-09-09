@@ -1,5 +1,6 @@
 -- Serialização entre writers determinísticos e composição governada.
--- O mesmo lock lógico de referência é adquirido pelo leitor/aplicador de composição.
+-- Ordem de locks: origem primeiro, referência depois. O leitor de composição usa a mesma ordem
+-- para evitar ciclo source<->reference em concorrência com o Processor.
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 SET XACT_ABORT ON;
@@ -23,12 +24,6 @@ BEGIN
  IF @evidencia_referencia IS NULL OR LTRIM(RTRIM(@evidencia_referencia))='' OR @politica_versao IS NULL OR LTRIM(RTRIM(@politica_versao))=''
    THROW 51120,'Publicação de referência exige evidência e política.',1;
 
- DECLARE @reference_lock INT;
- DECLARE @reference_resource NVARCHAR(255)=N'JORNADA:COMPOSICAO:REF:'+LOWER(CONVERT(NVARCHAR(36),@canonical_uuid));
- EXEC @reference_lock=sys.sp_getapplock
-   @Resource=@reference_resource,@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=30000;
- IF @reference_lock<0 THROW 51511,'Não foi possível serializar a referência com a composição governada.',1;
-
  DECLARE @ensure TABLE(initial_uuid UNIQUEIDENTIFIER NOT NULL,legacy_pessoa_uuid UNIQUEIDENTIFIER NULL,estado VARCHAR(20) NOT NULL,versao BIGINT NOT NULL);
  INSERT INTO @ensure(initial_uuid,legacy_pessoa_uuid,estado,versao)
  EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@pessoa_origem_id;
@@ -36,6 +31,13 @@ BEGIN
  SELECT @initial=initial_uuid,@current=canonical_uuid,@estado=estado,@versao=versao
    FROM identidade.pessoa_origem_progressiva WITH(UPDLOCK,HOLDLOCK)
   WHERE pessoa_origem_id=@pessoa_origem_id;
+
+ DECLARE @reference_lock INT;
+ DECLARE @reference_resource NVARCHAR(255)=N'JORNADA:COMPOSICAO:REF:'+LOWER(CONVERT(NVARCHAR(36),@canonical_uuid));
+ EXEC @reference_lock=sys.sp_getapplock
+   @Resource=@reference_resource,@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=30000;
+ IF @reference_lock<0 THROW 51511,'Não foi possível serializar a referência com a composição governada.',1;
+
  IF @estado='REFERENCIA' AND @current=@canonical_uuid
  BEGIN SET @versao_resultado=@versao; RETURN; END;
  IF @estado='REFERENCIA' AND (@current<>@canonical_uuid OR @current IS NULL)
