@@ -61,14 +61,27 @@ public sealed class IdentityCompositionPreApplicationService
         var readSet = await authoritativeReader.LoadClosedReadSetAsync(
             connection, transaction, decision, reserved, cancellationToken);
         ArgumentNullException.ThrowIfNull(readSet);
-
-        var replanned = IdentityCompositionPlanner.Prepare(readSet, decision);
-        var replannedJson = IdentityCompositionCanonical.SerializePlan(replanned);
-        if (!string.Equals(replannedJson, receipt.PlanJson, StringComparison.Ordinal))
-            throw new InvalidOperationException("Plano PREPARADA tornou-se obsoleto diante do estado autoritativo corrente.");
+        var replanned = ValidateAuthoritativeState(receipt, decision, preparedPlan, reserved, readSet);
 
         return new IdentityCompositionPreApplicationValidation(
             receipt, decision, preparedPlan, replanned, readSet);
+    }
+
+    public static IdentityCompositionPlan ValidateAuthoritativeState(
+        IdentityCompositionPreparedReceipt receipt,
+        IdentityCompositionDecision decision,
+        IdentityCompositionPlan preparedPlan,
+        IEnumerable<Guid> reservedUuids,
+        IdentityCompositionReadSet authoritativeReadSet)
+    {
+        ArgumentNullException.ThrowIfNull(authoritativeReadSet);
+        IdentityCompositionLedgerStore.ValidatePreparedContent(
+            receipt, decision, preparedPlan, reservedUuids);
+        var replanned = IdentityCompositionPlanner.Prepare(authoritativeReadSet, decision);
+        var replannedJson = IdentityCompositionCanonical.SerializePlan(replanned);
+        if (!string.Equals(replannedJson, receipt.PlanJson, StringComparison.Ordinal))
+            throw new InvalidOperationException("Plano PREPARADA tornou-se obsoleto diante do estado autoritativo corrente.");
+        return replanned;
     }
 
     private static T Deserialize<T>(string json, string label)
