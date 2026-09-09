@@ -108,7 +108,7 @@ public sealed class IdentityCompositionApplicationTests
         {
             Assert.Throws<InvalidOperationException>(() => IdentityCompositionApplicationStore.ValidateAppliedContent(
                 applied with { State = "PREPARADA" }, prepared, plan));
-            Assert.Throws<InvalidOperationException>(() => IdentityCompositionApplicationStore.ValidateAppliedContent(
+            Assert.Throws<ArgumentException>(() => IdentityCompositionApplicationStore.ValidateAppliedContent(
                 applied with { ApplierReference = " " }, prepared, plan));
             Assert.Throws<InvalidOperationException>(() => IdentityCompositionApplicationStore.ValidateAppliedContent(
                 applied with { AppliedAt = When.ToOffset(TimeSpan.FromHours(-3)) }, prepared, plan));
