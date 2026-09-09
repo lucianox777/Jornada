@@ -12,7 +12,9 @@
     "Solution/docs/Runbook_Desenvolvimento_Local.md",
     "Solution/src/*/appsettings.json",
     ".github/workflows/identity-composition-ledger.yml",
-    ".github/workflows/identity-composition-preapplication.yml"
+    ".github/workflows/identity-composition-preapplication.yml",
+    ".github/workflows/identity-composition-application.yml",
+    ".github/workflows/identity-history-runtime.yml"
   ],
   "allowedPasswordLiteralGlobs": [
     ".github/workflows/ci.yml",
@@ -25,7 +27,9 @@
     "Solution/scripts/local-*.ps1",
     "Solution/docs/Runbook_Desenvolvimento_Local.md",
     ".github/workflows/identity-composition-ledger.yml",
-    ".github/workflows/identity-composition-preapplication.yml"
+    ".github/workflows/identity-composition-preapplication.yml",
+    ".github/workflows/identity-composition-application.yml",
+    ".github/workflows/identity-history-runtime.yml"
   ],
   "forbiddenTokenPrefixes": [
     "ghp_",

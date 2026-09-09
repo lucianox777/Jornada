@@ -1,0 +1,151 @@
+name: jornada-identity-history-runtime
+on:
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Contracts/Identity*History*.cs'
+      - 'Solution/src/Jornada.Contracts/IdentityHistorical*.cs'
+      - 'Solution/src/Jornada.Operational.Sql/IdentityComposition*.cs'
+      - 'Solution/scripts/identity-composition-history-smoke.cs'
+      - '.github/workflows/identity-history-runtime.yml'
+  push:
+    paths:
+      - 'Solution/src/Jornada.Contracts/Identity*History*.cs'
+      - 'Solution/src/Jornada.Contracts/IdentityHistorical*.cs'
+      - 'Solution/src/Jornada.Operational.Sql/IdentityComposition*.cs'
+      - 'Solution/scripts/identity-composition-history-smoke.cs'
+      - '.github/workflows/identity-history-runtime.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: Solution
+        shell: bash
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: J0rnada_${{ github.run_id }}_Aa9!
+        ports:
+          - 1433:1433
+      postgres:
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        env:
+          POSTGRES_USER: jornada
+          POSTGRES_DB: JornadaCompositionApplicationTest
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jornada -d JornadaCompositionApplicationTest"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.424'
+      - name: Build historical runtime harness
+        run: |
+          set -euo pipefail
+          mkdir -p .local/history-runtime .local/history-runtime-evidence
+          git rev-parse HEAD > .local/history-runtime-evidence/commit.txt
+          git diff --check
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('scripts/identity-composition-application-smoke.cs').read_text()
+          marker='Console.WriteLine("IDENTITY COMPOSITION APPLICATION: OK (apply, replay, rollback, stale rejection, concurrency; no Gold publication)");'
+          assert source.count(marker)==1
+          source=source.replace(marker,'await IdentityCompositionHistorySmoke.RunAsync(database, a, b, decision, plan);\n'+marker)
+          Path('.local/history-runtime/Program.cs').write_text(source)
+          PY
+          cat > .local/history-runtime/HistoryRuntime.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net8.0</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="../../src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj" />
+              <ProjectReference Include="../../src/Jornada.Contracts/Jornada.Contracts.csproj" />
+              <Compile Include="../../scripts/identity-composition-history-smoke.cs" Link="HistorySmoke.cs" />
+            </ItemGroup>
+          </Project>
+          EOF
+          dotnet restore .local/history-runtime/HistoryRuntime.csproj -bl:.local/history-runtime-evidence/restore.binlog
+          dotnet build .local/history-runtime/HistoryRuntime.csproj -c Release --no-restore -warnaserror -bl:.local/history-runtime-evidence/build.binlog 2>&1 | tee .local/history-runtime-evidence/build.log
+      - name: Install disposable SQL Server
+        run: |
+          set -euo pipefail
+          SQL_PASSWORD="J0rnada_${GITHUB_RUN_ID}_Aa9!"
+          CID=$(docker ps -q --filter publish=1433 | head -1)
+          test -n "$CID"
+          sqlcmd() { docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P "$SQL_PASSWORD" -C -b "$@"; }
+          for attempt in $(seq 1 30); do
+            if docker exec "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P "$SQL_PASSWORD" -C -Q 'SELECT 1' >/dev/null 2>&1; then break; fi
+            if [ "$attempt" = 30 ]; then exit 1; fi
+            sleep 2
+          done
+          sqlcmd -Q "IF DB_ID('JornadaCompositionApplicationTest') IS NULL CREATE DATABASE JornadaCompositionApplicationTest;"
+          for file in database/Jornada_Fase1.sql database/migrations/20260907_Cpf_Ancora.sql database/Jornada_Identidade_Progressiva.sql database/migrations/20260908_Identidade_Composicao_Ledger.sql database/migrations/20260909_Identidade_Composicao_Referencia_Lock.sql database/migrations/20260909_Identidade_Composicao_Aplicacao.sql; do
+            sqlcmd -d JornadaCompositionApplicationTest -i /dev/stdin < "$file" >> .local/history-runtime-evidence/sql-install.log 2>&1
+          done
+          printf '%s\n' 'SECOND_INSTALL_OK' >> .local/history-runtime-evidence/sql-install.log
+      - name: Install disposable PostgreSQL
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=5432 | head -1)
+          test -n "$CID"
+          pgsql() { docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaCompositionApplicationTest "$@"; }
+          for file in database/postgresql/Jornada_Resultado_Core.sql database/postgresql/Jornada_Ingestion_Processor_Core.sql database/postgresql/Jornada_Processor_Persistence_Core.sql database/postgresql/Jornada_Cpf_Ancora.sql database/postgresql/Jornada_Identidade_Progressiva.sql database/postgresql/Jornada_Identidade_Composicao_Ledger.sql database/postgresql/Jornada_Identidade_Composicao_Referencia_Lock.sql database/postgresql/Jornada_Identidade_Composicao_Aplicacao.sql; do
+            pgsql < "$file" >> .local/history-runtime-evidence/pg-install.log 2>&1
+          done
+      - name: Prove SQL Server history
+        run: |
+          set -euo pipefail
+          SQL_PASSWORD="J0rnada_${GITHUB_RUN_ID}_Aa9!"
+          CONNECTION="Server=localhost,1433;Database=JornadaCompositionApplicationTest;User Id=sa;Password=${SQL_PASSWORD};TrustServerCertificate=true;Encrypt=True"
+          JORNADA_APPLICATION_PROVIDER=SqlServer JORNADA_APPLICATION_CONNECTION="$CONNECTION" dotnet run --project .local/history-runtime/HistoryRuntime.csproj -c Release --no-build --no-restore 2>&1 | tee .local/history-runtime-evidence/sql-runtime.log
+          grep -Fx 'IDENTITY HISTORY CLOSURE: OK (applied receipt, canonical history, authoritative members; no publication)' .local/history-runtime-evidence/sql-runtime.log
+      - name: Prove PostgreSQL history
+        run: |
+          set -euo pipefail
+          CONNECTION='Host=localhost;Port=5432;Database=JornadaCompositionApplicationTest;Username=jornada;SSL Mode=Disable'
+          JORNADA_APPLICATION_PROVIDER=PostgreSql JORNADA_APPLICATION_CONNECTION="$CONNECTION" dotnet run --project .local/history-runtime/HistoryRuntime.csproj -c Release --no-build --no-restore 2>&1 | tee .local/history-runtime-evidence/pg-runtime.log
+          grep -Fx 'IDENTITY HISTORY CLOSURE: OK (applied receipt, canonical history, authoritative members; no publication)' .local/history-runtime-evidence/pg-runtime.log
+      - name: Fail-closed evidence
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,sys
+          root=pathlib.Path('.local/history-runtime-evidence')
+          required=['commit.txt','restore.binlog','build.binlog','sql-install.log','pg-install.log','sql-runtime.log','pg-runtime.log']
+          checks={p:(root/p).is_file() and (root/p).stat().st_size>0 for p in required}
+          checks['sql_install_complete']=checks['sql-install.log'] and 'SECOND_INSTALL_OK' in (root/'sql-install.log').read_text()
+          marker='IDENTITY HISTORY CLOSURE: OK (applied receipt, canonical history, authoritative members; no publication)'
+          for name in ['sql-runtime.log','pg-runtime.log']:
+              checks[name+'_passed']=(root/name).is_file() and marker in (root/name).read_text()
+          outcome='passed' if all(checks.values()) else 'failed'
+          root.mkdir(parents=True,exist_ok=True)
+          (root/'summary.json').write_text(json.dumps({'schema_version':1,'commit':os.environ['GITHUB_SHA'],'outcome':outcome,'checks':checks,'scope':'historical_closure_disposable_databases','operational_activation':False,'gold_publication':False},indent=2)+'\n')
+          if outcome!='passed':sys.exit(1)
+          PY
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: identity-history-runtime-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/history-runtime-evidence/
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: error
