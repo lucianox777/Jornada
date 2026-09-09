@@ -104,7 +104,7 @@ public sealed class CpfAnchorResolutionApiTests
             Assert.Multiple(() =>
             {
                 Assert.That(conflicted.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
-                Assert.That(conflicted.PessoaUuid, Is.EqualTo(anchorUuid), "O conflito suspende atribuição factual, não a âncora permanente.");
+                Assert.That(conflicted.PessoaUuid, Is.EqualTo(anchorUuid), "O conflito global sinaliza o identificador, sem alterar o UUID permanente do CPF.");
                 Assert.That(conflicted.MetodoResolucao, Is.EqualTo(ResolutionMethod.CPF_DETERMINISTICO));
                 Assert.That(conflicted.Motivo, Is.EqualTo(CpfIdentityConsistency.IdentifierInConflictReason));
             });
