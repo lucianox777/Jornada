@@ -81,7 +81,16 @@ public sealed class IdentityCompositionCanonicalTests
             Assert.That(roundTrip.DecisionId, Is.EqualTo(plan.DecisionId));
             Assert.That(roundTrip.RequestHash, Is.EqualTo(plan.RequestHash));
             Assert.That(roundTrip.Changes, Is.EqualTo(plan.Changes));
-            Assert.That(roundTrip.HistoryToAppend.ToArray(), Is.EqualTo(plan.HistoryToAppend.ToArray()));
+            Assert.That(roundTrip.HistoryToAppend.Length, Is.EqualTo(plan.HistoryToAppend.Length));
+            for (var index = 0; index < plan.HistoryToAppend.Length; index++)
+            {
+                Assert.That(roundTrip.HistoryToAppend[index].ReferenceUuid,
+                    Is.EqualTo(plan.HistoryToAppend[index].ReferenceUuid));
+                Assert.That(roundTrip.HistoryToAppend[index].CompositionId,
+                    Is.EqualTo(plan.HistoryToAppend[index].CompositionId));
+                Assert.That(roundTrip.HistoryToAppend[index].MemberInitialUuids.ToArray(),
+                    Is.EqualTo(plan.HistoryToAppend[index].MemberInitialUuids.ToArray()));
+            }
             Assert.That(IdentityCompositionCanonical.SerializePlan(roundTrip), Is.EqualTo(json));
         });
     }
