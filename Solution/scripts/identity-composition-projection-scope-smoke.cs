@@ -44,6 +44,13 @@ async Task<object?> ScalarAsync(
     return await command.ExecuteScalarAsync();
 }
 
+async Task<long> CountAsync(string sql)
+{
+    await using var connection = await database.OpenAsync();
+    return Convert.ToInt64(await ScalarAsync(connection, null, sql),
+        System.Globalization.CultureInfo.InvariantCulture);
+}
+
 var run = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
 var code = "PROJ" + run;
 await using var setup = await database.OpenAsync();
@@ -100,6 +107,8 @@ async Task PublishAsync(long sourceId, Guid target)
     await transaction.CommitAsync();
 }
 
+var goldBefore = await CountAsync("SELECT COUNT(*) FROM gold.pessoa");
+var servingBefore = await CountAsync("SELECT COUNT(*) FROM serving.registro_integrado");
 var sourceA = await AddSourceAsync("A-" + run);
 var sourceB = await AddSourceAsync("B-" + run);
 var a = await EnsureAsync(sourceA);
@@ -126,7 +135,30 @@ var plan = IdentityCompositionPlanner.Prepare(readSet, decision);
 Check(plan.Changes.Length == 1 && plan.Changes[0].InitialUuid == b,
     "Fixture deveria alterar somente a segunda origem.");
 
+var ledger = new IdentityCompositionLedgerStore(database);
+var cpfAuthority = new IdentityCompositionCpfAuthorityReader(database);
+var authoritative = new IdentityCompositionAuthoritativeReader(database, cpfAuthority);
+var preApplication = new IdentityCompositionPreApplicationService(ledger, authoritative);
+var applicationStore = new IdentityCompositionApplicationStore(database);
+var application = new IdentityCompositionApplicationService(ledger, preApplication, applicationStore);
+await using (var connection = await database.OpenAsync())
+await using (var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted))
+{
+    await ledger.RegisterPreparedAsync(connection, transaction, decision, plan, Array.Empty<Guid>(),
+        "synthetic:projection-scope", Guid.NewGuid());
+    await transaction.CommitAsync();
+}
+await using (var connection = await database.OpenAsync())
+await using (var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted))
+{
+    var applied = await application.ApplyAsync(connection, transaction, decision.DecisionId, "synthetic:projection-scope");
+    Check(!applied.Replay, "Fixture de recomposição exige primeira aplicação efetiva.");
+    await transaction.CommitAsync();
+}
+
 var scopeReader = new IdentityCompositionProjectionScopeReader(database);
+var recompositionStore = new IdentityCompositionRecompositionPlanStore(database);
+IdentityCompositionRecompositionPlan recomposition;
 await using (var connection = await database.OpenAsync())
 await using (var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted))
 {
@@ -136,12 +168,29 @@ await using (var transaction = await connection.BeginTransactionAsync(IsolationL
         "Fechamento factual não preservou a origem autoritativa.");
     Check(scopes[0].RegistroObservacaoIds.IsEmpty,
         "Origem sintética sem fatos recebeu registros inexistentes.");
-    var recomposition = IdentityCompositionRecompositionPlanner.Prepare(plan, scopes);
+    recomposition = IdentityCompositionRecompositionPlanner.Prepare(plan, scopes);
     Check(recomposition.AffectedInitialUuids.SequenceEqual(new[] { b }) &&
           recomposition.PessoaOrigemIds.SequenceEqual(new[] { sourceB }) &&
           recomposition.RegistroObservacaoIds.IsEmpty && !recomposition.RequiresFactualRevalidation,
         "Plano de recomposição não corresponde ao escopo autoritativo sem fatos.");
+    var registration = await recompositionStore.RegisterAsync(
+        connection, transaction, recomposition, DateTimeOffset.UtcNow);
+    Check(!registration.Replay && registration.Receipt.State == "PLANEJADA",
+        "Primeiro registro do plano de recomposição não foi persistido como PLANEJADA.");
+    await transaction.CommitAsync();
+}
+await using (var connection = await database.OpenAsync())
+await using (var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted))
+{
+    var replay = await recompositionStore.RegisterAsync(
+        connection, transaction, recomposition, DateTimeOffset.UtcNow);
+    Check(replay.Replay, "Replay idempotente do plano de recomposição não foi reconhecido.");
     await transaction.RollbackAsync();
 }
 
-Console.WriteLine("IDENTITY PROJECTION SCOPE: OK (authoritative source closure; no factual or Gold/Serving writes)");
+Check(await CountAsync("SELECT COUNT(*) FROM gold.pessoa") == goldBefore,
+    "Planejamento de recomposição publicou Gold indevidamente.");
+Check(await CountAsync("SELECT COUNT(*) FROM serving.registro_integrado") == servingBefore,
+    "Planejamento de recomposição publicou Serving indevidamente.");
+
+Console.WriteLine("IDENTITY PROJECTION SCOPE: OK (authoritative closure + immutable recomposition plan; no factual or Gold/Serving writes)");
