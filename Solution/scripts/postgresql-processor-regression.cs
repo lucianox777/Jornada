@@ -274,6 +274,21 @@ Check(await CountAsync("SELECT COUNT(*) FROM identidade.identity_map WHERE tipo=
 Check(await CountAsync("SELECT COUNT(*) FROM gold.pessoa WHERE cpf=@cpf", ("@cpf", failedCpf)) == 0,
     "Rollback deixou Gold Pessoa.");
 
+var invalidCpfCase = await PrepareAsync();
+var invalidCpfSource = "PG-CPF-INVALID-" + runTag;
+var invalidCpfRecord = "PG-CPF-INVALID-AA-" + runTag;
+const string structurallyInvalidCpf = "11111111111";
+var invalidCpfPerson = Person(invalidCpfCase.Package, invalidCpfSource, structurallyInvalidCpf);
+var invalidCpfFact = Fact(invalidCpfCase.Package, invalidCpfSource, invalidCpfRecord, RegistroOperacao.INCLUSAO, 600m);
+await RunAsync(invalidCpfCase.Batch, Package(invalidCpfCase.Package, invalidCpfPerson, invalidCpfFact));
+Check(await CountAsync("SELECT COUNT(*) FROM identidade.v_vinculo_corrente vf JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vf.pessoa_observacao_id WHERE po.codigo_pessoa_origem=@code AND vf.status='CONFLITO' AND vf.pessoa_uuid IS NULL AND vf.motivo=@motivo", ("@code", invalidCpfSource), ("@motivo", CpfRules.StructurallyInvalidReason)) == 1,
+    "CPF estruturalmente inválido não preservou motivo canônico no vínculo.");
+Check(await CountAsync("SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem=@code AND status_analitico='VIGENTE' AND pessoa_uuid IS NULL AND estado_atribuicao_identidade='CONFLITO_IDENTIDADE'", ("@code", invalidCpfRecord)) == 1,
+    "CPF estruturalmente inválido não materializou o fato como CONFLITO_IDENTIDADE sem UUID.");
+Check(await CountAsync("SELECT COUNT(*) FROM identidade.cpf_ancora WHERE cpf=@cpf", ("@cpf", structurallyInvalidCpf)) == 0,
+    "CPF estruturalmente inválido não pode constituir âncora.");
+cases.Add("structurally-invalid-cpf-assignment-conflict");
+
 var stale = await PrepareAsync();
 await using (var connection = await database.OpenAsync())
 await using (var command = connection.CreateCommand())
@@ -298,9 +313,6 @@ cases.Add("stale-lease-rollback");
 var conflict = await PrepareAsync();
 var conflictingSource = "PG-CONFLICT-" + runTag;
 var conflictingPerson = Person(conflict.Package, conflictingSource, cpf, conflicting: true);
-// CPF_CORE_CONSISTENCY_V1 requires two independent strong signals:
-// LOW name similarity and a different birth date. The old synthetic
-// names shared a prefix and scored 0.9203, so they were not LOW.
 var existingCore = new IdentityCore(personV1.NomeCompleto, personV1.DataNascimento, personV1.NomeMae);
 var incomingCore = new IdentityCore(conflictingPerson.NomeCompleto, conflictingPerson.DataNascimento, conflictingPerson.NomeMae);
 var assessment = CpfIdentityConsistency.Evaluate(existingCore, incomingCore);
@@ -313,16 +325,20 @@ Check(!CpfIdentityConsistency.Evaluate(existingCore, existingCore with { NomeCom
     "Diferença isolada de nome não deve provocar conflito.");
 await RunAsync(conflict.Batch, Package(conflict.Package, conflictingPerson));
 Check(await TextAsync("SELECT estado FROM identidade.identity_map WHERE tipo='CPF' AND identificador=@cpf AND vigencia_fim IS NULL", ("@cpf", cpf)) == "EM_CONFLITO",
-    "CPF incompatível não suspendeu o mapa determinístico.");
-Check(await CountAsync("SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem=@code AND status_analitico='VIGENTE' AND pessoa_uuid IS NULL AND estado_atribuicao_identidade='CONFLITO_IDENTIDADE'", ("@code", record)) == 1,
-    "Conflito não suspendeu a atribuição do benefício corrente.");
-Check(await CountAsync("SELECT COUNT(*) FROM serving.registro_integrado WHERE codigo_registro_origem=@code AND status_analitico='VIGENTE' AND pessoa_uuid IS NULL AND estado_atribuicao_identidade='CONFLITO_IDENTIDADE'", ("@code", record)) == 1,
-    "Conflito não propagou a suspensão ao Serving.");
-Check(await CountAsync("SELECT COUNT(*) FROM gold.pessoa WHERE cpf=@cpf", ("@cpf", cpf)) == 0,
-    "Gold Pessoa permaneceu canônica após conflito.");
+    "CPF incompatível não marcou o identificador global.");
+Check(await TextAsync("SELECT estado_motivo FROM identidade.identity_map WHERE tipo='CPF' AND identificador=@cpf AND vigencia_fim IS NULL", ("@cpf", cpf)) == CpfIdentityConsistency.SharedCpfSuspectedReason,
+    "Motivo global do CPF não foi preservado.");
+Check(await CountAsync("SELECT COUNT(*) FROM identidade.v_vinculo_corrente vf JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vf.pessoa_observacao_id WHERE po.codigo_pessoa_origem=@code AND vf.status='RESOLVIDO' AND vf.pessoa_uuid=(SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf=@cpf)", ("@code", conflictingSource), ("@cpf", cpf)) == 1,
+    "A observação que revelou a divergência não permaneceu resolvida pela âncora.");
+Check(await CountAsync("SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem=@code AND status_analitico='VIGENTE' AND pessoa_uuid=(SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf=@cpf) AND estado_atribuicao_identidade='ATRIBUIDA'", ("@code", record), ("@cpf", cpf)) == 1,
+    "Conflito global do CPF alterou a atribuição factual vigente.");
+Check(await CountAsync("SELECT COUNT(*) FROM serving.registro_integrado WHERE codigo_registro_origem=@code AND status_analitico='VIGENTE' AND pessoa_uuid=(SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf=@cpf) AND estado_atribuicao_identidade='ATRIBUIDA'", ("@code", record), ("@cpf", cpf)) == 1,
+    "Conflito global do CPF alterou a atribuição no Serving.");
+Check(await CountAsync("SELECT COUNT(*) FROM gold.pessoa WHERE pessoa_uuid=(SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf=@cpf)", ("@cpf", cpf)) == 1,
+    "Gold Pessoa foi removida por uma inconsistência global do CPF.");
 await CheckVersionsAsync(record, "1:INCLUSAO,2:ALTERACAO,3:RETIFICACAO,4:EXCLUSAO,5:INCLUSAO",
     "1:HISTORICO,2:RETIFICADO,3:EXCLUIDO,5:VIGENTE", 1);
-cases.Add("deterministic-cpf-conflict-with-factual-preservation");
+cases.Add("deterministic-cpf-global-conflict-with-assignment-preserved");
 
 var concurrentSource = "PG-RACE-" + runTag;
 var concurrentRecord = "PG-RACE-AA-" + runTag;

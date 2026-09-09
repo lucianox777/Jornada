@@ -3,8 +3,9 @@ namespace Jornada.Contracts;
 /// <summary>
 /// Observação mínima de identidade usada internamente pelo Processor.
 /// CPF válido é a rota determinística normal. Os demais atributos são usados para
-/// qualidade/corroboração, pela trava de consistência quando o CPF já estiver associado
-/// a um UUID e, quando o CPF estiver ausente em hipótese admitida, pelo fallback probabilístico.
+/// qualidade/corroboração, para sinalizar inconsistências globais do identificador quando
+/// o mesmo CPF aparece com núcleos fortemente incompatíveis e, quando o CPF estiver ausente
+/// em hipótese admitida, pelo fallback probabilístico.
 /// </summary>
 public sealed record IdentityObservation(
     string? Cpf,
@@ -25,9 +26,9 @@ public interface IIdentityMapRepository
 {
     /// <summary>
     /// Localiza ou constitui o UUID técnico para um CPF estruturalmente válido.
-    /// Quando o CPF já está associado a uma Pessoa, confronta o núcleo informado
-    /// antes de criar novo vínculo de fonte. Divergência forte retorna CONFLITO,
-    /// sem UUID, e nunca é rebaixada automaticamente ao linkage probabilístico.
+    /// Quando o CPF já está associado a uma Pessoa, o núcleo informado pode sinalizar
+    /// inconsistência no próprio identificador, mas não altera nem suspende a resolução
+    /// determinística CPF -> UUID. Nenhuma observação é automaticamente escolhida como errada.
     /// </summary>
     Task<InternalIdentityResolution> ResolveOrCreateByCpfAsync(
         string cpf,

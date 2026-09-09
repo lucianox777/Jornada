@@ -118,7 +118,7 @@ internal sealed partial class SqlProcessorRepository
         {
             resolutionStatus = ResolutionStatus.CONFLITO;
             resolutionMethod = ResolutionMethod.CPF_DETERMINISTICO;
-            resolutionReason = "CPF_INVALIDO";
+            resolutionReason = CpfRules.StructurallyInvalidReason;
         }
         else if (cpf is not null)
         {

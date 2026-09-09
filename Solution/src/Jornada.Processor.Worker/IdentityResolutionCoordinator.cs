@@ -4,9 +4,9 @@ namespace Jornada.Processor.Worker;
 
 /// <summary>
 /// Roteia a resolução de identidade na ingestão normal:
-///  - CPF válido: resolução determinística via IDENTITY_MAP, sem score/modelo, mas
-///    com trava de consistência do núcleo quando o CPF já pertence a um UUID;
-///  - CPF informado porém inválido: CONFLITO/regularização;
+///  - CPF válido: resolução determinística pela âncora CPF -> UUID; inconsistência entre
+///    núcleos pode sinalizar o identificador globalmente, mas não suspende essa atribuição;
+///  - CPF informado porém estruturalmente inválido: CONFLITO_IDENTIDADE, sem UUID;
 ///  - CPF ausente em hipótese admitida: fica pendente para uma execução probabilística
 ///    explícita, sob demanda. O pipeline normal nunca dispara score probabilístico sozinho.
 /// </summary>
@@ -32,7 +32,7 @@ public sealed class IdentityResolutionCoordinator(IIdentityMapRepository identit
                     ResolutionStatus.CONFLITO,
                     null,
                     ResolutionMethod.CPF_DETERMINISTICO,
-                    Motivo: "CPF_INVALIDO");
+                    Motivo: CpfRules.StructurallyInvalidReason);
             }
 
             return await identityMap.ResolveOrCreateByCpfAsync(normalizedCpf, observation, ct);

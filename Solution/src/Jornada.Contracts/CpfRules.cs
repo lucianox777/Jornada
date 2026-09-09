@@ -3,6 +3,13 @@ namespace Jornada.Contracts;
 /// <summary>Normalização e validação estrutural de CPF compartilhada pela API e pelo Processor.</summary>
 public static class CpfRules
 {
+    /// <summary>
+    /// Motivo canônico para CPF informado que falha na validação estrutural local
+    /// (quantidade de dígitos, sequência repetida ou dígitos verificadores).
+    /// Não representa situação cadastral externa na Receita Federal.
+    /// </summary>
+    public const string StructurallyInvalidReason = "CPF_ESTRUTURALMENTE_INVALIDO";
+
     public static string? NormalizeAndValidate(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))

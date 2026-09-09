@@ -81,23 +81,27 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
                     throw new InvalidOperationException("CPF_ANCHOR_RESERVATION_DIVERGENCE: reserva retornou UUID distinto do mapa corrente.");
             }
 
+            // EM_CONFLITO é uma condição global de consistência do identificador. O CPF continua
+            // resolvendo deterministicamente para a mesma âncora; nenhuma observação é escolhida
+            // automaticamente como a observação errada.
             if (string.Equals(existingState, "EM_CONFLITO", StringComparison.Ordinal))
             {
                 return new InternalIdentityResolution(
-                    ResolutionStatus.CONFLITO,
-                    null,
-                    ResolutionMethod.CPF_DETERMINISTICO,
-                    Motivo: CpfIdentityConsistency.IdentifierInConflictReason);
+                    ResolutionStatus.RESOLVIDO,
+                    anchorUuid.Value,
+                    ResolutionMethod.CPF_DETERMINISTICO);
             }
+
             var existingCore = await LoadExistingCoreAsync(connection, transaction, existingUuid.Value, ct);
             if (existingCore is null)
             {
-                await MarkCpfIdentifierConflictAsync(connection, transaction, existingMapId!.Value, CpfIdentityConsistency.ExistingCoreUnavailableReason, ct);
+                await MarkCpfIdentifierConflictAsync(
+                    connection, transaction, existingMapId!.Value,
+                    CpfIdentityConsistency.ExistingCoreUnavailableReason, ct);
                 return new InternalIdentityResolution(
-                    ResolutionStatus.CONFLITO,
-                    null,
-                    ResolutionMethod.CPF_DETERMINISTICO,
-                    Motivo: CpfIdentityConsistency.ExistingCoreUnavailableReason);
+                    ResolutionStatus.RESOLVIDO,
+                    anchorUuid.Value,
+                    ResolutionMethod.CPF_DETERMINISTICO);
             }
 
             var assessment = CpfIdentityConsistency.Evaluate(existingCore, incomingCore);
@@ -105,10 +109,9 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
             {
                 await MarkCpfIdentifierConflictAsync(connection, transaction, existingMapId!.Value, assessment.Motivo!, ct);
                 return new InternalIdentityResolution(
-                    ResolutionStatus.CONFLITO,
-                    null,
-                    ResolutionMethod.CPF_DETERMINISTICO,
-                    Motivo: assessment.Motivo);
+                    ResolutionStatus.RESOLVIDO,
+                    anchorUuid.Value,
+                    ResolutionMethod.CPF_DETERMINISTICO);
             }
 
             return new InternalIdentityResolution(
@@ -120,24 +123,19 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
         if (anchorUuid.HasValue)
         {
             // Uma âncora sobrevive ao fechamento/limpeza do mapa corrente. Na reaparição,
-            // recupera-se o mesmo UUID e apenas se recompõe a projeção operacional identity_map.
+            // recupera-se o mesmo UUID e recompõe-se a projeção operacional identity_map.
             var historicalCore = await LoadExistingCoreAsync(connection, transaction, anchorUuid.Value, ct);
+            var recoveredMapId = await InsertActiveCpfMapAsync(
+                connection, transaction, anchorUuid.Value, cpf, gestorId, sourceRecordId,
+                "CPF_MAP_RECUPERADO_ANCORA", ct);
+
             if (historicalCore is not null)
             {
                 var assessment = CpfIdentityConsistency.Evaluate(historicalCore, incomingCore);
                 if (assessment.IsConflict)
-                {
-                    return new InternalIdentityResolution(
-                        ResolutionStatus.CONFLITO,
-                        null,
-                        ResolutionMethod.CPF_DETERMINISTICO,
-                        Motivo: assessment.Motivo);
-                }
+                    await MarkCpfIdentifierConflictAsync(connection, transaction, recoveredMapId, assessment.Motivo!, ct);
             }
 
-            await InsertActiveCpfMapAsync(
-                connection, transaction, anchorUuid.Value, cpf, gestorId, sourceRecordId,
-                "CPF_MAP_RECUPERADO_ANCORA", ct);
             return new InternalIdentityResolution(
                 ResolutionStatus.RESOLVIDO,
                 anchorUuid.Value,
@@ -269,23 +267,8 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
         history.Parameters.Add(new SqlParameter("@motivo", SqlDbType.NVarChar, 120) { Value = reason });
         await history.ExecuteNonQueryAsync(ct);
 
-        // Conflito do identificador suspende somente a atribuição canônica; os fatos permanecem Gold.
-        await using var suspendFacts = connection.CreateCommand();
-        suspendFacts.Transaction = transaction;
-        suspendFacts.CommandText = """
-            DECLARE @cpf CHAR(11),@uuid UNIQUEIDENTIFIER;
-            SELECT @cpf=identificador,@uuid=pessoa_uuid FROM identidade.identity_map WHERE identity_map_id=@id;
-            UPDATE gold.beneficio_concedido SET pessoa_uuid=NULL,estado_atribuicao_identidade='CONFLITO_IDENTIDADE',atualizado_em=SYSDATETIMEOFFSET()
-             WHERE cpf_declarado=@cpf AND status_analitico='VIGENTE';
-            UPDATE gold.servico_prestado SET pessoa_uuid=NULL,estado_atribuicao_identidade='CONFLITO_IDENTIDADE',atualizado_em=SYSDATETIMEOFFSET()
-             WHERE cpf_declarado=@cpf AND status_analitico='VIGENTE';
-            UPDATE serving.registro_integrado SET pessoa_uuid=NULL,estado_atribuicao_identidade='CONFLITO_IDENTIDADE',atualizado_em=SYSDATETIMEOFFSET()
-             WHERE cpf_declarado=@cpf AND status_analitico='VIGENTE';
-            UPDATE identidade.pessoa SET status='EM_CONFLITO' WHERE pessoa_uuid=@uuid AND status='ATIVO';
-            DELETE FROM gold.pessoa WHERE pessoa_uuid=@uuid;
-            """;
-        suspendFacts.Parameters.AddWithValue("@id", identityMapId);
-        await suspendFacts.ExecuteNonQueryAsync(ct);
+        // O conflito pertence ao identificador CPF. Não escolhemos uma observação como errada,
+        // não anulamos pessoa_uuid de fatos já materializados e não retiramos a Pessoa da Gold.
     }
 
     private static async Task<IdentityCore?> LoadExistingCoreAsync(

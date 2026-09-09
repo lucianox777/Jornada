@@ -32,11 +32,11 @@ public sealed class IdentityResolutionCoordinatorTests
     }
 
     [Test]
-    public async Task Shared_cpf_suspected_is_conflict_and_never_falls_back_to_probabilistic()
+    public async Task Identifier_level_consistency_conflict_does_not_break_deterministic_cpf_resolution()
     {
+        var expected = Guid.Parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
         var map = new FakeIdentityMap(new InternalIdentityResolution(
-            ResolutionStatus.CONFLITO, null, ResolutionMethod.CPF_DETERMINISTICO,
-            Motivo: CpfIdentityConsistency.SharedCpfSuspectedReason));
+            ResolutionStatus.RESOLVIDO, expected, ResolutionMethod.CPF_DETERMINISTICO));
         var sut = new IdentityResolutionCoordinator(map);
 
         var result = await sut.ResolveAsync(
@@ -45,15 +45,15 @@ public sealed class IdentityResolutionCoordinatorTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
-            Assert.That(result.PessoaUuid, Is.Null);
+            Assert.That(result.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
+            Assert.That(result.PessoaUuid, Is.EqualTo(expected));
             Assert.That(result.MetodoResolucao, Is.EqualTo(ResolutionMethod.CPF_DETERMINISTICO));
-            Assert.That(result.Motivo, Is.EqualTo("CPF_COMPARTILHADO_SUSPEITO"));
+            Assert.That(result.Motivo, Is.Null);
         });
     }
 
     [Test]
-    public void Consistency_v1_blocks_low_name_plus_different_birth_date()
+    public void Consistency_v1_detects_identifier_level_low_name_plus_different_birth_date()
     {
         var existing = new IdentityCore("Maria Aparecida da Silva", new DateOnly(1975, 2, 10), "Joana Pereira");
         var incoming = new IdentityCore("Pedro Henrique Santos", new DateOnly(2017, 8, 21), "Maria Aparecida da Silva");
@@ -114,7 +114,7 @@ public sealed class IdentityResolutionCoordinatorTests
     }
 
     [Test]
-    public async Task Invalid_informed_cpf_is_conflict()
+    public async Task Structurally_invalid_informed_cpf_is_assignment_conflict()
     {
         var map = new FakeIdentityMap(new InternalIdentityResolution(
             ResolutionStatus.RESOLVIDO, Guid.NewGuid(), ResolutionMethod.CPF_DETERMINISTICO));
@@ -127,7 +127,8 @@ public sealed class IdentityResolutionCoordinatorTests
         Assert.Multiple(() =>
         {
             Assert.That(result.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
-            Assert.That(result.Motivo, Is.EqualTo("CPF_INVALIDO"));
+            Assert.That(result.PessoaUuid, Is.Null);
+            Assert.That(result.Motivo, Is.EqualTo(CpfRules.StructurallyInvalidReason));
             Assert.That(map.Calls, Is.Zero);
         });
     }

@@ -12,6 +12,25 @@ public sealed class CpfAnchorResolutionApiTests
 {
     private const string Cpf = "11144477735";
 
+    [TestCase("11111111111")]
+    [TestCase("52998224724")]
+    public async Task Resolver_classifies_structurally_invalid_cpf_without_uuid(string invalidCpf)
+    {
+        var connectionString = RequireIntegrationConnection();
+        var service = new SqlIdentityResolutionService(new OperationalSqlAdapter(connectionString));
+        var context = new AccessContext(Guid.Empty, AccessCredentialType.GESTOR, "SMADS", "SMADS", null, [], []);
+
+        var result = await service.ResolveAsync(context, new IdentityResolutionRequest(invalidCpf), CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
+            Assert.That(result.PessoaUuid, Is.Null);
+            Assert.That(result.MetodoResolucao, Is.EqualTo(ResolutionMethod.CPF_DETERMINISTICO));
+            Assert.That(result.Motivo, Is.EqualTo(CpfRules.StructurallyInvalidReason));
+        });
+    }
+
     [Test]
     public async Task Resolver_uses_permanent_anchor_when_current_map_is_closed_or_in_conflict()
     {
@@ -104,7 +123,7 @@ public sealed class CpfAnchorResolutionApiTests
             Assert.Multiple(() =>
             {
                 Assert.That(conflicted.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
-                Assert.That(conflicted.PessoaUuid, Is.EqualTo(anchorUuid), "O conflito suspende atribuição factual, não a âncora permanente.");
+                Assert.That(conflicted.PessoaUuid, Is.EqualTo(anchorUuid), "O conflito global sinaliza o identificador, sem alterar o UUID permanente do CPF.");
                 Assert.That(conflicted.MetodoResolucao, Is.EqualTo(ResolutionMethod.CPF_DETERMINISTICO));
                 Assert.That(conflicted.Motivo, Is.EqualTo(CpfIdentityConsistency.IdentifierInConflictReason));
             });
