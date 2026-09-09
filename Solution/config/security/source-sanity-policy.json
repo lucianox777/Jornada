@@ -14,7 +14,9 @@
     ".github/workflows/identity-composition-ledger.yml",
     ".github/workflows/identity-composition-preapplication.yml",
     ".github/workflows/identity-composition-application.yml",
-    ".github/workflows/identity-history-runtime.yml"
+    ".github/workflows/identity-history-runtime.yml",
+    ".github/workflows/identity-projection-scope.yml",
+    ".github/workflows/identity-publication-eligibility.yml"
   ],
   "allowedPasswordLiteralGlobs": [
     ".github/workflows/ci.yml",
