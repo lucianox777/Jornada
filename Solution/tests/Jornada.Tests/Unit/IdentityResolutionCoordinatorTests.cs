@@ -114,7 +114,7 @@ public sealed class IdentityResolutionCoordinatorTests
     }
 
     [Test]
-    public async Task Invalid_informed_cpf_is_conflict()
+    public async Task Structurally_invalid_informed_cpf_is_assignment_conflict()
     {
         var map = new FakeIdentityMap(new InternalIdentityResolution(
             ResolutionStatus.RESOLVIDO, Guid.NewGuid(), ResolutionMethod.CPF_DETERMINISTICO));
@@ -127,7 +127,8 @@ public sealed class IdentityResolutionCoordinatorTests
         Assert.Multiple(() =>
         {
             Assert.That(result.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
-            Assert.That(result.Motivo, Is.EqualTo("CPF_INVALIDO"));
+            Assert.That(result.PessoaUuid, Is.Null);
+            Assert.That(result.Motivo, Is.EqualTo(CpfRules.StructurallyInvalidReason));
             Assert.That(map.Calls, Is.Zero);
         });
     }
