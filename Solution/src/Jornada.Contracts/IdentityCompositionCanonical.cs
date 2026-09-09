@@ -40,6 +40,15 @@ public static class IdentityCompositionCanonical
         return JsonSerializer.Serialize(values);
     }
 
+    public static string SerializeHistoryMembers(IEnumerable<Guid> members)
+    {
+        ArgumentNullException.ThrowIfNull(members);
+        var values = members.Order().ToArray();
+        if (values.Length == 0 || values.Any(id => id == Guid.Empty) || values.Distinct().Count() != values.Length)
+            throw new InvalidOperationException("Membros históricos inválidos ou duplicados.");
+        return JsonSerializer.Serialize(values);
+    }
+
     public static string HashUtf8(string payload)
     {
         ArgumentNullException.ThrowIfNull(payload);
