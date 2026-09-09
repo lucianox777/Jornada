@@ -111,7 +111,6 @@ public sealed class ProcessorRepositoryTests
         });
     }
 
-
     [Test]
     public async Task Successful_batch_publishes_person_fact_qc_and_completeness_atomically()
     {
@@ -181,9 +180,8 @@ public sealed class ProcessorRepositoryTests
         });
     }
 
-
     [Test]
-    public async Task Shared_cpf_conflict_materializes_fact_in_gold_without_canonical_assignment()
+    public async Task Shared_cpf_conflict_marks_identifier_without_breaking_canonical_assignment()
     {
         var connectionString = RequireIntegrationConnection();
         await PrepareDatabaseAsync(connectionString);
@@ -209,7 +207,7 @@ public sealed class ProcessorRepositoryTests
         Assert.That(batch, Is.Not.Null);
 
         // O seed associa 52998224725 a João de Souza, nascido em 1977-09-22.
-        // A observação abaixo simula o CPF do adulto informado no cadastro de uma criança.
+        // A nova observação é incompatível, mas não há base para escolhê-la como a observação errada.
         var person = new ParsedPerson(
             "CPF-COMPARTILHADO-FILHO", new string('e',64), "TX-CPF-COMPARTILHADO", "52998224725", null,
             "Pedro Henrique Santos", new DateOnly(2017,8,21), "Joana Santos", [], []);
@@ -232,9 +230,10 @@ public sealed class ProcessorRepositoryTests
               (SELECT TOP(1) estado_atribuicao_identidade FROM gold.beneficio_concedido b WHERE b.codigo_registro_origem='REG-CPF-COMPARTILHADO'),
               (SELECT TOP(1) cpf_declarado FROM gold.beneficio_concedido b WHERE b.codigo_registro_origem='REG-CPF-COMPARTILHADO'),
               (SELECT TOP(1) pessoa_uuid FROM gold.beneficio_concedido b WHERE b.codigo_registro_origem='REG-CPF-COMPARTILHADO'),
-              (SELECT COUNT(*) FROM serving.v_bi_pendencias_identidade p WHERE p.pessoa_observacao_id=po.pessoa_observacao_id AND p.motivo='CPF_COMPARTILHADO_SUSPEITO'),
+              (SELECT COUNT(*) FROM serving.v_bi_pendencias_identidade p WHERE p.pessoa_observacao_id=po.pessoa_observacao_id),
               (SELECT TOP(1) estado FROM identidade.identity_map WHERE tipo='CPF' AND identificador='52998224725' AND vigencia_fim IS NULL),
-              (SELECT TOP(1) estado_motivo FROM identidade.identity_map WHERE tipo='CPF' AND identificador='52998224725' AND vigencia_fim IS NULL)
+              (SELECT TOP(1) estado_motivo FROM identidade.identity_map WHERE tipo='CPF' AND identificador='52998224725' AND vigencia_fim IS NULL),
+              (SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf='52998224725')
             FROM silver.pessoa_observacao po
             JOIN identidade.v_vinculo_corrente vf ON vf.pessoa_observacao_id=po.pessoa_observacao_id
             WHERE po.codigo_pessoa_origem='CPF-COMPARTILHADO-FILHO'
@@ -244,20 +243,21 @@ public sealed class ProcessorRepositoryTests
         Assert.That(await reader.ReadAsync(), Is.True);
         Assert.Multiple(() =>
         {
-            Assert.That(reader.GetString(0), Is.EqualTo("CONFLITO"));
-            Assert.That(reader.GetString(1), Is.EqualTo("CPF_COMPARTILHADO_SUSPEITO"));
-            Assert.That(reader.IsDBNull(2), Is.True, "Conflito de CPF não pode receber pessoa_uuid.");
-            Assert.That(reader.GetInt32(3), Is.EqualTo(1), "O fato bruto permanece em Silver para auditoria/reprocessamento.");
-            Assert.That(reader.GetInt32(4), Is.EqualTo(1), "O fato declarado deve permanecer materializado na Gold, independentemente da identidade canônica.");
-            Assert.That(reader.GetString(5), Is.EqualTo("CONFLITO_IDENTIDADE"));
-            Assert.That(reader.GetString(6), Is.EqualTo("52998224725"), "O CPF declarado é snapshot imutável da declaração factual.");
-            Assert.That(reader.IsDBNull(7), Is.True, "Fato em conflito não pode ser atribuído a uma Pessoa canônica.");
-            Assert.That(reader.GetInt32(8), Is.EqualTo(1), "O conflito precisa alimentar a fila de pendências de identidade.");
-            Assert.That(reader.GetString(9), Is.EqualTo("EM_CONFLITO"), "O conflito deve subir para o próprio identificador CPF.");
+            Assert.That(reader.GetString(0), Is.EqualTo("RESOLVIDO"));
+            Assert.That(reader.IsDBNull(1), Is.True, "O motivo pertence ao CPF, não à observação que revelou a divergência.");
+            Assert.That(reader.IsDBNull(2), Is.False, "CPF válido continua atribuindo a observação ao UUID ancorado.");
+            Assert.That(reader.GetInt32(3), Is.EqualTo(1));
+            Assert.That(reader.GetInt32(4), Is.EqualTo(1));
+            Assert.That(reader.GetString(5), Is.EqualTo("ATRIBUIDA"));
+            Assert.That(reader.GetString(6), Is.EqualTo("52998224725"));
+            Assert.That(reader.IsDBNull(7), Is.False, "O fato continua atribuído pelo CPF determinístico.");
+            Assert.That(reader.GetInt32(8), Is.Zero, "A observação não vira pendência individual por revelar um conflito global do CPF.");
+            Assert.That(reader.GetString(9), Is.EqualTo("EM_CONFLITO"));
             Assert.That(reader.GetString(10), Is.EqualTo("CPF_COMPARTILHADO_SUSPEITO"));
+            Assert.That(reader.GetGuid(2), Is.EqualTo(reader.GetGuid(7)));
+            Assert.That(reader.GetGuid(2), Is.EqualTo(reader.GetGuid(11)), "Observação, fato e âncora devem preservar o mesmo UUID.");
         });
     }
-
 
     [Test]
     public async Task Codigo_pessoa_origem_may_equal_cpf_format_without_being_interpreted_as_cpf()
@@ -308,9 +308,8 @@ public sealed class ProcessorRepositoryTests
         });
     }
 
-
     [Test]
-    public async Task Existing_cpf_map_without_comparable_core_fails_closed_without_uuid()
+    public async Task Existing_cpf_map_without_comparable_core_marks_identifier_but_keeps_uuid()
     {
         var connectionString = RequireIntegrationConnection();
         await PrepareDatabaseAsync(connectionString);
@@ -353,9 +352,12 @@ public sealed class ProcessorRepositoryTests
         await verify.OpenAsync();
         using var query = verify.CreateCommand();
         query.CommandText = """
-            SELECT vf.status,vf.motivo,vf.pessoa_uuid
+            SELECT vf.status,vf.motivo,vf.pessoa_uuid,
+                   im.estado,im.estado_motivo,a.pessoa_uuid
             FROM silver.pessoa_observacao po
             JOIN identidade.v_vinculo_corrente vf ON vf.pessoa_observacao_id=po.pessoa_observacao_id
+            JOIN identidade.identity_map im ON im.tipo='CPF' AND im.identificador='16899535009' AND im.vigencia_fim IS NULL
+            JOIN identidade.cpf_ancora a ON a.cpf='16899535009'
             WHERE po.codigo_pessoa_origem='CPF-SEM-NUCLEO'
             ORDER BY po.pessoa_observacao_id DESC;
             """;
@@ -363,12 +365,14 @@ public sealed class ProcessorRepositoryTests
         Assert.That(await reader.ReadAsync(), Is.True);
         Assert.Multiple(() =>
         {
-            Assert.That(reader.GetString(0), Is.EqualTo("CONFLITO"));
-            Assert.That(reader.GetString(1), Is.EqualTo("CPF_NUCLEO_EXISTENTE_INDISPONIVEL"));
-            Assert.That(reader.IsDBNull(2), Is.True);
+            Assert.That(reader.GetString(0), Is.EqualTo("RESOLVIDO"));
+            Assert.That(reader.IsDBNull(1), Is.True);
+            Assert.That(reader.IsDBNull(2), Is.False);
+            Assert.That(reader.GetString(3), Is.EqualTo("EM_CONFLITO"));
+            Assert.That(reader.GetString(4), Is.EqualTo("CPF_NUCLEO_EXISTENTE_INDISPONIVEL"));
+            Assert.That(reader.GetGuid(2), Is.EqualTo(reader.GetGuid(5)));
         });
     }
-
 
     [Test]
     public async Task Concurrent_workers_reserve_distinct_lotes()
@@ -399,10 +403,6 @@ public sealed class ProcessorRepositoryTests
             firstRepository.ReserveNextAsync(CancellationToken.None),
             secondRepository.ReserveNextAsync(CancellationToken.None));
 
-        // READPAST é fail-fast por desenho: sob contenção o SQL Server pode fazer uma tentativa
-        // retornar null mesmo havendo outro lote que ficará visível no próximo poll (por exemplo,
-        // se a granularidade efetiva do lock for maior que uma linha). O contrato do worker é
-        // segurança + progresso eventual; ProcessorWorker já repete o poll quando recebe null.
         var first = reservations[0];
         var second = reservations[1];
         Assert.That(first is not null || second is not null, Is.True,
@@ -695,7 +695,6 @@ public sealed class ProcessorRepositoryTests
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
-        // Isola os testes do estado deixado por uma execução anterior no mesmo banco DEV/Test.
         using var reset = connection.CreateCommand();
         reset.CommandText = """
             UPDATE ingestao.lote SET status='PROCESSADO',erro_codigo=NULL,lease_id=NULL,lease_owner=NULL,lease_adquirido_em=NULL,heartbeat_em=NULL,lease_expira_em=NULL,proxima_tentativa_em=NULL,poison_em=NULL,atualizado_em=SYSUTCDATETIME();
