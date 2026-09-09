@@ -64,4 +64,25 @@ public sealed class IdentityHistoricalResolverTests
         Assert.Throws<InvalidOperationException>(() =>
             IdentityHistoricalResolver.Resolve(history, ImmutableArray.Create(Member(A, C))));
     }
+
+    [Test]
+    public void Duplicate_current_member_is_rejected()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, C), Member(A, C), Member(B, C))));
+    }
+
+    [Test]
+    public void Invalid_current_version_is_rejected()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, C) with { Version = 0 }, Member(B, C))));
+    }
+
+    [Test]
+    public void Invalid_cpf_anchor_is_rejected()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, C) with { CpfAnchorUuid = Guid.Empty }, Member(B, C))));
+    }
 }

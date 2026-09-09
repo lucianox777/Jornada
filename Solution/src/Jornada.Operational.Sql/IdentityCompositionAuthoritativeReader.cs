@@ -30,7 +30,8 @@ public sealed record IdentityCompositionOriginSnapshot(
 /// Leitor do componente progressivo corrente. Expande a partir das origens declaradas, das
 /// referências correntes envolvidas e dos históricos efetivamente APLICADOS alcançáveis.
 /// Não escreve dados. A autoridade CPF é delegada a um componente separado para evitar inferência
-/// por mera coincidência de canonical_uuid.
+/// por mera coincidência de canonical_uuid. A transação externa deve oferecer snapshot estável e
+/// os escritores devem respeitar os locks de referência.
 /// </summary>
 public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositionAuthoritativeReader
 {
@@ -91,6 +92,8 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
 
         var histories = new Dictionary<(Guid DecisionId, Guid ReferenceUuid), IdentityCompositionHistory>();
         var scannedReferences = new HashSet<Guid>();
+        // Fechamento por ponto fixo: cada referência é lida sob lock. A leitura histórica
+        // acrescenta membros e suas referências correntes; não segue redirects nem escolhe sucessores.
         while (true)
         {
             var pending = references.Except(scannedReferences).Order().ToArray();
@@ -119,16 +122,15 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
                     {
                         histories.Add(key, history);
                     }
+                }
 
-                    foreach (var historicalInitialUuid in history.MemberInitialUuids.Order())
-                    {
-                        if (origins.ContainsKey(historicalInitialUuid))
-                            continue;
-                        var historicalOrigin = await LoadByInitialUuidAsync(
-                            connection, transaction, historicalInitialUuid, cancellationToken)
-                            ?? throw new InvalidOperationException("Histórico aplicado referencia origem progressiva inexistente.");
-                        AddOriginAndReference(origins, references, historicalOrigin);
-                    }
+                var missing = IdentityCompositionHistoryClosure.MissingMembers(referenceHistory, origins.Keys);
+                foreach (var historicalInitialUuid in missing)
+                {
+                    var historicalOrigin = await LoadByInitialUuidAsync(
+                        connection, transaction, historicalInitialUuid, cancellationToken)
+                        ?? throw new InvalidOperationException("Histórico aplicado referencia origem progressiva inexistente.");
+                    AddOriginAndReference(origins, references, historicalOrigin);
                 }
 
                 scannedReferences.Add(reference);
@@ -137,6 +139,7 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
 
         if (decision.Assignments.Any(a => !origins.ContainsKey(a.InitialUuid)))
             throw new InvalidOperationException("Componente autoritativo perdeu origem declarada durante a leitura.");
+        IdentityCompositionHistoryClosure.RequireComplete(histories.Values, origins.Keys);
 
         var ordered = origins.Values.OrderBy(x => x.InitialUuid).ToArray();
         var anchors = await cpfAuthority.LoadAnchorUuidsAsync(

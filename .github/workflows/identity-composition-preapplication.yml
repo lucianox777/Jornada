@@ -115,6 +115,8 @@ jobs:
           sqlcmd -d JornadaCompositionPreApplicationTest -i /dev/stdin < database/migrations/20260907_Cpf_Ancora.sql > .local/composition-preapplication-evidence/sql-anchor.log 2>&1
           sqlcmd -d JornadaCompositionPreApplicationTest -i /dev/stdin < database/Jornada_Identidade_Progressiva.sql > .local/composition-preapplication-evidence/sql-progressive.log 2>&1
           sqlcmd -d JornadaCompositionPreApplicationTest -i /dev/stdin < database/migrations/20260908_Identidade_Composicao_Ledger.sql > .local/composition-preapplication-evidence/sql-ledger.log 2>&1
+          sqlcmd -d JornadaCompositionPreApplicationTest -i /dev/stdin < database/migrations/20260909_Identidade_Composicao_Referencia_Lock.sql > .local/composition-preapplication-evidence/sql-reference-lock.log 2>&1
+          sqlcmd -d JornadaCompositionPreApplicationTest -i /dev/stdin < database/migrations/20260909_Identidade_Composicao_Aplicacao.sql > .local/composition-preapplication-evidence/sql-application.log 2>&1
       - name: Install PostgreSQL disposable database
         run: |
           set -euo pipefail
@@ -127,6 +129,8 @@ jobs:
           pgsql < database/postgresql/Jornada_Cpf_Ancora.sql > .local/composition-preapplication-evidence/pg-anchor.log 2>&1
           pgsql < database/postgresql/Jornada_Identidade_Progressiva.sql > .local/composition-preapplication-evidence/pg-progressive.log 2>&1
           pgsql < database/postgresql/Jornada_Identidade_Composicao_Ledger.sql > .local/composition-preapplication-evidence/pg-ledger.log 2>&1
+          pgsql < database/postgresql/Jornada_Identidade_Composicao_Referencia_Lock.sql > .local/composition-preapplication-evidence/pg-reference-lock.log 2>&1
+          pgsql < database/postgresql/Jornada_Identidade_Composicao_Aplicacao.sql > .local/composition-preapplication-evidence/pg-application.log 2>&1
       - name: Prove SQL Server authoritative pre-application
         run: |
           set -euo pipefail
