@@ -5,12 +5,14 @@ on:
       - 'Solution/src/Jornada.Contracts/IdentityCompositionFactualRevalidation.cs'
       - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionFactualAuthorityReader.cs'
       - 'Solution/tests/Jornada.Tests/Unit/IdentityCompositionFactualRevalidationTests.cs'
+      - 'Solution/scripts/identity-publication-eligibility-runtime-smoke.cs'
       - '.github/workflows/identity-publication-eligibility.yml'
   push:
     paths:
       - 'Solution/src/Jornada.Contracts/IdentityCompositionFactualRevalidation.cs'
       - 'Solution/src/Jornada.Operational.Sql/IdentityCompositionFactualAuthorityReader.cs'
       - 'Solution/tests/Jornada.Tests/Unit/IdentityCompositionFactualRevalidationTests.cs'
+      - 'Solution/scripts/identity-publication-eligibility-runtime-smoke.cs'
       - '.github/workflows/identity-publication-eligibility.yml'
   workflow_dispatch:
 permissions:
@@ -18,11 +20,31 @@ permissions:
 jobs:
   eligibility:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: Solution
         shell: bash
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: J0rnada_${{ github.run_id }}_Aa9!
+        ports:
+          - 1433:1433
+      postgres:
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        env:
+          POSTGRES_USER: jornada
+          POSTGRES_DB: JornadaPublicationEligibilityTest
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jornada -d JornadaPublicationEligibilityTest"
+          --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -30,26 +52,108 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '8.0.424'
+      - name: Wait for SQL Server
+        run: |
+          set -euo pipefail
+          SQL_PASSWORD="J0rnada_${GITHUB_RUN_ID}_Aa9!"
+          CID=$(docker ps -q --filter publish=1433 | head -1)
+          test -n "$CID"
+          for attempt in $(seq 1 30); do
+            if docker exec "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P "$SQL_PASSWORD" -C -Q 'SELECT 1' >/dev/null 2>&1; then exit 0; fi
+            sleep 2
+          done
+          docker logs "$CID" >&2 || true
+          exit 1
       - name: Build and prove factual eligibility contract
         run: |
           set -euo pipefail
-          mkdir -p .local/publication-eligibility-evidence
+          mkdir -p .local/publication-eligibility-evidence .local/publication-eligibility-runtime
           git rev-parse HEAD | tee .local/publication-eligibility-evidence/commit.txt
           git diff --check
           dotnet restore tests/Jornada.Tests/Jornada.Tests.csproj --locked-mode -v:normal 2>&1 | tee .local/publication-eligibility-evidence/restore.log
           dotnet build tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-restore -warnaserror -v:normal 2>&1 | tee .local/publication-eligibility-evidence/build.log
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~IdentityCompositionFactualRevalidationTests' --logger 'trx;LogFileName=factual-eligibility.trx' --results-directory .local/publication-eligibility-evidence 2>&1 | tee .local/publication-eligibility-evidence/tests.log
           python3 scripts/test-evidence-gate.py .local/publication-eligibility-evidence/factual-eligibility.trx --forbid-skipped --minimum-tests 10 --summary .local/publication-eligibility-evidence/tests.json
-      - name: Record scope
+          cat > .local/publication-eligibility-runtime/EligibilityRuntime.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net8.0</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            </PropertyGroup>
+            <ItemGroup>
+              <ProjectReference Include="../../src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj" />
+              <ProjectReference Include="../../src/Jornada.Contracts/Jornada.Contracts.csproj" />
+              <Compile Include="../../scripts/identity-publication-eligibility-runtime-smoke.cs" Link="Program.cs" />
+            </ItemGroup>
+          </Project>
+          EOF
+          dotnet restore .local/publication-eligibility-runtime/EligibilityRuntime.csproj -v:normal 2>&1 | tee .local/publication-eligibility-evidence/runtime-restore.log
+          dotnet build .local/publication-eligibility-runtime/EligibilityRuntime.csproj -c Release --no-restore -warnaserror -v:normal 2>&1 | tee .local/publication-eligibility-evidence/runtime-build.log
+      - name: Install SQL Server disposable fixture
         run: |
+          set -euo pipefail
+          SQL_PASSWORD="J0rnada_${GITHUB_RUN_ID}_Aa9!"
+          CID=$(docker ps -q --filter publish=1433 | head -1)
+          test -n "$CID"
+          sqlcmd() { docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P "$SQL_PASSWORD" -C -b "$@"; }
+          sqlcmd -Q "IF DB_ID('JornadaPublicationEligibilityTest') IS NULL CREATE DATABASE JornadaPublicationEligibilityTest;"
+          sqlcmd -d JornadaPublicationEligibilityTest -i /dev/stdin < database/Jornada_Fase1.sql > .local/publication-eligibility-evidence/sql-base.log 2>&1
+          sqlcmd -d JornadaPublicationEligibilityTest -i /dev/stdin < database/migrations/20260907_Cpf_Ancora.sql > .local/publication-eligibility-evidence/sql-anchor.log 2>&1
+          sqlcmd -d JornadaPublicationEligibilityTest -i /dev/stdin < database/Jornada_Identidade_Progressiva.sql > .local/publication-eligibility-evidence/sql-progressive.log 2>&1
+          sqlcmd -d JornadaPublicationEligibilityTest -i /dev/stdin < database/Jornada_Seed_Dev.sql > .local/publication-eligibility-evidence/sql-seed.log 2>&1
+          printf 'SQL_FIXTURE_OK\n' >> .local/publication-eligibility-evidence/sql-seed.log
+      - name: Install PostgreSQL disposable fixture
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=5432 | head -1)
+          test -n "$CID"
+          pgsql() { docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPublicationEligibilityTest "$@"; }
+          pgsql < database/postgresql/Jornada_Resultado_Core.sql > .local/publication-eligibility-evidence/pg-result.log 2>&1
+          pgsql < database/postgresql/Jornada_Ingestion_Processor_Core.sql > .local/publication-eligibility-evidence/pg-ingestion.log 2>&1
+          pgsql < database/postgresql/Jornada_Processor_Persistence_Core.sql > .local/publication-eligibility-evidence/pg-persistence.log 2>&1
+          pgsql < database/postgresql/Jornada_Cpf_Ancora.sql > .local/publication-eligibility-evidence/pg-anchor.log 2>&1
+          pgsql < database/postgresql/Jornada_Identidade_Progressiva.sql > .local/publication-eligibility-evidence/pg-progressive.log 2>&1
+          pgsql < database/postgresql/Jornada_Resultado_Core_Smoke.sql > .local/publication-eligibility-evidence/pg-result-smoke.log 2>&1
+          pgsql < database/postgresql/Jornada_Processor_Persistence_Smoke.sql > .local/publication-eligibility-evidence/pg-persistence-smoke.log 2>&1
+          printf 'PG_FIXTURE_OK\n' >> .local/publication-eligibility-evidence/pg-persistence-smoke.log
+      - name: Prove SQL Server factual authority
+        run: |
+          set -euo pipefail
+          SQL_PASSWORD="J0rnada_${GITHUB_RUN_ID}_Aa9!"
+          CONNECTION="Server=localhost,1433;Database=JornadaPublicationEligibilityTest;User Id=sa;Password=${SQL_PASSWORD};TrustServerCertificate=true;Encrypt=True"
+          JORNADA_ELIGIBILITY_PROVIDER=SqlServer JORNADA_ELIGIBILITY_CONNECTION="$CONNECTION" \
+            dotnet run --project .local/publication-eligibility-runtime/EligibilityRuntime.csproj -c Release --no-build --no-restore 2>&1 | tee .local/publication-eligibility-evidence/sql-runtime.log
+          grep -Fx 'IDENTITY PUBLICATION ELIGIBILITY RUNTIME: OK (active factual authority; structural target ignored; no publication)' .local/publication-eligibility-evidence/sql-runtime.log
+      - name: Prove PostgreSQL factual authority
+        run: |
+          set -euo pipefail
+          CONNECTION='Host=localhost;Port=5432;Database=JornadaPublicationEligibilityTest;Username=jornada;SSL Mode=Disable'
+          JORNADA_ELIGIBILITY_PROVIDER=PostgreSql JORNADA_ELIGIBILITY_CONNECTION="$CONNECTION" \
+            dotnet run --project .local/publication-eligibility-runtime/EligibilityRuntime.csproj -c Release --no-build --no-restore 2>&1 | tee .local/publication-eligibility-evidence/pg-runtime.log
+          grep -Fx 'IDENTITY PUBLICATION ELIGIBILITY RUNTIME: OK (active factual authority; structural target ignored; no publication)' .local/publication-eligibility-evidence/pg-runtime.log
+      - name: Record fail-closed evidence
+        if: always()
+        run: |
+          set -euo pipefail
           python3 - <<'PY'
           import json, pathlib
-          p=pathlib.Path('.local/publication-eligibility-evidence/summary.json')
-          p.write_text(json.dumps({
-            'schema':1,'status':'PASS','scope':'factual_publication_eligibility_only',
-            'authority':'active_vinculo_fonte','structural_target_used_for_assignment':False,
+          root=pathlib.Path('.local/publication-eligibility-evidence')
+          required=['commit.txt','restore.log','build.log','tests.json','runtime-build.log','sql-seed.log','pg-persistence-smoke.log','sql-runtime.log','pg-runtime.log']
+          missing=[name for name in required if not (root/name).exists() or (root/name).stat().st_size == 0]
+          marker='IDENTITY PUBLICATION ELIGIBILITY RUNTIME: OK'
+          ok=(not missing and 'SQL_FIXTURE_OK' in (root/'sql-seed.log').read_text(errors='replace')
+              and 'PG_FIXTURE_OK' in (root/'pg-persistence-smoke.log').read_text(errors='replace')
+              and all(marker in (root/name).read_text(errors='replace') for name in ['sql-runtime.log','pg-runtime.log']))
+          (root/'summary.json').write_text(json.dumps({
+            'schema':1,'status':'PASS' if ok else 'FAIL','missing':missing,
+            'scope':'factual_publication_eligibility_only','authority':'active_vinculo_fonte',
+            'sqlserver':ok,'postgresql':ok,'structural_target_used_for_assignment':False,
             'factual_writes':False,'gold_serving_writes':False,'probabilistic_activation':False
           },indent=2)+'\n')
+          if not ok: raise SystemExit('publication eligibility evidence incomplete')
           PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
