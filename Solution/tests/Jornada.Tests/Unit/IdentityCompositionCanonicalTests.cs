@@ -73,8 +73,16 @@ public sealed class IdentityCompositionCanonicalTests
             ImmutableArray<IdentityCompositionHistory>.Empty);
         var plan = IdentityCompositionPlanner.Prepare(read, decision);
         var json = IdentityCompositionCanonical.SerializePlan(plan);
-        var roundTrip = JsonSerializer.Deserialize<IdentityCompositionPlan>(json);
+        var roundTrip = JsonSerializer.Deserialize<IdentityCompositionPlan>(json)
+            ?? throw new InvalidOperationException("Round-trip do plano retornou null.");
 
-        Assert.That(roundTrip, Is.EqualTo(plan));
+        Assert.Multiple(() =>
+        {
+            Assert.That(roundTrip.DecisionId, Is.EqualTo(plan.DecisionId));
+            Assert.That(roundTrip.RequestHash, Is.EqualTo(plan.RequestHash));
+            Assert.That(roundTrip.Changes, Is.EqualTo(plan.Changes));
+            Assert.That(roundTrip.HistoryToAppend, Is.EqualTo(plan.HistoryToAppend));
+            Assert.That(IdentityCompositionCanonical.SerializePlan(roundTrip), Is.EqualTo(json));
+        });
     }
 }
