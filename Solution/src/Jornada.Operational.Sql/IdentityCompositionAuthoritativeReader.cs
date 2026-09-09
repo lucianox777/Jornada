@@ -98,8 +98,8 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
             foreach (var reference in pending)
             {
                 await LockReferenceAsync(connection, transaction, decision.DecisionId, reference, cancellationToken);
-                var members = await LoadByCanonicalUuidAsync(connection, transaction, reference, cancellationToken);
-                foreach (var member in members)
+                var referenceMembers = await LoadByCanonicalUuidAsync(connection, transaction, reference, cancellationToken);
+                foreach (var member in referenceMembers)
                 {
                     if (origins.TryGetValue(member.InitialUuid, out var existing) && existing != member)
                         throw new InvalidOperationException("Leitura autoritativa retornou estados divergentes para a mesma origem.");
@@ -122,7 +122,7 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
             if (pair.Key == Guid.Empty || pair.Value == Guid.Empty || !origins.ContainsKey(pair.Key))
                 throw new InvalidOperationException("Autoridade CPF retornou referência inválida ou origem desconhecida.");
 
-        var members = ordered.Select(x => new IdentityCompositionMember(
+        var compositionMembers = ordered.Select(x => new IdentityCompositionMember(
             x.InitialUuid,
             x.CanonicalUuid,
             x.Status,
@@ -132,7 +132,7 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
         // O histórico efetivado ainda não existe como armazenamento nesta fatia. Passar vazio é
         // explícito: HistoryToAppend do PREPARADA continua proposta e não é promovido a fato.
         return new IdentityCompositionReadSet(
-            members,
+            compositionMembers,
             reservedUuids.Order().ToImmutableArray(),
             ImmutableArray<IdentityCompositionHistory>.Empty);
     }
