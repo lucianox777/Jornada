@@ -274,6 +274,21 @@ Check(await CountAsync("SELECT COUNT(*) FROM identidade.identity_map WHERE tipo=
 Check(await CountAsync("SELECT COUNT(*) FROM gold.pessoa WHERE cpf=@cpf", ("@cpf", failedCpf)) == 0,
     "Rollback deixou Gold Pessoa.");
 
+var invalidCpfCase = await PrepareAsync();
+var invalidCpfSource = "PG-CPF-INVALID-" + runTag;
+var invalidCpfRecord = "PG-CPF-INVALID-AA-" + runTag;
+const string structurallyInvalidCpf = "11111111111";
+var invalidCpfPerson = Person(invalidCpfCase.Package, invalidCpfSource, structurallyInvalidCpf);
+var invalidCpfFact = Fact(invalidCpfCase.Package, invalidCpfSource, invalidCpfRecord, RegistroOperacao.INCLUSAO, 600m);
+await RunAsync(invalidCpfCase.Batch, Package(invalidCpfCase.Package, invalidCpfPerson, invalidCpfFact));
+Check(await CountAsync("SELECT COUNT(*) FROM identidade.v_vinculo_corrente vf JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vf.pessoa_observacao_id WHERE po.codigo_pessoa_origem=@code AND vf.status='CONFLITO' AND vf.pessoa_uuid IS NULL AND vf.motivo=@motivo", ("@code", invalidCpfSource), ("@motivo", CpfRules.StructurallyInvalidReason)) == 1,
+    "CPF estruturalmente inválido não preservou motivo canônico no vínculo.");
+Check(await CountAsync("SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem=@code AND status_analitico='VIGENTE' AND pessoa_uuid IS NULL AND estado_atribuicao_identidade='CONFLITO_IDENTIDADE'", ("@code", invalidCpfRecord)) == 1,
+    "CPF estruturalmente inválido não materializou o fato como CONFLITO_IDENTIDADE sem UUID.");
+Check(await CountAsync("SELECT COUNT(*) FROM identidade.cpf_ancora WHERE cpf=@cpf", ("@cpf", structurallyInvalidCpf)) == 0,
+    "CPF estruturalmente inválido não pode constituir âncora.");
+cases.Add("structurally-invalid-cpf-assignment-conflict");
+
 var stale = await PrepareAsync();
 await using (var connection = await database.OpenAsync())
 await using (var command = connection.CreateCommand())
