@@ -125,6 +125,7 @@ jobs:
           sqlcmd -d JornadaCompositionApplicationTest -i /dev/stdin < database/migrations/20260909_Identidade_Composicao_Referencia_Lock.sql > .local/composition-application-evidence/sql-reference-lock.log 2>&1
           sqlcmd -d JornadaCompositionApplicationTest -i /dev/stdin < database/migrations/20260909_Identidade_Composicao_Aplicacao.sql > .local/composition-application-evidence/sql-application.log 2>&1
           sqlcmd -d JornadaCompositionApplicationTest -i /dev/stdin < database/migrations/20260909_Identidade_Composicao_Aplicacao.sql > .local/composition-application-evidence/sql-application-second.log 2>&1
+          printf 'SECOND_INSTALL_OK\n' >> .local/composition-application-evidence/sql-application-second.log
       - name: Install PostgreSQL disposable database
         run: |
           set -euo pipefail
@@ -140,6 +141,7 @@ jobs:
           pgsql < database/postgresql/Jornada_Identidade_Composicao_Referencia_Lock.sql > .local/composition-application-evidence/pg-reference-lock.log 2>&1
           pgsql < database/postgresql/Jornada_Identidade_Composicao_Aplicacao.sql > .local/composition-application-evidence/pg-application.log 2>&1
           pgsql < database/postgresql/Jornada_Identidade_Composicao_Aplicacao.sql > .local/composition-application-evidence/pg-application-second.log 2>&1
+          printf 'SECOND_INSTALL_OK\n' >> .local/composition-application-evidence/pg-application-second.log
       - name: Prove SQL Server governed application
         run: |
           set -euo pipefail
