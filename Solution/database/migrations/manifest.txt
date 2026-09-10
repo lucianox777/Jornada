@@ -1,14 +1,15 @@
 # Jornada SQL Server operational migrations
-# Order is normative. Smoke/test-only scripts are intentionally excluded.
+# Order is normative and follows explicit migration prerequisites.
+# Smoke/test-only scripts are intentionally excluded.
 # The final entry closes the current SolutionSchema 3.70 baseline.
 20260907_Cpf_Ancora.sql
 20260908_Identidade_Composicao_Ledger.sql
 20260908_Identidade_Progressiva_Processor.sql
 20260908_Identidade_Progressiva_Serving.sql
 20260909_Identidade_Composicao_Aplicacao.sql
-20260909_Identidade_Composicao_Historico_Serving.sql
-20260909_Identidade_Composicao_Publicacao.sql
 20260909_Identidade_Composicao_Recomposicao_Plano.sql
+20260909_Identidade_Composicao_Publicacao.sql
+20260909_Identidade_Composicao_Historico_Serving.sql
 20260909_Identidade_Composicao_Referencia_Lock.sql
 20260910_Linkage_Blocking_Chave.sql
 20260910_Linkage_RuleSet_Passes.sql
