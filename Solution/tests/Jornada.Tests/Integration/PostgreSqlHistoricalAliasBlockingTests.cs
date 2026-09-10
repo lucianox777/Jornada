@@ -83,6 +83,8 @@ public sealed class PostgreSqlHistoricalAliasBlockingTests
                 HistoricalName,
                 Birth,
                 MotherName);
+            Assert.That(observation.Cpf, Is.Null,
+                "A prova de alias histórico deve permanecer exclusivamente no fallback sem CPF.");
 
             await using var lookupConnection = new NpgsqlConnection(connectionString);
             await lookupConnection.OpenAsync();
