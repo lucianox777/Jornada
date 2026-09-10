@@ -3,7 +3,7 @@
 **Data:** 09/09/2026  
 **Status:** VIGENTE - COMPLEMENTO DA MATRIZ v1.0
 
-Esta matriz complementa `05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.0.md` sem alterar as cadeias históricas existentes.
+Esta matriz complementa `05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.0.md` sem alterar as cadeias históricas existentes. O mapa máquina corrente dos aditivos está em `requirements-map-v1.1.json`; `requirements-map.json` permanece como fotografia do baseline v1.0 e não deve ser interpretado isoladamente como corpus vigente.
 
 ## Novos requisitos funcionais
 
@@ -21,7 +21,7 @@ Esta matriz complementa `05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.0.md` s
 | RNF | Incidência | Evidência mínima |
 |---|---|---|
 | **RNF12 (complemento)** Regressão unitária + integração | Toda mudança funcional/estatística/contratual aplicável | Teste unitário e teste integrado do caminho alterado; exceção somente quando explicitamente justificada |
-| **RNF34-A** Documentação sincronizada | Todo change-set material | Código + requisitos + README/runbook/ADR/especificação afetados no mesmo PR |
+| **RNF34-A** Documentação sincronizada | Todo change-set material | Código + requisitos + README/runbook/especificação corrente e, quando existirem, ADRs afetados no mesmo PR |
 | **RNF34-B** CI obrigatório | Todo PR com mudança verificável | Gates obrigatórios do HEAD exato concluídos com sucesso antes de Ready/merge |
 | **RNF34-C** Diagramas UML | Toda visão técnica/arquitetural normativa | Fonte UML versionada; atualização no mesmo change-set quando a arquitetura/fluxo mudar |
 | **RNF34-D** Ambiente tecnológico reprodutível | Desenvolvimento, teste, integração, bancos e BI | C#/.NET, Git, Docker, SQL Server/PostgreSQL e Power BI Desktop conforme aplicável; versões controladas/documentadas; CI reproduzível |
