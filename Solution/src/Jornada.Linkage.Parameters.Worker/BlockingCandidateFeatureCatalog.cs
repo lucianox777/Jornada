@@ -1,3 +1,5 @@
+using Jornada.Contracts;
+
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
@@ -7,17 +9,17 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static class BlockingCandidateFeatureCatalog
 {
-    public const string FullName = "name_full";
-    public const string FirstName = "name_first";
-    public const string Surnames = "name_surnames";
-    public const string LastName = "name_last";
-    public const string MotherFullName = "mother_name_full";
-    public const string MotherFirstName = "mother_name_first";
-    public const string MotherSurnames = "mother_name_surnames";
-    public const string MotherLastName = "mother_name_last";
-    public const string BirthDay = "birth_day";
-    public const string BirthMonth = "birth_month";
-    public const string BirthYear = "birth_year";
+    public const string FullName = BlockingFeatureNames.FullName;
+    public const string FirstName = BlockingFeatureNames.FirstName;
+    public const string Surnames = BlockingFeatureNames.Surnames;
+    public const string LastName = BlockingFeatureNames.LastName;
+    public const string MotherFullName = BlockingFeatureNames.MotherFullName;
+    public const string MotherFirstName = BlockingFeatureNames.MotherFirstName;
+    public const string MotherSurnames = BlockingFeatureNames.MotherSurnames;
+    public const string MotherLastName = BlockingFeatureNames.MotherLastName;
+    public const string BirthDay = BlockingFeatureNames.BirthDay;
+    public const string BirthMonth = BlockingFeatureNames.BirthMonth;
+    public const string BirthYear = BlockingFeatureNames.BirthYear;
 
     public static IReadOnlyList<string> RequiredOptimizerCandidates { get; } =
         new[]
