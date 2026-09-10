@@ -17,7 +17,7 @@ Para algoritmos de identidade/Linkage, a regressão integrada deve provar també
 
 ## RNF34-A - Sincronização documental do change-set
 
-Toda mudança que altere comportamento, contrato, configuração, operação, segurança, modelo estatístico, requisito ou evidência deve atualizar **no mesmo change-set** toda documentação diretamente afetada, incluindo, conforme aplicável: README do componente, runbook, requisitos e matriz de rastreabilidade, ADR/especificação técnica, contrato de configuração/evidência e documentação de segurança/governança.
+Toda mudança que altere comportamento, contrato, configuração, operação, segurança, modelo estatístico, requisito ou evidência deve atualizar **no mesmo change-set** toda documentação diretamente afetada, incluindo, conforme aplicável: README do componente, runbook, requisitos e matriz de rastreabilidade, especificação técnica/corrente, contrato de configuração/evidência e documentação de segurança/governança. ADR deve ser atualizado quando existir e permanecer vigente; a arquitetura ainda não publicada pode ser consolidada diretamente na especificação corrente.
 
 Documentação conhecida como obsoleta ou contraditória bloqueia o estado Ready. A revisão documental faz parte da definição de pronto; não é atividade posterior ao merge.
 
