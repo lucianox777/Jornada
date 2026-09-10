@@ -18,61 +18,35 @@ public sealed class BlockingPhysicalFeatureCatalogTests
         Assert.That(physical, Is.EqualTo(logical));
     }
 
-    [Test]
-    public void FullName_UsesExistingGoldColumnDirectly()
-    {
-        Assert.That(BlockingPhysicalFeatureCatalog.TryGet(
-            BlockingCandidateFeatureCatalog.FullName, out var mapping), Is.True);
-        Assert.Multiple(() =>
-        {
-            Assert.That(mapping.SourceColumn, Is.EqualTo("nome_completo"));
-            Assert.That(mapping.Strategy, Is.EqualTo(BlockingPhysicalStrategy.DirectColumn));
-            Assert.That(mapping.SourceScope, Is.EqualTo(BlockingPhysicalSourceScope.GoldCurrent));
-        });
-    }
-
-    [Test]
-    public void DerivedNameAndBirthComponents_UseMaterializedProjection()
-    {
-        var derived = new[]
-        {
-            BlockingCandidateFeatureCatalog.FirstName,
-            BlockingCandidateFeatureCatalog.Surnames,
-            BlockingCandidateFeatureCatalog.LastName,
-            BlockingCandidateFeatureCatalog.MotherFirstName,
-            BlockingCandidateFeatureCatalog.MotherSurnames,
-            BlockingCandidateFeatureCatalog.MotherLastName,
-            BlockingCandidateFeatureCatalog.BirthDay,
-            BlockingCandidateFeatureCatalog.BirthMonth,
-            BlockingCandidateFeatureCatalog.BirthYear
-        };
-
-        foreach (var feature in derived)
-        {
-            Assert.That(BlockingPhysicalFeatureCatalog.TryGet(feature, out var mapping), Is.True);
-            Assert.That(mapping.Strategy, Is.EqualTo(BlockingPhysicalStrategy.MaterializedProjection), feature);
-        }
-    }
-
+    [TestCase(BlockingCandidateFeatureCatalog.FullName)]
     [TestCase(BlockingCandidateFeatureCatalog.FirstName)]
     [TestCase(BlockingCandidateFeatureCatalog.Surnames)]
     [TestCase(BlockingCandidateFeatureCatalog.LastName)]
+    [TestCase(BlockingCandidateFeatureCatalog.MotherFullName)]
     [TestCase(BlockingCandidateFeatureCatalog.MotherFirstName)]
     [TestCase(BlockingCandidateFeatureCatalog.MotherSurnames)]
     [TestCase(BlockingCandidateFeatureCatalog.MotherLastName)]
-    public void DerivedNames_UseSilverObservationHistory(string feature)
+    public void NameFeatures_UseMaterializedSilverHistory(string feature)
     {
         Assert.That(BlockingPhysicalFeatureCatalog.TryGet(feature, out var mapping), Is.True);
-        Assert.That(mapping.SourceScope, Is.EqualTo(BlockingPhysicalSourceScope.SilverObservationHistory));
+        Assert.Multiple(() =>
+        {
+            Assert.That(mapping.Strategy, Is.EqualTo(BlockingPhysicalStrategy.MaterializedProjection));
+            Assert.That(mapping.SourceScope, Is.EqualTo(BlockingPhysicalSourceScope.SilverObservationHistory));
+        });
     }
 
     [TestCase(BlockingCandidateFeatureCatalog.BirthDay)]
     [TestCase(BlockingCandidateFeatureCatalog.BirthMonth)]
     [TestCase(BlockingCandidateFeatureCatalog.BirthYear)]
-    public void BirthComponents_UseCurrentGoldValue(string feature)
+    public void BirthComponents_UseMaterializedCurrentGoldValue(string feature)
     {
         Assert.That(BlockingPhysicalFeatureCatalog.TryGet(feature, out var mapping), Is.True);
-        Assert.That(mapping.SourceScope, Is.EqualTo(BlockingPhysicalSourceScope.GoldCurrent));
+        Assert.Multiple(() =>
+        {
+            Assert.That(mapping.Strategy, Is.EqualTo(BlockingPhysicalStrategy.MaterializedProjection));
+            Assert.That(mapping.SourceScope, Is.EqualTo(BlockingPhysicalSourceScope.GoldCurrent));
+        });
     }
 
     [Test]
