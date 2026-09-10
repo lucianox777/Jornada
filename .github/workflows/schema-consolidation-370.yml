@@ -1,0 +1,69 @@
+name: jornada-schema-consolidation-370
+
+on:
+  pull_request:
+    paths:
+      - 'Solution/database/Jornada_Fase1_v3.70.sql'
+      - 'Solution/database/Jornada_Identidade_Progressiva.sql'
+      - 'Solution/database/migrations/**'
+      - 'Solution/src/Jornada.Api/ApiHealth.cs'
+      - 'Solution/scripts/local-db.*'
+      - '.github/workflows/schema-consolidation-370.yml'
+  push:
+    branches: [ master ]
+    paths:
+      - 'Solution/database/Jornada_Fase1_v3.70.sql'
+      - 'Solution/database/Jornada_Identidade_Progressiva.sql'
+      - 'Solution/database/migrations/**'
+      - 'Solution/src/Jornada.Api/ApiHealth.cs'
+      - 'Solution/scripts/local-db.*'
+      - '.github/workflows/schema-consolidation-370.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  sqlserver-consolidated-install:
+    runs-on: ubuntu-24.04
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: 'Jornada_Schema_370_Aa9!'
+        ports:
+          - 1433:1433
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install sqlcmd
+        run: |
+          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+          curl -sSL https://packages.microsoft.com/config/ubuntu/24.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list >/dev/null
+          sudo apt-get update -qq
+          sudo ACCEPT_EULA=Y apt-get install -y -qq mssql-tools18
+          echo '/opt/mssql-tools18/bin' >> "$GITHUB_PATH"
+      - name: Wait for SQL Server
+        run: |
+          for i in $(seq 1 60); do
+            /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -Q 'SELECT 1' >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Prove fresh install and reentry
+        working-directory: Solution
+        run: |
+          sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -Q "CREATE DATABASE JornadaSchema370;"
+          sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -d JornadaSchema370 -i database/Jornada_Fase1_v3.70.sql
+          sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -d JornadaSchema370 -i database/Jornada_Fase1_v3.70.sql
+          result=$(sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -d JornadaSchema370 -W -h -1 -Q "SET NOCOUNT ON; SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" | tr -d '[:space:]')
+          test "$result" = '3.70'
+      - name: Prove incomplete schema is not promoted
+        working-directory: Solution
+        run: |
+          sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -Q "CREATE DATABASE JornadaSchemaIncomplete;"
+          sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -d JornadaSchemaIncomplete -i database/Jornada_Fase1.sql
+          result=$(sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -d JornadaSchemaIncomplete -W -h -1 -Q "SET NOCOUNT ON; SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" | tr -d '[:space:]')
+          test "$result" != '3.70'
