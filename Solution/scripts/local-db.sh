@@ -25,7 +25,9 @@ chmod 0777 "$ROOT/.local/sql-backup"
 
 compose() { (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
 sqlcmd() {
-  compose exec -T -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
+  # O baseline v3.70 usa diretivas :r relativas ao diretório /workspace.
+  # Fixar o working directory evita que sqlcmd resolva includes a partir de /.
+  compose exec -T -w /workspace -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I "$@"
 }
 wait_healthy() {
@@ -44,11 +46,11 @@ bootstrap() {
   # Instalação nova possui um único ponto canônico. O arquivo v3.70 aplica baseline,
   # identidade progressiva, composição, blocking/ruleset e valida a completude antes
   # de promover Jornada.SolutionSchema=3.70.
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/Jornada_Fase1_v3.70.sql
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/Jornada_Seed_Dev.sql
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/Jornada_Fase1_v3.70.sql
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/Jornada_Seed_Dev.sql
   # DEV possui seed; reaplicação idempotente reserva também CPFs históricos do seed.
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/migrations/20260907_Cpf_Ancora.sql
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/migrations/20260910_Schema_Consolidation_370.sql
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260907_Cpf_Ancora.sql
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260910_Schema_Consolidation_370.sql
 }
 
 case "$ACTION" in
