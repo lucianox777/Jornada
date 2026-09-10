@@ -118,3 +118,20 @@ FOR EACH ROW EXECUTE FUNCTION identidade.fn_linkage_modelo_imutavel();
 -- A segunda coluna auxilia a ordenação estável dos candidatos sem alterar a política de score.
 CREATE INDEX IF NOT EXISTS ix_pg_gold_pessoa_nascimento_linkage
     ON gold.pessoa(data_nascimento,pessoa_uuid);
+
+-- Projeção operacional derivada para blocking dinâmico. Não é nova verdade cadastral:
+-- pode ser reconstruída integralmente a partir da Gold e da versão de normalização.
+-- Uma única estrutura indexada suporta combinações diferentes sem DDL por ruleset.
+CREATE TABLE IF NOT EXISTS identidade.blocking_chave(
+    pessoa_uuid UUID NOT NULL REFERENCES identidade.pessoa(pessoa_uuid),
+    normalizacao_versao VARCHAR(80) NOT NULL,
+    atributo VARCHAR(80) NOT NULL,
+    valor_normalizado VARCHAR(500) NOT NULL,
+    gerado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_pg_blocking_chave PRIMARY KEY(pessoa_uuid,normalizacao_versao,atributo,valor_normalizado),
+    CONSTRAINT ck_pg_blocking_chave_normalizacao CHECK(BTRIM(normalizacao_versao)<>''),
+    CONSTRAINT ck_pg_blocking_chave_atributo CHECK(BTRIM(atributo)<>''),
+    CONSTRAINT ck_pg_blocking_chave_valor CHECK(BTRIM(valor_normalizado)<>'')
+);
+CREATE INDEX IF NOT EXISTS ix_pg_blocking_chave_lookup
+    ON identidade.blocking_chave(normalizacao_versao,atributo,valor_normalizado,pessoa_uuid);
