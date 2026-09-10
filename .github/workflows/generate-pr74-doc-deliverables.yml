@@ -6,7 +6,7 @@ on:
       - fix/readiness-technical-gate-370
     paths:
       - .github/workflows/generate-pr74-doc-deliverables.yml
-      - Solution/scripts/generate-document-deliverables.sh
+      - Solution/scripts/generate-document-deliverables.py
       - Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.md
       - Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.md
       - Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.md
@@ -29,12 +29,11 @@ jobs:
       - name: Install document toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y pandoc libreoffice plantuml default-jre-headless poppler-utils unzip
+          sudo apt-get install -y pandoc libreoffice poppler-utils python3-docx python3-matplotlib
 
       - name: Generate and validate DOCX/PDF
         run: |
-          chmod +x Solution/scripts/generate-document-deliverables.sh
-          Solution/scripts/generate-document-deliverables.sh "$GITHUB_WORKSPACE"
+          python3 Solution/scripts/generate-document-deliverables.py --root "$GITHUB_WORKSPACE"
 
       - name: Render PDF pages for QA artifact
         run: |
