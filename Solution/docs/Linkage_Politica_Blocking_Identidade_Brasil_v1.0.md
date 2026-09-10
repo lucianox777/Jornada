@@ -10,14 +10,6 @@ No contexto brasileiro, CPF válido e estruturalmente confiável é a âncora de
 
 O blocking probabilístico existe principalmente para registros em que o CPF está ausente por hipótese admitida. CPF informado porém estruturalmente inválido não deve ser convertido silenciosamente em ausência de CPF para ampliar candidatos; a inconsistência deve permanecer explícita.
 
-## Semântica temporal dos atributos
-
-CPF e data de nascimento são tratados como **dados de identidade estáveis**: em condições normais espera-se que permaneçam invariantes ao longo da vida da Pessoa. Uma alteração posterior não deve ser interpretada como uma nova versão legítima equivalente; deve seguir fluxo explícito de correção, reconciliação e auditoria.
-
-Nomes possuem semântica diferente. Nome da pessoa pode mudar legitimamente ao longo da vida — por casamento, divórcio, reconhecimento, retificação civil ou outras hipóteses — e diferentes sistemas podem ainda conservar versões anteriores. Nome da mãe também pode aparecer em versões distintas nas fontes. Por isso, valores anteriores de nome podem permanecer úteis como **aliases históricos de recuperação de candidatos**, sem substituir o nome corrente da Gold e sem se tornarem prova de identidade.
-
-Consequência para o blocking: uma atualização de nome pode encerrar a vigência da chave corrente e preservar a chave anterior como alias histórico elegível conforme a política versionada; uma correção de data de nascimento deve encerrar/substituir a chave anterior e ficar auditável, não preservá-la automaticamente como alias equivalente.
-
 ## Hierarquia operacional
 
 1. **CPF válido** — resolução determinística pela associação estável `CPF -> pessoa_uuid`. Não executar score probabilístico apenas para confirmar um CPF válido.
@@ -26,15 +18,23 @@ Consequência para o blocking: uma atualização de nome pode encerrar a vigênc
 
 Essa hierarquia reduz custo e ambiguidade sem misturar a natureza de um identificador civil forte com evidências probabilísticas.
 
+## Semântica temporal dos atributos
+
+CPF e data de nascimento têm semântica estável. Em condições normais, são invariantes da Pessoa. Uma alteração nesses valores representa correção excepcional ou conflito de evidência e deve permanecer auditável; não deve ser tratada como simples alias equivalente.
+
+Nome da pessoa e nome da mãe têm semântica versionável. Mudanças legítimas, correções ortográficas e formas anteriores podem permanecer úteis para reencontrar a mesma Pessoa. Por isso o blocking pode usar aliases históricos vindos das observações Silver vinculadas ao UUID, enquanto a Gold continua representando o valor corrente selecionado.
+
+Um alias histórico serve apenas para recuperar candidatos. Encontrar uma Pessoa pelo nome anterior não significa declarar aquele nome como atual e não substitui a decisão posterior do score/modelo.
+
 ## Espaço mínimo do blocking sem CPF
 
 O Calibrador deve avaliar combinações e múltiplos passes usando, quando disponíveis:
 
-- nome completo normalizado;
+- nome completo normalizado, corrente e aliases históricos;
 - primeiro nome/prenome;
 - sobrenomes;
 - último nome;
-- nome completo da mãe;
+- nome completo da mãe, corrente e aliases históricos;
 - primeiro nome da mãe;
 - sobrenomes da mãe;
 - último nome da mãe;
@@ -63,9 +63,9 @@ A frequência IBGE é contexto estatístico agregado. Não substitui dados da Jo
 
 ## Projeção física
 
-As chaves derivadas são materializadas em `identidade.blocking_chave` como projeção reconstruível da Gold/histórico e da versão de normalização. A projeção registra a semântica temporal e a vigência de cada chave. O índice estável por normalização, atributo, valor e vigência permite que diferentes versões do Calibrador experimentem combinações sem executar DDL por ruleset.
+As chaves derivadas são materializadas em `identidade.blocking_chave` como projeção reconstruível da Gold, do histórico Silver e da versão de normalização. O índice estável sobre normalização, atributo, valor e vigência permite que diferentes versões do Calibrador experimentem combinações sem executar DDL por ruleset.
 
-Para atributos de nome, uma chave encerrada pode continuar disponível como alias histórico quando a versão de blocking autorizar esse tipo de recuperação. Para componentes de data de nascimento, somente a chave estável vigente deve ser usada normalmente; valores substituídos permanecem auditáveis, mas não são aliases ordinários.
+Para nomes, a projeção registra valor corrente e aliases históricos. Para nascimento, a projeção materializa somente o valor estável corrente; valores antigos corrigidos permanecem na trilha histórica da origem, mas não são mantidos automaticamente como aliases concorrentes do blocking.
 
 O CPF não precisa ser duplicado nessa projeção para cumprir a política principal: sua rota determinística continua usando a associação CPF/UUID já protegida pelo modelo de identidade.
 
@@ -73,4 +73,4 @@ O CPF não precisa ser duplicado nessa projeção para cumprir a política princ
 
 O objetivo do blocking não é decidir quem é a mesma pessoa; é evitar comparar cada registro contra toda a população sem excluir indevidamente o verdadeiro candidato. Portanto, a métrica prioritária é preservar alta cobertura/recall de vínculos verdadeiros com redução significativa do universo candidato. O score probabilístico posterior continua responsável pela decisão entre os candidatos encontrados.
 
-Uma estratégia mais seletiva não deve ser promovida se o ganho de desempenho vier acompanhado de perda não aceitável de verdadeiros candidatos. O Calibrador deve comparar os passes individualmente e em união, inclusive o valor incremental de aliases históricos de nome, e o Avaliador deve testar exatamente a versão publicada da política.
+Uma estratégia mais seletiva não deve ser promovida se o ganho de desempenho vier acompanhado de perda não aceitável de verdadeiros candidatos. O Calibrador deve comparar os passes individualmente e em união, e o Avaliador deve testar exatamente a versão publicada da política.
