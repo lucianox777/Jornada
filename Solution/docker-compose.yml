@@ -6,13 +6,14 @@ services:
     container_name: jornada-sqlserver-local
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_PID: "Developer"
+      MSSQL_PID: Developer
       MSSQL_SA_PASSWORD: "${JORNADA_SQL_SA_PASSWORD:?Defina JORNADA_SQL_SA_PASSWORD em .env}"
     ports:
       - "${JORNADA_SQL_PORT:-14333}:1433"
     volumes:
       - jornada_sql_data:/var/opt/mssql
       - ./database:/workspace/database:ro
+      - ./scripts:/workspace/scripts:ro
       - ./.local/sql-backup:/var/opt/mssql/backup
     healthcheck:
       test:
