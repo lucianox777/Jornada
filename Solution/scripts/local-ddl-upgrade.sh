@@ -9,7 +9,7 @@ CURRENT_REL="${JORNADA_DDL_CURRENT:-database/Jornada_Fase1_v3.70.sql}"
 DB="${JORNADA_DDL_UPGRADE_DATABASE:-JornadaDdlUpgradeCheck}"
 
 need(){ command -v "$1" >/dev/null 2>&1 || { echo "ERRO: comando '$1' não encontrado." >&2; exit 2; }; }
-need docker; need sha256sum
+need docker; need sha256sum; need dotnet
 [[ -f "$ENV_FILE" ]] || cp "$EXAMPLE" "$ENV_FILE"
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
@@ -18,6 +18,7 @@ set -a; source "$ENV_FILE"; set +a
 [[ -f "$ROOT/$BASELINE_REL" ]] || { echo "ERRO: baseline não encontrado: $BASELINE_REL" >&2; exit 2; }
 [[ -f "$ROOT/$BASELINE_SEED_REL" ]] || { echo "ERRO: seed do baseline não encontrado: $BASELINE_SEED_REL" >&2; exit 2; }
 [[ -f "$ROOT/$CURRENT_REL" ]] || { echo "ERRO: instalador corrente não encontrado: $CURRENT_REL" >&2; exit 2; }
+[[ "$(cd "$ROOT" && dotnet --version)" == "8.0.424" ]] || { echo "ERRO: SDK ativo deve ser exatamente 8.0.424 (global.json)." >&2; exit 2; }
 mkdir -p "$ROOT/.local/ddl-upgrade"
 
 compose(){ (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
@@ -40,12 +41,44 @@ assert_schema_marker(){
   n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT CASE WHEN CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'))=N'3.62' AND CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'))=N'3.70' THEN 1 ELSE 0 END;" | tr -d '[:space:]')"
   [[ "$n" == 1 ]] || { echo "ERRO: marcador de versão do schema não está em Base 3.62 / Solution 3.70." >&2; exit 8; }
 }
+build_progressive_backfill_runner(){
+  local harness="$ROOT/.local/ddl-upgrade/identity-backfill"
+  mkdir -p "$harness"
+  cat > "$harness/IdentityBackfill.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj" />
+    <ProjectReference Include="../../../src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj" />
+    <Compile Include="../../../scripts/progressive-identity-backfill.cs" Link="Program.cs" />
+  </ItemGroup>
+</Project>
+EOF
+  (cd "$ROOT" && dotnet restore "$harness/IdentityBackfill.csproj" --locked-mode)
+  (cd "$ROOT" && dotnet build "$harness/IdentityBackfill.csproj" -c Release --no-restore)
+}
 backfill_progressive_identity(){
-  # O cutover do Processor é deliberadamente fail-closed. Em upgrade, primeiro
-  # materializamos a estrutura progressiva e depois processamos cada origem legada
-  # em sua própria transação, exatamente como exige o contrato de backfill retomável.
+  # O cutover é fail-closed. O upgrade reutiliza o mesmo runner paginado/reentrante
+  # usado pelo cutover operacional; não existe uma segunda implementação T-SQL do backfill.
   sqlcmd -d "$DB" -i database/Jornada_Identidade_Progressiva.sql
-  sqlcmd -d "$DB" -Q "SET NOCOUNT ON; DECLARE @id BIGINT; WHILE 1=1 BEGIN SELECT TOP(1) @id=o.pessoa_origem_id FROM silver.pessoa_origem o LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE p.pessoa_origem_id IS NULL ORDER BY o.pessoa_origem_id; IF @id IS NULL BREAK; BEGIN TRY BEGIN TRAN; EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@id; COMMIT; END TRY BEGIN CATCH IF @@TRANCOUNT>0 ROLLBACK; THROW; END CATCH; SET @id=NULL; END; IF EXISTS(SELECT 1 FROM silver.pessoa_origem o LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE p.pessoa_origem_id IS NULL) THROW 51131,'Backfill progressivo incompleto antes do cutover.',1;"
+  build_progressive_backfill_runner
+  local connection="Server=localhost,1433;Database=$DB;User Id=sa;Password=$JORNADA_SQL_SA_PASSWORD;TrustServerCertificate=true;Encrypt=false"
+  (cd "$ROOT" && \
+    JORNADA_PROGRESSIVE_PROVIDER=SqlServer \
+    JORNADA_PROGRESSIVE_CONNECTION="$connection" \
+    JORNADA_PROGRESSIVE_PAGE_SIZE=1000 \
+    dotnet run --project .local/ddl-upgrade/identity-backfill/IdentityBackfill.csproj -c Release --no-build --no-restore \
+    | tee .local/ddl-upgrade/progressive-backfill.log)
+  grep -F 'PROGRESSIVE IDENTITY BACKFILL: OK provider=SqlServer' "$ROOT/.local/ddl-upgrade/progressive-backfill.log" >/dev/null
+  local missing
+  missing="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM silver.pessoa_origem o LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE p.pessoa_origem_id IS NULL;" | tr -d '[:space:]')"
+  [[ "$missing" == 0 ]] || { echo "ERRO: backfill progressivo incompleto antes do cutover." >&2; exit 9; }
 }
 
 compose up -d sqlserver; wait_healthy
@@ -82,7 +115,7 @@ current=$CURRENT_REL
 baseline_fingerprint=$baseline_hash
 current_first_fingerprint=$first_hash
 current_second_fingerprint=$second_hash
-progressive_identity_backfill=true
+progressive_identity_backfill=ProgressiveIdentityOriginStore.BackfillPageAsync
 sentinel_preserved=true
 phone_v2_legacy_00_migrated=true
 email_v2_legacy_migrated=true
