@@ -1,0 +1,48 @@
+@startuml
+' UML state machine — identidade progressiva
+skinparam shadowing false
+
+title Jornada — Máquina de estados da identidade progressiva
+
+[*] --> PROVISORIA : criação da origem\ninitial_uuid imutável
+
+state PROVISORIA
+state REFERENCIA
+state RESOLVIDA
+state INDEFINIDA
+state "CORREÇÃO GOVERNADA" as CORRECAO
+
+PROVISORIA --> REFERENCIA : publicação determinística\nsem conclusão probabilística
+PROVISORIA --> RESOLVIDA : resolução válida + recibo\nversão n -> n+1
+PROVISORIA --> INDEFINIDA : evidência insuficiente\nversão n -> n+1
+
+REFERENCIA --> RESOLVIDA : resolução posterior validada
+REFERENCIA --> INDEFINIDA : reavaliação inconclusiva
+INDEFINIDA --> RESOLVIDA : nova evidência suficiente
+RESOLVIDA --> CORRECAO : associação comprovadamente incorreta
+CORRECAO --> RESOLVIDA : nova associação governada\ncom histórico preservado
+CORRECAO --> INDEFINIDA : correção sem destino conclusivo
+
+note right of PROVISORIA
+initial_uuid é permanente para a origem.
+A criação não equivale a linkage resolvido.
+end note
+
+note right of REFERENCIA
+Estado de referência determinística.
+Não deve ser confundido com identidade
+probabilisticamente homologada.
+end note
+
+note right of RESOLVIDA
+CPF válido e confiável, quando associado,
+deve permanecer estável para o UUID canônico.
+Mudança silenciosa é proibida.
+end note
+
+note bottom of CORRECAO
+Correções são excepcionais, auditáveis,
+versionadas e não apagam o histórico anterior.
+end note
+
+@enduml
