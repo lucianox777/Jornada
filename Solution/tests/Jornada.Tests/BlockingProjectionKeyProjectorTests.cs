@@ -16,6 +16,8 @@ public sealed class BlockingProjectionKeyProjectorTests
         Assert.Multiple(() =>
         {
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
+                BlockingCandidateFeatureCatalog.FullName, "MARIA DA SILVA")));
+            Assert.That(keys, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.FirstName, "MARIA")));
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.Surnames, "DA")));
@@ -23,6 +25,8 @@ public sealed class BlockingProjectionKeyProjectorTests
                 BlockingCandidateFeatureCatalog.Surnames, "SILVA")));
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.LastName, "SILVA")));
+            Assert.That(keys, Does.Contain(new BlockingProjectionKey(
+                BlockingCandidateFeatureCatalog.MotherFullName, "ANA DE SOUZA")));
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.MotherFirstName, "ANA")));
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
