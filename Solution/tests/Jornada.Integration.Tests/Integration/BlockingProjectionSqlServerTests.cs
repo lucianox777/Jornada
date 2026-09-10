@@ -25,7 +25,8 @@ public sealed class BlockingProjectionSqlServerTests
         Assert.That(batch, Is.Not.Null);
         var reserved = batch!;
 
-        const string cpf = "16899535009";
+        // CPF válido e exclusivo desta prova: o repositório persiste a identidade fora do escopo do teste.
+        const string cpf = "73124896564";
         var person = new ParsedPerson(
             "BLOCKING-SQLSERVER-001",
             new string('a', 64),
