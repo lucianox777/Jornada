@@ -339,6 +339,26 @@ public sealed class PostgreSqlLinkageCalibrator
                 ("U_SAMPLE_SIZE",capture.U.Pairs.Count,"EXACT_BIRTH_GOLD_PAIR_SAMPLE") })
                 await ExecuteAsync(connection,transaction,"INSERT INTO identidade.estatistica_linkage(modelo_id,nome,valor,metodo) VALUES(@id,@name,@value,@method);",60,ct,
                     P("id",DbType.Guid,modelId),P("name",DbType.String,name),P("value",DbType.Decimal,value),P("method",DbType.String,method));
+
+            // A justificativa da escolha do blocking é evidência do modelo, não parâmetro Fellegi-Sunter
+            // nem regra executável. É recalculada sobre o mesmo M/U e sobre os passes efetivamente persistidos.
+            var blockingPasses = ruleSet.EffectiveBlockingPasses;
+            var blockingDiagnostic = BlockingRuleSetDiagnostic.Analyze(
+                BlockingFeatureObservationFactory.Create(capture.M.Pairs, capture.U.Pairs),
+                blockingPasses);
+            foreach (var (name,value,method) in new (string,decimal,string)[] {
+                ("BLOCKING_TRUE_MATCH_RECALL",decimal.Round((decimal)blockingDiagnostic.TrueMatchRecall,12,MidpointRounding.AwayFromZero),BlockingRuleSetDiagnostic.MethodVersion),
+                ("BLOCKING_NON_MATCH_RETENTION",decimal.Round((decimal)blockingDiagnostic.NonMatchRetention,12,MidpointRounding.AwayFromZero),BlockingRuleSetDiagnostic.MethodVersion),
+                ("BLOCKING_REDUCTION_RATIO",decimal.Round((decimal)blockingDiagnostic.ReductionRatio,12,MidpointRounding.AwayFromZero),BlockingRuleSetDiagnostic.MethodVersion),
+                ("BLOCKING_COMPLETE_MATCH_COVERAGE",decimal.Round((decimal)blockingDiagnostic.CompleteMatchCoverage,12,MidpointRounding.AwayFromZero),BlockingRuleSetDiagnostic.MethodVersion),
+                ("BLOCKING_COMPLETE_NON_MATCH_COVERAGE",decimal.Round((decimal)blockingDiagnostic.CompleteNonMatchCoverage,12,MidpointRounding.AwayFromZero),BlockingRuleSetDiagnostic.MethodVersion),
+                ("BLOCKING_EFFECTIVE_OBSERVED_WEIGHT",blockingDiagnostic.EffectiveObservedWeight,BlockingRuleSetDiagnostic.MethodVersion),
+                ("BLOCKING_PASS_COUNT",blockingPasses.Count,"BLOCKING_RULESET_COMPLEXITY_V1"),
+                ("BLOCKING_FIELD_CLAUSE_COUNT",blockingPasses.Sum(static pass => pass.Fields.Count),"BLOCKING_RULESET_COMPLEXITY_V1"),
+                ("BLOCKING_DISTINCT_FIELD_COUNT",blockingPasses.SelectMany(static pass => pass.Fields).Distinct(StringComparer.Ordinal).Count(),"BLOCKING_RULESET_COMPLEXITY_V1") })
+                await ExecuteAsync(connection,transaction,"INSERT INTO identidade.estatistica_linkage(modelo_id,nome,valor,metodo) VALUES(@id,@name,@value,@method);",60,ct,
+                    P("id",DbType.Guid,modelId),P("name",DbType.String,name),P("value",DbType.Decimal,value),P("method",DbType.String,method));
+
             foreach (var f in capture.Frequencies)
                 await ExecuteAsync(connection,transaction,"""
                     INSERT INTO identidade.frequencia_linkage(modelo_id,atributo,valor_normalizado,ocorrencias,populacao_referencia,frequencia)
