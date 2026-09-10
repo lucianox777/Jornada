@@ -1,31 +1,32 @@
 #!/usr/bin/env python3
-"""Build the institutional v1.1 requirements baseline from v1.0 + v1.1 addenda.
+"""Consolidate the institutional requirements baseline v1.1.
 
-The top-level v1.1 RF/RNF/traceability documents are self-contained delivery
-artifacts. The original additive v1.1 markdown is preserved under
-Documentos/Requisitos/Historico so the consolidation remains auditable without
-forcing SEI/PRODAM readers to combine two files per subject.
+The top-level v1.1 RF/RNF/traceability Markdown files become self-contained
+institutional delivery sources. Their original additive v1.1 sources are kept
+under Documentos/Requisitos/Historico for auditability, so PRODAM/SEI readers
+do not need to combine two documents per subject.
 """
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import re
-import shutil
-import subprocess
-import tempfile
 from pathlib import Path
-
-from docx import Document
 
 
 def normalize_rnf_ids(text: str) -> str:
-    """Normalize historical RNF01..RNF33 references to RNF-001..RNF-033."""
+    """Normalize only historical RNF01..RNF33 to RNF-001..RNF-033.
+
+    RNF34-A..RNF34-D are intentionally stable additive identifiers and must
+    never be rewritten as RNF-034-A..RNF-034-D.
+    """
+
     def repl(match: re.Match[str]) -> str:
         return f"RNF-{int(match.group(1)):03d}"
 
-    text = re.sub(r"\bRNF(\d{2})\b", repl, text)
-    return text.replace("SGM/SEPE", "governança institucional").replace("SGM/SPE", "governança institucional")
+    text = re.sub(r"\bRNF(0[1-9]|[12]\d|3[0-3])\b", repl, text)
+    return text.replace("SGM/SEPE", "governança institucional").replace(
+        "SGM/SPE", "governança institucional"
+    )
 
 
 def replace_line(text: str, prefix: str, replacement: str) -> str:
@@ -69,26 +70,44 @@ def preserve_additive(current: Path, historical: Path) -> None:
     if historical.exists():
         return
     payload = current.read_text(encoding="utf-8")
-    if "Aditivo v1.1" not in payload and "COMPLEMENTO" not in payload:
-        raise RuntimeError(f"cannot preserve additive source from already-consolidated file: {current}")
+    lowered = payload.lower()
+    if "aditivo v1.1" not in lowered and "complemento" not in lowered:
+        raise RuntimeError(
+            f"cannot preserve additive source from already-consolidated file: {current}"
+        )
     historical.write_text(payload, encoding="utf-8")
 
 
 def build_rf(req: Path) -> None:
     baseline = (req / "02_Requisitos_Funcionais_Jornada_v1.0.md").read_text(encoding="utf-8")
-    additive = (req / "Historico" / "02_Requisitos_Funcionais_Jornada_Aditivo_v1.1.md").read_text(encoding="utf-8")
-    baseline = update_common_header(baseline, "funcional", "BASELINE FUNCIONAL CONSOLIDADO DA FASE 1")
+    additive = (
+        req / "Historico" / "02_Requisitos_Funcionais_Jornada_Aditivo_v1.1.md"
+    ).read_text(encoding="utf-8")
+    baseline = update_common_header(
+        baseline, "funcional", "BASELINE FUNCIONAL CONSOLIDADO DA FASE 1"
+    )
     extra = normalize_rnf_ids(extract_from(additive, "## RF-051"))
     extra = re.sub(r"(?m)^## (RF-05[1-6] - )", r"### \1", extra)
-    extra = extra.replace("## Governança comum", "## Governança dos requisitos incorporados na v1.1")
-    out = baseline.rstrip() + "\n\n## Requisitos funcionais incorporados na v1.1\n\n" + extra + "\n"
+    extra = extra.replace(
+        "## Governança comum", "## Governança dos requisitos incorporados na v1.1"
+    )
+    out = (
+        baseline.rstrip()
+        + "\n\n## Requisitos funcionais incorporados na v1.1\n\n"
+        + extra
+        + "\n"
+    )
     (req / "02_Requisitos_Funcionais_Jornada_v1.1.md").write_text(out, encoding="utf-8")
 
 
 def build_rnf(req: Path) -> None:
     baseline = (req / "03_Requisitos_Nao_Funcionais_Jornada_v1.0.md").read_text(encoding="utf-8")
-    additive = (req / "Historico" / "03_Requisitos_Nao_Funcionais_Jornada_Aditivo_v1.1.md").read_text(encoding="utf-8")
-    baseline = update_common_header(baseline, "não funcional", "BASELINE NÃO FUNCIONAL CONSOLIDADO DA FASE 1")
+    additive = (
+        req / "Historico" / "03_Requisitos_Nao_Funcionais_Jornada_Aditivo_v1.1.md"
+    ).read_text(encoding="utf-8")
+    baseline = update_common_header(
+        baseline, "não funcional", "BASELINE NÃO FUNCIONAL CONSOLIDADO DA FASE 1"
+    )
     extra = normalize_rnf_ids(extract_from(additive, "## RNF12"))
     extra = extra.replace(
         "## RNF-012 - Testabilidade e regressão - complemento vigente",
@@ -109,7 +128,11 @@ def build_rnf(req: Path) -> None:
 
 def update_matrix_header(text: str) -> str:
     text = normalize_rnf_ids(text)
-    text = text.replace("# Matriz de Rastreabilidade", "# Matriz de Rastreabilidade - Jornada do Cidadão - Fase 1", 1)
+    text = text.replace(
+        "# Matriz de Rastreabilidade",
+        "# Matriz de Rastreabilidade - Jornada do Cidadão - Fase 1",
+        1,
+    )
     if "**Versão do documento:**" not in text:
         title_end = text.find("\n")
         text = text[: title_end + 1] + "\n**Versão do documento:** 1.1  \n" + text[title_end + 1 :]
@@ -125,7 +148,11 @@ def update_matrix_header(text: str) -> str:
             "**Estado de incorporação:** candidato técnico à consolidação Solution Engenharia v5.00; release/tag ainda não cortada  ",
         )
     if "**Status:**" in text:
-        text = replace_line(text, "**Status:**", "**Status:** MATRIZ CONSOLIDADA E AUTOSSUFICIENTE DA FASE 1")
+        text = replace_line(
+            text,
+            "**Status:**",
+            "**Status:** MATRIZ CONSOLIDADA E AUTOSSUFICIENTE DA FASE 1",
+        )
     note = (
         "\n> **Leitura institucional.** Esta matriz v1.1 contém a rastreabilidade histórica e os aditivos "
         "vigentes em um único artefato. A matriz v1.0 permanece somente como histórico e não precisa ser "
@@ -140,7 +167,9 @@ def update_matrix_header(text: str) -> str:
 
 def build_matrix(req: Path) -> None:
     baseline = (req / "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.0.md").read_text(encoding="utf-8")
-    additive = (req / "Historico" / "05_Matriz_Rastreabilidade_Requisitos_Jornada_Aditivo_v1.1.md").read_text(encoding="utf-8")
+    additive = (
+        req / "Historico" / "05_Matriz_Rastreabilidade_Requisitos_Jornada_Aditivo_v1.1.md"
+    ).read_text(encoding="utf-8")
     baseline = update_matrix_header(baseline)
     extra = normalize_rnf_ids(extract_from(additive, "## Novos requisitos funcionais"))
     out = baseline.rstrip() + "\n\n## Incorporações da versão 1.1\n\n" + extra + "\n"
@@ -221,116 +250,81 @@ A família de requisitos não substitui a Especificação Técnica v3.62, DDL, O
 | 1.0 | 03/09/2026 | Institui a hierarquia RN/RF/RNF/RT e a matriz única de rastreabilidade para a Fase 1. | Solution Engenharia v3.98 |
 | 1.1 | 10/09/2026 | Consolida 02, 03 e 05 em artefatos autossuficientes, atualiza SolutionSchema para 3.70 e explicita a política de leitura e identificadores legados. | Candidato técnico à consolidação v5.00; release/tag ainda não cortada |
 """
-    (req / "00_Indice_Mestre_Requisitos_Jornada_v1.1.md").write_text(content, encoding="utf-8")
-
-
-def load_document_helper(root: Path):
-    path = root / "Solution" / "scripts" / "generate-document-deliverables.py"
-    spec = importlib.util.spec_from_file_location("jornada_document_deliverables", path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("cannot load generate-document-deliverables.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def convert_pdf(path: Path) -> Path:
-    subprocess.run(
-        ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", str(path.parent), str(path)],
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+    (req / "00_Indice_Mestre_Requisitos_Jornada_v1.1.md").write_text(
+        content, encoding="utf-8"
     )
-    pdf = path.with_suffix(".pdf")
-    if not pdf.is_file() or pdf.stat().st_size == 0:
-        raise RuntimeError(f"PDF conversion failed: {path}")
-    return pdf
 
 
-def render_deliverables(root: Path) -> None:
-    req = root / "Documentos" / "Requisitos"
-    helper = load_document_helper(root)
-    with tempfile.TemporaryDirectory(prefix="jornada-req-consolidated-") as tmp:
-        work = Path(tmp)
-        reference = work / "reference_portrait.docx"
-        helper.make_reference(reference, landscape=False)
-
-        ordinary = [
-            req / "00_Indice_Mestre_Requisitos_Jornada_v1.1.md",
-            req / "02_Requisitos_Funcionais_Jornada_v1.1.md",
-            req / "03_Requisitos_Nao_Funcionais_Jornada_v1.1.md",
-        ]
-        for md in ordinary:
-            docx = md.with_suffix(".docx")
-            subprocess.run(
-                ["pandoc", str(md), "--reference-doc=" + str(reference), "-o", str(docx)],
-                check=True,
-            )
-            convert_pdf(docx)
-
-        matrix_md = req / "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.md"
-        matrix_docx = matrix_md.with_suffix(".docx")
-        helper.build_matrix(matrix_md, matrix_docx)
-        convert_pdf(matrix_docx)
-
-    expected = [
-        "00_Indice_Mestre_Requisitos_Jornada_v1.1",
-        "02_Requisitos_Funcionais_Jornada_v1.1",
-        "03_Requisitos_Nao_Funcionais_Jornada_v1.1",
-        "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1",
-    ]
-    for stem in expected:
-        md = req / f"{stem}.md"
-        docx = req / f"{stem}.docx"
-        pdf = req / f"{stem}.pdf"
-        payload = md.read_text(encoding="utf-8")
-        if "autossuficiente" not in payload.lower() and stem != "00_Indice_Mestre_Requisitos_Jornada_v1.1":
-            raise RuntimeError(f"missing self-contained marker: {md}")
-        Document(docx)
-        if not pdf.is_file() or pdf.stat().st_size < 1000:
-            raise RuntimeError(f"invalid PDF: {pdf}")
-
-    rf = (req / "02_Requisitos_Funcionais_Jornada_v1.1.md").read_text(encoding="utf-8")
-    rnf = (req / "03_Requisitos_Nao_Funcionais_Jornada_v1.1.md").read_text(encoding="utf-8")
-    matrix = (req / "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.md").read_text(encoding="utf-8")
-    index = (req / "00_Indice_Mestre_Requisitos_Jornada_v1.1.md").read_text(encoding="utf-8")
-    for marker in ["RF-001", "RF-050", "RF-051", "RF-056"]:
-        if marker not in rf:
-            raise RuntimeError(f"RF consolidation missing {marker}")
-    for marker in ["RNF-001", "RNF-033", "RNF34-A", "RNF34-D"]:
-        if marker not in rnf:
-            raise RuntimeError(f"RNF consolidation missing {marker}")
-    for marker in ["RF-051", "RNF34-C", "RNF-001"]:
-        if marker not in matrix:
-            raise RuntimeError(f"traceability consolidation missing {marker}")
-    for marker in ["um único documento por número", "RF-001", "RNF-001", "SolutionSchema v3.70"]:
-        if marker not in index:
-            raise RuntimeError(f"master index missing {marker}")
+def validate(req: Path) -> None:
+    required = {
+        "00_Indice_Mestre_Requisitos_Jornada_v1.1.md": [
+            "um único documento por número",
+            "RNF-001",
+            "RNF34-C",
+            "SolutionSchema v3.70",
+        ],
+        "02_Requisitos_Funcionais_Jornada_v1.1.md": [
+            "RF-001",
+            "RF-050",
+            "RF-051",
+            "RF-056",
+        ],
+        "03_Requisitos_Nao_Funcionais_Jornada_v1.1.md": [
+            "RNF-001",
+            "RNF-033",
+            "RNF34-A",
+            "RNF34-D",
+        ],
+        "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.md": [
+            "RF-001",
+            "RF-051",
+            "RNF-001",
+            "RNF34-C",
+        ],
+    }
+    for name, markers in required.items():
+        text = (req / name).read_text(encoding="utf-8")
+        for marker in markers:
+            if marker not in text:
+                raise RuntimeError(f"{name}: missing marker {marker}")
+        if "RNF-034-" in text:
+            raise RuntimeError(f"{name}: additive RNF34 identifier was rewritten incorrectly")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
-    parser.add_argument("--render", action="store_true", help="also generate DOCX/PDF deliverables")
+    parser.add_argument(
+        "--root", type=Path, default=Path(__file__).resolve().parents[2]
+    )
     args = parser.parse_args()
     root = args.root.resolve()
     req = root / "Documentos" / "Requisitos"
     hist = req / "Historico"
 
-    preserve_additive(req / "02_Requisitos_Funcionais_Jornada_v1.1.md", hist / "02_Requisitos_Funcionais_Jornada_Aditivo_v1.1.md")
-    preserve_additive(req / "03_Requisitos_Nao_Funcionais_Jornada_v1.1.md", hist / "03_Requisitos_Nao_Funcionais_Jornada_Aditivo_v1.1.md")
-    preserve_additive(req / "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.md", hist / "05_Matriz_Rastreabilidade_Requisitos_Jornada_Aditivo_v1.1.md")
+    preserve_additive(
+        req / "02_Requisitos_Funcionais_Jornada_v1.1.md",
+        hist / "02_Requisitos_Funcionais_Jornada_Aditivo_v1.1.md",
+    )
+    preserve_additive(
+        req / "03_Requisitos_Nao_Funcionais_Jornada_v1.1.md",
+        hist / "03_Requisitos_Nao_Funcionais_Jornada_Aditivo_v1.1.md",
+    )
+    preserve_additive(
+        req / "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.md",
+        hist / "05_Matriz_Rastreabilidade_Requisitos_Jornada_Aditivo_v1.1.md",
+    )
 
     build_rf(req)
     build_rnf(req)
     build_matrix(req)
     build_index(req)
+    validate(req)
 
-    if args.render:
-        render_deliverables(root)
-
-    print("REQUIREMENTS CONSOLIDATION: OK (00/02/03/05 v1.1 self-contained; additive sources preserved under Historico)")
+    print(
+        "REQUIREMENTS CONSOLIDATION: OK "
+        "(00/02/03/05 v1.1 self-contained; RNF01..RNF33 normalized; "
+        "RNF34-A..D preserved; additive sources archived under Historico)"
+    )
     return 0
 
 
