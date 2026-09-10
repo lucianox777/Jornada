@@ -76,4 +76,13 @@ public sealed class BlockingIndexPlanTests
             },
             maxProposedIndexes: 1));
     }
+
+    [Test]
+    public void Create_RejectsNegativeProposalLimit()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => BlockingIndexPlan.Create(
+            "rules-1",
+            new[] { new BlockingIndexRequirement("pass-a", new[] { "nome_primeiro" }) },
+            maxProposedIndexes: -1));
+    }
 }
