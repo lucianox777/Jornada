@@ -19,6 +19,26 @@ A primeira versão preserva a decisão registrada na issue #31: não aplicar nor
 
 Entradas vazias, contagens negativas e duplicidades após a adaptação técnica são rejeitadas. O fingerprint permite demonstrar exatamente qual publicação agregada foi usada em uma análise sem persistir dados pessoais da Jornada.
 
+## Entrada local versionada
+
+`ExternalNameFrequencySnapshotReader` aceita somente um arquivo/JSON local explicitamente fornecido ao processo. Não há download automático, descoberta de versão na rede ou fallback silencioso.
+
+Formato mínimo:
+
+```json
+{
+  "source": "IBGE_NOMES_NO_BRASIL",
+  "source_version": "<versao-explicita-da-publicacao>",
+  "entries": [
+    { "name": "MARIA", "occurrences": 1 }
+  ]
+}
+```
+
+O campo opcional `fingerprint_sha256` pode transportar o fingerprint canônico previamente registrado. Quando presente, o leitor recalcula o snapshot e falha se o valor não coincidir. Fonte desconhecida, metadados obrigatórios ausentes, contagem fora de `Int64`, duplicidade após adaptação técnica ou fingerprint divergente também falham fechado.
+
+A entrada local separa duas responsabilidades: obtenção/licenciamento/atestado da publicação externa ocorre fora do runtime de Linkage; o código da Jornada apenas valida e identifica de forma reproduzível o snapshot recebido. O arquivo não é promovido automaticamente a parâmetro de modelo.
+
 ## Limites
 
 Esta fatia não conecta automaticamente a API/site do IBGE, não altera `FrequencyCalculator`, não injeta frequência externa no scorer, não muda m/u, prior, thresholds, blocking, precedência do CPF ou decisão de identidade. Também não cria/funde UUID, não altera fatos, Gold ou Serving.
