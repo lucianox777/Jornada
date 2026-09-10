@@ -57,8 +57,8 @@ public sealed class BlockingCombinationDiagnosticTests
 
         var results = BlockingCombinationDiagnostic.Analyze(observations, 2, 2);
 
-        Assert.That(results.First().Fields, Is.EqualTo(new[] { "A", "B" }));
-        Assert.That(results.First().TrueMatchRecall, Is.EqualTo(1d));
+        Assert.That(results[0].Fields, Is.EqualTo(new[] { "A", "B" }));
+        Assert.That(results[0].TrueMatchRecall, Is.EqualTo(1d));
     }
 
     [Test]
