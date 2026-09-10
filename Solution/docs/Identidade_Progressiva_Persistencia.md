@@ -1,6 +1,6 @@
 # Identidade progressiva — persistência V1
 
-Estado: persistência e cutover transacional implementados em SQL Server e PostgreSQL. Este documento complementa a decisão arquitetural consolidada em `ADR_Identidade_Progressiva.md`. A implementação não ativa resolução/fusão probabilística e não altera por si só a semântica factual de Gold ou Serving.
+Estado: persistência e cutover transacional implementados em SQL Server e PostgreSQL. Este documento detalha a persistência da arquitetura consolidada em `Arquitetura_Identidade_Linkage.md`. A implementação não ativa resolução/fusão probabilística e não altera por si só a semântica factual de Gold ou Serving.
 
 ## Modelo e semântica
 
