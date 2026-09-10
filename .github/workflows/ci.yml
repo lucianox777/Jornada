@@ -360,13 +360,13 @@ jobs:
         run: |
           CID=$(docker ps -q --filter publish=1433 | head -1)
           test -n "$CID"
-          docker exec "$CID" mkdir -p /workspace/database
-          docker cp database/. "$CID":/workspace/database/
-          docker exec -w /workspace "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -b -d JornadaTest -i database/Jornada_Fase1_v3.70.sql
-          docker exec -w /workspace "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -b -d JornadaTest -i database/Jornada_Seed_Dev.sql
-          docker exec -w /workspace "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -b -d JornadaTest -i database/migrations/20260907_Cpf_Ancora.sql
-          docker exec -w /workspace "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -b -d JornadaTest -i database/migrations/20260910_Schema_Consolidation_370.sql
-          docker exec -w /workspace "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -b -d JornadaTest -i database/Jornada_Runtime_Smoke.sql
+          docker exec "$CID" mkdir -p /var/opt/mssql/data/jornada/database
+          docker cp database/. "$CID":/var/opt/mssql/data/jornada/database/
+          docker exec -w /var/opt/mssql/data/jornada "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -b -d JornadaTest -i database/Jornada_Fase1_v3.70.sql
+          docker exec -w /var/opt/mssql/data/jornada "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -b -d JornadaTest -i database/Jornada_Seed_Dev.sql
+          docker exec -w /var/opt/mssql/data/jornada "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -b -d JornadaTest -i database/migrations/20260907_Cpf_Ancora.sql
+          docker exec -w /var/opt/mssql/data/jornada "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -b -d JornadaTest -i database/migrations/20260910_Schema_Consolidation_370.sql
+          docker exec -w /var/opt/mssql/data/jornada "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -b -d JornadaTest -i database/Jornada_Runtime_Smoke.sql
       - name: Integration tests must execute without skips
         run: |
           mkdir -p .local/test-evidence/integration
@@ -449,14 +449,14 @@ jobs:
         run: |
           CID=$(docker ps -q --filter publish=1433 | head -1)
           test -n "$CID"
-          docker exec "$CID" mkdir -p /workspace/database
-          docker cp database/. "$CID":/workspace/database/
+          docker exec "$CID" mkdir -p /var/opt/mssql/data/jornada/database
+          docker cp database/. "$CID":/var/opt/mssql/data/jornada/database/
           docker exec "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -Q "CREATE DATABASE JornadaHarness;"
-          docker exec -w /workspace "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i database/Jornada_Fase1_v3.70.sql
-          docker exec -w /workspace "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i database/Jornada_Seed_Dev.sql
-          docker exec -w /workspace "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i database/migrations/20260907_Cpf_Ancora.sql
-          docker exec -w /workspace "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i database/migrations/20260910_Schema_Consolidation_370.sql
-          docker exec -w /workspace "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -v SCALE_PEOPLE=5000 SCALE_PAIRED=1500 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 -i database/Jornada_Dev_SyntheticScale.sql
+          docker exec -w /var/opt/mssql/data/jornada "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i database/Jornada_Fase1_v3.70.sql
+          docker exec -w /var/opt/mssql/data/jornada "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i database/Jornada_Seed_Dev.sql
+          docker exec -w /var/opt/mssql/data/jornada "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i database/migrations/20260907_Cpf_Ancora.sql
+          docker exec -w /var/opt/mssql/data/jornada "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i database/migrations/20260910_Schema_Consolidation_370.sql
+          docker exec -w /var/opt/mssql/data/jornada "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -v SCALE_PEOPLE=5000 SCALE_PAIRED=1500 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 -i database/Jornada_Dev_SyntheticScale.sql
       - name: Generate, validate and activate model
         run: |
           export LinkageParameters__Operation=GENERATE_DRAFT
