@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace Jornada.Contracts;
 
@@ -40,6 +41,7 @@ public sealed record LinkageDynamicRuleSet(
 {
     public IReadOnlyList<LinkageBlockingPass> BlockingPasses { get; init; } = Array.Empty<LinkageBlockingPass>();
 
+    [JsonIgnore]
     public IReadOnlyList<LinkageBlockingPass> EffectiveBlockingPasses => BlockingPasses.Count > 0
         ? BlockingPasses
         : new[] { new LinkageBlockingPass("legacy", BlockingFields) };
