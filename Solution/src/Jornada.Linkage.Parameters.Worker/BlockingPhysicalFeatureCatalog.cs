@@ -26,7 +26,7 @@ public sealed record BlockingPhysicalFeature(
 
 public static class BlockingPhysicalFeatureCatalog
 {
-    public const string MethodVersion = "BLOCKING_PHYSICAL_FEATURE_CATALOG_V3";
+    public const string MethodVersion = "BLOCKING_PHYSICAL_FEATURE_CATALOG_V4";
 
     private static readonly IReadOnlyDictionary<string, BlockingPhysicalFeature> Features =
         new Dictionary<string, BlockingPhysicalFeature>(StringComparer.Ordinal)
@@ -34,8 +34,8 @@ public static class BlockingPhysicalFeatureCatalog
             [BlockingCandidateFeatureCatalog.FullName] = new(
                 BlockingCandidateFeatureCatalog.FullName,
                 "nome_completo",
-                BlockingPhysicalStrategy.DirectColumn,
-                BlockingPhysicalSourceScope.GoldCurrent),
+                BlockingPhysicalStrategy.MaterializedProjection,
+                BlockingPhysicalSourceScope.SilverObservationHistory),
             [BlockingCandidateFeatureCatalog.FirstName] = new(
                 BlockingCandidateFeatureCatalog.FirstName,
                 "nome_completo",
@@ -55,8 +55,8 @@ public static class BlockingPhysicalFeatureCatalog
             [BlockingCandidateFeatureCatalog.MotherFullName] = new(
                 BlockingCandidateFeatureCatalog.MotherFullName,
                 "nome_mae",
-                BlockingPhysicalStrategy.DirectColumn,
-                BlockingPhysicalSourceScope.GoldCurrent),
+                BlockingPhysicalStrategy.MaterializedProjection,
+                BlockingPhysicalSourceScope.SilverObservationHistory),
             [BlockingCandidateFeatureCatalog.MotherFirstName] = new(
                 BlockingCandidateFeatureCatalog.MotherFirstName,
                 "nome_mae",
