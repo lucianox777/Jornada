@@ -10,7 +10,7 @@ namespace Jornada.Tests.Integration;
 public sealed class ApiReadinessTests
 {
     [Test]
-    public async Task Readiness_rejects_baseline_only_and_accepts_complete_operational_manifest()
+    public async Task Readiness_accepts_only_current_schema_marker_and_essential_objects()
     {
         var connectionString = RequireIntegrationConnection();
         await using (var connection = new SqlConnection(connectionString))
