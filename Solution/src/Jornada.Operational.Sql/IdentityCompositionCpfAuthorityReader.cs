@@ -116,7 +116,7 @@ public sealed class IdentityCompositionCpfAuthorityReader : IIdentityComposition
         command.Transaction = transaction;
         command.CommandText = postgres
             ? "SELECT pessoa_uuid,metodo_resolucao,status FROM identidade.vinculo_fonte WHERE pessoa_observacao_id=@observation AND ativo ORDER BY vinculo_fonte_id FOR UPDATE;"
-            : "SELECT pessoa_uuid,metodo_resolucao,status FROM identidade.vinculo_fonte WITH(UPDLOCK,HOLDLOCK) WHERE pessoa_observacao_id=@observation AND ativo=1 ORDER BY vinculo_fonte_id;";
+            : "SELECT pessoa_uuid,metodo_resolucao,status FROM identidade.vinculo_fonte WITH(UPDLOCK,HOLDLOCK) WHERE pessoa_observacao_id=@observation AND ativo=1 ORDER BY vinculo_id;";
         Add(command, "@observation", DbType.Int64, observationId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
