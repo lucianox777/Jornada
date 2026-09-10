@@ -26,46 +26,16 @@ jobs:
       - name: Install document toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y pandoc libreoffice-writer poppler-utils python3-docx python3-matplotlib
+          sudo apt-get install -y libreoffice-writer poppler-utils python3-docx python3-matplotlib
 
-      - name: Decouple frozen v4.05 gate from mutable RELEASE_INFO
+      - name: Verify frozen v4.05 gate is decoupled from mutable RELEASE_INFO
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           path = Path('Solution/scripts/technical-closure-gate-v405.py')
           text = path.read_text(encoding='utf-8')
-
-          blocks = [
-              (
-                  re.compile(
-                      r'\n    release_info = RELEASE_INFO\.read_text\(encoding="utf-8"\)\n'
-                      r'    require\(release_info, \[\n.*?\n    \], "RELEASE_INFO corrente"\)\n',
-                      re.DOTALL,
-                  ),
-                  '\n    # RELEASE_INFO corrente é metadado mutável da fronteira de release.\n'
-                  '    # Sua coerência é validada exclusivamente pelo wrapper technical-closure-gate.py.\n',
-                  'release metadata pin',
-              ),
-              (
-                  re.compile(
-                      r'\n    release_info_text = RELEASE_INFO\.read_text\(encoding="utf-8"\)\n'
-                      r'    require\(release_info_text, \[\n.*?\n    \], "evidência runtime externa v3\.99 preservada na v4\.03"\)\n',
-                      re.DOTALL,
-                  ),
-                  '\n    # Evidências históricas de runtime não são inferidas do RELEASE_INFO corrente.\n'
-                  '    # A bateria v4.05 permanece congelada nos invariantes técnicos, não no manifesto mutável.\n',
-                  'runtime evidence pin',
-              ),
-          ]
-
-          for pattern, replacement, label in blocks:
-              text, count = pattern.subn(replacement, text, count=1)
-              if count != 1:
-                  raise SystemExit(f'expected exactly one {label} block in v405 gate')
-
-          if 'RELEASE_INFO.read_text' in text:
+          if 'RELEASE_INFO.read_text' in text or 'release_info_text = RELEASE_INFO' in text:
               raise SystemExit('v405 gate still reads mutable current RELEASE_INFO contents')
           for forbidden in (
               'solution_engenharia=v4.05',
@@ -74,8 +44,7 @@ jobs:
           ):
               if forbidden in text:
                   raise SystemExit(f'v405 gate still pins mutable release metadata: {forbidden}')
-
-          path.write_text(text, encoding='utf-8')
+          print('FROZEN V4.05 RELEASE-INFO DECOUPLING: OK')
           PY
 
       - name: Consolidate and render institutional requirements
@@ -107,18 +76,19 @@ jobs:
                   bad = zf.testzip()
                   if bad:
                       raise SystemExit(f'{docx}: corrupt OOXML entry {bad}')
-              Document(docx)
+              parsed = Document(docx)
+              if not parsed.tables:
+                  raise SystemExit(f'{docx}: expected real Word tables')
+              if any(table.style.name != 'Table Grid' for table in parsed.tables):
+                  raise SystemExit(f'{docx}: expected only Table Grid tables')
               if pdf.stat().st_size < 1000:
                   raise SystemExit(f'{pdf}: invalid PDF')
-
-          matrix = Document(req / '05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.docx')
-          if len(matrix.tables) < 4:
-              raise SystemExit(f'expected multiple real tables in consolidated matrix; got {len(matrix.tables)}')
           print('STRUCTURAL QA: OK')
           PY
 
       - name: Render PDFs for visual QA
         run: |
+          rm -rf qa
           mkdir -p qa
           for pdf in \
             Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.pdf \
@@ -144,7 +114,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-            Solution/scripts/technical-closure-gate-v405.py \
             Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.md \
             Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.docx \
             Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.pdf \
@@ -161,6 +130,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No generated changes"
           else
-            git commit -m "docs(requisitos): consolidar baseline institucional v1.1"
+            git commit -m "docs(requisitos): republicar baseline institucional v1.1"
             git push origin HEAD:fix/readiness-technical-gate-370
           fi
