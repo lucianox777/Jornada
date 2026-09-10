@@ -19,7 +19,7 @@ public sealed record BlockingPhysicalFeature(
 
 public static class BlockingPhysicalFeatureCatalog
 {
-    public const string MethodVersion = "BLOCKING_PHYSICAL_FEATURE_CATALOG_V1";
+    public const string MethodVersion = "BLOCKING_PHYSICAL_FEATURE_CATALOG_V2";
 
     private static readonly IReadOnlyDictionary<string, BlockingPhysicalFeature> Features =
         new Dictionary<string, BlockingPhysicalFeature>(StringComparer.Ordinal)
@@ -40,6 +40,23 @@ public static class BlockingPhysicalFeatureCatalog
             [BlockingCandidateFeatureCatalog.LastName] = new(
                 BlockingCandidateFeatureCatalog.LastName,
                 "nome_completo",
+                BlockingPhysicalStrategy.MaterializedProjection),
+            [BlockingCandidateFeatureCatalog.MotherFullName] = new(
+                BlockingCandidateFeatureCatalog.MotherFullName,
+                "nome_mae",
+                BlockingPhysicalStrategy.DirectColumn),
+            [BlockingCandidateFeatureCatalog.MotherFirstName] = new(
+                BlockingCandidateFeatureCatalog.MotherFirstName,
+                "nome_mae",
+                BlockingPhysicalStrategy.MaterializedProjection),
+            [BlockingCandidateFeatureCatalog.MotherSurnames] = new(
+                BlockingCandidateFeatureCatalog.MotherSurnames,
+                "nome_mae",
+                BlockingPhysicalStrategy.MaterializedProjection,
+                MultiValued: true),
+            [BlockingCandidateFeatureCatalog.MotherLastName] = new(
+                BlockingCandidateFeatureCatalog.MotherLastName,
+                "nome_mae",
                 BlockingPhysicalStrategy.MaterializedProjection),
             [BlockingCandidateFeatureCatalog.BirthDay] = new(
                 BlockingCandidateFeatureCatalog.BirthDay,
