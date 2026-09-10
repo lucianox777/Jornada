@@ -1,0 +1,102 @@
+name: spec364-recovery-extract
+
+on:
+  push:
+    branches:
+      - chore/spec364-recovery
+    paths:
+      - .github/workflows/spec364-recovery-extract.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Extract DOCX structure and targeted context
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .local/spec364-recovery
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import xml.etree.ElementTree as ET
+
+          src = Path('Documentos/Especificacao_Tecnica_Jornada_v3.62.docx')
+          out = Path('.local/spec364-recovery')
+          W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+
+          with ZipFile(src) as z:
+              root = ET.fromstring(z.read('word/document.xml'))
+              styles = {}
+              try:
+                  sroot = ET.fromstring(z.read('word/styles.xml'))
+                  for st in sroot.findall(f'.//{W}style'):
+                      sid = st.get(f'{W}styleId') or ''
+                      name = st.find(f'{W}name')
+                      styles[sid] = name.get(f'{W}val') if name is not None else sid
+              except KeyError:
+                  pass
+              media = sorted(n for n in z.namelist() if n.startswith('word/media/'))
+
+          def text_of(el):
+              parts = []
+              for node in el.iter():
+                  if node.tag == f'{W}t' and node.text:
+                      parts.append(node.text)
+                  elif node.tag == f'{W}tab':
+                      parts.append('\t')
+                  elif node.tag == f'{W}br':
+                      parts.append('\n')
+              return ''.join(parts).strip()
+
+          body = root.find(f'{W}body')
+          lines = []
+          targeted = []
+          pno = 0
+          tno = 0
+          needles = ('fabric','sql server','sql database','benef','concess','pagamento','recebimento','requisit','autor','vers','situa','vigenc')
+          for child in list(body):
+              if child.tag == f'{W}p':
+                  pno += 1
+                  ppr = child.find(f'{W}pPr')
+                  sid = ''
+                  if ppr is not None:
+                      ps = ppr.find(f'{W}pStyle')
+                      if ps is not None:
+                          sid = ps.get(f'{W}val') or ''
+                  style = styles.get(sid, sid or 'Normal')
+                  txt = text_of(child)
+                  line = f'P{pno:04d} [{style}] {txt}'
+                  lines.append(line)
+                  if txt and any(n in txt.lower() for n in needles):
+                      targeted.append(line)
+              elif child.tag == f'{W}tbl':
+                  tno += 1
+                  lines.append(f'\n=== TABLE {tno} ===')
+                  for rno, tr in enumerate(child.findall(f'{W}tr'), 1):
+                      cells = [text_of(tc) for tc in tr.findall(f'{W}tc')]
+                      line = f'T{tno:02d}R{rno:03d} | ' + ' || '.join(cells)
+                      lines.append(line)
+                      if any(n in line.lower() for n in needles):
+                          targeted.append(line)
+                  lines.append(f'=== END TABLE {tno} ===\n')
+
+          (out/'spec362-structure.txt').write_text('\n'.join(lines), encoding='utf-8')
+          (out/'spec362-targeted.txt').write_text('\n'.join(targeted), encoding='utf-8')
+          (out/'spec362-media.txt').write_text('\n'.join(media), encoding='utf-8')
+          print(f'paragraphs={pno} tables={tno} targeted={len(targeted)} media={len(media)}')
+          PY
+          wc -l .local/spec364-recovery/*.txt
+      - name: Upload extraction evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: spec364-recovery-extract
+          path: .local/spec364-recovery/
+          if-no-files-found: error
