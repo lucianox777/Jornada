@@ -21,9 +21,15 @@ set -a; source "$ENV_FILE"; set +a
 mkdir -p "$ROOT/.local/ddl-upgrade"
 
 compose(){ (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
-sqlcmd(){ compose exec -T -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I "$@"; }
+sqlcmd(){
+  # O instalador canônico v3.70 usa diretivas :r relativas à raiz da Solution.
+  # Executar em /workspace garante que o sqlcmd resolva esses includes de forma
+  # idêntica ao bootstrap local canônico.
+  compose exec -T -w /workspace -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
+    /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I "$@"
+}
 wait_healthy(){ for _ in $(seq 1 60); do [[ "$(docker inspect -f '{{.State.Health.Status}}' jornada-sqlserver-local 2>/dev/null || true)" == healthy ]] && return 0; sleep 2; done; echo "ERRO: SQL Server não ficou healthy." >&2; exit 3; }
-fingerprint(){ local tag="$1"; local out="$ROOT/.local/ddl-upgrade/fingerprint-$tag.txt"; sqlcmd -d "$DB" -i /workspace/database/Jornada_Dev_DdlFingerprint.sql -W -h -1 > "$out"; sed -i '/^[[:space:]]*$/d' "$out"; sha256sum "$out" | awk '{print $1}'; }
+fingerprint(){ local tag="$1"; local out="$ROOT/.local/ddl-upgrade/fingerprint-$tag.txt"; sqlcmd -d "$DB" -i database/Jornada_Dev_DdlFingerprint.sql -W -h -1 > "$out"; sed -i '/^[[:space:]]*$/d' "$out"; sha256sum "$out" | awk '{print $1}'; }
 assert_sentinel(){ local n; n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM ref.gestor WHERE codigo='ZZ_UPGRADE_SENTINEL' AND nome='Sentinela DDL Upgrade';" | tr -d '[:space:]')"; [[ "$n" == 1 ]] || { echo "ERRO: dado sentinela não foi preservado." >&2; exit 4; }; }
 assert_phone_v2(){
   local n
@@ -43,29 +49,27 @@ assert_schema_marker(){
 
 compose up -d sqlserver; wait_healthy
 sqlcmd -Q "IF DB_ID(N'$DB') IS NOT NULL BEGIN ALTER DATABASE [$DB] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$DB]; END; CREATE DATABASE [$DB];"
-# O container monta a raiz em /workspace; baseline é configurável para futuros releases.
-sqlcmd -d "$DB" -i "/workspace/$BASELINE_REL"
+# Baseline histórico usado apenas como origem do cenário real de upgrade.
+sqlcmd -d "$DB" -i "$BASELINE_REL"
 sqlcmd -d "$DB" -Q "INSERT ref.gestor(codigo,nome,ativo) VALUES('ZZ_UPGRADE_SENTINEL','Sentinela DDL Upgrade',1);"
-# Fixture real de upgrade a partir do baseline v3.65: simula chave V1 que perdeu o prefixo internacional explícito 00.
-sqlcmd -d "$DB" -i "/workspace/$BASELINE_SEED_REL"
+sqlcmd -d "$DB" -i "$BASELINE_SEED_REL"
 sqlcmd -d "$DB" -Q "DECLARE @id BIGINT=(SELECT pessoa_atributo_observacao_id FROM silver.pessoa_atributo_observacao WHERE source_record_id='SEH001-TEL-1'); UPDATE silver.pessoa_atributo_observacao SET valor=N'00 55 11 99999-0001',atributo_instancia_chave='005511999990001' WHERE pessoa_atributo_observacao_id=@id; UPDATE gold.pessoa_atributo SET valor=N'00 55 11 99999-0001',atributo_instancia_chave='005511999990001' WHERE pessoa_atributo_observacao_id=@id AND vigencia_fim IS NULL;"
 sqlcmd -d "$DB" -Q "DECLARE @id BIGINT=(SELECT pessoa_atributo_observacao_id FROM silver.pessoa_atributo_observacao WHERE source_record_id='SEH002-EMAIL-1'); UPDATE silver.pessoa_atributo_observacao SET valor=N'JOSÉ@EXAMPLE.ORG',atributo_instancia_chave=N'josé@example.org' WHERE pessoa_atributo_observacao_id=@id; UPDATE gold.pessoa_atributo SET valor=N'JOSÉ@EXAMPLE.ORG',atributo_instancia_chave=N'josé@example.org' WHERE pessoa_atributo_observacao_id=@id AND vigencia_fim IS NULL;"
 baseline_hash="$(fingerprint baseline)"
-# FOR JSON retorna NVARCHAR(MAX); -y 0 evita truncamento do payload que seria entregue ao gate Python.
-sqlcmd -d "$DB" -i /workspace/database/Jornada_Upgrade_Invariants.sql -y 0 -w 65535 | sed -n '/^[[:space:]]*{/,$p' | tr -d "\r\n" > "$ROOT/.local/ddl-upgrade/invariants-before.json"
+sqlcmd -d "$DB" -i database/Jornada_Upgrade_Invariants.sql -y 0 -w 65535 | sed -n '/^[[:space:]]*{/,$p' | tr -d "\r\n" > "$ROOT/.local/ddl-upgrade/invariants-before.json"
 
-sqlcmd -d "$DB" -i "/workspace/$CURRENT_REL"
+sqlcmd -d "$DB" -i "$CURRENT_REL"
 assert_sentinel
 assert_phone_v2
 assert_email_v2
 assert_schema_marker
-sqlcmd -d "$DB" -i /workspace/database/Jornada_Runtime_Smoke.sql
+sqlcmd -d "$DB" -i database/Jornada_Runtime_Smoke.sql
 first_hash="$(fingerprint current-first)"
 
-sqlcmd -d "$DB" -i "/workspace/$CURRENT_REL"
+sqlcmd -d "$DB" -i "$CURRENT_REL"
 assert_sentinel
 second_hash="$(fingerprint current-second)"
-sqlcmd -d "$DB" -i /workspace/database/Jornada_Upgrade_Invariants.sql -y 0 -w 65535 | sed -n '/^[[:space:]]*{/,$p' | tr -d "\r\n" > "$ROOT/.local/ddl-upgrade/invariants-after.json"
+sqlcmd -d "$DB" -i database/Jornada_Upgrade_Invariants.sql -y 0 -w 65535 | sed -n '/^[[:space:]]*{/,$p' | tr -d "\r\n" > "$ROOT/.local/ddl-upgrade/invariants-after.json"
 python3 "$ROOT/scripts/upgrade-invariant-gate.py" "$ROOT/.local/ddl-upgrade/invariants-before.json" "$ROOT/.local/ddl-upgrade/invariants-after.json" --summary "$ROOT/.local/ddl-upgrade/invariant-summary.json"
 
 [[ "$first_hash" == "$second_hash" ]] || { echo "ERRO: fingerprint do DDL mudou na segunda aplicação; idempotência violada." >&2; exit 5; }
