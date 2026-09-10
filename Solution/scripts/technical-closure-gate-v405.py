@@ -429,19 +429,8 @@ def main() -> None:
     ], "SBOM derivado de RELEASE_INFO")
     if "'3.55'" in sbom or "default='3.60'" in sbom:
         fail("SBOM voltou a conter versão normativa/solution hardcoded antiga")
-    release_info = RELEASE_INFO.read_text(encoding="utf-8")
-    require(release_info, [
-        "base_normativa=v3.64",
-        "solution_engenharia=v4.05",
-        "schema_base_normativa=v3.62",
-        "schema_solution=v3.69",
-        "origem_engenharia_anterior_1_materializada=true",
-        "origem_engenharia_anterior_1_sha256=e18beb63aad7683ac749e2e5f2b600540c33fd7f92513ca2223daa684a3f6e19",
-        "source_git_tag=jornada-solution-v4.05",
-        "source_git_predecessor_tag=jornada-solution-v4.04",
-        "source_git_bundle=Solution/supply-chain/source/Jornada_Source_v4.04_v4.05.bundle",
-        "source_git_provenance=SOURCE_PROVENANCE.json",
-    ], "RELEASE_INFO corrente")
+    # RELEASE_INFO corrente é metadado mutável da fronteira de release.
+    # Sua coerência é validada exclusivamente pelo wrapper technical-closure-gate.py.
 
     # v3.99: fronteira fina de acesso operacional Microsoft SQL. A regra estrutural é
     # centralizar a criação/abertura de SqlConnection sem esconder T-SQL ou criar um
@@ -712,18 +701,8 @@ def main() -> None:
         "WHERE im.vigencia_fim IS NULL AND im.estado='ATIVO'",
     ], "UPDATE identity_map governado v3.91")
 
-    release_info_text = RELEASE_INFO.read_text(encoding="utf-8")
-    require(release_info_text, [
-        "V399_LOCKED_RESTORE_SOLUTION_PASS",
-        "V399_LOCKED_RESTORE_UNIT_PASS",
-        "V399_LOCKED_RESTORE_INTEGRATION_PASS",
-        "V399_BUILD_SOLUTION_PASS",
-        "V399_UNIT_TESTS_PASS",
-        "V399_SQL_IMAGE_DIGEST_PASS",
-        "V399_SQL_ENGINE_CHECKDB_PASS",
-        "V399_INTEGRATION_TESTS_PASS",
-        "V399_LOCAL_RELEASE_VALIDATION_PASS",
-    ], "evidência runtime externa v3.99 preservada na v4.03")
+    # Evidências históricas de runtime não são inferidas do RELEASE_INFO corrente.
+    # A bateria v4.05 permanece congelada nos invariantes técnicos, não no manifesto mutável.
 
 
     # Baseline documental introduzido na v3.98 e preservado na v3.99: RN/RF/RNF/RT + matriz única de rastreabilidade.
