@@ -39,9 +39,9 @@
 
 **Requisito funcional.** O Calibrador deve executar contra a base da Jornada e utilizar dados oficiais agregados do IBGE para cada atributo da Jornada para o qual exista informação IBGE semanticamente compatível e tecnicamente utilizável. A informação IBGE complementa a calibração do atributo; ela não define quais atributos da Jornada podem participar do linkage e não constitui verdade individual.
 
-Atualmente, a integração conhecida de nomes deve ser aplicada aos componentes de nome compatíveis. Um atributo sem fonte IBGE equivalente — por exemplo, Distrito enquanto não existir conjunto semanticamente compatível no catálogo adotado — continua podendo participar normalmente da calibração por evidência obtida na própria base da Jornada, sem enriquecimento IBGE artificial.
+Atualmente, a integração conhecida de nomes deve ser aplicada aos componentes de nome compatíveis. O conjunto oficial `Nomes no Brasil` do Censo 2022 disponibiliza estatísticas para Brasil, Unidades da Federação e Municípios. Quando o município da observação for conhecido e compatível com a codificação territorial oficial, o Calibrador pode utilizar o recorte municipal correspondente como contexto estatístico adicional, mantendo também os recortes mais amplos necessários para comparação, fallback e estabilidade. Um atributo sem fonte IBGE equivalente continua podendo participar normalmente da calibração por evidência obtida na própria base da Jornada, sem enriquecimento IBGE artificial.
 
-**Critério de aceitação.** Toda correspondência atributo Jornada → conjunto/estatística IBGE é explícita, versionada e registra fonte, snapshot e finalidade. A ausência de correspondência IBGE não elimina o atributo da calibração, não autoriza aproximação semântica e não impede a execução.
+**Critério de aceitação.** Toda correspondência atributo Jornada → conjunto/estatística IBGE é explícita, versionada e registra fonte, snapshot, nível territorial e finalidade. A ausência de correspondência IBGE não elimina o atributo da calibração, não autoriza aproximação semântica e não impede a execução. Recorte territorial IBGE é evidência estatística contextual e não prova de residência ou identidade individual.
 
 ### RF-053 — Evitar novo snapshot IBGE quando a fonte não mudou
 
@@ -53,7 +53,9 @@ Atualmente, a integração conhecida de nomes deve ser aplicada aos componentes 
 
 **Requisito funcional.** O otimizador de blocking deve poder incorporar frequências e demais estatísticas agregadas do IBGE exclusivamente nos atributos para os quais exista correspondência semântica explícita. Os demais atributos candidatos ao blocking continuam sendo avaliados pelas evidências do corpus da Jornada, sem receber peso ou estatística IBGE por aproximação.
 
-**Critério de aceitação.** Para cada atributo enriquecido, a contribuição do IBGE é versionada e mensurável. O otimizador consegue comparar alternativa com e sem enriquecimento externo e não promove automaticamente uma regra que degrade os critérios definidos para o experimento. A lista de atributos compatíveis deve ser explícita e extensível quando novos conjuntos oficiais forem incorporados.
+Para nomes e sobrenomes, quando disponível, o otimizador pode comparar frequências em múltiplas escalas territoriais oficiais — por exemplo município, UF e Brasil — e selecionar a contribuição estatística que melhore as métricas de blocking no corpus de calibração sem degradar a avaliação independente.
+
+**Critério de aceitação.** Para cada atributo enriquecido, a contribuição do IBGE, inclusive o nível territorial utilizado, é versionada e mensurável. O otimizador consegue comparar alternativa com e sem enriquecimento externo e não promove automaticamente uma regra que degrade os critérios definidos para o experimento. A lista de atributos compatíveis deve ser explícita e extensível quando novos conjuntos oficiais forem incorporados.
 
 ### RF-055 — Otimizar componentes de nome e data de nascimento no blocking
 
@@ -69,6 +71,14 @@ O Calibrador pode ser executado repetidamente e gerar novas versões candidatas 
 
 **Critério de aceitação.** Uma execução do Avaliador não pode misturar regras de versões distintas. O pacote deve identificar, no mínimo, versão/fingerprint das regras, versão do algoritmo/calibrador, configuração relevante e identidade de cada snapshot IBGE efetivamente utilizado. Alteração material gera nova versão; replay com a mesma versão e mesmas entradas é reprodutível.
 
+### RF-057 — Materializar suporte de índice para blocking dinâmico
+
+**Requisito funcional.** Uma versão candidata de blocking deve declarar, para cada passe que dependa de busca indexável na base operacional, o conjunto ordenado de atributos necessário à localização eficiente de candidatos. Após aprovação da versão, o sistema deve produzir um plano de índices correspondente, preferencialmente por índices B-tree compostos ou índices equivalentes suportados pelo SGBD. Particionamento físico não deve ser introduzido apenas porque a regra de blocking é dinâmica; seu uso exige evidência independente de benefício operacional ou requisito de manutenção/escala que índices não atendam adequadamente.
+
+O Calibrador pode recomendar índices, mas não deve criar ou remover índices livremente durante cada execução de calibração. A materialização é uma etapa controlada e idempotente de engenharia/deploy, vinculada à versão aprovada da regra. Para evitar explosão de índices, o plano deve reutilizar índices existentes quando o prefixo de chaves atender ao passe, deduplicar propostas equivalentes e aplicar limites de quantidade/custo definidos para o ambiente.
+
+**Critério de aceitação.** Cada passe ativo informa se possui suporte de índice adequado, qual índice existente ou proposto o atende e a ordem das colunas-chave. O plano registra a versão de regras que o originou, é reproduzível, não executa DDL durante a simples avaliação de candidatos e permite aposentar índices de versões superseded somente após verificação de que não atendem outra regra ativa ou consulta operacional relevante. Criação/remoção deve passar pelos gates de DDL/CI aplicáveis aos SGBDs suportados.
+
 ## 3. Regras de engenharia derivadas
 
 1. O paralelismo é uma otimização subordinada à correção e à reprodutibilidade; não é permitido alterar semântica para obter throughput.
@@ -77,6 +87,9 @@ O Calibrador pode ser executado repetidamente e gerar novas versões candidatas 
 4. A inexistência de dado IBGE compatível não exclui o campo do Calibrador ou do otimizador de blocking.
 5. `Content-Length` reduz downloads inúteis, mas dois conteúdos diferentes podem possuir o mesmo tamanho; por isso a identidade persistida do snapshot deve continuar baseada em fingerprint/hash.
 6. O Avaliador é independente quanto ao corpus/medição, mas não quanto à definição da regra sob teste: ele deve testar a versão produzida/promovida pelo Calibrador sem reinterpretação silenciosa.
+7. Blocking dinâmico não implica particionamento dinâmico. A primeira opção de suporte físico é índice adequado ao passe, preferencialmente reutilizável entre versões.
+8. O Calibrador recomenda o plano físico; a criação ou remoção de índices ocorre em etapa controlada de publicação/deploy, nunca como efeito colateral da busca de parâmetros.
+9. Recortes municipais/UF do IBGE podem refinar a raridade estatística de nomes, mas o município não deve ser inferido a partir do nome nem usado como verdade individual.
 
 ## 4. UML — fluxo normativo resumido
 
@@ -84,4 +97,4 @@ O diagrama UML versionado deste adendo está em `Solution/docs/uml/Linkage_Calib
 
 ## 5. Impacto esperado na próxima consolidação
 
-A próxima versão consolidada da família de requisitos deve incorporar RNF34–RNF36 e RF-051–RF-056, atualizar as quantidades do Índice Mestre e da Matriz de Rastreabilidade e ajustar os gates que atualmente verificam contagens fixas dos baselines históricos.
+A próxima versão consolidada da família de requisitos deve incorporar RNF34–RNF36 e RF-051–RF-057, atualizar as quantidades do Índice Mestre e da Matriz de Rastreabilidade e ajustar os gates que atualmente verificam contagens fixas dos baselines históricos.
