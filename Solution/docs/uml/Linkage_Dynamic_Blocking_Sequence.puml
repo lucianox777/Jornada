@@ -1,0 +1,54 @@
+@startuml
+hide footbox
+title Jornada Linkage - Blocking dinâmico versionado
+
+actor "Operação/HML" as Ops
+participant "Calibrador" as Cal
+participant "Otimizador de Blocking" as Opt
+participant "Normalizador pt-BR\n(versionado)" as Norm
+participant "Catálogo IBGE\n(versionado)" as Ibge
+participant "Política de Blocking\n(versionada/imutável)" as Policy
+participant "Avaliador" as Eval
+database "Gold / corpus\nrepresentativo" as Gold
+
+Ops -> Cal : iniciar calibração
+Cal -> Gold : ler corpus/snapshot
+Cal -> Opt : fornecer evidências candidatas\n(nome completo, prenome, sobrenome, último nome,\ndia, mês, ano)
+Opt -> Norm : normalizar comparações de nome\nsegundo versão pt-BR
+Norm --> Opt : formas/comparadores versionados
+Opt -> Ibge : consultar frequências agregadas\nquando disponíveis/aplicáveis
+Ibge --> Opt : versão + fingerprint + frequências
+Opt -> Opt : avaliar combinações\nrecall + redução + custo + tamanho de bloco\n+ ganho incremental + dependência + falso vínculo
+Opt --> Cal : política selecionada + métricas
+Cal -> Policy : persistir artefato versionado\n+ fingerprint + versões de normalização/IBGE
+Policy --> Cal : identificador/fingerprint
+Cal -> Cal : estimar parâmetros usando\nblocking da política
+Cal --> Ops : rascunho + evidência\nsem ativação automática
+
+Ops -> Eval : avaliar rascunho/política
+Eval -> Policy : carregar exatamente a mesma versão
+Policy --> Eval : regras + fingerprint
+Eval -> Gold : aplicar blocking dinâmico\ncom a política recebida
+Eval -> Eval : medir recall, precisão,\ncalibração e falsos vínculos
+Eval --> Ops : relatório com versão/fingerprint
+
+note over Cal,Eval
+Paralelismo só é habilitado quando houver ganho medido
+e equivalência determinística com o caminho serial.
+end note
+
+note over Norm,Policy
+Equivalências fonéticas pt-BR são explícitas e testadas.
+Mudança de regra exige nova versão e regressões.
+end note
+
+note over Ibge,Policy
+IBGE é evidência estatística agregada externa;
+nunca verdade individual nem substituto do corpus rotulado.
+end note
+
+note over Cal,Eval
+Nenhum resultado autoriza ativação probabilística
+sem os gates estatísticos e institucionais da issue #31.
+end note
+@enduml
