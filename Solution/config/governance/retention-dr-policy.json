@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "status": "PENDENTE",
   "baseNormativa": "3.62",
-  "solutionSchema": "3.69",
+  "solutionSchema": "3.70",
   "note": "Valores permanecem nulos até decisão de governança/infra. A Solution não infere retenção, RPO ou RTO a partir de defaults de Development.",
   "itemProcessed": {
     "status": "PENDENTE",

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "release": "v4.05",
   "baseNormativa": "v3.64",
-  "solutionSchema": "v3.69",
+  "solutionSchema": "v3.70",
   "sourceRelease": "v4.05",
   "packagingEnvironment": {
     "dotnetAvailable": true,

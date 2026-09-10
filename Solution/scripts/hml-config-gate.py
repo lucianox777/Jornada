@@ -90,8 +90,6 @@ def validate_approval_fields(obj: dict, prefix: str, errors: list[str]) -> None:
     validate_evidence(obj.get("evidence"), prefix, errors)
 
 
-
-
 def validate_approval_context(obj: dict, prefix: str, errors: list[str]) -> None:
     ctx = obj.get("approvalContext")
     if not isinstance(ctx, dict):
@@ -107,15 +105,16 @@ def validate_approval_context(obj: dict, prefix: str, errors: list[str]) -> None
     technical_sha = ctx.get("technicalFingerprintSha256")
     if isinstance(technical_sha, str) and not SHA256_RE.fullmatch(technical_sha.lower()):
         errors.append(f"{prefix}.approvalContext.technicalFingerprintSha256 inválido")
-    if ctx.get("solutionSchema") != "3.69":
-        errors.append(f"{prefix}.approvalContext.solutionSchema deve ser 3.69")
+    if ctx.get("solutionSchema") != "3.70":
+        errors.append(f"{prefix}.approvalContext.solutionSchema deve ser 3.70")
+
 
 def validate_parameters(data: dict, require_approved: bool) -> list[str]:
     errors: list[str] = []
     if data.get("schemaVersion") != 1:
         errors.append("parameters.schemaVersion deve ser 1")
-    if data.get("baseNormativa") != "3.62" or data.get("solutionSchema") != "3.69":
-        errors.append("parameters deve declarar baseNormativa=3.62 e solutionSchema=3.69")
+    if data.get("baseNormativa") != "3.62" or data.get("solutionSchema") != "3.70":
+        errors.append("parameters deve declarar baseNormativa=3.62 e solutionSchema=3.70")
     top_status = data.get("status")
     if top_status not in TOP_STATUSES:
         errors.append(f"parameters.status inválido: {top_status!r}")

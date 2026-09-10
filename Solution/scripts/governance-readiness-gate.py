@@ -36,7 +36,7 @@ def approval(obj,prefix):
 
 def validate_schema(root:Path, require:bool)->dict:
     p=root/'config/governance/schema-approvals.json'; d=load(p)
-    if d.get('schemaVersion')!=1 or d.get('baseNormativa')!='3.62' or d.get('solutionSchema')!='3.69': fail('schema-approvals versão/base/schema inválidos')
+    if d.get('schemaVersion')!=1 or d.get('baseNormativa')!='3.62' or d.get('solutionSchema')!='3.70': fail('schema-approvals versão/base/schema inválidos')
     actual={x.relative_to(root).as_posix():hashlib.sha256(x.read_bytes()).hexdigest() for x in sorted((root/'config/contracts').rglob('*.json'))}
     listed={}
     for row in d.get('contracts',[]):
@@ -108,7 +108,6 @@ def main()->int:
     ap.add_argument('--self-test',action='store_true')
     args=ap.parse_args(); root=Path(args.root).resolve()
     if args.self_test:
-        # O self-test útil aqui é estrutural: o conjunto distribuído PENDENTE deve passar em modo não estrito e falhar no estrito.
         validate_schema(root,False); validate_retention(root,False); validate_identity(root,False)
         try:
             validate_schema(root,True)

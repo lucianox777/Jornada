@@ -1,33 +1,35 @@
 # Jornada do Cidadão — Resumo Executivo
 
-**Base Normativa:** v3.62  
-**SolutionSchema:** v3.68  
-**Solution Engenharia:** v3.96  
-**Data:** 03/09/2026
+**Data:** 10/09/2026  
+**Estado:** CANDIDATO TÉCNICO À CONSOLIDAÇÃO v5.00 — release/tag ainda não cortada  
+**Base normativa vigente da release selada:** v3.64  
+**Solution Engenharia selada:** v4.05  
+**SolutionSchema da release selada:** v3.69  
+**SolutionSchema alvo desta consolidação:** v3.70
 
-## Estado atual
+## Fronteira de versão
 
-A v3.96 incorpora ao pacote a evidência runtime real da v3.95 e cria o baseline versionado de **Requisitos de Negócio v1.0**. Não há mudança funcional em relação à v3.95.
+`RELEASE_INFO.txt` continua sendo a fonte versionada da última release de engenharia selada: Base Normativa v3.64, Solution Engenharia v4.05, SolutionSchema v3.69 e tag `jornada-solution-v4.05`.
 
-A execução real da v3.95 confirmou restore `--locked-mode` da Solution, Unit e Integration; build Release com **0 warnings / 0 errors**; **153/153 Unit PASS**; imagem SQL canônica por digest e engine SQL íntegros; `DBCC CHECKDB(master)` OK; e **58/58 Integration PASS**.
+Esta branch prepara a consolidação técnica para SolutionSchema v3.70, mas **não declara a existência da release/tag v5.00**. O corte futuro deve ocorrer de forma atômica pelos mecanismos de release existentes; até lá, 3.70 é estado técnico candidato, não uma release publicada.
 
-## Requisitos de Negócio
+## Baseline documental corrente
 
-O pacote passa a conter `Requisitos_de_Negocio_Jornada_v1.0` em MD, DOCX e PDF. O documento traduz a Especificação Técnica v3.62 para linguagem de negócio, com 36 requisitos rastreáveis, regras consolidadas, fora de escopo, critérios de aceite e controle de mudança.
+A Especificação Técnica v3.62 permanece a base da família institucional de requisitos. A porta de entrada corrente é `Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1`, que define leitura autossuficiente dos cinco documentos v1.1 e mantém os v1.0 apenas como baseline histórico, sem leitura cumulativa.
 
-A versão de negócio é independente da versão de engenharia: mudanças técnicas sem efeito de negócio não exigem nova versão do documento; mudança material em requisito que altere regra normativa deve ser refletida formalmente na Base Normativa.
+O modelo físico corrente é `Documentos/Anexo_Modelo_Fisico_Jornada_v1.40`, derivado do schema canônico `Solution/database/Jornada_Fase1_v3.70.sql`. O inventário automatizado mede **66 tabelas distintas** no schema operacional consolidado. A antiga contagem de 53 tabelas pertence ao baseline legado e não deve ser usada como contagem do schema corrente.
 
-## Situação de engenharia
+## Estado técnico da consolidação
 
-- **Restore locked:** PASS em Solution, Unit e Integration.
-- **Build:** PASS, 0 warnings / 0 errors.
-- **Unit:** 153/153 PASS.
-- **Integration:** 58/58 PASS.
-- **Docker/SQL:** imagem por digest OK, ProductVersion 16.0.4265.3, CHECKDB(master) OK.
-- **Base Normativa:** permanece v3.62.
-- **SolutionSchema:** permanece v3.68.
-- **Código de produção/DDL/contratos/dependências:** sem mudança na v3.96.
+A consolidação 3.70 alinha readiness, gates, compatibilidade, observabilidade e caminho de upgrade ao schema corrente; preserva o upgrade fail-closed e a reentrada; e mantém Microsoft SQL Server como tecnologia relacional normativa.
 
-## Limites
+Os requisitos consolidados v1.1 registram explicitamente que seu estado de incorporação é candidato técnico à Solution Engenharia v5.00. Essa documentação não antecipa aprovação institucional, implantação em HML/Produção, RIPD, calibração de Linkage nem qualquer decisão dependente de dados reais ou governança.
 
-A aprovação acima é da execução local canônica da release. HML, Produção, RIPD, calibração de linkage, parâmetros de desempenho e demais decisões que dependem de dados reais ou governança continuam condicionados aos gates específicos existentes.
+## Regra de leitura
+
+Para identificar o estado vigente, use conjuntamente:
+
+1. `RELEASE_INFO.txt` para a última release/tag efetivamente selada;
+2. `Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1` para o baseline institucional consolidado candidato;
+3. `Documentos/Anexo_Modelo_Fisico_Jornada_v1.40` e `Solution/database/Jornada_Fase1_v3.70.sql` para o schema técnico candidato;
+4. `Documentos/README.md` para distinguir artefatos correntes de snapshots históricos preservados no repositório.

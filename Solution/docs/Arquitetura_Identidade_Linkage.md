@@ -126,14 +126,12 @@ CI, testes de banco, DDL e contratos são obrigatórios para integração técni
 
 A arquitetura deve falhar fechada quando não puder provar completude, versão, autoridade ou consistência. Nenhum booleano, fingerprint, hash ou status isolado substitui essas provas.
 
-## 12. UML
+## 12. UML e formato documental
 
-Os diagramas normativos correspondentes ficam em `Solution/docs/uml/` e `Solution/docs/diagrams/`. O padrão de documentação gráfica normativa é UML com fontes PlantUML versionadas no repositório.
+O padrão dos **diagramas** de arquitetura da Jornada é UML. O formato de entrega e leitura da documentação normativa, porém, deve permanecer em formatos institucionais comuns: **DOCX e PDF**, com os diagramas UML incorporados como figuras no próprio documento.
 
-O modelo estrutural deve ser representado por **diagrama de classes UML**, e não por DER/DRE como substituto do artefato UML. O fluxo de resolução de identidade deve possuir **diagrama de atividade UML**. O DER pode permanecer apenas como artefato físico auxiliar de banco de dados, sem ser classificado como UML.
+O modelo estrutural deve ser representado por **diagrama de classes UML**, e não por DER/DRE como substituto do artefato UML. O fluxo de resolução de identidade deve possuir **diagrama de atividade UML**. O DER pode permanecer apenas como visão física auxiliar de banco de dados, sem ser classificado como UML.
 
-Fontes normativas desta consolidação:
+Nenhum leitor da documentação deve depender de PlantUML, Mermaid ou software específico de modelagem para compreender a arquitetura. Fontes técnicas eventualmente utilizadas durante a geração de diagramas não constituem artefatos normativos de entrega nem podem ser pré-requisito para leitura.
 
-- `Solution/docs/uml/Jornada_Identidade_Linkage_Classes.puml` — diagrama de classes;
-- `Solution/docs/uml/Jornada_Resolucao_Identidade_Atividade.puml` — diagrama de atividade;
-- demais diagramas UML de componentes, implantação, estados e sequência já versionados no repositório.
+Na consolidação v5.00, os diagramas de classes de Identidade/Linkage e de atividade de resolução de identidade integram o **Anexo Modelo Físico v1.40 em DOCX/PDF**. Os demais documentos normativos devem seguir a mesma regra: UML quando a notação gráfica for aplicável, incorporada em Word/PDF.

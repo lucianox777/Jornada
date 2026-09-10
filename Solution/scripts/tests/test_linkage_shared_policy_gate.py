@@ -3,6 +3,8 @@
 
 Only the target AST statements are executed against synthetic source files.
 No database, model activation, or identity publication is performed.
+The full historical closure battery is preserved in technical-closure-gate-v405.py
+and is executed by the current technical-closure-gate.py wrapper.
 """
 from __future__ import annotations
 
@@ -12,7 +14,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-GATE = ROOT / "scripts" / "technical-closure-gate.py"
+GATE = ROOT / "scripts" / "technical-closure-gate-v405.py"
 SQL_REL = "src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs"
 POLICY_REL = "src/Jornada.Linkage.Runner/ProbabilisticLinkagePolicy.cs"
 DELEGATE = "return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);"
