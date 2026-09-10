@@ -14,6 +14,8 @@ need docker; need sha256sum; need dotnet
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
 : "${JORNADA_SQL_SA_PASSWORD:?JORNADA_SQL_SA_PASSWORD não definido}"
+SQL_PORT="${JORNADA_SQL_PORT:-14333}"
+[[ "$SQL_PORT" =~ ^[0-9]+$ ]] || { echo "ERRO: JORNADA_SQL_PORT inválida." >&2; exit 2; }
 [[ "$DB" =~ ^[A-Za-z0-9_]+$ ]] || { echo "ERRO: nome de banco inválido." >&2; exit 2; }
 [[ -f "$ROOT/$BASELINE_REL" ]] || { echo "ERRO: baseline não encontrado: $BASELINE_REL" >&2; exit 2; }
 [[ -f "$ROOT/$BASELINE_SEED_REL" ]] || { echo "ERRO: seed do baseline não encontrado: $BASELINE_SEED_REL" >&2; exit 2; }
@@ -68,7 +70,7 @@ backfill_progressive_identity(){
   # usado pelo cutover operacional; não existe uma segunda implementação T-SQL do backfill.
   sqlcmd -d "$DB" -i database/Jornada_Identidade_Progressiva.sql
   build_progressive_backfill_runner
-  local connection="Server=localhost,1433;Database=$DB;User Id=sa;Password=$JORNADA_SQL_SA_PASSWORD;TrustServerCertificate=true;Encrypt=false"
+  local connection="Server=localhost,$SQL_PORT;Database=$DB;User Id=sa;Password=$JORNADA_SQL_SA_PASSWORD;TrustServerCertificate=true;Encrypt=false"
   (cd "$ROOT" && \
     JORNADA_PROGRESSIVE_PROVIDER=SqlServer \
     JORNADA_PROGRESSIVE_CONNECTION="$connection" \
@@ -116,6 +118,8 @@ baseline_fingerprint=$baseline_hash
 current_first_fingerprint=$first_hash
 current_second_fingerprint=$second_hash
 progressive_identity_backfill=ProgressiveIdentityOriginStore.BackfillPageAsync
+progressive_identity_page_size=1000
+sql_host_port=$SQL_PORT
 sentinel_preserved=true
 phone_v2_legacy_00_migrated=true
 email_v2_legacy_migrated=true
