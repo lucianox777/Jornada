@@ -1,0 +1,70 @@
+table IdentidadeProgressiva
+
+	measure 'Identidades de Origem' = COUNTROWS(IdentidadeProgressiva)
+		formatString: #,##0
+	measure 'Referências Publicadas' = CALCULATE(COUNTROWS(IdentidadeProgressiva),IdentidadeProgressiva[estado]="REFERENCIA")
+		formatString: #,##0
+	measure 'Pessoas com Referência Publicada' = CALCULATE(DISTINCTCOUNT(IdentidadeProgressiva[canonical_uuid]),IdentidadeProgressiva[apta_contagem_pessoa_canonica]=TRUE())
+		formatString: #,##0
+	measure 'Identidades Provisórias' = CALCULATE(COUNTROWS(IdentidadeProgressiva),IdentidadeProgressiva[estado]="PROVISORIA")
+		formatString: #,##0
+	measure 'Identidades Indefinidas' = CALCULATE(COUNTROWS(IdentidadeProgressiva),IdentidadeProgressiva[estado]="INDEFINIDA")
+		formatString: #,##0
+
+	column pessoa_origem_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: pessoa_origem_id
+	column gestor_codigo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor_codigo
+	column sistema_origem_codigo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: sistema_origem_codigo
+	column codigo_pessoa_origem
+		dataType: string
+		summarizeBy: none
+		sourceColumn: codigo_pessoa_origem
+	column initial_uuid
+		dataType: string
+		summarizeBy: none
+		sourceColumn: initial_uuid
+	column canonical_uuid
+		dataType: string
+		summarizeBy: none
+		sourceColumn: canonical_uuid
+	column estado
+		dataType: string
+		summarizeBy: none
+		sourceColumn: estado
+	column versao
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: versao
+	column apta_contagem_pessoa_canonica
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: apta_contagem_pessoa_canonica
+	column criado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: criado_em
+	column atualizado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: atualizado_em
+	column ultima_resolucao_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: ultima_resolucao_em
+
+	partition IdentidadeProgressiva = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_identidade_origem_progressiva"]}[Data]
+			in
+				Data
