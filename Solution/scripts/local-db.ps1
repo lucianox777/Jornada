@@ -54,7 +54,8 @@ function Invoke-SqlCmd {
     param([Parameter(Mandatory=$true)][string[]]$SqlCmdArgs)
     Push-Location $Root
     try {
-        & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I @SqlCmdArgs
+        # O baseline v3.70 usa diretivas :r relativas ao diretório /workspace.
+        & docker compose --env-file $EnvFile exec -T -w /workspace -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I @SqlCmdArgs
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd falhou ($LASTEXITCODE)." }
     } finally { Pop-Location }
 }
@@ -93,11 +94,11 @@ function Bootstrap {
     Invoke-SqlCmd -SqlCmdArgs @('-Q', "IF DB_ID(N'$db') IS NULL CREATE DATABASE [$db];")
     # Ponto único de instalação nova do SQL Server normativo. O consolidado v3.70
     # aplica todas as extensões operacionais e só promove o marcador após provar completude.
-    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', '/workspace/database/Jornada_Fase1_v3.70.sql')
-    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', '/workspace/database/Jornada_Seed_Dev.sql')
+    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/Jornada_Fase1_v3.70.sql')
+    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/Jornada_Seed_Dev.sql')
     # Reaplicação idempotente necessária em DEV para reservar CPFs históricos do seed.
-    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', '/workspace/database/migrations/20260907_Cpf_Ancora.sql')
-    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', '/workspace/database/migrations/20260910_Schema_Consolidation_370.sql')
+    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260907_Cpf_Ancora.sql')
+    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260910_Schema_Consolidation_370.sql')
 }
 
 switch ($Action) {
