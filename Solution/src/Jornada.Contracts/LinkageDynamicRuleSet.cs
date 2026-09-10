@@ -191,7 +191,7 @@ public sealed record LinkageDynamicRuleSet(
     {
         foreach (var parameter in parameters)
             canonical.Append("P\t").Append(parameter.Key).Append('\t')
-                .Append(parameter.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
+                .Append(parameter.Value.ToString("G29", System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
     }
 
     private static string Hash(StringBuilder canonical) =>
