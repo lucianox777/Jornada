@@ -57,12 +57,12 @@ public static class BlockingFeatureTemporalCatalog
 public sealed record BlockingProjectionKey(string Feature, string Value);
 
 /// <summary>
-/// Projeta chaves derivadas de blocking a partir dos campos canônicos da Gold.
+/// Projeta chaves derivadas de blocking a partir dos campos canônicos da Gold/Silver.
 /// Não decide identidade e reutiliza exatamente IdentityComparison.NormalizeText.
 /// </summary>
 public static class BlockingProjectionKeyProjector
 {
-    public const string MethodVersion = "BLOCKING_PROJECTION_KEY_PROJECTOR_V1";
+    public const string MethodVersion = "BLOCKING_PROJECTION_KEY_PROJECTOR_V2";
 
     public static IReadOnlyList<BlockingProjectionKey> Project(
         string? fullName,
@@ -74,6 +74,7 @@ public static class BlockingProjectionKeyProjector
         AddNameComponents(
             keys,
             fullName,
+            BlockingFeatureNames.FullName,
             BlockingFeatureNames.FirstName,
             BlockingFeatureNames.Surnames,
             BlockingFeatureNames.LastName);
@@ -81,6 +82,7 @@ public static class BlockingProjectionKeyProjector
         AddNameComponents(
             keys,
             motherName,
+            BlockingFeatureNames.MotherFullName,
             BlockingFeatureNames.MotherFirstName,
             BlockingFeatureNames.MotherSurnames,
             BlockingFeatureNames.MotherLastName);
@@ -104,6 +106,7 @@ public static class BlockingProjectionKeyProjector
     private static void AddNameComponents(
         HashSet<BlockingProjectionKey> keys,
         string? value,
+        string fullNameFeature,
         string firstNameFeature,
         string surnamesFeature,
         string lastNameFeature)
@@ -111,6 +114,8 @@ public static class BlockingProjectionKeyProjector
         var normalized = IdentityComparison.NormalizeText(value);
         if (normalized is null)
             return;
+
+        keys.Add(new BlockingProjectionKey(fullNameFeature, normalized));
 
         var tokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
