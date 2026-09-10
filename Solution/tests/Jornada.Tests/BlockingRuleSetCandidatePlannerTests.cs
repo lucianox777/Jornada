@@ -86,6 +86,7 @@ public sealed class BlockingRuleSetCandidatePlannerTests
 
         var observation = new IdentityObservation(
             Cpf: null,
+            CpfAusenteMotivo: "NAO_INFORMADO",
             NomeCompleto: "Maria da Silva Souza",
             DataNascimento: new DateOnly(1980, 5, 12),
             NomeMae: "Ana Lima");
@@ -111,6 +112,7 @@ public sealed class BlockingRuleSetCandidatePlannerTests
             Array.Empty<KeyValuePair<string, decimal>>());
         var observation = new IdentityObservation(
             Cpf: "12345678909",
+            CpfAusenteMotivo: null,
             NomeCompleto: "Maria Silva",
             DataNascimento: new DateOnly(1980, 5, 12),
             NomeMae: "Ana Lima");
@@ -130,6 +132,7 @@ public sealed class BlockingRuleSetCandidatePlannerTests
             Array.Empty<KeyValuePair<string, decimal>>());
         var observation = new IdentityObservation(
             Cpf: null,
+            CpfAusenteMotivo: "NAO_INFORMADO",
             NomeCompleto: "Maria Silva",
             DataNascimento: new DateOnly(1980, 5, 12),
             NomeMae: "Ana Lima");
