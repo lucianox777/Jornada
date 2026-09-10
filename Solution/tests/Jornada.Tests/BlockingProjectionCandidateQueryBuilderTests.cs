@@ -96,6 +96,29 @@ public sealed class BlockingProjectionCandidateQueryBuilderTests
         });
     }
 
+    [Test]
+    public void Build_ParameterOverflow_FailsWithoutTruncatingPassOrValues()
+    {
+        var pass = new BlockingCandidatePassLookup(
+            "many-values",
+            new[]
+            {
+                new BlockingCandidateClause(
+                    BlockingFeatureNames.Surnames,
+                    new[] { "A", "B", "C" })
+            });
+        using var command = new SqlCommand();
+
+        Assert.That(
+            () => BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(
+                command,
+                new[] { pass },
+                maxParameters: 4),
+            Throws.TypeOf<InvalidOperationException>());
+        Assert.That(command.Parameters, Is.Empty,
+            "Falha deve ocorrer antes de materializar consulta parcial.");
+    }
+
     private static int Count(string value, string fragment) =>
         value.Split(fragment, StringSplitOptions.None).Length - 1;
 }
