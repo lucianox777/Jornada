@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MANIFEST="${JORNADA_MIGRATION_MANIFEST:-$ROOT/database/migrations/manifest.txt}"
 DB="${JORNADA_SQL_DATABASE:-JornadaLocal}"
 SQLCMD_BIN="${SQLCMD_BIN:-sqlcmd}"
-TARGET_SCHEMA="3.70"
+TARGET_SCHEMA="3.69"
 
 [[ -f "$MANIFEST" ]] || { echo "ERRO: manifesto de migrações ausente: $MANIFEST" >&2; exit 2; }
 command -v sha256sum >/dev/null 2>&1 || { echo "ERRO: sha256sum não encontrado" >&2; exit 2; }
