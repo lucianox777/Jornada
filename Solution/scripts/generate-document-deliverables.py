@@ -36,7 +36,7 @@ def add_page_number(section, size: float = 8.5) -> None:
     field = OxmlElement("w:fldSimple")
     field.set(qn("w:instr"), "PAGE")
     footer._p.append(field)
-    set_font(section._document.styles["Footer"], size=size)
+    set_font(footer.style, size=size)
 
 
 def make_reference(path: Path, landscape: bool = False) -> None:
