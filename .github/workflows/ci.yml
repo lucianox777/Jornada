@@ -327,14 +327,14 @@ jobs:
         env:
           ACCEPT_EULA: Y
           MSSQL_PID: Developer
-          MSSQL_SA_PASSWORD: 'Jornada_Test_2026!Sql'
+          MSSQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!Sql'
         ports:
           - 1433:1433
         options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -Q 'SELECT 1' || exit 1"
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -Q 'SELECT 1' || exit 1"
           --health-interval 10s --health-timeout 5s --health-retries 20
     env:
-      JORNADA_TEST_SQL_CONNECTION: 'Server=localhost,1433;Database=JornadaTest;User Id=sa;Password=Jornada_Test_2026!Sql;TrustServerCertificate=true;Encrypt=false'
+      JORNADA_TEST_SQL_CONNECTION: 'Server=localhost,1433;Database=JornadaTest;User Id=sa;Password=Jornada_${{ github.run_id }}!Sql;TrustServerCertificate=true;Encrypt=false'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -355,14 +355,14 @@ jobs:
         run: |
           CID=$(docker ps -q --filter publish=1433 | head -1)
           test -n "$CID"
-          docker exec "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -Q "IF DB_ID('JornadaTest') IS NULL CREATE DATABASE JornadaTest;"
+          docker exec "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -Q "IF DB_ID('JornadaTest') IS NULL CREATE DATABASE JornadaTest;"
       - name: SQL runtime semantic smoke
         run: |
           CID=$(docker ps -q --filter publish=1433 | head -1)
           test -n "$CID"
-          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -d JornadaTest -i /dev/stdin < database/Jornada_Fase1.sql
-          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -d JornadaTest -i /dev/stdin < database/Jornada_Seed_Dev.sql
-          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Test_2026!Sql' -C -b -d JornadaTest -i /dev/stdin < database/Jornada_Runtime_Smoke.sql
+          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -b -d JornadaTest -i /dev/stdin < database/Jornada_Fase1.sql
+          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -b -d JornadaTest -i /dev/stdin < database/Jornada_Seed_Dev.sql
+          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!Sql' -C -b -d JornadaTest -i /dev/stdin < database/Jornada_Runtime_Smoke.sql
       - name: Integration tests must execute without skips
         run: |
           mkdir -p .local/test-evidence/integration
@@ -410,14 +410,14 @@ jobs:
         env:
           ACCEPT_EULA: Y
           MSSQL_PID: Developer
-          MSSQL_SA_PASSWORD: 'Jornada_Harness_2026!Sql'
+          MSSQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!HarnessSql'
         ports:
           - 1433:1433
         options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Harness_2026!Sql' -C -Q 'SELECT 1' || exit 1"
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -Q 'SELECT 1' || exit 1"
           --health-interval 10s --health-timeout 5s --health-retries 20
     env:
-      ConnectionStrings__Jornada: 'Server=localhost,1433;Database=JornadaHarness;User Id=sa;Password=Jornada_Harness_2026!Sql;TrustServerCertificate=true;Encrypt=false'
+      ConnectionStrings__Jornada: 'Server=localhost,1433;Database=JornadaHarness;User Id=sa;Password=Jornada_${{ github.run_id }}!HarnessSql;TrustServerCertificate=true;Encrypt=false'
       PipelineCoordination__HeartbeatSeconds: '2'
       PipelineCoordination__ExclusiveIntentTimeoutSeconds: '5'
       LinkageParameters__RunOnce: 'true'
@@ -445,16 +445,18 @@ jobs:
         run: |
           CID=$(docker ps -q --filter publish=1433 | head -1)
           test -n "$CID"
-          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Harness_2026!Sql' -C -b -Q "CREATE DATABASE JornadaHarness;"
-          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Harness_2026!Sql' -C -b -d JornadaHarness -i /dev/stdin < database/Jornada_Fase1.sql
-          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Harness_2026!Sql' -C -b -d JornadaHarness -i /dev/stdin < database/Jornada_Seed_Dev.sql
-          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Harness_2026!Sql' -C -b -d JornadaHarness -v SCALE_PEOPLE=5000 SCALE_PAIRED=1500 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 -i /dev/stdin < database/Jornada_Dev_SyntheticScale.sql
+          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -Q "CREATE DATABASE JornadaHarness;"
+          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i /dev/stdin < database/Jornada_Fase1.sql
+          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i /dev/stdin < database/Jornada_Seed_Dev.sql
+          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i /dev/stdin < database/migrations/20260910_Linkage_Blocking_Chave.sql
+          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i /dev/stdin < database/migrations/20260910_Linkage_RuleSet_Passes.sql
+          docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -v SCALE_PEOPLE=5000 SCALE_PAIRED=1500 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 -i /dev/stdin < database/Jornada_Dev_SyntheticScale.sql
       - name: Generate, validate and activate model
         run: |
           export LinkageParameters__Operation=GENERATE_DRAFT
           dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
           CID=$(docker ps -q --filter publish=1433 | head -1)
-          MODEL_VERSION=$(docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_Harness_2026!Sql' -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='RASCUNHO' ORDER BY versao DESC;" | tr -d '\r' | xargs)
+          MODEL_VERSION=$(docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='RASCUNHO' ORDER BY versao DESC;" | tr -d '\r' | xargs)
           test -n "$MODEL_VERSION"
           export LinkageParameters__TargetVersion="$MODEL_VERSION"
           export LinkageParameters__Operation=VALIDATE
@@ -470,7 +472,7 @@ jobs:
             --requested-by CI_HARNESS --reason ci-harness-evidence
       - name: Run read-only linkage evaluation smoke
         env:
-          JORNADA_EVALUATION_SQL_PASSWORD: 'Jornada_Harness_2026!Sql'
+          JORNADA_EVALUATION_SQL_PASSWORD: 'Jornada_${{ github.run_id }}!HarnessSql'
           JORNADA_EVALUATION_DATABASE: 'JornadaHarness'
           JORNADA_EVALUATION_SCALE_PEOPLE: '5000'
           JORNADA_EVALUATION_SCALE_SEED: '355'
