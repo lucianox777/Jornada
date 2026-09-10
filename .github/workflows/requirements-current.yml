@@ -1,0 +1,28 @@
+name: jornada-requirements-current
+
+on:
+  pull_request:
+    paths:
+      - 'Documentos/Requisitos/**'
+      - 'Solution/scripts/requirements-current-gate.py'
+      - '.github/workflows/requirements-current.yml'
+  push:
+    branches: [ master ]
+    paths:
+      - 'Documentos/Requisitos/**'
+      - 'Solution/scripts/requirements-current-gate.py'
+      - '.github/workflows/requirements-current.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  requirements-current:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Validate current normative requirements map
+        working-directory: Solution
+        run: python3 scripts/requirements-current-gate.py
