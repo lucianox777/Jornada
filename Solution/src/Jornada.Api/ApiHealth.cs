@@ -31,7 +31,7 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
                 DECLARE @solution NVARCHAR(32)=CONVERT(NVARCHAR(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));
                 DECLARE @migrations INT = CASE WHEN OBJECT_ID(N'jornada.schema_migration',N'U') IS NULL THEN 0 ELSE (SELECT COUNT(*) FROM jornada.schema_migration) END;
                 SELECT CASE WHEN
-                    @base=N'3.62' AND @solution=N'3.70'
+                    @base=N'3.62' AND @solution=N'3.69'
                     AND @migrations=11
                     AND OBJECT_ID(N'ref.gestor',N'U') IS NOT NULL
                     AND OBJECT_ID(N'ingestao.entrega',N'U') IS NOT NULL
