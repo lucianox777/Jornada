@@ -30,6 +30,9 @@ public sealed class PostgreSqlHistoricalAliasBlockingTests
         await CleanupAsync();
         try
         {
+            var normalizedHistoricalName = IdentityComparison.NormalizeText(HistoricalName)
+                ?? throw new InvalidOperationException("O alias histórico de teste deve produzir normalização canônica não nula.");
+
             await using (var connection = new NpgsqlConnection(connectionString))
             {
                 await connection.OpenAsync();
@@ -57,7 +60,7 @@ public sealed class PostgreSqlHistoricalAliasBlockingTests
                 command.Parameters.AddWithValue("mother", MotherName);
                 command.Parameters.AddWithValue("normalization", IdentityComparison.NormalizationVersion);
                 command.Parameters.AddWithValue("name_feature", BlockingFeatureNames.FullName);
-                command.Parameters.AddWithValue("historical_name", IdentityComparison.NormalizeText(HistoricalName));
+                command.Parameters.AddWithValue("historical_name", normalizedHistoricalName);
                 command.Parameters.AddWithValue("birth_feature", BlockingFeatureNames.BirthYear);
                 command.Parameters.AddWithValue("birth_year", Birth.Year.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 await command.ExecuteNonQueryAsync();
