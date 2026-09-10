@@ -76,7 +76,11 @@ try {
     }
     function Wait-Processed([string]$id,[string]$outFile) {
         for ($i=0; $i -lt 120; $i++) {
-            & curl.exe -sS -o $outFile "$ApiUrl/api/v1/ingestao/entregas/$id" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $accessKey" | Out-Null
+            $code = (& curl.exe -sS -o $outFile -w '%{http_code}' "$ApiUrl/api/v1/ingestao/entregas/$id" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $accessKey" | Out-String).Trim()
+            if ($code -ne '200') {
+                $body = if (Test-Path $outFile) { Get-Content -Raw -Encoding UTF8 $outFile } else { '<sem corpo>' }
+                throw "Consulta de status da Entrega $id retornou HTTP $code. Corpo: $body"
+            }
             $status = (Read-Json $outFile).status
             if ($status -eq 'PROCESSADA') { return }
             if ($status -in @('REJEITADA','QUARENTENA')) { throw "Entrega $id terminou $status." }

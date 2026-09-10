@@ -274,26 +274,55 @@ internal sealed class SqlIngestionService(IOperationalSqlAdapter connections, IB
     public async Task<IngestionStatusResponse?> GetStatusAsync(AccessContext context, Guid entregaId, CancellationToken ct)
     {
         await using var connection = await connections.OpenAsync(ct);
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT e.entrega_id,e.status,e.recebido_em,e.ultima_atualizacao,
-                   (SELECT TOP(1) l.erro_codigo FROM ingestao.lote l
-                    WHERE l.entrega_id=e.entrega_id AND l.erro_codigo IS NOT NULL
-                    ORDER BY l.atualizado_em DESC,l.lote_seq DESC) erro
-            FROM ingestao.entrega e
-            JOIN ref.gestor g ON g.gestor_id=e.gestor_id
-            WHERE e.entrega_id=@entrega_id AND g.codigo=@gestor;
-            """;
-        command.Parameters.AddWithValue("@entrega_id", entregaId);
-        command.Parameters.Add(new SqlParameter("@gestor", SqlDbType.NVarChar, 30) { Value = context.GestorCodigo });
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
+
+        Guid resolvedEntregaId;
+        string status;
+        DateTimeOffset recebidoEm;
+        DateTimeOffset ultimaAtualizacao;
+
+        // O Processor grava lote -> entrega. A consulta antiga lia entrega -> lote em uma única
+        // instrução e podia formar um ciclo de locks durante a publicação final. Mantemos as leituras
+        // em instruções independentes para liberar o shared lock da Entrega antes de tocar Lote.
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                SELECT e.entrega_id,e.status,e.recebido_em,e.ultima_atualizacao
+                FROM ingestao.entrega e
+                JOIN ref.gestor g ON g.gestor_id=e.gestor_id
+                WHERE e.entrega_id=@entrega_id AND g.codigo=@gestor;
+                """;
+            command.Parameters.AddWithValue("@entrega_id", entregaId);
+            command.Parameters.Add(new SqlParameter("@gestor", SqlDbType.NVarChar, 30) { Value = context.GestorCodigo });
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct)) return null;
+            resolvedEntregaId = reader.GetGuid(0);
+            status = reader.GetString(1);
+            recebidoEm = reader.GetDateTimeOffset(2);
+            ultimaAtualizacao = reader.GetDateTimeOffset(3);
+        }
+
+        // Preserva a semântica existente de Erro sem manter locks simultâneos nas duas tabelas.
+        string? erro = null;
+        await using (var errorCommand = connection.CreateCommand())
+        {
+            errorCommand.CommandText = """
+                SELECT TOP(1) l.erro_codigo
+                FROM ingestao.lote l
+                WHERE l.entrega_id=@entrega_id AND l.erro_codigo IS NOT NULL
+                ORDER BY l.atualizado_em DESC,l.lote_seq DESC;
+                """;
+            errorCommand.Parameters.AddWithValue("@entrega_id", resolvedEntregaId);
+            var value = await errorCommand.ExecuteScalarAsync(ct);
+            if (value is not null && value is not DBNull)
+                erro = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         return new IngestionStatusResponse(
-            reader.GetGuid(0),
-            reader.GetString(1),
-            reader.GetDateTimeOffset(2),
-            reader.GetDateTimeOffset(3),
-            reader.NullableString(4));
+            resolvedEntregaId,
+            status,
+            recebidoEm,
+            ultimaAtualizacao,
+            erro);
     }
 
     private static async Task<ResolvedIngestionContext> ResolveContextAsync(
