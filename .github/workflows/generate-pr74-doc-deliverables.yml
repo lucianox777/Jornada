@@ -1,0 +1,89 @@
+name: Generate PR74 document deliverables
+
+on:
+  push:
+    branches:
+      - fix/readiness-technical-gate-370
+    paths:
+      - .github/workflows/generate-pr74-doc-deliverables.yml
+      - Solution/scripts/generate-document-deliverables.sh
+      - Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.md
+      - Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.md
+      - Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.md
+      - Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.md
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/readiness-technical-gate-370
+          fetch-depth: 0
+
+      - name: Install document toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc libreoffice plantuml default-jre-headless poppler-utils unzip
+
+      - name: Generate and validate DOCX/PDF
+        run: |
+          chmod +x Solution/scripts/generate-document-deliverables.sh
+          Solution/scripts/generate-document-deliverables.sh "$GITHUB_WORKSPACE"
+
+      - name: Render PDF pages for QA artifact
+        run: |
+          set -euo pipefail
+          mkdir -p qa
+          while IFS= read -r pdf; do
+            stem="$(basename "${pdf%.pdf}")"
+            mkdir -p "qa/$stem"
+            pdftoppm -png -r 140 "$pdf" "qa/$stem/page" >/dev/null 2>&1
+          done <<'EOF'
+          Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.pdf
+          Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.pdf
+          Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.pdf
+          Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.pdf
+          EOF
+
+      - name: Upload generated files and QA pages
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr74-doc-deliverables-qa
+          if-no-files-found: error
+          path: |
+            Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.docx
+            Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.pdf
+            Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.docx
+            Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.pdf
+            Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.docx
+            Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.pdf
+            Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.docx
+            Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.pdf
+            qa/
+
+      - name: Commit institutional deliverables to PR branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.docx \
+            Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.pdf \
+            Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.docx \
+            Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.pdf \
+            Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.docx \
+            Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.pdf \
+            Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.docx \
+            Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.pdf
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteração binária a publicar."
+          else
+            git commit -m "docs(entrega): publicar DOCX/PDF v1.1 e modelo físico v1.40"
+            git push origin HEAD:fix/readiness-technical-gate-370
+          fi
