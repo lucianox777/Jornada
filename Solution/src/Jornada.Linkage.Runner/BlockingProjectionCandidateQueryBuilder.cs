@@ -12,17 +12,29 @@ namespace Jornada.Linkage.Runner;
 /// </summary>
 public static class BlockingProjectionCandidateQueryBuilder
 {
-    public const string MethodVersion = "BLOCKING_PROJECTION_CANDIDATE_QUERY_V1";
+    public const string MethodVersion = "BLOCKING_PROJECTION_CANDIDATE_QUERY_V2";
+    public const int DefaultMaxParameters = 1800;
 
     public static string BuildCandidateUuidQuery(
         DbCommand command,
-        IReadOnlyList<BlockingCandidatePassLookup> passes)
+        IReadOnlyList<BlockingCandidatePassLookup> passes,
+        int maxParameters = DefaultMaxParameters)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(passes);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxParameters);
 
         if (passes.Count == 0)
             return "SELECT pessoa_uuid FROM identidade.blocking_chave WHERE 1=0";
+
+        var requiredParameters = 1 + passes.Sum(static pass =>
+            pass.Clauses.Sum(static clause => 1 + clause.Values.Count));
+        if (requiredParameters > maxParameters)
+        {
+            throw new InvalidOperationException(
+                $"Plano de blocking exige {requiredParameters} parâmetros, acima do limite seguro {maxParameters}; " +
+                "o run foi recusado sem truncar valores ou passes.");
+        }
 
         Add(command, "@blocking_normalization", DbType.String, IdentityComparison.NormalizationVersion, 80);
         var passQueries = new List<string>(passes.Count);
