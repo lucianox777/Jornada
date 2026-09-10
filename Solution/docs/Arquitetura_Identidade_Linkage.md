@@ -3,7 +3,7 @@
 **Status:** normativa para a V1 ainda não publicada.  
 **Princípio de versionamento:** como a Jornada ainda não foi publicada, este documento descreve diretamente a arquitetura vigente. Não há necessidade de manter ADRs como registro de decisões históricas internas que ainda podem ser consolidadas antes da primeira publicação.
 
-Este documento incorpora as decisões anteriormente distribuídas entre documentos ADR de identidade progressiva, âncora CPF, cutover do Processor, composição reversível e Linkage multievidência/Fellegi–Sunter. Em caso de divergência com textos históricos, prevalecem os requisitos normativos, o código validado na `master` e esta especificação consolidada.
+Este documento incorpora as decisões anteriormente distribuídas entre documentos ADR de identidade progressiva, âncora CPF, cutover do Processor, composição reversível e Linkage multievidência/Fellegi–Sunter. Em caso de divergência, **prevalecem os requisitos e a especificação normativa vigente**. O código validado na `master` é evidência de implementação, não fonte normativa autônoma; divergências da implementação devem ser tratadas como defeito ou por alteração formal da norma aplicável.
 
 ## 1. Identidade progressiva
 
@@ -70,7 +70,7 @@ Evidências candidatas incluem nome, nome da mãe, nascimento e seus componentes
 
 O valor original nunca é alterado pela normalização de Linkage. Qualidade é metadado separado, com estados mínimos `VALIDA`, `SUSPEITA`, `SENTINELA_PROVAVEL`, `IMPOSSIVEL`, `AUSENTE` e `INCONSISTENTE`.
 
-Ausência ou má qualidade nunca elimina a observação nem autoriza preenchimento sintético. Valores ausentes/impossíveis/sentinelas são neutros no score salvo política calibrada específica. Contradições permanecem preservadas e não são corrigidas silenciosamente.
+Ausência ou má qualidade nunca elimina a observação nem autoriza preenchimento sintético. Valores ausentes/impossíveis/sentinelas são neutros no score salvo política calibrada específica. Contradições permanecem preservadas e não são corrigidas silenciosamente. Em particular, **nome da mãe pode estar ausente**; essa ausência deve ser representada explicitamente no contrato e não pode causar rejeição da Pessoa.
 
 Nome e nome da mãe usam normalização versionada. A normalização pode remover diacríticos, pontuação irrelevante, espaços redundantes e partículas nominais isoladas para comparação, preservando o original.
 
@@ -102,7 +102,19 @@ Dados oficiais agregados do IBGE podem enriquecer atributos semanticamente compa
 
 Antes de materializar novo snapshot IBGE, a rotina verifica validadores baratos disponíveis, preferencialmente ETag/Last-Modified/Content-Length, e mantém fingerprint/hash do conteúdo incorporado. Igualdade de tamanho é sinal de otimização, não prova criptográfica de identidade.
 
-## 10. BI, segurança e governança
+## 10. Bancos e materialização de schema
+
+A estratégia vigente distingue papéis, sem tratar providers como equivalentes por omissão:
+
+- **SQL Server** é o baseline canônico e o banco operacional de referência para a Fase 1 e para o DDL entregue à PRODAM;
+- **PostgreSQL** é provider operacional paralelo suportado pelo código, inclusive para fluxos do Calibrador/Linkage, e deve manter equivalência funcional nos pontos cobertos; sua presença não substitui o baseline SQL Server nem autoriza divergência silenciosa;
+- **Fabric** é camada analítica/integração de dados e não substitui o banco operacional do núcleo transacional da Jornada.
+
+Instalação nova usa `database/Jornada_Fase1.sql` como baseline funcional e, obrigatoriamente, o manifesto `database/migrations/manifest.txt` por meio do runner versionado. O runner mantém `jornada.schema_migration`, ordem explícita e SHA-256 de cada migração. Migração já registrada com conteúdo diferente falha fechada. O marcador `Jornada.SolutionSchema` só pode avançar depois de todas as migrações obrigatórias serem confirmadas.
+
+O `/health/ready` deve validar o marcador de schema, a completude do manifesto aplicado e os objetos operacionais essenciais atuais. Readiness não pode declarar saudável uma instalação que possua apenas o baseline antigo.
+
+## 11. BI, segurança e governança
 
 O BI deve distinguir identidade de origem de referência canônica e evitar dupla contagem de Pessoas. Indicadores de qualidade devem ser segmentáveis por Gestor, Sistema, tipo de origem e data de referência, sem expor identificadores pessoais em claro apenas para produzir métricas.
 
@@ -110,12 +122,12 @@ Dados sensíveis seguem minimização, finalidade e controles de acesso compatí
 
 Não existe módulo obrigatório de Regularização Cadastral nem decisão humana caso a caso como requisito do fluxo normal.
 
-## 11. Gates de ativação
+## 12. Gates de ativação
 
 CI, testes de banco, DDL e contratos são obrigatórios para integração técnica, mas não autorizam por si só ativação probabilística real. A ativação exige corpus representativo, rótulos independentes, recall, calibração, falsos vínculos, cobertura, subgrupos, variância, escala e aprovação institucional aplicável.
 
 A arquitetura deve falhar fechada quando não puder provar completude, versão, autoridade ou consistência. Nenhum booleano, fingerprint, hash ou status isolado substitui essas provas.
 
-## 12. UML
+## 13. UML
 
 Os diagramas normativos correspondentes ficam em `Solution/docs/uml/` e `Solution/docs/diagrams/`, conforme `Solution/docs/UML_Indice.md`. O padrão de documentação gráfica é UML com fontes PlantUML versionadas no repositório.
