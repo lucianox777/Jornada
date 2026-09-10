@@ -1,0 +1,144 @@
+name: pr74-consolidate-requirements
+
+on:
+  push:
+    branches:
+      - fix/readiness-technical-gate-370
+    paths:
+      - .github/workflows/pr74-consolidate-requirements.yml
+      - Solution/scripts/consolidate-requirements.py
+      - Solution/scripts/render-consolidated-requirements.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  consolidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: fix/readiness-technical-gate-370
+          fetch-depth: 0
+
+      - name: Install document toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc libreoffice-writer poppler-utils python3-docx python3-matplotlib
+
+      - name: Decouple frozen v4.05 gate from mutable RELEASE_INFO
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('Solution/scripts/technical-closure-gate-v405.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('RELEASE_INFO = ROOT.parent / "RELEASE_INFO.txt"\n', '')
+          pattern = re.compile(
+              r'\n    release_info = RELEASE_INFO\.read_text\(encoding="utf-8"\)\n'
+              r'    require\(release_info, \[\n.*?\n    \], "RELEASE_INFO corrente"\)\n',
+              re.DOTALL,
+          )
+          text, count = pattern.subn(
+              '\n    # RELEASE_INFO é metadado mutável da release corrente e não pertence à bateria\n'
+              '    # histórica congelada v4.05. A coerência da fronteira v4.05 -> v5.00 é\n'
+              '    # validada por technical-closure-gate.py.\n',
+              text,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit('expected exactly one current RELEASE_INFO assertion block in v405 gate')
+          if 'solution_engenharia=v4.05' in text or 'schema_solution=v3.69' in text or 'source_git_tag=jornada-solution-v4.05' in text:
+              raise SystemExit('v405 gate still pins mutable current release metadata')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Consolidate and render institutional requirements
+        run: |
+          python3 Solution/scripts/consolidate-requirements.py --root "$GITHUB_WORKSPACE"
+          python3 Solution/scripts/render-consolidated-requirements.py --root "$GITHUB_WORKSPACE"
+
+      - name: Validate release boundary and technical closure
+        run: python3 Solution/scripts/technical-closure-gate.py
+
+      - name: Structural checks
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile
+          from docx import Document
+
+          req = Path('Documentos/Requisitos')
+          stems = [
+              '00_Indice_Mestre_Requisitos_Jornada_v1.1',
+              '02_Requisitos_Funcionais_Jornada_v1.1',
+              '03_Requisitos_Nao_Funcionais_Jornada_v1.1',
+              '05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1',
+          ]
+          for stem in stems:
+              docx = req / f'{stem}.docx'
+              pdf = req / f'{stem}.pdf'
+              with zipfile.ZipFile(docx) as zf:
+                  bad = zf.testzip()
+                  if bad:
+                      raise SystemExit(f'{docx}: corrupt OOXML entry {bad}')
+              Document(docx)
+              if pdf.stat().st_size < 1000:
+                  raise SystemExit(f'{pdf}: invalid PDF')
+
+          matrix = Document(req / '05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.docx')
+          if len(matrix.tables) < 4:
+              raise SystemExit(f'expected multiple real tables in consolidated matrix; got {len(matrix.tables)}')
+          print('STRUCTURAL QA: OK')
+          PY
+
+      - name: Render PDFs for visual QA
+        run: |
+          mkdir -p qa
+          for pdf in \
+            Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.pdf \
+            Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.pdf \
+            Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.pdf \
+            Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.pdf; do
+            stem="$(basename "$pdf" .pdf)"
+            mkdir -p "qa/$stem"
+            pdfinfo "$pdf" > "qa/$stem/pdfinfo.txt"
+            pdftoppm -png -r 150 "$pdf" "qa/$stem/page" >/dev/null 2>&1
+          done
+
+      - name: Upload visual QA
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr74-consolidated-requirements-qa
+          path: qa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit generated consolidation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            Solution/scripts/technical-closure-gate-v405.py \
+            Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.md \
+            Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.docx \
+            Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.pdf \
+            Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.md \
+            Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.docx \
+            Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.pdf \
+            Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.md \
+            Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.docx \
+            Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.pdf \
+            Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.md \
+            Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.docx \
+            Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.pdf \
+            Documentos/Requisitos/Historico
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+          else
+            git commit -m "docs(requisitos): consolidar baseline institucional v1.1"
+            git push origin HEAD:fix/readiness-technical-gate-370
+          fi
