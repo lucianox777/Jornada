@@ -1,0 +1,33 @@
+name: jornada-schema-inventory
+
+on:
+  pull_request:
+    paths:
+      - 'Solution/database/**'
+      - 'Solution/scripts/schema-inventory.py'
+      - '.github/workflows/schema-inventory.yml'
+  push:
+    branches: [ master ]
+    paths:
+      - 'Solution/database/**'
+      - 'Solution/scripts/schema-inventory.py'
+      - '.github/workflows/schema-inventory.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Inventory physical schema
+        working-directory: Solution
+        run: python3 scripts/schema-inventory.py | tee schema-inventory.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: schema-inventory
+          path: Solution/schema-inventory.json
+          if-no-files-found: error
