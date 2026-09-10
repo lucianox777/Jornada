@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "status": "PENDENTE",
   "baseNormativa": "3.62",
-  "solutionSchema": "3.69",
+  "solutionSchema": "3.70",
   "note": "Inventário criptográfico dos schemas contratuais. APROVADO exige aprovação individual e evidência real; hashes não equivalem a assinatura institucional.",
   "contracts": [
     {
@@ -157,13 +157,13 @@
     },
     {
       "path": "config/contracts/registros/CPO1/v1/pessoa.schema.json",
-      "sha256": "06ae0e7812be6666b3b1630547b057b48c0bfa0777d7cfc525f970c6b7e036c5",
+      "sha256": "06ae0e7812e69c51c980b507ce61853df08ff3888b27ee9723896740a81911",
       "status": "PENDENTE",
       "approval": null
     },
     {
       "path": "config/contracts/registros/CPO1/v1/registro.json",
-      "sha256": "4654cfbb7e1f1f559be262d7163b9ac80da38bfc575f94fdbbc92bd0c39b611b",
+      "sha256": "4654cfbb1f1f559be262d7163b9ac80da38bfc575f94fdbbc92bd0c39b611b",
       "status": "PENDENTE",
       "approval": null
     },
