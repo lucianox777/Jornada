@@ -1,4 +1,4 @@
-# Matriz de Rastreabilidade - Jornada do Cidadão - Fase 1 de Requisitos - Jornada do Cidadão - Fase 1
+# Matriz de Rastreabilidade - Jornada do Cidadão - Fase 1
 
 **Versão do documento:** 1.1  
 **Data:** 10/09/2026  
