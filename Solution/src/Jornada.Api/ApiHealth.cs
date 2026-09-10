@@ -29,8 +29,10 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
             const string readinessSql = """
                 DECLARE @base NVARCHAR(32)=CONVERT(NVARCHAR(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'));
                 DECLARE @solution NVARCHAR(32)=CONVERT(NVARCHAR(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));
+                DECLARE @migrations INT = CASE WHEN OBJECT_ID(N'jornada.schema_migration',N'U') IS NULL THEN 0 ELSE (SELECT COUNT(*) FROM jornada.schema_migration) END;
                 SELECT CASE WHEN
-                    @base=N'3.62' AND @solution=N'3.69'
+                    @base=N'3.62' AND @solution=N'3.70'
+                    AND @migrations=11
                     AND OBJECT_ID(N'ref.gestor',N'U') IS NOT NULL
                     AND OBJECT_ID(N'ingestao.entrega',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.pessoa',N'U') IS NOT NULL
@@ -39,6 +41,16 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
                     AND OBJECT_ID(N'identidade.sp_recompor_gold_pessoa',N'P') IS NOT NULL
                     AND OBJECT_ID(N'ref.fn_email_canonico_v2',N'FN') IS NOT NULL
                     AND OBJECT_ID(N'ref.fn_telefone_br_canonico_v2',N'FN') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.cpf_ancora',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.pessoa_origem_progressiva',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.composicao_plano',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.composicao_aplicacao',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.composicao_publicacao',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.composicao_recomposicao_plano',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.blocking_chave',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.linkage_ruleset',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.linkage_ruleset_passe',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.linkage_ruleset_passe_campo',N'U') IS NOT NULL
                 THEN 1 ELSE 0 END;
                 """;
             await using var command = new SqlCommand(readinessSql, connection) { CommandTimeout = 5 };
