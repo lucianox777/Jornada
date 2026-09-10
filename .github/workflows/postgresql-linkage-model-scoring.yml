@@ -76,7 +76,7 @@ jobs:
             CID=$(docker ps -q --filter publish=5432 | head -1)
             test -n "$CID"
             for pass in 1 2; do
-              for core in Jornada_Resultado_Core Jornada_Ingestion_Processor_Core Jornada_Processor_Persistence_Core Jornada_Linkage_Model_Core Jornada_Linkage_RuleSet; do
+              for core in Jornada_Resultado_Core Jornada_Ingestion_Processor_Core Jornada_Processor_Persistence_Core Jornada_Linkage_Model_Core Jornada_Linkage_RuleSet_Passes; do
                 echo "Installing $core (pass $pass)"
                 docker exec -i "$CID" psql -X -v ON_ERROR_STOP=1 -v VERBOSITY=verbose --echo-errors --single-transaction -U jornada -d JornadaPgLinkageTest < "database/postgresql/$core.sql"
               done
