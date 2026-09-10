@@ -41,11 +41,12 @@ internal static class BlockingProjectionPersistence
         string? currentName;
         string? currentMother;
         DateOnly currentBirth;
+        DateTimeOffset currentAsOf;
 
         await using (var current = connection.CreateCommand())
         {
             current.Transaction = tx;
-            current.CommandText = "SELECT nome_completo,nome_mae,data_nascimento FROM gold.pessoa WHERE pessoa_uuid=@uuid;";
+            current.CommandText = "SELECT nome_completo,nome_mae,data_nascimento,atualizado_em FROM gold.pessoa WHERE pessoa_uuid=@uuid;";
             current.Parameters.AddWithValue("@uuid", pessoaUuid);
             await using var reader = await current.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct))
@@ -53,6 +54,7 @@ internal static class BlockingProjectionPersistence
             currentName = reader.GetString(0);
             currentMother = reader.GetString(1);
             currentBirth = DateOnly.FromDateTime(reader.GetDateTime(2));
+            currentAsOf = reader.GetDateTimeOffset(3);
         }
 
         var observations = new List<BlockingNameObservation>();
@@ -65,7 +67,7 @@ internal static class BlockingProjectionPersistence
                 JOIN identidade.v_vinculo_corrente vc
                   ON vc.pessoa_observacao_id=po.pessoa_observacao_id
                 WHERE vc.pessoa_uuid=@uuid
-                  AND vc.status IN('RESOLVIDO','VINCULADO','CORROBORADO')
+                  AND vc.status='RESOLVIDO'
                 ORDER BY po.source_as_of,po.pessoa_observacao_id;
                 """;
             history.Parameters.AddWithValue("@uuid", pessoaUuid);
@@ -79,7 +81,7 @@ internal static class BlockingProjectionPersistence
             }
         }
 
-        return BuildSnapshot(currentName, currentMother, currentBirth, observations);
+        return BuildSnapshot(currentName, currentMother, currentBirth, currentAsOf, observations);
     }
 
     private static async Task<BlockingProjectionSnapshot> LoadPostgreSqlSnapshotAsync(
@@ -91,11 +93,12 @@ internal static class BlockingProjectionPersistence
         string? currentName;
         string? currentMother;
         DateOnly currentBirth;
+        DateTimeOffset currentAsOf;
 
         await using (var current = connection.CreateCommand())
         {
             current.Transaction = tx;
-            current.CommandText = "SELECT nome_completo,nome_mae,data_nascimento FROM gold.pessoa WHERE pessoa_uuid=@uuid;";
+            current.CommandText = "SELECT nome_completo,nome_mae,data_nascimento,atualizado_em FROM gold.pessoa WHERE pessoa_uuid=@uuid;";
             Add(current, "@uuid", DbType.Guid, pessoaUuid);
             await using var reader = await current.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct))
@@ -103,6 +106,7 @@ internal static class BlockingProjectionPersistence
             currentName = reader.GetString(0);
             currentMother = reader.GetString(1);
             currentBirth = reader.GetFieldValue<DateOnly>(2);
+            currentAsOf = reader.GetFieldValue<DateTimeOffset>(3);
         }
 
         var observations = new List<BlockingNameObservation>();
@@ -115,7 +119,7 @@ internal static class BlockingProjectionPersistence
                 JOIN identidade.v_vinculo_corrente vc
                   ON vc.pessoa_observacao_id=po.pessoa_observacao_id
                 WHERE vc.pessoa_uuid=@uuid
-                  AND vc.status IN('RESOLVIDO','VINCULADO','CORROBORADO')
+                  AND vc.status='RESOLVIDO'
                 ORDER BY po.source_as_of,po.pessoa_observacao_id;
                 """;
             Add(history, "@uuid", DbType.Guid, pessoaUuid);
@@ -129,13 +133,14 @@ internal static class BlockingProjectionPersistence
             }
         }
 
-        return BuildSnapshot(currentName, currentMother, currentBirth, observations);
+        return BuildSnapshot(currentName, currentMother, currentBirth, currentAsOf, observations);
     }
 
     private static BlockingProjectionSnapshot BuildSnapshot(
         string? currentName,
         string? currentMother,
         DateOnly currentBirth,
+        DateTimeOffset currentAsOf,
         IReadOnlyList<BlockingNameObservation> observations)
     {
         var currentKeys = BlockingProjectionKeyProjector.Project(currentName, currentMother, currentBirth);
@@ -145,11 +150,11 @@ internal static class BlockingProjectionPersistence
 
         var stable = currentKeys
             .Where(static key => BlockingFeatureTemporalCatalog.Get(key.Feature) == BlockingFeatureTemporalSemantics.StableIdentityDatum)
-            .Select(static key => new BlockingProjectionRow(
+            .Select(key => new BlockingProjectionRow(
                 key.Feature,
                 key.Value,
                 "STABLE_IDENTITY_DATUM",
-                DateTimeOffset.UnixEpoch,
+                currentAsOf,
                 null))
             .ToArray();
 
@@ -167,11 +172,10 @@ internal static class BlockingProjectionPersistence
             }
         }
 
-        // A Gold corrente deve sempre aparecer mesmo quando o histórico Silver estiver incompleto.
         foreach (var key in currentAliases)
         {
             if (!aliases.ContainsKey(key))
-                aliases.Add(key, (DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+                aliases.Add(key, (currentAsOf, currentAsOf));
         }
 
         var aliasRows = aliases
