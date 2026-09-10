@@ -196,6 +196,8 @@ public sealed class PostgreSqlCalibrationTests
             var count = await ScalarAsync<long>($"SELECT count(*) FROM identidade.{table} WHERE modelo_id=@id;",("id",id));
             Assert.That(count,Is.Zero,table);
         }
+        Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.linkage_ruleset_passe WHERE ruleset_id=@id;",("id",id)),Is.Zero);
+        Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.linkage_ruleset_passe_campo WHERE ruleset_id=@id;",("id",id)),Is.Zero);
     }
     private async Task AssertFingerprintAsync(Guid id)
     {
