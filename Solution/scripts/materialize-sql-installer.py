@@ -81,7 +81,11 @@ def main() -> int:
         sha_path.parent.mkdir(parents=True, exist_ok=True)
         sha_path.write_text(f"{digest}  {output.name}\n", encoding="utf-8")
 
-    print(f"SQL INSTALLER MATERIALIZER: OK output={output.relative_to(root)} sha256={digest}")
+    try:
+        display_output = output.relative_to(root).as_posix()
+    except ValueError:
+        display_output = str(output)
+    print(f"SQL INSTALLER MATERIALIZER: OK output={display_output} sha256={digest}")
     return 0
 
 
