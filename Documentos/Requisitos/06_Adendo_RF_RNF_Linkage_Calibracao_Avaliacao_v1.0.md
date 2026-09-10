@@ -57,11 +57,13 @@ Para nomes e sobrenomes, quando disponível, o otimizador pode comparar frequên
 
 **Critério de aceitação.** Para cada atributo enriquecido, a contribuição do IBGE, inclusive o nível territorial utilizado, é versionada e mensurável. O otimizador consegue comparar alternativa com e sem enriquecimento externo e não promove automaticamente uma regra que degrade os critérios definidos para o experimento. A lista de atributos compatíveis deve ser explícita e extensível quando novos conjuntos oficiais forem incorporados.
 
-### RF-055 — Otimizar componentes de nome e data de nascimento no blocking
+### RF-055 — Otimizar componentes de nome, nome da mãe e data de nascimento no blocking
 
-**Requisito funcional.** O espaço de busca do otimizador de blocking deve considerar, no mínimo, quando disponíveis na Jornada: nome completo normalizado, prenome/primeiro nome, sobrenome(s), último nome e componentes dia, mês e ano da data de nascimento. O otimizador deve selecionar a melhor combinação de um ou mais passes/campos segundo métricas objetivas de cobertura de vínculos verdadeiros, redução de candidatos e custo. Os componentes de nome devem receber enriquecimento IBGE quando houver estatística oficial compatível; os componentes de data ou quaisquer outros campos somente recebem enriquecimento IBGE se existir correspondência oficial semanticamente válida.
+**Requisito funcional.** O espaço de busca do otimizador de blocking deve considerar, no mínimo, quando disponíveis na Jornada: nome completo normalizado, prenome/primeiro nome, sobrenome(s), último nome; nome completo da mãe e os mesmos componentes; e dia, mês e ano da data de nascimento. O otimizador deve selecionar a melhor combinação de um ou mais passes/campos segundo métricas objetivas de cobertura de vínculos verdadeiros, redução de candidatos e custo.
 
-**Critério de aceitação.** A combinação escolhida é reproduzível a partir do corpus, configuração, snapshots externos efetivamente utilizados e versão do algoritmo; componentes ausentes são tratados explicitamente e não como concordância.
+CPF e data de nascimento são tratados como dados de identidade estáveis: uma alteração posterior é exceção/correção e deve ser auditável. Nomes da pessoa e da mãe são versionáveis; valores anteriores podem permanecer elegíveis como aliases históricos de recuperação quando a política versionada demonstrar ganho de recall sem degradação inaceitável de custo ou precisão posterior.
+
+**Critério de aceitação.** A combinação escolhida é reproduzível a partir do corpus, configuração, snapshots externos efetivamente utilizados e versão do algoritmo; componentes ausentes são tratados explicitamente e não como concordância. Chaves históricas de nome não substituem o nome corrente da Gold nem constituem prova de identidade; chaves antigas de data de nascimento corrigida não são tratadas automaticamente como aliases equivalentes.
 
 ### RF-056 — Versionar regras dinâmicas entre Calibrador e Avaliador
 
@@ -73,11 +75,11 @@ O Calibrador pode ser executado repetidamente e gerar novas versões candidatas 
 
 ### RF-057 — Suporte físico indexado para blocking dinâmico
 
-**Requisito funcional.** O blocking dinâmico deve dispor de acesso indexado aos valores utilizados para geração de candidatos. Como estratégia preferencial para atributos derivados e combinações variáveis, a solução deve utilizar uma projeção operacional reconstruível de chaves de blocking, contendo a identidade da Pessoa, a versão de normalização, o atributo lógico e o valor normalizado. Essa projeção deve possuir índice estável que permita localizar candidatos por versão de normalização, atributo e valor sem exigir novo DDL a cada versão de ruleset.
+**Requisito funcional.** O blocking dinâmico deve dispor de acesso indexado aos valores utilizados para geração de candidatos. Como estratégia preferencial para atributos derivados e combinações variáveis, a solução deve utilizar uma projeção operacional reconstruível de chaves de blocking, contendo a identidade da Pessoa, a versão de normalização, o atributo lógico, o valor normalizado, a semântica temporal e a vigência da chave. Essa projeção deve possuir índice estável que permita localizar candidatos por versão de normalização, atributo, valor e vigência sem exigir novo DDL a cada versão de ruleset.
 
 Campos que já possuam índice físico adequado na Gold podem continuar usando esse acesso direto quando ele for mais simples e eficiente. O Calibrador pode recomendar suporte físico adicional quando medição mostrar necessidade, mas não deve criar ou remover índices livremente durante a busca de parâmetros. Particionamento não deve ser introduzido apenas porque a política de blocking é dinâmica; exige evidência própria de que índices/projeção não atendem adequadamente a escala, manutenção ou desempenho.
 
-**Critério de aceitação.** Todo atributo candidato possui origem física explícita: coluna direta ou projeção materializada derivada. A projeção é reconstruível a partir da Gold, não constitui nova verdade cadastral e registra a versão de normalização. O acesso de lookup possui índice estável equivalente a `(normalizacao_versao, atributo, valor_normalizado, pessoa_uuid)`. Mudança da combinação de blocking não exige DDL por ruleset. Qualquer criação/remoção adicional de índice ocorre por migração/deploy controlado e passa pelos gates de DDL/CI dos SGBDs suportados.
+**Critério de aceitação.** Todo atributo candidato possui origem física explícita: coluna direta ou projeção materializada derivada. A projeção é reconstruível, não constitui nova verdade cadastral e registra a versão de normalização. O acesso de lookup possui índice estável equivalente a `(normalizacao_versao, atributo, valor_normalizado, vigencia_fim, pessoa_uuid)`. Mudança da combinação de blocking não exige DDL por ruleset. Qualquer criação/remoção adicional de índice ocorre por migração/deploy controlado e passa pelos gates de DDL/CI dos SGBDs suportados.
 
 ## 3. Regras de engenharia derivadas
 
@@ -90,6 +92,7 @@ Campos que já possuam índice físico adequado na Gold podem continuar usando e
 7. Blocking dinâmico não implica particionamento dinâmico nem DDL por versão. Para atributos derivados e combinações variáveis, deve-se preferir projeção de chaves com índice estável.
 8. Dados da projeção de blocking são derivados e reconstruíveis; não devem competir com a Gold como fonte de verdade.
 9. Recortes municipais/UF do IBGE podem refinar a raridade estatística de nomes, mas o município não deve ser inferido a partir do nome nem usado como verdade individual.
+10. CPF e data de nascimento têm semântica estável; mudanças são correções excepcionais. Nomes têm semântica versionável e podem preservar aliases históricos para recuperação de candidatos quando isso for aprovado pelo Calibrador/Avaliador.
 
 ## 4. UML — fluxo normativo resumido
 
