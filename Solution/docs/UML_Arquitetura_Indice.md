@@ -4,13 +4,13 @@
 **Status:** documentação técnica versionada  
 **Notação:** UML 2.x, fontes PlantUML (`.puml`)
 
-Este índice organiza os diagramas normativos da Jornada e explicita a finalidade de cada visão. O diagrama não substitui requisitos, ADRs, contratos de API ou DDL; ele fornece uma representação UML consistente desses artefatos.
+Este índice organiza os diagramas normativos da Jornada e explicita a finalidade de cada visão. Como a solução ainda não foi publicada, as decisões arquiteturais internas foram incorporadas à especificação corrente `Arquitetura_Identidade_Linkage.md`; não se mantém uma camada separada de ADRs históricos antes da V1 pública.
 
 ## Regra de documentação
 
 Diagramas novos ou materialmente alterados que representem componentes, classes, sequências, estados, atividades, implantação ou casos de uso devem utilizar o tipo UML adequado. A fonte textual PlantUML deve permanecer versionada no repositório sempre que tecnicamente possível.
 
-Quando houver divergência entre um diagrama e um contrato executável vigente, o contrato executável e o requisito/ADR normativo devem ser corrigidos ou reconciliados no mesmo change-set; o diagrama não deve criar comportamento implícito.
+Quando houver divergência entre um diagrama e um contrato executável vigente, o contrato executável, os requisitos normativos e a especificação arquitetural devem ser reconciliados no mesmo change-set; o diagrama não deve criar comportamento implícito.
 
 ## Catálogo atual
 
@@ -57,7 +57,7 @@ Este conjunto materializa especialmente os requisitos de documentação/engenhar
 - **RNF36:** ambiente tecnológico e reprodutibilidade de engenharia;
 - **RF-052 a RF-057:** IBGE, snapshots, blocking e rulesets versionados.
 
-Também complementa os ADRs de identidade progressiva, âncora CPF, composição reversível e linkage existentes em `Solution/docs/`.
+A semântica arquitetural correspondente está consolidada em `Solution/docs/Arquitetura_Identidade_Linkage.md`.
 
 ## Convenções PlantUML
 
