@@ -487,6 +487,7 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
             await using var delete = Command(connection, tx, "DELETE FROM gold.pessoa WHERE pessoa_uuid=@uuid;");
             Add(delete, "@uuid", DbType.Guid, uuid);
             await delete.ExecuteNonQueryAsync(ct);
+            await BlockingProjectionPersistence.RefreshPostgreSqlAsync(connection, tx, uuid, ct);
             return;
         }
 
@@ -526,6 +527,7 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
         Add(upsert, "@fontes", DbType.Int32, stats.Value.DistinctManagers);
         Add(upsert, "@concordancia", DbType.String, agreement, 40);
         await upsert.ExecuteNonQueryAsync(ct);
+        await BlockingProjectionPersistence.RefreshPostgreSqlAsync(connection, tx, uuid, ct);
     }
 
     private static async Task<(int DistinctManagers, bool Divergent)?> LoadGoldPersonStatsAsync(
