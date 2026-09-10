@@ -39,17 +39,20 @@ wait_healthy() {
   compose logs sqlserver >&2 || true
   exit 3
 }
+apply_migrations() {
+  compose exec -T \
+    -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" \
+    -e "JORNADA_SQL_DATABASE=$JORNADA_SQL_DATABASE" \
+    -e "SQLCMD_BIN=/opt/mssql-tools18/bin/sqlcmd" \
+    sqlserver bash /workspace/scripts/apply-migrations.sh
+}
 bootstrap() {
   sqlcmd -Q "IF DB_ID(N'$JORNADA_SQL_DATABASE') IS NULL CREATE DATABASE [$JORNADA_SQL_DATABASE];"
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/Jornada_Fase1.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/Jornada_Seed_Dev.sql
-  # V1 operacional: depois da massa inicial, reserva também todo CPF histórico do seed.
-  # Em produção, onde não há seed DEV, a mesma migração é aplicada logo após o baseline.
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/migrations/20260907_Cpf_Ancora.sql
-  # O runtime atual do Processor e do Avaliador depende das projeções/regras de blocking versionadas.
-  # Instalação local nova deve representar o mesmo schema operacional exercitado pelas migrations de upgrade.
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/migrations/20260910_Linkage_Blocking_Chave.sql
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/migrations/20260910_Linkage_RuleSet_Passes.sql
+  # O baseline contém a base funcional; toda extensão operacional posterior é aplicada
+  # pelo manifesto canônico, com histórico e checksum fail-closed.
+  apply_migrations
 }
 
 case "$ACTION" in
