@@ -14,10 +14,10 @@ public static class IbgeCalibrationAttributeCatalog
     private static readonly IReadOnlyDictionary<string, string> Supported =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [BlockingCandidateFeatureCatalog.NameFull] = ExternalNameFrequencyCatalog.IbgeSource,
-            [BlockingCandidateFeatureCatalog.NameFirst] = ExternalNameFrequencyCatalog.IbgeSource,
-            [BlockingCandidateFeatureCatalog.NameSurnames] = ExternalNameFrequencyCatalog.IbgeSource,
-            [BlockingCandidateFeatureCatalog.NameLast] = ExternalNameFrequencyCatalog.IbgeSource
+            [BlockingCandidateFeatureCatalog.FullName] = ExternalNameFrequencyCatalog.IbgeSource,
+            [BlockingCandidateFeatureCatalog.FirstName] = ExternalNameFrequencyCatalog.IbgeSource,
+            [BlockingCandidateFeatureCatalog.Surnames] = ExternalNameFrequencyCatalog.IbgeSource,
+            [BlockingCandidateFeatureCatalog.LastName] = ExternalNameFrequencyCatalog.IbgeSource
         };
 
     public static IReadOnlyCollection<string> SupportedFeatures => Supported.Keys.ToArray();
