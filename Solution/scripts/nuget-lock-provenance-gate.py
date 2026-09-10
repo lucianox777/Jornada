@@ -5,6 +5,7 @@ from pathlib import Path
 
 RELEASE='v4.05'
 SDK='8.0.424'
+SOLUTION_SCHEMA='v3.70'
 ORIGIN='REGENERATED_OR_VERIFIED_V405_SDK_8_0_424'
 STATUS='CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405'
 ASSURANCE='CI_REGENERATED_AND_REPRODUCIBLE_LOCK_GRAPH'
@@ -18,7 +19,7 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def main() -> int:
-    ap=argparse.ArgumentParser(description='Valida o grafo NuGet reproduzível da Jornada v4.05.')
+    ap=argparse.ArgumentParser(description='Valida o grafo NuGet reproduzível da Jornada v4.05 no schema corrente.')
     ap.add_argument('--root', default='.')
     ap.add_argument('--manifest', default='config/release/nuget-lock-provenance.json')
     ap.add_argument('--summary')
@@ -27,7 +28,7 @@ def main() -> int:
     data=json.loads((root/a.manifest).read_text(encoding='utf-8'))
     if data.get('schemaVersion') != 1 or data.get('release') != RELEASE:
         fail('schema/release inesperado')
-    if data.get('baseNormativa') != 'v3.64' or data.get('solutionSchema') != 'v3.69':
+    if data.get('baseNormativa') != 'v3.64' or data.get('solutionSchema') != SOLUTION_SCHEMA:
         fail('versões normativas inesperadas')
     env=data.get('packagingEnvironment') or {}
     if env.get('nugetRestoreExecuted') is not True or env.get('dotnetAvailable') is not True:
@@ -76,9 +77,6 @@ def main() -> int:
                 if project is None:
                     fail(f'entrada Project sem csproj correspondente: {rel} -> {project_key}')
                 declared=deps(project)
-                # NuGet não promete repetir, na entrada Project do consumidor, todo PackageReference
-                # do projeto referenciado. Exige-se, porém, que todo metadado que ele decidiu registrar
-                # seja declarado pelo csproj e preserve exatamente a versão/range gerado pelo SDK.
                 observed=entry.get('dependencies',{}) or {}
                 unexpected={k:v for k,v in observed.items() if declared.get(k) != v}
                 if unexpected:
@@ -87,11 +85,11 @@ def main() -> int:
     req='\n'.join(data.get('promotionRequirements') or [])
     for token in ('8.0.424','--force-evaluate','nuget-lock-provenance-gate.py','--locked-mode','Unit + Integration da v4.05'):
         if token not in req: fail(f'promoção não exige: {token}')
-    summary={'status':'PASS','release':RELEASE,'lockCount':len(actual),'sdk':SDK,'assurance':ASSURANCE}
+    summary={'status':'PASS','release':RELEASE,'solutionSchema':SOLUTION_SCHEMA,'lockCount':len(actual),'sdk':SDK,'assurance':ASSURANCE}
     if a.summary:
         out=Path(a.summary); out.parent.mkdir(parents=True,exist_ok=True)
         out.write_text(json.dumps(summary,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    print(f'NUGET LOCK PROVENANCE GATE: OK ({len(actual)} locks; SDK {SDK}; grafo reproduzível)')
+    print(f'NUGET LOCK PROVENANCE GATE: OK ({len(actual)} locks; SDK {SDK}; schema {SOLUTION_SCHEMA}; grafo reproduzível)')
     return 0
 
 if __name__=='__main__':

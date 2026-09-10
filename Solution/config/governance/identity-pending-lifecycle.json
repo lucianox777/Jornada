@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "status": "PENDENTE",
   "baseNormativa": "3.62",
-  "solutionSchema": "3.69",
+  "solutionSchema": "3.70",
   "note": "Contrato para envelhecimento/busca ativa/encerramento. Nenhuma ação automática é habilitada por este arquivo.",
   "allowedActions": [
     "MANTER_ABERTO",
@@ -11,27 +11,9 @@
     "ENCERRAR_SEM_RESOLUCAO"
   ],
   "states": [
-    {
-      "state": "PENDENTE_PROBABILISTICO",
-      "status": "PENDENTE",
-      "agingDays": null,
-      "action": null,
-      "autoMutate": false
-    },
-    {
-      "state": "NAO_RESOLVIDO",
-      "status": "PENDENTE",
-      "agingDays": null,
-      "action": null,
-      "autoMutate": false
-    },
-    {
-      "state": "CONFLITO",
-      "status": "PENDENTE",
-      "agingDays": null,
-      "action": null,
-      "autoMutate": false
-    }
+    {"state":"PENDENTE_PROBABILISTICO","status":"PENDENTE","agingDays":null,"action":null,"autoMutate":false},
+    {"state":"NAO_RESOLVIDO","status":"PENDENTE","agingDays":null,"action":null,"autoMutate":false},
+    {"state":"CONFLITO","status":"PENDENTE","agingDays":null,"action":null,"autoMutate":false}
   ],
   "approval": null
 }

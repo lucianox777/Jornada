@@ -30,9 +30,6 @@ A consolidação não altera o conteúdo técnico essencial que motivou este ade
 
 ## UML vigente
 
-As fontes UML correntes ficam em `Solution/docs/uml/`. Em particular, a consolidação v5.00 acrescenta:
+A notação gráfica normativa é **UML**, mas os artefatos destinados à leitura e entrega institucional devem ser **DOCX e PDF com os diagramas incorporados**. O destinatário não deve precisar instalar PlantUML, Mermaid ou ferramenta de modelagem específica.
 
-- `Jornada_Identidade_Linkage_Classes.puml` — diagrama de classes UML;
-- `Jornada_Resolucao_Identidade_Atividade.puml` — diagrama de atividade UML.
-
-DER/DRE pode permanecer como visão física auxiliar de dados, mas não é classificado como UML nem substitui esses diagramas.
+Na consolidação v5.00, o diagrama de classes de Identidade/Linkage e o diagrama de atividade da resolução de identidade integram o conteúdo do **Anexo Modelo Físico v1.40 em DOCX/PDF**. DER/DRE pode permanecer como visão física auxiliar de dados, mas não é classificado como UML nem substitui esses diagramas.

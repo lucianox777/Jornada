@@ -9,13 +9,15 @@
 
 Este anexo descreve o inventário físico relacional da Jornada e a forma canônica de instalação do schema operacional. O modelo físico/DER é uma visão auxiliar de banco de dados e **não é classificado como UML**.
 
-A visão estrutural normativa em UML é o diagrama de classes `Solution/docs/uml/Jornada_Identidade_Linkage_Classes.puml`. O fluxo de resolução de identidade é representado pelo diagrama de atividade `Solution/docs/uml/Jornada_Resolucao_Identidade_Atividade.puml`.
+A documentação de entrega destinada à leitura deve ser publicada em **DOCX e PDF**, com os diagramas UML incorporados visualmente. O diagrama de classes da Identidade/Linkage e o diagrama de atividade da resolução de identidade fazem parte do conteúdo documental, sem exigir PlantUML, Mermaid ou software específico do leitor. Fontes técnicas auxiliares de geração de figura não são o artefato documental de entrega.
 
 ## 2. Definição canônica do schema
 
-A instalação nova do SQL Server deve utilizar `Solution/database/Jornada_Fase1_v3.70.sql`. Esse ponto de entrada aplica, em ordem determinística, o baseline histórico, a persistência progressiva, as estruturas de composição, a âncora CPF e as projeções/rulesets de blocking, e somente promove `Jornada.SolutionSchema=3.70` depois de verificar a existência de todos os objetos obrigatórios.
+A instalação nova do SQL Server deve utilizar `Solution/database/Jornada_Fase1_v3.70.sql` como fonte canônica editável. Esse ponto de entrada aplica, em ordem determinística, o baseline histórico, a persistência progressiva, as estruturas de composição, a âncora CPF e as projeções/rulesets de blocking, e somente promove `Jornada.SolutionSchema=3.70` depois de verificar a existência de todos os objetos obrigatórios.
 
-Os scripts em `Solution/database/migrations/` permanecem preservados como histórico e mecanismo de upgrade/reentrada. Eles não constituem caminhos independentes de instalação nova.
+Para entrega a DBA ou ferramenta de deploy, `Solution/scripts/materialize-sql-installer.py` materializa deterministicamente a composição canônica em um único arquivo SQL Server autocontido, sem diretivas `:r`. O arquivo materializado não constitui uma segunda definição de schema: é um artefato gerado a partir da fonte canônica.
+
+Os scripts em `Solution/database/migrations/` permanecem preservados como histórico e mecanismo de upgrade/reentrada. No upgrade que exige identidade progressiva, o backfill volumoso reutiliza o componente paginado/reentrante `ProgressiveIdentityOriginStore.BackfillPageAsync`, evitando uma segunda implementação T-SQL concorrente. O cutover permanece fail-closed e só prossegue após a verificação de completude do backfill.
 
 `GET /health/ready` exige Base Normativa 3.62, SolutionSchema 3.70 e os objetos operacionais essenciais da identidade progressiva, composição e Linkage. Uma instalação parcial não pode ser declarada pronta.
 
@@ -146,3 +148,4 @@ As 13 tabelas adicionais são:
 5. PostgreSQL pode possuir implementações paralelas em escopos explicitamente suportados, mas não redefine o baseline relacional normativo.
 6. Fabric permanece no escopo analítico/compatibilidade definido pela arquitetura.
 7. DER/modelo físico é auxiliar; diagramas normativos de estrutura/fluxo devem usar UML.
+8. Os artefatos de leitura/entrega dos diagramas devem ser DOCX/PDF com as figuras incorporadas, sem exigir formatos especializados do destinatário.

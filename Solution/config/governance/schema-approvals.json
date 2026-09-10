@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "status": "PENDENTE",
   "baseNormativa": "3.62",
-  "solutionSchema": "3.69",
+  "solutionSchema": "3.70",
   "note": "Inventário criptográfico dos schemas contratuais. APROVADO exige aprovação individual e evidência real; hashes não equivalem a assinatura institucional.",
   "contracts": [
     {
