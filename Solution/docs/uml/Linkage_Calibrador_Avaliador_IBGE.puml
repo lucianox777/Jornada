@@ -1,0 +1,62 @@
+@startuml
+' UML sequence diagram — Calibrador/Avaliador/IBGE
+hide footbox
+skinparam sequenceMessageAlign center
+
+title Linkage — Calibrador, snapshot IBGE e Avaliador versionado
+
+actor "Operação/CI" as Ops
+participant "Snapshot IBGE" as IbgeSnapshot
+participant "Calibrador" as Calibrator
+participant "Otimizador de Blocking" as Optimizer
+participant "Repositório de Regras\nVersionadas" as Rules
+participant "Avaliador" as Evaluator
+database "Corpus de Avaliação\nIndependente" as EvalCorpus
+
+Ops -> IbgeSnapshot : verificar metadados da fonte
+alt fonte sem mudança
+  IbgeSnapshot --> Ops : reutilizar snapshot vigente
+else fonte alterada ou indeterminada
+  Ops -> IbgeSnapshot : baixar/materializar e calcular fingerprint
+  IbgeSnapshot --> Ops : snapshot versionado
+end
+
+Ops -> Calibrator : iniciar calibração
+Calibrator -> IbgeSnapshot : ler snapshot aplicável
+Calibrator -> Optimizer : avaliar passes/campos
+note right of Optimizer
+Considerar, quando disponíveis:
+- nome completo
+- prenome/primeiro nome
+- sobrenome(s)
+- último nome
+- dia/mês/ano de nascimento
+- frequências agregadas IBGE
+end note
+Optimizer --> Calibrator : combinação ótima + métricas
+Calibrator -> Rules : publicar pacote imutável
+note right of Rules
+Identidade mínima do pacote:
+- versão/fingerprint das regras
+- versão do algoritmo
+- combinação de blocking
+- parâmetros/limiares
+- snapshot IBGE
+end note
+Rules --> Calibrator : ruleset_version
+
+Ops -> Evaluator : iniciar avaliação
+Evaluator -> Rules : carregar exatamente uma ruleset_version
+Rules --> Evaluator : pacote imutável
+Evaluator -> EvalCorpus : ler corpus independente
+EvalCorpus --> Evaluator : observações
+Evaluator -> Evaluator : avaliar regras
+note right of Evaluator
+Etapas independentes podem executar
+em paralelo somente quando medição
+mostrar ganho e o resultado permanecer
+equivalente/reprodutível.
+end note
+Evaluator --> Ops : métricas + ruleset_version + snapshot
+
+@enduml
