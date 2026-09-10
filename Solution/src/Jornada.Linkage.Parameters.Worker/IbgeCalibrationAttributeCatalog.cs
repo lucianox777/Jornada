@@ -23,7 +23,7 @@ public sealed record IbgeCalibrationAttributeMapping(
 /// </summary>
 public static class IbgeCalibrationAttributeCatalog
 {
-    public const string MethodVersion = "IBGE_CALIBRATION_ATTRIBUTE_CATALOG_V3";
+    public const string MethodVersion = "IBGE_CALIBRATION_ATTRIBUTE_CATALOG_V4";
 
     private static readonly IReadOnlyDictionary<string, IbgeCalibrationAttributeMapping> Supported =
         new Dictionary<string, IbgeCalibrationAttributeMapping>(StringComparer.Ordinal)
@@ -59,6 +59,29 @@ public static class IbgeCalibrationAttributeCatalog
 
         source = string.Empty;
         return false;
+    }
+
+    /// <summary>
+    /// Resolve uma frequência somente quando o atributo da Jornada possui correspondência
+    /// semântica explícita e o snapshot tipado contém a mesma classe estatística.
+    /// Não converte prenome em sobrenome nem usa frequência de nome completo por aproximação.
+    /// </summary>
+    public static bool TryGetOccurrences(
+        IbgeTypedNameFrequencySnapshot snapshot,
+        string feature,
+        string value,
+        out long occurrences)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        if (!string.Equals(snapshot.Source, ExternalNameFrequencyCatalog.IbgeSource, StringComparison.Ordinal) ||
+            !TryGetMapping(feature, out var mapping))
+        {
+            occurrences = 0;
+            return false;
+        }
+
+        return snapshot.TryGetOccurrences(mapping.StatisticKind, value, out occurrences);
     }
 
     public static bool Supports(string feature) => TryGetMapping(feature, out _);
