@@ -1,0 +1,98 @@
+@startuml
+' UML sequence diagram — Calibrador/Avaliador/IBGE
+hide footbox
+skinparam sequenceMessageAlign center
+
+title Linkage — Calibrador, IBGE seletivo, blocking indexado e Avaliador versionado
+
+actor "Operação/CI" as Ops
+participant "Snapshot IBGE" as IbgeSnapshot
+participant "Catálogo de compatibilidade\nJornada -> IBGE" as IbgeCatalog
+participant "Calibrador" as Calibrator
+participant "Otimizador de Blocking" as Optimizer
+participant "Catálogo físico\nde features" as PhysicalCatalog
+database "Projeção indexada\nde chaves de blocking" as BlockingProjection
+participant "Repositório de Regras\nVersionadas" as Rules
+participant "Avaliador" as Evaluator
+database "Corpus de Avaliação\nIndependente" as EvalCorpus
+
+Ops -> IbgeSnapshot : verificar metadados da fonte
+alt fonte sem mudança
+  IbgeSnapshot --> Ops : reutilizar snapshot vigente
+else fonte alterada ou indeterminada
+  Ops -> IbgeSnapshot : baixar/materializar e calcular fingerprint
+  IbgeSnapshot --> Ops : snapshot versionado
+end
+
+Ops -> Calibrator : iniciar calibração contra base Jornada
+Calibrator -> Optimizer : enumerar atributos/passes candidatos
+loop para cada atributo candidato
+  Optimizer -> IbgeCatalog : existe fonte IBGE semanticamente compatível?
+  alt atributo compatível (ex.: componentes de nome)
+    IbgeCatalog --> Optimizer : fonte IBGE aplicável
+    Optimizer -> IbgeSnapshot : obter estatística agregada do atributo
+    IbgeSnapshot --> Optimizer : evidência externa versionada
+  else sem correspondência (ex.: distrito)
+    IbgeCatalog --> Optimizer : sem enriquecimento IBGE
+    note right of Optimizer
+      O atributo continua no espaço de busca
+      usando evidência da própria Jornada.
+    end note
+  end
+end
+note right of Optimizer
+Espaço mínimo, quando disponível na Jornada:
+- nome completo
+- prenome/primeiro nome
+- sobrenome(s)
+- último nome
+- dia/mês/ano de nascimento
+
+IBGE só é aplicado aos componentes
+com correspondência semântica explícita.
+end note
+
+Optimizer -> PhysicalCatalog : resolver origem física dos campos candidatos
+PhysicalCatalog --> Optimizer : coluna direta ou projeção materializada
+Optimizer -> BlockingProjection : estimar custo/seletividade usando chaves indexadas
+BlockingProjection --> Optimizer : candidatos/métricas por passe
+note right of BlockingProjection
+Projeção derivada e reconstruível.
+Índice estável preferencial:
+(normalizacao_versao, feature,
+ valor_normalizado, pessoa_uuid)
+
+Mudar a combinação de blocking
+não exige novo DDL por versão.
+end note
+
+Optimizer --> Calibrator : combinação ótima + métricas + fontes usadas
+Calibrator -> Rules : publicar pacote imutável
+note right of Rules
+Identidade mínima do pacote:
+- versão/fingerprint das regras
+- versão do algoritmo
+- combinação de blocking
+- parâmetros/limiares
+- snapshots IBGE efetivamente usados
+- versão da projeção/normalização
+end note
+Rules --> Calibrator : ruleset_version
+
+Ops -> Evaluator : iniciar avaliação
+Evaluator -> Rules : carregar exatamente uma ruleset_version
+Rules --> Evaluator : pacote imutável
+Evaluator -> EvalCorpus : ler corpus independente
+EvalCorpus --> Evaluator : observações
+Evaluator -> BlockingProjection : obter candidatos pelos passes versionados
+BlockingProjection --> Evaluator : conjunto candidato indexado
+Evaluator -> Evaluator : avaliar regras sem reinterpretação
+note right of Evaluator
+Etapas independentes podem executar
+em paralelo somente quando medição
+mostrar ganho e o resultado permanecer
+equivalente/reprodutível.
+end note
+Evaluator --> Ops : métricas + ruleset_version + fingerprints
+
+@enduml
