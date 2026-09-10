@@ -31,6 +31,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pandoc libreoffice poppler-utils python3-docx python3-matplotlib
 
+      - name: Make generator portable across python-docx versions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Solution/scripts/generate-document-deliverables.py')
+          text = path.read_text(encoding='utf-8')
+          old = 'set_font(section._document.styles["Footer"], size=size)'
+          new = 'set_font(footer.style, size=size)'
+          if old in text:
+              text = text.replace(old, new, 1)
+              path.write_text(text, encoding='utf-8')
+          elif new not in text:
+              raise SystemExit('Assinatura esperada do rodapé não encontrada')
+          PY
+
       - name: Generate and validate DOCX/PDF
         run: |
           python3 Solution/scripts/generate-document-deliverables.py --root "$GITHUB_WORKSPACE"
@@ -72,6 +87,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
+            Solution/scripts/generate-document-deliverables.py \
             Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.docx \
             Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.pdf \
             Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.docx \
@@ -81,7 +97,7 @@ jobs:
             Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.docx \
             Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.pdf
           if git diff --cached --quiet; then
-            echo "Nenhuma alteração binária a publicar."
+            echo "Nenhuma alteração a publicar."
           else
             git commit -m "docs(entrega): publicar DOCX/PDF v1.1 e modelo físico v1.40"
             git push origin HEAD:fix/readiness-technical-gate-370
