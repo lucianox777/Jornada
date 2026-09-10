@@ -73,9 +73,14 @@ else: raise SystemExit(f'campo {sys.argv[2]} ausente em {sys.argv[1]}')
 PY
 }
 wait_processed(){
-  local id="$1" out="$2" status=''
+  local id="$1" out="$2" status='' code=''
   for _ in $(seq 1 120); do
-    curl -sS -o "$out" "$API_URL/api/v1/ingestao/entregas/$id" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $access_key"
+    code="$(curl -sS -o "$out" -w '%{http_code}' "$API_URL/api/v1/ingestao/entregas/$id" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $access_key" || true)"
+    if [[ "$code" != 200 ]]; then
+      echo "ERRO: consulta de status da Entrega $id retornou HTTP $code." >&2
+      [[ -f "$out" ]] && cat "$out" >&2 || true
+      return 1
+    fi
     status="$(json_get "$out" status)"
     [[ "$status" == PROCESSADA ]] && return 0
     [[ "$status" == REJEITADA || "$status" == QUARENTENA ]] && { echo "ERRO: Entrega $id terminou $status" >&2; return 1; }
