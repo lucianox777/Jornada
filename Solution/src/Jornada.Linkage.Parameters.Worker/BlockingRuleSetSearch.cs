@@ -25,6 +25,7 @@ public sealed record BlockingRuleSetSearchOptions(
 /// Busca bounded e determinística. Primeiro avalia todos os passes primitivos com até N campos,
 /// retém um pool explicitamente limitado e, quando habilitado, testa também pares desses passes.
 /// O limite é parte do algoritmo e evita explosão combinatória sobre corpora grandes.
+/// A promoção é fail-closed: se nenhuma alternativa atingir o recall mínimo, nenhum ruleset é publicado.
 /// </summary>
 public static class BlockingRuleSetSearch
 {
