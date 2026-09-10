@@ -90,7 +90,20 @@ public sealed class PostgreSqlLinkageCalibrator
             // O banco é NUMERIC(30,12). O fingerprint deve representar exatamente o valor persistido.
             var rounded = parameters.ToDictionary(p => p.Key,
                 p => decimal.Round(p.Value, 12, MidpointRounding.AwayFromZero), StringComparer.Ordinal);
-            await PersistDraftAsync(modelId, capture, rounded, options, ct);
+
+            // O blocking é calibrado contra exatamente os mesmos pares M/U capturados para este modelo.
+            // Não há segunda leitura do corpus entre estimação e escolha dos passes.
+            var blockingObservations = BlockingFeatureObservationFactory.Create(capture.M.Pairs, capture.U.Pairs);
+            var blocking = BlockingRuleSetSearch.SearchBest(
+                blockingObservations,
+                BlockingCandidateFeatureCatalog.RequiredOptimizerCandidates);
+            var ruleSet = LinkageDynamicRuleSet.CreateWithPasses(
+                $"MODEL_{version}_BLOCKING_V1",
+                Algorithm,
+                blocking.Passes,
+                rounded);
+
+            await PersistDraftAsync(modelId, capture, rounded, ruleSet, options, ct);
             return new PostgreSqlCalibrationDraft(modelId, version, capture.Population.Population,
                 capture.M.Pairs.Count, capture.U.Pairs.Count);
         }
@@ -300,8 +313,13 @@ public sealed class PostgreSqlLinkageCalibrator
         return rows;
     }
 
-    private async Task PersistDraftAsync(Guid modelId,Capture capture,IReadOnlyDictionary<string,decimal> parameters,
-        PostgreSqlCalibrationOptions options,CancellationToken ct)
+    private async Task PersistDraftAsync(
+        Guid modelId,
+        Capture capture,
+        IReadOnlyDictionary<string,decimal> parameters,
+        LinkageDynamicRuleSet ruleSet,
+        PostgreSqlCalibrationOptions options,
+        CancellationToken ct)
     {
         await using var connection = await database.OpenAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted,ct);
@@ -321,6 +339,26 @@ public sealed class PostgreSqlLinkageCalibrator
                 ("U_SAMPLE_SIZE",capture.U.Pairs.Count,"EXACT_BIRTH_GOLD_PAIR_SAMPLE") })
                 await ExecuteAsync(connection,transaction,"INSERT INTO identidade.estatistica_linkage(modelo_id,nome,valor,metodo) VALUES(@id,@name,@value,@method);",60,ct,
                     P("id",DbType.Guid,modelId),P("name",DbType.String,name),P("value",DbType.Decimal,value),P("method",DbType.String,method));
+
+            // A justificativa da escolha do blocking é evidência do modelo, não parâmetro Fellegi-Sunter
+            // nem regra executável. É recalculada sobre o mesmo M/U e sobre os passes efetivamente persistidos.
+            var blockingPasses = ruleSet.EffectiveBlockingPasses;
+            var blockingDiagnostic = BlockingRuleSetDiagnostic.Analyze(
+                BlockingFeatureObservationFactory.Create(capture.M.Pairs, capture.U.Pairs),
+                blockingPasses);
+            foreach (var (name,value,method) in new (string,decimal,string)[] {
+                ("BLOCKING_TRUE_MATCH_RECALL",decimal.Round((decimal)blockingDiagnostic.TrueMatchRecall,12,MidpointRounding.AwayFromZero),BlockingRuleSetDiagnostic.MethodVersion),
+                ("BLOCKING_NON_MATCH_RETENTION",decimal.Round((decimal)blockingDiagnostic.NonMatchRetention,12,MidpointRounding.AwayFromZero),BlockingRuleSetDiagnostic.MethodVersion),
+                ("BLOCKING_REDUCTION_RATIO",decimal.Round((decimal)blockingDiagnostic.ReductionRatio,12,MidpointRounding.AwayFromZero),BlockingRuleSetDiagnostic.MethodVersion),
+                ("BLOCKING_COMPLETE_MATCH_COVERAGE",decimal.Round((decimal)blockingDiagnostic.CompleteMatchCoverage,12,MidpointRounding.AwayFromZero),BlockingRuleSetDiagnostic.MethodVersion),
+                ("BLOCKING_COMPLETE_NON_MATCH_COVERAGE",decimal.Round((decimal)blockingDiagnostic.CompleteNonMatchCoverage,12,MidpointRounding.AwayFromZero),BlockingRuleSetDiagnostic.MethodVersion),
+                ("BLOCKING_EFFECTIVE_OBSERVED_WEIGHT",blockingDiagnostic.EffectiveObservedWeight,BlockingRuleSetDiagnostic.MethodVersion),
+                ("BLOCKING_PASS_COUNT",blockingPasses.Count,"BLOCKING_RULESET_COMPLEXITY_V1"),
+                ("BLOCKING_FIELD_CLAUSE_COUNT",blockingPasses.Sum(static pass => pass.Fields.Count),"BLOCKING_RULESET_COMPLEXITY_V1"),
+                ("BLOCKING_DISTINCT_FIELD_COUNT",blockingPasses.SelectMany(static pass => pass.Fields).Distinct(StringComparer.Ordinal).Count(),"BLOCKING_RULESET_COMPLEXITY_V1") })
+                await ExecuteAsync(connection,transaction,"INSERT INTO identidade.estatistica_linkage(modelo_id,nome,valor,metodo) VALUES(@id,@name,@value,@method);",60,ct,
+                    P("id",DbType.Guid,modelId),P("name",DbType.String,name),P("value",DbType.Decimal,value),P("method",DbType.String,method));
+
             foreach (var f in capture.Frequencies)
                 await ExecuteAsync(connection,transaction,"""
                     INSERT INTO identidade.frequencia_linkage(modelo_id,atributo,valor_normalizado,ocorrencias,populacao_referencia,frequencia)
@@ -336,6 +374,11 @@ public sealed class PostgreSqlLinkageCalibrator
                 P("snapshot_hash",DbType.String,capture.Hash),P("m_hash",DbType.String,capture.M.Hash),P("u_hash",DbType.String,capture.U.Hash),
                 P("p_hash",DbType.String,ParameterHash(parameters)),P("minimum",DbType.Int32,options.MinimumIndependentMatchedPairs),
                 P("synthetic",DbType.Boolean,options.Synthetic),P("captured",DbType.DateTimeOffset,capture.CapturedAt));
+
+            // Ruleset e demais evidências do modelo são publicados no mesmo commit transacional.
+            // Qualquer falha do writer desfaz parâmetros, estatísticas, calibração e regras conjuntamente.
+            await LinkageRuleSetWriter.WriteAsync(connection, transaction, modelId, ruleSet, ct);
+
             var reference = $"gold.pessoa;pg_snapshot_sha256={capture.Hash};corpus_utc={capture.CapturedAt:O}";
             var changed = await ExecuteAsync(connection,transaction,"""
                 UPDATE identidade.modelo_linkage SET status='RASCUNHO',snapshot_referencia=@reference,

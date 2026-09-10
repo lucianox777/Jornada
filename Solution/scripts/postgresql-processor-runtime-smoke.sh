@@ -165,6 +165,14 @@ scalar(){
   || { echo 'ERRO: runtime PostgreSQL não constituiu o mapa CPF determinístico.' >&2; exit 23; }
 [[ "$(scalar "SELECT COUNT(*) FROM gold.pessoa WHERE cpf='$CPF' AND estado_concordancia='BASELINE_FONTE_UNICA';")" == '1' ]] \
   || { echo 'ERRO: runtime PostgreSQL não materializou Gold Pessoa baseline.' >&2; exit 24; }
+[[ "$(scalar "SELECT COUNT(*) FROM identidade.blocking_chave bc JOIN gold.pessoa gp ON gp.pessoa_uuid=bc.pessoa_uuid WHERE gp.cpf='$CPF' AND bc.atributo IN ('name_full','name_first','name_last','mother_name_full','mother_name_first','mother_name_last','birth_day','birth_month','birth_year');")" == '9' ]] \
+  || { echo 'ERRO: runtime PostgreSQL não publicou as nove chaves fundamentais de blocking.' >&2; exit 29; }
+[[ "$(scalar "SELECT COUNT(DISTINCT bc.normalizacao_versao) FROM identidade.blocking_chave bc JOIN gold.pessoa gp ON gp.pessoa_uuid=bc.pessoa_uuid WHERE gp.cpf='$CPF';")" == '1' ]] \
+  || { echo 'ERRO: projeção de blocking não ficou presa a uma única versão de normalização.' >&2; exit 30; }
+[[ "$(scalar "SELECT COUNT(*) FROM identidade.blocking_chave bc JOIN gold.pessoa gp ON gp.pessoa_uuid=bc.pessoa_uuid WHERE gp.cpf='$CPF' AND bc.atributo IN ('birth_day','birth_month','birth_year') AND bc.semantica_temporal='STABLE_IDENTITY_DATUM' AND bc.vigencia_fim IS NULL;")" == '3' ]] \
+  || { echo 'ERRO: componentes de nascimento não foram publicados como dados estáveis correntes.' >&2; exit 31; }
+[[ "$(scalar "SELECT COUNT(*) FROM identidade.blocking_chave bc JOIN gold.pessoa gp ON gp.pessoa_uuid=bc.pessoa_uuid WHERE gp.cpf='$CPF' AND bc.atributo IN ('name_full','name_first','name_last','mother_name_full','mother_name_first','mother_name_last') AND bc.semantica_temporal='VERSIONED_ALIAS' AND bc.vigencia_fim IS NULL;")" == '6' ]] \
+  || { echo 'ERRO: componentes nominais correntes não foram publicados como aliases versionados.' >&2; exit 32; }
 [[ "$(scalar "SELECT COUNT(*) FROM gold.beneficio_concedido WHERE entrega_id='$DELIVERY_ID'::uuid AND codigo_registro_origem='$RECORD_CODE' AND status_analitico='VIGENTE' AND estado_atribuicao_identidade='ATRIBUIDA' AND pessoa_uuid IS NOT NULL AND qc_resultado='VALIDO';")" == '1' ]] \
   || { echo 'ERRO: runtime PostgreSQL não materializou o benefício Gold atribuído/QC válido.' >&2; exit 25; }
 [[ "$(scalar "SELECT COUNT(*) FROM serving.registro_integrado WHERE entrega_id='$DELIVERY_ID'::uuid AND codigo_registro_origem='$RECORD_CODE' AND entrega_completa=TRUE AND status_analitico='VIGENTE';")" == '1' ]] \
@@ -186,8 +194,9 @@ json.dump({
   'sistemaOrigemNome':'HabitaSampa',
   'packageSha256':sha,
   'canonicalFileName':filename,
-  'layers':['Bronze','Processor Worker','Silver','Identidade','Gold','Serving'],
+  'layers':['Bronze','Processor Worker','Silver','Identidade','Gold','BlockingProjection','Serving'],
   'deterministicCpfResolution':True,
+  'blockingProjectionAtomicWithGold':True,
   'factualQc':'VALIDO',
   'territorialReference':'DOMICILIAR'
 },open(path,'w',encoding='utf-8'),ensure_ascii=False,indent=2)

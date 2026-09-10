@@ -46,6 +46,10 @@ bootstrap() {
   # V1 operacional: depois da massa inicial, reserva também todo CPF histórico do seed.
   # Em produção, onde não há seed DEV, a mesma migração é aplicada logo após o baseline.
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/migrations/20260907_Cpf_Ancora.sql
+  # O runtime atual do Processor e do Avaliador depende das projeções/regras de blocking versionadas.
+  # Instalação local nova deve representar o mesmo schema operacional exercitado pelas migrations de upgrade.
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/migrations/20260910_Linkage_Blocking_Chave.sql
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/migrations/20260910_Linkage_RuleSet_Passes.sql
 }
 
 case "$ACTION" in

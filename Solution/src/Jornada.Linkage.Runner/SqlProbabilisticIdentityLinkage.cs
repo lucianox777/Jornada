@@ -8,17 +8,8 @@ namespace Jornada.Linkage.Runner;
 
 /// <summary>
 /// Score probabilístico Fellegi-Sunter operacional para registros sem CPF.
-/// É chamado exclusivamente pelo Jornada.Linkage.Runner, sob demanda ou por agendamento.
-///
-/// A V2 trata nascimento por componentes: dia, mês e ano são evidências separadas no score.
-/// Candidate generation usa múltiplos passes limitados e indexáveis sobre data_nascimento:
-/// data exata, mesmo mês/ano com variação de dia, mesmo dia/ano com variação de mês,
-/// transposição dia/mês e pequena tolerância configurável de ano. Nome/nome da mãe
-/// apenas estreitam os passes mais amplos; não decidem identidade.
-///
-/// Modelos V1 permanecem compatíveis e continuam usando exclusivamente a data completa
-/// exata como bloco. Os passes ampliados só são habilitados quando o modelo publicado
-/// contém os parâmetros V2 de dia/mês/ano.
+/// Modelos com ruleset persistido usam a projeção indexada identidade.blocking_chave.
+/// Modelos legados preservam integralmente o blocking histórico por data de nascimento.
 /// </summary>
 public sealed class SqlProbabilisticIdentityLinkage(
     IConfiguration configuration,
@@ -56,12 +47,13 @@ public sealed class SqlProbabilisticIdentityLinkage(
     {
         if (!string.IsNullOrWhiteSpace(observation.Cpf))
             throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
+
         var model = modelCache.TryGetValue(modeloId, out var cached)
             ? cached
             : await LoadModelByIdAsync(modeloId, ct);
         modelCache[modeloId] = model;
-        var candidates = await LoadCandidatesAsync(observation,
-            LinkageModelPolicy.SupportsBirthComponentScoring(model), ct);
+
+        var candidates = await LoadCandidatesAsync(observation, model, ct);
         return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
     }
 
@@ -132,28 +124,62 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
     private async Task<IReadOnlyList<LinkageCandidate>> LoadCandidatesAsync(
         IdentityObservation observation,
-        bool birthComponentScoring,
+        LinkageModel model,
         CancellationToken ct)
     {
-        // Nunca truncamos silenciosamente um bloco: isso poderia excluir o verdadeiro match.
-        // O limite é apenas um guard rail operacional; excedê-lo falha o run e exige
-        // revisão explícita do blocking/parametrização.
         var maxCandidates = Math.Clamp(
             configuration.GetValue("ProbabilisticLinkage:MaxCandidatesPerBlock", 100000),
             1000, 1000000);
-
-        var birthDate = observation.DataNascimento;
+        var commandTimeoutSeconds = Math.Max(
+            1,
+            configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900));
 
         await using var connection = await operationalSql.OpenAsync(ct);
-        var command = new SqlCommand
+        var ruleSet = await LinkageRuleSetReader.TryLoadAsync(connection, model.ModelId, ct);
+        if (ruleSet is not null)
+        {
+            logger.LogDebug(
+                "Blocking dinâmico selecionado. ModeloId={ModelId}; RuleSet={RuleSet}; Fingerprint={Fingerprint}",
+                model.ModelId,
+                ruleSet.RuleSetVersion,
+                ruleSet.FingerprintSha256);
+
+            return await BlockingProjectionCandidateLoader.LoadAsync(
+                connection,
+                ruleSet,
+                observation,
+                maxCandidates,
+                commandTimeoutSeconds,
+                BlockingQueryDialect.SqlServer,
+                ct);
+        }
+
+        return await LoadLegacyCandidatesAsync(
+            connection,
+            observation,
+            LinkageModelPolicy.SupportsBirthComponentScoring(model),
+            maxCandidates,
+            commandTimeoutSeconds,
+            ct);
+    }
+
+    private async Task<IReadOnlyList<LinkageCandidate>> LoadLegacyCandidatesAsync(
+        SqlConnection connection,
+        IdentityObservation observation,
+        bool birthComponentScoring,
+        int maxCandidates,
+        int commandTimeoutSeconds,
+        CancellationToken ct)
+    {
+        var birthDate = observation.DataNascimento;
+        await using var command = new SqlCommand
         {
             Connection = connection,
-            CommandTimeout = Math.Max(1, configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900))
+            CommandTimeout = commandTimeoutSeconds
         };
 
         var unionParts = new List<string>
         {
-            // V1 e V2: data completa exata permanece o primeiro passe.
             "SELECT pessoa_uuid, nome_completo, data_nascimento, nome_mae FROM gold.pessoa WHERE data_nascimento=@exact_date"
         };
         command.Parameters.Add("@exact_date", SqlDbType.Date).Value = birthDate.ToDateTime(TimeOnly.MinValue);
@@ -180,13 +206,10 @@ public sealed class SqlProbabilisticIdentityLinkage(
             if (initialPredicates.Count > 0)
             {
                 var initialFilter = $"({string.Join(" OR ", initialPredicates)})";
-
-                // Passo 2: ano+mês iguais, permitindo erro no dia.
                 unionParts.Add(
                     $"SELECT pessoa_uuid, nome_completo, data_nascimento, nome_mae FROM gold.pessoa " +
                     $"WHERE data_nascimento>=@month_start AND data_nascimento<@month_end AND {initialFilter}");
 
-                // Passo 3: ano+dia iguais em qualquer mês válido, permitindo erro no mês.
                 var sameDayDates = Enumerable.Range(1, 12)
                     .Select(month => TryDate(birthDate.Year, month, birthDate.Day))
                     .Where(x => x.HasValue)
@@ -202,7 +225,6 @@ public sealed class SqlProbabilisticIdentityLinkage(
                 }
             }
 
-            // Passo 4: troca dia/mês (ex.: 05/06 <-> 06/05), quando forma data válida.
             var swapped = TryDate(birthDate.Year, birthDate.Day, birthDate.Month);
             if (swapped is { } swappedDate && swappedDate != birthDate)
             {
@@ -211,9 +233,6 @@ public sealed class SqlProbabilisticIdentityLinkage(
                     "SELECT pessoa_uuid, nome_completo, data_nascimento, nome_mae FROM gold.pessoa WHERE data_nascimento=@swapped_date");
             }
 
-            // Passo 5: tolerância pequena de ano para erros comuns de digitação/registro.
-            // O ano permanece uma evidência separada no score e, portanto, discordância
-            // não é tratada como identidade automática.
             var yearTolerance = Math.Clamp(
                 configuration.GetValue("ProbabilisticLinkage:BirthYearTolerance", 1),
                 0, 2);
@@ -297,5 +316,4 @@ public sealed class SqlProbabilisticIdentityLinkage(
             return null;
         return new DateOnly(year, month, day);
     }
-
 }

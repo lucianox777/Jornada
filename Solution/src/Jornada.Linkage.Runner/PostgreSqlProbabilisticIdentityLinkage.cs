@@ -7,8 +7,8 @@ using Jornada.Operational.Sql;
 namespace Jornada.Linkage.Runner;
 
 /// <summary>
-/// PostgreSQL model/scoring slice. Deliberately read-only: the batch runner,
-/// publication and calibration lifecycle require separate parity gates.
+/// PostgreSQL model/scoring slice. Modelos com ruleset persistido usam a projeção
+/// indexada identidade.blocking_chave; modelos legados preservam o blocking histórico.
 /// </summary>
 public sealed class PostgreSqlProbabilisticIdentityLinkage : IProbabilisticIdentityLinkage
 {
@@ -60,19 +60,19 @@ public sealed class PostgreSqlProbabilisticIdentityLinkage : IProbabilisticIdent
     {
         if (!string.IsNullOrWhiteSpace(observation.Cpf))
             throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
+
         var model = modelCache.TryGetValue(modeloId, out var cached)
             ? cached
             : await LoadModelByIdAsync(modeloId, ct);
         modelCache[modeloId] = model;
-        var candidates = await LoadCandidatesAsync(observation,
-            LinkageModelPolicy.SupportsBirthComponentScoring(model), ct);
+
+        var candidates = await LoadCandidatesAsync(observation, model, ct);
         return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
     }
 
     private async Task<LinkageModel> LoadModelByIdAsync(Guid modelId, CancellationToken ct)
     {
         await using var connection = await database.OpenAsync(ct);
-        // A model and its parameters must be read from one consistent snapshot.
         await using var tx = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         await using var command = Command(connection, """
             SELECT m.versao,m.algoritmo_versao,m.normalizacao_versao,m.status,p.nome,p.valor
@@ -111,16 +111,66 @@ public sealed class PostgreSqlProbabilisticIdentityLinkage : IProbabilisticIdent
     }
 
     private async Task<IReadOnlyList<LinkageCandidate>> LoadCandidatesAsync(
-        IdentityObservation observation, bool birthComponentScoring, CancellationToken ct)
+        IdentityObservation observation,
+        LinkageModel model,
+        CancellationToken ct)
     {
-        var maxCandidates = Math.Clamp(configuration.GetValue("ProbabilisticLinkage:MaxCandidatesPerBlock", 100000), 1000, 1000000);
+        var maxCandidates = Math.Clamp(
+            configuration.GetValue("ProbabilisticLinkage:MaxCandidatesPerBlock", 100000),
+            1000,
+            1000000);
+        var commandTimeoutSeconds = Math.Max(
+            1,
+            configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900));
+
+        await using var connection = await database.OpenAsync(ct);
+        var ruleSet = await LinkageRuleSetReader.TryLoadAsync(connection, model.ModelId, ct);
+        if (ruleSet is not null)
+        {
+            logger.LogDebug(
+                "Blocking dinâmico PostgreSQL selecionado. ModeloId={ModelId}; RuleSet={RuleSet}; Fingerprint={Fingerprint}",
+                model.ModelId,
+                ruleSet.RuleSetVersion,
+                ruleSet.FingerprintSha256);
+
+            return await BlockingProjectionCandidateLoader.LoadAsync(
+                connection,
+                ruleSet,
+                observation,
+                maxCandidates,
+                commandTimeoutSeconds,
+                BlockingQueryDialect.PostgreSql,
+                ct);
+        }
+
+        return await LoadLegacyCandidatesAsync(
+            connection,
+            observation,
+            LinkageModelPolicy.SupportsBirthComponentScoring(model),
+            maxCandidates,
+            commandTimeoutSeconds,
+            ct);
+    }
+
+    private async Task<IReadOnlyList<LinkageCandidate>> LoadLegacyCandidatesAsync(
+        DbConnection connection,
+        IdentityObservation observation,
+        bool birthComponentScoring,
+        int maxCandidates,
+        int commandTimeoutSeconds,
+        CancellationToken ct)
+    {
         var birthDate = observation.DataNascimento;
         var yearTolerance = Math.Clamp(configuration.GetValue("ProbabilisticLinkage:BirthYearTolerance", 1), 0, 2);
-        var plan = BirthBlockingPlan.Create(birthDate, observation.NomeCompleto, observation.NomeMae,
-            birthComponentScoring, yearTolerance);
-        await using var connection = await database.OpenAsync(ct);
+        var plan = BirthBlockingPlan.Create(
+            birthDate,
+            observation.NomeCompleto,
+            observation.NomeMae,
+            birthComponentScoring,
+            yearTolerance);
+
         await using var command = Command(connection, string.Empty);
-        command.CommandTimeout = Math.Max(1, configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900));
+        command.CommandTimeout = commandTimeoutSeconds;
         var query = PostgreSqlBirthBlockingQuery.Build(command, plan);
         Add(command, "@max_plus_one", DbType.Int32, maxCandidates + 1);
         command.CommandText = $"""
@@ -132,10 +182,15 @@ public sealed class PostgreSqlProbabilisticIdentityLinkage : IProbabilisticIdent
         await using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            result.Add(new LinkageCandidate(reader.GetGuid(0), reader.GetString(1),
-                DateOnly.FromDateTime(reader.GetDateTime(2)), reader.GetString(3)));
+            result.Add(new LinkageCandidate(
+                reader.GetGuid(0),
+                reader.GetString(1),
+                DateOnly.FromDateTime(reader.GetDateTime(2)),
+                reader.GetString(3)));
             if (result.Count > maxCandidates)
-                throw new InvalidOperationException($"Candidate generation de nascimento {birthDate:yyyy-MM-dd} excede MaxCandidatesPerBlock={maxCandidates}; o run foi interrompido para evitar truncamento silencioso de candidatos.");
+                throw new InvalidOperationException(
+                    $"Candidate generation de nascimento {birthDate:yyyy-MM-dd} excede MaxCandidatesPerBlock={maxCandidates}; " +
+                    "o run foi interrompido para evitar truncamento silencioso de candidatos.");
         }
         return result;
     }

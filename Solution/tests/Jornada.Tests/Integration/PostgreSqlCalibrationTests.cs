@@ -40,6 +40,13 @@ public sealed class PostgreSqlCalibrationTests
         Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.parametro_linkage WHERE modelo_id=@id;",("id",draft.ModelId)),Is.GreaterThan(40));
         Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.frequencia_linkage WHERE modelo_id=@id;",("id",draft.ModelId)),Is.EqualTo(3));
         Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.calibracao_linkage WHERE modelo_id=@id AND validado_em IS NULL;",("id",draft.ModelId)),Is.EqualTo(1));
+        Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.linkage_ruleset WHERE modelo_id=@id;",("id",draft.ModelId)),Is.EqualTo(1));
+        Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.linkage_ruleset_passe WHERE ruleset_id=@id;",("id",draft.ModelId)),Is.GreaterThanOrEqualTo(1));
+        Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.linkage_ruleset_passe_campo WHERE ruleset_id=@id;",("id",draft.ModelId)),Is.GreaterThanOrEqualTo(1));
+        var rulesetVersion = await ScalarAsync<string>("SELECT ruleset_versao FROM identidade.linkage_ruleset WHERE modelo_id=@id;",("id",draft.ModelId));
+        Assert.That(rulesetVersion,Is.EqualTo($"MODEL_{draft.Version}_BLOCKING_V1"));
+        var rulesetFingerprint = await ScalarAsync<string>("SELECT fingerprint_sha256 FROM identidade.linkage_ruleset WHERE modelo_id=@id;",("id",draft.ModelId));
+        Assert.That(rulesetFingerprint,Has.Length.EqualTo(64));
         await AssertFingerprintAsync(draft.ModelId);
         Assert.That(await SourceCountsAsync(),Is.EqualTo(before));
         Assert.That(await ActiveCountAsync(),Is.Zero);
@@ -53,6 +60,7 @@ public sealed class PostgreSqlCalibrationTests
         await AssertDbRejectedAsync("DELETE FROM identidade.estatistica_linkage WHERE modelo_id=@id;",("id",draft.ModelId));
         await AssertDbRejectedAsync("UPDATE identidade.frequencia_linkage SET ocorrencias=1 WHERE modelo_id=@id;",("id",draft.ModelId));
         await AssertDbRejectedAsync("UPDATE identidade.calibracao_linkage SET parametros_sha256=repeat('a',64) WHERE modelo_id=@id;",("id",draft.ModelId));
+        await AssertDbRejectedAsync("UPDATE identidade.linkage_ruleset SET fingerprint_sha256=repeat('a',64) WHERE modelo_id=@id;",("id",draft.ModelId));
         await AssertDbRejectedAsync("UPDATE identidade.modelo_linkage SET status='RASCUNHO' WHERE modelo_id=@id;",("id",draft.ModelId));
         Assert.That(await SourceCountsAsync(),Is.EqualTo(before));
     }
@@ -123,6 +131,32 @@ public sealed class PostgreSqlCalibrationTests
     }
 
     [Test]
+    public async Task ForcedRuleSetInsertFailure_RollsBackAllDraftEvidenceAndMarksModelFailed()
+    {
+        var before = await SourceCountsAsync();
+        await ExecuteAsync("""
+            CREATE FUNCTION identidade.fn_ci_ruleset_falha() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN RAISE EXCEPTION 'CI forced ruleset failure'; END $$;
+            CREATE TRIGGER tr_ci_ruleset_falha BEFORE INSERT ON identidade.linkage_ruleset
+            FOR EACH ROW EXECUTE FUNCTION identidade.fn_ci_ruleset_falha();
+            """);
+        var previous = await ScalarAsync<int>("SELECT COALESCE(MAX(versao),0) FROM identidade.modelo_linkage;");
+        try
+        {
+            Assert.ThrowsAsync<PostgresException>(async()=>{await calibrator.GenerateDraftAsync(Options,CancellationToken.None);});
+        }
+        finally
+        {
+            await ExecuteAsync("DROP TRIGGER IF EXISTS tr_ci_ruleset_falha ON identidade.linkage_ruleset; DROP FUNCTION IF EXISTS identidade.fn_ci_ruleset_falha();");
+        }
+        var id = await ScalarAsync<Guid>("SELECT modelo_id FROM identidade.modelo_linkage WHERE versao=@version;",("version",previous+1));
+        Assert.That(await ModelStatusAsync(id),Is.EqualTo("FALHOU"));
+        await AssertNoPartialEvidenceAsync(id);
+        Assert.That(await SourceCountsAsync(),Is.EqualTo(before));
+        Assert.That(await ActiveCountAsync(),Is.Zero);
+    }
+
+    [Test]
     public async Task ConcurrentGeneration_AllocatesDifferentVersionsAndReproducibleParameters()
     {
         var before = await SourceCountsAsync();
@@ -134,6 +168,7 @@ public sealed class PostgreSqlCalibrationTests
         foreach(var draft in drafts)
         {
             Assert.That(await ModelStatusAsync(draft.ModelId),Is.EqualTo("RASCUNHO"));
+            Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.linkage_ruleset WHERE modelo_id=@id;",("id",draft.ModelId)),Is.EqualTo(1));
             await AssertFingerprintAsync(draft.ModelId);
         }
         var hashes = new List<string>();
@@ -160,11 +195,13 @@ public sealed class PostgreSqlCalibrationTests
 
     private async Task AssertNoPartialEvidenceAsync(Guid id)
     {
-        foreach(var table in new[]{"parametro_linkage","estatistica_linkage","frequencia_linkage","calibracao_linkage"})
+        foreach(var table in new[]{"parametro_linkage","estatistica_linkage","frequencia_linkage","calibracao_linkage","linkage_ruleset"})
         {
             var count = await ScalarAsync<long>($"SELECT count(*) FROM identidade.{table} WHERE modelo_id=@id;",("id",id));
             Assert.That(count,Is.Zero,table);
         }
+        Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.linkage_ruleset_passe WHERE ruleset_id=@id;",("id",id)),Is.Zero);
+        Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.linkage_ruleset_passe_campo WHERE ruleset_id=@id;",("id",id)),Is.Zero);
     }
     private async Task AssertFingerprintAsync(Guid id)
     {

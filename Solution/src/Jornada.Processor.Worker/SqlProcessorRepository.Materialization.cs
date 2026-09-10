@@ -258,6 +258,7 @@ internal sealed partial class SqlProcessorRepository
             """;
         command.Parameters.AddWithValue("@uuid", uuid);
         await command.ExecuteNonQueryAsync(ct);
+        await BlockingProjectionPersistence.RefreshSqlServerAsync(connection, tx, uuid, ct);
     }
 
     private static async Task<(long? SubprefeituraId, long? DistritoId)> EnsureGeographyIdsAsync(

@@ -75,7 +75,7 @@ jobs:
           dotnet build src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj -c Release --no-restore -warnaserror
           dotnet build src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj -c Release --no-restore -warnaserror
 
-      - name: Apply PostgreSQL operational cores and mandatory CPF anchor
+      - name: Apply PostgreSQL operational cores and mandatory CPF/blocking anchors
         run: |
           CID=$(docker ps -q --filter publish=5432 | head -1)
           test -n "$CID"
@@ -83,6 +83,7 @@ jobs:
             docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core.sql
             docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Ingestion_Processor_Core.sql
             docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Processor_Persistence_Core.sql
+            docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Linkage_Model_Core.sql
             docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Cpf_Ancora.sql
           done
           docker exec -i "$CID" psql -v ON_ERROR_STOP=1 -U jornada -d JornadaPg < database/postgresql/Jornada_Resultado_Core_Smoke.sql

@@ -30,6 +30,7 @@
     <None Include="..\..\database\Jornada_Identidade_Progressiva.sql" Link="database\Jornada_Identidade_Progressiva.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\database\migrations\20260908_Identidade_Progressiva_Serving.sql" Link="database\migrations\20260908_Identidade_Progressiva_Serving.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\database\migrations\20260907_Cpf_Ancora.sql" Link="database\migrations\20260907_Cpf_Ancora.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\database\migrations\20260910_Linkage_Blocking_Chave.sql" Link="database\migrations\20260910_Linkage_Blocking_Chave.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\config\contracts\**\*.json" Link="config\contracts\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\config\security\authorization-matrix.json" Link="config\security\authorization-matrix.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\config\security\test-access-keys.json" Link="config\security\test-access-keys.json" CopyToOutputDirectory="PreserveNewest" />
