@@ -29,7 +29,8 @@ WHERE OBJECT_ID(v.objeto, N'U') IS NULL;
 IF EXISTS(SELECT 1 FROM @missing)
 BEGIN
     DECLARE @lista NVARCHAR(MAX)=(SELECT STRING_AGG(objeto,N', ') FROM @missing);
-    THROW 51700, CONCAT(N'Schema v3.70 incompleto. Objetos ausentes: ',@lista), 1;
+    DECLARE @mensagem NVARCHAR(2048)=CONCAT(N'Schema v3.70 incompleto. Objetos ausentes: ',@lista);
+    THROW 51700, @mensagem, 1;
 END;
 
 IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema')
