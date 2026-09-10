@@ -1,0 +1,29 @@
+{
+  "status": "CURRENT_ADDITIVE_MAP",
+  "base": "requirements-map.json",
+  "baseline_counts": {"RN": 36, "RF": 50, "RNF": 33, "RT": 65},
+  "current_additions": {
+    "RF": ["RF-051", "RF-052", "RF-053", "RF-054", "RF-055", "RF-056"],
+    "RNF": ["RNF34-A", "RNF34-B", "RNF34-C", "RNF34-D"]
+  },
+  "effective_counts": {"RN": 36, "RF": 56, "RNF_identifiers": 37, "RT": 65},
+  "normative_sources": [
+    "02_Requisitos_Funcionais_Jornada_v1.0.md",
+    "02_Requisitos_Funcionais_Jornada_v1.1.md",
+    "03_Requisitos_Nao_Funcionais_Jornada_v1.0.md",
+    "03_Requisitos_Nao_Funcionais_Jornada_v1.1.md",
+    "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.0.md",
+    "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.md"
+  ],
+  "historical_non_normative_sources": [
+    "06_Adendo_RF_RNF_Linkage_Calibracao_Avaliacao_v1.0.md"
+  ],
+  "rf_additions": {
+    "RF-051": {"rn": ["RN-023", "RN-024", "RN-028", "RN-035"], "rnf": ["RNF15", "RNF20", "RNF21", "RNF34-A", "RNF34-B"], "rt": ["RT-057", "RT-058"]},
+    "RF-052": {"rn": ["RN-005", "RN-014", "RN-023", "RN-024", "RN-029"], "rnf": ["RNF13", "RNF16", "RNF21", "RNF27", "RNF34-A"], "rt": ["RT-027", "RT-028", "RT-029", "RT-057"]},
+    "RF-053": {"rn": ["RN-005", "RN-006", "RN-014", "RN-023", "RN-024"], "rnf": ["RNF16", "RNF21", "RNF25", "RNF27", "RNF34-A"], "rt": ["RT-027", "RT-028", "RT-029", "RT-057"]},
+    "RF-054": {"rn": ["RN-005", "RN-014", "RN-024", "RN-029", "RN-030"], "rnf": ["RNF13", "RNF16", "RNF21", "RNF30", "RNF34-A"], "rt": ["RT-029", "RT-049", "RT-057"]},
+    "RF-055": {"rn": ["RN-003", "RN-014", "RN-024", "RN-029"], "rnf": ["RNF13", "RNF16", "RNF21", "RNF34-A"], "rt": ["RT-027", "RT-029", "RT-057"]},
+    "RF-056": {"rn": ["RN-014", "RN-023", "RN-024", "RN-029"], "rnf": ["RNF13", "RNF20", "RNF21", "RNF34-A", "RNF34-B"], "rt": ["RT-057"]}
+  }
+}
