@@ -36,23 +36,45 @@ jobs:
 
           path = Path('Solution/scripts/technical-closure-gate-v405.py')
           text = path.read_text(encoding='utf-8')
-          text = text.replace('RELEASE_INFO = ROOT.parent / "RELEASE_INFO.txt"\n', '')
-          pattern = re.compile(
-              r'\n    release_info = RELEASE_INFO\.read_text\(encoding="utf-8"\)\n'
-              r'    require\(release_info, \[\n.*?\n    \], "RELEASE_INFO corrente"\)\n',
-              re.DOTALL,
-          )
-          text, count = pattern.subn(
-              '\n    # RELEASE_INFO é metadado mutável da release corrente e não pertence à bateria\n'
-              '    # histórica congelada v4.05. A coerência da fronteira v4.05 -> v5.00 é\n'
-              '    # validada por technical-closure-gate.py.\n',
-              text,
-              count=1,
-          )
-          if count != 1:
-              raise SystemExit('expected exactly one current RELEASE_INFO assertion block in v405 gate')
-          if 'solution_engenharia=v4.05' in text or 'schema_solution=v3.69' in text or 'source_git_tag=jornada-solution-v4.05' in text:
-              raise SystemExit('v405 gate still pins mutable current release metadata')
+
+          blocks = [
+              (
+                  re.compile(
+                      r'\n    release_info = RELEASE_INFO\.read_text\(encoding="utf-8"\)\n'
+                      r'    require\(release_info, \[\n.*?\n    \], "RELEASE_INFO corrente"\)\n',
+                      re.DOTALL,
+                  ),
+                  '\n    # RELEASE_INFO corrente é metadado mutável da fronteira de release.\n'
+                  '    # Sua coerência é validada exclusivamente pelo wrapper technical-closure-gate.py.\n',
+                  'release metadata pin',
+              ),
+              (
+                  re.compile(
+                      r'\n    release_info_text = RELEASE_INFO\.read_text\(encoding="utf-8"\)\n'
+                      r'    require\(release_info_text, \[\n.*?\n    \], "evidência runtime externa v3\.99 preservada na v4\.03"\)\n',
+                      re.DOTALL,
+                  ),
+                  '\n    # Evidências históricas de runtime não são inferidas do RELEASE_INFO corrente.\n'
+                  '    # A bateria v4.05 permanece congelada nos invariantes técnicos, não no manifesto mutável.\n',
+                  'runtime evidence pin',
+              ),
+          ]
+
+          for pattern, replacement, label in blocks:
+              text, count = pattern.subn(replacement, text, count=1)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one {label} block in v405 gate')
+
+          if 'RELEASE_INFO.read_text' in text:
+              raise SystemExit('v405 gate still reads mutable current RELEASE_INFO contents')
+          for forbidden in (
+              'solution_engenharia=v4.05',
+              'schema_solution=v3.69',
+              'source_git_tag=jornada-solution-v4.05',
+          ):
+              if forbidden in text:
+                  raise SystemExit(f'v405 gate still pins mutable release metadata: {forbidden}')
+
           path.write_text(text, encoding='utf-8')
           PY
 
