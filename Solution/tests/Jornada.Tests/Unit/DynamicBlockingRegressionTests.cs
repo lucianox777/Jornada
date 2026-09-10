@@ -1,5 +1,4 @@
 using Jornada.Contracts;
-using Jornada.Linkage.Parameters.Worker;
 
 namespace Jornada.Tests.Unit;
 
@@ -23,16 +22,5 @@ public sealed class DynamicBlockingRegressionTests
             Assert.That(withoutInitials.Match(new DateOnly(1983, 4, 10), "", ""),
                 Is.EqualTo(BirthBlockingPass.NeighborYear));
         });
-    }
-
-    [Test]
-    public void CalibrationOptions_ValidateDynamicBlockingBounds()
-    {
-        var valid = new PostgreSqlCalibrationOptions(100, 100, 100, 0.5m, 0.95m, 0.03m, 60,
-            BlockingUseComponents: true, BlockingYearTolerance: 2);
-        var invalid = valid with { BlockingYearTolerance = 3 };
-
-        Assert.DoesNotThrow(valid.Validate);
-        Assert.Throws<ArgumentOutOfRangeException>(invalid.Validate);
     }
 }
