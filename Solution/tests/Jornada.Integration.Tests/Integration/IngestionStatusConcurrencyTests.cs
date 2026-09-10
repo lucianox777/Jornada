@@ -98,16 +98,15 @@ public sealed class IngestionStatusConcurrencyTests
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
 
+        // O lote permanece no estado terminal válido fornecido pelo seed. Para a prova concorrencial,
+        // o X lock é adquirido pelo UPDATE de atualizado_em dentro da transação do próprio teste;
+        // forçar PROCESSANDO aqui exigiria um lease ativo e violaria ck_lote_lease.
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            UPDATE ingestao.lote
-               SET status='PROCESSANDO',erro_codigo=NULL,atualizado_em=SYSDATETIMEOFFSET()
-             WHERE lote_id=@lote_id;
             UPDATE ingestao.entrega
                SET status='PROCESSANDO',ultima_atualizacao=SYSDATETIMEOFFSET()
              WHERE entrega_id=@entrega_id;
             """;
-        command.Parameters.AddWithValue("@lote_id", LoteId);
         command.Parameters.AddWithValue("@entrega_id", EntregaId);
         await command.ExecuteNonQueryAsync();
     }
