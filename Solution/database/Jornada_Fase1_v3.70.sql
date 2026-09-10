@@ -10,8 +10,8 @@
 :r database/migrations/20260909_Identidade_Composicao_Referencia_Lock.sql
 :r database/migrations/20260909_Identidade_Composicao_Aplicacao.sql
 :r database/migrations/20260909_Identidade_Composicao_Recomposicao_Plano.sql
-:r database/migrations/20260909_Identidade_Composicao_Historico_Serving.sql
 :r database/migrations/20260909_Identidade_Composicao_Publicacao.sql
+:r database/migrations/20260909_Identidade_Composicao_Historico_Serving.sql
 :r database/migrations/20260908_Identidade_Progressiva_Processor.sql
 :r database/migrations/20260908_Identidade_Progressiva_Serving.sql
 :r database/migrations/20260910_Linkage_Blocking_Chave.sql
