@@ -5,7 +5,7 @@ on:
       - 'Solution/database/migrations/20260907_Cpf_Ancora.sql'
       - 'Solution/database/postgresql/Jornada_Cpf_Ancora.sql'
       - 'Solution/scripts/cpf-anchor-smoke.cs'
-      - 'Solution/docs/ADR_CPF_Ancora_Imutavel.md'
+      - 'Solution/docs/Arquitetura_Identidade_Linkage.md'
       - 'Solution/config/security/source-sanity-policy.json'
       - '.github/workflows/cpf-anchor.yml'
   push:
@@ -13,7 +13,7 @@ on:
       - 'Solution/database/migrations/20260907_Cpf_Ancora.sql'
       - 'Solution/database/postgresql/Jornada_Cpf_Ancora.sql'
       - 'Solution/scripts/cpf-anchor-smoke.cs'
-      - 'Solution/docs/ADR_CPF_Ancora_Imutavel.md'
+      - 'Solution/docs/Arquitetura_Identidade_Linkage.md'
       - 'Solution/config/security/source-sanity-policy.json'
       - '.github/workflows/cpf-anchor.yml'
   workflow_dispatch:
@@ -52,7 +52,6 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
-      # Container efêmero de CI: canal cifrado; certificado autoassinado aceito somente pela allowlist CI sintética.
       JORNADA_TEST_SQL_CONNECTION: 'Server=localhost,1433;Database=JornadaCpfAnchorTest;User Id=sa;Password=Jornada_Test_2026!Sql;Encrypt=True;TrustServerCertificate=true'
       JORNADA_POSTGRESQL_CONNECTION: 'Host=localhost;Port=5432;Database=JornadaCpfAnchorTest;Username=jornada;SSL Mode=Disable'
     steps:
