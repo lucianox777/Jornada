@@ -25,7 +25,9 @@ chmod 0777 "$ROOT/.local/sql-backup"
 
 compose() { (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
 sqlcmd() {
-  compose exec -T -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
+  # O baseline v3.70 usa diretivas :r relativas ao diretório /workspace.
+  # Fixar o working directory evita que sqlcmd resolva includes a partir de /.
+  compose exec -T -w /workspace -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I "$@"
 }
 wait_healthy() {
@@ -41,15 +43,14 @@ wait_healthy() {
 }
 bootstrap() {
   sqlcmd -Q "IF DB_ID(N'$JORNADA_SQL_DATABASE') IS NULL CREATE DATABASE [$JORNADA_SQL_DATABASE];"
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/Jornada_Fase1.sql
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/Jornada_Seed_Dev.sql
-  # V1 operacional: depois da massa inicial, reserva também todo CPF histórico do seed.
-  # Em produção, onde não há seed DEV, a mesma migração é aplicada logo após o baseline.
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/migrations/20260907_Cpf_Ancora.sql
-  # O runtime atual do Processor e do Avaliador depende das projeções/regras de blocking versionadas.
-  # Instalação local nova deve representar o mesmo schema operacional exercitado pelas migrations de upgrade.
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/migrations/20260910_Linkage_Blocking_Chave.sql
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -i /workspace/database/migrations/20260910_Linkage_RuleSet_Passes.sql
+  # Instalação nova possui um único ponto canônico. O arquivo v3.70 aplica baseline,
+  # identidade progressiva, composição, blocking/ruleset e valida a completude antes
+  # de promover Jornada.SolutionSchema=3.70.
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/Jornada_Fase1_v3.70.sql
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/Jornada_Seed_Dev.sql
+  # DEV possui seed; reaplicação idempotente reserva também CPFs históricos do seed.
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260907_Cpf_Ancora.sql
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260910_Schema_Consolidation_370.sql
 }
 
 case "$ACTION" in
@@ -57,14 +58,14 @@ case "$ACTION" in
     compose up -d sqlserver
     wait_healthy
     bootstrap
-    echo "SQL Server Developer local pronto: localhost:$JORNADA_SQL_PORT / $JORNADA_SQL_DATABASE"
+    echo "SQL Server Developer local pronto: localhost:$JORNADA_SQL_PORT / $JORNADA_SQL_DATABASE (schema 3.70)"
     ;;
   reset)
     compose up -d sqlserver
     wait_healthy
     sqlcmd -Q "IF DB_ID(N'$JORNADA_SQL_DATABASE') IS NOT NULL BEGIN ALTER DATABASE [$JORNADA_SQL_DATABASE] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$JORNADA_SQL_DATABASE]; END; CREATE DATABASE [$JORNADA_SQL_DATABASE];"
     bootstrap
-    echo "Banco local recriado: $JORNADA_SQL_DATABASE"
+    echo "Banco local recriado: $JORNADA_SQL_DATABASE (schema 3.70)"
     ;;
   down)
     compose down

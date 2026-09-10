@@ -3,7 +3,15 @@
 **Status:** normativa para a V1 ainda não publicada.  
 **Princípio de versionamento:** como a Jornada ainda não foi publicada, este documento descreve diretamente a arquitetura vigente. Não há necessidade de manter ADRs como registro de decisões históricas internas que ainda podem ser consolidadas antes da primeira publicação.
 
-Este documento incorpora as decisões anteriormente distribuídas entre documentos ADR de identidade progressiva, âncora CPF, cutover do Processor, composição reversível e Linkage multievidência/Fellegi–Sunter. Em caso de divergência com textos históricos, prevalecem os requisitos normativos, o código validado na `master` e esta especificação consolidada.
+Este documento incorpora as decisões anteriormente distribuídas entre documentos ADR de identidade progressiva, âncora CPF, cutover do Processor, composição reversível e Linkage multievidência/Fellegi–Sunter.
+
+## 0. Hierarquia normativa e tecnologia relacional
+
+A hierarquia de precedência da Jornada é única: **Especificação Técnica vigente → requisitos normativos e documentos de arquitetura corrente subordinados → implementação**. O código validado na `master` é realização e evidência de conformidade; não cria norma por si mesmo. Divergência entre implementação e norma deve ser tratada como defeito ou resultar em alteração formal prévia da documentação normativa aplicável.
+
+**Microsoft SQL Server é a tecnologia relacional normativa da Jornada.** O DDL canônico, o contrato de prontidão do banco e o baseline de instalação da Fase 1 são definidos para SQL Server. PostgreSQL permanece como provider operacional paralelo para escopos explicitamente suportados de desenvolvimento, teste, calibração e avaliação de Linkage; sua presença no adapter/Npgsql não substitui nem rebaixa o SQL Server como tecnologia relacional normativa. Microsoft Fabric permanece destino/ambiente analítico e de compatibilidade quando aplicável, sem transformar o Lakehouse ou SQL Endpoint em substituto implícito do banco relacional operacional normativo.
+
+Durante a consolidação de engenharia v5.00, novas features ficam suspensas: ideias adicionais devem ser registradas como issues até o fechamento do schema, requisitos, UML, artefatos normativos e release.
 
 ## 1. Identidade progressiva
 
@@ -70,7 +78,9 @@ Evidências candidatas incluem nome, nome da mãe, nascimento e seus componentes
 
 O valor original nunca é alterado pela normalização de Linkage. Qualidade é metadado separado, com estados mínimos `VALIDA`, `SUSPEITA`, `SENTINELA_PROVAVEL`, `IMPOSSIVEL`, `AUSENTE` e `INCONSISTENTE`.
 
-Ausência ou má qualidade nunca elimina a observação nem autoriza preenchimento sintético. Valores ausentes/impossíveis/sentinelas são neutros no score salvo política calibrada específica. Contradições permanecem preservadas e não são corrigidas silenciosamente.
+**A ausência, indisponibilidade ou má qualidade de qualquer campo — inclusive nome da mãe — nunca elimina a observação recebida.** Ela reduz ou neutraliza a evidência disponível conforme política versionada, mas não autoriza descarte do fato, preenchimento sintético ou invenção de valor. Valores ausentes/impossíveis/sentinelas são neutros no score salvo política calibrada específica. Contradições permanecem preservadas e não são corrigidas silenciosamente.
+
+Esta regra arquitetural não altera, por si só, a obrigatoriedade dos contratos de entrada vigentes: eventual mudança de `nomeMae` de obrigatório para opcional é decisão funcional/normativa separada e deve ser tratada em change-set próprio.
 
 Nome e nome da mãe usam normalização versionada. A normalização pode remover diacríticos, pontuação irrelevante, espaços redundantes e partículas nominais isoladas para comparação, preservando o original.
 
@@ -118,4 +128,12 @@ A arquitetura deve falhar fechada quando não puder provar completude, versão, 
 
 ## 12. UML
 
-Os diagramas normativos correspondentes ficam em `Solution/docs/uml/` e `Solution/docs/diagrams/`, conforme `Solution/docs/UML_Indice.md`. O padrão de documentação gráfica é UML com fontes PlantUML versionadas no repositório.
+Os diagramas normativos correspondentes ficam em `Solution/docs/uml/` e `Solution/docs/diagrams/`. O padrão de documentação gráfica normativa é UML com fontes PlantUML versionadas no repositório.
+
+O modelo estrutural deve ser representado por **diagrama de classes UML**, e não por DER/DRE como substituto do artefato UML. O fluxo de resolução de identidade deve possuir **diagrama de atividade UML**. O DER pode permanecer apenas como artefato físico auxiliar de banco de dados, sem ser classificado como UML.
+
+Fontes normativas desta consolidação:
+
+- `Solution/docs/uml/Jornada_Identidade_Linkage_Classes.puml` — diagrama de classes;
+- `Solution/docs/uml/Jornada_Resolucao_Identidade_Atividade.puml` — diagrama de atividade;
+- demais diagramas UML de componentes, implantação, estados e sequência já versionados no repositório.

@@ -9,7 +9,7 @@ namespace Jornada.Tests.Integration;
 public sealed class ApiReadinessTests
 {
     [Test]
-    public async Task Readiness_accepts_only_current_schema_marker_and_essential_objects()
+    public async Task Readiness_rejects_legacy_schema_369_even_when_legacy_objects_exist()
     {
         var connectionString = RequireIntegrationConnection();
         await using (var connection = new SqlConnection(connectionString))
@@ -32,8 +32,10 @@ public sealed class ApiReadinessTests
                 new ApiOperationalPaths(bronze, staging, true, true));
 
             var result = await probe.CheckAsync(CancellationToken.None);
-            Assert.That(result.Ready, Is.True);
-            Assert.That(result.Checks.Single(x => x.Name == "sql").Code, Is.Null);
+            Assert.That(result.Ready, Is.False);
+            var sql = result.Checks.Single(x => x.Name == "sql");
+            Assert.That(sql.Ready, Is.False);
+            Assert.That(sql.Code, Is.EqualTo("SQL_SCHEMA_INCOMPATIVEL"));
         }
         finally
         {

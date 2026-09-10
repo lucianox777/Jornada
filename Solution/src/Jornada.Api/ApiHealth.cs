@@ -30,10 +30,25 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
                 DECLARE @base NVARCHAR(32)=CONVERT(NVARCHAR(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'));
                 DECLARE @solution NVARCHAR(32)=CONVERT(NVARCHAR(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));
                 SELECT CASE WHEN
-                    @base=N'3.62' AND @solution=N'3.69'
+                    @base=N'3.62'
+                    AND NOT (@solution=N'3.69')
+                    AND @solution=N'3.70'
                     AND OBJECT_ID(N'ref.gestor',N'U') IS NOT NULL
                     AND OBJECT_ID(N'ingestao.entrega',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.pessoa',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.cpf_ancora',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.pessoa_origem_progressiva',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.pessoa_origem_progressiva_evento',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.composicao_uuid_reserva',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.composicao_plano',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.composicao_aplicacao',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.composicao_historico_aplicado',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.composicao_recomposicao_plano',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.composicao_publicacao',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.blocking_chave',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.linkage_ruleset',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.linkage_ruleset_passe',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.linkage_ruleset_passe_campo',N'U') IS NOT NULL
                     AND OBJECT_ID(N'gold.pessoa',N'U') IS NOT NULL
                     AND OBJECT_ID(N'serving.registro_integrado',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.sp_recompor_gold_pessoa',N'P') IS NOT NULL
