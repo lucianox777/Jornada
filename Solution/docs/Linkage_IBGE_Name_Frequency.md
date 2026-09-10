@@ -8,39 +8,36 @@ A fonte prevista é **IBGE — Nomes no Brasil**, tratada exclusivamente como re
 
 A primeira versão preserva a decisão registrada na issue #31: não aplicar normalização fonética, colapso de letras duplicadas ou equivalências probabilísticas. São permitidas apenas adaptações técnicas de consulta, como `Trim` e uniformização de caixa. A grafia/frequência publicada pela fonte continua sendo a unidade estatística de referência.
 
-## Contrato de snapshot
+## Contrato legado de snapshot
 
-`ExternalNameFrequencyCatalog` produz um snapshot somente leitura contendo:
+`ExternalNameFrequencyCatalog` permanece disponível para snapshots locais simples já usados pelos testes e ferramentas preparatórias. Ele mantém identificador fixo da fonte, versão explícita, pares nome/ocorrências e fingerprint SHA-256 determinístico.
 
-- identificador fixo da fonte `IBGE_NOMES_NO_BRASIL`;
-- versão explícita da fonte, informada pelo processo de ingestão;
-- pares nome/ocorrências, ordenados canonicamente;
-- fingerprint SHA-256 determinístico do identificador, versão e conteúdo canônico.
+Esse formato não é suficiente para alimentar o otimizador porque não distingue semanticamente frequência de **prenome** e frequência de **sobrenome**, nem identifica o recorte territorial. Por isso ele não deve ser usado para atribuir frequência externa a um atributo do blocking.
 
-Entradas vazias, contagens negativas e duplicidades após a adaptação técnica são rejeitadas. O fingerprint permite demonstrar exatamente qual publicação agregada foi usada em uma análise sem persistir dados pessoais da Jornada.
+## Snapshot tipado para uso downstream
+
+`IbgeTypedNameFrequencyCatalog` introduz o contrato necessário para utilização segura pelo Calibrador/otimizador. Cada entrada registra:
+
+- `IbgeNameStatisticKind.FirstName` ou `IbgeNameStatisticKind.Surname`;
+- grafia da entrada com apenas adaptação técnica de consulta;
+- número de ocorrências;
+- versão explícita da fonte;
+- escopo territorial `Brazil`, `State` ou `Municipality`;
+- código territorial obrigatório para UF/Município e ausente para Brasil;
+- fingerprint SHA-256 incluindo tipo estatístico, escopo, código e conteúdo.
+
+Prenome e sobrenome com a mesma grafia são entradas distintas e podem possuir frequências diferentes. O fingerprint também muda quando muda o recorte territorial, evitando que uma estatística municipal seja confundida com Brasil/UF.
+
+`IbgeCalibrationAttributeCatalog.TryGetOccurrences` faz a ponte semântica entre atributo da Jornada e snapshot tipado. Apenas atributos explicitamente mapeados podem consultar a frequência externa. `name_first`/`mother_name_first` usam estatística de prenome; `name_surnames`, `name_last`, `mother_name_surnames` e `mother_name_last` usam estatística de sobrenome. Nome completo e atributos sem correspondência IBGE permanecem sem enriquecimento externo, em vez de receber aproximação artificial.
 
 ## Entrada local versionada
 
-`ExternalNameFrequencySnapshotReader` aceita somente um arquivo/JSON local explicitamente fornecido ao processo. Não há download automático, descoberta de versão na rede ou fallback silencioso.
+`ExternalNameFrequencySnapshotReader` continua aceitando o formato local legado para validação de fonte/fingerprint. A evolução seguinte deverá fornecer leitor/materializador equivalente para o snapshot tipado, preservando fail-closed, proveniência e detecção de mudança antes de qualquer automatização de download.
 
-Formato mínimo:
-
-```json
-{
-  "source": "IBGE_NOMES_NO_BRASIL",
-  "source_version": "<versao-explicita-da-publicacao>",
-  "entries": [
-    { "name": "MARIA", "occurrences": 1 }
-  ]
-}
-```
-
-O campo opcional `fingerprint_sha256` pode transportar o fingerprint canônico previamente registrado. Quando presente, o leitor recalcula o snapshot e falha se o valor não coincidir. Fonte desconhecida, metadados obrigatórios ausentes, contagem fora de `Int64`, duplicidade após adaptação técnica ou fingerprint divergente também falham fechado.
-
-A entrada local separa duas responsabilidades: obtenção/licenciamento/atestado da publicação externa ocorre fora do runtime de Linkage; o código da Jornada apenas valida e identifica de forma reproduzível o snapshot recebido. O arquivo não é promovido automaticamente a parâmetro de modelo.
+A entrada local separa responsabilidades: obtenção/licenciamento/atestado da publicação externa ocorre fora do runtime de Linkage; o código da Jornada valida, tipa e identifica de forma reproduzível o snapshot recebido. O arquivo não é promovido automaticamente a parâmetro de modelo.
 
 ## Limites
 
-Esta fatia não conecta automaticamente a API/site do IBGE, não altera `FrequencyCalculator`, não injeta frequência externa no scorer, não muda m/u, prior, thresholds, blocking, precedência do CPF ou decisão de identidade. Também não cria/funde UUID, não altera fatos, Gold ou Serving.
+Esta fatia ainda não injeta frequência IBGE no critério de escolha do `BlockingRuleSetSearch`, não altera scorer, m/u, prior, thresholds, precedência do CPF ou decisão de identidade. Também não cria/funde UUID, não altera fatos, Gold ou Serving.
 
-Uso no estimador/scorer exige uma fatia posterior com corpus representativo, separação calibração/avaliação, avaliação independente de recall/precisão/calibração/falsos vínculos e aprovação institucional conforme a issue #31.
+O próximo passo implementável é materializar o snapshot tipado a partir da publicação oficial e permitir ao otimizador comparar, no corpus de calibração, alternativas **com e sem** contribuição externa, registrando a proveniência do snapshot escolhido. A promoção continua condicionada à avaliação independente e aos gates estatísticos da issue #31.
