@@ -76,6 +76,7 @@ public sealed class PostgreSqlHistoricalAliasBlockingTests
                 },
                 Array.Empty<KeyValuePair<string, decimal>>());
 
+            // Caminho propositalmente sem CPF: CPF presente pertence exclusivamente à resolução determinística.
             var observation = new IdentityObservation(
                 null,
                 "NAO_INFORMADO",
@@ -108,16 +109,6 @@ public sealed class PostgreSqlHistoricalAliasBlockingTests
         {
             await CleanupAsync();
         }
-    }
-
-    [Test]
-    public void Probabilistic_entry_point_rejects_any_observation_with_cpf_before_candidate_generation()
-    {
-        // A regra é também coberta no scorer real. Este teste documenta o contrato de entrada:
-        // blocking/ruleset nunca é rota alternativa para um CPF presente.
-        Assert.That(
-            new IdentityObservation("11144477735", null, HistoricalName, Birth, MotherName).Cpf,
-            Is.Not.Null.And.Not.Empty);
     }
 
     private async Task CleanupAsync()
