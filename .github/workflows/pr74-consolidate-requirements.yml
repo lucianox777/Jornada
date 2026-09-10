@@ -8,6 +8,7 @@ on:
       - .github/workflows/pr74-consolidate-requirements.yml
       - Solution/scripts/consolidate-requirements.py
       - Solution/scripts/render-consolidated-requirements.py
+      - Solution/scripts/finalize-consolidated-requirements-layout.py
   workflow_dispatch:
 
 permissions:
@@ -51,6 +52,7 @@ jobs:
         run: |
           python3 Solution/scripts/consolidate-requirements.py --root "$GITHUB_WORKSPACE"
           python3 Solution/scripts/render-consolidated-requirements.py --root "$GITHUB_WORKSPACE"
+          python3 Solution/scripts/finalize-consolidated-requirements-layout.py --root "$GITHUB_WORKSPACE"
 
       - name: Validate release boundary and technical closure
         run: python3 Solution/scripts/technical-closure-gate.py
@@ -83,6 +85,16 @@ jobs:
                   raise SystemExit(f'{docx}: expected only Table Grid tables')
               if pdf.stat().st_size < 1000:
                   raise SystemExit(f'{pdf}: invalid PDF')
+
+          rf = Document(req / '02_Requisitos_Funcionais_Jornada_v1.1.docx')
+          target = [p for p in rf.paragraphs if p.text.strip() == 'Requisitos funcionais incorporados na v1.1']
+          if len(target) != 1 or not target[0].paragraph_format.page_break_before:
+              raise SystemExit('RF v1.1 additions must start on a new page')
+
+          matrix = Document(req / '05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.docx')
+          expected_title = 'Matriz de Rastreabilidade - Jornada do Cidadão - Fase 1'
+          if not matrix.paragraphs or matrix.paragraphs[0].text.strip() != expected_title:
+              raise SystemExit('matrix title is not canonical')
           print('STRUCTURAL QA: OK')
           PY
 
@@ -130,6 +142,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No generated changes"
           else
-            git commit -m "docs(requisitos): republicar baseline institucional v1.1"
+            git commit -m "docs(requisitos): finalizar baseline institucional v1.1"
             git push origin HEAD:fix/readiness-technical-gate-370
           fi
