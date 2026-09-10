@@ -10,7 +10,7 @@ TARGET_SCHEMA="3.69"
 [[ -f "$MANIFEST" ]] || { echo "ERRO: manifesto de migrações ausente: $MANIFEST" >&2; exit 2; }
 command -v sha256sum >/dev/null 2>&1 || { echo "ERRO: sha256sum não encontrado" >&2; exit 2; }
 
-run_sql() { "$SQLCMD_BIN" -b -I -d "$DB" "$@"; }
+run_sql() { "$SQLCMD_BIN" -C -b -I -d "$DB" "$@"; }
 
 run_sql -Q "IF SCHEMA_ID(N'jornada') IS NULL EXEC(N'CREATE SCHEMA jornada'); IF OBJECT_ID(N'jornada.schema_migration',N'U') IS NULL CREATE TABLE jornada.schema_migration(migration_name nvarchar(260) NOT NULL PRIMARY KEY, sha256 char(64) NOT NULL, applied_at datetime2(3) NOT NULL CONSTRAINT DF_jornada_schema_migration_applied_at DEFAULT SYSUTCDATETIME());"
 
