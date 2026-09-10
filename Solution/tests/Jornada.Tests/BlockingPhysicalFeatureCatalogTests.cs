@@ -27,6 +27,7 @@ public sealed class BlockingPhysicalFeatureCatalogTests
         {
             Assert.That(mapping.SourceColumn, Is.EqualTo("nome_completo"));
             Assert.That(mapping.Strategy, Is.EqualTo(BlockingPhysicalStrategy.DirectColumn));
+            Assert.That(mapping.SourceScope, Is.EqualTo(BlockingPhysicalSourceScope.GoldCurrent));
         });
     }
 
@@ -38,6 +39,9 @@ public sealed class BlockingPhysicalFeatureCatalogTests
             BlockingCandidateFeatureCatalog.FirstName,
             BlockingCandidateFeatureCatalog.Surnames,
             BlockingCandidateFeatureCatalog.LastName,
+            BlockingCandidateFeatureCatalog.MotherFirstName,
+            BlockingCandidateFeatureCatalog.MotherSurnames,
+            BlockingCandidateFeatureCatalog.MotherLastName,
             BlockingCandidateFeatureCatalog.BirthDay,
             BlockingCandidateFeatureCatalog.BirthMonth,
             BlockingCandidateFeatureCatalog.BirthYear
@@ -48,6 +52,27 @@ public sealed class BlockingPhysicalFeatureCatalogTests
             Assert.That(BlockingPhysicalFeatureCatalog.TryGet(feature, out var mapping), Is.True);
             Assert.That(mapping.Strategy, Is.EqualTo(BlockingPhysicalStrategy.MaterializedProjection), feature);
         }
+    }
+
+    [TestCase(BlockingCandidateFeatureCatalog.FirstName)]
+    [TestCase(BlockingCandidateFeatureCatalog.Surnames)]
+    [TestCase(BlockingCandidateFeatureCatalog.LastName)]
+    [TestCase(BlockingCandidateFeatureCatalog.MotherFirstName)]
+    [TestCase(BlockingCandidateFeatureCatalog.MotherSurnames)]
+    [TestCase(BlockingCandidateFeatureCatalog.MotherLastName)]
+    public void DerivedNames_UseSilverObservationHistory(string feature)
+    {
+        Assert.That(BlockingPhysicalFeatureCatalog.TryGet(feature, out var mapping), Is.True);
+        Assert.That(mapping.SourceScope, Is.EqualTo(BlockingPhysicalSourceScope.SilverObservationHistory));
+    }
+
+    [TestCase(BlockingCandidateFeatureCatalog.BirthDay)]
+    [TestCase(BlockingCandidateFeatureCatalog.BirthMonth)]
+    [TestCase(BlockingCandidateFeatureCatalog.BirthYear)]
+    public void BirthComponents_UseCurrentGoldValue(string feature)
+    {
+        Assert.That(BlockingPhysicalFeatureCatalog.TryGet(feature, out var mapping), Is.True);
+        Assert.That(mapping.SourceScope, Is.EqualTo(BlockingPhysicalSourceScope.GoldCurrent));
     }
 
     [Test]
