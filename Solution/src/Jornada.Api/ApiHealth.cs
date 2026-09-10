@@ -30,7 +30,9 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
                 DECLARE @base NVARCHAR(32)=CONVERT(NVARCHAR(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'));
                 DECLARE @solution NVARCHAR(32)=CONVERT(NVARCHAR(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));
                 SELECT CASE WHEN
-                    @base=N'3.62' AND @solution=N'3.70'
+                    @base=N'3.62'
+                    AND NOT (@solution=N'3.69')
+                    AND @solution=N'3.70'
                     AND OBJECT_ID(N'ref.gestor',N'U') IS NOT NULL
                     AND OBJECT_ID(N'ingestao.entrega',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.pessoa',N'U') IS NOT NULL
