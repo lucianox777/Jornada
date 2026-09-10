@@ -5,12 +5,23 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MANIFEST="${JORNADA_MIGRATION_MANIFEST:-$ROOT/database/migrations/manifest.txt}"
 DB="${JORNADA_SQL_DATABASE:-JornadaLocal}"
 SQLCMD_BIN="${SQLCMD_BIN:-sqlcmd}"
+SQL_SERVER="${JORNADA_SQL_SERVER:-${SQLCMDSERVER:-localhost}}"
+SQL_USER="${JORNADA_SQL_USER:-${SQLCMDUSER:-}}"
+SQL_PASSWORD="${JORNADA_SQL_PASSWORD:-${SQLCMDPASSWORD:-}}"
 TARGET_SCHEMA="3.70"
 FINAL_MIGRATION="20260910_Schema_Consolidation_370.sql"
+EXPECTED_MIGRATIONS=12
 
 [[ -f "$MANIFEST" ]] || { echo "ERRO: manifesto de migrações ausente: $MANIFEST" >&2; exit 2; }
 command -v "$SQLCMD_BIN" >/dev/null 2>&1 || { echo "ERRO: sqlcmd não encontrado: $SQLCMD_BIN" >&2; exit 2; }
 command -v sha256sum >/dev/null 2>&1 || { echo "ERRO: sha256sum não encontrado" >&2; exit 2; }
+[[ -n "$SQL_SERVER" ]] || { echo "ERRO: servidor SQL não definido" >&2; exit 2; }
+if [[ -n "$SQL_USER" || -n "$SQL_PASSWORD" ]]; then
+  [[ -n "$SQL_USER" && -n "$SQL_PASSWORD" ]] || {
+    echo "ERRO: usuário e senha SQL devem ser informados em conjunto" >&2
+    exit 2
+  }
+fi
 
 mapfile -t MIGRATIONS < <(
   sed 's/#.*$//' "$MANIFEST" \
@@ -18,13 +29,22 @@ mapfile -t MIGRATIONS < <(
     | sed '/^$/d'
 )
 
-[[ ${#MIGRATIONS[@]} -gt 0 ]] || { echo "ERRO: manifesto sem migrações" >&2; exit 3; }
-[[ "${MIGRATIONS[-1]}" == "$FINAL_MIGRATION" ]] || {
+[[ ${#MIGRATIONS[@]} -eq "$EXPECTED_MIGRATIONS" ]] || {
+  echo "ERRO: manifesto 3.70 deve conter exatamente $EXPECTED_MIGRATIONS migrações operacionais; encontrado ${#MIGRATIONS[@]}" >&2
+  exit 3
+}
+last_index=$((${#MIGRATIONS[@]} - 1))
+[[ "${MIGRATIONS[$last_index]}" == "$FINAL_MIGRATION" ]] || {
   echo "ERRO: manifesto 3.70 deve terminar em $FINAL_MIGRATION" >&2
   exit 3
 }
 
-run_sql() { "$SQLCMD_BIN" -C -b -I -d "$DB" "$@"; }
+SQLCMD_ARGS=(-S "$SQL_SERVER" -C -b -I -d "$DB")
+if [[ -n "$SQL_USER" ]]; then
+  SQLCMD_ARGS+=(-U "$SQL_USER")
+  export SQLCMDPASSWORD="$SQL_PASSWORD"
+fi
+run_sql() { "$SQLCMD_BIN" "${SQLCMD_ARGS[@]}" "$@"; }
 
 run_sql -Q "IF SCHEMA_ID(N'jornada') IS NULL EXEC(N'CREATE SCHEMA jornada'); IF OBJECT_ID(N'jornada.schema_migration',N'U') IS NULL CREATE TABLE jornada.schema_migration(migration_name nvarchar(260) NOT NULL PRIMARY KEY, sha256 char(64) NOT NULL, applied_at datetime2(3) NOT NULL CONSTRAINT DF_jornada_schema_migration_applied_at DEFAULT SYSUTCDATETIME());"
 
@@ -53,6 +73,8 @@ done
 
 [[ "$required" -gt 0 && "$applied" -eq "$required" ]] || { echo "ERRO: conjunto obrigatório de migrações incompleto" >&2; exit 5; }
 
+# O marcador corrente só é reafirmado depois que todo o manifesto foi aplicado/validado.
+# A migração final também faz uma prova estrutural fail-closed antes de promover 3.70.
 run_sql -Q "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema') EXEC sys.sp_updateextendedproperty @name=N'Jornada.SolutionSchema',@value=N'$TARGET_SCHEMA'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.SolutionSchema',@value=N'$TARGET_SCHEMA';"
 
 echo "Migrations OK: $applied/$required; Jornada.SolutionSchema=$TARGET_SCHEMA"
