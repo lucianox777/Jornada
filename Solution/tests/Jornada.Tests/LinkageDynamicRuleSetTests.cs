@@ -41,6 +41,24 @@ public sealed class LinkageDynamicRuleSetTests
     }
 
     [Test]
+    public void Create_FingerprintIgnoresEquivalentDecimalStorageScale()
+    {
+        var a = LinkageDynamicRuleSet.CreateWithPasses(
+            "rules-1",
+            "calibrator-1",
+            new[] { LinkageBlockingPass.Create("NAME", new[] { "first_name" }) },
+            new Dictionary<string, decimal> { ["threshold"] = 0.03m });
+
+        var b = LinkageDynamicRuleSet.CreateWithPasses(
+            "rules-1",
+            "calibrator-1",
+            new[] { LinkageBlockingPass.Create("NAME", new[] { "first_name" }) },
+            new Dictionary<string, decimal> { ["threshold"] = 0.030000000000m });
+
+        Assert.That(a.FingerprintSha256, Is.EqualTo(b.FingerprintSha256));
+    }
+
+    [Test]
     public void Create_RequiresCompleteIbgeIdentity()
     {
         Assert.Throws<ArgumentException>(() => LinkageDynamicRuleSet.Create(
