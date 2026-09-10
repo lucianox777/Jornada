@@ -3,13 +3,15 @@
 hide footbox
 skinparam sequenceMessageAlign center
 
-title Linkage — Calibrador, enriquecimento IBGE seletivo e Avaliador versionado
+title Linkage — Calibrador, IBGE seletivo, blocking indexado e Avaliador versionado
 
 actor "Operação/CI" as Ops
 participant "Snapshot IBGE" as IbgeSnapshot
 participant "Catálogo de compatibilidade\nJornada -> IBGE" as IbgeCatalog
 participant "Calibrador" as Calibrator
 participant "Otimizador de Blocking" as Optimizer
+participant "Catálogo físico\nde features" as PhysicalCatalog
+database "Projeção indexada\nde chaves de blocking" as BlockingProjection
 participant "Repositório de Regras\nVersionadas" as Rules
 participant "Avaliador" as Evaluator
 database "Corpus de Avaliação\nIndependente" as EvalCorpus
@@ -49,6 +51,21 @@ Espaço mínimo, quando disponível na Jornada:
 IBGE só é aplicado aos componentes
 com correspondência semântica explícita.
 end note
+
+Optimizer -> PhysicalCatalog : resolver origem física dos campos candidatos
+PhysicalCatalog --> Optimizer : coluna direta ou projeção materializada
+Optimizer -> BlockingProjection : estimar custo/seletividade usando chaves indexadas
+BlockingProjection --> Optimizer : candidatos/métricas por passe
+note right of BlockingProjection
+Projeção derivada e reconstruível.
+Índice estável preferencial:
+(normalizacao_versao, feature,
+ valor_normalizado, pessoa_uuid)
+
+Mudar a combinação de blocking
+não exige novo DDL por versão.
+end note
+
 Optimizer --> Calibrator : combinação ótima + métricas + fontes usadas
 Calibrator -> Rules : publicar pacote imutável
 note right of Rules
@@ -58,6 +75,7 @@ Identidade mínima do pacote:
 - combinação de blocking
 - parâmetros/limiares
 - snapshots IBGE efetivamente usados
+- versão da projeção/normalização
 end note
 Rules --> Calibrator : ruleset_version
 
@@ -66,6 +84,8 @@ Evaluator -> Rules : carregar exatamente uma ruleset_version
 Rules --> Evaluator : pacote imutável
 Evaluator -> EvalCorpus : ler corpus independente
 EvalCorpus --> Evaluator : observações
+Evaluator -> BlockingProjection : obter candidatos pelos passes versionados
+BlockingProjection --> Evaluator : conjunto candidato indexado
 Evaluator -> Evaluator : avaliar regras sem reinterpretação
 note right of Evaluator
 Etapas independentes podem executar
