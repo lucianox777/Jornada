@@ -1,40 +1,40 @@
 {
   "schemaVersion": 1,
-  "release": "v4.04",
+  "release": "v5.00-candidate",
   "baseNormativa": "3.62",
-  "solutionSchema": "3.69",
+  "solutionSchema": "3.70",
   "status": "VIGENTE",
   "cases": [
     {
       "id": "API_CURRENT_SCHEMA_CURRENT",
-      "apiRelease": "v4.04",
-      "databaseSolutionSchema": "3.69",
+      "apiRelease": "v5.00-candidate",
+      "databaseSolutionSchema": "3.70",
       "expected": "ALLOW"
     },
     {
-      "id": "API_CURRENT_SCHEMA_V368",
-      "apiRelease": "v4.04",
-      "databaseSolutionSchema": "3.68",
+      "id": "API_CURRENT_SCHEMA_V369",
+      "apiRelease": "v5.00-candidate",
+      "databaseSolutionSchema": "3.69",
       "expected": "DENY_SQL_SCHEMA_INCOMPATIVEL"
+    },
+    {
+      "id": "UPGRADE_V369_TO_CURRENT",
+      "fromSolutionSchema": "3.69",
+      "toSolutionSchema": "3.70",
+      "expected": "REQUIRE_PASS"
     },
     {
       "id": "UPGRADE_V368_TO_CURRENT",
       "fromSolutionSchema": "3.68",
-      "toSolutionSchema": "3.69",
-      "expected": "REQUIRE_PASS"
-    },
-    {
-      "id": "UPGRADE_V365_TO_CURRENT",
-      "fromSolutionSchema": "3.65",
-      "toSolutionSchema": "3.69",
+      "toSolutionSchema": "3.70",
       "expected": "REQUIRE_PASS"
     },
     {
       "id": "DDL_REAPPLY_CURRENT",
-      "fromSolutionSchema": "3.69",
-      "toSolutionSchema": "3.69",
+      "fromSolutionSchema": "3.70",
+      "toSolutionSchema": "3.70",
       "expected": "IDEMPOTENT"
     }
   ],
-  "note": "Compatibilidade explícita e fail-closed: API v4.04 aceita somente SolutionSchema 3.69; schema 3.68 ou anterior requer execução do DDL de upgrade validado."
+  "note": "Compatibilidade explícita e fail-closed: a candidata v5.00 aceita somente SolutionSchema 3.70; schema 3.69 ou anterior requer execução do instalador/upgrade canônico validado."
 }
