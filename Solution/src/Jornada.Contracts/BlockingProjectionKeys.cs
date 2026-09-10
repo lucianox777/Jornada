@@ -20,6 +20,40 @@ public static class BlockingFeatureNames
     public const string BirthYear = "birth_year";
 }
 
+/// <summary>
+/// Semântica temporal do atributo usado no blocking.
+/// StableIdentityDatum: espera-se estabilidade ao longo da vida; mudança representa correção excepcional.
+/// VersionedAlias: o valor pode mudar legitimamente e valores anteriores podem permanecer úteis para recuperação de candidatos.
+/// </summary>
+public enum BlockingFeatureTemporalSemantics
+{
+    StableIdentityDatum,
+    VersionedAlias
+}
+
+public static class BlockingFeatureTemporalCatalog
+{
+    public const string MethodVersion = "BLOCKING_FEATURE_TEMPORAL_CATALOG_V1";
+
+    public static BlockingFeatureTemporalSemantics Get(string feature) => feature switch
+    {
+        BlockingFeatureNames.BirthDay or
+        BlockingFeatureNames.BirthMonth or
+        BlockingFeatureNames.BirthYear => BlockingFeatureTemporalSemantics.StableIdentityDatum,
+
+        BlockingFeatureNames.FullName or
+        BlockingFeatureNames.FirstName or
+        BlockingFeatureNames.Surnames or
+        BlockingFeatureNames.LastName or
+        BlockingFeatureNames.MotherFullName or
+        BlockingFeatureNames.MotherFirstName or
+        BlockingFeatureNames.MotherSurnames or
+        BlockingFeatureNames.MotherLastName => BlockingFeatureTemporalSemantics.VersionedAlias,
+
+        _ => throw new ArgumentOutOfRangeException(nameof(feature), feature, "Unknown blocking feature.")
+    };
+}
+
 public sealed record BlockingProjectionKey(string Feature, string Value);
 
 /// <summary>
