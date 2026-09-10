@@ -25,7 +25,7 @@ Referências aos RNFs históricos usam a forma canônica `RNF-001` a `RNF-033`.
 | **RNF12 (complemento)** Regressão unitária + integração | Toda mudança funcional/estatística/contratual aplicável | Teste unitário e teste integrado do caminho alterado; exceção somente quando explicitamente justificada |
 | **RNF34-A** Documentação sincronizada | Todo change-set material | Código + requisitos + README/runbook/especificação/arquitetura afetados no mesmo PR; ADR somente quando a política de histórico decisório o exigir |
 | **RNF34-B** CI obrigatório | Todo PR com mudança verificável | Gates obrigatórios do HEAD exato concluídos com sucesso antes de Ready/merge |
-| **RNF34-C** Diagramas UML | Toda visão técnica/arquitetural normativa | Fonte UML versionada; diagrama de classes para estrutura e de atividade para resolução de identidade; DER/DRE não classificado como UML |
+| **RNF34-C** Diagramas UML | Toda visão técnica/arquitetural normativa | DOCX/PDF com diagramas UML incorporados; diagrama de classes para estrutura e de atividade para resolução de identidade; DER/DRE não classificado como UML; leitura sem software específico de modelagem |
 | **RNF34-D** Ambiente tecnológico reprodutível | Desenvolvimento, teste, integração, bancos e BI | C#/.NET, Git, Docker e Power BI Desktop conforme aplicável; **Microsoft SQL Server como tecnologia relacional normativa**; PostgreSQL somente como provider paralelo em escopos explícitos; versões controladas/documentadas; CI reproduzível |
 
 ## Relação com a issue #31
