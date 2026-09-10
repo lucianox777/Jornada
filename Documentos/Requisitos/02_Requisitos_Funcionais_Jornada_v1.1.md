@@ -5,7 +5,7 @@
 **Base:** `02_Requisitos_Funcionais_Jornada_v1.0.md`  
 **Status:** VIGENTE - COMPLEMENTO NORMATIVO
 
-Este documento complementa, sem apagar nem renumerar, os 50 RFs do baseline v1.0. Os requisitos abaixo passam a integrar a definição funcional corrente da Fase 1 e devem ser lidos cumulativamente com o baseline.
+Este documento complementa, sem apagar nem renumerar, os 50 RFs do baseline v1.0. Os requisitos abaixo passam a integrar a definição funcional corrente da Fase 1 e devem ser lidos cumulativamente com o baseline. A numeração canônica desta consolidação é **RF-051 a RF-056**; o antigo Adendo 06 foi reclassificado como histórico e não cria uma segunda numeração concorrente.
 
 ## RF-051 - Executar calibrador e avaliador com paralelismo quando vantajoso
 
@@ -15,7 +15,7 @@ Este documento complementa, sem apagar nem renumerar, os 50 RFs do baseline v1.0
 
 **Rastreabilidade de negócio.** RN-023, RN-024, RN-028, RN-035
 
-**Rastreabilidade de qualidade/técnica.** RNF: RNF15, RNF20, RNF21, RNF34-A, RNF34-B; RT: RT-057, RT-058
+**Rastreabilidade de qualidade/técnica.** RNF: RNF-015, RNF-020, RNF-021, RNF34-A, RNF34-B; RT: RT-057, RT-058
 
 ## RF-052 - Usar frequências agregadas oficiais do IBGE como evidência de blocking quando aplicável
 
@@ -25,7 +25,7 @@ Este documento complementa, sem apagar nem renumerar, os 50 RFs do baseline v1.0
 
 **Rastreabilidade de negócio.** RN-005, RN-014, RN-023, RN-024, RN-029
 
-**Rastreabilidade de qualidade/técnica.** RNF: RNF13, RNF16, RNF21, RNF27, RNF34-A; RT: RT-027, RT-028, RT-029, RT-057
+**Rastreabilidade de qualidade/técnica.** RNF: RNF-013, RNF-016, RNF-021, RNF-027, RNF34-A; RT: RT-027, RT-028, RT-029, RT-057
 
 ## RF-053 - Considerar componentes de nome e nascimento no blocking otimizado
 
@@ -35,7 +35,7 @@ Este documento complementa, sem apagar nem renumerar, os 50 RFs do baseline v1.0
 
 **Rastreabilidade de negócio.** RN-005, RN-006, RN-014, RN-023, RN-024
 
-**Rastreabilidade de qualidade/técnica.** RNF: RNF16, RNF21, RNF25, RNF27, RNF34-A; RT: RT-027, RT-028, RT-029, RT-057
+**Rastreabilidade de qualidade/técnica.** RNF: RNF-016, RNF-021, RNF-025, RNF-027, RNF34-A; RT: RT-027, RT-028, RT-029, RT-057
 
 ## RF-054 - Preservar a semântica oficial dos nomes do IBGE
 
@@ -45,7 +45,7 @@ Este documento complementa, sem apagar nem renumerar, os 50 RFs do baseline v1.0
 
 **Rastreabilidade de negócio.** RN-005, RN-014, RN-024, RN-029, RN-030
 
-**Rastreabilidade de qualidade/técnica.** RNF: RNF13, RNF16, RNF21, RNF30, RNF34-A; RT: RT-029, RT-049, RT-057
+**Rastreabilidade de qualidade/técnica.** RNF: RNF-013, RNF-016, RNF-021, RNF-030, RNF34-A; RT: RT-029, RT-049, RT-057
 
 ## RF-055 - Reutilizar no avaliador a regra dinâmica versionada produzida pelo calibrador
 
@@ -55,7 +55,7 @@ Este documento complementa, sem apagar nem renumerar, os 50 RFs do baseline v1.0
 
 **Rastreabilidade de negócio.** RN-003, RN-014, RN-024, RN-029
 
-**Rastreabilidade de qualidade/técnica.** RNF: RNF13, RNF16, RNF21, RNF34-A; RT: RT-027, RT-029, RT-057
+**Rastreabilidade de qualidade/técnica.** RNF: RNF-013, RNF-016, RNF-021, RNF34-A; RT: RT-027, RT-029, RT-057
 
 ## RF-056 - Evitar snapshots redundantes da base oficial do IBGE
 
@@ -65,7 +65,7 @@ Este documento complementa, sem apagar nem renumerar, os 50 RFs do baseline v1.0
 
 **Rastreabilidade de negócio.** RN-014, RN-023, RN-024, RN-029
 
-**Rastreabilidade de qualidade/técnica.** RNF: RNF13, RNF20, RNF21, RNF34-A, RNF34-B; RT: RT-057
+**Rastreabilidade de qualidade/técnica.** RNF: RNF-013, RNF-020, RNF-021, RNF34-A, RNF34-B; RT: RT-057
 
 ## Governança comum
 
