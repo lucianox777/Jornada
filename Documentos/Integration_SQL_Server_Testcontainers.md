@@ -1,9 +1,12 @@
 # Integration - SQL Server isolado com Testcontainers
 
-**Base Normativa:** v3.62
-**Solution Engenharia:** v3.96
-**Data:** 03/09/2026
+**Natureza:** documentação operacional acumulativa  
+**Última release selada de referência:** Base Normativa v3.64 / Solution Engenharia v4.05 / SolutionSchema v3.69  
+**Base de schema normativa:** v3.62  
+**Estado técnico desta branch:** SolutionSchema v3.70, candidato à consolidação v5.00; release/tag ainda não cortada  
+**Data de revisão:** 10/09/2026
 
+As seções identificadas por versões anteriores registram a evolução e as evidências históricas da infraestrutura de integração. Elas não substituem `RELEASE_INFO.txt` como fonte da última release efetivamente selada.
 
 ## Projeto dedicado
 
@@ -88,13 +91,11 @@ Nesse modo o pipeline assume explicitamente a responsabilidade pelo isolamento.
 
 A execução externa da v3.93 confirmou a correção de reentrada DDL e terminou em 54 PASS / 4 FAIL. A v3.94 tratou os quatro resíduos: poll concorrente `READPAST` com progresso eventual, contagens escopadas ao cenário de teste, validação `COMPROVADO` antes da constraint Silver e seed DEV de possibilidades convergente por linha. A execução posterior da v3.94 chegou a 57 PASS / 1 FAIL; o resíduo final é tratado na v3.95.
 
-
 ## Preflight e recuperação local — v3.95
 
 `local-validate-release.ps1` lê a imagem SQL do `docker-compose.yml`, exige referência fixada por `@sha256`, reutiliza o cache quando presente e faz `docker pull` somente quando ausente. Antes dos Integration, um container descartável valida inicialização do SQL Server, `SERVERPROPERTY('ProductVersion')` e `DBCC CHECKDB(master)`.
 
 Se esse probe do próprio engine falhar, a rotina tenta uma única recuperação: verifica se a imagem não está em uso por outro container, remove o image ID sem `--force`, baixa novamente o mesmo digest e repete o probe. Erros de DDL, constraints, testes ou código da Jornada não são tratados como corrupção da imagem.
-
 
 ## Fechamento runtime — v3.95 / incorporado na v3.96
 
