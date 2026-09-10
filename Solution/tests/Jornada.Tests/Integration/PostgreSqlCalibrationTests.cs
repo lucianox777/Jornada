@@ -43,6 +43,8 @@ public sealed class PostgreSqlCalibrationTests
         Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.linkage_ruleset WHERE modelo_id=@id;",("id",draft.ModelId)),Is.EqualTo(1));
         Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.linkage_ruleset_passe WHERE ruleset_id=@id;",("id",draft.ModelId)),Is.GreaterThanOrEqualTo(1));
         Assert.That(await ScalarAsync<long>("SELECT count(*) FROM identidade.linkage_ruleset_passe_campo WHERE ruleset_id=@id;",("id",draft.ModelId)),Is.GreaterThanOrEqualTo(1));
+        var rulesetVersion = await ScalarAsync<string>("SELECT ruleset_versao FROM identidade.linkage_ruleset WHERE modelo_id=@id;",("id",draft.ModelId));
+        Assert.That(rulesetVersion,Is.EqualTo($"MODEL_{draft.Version}_BLOCKING_V1"));
         var rulesetFingerprint = await ScalarAsync<string>("SELECT fingerprint_sha256 FROM identidade.linkage_ruleset WHERE modelo_id=@id;",("id",draft.ModelId));
         Assert.That(rulesetFingerprint,Has.Length.EqualTo(64));
         await AssertFingerprintAsync(draft.ModelId);
