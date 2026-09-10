@@ -7,6 +7,7 @@ on:
       - 'Solution/database/Jornada_Identidade_Progressiva.sql'
       - 'Solution/database/migrations/**'
       - 'Solution/src/Jornada.Api/ApiHealth.cs'
+      - 'Solution/scripts/apply-migrations.sh'
       - 'Solution/scripts/local-db.*'
       - '.github/workflows/schema-consolidation-370.yml'
   push:
@@ -16,6 +17,7 @@ on:
       - 'Solution/database/Jornada_Identidade_Progressiva.sql'
       - 'Solution/database/migrations/**'
       - 'Solution/src/Jornada.Api/ApiHealth.cs'
+      - 'Solution/scripts/apply-migrations.sh'
       - 'Solution/scripts/local-db.*'
       - '.github/workflows/schema-consolidation-370.yml'
 
@@ -68,3 +70,34 @@ jobs:
           sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -d JornadaSchemaIncomplete -i database/Jornada_Fase1.sql
           result=$(sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -d JornadaSchemaIncomplete -W -h -1 -Q "SET NOCOUNT ON; SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" | tr -d '[:space:]')
           test "$result" != '3.70'
+      - name: Prove migration ledger, reentry and checksum fail-closed
+        working-directory: Solution
+        env:
+          JORNADA_SQL_SERVER: localhost
+          JORNADA_SQL_USER: sa
+          JORNADA_SQL_PASSWORD: 'Jornada_Schema_370_Aa9!'
+          JORNADA_SQL_DATABASE: JornadaMigrationLedger
+        run: |
+          set -euo pipefail
+          sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -Q "CREATE DATABASE JornadaMigrationLedger;"
+          sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -d JornadaMigrationLedger -i database/baselines/Jornada_Fase1_v3.65.sql
+          sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -d JornadaMigrationLedger -i database/Jornada_Identidade_Progressiva.sql
+
+          bash scripts/apply-migrations.sh
+          bash scripts/apply-migrations.sh
+
+          ledger_count=$(sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -d JornadaMigrationLedger -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM jornada.schema_migration;" | tr -d '[:space:]')
+          test "$ledger_count" = '12'
+          schema=$(sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -d JornadaMigrationLedger -W -h -1 -Q "SET NOCOUNT ON; SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" | tr -d '[:space:]')
+          test "$schema" = '3.70'
+
+          probe=database/migrations/20260907_Cpf_Ancora.sql
+          cp "$probe" "$probe.bak"
+          printf '\n-- CI checksum tamper probe\n' >> "$probe"
+          set +e
+          bash scripts/apply-migrations.sh > /tmp/jornada-ledger-tamper.log 2>&1
+          tamper_code=$?
+          set -e
+          mv "$probe.bak" "$probe"
+          test "$tamper_code" -eq 4
+          grep -F 'checksum divergente para migração já aplicada' /tmp/jornada-ledger-tamper.log >/dev/null
