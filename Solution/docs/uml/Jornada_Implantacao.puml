@@ -1,0 +1,65 @@
+@startuml
+' UML deployment diagram — ambiente tecnológico e implantação
+skinparam shadowing false
+
+title Jornada do Cidadão — Implantação lógica e ambiente tecnológico
+
+node "Estações de engenharia" as Dev {
+  artifact "C# / .NET SDK" as DotNet
+  artifact "Git" as Git
+  artifact "Docker" as Docker
+  artifact "Power BI Desktop / PBIP" as PowerBI
+}
+
+cloud "GitHub" as GH {
+  artifact "Repositório Jornada" as Repo
+  node "GitHub Actions / CI" as Actions
+}
+
+node "Ambiente operacional" as Runtime {
+  node "API" as ApiNode {
+    artifact "Jornada.Api" as Api
+  }
+  node "Workers" as Workers {
+    artifact "Jornada.Processor.Worker" as Processor
+    artifact "Linkage Calibrador" as Calibrador
+    artifact "Linkage Avaliador / Runner" as Avaliador
+  }
+}
+
+database "SQL Server /\nMicrosoft Fabric SQL Database" as Sql
+
+database "PostgreSQL\n(provider compatível)" as Pg
+
+cloud "Storage de objetos\nBronze content-addressed" as Obj
+cloud "IBGE\nfontes oficiais" as IBGE
+
+Dev --> GH : commit / pull request
+Repo --> Actions : workflow versionado
+Actions --> Runtime : build / testes / validações
+Actions --> Sql : DDL + integração quando aplicável
+Actions --> Pg : DDL + integração quando aplicável
+Api --> Obj : ingestão Bronze
+Processor --> Obj : leitura de pacotes
+Processor --> Sql : Silver / Gold / Serving / identidade
+Processor --> Pg : provider alternativo suportado
+Calibrador --> Sql : parâmetros / rulesets / evidências
+Calibrador --> Pg : parâmetros / rulesets / evidências
+Avaliador --> Sql : leitura versionada / resultados
+Avaliador --> Pg : leitura versionada / resultados
+IBGE --> Calibrador : snapshot oficial versionado
+Sql --> PowerBI : consumo analítico autorizado
+
+note right of Actions
+RNF de CI:
+restauração, build, testes aplicáveis,
+DDL, segurança e demais gates do escopo.
+end note
+
+note bottom of IBGE
+Antes de materializar novo snapshot:
+validadores baratos da origem e,
+quando necessário, fingerprint/hash.
+end note
+
+@enduml

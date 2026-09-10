@@ -1,6 +1,6 @@
 # Composição reversível — ledger de preparação V1
 
-Estado: primeira fatia de armazenamento, sem execução de composição. Complementa `ADR_Identidade_Composicao_Reversivel.md` e a issue #36. A PR #49 entregou o planejador puro; este componente armazena suas propostas e reserva referências novas. A issue #31 continua independente.
+Estado: primeira fatia de armazenamento, sem execução de composição. Detalha a composição reversível definida em `Arquitetura_Identidade_Linkage.md` e a issue #36. A PR #49 entregou o planejador puro; este componente armazena suas propostas e reserva referências novas. A issue #31 continua independente.
 
 ## Responsabilidade
 

@@ -1,0 +1,74 @@
+@startuml
+' UML component diagram — arquitetura lógica atual da Jornada
+skinparam componentStyle rectangle
+skinparam shadowing false
+left to right direction
+
+title Jornada do Cidadão — Arquitetura lógica de componentes
+
+actor "Sistema finalístico" as Finalistico
+actor "Gestor" as Gestor
+
+package "Entrada" {
+  [Jornada.Api] as Api
+  database "Bronze\n(content-addressed)" as Bronze
+}
+
+package "Processamento" {
+  [Jornada.Processor.Worker] as Processor
+  [Identity Resolution] as Identity
+  [Linkage Calibrador] as Calibrador
+  [Linkage Avaliador / Runner] as Avaliador
+}
+
+package "Persistência operacional" {
+  database "Silver" as Silver
+  database "Identidade\nCPF / progressiva / composição" as IdentityDb
+  database "Blocking projection" as Blocking
+  database "Gold factual" as Gold
+  database "Serving" as Serving
+}
+
+cloud "IBGE\nfontes oficiais agregadas" as IBGE
+component "Snapshot IBGE\nversionado + fingerprint" as Snapshot
+component "Power BI / PBIP" as BI
+
+Finalistico --> Api : REST / ingestão
+Api --> Bronze : grava pacote + controle
+Bronze --> Processor : pacote aceito
+Processor --> Silver : observações normalizadas
+Processor --> Identity : resolução determinística / progressiva
+Identity --> IdentityDb : vínculos, estado e histórico
+Processor --> Gold : publicação factual
+Gold --> Serving : projeções de consumo
+Gestor --> Serving : consulta autorizada
+Serving --> BI : consumo analítico
+
+IBGE --> Snapshot : ETag / Last-Modified / tamanho\n+ hash quando necessário
+Snapshot --> Calibrador : estatística agregada compatível
+Silver --> Calibrador : corpus de calibração
+Calibrador --> IdentityDb : ruleset / parâmetros / evidências versionadas
+Calibrador --> Blocking : configuração de chaves derivadas
+Silver --> Blocking : atributos normalizados derivados
+IdentityDb --> Avaliador : versão exata promovida
+Blocking --> Avaliador : universo de candidatos indexado
+Silver --> Avaliador : observações a avaliar
+Avaliador --> IdentityDb : resultados / evidências de avaliação
+
+note bottom of Api
+A API não escreve Silver, Gold ou identidade.
+Seu papel operacional é entrada/Bronze/controle.
+end note
+
+note bottom of Gold
+Gold preserva fatos declarados/publicados.
+Identidade não deve reescrever silenciosamente
+o conteúdo factual de origem.
+end note
+
+note bottom of Blocking
+Projeção reconstruível.
+Não é fonte de verdade cadastral.
+end note
+
+@enduml

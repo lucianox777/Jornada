@@ -1,6 +1,6 @@
 # Identidade progressiva — inventário de impacto e plano de conclusão V1
 
-Estado: contrato, persistência, cutover transacional do UUID inicial, âncora CPF permanente, composição reversível, publicação atômica de Gold/Serving, APIs, BI e continuidade histórica publicada já foram implementados e homologados estruturalmente em SQL Server e PostgreSQL. `ADR_Identidade_Progressiva.md` contém a decisão normativa consolidada. A V1 usa diretamente `PROVISORIA`, `REFERENCIA` e `INDEFINIDA`, sem camada de compatibilidade com vocabulário anterior. A ativação probabilística real permanece bloqueada pela issue #31.
+Estado: contrato, persistência, cutover transacional do UUID inicial, âncora CPF permanente, composição reversível, publicação atômica de Gold/Serving, APIs, BI e continuidade histórica já foram implementados e homologados estruturalmente em SQL Server e PostgreSQL. `Arquitetura_Identidade_Linkage.md` contém a especificação normativa consolidada. A V1 usa diretamente `PROVISORIA`, `REFERENCIA` e `INDEFINIDA`, sem camada de compatibilidade com vocabulário anterior. A solução ainda não foi publicada e a ativação probabilística real permanece bloqueada pela issue #31.
 
 ## Contratos e persistência
 

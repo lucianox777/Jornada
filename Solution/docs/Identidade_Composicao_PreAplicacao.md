@@ -1,6 +1,6 @@
 # Composição reversível — fronteira governada de pré-aplicação V1
 
-Estado: desenho operacional da fatia posterior ao ledger de preparação. Complementa `ADR_Identidade_Composicao_Reversivel.md`, `Identidade_Composicao_Ledger.md` e a issue #36. A issue #31 continua independente e bloqueia ativação probabilística real.
+Estado: desenho operacional da fatia posterior ao ledger de preparação. Detalha `Arquitetura_Identidade_Linkage.md`, `Identidade_Composicao_Ledger.md` e a issue #36. A issue #31 continua independente e bloqueia ativação probabilística real.
 
 ## Objetivo
 
