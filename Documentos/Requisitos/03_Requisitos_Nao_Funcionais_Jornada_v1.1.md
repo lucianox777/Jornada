@@ -31,9 +31,9 @@ Um PR não pode ser considerado pronto nem integrado quando um gate obrigatório
 
 Diagramas técnicos e arquiteturais mantidos como documentação normativa ou de engenharia devem usar **notação UML compatível com o tipo de visão representada**, por exemplo: componente, sequência, atividade, estado, classes, implantação ou casos de uso.
 
-DER/DRE e outras notações de modelagem de dados podem existir como anexos físicos auxiliares, mas **não são UML e não substituem o diagrama UML normativo**. A estrutura de identidade/linkage deve possuir diagrama de classes UML e o processo de resolução de identidade deve possuir diagrama de atividade UML, ambos com fonte versionada.
+DER/DRE e outras notações de modelagem de dados podem existir como anexos físicos auxiliares, mas **não são UML e não substituem o diagrama UML normativo**. A estrutura de identidade/linkage deve possuir diagrama de classes UML e o processo de resolução de identidade deve possuir diagrama de atividade UML, ambos incorporados aos artefatos normativos de entrega em **DOCX e PDF**.
 
-Diagramas informais podem existir como apoio visual, mas não substituem o diagrama UML quando o artefato documenta relações, fluxos, estados ou arquitetura usados para decisão técnica. Sempre que o comportamento ou arquitetura representada mudar, o diagrama UML correspondente deve ser atualizado no mesmo change-set conforme RNF34-A. A ferramenta de autoria pode variar, desde que o artefato preserve semântica UML e permaneça versionável/reproduzível quando possível.
+Diagramas informais podem existir como apoio visual, mas não substituem o diagrama UML quando o artefato documenta relações, fluxos, estados ou arquitetura usados para decisão técnica. Sempre que o comportamento ou arquitetura representada mudar, o diagrama UML correspondente deve ser atualizado no mesmo change-set conforme RNF34-A. A ferramenta de autoria pode variar, mas o destinatário não pode depender de PlantUML, Mermaid ou software específico de modelagem para ler a documentação. A versionabilidade e a reprodutibilidade devem ser preservadas no próprio processo de geração dos DOCX/PDF e nos artefatos editáveis já adotados pelo projeto.
 
 ## RNF34-D - Ambiente tecnológico e reprodutibilidade
 
