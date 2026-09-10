@@ -18,7 +18,7 @@ public sealed class IndependentRuleSetEvaluationManifestTests
             new DateTimeOffset(2026, 9, 9, 0, 0, 0, TimeSpan.Zero));
         var rules = LinkageDynamicRuleSet.Create(
             "rules-v7", "calibrator-v3",
-            new[] { BlockingCandidateFeatureCatalog.NameFirst, BlockingCandidateFeatureCatalog.BirthYear },
+            new[] { BlockingCandidateFeatureCatalog.FirstName, BlockingCandidateFeatureCatalog.BirthYear },
             new[] { new KeyValuePair<string, decimal>("threshold", 0.91m) },
             "ibge-v1", D);
 
@@ -38,11 +38,11 @@ public sealed class IndependentRuleSetEvaluationManifestTests
             new DateTimeOffset(2026, 9, 9, 0, 0, 0, TimeSpan.Zero));
         var first = LinkageDynamicRuleSet.Create(
             "rules-v7", "calibrator-v3",
-            new[] { BlockingCandidateFeatureCatalog.NameFirst },
+            new[] { BlockingCandidateFeatureCatalog.FirstName },
             new[] { new KeyValuePair<string, decimal>("threshold", 0.91m) });
         var second = LinkageDynamicRuleSet.Create(
             "rules-v8", "calibrator-v3",
-            new[] { BlockingCandidateFeatureCatalog.NameFirst },
+            new[] { BlockingCandidateFeatureCatalog.FirstName },
             new[] { new KeyValuePair<string, decimal>("threshold", 0.92m) });
 
         var manifest = IndependentRuleSetEvaluationManifestCatalog.Bind(evaluation, first);
