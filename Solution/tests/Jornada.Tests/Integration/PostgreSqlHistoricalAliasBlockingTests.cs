@@ -76,7 +76,8 @@ public sealed class PostgreSqlHistoricalAliasBlockingTests
                 },
                 Array.Empty<KeyValuePair<string, decimal>>());
 
-            // Caminho propositalmente sem CPF: CPF presente pertence exclusivamente à resolução determinística.
+            // Esta prova existe somente para o fallback sem CPF.
+            // CPF válido segue a âncora determinística e nunca disputa candidatos por blocking/score.
             var observation = new IdentityObservation(
                 null,
                 "NAO_INFORMADO",
