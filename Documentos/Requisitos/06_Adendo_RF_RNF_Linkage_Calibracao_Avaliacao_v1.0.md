@@ -35,11 +35,13 @@
 
 **Critério de aceitação.** A execução paralela deve produzir resultado funcional equivalente e determinístico para as mesmas entradas e versão de regras. Quando não houver ganho mensurável, houver risco de contenção, perda de determinismo ou aumento relevante de custo, a implementação pode manter execução sequencial e registrar a decisão de medição.
 
-### RF-052 — Utilizar dados do IBGE como referência estatística externa
+### RF-052 — Utilizar dados do IBGE nos atributos semanticamente compatíveis
 
-**Requisito funcional.** Calibração, avaliação e otimização do linkage devem utilizar dados oficiais agregados do IBGE sempre que houver conjunto aplicável, tecnicamente acessível e capaz de melhorar a discriminação, o blocking ou a avaliação sem transformar estatística populacional em verdade individual.
+**Requisito funcional.** O Calibrador deve executar contra a base da Jornada e utilizar dados oficiais agregados do IBGE para cada atributo da Jornada para o qual exista informação IBGE semanticamente compatível e tecnicamente utilizável. A informação IBGE complementa a calibração do atributo; ela não define quais atributos da Jornada podem participar do linkage e não constitui verdade individual.
 
-**Critério de aceitação.** Toda utilização registra fonte, versão/snapshot e finalidade; indisponibilidade do IBGE não autoriza fabricação de dados nem impede execução quando o desenho admitir fallback explícito.
+Atualmente, a integração conhecida de nomes deve ser aplicada aos componentes de nome compatíveis. Um atributo sem fonte IBGE equivalente — por exemplo, Distrito enquanto não existir conjunto semanticamente compatível no catálogo adotado — continua podendo participar normalmente da calibração por evidência obtida na própria base da Jornada, sem enriquecimento IBGE artificial.
+
+**Critério de aceitação.** Toda correspondência atributo Jornada → conjunto/estatística IBGE é explícita, versionada e registra fonte, snapshot e finalidade. A ausência de correspondência IBGE não elimina o atributo da calibração, não autoriza aproximação semântica e não impede a execução.
 
 ### RF-053 — Evitar novo snapshot IBGE quando a fonte não mudou
 
@@ -47,30 +49,34 @@
 
 **Critério de aceitação.** A verificação deve usar metadados baratos disponíveis na origem — preferencialmente ETag e/ou Last-Modified e Content-Length. O número de bytes pode ser utilizado como sinal rápido, mas não como prova criptográfica de identidade. O snapshot incorporado deve possuir fingerprint/hash de conteúdo ou representação canônica para rastreabilidade. Se a origem não expuser validadores confiáveis, a rotina deve usar fallback documentado.
 
-### RF-054 — Usar IBGE para melhorar o blocking
+### RF-054 — Enriquecer o blocking com IBGE apenas onde houver correspondência válida
 
-**Requisito funcional.** O otimizador de blocking deve poder incorporar frequências e demais estatísticas agregadas aplicáveis do IBGE para avaliar capacidade discriminativa e selecionar combinações de passes/campos, sempre preservando medidas obtidas no corpus da Jornada e a validação independente.
+**Requisito funcional.** O otimizador de blocking deve poder incorporar frequências e demais estatísticas agregadas do IBGE exclusivamente nos atributos para os quais exista correspondência semântica explícita. Os demais atributos candidatos ao blocking continuam sendo avaliados pelas evidências do corpus da Jornada, sem receber peso ou estatística IBGE por aproximação.
 
-**Critério de aceitação.** A contribuição do IBGE é versionada e mensurável; o otimizador consegue comparar alternativa com e sem enriquecimento externo e não promove automaticamente uma regra que degrade os critérios de recall/redução definidos para o experimento.
+**Critério de aceitação.** Para cada atributo enriquecido, a contribuição do IBGE é versionada e mensurável. O otimizador consegue comparar alternativa com e sem enriquecimento externo e não promove automaticamente uma regra que degrade os critérios definidos para o experimento. A lista de atributos compatíveis deve ser explícita e extensível quando novos conjuntos oficiais forem incorporados.
 
 ### RF-055 — Otimizar componentes de nome e data de nascimento no blocking
 
-**Requisito funcional.** O espaço de busca do otimizador de blocking deve considerar, no mínimo, os seguintes componentes quando disponíveis: nome completo normalizado, prenome/primeiro nome, sobrenome(s), último nome e componentes dia, mês e ano da data de nascimento. O otimizador deve selecionar a melhor combinação de um ou mais passes/campos segundo métricas objetivas de cobertura de vínculos verdadeiros, redução de candidatos e custo, podendo utilizar frequências do IBGE para nomes.
+**Requisito funcional.** O espaço de busca do otimizador de blocking deve considerar, no mínimo, quando disponíveis na Jornada: nome completo normalizado, prenome/primeiro nome, sobrenome(s), último nome e componentes dia, mês e ano da data de nascimento. O otimizador deve selecionar a melhor combinação de um ou mais passes/campos segundo métricas objetivas de cobertura de vínculos verdadeiros, redução de candidatos e custo. Os componentes de nome devem receber enriquecimento IBGE quando houver estatística oficial compatível; os componentes de data ou quaisquer outros campos somente recebem enriquecimento IBGE se existir correspondência oficial semanticamente válida.
 
-**Critério de aceitação.** A combinação escolhida é reproduzível a partir do corpus, configuração, snapshot IBGE e versão do algoritmo; componentes ausentes são tratados explicitamente e não como concordância.
+**Critério de aceitação.** A combinação escolhida é reproduzível a partir do corpus, configuração, snapshots externos efetivamente utilizados e versão do algoritmo; componentes ausentes são tratados explicitamente e não como concordância.
 
 ### RF-056 — Versionar regras dinâmicas entre Calibrador e Avaliador
 
 **Requisito funcional.** Toda regra dinâmica, combinação de blocking, limiar ou parâmetro promovido pelo Calibrador para avaliação deve ser publicado em um pacote imutável e versionado. O Avaliador deve consumir exatamente uma versão desse pacote por execução e registrar sua identidade nos resultados.
 
-**Critério de aceitação.** Uma execução do Avaliador não pode misturar regras de versões distintas. O pacote deve identificar, no mínimo, versão/fingerprint das regras, versão do algoritmo/calibrador, configuração relevante e, quando utilizado, identidade do snapshot IBGE. Alteração material gera nova versão; replay com a mesma versão e mesmas entradas é reprodutível.
+O Calibrador pode ser executado repetidamente e gerar novas versões candidatas de regras a partir da base e dos snapshots externos aplicáveis. A geração de uma nova versão não deve modificar versões anteriores nem fazer o Avaliador misturar regras entre versões.
+
+**Critério de aceitação.** Uma execução do Avaliador não pode misturar regras de versões distintas. O pacote deve identificar, no mínimo, versão/fingerprint das regras, versão do algoritmo/calibrador, configuração relevante e identidade de cada snapshot IBGE efetivamente utilizado. Alteração material gera nova versão; replay com a mesma versão e mesmas entradas é reprodutível.
 
 ## 3. Regras de engenharia derivadas
 
 1. O paralelismo é uma otimização subordinada à correção e à reprodutibilidade; não é permitido alterar semântica para obter throughput.
 2. Estatística IBGE é evidência agregada auxiliar, não identificador civil nem ground truth individual.
-3. `Content-Length` reduz downloads inúteis, mas dois conteúdos diferentes podem possuir o mesmo tamanho; por isso a identidade persistida do snapshot deve continuar baseada em fingerprint/hash.
-4. O Avaliador é independente quanto ao corpus/medição, mas não quanto à definição da regra sob teste: ele deve testar a versão produzida/promovida pelo Calibrador sem reinterpretação silenciosa.
+3. A existência de um campo na Jornada não implica que ele possua enriquecimento IBGE; a correspondência deve ser semanticamente válida e cadastrada explicitamente.
+4. A inexistência de dado IBGE compatível não exclui o campo do Calibrador ou do otimizador de blocking.
+5. `Content-Length` reduz downloads inúteis, mas dois conteúdos diferentes podem possuir o mesmo tamanho; por isso a identidade persistida do snapshot deve continuar baseada em fingerprint/hash.
+6. O Avaliador é independente quanto ao corpus/medição, mas não quanto à definição da regra sob teste: ele deve testar a versão produzida/promovida pelo Calibrador sem reinterpretação silenciosa.
 
 ## 4. UML — fluxo normativo resumido
 
