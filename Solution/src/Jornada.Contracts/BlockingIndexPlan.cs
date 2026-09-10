@@ -44,8 +44,7 @@ public sealed record BlockingIndexPlan(
     {
         if (string.IsNullOrWhiteSpace(ruleSetVersion))
             throw new ArgumentException("Rule-set version is required.", nameof(ruleSetVersion));
-        if (maxProposedIndexes < 0)
-            throw new ArgumentOutOfRangeException(nameof(maxProposedIndexes));
+        ArgumentOutOfRangeException.ThrowIfNegative(maxProposedIndexes);
 
         ArgumentNullException.ThrowIfNull(requirements);
 
