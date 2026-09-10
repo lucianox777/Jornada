@@ -58,6 +58,17 @@ function Invoke-SqlCmd {
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd falhou ($LASTEXITCODE)." }
     } finally { Pop-Location }
 }
+function Invoke-Migrations {
+    Push-Location $Root
+    try {
+        & docker compose --env-file $EnvFile exec -T `
+            -e "SQLCMDPASSWORD=$password" `
+            -e "JORNADA_SQL_DATABASE=$db" `
+            -e 'SQLCMD_BIN=/opt/mssql-tools18/bin/sqlcmd' `
+            sqlserver bash /workspace/scripts/apply-migrations.sh
+        if ($LASTEXITCODE -ne 0) { throw "runner de migrações falhou ($LASTEXITCODE)." }
+    } finally { Pop-Location }
+}
 function Wait-Healthy {
     Push-Location $Root
     try {
@@ -93,9 +104,7 @@ function Bootstrap {
     Invoke-SqlCmd -SqlCmdArgs @('-Q', "IF DB_ID(N'$db') IS NULL CREATE DATABASE [$db];")
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', '/workspace/database/Jornada_Fase1.sql')
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', '/workspace/database/Jornada_Seed_Dev.sql')
-    # V1 operacional: depois da massa inicial, reserva também todo CPF histórico do seed.
-    # Em produção, onde não há seed DEV, a mesma migração é aplicada logo após o baseline.
-    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', '/workspace/database/migrations/20260907_Cpf_Ancora.sql')
+    Invoke-Migrations
 }
 
 switch ($Action) {
