@@ -6,20 +6,27 @@ public enum BlockingPhysicalStrategy
     MaterializedProjection
 }
 
+public enum BlockingPhysicalSourceScope
+{
+    GoldCurrent,
+    SilverObservationHistory
+}
+
 /// <summary>
-/// Mapeia o vocabulário lógico do otimizador para a origem física na Gold.
-/// Componentes derivados não pressupõem novas colunas em gold.pessoa: eles podem ser
-/// materializados em uma projeção operacional indexada de chaves de blocking.
+/// Mapeia o vocabulário lógico do otimizador para a origem física e temporal.
+/// Dados estáveis podem partir da Gold corrente. Nomes versionáveis usam o histórico
+/// de observações Silver vinculado ao UUID para não perder aliases legítimos anteriores.
 /// </summary>
 public sealed record BlockingPhysicalFeature(
     string Feature,
     string SourceColumn,
     BlockingPhysicalStrategy Strategy,
+    BlockingPhysicalSourceScope SourceScope,
     bool MultiValued = false);
 
 public static class BlockingPhysicalFeatureCatalog
 {
-    public const string MethodVersion = "BLOCKING_PHYSICAL_FEATURE_CATALOG_V2";
+    public const string MethodVersion = "BLOCKING_PHYSICAL_FEATURE_CATALOG_V3";
 
     private static readonly IReadOnlyDictionary<string, BlockingPhysicalFeature> Features =
         new Dictionary<string, BlockingPhysicalFeature>(StringComparer.Ordinal)
@@ -27,49 +34,60 @@ public static class BlockingPhysicalFeatureCatalog
             [BlockingCandidateFeatureCatalog.FullName] = new(
                 BlockingCandidateFeatureCatalog.FullName,
                 "nome_completo",
-                BlockingPhysicalStrategy.DirectColumn),
+                BlockingPhysicalStrategy.DirectColumn,
+                BlockingPhysicalSourceScope.GoldCurrent),
             [BlockingCandidateFeatureCatalog.FirstName] = new(
                 BlockingCandidateFeatureCatalog.FirstName,
                 "nome_completo",
-                BlockingPhysicalStrategy.MaterializedProjection),
+                BlockingPhysicalStrategy.MaterializedProjection,
+                BlockingPhysicalSourceScope.SilverObservationHistory),
             [BlockingCandidateFeatureCatalog.Surnames] = new(
                 BlockingCandidateFeatureCatalog.Surnames,
                 "nome_completo",
                 BlockingPhysicalStrategy.MaterializedProjection,
+                BlockingPhysicalSourceScope.SilverObservationHistory,
                 MultiValued: true),
             [BlockingCandidateFeatureCatalog.LastName] = new(
                 BlockingCandidateFeatureCatalog.LastName,
                 "nome_completo",
-                BlockingPhysicalStrategy.MaterializedProjection),
+                BlockingPhysicalStrategy.MaterializedProjection,
+                BlockingPhysicalSourceScope.SilverObservationHistory),
             [BlockingCandidateFeatureCatalog.MotherFullName] = new(
                 BlockingCandidateFeatureCatalog.MotherFullName,
                 "nome_mae",
-                BlockingPhysicalStrategy.DirectColumn),
+                BlockingPhysicalStrategy.DirectColumn,
+                BlockingPhysicalSourceScope.GoldCurrent),
             [BlockingCandidateFeatureCatalog.MotherFirstName] = new(
                 BlockingCandidateFeatureCatalog.MotherFirstName,
                 "nome_mae",
-                BlockingPhysicalStrategy.MaterializedProjection),
+                BlockingPhysicalStrategy.MaterializedProjection,
+                BlockingPhysicalSourceScope.SilverObservationHistory),
             [BlockingCandidateFeatureCatalog.MotherSurnames] = new(
                 BlockingCandidateFeatureCatalog.MotherSurnames,
                 "nome_mae",
                 BlockingPhysicalStrategy.MaterializedProjection,
+                BlockingPhysicalSourceScope.SilverObservationHistory,
                 MultiValued: true),
             [BlockingCandidateFeatureCatalog.MotherLastName] = new(
                 BlockingCandidateFeatureCatalog.MotherLastName,
                 "nome_mae",
-                BlockingPhysicalStrategy.MaterializedProjection),
+                BlockingPhysicalStrategy.MaterializedProjection,
+                BlockingPhysicalSourceScope.SilverObservationHistory),
             [BlockingCandidateFeatureCatalog.BirthDay] = new(
                 BlockingCandidateFeatureCatalog.BirthDay,
                 "data_nascimento",
-                BlockingPhysicalStrategy.MaterializedProjection),
+                BlockingPhysicalStrategy.MaterializedProjection,
+                BlockingPhysicalSourceScope.GoldCurrent),
             [BlockingCandidateFeatureCatalog.BirthMonth] = new(
                 BlockingCandidateFeatureCatalog.BirthMonth,
                 "data_nascimento",
-                BlockingPhysicalStrategy.MaterializedProjection),
+                BlockingPhysicalStrategy.MaterializedProjection,
+                BlockingPhysicalSourceScope.GoldCurrent),
             [BlockingCandidateFeatureCatalog.BirthYear] = new(
                 BlockingCandidateFeatureCatalog.BirthYear,
                 "data_nascimento",
-                BlockingPhysicalStrategy.MaterializedProjection)
+                BlockingPhysicalStrategy.MaterializedProjection,
+                BlockingPhysicalSourceScope.GoldCurrent)
         };
 
     public static IReadOnlyList<BlockingPhysicalFeature> RequiredOptimizerFeatures { get; } =
