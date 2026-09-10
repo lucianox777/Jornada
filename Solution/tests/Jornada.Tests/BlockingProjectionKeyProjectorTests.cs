@@ -1,3 +1,4 @@
+using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
 
 namespace Jornada.Tests;
