@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 2,
+  "status": "VIGENTE",
+  "baselineMap": "requirements-map.json",
+  "identifierPolicy": {
+    "RN": "RN-001..RN-036",
+    "RF": "RF-001..RF-056",
+    "RNFHistorical": "RNF-001..RNF-033",
+    "RNFAdditive": ["RNF34-A", "RNF34-B", "RNF34-C", "RNF34-D"],
+    "RT": "RT-001..RT-065",
+    "legacyRnfEncoding": "RNF01..RNF33 é aceito somente dentro do mapa baseline histórico e deve ser normalizado para RNF-001..RNF-033 na visão corrente"
+  },
+  "counts": {
+    "RN": 36,
+    "RF": 56,
+    "RNF": 37,
+    "RT": 65
+  },
+  "additiveRf": {
+    "RF-051": {
+      "title": "Executar calibrador e avaliador com paralelismo quando vantajoso",
+      "rn": ["RN-023", "RN-024", "RN-028", "RN-035"],
+      "rnf": ["RNF-015", "RNF-020", "RNF-021", "RNF34-A", "RNF34-B"],
+      "rt": ["RT-057", "RT-058"]
+    },
+    "RF-052": {
+      "title": "Usar frequências agregadas oficiais do IBGE como evidência de blocking quando aplicável",
+      "rn": ["RN-005", "RN-014", "RN-023", "RN-024", "RN-029"],
+      "rnf": ["RNF-013", "RNF-016", "RNF-021", "RNF-027", "RNF34-A", "RNF34-B"],
+      "rt": ["RT-027", "RT-028", "RT-029", "RT-057"]
+    },
+    "RF-053": {
+      "title": "Considerar componentes de nome e nascimento no blocking otimizado",
+      "rn": ["RN-005", "RN-006", "RN-014", "RN-023", "RN-024"],
+      "rnf": ["RNF-016", "RNF-021", "RNF-025", "RNF-027", "RNF34-A", "RNF34-B"],
+      "rt": ["RT-027", "RT-028", "RT-029", "RT-057"]
+    },
+    "RF-054": {
+      "title": "Preservar a semântica oficial dos nomes do IBGE",
+      "rn": ["RN-005", "RN-014", "RN-024", "RN-029", "RN-030"],
+      "rnf": ["RNF-013", "RNF-016", "RNF-021", "RNF-030", "RNF34-A", "RNF34-B"],
+      "rt": ["RT-029", "RT-049", "RT-057"]
+    },
+    "RF-055": {
+      "title": "Reutilizar no avaliador a regra dinâmica versionada produzida pelo calibrador",
+      "rn": ["RN-003", "RN-014", "RN-024", "RN-029"],
+      "rnf": ["RNF-013", "RNF-016", "RNF-021", "RNF34-A", "RNF34-B"],
+      "rt": ["RT-027", "RT-029", "RT-057"]
+    },
+    "RF-056": {
+      "title": "Evitar snapshots redundantes da base oficial do IBGE",
+      "rn": ["RN-014", "RN-023", "RN-024", "RN-029"],
+      "rnf": ["RNF-013", "RNF-020", "RNF-021", "RNF34-A", "RNF34-B"],
+      "rt": ["RT-057"]
+    }
+  },
+  "additiveRnf": {
+    "RNF34-A": "Sincronização documental do change-set",
+    "RNF34-B": "Integração contínua obrigatória",
+    "RNF34-C": "Diagramas em padrão UML",
+    "RNF34-D": "Ambiente tecnológico e reprodutibilidade; Microsoft SQL Server como tecnologia relacional normativa"
+  },
+  "supersededDocuments": [
+    "06_Adendo_RF_RNF_Linkage_Calibracao_Avaliacao_v1.0.md"
+  ]
+}
