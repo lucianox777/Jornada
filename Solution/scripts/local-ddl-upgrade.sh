@@ -21,13 +21,7 @@ set -a; source "$ENV_FILE"; set +a
 mkdir -p "$ROOT/.local/ddl-upgrade"
 
 compose(){ (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
-sqlcmd(){
-  # O instalador canônico v3.70 usa diretivas :r relativas à raiz da Solution.
-  # Executar em /workspace garante que o sqlcmd resolva esses includes de forma
-  # idêntica ao bootstrap local canônico.
-  compose exec -T -w /workspace -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
-    /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I "$@"
-}
+sqlcmd(){ compose exec -T -w /workspace -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I "$@"; }
 wait_healthy(){ for _ in $(seq 1 60); do [[ "$(docker inspect -f '{{.State.Health.Status}}' jornada-sqlserver-local 2>/dev/null || true)" == healthy ]] && return 0; sleep 2; done; echo "ERRO: SQL Server não ficou healthy." >&2; exit 3; }
 fingerprint(){ local tag="$1"; local out="$ROOT/.local/ddl-upgrade/fingerprint-$tag.txt"; sqlcmd -d "$DB" -i database/Jornada_Dev_DdlFingerprint.sql -W -h -1 > "$out"; sed -i '/^[[:space:]]*$/d' "$out"; sha256sum "$out" | awk '{print $1}'; }
 assert_sentinel(){ local n; n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM ref.gestor WHERE codigo='ZZ_UPGRADE_SENTINEL' AND nome='Sentinela DDL Upgrade';" | tr -d '[:space:]')"; [[ "$n" == 1 ]] || { echo "ERRO: dado sentinela não foi preservado." >&2; exit 4; }; }
@@ -46,10 +40,17 @@ assert_schema_marker(){
   n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT CASE WHEN CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'))=N'3.62' AND CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'))=N'3.70' THEN 1 ELSE 0 END;" | tr -d '[:space:]')"
   [[ "$n" == 1 ]] || { echo "ERRO: marcador de versão do schema não está em Base 3.62 / Solution 3.70." >&2; exit 8; }
 }
+backfill_progressive_identity(){
+  # O cutover do Processor é deliberadamente fail-closed. Em upgrade, primeiro
+  # materializamos a estrutura progressiva e depois processamos cada origem legada
+  # em sua própria transação, exatamente como exige o contrato de backfill retomável.
+  sqlcmd -d "$DB" -i database/Jornada_Identidade_Progressiva.sql
+  sqlcmd -d "$DB" -Q "SET NOCOUNT ON; DECLARE @id BIGINT; WHILE 1=1 BEGIN SELECT TOP(1) @id=o.pessoa_origem_id FROM silver.pessoa_origem o LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE p.pessoa_origem_id IS NULL ORDER BY o.pessoa_origem_id; IF @id IS NULL BREAK; BEGIN TRY BEGIN TRAN; EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@id; COMMIT; END TRY BEGIN CATCH IF @@TRANCOUNT>0 ROLLBACK; THROW; END CATCH; SET @id=NULL; END; IF EXISTS(SELECT 1 FROM silver.pessoa_origem o LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE p.pessoa_origem_id IS NULL) THROW 51131,'Backfill progressivo incompleto antes do cutover.',1;"
+}
 
 compose up -d sqlserver; wait_healthy
 sqlcmd -Q "IF DB_ID(N'$DB') IS NOT NULL BEGIN ALTER DATABASE [$DB] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$DB]; END; CREATE DATABASE [$DB];"
-# Baseline histórico usado apenas como origem do cenário real de upgrade.
+# Origem histórica real do teste de upgrade.
 sqlcmd -d "$DB" -i "$BASELINE_REL"
 sqlcmd -d "$DB" -Q "INSERT ref.gestor(codigo,nome,ativo) VALUES('ZZ_UPGRADE_SENTINEL','Sentinela DDL Upgrade',1);"
 sqlcmd -d "$DB" -i "$BASELINE_SEED_REL"
@@ -58,6 +59,7 @@ sqlcmd -d "$DB" -Q "DECLARE @id BIGINT=(SELECT pessoa_atributo_observacao_id FRO
 baseline_hash="$(fingerprint baseline)"
 sqlcmd -d "$DB" -i database/Jornada_Upgrade_Invariants.sql -y 0 -w 65535 | sed -n '/^[[:space:]]*{/,$p' | tr -d "\r\n" > "$ROOT/.local/ddl-upgrade/invariants-before.json"
 
+backfill_progressive_identity
 sqlcmd -d "$DB" -i "$CURRENT_REL"
 assert_sentinel
 assert_phone_v2
@@ -80,6 +82,7 @@ current=$CURRENT_REL
 baseline_fingerprint=$baseline_hash
 current_first_fingerprint=$first_hash
 current_second_fingerprint=$second_hash
+progressive_identity_backfill=true
 sentinel_preserved=true
 phone_v2_legacy_00_migrated=true
 email_v2_legacy_migrated=true
