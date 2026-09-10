@@ -71,13 +71,13 @@ O Calibrador pode ser executado repetidamente e gerar novas versões candidatas 
 
 **Critério de aceitação.** Uma execução do Avaliador não pode misturar regras de versões distintas. O pacote deve identificar, no mínimo, versão/fingerprint das regras, versão do algoritmo/calibrador, configuração relevante e identidade de cada snapshot IBGE efetivamente utilizado. Alteração material gera nova versão; replay com a mesma versão e mesmas entradas é reprodutível.
 
-### RF-057 — Materializar suporte de índice para blocking dinâmico
+### RF-057 — Suporte físico indexado para blocking dinâmico
 
-**Requisito funcional.** Uma versão candidata de blocking deve declarar, para cada passe que dependa de busca indexável na base operacional, o conjunto ordenado de atributos necessário à localização eficiente de candidatos. Após aprovação da versão, o sistema deve produzir um plano de índices correspondente, preferencialmente por índices B-tree compostos ou índices equivalentes suportados pelo SGBD. Particionamento físico não deve ser introduzido apenas porque a regra de blocking é dinâmica; seu uso exige evidência independente de benefício operacional ou requisito de manutenção/escala que índices não atendam adequadamente.
+**Requisito funcional.** O blocking dinâmico deve dispor de acesso indexado aos valores utilizados para geração de candidatos. Como estratégia preferencial para atributos derivados e combinações variáveis, a solução deve utilizar uma projeção operacional reconstruível de chaves de blocking, contendo a identidade da Pessoa, a versão de normalização, o atributo lógico e o valor normalizado. Essa projeção deve possuir índice estável que permita localizar candidatos por versão de normalização, atributo e valor sem exigir novo DDL a cada versão de ruleset.
 
-O Calibrador pode recomendar índices, mas não deve criar ou remover índices livremente durante cada execução de calibração. A materialização é uma etapa controlada e idempotente de engenharia/deploy, vinculada à versão aprovada da regra. Para evitar explosão de índices, o plano deve reutilizar índices existentes quando o prefixo de chaves atender ao passe, deduplicar propostas equivalentes e aplicar limites de quantidade/custo definidos para o ambiente.
+Campos que já possuam índice físico adequado na Gold podem continuar usando esse acesso direto quando ele for mais simples e eficiente. O Calibrador pode recomendar suporte físico adicional quando medição mostrar necessidade, mas não deve criar ou remover índices livremente durante a busca de parâmetros. Particionamento não deve ser introduzido apenas porque a política de blocking é dinâmica; exige evidência própria de que índices/projeção não atendem adequadamente a escala, manutenção ou desempenho.
 
-**Critério de aceitação.** Cada passe ativo informa se possui suporte de índice adequado, qual índice existente ou proposto o atende e a ordem das colunas-chave. O plano registra a versão de regras que o originou, é reproduzível, não executa DDL durante a simples avaliação de candidatos e permite aposentar índices de versões superseded somente após verificação de que não atendem outra regra ativa ou consulta operacional relevante. Criação/remoção deve passar pelos gates de DDL/CI aplicáveis aos SGBDs suportados.
+**Critério de aceitação.** Todo atributo candidato possui origem física explícita: coluna direta ou projeção materializada derivada. A projeção é reconstruível a partir da Gold, não constitui nova verdade cadastral e registra a versão de normalização. O acesso de lookup possui índice estável equivalente a `(normalizacao_versao, atributo, valor_normalizado, pessoa_uuid)`. Mudança da combinação de blocking não exige DDL por ruleset. Qualquer criação/remoção adicional de índice ocorre por migração/deploy controlado e passa pelos gates de DDL/CI dos SGBDs suportados.
 
 ## 3. Regras de engenharia derivadas
 
@@ -87,8 +87,8 @@ O Calibrador pode recomendar índices, mas não deve criar ou remover índices l
 4. A inexistência de dado IBGE compatível não exclui o campo do Calibrador ou do otimizador de blocking.
 5. `Content-Length` reduz downloads inúteis, mas dois conteúdos diferentes podem possuir o mesmo tamanho; por isso a identidade persistida do snapshot deve continuar baseada em fingerprint/hash.
 6. O Avaliador é independente quanto ao corpus/medição, mas não quanto à definição da regra sob teste: ele deve testar a versão produzida/promovida pelo Calibrador sem reinterpretação silenciosa.
-7. Blocking dinâmico não implica particionamento dinâmico. A primeira opção de suporte físico é índice adequado ao passe, preferencialmente reutilizável entre versões.
-8. O Calibrador recomenda o plano físico; a criação ou remoção de índices ocorre em etapa controlada de publicação/deploy, nunca como efeito colateral da busca de parâmetros.
+7. Blocking dinâmico não implica particionamento dinâmico nem DDL por versão. Para atributos derivados e combinações variáveis, deve-se preferir projeção de chaves com índice estável.
+8. Dados da projeção de blocking são derivados e reconstruíveis; não devem competir com a Gold como fonte de verdade.
 9. Recortes municipais/UF do IBGE podem refinar a raridade estatística de nomes, mas o município não deve ser inferido a partir do nome nem usado como verdade individual.
 
 ## 4. UML — fluxo normativo resumido
