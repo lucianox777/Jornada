@@ -16,113 +16,129 @@ cat > "$WORK/Jornada_Identidade_Linkage_Classes.puml" <<'PUML'
 skinparam classAttributeIconSize 0
 hide empty methods
 hide circle
-package "Origem / Silver" {
-  class PessoaOrigem {
-    +pessoa_origem_id: long
-    +sistema_origem_id: long
-    +codigo_pessoa_origem: string
-    +nome: string
-    +nome_mae: string?
-    +data_nascimento: date?
-    +cpf: string?
-  }
+
+class PessoaOrigem {
+  +pessoa_origem_id : long
+  +sistema_origem_id : long
+  +codigo_pessoa_origem : string
+  +nome : string
+  +nome_mae : string
+  +data_nascimento : date
+  +cpf : string
 }
-package "Identidade" {
-  class Pessoa { +pessoa_uuid: uuid }
-  class PessoaOrigemProgressiva {
-    +pessoa_origem_id: long
-    +initial_uuid: uuid
-    +canonical_uuid: uuid?
-    +estado: PROVISORIA|REFERENCIA|INDEFINIDA
-    +versao: long
-  }
-  class CpfAncora {
-    +cpf: string
-    +pessoa_uuid: uuid
-    +criado_em: datetimeoffset
-  }
-  class VinculoFonte {
-    +vinculo_fonte_id: long
-    +pessoa_origem_id: long
-    +pessoa_uuid: uuid?
-    +status: string
-    +metodo_resolucao: string
-  }
-  class BlockingChave {
-    +pessoa_uuid: uuid
-    +normalizacao_versao: string
-    +atributo: string
-    +valor_normalizado: string
-    +vigencia_inicio: datetimeoffset
-    +vigencia_fim: datetimeoffset?
-  }
-  class LinkageRuleSet {
-    +ruleset_id: uuid
-    +versao: string
-    +fingerprint_sha256: string
-    +status: string
-  }
-  class LinkageRuleSetPasse { +ruleset_id: uuid
-    +passe_ordem: int }
-  class LinkageRuleSetPasseCampo {
-    +ruleset_id: uuid
-    +passe_ordem: int
-    +campo_ordem: int
-    +atributo: string
-  }
-  class ComposicaoPlano {
-    +decision_id: uuid
-    +policy_version: string
-    +evidence_fingerprint: string
-  }
-  class ComposicaoAplicacao {
-    +decision_id: uuid
-    +status: string
-    +aplicado_em: datetimeoffset
-  }
-  class ComposicaoPublicacao {
-    +decision_id: uuid
-    +status: string
-    +publicado_em: datetimeoffset
-  }
+
+class Pessoa {
+  +pessoa_uuid : uuid
 }
-package "Gold / Serving" {
-  class GoldPessoa {
-    +pessoa_uuid: uuid?
-    +estado_atribuicao_identidade: string
-    +dados_factuais
-  }
-  class RegistroIntegrado {
-    +pessoa_uuid: uuid?
-    +registro_id: long
-  }
+
+class PessoaOrigemProgressiva {
+  +pessoa_origem_id : long
+  +initial_uuid : uuid
+  +canonical_uuid : uuid
+  +estado : string
+  +versao : long
 }
+
+class CpfAncora {
+  +cpf : string
+  +pessoa_uuid : uuid
+  +criado_em : datetimeoffset
+}
+
+class VinculoFonte {
+  +vinculo_fonte_id : long
+  +pessoa_origem_id : long
+  +pessoa_uuid : uuid
+  +status : string
+  +metodo_resolucao : string
+}
+
+class BlockingChave {
+  +pessoa_uuid : uuid
+  +normalizacao_versao : string
+  +atributo : string
+  +valor_normalizado : string
+  +vigencia_inicio : datetimeoffset
+  +vigencia_fim : datetimeoffset
+}
+
+class LinkageRuleSet {
+  +ruleset_id : uuid
+  +versao : string
+  +fingerprint_sha256 : string
+  +status : string
+}
+
+class LinkageRuleSetPasse {
+  +ruleset_id : uuid
+  +passe_ordem : int
+}
+
+class LinkageRuleSetPasseCampo {
+  +ruleset_id : uuid
+  +passe_ordem : int
+  +campo_ordem : int
+  +atributo : string
+}
+
+class ComposicaoPlano {
+  +decision_id : uuid
+  +policy_version : string
+  +evidence_fingerprint : string
+}
+
+class ComposicaoAplicacao {
+  +decision_id : uuid
+  +status : string
+  +aplicado_em : datetimeoffset
+}
+
+class ComposicaoPublicacao {
+  +decision_id : uuid
+  +status : string
+  +publicado_em : datetimeoffset
+}
+
+class GoldPessoa {
+  +pessoa_uuid : uuid
+  +estado_atribuicao_identidade : string
+  +dados_factuais
+}
+
+class RegistroIntegrado {
+  +pessoa_uuid : uuid
+  +registro_id : long
+}
+
 PessoaOrigem "1" -- "1" PessoaOrigemProgressiva : origem progressiva
 PessoaOrigemProgressiva "*" --> "1" Pessoa : initial_uuid
 PessoaOrigemProgressiva "*" --> "0..1" Pessoa : canonical_uuid
-CpfAncora "0..1" --> "1" Pessoa : âncora permanente
+CpfAncora "0..1" --> "1" Pessoa : ancora permanente
 PessoaOrigem "1" -- "0..*" VinculoFonte
 VinculoFonte "*" --> "0..1" Pessoa
-Pessoa "1" -- "0..*" BlockingChave : projeção reconstruível
+Pessoa "1" -- "0..*" BlockingChave : projecao reconstruivel
 LinkageRuleSet "1" *-- "1..*" LinkageRuleSetPasse
 LinkageRuleSetPasse "1" *-- "1..*" LinkageRuleSetPasseCampo
 LinkageRuleSetPasseCampo ..> BlockingChave : gera candidatos por atributo
 ComposicaoPlano "1" --> "0..1" ComposicaoAplicacao
 ComposicaoAplicacao "1" --> "0..1" ComposicaoPublicacao
-ComposicaoAplicacao ..> PessoaOrigemProgressiva : altera referência canônica
-ComposicaoPublicacao ..> GoldPessoa : recomposição atômica
-GoldPessoa --> RegistroIntegrado : projeção para consumo
+ComposicaoAplicacao ..> PessoaOrigemProgressiva : altera referencia canonica
+ComposicaoPublicacao ..> GoldPessoa : recomposicao atomica
+GoldPessoa --> RegistroIntegrado : projecao para consumo
+
 note right of CpfAncora
-CPF -> UUID é permanente.
-Linkage probabilístico não transfere âncora.
+CPF -> UUID e permanente.
+Linkage probabilistico nao transfere ancora.
 end note
+
 note bottom of GoldPessoa
-Fato e identidade são conceitos distintos.
-Ausência/má qualidade de campo não elimina observação.
+Fato e identidade sao conceitos distintos.
+Ausencia ou baixa qualidade de campo nao elimina observacao.
 end note
+
 note bottom of LinkageRuleSet
-Calibrador publica versão imutável;
-Avaliador consome exatamente a mesma versão.
+Calibrador publica versao imutavel.
+Avaliador consome exatamente a mesma versao.
 end note
 @enduml
 PUML
