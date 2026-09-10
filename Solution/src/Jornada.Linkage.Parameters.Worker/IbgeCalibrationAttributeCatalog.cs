@@ -17,26 +17,23 @@ public sealed record IbgeCalibrationAttributeMapping(
 ///
 /// A presença de um atributo no linkage não implica suporte IBGE. Um atributo sem
 /// correspondência permanece disponível para calibração usando evidência da Jornada.
+/// Componentes do nome da mãe podem usar a mesma estatística agregada de nomes/sobrenomes,
+/// pois continuam representando nomes de pessoa; o nome completo não recebe frequência
+/// IBGE direta porque o produto oficial separa primeiro nome e sobrenomes.
 /// </summary>
 public static class IbgeCalibrationAttributeCatalog
 {
-    public const string MethodVersion = "IBGE_CALIBRATION_ATTRIBUTE_CATALOG_V2";
+    public const string MethodVersion = "IBGE_CALIBRATION_ATTRIBUTE_CATALOG_V3";
 
     private static readonly IReadOnlyDictionary<string, IbgeCalibrationAttributeMapping> Supported =
         new Dictionary<string, IbgeCalibrationAttributeMapping>(StringComparer.Ordinal)
         {
-            [BlockingCandidateFeatureCatalog.FirstName] = new(
-                BlockingCandidateFeatureCatalog.FirstName,
-                ExternalNameFrequencyCatalog.IbgeSource,
-                IbgeNameStatisticKind.FirstName),
-            [BlockingCandidateFeatureCatalog.Surnames] = new(
-                BlockingCandidateFeatureCatalog.Surnames,
-                ExternalNameFrequencyCatalog.IbgeSource,
-                IbgeNameStatisticKind.Surname),
-            [BlockingCandidateFeatureCatalog.LastName] = new(
-                BlockingCandidateFeatureCatalog.LastName,
-                ExternalNameFrequencyCatalog.IbgeSource,
-                IbgeNameStatisticKind.Surname)
+            [BlockingCandidateFeatureCatalog.FirstName] = FirstName(BlockingCandidateFeatureCatalog.FirstName),
+            [BlockingCandidateFeatureCatalog.Surnames] = Surname(BlockingCandidateFeatureCatalog.Surnames),
+            [BlockingCandidateFeatureCatalog.LastName] = Surname(BlockingCandidateFeatureCatalog.LastName),
+            [BlockingCandidateFeatureCatalog.MotherFirstName] = FirstName(BlockingCandidateFeatureCatalog.MotherFirstName),
+            [BlockingCandidateFeatureCatalog.MotherSurnames] = Surname(BlockingCandidateFeatureCatalog.MotherSurnames),
+            [BlockingCandidateFeatureCatalog.MotherLastName] = Surname(BlockingCandidateFeatureCatalog.MotherLastName)
         };
 
     public static IReadOnlyCollection<string> SupportedFeatures => Supported.Keys.ToArray();
@@ -65,4 +62,10 @@ public static class IbgeCalibrationAttributeCatalog
     }
 
     public static bool Supports(string feature) => TryGetMapping(feature, out _);
+
+    private static IbgeCalibrationAttributeMapping FirstName(string feature) =>
+        new(feature, ExternalNameFrequencyCatalog.IbgeSource, IbgeNameStatisticKind.FirstName);
+
+    private static IbgeCalibrationAttributeMapping Surname(string feature) =>
+        new(feature, ExternalNameFrequencyCatalog.IbgeSource, IbgeNameStatisticKind.Surname);
 }
