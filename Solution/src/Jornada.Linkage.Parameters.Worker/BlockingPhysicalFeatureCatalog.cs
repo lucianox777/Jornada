@@ -13,9 +13,11 @@ public enum BlockingPhysicalSourceScope
 }
 
 /// <summary>
-/// Mapeia o vocabulário lógico do otimizador para a origem física e temporal.
+/// Mapeia o vocabulário lógico do Calibrador para a origem física e temporal corrente.
 /// Dados estáveis podem partir da Gold corrente. Nomes versionáveis usam o histórico
 /// de observações Silver vinculado ao UUID para não perder aliases legítimos anteriores.
+/// Este catálogo preserva o caminho operacional existente enquanto a nova projeção física
+/// calculada da Silver é promovida de forma versionada.
 /// </summary>
 public sealed record BlockingPhysicalFeature(
     string Feature,
@@ -90,10 +92,14 @@ public static class BlockingPhysicalFeatureCatalog
                 BlockingPhysicalSourceScope.GoldCurrent)
         };
 
-    public static IReadOnlyList<BlockingPhysicalFeature> RequiredOptimizerFeatures { get; } =
-        BlockingCandidateFeatureCatalog.RequiredOptimizerCandidates
+    public static IReadOnlyList<BlockingPhysicalFeature> CalibratorFeatures { get; } =
+        BlockingCandidateFeatureCatalog.CalibratorCandidates
             .Select(static feature => Features[feature])
             .ToArray();
+
+    // Compatibilidade temporária com testes/chamadas anteriores. Não existe um componente
+    // arquitetural separado chamado Otimizador.
+    public static IReadOnlyList<BlockingPhysicalFeature> RequiredOptimizerFeatures => CalibratorFeatures;
 
     public static bool TryGet(string feature, out BlockingPhysicalFeature mapping)
     {
