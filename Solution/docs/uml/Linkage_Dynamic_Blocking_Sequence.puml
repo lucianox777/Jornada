@@ -1,26 +1,32 @@
 @startuml
 hide footbox
-title Jornada Linkage - Blocking dinâmico versionado
+title Jornada Linkage - Calibrador, projeções e blocking versionado
 
 actor "Operação/HML" as Ops
 participant "Calibrador" as Cal
-participant "Otimizador de Blocking" as Opt
-participant "Normalizador pt-BR\n(versionado)" as Norm
+participant "Catálogo de modelos\nhomologados" as Catalog
+participant "Planner de projeções\nversionado" as Projection
 participant "Catálogo IBGE\n(versionado)" as Ibge
 participant "Política de Blocking\n(versionada/imutável)" as Policy
 participant "Avaliador" as Eval
+database "Silver\natributos originais + projeções" as Silver
 database "Gold / corpus\nrepresentativo" as Gold
 
 Ops -> Cal : iniciar calibração
 Cal -> Gold : ler corpus/snapshot
-Cal -> Opt : fornecer evidências candidatas\n(nome completo, prenome, sobrenome, último nome,\ndia, mês, ano)
-Opt -> Norm : normalizar comparações de nome\nsegundo versão pt-BR
-Norm --> Opt : formas/comparadores versionados
-Opt -> Ibge : consultar frequências agregadas\nquando disponíveis/aplicáveis
-Ibge --> Opt : versão + fingerprint + frequências
-Opt -> Opt : avaliar combinações\nrecall + redução + custo + tamanho de bloco\n+ ganho incremental + dependência + falso vínculo
-Opt --> Cal : política selecionada + métricas
-Cal -> Policy : persistir artefato versionado\n+ fingerprint + versões de normalização/IBGE
+Cal -> Silver : descobrir atributos originais\ne semântica declarada
+Cal -> Catalog : obter somente modelos/algoritmos homologados
+Catalog --> Cal : transformações autorizadas + versões
+Cal -> Projection : gerar candidatos derivados\na partir dos atributos originais
+Projection --> Cal : ResolutionProjectionPlan\n+ fingerprint
+
+Cal -> Cal : medir features e combinações\nrecall + redução + missingness + custo\n+ ganho incremental + dependência
+Cal -> Ibge : consultar frequências agregadas\nquando disponíveis/aplicáveis
+Ibge --> Cal : versão + fingerprint + frequências
+Cal -> Cal : selecionar passes vencedores\n(fail-closed)
+Cal -> Projection : gerar lifecycle físico\nCandidate / Promoted / Indexed
+Projection --> Cal : plano provider-independent\nde promoção + índices simples
+Cal -> Policy : persistir BLOCKING_PLAN versionado\n+ fingerprint + projection fingerprint
 Policy --> Cal : identificador/fingerprint
 Cal -> Cal : estimar parâmetros usando\nblocking da política
 Cal --> Ops : rascunho + evidência\nsem ativação automática
@@ -32,14 +38,27 @@ Eval -> Gold : aplicar blocking dinâmico\ncom a política recebida
 Eval -> Eval : medir recall, precisão,\ncalibração e falsos vínculos
 Eval --> Ops : relatório com versão/fingerprint
 
+note over Silver,Projection
+Somente o valor recebido é original.
+FirstName, LastName, componentes de data,
+fonética etc. são projeções calculadas.
+end note
+
+note over Cal,Projection
+Não existe componente arquitetural "Otimizador" separado.
+Busca, combinação e seleção são responsabilidades internas
+do próprio Calibrador.
+end note
+
+note over Cal,Policy
+Índices simples são baseline físico.
+Índices compostos só podem ser testados depois
+dos passes vencedores e nunca mudam a semântica do plano.
+end note
+
 note over Cal,Eval
 Paralelismo só é habilitado quando houver ganho medido
 e equivalência determinística com o caminho serial.
-end note
-
-note over Norm,Policy
-Equivalências fonéticas pt-BR são explícitas e testadas.
-Mudança de regra exige nova versão e regressões.
 end note
 
 note over Ibge,Policy
