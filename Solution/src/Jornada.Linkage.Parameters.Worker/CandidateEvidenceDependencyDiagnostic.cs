@@ -52,10 +52,8 @@ public static class CandidateEvidenceDependencyDiagnostic
         decimal minimumEffectiveSampleSize = 2m)
     {
         ArgumentNullException.ThrowIfNull(corpus);
-        if (minimumIndependentGroups < 1)
-            throw new ArgumentOutOfRangeException(nameof(minimumIndependentGroups));
-        if (minimumEffectiveSampleSize < 1m)
-            throw new ArgumentOutOfRangeException(nameof(minimumEffectiveSampleSize));
+        ArgumentOutOfRangeException.ThrowIfLessThan(minimumIndependentGroups, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(minimumEffectiveSampleSize, 1m);
 
         var evaluation = corpus.Observations
             .Where(static row => row.Partition == CandidateCorpusPartition.Evaluation)
