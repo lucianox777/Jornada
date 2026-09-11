@@ -101,4 +101,4 @@ Sem essa execução corrente, a compatibilidade histórica permanece válida com
 
 ## Validação não funcional
 
-A escolha arquitetural preferencial de produção é SQL Database in Microsoft Fabric. Antes da entrada em produção, devem ser executados ensaios de capacidade, desempenho, segurança, disponibilidade e custo com carga representativa para dimensionamento e homologação operacional; esses ensaios não reabrem a bifurcação funcional do núcleo Microsoft SQL.
+A escolha arquitetural preferencial de produção é SQL Database in Microsoft Fabric. Antes da entrada em produção, devem ser executados **ensaios não funcionais** de capacidade, desempenho, segurança, disponibilidade e custo com carga representativa para dimensionamento e homologação operacional; esses ensaios não reabrem a bifurcação funcional do núcleo Microsoft SQL.
