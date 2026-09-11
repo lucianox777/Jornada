@@ -7,10 +7,11 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// <summary>
 /// Publica o ruleset calculado pelo Calibrador dentro da transação do modelo.
 /// Um modelo recebe exatamente um ruleset; qualquer alteração exige nova versão/modelo.
+/// Novos rulesets congelam também a identidade exata da projeção física usada pelo blocking.
 /// </summary>
 public static class LinkageRuleSetWriter
 {
-    public const string MethodVersion = "LINKAGE_RULESET_WRITER_V1";
+    public const string MethodVersion = "LINKAGE_RULESET_WRITER_V2";
 
     public static async Task WriteAsync(
         DbConnection connection,
@@ -26,6 +27,14 @@ public static class LinkageRuleSetWriter
         if (ruleSet.BlockingPasses.Count == 0)
             throw new InvalidOperationException(
                 "Ruleset novo deve declarar BlockingPasses explicitamente; BlockingFields legado é somente compatibilidade de leitura.");
+
+        var currentPlan = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
+        if (!string.Equals(currentPlan.ProjectionSchemaVersion, PersonResolutionProjectionContract.SchemaVersion, StringComparison.Ordinal)
+            || !string.Equals(currentPlan.Fingerprint, PersonResolutionProjectionContract.FingerprintSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Plano de projeção do Calibrador divergiu do contrato físico congelado; publicação do ruleset recusada.");
+        }
 
         string? modelStatus = null;
         string? modelAlgorithm = null;
@@ -60,8 +69,10 @@ public static class LinkageRuleSetWriter
         await using (var header = Command(connection, transaction, """
             INSERT INTO identidade.linkage_ruleset(
                 ruleset_id,modelo_id,ruleset_versao,algoritmo_versao,fingerprint_sha256,
+                projection_schema_version,projection_fingerprint_sha256,
                 ibge_source_versao,ibge_fingerprint_sha256)
-            VALUES(@ruleset_id,@modelo_id,@versao,@algoritmo,@fingerprint,@ibge_versao,@ibge_fingerprint);
+            VALUES(@ruleset_id,@modelo_id,@versao,@algoritmo,@fingerprint,
+                   @projection_schema,@projection_fingerprint,@ibge_versao,@ibge_fingerprint);
             """))
         {
             Add(header, "@ruleset_id", DbType.Guid, ruleSetId);
@@ -69,6 +80,8 @@ public static class LinkageRuleSetWriter
             Add(header, "@versao", DbType.String, ruleSet.RuleSetVersion, 120);
             Add(header, "@algoritmo", DbType.String, ruleSet.AlgorithmVersion, 80);
             Add(header, "@fingerprint", DbType.AnsiStringFixedLength, ruleSet.FingerprintSha256, 64);
+            Add(header, "@projection_schema", DbType.String, PersonResolutionProjectionContract.SchemaVersion, 120);
+            Add(header, "@projection_fingerprint", DbType.AnsiStringFixedLength, PersonResolutionProjectionContract.FingerprintSha256, 64);
             Add(header, "@ibge_versao", DbType.String, ruleSet.IbgeSourceVersion, 200);
             Add(header, "@ibge_fingerprint", DbType.AnsiStringFixedLength, ruleSet.IbgeFingerprintSha256, 64);
             await header.ExecuteNonQueryAsync(ct);
