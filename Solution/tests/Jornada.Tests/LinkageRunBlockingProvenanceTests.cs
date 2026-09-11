@@ -123,7 +123,7 @@ public sealed class LinkageRunBlockingProvenanceTests
             null,
             123,
             "SMADS",
-            DateTimeOffset.Parse("2026-09-01T12:00:00-03:00"),
+            new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.FromHours(-3)),
             1000,
             4,
             5000,
