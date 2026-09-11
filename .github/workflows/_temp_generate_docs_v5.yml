@@ -27,13 +27,29 @@ jobs:
           sudo apt-get install -y libreoffice-writer pandoc poppler-utils fonts-dejavu-core
           python3 -m pip install --disable-pip-version-check python-docx matplotlib
 
+      - name: Repair matrix width handling in canonical generator
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Solution/scripts/generate-document-deliverables.py')
+          text = path.read_text(encoding='utf-8')
+          old = '        widths = [6.0, 4.7, 6.1, 9.9] if ncol == 4 else [5.4, 6.9, 14.4]\n'
+          new = '''        if ncol == 5:\n            widths = [2.4, 5.3, 5.3, 5.8, 8.1]\n        elif ncol == 4:\n            widths = [5.0, 4.4, 5.8, 11.7]\n        elif ncol == 3:\n            widths = [5.0, 7.0, 14.9]\n        else:\n            widths = [26.9 / ncol] * ncol\n'''
+          if old not in text:
+              raise SystemExit('expected brittle matrix width expression not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
       - name: Generate and validate DOCX/PDF deliverables
         run: python3 Solution/scripts/generate-document-deliverables.py --root .
 
-      - name: Commit generated deliverables to this branch
+      - name: Commit generator fix and generated deliverables to this branch
         shell: bash
         run: |
           git add \
+            Solution/scripts/generate-document-deliverables.py \
             Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.docx \
             Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.pdf \
             Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.docx \
@@ -48,5 +64,5 @@ jobs:
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'docs: regenerar entregáveis normativos do candidato v5.00'
+          git commit -m 'docs: corrigir gerador e regenerar entregáveis normativos v5'
           git push origin HEAD:docs/rebaseline-fabric-operacional-v5
