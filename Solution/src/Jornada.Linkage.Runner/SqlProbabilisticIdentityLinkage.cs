@@ -54,8 +54,9 @@ public sealed class SqlProbabilisticIdentityLinkage(
             throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
 
         var snapshot = await GetOrLoadRuntimeSnapshotAsync(modeloId, ct);
+        var model = snapshot.Model;
         var candidates = await LoadCandidatesAsync(observation, snapshot, ct);
-        return ProbabilisticLinkageDecisions.Resolve(snapshot.Model, observation, candidates);
+        return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
     }
 
     private async Task<LinkageRuntimeSnapshot> GetOrLoadRuntimeSnapshotAsync(Guid modelId, CancellationToken ct)
