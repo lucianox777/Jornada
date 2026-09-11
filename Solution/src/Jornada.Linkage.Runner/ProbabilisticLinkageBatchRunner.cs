@@ -231,7 +231,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
             command.Parameters.Add("@gestor", SqlDbType.NVarChar, 30).Value = (object?)request.GestorCodigo ?? DBNull.Value;
             command.Parameters.Add("@desde", SqlDbType.DateTimeOffset).Value = (object?)request.Since ?? DBNull.Value;
             command.Parameters.Add("@limite", SqlDbType.BigInt).Value = (object?)request.MaxRecords ?? DBNull.Value;
-            command.Parameters.Add("@escopo", SqlDbType.NVarChar, -1).Value = BuildScopeJson(request);
+            command.Parameters.Add("@escopo", SqlDbType.NVarChar, -1).Value = BuildScopeJson(request, model);
             command.Parameters.Add("@batch_size", SqlDbType.Int).Value = request.BatchSize;
             command.Parameters.Add("@parallelism", SqlDbType.Int).Value = request.MaxParallelism;
             command.Parameters.Add("@solicitado_por", SqlDbType.NVarChar, 120).Value = (object?)request.RequestedBy ?? DBNull.Value;
@@ -624,8 +624,10 @@ public sealed class ProbabilisticLinkageBatchRunner(
             throw new InvalidOperationException("MODEL_VALIDATION não pode publicar.");
     }
 
-    private static string BuildScopeJson(ProbabilisticLinkageRunRequest request) =>
-        System.Text.Json.JsonSerializer.Serialize(new
+    internal static string BuildScopeJson(
+        ProbabilisticLinkageRunRequest request,
+        ProbabilisticLinkageModelRef model) =>
+        JsonSerializer.Serialize(new
         {
             mode = request.Mode.ToString(),
             modelVersion = request.ModelVersion,
@@ -633,7 +635,21 @@ public sealed class ProbabilisticLinkageBatchRunner(
             gestorCodigo = request.GestorCodigo,
             since = request.Since,
             maxRecords = request.MaxRecords,
-            publish = request.Publish
+            publish = request.Publish,
+            selectedModel = new
+            {
+                modelId = model.ModelId,
+                version = model.Version,
+                algorithmVersion = model.AlgorithmVersion
+            },
+            blocking = new
+            {
+                mode = model.BlockingContract is null ? "LEGACY" : "RULESET",
+                ruleSetVersion = model.BlockingContract?.RuleSetVersion,
+                ruleSetFingerprintSha256 = model.BlockingContract?.RuleSetFingerprintSha256,
+                projectionSchemaVersion = model.BlockingContract?.ProjectionSchemaVersion,
+                projectionFingerprintSha256 = model.BlockingContract?.ProjectionFingerprintSha256
+            }
         });
 
     private sealed record MaterializedRunUniverse(long HighWatermarkObservationId, long Eligible);
