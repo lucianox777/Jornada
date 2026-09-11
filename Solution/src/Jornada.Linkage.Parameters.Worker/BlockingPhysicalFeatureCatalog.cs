@@ -12,13 +12,6 @@ public enum BlockingPhysicalSourceScope
     SilverObservationHistory
 }
 
-/// <summary>
-/// Mapeia o vocabulário lógico do Calibrador para a origem física e temporal corrente.
-/// Dados estáveis podem partir da Gold corrente. Nomes versionáveis usam o histórico
-/// de observações Silver vinculado ao UUID para não perder aliases legítimos anteriores.
-/// Este catálogo preserva o caminho operacional existente enquanto a nova projeção física
-/// calculada da Silver é promovida de forma versionada.
-/// </summary>
 public sealed record BlockingPhysicalFeature(
     string Feature,
     string SourceColumn,
@@ -28,7 +21,7 @@ public sealed record BlockingPhysicalFeature(
 
 public static class BlockingPhysicalFeatureCatalog
 {
-    public const string MethodVersion = "BLOCKING_PHYSICAL_FEATURE_CATALOG_V5";
+    public const string MethodVersion = "BLOCKING_PHYSICAL_FEATURE_CATALOG_V6";
 
     private static readonly IReadOnlyDictionary<string, BlockingPhysicalFeature> Features =
         new Dictionary<string, BlockingPhysicalFeature>(StringComparer.Ordinal)
@@ -37,6 +30,7 @@ public static class BlockingPhysicalFeatureCatalog
             [BlockingCandidateFeatureCatalog.FullNameUpper] = Name(BlockingCandidateFeatureCatalog.FullNameUpper, "nome_completo"),
             [BlockingCandidateFeatureCatalog.FullNameUpperNoDiacritics] = Name(BlockingCandidateFeatureCatalog.FullNameUpperNoDiacritics, "nome_completo"),
             [BlockingCandidateFeatureCatalog.FullNameWithoutParticles] = Name(BlockingCandidateFeatureCatalog.FullNameWithoutParticles, "nome_completo"),
+            [BlockingCandidateFeatureCatalog.FullNamePhoneticPtBr] = Name(BlockingCandidateFeatureCatalog.FullNamePhoneticPtBr, "nome_completo"),
             [BlockingCandidateFeatureCatalog.FirstName] = Name(BlockingCandidateFeatureCatalog.FirstName, "nome_completo"),
             [BlockingCandidateFeatureCatalog.Surnames] = Name(BlockingCandidateFeatureCatalog.Surnames, "nome_completo", MultiValued: true),
             [BlockingCandidateFeatureCatalog.LastName] = Name(BlockingCandidateFeatureCatalog.LastName, "nome_completo"),
@@ -45,6 +39,7 @@ public static class BlockingPhysicalFeatureCatalog
             [BlockingCandidateFeatureCatalog.MotherFullNameUpper] = Name(BlockingCandidateFeatureCatalog.MotherFullNameUpper, "nome_mae"),
             [BlockingCandidateFeatureCatalog.MotherFullNameUpperNoDiacritics] = Name(BlockingCandidateFeatureCatalog.MotherFullNameUpperNoDiacritics, "nome_mae"),
             [BlockingCandidateFeatureCatalog.MotherFullNameWithoutParticles] = Name(BlockingCandidateFeatureCatalog.MotherFullNameWithoutParticles, "nome_mae"),
+            [BlockingCandidateFeatureCatalog.MotherFullNamePhoneticPtBr] = Name(BlockingCandidateFeatureCatalog.MotherFullNamePhoneticPtBr, "nome_mae"),
             [BlockingCandidateFeatureCatalog.MotherFirstName] = Name(BlockingCandidateFeatureCatalog.MotherFirstName, "nome_mae"),
             [BlockingCandidateFeatureCatalog.MotherSurnames] = Name(BlockingCandidateFeatureCatalog.MotherSurnames, "nome_mae", MultiValued: true),
             [BlockingCandidateFeatureCatalog.MotherLastName] = Name(BlockingCandidateFeatureCatalog.MotherLastName, "nome_mae"),
@@ -59,8 +54,6 @@ public static class BlockingPhysicalFeatureCatalog
             .Select(static feature => Features[feature])
             .ToArray();
 
-    // Compatibilidade temporária com testes/chamadas anteriores. Não existe um componente
-    // arquitetural separado chamado Otimizador.
     public static IReadOnlyList<BlockingPhysicalFeature> RequiredOptimizerFeatures => CalibratorFeatures;
 
     public static bool TryGet(string feature, out BlockingPhysicalFeature mapping)
