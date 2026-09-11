@@ -30,21 +30,21 @@ public sealed class ProbabilisticLinkagePolicyTests
     [Test]
     public void EnabledV2_MustNotSilentlyFallBackToV1()
     {
-        var parameters = Parameters();
-        parameters["BLOCKING_BIRTH_COMPONENTS_V2"] = 1m;
-        foreach (var feature in new[] { "NASC_DIA", "NASC_MES", "NASC_ANO" })
-        {
-            parameters[$"M_{feature}_EXACT"] = .9m;
-            parameters[$"M_{feature}_DIFF"] = .1m;
-            parameters[$"U_{feature}_EXACT"] = .1m;
-            parameters[$"U_{feature}_DIFF"] = .9m;
-        }
+        var parameters = BirthComponentParameters("SCORING_BIRTH_COMPONENTS_V2");
         var complete = LinkageModelPolicy.Create(ModelId, 2, "FELLEGI_SUNTER_V1", parameters);
         Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(complete), Is.True);
         parameters.Remove("U_NASC_DIA_DIFF");
         var error = Assert.Throws<InvalidOperationException>(() =>
             LinkageModelPolicy.Create(ModelId, 2, "FELLEGI_SUNTER_V1", parameters));
         Assert.That(error!.Message, Does.Contain("U_NASC_DIA_DIFF"));
+    }
+
+    [Test]
+    public void LegacyBlockingNamedV2Flag_RemainsReadableOnlyForCompatibility()
+    {
+        var parameters = BirthComponentParameters("BLOCKING_BIRTH_COMPONENTS_V2");
+        var legacy = LinkageModelPolicy.Create(ModelId, 1, "FELLEGI_SUNTER_V1", parameters);
+        Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(legacy), Is.True);
     }
 
     [Test]
@@ -77,6 +77,20 @@ public sealed class ProbabilisticLinkagePolicyTests
         Assert.That(absent.Motivo, Is.EqualTo("SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO"));
         Assert.Throws<InvalidOperationException>(() => ProbabilisticLinkageDecisions.Resolve(model,
             Observation("11144477735"), []));
+    }
+
+    private static Dictionary<string, decimal> BirthComponentParameters(string enableParameter)
+    {
+        var parameters = Parameters();
+        parameters[enableParameter] = 1m;
+        foreach (var feature in new[] { "NASC_DIA", "NASC_MES", "NASC_ANO" })
+        {
+            parameters[$"M_{feature}_EXACT"] = .9m;
+            parameters[$"M_{feature}_DIFF"] = .1m;
+            parameters[$"U_{feature}_EXACT"] = .1m;
+            parameters[$"U_{feature}_DIFF"] = .9m;
+        }
+        return parameters;
     }
 
     private static IdentityObservation Observation(string? cpf = null) =>
