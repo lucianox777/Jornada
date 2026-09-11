@@ -64,4 +64,30 @@ public sealed class BlockingPhysicalFeatureCatalogTests
             BlockingCandidateFeatureCatalog.Surnames, out var mapping), Is.True);
         Assert.That(mapping.MultiValued, Is.True);
     }
+
+    [TestCase("telefone_contato__canonical", "telefone_contato", true)]
+    [TestCase("email_contato__canonical", "email_contato", true)]
+    [TestCase("nome_social__normalized", "nome_social", false)]
+    [TestCase("nome_social__surnames", "nome_social", true)]
+    public void DynamicTransversalFeatures_AreDerivedFromSemanticProjection(
+        string feature,
+        string sourceAttribute,
+        bool multiValued)
+    {
+        Assert.That(BlockingPhysicalFeatureCatalog.TryGet(feature, out var mapping), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(mapping.SourceColumn, Is.EqualTo($"pessoa_atributo[{sourceAttribute}].valor"));
+            Assert.That(mapping.Strategy, Is.EqualTo(BlockingPhysicalStrategy.MaterializedProjection));
+            Assert.That(mapping.SourceScope, Is.EqualTo(BlockingPhysicalSourceScope.SilverObservationHistory));
+            Assert.That(mapping.MultiValued, Is.EqualTo(multiValued));
+        });
+    }
+
+    [Test]
+    public void ConfidentialShelterAddress_HasNoPhysicalBlockingFeature()
+    {
+        Assert.That(BlockingCandidateFeatureCatalog.CalibratorCandidates
+            .Any(static feature => feature.Contains("endereco_casa_abrigo_sigilosa", StringComparison.Ordinal)), Is.False);
+    }
 }
