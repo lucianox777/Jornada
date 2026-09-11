@@ -51,6 +51,18 @@ O fingerprint do desenho amostral inclui, em ordem canônica, fingerprint da obs
 
 Os intervalos de 95% são uma ferramenta técnica reproduzível para propagação da estrutura em conglomerados; não estabelecem suficiência amostral, desenho institucional válido, ajuste de não resposta ou regra de aprovação. Se a metodologia institucional exigir estratificação, FPC, pesos de não resposta/calibração ou outro estimador de variância, isso deve ser declarado/versionado explicitamente em nova metodologia, sem reinterpretar este contrato.
 
+## Governança e proveniência dos pesos
+
+`IndependentResolutionGovernedSurveyEvaluator` adiciona uma camada de rastreabilidade sobre a avaliação ponderada sem estimar, recalcular ou alterar pesos. Para cada observação, o contrato registra `BaseDesignWeight`, `FinalWeight`, versão do método, referência de governança e instante de atestação; o peso final precisa ser exatamente o mesmo `DesignWeight` consumido por `IndependentResolutionSurveyEvaluator`.
+
+Seleção, não resposta e calibração precisam ser declaradas explicitamente e exatamente uma vez. Cada uma assume um dos estados `Applied` ou `NotApplicable`. Quando `Applied`, são obrigatórios uma referência de evidência e um fingerprint SHA-256; quando `NotApplicable`, o contrato rejeita metadata de evidência escondida. Um mesmo relatório governado também não pode misturar versões do método de ponderação.
+
+A rotina não deriva probabilidades de seleção ou resposta, não impõe multiplicadores e não supõe relação matemática entre peso-base e peso-final. A escolha e a justificativa do método permanecem externas e institucionais. A função dessa camada é impedir que um peso corrigido seja usado na avaliação sem declarar de forma auditável quais classes de ajuste foram ou não aplicadas.
+
+A proveniência dos pesos recebe fingerprint determinístico próprio, e o relatório final vincula esse fingerprint ao relatório ponderado do #101. Alterar método, referência, peso-base, peso-final, atestação ou evidência de qualquer ajuste muda a identidade do artefato, mesmo que as métricas ponderadas permaneçam numericamente iguais.
+
+Essa rastreabilidade não prova que um ajuste de seleção, não resposta ou calibração seja estatisticamente correto, nem que seja necessário ou suficiente. Essas decisões continuam condicionadas ao desenho institucional, ao mecanismo de coleta e à evidência real prevista na issue #31.
+
 ## O que este contrato não prova
 
 A existência de um manifesto ou relatório válido não prova representatividade, independência institucional, qualidade da rotulagem, ausência de viés de seleção nem suficiência do tamanho amostral. Esses pontos precisam de evidência real e atestação conforme a issue #31.
