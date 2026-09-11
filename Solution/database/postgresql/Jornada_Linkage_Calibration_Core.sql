@@ -43,7 +43,7 @@ DECLARE
         'T_LINKAGE','CONFLICT_MARGIN','SMOOTHING_ALPHA','M_SAMPLE_SIZE','U_SAMPLE_SIZE',
         'POPULATION_SIZE','POPULATION_WITH_CPF','DISTINCT_BIRTH_DATE',
         'TRAINING_SAMPLE_POOL_SIZE','MIN_M_INDEPENDENT_PAIRS',
-        'BLOCKING_EXACT_BIRTH_DATE','BLOCKING_BIRTH_COMPONENTS_V2'];
+        'SCORING_BIRTH_COMPONENTS_V2'];
     v_prefix TEXT;
     v_sum NUMERIC;
     v_count BIGINT;
@@ -112,14 +112,13 @@ BEGIN
           ('U_SAMPLE_SIZE',v_modelo.amostra_u_tamanho::NUMERIC),
           ('POPULATION_SIZE',v_modelo.pessoas_unicas::NUMERIC),
           ('MIN_M_INDEPENDENT_PAIRS',v_evidencia.amostra_minima_m::NUMERIC),
-          ('BLOCKING_EXACT_BIRTH_DATE',0::NUMERIC),
-          ('BLOCKING_BIRTH_COMPONENTS_V2',1::NUMERIC)
+          ('SCORING_BIRTH_COMPONENTS_V2',1::NUMERIC)
         ) AS expected(nome,valor)
         JOIN identidade.parametro_linkage p ON p.modelo_id=v_modelo.modelo_id AND p.nome=expected.nome
         WHERE p.valor <> expected.valor
     ) OR (SELECT valor FROM identidade.parametro_linkage WHERE modelo_id=v_modelo.modelo_id AND nome='POPULATION_WITH_CPF') > v_modelo.pessoas_unicas
       OR (SELECT valor FROM identidade.parametro_linkage WHERE modelo_id=v_modelo.modelo_id AND nome='DISTINCT_BIRTH_DATE') NOT BETWEEN 1 AND v_modelo.pessoas_unicas THEN
-        RAISE EXCEPTION 'Parâmetros de população, amostra ou blocking inconsistentes.';
+        RAISE EXCEPTION 'Parâmetros de população, amostra ou scoring inconsistentes.';
     END IF;
     FOR v_prefix IN SELECT unnest(ARRAY['M_NOME','U_NOME','M_NOME_MAE','U_NOME_MAE']) LOOP
         SELECT count(*),COALESCE(sum(valor),0) INTO v_count,v_sum
