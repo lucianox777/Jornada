@@ -39,6 +39,18 @@ O relatório calcula, sem promover decisão alguma:
 
 O relatório é determinístico: observações, candidatos e subgrupos são canonicalizados antes do cálculo, e o fingerprint final vincula manifesto de avaliação, ruleset, threshold, margem e métricas resultantes.
 
+## Ponderação e incerteza amostral
+
+O relatório descritivo acima não deve ser tratado automaticamente como inferência para a população quando o corpus de avaliação resulta de amostragem complexa. `IndependentResolutionSurveyEvaluator` é uma camada separada para esse caso.
+
+Cada observação recebe um `DesignWeight` positivo e um fingerprint SHA-256 opaco de `IndependenceGroup`. A rotina primeiro executa integralmente `IndependentResolutionEvaluator`, reutilizando seus gates de denominadores, candidatos, scores, threshold e margem. Somente depois calcula as versões ponderadas de recall, precisão, falso vínculo, falso positivo, resolução, recuperação do candidato, Brier e calibração.
+
+A incerteza usa `DELETE_ONE_CLUSTER_JACKKNIFE_NORMAL95_V1`: cada réplica remove um conglomerado inteiro, nunca uma observação isolada. São exigidos pelo menos três grupos independentes no relatório global. Para um subgrupo com menos de três conglomerados, as métricas ponderadas continuam disponíveis, mas intervalos jackknife não são fabricados.
+
+O fingerprint do desenho amostral inclui, em ordem canônica, fingerprint da observação, peso e conglomerado. Alterar peso ou agrupamento altera o fingerprint mesmo quando o corpus lógico é o mesmo. O fingerprint final do relatório liga esse desenho ao relatório descritivo do #100, às estimativas ponderadas, às réplicas de incerteza e aos bins de calibração.
+
+Os intervalos de 95% são uma ferramenta técnica reproduzível para propagação da estrutura em conglomerados; não estabelecem suficiência amostral, desenho institucional válido, ajuste de não resposta ou regra de aprovação. Se a metodologia institucional exigir estratificação, FPC, pesos de não resposta/calibração ou outro estimador de variância, isso deve ser declarado/versionado explicitamente em nova metodologia, sem reinterpretar este contrato.
+
 ## O que este contrato não prova
 
 A existência de um manifesto ou relatório válido não prova representatividade, independência institucional, qualidade da rotulagem, ausência de viés de seleção nem suficiência do tamanho amostral. Esses pontos precisam de evidência real e atestação conforme a issue #31.
