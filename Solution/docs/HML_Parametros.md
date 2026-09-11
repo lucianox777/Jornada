@@ -60,7 +60,9 @@ Validação de promoção, deliberadamente fail-closed:
 python3 scripts/hml-config-gate.py --root . --require-approved
 ```
 
-Para cada parâmetro `APROVADO`, o gate exige `approvedValue`, `approvedAtUtc`, `approvedBy` e `evidence.artifact` + `evidence.sha256`. O arquivo de baseline de desempenho (`config/hml/performance-baseline.json`) e a política de avaliação de linkage (`config/hml/linkage-evaluation-policy.json`) seguem a mesma regra. Nesta distribuição eles permanecem `PENDENTE`; isso é estado verdadeiro, não ausência silenciosa.
+Para cada parâmetro `APROVADO`, o gate exige `approvedValue`, `approvedAtUtc`, `approvedBy` e `evidence.artifact` + `evidence.sha256`. O arquivo de baseline de desempenho (`config/hml/performance-baseline.json`) e a política de avaliação legada de linkage (`config/hml/linkage-evaluation-policy.json`) seguem a mesma regra. Nesta distribuição eles permanecem `PENDENTE`; isso é estado verdadeiro, não ausência silenciosa.
+
+A issue #31 possui ainda um contrato separado, `config/hml/linkage-statistical-readiness.json`. Ele existe porque o relatório legado `Jornada.Linkage.Evaluation` cobre blocking/transportabilidade, mas não equivale à avaliação independente, à ponderação/incerteza, à proveniência de seleção/não resposta, à dependência multievidência, à qualidade da verdade de referência nem à validação de escala exigidas para o fechamento estatístico. O contrato também nasce `PENDENTE` e seu gate não inventa thresholds: apenas exige que as evidências institucionais aplicáveis estejam declaradas, versionadas, fingerprintadas e formalmente atestadas.
 
 A passagem estrita pode ser executada com:
 
@@ -70,7 +72,7 @@ export JORNADA_HML_LINKAGE_REPORT=/caminho/linkage-evaluation-report.json
 ./scripts/hml-readiness-gate.sh
 ```
 
-O gate não promove V2, não escolhe thresholds e não escreve parâmetros operacionais. Ele apenas prova que os critérios homologados existem e que a evidência fornecida satisfaz esses critérios.
+O readiness HML preserva dois gates de linkage complementares: o gate legado qualifica blocking/transportabilidade contra a política homologada; `linkage-statistical-readiness-gate.py --require-approved` impede que essa evidência seja confundida com o fechamento estatístico da #31. Nenhum deles promove V2, escolhe thresholds, escreve parâmetros operacionais ou autoriza Produção automaticamente. Mesmo aprovado, o contrato estatístico mantém `productionActivationAuthorized=false`.
 
 ## Contratos adicionais de homologação
 
@@ -81,6 +83,7 @@ A partir da release de engenharia v3.75, decisões externas que antes apareciam 
 - `config/governance/identity-pending-lifecycle.json`: envelhecimento e tratamento institucional de identidades sem resolução;
 - `config/operations/scheduler-jobs.json`: jobs/cadências/retries do scheduler corporativo;
 - `config/hml/sql-performance-policy.json`: Query Store, bloqueios, waits e deadlocks;
-- `config/hml/api-projection-load-policy.json`: consulta em lote 1/10/100/1000.
+- `config/hml/api-projection-load-policy.json`: consulta em lote 1/10/100/1000;
+- `config/hml/linkage-statistical-readiness.json`: completude/proveniência das evidências estatísticas e institucionais da issue #31, sem autorização automática de Produção.
 
 Os arquivos distribuídos permanecem `PENDENTE`/`PENDENTE_HML`. O modo estrito de `hml-readiness-gate` falha até que as aprovações e evidências reais existam.
