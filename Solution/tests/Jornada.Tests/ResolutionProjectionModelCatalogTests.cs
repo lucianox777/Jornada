@@ -5,15 +5,21 @@ namespace Jornada.Tests;
 public sealed class ResolutionProjectionModelCatalogTests
 {
     [Test]
-    public void CurrentPlan_PreservesLegacyBlockingCandidateVocabulary()
+    public void CurrentPlan_IncludesLegacyVocabularyAndBasicPtBrNameRepresentations()
     {
         var expected = new[]
         {
             BlockingCandidateFeatureCatalog.FullName,
+            BlockingCandidateFeatureCatalog.FullNameUpper,
+            BlockingCandidateFeatureCatalog.FullNameUpperNoDiacritics,
+            BlockingCandidateFeatureCatalog.FullNameWithoutParticles,
             BlockingCandidateFeatureCatalog.FirstName,
             BlockingCandidateFeatureCatalog.Surnames,
             BlockingCandidateFeatureCatalog.LastName,
             BlockingCandidateFeatureCatalog.MotherFullName,
+            BlockingCandidateFeatureCatalog.MotherFullNameUpper,
+            BlockingCandidateFeatureCatalog.MotherFullNameUpperNoDiacritics,
+            BlockingCandidateFeatureCatalog.MotherFullNameWithoutParticles,
             BlockingCandidateFeatureCatalog.MotherFirstName,
             BlockingCandidateFeatureCatalog.MotherSurnames,
             BlockingCandidateFeatureCatalog.MotherLastName,
@@ -28,7 +34,7 @@ public sealed class ResolutionProjectionModelCatalogTests
     }
 
     [Test]
-    public void Build_PersonNameAutomaticallyProducesCalculatedDerivations()
+    public void Build_PersonNameAutomaticallyProducesCalculatedDerivationsFromSeveralAlgorithms()
     {
         var plan = ResolutionProjectionPlanner.Build(
             new[] { new ResolutionSourceAttribute("apelido_social", ResolutionAttributeSemantic.PersonName) },
@@ -43,13 +49,17 @@ public sealed class ResolutionProjectionModelCatalogTests
         {
             Assert.That(original.Origin, Is.EqualTo(ResolutionFeatureOrigin.Original));
             Assert.That(original.CandidateForBlocking, Is.False);
+            Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__upper"));
+            Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__upper_no_diacritics"));
+            Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__without_particles"));
             Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__normalized"));
             Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__first"));
             Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__surnames"));
             Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__last"));
             Assert.That(calculated.All(static x => x.Origin == ResolutionFeatureOrigin.Calculated), Is.True);
             Assert.That(calculated.All(static x => x.ResolutionModel is not null), Is.True);
-            Assert.That(calculated.All(static x => x.Algorithm == "PERSON_NAME_COMPONENTS@V2"), Is.True);
+            Assert.That(calculated.Select(static x => x.Algorithm), Does.Contain("PERSON_NAME_BASIC_PTBR@V1"));
+            Assert.That(calculated.Select(static x => x.Algorithm), Does.Contain("PERSON_NAME_COMPONENTS@V2"));
         });
     }
 
@@ -127,6 +137,12 @@ public sealed class ResolutionProjectionModelCatalogTests
     {
         Assert.That(
             HomologatedResolutionAlgorithmCatalog.TryGet(
+                HomologatedResolutionAlgorithmCatalog.PersonNameBasicPtBrAlgorithm,
+                HomologatedResolutionAlgorithmCatalog.PersonNameBasicPtBrVersion,
+                out var basicNameAlgorithm),
+            Is.True);
+        Assert.That(
+            HomologatedResolutionAlgorithmCatalog.TryGet(
                 HomologatedResolutionAlgorithmCatalog.PersonNameComponentsAlgorithm,
                 HomologatedResolutionAlgorithmCatalog.PersonNameComponentsVersion,
                 out var nameAlgorithm),
@@ -140,6 +156,12 @@ public sealed class ResolutionProjectionModelCatalogTests
 
         Assert.Multiple(() =>
         {
+            Assert.That(basicNameAlgorithm.OutputColumns.Select(static x => x.CanonicalCode), Is.EqualTo(new[]
+            {
+                "upper",
+                "upper_no_diacritics",
+                "without_particles"
+            }));
             Assert.That(nameAlgorithm.OutputColumns.Select(static x => x.CanonicalCode), Is.EqualTo(new[]
             {
                 "normalized",
@@ -148,6 +170,8 @@ public sealed class ResolutionProjectionModelCatalogTests
                 "last"
             }));
             Assert.That(phoneAlgorithm.OutputColumns.Select(static x => x.CanonicalCode), Is.EqualTo(new[] { "canonical" }));
+            Assert.That(basicNameAlgorithm.ImplementationReferences, Is.Not.Empty);
+            Assert.That(basicNameAlgorithm.TestReferences, Is.Not.Empty);
             Assert.That(nameAlgorithm.ImplementationReferences, Is.Not.Empty);
             Assert.That(nameAlgorithm.TestReferences, Is.Not.Empty);
             Assert.That(phoneAlgorithm.ImplementationReferences, Is.Not.Empty);
@@ -164,7 +188,8 @@ public sealed class ResolutionProjectionModelCatalogTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(personName, Is.Not.Empty);
+            Assert.That(personName.Select(static x => x.QualifiedAlgorithm), Does.Contain("PERSON_NAME_BASIC_PTBR@V1"));
+            Assert.That(personName.Select(static x => x.QualifiedAlgorithm), Does.Contain("PERSON_NAME_COMPONENTS@V2"));
             Assert.That(phone.Select(static x => x.QualifiedAlgorithm), Does.Contain("TELEFONE_BR_CANONICO@V2"));
             Assert.That(email.Select(static x => x.QualifiedAlgorithm), Does.Contain("EMAIL_CANONICO@V2"));
             Assert.That(HomologatedResolutionAlgorithmCatalog.All.Select(static x => x.Semantic),
