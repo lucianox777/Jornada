@@ -1,0 +1,41 @@
+name: temp-fix-doc-generator-message
+
+on:
+  push:
+    branches:
+      - docs/rebaseline-fabric-operacional-v5
+    paths:
+      - '.github/workflows/_temp_fix_doc_generator_message.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Corrigir mensagem final do gerador e remover workflow temporário
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Solution/scripts/generate-document-deliverables.py')
+          text = path.read_text(encoding='utf-8')
+          old = '    print("Artefatos DOCX/PDF gerados e validados: 2/2/2/8 páginas, matriz tabular e UML incorporada.")\n'
+          new = '    print("Artefatos DOCX/PDF gerados e validados: paginação dentro das faixas esperadas, matriz tabular e UML incorporada.")\n'
+          if old not in text:
+              raise SystemExit('mensagem legada esperada não encontrada')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          git rm .github/workflows/_temp_fix_doc_generator_message.yml
+          git add Solution/scripts/generate-document-deliverables.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'docs: alinhar mensagem de validação do gerador'
+          git push origin HEAD:docs/rebaseline-fabric-operacional-v5
