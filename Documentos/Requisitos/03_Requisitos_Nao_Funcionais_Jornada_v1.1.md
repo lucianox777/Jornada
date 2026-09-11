@@ -8,6 +8,7 @@
 **Status:** BASELINE NÃO FUNCIONAL CONSOLIDADO DA FASE 1
 > **Leitura institucional.** Esta versão 1.1 é o baseline não funcional consolidado e autossuficiente. O arquivo v1.0 permanece no repositório apenas para rastreabilidade histórica; não é necessário lê-lo cumulativamente com este documento. Referências históricas `RNF01` a `RNF33` foram normalizadas para `RNF-001` a `RNF-033` sem mudança semântica.
 
+> **Rebaseline tecnológico v1.1.** Os RNF-001 a RNF-033 abaixo preservam a redação histórica da Especificação Técnica v3.62. O complemento RNF34-D, incorporado antes da primeira publicação da V1, esclarece a implantação operacional sem apagar essa origem: SQL Server 2022 continua sendo o baseline relacional obrigatório de desenvolvimento/CI e referência independente de ambiente; SQL Database in Microsoft Fabric pode hospedar o banco relacional operacional de HML/Produção quando homologado para a release exata; Lakehouse e SQL Analytics Endpoint permanecem analíticos/compatibilidade. Essa hospedagem não cria DDL, adapter ou regra funcional paralela.
 
 > Os 33 requisitos abaixo preservam o conteúdo normativo da Seção 17 da Especificação Técnica v3.62. A categorização e as relações com RN/RF/RT são organizacionais e não alteram sua semântica.
 
@@ -351,13 +352,14 @@ Separar atributos de qualidade, restrições e propriedades transversais dos com
 
 - RNF de HML/Produção dependem das evidências do ambiente correspondente; a validação local não as substitui.
 - RNF de segurança e governança podem exigir evidência técnica e ato institucional.
-- Mudança no texto canônico de RNF exige alteração formal da Base Normativa; este documento apenas organiza a rastreabilidade.
+- Mudança no texto canônico de RNF exige alteração formal da Base Normativa; este documento preserva o texto histórico RNF-001..RNF-033 e registra os complementos aditivos pré-publicação de forma explícita.
 
 ## 4. Controle de versão
 
 | Versão | Data | Síntese | Incorporação |
 |---|---|---|---|
 | 1.0 | 03/09/2026 | Extração organizada dos 33 RNF normativos da Seção 17 da Especificação Técnica v3.62, com rastreabilidade RN/RF/RT. | Solution Engenharia v3.98 |
+| 1.1 | 10/09/2026 | Consolidação autossuficiente dos complementos RNF34-A..D; RNF34-D distingue o baseline SQL Server obrigatório de DEV/CI da hospedagem operacional homologável em SQL Database in Microsoft Fabric, mantendo Lakehouse/SQL Analytics Endpoint no papel analítico. | Candidato técnico Solution Engenharia v5.00 |
 
 ## Complementos não funcionais incorporados na v1.1
 
@@ -395,7 +397,7 @@ Diagramas informais podem existir como apoio visual, mas não substituem o diagr
 
 O desenvolvimento, teste, integração e operação da Jornada devem adotar ambiente tecnológico explícito, versionado e reprodutível. A implementação de serviços e algoritmos deve usar **C#/.NET** conforme a versão suportada pelo repositório; **Git** é o sistema de controle de versão; **Docker** deve ser usado para ambientes descartáveis e testes integrados quando o componente possuir dependências containerizáveis; e artefatos de BI devem ser produzidos/validados em **Power BI Desktop** quando esse for o formato de entrega.
 
-**Microsoft SQL Server é a tecnologia relacional normativa da Jornada.** PostgreSQL pode ser exercitado como provider operacional paralelo exclusivamente nos escopos explicitamente suportados e versionados, inclusive calibração/avaliação de Linkage, sem substituir a tecnologia relacional normativa. Microsoft Fabric permanece no escopo analítico/compatibilidade definido pela arquitetura e não é fonte de verdade operacional implícita.
+**Microsoft SQL Server é a tecnologia relacional normativa da Jornada.** SQL Server 2022 Developer/Testcontainers constitui o baseline obrigatório de desenvolvimento, CI, DDL canônico, prontidão e validação independente de ambiente; a edição Developer não é definida como tecnologia de Produção. **SQL Database in Microsoft Fabric pode hospedar o banco relacional operacional de HML/Produção quando a release exata estiver homologada nesse alvo**, preservando o mesmo contrato Microsoft SQL, o mesmo `OperationalSqlAdapter`/`Microsoft.Data.SqlClient` e sem DDL ou regra funcional paralela. Para fins deste baseline consolidado, essa hospedagem gerenciada não redefine o requisito histórico RNF-002 como uma segunda linha funcional concorrente. **Lakehouse e SQL Analytics Endpoint permanecem no escopo analítico/compatibilidade e não são fonte de verdade operacional implícita.** PostgreSQL pode ser exercitado como provider operacional paralelo exclusivamente nos escopos explicitamente suportados e versionados, inclusive calibração/avaliação de Linkage, sem substituir a tecnologia relacional normativa.
 
 Versões de SDK, imagens de container e demais dependências automatizáveis devem ser fixadas ou controladas de forma reproduzível no CI. Dependências exclusivamente locais, como Power BI Desktop quando não houver runner compatível, devem ter versão mínima/suportada documentada e procedimento de validação rastreável. Diferenças entre ambiente local e CI não podem alterar silenciosamente regras funcionais ou resultados estatísticos.
 
