@@ -31,7 +31,9 @@ public enum ResolutionMaterializationKind
 public sealed record ResolutionSourceField(
     string Code,
     ResolutionAttributeSemantic Semantic,
-    string? CompatibilityProfile = null)
+    string? CompatibilityProfile = null,
+    bool EligibleForResolution = false,
+    bool MultiValued = false)
 {
     public string CanonicalCode => Canonicalize(Code);
 
@@ -83,6 +85,7 @@ public sealed record ResolutionProjectedFeature(
     ResolutionFeatureOrigin Origin,
     string? ResolutionModel,
     string? Algorithm,
+    string? ProjectionOutput,
     ResolutionMaterializationKind Materialization,
     bool MultiValued,
     bool CandidateForBlocking);
@@ -135,12 +138,13 @@ public static class HomologatedResolutionModelCatalog
 
 /// <summary>
 /// Gera automaticamente o esquema de projeções a partir dos atributos originais e do catálogo
-/// homologado. O plano de projeção não conhece o BLOCKING_PLAN; o plano de blocking referencia
-/// as projeções versionadas que decidiu utilizar.
+/// homologado. A semântica, por si só, nunca habilita linkage: EligibleForResolution precisa ser
+/// declarado explicitamente. O plano não conhece o BLOCKING_PLAN; ele apenas expõe projeções que
+/// o Calibrador pode avaliar.
 /// </summary>
 public static class ResolutionProjectionPlanner
 {
-    public const string PlannerVersion = "RESOLUTION_PROJECTION_PLANNER_V4";
+    public const string PlannerVersion = "RESOLUTION_PROJECTION_PLANNER_V5";
 
     public static ResolutionProjectionPlan Build(
         IEnumerable<ResolutionSourceField> attributes,
@@ -170,10 +174,14 @@ public static class ResolutionProjectionPlanner
                 ResolutionFeatureOrigin.Original,
                 null,
                 null,
+                null,
                 ResolutionMaterializationKind.Source,
-                MultiValued: false,
+                source.MultiValued,
                 CandidateForBlocking: false));
 
+            // Fail-closed: conhecer a semântica ou possuir algoritmo homologado não basta.
+            if (!source.EligibleForResolution)
+                continue;
             if (!HomologatedResolutionModelCatalog.TryGet(source.Semantic, out var model))
                 continue;
 
@@ -186,8 +194,9 @@ public static class ResolutionProjectionPlanner
                     ResolutionFeatureOrigin.Calculated,
                     model.QualifiedModel,
                     transformation.QualifiedAlgorithm,
+                    ResolutionSourceField.Canonicalize(transformation.OutputSuffix),
                     transformation.Materialization,
-                    transformation.MultiValued,
+                    source.MultiValued || transformation.MultiValued,
                     transformation.CandidateForBlocking));
             }
         }
@@ -196,6 +205,7 @@ public static class ResolutionProjectionPlanner
             .OrderBy(static feature => feature.Feature, StringComparer.Ordinal)
             .ThenBy(static feature => feature.SourceAttribute, StringComparer.Ordinal)
             .ThenBy(static feature => feature.Algorithm, StringComparer.Ordinal)
+            .ThenBy(static feature => feature.ProjectionOutput, StringComparer.Ordinal)
             .ToArray();
 
         return new ResolutionProjectionPlan(
@@ -275,11 +285,14 @@ public static class ResolutionProjectionPlanner
             .Append(schemaVersion).AppendLine();
 
         foreach (var source in sources)
-            canonical.Append("S|").Append(source.CanonicalCode).Append('|').Append(source.Semantic).Append('|').Append(source.CompatibilityProfile).AppendLine();
+            canonical.Append("S|").Append(source.CanonicalCode).Append('|').Append(source.Semantic).Append('|')
+                .Append(source.CompatibilityProfile).Append('|').Append(source.EligibleForResolution).Append('|')
+                .Append(source.MultiValued).AppendLine();
         foreach (var feature in features)
             canonical.Append("F|").Append(feature.Feature).Append('|').Append(feature.SourceAttribute).Append('|')
                 .Append(feature.Origin).Append('|').Append(feature.ResolutionModel).Append('|').Append(feature.Algorithm).Append('|')
-                .Append(feature.Materialization).Append('|').Append(feature.MultiValued).Append('|').Append(feature.CandidateForBlocking).AppendLine();
+                .Append(feature.ProjectionOutput).Append('|').Append(feature.Materialization).Append('|')
+                .Append(feature.MultiValued).Append('|').Append(feature.CandidateForBlocking).AppendLine();
 
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString()))).ToLowerInvariant();
     }

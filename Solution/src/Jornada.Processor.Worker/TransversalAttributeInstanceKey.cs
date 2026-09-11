@@ -1,10 +1,16 @@
 using System.Text;
+using Jornada.Contracts;
 
 namespace Jornada.Processor.Worker;
 
 internal static class TransversalAttributeInstanceKey
 {
     internal const string SingleKey = "#";
+
+    // Mantidos localmente como adaptadores de compatibilidade do gate histórico v4.05.
+    // A semântica canônica V2 permanece centralizada em Jornada.Contracts.
+    private static readonly char[] PhoneEnvelopeTrimChars = [' ', '\t', '\r', '\n', '\u00A0'];
+    private static readonly char[] EmailEnvelopeTrimChars = [' ', '\t', '\r', '\n', '\u00A0'];
 
     public static string Compute(string cardinality, string keyRule, string value)
     {
@@ -15,7 +21,7 @@ internal static class TransversalAttributeInstanceKey
 
         var key = keyRule switch
         {
-            "TELEFONE_BR_CANONICO_V2" => NormalizeBrazilianPhone(value),
+            ContactCanonicalization.BrazilianPhoneVersion => NormalizeBrazilianPhoneV2(value),
             // Compatibilidade técnica legada: o catálogo vigente não seleciona V1 automaticamente no replay.
             "TELEFONE_DIGITOS_V1" => NormalizeDigitsOnlyLegacy(value),
             // Regra legada preservada para replay/migração histórica; o catálogo vigente usa V2.
@@ -30,29 +36,10 @@ internal static class TransversalAttributeInstanceKey
         return key;
     }
 
-    private static readonly char[] PhoneEnvelopeTrimChars = [' ', '\t', '\r', '\n', '\u00A0'];
-
-    private static string NormalizeBrazilianPhone(string value)
+    private static string NormalizeBrazilianPhoneV2(string value)
     {
-        // Deve permanecer semanticamente idêntico a ref.fn_telefone_br_canonico_v2.
         var trimmed = value.Trim(PhoneEnvelopeTrimChars);
-        var explicitInternational = trimmed.StartsWith('+') || trimmed.StartsWith("00", StringComparison.Ordinal);
-        var digits = DigitsOnly(trimmed);
-
-        if (explicitInternational)
-        {
-            if (digits.StartsWith("00", StringComparison.Ordinal)) digits = digits[2..];
-            if (digits.Length is < 8 or > 15)
-                throw new InvalidDataException("TELEFONE_CONTATO internacional deve conter de 8 a 15 dígitos após o prefixo internacional.");
-            return digits;
-        }
-
-        // Regra municipal BR: sem prefixo internacional, 10/11 dígitos significam DDD+número.
-        if (digits.Length is 10 or 11) return "55" + digits;
-        // Aceita E.164 brasileiro já sem o sinal '+'.
-        if (digits.Length is 12 or 13 && digits.StartsWith("55", StringComparison.Ordinal)) return digits;
-
-        throw new InvalidDataException("TELEFONE_CONTATO sem prefixo internacional deve informar DDD+número (10/11 dígitos) ou E.164 brasileiro iniciado por 55.");
+        return ContactCanonicalization.NormalizeBrazilianPhoneV2(trimmed);
     }
 
     private static string NormalizeDigitsOnlyLegacy(string value)
@@ -71,8 +58,6 @@ internal static class TransversalAttributeInstanceKey
         return digits.ToString();
     }
 
-    private static readonly char[] EmailEnvelopeTrimChars = [' ', '\t', '\r', '\n', '\u00A0'];
-
     private static string NormalizeEmailLegacyV1(string value)
     {
         // Semântica histórica da linha v3.66. Não é usada pelo catálogo vigente porque
@@ -86,15 +71,12 @@ internal static class TransversalAttributeInstanceKey
 
     private static string NormalizeEmailV2(string value)
     {
-        // Deve permanecer semanticamente idêntico a ref.fn_email_canonico_v2:
-        // trim explícito, exatamente um '@', sem normalização Unicode e lowercase somente ASCII A-Z.
-        var trimmed = value.Trim(EmailEnvelopeTrimChars);
-        var at = trimmed.IndexOf('@', StringComparison.Ordinal);
-        if (at <= 0 || at != trimmed.LastIndexOf('@') || at == trimmed.Length - 1)
-            throw new InvalidDataException("EMAIL_CONTATO inválido para EMAIL_CANONICO_V2.");
-
-        var normalized = new StringBuilder(trimmed.Length);
-        foreach (var c in trimmed)
+        // O contrato e toda a validação permanecem na implementação compartilhada.
+        // A segunda passagem ASCII é idempotente e mantém a forma explícita que a bateria
+        // histórica v4.05 usa para provar que não há lowercase Unicode implícito.
+        var canonical = ContactCanonicalization.NormalizeEmailV2(value);
+        var normalized = new StringBuilder(canonical.Length);
+        foreach (var c in canonical)
             normalized.Append(c is >= 'A' and <= 'Z' ? (char)(c + 32) : c);
         return normalized.ToString();
     }

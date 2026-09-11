@@ -10,7 +10,9 @@ public sealed record IdentityTrainingPair(
     DateOnly RightBirthDate,
     string RightMotherName,
     string? LeftSourceCode = null,
-    string? RightSourceCode = null);
+    string? RightSourceCode = null,
+    IReadOnlyList<ResolutionSourceValue>? LeftResolutionValues = null,
+    IReadOnlyList<ResolutionSourceValue>? RightResolutionValues = null);
 
 /// <summary>
 /// Estima parâmetros m/u do baseline Fellegi-Sunter a partir de dois conjuntos:

@@ -67,6 +67,50 @@ public sealed class BlockingFeatureObservationFactoryTests
     }
 
     [Test]
+    public void Create_UsesSetOverlapForMultiValuedContactAttributes()
+    {
+        var pair = new IdentityTrainingPair(
+            "Pessoa A", new DateOnly(1990, 1, 2), "Mãe A",
+            "Pessoa A", new DateOnly(1990, 1, 2), "Mãe A",
+            LeftResolutionValues: new ResolutionSourceValue[]
+            {
+                new(PersonResolutionAttributeCatalog.ContactEmail, "primeiro@example.test"),
+                new(PersonResolutionAttributeCatalog.ContactEmail, "comum@example.test"),
+                new(PersonResolutionAttributeCatalog.ContactPhone, "(11) 99999-0001")
+            },
+            RightResolutionValues: new ResolutionSourceValue[]
+            {
+                new(PersonResolutionAttributeCatalog.ContactEmail, "COMUM@example.test"),
+                new(PersonResolutionAttributeCatalog.ContactEmail, "outro@example.test"),
+                new(PersonResolutionAttributeCatalog.ContactPhone, "(11) 99999-0002")
+            });
+
+        var observation = BlockingFeatureObservationFactory.Create(pair, true);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(observation.Agreements["email_contato__canonical"], Is.True);
+            Assert.That(observation.Agreements["telefone_contato__canonical"], Is.False);
+        });
+    }
+
+    [Test]
+    public void Create_ReportsNullWhenDynamicAttributeIsMissingOnOneSide()
+    {
+        var pair = new IdentityTrainingPair(
+            "Pessoa A", new DateOnly(1990, 1, 2), "Mãe A",
+            "Pessoa A", new DateOnly(1990, 1, 2), "Mãe A",
+            LeftResolutionValues: new[]
+            {
+                new ResolutionSourceValue(PersonResolutionAttributeCatalog.ContactEmail, "a@example.test")
+            });
+
+        var observation = BlockingFeatureObservationFactory.Create(pair, false);
+
+        Assert.That(observation.Agreements["email_contato__canonical"], Is.Null);
+    }
+
+    [Test]
     public void Create_RequiresBothMatchAndNonMatchCorpora()
     {
         var pair = new IdentityTrainingPair(

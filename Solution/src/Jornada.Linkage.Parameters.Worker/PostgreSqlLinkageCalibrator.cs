@@ -3,6 +3,7 @@ using System.Data.Common;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Operational.Sql;
 using Microsoft.Extensions.Configuration;
@@ -46,7 +47,10 @@ public sealed record PostgreSqlCalibrationDraft(Guid ModelId, int Version, long 
 public sealed class PostgreSqlLinkageCalibrator
 {
     private const string Algorithm = "FELLEGI_SUNTER_BIRTH_COMPONENTS_V2";
+    // Mantém V2 porque o gate de segurança de validação/ativação é deliberadamente amarrado a este método piloto.
     private const string SampleMethod = "M_INTERGESTOR_U_GOLD_MVCC_V2";
+    private static readonly string EligibleTransversalCodes = string.Join(",",
+        PersonResolutionAttributeCatalog.EligibleTransversal.Select(static field => field.Code));
     private readonly IOperationalDatabaseAdapter database;
 
     public PostgreSqlLinkageCalibrator(IOperationalDatabaseAdapter database)
@@ -87,16 +91,13 @@ public sealed class PostgreSqlLinkageCalibrator
                 ["TRAINING_SAMPLE_POOL_SIZE"] = options.PoolSize,
                 ["MIN_M_INDEPENDENT_PAIRS"] = options.MinimumIndependentMatchedPairs
             };
-            // O banco é NUMERIC(30,12). O fingerprint deve representar exatamente o valor persistido.
             var rounded = parameters.ToDictionary(p => p.Key,
                 p => decimal.Round(p.Value, 12, MidpointRounding.AwayFromZero), StringComparer.Ordinal);
 
-            // O blocking é calibrado contra exatamente os mesmos pares M/U capturados para este modelo.
-            // Não há segunda leitura do corpus entre estimação e escolha dos passes.
             var blockingObservations = BlockingFeatureObservationFactory.Create(capture.M.Pairs, capture.U.Pairs);
             var blocking = BlockingRuleSetSearch.SearchBest(
                 blockingObservations,
-                BlockingCandidateFeatureCatalog.RequiredOptimizerCandidates);
+                BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates);
             var ruleSet = LinkageDynamicRuleSet.CreateWithPasses(
                 $"MODEL_{version}_BLOCKING_V1",
                 Algorithm,
@@ -109,7 +110,6 @@ public sealed class PostgreSqlLinkageCalibrator
         }
         catch (Exception ex)
         {
-            // Não persistir textos de exceção que possam conter dados pessoais ou parâmetros de conexão.
             await MarkFailedBestEffortAsync(modelId, ex.GetType().Name);
             throw;
         }
@@ -151,7 +151,6 @@ public sealed class PostgreSqlLinkageCalibrator
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         try
         {
-            // Versionamento serializado por lock transacional, sem MAX+1 concorrente desprotegido.
             await ScalarAsync(connection, transaction, "SELECT pg_advisory_xact_lock(741020,1);", 60, ct);
             var version = Convert.ToInt32(await ScalarAsync(connection, transaction,
                 "SELECT COALESCE(MAX(versao),0)+1 FROM identidade.modelo_linkage;", 60, ct), CultureInfo.InvariantCulture);
@@ -206,7 +205,6 @@ public sealed class PostgreSqlLinkageCalibrator
                 population = new PopulationProfile(reader.GetInt64(0),reader.GetInt64(1),reader.GetInt64(2),
                     reader.GetInt64(3),reader.GetInt64(4),reader.IsDBNull(5) ? null : reader.GetFieldValue<DateTimeOffset>(5));
             }
-            // As consultas retornam no máximo SampleSize pares. UUIDs/IDs compõem somente fingerprints.
             var m = await ReadPairsAsync(connection, transaction, MatchedSql, options, ct);
             var u = await ReadPairsAsync(connection, transaction, UnmatchedSql, options, ct);
             var frequencies = await ReadFrequenciesAsync(connection, transaction, population.Population, options, ct);
@@ -247,7 +245,19 @@ public sealed class PostgreSqlLinkageCalibrator
         )
         SELECT a.pessoa_uuid,a.pessoa_uuid,a.pessoa_observacao_id,b.pessoa_observacao_id,
                a.nome_completo,a.data_nascimento,a.nome_mae,
-               b.nome_completo,b.data_nascimento,b.nome_mae,a.gestor_codigo,b.gestor_codigo
+               b.nome_completo,b.data_nascimento,b.nome_mae,a.gestor_codigo,b.gestor_codigo,
+               COALESCE((SELECT jsonb_object_agg(x.atributo_codigo,x.valores) FROM (
+                   SELECT pa.atributo_codigo,jsonb_agg(pa.valor ORDER BY pa.atributo_instancia_chave,pa.pessoa_atributo_observacao_id) valores
+                     FROM silver.pessoa_atributo_observacao pa
+                    WHERE pa.pessoa_observacao_id=a.pessoa_observacao_id
+                      AND pa.atributo_codigo=ANY(string_to_array(@eligible,','))
+                    GROUP BY pa.atributo_codigo) x),'{}'::jsonb)::text,
+               COALESCE((SELECT jsonb_object_agg(x.atributo_codigo,x.valores) FROM (
+                   SELECT pa.atributo_codigo,jsonb_agg(pa.valor ORDER BY pa.atributo_instancia_chave,pa.pessoa_atributo_observacao_id) valores
+                     FROM silver.pessoa_atributo_observacao pa
+                    WHERE pa.pessoa_observacao_id=b.pessoa_observacao_id
+                      AND pa.atributo_codigo=ANY(string_to_array(@eligible,','))
+                    GROUP BY pa.atributo_codigo) x),'{}'::jsonb)::text
         FROM fontes a JOIN fontes b ON b.pessoa_uuid=a.pessoa_uuid AND b.rn_fonte=2
         WHERE a.rn_fonte=1 AND a.gestor_id<>b.gestor_id
         ORDER BY md5(a.pessoa_uuid::text),a.pessoa_uuid LIMIT @sample;
@@ -268,7 +278,19 @@ public sealed class PostgreSqlLinkageCalibrator
             WHERE a.rn%2=1 AND a.pessoa_uuid<>b.pessoa_uuid
         )
         SELECT a_uuid,b_uuid,NULL::bigint,NULL::bigint,a_nome,a_nascimento,a_mae,
-               b_nome,b_nascimento,b_mae,NULL::text,NULL::text
+               b_nome,b_nascimento,b_mae,NULL::text,NULL::text,
+               COALESCE((SELECT jsonb_object_agg(x.atributo_codigo,x.valores) FROM (
+                   SELECT ga.atributo_codigo,jsonb_agg(ga.valor ORDER BY ga.atributo_instancia_chave,ga.pessoa_atributo_id) valores
+                     FROM gold.pessoa_atributo ga
+                    WHERE ga.pessoa_uuid=a_uuid AND ga.vigencia_fim IS NULL
+                      AND ga.atributo_codigo=ANY(string_to_array(@eligible,','))
+                    GROUP BY ga.atributo_codigo) x),'{}'::jsonb)::text,
+               COALESCE((SELECT jsonb_object_agg(x.atributo_codigo,x.valores) FROM (
+                   SELECT ga.atributo_codigo,jsonb_agg(ga.valor ORDER BY ga.atributo_instancia_chave,ga.pessoa_atributo_id) valores
+                     FROM gold.pessoa_atributo ga
+                    WHERE ga.pessoa_uuid=b_uuid AND ga.vigencia_fim IS NULL
+                      AND ga.atributo_codigo=ANY(string_to_array(@eligible,','))
+                    GROUP BY ga.atributo_codigo) x),'{}'::jsonb)::text
         FROM pares ORDER BY a_uuid,b_uuid LIMIT @sample;
         """;
 
@@ -278,20 +300,52 @@ public sealed class PostgreSqlLinkageCalibrator
         var pairs = new List<IdentityTrainingPair>();
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         await using var command = Command(connection, transaction, sql, options.CommandTimeoutSeconds,
-            P("pool",DbType.Int32,options.PoolSize),P("sample",DbType.Int32,options.SampleSize));
+            P("pool",DbType.Int32,options.PoolSize),P("sample",DbType.Int32,options.SampleSize),
+            P("eligible",DbType.String,EligibleTransversalCodes));
         await using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
+            var leftValues = ParseResolutionValues(reader.GetString(12));
+            var rightValues = ParseResolutionValues(reader.GetString(13));
             var key = string.Join("|",reader.GetGuid(0).ToString("D"),reader.GetGuid(1).ToString("D"),
                 reader.IsDBNull(2) ? "" : reader.GetInt64(2).ToString(CultureInfo.InvariantCulture),
-                reader.IsDBNull(3) ? "" : reader.GetInt64(3).ToString(CultureInfo.InvariantCulture)) + "\n";
+                reader.IsDBNull(3) ? "" : reader.GetInt64(3).ToString(CultureInfo.InvariantCulture),
+                CanonicalResolutionValues(leftValues),CanonicalResolutionValues(rightValues)) + "\n";
             hash.AppendData(Encoding.UTF8.GetBytes(key));
             pairs.Add(new IdentityTrainingPair(reader.GetString(4),DateOnly.FromDateTime(reader.GetDateTime(5)),reader.GetString(6),
                 reader.GetString(7),DateOnly.FromDateTime(reader.GetDateTime(8)),reader.GetString(9),
-                reader.IsDBNull(10) ? null : reader.GetString(10),reader.IsDBNull(11) ? null : reader.GetString(11)));
+                reader.IsDBNull(10) ? null : reader.GetString(10),reader.IsDBNull(11) ? null : reader.GetString(11),
+                leftValues,rightValues));
         }
         return new PairSample(pairs,Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant());
     }
+
+    private static IReadOnlyList<ResolutionSourceValue> ParseResolutionValues(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json) || json == "{}")
+            return Array.Empty<ResolutionSourceValue>();
+        using var document = JsonDocument.Parse(json);
+        var values = new List<ResolutionSourceValue>();
+        foreach (var property in document.RootElement.EnumerateObject())
+        {
+            if (!PersonResolutionAttributeCatalog.IsEligible(property.Name) || property.Value.ValueKind != JsonValueKind.Array)
+                continue;
+            foreach (var item in property.Value.EnumerateArray())
+                if (item.ValueKind == JsonValueKind.String && item.GetString() is { } value)
+                    values.Add(new ResolutionSourceValue(property.Name,value));
+        }
+        return values;
+    }
+
+    private static string CanonicalResolutionValues(IEnumerable<ResolutionSourceValue> values) =>
+        string.Concat(values
+            .OrderBy(static x => ResolutionSourceField.Canonicalize(x.Attribute),StringComparer.Ordinal)
+            .ThenBy(static x => x.Value,StringComparer.Ordinal)
+            .Select(static x =>
+            {
+                var attribute = ResolutionSourceField.Canonicalize(x.Attribute);
+                return $"{attribute.Length}:{attribute}={x.Value.Length}:{x.Value};";
+            }));
 
     private static async Task<IReadOnlyList<Frequency>> ReadFrequenciesAsync(DbConnection connection,DbTransaction transaction,
         long population,PostgreSqlCalibrationOptions options,CancellationToken ct)
@@ -340,8 +394,6 @@ public sealed class PostgreSqlLinkageCalibrator
                 await ExecuteAsync(connection,transaction,"INSERT INTO identidade.estatistica_linkage(modelo_id,nome,valor,metodo) VALUES(@id,@name,@value,@method);",60,ct,
                     P("id",DbType.Guid,modelId),P("name",DbType.String,name),P("value",DbType.Decimal,value),P("method",DbType.String,method));
 
-            // A justificativa da escolha do blocking é evidência do modelo, não parâmetro Fellegi-Sunter
-            // nem regra executável. É recalculada sobre o mesmo M/U e sobre os passes efetivamente persistidos.
             var blockingPasses = ruleSet.EffectiveBlockingPasses;
             var blockingDiagnostic = BlockingRuleSetDiagnostic.Analyze(
                 BlockingFeatureObservationFactory.Create(capture.M.Pairs, capture.U.Pairs),
@@ -375,8 +427,6 @@ public sealed class PostgreSqlLinkageCalibrator
                 P("p_hash",DbType.String,ParameterHash(parameters)),P("minimum",DbType.Int32,options.MinimumIndependentMatchedPairs),
                 P("synthetic",DbType.Boolean,options.Synthetic),P("captured",DbType.DateTimeOffset,capture.CapturedAt));
 
-            // Ruleset e demais evidências do modelo são publicados no mesmo commit transacional.
-            // Qualquer falha do writer desfaz parâmetros, estatísticas, calibração e regras conjuntamente.
             await LinkageRuleSetWriter.WriteAsync(connection, transaction, modelId, ruleSet, ct);
 
             var reference = $"gold.pessoa;pg_snapshot_sha256={capture.Hash};corpus_utc={capture.CapturedAt:O}";
@@ -409,7 +459,7 @@ public sealed class PostgreSqlLinkageCalibrator
                 WHERE modelo_id=@id AND status='GERANDO';
                 """,15,timeout.Token,P("id",DbType.Guid,modelId),P("reason",DbType.String,errorCode));
         }
-        catch (Exception) { /* A falha original prevalece; o GERANDO remanescente requer recuperação explícita. */ }
+        catch (Exception) { }
     }
 
     public static string ParameterHash(IReadOnlyDictionary<string,decimal> parameters) => HashText(

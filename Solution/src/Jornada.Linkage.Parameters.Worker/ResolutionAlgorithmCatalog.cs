@@ -147,13 +147,16 @@ public static class HomologatedResolutionAlgorithmCatalog
             },
             new[]
             {
+                "Solution/src/Jornada.Contracts/ContactCanonicalization.cs#NormalizeBrazilianPhoneV2",
                 "Solution/src/Jornada.Processor.Worker/TransversalAttributeInstanceKey.cs#TELEFONE_BR_CANONICO_V2",
+                "Solution/src/Jornada.Linkage.Parameters.Worker/ResolutionProjectionExecutor.cs#TELEFONE_BR_CANONICO@V2",
                 "Solution/database/Jornada_Fase1.sql#ref.fn_telefone_br_canonico_v2"
             },
             new[]
             {
                 "Solution/tests/Jornada.Tests/Unit/TransversalAttributeInstanceKeyTests.cs",
                 "Solution/tests/Jornada.Tests/Unit/DeterministicPropertyTests.cs",
+                "Solution/tests/Jornada.Tests/ResolutionProjectionExecutorTests.cs",
                 "Solution/tests/Jornada.Integration.Tests/Integration/PhoneNormalizationConformanceTests.cs",
                 "Solution/tests/fixtures/phone/telefone-br-canonico-v2.json"
             }),
@@ -168,13 +171,16 @@ public static class HomologatedResolutionAlgorithmCatalog
             },
             new[]
             {
+                "Solution/src/Jornada.Contracts/ContactCanonicalization.cs#NormalizeEmailV2",
                 "Solution/src/Jornada.Processor.Worker/TransversalAttributeInstanceKey.cs#EMAIL_CANONICO_V2",
+                "Solution/src/Jornada.Linkage.Parameters.Worker/ResolutionProjectionExecutor.cs#EMAIL_CANONICO@V2",
                 "Solution/database/Jornada_Fase1.sql#ref.fn_email_canonico_v2"
             },
             new[]
             {
                 "Solution/tests/Jornada.Tests/Unit/TransversalAttributeInstanceKeyTests.cs",
                 "Solution/tests/Jornada.Tests/Unit/DeterministicPropertyTests.cs",
+                "Solution/tests/Jornada.Tests/ResolutionProjectionExecutorTests.cs",
                 "Solution/tests/Jornada.Integration.Tests/Integration/EmailNormalizationConformanceTests.cs",
                 "Solution/tests/fixtures/email/email-canonico-v2.json"
             })
