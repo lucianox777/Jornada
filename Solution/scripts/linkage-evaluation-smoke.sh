@@ -135,6 +135,8 @@ PY
 python3 "$ROOT/scripts/linkage-evaluation-evidence-gate.py" "$OUT/report.json" \
   --policy "$ROOT/config/hml/linkage-evaluation-policy.json" \
   --summary "$OUT/evidence-gate-summary.json"
+python3 "$ROOT/scripts/linkage-statistical-readiness-gate.py" \
+  --root "$ROOT" --self-test
 
 {
   echo "status=OK"
