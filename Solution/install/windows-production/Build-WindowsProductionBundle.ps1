@@ -57,11 +57,13 @@ foreach ($folder in @('governance','hml','observability','operations','possibili
 $databaseDestination = Join-Path $output 'database'
 New-Item -ItemType Directory -Force -Path $databaseDestination | Out-Null
 $baselineSource = Join-Path $solutionRoot 'database\Jornada_Fase1.sql'
-$bundleDdl = Join-Path $databaseDestination 'Jornada_Fase1.sql'
-Copy-Item -Force -Path $baselineSource -Destination $bundleDdl
+$progressiveFoundationSource = Join-Path $solutionRoot 'database\Jornada_Identidade_Progressiva.sql'
+Copy-Item -Force -Path $baselineSource -Destination (Join-Path $databaseDestination 'Jornada_Fase1.sql')
+Copy-Item -Force -Path $progressiveFoundationSource -Destination (Join-Path $databaseDestination 'Jornada_Identidade_Progressiva.sql')
 
-# O baseline é usado somente quando o banco ainda não foi inicializado. A ordem
-# de upgrade corrente e seus checksums vêm exclusivamente do manifest.txt.
+# O baseline e a fundação de identidade progressiva são pré-requisitos de banco
+# ainda não consolidado. A ordem de upgrade corrente e seus checksums vêm
+# exclusivamente do manifest.txt.
 $migrationSource = Join-Path $solutionRoot 'database\migrations'
 $migrationDestination = Join-Path $databaseDestination 'migrations'
 Copy-Item -Recurse -Force -Path $migrationSource -Destination $databaseDestination
