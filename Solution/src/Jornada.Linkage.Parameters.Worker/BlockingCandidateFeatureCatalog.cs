@@ -44,6 +44,10 @@ public static class BlockingCandidateFeatureCatalog
 
     public static IReadOnlyList<string> RequiredCalibratorCandidates => CalibratorCandidates;
 
+    // Alias transitório de compatibilidade de fonte para o worker já publicado neste PR.
+    // Não representa componente, fase ou responsabilidade arquitetural separada do Calibrador.
+    public static IReadOnlyList<string> RequiredOptimizerCandidates => RequiredCalibratorCandidates;
+
     public static bool IsNameFeature(string field) =>
         string.Equals(field, FullName, StringComparison.Ordinal) ||
         string.Equals(field, FullNameUpper, StringComparison.Ordinal) ||
