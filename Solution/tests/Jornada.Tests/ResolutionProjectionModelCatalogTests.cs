@@ -30,7 +30,7 @@ public sealed class ResolutionProjectionModelCatalogTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(plan.ProjectionSchemaVersion, Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
+            Assert.That(plan.SchemaVersion, Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
             Assert.That(plan.Fingerprint, Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256));
             Assert.That(PersonResolutionAttributeCatalog.ProjectionSchemaVersion,
                 Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
