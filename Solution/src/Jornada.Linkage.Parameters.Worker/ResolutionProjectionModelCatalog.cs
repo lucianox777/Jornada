@@ -166,7 +166,7 @@ public static class HomologatedResolutionModelCatalog
 /// </summary>
 public static class ResolutionProjectionPlanner
 {
-    public const string PlannerVersion = "RESOLUTION_PROJECTION_PLANNER_V2";
+    public const string PlannerVersion = "RESOLUTION_PROJECTION_PLANNER_V3";
 
     public static ResolutionProjectionPlan Build(
         IEnumerable<ResolutionSourceAttribute> attributes,
@@ -246,6 +246,9 @@ public static class ResolutionProjectionPlanner
             return suffix switch
             {
                 "normalized" => "name_full",
+                "upper" => "name_upper",
+                "upper_no_diacritics" => "name_upper_no_diacritics",
+                "without_particles" => "name_without_particles",
                 "first" => "name_first",
                 "surnames" => "name_surnames",
                 "last" => "name_last",
@@ -258,6 +261,9 @@ public static class ResolutionProjectionPlanner
             return suffix switch
             {
                 "normalized" => "mother_name_full",
+                "upper" => "mother_name_upper",
+                "upper_no_diacritics" => "mother_name_upper_no_diacritics",
+                "without_particles" => "mother_name_without_particles",
                 "first" => "mother_name_first",
                 "surnames" => "mother_name_surnames",
                 "last" => "mother_name_last",
