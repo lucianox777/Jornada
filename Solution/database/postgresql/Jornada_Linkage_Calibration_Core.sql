@@ -53,6 +53,7 @@ FOR EACH ROW EXECUTE FUNCTION identidade.fn_linkage_evidencia_editavel();
 
 -- O worker já publicou toda a evidência quando promove GERANDO -> RASCUNHO. O trigger
 -- monta o manifesto dentro da mesma transação; qualquer inconsistência aborta o rascunho.
+-- A projeção vem do ruleset persistido, e não de literal duplicado no trigger.
 CREATE OR REPLACE FUNCTION identidade.fn_linkage_replay_manifest_rascunho()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
@@ -74,13 +75,16 @@ BEGIN
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Não é possível publicar RASCUNHO sem ruleset de blocking.';
     END IF;
+    IF v_ruleset.projection_schema_version IS NULL OR v_ruleset.projection_fingerprint_sha256 IS NULL THEN
+        RAISE EXCEPTION 'Ruleset novo não possui identidade da projeção física; RASCUNHO recusado.';
+    END IF;
 
     v_training_hash := encode(sha256(convert_to(
         'M=' || v_evidencia.amostra_m_sha256 || E'\nU=' || v_evidencia.amostra_u_sha256 || E'\n', 'UTF8')), 'hex');
 
     v_manifest_canonical :=
-        'CALIBRATION_REPLAY_MANIFEST_V1|POSTGRESQL_LINKAGE_CALIBRATOR_V4|PERSON_RESOLUTION_PROJECTION_V2|' ||
-        'd186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4|' ||
+        'CALIBRATION_REPLAY_MANIFEST_V1|POSTGRESQL_LINKAGE_CALIBRATOR_V4|' ||
+        v_ruleset.projection_schema_version || '|' || v_ruleset.projection_fingerprint_sha256 || '|' ||
         'RESOLUTION_ALGORITHM_CATALOG_V3|RESOLUTION_COMPARATOR_CATALOG_V1|' ||
         v_ruleset.ruleset_versao || '|' || v_ruleset.fingerprint_sha256 || E'\n' ||
         'D|PersonData|gold.pessoa|' || v_evidencia.snapshot_token || '|' || v_evidencia.snapshot_sha256 || '|' || E'\n' ||
@@ -95,7 +99,7 @@ BEGIN
         external_snapshots_json,manifest_fingerprint)
     VALUES(
         NEW.modelo_id,'CALIBRATION_REPLAY_MANIFEST_V1','POSTGRESQL_LINKAGE_CALIBRATOR_V4',
-        'PERSON_RESOLUTION_PROJECTION_V2','d186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4',
+        v_ruleset.projection_schema_version,v_ruleset.projection_fingerprint_sha256,
         'RESOLUTION_ALGORITHM_CATALOG_V3','RESOLUTION_COMPARATOR_CATALOG_V1',
         v_ruleset.ruleset_versao,v_ruleset.fingerprint_sha256,
         'gold.pessoa',v_evidencia.snapshot_token,v_evidencia.snapshot_sha256,
@@ -155,9 +159,11 @@ BEGIN
          WHERE rm.modelo_id=v_modelo.modelo_id
            AND rm.blocking_plan_version=rs.ruleset_versao
            AND rm.blocking_plan_fingerprint=rs.fingerprint_sha256
+           AND rm.projection_schema_version=rs.projection_schema_version
+           AND rm.projection_fingerprint=rs.projection_fingerprint_sha256
            AND rm.manifest_version='CALIBRATION_REPLAY_MANIFEST_V1'
     ) THEN
-        RAISE EXCEPTION 'Manifesto de replay ausente ou divergente do ruleset persistido.';
+        RAISE EXCEPTION 'Manifesto de replay ausente ou divergente do ruleset/projeção persistidos.';
     END IF;
     IF v_evidencia.sintetico AND
        (current_database() <> 'JornadaPgCalibrationTest'
