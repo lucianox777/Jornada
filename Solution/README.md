@@ -2,7 +2,7 @@
 
 > **Base normativa corrente: 3.62; SolutionSchema corrente: 3.70.** A consolidação v5.00 ainda não foi cortada como release/tag. O estado desta branch é candidato técnico e permanece sujeito aos gates de CI e às aprovações institucionais explicitamente marcadas como pendentes.
 
-Stack principal: **C# 12 / .NET 8**, **Microsoft SQL Server como tecnologia relacional normativa**, Power BI Project (PBIP/TMDL/PBIR) para a camada analítica e Microsoft Fabric somente nos escopos analíticos/de compatibilidade definidos pela arquitetura. SQL Server 2022 Developer é usado em desenvolvimento local/CI; isso não transforma a edição Developer em tecnologia de Produção.
+Stack principal: **C# 12 / .NET 8**, **Microsoft SQL Server como tecnologia relacional normativa**, Power BI Project (PBIP/TMDL/PBIR) para a camada analítica e **SQL Database in Microsoft Fabric como hospedagem relacional operacional preferencial de HML/Produção quando homologada para a release exata**. SQL Server 2022 Developer/Testcontainers permanece o baseline obrigatório de desenvolvimento local, CI, DDL e validação independente de ambiente; isso não transforma a edição Developer em tecnologia de Produção. Lakehouse e SQL Analytics Endpoint permanecem no escopo analítico/compatibilidade e não substituem implicitamente o banco relacional operacional.
 
 ## Estado técnico corrente
 
@@ -11,7 +11,7 @@ Stack principal: **C# 12 / .NET 8**, **Microsoft SQL Server como tecnologia rela
 - Para entrega a DBA/ferramenta de deploy, `scripts/materialize-sql-installer.py` gera um único `.sql` autocontido, sem diretivas `:r`, a partir da fonte canônica.
 - O upgrade real reaproveita o backfill paginado/reentrante implementado por `ProgressiveIdentityOriginStore.BackfillPageAsync`; não existe uma segunda implementação T-SQL concorrente para esse backfill.
 - O inventário automatizado do schema consolidado contém **66 tabelas**, das quais 13 ficam fora do baseline legado de 53.
-- Microsoft SQL Server permanece a referência relacional normativa. Implementações auxiliares/compatibilidade não redefinem esse baseline.
+- Microsoft SQL Server permanece a referência relacional normativa e o baseline independente de ambiente. A hospedagem em SQL Database in Microsoft Fabric, quando homologada, usa o mesmo contrato Microsoft SQL e não cria regra funcional ou DDL concorrente.
 
 ## Instalação e desenvolvimento local
 
@@ -56,7 +56,8 @@ Arquivos de governança podem permanecer com status `PENDENTE`; a consolidação
 2. documentos DOCX/PDF regenerados e validados;
 3. metadados de release atualizados para o commit final;
 4. aprovações exigidas pela promoção tratadas conforme os gates aplicáveis;
-5. verificação final do `master` antes da criação da tag.
+5. homologação Fabric adicional no HEAD exato candidato quando SQL Database in Microsoft Fabric for o alvo de HML/Produção;
+6. verificação final do `master` antes da criação da tag.
 
 ## Histórico técnico
 
