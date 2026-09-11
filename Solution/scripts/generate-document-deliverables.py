@@ -508,7 +508,7 @@ def main() -> int:
 
     validate(root, work)
     shutil.rmtree(work)
-    print("Artefatos DOCX/PDF gerados e validados: 2/2/2/8 páginas, matriz tabular e UML incorporada.")
+    print("Artefatos DOCX/PDF gerados e validados: paginação dentro das faixas esperadas, matriz tabular e UML incorporada.")
     return 0
 
 
