@@ -1,3 +1,4 @@
+using System.Globalization;
 using Jornada.Contracts;
 
 namespace Jornada.Linkage.Parameters.Worker;
@@ -9,7 +10,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static class BlockingFeatureObservationFactory
 {
-    public const string MethodVersion = "BLOCKING_FEATURE_OBSERVATION_FACTORY_V2";
+    public const string MethodVersion = "BLOCKING_FEATURE_OBSERVATION_FACTORY_V3";
 
     public static IReadOnlyList<BlockingFeatureObservation> Create(
         IReadOnlyCollection<IdentityTrainingPair> matchedPairs,
@@ -36,8 +37,8 @@ public static class BlockingFeatureObservationFactory
         if (weight <= 0m)
             throw new ArgumentOutOfRangeException(nameof(weight), "O peso deve ser positivo.");
 
-        var left = Project(pair.LeftName, pair.LeftMotherName, pair.LeftBirthDate);
-        var right = Project(pair.RightName, pair.RightMotherName, pair.RightBirthDate);
+        var left = Project(pair.LeftName, pair.LeftMotherName, pair.LeftBirthDate, pair.LeftResolutionValues);
+        var right = Project(pair.RightName, pair.RightMotherName, pair.RightBirthDate, pair.RightResolutionValues);
         var agreements = new Dictionary<string, bool?>(StringComparer.Ordinal);
 
         foreach (var feature in BlockingCandidateFeatureCatalog.CalibratorCandidates)
@@ -55,11 +56,24 @@ public static class BlockingFeatureObservationFactory
     private static Dictionary<string, HashSet<string>> Project(
         string? name,
         string? motherName,
-        DateOnly birthDate) =>
-        BlockingProjectionKeyProjector.Project(name, motherName, birthDate)
+        DateOnly birthDate,
+        IReadOnlyList<ResolutionSourceValue>? dynamicValues)
+    {
+        var values = new List<ResolutionSourceValue>
+        {
+            new(PersonResolutionAttributeCatalog.FullName, name ?? string.Empty),
+            new(PersonResolutionAttributeCatalog.MotherName, motherName ?? string.Empty),
+            new(PersonResolutionAttributeCatalog.BirthDate, birthDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
+        };
+        if (dynamicValues is not null)
+            values.AddRange(dynamicValues);
+
+        return ResolutionProjectionExecutor
+            .Project(BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan, values)
             .GroupBy(static key => key.Feature, StringComparer.Ordinal)
             .ToDictionary(
                 static group => group.Key,
                 static group => group.Select(static key => key.Value).ToHashSet(StringComparer.Ordinal),
                 StringComparer.Ordinal);
+    }
 }
