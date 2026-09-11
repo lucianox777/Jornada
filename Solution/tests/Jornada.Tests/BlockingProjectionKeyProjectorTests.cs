@@ -6,7 +6,7 @@ namespace Jornada.Tests;
 public sealed class BlockingProjectionKeyProjectorTests
 {
     [Test]
-    public void Project_UsesCanonicalAndBasicPtBrNameProjections()
+    public void Project_UsesCanonicalBasicAndPhoneticPtBrNameProjections()
     {
         var keys = BlockingProjectionKeyProjector.Project(
             "  María   da Silva ",
@@ -21,6 +21,8 @@ public sealed class BlockingProjectionKeyProjectorTests
                 BlockingCandidateFeatureCatalog.FullNameUpperNoDiacritics, "MARIA DA SILVA")));
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.FullNameWithoutParticles, "MARIA SILVA")));
+            Assert.That(keys, Does.Contain(new BlockingProjectionKey(
+                BlockingCandidateFeatureCatalog.FullNamePhoneticPtBr, "MARIA DA SILVA")));
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.FullName, "MARIA DA SILVA")));
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
@@ -38,6 +40,8 @@ public sealed class BlockingProjectionKeyProjectorTests
                 BlockingCandidateFeatureCatalog.MotherFullNameUpperNoDiacritics, "ANA DE SOUZA")));
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.MotherFullNameWithoutParticles, "ANA SOUZA")));
+            Assert.That(keys, Does.Contain(new BlockingProjectionKey(
+                BlockingCandidateFeatureCatalog.MotherFullNamePhoneticPtBr, "ANA DE SOUSA")));
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.MotherFullName, "ANA DE SOUZA")));
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
@@ -71,7 +75,7 @@ public sealed class BlockingProjectionKeyProjectorTests
     }
 
     [Test]
-    public void Project_AccentSensitiveAndInsensitiveRepresentationsAreBothAvailable()
+    public void Project_AccentSensitiveInsensitiveAndPhoneticRepresentationsAreAvailable()
     {
         var withoutAccent = BlockingProjectionKeyProjector.Project(
             "Joao Silva",
@@ -96,6 +100,10 @@ public sealed class BlockingProjectionKeyProjectorTests
                 BlockingCandidateFeatureCatalog.FullName, "JOAO SILVA")));
             Assert.That(withAccent, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.FullName, "JOAO SILVA")));
+            Assert.That(withoutAccent, Does.Contain(new BlockingProjectionKey(
+                BlockingCandidateFeatureCatalog.FullNamePhoneticPtBr, "JOAO SILVA")));
+            Assert.That(withAccent, Does.Contain(new BlockingProjectionKey(
+                BlockingCandidateFeatureCatalog.FullNamePhoneticPtBr, "JOAO SILVA")));
         });
     }
 
