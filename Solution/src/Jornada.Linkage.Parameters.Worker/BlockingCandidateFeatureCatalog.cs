@@ -42,7 +42,7 @@ public static class BlockingCandidateFeatureCatalog
     public static IReadOnlyList<string> CalibratorCandidates { get; } =
         CurrentResolutionProjectionPlan.BlockingCandidateFeatures;
 
-    public static IReadOnlyList<string> RequiredOptimizerCandidates => CalibratorCandidates;
+    public static IReadOnlyList<string> RequiredCalibratorCandidates => CalibratorCandidates;
 
     public static bool IsNameFeature(string field) =>
         string.Equals(field, FullName, StringComparison.Ordinal) ||
