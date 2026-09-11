@@ -37,12 +37,13 @@ public sealed record ResolutionPhysicalProjectionPlan(
 
 public static class ResolutionProjectionPromotionPlanner
 {
-    public const string MethodVersion = "RESOLUTION_PROJECTION_PROMOTION_PLANNER_V1";
+    public const string MethodVersion = "RESOLUTION_PROJECTION_PROMOTION_PLANNER_V2";
 
     public static ResolutionPhysicalProjectionPlan Build(
         ResolutionProjectionPlan projection,
         IReadOnlyList<LinkageBlockingPass> winningPasses,
-        IReadOnlyCollection<string>? previouslyPromotedFeatures = null)
+        IReadOnlyCollection<string>? previouslyPromotedFeatures = null,
+        IReadOnlyCollection<string>? physicallyValidatedIndexes = null)
     {
         ArgumentNullException.ThrowIfNull(projection);
         ArgumentNullException.ThrowIfNull(winningPasses);
@@ -60,9 +61,20 @@ public static class ResolutionProjectionPromotionPlanner
         var previous = previouslyPromotedFeatures is null
             ? new HashSet<string>(StringComparer.Ordinal)
             : previouslyPromotedFeatures.ToHashSet(StringComparer.Ordinal);
+        var validatedIndexes = physicallyValidatedIndexes is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : physicallyValidatedIndexes.ToHashSet(StringComparer.Ordinal);
+
+        var unknownIndexes = validatedIndexes.Where(feature => !known.Contains(feature)).OrderBy(static x => x, StringComparer.Ordinal).ToArray();
+        if (unknownIndexes.Length > 0)
+            throw new ArgumentException($"Índice validado referencia feature fora da projeção: {string.Join(",", unknownIndexes)}.", nameof(physicallyValidatedIndexes));
+
+        var indexesOutsideWinningPlan = validatedIndexes.Where(feature => !selected.Contains(feature)).OrderBy(static x => x, StringComparer.Ordinal).ToArray();
+        if (indexesOutsideWinningPlan.Length > 0)
+            throw new ArgumentException($"Índice só pode ser promovido após evidência física para feature do BLOCKING_PLAN vencedor: {string.Join(",", indexesOutsideWinningPlan)}.", nameof(physicallyValidatedIndexes));
 
         var promotions = projection.Features
-            .Select(feature => Promote(feature, selected, previous))
+            .Select(feature => Promote(feature, selected, previous, validatedIndexes))
             .OrderBy(static feature => feature.Feature, StringComparer.Ordinal)
             .ToArray();
 
@@ -71,7 +83,7 @@ public static class ResolutionProjectionPromotionPlanner
             .Select(static feature => new ResolutionIndexProposal(
                 feature.Feature,
                 feature.MultiValued,
-                "FEATURE_SELECTED_BY_BLOCKING_PLAN"))
+                "MEASURED_PHYSICAL_BENEFIT"))
             .OrderBy(static proposal => proposal.Feature, StringComparer.Ordinal)
             .ToArray();
 
@@ -85,13 +97,14 @@ public static class ResolutionProjectionPromotionPlanner
     private static ResolutionFeaturePromotion Promote(
         ResolutionProjectedFeature feature,
         IReadOnlySet<string> selected,
-        IReadOnlySet<string> previous)
+        IReadOnlySet<string> previous,
+        IReadOnlySet<string> validatedIndexes)
     {
         var lifecycle = feature.Origin == ResolutionFeatureOrigin.Original
             ? ResolutionFeatureLifecycle.Source
-            : selected.Contains(feature.Feature)
+            : validatedIndexes.Contains(feature.Feature)
                 ? ResolutionFeatureLifecycle.Indexed
-                : previous.Contains(feature.Feature)
+                : selected.Contains(feature.Feature) || previous.Contains(feature.Feature)
                     ? ResolutionFeatureLifecycle.Promoted
                     : ResolutionFeatureLifecycle.Candidate;
 
