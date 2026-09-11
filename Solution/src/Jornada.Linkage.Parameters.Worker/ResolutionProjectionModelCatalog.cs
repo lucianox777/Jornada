@@ -56,7 +56,7 @@ public sealed record ResolutionSourceAttribute(
         {
             if (char.IsLetterOrDigit(ch) || ch == '_')
                 builder.Append(ch);
-            else if (builder.Length > 0 && builder[^1] != '_')
+            else if (builder.Length > 0 && builder[builder.Length - 1] != '_')
                 builder.Append('_');
         }
 
@@ -168,7 +168,7 @@ public static class HomologatedResolutionModelCatalog
                 })
         };
 
-    public static IReadOnlyCollection<HomologatedResolutionModel> All => Models.Values;
+    public static IReadOnlyCollection<HomologatedResolutionModel> All => Models.Values.ToArray();
 
     public static bool TryGet(ResolutionAttributeSemantic semantic, out HomologatedResolutionModel model) =>
         Models.TryGetValue(semantic, out model!);
