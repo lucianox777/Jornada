@@ -8,7 +8,7 @@ O caminho de produção deste instalador é **nativo no Windows**:
 
 - .NET 8 Runtime + ASP.NET Core Runtime;
 - executáveis publicados da Jornada;
-- SQL Server 2022 nativo, SQL Server já existente ou SQL externo/Fabric;
+- SQL Server 2022 nativo, SQL Server já existente ou SQL externo;
 - armazenamento Bronze/Staging em caminho absoluto e durável;
 - processos contínuos e jobs registrados no **Agendador de Tarefas do Windows**;
 - `Jornada.Integrador.CSharp.exe` como cliente padrão para envio/consulta.
@@ -17,7 +17,9 @@ Docker é opcional. Em Windows Server, `MobyWindows` instala runtime para **cont
 
 ## Arquivos
 
-- `Install-JornadaProduction.ps1` — instalação/upgrade idempotente da aplicação;
+- `Install-Jornada.ps1` — **entrada canônica** para instalação/upgrade; fecha o banco pelo manifesto/ledger antes de registrar tarefas;
+- `Install-JornadaProduction.ps1` — implementação core de infraestrutura, payload e tarefas, chamada pelo instalador canônico;
+- `Invoke-JornadaMigrationLedger.ps1` — aplica o `database/migrations/manifest.txt` com SHA-256 e ledger fail-closed;
 - `Build-WindowsProductionBundle.ps1` — publica os executáveis e monta o payload de produção;
 - `Invoke-JornadaComponent.ps1` — runner usado pelas tarefas do Windows;
 - `Jornada.Production.example.json` — modelo de configuração sem segredo real.
@@ -37,21 +39,17 @@ O bundle é criado em `.local\windows-production-bundle` por padrão e contém:
 - Linkage Runner/Parameters Worker;
 - Integrador C#;
 - contratos JSON Schema;
-- DDL canônico `Jornada_Fase1.sql`;
+- `database/Jornada_Fase1.sql`, usado somente como baseline de banco ainda vazio;
+- `database/Jornada_Identidade_Progressiva.sql`, fundação aditiva anterior ao manifesto;
+- `database/migrations/manifest.txt` e todas as migrações normativas da linha 3.70;
 - OpenAPI;
-- instalador.
+- instalador e runner do ledger.
 
-O CI também gera esse bundle como artefato.
+O `MANIFEST.sha256` do bundle cobre também os scripts de migração. O CI valida que o `manifest.txt` do bundle é byte a byte o manifesto normativo da Solution.
 
 ## Configuração
 
-Copie:
-
-```text
-Jornada.Production.example.json
-```
-
-para um arquivo **fora do Git**, por exemplo:
+Copie `Jornada.Production.example.json` para um arquivo **fora do Git**, por exemplo:
 
 ```text
 C:\Jornada-Install\Jornada.Production.json
@@ -64,14 +62,37 @@ A configuração real pode conter a chave do Integrador e por isso deve receber 
 `sql.mode` aceita:
 
 - `Existing` — SQL Server já instalado na máquina ou rede;
-- `External` — SQL externo, inclusive SQL Database no Microsoft Fabric;
+- `External` — SQL externo previamente provisionado;
 - `InstallFromMedia` — instala SQL Server 2022 a partir de mídia licenciada.
 
 Para `InstallFromMedia`, somente `Standard` e `Enterprise` são aceitos. Developer/Evaluation não são permitidos por este instalador de produção. O instalador não baixa nem incorpora mídia/licença SQL. A mídia deve ser fornecida pela infraestrutura e `sql.setupExe` deve apontar para `setup.exe`.
 
 Se a mídia exigir PID, configure `sql.productKeyEnvironmentVariable` e injete a chave em variável de ambiente antes de instalar. A chave não vai para o JSON nem para o Git.
 
-### Docker
+Quando `initializeDatabase=true`, o instalador canônico trata os estados da seguinte forma:
+
+- banco ausente: cria o banco, aplica `Jornada_Fase1.sql`, aplica a fundação de identidade progressiva e então percorre o manifesto;
+- banco vazio já existente: aplica baseline + fundação + manifesto;
+- banco com baseline mas sem fundação progressiva: aplica somente a fundação e segue para o manifesto;
+- banco já inicializado: **não reaplica o baseline**; executa somente o caminho de manifesto/ledger;
+- estado inconsistente (ledger/marker sem baseline esperado): falha fechado e exige correção/restauração.
+
+Em `sql.mode=External`, o banco deve existir previamente; o instalador não tenta criá-lo.
+
+### Ledger de migrações
+
+A ordem de upgrade é definida exclusivamente por `database/migrations/manifest.txt`. Para cada entrada, `Invoke-JornadaMigrationLedger.ps1`:
+
+1. calcula o SHA-256 do arquivo;
+2. adquire lock exclusivo transacional (`sp_getapplock`);
+3. consulta `jornada.schema_migration` com `UPDLOCK/HOLDLOCK`;
+4. se a migração já existe, exige o mesmo SHA-256;
+5. se ainda não existe, executa seus batches e grava o ledger **na mesma transação**;
+6. faz rollback completo da migração se qualquer batch ou o registro no ledger falhar.
+
+Uma reexecução com conteúdo diferente sob o mesmo nome falha; o instalador não substitui nem corrige silenciosamente o checksum. O marcador `Jornada.SolutionSchema=3.70` só é aceito ao final com o inventário obrigatório contabilizado.
+
+## Docker
 
 `docker.mode` aceita:
 
@@ -84,7 +105,7 @@ Docker não é pré-requisito do runtime nativo da Jornada.
 ## Validação sem alterar a máquina
 
 ```powershell
-.\Install-JornadaProduction.ps1 `
+.\Install-Jornada.ps1 `
   -ConfigPath C:\Jornada-Install\Jornada.Production.json `
   -PayloadRoot C:\Jornada-Install\bundle `
   -ValidateOnly
@@ -93,59 +114,43 @@ Docker não é pré-requisito do runtime nativo da Jornada.
 ou:
 
 ```powershell
-.\Install-JornadaProduction.ps1 `
+.\Install-Jornada.ps1 `
   -ConfigPath C:\Jornada-Install\Jornada.Production.json `
   -PayloadRoot C:\Jornada-Install\bundle `
   -PlanOnly
 ```
 
-## Instalação
+Com `initializeDatabase=true`, `-ValidateOnly` também valida o inventário, existência dos arquivos e hashes calculáveis das migrações, sem abrir conexão SQL.
+
+## Instalação / upgrade
 
 Execute PowerShell elevado:
 
 ```powershell
 Set-ExecutionPolicy Bypass -Scope Process -Force
-.\Install-JornadaProduction.ps1 `
+.\Install-Jornada.ps1 `
   -ConfigPath C:\Jornada-Install\Jornada.Production.json `
   -PayloadRoot C:\Jornada-Install\bundle
 ```
 
-O instalador:
+O instalador canônico:
 
-1. valida sistema operacional/configuração/payload;
-2. instala .NET 8 quando necessário;
-3. valida ou instala Docker conforme `docker.mode`;
-4. valida ou instala SQL conforme `sql.mode`;
-5. cria o banco Jornada e aplica `Jornada_Fase1.sql` quando `initializeDatabase=true`;
-6. copia os executáveis/contratos para `installationRoot`;
-7. cria Bronze, Staging e logs em `dataRoot`;
-8. gera `integrador.config.json` se o Integrador estiver habilitado;
-9. protege arquivos de configuração com ACL;
-10. registra as tarefas habilitadas no Agendador do Windows.
+1. valida configuração, payload e manifesto;
+2. provisiona/valida runtimes, Docker e SQL com `initializeDatabase=false` e tarefas desabilitadas;
+3. classifica o estado do banco sem reaplicar baseline sobre banco já inicializado;
+4. aplica baseline/fundação somente quando necessários;
+5. aplica/valida todas as migrações pelo ledger;
+6. somente após o fechamento do schema, finaliza payload/configuração e registra as tarefas habilitadas.
+
+Essa ordem evita publicar um novo conjunto de tarefas antes de saber que o banco chegou ao estado esperado. `Install-JornadaProduction.ps1` permanece como implementação core e compatibilidade interna; operações normais devem usar `Install-Jornada.ps1`.
 
 ## Tarefas
 
-O JSON de produção controla cada tarefa. Os triggers aceitos são:
+O JSON de produção controla cada tarefa. Os triggers aceitos são `AtStartup`, `Daily` + `at` (`HH:mm`) e `Weekly` + `days` + `at`.
 
-- `AtStartup`;
-- `Daily` + `at` (`HH:mm`);
-- `Weekly` + `days` + `at`.
+Os processos contínuos recomendados no mesmo host são `Jornada-Api`, `Jornada-ResultadoApi`, `Jornada-Processor`, `Jornada-OperationsMaintenance` e `Jornada-BronzeMaintenance`.
 
-Os processos contínuos recomendados no mesmo host são:
-
-- `Jornada-Api`;
-- `Jornada-ResultadoApi`;
-- `Jornada-Processor`;
-- `Jornada-OperationsMaintenance`;
-- `Jornada-BronzeMaintenance`.
-
-O modelo inclui, inicialmente **desabilitados**, exemplos para:
-
-- `Jornada-Linkage-GenerateDraft` — geração de parâmetros do Fellegi-Sunter;
-- `Jornada-Linkage-Incremental`;
-- `Jornada-Integrator-EnviarTodos` — chama `--enviar-todos` e move ZIPs enviados para `Enviados`.
-
-As cadências desses jobs devem ser homologadas antes de `enabled=true`; o instalador não inventa frequência institucional.
+O modelo inclui, inicialmente **desabilitados**, exemplos para `Jornada-Linkage-GenerateDraft`, `Jornada-Linkage-Incremental` e `Jornada-Integrator-EnviarTodos`. As cadências desses jobs devem ser homologadas antes de `enabled=true`; o instalador não inventa frequência institucional.
 
 ## CLI do Integrador
 
@@ -167,8 +172,6 @@ Operações:
 
 ## Segurança e bloqueio conhecido de Produção
 
-A configuração real e os arquivos de tarefa podem conter conexão SQL e/ou chave do Integrador. O instalador remove herança de ACL e mantém acesso para `SYSTEM`, Administradores e, quando configurada, a conta das tarefas.
+A configuração real e os arquivos de tarefa podem conter conexão SQL e/ou chave do Integrador. O instalador remove herança de ACL e mantém acesso para `SYSTEM`, Administradores e, quando configurada, a conta das tarefas. Arquivos temporários usados na orquestração do instalador são removidos ao final da execução.
 
-**Importante:** a `Jornada.Api` atual é fail-closed fora de `Development`: a autenticação/autorização de Produção permanece `DENY_BY_DEFAULT_PENDING_CORPORATE_IDENTITY` até a integração do mecanismo corporativo de identidade/secret store. O instalador não contorna essa proteção nem habilita chaves sintéticas de Development em Produção.
-
-Assim, o instalador pode provisionar toda a infraestrutura e subir os processos, mas o tráfego funcional de Produção deve permanecer bloqueado até o adaptador de identidade corporativa ser implementado/homologado.
+A `Jornada.Api` continua fail-closed fora de `Development`: a autenticação/autorização de Produção permanece `DENY_BY_DEFAULT_PENDING_CORPORATE_IDENTITY` até a integração do mecanismo corporativo de identidade/secret store. O instalador não contorna essa proteção nem habilita chaves sintéticas de Development em Produção.
