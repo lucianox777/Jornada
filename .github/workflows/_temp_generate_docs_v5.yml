@@ -79,6 +79,27 @@ jobs:
             fi
           done
 
+      - name: Diagnose generated matrix structure
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from docx import Document
+          from pathlib import Path
+
+          path = Path('Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.docx')
+          if not path.is_file():
+              raise SystemExit('matrix DOCX was not generated')
+          doc = Document(path)
+          print(f'MATRIX_TABLE_COUNT={len(doc.tables)}')
+          for i, table in enumerate(doc.tables):
+              style = table.style.name if table.style is not None else None
+              rows = len(table.rows)
+              cols = len(table.columns)
+              headers = [cell.text.replace('\n', ' ').strip() for cell in table.rows[0].cells] if rows else []
+              print(f'MATRIX_TABLE_{i}: style={style!r} rows={rows} cols={cols} headers={headers!r}')
+          PY
+
       - name: Commit generator fix and generated deliverables to this branch
         if: success()
         shell: bash
