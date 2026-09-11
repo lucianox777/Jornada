@@ -1,6 +1,13 @@
 namespace Jornada.Contracts;
 
 /// <summary>
+/// Valor transversal preservado na observação que pode ser oferecido ao runtime de resolução.
+/// Elegibilidade e projeção são decididas exclusivamente pelo catálogo compartilhado; este
+/// DTO não torna o atributo elegível por si só.
+/// </summary>
+public sealed record IdentityResolutionAttributeValue(string AttributeCode, string Value);
+
+/// <summary>
 /// Observação mínima de identidade usada internamente pelo Processor.
 /// CPF válido é a rota determinística normal. Os demais atributos são usados para
 /// qualidade/corroboração, para sinalizar inconsistências globais do identificador quando
@@ -12,7 +19,8 @@ public sealed record IdentityObservation(
     string? CpfAusenteMotivo,
     string NomeCompleto,
     DateOnly DataNascimento,
-    string NomeMae);
+    string NomeMae,
+    IReadOnlyList<IdentityResolutionAttributeValue>? ResolutionAttributes = null);
 
 public sealed record InternalIdentityResolution(
     ResolutionStatus Status,
