@@ -42,13 +42,13 @@ public sealed class IbgeCalibrationAttributeCatalogTests
     }
 
     [Test]
-    public void Unsupported_feature_does_not_disappear_from_optimizer_candidate_catalog()
+    public void Unsupported_feature_does_not_disappear_from_calibrator_candidate_catalog()
     {
-        Assert.That(BlockingCandidateFeatureCatalog.RequiredOptimizerCandidates,
+        Assert.That(BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates,
             Does.Contain(BlockingCandidateFeatureCatalog.FullName));
-        Assert.That(BlockingCandidateFeatureCatalog.RequiredOptimizerCandidates,
+        Assert.That(BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates,
             Does.Contain(BlockingCandidateFeatureCatalog.MotherFullName));
-        Assert.That(BlockingCandidateFeatureCatalog.RequiredOptimizerCandidates,
+        Assert.That(BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates,
             Does.Contain(BlockingCandidateFeatureCatalog.BirthYear));
         Assert.That(IbgeCalibrationAttributeCatalog.Supports(BlockingCandidateFeatureCatalog.FullName), Is.False);
         Assert.That(IbgeCalibrationAttributeCatalog.Supports(BlockingCandidateFeatureCatalog.MotherFullName), Is.False);
