@@ -37,7 +37,7 @@ public sealed class ResolutionProjectionModelCatalogTests
     public void Build_PersonNameAutomaticallyProducesCalculatedDerivationsFromSeveralAlgorithms()
     {
         var plan = ResolutionProjectionPlanner.Build(
-            new[] { new ResolutionSourceAttribute("apelido_social", ResolutionAttributeSemantic.PersonName) },
+            new[] { new ResolutionSourceField("apelido_social", ResolutionAttributeSemantic.PersonName) },
             "TEST_V1");
 
         var original = plan.Features.Single(static feature => feature.Feature == "source__apelido_social");
@@ -67,7 +67,7 @@ public sealed class ResolutionProjectionModelCatalogTests
     public void Build_DateComponentsAreGeneratedColumnCandidates()
     {
         var plan = ResolutionProjectionPlanner.Build(
-            new[] { new ResolutionSourceAttribute("data_evento", ResolutionAttributeSemantic.Date) },
+            new[] { new ResolutionSourceField("data_evento", ResolutionAttributeSemantic.Date) },
             "TEST_V1");
 
         var calculated = plan.Features
@@ -93,8 +93,8 @@ public sealed class ResolutionProjectionModelCatalogTests
         var plan = ResolutionProjectionPlanner.Build(
             new[]
             {
-                new ResolutionSourceAttribute("telefone_contato", ResolutionAttributeSemantic.Phone),
-                new ResolutionSourceAttribute("email_contato", ResolutionAttributeSemantic.Email)
+                new ResolutionSourceField("telefone_contato", ResolutionAttributeSemantic.Phone),
+                new ResolutionSourceField("email_contato", ResolutionAttributeSemantic.Email)
             },
             "TEST_V1");
 
@@ -120,7 +120,7 @@ public sealed class ResolutionProjectionModelCatalogTests
     public void Build_SemanticWithoutHomologatedAlgorithmKeepsOnlyOriginalAttribute()
     {
         var plan = ResolutionProjectionPlanner.Build(
-            new[] { new ResolutionSourceAttribute("logradouro", ResolutionAttributeSemantic.Address) },
+            new[] { new ResolutionSourceField("logradouro", ResolutionAttributeSemantic.Address) },
             "TEST_V1");
 
         Assert.Multiple(() =>
@@ -206,15 +206,15 @@ public sealed class ResolutionProjectionModelCatalogTests
     [Test]
     public void Build_IsDeterministicAndFingerprintChangesWithSchemaVersion()
     {
-        var attributes = new[]
+        var fields = new[]
         {
-            new ResolutionSourceAttribute("nome", ResolutionAttributeSemantic.PersonName),
-            new ResolutionSourceAttribute("data", ResolutionAttributeSemantic.Date)
+            new ResolutionSourceField("nome", ResolutionAttributeSemantic.PersonName),
+            new ResolutionSourceField("data", ResolutionAttributeSemantic.Date)
         };
 
-        var first = ResolutionProjectionPlanner.Build(attributes, "TEST_V1");
-        var reordered = ResolutionProjectionPlanner.Build(attributes.Reverse(), "TEST_V1");
-        var next = ResolutionProjectionPlanner.Build(attributes, "TEST_V2");
+        var first = ResolutionProjectionPlanner.Build(fields, "TEST_V1");
+        var reordered = ResolutionProjectionPlanner.Build(fields.Reverse(), "TEST_V1");
+        var next = ResolutionProjectionPlanner.Build(fields, "TEST_V2");
 
         Assert.Multiple(() =>
         {
