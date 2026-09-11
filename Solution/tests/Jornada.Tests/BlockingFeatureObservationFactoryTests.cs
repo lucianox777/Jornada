@@ -30,6 +30,22 @@ public sealed class BlockingFeatureObservationFactoryTests
     }
 
     [Test]
+    public void Create_PhoneticProjectionCanAgreeWhenNormalizedNameDoesNot()
+    {
+        var pair = new IdentityTrainingPair(
+            "Philippe Silva", new DateOnly(1980, 3, 7), "Ana Souza",
+            "Filipe Silva", new DateOnly(1980, 3, 7), "Ana Souza");
+
+        var observation = BlockingFeatureObservationFactory.Create(pair, true);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.FullName], Is.False);
+            Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.FullNamePhoneticPtBr], Is.True);
+        });
+    }
+
+    [Test]
     public void Create_DoesNotImputeMissingNameComponents()
     {
         var pair = new IdentityTrainingPair(
@@ -42,6 +58,7 @@ public sealed class BlockingFeatureObservationFactoryTests
         {
             Assert.That(observation.Weight, Is.EqualTo(2m));
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.FullName], Is.Null);
+            Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.FullNamePhoneticPtBr], Is.Null);
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.FirstName], Is.Null);
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.Surnames], Is.Null);
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.LastName], Is.Null);

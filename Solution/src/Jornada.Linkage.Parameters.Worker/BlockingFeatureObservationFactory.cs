@@ -5,10 +5,11 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// <summary>
 /// Converte os pares M/U do Calibrador em concordâncias das mesmas chaves lógicas
 /// usadas pelo Processor/Runner. Não imputa campo ausente e não decide a política.
+/// O vocabulário corrente vem do ResolutionProjectionPlan gerado pelo Calibrador.
 /// </summary>
 public static class BlockingFeatureObservationFactory
 {
-    public const string MethodVersion = "BLOCKING_FEATURE_OBSERVATION_FACTORY_V1";
+    public const string MethodVersion = "BLOCKING_FEATURE_OBSERVATION_FACTORY_V2";
 
     public static IReadOnlyList<BlockingFeatureObservation> Create(
         IReadOnlyCollection<IdentityTrainingPair> matchedPairs,
@@ -39,7 +40,7 @@ public static class BlockingFeatureObservationFactory
         var right = Project(pair.RightName, pair.RightMotherName, pair.RightBirthDate);
         var agreements = new Dictionary<string, bool?>(StringComparer.Ordinal);
 
-        foreach (var feature in BlockingCandidateFeatureCatalog.RequiredOptimizerCandidates)
+        foreach (var feature in BlockingCandidateFeatureCatalog.CalibratorCandidates)
         {
             var hasLeft = left.TryGetValue(feature, out var leftValues) && leftValues.Count > 0;
             var hasRight = right.TryGetValue(feature, out var rightValues) && rightValues.Count > 0;

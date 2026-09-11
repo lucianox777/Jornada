@@ -5,13 +5,13 @@ namespace Jornada.Tests;
 public sealed class BlockingPhysicalFeatureCatalogTests
 {
     [Test]
-    public void RequiredOptimizerFeatures_CoversEveryRequiredLogicalCandidate()
+    public void CalibratorFeatures_CoversEveryRequiredLogicalCandidate()
     {
-        var physical = BlockingPhysicalFeatureCatalog.RequiredOptimizerFeatures
+        var physical = BlockingPhysicalFeatureCatalog.RequiredCalibratorFeatures
             .Select(static x => x.Feature)
             .OrderBy(static x => x, StringComparer.Ordinal)
             .ToArray();
-        var logical = BlockingCandidateFeatureCatalog.RequiredOptimizerCandidates
+        var logical = BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates
             .OrderBy(static x => x, StringComparer.Ordinal)
             .ToArray();
 
@@ -19,10 +19,18 @@ public sealed class BlockingPhysicalFeatureCatalogTests
     }
 
     [TestCase(BlockingCandidateFeatureCatalog.FullName)]
+    [TestCase(BlockingCandidateFeatureCatalog.FullNameUpper)]
+    [TestCase(BlockingCandidateFeatureCatalog.FullNameUpperNoDiacritics)]
+    [TestCase(BlockingCandidateFeatureCatalog.FullNameWithoutParticles)]
+    [TestCase(BlockingCandidateFeatureCatalog.FullNamePhoneticPtBr)]
     [TestCase(BlockingCandidateFeatureCatalog.FirstName)]
     [TestCase(BlockingCandidateFeatureCatalog.Surnames)]
     [TestCase(BlockingCandidateFeatureCatalog.LastName)]
     [TestCase(BlockingCandidateFeatureCatalog.MotherFullName)]
+    [TestCase(BlockingCandidateFeatureCatalog.MotherFullNameUpper)]
+    [TestCase(BlockingCandidateFeatureCatalog.MotherFullNameUpperNoDiacritics)]
+    [TestCase(BlockingCandidateFeatureCatalog.MotherFullNameWithoutParticles)]
+    [TestCase(BlockingCandidateFeatureCatalog.MotherFullNamePhoneticPtBr)]
     [TestCase(BlockingCandidateFeatureCatalog.MotherFirstName)]
     [TestCase(BlockingCandidateFeatureCatalog.MotherSurnames)]
     [TestCase(BlockingCandidateFeatureCatalog.MotherLastName)]

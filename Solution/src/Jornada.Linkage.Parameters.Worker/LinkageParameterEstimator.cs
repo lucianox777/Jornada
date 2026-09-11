@@ -50,8 +50,10 @@ public static class LinkageParameterEstimator
             ["SMOOTHING_ALPHA"] = smoothingAlpha,
             ["T_LINKAGE"] = threshold,
             ["CONFLICT_MARGIN"] = conflictMargin,
-            ["BLOCKING_EXACT_BIRTH_DATE"] = 0m,
-            ["BLOCKING_BIRTH_COMPONENTS_V2"] = 1m,
+            // Isto seleciona o modelo de scoring, não o plano de blocking. O prefixo
+            // SCORING evita misturar parâmetros Fellegi-Sunter com evidência de seleção
+            // dos passes, que é persistida separadamente pelo Calibrador.
+            ["SCORING_BIRTH_COMPONENTS_V2"] = 1m,
             ["PRIOR_MATCH_PROBABILITY"] = EstimateReferencePrior(populationSize, distinctBirthDates),
             ["PRIOR_BLOCK_MIN"] = 0.000001m,
             ["PRIOR_BLOCK_MAX"] = 0.25m

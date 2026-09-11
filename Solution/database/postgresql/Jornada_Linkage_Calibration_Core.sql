@@ -18,11 +18,96 @@ CREATE TABLE IF NOT EXISTS identidade.calibracao_linkage(
         OR (validado_em IS NOT NULL AND validacao_referencia IS NOT NULL))
 );
 
+-- Manifesto de replay: congela versões de Calibrador/projeção/catálogos/plano e os
+-- fingerprints dos dados efetivamente consumidos. Não contém PII nem valores dos pares M/U.
+CREATE TABLE IF NOT EXISTS identidade.calibracao_replay_manifest(
+    modelo_id UUID PRIMARY KEY REFERENCES identidade.modelo_linkage(modelo_id),
+    manifest_version VARCHAR(80) NOT NULL,
+    calibrator_version VARCHAR(120) NOT NULL,
+    projection_schema_version VARCHAR(120) NOT NULL,
+    projection_fingerprint CHAR(64) NOT NULL CHECK(projection_fingerprint ~ '^[0-9a-f]{64}$'),
+    algorithm_catalog_version VARCHAR(120) NOT NULL,
+    comparator_catalog_version VARCHAR(120) NOT NULL,
+    blocking_plan_version VARCHAR(120) NOT NULL,
+    blocking_plan_fingerprint CHAR(64) NOT NULL CHECK(blocking_plan_fingerprint ~ '^[0-9a-f]{64}$'),
+    person_source_id VARCHAR(200) NOT NULL,
+    person_source_version VARCHAR(200) NOT NULL,
+    person_content_fingerprint CHAR(64) NOT NULL CHECK(person_content_fingerprint ~ '^[0-9a-f]{64}$'),
+    training_source_id VARCHAR(200) NOT NULL,
+    training_source_version VARCHAR(200) NOT NULL,
+    training_content_fingerprint CHAR(64) NOT NULL CHECK(training_content_fingerprint ~ '^[0-9a-f]{64}$'),
+    external_snapshots_json JSONB NOT NULL DEFAULT '[]'::jsonb CHECK(jsonb_typeof(external_snapshots_json)='array'),
+    manifest_fingerprint CHAR(64) NOT NULL CHECK(manifest_fingerprint ~ '^[0-9a-f]{64}$')
+);
+
 -- Reutiliza a trava do cabeçalho: nenhuma evidência pode mudar após VALIDADO.
 DROP TRIGGER IF EXISTS tr_pg_linkage_evidencia_editavel ON identidade.calibracao_linkage;
 CREATE TRIGGER tr_pg_linkage_evidencia_editavel
 BEFORE INSERT OR UPDATE OR DELETE ON identidade.calibracao_linkage
 FOR EACH ROW EXECUTE FUNCTION identidade.fn_linkage_evidencia_editavel();
+
+DROP TRIGGER IF EXISTS tr_pg_linkage_replay_editavel ON identidade.calibracao_replay_manifest;
+CREATE TRIGGER tr_pg_linkage_replay_editavel
+BEFORE INSERT OR UPDATE OR DELETE ON identidade.calibracao_replay_manifest
+FOR EACH ROW EXECUTE FUNCTION identidade.fn_linkage_evidencia_editavel();
+
+-- O worker já publicou toda a evidência quando promove GERANDO -> RASCUNHO. O trigger
+-- monta o manifesto dentro da mesma transação; qualquer inconsistência aborta o rascunho.
+CREATE OR REPLACE FUNCTION identidade.fn_linkage_replay_manifest_rascunho()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+    v_evidencia identidade.calibracao_linkage%ROWTYPE;
+    v_ruleset identidade.linkage_ruleset%ROWTYPE;
+    v_training_hash TEXT;
+    v_manifest_canonical TEXT;
+    v_manifest_hash TEXT;
+BEGIN
+    IF OLD.status <> 'GERANDO' OR NEW.status <> 'RASCUNHO' THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT * INTO v_evidencia FROM identidade.calibracao_linkage WHERE modelo_id=NEW.modelo_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Não é possível publicar RASCUNHO sem evidência de calibração.';
+    END IF;
+    SELECT * INTO v_ruleset FROM identidade.linkage_ruleset WHERE modelo_id=NEW.modelo_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Não é possível publicar RASCUNHO sem ruleset de blocking.';
+    END IF;
+
+    v_training_hash := encode(sha256(convert_to(
+        'M=' || v_evidencia.amostra_m_sha256 || E'\nU=' || v_evidencia.amostra_u_sha256 || E'\n', 'UTF8')), 'hex');
+
+    v_manifest_canonical :=
+        'CALIBRATION_REPLAY_MANIFEST_V1|POSTGRESQL_LINKAGE_CALIBRATOR_V3|PERSON_RESOLUTION_PROJECTION_V1|' ||
+        '838b108f654d9c49f02a6a293ed13ca8add2fe20dcf3d5f312769d3b576177ce|' ||
+        'RESOLUTION_ALGORITHM_CATALOG_V3|RESOLUTION_COMPARATOR_CATALOG_V1|' ||
+        v_ruleset.ruleset_versao || '|' || v_ruleset.fingerprint_sha256 || E'\n' ||
+        'D|PersonData|gold.pessoa|' || v_evidencia.snapshot_token || '|' || v_evidencia.snapshot_sha256 || '|' || E'\n' ||
+        'D|TrainingCorpus|linkage_training_corpus|' || v_evidencia.metodo_amostragem || '|' || v_training_hash || '|' || E'\n';
+    v_manifest_hash := encode(sha256(convert_to(v_manifest_canonical, 'UTF8')), 'hex');
+
+    INSERT INTO identidade.calibracao_replay_manifest(
+        modelo_id,manifest_version,calibrator_version,projection_schema_version,projection_fingerprint,
+        algorithm_catalog_version,comparator_catalog_version,blocking_plan_version,blocking_plan_fingerprint,
+        person_source_id,person_source_version,person_content_fingerprint,
+        training_source_id,training_source_version,training_content_fingerprint,
+        external_snapshots_json,manifest_fingerprint)
+    VALUES(
+        NEW.modelo_id,'CALIBRATION_REPLAY_MANIFEST_V1','POSTGRESQL_LINKAGE_CALIBRATOR_V3',
+        'PERSON_RESOLUTION_PROJECTION_V1','838b108f654d9c49f02a6a293ed13ca8add2fe20dcf3d5f312769d3b576177ce',
+        'RESOLUTION_ALGORITHM_CATALOG_V3','RESOLUTION_COMPARATOR_CATALOG_V1',
+        v_ruleset.ruleset_versao,v_ruleset.fingerprint_sha256,
+        'gold.pessoa',v_evidencia.snapshot_token,v_evidencia.snapshot_sha256,
+        'linkage_training_corpus',v_evidencia.metodo_amostragem,v_training_hash,
+        '[]'::jsonb,v_manifest_hash);
+
+    RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS tr_pg_linkage_replay_manifest_rascunho ON identidade.modelo_linkage;
+CREATE TRIGGER tr_pg_linkage_replay_manifest_rascunho
+AFTER UPDATE OF status ON identidade.modelo_linkage
+FOR EACH ROW EXECUTE FUNCTION identidade.fn_linkage_replay_manifest_rascunho();
 
 CREATE OR REPLACE FUNCTION identidade.validar_modelo_linkage_pg(p_versao INTEGER)
 RETURNS UUID LANGUAGE plpgsql AS $$
@@ -43,7 +128,7 @@ DECLARE
         'T_LINKAGE','CONFLICT_MARGIN','SMOOTHING_ALPHA','M_SAMPLE_SIZE','U_SAMPLE_SIZE',
         'POPULATION_SIZE','POPULATION_WITH_CPF','DISTINCT_BIRTH_DATE',
         'TRAINING_SAMPLE_POOL_SIZE','MIN_M_INDEPENDENT_PAIRS',
-        'BLOCKING_EXACT_BIRTH_DATE','BLOCKING_BIRTH_COMPONENTS_V2'];
+        'SCORING_BIRTH_COMPONENTS_V2'];
     v_prefix TEXT;
     v_sum NUMERIC;
     v_count BIGINT;
@@ -62,6 +147,17 @@ BEGIN
       WHERE modelo_id=v_modelo.modelo_id;
     IF NOT FOUND OR v_evidencia.validado_em IS NOT NULL THEN
         RAISE EXCEPTION 'Evidência de calibração ausente ou já finalizada.';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM identidade.calibracao_replay_manifest rm
+          JOIN identidade.linkage_ruleset rs ON rs.modelo_id=rm.modelo_id
+         WHERE rm.modelo_id=v_modelo.modelo_id
+           AND rm.blocking_plan_version=rs.ruleset_versao
+           AND rm.blocking_plan_fingerprint=rs.fingerprint_sha256
+           AND rm.manifest_version='CALIBRATION_REPLAY_MANIFEST_V1'
+    ) THEN
+        RAISE EXCEPTION 'Manifesto de replay ausente ou divergente do ruleset persistido.';
     END IF;
     IF v_evidencia.sintetico AND
        (current_database() <> 'JornadaPgCalibrationTest'
@@ -112,14 +208,13 @@ BEGIN
           ('U_SAMPLE_SIZE',v_modelo.amostra_u_tamanho::NUMERIC),
           ('POPULATION_SIZE',v_modelo.pessoas_unicas::NUMERIC),
           ('MIN_M_INDEPENDENT_PAIRS',v_evidencia.amostra_minima_m::NUMERIC),
-          ('BLOCKING_EXACT_BIRTH_DATE',0::NUMERIC),
-          ('BLOCKING_BIRTH_COMPONENTS_V2',1::NUMERIC)
+          ('SCORING_BIRTH_COMPONENTS_V2',1::NUMERIC)
         ) AS expected(nome,valor)
         JOIN identidade.parametro_linkage p ON p.modelo_id=v_modelo.modelo_id AND p.nome=expected.nome
         WHERE p.valor <> expected.valor
     ) OR (SELECT valor FROM identidade.parametro_linkage WHERE modelo_id=v_modelo.modelo_id AND nome='POPULATION_WITH_CPF') > v_modelo.pessoas_unicas
       OR (SELECT valor FROM identidade.parametro_linkage WHERE modelo_id=v_modelo.modelo_id AND nome='DISTINCT_BIRTH_DATE') NOT BETWEEN 1 AND v_modelo.pessoas_unicas THEN
-        RAISE EXCEPTION 'Parâmetros de população, amostra ou blocking inconsistentes.';
+        RAISE EXCEPTION 'Parâmetros de população, amostra ou scoring inconsistentes.';
     END IF;
     FOR v_prefix IN SELECT unnest(ARRAY['M_NOME','U_NOME','M_NOME_MAE','U_NOME_MAE']) LOOP
         SELECT count(*),COALESCE(sum(valor),0) INTO v_count,v_sum

@@ -17,6 +17,9 @@ internal sealed record CandidateScore(Guid PessoaUuid, decimal Score);
 
 internal static class LinkageModelPolicy
 {
+    private const string BirthComponentScoringParameter = "SCORING_BIRTH_COMPONENTS_V2";
+    private const string LegacyBirthComponentScoringParameter = "BLOCKING_BIRTH_COMPONENTS_V2";
+
     private static readonly string[] BirthComponentParameters =
     [
         "M_NASC_DIA_EXACT", "M_NASC_DIA_DIFF", "U_NASC_DIA_EXACT", "U_NASC_DIA_DIFF",
@@ -47,7 +50,15 @@ internal static class LinkageModelPolicy
 
     internal static bool SupportsBirthComponentScoring(LinkageModel model)
     {
-        if (!model.Parameters.TryGetValue("BLOCKING_BIRTH_COMPONENTS_V2", out var enabled) || enabled < 1m)
+        // Novos modelos usam SCORING_ porque isto seleciona o cálculo Fellegi-Sunter,
+        // não a geração de candidatos. O alias BLOCKING_ é aceito somente para leitura
+        // de modelos históricos e seeds já publicados.
+        var enabled = model.Parameters.TryGetValue(BirthComponentScoringParameter, out var current)
+            ? current
+            : model.Parameters.TryGetValue(LegacyBirthComponentScoringParameter, out var legacy)
+                ? legacy
+                : 0m;
+        if (enabled < 1m)
             return false;
         var missing = BirthComponentParameters.Where(x => !model.Parameters.ContainsKey(x)).ToArray();
         if (missing.Length > 0)

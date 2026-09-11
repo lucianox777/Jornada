@@ -31,8 +31,8 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p["CONFLICT_MARGIN"], Is.EqualTo(0.03m));
             Assert.That(p["PRIOR_MATCH_PROBABILITY"], Is.EqualTo(0.1m));
             Assert.That(p["PRIOR_BLOCK_MAX"], Is.EqualTo(0.25m));
-            Assert.That(p["BLOCKING_EXACT_BIRTH_DATE"], Is.EqualTo(0m));
-            Assert.That(p["BLOCKING_BIRTH_COMPONENTS_V2"], Is.EqualTo(1m));
+            Assert.That(p["SCORING_BIRTH_COMPONENTS_V2"], Is.EqualTo(1m));
+            Assert.That(p.Keys.Any(static x => x.StartsWith("BLOCKING_", StringComparison.Ordinal)), Is.False);
 
             Assert.That(p.ContainsKey("M_NASC_DIA_EXACT"), Is.True);
             Assert.That(p.ContainsKey("M_NASC_DIA_DIFF"), Is.True);
