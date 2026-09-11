@@ -10,7 +10,7 @@ SQL_USER="${JORNADA_SQL_USER:-${SQLCMDUSER:-}}"
 SQL_PASSWORD="${JORNADA_SQL_PASSWORD:-${SQLCMDPASSWORD:-}}"
 TARGET_SCHEMA="3.70"
 FINAL_MIGRATION="20260910_Schema_Consolidation_370.sql"
-EXPECTED_MIGRATIONS=12
+EXPECTED_MIGRATIONS=13
 
 [[ -f "$MANIFEST" ]] || { echo "ERRO: manifesto de migrações ausente: $MANIFEST" >&2; exit 2; }
 command -v "$SQLCMD_BIN" >/dev/null 2>&1 || { echo "ERRO: sqlcmd não encontrado: $SQLCMD_BIN" >&2; exit 2; }

@@ -38,7 +38,11 @@ internal static class BlockingProjectionCandidateLoader
 
         await using var command = connection.CreateCommand();
         command.CommandTimeout = commandTimeoutSeconds;
-        var candidateUuidQuery = BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(command, passes);
+        var candidateUuidQuery = BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(
+            command,
+            passes,
+            ruleSet.ProjectionSchemaVersion,
+            ruleSet.ProjectionFingerprintSha256);
         Add(command, "@blocking_max_plus_one", DbType.Int32, maxCandidates + 1);
 
         command.CommandText = dialect switch

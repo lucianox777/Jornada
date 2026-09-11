@@ -1,3 +1,4 @@
+using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
 
 namespace Jornada.Tests;
@@ -19,6 +20,20 @@ public sealed class ResolutionProjectionModelCatalogTests
             Assert.That(candidates, Does.Contain("email_contato__canonical"));
             Assert.That(candidates, Does.Contain("nome_social__normalized"));
             Assert.That(candidates, Does.Not.Contain("endereco_casa_abrigo_sigilosa__canonical"));
+        });
+    }
+
+    [Test]
+    public void CurrentPlan_MatchesFrozenPhysicalProjectionContract()
+    {
+        var plan = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(plan.SchemaVersion, Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
+            Assert.That(plan.Fingerprint, Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256));
+            Assert.That(PersonResolutionAttributeCatalog.ProjectionSchemaVersion,
+                Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
         });
     }
 

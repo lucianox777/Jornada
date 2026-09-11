@@ -87,7 +87,7 @@ jobs:
           bash scripts/apply-migrations.sh
 
           ledger_count=$(sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -d JornadaMigrationLedger -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM jornada.schema_migration;" | tr -d '[:space:]')
-          test "$ledger_count" = '12'
+          test "$ledger_count" = '13'
           schema=$(sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -d JornadaMigrationLedger -W -h -1 -Q "SET NOCOUNT ON; SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" | tr -d '[:space:]')
           test "$schema" = '3.70'
 

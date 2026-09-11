@@ -29,6 +29,8 @@ public sealed record LinkageBlockingPass(string PassId, IReadOnlyList<string> Fi
 /// <summary>
 /// Pacote imutável de regras promovidas pelo Calibrador e consumidas sem reinterpretação pelo Avaliador/Runner.
 /// Rulesets legados continuam representados por BlockingFields; novos rulesets podem declarar múltiplos passes explícitos.
+/// A identidade da projeção física é metadado separado do fingerprint histórico do ruleset para não reinterpretar
+/// versões legadas nem misturar normalização textual com transformação/materialização.
 /// </summary>
 public sealed record LinkageDynamicRuleSet(
     string RuleSetVersion,
@@ -40,6 +42,8 @@ public sealed record LinkageDynamicRuleSet(
     string FingerprintSha256)
 {
     public IReadOnlyList<LinkageBlockingPass> BlockingPasses { get; init; } = Array.Empty<LinkageBlockingPass>();
+    public string? ProjectionSchemaVersion { get; init; }
+    public string? ProjectionFingerprintSha256 { get; init; }
 
     [JsonIgnore]
     public IReadOnlyList<LinkageBlockingPass> EffectiveBlockingPasses => BlockingPasses.Count > 0

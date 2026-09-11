@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
 using Jornada.Operational.Sql;
 using Npgsql;
@@ -10,7 +11,6 @@ namespace Jornada.Tests.Integration;
 public sealed class PostgreSqlBlockingSelectionEvidenceTests
 {
     private static readonly PostgreSqlCalibrationOptions Options = new(8,10,2,0.5m,0.95m,0.03m,60,true);
-    private const string ProjectionFingerprint = "d186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4";
 
     [Test]
     public async Task Draft_PersistsBlockingSelectionEvidenceOutsideFellegiSunterParameters()
@@ -88,8 +88,8 @@ public sealed class PostgreSqlBlockingSelectionEvidenceTests
     {
         Assert.That(
             BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan.Fingerprint,
-            Is.EqualTo(ProjectionFingerprint),
-            "O fingerprint congelado no DDL deve mudar somente junto com uma nova versão do schema de projeção.");
+            Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256),
+            "O fingerprint congelado deve mudar somente junto com uma nova versão do schema de projeção.");
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
@@ -99,9 +99,11 @@ public sealed class PostgreSqlBlockingSelectionEvidenceTests
                    rm.person_source_id,rm.person_source_version,rm.person_content_fingerprint,
                    rm.training_source_id,rm.training_source_version,rm.training_content_fingerprint,
                    rm.external_snapshots_json::text,rm.manifest_fingerprint,
-                   c.amostra_m_sha256,c.amostra_u_sha256
+                   c.amostra_m_sha256,c.amostra_u_sha256,
+                   rs.projection_schema_version,rs.projection_fingerprint_sha256
               FROM identidade.calibracao_replay_manifest rm
               JOIN identidade.calibracao_linkage c ON c.modelo_id=rm.modelo_id
+              JOIN identidade.linkage_ruleset rs ON rs.modelo_id=rm.modelo_id
              WHERE rm.modelo_id=@id;
             """;
         command.Parameters.AddWithValue("id", modelId);
@@ -127,6 +129,8 @@ public sealed class PostgreSqlBlockingSelectionEvidenceTests
         var databaseManifestFingerprint = reader.GetString(15);
         var mHash = reader.GetString(16);
         var uHash = reader.GetString(17);
+        var ruleSetProjectionSchemaVersion = reader.GetString(18);
+        var ruleSetProjectionFingerprint = reader.GetString(19);
         Assert.That(await reader.ReadAsync(), Is.False, "Deve existir exatamente um manifesto por modelo.");
 
         var expectedTrainingFingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
@@ -143,8 +147,10 @@ public sealed class PostgreSqlBlockingSelectionEvidenceTests
         {
             Assert.That(manifestVersion, Is.EqualTo(CalibrationReplayManifest.CurrentManifestVersion));
             Assert.That(calibratorVersion, Is.EqualTo("POSTGRESQL_LINKAGE_CALIBRATOR_V4"));
-            Assert.That(projectionSchemaVersion, Is.EqualTo(BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan.SchemaVersion));
-            Assert.That(projectionFingerprint, Is.EqualTo(ProjectionFingerprint));
+            Assert.That(projectionSchemaVersion, Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
+            Assert.That(projectionFingerprint, Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256));
+            Assert.That(ruleSetProjectionSchemaVersion, Is.EqualTo(projectionSchemaVersion));
+            Assert.That(ruleSetProjectionFingerprint, Is.EqualTo(projectionFingerprint));
             Assert.That(algorithmCatalogVersion, Is.EqualTo(HomologatedResolutionAlgorithmCatalog.CatalogVersion));
             Assert.That(comparatorCatalogVersion, Is.EqualTo(HomologatedResolutionComparatorCatalog.CatalogVersion));
             Assert.That(personSourceId, Is.EqualTo("gold.pessoa"));

@@ -8,26 +8,30 @@ namespace Jornada.Linkage.Runner;
 /// Constrói, de forma provider-neutral e totalmente parametrizada, a consulta de UUIDs candidatos
 /// sobre identidade.blocking_chave. Cada passe usa INTERSECT entre seus atributos e os passes
 /// são combinados por UNION. Aliases de nome históricos permanecem elegíveis; dados estáveis
-/// usam somente a chave corrente.
+/// usam somente a chave corrente. Rulesets modernos filtram também a identidade exata da projeção física.
 /// </summary>
 public static class BlockingProjectionCandidateQueryBuilder
 {
-    public const string MethodVersion = "BLOCKING_PROJECTION_CANDIDATE_QUERY_V2";
+    public const string MethodVersion = "BLOCKING_PROJECTION_CANDIDATE_QUERY_V3";
     public const int DefaultMaxParameters = 1800;
 
     public static string BuildCandidateUuidQuery(
         DbCommand command,
         IReadOnlyList<BlockingCandidatePassLookup> passes,
+        string? projectionSchemaVersion = null,
+        string? projectionFingerprintSha256 = null,
         int maxParameters = DefaultMaxParameters)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(passes);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxParameters);
+        PersonResolutionProjectionContract.ValidateSupported(projectionSchemaVersion, projectionFingerprintSha256);
 
         if (passes.Count == 0)
             return "SELECT pessoa_uuid FROM identidade.blocking_chave WHERE 1=0";
 
-        var requiredParameters = 1 + passes.Sum(static pass =>
+        var projectionBound = projectionSchemaVersion is not null;
+        var requiredParameters = 1 + (projectionBound ? 2 : 0) + passes.Sum(static pass =>
             pass.Clauses.Sum(static clause => 1 + clause.Values.Count));
         if (requiredParameters > maxParameters)
         {
@@ -37,6 +41,16 @@ public static class BlockingProjectionCandidateQueryBuilder
         }
 
         Add(command, "@blocking_normalization", DbType.String, IdentityComparison.NormalizationVersion, 80);
+        var projectionFilter = string.Empty;
+        if (projectionBound)
+        {
+            Add(command, "@blocking_projection_schema", DbType.String, projectionSchemaVersion!, 120);
+            Add(command, "@blocking_projection_fingerprint", DbType.AnsiStringFixedLength, projectionFingerprintSha256!.ToLowerInvariant(), 64);
+            projectionFilter =
+                " AND projection_schema_version=@blocking_projection_schema" +
+                " AND projection_fingerprint_sha256=@blocking_projection_fingerprint";
+        }
+
         var passQueries = new List<string>(passes.Count);
 
         for (var passIndex = 0; passIndex < passes.Count; passIndex++)
@@ -70,7 +84,7 @@ public static class BlockingProjectionCandidateQueryBuilder
 
                 clauseQueries.Add(
                     "SELECT pessoa_uuid FROM identidade.blocking_chave " +
-                    $"WHERE normalizacao_versao=@blocking_normalization AND atributo={featureParameter} " +
+                    $"WHERE normalizacao_versao=@blocking_normalization{projectionFilter} AND atributo={featureParameter} " +
                     $"AND valor_normalizado IN ({string.Join(",", valueParameters)}){currentOnly}");
             }
 
