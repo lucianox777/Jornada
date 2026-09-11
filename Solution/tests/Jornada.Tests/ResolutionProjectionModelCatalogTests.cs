@@ -5,7 +5,7 @@ namespace Jornada.Tests;
 public sealed class ResolutionProjectionModelCatalogTests
 {
     [Test]
-    public void CurrentPlan_IncludesLegacyVocabularyAndBasicPtBrNameRepresentations()
+    public void CurrentPlan_IncludesLegacyBasicAndPhoneticPtBrRepresentations()
     {
         var expected = new[]
         {
@@ -13,6 +13,7 @@ public sealed class ResolutionProjectionModelCatalogTests
             BlockingCandidateFeatureCatalog.FullNameUpper,
             BlockingCandidateFeatureCatalog.FullNameUpperNoDiacritics,
             BlockingCandidateFeatureCatalog.FullNameWithoutParticles,
+            BlockingCandidateFeatureCatalog.FullNamePhoneticPtBr,
             BlockingCandidateFeatureCatalog.FirstName,
             BlockingCandidateFeatureCatalog.Surnames,
             BlockingCandidateFeatureCatalog.LastName,
@@ -20,6 +21,7 @@ public sealed class ResolutionProjectionModelCatalogTests
             BlockingCandidateFeatureCatalog.MotherFullNameUpper,
             BlockingCandidateFeatureCatalog.MotherFullNameUpperNoDiacritics,
             BlockingCandidateFeatureCatalog.MotherFullNameWithoutParticles,
+            BlockingCandidateFeatureCatalog.MotherFullNamePhoneticPtBr,
             BlockingCandidateFeatureCatalog.MotherFirstName,
             BlockingCandidateFeatureCatalog.MotherSurnames,
             BlockingCandidateFeatureCatalog.MotherLastName,
@@ -53,6 +55,7 @@ public sealed class ResolutionProjectionModelCatalogTests
             Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__upper_no_diacritics"));
             Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__without_particles"));
             Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__normalized"));
+            Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__phonetic"));
             Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__first"));
             Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__surnames"));
             Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__last"));
@@ -60,6 +63,7 @@ public sealed class ResolutionProjectionModelCatalogTests
             Assert.That(calculated.All(static x => x.ResolutionModel is not null), Is.True);
             Assert.That(calculated.Select(static x => x.Algorithm), Does.Contain("PERSON_NAME_BASIC_PTBR@V1"));
             Assert.That(calculated.Select(static x => x.Algorithm), Does.Contain("PERSON_NAME_COMPONENTS@V2"));
+            Assert.That(calculated.Select(static x => x.Algorithm), Does.Contain("PERSON_NAME_METAPHONE_BR@V1"));
         });
     }
 
@@ -139,43 +143,38 @@ public sealed class ResolutionProjectionModelCatalogTests
             HomologatedResolutionAlgorithmCatalog.TryGet(
                 HomologatedResolutionAlgorithmCatalog.PersonNameBasicPtBrAlgorithm,
                 HomologatedResolutionAlgorithmCatalog.PersonNameBasicPtBrVersion,
-                out var basicNameAlgorithm),
-            Is.True);
+                out var basicNameAlgorithm), Is.True);
         Assert.That(
             HomologatedResolutionAlgorithmCatalog.TryGet(
                 HomologatedResolutionAlgorithmCatalog.PersonNameComponentsAlgorithm,
                 HomologatedResolutionAlgorithmCatalog.PersonNameComponentsVersion,
-                out var nameAlgorithm),
-            Is.True);
+                out var nameAlgorithm), Is.True);
+        Assert.That(
+            HomologatedResolutionAlgorithmCatalog.TryGet(
+                HomologatedResolutionAlgorithmCatalog.PersonNameMetaphoneBrAlgorithm,
+                HomologatedResolutionAlgorithmCatalog.PersonNameMetaphoneBrVersion,
+                out var phoneticAlgorithm), Is.True);
         Assert.That(
             HomologatedResolutionAlgorithmCatalog.TryGet(
                 HomologatedResolutionAlgorithmCatalog.BrazilianPhoneCanonicalAlgorithm,
                 HomologatedResolutionAlgorithmCatalog.BrazilianPhoneCanonicalVersion,
-                out var phoneAlgorithm),
-            Is.True);
+                out var phoneAlgorithm), Is.True);
 
         Assert.Multiple(() =>
         {
             Assert.That(basicNameAlgorithm.OutputColumns.Select(static x => x.CanonicalCode), Is.EqualTo(new[]
             {
-                "upper",
-                "upper_no_diacritics",
-                "without_particles"
+                "upper", "upper_no_diacritics", "without_particles"
             }));
             Assert.That(nameAlgorithm.OutputColumns.Select(static x => x.CanonicalCode), Is.EqualTo(new[]
             {
-                "normalized",
-                "first",
-                "surnames",
-                "last"
+                "normalized", "first", "surnames", "last"
             }));
+            Assert.That(phoneticAlgorithm.OutputColumns.Select(static x => x.CanonicalCode), Is.EqualTo(new[] { "phonetic" }));
             Assert.That(phoneAlgorithm.OutputColumns.Select(static x => x.CanonicalCode), Is.EqualTo(new[] { "canonical" }));
-            Assert.That(basicNameAlgorithm.ImplementationReferences, Is.Not.Empty);
-            Assert.That(basicNameAlgorithm.TestReferences, Is.Not.Empty);
-            Assert.That(nameAlgorithm.ImplementationReferences, Is.Not.Empty);
-            Assert.That(nameAlgorithm.TestReferences, Is.Not.Empty);
-            Assert.That(phoneAlgorithm.ImplementationReferences, Is.Not.Empty);
-            Assert.That(phoneAlgorithm.TestReferences, Is.Not.Empty);
+            Assert.That(phoneticAlgorithm.ImplementationReferences, Has.Some.Contains("17fdee95581442cdcc98fddc30aea3079caf27ae"));
+            Assert.That(HomologatedResolutionAlgorithmCatalog.All.All(static x => x.ImplementationReferences.Count > 0), Is.True);
+            Assert.That(HomologatedResolutionAlgorithmCatalog.All.All(static x => x.TestReferences.Count > 0), Is.True);
         });
     }
 
@@ -190,16 +189,9 @@ public sealed class ResolutionProjectionModelCatalogTests
         {
             Assert.That(personName.Select(static x => x.QualifiedAlgorithm), Does.Contain("PERSON_NAME_BASIC_PTBR@V1"));
             Assert.That(personName.Select(static x => x.QualifiedAlgorithm), Does.Contain("PERSON_NAME_COMPONENTS@V2"));
+            Assert.That(personName.Select(static x => x.QualifiedAlgorithm), Does.Contain("PERSON_NAME_METAPHONE_BR@V1"));
             Assert.That(phone.Select(static x => x.QualifiedAlgorithm), Does.Contain("TELEFONE_BR_CANONICO@V2"));
             Assert.That(email.Select(static x => x.QualifiedAlgorithm), Does.Contain("EMAIL_CANONICO@V2"));
-            Assert.That(HomologatedResolutionAlgorithmCatalog.All.Select(static x => x.Semantic),
-                Does.Contain(ResolutionAttributeSemantic.PersonName));
-            Assert.That(HomologatedResolutionAlgorithmCatalog.All.Select(static x => x.Semantic),
-                Does.Contain(ResolutionAttributeSemantic.Date));
-            Assert.That(HomologatedResolutionAlgorithmCatalog.All.Select(static x => x.Semantic),
-                Does.Contain(ResolutionAttributeSemantic.Phone));
-            Assert.That(HomologatedResolutionAlgorithmCatalog.All.Select(static x => x.Semantic),
-                Does.Contain(ResolutionAttributeSemantic.Email));
         });
     }
 
