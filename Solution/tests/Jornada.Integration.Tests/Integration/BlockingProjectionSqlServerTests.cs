@@ -77,6 +77,8 @@ public sealed class BlockingProjectionSqlServerTests
               FROM identidade.blocking_chave
              WHERE pessoa_uuid=@uuid
                AND normalizacao_versao=@normalizacao
+               AND projection_schema_version=@projection_schema
+               AND projection_fingerprint_sha256=@projection_fingerprint
                AND vigencia_fim IS NULL
                AND (
                     (atributo='name_full' AND valor_normalizado='MARIA SILVA TESTE' AND semantica_temporal='VERSIONED_ALIAS') OR
@@ -97,6 +99,8 @@ public sealed class BlockingProjectionSqlServerTests
             """;
         command.Parameters.AddWithValue("@cpf", cpf);
         command.Parameters.AddWithValue("@normalizacao", IdentityComparison.NormalizationVersion);
+        command.Parameters.AddWithValue("@projection_schema", PersonResolutionProjectionContract.SchemaVersion);
+        command.Parameters.AddWithValue("@projection_fingerprint", PersonResolutionProjectionContract.FingerprintSha256);
         var count = Convert.ToInt32(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
         Assert.That(count, Is.EqualTo(14));
     }
@@ -124,6 +128,10 @@ public sealed class BlockingProjectionSqlServerTests
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection,
             Path.Combine(databaseDir, "migrations", "20260910_Linkage_Blocking_Chave.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260910_Linkage_RuleSet_Passes.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260911_Linkage_Blocking_Projection_Contract.sql"));
 
         await using var reset = connection.CreateCommand();
         reset.CommandText = """
