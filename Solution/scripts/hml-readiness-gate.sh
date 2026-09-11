@@ -18,11 +18,14 @@ python3 "$ROOT/scripts/performance-evidence-gate.py" "$JORNADA_HML_PERFORMANCE_R
 python3 "$ROOT/scripts/linkage-evaluation-evidence-gate.py" "$JORNADA_HML_LINKAGE_REPORT" \
   --policy "$ROOT/config/hml/linkage-evaluation-policy.json" --require-policy-approved \
   --summary "$OUT/linkage-summary.json"
+python3 "$ROOT/scripts/linkage-statistical-readiness-gate.py" \
+  --root "$ROOT" --require-approved \
+  --summary "$OUT/linkage-statistical-summary.json"
 python3 "$ROOT/scripts/sql-performance-evidence-gate.py" "$JORNADA_HML_SQL_PERFORMANCE_REPORT" \
   --policy "$ROOT/config/hml/sql-performance-policy.json" --require-policy-approved \
   --summary "$OUT/sql-performance-summary.json"
 python3 "$ROOT/scripts/api-projection-evidence-gate.py" "$JORNADA_HML_API_PROJECTION_REPORT" \
   --policy "$ROOT/config/hml/api-projection-load-policy.json" --require-policy-approved \
   --summary "$OUT/api-projection-summary.json"
-printf 'status=OK\nenvironment=READY\ngovernance=APPROVED\nscheduler=APPROVED\nparameters=APPROVED_AND_CURRENT\nperformance=APPROVED_AND_WITHIN_BASELINE\nlinkage=APPROVED_AND_WITHIN_POLICY\nsqlPerformance=APPROVED_AND_WITHIN_POLICY\napiProjection=APPROVED_AND_WITHIN_POLICY\ncalibrationFreshness=PASS\n' > "$OUT/result.txt"
+printf 'status=OK\nenvironment=READY\ngovernance=APPROVED\nscheduler=APPROVED\nparameters=APPROVED_AND_CURRENT\nperformance=APPROVED_AND_WITHIN_BASELINE\nlinkage=APPROVED_AND_WITHIN_POLICY\nlinkageStatistical=APPROVED_EVIDENCE_ATTESTED\nsqlPerformance=APPROVED_AND_WITHIN_POLICY\napiProjection=APPROVED_AND_WITHIN_POLICY\ncalibrationFreshness=PASS\n' > "$OUT/result.txt"
 echo "HML READINESS GATE: OK"

@@ -29,6 +29,10 @@ if ($LASTEXITCODE -ne 0) { throw 'evidência de desempenho fora do baseline ou b
   --policy (Join-Path $Root 'config/hml/linkage-evaluation-policy.json') --require-policy-approved `
   --summary (Join-Path $out 'linkage-summary.json')
 if ($LASTEXITCODE -ne 0) { throw 'evidência de linkage fora da política ou política não aprovada' }
+& python3 (Join-Path $Root 'scripts/linkage-statistical-readiness-gate.py') `
+  --root $Root --require-approved `
+  --summary (Join-Path $out 'linkage-statistical-summary.json')
+if ($LASTEXITCODE -ne 0) { throw 'evidências estatísticas/institucionais da issue #31 ainda não estão aprovadas para HML' }
 & python3 (Join-Path $Root 'scripts/sql-performance-evidence-gate.py') $sqlPerf --policy (Join-Path $Root 'config/hml/sql-performance-policy.json') --require-policy-approved --summary (Join-Path $out 'sql-performance-summary.json')
 if ($LASTEXITCODE -ne 0) { throw 'evidência SQL fora da política ou política não aprovada' }
 & python3 (Join-Path $Root 'scripts/api-projection-evidence-gate.py') $apiProjection --policy (Join-Path $Root 'config/hml/api-projection-load-policy.json') --require-policy-approved --summary (Join-Path $out 'api-projection-summary.json')
@@ -41,6 +45,7 @@ scheduler=APPROVED
 parameters=APPROVED_AND_CURRENT
 performance=APPROVED_AND_WITHIN_BASELINE
 linkage=APPROVED_AND_WITHIN_POLICY
+linkageStatistical=APPROVED_EVIDENCE_ATTESTED
 sqlPerformance=APPROVED_AND_WITHIN_POLICY
 apiProjection=APPROVED_AND_WITHIN_POLICY
 calibrationFreshness=PASS
