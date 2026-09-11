@@ -51,6 +51,64 @@ CREATE TRIGGER tr_pg_linkage_replay_editavel
 BEFORE INSERT OR UPDATE OR DELETE ON identidade.calibracao_replay_manifest
 FOR EACH ROW EXECUTE FUNCTION identidade.fn_linkage_evidencia_editavel();
 
+-- O worker já publicou toda a evidência quando promove GERANDO -> RASCUNHO. O trigger
+-- monta o manifesto dentro da mesma transação; qualquer inconsistência aborta o rascunho.
+CREATE OR REPLACE FUNCTION identidade.fn_linkage_replay_manifest_rascunho()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+    v_evidencia identidade.calibracao_linkage%ROWTYPE;
+    v_ruleset identidade.linkage_ruleset%ROWTYPE;
+    v_training_hash TEXT;
+    v_manifest_canonical TEXT;
+    v_manifest_hash TEXT;
+BEGIN
+    IF OLD.status <> 'GERANDO' OR NEW.status <> 'RASCUNHO' THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT * INTO v_evidencia FROM identidade.calibracao_linkage WHERE modelo_id=NEW.modelo_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Não é possível publicar RASCUNHO sem evidência de calibração.';
+    END IF;
+    SELECT * INTO v_ruleset FROM identidade.linkage_ruleset WHERE modelo_id=NEW.modelo_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Não é possível publicar RASCUNHO sem ruleset de blocking.';
+    END IF;
+
+    v_training_hash := encode(sha256(convert_to(
+        'M=' || v_evidencia.amostra_m_sha256 || E'\nU=' || v_evidencia.amostra_u_sha256 || E'\n', 'UTF8')), 'hex');
+
+    v_manifest_canonical :=
+        'CALIBRATION_REPLAY_MANIFEST_V1|POSTGRESQL_LINKAGE_CALIBRATOR_V3|PERSON_RESOLUTION_PROJECTION_V1|' ||
+        '838b108f654d9c49f02a6a293ed13ca8add2fe20dcf3d5f312769d3b576177ce|' ||
+        'RESOLUTION_ALGORITHM_CATALOG_V3|RESOLUTION_COMPARATOR_CATALOG_V1|' ||
+        v_ruleset.ruleset_versao || '|' || v_ruleset.fingerprint_sha256 || E'\n' ||
+        'D|PersonData|gold.pessoa|' || v_evidencia.snapshot_token || '|' || v_evidencia.snapshot_sha256 || '|' || E'\n' ||
+        'D|TrainingCorpus|linkage_training_corpus|' || v_evidencia.metodo_amostragem || '|' || v_training_hash || '|' || E'\n';
+    v_manifest_hash := encode(sha256(convert_to(v_manifest_canonical, 'UTF8')), 'hex');
+
+    INSERT INTO identidade.calibracao_replay_manifest(
+        modelo_id,manifest_version,calibrator_version,projection_schema_version,projection_fingerprint,
+        algorithm_catalog_version,comparator_catalog_version,blocking_plan_version,blocking_plan_fingerprint,
+        person_source_id,person_source_version,person_content_fingerprint,
+        training_source_id,training_source_version,training_content_fingerprint,
+        external_snapshots_json,manifest_fingerprint)
+    VALUES(
+        NEW.modelo_id,'CALIBRATION_REPLAY_MANIFEST_V1','POSTGRESQL_LINKAGE_CALIBRATOR_V3',
+        'PERSON_RESOLUTION_PROJECTION_V1','838b108f654d9c49f02a6a293ed13ca8add2fe20dcf3d5f312769d3b576177ce',
+        'RESOLUTION_ALGORITHM_CATALOG_V3','RESOLUTION_COMPARATOR_CATALOG_V1',
+        v_ruleset.ruleset_versao,v_ruleset.fingerprint_sha256,
+        'gold.pessoa',v_evidencia.snapshot_token,v_evidencia.snapshot_sha256,
+        'linkage_training_corpus',v_evidencia.metodo_amostragem,v_training_hash,
+        '[]'::jsonb,v_manifest_hash);
+
+    RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS tr_pg_linkage_replay_manifest_rascunho ON identidade.modelo_linkage;
+CREATE TRIGGER tr_pg_linkage_replay_manifest_rascunho
+AFTER UPDATE OF status ON identidade.modelo_linkage
+FOR EACH ROW EXECUTE FUNCTION identidade.fn_linkage_replay_manifest_rascunho();
+
 CREATE OR REPLACE FUNCTION identidade.validar_modelo_linkage_pg(p_versao INTEGER)
 RETURNS UUID LANGUAGE plpgsql AS $$
 DECLARE
