@@ -1,69 +1,83 @@
 @startuml
 hide footbox
-title Jornada Linkage - Calibrador, projeções e blocking versionado
+title Jornada Linkage - Calibrador, projeções, comparadores e replay
 
 actor "Operação/HML" as Ops
 participant "Calibrador" as Cal
-participant "Catálogo de modelos\nhomologados" as Catalog
+participant "Catálogo de projeções\nhomologadas" as ProjCatalog
+participant "Catálogo de comparadores\nuniversais" as CompCatalog
 participant "Planner de projeções\nversionado" as Projection
-participant "Catálogo IBGE\n(versionado)" as Ibge
+participant "Fontes externas\n(snapshot/fingerprint)" as External
+participant "Manifesto de Replay" as Replay
 participant "Política de Blocking\n(versionada/imutável)" as Policy
 participant "Avaliador" as Eval
-database "Silver\natributos originais + projeções" as Silver
-database "Gold / corpus\nrepresentativo" as Gold
+database "Silver\noriginais + projeções materializadas" as Silver
+database "Pessoa / corpus M-U\n(snapshot/fingerprint)" as Corpus
 
 Ops -> Cal : iniciar calibração
-Cal -> Gold : ler corpus/snapshot
+Cal -> Corpus : congelar snapshot Pessoa + corpus M/U
 Cal -> Silver : descobrir atributos originais\ne semântica declarada
-Cal -> Catalog : obter somente modelos/algoritmos homologados
-Catalog --> Cal : transformações autorizadas + versões
-Cal -> Projection : gerar candidatos derivados\na partir dos atributos originais
+Cal -> ProjCatalog : obter algoritmos de projeção homologados
+ProjCatalog --> Cal : algoritmos@versão + colunas fixas
+Cal -> CompCatalog : obter comparadores universais homologados
+CompCatalog --> Cal : EXACT / JARO_WINKLER + versões
+Cal -> Projection : gerar projeções candidatas
 Projection --> Cal : ResolutionProjectionPlan\n+ fingerprint
 
-Cal -> Cal : medir features e combinações\nrecall + redução + missingness + custo\n+ ganho incremental + dependência
-Cal -> Ibge : consultar frequências agregadas\nquando disponíveis/aplicáveis
-Ibge --> Cal : versão + fingerprint + frequências
+Cal -> Cal : medir projeções, interseções/uniões\nrecall + redução + missingness + custo
+Cal -> External : consultar fonte quando aplicável
+External --> Cal : versão lógica + content fingerprint\n+ parser version + evidência
+Cal -> Cal : avaliar comparadores/thresholds\nsobre universo candidato
 Cal -> Cal : selecionar passes vencedores\n(fail-closed)
-Cal -> Projection : gerar lifecycle físico\nCandidate / Promoted / Indexed
-Projection --> Cal : plano provider-independent\nde promoção + índices simples
-Cal -> Policy : persistir BLOCKING_PLAN versionado\n+ fingerprint + projection fingerprint
-Policy --> Cal : identificador/fingerprint
-Cal -> Cal : estimar parâmetros usando\nblocking da política
+Cal -> Projection : lifecycle físico\nCandidate / Promoted / Indexed
+Projection --> Cal : plano provider-independent\n+ índices simples sugeridos
+Cal -> Policy : persistir BLOCKING_PLAN\n+ fingerprint + projection fingerprint
+Policy --> Cal : versão/fingerprint
+Cal -> Replay : registrar Pessoa + corpus + fontes\ncatálogos + projeção + plano
+Replay --> Cal : CalibrationReplayManifest\n+ fingerprint determinístico
 Cal --> Ops : rascunho + evidência\nsem ativação automática
 
 Ops -> Eval : avaliar rascunho/política
-Eval -> Policy : carregar exatamente a mesma versão
+Eval -> Policy : carregar mesma versão
+Eval -> Replay : carregar proveniência exata
 Policy --> Eval : regras + fingerprint
-Eval -> Gold : aplicar blocking dinâmico\ncom a política recebida
+Replay --> Eval : snapshots/versões/fingerprints
+Eval -> Corpus : aplicar política ao universo compatível
 Eval -> Eval : medir recall, precisão,\ncalibração e falsos vínculos
-Eval --> Ops : relatório com versão/fingerprint
+Eval --> Ops : relatório reproduzível
 
 note over Silver,Projection
-Somente o valor recebido é original.
-FirstName, LastName, componentes de data,
-fonética etc. são projeções calculadas.
+Somente valor recebido é original.
+Normalização, FirstName, LastName, fonética etc.
+são projeções calculadas.
+end note
+
+note over ProjCatalog,CompCatalog
+Projeção opera em um valor e pode ser materializada/indexada.
+Comparador opera em dois valores e não vira coluna da Pessoa.
+end note
+
+note over External,Silver
+Derivação dependente de fonte externa deve materializar
+o valor junto da proveniência do snapshot consumido.
+Não é computed column da linha corrente.
 end note
 
 note over Cal,Projection
 Não existe componente arquitetural "Otimizador" separado.
-Busca, combinação e seleção são responsabilidades internas
-do próprio Calibrador.
+Busca, combinação e seleção são internas ao Calibrador.
 end note
 
 note over Cal,Policy
-Índices simples são baseline físico.
-Índices compostos só podem ser testados depois
-dos passes vencedores e nunca mudam a semântica do plano.
+Índices simples são baseline.
+Índices compostos só são testados depois dos finalistas
+e nunca mudam a semântica do plano.
 end note
 
-note over Cal,Eval
-Paralelismo só é habilitado quando houver ganho medido
-e equivalência determinística com o caminho serial.
-end note
-
-note over Ibge,Policy
-IBGE é evidência estatística agregada externa;
-nunca verdade individual nem substituto do corpus rotulado.
+note over Replay,Policy
+A projeção não conhece o plano.
+O plano/manifesto referencia projeções, comparadores
+e fontes versionadas para permitir replay.
 end note
 
 note over Cal,Eval
