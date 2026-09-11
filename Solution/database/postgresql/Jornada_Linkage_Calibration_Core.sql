@@ -79,8 +79,8 @@ BEGIN
         'M=' || v_evidencia.amostra_m_sha256 || E'\nU=' || v_evidencia.amostra_u_sha256 || E'\n', 'UTF8')), 'hex');
 
     v_manifest_canonical :=
-        'CALIBRATION_REPLAY_MANIFEST_V1|POSTGRESQL_LINKAGE_CALIBRATOR_V3|PERSON_RESOLUTION_PROJECTION_V1|' ||
-        '838b108f654d9c49f02a6a293ed13ca8add2fe20dcf3d5f312769d3b576177ce|' ||
+        'CALIBRATION_REPLAY_MANIFEST_V1|POSTGRESQL_LINKAGE_CALIBRATOR_V4|PERSON_RESOLUTION_PROJECTION_V2|' ||
+        'd186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4|' ||
         'RESOLUTION_ALGORITHM_CATALOG_V3|RESOLUTION_COMPARATOR_CATALOG_V1|' ||
         v_ruleset.ruleset_versao || '|' || v_ruleset.fingerprint_sha256 || E'\n' ||
         'D|PersonData|gold.pessoa|' || v_evidencia.snapshot_token || '|' || v_evidencia.snapshot_sha256 || '|' || E'\n' ||
@@ -94,8 +94,8 @@ BEGIN
         training_source_id,training_source_version,training_content_fingerprint,
         external_snapshots_json,manifest_fingerprint)
     VALUES(
-        NEW.modelo_id,'CALIBRATION_REPLAY_MANIFEST_V1','POSTGRESQL_LINKAGE_CALIBRATOR_V3',
-        'PERSON_RESOLUTION_PROJECTION_V1','838b108f654d9c49f02a6a293ed13ca8add2fe20dcf3d5f312769d3b576177ce',
+        NEW.modelo_id,'CALIBRATION_REPLAY_MANIFEST_V1','POSTGRESQL_LINKAGE_CALIBRATOR_V4',
+        'PERSON_RESOLUTION_PROJECTION_V2','d186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4',
         'RESOLUTION_ALGORITHM_CATALOG_V3','RESOLUTION_COMPARATOR_CATALOG_V1',
         v_ruleset.ruleset_versao,v_ruleset.fingerprint_sha256,
         'gold.pessoa',v_evidencia.snapshot_token,v_evidencia.snapshot_sha256,
