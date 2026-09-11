@@ -60,13 +60,15 @@ $baselineSource = Join-Path $solutionRoot 'database\Jornada_Fase1.sql'
 $anchorSource = Join-Path $solutionRoot 'database\migrations\20260907_Cpf_Ancora.sql'
 $bundleDdl = Join-Path $databaseDestination 'Jornada_Fase1.sql'
 Copy-Item -Force -Path $baselineSource -Destination $bundleDdl
-# O instalador legado aplica um único arquivo. Como a solução ainda não foi publicada,
-# o payload de Produção V1 compõe baseline + âncora CPF obrigatória no mesmo DDL instalável.
+# Preserva compatibilidade do DDL instalável já existente. O upgrade completo é
+# fechado pelo manifesto/ledger imediatamente depois pelo Install-Jornada.ps1.
 Add-Content -Encoding UTF8 -Path $bundleDdl -Value "`r`n-- Jornada V1: âncora CPF permanente obrigatória.`r`n"
 Get-Content -Raw -Encoding UTF8 $anchorSource | Add-Content -Encoding UTF8 -Path $bundleDdl
+$migrationSource = Join-Path $solutionRoot 'database\migrations'
 $migrationDestination = Join-Path $databaseDestination 'migrations'
-New-Item -ItemType Directory -Force -Path $migrationDestination | Out-Null
-Copy-Item -Force -Path $anchorSource -Destination $migrationDestination
+Copy-Item -Recurse -Force -Path $migrationSource -Destination $databaseDestination
+$manifest = Join-Path $migrationDestination 'manifest.txt'
+if (-not (Test-Path -LiteralPath $manifest)) { throw 'Bundle sem database\migrations\manifest.txt.' }
 
 $installDestination = Join-Path $output 'install\windows-production'
 New-Item -ItemType Directory -Force -Path $installDestination | Out-Null
