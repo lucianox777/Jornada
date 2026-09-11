@@ -38,7 +38,7 @@ public static class BlockingCandidateFeatureCatalog
     /// </summary>
     public static ResolutionProjectionPlan CurrentResolutionProjectionPlan { get; } =
         ResolutionProjectionPlanner.Build(
-            new ResolutionSourceAttribute[]
+            new ResolutionSourceField[]
             {
                 new("nome_completo", ResolutionAttributeSemantic.PersonName, "PERSON_NAME"),
                 new("nome_mae", ResolutionAttributeSemantic.PersonName, "MOTHER_NAME"),
