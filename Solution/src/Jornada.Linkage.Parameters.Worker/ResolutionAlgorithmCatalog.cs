@@ -131,6 +131,7 @@ public static class HomologatedResolutionAlgorithmCatalog
             {
                 "Solution/tests/Jornada.Tests/Unit/TransversalAttributeInstanceKeyTests.cs",
                 "Solution/tests/Jornada.Tests/Unit/DeterministicPropertyTests.cs",
+                "Solution/tests/Jornada.Integration.Tests/Integration/EmailNormalizationConformanceTests.cs",
                 "Solution/tests/fixtures/email/email-canonico-v2.json"
             })
     };
@@ -150,10 +151,17 @@ public static class HomologatedResolutionAlgorithmCatalog
 
     public static bool TryGet(string algorithm, string version, out HomologatedResolutionAlgorithm definition)
     {
-        definition = Algorithms.SingleOrDefault(candidate =>
+        var found = Algorithms.SingleOrDefault(candidate =>
             string.Equals(candidate.Algorithm, algorithm, StringComparison.Ordinal) &&
-            string.Equals(candidate.AlgorithmVersion, version, StringComparison.Ordinal))!;
-        return definition is not null;
+            string.Equals(candidate.AlgorithmVersion, version, StringComparison.Ordinal));
+        if (found is null)
+        {
+            definition = null!;
+            return false;
+        }
+
+        definition = found;
+        return true;
     }
 
     private static void Validate(IEnumerable<HomologatedResolutionAlgorithm> algorithms)
