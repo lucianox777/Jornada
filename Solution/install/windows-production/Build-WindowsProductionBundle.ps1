@@ -57,13 +57,11 @@ foreach ($folder in @('governance','hml','observability','operations','possibili
 $databaseDestination = Join-Path $output 'database'
 New-Item -ItemType Directory -Force -Path $databaseDestination | Out-Null
 $baselineSource = Join-Path $solutionRoot 'database\Jornada_Fase1.sql'
-$anchorSource = Join-Path $solutionRoot 'database\migrations\20260907_Cpf_Ancora.sql'
 $bundleDdl = Join-Path $databaseDestination 'Jornada_Fase1.sql'
 Copy-Item -Force -Path $baselineSource -Destination $bundleDdl
-# Preserva compatibilidade do DDL instalável já existente. O upgrade completo é
-# fechado pelo manifesto/ledger imediatamente depois pelo Install-Jornada.ps1.
-Add-Content -Encoding UTF8 -Path $bundleDdl -Value "`r`n-- Jornada V1: âncora CPF permanente obrigatória.`r`n"
-Get-Content -Raw -Encoding UTF8 $anchorSource | Add-Content -Encoding UTF8 -Path $bundleDdl
+
+# O baseline é usado somente quando o banco ainda não foi inicializado. A ordem
+# de upgrade corrente e seus checksums vêm exclusivamente do manifest.txt.
 $migrationSource = Join-Path $solutionRoot 'database\migrations'
 $migrationDestination = Join-Path $databaseDestination 'migrations'
 Copy-Item -Recurse -Force -Path $migrationSource -Destination $databaseDestination
