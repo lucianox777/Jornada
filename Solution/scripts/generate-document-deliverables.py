@@ -173,7 +173,14 @@ def build_matrix(md_path: Path, out_path: Path) -> None:
         table.style = "Table Grid"
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
         table.autofit = False
-        widths = [6.0, 4.7, 6.1, 9.9] if ncol == 4 else [5.4, 6.9, 14.4]
+        if ncol == 5:
+            widths = [2.4, 5.3, 5.3, 5.8, 8.1]
+        elif ncol == 4:
+            widths = [5.0, 4.4, 5.8, 11.7]
+        elif ncol == 3:
+            widths = [5.0, 7.0, 14.9]
+        else:
+            widths = [26.9 / ncol] * ncol
         header = table.rows[0]
         set_header_repeat(header)
         for j, value in enumerate(rows[0]):
@@ -413,18 +420,35 @@ def validate(root: Path, work: Path) -> None:
         docdir / "Anexo_Modelo_Fisico_Jornada_v1.40.docx",
     ]
     pdf_files = [p.with_suffix(".pdf") for p in docx_files]
-    expected_pages = [2, 2, 2, 8]
+    # Paginação exata não é um invariante semântico: ela varia com o motor de
+    # renderização e já divergia dos PDFs versionados (9/6/7/8 versus 2/2/2/8
+    # codificados anteriormente). Os intervalos abaixo detectam colapso ou
+    # explosão de layout sem rejeitar variação legítima do LibreOffice.
+    expected_page_ranges = [(8, 14), (5, 10), (6, 12), (7, 10)]
     for path in docx_files + pdf_files:
         if not path.is_file() or path.stat().st_size == 0:
             raise RuntimeError(f"Artefato ausente/vazio: {path}")
-    for path, expected in zip(pdf_files, expected_pages):
+    for path, (minimum, maximum) in zip(pdf_files, expected_page_ranges):
         pages = pdf_pages(path)
-        if pages != expected:
-            raise RuntimeError(f"Paginação inesperada em {path.name}: {pages}; esperado {expected}")
+        if pages < minimum or pages > maximum:
+            raise RuntimeError(
+                f"Paginação fora da faixa em {path.name}: {pages}; esperado entre {minimum} e {maximum}"
+            )
 
     matrix = Document(docx_files[2])
-    if len(matrix.tables) != 2 or any(t.style is None or t.style.name != "Table Grid" for t in matrix.tables):
-        raise RuntimeError("Matriz não contém as duas tabelas institucionais com grade")
+    matrix_source = req / "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.md"
+    source_lines = matrix_source.read_text(encoding="utf-8").splitlines()
+    expected_table_count = sum(
+        1
+        for index, line in enumerate(source_lines)
+        if line.startswith("|") and (index == 0 or not source_lines[index - 1].startswith("|"))
+    )
+    if len(matrix.tables) != expected_table_count:
+        raise RuntimeError(
+            f"Matriz contém {len(matrix.tables)} tabelas; esperado {expected_table_count} conforme a fonte Markdown"
+        )
+    if any(t.style is None or t.style.name != "Table Grid" for t in matrix.tables):
+        raise RuntimeError("Matriz contém tabela sem a grade institucional Table Grid")
     anexo = Document(docx_files[3])
     if len(anexo.inline_shapes) != 2:
         raise RuntimeError("Anexo não contém exatamente as duas figuras UML incorporadas")
@@ -484,7 +508,7 @@ def main() -> int:
 
     validate(root, work)
     shutil.rmtree(work)
-    print("Artefatos DOCX/PDF gerados e validados: 2/2/2/8 páginas, matriz tabular e UML incorporada.")
+    print("Artefatos DOCX/PDF gerados e validados: paginação dentro das faixas esperadas, matriz tabular e UML incorporada.")
     return 0
 
 
