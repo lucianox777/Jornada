@@ -27,6 +27,9 @@ public sealed class BlockingProjectionSqlServerTests
 
         // CPF válido e exclusivo desta prova: o repositório persiste a identidade fora do escopo do teste.
         const string cpf = "73124896564";
+        var verifiedAt = DateTimeOffset.Parse(
+            "2026-09-11T10:00:00-03:00",
+            System.Globalization.CultureInfo.InvariantCulture);
         var person = new ParsedPerson(
             "BLOCKING-SQLSERVER-001",
             new string('a', 64),
@@ -36,7 +39,20 @@ public sealed class BlockingProjectionSqlServerTests
             "María Silva Teste",
             new DateOnly(1991, 4, 13),
             "Ana Souza Teste",
-            [],
+            [
+                new ParsedTransversalAttribute(
+                    "BLOCKING-PHONE-1", PersonResolutionContractCatalog.ContactPhone,
+                    "+55 (11) 99999-0001", "COMPROVADO", "DOCUMENTO", null, verifiedAt, null,
+                    null, null, null),
+                new ParsedTransversalAttribute(
+                    "BLOCKING-EMAIL-1", PersonResolutionContractCatalog.ContactEmail,
+                    "Pessoa@EXAMPLE.Test", "COMPROVADO", "DOCUMENTO", null, verifiedAt, null,
+                    null, null, null),
+                new ParsedTransversalAttribute(
+                    "BLOCKING-SOCIAL-1", PersonResolutionContractCatalog.SocialName,
+                    "Maria Social Teste", "COMPROVADO", "DOCUMENTO", null, verifiedAt, null,
+                    null, null, null)
+            ],
             []);
         var manifest = new IngestionPackageManifest(
             2,
@@ -71,13 +87,18 @@ public sealed class BlockingProjectionSqlServerTests
                     (atributo='mother_name_last' AND valor_normalizado='TESTE' AND semantica_temporal='VERSIONED_ALIAS') OR
                     (atributo='birth_day' AND valor_normalizado='13' AND semantica_temporal='STABLE_IDENTITY_DATUM') OR
                     (atributo='birth_month' AND valor_normalizado='04' AND semantica_temporal='STABLE_IDENTITY_DATUM') OR
-                    (atributo='birth_year' AND valor_normalizado='1991' AND semantica_temporal='STABLE_IDENTITY_DATUM')
+                    (atributo='birth_year' AND valor_normalizado='1991' AND semantica_temporal='STABLE_IDENTITY_DATUM') OR
+                    (atributo='telefone_contato__canonical' AND valor_normalizado='5511999990001' AND semantica_temporal='VERSIONED_ALIAS') OR
+                    (atributo='email_contato__canonical' AND valor_normalizado='pessoa@example.test' AND semantica_temporal='VERSIONED_ALIAS') OR
+                    (atributo='nome_social__normalized' AND valor_normalizado='MARIA SOCIAL TESTE' AND semantica_temporal='VERSIONED_ALIAS') OR
+                    (atributo='nome_social__first' AND valor_normalizado='MARIA' AND semantica_temporal='VERSIONED_ALIAS') OR
+                    (atributo='nome_social__last' AND valor_normalizado='TESTE' AND semantica_temporal='VERSIONED_ALIAS')
                );
             """;
         command.Parameters.AddWithValue("@cpf", cpf);
         command.Parameters.AddWithValue("@normalizacao", IdentityComparison.NormalizationVersion);
         var count = Convert.ToInt32(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
-        Assert.That(count, Is.EqualTo(9));
+        Assert.That(count, Is.EqualTo(14));
     }
 
     private static string RequireIntegrationConnection()
