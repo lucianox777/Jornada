@@ -103,6 +103,89 @@ public sealed class BlockingRuleSetCandidatePlannerTests
     }
 
     [Test]
+    public void Planner_UsesDynamicMultiValuedAttributeInPublishedPass()
+    {
+        var ruleSet = LinkageDynamicRuleSet.CreateWithPasses(
+            "rs-dynamic",
+            "alg-dynamic",
+            new[]
+            {
+                LinkageBlockingPass.Create("email-year", new[]
+                {
+                    PersonResolutionContractCatalog.ContactEmailCanonicalFeature,
+                    BlockingFeatureNames.BirthYear
+                })
+            },
+            Array.Empty<KeyValuePair<string, decimal>>());
+        var observation = new IdentityObservation(
+            Cpf: null,
+            CpfAusenteMotivo: "NAO_INFORMADO",
+            NomeCompleto: "Maria Silva",
+            DataNascimento: new DateOnly(1980, 5, 12),
+            NomeMae: "Ana Lima",
+            ResolutionAttributes: new IdentityResolutionAttributeValue[]
+            {
+                new(PersonResolutionContractCatalog.ContactEmail, "B@example.test"),
+                new(PersonResolutionContractCatalog.ContactEmail, "a@example.test")
+            });
+
+        var planned = BlockingRuleSetCandidatePlanner.Plan(ruleSet, observation);
+
+        Assert.That(planned, Has.Count.EqualTo(1));
+        var clauses = planned[0].Clauses.ToDictionary(static x => x.Feature, StringComparer.Ordinal);
+        Assert.Multiple(() =>
+        {
+            Assert.That(clauses[PersonResolutionContractCatalog.ContactEmailCanonicalFeature].Values,
+                Is.EqualTo(new[] { "a@example.test", "b@example.test" }));
+            Assert.That(clauses[BlockingFeatureNames.BirthYear].Values, Is.EqualTo(new[] { "1980" }));
+        });
+    }
+
+    [Test]
+    public void Planner_SkipsDynamicPassWhenObservationLacksRequiredAttribute()
+    {
+        var ruleSet = LinkageDynamicRuleSet.CreateWithPasses(
+            "rs-dynamic-missing",
+            "alg-dynamic",
+            new[]
+            {
+                LinkageBlockingPass.Create("email-year", new[]
+                {
+                    PersonResolutionContractCatalog.ContactEmailCanonicalFeature,
+                    BlockingFeatureNames.BirthYear
+                })
+            },
+            Array.Empty<KeyValuePair<string, decimal>>());
+        var observation = new IdentityObservation(
+            Cpf: null,
+            CpfAusenteMotivo: "NAO_INFORMADO",
+            NomeCompleto: "Maria Silva",
+            DataNascimento: new DateOnly(1980, 5, 12),
+            NomeMae: "Ana Lima");
+
+        Assert.That(BlockingRuleSetCandidatePlanner.Plan(ruleSet, observation), Is.Empty);
+    }
+
+    [Test]
+    public void Planner_DoesNotUseConfidentialShelterEvenWhenObservationCarriesIt()
+    {
+        var observation = new IdentityObservation(
+            Cpf: null,
+            CpfAusenteMotivo: "NAO_INFORMADO",
+            NomeCompleto: "Maria Silva",
+            DataNascimento: new DateOnly(1980, 5, 12),
+            NomeMae: "Ana Lima",
+            ResolutionAttributes: new[]
+            {
+                new IdentityResolutionAttributeValue(
+                    PersonResolutionContractCatalog.ConfidentialShelterAddress,
+                    "Rua Sigilosa, 10")
+            });
+
+        Assert.That(PersonResolutionBlockingProjector.Project(observation.ResolutionAttributes), Is.Empty);
+    }
+
+    [Test]
     public void Planner_RejectsCpfBecauseCpfUsesDeterministicRoute()
     {
         var ruleSet = LinkageDynamicRuleSet.Create(

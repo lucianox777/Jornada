@@ -15,7 +15,7 @@ public sealed record BlockingCandidatePassLookup(
 /// </summary>
 public static class BlockingRuleSetCandidatePlanner
 {
-    public const string MethodVersion = "BLOCKING_RULESET_CANDIDATE_PLANNER_V1";
+    public const string MethodVersion = "BLOCKING_RULESET_CANDIDATE_PLANNER_V2";
 
     public static IReadOnlyList<BlockingCandidatePassLookup> Plan(
         LinkageDynamicRuleSet ruleSet,
@@ -29,9 +29,12 @@ public static class BlockingRuleSetCandidatePlanner
                 "Blocking probabilístico por ruleset é exclusivo para observação sem CPF; CPF válido segue a resolução determinística.");
 
         var projected = BlockingProjectionKeyProjector.Project(
-            observation.NomeCompleto,
-            observation.NomeMae,
-            observation.DataNascimento);
+                observation.NomeCompleto,
+                observation.NomeMae,
+                observation.DataNascimento)
+            .Concat(PersonResolutionBlockingProjector.Project(observation.ResolutionAttributes))
+            .Distinct()
+            .ToArray();
 
         var valuesByFeature = projected
             .GroupBy(static key => key.Feature, StringComparer.Ordinal)

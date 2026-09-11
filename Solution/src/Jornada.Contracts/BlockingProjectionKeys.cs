@@ -41,33 +41,16 @@ public enum BlockingFeatureTemporalSemantics
 
 public static class BlockingFeatureTemporalCatalog
 {
-    public const string MethodVersion = "BLOCKING_FEATURE_TEMPORAL_CATALOG_V3";
+    public const string MethodVersion = "BLOCKING_FEATURE_TEMPORAL_CATALOG_V4";
 
-    public static BlockingFeatureTemporalSemantics Get(string feature) => feature switch
+    public static BlockingFeatureTemporalSemantics Get(string feature)
     {
-        BlockingFeatureNames.BirthDay or
-        BlockingFeatureNames.BirthMonth or
-        BlockingFeatureNames.BirthYear => BlockingFeatureTemporalSemantics.StableIdentityDatum,
+        if (PersonResolutionContractCatalog.TryGetByBlockingFeature(feature, out var field) &&
+            field.BlockingTemporalSemantics is { } semantics)
+            return semantics;
 
-        BlockingFeatureNames.FullName or
-        BlockingFeatureNames.FullNameUpper or
-        BlockingFeatureNames.FullNameUpperNoDiacritics or
-        BlockingFeatureNames.FullNameWithoutParticles or
-        BlockingFeatureNames.FullNamePhoneticPtBr or
-        BlockingFeatureNames.FirstName or
-        BlockingFeatureNames.Surnames or
-        BlockingFeatureNames.LastName or
-        BlockingFeatureNames.MotherFullName or
-        BlockingFeatureNames.MotherFullNameUpper or
-        BlockingFeatureNames.MotherFullNameUpperNoDiacritics or
-        BlockingFeatureNames.MotherFullNameWithoutParticles or
-        BlockingFeatureNames.MotherFullNamePhoneticPtBr or
-        BlockingFeatureNames.MotherFirstName or
-        BlockingFeatureNames.MotherSurnames or
-        BlockingFeatureNames.MotherLastName => BlockingFeatureTemporalSemantics.VersionedAlias,
-
-        _ => throw new ArgumentOutOfRangeException(nameof(feature), feature, "Unknown blocking feature.")
-    };
+        throw new ArgumentOutOfRangeException(nameof(feature), feature, "Unknown blocking feature.");
+    }
 }
 
 public sealed record BlockingProjectionKey(string Feature, string Value);

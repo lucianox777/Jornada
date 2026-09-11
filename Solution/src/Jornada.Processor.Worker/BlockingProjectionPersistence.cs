@@ -7,8 +7,9 @@ namespace Jornada.Processor.Worker;
 
 /// <summary>
 /// Reconstrói, dentro da transação do Processor, as chaves de blocking de uma Pessoa.
-/// Nascimento vem da Gold corrente; nomes/nomes da mãe são aliases obtidos do histórico Silver.
-/// A operação é idempotente para a versão de normalização atual.
+/// Nascimento vem da Gold corrente; nomes/nomes da mãe são aliases obtidos do histórico Silver;
+/// atributos transversais elegíveis usam a Gold versionada mais o vencedor COMPROVADO da Silver
+/// ainda não promovido. A operação é idempotente e nunca infere elegibilidade pelo nome do atributo.
 /// </summary>
 internal static class BlockingProjectionPersistence
 {
@@ -81,7 +82,82 @@ internal static class BlockingProjectionPersistence
             }
         }
 
-        return BuildSnapshot(currentName, currentMother, currentBirth, currentAsOf, observations);
+        var dynamic = new List<BlockingDynamicAttributeObservation>();
+        var eligible = PersonResolutionContractCatalog.EligibleTransversal
+            .Select(static field => field.Code)
+            .OrderBy(static code => code, StringComparer.Ordinal)
+            .ToArray();
+        if (eligible.Length > 0)
+        {
+            var parameterNames = eligible.Select((_, index) => $"@eligible_attr_{index}").ToArray();
+            await using (var attributes = connection.CreateCommand())
+            {
+                attributes.Transaction = tx;
+                attributes.CommandText = $"""
+                    SELECT atributo_codigo,valor,vigencia_inicio,vigencia_fim
+                    FROM gold.pessoa_atributo
+                    WHERE pessoa_uuid=@uuid
+                      AND atributo_codigo IN ({string.Join(",", parameterNames)})
+                    ORDER BY atributo_codigo,atributo_instancia_chave,vigencia_inicio,pessoa_atributo_id;
+                    """;
+                attributes.Parameters.AddWithValue("@uuid", pessoaUuid);
+                for (var index = 0; index < eligible.Length; index++)
+                    attributes.Parameters.Add(new SqlParameter(parameterNames[index], SqlDbType.NVarChar, 80) { Value = eligible[index] });
+
+                await using var reader = await attributes.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                {
+                    dynamic.Add(new BlockingDynamicAttributeObservation(
+                        reader.GetString(0),
+                        reader.GetString(1),
+                        reader.GetDateTimeOffset(2),
+                        reader.IsDBNull(3) ? null : reader.GetDateTimeOffset(3)));
+                }
+            }
+
+            // RefreshGoldPersonAsync ocorre antes de PromoteAttributeAsync no caminho transacional.
+            // O vencedor COMPROVADO da Silver é incluído como corrente para que blocking_chave já
+            // reflita o mesmo candidato que será promovido à Gold alguns passos depois.
+            await using var pending = connection.CreateCommand();
+            pending.Transaction = tx;
+            pending.CommandText = $"""
+                ;WITH candidatos AS(
+                    SELECT pa.atributo_codigo,pa.valor,
+                           COALESCE(pa.referencia_evidencia,pa.verificado_em) AS precedencia,
+                           ROW_NUMBER() OVER(
+                               PARTITION BY pa.atributo_codigo,pa.atributo_instancia_chave
+                               ORDER BY COALESCE(pa.referencia_evidencia,pa.verificado_em) DESC,
+                                        pa.verificado_em DESC,pa.pessoa_atributo_observacao_id DESC) rn
+                    FROM silver.pessoa_atributo_observacao pa
+                    JOIN identidade.v_vinculo_corrente vc
+                      ON vc.pessoa_observacao_id=pa.pessoa_observacao_id
+                    WHERE vc.pessoa_uuid=@uuid
+                      AND vc.status='RESOLVIDO'
+                      AND pa.status_evidencia='COMPROVADO'
+                      AND pa.atributo_codigo IN ({string.Join(",", parameterNames)})
+                )
+                SELECT atributo_codigo,valor,precedencia
+                FROM candidatos
+                WHERE rn=1
+                ORDER BY atributo_codigo,valor;
+                """;
+            pending.Parameters.AddWithValue("@uuid", pessoaUuid);
+            for (var index = 0; index < eligible.Length; index++)
+                pending.Parameters.Add(new SqlParameter(parameterNames[index], SqlDbType.NVarChar, 80) { Value = eligible[index] });
+            await using (var reader = await pending.ExecuteReaderAsync(ct))
+            {
+                while (await reader.ReadAsync(ct))
+                {
+                    dynamic.Add(new BlockingDynamicAttributeObservation(
+                        reader.GetString(0),
+                        reader.GetString(1),
+                        reader.GetDateTimeOffset(2),
+                        null));
+                }
+            }
+        }
+
+        return BuildSnapshot(currentName, currentMother, currentBirth, currentAsOf, observations, dynamic);
     }
 
     private static async Task<BlockingProjectionSnapshot> LoadPostgreSqlSnapshotAsync(
@@ -133,7 +209,79 @@ internal static class BlockingProjectionPersistence
             }
         }
 
-        return BuildSnapshot(currentName, currentMother, currentBirth, currentAsOf, observations);
+        var dynamic = new List<BlockingDynamicAttributeObservation>();
+        var eligible = PersonResolutionContractCatalog.EligibleTransversal
+            .Select(static field => field.Code)
+            .OrderBy(static code => code, StringComparer.Ordinal)
+            .ToArray();
+        if (eligible.Length > 0)
+        {
+            var parameterNames = eligible.Select((_, index) => $"@eligible_attr_{index}").ToArray();
+            await using (var attributes = connection.CreateCommand())
+            {
+                attributes.Transaction = tx;
+                attributes.CommandText = $"""
+                    SELECT atributo_codigo,valor,vigencia_inicio,vigencia_fim
+                    FROM gold.pessoa_atributo
+                    WHERE pessoa_uuid=@uuid
+                      AND atributo_codigo IN ({string.Join(",", parameterNames)})
+                    ORDER BY atributo_codigo,atributo_instancia_chave,vigencia_inicio,pessoa_atributo_id;
+                    """;
+                Add(attributes, "@uuid", DbType.Guid, pessoaUuid);
+                for (var index = 0; index < eligible.Length; index++)
+                    Add(attributes, parameterNames[index], DbType.String, eligible[index], 80);
+
+                await using var reader = await attributes.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                {
+                    dynamic.Add(new BlockingDynamicAttributeObservation(
+                        reader.GetString(0),
+                        reader.GetString(1),
+                        reader.GetFieldValue<DateTimeOffset>(2),
+                        reader.IsDBNull(3) ? null : reader.GetFieldValue<DateTimeOffset>(3)));
+                }
+            }
+
+            await using var pending = connection.CreateCommand();
+            pending.Transaction = tx;
+            pending.CommandText = $"""
+                WITH candidatos AS(
+                    SELECT pa.atributo_codigo,pa.valor,
+                           COALESCE(pa.referencia_evidencia,pa.verificado_em) AS precedencia,
+                           ROW_NUMBER() OVER(
+                               PARTITION BY pa.atributo_codigo,pa.atributo_instancia_chave
+                               ORDER BY COALESCE(pa.referencia_evidencia,pa.verificado_em) DESC,
+                                        pa.verificado_em DESC,pa.pessoa_atributo_observacao_id DESC) rn
+                    FROM silver.pessoa_atributo_observacao pa
+                    JOIN identidade.v_vinculo_corrente vc
+                      ON vc.pessoa_observacao_id=pa.pessoa_observacao_id
+                    WHERE vc.pessoa_uuid=@uuid
+                      AND vc.status='RESOLVIDO'
+                      AND pa.status_evidencia='COMPROVADO'
+                      AND pa.atributo_codigo IN ({string.Join(",", parameterNames)})
+                )
+                SELECT atributo_codigo,valor,precedencia
+                FROM candidatos
+                WHERE rn=1
+                ORDER BY atributo_codigo,valor;
+                """;
+            Add(pending, "@uuid", DbType.Guid, pessoaUuid);
+            for (var index = 0; index < eligible.Length; index++)
+                Add(pending, parameterNames[index], DbType.String, eligible[index], 80);
+            await using (var reader = await pending.ExecuteReaderAsync(ct))
+            {
+                while (await reader.ReadAsync(ct))
+                {
+                    dynamic.Add(new BlockingDynamicAttributeObservation(
+                        reader.GetString(0),
+                        reader.GetString(1),
+                        reader.GetFieldValue<DateTimeOffset>(2),
+                        null));
+                }
+            }
+        }
+
+        return BuildSnapshot(currentName, currentMother, currentBirth, currentAsOf, observations, dynamic);
     }
 
     private static BlockingProjectionSnapshot BuildSnapshot(
@@ -141,7 +289,8 @@ internal static class BlockingProjectionPersistence
         string? currentMother,
         DateOnly currentBirth,
         DateTimeOffset currentAsOf,
-        IReadOnlyList<BlockingNameObservation> observations)
+        IReadOnlyList<BlockingNameObservation> observations,
+        IReadOnlyList<BlockingDynamicAttributeObservation> dynamicObservations)
     {
         var currentKeys = BlockingProjectionKeyProjector.Project(currentName, currentMother, currentBirth);
         var currentAliases = currentKeys
@@ -156,26 +305,48 @@ internal static class BlockingProjectionPersistence
                 "STABLE_IDENTITY_DATUM",
                 currentAsOf,
                 null))
-            .ToArray();
+            .ToList();
 
-        var aliases = new Dictionary<BlockingProjectionKey, (DateTimeOffset First, DateTimeOffset Last)>();
+        var aliases = new Dictionary<BlockingProjectionKey, (DateTimeOffset First, DateTimeOffset Last, bool Current)>();
         foreach (var observation in observations)
         {
             var keys = BlockingProjectionKeyProjector.Project(observation.Name, observation.MotherName, currentBirth);
             foreach (var key in keys.Where(static key =>
                          BlockingFeatureTemporalCatalog.Get(key.Feature) == BlockingFeatureTemporalSemantics.VersionedAlias))
             {
-                if (aliases.TryGetValue(key, out var interval))
-                    aliases[key] = (Min(interval.First, observation.SourceAsOf), Max(interval.Last, observation.SourceAsOf));
-                else
-                    aliases.Add(key, (observation.SourceAsOf, observation.SourceAsOf));
+                MergeAlias(aliases, key, observation.SourceAsOf, observation.SourceAsOf, Current: false);
             }
         }
 
         foreach (var key in currentAliases)
+            MergeAlias(aliases, key, currentAsOf, currentAsOf, Current: true);
+
+        foreach (var observation in dynamicObservations)
         {
-            if (!aliases.ContainsKey(key))
-                aliases.Add(key, (currentAsOf, currentAsOf));
+            var keys = PersonResolutionBlockingProjector.Project(
+                new[] { new IdentityResolutionAttributeValue(observation.AttributeCode, observation.Value) });
+            foreach (var key in keys)
+            {
+                var semantics = BlockingFeatureTemporalCatalog.Get(key.Feature);
+                if (semantics == BlockingFeatureTemporalSemantics.VersionedAlias)
+                {
+                    MergeAlias(
+                        aliases,
+                        key,
+                        observation.ValidFrom,
+                        observation.ValidTo ?? observation.ValidFrom,
+                        Current: observation.ValidTo is null);
+                }
+                else if (observation.ValidTo is null)
+                {
+                    stable.Add(new BlockingProjectionRow(
+                        key.Feature,
+                        key.Value,
+                        "STABLE_IDENTITY_DATUM",
+                        observation.ValidFrom,
+                        null));
+                }
+            }
         }
 
         var aliasRows = aliases
@@ -184,10 +355,37 @@ internal static class BlockingProjectionPersistence
                 pair.Key.Value,
                 "VERSIONED_ALIAS",
                 pair.Value.First,
-                currentAliases.Contains(pair.Key) ? null : pair.Value.Last))
+                pair.Value.Current ? null : pair.Value.Last))
             .ToArray();
 
-        return new BlockingProjectionSnapshot(stable.Concat(aliasRows).ToArray());
+        var rows = stable
+            .Concat(aliasRows)
+            .Distinct()
+            .OrderBy(static row => row.Feature, StringComparer.Ordinal)
+            .ThenBy(static row => row.Value, StringComparer.Ordinal)
+            .ThenBy(static row => row.ValidFrom)
+            .ToArray();
+        return new BlockingProjectionSnapshot(rows);
+    }
+
+    private static void MergeAlias(
+        IDictionary<BlockingProjectionKey, (DateTimeOffset First, DateTimeOffset Last, bool Current)> aliases,
+        BlockingProjectionKey key,
+        DateTimeOffset first,
+        DateTimeOffset last,
+        bool Current)
+    {
+        if (aliases.TryGetValue(key, out var interval))
+        {
+            aliases[key] = (
+                Min(interval.First, first),
+                Max(interval.Last, last),
+                interval.Current || Current);
+        }
+        else
+        {
+            aliases.Add(key, (first, last, Current));
+        }
     }
 
     private static async Task ReplaceSqlServerAsync(
@@ -278,6 +476,11 @@ internal static class BlockingProjectionPersistence
     private static DateTimeOffset Max(DateTimeOffset left, DateTimeOffset right) => left >= right ? left : right;
 
     private sealed record BlockingNameObservation(string? Name, string? MotherName, DateTimeOffset SourceAsOf);
+    private sealed record BlockingDynamicAttributeObservation(
+        string AttributeCode,
+        string Value,
+        DateTimeOffset ValidFrom,
+        DateTimeOffset? ValidTo);
     private sealed record BlockingProjectionRow(
         string Feature,
         string Value,

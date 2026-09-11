@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Data;
+using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Pipeline.Coordination;
 using Jornada.Operational.Sql;
@@ -275,11 +276,29 @@ public sealed class ProbabilisticLinkageBatchRunner(
         CancellationToken ct)
     {
         await using var connection = await operationalSql.OpenAsync(ct);
+        var eligibleAttributes = PersonResolutionContractCatalog.EligibleTransversal
+            .Select(static field => field.Code)
+            .OrderBy(static code => code, StringComparer.Ordinal)
+            .ToArray();
+        var eligibleParameters = eligibleAttributes
+            .Select((_, index) => $"@eligible_attr_{index}")
+            .ToArray();
+        if (eligibleParameters.Length == 0)
+            throw new InvalidOperationException("O contrato de resolução não possui atributos transversais elegíveis para o runtime.");
+
         var command = new SqlCommand(
-            """
+            $"""
             SELECT TOP (@take)
                 po.pessoa_observacao_id, po.cpf, po.cpf_ausente_motivo,
-                po.nome_completo, po.data_nascimento, po.nome_mae
+                po.nome_completo, po.data_nascimento, po.nome_mae,
+                (
+                    SELECT pa.atributo_codigo AS [AttributeCode], pa.valor AS [Value]
+                    FROM silver.pessoa_atributo_observacao pa
+                    WHERE pa.pessoa_observacao_id=po.pessoa_observacao_id
+                      AND pa.atributo_codigo IN ({string.Join(",", eligibleParameters)})
+                    ORDER BY pa.atributo_codigo,pa.atributo_instancia_chave,pa.pessoa_atributo_observacao_id
+                    FOR JSON PATH
+                ) AS resolution_attributes_json
             FROM identidade.linkage_run_item ri
             JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=ri.pessoa_observacao_id
             WHERE ri.linkage_run_id=@run_id
@@ -298,19 +317,33 @@ public sealed class ProbabilisticLinkageBatchRunner(
         command.Parameters.Add("@take", SqlDbType.Int).Value = take;
         command.Parameters.Add("@after_id", SqlDbType.BigInt).Value = afterObservationId;
         command.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+        for (var index = 0; index < eligibleAttributes.Length; index++)
+            command.Parameters.Add(eligibleParameters[index], SqlDbType.NVarChar, 80).Value = eligibleAttributes[index];
 
         var result = new List<PendingRow>(take);
         await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct);
         while (await reader.ReadAsync(ct))
         {
+            var pessoaObservacaoId = reader.GetInt64(0);
+            var cpf = reader.IsDBNull(1) ? null : reader.GetString(1);
+            var cpfAusenteMotivo = reader.IsDBNull(2) ? null : reader.GetString(2);
+            var nomeCompleto = reader.GetString(3);
+            var dataNascimento = DateOnly.FromDateTime(reader.GetDateTime(4));
+            var nomeMae = reader.GetString(5);
+            var attributes = reader.IsDBNull(6)
+                ? Array.Empty<IdentityResolutionAttributeValue>()
+                : JsonSerializer.Deserialize<IdentityResolutionAttributeValue[]>(reader.GetString(6))
+                    ?? Array.Empty<IdentityResolutionAttributeValue>();
+
             result.Add(new PendingRow(
-                reader.GetInt64(0),
+                pessoaObservacaoId,
                 new IdentityObservation(
-                    reader.IsDBNull(1) ? null : reader.GetString(1),
-                    reader.IsDBNull(2) ? null : reader.GetString(2),
-                    reader.GetString(3),
-                    DateOnly.FromDateTime(reader.GetDateTime(4)),
-                    reader.GetString(5))));
+                    cpf,
+                    cpfAusenteMotivo,
+                    nomeCompleto,
+                    dataNascimento,
+                    nomeMae,
+                    attributes)));
         }
         return result;
     }
