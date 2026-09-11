@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "issue": 31,
+  "status": "PENDENTE",
+  "scope": "LINKAGE_V2_STATISTICAL_HML_READINESS_ONLY",
+  "productionActivationAuthorized": false,
+  "note": "Contrato de evidências da issue #31. APROVADO atesta somente a completude/proveniência das evidências institucionais para HML; não define thresholds, não recalcula métricas e não autoriza ativação probabilística em produção.",
+  "requirements": [
+    {"id": "representativeCorpus", "status": "PENDENTE", "reportVersion": null, "reportFingerprintSha256": null, "evidence": null, "justification": null},
+    {"id": "referenceTruthQuality", "status": "PENDENTE", "reportVersion": null, "reportFingerprintSha256": null, "evidence": null, "justification": null},
+    {"id": "selectionNonResponseMethodology", "status": "PENDENTE", "reportVersion": null, "reportFingerprintSha256": null, "evidence": null, "justification": null},
+    {"id": "independentEvaluation", "status": "PENDENTE", "reportVersion": null, "reportFingerprintSha256": null, "evidence": null, "justification": null},
+    {"id": "surveyUncertainty", "status": "PENDENTE", "reportVersion": null, "reportFingerprintSha256": null, "evidence": null, "justification": null},
+    {"id": "weightProvenance", "status": "PENDENTE", "reportVersion": null, "reportFingerprintSha256": null, "evidence": null, "justification": null},
+    {"id": "evidenceDependency", "status": "PENDENTE", "reportVersion": null, "reportFingerprintSha256": null, "evidence": null, "justification": null},
+    {"id": "referenceAgreement", "status": "PENDENTE", "reportVersion": null, "reportFingerprintSha256": null, "evidence": null, "justification": null},
+    {"id": "scaleValidation", "status": "PENDENTE", "reportVersion": null, "reportFingerprintSha256": null, "evidence": null, "justification": null}
+  ],
+  "approval": null
+}
