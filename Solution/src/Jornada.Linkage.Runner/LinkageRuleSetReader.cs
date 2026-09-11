@@ -8,10 +8,11 @@ namespace Jornada.Linkage.Runner;
 /// Leitura provider-neutral do ruleset associado a um modelo.
 /// Modelos legados podem não ter ruleset persistido e retornam null; quando existe,
 /// o conteúdo é reconstruído canonicamente e seu fingerprint é obrigatoriamente revalidado.
+/// Rulesets modernos também precisam carregar a identidade exata da projeção física.
 /// </summary>
 public static class LinkageRuleSetReader
 {
-    public const string MethodVersion = "LINKAGE_RULESET_READER_V1";
+    public const string MethodVersion = "LINKAGE_RULESET_READER_V2";
 
     public static async Task<LinkageDynamicRuleSet?> TryLoadAsync(
         DbConnection connection,
@@ -24,6 +25,8 @@ public static class LinkageRuleSetReader
         string? ruleSetVersion = null;
         string? ruleSetAlgorithm = null;
         string? storedFingerprint = null;
+        string? projectionSchemaVersion = null;
+        string? projectionFingerprint = null;
         string? ibgeVersion = null;
         string? ibgeFingerprint = null;
         string? modelAlgorithm = null;
@@ -32,6 +35,7 @@ public static class LinkageRuleSetReader
 
         await using (var header = Command(connection, transaction, """
             SELECT r.ruleset_versao,r.algoritmo_versao,r.fingerprint_sha256,
+                   r.projection_schema_version,r.projection_fingerprint_sha256,
                    r.ibge_source_versao,r.ibge_fingerprint_sha256,
                    m.algoritmo_versao,m.normalizacao_versao,m.status
               FROM identidade.linkage_ruleset r
@@ -47,11 +51,13 @@ public static class LinkageRuleSetReader
             ruleSetVersion = reader.GetString(0);
             ruleSetAlgorithm = reader.GetString(1);
             storedFingerprint = reader.GetString(2).Trim();
-            ibgeVersion = reader.IsDBNull(3) ? null : reader.GetString(3);
-            ibgeFingerprint = reader.IsDBNull(4) ? null : reader.GetString(4).Trim();
-            modelAlgorithm = reader.GetString(5);
-            normalization = reader.GetString(6);
-            modelStatus = reader.GetString(7);
+            projectionSchemaVersion = reader.IsDBNull(3) ? null : reader.GetString(3).Trim();
+            projectionFingerprint = reader.IsDBNull(4) ? null : reader.GetString(4).Trim();
+            ibgeVersion = reader.IsDBNull(5) ? null : reader.GetString(5);
+            ibgeFingerprint = reader.IsDBNull(6) ? null : reader.GetString(6).Trim();
+            modelAlgorithm = reader.GetString(7);
+            normalization = reader.GetString(8);
+            modelStatus = reader.GetString(9);
         }
 
         if (modelStatus is not ("VALIDADO" or "ATIVO" or "INATIVO"))
@@ -60,6 +66,8 @@ public static class LinkageRuleSetReader
             throw new InvalidOperationException($"Algoritmo do ruleset diverge do modelo {modelId}.");
         if (!string.Equals(normalization, IdentityComparison.NormalizationVersion, StringComparison.Ordinal))
             throw new InvalidOperationException($"Normalização {normalization} do ruleset/modelo não é suportada pelo Runner.");
+
+        PersonResolutionProjectionContract.ValidateSupported(projectionSchemaVersion, projectionFingerprint);
 
         var passFields = new SortedDictionary<int, (string PassId, List<(int Order, string Field)> Fields)>();
         await using (var passes = Command(connection, transaction, """
@@ -96,6 +104,17 @@ public static class LinkageRuleSetReader
         if (passFields.Count == 0 || passFields.Values.Any(static pass => pass.Fields.Count == 0))
             throw new InvalidOperationException($"Ruleset do modelo {modelId} não possui passes/campos completos.");
 
+        var flattenedFields = passFields.Values
+            .SelectMany(static pass => pass.Fields)
+            .Select(static field => field.Field)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (projectionSchemaVersion is null && flattenedFields.Any(IsProjectionBoundFeature))
+        {
+            throw new InvalidOperationException(
+                $"Ruleset do modelo {modelId} usa atributo dinâmico sem identidade de projeção física; execução recusada.");
+        }
+
         var parameters = new List<KeyValuePair<string, decimal>>();
         await using (var parameterCommand = Command(connection, transaction, """
             SELECT nome,valor
@@ -122,7 +141,11 @@ public static class LinkageRuleSetReader
             canonicalPasses,
             parameters,
             ibgeVersion,
-            ibgeFingerprint);
+            ibgeFingerprint) with
+        {
+            ProjectionSchemaVersion = projectionSchemaVersion,
+            ProjectionFingerprintSha256 = projectionFingerprint?.ToLowerInvariant()
+        };
 
         if (!string.Equals(ruleSet.FingerprintSha256, storedFingerprint, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
@@ -130,6 +153,10 @@ public static class LinkageRuleSetReader
 
         return ruleSet;
     }
+
+    private static bool IsProjectionBoundFeature(string feature) =>
+        PersonResolutionContractCatalog.TryGetByBlockingFeature(feature, out var field)
+        && field.CompatibilityProfile is null;
 
     private static DbCommand Command(DbConnection connection, DbTransaction? transaction, string sql)
     {
