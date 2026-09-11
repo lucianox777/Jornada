@@ -12,8 +12,8 @@ public sealed record ResolutionAlgorithmOutputColumn(
     bool MultiValued = false,
     bool CandidateForBlocking = true)
 {
-    public string CanonicalCode => ResolutionSourceAttribute.Canonicalize(Code);
-    public string CanonicalOutputSuffix => ResolutionSourceAttribute.Canonicalize(OutputSuffix);
+    public string CanonicalCode => ResolutionSourceField.Canonicalize(Code);
+    public string CanonicalOutputSuffix => ResolutionSourceField.Canonicalize(OutputSuffix);
 }
 
 /// <summary>
