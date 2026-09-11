@@ -11,6 +11,7 @@ public static class BlockingFeatureNames
     public const string FullNameUpper = "name_upper";
     public const string FullNameUpperNoDiacritics = "name_upper_no_diacritics";
     public const string FullNameWithoutParticles = "name_without_particles";
+    public const string FullNamePhoneticPtBr = "name_phonetic_ptbr";
     public const string FirstName = "name_first";
     public const string Surnames = "name_surnames";
     public const string LastName = "name_last";
@@ -18,6 +19,7 @@ public static class BlockingFeatureNames
     public const string MotherFullNameUpper = "mother_name_upper";
     public const string MotherFullNameUpperNoDiacritics = "mother_name_upper_no_diacritics";
     public const string MotherFullNameWithoutParticles = "mother_name_without_particles";
+    public const string MotherFullNamePhoneticPtBr = "mother_name_phonetic_ptbr";
     public const string MotherFirstName = "mother_name_first";
     public const string MotherSurnames = "mother_name_surnames";
     public const string MotherLastName = "mother_name_last";
@@ -39,7 +41,7 @@ public enum BlockingFeatureTemporalSemantics
 
 public static class BlockingFeatureTemporalCatalog
 {
-    public const string MethodVersion = "BLOCKING_FEATURE_TEMPORAL_CATALOG_V2";
+    public const string MethodVersion = "BLOCKING_FEATURE_TEMPORAL_CATALOG_V3";
 
     public static BlockingFeatureTemporalSemantics Get(string feature) => feature switch
     {
@@ -51,6 +53,7 @@ public static class BlockingFeatureTemporalCatalog
         BlockingFeatureNames.FullNameUpper or
         BlockingFeatureNames.FullNameUpperNoDiacritics or
         BlockingFeatureNames.FullNameWithoutParticles or
+        BlockingFeatureNames.FullNamePhoneticPtBr or
         BlockingFeatureNames.FirstName or
         BlockingFeatureNames.Surnames or
         BlockingFeatureNames.LastName or
@@ -58,6 +61,7 @@ public static class BlockingFeatureTemporalCatalog
         BlockingFeatureNames.MotherFullNameUpper or
         BlockingFeatureNames.MotherFullNameUpperNoDiacritics or
         BlockingFeatureNames.MotherFullNameWithoutParticles or
+        BlockingFeatureNames.MotherFullNamePhoneticPtBr or
         BlockingFeatureNames.MotherFirstName or
         BlockingFeatureNames.MotherSurnames or
         BlockingFeatureNames.MotherLastName => BlockingFeatureTemporalSemantics.VersionedAlias,
@@ -70,12 +74,12 @@ public sealed record BlockingProjectionKey(string Feature, string Value);
 
 /// <summary>
 /// Projeta chaves derivadas de blocking a partir dos campos canônicos da Gold/Silver.
-/// As representações básicas de nome permanecem separadas para que o Calibrador consiga
-/// medir UPPER, remoção de diacríticos e remoção de partículas portuguesas sem destruir o original.
+/// As representações de nome permanecem separadas para que o Calibrador consiga medir
+/// normalização básica, componentes e fonética PT-BR sem destruir o original.
 /// </summary>
 public static class BlockingProjectionKeyProjector
 {
-    public const string MethodVersion = "BLOCKING_PROJECTION_KEY_PROJECTOR_V3";
+    public const string MethodVersion = "BLOCKING_PROJECTION_KEY_PROJECTOR_V4";
 
     public static IReadOnlyList<BlockingProjectionKey> Project(
         string? fullName,
@@ -99,6 +103,8 @@ public static class BlockingProjectionKeyProjector
             BlockingFeatureNames.Surnames,
             BlockingFeatureNames.LastName);
 
+        AddPhoneticRepresentation(keys, fullName, BlockingFeatureNames.FullNamePhoneticPtBr);
+
         AddBasicNameRepresentations(
             keys,
             motherName,
@@ -113,6 +119,8 @@ public static class BlockingProjectionKeyProjector
             BlockingFeatureNames.MotherFirstName,
             BlockingFeatureNames.MotherSurnames,
             BlockingFeatureNames.MotherLastName);
+
+        AddPhoneticRepresentation(keys, motherName, BlockingFeatureNames.MotherFullNamePhoneticPtBr);
 
         keys.Add(new BlockingProjectionKey(
             BlockingFeatureNames.BirthDay,
@@ -144,6 +152,16 @@ public static class BlockingProjectionKeyProjector
         keys.Add(new BlockingProjectionKey(upperFeature, projection.Upper));
         keys.Add(new BlockingProjectionKey(noDiacriticsFeature, projection.UpperNoDiacritics));
         keys.Add(new BlockingProjectionKey(withoutParticlesFeature, projection.WithoutPortugueseParticles));
+    }
+
+    private static void AddPhoneticRepresentation(
+        HashSet<BlockingProjectionKey> keys,
+        string? value,
+        string feature)
+    {
+        var phonetic = MetaphoneBr.Encode(value);
+        if (phonetic is not null)
+            keys.Add(new BlockingProjectionKey(feature, phonetic));
     }
 
     private static void AddNameComponents(
