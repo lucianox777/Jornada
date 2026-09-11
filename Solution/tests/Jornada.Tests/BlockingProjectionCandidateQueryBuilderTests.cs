@@ -49,6 +49,59 @@ public sealed class BlockingProjectionCandidateQueryBuilderTests
     }
 
     [Test]
+    public void Build_ProjectionBoundPlan_FiltersExactPhysicalContract()
+    {
+        var pass = new BlockingCandidatePassLookup(
+            "phone",
+            new[]
+            {
+                new BlockingCandidateClause(
+                    PersonResolutionContractCatalog.ContactPhoneCanonicalFeature,
+                    new[] { "5511999990001" })
+            });
+        using var command = new SqlCommand();
+
+        var sql = BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(
+            command,
+            new[] { pass },
+            PersonResolutionProjectionContract.SchemaVersion,
+            PersonResolutionProjectionContract.FingerprintSha256);
+
+        var parameters = command.Parameters.Cast<SqlParameter>()
+            .ToDictionary(static p => p.ParameterName, static p => p.Value?.ToString(), StringComparer.Ordinal);
+        Assert.Multiple(() =>
+        {
+            Assert.That(sql, Does.Contain("projection_schema_version=@blocking_projection_schema"));
+            Assert.That(sql, Does.Contain("projection_fingerprint_sha256=@blocking_projection_fingerprint"));
+            Assert.That(parameters["@blocking_projection_schema"], Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
+            Assert.That(parameters["@blocking_projection_fingerprint"], Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256));
+        });
+    }
+
+    [Test]
+    public void Build_HalfProjectionIdentity_FailsBeforeBuildingSql()
+    {
+        var pass = new BlockingCandidatePassLookup(
+            "phone",
+            new[]
+            {
+                new BlockingCandidateClause(
+                    PersonResolutionContractCatalog.ContactPhoneCanonicalFeature,
+                    new[] { "5511999990001" })
+            });
+        using var command = new SqlCommand();
+
+        Assert.That(
+            () => BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(
+                command,
+                new[] { pass },
+                PersonResolutionProjectionContract.SchemaVersion,
+                projectionFingerprintSha256: null),
+            Throws.TypeOf<InvalidOperationException>());
+        Assert.That(command.Parameters, Is.Empty);
+    }
+
+    [Test]
     public void Build_KeepsHistoricalAliasesEligibleButStableBirthCurrentOnly()
     {
         var ruleSet = LinkageDynamicRuleSet.CreateWithPasses(
