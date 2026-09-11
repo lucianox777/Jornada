@@ -287,7 +287,7 @@ jobs:
           dotnet list Jornada.sln package --vulnerable --include-transitive --format json > .local/security/nuget-vulnerabilities.json
           python3 scripts/vulnerability-evidence-gate.py .local/security/nuget-vulnerabilities.json --summary .local/security/vulnerability-summary.json
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           languages: csharp
           build-mode: manual
@@ -295,7 +295,7 @@ jobs:
       - name: Build for CodeQL
         run: dotnet build Jornada.sln --configuration Release --no-restore
       - name: Analyze with CodeQL
-        uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+        uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           category: /language:csharp
           output: Solution/.local/security/codeql
@@ -723,7 +723,7 @@ jobs:
             --output .local/release-evidence/RELEASE_EVIDENCE.json
       - name: Attest release evidence, source bundle and SBOM with GitHub OIDC/Sigstore
         id: attest-release
-        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: |
             Solution/.local/release-evidence/RELEASE_EVIDENCE.json
