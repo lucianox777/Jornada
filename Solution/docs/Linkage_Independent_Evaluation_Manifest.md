@@ -85,6 +85,29 @@ O relatório não contém threshold de aprovação, ranking ou regra de correç�
 
 O fingerprint determinístico do relatório vincula frame, seleção, referência de rotulagem, versão das features, denominadores e todas as métricas de dependência. Dados sintéticos validam somente a implementação do diagnóstico; não provam independência condicional no corpus institucional.
 
+## Concordância da verdade de referência
+
+A proveniência mínima de `CandidateIndependentLabel` demonstra qual método e qual artefato sustentaram cada rótulo, mas uma única decisão por par não permite medir empiricamente concordância da referência. `CandidateReferenceAgreementDiagnostic` adiciona uma capacidade separada e somente leitura para julgamentos replicados sobre a partição `Evaluation`.
+
+Cada `CandidateReferenceJudgment` identifica o par amostral, a decisão (`Match`, `NonMatch` ou `Inconclusive`), o método, referência/fingerprint da evidência e um `IndependenceUnitFingerprint` SHA-256 opaco. Esse fingerprint serve apenas para distinguir unidades declaradas como independentes sem expor identidade pessoal; a existência de fingerprints diferentes, isoladamente, não prova independência institucional.
+
+A evidência de concordância precisa estar vinculada ao mesmo `FrameFingerprint`, `SelectionFingerprint` e `LabelingReference` do corpus validado e ser atestada depois do manifesto de rotulagem. Julgamentos de `Training`, pares fora da amostra, hashes inválidos ou duas decisões da mesma unidade independente para o mesmo par são rejeitados.
+
+O relatório expõe, sem adjudicar qualquer rótulo:
+
+- quantidade e peso de desenho total da partição de avaliação;
+- cobertura de pares ao menos avaliados e de pares efetivamente replicados;
+- pares replicados unânimes, discordantes e pares que contêm julgamento inconclusivo;
+- quantidade de unidades independentes opacas e artefatos de evidência distintos;
+- concordância par-a-par entre julgamentos e concordância restrita a comparações em que ambos os julgamentos são conclusivos;
+- contagens por método (`GovernedReference` ou `IndependentAdjudication`).
+
+Uma observação com apenas um julgamento conta como avaliada, mas não produz concordância fabricada: ela não entra como par replicado e não cria comparação par-a-par. Da mesma forma, ausência de comparações conclusivas produz taxa nula (`null`), não zero.
+
+O diagnóstico não define quantidade mínima de replicações, taxa aceitável de discordância, maioria, desempate, adjudicação final ou threshold de qualidade. Essas regras dependem da metodologia institucional da verdade de referência. Seu objetivo é apenas tornar cobertura e conflito mensuráveis e vinculados por fingerprint determinístico ao corpus exato avaliado.
+
+Dados sintéticos de CI comprovam apenas os invariantes do diagnóstico. A qualidade e a independência reais da referência continuam exigindo julgamentos/evidências institucionais e critérios de aceite externos à implementação.
+
 ## O que este contrato não prova
 
 A existência de um manifesto ou relatório válido não prova representatividade, independência institucional, qualidade da rotulagem, ausência de viés de seleção nem suficiência do tamanho amostral. Esses pontos precisam de evidência real e atestação conforme a issue #31.
