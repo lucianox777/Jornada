@@ -63,6 +63,28 @@ A proveniência dos pesos recebe fingerprint determinístico próprio, e o relat
 
 Essa rastreabilidade não prova que um ajuste de seleção, não resposta ou calibração seja estatisticamente correto, nem que seja necessário ou suficiente. Essas decisões continuam condicionadas ao desenho institucional, ao mecanismo de coleta e à evidência real prevista na issue #31.
 
+## Dependência entre múltiplas evidências
+
+O scorer de Fellegi-Sunter combina contribuições de `NOME`, `NOME_MAE` e `NASCIMENTO_CONJUNTO`. Antes de interpretar essa soma como adequadamente calibrada, a hipótese de independência condicional entre evidências precisa ser empiricamente inspecionável no corpus independente.
+
+`CandidateEvidenceDependencyDiagnostic` usa exclusivamente observações da partição `Evaluation` já validadas por `CandidateLabeling`. O diagnóstico nunca usa a partição `Training` para medir dependência e separa obrigatoriamente as classes `Match` e `NonMatch`; rótulos inconclusivos na avaliação são rejeitados.
+
+Para cada classe, são avaliados os três pares de evidências (`NOME × NOME_MAE`, `NOME × NASCIMENTO_CONJUNTO` e `NOME_MAE × NASCIMENTO_CONJUNTO`) em dois escopos:
+
+- `AllStates`: inclui `MISSING` como estado explícito e, portanto, também detecta associação de missingness;
+- `ObservedOnly`: remove pares em que pelo menos uma das duas evidências está ausente, permitindo distinguir dependência dos valores observados de dependência causada pela ausência conjunta.
+
+A associação é reportada por duas medidas ponderadas pelo desenho amostral:
+
+- distância de variação total entre a distribuição conjunta observada e o produto das marginais, em `[0,1]`;
+- informação mútua normalizada, em `[0,1]`, quando ambas as marginais têm entropia não degenerada.
+
+Cada medida também carrega número de pares, quantidade de grupos independentes, peso observado e tamanho efetivo. Quando o suporte não atinge os mínimos técnicos solicitados de grupos independentes ou tamanho efetivo, a métrica é marcada como não estimável com motivo explícito; a rotina não substitui falta de suporte por dependência zero.
+
+O relatório não contém threshold de aprovação, ranking ou regra de correção. Associação observada não modifica m/u, posterior, thresholds ou weights operacionais. Se os dados reais mostrarem dependência material, qualquer resposta metodológica — combinação de campos, interação, modelo alternativo, recalibração ou aceitação justificada da aproximação — exige decisão estatística versionada e nova validação independente.
+
+O fingerprint determinístico do relatório vincula frame, seleção, referência de rotulagem, versão das features, denominadores e todas as métricas de dependência. Dados sintéticos validam somente a implementação do diagnóstico; não provam independência condicional no corpus institucional.
+
 ## O que este contrato não prova
 
 A existência de um manifesto ou relatório válido não prova representatividade, independência institucional, qualidade da rotulagem, ausência de viés de seleção nem suficiência do tamanho amostral. Esses pontos precisam de evidência real e atestação conforme a issue #31.
