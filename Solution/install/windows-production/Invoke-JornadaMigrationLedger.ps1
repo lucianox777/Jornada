@@ -44,7 +44,7 @@ function New-OpenConnection {
     return $connection
 }
 
-function Invoke-Command($Connection, $Transaction, [string]$SqlText) {
+function Invoke-SqlNonQuery($Connection, $Transaction, [string]$SqlText) {
     $command = $Connection.CreateCommand()
     try {
         $command.CommandTimeout = 0
@@ -55,7 +55,7 @@ function Invoke-Command($Connection, $Transaction, [string]$SqlText) {
     finally { $command.Dispose() }
 }
 
-function Invoke-Scalar($Connection, $Transaction, [string]$SqlText) {
+function Invoke-SqlScalar($Connection, $Transaction, [string]$SqlText) {
     $command = $Connection.CreateCommand()
     try {
         $command.CommandTimeout = 0
@@ -94,7 +94,7 @@ BEGIN
     );
 END;
 "@
-        $null = Invoke-Command $connection $transaction $sql
+        $null = Invoke-SqlNonQuery $connection $transaction $sql
         $transaction.Commit()
     }
     catch {
@@ -113,7 +113,7 @@ function Apply-Migration($Migration) {
     try {
         Acquire-LedgerLock $connection $transaction
         $escapedName = $Migration.Name.Replace("'", "''")
-        $existing = Invoke-Scalar $connection $transaction "SELECT sha256 FROM jornada.schema_migration WITH (UPDLOCK,HOLDLOCK) WHERE migration_name=N'$escapedName';"
+        $existing = Invoke-SqlScalar $connection $transaction "SELECT sha256 FROM jornada.schema_migration WITH (UPDLOCK,HOLDLOCK) WHERE migration_name=N'$escapedName';"
         if ($null -ne $existing -and $existing -ne [DBNull]::Value) {
             if (-not [string]::Equals(([string]$existing).Trim(), $Migration.Sha256, [StringComparison]::OrdinalIgnoreCase)) {
                 throw "Checksum divergente para migração já aplicada: $($Migration.Name)"
@@ -124,8 +124,8 @@ function Apply-Migration($Migration) {
         }
 
         $sql = Get-Content -Raw -Encoding UTF8 -LiteralPath $Migration.Path
-        foreach ($batch in Split-SqlBatches $sql) { $null = Invoke-Command $connection $transaction $batch }
-        $null = Invoke-Command $connection $transaction "INSERT INTO jornada.schema_migration(migration_name,sha256) VALUES(N'$escapedName','$($Migration.Sha256)');"
+        foreach ($batch in Split-SqlBatches $sql) { $null = Invoke-SqlNonQuery $connection $transaction $batch }
+        $null = Invoke-SqlNonQuery $connection $transaction "INSERT INTO jornada.schema_migration(migration_name,sha256) VALUES(N'$escapedName','$($Migration.Sha256)');"
         $transaction.Commit()
         Write-Host "Aplicada: $($Migration.Name)"
     }
@@ -153,9 +153,9 @@ foreach ($migration in $inventory) { Apply-Migration $migration }
 
 $connection = New-OpenConnection
 try {
-    $ledgerCount = [int](Invoke-Scalar $connection $null 'SELECT COUNT(*) FROM jornada.schema_migration;')
+    $ledgerCount = [int](Invoke-SqlScalar $connection $null 'SELECT COUNT(*) FROM jornada.schema_migration;')
     if ($ledgerCount -lt $ExpectedMigrations) { throw "Ledger incompleto: $ledgerCount/$ExpectedMigrations" }
-    $schema = [string](Invoke-Scalar $connection $null "SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" )
+    $schema = [string](Invoke-SqlScalar $connection $null "SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" )
     if (-not [string]::Equals($schema.Trim(), $TargetSchema, [StringComparison]::Ordinal)) { throw "Jornada.SolutionSchema inválido após migrações: '$schema' (esperado $TargetSchema)." }
 }
 finally { $connection.Dispose() }
