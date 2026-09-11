@@ -59,6 +59,12 @@ jobs:
               raise SystemExit('expected obsolete exact-page validation not found')
           text = text.replace(old_pages, new_pages, 1)
 
+          old_matrix = '''    matrix = Document(docx_files[2])\n    if len(matrix.tables) != 2 or any(t.style is None or t.style.name != "Table Grid" for t in matrix.tables):\n        raise RuntimeError("Matriz não contém as duas tabelas institucionais com grade")\n'''
+          new_matrix = '''    matrix = Document(docx_files[2])\n    matrix_source = req / "05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.md"\n    source_lines = matrix_source.read_text(encoding="utf-8").splitlines()\n    expected_table_count = sum(\n        1\n        for index, line in enumerate(source_lines)\n        if line.startswith("|") and (index == 0 or not source_lines[index - 1].startswith("|"))\n    )\n    if len(matrix.tables) != expected_table_count:\n        raise RuntimeError(\n            f"Matriz contém {len(matrix.tables)} tabelas; esperado {expected_table_count} conforme a fonte Markdown"\n        )\n    if any(t.style is None or t.style.name != "Table Grid" for t in matrix.tables):\n        raise RuntimeError("Matriz contém tabela sem a grade institucional Table Grid")\n'''
+          if old_matrix not in text:
+              raise SystemExit('expected obsolete two-table validation not found')
+          text = text.replace(old_matrix, new_matrix, 1)
+
           path.write_text(text, encoding='utf-8')
           PY
 
