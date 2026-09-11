@@ -371,7 +371,46 @@ public sealed class ProbabilisticLinkageBatchRunner(
               )
         """;
 
+    internal static string PublicationIntegrityGuardSql() =>
+        """
+        DECLARE @run_modelo_id UNIQUEIDENTIFIER,
+                @run_modelo_versao INT,
+                @run_elegiveis BIGINT,
+                @itens BIGINT;
 
+        SELECT @run_modelo_id=modelo_id,
+               @run_modelo_versao=modelo_versao,
+               @run_elegiveis=registros_elegiveis
+        FROM identidade.linkage_run WITH (UPDLOCK,HOLDLOCK)
+        WHERE linkage_run_id=@run_id;
+
+        SELECT @itens=COUNT_BIG(*)
+        FROM identidade.linkage_run_item WITH (HOLDLOCK)
+        WHERE linkage_run_id=@run_id;
+
+        IF @run_elegiveis IS NULL OR @run_elegiveis<>@elegiveis OR @itens<>@elegiveis
+            THROW 51108, 'Universo materializado diverge do cabeçalho/execução; publicação recusada.', 1;
+
+        IF EXISTS (
+            SELECT 1
+            FROM identidade.linkage_resultado r WITH (HOLDLOCK)
+            WHERE r.linkage_run_id=@run_id
+              AND (r.modelo_id<>@run_modelo_id OR r.modelo_versao<>@run_modelo_versao)
+        )
+            THROW 51109, 'Resultados misturam modelo/versão diferentes do linkage_run; publicação recusada.', 1;
+
+        IF EXISTS (
+            SELECT 1
+            FROM identidade.linkage_resultado r WITH (HOLDLOCK)
+            WHERE r.linkage_run_id=@run_id
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM identidade.linkage_run_item i WITH (HOLDLOCK)
+                    WHERE i.linkage_run_id=r.linkage_run_id
+                      AND i.pessoa_observacao_id=r.pessoa_observacao_id)
+        )
+            THROW 51110, 'Resultado fora do universo materializado do linkage_run; publicação recusada.', 1;
+        """;
 
     private async Task PersistBatchAsync(
         Guid runId,
@@ -439,7 +478,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
         try
         {
             var command = new SqlCommand(
-                """
+                $"""
                 DECLARE @lock_result INT;
                 EXEC @lock_result = sys.sp_getapplock
                     @Resource='Jornada.Linkage.Runner.Publish',
@@ -458,10 +497,12 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 FROM identidade.linkage_resultado WITH (HOLDLOCK)
                 WHERE linkage_run_id=@run_id;
 
-                IF @status<>'EXECUTANDO'
+                IF @status IS NULL OR @status<>'EXECUTANDO'
                     THROW 51105, 'Somente run EXECUTANDO pode ser publicado.', 1;
                 IF @run_avaliados<>@avaliados OR @resultados<>@avaliados OR @avaliados<>@elegiveis
                     THROW 51106, 'Contagens do run não fecham; publicação recusada.', 1;
+
+                {PublicationIntegrityGuardSql()}
 
                 UPDATE identidade.linkage_run
                 SET status='PUBLICADO', finalizado_em=@fim, publicado_em=@fim
