@@ -3,9 +3,13 @@ using Jornada.Contracts;
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
-/// Vocabulário canônico de atributos que o otimizador deve considerar no espaço de busca do blocking
-/// probabilístico, executado somente quando não há CPF válido para resolução determinística.
-/// A presença no catálogo não promove o atributo automaticamente para a política operacional.
+/// Vocabulário canônico de compatibilidade do blocking probabilístico.
+///
+/// As features não são mais tratadas como atributos originais da Pessoa: FirstName,
+/// Surnames, LastName e componentes de data são derivações calculadas. O espaço corrente
+/// é gerado pelo ResolutionProjectionPlanner a partir dos atributos originais e dos modelos
+/// de resolução homologados. A presença na projeção apenas autoriza avaliação pelo Calibrador;
+/// não promove automaticamente a feature para a política operacional.
 /// </summary>
 public static class BlockingCandidateFeatureCatalog
 {
@@ -21,21 +25,28 @@ public static class BlockingCandidateFeatureCatalog
     public const string BirthMonth = BlockingFeatureNames.BirthMonth;
     public const string BirthYear = BlockingFeatureNames.BirthYear;
 
-    public static IReadOnlyList<string> RequiredOptimizerCandidates { get; } =
-        new[]
-        {
-            FullName,
-            FirstName,
-            Surnames,
-            LastName,
-            MotherFullName,
-            MotherFirstName,
-            MotherSurnames,
-            MotherLastName,
-            BirthDay,
-            BirthMonth,
-            BirthYear
-        };
+    /// <summary>
+    /// Projeção inicial equivalente ao comportamento operacional anterior. Ela é gerada,
+    /// não hardcoded: nome, nome da mãe e data de nascimento são os atributos originais
+    /// atualmente presentes no corpus M/U do Calibrador. Novos atributos podem ser passados
+    /// ao ResolutionProjectionPlanner sem alterar a lógica de busca de ruleset.
+    /// </summary>
+    public static ResolutionProjectionPlan CurrentResolutionProjectionPlan { get; } =
+        ResolutionProjectionPlanner.Build(
+            new ResolutionSourceAttribute[]
+            {
+                new("nome_completo", ResolutionAttributeSemantic.PersonName, "PERSON_NAME"),
+                new("nome_mae", ResolutionAttributeSemantic.PersonName, "MOTHER_NAME"),
+                new("data_nascimento", ResolutionAttributeSemantic.Date, "BIRTH_DATE")
+            },
+            "PERSON_RESOLUTION_PROJECTION_V1");
+
+    public static IReadOnlyList<string> CalibratorCandidates { get; } =
+        CurrentResolutionProjectionPlan.BlockingCandidateFeatures;
+
+    // Compatibilidade temporária com chamadas/testes anteriores. Não representa outro componente:
+    // o "optimizer" histórico é algoritmo interno do próprio Calibrador.
+    public static IReadOnlyList<string> RequiredOptimizerCandidates => CalibratorCandidates;
 
     public static bool IsNameFeature(string field) =>
         string.Equals(field, FullName, StringComparison.Ordinal) ||
