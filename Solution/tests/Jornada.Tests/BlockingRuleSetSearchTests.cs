@@ -34,6 +34,70 @@ public sealed class BlockingRuleSetSearchTests
     }
 
     [Test]
+    public void SearchBest_CanSelectIntersectionOfDerivedNameAndBirthFeature()
+    {
+        var name = BlockingCandidateFeatureCatalog.FullNameWithoutParticles;
+        var year = BlockingCandidateFeatureCatalog.BirthYear;
+        var observations = new[]
+        {
+            Obs(true, (name, true), (year, true)),
+            Obs(true, (name, true), (year, true)),
+            Obs(false, (name, true), (year, false)),
+            Obs(false, (name, true), (year, false)),
+            Obs(false, (name, false), (year, true)),
+            Obs(false, (name, false), (year, true))
+        };
+
+        var best = BlockingRuleSetSearch.SearchBest(
+            observations,
+            new[] { name, year },
+            new BlockingRuleSetSearchOptions(
+                MaxFieldsPerPass: 2,
+                MaxPasses: 1,
+                PrimitivePoolSize: 3,
+                MinimumTrueMatchRecall: 1d));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(best.Passes, Has.Count.EqualTo(1));
+            Assert.That(best.Passes[0].Fields, Is.EquivalentTo(new[] { name, year }));
+            Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(1d));
+            Assert.That(best.Diagnostic.ReductionRatio, Is.EqualTo(1d));
+        });
+    }
+
+    [Test]
+    public void SearchBest_DoesNotKeepRedundantIntersectionWhenMetricsAreIdentical()
+    {
+        var normalized = BlockingCandidateFeatureCatalog.FullName;
+        var noDiacritics = BlockingCandidateFeatureCatalog.FullNameUpperNoDiacritics;
+        var observations = new[]
+        {
+            Obs(true, (normalized, true), (noDiacritics, true)),
+            Obs(true, (normalized, true), (noDiacritics, true)),
+            Obs(false, (normalized, false), (noDiacritics, false)),
+            Obs(false, (normalized, false), (noDiacritics, false))
+        };
+
+        var best = BlockingRuleSetSearch.SearchBest(
+            observations,
+            new[] { normalized, noDiacritics },
+            new BlockingRuleSetSearchOptions(
+                MaxFieldsPerPass: 2,
+                MaxPasses: 1,
+                PrimitivePoolSize: 3,
+                MinimumTrueMatchRecall: 1d));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(best.Passes, Has.Count.EqualTo(1));
+            Assert.That(best.Passes[0].Fields, Has.Count.EqualTo(1));
+            Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(1d));
+            Assert.That(best.Diagnostic.ReductionRatio, Is.EqualTo(1d));
+        });
+    }
+
+    [Test]
     public void SearchBest_IsDeterministicWhenFeatureInputOrderChanges()
     {
         var observations = new[]
