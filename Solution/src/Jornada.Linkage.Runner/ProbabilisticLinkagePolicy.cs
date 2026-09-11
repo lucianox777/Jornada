@@ -12,6 +12,16 @@ internal sealed record LinkageModel(
         new(ModelId, Version, AlgorithmVersion, Threshold, ConflictMargin);
 }
 
+/// <summary>
+/// Snapshot operacional imutável de um modelo consumível e do ruleset que governa seu blocking.
+/// Um modelo validado é semanticamente imutável; congelar o par evita reler regras durante cada
+/// observação e impede que um mesmo processo misture gerações de blocking para o mesmo modelo.
+/// </summary>
+internal sealed record LinkageRuntimeSnapshot(LinkageModel Model, LinkageDynamicRuleSet? RuleSet)
+{
+    internal ProbabilisticLinkageModelRef Reference => Model.Reference;
+}
+
 internal sealed record LinkageCandidate(Guid PessoaUuid, string NomeCompleto, DateOnly DataNascimento, string NomeMae);
 internal sealed record CandidateScore(Guid PessoaUuid, decimal Score);
 

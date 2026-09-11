@@ -10,54 +10,16 @@ namespace Jornada.Linkage.Runner;
 /// Score probabilístico Fellegi-Sunter operacional para registros sem CPF.
 /// Modelos com ruleset persistido usam a projeção indexada identidade.blocking_chave.
 /// Modelos legados preservam integralmente o blocking histórico por data de nascimento.
+/// O modelo e seu ruleset são congelados juntos no primeiro carregamento do modelo no processo.
 /// </summary>
 public sealed class SqlProbabilisticIdentityLinkage(
     IConfiguration configuration,
     IOperationalSqlAdapter operationalSql,
     ILogger<SqlProbabilisticIdentityLinkage> logger) : IProbabilisticIdentityLinkage
 {
-    private readonly ConcurrentDictionary<Guid, LinkageModel> modelCache = new();
+    private readonly ConcurrentDictionary<Guid, LinkageRuntimeSnapshot> runtimeCache = new();
 
     public async Task<ProbabilisticLinkageModelRef> GetActiveModelAsync(CancellationToken ct)
-    {
-        var model = await LoadActiveModelAsync(ct);
-        modelCache[model.ModelId] = model;
-        return new ProbabilisticLinkageModelRef(
-            model.ModelId,
-            model.Version,
-            model.AlgorithmVersion,
-            model.Threshold,
-            model.ConflictMargin);
-    }
-
-    public async Task<ProbabilisticLinkageModelRef> GetModelByVersionAsync(int version, CancellationToken ct)
-    {
-        var model = await LoadModelByVersionAsync(version, ct);
-        modelCache[model.ModelId] = model;
-        return new ProbabilisticLinkageModelRef(
-            model.ModelId,
-            model.Version,
-            model.AlgorithmVersion,
-            model.Threshold,
-            model.ConflictMargin);
-    }
-
-    public async Task<ProbabilisticLinkageDecision> ResolveWithoutCpfAsync(
-        IdentityObservation observation, Guid modeloId, CancellationToken ct)
-    {
-        if (!string.IsNullOrWhiteSpace(observation.Cpf))
-            throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
-
-        var model = modelCache.TryGetValue(modeloId, out var cached)
-            ? cached
-            : await LoadModelByIdAsync(modeloId, ct);
-        modelCache[modeloId] = model;
-
-        var candidates = await LoadCandidatesAsync(observation, model, ct);
-        return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
-    }
-
-    private async Task<LinkageModel> LoadActiveModelAsync(CancellationToken ct)
     {
         await using var connection = await operationalSql.OpenAsync(ct);
         var idCommand = new SqlCommand(
@@ -65,10 +27,12 @@ public sealed class SqlProbabilisticIdentityLinkage(
         var modelId = await idCommand.ExecuteScalarAsync(ct);
         if (modelId is not Guid id)
             throw new InvalidOperationException("Não existe modelo probabilístico ATIVO.");
-        return await LoadModelByIdAsync(id, ct);
+
+        var snapshot = await GetOrLoadRuntimeSnapshotAsync(id, ct);
+        return snapshot.Reference;
     }
 
-    private async Task<LinkageModel> LoadModelByVersionAsync(int version, CancellationToken ct)
+    public async Task<ProbabilisticLinkageModelRef> GetModelByVersionAsync(int version, CancellationToken ct)
     {
         await using var connection = await operationalSql.OpenAsync(ct);
         var command = new SqlCommand(
@@ -78,7 +42,44 @@ public sealed class SqlProbabilisticIdentityLinkage(
         var id = await command.ExecuteScalarAsync(ct);
         if (id is not Guid modelId)
             throw new InvalidOperationException($"Modelo probabilístico v{version} não encontrado ou ainda está em RASCUNHO.");
-        return await LoadModelByIdAsync(modelId, ct);
+
+        var snapshot = await GetOrLoadRuntimeSnapshotAsync(modelId, ct);
+        return snapshot.Reference;
+    }
+
+    public async Task<ProbabilisticLinkageDecision> ResolveWithoutCpfAsync(
+        IdentityObservation observation, Guid modeloId, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(observation.Cpf))
+            throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
+
+        var snapshot = await GetOrLoadRuntimeSnapshotAsync(modeloId, ct);
+        var model = snapshot.Model;
+        var candidates = await LoadCandidatesAsync(observation, snapshot, ct);
+        return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
+    }
+
+    private async Task<LinkageRuntimeSnapshot> GetOrLoadRuntimeSnapshotAsync(Guid modelId, CancellationToken ct)
+    {
+        if (runtimeCache.TryGetValue(modelId, out var cached))
+            return cached;
+
+        var model = await LoadModelByIdAsync(modelId, ct);
+        await using var connection = await operationalSql.OpenAsync(ct);
+        var ruleSet = await LinkageRuleSetReader.TryLoadAsync(connection, modelId, ct);
+        var loaded = new LinkageRuntimeSnapshot(model, ruleSet);
+        var snapshot = runtimeCache.GetOrAdd(modelId, loaded);
+
+        logger.LogInformation(
+            "Snapshot probabilístico congelado. ModeloId={ModelId}; Versão={Version}; RuleSet={RuleSet}; RuleSetFingerprint={RuleSetFingerprint}; Projection={Projection}; ProjectionFingerprint={ProjectionFingerprint}",
+            snapshot.Model.ModelId,
+            snapshot.Model.Version,
+            snapshot.RuleSet?.RuleSetVersion ?? "LEGACY",
+            snapshot.RuleSet?.FingerprintSha256 ?? "NONE",
+            snapshot.RuleSet?.ProjectionSchemaVersion ?? "NONE",
+            snapshot.RuleSet?.ProjectionFingerprintSha256 ?? "NONE");
+
+        return snapshot;
     }
 
     private async Task<LinkageModel> LoadModelByIdAsync(Guid modelId, CancellationToken ct)
@@ -124,9 +125,10 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
     private async Task<IReadOnlyList<LinkageCandidate>> LoadCandidatesAsync(
         IdentityObservation observation,
-        LinkageModel model,
+        LinkageRuntimeSnapshot snapshot,
         CancellationToken ct)
     {
+        var model = snapshot.Model;
         var maxCandidates = Math.Clamp(
             configuration.GetValue("ProbabilisticLinkage:MaxCandidatesPerBlock", 100000),
             1000, 1000000);
@@ -135,11 +137,10 @@ public sealed class SqlProbabilisticIdentityLinkage(
             configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900));
 
         await using var connection = await operationalSql.OpenAsync(ct);
-        var ruleSet = await LinkageRuleSetReader.TryLoadAsync(connection, model.ModelId, ct);
-        if (ruleSet is not null)
+        if (snapshot.RuleSet is { } ruleSet)
         {
             logger.LogDebug(
-                "Blocking dinâmico selecionado. ModeloId={ModelId}; RuleSet={RuleSet}; Fingerprint={Fingerprint}",
+                "Blocking dinâmico congelado selecionado. ModeloId={ModelId}; RuleSet={RuleSet}; Fingerprint={Fingerprint}",
                 model.ModelId,
                 ruleSet.RuleSetVersion,
                 ruleSet.FingerprintSha256);
