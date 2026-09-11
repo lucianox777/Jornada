@@ -5,13 +5,13 @@ namespace Jornada.Tests;
 public sealed class BlockingPhysicalFeatureCatalogTests
 {
     [Test]
-    public void RequiredOptimizerFeatures_CoversEveryRequiredLogicalCandidate()
+    public void CalibratorFeatures_CoversEveryRequiredLogicalCandidate()
     {
-        var physical = BlockingPhysicalFeatureCatalog.RequiredOptimizerFeatures
+        var physical = BlockingPhysicalFeatureCatalog.RequiredCalibratorFeatures
             .Select(static x => x.Feature)
             .OrderBy(static x => x, StringComparer.Ordinal)
             .ToArray();
-        var logical = BlockingCandidateFeatureCatalog.RequiredOptimizerCandidates
+        var logical = BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates
             .OrderBy(static x => x, StringComparer.Ordinal)
             .ToArray();
 
