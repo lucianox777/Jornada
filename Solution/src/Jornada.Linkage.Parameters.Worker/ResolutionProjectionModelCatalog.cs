@@ -39,7 +39,7 @@ public enum ResolutionMaterializationKind
     MultiValuedProjection
 }
 
-public sealed record ResolutionSourceAttribute(
+public sealed record ResolutionSourceField(
     string Code,
     ResolutionAttributeSemantic Semantic,
     string? CompatibilityProfile = null)
@@ -110,7 +110,7 @@ public sealed record ResolutionProjectedFeature(
 public sealed record ResolutionProjectionPlan(
     string SchemaVersion,
     string CatalogVersion,
-    IReadOnlyList<ResolutionSourceAttribute> Sources,
+    IReadOnlyList<ResolutionSourceField> Sources,
     IReadOnlyList<ResolutionProjectedFeature> Features,
     string Fingerprint)
 {
@@ -169,7 +169,7 @@ public static class ResolutionProjectionPlanner
     public const string PlannerVersion = "RESOLUTION_PROJECTION_PLANNER_V3";
 
     public static ResolutionProjectionPlan Build(
-        IEnumerable<ResolutionSourceAttribute> attributes,
+        IEnumerable<ResolutionSourceField> attributes,
         string schemaVersion)
     {
         ArgumentNullException.ThrowIfNull(attributes);
@@ -235,11 +235,11 @@ public static class ResolutionProjectionPlanner
     }
 
     private static string ResolveFeatureName(
-        ResolutionSourceAttribute source,
+        ResolutionSourceField source,
         HomologatedResolutionTransformation transformation)
     {
         var profile = source.CompatibilityProfile?.Trim().ToUpperInvariant();
-        var suffix = ResolutionSourceAttribute.Canonicalize(transformation.OutputSuffix);
+        var suffix = ResolutionSourceField.Canonicalize(transformation.OutputSuffix);
 
         if (profile == "PERSON_NAME")
         {
@@ -286,13 +286,13 @@ public static class ResolutionProjectionPlanner
     }
 
     private static string GenericFeatureName(
-        ResolutionSourceAttribute source,
+        ResolutionSourceField source,
         HomologatedResolutionTransformation transformation) =>
-        $"{source.CanonicalCode}__{ResolutionSourceAttribute.Canonicalize(transformation.OutputSuffix)}";
+        $"{source.CanonicalCode}__{ResolutionSourceField.Canonicalize(transformation.OutputSuffix)}";
 
     private static string Fingerprint(
         string schemaVersion,
-        IReadOnlyList<ResolutionSourceAttribute> sources,
+        IReadOnlyList<ResolutionSourceField> sources,
         IReadOnlyList<ResolutionProjectedFeature> features)
     {
         var canonical = new StringBuilder()
