@@ -165,8 +165,8 @@ public sealed class IndependentResolutionWeightProvenanceTests
             CapturedAt.AddHours(1),
             new[]
             {
-                Adjustment(IndependentResolutionWeightAdjustmentKind.Selection, selection, "s"),
-                Adjustment(IndependentResolutionWeightAdjustmentKind.NonResponse, nonResponse, "n"),
+                Adjustment(IndependentResolutionWeightAdjustmentKind.Selection, selection, "a"),
+                Adjustment(IndependentResolutionWeightAdjustmentKind.NonResponse, nonResponse, "b"),
                 Adjustment(IndependentResolutionWeightAdjustmentKind.Calibration, calibration, "c")
             });
         return new GovernedIndependentResolutionSurveyObservation(survey, provenance);
