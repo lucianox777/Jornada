@@ -10,7 +10,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 public static class PersonResolutionAttributeCatalog
 {
     public const string CatalogVersion = PersonResolutionContractCatalog.CatalogVersion;
-    public const string ProjectionSchemaVersion = "PERSON_RESOLUTION_PROJECTION_V2";
+    public const string ProjectionSchemaVersion = PersonResolutionProjectionContract.SchemaVersion;
 
     public const string FullName = PersonResolutionContractCatalog.FullName;
     public const string MotherName = PersonResolutionContractCatalog.MotherName;
