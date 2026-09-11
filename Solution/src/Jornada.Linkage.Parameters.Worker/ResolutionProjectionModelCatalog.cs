@@ -67,6 +67,10 @@ public sealed record ResolutionSourceAttribute(
     }
 }
 
+/// <summary>
+/// Adaptador de compatibilidade para o planner introduzido na primeira fatia. A fonte de
+/// verdade dos algoritmos e de suas colunas passou a ser HomologatedResolutionAlgorithmCatalog.
+/// </summary>
 public sealed record HomologatedResolutionTransformation(
     string Algorithm,
     string AlgorithmVersion,
@@ -99,9 +103,9 @@ public sealed record ResolutionProjectedFeature(
     bool CandidateForBlocking);
 
 /// <summary>
-/// Artefato gerado pelo Calibrador a partir dos atributos originais e dos modelos homologados.
-/// Ele descreve o vocabulário de projeções disponível. O BLOCKING_PLAN é outro artefato e
-/// apenas seleciona/combina features desta projeção.
+/// Artefato gerado pelo Calibrador a partir dos atributos originais e dos algoritmos
+/// homologados. Ele descreve o vocabulário de projeções disponível. O BLOCKING_PLAN é outro
+/// artefato e apenas seleciona/combina features desta projeção.
 /// </summary>
 public sealed record ResolutionProjectionPlan(
     string SchemaVersion,
@@ -119,54 +123,34 @@ public sealed record ResolutionProjectionPlan(
 }
 
 /// <summary>
-/// Catálogo pequeno e governado de modelos/algoritmos homologados. Estar no catálogo apenas
-/// autoriza a experimentação. Poder discriminante, combinações e promoção física são decisões
-/// do Calibrador sobre o corpus observado.
-///
-/// Esta V1 contém somente transformações já existentes no código da Jornada: normalização
-/// canônica de nomes, decomposição em primeiro/sobrenomes/último nome e componentes de data.
-/// Não introduz algoritmo fonético ou similaridade novo.
+/// Fachada de compatibilidade que expõe os algoritmos homologados agrupados por semântica.
+/// Diferente da versão inicial, não existe mais a premissa de um único algoritmo por tipo de
+/// atributo: novos algoritmos podem ser registrados sem alterar o planner.
 /// </summary>
 public static class HomologatedResolutionModelCatalog
 {
-    public const string CatalogVersion = "RESOLUTION_MODEL_CATALOG_V1";
-
-    public const string PersonNameModel = "PERSON_NAME_COMPONENTS";
-    public const string DateComponentsModel = "DATE_COMPONENTS";
-
-    public const string CanonicalNameAlgorithm = "IDENTITY_TEXT_CANONICAL";
-    public const string NameFirstAlgorithm = "NAME_FIRST_TOKEN";
-    public const string NameSurnamesAlgorithm = "NAME_SURNAME_TOKENS";
-    public const string NameLastAlgorithm = "NAME_LAST_TOKEN";
-    public const string DateDayAlgorithm = "DATE_DAY";
-    public const string DateMonthAlgorithm = "DATE_MONTH";
-    public const string DateYearAlgorithm = "DATE_YEAR";
+    public const string CatalogVersion = HomologatedResolutionAlgorithmCatalog.CatalogVersion;
 
     private static readonly IReadOnlyDictionary<ResolutionAttributeSemantic, HomologatedResolutionModel> Models =
-        new Dictionary<ResolutionAttributeSemantic, HomologatedResolutionModel>
-        {
-            [ResolutionAttributeSemantic.PersonName] = new(
-                PersonNameModel,
-                "V1",
-                ResolutionAttributeSemantic.PersonName,
-                new HomologatedResolutionTransformation[]
-                {
-                    new(CanonicalNameAlgorithm, "V1", "normalized", ResolutionMaterializationKind.ProcessorMaterialized),
-                    new(NameFirstAlgorithm, "V1", "first", ResolutionMaterializationKind.ProcessorMaterialized),
-                    new(NameSurnamesAlgorithm, "V1", "surnames", ResolutionMaterializationKind.MultiValuedProjection, MultiValued: true),
-                    new(NameLastAlgorithm, "V1", "last", ResolutionMaterializationKind.ProcessorMaterialized)
-                }),
-            [ResolutionAttributeSemantic.Date] = new(
-                DateComponentsModel,
-                "V1",
-                ResolutionAttributeSemantic.Date,
-                new HomologatedResolutionTransformation[]
-                {
-                    new(DateDayAlgorithm, "V1", "day", ResolutionMaterializationKind.GeneratedColumn),
-                    new(DateMonthAlgorithm, "V1", "month", ResolutionMaterializationKind.GeneratedColumn),
-                    new(DateYearAlgorithm, "V1", "year", ResolutionMaterializationKind.GeneratedColumn)
-                })
-        };
+        HomologatedResolutionAlgorithmCatalog.All
+            .GroupBy(static algorithm => algorithm.Semantic)
+            .ToDictionary(
+                static group => group.Key,
+                static group => new HomologatedResolutionModel(
+                    $"{group.Key.ToString().ToUpperInvariant()}_ALGORITHM_SET",
+                    CatalogVersion,
+                    group.Key,
+                    group
+                        .OrderBy(static algorithm => algorithm.QualifiedAlgorithm, StringComparer.Ordinal)
+                        .SelectMany(static algorithm => algorithm.OutputColumns.Select(column =>
+                            new HomologatedResolutionTransformation(
+                                algorithm.Algorithm,
+                                algorithm.AlgorithmVersion,
+                                column.CanonicalOutputSuffix,
+                                column.Materialization,
+                                column.MultiValued,
+                                column.CandidateForBlocking)))
+                        .ToArray()));
 
     public static IReadOnlyCollection<HomologatedResolutionModel> All => Models.Values.ToArray();
 
@@ -176,12 +160,13 @@ public static class HomologatedResolutionModelCatalog
 
 /// <summary>
 /// Gera automaticamente o esquema de projeções a partir dos atributos originais. O catálogo
-/// define apenas técnicas homologadas; a existência de uma técnica não a promove para o
-/// BLOCKING_PLAN. O Calibrador mede seu valor antes da publicação operacional.
+/// define apenas algoritmos já implementados/homologados e suas colunas fixas por versão;
+/// a existência no catálogo não promove a feature para o BLOCKING_PLAN. O Calibrador mede
+/// seu valor antes da publicação operacional.
 /// </summary>
 public static class ResolutionProjectionPlanner
 {
-    public const string PlannerVersion = "RESOLUTION_PROJECTION_PLANNER_V1";
+    public const string PlannerVersion = "RESOLUTION_PROJECTION_PLANNER_V2";
 
     public static ResolutionProjectionPlan Build(
         IEnumerable<ResolutionSourceAttribute> attributes,
@@ -237,6 +222,7 @@ public static class ResolutionProjectionPlanner
         var ordered = features
             .OrderBy(static feature => feature.Feature, StringComparer.Ordinal)
             .ThenBy(static feature => feature.SourceAttribute, StringComparer.Ordinal)
+            .ThenBy(static feature => feature.Algorithm, StringComparer.Ordinal)
             .ToArray();
         var fingerprint = Fingerprint(schemaVersion.Trim(), sources, ordered);
 
@@ -253,37 +239,39 @@ public static class ResolutionProjectionPlanner
         HomologatedResolutionTransformation transformation)
     {
         var profile = source.CompatibilityProfile?.Trim().ToUpperInvariant();
+        var suffix = ResolutionSourceAttribute.Canonicalize(transformation.OutputSuffix);
+
         if (profile == "PERSON_NAME")
         {
-            return transformation.Algorithm switch
+            return suffix switch
             {
-                HomologatedResolutionModelCatalog.CanonicalNameAlgorithm => "name_full",
-                HomologatedResolutionModelCatalog.NameFirstAlgorithm => "name_first",
-                HomologatedResolutionModelCatalog.NameSurnamesAlgorithm => "name_surnames",
-                HomologatedResolutionModelCatalog.NameLastAlgorithm => "name_last",
+                "normalized" => "name_full",
+                "first" => "name_first",
+                "surnames" => "name_surnames",
+                "last" => "name_last",
                 _ => GenericFeatureName(source, transformation)
             };
         }
 
         if (profile == "MOTHER_NAME")
         {
-            return transformation.Algorithm switch
+            return suffix switch
             {
-                HomologatedResolutionModelCatalog.CanonicalNameAlgorithm => "mother_name_full",
-                HomologatedResolutionModelCatalog.NameFirstAlgorithm => "mother_name_first",
-                HomologatedResolutionModelCatalog.NameSurnamesAlgorithm => "mother_name_surnames",
-                HomologatedResolutionModelCatalog.NameLastAlgorithm => "mother_name_last",
+                "normalized" => "mother_name_full",
+                "first" => "mother_name_first",
+                "surnames" => "mother_name_surnames",
+                "last" => "mother_name_last",
                 _ => GenericFeatureName(source, transformation)
             };
         }
 
         if (profile == "BIRTH_DATE")
         {
-            return transformation.Algorithm switch
+            return suffix switch
             {
-                HomologatedResolutionModelCatalog.DateDayAlgorithm => "birth_day",
-                HomologatedResolutionModelCatalog.DateMonthAlgorithm => "birth_month",
-                HomologatedResolutionModelCatalog.DateYearAlgorithm => "birth_year",
+                "day" => "birth_day",
+                "month" => "birth_month",
+                "year" => "birth_year",
                 _ => GenericFeatureName(source, transformation)
             };
         }
