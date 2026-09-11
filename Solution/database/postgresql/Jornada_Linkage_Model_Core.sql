@@ -121,10 +121,13 @@ CREATE INDEX IF NOT EXISTS ix_pg_gold_pessoa_nascimento_linkage
 
 -- Projeção operacional derivada para blocking dinâmico. Não é nova verdade cadastral:
 -- pode ser reconstruída integralmente a partir da Gold/histórico e da versão de normalização.
--- Nomes são aliases versionáveis; nascimento é dado estável e mudança representa correção excepcional.
+-- O par projection_* identifica a transformação física; NULL/NULL preserva somente linhas legadas
+-- cuja linhagem de projeção não pode ser inferida retroativamente.
 CREATE TABLE IF NOT EXISTS identidade.blocking_chave(
     pessoa_uuid UUID NOT NULL REFERENCES identidade.pessoa(pessoa_uuid),
     normalizacao_versao VARCHAR(80) NOT NULL,
+    projection_schema_version VARCHAR(120) NULL DEFAULT 'PERSON_RESOLUTION_PROJECTION_V2',
+    projection_fingerprint_sha256 CHAR(64) NULL DEFAULT 'd186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4',
     atributo VARCHAR(80) NOT NULL,
     valor_normalizado VARCHAR(500) NOT NULL,
     semantica_temporal VARCHAR(30) NOT NULL CHECK(semantica_temporal IN('STABLE_IDENTITY_DATUM','VERSIONED_ALIAS')),
@@ -133,9 +136,37 @@ CREATE TABLE IF NOT EXISTS identidade.blocking_chave(
     gerado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT pk_pg_blocking_chave PRIMARY KEY(pessoa_uuid,normalizacao_versao,atributo,valor_normalizado,vigencia_inicio),
     CONSTRAINT ck_pg_blocking_chave_normalizacao CHECK(BTRIM(normalizacao_versao)<>''),
+    CONSTRAINT ck_pg_blocking_chave_projection_pair CHECK(
+        (projection_schema_version IS NULL AND projection_fingerprint_sha256 IS NULL)
+        OR (projection_schema_version IS NOT NULL AND BTRIM(projection_schema_version)<>''
+            AND projection_fingerprint_sha256 IS NOT NULL AND LENGTH(projection_fingerprint_sha256)=64)),
     CONSTRAINT ck_pg_blocking_chave_atributo CHECK(BTRIM(atributo)<>''),
     CONSTRAINT ck_pg_blocking_chave_valor CHECK(BTRIM(valor_normalizado)<>''),
     CONSTRAINT ck_pg_blocking_chave_vigencia CHECK(vigencia_fim IS NULL OR vigencia_fim>=vigencia_inicio)
 );
+ALTER TABLE identidade.blocking_chave
+    ADD COLUMN IF NOT EXISTS projection_schema_version VARCHAR(120) NULL;
+ALTER TABLE identidade.blocking_chave
+    ADD COLUMN IF NOT EXISTS projection_fingerprint_sha256 CHAR(64) NULL;
+ALTER TABLE identidade.blocking_chave
+    ALTER COLUMN projection_schema_version SET DEFAULT 'PERSON_RESOLUTION_PROJECTION_V2';
+ALTER TABLE identidade.blocking_chave
+    ALTER COLUMN projection_fingerprint_sha256 SET DEFAULT 'd186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4';
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid='identidade.blocking_chave'::regclass
+          AND conname='ck_pg_blocking_chave_projection_pair') THEN
+        ALTER TABLE identidade.blocking_chave ADD CONSTRAINT ck_pg_blocking_chave_projection_pair CHECK(
+            (projection_schema_version IS NULL AND projection_fingerprint_sha256 IS NULL)
+            OR (projection_schema_version IS NOT NULL AND BTRIM(projection_schema_version)<>''
+                AND projection_fingerprint_sha256 IS NOT NULL AND LENGTH(projection_fingerprint_sha256)=64));
+    END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS ix_pg_blocking_chave_lookup
     ON identidade.blocking_chave(normalizacao_versao,atributo,valor_normalizado,vigencia_fim,pessoa_uuid);
+CREATE INDEX IF NOT EXISTS ix_pg_blocking_chave_projection_lookup
+    ON identidade.blocking_chave(
+        normalizacao_versao,projection_schema_version,projection_fingerprint_sha256,
+        atributo,valor_normalizado,vigencia_fim,pessoa_uuid);
