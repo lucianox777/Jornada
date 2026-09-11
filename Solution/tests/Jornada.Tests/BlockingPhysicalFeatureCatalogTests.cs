@@ -19,10 +19,16 @@ public sealed class BlockingPhysicalFeatureCatalogTests
     }
 
     [TestCase(BlockingCandidateFeatureCatalog.FullName)]
+    [TestCase(BlockingCandidateFeatureCatalog.FullNameUpper)]
+    [TestCase(BlockingCandidateFeatureCatalog.FullNameUpperNoDiacritics)]
+    [TestCase(BlockingCandidateFeatureCatalog.FullNameWithoutParticles)]
     [TestCase(BlockingCandidateFeatureCatalog.FirstName)]
     [TestCase(BlockingCandidateFeatureCatalog.Surnames)]
     [TestCase(BlockingCandidateFeatureCatalog.LastName)]
     [TestCase(BlockingCandidateFeatureCatalog.MotherFullName)]
+    [TestCase(BlockingCandidateFeatureCatalog.MotherFullNameUpper)]
+    [TestCase(BlockingCandidateFeatureCatalog.MotherFullNameUpperNoDiacritics)]
+    [TestCase(BlockingCandidateFeatureCatalog.MotherFullNameWithoutParticles)]
     [TestCase(BlockingCandidateFeatureCatalog.MotherFirstName)]
     [TestCase(BlockingCandidateFeatureCatalog.MotherSurnames)]
     [TestCase(BlockingCandidateFeatureCatalog.MotherLastName)]
