@@ -8,6 +8,7 @@ on:
       - 'Solution/database/postgresql/**'
       - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlCalibrationTests.cs'
       - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlCalibrationSafetyTests.cs'
+      - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlBlockingSelectionEvidenceTests.cs'
       - 'Solution/tests/Jornada.Tests/Unit/PostgreSqlCalibrationPolicyTests.cs'
       - 'Solution/scripts/postgresql-linkage-evidence.sh'
       - '.github/workflows/postgresql-linkage-calibration.yml'
@@ -19,6 +20,7 @@ on:
       - 'Solution/database/postgresql/**'
       - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlCalibrationTests.cs'
       - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlCalibrationSafetyTests.cs'
+      - 'Solution/tests/Jornada.Tests/Integration/PostgreSqlBlockingSelectionEvidenceTests.cs'
       - 'Solution/tests/Jornada.Tests/Unit/PostgreSqlCalibrationPolicyTests.cs'
       - 'Solution/scripts/postgresql-linkage-evidence.sh'
       - '.github/workflows/postgresql-linkage-calibration.yml'
@@ -90,6 +92,9 @@ jobs:
       - name: Real PostgreSQL calibration safety regressions
         run: |
           bash scripts/postgresql-linkage-evidence.sh run safety dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'TestCategory=PostgreSqlCalibrationSafety' --logger 'trx;LogFileName=postgresql-calibration-safety.trx' --results-directory "$JORNADA_LINKAGE_EVIDENCE_DIR"
+      - name: Blocking selection evidence regression
+        run: |
+          bash scripts/postgresql-linkage-evidence.sh run blocking-evidence dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter 'TestCategory=PostgreSqlBlockingSelectionEvidence' --logger 'trx;LogFileName=postgresql-blocking-selection-evidence.trx' --results-directory "$JORNADA_LINKAGE_EVIDENCE_DIR"
       - name: Summarize validation evidence
         if: always()
         run: bash scripts/postgresql-linkage-evidence.sh summary
