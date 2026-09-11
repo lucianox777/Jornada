@@ -40,12 +40,14 @@ public sealed record HomologatedResolutionAlgorithm(
 /// </summary>
 public static class HomologatedResolutionAlgorithmCatalog
 {
-    public const string CatalogVersion = "RESOLUTION_ALGORITHM_CATALOG_V2";
+    public const string CatalogVersion = "RESOLUTION_ALGORITHM_CATALOG_V3";
 
     public const string PersonNameBasicPtBrAlgorithm = "PERSON_NAME_BASIC_PTBR";
     public const string PersonNameBasicPtBrVersion = "V1";
     public const string PersonNameComponentsAlgorithm = "PERSON_NAME_COMPONENTS";
     public const string PersonNameComponentsVersion = "V2";
+    public const string PersonNameMetaphoneBrAlgorithm = "PERSON_NAME_METAPHONE_BR";
+    public const string PersonNameMetaphoneBrVersion = "V1";
     public const string DateComponentsAlgorithm = "DATE_COMPONENTS";
     public const string DateComponentsVersion = "V2";
     public const string BrazilianPhoneCanonicalAlgorithm = "TELEFONE_BR_CANONICO";
@@ -68,7 +70,7 @@ public static class HomologatedResolutionAlgorithmCatalog
             new[]
             {
                 "Solution/src/Jornada.Contracts/PersonNameBasicNormalization.cs#PersonNameBasicNormalization@PERSON_NAME_BASIC_PTBR_V1",
-                "Solution/src/Jornada.Contracts/BlockingProjectionKeys.cs#BlockingProjectionKeyProjector@BLOCKING_PROJECTION_KEY_PROJECTOR_V3"
+                "Solution/src/Jornada.Contracts/BlockingProjectionKeys.cs#BlockingProjectionKeyProjector"
             },
             new[]
             {
@@ -89,11 +91,30 @@ public static class HomologatedResolutionAlgorithmCatalog
             },
             new[]
             {
-                "Solution/src/Jornada.Contracts/BlockingProjectionKeys.cs#BlockingProjectionKeyProjector@BLOCKING_PROJECTION_KEY_PROJECTOR_V3",
+                "Solution/src/Jornada.Contracts/BlockingProjectionKeys.cs#BlockingProjectionKeyProjector",
                 "Solution/src/Jornada.Contracts/IdentityComparison.cs#NormalizeText"
             },
             new[]
             {
+                "Solution/tests/Jornada.Tests/BlockingProjectionKeyProjectorTests.cs"
+            }),
+
+        new(
+            PersonNameMetaphoneBrAlgorithm,
+            PersonNameMetaphoneBrVersion,
+            ResolutionAttributeSemantic.PersonName,
+            new ResolutionAlgorithmOutputColumn[]
+            {
+                new("phonetic", "phonetic", ResolutionMaterializationKind.ProcessorMaterialized)
+            },
+            new[]
+            {
+                "Solution/src/Jornada.Contracts/MetaphoneBr.cs#PERSON_NAME_METAPHONE_BR_V1",
+                "upstream:ipeadata-lab/metaphonebr@17fdee95581442cdcc98fddc30aea3079caf27ae"
+            },
+            new[]
+            {
+                "Solution/tests/Jornada.Tests/MetaphoneBrTests.cs",
                 "Solution/tests/Jornada.Tests/BlockingProjectionKeyProjectorTests.cs"
             }),
 
@@ -109,7 +130,7 @@ public static class HomologatedResolutionAlgorithmCatalog
             },
             new[]
             {
-                "Solution/src/Jornada.Contracts/BlockingProjectionKeys.cs#BlockingProjectionKeyProjector@BLOCKING_PROJECTION_KEY_PROJECTOR_V3"
+                "Solution/src/Jornada.Contracts/BlockingProjectionKeys.cs#BlockingProjectionKeyProjector"
             },
             new[]
             {
