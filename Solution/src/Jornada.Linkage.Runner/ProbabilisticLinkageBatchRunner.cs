@@ -324,18 +324,25 @@ public sealed class ProbabilisticLinkageBatchRunner(
         await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct);
         while (await reader.ReadAsync(ct))
         {
+            var pessoaObservacaoId = reader.GetInt64(0);
+            var cpf = reader.IsDBNull(1) ? null : reader.GetString(1);
+            var cpfAusenteMotivo = reader.IsDBNull(2) ? null : reader.GetString(2);
+            var nomeCompleto = reader.GetString(3);
+            var dataNascimento = DateOnly.FromDateTime(reader.GetDateTime(4));
+            var nomeMae = reader.GetString(5);
             var attributes = reader.IsDBNull(6)
                 ? Array.Empty<IdentityResolutionAttributeValue>()
                 : JsonSerializer.Deserialize<IdentityResolutionAttributeValue[]>(reader.GetString(6))
                     ?? Array.Empty<IdentityResolutionAttributeValue>();
+
             result.Add(new PendingRow(
-                reader.GetInt64(0),
+                pessoaObservacaoId,
                 new IdentityObservation(
-                    reader.IsDBNull(1) ? null : reader.GetString(1),
-                    reader.IsDBNull(2) ? null : reader.GetString(2),
-                    reader.GetString(3),
-                    DateOnly.FromDateTime(reader.GetDateTime(4)),
-                    reader.GetString(5),
+                    cpf,
+                    cpfAusenteMotivo,
+                    nomeCompleto,
+                    dataNascimento,
+                    nomeMae,
                     attributes)));
         }
         return result;
