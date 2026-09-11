@@ -38,7 +38,7 @@ jobs:
             echo "BASELINE $f pages=$(pdfinfo "$f" | awk '/^Pages:/ {print $2}')"
           done
 
-      - name: Repair matrix width handling in canonical generator
+      - name: Repair canonical document generator
         shell: bash
         run: |
           python3 - <<'PY'
@@ -46,11 +46,20 @@ jobs:
 
           path = Path('Solution/scripts/generate-document-deliverables.py')
           text = path.read_text(encoding='utf-8')
-          old = '        widths = [6.0, 4.7, 6.1, 9.9] if ncol == 4 else [5.4, 6.9, 14.4]\n'
-          new = '''        if ncol == 5:\n            widths = [2.4, 5.3, 5.3, 5.8, 8.1]\n        elif ncol == 4:\n            widths = [5.0, 4.4, 5.8, 11.7]\n        elif ncol == 3:\n            widths = [5.0, 7.0, 14.9]\n        else:\n            widths = [26.9 / ncol] * ncol\n'''
-          if old not in text:
+
+          old_widths = '        widths = [6.0, 4.7, 6.1, 9.9] if ncol == 4 else [5.4, 6.9, 14.4]\n'
+          new_widths = '''        if ncol == 5:\n            widths = [2.4, 5.3, 5.3, 5.8, 8.1]\n        elif ncol == 4:\n            widths = [5.0, 4.4, 5.8, 11.7]\n        elif ncol == 3:\n            widths = [5.0, 7.0, 14.9]\n        else:\n            widths = [26.9 / ncol] * ncol\n'''
+          if old_widths not in text:
               raise SystemExit('expected brittle matrix width expression not found')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          text = text.replace(old_widths, new_widths, 1)
+
+          old_pages = '''    expected_pages = [2, 2, 2, 8]\n    for path in docx_files + pdf_files:\n        if not path.is_file() or path.stat().st_size == 0:\n            raise RuntimeError(f"Artefato ausente/vazio: {path}")\n    for path, expected in zip(pdf_files, expected_pages):\n        pages = pdf_pages(path)\n        if pages != expected:\n            raise RuntimeError(f"Paginação inesperada em {path.name}: {pages}; esperado {expected}")\n'''
+          new_pages = '''    # Paginação exata não é um invariante semântico: ela varia com o motor de\n    # renderização e já divergia dos PDFs versionados (9/6/7/8 versus 2/2/2/8\n    # codificados anteriormente). Os intervalos abaixo detectam colapso ou\n    # explosão de layout sem rejeitar variação legítima do LibreOffice.\n    expected_page_ranges = [(8, 14), (5, 10), (6, 12), (7, 10)]\n    for path in docx_files + pdf_files:\n        if not path.is_file() or path.stat().st_size == 0:\n            raise RuntimeError(f"Artefato ausente/vazio: {path}")\n    for path, (minimum, maximum) in zip(pdf_files, expected_page_ranges):\n        pages = pdf_pages(path)\n        if pages < minimum or pages > maximum:\n            raise RuntimeError(\n                f"Paginação fora da faixa em {path.name}: {pages}; esperado entre {minimum} e {maximum}"\n            )\n'''
+          if old_pages not in text:
+              raise SystemExit('expected obsolete exact-page validation not found')
+          text = text.replace(old_pages, new_pages, 1)
+
+          path.write_text(text, encoding='utf-8')
           PY
 
       - name: Generate and validate DOCX/PDF deliverables
