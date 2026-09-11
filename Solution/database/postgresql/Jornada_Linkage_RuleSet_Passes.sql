@@ -1,5 +1,6 @@
 -- Jornada PostgreSQL: ruleset imutável de blocking associado ao modelo de linkage.
 -- Alterações de regra devem produzir nova versão/modelo.
+-- projection_* é um par separado do fingerprint lógico do ruleset e identifica as chaves físicas esperadas.
 
 CREATE TABLE IF NOT EXISTS identidade.linkage_ruleset(
     ruleset_id UUID PRIMARY KEY,
@@ -7,13 +8,35 @@ CREATE TABLE IF NOT EXISTS identidade.linkage_ruleset(
     ruleset_versao VARCHAR(120) NOT NULL CHECK(BTRIM(ruleset_versao)<>''),
     algoritmo_versao VARCHAR(80) NOT NULL CHECK(BTRIM(algoritmo_versao)<>''),
     fingerprint_sha256 CHAR(64) NOT NULL CHECK(LENGTH(fingerprint_sha256)=64),
+    projection_schema_version VARCHAR(120) NULL,
+    projection_fingerprint_sha256 CHAR(64) NULL,
     ibge_source_versao VARCHAR(200) NULL,
     ibge_fingerprint_sha256 CHAR(64) NULL,
     criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_pg_linkage_ruleset_projection_pair CHECK(
+        (projection_schema_version IS NULL AND projection_fingerprint_sha256 IS NULL)
+        OR (projection_schema_version IS NOT NULL AND BTRIM(projection_schema_version)<>''
+            AND projection_fingerprint_sha256 IS NOT NULL AND LENGTH(projection_fingerprint_sha256)=64)),
     CONSTRAINT ck_pg_linkage_ruleset_ibge_par CHECK(
         (ibge_source_versao IS NULL AND ibge_fingerprint_sha256 IS NULL)
         OR (ibge_source_versao IS NOT NULL AND ibge_fingerprint_sha256 IS NOT NULL AND LENGTH(ibge_fingerprint_sha256)=64))
 );
+ALTER TABLE identidade.linkage_ruleset
+    ADD COLUMN IF NOT EXISTS projection_schema_version VARCHAR(120) NULL;
+ALTER TABLE identidade.linkage_ruleset
+    ADD COLUMN IF NOT EXISTS projection_fingerprint_sha256 CHAR(64) NULL;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid='identidade.linkage_ruleset'::regclass
+          AND conname='ck_pg_linkage_ruleset_projection_pair') THEN
+        ALTER TABLE identidade.linkage_ruleset ADD CONSTRAINT ck_pg_linkage_ruleset_projection_pair CHECK(
+            (projection_schema_version IS NULL AND projection_fingerprint_sha256 IS NULL)
+            OR (projection_schema_version IS NOT NULL AND BTRIM(projection_schema_version)<>''
+                AND projection_fingerprint_sha256 IS NOT NULL AND LENGTH(projection_fingerprint_sha256)=64));
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS identidade.linkage_ruleset_passe(
     ruleset_id UUID NOT NULL REFERENCES identidade.linkage_ruleset(ruleset_id),
