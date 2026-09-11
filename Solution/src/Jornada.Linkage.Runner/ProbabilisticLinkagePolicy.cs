@@ -19,7 +19,16 @@ internal sealed record LinkageModel(
 /// </summary>
 internal sealed record LinkageRuntimeSnapshot(LinkageModel Model, LinkageDynamicRuleSet? RuleSet)
 {
-    internal ProbabilisticLinkageModelRef Reference => Model.Reference;
+    internal ProbabilisticLinkageModelRef Reference => Model.Reference with
+    {
+        BlockingContract = RuleSet is null
+            ? null
+            : new ProbabilisticLinkageBlockingContractRef(
+                RuleSet.RuleSetVersion,
+                RuleSet.FingerprintSha256,
+                RuleSet.ProjectionSchemaVersion,
+                RuleSet.ProjectionFingerprintSha256)
+    };
 }
 
 internal sealed record LinkageCandidate(Guid PessoaUuid, string NomeCompleto, DateOnly DataNascimento, string NomeMae);

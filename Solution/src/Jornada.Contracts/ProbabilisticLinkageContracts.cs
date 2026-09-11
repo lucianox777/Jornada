@@ -1,15 +1,28 @@
 namespace Jornada.Contracts;
 
 /// <summary>
+/// Identidade auditável do contrato de blocking congelado junto com o modelo.
+/// Null no model ref significa explicitamente o caminho legado sem ruleset persistido.
+/// </summary>
+public sealed record ProbabilisticLinkageBlockingContractRef(
+    string RuleSetVersion,
+    string RuleSetFingerprintSha256,
+    string? ProjectionSchemaVersion,
+    string? ProjectionFingerprintSha256);
+
+/// <summary>
 /// Referência imutável do modelo probabilístico capturado no início de uma execução.
-/// Um mesmo linkage_run_id nunca mistura versões de modelo.
+/// Um mesmo linkage_run_id nunca mistura versões de modelo nem contratos de blocking.
 /// </summary>
 public sealed record ProbabilisticLinkageModelRef(
     Guid ModelId,
     int Version,
     string AlgorithmVersion,
     decimal Threshold,
-    decimal ConflictMargin);
+    decimal ConflictMargin)
+{
+    public ProbabilisticLinkageBlockingContractRef? BlockingContract { get; init; }
+}
 
 public enum LinkageRunType { ON_DEMAND, INCREMENTAL, REPLAY, FULL, MODEL_VALIDATION }
 public enum LinkageRunStatus { PREPARANDO, EXECUTANDO, PUBLICADO, CONCLUIDO_SEM_PUBLICACAO, FALHOU, CANCELADO }
