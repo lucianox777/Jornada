@@ -40,8 +40,10 @@ public sealed record HomologatedResolutionAlgorithm(
 /// </summary>
 public static class HomologatedResolutionAlgorithmCatalog
 {
-    public const string CatalogVersion = "RESOLUTION_ALGORITHM_CATALOG_V1";
+    public const string CatalogVersion = "RESOLUTION_ALGORITHM_CATALOG_V2";
 
+    public const string PersonNameBasicPtBrAlgorithm = "PERSON_NAME_BASIC_PTBR";
+    public const string PersonNameBasicPtBrVersion = "V1";
     public const string PersonNameComponentsAlgorithm = "PERSON_NAME_COMPONENTS";
     public const string PersonNameComponentsVersion = "V2";
     public const string DateComponentsAlgorithm = "DATE_COMPONENTS";
@@ -53,6 +55,27 @@ public static class HomologatedResolutionAlgorithmCatalog
 
     private static readonly HomologatedResolutionAlgorithm[] Algorithms =
     {
+        new(
+            PersonNameBasicPtBrAlgorithm,
+            PersonNameBasicPtBrVersion,
+            ResolutionAttributeSemantic.PersonName,
+            new ResolutionAlgorithmOutputColumn[]
+            {
+                new("upper", "upper", ResolutionMaterializationKind.ProcessorMaterialized),
+                new("upper_no_diacritics", "upper_no_diacritics", ResolutionMaterializationKind.ProcessorMaterialized),
+                new("without_particles", "without_particles", ResolutionMaterializationKind.ProcessorMaterialized)
+            },
+            new[]
+            {
+                "Solution/src/Jornada.Contracts/PersonNameBasicNormalization.cs#PersonNameBasicNormalization@PERSON_NAME_BASIC_PTBR_V1",
+                "Solution/src/Jornada.Contracts/BlockingProjectionKeys.cs#BlockingProjectionKeyProjector@BLOCKING_PROJECTION_KEY_PROJECTOR_V3"
+            },
+            new[]
+            {
+                "Solution/tests/Jornada.Tests/PersonNameBasicNormalizationTests.cs",
+                "Solution/tests/Jornada.Tests/BlockingProjectionKeyProjectorTests.cs"
+            }),
+
         new(
             PersonNameComponentsAlgorithm,
             PersonNameComponentsVersion,
@@ -66,7 +89,7 @@ public static class HomologatedResolutionAlgorithmCatalog
             },
             new[]
             {
-                "Solution/src/Jornada.Contracts/BlockingProjectionKeys.cs#BlockingProjectionKeyProjector@BLOCKING_PROJECTION_KEY_PROJECTOR_V2",
+                "Solution/src/Jornada.Contracts/BlockingProjectionKeys.cs#BlockingProjectionKeyProjector@BLOCKING_PROJECTION_KEY_PROJECTOR_V3",
                 "Solution/src/Jornada.Contracts/IdentityComparison.cs#NormalizeText"
             },
             new[]
@@ -86,7 +109,7 @@ public static class HomologatedResolutionAlgorithmCatalog
             },
             new[]
             {
-                "Solution/src/Jornada.Contracts/BlockingProjectionKeys.cs#BlockingProjectionKeyProjector@BLOCKING_PROJECTION_KEY_PROJECTOR_V2"
+                "Solution/src/Jornada.Contracts/BlockingProjectionKeys.cs#BlockingProjectionKeyProjector@BLOCKING_PROJECTION_KEY_PROJECTOR_V3"
             },
             new[]
             {
