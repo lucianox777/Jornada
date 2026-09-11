@@ -14,6 +14,7 @@ on:
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/**'
       - 'Solution/src/Jornada.Linkage.Runner/**'
       - 'Solution/database/Jornada_Fase1.sql'
+      - 'Solution/database/migrations/**'
       - '.github/workflows/windows-production-installer.yml'
   pull_request:
     paths:
@@ -28,6 +29,7 @@ on:
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/**'
       - 'Solution/src/Jornada.Linkage.Runner/**'
       - 'Solution/database/Jornada_Fase1.sql'
+      - 'Solution/database/migrations/**'
       - '.github/workflows/windows-production-installer.yml'
   workflow_dispatch:
 
@@ -78,6 +80,35 @@ jobs:
         run: |
           .\install\windows-production\Build-WindowsProductionBundle.ps1 -OutputDirectory "$PWD\.local\windows-production-bundle"
 
+      - name: Validate migration inventory in production bundle
+        shell: pwsh
+        run: |
+          $root = "$PWD\.local\windows-production-bundle"
+          $migrationRoot = Join-Path $root 'database\migrations'
+          $manifest = Join-Path $migrationRoot 'manifest.txt'
+          if (-not (Test-Path -LiteralPath $manifest)) { throw 'manifest.txt ausente no bundle' }
+          foreach ($required in @('Install-Jornada.ps1','Install-JornadaProduction.ps1','Invoke-JornadaMigrationLedger.ps1')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $root "install\windows-production\$required"))) { throw "Script ausente no bundle: $required" }
+          }
+          $entries = @(
+            Get-Content -Encoding UTF8 -LiteralPath $manifest |
+              ForEach-Object { ($_ -replace '#.*$','').Trim() } |
+              Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+          )
+          if ($entries.Count -ne 13) { throw "Esperadas 13 migrações; encontradas $($entries.Count)" }
+          if ($entries[-1] -ne '20260910_Schema_Consolidation_370.sql') { throw 'Migração final do bundle divergente' }
+          foreach ($entry in $entries) {
+            if (-not (Test-Path -LiteralPath (Join-Path $migrationRoot $entry))) { throw "Migração ausente no bundle: $entry" }
+          }
+          $sourceHash = (Get-FileHash -Algorithm SHA256 -LiteralPath 'database\migrations\manifest.txt').Hash
+          $bundleHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $manifest).Hash
+          if ($sourceHash -ne $bundleHash) { throw 'manifest.txt do bundle diverge do manifesto normativo' }
+          & .\install\windows-production\Invoke-JornadaMigrationLedger.ps1 `
+            -ConnectionString 'Server=localhost;Database=Jornada;Integrated Security=true;Encrypt=true;TrustServerCertificate=false' `
+            -MigrationRoot $migrationRoot `
+            -ValidateOnly
+          if ($LASTEXITCODE -ne 0) { throw 'Validação do runner de migrações falhou' }
+
       - name: Prove CLI help aliases from published executable
         shell: pwsh
         run: |
@@ -88,7 +119,7 @@ jobs:
             if ($output -notmatch '--enviar-todos' -or $output -notmatch '--resultado') { throw "$arg não exibiu help completo" }
           }
 
-      - name: Validate installer against generated production bundle
+      - name: Validate canonical installer against generated production bundle
         shell: pwsh
         run: |
           $config = Get-Content -Raw install/windows-production/Jornada.Production.example.json | ConvertFrom-Json
@@ -96,12 +127,12 @@ jobs:
           $config.dataRoot = 'C:\Jornada-CI-Data'
           $config.sql.mode = 'External'
           $config.sql.connectionString = 'Server=localhost;Database=Jornada;Integrated Security=true;Encrypt=true;TrustServerCertificate=false'
-          $config.sql.initializeDatabase = $false
+          $config.sql.initializeDatabase = $true
           $config.integrator.enabled = $false
           foreach ($task in $config.tasks) { $task.enabled = $false }
           $ciConfig = "$PWD\.local\Jornada.Production.ci.json"
           $config | ConvertTo-Json -Depth 30 | Set-Content -Encoding UTF8 $ciConfig
-          .\install\windows-production\Install-JornadaProduction.ps1 `
+          .\install\windows-production\Install-Jornada.ps1 `
             -ConfigPath $ciConfig `
             -PayloadRoot "$PWD\.local\windows-production-bundle" `
             -ValidateOnly
@@ -121,7 +152,7 @@ jobs:
           $negativeConfig = "$PWD\.local\Jornada.Production.invalid-key.json"
           $config | ConvertTo-Json -Depth 30 | Set-Content -Encoding UTF8 $negativeConfig
           try {
-            .\install\windows-production\Install-JornadaProduction.ps1 `
+            .\install\windows-production\Install-Jornada.ps1 `
               -ConfigPath $negativeConfig `
               -PayloadRoot "$PWD\.local\windows-production-bundle" `
               -ValidateOnly
