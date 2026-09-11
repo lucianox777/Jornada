@@ -22,6 +22,19 @@ public sealed class MetaphoneBrTests
         Assert.That(MetaphoneBr.Encode(input), Is.EqualTo(expected));
     }
 
+    [TestCase("MARYA", "MARIA")]
+    [TestCase("CHAVIER", "XAVIER")]
+    [TestCase("HELENA", "ELENA")]
+    [TestCase("PHILIPE", "FILIPE")]
+    [TestCase("CALHEIROS", "KA1EIROS")]
+    [TestCase("FILHA MANHA CHICO SCHMIDT SCENA ESCOVA QUILO", "FI1A MA3A XIKO SXMIDT SENA ESKOVA KILO")]
+    public void Encode_MatchesExactUpstreamMetaphoneBr005ConformanceVectors(string input, string expected)
+    {
+        // Vetores publicados no próprio testthat do upstream congelado:
+        // ipeadata-lab/metaphonebr@17fdee95581442cdcc98fddc30aea3079caf27ae.
+        Assert.That(MetaphoneBr.Encode(input), Is.EqualTo(expected));
+    }
+
     [Test]
     public void Encode_IsDeterministicAndDoesNotDependOnDiacritics()
     {
