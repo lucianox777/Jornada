@@ -9,7 +9,7 @@ namespace Jornada.Tests.Integration;
 public sealed class PostgreSqlLinkageRuleSetRoundTripTests
 {
     [Test]
-    public async Task Writer_and_reader_preserve_exact_version_passes_parameters_and_fingerprint()
+    public async Task Writer_and_reader_preserve_exact_version_passes_parameters_fingerprint_and_projection_contract()
     {
         var connectionString = Environment.GetEnvironmentVariable("JORNADA_POSTGRESQL_CONNECTION")
             ?? throw new InvalidOperationException("JORNADA_POSTGRESQL_CONNECTION é obrigatória.");
@@ -97,6 +97,8 @@ public sealed class PostgreSqlLinkageRuleSetRoundTripTests
                 Assert.That(actual.AlgorithmVersion, Is.EqualTo(expected.AlgorithmVersion));
                 Assert.That(actual.FingerprintSha256, Is.EqualTo(expected.FingerprintSha256));
                 Assert.That(actual.Parameters, Is.EqualTo(expected.Parameters));
+                Assert.That(actual.ProjectionSchemaVersion, Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
+                Assert.That(actual.ProjectionFingerprintSha256, Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256));
                 Assert.That(actual.BlockingPasses.Select(x => x.PassId),
                     Is.EqualTo(expected.BlockingPasses.Select(x => x.PassId)));
                 Assert.That(actual.BlockingPasses.Select(x => string.Join("+", x.Fields)),
