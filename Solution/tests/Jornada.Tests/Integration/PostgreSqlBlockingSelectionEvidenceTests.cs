@@ -10,7 +10,7 @@ namespace Jornada.Tests.Integration;
 public sealed class PostgreSqlBlockingSelectionEvidenceTests
 {
     private static readonly PostgreSqlCalibrationOptions Options = new(8,10,2,0.5m,0.95m,0.03m,60,true);
-    private const string ProjectionFingerprint = "838b108f654d9c49f02a6a293ed13ca8add2fe20dcf3d5f312769d3b576177ce";
+    private const string ProjectionFingerprint = "d186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4";
 
     [Test]
     public async Task Draft_PersistsBlockingSelectionEvidenceOutsideFellegiSunterParameters()
@@ -142,7 +142,7 @@ public sealed class PostgreSqlBlockingSelectionEvidenceTests
         Assert.Multiple(() =>
         {
             Assert.That(manifestVersion, Is.EqualTo(CalibrationReplayManifest.CurrentManifestVersion));
-            Assert.That(calibratorVersion, Is.EqualTo("POSTGRESQL_LINKAGE_CALIBRATOR_V3"));
+            Assert.That(calibratorVersion, Is.EqualTo("POSTGRESQL_LINKAGE_CALIBRATOR_V4"));
             Assert.That(projectionSchemaVersion, Is.EqualTo(BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan.SchemaVersion));
             Assert.That(projectionFingerprint, Is.EqualTo(ProjectionFingerprint));
             Assert.That(algorithmCatalogVersion, Is.EqualTo(HomologatedResolutionAlgorithmCatalog.CatalogVersion));
