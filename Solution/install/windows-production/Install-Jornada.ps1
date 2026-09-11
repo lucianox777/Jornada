@@ -96,18 +96,27 @@ function Get-DatabaseInitializationState([string]$ConnectionString) {
     $sql = @"
 SELECT CONCAT(
   CASE WHEN OBJECT_ID(N'ingestao.entrega',N'U') IS NULL THEN '0' ELSE '1' END, '|',
+  CASE WHEN OBJECT_ID(N'identidade.pessoa_origem_progressiva',N'U') IS NULL THEN '0' ELSE '1' END, '|',
   CASE WHEN EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema') THEN '1' ELSE '0' END, '|',
   CASE WHEN OBJECT_ID(N'jornada.schema_migration',N'U') IS NULL THEN '0' ELSE '1' END
 );
 "@
     $parts = ([string](Invoke-SqlScalar $ConnectionString $sql)).Split('|')
-    if ($parts.Count -ne 3) { throw 'Não foi possível classificar o estado do banco Jornada.' }
+    if ($parts.Count -ne 4) { throw 'Não foi possível classificar o estado do banco Jornada.' }
     $hasBaseline = $parts[0] -eq '1'
-    $hasSchemaMarker = $parts[1] -eq '1'
-    $hasLedger = $parts[2] -eq '1'
-    if (-not $hasBaseline -and -not $hasSchemaMarker -and -not $hasLedger) { return 'EMPTY' }
-    if ($hasBaseline) { return 'INITIALIZED' }
-    return 'PARTIAL'
+    $hasProgressiveFoundation = $parts[1] -eq '1'
+    $hasSchemaMarker = $parts[2] -eq '1'
+    $hasLedger = $parts[3] -eq '1'
+
+    if (-not $hasBaseline) {
+        if ($hasProgressiveFoundation -or $hasSchemaMarker -or $hasLedger) { return 'PARTIAL' }
+        return 'EMPTY'
+    }
+    if (-not $hasProgressiveFoundation) {
+        if ($hasLedger) { return 'PARTIAL' }
+        return 'FOUNDATION_REQUIRED'
+    }
+    return 'INITIALIZED'
 }
 
 function Invoke-CoreInstaller([string]$CoreInstaller, [string]$Config, [string]$Payload, [switch]$CoreValidateOnly, [switch]$CorePlanOnly) {
@@ -115,7 +124,6 @@ function Invoke-CoreInstaller([string]$CoreInstaller, [string]$Config, [string]$
     if ($CoreValidateOnly) { $args += '-ValidateOnly' }
     if ($CorePlanOnly) { $args += '-PlanOnly' }
     & $CoreInstaller @args
-    if ($LASTEXITCODE -ne 0) { throw "Instalador core falhou. ExitCode=$LASTEXITCODE" }
 }
 
 $configFull = (Resolve-Path -LiteralPath $ConfigPath).Path
@@ -125,15 +133,15 @@ $coreInstaller = Join-Path $PSScriptRoot 'Install-JornadaProduction.ps1'
 $migrationRunner = Join-Path $PSScriptRoot 'Invoke-JornadaMigrationLedger.ps1'
 $migrationRoot = Join-Path $payloadFull 'database\migrations'
 $baselinePath = Join-Path $payloadFull 'database\Jornada_Fase1.sql'
+$progressiveFoundationPath = Join-Path $payloadFull 'database\Jornada_Identidade_Progressiva.sql'
 
-if (-not (Test-Path -LiteralPath $coreInstaller)) { throw "Instalador core ausente: $coreInstaller" }
-if (-not (Test-Path -LiteralPath $migrationRunner)) { throw "Runner de migrações ausente: $migrationRunner" }
-if (-not (Test-Path -LiteralPath $baselinePath)) { throw "DDL baseline ausente: $baselinePath" }
+foreach ($required in @($coreInstaller,$migrationRunner,$baselinePath,$progressiveFoundationPath)) {
+    if (-not (Test-Path -LiteralPath $required)) { throw "Payload/instalador obrigatório ausente: $required" }
+}
 
 $initializeDatabase = [bool]$config.sql.initializeDatabase
 if ($initializeDatabase) {
     & $migrationRunner -ConnectionString ([string]$config.sql.connectionString) -MigrationRoot $migrationRoot -ValidateOnly
-    if ($LASTEXITCODE -ne 0) { throw 'Manifesto/runner de migrações inválido.' }
 }
 
 if ($ValidateOnly -or $PlanOnly) {
@@ -162,16 +170,24 @@ try {
     $state = Get-DatabaseInitializationState ([string]$config.sql.connectionString)
     switch ($state) {
         'EMPTY' {
-            Write-Host 'Banco sem baseline detectado; aplicando Jornada_Fase1.sql antes do manifesto.'
+            Write-Host 'Banco vazio detectado; aplicando baseline e fundação de identidade progressiva antes do manifesto.'
             Invoke-SqlBatches ([string]$config.sql.connectionString) $baselinePath
+            Invoke-SqlBatches ([string]$config.sql.connectionString) $progressiveFoundationPath
         }
-        'INITIALIZED' { Write-Host 'Banco existente detectado; baseline não será reaplicado.' }
-        'PARTIAL' { throw 'Banco parcialmente inicializado: marker/ledger existe sem ingestao.entrega. Corrija ou restaure o banco antes do upgrade.' }
+        'FOUNDATION_REQUIRED' {
+            Write-Host 'Baseline existente sem fundação progressiva; aplicando somente Jornada_Identidade_Progressiva.sql.'
+            Invoke-SqlBatches ([string]$config.sql.connectionString) $progressiveFoundationPath
+        }
+        'INITIALIZED' {
+            Write-Host 'Banco existente com baseline/fundação detectado; nenhum baseline será reaplicado.'
+        }
+        'PARTIAL' {
+            throw 'Banco parcialmente inicializado/inconsistente com o caminho canônico. Corrija ou restaure o banco antes do upgrade.'
+        }
         default { throw "Estado de banco inesperado: $state" }
     }
 
     & $migrationRunner -ConnectionString ([string]$config.sql.connectionString) -MigrationRoot $migrationRoot
-    if ($LASTEXITCODE -ne 0) { throw "Aplicação do ledger de migrações falhou. ExitCode=$LASTEXITCODE" }
 
     # Finalização não reinstala mídia SQL/Moby e não reaplica DDL. Ela registra
     # somente o estado operacional original depois que schema+ledger estão válidos.
