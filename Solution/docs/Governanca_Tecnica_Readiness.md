@@ -28,6 +28,14 @@ Nenhum valor é inferido. `governance-readiness-gate.py --require-approved` falh
 
 `environment-preflight-gate.py` verifica perfis declarados em `config/release/environment-requirements.json`. O perfil `ci-linux` é usado no CI; `hml-runtime` verifica os pré-requisitos mínimos para executar o readiness HML; `powerbi-authoring` documenta as variáveis e ferramenta necessárias à validação externa do PBIP.
 
+## Readiness estatístico do linkage
+
+`config/hml/linkage-statistical-readiness.json` é o contrato fail-closed que impede que a política HML legada de blocking/transportabilidade seja interpretada como fechamento estatístico da issue #31. O arquivo distribuído nasce `PENDENTE` e exige declaração explícita das evidências de corpus representativo, qualidade da verdade de referência, seleção/não resposta, avaliação independente, incerteza amostral, proveniência de pesos, dependência multievidência, concordância replicada quando aplicável e validação de escala.
+
+Para os relatórios implementados nas fatias técnicas da #31, o gate fixa somente a identidade da versão do contrato (`LINKAGE_INDEPENDENT_RESOLUTION_EVALUATION_V1`, `LINKAGE_INDEPENDENT_RESOLUTION_SURVEY_V1`, `LINKAGE_INDEPENDENT_RESOLUTION_GOVERNED_SURVEY_V1`, `CANDIDATE_EVIDENCE_DEPENDENCY_DIAGNOSTIC_V1` e `CANDIDATE_REFERENCE_AGREEMENT_DIAGNOSTIC_V1`) e exige fingerprint/evidência. Ele não cria valores mínimos, não escolhe fórmula de ponderação, não decide se seleção/não resposta existem e não define taxa aceitável de discordância ou dependência.
+
+`NAO_APLICAVEL` só é aceito nos pontos em que a metodologia institucional pode legitimamente não exigir aquele mecanismo e sempre exige justificativa mais evidência. Mesmo quando o contrato chega a `APROVADO`, `productionActivationAuthorized` permanece obrigatoriamente `false`: a aprovação desse arquivo significa apenas que o conjunto de evidências da #31 foi formalmente atestado para HML, não autorização automática de Produção.
+
 ## Readiness HML
 
 `hml-readiness-gate.sh/.ps1` agora exige, em conjunto:
@@ -37,8 +45,9 @@ Nenhum valor é inferido. `governance-readiness-gate.py --require-approved` falh
 3. scheduler configurado;
 4. parâmetros e calibrações HML vigentes;
 5. baseline de desempenho;
-6. avaliação de linkage;
-7. evidência SQL de Query Store/waits/deadlocks;
-8. evidência da API em lotes de 1, 10, 100 e 1000 UUIDs.
+6. avaliação legada de blocking/transportabilidade de linkage;
+7. readiness estatístico/institucional da issue #31 aprovado e atestado;
+8. evidência SQL de Query Store/waits/deadlocks;
+9. evidência da API em lotes de 1, 10, 100 e 1000 UUIDs.
 
 Um contrato `PENDENTE` é válido para distribuição e desenvolvimento, mas não satisfaz o modo estrito de homologação.
