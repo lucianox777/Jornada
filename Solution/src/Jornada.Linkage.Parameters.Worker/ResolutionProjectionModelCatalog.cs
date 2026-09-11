@@ -3,10 +3,6 @@ using System.Text;
 
 namespace Jornada.Linkage.Parameters.Worker;
 
-/// <summary>
-/// Semântica declarada do atributo original recebido pela Jornada. O dado original continua
-/// sendo verdade de origem; qualquer representação produzida a partir dele é calculada.
-/// </summary>
 public enum ResolutionAttributeSemantic
 {
     PersonName,
@@ -24,13 +20,6 @@ public enum ResolutionFeatureOrigin
     Calculated
 }
 
-/// <summary>
-/// Sugestão física da derivação. O Calibrador pode promover uma derivação sem acoplar a
-/// semântica do blocking a um SGBD específico. GeneratedColumn representa uma expressão
-/// determinística que pode ser implementada como computed/generated column quando o provider
-/// suportar a expressão; ProcessorMaterialized mantém a mesma semântica por materialização.
-/// MultiValuedProjection é reservada para derivações que produzem mais de um valor por Pessoa.
-/// </summary>
 public enum ResolutionMaterializationKind
 {
     Source,
@@ -67,10 +56,6 @@ public sealed record ResolutionSourceField(
     }
 }
 
-/// <summary>
-/// Adaptador de compatibilidade para o planner introduzido na primeira fatia. A fonte de
-/// verdade dos algoritmos e de suas colunas passou a ser HomologatedResolutionAlgorithmCatalog.
-/// </summary>
 public sealed record HomologatedResolutionTransformation(
     string Algorithm,
     string AlgorithmVersion,
@@ -102,11 +87,6 @@ public sealed record ResolutionProjectedFeature(
     bool MultiValued,
     bool CandidateForBlocking);
 
-/// <summary>
-/// Artefato gerado pelo Calibrador a partir dos atributos originais e dos algoritmos
-/// homologados. Ele descreve o vocabulário de projeções disponível. O BLOCKING_PLAN é outro
-/// artefato e apenas seleciona/combina features desta projeção.
-/// </summary>
 public sealed record ResolutionProjectionPlan(
     string SchemaVersion,
     string CatalogVersion,
@@ -122,11 +102,6 @@ public sealed record ResolutionProjectionPlan(
         .ToArray();
 }
 
-/// <summary>
-/// Fachada de compatibilidade que expõe os algoritmos homologados agrupados por semântica.
-/// Diferente da versão inicial, não existe mais a premissa de um único algoritmo por tipo de
-/// atributo: novos algoritmos podem ser registrados sem alterar o planner.
-/// </summary>
 public static class HomologatedResolutionModelCatalog
 {
     public const string CatalogVersion = HomologatedResolutionAlgorithmCatalog.CatalogVersion;
@@ -159,14 +134,13 @@ public static class HomologatedResolutionModelCatalog
 }
 
 /// <summary>
-/// Gera automaticamente o esquema de projeções a partir dos atributos originais. O catálogo
-/// define apenas algoritmos já implementados/homologados e suas colunas fixas por versão;
-/// a existência no catálogo não promove a feature para o BLOCKING_PLAN. O Calibrador mede
-/// seu valor antes da publicação operacional.
+/// Gera automaticamente o esquema de projeções a partir dos atributos originais e do catálogo
+/// homologado. O plano de projeção não conhece o BLOCKING_PLAN; o plano de blocking referencia
+/// as projeções versionadas que decidiu utilizar.
 /// </summary>
 public static class ResolutionProjectionPlanner
 {
-    public const string PlannerVersion = "RESOLUTION_PROJECTION_PLANNER_V3";
+    public const string PlannerVersion = "RESOLUTION_PROJECTION_PLANNER_V4";
 
     public static ResolutionProjectionPlan Build(
         IEnumerable<ResolutionSourceField> attributes,
@@ -205,9 +179,8 @@ public static class ResolutionProjectionPlanner
 
             foreach (var transformation in model.Transformations)
             {
-                var feature = ResolveFeatureName(source, transformation);
                 features.Add(new ResolutionProjectedFeature(
-                    feature,
+                    ResolveFeatureName(source, transformation),
                     source.CanonicalCode,
                     source.Semantic,
                     ResolutionFeatureOrigin.Calculated,
@@ -224,14 +197,13 @@ public static class ResolutionProjectionPlanner
             .ThenBy(static feature => feature.SourceAttribute, StringComparer.Ordinal)
             .ThenBy(static feature => feature.Algorithm, StringComparer.Ordinal)
             .ToArray();
-        var fingerprint = Fingerprint(schemaVersion.Trim(), sources, ordered);
 
         return new ResolutionProjectionPlan(
             schemaVersion.Trim(),
             HomologatedResolutionModelCatalog.CatalogVersion,
             sources,
             ordered,
-            fingerprint);
+            Fingerprint(schemaVersion.Trim(), sources, ordered));
     }
 
     private static string ResolveFeatureName(
@@ -249,6 +221,7 @@ public static class ResolutionProjectionPlanner
                 "upper" => "name_upper",
                 "upper_no_diacritics" => "name_upper_no_diacritics",
                 "without_particles" => "name_without_particles",
+                "phonetic" => "name_phonetic_ptbr",
                 "first" => "name_first",
                 "surnames" => "name_surnames",
                 "last" => "name_last",
@@ -264,6 +237,7 @@ public static class ResolutionProjectionPlanner
                 "upper" => "mother_name_upper",
                 "upper_no_diacritics" => "mother_name_upper_no_diacritics",
                 "without_particles" => "mother_name_without_particles",
+                "phonetic" => "mother_name_phonetic_ptbr",
                 "first" => "mother_name_first",
                 "surnames" => "mother_name_surnames",
                 "last" => "mother_name_last",
