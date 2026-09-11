@@ -31,22 +31,13 @@ public static class BlockingCandidateFeatureCatalog
 
     public static ResolutionProjectionPlan CurrentResolutionProjectionPlan { get; } =
         ResolutionProjectionPlanner.Build(
-            new ResolutionSourceField[]
-            {
-                new("nome_completo", ResolutionAttributeSemantic.PersonName, "PERSON_NAME"),
-                new("nome_mae", ResolutionAttributeSemantic.PersonName, "MOTHER_NAME"),
-                new("data_nascimento", ResolutionAttributeSemantic.Date, "BIRTH_DATE")
-            },
-            "PERSON_RESOLUTION_PROJECTION_V1");
+            PersonResolutionAttributeCatalog.All,
+            PersonResolutionAttributeCatalog.ProjectionSchemaVersion);
 
     public static IReadOnlyList<string> CalibratorCandidates { get; } =
         CurrentResolutionProjectionPlan.BlockingCandidateFeatures;
 
     public static IReadOnlyList<string> RequiredCalibratorCandidates => CalibratorCandidates;
-
-    // Alias transitório de compatibilidade de fonte para o worker já publicado neste PR.
-    // Não representa componente, fase ou responsabilidade arquitetural separada do Calibrador.
-    public static IReadOnlyList<string> RequiredOptimizerCandidates => RequiredCalibratorCandidates;
 
     public static bool IsNameFeature(string field) =>
         string.Equals(field, FullName, StringComparison.Ordinal) ||
