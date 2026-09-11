@@ -58,7 +58,7 @@
     "RNF34-A": "Sincronização documental do change-set",
     "RNF34-B": "Integração contínua obrigatória",
     "RNF34-C": "Diagramas em padrão UML",
-    "RNF34-D": "Ambiente tecnológico e reprodutibilidade; Microsoft SQL Server como tecnologia relacional normativa"
+    "RNF34-D": "Ambiente tecnológico e reprodutibilidade; Microsoft SQL Server como tecnologia relacional normativa e baseline independente de ambiente; SQL Database in Microsoft Fabric como hospedagem operacional homologável de HML/Produção"
   },
   "supersededDocuments": [
     "06_Adendo_RF_RNF_Linkage_Calibracao_Avaliacao_v1.0.md"
