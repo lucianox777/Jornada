@@ -8,8 +8,8 @@ namespace Jornada.Processor.Worker;
 /// <summary>
 /// Reconstrói, dentro da transação do Processor, as chaves de blocking de uma Pessoa.
 /// Nascimento vem da Gold corrente; nomes/nomes da mãe são aliases obtidos do histórico Silver;
-/// atributos transversais elegíveis vêm da Gold versionada. A operação é idempotente para a
-/// versão de normalização atual e nunca infere elegibilidade pelo nome do atributo.
+/// atributos transversais elegíveis usam a Gold versionada mais o vencedor COMPROVADO da Silver
+/// ainda não promovido. A operação é idempotente e nunca infere elegibilidade pelo nome do atributo.
 /// </summary>
 internal static class BlockingProjectionPersistence
 {
@@ -89,28 +89,71 @@ internal static class BlockingProjectionPersistence
             .ToArray();
         if (eligible.Length > 0)
         {
-            await using var attributes = connection.CreateCommand();
-            attributes.Transaction = tx;
             var parameterNames = eligible.Select((_, index) => $"@eligible_attr_{index}").ToArray();
-            attributes.CommandText = $"""
-                SELECT atributo_codigo,valor,vigencia_inicio,vigencia_fim
-                FROM gold.pessoa_atributo
-                WHERE pessoa_uuid=@uuid
-                  AND atributo_codigo IN ({string.Join(",", parameterNames)})
-                ORDER BY atributo_codigo,atributo_instancia_chave,vigencia_inicio,pessoa_atributo_id;
-                """;
-            attributes.Parameters.AddWithValue("@uuid", pessoaUuid);
-            for (var index = 0; index < eligible.Length; index++)
-                attributes.Parameters.Add(new SqlParameter(parameterNames[index], SqlDbType.NVarChar, 80) { Value = eligible[index] });
-
-            await using var reader = await attributes.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
+            await using (var attributes = connection.CreateCommand())
             {
-                dynamic.Add(new BlockingDynamicAttributeObservation(
-                    reader.GetString(0),
-                    reader.GetString(1),
-                    reader.GetDateTimeOffset(2),
-                    reader.IsDBNull(3) ? null : reader.GetDateTimeOffset(3)));
+                attributes.Transaction = tx;
+                attributes.CommandText = $"""
+                    SELECT atributo_codigo,valor,vigencia_inicio,vigencia_fim
+                    FROM gold.pessoa_atributo
+                    WHERE pessoa_uuid=@uuid
+                      AND atributo_codigo IN ({string.Join(",", parameterNames)})
+                    ORDER BY atributo_codigo,atributo_instancia_chave,vigencia_inicio,pessoa_atributo_id;
+                    """;
+                attributes.Parameters.AddWithValue("@uuid", pessoaUuid);
+                for (var index = 0; index < eligible.Length; index++)
+                    attributes.Parameters.Add(new SqlParameter(parameterNames[index], SqlDbType.NVarChar, 80) { Value = eligible[index] });
+
+                await using var reader = await attributes.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                {
+                    dynamic.Add(new BlockingDynamicAttributeObservation(
+                        reader.GetString(0),
+                        reader.GetString(1),
+                        reader.GetDateTimeOffset(2),
+                        reader.IsDBNull(3) ? null : reader.GetDateTimeOffset(3)));
+                }
+            }
+
+            // RefreshGoldPersonAsync ocorre antes de PromoteAttributeAsync no caminho transacional.
+            // O vencedor COMPROVADO da Silver é incluído como corrente para que blocking_chave já
+            // reflita o mesmo candidato que será promovido à Gold alguns passos depois.
+            await using var pending = connection.CreateCommand();
+            pending.Transaction = tx;
+            pending.CommandText = $"""
+                ;WITH candidatos AS(
+                    SELECT pa.atributo_codigo,pa.valor,
+                           COALESCE(pa.referencia_evidencia,pa.verificado_em) AS precedencia,
+                           ROW_NUMBER() OVER(
+                               PARTITION BY pa.atributo_codigo,pa.atributo_instancia_chave
+                               ORDER BY COALESCE(pa.referencia_evidencia,pa.verificado_em) DESC,
+                                        pa.verificado_em DESC,pa.pessoa_atributo_observacao_id DESC) rn
+                    FROM silver.pessoa_atributo_observacao pa
+                    JOIN identidade.v_vinculo_corrente vc
+                      ON vc.pessoa_observacao_id=pa.pessoa_observacao_id
+                    WHERE vc.pessoa_uuid=@uuid
+                      AND vc.status='RESOLVIDO'
+                      AND pa.status_evidencia='COMPROVADO'
+                      AND pa.atributo_codigo IN ({string.Join(",", parameterNames)})
+                )
+                SELECT atributo_codigo,valor,precedencia
+                FROM candidatos
+                WHERE rn=1
+                ORDER BY atributo_codigo,valor;
+                """;
+            pending.Parameters.AddWithValue("@uuid", pessoaUuid);
+            for (var index = 0; index < eligible.Length; index++)
+                pending.Parameters.Add(new SqlParameter(parameterNames[index], SqlDbType.NVarChar, 80) { Value = eligible[index] });
+            await using (var reader = await pending.ExecuteReaderAsync(ct))
+            {
+                while (await reader.ReadAsync(ct))
+                {
+                    dynamic.Add(new BlockingDynamicAttributeObservation(
+                        reader.GetString(0),
+                        reader.GetString(1),
+                        reader.GetDateTimeOffset(2),
+                        null));
+                }
             }
         }
 
@@ -173,28 +216,68 @@ internal static class BlockingProjectionPersistence
             .ToArray();
         if (eligible.Length > 0)
         {
-            await using var attributes = connection.CreateCommand();
-            attributes.Transaction = tx;
             var parameterNames = eligible.Select((_, index) => $"@eligible_attr_{index}").ToArray();
-            attributes.CommandText = $"""
-                SELECT atributo_codigo,valor,vigencia_inicio,vigencia_fim
-                FROM gold.pessoa_atributo
-                WHERE pessoa_uuid=@uuid
-                  AND atributo_codigo IN ({string.Join(",", parameterNames)})
-                ORDER BY atributo_codigo,atributo_instancia_chave,vigencia_inicio,pessoa_atributo_id;
-                """;
-            Add(attributes, "@uuid", DbType.Guid, pessoaUuid);
-            for (var index = 0; index < eligible.Length; index++)
-                Add(attributes, parameterNames[index], DbType.String, eligible[index], 80);
-
-            await using var reader = await attributes.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
+            await using (var attributes = connection.CreateCommand())
             {
-                dynamic.Add(new BlockingDynamicAttributeObservation(
-                    reader.GetString(0),
-                    reader.GetString(1),
-                    reader.GetFieldValue<DateTimeOffset>(2),
-                    reader.IsDBNull(3) ? null : reader.GetFieldValue<DateTimeOffset>(3)));
+                attributes.Transaction = tx;
+                attributes.CommandText = $"""
+                    SELECT atributo_codigo,valor,vigencia_inicio,vigencia_fim
+                    FROM gold.pessoa_atributo
+                    WHERE pessoa_uuid=@uuid
+                      AND atributo_codigo IN ({string.Join(",", parameterNames)})
+                    ORDER BY atributo_codigo,atributo_instancia_chave,vigencia_inicio,pessoa_atributo_id;
+                    """;
+                Add(attributes, "@uuid", DbType.Guid, pessoaUuid);
+                for (var index = 0; index < eligible.Length; index++)
+                    Add(attributes, parameterNames[index], DbType.String, eligible[index], 80);
+
+                await using var reader = await attributes.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                {
+                    dynamic.Add(new BlockingDynamicAttributeObservation(
+                        reader.GetString(0),
+                        reader.GetString(1),
+                        reader.GetFieldValue<DateTimeOffset>(2),
+                        reader.IsDBNull(3) ? null : reader.GetFieldValue<DateTimeOffset>(3)));
+                }
+            }
+
+            await using var pending = connection.CreateCommand();
+            pending.Transaction = tx;
+            pending.CommandText = $"""
+                WITH candidatos AS(
+                    SELECT pa.atributo_codigo,pa.valor,
+                           COALESCE(pa.referencia_evidencia,pa.verificado_em) AS precedencia,
+                           ROW_NUMBER() OVER(
+                               PARTITION BY pa.atributo_codigo,pa.atributo_instancia_chave
+                               ORDER BY COALESCE(pa.referencia_evidencia,pa.verificado_em) DESC,
+                                        pa.verificado_em DESC,pa.pessoa_atributo_observacao_id DESC) rn
+                    FROM silver.pessoa_atributo_observacao pa
+                    JOIN identidade.v_vinculo_corrente vc
+                      ON vc.pessoa_observacao_id=pa.pessoa_observacao_id
+                    WHERE vc.pessoa_uuid=@uuid
+                      AND vc.status='RESOLVIDO'
+                      AND pa.status_evidencia='COMPROVADO'
+                      AND pa.atributo_codigo IN ({string.Join(",", parameterNames)})
+                )
+                SELECT atributo_codigo,valor,precedencia
+                FROM candidatos
+                WHERE rn=1
+                ORDER BY atributo_codigo,valor;
+                """;
+            Add(pending, "@uuid", DbType.Guid, pessoaUuid);
+            for (var index = 0; index < eligible.Length; index++)
+                Add(pending, parameterNames[index], DbType.String, eligible[index], 80);
+            await using (var reader = await pending.ExecuteReaderAsync(ct))
+            {
+                while (await reader.ReadAsync(ct))
+                {
+                    dynamic.Add(new BlockingDynamicAttributeObservation(
+                        reader.GetString(0),
+                        reader.GetString(1),
+                        reader.GetFieldValue<DateTimeOffset>(2),
+                        null));
+                }
             }
         }
 
