@@ -29,7 +29,7 @@ public static class LinkageRuleSetWriter
                 "Ruleset novo deve declarar BlockingPasses explicitamente; BlockingFields legado é somente compatibilidade de leitura.");
 
         var currentPlan = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
-        if (!string.Equals(currentPlan.ProjectionSchemaVersion, PersonResolutionProjectionContract.SchemaVersion, StringComparison.Ordinal)
+        if (!string.Equals(currentPlan.SchemaVersion, PersonResolutionProjectionContract.SchemaVersion, StringComparison.Ordinal)
             || !string.Equals(currentPlan.Fingerprint, PersonResolutionProjectionContract.FingerprintSha256, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
