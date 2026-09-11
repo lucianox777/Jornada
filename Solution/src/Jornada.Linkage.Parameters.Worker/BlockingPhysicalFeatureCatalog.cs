@@ -54,7 +54,7 @@ public static class BlockingPhysicalFeatureCatalog
             .Select(static feature => Features[feature])
             .ToArray();
 
-    public static IReadOnlyList<BlockingPhysicalFeature> RequiredOptimizerFeatures => CalibratorFeatures;
+    public static IReadOnlyList<BlockingPhysicalFeature> RequiredCalibratorFeatures => CalibratorFeatures;
 
     public static bool TryGet(string feature, out BlockingPhysicalFeature mapping)
     {
