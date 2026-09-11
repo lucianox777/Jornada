@@ -18,10 +18,37 @@ CREATE TABLE IF NOT EXISTS identidade.calibracao_linkage(
         OR (validado_em IS NOT NULL AND validacao_referencia IS NOT NULL))
 );
 
+-- Manifesto de replay: congela versões de Calibrador/projeção/catálogos/plano e os
+-- fingerprints dos dados efetivamente consumidos. Não contém PII nem valores dos pares M/U.
+CREATE TABLE IF NOT EXISTS identidade.calibracao_replay_manifest(
+    modelo_id UUID PRIMARY KEY REFERENCES identidade.modelo_linkage(modelo_id),
+    manifest_version VARCHAR(80) NOT NULL,
+    calibrator_version VARCHAR(120) NOT NULL,
+    projection_schema_version VARCHAR(120) NOT NULL,
+    projection_fingerprint CHAR(64) NOT NULL CHECK(projection_fingerprint ~ '^[0-9a-f]{64}$'),
+    algorithm_catalog_version VARCHAR(120) NOT NULL,
+    comparator_catalog_version VARCHAR(120) NOT NULL,
+    blocking_plan_version VARCHAR(120) NOT NULL,
+    blocking_plan_fingerprint CHAR(64) NOT NULL CHECK(blocking_plan_fingerprint ~ '^[0-9a-f]{64}$'),
+    person_source_id VARCHAR(200) NOT NULL,
+    person_source_version VARCHAR(200) NOT NULL,
+    person_content_fingerprint CHAR(64) NOT NULL CHECK(person_content_fingerprint ~ '^[0-9a-f]{64}$'),
+    training_source_id VARCHAR(200) NOT NULL,
+    training_source_version VARCHAR(200) NOT NULL,
+    training_content_fingerprint CHAR(64) NOT NULL CHECK(training_content_fingerprint ~ '^[0-9a-f]{64}$'),
+    external_snapshots_json JSONB NOT NULL DEFAULT '[]'::jsonb CHECK(jsonb_typeof(external_snapshots_json)='array'),
+    manifest_fingerprint CHAR(64) NOT NULL CHECK(manifest_fingerprint ~ '^[0-9a-f]{64}$')
+);
+
 -- Reutiliza a trava do cabeçalho: nenhuma evidência pode mudar após VALIDADO.
 DROP TRIGGER IF EXISTS tr_pg_linkage_evidencia_editavel ON identidade.calibracao_linkage;
 CREATE TRIGGER tr_pg_linkage_evidencia_editavel
 BEFORE INSERT OR UPDATE OR DELETE ON identidade.calibracao_linkage
+FOR EACH ROW EXECUTE FUNCTION identidade.fn_linkage_evidencia_editavel();
+
+DROP TRIGGER IF EXISTS tr_pg_linkage_replay_editavel ON identidade.calibracao_replay_manifest;
+CREATE TRIGGER tr_pg_linkage_replay_editavel
+BEFORE INSERT OR UPDATE OR DELETE ON identidade.calibracao_replay_manifest
 FOR EACH ROW EXECUTE FUNCTION identidade.fn_linkage_evidencia_editavel();
 
 CREATE OR REPLACE FUNCTION identidade.validar_modelo_linkage_pg(p_versao INTEGER)
@@ -62,6 +89,17 @@ BEGIN
       WHERE modelo_id=v_modelo.modelo_id;
     IF NOT FOUND OR v_evidencia.validado_em IS NOT NULL THEN
         RAISE EXCEPTION 'Evidência de calibração ausente ou já finalizada.';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM identidade.calibracao_replay_manifest rm
+          JOIN identidade.linkage_ruleset rs ON rs.modelo_id=rm.modelo_id
+         WHERE rm.modelo_id=v_modelo.modelo_id
+           AND rm.blocking_plan_version=rs.ruleset_versao
+           AND rm.blocking_plan_fingerprint=rs.fingerprint_sha256
+           AND rm.manifest_version='CALIBRATION_REPLAY_MANIFEST_V1'
+    ) THEN
+        RAISE EXCEPTION 'Manifesto de replay ausente ou divergente do ruleset persistido.';
     END IF;
     IF v_evidencia.sintetico AND
        (current_database() <> 'JornadaPgCalibrationTest'
