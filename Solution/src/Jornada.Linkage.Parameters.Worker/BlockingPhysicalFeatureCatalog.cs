@@ -21,10 +21,31 @@ public sealed record BlockingPhysicalFeature(
 
 public static class BlockingPhysicalFeatureCatalog
 {
-    public const string MethodVersion = "BLOCKING_PHYSICAL_FEATURE_CATALOG_V6";
+    public const string MethodVersion = "BLOCKING_PHYSICAL_FEATURE_CATALOG_V7";
 
-    private static readonly IReadOnlyDictionary<string, BlockingPhysicalFeature> Features =
-        new Dictionary<string, BlockingPhysicalFeature>(StringComparer.Ordinal)
+    private static readonly IReadOnlyDictionary<string, BlockingPhysicalFeature> Features = BuildFeatures();
+
+    public static IReadOnlyList<BlockingPhysicalFeature> CalibratorFeatures { get; } =
+        BlockingCandidateFeatureCatalog.CalibratorCandidates
+            .Select(static feature => Features[feature])
+            .ToArray();
+
+    public static IReadOnlyList<BlockingPhysicalFeature> RequiredCalibratorFeatures => CalibratorFeatures;
+
+    public static bool TryGet(string feature, out BlockingPhysicalFeature mapping)
+    {
+        if (string.IsNullOrWhiteSpace(feature))
+        {
+            mapping = null!;
+            return false;
+        }
+
+        return Features.TryGetValue(feature.Trim(), out mapping!);
+    }
+
+    private static IReadOnlyDictionary<string, BlockingPhysicalFeature> BuildFeatures()
+    {
+        var features = new Dictionary<string, BlockingPhysicalFeature>(StringComparer.Ordinal)
         {
             [BlockingCandidateFeatureCatalog.FullName] = Name(BlockingCandidateFeatureCatalog.FullName, "nome_completo"),
             [BlockingCandidateFeatureCatalog.FullNameUpper] = Name(BlockingCandidateFeatureCatalog.FullNameUpper, "nome_completo"),
@@ -49,22 +70,24 @@ public static class BlockingPhysicalFeatureCatalog
             [BlockingCandidateFeatureCatalog.BirthYear] = Birth(BlockingCandidateFeatureCatalog.BirthYear)
         };
 
-    public static IReadOnlyList<BlockingPhysicalFeature> CalibratorFeatures { get; } =
-        BlockingCandidateFeatureCatalog.CalibratorCandidates
-            .Select(static feature => Features[feature])
-            .ToArray();
-
-    public static IReadOnlyList<BlockingPhysicalFeature> RequiredCalibratorFeatures => CalibratorFeatures;
-
-    public static bool TryGet(string feature, out BlockingPhysicalFeature mapping)
-    {
-        if (string.IsNullOrWhiteSpace(feature))
+        var dynamicSourceCodes = PersonResolutionAttributeCatalog.EligibleTransversal
+            .Select(static source => source.CanonicalCode)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var feature in BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan.Features
+                     .Where(static feature => feature.CandidateForBlocking))
         {
-            mapping = null!;
-            return false;
+            if (features.ContainsKey(feature.Feature) || !dynamicSourceCodes.Contains(feature.SourceAttribute))
+                continue;
+
+            features[feature.Feature] = new BlockingPhysicalFeature(
+                feature.Feature,
+                $"pessoa_atributo[{feature.SourceAttribute}].valor",
+                BlockingPhysicalStrategy.MaterializedProjection,
+                BlockingPhysicalSourceScope.SilverObservationHistory,
+                feature.MultiValued);
         }
 
-        return Features.TryGetValue(feature.Trim(), out mapping!);
+        return features;
     }
 
     private static BlockingPhysicalFeature Name(string feature, string sourceColumn, bool MultiValued = false) =>
