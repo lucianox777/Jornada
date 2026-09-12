@@ -20,6 +20,14 @@ Nenhum valor é inferido. `governance-readiness-gate.py --require-approved` falh
 
 `config/governance/identity-pending-lifecycle.json` obriga a tratar explicitamente `PENDENTE_PROBABILISTICO`, `NAO_RESOLVIDO` e `CONFLITO`. O contrato não executa alteração automática (`autoMutate=false`): busca ativa, revisão ou encerramento permanecem decisões institucionais.
 
+## Identidade corporativa e autorização operacional
+
+A distribuição atual usa credenciais sintéticas somente em `Development`. Fora de `Development`, `Program.cs` registra `CorporateIdentityPendingAccessContextResolver` e `DenyByDefaultPolicyEngine`; portanto HML e Produção permanecem **fail-closed** até que a identidade corporativa e a autorização operacional sejam efetivamente integradas.
+
+Essa dependência também faz parte do readiness HTTP. `/health/live` continua sendo apenas liveness do processo, mas `/health/ready` retorna `not_ready` fora de `Development` enquanto o wiring corporativo permanecer pendente, com o check `corporate-identity` e o código `CORPORATE_IDENTITY_AUTHORIZATION_PENDING`. Assim, disponibilidade de SQL, Bronze e staging não é suficiente para declarar a API pronta para receber tráfego operacional.
+
+A retirada desse bloqueio exige mudança explícita de implementação que substitua os componentes pendentes pelo mecanismo corporativo real e atualize os testes/gates correspondentes. Não existe flag de configuração distribuída capaz de transformar o estado pendente em aprovação ou integração fictícia.
+
 ## Scheduler corporativo
 
 `config/operations/scheduler-jobs.json` inventaria os workers e operações run-once/excepcionais da Fase 1. O arquivo não escolhe ferramenta nem cadência. O gate verifica projetos, operações, dependências e ausência de secrets; `--require-scheduled` exige owner, retry e configuração aprovada.
@@ -52,4 +60,4 @@ A evidência `LINKAGE_SCALE_EVIDENCE_V1` preserva o SHA Git do código exercitad
 8. evidência SQL de Query Store/waits/deadlocks;
 9. evidência da API em lotes de 1, 10, 100 e 1000 UUIDs.
 
-Um contrato `PENDENTE` é válido para distribuição e desenvolvimento, mas não satisfaz o modo estrito de homologação.
+Além desses gates de homologação, a API não se declara operacionalmente pronta fora de `Development` enquanto o check `corporate-identity` estiver pendente. Um contrato `PENDENTE` é válido para distribuição e desenvolvimento, mas não satisfaz o modo estrito de homologação.
