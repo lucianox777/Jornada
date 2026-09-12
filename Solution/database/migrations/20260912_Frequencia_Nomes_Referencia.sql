@@ -114,13 +114,22 @@ BEGIN
  SET NOCOUNT ON;
  IF TRIGGER_NESTLEVEL()>1 RETURN;
 
+ DECLARE @ativa BIGINT=(SELECT frequencia_nome_versao_id FROM ref.frequencia_nome_versao WITH(HOLDLOCK) WHERE status='ATIVA');
+
  IF EXISTS(
    SELECT 1 FROM inserted i
    LEFT JOIN deleted d ON d.modelo_id=i.modelo_id
-   WHERE d.modelo_id IS NULL AND i.status='GERANDO' AND i.frequencia_nome_versao_id IS NULL)
+   WHERE d.modelo_id IS NULL AND i.status='GERANDO')
  BEGIN
-   DECLARE @ativa BIGINT=(SELECT frequencia_nome_versao_id FROM ref.frequencia_nome_versao WITH(HOLDLOCK) WHERE status='ATIVA');
    IF @ativa IS NULL THROW 51639,'Geração de modelo exige uma versão ATIVA da referência de frequências.',1;
+   IF EXISTS(
+     SELECT 1 FROM inserted i
+     LEFT JOIN deleted d ON d.modelo_id=i.modelo_id
+     WHERE d.modelo_id IS NULL AND i.status='GERANDO'
+       AND i.frequencia_nome_versao_id IS NOT NULL
+       AND i.frequencia_nome_versao_id<>@ativa)
+     THROW 51641,'Novo modelo GERANDO não pode fixar referência diferente da versão ATIVA.',1;
+
    UPDATE m SET frequencia_nome_versao_id=@ativa
    FROM identidade.modelo_linkage m JOIN inserted i ON i.modelo_id=m.modelo_id
    LEFT JOIN deleted d ON d.modelo_id=i.modelo_id
