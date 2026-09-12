@@ -7,9 +7,22 @@ Este índice existe para evitar que snapshots históricos preservados no reposit
 - **Release de engenharia efetivamente selada:** `RELEASE_INFO.txt` — Base Normativa v3.64, Solution Engenharia v4.05, SolutionSchema v3.69, tag `jornada-solution-v4.05`.
 - **Estado técnico candidato desta consolidação:** SolutionSchema v3.70. A release/tag v5.00 ainda não foi cortada.
 - **Resumo executivo não versionado:** `Documentos/Resumo_Executivo.md`. Deve refletir a fronteira entre a última release selada e o estado técnico candidato.
-- **Especificação Técnica:** `Documentos/Especificacao_Tecnica_Jornada_v3.62.docx` e `.pdf`.
+- **Especificação Técnica publicada:** `Documentos/Especificacao_Tecnica_Jornada_v3.62.docx` e `.pdf`. Não existe `Especificacao_Tecnica_Jornada_v3.64.*` materializada nesta árvore.
 - **Requisitos consolidados:** `Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1` é a porta de entrada institucional. Os documentos v1.0 permanecem históricos e não devem ser lidos cumulativamente com v1.1.
 - **Modelo físico corrente:** `Documentos/Anexo_Modelo_Fisico_Jornada_v1.40` em MD, DOCX e PDF, derivado de `Solution/database/Jornada_Fase1_v3.70.sql` e com inventário automatizado de 66 tabelas.
+
+## Lacuna normativa v3.64 × Especificação v3.62
+
+`RELEASE_INFO.txt` e os estados de engenharia v4.04/v4.05 registram **Base Normativa v3.64** para a release selada. Esse fato é parte da proveniência da release e não deve ser reescrito retroativamente. Ao mesmo tempo, a última Especificação Técnica materializada no repositório é a **v3.62**.
+
+Essas duas afirmações têm papéis diferentes e devem permanecer explícitas:
+
+1. `RELEASE_INFO.txt` identifica a base normativa **declarada pela release** e sua linhagem;
+2. `Especificacao_Tecnica_Jornada_v3.62.docx/.pdf` é o último texto de Especificação Técnica **publicado e verificável** nesta árvore;
+3. `Estado_Engenharia_v4.04.md`, `Estado_Engenharia_v4.05.md`, notas e artefatos de engenharia registram mudanças e contexto técnico, mas **não constituem por si só uma Especificação Técnica v3.64**;
+4. enquanto uma v3.64 formal não for publicada, nenhuma documentação corrente pode apontar para um arquivo v3.64 inexistente nem reconstruir seu conteúdo por inferência.
+
+Essa regra resolve a ambiguidade de leitura sem fabricar documento normativo e sem alterar o `RELEASE_INFO.txt` selado. Uma futura publicação formal da Especificação Técnica v3.64 poderá substituir esta regra transitória por referência direta ao artefato efetivamente publicado.
 
 ## Artefatos históricos preservados
 
@@ -25,9 +38,11 @@ Na pasta `Documentos/Requisitos/`, as versões v1.0 são baselines históricos. 
 
 Em caso de dúvida sobre versão ou vigência:
 
-1. use `RELEASE_INFO.txt` para identificar a última release/tag efetivamente selada;
-2. use o índice mestre de requisitos v1.1 para a leitura institucional consolidada candidata;
-3. use `Anexo_Modelo_Fisico_Jornada_v1.40` e `Solution/database/Jornada_Fase1_v3.70.sql` para o estado físico candidato 3.70;
-4. trate documentos explicitamente versionados anteriores e evidências runtime como histórico, salvo indicação expressa em documento corrente.
+1. use `RELEASE_INFO.txt` para identificar a última release/tag efetivamente selada e a Base Normativa que ela declara;
+2. use `Especificacao_Tecnica_Jornada_v3.62.docx/.pdf` para o último texto de Especificação Técnica efetivamente publicado nesta árvore; não presuma a existência ou o conteúdo de uma v3.64 ausente;
+3. use o índice mestre de requisitos v1.1 para a leitura institucional consolidada candidata;
+4. use `Anexo_Modelo_Fisico_Jornada_v1.40` e `Solution/database/Jornada_Fase1_v3.70.sql` para o estado físico candidato 3.70;
+5. use estados/notas de engenharia para rastrear deltas técnicos, sem promovê-los implicitamente a norma;
+6. trate documentos explicitamente versionados anteriores e evidências runtime como histórico, salvo indicação expressa em documento corrente.
 
 Nenhum item deste índice implica aprovação institucional, implantação em HML/Produção ou conclusão de gates que dependam de dados reais, governança ou decisão externa.
