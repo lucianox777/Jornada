@@ -20,7 +20,7 @@ REQUIREMENTS = {
     "weightProvenance": ("LINKAGE_INDEPENDENT_RESOLUTION_GOVERNED_SURVEY_V1", True),
     "evidenceDependency": ("CANDIDATE_EVIDENCE_DEPENDENCY_DIAGNOSTIC_V1", False),
     "referenceAgreement": ("CANDIDATE_REFERENCE_AGREEMENT_DIAGNOSTIC_V1", True),
-    "scaleValidation": (None, False),
+    "scaleValidation": ("LINKAGE_SCALE_EVIDENCE_V1", False),
 }
 ROW_STATUSES = {"PENDENTE", "APRESENTADA", "NAO_APLICAVEL"}
 TOP_STATUSES = {"PENDENTE", "APROVADO"}
