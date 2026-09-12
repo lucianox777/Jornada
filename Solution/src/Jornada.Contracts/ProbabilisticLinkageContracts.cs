@@ -11,18 +11,8 @@ public sealed record ProbabilisticLinkageBlockingContractRef(
     string? ProjectionFingerprintSha256);
 
 /// <summary>
-/// Referência estatística imutável de nomes/sobrenomes vinculada ao modelo.
-/// O hash hexadecimal é uma representação de auditoria do mesmo conteudo_sha256 persistido na versão.
-/// Null identifica explicitamente modelos legados anteriores à adoção da referência interna.
-/// </summary>
-public sealed record ProbabilisticLinkageNameFrequencyReferenceRef(
-    long VersionId,
-    string VersionCode,
-    string ContentSha256Hex);
-
-/// <summary>
 /// Referência imutável do modelo probabilístico capturado no início de uma execução.
-/// Um mesmo linkage_run_id nunca mistura versões de modelo, referência estatística nem contratos de blocking.
+/// Um mesmo linkage_run_id nunca mistura versões de modelo nem contratos de blocking.
 /// </summary>
 public sealed record ProbabilisticLinkageModelRef(
     Guid ModelId,
@@ -32,7 +22,6 @@ public sealed record ProbabilisticLinkageModelRef(
     decimal ConflictMargin)
 {
     public ProbabilisticLinkageBlockingContractRef? BlockingContract { get; init; }
-    public ProbabilisticLinkageNameFrequencyReferenceRef? NameFrequencyReference { get; init; }
 }
 
 public enum LinkageRunType { ON_DEMAND, INCREMENTAL, REPLAY, FULL, MODEL_VALIDATION }
