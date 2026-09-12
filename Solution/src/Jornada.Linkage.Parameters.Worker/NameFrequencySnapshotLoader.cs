@@ -31,6 +31,8 @@ public sealed class NameFrequencySnapshotLoader(
             var manifest = await ReadManifestAsync(manifestPath, stoppingToken);
             var baseDirectory = Path.GetDirectoryName(manifestPath)
                 ?? throw new InvalidOperationException("Diretório do manifesto de frequências inválido.");
+            var projectionManifest = await ReadProjectionManifestAsync(baseDirectory, manifest, stoppingToken);
+            var projectedFiles = ValidateProjectionManifest(manifest, projectionManifest);
 
             var rows = new List<SnapshotRow>(350_000);
             foreach (var file in manifest.Snapshot.Files)
@@ -47,7 +49,9 @@ public sealed class NameFrequencySnapshotLoader(
                     throw new InvalidOperationException($"Snapshot {file.Path} existe, mas não possui sha256 fixado no manifesto.");
 
                 await VerifyFileHashAsync(path, file.Sha256, stoppingToken);
-                await ReadRowsAsync(path, rows, stoppingToken);
+                var projectionFile = projectedFiles[file.Path];
+                var readResult = await ReadRowsWithIntegrityAsync(path, rows, stoppingToken);
+                ValidateProjectedFileIntegrity(projectionFile, readResult);
             }
 
             ValidateRows(rows);
@@ -103,6 +107,10 @@ public sealed class NameFrequencySnapshotLoader(
             throw new InvalidDataException("referenceCode inválido no manifesto.");
         if (manifest.Snapshot.Files.Count == 0)
             throw new InvalidDataException("Manifesto não declara arquivos de snapshot.");
+        if (string.IsNullOrWhiteSpace(manifest.Snapshot.ProjectionManifest))
+            throw new InvalidDataException("Manifesto não declara projectionManifest.");
+        if (string.IsNullOrWhiteSpace(manifest.Snapshot.GeneratedFrom))
+            throw new InvalidDataException("Manifesto não declara generatedFrom da projeção.");
         if (manifest.Policy.RemoteApiRequiredAtRuntime)
             throw new InvalidDataException("Snapshot operacional não pode exigir API remota em runtime.");
         if (manifest.Policy.RemoteCheckMayMutateData)
@@ -111,10 +119,68 @@ public sealed class NameFrequencySnapshotLoader(
         return manifest;
     }
 
+    internal static async Task<ProjectionManifest> ReadProjectionManifestAsync(
+        string baseDirectory,
+        SnapshotManifest manifest,
+        CancellationToken cancellationToken)
+    {
+        var path = Path.GetFullPath(Path.Combine(baseDirectory, manifest.Snapshot.ProjectionManifest));
+        if (!File.Exists(path))
+            throw new FileNotFoundException("Manifesto da projeção determinística não encontrado.", path);
+
+        await using var stream = File.OpenRead(path);
+        var projection = await JsonSerializer.DeserializeAsync<ProjectionManifest>(
+            stream,
+            SnapshotJsonOptions,
+            cancellationToken);
+
+        if (projection is null || projection.SchemaVersion != 1)
+            throw new InvalidDataException("projection-manifest ausente ou schemaVersion incompatível.");
+        return projection;
+    }
+
+    internal static IReadOnlyDictionary<string, ProjectionFile> ValidateProjectionManifest(
+        SnapshotManifest manifest,
+        ProjectionManifest projection)
+    {
+        if (!string.Equals(projection.ReferenceCode, manifest.ReferenceCode, StringComparison.Ordinal))
+            throw new InvalidDataException("referenceCode do projection-manifest diverge do manifesto principal.");
+        if (!string.Equals(projection.Format, manifest.Snapshot.Format, StringComparison.Ordinal))
+            throw new InvalidDataException("format do projection-manifest diverge do manifesto principal.");
+        if (!string.Equals(projection.GeneratedFrom, manifest.Snapshot.GeneratedFrom, StringComparison.Ordinal))
+            throw new InvalidDataException("generatedFrom do projection-manifest diverge do manifesto principal.");
+        if (projection.Files.Count != manifest.Snapshot.Files.Count)
+            throw new InvalidDataException("Lista de arquivos do projection-manifest diverge do manifesto principal.");
+
+        Dictionary<string, ProjectionFile> projectedFiles;
+        try
+        {
+            projectedFiles = projection.Files.ToDictionary(x => x.Path, StringComparer.Ordinal);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new InvalidDataException("projection-manifest contém caminho de arquivo duplicado.", ex);
+        }
+
+        foreach (var file in manifest.Snapshot.Files)
+        {
+            if (!projectedFiles.TryGetValue(file.Path, out var projected))
+                throw new InvalidDataException($"Arquivo {file.Path} não está declarado no projection-manifest.");
+            if (!string.Equals(projected.Kind, file.Kind, StringComparison.Ordinal) || projected.Required != file.Required)
+                throw new InvalidDataException($"Metadados de {file.Path} divergem entre os manifestos.");
+            if (!string.Equals(projected.Sha256, file.Sha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException($"SHA-256 físico de {file.Path} diverge entre os manifestos.");
+            ValidateSha256(projected.CanonicalContentSha256, $"canonicalContentSha256 de {file.Path}");
+            if (projected.RowCount <= 0)
+                throw new InvalidDataException($"rowCount inválido no projection-manifest para {file.Path}.");
+        }
+
+        return projectedFiles;
+    }
+
     private static async Task VerifyFileHashAsync(string path, string expectedHex, CancellationToken cancellationToken)
     {
-        if (expectedHex.Length != 64 || expectedHex.Any(c => !Uri.IsHexDigit(c)))
-            throw new InvalidDataException($"SHA-256 inválido no manifesto para {Path.GetFileName(path)}.");
+        ValidateSha256(expectedHex, $"SHA-256 físico de {Path.GetFileName(path)}");
 
         await using var stream = File.OpenRead(path);
         var actual = await SHA256.HashDataAsync(stream, cancellationToken);
@@ -122,18 +188,34 @@ public sealed class NameFrequencySnapshotLoader(
             throw new InvalidDataException($"SHA-256 do snapshot diverge do manifesto: {Path.GetFileName(path)}.");
     }
 
+    private static void ValidateSha256(string value, string description)
+    {
+        if (value.Length != 64 || value.Any(c => !Uri.IsHexDigit(c)))
+            throw new InvalidDataException($"{description} inválido.");
+    }
+
     internal static async Task ReadRowsAsync(string path, ICollection<SnapshotRow> destination, CancellationToken cancellationToken)
+    {
+        _ = await ReadRowsWithIntegrityAsync(path, destination, cancellationToken);
+    }
+
+    internal static async Task<SnapshotReadResult> ReadRowsWithIntegrityAsync(
+        string path,
+        ICollection<SnapshotRow> destination,
+        CancellationToken cancellationToken)
     {
         await using var file = File.OpenRead(path);
         await using var gzip = new GZipStream(file, CompressionMode.Decompress, leaveOpen: false);
         using var reader = new StreamReader(gzip);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
-        var lineNumber = 0;
+        var lineNumber = 0L;
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
             lineNumber++;
+            hash.AppendData(Encoding.UTF8.GetBytes(line + "\n"));
             if (string.IsNullOrWhiteSpace(line))
-                continue;
+                throw new InvalidDataException($"Linha vazia em {Path.GetFileName(path)}:{lineNumber}.");
 
             SnapshotRawRow? raw;
             try
@@ -148,8 +230,18 @@ public sealed class NameFrequencySnapshotLoader(
             if (raw is null)
                 throw new InvalidDataException($"Linha vazia semanticamente em {Path.GetFileName(path)}:{lineNumber}.");
 
-            destination.Add(ToValidatedRow(raw, path, lineNumber));
+            destination.Add(ToValidatedRow(raw, path, checked((int)lineNumber)));
         }
+
+        return new SnapshotReadResult(lineNumber, Convert.ToHexString(hash.GetHashAndReset()));
+    }
+
+    internal static void ValidateProjectedFileIntegrity(ProjectionFile projected, SnapshotReadResult actual)
+    {
+        if (actual.RowCount != projected.RowCount)
+            throw new InvalidDataException($"rowCount de {projected.Path} diverge do projection-manifest: esperado={projected.RowCount}; atual={actual.RowCount}.");
+        if (!string.Equals(actual.CanonicalContentSha256, projected.CanonicalContentSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"canonicalContentSha256 de {projected.Path} diverge do projection-manifest.");
     }
 
     private static SnapshotRow ToValidatedRow(SnapshotRawRow raw, string path, int lineNumber)
@@ -421,8 +513,17 @@ public sealed class NameFrequencySnapshotLoader(
         string MissingDetailedCellMeaning,
         bool ReplaceInPlace);
 
-    public sealed record SnapshotFiles(string Format, string Directory, IReadOnlyList<SnapshotFile> Files);
-    public sealed record SnapshotFile(string Path, string Kind, bool Required, string? Sha256 = null);
+    public sealed record SnapshotFiles(
+        string Format,
+        string Directory,
+        string GeneratedFrom,
+        string ProjectionManifest,
+        IReadOnlyList<SnapshotFile> Files);
+
+    public sealed record SnapshotFile(string Path, string Kind, bool Required, string Sha256);
+    public sealed record ProjectionManifest(int SchemaVersion, string ReferenceCode, string Format, string GeneratedFrom, IReadOnlyList<ProjectionFile> Files);
+    public sealed record ProjectionFile(string Path, string Kind, bool Required, string Sha256, string CanonicalContentSha256, long RowCount);
+    public sealed record SnapshotReadResult(long RowCount, string CanonicalContentSha256);
     public sealed record LightCheckManifest(bool Enabled, bool Authoritative, string Purpose, IReadOnlyList<string> Signals);
 
     public sealed record SnapshotRawRow(
