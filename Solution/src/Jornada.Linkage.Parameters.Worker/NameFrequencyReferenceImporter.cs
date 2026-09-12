@@ -40,11 +40,23 @@ public sealed class NameFrequencyReferenceImporter(
             var edition = configuration.GetValue(
                 "NameFrequencyImport:Edition",
                 "Censo 2022 - Nomes no Brasil")!;
-            var referenceDate = configuration.GetValue(
-                "NameFrequencyImport:ReferenceDate",
-                new DateOnly(2022, 8, 1));
-            var publicationDate = configuration.GetValue<DateOnly?>(
-                "NameFrequencyImport:PublicationDate");
+            var referenceDateText = configuration.GetValue("NameFrequencyImport:ReferenceDate", "2022-08-01")!;
+            var publicationDateText = configuration.GetValue<string?>("NameFrequencyImport:PublicationDate");
+            if (!DateOnly.TryParseExact(referenceDateText, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var referenceDate))
+                throw new InvalidOperationException("NameFrequencyImport:ReferenceDate deve usar yyyy-MM-dd.");
+            DateOnly? publicationDate = null;
+            if (!string.IsNullOrWhiteSpace(publicationDateText))
+            {
+                if (!DateOnly.TryParseExact(publicationDateText, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedPublicationDate))
+                    throw new InvalidOperationException("NameFrequencyImport:PublicationDate deve usar yyyy-MM-dd.");
+                publicationDate = parsedPublicationDate;
+            }
+
+            if (string.IsNullOrWhiteSpace(versionCode) || versionCode.Length > 80)
+                throw new InvalidOperationException("NameFrequencyImport:VersionCode é obrigatório e deve ter até 80 caracteres.");
+            if (string.IsNullOrWhiteSpace(edition) || edition.Length > 120)
+                throw new InvalidOperationException("NameFrequencyImport:Edition é obrigatória e deve ter até 120 caracteres.");
+
             var timeoutSeconds = Math.Max(15, configuration.GetValue("NameFrequencyImport:HttpTimeoutSeconds", 120));
             var maxPages = Math.Max(1, configuration.GetValue("NameFrequencyImport:MaxPages", 20_000));
 
@@ -113,6 +125,8 @@ public sealed class NameFrequencyReferenceImporter(
 
     public static NameFrequencyRankingPage ParseRankingPage(JsonElement root, string domainType)
     {
+        if (domainType is not ("NOME" or "SOBRENOME"))
+            throw new ArgumentOutOfRangeException(nameof(domainType), "Tipo deve ser NOME ou SOBRENOME.");
         if (root.ValueKind != JsonValueKind.Object)
             throw new InvalidDataException("Resposta de ranking deve ser um objeto JSON.");
         if (!root.TryGetProperty("totalPages", out var totalPagesNode) ||
@@ -134,6 +148,8 @@ public sealed class NameFrequencyReferenceImporter(
             var normalized = IdentityComparison.NormalizeText(name);
             if (string.IsNullOrWhiteSpace(name) || normalized is null)
                 throw new InvalidDataException("Item do ranking contém nome vazio após normalização.");
+            if (name.Length > 200 || normalized.Length > 200)
+                throw new InvalidDataException("Item do ranking excede o limite físico de 200 caracteres.");
 
             rows.Add(new NameFrequencyImportRow(domainType, name, normalized, frequency));
         }
