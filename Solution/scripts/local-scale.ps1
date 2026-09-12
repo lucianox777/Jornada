@@ -24,7 +24,7 @@ function SqlCmd {
     }
     finally { Pop-Location }
 }
-function Scalar([string]$Query){ Push-Location $Root; try { $o = (& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -h -1 -W -y 0 -Q "SET NOCOUNT ON; $Query"); if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}; return ($o | ? { $_.Trim() } | Select-Object -Last 1).Trim() } finally { Pop-Location } }
+function Scalar([string]$Query){ Push-Location $Root; try { $o = (& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -h -1 -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query"); if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}; return ($o | ? { $_.Trim() } | Select-Object -Last 1).Trim() } finally { Pop-Location } }
 SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
 $conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$pwd;TrustServerCertificate=true;Encrypt=false"
 Push-Location $Root
