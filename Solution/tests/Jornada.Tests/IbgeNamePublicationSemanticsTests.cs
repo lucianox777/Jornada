@@ -49,8 +49,8 @@ public sealed class IbgeNamePublicationSemanticsTests
         {
             Assert.That(properties, Does.Contain(nameof(IbgePublishedNameProjection.FirstName)));
             Assert.That(properties, Does.Contain(nameof(IbgePublishedNameProjection.FirstNameNormalized)));
-            Assert.That(properties, Has.None.Match<string>(name => name.Contains("Surname", StringComparison.OrdinalIgnoreCase)));
-            Assert.That(properties, Has.None.Match<string>(name => name.Contains("Sobrenome", StringComparison.OrdinalIgnoreCase)));
+            Assert.That(properties.Any(static name => name.Contains("Surname", StringComparison.OrdinalIgnoreCase)), Is.False);
+            Assert.That(properties.Any(static name => name.Contains("Sobrenome", StringComparison.OrdinalIgnoreCase)), Is.False);
         });
     }
 
