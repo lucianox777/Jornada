@@ -8,6 +8,7 @@
 - `Hardening_Estatico_v3.76.md` - compatibilidade retroativa, DDL destrutivo, dependências, cobertura, build determinístico, SAST e attestation da release.
 - `Operabilidade_Contratos_v3.74.md` - autorização, minimização, compatibilidade, invariantes de upgrade, Bronze profundo/GC dry-run, observabilidade e validade das calibrações.
 - `Possibilidades_Regras.md` - motor versionado, catálogo governado e dry-run de regras de Possibilidades.
+- `Escopo_Produto_Fase1.md` - limites factuais e de cobertura do produto atual; distingue concessão de pagamento/recebimento e impede extrapolar Gestores/Tipos não integrados.
 - `../tests/fixtures/ingestao/` - payloads de referência usados como fixtures dos testes automatizados.
 
 ## Hierarquia normativa publicada
@@ -18,7 +19,7 @@ A Especificação Técnica materializada e publicamente disponível nesta árvor
 
 Até que uma Especificação Técnica v3.64 seja formalmente publicada, a leitura correta é: `RELEASE_INFO.txt` identifica a base normativa declarada da release v4.05; a Especificação Técnica v3.62 é o último documento normativo materializado; estados/notas de engenharia registram deltas e contexto técnico, sem elevar-se automaticamente a nova especificação normativa. Divergência entre esses níveis deve permanecer explícita, nunca ser resolvida por arquivo fictício ou renomeação.
 
-A Referência Territorial permanece a fonte territorial única da visualização; `ENDERECO_RESIDENCIAL` permanece cadastral e não existe persistência geográfica paralela. Pagamento e Recebimento permanecem apenas conceituais na Fase 1.
+A Referência Territorial permanece a fonte territorial única da visualização; `ENDERECO_RESIDENCIAL` permanece cadastral e não existe persistência geográfica paralela. Pagamento e Recebimento permanecem apenas conceituais na Fase 1. O limite operacional decorrente — inclusive para perguntas monetárias e para Gestores/Tipos ainda não integrados — está registrado em `Escopo_Produto_Fase1.md`.
 
 ## Material histórico
 
