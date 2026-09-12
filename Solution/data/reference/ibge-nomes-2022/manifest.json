@@ -16,32 +16,39 @@
   },
   "snapshot": {
     "format": "NDJSON_UTF8_GZIP",
-    "directory": "raw",
+    "directory": "projection",
+    "generatedFrom": "raw-parquet/source-files.sha256",
+    "projectionManifest": "projection-manifest.json",
     "files": [
       {
-        "path": "raw/frequencia-nome-brasil.ndjson.gz",
-        "kind": "NOME_BRASIL",
-        "required": true
+        "path": "projection/frequencia-brasil.ndjson.gz",
+        "kind": "BRASIL_TOTAL",
+        "required": true,
+        "sha256": "AFA63B5EE6A1E34110EB7F0C75526B7A561E68AEF4C2B64009A3CB9EB433DDF8"
       },
       {
-        "path": "raw/frequencia-sobrenome-brasil.ndjson.gz",
-        "kind": "SOBRENOME_BRASIL",
-        "required": true
+        "path": "projection/frequencia-sexo-brasil.ndjson.gz",
+        "kind": "BRASIL_SEXO",
+        "required": true,
+        "sha256": "BE454D325C049CAD6CAB6A1AD6E94CB973DFA36D596FD801CDA6AAFF12E82D3F"
       },
       {
-        "path": "raw/frequencia-nome-periodo.ndjson.gz",
-        "kind": "NOME_PERIODO",
-        "required": false
+        "path": "projection/frequencia-periodo-brasil.ndjson.gz",
+        "kind": "BRASIL_PERIODO",
+        "required": true,
+        "sha256": "A0778B91CA36C03B0DBB8A6FE366169B94CD5631AEA1DEE70BAD12F3F2C96878"
       },
       {
-        "path": "raw/frequencia-nome-uf.ndjson.gz",
-        "kind": "NOME_UF",
-        "required": false
+        "path": "projection/frequencia-uf.ndjson.gz",
+        "kind": "UF",
+        "required": true,
+        "sha256": "E704295A940BD36E50B3C0E5DD41A623622F40923EE91817BB92E4FC3DC11825"
       },
       {
-        "path": "raw/frequencia-nome-municipio.ndjson.gz",
-        "kind": "NOME_MUNICIPIO",
-        "required": false
+        "path": "projection/frequencia-municipio.ndjson.gz",
+        "kind": "MUNICIPIO",
+        "required": true,
+        "sha256": "F101790AFAD0035252150CDD09930D5E24F51F4673794CD3D8A9927F07CAFD53"
       }
     ]
   },
@@ -56,9 +63,11 @@
     ]
   },
   "notes": [
-    "O snapshot bruto e a fonte operacional do Calibrador e do replay.",
+    "Os 11 Parquet em raw-parquet sao o snapshot bruto imutavel do Censo 2022 incorporado ao projeto.",
+    "A projecao NDJSON gzip e derivada deterministicamente dos Parquet e e a entrada operacional do loader SQL Server.",
+    "O Calibrador e o replay nao dependem da API do IBGE em runtime.",
     "Uma revisao do IBGE deve gerar novo referenceCode; nunca sobrescrever CENSO2022_NOMES_BRASIL_V1.",
     "Ausencia de celula detalhada nao significa frequencia zero.",
-    "Os arquivos raw devem ser versionados junto ao projeto e validados por SHA-256 antes da carga."
+    "Os arquivos operacionais sao validados por SHA-256 antes da carga."
   ]
 }
