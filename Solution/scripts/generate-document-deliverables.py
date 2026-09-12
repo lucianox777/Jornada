@@ -453,7 +453,7 @@ def validate(root: Path, work: Path) -> None:
     if len(anexo.inline_shapes) != 2:
         raise RuntimeError("Anexo não contém exatamente as duas figuras UML incorporadas")
 
-    expected_markers = ["RF-056", "RNF34-C", "RF-051", "66 tabelas"]
+    expected_markers = ["RF-056", "RNF34-C", "RF-051", "69 tabelas"]
     for path, marker in zip(docx_files, expected_markers):
         txt = work / (path.stem + ".txt")
         with txt.open("w", encoding="utf-8") as handle:

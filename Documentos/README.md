@@ -9,7 +9,7 @@ Este índice existe para evitar que snapshots históricos preservados no reposit
 - **Resumo executivo não versionado:** `Documentos/Resumo_Executivo.md`. Deve refletir a fronteira entre a última release selada e o estado técnico candidato.
 - **Especificação Técnica publicada:** `Documentos/Especificacao_Tecnica_Jornada_v3.62.docx` e `.pdf`. Não existe `Especificacao_Tecnica_Jornada_v3.64.*` materializada nesta árvore.
 - **Requisitos consolidados:** `Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1` é a porta de entrada institucional. Os documentos v1.0 permanecem históricos e não devem ser lidos cumulativamente com v1.1.
-- **Modelo físico corrente:** `Documentos/Anexo_Modelo_Fisico_Jornada_v1.40` em MD, DOCX e PDF, derivado de `Solution/database/Jornada_Fase1_v3.70.sql` e com inventário automatizado de 66 tabelas.
+- **Modelo físico corrente:** `Documentos/Anexo_Modelo_Fisico_Jornada_v1.40` em MD, DOCX e PDF, derivado de `Solution/database/Jornada_Fase1_v3.70.sql`. A fonte Markdown está sincronizada com o inventário automatizado atual de **69 tabelas**; DOCX/PDF permanecem artefatos derivados e devem ser regenerados antes de nova publicação de entrega.
 
 ## Lacuna normativa v3.64 × Especificação v3.62
 
@@ -26,7 +26,7 @@ Essa regra resolve a ambiguidade de leitura sem fabricar documento normativo e s
 
 ## Artefatos históricos preservados
 
-`Documentos/Anexo_Modelo_Fisico_DER_Jornada_v1.39.docx` e `.pdf` representam o estado anterior associado à contagem histórica de 53 tabelas. Para contagem e estrutura do schema técnico candidato 3.70, deve ser usado o modelo físico v1.40; a presença dos arquivos v1.39 no diretório não os torna concorrentes com o documento corrente.
+`Documentos/Anexo_Modelo_Fisico_DER_Jornada_v1.39.docx` e `.pdf` representam o estado anterior associado à contagem histórica de 53 tabelas. Para contagem e estrutura do schema técnico candidato 3.70, deve ser usada a fonte corrente do modelo físico v1.40; a presença dos arquivos v1.39 no diretório não os torna concorrentes com o documento corrente.
 
 `Documentos/Anexo_Pendencias_Desenvolvimento_Jornada_v1.47.docx` e `Documentos/Anexo_Pendencias_Desenvolvimento_Jornada_v1.47.pdf` são um **snapshot histórico de pendências**, preservado apenas para rastreabilidade. Eles não constituem o backlog corrente nem devem ser usados para inferir que os itens ali listados continuam abertos; o estado corrente deve ser obtido dos artefatos vigentes identificados neste índice e do backlog aberto do projeto.
 
@@ -41,7 +41,7 @@ Em caso de dúvida sobre versão ou vigência:
 1. use `RELEASE_INFO.txt` para identificar a última release/tag efetivamente selada e a Base Normativa que ela declara;
 2. use `Especificacao_Tecnica_Jornada_v3.62.docx/.pdf` para o último texto de Especificação Técnica efetivamente publicado nesta árvore; não presuma a existência ou o conteúdo de uma v3.64 ausente;
 3. use o índice mestre de requisitos v1.1 para a leitura institucional consolidada candidata;
-4. use `Anexo_Modelo_Fisico_Jornada_v1.40` e `Solution/database/Jornada_Fase1_v3.70.sql` para o estado físico candidato 3.70;
+4. use `Anexo_Modelo_Fisico_Jornada_v1.40.md` e `Solution/database/Jornada_Fase1_v3.70.sql` para o estado físico candidato 3.70; para publicação de entrega, regenere os derivados DOCX/PDF a partir da fonte corrente;
 5. use estados/notas de engenharia para rastrear deltas técnicos, sem promovê-los implicitamente a norma;
 6. trate documentos explicitamente versionados anteriores e evidências runtime como histórico, salvo indicação expressa em documento corrente.
 
