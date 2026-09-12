@@ -27,13 +27,13 @@ Essa referência será consumível pelo Calibrador e pelos processos de enriquec
 
 A estrutura física exata deve seguir a granularidade efetivamente publicada pela fonte. Não serão fabricadas combinações de dimensões que o produto oficial não forneça.
 
-Exemplo conceitual, sujeito à validação contra o layout oficial antes da implementação:
+Exemplo conceitual:
 
 ```text
 referência de frequência
 - tipo: nome | sobrenome
 - valor normalizado
-- dimensões efetivamente publicadas (p.ex. sexo, período/década, UF, município)
+- dimensões efetivamente publicadas (sexo, período/década, UF, município quando existentes)
 - frequência
 - versão da fonte
 - data de referência
@@ -61,7 +61,7 @@ Isso permite:
 - auditoria da evidência disponível ao linkage;
 - desempenho previsível em grandes volumes.
 
-Os nomes finais das colunas serão definidos após a validação do layout/granularidade oficial, evitando antecipar uma semântica que a fonte não possua. Exemplos já semanticamente seguros incluem atributos como `primeiro_nome`, `decada_nascimento`, `municipio_residencia` e `uf_residencia`, além das frequências cuja dimensão estiver efetivamente disponível.
+Os nomes finais das colunas serão definidos após a validação do layout/granularidade oficial, evitando antecipar uma semântica que a fonte não possua.
 
 ### 4. Separar frequência observada de regra metodológica
 
@@ -113,37 +113,49 @@ A materialização em `gold.pessoa` introduz redundância deliberada. Essa redun
 
 **Interpretar `sobrenome` como último componente do nome ou criar sobrenomes posicionais fixos.** Rejeitada por alterar a semântica e introduzir fragilidade desnecessária diante de inversões, omissões e múltiplos sobrenomes.
 
-## Implementação realizada neste incremento
+## Implementação realizada
 
-A migração `Solution/database/migrations/20260912_Frequencia_Nomes_Referencia.sql` materializa o primeiro núcleo técnico desta decisão:
+A migração `Solution/database/migrations/20260912_Frequencia_Nomes_Referencia.sql` materializa o núcleo físico:
 
 - `ref.frequencia_nome_versao` registra edição, data de referência, estado, SHA-256 e ativação;
-- `ref.frequencia_nome` armazena `NOME` e `SOBRENOME` sem posição artificial, com as dimensões de sexo, período de nascimento e escopo geográfico;
+- `ref.frequencia_nome` armazena `NOME` e `SOBRENOME` sem posição artificial;
 - a chave dimensional impede duplicidade lógica dentro da mesma versão;
 - versões publicadas tornam-se imutáveis; uma nova versão ativa torna a anterior obsoleta sem excluí-la;
 - `ref.v_frequencia_nome_ativa` expõe a versão corrente para consumidores operacionais;
-- `identidade.modelo_linkage.frequencia_nome_versao_id` permite fixar a referência estatística usada por um modelo sem invalidar modelos históricos já existentes;
-- existe índice específico para lookup por valor normalizado e dimensões;
-- teste de integração comprova publicação, imutabilidade, troca da versão ativa e existência do vínculo de replay.
+- `identidade.modelo_linkage.frequencia_nome_versao_id` permite fixar a referência estatística usada por um modelo;
+- novos modelos `GERANDO` capturam atomicamente a versão ativa e falham de forma controlada quando não existe referência ativa;
+- o vínculo do modelo com a referência torna-se imutável, preservando replay histórico.
 
-A coluna no modelo permanece anulável neste incremento para não tornar o rollout dependente da carga oficial antes de ela existir. A exigência fail-closed para **novos** modelos deverá ser ativada junto com a integração explícita do Calibrador e a primeira carga validada da referência.
+O importador `NameFrequencyReferenceImporter`, executado por `LinkageParameters:Operation=IMPORT_NAME_FREQUENCY`, implementa o primeiro corte de carga oficial:
+
+- consulta os rankings nacionais completos de `nome` e `sobrenome` da API pública usada pelo produto Censo 2022 — Nomes no Brasil;
+- usa a mesma `IdentityComparison.NormalizeText` versionada utilizada pelo linkage;
+- valida forma e frequências positivas, limita comprimento ao contrato físico e rejeita duplicidades;
+- calcula SHA-256 canônico independente da ordem de chegada das páginas;
+- carrega com `SqlBulkCopy` dentro de transação serializável;
+- se uma execução anterior ficou em `CARREGANDO`, a versão é reconstruída de forma determinística;
+- se a mesma versão já foi publicada com o mesmo hash, a reexecução é idempotente e não altera o banco;
+- se o mesmo código de versão reaparecer com conteúdo diferente, a execução falha e exige novo `VersionCode`, impedindo sobrescrita histórica;
+- somente após a carga completa a versão é publicada/ativada.
+
+Este primeiro corte materializa o **total Brasil**. Distribuições detalhadas por período, UF e município permanecem fora deste incremento para que células suprimidas pelo sigilo estatístico sejam preservadas como ausência, e nunca convertidas implicitamente em zero.
 
 ## Dívida técnica aberta
 
 A implementação está parcial. Permanecem como dívida técnica:
 
-1. validar e documentar o layout oficial completo do produto de frequências, incluindo as granularidades realmente disponíveis para nome e sobrenome;
-2. **concluído neste incremento:** DDL das tabelas internas de referência e de versionamento;
-3. implementar a carga idempotente dos arquivos oficiais; checksum/proveniência e retenção de versões já possuem suporte físico, mas ainda falta o importador e a validação contra o layout oficial;
+1. documentar integralmente o contrato observado da API oficial, inclusive endpoints detalhados e regras de supressão;
+2. **concluído:** DDL das tabelas internas de referência e de versionamento;
+3. **parcialmente concluído:** importador idempotente dos rankings nacionais oficiais, checksum/proveniência e retenção de versões; falta ampliar a carga às dimensões detalhadas publicadas e criar prova automatizada ponta a ponta contra fixture fiel ao contrato externo;
 4. definir exatamente quais frequências serão materializadas em `gold.pessoa`, sem inventar dimensões ausentes da fonte;
 5. revisar a nomenclatura de residência no modelo, substituindo usos semanticamente indevidos de `referencia` por `residencia`, sem alterar conceitos que sejam genuinamente mais amplos que residência;
 6. implementar enriquecimento/recomposição de `gold.pessoa` e garantir comportamento determinístico em replay;
 7. criar índices orientados aos blockings efetivamente aprovados, após medição de seletividade e custo;
-8. integrar explicitamente a referência versionada ao Calibrador, fazendo novos modelos fixarem uma versão ativa e falharem de forma controlada quando a referência exigida não estiver disponível, sem impor fórmula institucional de peso/raridade;
+8. usar a referência no estimador apenas após explicitar a metodologia estatística aprovada, sem transformar frequência em “raridade” por convenção arbitrária;
 9. registrar a versão da referência também nos artefatos de auditoria/replay que descrevem cada execução, além do vínculo já criado em `identidade.modelo_linkage`;
-10. ampliar testes de migração e replay para provar que um modelo antigo continua consultando sua referência após a ativação de versão nova;
+10. ampliar testes de replay para provar que um modelo antigo continua consultando sua referência após a ativação de versão nova;
 11. atualizar DER, modelo físico, contratos e documentação normativa quando o modelo final for implementado.
 
 ## Critério de encerramento da dívida
 
-A dívida só poderá ser considerada encerrada quando a carga de referência estiver versionada e reproduzível, `gold.pessoa` possuir os enriquecimentos aprovados e indexáveis, o Calibrador consumir explicitamente uma versão da referência, e um teste de replay demonstrar que uma execução histórica produz o mesmo conjunto de evidências mesmo após a instalação de uma versão mais nova da referência.
+A dívida só poderá ser considerada encerrada quando a carga de referência estiver versionada e reproduzível em todas as granularidades aprovadas, `gold.pessoa` possuir os enriquecimentos aprovados e indexáveis, o Calibrador consumir explicitamente a referência segundo metodologia versionada, e um teste de replay demonstrar que uma execução histórica produz o mesmo conjunto de evidências mesmo após a instalação de uma versão mais nova da referência.
