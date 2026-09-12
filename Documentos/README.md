@@ -8,6 +8,7 @@ Este índice existe para evitar que snapshots históricos preservados no reposit
 - **Estado técnico candidato desta consolidação:** SolutionSchema v3.70. A release/tag v5.00 ainda não foi cortada.
 - **Resumo executivo não versionado:** `Documentos/Resumo_Executivo.md`. Deve refletir a fronteira entre a última release selada e o estado técnico candidato.
 - **Especificação Técnica publicada:** `Documentos/Especificacao_Tecnica_Jornada_v3.62.docx` e `.pdf`. Não existe `Especificacao_Tecnica_Jornada_v3.64.*` materializada nesta árvore.
+- **Especificação Técnica candidata:** `Documentos/Especificacao_Tecnica_Jornada_Candidata.md`, sem número normativo e sem efeito de publicação/release até aprovação e corte formais. Consolida a v3.62 com o estado técnico comprovável do HEAD e mantém pendências institucionais como gates externos.
 - **Requisitos consolidados:** `Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1` é a porta de entrada institucional. Os documentos v1.0 permanecem históricos e não devem ser lidos cumulativamente com v1.1.
 - **Modelo físico corrente:** `Documentos/Anexo_Modelo_Fisico_Jornada_v1.40` em MD, DOCX e PDF, derivado de `Solution/database/Jornada_Fase1_v3.70.sql`. A fonte Markdown está sincronizada com o inventário automatizado atual de **69 tabelas**; DOCX/PDF permanecem artefatos derivados e devem ser regenerados antes de nova publicação de entrega.
 
@@ -22,7 +23,7 @@ Essas duas afirmações têm papéis diferentes e devem permanecer explícitas:
 3. `Estado_Engenharia_v4.04.md`, `Estado_Engenharia_v4.05.md`, notas e artefatos de engenharia registram mudanças e contexto técnico, mas **não constituem por si só uma Especificação Técnica v3.64**;
 4. enquanto uma v3.64 formal não for publicada, nenhuma documentação corrente pode apontar para um arquivo v3.64 inexistente nem reconstruir seu conteúdo por inferência.
 
-Essa regra resolve a ambiguidade de leitura sem fabricar documento normativo e sem alterar o `RELEASE_INFO.txt` selado. Uma futura publicação formal da Especificação Técnica v3.64 poderá substituir esta regra transitória por referência direta ao artefato efetivamente publicado.
+Essa regra resolve a ambiguidade de leitura sem fabricar documento normativo e sem alterar o `RELEASE_INFO.txt` selado. A candidata de consolidação não é uma reconstrução da v3.64: ela é um novo artefato de revisão, explicitamente derivado da v3.62 e do estado técnico verificável, que só receberá versão normativa no ato de publicação formal.
 
 ## Artefatos históricos preservados
 
@@ -40,9 +41,10 @@ Em caso de dúvida sobre versão ou vigência:
 
 1. use `RELEASE_INFO.txt` para identificar a última release/tag efetivamente selada e a Base Normativa que ela declara;
 2. use `Especificacao_Tecnica_Jornada_v3.62.docx/.pdf` para o último texto de Especificação Técnica efetivamente publicado nesta árvore; não presuma a existência ou o conteúdo de uma v3.64 ausente;
-3. use o índice mestre de requisitos v1.1 para a leitura institucional consolidada candidata;
-4. use `Anexo_Modelo_Fisico_Jornada_v1.40.md` e `Solution/database/Jornada_Fase1_v3.70.sql` para o estado físico candidato 3.70; para publicação de entrega, regenere os derivados DOCX/PDF a partir da fonte corrente;
-5. use estados/notas de engenharia para rastrear deltas técnicos, sem promovê-los implicitamente a norma;
-6. trate documentos explicitamente versionados anteriores e evidências runtime como histórico, salvo indicação expressa em documento corrente.
+3. use `Especificacao_Tecnica_Jornada_Candidata.md` apenas para revisão da próxima consolidação normativa; ela não substitui a v3.62 antes da publicação formal;
+4. use o índice mestre de requisitos v1.1 para a leitura institucional consolidada candidata;
+5. use `Anexo_Modelo_Fisico_Jornada_v1.40.md` e `Solution/database/Jornada_Fase1_v3.70.sql` para o estado físico candidato 3.70; para publicação de entrega, regenere os derivados DOCX/PDF a partir da fonte corrente;
+6. use estados/notas de engenharia para rastrear deltas técnicos, sem promovê-los implicitamente a norma;
+7. trate documentos explicitamente versionados anteriores e evidências runtime como histórico, salvo indicação expressa em documento corrente.
 
 Nenhum item deste índice implica aprovação institucional, implantação em HML/Produção ou conclusão de gates que dependam de dados reais, governança ou decisão externa.
