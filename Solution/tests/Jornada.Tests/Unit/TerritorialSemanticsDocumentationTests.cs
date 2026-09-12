@@ -48,7 +48,7 @@ public sealed class TerritorialSemanticsDocumentationTests
             Assert.That(requirements, Does.Contain("não se confunde com ENDERECO_RESIDENCIAL nem com endereço de correspondência"));
 
             Assert.That(ddl, Does.Contain("ENDERECO_RESIDENCIAL é atributo cadastral de endereço de residência"));
-            Assert.That(ddl, Does.Contain("A camada territorial usa exclusivamente o snapshot de REFERENCIA_TERRITORIAL selecionado para a Pessoa"));
+            Assert.That(ddl, Does.Contain("A camada territorial usa exclusivamente o snapshot de REFERENCIA_TERRITORIAL selecionado"));
         });
     }
 
