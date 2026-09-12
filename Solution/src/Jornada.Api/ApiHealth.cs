@@ -83,8 +83,7 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
     }
 }
 
-internal sealed class ApiReadinessProbe(
-    ISqlReadinessProbe sqlProbe,
+internal sealed class ApiReadinessProbe(ISqlReadinessProbe sqlProbe,
     ApiOperationalPaths paths,
     IServiceProvider? services = null)
 {
