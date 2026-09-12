@@ -47,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import gzip, hashlib, json
+          import gzip, hashlib, io, json
           from pathlib import Path
           import pyarrow.parquet as pq
 
@@ -62,12 +62,14 @@ jobs:
           def emit(path, rows):
               h = hashlib.sha256()
               count = 0
-              with gzip.open(path, 'wt', encoding='utf-8', newline='\n', mtime=0) as f:
-                  for row in rows:
-                      line = json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
-                      f.write(line + '\n')
-                      h.update((line + '\n').encode('utf-8'))
-                      count += 1
+              with path.open('wb') as raw_out:
+                  with gzip.GzipFile(filename='', mode='wb', fileobj=raw_out, mtime=0) as gz:
+                      with io.TextIOWrapper(gz, encoding='utf-8', newline='\n') as f:
+                          for row in rows:
+                              line = json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+                              f.write(line + '\n')
+                              h.update((line + '\n').encode('utf-8'))
+                              count += 1
               return count, h.hexdigest().upper()
 
           def mapped_type(v):
