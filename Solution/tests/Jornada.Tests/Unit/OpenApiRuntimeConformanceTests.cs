@@ -1,4 +1,3 @@
-using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -19,30 +18,47 @@ public sealed class OpenApiRuntimeConformanceTests
     private HttpClient? client;
     private string? tempRoot;
     private JsonDocument? contract;
+    private bool externalBlackBox;
 
     [OneTimeSetUp]
     public void SetUp()
     {
-        tempRoot = Path.Combine(Path.GetTempPath(), "jornada-openapi-runtime-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempRoot);
-        var bronze = Path.Combine(tempRoot, "bronze");
-        var staging = Path.Combine(tempRoot, "staging");
-        var contractRoot = TestContext.CurrentContext.TestDirectory;
+        var externalBaseUrl = Environment.GetEnvironmentVariable("JORNADA_ACCEPTANCE_BASE_URL");
+        externalBlackBox = !string.IsNullOrWhiteSpace(externalBaseUrl);
 
-        factory = new WebApplicationFactory<ApiEntryPointMarker>().WithWebHostBuilder(builder =>
+        if (externalBlackBox)
         {
-            builder.UseEnvironment("Production");
-            builder.UseSetting("Contracts:RepositoryRoot", contractRoot);
-            builder.UseSetting("BronzeStorage:RootPath", bronze);
-            builder.UseSetting("IngestionStaging:RootPath", staging);
-            // Contrato runtime é teste de superfície: auditoria e readiness SQL usam doubles em memória.
-            builder.ConfigureTestServices(services =>
+            client = new HttpClient
             {
-                services.AddSingleton<IApiAuditSink, InMemoryApiAuditSink>();
-                services.AddSingleton<ISqlReadinessProbe>(new InMemorySqlReadinessProbe(ready: false));
+                BaseAddress = new Uri(externalBaseUrl!, UriKind.Absolute),
+                Timeout = TimeSpan.FromSeconds(30)
+            };
+            TestContext.Progress.WriteLine($"OpenAPI black-box acceptance target: {client.BaseAddress}");
+        }
+        else
+        {
+            tempRoot = Path.Combine(Path.GetTempPath(), "jornada-openapi-runtime-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempRoot);
+            var bronze = Path.Combine(tempRoot, "bronze");
+            var staging = Path.Combine(tempRoot, "staging");
+            var contractRoot = TestContext.CurrentContext.TestDirectory;
+
+            factory = new WebApplicationFactory<ApiEntryPointMarker>().WithWebHostBuilder(builder =>
+            {
+                builder.UseEnvironment("Production");
+                builder.UseSetting("Contracts:RepositoryRoot", contractRoot);
+                builder.UseSetting("BronzeStorage:RootPath", bronze);
+                builder.UseSetting("IngestionStaging:RootPath", staging);
+                // Contrato runtime interno é teste de superfície: auditoria e readiness SQL usam doubles em memória.
+                builder.ConfigureTestServices(services =>
+                {
+                    services.AddSingleton<IApiAuditSink, InMemoryApiAuditSink>();
+                    services.AddSingleton<ISqlReadinessProbe>(new InMemorySqlReadinessProbe(ready: false));
+                });
             });
-        });
-        client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+            client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        }
+
         var openApiPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "openapi", "jornada-v1.openapi.json");
         Assert.That(File.Exists(openApiPath), Is.True, $"Contrato OpenAPI não copiado para o output de testes: {openApiPath}");
         contract = JsonDocument.Parse(File.ReadAllText(openApiPath));
@@ -133,6 +149,18 @@ public sealed class OpenApiRuntimeConformanceTests
         }
         var actual = ProbeCatalog.Select(x => x.ContractMethod.ToUpperInvariant() + " " + x.ContractPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
         Assert.That(actual, Is.EquivalentTo(expected));
+    }
+
+    [Test]
+    public void Acceptance_mode_is_explicitly_black_box_when_external_base_url_is_set()
+    {
+        var configured = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("JORNADA_ACCEPTANCE_BASE_URL"));
+        Assert.That(externalBlackBox, Is.EqualTo(configured));
+        if (externalBlackBox)
+        {
+            Assert.That(factory, Is.Null, "Aceite externo não pode subir Jornada.Api via WebApplicationFactory.");
+            Assert.That(client?.BaseAddress, Is.Not.Null);
+        }
     }
 
     private static Func<HttpContent> Json(string value) => () => new StringContent(value, Encoding.UTF8, "application/json");
