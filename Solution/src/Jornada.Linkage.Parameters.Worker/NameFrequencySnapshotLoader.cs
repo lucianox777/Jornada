@@ -2,6 +2,7 @@ using System.Data;
 using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Operational.Sql;
@@ -50,12 +51,7 @@ public sealed class NameFrequencySnapshotLoader(
             }
 
             ValidateRows(rows);
-            var canonicalHash = NameFrequencyReferenceImporter.ComputeCanonicalHash(
-                rows.Select(x => new NameFrequencyReferenceImporter.NameFrequencyImportRow(
-                    x.Type,
-                    x.Value,
-                    x.NormalizedValue,
-                    x.Frequency)));
+            var canonicalHash = ComputeCanonicalHash(rows);
 
             await PersistAsync(manifest, rows, canonicalHash, stoppingToken);
             logger.LogInformation(
@@ -217,6 +213,33 @@ public sealed class NameFrequencySnapshotLoader(
 
         if (duplicate is not null)
             throw new InvalidOperationException($"Snapshot contém chave dimensional duplicada: {duplicate.Key.Type}/{duplicate.Key.Value}.");
+    }
+
+    internal static byte[] ComputeCanonicalHash(IEnumerable<SnapshotRow> rows)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var row in rows.OrderBy(x => x.Type, StringComparer.Ordinal)
+                     .ThenBy(x => x.Value, StringComparer.Ordinal)
+                     .ThenBy(x => x.Sex, StringComparer.Ordinal)
+                     .ThenBy(x => x.BirthPeriod, StringComparer.Ordinal)
+                     .ThenBy(x => x.GeographicScope, StringComparer.Ordinal)
+                     .ThenBy(x => x.UfCode, StringComparer.Ordinal)
+                     .ThenBy(x => x.MunicipalityCode, StringComparer.Ordinal)
+                     .ThenBy(x => x.Frequency))
+        {
+            var line = string.Join('|',
+                row.Type,
+                row.Value,
+                row.NormalizedValue,
+                row.Sex,
+                row.BirthPeriod,
+                row.GeographicScope,
+                row.UfCode,
+                row.MunicipalityCode,
+                row.Frequency.ToString(CultureInfo.InvariantCulture)) + "\n";
+            hash.AppendData(Encoding.UTF8.GetBytes(line));
+        }
+        return hash.GetHashAndReset();
     }
 
     private async Task PersistAsync(
