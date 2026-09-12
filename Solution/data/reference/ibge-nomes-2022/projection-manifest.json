@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "referenceCode": "CENSO2022_NOMES_BRASIL_V1",
+  "format": "NDJSON_UTF8_GZIP",
+  "generatedFrom": "raw-parquet/source-files.sha256",
+  "files": [
+    {
+      "path": "projection/frequencia-brasil.ndjson.gz",
+      "kind": "BRASIL_TOTAL",
+      "required": true,
+      "sha256": "AFA63B5EE6A1E34110EB7F0C75526B7A561E68AEF4C2B64009A3CB9EB433DDF8",
+      "canonicalContentSha256": "86BF2711675698807AD714FDB7B988001CC59244BB62E08C99A884A2C20CBB0A",
+      "rowCount": 330059
+    },
+    {
+      "path": "projection/frequencia-sexo-brasil.ndjson.gz",
+      "kind": "BRASIL_SEXO",
+      "required": true,
+      "sha256": "BE454D325C049CAD6CAB6A1AD6E94CB973DFA36D596FD801CDA6AAFF12E82D3F",
+      "canonicalContentSha256": "BB677A0366B6123ED64CB6314632AD5A5DEC18E251F2033900EAC8D7DC8842EA",
+      "rowCount": 134315
+    },
+    {
+      "path": "projection/frequencia-periodo-brasil.ndjson.gz",
+      "kind": "BRASIL_PERIODO",
+      "required": true,
+      "sha256": "A0778B91CA36C03B0DBB8A6FE366169B94CD5631AEA1DEE70BAD12F3F2C96878",
+      "canonicalContentSha256": "DF8CD5296519411E99E79AFBB9003594BD64DAD375FB73F89CE3774F19A71276",
+      "rowCount": 221524
+    },
+    {
+      "path": "projection/frequencia-uf.ndjson.gz",
+      "kind": "UF",
+      "required": true,
+      "sha256": "E704295A940BD36E50B3C0E5DD41A623622F40923EE91817BB92E4FC3DC11825",
+      "canonicalContentSha256": "73BB2009BC1A725A27E9A20CCD6361DB75E21DCAEDCF1F0B17D7F76E629DF445",
+      "rowCount": 828567
+    },
+    {
+      "path": "projection/frequencia-municipio.ndjson.gz",
+      "kind": "MUNICIPIO",
+      "required": true,
+      "sha256": "F101790AFAD0035252150CDD09930D5E24F51F4673794CD3D8A9927F07CAFD53",
+      "canonicalContentSha256": "451359502719EF6E051B910202D7CDBF90C1E72D0079ECF28E860ADCADD9CAB3",
+      "rowCount": 4088822
+    }
+  ]
+}

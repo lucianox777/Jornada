@@ -10,13 +10,10 @@ using Microsoft.Data.SqlClient;
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
-/// Importa a referência nacional de frequências de nomes e sobrenomes publicada pelo
-/// Censo Demográfico 2022. O importador é deliberadamente separado da estimação m/u:
-/// ele apenas internaliza evidência observada e versionada; não calcula raridade nem peso.
-///
-/// O primeiro incremento consome os rankings nacionais completos. As distribuições por
-/// período/UF/município serão adicionadas como fatos da mesma natureza em versão posterior,
-/// preservando células suprimidas como ausência, nunca como frequência zero.
+/// Captura excepcional da referência nacional publicada pelo Censo 2022.
+/// Esta operação NÃO faz parte da execução normal do Calibrador: serve somente para
+/// produzir/validar um novo snapshot bruto que depois deve ser versionado no projeto.
+/// O caminho operacional canônico é LOAD_NAME_FREQUENCY_SNAPSHOT.
 /// </summary>
 public sealed class NameFrequencyReferenceImporter(
     ILogger<NameFrequencyReferenceImporter> logger,
@@ -24,13 +21,17 @@ public sealed class NameFrequencyReferenceImporter(
     IOperationalSqlAdapter operationalSql,
     IHostApplicationLifetime applicationLifetime) : BackgroundService
 {
-    public const string Operation = "IMPORT_NAME_FREQUENCY";
+    public const string Operation = "CAPTURE_NAME_FREQUENCY_SNAPSHOT";
     private const string SourceName = "IBGE - Censo Demográfico 2022 - Nomes no Brasil";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
+            if (!configuration.GetValue("NameFrequencyCapture:ExplicitlyAllowed", false))
+                throw new InvalidOperationException(
+                    "Captura remota desabilitada por padrão. Para uma captura deliberada de nova versão, defina NameFrequencyCapture:ExplicitlyAllowed=true.");
+
             var endpoint = configuration.GetValue(
                 "NameFrequencyImport:BaseUrl",
                 "https://servicodados.ibge.gov.br/api/v3/nomes/2022")!;
@@ -74,15 +75,16 @@ public sealed class NameFrequencyReferenceImporter(
 
             await PersistAsync(versionCode, edition, referenceDate, publicationDate, rows, hash, stoppingToken);
 
-            logger.LogInformation(
-                "Referência de frequências importada. Versão={Version}; linhas={Rows}; SHA256={Hash}; escopo=BRASIL.",
+            logger.LogWarning(
+                "Captura remota concluída. Versão={Version}; linhas={Rows}; SHA256={Hash}. " +
+                "Antes de uso operacional, o conteúdo deve ser exportado como snapshot bruto imutável e versionado no projeto.",
                 versionCode,
                 rows.Count,
                 Convert.ToHexString(hash));
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Falha ao importar referência de frequências de nomes/sobrenomes.");
+            logger.LogError(ex, "Falha na captura excepcional da referência de frequências.");
             Environment.ExitCode = 1;
         }
         finally
@@ -233,7 +235,7 @@ public sealed class NameFrequencyReferenceImporter(
                 if (existingHash is not null && existingHash.AsSpan().SequenceEqual(hash))
                 {
                     await transaction.CommitAsync(cancellationToken);
-                    logger.LogInformation("Importação idempotente: versão {Version} já publicada com o mesmo SHA-256.", versionCode);
+                    logger.LogInformation("Captura idempotente: versão {Version} já publicada com o mesmo SHA-256.", versionCode);
                     return;
                 }
 

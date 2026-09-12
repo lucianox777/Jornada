@@ -11,10 +11,14 @@ var operation = builder.Configuration.GetValue("LinkageParameters:Operation", "G
     .Trim()
     .ToUpperInvariant();
 
-if (database.Provider == OperationalDatabaseProviders.PostgreSql)
+if (operation == NameFrequencySourceChecker.Operation)
 {
-    if (operation == NameFrequencyReferenceImporter.Operation)
-        throw new InvalidOperationException("IMPORT_NAME_FREQUENCY ainda possui implementação canônica apenas para SQL Server.");
+    builder.Services.AddHostedService<NameFrequencySourceChecker>();
+}
+else if (database.Provider == OperationalDatabaseProviders.PostgreSql)
+{
+    if (operation is NameFrequencyReferenceImporter.Operation or NameFrequencySnapshotLoader.Operation)
+        throw new InvalidOperationException($"{operation} ainda possui implementação canônica apenas para SQL Server.");
 
     builder.Services.AddSingleton(database);
     builder.Services.AddHostedService<PostgreSqlLinkageParametersWorker>();
@@ -27,6 +31,10 @@ else
     if (operation == NameFrequencyReferenceImporter.Operation)
     {
         builder.Services.AddHostedService<NameFrequencyReferenceImporter>();
+    }
+    else if (operation == NameFrequencySnapshotLoader.Operation)
+    {
+        builder.Services.AddHostedService<NameFrequencySnapshotLoader>();
     }
     else
     {
