@@ -1,6 +1,6 @@
 # Anexo - Modelo Físico da Jornada do Cidadão v1.40
 
-**Data:** 10/09/2026  
+**Data:** 12/09/2026  
 **Status:** CANDIDATO À CONSOLIDAÇÃO v5.00  
 **Tecnologia relacional normativa:** Microsoft SQL Server  
 **SolutionSchema alvo:** 3.70
@@ -11,9 +11,11 @@ Este anexo descreve o inventário físico relacional da Jornada e a forma canôn
 
 A documentação de entrega destinada à leitura deve ser publicada em **DOCX e PDF**, com os diagramas UML incorporados visualmente. O diagrama de classes da Identidade/Linkage e o diagrama de atividade da resolução de identidade fazem parte do conteúdo documental, sem exigir PlantUML, Mermaid ou software específico do leitor. Fontes técnicas auxiliares de geração de figura não são o artefato documental de entrega.
 
+Esta revisão sincroniza a fonte textual corrente com o schema medido após a internalização da referência versionada de frequências de nomes. Os binários DOCX/PDF permanecem artefatos derivados e devem ser regenerados pelo processo documental antes de uma nova publicação de entrega; a atualização deste Markdown, isoladamente, não declara que esses binários já foram regenerados.
+
 ## 2. Definição canônica do schema
 
-A instalação nova do SQL Server deve utilizar `Solution/database/Jornada_Fase1_v3.70.sql` como fonte canônica editável. Esse ponto de entrada aplica, em ordem determinística, o baseline histórico, a persistência progressiva, as estruturas de composição, a âncora CPF e as projeções/rulesets de blocking, e somente promove `Jornada.SolutionSchema=3.70` depois de verificar a existência de todos os objetos obrigatórios.
+A instalação nova do SQL Server deve utilizar `Solution/database/Jornada_Fase1_v3.70.sql` como fonte canônica editável. Esse ponto de entrada aplica, em ordem determinística, o baseline histórico, a persistência progressiva, as estruturas de composição, a âncora CPF, as projeções/rulesets de blocking e as migrações versionadas da referência de frequências de nomes, e somente promove `Jornada.SolutionSchema=3.70` depois de verificar a existência de todos os objetos obrigatórios.
 
 Para entrega a DBA ou ferramenta de deploy, `Solution/scripts/materialize-sql-installer.py` materializa deterministicamente a composição canônica em um único arquivo SQL Server autocontido, sem diretivas `:r`. O arquivo materializado não constitui uma segunda definição de schema: é um artefato gerado a partir da fonte canônica.
 
@@ -27,19 +29,19 @@ O mesmo contrato relacional canônico pode ser homologado em **SQL Database in M
 
 O inventário é derivado automaticamente por `Solution/scripts/schema-inventory.py` e publicado como evidência pelo workflow `jornada-schema-inventory`.
 
-Resultado medido na consolidação de 10/09/2026:
+Resultado medido em 12/09/2026 no `master`, SHA `a25488b043888ee2aeb5b292e2b638bd9491ec35`, workflow `jornada-schema-inventory` run `34722803666`:
 
 - tabelas no `Jornada_Fase1.sql` legado: **53**;
 - tabelas próprias do núcleo `Jornada_Identidade_Progressiva.sql`: **2**;
-- tabelas distintas introduzidas pelos scripts de migração de schema: **11**;
-- total distinto do schema operacional consolidado: **66 tabelas**;
-- tabelas do schema atual que não pertencem ao baseline legado de 53: **13**.
+- tabelas distintas introduzidas pelos scripts de migração de schema: **14**;
+- total distinto do schema operacional consolidado: **69 tabelas**;
+- tabelas do schema atual que não pertencem ao baseline legado de 53: **16**.
 
-Portanto, a contagem histórica 53/53 não representa o schema corrente. A contagem anterior de 64 também estava incompleta: o inventário automatizado encontrou 66 tabelas distintas.
+Portanto, a contagem histórica 53/53 não representa o schema corrente. As contagens intermediárias de 64 e 66 também ficaram superadas: o inventário automatizado atual mede 69 tabelas distintas.
 
 ## 4. Tabelas fora do baseline legado
 
-As 13 tabelas adicionais são:
+As 16 tabelas adicionais são:
 
 1. `identidade.blocking_chave`
 2. `identidade.composicao_aplicacao`
@@ -54,8 +56,11 @@ As 13 tabelas adicionais são:
 11. `identidade.linkage_ruleset_passe_campo`
 12. `identidade.pessoa_origem_progressiva`
 13. `identidade.pessoa_origem_progressiva_evento`
+14. `ref.frequencia_nome`
+15. `ref.frequencia_nome_cobertura`
+16. `ref.frequencia_nome_versao`
 
-## 5. Inventário completo - 66 tabelas
+## 5. Inventário completo - 69 tabelas
 
 ### bronze
 - `bronze.entrega_arquivo`
@@ -122,6 +127,9 @@ As 13 tabelas adicionais são:
 ### ref
 - `ref.atributo_transversal`
 - `ref.distrito`
+- `ref.frequencia_nome`
+- `ref.frequencia_nome_cobertura`
+- `ref.frequencia_nome_versao`
 - `ref.gestor`
 - `ref.gestor_pessoa_versao`
 - `ref.sistema_origem`
@@ -141,7 +149,26 @@ As 13 tabelas adicionais são:
 - `silver.registro_observacao`
 - `silver.registro_origem`
 
-## 6. Regras de evolução
+## 6. Referência versionada de frequências de nomes e projeção Gold
+
+A referência populacional de nomes é interna ao banco operacional para permitir calibração/replay reproduzíveis sem depender do estado corrente de uma fonte externa.
+
+- `ref.frequencia_nome_versao` identifica uma edição imutável da referência, com ciclo de publicação e hash de conteúdo.
+- `ref.frequencia_nome` armazena as frequências observadas/publicadas por versão e dimensões disponíveis. Ausência ou supressão na fonte não deve ser convertida automaticamente em frequência zero.
+- `ref.frequencia_nome_cobertura` registra a cobertura/proveniência do carregamento, separando completude observada de inferências estatísticas.
+- `identidade.modelo_linkage` e `identidade.linkage_run` preservam a versão de referência usada pelo modelo/execução, permitindo replay mesmo após a ativação de uma versão posterior.
+
+`gold.pessoa` não materializa uma frequência populacional única, pois esse valor depende da versão de referência. Em vez disso, mantém a chave semântica estável para consulta da referência versionada:
+
+- `nome_publicacao_normalizado`;
+- `nome_publicacao_metodo_versao`;
+- `nome_publicacao_normalizacao_versao`.
+
+A chave é produzida a partir da normalização canônica já persistida na Silver e representa somente a semântica de **nome** publicada e implementada. Não existe, nesta camada, decomposição posicional nem inferência de `SOBRENOME` a partir de `nome_completo`.
+
+Também não há índice novo sobre `nome_publicacao_normalizado` apenas por sua existência: criação de índice deve ser sustentada por medição de cardinalidade/seletividade, custo de escrita e ganho nos consumidores reais de blocking/lookup.
+
+## 7. Regras de evolução
 
 1. Microsoft SQL Server permanece a tecnologia relacional normativa e o baseline independente de ambiente do contrato relacional.
 2. Toda instalação nova deve partir do ponto canônico v3.70 ou sucessor.
@@ -151,3 +178,5 @@ As 13 tabelas adicionais são:
 6. **SQL Database in Microsoft Fabric pode hospedar o banco relacional operacional de HML/Produção quando homologado para a release exata, usando o mesmo contrato Microsoft SQL; Lakehouse e SQL Analytics Endpoint permanecem analíticos/compatibilidade e não são fonte de verdade operacional implícita.**
 7. DER/modelo físico é auxiliar; diagramas normativos de estrutura/fluxo devem usar UML.
 8. Os artefatos de leitura/entrega dos diagramas devem ser DOCX/PDF com as figuras incorporadas, sem exigir formatos especializados do destinatário.
+9. Uma referência estatística externa incorporada à Jornada deve ser versionada e preservada; replay de modelo/run não pode depender da referência que estiver ativa no momento da reexecução.
+10. Campos de residência devem usar semântica explícita de residência quando esse for realmente o conceito. `referencia_territorial` permanece um conceito mais amplo e não deve ser renomeado automaticamente para residência.
