@@ -45,6 +45,17 @@ public sealed class NameFrequencyReferenceImporterTests
     }
 
     [Test]
+    public void ParseRankingPage_rejects_unknown_semantics()
+    {
+        using var document = JsonDocument.Parse("""
+            { "totalPages": 1, "items": [ { "nome": "Silva", "frequencia": 20 } ] }
+            """);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            NameFrequencyReferenceImporter.ParseRankingPage(document.RootElement, "ULTIMO_NOME"));
+    }
+
+    [Test]
     public void CanonicalHash_is_order_independent_but_content_sensitive()
     {
         var a = new NameFrequencyReferenceImporter.NameFrequencyImportRow("NOME", "Maria", "MARIA", 10);
