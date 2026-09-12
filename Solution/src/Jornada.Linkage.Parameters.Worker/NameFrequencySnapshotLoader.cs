@@ -94,7 +94,7 @@ public sealed class NameFrequencySnapshotLoader(
         await using var stream = File.OpenRead(path);
         var manifest = await JsonSerializer.DeserializeAsync<SnapshotManifest>(
             stream,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
+            SnapshotJsonOptions,
             cancellationToken);
 
         if (manifest is null || manifest.SchemaVersion != 1)
@@ -365,7 +365,7 @@ public sealed class NameFrequencySnapshotLoader(
                     """
                     INSERT ref.frequencia_nome_cobertura(
                         frequencia_nome_versao_id,tipo,escopo_geografico,inclui_sexo,inclui_periodo_nascimento,
-                        cobertura,ausencia_significa,origem)
+                        cobertura,ausencia_semantica,origem_endpoint)
                     VALUES(@id,@tipo,@escopo,@sexo,@periodo,@cobertura,'NAO_PUBLICADA_OU_SUPRIMIDA',@origem);
                     """,
                     connection,
