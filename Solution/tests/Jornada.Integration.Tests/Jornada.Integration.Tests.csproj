@@ -35,6 +35,7 @@
     <None Include="..\..\database\migrations\20260911_Linkage_Blocking_Projection_Contract.sql" Link="database\migrations\20260911_Linkage_Blocking_Projection_Contract.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\database\migrations\20260912_Frequencia_Nomes_Referencia.sql" Link="database\migrations\20260912_Frequencia_Nomes_Referencia.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\database\migrations\20260912_Frequencia_Nomes_Cobertura.sql" Link="database\migrations\20260912_Frequencia_Nomes_Cobertura.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\database\migrations\20260912_Linkage_Run_Frequencia_Nome_Proveniencia.sql" Link="database\migrations\20260912_Linkage_Run_Frequencia_Nome_Proveniencia.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\config\contracts\**\*.json" Link="config\contracts\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\config\security\authorization-matrix.json" Link="config\security\authorization-matrix.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\config\security\test-access-keys.json" Link="config\security\test-access-keys.json" CopyToOutputDirectory="PreserveNewest" />
