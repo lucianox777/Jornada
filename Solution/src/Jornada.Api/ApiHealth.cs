@@ -1,5 +1,7 @@
 using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Jornada.Api;
 
@@ -81,13 +83,17 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
     }
 }
 
-internal sealed class ApiReadinessProbe(ISqlReadinessProbe sqlProbe, ApiOperationalPaths paths)
+internal sealed class ApiReadinessProbe(
+    ISqlReadinessProbe sqlProbe,
+    ApiOperationalPaths paths,
+    IServiceProvider? services = null)
 {
     public async Task<ApiReadinessResult> CheckAsync(CancellationToken ct)
     {
-        var checks = new List<ApiReadinessCheck>(3)
+        var checks = new List<ApiReadinessCheck>(4)
         {
             await sqlProbe.CheckAsync(ct),
+            CheckCorporateIdentityReadiness(),
             paths.BronzeConfigurationValid
                 ? CheckWritableDirectory("bronze", paths.BronzeRootPath)
                 : new ApiReadinessCheck("bronze", false, "BRONZE_CONFIGURACAO_INVALIDA"),
@@ -96,6 +102,21 @@ internal sealed class ApiReadinessProbe(ISqlReadinessProbe sqlProbe, ApiOperatio
                 : new ApiReadinessCheck("staging", false, "STAGING_CONFIGURACAO_INVALIDA")
         };
         return new ApiReadinessResult(checks.All(x => x.Ready), checks);
+    }
+
+    private ApiReadinessCheck CheckCorporateIdentityReadiness()
+    {
+        // Em runtime o container fornece o ambiente real. Development usa apenas credenciais sintéticas locais.
+        // Fora de Development, esta distribuição permanece deliberadamente fail-closed até que o wiring
+        // de identidade corporativa e autorização operacional substitua os componentes pendentes em Program.cs.
+        var environment = services?.GetService<IHostEnvironment>();
+        if (environment is null || environment.IsDevelopment())
+            return new ApiReadinessCheck("corporate-identity", true);
+
+        return new ApiReadinessCheck(
+            "corporate-identity",
+            false,
+            "CORPORATE_IDENTITY_AUTHORIZATION_PENDING");
     }
 
     private static ApiReadinessCheck CheckWritableDirectory(string name, string path)
