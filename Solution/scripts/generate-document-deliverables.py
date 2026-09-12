@@ -353,7 +353,7 @@ def make_diagrams(out_dir: Path) -> tuple[Path, Path]:
     arr(4.6, 4.94, 3.65, 4.56)
     ax.text(12.5, 6.8, "Caminho de Linkage versionado", fontsize=10.5, fontweight="bold", ha="center")
     box(12.5, 6.15, 3.4, 0.62, "Carregar modelo e ruleset\nversionados e imutáveis", 9.4)
-    box(12.5, 5.25, 3.4, 0.62, "Gerar candidatos por blocking_chave\nusando todos os passes aplicáveis", 9.2)
+    box(12.5, 5.25, 3.4, 0.62, "Gerar candidatos por blocking_chave\ncom todos os passes aplicáveis", 9.2)
     dia(12.5, 4.25, 3.5, 0.76, "Universo completo\ne execução íntegra?", 9.4)
     box(14.5, 3.25, 2.7, 0.65, "Falha operacional:\nnão interpretar como ‘sem candidato’\ne não publicar referência", 8.7)
     box(10.5, 3.45, 2.9, 0.62, "Calcular evidências e score\nsegundo modelo homologado", 9.2)
