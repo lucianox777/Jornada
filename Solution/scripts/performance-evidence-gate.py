@@ -246,7 +246,7 @@ def validate_report(
             "conflicts": conflicts,
             "noCandidateInBirthDateBlock": no_candidate,
         },
-        "note": "O gate valida coerência e proveniência da evidência de escala. Sem baseline APROVADO, não cria limites de desempenho; com baseline APROVADO, aplica somente os limites versionados de HML.",
+        "note": "O gate valida coerência e proveniência da evidência de escala. Sem baseline APROVADO, o gate valida apenas coerência da evidência. Com baseline APROVADO, também aplica os limites versionados de HML.",
     }
 
 
