@@ -15,6 +15,8 @@ Este índice existe para evitar que snapshots históricos preservados no reposit
 
 `Documentos/Anexo_Modelo_Fisico_DER_Jornada_v1.39.docx` e `.pdf` representam o estado anterior associado à contagem histórica de 53 tabelas. Para contagem e estrutura do schema técnico candidato 3.70, deve ser usado o modelo físico v1.40; a presença dos arquivos v1.39 no diretório não os torna concorrentes com o documento corrente.
 
+`Documentos/Anexo_Pendencias_Desenvolvimento_Jornada_v1.47.docx` e `Documentos/Anexo_Pendencias_Desenvolvimento_Jornada_v1.47.pdf` são um **snapshot histórico de pendências**, preservado apenas para rastreabilidade. Eles não constituem o backlog corrente nem devem ser usados para inferir que os itens ali listados continuam abertos; o estado corrente deve ser obtido dos artefatos vigentes identificados neste índice e do backlog aberto do projeto.
+
 Os arquivos `Estado_Engenharia_v*.md` são snapshots versionados do estado de engenharia em momentos específicos. O mais recente deles não substitui automaticamente `RELEASE_INFO.txt` nem o estado técnico da branch corrente. Da mesma forma, os arquivos `Evidencia_Runtime_*` registram execuções específicas e não constituem, isoladamente, declaração da release vigente.
 
 Na pasta `Documentos/Requisitos/`, as versões v1.0 são baselines históricos. A regra de leitura vigente está documentada no índice mestre v1.1, e os antigos aditivos usados na consolidação permanecem em `Documentos/Requisitos/Historico/` apenas para auditoria.
