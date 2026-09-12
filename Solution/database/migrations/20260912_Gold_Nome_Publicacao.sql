@@ -63,7 +63,7 @@ AFTER INSERT,UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
-    IF TRIGGER_NESTLEVEL()>1 RETURN;
+    IF TRIGGER_NESTLEVEL(OBJECT_ID('gold.tr_pessoa_nome_publicacao'),'AFTER','DML')>1 RETURN;
 
     ;WITH chave AS(
         SELECT i.pessoa_uuid,
