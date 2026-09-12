@@ -17,6 +17,7 @@ public sealed class NameFrequencyReferenceSqlServerTests
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260912_Frequencia_Nomes_Referencia.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260912_Linkage_Run_Frequencia_Nome_Proveniencia.sql"));
 
         var suffix = Guid.NewGuid().ToString("N")[..12];
         var firstId = await CreateVersionWithMinimumReferenceAsync(connection, $"TEST-NOMES-{suffix}-1", 1000, 400);
@@ -29,7 +30,9 @@ public sealed class NameFrequencyReferenceSqlServerTests
                     (SELECT status FROM ref.frequencia_nome_versao WHERE frequencia_nome_versao_id=@id),
                     (SELECT COUNT(*) FROM ref.v_frequencia_nome_ativa WHERE frequencia_nome_versao_id=@id),
                     CASE WHEN COL_LENGTH('identidade.modelo_linkage','frequencia_nome_versao_id') IS NULL THEN 0 ELSE 1 END,
-                    CASE WHEN EXISTS(SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID('identidade.modelo_linkage') AND name='fk_modelo_linkage_frequencia_nome_versao') THEN 1 ELSE 0 END;
+                    CASE WHEN EXISTS(SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID('identidade.modelo_linkage') AND name='fk_modelo_linkage_frequencia_nome_versao') THEN 1 ELSE 0 END,
+                    CASE WHEN COL_LENGTH('identidade.linkage_run','frequencia_nome_versao_id') IS NULL THEN 0 ELSE 1 END,
+                    CASE WHEN EXISTS(SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID('identidade.linkage_run') AND name='fk_linkage_run_frequencia_nome_versao') THEN 1 ELSE 0 END;
                 """;
             verify.Parameters.AddWithValue("@id", firstId);
             await using var reader = await verify.ExecuteReaderAsync();
@@ -40,6 +43,8 @@ public sealed class NameFrequencyReferenceSqlServerTests
                 Assert.That(reader.GetInt32(1), Is.EqualTo(2));
                 Assert.That(reader.GetInt32(2), Is.EqualTo(1));
                 Assert.That(reader.GetInt32(3), Is.EqualTo(1));
+                Assert.That(reader.GetInt32(4), Is.EqualTo(1));
+                Assert.That(reader.GetInt32(5), Is.EqualTo(1));
             });
         }
 
@@ -51,7 +56,8 @@ public sealed class NameFrequencyReferenceSqlServerTests
             Assert.That(ex!.Number, Is.EqualTo(51630));
         }
 
-        var secondId = await CreateVersionWithMinimumReferenceAsync(connection, $"TEST-NOMES-{suffix}-2", 1100, 450);
+        var secondCode = $"TEST-NOMES-{suffix}-2";
+        var secondId = await CreateVersionWithMinimumReferenceAsync(connection, secondCode, 1100, 450);
         await PublishAsync(connection, secondId, 0x22);
 
         var modelId = Guid.NewGuid();
@@ -64,6 +70,26 @@ public sealed class NameFrequencyReferenceSqlServerTests
 
         Assert.That(await ReadModelReferenceAsync(connection, modelId), Is.EqualTo(secondId),
             "Ativar referência nova não pode alterar a referência já fixada no modelo histórico.");
+
+        var runId = Guid.NewGuid();
+        await InsertLinkageRunAsync(connection, runId, modelId);
+        await AssertRunReferenceSnapshotAsync(connection, runId, secondId, secondCode, 0x22);
+
+        await using (var forbiddenRunMutation = connection.CreateCommand())
+        {
+            forbiddenRunMutation.CommandText = """
+                UPDATE identidade.linkage_run
+                SET frequencia_nome_versao_id=@third,
+                    frequencia_nome_versao_codigo=(SELECT codigo FROM ref.frequencia_nome_versao WHERE frequencia_nome_versao_id=@third),
+                    frequencia_nome_conteudo_sha256=(SELECT conteudo_sha256 FROM ref.frequencia_nome_versao WHERE frequencia_nome_versao_id=@third)
+                WHERE linkage_run_id=@run;
+                """;
+            forbiddenRunMutation.Parameters.AddWithValue("@third", thirdId);
+            forbiddenRunMutation.Parameters.AddWithValue("@run", runId);
+            var ex = Assert.ThrowsAsync<SqlException>(async () => await forbiddenRunMutation.ExecuteNonQueryAsync());
+            Assert.That(ex!.Number, Is.EqualTo(51651),
+                "O artefato de replay não pode ser reendereçado para uma referência mais nova.");
+        }
 
         var staleReferenceModel = Guid.NewGuid();
         var staleReference = Assert.ThrowsAsync<SqlException>(async () =>
@@ -114,6 +140,48 @@ public sealed class NameFrequencyReferenceSqlServerTests
             await InsertGeneratingModelAsync(connection, noReferenceModel, suffix + "-NOREF"));
         Assert.That(failClosed!.Number, Is.EqualTo(51639),
             "Calibrador deve falhar fechado quando não existe referência ATIVA.");
+    }
+
+    private static async Task InsertLinkageRunAsync(SqlConnection connection, Guid runId, Guid modelId)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT identidade.linkage_run(
+                linkage_run_id,modelo_id,modelo_versao,tipo_run,status,
+                limite_solicitado,escopo_json,batch_size,max_parallelism,
+                pessoa_observacao_id_high_watermark,registros_elegiveis,
+                avaliados,resolvidos,nao_resolvidos,conflitos,sem_candidato_no_bloco,
+                solicitado_por,motivo,correlation_id,iniciado_em)
+            SELECT
+                @run,m.modelo_id,m.versao,'REPLAY','PREPARANDO',
+                NULL,N'{"test":"reference-replay"}',100,1,
+                0,0,0,0,0,0,0,
+                N'ci',N'replay provenance test',NEWID(),SYSDATETIMEOFFSET()
+            FROM identidade.modelo_linkage m
+            WHERE m.modelo_id=@modelo;
+            """;
+        command.Parameters.AddWithValue("@run", runId);
+        command.Parameters.AddWithValue("@modelo", modelId);
+        Assert.That(await command.ExecuteNonQueryAsync(), Is.GreaterThanOrEqualTo(1));
+    }
+
+    private static async Task AssertRunReferenceSnapshotAsync(
+        SqlConnection connection, Guid runId, long expectedVersionId, string expectedCode, byte hashByte)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT frequencia_nome_versao_id,frequencia_nome_versao_codigo,frequencia_nome_conteudo_sha256
+            FROM identidade.linkage_run WHERE linkage_run_id=@run;
+            """;
+        command.Parameters.AddWithValue("@run", runId);
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.GetInt64(0), Is.EqualTo(expectedVersionId));
+            Assert.That(reader.GetString(1), Is.EqualTo(expectedCode));
+            Assert.That((byte[])reader[2], Is.EqualTo(Enumerable.Repeat(hashByte, 32).ToArray()));
+        });
     }
 
     private static async Task InsertGeneratingModelAsync(SqlConnection connection, Guid modelId, string suffix, long? explicitReferenceId = null)
