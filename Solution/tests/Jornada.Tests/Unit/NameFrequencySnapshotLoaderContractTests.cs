@@ -1,3 +1,4 @@
+using System.Text.Json;
 using NUnit.Framework;
 
 namespace Jornada.Tests.Unit;
@@ -40,7 +41,61 @@ public sealed class NameFrequencySnapshotLoaderContractTests
             Assert.That(loader, Does.Not.Contain("cobertura,ausencia_semantica,origem)"));
             Assert.That(loader, Does.Contain("SnapshotJsonOptions,").Or.Contain("SnapshotJsonOptions)"));
             Assert.That(loader, Does.Not.Contain("new JsonSerializerOptions { PropertyNameCaseInsensitive = true },"));
+            Assert.That(loader, Does.Contain("ReadProjectionManifestAsync"));
+            Assert.That(loader, Does.Contain("ValidateProjectionManifest"));
+            Assert.That(loader, Does.Contain("ValidateProjectedFileIntegrity"));
+            Assert.That(loader, Does.Contain("canonicalContentSha256"));
+            Assert.That(loader, Does.Contain("rowCount"));
         });
+    }
+
+    [Test]
+    public void ProjectionManifest_IsBoundToOperationalManifest()
+    {
+        var root = FindRepositoryRoot();
+        var referenceRoot = Path.Combine(root, "Solution", "data", "reference", "ibge-nomes-2022");
+        var manifestPath = Path.Combine(referenceRoot, "manifest.json");
+        var projectionPath = Path.Combine(referenceRoot, "projection-manifest.json");
+
+        using var manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
+        using var projection = JsonDocument.Parse(File.ReadAllText(projectionPath));
+
+        var manifestRoot = manifest.RootElement;
+        var projectionRoot = projection.RootElement;
+        var snapshot = manifestRoot.GetProperty("snapshot");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(snapshot.GetProperty("projectionManifest").GetString(), Is.EqualTo("projection-manifest.json"));
+            Assert.That(projectionRoot.GetProperty("schemaVersion").GetInt32(), Is.EqualTo(1));
+            Assert.That(projectionRoot.GetProperty("referenceCode").GetString(), Is.EqualTo(manifestRoot.GetProperty("referenceCode").GetString()));
+            Assert.That(projectionRoot.GetProperty("format").GetString(), Is.EqualTo(snapshot.GetProperty("format").GetString()));
+            Assert.That(projectionRoot.GetProperty("generatedFrom").GetString(), Is.EqualTo(snapshot.GetProperty("generatedFrom").GetString()));
+        });
+
+        var mainFiles = snapshot.GetProperty("files")
+            .EnumerateArray()
+            .ToDictionary(x => x.GetProperty("path").GetString()!, StringComparer.Ordinal);
+        var projectedFiles = projectionRoot.GetProperty("files")
+            .EnumerateArray()
+            .ToDictionary(x => x.GetProperty("path").GetString()!, StringComparer.Ordinal);
+
+        Assert.That(projectedFiles.Keys, Is.EquivalentTo(mainFiles.Keys));
+        foreach (var (path, mainFile) in mainFiles)
+        {
+            var projected = projectedFiles[path];
+            var canonicalHash = projected.GetProperty("canonicalContentSha256").GetString();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(projected.GetProperty("kind").GetString(), Is.EqualTo(mainFile.GetProperty("kind").GetString()), path);
+                Assert.That(projected.GetProperty("required").GetBoolean(), Is.EqualTo(mainFile.GetProperty("required").GetBoolean()), path);
+                Assert.That(projected.GetProperty("sha256").GetString(), Is.EqualTo(mainFile.GetProperty("sha256").GetString()).IgnoreCase, path);
+                Assert.That(projected.GetProperty("rowCount").GetInt64(), Is.GreaterThan(0), path);
+                Assert.That(canonicalHash, Has.Length.EqualTo(64), path);
+                Assert.That(canonicalHash, Does.Match("^[0-9A-Fa-f]{64}$"), path);
+            });
+        }
     }
 
     private static string FindRepositoryRoot()
