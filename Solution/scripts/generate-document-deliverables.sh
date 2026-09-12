@@ -278,6 +278,6 @@ fi
 grep -q 'RF-056' "$WORK/02_Requisitos_Funcionais_Jornada_v1.1.txt"
 grep -q 'RNF34-C' "$WORK/03_Requisitos_Nao_Funcionais_Jornada_v1.1.txt"
 grep -q 'RF-051' "$WORK/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.txt"
-grep -q '66 tabelas' "$WORK/Anexo_Modelo_Fisico_Jornada_v1.40.txt"
+grep -q '69 tabelas' "$WORK/Anexo_Modelo_Fisico_Jornada_v1.40.txt"
 
 echo 'Artefatos DOCX/PDF gerados e validados.'
