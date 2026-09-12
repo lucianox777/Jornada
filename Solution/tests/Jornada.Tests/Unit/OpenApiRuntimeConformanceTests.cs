@@ -12,7 +12,7 @@ namespace Jornada.Tests.Unit;
 [TestFixture]
 [Category("Unit")]
 [Category("OpenApiRuntime")]
-public sealed class OpenApiRuntimeConformanceTests
+public sealed class OpenApiRuntimeConformanceTests : IDisposable
 {
     private WebApplicationFactory<ApiEntryPointMarker>? factory;
     private HttpClient? client;
@@ -67,14 +67,22 @@ public sealed class OpenApiRuntimeConformanceTests
     [OneTimeTearDown]
     public void TearDown()
     {
-        client?.Dispose();
-        factory?.Dispose();
-        contract?.Dispose();
+        Dispose();
         if (tempRoot is not null)
         {
             try { if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true); }
             catch (Exception ex) { TestContext.Progress.WriteLine($"Cleanup OpenAPI runtime best-effort: {ex.GetType().Name}"); }
         }
+    }
+
+    public void Dispose()
+    {
+        client?.Dispose();
+        client = null;
+        factory?.Dispose();
+        factory = null;
+        contract?.Dispose();
+        contract = null;
     }
 
     private static readonly RuntimeProbe[] ProbeCatalog =
