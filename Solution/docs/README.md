@@ -9,6 +9,7 @@
 - `Operabilidade_Contratos_v3.74.md` - autorização, minimização, compatibilidade, invariantes de upgrade, Bronze profundo/GC dry-run, observabilidade e validade das calibrações.
 - `Possibilidades_Regras.md` - motor versionado, catálogo governado e dry-run de regras de Possibilidades.
 - `Escopo_Produto_Fase1.md` - limites factuais e de cobertura do produto atual; distingue concessão de pagamento/recebimento e impede extrapolar Gestores/Tipos não integrados.
+- `Governanca_Finalidade_Acesso.md` - gate de decisão institucional que impede introduzir finalidade livre por requisição antes de deliberação normativa e registra o desenho preferencial caso a finalidade venha a ser exigida.
 - `../tests/fixtures/ingestao/` - payloads de referência usados como fixtures dos testes automatizados.
 
 ## Hierarquia normativa publicada
@@ -38,7 +39,7 @@ Exemplos de integração de versões anteriores não fazem parte da arquitetura 
 
 ## Estado de implementação
 
-A API de referência possui serviços SQL, rate limiting, inspeção segura de ZIP, Processor de referência, QC e completude derivada. A implementação consolidada autoriza por credencial, scope e recurso, mantém a Pessoa compartilhada em âmbito municipal sem vínculo prévio, aplica exceções negativas de projeção e registra auditoria restrita do cidadão consultado sem exigir finalidade declarada.
+A API de referência possui serviços SQL, rate limiting, inspeção segura de ZIP, Processor de referência, QC e completude derivada. A implementação consolidada autoriza por credencial, scope e recurso, mantém a Pessoa compartilhada em âmbito municipal sem vínculo prévio, aplica exceções negativas de projeção e registra auditoria restrita do cidadão consultado sem exigir finalidade declarada. A ausência de finalidade livre por requisição e o gate para qualquer mudança futura estão registrados em `Governanca_Finalidade_Acesso.md`.
 
 Em Development, chaves sintéticas pré-geradas são carregadas somente pelo `DevelopmentAccessContextResolver`; seus `credentialId` coincidem com o seed de `controle.credencial_api`. Em HML/Produção, `CorporateIdentityPendingAccessContextResolver` + `DenyByDefaultPolicyEngine` mantêm a API fechada até a integração corporativa.
 
@@ -48,7 +49,7 @@ Bronze: os bytes do ZIP ficam fora do SQL Server, sob chave `sha256/ab/cd/<sha25
 
 ### Endereço de casa-abrigo-sigilosa
 
-`ENDERECO_CASA_ABRIGO_SIGILOSA` é um atributo reservado para o endereço de uma **casa-abrigo-sigilosa**. Ele não é sinônimo de `ENDERECO_RESIDENCIAL`, não cria uma categoria de “Pessoa protegida” e não é inferido pela Jornada. O atributo só é aceito em Entrega de `SERVICO` cujo `ref.tipo_registro_versao.origina_endereco_casa_abrigo_sigilosa=1`; portanto, o dado tem de vir do próprio serviço de casa-abrigo cadastrado para essa finalidade.
+`ENDERECO_CASA_ABRIGO_SIGILOSA` é um atributo reservado para o endereço de uma **casa-abrigo-sigilosa**. Ele não é sinônimo de `ENDERECO_RESIDENCIAL`, não cria uma categoria de “Pessoa protegida” e não é inferido pela Jornada. O atributo só é aceito em Entrega de `SERVICO` cujo `ref.tipo_registro_versao.origina_endereco_casa_abrigo_sigILOSA=1`; portanto, o dado tem de vir do próprio serviço de casa-abrigo cadastrado para essa finalidade.
 
 Por regra estrutural, esse atributo não é projetado pela API a Gestor diferente do Gestor responsável, independentemente da ausência de restrições manuais em `controle.restricao_projecao_jornada_versao`. Os demais dados da Pessoa seguem as regras normais de compartilhamento. O endereço sigiloso também não alimenta `REFERENCIA_TERRITORIAL`.
 
