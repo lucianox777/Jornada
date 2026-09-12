@@ -19,64 +19,134 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Capture immutable 2022 raw parquet snapshot
+      - name: Ensure immutable raw snapshot exists
         shell: bash
         run: |
           set -euo pipefail
           target="Solution/data/reference/ibge-nomes-2022/raw-parquet"
           mkdir -p "$target"
-
           base="https://huggingface.co/datasets/olob0/ibge-nomes-no-brasil-2022/resolve/main/parquet"
           files=(
-            municipality.parquet
-            name_by_decade.parquet
-            name_by_municipality.parquet
-            name_by_state.parquet
-            name_description.parquet
-            name_description_source.parquet
-            name_detail.parquet
-            name_ranking.parquet
-            name_variant.parquet
-            region.parquet
-            state.parquet
+            municipality.parquet name_by_decade.parquet name_by_municipality.parquet
+            name_by_state.parquet name_description.parquet name_description_source.parquet
+            name_detail.parquet name_ranking.parquet name_variant.parquet region.parquet state.parquet
           )
-
           for file in "${files[@]}"; do
-            curl --fail --location --retry 5 --retry-delay 2 \
-              "$base/$file?download=true" \
-              --output "$target/$file"
-            test -s "$target/$file"
+            if [ ! -s "$target/$file" ]; then
+              curl --fail --location --retry 5 --retry-delay 2 "$base/$file?download=true" --output "$target/$file"
+            fi
           done
+          (cd "$target" && sha256sum "${files[@]}" > source-files.sha256)
 
-          (
-            cd "$target"
-            sha256sum "${files[@]}" > source-files.sha256
-          )
+      - name: Install projection dependency
+        shell: bash
+        run: python -m pip install --disable-pip-version-check pyarrow==21.0.0
 
-          cat > "$target/PROVENANCE.md" <<'EOF'
-          # Snapshot bruto — IBGE Nomes no Brasil / Censo 2022
+      - name: Generate deterministic operational projection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import gzip, hashlib, json
+          from pathlib import Path
+          import pyarrow.parquet as pq
 
-          Este diretório é um snapshot imutável incorporado ao projeto para calibração, enriquecimento e replay sem dependência de rede.
+          root = Path('Solution/data/reference/ibge-nomes-2022')
+          raw = root / 'raw-parquet'
+          out = root / 'projection'
+          out.mkdir(parents=True, exist_ok=True)
 
-          **Fonte original dos dados:** IBGE — Censo Demográfico 2022 — Nomes no Brasil, com data de referência de 1º de agosto de 2022.
+          def clean(v):
+              return None if v is None else str(v).strip()
 
-          **Origem técnica desta captura:** compilação Parquet `olob0/ibge-nomes-no-brasil-2022`, produzida diretamente a partir da API pública que alimenta o produto oficial do IBGE e da API oficial de localidades. A compilação declara não adicionar dados inferidos ou enriquecimentos externos. Os dados originais permanecem atribuídos ao IBGE; a estruturação da compilação é CC BY 4.0.
+          def emit(path, rows):
+              h = hashlib.sha256()
+              count = 0
+              with gzip.open(path, 'wt', encoding='utf-8', newline='\n', mtime=0) as f:
+                  for row in rows:
+                      line = json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+                      f.write(line + '\n')
+                      h.update((line + '\n').encode('utf-8'))
+                      count += 1
+              return count, h.hexdigest().upper()
 
-          O arquivo `source-files.sha256` fixa o conteúdo exato capturado. Estes arquivos não devem ser substituídos no lugar. Uma revisão futura da fonte deve criar um novo diretório/versão.
+          def mapped_type(v):
+              v = clean(v)
+              if v == 'given': return 'NOME'
+              if v == 'surname': return 'SOBRENOME'
+              raise ValueError(f'name_type inesperado: {v!r}')
 
-          Células de baixa frequência suprimidas pelo sigilo estatístico permanecem ausentes nos fatos detalhados. Ausência **não significa zero**.
-          EOF
+          files = []
 
-      - name: Commit snapshot once
+          t = pq.read_table(raw / 'name_ranking.parquet', columns=['name_text','name_type','frequency']).to_pylist()
+          rows = ({'tipo':mapped_type(r['name_type']),'valor':clean(r['name_text']),'frequencia':int(r['frequency']),
+                   'sexo':'TODOS','periodoNascimento':'TODOS','escopoGeografico':'BRASIL','ufCodigo':'00','municipioCodigo':'0000000'}
+                  for r in sorted(t, key=lambda r:(str(r['name_type']),str(r['name_text']))))
+          p = out/'frequencia-brasil.ndjson.gz'; n,h=emit(p,rows); files.append((p,n,h,'BRASIL_TOTAL'))
+
+          t = pq.read_table(raw / 'name_detail.parquet', columns=['name_text','name_type','male_count','female_count']).to_pylist()
+          def sex_rows():
+              for r in sorted(t, key=lambda r:(str(r['name_type']),str(r['name_text']))):
+                  typ=mapped_type(r['name_type']); value=clean(r['name_text'])
+                  for sex,col in [('MASCULINO','male_count'),('FEMININO','female_count')]:
+                      v=r[col]
+                      if v is not None and int(v)>0:
+                          yield {'tipo':typ,'valor':value,'frequencia':int(v),'sexo':sex,'periodoNascimento':'TODOS',
+                                 'escopoGeografico':'BRASIL','ufCodigo':'00','municipioCodigo':'0000000'}
+          p=out/'frequencia-sexo-brasil.ndjson.gz'; n,h=emit(p,sex_rows()); files.append((p,n,h,'BRASIL_SEXO'))
+
+          t = pq.read_table(raw / 'name_by_decade.parquet', columns=['name_text','name_type','decade','frequency']).to_pylist()
+          def decade_rows():
+              for r in sorted(t,key=lambda r:(str(r['name_type']),str(r['name_text']),int(r['decade']))):
+                  yield {'tipo':mapped_type(r['name_type']),'valor':clean(r['name_text']),'frequencia':int(r['frequency']),
+                         'sexo':'TODOS','periodoNascimento':str(int(r['decade'])),'escopoGeografico':'BRASIL',
+                         'ufCodigo':'00','municipioCodigo':'0000000'}
+          p=out/'frequencia-periodo-brasil.ndjson.gz'; n,h=emit(p,decade_rows()); files.append((p,n,h,'BRASIL_PERIODO'))
+
+          t = pq.read_table(raw / 'name_by_state.parquet', columns=['name_text','name_type','state_code','frequency']).to_pylist()
+          def state_rows():
+              for r in sorted(t,key=lambda r:(str(r['name_type']),str(r['name_text']),int(r['state_code']))):
+                  yield {'tipo':mapped_type(r['name_type']),'valor':clean(r['name_text']),'frequencia':int(r['frequency']),
+                         'sexo':'TODOS','periodoNascimento':'TODOS','escopoGeografico':'UF',
+                         'ufCodigo':f"{int(r['state_code']):02d}",'municipioCodigo':'0000000'}
+          p=out/'frequencia-uf.ndjson.gz'; n,h=emit(p,state_rows()); files.append((p,n,h,'UF'))
+
+          municipalities = pq.read_table(raw/'municipality.parquet', columns=['code','state_code']).to_pylist()
+          uf_by_municipality = {int(r['code']):int(r['state_code']) for r in municipalities}
+          t = pq.read_table(raw / 'name_by_municipality.parquet', columns=['name_text','name_type','municipality_code','frequency']).to_pylist()
+          def municipality_rows():
+              for r in sorted(t,key=lambda r:(str(r['name_type']),str(r['name_text']),int(r['municipality_code']))):
+                  code=int(r['municipality_code']); uf=uf_by_municipality.get(code, code//100000)
+                  yield {'tipo':mapped_type(r['name_type']),'valor':clean(r['name_text']),'frequencia':int(r['frequency']),
+                         'sexo':'TODOS','periodoNascimento':'TODOS','escopoGeografico':'MUNICIPIO',
+                         'ufCodigo':f"{uf:02d}",'municipioCodigo':f"{code:07d}"}
+          p=out/'frequencia-municipio.ndjson.gz'; n,h=emit(p,municipality_rows()); files.append((p,n,h,'MUNICIPIO'))
+
+          projection = {
+              'schemaVersion': 1,
+              'referenceCode': 'CENSO2022_NOMES_BRASIL_V1',
+              'format': 'NDJSON_UTF8_GZIP',
+              'generatedFrom': 'raw-parquet/source-files.sha256',
+              'files': [
+                  {'path': str(p.relative_to(root)).replace('\\','/'), 'kind': kind, 'required': True,
+                   'sha256': hashlib.sha256(p.read_bytes()).hexdigest().upper(), 'canonicalContentSha256': h, 'rowCount': n}
+                  for p,n,h,kind in files
+              ]
+          }
+          (root/'projection-manifest.json').write_text(json.dumps(projection,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          print(json.dumps({x[3]:x[1] for x in files},indent=2))
+          PY
+
+      - name: Commit snapshot and projection once
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Solution/data/reference/ibge-nomes-2022/raw-parquet
+          git add Solution/data/reference/ibge-nomes-2022
           if git diff --cached --quiet; then
-            echo "Snapshot already captured; nothing to commit."
+            echo "Snapshot/projection already captured; nothing to commit."
             exit 0
           fi
-          git commit -m "data: vendor immutable IBGE nomes 2022 snapshot"
+          git commit -m "data: add deterministic IBGE nomes 2022 projection"
           git push origin HEAD:feat/name-frequency-coverage
