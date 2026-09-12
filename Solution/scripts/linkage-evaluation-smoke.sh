@@ -137,6 +137,7 @@ python3 "$ROOT/scripts/linkage-evaluation-evidence-gate.py" "$OUT/report.json" \
   --summary "$OUT/evidence-gate-summary.json"
 python3 "$ROOT/scripts/linkage-statistical-readiness-gate.py" \
   --root "$ROOT" --self-test
+python3 "$ROOT/scripts/performance-evidence-gate.py" --self-test
 
 {
   echo "status=OK"

@@ -31,7 +31,7 @@ sqlcmd() {
   compose exec -T -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b "$@"
 }
-scalar() { sqlcmd -d "$DB" -h -1 -W -Q "SET NOCOUNT ON; $1" | tr -d '\r' | sed '/^[[:space:]]*$/d' | tail -1; }
+scalar() { sqlcmd -d "$DB" -h -1 -y 0 -w 65535 -Q "SET NOCOUNT ON; $1" | tr -d '\r' | sed '/^[[:space:]]*$/d' | tail -1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
 now_ms() { date +%s%3N; }
 
 sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_PAIRED="$PAIRED" SCALE_PENDING="$PENDING" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" SCALE_BIRTH_SHIFT_MODULO="$BIRTH_SHIFT_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale.sql
@@ -79,10 +79,17 @@ R1=$(now_ms)
 RUNNER_MS=$((R1-R0))
 
 IFS='|' read -r RUN_STATUS ELIGIBLE EVALUATED RESOLVED UNRESOLVED CONFLICTS NO_CANDIDATE <<< "$(scalar "SELECT CONCAT(status,'|',registros_elegiveis,'|',avaliados,'|',resolvidos,'|',nao_resolvidos,'|',conflitos,'|',sem_candidato_no_bloco) FROM identidade.linkage_run WHERE correlation_id='$CORRELATION';")"
+RUN_SCOPE_JSON="$(scalar "SELECT escopo_json FROM identidade.linkage_run WHERE correlation_id='$CORRELATION';")"
+[[ -n "$RUN_SCOPE_JSON" ]] || { echo "ERRO: escopo_json do linkage_run ausente." >&2; exit 5; }
+GIT_COMMIT_SHA="$(git -C "$ROOT" rev-parse HEAD | tr '[:upper:]' '[:lower:]' | tr -d '\r\n')"
+[[ "$GIT_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "ERRO: SHA Git inválido para evidência de escala." >&2; exit 5; }
+
 OUTDIR="$ROOT/.local/performance"; mkdir -p "$OUTDIR"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"; OUT="$OUTDIR/scale-${PROFILE}-${STAMP}.json"
 cat > "$OUT" <<JSON
 {
+  "reportVersion": "LINKAGE_SCALE_EVIDENCE_V1",
+  "gitCommitSha": "$GIT_COMMIT_SHA",
   "profile": "$PROFILE",
   "seed": $SEED,
   "collisionModulo": $COLLISION_MODULO,
@@ -93,6 +100,7 @@ cat > "$OUT" <<JSON
   "trainingSampleSize": $SAMPLE,
   "trainingPoolSize": $POOL,
   "modelVersion": $MODEL_VERSION,
+  "runtimeScope": $RUN_SCOPE_JSON,
   "parametersGenerateMilliseconds": $PARAM_MS,
   "runnerMilliseconds": $RUNNER_MS,
   "runner": {
