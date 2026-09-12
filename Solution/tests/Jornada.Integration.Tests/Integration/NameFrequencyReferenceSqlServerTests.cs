@@ -65,6 +65,12 @@ public sealed class NameFrequencyReferenceSqlServerTests
         Assert.That(await ReadModelReferenceAsync(connection, modelId), Is.EqualTo(secondId),
             "Ativar referência nova não pode alterar a referência já fixada no modelo histórico.");
 
+        var staleReferenceModel = Guid.NewGuid();
+        var staleReference = Assert.ThrowsAsync<SqlException>(async () =>
+            await InsertGeneratingModelAsync(connection, staleReferenceModel, suffix + "-STALE", secondId));
+        Assert.That(staleReference!.Number, Is.EqualTo(51641),
+            "Novo modelo GERANDO não pode contornar a captura da referência ATIVA informando versão obsoleta.");
+
         await using (var forbiddenModelMutation = connection.CreateCommand())
         {
             forbiddenModelMutation.CommandText = "UPDATE identidade.modelo_linkage SET frequencia_nome_versao_id=@third WHERE modelo_id=@model;";
@@ -110,7 +116,7 @@ public sealed class NameFrequencyReferenceSqlServerTests
             "Calibrador deve falhar fechado quando não existe referência ATIVA.");
     }
 
-    private static async Task InsertGeneratingModelAsync(SqlConnection connection, Guid modelId, string suffix)
+    private static async Task InsertGeneratingModelAsync(SqlConnection connection, Guid modelId, string suffix, long? explicitReferenceId = null)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = """
@@ -120,14 +126,16 @@ public sealed class NameFrequencyReferenceSqlServerTests
                 deduplicacao_metodo,base_referencia,snapshot_referencia,
                 registros_lidos,pessoas_unicas,gerado_em,ativado_em,
                 snapshot_capturado_em,amostra_metodo,amostra_pool_tamanho,
-                amostra_m_tamanho,amostra_u_tamanho,falha_resumo)
+                amostra_m_tamanho,amostra_u_tamanho,falha_resumo,
+                frequencia_nome_versao_id)
             VALUES(
                 @modelo,@versao,'GERANDO','TEST_ALGORITHM','TEST_NORMALIZATION',
                 'GOLD_PESSOA_UUID_PK','gold.pessoa',NULL,NULL,NULL,SYSDATETIMEOFFSET(),NULL,
-                NULL,@amostra,1000,NULL,NULL,NULL);
+                NULL,@amostra,1000,NULL,NULL,NULL,@referencia);
             """;
         command.Parameters.AddWithValue("@modelo", modelId);
         command.Parameters.AddWithValue("@amostra", "TEST_REFERENCE_" + suffix);
+        command.Parameters.AddWithValue("@referencia", explicitReferenceId is null ? DBNull.Value : explicitReferenceId.Value);
         await command.ExecuteNonQueryAsync();
     }
 
