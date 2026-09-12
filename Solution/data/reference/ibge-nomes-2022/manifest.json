@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "referenceCode": "CENSO2022_NOMES_BRASIL_V1",
+  "source": "IBGE - Censo Demografico 2022 - Nomes no Brasil",
+  "sourceUrl": "https://censo2022.ibge.gov.br/nomes/",
+  "apiBaseUrl": "https://servicodados.ibge.gov.br/api/v3/nomes/2022",
+  "referenceDate": "2022-08-01",
+  "publicationDate": "2025-11-04",
+  "normalizationVersion": "IDENTITY_NORMALIZATION_V1",
+  "policy": {
+    "operationalSource": "LOCAL_IMMUTABLE_SNAPSHOT",
+    "remoteApiRequiredAtRuntime": false,
+    "remoteCheckMayMutateData": false,
+    "missingDetailedCellMeaning": "NAO_PUBLICADA_OU_SUPRIMIDA",
+    "replaceInPlace": false
+  },
+  "snapshot": {
+    "format": "NDJSON_UTF8_GZIP",
+    "directory": "raw",
+    "files": [
+      {
+        "path": "raw/frequencia-nome-brasil.ndjson.gz",
+        "kind": "NOME_BRASIL",
+        "required": true
+      },
+      {
+        "path": "raw/frequencia-sobrenome-brasil.ndjson.gz",
+        "kind": "SOBRENOME_BRASIL",
+        "required": true
+      },
+      {
+        "path": "raw/frequencia-nome-periodo.ndjson.gz",
+        "kind": "NOME_PERIODO",
+        "required": false
+      },
+      {
+        "path": "raw/frequencia-nome-uf.ndjson.gz",
+        "kind": "NOME_UF",
+        "required": false
+      },
+      {
+        "path": "raw/frequencia-nome-municipio.ndjson.gz",
+        "kind": "NOME_MUNICIPIO",
+        "required": false
+      }
+    ]
+  },
+  "lightCheck": {
+    "enabled": true,
+    "authoritative": false,
+    "purpose": "Detectar indicios de revisao da fonte. Nao atualiza automaticamente o snapshot nem o banco.",
+    "signals": [
+      "HTTP_ETAG_OR_LAST_MODIFIED_WHEN_AVAILABLE",
+      "TOTAL_PAGES",
+      "FIRST_PAGE_CANONICAL_HASH"
+    ]
+  },
+  "notes": [
+    "O snapshot bruto e a fonte operacional do Calibrador e do replay.",
+    "Uma revisao do IBGE deve gerar novo referenceCode; nunca sobrescrever CENSO2022_NOMES_BRASIL_V1.",
+    "Ausencia de celula detalhada nao significa frequencia zero.",
+    "Os arquivos raw devem ser versionados junto ao projeto e validados por SHA-256 antes da carga."
+  ]
+}
