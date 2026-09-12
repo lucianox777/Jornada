@@ -1,0 +1,82 @@
+name: capture-ibge-nomes-2022-once
+
+on:
+  push:
+    branches:
+      - feat/name-frequency-coverage
+    paths:
+      - .github/workflows/capture-ibge-nomes-2022-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Capture immutable 2022 raw parquet snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="Solution/data/reference/ibge-nomes-2022/raw-parquet"
+          mkdir -p "$target"
+
+          base="https://huggingface.co/datasets/olob0/ibge-nomes-no-brasil-2022/resolve/main/parquet"
+          files=(
+            municipality.parquet
+            name_by_decade.parquet
+            name_by_municipality.parquet
+            name_by_state.parquet
+            name_description.parquet
+            name_description_source.parquet
+            name_detail.parquet
+            name_ranking.parquet
+            name_variant.parquet
+            region.parquet
+            state.parquet
+          )
+
+          for file in "${files[@]}"; do
+            curl --fail --location --retry 5 --retry-delay 2 \
+              "$base/$file?download=true" \
+              --output "$target/$file"
+            test -s "$target/$file"
+          done
+
+          (
+            cd "$target"
+            sha256sum "${files[@]}" > source-files.sha256
+          )
+
+          cat > "$target/PROVENANCE.md" <<'EOF'
+          # Snapshot bruto — IBGE Nomes no Brasil / Censo 2022
+
+          Este diretório é um snapshot imutável incorporado ao projeto para calibração, enriquecimento e replay sem dependência de rede.
+
+          **Fonte original dos dados:** IBGE — Censo Demográfico 2022 — Nomes no Brasil, com data de referência de 1º de agosto de 2022.
+
+          **Origem técnica desta captura:** compilação Parquet `olob0/ibge-nomes-no-brasil-2022`, produzida diretamente a partir da API pública que alimenta o produto oficial do IBGE e da API oficial de localidades. A compilação declara não adicionar dados inferidos ou enriquecimentos externos. Os dados originais permanecem atribuídos ao IBGE; a estruturação da compilação é CC BY 4.0.
+
+          O arquivo `source-files.sha256` fixa o conteúdo exato capturado. Estes arquivos não devem ser substituídos no lugar. Uma revisão futura da fonte deve criar um novo diretório/versão.
+
+          Células de baixa frequência suprimidas pelo sigilo estatístico permanecem ausentes nos fatos detalhados. Ausência **não significa zero**.
+          EOF
+
+      - name: Commit snapshot once
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Solution/data/reference/ibge-nomes-2022/raw-parquet
+          if git diff --cached --quiet; then
+            echo "Snapshot already captured; nothing to commit."
+            exit 0
+          fi
+          git commit -m "data: vendor immutable IBGE nomes 2022 snapshot"
+          git push origin HEAD:feat/name-frequency-coverage
