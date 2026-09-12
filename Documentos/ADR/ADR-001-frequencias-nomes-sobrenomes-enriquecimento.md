@@ -1,6 +1,6 @@
 # ADR-001 — Frequências de nomes e sobrenomes como referência interna e enriquecimento materializado
 
-- **Status:** Aceita como decisão arquitetural; implementação pendente (dívida técnica)
+- **Status:** Aceita como decisão arquitetural; implementação parcial (dívida técnica remanescente)
 - **Data:** 2026-09-12
 - **Escopo:** identidade, linkage probabilístico, Calibrador, modelo físico e replay
 
@@ -113,20 +113,35 @@ A materialização em `gold.pessoa` introduz redundância deliberada. Essa redun
 
 **Interpretar `sobrenome` como último componente do nome ou criar sobrenomes posicionais fixos.** Rejeitada por alterar a semântica e introduzir fragilidade desnecessária diante de inversões, omissões e múltiplos sobrenomes.
 
+## Implementação realizada neste incremento
+
+A migração `Solution/database/migrations/20260912_Frequencia_Nomes_Referencia.sql` materializa o primeiro núcleo técnico desta decisão:
+
+- `ref.frequencia_nome_versao` registra edição, data de referência, estado, SHA-256 e ativação;
+- `ref.frequencia_nome` armazena `NOME` e `SOBRENOME` sem posição artificial, com as dimensões de sexo, período de nascimento e escopo geográfico;
+- a chave dimensional impede duplicidade lógica dentro da mesma versão;
+- versões publicadas tornam-se imutáveis; uma nova versão ativa torna a anterior obsoleta sem excluí-la;
+- `ref.v_frequencia_nome_ativa` expõe a versão corrente para consumidores operacionais;
+- `identidade.modelo_linkage.frequencia_nome_versao_id` permite fixar a referência estatística usada por um modelo sem invalidar modelos históricos já existentes;
+- existe índice específico para lookup por valor normalizado e dimensões;
+- teste de integração comprova publicação, imutabilidade, troca da versão ativa e existência do vínculo de replay.
+
+A coluna no modelo permanece anulável neste incremento para não tornar o rollout dependente da carga oficial antes de ela existir. A exigência fail-closed para **novos** modelos deverá ser ativada junto com a integração explícita do Calibrador e a primeira carga validada da referência.
+
 ## Dívida técnica aberta
 
-Esta ADR registra a decisão, mas **não declara a implementação concluída**. Permanecem como dívida técnica:
+A implementação está parcial. Permanecem como dívida técnica:
 
-1. validar e documentar o layout oficial completo do produto de frequências, incluindo granularidades realmente disponíveis para nome e sobrenome;
-2. definir DDL das tabelas internas de referência e de versionamento;
-3. implementar carga idempotente, validação de integridade, checksum/proveniência e retenção das versões anteriores;
+1. validar e documentar o layout oficial completo do produto de frequências, incluindo as granularidades realmente disponíveis para nome e sobrenome;
+2. **concluído neste incremento:** DDL das tabelas internas de referência e de versionamento;
+3. implementar a carga idempotente dos arquivos oficiais; checksum/proveniência e retenção de versões já possuem suporte físico, mas ainda falta o importador e a validação contra o layout oficial;
 4. definir exatamente quais frequências serão materializadas em `gold.pessoa`, sem inventar dimensões ausentes da fonte;
 5. revisar a nomenclatura de residência no modelo, substituindo usos semanticamente indevidos de `referencia` por `residencia`, sem alterar conceitos que sejam genuinamente mais amplos que residência;
 6. implementar enriquecimento/recomposição de `gold.pessoa` e garantir comportamento determinístico em replay;
 7. criar índices orientados aos blockings efetivamente aprovados, após medição de seletividade e custo;
-8. integrar a referência versionada ao Calibrador sem impor antecipadamente fórmula institucional de peso/raridade;
-9. registrar nos artefatos de auditoria/replay a versão da referência e da metodologia usadas;
-10. adicionar testes unitários, de integração, migração e replay que comprovem estabilidade entre versões;
+8. integrar explicitamente a referência versionada ao Calibrador, fazendo novos modelos fixarem uma versão ativa e falharem de forma controlada quando a referência exigida não estiver disponível, sem impor fórmula institucional de peso/raridade;
+9. registrar a versão da referência também nos artefatos de auditoria/replay que descrevem cada execução, além do vínculo já criado em `identidade.modelo_linkage`;
+10. ampliar testes de migração e replay para provar que um modelo antigo continua consultando sua referência após a ativação de versão nova;
 11. atualizar DER, modelo físico, contratos e documentação normativa quando o modelo final for implementado.
 
 ## Critério de encerramento da dívida
