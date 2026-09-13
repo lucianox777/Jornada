@@ -22,8 +22,8 @@ public static class SplinkCompatibleTermFrequency
     {
         ValidateProbability(leftFrequency, nameof(leftFrequency));
         ValidateProbability(rightFrequency, nameof(rightFrequency));
-        if (minimumUValue < 0m || minimumUValue > 1m)
-            throw new ArgumentOutOfRangeException(nameof(minimumUValue));
+        ArgumentOutOfRangeException.ThrowIfLessThan(minimumUValue, 0m);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(minimumUValue, 1m);
 
         var frequency = Math.Max(leftFrequency, rightFrequency);
         return minimumUValue > 0m ? Math.Max(frequency, minimumUValue) : frequency;
@@ -42,8 +42,7 @@ public static class SplinkCompatibleTermFrequency
         decimal minimumUValue = 0m)
     {
         ValidateProbability(referenceUProbability, nameof(referenceUProbability));
-        if (weight < 0m)
-            throw new ArgumentOutOfRangeException(nameof(weight));
+        ArgumentOutOfRangeException.ThrowIfLessThan(weight, 0m);
 
         if (weight == 0m)
             return 0d;
@@ -55,7 +54,7 @@ public static class SplinkCompatibleTermFrequency
 
     private static void ValidateProbability(decimal value, string parameterName)
     {
-        if (value <= 0m || value > 1m)
-            throw new ArgumentOutOfRangeException(parameterName, "A frequência/probabilidade deve estar em (0, 1].");
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, 0m, parameterName);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 1m, parameterName);
     }
 }
