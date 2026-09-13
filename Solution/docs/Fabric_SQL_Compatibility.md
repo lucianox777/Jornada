@@ -6,6 +6,8 @@ A Jornada adota **Microsoft SQL Server como tecnologia relacional normativa e ba
 
 **SQL Database in Microsoft Fabric não é alvo operacional de Produção nem gate de release da candidata v5.00.** O harness Fabric e as evidências já produzidas permanecem úteis exclusivamente como prova de compatibilidade técnica e como histórico de engenharia. Eles não devem ser interpretados como requisito de homologação para o corte v5.00 enquanto Fabric não fizer parte do alvo operacional da release.
 
+O suporte de compatibilidade mantém o mesmo `OperationalSqlAdapter`/`Microsoft.Data.SqlClient`, **sem `FabricSqlAdapter`**, DDL alternativo ou regra funcional paralela.
+
 A expressão “Microsoft Fabric” também não deve ser usada como se todos os seus recursos tivessem o mesmo papel arquitetural. Para a Jornada:
 
 - **Microsoft SQL Server** exerce o papel de banco relacional operacional de HML/Produção;
