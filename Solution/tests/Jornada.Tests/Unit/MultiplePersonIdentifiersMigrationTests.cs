@@ -27,7 +27,7 @@ public sealed class MultiplePersonIdentifiersMigrationTests
         var sql = File.ReadAllText(MigrationPath);
 
         Assert.That(sql, Does.Contain("('RG','Registro Geral / identidade estadual'"));
-        Assert.That(sql, Does.Contain("'CONDICIONAL'"));
+        Assert.That(sql, Does.Contain("'CONDICIONAL',60"));
         Assert.That(sql, Does.Contain("tipo_identificador_codigo<>'RG' OR (emissor_codigo IS NOT NULL AND uf_emissor IS NOT NULL)"));
     }
 
@@ -40,5 +40,17 @@ public sealed class MultiplePersonIdentifiersMigrationTests
         Assert.That(sql, Does.Contain("'CODIGO_BASE_ORIGEM',b.codigo"));
         Assert.That(sql, Does.Not.Contain("DROP COLUMN cpf"));
         Assert.That(sql, Does.Not.Contain("DROP COLUMN codigo_pessoa_origem"));
+    }
+
+    [Test]
+    public void Cpf_is_the_highest_priority_identifier_without_suppressing_conflicts()
+    {
+        var sql = File.ReadAllText(MigrationPath);
+
+        Assert.That(sql, Does.Contain("('CPF','CPF','BR','CPF_BR_11_V1','DETERMINISTICA',100)"));
+        Assert.That(sql, Does.Contain("('UUID_JORNADA','UUID publicado pela Jornada','JORNADA','UUID_V1','DETERMINISTICA',90)"));
+        Assert.That(sql, Does.Contain("outro.prioridade_resolucao>=cpf.prioridade_resolucao"));
+        Assert.That(sql, Does.Contain("CPF deve permanecer como identificador de maior prioridade de resolução"));
+        Assert.That(sql, Does.Contain("prioridade nunca apaga divergência"));
     }
 }
