@@ -17,6 +17,7 @@
 :r database/migrations/20260910_Linkage_Blocking_Chave.sql
 :r database/migrations/20260910_Linkage_RuleSet_Passes.sql
 :r database/migrations/20260911_Linkage_Blocking_Projection_Contract.sql
+:r database/migrations/20260912_Nome_Mae_Anulavel.sql
 
 -- CPF âncora é aplicado por último na instalação sem seed; em DEV o bootstrap reaplica após o seed
 -- para reservar CPFs históricos. A migração é idempotente.
