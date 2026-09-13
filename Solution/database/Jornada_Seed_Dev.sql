@@ -34,7 +34,8 @@ IF NOT EXISTS(SELECT 1 FROM ref.distrito WHERE codigo='ITAQUERA' AND nome=N'Itaq
 DECLARE @dSe BIGINT=(SELECT TOP(1) distrito_id FROM ref.distrito WHERE codigo='SE' AND nome=N'Sé' AND subprefeitura_id=@spSe ORDER BY distrito_id DESC),
         @dI BIGINT=(SELECT TOP(1) distrito_id FROM ref.distrito WHERE codigo='ITAQUERA' AND nome=N'Itaquera' AND subprefeitura_id=@spI ORDER BY distrito_id DESC);
 -- As dimensões acima representam versões observadas da hierarquia Distrito -> Subprefeitura.
--- O snapshot da classificação fica associado à observação do ENDERECO_RESIDENCIAL; não existe entidade Território de Referência.
+-- O snapshot da classificação territorial fica associado à REFERENCIA_TERRITORIAL selecionada.
+-- Quando derivada de ENDERECO_RESIDENCIAL, a natureza é DOMICILIAR e fonte_semantica=ENDERECO_RESIDENCIAL permanece rastreável.
 DECLARE @gSehab BIGINT=(SELECT gestor_id FROM ref.gestor WHERE codigo='SEHAB'),
         @gSmads BIGINT=(SELECT gestor_id FROM ref.gestor WHERE codigo='SMADS'),
         @gSmdet BIGINT=(SELECT gestor_id FROM ref.gestor WHERE codigo='SMDET'),
