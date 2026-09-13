@@ -32,15 +32,17 @@ O Calibrador deve avaliar combinações e múltiplos passes usando, quando dispo
 
 - nome completo normalizado, corrente e aliases históricos;
 - primeiro nome/prenome;
-- sobrenomes;
-- último nome;
+- componentes internos derivados dos tokens posteriores ao primeiro nome;
+- último token do nome como feature interna;
 - nome completo da mãe, corrente e aliases históricos;
 - primeiro nome da mãe;
-- sobrenomes da mãe;
-- último nome da mãe;
+- componentes internos derivados dos tokens posteriores ao primeiro nome da mãe;
+- último token do nome da mãe como feature interna;
 - dia de nascimento;
 - mês de nascimento;
 - ano de nascimento.
+
+Os nomes físicos históricos `name_surnames`, `name_last`, `mother_name_surnames` e `mother_name_last` são mantidos por compatibilidade do vocabulário de blocking. Eles descrevem **features heurísticas internas derivadas por tokenização** e não declaram que esses tokens sejam sobrenomes estruturados ou equivalentes ao campo `SOBRENOME` publicado pelo IBGE.
 
 Nenhuma combinação fixa é declarada universalmente ótima. O Calibrador deve medir cobertura dos vínculos verdadeiros, redução do universo candidato, tamanho dos blocos, custo e estabilidade. Uma política pode utilizar vários passes complementares para reduzir falsos negativos de blocking.
 
@@ -52,14 +54,15 @@ O Calibrador pode concluir que determinadas chaves isoladas — por exemplo part
 
 ## Uso do IBGE
 
-Estatísticas oficiais de nomes podem enriquecer componentes semanticamente compatíveis:
+Estatísticas oficiais de nomes só podem enriquecer componentes semanticamente compatíveis:
 
-- primeiro nome da pessoa e primeiro nome da mãe podem usar estatística de primeiro nome;
-- sobrenomes/último sobrenome da pessoa e da mãe podem usar estatística de sobrenome;
+- primeiro nome da pessoa e primeiro nome da mãe podem usar estatística oficial de primeiro nome;
+- as features internas derivadas por tokenização (`name_surnames`, `name_last`, `mother_name_surnames`, `mother_name_last`) **não** recebem estatística oficial de sobrenome;
 - nome completo e nome completo da mãe não recebem frequência IBGE direta quando a fonte oficial não fornece essa mesma semântica;
+- a classe estatística oficial de sobrenome permanece disponível na referência tipada para um futuro atributo cuja origem preserve uma fronteira estruturada e semanticamente compatível;
 - data de nascimento e outros atributos só recebem enriquecimento externo quando houver fonte oficial explicitamente compatível.
 
-A frequência IBGE é contexto estatístico agregado. Não substitui dados da Jornada, não decide identidade individual e não transforma localidade estatística em prova de residência.
+A frequência IBGE é contexto estatístico agregado. Não substitui dados da Jornada, não decide identidade individual e não transforma localidade estatística em prova de residência. O uso da estatística `Surname` sobre tokens derivados de `nome_completo` é proibido porque a Jornada não preserva a fronteira original entre nome/nome composto e sobrenomes.
 
 ## Projeção física
 
