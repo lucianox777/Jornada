@@ -1,0 +1,24 @@
+name: finish-semantic-fallback-removal-once
+on:
+  push:
+    paths:
+      - '.github/workflows/finish-semantic-fallback-removal-once.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: feat/remove-semantic-fallbacks
+      - name: Apply completion patch
+        run: python3 Solution/scripts/finish-semantic-fallback-removal-once.py
+      - name: Commit changes
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: materializa geografia residencial sem fallback'
+          git push origin HEAD:feat/remove-semantic-fallbacks
