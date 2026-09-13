@@ -110,7 +110,10 @@ internal static class LinkageModelPolicy
 internal static class ProbabilisticLinkageDecisions
 {
     internal static ProbabilisticLinkageDecision Resolve(
-        LinkageModel model, IdentityObservation observation, IReadOnlyList<LinkageCandidate> candidates)
+        LinkageModel model,
+        IdentityObservation observation,
+        IReadOnlyList<LinkageCandidate> candidates,
+        IReadOnlyDictionary<string, decimal>? publicationNameFrequency = null)
     {
         if (!string.IsNullOrWhiteSpace(observation.Cpf))
             throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
@@ -121,12 +124,34 @@ internal static class ProbabilisticLinkageDecisions
                     ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_AMPLIADOS"
                     : "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO");
 
+        var observationNameProbability = NameFrequencyStratification.ResolvePublicationKeyProbability(
+            publicationNameFrequency, observation.NomeCompleto);
+        var observationMotherProbability = NameFrequencyStratification.ResolvePublicationKeyProbability(
+            publicationNameFrequency, observation.NomeMae);
+
         var scored = candidates
-            .Select(candidate => new CandidateScore(candidate.PessoaUuid,
-                FellegiSunterScoring.CalculatePosterior(model.Parameters,
-                    IdentityComparison.CompareName(observation.NomeCompleto, candidate.NomeCompleto),
-                    IdentityComparison.CompareName(observation.NomeMae, candidate.NomeMae),
-                    candidates.Count, observation.DataNascimento, candidate.DataNascimento)))
+            .Select(candidate =>
+            {
+                var candidateNameProbability = NameFrequencyStratification.ResolvePublicationKeyProbability(
+                    publicationNameFrequency, candidate.NomeCompleto);
+                var candidateMotherProbability = NameFrequencyStratification.ResolvePublicationKeyProbability(
+                    publicationNameFrequency, candidate.NomeMae);
+
+                // Para uma comparação entre duas chaves usamos a maior frequência marginal
+                // como estrato conservador: se qualquer lado é comum, não tratamos a evidência
+                // como rara. EXACT naturalmente terá a mesma chave/frequência nos dois lados.
+                var nameProbability = ConservativeProbability(observationNameProbability, candidateNameProbability);
+                var motherProbability = ConservativeProbability(observationMotherProbability, candidateMotherProbability);
+                var nameStratum = NameFrequencyStratification.Classify(model.Parameters, "NOME", nameProbability);
+                var motherStratum = NameFrequencyStratification.Classify(model.Parameters, "NOME_MAE", motherProbability);
+
+                return new CandidateScore(candidate.PessoaUuid,
+                    FellegiSunterScoring.CalculatePosterior(model.Parameters,
+                        IdentityComparison.CompareName(observation.NomeCompleto, candidate.NomeCompleto),
+                        IdentityComparison.CompareName(observation.NomeMae, candidate.NomeMae),
+                        candidates.Count, observation.DataNascimento, candidate.DataNascimento,
+                        nameStratum, motherStratum));
+            })
             .OrderByDescending(x => x.Score)
             .ThenBy(x => x.PessoaUuid)
             .ToArray();
@@ -144,5 +169,12 @@ internal static class ProbabilisticLinkageDecisions
                 "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE");
         return new ProbabilisticLinkageDecision(ResolutionStatus.RESOLVIDO, best.PessoaUuid,
             best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId);
+    }
+
+    private static decimal? ConservativeProbability(decimal? left, decimal? right)
+    {
+        if (left is null) return right;
+        if (right is null) return left;
+        return Math.Max(left.Value, right.Value);
     }
 }
