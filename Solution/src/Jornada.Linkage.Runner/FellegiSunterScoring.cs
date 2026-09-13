@@ -10,24 +10,34 @@ public static class FellegiSunterScoring
         NameComparisonState motherNameState,
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
-        DateOnly? rightBirthDate = null)
+        DateOnly? rightBirthDate = null,
+        NameFrequencyStratum nameFrequencyStratum = NameFrequencyStratum.UNKNOWN,
+        NameFrequencyStratum motherNameFrequencyStratum = NameFrequencyStratum.UNKNOWN)
     {
         var prior = blockCandidateCount is > 0
             ? CalculateBlockPrior(parameters, blockCandidateCount.Value)
             : Get(parameters, "PRIOR_MATCH_PROBABILITY");
         var logOdds = Logit((double)prior);
-        logOdds += LogLikelihoodRatio(parameters, "NOME", nameState);
-        logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", motherNameState);
+        logOdds += LogLikelihoodRatio(parameters, "NOME", nameState, nameFrequencyStratum);
+        logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", motherNameState, motherNameFrequencyStratum);
 
-        // V2: nascimento deixa de ser uma evidência indivisível. Dia, mês e ano
-        // contribuem separadamente quando o modelo possui os parâmetros calibrados.
-        // Modelos V1 continuam válidos: se os parâmetros V2 não existirem, a
-        // contribuição dos componentes é neutra.
         if (leftBirthDate is { } left && rightBirthDate is { } right)
         {
-            logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_DIA", left.Day == right.Day);
-            logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_MES", left.Month == right.Month);
-            logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_ANO", left.Year == right.Year);
+            // V3: nascimento é uma única variável probabilística. Isto evita tratar
+            // dia/mês/ano como três observações independentes do mesmo evento de
+            // transcrição. Modelos V2 históricos continuam reproduzíveis abaixo.
+            if (parameters.TryGetValue("SCORING_BIRTH_SINGLE_EVIDENCE_V3", out var singleBirth) && singleBirth >= 1m)
+            {
+                logOdds += TryBinaryLikelihoodRatio(parameters, "DATA_NASCIMENTO", left == right);
+            }
+            else
+            {
+                // Compatibilidade de replay para modelos V2 já publicados. Novos modelos
+                // não devem emitir SCORING_BIRTH_COMPONENTS_V2.
+                logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_DIA", left.Day == right.Day);
+                logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_MES", left.Month == right.Month);
+                logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_ANO", left.Year == right.Year);
+            }
         }
 
         var posterior = 1d / (1d + Math.Exp(-Math.Clamp(logOdds, -40d, 40d)));
@@ -45,12 +55,29 @@ public static class FellegiSunterScoring
     private static double LogLikelihoodRatio(
         IReadOnlyDictionary<string, decimal> parameters,
         string attribute,
-        NameComparisonState state)
+        NameComparisonState state,
+        NameFrequencyStratum frequencyStratum)
     {
-        var suffix = state.ToString();
-        var m = ClampProbability(Get(parameters, $"M_{attribute}_{suffix}"));
-        var u = ClampProbability(Get(parameters, $"U_{attribute}_{suffix}"));
-        return Math.Log((double)m / (double)u);
+        var stateSuffix = state.ToString();
+        var stratumSuffix = frequencyStratum.ToString();
+
+        // Frequência é uma dimensão da calibração m/u, não um multiplicador da distância.
+        // Modelos históricos e estrato UNKNOWN usam a distribuição marginal.
+        var m = TryGetStratified(parameters, $"M_{attribute}_{stateSuffix}", stratumSuffix);
+        var u = TryGetStratified(parameters, $"U_{attribute}_{stateSuffix}", stratumSuffix);
+        return Math.Log((double)ClampProbability(m) / (double)ClampProbability(u));
+    }
+
+    private static decimal TryGetStratified(
+        IReadOnlyDictionary<string, decimal> parameters,
+        string baseName,
+        string stratumSuffix)
+    {
+        if (!string.Equals(stratumSuffix, nameof(NameFrequencyStratum.UNKNOWN), StringComparison.Ordinal) &&
+            parameters.TryGetValue($"{baseName}_{stratumSuffix}", out var stratified))
+            return stratified;
+
+        return Get(parameters, baseName);
     }
 
     private static double TryBinaryLikelihoodRatio(
@@ -79,4 +106,17 @@ public static class FellegiSunterScoring
         var p = Math.Clamp(probability, 0.0000001d, 0.9999999d);
         return Math.Log(p / (1d - p));
     }
+}
+
+/// <summary>
+/// Estrato de frequência do atributo com a mesma semântica usada na comparação.
+/// O estrato é uma covariável de calibração; não é um peso multiplicativo da distância.
+/// </summary>
+public enum NameFrequencyStratum
+{
+    UNKNOWN,
+    RARE,
+    UNCOMMON,
+    COMMON,
+    VERY_COMMON
 }
