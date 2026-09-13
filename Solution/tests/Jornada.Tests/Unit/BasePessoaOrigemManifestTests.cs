@@ -19,6 +19,16 @@ public sealed class BasePessoaOrigemManifestTests
     }
 
     [Test]
+    public void Manifest_accepts_jornada_person_base_code()
+    {
+        using var package = BuildPackage("JORNADA");
+
+        var manifest = IngestionPackageInspector.ParseAndValidate(package, package.Length);
+
+        Assert.That(manifest.CodigoBasePessoaOrigem, Is.EqualTo("JORNADA"));
+    }
+
+    [Test]
     public void Manifest_keeps_legacy_compatibility_when_person_base_is_omitted()
     {
         using var package = BuildPackage(null);
