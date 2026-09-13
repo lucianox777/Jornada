@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - 'Solution/scripts/local-scale.sh'
+      - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/scale-observability-evidence-gate.py'
       - '.github/workflows/scale-observability-contract.yml'
   push:
     branches: [ master ]
     paths:
       - 'Solution/scripts/local-scale.sh'
+      - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/scale-observability-evidence-gate.py'
       - '.github/workflows/scale-observability-contract.yml'
 
@@ -27,8 +29,24 @@ jobs:
         run: |
           set -euo pipefail
           python3 Solution/scripts/scale-observability-evidence-gate.py --self-test
-          grep -F 'blockingPressure' Solution/scripts/local-scale.sh >/dev/null
-          grep -F 'coordinationProbe' Solution/scripts/local-scale.sh >/dev/null
-          grep -F 'Jornada.Pipeline.ExclusiveRequest' Solution/scripts/local-scale.sh >/dev/null
-          grep -F 'Jornada.Pipeline.Corpus' Solution/scripts/local-scale.sh >/dev/null
-          grep -F 'scale-observability-evidence-gate.py' Solution/scripts/local-scale.sh >/dev/null
+          for script in Solution/scripts/local-scale.sh Solution/scripts/local-scale.ps1; do
+            grep -F 'blockingPressure' "$script" >/dev/null
+            grep -F 'coordinationProbe' "$script" >/dev/null
+            grep -F 'Jornada.Pipeline.ExclusiveRequest' "$script" >/dev/null
+            grep -F 'Jornada.Pipeline.Corpus' "$script" >/dev/null
+            grep -F 'scale-observability-evidence-gate.py' "$script" >/dev/null
+          done
+      - name: Parse PowerShell scale harness
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'Solution/scripts/local-scale.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
