@@ -89,8 +89,7 @@ public static class BootstrapLinkageParameterEstimator
     {
         if (exactNameCollision <= 0m || exactNameCollision >= 1m)
             throw new ArgumentOutOfRangeException(nameof(exactNameCollision));
-        if (publishedNameFrequencyMass <= 0)
-            throw new ArgumentOutOfRangeException(nameof(publishedNameFrequencyMass));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(publishedNameFrequencyMass);
         if (uNameHighPrior <= 0m || uNameMediumPrior <= 0m)
             throw new ArgumentOutOfRangeException(nameof(uNameHighPrior));
 
