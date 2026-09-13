@@ -7,7 +7,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
 /// Porta de entrada bootstrap-aware para o worker SQL Server.
-/// Abaixo do mínimo de pares CPF independentes cria um RASCUNHO PRIOR_BOOTSTRAP;
+/// Abaixo do mínimo de pares determinísticos independentes cria um RASCUNHO PRIOR_BOOTSTRAP;
 /// ao atingir o mínimo delega integralmente ao LinkageParametersWorker empírico existente.
 /// VALIDATE/ACTIVATE também são delegados, e o banco bloqueia ativação de bootstrap.
 /// </summary>
@@ -36,14 +36,14 @@ public sealed class BootstrapAwareLinkageParametersWorker(
         if (available >= minimum)
         {
             logger.LogInformation(
-                "Cold start encerrado: pares CPF independentes={Available} >= mínimo={Minimum}. Delegando ao estimador empírico.",
+                "Cold start encerrado: pares determinísticos independentes={Available} >= mínimo={Minimum}. Delegando ao estimador empírico.",
                 available, minimum);
             await DelegateToEmpiricalWorkerAsync(stoppingToken);
             return;
         }
 
         logger.LogWarning(
-            "Cold start: pares CPF independentes={Available} < mínimo={Minimum}. Gerando PRIOR_BOOTSTRAP não ativável.",
+            "Cold start: pares determinísticos independentes={Available} < mínimo={Minimum}. Gerando PRIOR_BOOTSTRAP não ativável.",
             available, minimum);
 
         await GenerateBootstrapDraftAsync(connection, available, minimum, stoppingToken);
@@ -138,7 +138,7 @@ public sealed class BootstrapAwareLinkageParametersWorker(
 
             await transaction.CommitAsync(ct);
             logger.LogWarning(
-                "Modelo bootstrap v{Version} criado em RASCUNHO. m=PRIOR_INSTITUCIONAL; u_nome_exact=IBGE; paresCPF={Pairs}/{Minimum}; ativação bloqueada.",
+                "Modelo bootstrap v{Version} criado em RASCUNHO. origem_m=PRIOR_INSTITUCIONAL; origem_u_nome=IBGE; pares_independentes={Pairs}/{Minimum}; ativação bloqueada.",
                 version, independentPairsAvailable, minimumIndependentPairs);
         }
         catch
