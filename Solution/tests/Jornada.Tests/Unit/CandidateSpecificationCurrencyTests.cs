@@ -38,9 +38,14 @@ public sealed class CandidateSpecificationCurrencyTests
             Assert.That(specification, Does.Contain("não deve preencher sinteticamente esse atributo nem descartar a observação por sua ausência"));
             Assert.That(specification, Does.Not.Contain("Transição de `nomeMae`"));
 
+            Assert.That(specification, Does.Contain("Grupo de Trabalho do Programa Reencontro (GTPR)"));
+            Assert.That(specification, Does.Not.Contain("Se o CCGD exigir finalidade adicional"));
+            Assert.That(specification, Does.Not.Contain("**CCGD/finalidade:**"));
+
             Assert.That(externalGates, Does.Not.Contain("NOMEMAE_TRANSITION"));
             Assert.That(externalGates, Does.Contain("HML_REPRESENTATIVE_VOLUMETRY"));
-            Assert.That(externalGates, Does.Contain("CCGD_PURPOSE_LEGAL_BASIS_DECISION"));
+            Assert.That(externalGates, Does.Contain("GTPR_PURPOSE_LEGAL_BASIS_DECISION"));
+            Assert.That(externalGates, Does.Not.Contain("CCGD_PURPOSE_LEGAL_BASIS_DECISION"));
             Assert.That(externalGates, Does.Contain("FABRIC_SQL_DATABASE_EXACT_HEAD_HOMOLOGATION"));
             Assert.That(externalGates, Does.Contain("LINKAGE_REPRESENTATIVE_STATISTICAL_VALIDATION"));
         });

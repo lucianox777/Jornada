@@ -116,11 +116,11 @@ A falta de integração institucional não deve ser mascarada por configuração
 
 ## 12. Finalidade de acesso
 
-A decisão sobre finalidade, necessidade e base legal do compartilhamento é gate institucional, não detalhe a ser inventado pela engenharia.
+A decisão sobre finalidade, necessidade e base legal do compartilhamento é gate institucional, não detalhe a ser inventado pela engenharia. No âmbito deste projeto, a instância responsável por essa deliberação é o **Grupo de Trabalho do Programa Reencontro (GTPR)**.
 
 O contrato corrente autoriza por credencial autenticada, scopes e recurso aplicável. Não existe `X-Jornada-Finalidade` livre, catálogo escolhido pelo consumidor ou allowlist de finalidade enviada arbitrariamente em cada requisição.
 
-Se o CCGD exigir finalidade adicional, a solução deve ser incorporada por decisão formal e preferencialmente vinculada à credencial/contrato de projeção autorizado e à auditoria, evitando uma string livre declarada pelo consumidor sem governança.
+Se o **GTPR** exigir finalidade adicional, a solução deve ser incorporada por decisão formal e preferencialmente vinculada à credencial/contrato de projeção autorizado e à auditoria, evitando uma string livre declarada pelo consumidor sem governança.
 
 ## 13. Escopo da Fase 1
 
@@ -147,7 +147,7 @@ Essa regra técnica não decide como cada sistema de origem deve governar ou qua
 Permanecem explicitamente externas ao fechamento técnico desta candidata:
 
 1. **Volumetria HML representativa:** ainda é necessária evidência legítima de capacidade e comportamento sob blocking multi-passe, concorrência e regiões/trechos serializados relevantes. Testes locais ou amostras pequenas não autorizam declarar capacidade de produção.
-2. **CCGD/finalidade:** a decisão institucional sobre finalidade, necessidade e base legal permanece pendente e não deve ser substituída por cabeçalho livre ou convenção local.
+2. **GTPR/finalidade:** a decisão institucional do Grupo de Trabalho do Programa Reencontro sobre finalidade, necessidade e base legal permanece pendente e não deve ser substituída por cabeçalho livre ou convenção local.
 3. **Homologação Fabric:** a release candidata precisa de evidência executada contra o HEAD exato que vier a ser cortado; a evidência histórica v4.00 não satisfaz esse gate sozinha.
 4. **Validação estatística representativa do linkage:** métricas de corpus sintético, smoke tests e validações locais protegem a engenharia, mas não substituem avaliação representativa necessária para concluir desempenho estatístico no universo operacional.
 
