@@ -10,6 +10,7 @@
 - `Possibilidades_Regras.md` - motor versionado, catálogo governado e dry-run de regras de Possibilidades.
 - `Escopo_Produto_Fase1.md` - limites factuais e de cobertura do produto atual; distingue concessão de pagamento/recebimento e impede extrapolar Gestores/Tipos não integrados.
 - `Governanca_Finalidade_Acesso.md` - gate de decisão institucional que impede introduzir finalidade livre por requisição antes de deliberação normativa e registra o desenho preferencial caso a finalidade venha a ser exigida.
+- `Calibrador_Plano_Blocking_Analise.md` - plano analítico, não homologado, para comparar features, passes e rulesets de blocking com replay, evidência e gates sem inventar parâmetros institucionais.
 - `../tests/fixtures/ingestao/` - payloads de referência usados como fixtures dos testes automatizados.
 
 ## Hierarquia normativa publicada
