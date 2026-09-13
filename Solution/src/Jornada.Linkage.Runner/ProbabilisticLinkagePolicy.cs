@@ -104,7 +104,7 @@ internal static class ProbabilisticLinkageDecisions
             .Select(candidate => new CandidateScore(candidate.PessoaUuid,
                 FellegiSunterScoring.CalculatePosterior(model.Parameters,
                     IdentityComparison.CompareName(observation.NomeCompleto, candidate.NomeCompleto),
-                    IdentityComparison.CompareName(observation.NomeMae, candidate.NomeMae),
+                    CompareOptionalName(observation.NomeMae, candidate.NomeMae),
                     candidates.Count, observation.DataNascimento, candidate.DataNascimento)))
             .OrderByDescending(x => x.Score)
             .ThenBy(x => x.PessoaUuid)
@@ -123,5 +123,18 @@ internal static class ProbabilisticLinkageDecisions
                 "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE");
         return new ProbabilisticLinkageDecision(ResolutionStatus.RESOLVIDO, best.PessoaUuid,
             best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId);
+    }
+
+    /// <summary>
+    /// P25/P26: um atributo opcional só participa do score quando existe nos dois lados.
+    /// Ausência é perfil de evidência, não estado de discordância. Retornar null faz o scorer
+    /// aplicar LR = 1 (contribuição neutra), enquanto LOW continua significando dois valores
+    /// presentes e pouco semelhantes.
+    /// </summary>
+    internal static NameComparisonState? CompareOptionalName(string? left, string? right)
+    {
+        if (IdentityComparison.NormalizeText(left) is null || IdentityComparison.NormalizeText(right) is null)
+            return null;
+        return IdentityComparison.CompareName(left, right);
     }
 }
