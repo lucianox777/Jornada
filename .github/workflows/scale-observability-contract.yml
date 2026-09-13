@@ -1,0 +1,34 @@
+name: jornada-scale-observability-contract
+
+on:
+  pull_request:
+    paths:
+      - 'Solution/scripts/local-scale.sh'
+      - 'Solution/scripts/scale-observability-evidence-gate.py'
+      - '.github/workflows/scale-observability-contract.yml'
+  push:
+    branches: [ master ]
+    paths:
+      - 'Solution/scripts/local-scale.sh'
+      - 'Solution/scripts/scale-observability-evidence-gate.py'
+      - '.github/workflows/scale-observability-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Validate observability evidence contract
+        run: |
+          set -euo pipefail
+          python3 Solution/scripts/scale-observability-evidence-gate.py --self-test
+          grep -F 'blockingPressure' Solution/scripts/local-scale.sh >/dev/null
+          grep -F 'coordinationProbe' Solution/scripts/local-scale.sh >/dev/null
+          grep -F 'Jornada.Pipeline.ExclusiveRequest' Solution/scripts/local-scale.sh >/dev/null
+          grep -F 'Jornada.Pipeline.Corpus' Solution/scripts/local-scale.sh >/dev/null
+          grep -F 'scale-observability-evidence-gate.py' Solution/scripts/local-scale.sh >/dev/null
