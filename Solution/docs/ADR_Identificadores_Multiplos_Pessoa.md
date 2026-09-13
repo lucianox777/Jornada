@@ -18,6 +18,20 @@ O modelo passa a distinguir três conceitos:
 
 Uma observação sem identificador é válida. Ausência de identificador não deve ser convertida artificialmente em discordância nem impedir persistência da observação.
 
+## Invariante CPF → UUID
+
+A Jornada já adota uma âncora determinística permanente CPF→UUID. Este ADR não altera essa decisão.
+
+Para um CPF válido e governado, a relação é funcional e estável:
+
+```text
+mesmo CPF -> mesmo UUID âncora, sempre
+```
+
+O UUID âncora associado ao CPF não é recalculado, substituído nem escolhido novamente porque chegaram CNS, RG, código de base ou UUID Jornada. Fusões e correções podem alterar a resolução canônica da identidade conforme as regras já existentes, mas não reescrevem a âncora histórica CPF→UUID.
+
+Consequentemente, quando há CPF válido, os demais identificadores não disputam qual UUID deve ser criado ou escolhido para aquele CPF. Eles servem para continuidade, proveniência, enriquecimento e detecção de inconsistências cadastrais.
+
 ## Chave semântica do identificador
 
 Um identificador é interpretado por:
@@ -40,7 +54,7 @@ O valor textual sozinho nunca é suficiente para tipos cujo namespace faz parte 
 
 ## CPF e hierarquia externa
 
-A hierarquia aplica-se aos identificadores **externos** usados pela Jornada para reconhecer a Pessoa quando ela ainda precisa resolver a identidade.
+A hierarquia aplica-se aos identificadores **externos** usados pela Jornada quando não existe uma resolução determinística anterior suficiente.
 
 A ordem inicial é:
 
@@ -53,9 +67,9 @@ A ordem inicial é:
 
 `OUTRO` permanece fora da hierarquia até possuir política institucional própria.
 
-O CPF é obrigatoriamente o identificador externo de maior prioridade. Isso é coerente com a Lei nº 14.534/2023, que estabelece o CPF como número único e suficiente para identificação do cidadão nos bancos de dados de serviços públicos, e com a redação vigente da Lei nº 9.454/1997, segundo a qual o CPF é único e definitivo para cada pessoa física.
+O CPF é obrigatoriamente o identificador externo de maior prioridade e, quando válido e governado, é suficiente para resolver a âncora CPF→UUID já existente ou criá-la uma única vez segundo a política de identidade da Jornada.
 
-A prioridade não transforma um identificador condicional em determinístico. CNS, RG e código de base só podem atuar deterministicamente quando suas regras de validação, namespace e homologação permitirem.
+A prioridade não transforma um identificador condicional em determinístico. CNS, RG e código de base só podem atuar deterministicamente quando suas regras de validação, namespace e homologação permitirem e, na presença de CPF válido, não substituem sua âncora.
 
 ## UUID Jornada fora da hierarquia
 
@@ -81,24 +95,30 @@ Seu tratamento é próprio:
 3. serve para continuidade e idempotência semântica da relação com a Jornada;
 4. não concorre com CPF, CNS, RG ou código da base como se fosse outro documento externo.
 
-Quando UUID Jornada retornado e CPF válido convergem para a mesma Pessoa, a retroalimentação está consistente.
+Quando UUID Jornada retornado e CPF válido convergem para a identidade esperada, a retroalimentação está consistente.
 
-Quando divergem, o CPF continua sendo o identificador legal externo suficiente, mas a divergência do UUID Jornada não é descartada: ela representa uma ocorrência de integridade da retroalimentação que exige trilha de correção governada.
+Quando divergem, **não existe ambiguidade sobre qual UUID o CPF produz**. O CPF continua resolvendo para sua âncora determinística permanente. A divergência significa que o UUID devolvido pelo sistema está desatualizado, incorreto, associado indevidamente ou precisa ser redirecionado pela trilha governada da Jornada.
 
 Exemplo:
 
 ```text
-UUID_JORNADA recebido -> UUID A
-CPF válido            -> identidade correspondente a UUID B
+CPF válido            -> UUID âncora A
+UUID_JORNADA recebido -> UUID B
 
-=> divergência de retroalimentação / CONFLITO_IDENTIDADE
-=> CPF ancora a identificação externa
-=> UUID recebido é preservado para diagnóstico e correção
+=> resolução pelo CPF permanece UUID A
+=> NÃO criar UUID novo
+=> NÃO trocar a âncora CPF→UUID
+=> registrar INCONSISTENCIA_RETROALIMENTACAO
+=> preservar UUID B para diagnóstico/correção
 ```
+
+Se UUID B for um UUID histórico legitimamente redirecionado para A, o redirecionamento fecha a consistência e não há conflito de identidade.
+
+Assim, divergência entre CPF e UUID Jornada deve ser modelada como ocorrência de integridade/retroalimentação, e não como `CONFLITO_IDENTIDADE` entre duas âncoras equivalentes.
 
 ## Tipos iniciais
 
-- `CPF`: namespace `BR`; prioridade externa 100; rota determinística governada pela Jornada;
+- `CPF`: namespace `BR`; prioridade externa 100; âncora determinística permanente CPF→UUID;
 - `CODIGO_BASE_ORIGEM`: prioridade externa 80; determinístico apenas para base homologada;
 - `CNS`: namespace `BR`; prioridade externa 70; armazenável, com elegibilidade determinística condicionada à validação específica;
 - `RG`: prioridade externa 60; exige emissor e UF e elegibilidade determinística condicionada; número isolado não é globalmente único;
@@ -119,7 +139,9 @@ A resolução distingue duas etapas:
    CPF > código de base homologado > CNS > RG
 ```
 
-Os resultados das duas etapas devem ser reconciliados. A Jornada não deve esconder divergências entre o retorno de um UUID antigo e a identificação externa atualmente válida.
+Na presença de CPF válido, a etapa externa não é uma votação: o CPF aponta para sua âncora permanente. Os demais IDs são reconciliados contra essa identidade e podem produzir evidência de consistência ou ocorrência de integridade.
+
+Na ausência de CPF, identificadores homologados de menor nível podem resolver deterministicamente conforme suas políticas específicas; se insuficientes, a resolução segue para atributos/linkage.
 
 ## Observação sem identificador
 
@@ -163,7 +185,7 @@ O contrato antigo CPF/código continua como compatibilidade até o cutover expl�
 
 ## Impacto no linkage e no Calibrador
 
-Identificadores determinísticos homologados formam uma camada anterior ao linkage probabilístico. Eles não devem ser transformados em features comuns do Fellegi–Sunter sem desenho metodológico explícito.
+A âncora CPF→UUID permanece anterior ao linkage probabilístico. Identificadores determinísticos homologados não devem ser transformados em features comuns do Fellegi–Sunter sem desenho metodológico explícito.
 
 Pares verdadeiros derivados de identificadores diferentes poderão futuramente participar da calibração apenas com proveniência do critério de verdade e controle de independência/transportabilidade (P3/P6).
 
