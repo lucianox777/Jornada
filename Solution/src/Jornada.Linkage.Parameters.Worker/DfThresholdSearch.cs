@@ -30,10 +30,10 @@ public static class DfThresholdSearch
             .ToArray();
 
         var similarities = Thin(
-            materialized.Select(x => x.Evidence.Similarity).Distinct().OrderDescending().ToArray(),
+            materialized.Select(x => x.Evidence.Similarity).Distinct().OrderByDescending(x => x).ToArray(),
             maxSimilarityValues);
         var tfValues = Thin(
-            materialized.Select(x => x.Evidence.TermFrequencyLogAdjustment!.Value).Distinct().OrderDescending().ToArray(),
+            materialized.Select(x => x.Evidence.TermFrequencyLogAdjustment!.Value).Distinct().OrderByDescending(x => x).ToArray(),
             maxTfValues);
 
         var result = new List<DfThresholdCandidate>(similarities.Count * tfValues.Count);
