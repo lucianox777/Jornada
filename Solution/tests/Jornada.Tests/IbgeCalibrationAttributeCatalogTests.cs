@@ -20,13 +20,13 @@ public sealed class IbgeCalibrationAttributeCatalogTests
     [TestCase(BlockingCandidateFeatureCatalog.LastName)]
     [TestCase(BlockingCandidateFeatureCatalog.MotherSurnames)]
     [TestCase(BlockingCandidateFeatureCatalog.MotherLastName)]
-    public void Surname_features_use_ibge_surname_statistics(string feature)
+    public void Token_derived_surname_features_do_not_borrow_ibge_surname_semantics(string feature)
     {
-        Assert.That(IbgeCalibrationAttributeCatalog.TryGetMapping(feature, out var mapping), Is.True);
         Assert.Multiple(() =>
         {
-            Assert.That(mapping.Source, Is.EqualTo(ExternalNameFrequencyCatalog.IbgeSource));
-            Assert.That(mapping.StatisticKind, Is.EqualTo(IbgeNameStatisticKind.Surname));
+            Assert.That(IbgeCalibrationAttributeCatalog.Supports(feature), Is.False);
+            Assert.That(BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates, Does.Contain(feature),
+                "A feature interna continua disponível ao Calibrador; apenas o enriquecimento IBGE indevido é removido.");
         });
     }
 
@@ -53,5 +53,11 @@ public sealed class IbgeCalibrationAttributeCatalogTests
         Assert.That(IbgeCalibrationAttributeCatalog.Supports(BlockingCandidateFeatureCatalog.FullName), Is.False);
         Assert.That(IbgeCalibrationAttributeCatalog.Supports(BlockingCandidateFeatureCatalog.MotherFullName), Is.False);
         Assert.That(IbgeCalibrationAttributeCatalog.Supports(BlockingCandidateFeatureCatalog.BirthYear), Is.False);
+    }
+
+    [Test]
+    public void Mapping_version_changes_when_surname_semantics_are_restricted()
+    {
+        Assert.That(IbgeCalibrationAttributeCatalog.MethodVersion, Is.EqualTo("IBGE_CALIBRATION_ATTRIBUTE_CATALOG_V5"));
     }
 }
