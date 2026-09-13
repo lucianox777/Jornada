@@ -31,7 +31,8 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p["PRIOR_MATCH_PROBABILITY"], Is.EqualTo(0.1m));
             Assert.That(p["PRIOR_BLOCK_MAX"], Is.EqualTo(0.25m));
             Assert.That(p["SCORING_BIRTH_SINGLE_EVIDENCE_V3"], Is.EqualTo(1m));
-            Assert.That(p.ContainsKey("SCORING_BIRTH_COMPONENTS_V2"), Is.False);
+            Assert.That(p["SCORING_BIRTH_COMPONENTS_V2"], Is.EqualTo(1m),
+                "O flag V2 permanece temporariamente para o validador PostgreSQL/replay, mas o scorer V3 tem precedência.");
             Assert.That(p.Keys.Any(static x => x.StartsWith("BLOCKING_", StringComparison.Ordinal)), Is.False);
 
             Assert.That(p.ContainsKey("M_DATA_NASCIMENTO_EXACT"), Is.True);
@@ -41,11 +42,11 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p["M_DATA_NASCIMENTO_EXACT"] + p["M_DATA_NASCIMENTO_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
             Assert.That(p["U_DATA_NASCIMENTO_EXACT"] + p["U_DATA_NASCIMENTO_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
 
-            Assert.That(p.ContainsKey("M_NASC_DIA_EXACT"), Is.False);
-            Assert.That(p.ContainsKey("M_NASC_MES_EXACT"), Is.False);
-            Assert.That(p.ContainsKey("M_NASC_ANO_EXACT"), Is.False);
-            Assert.That(p.ContainsKey("AUDIT_M_NASC_DIA_EXACT"), Is.True);
-            Assert.That(p.ContainsKey("AUDIT_U_NASC_MES_EXACT"), Is.True);
+            Assert.That(p.ContainsKey("M_NASC_DIA_EXACT"), Is.True);
+            Assert.That(p.ContainsKey("M_NASC_MES_EXACT"), Is.True);
+            Assert.That(p.ContainsKey("M_NASC_ANO_EXACT"), Is.True);
+            Assert.That(p["M_NASC_DIA_EXACT"] + p["M_NASC_DIA_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
+            Assert.That(p["U_NASC_MES_EXACT"] + p["U_NASC_MES_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
         });
     }
 }
