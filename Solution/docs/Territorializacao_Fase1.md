@@ -4,13 +4,13 @@
 
 A territorialização necessária ao BI é responsabilidade do **Gestor/origem**. A Jornada não faz chamada online Pessoa-a-Pessoa à PRODAM no caminho normal da ingestão da Fase 1. Na v3.39 a restrição é também refletida no DDL: novas referências resolvidas aceitam `origem_geografia=ORIGEM` apenas.
 
-### Residência não é Referência Territorial
+### Endereço residencial, endereço de residência e Referência Territorial
 
-`ENDERECO_RESIDENCIAL` representa o **endereço de residência** cadastral da Pessoa. É uma evidência cadastral específica e não deve ser tratado como sinônimo de `REFERENCIA_TERRITORIAL`.
+`ENDERECO_RESIDENCIAL` é o atributo cadastral homônimo previsto no contrato da Jornada. A plataforma **não deve defini-lo por equivalência automática como “endereço de residência”**: os dois rótulos podem carregar semânticas distintas na origem e essa equivalência só pode ser estabelecida por contrato ou regra normativa explícita.
 
-`REFERENCIA_TERRITORIAL` representa o vínculo territorial temporal usado para análise e política pública. Ele pode ter natureza `DOMICILIAR`, `ACOLHIMENTO_INSTITUCIONAL` ou `REFERENCIA_TERRITORIAL_DECLARADA`. Quando a natureza for `DOMICILIAR`, o endereço de residência pode servir de evidência/fallback admissível, mas a seleção da Referência Territorial permanece uma decisão explícita e rastreável; a Jornada não deve promover automaticamente qualquer endereço cadastral a território analítico.
+`REFERENCIA_TERRITORIAL` representa o vínculo territorial temporal selecionado para análise e política pública. Ele pode ter natureza `DOMICILIAR`, `ACOLHIMENTO_INSTITUCIONAL` ou `REFERENCIA_TERRITORIAL_DECLARADA`. A seleção deve permanecer explícita, rastreável e separada dos demais endereços cadastrais.
 
-Por isso, nomes de campos ou conceitos que descrevam residência devem usar semântica explícita de residência quando esse for realmente o significado. O conceito `referencia_territorial` permanece deliberadamente mais amplo e não deve ser renomeado para residência.
+Para visualização e análise territorial, a superfície canônica é a **Referência Territorial selecionada**. Um `ENDERECO_RESIDENCIAL` pode participar como evidência candidata para uma referência de natureza `DOMICILIAR` quando a regra vigente assim determinar, mas a Jornada não transforma automaticamente qualquer endereço cadastral em território analítico e não infere que `ENDERECO_RESIDENCIAL` e “endereço de residência” tenham o mesmo significado.
 
 Para `ENDERECO_RESIDENCIAL` e `REFERENCIA_TERRITORIAL`, cada atributo deve declarar `situacaoGeografia`:
 
