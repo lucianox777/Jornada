@@ -17,23 +17,23 @@ public sealed record IbgeCalibrationAttributeMapping(
 ///
 /// A presença de um atributo no linkage não implica suporte IBGE. Um atributo sem
 /// correspondência permanece disponível para calibração usando evidência da Jornada.
-/// Componentes do nome da mãe podem usar a mesma estatística agregada de nomes/sobrenomes,
-/// pois continuam representando nomes de pessoa; o nome completo não recebe frequência
-/// IBGE direta porque o produto oficial separa primeiro nome e sobrenomes.
+///
+/// O produto oficial separa primeiro nome e sobrenomes. A Jornada consegue projetar
+/// com semântica compatível o primeiro nome de nome_completo, mas não preserva hoje a
+/// fronteira original entre nome/nome composto e sobrenomes. Por isso as features
+/// internas name_surnames/name_last e equivalentes da mãe continuam disponíveis ao
+/// Calibrador como heurísticas de blocking da Jornada, porém não recebem frequência
+/// oficial de SOBRENOME por aproximação.
 /// </summary>
 public static class IbgeCalibrationAttributeCatalog
 {
-    public const string MethodVersion = "IBGE_CALIBRATION_ATTRIBUTE_CATALOG_V4";
+    public const string MethodVersion = "IBGE_CALIBRATION_ATTRIBUTE_CATALOG_V5";
 
     private static readonly IReadOnlyDictionary<string, IbgeCalibrationAttributeMapping> Supported =
         new Dictionary<string, IbgeCalibrationAttributeMapping>(StringComparer.Ordinal)
         {
             [BlockingCandidateFeatureCatalog.FirstName] = FirstName(BlockingCandidateFeatureCatalog.FirstName),
-            [BlockingCandidateFeatureCatalog.Surnames] = Surname(BlockingCandidateFeatureCatalog.Surnames),
-            [BlockingCandidateFeatureCatalog.LastName] = Surname(BlockingCandidateFeatureCatalog.LastName),
-            [BlockingCandidateFeatureCatalog.MotherFirstName] = FirstName(BlockingCandidateFeatureCatalog.MotherFirstName),
-            [BlockingCandidateFeatureCatalog.MotherSurnames] = Surname(BlockingCandidateFeatureCatalog.MotherSurnames),
-            [BlockingCandidateFeatureCatalog.MotherLastName] = Surname(BlockingCandidateFeatureCatalog.MotherLastName)
+            [BlockingCandidateFeatureCatalog.MotherFirstName] = FirstName(BlockingCandidateFeatureCatalog.MotherFirstName)
         };
 
     public static IReadOnlyCollection<string> SupportedFeatures => Supported.Keys.ToArray();
@@ -64,7 +64,8 @@ public static class IbgeCalibrationAttributeCatalog
     /// <summary>
     /// Resolve uma frequência somente quando o atributo da Jornada possui correspondência
     /// semântica explícita e o snapshot tipado contém a mesma classe estatística.
-    /// Não converte prenome em sobrenome nem usa frequência de nome completo por aproximação.
+    /// Não converte componentes derivados de nome completo em sobrenome oficial nem usa
+    /// frequência de nome completo por aproximação.
     /// </summary>
     public static bool TryGetOccurrences(
         IbgeTypedNameFrequencySnapshot snapshot,
@@ -88,7 +89,4 @@ public static class IbgeCalibrationAttributeCatalog
 
     private static IbgeCalibrationAttributeMapping FirstName(string feature) =>
         new(feature, ExternalNameFrequencyCatalog.IbgeSource, IbgeNameStatisticKind.FirstName);
-
-    private static IbgeCalibrationAttributeMapping Surname(string feature) =>
-        new(feature, ExternalNameFrequencyCatalog.IbgeSource, IbgeNameStatisticKind.Surname);
 }
