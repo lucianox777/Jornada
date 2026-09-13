@@ -10,8 +10,10 @@ GO
  da mesma coluna e passam a ser evidências identificadoras tipadas.
 
  A hierarquia aplica-se somente a identificadores EXTERNOS. CPF ocupa o nível mais
- alto dessa hierarquia. UUID_JORNADA não concorre com documentos externos: ele é
- retorno da própria Jornada e fecha o ciclo de retroalimentação da identidade.
+ alto dessa hierarquia e preserva o invariante já adotado pela Jornada:
+ o mesmo CPF válido/governado sempre resolve para o mesmo UUID âncora.
+ UUID_JORNADA não concorre com documentos externos: ele é retorno da própria Jornada
+ e fecha o ciclo de retroalimentação da identidade.
 
  Esta migração é aditiva e NÃO ativa resolução determinística por CNS/RG. A
  elegibilidade determinística é governada por tipo/namespace e pelas políticas
@@ -170,15 +172,19 @@ WHERE po.codigo_pessoa_origem IS NOT NULL
 GO
 
 /* Semântica de resolução:
-   1. UUID_JORNADA é consultado primeiro como continuidade interna da Jornada e
-      deve seguir redirecionamentos/fusões; nunca cria Pessoa implicitamente;
+   1. UUID_JORNADA é consultado como continuidade interna da Jornada e deve seguir
+      redirecionamentos/fusões; nunca cria Pessoa implicitamente;
    2. a hierarquia externa é avaliada separadamente, com CPF no topo;
-   3. CPF válido e governado é suficiente para identificação e ancora a identidade;
+   3. CPF válido e governado é suficiente e preserva o invariante permanente:
+      mesmo CPF -> mesmo UUID âncora; nenhuma outra evidência recalcula essa relação;
    4. identificadores externos de menor prioridade complementam proveniência e
       permitem detectar inconsistências, mas não substituem CPF quando este existe;
-   5. divergência entre UUID Jornada retornado e CPF válido deve gerar ocorrência
-      de integridade/correção governada, preservando ambos os valores e a trilha;
-   6. identificadores condicionais só participam deterministicamente após homologação
+   5. se UUID Jornada recebido divergir do UUID resolvido pelo CPF, a resolução do
+      CPF permanece inalterada. Registrar INCONSISTENCIA_RETROALIMENTACAO e preservar
+      o UUID recebido para diagnóstico/correção; isso não é disputa de âncoras;
+   6. se o UUID recebido redireciona legitimamente ao UUID do CPF, a retroalimentação
+      é consistente e não deve ser classificada como conflito;
+   7. identificadores condicionais só participam deterministicamente após homologação
       das respectivas regras de validação/namespace. */
 
 /* Não existe constraint exigindo ao menos um identificador. Isso é intencional:
