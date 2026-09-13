@@ -5,7 +5,7 @@ Este índice existe para evitar que snapshots históricos preservados no reposit
 ## Pontos de entrada correntes
 
 - **Release de engenharia efetivamente selada:** `RELEASE_INFO.txt` — Base Normativa v3.64, Solution Engenharia v4.05, SolutionSchema v3.69, tag `jornada-solution-v4.05`.
-- **Estado técnico candidato desta consolidação:** SolutionSchema v3.70. A release/tag v5.00 ainda não foi cortada.
+- **Estado técnico candidato desta consolidação:** SolutionSchema v3.70. A release/tag v5.00 ainda não foi cortada. Para consumo automatizado, `CANDIDATE_INFO.json` registra esse estado candidato sem substituir `RELEASE_INFO.txt` nem declarar publicação.
 - **Resumo executivo não versionado:** `Documentos/Resumo_Executivo.md`. Deve refletir a fronteira entre a última release selada e o estado técnico candidato.
 - **Especificação Técnica publicada:** `Documentos/Especificacao_Tecnica_Jornada_v3.62.docx` e `.pdf`. Não existe `Especificacao_Tecnica_Jornada_v3.64.*` materializada nesta árvore.
 - **Especificação Técnica candidata:** `Documentos/Especificacao_Tecnica_Jornada_Candidata.md`, sem número normativo e sem efeito de publicação/release até aprovação e corte formais. Consolida a v3.62 com o estado técnico comprovável do HEAD e mantém pendências institucionais como gates externos.
@@ -42,9 +42,10 @@ Em caso de dúvida sobre versão ou vigência:
 1. use `RELEASE_INFO.txt` para identificar a última release/tag efetivamente selada e a Base Normativa que ela declara;
 2. use `Especificacao_Tecnica_Jornada_v3.62.docx/.pdf` para o último texto de Especificação Técnica efetivamente publicado nesta árvore; não presuma a existência ou o conteúdo de uma v3.64 ausente;
 3. use `Especificacao_Tecnica_Jornada_Candidata.md` apenas para revisão da próxima consolidação normativa; ela não substitui a v3.62 antes da publicação formal;
-4. use o índice mestre de requisitos v1.1 para a leitura institucional consolidada candidata;
-5. use `Anexo_Modelo_Fisico_Jornada_v1.40.md` e `Solution/database/Jornada_Fase1_v3.70.sql` para o estado físico candidato 3.70; para publicação de entrega, regenere os derivados DOCX/PDF a partir da fonte corrente;
-6. use estados/notas de engenharia para rastrear deltas técnicos, sem promovê-los implicitamente a norma;
-7. trate documentos explicitamente versionados anteriores e evidências runtime como histórico, salvo indicação expressa em documento corrente.
+4. use `CANDIDATE_INFO.json` somente como representação legível por máquina do estado candidato; ele não é metadado de release selada e não tem precedência sobre `RELEASE_INFO.txt`;
+5. use o índice mestre de requisitos v1.1 para a leitura institucional consolidada candidata;
+6. use `Anexo_Modelo_Fisico_Jornada_v1.40.md` e `Solution/database/Jornada_Fase1_v3.70.sql` para o estado físico candidato 3.70; para publicação de entrega, regenere os derivados DOCX/PDF a partir da fonte corrente;
+7. use estados/notas de engenharia para rastrear deltas técnicos, sem promovê-los implicitamente a norma;
+8. trate documentos explicitamente versionados anteriores e evidências runtime como histórico, salvo indicação expressa em documento corrente.
 
 Nenhum item deste índice implica aprovação institucional, implantação em HML/Produção ou conclusão de gates que dependam de dados reais, governança ou decisão externa.
