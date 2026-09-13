@@ -2,7 +2,7 @@
 
 **Status:** CANDIDATA — NÃO PUBLICADA  
 **Baseline histórica publicada:** `Especificacao_Tecnica_Jornada_v3.62`  
-**Base técnica de consolidação:** `master` em `63eb21feb77efef1f3b96c2959d5fad665477591`  
+**Base técnica de consolidação:** `master` corrente; o SHA exato somente é fixado no corte formal da candidata  
 **SolutionSchema técnico corrente:** `3.70`  
 **Issue de consolidação:** #141  
 **Regra de versão:** este documento não recebe número normativo enquanto não houver corte/publicação formal.
@@ -134,16 +134,24 @@ O modelo físico corrente é derivado do DDL canônico do SolutionSchema 3.70 e 
 
 Mudanças materiais desta candidata devem ser rastreáveis, conforme aplicável, à família de Requisitos v1.1, ADRs, DDL/migrações, contratos OpenAPI/JSON, testes e documentação operacional.
 
-## 15. Pendências externas que não podem ser resolvidas por texto normativo inventado
+## 15. Nulabilidade de nome da mãe e evidência de identidade
+
+O contrato cadastral `Pessoa v3` admite `nomeMae` ausente. A nulabilidade é preservada no contrato interno, persistência, leitura, projeções e candidatos de linkage; a plataforma não deve preencher sinteticamente esse atributo nem descartar a observação por sua ausência.
+
+A ausência, indisponibilidade ou baixa qualidade do nome da mãe reduz ou neutraliza apenas a evidência correspondente na resolução de identidade, conforme política versionada. Ela não transforma por si só uma observação válida em registro inválido e não autoriza inferir o valor ausente.
+
+Essa regra técnica não decide como cada sistema de origem deve governar ou qualificar seu próprio cadastro. Eventual obrigação administrativa de saneamento na origem é matéria institucional distinta do contrato de ingestão da Jornada.
+
+## 16. Pendências externas que não podem ser resolvidas por texto normativo inventado
 
 Permanecem explicitamente externas ao fechamento técnico desta candidata:
 
 1. **Volumetria HML representativa:** ainda é necessária evidência legítima de capacidade e comportamento sob blocking multi-passe, concorrência e regiões/trechos serializados relevantes. Testes locais ou amostras pequenas não autorizam declarar capacidade de produção.
-2. **Transição de `nomeMae`:** embora a ausência de nome da mãe não possa eliminar observação recebida e deva reduzir/neutralizar apenas a evidência correspondente, uma eventual obrigatoriedade normativa para estoque existente exige regra transitória institucional (recarga, marco de corte ou alternativa formal). A engenharia não deve escolher essa política.
-3. **CCGD/finalidade:** a decisão institucional sobre finalidade, necessidade e base legal permanece pendente e não deve ser substituída por cabeçalho livre ou convenção local.
-4. **Homologação Fabric:** a release candidata precisa de evidência executada contra o HEAD exato que vier a ser cortado; a evidência histórica v4.00 não satisfaz esse gate sozinha.
+2. **CCGD/finalidade:** a decisão institucional sobre finalidade, necessidade e base legal permanece pendente e não deve ser substituída por cabeçalho livre ou convenção local.
+3. **Homologação Fabric:** a release candidata precisa de evidência executada contra o HEAD exato que vier a ser cortado; a evidência histórica v4.00 não satisfaz esse gate sozinha.
+4. **Validação estatística representativa do linkage:** métricas de corpus sintético, smoke tests e validações locais protegem a engenharia, mas não substituem avaliação representativa necessária para concluir desempenho estatístico no universo operacional.
 
-## 16. Critérios para publicação formal
+## 17. Critérios para publicação formal
 
 Esta candidata somente deve ser promovida a Especificação Técnica publicada quando, no mínimo:
 
@@ -154,7 +162,7 @@ Esta candidata somente deve ser promovida a Especificação Técnica publicada q
 - os derivados oficiais necessários forem gerados a partir da fonte aprovada;
 - a v3.62 permanecer preservada como baseline histórica e a nova publicação registrar explicitamente sua linhagem.
 
-## 17. Artefatos de evidência principais
+## 18. Artefatos de evidência principais
 
 A revisão desta candidata deve considerar, entre outros, os seguintes artefatos correntes:
 
