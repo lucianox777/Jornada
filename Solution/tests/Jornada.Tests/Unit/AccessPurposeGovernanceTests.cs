@@ -33,7 +33,9 @@ public sealed class AccessPurposeGovernanceTests
         Assert.Multiple(() =>
         {
             Assert.That(governance, Does.Contain("gate de decisão institucional"));
-            Assert.That(governance, Does.Contain("não fecha a decisão do CCGD"));
+            Assert.That(governance, Does.Contain("Grupo de Trabalho do Programa Reencontro (GTPR)"));
+            Assert.That(governance, Does.Contain("não fecha a decisão do **GTPR**"));
+            Assert.That(governance, Does.Not.Contain("decisão do CCGD"));
             Assert.That(governance, Does.Contain("credencial/contrato de projeção autorizado"));
             Assert.That(governance, Does.Contain("auditoria persistente"));
             Assert.That(apiDocs, Does.Contain("Consultas de Pessoa e Identidade não exigem `X-Jornada-Finalidade`"));
