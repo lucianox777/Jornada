@@ -67,8 +67,8 @@ public static class LinkageParameterEstimator
 
         AddDistribution(result, "M_NOME", matchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)), smoothingAlpha);
         AddDistribution(result, "U_NOME", unmatchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)), smoothingAlpha);
-        AddOptionalNameDistribution(result, "M_NOME_MAE", matchedPairs.Select(p => (p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
-        AddOptionalNameDistribution(result, "U_NOME_MAE", unmatchedPairs.Select(p => (p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
+        AddOptionalNameDistribution(result, "M_NOME_MAE", "NOME_MAE_M_SAMPLE_SIZE", matchedPairs.Select(p => (p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
+        AddOptionalNameDistribution(result, "U_NOME_MAE", "NOME_MAE_U_SAMPLE_SIZE", unmatchedPairs.Select(p => (p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
 
         // Mantém a taxa da data completa para auditoria e compatibilidade com modelos V1.
         result["M_DATA_NASCIMENTO_EXACT"] = SmoothedBinary(
@@ -115,6 +115,7 @@ public static class LinkageParameterEstimator
     private static void AddOptionalNameDistribution(
         IDictionary<string, decimal> target,
         string prefix,
+        string sampleSizeParameter,
         IEnumerable<(string? Left, string? Right)> values,
         decimal alpha)
     {
@@ -124,7 +125,7 @@ public static class LinkageParameterEstimator
             .Select(static pair => IdentityComparison.CompareName(pair.Left, pair.Right))
             .ToArray();
 
-        target[$"{prefix}_SAMPLE_SIZE"] = comparable.Length;
+        target[sampleSizeParameter] = comparable.Length;
         AddDistribution(target, prefix, comparable, alpha);
     }
 
