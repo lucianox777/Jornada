@@ -46,15 +46,36 @@ Frequências marginais do IBGE não permitem inferir, sozinhas, as probabilidade
 
 A frequência nacional de nomes também não é uma calibração específica de `nome_mae`. Se usada provisoriamente como proxy para esse campo, a condição deve ficar marcada (`U_NOME_MAE_IBGE_PROXY`) e ser substituída assim que houver corpus adequado por perfil/fonte.
 
+## Distância e frequência no FS
+
+A distância textual e a frequência não são multiplicadas entre si. A distância determina o estado de comparação (`EXACT`, `HIGH`, `MEDIUM`, `LOW`) e a frequência entra como covariável/estrato da distribuição `m/u`.
+
+Conceitualmente, o peso é:
+
+```text
+W_nome = log( m(estado, estrato_frequencia) / u(estado, estrato_frequencia) )
+```
+
+A Jornada adota os estratos versionáveis `RARE`, `UNCOMMON`, `COMMON`, `VERY_COMMON` e `UNKNOWN`. Um modelo que não possua parâmetros estratificados continua usando os parâmetros marginais históricos, preservando replay.
+
+A estratificação só pode usar uma chave com a **mesma semântica** da referência de frequência. A publicação do IBGE de `NOME` não deve ser tratada como frequência de nome completo. Assim, a referência IBGE pode informar um estrato de primeiro nome/publication key, mas não autoriza interpretar `p(nome completo)` como se tivesse sido observado pelo IBGE. A associação entre o estrato de frequência e os estados fuzzy deve ser calibrada empiricamente com pares rotulados.
+
+No bootstrap, portanto:
+
+- `EXACT` pode usar a colisão populacional global como referência conservadora;
+- `HIGH/MEDIUM/LOW` não recebem probabilidades inventadas a partir de Jaro-Winkler;
+- a superfície `estado × frequência` só se torna operacional quando houver corpus suficiente para estimá-la e validá-la;
+- ausência de frequência publicada resulta em `UNKNOWN`, nunca em frequência zero.
+
 ## Nascimento
 
-No bootstrap, data de nascimento é uma única evidência probabilística versionada:
+A partir do scorer V3, data de nascimento é uma única evidência probabilística versionada:
 
 ```text
 DATA_NASCIMENTO_EXACT / DATA_NASCIMENTO_DIFF
 ```
 
-Dia, mês e ano podem continuar existindo como atributos para blocking, índices e diagnóstico, mas não devem ser somados como três evidências probabilísticas independentes do mesmo evento de transcrição.
+Dia, mês e ano podem continuar existindo como atributos para blocking, índices e diagnóstico, mas não devem ser somados como três evidências probabilísticas independentes do mesmo evento de transcrição. Modelos V2 históricos permanecem legíveis exclusivamente para replay; novos modelos não devem emitir `SCORING_BIRTH_COMPONENTS_V2`.
 
 ## Promoção
 
@@ -99,6 +120,7 @@ Cada modelo deve expor pelo menos:
 - `frequencia_nome_versao_id`;
 - tamanho da amostra `m` e `u`;
 - parâmetros efetivamente utilizados;
-- versão do algoritmo/normalização.
+- versão do algoritmo/normalização;
+- quando aplicável, versão da regra de estratificação de frequência.
 
 Dessa forma, um LS produzido no cold start jamais é confundido com um LS produzido por um modelo municipal empiricamente calibrado e homologado.
