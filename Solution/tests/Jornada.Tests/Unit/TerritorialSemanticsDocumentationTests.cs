@@ -14,6 +14,7 @@ public sealed class TerritorialSemanticsDocumentationTests
         var territorializationPath = Path.Combine(root, "Solution", "docs", "Territorializacao_Fase1.md");
         var requirementsPath = Path.Combine(root, "Documentos", "Requisitos", "01_Requisitos_de_Negocio_Jornada_v1.1.md");
         var ddlPath = Path.Combine(root, "Solution", "database", "Jornada_Fase1.sql");
+        var seedPath = Path.Combine(root, "Solution", "database", "Jornada_Seed_Dev.sql");
 
         Assert.Multiple(() =>
         {
@@ -21,6 +22,7 @@ public sealed class TerritorialSemanticsDocumentationTests
             Assert.That(File.Exists(territorializationPath), Is.True);
             Assert.That(File.Exists(requirementsPath), Is.True);
             Assert.That(File.Exists(ddlPath), Is.True);
+            Assert.That(File.Exists(seedPath), Is.True);
         });
 
         using var catalog = JsonDocument.Parse(File.ReadAllText(catalogPath));
@@ -33,6 +35,7 @@ public sealed class TerritorialSemanticsDocumentationTests
         var territorialization = File.ReadAllText(territorializationPath);
         var requirements = File.ReadAllText(requirementsPath);
         var ddl = File.ReadAllText(ddlPath);
+        var seed = File.ReadAllText(seedPath);
 
         Assert.Multiple(() =>
         {
@@ -49,6 +52,10 @@ public sealed class TerritorialSemanticsDocumentationTests
 
             Assert.That(ddl, Does.Contain("ENDERECO_RESIDENCIAL é atributo cadastral de endereço de residência"));
             Assert.That(ddl, Does.Contain("A camada territorial usa exclusivamente o snapshot de REFERENCIA_TERRITORIAL selecionado"));
+
+            Assert.That(seed, Does.Not.Contain("O snapshot da classificação fica associado à observação do ENDERECO_RESIDENCIAL"));
+            Assert.That(seed, Does.Contain("O snapshot da classificação territorial fica associado à REFERENCIA_TERRITORIAL selecionada"));
+            Assert.That(seed, Does.Contain("fonte_semantica=ENDERECO_RESIDENCIAL"));
         });
     }
 
