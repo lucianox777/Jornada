@@ -142,7 +142,7 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
 
         var internalVersion = (latest?.VersaoInterna ?? 0) + 1;
         var nomeCmp = IdentityComparison.NormalizeText(person.NomeCompleto) ?? person.NomeCompleto.ToUpperInvariant();
-        var maeCmp = IdentityComparison.NormalizeText(person.NomeMae) ?? person.NomeMae.ToUpperInvariant();
+        var maeCmp = IdentityComparison.NormalizeText(person.NomeMae);
         long observationId;
         await using (var insert = Command(connection, tx, """
             INSERT INTO silver.pessoa_observacao(

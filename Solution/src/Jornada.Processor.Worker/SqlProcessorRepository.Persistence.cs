@@ -79,7 +79,7 @@ internal sealed partial class SqlProcessorRepository
 
         var internalVersion = (latest?.VersaoInterna ?? 0) + 1;
         var nomeCmp = IdentityComparison.NormalizeText(person.NomeCompleto) ?? person.NomeCompleto.ToUpperInvariant();
-        var maeCmp = IdentityComparison.NormalizeText(person.NomeMae) ?? person.NomeMae.ToUpperInvariant();
+        var maeCmp = IdentityComparison.NormalizeText(person.NomeMae);
         long observationId;
         await using (var insert = connection.CreateCommand())
         {
@@ -103,8 +103,8 @@ internal sealed partial class SqlProcessorRepository
             insert.Parameters.Add(new SqlParameter("@nome", SqlDbType.NVarChar, 500) { Value = person.NomeCompleto });
             insert.Parameters.Add(new SqlParameter("@nome_cmp", SqlDbType.NVarChar, 500) { Value = nomeCmp });
             insert.Parameters.Add(new SqlParameter("@nascimento", SqlDbType.Date) { Value = person.DataNascimento.ToDateTime(TimeOnly.MinValue) });
-            insert.Parameters.Add(new SqlParameter("@mae", SqlDbType.NVarChar, 500) { Value = person.NomeMae });
-            insert.Parameters.Add(new SqlParameter("@mae_cmp", SqlDbType.NVarChar, 500) { Value = maeCmp });
+            insert.Parameters.Add(new SqlParameter("@mae", SqlDbType.NVarChar, 500) { Value = (object?)person.NomeMae ?? DBNull.Value });
+            insert.Parameters.Add(new SqlParameter("@mae_cmp", SqlDbType.NVarChar, 500) { Value = (object?)maeCmp ?? DBNull.Value });
             insert.Parameters.AddWithValue("@source_as_of", batch.DataReferencia);
             observationId = Convert.ToInt64(await insert.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
         }
