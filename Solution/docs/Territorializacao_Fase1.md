@@ -4,13 +4,13 @@
 
 A territorialização necessária ao BI é responsabilidade do **Gestor/origem**. A Jornada não faz chamada online Pessoa-a-Pessoa à PRODAM no caminho normal da ingestão da Fase 1. Na v3.39 a restrição é também refletida no DDL: novas referências resolvidas aceitam `origem_geografia=ORIGEM` apenas.
 
-### Residência não é Referência Territorial
+### Endereço residencial e Referência Territorial são conceitos distintos
 
-`ENDERECO_RESIDENCIAL` representa o **endereço de residência** cadastral da Pessoa. É uma evidência cadastral específica e não deve ser tratado como sinônimo de `REFERENCIA_TERRITORIAL`.
+`ENDERECO_RESIDENCIAL` é o atributo contratual de **endereço residencial** informado pela origem. A Jornada preserva essa semântica declarada e não a redefine automaticamente como **endereço de residência**, nem trata o atributo como sinônimo de `REFERENCIA_TERRITORIAL`.
 
-`REFERENCIA_TERRITORIAL` representa o vínculo territorial temporal usado para análise e política pública. Ele pode ter natureza `DOMICILIAR`, `ACOLHIMENTO_INSTITUCIONAL` ou `REFERENCIA_TERRITORIAL_DECLARADA`. Quando a natureza for `DOMICILIAR`, o endereço de residência pode servir de evidência/fallback admissível, mas a seleção da Referência Territorial permanece uma decisão explícita e rastreável; a Jornada não deve promover automaticamente qualquer endereço cadastral a território analítico.
+`REFERENCIA_TERRITORIAL` representa o vínculo territorial temporal selecionado para análise e política pública e constitui a superfície canônica da visualização territorial. Ele pode ter natureza `DOMICILIAR`, `ACOLHIMENTO_INSTITUCIONAL` ou `REFERENCIA_TERRITORIAL_DECLARADA`. Quando regra vigente permitir que `ENDERECO_RESIDENCIAL` participe como evidência candidata de uma referência `DOMICILIAR`, essa participação não muda a semântica do atributo de origem e a seleção da Referência Territorial permanece explícita e rastreável; a Jornada não deve promover automaticamente qualquer endereço cadastral a território analítico.
 
-Por isso, nomes de campos ou conceitos que descrevam residência devem usar semântica explícita de residência quando esse for realmente o significado. O conceito `referencia_territorial` permanece deliberadamente mais amplo e não deve ser renomeado para residência.
+Por isso, conceitos de residência, endereço residencial e referência territorial devem manter suas semânticas próprias. A plataforma não deve inferir equivalência entre eles apenas pelo nome do campo ou pela conveniência operacional.
 
 Para `ENDERECO_RESIDENCIAL` e `REFERENCIA_TERRITORIAL`, cada atributo deve declarar `situacaoGeografia`:
 
