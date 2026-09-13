@@ -248,6 +248,7 @@ internal sealed partial class SqlProcessorRepository
         }
 
         var selectedGeography = await SelectTerritorialReferenceAsync(connection, tx, observationId, ct);
+        var residentialGeography = await SelectResidentialGeographyAsync(connection, tx, observationId, ct);
 
         if (uuid.HasValue)
         {
@@ -260,7 +261,7 @@ internal sealed partial class SqlProcessorRepository
         await RecordProcessedItemAsync(connection, tx, batch, "PESSOA", pessoaOrigemId, null,
             person.CodigoPessoaOrigem, latest is null ? "INCLUIDO" : "VERSIONADO", internalVersion, person.ConteudoHash, ct);
 
-        return new ProcessedPerson(observationId, pessoaOrigemId, batch.SistemaOrigemId, person.CodigoPessoaOrigem, person.Cpf, person.CpfAusenteMotivo, uuid, ToAssignmentState(resolutionStatus), selectedGeography.ReferenciaTerritorialObservacaoId, selectedGeography.NaturezaReferenciaTerritorial, selectedGeography.SubprefeituraId, selectedGeography.DistritoId);
+        return new ProcessedPerson(observationId, pessoaOrigemId, batch.SistemaOrigemId, person.CodigoPessoaOrigem, person.Cpf, person.CpfAusenteMotivo, uuid, ToAssignmentState(resolutionStatus), selectedGeography.ReferenciaTerritorialObservacaoId, selectedGeography.NaturezaReferenciaTerritorial, selectedGeography.SubprefeituraId, selectedGeography.DistritoId, residentialGeography.EnderecoResidencialGeografiaObservacaoId, residentialGeography.SubprefeituraId, residentialGeography.DistritoId);
     }
 
     private static async Task<AttributeIdentityRule> ResolveAttributeIdentityRuleAsync(

@@ -19,8 +19,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 LEGACY_GATE = ROOT / "scripts" / "technical-closure-gate-v405.py"
 READINESS = ROOT / "src" / "Jornada.Api" / "ApiHealth.cs"
-CURRENT_INSTALLER = ROOT / "database" / "Jornada_Fase1_v3.70.sql"
-SCHEMA_370 = ROOT / "database" / "migrations" / "20260910_Schema_Consolidation_370.sql"
+CURRENT_INSTALLER = ROOT / "database" / "Jornada_Fase1_v3.71.sql"
+SCHEMA_371 = ROOT / "database" / "migrations" / "20260910_Schema_Consolidation_370.sql"
 SCHEMA_APPROVALS = ROOT / "config" / "governance" / "schema-approvals.json"
 LOCK_PROVENANCE = ROOT / "config" / "release" / "nuget-lock-provenance.json"
 MATERIALIZER = ROOT / "scripts" / "materialize-sql-installer.py"
@@ -72,7 +72,7 @@ def validate_current_schema() -> None:
             "@base=N'3.62'",
             "Jornada.SolutionSchema",
             "NOT (@solution=N'3.69')",
-            "@solution=N'3.70'",
+            "@solution=N'3.71'",
             "SQL_SCHEMA_INCOMPATIVEL",
             "identidade.cpf_ancora",
             "identidade.pessoa_origem_progressiva",
@@ -93,7 +93,7 @@ def validate_current_schema() -> None:
         "instalador canônico 3.70",
     )
 
-    consolidation = SCHEMA_370.read_text(encoding="utf-8")
+    consolidation = SCHEMA_371.read_text(encoding="utf-8")
     require(
         consolidation,
         (
@@ -142,7 +142,7 @@ def validate_release_boundary() -> str:
                 "corte v5.00 exige atualização atômica de solution_engenharia=v5.00, "
                 "schema_solution=v3.70 e source_git_tag=jornada-solution-v5.00"
             )
-        return "metadados de release v5.00 / schema 3.70 coerentes"
+        return "metadados de release v5.00 / schema 3.71 coerentes"
 
     fail(
         "RELEASE_INFO em estado de release não reconhecido para esta consolidação: "

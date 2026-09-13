@@ -25,6 +25,16 @@ JOIN silver.pessoa_atributo_observacao pa ON pa.pessoa_atributo_observacao_id=rt
 WHERE rt.fonte_semantica='ENDERECO_RESIDENCIAL'
 AND NOT EXISTS(SELECT 1 FROM silver.endereco_residencial_geografia_observacao eg WHERE eg.pessoa_atributo_observacao_id=rt.pessoa_atributo_observacao_id);
 GO
+IF COL_LENGTH('gold.beneficio_concedido','endereco_residencial_geografia_observacao_id') IS NULL ALTER TABLE gold.beneficio_concedido ADD endereco_residencial_geografia_observacao_id BIGINT NULL;
+IF COL_LENGTH('gold.beneficio_concedido','subprefeitura_residencia_id') IS NULL ALTER TABLE gold.beneficio_concedido ADD subprefeitura_residencia_id BIGINT NULL;
+IF COL_LENGTH('gold.beneficio_concedido','distrito_residencia_id') IS NULL ALTER TABLE gold.beneficio_concedido ADD distrito_residencia_id BIGINT NULL;
+IF COL_LENGTH('gold.servico_prestado','endereco_residencial_geografia_observacao_id') IS NULL ALTER TABLE gold.servico_prestado ADD endereco_residencial_geografia_observacao_id BIGINT NULL;
+IF COL_LENGTH('gold.servico_prestado','subprefeitura_residencia_id') IS NULL ALTER TABLE gold.servico_prestado ADD subprefeitura_residencia_id BIGINT NULL;
+IF COL_LENGTH('gold.servico_prestado','distrito_residencia_id') IS NULL ALTER TABLE gold.servico_prestado ADD distrito_residencia_id BIGINT NULL;
+IF COL_LENGTH('serving.registro_integrado','endereco_residencial_geografia_observacao_id') IS NULL ALTER TABLE serving.registro_integrado ADD endereco_residencial_geografia_observacao_id BIGINT NULL;
+IF COL_LENGTH('serving.registro_integrado','subprefeitura_residencia_id') IS NULL ALTER TABLE serving.registro_integrado ADD subprefeitura_residencia_id BIGINT NULL;
+IF COL_LENGTH('serving.registro_integrado','distrito_residencia_id') IS NULL ALTER TABLE serving.registro_integrado ADD distrito_residencia_id BIGINT NULL;
+GO
 CREATE OR ALTER VIEW silver.v_pessoa_geografia_residencial AS
 SELECT po.pessoa_observacao_id,pa.pessoa_atributo_observacao_id,eg.endereco_residencial_geografia_observacao_id,eg.subprefeitura_id,eg.distrito_id,eg.situacao_geografia,eg.origem_geografia,eg.referencia_malha,eg.resolvido_em
 FROM silver.pessoa_observacao po
@@ -37,5 +47,21 @@ OUTER APPLY(
 LEFT JOIN silver.pessoa_atributo_observacao pa ON pa.pessoa_atributo_observacao_id=x.pessoa_atributo_observacao_id
 LEFT JOIN silver.endereco_residencial_geografia_observacao eg ON eg.pessoa_atributo_observacao_id=pa.pessoa_atributo_observacao_id;
 GO
+UPDATE f SET endereco_residencial_geografia_observacao_id=g.endereco_residencial_geografia_observacao_id,subprefeitura_residencia_id=g.subprefeitura_id,distrito_residencia_id=g.distrito_id
+FROM gold.beneficio_concedido f JOIN silver.registro_observacao ro ON ro.registro_observacao_id=f.registro_observacao_id JOIN silver.v_pessoa_geografia_residencial g ON g.pessoa_observacao_id=ro.pessoa_observacao_id
+WHERE f.endereco_residencial_geografia_observacao_id IS NULL;
+UPDATE f SET endereco_residencial_geografia_observacao_id=g.endereco_residencial_geografia_observacao_id,subprefeitura_residencia_id=g.subprefeitura_id,distrito_residencia_id=g.distrito_id
+FROM gold.servico_prestado f JOIN silver.registro_observacao ro ON ro.registro_observacao_id=f.registro_observacao_id JOIN silver.v_pessoa_geografia_residencial g ON g.pessoa_observacao_id=ro.pessoa_observacao_id
+WHERE f.endereco_residencial_geografia_observacao_id IS NULL;
+UPDATE f SET endereco_residencial_geografia_observacao_id=g.endereco_residencial_geografia_observacao_id,subprefeitura_residencia_id=g.subprefeitura_id,distrito_residencia_id=g.distrito_id
+FROM serving.registro_integrado f JOIN silver.registro_observacao ro ON ro.registro_observacao_id=f.registro_observacao_id JOIN silver.v_pessoa_geografia_residencial g ON g.pessoa_observacao_id=ro.pessoa_observacao_id
+WHERE f.endereco_residencial_geografia_observacao_id IS NULL;
+GO
 IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema') EXEC sys.sp_updateextendedproperty @name=N'Jornada.SolutionSchema',@value=N'3.71'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.SolutionSchema',@value=N'3.71';
 COMMIT;
+
+GO
+IF OBJECT_ID('serving.v_bi_linkage','V') IS NOT NULL
+BEGIN
+ EXEC(N'CREATE OR ALTER VIEW serving.v_bi_linkage AS SELECT po.pessoa_observacao_id,po.pessoa_origem_id,po.gestor_id,po.codigo_pessoa_origem,po.cpf,CASE WHEN po.cpf IS NULL THEN 0 ELSE 1 END cpf_preenchido,po.cpf_ausente_motivo,CASE WHEN DATEPART(DAY,po.data_nascimento)=1 AND DATEPART(MONTH,po.data_nascimento)=1 THEN 1 ELSE 0 END nascimento_0101,CASE WHEN rg.subprefeitura_id IS NULL OR rg.distrito_id IS NULL THEN 0 ELSE 1 END geografia_residencia_preenchida,ml.versao modelo_linkage_versao,vc.linkage_run_id,lr.tipo_run,lr.iniciado_em linkage_run_iniciado_em,lr.finalizado_em linkage_run_finalizado_em,ptl.valor t_linkage,lr.status linkage_run_status,COALESCE(sp.nome,''SEM_ENDERECO_RESIDENCIAL_RESOLVIDO'') subprefeitura_residencia,COALESCE(d.nome,''SEM_ENDERECO_RESIDENCIAL_RESOLVIDO'') distrito_residencia FROM silver.pessoa_observacao po LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id LEFT JOIN identidade.modelo_linkage ml ON ml.modelo_id=vc.modelo_id LEFT JOIN identidade.linkage_run lr ON lr.linkage_run_id=vc.linkage_run_id LEFT JOIN identidade.parametro_threshold_linkage ptl ON ptl.modelo_id=vc.modelo_id AND ptl.tipo=''T_LINKAGE'' LEFT JOIN silver.v_pessoa_geografia_residencial rg ON rg.pessoa_observacao_id=po.pessoa_observacao_id LEFT JOIN ref.subprefeitura sp ON sp.subprefeitura_id=rg.subprefeitura_id LEFT JOIN ref.distrito d ON d.distrito_id=rg.distrito_id;');
+END;

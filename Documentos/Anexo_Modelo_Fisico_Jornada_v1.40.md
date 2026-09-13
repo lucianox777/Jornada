@@ -15,7 +15,7 @@ Esta revisão sincroniza a fonte textual corrente com o schema medido após a in
 
 ## 2. Definição canônica do schema
 
-A instalação nova do SQL Server deve utilizar `Solution/database/Jornada_Fase1_v3.70.sql` como fonte canônica editável. Esse ponto de entrada aplica, em ordem determinística, o baseline histórico, a persistência progressiva, as estruturas de composição, a âncora CPF, as projeções/rulesets de blocking e as migrações versionadas da referência de frequências de nomes, e somente promove `Jornada.SolutionSchema=3.70` depois de verificar a existência de todos os objetos obrigatórios.
+A instalação nova do SQL Server deve utilizar `Solution/database/Jornada_Fase1_v3.71.sql` como fonte canônica editável. Esse ponto de entrada aplica, em ordem determinística, o baseline histórico, a persistência progressiva, as estruturas de composição, a âncora CPF, as projeções/rulesets de blocking e as migrações versionadas da referência de frequências de nomes, e somente promove `Jornada.SolutionSchema=3.71` depois de verificar a existência de todos os objetos obrigatórios.
 
 Para entrega a DBA ou ferramenta de deploy, `Solution/scripts/materialize-sql-installer.py` materializa deterministicamente a composição canônica em um único arquivo SQL Server autocontido, sem diretivas `:r`. O arquivo materializado não constitui uma segunda definição de schema: é um artefato gerado a partir da fonte canônica.
 
@@ -34,10 +34,10 @@ Resultado medido em 12/09/2026 no `master`, SHA `a25488b043888ee2aeb5b292e2b638b
 - tabelas no `Jornada_Fase1.sql` legado: **53**;
 - tabelas próprias do núcleo `Jornada_Identidade_Progressiva.sql`: **2**;
 - tabelas distintas introduzidas pelos scripts de migração de schema: **14**;
-- total distinto do schema operacional consolidado: **69 tabelas**;
+- total distinto do schema operacional consolidado: **70 tabelas**;
 - tabelas do schema atual que não pertencem ao baseline legado de 53: **16**.
 
-Portanto, a contagem histórica 53/53 não representa o schema corrente. As contagens intermediárias de 64 e 66 também ficaram superadas: o inventário automatizado atual mede 69 tabelas distintas.
+Portanto, a contagem histórica 53/53 não representa o schema corrente. As contagens intermediárias de 64 e 66 também ficaram superadas: o inventário automatizado atual mede 70 tabelas distintas.
 
 ## 4. Tabelas fora do baseline legado
 
@@ -60,7 +60,7 @@ As 16 tabelas adicionais são:
 15. `ref.frequencia_nome_cobertura`
 16. `ref.frequencia_nome_versao`
 
-## 5. Inventário completo - 69 tabelas
+## 5. Inventário completo - 70 tabelas
 
 ### bronze
 - `bronze.entrega_arquivo`

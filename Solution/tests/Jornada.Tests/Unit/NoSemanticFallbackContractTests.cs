@@ -42,5 +42,7 @@ public sealed class NoSemanticFallbackContractTests
         Assert.That(migration, Does.Contain("silver.endereco_residencial_geografia_observacao"));
         Assert.That(migration, Does.Contain("silver.v_pessoa_geografia_residencial"));
         Assert.That(migration, Does.Contain("fonte_semantica='ENDERECO_RESIDENCIAL'"));
+        Assert.That(migration, Does.Contain("subprefeitura_residencia_id"));
+        Assert.That(migration, Does.Contain("distrito_residencia_id"));
     }
 }

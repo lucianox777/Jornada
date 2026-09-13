@@ -356,6 +356,9 @@ internal sealed partial class PostgreSqlProcessorRepository
         Add(command, "@natureza_referencia", DbType.String, person.NaturezaReferenciaTerritorial, 50);
         Add(command, "@subprefeitura", DbType.Int64, person.SubprefeituraId);
         Add(command, "@distrito", DbType.Int64, person.DistritoId);
+        Add(command, "@residencia_geografia", DbType.Int64, person.EnderecoResidencialGeografiaObservacaoId);
+        Add(command, "@subprefeitura_residencia", DbType.Int64, person.SubprefeituraResidenciaId);
+        Add(command, "@distrito_residencia", DbType.Int64, person.DistritoResidenciaId);
         Add(command, "@source", DbType.DateTimeOffset, batch.DataReferencia);
         Add(command, "@vigencia_inicio", DbType.DateTimeOffset, versionedAt);
     }

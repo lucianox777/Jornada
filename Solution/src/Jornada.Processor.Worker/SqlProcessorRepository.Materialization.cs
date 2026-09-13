@@ -20,10 +20,10 @@ internal sealed partial class SqlProcessorRepository
                 INSERT gold.beneficio_concedido(
                     registro_observacao_id,registro_origem_id,codigo_registro_origem,versao_interna,operacao,status_analitico,
                     pessoa_origem_id,sistema_origem_id,codigo_pessoa_origem,cpf_declarado,cpf_ausente_motivo,pessoa_uuid,estado_atribuicao_identidade,gestor_id,tipo_registro_id,tipo_registro_versao_id,entrega_id,
-                    data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao_vigencia,situacao_vigencia_desde,motivo_encerramento,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,valor_concedido,quantidade,unidade,
+                    data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao_vigencia,situacao_vigencia_desde,motivo_encerramento,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,endereco_residencial_geografia_observacao_id,subprefeitura_residencia_id,distrito_residencia_id,valor_concedido,quantidade,unidade,
                     source_as_of,qc_resultado,qc_especifico_implementado,vigencia_versao_inicio,vigencia_versao_fim)
                 VALUES(@registro,@registro_origem,@codigo_registro,@versao_interna,@operacao,'VIGENTE',
-                       @pessoa_origem,@sistema_origem,@codigo_pessoa,@cpf_declarado,@cpf_ausente,@uuid,@estado_atribuicao,@gestor,@tipo,@tipo_versao,@entrega,@data_inicio_concessao,@data_fim_concessao,@data_evento_concessao,@situacao_vigencia,@situacao_vigencia_desde,@motivo_encerramento,@referencia_territorial,@natureza_referencia,@subprefeitura,@distrito,
+                       @pessoa_origem,@sistema_origem,@codigo_pessoa,@cpf_declarado,@cpf_ausente,@uuid,@estado_atribuicao,@gestor,@tipo,@tipo_versao,@entrega,@data_inicio_concessao,@data_fim_concessao,@data_evento_concessao,@situacao_vigencia,@situacao_vigencia_desde,@motivo_encerramento,@referencia_territorial,@natureza_referencia,@subprefeitura,@distrito,@residencia_geografia,@subprefeitura_residencia,@distrito_residencia,
                        @valor_concedido,@quantidade,@unidade,@source,@qc,@qc_impl,@vigencia_inicio,NULL);
                 """;
             AddBenefitGrantedParameters(gold, batch, person, registroOrigemId, versaoInterna, recordId, fact, evaluation, versionedAt);
@@ -36,7 +36,7 @@ internal sealed partial class SqlProcessorRepository
             INSERT serving.registro_integrado(
                 registro_observacao_id,registro_origem_id,codigo_registro_origem,versao_interna,operacao,status_analitico,
                 pessoa_origem_id,sistema_origem_id,codigo_pessoa_origem,cpf_declarado,cpf_ausente_motivo,pessoa_uuid,estado_atribuicao_identidade,gestor_id,natureza,tipo_registro_id,tipo_registro_versao_id,entrega_id,entrega_completa,
-                data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao_vigencia,situacao_vigencia_desde,motivo_encerramento,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,valor_concedido,quantidade,unidade,
+                data_inicio_concessao,data_fim_concessao,data_evento_concessao,situacao_vigencia,situacao_vigencia_desde,motivo_encerramento,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,endereco_residencial_geografia_observacao_id,subprefeitura_residencia_id,distrito_residencia_id,valor_concedido,quantidade,unidade,
                 source_as_of,qc_resultado,qc_especifico_implementado,vigencia_versao_inicio,vigencia_versao_fim)
             VALUES(@registro,@registro_origem,@codigo_registro,@versao_interna,@operacao,'VIGENTE',
                    @pessoa_origem,@sistema_origem,@codigo_pessoa,@cpf_declarado,@cpf_ausente,@uuid,@estado_atribuicao,@gestor,'BENEFICIO',@tipo,@tipo_versao,@entrega,0,@data_inicio_concessao,@data_fim_concessao,@data_evento_concessao,@situacao_vigencia,@situacao_vigencia_desde,@motivo_encerramento,@referencia_territorial,@natureza_referencia,@subprefeitura,@distrito,
@@ -60,10 +60,10 @@ internal sealed partial class SqlProcessorRepository
                 INSERT gold.servico_prestado(
                     registro_observacao_id,registro_origem_id,codigo_registro_origem,versao_interna,operacao,status_analitico,
                     pessoa_origem_id,sistema_origem_id,codigo_pessoa_origem,cpf_declarado,cpf_ausente_motivo,pessoa_uuid,estado_atribuicao_identidade,gestor_id,tipo_registro_id,tipo_registro_versao_id,entrega_id,
-                    data_hora_servico,unidade_servico,situacao,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,source_as_of,
+                    data_hora_servico,unidade_servico,situacao,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,endereco_residencial_geografia_observacao_id,subprefeitura_residencia_id,distrito_residencia_id,source_as_of,
                     vigencia_versao_inicio,vigencia_versao_fim)
                 VALUES(@registro,@registro_origem,@codigo_registro,@versao_interna,@operacao,'VIGENTE',
-                       @pessoa_origem,@sistema_origem,@codigo_pessoa,@cpf_declarado,@cpf_ausente,@uuid,@estado_atribuicao,@gestor,@tipo,@tipo_versao,@entrega,@data_hora,@unidade_servico,@situacao,@referencia_territorial,@natureza_referencia,@subprefeitura,@distrito,@source,
+                       @pessoa_origem,@sistema_origem,@codigo_pessoa,@cpf_declarado,@cpf_ausente,@uuid,@estado_atribuicao,@gestor,@tipo,@tipo_versao,@entrega,@data_hora,@unidade_servico,@situacao,@referencia_territorial,@natureza_referencia,@subprefeitura,@distrito,@residencia_geografia,@subprefeitura_residencia,@distrito_residencia,@source,
                        @vigencia_inicio,NULL);
                 """;
             AddServiceProvidedParameters(gold, batch, person, registroOrigemId, versaoInterna, recordId, fact, versionedAt);
@@ -76,10 +76,10 @@ internal sealed partial class SqlProcessorRepository
             INSERT serving.registro_integrado(
                 registro_observacao_id,registro_origem_id,codigo_registro_origem,versao_interna,operacao,status_analitico,
                 pessoa_origem_id,sistema_origem_id,codigo_pessoa_origem,cpf_declarado,cpf_ausente_motivo,pessoa_uuid,estado_atribuicao_identidade,gestor_id,natureza,tipo_registro_id,tipo_registro_versao_id,entrega_id,entrega_completa,
-                data_hora_servico,unidade_servico,situacao,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,source_as_of,qc_resultado,qc_especifico_implementado,
+                data_hora_servico,unidade_servico,situacao,referencia_territorial_observacao_id,natureza_referencia_territorial,subprefeitura_referencia_id,distrito_referencia_id,endereco_residencial_geografia_observacao_id,subprefeitura_residencia_id,distrito_residencia_id,source_as_of,qc_resultado,qc_especifico_implementado,
                 vigencia_versao_inicio,vigencia_versao_fim)
             VALUES(@registro,@registro_origem,@codigo_registro,@versao_interna,@operacao,'VIGENTE',
-                   @pessoa_origem,@sistema_origem,@codigo_pessoa,@cpf_declarado,@cpf_ausente,@uuid,@estado_atribuicao,@gestor,'SERVICO',@tipo,@tipo_versao,@entrega,0,@data_hora,@unidade_servico,@situacao,@referencia_territorial,@natureza_referencia,@subprefeitura,@distrito,@source,@qc,@qc_impl,
+                   @pessoa_origem,@sistema_origem,@codigo_pessoa,@cpf_declarado,@cpf_ausente,@uuid,@estado_atribuicao,@gestor,'SERVICO',@tipo,@tipo_versao,@entrega,0,@data_hora,@unidade_servico,@situacao,@referencia_territorial,@natureza_referencia,@subprefeitura,@distrito,@residencia_geografia,@subprefeitura_residencia,@distrito_residencia,@source,@qc,@qc_impl,
                    @vigencia_inicio,NULL);
             """;
         AddServiceProvidedParameters(serving, batch, person, registroOrigemId, versaoInterna, recordId, fact, versionedAt);
@@ -163,6 +163,9 @@ internal sealed partial class SqlProcessorRepository
         AddNullable(command, "@natureza_referencia", SqlDbType.NVarChar, 50, person.NaturezaReferenciaTerritorial);
         command.Parameters.Add(new SqlParameter("@subprefeitura", SqlDbType.BigInt) { Value = (object?)person.SubprefeituraId ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@distrito", SqlDbType.BigInt) { Value = (object?)person.DistritoId ?? DBNull.Value });
+        command.Parameters.Add(new SqlParameter("@residencia_geografia", SqlDbType.BigInt) { Value = (object?)person.EnderecoResidencialGeografiaObservacaoId ?? DBNull.Value });
+        command.Parameters.Add(new SqlParameter("@subprefeitura_residencia", SqlDbType.BigInt) { Value = (object?)person.SubprefeituraResidenciaId ?? DBNull.Value });
+        command.Parameters.Add(new SqlParameter("@distrito_residencia", SqlDbType.BigInt) { Value = (object?)person.DistritoResidenciaId ?? DBNull.Value });
         command.Parameters.AddWithValue("@source", batch.DataReferencia);
         command.Parameters.AddWithValue("@vigencia_inicio", versionedAt);
     }
@@ -353,6 +356,18 @@ internal sealed partial class SqlProcessorRepository
         await command.ExecuteNonQueryAsync(ct);
     }
 
+    private static async Task<ResidentialGeographySelection> SelectResidentialGeographyAsync(
+        SqlConnection connection, SqlTransaction tx, long pessoaObservacaoId, CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = tx;
+        command.CommandText = "SELECT endereco_residencial_geografia_observacao_id,subprefeitura_id,distrito_id FROM silver.v_pessoa_geografia_residencial WHERE pessoa_observacao_id=@pessoa;";
+        command.Parameters.AddWithValue("@pessoa", pessoaObservacaoId);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct) || reader.IsDBNull(0)) return new ResidentialGeographySelection(null,null,null);
+        return new ResidentialGeographySelection(reader.GetInt64(0),reader.IsDBNull(1)?null:reader.GetInt64(1),reader.IsDBNull(2)?null:reader.GetInt64(2));
+    }
+
     private static async Task<TerritorialReferenceSelection> SelectTerritorialReferenceAsync(
         SqlConnection connection, SqlTransaction tx, long pessoaObservacaoId, CancellationToken ct)
     {
@@ -474,8 +489,9 @@ internal sealed partial class SqlProcessorRepository
         command.Parameters.Add(new SqlParameter(name, type) { Precision = precision, Scale = scale, Value = value.HasValue ? value.Value : DBNull.Value });
     }
 
-    private sealed record ProcessedPerson(long ObservationId, long PessoaOrigemId, long SistemaOrigemId, string CodigoPessoaOrigem, string? CpfDeclarado, string? CpfAusenteMotivo, Guid? PessoaUuid, string EstadoAtribuicaoIdentidade, long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId);
+    private sealed record ProcessedPerson(long ObservationId, long PessoaOrigemId, long SistemaOrigemId, string CodigoPessoaOrigem, string? CpfDeclarado, string? CpfAusenteMotivo, Guid? PessoaUuid, string EstadoAtribuicaoIdentidade, long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId, long? EnderecoResidencialGeografiaObservacaoId, long? SubprefeituraResidenciaId, long? DistritoResidenciaId);
     private sealed record TerritorialReferenceSelection(long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId);
+    private sealed record ResidentialGeographySelection(long? EnderecoResidencialGeografiaObservacaoId, long? SubprefeituraId, long? DistritoId);
     private sealed record PersistedAttribute(long ObservationId, ParsedTransversalAttribute Value, string InstanceKey, string Cardinality);
     private sealed record AttributeIdentityRule(string Cardinality, string InstanceKeyRule);
 }

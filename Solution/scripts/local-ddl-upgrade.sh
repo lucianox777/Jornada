@@ -5,7 +5,7 @@ ENV_FILE="$ROOT/.env"
 EXAMPLE="$ROOT/.env.example"
 BASELINE_REL="${JORNADA_DDL_BASELINE:-database/baselines/Jornada_Fase1_v3.65.sql}"
 BASELINE_SEED_REL="${JORNADA_DDL_BASELINE_SEED:-database/baselines/Jornada_Seed_Dev_v3.65.sql}"
-CURRENT_REL="${JORNADA_DDL_CURRENT:-database/Jornada_Fase1_v3.70.sql}"
+CURRENT_REL="${JORNADA_DDL_CURRENT:-database/Jornada_Fase1_v3.71.sql}"
 DB="${JORNADA_DDL_UPGRADE_DATABASE:-JornadaDdlUpgradeCheck}"
 
 need(){ command -v "$1" >/dev/null 2>&1 || { echo "ERRO: comando '$1' não encontrado." >&2; exit 2; }; }
@@ -40,7 +40,7 @@ assert_email_v2(){
 }
 assert_schema_marker(){
   local n
-  n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT CASE WHEN CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'))=N'3.62' AND CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'))=N'3.70' THEN 1 ELSE 0 END;" | tr -d '[:space:]')"
+  n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT CASE WHEN CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'))=N'3.62' AND CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'))=N'3.71' THEN 1 ELSE 0 END;" | tr -d '[:space:]')"
   [[ "$n" == 1 ]] || { echo "ERRO: marcador de versão do schema não está em Base 3.62 / Solution 3.70." >&2; exit 8; }
 }
 build_progressive_backfill_runner(){

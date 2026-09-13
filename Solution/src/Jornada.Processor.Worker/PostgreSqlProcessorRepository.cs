@@ -274,19 +274,25 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
 
             if (string.Equals(attribute.AtributoCodigo, "ENDERECO_RESIDENCIAL", StringComparison.OrdinalIgnoreCase))
             {
-                await InsertTerritorialReferenceAsync(connection, tx, attributeObservationId, TerritorialReferenceNature.DOMICILIAR,
-                    "ENDERECO_RESIDENCIAL", subprefeituraId, distritoId, attribute.SituacaoGeografia, attribute.Geografia, batch.DataReferencia, ct);
+                await InsertResidentialGeographyAsync(connection, tx, attributeObservationId, subprefeituraId, distritoId,
+                    attribute.SituacaoGeografia, attribute.Geografia, batch.DataReferencia, ct);
+                if (batch.PessoaSchemaVersao <= 3)
+                    await InsertTerritorialReferenceAsync(connection, tx, attributeObservationId, TerritorialReferenceNature.DOMICILIAR,
+                        "ENDERECO_RESIDENCIAL", subprefeituraId, distritoId, attribute.SituacaoGeografia, attribute.Geografia, batch.DataReferencia, ct);
             }
             else if (string.Equals(attribute.AtributoCodigo, "REFERENCIA_TERRITORIAL", StringComparison.OrdinalIgnoreCase))
             {
+                if (batch.PessoaSchemaVersao >= 4)
+                    throw new InvalidDataException("REFERENCIA_TERRITORIAL não é aceito pelo contrato corrente.");
                 if (!attribute.NaturezaReferenciaTerritorial.HasValue)
-                    throw new InvalidDataException("REFERENCIA_TERRITORIAL sem natureza declarada pela fonte.");
+                    throw new InvalidDataException("REFERENCIA_TERRITORIAL histórico sem natureza declarada pela fonte.");
                 await InsertTerritorialReferenceAsync(connection, tx, attributeObservationId, attribute.NaturezaReferenciaTerritorial.Value,
                     "REFERENCIA_TERRITORIAL", subprefeituraId, distritoId, attribute.SituacaoGeografia, attribute.Geografia, batch.DataReferencia, ct);
             }
         }
 
         var selectedGeography = await SelectTerritorialReferenceAsync(connection, tx, observationId, ct);
+        var residentialGeography = await SelectResidentialGeographyAsync(connection, tx, observationId, ct);
         if (identity.PessoaUuid is Guid uuid)
         {
             await RefreshGoldPersonAsync(connection, tx, uuid, ct);
@@ -302,7 +308,7 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
         return new PgProcessedPerson(observationId, pessoaOrigemId, batch.SistemaOrigemId, person.CodigoPessoaOrigem,
             person.Cpf, person.CpfAusenteMotivo, identity.PessoaUuid, ToAssignmentState(identity.Status),
             selectedGeography.ReferenciaTerritorialObservacaoId, selectedGeography.NaturezaReferenciaTerritorial,
-            selectedGeography.SubprefeituraId, selectedGeography.DistritoId);
+            selectedGeography.SubprefeituraId, selectedGeography.DistritoId, residentialGeography.EnderecoResidencialGeografiaObservacaoId, residentialGeography.SubprefeituraId, residentialGeography.DistritoId);
     }
 
     private static async Task<long> EnsurePersonOriginAsync(
@@ -344,11 +350,12 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
         await using var command = Command(connection, tx, """
             SELECT po.pessoa_observacao_id,po.pessoa_origem_id,porg.sistema_origem_id,po.codigo_pessoa_origem,
                    po.cpf,po.cpf_ausente_motivo,v.pessoa_uuid,v.status,
-                   rt.referencia_territorial_observacao_id,rt.natureza_referencia,rt.subprefeitura_id,rt.distrito_id
+                   rt.referencia_territorial_observacao_id,rt.natureza_referencia,rt.subprefeitura_id,rt.distrito_id,rg.endereco_residencial_geografia_observacao_id,rg.subprefeitura_id,rg.distrito_id
               FROM silver.pessoa_observacao po
               JOIN silver.pessoa_origem porg ON porg.pessoa_origem_id=po.pessoa_origem_id
               LEFT JOIN identidade.v_vinculo_corrente v ON v.pessoa_observacao_id=po.pessoa_observacao_id
               LEFT JOIN silver.v_pessoa_referencia_territorial rt ON rt.pessoa_observacao_id=po.pessoa_observacao_id
+              LEFT JOIN silver.v_pessoa_geografia_residencial rg ON rg.pessoa_observacao_id=po.pessoa_observacao_id
              WHERE po.pessoa_observacao_id=@obs;
             """);
         Add(command, "@obs", DbType.Int64, observationId);
@@ -360,7 +367,8 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
             reader.IsDBNull(4) ? null : reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5),
             reader.IsDBNull(6) ? null : reader.GetFieldValue<Guid>(6), ToAssignmentState(status),
             reader.IsDBNull(8) ? null : reader.GetInt64(8), reader.IsDBNull(9) ? null : reader.GetString(9),
-            reader.IsDBNull(10) ? null : reader.GetInt64(10), reader.IsDBNull(11) ? null : reader.GetInt64(11));
+            reader.IsDBNull(10) ? null : reader.GetInt64(10), reader.IsDBNull(11) ? null : reader.GetInt64(11),
+            reader.IsDBNull(12) ? null : reader.GetInt64(12), reader.IsDBNull(13) ? null : reader.GetInt64(13), reader.IsDBNull(14) ? null : reader.GetInt64(14));
     }
 
     private static async Task<PgAttributeRule> ResolveAttributeIdentityRuleAsync(
@@ -408,6 +416,30 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
         Add(district, "@observado", DbType.DateTimeOffset, geography.ResolvidoEm ?? DateTimeOffset.UtcNow);
         var distritoId = Convert.ToInt64(await district.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
         return (subprefeituraId, distritoId);
+    }
+
+    private static async Task InsertResidentialGeographyAsync(
+        DbConnection connection, DbTransaction tx, long attributeObservationId, long? subprefeituraId, long? distritoId,
+        GeographicResolutionStatus? geographyStatus, ReferenceGeography? geography, DateTimeOffset dataReferencia, CancellationToken ct)
+    {
+        if (!geographyStatus.HasValue) throw new InvalidDataException("ENDERECO_RESIDENCIAL exige situacaoGeografia.");
+        await using var command = Command(connection, tx, """
+            INSERT INTO silver.endereco_residencial_geografia_observacao(
+                pessoa_atributo_observacao_id,subprefeitura_id,distrito_id,situacao_geografia,origem_geografia,referencia_malha,resolvido_em,source_as_of)
+            VALUES(@atributo,@subprefeitura,@distrito,@situacao,'ORIGEM',@malha,@resolvido,@source);
+            """);
+        Add(command,"@atributo",DbType.Int64,attributeObservationId); Add(command,"@subprefeitura",DbType.Int64,subprefeituraId); Add(command,"@distrito",DbType.Int64,distritoId);
+        Add(command,"@situacao",DbType.String,geographyStatus.Value.ToString(),40); Add(command,"@malha",DbType.String,geography?.ReferenciaMalha,120);
+        Add(command,"@resolvido",DbType.DateTimeOffset,geography is null?null:geography.ResolvidoEm??dataReferencia); Add(command,"@source",DbType.DateTimeOffset,dataReferencia);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    private static async Task<PgResidentialSelection> SelectResidentialGeographyAsync(DbConnection connection, DbTransaction tx, long observationId, CancellationToken ct)
+    {
+        await using var command=Command(connection,tx,"SELECT endereco_residencial_geografia_observacao_id,subprefeitura_id,distrito_id FROM silver.v_pessoa_geografia_residencial WHERE pessoa_observacao_id=@pessoa;");
+        Add(command,"@pessoa",DbType.Int64,observationId); await using var reader=await command.ExecuteReaderAsync(ct);
+        if(!await reader.ReadAsync(ct)||reader.IsDBNull(0)) return new PgResidentialSelection(null,null,null);
+        return new PgResidentialSelection(reader.GetInt64(0),reader.IsDBNull(1)?null:reader.GetInt64(1),reader.IsDBNull(2)?null:reader.GetInt64(2));
     }
 
     private static async Task InsertTerritorialReferenceAsync(
@@ -714,9 +746,9 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
     private sealed record PgProcessedPerson(
         long ObservationId, long PessoaOrigemId, long SistemaOrigemId, string CodigoPessoaOrigem,
         string? CpfDeclarado, string? CpfAusenteMotivo, Guid? PessoaUuid, string EstadoAtribuicaoIdentidade,
-        long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId);
+        long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId, long? EnderecoResidencialGeografiaObservacaoId, long? SubprefeituraResidenciaId, long? DistritoResidenciaId);
     private sealed record PgTerritorialSelection(
-        long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId);
+        long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId, long? EnderecoResidencialGeografiaObservacaoId, long? SubprefeituraResidenciaId, long? DistritoResidenciaId);
     private sealed record PgPersistedAttribute(long ObservationId, ParsedTransversalAttribute Value, string InstanceKey, string Cardinality);
     private sealed record PgAttributeRule(string Cardinality, string InstanceKeyRule);
 }
