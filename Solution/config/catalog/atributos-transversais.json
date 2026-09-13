@@ -12,7 +12,7 @@
         "FONTE_INSTITUCIONAL",
         "VERIFICACAO_PRESENCIAL"
       ],
-      "descricao": "Endereço cadastral de residência. Na Fase 1, quando puder servir de fallback territorial DOMICILIAR, o Gestor deve declarar situacaoGeografia; RESOLVIDA exige Distrito, Subprefeitura e referenciaMalha.",
+      "descricao": "Endereço residencial cadastral conforme semântica declarada pela origem. A Jornada não o redefine automaticamente como 'endereço de residência'. Na Fase 1, quando puder servir como evidência candidata de uma Referência Territorial DOMICILIAR, o Gestor deve declarar situacaoGeografia; RESOLVIDA exige Distrito, Subprefeitura e referenciaMalha.",
       "cardinalidade": "SINGLE",
       "chaveInstanciaCodigo": "UNICA_V1"
     },
@@ -37,7 +37,7 @@
         "FONTE_INSTITUCIONAL",
         "VERIFICACAO_PRESENCIAL"
       ],
-      "descricao": "Vínculo territorial temporal para política pública; não é sinônimo de domicílio civil. Naturezas: DOMICILIAR, ACOLHIMENTO_INSTITUCIONAL, REFERENCIA_TERRITORIAL_DECLARADA. Na Fase 1 a territorialização é responsabilidade do Gestor: situacaoGeografia é obrigatória e RESOLVIDA exige Distrito, Subprefeitura e referenciaMalha.",
+      "descricao": "Vínculo territorial temporal selecionado para análise e política pública; é a superfície canônica de visualização territorial e não é sinônimo de qualquer endereço cadastral. Naturezas: DOMICILIAR, ACOLHIMENTO_INSTITUCIONAL, REFERENCIA_TERRITORIAL_DECLARADA. Na Fase 1 a territorialização é responsabilidade do Gestor: situacaoGeografia é obrigatória e RESOLVIDA exige Distrito, Subprefeitura e referenciaMalha.",
       "cardinalidade": "SINGLE",
       "chaveInstanciaCodigo": "UNICA_V1"
     },
