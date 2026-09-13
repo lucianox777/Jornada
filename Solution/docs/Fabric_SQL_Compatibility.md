@@ -1,18 +1,21 @@
 # Compatibilidade SQL Database in Microsoft Fabric — estado corrente (candidato v5.00)
 
-## Decisão arquitetural
+## Decisão arquitetural corrente
 
-A Jornada mantém **SQL Server 2022 local/Testcontainers como baseline obrigatória de desenvolvimento, CI e validação ordinária de release**. O DDL canônico, o contrato de prontidão e as regressões independentes de ambiente continuam sendo exercitados nesse baseline; Microsoft Fabric não é requisito para build, testes automatizados ou desenvolvimento diário.
+A Jornada adota **Microsoft SQL Server como tecnologia relacional normativa e banco relacional operacional de Produção**. A **baseline obrigatória** de desenvolvimento, CI e validação ordinária de release permanece SQL Server 2022 Developer/Testcontainers; a edição efetiva de Produção será definida pela implantação institucional, sem transformar a edição Developer em requisito de Produção.
 
-O mesmo núcleo relacional é compatível com **SQL Database in Microsoft Fabric**, sem `FabricSqlAdapter`, DDL alternativo ou duplicação de regra funcional. Quando houver ambiente institucional disponível e homologado para a release exata, **SQL Database in Microsoft Fabric é o destino relacional operacional preferencial de HML/Produção**, enquanto SQL Server 2022 Developer permanece a referência obrigatória de desenvolvimento, CI e validação independente do Fabric.
+**SQL Database in Microsoft Fabric não é alvo operacional de Produção nem gate de release da candidata v5.00.** O harness Fabric e as evidências já produzidas permanecem úteis exclusivamente como prova de compatibilidade técnica e como histórico de engenharia. Eles não devem ser interpretados como requisito de homologação para o corte v5.00 enquanto Fabric não fizer parte do alvo operacional da release.
 
-A expressão “Microsoft Fabric” não deve ser usada como se todos os seus recursos tivessem o mesmo papel arquitetural. Para a Jornada:
+O suporte de compatibilidade mantém o mesmo `OperationalSqlAdapter`/`Microsoft.Data.SqlClient`, **sem `FabricSqlAdapter`**, DDL alternativo ou regra funcional paralela.
 
-- **SQL Database in Microsoft Fabric** pode exercer o papel de banco relacional operacional de HML/Produção, condicionado à homologação da release exata;
-- **Lakehouse e SQL Analytics Endpoint** permanecem no escopo analítico e não substituem implicitamente o banco relacional operacional;
-- a lógica funcional permanece independente da hospedagem e continua usando o mesmo contrato Microsoft SQL.
+A expressão “Microsoft Fabric” também não deve ser usada como se todos os seus recursos tivessem o mesmo papel arquitetural. Para a Jornada:
 
-Esta decisão de engenharia consolida a arquitetura proposta para a Jornada sem promover, por inferência, uma versão normativa ausente do repositório. O baseline histórico dos requisitos permanece rastreado nos documentos canônicos vigentes até rebaseline formal.
+- **Microsoft SQL Server** exerce o papel de banco relacional operacional de HML/Produção;
+- **SQL Database in Microsoft Fabric** é apenas alvo opcional de compatibilidade técnica, sem autoridade operacional de Produção no desenho corrente;
+- **Lakehouse e SQL Analytics Endpoint** permanecem no escopo analítico/compatibilidade e não substituem implicitamente o banco relacional operacional;
+- a lógica funcional permanece independente da hospedagem e continua usando o contrato Microsoft SQL já adotado.
+
+Esta decisão não apaga nem reinterpreta retroativamente documentos ou releases anteriores; ela define o estado arquitetural corrente da candidata v5.00.
 
 ## Evidência histórica disponível
 
@@ -28,7 +31,7 @@ Em 03/09/2026 a suíte Integration foi executada contra um SQL Database in Micro
 
 Resultado consolidado daquela execução: **58/58 Integration PASS, 0 falhas e 0 skips**.
 
-Essa execução é **evidência histórica de compatibilidade da linha v4.00**. Ela não constitui, por si só, evidência de homologação do `master` atual, do SolutionSchema v3.70 ou do candidato Solution Engenharia v5.00.
+Essa execução permanece como **evidência histórica de compatibilidade da linha v4.00**. Ela não constitui requisito para promoção, homologação ou release da candidata v5.00.
 
 ## Desenvolvimento e release ordinária
 
@@ -40,10 +43,9 @@ O gate canônico continua sendo:
 
 Ele força `JORNADA_TEST_SQL_TARGET=SQL_SERVER_2022`, usa SQL Server 2022 descartável/Testcontainers e não exige conta, workspace, capacidade, usuário ou connection string Fabric.
 
-## Homologação Fabric
+## Harness Fabric
 
-O gate Fabric é **adicional e condicional**. Só é executado quando houver banco institucional Test/Dev/Local disponibilizado para essa finalidade.
-Internamente, o harness seleciona `JORNADA_TEST_SQL_TARGET=FABRIC_SQL_DATABASE`; esse alvo não é ativado pelo gate local de desenvolvimento.
+O harness Fabric permanece disponível apenas para ensaios opcionais de compatibilidade técnica. Internamente, ele seleciona `JORNADA_TEST_SQL_TARGET=FABRIC_SQL_DATABASE`; esse alvo não é ativado pelo gate local de desenvolvimento nem pelos critérios normais de corte da release.
 
 PowerShell, passando a conexão apenas para a execução:
 
@@ -77,28 +79,19 @@ Jornada.Api / Processor / Linkage / Maintenance
                     v
           Microsoft.Data.SqlClient
                     |
-          +---------+----------+
-          |                    |
- SQL Server 2022     SQL Database in Fabric
- DEV/CI/testes       HML/Produção preferencial
+                    v
+          Microsoft SQL Server
+             HML/Produção
 ```
 
-A lógica funcional não deve conter ramificações por hospedagem. Especialização só é aceitável diante de incompatibilidade reproduzível que não possa ser resolvida no contrato comum Microsoft SQL.
+A lógica funcional não deve conter ramificações por hospedagem. O suporte de compatibilidade Fabric não cria um segundo runtime operacional nem uma política paralela de domínio.
 
-## Gate específico antes do corte v5.00
+## Gate de corte v5.00
 
-Antes de cortar a Solution Engenharia v5.00, o harness Fabric deve ser reexecutado contra **o HEAD exato candidato à release e o SolutionSchema v3.70**. A evidência versionada deve registrar, no mínimo:
+Não existe mais gate `FABRIC_SQL_DATABASE_EXACT_HEAD_HOMOLOGATION` para a candidata v5.00. O corte deve validar o HEAD final contra os gates correntes de SQL Server, documentação, segurança, integração, volumetria e decisões institucionais aplicáveis.
 
-- SHA do commit exercitado;
-- versão do SolutionSchema;
-- data/hora da execução;
-- alvo `FABRIC_SQL_DATABASE`;
-- quantidade total, executada, aprovada, falhada e ignorada de testes;
-- confirmação de que não houve skips silenciosos;
-- identificação do arquivo TRX ou artefato equivalente preservado.
-
-Sem essa execução corrente, a compatibilidade histórica permanece válida como antecedente, mas **a homologação Fabric da v5.00 permanece pendente**.
+Se no futuro SQL Database in Microsoft Fabric voltar a ser proposto como alvo operacional, essa decisão deverá ser formalizada novamente e acompanhada de homologação específica no HEAD correspondente. Evidência histórica não será promovida automaticamente a evidência corrente.
 
 ## Validação não funcional
 
-A escolha arquitetural preferencial de produção é SQL Database in Microsoft Fabric. Antes da entrada em produção, devem ser executados **ensaios não funcionais** de capacidade, desempenho, segurança, disponibilidade e custo com carga representativa para dimensionamento e homologação operacional; esses ensaios não reabrem a bifurcação funcional do núcleo Microsoft SQL.
+Antes da entrada em Produção em Microsoft SQL Server, devem ser executados **ensaios não funcionais** de capacidade, desempenho, segurança, disponibilidade e operação com carga representativa para dimensionamento e homologação operacional. Esses ensaios pertencem ao ambiente SQL Server efetivamente adotado para HML/Produção.

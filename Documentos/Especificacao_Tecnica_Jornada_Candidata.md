@@ -22,12 +22,13 @@ Até publicação formal desta candidata, a precedência permanece:
 
 A Jornada possui uma única semântica funcional e uma única autoridade operacional relacional. Não existe bifurcação de regra de negócio por hospedagem.
 
-- SQL Server 2022 Developer/Testcontainers é a baseline obrigatória de desenvolvimento, CI e validação ordinária do DDL canônico;
-- SQL Database in Microsoft Fabric é o destino relacional operacional preferencial de HML/Produção, condicionado à homologação da release exata;
-- Lakehouse e SQL Analytics Endpoint pertencem ao escopo analítico e não substituem implicitamente o banco relacional operacional;
+- **Microsoft SQL Server é a tecnologia relacional normativa e o banco relacional operacional de HML/Produção**;
+- SQL Server 2022 Developer/Testcontainers é a baseline obrigatória de desenvolvimento, CI e validação ordinária do DDL canônico, sem implicar uso da edição Developer em Produção;
+- **SQL Database in Microsoft Fabric não é alvo operacional de Produção nem gate de release da candidata v5.00**; harnesses e evidências Fabric permanecem somente como histórico/compatibilidade técnica;
+- Lakehouse e SQL Analytics Endpoint pertencem ao escopo analítico/compatibilidade e não substituem implicitamente o banco relacional operacional;
 - a aplicação utiliza o mesmo contrato funcional e o mesmo adaptador SQL operacional, sem variantes de domínio específicas para Fabric.
 
-Evidência histórica de compatibilidade Fabric não homologa automaticamente o HEAD atual. A homologação precisa ser repetida contra o SHA exato candidato ao corte.
+A evidência histórica Fabric permanece válida como antecedente técnico, mas não precisa ser repetida contra o HEAD candidato para autorizar o corte v5.00 enquanto Fabric não for alvo operacional da release.
 
 ## 3. Identidade progressiva
 
@@ -148,8 +149,9 @@ Permanecem explicitamente externas ao fechamento técnico desta candidata:
 
 1. **Volumetria HML representativa:** ainda é necessária evidência legítima de capacidade e comportamento sob blocking multi-passe, concorrência e regiões/trechos serializados relevantes. Testes locais ou amostras pequenas não autorizam declarar capacidade de produção.
 2. **GTPR/finalidade:** a decisão institucional do Grupo de Trabalho do Programa Reencontro sobre finalidade, necessidade e base legal permanece pendente e não deve ser substituída por cabeçalho livre ou convenção local.
-3. **Homologação Fabric:** a release candidata precisa de evidência executada contra o HEAD exato que vier a ser cortado; a evidência histórica v4.00 não satisfaz esse gate sozinha.
-4. **Validação estatística representativa do linkage:** métricas de corpus sintético, smoke tests e validações locais protegem a engenharia, mas não substituem avaliação representativa necessária para concluir desempenho estatístico no universo operacional.
+3. **Validação estatística representativa do linkage:** métricas de corpus sintético, smoke tests e validações locais protegem a engenharia, mas não substituem avaliação representativa necessária para concluir desempenho estatístico no universo operacional.
+
+A homologação Fabric deixa de integrar esta lista porque SQL Database in Microsoft Fabric não é alvo operacional de Produção da candidata v5.00. A validação operacional deve ocorrer sobre o ambiente Microsoft SQL Server efetivamente previsto para HML/Produção.
 
 ## 17. Critérios para publicação formal
 

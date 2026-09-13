@@ -18,17 +18,18 @@
     "candidate_specification_normative_version": null,
     "requirements_index": "Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.md",
     "physical_model": "Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.md",
-    "canonical_ddl": "Solution/database/Jornada_Fase1_v3.70.sql"
+    "canonical_ddl": "Solution/database/Jornada_Fase1_v3.70.sql",
+    "production_relational_target": "MICROSOFT_SQL_SERVER"
   },
   "external_gates": [
     "HML_REPRESENTATIVE_VOLUMETRY",
     "GTPR_PURPOSE_LEGAL_BASIS_DECISION",
-    "FABRIC_SQL_DATABASE_EXACT_HEAD_HOMOLOGATION",
     "LINKAGE_REPRESENTATIVE_STATISTICAL_VALIDATION"
   ],
   "notes": [
     "This manifest describes candidate state only and does not publish or seal a release.",
     "RELEASE_INFO.txt remains the authoritative metadata for the last sealed release.",
-    "No commit SHA is embedded because candidate HEAD evolves until formal release cut."
+    "No commit SHA is embedded because candidate HEAD evolves until formal release cut.",
+    "Microsoft SQL Server is the operational relational target for Production; Fabric SQL evidence is historical compatibility evidence and is not a release gate for this candidate."
   ]
 }
