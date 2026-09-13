@@ -92,11 +92,11 @@ Críticas históricas equivalentes a P8 e P15 não constituem defeitos correntes
 
 A Jornada distingue conceitos que não devem ser usados como sinônimos:
 
-- endereço residencial é atributo cadastral que descreve endereço de residência;
-- referência territorial é informação temporal própria escolhida para territorialização e visualização analítica;
-- endereço de correspondência ou outras referências não devem ser promovidos silenciosamente a residência.
+- `ENDERECO_RESIDENCIAL` é o atributo contratual de endereço residencial informado pela origem; a Jornada não o redefine automaticamente como “endereço de residência”;
+- referência territorial é informação temporal própria selecionada para territorialização e constitui a superfície canônica da visualização analítica;
+- residência, endereço residencial, endereço de correspondência e outras referências mantêm semânticas próprias e não devem ser convertidos uns nos outros por convenção técnica.
 
-A superfície analítica territorial utiliza a referência territorial selecionada. Quando a política permite derivação a partir de `ENDERECO_RESIDENCIAL`, a natureza resultante permanece domiciliar; a plataforma não deve escolher outro endereço institucional apenas por conveniência técnica.
+A superfície analítica territorial utiliza a Referência Territorial selecionada. Quando regra vigente permitir que `ENDERECO_RESIDENCIAL` participe como evidência candidata de uma referência de natureza `DOMICILIAR`, essa participação não altera a semântica do atributo de origem e a seleção permanece explícita e rastreável. A plataforma não deve escolher outro endereço institucional nem fabricar equivalência semântica apenas por conveniência técnica.
 
 ## 10. Contratos HTTP e aceite OpenAPI
 
