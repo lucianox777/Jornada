@@ -12,6 +12,7 @@ public sealed class TerritorialSemanticsDocumentationTests
         var root = FindRepositoryRoot();
         var catalogPath = Path.Combine(root, "Solution", "config", "catalog", "atributos-transversais.json");
         var territorializationPath = Path.Combine(root, "Solution", "docs", "Territorializacao_Fase1.md");
+        var docsIndexPath = Path.Combine(root, "Solution", "docs", "README.md");
         var requirementsPath = Path.Combine(root, "Documentos", "Requisitos", "01_Requisitos_de_Negocio_Jornada_v1.1.md");
         var candidateSpecificationPath = Path.Combine(root, "Documentos", "Especificacao_Tecnica_Jornada_Candidata.md");
         var ddlPath = Path.Combine(root, "Solution", "database", "Jornada_Fase1.sql");
@@ -21,6 +22,7 @@ public sealed class TerritorialSemanticsDocumentationTests
         {
             Assert.That(File.Exists(catalogPath), Is.True);
             Assert.That(File.Exists(territorializationPath), Is.True);
+            Assert.That(File.Exists(docsIndexPath), Is.True);
             Assert.That(File.Exists(requirementsPath), Is.True);
             Assert.That(File.Exists(candidateSpecificationPath), Is.True);
             Assert.That(File.Exists(ddlPath), Is.True);
@@ -35,6 +37,7 @@ public sealed class TerritorialSemanticsDocumentationTests
         var residentialAddressDescription = residentialAddress.GetProperty("descricao").GetString();
         var territorialDescription = territorial.GetProperty("descricao").GetString();
         var territorialization = File.ReadAllText(territorializationPath);
+        var docsIndex = File.ReadAllText(docsIndexPath);
         var requirements = File.ReadAllText(requirementsPath);
         var candidateSpecification = File.ReadAllText(candidateSpecificationPath);
         var ddl = File.ReadAllText(ddlPath);
@@ -53,6 +56,11 @@ public sealed class TerritorialSemanticsDocumentationTests
             Assert.That(territorialization, Does.Contain("não a redefine automaticamente como **endereço de residência**"));
             Assert.That(territorialization, Does.Contain("superfície canônica da visualização territorial"));
             Assert.That(territorialization, Does.Contain("não deve promover automaticamente qualquer endereço cadastral a território analítico"));
+
+            Assert.That(docsIndex, Does.Contain("A Referência Territorial permanece a superfície territorial única da visualização"));
+            Assert.That(docsIndex, Does.Contain("atributo contratual de endereço residencial informado pela origem"));
+            Assert.That(docsIndex, Does.Contain("não é redefinido automaticamente como endereço de residência"));
+            Assert.That(docsIndex, Does.Not.Contain("`ENDERECO_RESIDENCIAL` permanece cadastral"));
 
             Assert.That(requirements, Does.Contain("RN-015 - Manter Referência Territorial separada de endereço civil"));
             Assert.That(requirements, Does.Contain("não se confunde com ENDERECO_RESIDENCIAL nem com endereço de correspondência"));
