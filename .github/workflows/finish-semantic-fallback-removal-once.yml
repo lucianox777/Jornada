@@ -14,9 +14,10 @@ jobs:
           ref: feat/remove-semantic-fallbacks
       - name: Apply completion patch
         run: python3 Solution/scripts/finish-semantic-fallback-removal-once.py
-      - name: Commit changes
+      - name: Commit non-workflow changes
         run: |
           set -euo pipefail
+          git restore .github/workflows/ci.yml .github/workflows/schema-consolidation-370.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
