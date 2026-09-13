@@ -48,6 +48,18 @@ public sealed class ProbabilisticLinkagePolicyTests
     }
 
     [Test]
+    public void Optional_mother_name_is_absent_evidence_not_low_similarity()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(ProbabilisticLinkageDecisions.CompareOptionalName(null, "Ana de Souza"), Is.Null);
+            Assert.That(ProbabilisticLinkageDecisions.CompareOptionalName("Ana de Souza", null), Is.Null);
+            Assert.That(ProbabilisticLinkageDecisions.CompareOptionalName("Ana de Souza", "Nome sem relação"),
+                Is.EqualTo(NameComparisonState.LOW));
+        });
+    }
+
+    [Test]
     public void Decisions_KeepThresholdMarginAndDeterministicOrdering()
     {
         var model = LinkageModelPolicy.Create(ModelId, 1, "FELLEGI_SUNTER_V1", Parameters());
