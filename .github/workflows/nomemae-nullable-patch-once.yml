@@ -1,0 +1,28 @@
+name: nomemae-nullable-patch-once
+
+on:
+  push:
+    paths:
+      - '.github/workflows/nomemae-nullable-patch-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: feat/nome-mae-nullable-v3
+          fetch-depth: 0
+      - name: Apply deterministic nullable patch
+        run: python3 Solution/scripts/patch-nomemae-nullable-once.py
+      - name: Commit patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Solution/src/Jornada.Processor.Worker/SqlProcessorRepository.Persistence.cs Solution/src/Jornada.Processor.Worker/PostgreSqlProcessorRepository.cs
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: propaga NULL de nomeMae na persistência"
+          git push origin HEAD:feat/nome-mae-nullable-v3
