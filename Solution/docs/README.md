@@ -20,7 +20,7 @@ A Especificação Técnica materializada e publicamente disponível nesta árvor
 
 Até que uma Especificação Técnica v3.64 seja formalmente publicada, a leitura correta é: `RELEASE_INFO.txt` identifica a base normativa declarada da release v4.05; a Especificação Técnica v3.62 é o último documento normativo materializado; estados/notas de engenharia registram deltas e contexto técnico, sem elevar-se automaticamente a nova especificação normativa. Divergência entre esses níveis deve permanecer explícita, nunca ser resolvida por arquivo fictício ou renomeação.
 
-A Referência Territorial permanece a fonte territorial única da visualização; `ENDERECO_RESIDENCIAL` permanece cadastral e não existe persistência geográfica paralela. Pagamento e Recebimento permanecem apenas conceituais na Fase 1. O limite operacional decorrente — inclusive para perguntas monetárias e para Gestores/Tipos ainda não integrados — está registrado em `Escopo_Produto_Fase1.md`.
+A Referência Territorial permanece a superfície territorial única da visualização. `ENDERECO_RESIDENCIAL` permanece o atributo contratual de endereço residencial informado pela origem e não é redefinido automaticamente como endereço de residência; quando regra vigente permitir sua participação como evidência candidata de uma Referência Territorial `DOMICILIAR`, essa participação preserva a semântica e a linhagem do atributo de origem. Não existe persistência geográfica paralela. Pagamento e Recebimento permanecem apenas conceituais na Fase 1. O limite operacional decorrente — inclusive para perguntas monetárias e para Gestores/Tipos ainda não integrados — está registrado em `Escopo_Produto_Fase1.md`.
 
 ## Material histórico
 
