@@ -6,7 +6,7 @@ table QualidadePessoa
 	measure 'CPF %' = DIVIDE(SUM(QualidadePessoa[cpf_preenchido]),COUNTROWS(QualidadePessoa))
 		formatString: 0.0%
 
-	measure 'Geografia %' = DIVIDE(SUM(QualidadePessoa[geografia_preenchida]),COUNTROWS(QualidadePessoa))
+	measure 'Geografia de residência %' = DIVIDE(SUM(QualidadePessoa[geografia_residencia_preenchida]),COUNTROWS(QualidadePessoa))
 		formatString: 0.0%
 
 	column pessoa_observacao_id
@@ -24,15 +24,15 @@ table QualidadePessoa
 		summarizeBy: none
 		sourceColumn: source_as_of
 
-	column subprefeitura
+	column subprefeitura_residencia
 		dataType: string
 		summarizeBy: none
-		sourceColumn: subprefeitura
+		sourceColumn: subprefeitura_residencia
 
-	column distrito
+	column distrito_residencia
 		dataType: string
 		summarizeBy: none
-		sourceColumn: distrito
+		sourceColumn: distrito_residencia
 
 	column cpf_preenchido
 		dataType: int64
@@ -54,10 +54,10 @@ table QualidadePessoa
 		summarizeBy: none
 		sourceColumn: nome_mae_preenchido
 
-	column geografia_preenchida
+	column geografia_residencia_preenchida
 		dataType: int64
 		summarizeBy: none
-		sourceColumn: geografia_preenchida
+		sourceColumn: geografia_residencia_preenchida
 
 	column status_cpf
 		dataType: string
@@ -68,11 +68,6 @@ table QualidadePessoa
 		dataType: string
 		summarizeBy: none
 		sourceColumn: cpf_ausente_motivo
-
-	column natureza_referencia_territorial
-		dataType: string
-		summarizeBy: none
-		sourceColumn: natureza_referencia_territorial
 
 	partition QualidadePessoa = m
 		mode: import

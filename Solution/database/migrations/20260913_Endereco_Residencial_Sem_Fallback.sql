@@ -57,11 +57,59 @@ UPDATE f SET endereco_residencial_geografia_observacao_id=g.endereco_residencial
 FROM serving.registro_integrado f JOIN silver.registro_observacao ro ON ro.registro_observacao_id=f.registro_observacao_id JOIN silver.v_pessoa_geografia_residencial g ON g.pessoa_observacao_id=ro.pessoa_observacao_id
 WHERE f.endereco_residencial_geografia_observacao_id IS NULL;
 GO
-IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema') EXEC sys.sp_updateextendedproperty @name=N'Jornada.SolutionSchema',@value=N'3.71'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.SolutionSchema',@value=N'3.71';
-COMMIT;
-
+CREATE OR ALTER VIEW serving.v_bi_linkage AS
+SELECT po.pessoa_observacao_id,g.codigo gestor,so.codigo sistema_origem,po.source_as_of,vc.status,vc.metodo_resolucao,
+       CASE WHEN vc.metodo_resolucao='LINKAGE_PROBABILISTICO' THEN vc.score END score,
+       CASE WHEN vc.pessoa_uuid IS NULL THEN 0 ELSE 1 END possui_uuid,
+       CASE WHEN vc.metodo_resolucao='CPF_DETERMINISTICO' AND vc.status='RESOLVIDO' THEN 1 ELSE 0 END resolvido_cpf,
+       CASE WHEN vc.metodo_resolucao='LINKAGE_PROBABILISTICO' AND vc.status='RESOLVIDO' THEN 1 ELSE 0 END resolvido_probabilistico,
+       CASE WHEN vc.status='NAO_RESOLVIDO' THEN 1 ELSE 0 END nao_resolvido,
+       CASE WHEN vc.status='CONFLITO' THEN 1 ELSE 0 END conflito,
+       CASE WHEN lrres.motivo='SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO' THEN 1 ELSE 0 END sem_candidato_no_bloco,
+       lrres.motivo motivo_linkage,
+       CASE WHEN po.cpf IS NULL THEN 0 ELSE 1 END cpf_preenchido,po.cpf_ausente_motivo,
+       CASE WHEN DATEPART(DAY,po.data_nascimento)=1 AND DATEPART(MONTH,po.data_nascimento)=1 THEN 1 ELSE 0 END nascimento_0101,
+       CASE WHEN rg.subprefeitura_id IS NULL OR rg.distrito_id IS NULL THEN 0 ELSE 1 END geografia_residencia_preenchida,
+       ml.versao modelo_linkage_versao,vc.linkage_run_id,lr.tipo_run,lr.iniciado_em linkage_run_iniciado_em,
+       lr.finalizado_em linkage_run_finalizado_em,ptl.valor t_linkage,lr.status linkage_run_status,
+       COALESCE(sp.nome,'SEM_ENDERECO_RESIDENCIAL_RESOLVIDO') subprefeitura_residencia,
+       COALESCE(d.nome,'SEM_ENDERECO_RESIDENCIAL_RESOLVIDO') distrito_residencia
+FROM silver.pessoa_observacao po
+JOIN ref.gestor g ON g.gestor_id=po.gestor_id
+JOIN silver.pessoa_origem pori ON pori.pessoa_origem_id=po.pessoa_origem_id
+JOIN ref.sistema_origem so ON so.sistema_origem_id=pori.sistema_origem_id
+LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+LEFT JOIN identidade.modelo_linkage ml ON ml.modelo_id=vc.modelo_id
+LEFT JOIN identidade.linkage_run lr ON lr.linkage_run_id=vc.linkage_run_id
+LEFT JOIN identidade.parametro_linkage ptl ON ptl.modelo_id=vc.modelo_id AND ptl.nome='T_LINKAGE'
+LEFT JOIN identidade.linkage_resultado lrres ON lrres.linkage_run_id=vc.linkage_run_id AND lrres.pessoa_observacao_id=po.pessoa_observacao_id
+LEFT JOIN silver.v_pessoa_geografia_residencial rg ON rg.pessoa_observacao_id=po.pessoa_observacao_id
+LEFT JOIN ref.subprefeitura sp ON sp.subprefeitura_id=rg.subprefeitura_id
+LEFT JOIN ref.distrito d ON d.distrito_id=rg.distrito_id;
 GO
-IF OBJECT_ID('serving.v_bi_linkage','V') IS NOT NULL
-BEGIN
- EXEC(N'CREATE OR ALTER VIEW serving.v_bi_linkage AS SELECT po.pessoa_observacao_id,po.pessoa_origem_id,po.gestor_id,po.codigo_pessoa_origem,po.cpf,CASE WHEN po.cpf IS NULL THEN 0 ELSE 1 END cpf_preenchido,po.cpf_ausente_motivo,CASE WHEN DATEPART(DAY,po.data_nascimento)=1 AND DATEPART(MONTH,po.data_nascimento)=1 THEN 1 ELSE 0 END nascimento_0101,CASE WHEN rg.subprefeitura_id IS NULL OR rg.distrito_id IS NULL THEN 0 ELSE 1 END geografia_residencia_preenchida,ml.versao modelo_linkage_versao,vc.linkage_run_id,lr.tipo_run,lr.iniciado_em linkage_run_iniciado_em,lr.finalizado_em linkage_run_finalizado_em,ptl.valor t_linkage,lr.status linkage_run_status,COALESCE(sp.nome,''SEM_ENDERECO_RESIDENCIAL_RESOLVIDO'') subprefeitura_residencia,COALESCE(d.nome,''SEM_ENDERECO_RESIDENCIAL_RESOLVIDO'') distrito_residencia FROM silver.pessoa_observacao po LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id LEFT JOIN identidade.modelo_linkage ml ON ml.modelo_id=vc.modelo_id LEFT JOIN identidade.linkage_run lr ON lr.linkage_run_id=vc.linkage_run_id LEFT JOIN identidade.parametro_threshold_linkage ptl ON ptl.modelo_id=vc.modelo_id AND ptl.tipo=''T_LINKAGE'' LEFT JOIN silver.v_pessoa_geografia_residencial rg ON rg.pessoa_observacao_id=po.pessoa_observacao_id LEFT JOIN ref.subprefeitura sp ON sp.subprefeitura_id=rg.subprefeitura_id LEFT JOIN ref.distrito d ON d.distrito_id=rg.distrito_id;');
-END;
+CREATE OR ALTER VIEW serving.v_bi_qualidade_pessoa AS
+SELECT po.pessoa_observacao_id,g.codigo gestor,po.source_as_of,
+       COALESCE(sp.nome,'SEM_ENDERECO_RESIDENCIAL_RESOLVIDO') subprefeitura_residencia,
+       COALESCE(d.nome,'SEM_ENDERECO_RESIDENCIAL_RESOLVIDO') distrito_residencia,
+       rg.situacao_geografia,rg.referencia_malha,
+       CASE WHEN po.cpf IS NULL THEN 0 ELSE 1 END cpf_preenchido,
+       CASE WHEN LEN(LTRIM(RTRIM(po.nome_completo)))>0 THEN 1 ELSE 0 END nome_preenchido,
+       CASE WHEN po.data_nascimento IS NULL THEN 0 ELSE 1 END nascimento_preenchido,
+       CASE WHEN LEN(LTRIM(RTRIM(po.nome_mae)))>0 THEN 1 ELSE 0 END nome_mae_preenchido,
+       CASE WHEN rg.subprefeitura_id IS NULL OR rg.distrito_id IS NULL THEN 0 ELSE 1 END geografia_residencia_preenchida,
+       po.cpf_ausente_motivo,gp.status_cpf
+FROM silver.pessoa_observacao po
+JOIN ref.gestor g ON g.gestor_id=po.gestor_id
+LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+LEFT JOIN gold.pessoa gp ON gp.pessoa_uuid=vc.pessoa_uuid
+LEFT JOIN silver.v_pessoa_geografia_residencial rg ON rg.pessoa_observacao_id=po.pessoa_observacao_id
+LEFT JOIN ref.subprefeitura sp ON sp.subprefeitura_id=rg.subprefeitura_id
+LEFT JOIN ref.distrito d ON d.distrito_id=rg.distrito_id;
+GO
+CREATE OR ALTER VIEW serving.v_bi_qualidade_identidade_origem AS
+SELECT l.* FROM serving.v_bi_linkage l;
+GO
+IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema')
+ EXEC sys.sp_updateextendedproperty @name=N'Jornada.SolutionSchema',@value=N'3.71';
+ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.SolutionSchema',@value=N'3.71';
+COMMIT;

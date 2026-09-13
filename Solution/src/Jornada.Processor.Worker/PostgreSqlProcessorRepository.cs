@@ -748,7 +748,9 @@ internal sealed partial class PostgreSqlProcessorRepository : IProcessorReposito
         string? CpfDeclarado, string? CpfAusenteMotivo, Guid? PessoaUuid, string EstadoAtribuicaoIdentidade,
         long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId, long? EnderecoResidencialGeografiaObservacaoId, long? SubprefeituraResidenciaId, long? DistritoResidenciaId);
     private sealed record PgTerritorialSelection(
-        long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId, long? EnderecoResidencialGeografiaObservacaoId, long? SubprefeituraResidenciaId, long? DistritoResidenciaId);
+        long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId);
+    private sealed record PgResidentialSelection(
+        long? EnderecoResidencialGeografiaObservacaoId, long? SubprefeituraId, long? DistritoId);
     private sealed record PgPersistedAttribute(long ObservationId, ParsedTransversalAttribute Value, string InstanceKey, string Cardinality);
     private sealed record PgAttributeRule(string Cardinality, string InstanceKeyRule);
 }
