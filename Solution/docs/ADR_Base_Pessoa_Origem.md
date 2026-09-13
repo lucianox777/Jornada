@@ -58,7 +58,7 @@ Não será criado um segundo número municipal apenas para preencher `codigoPess
 - consultas devem respeitar o redirecionamento de identidade quando um UUID anteriormente publicado tiver sido absorvido por outro canônico;
 - `codigoPessoaOrigem` continua sendo preservado como recebido, sem substituir `initial_uuid`, `canonical_uuid` ou a trilha de composição de identidade.
 
-Portanto, `base=JORNADA + codigoPessoaOrigem=<uuid publicado>` é uma âncora de origem emitida pela plataforma, e não uma duplicação conceitual da chave canônica corrente.
+Portanto, `base=JORNADA + codigoPessoaOrigem=<uuid publicado>` é uma âncora de origem emitida pela plataforma. O valor recebido deve resolver para a Pessoa correspondente pela trilha governada da Jornada; ele não autoriza criar uma nova Pessoa apenas porque o texto ainda não foi encontrado.
 
 ## Governança
 
@@ -101,6 +101,8 @@ Quando informado, o runtime deve validar que:
 3. a base está `HOMOLOGADA_DETERMINISTICA` antes de utilizá-la como âncora determinística;
 4. a resolução de Pessoa é feita por `(base_pessoa_origem_id,codigo_pessoa_origem)`;
 5. o sistema observador é registrado em `silver.pessoa_origem_sistema`.
+
+Para `codigoBasePessoaOrigem = "JORNADA"`, há uma regra adicional: `codigoPessoaOrigem` deve ser um UUID Jornada previamente emitido e resolvível pela trilha de identidade. Valor inexistente, malformado ou não autorizado é erro de integração; não cai para criação silenciosa de uma nova identidade.
 
 Uma Entrega referencia uma única Base de Pessoa de Origem. Sistemas que operem com mais de uma base devem separar as Entregas por base. Isso mantém `codigoPessoaOrigem` não ambíguo também em `registros.jsonl`.
 
