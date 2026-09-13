@@ -1,0 +1,35 @@
+{
+  "manifest_version": 1,
+  "nature": "ENGINEERING_CANDIDATE",
+  "sealed_release": {
+    "metadata_source": "RELEASE_INFO.txt",
+    "solution_engineering": "v4.05",
+    "solution_schema": "v3.69",
+    "declared_base_normative": "v3.64",
+    "source_git_tag": "jornada-solution-v4.05"
+  },
+  "candidate": {
+    "target_solution_engineering": "v5.00",
+    "release_status": "NOT_RELEASED",
+    "solution_schema": "v3.70",
+    "published_specification": "Documentos/Especificacao_Tecnica_Jornada_v3.62.pdf",
+    "published_specification_version": "v3.62",
+    "candidate_specification": "Documentos/Especificacao_Tecnica_Jornada_Candidata.md",
+    "candidate_specification_normative_version": null,
+    "requirements_index": "Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.md",
+    "physical_model": "Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.md",
+    "canonical_ddl": "Solution/database/Jornada_Fase1_v3.70.sql"
+  },
+  "external_gates": [
+    "HML_REPRESENTATIVE_VOLUMETRY",
+    "NOMEMAE_EXISTING_STOCK_TRANSITION",
+    "CCGD_PURPOSE_LEGAL_BASIS_DECISION",
+    "FABRIC_SQL_DATABASE_EXACT_HEAD_HOMOLOGATION",
+    "LINKAGE_REPRESENTATIVE_STATISTICAL_VALIDATION"
+  ],
+  "notes": [
+    "This manifest describes candidate state only and does not publish or seal a release.",
+    "RELEASE_INFO.txt remains the authoritative metadata for the last sealed release.",
+    "No commit SHA is embedded because candidate HEAD evolves until formal release cut."
+  ]
+}
