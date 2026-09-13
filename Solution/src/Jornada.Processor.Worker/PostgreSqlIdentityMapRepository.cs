@@ -234,7 +234,7 @@ internal static class PostgreSqlIdentityPersistence
             Add(gold, "@uuid", DbType.Guid, uuid);
             await using var reader = await gold.ExecuteReaderAsync(ct);
             if (await reader.ReadAsync(ct))
-                return new IdentityCore(reader.GetString(0), ReadDate(reader, 1), reader.GetString(2));
+                return new IdentityCore(reader.GetString(0), ReadDate(reader, 1), reader.IsDBNull(2) ? null : reader.GetString(2));
         }
 
         await using var silver = Command(connection, tx, """
@@ -249,7 +249,7 @@ internal static class PostgreSqlIdentityPersistence
         Add(silver, "@uuid", DbType.Guid, uuid);
         await using var silverReader = await silver.ExecuteReaderAsync(ct);
         if (!await silverReader.ReadAsync(ct)) return null;
-        return new IdentityCore(silverReader.GetString(0), ReadDate(silverReader, 1), silverReader.GetString(2));
+        return new IdentityCore(silverReader.GetString(0), ReadDate(silverReader, 1), silverReader.IsDBNull(2) ? null : silverReader.GetString(2));
     }
 
     private static DateOnly ReadDate(DbDataReader reader, int ordinal)
