@@ -37,7 +37,7 @@ public static class CpfIdentityConsistency
 public sealed record IdentityCore(
     string NomeCompleto,
     DateOnly DataNascimento,
-    string NomeMae);
+    string? NomeMae);
 
 public sealed record CpfIdentityConsistencyAssessment(
     bool IsConflict,
