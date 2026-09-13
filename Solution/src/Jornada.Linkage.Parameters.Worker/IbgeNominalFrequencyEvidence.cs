@@ -48,15 +48,16 @@ public static class IbgeNominalFrequencyEvidence
 
         if (absenceMeansCensored)
         {
-            if (censoredUpperBoundOccurrences is null or <= 0)
-                throw new ArgumentOutOfRangeException(nameof(censoredUpperBoundOccurrences));
+            var upperBound = censoredUpperBoundOccurrences
+                ?? throw new ArgumentNullException(nameof(censoredUpperBoundOccurrences));
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(upperBound);
 
             return new NominalFrequencyEvidence(
                 NominalFrequencyEvidenceKind.CensoredUpperBound,
                 null,
-                censoredUpperBoundOccurrences,
+                upperBound,
                 populationSize,
-                (decimal)censoredUpperBoundOccurrences.Value / populationSize,
+                (decimal)upperBound / populationSize,
                 snapshot.SourceVersion,
                 snapshot.FingerprintSha256);
         }
