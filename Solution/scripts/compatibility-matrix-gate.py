@@ -16,7 +16,7 @@ def main():
     for token in ('N\'Jornada.BaseNormativa\'','N\'Jornada.SolutionSchema\'','N\'3.62\'','N\'3.70\'','SQL_SCHEMA_INCOMPATIVEL'):
         if token not in h: fail('readiness sem contrato exato: '+token)
     u=UPGRADE.read_text(encoding='utf-8')
-    for token in ('Jornada_Fase1_v3.65.sql','Jornada_Seed_Dev_v3.65.sql','Jornada_Fase1_v3.70.sql','idempotent=true','schema_marker_exact=true'):
+    for token in ('Jornada_Fase1_v3.65.sql','Jornada_Seed_Dev_v3.65.sql','Jornada_Fase1_v3.71.sql','idempotent=true','schema_marker_exact=true'):
         if token not in u: fail('upgrade harness sem evidência: '+token)
     if cases['API_CURRENT_SCHEMA_V369']['expected']!='DENY_SQL_SCHEMA_INCOMPATIVEL': fail('schema 3.69 deve ser deny até upgrade')
     if cases['DDL_REAPPLY_CURRENT'].get('fromSolutionSchema')!='3.70' or cases['DDL_REAPPLY_CURRENT'].get('toSolutionSchema')!='3.70': fail('reapply deve permanecer em 3.70')

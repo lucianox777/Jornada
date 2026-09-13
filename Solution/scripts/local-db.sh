@@ -46,7 +46,7 @@ bootstrap() {
   # Instalação nova possui um único ponto canônico. O arquivo v3.70 aplica baseline,
   # identidade progressiva, composição, blocking/ruleset e valida a completude antes
   # de promover Jornada.SolutionSchema=3.70.
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/Jornada_Fase1_v3.70.sql
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/Jornada_Fase1_v3.71.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/Jornada_Seed_Dev.sql
   # DEV possui seed; reaplicação idempotente reserva também CPFs históricos do seed.
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260907_Cpf_Ancora.sql
@@ -58,14 +58,14 @@ case "$ACTION" in
     compose up -d sqlserver
     wait_healthy
     bootstrap
-    echo "SQL Server Developer local pronto: localhost:$JORNADA_SQL_PORT / $JORNADA_SQL_DATABASE (schema 3.70)"
+    echo "SQL Server Developer local pronto: localhost:$JORNADA_SQL_PORT / $JORNADA_SQL_DATABASE (schema 3.71)"
     ;;
   reset)
     compose up -d sqlserver
     wait_healthy
     sqlcmd -Q "IF DB_ID(N'$JORNADA_SQL_DATABASE') IS NOT NULL BEGIN ALTER DATABASE [$JORNADA_SQL_DATABASE] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$JORNADA_SQL_DATABASE]; END; CREATE DATABASE [$JORNADA_SQL_DATABASE];"
     bootstrap
-    echo "Banco local recriado: $JORNADA_SQL_DATABASE (schema 3.70)"
+    echo "Banco local recriado: $JORNADA_SQL_DATABASE (schema 3.71)"
     ;;
   down)
     compose down

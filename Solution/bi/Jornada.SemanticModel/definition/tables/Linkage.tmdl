@@ -6,7 +6,7 @@ table Linkage
 	measure 'Resolução por CPF' = DIVIDE(SUM(Linkage[resolvido_cpf]),COUNTROWS(Linkage))
 		formatString: 0.0%
 
-	measure 'Fallback probabilístico' = DIVIDE(SUM(Linkage[resolvido_fallback]),COUNTROWS(Linkage))
+	measure 'Resolução probabilística' = DIVIDE(SUM(Linkage[resolvido_probabilistico]),COUNTROWS(Linkage))
 		formatString: 0.0%
 
 	measure 'Não resolvidos' = DIVIDE(CALCULATE(COUNTROWS(Linkage),Linkage[status]="NAO_RESOLVIDO"),COUNTROWS(Linkage))
@@ -19,7 +19,7 @@ table Linkage
 	measure 'Sem candidato no bloco' = DIVIDE(SUM(Linkage[sem_candidato_no_bloco]),COUNTROWS(Linkage))
 		formatString: 0.0%
 
-	measure 'Score médio fallback' = CALCULATE(AVERAGE(Linkage[score]),Linkage[metodo_resolucao]="LINKAGE_PROBABILISTICO")
+	measure 'Score médio probabilístico' = CALCULATE(AVERAGE(Linkage[score]),Linkage[metodo_resolucao]="LINKAGE_PROBABILISTICO")
 		formatString: 0.000
 
 	column pessoa_observacao_id
@@ -62,25 +62,25 @@ table Linkage
 		summarizeBy: none
 		sourceColumn: resolvido_cpf
 
-	column resolvido_fallback
+	column resolvido_probabilistico
 		dataType: int64
 		summarizeBy: none
-		sourceColumn: resolvido_fallback
+		sourceColumn: resolvido_probabilistico
 
-	column modelo_fallback_versao
+	column modelo_linkage_versao
 		dataType: int64
 		summarizeBy: none
-		sourceColumn: modelo_fallback_versao
+		sourceColumn: modelo_linkage_versao
 
-	column subprefeitura
+	column subprefeitura_residencia
 		dataType: string
 		summarizeBy: none
-		sourceColumn: subprefeitura
+		sourceColumn: subprefeitura_residencia
 
-	column distrito
+	column distrito_residencia
 		dataType: string
 		summarizeBy: none
-		sourceColumn: distrito
+		sourceColumn: distrito_residencia
 
 
 	column linkage_run_id
@@ -144,15 +144,10 @@ table Linkage
 		summarizeBy: sum
 		sourceColumn: nascimento_0101
 
-	column geografia_preenchida
+	column geografia_residencia_preenchida
 		dataType: int64
 		summarizeBy: sum
-		sourceColumn: geografia_preenchida
-
-	column natureza_referencia_territorial
-		dataType: string
-		summarizeBy: none
-		sourceColumn: natureza_referencia_territorial
+		sourceColumn: geografia_residencia_preenchida
 
 	partition Linkage = m
 		mode: import

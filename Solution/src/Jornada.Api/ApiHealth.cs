@@ -34,7 +34,7 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
                 SELECT CASE WHEN
                     @base=N'3.62'
                     AND NOT (@solution=N'3.69')
-                    AND @solution=N'3.70'
+                    AND @solution=N'3.71'
                     AND OBJECT_ID(N'ref.gestor',N'U') IS NOT NULL
                     AND OBJECT_ID(N'ingestao.entrega',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.pessoa',N'U') IS NOT NULL
@@ -52,6 +52,8 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
                     AND OBJECT_ID(N'identidade.linkage_ruleset_passe',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.linkage_ruleset_passe_campo',N'U') IS NOT NULL
                     AND OBJECT_ID(N'gold.pessoa',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'silver.endereco_residencial_geografia_observacao',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'silver.v_pessoa_geografia_residencial',N'V') IS NOT NULL
                     AND OBJECT_ID(N'serving.registro_integrado',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.sp_recompor_gold_pessoa',N'P') IS NOT NULL
                     AND OBJECT_ID(N'ref.fn_email_canonico_v2',N'FN') IS NOT NULL

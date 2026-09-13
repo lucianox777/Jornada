@@ -10,7 +10,7 @@ Este índice existe para evitar que snapshots históricos preservados no reposit
 - **Especificação Técnica publicada:** `Documentos/Especificacao_Tecnica_Jornada_v3.62.docx` e `.pdf`. Não existe `Especificacao_Tecnica_Jornada_v3.64.*` materializada nesta árvore.
 - **Especificação Técnica candidata:** `Documentos/Especificacao_Tecnica_Jornada_Candidata.md`, sem número normativo e sem efeito de publicação/release até aprovação e corte formais. Consolida a v3.62 com o estado técnico comprovável do HEAD e mantém pendências institucionais como gates externos.
 - **Requisitos consolidados:** `Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1` é a porta de entrada institucional. Os documentos v1.0 permanecem históricos e não devem ser lidos cumulativamente com v1.1.
-- **Modelo físico corrente:** `Documentos/Anexo_Modelo_Fisico_Jornada_v1.40` em MD, DOCX e PDF, derivado de `Solution/database/Jornada_Fase1_v3.70.sql`. A fonte Markdown está sincronizada com o inventário automatizado atual de **69 tabelas**; DOCX/PDF permanecem artefatos derivados e devem ser regenerados antes de nova publicação de entrega.
+- **Modelo físico corrente:** `Documentos/Anexo_Modelo_Fisico_Jornada_v1.40` em MD, DOCX e PDF, derivado de `Solution/database/Jornada_Fase1_v3.71.sql`. A fonte Markdown está sincronizada com o inventário automatizado atual de **70 tabelas**; DOCX/PDF permanecem artefatos derivados e devem ser regenerados antes de nova publicação de entrega.
 
 ## Lacuna normativa v3.64 × Especificação v3.62
 
@@ -44,7 +44,7 @@ Em caso de dúvida sobre versão ou vigência:
 3. use `Especificacao_Tecnica_Jornada_Candidata.md` apenas para revisão da próxima consolidação normativa; ela não substitui a v3.62 antes da publicação formal;
 4. use `CANDIDATE_INFO.json` somente como representação legível por máquina do estado candidato; ele não é metadado de release selada e não tem precedência sobre `RELEASE_INFO.txt`;
 5. use o índice mestre de requisitos v1.1 para a leitura institucional consolidada candidata;
-6. use `Anexo_Modelo_Fisico_Jornada_v1.40.md` e `Solution/database/Jornada_Fase1_v3.70.sql` para o estado físico candidato 3.70; para publicação de entrega, regenere os derivados DOCX/PDF a partir da fonte corrente;
+6. use `Anexo_Modelo_Fisico_Jornada_v1.40.md` e `Solution/database/Jornada_Fase1_v3.71.sql` para o estado físico candidato 3.70; para publicação de entrega, regenere os derivados DOCX/PDF a partir da fonte corrente;
 7. use estados/notas de engenharia para rastrear deltas técnicos, sem promovê-los implicitamente a norma;
 8. trate documentos explicitamente versionados anteriores e evidências runtime como histórico, salvo indicação expressa em documento corrente.
 

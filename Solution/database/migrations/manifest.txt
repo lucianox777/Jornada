@@ -1,7 +1,7 @@
 # Jornada SQL Server operational migrations
 # Order is normative and follows explicit migration prerequisites.
 # Smoke/test-only scripts are intentionally excluded.
-# The final entry closes the current SolutionSchema 3.70 baseline.
+# The final entry closes the current SolutionSchema 3.71 baseline.
 20260907_Cpf_Ancora.sql
 20260908_Identidade_Composicao_Ledger.sql
 20260908_Identidade_Progressiva_Processor.sql
@@ -15,3 +15,4 @@
 20260910_Linkage_RuleSet_Passes.sql
 20260911_Linkage_Blocking_Projection_Contract.sql
 20260910_Schema_Consolidation_370.sql
+20260913_Endereco_Residencial_Sem_Fallback.sql

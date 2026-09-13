@@ -181,7 +181,7 @@ Definir comportamentos observáveis da Jornada do Cidadão - Fase 1, com critér
 
 #### RF-016 - Executar linkage probabilístico sobre identidades pendentes
 
-**Requisito funcional.** O sistema deve permitir avaliar, por processo separado, Pessoas elegíveis ao fallback probabilístico.
+**Requisito funcional.** O sistema deve permitir avaliar, por processo separado, Pessoas elegíveis ao processo de resolução probabilística.
 
 **Critério de aceitação funcional.** O resultado probabilístico é versionado e não bloqueia a rota determinística.
 

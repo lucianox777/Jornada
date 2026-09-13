@@ -12,7 +12,7 @@ public sealed record IdentityResolutionAttributeValue(string AttributeCode, stri
 /// CPF válido é a rota determinística normal. Os demais atributos são usados para
 /// qualidade/corroboração, para sinalizar inconsistências globais do identificador quando
 /// o mesmo CPF aparece com núcleos fortemente incompatíveis e, quando o CPF estiver ausente
-/// em hipótese admitida, pelo fallback probabilístico. Nome da mãe é evidência opcional:
+/// em hipótese admitida, pelo resolução probabilística. Nome da mãe é evidência opcional:
 /// sua ausência não invalida a observação nem autoriza preenchimento sintético.
 /// </summary>
 public sealed record IdentityObservation(

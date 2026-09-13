@@ -317,7 +317,9 @@ def main() -> None:
         "Jornada.BaseNormativa",
         "@base=N'3.62'",
         "Jornada.SolutionSchema",
-        "@solution=N'3.69'",
+        "@solution=N'3.71'",
+        "silver.endereco_residencial_geografia_observacao",
+        "silver.v_pessoa_geografia_residencial",
         "SQL_SCHEMA_INCOMPATIVEL",
         "ref.fn_email_canonico_v2",
         "identidade.sp_recompor_gold_pessoa",
@@ -639,8 +641,10 @@ def main() -> None:
     require(processor_models, [
         'var sourceCode = OptionalString(json, "codigoPessoaOrigem")',
         'var cpf = OptionalString(json, "cpf")',
-        'codigoPessoaOrigem ausente exige CPF preenchido para derivação do código de origem.',
-    ], "fallback CPF -> codigoPessoaOrigem")
+        'batch.PessoaSchemaVersao >= 4',
+        'a Jornada não deriva chave de origem do CPF',
+        'compatibilidade de replay v1-v3',
+    ], "codigoPessoaOrigem obrigatório na linha corrente e compatibilidade histórica")
     for gestor in ("SEHAB", "SMADS", "SMDET", "SMS"):
         schema_v2 = ROOT / "config" / "contracts" / "gestores" / gestor / "pessoa" / "v2" / "pessoa.schema.json"
         if not schema_v2.is_file():

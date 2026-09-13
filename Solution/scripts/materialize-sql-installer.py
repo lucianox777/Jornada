@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Materializa o instalador SQL Server canônico em um único .sql sem diretivas :r.
 
-A fonte editável continua sendo database/Jornada_Fase1_v3.70.sql e seus includes.
+A fonte editável continua sendo database/Jornada_Fase1_v3.71.sql e seus includes.
 O artefato materializado é destinado a entrega/execução por DBA ou ferramenta de deploy
 sem depender da árvore de arquivos no host que executa sqlcmd.
 """
@@ -54,7 +54,7 @@ def materialize(path: Path, root: Path, stack: tuple[Path, ...]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Gera instalador SQL Server autocontido a partir da fonte canônica com :r.")
     parser.add_argument("--root", default=".", help="Raiz da Solution")
-    parser.add_argument("--source", default="database/Jornada_Fase1_v3.70.sql")
+    parser.add_argument("--source", default="database/Jornada_Fase1_v3.71.sql")
     parser.add_argument("--output", default=".local/release/Jornada_Fase1_v3.70_standalone.sql")
     parser.add_argument("--sha256-output", default=None)
     args = parser.parse_args()
@@ -68,7 +68,7 @@ def main() -> int:
         fail("artefato final ainda contém diretiva :r")
     header = (
         "-- Jornada do Cidadão - SQL Server - instalador materializado\n"
-        "-- GERADO; não editar diretamente. Fonte: database/Jornada_Fase1_v3.70.sql\n"
+        "-- GERADO; não editar diretamente. Fonte: database/Jornada_Fase1_v3.71.sql\n"
         "-- Microsoft SQL Server é a tecnologia relacional normativa da Jornada.\n\n"
     )
     payload = header + text

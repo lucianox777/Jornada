@@ -173,9 +173,11 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
             var sourceCode = OptionalString(json, "codigoPessoaOrigem");
             if (string.IsNullOrWhiteSpace(sourceCode))
             {
+                if (batch.PessoaSchemaVersao >= 4)
+                    throw new InvalidDataException("pessoas.jsonl: codigoPessoaOrigem é obrigatório no contrato Pessoa v4; a Jornada não deriva chave de origem do CPF.");
                 if (string.IsNullOrWhiteSpace(cpf))
-                    throw new InvalidDataException("pessoas.jsonl: codigoPessoaOrigem ausente exige CPF preenchido para derivação do código de origem.");
-                sourceCode = cpf;
+                    throw new InvalidDataException("pessoas.jsonl histórico: codigoPessoaOrigem ausente exige CPF para replay do contrato legado.");
+                sourceCode = cpf; // compatibilidade de replay v1-v3; não alcançável no contrato corrente v4.
             }
             if (!sourceCodes.Add(sourceCode))
                 throw new InvalidDataException($"pessoas.jsonl: codigoPessoaOrigem duplicado: {sourceCode}.");
@@ -187,6 +189,8 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
                 {
                     var attributeCode = RequiredString(attr, "atributoCodigo");
                     ConfidentialShelterAddressPolicy.ValidateSource(batch, attributeCode);
+                    if (batch.PessoaSchemaVersao >= 4 && string.Equals(attributeCode, "REFERENCIA_TERRITORIAL", StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("pessoas.jsonl: REFERENCIA_TERRITORIAL é legado e não é aceito no contrato Pessoa v4; use ENDERECO_RESIDENCIAL quando a informação for residência.");
                     TerritorialReferenceNature? referenceNature = null;
                     var referenceNatureRaw = OptionalString(attr, "naturezaReferenciaTerritorial");
                     if (string.Equals(attributeCode, "REFERENCIA_TERRITORIAL", StringComparison.OrdinalIgnoreCase))
