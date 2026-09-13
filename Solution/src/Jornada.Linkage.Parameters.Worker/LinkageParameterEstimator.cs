@@ -5,10 +5,10 @@ namespace Jornada.Linkage.Parameters.Worker;
 public sealed record IdentityTrainingPair(
     string LeftName,
     DateOnly LeftBirthDate,
-    string LeftMotherName,
+    string? LeftMotherName,
     string RightName,
     DateOnly RightBirthDate,
-    string RightMotherName,
+    string? RightMotherName,
     string? LeftSourceCode = null,
     string? RightSourceCode = null,
     IReadOnlyList<ResolutionSourceValue>? LeftResolutionValues = null,
@@ -20,6 +20,10 @@ public sealed record IdentityTrainingPair(
 /// convergiram deterministicamente por CPF ao mesmo UUID e pares não-match amostrados da Gold.
 /// A independência inter-Gestor evita treinar m contra a própria Gold derivada da observação.
 /// Usa suavização de Dirichlet/Laplace para impedir pesos infinitos.
+///
+/// Nome da mãe é evidência opcional. Pares em que um dos lados não possui o atributo não
+/// são convertidos em LOW: ficam fora da distribuição específica de NOME_MAE e são
+/// contabilizados separadamente para auditoria de missingness.
 ///
 /// A partir da V2, nascimento é calibrado também em três evidências binárias separadas:
 /// dia, mês e ano. A data completa continua preservada e sua concordância exata continua
@@ -63,8 +67,8 @@ public static class LinkageParameterEstimator
 
         AddDistribution(result, "M_NOME", matchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)), smoothingAlpha);
         AddDistribution(result, "U_NOME", unmatchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)), smoothingAlpha);
-        AddDistribution(result, "M_NOME_MAE", matchedPairs.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
-        AddDistribution(result, "U_NOME_MAE", unmatchedPairs.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
+        AddOptionalNameDistribution(result, "M_NOME_MAE", matchedPairs.Select(p => (p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
+        AddOptionalNameDistribution(result, "U_NOME_MAE", unmatchedPairs.Select(p => (p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
 
         // Mantém a taxa da data completa para auditoria e compatibilidade com modelos V1.
         result["M_DATA_NASCIMENTO_EXACT"] = SmoothedBinary(
@@ -106,6 +110,22 @@ public static class LinkageParameterEstimator
             smoothingAlpha);
 
         return result;
+    }
+
+    private static void AddOptionalNameDistribution(
+        IDictionary<string, decimal> target,
+        string prefix,
+        IEnumerable<(string? Left, string? Right)> values,
+        decimal alpha)
+    {
+        var comparable = values
+            .Where(static pair => IdentityComparison.NormalizeText(pair.Left) is not null &&
+                                  IdentityComparison.NormalizeText(pair.Right) is not null)
+            .Select(static pair => IdentityComparison.CompareName(pair.Left, pair.Right))
+            .ToArray();
+
+        target[$"{prefix}_SAMPLE_SIZE"] = comparable.Length;
+        AddDistribution(target, prefix, comparable, alpha);
     }
 
     private static void AddDistribution(
