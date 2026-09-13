@@ -35,7 +35,7 @@ A relação completa RN -> RF -> RNF -> RT -> evidência está em `Matriz_Rastre
 - **Contratos antes da implementação:** interfaces compartilhadas são estáveis, versionadas e revisadas.
 - **Fail closed em integridade e identidade:** dúvida de integridade, autorização ou conflito de identidade não é resolvida por heurística silenciosa.
 - **Evidência e replay:** dados de entrada, decisões de identidade e publicações mantêm origem, versão e histórico suficientes para auditoria/reexecução.
-- **Separação de responsabilidades:** API recebe, Processor materializa, Runner resolve fallback probabilístico, BI analisa e Gestores finalísticos mantêm decisão administrativa.
+- **Separação de responsabilidades:** API recebe, Processor materializa, Runner resolve processo de resolução probabilística, BI analisa e Gestores finalísticos mantêm decisão administrativa.
 - **Operação observável:** locks, leases, filas, runs, retries e alertas são mensuráveis e recuperáveis.
 - **Segurança por minimização:** segredos, payloads e identificadores civis não são propagados além do necessário.
 
@@ -308,7 +308,7 @@ A relação completa RN -> RF -> RNF -> RT -> evidência está em `Matriz_Rastre
 
 #### RT-026 - Executar linkage probabilístico em Runner independente e run-once
 
-**Requisito técnico.** O fallback probabilístico deve ser executado pelo Jornada.Linkage.Runner, independente do Processor, schedulável externamente e parametrizado por modo, escopo, batch e paralelismo.
+**Requisito técnico.** O processo de resolução probabilística deve ser executado pelo Jornada.Linkage.Runner, independente do Processor, schedulável externamente e parametrizado por modo, escopo, batch e paralelismo.
 
 **Critério de aceitação técnica.** O Processor determinístico continua operando quando o Runner/Parameters estiver indisponível; registros sem CPF permanecem pendentes.
 
