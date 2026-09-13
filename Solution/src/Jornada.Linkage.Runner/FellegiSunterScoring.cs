@@ -7,7 +7,7 @@ public static class FellegiSunterScoring
     public static decimal CalculatePosterior(
         IReadOnlyDictionary<string, decimal> parameters,
         NameComparisonState nameState,
-        NameComparisonState motherNameState,
+        NameComparisonState? motherNameState,
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
         DateOnly? rightBirthDate = null)
@@ -17,7 +17,12 @@ public static class FellegiSunterScoring
             : Get(parameters, "PRIOR_MATCH_PROBABILITY");
         var logOdds = Logit((double)prior);
         logOdds += LogLikelihoodRatio(parameters, "NOME", nameState);
-        logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", motherNameState);
+
+        // P25/P26: ausência de nome da mãe é ausência de evidência, não discordância.
+        // LR = 1 equivale a contribuição logarítmica zero. O estado LOW continua reservado
+        // para dois valores presentes cuja comparação resulte em baixa similaridade.
+        if (motherNameState is { } availableMotherNameState)
+            logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", availableMotherNameState);
 
         // V2: nascimento deixa de ser uma evidência indivisível. Dia, mês e ano
         // contribuem separadamente quando o modelo possui os parâmetros calibrados.
