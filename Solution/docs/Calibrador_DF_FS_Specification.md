@@ -1,0 +1,122 @@
+# Calibrador — especificação DF → Fellegi–Sunter
+
+**Estado:** desenho metodológico aceito e infraestrutura inicial implementada. Nenhum threshold numérico ou modelo probabilístico é promovido automaticamente por este documento.
+
+## 1. Objetivo
+
+O Calibrador deve comparar configurações completas de linkage em benchmark reproduzível e selecionar tecnicamente apenas alternativas não dominadas. O fluxo candidato é `DF → FS`, preservando `INCONCLUSIVO` quando a evidência disponível não é suficiente.
+
+## 2. Referência nominal brasileira
+
+A referência nominal é o snapshot versionado do produto **IBGE — Nomes no Brasil** já internalizado pela Jornada. O Calibrador usa somente valores/frequências efetivamente presentes na referência e sua semântica publicada.
+
+A Jornada não cria nomes raros fictícios, não reconstrói a cauda suprimida e não atribui frequência inventada a valor ausente. Quando a ausência puder ser interpretada como censura da publicação, essa condição é registrada como tal na evidência.
+
+Primeiro nome e sobrenome permanecem semanticamente distintos. Estatística oficial de `Surname` somente pode ser associada a atributo de origem cuja fronteira de sobrenome seja estruturada e compatível; tokens inferidos de `nome_completo` não recebem automaticamente essa frequência.
+
+## 3. Benchmark
+
+O benchmark deve ter ground truth conhecido e replay determinístico. A parte nominal sintética permanece dentro do universo nominal observado na referência: a geração controla a associação/variação entre observações, não inventa vocabulário brasileiro.
+
+O split `TRAIN/VALIDATION/TEST` é realizado por indivíduo-base antes da geração de pares, evitando que observações derivadas da mesma pessoa contaminem conjuntos diferentes. Seeds, gerador e snapshots são versionados.
+
+O benchmark mede separadamente blocking e scoring. Perder um par verdadeiro no blocking não pode ser atribuído ao scorer.
+
+## 4. DF — primeiro estágio nominal
+
+DF combina duas evidências preservadas separadamente:
+
+1. similaridade nominal, inicialmente `JARO_WINKLER@V1`;
+2. term-frequency adjustment compatível com a referência Splink.
+
+Não se cria um score arbitrário `distância × frequência`. O Calibrador pesquisa fronteiras observadas de similaridade e contribuição TF. Na implementação inicial, DF é assimétrico: resolve apenas `MATCH`; todo caso que não cruza uma fronteira candidata segue como `INCONCLUSIVO` para o estágio FS.
+
+### 4.1. Term frequency
+
+A implementação `SPLINK_TERM_FREQUENCY_V1` preserva:
+
+- para fuzzy match, frequência efetiva = maior frequência entre os dois lados;
+- `tf_adjustment_weight` para controlar a intensidade do ajuste;
+- `tf_minimum_u_value` como piso contra evidência extrema de termos raros;
+- contribuição aditiva em log-Bayes-factor, usando a mesma base logarítmica do scorer Jornada.
+
+A frequência pode ser externa/versionada (IBGE) ou empírica quando a metodologia explicitamente definir esse uso; a proveniência nunca é descartada.
+
+## 5. Fellegi–Sunter — segundo estágio
+
+Quando DF não resolve, o par segue para o Fellegi–Sunter da Jornada. O score DF anterior não é adicionado ao FS.
+
+O candidato FS deve registrar o conjunto completo de parâmetros relevantes:
+
+- `m` por nível;
+- `u` por nível;
+- prior de match;
+- thresholds inferior/superior quando aplicáveis;
+- versão de normalização/comparadores;
+- política de blocking;
+- versão/fingerprint da referência nominal e demais fontes.
+
+Estimadores Jornada e Splink podem produzir candidatos. A comparação é feita pela configuração completa, não por um parâmetro isolado.
+
+## 6. Thresholds e seleção
+
+Thresholds são produtos da calibração, não constantes escolhidas por intuição.
+
+Para DF, a grade inicial é formada por fronteiras observadas de similaridade e TF no conjunto de validação, com redução determinística quando necessário para limitar custo combinatório.
+
+Para a configuração completa, o Calibrador registra TP, TN, FP, FN e inconclusivos. Um candidato domina outro somente se não piorar FP e FN e melhorar ao menos um deles; quando FP/FN empatam, menor inconclusão domina.
+
+Se dois candidatos trocam FP por FN, ambos permanecem na fronteira de Pareto. O Calibrador não inventa o custo institucional relativo desses erros.
+
+## 7. Splink como implementação de referência
+
+Splink/Python é usado em desenvolvimento e validação para produzir vetores de referência. Produção continua C#/.NET.
+
+O port C# é versionado independentemente do upstream. Atualização futura do Splink não altera automaticamente a Jornada. Uma nova versão local exige testes de paridade e nova calibração.
+
+A paridade exigida é semântica/numericamente tolerante, não bit a bit: mesmos inputs devem produzir mesma frequência efetiva, mesma contribuição TF dentro da tolerância e mesmas decisões para fronteiras equivalentes.
+
+## 8. Invariantes
+
+- nenhuma frequência ou nome ausente do IBGE é inventado;
+- DF não força NON_MATCH na versão inicial;
+- DF não é somado ao FS após fallback;
+- fuzzy TF usa conservadoramente a maior frequência dos lados;
+- piorar o piso de TF não pode aumentar evidência de raridade;
+- `tf_adjustment_weight=0` neutraliza TF;
+- thresholds vêm de dados de validação;
+- `INCONCLUSIVO` é resultado válido;
+- novas evidências da Jornada podem permitir reavaliação posterior.
+
+## 9. Evidência publicada pelo Calibrador
+
+Cada candidato/execução deve registrar pelo menos:
+
+```text
+candidate_id
+benchmark_version
+train_population_version
+validation_population_version
+test_population_version
+seed
+ibge_frequency_version
+similarity_algorithm_version
+term_frequency_algorithm_version
+m_estimator
+u_estimator
+prior_source
+m_u_prior_version
+df_thresholds
+fs_thresholds
+blocking_policy_version
+TP / TN / FP / FN / INCONCLUSIVE
+pareto_status
+splink_reference_version
+csharp_port_version
+```
+
+Para decisão individual/diagnóstico, preservar a decomposição da evidência DF e FS.
+
+## 10. Critério de promoção
+
+O Calibrador recomenda; não ativa por simples execução. Uma configuração nova deve ser reproduzível, não dominada no corpus de validação e manter comportamento esperado no conjunto de teste independente. Divergência de paridade Splink↔C# ou ausência de proveniência bloqueia a promoção.
