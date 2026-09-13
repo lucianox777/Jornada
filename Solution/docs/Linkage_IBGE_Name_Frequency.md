@@ -12,11 +12,11 @@ A primeira versão preserva a decisão registrada na issue #31: não aplicar nor
 
 `ExternalNameFrequencyCatalog` permanece disponível para snapshots locais simples já usados pelos testes e ferramentas preparatórias. Ele mantém identificador fixo da fonte, versão explícita, pares nome/ocorrências e fingerprint SHA-256 determinístico.
 
-Esse formato não é suficiente para alimentar o otimizador porque não distingue semanticamente frequência de **prenome** e frequência de **sobrenome**, nem identifica o recorte territorial. Por isso ele não deve ser usado para atribuir frequência externa a um atributo do blocking.
+Esse formato não é suficiente para alimentar o otimizador porque não distingue semanticamente frequência de **primeiro nome** e frequência de **sobrenome**, nem identifica o recorte territorial. Por isso ele não deve ser usado para atribuir frequência externa a um atributo do blocking.
 
 ## Snapshot tipado para uso downstream
 
-`IbgeTypedNameFrequencyCatalog` introduz o contrato necessário para utilização segura pelo Calibrador/otimizador. Cada entrada registra:
+`IbgeTypedNameFrequencyCatalog` preserva as classes estatísticas publicadas. Cada entrada registra:
 
 - `IbgeNameStatisticKind.FirstName` ou `IbgeNameStatisticKind.Surname`;
 - grafia da entrada com apenas adaptação técnica de consulta;
@@ -26,18 +26,29 @@ Esse formato não é suficiente para alimentar o otimizador porque não distingu
 - código territorial obrigatório para UF/Município e ausente para Brasil;
 - fingerprint SHA-256 incluindo tipo estatístico, escopo, código e conteúdo.
 
-Prenome e sobrenome com a mesma grafia são entradas distintas e podem possuir frequências diferentes. O fingerprint também muda quando muda o recorte territorial, evitando que uma estatística municipal seja confundida com Brasil/UF.
+Primeiro nome e sobrenome com a mesma grafia são entradas distintas e podem possuir frequências diferentes. O fingerprint também muda quando muda o recorte territorial, evitando que uma estatística municipal seja confundida com Brasil/UF.
 
-`IbgeCalibrationAttributeCatalog.TryGetOccurrences` faz a ponte semântica entre atributo da Jornada e snapshot tipado. Apenas atributos explicitamente mapeados podem consultar a frequência externa. `name_first`/`mother_name_first` usam estatística de prenome; `name_surnames`, `name_last`, `mother_name_surnames` e `mother_name_last` usam estatística de sobrenome. Nome completo e atributos sem correspondência IBGE permanecem sem enriquecimento externo, em vez de receber aproximação artificial.
+O snapshot tipado preservar estatística oficial de `Surname` **não significa** que qualquer token interno da Jornada seja semanticamente um sobrenome do IBGE. A publicação oficial parte de campos separados de nome e sobrenome; `nome_completo` da Jornada não preserva essa fronteira original.
+
+## Mapeamento seguro para o Calibrador
+
+`IbgeCalibrationAttributeCatalog` faz a ponte semântica entre atributo da Jornada e snapshot tipado. Na versão corrente, somente:
+
+- `name_first` usa estatística oficial de primeiro nome;
+- `mother_name_first` usa estatística oficial de primeiro nome.
+
+As features internas `name_surnames`, `name_last`, `mother_name_surnames` e `mother_name_last` continuam disponíveis para diagnóstico/calibração com evidência da própria Jornada, mas são derivadas por tokenização do nome completo normalizado. Elas **não recebem frequência oficial de sobrenome do IBGE**, porque isso confundiria uma heurística interna de blocking com a semântica publicada da fonte.
+
+A estatística tipada de `Surname` permanece no modelo de referência para uso futuro quando existir atributo de origem com fronteira estruturada confiável e semântica compatível. Nome completo e atributos sem correspondência explícita permanecem sem enriquecimento externo em vez de receber aproximação artificial.
 
 ## Entrada local versionada
 
-`ExternalNameFrequencySnapshotReader` continua aceitando o formato local legado para validação de fonte/fingerprint. A evolução seguinte deverá fornecer leitor/materializador equivalente para o snapshot tipado, preservando fail-closed, proveniência e detecção de mudança antes de qualquer automatização de download.
+`ExternalNameFrequencySnapshotReader` continua aceitando o formato local legado para validação de fonte/fingerprint. A evolução seguinte deverá preservar fail-closed, proveniência e detecção de mudança antes de qualquer automatização de obtenção da fonte.
 
 A entrada local separa responsabilidades: obtenção/licenciamento/atestado da publicação externa ocorre fora do runtime de Linkage; o código da Jornada valida, tipa e identifica de forma reproduzível o snapshot recebido. O arquivo não é promovido automaticamente a parâmetro de modelo.
 
 ## Limites
 
-Esta fatia ainda não injeta frequência IBGE no critério de escolha do `BlockingRuleSetSearch`, não altera scorer, m/u, prior, thresholds, precedência do CPF ou decisão de identidade. Também não cria/funde UUID, não altera fatos, Gold ou Serving.
+Esta fatia não transforma frequência IBGE em peso, raridade, prior ou decisão de identidade por convenção. Também não cria/funde UUID, não altera fatos, Gold ou Serving.
 
-O próximo passo implementável é materializar o snapshot tipado a partir da publicação oficial e permitir ao otimizador comparar, no corpus de calibração, alternativas **com e sem** contribuição externa, registrando a proveniência do snapshot escolhido. A promoção continua condicionada à avaliação independente e aos gates estatísticos da issue #31.
+Qualquer uso estatístico da frequência no Calibrador deve ser explicitamente versionado e comparado no corpus de calibração, com avaliação independente. Para sobrenomes, existe um gate adicional: somente uma fonte/atributo com semântica estruturada compatível pode receber a estatística oficial de `Surname`; tokens derivados de `nome_completo` não satisfazem esse gate.

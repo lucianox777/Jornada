@@ -5,7 +5,7 @@ namespace Jornada.Tests;
 public sealed class IbgeTypedNameFrequencySnapshotTests
 {
     [Test]
-    public void Snapshot_DistinguishesFirstNameFromSurname()
+    public void Snapshot_DistinguishesFirstNameFromSurname_without_assigning_surname_to_token_heuristics()
     {
         var snapshot = IbgeTypedNameFrequencyCatalog.Create(
             "censo-2022-v1",
@@ -22,9 +22,14 @@ public sealed class IbgeTypedNameFrequencySnapshotTests
             Assert.That(IbgeCalibrationAttributeCatalog.TryGetOccurrences(
                 snapshot, BlockingCandidateFeatureCatalog.FirstName, "silva", out var first), Is.True);
             Assert.That(first, Is.EqualTo(10));
+
+            Assert.That(snapshot.TryGetOccurrences(
+                IbgeNameStatisticKind.Surname, "SILVA", out var publishedSurname), Is.True);
+            Assert.That(publishedSurname, Is.EqualTo(100));
+
             Assert.That(IbgeCalibrationAttributeCatalog.TryGetOccurrences(
-                snapshot, BlockingCandidateFeatureCatalog.LastName, "SILVA", out var surname), Is.True);
-            Assert.That(surname, Is.EqualTo(100));
+                snapshot, BlockingCandidateFeatureCatalog.LastName, "SILVA", out var heuristicLastName), Is.False);
+            Assert.That(heuristicLastName, Is.Zero);
         });
     }
 
