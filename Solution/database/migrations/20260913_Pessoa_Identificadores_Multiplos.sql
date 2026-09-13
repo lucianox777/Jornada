@@ -9,6 +9,10 @@ GO
  código interno de uma base e UUID Jornada deixam de ser tratados como variações
  da mesma coluna e passam a ser evidências identificadoras tipadas.
 
+ A prioridade de resolução é explícita e governável. CPF ocupa o nível mais alto.
+ A prioridade orienta a âncora principal e a ordem de avaliação, mas NÃO permite
+ descartar conflito entre identificadores determinísticos válidos.
+
  Esta migração é aditiva e NÃO ativa resolução determinística por CNS/RG. A
  elegibilidade determinística é governada por tipo/namespace e pelas políticas
  de identidade.
@@ -22,31 +26,54 @@ BEGIN
         exige_namespace BIT NOT NULL,
         formato_codigo NVARCHAR(80) NOT NULL,
         elegibilidade_deterministica NVARCHAR(30) NOT NULL,
+        prioridade_resolucao SMALLINT NOT NULL,
         ativo BIT NOT NULL CONSTRAINT DF_tipo_identificador_pessoa_ativo DEFAULT(1),
         CONSTRAINT ck_tipo_identificador_pessoa_elegibilidade
-            CHECK(elegibilidade_deterministica IN('NAO_AUTOMATICA','CONDICIONAL','DETERMINISTICA'))
+            CHECK(elegibilidade_deterministica IN('NAO_AUTOMATICA','CONDICIONAL','DETERMINISTICA')),
+        CONSTRAINT ck_tipo_identificador_pessoa_prioridade
+            CHECK(prioridade_resolucao BETWEEN 1 AND 100)
     );
 END;
 GO
 
+IF COL_LENGTH('ref.tipo_identificador_pessoa','prioridade_resolucao') IS NULL
+    ALTER TABLE ref.tipo_identificador_pessoa
+        ADD prioridade_resolucao SMALLINT NOT NULL
+            CONSTRAINT DF_tipo_identificador_pessoa_prioridade DEFAULT(1) WITH VALUES;
+GO
+
 MERGE ref.tipo_identificador_pessoa AS t
 USING (VALUES
-    ('CPF','CPF','BR','CPF_BR_11_V1','DETERMINISTICA'),
-    ('CNS','Cartão Nacional de Saúde','BR','CNS_BR_V1','CONDICIONAL'),
-    ('RG','Registro Geral / identidade estadual','SSP_UF','RG_QUALIFICADO_V1','CONDICIONAL'),
-    ('CODIGO_BASE_ORIGEM','Código interno de cadastro de origem','BASE_PESSOA_ORIGEM','TEXTO_255_V1','CONDICIONAL'),
-    ('UUID_JORNADA','UUID publicado pela Jornada','JORNADA','UUID_V1','DETERMINISTICA'),
-    ('OUTRO','Outro identificador institucional','OBRIGATORIO','TEXTO_255_V1','NAO_AUTOMATICA')
-) AS s(tipo_identificador_codigo,nome,namespace_padrao,formato_codigo,elegibilidade_deterministica)
+    ('CPF','CPF','BR','CPF_BR_11_V1','DETERMINISTICA',100),
+    ('UUID_JORNADA','UUID publicado pela Jornada','JORNADA','UUID_V1','DETERMINISTICA',90),
+    ('CODIGO_BASE_ORIGEM','Código interno de cadastro de origem','BASE_PESSOA_ORIGEM','TEXTO_255_V1','CONDICIONAL',80),
+    ('CNS','Cartão Nacional de Saúde','BR','CNS_BR_V1','CONDICIONAL',70),
+    ('RG','Registro Geral / identidade estadual','SSP_UF','RG_QUALIFICADO_V1','CONDICIONAL',60),
+    ('OUTRO','Outro identificador institucional','OBRIGATORIO','TEXTO_255_V1','NAO_AUTOMATICA',10)
+) AS s(tipo_identificador_codigo,nome,namespace_padrao,formato_codigo,elegibilidade_deterministica,prioridade_resolucao)
 ON t.tipo_identificador_codigo=s.tipo_identificador_codigo
 WHEN NOT MATCHED THEN
-    INSERT(tipo_identificador_codigo,nome,exige_namespace,formato_codigo,elegibilidade_deterministica)
-    VALUES(s.tipo_identificador_codigo,s.nome,1,s.formato_codigo,s.elegibilidade_deterministica)
+    INSERT(tipo_identificador_codigo,nome,exige_namespace,formato_codigo,elegibilidade_deterministica,prioridade_resolucao)
+    VALUES(s.tipo_identificador_codigo,s.nome,1,s.formato_codigo,s.elegibilidade_deterministica,s.prioridade_resolucao)
 WHEN MATCHED THEN UPDATE SET
     nome=s.nome,
     formato_codigo=s.formato_codigo,
     elegibilidade_deterministica=s.elegibilidade_deterministica,
+    prioridade_resolucao=s.prioridade_resolucao,
     ativo=1;
+GO
+
+/* Invariante institucional: CPF é a referência de maior prioridade.
+   Nenhum outro tipo ativo pode empatar ou ultrapassá-lo. */
+IF EXISTS(
+    SELECT 1
+    FROM ref.tipo_identificador_pessoa cpf
+    JOIN ref.tipo_identificador_pessoa outro
+      ON outro.tipo_identificador_codigo<>'CPF' AND outro.ativo=1
+    WHERE cpf.tipo_identificador_codigo='CPF'
+      AND cpf.ativo=1
+      AND outro.prioridade_resolucao>=cpf.prioridade_resolucao)
+    THROW 51281,'CPF deve permanecer como identificador de maior prioridade de resolução.',1;
 GO
 
 IF OBJECT_ID('silver.pessoa_identificador_observacao','U') IS NULL
@@ -117,6 +144,14 @@ WHERE po.codigo_pessoa_origem IS NOT NULL
         AND i.namespace_codigo=b.codigo
         AND i.valor_normalizado=po.codigo_pessoa_origem);
 GO
+
+/* Semântica da hierarquia:
+   1. a maior prioridade elegível é a âncora principal da tentativa de resolução;
+   2. identificadores de menor prioridade continuam sendo verificados;
+   3. se outro identificador determinístico válido apontar para UUID incompatível,
+      a observação entra em CONFLITO_IDENTIDADE; prioridade nunca apaga divergência;
+   4. identificadores condicionais só participam deterministicamente após homologação
+      das respectivas regras de validação/namespace. */
 
 /* Não existe constraint exigindo ao menos um identificador. Isso é intencional:
    observações sem ID são válidas e seguem para resolução por atributos/linkage. */
