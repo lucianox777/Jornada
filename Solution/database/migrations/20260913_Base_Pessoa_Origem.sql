@@ -49,6 +49,16 @@ BEGIN
 END;
 GO
 
+/* Namespace institucional emitido pela própria Jornada.
+   É criado sem autorização automática: um sistema só pode usá-lo após vínculo explícito.
+   gestor_custodiante_id=NULL significa custódia da própria plataforma, não de uma Secretaria. */
+IF NOT EXISTS(SELECT 1 FROM ref.base_pessoa_origem WHERE codigo='JORNADA')
+BEGIN
+    INSERT ref.base_pessoa_origem(codigo,nome,gestor_custodiante_id,escopo,confianca_identidade)
+    VALUES('JORNADA','Identificador de Pessoa emitido pela Jornada',NULL,'COMPARTILHADA','HOMOLOGADA_DETERMINISTICA');
+END;
+GO
+
 /* Uma base privada por sistema existente. O prefixo SYS_ impede colisão com códigos
    institucionais compartilhados que venham a ser cadastrados futuramente. */
 INSERT ref.base_pessoa_origem(codigo,nome,gestor_custodiante_id,escopo,confianca_identidade)
