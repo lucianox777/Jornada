@@ -10,7 +10,7 @@ namespace Jornada.Linkage.Runner;
 /// Score probabilístico Fellegi-Sunter operacional para registros sem CPF.
 /// Modelos com ruleset persistido usam a projeção indexada identidade.blocking_chave.
 /// Modelos legados preservam integralmente o blocking histórico por data de nascimento.
-/// O modelo e seu ruleset são congelados juntos no primeiro carregamento do modelo no processo.
+/// Modelo, ruleset e referência de frequências são congelados juntos no primeiro carregamento.
 /// </summary>
 public sealed class SqlProbabilisticIdentityLinkage(
     IConfiguration configuration,
@@ -56,7 +56,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
         var snapshot = await GetOrLoadRuntimeSnapshotAsync(modeloId, ct);
         var model = snapshot.Model;
         var candidates = await LoadCandidatesAsync(observation, snapshot, ct);
-        return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
+        return ProbabilisticLinkageDecisions.Resolve(
+            model, observation, candidates, snapshot.PublicationNameFrequency);
     }
 
     private async Task<LinkageRuntimeSnapshot> GetOrLoadRuntimeSnapshotAsync(Guid modelId, CancellationToken ct)
@@ -67,17 +68,19 @@ public sealed class SqlProbabilisticIdentityLinkage(
         var model = await LoadModelByIdAsync(modelId, ct);
         await using var connection = await operationalSql.OpenAsync(ct);
         var ruleSet = await LinkageRuleSetReader.TryLoadAsync(connection, modelId, ct);
-        var loaded = new LinkageRuntimeSnapshot(model, ruleSet);
+        var publicationNameFrequency = await LoadPublicationNameFrequencyAsync(connection, modelId, ct);
+        var loaded = new LinkageRuntimeSnapshot(model, ruleSet, publicationNameFrequency);
         var snapshot = runtimeCache.GetOrAdd(modelId, loaded);
 
         logger.LogInformation(
-            "Snapshot probabilístico congelado. ModeloId={ModelId}; Versão={Version}; RuleSet={RuleSet}; RuleSetFingerprint={RuleSetFingerprint}; Projection={Projection}; ProjectionFingerprint={ProjectionFingerprint}",
+            "Snapshot probabilístico congelado. ModeloId={ModelId}; Versão={Version}; RuleSet={RuleSet}; RuleSetFingerprint={RuleSetFingerprint}; Projection={Projection}; ProjectionFingerprint={ProjectionFingerprint}; NameFrequencyKeys={NameFrequencyKeys}",
             snapshot.Model.ModelId,
             snapshot.Model.Version,
             snapshot.RuleSet?.RuleSetVersion ?? "LEGACY",
             snapshot.RuleSet?.FingerprintSha256 ?? "NONE",
             snapshot.RuleSet?.ProjectionSchemaVersion ?? "NONE",
-            snapshot.RuleSet?.ProjectionFingerprintSha256 ?? "NONE");
+            snapshot.RuleSet?.ProjectionFingerprintSha256 ?? "NONE",
+            snapshot.PublicationNameFrequency?.Count ?? 0);
 
         return snapshot;
     }
@@ -121,6 +124,51 @@ public sealed class SqlProbabilisticIdentityLinkage(
             model.AlgorithmVersion);
 
         return model;
+    }
+
+    private static async Task<IReadOnlyDictionary<string, decimal>?> LoadPublicationNameFrequencyAsync(
+        SqlConnection connection,
+        Guid modelId,
+        CancellationToken ct)
+    {
+        await using var command = new SqlCommand(
+            """
+            WITH target AS (
+                SELECT frequencia_nome_versao_id
+                FROM identidade.modelo_linkage
+                WHERE modelo_id=@modelo_id
+                  AND frequencia_nome_versao_id IS NOT NULL
+            ), base AS (
+                SELECT f.valor_normalizado,
+                       CONVERT(decimal(38,18),f.frequencia) AS frequencia
+                FROM ref.frequencia_nome f
+                JOIN target t ON t.frequencia_nome_versao_id=f.frequencia_nome_versao_id
+                WHERE f.tipo='NOME'
+                  AND f.escopo_geografico='BRASIL'
+                  AND f.uf_codigo='00'
+                  AND f.municipio_codigo='0000000'
+                  AND f.sexo='TODOS'
+                  AND f.periodo_nascimento='TODOS'
+            )
+            SELECT valor_normalizado,
+                   frequencia / NULLIF(SUM(frequencia) OVER(),0) AS probabilidade_publicada
+            FROM base
+            ORDER BY valor_normalizado;
+            """,
+            connection);
+        command.Parameters.Add("@modelo_id", SqlDbType.UniqueIdentifier).Value = modelId;
+
+        var result = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var key = reader.GetString(0);
+            var probability = reader.GetDecimal(1);
+            if (probability > 0m && probability < 1m)
+                result[key] = probability;
+        }
+
+        return result.Count == 0 ? null : result;
     }
 
     private async Task<IReadOnlyList<LinkageCandidate>> LoadCandidatesAsync(
