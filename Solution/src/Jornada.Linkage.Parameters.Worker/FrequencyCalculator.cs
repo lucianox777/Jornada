@@ -1,8 +1,9 @@
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
-/// Utilitário reservado para profiling/term-frequency adjustment futuro.
-/// O baseline FELLEGI_SUNTER_ANCHORED_V1 não materializa frequências de alta cardinalidade por modelo.
+/// Calcula frequência empírica de valores para profiling e term-frequency adjustment.
+/// Frequências populacionais externas (por exemplo IBGE) permanecem versionadas em
+/// catálogo próprio; este utilitário não substitui a proveniência da referência externa.
 /// </summary>
 public static class FrequencyCalculator
 {
