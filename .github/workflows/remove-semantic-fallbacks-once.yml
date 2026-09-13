@@ -12,6 +12,17 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: feat/remove-semantic-fallbacks
+      - name: Fix transient patch compatibility
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('Solution/scripts/remove-semantic-fallbacks-once.py')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace("d.get('schemas',d.get('entries'))", "d.get('contracts',d.get('schemas',d.get('entries')))")
+          s=s.replace("entries.append({'path':path,'sha256':h,'status':'PENDENTE'})", "entries.append({'path':path,'sha256':h,'status':'PENDENTE','approval':None})")
+          s=s.replace("write(p,json.dumps(d,ensure_ascii=False,indent=2)+'\\n')", "d['solutionSchema']='3.71'; write(p,json.dumps(d,ensure_ascii=False,indent=2)+'\\n')", 1)
+          p.write_text(s,encoding='utf-8')
+          PY
       - name: Apply semantic fallback patch
         run: python3 Solution/scripts/remove-semantic-fallbacks-once.py
       - name: Commit changes
