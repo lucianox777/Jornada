@@ -26,7 +26,7 @@ BEGIN TRY
     EXEC sys.sp_refreshsqlmodule N'ref.fn_email_canonico_v2';
 
     IF CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'))<>N'3.62'
-       OR CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'))<>N'3.70'
+       OR CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'))<>N'3.71'
         THROW 51988,'Marcador persistente do schema não corresponde a Base 3.62 / Solution 3.70.',1;
 
     IF ref.fn_email_canonico_v2(N'JOSÉ@EXAMPLE.ORG')<>N'josÉ@example.org'

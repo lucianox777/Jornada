@@ -230,15 +230,18 @@ internal sealed partial class SqlProcessorRepository
 
             if (string.Equals(attribute.AtributoCodigo, "ENDERECO_RESIDENCIAL", StringComparison.OrdinalIgnoreCase))
             {
-                // ENDERECO_RESIDENCIAL é dado cadastral de residência. Quando usado como fallback, sua geografia
-                // é persistida somente no snapshot de Referência Territorial DOMICILIAR; não há tabela geográfica paralela.
-                await InsertTerritorialReferenceAsync(connection, tx, attributeObservationId, TerritorialReferenceNature.DOMICILIAR,
-                    "ENDERECO_RESIDENCIAL", subprefeituraId, distritoId, attribute.SituacaoGeografia, attribute.Geografia, batch.DataReferencia, ct);
+                await InsertResidentialGeographyAsync(connection, tx, attributeObservationId, subprefeituraId, distritoId,
+                    attribute.SituacaoGeografia, attribute.Geografia, batch.DataReferencia, ct);
+                if (batch.PessoaSchemaVersao <= 3)
+                    await InsertTerritorialReferenceAsync(connection, tx, attributeObservationId, TerritorialReferenceNature.DOMICILIAR,
+                        "ENDERECO_RESIDENCIAL", subprefeituraId, distritoId, attribute.SituacaoGeografia, attribute.Geografia, batch.DataReferencia, ct);
             }
             else if (string.Equals(attribute.AtributoCodigo, "REFERENCIA_TERRITORIAL", StringComparison.OrdinalIgnoreCase))
             {
+                if (batch.PessoaSchemaVersao >= 4)
+                    throw new InvalidDataException("REFERENCIA_TERRITORIAL não é aceito pelo contrato corrente.");
                 if (!attribute.NaturezaReferenciaTerritorial.HasValue)
-                    throw new InvalidDataException("REFERENCIA_TERRITORIAL sem natureza declarada pela fonte.");
+                    throw new InvalidDataException("REFERENCIA_TERRITORIAL histórico sem natureza declarada pela fonte.");
                 await InsertTerritorialReferenceAsync(connection, tx, attributeObservationId, attribute.NaturezaReferenciaTerritorial.Value,
                     "REFERENCIA_TERRITORIAL", subprefeituraId, distritoId, attribute.SituacaoGeografia, attribute.Geografia, batch.DataReferencia, ct);
             }

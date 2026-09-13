@@ -43,12 +43,12 @@ for gestor in ['SEHAB','SMADS','SMDET','SMS']:
     hashes[gestor]=hashlib.sha256(out.encode()).hexdigest()
 
 # Governance inventory.
-p='config/governance/schema-approvals.json'; d=json.loads(read(p)); entries=d if isinstance(d,list) else d.get('schemas',d.get('entries'))
+p='config/governance/schema-approvals.json'; d=json.loads(read(p)); entries=d if isinstance(d,list) else d.get('contracts',d.get('schemas',d.get('entries')))
 if entries is None: raise SystemExit('schema approvals shape desconhecido')
 for gestor,h in hashes.items():
     path=f'config/contracts/gestores/{gestor}/pessoa/v4/pessoa.schema.json'
-    if not any(x.get('path')==path for x in entries): entries.append({'path':path,'sha256':h,'status':'PENDENTE'})
-write(p,json.dumps(d,ensure_ascii=False,indent=2)+'\n')
+    if not any(x.get('path')==path for x in entries): entries.append({'path':path,'sha256':h,'status':'PENDENTE','approval':None})
+d['solutionSchema']='3.71'; write(p,json.dumps(d,ensure_ascii=False,indent=2)+'\n')
 
 # Seed activates v4 while preserving v1-v3 historical.
 p='database/Jornada_Seed_Dev.sql'; s=read(p)

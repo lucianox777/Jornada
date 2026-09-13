@@ -253,7 +253,7 @@ Campos documentais admitidos no núcleo: `CPF`, `NOME_COMPLETO`, `DATA_NASCIMENT
 
 ## Enriquecimento geográfico interno
 
-Distrito e Subprefeitura são classificação histórica da `REFERENCIA_TERRITORIAL` selecionada. A fonte pode declarar referência `DOMICILIAR`, `ACOLHIMENTO_INSTITUCIONAL` ou `REFERENCIA_TERRITORIAL_DECLARADA`; esta última pode vir apenas com Distrito/Subprefeitura. Na ausência de referência explícita, `ENDERECO_RESIDENCIAL` pode originar um fallback `DOMICILIAR`; a partir daí, a leitura territorial usa o snapshot selecionado e não o endereço cadastral diretamente. Quando a referência possui endereço, ele é o Endereço de Referência daquela observação; quando não possui, Distrito/Subprefeitura bastam. A Jornada não infere referência a partir do local do atendimento e não expõe API territorial.
+Distrito e Subprefeitura são classificação histórica da `REFERENCIA_TERRITORIAL` selecionada. A fonte pode declarar referência `DOMICILIAR`, `ACOLHIMENTO_INSTITUCIONAL` ou `REFERENCIA_TERRITORIAL_DECLARADA`; esta última pode vir apenas com Distrito/Subprefeitura. A geografia de residência pertence diretamente a `ENDERECO_RESIDENCIAL`; a Jornada não cria referência territorial substituta quando essa informação estiver ausente. Quando a referência possui endereço, ele é o Endereço de Referência daquela observação; quando não possui, Distrito/Subprefeitura bastam. A Jornada não infere referência a partir do local do atendimento e não expõe API territorial.
 
 Não existe endpoint territorial da Jornada e não existem rotas da Jornada para descobrir Serviços por Distrito/Subprefeitura. A geografia é insumo interno/analítico, não contrato público.
 

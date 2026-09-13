@@ -331,6 +331,28 @@ internal sealed partial class SqlProcessorRepository
         return (subprefeituraId, distritoId);
     }
 
+    private static async Task InsertResidentialGeographyAsync(
+        SqlConnection connection, SqlTransaction tx, long attributeObservationId, long? subprefeituraId, long? distritoId,
+        GeographicResolutionStatus? status, ReferenceGeography? geography, DateTimeOffset sourceAsOf, CancellationToken ct)
+    {
+        if (!status.HasValue) throw new InvalidDataException("ENDERECO_RESIDENCIAL exige situacaoGeografia.");
+        await using var command = connection.CreateCommand();
+        command.Transaction = tx;
+        command.CommandText = """
+            INSERT silver.endereco_residencial_geografia_observacao(
+                pessoa_atributo_observacao_id,subprefeitura_id,distrito_id,situacao_geografia,origem_geografia,referencia_malha,resolvido_em,source_as_of)
+            VALUES(@atributo,@subprefeitura,@distrito,@situacao,'ORIGEM',@malha,@resolvido,@source_as_of);
+            """;
+        command.Parameters.AddWithValue("@atributo", attributeObservationId);
+        command.Parameters.Add(new SqlParameter("@subprefeitura", SqlDbType.BigInt) { Value=(object?)subprefeituraId ?? DBNull.Value });
+        command.Parameters.Add(new SqlParameter("@distrito", SqlDbType.BigInt) { Value=(object?)distritoId ?? DBNull.Value });
+        command.Parameters.Add(new SqlParameter("@situacao", SqlDbType.NVarChar, 30) { Value=status.Value.ToString() });
+        AddNullable(command,"@malha",SqlDbType.NVarChar,120,geography?.ReferenciaMalha);
+        command.Parameters.Add(new SqlParameter("@resolvido",SqlDbType.DateTimeOffset) { Value=(object?)geography?.ResolvidoEm ?? DBNull.Value });
+        command.Parameters.AddWithValue("@source_as_of",sourceAsOf);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
     private static async Task<TerritorialReferenceSelection> SelectTerritorialReferenceAsync(
         SqlConnection connection, SqlTransaction tx, long pessoaObservacaoId, CancellationToken ct)
     {

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "status": "PENDENTE",
   "baseNormativa": "3.62",
-  "solutionSchema": "3.70",
+  "solutionSchema": "3.71",
   "note": "Inventário criptográfico dos schemas contratuais. APROVADO exige aprovação individual e evidência real; hashes não equivalem a assinatura institucional.",
   "contracts": [
     {
@@ -230,6 +230,30 @@
     {
       "path": "config/contracts/registros/POT1/v1/registro.schema.json",
       "sha256": "e9dea336183debb4576952e39f6110e7e72f10df27971428d1e3d223359b510c",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SEHAB/pessoa/v4/pessoa.schema.json",
+      "sha256": "bc62c7c3abb76a43d1a89b5b254c3179948d819de76fcf93c9c43960299467ba",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SMADS/pessoa/v4/pessoa.schema.json",
+      "sha256": "4ba55cc1ab7f6edf22b38911a92f04ba5b88eb91ae1c1b9c08e6a0aeb0ffed0a",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SMDET/pessoa/v4/pessoa.schema.json",
+      "sha256": "b7b6d5d05d0b68550b63d93bf7616556526ef059a72874c4c25da541e334679d",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SMS/pessoa/v4/pessoa.schema.json",
+      "sha256": "cbf6a1751ef3666469a90c6fd906aa2e03f00cb7de9593c39446d7214938d60f",
       "status": "PENDENTE",
       "approval": null
     }

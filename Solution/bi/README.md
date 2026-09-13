@@ -33,7 +33,7 @@ Esses arquivos são fontes de BI, não projetos MSBuild/.NET. Por isso **não s�
 
 ## Linkage versionado
 
-`serving.v_bi_linkage` expõe o vínculo corrente com `modelo_fallback_versao`, `linkage_run_id`, estado/tipo do run e `T_LINKAGE`.
+`serving.v_bi_linkage` expõe o vínculo corrente com `modelo_linkage_versao`, `linkage_run_id`, estado/tipo do run e `T_LINKAGE`.
 `serving.v_bi_linkage_runs` expõe a história de execuções por versão, duração e contagens. Medidas de score devem ser segmentadas por `modelo_versao`; versões distintas não são agregadas como se fossem diretamente equivalentes.
 
 

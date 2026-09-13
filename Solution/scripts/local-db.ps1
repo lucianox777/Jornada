@@ -94,7 +94,7 @@ function Bootstrap {
     Invoke-SqlCmd -SqlCmdArgs @('-Q', "IF DB_ID(N'$db') IS NULL CREATE DATABASE [$db];")
     # Ponto único de instalação nova do SQL Server normativo. O consolidado v3.70
     # aplica todas as extensões operacionais e só promove o marcador após provar completude.
-    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/Jornada_Fase1_v3.70.sql')
+    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/Jornada_Fase1_v3.71.sql')
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/Jornada_Seed_Dev.sql')
     # Reaplicação idempotente necessária em DEV para reservar CPFs históricos do seed.
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260907_Cpf_Ancora.sql')
@@ -104,12 +104,12 @@ function Bootstrap {
 switch ($Action) {
     'up' {
         Invoke-Compose -ComposeArgs @('up','-d','sqlserver'); Wait-Healthy; Bootstrap
-        Write-Host "SQL Server Developer local pronto: localhost:$port / $db (schema 3.70)"
+        Write-Host "SQL Server Developer local pronto: localhost:$port / $db (schema 3.71)"
     }
     'reset' {
         Invoke-Compose -ComposeArgs @('up','-d','sqlserver'); Wait-Healthy
         Invoke-SqlCmd -SqlCmdArgs @('-Q', "IF DB_ID(N'$db') IS NOT NULL BEGIN ALTER DATABASE [$db] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$db]; END; CREATE DATABASE [$db];")
-        Bootstrap; Write-Host "Banco local recriado: $db (schema 3.70)"
+        Bootstrap; Write-Host "Banco local recriado: $db (schema 3.71)"
     }
     'down' { Invoke-Compose -ComposeArgs @('down') }
     'clean' { Invoke-Compose -ComposeArgs @('down','-v') }
