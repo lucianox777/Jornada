@@ -23,7 +23,8 @@ public sealed record IdentityTrainingPair(
 ///
 /// V3: data de nascimento é uma única evidência probabilística. Dia, mês e ano podem
 /// continuar sendo usados no blocking/diagnóstico, mas não recebem três likelihood ratios
-/// independentes no score.
+/// independentes no score. Parâmetros V2 são mantidos temporariamente apenas para gates
+/// PostgreSQL/replay já publicados; quando V3 está presente o scorer os ignora.
 /// </summary>
 public static class LinkageParameterEstimator
 {
@@ -52,6 +53,9 @@ public static class LinkageParameterEstimator
             ["T_LINKAGE"] = threshold,
             ["CONFLICT_MARGIN"] = conflictMargin,
             ["SCORING_BIRTH_SINGLE_EVIDENCE_V3"] = 1m,
+            // Compatibilidade temporária com o validador PostgreSQL V2. O scorer V3
+            // tem precedência e nunca soma os três componentes quando o flag acima existe.
+            ["SCORING_BIRTH_COMPONENTS_V2"] = 1m,
             ["PRIOR_MATCH_PROBABILITY"] = EstimateReferencePrior(populationSize, distinctBirthDates),
             ["PRIOR_BLOCK_MIN"] = 0.000001m,
             ["PRIOR_BLOCK_MAX"] = 0.25m
@@ -62,25 +66,18 @@ public static class LinkageParameterEstimator
         AddDistribution(result, "M_NOME_MAE", matchedPairs.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
         AddDistribution(result, "U_NOME_MAE", unmatchedPairs.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
 
-        AddBinaryDistribution(
-            result,
-            "M_DATA_NASCIMENTO",
-            matchedPairs.Select(p => p.LeftBirthDate == p.RightBirthDate),
-            smoothingAlpha);
-        AddBinaryDistribution(
-            result,
-            "U_DATA_NASCIMENTO",
-            unmatchedPairs.Select(p => p.LeftBirthDate == p.RightBirthDate),
-            smoothingAlpha);
+        AddBinaryDistribution(result, "M_DATA_NASCIMENTO", matchedPairs.Select(p => p.LeftBirthDate == p.RightBirthDate), smoothingAlpha);
+        AddBinaryDistribution(result, "U_DATA_NASCIMENTO", unmatchedPairs.Select(p => p.LeftBirthDate == p.RightBirthDate), smoothingAlpha);
 
-        // Somente auditoria/diagnóstico de padrões de erro. Estes parâmetros não são
-        // consumidos pelo scorer V3 e, portanto, não geram tripla contagem de nascimento.
-        AddBinaryDistribution(result, "AUDIT_M_NASC_DIA", matchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day), smoothingAlpha);
-        AddBinaryDistribution(result, "AUDIT_M_NASC_MES", matchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month), smoothingAlpha);
-        AddBinaryDistribution(result, "AUDIT_M_NASC_ANO", matchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year), smoothingAlpha);
-        AddBinaryDistribution(result, "AUDIT_U_NASC_DIA", unmatchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day), smoothingAlpha);
-        AddBinaryDistribution(result, "AUDIT_U_NASC_MES", unmatchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month), smoothingAlpha);
-        AddBinaryDistribution(result, "AUDIT_U_NASC_ANO", unmatchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year), smoothingAlpha);
+        // Compatibilidade/auditoria dos componentes. São persistidos com os nomes V2
+        // porque o validador PostgreSQL existente ainda os exige, mas não participam do
+        // likelihood ratio quando SCORING_BIRTH_SINGLE_EVIDENCE_V3=1.
+        AddBinaryDistribution(result, "M_NASC_DIA", matchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day), smoothingAlpha);
+        AddBinaryDistribution(result, "M_NASC_MES", matchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month), smoothingAlpha);
+        AddBinaryDistribution(result, "M_NASC_ANO", matchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year), smoothingAlpha);
+        AddBinaryDistribution(result, "U_NASC_DIA", unmatchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day), smoothingAlpha);
+        AddBinaryDistribution(result, "U_NASC_MES", unmatchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month), smoothingAlpha);
+        AddBinaryDistribution(result, "U_NASC_ANO", unmatchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year), smoothingAlpha);
 
         return result;
     }
