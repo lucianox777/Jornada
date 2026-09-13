@@ -51,6 +51,17 @@ public sealed class MultiplePersonIdentifiersMigrationTests
         Assert.That(sql, Does.Contain("('UUID_JORNADA','UUID publicado pela Jornada','JORNADA','UUID_V1','DETERMINISTICA','RETROALIMENTACAO_INTERNA',CAST(NULL AS SMALLINT))"));
         Assert.That(sql, Does.Contain("outro.papel_resolucao='EXTERNO_HIERARQUICO'"));
         Assert.That(sql, Does.Contain("CPF deve permanecer como identificador externo de maior prioridade de resolução"));
-        Assert.That(sql, Does.Contain("UUID_JORNADA é consultado primeiro como continuidade interna"));
+    }
+
+    [Test]
+    public void Cpf_to_uuid_anchor_is_permanent_and_feedback_mismatch_is_not_identity_voting()
+    {
+        var sql = File.ReadAllText(MigrationPath);
+
+        Assert.That(sql, Does.Contain("mesmo CPF -> mesmo UUID âncora"));
+        Assert.That(sql, Does.Contain("nenhuma outra evidência recalcula essa relação"));
+        Assert.That(sql, Does.Contain("INCONSISTENCIA_RETROALIMENTACAO"));
+        Assert.That(sql, Does.Contain("isso não é disputa de âncoras"));
+        Assert.That(sql, Does.Contain("redireciona legitimamente ao UUID do CPF"));
     }
 }
