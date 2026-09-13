@@ -32,8 +32,6 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p["PRIOR_BLOCK_MAX"], Is.EqualTo(0.25m));
             Assert.That(p["SCORING_BIRTH_COMPONENTS_V2"], Is.EqualTo(1m));
             Assert.That(p.Keys.Any(static x => x.StartsWith("BLOCKING_", StringComparison.Ordinal)), Is.False);
-            Assert.That(p["M_NOME_MAE_SAMPLE_SIZE"], Is.EqualTo(2m));
-            Assert.That(p["U_NOME_MAE_SAMPLE_SIZE"], Is.EqualTo(2m));
 
             Assert.That(p.ContainsKey("M_NASC_DIA_EXACT"), Is.True);
             Assert.That(p.ContainsKey("M_NASC_DIA_DIFF"), Is.True);
@@ -66,8 +64,8 @@ public sealed class LinkageParameterEstimatorTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(p["M_NOME_MAE_SAMPLE_SIZE"], Is.EqualTo(1m));
-            Assert.That(p["U_NOME_MAE_SAMPLE_SIZE"], Is.EqualTo(1m));
+            Assert.That(p.ContainsKey("M_NOME_MAE_SAMPLE_SIZE"), Is.False);
+            Assert.That(p.ContainsKey("U_NOME_MAE_SAMPLE_SIZE"), Is.False);
             Assert.That(p["M_NOME_MAE_EXACT"], Is.GreaterThan(p["M_NOME_MAE_LOW"]));
             Assert.That(p["U_NOME_MAE_LOW"], Is.GreaterThan(p["U_NOME_MAE_EXACT"]));
         });
