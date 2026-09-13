@@ -56,6 +56,9 @@ public sealed class SqlProbabilisticIdentityLinkage(
         var snapshot = await GetOrLoadRuntimeSnapshotAsync(modeloId, ct);
         var model = snapshot.Model;
         var candidates = await LoadCandidatesAsync(observation, snapshot, ct);
+        if (snapshot.PublicationNameFrequency is null)
+            return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
+
         return ProbabilisticLinkageDecisions.Resolve(
             model, observation, candidates, snapshot.PublicationNameFrequency);
     }
