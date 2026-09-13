@@ -13,11 +13,14 @@ internal sealed record LinkageModel(
 }
 
 /// <summary>
-/// Snapshot operacional imutável de um modelo consumível e do ruleset que governa seu blocking.
-/// Um modelo validado é semanticamente imutável; congelar o par evita reler regras durante cada
-/// observação e impede que um mesmo processo misture gerações de blocking para o mesmo modelo.
+/// Snapshot operacional imutável de um modelo consumível, de seu ruleset e da referência
+/// estatística congelada por modelo. Nenhuma alteração da referência ATIVA durante o processo
+/// pode reendereçar o score de um modelo já carregado.
 /// </summary>
-internal sealed record LinkageRuntimeSnapshot(LinkageModel Model, LinkageDynamicRuleSet? RuleSet)
+internal sealed record LinkageRuntimeSnapshot(
+    LinkageModel Model,
+    LinkageDynamicRuleSet? RuleSet,
+    IReadOnlyDictionary<string, decimal>? PublicationNameFrequency = null)
 {
     internal ProbabilisticLinkageModelRef Reference => Model.Reference with
     {
@@ -137,9 +140,10 @@ internal static class ProbabilisticLinkageDecisions
                 var candidateMotherProbability = NameFrequencyStratification.ResolvePublicationKeyProbability(
                     publicationNameFrequency, candidate.NomeMae);
 
-                // Para uma comparação entre duas chaves usamos a maior frequência marginal
-                // como estrato conservador: se qualquer lado é comum, não tratamos a evidência
-                // como rara. EXACT naturalmente terá a mesma chave/frequência nos dois lados.
+                // A maior frequência marginal é a estatística pareada conservadora da V1:
+                // basta um dos lados ser comum para a evidência não ser tratada como rara.
+                // A regra é parte da versão do algoritmo e pode ser substituída por nova
+                // metodologia calibrada sem alterar modelos históricos.
                 var nameProbability = ConservativeProbability(observationNameProbability, candidateNameProbability);
                 var motherProbability = ConservativeProbability(observationMotherProbability, candidateMotherProbability);
                 var nameStratum = NameFrequencyStratification.Classify(model.Parameters, "NOME", nameProbability);
