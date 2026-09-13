@@ -2,7 +2,7 @@
 
 ## Decisão arquitetural corrente
 
-A Jornada adota **Microsoft SQL Server como tecnologia relacional normativa e banco relacional operacional de Produção**. SQL Server 2022 Developer/Testcontainers permanece o baseline obrigatório de desenvolvimento, CI e validação ordinária de release; a edição efetiva de Produção será definida pela implantação institucional, sem transformar a edição Developer em requisito de Produção.
+A Jornada adota **Microsoft SQL Server como tecnologia relacional normativa e banco relacional operacional de Produção**. A **baseline obrigatória** de desenvolvimento, CI e validação ordinária de release permanece SQL Server 2022 Developer/Testcontainers; a edição efetiva de Produção será definida pela implantação institucional, sem transformar a edição Developer em requisito de Produção.
 
 **SQL Database in Microsoft Fabric não é alvo operacional de Produção nem gate de release da candidata v5.00.** O harness Fabric e as evidências já produzidas permanecem úteis exclusivamente como prova de compatibilidade técnica e como histórico de engenharia. Eles não devem ser interpretados como requisito de homologação para o corte v5.00 enquanto Fabric não fizer parte do alvo operacional da release.
 
