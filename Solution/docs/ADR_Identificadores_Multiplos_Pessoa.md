@@ -38,60 +38,88 @@ UUID_JORNADA / JORNADA / <uuid>
 
 O valor textual sozinho nunca é suficiente para tipos cujo namespace faz parte da identidade do documento.
 
-## Hierarquia de resolução
+## CPF e hierarquia externa
 
-Os identificadores possuem prioridade explícita de resolução. A ordem inicial normativa é:
+A hierarquia aplica-se aos identificadores **externos** usados pela Jornada para reconhecer a Pessoa quando ela ainda precisa resolver a identidade.
+
+A ordem inicial é:
 
 ```text
 100  CPF
- 90  UUID_JORNADA
  80  CODIGO_BASE_ORIGEM homologado
  70  CNS validado/homologado
  60  RG qualificado e validado/homologado
- 10  OUTRO
 ```
 
-O CPF é obrigatoriamente o identificador de maior prioridade da Jornada. Nenhum outro tipo ativo pode empatar ou ultrapassá-lo.
+`OUTRO` permanece fora da hierarquia até possuir política institucional própria.
 
-A hierarquia possui duas funções:
+O CPF é obrigatoriamente o identificador externo de maior prioridade. Isso é coerente com a Lei nº 14.534/2023, que estabelece o CPF como número único e suficiente para identificação do cidadão nos bancos de dados de serviços públicos, e com a redação vigente da Lei nº 9.454/1997, segundo a qual o CPF é único e definitivo para cada pessoa física.
 
-1. definir qual identificador elegível funciona como âncora principal da tentativa de resolução;
-2. estabelecer ordem determinística de avaliação quando vários identificadores estão disponíveis.
+A prioridade não transforma um identificador condicional em determinístico. CNS, RG e código de base só podem atuar deterministicamente quando suas regras de validação, namespace e homologação permitirem.
 
-A hierarquia **não** significa que identificadores inferiores possam ser ignorados. Depois de selecionar a âncora principal, os demais identificadores determinísticos válidos continuam sendo conferidos.
+## UUID Jornada fora da hierarquia
 
-Assim:
+`UUID_JORNADA` não participa da hierarquia externa.
+
+Ele representa uma identidade que a própria Jornada já resolveu e publicou anteriormente. Quando um sistema integrado devolve esse UUID numa transmissão posterior, ocorre um ciclo de retroalimentação:
 
 ```text
-CPF -> UUID A
-UUID_JORNADA -> UUID A
-=> RESOLVIDO em UUID A, com CPF como âncora principal
-
-CPF -> UUID A
-UUID_JORNADA -> UUID B
-=> CONFLITO_IDENTIDADE
+observação sem UUID Jornada
+    -> Jornada resolve a Pessoa
+    -> Jornada publica pessoa_uuid
+    -> sistema de origem armazena o UUID
+    -> transmissão futura devolve UUID Jornada
+    -> Jornada reencontra a identidade já conhecida
 ```
 
-O CPF continua sendo a referência principal, mas a contradição é preservada e exige trilha de divergência/correção governada. A Jornada não sobrescreve silenciosamente o UUID B nem finge que o conflito não existe.
+Portanto, `UUID_JORNADA` tem `papel_resolucao = RETROALIMENTACAO_INTERNA` e `prioridade_resolucao = NULL`.
 
-A prioridade também não transforma um identificador condicional em determinístico. CNS, RG e código de base só podem atuar deterministicamente quando suas regras de validação, namespace e homologação permitirem.
+Seu tratamento é próprio:
+
+1. deve existir na trilha de identidade da Jornada ou ser redirecionável por uma fusão válida;
+2. nunca cria implicitamente uma Pessoa nova;
+3. serve para continuidade e idempotência semântica da relação com a Jornada;
+4. não concorre com CPF, CNS, RG ou código da base como se fosse outro documento externo.
+
+Quando UUID Jornada retornado e CPF válido convergem para a mesma Pessoa, a retroalimentação está consistente.
+
+Quando divergem, o CPF continua sendo o identificador legal externo suficiente, mas a divergência do UUID Jornada não é descartada: ela representa uma ocorrência de integridade da retroalimentação que exige trilha de correção governada.
+
+Exemplo:
+
+```text
+UUID_JORNADA recebido -> UUID A
+CPF válido            -> identidade correspondente a UUID B
+
+=> divergência de retroalimentação / CONFLITO_IDENTIDADE
+=> CPF ancora a identificação externa
+=> UUID recebido é preservado para diagnóstico e correção
+```
 
 ## Tipos iniciais
 
-- `CPF`: namespace `BR`; prioridade 100; rota determinística governada pela Jornada;
-- `UUID_JORNADA`: namespace `JORNADA`; prioridade 90; determinístico por lookup/redirecionamento, nunca por criação implícita;
-- `CODIGO_BASE_ORIGEM`: prioridade 80; determinístico apenas para base homologada;
-- `CNS`: namespace `BR`; prioridade 70; armazenável, com elegibilidade determinística condicionada à validação específica;
-- `RG`: prioridade 60; exige emissor e UF e elegibilidade determinística condicionada; número isolado não é globalmente único;
-- `OUTRO`: prioridade 10; identificador institucional extensível, sem resolução automática por padrão.
+- `CPF`: namespace `BR`; prioridade externa 100; rota determinística governada pela Jornada;
+- `CODIGO_BASE_ORIGEM`: prioridade externa 80; determinístico apenas para base homologada;
+- `CNS`: namespace `BR`; prioridade externa 70; armazenável, com elegibilidade determinística condicionada à validação específica;
+- `RG`: prioridade externa 60; exige emissor e UF e elegibilidade determinística condicionada; número isolado não é globalmente único;
+- `UUID_JORNADA`: namespace `JORNADA`; fora da hierarquia, papel `RETROALIMENTACAO_INTERNA`, determinístico somente por lookup/redirecionamento;
+- `OUTRO`: fora da hierarquia, sem resolução automática por padrão.
 
 ## Múltiplos identificadores
 
 A presença de múltiplos identificadores não cria múltiplas Pessoas. Todos pertencem à mesma observação recebida.
 
-A resolução avalia cada identificador segundo sua política e prioridade. Identificadores válidos e determinísticos devem convergir para o mesmo `pessoa_uuid`.
+A resolução distingue duas etapas:
 
-Se dois ou mais identificadores determinísticos válidos apontarem para UUIDs distintos, a Jornada não escolhe um resultado final apenas por prioridade. O resultado é conflito de identidade, com trilha de divergência e correção governada.
+```text
+1. continuidade interna
+   UUID_JORNADA, se presente
+
+2. identificação externa
+   CPF > código de base homologado > CNS > RG
+```
+
+Os resultados das duas etapas devem ser reconciliados. A Jornada não deve esconder divergências entre o retorno de um UUID antigo e a identificação externa atualmente válida.
 
 ## Observação sem identificador
 
