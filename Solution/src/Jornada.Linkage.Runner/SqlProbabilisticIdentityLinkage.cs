@@ -271,7 +271,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
                 reader.GetGuid(0),
                 reader.GetString(1),
                 DateOnly.FromDateTime(reader.GetDateTime(2)),
-                reader.GetString(3)));
+                reader.IsDBNull(3) ? null : reader.GetString(3)));
             if (result.Count > maxCandidates)
                 throw new InvalidOperationException(
                     $"Candidate generation de nascimento {birthDate:yyyy-MM-dd} excede MaxCandidatesPerBlock={maxCandidates}; " +

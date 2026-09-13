@@ -67,7 +67,7 @@ internal sealed record ParsedPerson(
     string? CpfAusenteMotivo,
     string NomeCompleto,
     DateOnly DataNascimento,
-    string NomeMae,
+    string? NomeMae,
     IReadOnlyList<ParsedTransversalAttribute> Atributos,
     IReadOnlyList<ParsedDocumentVerification> ConferenciasDocumentais);
 
@@ -296,7 +296,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
                 OptionalString(json, "cpfAusenteMotivo"),
                 RequiredString(json, "nomeCompleto"),
                 RequiredDate(json, "dataNascimento"),
-                RequiredString(json, "nomeMae"),
+                OptionalString(json, "nomeMae"),
                 attributes,
                 verifications));
         }

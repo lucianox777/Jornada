@@ -78,7 +78,7 @@ internal static class BlockingProjectionCandidateLoader
                 reader.GetGuid(0),
                 reader.GetString(1),
                 ReadDateOnly(reader, 2),
-                reader.GetString(3)));
+                reader.IsDBNull(3) ? null : reader.GetString(3)));
 
             if (result.Count > maxCandidates)
             {

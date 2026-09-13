@@ -292,7 +292,7 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
                 return new IdentityCore(
                     reader.GetString(0),
                     DateOnly.FromDateTime(reader.GetDateTime(1)),
-                    reader.GetString(2));
+                    reader.IsDBNull(2) ? null : reader.GetString(2));
             }
         }
 
@@ -313,7 +313,7 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
         return new IdentityCore(
             silverReader.GetString(0),
             DateOnly.FromDateTime(silverReader.GetDateTime(1)),
-            silverReader.GetString(2));
+            silverReader.IsDBNull(2) ? null : silverReader.GetString(2));
     }
 }
 

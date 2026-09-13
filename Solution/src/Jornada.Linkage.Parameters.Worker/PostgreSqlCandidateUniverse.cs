@@ -119,7 +119,7 @@ public sealed class PostgreSqlCandidateUniverse
                     var candidateId = reader.GetGuid(0);
                     var candidateDate = DateOnly.FromDateTime(reader.GetDateTime(2));
                     var mask = (BirthBlockingPass)reader.GetInt32(4);
-                    if (mask == BirthBlockingPass.None || mask != plan.Match(candidateDate, reader.GetString(1), reader.GetString(3)))
+                    if (mask == BirthBlockingPass.None || mask != plan.Match(candidateDate, reader.GetString(1), reader.IsDBNull(3) ? null : reader.GetString(3)))
                         throw new InvalidOperationException("Divergência entre blocking SQL e plano compartilhado; captura interrompida.");
                     if (!seen.Add(candidateId))
                         throw new InvalidOperationException("UUID duplicado no universo de candidatos.");

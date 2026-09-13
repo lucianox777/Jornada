@@ -31,7 +31,7 @@ internal sealed record LinkageRuntimeSnapshot(LinkageModel Model, LinkageDynamic
     };
 }
 
-internal sealed record LinkageCandidate(Guid PessoaUuid, string NomeCompleto, DateOnly DataNascimento, string NomeMae);
+internal sealed record LinkageCandidate(Guid PessoaUuid, string NomeCompleto, DateOnly DataNascimento, string? NomeMae);
 internal sealed record CandidateScore(Guid PessoaUuid, decimal Score);
 
 internal static class LinkageModelPolicy

@@ -53,7 +53,7 @@ internal static class BlockingProjectionPersistence
             if (!await reader.ReadAsync(ct))
                 return BlockingProjectionSnapshot.Empty;
             currentName = reader.GetString(0);
-            currentMother = reader.GetString(1);
+            currentMother = reader.IsDBNull(1) ? null : reader.GetString(1);
             currentBirth = DateOnly.FromDateTime(reader.GetDateTime(2));
             currentAsOf = reader.GetDateTimeOffset(3);
         }
@@ -180,7 +180,7 @@ internal static class BlockingProjectionPersistence
             if (!await reader.ReadAsync(ct))
                 return BlockingProjectionSnapshot.Empty;
             currentName = reader.GetString(0);
-            currentMother = reader.GetString(1);
+            currentMother = reader.IsDBNull(1) ? null : reader.GetString(1);
             currentBirth = reader.GetFieldValue<DateOnly>(2);
             currentAsOf = reader.GetFieldValue<DateTimeOffset>(3);
         }
