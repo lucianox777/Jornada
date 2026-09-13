@@ -66,6 +66,12 @@
       "approval": null
     },
     {
+      "path": "config/contracts/gestores/SMADS/pessoa/v4/pessoa.schema.json",
+      "sha256": "a2d490cb8974103cc34137f030bbecb3c09d91faa2698b6e2ae510cbccc1cf49",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
       "path": "config/contracts/gestores/SMDET/pessoa/v1/pessoa.json",
       "sha256": "2f406c06eb2c11bbf6638295d0f40c9b30e70804003b2c59c6a807c9c8f6e906",
       "status": "PENDENTE",
