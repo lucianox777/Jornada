@@ -38,32 +38,60 @@ UUID_JORNADA / JORNADA / <uuid>
 
 O valor textual sozinho nunca é suficiente para tipos cujo namespace faz parte da identidade do documento.
 
-## Tipos iniciais
+## Hierarquia de resolução
 
-- `CPF`: namespace `BR`; rota determinística já governada pela Jornada;
-- `CNS`: namespace `BR`; armazenável, mas elegibilidade determinística depende de validação específica;
-- `RG`: exige emissor e UF; número de RG isolado não é globalmente único;
-- `CODIGO_BASE_ORIGEM`: código interno emitido por `base_pessoa_origem`;
-- `UUID_JORNADA`: UUID publicado pela própria Jornada;
-- `OUTRO`: identificador institucional extensível, sem resolução automática por padrão.
+Os identificadores possuem prioridade explícita de resolução. A ordem inicial normativa é:
 
-## Múltiplos identificadores
+```text
+100  CPF
+ 90  UUID_JORNADA
+ 80  CODIGO_BASE_ORIGEM homologado
+ 70  CNS validado/homologado
+ 60  RG qualificado e validado/homologado
+ 10  OUTRO
+```
 
-A presença de múltiplos identificadores não cria múltiplas Pessoas. Todos pertencem à mesma observação recebida.
+O CPF é obrigatoriamente o identificador de maior prioridade da Jornada. Nenhum outro tipo ativo pode empatar ou ultrapassá-lo.
 
-A resolução deve primeiro avaliar cada identificador segundo sua política. Se os identificadores determinísticos válidos convergirem para o mesmo `pessoa_uuid`, a observação pode ser resolvida para esse UUID.
+A hierarquia possui duas funções:
 
-Se dois ou mais identificadores determinísticos válidos apontarem para UUIDs distintos, a Jornada NÃO escolhe um por prioridade. O resultado é conflito de identidade, com trilha de divergência e correção governada.
+1. definir qual identificador elegível funciona como âncora principal da tentativa de resolução;
+2. estabelecer ordem determinística de avaliação quando vários identificadores estão disponíveis.
+
+A hierarquia **não** significa que identificadores inferiores possam ser ignorados. Depois de selecionar a âncora principal, os demais identificadores determinísticos válidos continuam sendo conferidos.
+
+Assim:
 
 ```text
 CPF -> UUID A
 UUID_JORNADA -> UUID A
-=> convergente
+=> RESOLVIDO em UUID A, com CPF como âncora principal
 
 CPF -> UUID A
 UUID_JORNADA -> UUID B
 => CONFLITO_IDENTIDADE
 ```
+
+O CPF continua sendo a referência principal, mas a contradição é preservada e exige trilha de divergência/correção governada. A Jornada não sobrescreve silenciosamente o UUID B nem finge que o conflito não existe.
+
+A prioridade também não transforma um identificador condicional em determinístico. CNS, RG e código de base só podem atuar deterministicamente quando suas regras de validação, namespace e homologação permitirem.
+
+## Tipos iniciais
+
+- `CPF`: namespace `BR`; prioridade 100; rota determinística governada pela Jornada;
+- `UUID_JORNADA`: namespace `JORNADA`; prioridade 90; determinístico por lookup/redirecionamento, nunca por criação implícita;
+- `CODIGO_BASE_ORIGEM`: prioridade 80; determinístico apenas para base homologada;
+- `CNS`: namespace `BR`; prioridade 70; armazenável, com elegibilidade determinística condicionada à validação específica;
+- `RG`: prioridade 60; exige emissor e UF e elegibilidade determinística condicionada; número isolado não é globalmente único;
+- `OUTRO`: prioridade 10; identificador institucional extensível, sem resolução automática por padrão.
+
+## Múltiplos identificadores
+
+A presença de múltiplos identificadores não cria múltiplas Pessoas. Todos pertencem à mesma observação recebida.
+
+A resolução avalia cada identificador segundo sua política e prioridade. Identificadores válidos e determinísticos devem convergir para o mesmo `pessoa_uuid`.
+
+Se dois ou mais identificadores determinísticos válidos apontarem para UUIDs distintos, a Jornada não escolhe um resultado final apenas por prioridade. O resultado é conflito de identidade, com trilha de divergência e correção governada.
 
 ## Observação sem identificador
 
