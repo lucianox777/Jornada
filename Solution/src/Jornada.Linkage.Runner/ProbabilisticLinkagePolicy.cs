@@ -36,8 +36,15 @@ internal sealed record CandidateScore(Guid PessoaUuid, decimal Score);
 
 internal static class LinkageModelPolicy
 {
+    private const string SingleBirthScoringParameter = "SCORING_BIRTH_SINGLE_EVIDENCE_V3";
     private const string BirthComponentScoringParameter = "SCORING_BIRTH_COMPONENTS_V2";
     private const string LegacyBirthComponentScoringParameter = "BLOCKING_BIRTH_COMPONENTS_V2";
+
+    private static readonly string[] SingleBirthParameters =
+    [
+        "M_DATA_NASCIMENTO_EXACT", "M_DATA_NASCIMENTO_DIFF",
+        "U_DATA_NASCIMENTO_EXACT", "U_DATA_NASCIMENTO_DIFF"
+    ];
 
     private static readonly string[] BirthComponentParameters =
     [
@@ -62,16 +69,30 @@ internal static class LinkageModelPolicy
             throw new InvalidOperationException($"Modelo incompleto. Parâmetros ausentes: {string.Join(", ", missing)}");
         var model = new LinkageModel(modelId, version, algorithm, parameters,
             parameters["T_LINKAGE"], parameters["CONFLICT_MARGIN"]);
-        // An enabled V2 must never silently fall back to V1 because its model is incomplete.
+
+        _ = SupportsSingleBirthScoring(model);
         _ = SupportsBirthComponentScoring(model);
         return model;
     }
 
+    internal static bool SupportsSingleBirthScoring(LinkageModel model)
+    {
+        if (!model.Parameters.TryGetValue(SingleBirthScoringParameter, out var enabled) || enabled < 1m)
+            return false;
+
+        var missing = SingleBirthParameters.Where(x => !model.Parameters.ContainsKey(x)).ToArray();
+        if (missing.Length > 0)
+            throw new InvalidOperationException($"Modelo V3 incompleto. Parâmetros de nascimento ausentes: {string.Join(", ", missing)}");
+        return true;
+    }
+
     internal static bool SupportsBirthComponentScoring(LinkageModel model)
     {
-        // Novos modelos usam SCORING_ porque isto seleciona o cálculo Fellegi-Sunter,
-        // não a geração de candidatos. O alias BLOCKING_ é aceito somente para leitura
-        // de modelos históricos e seeds já publicados.
+        // V3 ainda pode usar os passes ampliados de blocking de nascimento, embora o
+        // score trate a data como uma única evidência. V2 permanece somente para replay.
+        if (SupportsSingleBirthScoring(model))
+            return true;
+
         var enabled = model.Parameters.TryGetValue(BirthComponentScoringParameter, out var current)
             ? current
             : model.Parameters.TryGetValue(LegacyBirthComponentScoringParameter, out var legacy)
@@ -97,7 +118,7 @@ internal static class ProbabilisticLinkageDecisions
             return new ProbabilisticLinkageDecision(
                 ResolutionStatus.NAO_RESOLVIDO, null, null, 0m, null, null, null, model.ModelId,
                 LinkageModelPolicy.SupportsBirthComponentScoring(model)
-                    ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_COMPONENTE"
+                    ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_AMPLIADOS"
                     : "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO");
 
         var scored = candidates
