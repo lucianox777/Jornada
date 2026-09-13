@@ -70,10 +70,11 @@ public sealed record AccessContext(
 
 /// <summary>
 /// Manifesto obrigatório dentro do ZIP de ingestão. O envelope é único: manifest.json + pessoas.jsonl + registros.jsonl.
-/// Toda Entrega declara codigoSistemaOrigem. codigoBasePessoaOrigem identifica o namespace cadastral que atribuiu
-/// codigoPessoaOrigem; quando ausente, o runtime deve usar exclusivamente a base padrão autorizada do sistema.
-/// O contexto factual (Natureza/CodigoTipo/TipoVersao) é opcional quando registros.jsonl está vazio e obrigatório quando
-/// houver Benefícios Concedidos ou Serviços Prestados. A finalística nunca envia número de versão do fato.
+/// Toda Entrega declara codigoSistemaOrigem. codigoBasePessoaOrigem é opcional para compatibilidade; quando omitido,
+/// o runtime usa a base padrão autorizada do sistema. O código reservado JORNADA representa identificador emitido
+/// pela própria plataforma e só pode ser usado por sistemas explicitamente autorizados para essa base.
+/// O contexto factual (Natureza/CodigoTipo/TipoVersao) é opcional quando registros.jsonl está vazio e obrigatório
+/// quando houver Benefícios Concedidos ou Serviços Prestados. A finalística nunca envia número de versão do fato.
 /// </summary>
 public sealed record IngestionPackageManifest(
     int FormatoVersao,
