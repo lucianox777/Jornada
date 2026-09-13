@@ -94,7 +94,7 @@ public sealed class PostgreSqlCandidateSampler
             var date = DateOnly.FromDateTime(reader.GetDateTime(2));
             var mask = (BirthBlockingPass)reader.GetInt32(4);
             if (id == Guid.Empty || !seen.Add(id) || mask == BirthBlockingPass.None ||
-                mask != plan.Match(date, reader.GetString(1), reader.GetString(3)))
+                mask != plan.Match(date, reader.GetString(1), reader.IsDBNull(3) ? null : reader.GetString(3)))
                 throw new InvalidOperationException("Divergência entre blocking SQL e plano compartilhado.");
             result.Add(new CandidateSamplingCandidate(id, mask));
         }
