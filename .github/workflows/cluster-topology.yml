@@ -103,11 +103,15 @@ jobs:
             test -f /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll &&
             test -f /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll &&
             test -f /opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll &&
-            test -f /opt/jornada/tools/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.dll
+            test -f /opt/jornada/tools/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.dll &&
+            test -f /opt/jornada/clients/Jornada.Integrador/Jornada.Integrador.CSharp.dll
           '
-          running=$(docker compose --env-file .env exec -T jornada-node2 sh -lc "ps -ef | grep -E 'Jornada.Linkage.(Parameters.Worker|Runner)|Jornada.Bronze.Verify|Jornada.Linkage.Evaluation' | grep -v grep || true")
+          docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll --help >/dev/null
+          docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/tools/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.dll --help >/dev/null
+          docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/clients/Jornada.Integrador/Jornada.Integrador.CSharp.dll --help >/dev/null
+          running=$(docker compose --env-file .env exec -T jornada-node2 sh -lc "ps -ef | grep -E 'Jornada.Linkage.(Parameters.Worker|Runner)|Jornada.Bronze.Verify|Jornada.Linkage.Evaluation|Jornada.Integrador.CSharp' | grep -v grep || true")
           test -z "$running"
-          echo 'ONE-SHOT TOOLS PRESENT AND NOT RESIDENT: OK'
+          echo 'ONE-SHOT TOOLS PRESENT, INVOCABLE AND NOT RESIDENT: OK'
 
       - name: Prove Linkage is blocked before Calibrator
         shell: bash

@@ -90,9 +90,11 @@ function Show-Endpoints {
     Write-Host '  Linkage:             .\scripts\local-cluster.ps1 linkage'
     Write-Host '    /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll'
     Write-Host '  Bronze Verify:'
-    Write-Host '    docker compose exec jornada-node2 dotnet /opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll --help'
+    Write-Host '    docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll --help'
     Write-Host '  Linkage Evaluation (DEV/HML only):'
-    Write-Host '    docker compose exec jornada-node2 dotnet /opt/jornada/tools/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.dll --help'
+    Write-Host '    docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/tools/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.dll --help'
+    Write-Host '  Integrador C#:'
+    Write-Host '    docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/clients/Jornada.Integrador/Jornada.Integrador.CSharp.dll --help'
 }
 
 function Start-Nodes([switch]$Build) {
