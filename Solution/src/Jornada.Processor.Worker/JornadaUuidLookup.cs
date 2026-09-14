@@ -10,6 +10,8 @@ internal sealed record JornadaUuidLookupResult(
 
 internal static class JornadaUuidLookup
 {
+    private const int MaxRedirectDepth = 32;
+
     public static async Task<JornadaUuidLookupResult?> ResolveAsync(
         SqlConnection connection,
         SqlTransaction tx,
@@ -19,46 +21,58 @@ internal static class JornadaUuidLookup
         if (requestedUuid == Guid.Empty)
             return null;
 
-        // UUID_JORNADA é retroalimentação interna. A resolução é somente leitura:
-        // nunca cria identidade, nunca cria âncora e nunca escolhe sucessor arbitrário.
-        // Uma referência canônica corrente é válida por si mesma. Um initial_uuid só
-        // redireciona quando o estado autoritativo é REFERENCIA e existe canonical_uuid.
-        await using var command = connection.CreateCommand();
-        command.Transaction = tx;
-        command.CommandText = """
-            SELECT TOP(1) resolved_uuid, redirected
-            FROM (
-                SELECT p.canonical_uuid AS resolved_uuid, CAST(0 AS bit) AS redirected, 0 AS ord
-                FROM identidade.pessoa_origem_progressiva p
-                WHERE p.canonical_uuid=@uuid AND p.estado='REFERENCIA'
+        // UUID_JORNADA referencia identidade.pessoa, não pessoa_origem_progressiva.
+        // Isso é essencial para observações v4 sem codigoPessoaOrigem: elas podem receber uma
+        // identidade por CPF sem jamais possuir origem progressiva. A consulta é somente leitura,
+        // nunca cria identidade/âncora e só segue o sucessor explícito de uma fusão.
+        var current = requestedUuid;
+        var visited = new HashSet<Guid>();
+        var redirected = false;
 
-                UNION ALL
+        for (var depth = 0; depth < MaxRedirectDepth; depth++)
+        {
+            if (!visited.Add(current))
+                throw new InvalidDataException("Ciclo detectado na cadeia de redirecionamento de UUID Jornada.");
 
-                SELECT p.canonical_uuid AS resolved_uuid,
-                       CAST(CASE WHEN p.canonical_uuid=@uuid THEN 0 ELSE 1 END AS bit) AS redirected,
-                       1 AS ord
-                FROM identidade.pessoa_origem_progressiva p
-                WHERE p.initial_uuid=@uuid
-                  AND p.estado='REFERENCIA'
-                  AND p.canonical_uuid IS NOT NULL
-            ) q
-            WHERE q.resolved_uuid IS NOT NULL
-            ORDER BY ord;
-            """;
-        command.Parameters.Add(new SqlParameter("@uuid", SqlDbType.UniqueIdentifier) { Value = requestedUuid });
+            await using var command = connection.CreateCommand();
+            command.Transaction = tx;
+            command.CommandText = """
+                SELECT status,pessoa_uuid_sucessor
+                FROM identidade.pessoa
+                WHERE pessoa_uuid=@uuid;
+                """;
+            command.Parameters.Add(new SqlParameter("@uuid", SqlDbType.UniqueIdentifier) { Value = current });
 
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct))
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct))
+            {
+                if (current == requestedUuid)
+                    return null;
+                throw new InvalidDataException("Cadeia de fusão de UUID Jornada aponta para identidade inexistente.");
+            }
+
+            var status = reader.GetString(0);
+            var successor = reader.IsDBNull(1) ? (Guid?)null : reader.GetGuid(1);
+            if (await reader.ReadAsync(ct))
+                throw new InvalidDataException("UUID Jornada duplicado na autoridade de identidade.");
+
+            if (string.Equals(status, "ATIVO", StringComparison.Ordinal))
+                return new JornadaUuidLookupResult(requestedUuid, current, redirected);
+
+            if (string.Equals(status, "FUNDIDO", StringComparison.Ordinal) && successor.HasValue)
+            {
+                if (successor.Value == Guid.Empty)
+                    throw new InvalidDataException("Fusão de UUID Jornada aponta para UUID vazio.");
+                current = successor.Value;
+                redirected = true;
+                continue;
+            }
+
+            // SEPARADO e INATIVO não possuem sucessor automaticamente escolhível. FUNDIDO sem
+            // sucessor também é estado inválido para retroalimentação. Falha fechada.
             return null;
+        }
 
-        var canonical = reader.GetGuid(0);
-        var redirected = reader.GetBoolean(1);
-        if (canonical == Guid.Empty)
-            throw new InvalidDataException("Estado progressivo retornou UUID canônico vazio.");
-
-        if (await reader.ReadAsync(ct))
-            throw new InvalidDataException("UUID Jornada possui resolução autoritativa ambígua.");
-
-        return new JornadaUuidLookupResult(requestedUuid, canonical, redirected);
+        throw new InvalidDataException("Cadeia de redirecionamento de UUID Jornada excede o limite operacional.");
     }
 }
