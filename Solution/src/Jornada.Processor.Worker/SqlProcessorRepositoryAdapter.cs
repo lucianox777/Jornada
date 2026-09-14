@@ -2,7 +2,8 @@ namespace Jornada.Processor.Worker;
 
 /// <summary>
 /// Adapter fino do repositório SQL Server/Fabric para o contrato neutro do Worker.
-/// Não contém regra de negócio nem SQL: apenas delega para a implementação já existente.
+/// Mantém v1-v3 no fluxo histórico e roteia Pessoa v4 para o cutover de múltiplos
+/// identificadores/origem opcional.
 /// </summary>
 internal sealed class SqlProcessorRepositoryAdapter(SqlProcessorRepository inner) : IProcessorRepository
 {
@@ -27,7 +28,9 @@ internal sealed class SqlProcessorRepositoryAdapter(SqlProcessorRepository inner
         ReservedBatch batch,
         ParsedPackage package,
         CancellationToken ct) =>
-        inner.PersistValidatedAsync(batch, package, ct);
+        batch.PessoaSchemaVersao >= 4
+            ? inner.PersistValidatedV4Async(batch, package, ct)
+            : inner.PersistValidatedAsync(batch, package, ct);
 
     public Task MarkRejectedAsync(
         ReservedBatch batch,
