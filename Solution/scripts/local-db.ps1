@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet('up','reset','down','clean','status')]
     [string]$Action = 'up'
 )
