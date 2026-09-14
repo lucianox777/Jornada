@@ -23,7 +23,8 @@ public sealed class ResolutionProjectionGroundTruthLineageTests
         var lineage = ResolutionProjectionGroundTruthLineage.BlockingCandidates(plan);
         var normalized = lineage.Single(item => item.FeatureName == "nome_cidadao__normalized");
 
-        Assert.That(normalized.SourceAttributes, Is.EquivalentTo(new[] { "nome_cidadao" }));
+        Assert.That(normalized.Sources.Select(static source => source.CanonicalAttribute),
+            Is.EquivalentTo(new[] { "nome_cidadao" }));
     }
 
     [Test]
