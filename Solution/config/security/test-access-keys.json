@@ -10,12 +10,8 @@
       "gestorCodigo": "SEHAB",
       "tipoCodigo": "AA01",
       "accessKey": "t6pXwhOWz1ztpZp5gXULtDkAHFRz3G7MdpBft49XXPk",
-      "scopes": [
-        "jornada.pessoas.read"
-      ],
-      "authorizedResourceCodes": [
-        "AA01"
-      ]
+      "scopes": ["jornada.pessoas.read"],
+      "authorizedResourceCodes": ["AA01"]
     },
     {
       "credentialId": "11111111-1111-4111-8111-111111111117",
@@ -24,12 +20,8 @@
       "gestorCodigo": "SMADS",
       "tipoCodigo": "AR01",
       "accessKey": "8Q772L2gctHvrCO-y9e_ZL8hlgr9d0UqixGS7vQ-Msg",
-      "scopes": [
-        "jornada.pessoas.read"
-      ],
-      "authorizedResourceCodes": [
-        "AR01"
-      ]
+      "scopes": ["jornada.pessoas.read"],
+      "authorizedResourceCodes": ["AR01"]
     },
     {
       "credentialId": "11111111-1111-4111-8111-111111111118",
@@ -38,12 +30,8 @@
       "gestorCodigo": "SMDET",
       "tipoCodigo": "POT1",
       "accessKey": "1aPLC5UnjFc4JYW3n9W8jgH_qXrfNJUsKkWqeUc2tbk",
-      "scopes": [
-        "jornada.pessoas.read"
-      ],
-      "authorizedResourceCodes": [
-        "POT1"
-      ]
+      "scopes": ["jornada.pessoas.read"],
+      "authorizedResourceCodes": ["POT1"]
     },
     {
       "credentialId": "11111111-1111-4111-8111-111111111119",
@@ -52,12 +40,8 @@
       "gestorCodigo": "SMADS",
       "tipoCodigo": "CPO1",
       "accessKey": "sSyoFOp66x_bRWJFK_-TR-aG7B5PVJi5qQR3byD3Z80",
-      "scopes": [
-        "jornada.pessoas.read"
-      ],
-      "authorizedResourceCodes": [
-        "CPO1"
-      ]
+      "scopes": ["jornada.pessoas.read"],
+      "authorizedResourceCodes": ["CPO1"]
     },
     {
       "credentialId": "11111111-1111-4111-8111-111111111114",
@@ -66,12 +50,8 @@
       "gestorCodigo": "SMADS",
       "tipoCodigo": "CRA1",
       "accessKey": "eQTCG1VDUIwFi7_mEbF5nNLQIwkNmiCkqy_iNa6I8Dc",
-      "scopes": [
-        "jornada.pessoas.read"
-      ],
-      "authorizedResourceCodes": [
-        "CRA1"
-      ]
+      "scopes": ["jornada.pessoas.read"],
+      "authorizedResourceCodes": ["CRA1"]
     },
     {
       "credentialId": "11111111-1111-4111-8111-111111111111",
@@ -88,11 +68,10 @@
         "jornada.registros.read",
         "jornada.possibilidades.read",
         "jornada.identidade.conflitos.read",
-        "jornada.identidade.corrigir"
+        "jornada.identidade.corrigir",
+        "jornada.monitor.read"
       ],
-      "authorizedResourceCodes": [
-        "AA01"
-      ]
+      "authorizedResourceCodes": ["AA01"]
     },
     {
       "credentialId": "11111111-1111-4111-8111-111111111112",
@@ -109,13 +88,10 @@
         "jornada.registros.read",
         "jornada.possibilidades.read",
         "jornada.identidade.conflitos.read",
-        "jornada.identidade.corrigir"
+        "jornada.identidade.corrigir",
+        "jornada.monitor.read"
       ],
-      "authorizedResourceCodes": [
-        "AR01",
-        "CPO1",
-        "CRA1"
-      ]
+      "authorizedResourceCodes": ["AR01","CPO1","CRA1"]
     },
     {
       "credentialId": "11111111-1111-4111-8111-111111111116",
@@ -132,11 +108,10 @@
         "jornada.registros.read",
         "jornada.possibilidades.read",
         "jornada.identidade.conflitos.read",
-        "jornada.identidade.corrigir"
+        "jornada.identidade.corrigir",
+        "jornada.monitor.read"
       ],
-      "authorizedResourceCodes": [
-        "POT1"
-      ]
+      "authorizedResourceCodes": ["POT1"]
     },
     {
       "credentialId": "11111111-1111-4111-8111-111111111115",
@@ -153,7 +128,8 @@
         "jornada.registros.read",
         "jornada.possibilidades.read",
         "jornada.identidade.conflitos.read",
-        "jornada.identidade.corrigir"
+        "jornada.identidade.corrigir",
+        "jornada.monitor.read"
       ],
       "authorizedResourceCodes": []
     }
