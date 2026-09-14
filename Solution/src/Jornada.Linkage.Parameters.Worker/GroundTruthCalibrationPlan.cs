@@ -57,6 +57,44 @@ public static class GroundTruthCalibrationPlanner
     }
 
     /// <summary>
+    /// Cria um plano de calibração diretamente da execução diagnóstica estratificada.
+    /// A seleção continua condicionada exclusivamente aos assessments estatísticos
+    /// materializados no diagnóstico; contagens amostrais não viram suficiência por atalho.
+    /// </summary>
+    public static GroundTruthCalibrationPlan CreateFromDiagnosticRun(
+        GroundTruthDiagnosticRun diagnosticRun,
+        IEnumerable<string> candidateGenerationInputs,
+        IEnumerable<string> scoringInputs,
+        IEnumerable<string>? derivedInputs = null)
+    {
+        ArgumentNullException.ThrowIfNull(diagnosticRun);
+        ArgumentNullException.ThrowIfNull(candidateGenerationInputs);
+        ArgumentNullException.ThrowIfNull(scoringInputs);
+
+        var (cpf, cns) = DiagnosticsFromRun(diagnosticRun);
+        return Create(cpf, cns, candidateGenerationInputs, scoringInputs, derivedInputs);
+    }
+
+    /// <summary>
+    /// Combina o diagnóstico estratificado com o catálogo real de projeções. Assim,
+    /// suficiência/representatividade vêm da execução observada e a proteção anti-leakage
+    /// vem da linhagem declarada no ResolutionProjectionPlan.
+    /// </summary>
+    public static GroundTruthCalibrationPlan CreateFromDiagnosticRunAndProjectionPlan(
+        GroundTruthDiagnosticRun diagnosticRun,
+        ResolutionProjectionPlan projectionPlan,
+        IEnumerable<string> scoringInputs,
+        IEnumerable<string>? derivedInputs = null)
+    {
+        ArgumentNullException.ThrowIfNull(diagnosticRun);
+        ArgumentNullException.ThrowIfNull(projectionPlan);
+        ArgumentNullException.ThrowIfNull(scoringInputs);
+
+        var (cpf, cns) = DiagnosticsFromRun(diagnosticRun);
+        return CreateFromProjectionPlan(cpf, cns, projectionPlan, scoringInputs, derivedInputs);
+    }
+
+    /// <summary>
     /// Cria um plano de calibração a partir do catálogo real de projeções.
     /// Candidate generation é derivado dos candidatos de blocking do próprio plano e a
     /// linhagem de candidate generation + scoring é validada semanticamente. Uma feature
@@ -115,6 +153,23 @@ public static class GroundTruthCalibrationPlanner
         };
         plan.Validate();
         return plan;
+    }
+
+    private static (GroundTruthCoverageDiagnostics Cpf, GroundTruthCoverageDiagnostics? Cns) DiagnosticsFromRun(
+        GroundTruthDiagnosticRun diagnosticRun)
+    {
+        var diagnostics = diagnosticRun.LabelableDiagnostics;
+        var cpf = diagnostics.SingleOrDefault(static item =>
+            item.Source == GroundTruthSource.Cpf &&
+            item.Stratum == GroundTruthPopulationStratum.WithCpf)
+            ?? throw new InvalidOperationException(
+                "Execução diagnóstica não contém diagnóstico CPF para o estrato WithCpf.");
+
+        var cns = diagnostics.SingleOrDefault(static item =>
+            item.Source == GroundTruthSource.Cns &&
+            item.Stratum == GroundTruthPopulationStratum.WithoutCpfWithCns);
+
+        return (cpf, cns);
     }
 
     private static GroundTruthCoverageDiagnostics SelectDiagnostics(
