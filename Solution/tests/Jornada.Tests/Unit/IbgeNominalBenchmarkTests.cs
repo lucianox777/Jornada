@@ -23,7 +23,7 @@ public sealed class IbgeNominalBenchmarkTests
         var first = IbgeNominalBenchmarkGenerator.Generate(snapshot, people, options);
         var replay = IbgeNominalBenchmarkGenerator.Generate(snapshot, people, options);
 
-        Assert.That(replay, Is.EqualTo(first));
+        Assert.That(ReplayProjection(replay), Is.EqualTo(ReplayProjection(first)));
 
         var observedFirstNames = snapshot.Entries
             .Where(x => x.StatisticKind == IbgeNameStatisticKind.FirstName)
@@ -131,6 +131,26 @@ public sealed class IbgeNominalBenchmarkTests
             () => FactorialCalibrationCandidateFactory.Create(m, u),
             Throws.ArgumentException.With.Message.Contains("mesmo conjunto semântico"));
     }
+
+    private static IReadOnlyList<string> ReplayProjection(IEnumerable<IbgeNominalBenchmarkPair> pairs) =>
+        pairs.Select(pair => string.Join('|',
+                pair.PairId,
+                pair.Partition,
+                pair.IsTrueMatch,
+                pair.Left.BasePersonId,
+                pair.Left.FirstName,
+                pair.Left.Surname,
+                pair.Left.BirthDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+                pair.Right.BasePersonId,
+                pair.Right.FirstName,
+                pair.Right.Surname,
+                pair.Right.BirthDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+                string.Join(';', pair.Substitutions.Select(substitution => string.Join('~',
+                    substitution.Attribute,
+                    substitution.SourceValue,
+                    substitution.TargetValue,
+                    substitution.Similarity.ToString("R", System.Globalization.CultureInfo.InvariantCulture))))))
+            .ToArray();
 
     private static IbgeTypedNameFrequencySnapshot Snapshot() =>
         IbgeTypedNameFrequencyCatalog.Create(
