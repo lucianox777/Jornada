@@ -160,7 +160,7 @@ public sealed class ConservativePairwiseGroupingPolicyTests
         new(left, right, PairwiseLinkageDecisionState.Accepted, score);
 
     private static string ComponentShape(PairwiseGroupingComponentAssessment component) =>
-        $"{component.State}:{string.Join(',', component.Members.Order())}:{component.AcceptedPairs}:{component.RejectedPairs}:{component.InconclusivePairs}:{component.MissingPairs}";
+        $"{component.State}:{string.Join(",", component.Members.Order())}:{component.AcceptedPairs}:{component.RejectedPairs}:{component.InconclusivePairs}:{component.MissingPairs}";
 
     private static Guid Id(int suffix) => Guid.Parse($"00000000-0000-0000-0000-{suffix:D12}");
 }
