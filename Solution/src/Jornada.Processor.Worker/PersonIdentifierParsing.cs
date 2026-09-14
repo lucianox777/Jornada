@@ -65,6 +65,7 @@ internal static class PersonIdentifierParsing
         }
 
         EnsureLegacyCpfConverges(result, legacyCpf);
+        EnsurePersonBaseConverges(result, legacyCodigoPessoaOrigem, manifestBasePessoaOrigem);
         return result;
     }
 
@@ -153,6 +154,54 @@ internal static class PersonIdentifierParsing
 
         if (explicitCpfs.Length > 0 && explicitCpfs.Any(cpf => !string.Equals(cpf, normalizedLegacy, StringComparison.Ordinal)))
             throw new InvalidDataException("CPF legado diverge do CPF informado em identificadores[].");
+    }
+
+    private static void EnsurePersonBaseConverges(
+        IReadOnlyList<ParsedPersonIdentifier> identifiers,
+        string? legacyCodigoPessoaOrigem,
+        string? manifestBasePessoaOrigem)
+    {
+        var sourceIdentifiers = identifiers
+            .Where(i => i.Tipo == "CODIGO_BASE_ORIGEM")
+            .ToArray();
+        if (sourceIdentifiers.Length == 0)
+            return;
+
+        var manifestBase = string.IsNullOrWhiteSpace(manifestBasePessoaOrigem)
+            ? null
+            : manifestBasePessoaOrigem.Trim();
+
+        if (manifestBase is not null
+            && sourceIdentifiers.Any(i => !string.IsNullOrWhiteSpace(i.Namespace)
+                && !string.Equals(i.Namespace, manifestBase, StringComparison.Ordinal)))
+        {
+            throw new InvalidDataException("CODIGO_BASE_ORIGEM diverge de codigoBasePessoaOrigem do manifesto.");
+        }
+
+        var distinctValues = sourceIdentifiers
+            .Select(i => i.ValorNormalizado)
+            .Distinct(StringComparer.Ordinal)
+            .Take(2)
+            .ToArray();
+        if (distinctValues.Length > 1)
+            throw new InvalidDataException("Observação contém mais de um CODIGO_BASE_ORIGEM distinto.");
+
+        if (!string.IsNullOrWhiteSpace(legacyCodigoPessoaOrigem)
+            && !string.Equals(distinctValues[0], legacyCodigoPessoaOrigem.Trim(), StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("codigoPessoaOrigem legado diverge de CODIGO_BASE_ORIGEM em identificadores[].");
+        }
+
+        // Quando o legado informa codigoPessoaOrigem e o manifesto omite a base, o runtime usa a
+        // base padrão autorizada. Um namespace explícito concorrente deixaria impossível provar
+        // que ambos representam a mesma autoridade sem consultar governança; exija o manifesto.
+        if (!string.IsNullOrWhiteSpace(legacyCodigoPessoaOrigem)
+            && manifestBase is null
+            && sourceIdentifiers.Any(i => !i.OrigemLegada && !string.IsNullOrWhiteSpace(i.Namespace)))
+        {
+            throw new InvalidDataException(
+                "CODIGO_BASE_ORIGEM explícito junto de codigoPessoaOrigem legado exige codigoBasePessoaOrigem no manifesto.");
+        }
     }
 
     private static string NormalizeDigits(string value)
