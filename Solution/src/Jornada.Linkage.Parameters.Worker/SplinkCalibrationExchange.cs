@@ -44,6 +44,12 @@ public static class SplinkCalibrationExchange
     public const string SchemaVersion = "JORNADA_SPLINK_EXCHANGE_V1";
     public const string SourceDataset = "jornada_calibrador";
 
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        WriteIndented = true
+    };
+
     public static SplinkCalibrationPackage Export(
         IbgeTypedNameFrequencySnapshot snapshot,
         IEnumerable<IbgeNominalBenchmarkPair> pairs,
@@ -89,11 +95,7 @@ public static class SplinkCalibrationExchange
     public static string Serialize(SplinkCalibrationPackage package)
     {
         ArgumentNullException.ThrowIfNull(package);
-        return JsonSerializer.Serialize(package, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-            WriteIndented = true
-        });
+        return JsonSerializer.Serialize(package, SerializerOptions);
     }
 
     public static ParameterEstimate ImportM(
