@@ -5,7 +5,8 @@ using Jornada.Bronze.Storage;
 var builder = Host.CreateApplicationBuilder(args);
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
-builder.Services.AddSingleton<IOperationalSqlAdapter>(new OperationalSqlAdapter(jornadaConnectionString));
+var operationalSql = new OperationalSqlAdapter(jornadaConnectionString);
+builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
 builder.Services.Configure<BronzeMaintenanceOptions>(builder.Configuration.GetSection("BronzeMaintenance"));
 
 builder.Services.AddSingleton<IBronzeObjectStore>(_ =>
@@ -27,4 +28,11 @@ builder.Services.AddSingleton<IBronzeObjectMaintenanceStore>(sp => (IBronzeObjec
 builder.Services.AddSingleton<BronzeMaintenanceRepository>();
 builder.Services.AddHostedService<BronzeMaintenanceWorker>();
 
-await builder.Build().RunAsync();
+var host = builder.Build();
+var heartbeat = new OperationalRuntimeHeartbeat(
+    operationalSql,
+    builder.Configuration["JORNADA_NODE_ID"] ?? Environment.MachineName,
+    "BronzeMaintenance",
+    TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("Monitoring:HeartbeatSeconds", 10))));
+_ = heartbeat.RunAsync(host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping);
+await host.RunAsync();
