@@ -1,4 +1,5 @@
 using System.Data;
+using Jornada.Contracts;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Processor.Worker;
