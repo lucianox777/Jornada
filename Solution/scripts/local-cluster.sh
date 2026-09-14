@@ -41,12 +41,12 @@ start_nodes() {
 action="${1:-up}"
 case "$action" in
   up)
-    "$ROOT/scripts/local-db.sh" up
+    bash "$ROOT/scripts/local-db.sh" up
     start_nodes true
     ;;
   reset)
     compose stop jornada-node1 jornada-node2 || true
-    "$ROOT/scripts/local-db.sh" reset
+    bash "$ROOT/scripts/local-db.sh" reset
     start_nodes false
     ;;
   down)
