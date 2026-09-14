@@ -1,0 +1,126 @@
+table QualidadeResolucaoOperacional
+
+	measure 'Avaliações de resolução' = SUM(QualidadeResolucaoOperacional[avaliados])
+		formatString: #,##0
+
+	measure 'Resolvidos' = SUM(QualidadeResolucaoOperacional[resolvidos])
+		formatString: #,##0
+
+	measure 'Conflitos' = SUM(QualidadeResolucaoOperacional[conflitos])
+		formatString: #,##0
+
+	measure 'Não resolvidos' = SUM(QualidadeResolucaoOperacional[nao_resolvidos])
+		formatString: #,##0
+
+	measure 'Taxa de resolução' = DIVIDE(SUM(QualidadeResolucaoOperacional[resolvidos]),SUM(QualidadeResolucaoOperacional[avaliados]))
+		formatString: 0.00%
+
+	measure 'Proporção de conflito' = DIVIDE(SUM(QualidadeResolucaoOperacional[conflitos]),SUM(QualidadeResolucaoOperacional[avaliados]))
+		formatString: 0.00%
+
+	measure 'Proporção de não resolvido' = DIVIDE(SUM(QualidadeResolucaoOperacional[nao_resolvidos]),SUM(QualidadeResolucaoOperacional[avaliados]))
+		formatString: 0.00%
+
+	column linkage_run_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: linkage_run_id
+
+	column modelo_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: modelo_id
+
+	column modelo_versao
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: modelo_versao
+
+	column algoritmo_versao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: algoritmo_versao
+
+	column tipo_run
+		dataType: string
+		summarizeBy: none
+		sourceColumn: tipo_run
+
+	column status
+		dataType: string
+		summarizeBy: none
+		sourceColumn: status
+
+	column gestor_codigo_filtro
+		dataType: string
+		summarizeBy: none
+		sourceColumn: gestor_codigo_filtro
+
+	column iniciado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: iniciado_em
+
+	column finalizado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: finalizado_em
+
+	column avaliados
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: avaliados
+
+	column resolvidos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: resolvidos
+
+	column nao_resolvidos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: nao_resolvidos
+
+	column conflitos
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: conflitos
+
+	column sem_candidato_no_bloco
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: sem_candidato_no_bloco
+
+	column taxa_resolucao
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: taxa_resolucao
+
+	column proporcao_conflito
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: proporcao_conflito
+
+	column proporcao_nao_resolvido
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: proporcao_nao_resolvido
+
+	column proporcao_sem_candidato_no_bloco
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: proporcao_sem_candidato_no_bloco
+
+	column classe_metrica
+		dataType: string
+		summarizeBy: none
+		sourceColumn: classe_metrica
+
+	partition QualidadeResolucaoOperacional = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_qualidade_resolucao_operacional"]}[Data]
+			in
+				Data
