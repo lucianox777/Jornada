@@ -3,6 +3,7 @@ name: jornada-cluster-topology
 on:
   push:
     paths:
+      - 'Solution/.editorconfig'
       - 'Solution/docker-compose.yml'
       - 'Solution/Install-JornadaLocal.ps1'
       - 'Solution/Clean-JornadaLocal.ps1'
@@ -12,10 +13,12 @@ on:
       - 'Solution/install/windows-production/Install-JornadaCluster.ps1'
       - 'Solution/install/windows-production/Invoke-JornadaLinkage*.ps1'
       - 'Solution/scripts/local-cluster.*'
+      - 'Solution/scripts/local-db.ps1'
       - 'Solution/docs/uml/Jornada_Implantacao.puml'
       - '.github/workflows/cluster-topology.yml'
   pull_request:
     paths:
+      - 'Solution/.editorconfig'
       - 'Solution/docker-compose.yml'
       - 'Solution/Install-JornadaLocal.ps1'
       - 'Solution/Clean-JornadaLocal.ps1'
@@ -25,6 +28,7 @@ on:
       - 'Solution/install/windows-production/Install-JornadaCluster.ps1'
       - 'Solution/install/windows-production/Invoke-JornadaLinkage*.ps1'
       - 'Solution/scripts/local-cluster.*'
+      - 'Solution/scripts/local-db.ps1'
       - 'Solution/docs/uml/Jornada_Implantacao.puml'
       - '.github/workflows/cluster-topology.yml'
   workflow_dispatch:
@@ -83,13 +87,17 @@ jobs:
           cp .env.example .env
           docker compose --env-file .env config --quiet
 
-      - name: Parse PowerShell local entrypoints
+      - name: Validate UTF-8 BOM and parse PowerShell local entrypoints
         shell: pwsh
         run: |
-          $files = @('Install-JornadaLocal.ps1','Clean-JornadaLocal.ps1','scripts/local-cluster.ps1')
+          $files = @('Install-JornadaLocal.ps1','Clean-JornadaLocal.ps1','scripts/local-cluster.ps1','scripts/local-db.ps1')
           foreach ($file in $files) {
+            $bytes = [System.IO.File]::ReadAllBytes($file)
+            if ($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF) {
+              throw "UTF-8 BOM ausente em $file; Windows PowerShell 5.1 pode corromper acentos."
+            }
             $null = [scriptblock]::Create((Get-Content -Raw -Encoding UTF8 $file))
-            Write-Host "POWERSHELL PARSE OK: $file"
+            Write-Host "POWERSHELL UTF-8 BOM/PARSE OK: $file"
           }
 
       - name: Start canonical cluster
