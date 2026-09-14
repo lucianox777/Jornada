@@ -77,19 +77,34 @@ public static class GroundTruthFeatureLineagePolicy
     {
         ArgumentNullException.ThrowIfNull(features);
 
-        var leaking = features
-            .Select(static feature => feature ?? throw new ArgumentException("Feature de linhagem nula não é permitida.", nameof(features)))
-            .Where(feature => feature.Sources is null || feature.Sources.Count == 0 ||
-                feature.Sources.Any(source => source is null || source.GroundTruthSource == labelSource))
+        var normalized = features
+            .Select(static feature => feature ?? throw new ArgumentException(
+                "Feature de linhagem nula não é permitida.", "features"))
+            .ToArray();
+
+        var invalid = normalized
+            .Where(feature => string.IsNullOrWhiteSpace(feature.FeatureName) ||
+                feature.Sources is null || feature.Sources.Count == 0 || feature.Sources.Any(static source => source is null))
+            .Select(feature => string.IsNullOrWhiteSpace(feature.FeatureName) ? "<sem_nome>" : feature.FeatureName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (invalid.Length > 0)
+            throw new InvalidOperationException(
+                $"Proveniência de feature inválida: {string.Join(", ", invalid)}. " +
+                "Toda feature deve declarar nome e ao menos uma fonte canônica válida.");
+
+        var leaking = normalized
+            .Where(feature => feature.Sources.Any(source => source.GroundTruthSource == labelSource))
             .Select(feature => feature.FeatureName)
-            .Where(static name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         if (leaking.Length > 0)
             throw new InvalidOperationException(
-                $"Label leakage ou proveniência inválida detectada para {labelSource}: {string.Join(", ", leaking)}. " +
-                "Nenhuma feature transitivamente derivada da fonte do rótulo, nem feature sem proveniência válida, pode participar de candidate generation, blocking ou score.");
+                $"Label leakage detectado por linhagem para {labelSource}: {string.Join(", ", leaking)}. " +
+                "Nenhuma feature transitivamente derivada da fonte do rótulo pode participar de candidate generation, blocking ou score.");
     }
 }
