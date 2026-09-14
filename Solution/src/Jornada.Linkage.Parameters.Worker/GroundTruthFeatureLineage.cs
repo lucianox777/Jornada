@@ -1,13 +1,13 @@
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
-/// Fonte canônica de proveniência de uma feature. GroundTruthSource é preenchido apenas quando
+/// Fonte canônica de proveniência de uma feature. LabelSource é preenchido apenas quando
 /// o atributo de origem é explicitamente reconhecido como CPF ou CNS; demais atributos permanecem
 /// como evidência independente com seu código canônico preservado.
 /// </summary>
 public sealed record GroundTruthLineageSource(
     string CanonicalAttribute,
-    GroundTruthSource? GroundTruthSource)
+    GroundTruthSource? LabelSource)
 {
     public static GroundTruthLineageSource FromAttribute(string attribute)
     {
@@ -78,8 +78,8 @@ public static class GroundTruthFeatureLineagePolicy
         ArgumentNullException.ThrowIfNull(features);
 
         var normalized = features
-            .Select(static feature => feature ?? throw new ArgumentException(
-                "Feature de linhagem nula não é permitida.", "features"))
+            .Select(feature => feature ?? throw new ArgumentException(
+                "Feature de linhagem nula não é permitida.", nameof(features)))
             .ToArray();
 
         var invalid = normalized
@@ -96,7 +96,7 @@ public static class GroundTruthFeatureLineagePolicy
                 "Toda feature deve declarar nome e ao menos uma fonte canônica válida.");
 
         var leaking = normalized
-            .Where(feature => feature.Sources.Any(source => source.GroundTruthSource == labelSource))
+            .Where(feature => feature.Sources.Any(source => source.LabelSource == labelSource))
             .Select(feature => feature.FeatureName)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
