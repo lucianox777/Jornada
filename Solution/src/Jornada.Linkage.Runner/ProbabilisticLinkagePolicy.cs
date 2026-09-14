@@ -36,32 +36,15 @@ internal sealed record CandidateScore(Guid PessoaUuid, decimal Score);
 
 internal static class LinkageModelPolicy
 {
-    private const string BirthComponentScoringParameter = "SCORING_BIRTH_COMPONENTS_V2";
-    private const string LegacyBirthComponentScoringParameter = "BLOCKING_BIRTH_COMPONENTS_V2";
-
-    private static readonly string[] BirthComponentParameters =
-    [
-        "M_NASC_DIA_EXACT", "M_NASC_DIA_DIFF", "U_NASC_DIA_EXACT", "U_NASC_DIA_DIFF",
-        "M_NASC_MES_EXACT", "M_NASC_MES_DIFF", "U_NASC_MES_EXACT", "U_NASC_MES_DIFF",
-        "M_NASC_ANO_EXACT", "M_NASC_ANO_DIFF", "U_NASC_ANO_EXACT", "U_NASC_ANO_DIFF"
-    ];
-
     internal static LinkageModel Create(Guid modelId, int version, string algorithm,
         IReadOnlyDictionary<string, decimal> parameters)
     {
-        var required = new[]
-        {
-            "PRIOR_MATCH_PROBABILITY", "PRIOR_BLOCK_MIN", "PRIOR_BLOCK_MAX", "T_LINKAGE", "CONFLICT_MARGIN",
-            "M_NOME_EXACT", "M_NOME_HIGH", "M_NOME_MEDIUM", "M_NOME_LOW",
-            "U_NOME_EXACT", "U_NOME_HIGH", "U_NOME_MEDIUM", "U_NOME_LOW",
-            "M_NOME_MAE_EXACT", "M_NOME_MAE_HIGH", "M_NOME_MAE_MEDIUM", "M_NOME_MAE_LOW",
-            "U_NOME_MAE_EXACT", "U_NOME_MAE_HIGH", "U_NOME_MAE_MEDIUM", "U_NOME_MAE_LOW"
-        };
-        var missing = required.Where(x => !parameters.ContainsKey(x)).ToArray();
+        var missing = LinkageParameterCatalog.CoreScoringRequired
+            .Where(x => !parameters.ContainsKey(x)).ToArray();
         if (missing.Length > 0)
             throw new InvalidOperationException($"Modelo incompleto. Parâmetros ausentes: {string.Join(", ", missing)}");
         var model = new LinkageModel(modelId, version, algorithm, parameters,
-            parameters["T_LINKAGE"], parameters["CONFLICT_MARGIN"]);
+            parameters[LinkageParameterCatalog.Threshold], parameters[LinkageParameterCatalog.ConflictMargin]);
         // An enabled V2 must never silently fall back to V1 because its model is incomplete.
         _ = SupportsBirthComponentScoring(model);
         return model;
@@ -72,14 +55,15 @@ internal static class LinkageModelPolicy
         // Novos modelos usam SCORING_ porque isto seleciona o cálculo Fellegi-Sunter,
         // não a geração de candidatos. O alias BLOCKING_ é aceito somente para leitura
         // de modelos históricos e seeds já publicados.
-        var enabled = model.Parameters.TryGetValue(BirthComponentScoringParameter, out var current)
+        var enabled = model.Parameters.TryGetValue(LinkageParameterCatalog.BirthComponentScoring, out var current)
             ? current
-            : model.Parameters.TryGetValue(LegacyBirthComponentScoringParameter, out var legacy)
+            : model.Parameters.TryGetValue(LinkageParameterCatalog.LegacyBirthComponentScoring, out var legacy)
                 ? legacy
                 : 0m;
         if (enabled < 1m)
             return false;
-        var missing = BirthComponentParameters.Where(x => !model.Parameters.ContainsKey(x)).ToArray();
+        var missing = LinkageParameterCatalog.BirthComponentRequired
+            .Where(x => !model.Parameters.ContainsKey(x)).ToArray();
         if (missing.Length > 0)
             throw new InvalidOperationException($"Modelo V2 incompleto. Parâmetros de nascimento ausentes: {string.Join(", ", missing)}");
         return true;
