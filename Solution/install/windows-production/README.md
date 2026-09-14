@@ -4,134 +4,73 @@ Este diretório contém o instalador versionado da Jornada para Windows Server.
 
 ## Topologia canônica
 
-O caminho de produção deste instalador é **nativo no Windows**:
+O caminho de produção é nativo no Windows:
 
 - .NET 8 Runtime + ASP.NET Core Runtime;
 - executáveis publicados da Jornada;
-- SQL Server 2022 nativo, SQL Server já existente ou SQL externo/Fabric;
-- armazenamento Bronze/Staging em caminho absoluto e durável;
-- processos contínuos e jobs registrados no **Agendador de Tarefas do Windows**;
-- `Jornada.Integrador.CSharp.exe` como cliente padrão para envio/consulta.
+- SQL Server 2022 existente/nativo ou SQL externo homologado;
+- Bronze em NAS compartilhado e Staging/logs locais por VM;
+- cinco processos residentes iniciados em background no boot;
+- ferramentas de execução única instaladas na VM, **sem agendamento automático**;
+- `Jornada.Integrador.CSharp.exe` como cliente sob demanda.
 
-Docker é opcional. Em Windows Server, `MobyWindows` instala runtime para **contêineres Windows**. Ele não é usado para executar o `docker-compose.yml` local da Solution, porque esse compose usa SQL Server Linux. Docker Desktop não faz parte do instalador de Windows Server.
+A implantação cluster canônica usa dois nós simétricos. Veja `CLUSTER.md` e `Jornada.Cluster.Production.example.json`.
+
+Docker é opcional na produção Windows. O `docker-compose.yml` da Solution é um harness local Linux e não é o runtime canônico de produção.
 
 ## Arquivos
 
-- `Install-JornadaProduction.ps1` — instalação/upgrade idempotente da aplicação;
-- `Build-WindowsProductionBundle.ps1` — publica os executáveis e monta o payload de produção;
-- `Invoke-JornadaComponent.ps1` — runner usado pelas tarefas do Windows;
-- `Jornada.Production.example.json` — modelo de configuração sem segredo real.
+- `Install-JornadaProduction.ps1` — instalação/upgrade host;
+- `Install-JornadaCluster.ps1` — adapta o mesmo bundle a NODE1/NODE2 e aos caminhos compartilhados/locais;
+- `Build-WindowsProductionBundle.ps1` — publica executáveis, ferramentas, configuração e DDL;
+- `Invoke-JornadaComponent.ps1` — runner dos processos residentes registrados no Agendador;
+- `Invoke-JornadaLinkageCalibration.ps1` — calibração manual `GENERATE_DRAFT -> VALIDATE -> ACTIVATE`;
+- `Invoke-JornadaLinkageRun.ps1` — Linkage manual com preflight de modelo ativo;
+- `Jornada.Cluster.Production.example.json` — configuração cluster de produção sem segredo real;
+- `Jornada.Cluster.Test.json` — mesmo schema para o harness local.
 
-## Preparar o bundle
+## Bundle versionado
 
-Em uma máquina de build com o SDK fixado pela Solution:
+Em uma máquina de build:
 
 ```powershell
 .\install\windows-production\Build-WindowsProductionBundle.ps1
 ```
 
-O bundle é criado em `.local\windows-production-bundle` por padrão e contém:
+O bundle contém:
 
-- APIs;
-- Workers;
-- Linkage Runner/Parameters Worker;
+- APIs e workers residentes;
+- Parameters Worker e Linkage Runner;
+- `Jornada.Bronze.Verify`;
+- `Jornada.Linkage.Evaluation`;
 - Integrador C#;
-- contratos JSON Schema;
-- DDL canônico `Jornada_Fase1.sql`;
+- contratos/configurações versionadas;
+- `config\release\configuration-bundle.json`;
+- DDL canônico;
 - OpenAPI;
-- instalador.
+- instaladores/scripts;
+- `MANIFEST.sha256` cobrindo o payload.
 
-O CI também gera esse bundle como artefato.
+`configuration-bundle.json` fornece uma identidade técnica pequena para o conjunto de configuração. Os perfis Test e Production declaram a mesma `configurationBundleVersion` e `solutionSchema`; o instalador cluster rejeita payload/config incompatíveis. O monitor operacional usa essa identidade como uma dimensão de saúde do sistema.
 
 ## Configuração
 
-Copie:
-
-```text
-Jornada.Production.example.json
-```
-
-para um arquivo **fora do Git**, por exemplo:
-
-```text
-C:\Jornada-Install\Jornada.Production.json
-```
-
-A configuração real pode conter a chave do Integrador e por isso deve receber ACL restrita.
-
-### SQL Server
-
-`sql.mode` aceita:
-
-- `Existing` — SQL Server já instalado na máquina ou rede;
-- `External` — SQL externo, inclusive SQL Database no Microsoft Fabric;
-- `InstallFromMedia` — instala SQL Server 2022 a partir de mídia licenciada.
-
-Para `InstallFromMedia`, somente `Standard` e `Enterprise` são aceitos. Developer/Evaluation não são permitidos por este instalador de produção. O instalador não baixa nem incorpora mídia/licença SQL. A mídia deve ser fornecida pela infraestrutura e `sql.setupExe` deve apontar para `setup.exe`.
-
-Se a mídia exigir PID, configure `sql.productKeyEnvironmentVariable` e injete a chave em variável de ambiente antes de instalar. A chave não vai para o JSON nem para o Git.
-
-### Docker
-
-`docker.mode` aceita:
-
-- `None` — recomendado quando a Jornada roda nativamente;
-- `Existing` — valida `docker.exe` existente;
-- `MobyWindows` — instala Docker CE/Moby para contêineres Windows usando o script oficial Microsoft.
-
-Docker não é pré-requisito do runtime nativo da Jornada.
-
-## Validação sem alterar a máquina
+Para produção cluster, copie `Jornada.Cluster.Production.example.json` para um arquivo fora do Git, preencha hosts/caminhos/conexão e instale o mesmo bundle nas duas VMs:
 
 ```powershell
-.\Install-JornadaProduction.ps1 `
-  -ConfigPath C:\Jornada-Install\Jornada.Production.json `
+.\Install-JornadaCluster.ps1 `
+  -ConfigPath C:\Jornada-Install\Jornada.Cluster.Production.json `
   -PayloadRoot C:\Jornada-Install\bundle `
-  -ValidateOnly
+  -NodeId NODE1
 ```
 
-ou:
+Na outra VM, use `NODE2`.
 
-```powershell
-.\Install-JornadaProduction.ps1 `
-  -ConfigPath C:\Jornada-Install\Jornada.Production.json `
-  -PayloadRoot C:\Jornada-Install\bundle `
-  -PlanOnly
-```
+A configuração real pode conter conexão SQL e outros valores sensíveis; mantenha ACL restrita e não versione segredos.
 
-## Instalação
+## Processos em background
 
-Execute PowerShell elevado:
-
-```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force
-.\Install-JornadaProduction.ps1 `
-  -ConfigPath C:\Jornada-Install\Jornada.Production.json `
-  -PayloadRoot C:\Jornada-Install\bundle
-```
-
-O instalador:
-
-1. valida sistema operacional/configuração/payload;
-2. instala .NET 8 quando necessário;
-3. valida ou instala Docker conforme `docker.mode`;
-4. valida ou instala SQL conforme `sql.mode`;
-5. cria o banco Jornada e aplica `Jornada_Fase1.sql` quando `initializeDatabase=true`;
-6. copia os executáveis/contratos para `installationRoot`;
-7. cria Bronze, Staging e logs em `dataRoot`;
-8. gera `integrador.config.json` se o Integrador estiver habilitado;
-9. protege arquivos de configuração com ACL;
-10. registra as tarefas habilitadas no Agendador do Windows.
-
-## Tarefas
-
-O JSON de produção controla cada tarefa. Os triggers aceitos são:
-
-- `AtStartup`;
-- `Daily` + `at` (`HH:mm`);
-- `Weekly` + `days` + `at`.
-
-Os processos contínuos recomendados no mesmo host são:
+A configuração cluster admite somente os cinco processos residentes abaixo, todos `AtStartup`:
 
 - `Jornada-Api`;
 - `Jornada-ResultadoApi`;
@@ -139,36 +78,113 @@ Os processos contínuos recomendados no mesmo host são:
 - `Jornada-OperationsMaintenance`;
 - `Jornada-BronzeMaintenance`.
 
-O modelo inclui, inicialmente **desabilitados**, exemplos para:
+No Windows Server eles ficam em background como tarefas do Agendador do Windows. O Agendador é usado aqui como mecanismo de serviço/supervisão no boot; não como scheduler de Linkage/Calibrador.
 
-- `Jornada-Linkage-GenerateDraft` — geração de parâmetros do Fellegi-Sunter;
-- `Jornada-Linkage-Incremental`;
-- `Jornada-Integrator-EnviarTodos` — chama `--enviar-todos` e move ZIPs enviados para `Enviados`.
+## Execuções únicas diretamente na VM
 
-As cadências desses jobs devem ser homologadas antes de `enabled=true`; o instalador não inventa frequência institucional.
-
-## CLI do Integrador
+Depois da instalação cluster, a VM contém:
 
 ```text
-Jornada.Integrador.CSharp.exe /help
-Jornada.Integrador.CSharp.exe --help
-Jornada.Integrador.CSharp.exe -h
+C:\Program Files\Jornada\jobs\Invoke-JornadaLinkageCalibration.ps1
+C:\Program Files\Jornada\jobs\Invoke-JornadaLinkageRun.ps1
+C:\Program Files\Jornada\tools\Jornada.Bronze.Verify\Jornada.Bronze.Verify.exe
+C:\Program Files\Jornada\tools\Jornada.Linkage.Evaluation\Jornada.Linkage.Evaluation.exe
 ```
 
-Operações:
+A convenção operacional é executar no NODE2, mas o bundle é igual nos dois nós.
+
+Calibrar/promover modelo:
+
+```powershell
+cd 'C:\Program Files\Jornada'
+.\jobs\Invoke-JornadaLinkageCalibration.ps1
+```
+
+Executar Linkage:
+
+```powershell
+.\jobs\Invoke-JornadaLinkageRun.ps1
+```
+
+O segundo comando recusa iniciar se o banco não tiver exatamente um modelo `ATIVO`. Isso complementa a própria proteção interna do Runner, que já exige modelo ativo.
+
+`Jornada.Linkage.Evaluation` é ferramenta DEV/HML somente-leitura; não é um daemon e não publica identidade.
+
+## SQL Server
+
+`sql.mode` aceita:
+
+- `Existing` — SQL Server já instalado na máquina ou rede;
+- `External` — SQL Server externo homologado;
+- `InstallFromMedia` — instala SQL Server 2022 a partir de mídia licenciada.
+
+Para `InstallFromMedia`, somente Standard e Enterprise são aceitos. O instalador não baixa nem incorpora licença/mídia SQL.
+
+O SQL Server é o banco operacional desta implantação. Microsoft Fabric, quando usado, pertence à camada analítica e não substitui o runtime operacional. PostgreSQL não faz parte desta topologia de produção.
+
+## Bronze, NAS e Staging
+
+Em produção:
 
 ```text
---enviar <arquivo.zip>
---enviar-todos
---resultado <nome-exato-do-zip.zip>
+Bronze  -> storage.bronzeRoot -> NAS compartilhado
+Staging -> nodes[].stagingRoot -> disco local de cada VM
+Logs    -> nodes[].logsRoot    -> disco local de cada VM
 ```
 
-`--resultado` aceita somente o nome do ZIP, nunca SHA nem caminho.
+O dimensionamento de vCPU, RAM, SAN e NAS deve ser homologado pela infraestrutura/PRODAM. O software não fixa esses números.
+
+## Monitor operacional
+
+O monitor é servido pela própria `Jornada.Api`, portanto não existe um terceiro processo para ele:
+
+```text
+http://NODE1:5080/monitor
+http://NODE2:5080/monitor
+```
+
+Com balanceador/VIP externo, use `/monitor` no endereço do VIP. A página lê o SQL compartilhado e apresenta uma visão do cluster inteiro.
+
+## Validação sem alterar a máquina
+
+```powershell
+.\Install-JornadaCluster.ps1 `
+  -ConfigPath .\Jornada.Cluster.Production.example.json `
+  -PayloadRoot C:\Jornada-Install\bundle `
+  -NodeId NODE1 `
+  -ValidateOnly
+```
+
+ou use `-PlanOnly`.
+
+## Docker local
+
+O harness Test usa quatro containers persistentes:
+
+```text
+jornada-node1
+jornada-node2
+sqlserver
+jornada-nas
+```
+
+O NAS local é Samba/SMB e expõe a persistência Bronze. No perfil padrão, NODE1/NODE2 continuam montando o named volume diretamente para manter os testes rápidos e determinísticos; a semântica integral de um NAS SMB de produção deve ter um ensaio de fidelidade separado.
+
+Execute:
+
+```powershell
+.\scripts\local-cluster.ps1 up
+```
+
+O comando imprime os endpoints do cluster, o monitor e os caminhos/comandos de execução única. Há também:
+
+```powershell
+.\scripts\local-cluster.ps1 calibrate
+.\scripts\local-cluster.ps1 linkage
+```
 
 ## Segurança e bloqueio conhecido de Produção
 
-A configuração real e os arquivos de tarefa podem conter conexão SQL e/ou chave do Integrador. O instalador remove herança de ACL e mantém acesso para `SYSTEM`, Administradores e, quando configurada, a conta das tarefas.
+A configuração real e `manual-runtime.json` podem conter conexão SQL. O instalador aplica ACL restrita à configuração.
 
-**Importante:** a `Jornada.Api` atual é fail-closed fora de `Development`: a autenticação/autorização de Produção permanece `DENY_BY_DEFAULT_PENDING_CORPORATE_IDENTITY` até a integração do mecanismo corporativo de identidade/secret store. O instalador não contorna essa proteção nem habilita chaves sintéticas de Development em Produção.
-
-Assim, o instalador pode provisionar toda a infraestrutura e subir os processos, mas o tráfego funcional de Produção deve permanecer bloqueado até o adaptador de identidade corporativa ser implementado/homologado.
+A `Jornada.Api` permanece fail-closed fora de Development enquanto o adaptador corporativo de identidade/secret store não estiver implementado e homologado. O instalador não contorna essa proteção nem habilita chaves sintéticas de Development em Produção.

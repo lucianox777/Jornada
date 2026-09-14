@@ -1,0 +1,137 @@
+name: jornada-cluster-topology
+
+on:
+  push:
+    paths:
+      - 'Solution/docker-compose.yml'
+      - 'Solution/config/release/configuration-bundle.json'
+      - 'Solution/install/container-test/**'
+      - 'Solution/install/windows-production/Jornada.Cluster.*.json'
+      - 'Solution/install/windows-production/Install-JornadaCluster.ps1'
+      - 'Solution/install/windows-production/Invoke-JornadaLinkage*.ps1'
+      - 'Solution/scripts/local-cluster.*'
+      - 'Solution/docs/uml/Jornada_Implantacao.puml'
+      - '.github/workflows/cluster-topology.yml'
+  pull_request:
+    paths:
+      - 'Solution/docker-compose.yml'
+      - 'Solution/config/release/configuration-bundle.json'
+      - 'Solution/install/container-test/**'
+      - 'Solution/install/windows-production/Jornada.Cluster.*.json'
+      - 'Solution/install/windows-production/Install-JornadaCluster.ps1'
+      - 'Solution/install/windows-production/Invoke-JornadaLinkage*.ps1'
+      - 'Solution/scripts/local-cluster.*'
+      - 'Solution/docs/uml/Jornada_Implantacao.puml'
+      - '.github/workflows/cluster-topology.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cluster-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Validate cluster config and configuration bundle parity
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          test = json.loads(Path("install/windows-production/Jornada.Cluster.Test.json").read_text(encoding="utf-8"))
+          prod = json.loads(Path("install/windows-production/Jornada.Cluster.Production.example.json").read_text(encoding="utf-8"))
+          bundle = json.loads(Path("config/release/configuration-bundle.json").read_text(encoding="utf-8"))
+          def shape(value):
+              if isinstance(value, dict): return {key: shape(item) for key, item in value.items()}
+              if isinstance(value, list): return [shape(value[0])] if value else []
+              return type(value).__name__
+          if shape(test) != shape(prod): raise SystemExit("Configurações Test e Production não possuem o mesmo schema estrutural.")
+          if test["environment"] != "Test" or prod["environment"] != "Production": raise SystemExit("environment incorreto nos perfis canônicos.")
+          if len(test["nodes"]) != 2 or len(prod["nodes"]) != 2: raise SystemExit("Topologia canônica deve conter NODE1 e NODE2.")
+          if test["storage"]["bronzeRoot"] != "/data/bronze": raise SystemExit("Bronze Test deve usar /data/bronze.")
+          for node in test["nodes"]:
+              if node["stagingRoot"] != "/data/staging": raise SystemExit("Staging lógico Test deve ser /data/staging.")
+          for profile in (test, prod):
+              if profile["configurationBundleVersion"] != bundle["bundleVersion"]: raise SystemExit("configurationBundleVersion diverge do bundle canônico.")
+              if profile["solutionSchema"] != bundle["solutionSchema"]: raise SystemExit("solutionSchema diverge do bundle canônico.")
+              if profile["schemaVersion"] != bundle["clusterConfigSchemaVersion"]: raise SystemExit("schemaVersion diverge do bundle canônico.")
+              tasks = profile["tasks"]
+              if len(tasks) != 5: raise SystemExit("Config cluster deve declarar exatamente cinco processos residentes.")
+              if any(t["trigger"]["type"] != "AtStartup" for t in tasks): raise SystemExit("Execução única não pode ser tarefa agendada do cluster.")
+              expected = {"Api","ResultadoApi","Processor","OperationsMaintenance","BronzeMaintenance"}
+              if {t["component"] for t in tasks} != expected: raise SystemExit("Conjunto de processos residentes divergente.")
+          print("CLUSTER CONFIG/BUNDLE CONTRACT: OK")
+          PY
+
+      - name: Parse shell and Compose
+        shell: bash
+        run: |
+          bash -n install/container-test/entrypoint.sh
+          bash -n scripts/local-cluster.sh
+          cp .env.example .env
+          docker compose --env-file .env config --quiet
+
+      - name: Start canonical cluster
+        shell: bash
+        run: bash scripts/local-cluster.sh up
+
+      - name: Prove one-shot binaries are installed but not resident
+        shell: bash
+        run: |
+          docker compose --env-file .env exec -T jornada-node2 sh -lc '
+            test -f /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll &&
+            test -f /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll &&
+            test -f /opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll &&
+            test -f /opt/jornada/tools/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.dll
+          '
+          running=$(docker compose --env-file .env exec -T jornada-node2 sh -lc "ps -ef | grep -E 'Jornada.Linkage.(Parameters.Worker|Runner)|Jornada.Bronze.Verify|Jornada.Linkage.Evaluation' | grep -v grep || true")
+          test -z "$running"
+          echo 'ONE-SHOT TOOLS PRESENT AND NOT RESIDENT: OK'
+
+      - name: Prove Linkage is blocked before Calibrator
+        shell: bash
+        run: |
+          set +e
+          bash scripts/local-cluster.sh linkage > /tmp/linkage-before-calibrator.log 2>&1
+          code=$?
+          set -e
+          test "$code" -ne 0
+          grep -F 'O seed sintético não libera execução' /tmp/linkage-before-calibrator.log >/dev/null
+          echo 'LINKAGE BEFORE CALIBRATOR: BLOCKED'
+
+      - name: Prove shared Bronze, NAS visibility and isolated Staging
+        shell: bash
+        run: |
+          docker compose --env-file .env exec -T jornada-node1 sh -lc 'printf shared > /data/bronze/.cluster-smoke'
+          docker compose --env-file .env exec -T jornada-node2 sh -lc 'test "$(cat /data/bronze/.cluster-smoke)" = shared'
+          docker compose --env-file .env exec -T jornada-nas sh -lc "smbclient //127.0.0.1/bronze -N -p 445 -c 'get .cluster-smoke -' | grep -F shared"
+          docker compose --env-file .env exec -T jornada-node1 sh -lc 'printf node1 > /data/staging/.node1-only'
+          docker compose --env-file .env exec -T jornada-node2 sh -lc 'test ! -e /data/staging/.node1-only'
+          docker compose --env-file .env exec -T jornada-node2 sh -lc 'printf node2 > /data/staging/.node2-only'
+          docker compose --env-file .env exec -T jornada-node1 sh -lc 'test ! -e /data/staging/.node2-only'
+          echo 'CLUSTER STORAGE/NAS TOPOLOGY: OK'
+
+      - name: Prove one node survives peer stop
+        shell: bash
+        run: |
+          docker compose --env-file .env stop jornada-node1
+          curl --fail --silent --show-error http://127.0.0.1:5180/health/ready >/dev/null
+          echo 'NODE2 READY WITH NODE1 STOPPED: OK'
+
+      - name: Dump cluster logs on failure
+        if: failure()
+        shell: bash
+        run: docker compose --env-file .env logs --tail 200 || true
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: docker compose --env-file .env down -v --remove-orphans || true

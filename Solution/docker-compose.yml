@@ -1,5 +1,20 @@
 name: jornada-local
 
+x-jornada-node-common: &jornada-node-common
+  image: jornada-node:test
+  build:
+    context: .
+    dockerfile: install/container-test/Dockerfile
+  depends_on:
+    sqlserver:
+      condition: service_healthy
+    jornada-nas:
+      condition: service_healthy
+  restart: unless-stopped
+  environment: &jornada-node-environment
+    JORNADA_CLUSTER_CONFIG: /etc/jornada/Jornada.Cluster.Test.json
+    JORNADA_SQL_CONNECTION_STRING: "Server=sqlserver,1433;Database=${JORNADA_SQL_DATABASE:-JornadaLocal};User Id=sa;Password=${JORNADA_SQL_SA_PASSWORD:-Jornada_Local_2026!ChangeMe};TrustServerCertificate=true;Encrypt=false"
+
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
@@ -7,7 +22,7 @@ services:
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_PID: "Developer"
-      MSSQL_SA_PASSWORD: "${JORNADA_SQL_SA_PASSWORD:?Defina JORNADA_SQL_SA_PASSWORD em .env}"
+      MSSQL_SA_PASSWORD: "${JORNADA_SQL_SA_PASSWORD:-Jornada_Local_2026!ChangeMe}"
     ports:
       - "${JORNADA_SQL_PORT:-14333}:1433"
     volumes:
@@ -26,6 +41,76 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  jornada-nas:
+    image: jornada-nas:test
+    build:
+      context: .
+      dockerfile: install/container-test/nas/Dockerfile
+    hostname: jornada-nas
+    ports:
+      - "${JORNADA_NAS_SMB_PORT:-1445}:445"
+    volumes:
+      - jornada_bronze:/srv/jornada/bronze
+    restart: unless-stopped
+
+  jornada-node1:
+    <<: *jornada-node-common
+    hostname: jornada-node1
+    environment:
+      <<: *jornada-node-environment
+      JORNADA_NODE_ID: NODE1
+    ports:
+      - "5080:5080"
+      - "5081:5081"
+    volumes:
+      - ./install/windows-production/Jornada.Cluster.Test.json:/etc/jornada/Jornada.Cluster.Test.json:ro
+      - jornada_bronze:/data/bronze
+      - jornada_staging_1:/data/staging
+      - jornada_logs_1:/data/logs
+      - jornada_node_data_1:/data/node
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5080/health/live >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  jornada-node2:
+    <<: *jornada-node-common
+    hostname: jornada-node2
+    environment:
+      <<: *jornada-node-environment
+      JORNADA_NODE_ID: NODE2
+    ports:
+      - "5180:5080"
+      - "5181:5081"
+    volumes:
+      - ./install/windows-production/Jornada.Cluster.Test.json:/etc/jornada/Jornada.Cluster.Test.json:ro
+      - jornada_bronze:/data/bronze
+      - jornada_staging_2:/data/staging
+      - jornada_logs_2:/data/logs
+      - jornada_node_data_2:/data/node
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5080/health/live >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
 volumes:
   jornada_sql_data:
     name: jornada_sql_data
+  jornada_bronze:
+    name: jornada_bronze
+  jornada_staging_1:
+    name: jornada_staging_1
+  jornada_staging_2:
+    name: jornada_staging_2
+  jornada_logs_1:
+    name: jornada_logs_1
+  jornada_logs_2:
+    name: jornada_logs_2
+  jornada_node_data_1:
+    name: jornada_node_data_1
+  jornada_node_data_2:
+    name: jornada_node_data_2
