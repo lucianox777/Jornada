@@ -82,6 +82,58 @@ public sealed class PersonIdentifierParsingTests
     }
 
     [Fact]
+    public void Rejects_SourceIdentifier_From_Base_Different_From_Manifest()
+    {
+        using var document = JsonDocument.Parse("""
+            {
+              "identificadores":[
+                {"tipo":"CODIGO_BASE_ORIGEM","namespace":"BASE_B","valor":"P-1","statusEvidencia":"DECLARADO"}
+              ]
+            }
+            """);
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, null, "BASE_A"));
+
+        Assert.Contains("diverge", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Rejects_Two_Distinct_Source_Codes_In_Same_Observation()
+    {
+        using var document = JsonDocument.Parse("""
+            {
+              "identificadores":[
+                {"tipo":"CODIGO_BASE_ORIGEM","namespace":"BASE_A","valor":"P-1","statusEvidencia":"DECLARADO"},
+                {"tipo":"CODIGO_BASE_ORIGEM","namespace":"BASE_A","valor":"P-2","statusEvidencia":"DECLARADO"}
+              ]
+            }
+            """);
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, null, "BASE_A"));
+
+        Assert.Contains("mais de um CODIGO_BASE_ORIGEM", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Explicit_Source_Code_With_Legacy_Code_Requires_Manifest_Base()
+    {
+        using var document = JsonDocument.Parse("""
+            {
+              "identificadores":[
+                {"tipo":"CODIGO_BASE_ORIGEM","namespace":"BASE_A","valor":"P-1","statusEvidencia":"DECLARADO"}
+              ]
+            }
+            """);
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, "P-1", null));
+
+        Assert.Contains("exige codigoBasePessoaOrigem", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Requires_Rg_Issuer_And_State()
     {
         using var document = JsonDocument.Parse("""
