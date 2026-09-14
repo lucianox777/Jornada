@@ -5,10 +5,10 @@ namespace Jornada.Linkage.Parameters.Worker;
 public sealed record IdentityTrainingPair(
     string LeftName,
     DateOnly LeftBirthDate,
-    string LeftMotherName,
+    string? LeftMotherName,
     string RightName,
     DateOnly RightBirthDate,
-    string RightMotherName,
+    string? RightMotherName,
     string? LeftSourceCode = null,
     string? RightSourceCode = null,
     IReadOnlyList<ResolutionSourceValue>? LeftResolutionValues = null,
@@ -17,14 +17,16 @@ public sealed record IdentityTrainingPair(
 /// <summary>
 /// Estima parâmetros m/u do baseline Fellegi-Sunter a partir de dois conjuntos:
 /// pares verdadeiros formados por observações independentes de Gestores distintos que
-/// convergiram deterministicamente pela âncora fiscal ao mesmo UUID e pares não-match amostrados da Gold.
-/// A independência inter-Gestor evita treinar m contra a própria Gold derivada da observação.
-/// Usa suavização de Dirichlet/Laplace para impedir pesos infinitos.
+/// convergiram deterministicamente pela fonte de ground truth elegível ao mesmo UUID e
+/// pares não-match amostrados da Gold. A seleção da fonte de rótulo e o isolamento contra
+/// label leakage são responsabilidade do plano de calibração versionado.
 ///
-/// V3: data de nascimento é uma única evidência probabilística. Dia, mês e ano podem
-/// continuar sendo usados no blocking/diagnóstico, mas não recebem três likelihood ratios
-/// independentes no score. Parâmetros V2 são mantidos temporariamente apenas para gates
-/// PostgreSQL/replay já publicados; quando V3 está presente o scorer os ignora.
+/// Nome da mãe é anulável. Ausência em qualquer lado não é discordância: o par fica fora
+/// da distribuição NOME_MAE e o scorer trata a evidência ausente como LR=1.
+///
+/// V3: data de nascimento é uma única evidência probabilística. Dia, mês e ano permanecem
+/// disponíveis para blocking, diagnóstico e replay V2, mas não recebem três likelihood
+/// ratios independentes quando SCORING_BIRTH_SINGLE_EVIDENCE_V3 está habilitado.
 /// </summary>
 public static class LinkageParameterEstimator
 {
@@ -45,41 +47,54 @@ public static class LinkageParameterEstimator
             throw new InvalidOperationException("Não há pares não-match suficientes para estimar probabilidades u.");
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(smoothingAlpha);
 
+        var matchedMotherStates = PresentMotherNameComparisons(matchedPairs).ToArray();
+        var unmatchedMotherStates = PresentMotherNameComparisons(unmatchedPairs).ToArray();
+
         var result = new Dictionary<string, decimal>(StringComparer.Ordinal)
         {
-            ["M_SAMPLE_SIZE"] = matchedPairs.Count,
-            ["U_SAMPLE_SIZE"] = unmatchedPairs.Count,
+            [LinkageParameterCatalog.MatchedSampleSize] = matchedPairs.Count,
+            [LinkageParameterCatalog.UnmatchedSampleSize] = unmatchedPairs.Count,
             ["SMOOTHING_ALPHA"] = smoothingAlpha,
-            ["T_LINKAGE"] = threshold,
-            ["CONFLICT_MARGIN"] = conflictMargin,
+            [LinkageParameterCatalog.Threshold] = threshold,
+            [LinkageParameterCatalog.ConflictMargin] = conflictMargin,
             ["SCORING_BIRTH_SINGLE_EVIDENCE_V3"] = 1m,
-            // Compatibilidade temporária com o validador PostgreSQL V2. O scorer V3
-            // tem precedência e nunca soma os três componentes quando o flag acima existe.
-            ["SCORING_BIRTH_COMPONENTS_V2"] = 1m,
-            ["PRIOR_MATCH_PROBABILITY"] = EstimateReferencePrior(populationSize, distinctBirthDates),
-            ["PRIOR_BLOCK_MIN"] = 0.000001m,
-            ["PRIOR_BLOCK_MAX"] = 0.25m
+            // Compatibilidade temporária com o validador PostgreSQL/replay V2. O scorer V3
+            // tem precedência e nunca soma os componentes quando o flag acima está presente.
+            [LinkageParameterCatalog.BirthComponentScoring] = 1m,
+            [LinkageParameterCatalog.PriorMatchProbability] = EstimateReferencePrior(populationSize, distinctBirthDates),
+            [LinkageParameterCatalog.PriorBlockMin] = 0.000001m,
+            [LinkageParameterCatalog.PriorBlockMax] = 0.25m
         };
 
         AddDistribution(result, "M_NOME", matchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)), smoothingAlpha);
         AddDistribution(result, "U_NOME", unmatchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)), smoothingAlpha);
-        AddDistribution(result, "M_NOME_MAE", matchedPairs.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
-        AddDistribution(result, "U_NOME_MAE", unmatchedPairs.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
+        AddDistribution(result, "M_NOME_MAE", matchedMotherStates, smoothingAlpha);
+        AddDistribution(result, "U_NOME_MAE", unmatchedMotherStates, smoothingAlpha);
 
         AddBinaryDistribution(result, "M_DATA_NASCIMENTO", matchedPairs.Select(p => p.LeftBirthDate == p.RightBirthDate), smoothingAlpha);
         AddBinaryDistribution(result, "U_DATA_NASCIMENTO", unmatchedPairs.Select(p => p.LeftBirthDate == p.RightBirthDate), smoothingAlpha);
 
-        // Compatibilidade/auditoria dos componentes. São persistidos com os nomes V2
-        // porque o validador PostgreSQL existente ainda os exige, mas não participam do
-        // likelihood ratio quando SCORING_BIRTH_SINGLE_EVIDENCE_V3=1.
+        // Metadados V2 para replay/validação histórica; ignorados pelo scorer quando V3 está ativo.
         AddBinaryDistribution(result, "M_NASC_DIA", matchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day), smoothingAlpha);
-        AddBinaryDistribution(result, "M_NASC_MES", matchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month), smoothingAlpha);
-        AddBinaryDistribution(result, "M_NASC_ANO", matchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year), smoothingAlpha);
         AddBinaryDistribution(result, "U_NASC_DIA", unmatchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day), smoothingAlpha);
+        AddBinaryDistribution(result, "M_NASC_MES", matchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month), smoothingAlpha);
         AddBinaryDistribution(result, "U_NASC_MES", unmatchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month), smoothingAlpha);
+        AddBinaryDistribution(result, "M_NASC_ANO", matchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year), smoothingAlpha);
         AddBinaryDistribution(result, "U_NASC_ANO", unmatchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year), smoothingAlpha);
 
         return result;
+    }
+
+    private static IEnumerable<NameComparisonState> PresentMotherNameComparisons(IEnumerable<IdentityTrainingPair> pairs)
+    {
+        foreach (var pair in pairs)
+        {
+            if (IdentityComparison.NormalizeText(pair.LeftMotherName) is null ||
+                IdentityComparison.NormalizeText(pair.RightMotherName) is null)
+                continue;
+
+            yield return IdentityComparison.CompareName(pair.LeftMotherName, pair.RightMotherName);
+        }
     }
 
     private static void AddDistribution(
@@ -129,8 +144,6 @@ public static class LinkageParameterEstimator
         if (populationSize <= 0 || distinctBirthDates <= 0)
             return 0.001m;
 
-        // Referência global apenas para auditoria/monitoramento. O scorer operacional
-        // condiciona o prior ao tamanho real do conjunto de candidatos observado.
         var prior = (decimal)distinctBirthDates / populationSize;
         return Math.Clamp(prior, 0.000001m, 0.25m);
     }
