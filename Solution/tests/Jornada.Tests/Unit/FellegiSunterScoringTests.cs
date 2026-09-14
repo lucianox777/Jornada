@@ -141,7 +141,9 @@ public sealed class FellegiSunterScoringTests
             ? new Dictionary<string, decimal>(ParametersV3)
             : new Dictionary<string, decimal>(Parameters);
         parameters[LinkageParameterCatalog.BirthJointEvidenceScoring] = 1m;
-        var m = new[] { .01m, .02m, .03m, .06m, .08m, .15m, .20m, .45m };
+        // Synthetic, normalized distributions chosen so the likelihood-ratio ordering used by
+        // the regression is explicit: exact > day+year > day+month > year-only.
+        var m = new[] { .01m, .02m, .03m, .08m, .06m, .15m, .20m, .45m };
         var u = new[] { .45m, .15m, .12m, .08m, .08m, .05m, .04m, .03m };
         for (var i = 0; i < LinkageParameterCatalog.BirthJointStates.Count; i++)
         {
