@@ -1,15 +1,15 @@
 table QualidadeResolucaoCalibrada
 
-	measure 'PPV estimado' = AVERAGE(QualidadeResolucaoCalibrada[ppv_estimado])
+	measure 'PPV estimado' = SELECTEDVALUE(QualidadeResolucaoCalibrada[ppv_estimado])
 		formatString: 0.00%
 
-	measure 'Sensibilidade estimada' = AVERAGE(QualidadeResolucaoCalibrada[sensibilidade_estimada])
+	measure 'Sensibilidade estimada' = SELECTEDVALUE(QualidadeResolucaoCalibrada[sensibilidade_estimada])
 		formatString: 0.00%
 
-	measure 'Taxa estimada de falso vínculo' = AVERAGE(QualidadeResolucaoCalibrada[taxa_falso_vinculo_estimada])
+	measure 'Taxa estimada de falso vínculo' = SELECTEDVALUE(QualidadeResolucaoCalibrada[taxa_falso_vinculo_estimada])
 		formatString: 0.00%
 
-	measure 'Taxa estimada de vínculo perdido' = AVERAGE(QualidadeResolucaoCalibrada[taxa_vinculo_perdido_estimada])
+	measure 'Taxa estimada de vínculo perdido' = SELECTEDVALUE(QualidadeResolucaoCalibrada[taxa_vinculo_perdido_estimada])
 		formatString: 0.00%
 
 	column linkage_quality_estimate_id
@@ -56,6 +56,16 @@ table QualidadeResolucaoCalibrada
 		dataType: string
 		summarizeBy: none
 		sourceColumn: metodo_estimacao
+
+	column metodo_intervalo_confianca
+		dataType: string
+		summarizeBy: none
+		sourceColumn: metodo_intervalo_confianca
+
+	column nivel_confianca
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: nivel_confianca
 
 	column tamanho_amostra_referencia
 		dataType: int64
