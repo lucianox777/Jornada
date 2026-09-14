@@ -32,7 +32,7 @@
   },
   "sql": {
     "mode": "External",
-    "connectionString": "Server=sqlserver,1433;Database=JornadaLocal;User Id=sa;Password=Jornada_Local_2026!ChangeMe;TrustServerCertificate=true;Encrypt=false",
+    "connectionString": "Server=sqlserver,1433;Database=JornadaLocal;User Id=sa;Password=${JORNADA_SQL_SA_PASSWORD};TrustServerCertificate=true;Encrypt=false",
     "initializeDatabase": false,
     "setupExe": "",
     "edition": "Standard",
