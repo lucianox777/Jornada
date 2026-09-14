@@ -1,0 +1,127 @@
+table QualidadeResolucaoCalibrada
+
+	measure 'PPV estimado' = AVERAGE(QualidadeResolucaoCalibrada[ppv_estimado])
+		formatString: 0.00%
+
+	measure 'Sensibilidade estimada' = AVERAGE(QualidadeResolucaoCalibrada[sensibilidade_estimada])
+		formatString: 0.00%
+
+	measure 'Taxa estimada de falso vínculo' = AVERAGE(QualidadeResolucaoCalibrada[taxa_falso_vinculo_estimada])
+		formatString: 0.00%
+
+	measure 'Taxa estimada de vínculo perdido' = AVERAGE(QualidadeResolucaoCalibrada[taxa_vinculo_perdido_estimada])
+		formatString: 0.00%
+
+	column linkage_quality_estimate_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: linkage_quality_estimate_id
+
+	column linkage_run_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: linkage_run_id
+
+	column modelo_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: modelo_id
+
+	column modelo_versao
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: modelo_versao
+
+	column algoritmo_versao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: algoritmo_versao
+
+	column estrato
+		dataType: string
+		summarizeBy: none
+		sourceColumn: estrato
+
+	column corpus_referencia_codigo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: corpus_referencia_codigo
+
+	column calibracao_versao_codigo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: calibracao_versao_codigo
+
+	column metodo_estimacao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: metodo_estimacao
+
+	column tamanho_amostra_referencia
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: tamanho_amostra_referencia
+
+	column ppv_estimado
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: ppv_estimado
+
+	column ppv_ic_inferior
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: ppv_ic_inferior
+
+	column ppv_ic_superior
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: ppv_ic_superior
+
+	column taxa_falso_vinculo_estimada
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: taxa_falso_vinculo_estimada
+
+	column sensibilidade_estimada
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: sensibilidade_estimada
+
+	column sensibilidade_ic_inferior
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: sensibilidade_ic_inferior
+
+	column sensibilidade_ic_superior
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: sensibilidade_ic_superior
+
+	column taxa_vinculo_perdido_estimada
+		dataType: decimal
+		summarizeBy: none
+		sourceColumn: taxa_vinculo_perdido_estimada
+
+	column medido_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: medido_em
+
+	column criado_em
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: criado_em
+
+	column classe_metrica
+		dataType: string
+		summarizeBy: none
+		sourceColumn: classe_metrica
+
+	partition QualidadeResolucaoCalibrada = m
+		mode: import
+		source =
+			let
+				Source = Sql.Database(SqlServer, SqlDatabase),
+				Data = Source{[Schema="serving", Item="v_bi_qualidade_resolucao_calibrada"]}[Data]
+			in
+				Data
