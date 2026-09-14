@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import tempfile
 from pathlib import Path
 
 PRE_DEPLOYMENT_MODE = "PRE_DEPLOYMENT_NO_HISTORICAL_BASELINE"
