@@ -36,14 +36,6 @@ internal sealed record CandidateScore(Guid PessoaUuid, decimal Score);
 
 internal static class LinkageModelPolicy
 {
-    private const string SingleBirthScoringParameter = "SCORING_BIRTH_SINGLE_EVIDENCE_V3";
-
-    private static readonly string[] SingleBirthParameters =
-    [
-        "M_DATA_NASCIMENTO_EXACT", "M_DATA_NASCIMENTO_DIFF",
-        "U_DATA_NASCIMENTO_EXACT", "U_DATA_NASCIMENTO_DIFF"
-    ];
-
     internal static LinkageModel Create(Guid modelId, int version, string algorithm,
         IReadOnlyDictionary<string, decimal> parameters)
     {
@@ -61,10 +53,11 @@ internal static class LinkageModelPolicy
 
     internal static bool SupportsSingleBirthScoring(LinkageModel model)
     {
-        if (!model.Parameters.TryGetValue(SingleBirthScoringParameter, out var enabled) || enabled < 1m)
+        if (!model.Parameters.TryGetValue(LinkageParameterCatalog.BirthSingleEvidenceScoring, out var enabled) || enabled < 1m)
             return false;
 
-        var missing = SingleBirthParameters.Where(x => !model.Parameters.ContainsKey(x)).ToArray();
+        var missing = LinkageParameterCatalog.BirthSingleEvidenceRequired
+            .Where(x => !model.Parameters.ContainsKey(x)).ToArray();
         if (missing.Length > 0)
             throw new InvalidOperationException($"Modelo V3 incompleto. Parâmetros de nascimento ausentes: {string.Join(", ", missing)}");
         return true;
@@ -72,7 +65,7 @@ internal static class LinkageModelPolicy
 
     internal static bool SupportsBirthComponentScoring(LinkageModel model)
     {
-        // V3 usa blocking ampliado quando necessário, mas score de nascimento é único.
+        // V3 pode usar os passes ampliados de blocking, mas o score de nascimento é único.
         if (SupportsSingleBirthScoring(model))
             return true;
 
