@@ -23,7 +23,7 @@ public sealed class IbgeNominalBenchmarkTests
         var first = IbgeNominalBenchmarkGenerator.Generate(snapshot, people, options);
         var replay = IbgeNominalBenchmarkGenerator.Generate(snapshot, people, options);
 
-        Assert.That(replay, Is.EqualTo(first));
+        Assert.That(ReplayProjection(replay), Is.EqualTo(ReplayProjection(first)));
 
         var observedFirstNames = snapshot.Entries
             .Where(x => x.StatisticKind == IbgeNameStatisticKind.FirstName)
@@ -98,6 +98,28 @@ public sealed class IbgeNominalBenchmarkTests
             Assert.That(candidates.All(x => x.Parameters["PRIOR_MATCH_PROBABILITY"] == 0.001m), Is.True);
         });
     }
+
+    private static IReadOnlyList<string> ReplayProjection(IEnumerable<IbgeNominalBenchmarkPair> pairs) =>
+        pairs.Select(pair => string.Join('|',
+            pair.PairId,
+            pair.Partition,
+            pair.IsTrueMatch,
+            pair.Left.BasePersonId,
+            pair.Left.FirstName,
+            pair.Left.Surname,
+            pair.Left.BirthDate,
+            pair.Right.BasePersonId,
+            pair.Right.FirstName,
+            pair.Right.Surname,
+            pair.Right.BirthDate,
+            string.Join(';', pair.Substitutions.Select(substitution => string.Join(':',
+                substitution.StatisticKind,
+                substitution.SourceValue,
+                substitution.TargetValue,
+                substitution.SourceOccurrences,
+                substitution.TargetOccurrences,
+                substitution.Similarity)))))
+            .ToArray();
 
     private static IbgeTypedNameFrequencySnapshot Snapshot() =>
         IbgeTypedNameFrequencyCatalog.Create(
