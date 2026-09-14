@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Fail-closed technical closure gate for the current Jornada schema.
 
-Enquanto a Jornada estiver em pré-implantação (`deployed=false`), o fechamento
-valida apenas o estado técnico corrente e invariantes ainda aplicáveis. Versões
-internas anteriores não constituem baseline histórica de regressão. Quando
-houver implantação real, a política de compatibilidade passa a exigir uma
-baseline operacional explícita e versionada.
+The frozen v4.05 battery remains responsible for historical technical
+invariants, but it must not pin mutable current-release metadata. This wrapper
+proves the current 3.70 runtime/schema state and validates RELEASE_INFO at the
+release boundary: while v5.00 has not been cut, RELEASE_INFO may consistently
+describe the last published v4.05 release; when v5.00 is cut, its engineering
+version, schema and source tag must move together to v5.00 / v3.70.
 """
 from __future__ import annotations
 
@@ -16,15 +17,14 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+LEGACY_GATE = ROOT / "scripts" / "technical-closure-gate-v405.py"
 READINESS = ROOT / "src" / "Jornada.Api" / "ApiHealth.cs"
 CURRENT_INSTALLER = ROOT / "database" / "Jornada_Fase1_v3.70.sql"
 SCHEMA_370 = ROOT / "database" / "migrations" / "20260910_Schema_Consolidation_370.sql"
 SCHEMA_APPROVALS = ROOT / "config" / "governance" / "schema-approvals.json"
 LOCK_PROVENANCE = ROOT / "config" / "release" / "nuget-lock-provenance.json"
-COMPATIBILITY_POLICY = ROOT / "config" / "release" / "contract-compatibility-policy.json"
 MATERIALIZER = ROOT / "scripts" / "materialize-sql-installer.py"
 RELEASE_INFO = ROOT.parent / "RELEASE_INFO.txt"
-PRE_DEPLOYMENT_MODE = "PRE_DEPLOYMENT_NO_HISTORICAL_BASELINE"
 
 
 def fail(message: str) -> None:
@@ -47,27 +47,20 @@ def parse_release_info() -> dict[str, str]:
     return values
 
 
-def validate_predeployment_compatibility_policy() -> None:
-    policy = json.loads(COMPATIBILITY_POLICY.read_text(encoding="utf-8"))
-    if policy.get("deployed") is not False:
-        fail(
-            "deployed=true exige baseline operacional pós-implantação; "
-            "o fechamento técnico pré-implantação não pode prosseguir"
-        )
-    if policy.get("mode") != PRE_DEPLOYMENT_MODE:
-        fail(f"policy pré-implantação deve declarar mode={PRE_DEPLOYMENT_MODE}")
-    preserved = set(policy.get("preserveBeforeDeployment") or [])
-    required = {
-        "architectural-invariants",
-        "current-contract-validation",
-        "unit-algorithm-correctness",
-        "integration-correctness",
-        "security-and-data-minimization",
-        "ground-truth-anti-leakage",
-    }
-    missing = sorted(required - preserved)
-    if missing:
-        fail("policy pré-implantação deixou de preservar invariantes obrigatórios: " + ", ".join(missing))
+def run_legacy_closure() -> None:
+    result = subprocess.run(
+        [sys.executable, str(LEGACY_GATE)],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        if result.stdout:
+            print(result.stdout, end="", file=sys.stderr)
+        if result.stderr:
+            print(result.stderr, end="", file=sys.stderr)
+        fail("bateria histórica v4.05 falhou")
 
 
 def validate_current_schema() -> None:
@@ -194,13 +187,13 @@ def validate_standalone_installer() -> None:
 
 
 def main() -> int:
-    validate_predeployment_compatibility_policy()
+    run_legacy_closure()
     validate_current_schema()
     release_state = validate_release_boundary()
     validate_standalone_installer()
     print(
         "TECHNICAL CLOSURE GATE: OK "
-        "(pré-implantação sem baseline histórica; invariantes correntes preservados; "
+        "(bateria v4.05 preservada sem pin de RELEASE_INFO corrente; "
         "readiness Base 3.62 / SolutionSchema 3.70; governança/proveniência 3.70; "
         f"{release_state}; instalador SQL Server canônico e autocontido verificados)"
     )

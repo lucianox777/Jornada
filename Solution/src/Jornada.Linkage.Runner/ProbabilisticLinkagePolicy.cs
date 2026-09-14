@@ -2,8 +2,6 @@ using Jornada.Contracts;
 
 namespace Jornada.Linkage.Runner;
 
-// Provider-independent policy. The existing FellegiSunterScoring and name comparators
-// remain the only implementation of the mathematical score.
 internal sealed record LinkageModel(
     Guid ModelId, int Version, string AlgorithmVersion,
     IReadOnlyDictionary<string, decimal> Parameters, decimal Threshold, decimal ConflictMargin)
@@ -13,11 +11,13 @@ internal sealed record LinkageModel(
 }
 
 /// <summary>
-/// Snapshot operacional imutável de um modelo consumível e do ruleset que governa seu blocking.
-/// Um modelo validado é semanticamente imutável; congelar o par evita reler regras durante cada
-/// observação e impede que um mesmo processo misture gerações de blocking para o mesmo modelo.
+/// Snapshot operacional imutável do modelo, ruleset e referência estatística congelada.
+/// A frequência nominal é vinculada à versão do modelo; mudar a referência ativa não altera replay.
 /// </summary>
-internal sealed record LinkageRuntimeSnapshot(LinkageModel Model, LinkageDynamicRuleSet? RuleSet)
+internal sealed record LinkageRuntimeSnapshot(
+    LinkageModel Model,
+    LinkageDynamicRuleSet? RuleSet,
+    IReadOnlyDictionary<string, decimal>? PublicationNameFrequency = null)
 {
     internal ProbabilisticLinkageModelRef Reference => Model.Reference with
     {
@@ -36,6 +36,14 @@ internal sealed record CandidateScore(Guid PessoaUuid, decimal Score);
 
 internal static class LinkageModelPolicy
 {
+    private const string SingleBirthScoringParameter = "SCORING_BIRTH_SINGLE_EVIDENCE_V3";
+
+    private static readonly string[] SingleBirthParameters =
+    [
+        "M_DATA_NASCIMENTO_EXACT", "M_DATA_NASCIMENTO_DIFF",
+        "U_DATA_NASCIMENTO_EXACT", "U_DATA_NASCIMENTO_DIFF"
+    ];
+
     internal static LinkageModel Create(Guid modelId, int version, string algorithm,
         IReadOnlyDictionary<string, decimal> parameters)
     {
@@ -43,18 +51,31 @@ internal static class LinkageModelPolicy
             .Where(x => !parameters.ContainsKey(x)).ToArray();
         if (missing.Length > 0)
             throw new InvalidOperationException($"Modelo incompleto. Parâmetros ausentes: {string.Join(", ", missing)}");
+
         var model = new LinkageModel(modelId, version, algorithm, parameters,
             parameters[LinkageParameterCatalog.Threshold], parameters[LinkageParameterCatalog.ConflictMargin]);
-        // An enabled V2 must never silently fall back to V1 because its model is incomplete.
+        _ = SupportsSingleBirthScoring(model);
         _ = SupportsBirthComponentScoring(model);
         return model;
     }
 
+    internal static bool SupportsSingleBirthScoring(LinkageModel model)
+    {
+        if (!model.Parameters.TryGetValue(SingleBirthScoringParameter, out var enabled) || enabled < 1m)
+            return false;
+
+        var missing = SingleBirthParameters.Where(x => !model.Parameters.ContainsKey(x)).ToArray();
+        if (missing.Length > 0)
+            throw new InvalidOperationException($"Modelo V3 incompleto. Parâmetros de nascimento ausentes: {string.Join(", ", missing)}");
+        return true;
+    }
+
     internal static bool SupportsBirthComponentScoring(LinkageModel model)
     {
-        // Novos modelos usam SCORING_ porque isto seleciona o cálculo Fellegi-Sunter,
-        // não a geração de candidatos. O alias BLOCKING_ é aceito somente para leitura
-        // de modelos históricos e seeds já publicados.
+        // V3 usa blocking ampliado quando necessário, mas score de nascimento é único.
+        if (SupportsSingleBirthScoring(model))
+            return true;
+
         var enabled = model.Parameters.TryGetValue(LinkageParameterCatalog.BirthComponentScoring, out var current)
             ? current
             : model.Parameters.TryGetValue(LinkageParameterCatalog.LegacyBirthComponentScoring, out var legacy)
@@ -62,6 +83,7 @@ internal static class LinkageModelPolicy
                 : 0m;
         if (enabled < 1m)
             return false;
+
         var missing = LinkageParameterCatalog.BirthComponentRequired
             .Where(x => !model.Parameters.ContainsKey(x)).ToArray();
         if (missing.Length > 0)
@@ -73,7 +95,10 @@ internal static class LinkageModelPolicy
 internal static class ProbabilisticLinkageDecisions
 {
     internal static ProbabilisticLinkageDecision Resolve(
-        LinkageModel model, IdentityObservation observation, IReadOnlyList<LinkageCandidate> candidates)
+        LinkageModel model,
+        IdentityObservation observation,
+        IReadOnlyList<LinkageCandidate> candidates,
+        IReadOnlyDictionary<string, decimal>? publicationNameFrequency = null)
     {
         if (!string.IsNullOrWhiteSpace(observation.Cpf))
             throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
@@ -81,7 +106,7 @@ internal static class ProbabilisticLinkageDecisions
             return new ProbabilisticLinkageDecision(
                 ResolutionStatus.NAO_RESOLVIDO, null, null, 0m, null, null, null, model.ModelId,
                 LinkageModelPolicy.SupportsBirthComponentScoring(model)
-                    ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_COMPONENTE"
+                    ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_AMPLIADOS"
                     : "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO");
 
         static NameComparisonState? CompareOptionalName(string? left, string? right) =>
@@ -89,15 +114,34 @@ internal static class ProbabilisticLinkageDecisions
                 ? null
                 : IdentityComparison.CompareName(left, right);
 
+        var observationNameProbability = NameFrequencyStratification.ResolvePublicationKeyProbability(
+            publicationNameFrequency, observation.NomeCompleto);
+        var observationMotherProbability = NameFrequencyStratification.ResolvePublicationKeyProbability(
+            publicationNameFrequency, observation.NomeMae);
+
         var scored = candidates
-            .Select(candidate => new CandidateScore(candidate.PessoaUuid,
-                FellegiSunterScoring.CalculatePosterior(model.Parameters,
-                    IdentityComparison.CompareName(observation.NomeCompleto, candidate.NomeCompleto),
-                    CompareOptionalName(observation.NomeMae, candidate.NomeMae),
-                    candidates.Count, observation.DataNascimento, candidate.DataNascimento)))
+            .Select(candidate =>
+            {
+                var candidateNameProbability = NameFrequencyStratification.ResolvePublicationKeyProbability(
+                    publicationNameFrequency, candidate.NomeCompleto);
+                var candidateMotherProbability = NameFrequencyStratification.ResolvePublicationKeyProbability(
+                    publicationNameFrequency, candidate.NomeMae);
+                var nameProbability = ConservativeProbability(observationNameProbability, candidateNameProbability);
+                var motherProbability = ConservativeProbability(observationMotherProbability, candidateMotherProbability);
+                var nameStratum = NameFrequencyStratification.Classify(model.Parameters, "NOME", nameProbability);
+                var motherStratum = NameFrequencyStratification.Classify(model.Parameters, "NOME_MAE", motherProbability);
+
+                return new CandidateScore(candidate.PessoaUuid,
+                    FellegiSunterScoring.CalculatePosterior(model.Parameters,
+                        IdentityComparison.CompareName(observation.NomeCompleto, candidate.NomeCompleto),
+                        CompareOptionalName(observation.NomeMae, candidate.NomeMae),
+                        candidates.Count, observation.DataNascimento, candidate.DataNascimento,
+                        nameStratum, motherStratum));
+            })
             .OrderByDescending(x => x.Score)
             .ThenBy(x => x.PessoaUuid)
             .ToArray();
+
         var best = scored[0];
         var second = scored.Length > 1 ? scored[1] : null;
         var secondScore = second?.Score;
@@ -112,5 +156,12 @@ internal static class ProbabilisticLinkageDecisions
                 "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE");
         return new ProbabilisticLinkageDecision(ResolutionStatus.RESOLVIDO, best.PessoaUuid,
             best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId);
+    }
+
+    private static decimal? ConservativeProbability(decimal? left, decimal? right)
+    {
+        if (left is null) return right;
+        if (right is null) return left;
+        return Math.Max(left.Value, right.Value);
     }
 }

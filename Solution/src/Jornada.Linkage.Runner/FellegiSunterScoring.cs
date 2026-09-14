@@ -10,29 +10,35 @@ public static class FellegiSunterScoring
         NameComparisonState? motherNameState,
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
-        DateOnly? rightBirthDate = null)
+        DateOnly? rightBirthDate = null,
+        NameFrequencyStratum nameFrequencyStratum = NameFrequencyStratum.UNKNOWN,
+        NameFrequencyStratum motherNameFrequencyStratum = NameFrequencyStratum.UNKNOWN)
     {
         var prior = blockCandidateCount is > 0
             ? CalculateBlockPrior(parameters, blockCandidateCount.Value)
-            : Get(parameters, "PRIOR_MATCH_PROBABILITY");
+            : Get(parameters, LinkageParameterCatalog.PriorMatchProbability);
         var logOdds = Logit((double)prior);
-        logOdds += LogLikelihoodRatio(parameters, "NOME", nameState);
+        logOdds += LogLikelihoodRatio(parameters, "NOME", nameState, nameFrequencyStratum);
 
-        // Nome da mãe é anulável no contrato Pessoa v3. Ausência em qualquer lado
-        // significa evidência não observada, portanto LR = 1 e log(LR) = 0.
-        // Não converter ausência em LOW: LOW representa comparação observada de baixa similaridade.
+        // Ausência de nome da mãe é evidência não observada: LR=1, log(LR)=0.
+        // LOW continua reservado a uma comparação efetivamente observada de baixa similaridade.
         if (motherNameState is { } observedMotherNameState)
-            logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", observedMotherNameState);
+            logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", observedMotherNameState, motherNameFrequencyStratum);
 
-        // V2: nascimento deixa de ser uma evidência indivisível. Dia, mês e ano
-        // contribuem separadamente quando o modelo possui os parâmetros calibrados.
-        // Modelos V1 continuam válidos: se os parâmetros V2 não existirem, a
-        // contribuição dos componentes é neutra.
         if (leftBirthDate is { } left && rightBirthDate is { } right)
         {
-            logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_DIA", left.Day == right.Day);
-            logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_MES", left.Month == right.Month);
-            logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_ANO", left.Year == right.Year);
+            // V3 tem precedência: nascimento é uma única evidência probabilística.
+            if (parameters.TryGetValue("SCORING_BIRTH_SINGLE_EVIDENCE_V3", out var singleBirth) && singleBirth >= 1m)
+            {
+                logOdds += TryBinaryLikelihoodRatio(parameters, "DATA_NASCIMENTO", left == right);
+            }
+            else
+            {
+                // Replay V2: componentes permanecem suportados apenas para modelos históricos.
+                logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_DIA", left.Day == right.Day);
+                logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_MES", left.Month == right.Month);
+                logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_ANO", left.Year == right.Year);
+            }
         }
 
         var posterior = 1d / (1d + Math.Exp(-Math.Clamp(logOdds, -40d, 40d)));
@@ -42,20 +48,34 @@ public static class FellegiSunterScoring
     private static decimal CalculateBlockPrior(IReadOnlyDictionary<string, decimal> parameters, int candidateCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(candidateCount);
-        var min = parameters.TryGetValue("PRIOR_BLOCK_MIN", out var pmin) ? pmin : 0.000001m;
-        var max = parameters.TryGetValue("PRIOR_BLOCK_MAX", out var pmax) ? pmax : 0.25m;
+        var min = parameters.TryGetValue(LinkageParameterCatalog.PriorBlockMin, out var pmin) ? pmin : 0.000001m;
+        var max = parameters.TryGetValue(LinkageParameterCatalog.PriorBlockMax, out var pmax) ? pmax : 0.25m;
         return Math.Clamp(1m / candidateCount, min, max);
     }
 
     private static double LogLikelihoodRatio(
         IReadOnlyDictionary<string, decimal> parameters,
         string attribute,
-        NameComparisonState state)
+        NameComparisonState state,
+        NameFrequencyStratum frequencyStratum)
     {
-        var suffix = state.ToString();
-        var m = ClampProbability(Get(parameters, $"M_{attribute}_{suffix}"));
-        var u = ClampProbability(Get(parameters, $"U_{attribute}_{suffix}"));
-        return Math.Log((double)m / (double)u);
+        var stateSuffix = state.ToString();
+        var stratumSuffix = frequencyStratum.ToString();
+        var m = TryGetStratified(parameters, $"M_{attribute}_{stateSuffix}", stratumSuffix);
+        var u = TryGetStratified(parameters, $"U_{attribute}_{stateSuffix}", stratumSuffix);
+        return Math.Log((double)ClampProbability(m) / (double)ClampProbability(u));
+    }
+
+    private static decimal TryGetStratified(
+        IReadOnlyDictionary<string, decimal> parameters,
+        string baseName,
+        string stratumSuffix)
+    {
+        if (!string.Equals(stratumSuffix, nameof(NameFrequencyStratum.UNKNOWN), StringComparison.Ordinal) &&
+            parameters.TryGetValue($"{baseName}_{stratumSuffix}", out var stratified))
+            return stratified;
+
+        return Get(parameters, baseName);
     }
 
     private static double TryBinaryLikelihoodRatio(
@@ -84,4 +104,13 @@ public static class FellegiSunterScoring
         var p = Math.Clamp(probability, 0.0000001d, 0.9999999d);
         return Math.Log(p / (1d - p));
     }
+}
+
+public enum NameFrequencyStratum
+{
+    UNKNOWN,
+    RARE,
+    UNCOMMON,
+    COMMON,
+    VERY_COMMON
 }

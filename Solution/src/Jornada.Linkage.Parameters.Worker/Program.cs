@@ -42,7 +42,8 @@ else
             operationalSql,
             TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("PipelineCoordination:HeartbeatSeconds", 5))),
             TimeSpan.FromSeconds(Math.Max(1, builder.Configuration.GetValue("PipelineCoordination:ExclusiveIntentTimeoutSeconds", 5)))));
-        builder.Services.AddHostedService<LinkageParametersWorker>();
+        builder.Services.AddSingleton<LinkageParametersWorker>();
+        builder.Services.AddHostedService<BootstrapAwareLinkageParametersWorker>();
     }
 }
 

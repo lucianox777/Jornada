@@ -83,7 +83,7 @@ else if (string.Equals(operationalDatabase.Provider, OperationalDatabaseProvider
     builder.Services.AddSingleton<PostgreSqlProcessorLeaseRepositoryAdapter>();
     builder.Services.AddSingleton<PostgreSqlProcessorRepository>();
     builder.Services.AddSingleton<IProcessorRepository>(sp =>
-        sp.GetRequiredService<PostgreSqlProcessorRepository>());
+        new PostgreSqlProcessorRepositoryAdapter(sp.GetRequiredService<PostgreSqlProcessorRepository>()));
     builder.Services.AddSingleton<IIdentityMapRepository, PostgreSqlIdentityMapRepository>();
 }
 else

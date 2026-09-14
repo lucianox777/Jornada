@@ -4,13 +4,19 @@ on:
   pull_request:
     paths:
       - 'Solution/database/**'
+      - 'Solution/config/contracts/**'
+      - 'Solution/config/governance/schema-approvals.json'
       - 'Solution/scripts/schema-inventory.py'
+      - 'Solution/scripts/contract-schema-hashes.py'
       - '.github/workflows/schema-inventory.yml'
   push:
     branches: [ master ]
     paths:
       - 'Solution/database/**'
+      - 'Solution/config/contracts/**'
+      - 'Solution/config/governance/schema-approvals.json'
       - 'Solution/scripts/schema-inventory.py'
+      - 'Solution/scripts/contract-schema-hashes.py'
       - '.github/workflows/schema-inventory.yml'
 
 permissions:
@@ -26,8 +32,13 @@ jobs:
       - name: Inventory physical schema
         working-directory: Solution
         run: python3 scripts/schema-inventory.py | tee schema-inventory.json
+      - name: Inventory contract SHA-256
+        working-directory: Solution
+        run: python3 scripts/contract-schema-hashes.py | tee contract-schema-hashes.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: schema-inventory
-          path: Solution/schema-inventory.json
+          path: |
+            Solution/schema-inventory.json
+            Solution/contract-schema-hashes.json
           if-no-files-found: error

@@ -7,7 +7,7 @@ namespace Jornada.Tests.Unit;
 public sealed class LinkageParameterEstimatorTests
 {
     [Test]
-    public void Generates_m_u_threshold_prior_and_birth_component_parameters()
+    public void Generates_m_u_threshold_prior_and_single_birth_evidence_parameters()
     {
         var matched = new[]
         {
@@ -30,24 +30,25 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p["CONFLICT_MARGIN"], Is.EqualTo(0.03m));
             Assert.That(p["PRIOR_MATCH_PROBABILITY"], Is.EqualTo(0.1m));
             Assert.That(p["PRIOR_BLOCK_MAX"], Is.EqualTo(0.25m));
+            Assert.That(p["SCORING_BIRTH_SINGLE_EVIDENCE_V3"], Is.EqualTo(1m));
             Assert.That(p["SCORING_BIRTH_COMPONENTS_V2"], Is.EqualTo(1m));
             Assert.That(p.Keys.Any(static x => x.StartsWith("BLOCKING_", StringComparison.Ordinal)), Is.False);
 
+            Assert.That(p.ContainsKey("M_DATA_NASCIMENTO_EXACT"), Is.True);
+            Assert.That(p.ContainsKey("M_DATA_NASCIMENTO_DIFF"), Is.True);
+            Assert.That(p.ContainsKey("U_DATA_NASCIMENTO_EXACT"), Is.True);
+            Assert.That(p.ContainsKey("U_DATA_NASCIMENTO_DIFF"), Is.True);
+            Assert.That(p["M_DATA_NASCIMENTO_EXACT"] + p["M_DATA_NASCIMENTO_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
+            Assert.That(p["U_DATA_NASCIMENTO_EXACT"] + p["U_DATA_NASCIMENTO_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
+
             Assert.That(p.ContainsKey("M_NASC_DIA_EXACT"), Is.True);
-            Assert.That(p.ContainsKey("M_NASC_DIA_DIFF"), Is.True);
-            Assert.That(p.ContainsKey("U_NASC_DIA_EXACT"), Is.True);
-            Assert.That(p.ContainsKey("U_NASC_DIA_DIFF"), Is.True);
             Assert.That(p.ContainsKey("M_NASC_MES_EXACT"), Is.True);
             Assert.That(p.ContainsKey("M_NASC_ANO_EXACT"), Is.True);
-
-            Assert.That(p["M_NASC_DIA_EXACT"] + p["M_NASC_DIA_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
-            Assert.That(p["U_NASC_MES_EXACT"] + p["U_NASC_MES_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
-            Assert.That(p["M_NASC_ANO_EXACT"] + p["M_NASC_ANO_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
         });
     }
 
     [Test]
-    public void Missing_mother_name_is_not_counted_as_low_similarity()
+    public void Missing_mother_name_is_excluded_from_mother_distribution()
     {
         var matched = new[]
         {
@@ -64,10 +65,9 @@ public sealed class LinkageParameterEstimatorTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(p.ContainsKey("M_NOME_MAE_SAMPLE_SIZE"), Is.False);
-            Assert.That(p.ContainsKey("U_NOME_MAE_SAMPLE_SIZE"), Is.False);
             Assert.That(p["M_NOME_MAE_EXACT"], Is.GreaterThan(p["M_NOME_MAE_LOW"]));
             Assert.That(p["U_NOME_MAE_LOW"], Is.GreaterThan(p["U_NOME_MAE_EXACT"]));
+            Assert.That(p["SCORING_BIRTH_SINGLE_EVIDENCE_V3"], Is.EqualTo(1m));
         });
     }
 }

@@ -13,8 +13,6 @@ ref table ApiIngestao
 ref table QualidadePessoa
 ref table Linkage
 ref table LinkageRuns
-ref table QualidadeResolucaoOperacional
-ref table QualidadeResolucaoCalibrada
 ref table QC
 ref table QualidadeBeneficios
 ref table QualidadeServicos

@@ -21,7 +21,6 @@ EXPECTED_PAGES = {
     "Qualidade de Identidade por Origem",
     "Carga Inicial",
     "Identidade, Linkage e Convergência",
-    "Qualidade da Resolução",
     "Atraso de Recebimento",
     "Executivo de Benefícios Concedidos",
     "Executivo de Serviços Prestados",
@@ -58,8 +57,8 @@ def main() -> int:
             fail(f"artefato Power BI ausente: {required.relative_to(ROOT)}")
 
     page_files = sorted(PAGES.glob("*/page.json"))
-    if len(page_files) != 23:
-        fail(f"esperadas 23 páginas PBIR; encontradas {len(page_files)}")
+    if len(page_files) != 22:
+        fail(f"esperadas 22 páginas PBIR; encontradas {len(page_files)}")
 
     names = {}
     display_names = set()
@@ -84,8 +83,8 @@ def main() -> int:
 
     metadata = json.loads((PAGES / "pages.json").read_text(encoding="utf-8"))
     order = metadata.get("pageOrder")
-    if not isinstance(order, list) or len(order) != 23 or set(order) != set(names):
-        fail("pages.json não referencia exatamente as 23 páginas")
+    if not isinstance(order, list) or len(order) != 22 or set(order) != set(names):
+        fail("pages.json não referencia exatamente as 22 páginas")
     if metadata.get("activePageName") not in names:
         fail("activePageName não referencia página válida")
 
@@ -104,8 +103,6 @@ def main() -> int:
         'Schema="serving", Item="v_bi_servicos_prestados"',
         'Schema="serving", Item="v_bi_possibilidades"',
         'Schema="serving", Item="v_bi_territorializacao"',
-        'Schema="serving", Item="v_bi_qualidade_resolucao_operacional"',
-        'Schema="serving", Item="v_bi_qualidade_resolucao_calibrada"',
     ]
     for source in required_serving:
         if source not in all_tmdl:
@@ -113,7 +110,7 @@ def main() -> int:
     if re.search(r"(?i)password\s*=|pwd\s*=|access[_-]?token\s*=", all_tmdl):
         fail("possível segredo versionado no TMDL")
 
-    print(f"POWER BI STATIC GATE: OK (23 páginas; {len(tmdl_files)} TMDL; catálogo/ordem/visuais coerentes)")
+    print(f"POWER BI STATIC GATE: OK (22 páginas; {len(tmdl_files)} TMDL; catálogo/ordem/visuais coerentes)")
     return 0
 
 
