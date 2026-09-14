@@ -31,12 +31,23 @@ try {
     $connection.Open()
     $command = $connection.CreateCommand()
     $command.CommandTimeout = 30
-    $command.CommandText = "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status='ATIVO';"
-    $activeCount = [int]$command.ExecuteScalar()
-    if ($activeCount -ne 1) {
-        throw "Linkage bloqueado: é necessário exatamente um modelo ATIVO; encontrados=$activeCount. Execute primeiro jobs\\Invoke-JornadaLinkageCalibration.ps1."
+    $command.CommandText = """
+        SELECT COUNT(*)
+        FROM identidade.modelo_linkage
+        WHERE status='ATIVO'
+          AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO';
+        """
+    $calibratedActiveCount = [int]$command.ExecuteScalar()
+    if ($calibratedActiveCount -ne 1) {
+        throw "Linkage bloqueado: é necessário exatamente um modelo calibrado ATIVO; encontrados=$calibratedActiveCount. O modelo seed sintético não libera execução. Execute primeiro jobs\\Invoke-JornadaLinkageCalibration.ps1."
     }
-    $command.CommandText = "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='ATIVO' ORDER BY versao DESC;"
+    $command.CommandText = """
+        SELECT TOP(1) versao
+        FROM identidade.modelo_linkage
+        WHERE status='ATIVO'
+          AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO'
+        ORDER BY versao DESC;
+        """
     $activeVersion = [int]$command.ExecuteScalar()
 }
 finally {
