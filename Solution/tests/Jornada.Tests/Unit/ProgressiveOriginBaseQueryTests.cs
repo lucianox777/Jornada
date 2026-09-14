@@ -1,3 +1,4 @@
+using System.Globalization;
 using Jornada.Api;
 using Jornada.Contracts;
 
@@ -49,8 +50,8 @@ public sealed class ProgressiveOriginBaseQueryTests
             null,
             ProgressiveIdentityStatus.PROVISORIA,
             0,
-            DateTimeOffset.Parse("2026-09-13T12:00:00Z"),
-            DateTimeOffset.Parse("2026-09-13T12:00:00Z"),
+            DateTimeOffset.Parse("2026-09-13T12:00:00Z", CultureInfo.InvariantCulture),
+            DateTimeOffset.Parse("2026-09-13T12:00:00Z", CultureInfo.InvariantCulture),
             null,
             "CADASTRO_SMADS");
 
