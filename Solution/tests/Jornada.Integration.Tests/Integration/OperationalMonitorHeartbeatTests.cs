@@ -9,7 +9,7 @@ namespace Jornada.Tests.Integration;
 public sealed class OperationalMonitorHeartbeatTests
 {
     [Test]
-    public async Task Heartbeat_marks_component_running_and_then_stopped_for_the_same_instance()
+    public async Task Heartbeat_marks_component_running_and_then_stopped_for_the_same_instance_with_bundle_identity()
     {
         var connectionString = RequireIntegrationConnection();
         await using (var connection = new SqlConnection(connectionString))
@@ -19,6 +19,11 @@ public sealed class OperationalMonitorHeartbeatTests
             await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
             await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260914_Operational_Monitor.sql"));
         }
+
+        var priorBundle = Environment.GetEnvironmentVariable("JORNADA_CONFIGURATION_BUNDLE_VERSION");
+        var priorSchema = Environment.GetEnvironmentVariable("JORNADA_SOLUTION_SCHEMA_VERSION");
+        Environment.SetEnvironmentVariable("JORNADA_CONFIGURATION_BUNDLE_VERSION", "3.70-config.test");
+        Environment.SetEnvironmentVariable("JORNADA_SOLUTION_SCHEMA_VERSION", "3.70");
 
         var node = "TEST-" + Guid.NewGuid().ToString("N")[..12];
         const string component = "HeartbeatIntegration";
@@ -37,6 +42,8 @@ public sealed class OperationalMonitorHeartbeatTests
             Assert.That(running.ProcessId, Is.GreaterThan(0));
             Assert.That(running.HeartbeatAt, Is.GreaterThanOrEqualTo(running.StartedAt));
             Assert.That(running.StoppedAt, Is.Null);
+            Assert.That(running.ConfigurationBundleVersion, Is.EqualTo("3.70-config.test"));
+            Assert.That(running.SolutionSchemaExpected, Is.EqualTo("3.70"));
 
             cts.Cancel();
             await loop;
@@ -45,12 +52,15 @@ public sealed class OperationalMonitorHeartbeatTests
             Assert.That(stopped.Status, Is.EqualTo("STOPPED"));
             Assert.That(stopped.StoppedAt, Is.Not.Null);
             Assert.That(stopped.StoppedAt, Is.GreaterThanOrEqualTo(stopped.StartedAt));
+            Assert.That(stopped.ConfigurationBundleVersion, Is.EqualTo("3.70-config.test"));
         }
         finally
         {
             cts.Cancel();
             try { await loop; } catch (OperationCanceledException) { }
             await DeleteAsync(connectionString, node, component);
+            Environment.SetEnvironmentVariable("JORNADA_CONFIGURATION_BUNDLE_VERSION", priorBundle);
+            Environment.SetEnvironmentVariable("JORNADA_SOLUTION_SCHEMA_VERSION", priorSchema);
         }
     }
 
@@ -80,7 +90,7 @@ public sealed class OperationalMonitorHeartbeatTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         await using var command = new SqlCommand("""
-            SELECT status,process_id,iniciado_em,heartbeat_em,encerrado_em
+            SELECT status,process_id,iniciado_em,heartbeat_em,encerrado_em,configuration_bundle_version,solution_schema_expected
               FROM controle.runtime_componente
              WHERE node_id=@node AND componente=@component;
             """, connection);
@@ -93,7 +103,9 @@ public sealed class OperationalMonitorHeartbeatTests
             reader.GetInt32(1),
             reader.GetDateTimeOffset(2),
             reader.GetDateTimeOffset(3),
-            reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4));
+            reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4),
+            reader.IsDBNull(5) ? null : reader.GetString(5),
+            reader.IsDBNull(6) ? null : reader.GetString(6));
     }
 
     private static async Task DeleteAsync(string connectionString, string node, string component)
@@ -126,5 +138,7 @@ public sealed class OperationalMonitorHeartbeatTests
         int ProcessId,
         DateTimeOffset StartedAt,
         DateTimeOffset HeartbeatAt,
-        DateTimeOffset? StoppedAt);
+        DateTimeOffset? StoppedAt,
+        string? ConfigurationBundleVersion,
+        string? SolutionSchemaExpected);
 }
