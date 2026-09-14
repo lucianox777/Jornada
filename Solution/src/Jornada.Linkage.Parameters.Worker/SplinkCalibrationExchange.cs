@@ -196,7 +196,8 @@ public static class SplinkCalibrationExchange
 
     private static string NormalizeKeyPart(string value, string parameterName)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("Valor obrigatório.", parameterName);
 
         var normalized = new string(value.Trim().ToUpperInvariant()
             .Select(character => char.IsLetterOrDigit(character) ? character : '_')
