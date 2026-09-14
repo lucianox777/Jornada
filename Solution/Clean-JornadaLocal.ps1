@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $Root = $PSScriptRoot
 $ClusterScript = Join-Path $Root 'scripts\local-cluster.ps1'
 $EnvFile = Join-Path $Root '.env'
-$EnvExample = Join-Path $Root '.env.example'
+$EnvExistedBefore = Test-Path -LiteralPath $EnvFile
 
 function Write-Banner {
     Write-Host ''
@@ -23,12 +23,11 @@ function Write-Banner {
 function Invoke-Native {
     param(
         [Parameter(Mandatory = $true)] [string]$FilePath,
-        [Parameter(Mandatory = $true)] [string[]]$Arguments,
-        [switch]$IgnoreExitCode
+        [Parameter(Mandatory = $true)] [string[]]$Arguments
     )
 
     & $FilePath @Arguments
-    if (-not $IgnoreExitCode -and $LASTEXITCODE -ne 0) {
+    if ($LASTEXITCODE -ne 0) {
         throw "$FilePath falhou com ExitCode=$LASTEXITCODE."
     }
 }
@@ -45,13 +44,20 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
 }
 
 Write-Host ('[1/3] Removendo containers e {0}...' -f $(if ($KeepData) { 'preservando volumes' } else { 'volumes Jornada' }))
-if ($KeepData) {
-    & $ClusterScript down
+try {
+    if ($KeepData) {
+        & $ClusterScript down
+    }
+    else {
+        & $ClusterScript clean
+    }
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao limpar o cluster Jornada. ExitCode=$LASTEXITCODE" }
 }
-else {
-    & $ClusterScript clean
+finally {
+    if (-not $EnvExistedBefore -and (Test-Path -LiteralPath $EnvFile)) {
+        Remove-Item -Force -LiteralPath $EnvFile
+    }
 }
-if ($LASTEXITCODE -ne 0) { throw "Falha ao limpar o cluster Jornada. ExitCode=$LASTEXITCODE" }
 Write-Host '      OK'
 
 Write-Host '[2/3] Verificando recursos Docker Jornada...'
@@ -61,6 +67,9 @@ if (Test-Path -LiteralPath $EnvFile) {
         Invoke-Native 'docker' @('compose','--env-file',$EnvFile,'ps','--all')
     }
     finally { Pop-Location }
+}
+else {
+    Write-Host '      .env não existia antes da limpeza; nenhum arquivo foi deixado para trás.'
 }
 Write-Host '      OK'
 
