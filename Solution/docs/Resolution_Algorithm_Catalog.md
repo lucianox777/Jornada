@@ -40,6 +40,19 @@ Assim, uma composição como `name_upper_no_diacritics + JARO_WINKLER@V1(thresho
 
 Comparadores de distância não devem ser transformados artificialmente em coluna ou índice comum. O blocking primário continua privilegiando projeções indexáveis/exatas para reduzir o universo; comparadores fuzzy operam sobre candidatos. Se futuramente um provider possuir método de acesso aproximado homologado, isso será uma otimização física do provider, não mudança da semântica do comparador.
 
+## Ajustes estatísticos e resolvedores compostos
+
+O catálogo também registra algoritmos que combinam saída de comparador com estatística externa sem transformar essa estatística em atributo intrínseco da Pessoa:
+
+| algoritmo@versão | finalidade | implementação |
+|---|---|---|
+| `SPLINK_TERM_FREQUENCY_V1` | ajuste de term frequency compatível com Splink; em fuzzy usa a maior frequência dos lados, aceita peso e piso de u | `Jornada.Contracts/SplinkCompatibleTermFrequency.cs` |
+| `NOMINAL_DF_SPLINK_COMPATIBLE_V1` | evidência DF: Jaro-Winkler + TF preservados separadamente para calibração | `Jornada.Linkage.Parameters.Worker/NominalDfEvidence.cs` |
+
+`SPLINK_TERM_FREQUENCY_V1` porta a matemática necessária para C#; Python/Splink permanece referência de paridade, não dependência de runtime. A base logarítmica local é natural para permanecer coerente com o scorer Fellegi-Sunter existente.
+
+`NOMINAL_DF_SPLINK_COMPATIBLE_V1` não define por convenção um score `distância × frequência`. Similaridade e contribuição TF permanecem dimensões observáveis separadas e o Calibrador aprende fronteiras sobre o corpus de validação. Na versão inicial o DF resolve somente `MATCH`; o restante faz fallback ao FS. A evidência DF não é somada ao score FS depois do fallback.
+
 ## Relação com o Calibrador
 
 Estar no catálogo autoriza experimentação; não implica promoção física nem uso operacional. O Calibrador pode medir projeções isoladas, interseções (`AND`) dentro de um passe e uniões (`OR`) entre passes, além de avaliar comparadores e limiares sobre o universo candidato. Combinações redundantes devem perder para alternativas equivalentes mais simples.
