@@ -52,6 +52,13 @@ export JORNADA_NODE_ID="$(jq -er '.id' <<<"$node_json")"
 export JORNADA_CONFIGURATION_BUNDLE_VERSION="$config_bundle_version"
 export JORNADA_SOLUTION_SCHEMA_VERSION="$config_solution_schema"
 
+if [[ "$environment_name" == "Test" ]]; then
+  # O monitor local usa a mesma credencial sintética do perfil Test e continua
+  # exercitando a autenticação/autorização real de /api/v1/monitor/status.
+  export OperationalMonitor__LocalAutoGestor="$(jq -er '.integrator.gestor' "$CONFIG_PATH")"
+  export OperationalMonitor__LocalAutoAccessKey="$(jq -er '.integrator.accessKey' "$CONFIG_PATH")"
+fi
+
 connection_string="${JORNADA_SQL_CONNECTION_STRING:-$(jq -er '.sql.connectionString' "$CONFIG_PATH")}" 
 export ConnectionStrings__Jornada="$connection_string"
 
