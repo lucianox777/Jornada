@@ -9,15 +9,8 @@ CONFIG="$ROOT/install/windows-production/Jornada.Cluster.Test.json"
 command -v docker >/dev/null 2>&1 || { echo "Docker não encontrado no PATH." >&2; exit 2; }
 [[ -f "$ENV_FILE" ]] || cp "$EXAMPLE" "$ENV_FILE"
 
-compose() {
-  (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@")
-}
-
-env_value() {
-  local name="$1"
-  sed -nE "s/^${name}=(.*)$/\1/p" "$ENV_FILE" | tail -n1
-}
-
+compose() { (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
+env_value() { local name="$1"; sed -nE "s/^${name}=(.*)$/\1/p" "$ENV_FILE" | tail -n1; }
 sql_scalar() {
   local query="$1" password
   password="$(env_value JORNADA_SQL_SA_PASSWORD)"
@@ -29,10 +22,7 @@ sql_scalar() {
 wait_node() {
   local name="$1" url="$2"
   for _ in $(seq 1 120); do
-    if curl -fsS "$url" >/dev/null 2>&1; then
-      echo "$name ready: $url"
-      return 0
-    fi
+    if curl -fsS "$url" >/dev/null 2>&1; then echo "$name ready: $url"; return 0; fi
     sleep 1
   done
   compose logs --tail 120 "$name" || true
@@ -72,11 +62,7 @@ EOF
 
 start_nodes() {
   local build="${1:-false}"
-  if [[ "$build" == "true" ]]; then
-    compose up -d --build jornada-node1 jornada-node2
-  else
-    compose up -d jornada-node1 jornada-node2
-  fi
+  if [[ "$build" == "true" ]]; then compose up -d --build jornada-node1 jornada-node2; else compose up -d jornada-node1 jornada-node2; fi
   wait_node jornada-node1 http://127.0.0.1:5080/health/ready
   wait_node jornada-node2 http://127.0.0.1:5180/health/ready
   show_endpoints
@@ -86,49 +72,35 @@ calibrate() {
   local before count version active
   before="$(sql_scalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;")"
   echo "Calibração iniciando após modelo v$before."
-  compose exec -T jornada-node2 env LinkageParameters__Operation=GENERATE_DRAFT LinkageParameters__RunOnce=true \
-    dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
+  compose exec -T jornada-node2 env LinkageParameters__Operation=GENERATE_DRAFT LinkageParameters__RunOnce=true dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
   count="$(sql_scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")"
   [[ "$count" == "1" ]] || { echo "Esperado exatamente um novo RASCUNHO; encontrados=$count" >&2; return 3; }
   version="$(sql_scalar "SELECT MAX(versao) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")"
-  compose exec -T jornada-node2 env LinkageParameters__Operation=VALIDATE LinkageParameters__TargetVersion="$version" LinkageParameters__RunOnce=true \
-    dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
-  compose exec -T jornada-node2 env LinkageParameters__Operation=ACTIVATE LinkageParameters__TargetVersion="$version" LinkageParameters__RunOnce=true \
-    dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
-  active="$(sql_scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao=$version AND status='ATIVO';")"
-  [[ "$active" == "1" ]] || { echo "Modelo v$version não ficou ATIVO." >&2; return 4; }
-  echo "Calibração concluída: modelo v$version ATIVO."
+  compose exec -T jornada-node2 env LinkageParameters__Operation=VALIDATE LinkageParameters__TargetVersion="$version" LinkageParameters__RunOnce=true dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
+  compose exec -T jornada-node2 env LinkageParameters__Operation=ACTIVATE LinkageParameters__TargetVersion="$version" LinkageParameters__RunOnce=true dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
+  active="$(sql_scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao=$version AND status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO';")"
+  [[ "$active" == "1" ]] || { echo "Modelo v$version não ficou ATIVO como modelo calibrado." >&2; return 4; }
+  echo "Calibração concluída: modelo calibrado v$version ATIVO."
 }
 
 run_linkage() {
   local active version
-  active="$(sql_scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status='ATIVO';")"
-  [[ "$active" == "1" ]] || { echo "Linkage bloqueado: encontrados $active modelos ATIVOS. Execute primeiro '$0 calibrate'." >&2; return 5; }
-  version="$(sql_scalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='ATIVO' ORDER BY versao DESC;")"
+  active="$(sql_scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO';")"
+  [[ "$active" == "1" ]] || { echo "Linkage bloqueado: encontrados $active modelos calibrados ATIVOS. O seed sintético não libera execução. Execute primeiro '$0 calibrate'." >&2; return 5; }
+  version="$(sql_scalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;")"
   echo "Executando linkage com modelo calibrado ATIVO v$version."
-  compose exec -T jornada-node2 dotnet /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll \
-    --mode INCREMENTAL --publish true --requested-by LOCAL_CLUSTER --reason manual-local-cluster
+  compose exec -T jornada-node2 dotnet /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll --mode INCREMENTAL --publish true --requested-by LOCAL_CLUSTER --reason manual-local-cluster
 }
 
 action="${1:-up}"
 case "$action" in
-  up)
-    bash "$ROOT/scripts/local-db.sh" up
-    start_nodes true
-    ;;
-  reset)
-    compose stop jornada-node1 jornada-node2 || true
-    bash "$ROOT/scripts/local-db.sh" reset
-    start_nodes false
-    ;;
+  up) bash "$ROOT/scripts/local-db.sh" up; start_nodes true ;;
+  reset) compose stop jornada-node1 jornada-node2 || true; bash "$ROOT/scripts/local-db.sh" reset; start_nodes false ;;
   down) compose down ;;
   clean) compose down -v --remove-orphans ;;
   status) compose ps ;;
   logs) compose logs -f jornada-node1 jornada-node2 jornada-nas ;;
   calibrate) calibrate ;;
   linkage) run_linkage ;;
-  *)
-    echo "Uso: $0 {up|reset|down|clean|status|logs|calibrate|linkage}" >&2
-    exit 2
-    ;;
+  *) echo "Uso: $0 {up|reset|down|clean|status|logs|calibrate|linkage}" >&2; exit 2 ;;
 esac
