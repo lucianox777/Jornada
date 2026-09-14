@@ -70,7 +70,7 @@ jobs:
           for profile in (test, prod):
               if profile["configurationBundleVersion"] != bundle["bundleVersion"]: raise SystemExit("configurationBundleVersion diverge do bundle canônico.")
               if profile["solutionSchema"] != bundle["solutionSchema"]: raise SystemExit("solutionSchema diverge do bundle canônico.")
-              if profile["schemaVersion"] != bundle["clusterConfigSchemaVersion"]: raise SystemExit("schemaVersion diverge do bundle canônico.")
+              if profile["schemaVersion"] != bundle["clusterConfigSchemaVersion"]: raise SystemExit("schemaVersion do cluster incompatível com bundle canônico.")
               tasks = profile["tasks"]
               if len(tasks) != 5: raise SystemExit("Config cluster deve declarar exatamente cinco processos residentes.")
               if any(t["trigger"]["type"] != "AtStartup" for t in tasks): raise SystemExit("Execução única não pode ser tarefa agendada do cluster.")
@@ -123,14 +123,15 @@ jobs:
             test -f /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll &&
             test -f /opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll &&
             test -f /opt/jornada/tools/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.dll &&
-            test -f /opt/jornada/clients/Jornada.Integrador/Jornada.Integrador.CSharp.dll
+            test -f /opt/jornada/clients/Jornada.Integrador/Jornada.Integrador.CSharp.dll &&
+            test -n "$ConnectionStrings__Jornada"
           '
           docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll --help >/dev/null
           docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/tools/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.dll --help >/dev/null
           docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/clients/Jornada.Integrador/Jornada.Integrador.CSharp.dll --help >/dev/null
           running=$(docker compose --env-file .env exec -T jornada-node2 sh -lc "ps -ef | grep -E 'Jornada.Linkage.(Parameters.Worker|Runner)|Jornada.Bronze.Verify|Jornada.Linkage.Evaluation|Jornada.Integrador.CSharp' | grep -v grep || true")
           test -z "$running"
-          echo 'ONE-SHOT TOOLS PRESENT, INVOCABLE AND NOT RESIDENT: OK'
+          echo 'ONE-SHOT TOOLS PRESENT, CONFIGURED, INVOCABLE AND NOT RESIDENT: OK'
 
       - name: Prove Linkage is blocked before Calibrator
         shell: bash
@@ -142,6 +143,13 @@ jobs:
           test "$code" -ne 0
           grep -F 'O seed sintético não libera execução' /tmp/linkage-before-calibrator.log >/dev/null
           echo 'LINKAGE BEFORE CALIBRATOR: BLOCKED'
+
+      - name: Prove Calibrator and Linkage one-shot wrappers execute
+        shell: bash
+        run: |
+          bash scripts/local-cluster.sh calibrate
+          bash scripts/local-cluster.sh linkage
+          echo 'LOCAL CALIBRATOR/LINKAGE WRAPPERS: OK'
 
       - name: Prove shared Bronze, NAS visibility and isolated Staging
         shell: bash
