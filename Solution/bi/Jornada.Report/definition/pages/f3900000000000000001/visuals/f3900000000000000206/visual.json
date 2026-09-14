@@ -1,17 +1,17 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
-  "name": "f3900000000000000201",
-  "position": {"x":30,"y":410,"z":2000,"height":230,"width":590,"tabOrder":2000},
+  "name": "f3900000000000000206",
+  "position": {"x":30,"y":1190,"z":2005,"height":230,"width":1210,"tabOrder":2005},
   "visual": {
     "visualType": "columnChart",
     "query": {"queryState":{
-      "Category":{"projections":[{"field":{"Column":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacionalOrigem"}},"Property":"gestor_nome"}},"queryRef":"QualidadeResolucaoOperacionalOrigem.gestor_nome","nativeQueryRef":"gestor_nome"}]},
+      "Category":{"projections":[{"field":{"Column":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacionalOrigem"}},"Property":"sistema_origem_nome"}},"queryRef":"QualidadeResolucaoOperacionalOrigem.sistema_origem_nome","nativeQueryRef":"sistema_origem_nome"}]},
       "Y":{"projections":[
         {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacionalOrigem"}},"Property":"Taxa de resolução"}},"queryRef":"QualidadeResolucaoOperacionalOrigem.Taxa de resolução","nativeQueryRef":"Taxa de resolução"},
         {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacionalOrigem"}},"Property":"Proporção de conflito"}},"queryRef":"QualidadeResolucaoOperacionalOrigem.Proporção de conflito","nativeQueryRef":"Proporção de conflito"},
         {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacionalOrigem"}},"Property":"Proporção de não resolvido"}},"queryRef":"QualidadeResolucaoOperacionalOrigem.Proporção de não resolvido","nativeQueryRef":"Proporção de não resolvido"}
       ]}
     }},
-    "visualContainerObjects":{"title":[{"properties":{"show":{"expr":{"Literal":{"Value":"true"}}},"text":{"expr":{"Literal":{"Value":"'Comportamento operacional por gestor efetivo'"}}}}}]}
+    "visualContainerObjects":{"title":[{"properties":{"show":{"expr":{"Literal":{"Value":"true"}}},"text":{"expr":{"Literal":{"Value":"'Comportamento operacional por sistema de origem'"}}}}}]}
   }
 }
