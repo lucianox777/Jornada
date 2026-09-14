@@ -35,8 +35,9 @@ jobs:
           persist-credentials: false
 
       - name: Validate cluster config schema parity
-        shell: python
+        shell: bash
         run: |
+          python3 - <<'PY'
           import json
           from pathlib import Path
 
@@ -64,6 +65,7 @@ jobs:
               if node["stagingRoot"] != "/data/staging":
                   raise SystemExit("Cada container deve enxergar seu Staging local em /data/staging.")
           print("CLUSTER CONFIG SCHEMA: OK")
+          PY
 
       - name: Parse shell and Compose
         shell: bash
@@ -75,9 +77,7 @@ jobs:
 
       - name: Start canonical two-node cluster
         shell: bash
-        run: |
-          chmod +x install/container-test/entrypoint.sh scripts/local-cluster.sh
-          ./scripts/local-cluster.sh up
+        run: bash scripts/local-cluster.sh up
 
       - name: Prove shared Bronze and isolated Staging
         shell: bash
