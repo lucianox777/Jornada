@@ -1,6 +1,6 @@
 # Ensaio Progressivo da Jornada
 
-O `Jornada.Ensaio` é um orquestrador de rehearsal operacional. O provider padrão é SQL Server e a configuração local usa LocalDB; a ingestão atravessa o endpoint HTTP configurado em `Ensaio:Endpoints:IngestaoEntregas`, por padrão `localhost`. O calibrador não é reimplementado: o ensaio executa o `Jornada.Linkage.Parameters.Worker`, calibrador canônico C#/SQL Server da Solution.
+O `Jornada.Ensaio` é um orquestrador de rehearsal operacional. O provider padrão é SQL Server e a configuração local usa LocalDB; a ingestão atravessa o endpoint HTTP configurado em `Ensaio:Endpoints:IngestaoEntregas`, por padrão `localhost`. O calibrador não é reimplementado: o ensaio executa o `Jornada.Linkage.Parameters.Worker`, caminho operacional C#/SQL Server da Solution.
 
 ## Sequência
 
@@ -12,11 +12,13 @@ A ausência de pares m nas etapas de uma única fonte ou de um único Gestor é 
 
 Cada etapa produz checkpoint JSON e Markdown. Entre checkpoints são produzidos diffs quantitativos. Blocos de observabilidade são independentes: se uma tabela/visão ainda não estiver disponível, o erro fica registrado no bloco e não é convertido em zero.
 
+O checkpoint registra explicitamente a cadeia de proveniência `modelo_id → ruleset_id → fingerprint → passes`. Os `linkage_run` também registram `modelo_id` e `modelo_versao`, permitindo confrontar a execução posterior com o artefato calibrado. Um modelo não é considerado evidência suficiente de calibração operacional quando o caminho exige blocking dinâmico e o ruleset correspondente não foi persistido.
+
 ## Relatório interpretativo
 
-Ao final da execução é gerado `RELATORIO_ENSAIO.md`. O relatório consolida linha do tempo, deltas, falhas operacionais, volumes Silver/Gold, completude dos campos de linkage, pares m, sinais de dependência entre fontes, estado do modelo e disponibilidade de PPV/sensibilidade.
+Ao final da execução é gerado `RELATORIO_ENSAIO.md`. O relatório consolida linha do tempo, deltas, falhas operacionais, volumes Silver/Gold, completude dos campos de linkage, pares m, sinais de dependência entre fontes, estado do modelo, proveniência do ruleset e disponibilidade de PPV/sensibilidade.
 
-A interpretação é deliberadamente conservadora: completude de dados não significa qualidade de ligação; RASCUNHO não significa VALIDADO ou ATIVO; existência de pares m não substitui suficiência estatística; e ausência de um bloco é lacuna de observabilidade, não evidência de valor zero. Acurácia de ligação só deve ser afirmada quando houver amostra de referência suficiente e estimativas PPV/sensibilidade com intervalos de confiança.
+A interpretação é deliberadamente conservadora: completude de dados não significa qualidade de ligação; RASCUNHO não significa VALIDADO ou ATIVO; existência de pares m não substitui suficiência estatística; ausência de ruleset em modelo que exige blocking dinâmico é quebra de proveniência; e ausência de um bloco é lacuna de observabilidade, não evidência de valor zero. Acurácia de ligação só deve ser afirmada quando houver amostra de referência suficiente e estimativas PPV/sensibilidade com intervalos de confiança.
 
 ## Testes
 
