@@ -64,6 +64,9 @@ void Check(bool condition, string message)
 bool Expected(DbException ex, int sqlNumber, string pgCode) =>
     sqlServer ? ex is SqlException sql && sql.Number == sqlNumber
         : ex is PostgresException pg && pg.SqlState == pgCode;
+bool ExpectedConcurrencyLoser(DbException ex) =>
+    Expected(ex, 51353, "P0001") ||
+    (!sqlServer && ex is PostgresException pg && (pg.SqlState == "40001" || pg.SqlState == "40P01"));
 async Task Negative(string name, Func<DbConnection, DbTransaction, string, Guid, Guid, Task> action,
     int sqlNumber, string pgCode)
 {
@@ -146,7 +149,7 @@ async Task<Guid?> Compete()
         await tx.CommitAsync();
         return id;
     }
-    catch (DbException ex) when (Expected(ex, 51353, "P0001"))
+    catch (DbException ex) when (ExpectedConcurrencyLoser(ex))
     {
         try { await tx.RollbackAsync(); }
         catch (InvalidOperationException) { }
