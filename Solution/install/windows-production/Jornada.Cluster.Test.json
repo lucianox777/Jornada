@@ -1,10 +1,30 @@
 {
+  "schemaVersion": 1,
   "configurationBundleVersion": "3.70-config.1",
   "solutionSchema": "3.70",
-  "installationRoot": "C:\\Program Files\\Jornada",
-  "dataRoot": "D:\\Jornada",
+  "environment": "Test",
+  "installationRoot": "/opt/jornada",
+  "nodes": [
+    {
+      "id": "NODE1",
+      "host": "jornada-node1",
+      "dataRoot": "/data/node",
+      "stagingRoot": "/data/staging",
+      "logsRoot": "/data/logs"
+    },
+    {
+      "id": "NODE2",
+      "host": "jornada-node2",
+      "dataRoot": "/data/node",
+      "stagingRoot": "/data/staging",
+      "logsRoot": "/data/logs"
+    }
+  ],
+  "storage": {
+    "bronzeRoot": "/data/bronze"
+  },
   "dotnet": {
-    "installIfMissing": true,
+    "installIfMissing": false,
     "hostingBundleUrl": "https://aka.ms/dotnet/8.0/dotnet-hosting-win.exe"
   },
   "docker": {
@@ -13,43 +33,41 @@
     "mobyInstallScriptSha256": "CHANGE_ME_WITH_APPROVED_SHA256"
   },
   "sql": {
-    "mode": "Existing",
-    "connectionString": "Server=SQLPROD;Database=Jornada;Integrated Security=true;Encrypt=true;TrustServerCertificate=false",
-    "initializeDatabase": true,
-    "setupExe": "D:\\Installers\\SQL2022\\setup.exe",
+    "mode": "External",
+    "connectionString": "Server=sqlserver,1433;Database=JornadaLocal;User Id=sa;Password=${JORNADA_SQL_SA_PASSWORD};TrustServerCertificate=true;Encrypt=false",
+    "initializeDatabase": false,
+    "setupExe": "",
     "edition": "Standard",
     "instanceName": "MSSQLSERVER",
-    "sqlSysAdminAccounts": ["DOMINIO\\GrupoDBA"],
-    "productKeyEnvironmentVariable": "JORNADA_SQL_PID",
-    "userDataDirectory": "D:\\Jornada\\SqlData",
-    "userLogDirectory": "E:\\Jornada\\SqlLog",
-    "tempDbDirectory": "D:\\Jornada\\SqlTempDb",
-    "backupDirectory": "E:\\Jornada\\SqlBackup"
+    "sqlSysAdminAccounts": ["BUILTIN\\Administrators"],
+    "productKeyEnvironmentVariable": "",
+    "userDataDirectory": "",
+    "userLogDirectory": "",
+    "tempDbDirectory": "",
+    "backupDirectory": ""
   },
   "http": {
-    "apiUrls": "http://127.0.0.1:5080",
-    "resultadoUrls": "http://127.0.0.1:5081",
+    "apiUrls": "http://0.0.0.0:5080",
+    "resultadoUrls": "http://0.0.0.0:5081",
     "jornadaApiBaseUrl": "http://127.0.0.1:5080"
   },
   "runtime": {
     "environment": {
-      "DOTNET_ENVIRONMENT": "Production",
-      "ASPNETCORE_ENVIRONMENT": "Production",
       "Processor__PollingMilliseconds": "1000"
     }
   },
   "integrator": {
     "enabled": false,
     "gestor": "SEHAB",
-    "accessKey": "CHANGE_ME",
+    "accessKey": "KcUBZuLvRCu0lKN6xmXdjGKhPTgluG1Wu0sFB36lvTY",
     "endpoints": {
-      "envio": "https://jornada.prefeitura.gov.br/api/v1/ingestao/entregas",
-      "resultado": "https://jornada.prefeitura.gov.br/api/v1/ingestao/resultados/{nomeArquivo}"
+      "envio": "http://127.0.0.1:5080/api/v1/ingestao/entregas",
+      "resultado": "http://127.0.0.1:5081/api/v1/ingestao/resultados/{nomeArquivo}"
     },
-    "polling": {"intervalSeconds": 5,"timeoutSeconds": 3600},
+    "polling": {"intervalSeconds": 5, "timeoutSeconds": 3600},
     "diretorioSaida": "resultados"
   },
-  "taskAccount": {"user":"SYSTEM","passwordEnvironmentVariable":""},
+  "taskAccount": {"user": "SYSTEM", "passwordEnvironmentVariable": ""},
   "tasks": [
     {"name":"Jornada-Api","enabled":true,"component":"Api","trigger":{"type":"AtStartup"},"arguments":[],"environment":{}},
     {"name":"Jornada-ResultadoApi","enabled":true,"component":"ResultadoApi","trigger":{"type":"AtStartup"},"arguments":[],"environment":{}},

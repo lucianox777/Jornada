@@ -7,6 +7,8 @@
     ".github/workflows/cpf-anchor-processor.yml",
     ".github/workflows/identity-progressive-persistence.yml",
     ".github/workflows/identity-operational-cutover.yml",
+    "Solution/docker-compose.yml",
+    "Solution/install/windows-production/Jornada.Cluster.Test.json",
     "Solution/scripts/local-*.sh",
     "Solution/scripts/local-*.ps1",
     "Solution/docs/Runbook_Desenvolvimento_Local.md",
@@ -40,5 +42,5 @@
     "AKIA",
     "ASIA"
   ],
-  "note": "Exceções são apenas Development/CI sintético. Produção não pode distribuir credencial, chave privada ou TLS SQL enfraquecido."
+  "note": "Exceções são apenas Development/CI sintético. Produção não pode distribuir credencial, chave privada ou TLS SQL enfraquecido. O compose e Jornada.Cluster.Test.json são artefatos exclusivamente locais de Development."
 }

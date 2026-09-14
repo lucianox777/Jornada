@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "bundleVersion": "3.70-config.1",
+  "solutionSchema": "3.70",
+  "clusterConfigSchemaVersion": 1,
+  "description": "Identidade técnica do conjunto de configuração instalado junto com os binários. Test e Production devem declarar esta mesma versão; o monitor compara a versão esperada com os heartbeats dos processos residentes e com o schema SQL.",
+  "healthPolicy": {
+    "requireSameBundleAcrossOnlineComponents": true,
+    "requireDatabaseSolutionSchemaMatch": true
+  }
+}

@@ -23,10 +23,24 @@ $projects = [ordered]@{
     'Jornada.Linkage.Runner' = 'src\Jornada.Linkage.Runner\Jornada.Linkage.Runner.csproj'
 }
 
+$tools = [ordered]@{
+    'Jornada.Bronze.Verify' = 'src\Jornada.Bronze.Verify\Jornada.Bronze.Verify.csproj'
+    'Jornada.Linkage.Evaluation' = 'src\Jornada.Linkage.Evaluation\Jornada.Linkage.Evaluation.csproj'
+}
+
 Push-Location $solutionRoot
 try {
     foreach ($entry in $projects.GetEnumerator()) {
         $destination = Join-Path $output ("apps\{0}" -f $entry.Key)
+        New-Item -ItemType Directory -Force -Path $destination | Out-Null
+        dotnet restore $entry.Value --locked-mode
+        if ($LASTEXITCODE -ne 0) { throw "restore falhou: $($entry.Value)" }
+        dotnet publish $entry.Value -c $Configuration --no-restore -o $destination
+        if ($LASTEXITCODE -ne 0) { throw "publish falhou: $($entry.Value)" }
+    }
+
+    foreach ($entry in $tools.GetEnumerator()) {
+        $destination = Join-Path $output ("tools\{0}" -f $entry.Key)
         New-Item -ItemType Directory -Force -Path $destination | Out-Null
         dotnet restore $entry.Value --locked-mode
         if ($LASTEXITCODE -ne 0) { throw "restore falhou: $($entry.Value)" }
@@ -60,8 +74,6 @@ $baselineSource = Join-Path $solutionRoot 'database\Jornada_Fase1.sql'
 $anchorSource = Join-Path $solutionRoot 'database\migrations\20260907_Cpf_Ancora.sql'
 $bundleDdl = Join-Path $databaseDestination 'Jornada_Fase1.sql'
 Copy-Item -Force -Path $baselineSource -Destination $bundleDdl
-# O instalador legado aplica um único arquivo. Como a solução ainda não foi publicada,
-# o payload de Produção V1 compõe baseline + âncora CPF obrigatória no mesmo DDL instalável.
 Add-Content -Encoding UTF8 -Path $bundleDdl -Value "`r`n-- Jornada V1: âncora CPF permanente obrigatória.`r`n"
 Get-Content -Raw -Encoding UTF8 $anchorSource | Add-Content -Encoding UTF8 -Path $bundleDdl
 $migrationDestination = Join-Path $databaseDestination 'migrations'
@@ -74,6 +86,9 @@ Copy-Item -Force -Path (Join-Path $PSScriptRoot '*.ps1') -Destination $installDe
 Copy-Item -Force -Path (Join-Path $PSScriptRoot '*.json') -Destination $installDestination
 if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'README.md')) {
     Copy-Item -Force -Path (Join-Path $PSScriptRoot 'README.md') -Destination $installDestination
+}
+if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'CLUSTER.md')) {
+    Copy-Item -Force -Path (Join-Path $PSScriptRoot 'CLUSTER.md') -Destination $installDestination
 }
 
 $openApiDestination = Join-Path $output 'openapi'

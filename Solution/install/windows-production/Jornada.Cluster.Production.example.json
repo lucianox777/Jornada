@@ -1,8 +1,26 @@
 {
+  "schemaVersion": 1,
   "configurationBundleVersion": "3.70-config.1",
   "solutionSchema": "3.70",
+  "environment": "Production",
   "installationRoot": "C:\\Program Files\\Jornada",
-  "dataRoot": "D:\\Jornada",
+  "nodes": [
+    {
+      "id": "NODE1",
+      "host": "JORNADA-PROD-01",
+      "dataRoot": "D:\\Jornada",
+      "stagingRoot": "D:\\Jornada\\staging",
+      "logsRoot": "D:\\Jornada\\logs"
+    },
+    {
+      "id": "NODE2",
+      "host": "JORNADA-PROD-02",
+      "dataRoot": "D:\\Jornada",
+      "stagingRoot": "D:\\Jornada\\staging",
+      "logsRoot": "D:\\Jornada\\logs"
+    }
+  ],
+  "storage": {"bronzeRoot": "\\\\NASPROD\\Jornada\\Bronze"},
   "dotnet": {
     "installIfMissing": true,
     "hostingBundleUrl": "https://aka.ms/dotnet/8.0/dotnet-hosting-win.exe"
@@ -27,17 +45,11 @@
     "backupDirectory": "E:\\Jornada\\SqlBackup"
   },
   "http": {
-    "apiUrls": "http://127.0.0.1:5080",
-    "resultadoUrls": "http://127.0.0.1:5081",
+    "apiUrls": "http://0.0.0.0:5080",
+    "resultadoUrls": "http://0.0.0.0:5081",
     "jornadaApiBaseUrl": "http://127.0.0.1:5080"
   },
-  "runtime": {
-    "environment": {
-      "DOTNET_ENVIRONMENT": "Production",
-      "ASPNETCORE_ENVIRONMENT": "Production",
-      "Processor__PollingMilliseconds": "1000"
-    }
-  },
+  "runtime": {"environment": {"Processor__PollingMilliseconds": "1000"}},
   "integrator": {
     "enabled": false,
     "gestor": "SEHAB",
@@ -46,7 +58,7 @@
       "envio": "https://jornada.prefeitura.gov.br/api/v1/ingestao/entregas",
       "resultado": "https://jornada.prefeitura.gov.br/api/v1/ingestao/resultados/{nomeArquivo}"
     },
-    "polling": {"intervalSeconds": 5,"timeoutSeconds": 3600},
+    "polling": {"intervalSeconds": 5, "timeoutSeconds": 3600},
     "diretorioSaida": "resultados"
   },
   "taskAccount": {"user":"SYSTEM","passwordEnvironmentVariable":""},
