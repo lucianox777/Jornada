@@ -31,9 +31,20 @@ internal static class LinkageModelPolicy
             throw new InvalidOperationException($"Modelo incompleto. Parâmetros ausentes: {string.Join(", ", missing)}");
         var model = new LinkageModel(modelId, version, algorithm, parameters,
             parameters[LinkageParameterCatalog.Threshold], parameters[LinkageParameterCatalog.ConflictMargin]);
+        _ = SupportsJointBirthScoring(model);
         _ = SupportsSingleBirthScoring(model);
         _ = SupportsBirthComponentScoring(model);
         return model;
+    }
+
+    internal static bool SupportsJointBirthScoring(LinkageModel model)
+    {
+        if (!model.Parameters.TryGetValue(LinkageParameterCatalog.BirthJointEvidenceScoring, out var enabled) || enabled < 1m)
+            return false;
+        var missing = LinkageParameterCatalog.BirthJointEvidenceRequired.Where(x => !model.Parameters.ContainsKey(x)).ToArray();
+        if (missing.Length > 0)
+            throw new InvalidOperationException($"Modelo V4 incompleto. Parâmetros de nascimento conjunto ausentes: {string.Join(", ", missing)}");
+        return true;
     }
 
     internal static bool SupportsSingleBirthScoring(LinkageModel model)
@@ -48,7 +59,7 @@ internal static class LinkageModelPolicy
 
     internal static bool SupportsBirthComponentScoring(LinkageModel model)
     {
-        if (SupportsSingleBirthScoring(model))
+        if (SupportsJointBirthScoring(model) || SupportsSingleBirthScoring(model))
             return true;
         var enabled = model.Parameters.TryGetValue(LinkageParameterCatalog.BirthComponentScoring, out var current)
             ? current

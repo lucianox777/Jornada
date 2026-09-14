@@ -23,7 +23,12 @@ public static class FellegiSunterScoring
 
         if (leftBirthDate is { } left && rightBirthDate is { } right)
         {
-            if (parameters.TryGetValue(LinkageParameterCatalog.BirthSingleEvidenceScoring, out var singleBirth)
+            if (parameters.TryGetValue(LinkageParameterCatalog.BirthJointEvidenceScoring, out var jointBirth)
+                && jointBirth >= 1m)
+            {
+                logOdds += JointBirthLikelihoodRatio(parameters, left, right);
+            }
+            else if (parameters.TryGetValue(LinkageParameterCatalog.BirthSingleEvidenceScoring, out var singleBirth)
                 && singleBirth >= 1m)
             {
                 logOdds += TryBinaryLikelihoodRatio(parameters, "DATA_NASCIMENTO", left == right);
@@ -53,6 +58,20 @@ public static class FellegiSunterScoring
         var suffix = state.ToString();
         var m = ClampProbability(Get(parameters, $"M_{attribute}_{suffix}"));
         var u = ClampProbability(Get(parameters, $"U_{attribute}_{suffix}"));
+        return Math.Log((double)m / (double)u);
+    }
+
+    private static double JointBirthLikelihoodRatio(
+        IReadOnlyDictionary<string, decimal> parameters,
+        DateOnly left,
+        DateOnly right)
+    {
+        var mask = (left.Day == right.Day ? 1 : 0) |
+            (left.Month == right.Month ? 2 : 0) |
+            (left.Year == right.Year ? 4 : 0);
+        var state = LinkageParameterCatalog.BirthJointStates[mask];
+        var m = ClampProbability(Get(parameters, $"M_NASCIMENTO_CONJUNTO_{state}"));
+        var u = ClampProbability(Get(parameters, $"U_NASCIMENTO_CONJUNTO_{state}"));
         return Math.Log((double)m / (double)u);
     }
 

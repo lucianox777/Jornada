@@ -14,6 +14,12 @@ public sealed record IdentityTrainingPair(
     IReadOnlyList<ResolutionSourceValue>? LeftResolutionValues = null,
     IReadOnlyList<ResolutionSourceValue>? RightResolutionValues = null);
 
+public enum BirthScoringContract
+{
+    SingleEvidenceV3,
+    JointEvidenceV4
+}
+
 /// <summary>
 /// Estima parâmetros m/u do baseline Fellegi-Sunter a partir de dois conjuntos:
 /// pares verdadeiros formados por observações independentes de Gestores distintos que
@@ -25,10 +31,10 @@ public sealed record IdentityTrainingPair(
 /// discordância: esses pares ficam fora da distribuição NOME_MAE e a ausência será
 /// tratada como evidência neutra pelo scorer.
 ///
-/// A partir da V3, nascimento é uma única evidência probabilística: a concordância da
-/// data completa alimenta M/U_DATA_NASCIMENTO_EXACT|DIFF. As distribuições legadas de
-/// dia, mês e ano continuam materializadas para diagnóstico e replay histórico, mas
-/// modelos novos não habilitam SCORING_BIRTH_COMPONENTS_V2.
+/// A V4 representa nascimento como uma única evidência conjunta de 8 estados (dia/mês/ano),
+/// evitando tanto a perda de informação do EXACT|DIFF quanto a tripla contagem independente.
+/// O contrato de ativação é explícito para permitir replay/validação do piloto V3 sem misturar
+/// flags. As distribuições V4, V3 e V2 continuam materializadas para replay e diagnóstico.
 /// </summary>
 public static class LinkageParameterEstimator
 {
@@ -41,13 +47,16 @@ public static class LinkageParameterEstimator
         long distinctBirthDates,
         decimal smoothingAlpha,
         decimal threshold,
-        decimal conflictMargin)
+        decimal conflictMargin,
+        BirthScoringContract birthScoringContract = BirthScoringContract.JointEvidenceV4)
     {
         if (matchedPairs.Count == 0)
             throw new InvalidOperationException("Não há pares determinísticos suficientes para estimar probabilidades m.");
         if (unmatchedPairs.Count == 0)
             throw new InvalidOperationException("Não há pares não-match suficientes para estimar probabilidades u.");
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(smoothingAlpha);
+        if (!Enum.IsDefined(birthScoringContract))
+            throw new ArgumentOutOfRangeException(nameof(birthScoringContract));
 
         var matchedMotherStates = PresentMotherNameComparisons(matchedPairs).ToArray();
         var unmatchedMotherStates = PresentMotherNameComparisons(unmatchedPairs).ToArray();
@@ -59,7 +68,9 @@ public static class LinkageParameterEstimator
             ["SMOOTHING_ALPHA"] = smoothingAlpha,
             ["T_LINKAGE"] = threshold,
             ["CONFLICT_MARGIN"] = conflictMargin,
-            [LinkageParameterCatalog.BirthSingleEvidenceScoring] = 1m,
+            [birthScoringContract == BirthScoringContract.JointEvidenceV4
+                ? LinkageParameterCatalog.BirthJointEvidenceScoring
+                : LinkageParameterCatalog.BirthSingleEvidenceScoring] = 1m,
             ["PRIOR_MATCH_PROBABILITY"] = EstimateReferencePrior(populationSize, distinctBirthDates),
             ["PRIOR_BLOCK_MIN"] = 0.000001m,
             ["PRIOR_BLOCK_MAX"] = 0.25m
@@ -69,6 +80,9 @@ public static class LinkageParameterEstimator
         AddDistribution(result, "U_NOME", unmatchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)), smoothingAlpha);
         AddDistribution(result, "M_NOME_MAE", matchedMotherStates, smoothingAlpha);
         AddDistribution(result, "U_NOME_MAE", unmatchedMotherStates, smoothingAlpha);
+
+        AddJointBirthDistribution(result, "M_NASCIMENTO_CONJUNTO", matchedPairs.Select(BirthAgreementMask), smoothingAlpha);
+        AddJointBirthDistribution(result, "U_NASCIMENTO_CONJUNTO", unmatchedPairs.Select(BirthAgreementMask), smoothingAlpha);
 
         AddBinaryDistribution(result, "M_DATA_NASCIMENTO", matchedPairs.Select(p => p.LeftBirthDate == p.RightBirthDate), smoothingAlpha);
         AddBinaryDistribution(result, "U_DATA_NASCIMENTO", unmatchedPairs.Select(p => p.LeftBirthDate == p.RightBirthDate), smoothingAlpha);
@@ -112,6 +126,35 @@ public static class LinkageParameterEstimator
         var denominator = total + alpha * States.Length;
         foreach (var state in States)
             target[$"{prefix}_{state}"] = (counts[state] + alpha) / denominator;
+    }
+
+    private static void AddJointBirthDistribution(
+        IDictionary<string, decimal> target,
+        string prefix,
+        IEnumerable<byte> values,
+        decimal alpha)
+    {
+        var counts = new long[LinkageParameterCatalog.BirthJointStates.Count];
+        long total = 0;
+        foreach (var value in values)
+        {
+            if (value >= counts.Length)
+                throw new InvalidOperationException("Estado conjunto de nascimento inválido.");
+            counts[value]++;
+            total++;
+        }
+
+        var denominator = total + alpha * counts.Length;
+        for (var i = 0; i < counts.Length; i++)
+            target[$"{prefix}_{LinkageParameterCatalog.BirthJointStates[i]}"] = (counts[i] + alpha) / denominator;
+    }
+
+    private static byte BirthAgreementMask(IdentityTrainingPair pair)
+    {
+        var mask = (pair.LeftBirthDate.Day == pair.RightBirthDate.Day ? 1 : 0) |
+            (pair.LeftBirthDate.Month == pair.RightBirthDate.Month ? 2 : 0) |
+            (pair.LeftBirthDate.Year == pair.RightBirthDate.Year ? 4 : 0);
+        return (byte)mask;
     }
 
     private static void AddBinaryDistribution(
