@@ -30,7 +30,7 @@ public sealed class ProbabilisticLinkagePolicyTests
     [Test]
     public void EnabledV2_MustNotSilentlyFallBackToV1()
     {
-        var parameters = BirthComponentParameters("SCORING_BIRTH_COMPONENTS_V2");
+        var parameters = BirthComponentParameters(LinkageParameterCatalog.BirthComponentScoring);
         var complete = LinkageModelPolicy.Create(ModelId, 2, "FELLEGI_SUNTER_V2", parameters);
         Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(complete), Is.True);
         parameters.Remove("U_NASC_DIA_DIFF");
@@ -42,13 +42,7 @@ public sealed class ProbabilisticLinkagePolicyTests
     [Test]
     public void EnabledV3_RequiresOneCompleteBirthDistribution()
     {
-        var parameters = Parameters();
-        parameters["SCORING_BIRTH_SINGLE_EVIDENCE_V3"] = 1m;
-        parameters["M_DATA_NASCIMENTO_EXACT"] = .95m;
-        parameters["M_DATA_NASCIMENTO_DIFF"] = .05m;
-        parameters["U_DATA_NASCIMENTO_EXACT"] = .001m;
-        parameters["U_DATA_NASCIMENTO_DIFF"] = .999m;
-
+        var parameters = SingleBirthParameters();
         var complete = LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V3", parameters);
         Assert.Multiple(() =>
         {
@@ -56,7 +50,6 @@ public sealed class ProbabilisticLinkagePolicyTests
             Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(complete), Is.True,
                 "V3 ainda pode usar os passes ampliados de blocking sem triplicar o score.");
         });
-
         parameters.Remove("U_DATA_NASCIMENTO_DIFF");
         var error = Assert.Throws<InvalidOperationException>(() =>
             LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V3", parameters));
@@ -64,9 +57,18 @@ public sealed class ProbabilisticLinkagePolicyTests
     }
 
     [Test]
+    public void V3_TakesPrecedenceOverLegacyV2ComponentValidation()
+    {
+        var parameters = SingleBirthParameters();
+        parameters[LinkageParameterCatalog.BirthComponentScoring] = 1m;
+        var model = LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V3", parameters);
+        Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(model), Is.True);
+    }
+
+    [Test]
     public void LegacyBlockingNamedV2Flag_RemainsReadableOnlyForCompatibility()
     {
-        var parameters = BirthComponentParameters("BLOCKING_BIRTH_COMPONENTS_V2");
+        var parameters = BirthComponentParameters(LinkageParameterCatalog.LegacyBirthComponentScoring);
         var legacy = LinkageModelPolicy.Create(ModelId, 1, "FELLEGI_SUNTER_V1", parameters);
         Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(legacy), Is.True);
     }
@@ -103,6 +105,17 @@ public sealed class ProbabilisticLinkagePolicyTests
             Observation("11144477735"), []));
     }
 
+    private static Dictionary<string, decimal> SingleBirthParameters()
+    {
+        var parameters = Parameters();
+        parameters[LinkageParameterCatalog.BirthSingleEvidenceScoring] = 1m;
+        parameters["M_DATA_NASCIMENTO_EXACT"] = .96m;
+        parameters["M_DATA_NASCIMENTO_DIFF"] = .04m;
+        parameters["U_DATA_NASCIMENTO_EXACT"] = .002m;
+        parameters["U_DATA_NASCIMENTO_DIFF"] = .998m;
+        return parameters;
+    }
+
     private static Dictionary<string, decimal> BirthComponentParameters(string enableParameter)
     {
         var parameters = Parameters();
@@ -124,11 +137,11 @@ public sealed class ProbabilisticLinkagePolicyTests
     {
         var parameters = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
         {
-            ["PRIOR_MATCH_PROBABILITY"] = .001m,
-            ["PRIOR_BLOCK_MIN"] = .000001m,
-            ["PRIOR_BLOCK_MAX"] = .25m,
-            ["T_LINKAGE"] = .90m,
-            ["CONFLICT_MARGIN"] = .05m
+            [LinkageParameterCatalog.PriorMatchProbability] = .001m,
+            [LinkageParameterCatalog.PriorBlockMin] = .000001m,
+            [LinkageParameterCatalog.PriorBlockMax] = .25m,
+            [LinkageParameterCatalog.Threshold] = .90m,
+            [LinkageParameterCatalog.ConflictMargin] = .05m
         };
         foreach (var feature in new[] { "NOME", "NOME_MAE" })
             foreach (var (state, m, u) in new[]
