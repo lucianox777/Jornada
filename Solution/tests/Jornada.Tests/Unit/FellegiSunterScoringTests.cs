@@ -35,6 +35,8 @@ public sealed class FellegiSunterScoringTests
         ["U_DATA_NASCIMENTO_DIFF"] = 0.998m
     };
 
+    private static readonly IReadOnlyDictionary<string, decimal> ParametersV4 = JointBirthParameters(includeLegacyFlags: false);
+
     [Test]
     public void Exact_name_and_mother_name_produce_high_posterior()
     {
@@ -92,11 +94,61 @@ public sealed class FellegiSunterScoringTests
     }
 
     [Test]
+    public void V4_birth_uses_one_joint_state_and_distinguishes_partial_agreement()
+    {
+        var source = new DateOnly(1980, 6, 5);
+        var exact = FellegiSunterScoring.CalculatePosterior(ParametersV4, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, source);
+        var yearOnly = FellegiSunterScoring.CalculatePosterior(ParametersV4, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1980, 7, 6));
+        var dayMonth = FellegiSunterScoring.CalculatePosterior(ParametersV4, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1981, 6, 5));
+        var dayYear = FellegiSunterScoring.CalculatePosterior(ParametersV4, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1980, 7, 5));
+        Assert.Multiple(() =>
+        {
+            Assert.That(exact, Is.GreaterThan(dayYear));
+            Assert.That(dayYear, Is.GreaterThan(dayMonth));
+            Assert.That(dayMonth, Is.GreaterThan(yearOnly));
+        });
+    }
+
+    [Test]
+    public void V4_takes_precedence_over_v3_and_v2_birth_parameters_when_replaying_mixed_model()
+    {
+        var source = new DateOnly(1980, 6, 5);
+        var mixed = JointBirthParameters(includeLegacyFlags: true);
+        var alteredLegacy = new Dictionary<string, decimal>(mixed)
+        {
+            ["M_DATA_NASCIMENTO_EXACT"] = 0.500001m,
+            ["U_DATA_NASCIMENTO_EXACT"] = 0.499999m,
+            ["M_NASC_DIA_EXACT"] = 0.500001m,
+            ["U_NASC_DIA_EXACT"] = 0.499999m
+        };
+        var baseline = FellegiSunterScoring.CalculatePosterior(mixed, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, source);
+        var changed = FellegiSunterScoring.CalculatePosterior(alteredLegacy, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, source);
+        Assert.That(changed, Is.EqualTo(baseline));
+    }
+
+    [Test]
     public void V1_model_without_birth_parameters_keeps_previous_score()
     {
         var withoutBirth = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.HIGH, NameComparisonState.HIGH, 100);
         var withBirth = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.HIGH, NameComparisonState.HIGH, 100,
             new DateOnly(1980, 6, 5), new DateOnly(1981, 7, 6));
         Assert.That(withBirth, Is.EqualTo(withoutBirth));
+    }
+
+    private static Dictionary<string, decimal> JointBirthParameters(bool includeLegacyFlags)
+    {
+        var parameters = includeLegacyFlags
+            ? new Dictionary<string, decimal>(ParametersV3)
+            : new Dictionary<string, decimal>(Parameters);
+        parameters[LinkageParameterCatalog.BirthJointEvidenceScoring] = 1m;
+        var m = new[] { .01m, .02m, .03m, .06m, .08m, .15m, .20m, .45m };
+        var u = new[] { .45m, .15m, .12m, .08m, .08m, .05m, .04m, .03m };
+        for (var i = 0; i < LinkageParameterCatalog.BirthJointStates.Count; i++)
+        {
+            var state = LinkageParameterCatalog.BirthJointStates[i];
+            parameters[$"M_NASCIMENTO_CONJUNTO_{state}"] = m[i];
+            parameters[$"U_NASCIMENTO_CONJUNTO_{state}"] = u[i];
+        }
+        return parameters;
     }
 }

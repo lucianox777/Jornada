@@ -52,12 +52,40 @@ public sealed class ProbabilisticLinkagePolicyTests
     }
 
     [Test]
-    public void V3_TakesPrecedenceOverLegacyV2ComponentValidation()
+    public void EnabledV4_MustHaveCompleteJointBirthDistribution_without_legacy_flags()
     {
-        var parameters = SingleBirthParameters();
+        var parameters = JointBirthParameters(includeLegacyFlags: false);
+        var complete = LinkageModelPolicy.Create(ModelId, 4, "FELLEGI_SUNTER_JOINT_BIRTH_V4", parameters);
+        Assert.Multiple(() =>
+        {
+            Assert.That(LinkageModelPolicy.SupportsJointBirthScoring(complete), Is.True);
+            Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(complete), Is.False);
+        });
+        parameters.Remove("U_NASCIMENTO_CONJUNTO_101");
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            LinkageModelPolicy.Create(ModelId, 4, "FELLEGI_SUNTER_JOINT_BIRTH_V4", parameters));
+        Assert.That(error!.Message, Does.Contain("U_NASCIMENTO_CONJUNTO_101"));
+    }
+
+    [Test]
+    public void V4_precedes_complete_V3_and_V2_when_replaying_mixed_model()
+    {
+        var parameters = JointBirthParameters(includeLegacyFlags: true);
         parameters[LinkageParameterCatalog.BirthComponentScoring] = 1m;
-        var model = LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V1", parameters);
-        Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(model), Is.True);
+        foreach (var feature in new[] { "NASC_DIA", "NASC_MES", "NASC_ANO" })
+        {
+            parameters[$"M_{feature}_EXACT"] = .9m;
+            parameters[$"M_{feature}_DIFF"] = .1m;
+            parameters[$"U_{feature}_EXACT"] = .1m;
+            parameters[$"U_{feature}_DIFF"] = .9m;
+        }
+        var model = LinkageModelPolicy.Create(ModelId, 4, "FELLEGI_SUNTER_JOINT_BIRTH_V4", parameters);
+        Assert.Multiple(() =>
+        {
+            Assert.That(LinkageModelPolicy.SupportsJointBirthScoring(model), Is.True);
+            Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(model), Is.True);
+            Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(model), Is.True);
+        });
     }
 
     [Test]
@@ -94,6 +122,18 @@ public sealed class ProbabilisticLinkagePolicyTests
             Assert.That(tied.SegundoCandidatoUuid, Is.EqualTo(CandidateB));
             Assert.That(tied.Margem, Is.EqualTo(0m));
         });
+    }
+
+    private static Dictionary<string, decimal> JointBirthParameters(bool includeLegacyFlags)
+    {
+        var parameters = includeLegacyFlags ? SingleBirthParameters() : Parameters();
+        parameters[LinkageParameterCatalog.BirthJointEvidenceScoring] = 1m;
+        foreach (var state in LinkageParameterCatalog.BirthJointStates)
+        {
+            parameters[$"M_NASCIMENTO_CONJUNTO_{state}"] = .125m;
+            parameters[$"U_NASCIMENTO_CONJUNTO_{state}"] = .125m;
+        }
+        return parameters;
     }
 
     private static Dictionary<string, decimal> SingleBirthParameters()

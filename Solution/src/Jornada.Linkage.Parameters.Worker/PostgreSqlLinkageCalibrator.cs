@@ -78,9 +78,12 @@ public sealed class PostgreSqlLinkageCalibrator
             if (capture.U.Pairs.Count == 0)
                 throw new InvalidOperationException("Amostra u condicionada ao blocking vazia.");
 
+            // O piloto PostgreSQL continua sob o contrato V3 até que seu gate de validação
+            // seja versionado para V4. Isso evita misturar flags sem afrouxar a guarda atual.
             var estimated = LinkageParameterEstimator.Estimate(
                 capture.M.Pairs, capture.U.Pairs, capture.Population.Population,
-                capture.Population.DistinctBirthDates, options.SmoothingAlpha, options.Threshold, options.ConflictMargin);
+                capture.Population.DistinctBirthDates, options.SmoothingAlpha, options.Threshold, options.ConflictMargin,
+                BirthScoringContract.SingleEvidenceV3);
             var parameters = new Dictionary<string, decimal>(estimated, StringComparer.Ordinal)
             {
                 ["POPULATION_SIZE"] = capture.Population.Population,
