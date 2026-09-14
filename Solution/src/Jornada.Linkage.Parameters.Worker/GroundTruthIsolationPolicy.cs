@@ -83,7 +83,9 @@ public static class GroundTruthIsolationPolicy
             cns.CanBePreferredForCalibration)
             return GroundTruthSource.Cns;
 
-        return GroundTruthSource.Cpf;
+        throw new InvalidOperationException(
+            "Nenhuma fonte de ground truth demonstrou simultaneamente suficiência estatística e representatividade para o estrato-alvo. " +
+            "A calibração deve permanecer sem promoção.");
     }
 
     public static void EnsureNoLabelLeakage(
