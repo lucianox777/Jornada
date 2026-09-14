@@ -99,26 +99,59 @@ public sealed class IbgeNominalBenchmarkTests
         });
     }
 
+    [Test]
+    public void FactorialCandidates_RejectPartialEstimatorMasqueradingAsCompleteModel()
+    {
+        var m = new[]
+        {
+            new ParameterEstimate(ParameterEstimatorKind.Jornada, "J1", new Dictionary<string, decimal>
+            {
+                ["M_NOME_EXACT"] = 0.9m,
+                ["M_NASC_ANO_EXACT"] = 0.8m
+            }),
+            new ParameterEstimate(ParameterEstimatorKind.Splink, "S1", new Dictionary<string, decimal>
+            {
+                ["M_NOME_EXACT"] = 0.85m
+            })
+        };
+        var u = new[]
+        {
+            new ParameterEstimate(ParameterEstimatorKind.Jornada, "J1", new Dictionary<string, decimal>
+            {
+                ["U_NOME_EXACT"] = 0.01m,
+                ["U_NASC_ANO_EXACT"] = 0.02m
+            }),
+            new ParameterEstimate(ParameterEstimatorKind.Splink, "S1", new Dictionary<string, decimal>
+            {
+                ["U_NOME_EXACT"] = 0.03m
+            })
+        };
+
+        Assert.That(
+            () => FactorialCalibrationCandidateFactory.Create(m, u),
+            Throws.ArgumentException.With.Message.Contains("mesmo conjunto semântico"));
+    }
+
     private static IReadOnlyList<string> ReplayProjection(IEnumerable<IbgeNominalBenchmarkPair> pairs) =>
         pairs.Select(pair => string.Join('|',
-            pair.PairId,
-            pair.Partition,
-            pair.IsTrueMatch,
-            pair.Left.BasePersonId,
-            pair.Left.FirstName,
-            pair.Left.Surname,
-            pair.Left.BirthDate,
-            pair.Right.BasePersonId,
-            pair.Right.FirstName,
-            pair.Right.Surname,
-            pair.Right.BirthDate,
-            string.Join(';', pair.Substitutions.Select(substitution => string.Join(':',
-                substitution.StatisticKind,
-                substitution.SourceValue,
-                substitution.TargetValue,
-                substitution.SourceOccurrences,
-                substitution.TargetOccurrences,
-                substitution.Similarity)))))
+                pair.PairId,
+                pair.Partition,
+                pair.IsTrueMatch,
+                pair.Left.BasePersonId,
+                pair.Left.FirstName,
+                pair.Left.Surname,
+                pair.Left.BirthDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+                pair.Right.BasePersonId,
+                pair.Right.FirstName,
+                pair.Right.Surname,
+                pair.Right.BirthDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+                string.Join(';', pair.Substitutions.Select(substitution => string.Join('~',
+                    substitution.StatisticKind,
+                    substitution.SourceValue,
+                    substitution.TargetValue,
+                    substitution.SourceOccurrences,
+                    substitution.TargetOccurrences,
+                    substitution.Similarity.ToString("R", System.Globalization.CultureInfo.InvariantCulture))))))
             .ToArray();
 
     private static IbgeTypedNameFrequencySnapshot Snapshot() =>
