@@ -50,4 +50,6 @@ END;
 CLOSE origens_cursor;
 DEALLOCATE origens_cursor;
 
-PRINT CONCAT('BACKFILL PROGRESSIVO LOCAL: processadas=', (SELECT COUNT_BIG(*) FROM @origens));
+DECLARE @processadas BIGINT;
+SELECT @processadas=COUNT_BIG(*) FROM @origens;
+PRINT CONCAT('BACKFILL PROGRESSIVO LOCAL: processadas=', @processadas);
