@@ -35,17 +35,16 @@ public static class OperationalMonitorApi
 
             // Somente Development/Test recebe a credencial sintética do próprio perfil local.
             // O snapshot continua passando pela autenticação normal de /api/v1/monitor/status.
-            var bootstrap = $"""
-                <script>
-                (() => {{
-                  const gestor = {JsonSerializer.Serialize(gestor)};
-                  const accessKey = {JsonSerializer.Serialize(accessKey)};
-                  sessionStorage.setItem('jornada.monitor.gestor', gestor);
-                  sessionStorage.setItem('jornada.monitor.key', accessKey);
-                }})();
-                </script>
+            var bootstrap =
+                "<script>\n" +
+                "(() => {\n" +
+                "  const gestor = " + JsonSerializer.Serialize(gestor) + ";\n" +
+                "  const accessKey = " + JsonSerializer.Serialize(accessKey) + ";\n" +
+                "  sessionStorage.setItem('jornada.monitor.gestor', gestor);\n" +
+                "  sessionStorage.setItem('jornada.monitor.key', accessKey);\n" +
+                "})();\n" +
+                "</script>\n";
 
-                """;
             html = html.Insert(scriptIndex, bootstrap);
             return Results.Text(html, "text/html; charset=utf-8", Encoding.UTF8);
         });
