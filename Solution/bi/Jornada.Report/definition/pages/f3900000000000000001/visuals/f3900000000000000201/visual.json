@@ -5,13 +5,13 @@
   "visual": {
     "visualType": "columnChart",
     "query": {"queryState":{
-      "Category":{"projections":[{"field":{"Column":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacional"}},"Property":"gestor_codigo_filtro"}},"queryRef":"QualidadeResolucaoOperacional.gestor_codigo_filtro","nativeQueryRef":"gestor_codigo_filtro"}]},
+      "Category":{"projections":[{"field":{"Column":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacionalOrigem"}},"Property":"gestor_nome"}},"queryRef":"QualidadeResolucaoOperacionalOrigem.gestor_nome","nativeQueryRef":"gestor_nome"}]},
       "Y":{"projections":[
-        {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacional"}},"Property":"Taxa de resolução"}},"queryRef":"QualidadeResolucaoOperacional.Taxa de resolução","nativeQueryRef":"Taxa de resolução"},
-        {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacional"}},"Property":"Proporção de conflito"}},"queryRef":"QualidadeResolucaoOperacional.Proporção de conflito","nativeQueryRef":"Proporção de conflito"},
-        {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacional"}},"Property":"Proporção de não resolvido"}},"queryRef":"QualidadeResolucaoOperacional.Proporção de não resolvido","nativeQueryRef":"Proporção de não resolvido"}
+        {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacionalOrigem"}},"Property":"Taxa de resolução"}},"queryRef":"QualidadeResolucaoOperacionalOrigem.Taxa de resolução","nativeQueryRef":"Taxa de resolução"},
+        {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacionalOrigem"}},"Property":"Proporção de conflito"}},"queryRef":"QualidadeResolucaoOperacionalOrigem.Proporção de conflito","nativeQueryRef":"Proporção de conflito"},
+        {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacionalOrigem"}},"Property":"Proporção de não resolvido"}},"queryRef":"QualidadeResolucaoOperacionalOrigem.Proporção de não resolvido","nativeQueryRef":"Proporção de não resolvido"}
       ]}
     }},
-    "visualContainerObjects":{"title":[{"properties":{"show":{"expr":{"Literal":{"Value":"true"}}},"text":{"expr":{"Literal":{"Value":"'Comportamento operacional por gestor'"}}}}}]}
+    "visualContainerObjects":{"title":[{"properties":{"show":{"expr":{"Literal":{"Value":"true"}}},"text":{"expr":{"Literal":{"Value":"'Comportamento operacional por gestor efetivo'"}}}}}]}
   }
 }
