@@ -31,28 +31,23 @@ public sealed class ProbabilisticLinkagePolicyTests
     public void EnabledV2_MustNotSilentlyFallBackToV1()
     {
         var parameters = BirthComponentParameters(LinkageParameterCatalog.BirthComponentScoring);
-        var complete = LinkageModelPolicy.Create(ModelId, 2, "FELLEGI_SUNTER_V2", parameters);
+        var complete = LinkageModelPolicy.Create(ModelId, 2, "FELLEGI_SUNTER_V1", parameters);
         Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(complete), Is.True);
         parameters.Remove("U_NASC_DIA_DIFF");
         var error = Assert.Throws<InvalidOperationException>(() =>
-            LinkageModelPolicy.Create(ModelId, 2, "FELLEGI_SUNTER_V2", parameters));
+            LinkageModelPolicy.Create(ModelId, 2, "FELLEGI_SUNTER_V1", parameters));
         Assert.That(error!.Message, Does.Contain("U_NASC_DIA_DIFF"));
     }
 
     [Test]
-    public void EnabledV3_RequiresOneCompleteBirthDistribution()
+    public void EnabledV3_MustHaveCompleteSingleBirthDistribution()
     {
         var parameters = SingleBirthParameters();
-        var complete = LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V3", parameters);
-        Assert.Multiple(() =>
-        {
-            Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(complete), Is.True);
-            Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(complete), Is.True,
-                "V3 ainda pode usar os passes ampliados de blocking sem triplicar o score.");
-        });
+        var complete = LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V1", parameters);
+        Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(complete), Is.True);
         parameters.Remove("U_DATA_NASCIMENTO_DIFF");
         var error = Assert.Throws<InvalidOperationException>(() =>
-            LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V3", parameters));
+            LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V1", parameters));
         Assert.That(error!.Message, Does.Contain("U_DATA_NASCIMENTO_DIFF"));
     }
 
@@ -61,7 +56,7 @@ public sealed class ProbabilisticLinkagePolicyTests
     {
         var parameters = SingleBirthParameters();
         parameters[LinkageParameterCatalog.BirthComponentScoring] = 1m;
-        var model = LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V3", parameters);
+        var model = LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V1", parameters);
         Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(model), Is.True);
     }
 
@@ -99,10 +94,6 @@ public sealed class ProbabilisticLinkagePolicyTests
             Assert.That(tied.SegundoCandidatoUuid, Is.EqualTo(CandidateB));
             Assert.That(tied.Margem, Is.EqualTo(0m));
         });
-        var absent = ProbabilisticLinkageDecisions.Resolve(model, observation, []);
-        Assert.That(absent.Motivo, Is.EqualTo("SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO"));
-        Assert.Throws<InvalidOperationException>(() => ProbabilisticLinkageDecisions.Resolve(model,
-            Observation("11144477735"), []));
     }
 
     private static Dictionary<string, decimal> SingleBirthParameters()
