@@ -5,10 +5,10 @@ namespace Jornada.Linkage.Parameters.Worker;
 public sealed record IdentityTrainingPair(
     string LeftName,
     DateOnly LeftBirthDate,
-    string LeftMotherName,
+    string? LeftMotherName,
     string RightName,
     DateOnly RightBirthDate,
-    string RightMotherName,
+    string? RightMotherName,
     string? LeftSourceCode = null,
     string? RightSourceCode = null,
     IReadOnlyList<ResolutionSourceValue>? LeftResolutionValues = null,
@@ -20,6 +20,10 @@ public sealed record IdentityTrainingPair(
 /// convergiram deterministicamente por CPF ao mesmo UUID e pares não-match amostrados da Gold.
 /// A independência inter-Gestor evita treinar m contra a própria Gold derivada da observação.
 /// Usa suavização de Dirichlet/Laplace para impedir pesos infinitos.
+///
+/// Nome da mãe é anulável no contrato Pessoa v3. Ausência em qualquer lado não é
+/// discordância: esses pares ficam fora da distribuição NOME_MAE e a ausência será
+/// tratada como evidência neutra pelo scorer.
 ///
 /// A partir da V2, nascimento é calibrado também em três evidências binárias separadas:
 /// dia, mês e ano. A data completa continua preservada e sua concordância exata continua
@@ -45,6 +49,9 @@ public static class LinkageParameterEstimator
             throw new InvalidOperationException("Não há pares não-match suficientes para estimar probabilidades u.");
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(smoothingAlpha);
 
+        var matchedMotherStates = PresentMotherNameComparisons(matchedPairs).ToArray();
+        var unmatchedMotherStates = PresentMotherNameComparisons(unmatchedPairs).ToArray();
+
         var result = new Dictionary<string, decimal>(StringComparer.Ordinal)
         {
             ["M_SAMPLE_SIZE"] = matchedPairs.Count,
@@ -52,9 +59,6 @@ public static class LinkageParameterEstimator
             ["SMOOTHING_ALPHA"] = smoothingAlpha,
             ["T_LINKAGE"] = threshold,
             ["CONFLICT_MARGIN"] = conflictMargin,
-            // Isto seleciona o modelo de scoring, não o plano de blocking. O prefixo
-            // SCORING evita misturar parâmetros Fellegi-Sunter com evidência de seleção
-            // dos passes, que é persistida separadamente pelo Calibrador.
             ["SCORING_BIRTH_COMPONENTS_V2"] = 1m,
             ["PRIOR_MATCH_PROBABILITY"] = EstimateReferencePrior(populationSize, distinctBirthDates),
             ["PRIOR_BLOCK_MIN"] = 0.000001m,
@@ -63,49 +67,34 @@ public static class LinkageParameterEstimator
 
         AddDistribution(result, "M_NOME", matchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)), smoothingAlpha);
         AddDistribution(result, "U_NOME", unmatchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)), smoothingAlpha);
-        AddDistribution(result, "M_NOME_MAE", matchedPairs.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
-        AddDistribution(result, "U_NOME_MAE", unmatchedPairs.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
+        AddDistribution(result, "M_NOME_MAE", matchedMotherStates, smoothingAlpha);
+        AddDistribution(result, "U_NOME_MAE", unmatchedMotherStates, smoothingAlpha);
 
-        // Mantém a taxa da data completa para auditoria e compatibilidade com modelos V1.
         result["M_DATA_NASCIMENTO_EXACT"] = SmoothedBinary(
             matchedPairs.Count(p => p.LeftBirthDate == p.RightBirthDate), matchedPairs.Count, smoothingAlpha);
         result["U_DATA_NASCIMENTO_EXACT"] = SmoothedBinary(
             unmatchedPairs.Count(p => p.LeftBirthDate == p.RightBirthDate), unmatchedPairs.Count, smoothingAlpha);
 
-        // V2: cada componente de nascimento é uma evidência Fellegi-Sunter própria.
-        // Persistimos EXACT e DIFF explicitamente para que o modelo seja auditável.
-        AddBinaryDistribution(
-            result,
-            "M_NASC_DIA",
-            matchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day),
-            smoothingAlpha);
-        AddBinaryDistribution(
-            result,
-            "U_NASC_DIA",
-            unmatchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day),
-            smoothingAlpha);
-        AddBinaryDistribution(
-            result,
-            "M_NASC_MES",
-            matchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month),
-            smoothingAlpha);
-        AddBinaryDistribution(
-            result,
-            "U_NASC_MES",
-            unmatchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month),
-            smoothingAlpha);
-        AddBinaryDistribution(
-            result,
-            "M_NASC_ANO",
-            matchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year),
-            smoothingAlpha);
-        AddBinaryDistribution(
-            result,
-            "U_NASC_ANO",
-            unmatchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year),
-            smoothingAlpha);
+        AddBinaryDistribution(result, "M_NASC_DIA", matchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day), smoothingAlpha);
+        AddBinaryDistribution(result, "U_NASC_DIA", unmatchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day), smoothingAlpha);
+        AddBinaryDistribution(result, "M_NASC_MES", matchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month), smoothingAlpha);
+        AddBinaryDistribution(result, "U_NASC_MES", unmatchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month), smoothingAlpha);
+        AddBinaryDistribution(result, "M_NASC_ANO", matchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year), smoothingAlpha);
+        AddBinaryDistribution(result, "U_NASC_ANO", unmatchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year), smoothingAlpha);
 
         return result;
+    }
+
+    private static IEnumerable<NameComparisonState> PresentMotherNameComparisons(IEnumerable<IdentityTrainingPair> pairs)
+    {
+        foreach (var pair in pairs)
+        {
+            if (IdentityComparison.NormalizeText(pair.LeftMotherName) is null ||
+                IdentityComparison.NormalizeText(pair.RightMotherName) is null)
+                continue;
+
+            yield return IdentityComparison.CompareName(pair.LeftMotherName, pair.RightMotherName);
+        }
     }
 
     private static void AddDistribution(
@@ -155,8 +144,6 @@ public static class LinkageParameterEstimator
         if (populationSize <= 0 || distinctBirthDates <= 0)
             return 0.001m;
 
-        // Referência global apenas para auditoria/monitoramento. O scorer operacional
-        // condiciona o prior ao tamanho real do conjunto de candidatos observado.
         var prior = (decimal)distinctBirthDates / populationSize;
         return Math.Clamp(prior, 0.000001m, 0.25m);
     }

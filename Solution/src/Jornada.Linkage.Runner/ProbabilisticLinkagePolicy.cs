@@ -100,11 +100,16 @@ internal static class ProbabilisticLinkageDecisions
                     ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_COMPONENTE"
                     : "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO");
 
+        static NameComparisonState? CompareOptionalName(string? left, string? right) =>
+            IdentityComparison.NormalizeText(left) is null || IdentityComparison.NormalizeText(right) is null
+                ? null
+                : IdentityComparison.CompareName(left, right);
+
         var scored = candidates
             .Select(candidate => new CandidateScore(candidate.PessoaUuid,
                 FellegiSunterScoring.CalculatePosterior(model.Parameters,
                     IdentityComparison.CompareName(observation.NomeCompleto, candidate.NomeCompleto),
-                    IdentityComparison.CompareName(observation.NomeMae, candidate.NomeMae),
+                    CompareOptionalName(observation.NomeMae, candidate.NomeMae),
                     candidates.Count, observation.DataNascimento, candidate.DataNascimento)))
             .OrderByDescending(x => x.Score)
             .ThenBy(x => x.PessoaUuid)

@@ -12,7 +12,6 @@ public sealed class LinkageParameterEstimatorTests
         var matched = new[]
         {
             new IdentityTrainingPair("Maria da Silva", new DateOnly(1980,1,1), "Ana Silva", "Maria da Silva", new DateOnly(1980,1,1), "Ana Silva"),
-            // Par verdadeiro por CPF com erro de um dia na origem: o calibrador deve aprender essa ocorrência.
             new IdentityTrainingPair("Joao Souza", new DateOnly(1970,2,2), "Rita Souza", "João de Souza", new DateOnly(1970,2,3), "Rita Souza")
         };
         var unmatched = new[]
@@ -44,6 +43,31 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p["M_NASC_DIA_EXACT"] + p["M_NASC_DIA_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
             Assert.That(p["U_NASC_MES_EXACT"] + p["U_NASC_MES_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
             Assert.That(p["M_NASC_ANO_EXACT"] + p["M_NASC_ANO_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
+        });
+    }
+
+    [Test]
+    public void Missing_mother_name_is_not_counted_as_low_similarity()
+    {
+        var matched = new[]
+        {
+            new IdentityTrainingPair("Maria Silva", new DateOnly(1980,1,1), "Ana Silva", "Maria Silva", new DateOnly(1980,1,1), "Ana Silva"),
+            new IdentityTrainingPair("Joao Souza", new DateOnly(1970,2,2), null, "Joao Souza", new DateOnly(1970,2,2), "Rita Souza")
+        };
+        var unmatched = new[]
+        {
+            new IdentityTrainingPair("Maria Silva", new DateOnly(1980,1,1), "Ana Silva", "Carlos Pereira", new DateOnly(1981,1,1), "Lucia Pereira"),
+            new IdentityTrainingPair("Joao Souza", new DateOnly(1970,2,2), null, "Mariana Lima", new DateOnly(1970,3,2), null)
+        };
+
+        var p = LinkageParameterEstimator.Estimate(matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(p.ContainsKey("M_NOME_MAE_SAMPLE_SIZE"), Is.False);
+            Assert.That(p.ContainsKey("U_NOME_MAE_SAMPLE_SIZE"), Is.False);
+            Assert.That(p["M_NOME_MAE_EXACT"], Is.GreaterThan(p["M_NOME_MAE_LOW"]));
+            Assert.That(p["U_NOME_MAE_LOW"], Is.GreaterThan(p["U_NOME_MAE_EXACT"]));
         });
     }
 }

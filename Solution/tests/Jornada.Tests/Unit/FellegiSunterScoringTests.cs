@@ -36,6 +36,32 @@ public sealed class FellegiSunterScoringTests
     }
 
     [Test]
+    public void Missing_mother_name_is_neutral_evidence()
+    {
+        var withoutMother = FellegiSunterScoring.CalculatePosterior(
+            Parameters, NameComparisonState.HIGH, null, blockCandidateCount: 100);
+
+        var expectedFromNameOnly = FellegiSunterScoring.CalculatePosterior(
+            new Dictionary<string, decimal>(Parameters)
+            {
+                ["M_NOME_MAE_EXACT"] = 1m,
+                ["U_NOME_MAE_EXACT"] = 1m
+            },
+            NameComparisonState.HIGH,
+            null,
+            blockCandidateCount: 100);
+
+        var observedLowMother = FellegiSunterScoring.CalculatePosterior(
+            Parameters, NameComparisonState.HIGH, NameComparisonState.LOW, blockCandidateCount: 100);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(withoutMother, Is.EqualTo(expectedFromNameOnly));
+            Assert.That(withoutMother, Is.GreaterThan(observedLowMother));
+        });
+    }
+
+    [Test]
     public void Low_similarity_produces_low_posterior()
     {
         var score = FellegiSunterScoring.CalculatePosterior(
