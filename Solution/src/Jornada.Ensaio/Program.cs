@@ -1,20 +1,40 @@
 using System.Data.Common;
-using System.Diagnostics;
-using System.Globalization;
-using System.Net.Http.Headers;
 using Jornada.Ensaio;
 using Jornada.Operational.Sql;
 using Microsoft.Extensions.Configuration;
 
-var config=new ConfigurationBuilder().AddJsonFile("appsettings.json",optional:true).AddEnvironmentVariables().AddCommandLine(args).Build();
-var conexao=config.GetConnectionString("Jornada")??throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
-var dirPacotes=config["Ensaio:PacotesDir"]??AppContext.BaseDirectory;var dirSaida=config["Ensaio:SaidaDir"]??Path.Combine(AppContext.BaseDirectory,"ensaio");var endpoint=config["Ensaio:Endpoints:IngestaoEntregas"]??"http://localhost:8080/api/v1/ingestao/entregas";var apiKey=config["Ensaio:ApiKey"]??"";var baseline=config["Ensaio:BaselineSha"]??"(não informado)";var somente=config["Ensaio:Etapa"];var timeout=TimeSpan.FromMinutes(config.GetValue("Ensaio:DrenagemTimeoutMinutos",120));
-var provider=config["Database:Provider"]??OperationalDatabaseProviders.SqlServer;var adapter=OperationalDatabaseAdapterFactory.Create(provider,conexao);if(adapter.Provider!=OperationalDatabaseProviders.SqlServer)throw new InvalidOperationException("Jornada.Ensaio usa SQL Server como provider operacional padrão.");DbConnection Abrir()=>adapter.CreateConnection();
-var coletor=new CheckpointCollector(Abrir);var etapas=EnsaioPlan.Padrao;Directory.CreateDirectory(dirSaida);using var cts=new CancellationTokenSource();Console.CancelKeyPress+=(_,e)=>{e.Cancel=true;cts.Cancel();};Checkpoint? anterior=null;var log=new List<string>();var checkpoints=new List<Checkpoint>();
-foreach(var etapa in etapas){if(somente is not null&&etapa.Codigo!=somente)continue;Console.WriteLine($"── {etapa.Codigo}  {etapa.Descricao}");try{if(etapa.Tipo==EnsaioEtapaTipo.Calibrador)await Calibrar(etapa,cts.Token);else if(etapa.Tipo==EnsaioEtapaTipo.Ingestao)await Ingerir(etapa,cts.Token);}catch(Exception ex){Console.WriteLine($"   [falha] {ex.Message}");log.Add($"{etapa.Codigo}: FALHA — {ex.Message}");}var cp=await coletor.ColetarAsync(etapa,baseline,cts.Token);await CheckpointCollector.GravarAsync(cp,dirSaida,cts.Token);if(anterior is not null)await File.WriteAllTextAsync(Path.Combine(dirSaida,$"diff-{anterior.Etapa}--{cp.Etapa}.md"),CheckpointDiff.Gerar(anterior,cp),cts.Token);checkpoints.Add(cp);anterior=cp;}
-await File.WriteAllLinesAsync(Path.Combine(dirSaida,"ensaio.log"),log,cts.Token);await File.WriteAllTextAsync(Path.Combine(dirSaida,"RELATORIO_ENSAIO.md"),EnsaioReport.Gerar(checkpoints,log),cts.Token);Console.WriteLine($"Relatório interpretativo: {Path.Combine(dirSaida,"RELATORIO_ENSAIO.md")}");return 0;
+var configuration = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json", optional: true)
+    .AddEnvironmentVariables()
+    .AddCommandLine(args)
+    .Build();
 
-async Task Calibrar(EnsaioEtapa etapa,CancellationToken ct){var psi=new ProcessStartInfo{FileName=config["Ensaio:Calibrador:FileName"]??"dotnet",Arguments=config["Ensaio:Calibrador:Arguments"]??"run --project ../Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj --configuration Release",UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true,CreateNoWindow=true};psi.Environment["ConnectionStrings__Jornada"]=conexao;psi.Environment["Database__Provider"]=OperationalDatabaseProviders.SqlServer;psi.Environment["LinkageParameters__Operation"]="GENERATE_DRAFT";psi.Environment["LinkageParameters__RunOnce"]="true";foreach(var k in new[]{"AlgorithmVersion","NormalizationVersion","TrainingSampleSize","TrainingSamplePoolSize","SmoothingAlpha","TLinkage","ConflictMargin","ReadCommandTimeoutSeconds","MinimumIndependentMatchedPairs"}){var v=config[$"LinkageParameters:{k}"];if(!string.IsNullOrWhiteSpace(v))psi.Environment[$"LinkageParameters__{k}"]=v;}using var p=Process.Start(psi)??throw new InvalidOperationException("Não foi possível iniciar Jornada.Linkage.Parameters.Worker.");var stdout=p.StandardOutput.ReadToEndAsync(ct);var stderr=p.StandardError.ReadToEndAsync(ct);await p.WaitForExitAsync(ct);Console.WriteLine((await stdout).TrimEnd());var err=await stderr;if(!string.IsNullOrWhiteSpace(err))Console.Error.WriteLine(err.TrimEnd());log.Add($"{etapa.Codigo}: Linkage.Parameters.Worker exit={p.ExitCode}");}
+var options = EnsaioRuntimeOptions.FromConfiguration(configuration);
+var provider = configuration["Database:Provider"] ?? OperationalDatabaseProviders.SqlServer;
+var adapter = OperationalDatabaseAdapterFactory.Create(provider, options.ConnectionString);
 
-async Task Ingerir(EnsaioEtapa etapa,CancellationToken ct){var pacotes=Directory.GetFiles(dirPacotes,$"{etapa.PrefixoArquivo}*.zip").OrderBy(x=>x,StringComparer.Ordinal).ToArray();if(pacotes.Length==0)throw new FileNotFoundException($"Nenhum pacote {etapa.PrefixoArquivo}*.zip encontrado em {dirPacotes}.");using var http=new HttpClient{Timeout=TimeSpan.FromMinutes(30)};if(!string.IsNullOrWhiteSpace(apiKey))http.DefaultRequestHeaders.Add("X-Api-Key",apiKey);var enviados=0;foreach(var caminho in pacotes){var nome=Path.GetFileName(caminho);using var conteudo=new ByteArrayContent(await File.ReadAllBytesAsync(caminho,ct));conteudo.Headers.ContentType=new MediaTypeHeaderValue("application/zip");using var req=new HttpRequestMessage(HttpMethod.Post,endpoint){Content=conteudo};req.Headers.Add("Idempotency-Key",$"ensaio-{etapa.Codigo}-{nome}");using var resp=await http.SendAsync(req,ct);var corpo=await resp.Content.ReadAsStringAsync(ct);if(resp.IsSuccessStatusCode)enviados++;else log.Add($"{etapa.Codigo}: {nome} -> {(int)resp.StatusCode} {corpo}");}log.Add($"{etapa.Codigo}: {enviados}/{pacotes.Length} pacotes aceitos");if(enviados!=pacotes.Length)throw new InvalidOperationException($"A API aceitou apenas {enviados}/{pacotes.Length} pacotes.");await Drenar(ct);}
-async Task Drenar(CancellationToken ct){var limite=DateTimeOffset.Now+timeout;var estavel=0;while(DateTimeOffset.Now<limite&&!ct.IsCancellationRequested){await using var c=Abrir();await c.OpenAsync(ct);await using var cmd=c.CreateCommand();cmd.CommandText="SELECT COUNT(*) FROM ingestao.item_processado WHERE status NOT IN ('PROCESSADO','ERRO','DESCARTADO')";var n=Convert.ToInt64(await cmd.ExecuteScalarAsync(ct)??0L,CultureInfo.InvariantCulture);if(n==0){if(++estavel>=3)return;}else estavel=0;await Task.Delay(TimeSpan.FromSeconds(10),ct);}log.Add("drenagem: timeout");}
+if (adapter.Provider != OperationalDatabaseProviders.SqlServer)
+    throw new InvalidOperationException("Jornada.Ensaio usa SQL Server como provider operacional padrão.");
+
+DbConnection OpenConnection() => adapter.CreateConnection();
+
+var log = new List<string>();
+var checkpointCollector = new CheckpointCollector(OpenConnection);
+var drainProbe = new SqlServerPipelineDrainProbe(OpenConnection);
+var calibrationRunner = new CalibrationProcessRunner(configuration, options, log);
+var ingestionRunner = new IngestionStageRunner(options, drainProbe, log);
+var runner = new EnsaioRunner(
+    options,
+    checkpointCollector,
+    calibrationRunner,
+    ingestionRunner,
+    log);
+
+using var cancellation = new CancellationTokenSource();
+Console.CancelKeyPress += (_, eventArgs) =>
+{
+    eventArgs.Cancel = true;
+    cancellation.Cancel();
+};
+
+return await runner.RunAsync(cancellation.Token);
