@@ -52,15 +52,15 @@ ensure_synthetic_scale() {
   if [[ "$count" == "0" ]]; then
     echo "Carregando corpus sintético local para calibração/linkage..."
     sqlcmd -d "$JORNADA_SQL_DATABASE" \
-      -v SCALE_PEOPLE=5000 SCALE_PAIRED=1500 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 \
+      -v SCALE_PEOPLE=5000 SCALE_PAIRED=5000 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 \
       -i database/Jornada_Dev_SyntheticScale.sql
     count="$(sql_scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")"
   fi
-  [[ "$count" == "4000" ]] || {
-    echo "ERRO: massa sintética local inconsistente: esperadas 4000 pessoas de origem SCALE; encontradas=$count. Execute local-db reset." >&2
+  [[ "$count" == "11000" ]] || {
+    echo "ERRO: massa sintética local inconsistente: esperadas 11000 pessoas de origem SCALE; encontradas=$count. Execute local-db reset." >&2
     return 4
   }
-  echo "Corpus sintético local pronto: 5000 pessoas Gold, 1500 pares corroborados e 1000 pendentes."
+  echo "Corpus sintético local pronto: 5000 pessoas Gold, 5000 pares corroborados e 1000 pendentes."
 }
 bootstrap() {
   sqlcmd -Q "IF DB_ID(N'$JORNADA_SQL_DATABASE') IS NULL CREATE DATABASE [$JORNADA_SQL_DATABASE];"
@@ -72,8 +72,9 @@ bootstrap() {
   # DEV possui seed; reaplicação idempotente reserva também CPFs históricos do seed.
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260907_Cpf_Ancora.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260910_Schema_Consolidation_370.sql
-  # O perfil local Test deve conseguir exercitar o calibrador real sem afrouxar
-  # o mínimo estatístico de produção. Reutiliza exatamente a massa do harness CI.
+  # O perfil local Test exercita o calibrador com o mínimo estatístico padrão de
+  # 5.000 pares independentes. Usa o mesmo gerador versionado do harness CI, mas
+  # com um perfil local dimensionado para satisfazer o limiar real, sem reduzi-lo.
   ensure_synthetic_scale
 }
 
