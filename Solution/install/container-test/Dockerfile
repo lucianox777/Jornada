@@ -26,7 +26,7 @@ RUN dotnet publish src/Jornada.Api/Jornada.Api.csproj -c Release --no-restore -o
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 RUN apt-get update \
- && apt-get install -y --no-install-recommends jq curl \
+ && apt-get install -y --no-install-recommends jq curl procps \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/jornada
