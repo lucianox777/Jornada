@@ -64,8 +64,8 @@ public sealed class LinkageParameterEstimatorTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(p.ContainsKey("M_NOME_MAE_SAMPLE_SIZE"), Is.False);
-            Assert.That(p.ContainsKey("U_NOME_MAE_SAMPLE_SIZE"), Is.False);
+            Assert.That(p["M_NOME_MAE_SAMPLE_SIZE"], Is.EqualTo(1m));
+            Assert.That(p["U_NOME_MAE_SAMPLE_SIZE"], Is.EqualTo(1m));
             Assert.That(p["M_NOME_MAE_EXACT"], Is.GreaterThan(p["M_NOME_MAE_LOW"]));
             Assert.That(p["U_NOME_MAE_LOW"], Is.GreaterThan(p["U_NOME_MAE_EXACT"]));
         });
