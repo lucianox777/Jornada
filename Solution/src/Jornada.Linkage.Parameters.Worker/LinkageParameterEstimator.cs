@@ -56,6 +56,8 @@ public static class LinkageParameterEstimator
         {
             ["M_SAMPLE_SIZE"] = matchedPairs.Count,
             ["U_SAMPLE_SIZE"] = unmatchedPairs.Count,
+            ["M_NOME_MAE_SAMPLE_SIZE"] = matchedMotherStates.Length,
+            ["U_NOME_MAE_SAMPLE_SIZE"] = unmatchedMotherStates.Length,
             ["SMOOTHING_ALPHA"] = smoothingAlpha,
             ["T_LINKAGE"] = threshold,
             ["CONFLICT_MARGIN"] = conflictMargin,
