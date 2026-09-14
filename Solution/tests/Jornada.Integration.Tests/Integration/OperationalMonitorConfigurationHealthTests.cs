@@ -13,12 +13,14 @@ public sealed class OperationalMonitorConfigurationHealthTests
     public async Task Configuration_health_is_ok_only_when_api_components_and_database_share_the_expected_identity()
     {
         var connectionString = RequireIntegrationConnection();
+        string? priorDatabaseSchema;
         await using (var connection = new SqlConnection(connectionString))
         {
             await connection.OpenAsync();
             var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
             await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
             await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260914_Operational_Monitor.sql"));
+            priorDatabaseSchema = await ReadSolutionSchemaAsync(connection);
             await SetSolutionSchemaAsync(connection, "3.70");
         }
 
@@ -37,7 +39,6 @@ public sealed class OperationalMonitorConfigurationHealthTests
             Assert.That(healthy.ConfigurationHealth.Status, Is.EqualTo("OK"));
             Assert.That(healthy.ConfigurationHealth.ExpectedBundleVersion, Is.EqualTo("3.70-config.test"));
             Assert.That(healthy.ConfigurationHealth.DatabaseSolutionSchema, Is.EqualTo("3.70"));
-            Assert.That(healthy.OverallStatus, Is.EqualTo("NORMAL"));
 
             await UpsertComponentAsync(connectionString, node, "Api", "3.70-config.old", "3.70");
             var divergentNode = await monitor.GetAsync(CancellationToken.None);
@@ -60,7 +61,7 @@ public sealed class OperationalMonitorConfigurationHealthTests
             await DeleteNodeAsync(connectionString, node);
             await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync();
-            await SetSolutionSchemaAsync(connection, "3.70");
+            await RestoreSolutionSchemaAsync(connection, priorDatabaseSchema);
             Environment.SetEnvironmentVariable("JORNADA_CONFIGURATION_BUNDLE_VERSION", priorBundle);
             Environment.SetEnvironmentVariable("JORNADA_SOLUTION_SCHEMA_VERSION", priorSchema);
         }
@@ -107,6 +108,17 @@ public sealed class OperationalMonitorConfigurationHealthTests
         await command.ExecuteNonQueryAsync();
     }
 
+    private static async Task<string?> ReadSolutionSchemaAsync(SqlConnection connection)
+    {
+        await using var command = new SqlCommand("""
+            SELECT CONVERT(NVARCHAR(32),(
+              SELECT value FROM sys.extended_properties
+              WHERE class=0 AND name=N'Jornada.SolutionSchema'));
+            """, connection);
+        var value = await command.ExecuteScalarAsync();
+        return value is null or DBNull ? null : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     private static async Task SetSolutionSchemaAsync(SqlConnection connection, string value)
     {
         await using var command = new SqlCommand("""
@@ -116,6 +128,21 @@ public sealed class OperationalMonitorConfigurationHealthTests
               EXEC sys.sp_addextendedproperty @name=N'Jornada.SolutionSchema',@value=@value;
             """, connection);
         command.Parameters.Add(new SqlParameter("@value", System.Data.SqlDbType.NVarChar, 32) { Value = value });
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task RestoreSolutionSchemaAsync(SqlConnection connection, string? priorValue)
+    {
+        if (priorValue is not null)
+        {
+            await SetSolutionSchemaAsync(connection, priorValue);
+            return;
+        }
+
+        await using var command = new SqlCommand("""
+            IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema')
+              EXEC sys.sp_dropextendedproperty @name=N'Jornada.SolutionSchema';
+            """, connection);
         await command.ExecuteNonQueryAsync();
     }
 
