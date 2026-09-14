@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.3" />
     <PackageReference Include="Npgsql" Version="8.0.9" />
   </ItemGroup>
 </Project>
