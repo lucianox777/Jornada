@@ -1,6 +1,7 @@
 param(
     [ValidateSet('up','reset','down','clean','status','logs','calibrate','linkage')]
-    [string]$Action = 'up'
+    [string]$Action = 'up',
+    [switch]$NoBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -130,7 +131,7 @@ function Invoke-Linkage {
 }
 
 switch ($Action) {
-    'up' { & $LocalDb up; if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 up falhou ($LASTEXITCODE)." }; Start-Nodes -Build }
+    'up' { & $LocalDb up; if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 up falhou ($LASTEXITCODE)." }; Start-Nodes -Build:(-not $NoBuild) }
     'reset' { Invoke-Compose -ComposeArgs @('stop','jornada-node1','jornada-node2'); & $LocalDb reset; if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 reset falhou ($LASTEXITCODE)." }; Start-Nodes }
     'down' { Invoke-Compose -ComposeArgs @('down') }
     'clean' { Invoke-Compose -ComposeArgs @('down','-v','--remove-orphans') }
