@@ -2,7 +2,14 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0.424 AS build
 WORKDIR /src
 COPY . .
 
-RUN dotnet restore Jornada.sln --locked-mode
+RUN dotnet restore src/Jornada.Api/Jornada.Api.csproj --locked-mode \
+ && dotnet restore src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj --locked-mode \
+ && dotnet restore src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj --locked-mode \
+ && dotnet restore src/Jornada.Operations.Maintenance.Worker/Jornada.Operations.Maintenance.Worker.csproj --locked-mode \
+ && dotnet restore src/Jornada.Bronze.Maintenance.Worker/Jornada.Bronze.Maintenance.Worker.csproj --locked-mode \
+ && dotnet restore src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj --locked-mode \
+ && dotnet restore src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj --locked-mode \
+ && dotnet restore clients/Jornada.Integrador.CSharp/Jornada.Integrador.CSharp.csproj --locked-mode
 
 RUN dotnet publish src/Jornada.Api/Jornada.Api.csproj -c Release --no-restore -o /out/apps/Jornada.Api \
  && dotnet publish src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj -c Release --no-restore -o /out/apps/Jornada.Resultado.Api \
