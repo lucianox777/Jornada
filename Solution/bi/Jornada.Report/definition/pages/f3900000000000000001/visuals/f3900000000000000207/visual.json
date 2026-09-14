@@ -1,0 +1,17 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f3900000000000000207",
+  "position": {"x":30,"y":1450,"z":2006,"height":230,"width":1210,"tabOrder":2006},
+  "visual": {
+    "visualType": "columnChart",
+    "query": {"queryState":{
+      "Category":{"projections":[{"field":{"Column":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacionalEstrato"}},"Property":"estrato_identificacao"}},"queryRef":"QualidadeResolucaoOperacionalEstrato.estrato_identificacao","nativeQueryRef":"estrato_identificacao"}]},
+      "Y":{"projections":[
+        {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacionalEstrato"}},"Property":"Taxa de resolução"}},"queryRef":"QualidadeResolucaoOperacionalEstrato.Taxa de resolução","nativeQueryRef":"Taxa de resolução"},
+        {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacionalEstrato"}},"Property":"Proporção de conflito"}},"queryRef":"QualidadeResolucaoOperacionalEstrato.Proporção de conflito","nativeQueryRef":"Proporção de conflito"},
+        {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacionalEstrato"}},"Property":"Proporção de não resolvido"}},"queryRef":"QualidadeResolucaoOperacionalEstrato.Proporção de não resolvido","nativeQueryRef":"Proporção de não resolvido"}
+      ]}
+    }},
+    "visualContainerObjects":{"title":[{"properties":{"show":{"expr":{"Literal":{"Value":"true"}}},"text":{"expr":{"Literal":{"Value":"'Comportamento operacional por presença de CPF'"}}}}}]}
+  }
+}

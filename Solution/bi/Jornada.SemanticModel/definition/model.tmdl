@@ -15,6 +15,7 @@ ref table Linkage
 ref table LinkageRuns
 ref table QualidadeResolucaoOperacional
 ref table QualidadeResolucaoOperacionalOrigem
+ref table QualidadeResolucaoOperacionalEstrato
 ref table QualidadeResolucaoCalibrada
 ref table QC
 ref table QualidadeBeneficios
