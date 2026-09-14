@@ -7,7 +7,7 @@ public static class FellegiSunterScoring
     public static decimal CalculatePosterior(
         IReadOnlyDictionary<string, decimal> parameters,
         NameComparisonState nameState,
-        NameComparisonState motherNameState,
+        NameComparisonState? motherNameState,
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
         DateOnly? rightBirthDate = null,
@@ -16,24 +16,25 @@ public static class FellegiSunterScoring
     {
         var prior = blockCandidateCount is > 0
             ? CalculateBlockPrior(parameters, blockCandidateCount.Value)
-            : Get(parameters, "PRIOR_MATCH_PROBABILITY");
+            : Get(parameters, LinkageParameterCatalog.PriorMatchProbability);
         var logOdds = Logit((double)prior);
         logOdds += LogLikelihoodRatio(parameters, "NOME", nameState, nameFrequencyStratum);
-        logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", motherNameState, motherNameFrequencyStratum);
+
+        // Ausência de nome da mãe é evidência não observada: LR=1, log(LR)=0.
+        // LOW continua reservado a uma comparação efetivamente observada de baixa similaridade.
+        if (motherNameState is { } observedMotherNameState)
+            logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", observedMotherNameState, motherNameFrequencyStratum);
 
         if (leftBirthDate is { } left && rightBirthDate is { } right)
         {
-            // V3: nascimento é uma única variável probabilística. Isto evita tratar
-            // dia/mês/ano como três observações independentes do mesmo evento de
-            // transcrição. Modelos V2 históricos continuam reproduzíveis abaixo.
+            // V3 tem precedência: nascimento é uma única evidência probabilística.
             if (parameters.TryGetValue("SCORING_BIRTH_SINGLE_EVIDENCE_V3", out var singleBirth) && singleBirth >= 1m)
             {
                 logOdds += TryBinaryLikelihoodRatio(parameters, "DATA_NASCIMENTO", left == right);
             }
             else
             {
-                // Compatibilidade de replay para modelos V2 já publicados. Novos modelos
-                // não devem emitir SCORING_BIRTH_COMPONENTS_V2.
+                // Replay V2: componentes permanecem suportados apenas para modelos históricos.
                 logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_DIA", left.Day == right.Day);
                 logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_MES", left.Month == right.Month);
                 logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_ANO", left.Year == right.Year);
@@ -47,8 +48,8 @@ public static class FellegiSunterScoring
     private static decimal CalculateBlockPrior(IReadOnlyDictionary<string, decimal> parameters, int candidateCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(candidateCount);
-        var min = parameters.TryGetValue("PRIOR_BLOCK_MIN", out var pmin) ? pmin : 0.000001m;
-        var max = parameters.TryGetValue("PRIOR_BLOCK_MAX", out var pmax) ? pmax : 0.25m;
+        var min = parameters.TryGetValue(LinkageParameterCatalog.PriorBlockMin, out var pmin) ? pmin : 0.000001m;
+        var max = parameters.TryGetValue(LinkageParameterCatalog.PriorBlockMax, out var pmax) ? pmax : 0.25m;
         return Math.Clamp(1m / candidateCount, min, max);
     }
 
@@ -60,9 +61,6 @@ public static class FellegiSunterScoring
     {
         var stateSuffix = state.ToString();
         var stratumSuffix = frequencyStratum.ToString();
-
-        // Frequência é uma dimensão da calibração m/u, não um multiplicador da distância.
-        // Modelos históricos e estrato UNKNOWN usam a distribuição marginal.
         var m = TryGetStratified(parameters, $"M_{attribute}_{stateSuffix}", stratumSuffix);
         var u = TryGetStratified(parameters, $"U_{attribute}_{stateSuffix}", stratumSuffix);
         return Math.Log((double)ClampProbability(m) / (double)ClampProbability(u));
@@ -108,10 +106,6 @@ public static class FellegiSunterScoring
     }
 }
 
-/// <summary>
-/// Estrato de frequência do atributo com a mesma semântica usada na comparação.
-/// O estrato é uma covariável de calibração; não é um peso multiplicativo da distância.
-/// </summary>
 public enum NameFrequencyStratum
 {
     UNKNOWN,
