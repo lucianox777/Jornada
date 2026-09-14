@@ -1,0 +1,16 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f3900000000000000205",
+  "position": {"x":30,"y":930,"z":2004,"height":230,"width":1210,"tabOrder":2004},
+  "visual": {
+    "visualType": "columnChart",
+    "query": {"queryState":{
+      "Category":{"projections":[{"field":{"Column":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoCalibrada"}},"Property":"estrato"}},"queryRef":"QualidadeResolucaoCalibrada.estrato","nativeQueryRef":"estrato"}]},
+      "Y":{"projections":[
+        {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoCalibrada"}},"Property":"PPV estimado"}},"queryRef":"QualidadeResolucaoCalibrada.PPV estimado","nativeQueryRef":"PPV estimado"},
+        {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoCalibrada"}},"Property":"Sensibilidade estimada"}},"queryRef":"QualidadeResolucaoCalibrada.Sensibilidade estimada","nativeQueryRef":"Sensibilidade estimada"}
+      ]}
+    }},
+    "visualContainerObjects":{"title":[{"properties":{"show":{"expr":{"Literal":{"Value":"true"}}},"text":{"expr":{"Literal":{"Value":"'Qualidade calibrada por estrato — somente quando houver evidência válida'"}}}}}]}
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f3900000000000000202",
+  "position": {"x":650,"y":410,"z":2001,"height":230,"width":590,"tabOrder":2001},
+  "visual": {
+    "visualType": "columnChart",
+    "query": {"queryState":{
+      "Category":{"projections":[{"field":{"Column":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacional"}},"Property":"finalizado_em"}},"queryRef":"QualidadeResolucaoOperacional.finalizado_em","nativeQueryRef":"finalizado_em"}]},
+      "Y":{"projections":[{"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacional"}},"Property":"Taxa de resolução"}},"queryRef":"QualidadeResolucaoOperacional.Taxa de resolução","nativeQueryRef":"Taxa de resolução"}]}
+    }},
+    "visualContainerObjects":{"title":[{"properties":{"show":{"expr":{"Literal":{"Value":"true"}}},"text":{"expr":{"Literal":{"Value":"'Evolução temporal da taxa de resolução'"}}}}}]}
+  }
+}

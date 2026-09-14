@@ -1,0 +1,13 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f3900000000000000204",
+  "position": {"x":650,"y":670,"z":2003,"height":230,"width":590,"tabOrder":2003},
+  "visual": {
+    "visualType": "columnChart",
+    "query": {"queryState":{
+      "Category":{"projections":[{"field":{"Column":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacional"}},"Property":"linkage_run_id"}},"queryRef":"QualidadeResolucaoOperacional.linkage_run_id","nativeQueryRef":"linkage_run_id"}]},
+      "Y":{"projections":[{"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacional"}},"Property":"Taxa de resolução"}},"queryRef":"QualidadeResolucaoOperacional.Taxa de resolução","nativeQueryRef":"Taxa de resolução"}]}
+    }},
+    "visualContainerObjects":{"title":[{"properties":{"show":{"expr":{"Literal":{"Value":"true"}}},"text":{"expr":{"Literal":{"Value":"'Taxa de resolução por linkage_run'"}}}}}]}
+  }
+}

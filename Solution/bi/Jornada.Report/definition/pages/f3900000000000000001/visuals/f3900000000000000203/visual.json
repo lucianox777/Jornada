@@ -1,0 +1,16 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f3900000000000000203",
+  "position": {"x":30,"y":670,"z":2002,"height":230,"width":590,"tabOrder":2002},
+  "visual": {
+    "visualType": "columnChart",
+    "query": {"queryState":{
+      "Category":{"projections":[{"field":{"Column":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacional"}},"Property":"modelo_versao"}},"queryRef":"QualidadeResolucaoOperacional.modelo_versao","nativeQueryRef":"modelo_versao"}]},
+      "Y":{"projections":[
+        {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacional"}},"Property":"Taxa de resolução"}},"queryRef":"QualidadeResolucaoOperacional.Taxa de resolução","nativeQueryRef":"Taxa de resolução"},
+        {"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoOperacional"}},"Property":"Proporção de não resolvido"}},"queryRef":"QualidadeResolucaoOperacional.Proporção de não resolvido","nativeQueryRef":"Proporção de não resolvido"}
+      ]}
+    }},
+    "visualContainerObjects":{"title":[{"properties":{"show":{"expr":{"Literal":{"Value":"true"}}},"text":{"expr":{"Literal":{"Value":"'Comportamento por versão do modelo'"}}}}}]}
+  }
+}
