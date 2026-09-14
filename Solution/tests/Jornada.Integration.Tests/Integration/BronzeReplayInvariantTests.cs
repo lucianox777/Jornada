@@ -276,6 +276,6 @@ public sealed class BronzeReplayInvariantTests
         command.CommandText = sql;
         foreach (var (name, value) in parameters) command.Parameters.AddWithValue(name, value);
         var result = await command.ExecuteScalarAsync();
-        return result is Guid value ? value : Guid.Empty;
+        return result is Guid guid ? guid : Guid.Empty;
     }
 }
