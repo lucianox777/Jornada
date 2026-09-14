@@ -42,9 +42,9 @@ public sealed class GroundTruthFeatureLineageTests
         Assert.Multiple(() =>
         {
             Assert.That(cpf.Sources.Single().CanonicalAttribute, Is.EqualTo("cpf_declarado"));
-            Assert.That(cpf.Sources.Single().GroundTruthSource, Is.EqualTo(GroundTruthSource.Cpf));
+            Assert.That(cpf.Sources.Single().LabelSource, Is.EqualTo(GroundTruthSource.Cpf));
             Assert.That(cns.Sources.Single().CanonicalAttribute, Is.EqualTo("identificador_cns"));
-            Assert.That(cns.Sources.Single().GroundTruthSource, Is.EqualTo(GroundTruthSource.Cns));
+            Assert.That(cns.Sources.Single().LabelSource, Is.EqualTo(GroundTruthSource.Cns));
         });
     }
 
