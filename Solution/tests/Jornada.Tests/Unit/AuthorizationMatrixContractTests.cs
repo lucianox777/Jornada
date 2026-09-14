@@ -13,7 +13,7 @@ public sealed class AuthorizationMatrixContractTests
         using var keys = JsonDocument.Parse(File.ReadAllText(Path.Combine(TestContext.CurrentContext.TestDirectory, "config", "security", "test-access-keys.json")));
         var privileged = matrix.RootElement.GetProperty("permissions").EnumerateArray()
             .Select(x => x.GetProperty("permission").GetString()!)
-            .Where(x => x is "jornada.identidade.conflitos.read" or "jornada.identidade.corrigir" or "jornada.ingestao.write" or "jornada.ingestao.status")
+            .Where(x => x is "jornada.identidade.conflitos.read" or "jornada.identidade.corrigir" or "jornada.ingestao.write" or "jornada.ingestao.status" or "jornada.monitor.read")
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var credential in keys.RootElement.GetProperty("credentials").EnumerateArray())

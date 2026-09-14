@@ -14,4 +14,5 @@
 20260910_Linkage_Blocking_Chave.sql
 20260910_Linkage_RuleSet_Passes.sql
 20260911_Linkage_Blocking_Projection_Contract.sql
+20260914_Operational_Monitor.sql
 20260910_Schema_Consolidation_370.sql

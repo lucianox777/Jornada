@@ -5,7 +5,8 @@ using Jornada.Operations.Maintenance.Worker;
 var builder = Host.CreateApplicationBuilder(args);
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
-builder.Services.AddSingleton<IOperationalSqlAdapter>(new OperationalSqlAdapter(jornadaConnectionString));
+var operationalSql = new OperationalSqlAdapter(jornadaConnectionString);
+builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
 builder.Services.AddOptions<ItemProcessedRetentionOptions>()
     .Bind(builder.Configuration.GetSection("ItemProcessedRetention"))
     .Validate(o => !o.Enabled || o.DetailRetentionDays > 0,
@@ -13,7 +14,6 @@ builder.Services.AddOptions<ItemProcessedRetentionOptions>()
     .Validate(o => o.MaxRowsPerCycle > 0, "ItemProcessedRetention:MaxRowsPerCycle deve ser > 0.")
     .Validate(o => o.IntervalMinutes > 0, "ItemProcessedRetention:IntervalMinutes deve ser > 0.")
     .ValidateOnStart();
-
 
 builder.Services.AddOptions<PipelineWatchdogOptions>()
     .Bind(builder.Configuration.GetSection("PipelineWatchdog"))
@@ -52,4 +52,12 @@ builder.Services.AddSingleton<IBronzeObjectMaintenanceStore>(sp => (IBronzeObjec
 builder.Services.AddHostedService<ItemProcessedRetentionWorker>();
 builder.Services.AddHostedService<DeliveryBronzeRetentionWorker>();
 builder.Services.AddHostedService<PipelineWatchdogWorker>();
-await builder.Build().RunAsync();
+
+var host = builder.Build();
+var heartbeat = new OperationalRuntimeHeartbeat(
+    operationalSql,
+    builder.Configuration["JORNADA_NODE_ID"] ?? Environment.MachineName,
+    "OperationsMaintenance",
+    TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("Monitoring:HeartbeatSeconds", 10))));
+_ = heartbeat.RunAsync(host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping);
+await host.RunAsync();

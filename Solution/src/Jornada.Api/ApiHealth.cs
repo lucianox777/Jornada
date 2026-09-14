@@ -51,6 +51,7 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
                     AND OBJECT_ID(N'identidade.linkage_ruleset',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.linkage_ruleset_passe',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.linkage_ruleset_passe_campo',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'controle.runtime_componente',N'U') IS NOT NULL
                     AND OBJECT_ID(N'gold.pessoa',N'U') IS NOT NULL
                     AND OBJECT_ID(N'serving.registro_integrado',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.sp_recompor_gold_pessoa',N'P') IS NOT NULL

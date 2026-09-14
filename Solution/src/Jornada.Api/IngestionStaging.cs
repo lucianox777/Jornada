@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Jornada.Operational.Sql;
 using Microsoft.Extensions.Options;
 
 namespace Jornada.Api;
@@ -107,29 +108,48 @@ public sealed class IngestionStagingStore
 public sealed class IngestionStagingCleanupWorker(
     IngestionStagingStore store,
     IOptions<IngestionStagingOptions> options,
+    IOperationalSqlAdapter operationalSql,
+    IConfiguration configuration,
     ILogger<IngestionStagingCleanupWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                var cfg = options.Value;
-                var deleted = store.DeleteOlderThan(DateTimeOffset.UtcNow.AddHours(-Math.Max(1, cfg.MaxAgeHours)), stoppingToken);
-                if (deleted > 0)
-                    logger.LogInformation("Staging de ingestão: {Quantidade} temporário(s) abandonado(s) removido(s).", deleted);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Falha na limpeza do staging de ingestão; recepção normal continuará tentando remover temporários no caminho feliz.");
-            }
+        var nodeId = configuration["JORNADA_NODE_ID"] ?? Environment.MachineName;
+        var heartbeatSeconds = Math.Max(5, configuration.GetValue("Monitoring:HeartbeatSeconds", 10));
+        var heartbeat = new OperationalRuntimeHeartbeat(
+            operationalSql,
+            nodeId,
+            "Api",
+            TimeSpan.FromSeconds(heartbeatSeconds));
+        var heartbeatLoop = heartbeat.RunAsync(stoppingToken);
 
-            try
+        try
+        {
+            while (!stoppingToken.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromMinutes(Math.Max(1, options.Value.CleanupIntervalMinutes)), stoppingToken);
+                try
+                {
+                    var cfg = options.Value;
+                    var deleted = store.DeleteOlderThan(DateTimeOffset.UtcNow.AddHours(-Math.Max(1, cfg.MaxAgeHours)), stoppingToken);
+                    if (deleted > 0)
+                        logger.LogInformation("Staging de ingestão: {Quantidade} temporário(s) abandonado(s) removido(s).", deleted);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Falha na limpeza do staging de ingestão; recepção normal continuará tentando remover temporários no caminho feliz.");
+                }
+
+                try
+                {
+                    await Task.Delay(TimeSpan.FromMinutes(Math.Max(1, options.Value.CleanupIntervalMinutes)), stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
             }
+        }
+        finally
+        {
+            try { await heartbeatLoop; }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
         }
     }

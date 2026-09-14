@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PROGRAM = ROOT / 'src/Jornada.Api/Program.cs'
 ORIGIN_API = ROOT / 'src/Jornada.Api/ProgressiveOriginApi.cs'
+MONITOR_API = ROOT / 'src/Jornada.Api/OperationalMonitorApi.cs'
 MATRIX = ROOT / 'config/security/authorization-matrix.json'
 
 def norm_path(p: str) -> str:
@@ -78,6 +79,31 @@ def main() -> int:
         actual[key] = {'permission': permission_match.group(1), 'allowTypeCredentials': False}
     elif ORIGIN_API.exists() and 'app.MapPost(Route,' in origin:
         fail('módulo progressivo não registrado no host')
+
+    # O monitor é registrado pelo módulo progressivo para manter o bootstrap do host estável.
+    monitor = MONITOR_API.read_text(encoding='utf-8') if MONITOR_API.exists() else ''
+    monitor_registered = 'app.MapOperationalMonitorApi();' in origin and 'app.MapProgressiveOriginApi();' in src
+    if monitor_registered:
+        route_match = re.search(r'public const string StatusRoute\s*=\s*"([^"]+)"', monitor)
+        permission_match = re.search(r'public const string Permission\s*=\s*"([^"]+)"', monitor)
+        if not route_match or not permission_match or not re.search(r'app\.MapGet\(StatusRoute,\s*async', monitor):
+            fail('mapeamento do monitor ausente ou não verificável')
+        path = norm_path(route_match.group(1))
+        guards = [
+            'AccessCredentialType.GESTOR',
+            'access.ResolveAsync(',
+            'limiter.TryAcquire(context, http)',
+            'policy.IsAllowedAsync(context, Permission, null, null, ct)',
+            'RequireRateLimiting("standard")'
+        ]
+        if any(guard not in monitor for guard in guards):
+            fail('guardas de autenticação, scope ou limite do monitor ausentes')
+        key = ('GET', path)
+        if key in actual:
+            fail('rota de monitor duplicada')
+        actual[key] = {'permission': permission_match.group(1), 'allowTypeCredentials': False}
+    elif MONITOR_API.exists() and 'app.MapGet(StatusRoute,' in monitor:
+        fail('módulo de monitor não registrado no host')
 
     if set(actual) != set(expected):
         fail('rotas divergentes: faltando=' + str(sorted(set(expected)-set(actual))) + ' extras=' + str(sorted(set(actual)-set(expected))))

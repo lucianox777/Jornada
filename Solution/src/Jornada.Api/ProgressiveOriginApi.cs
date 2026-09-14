@@ -113,6 +113,10 @@ public static class ProgressiveOriginApi
                     statusCode: StatusCodes.Status503ServiceUnavailable);
             }
         }).RequireRateLimiting("identity");
+
+        // O monitor é uma segunda superfície somente-leitura, registrada aqui para manter o
+        // bootstrap do host Minimal API estável enquanto a fase candidata ainda está pré-implantação.
+        app.MapOperationalMonitorApi();
         return app;
     }
 

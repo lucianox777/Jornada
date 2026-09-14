@@ -72,13 +72,17 @@ $databaseDestination = Join-Path $output 'database'
 New-Item -ItemType Directory -Force -Path $databaseDestination | Out-Null
 $baselineSource = Join-Path $solutionRoot 'database\Jornada_Fase1.sql'
 $anchorSource = Join-Path $solutionRoot 'database\migrations\20260907_Cpf_Ancora.sql'
+$monitorSource = Join-Path $solutionRoot 'database\migrations\20260914_Operational_Monitor.sql'
 $bundleDdl = Join-Path $databaseDestination 'Jornada_Fase1.sql'
 Copy-Item -Force -Path $baselineSource -Destination $bundleDdl
 Add-Content -Encoding UTF8 -Path $bundleDdl -Value "`r`n-- Jornada V1: âncora CPF permanente obrigatória.`r`n"
 Get-Content -Raw -Encoding UTF8 $anchorSource | Add-Content -Encoding UTF8 -Path $bundleDdl
+Add-Content -Encoding UTF8 -Path $bundleDdl -Value "`r`n-- Jornada V1: monitor operacional do cluster.`r`n"
+Get-Content -Raw -Encoding UTF8 $monitorSource | Add-Content -Encoding UTF8 -Path $bundleDdl
 $migrationDestination = Join-Path $databaseDestination 'migrations'
 New-Item -ItemType Directory -Force -Path $migrationDestination | Out-Null
 Copy-Item -Force -Path $anchorSource -Destination $migrationDestination
+Copy-Item -Force -Path $monitorSource -Destination $migrationDestination
 
 $installDestination = Join-Path $output 'install\windows-production'
 New-Item -ItemType Directory -Force -Path $installDestination | Out-Null
