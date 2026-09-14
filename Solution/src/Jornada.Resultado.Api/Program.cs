@@ -11,6 +11,7 @@ var jornadaApiBaseUrl = builder.Configuration["JornadaApiBaseUrl"]
     ?? throw new InvalidOperationException("JornadaApiBaseUrl não configurada.");
 var databaseProvider = builder.Configuration["Database:Provider"] ?? OperationalDatabaseProviders.SqlServer;
 var operationalDatabase = OperationalDatabaseAdapterFactory.Create(databaseProvider, connectionString);
+var operationalSql = operationalDatabase as IOperationalSqlAdapter;
 
 builder.Services.AddSingleton<IOperationalDatabaseAdapter>(operationalDatabase);
 builder.Services.AddSingleton(new ResultadoDatabaseDialect(operationalDatabase.Provider));
@@ -57,6 +58,16 @@ app.MapGet("/api/v1/ingestao/resultados/{nomeArquivo}", async (
 
     return Results.Ok(await repository.GetDetailAsync(candidate, parsedFileName, ct));
 });
+
+if (operationalSql is not null)
+{
+    var heartbeat = new OperationalRuntimeHeartbeat(
+        operationalSql,
+        builder.Configuration["JORNADA_NODE_ID"] ?? Environment.MachineName,
+        "ResultadoApi",
+        TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("Monitoring:HeartbeatSeconds", 10))));
+    _ = heartbeat.RunAsync(app.Lifetime.ApplicationStopping);
+}
 
 app.Run();
 
