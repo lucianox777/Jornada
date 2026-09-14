@@ -73,7 +73,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 var batchUnresolved = decisions.Count - batchResolved - batchConflicts;
                 var batchNoCandidate = decisions.LongCount(x =>
                     x.Decision.Status == ResolutionStatus.NAO_RESOLVIDO &&
-                    string.Equals(x.Decision.Motivo, "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO", StringComparison.Ordinal));
+                    IsNoCandidateReason(x.Decision.Motivo));
                 var batchLastId = batch[batch.Count - 1].PessoaObservacaoId;
 
                 await PersistBatchAsync(
@@ -652,6 +652,10 @@ public sealed class ProbabilisticLinkageBatchRunner(
         }
         return table;
     }
+
+    internal static bool IsNoCandidateReason(string? reason) =>
+        !string.IsNullOrWhiteSpace(reason) &&
+        reason.StartsWith("SEM_CANDIDATO_", StringComparison.Ordinal);
 
     private static void ValidateRequest(ProbabilisticLinkageRunRequest request)
     {

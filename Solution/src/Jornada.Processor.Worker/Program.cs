@@ -19,10 +19,28 @@ var options = new ProcessorOptions
     RetryMaxSeconds = builder.Configuration.GetValue<int?>("Processor:RetryMaxSeconds") ?? 300
 };
 
-var repositoryRoot = FindRepositoryRoot(builder.Environment.ContentRootPath);
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 var databaseProvider = builder.Configuration["Database:Provider"] ?? OperationalDatabaseProviders.SqlServer;
+var processorOperation = builder.Configuration["Processor:Operation"]?.Trim().ToUpperInvariant();
+
+if (string.Equals(processorOperation, "REBUILD_LOCAL_BLOCKING", StringComparison.Ordinal))
+{
+    if (!builder.Environment.IsDevelopment())
+        throw new InvalidOperationException("REBUILD_LOCAL_BLOCKING só pode executar em Development/Test.");
+    if (!string.Equals(databaseProvider, OperationalDatabaseProviders.SqlServer, StringComparison.OrdinalIgnoreCase))
+        throw new InvalidOperationException("REBUILD_LOCAL_BLOCKING requer o provider SQL Server.");
+
+    var result = await LocalBlockingProjectionBootstrap.RebuildMissingSqlServerAsync(
+        jornadaConnectionString,
+        CancellationToken.None);
+    Console.WriteLine(
+        $"Blocking local pronto: {result.SyntheticPersons} Pessoas SCALE; " +
+        $"{result.RebuiltPersons} reconstruídas; {result.ProjectedKeys} chaves materializadas.");
+    return;
+}
+
+var repositoryRoot = FindRepositoryRoot(builder.Environment.ContentRootPath);
 var operationalDatabase = OperationalDatabaseAdapterFactory.Create(databaseProvider, jornadaConnectionString);
 OperationalRuntimeHeartbeat? runtimeHeartbeat = null;
 

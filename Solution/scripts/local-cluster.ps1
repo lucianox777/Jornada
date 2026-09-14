@@ -56,6 +56,11 @@ function Invoke-Node2 {
     Invoke-Compose -ComposeArgs (@('exec','-T','jornada-node2') + $Command)
 }
 
+function Ensure-LocalBlockingProjection {
+    Write-Host 'Verificando projeção de blocking da massa sintética local...'
+    Invoke-Node2 -Command @('env','Processor__Operation=REBUILD_LOCAL_BLOCKING','dotnet','/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll')
+}
+
 function Wait-NodeReady([string]$Name, [string]$Url) {
     for ($i = 0; $i -lt 120; $i++) {
         try {
@@ -104,10 +109,12 @@ function Start-Nodes([switch]$Build) {
     Invoke-Compose -ComposeArgs $args
     Wait-NodeReady 'jornada-node1' 'http://127.0.0.1:5080/health/ready'
     Wait-NodeReady 'jornada-node2' 'http://127.0.0.1:5180/health/ready'
+    Ensure-LocalBlockingProjection
     Show-Endpoints
 }
 
 function Invoke-Calibration {
+    Ensure-LocalBlockingProjection
     $beforeText = Get-SqlScalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;"
     $before = [int]$beforeText
     Write-Host "Calibração iniciando após modelo v$before."
@@ -123,13 +130,14 @@ function Invoke-Calibration {
 }
 
 function Invoke-Linkage {
+    Ensure-LocalBlockingProjection
     $active = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO';")
     if ($active -ne 1) {
         throw "Linkage bloqueado: encontrados $active modelos calibrados ATIVOS. O seed sintético não libera execução. Execute primeiro '.\scripts\local-cluster.ps1 calibrate'."
     }
     $version = Get-SqlScalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;"
     Write-Host "Executando linkage com modelo calibrado ATIVO v$version."
-    Invoke-Node2 -Command @('dotnet','/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll','--mode','INCREMENTAL','--publish','true','--requested-by','LOCAL_CLUSTER','--reason','manual-local-cluster')
+    Invoke-Node2 -Command @('dotnet','/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll','--mode','ON_DEMAND','--publish','true','--requested-by','LOCAL_CLUSTER','--reason','manual-local-cluster')
 }
 
 switch ($Action) {

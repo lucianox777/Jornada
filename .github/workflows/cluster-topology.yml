@@ -14,6 +14,8 @@ on:
       - 'Solution/install/windows-production/Invoke-JornadaLinkage*.ps1'
       - 'Solution/scripts/local-cluster.*'
       - 'Solution/scripts/local-db.*'
+      - 'Solution/src/Jornada.Processor.Worker/**'
+      - 'Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs'
       - 'Solution/docs/uml/Jornada_Implantacao.puml'
       - '.github/workflows/cluster-topology.yml'
   pull_request:
@@ -29,6 +31,8 @@ on:
       - 'Solution/install/windows-production/Invoke-JornadaLinkage*.ps1'
       - 'Solution/scripts/local-cluster.*'
       - 'Solution/scripts/local-db.*'
+      - 'Solution/src/Jornada.Processor.Worker/**'
+      - 'Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs'
       - 'Solution/docs/uml/Jornada_Implantacao.puml'
       - '.github/workflows/cluster-topology.yml'
   workflow_dispatch:
@@ -151,6 +155,22 @@ jobs:
           bash scripts/local-cluster.sh calibrate
           bash scripts/local-cluster.sh linkage
           echo 'LOCAL CALIBRATOR/LINKAGE WRAPPERS: OK'
+
+      - name: Prove synthetic Linkage reaches candidates and resolves matches
+        shell: bash
+        run: |
+          gestor="$(jq -er '.integrator.gestor' install/windows-production/Jornada.Cluster.Test.json)"
+          access_key="$(jq -er '.integrator.accessKey' install/windows-production/Jornada.Cluster.Test.json)"
+          snapshot="$(curl --fail --silent --show-error http://127.0.0.1:5080/api/v1/monitor/status -H "X-Jornada-Gestor: $gestor" -H "X-Jornada-Access-Key: $access_key")"
+          evaluated="$(jq -er '.monitor.linkageRuns[0].evaluated' <<<"$snapshot")"
+          resolved="$(jq -er '.monitor.linkageRuns[0].resolved' <<<"$snapshot")"
+          run_type="$(jq -er '.monitor.linkageRuns[0].runType' <<<"$snapshot")"
+          run_status="$(jq -er '.monitor.linkageRuns[0].status' <<<"$snapshot")"
+          test "$evaluated" -gt 0
+          test "$resolved" -gt 0
+          test "$run_type" = 'ON_DEMAND'
+          test "$run_status" = 'PUBLICADO'
+          echo "LOCAL SYNTHETIC LINKAGE: evaluated=$evaluated resolved=$resolved status=$run_status"
 
       - name: Prove shared Bronze, NAS visibility and isolated Staging
         shell: bash

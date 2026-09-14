@@ -30,6 +30,11 @@ wait_node() {
   return 1
 }
 
+ensure_local_blocking_projection() {
+  echo "Verificando projeção de blocking da massa sintética local..."
+  compose exec -T jornada-node2 env Processor__Operation=REBUILD_LOCAL_BLOCKING dotnet /opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll
+}
+
 show_endpoints() {
   local bundle schema
   bundle="$(jq -r '.configurationBundleVersion' "$CONFIG")"
@@ -65,11 +70,13 @@ start_nodes() {
   if [[ "$build" == "true" ]]; then compose up -d --build jornada-node1 jornada-node2; else compose up -d jornada-node1 jornada-node2; fi
   wait_node jornada-node1 http://127.0.0.1:5080/health/ready
   wait_node jornada-node2 http://127.0.0.1:5180/health/ready
+  ensure_local_blocking_projection
   show_endpoints
 }
 
 calibrate() {
   local before count version active
+  ensure_local_blocking_projection
   before="$(sql_scalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;")"
   echo "Calibração iniciando após modelo v$before."
   compose exec -T jornada-node2 env LinkageParameters__Operation=GENERATE_DRAFT LinkageParameters__RunOnce=true dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
@@ -85,11 +92,12 @@ calibrate() {
 
 run_linkage() {
   local active version
+  ensure_local_blocking_projection
   active="$(sql_scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO';")"
   [[ "$active" == "1" ]] || { echo "Linkage bloqueado: encontrados $active modelos calibrados ATIVOS. O seed sintético não libera execução. Execute primeiro '$0 calibrate'." >&2; return 5; }
   version="$(sql_scalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;")"
   echo "Executando linkage com modelo calibrado ATIVO v$version."
-  compose exec -T jornada-node2 dotnet /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll --mode INCREMENTAL --publish true --requested-by LOCAL_CLUSTER --reason manual-local-cluster
+  compose exec -T jornada-node2 dotnet /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll --mode ON_DEMAND --publish true --requested-by LOCAL_CLUSTER --reason manual-local-cluster
 }
 
 action="${1:-up}"
