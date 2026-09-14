@@ -37,7 +37,7 @@ Endpoints:
 - NODE2 Resultado API: `http://127.0.0.1:5181`
 - SQL Server: `localhost:14333`
 
-As credenciais SQL são sintéticas e vêm de `.env.example`. Não são válidas para HML/Produção.
+As credenciais SQL são sintéticas e vêm de `.env.example`, que é a fonte única dos valores locais. `Jornada.Cluster.Test.json` referencia a senha por variável de ambiente, em vez de duplicá-la. Esses valores não são válidos para HML/Produção.
 
 ## Persistência
 
