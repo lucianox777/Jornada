@@ -106,7 +106,7 @@ function Assert-ClusterConfig($Config, [string]$RequestedNodeId) {
         if ($taskNames.ContainsKey($taskName)) { throw "Nome de tarefa duplicado: $taskName" }
         $taskNames[$taskName] = $true
 
-        if ([string]$task.component -notin $validComponents) { throw "Componente desconhecido em $taskName: $($task.component)" }
+        if ([string]$task.component -notin $validComponents) { throw "Componente desconhecido em ${taskName}: $($task.component)" }
         $trigger = Require-Property $task 'trigger'
         if ([string]$trigger.type -notin @('AtStartup','Daily','Weekly')) { throw "Trigger inválido em $taskName." }
         if ([string]$trigger.type -in @('Daily','Weekly') -and -not (Test-HhMm ([string]$trigger.at))) {
