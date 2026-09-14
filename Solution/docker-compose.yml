@@ -31,6 +31,7 @@ services:
     volumes:
       - jornada_sql_data:/var/opt/mssql
       - ./database:/workspace/database:ro
+      - ./scripts:/workspace/scripts:ro
       - ./.local/sql-backup:/var/opt/mssql/backup
     healthcheck:
       test:

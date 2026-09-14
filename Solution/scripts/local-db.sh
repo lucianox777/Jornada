@@ -46,6 +46,26 @@ wait_healthy() {
   compose logs sqlserver >&2 || true
   exit 3
 }
+ensure_progressive_identity_backfill() {
+  local has_silver remaining next
+  has_silver="$(sql_scalar "SELECT CASE WHEN OBJECT_ID('silver.pessoa_origem','U') IS NULL THEN 0 ELSE 1 END;")"
+  [[ "$has_silver" == "1" ]] || return 0
+
+  # Em base local existente, instala/reaplica somente a persistência progressiva antes
+  # do cutover fail-closed. A criação do initial_uuid continua na procedure canônica.
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/Jornada_Identidade_Progressiva.sql
+  remaining="$(sql_scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem o LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE p.pessoa_origem_id IS NULL;")"
+  [[ "$remaining" =~ ^[0-9]+$ ]] || { echo "ERRO: contagem inválida no backfill progressivo: $remaining" >&2; return 4; }
+  while (( remaining > 0 )); do
+    echo "Backfill progressivo local: $remaining origens sem initial_uuid..."
+    sqlcmd -d "$JORNADA_SQL_DATABASE" -v PAGE_SIZE=1000 -i scripts/local-progressive-identity-backfill.sql
+    next="$(sql_scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem o LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE p.pessoa_origem_id IS NULL;")"
+    [[ "$next" =~ ^[0-9]+$ ]] || { echo "ERRO: contagem inválida após página do backfill: $next" >&2; return 4; }
+    (( next < remaining )) || { echo "ERRO: backfill progressivo local não avançou: restantes=$next." >&2; return 4; }
+    remaining="$next"
+  done
+  echo "Backfill progressivo local concluído: todas as origens possuem initial_uuid."
+}
 ensure_synthetic_scale() {
   local count
   count="$(sql_scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")"
@@ -64,6 +84,11 @@ ensure_synthetic_scale() {
 }
 bootstrap() {
   sqlcmd -Q "IF DB_ID(N'$JORNADA_SQL_DATABASE') IS NULL CREATE DATABASE [$JORNADA_SQL_DATABASE];"
+
+  # Upgrade local de volume existente: o baseline v3.70 contém um cutover fail-closed.
+  # Concluímos antes o backfill paginado exigido pela migração, sem apagar a base.
+  ensure_progressive_identity_backfill
+
   # Instalação nova possui um único ponto canônico. O arquivo v3.70 aplica baseline,
   # identidade progressiva, composição, blocking/ruleset e valida a completude antes
   # de promover Jornada.SolutionSchema=3.70.
@@ -76,6 +101,10 @@ bootstrap() {
   # 5.000 pares independentes. Usa o mesmo gerador versionado do harness CI, mas
   # com um perfil local dimensionado para satisfazer o limiar real, sem reduzi-lo.
   ensure_synthetic_scale
+
+  # Seed e massa SCALE são inserções DEV diretas e não passam pelo Processor. Fechamos
+  # a invariável ao fim do bootstrap para que o próximo 'up' também seja reentrante.
+  ensure_progressive_identity_backfill
 }
 
 case "$ACTION" in
