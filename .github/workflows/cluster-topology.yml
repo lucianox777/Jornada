@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - 'Solution/docker-compose.yml'
+      - 'Solution/Install-JornadaLocal.ps1'
+      - 'Solution/Clean-JornadaLocal.ps1'
       - 'Solution/config/release/configuration-bundle.json'
       - 'Solution/install/container-test/**'
       - 'Solution/install/windows-production/Jornada.Cluster.*.json'
@@ -15,6 +17,8 @@ on:
   pull_request:
     paths:
       - 'Solution/docker-compose.yml'
+      - 'Solution/Install-JornadaLocal.ps1'
+      - 'Solution/Clean-JornadaLocal.ps1'
       - 'Solution/config/release/configuration-bundle.json'
       - 'Solution/install/container-test/**'
       - 'Solution/install/windows-production/Jornada.Cluster.*.json'
@@ -78,6 +82,15 @@ jobs:
           bash -n scripts/local-cluster.sh
           cp .env.example .env
           docker compose --env-file .env config --quiet
+
+      - name: Parse PowerShell local entrypoints
+        shell: pwsh
+        run: |
+          $files = @('Install-JornadaLocal.ps1','Clean-JornadaLocal.ps1','scripts/local-cluster.ps1')
+          foreach ($file in $files) {
+            $null = [scriptblock]::Create((Get-Content -Raw -Encoding UTF8 $file))
+            Write-Host "POWERSHELL PARSE OK: $file"
+          }
 
       - name: Start canonical cluster
         shell: bash
