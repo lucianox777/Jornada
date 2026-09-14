@@ -1,0 +1,29 @@
+name: ensaio-refactor-diagnostic
+on:
+  push:
+    branches: [refactor/ensaio-auditabilidade]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: 8.0.424
+      - run: dotnet restore Jornada.sln --use-lock-file --force-evaluate
+      - name: Build Ensaio
+        shell: bash
+        run: |
+          set +e
+          dotnet build src/Jornada.Ensaio/Jornada.Ensaio.csproj --configuration Release --no-restore > ../ensaio-build.log 2>&1
+          code=$?
+          cat ../ensaio-build.log
+          exit $code
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: ensaio-refactor-build-log
+          path: ensaio-build.log
