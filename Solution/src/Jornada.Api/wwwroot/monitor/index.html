@@ -9,10 +9,10 @@
     *{box-sizing:border-box} body{margin:0} button,input{font:inherit}
     header{background:#fff;border-bottom:1px solid #dfe5eb;padding:18px 24px;position:sticky;top:0;z-index:2}
     .head{max-width:1500px;margin:auto;display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-    h1{font-size:20px;margin:0} .sub{font-size:12px;color:#627083;margin-top:3px}
+    h1{font-size:20px;margin:0}.sub{font-size:12px;color:#627083;margin-top:3px}
     main{max-width:1500px;margin:0 auto;padding:20px 24px 50px}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .badge{border-radius:999px;padding:7px 12px;font-weight:700;font-size:12px;letter-spacing:.04em;background:#e8edf2;color:#465568}
-    .NORMAL{background:#dff5e7;color:#146b36}.ATENCAO{background:#fff1cc;color:#7a5300}.FALHA{background:#ffe0df;color:#9b1c18}
+    .NORMAL,.OK{background:#dff5e7;color:#146b36}.ATENCAO,.NAO_CONFIGURADO{background:#fff1cc;color:#7a5300}.FALHA,.DIVERGENTE{background:#ffe0df;color:#9b1c18}
     button{border:1px solid #ccd5df;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}button:hover{background:#f7f9fb}
     .login{background:#fff;border:1px solid #dfe5eb;border-radius:12px;padding:18px;margin-bottom:18px;display:flex;gap:12px;align-items:end;flex-wrap:wrap}
     .login label{display:grid;gap:5px;font-size:12px;color:#536174}.login input{border:1px solid #cbd5df;border-radius:8px;padding:9px 10px;min-width:240px}.login .key{min-width:380px;max-width:100%}
@@ -21,12 +21,13 @@
     .card h2{font-size:14px;margin:0 0 12px}.muted{color:#6a788a;font-size:12px}.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}.metric{background:#f7f9fb;border-radius:9px;padding:11px}.metric b{font-size:24px;display:block}.metric span{font-size:11px;color:#657386}
     .node{border:1px solid #e3e8ee;border-radius:9px;padding:12px;margin-top:8px}.node-title{display:flex;justify-content:space-between;gap:8px;align-items:center;font-weight:700}.component{display:grid;grid-template-columns:1fr auto auto;gap:10px;padding:7px 0;border-top:1px solid #edf0f3;font-size:12px}.component:first-of-type{margin-top:8px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#9aa6b4;margin-right:6px}.dot.on{background:#2e9b57}.dot.off{background:#cf3f38}
     .check{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid #edf0f3;font-size:12px}.check:first-of-type{border-top:0}.ok{color:#16733a;font-weight:700}.bad{color:#a42622;font-weight:700}
+    .bundle-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}.bundle-cell{background:#f7f9fb;border-radius:9px;padding:10px}.bundle-cell b{display:block;font-size:13px;margin-top:3px}
     table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;color:#667487;font-weight:600;border-bottom:1px solid #dfe5eb;padding:8px}td{border-bottom:1px solid #edf0f3;padding:8px;vertical-align:top}tr:last-child td{border-bottom:0}.scroll{overflow:auto;max-width:100%}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px}.empty{font-size:12px;color:#728094;padding:8px 0}.status{font-weight:700}.updated{font-size:11px;color:#667487}.hidden{display:none!important}
     @media(max-width:900px){.span4,.span6,.span8{grid-column:span 12}.login input,.login .key{min-width:min(100%,300px)}main{padding:14px}.component{grid-template-columns:1fr auto}.component .muted{grid-column:1/-1}}
   </style>
 </head>
 <body>
-<header><div class="head"><div><h1>Jornada do Cidadão · Monitor Operacional</h1><div class="sub">Cluster, processamento e manutenção em uma única visão</div></div><div class="toolbar"><span id="overall" class="badge">SEM DADOS</span><span id="updated" class="updated"></span><button id="refresh">Atualizar</button><button id="forget">Sair</button></div></div></header>
+<header><div class="head"><div><h1>Jornada do Cidadão · Monitor Operacional</h1><div class="sub">Cluster, configuração, processamento e manutenção em uma única visão</div></div><div class="toolbar"><span id="overall" class="badge">SEM DADOS</span><span id="updated" class="updated"></span><button id="refresh">Atualizar</button><button id="forget">Sair</button></div></div></header>
 <main>
   <section id="login" class="login">
     <label>Gestor<input id="gestor" autocomplete="organization" placeholder="SEHAB"></label>
@@ -38,6 +39,7 @@
   <section id="dashboard" class="grid hidden">
     <article class="card span8"><h2>Nós e componentes</h2><div id="nodes"></div></article>
     <article class="card span4"><h2>Dependências</h2><div id="readiness"></div></article>
+    <article class="card span12"><h2>Bundle de configuração · saúde</h2><div id="configuration"></div></article>
     <article class="card span12"><h2>Fila de processamento</h2><div id="queue" class="metric-grid"></div></article>
     <article class="card span12"><h2>Agora</h2><div id="processing" class="scroll"></div></article>
     <article class="card span8"><h2>Entregas recentes</h2><div id="deliveries" class="scroll"></div></article>
@@ -64,7 +66,7 @@
     if(!byNode.size){ $('nodes').innerHTML='<div class="empty">Nenhum heartbeat operacional registrado.</div>'; return; }
     $('nodes').innerHTML=[...byNode].map(([node,components]) => {
       const all=components.every(x=>x.online); const machine=components[0]?.machineName || '';
-      return `<div class="node"><div class="node-title"><span><span class="dot ${all?'on':'off'}"></span>${esc(node)}</span><span class="muted">${esc(machine)}</span></div>${components.map(c=>`<div class="component"><span>${esc(c.component)}</span><b class="${c.online?'ok':'bad'}">${c.online?'ONLINE':'OFFLINE'}</b><span class="muted">heartbeat ${n(c.heartbeatAgeSeconds)}s · desde ${esc(dt(c.startedAt))}</span></div>`).join('')}</div>`;
+      return `<div class="node"><div class="node-title"><span><span class="dot ${all?'on':'off'}"></span>${esc(node)}</span><span class="muted">${esc(machine)}</span></div>${components.map(c=>`<div class="component"><span>${esc(c.component)}</span><b class="${c.online?'ok':'bad'}">${c.online?'ONLINE':'OFFLINE'}</b><span class="muted">heartbeat ${n(c.heartbeatAgeSeconds)}s · bundle ${esc(c.configurationBundleVersion || '—')} · schema ${esc(c.solutionSchemaExpected || '—')}</span></div>`).join('')}</div>`;
     }).join('');
   }
 
@@ -72,6 +74,12 @@
     const checks=data?.checks || [];
     if(!checks.length){ $('readiness').innerHTML='<div class="empty">Sem checks de readiness.</div>'; return; }
     $('readiness').innerHTML=checks.map(c=>`<div class="check"><span>${esc(c.name ?? c.Name ?? 'check')}</span><b class="${(c.ready ?? c.Ready)?'ok':'bad'}">${(c.ready ?? c.Ready)?'OK':'FALHA'}</b></div>`).join('');
+  }
+
+  function renderConfiguration(x){
+    if(!x){ $('configuration').innerHTML='<div class="empty">Sem estado de configuração.</div>'; return; }
+    const status=x.status || 'NAO_CONFIGURADO';
+    $('configuration').innerHTML=`<div class="bundle-head"><span class="badge ${esc(status)}">${esc(status)}</span><span class="muted">${esc(x.detail || '')}</span></div><div class="bundle-grid"><div class="bundle-cell"><span class="muted">Bundle esperado</span><b class="mono">${esc(x.expectedBundleVersion || 'não configurado')}</b></div><div class="bundle-cell"><span class="muted">Bundles online</span><b class="mono">${esc((x.onlineBundleVersions || []).join(', ') || 'nenhum')}</b></div><div class="bundle-cell"><span class="muted">SolutionSchema esperado</span><b class="mono">${esc(x.expectedSolutionSchema || 'não configurado')}</b></div><div class="bundle-cell"><span class="muted">SolutionSchema no SQL</span><b class="mono">${esc(x.databaseSolutionSchema || 'não informado')}</b></div></div>`;
   }
 
   function renderQueue(items){
@@ -82,7 +90,7 @@
 
   function renderProcessing(items){
     if(!items?.length){ $('processing').innerHTML='<div class="empty">Nenhum lote em processamento neste instante.</div>'; return; }
-    $('processing').innerHTML=`<table><thead><tr><th>Nó/owner</th><th>Estado</th><th>Lote</th><th>Itens</th><th>Início</th><th>Heartbeat</th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(x.leaseOwner)}</td><td class="status">${esc(x.status)}</td><td><span class="mono">${esc(shortId(x.lotId))}</span> · ${n(x.lotSequence)}/${n(x.lotTotal)}</td><td>${n(x.people)} pessoas · ${n(x.records)} registros</td><td>${esc(dt(x.leaseAcquiredAt))}</td><td>${esc(dt(x.heartbeatAt))}</td></tr>`).join('')}</tbody></table>`;
+    $('processing').innerHTML=`<table><thead><tr><th>Nó/owner</th><th>Estado</th><th>Lote</th><th>Itens</th><th>Início</th><th>Heartbeat</th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(x.leaseOwner || '—')}</td><td class="status">${esc(x.status)}</td><td><span class="mono">${esc(shortId(x.lotId))}</span> · ${n(x.lotSequence)}/${n(x.lotTotal)}</td><td>${n(x.people)} pessoas · ${n(x.records)} registros</td><td>${esc(dt(x.leaseAcquiredAt))}</td><td>${esc(dt(x.heartbeatAt))}</td></tr>`).join('')}</tbody></table>`;
   }
 
   function renderDeliveries(items){
@@ -110,7 +118,7 @@
       const data=await response.json(); const m=data.monitor;
       showError(''); setOverall(m.overallStatus); state.lastGenerated=new Date(m.generatedAt);
       $('login').classList.add('hidden'); $('dashboard').classList.remove('hidden');
-      renderNodes(m.components); renderReadiness(data.readiness); renderQueue(m.queue); renderProcessing(m.processing); renderDeliveries(m.recentDeliveries); renderBronze(m.bronzeMaintenance); renderLinkage(m.linkageRuns);
+      renderNodes(m.components); renderReadiness(data.readiness); renderConfiguration(m.configurationHealth); renderQueue(m.queue); renderProcessing(m.processing); renderDeliveries(m.recentDeliveries); renderBronze(m.bronzeMaintenance); renderLinkage(m.linkageRuns);
       $('updated').textContent='atualizado '+dt(m.generatedAt);
     }catch(error){ showError(error.message || 'Falha ao atualizar o monitor.'); setOverall('FALHA'); $('login').classList.remove('hidden'); }
   }
