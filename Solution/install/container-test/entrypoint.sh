@@ -2,13 +2,35 @@
 set -euo pipefail
 
 CONFIG_PATH="${JORNADA_CLUSTER_CONFIG:-/etc/jornada/Jornada.Cluster.Test.json}"
+BUNDLE_PATH="/opt/jornada/config/release/configuration-bundle.json"
 NODE_ID="${JORNADA_NODE_ID:?JORNADA_NODE_ID deve identificar NODE1/NODE2}"
 
 [[ -f "$CONFIG_PATH" ]] || { echo "Configuração não encontrada: $CONFIG_PATH" >&2; exit 2; }
+[[ -f "$BUNDLE_PATH" ]] || { echo "Bundle de configuração não encontrado: $BUNDLE_PATH" >&2; exit 2; }
 
 environment_name="$(jq -er '.environment' "$CONFIG_PATH")"
 [[ "$environment_name" == "Test" || "$environment_name" == "Production" ]] || {
   echo "environment inválido: $environment_name" >&2
+  exit 2
+}
+
+config_bundle_version="$(jq -er '.configurationBundleVersion' "$CONFIG_PATH")"
+config_solution_schema="$(jq -er '.solutionSchema' "$CONFIG_PATH")"
+expected_bundle_version="$(jq -er '.bundleVersion' "$BUNDLE_PATH")"
+expected_solution_schema="$(jq -er '.solutionSchema' "$BUNDLE_PATH")"
+expected_cluster_schema="$(jq -er '.clusterConfigSchemaVersion' "$BUNDLE_PATH")"
+actual_cluster_schema="$(jq -er '.schemaVersion' "$CONFIG_PATH")"
+
+[[ "$config_bundle_version" == "$expected_bundle_version" ]] || {
+  echo "configurationBundleVersion divergente: config=$config_bundle_version bundle=$expected_bundle_version" >&2
+  exit 2
+}
+[[ "$config_solution_schema" == "$expected_solution_schema" ]] || {
+  echo "solutionSchema divergente: config=$config_solution_schema bundle=$expected_solution_schema" >&2
+  exit 2
+}
+[[ "$actual_cluster_schema" == "$expected_cluster_schema" ]] || {
+  echo "schemaVersion do cluster incompatível: config=$actual_cluster_schema bundle=$expected_cluster_schema" >&2
   exit 2
 }
 
@@ -27,6 +49,8 @@ export BronzeStorage__Provider="FileSystem"
 export BronzeStorage__RootPath="$(jq -er '.storage.bronzeRoot' "$CONFIG_PATH")"
 export IngestionStaging__RootPath="$(jq -er '.stagingRoot' <<<"$node_json")"
 export JORNADA_NODE_ID="$(jq -er '.id' <<<"$node_json")"
+export JORNADA_CONFIGURATION_BUNDLE_VERSION="$config_bundle_version"
+export JORNADA_SOLUTION_SCHEMA_VERSION="$config_solution_schema"
 
 connection_string="${JORNADA_SQL_CONNECTION_STRING:-$(jq -er '.sql.connectionString' "$CONFIG_PATH")}" 
 export ConnectionStrings__Jornada="$connection_string"
@@ -42,6 +66,8 @@ mkdir -p \
   "$(jq -er '.logsRoot' <<<"$node_json")" \
   "$(jq -er '.dataRoot' <<<"$node_json")"
 
+echo "[$JORNADA_NODE_ID] config bundle=$JORNADA_CONFIGURATION_BUNDLE_VERSION schema=$JORNADA_SOLUTION_SCHEMA_VERSION"
+
 declare -a child_pids=()
 declare -a child_names=()
 
@@ -52,9 +78,6 @@ component_dll() {
     Processor) echo "/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll" ;;
     OperationsMaintenance) echo "/opt/jornada/apps/Jornada.Operations.Maintenance.Worker/Jornada.Operations.Maintenance.Worker.dll" ;;
     BronzeMaintenance) echo "/opt/jornada/apps/Jornada.Bronze.Maintenance.Worker/Jornada.Bronze.Maintenance.Worker.dll" ;;
-    LinkageParameters) echo "/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll" ;;
-    LinkageRunner) echo "/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll" ;;
-    Integrator) echo "/opt/jornada/clients/Jornada.Integrador/Jornada.Integrador.CSharp.dll" ;;
     *) return 1 ;;
   esac
 }
@@ -85,14 +108,14 @@ while IFS= read -r task_json; do
 
   trigger_type="$(jq -r '.trigger.type' <<<"$task_json")"
   if [[ "$trigger_type" != "AtStartup" ]]; then
-    echo "[$JORNADA_NODE_ID] tarefa habilitada '$trigger_type' não é iniciada pelo supervisor contínuo: $(jq -r '.name' <<<"$task_json")"
+    echo "[$JORNADA_NODE_ID] tarefa não residente ignorada pelo supervisor: $(jq -r '.name' <<<"$task_json")"
     continue
   fi
 
   name="$(jq -er '.name' <<<"$task_json")"
   component="$(jq -er '.component' <<<"$task_json")"
   dll="$(component_dll "$component")" || {
-    echo "Componente desconhecido: $component" >&2
+    echo "Componente residente desconhecido: $component" >&2
     exit 3
   }
   [[ -f "$dll" ]] || { echo "Executável publicado ausente: $dll" >&2; exit 3; }
