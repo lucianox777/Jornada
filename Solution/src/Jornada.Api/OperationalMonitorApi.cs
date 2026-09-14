@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
@@ -12,13 +14,40 @@ public static class OperationalMonitorApi
 
     public static IEndpointRouteBuilder MapOperationalMonitorApi(this IEndpointRouteBuilder app)
     {
-        app.MapGet(PageRoute, (IWebHostEnvironment environment) =>
+        app.MapGet(PageRoute, (IWebHostEnvironment environment, IConfiguration configuration) =>
         {
             var webRoot = environment.WebRootPath ?? Path.Combine(environment.ContentRootPath, "wwwroot");
             var page = Path.Combine(webRoot, "monitor", "index.html");
-            return File.Exists(page)
-                ? Results.File(page, "text/html; charset=utf-8")
-                : Results.NotFound();
+            if (!File.Exists(page)) return Results.NotFound();
+
+            if (!environment.IsDevelopment())
+                return Results.File(page, "text/html; charset=utf-8");
+
+            var gestor = configuration["OperationalMonitor:LocalAutoGestor"];
+            var accessKey = configuration["OperationalMonitor:LocalAutoAccessKey"];
+            if (string.IsNullOrWhiteSpace(gestor) || string.IsNullOrWhiteSpace(accessKey))
+                return Results.File(page, "text/html; charset=utf-8");
+
+            var html = File.ReadAllText(page, Encoding.UTF8);
+            var scriptIndex = html.IndexOf("<script>", StringComparison.OrdinalIgnoreCase);
+            if (scriptIndex < 0)
+                return Results.File(page, "text/html; charset=utf-8");
+
+            // Somente Development/Test recebe a credencial sintética do próprio perfil local.
+            // O snapshot continua passando pela autenticação normal de /api/v1/monitor/status.
+            var bootstrap = $"""
+                <script>
+                (() => {{
+                  const gestor = {JsonSerializer.Serialize(gestor)};
+                  const accessKey = {JsonSerializer.Serialize(accessKey)};
+                  sessionStorage.setItem('jornada.monitor.gestor', gestor);
+                  sessionStorage.setItem('jornada.monitor.key', accessKey);
+                }})();
+                </script>
+
+                """;
+            html = html.Insert(scriptIndex, bootstrap);
+            return Results.Text(html, "text/html; charset=utf-8", Encoding.UTF8);
         });
 
         app.MapGet(StatusRoute, async (
