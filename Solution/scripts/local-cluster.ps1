@@ -10,10 +10,7 @@ $Example = Join-Path $Root '.env.example'
 $LocalDb = Join-Path $PSScriptRoot 'local-db.ps1'
 $ClusterConfig = Join-Path $Root 'install\windows-production\Jornada.Cluster.Test.json'
 
-if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    throw 'Docker não encontrado no PATH.'
-}
-
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw 'Docker não encontrado no PATH.' }
 if (-not (Test-Path -LiteralPath $EnvFile)) {
     Copy-Item -LiteralPath $Example -Destination $EnvFile
     Write-Host 'Criado .env local com as credenciais sintéticas padrão de teste.'
@@ -62,15 +59,11 @@ function Wait-NodeReady([string]$Name, [string]$Url) {
     for ($i = 0; $i -lt 120; $i++) {
         try {
             $response = Invoke-WebRequest -UseBasicParsing -Uri $Url -TimeoutSec 2
-            if ([int]$response.StatusCode -eq 200) {
-                Write-Host "$Name ready: $Url"
-                return
-            }
+            if ([int]$response.StatusCode -eq 200) { Write-Host "$Name ready: $Url"; return }
         }
         catch { }
         Start-Sleep -Seconds 1
     }
-
     Invoke-Compose -ComposeArgs @('logs','--tail','120',$Name)
     throw "$Name não ficou ready: $Url"
 }
@@ -115,50 +108,30 @@ function Invoke-Calibration {
     $beforeText = Get-SqlScalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;"
     $before = [int]$beforeText
     Write-Host "Calibração iniciando após modelo v$before."
-    Invoke-Node2 -Command @(
-        'env','LinkageParameters__Operation=GENERATE_DRAFT','LinkageParameters__RunOnce=true',
-        'dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
-
+    Invoke-Node2 -Command @('env','LinkageParameters__Operation=GENERATE_DRAFT','LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
     $count = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")
     if ($count -ne 1) { throw "Esperado exatamente um novo RASCUNHO; encontrados=$count." }
     $version = [int](Get-SqlScalar "SELECT MAX(versao) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")
-
-    Invoke-Node2 -Command @(
-        'env',"LinkageParameters__Operation=VALIDATE","LinkageParameters__TargetVersion=$version",'LinkageParameters__RunOnce=true',
-        'dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
-    Invoke-Node2 -Command @(
-        'env',"LinkageParameters__Operation=ACTIVATE","LinkageParameters__TargetVersion=$version",'LinkageParameters__RunOnce=true',
-        'dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
-
-    $active = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao=$version AND status='ATIVO';")
-    if ($active -ne 1) { throw "Modelo v$version não ficou ATIVO." }
-    Write-Host "Calibração concluída: modelo v$version ATIVO."
+    Invoke-Node2 -Command @('env','LinkageParameters__Operation=VALIDATE',"LinkageParameters__TargetVersion=$version",'LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
+    Invoke-Node2 -Command @('env','LinkageParameters__Operation=ACTIVATE',"LinkageParameters__TargetVersion=$version",'LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
+    $active = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao=$version AND status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO';")
+    if ($active -ne 1) { throw "Modelo v$version não ficou ATIVO como modelo calibrado." }
+    Write-Host "Calibração concluída: modelo calibrado v$version ATIVO."
 }
 
 function Invoke-Linkage {
-    $active = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status='ATIVO';")
+    $active = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO';")
     if ($active -ne 1) {
-        throw "Linkage bloqueado: encontrados $active modelos ATIVOS. Execute primeiro '.\scripts\local-cluster.ps1 calibrate'."
+        throw "Linkage bloqueado: encontrados $active modelos calibrados ATIVOS. O seed sintético não libera execução. Execute primeiro '.\scripts\local-cluster.ps1 calibrate'."
     }
-    $version = Get-SqlScalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='ATIVO' ORDER BY versao DESC;"
+    $version = Get-SqlScalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;"
     Write-Host "Executando linkage com modelo calibrado ATIVO v$version."
-    Invoke-Node2 -Command @(
-        'dotnet','/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll',
-        '--mode','INCREMENTAL','--publish','true','--requested-by','LOCAL_CLUSTER','--reason','manual-local-cluster')
+    Invoke-Node2 -Command @('dotnet','/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll','--mode','INCREMENTAL','--publish','true','--requested-by','LOCAL_CLUSTER','--reason','manual-local-cluster')
 }
 
 switch ($Action) {
-    'up' {
-        & $LocalDb up
-        if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 up falhou ($LASTEXITCODE)." }
-        Start-Nodes -Build
-    }
-    'reset' {
-        Invoke-Compose -ComposeArgs @('stop','jornada-node1','jornada-node2')
-        & $LocalDb reset
-        if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 reset falhou ($LASTEXITCODE)." }
-        Start-Nodes
-    }
+    'up' { & $LocalDb up; if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 up falhou ($LASTEXITCODE)." }; Start-Nodes -Build }
+    'reset' { Invoke-Compose -ComposeArgs @('stop','jornada-node1','jornada-node2'); & $LocalDb reset; if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 reset falhou ($LASTEXITCODE)." }; Start-Nodes }
     'down' { Invoke-Compose -ComposeArgs @('down') }
     'clean' { Invoke-Compose -ComposeArgs @('down','-v','--remove-orphans') }
     'status' { Invoke-Compose -ComposeArgs @('ps') }
