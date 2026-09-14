@@ -7,5 +7,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
     <ProjectReference Include="..\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
