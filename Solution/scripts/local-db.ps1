@@ -106,13 +106,13 @@ function Ensure-SyntheticScale {
     $count = Invoke-SqlScalar -Query "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';"
     if ($count -eq '0') {
         Write-Host 'Carregando corpus sintético local para calibração/linkage...'
-        Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-v', 'SCALE_PEOPLE=5000', 'SCALE_PAIRED=1500', 'SCALE_PENDING=1000', 'SCALE_SEED=355', 'SCALE_COLLISION_MODULO=37', 'SCALE_BIRTH_SHIFT_MODULO=29', '-i', 'database/Jornada_Dev_SyntheticScale.sql')
+        Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-v', 'SCALE_PEOPLE=5000', 'SCALE_PAIRED=5000', 'SCALE_PENDING=1000', 'SCALE_SEED=355', 'SCALE_COLLISION_MODULO=37', 'SCALE_BIRTH_SHIFT_MODULO=29', '-i', 'database/Jornada_Dev_SyntheticScale.sql')
         $count = Invoke-SqlScalar -Query "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';"
     }
-    if ($count -ne '4000') {
-        throw "Massa sintética local inconsistente: esperadas 4000 pessoas de origem SCALE; encontradas=$count. Execute .\scripts\local-db.ps1 reset."
+    if ($count -ne '11000') {
+        throw "Massa sintética local inconsistente: esperadas 11000 pessoas de origem SCALE; encontradas=$count. Execute .\scripts\local-db.ps1 reset."
     }
-    Write-Host 'Corpus sintético local pronto: 5000 pessoas Gold, 1500 pares corroborados e 1000 pendentes.'
+    Write-Host 'Corpus sintético local pronto: 5000 pessoas Gold, 5000 pares corroborados e 1000 pendentes.'
 }
 function Bootstrap {
     Invoke-SqlCmd -SqlCmdArgs @('-Q', "IF DB_ID(N'$db') IS NULL CREATE DATABASE [$db];")
@@ -123,8 +123,9 @@ function Bootstrap {
     # Reaplicação idempotente necessária em DEV para reservar CPFs históricos do seed.
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260907_Cpf_Ancora.sql')
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260910_Schema_Consolidation_370.sql')
-    # O perfil local Test deve conseguir exercitar o calibrador real sem afrouxar
-    # o mínimo estatístico. Reutiliza exatamente a massa sintética do harness CI.
+    # O perfil local Test exercita o calibrador com o mínimo estatístico padrão de
+    # 5.000 pares independentes. Usa o mesmo gerador versionado do harness CI, mas
+    # com um perfil local dimensionado para satisfazer o limiar real, sem reduzi-lo.
     Ensure-SyntheticScale
 }
 
