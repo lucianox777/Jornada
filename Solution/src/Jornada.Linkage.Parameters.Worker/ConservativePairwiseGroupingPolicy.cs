@@ -146,7 +146,7 @@ public static class ConservativePairwiseGroupingPolicy
                 return $"{pair.Left:D}|{pair.Right:D}|{decision.Decision}|{score}";
             })
             .Order(StringComparer.Ordinal);
-        var payload = $"{Version}\n{PairwiseTransitivityDiagnostic.Version}\n{string.Join('\n', canonical)}\n";
+        var payload = $"{Version}\n{PairwiseTransitivityDiagnostic.Version}\n{string.Join("\n", canonical)}\n";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload))).ToLowerInvariant();
     }
 
