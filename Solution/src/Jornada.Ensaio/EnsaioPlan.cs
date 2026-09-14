@@ -1,8 +1,8 @@
 namespace Jornada.Ensaio;
 
-public enum EnsaioEtapaTipo { Checkpoint, Calibrador, Ingestao }
+public enum EnsaioEtapaTipo { Checkpoint, Calibrador, Ingestao, ValidacaoModelo, LinkageValidacao }
 
-public sealed record EnsaioEtapa(string Codigo, string Descricao, EnsaioEtapaTipo Tipo, string? PrefixoArquivo = null, string? Gestor = null);
+public sealed record EnsaioEtapa(string Codigo,string Descricao,EnsaioEtapaTipo Tipo,string? PrefixoArquivo=null,string? Gestor=null);
 
 public static class EnsaioPlan
 {
@@ -20,6 +20,8 @@ public static class EnsaioPlan
         new("09-ingestao-sa", "SMADS — Serviços de Abordagem (pacotes SA*)", EnsaioEtapaTipo.Ingestao, "SA", "SMADS"),
         new("10-pos-sa", "Estado após carga de Gestor distinto", EnsaioEtapaTipo.Checkpoint),
         new("11-calibrador-sa", "Calibrador com Gestores distintos; sucesso depende de suficiência estatística, não apenas da existência de pares", EnsaioEtapaTipo.Calibrador),
-        new("12-final", "Estado final do ensaio", EnsaioEtapaTipo.Checkpoint),
+        new("12-validar-modelo", "Validação explícita do RASCUNHO recém-calibrado, sem ativá-lo", EnsaioEtapaTipo.ValidacaoModelo),
+        new("13-linkage-validacao", "Runner em MODEL_VALIDATION sobre a mesma versão, sem publicar vínculos correntes", EnsaioEtapaTipo.LinkageValidacao),
+        new("14-final", "Estado final do ensaio", EnsaioEtapaTipo.Checkpoint),
     ];
 }
