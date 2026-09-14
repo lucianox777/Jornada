@@ -1,0 +1,61 @@
+name: jornada-local-db-upgrade
+
+on:
+  push:
+    paths:
+      - 'Solution/scripts/local-db.*'
+      - 'Solution/scripts/local-progressive-identity-backfill.sql'
+      - 'Solution/database/Jornada_Identidade_Progressiva.sql'
+      - 'Solution/database/migrations/20260908_Identidade_Progressiva_Processor.sql'
+      - '.github/workflows/local-db-upgrade.yml'
+  pull_request:
+    paths:
+      - 'Solution/scripts/local-db.*'
+      - 'Solution/scripts/local-progressive-identity-backfill.sql'
+      - 'Solution/database/Jornada_Identidade_Progressiva.sql'
+      - 'Solution/database/migrations/20260908_Identidade_Progressiva_Processor.sql'
+      - '.github/workflows/local-db-upgrade.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repeated-up:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Parse local DB scripts
+        shell: bash
+        run: |
+          bash -n scripts/local-db.sh
+          cp .env.example .env
+          docker compose --env-file .env config --quiet
+
+      - name: Parse PowerShell local DB entrypoint
+        shell: pwsh
+        run: |
+          $bytes = [System.IO.File]::ReadAllBytes('scripts/local-db.ps1')
+          if ($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF) {
+            throw 'UTF-8 BOM ausente em scripts/local-db.ps1.'
+          }
+          $null = [scriptblock]::Create((Get-Content -Raw -Encoding UTF8 'scripts/local-db.ps1'))
+
+      - name: Prove fresh bootstrap and repeated up on the same volume
+        shell: bash
+        run: |
+          bash scripts/local-db.sh up
+          bash scripts/local-db.sh up
+          echo 'LOCAL DB REPEATED UP / PROGRESSIVE BACKFILL: OK'
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: docker compose --env-file .env down -v --remove-orphans || true
