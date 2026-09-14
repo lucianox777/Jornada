@@ -5,22 +5,90 @@
   "projects": {
     "Jornada.Contracts": [],
     "Jornada.Bronze.Storage": [],
-    "Jornada.Ingestion": ["Jornada.Contracts"],
-    "Jornada.Pipeline.Coordination": ["Jornada.Operational.Sql", "Jornada.Contracts"],
-    "Jornada.Api": ["Jornada.Operational.Sql", "Jornada.Bronze.Storage", "Jornada.Contracts", "Jornada.Ingestion"],
-    "Jornada.Bronze.Verify": ["Jornada.Operational.Sql", "Jornada.Bronze.Storage"],
-    "Jornada.Bronze.Maintenance.Worker": ["Jornada.Operational.Sql", "Jornada.Contracts", "Jornada.Bronze.Storage"],
-    "Jornada.Operations.Maintenance.Worker": ["Jornada.Operational.Sql", "Jornada.Contracts", "Jornada.Bronze.Storage"],
-    "Jornada.Linkage.Evaluation": ["Jornada.Operational.Sql", "Jornada.Contracts"],
-    "Jornada.Linkage.Parameters.Worker": ["Jornada.Operational.Sql", "Jornada.Pipeline.Coordination", "Jornada.Contracts"],
-    "Jornada.Linkage.Runner": ["Jornada.Operational.Sql", "Jornada.Pipeline.Coordination", "Jornada.Contracts"],
-    "Jornada.Processor.Worker": ["Jornada.Operational.Sql", "Jornada.Bronze.Storage", "Jornada.Pipeline.Coordination", "Jornada.Contracts", "Jornada.Ingestion"],
-    "Jornada.Ensaio": ["Jornada.Contracts", "Jornada.Operational.Sql"],
-    "Jornada.Tests": ["Jornada.Operational.Sql", "Jornada.Bronze.Storage", "Jornada.Bronze.Maintenance.Worker", "Jornada.Operations.Maintenance.Worker", "Jornada.Pipeline.Coordination", "Jornada.Contracts", "Jornada.Api", "Jornada.Ingestion", "Jornada.Linkage.Parameters.Worker", "Jornada.Processor.Worker", "Jornada.Linkage.Runner"],
-    "Jornada.Integration.Tests": ["Jornada.Operational.Sql", "Jornada.Bronze.Storage", "Jornada.Bronze.Maintenance.Worker", "Jornada.Operations.Maintenance.Worker", "Jornada.Pipeline.Coordination", "Jornada.Contracts", "Jornada.Api", "Jornada.Processor.Worker"],
-    "Jornada.Operational.Sql": ["Jornada.Contracts"],
-    "Jornada.Resultado.Api": ["Jornada.Operational.Sql"],
+    "Jornada.Ingestion": [
+      "Jornada.Contracts"
+    ],
+    "Jornada.Pipeline.Coordination": [
+      "Jornada.Operational.Sql",
+      "Jornada.Contracts"
+    ],
+    "Jornada.Api": [
+      "Jornada.Operational.Sql",
+      "Jornada.Bronze.Storage",
+      "Jornada.Contracts",
+      "Jornada.Ingestion"
+    ],
+    "Jornada.Bronze.Verify": [
+      "Jornada.Operational.Sql",
+      "Jornada.Bronze.Storage"
+    ],
+    "Jornada.Bronze.Maintenance.Worker": [
+      "Jornada.Operational.Sql",
+      "Jornada.Contracts",
+      "Jornada.Bronze.Storage"
+    ],
+    "Jornada.Operations.Maintenance.Worker": [
+      "Jornada.Operational.Sql",
+      "Jornada.Contracts",
+      "Jornada.Bronze.Storage"
+    ],
+    "Jornada.Linkage.Evaluation": [
+      "Jornada.Operational.Sql",
+      "Jornada.Contracts"
+    ],
+    "Jornada.Linkage.Parameters.Worker": [
+      "Jornada.Operational.Sql",
+      "Jornada.Pipeline.Coordination",
+      "Jornada.Contracts"
+    ],
+    "Jornada.Linkage.Runner": [
+      "Jornada.Operational.Sql",
+      "Jornada.Pipeline.Coordination",
+      "Jornada.Contracts"
+    ],
+    "Jornada.Processor.Worker": [
+      "Jornada.Operational.Sql",
+      "Jornada.Bronze.Storage",
+      "Jornada.Pipeline.Coordination",
+      "Jornada.Contracts",
+      "Jornada.Ingestion"
+    ],
+    "Jornada.Ensaio": [
+      "Jornada.Contracts",
+      "Jornada.Operational.Sql"
+    ],
+    "Jornada.Tests": [
+      "Jornada.Operational.Sql",
+      "Jornada.Bronze.Storage",
+      "Jornada.Bronze.Maintenance.Worker",
+      "Jornada.Operations.Maintenance.Worker",
+      "Jornada.Pipeline.Coordination",
+      "Jornada.Contracts",
+      "Jornada.Api",
+      "Jornada.Ingestion",
+      "Jornada.Linkage.Parameters.Worker",
+      "Jornada.Processor.Worker",
+      "Jornada.Linkage.Runner"
+    ],
+    "Jornada.Integration.Tests": [
+      "Jornada.Operational.Sql",
+      "Jornada.Bronze.Storage",
+      "Jornada.Bronze.Maintenance.Worker",
+      "Jornada.Operations.Maintenance.Worker",
+      "Jornada.Pipeline.Coordination",
+      "Jornada.Contracts",
+      "Jornada.Api",
+      "Jornada.Processor.Worker"
+    ],
+    "Jornada.Operational.Sql": [
+      "Jornada.Contracts"
+    ],
+    "Jornada.Resultado.Api": [
+      "Jornada.Operational.Sql"
+    ],
     "Jornada.Integrador.CSharp": [],
-    "Jornada.Integrador.Tests": ["Jornada.Integrador.CSharp"]
+    "Jornada.Integrador.Tests": [
+      "Jornada.Integrador.CSharp"
+    ]
   }
 }
