@@ -14,25 +14,31 @@ public static class FellegiSunterScoring
     {
         var prior = blockCandidateCount is > 0
             ? CalculateBlockPrior(parameters, blockCandidateCount.Value)
-            : Get(parameters, "PRIOR_MATCH_PROBABILITY");
+            : Get(parameters, LinkageParameterCatalog.PriorMatchProbability);
         var logOdds = Logit((double)prior);
         logOdds += LogLikelihoodRatio(parameters, "NOME", nameState);
 
-        // Nome da mãe é anulável no contrato Pessoa v3. Ausência em qualquer lado
-        // significa evidência não observada, portanto LR = 1 e log(LR) = 0.
-        // Não converter ausência em LOW: LOW representa comparação observada de baixa similaridade.
+        // Ausência de nome da mãe é evidência não observada: LR=1, log(LR)=0.
+        // LOW continua reservado a uma comparação efetivamente observada de baixa similaridade.
         if (motherNameState is { } observedMotherNameState)
             logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", observedMotherNameState);
 
-        // V2: nascimento deixa de ser uma evidência indivisível. Dia, mês e ano
-        // contribuem separadamente quando o modelo possui os parâmetros calibrados.
-        // Modelos V1 continuam válidos: se os parâmetros V2 não existirem, a
-        // contribuição dos componentes é neutra.
         if (leftBirthDate is { } left && rightBirthDate is { } right)
         {
-            logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_DIA", left.Day == right.Day);
-            logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_MES", left.Month == right.Month);
-            logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_ANO", left.Year == right.Year);
+            // V3: data de nascimento é uma única evidência probabilística. A comparação inteira
+            // contribui uma vez (EXACT/DIFF), evitando contar dia, mês e ano como evidências
+            // independentes. V2 permanece somente para replay de modelos históricos.
+            if (parameters.TryGetValue(LinkageParameterCatalog.BirthSingleEvidenceScoring, out var singleBirth)
+                && singleBirth >= 1m)
+            {
+                logOdds += TryBinaryLikelihoodRatio(parameters, "DATA_NASCIMENTO", left == right);
+            }
+            else
+            {
+                logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_DIA", left.Day == right.Day);
+                logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_MES", left.Month == right.Month);
+                logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_ANO", left.Year == right.Year);
+            }
         }
 
         var posterior = 1d / (1d + Math.Exp(-Math.Clamp(logOdds, -40d, 40d)));
@@ -42,8 +48,8 @@ public static class FellegiSunterScoring
     private static decimal CalculateBlockPrior(IReadOnlyDictionary<string, decimal> parameters, int candidateCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(candidateCount);
-        var min = parameters.TryGetValue("PRIOR_BLOCK_MIN", out var pmin) ? pmin : 0.000001m;
-        var max = parameters.TryGetValue("PRIOR_BLOCK_MAX", out var pmax) ? pmax : 0.25m;
+        var min = parameters.TryGetValue(LinkageParameterCatalog.PriorBlockMin, out var pmin) ? pmin : 0.000001m;
+        var max = parameters.TryGetValue(LinkageParameterCatalog.PriorBlockMax, out var pmax) ? pmax : 0.25m;
         return Math.Clamp(1m / candidateCount, min, max);
     }
 
