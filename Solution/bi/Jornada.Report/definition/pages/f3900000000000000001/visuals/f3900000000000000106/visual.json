@@ -1,0 +1,10 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "f3900000000000000106",
+  "position": {"x":610,"y":220,"z":1000,"height":150,"width":620,"tabOrder":1005},
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {"queryState":{"Data":{"projections":[{"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"QualidadeResolucaoCalibrada"}},"Property":"Sensibilidade estimada"}},"queryRef":"QualidadeResolucaoCalibrada.Sensibilidade estimada","nativeQueryRef":"Sensibilidade estimada"}]}}},
+    "visualContainerObjects":{"title":[{"properties":{"show":{"expr":{"Literal":{"Value":"true"}}},"text":{"expr":{"Literal":{"Value":"'Sensibilidade estimada — disponível somente com calibração válida'"}}}}}]}
+  }
+}
