@@ -22,6 +22,8 @@ BEGIN
         corpus_referencia_codigo NVARCHAR(160) NOT NULL,
         calibracao_versao_codigo NVARCHAR(120) NOT NULL,
         metodo_estimacao NVARCHAR(120) NULL,
+        metodo_intervalo_confianca NVARCHAR(120) NULL,
+        nivel_confianca DECIMAL(6,5) NOT NULL,
         tamanho_amostra_referencia BIGINT NOT NULL,
         ppv_estimado DECIMAL(12,10) NOT NULL,
         ppv_ic_inferior DECIMAL(12,10) NOT NULL,
@@ -36,6 +38,8 @@ BEGIN
             FOREIGN KEY(linkage_run_id) REFERENCES identidade.linkage_run(linkage_run_id),
         CONSTRAINT ck_identidade_linkage_quality_estimate_estrato
             CHECK(estrato IN('GERAL','CPF','CNS_SEM_CPF','SEM_IDENTIFICADOR_FORTE')),
+        CONSTRAINT ck_identidade_linkage_quality_estimate_nivel_confianca
+            CHECK(nivel_confianca > 0 AND nivel_confianca < 1),
         CONSTRAINT ck_identidade_linkage_quality_estimate_amostra
             CHECK(tamanho_amostra_referencia > 0),
         CONSTRAINT ck_identidade_linkage_quality_estimate_ppv
@@ -92,6 +96,8 @@ SELECT
     q.corpus_referencia_codigo,
     q.calibracao_versao_codigo,
     q.metodo_estimacao,
+    q.metodo_intervalo_confianca,
+    q.nivel_confianca,
     q.tamanho_amostra_referencia,
     q.ppv_estimado,
     q.ppv_ic_inferior,
