@@ -24,7 +24,7 @@ PowerShell:
 Bash:
 
 ```bash
-./scripts/local-cluster.sh up
+bash ./scripts/local-cluster.sh up
 ```
 
 O comando inicializa o SQL/seed de Development, constrói a imagem Jornada e sobe os dois nós.
