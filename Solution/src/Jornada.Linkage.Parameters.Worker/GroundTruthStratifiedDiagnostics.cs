@@ -109,7 +109,7 @@ public static class GroundTruthStratifiedSamplePlanner
             .ToArray();
 
         foreach (var item in ranked)
-            allocation[item.Stratum.Stratum] = Math.Min(item.Floor, checked((int)item.Stratum.Population));
+            allocation[item.Stratum.Stratum] = item.Floor;
 
         var remaining = effectiveBudget - allocation.Values.Sum();
         foreach (var item in ranked
@@ -120,7 +120,7 @@ public static class GroundTruthStratifiedSamplePlanner
                 break;
 
             var current = allocation[item.Stratum.Stratum];
-            if (current >= item.Stratum.Population)
+            if ((long)current >= item.Stratum.Population)
                 continue;
 
             allocation[item.Stratum.Stratum] = current + 1;
