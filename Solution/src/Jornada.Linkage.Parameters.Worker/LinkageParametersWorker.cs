@@ -31,6 +31,7 @@ public sealed class LinkageParametersWorker(
     private const string DraftOperation = "GENERATE_DRAFT";
     private const string ValidateOperation = "VALIDATE";
     private const string ActivateOperation = "ACTIVATE";
+    private const string SqlServerSampleMethod = "M_INTERGESTOR_U_GOLD_SERIALIZED";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -95,13 +96,12 @@ public sealed class LinkageParametersWorker(
         }
     }
 
-
     private async Task<bool> IsInitialLoadModeActiveAsync(CancellationToken ct)
     {
         await using var connection = await operationalSql.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT ativo FROM controle.modo_carga_inicial WHERE estado_id=1;";
-        return Convert.ToBoolean(await command.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
+        return Convert.ToBoolean(await command.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
     }
 
     private async Task GenerateDraftFromGoldAsync(CancellationToken cancellationToken)
@@ -116,9 +116,9 @@ public sealed class LinkageParametersWorker(
         var smoothingAlpha = Math.Max(0.0001m, configuration.GetValue("LinkageParameters:SmoothingAlpha", 0.5m));
         var threshold = Math.Clamp(configuration.GetValue("LinkageParameters:TLinkage", 0.95m), 0.5m, 0.999999m);
         var conflictMargin = Math.Clamp(configuration.GetValue("LinkageParameters:ConflictMargin", 0.03m), 0.0001m, 0.5m);
+        var blockingSearchOptions = BlockingRuleSetSearchConfiguration.FromConfiguration(configuration);
 
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
-
 
         var drainTimeoutSeconds = Math.Max(30,
             configuration.GetValue("PipelineCoordination:CurrentBatchDrainTimeoutSeconds", 900));
@@ -173,6 +173,9 @@ public sealed class LinkageParametersWorker(
                     throw new InvalidOperationException(
                         $"Amostra m independente insuficiente: {matchedPairs.Count} pares inter-Gestores; mínimo={minimumIndependentMatchedPairs}. " +
                         "O modelo permanece sem publicação até existir evidência independente suficiente.");
+                if (unmatchedPairs.Count == 0)
+                    throw new InvalidOperationException(
+                        "Amostra u condicionada ao blocking vazia. O modelo permanece sem publicação.");
             }
             catch (SqlException ex) when (ex.Number == -2)
             {
@@ -194,6 +197,23 @@ public sealed class LinkageParametersWorker(
                 threshold,
                 conflictMargin);
 
+            var persistedParameters = BuildPersistedParameters(
+                modelParameters,
+                statistics,
+                samplePoolSize,
+                minimumIndependentMatchedPairs);
+
+            var blockingObservations = BlockingFeatureObservationFactory.Create(matchedPairs, unmatchedPairs);
+            var blocking = BlockingRuleSetSearch.SearchBest(
+                blockingObservations,
+                BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates,
+                blockingSearchOptions);
+            var ruleSet = LinkageDynamicRuleSet.CreateWithPasses(
+                $"MODEL_{version}_BLOCKING_V1",
+                algorithmVersion,
+                blocking.Passes,
+                persistedParameters);
+
             await PublishDraftModelAsync(
                 connection,
                 modelId,
@@ -201,20 +221,20 @@ public sealed class LinkageParametersWorker(
                 statistics,
                 matchedPairs,
                 unmatchedPairs.Count,
-                samplePoolSize,
-                minimumIndependentMatchedPairs,
-                modelParameters,
+                persistedParameters,
+                ruleSet,
                 workCt);
 
             logger.LogInformation(
-                "Modelo probabilístico v{Version} criado em RASCUNHO. População={Population}; m={M}; u={U}; " +
-                "corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}. Gold não foi copiada para memória nem por modelo.",
+                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u={U}; " +
+                "corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
                 version,
+                ruleSet.RuleSetVersion,
                 statistics.PopulationSize,
                 matchedPairs.Count,
                 unmatchedPairs.Count,
                 corpusCapturedAtUtc,
-                "M_INTERGESTOR_U_GOLD_SERIALIZED",
+                SqlServerSampleMethod,
                 samplePoolSize);
         }
         catch (OperationCanceledException) when (pipelineLease.IsLost)
@@ -230,6 +250,28 @@ public sealed class LinkageParametersWorker(
         }
     }
 
+    private static IReadOnlyDictionary<string, decimal> BuildPersistedParameters(
+        IReadOnlyDictionary<string, decimal> estimatedParameters,
+        PopulationStatistics statistics,
+        int samplePoolSize,
+        int minimumIndependentMatchedPairs)
+    {
+        var parameters = new Dictionary<string, decimal>(estimatedParameters, StringComparer.Ordinal)
+        {
+            ["POPULATION_SIZE"] = statistics.PopulationSize,
+            ["POPULATION_WITH_CPF"] = statistics.WithCpf,
+            ["DISTINCT_FULL_NAME_APPROX"] = statistics.DistinctFullNames,
+            ["DISTINCT_MOTHER_NAME_APPROX"] = statistics.DistinctMotherNames,
+            ["DISTINCT_BIRTH_DATE"] = statistics.DistinctBirthDates,
+            ["TRAINING_SAMPLE_POOL_SIZE"] = samplePoolSize,
+            ["MIN_M_INDEPENDENT_PAIRS"] = minimumIndependentMatchedPairs
+        };
+
+        return parameters.ToDictionary(
+            static pair => pair.Key,
+            static pair => decimal.Round(pair.Value, 12, MidpointRounding.AwayFromZero),
+            StringComparer.Ordinal);
+    }
 
     private async Task<int> CreateGeneratingModelAsync(
         SqlConnection connection,
@@ -269,7 +311,7 @@ public sealed class LinkageParametersWorker(
                     @modelo_id,@versao,'GERANDO',@algoritmo,@normalizacao,
                     'GOLD_PESSOA_UUID_PK','gold.pessoa',NULL,
                     NULL,NULL,SYSDATETIMEOFFSET(),NULL,
-                    NULL,'M_INTERGESTOR_U_GOLD_SERIALIZED',@pool,NULL,NULL,NULL);
+                    NULL,@amostra_metodo,@pool,NULL,NULL,NULL);
 
                 SELECT @versao;
                 """,
@@ -279,6 +321,7 @@ public sealed class LinkageParametersWorker(
             command.Parameters.Add("@modelo_id", SqlDbType.UniqueIdentifier).Value = modelId;
             command.Parameters.Add("@algoritmo", SqlDbType.NVarChar, 80).Value = algorithmVersion;
             command.Parameters.Add("@normalizacao", SqlDbType.NVarChar, 80).Value = normalizationVersion;
+            command.Parameters.Add("@amostra_metodo", SqlDbType.NVarChar, 80).Value = SqlServerSampleMethod;
             command.Parameters.Add("@pool", SqlDbType.Int).Value = samplePoolSize;
 
             var version = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
@@ -473,9 +516,8 @@ public sealed class LinkageParametersWorker(
         PopulationStatistics statistics,
         IReadOnlyList<IdentityTrainingPair> matchedPairs,
         int unmatchedSampleSize,
-        int samplePoolSize,
-        int minimumIndependentMatchedPairs,
-        IReadOnlyDictionary<string, decimal> estimatedParameters,
+        IReadOnlyDictionary<string, decimal> parameters,
+        LinkageDynamicRuleSet ruleSet,
         CancellationToken cancellationToken)
     {
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(
@@ -484,17 +526,6 @@ public sealed class LinkageParametersWorker(
 
         try
         {
-            var parameters = new Dictionary<string, decimal>(estimatedParameters, StringComparer.Ordinal)
-            {
-                ["POPULATION_SIZE"] = statistics.PopulationSize,
-                ["POPULATION_WITH_CPF"] = statistics.WithCpf,
-                ["DISTINCT_FULL_NAME_APPROX"] = statistics.DistinctFullNames,
-                ["DISTINCT_MOTHER_NAME_APPROX"] = statistics.DistinctMotherNames,
-                ["DISTINCT_BIRTH_DATE"] = statistics.DistinctBirthDates,
-                ["TRAINING_SAMPLE_POOL_SIZE"] = samplePoolSize,
-                ["MIN_M_INDEPENDENT_PAIRS"] = minimumIndependentMatchedPairs
-            };
-
             foreach (var (name, value) in parameters)
             {
                 var command = new SqlCommand(
@@ -538,9 +569,6 @@ public sealed class LinkageParametersWorker(
                 await command.ExecuteNonQueryAsync(cancellationToken);
             }
 
-            // Auditoria metodológica: registra a distribuição dos pares de Gestores usados
-            // para estimar m. A seleção é pseudoaleatória estável por Pessoa/gestor, evitando
-            // privilegiar sistematicamente os menores gestor_id.
             var gestorPairDistribution = matchedPairs
                 .Where(p => !string.IsNullOrWhiteSpace(p.LeftSourceCode) && !string.IsNullOrWhiteSpace(p.RightSourceCode))
                 .GroupBy(p => string.CompareOrdinal(p.LeftSourceCode, p.RightSourceCode) <= 0
@@ -563,6 +591,10 @@ public sealed class LinkageParametersWorker(
                 command.Parameters.Add("@metodo", SqlDbType.NVarChar, 80).Value = "STABLE_HASH_PAIR_SAMPLE";
                 await command.ExecuteNonQueryAsync(cancellationToken);
             }
+
+            // Modelo, parâmetros e regras de blocking formam um único artefato lógico.
+            // O writer valida algoritmo, normalização, projeção e fingerprint antes da publicação.
+            await LinkageRuleSetWriter.WriteAsync(connection, transaction, modelId, ruleSet, cancellationToken);
 
             var snapshotReference = statistics.MaxGoldUpdatedAt is null
                 ? $"gold.pessoa;corpus_utc={corpusCapturedAtUtc:O}"
@@ -640,10 +672,12 @@ public sealed class LinkageParametersWorker(
                 DECLARE @status NVARCHAR(20);
                 DECLARE @registros BIGINT;
                 DECLARE @pessoas BIGINT;
+                DECLARE @amostra_metodo NVARCHAR(80);
 
                 SELECT
                     @modelo_id=modelo_id,@status=status,
-                    @registros=registros_lidos,@pessoas=pessoas_unicas
+                    @registros=registros_lidos,@pessoas=pessoas_unicas,
+                    @amostra_metodo=amostra_metodo
                 FROM identidade.modelo_linkage WITH (UPDLOCK,HOLDLOCK)
                 WHERE versao=@versao;
 
@@ -687,12 +721,29 @@ public sealed class LinkageParametersWorker(
                    (SELECT valor FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='PRIOR_BLOCK_MAX')
                     THROW 51012, 'PRIOR_BLOCK_MIN não pode ser maior que PRIOR_BLOCK_MAX.', 1;
 
+                IF @amostra_metodo=@sqlserver_amostra_metodo
+                   AND NOT EXISTS(
+                        SELECT 1
+                        FROM identidade.linkage_ruleset r
+                        WHERE r.modelo_id=@modelo_id
+                          AND EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id)
+                          AND NOT EXISTS(
+                              SELECT 1
+                              FROM identidade.linkage_ruleset_passe rp
+                              WHERE rp.ruleset_id=r.ruleset_id
+                                AND NOT EXISTS(
+                                    SELECT 1 FROM identidade.linkage_ruleset_passe_campo rc
+                                    WHERE rc.ruleset_id=rp.ruleset_id AND rc.passe_ordem=rp.passe_ordem))
+                   )
+                    THROW 51013, 'Modelo SQL Server sem ruleset dinâmico completo.', 1;
+
                 UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@modelo_id;
                 """,
                 connection,
                 transaction);
 
             command.Parameters.Add("@versao", SqlDbType.Int).Value = version;
+            command.Parameters.Add("@sqlserver_amostra_metodo", SqlDbType.NVarChar, 80).Value = SqlServerSampleMethod;
             await command.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             logger.LogInformation("Modelo de linkage v{Version} validado explicitamente.", version);
@@ -724,13 +775,29 @@ public sealed class LinkageParametersWorker(
 
                 DECLARE @modelo_id UNIQUEIDENTIFIER;
                 DECLARE @status NVARCHAR(20);
-                SELECT @modelo_id=modelo_id,@status=status
+                DECLARE @amostra_metodo NVARCHAR(80);
+                SELECT @modelo_id=modelo_id,@status=status,@amostra_metodo=amostra_metodo
                 FROM identidade.modelo_linkage WITH (UPDLOCK,HOLDLOCK)
                 WHERE versao=@versao;
 
                 IF @modelo_id IS NULL THROW 51007, 'Modelo de linkage não encontrado.', 1;
                 IF @status='ATIVO' RETURN;
                 IF @status<>'VALIDADO' THROW 51008, 'Somente modelo VALIDADO pode ser ativado.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo
+                   AND NOT EXISTS(
+                        SELECT 1
+                        FROM identidade.linkage_ruleset r
+                        WHERE r.modelo_id=@modelo_id
+                          AND EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id)
+                          AND NOT EXISTS(
+                              SELECT 1
+                              FROM identidade.linkage_ruleset_passe rp
+                              WHERE rp.ruleset_id=r.ruleset_id
+                                AND NOT EXISTS(
+                                    SELECT 1 FROM identidade.linkage_ruleset_passe_campo rc
+                                    WHERE rc.ruleset_id=rp.ruleset_id AND rc.passe_ordem=rp.passe_ordem))
+                   )
+                    THROW 51014, 'Modelo SQL Server validado sem ruleset dinâmico completo.', 1;
 
                 UPDATE identidade.modelo_linkage
                 SET status='INATIVO'
@@ -744,6 +811,7 @@ public sealed class LinkageParametersWorker(
                 transaction);
 
             command.Parameters.Add("@versao", SqlDbType.Int).Value = version;
+            command.Parameters.Add("@sqlserver_amostra_metodo", SqlDbType.NVarChar, 80).Value = SqlServerSampleMethod;
             await command.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             logger.LogInformation(
