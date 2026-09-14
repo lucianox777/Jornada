@@ -186,12 +186,9 @@ public static class GroundTruthCoverageDiagnosticsBuilder
         ArgumentNullException.ThrowIfNull(assessment);
         assessment.Validate();
 
-        if (eligiblePopulation < 0)
-            throw new ArgumentOutOfRangeException(nameof(eligiblePopulation));
-        if (targetPopulation < 0)
-            throw new ArgumentOutOfRangeException(nameof(targetPopulation));
-        if (positivePairCount < 0)
-            throw new ArgumentOutOfRangeException(nameof(positivePairCount));
+        ArgumentOutOfRangeException.ThrowIfNegative(eligiblePopulation);
+        ArgumentOutOfRangeException.ThrowIfNegative(targetPopulation);
+        ArgumentOutOfRangeException.ThrowIfNegative(positivePairCount);
         if (eligiblePopulation > targetPopulation)
             throw new InvalidOperationException("População elegível não pode exceder a população-alvo.");
         if (assessment.Source != source || assessment.Stratum != stratum)
