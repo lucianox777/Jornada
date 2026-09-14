@@ -5,7 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj" />
-    <PackageReference Include="Testcontainers.MsSql" Version="4.14.0" />
+    <PackageReference Include="Testcontainers.MsSql" Version="4.15.0" />
     <ProjectReference Include="..\..\src\Jornada.Bronze.Storage\Jornada.Bronze.Storage.csproj" />
     <ProjectReference Include="..\..\src\Jornada.Bronze.Maintenance.Worker\Jornada.Bronze.Maintenance.Worker.csproj" />
     <ProjectReference Include="..\..\src\Jornada.Operations.Maintenance.Worker\Jornada.Operations.Maintenance.Worker.csproj" />
@@ -13,11 +13,11 @@
     <ProjectReference Include="..\..\src\Jornada.Contracts\Jornada.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Jornada.Api\Jornada.Api.csproj" />
     <ProjectReference Include="..\..\src\Jornada.Processor.Worker\Jornada.Processor.Worker.csproj" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
-    <PackageReference Include="NUnit" Version="4.2.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="NUnit" Version="4.6.1" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.11" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.31" />
     <PackageReference Include="coverlet.collector" Version="10.0.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
