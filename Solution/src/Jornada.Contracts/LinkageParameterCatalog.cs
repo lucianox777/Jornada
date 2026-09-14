@@ -12,6 +12,7 @@ public static class LinkageParameterCatalog
     public const string PriorBlockMax = "PRIOR_BLOCK_MAX";
     public const string Threshold = "T_LINKAGE";
     public const string ConflictMargin = "CONFLICT_MARGIN";
+    public const string BirthSingleEvidenceScoring = "SCORING_BIRTH_SINGLE_EVIDENCE_V3";
     public const string BirthComponentScoring = "SCORING_BIRTH_COMPONENTS_V2";
     public const string LegacyBirthComponentScoring = "BLOCKING_BIRTH_COMPONENTS_V2";
 
@@ -30,6 +31,12 @@ public static class LinkageParameterCatalog
             .. Distribution("U_NOME"),
             .. Distribution("M_NOME_MAE"),
             .. Distribution("U_NOME_MAE")
+        ];
+
+    public static readonly IReadOnlyList<string> BirthSingleEvidenceRequired =
+        [
+            .. BinaryDistribution("M_DATA_NASCIMENTO"),
+            .. BinaryDistribution("U_DATA_NASCIMENTO")
         ];
 
     public static readonly IReadOnlyList<string> BirthComponentRequired =
