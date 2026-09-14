@@ -6,6 +6,6 @@
     <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
     <ProjectReference Include="..\Jornada.Ingestion\Jornada.Ingestion.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.3" />
   </ItemGroup>
 </Project>
