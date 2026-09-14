@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using Jornada.Contracts;
 using Microsoft.Data.SqlClient;
 
@@ -100,13 +101,13 @@ internal static class LocalBlockingProjectionBootstrap
               AND vc.status='RESOLVIDO'
               AND vc.pessoa_uuid IS NOT NULL;
             """;
-        return Convert.ToInt32(await command.ExecuteScalarAsync(ct));
+        return Convert.ToInt32(await command.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
     }
 
     private static async Task<int> CountMissingPersonsAsync(SqlConnection connection, CancellationToken ct)
     {
         await using var command = CreateMissingCommand(connection, countOnly: true);
-        return Convert.ToInt32(await command.ExecuteScalarAsync(ct));
+        return Convert.ToInt32(await command.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
     }
 
     private static async Task<List<SyntheticPerson>> ReadMissingPersonsAsync(
