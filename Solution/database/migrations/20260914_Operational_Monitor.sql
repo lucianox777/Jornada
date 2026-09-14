@@ -17,6 +17,8 @@ BEGIN
         heartbeat_em DATETIMEOFFSET(7) NOT NULL,
         encerrado_em DATETIMEOFFSET(7) NULL,
         versao NVARCHAR(80) NULL,
+        configuration_bundle_version NVARCHAR(80) NULL,
+        solution_schema_expected NVARCHAR(32) NULL,
         CONSTRAINT pk_runtime_componente PRIMARY KEY(node_id, componente),
         CONSTRAINT ck_runtime_componente_node CHECK(LEN(node_id) BETWEEN 1 AND 64),
         CONSTRAINT ck_runtime_componente_nome CHECK(LEN(componente) BETWEEN 1 AND 80),
@@ -27,6 +29,14 @@ BEGIN
 END;
 GO
 
+IF COL_LENGTH(N'controle.runtime_componente', N'configuration_bundle_version') IS NULL
+    ALTER TABLE controle.runtime_componente ADD configuration_bundle_version NVARCHAR(80) NULL;
+GO
+
+IF COL_LENGTH(N'controle.runtime_componente', N'solution_schema_expected') IS NULL
+    ALTER TABLE controle.runtime_componente ADD solution_schema_expected NVARCHAR(32) NULL;
+GO
+
 IF NOT EXISTS(
     SELECT 1 FROM sys.indexes
     WHERE object_id=OBJECT_ID(N'controle.runtime_componente')
@@ -34,6 +44,6 @@ IF NOT EXISTS(
 BEGIN
     CREATE INDEX IX_runtime_componente_heartbeat
         ON controle.runtime_componente(heartbeat_em DESC)
-        INCLUDE(node_id,componente,machine_name,status,instance_id,process_id,iniciado_em,encerrado_em,versao);
+        INCLUDE(node_id,componente,machine_name,status,instance_id,process_id,iniciado_em,encerrado_em,versao,configuration_bundle_version,solution_schema_expected);
 END;
 GO
