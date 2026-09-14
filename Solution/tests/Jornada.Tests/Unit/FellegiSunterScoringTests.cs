@@ -27,6 +27,16 @@ public sealed class FellegiSunterScoringTests
             ["U_NASC_ANO_EXACT"] = 0.02m, ["U_NASC_ANO_DIFF"] = 0.98m
         };
 
+    private static readonly IReadOnlyDictionary<string, decimal> ParametersV3 =
+        new Dictionary<string, decimal>(ParametersV2)
+        {
+            [LinkageParameterCatalog.BirthSingleEvidenceScoring] = 1m,
+            ["M_DATA_NASCIMENTO_EXACT"] = 0.96m,
+            ["M_DATA_NASCIMENTO_DIFF"] = 0.04m,
+            ["U_DATA_NASCIMENTO_EXACT"] = 0.002m,
+            ["U_DATA_NASCIMENTO_DIFF"] = 0.998m
+        };
+
     [Test]
     public void Exact_name_and_mother_name_produce_high_posterior()
     {
@@ -84,36 +94,13 @@ public sealed class FellegiSunterScoringTests
     {
         var source = new DateOnly(1980, 6, 5);
         var exact = FellegiSunterScoring.CalculatePosterior(
-            ParametersV2,
-            NameComparisonState.HIGH,
-            NameComparisonState.HIGH,
-            blockCandidateCount: 100,
-            leftBirthDate: source,
-            rightBirthDate: source);
-
+            ParametersV2, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, source);
         var dayDifferent = FellegiSunterScoring.CalculatePosterior(
-            ParametersV2,
-            NameComparisonState.HIGH,
-            NameComparisonState.HIGH,
-            blockCandidateCount: 100,
-            leftBirthDate: source,
-            rightBirthDate: new DateOnly(1980, 6, 6));
-
+            ParametersV2, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1980, 6, 6));
         var monthDifferent = FellegiSunterScoring.CalculatePosterior(
-            ParametersV2,
-            NameComparisonState.HIGH,
-            NameComparisonState.HIGH,
-            blockCandidateCount: 100,
-            leftBirthDate: source,
-            rightBirthDate: new DateOnly(1980, 7, 5));
-
+            ParametersV2, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1980, 7, 5));
         var yearDifferent = FellegiSunterScoring.CalculatePosterior(
-            ParametersV2,
-            NameComparisonState.HIGH,
-            NameComparisonState.HIGH,
-            blockCandidateCount: 100,
-            leftBirthDate: source,
-            rightBirthDate: new DateOnly(1981, 6, 5));
+            ParametersV2, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1981, 6, 5));
 
         Assert.Multiple(() =>
         {
@@ -124,21 +111,42 @@ public sealed class FellegiSunterScoringTests
     }
 
     [Test]
+    public void V3_birth_is_single_evidence_and_ignores_v2_component_strengths()
+    {
+        var source = new DateOnly(1980, 6, 5);
+        var sameSingleEvidence = new Dictionary<string, decimal>(ParametersV3)
+        {
+            ["M_NASC_DIA_EXACT"] = 0.999999m,
+            ["U_NASC_DIA_EXACT"] = 0.000001m,
+            ["M_NASC_MES_EXACT"] = 0.999999m,
+            ["U_NASC_MES_EXACT"] = 0.000001m,
+            ["M_NASC_ANO_EXACT"] = 0.999999m,
+            ["U_NASC_ANO_EXACT"] = 0.000001m
+        };
+
+        var baseline = FellegiSunterScoring.CalculatePosterior(
+            ParametersV3, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, source);
+        var withExtremeLegacyComponents = FellegiSunterScoring.CalculatePosterior(
+            sameSingleEvidence, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, source);
+        var differentDate = FellegiSunterScoring.CalculatePosterior(
+            ParametersV3, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1980, 6, 6));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(withExtremeLegacyComponents, Is.EqualTo(baseline));
+            Assert.That(baseline, Is.GreaterThan(differentDate));
+        });
+    }
+
+    [Test]
     public void V1_model_without_birth_component_parameters_keeps_previous_score()
     {
         var withoutBirth = FellegiSunterScoring.CalculatePosterior(
-            Parameters,
-            NameComparisonState.HIGH,
-            NameComparisonState.HIGH,
-            blockCandidateCount: 100);
+            Parameters, NameComparisonState.HIGH, NameComparisonState.HIGH, blockCandidateCount: 100);
 
         var withBirthArguments = FellegiSunterScoring.CalculatePosterior(
-            Parameters,
-            NameComparisonState.HIGH,
-            NameComparisonState.HIGH,
-            blockCandidateCount: 100,
-            leftBirthDate: new DateOnly(1980, 6, 5),
-            rightBirthDate: new DateOnly(1981, 7, 6));
+            Parameters, NameComparisonState.HIGH, NameComparisonState.HIGH, 100,
+            new DateOnly(1980, 6, 5), new DateOnly(1981, 7, 6));
 
         Assert.That(withBirthArguments, Is.EqualTo(withoutBirth));
     }
