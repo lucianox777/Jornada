@@ -29,10 +29,20 @@ public sealed record SplinkCalibrationPackage(
     IReadOnlyList<SplinkPairwiseLabel> Labels);
 
 public sealed record SplinkComparisonLevelEstimate(
-    string Feature,
-    string Level,
-    decimal? MProbability,
-    decimal? UProbability);
+    [property: JsonPropertyName("feature")] string Feature,
+    [property: JsonPropertyName("level")] string Level,
+    [property: JsonPropertyName("m_probability")] decimal? MProbability,
+    [property: JsonPropertyName("u_probability")] decimal? UProbability);
+
+public sealed record SplinkRunnerResult(
+    [property: JsonPropertyName("schema_version")] string SchemaVersion,
+    [property: JsonPropertyName("source_schema_version")] string SourceSchemaVersion,
+    [property: JsonPropertyName("splink_version")] string SplinkVersion,
+    [property: JsonPropertyName("scope")] string Scope,
+    [property: JsonPropertyName("nominal_semantics_version")] string NominalSemanticsVersion,
+    [property: JsonPropertyName("seed")] int Seed,
+    [property: JsonPropertyName("max_pairs")] long MaxPairs,
+    [property: JsonPropertyName("estimates")] IReadOnlyList<SplinkComparisonLevelEstimate> Estimates);
 
 /// <summary>
 /// Fronteira explícita Jornada -> Splink. O domínio Jornada permanece soberano;
@@ -42,9 +52,11 @@ public sealed record SplinkComparisonLevelEstimate(
 public static class SplinkCalibrationExchange
 {
     public const string SchemaVersion = "JORNADA_SPLINK_EXCHANGE_V1";
+    public const string RunnerSchemaVersion = "JORNADA_SPLINK_ESTIMATES_V1";
+    public const string NominalSemanticsVersion = "IDENTITY_NAME_STATES_V1";
     public const string SourceDataset = "jornada_calibrador";
 
-    private static readonly JsonSerializerOptions SerializerOptions = new()
+    private static readonly JsonSerializerOptions ExchangeJsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         WriteIndented = true
@@ -95,7 +107,43 @@ public static class SplinkCalibrationExchange
     public static string Serialize(SplinkCalibrationPackage package)
     {
         ArgumentNullException.ThrowIfNull(package);
-        return JsonSerializer.Serialize(package, SerializerOptions);
+        return JsonSerializer.Serialize(package, ExchangeJsonOptions);
+    }
+
+    public static SplinkRunnerResult DeserializeRunnerResult(string json)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(json);
+        var result = JsonSerializer.Deserialize<SplinkRunnerResult>(json)
+            ?? throw new InvalidOperationException("Resultado Splink vazio ou inválido.");
+
+        if (!string.Equals(result.SchemaVersion, RunnerSchemaVersion, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Schema do runner incompatível: {result.SchemaVersion}.");
+        if (!string.Equals(result.SourceSchemaVersion, SchemaVersion, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Schema de origem incompatível: {result.SourceSchemaVersion}.");
+        if (!string.Equals(result.Scope, "NOME", StringComparison.Ordinal))
+            throw new InvalidOperationException($"Escopo Splink V1 incompatível: {result.Scope}.");
+        if (!string.Equals(result.NominalSemanticsVersion, NominalSemanticsVersion, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Semântica nominal incompatível: {result.NominalSemanticsVersion}.");
+        if (string.IsNullOrWhiteSpace(result.SplinkVersion))
+            throw new InvalidOperationException("Versão do Splink ausente.");
+        if (result.MaxPairs <= 0)
+            throw new InvalidOperationException("max_pairs inválido no resultado Splink.");
+        if (result.Estimates.Count == 0)
+            throw new InvalidOperationException("Resultado Splink sem estimativas.");
+
+        return result;
+    }
+
+    public static ParameterEstimate ImportM(SplinkRunnerResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return ImportM(result.SplinkVersion, result.Estimates);
+    }
+
+    public static ParameterEstimate ImportU(SplinkRunnerResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return ImportU(result.SplinkVersion, result.Estimates);
     }
 
     public static ParameterEstimate ImportM(
@@ -114,8 +162,7 @@ public static class SplinkCalibrationExchange
         IEnumerable<SplinkComparisonLevelEstimate> estimates,
         bool importM)
     {
-        if (string.IsNullOrWhiteSpace(version))
-            throw new ArgumentException("A versão do Splink é obrigatória.", nameof(version));
+        ArgumentException.ThrowIfNullOrWhiteSpace(version);
         ArgumentNullException.ThrowIfNull(estimates);
 
         var values = new Dictionary<string, decimal>(StringComparer.Ordinal);
