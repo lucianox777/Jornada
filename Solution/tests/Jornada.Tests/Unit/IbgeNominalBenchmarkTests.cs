@@ -146,9 +146,11 @@ public sealed class IbgeNominalBenchmarkTests
                 pair.Right.Surname,
                 pair.Right.BirthDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
                 string.Join(';', pair.Substitutions.Select(substitution => string.Join('~',
-                    substitution.Attribute,
+                    substitution.StatisticKind,
                     substitution.SourceValue,
                     substitution.TargetValue,
+                    substitution.SourceOccurrences,
+                    substitution.TargetOccurrences,
                     substitution.Similarity.ToString("R", System.Globalization.CultureInfo.InvariantCulture))))))
             .ToArray();
 
