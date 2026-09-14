@@ -1,17 +1,72 @@
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
+/// Fonte canônica de proveniência de uma feature. GroundTruthSource é preenchido apenas quando
+/// o atributo de origem é explicitamente reconhecido como CPF ou CNS; demais atributos permanecem
+/// como evidência independente com seu código canônico preservado.
+/// </summary>
+public sealed record GroundTruthLineageSource(
+    string CanonicalAttribute,
+    GroundTruthSource? GroundTruthSource)
+{
+    public static GroundTruthLineageSource FromAttribute(string attribute)
+    {
+        if (string.IsNullOrWhiteSpace(attribute))
+            throw new ArgumentException("O atributo-fonte da linhagem é obrigatório.", nameof(attribute));
+
+        var canonical = Canonicalize(attribute);
+        var source = canonical switch
+        {
+            "cpf" or "cpf_declarado" or "cpf_ancora" or "identificador_cpf" => GroundTruthSource.Cpf,
+            "cns" or "cns_declarado" or "identificador_cns" => GroundTruthSource.Cns,
+            _ => (GroundTruthSource?)null
+        };
+
+        return new GroundTruthLineageSource(canonical, source);
+    }
+
+    private static string Canonicalize(string value)
+    {
+        var buffer = new System.Text.StringBuilder(value.Length);
+        foreach (var ch in value.Trim().ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(ch))
+                buffer.Append(ch);
+            else if (buffer.Length > 0 && buffer[^1] != '_')
+                buffer.Append('_');
+        }
+
+        var result = buffer.ToString().Trim('_');
+        if (result.Length == 0)
+            throw new ArgumentException("O atributo-fonte não produz identificador canônico.", nameof(value));
+        return result;
+    }
+}
+
+/// <summary>
 /// Proveniência explícita de uma feature usada em candidate generation, blocking ou scoring.
-/// A lista SourceAttributes deve conter os atributos-fonte transitivos conhecidos, não apenas
-/// o nome final da feature. Isso permite detectar leakage mesmo quando o derivado não carrega
-/// CPF/CNS no próprio nome.
+/// Sources deve conter as fontes transitivas conhecidas. Isso permite detectar leakage mesmo
+/// quando o nome final da feature não carrega CPF/CNS.
 /// </summary>
 public sealed record GroundTruthFeatureLineage(
     string FeatureName,
-    IReadOnlyCollection<string> SourceAttributes)
+    IReadOnlyCollection<GroundTruthLineageSource> Sources)
 {
-    public static GroundTruthFeatureLineage Direct(string featureName, params string[] sourceAttributes) =>
-        new(featureName, sourceAttributes);
+    public static GroundTruthFeatureLineage Direct(string featureName, params string[] sourceAttributes)
+    {
+        if (string.IsNullOrWhiteSpace(featureName))
+            throw new ArgumentException("O nome da feature é obrigatório.", nameof(featureName));
+        ArgumentNullException.ThrowIfNull(sourceAttributes);
+        if (sourceAttributes.Length == 0)
+            throw new ArgumentException("Ao menos um atributo-fonte é obrigatório.", nameof(sourceAttributes));
+
+        var sources = sourceAttributes
+            .Select(GroundTruthLineageSource.FromAttribute)
+            .Distinct()
+            .ToArray();
+
+        return new GroundTruthFeatureLineage(featureName.Trim(), sources);
+    }
 }
 
 public static class GroundTruthFeatureLineagePolicy
@@ -22,12 +77,10 @@ public static class GroundTruthFeatureLineagePolicy
     {
         ArgumentNullException.ThrowIfNull(features);
 
-        var forbidden = labelSource.ToString();
         var leaking = features
-            .Where(static feature => feature is not null)
-            .Where(feature => feature.SourceAttributes.Any(source =>
-                !string.IsNullOrWhiteSpace(source) &&
-                string.Equals(source.Trim(), forbidden, StringComparison.OrdinalIgnoreCase)))
+            .Select(static feature => feature ?? throw new ArgumentException("Feature de linhagem nula não é permitida.", nameof(features)))
+            .Where(feature => feature.Sources is null || feature.Sources.Count == 0 ||
+                feature.Sources.Any(source => source is null || source.GroundTruthSource == labelSource))
             .Select(feature => feature.FeatureName)
             .Where(static name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -36,7 +89,7 @@ public static class GroundTruthFeatureLineagePolicy
 
         if (leaking.Length > 0)
             throw new InvalidOperationException(
-                $"Label leakage detectado por linhagem para {labelSource}: {string.Join(", ", leaking)}. " +
-                "Nenhuma feature transitivamente derivada da fonte do rótulo pode participar de candidate generation, blocking ou score.");
+                $"Label leakage ou proveniência inválida detectada para {labelSource}: {string.Join(", ", leaking)}. " +
+                "Nenhuma feature transitivamente derivada da fonte do rótulo, nem feature sem proveniência válida, pode participar de candidate generation, blocking ou score.");
     }
 }
