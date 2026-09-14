@@ -13,7 +13,7 @@ on:
       - 'Solution/install/windows-production/Install-JornadaCluster.ps1'
       - 'Solution/install/windows-production/Invoke-JornadaLinkage*.ps1'
       - 'Solution/scripts/local-cluster.*'
-      - 'Solution/scripts/local-db.ps1'
+      - 'Solution/scripts/local-db.*'
       - 'Solution/docs/uml/Jornada_Implantacao.puml'
       - '.github/workflows/cluster-topology.yml'
   pull_request:
@@ -28,7 +28,7 @@ on:
       - 'Solution/install/windows-production/Install-JornadaCluster.ps1'
       - 'Solution/install/windows-production/Invoke-JornadaLinkage*.ps1'
       - 'Solution/scripts/local-cluster.*'
-      - 'Solution/scripts/local-db.ps1'
+      - 'Solution/scripts/local-db.*'
       - 'Solution/docs/uml/Jornada_Implantacao.puml'
       - '.github/workflows/cluster-topology.yml'
   workflow_dispatch:
@@ -84,6 +84,7 @@ jobs:
         run: |
           bash -n install/container-test/entrypoint.sh
           bash -n scripts/local-cluster.sh
+          bash -n scripts/local-db.sh
           cp .env.example .env
           docker compose --env-file .env config --quiet
 
