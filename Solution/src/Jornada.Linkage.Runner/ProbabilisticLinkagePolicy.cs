@@ -45,14 +45,33 @@ internal static class LinkageModelPolicy
             throw new InvalidOperationException($"Modelo incompleto. Parâmetros ausentes: {string.Join(", ", missing)}");
         var model = new LinkageModel(modelId, version, algorithm, parameters,
             parameters[LinkageParameterCatalog.Threshold], parameters[LinkageParameterCatalog.ConflictMargin]);
-        // An enabled V2 must never silently fall back to V1 because its model is incomplete.
+        // Flags habilitadas nunca podem degradar silenciosamente para uma geração anterior.
+        _ = SupportsSingleBirthScoring(model);
         _ = SupportsBirthComponentScoring(model);
         return model;
     }
 
+    internal static bool SupportsSingleBirthScoring(LinkageModel model)
+    {
+        if (!model.Parameters.TryGetValue(LinkageParameterCatalog.BirthSingleEvidenceScoring, out var enabled)
+            || enabled < 1m)
+            return false;
+
+        var missing = LinkageParameterCatalog.BirthSingleEvidenceRequired
+            .Where(x => !model.Parameters.ContainsKey(x)).ToArray();
+        if (missing.Length > 0)
+            throw new InvalidOperationException(
+                $"Modelo V3 incompleto. Parâmetros de nascimento ausentes: {string.Join(", ", missing)}");
+        return true;
+    }
+
     internal static bool SupportsBirthComponentScoring(LinkageModel model)
     {
-        // Novos modelos usam SCORING_ porque isto seleciona o cálculo Fellegi-Sunter,
+        // O V3 ainda pode usar blocking de nascimento ampliado, mas o score conta a data inteira uma vez.
+        if (SupportsSingleBirthScoring(model))
+            return true;
+
+        // Novos modelos V2 usam SCORING_ porque isto seleciona o cálculo Fellegi-Sunter,
         // não a geração de candidatos. O alias BLOCKING_ é aceito somente para leitura
         // de modelos históricos e seeds já publicados.
         var enabled = model.Parameters.TryGetValue(LinkageParameterCatalog.BirthComponentScoring, out var current)
