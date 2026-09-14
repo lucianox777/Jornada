@@ -15,6 +15,8 @@ x-jornada-node-common: &jornada-node-common
     JORNADA_CLUSTER_CONFIG: /etc/jornada/Jornada.Cluster.Test.json
     JORNADA_SQL_CONNECTION_STRING: "Server=sqlserver,1433;Database=${JORNADA_SQL_DATABASE:-JornadaLocal};User Id=sa;Password=${JORNADA_SQL_SA_PASSWORD:-Jornada_Local_2026!ChangeMe};TrustServerCertificate=true;Encrypt=false"
     ConnectionStrings__Jornada: "Server=sqlserver,1433;Database=${JORNADA_SQL_DATABASE:-JornadaLocal};User Id=sa;Password=${JORNADA_SQL_SA_PASSWORD:-Jornada_Local_2026!ChangeMe};TrustServerCertificate=true;Encrypt=false"
+    DOTNET_ENVIRONMENT: Development
+    ASPNETCORE_ENVIRONMENT: Development
 
 services:
   sqlserver:
