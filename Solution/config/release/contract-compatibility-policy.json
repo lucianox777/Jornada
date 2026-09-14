@@ -2,9 +2,21 @@
   "schemaVersion": 1,
   "release": "v4.05",
   "predecessorTag": "jornada-solution-v4.04",
-  "mode": "NO_BREAKING_CHANGE_EXPECTED",
+  "mode": "PRE_DEPLOYMENT_NO_HISTORICAL_BASELINE",
   "deployed": false,
   "allowedBreakingSchemas": [],
-  "justification": "A v4.05 corrige somente engenharia de DDL e orquestracao da validacao local. Nenhuma quebra de OpenAPI ou JSON Schema e esperada em relacao a v4.04.",
-  "postDeploymentRule": "Qualquer alteracao incompatível apos publicacao/implantacao deve criar nova versao de contrato. A excecao PRE_DEPLOYMENT_BASELINE_RESET usada na v4.04 nao e reutilizada nesta release."
+  "justification": "A Jornada ainda não possui integração de dados nem contrato implantado em produção. Versões internas anteriores não constituem baseline histórico de compatibilidade. O CI deve proteger a especificação atual, invariantes arquiteturais, segurança e consistência dos contratos correntes, sem congelar decisões de projeto ainda em evolução.",
+  "postDeploymentRule": "A partir da primeira implantação/homologação que estabeleça consumidores reais ou dados integrados, deve ser criada uma baseline explícita. Desde esse marco, alterações incompatíveis exigem versionamento de contrato e testes de regressão/compatibilidade apropriados.",
+  "preserveBeforeDeployment": [
+    "architectural-invariants",
+    "current-contract-validation",
+    "unit-algorithm-correctness",
+    "integration-correctness",
+    "security-and-data-minimization",
+    "ground-truth-anti-leakage"
+  ],
+  "notRequiredBeforeDeployment": [
+    "historical-output-regression",
+    "predecessor-contract-backward-compatibility"
+  ]
 }
