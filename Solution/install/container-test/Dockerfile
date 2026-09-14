@@ -9,6 +9,8 @@ RUN dotnet restore src/Jornada.Api/Jornada.Api.csproj --locked-mode \
  && dotnet restore src/Jornada.Bronze.Maintenance.Worker/Jornada.Bronze.Maintenance.Worker.csproj --locked-mode \
  && dotnet restore src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj --locked-mode \
  && dotnet restore src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj --locked-mode \
+ && dotnet restore src/Jornada.Bronze.Verify/Jornada.Bronze.Verify.csproj --locked-mode \
+ && dotnet restore src/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.csproj --locked-mode \
  && dotnet restore clients/Jornada.Integrador.CSharp/Jornada.Integrador.CSharp.csproj --locked-mode
 
 RUN dotnet publish src/Jornada.Api/Jornada.Api.csproj -c Release --no-restore -o /out/apps/Jornada.Api \
@@ -18,6 +20,8 @@ RUN dotnet publish src/Jornada.Api/Jornada.Api.csproj -c Release --no-restore -o
  && dotnet publish src/Jornada.Bronze.Maintenance.Worker/Jornada.Bronze.Maintenance.Worker.csproj -c Release --no-restore -o /out/apps/Jornada.Bronze.Maintenance.Worker \
  && dotnet publish src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj -c Release --no-restore -o /out/apps/Jornada.Linkage.Parameters.Worker \
  && dotnet publish src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj -c Release --no-restore -o /out/apps/Jornada.Linkage.Runner \
+ && dotnet publish src/Jornada.Bronze.Verify/Jornada.Bronze.Verify.csproj -c Release --no-restore -o /out/tools/Jornada.Bronze.Verify \
+ && dotnet publish src/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.csproj -c Release --no-restore -o /out/tools/Jornada.Linkage.Evaluation \
  && dotnet publish clients/Jornada.Integrador.CSharp/Jornada.Integrador.CSharp.csproj -c Release --no-restore -o /out/clients/Jornada.Integrador
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
