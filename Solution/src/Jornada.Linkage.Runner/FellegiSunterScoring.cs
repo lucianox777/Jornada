@@ -28,7 +28,8 @@ public static class FellegiSunterScoring
         if (leftBirthDate is { } left && rightBirthDate is { } right)
         {
             // V3 tem precedência: nascimento é uma única evidência probabilística.
-            if (parameters.TryGetValue("SCORING_BIRTH_SINGLE_EVIDENCE_V3", out var singleBirth) && singleBirth >= 1m)
+            if (parameters.TryGetValue(LinkageParameterCatalog.BirthSingleEvidenceScoring, out var singleBirth)
+                && singleBirth >= 1m)
             {
                 logOdds += TryBinaryLikelihoodRatio(parameters, "DATA_NASCIMENTO", left == right);
             }
