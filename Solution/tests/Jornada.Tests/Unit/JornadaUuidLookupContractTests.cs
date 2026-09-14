@@ -5,28 +5,40 @@ namespace Jornada.Tests.Unit;
 public sealed class JornadaUuidLookupContractTests
 {
     [Fact]
-    public void Lookup_Is_ReadOnly_And_Uses_Authoritative_Progressive_State()
+    public void Lookup_Is_ReadOnly_And_Uses_PersonIdentityAuthority()
     {
         var source = File.ReadAllText(SourcePath("JornadaUuidLookup.cs"));
 
-        Assert.Contains("identidade.pessoa_origem_progressiva", source, StringComparison.Ordinal);
-        Assert.Contains("p.canonical_uuid=@uuid", source, StringComparison.Ordinal);
-        Assert.Contains("p.initial_uuid=@uuid", source, StringComparison.Ordinal);
-        Assert.Contains("p.estado='REFERENCIA'", source, StringComparison.Ordinal);
+        Assert.Contains("FROM identidade.pessoa", source, StringComparison.Ordinal);
+        Assert.Contains("pessoa_uuid_sucessor", source, StringComparison.Ordinal);
+        Assert.Contains("status", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("pessoa_origem_progressiva", source, StringComparison.Ordinal);
         Assert.DoesNotContain("INSERT ", source, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("UPDATE ", source, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ResolveOrCreate", source, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Lookup_Refuses_Ambiguous_Or_Unresolved_State()
+    public void Lookup_Follows_Only_Explicit_Merge_Successor()
     {
         var source = File.ReadAllText(SourcePath("JornadaUuidLookup.cs"));
 
-        Assert.Contains("return null", source, StringComparison.Ordinal);
-        Assert.Contains("resolução autoritativa ambígua", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("PROVISORIA", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("INDEFINIDA", source, StringComparison.Ordinal);
+        Assert.Contains("status, \"FUNDIDO\"", source, StringComparison.Ordinal);
+        Assert.Contains("successor.HasValue", source, StringComparison.Ordinal);
+        Assert.Contains("status, \"ATIVO\"", source, StringComparison.Ordinal);
+        Assert.Contains("SEPARADO", source, StringComparison.Ordinal);
+        Assert.Contains("INATIVO", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Lookup_FailsClosed_On_Cycle_And_Excessive_Depth()
+    {
+        var source = File.ReadAllText(SourcePath("JornadaUuidLookup.cs"));
+
+        Assert.Contains("HashSet<Guid>", source, StringComparison.Ordinal);
+        Assert.Contains("Ciclo detectado", source, StringComparison.Ordinal);
+        Assert.Contains("MaxRedirectDepth", source, StringComparison.Ordinal);
+        Assert.Contains("excede o limite operacional", source, StringComparison.Ordinal);
     }
 
     private static string SourcePath(string file)
