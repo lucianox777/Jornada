@@ -1,8 +1,9 @@
 @startuml
-' UML deployment diagram — ambiente tecnológico e implantação
+' UML deployment diagram — topologia operacional canônica
 skinparam shadowing false
+skinparam componentStyle rectangle
 
-title Jornada do Cidadão — Implantação lógica e ambiente tecnológico
+title Jornada do Cidadão — Implantação operacional canônica
 
 node "Estações de engenharia" as Dev {
   artifact "C# / .NET SDK" as DotNet
@@ -16,50 +17,140 @@ cloud "GitHub" as GH {
   node "GitHub Actions / CI" as Actions
 }
 
-node "Ambiente operacional" as Runtime {
-  node "API" as ApiNode {
-    artifact "Jornada.Api" as Api
+cloud "Balanceador / VIP\n(opcional, infraestrutura externa)" as LB
+
+frame "Produção — Windows Server" as Prod {
+  node "NODE1 — VM Jornada\n{vCPU/RAM = homologar com PRODAM}" as Node1 {
+    frame "Processos residentes — background / AtStartup" as Node1Resident {
+      artifact "Jornada.Api" as Api1
+      artifact "Jornada.Resultado.Api" as Resultado1
+      artifact "Jornada.Processor.Worker" as Processor1
+      artifact "Jornada.Operations.Maintenance.Worker" as Ops1
+      artifact "Jornada.Bronze.Maintenance.Worker" as BronzeMaint1
+    }
+    frame "Execução única — instalada, não agendada" as Node1Manual {
+      artifact "Linkage Parameters\nGENERATE_DRAFT / VALIDATE / ACTIVATE" as Parameters1
+      artifact "Linkage Runner" as Runner1
+      artifact "Bronze.Verify" as Verify1
+      artifact "Linkage.Evaluation\nDEV/HML only" as Evaluation1
+    }
+    folder "Staging local\nD:\\Jornada\\staging" as Staging1
+    note "Bibliotecas embutidas:\nPipeline.Coordination\nBronze.Storage\nOperational.Sql" as Libraries1
   }
-  node "Workers" as Workers {
-    artifact "Jornada.Processor.Worker" as Processor
-    artifact "Linkage Calibrador" as Calibrador
-    artifact "Linkage Avaliador / Runner" as Avaliador
+
+  node "NODE2 — VM Jornada\n{vCPU/RAM = homologar com PRODAM}" as Node2 {
+    frame "Processos residentes — background / AtStartup" as Node2Resident {
+      artifact "Jornada.Api" as Api2
+      artifact "Jornada.Resultado.Api" as Resultado2
+      artifact "Jornada.Processor.Worker" as Processor2
+      artifact "Jornada.Operations.Maintenance.Worker" as Ops2
+      artifact "Jornada.Bronze.Maintenance.Worker" as BronzeMaint2
+    }
+    frame "Execução única — instalada, não agendada\n(NODE2 é a convenção operacional)" as Node2Manual {
+      artifact "Linkage Parameters\nGENERATE_DRAFT / VALIDATE / ACTIVATE" as Parameters2
+      artifact "Linkage Runner" as Runner2
+      artifact "Bronze.Verify" as Verify2
+      artifact "Linkage.Evaluation\nDEV/HML only" as Evaluation2
+    }
+    folder "Staging local\nD:\\Jornada\\staging" as Staging2
+    note "Bibliotecas embutidas:\nPipeline.Coordination\nBronze.Storage\nOperational.Sql" as Libraries2
   }
+
+  database "SQL Server 2022\n{capacidade/SAN = homologar}" as Sql
+  folder "NAS — Bronze content-addressed\n\\\\NAS\\Jornada\\Bronze\n{capacidade = homologar}" as Nas
 }
 
-database "SQL Server /\nMicrosoft Fabric SQL Database" as Sql
+frame "Teste local canônico — Docker" as Test {
+  node "jornada-node1" as CNode1
+  node "jornada-node2" as CNode2
+  database "sqlserver" as CSql
+  node "jornada-nas\nSamba / SMB" as CNas
+  folder "jornada_bronze\nvolume compartilhado" as CVol
+}
 
-database "PostgreSQL\n(provider compatível)" as Pg
-
-cloud "Storage de objetos\nBronze content-addressed" as Obj
 cloud "IBGE\nfontes oficiais" as IBGE
 
 Dev --> GH : commit / pull request
 Repo --> Actions : workflow versionado
-Actions --> Runtime : build / testes / validações
-Actions --> Sql : DDL + integração quando aplicável
-Actions --> Pg : DDL + integração quando aplicável
-Api --> Obj : ingestão Bronze
-Processor --> Obj : leitura de pacotes
-Processor --> Sql : Silver / Gold / Serving / identidade
-Processor --> Pg : provider alternativo suportado
-Calibrador --> Sql : parâmetros / rulesets / evidências
-Calibrador --> Pg : parâmetros / rulesets / evidências
-Avaliador --> Sql : leitura versionada / resultados
-Avaliador --> Pg : leitura versionada / resultados
-IBGE --> Calibrador : snapshot oficial versionado
-Sql --> PowerBI : consumo analítico autorizado
+Actions --> Prod : build / testes / validações
+Actions --> Test : smoke de topologia
 
-note right of Actions
-RNF de CI:
-restauração, build, testes aplicáveis,
-DDL, segurança e demais gates do escopo.
+LB --> Api1 : HTTP(S)
+LB --> Api2 : HTTP(S)
+
+Api1 --> Staging1 : upload .zip.part
+Api2 --> Staging2 : upload .zip.part
+Api1 --> Nas : publicação Bronze
+Api2 --> Nas : publicação Bronze
+Processor1 --> Nas : leitura Bronze
+Processor2 --> Nas : leitura Bronze
+BronzeMaint1 --> Nas : manutenção
+BronzeMaint2 --> Nas : manutenção
+Verify1 --> Nas : verificação sob demanda
+Verify2 --> Nas : verificação sob demanda
+
+Api1 --> Sql
+Resultado1 --> Sql
+Processor1 --> Sql
+Ops1 --> Sql
+BronzeMaint1 --> Sql
+Parameters1 --> Sql
+Runner1 --> Sql
+Evaluation1 --> Sql
+
+Api2 --> Sql
+Resultado2 --> Sql
+Processor2 --> Sql
+Ops2 --> Sql
+BronzeMaint2 --> Sql
+Parameters2 --> Sql
+Runner2 --> Sql
+Evaluation2 --> Sql
+
+IBGE --> Parameters1 : snapshot oficial versionado
+IBGE --> Parameters2 : snapshot oficial versionado
+Sql --> PowerBI : Serving autorizado
+
+CNode1 --> CSql
+CNode2 --> CSql
+CNode1 --> CVol : /data/bronze
+CNode2 --> CVol : /data/bronze
+CNas --> CVol : /srv/jornada/bronze
+
+note right of Node2Manual
+Ordem operacional protegida:
+GENERATE_DRAFT -> VALIDATE -> ACTIVATE
+antes do Linkage Runner.
+O wrapper recusa Linkage sem
+exatamente um modelo ATIVO.
 end note
 
-note bottom of IBGE
-Antes de materializar novo snapshot:
-validadores baratos da origem e,
-quando necessário, fingerprint/hash.
+note right of Api1
+O monitor está dentro de Jornada.Api:
+/monitor
+Lê o SQL compartilhado e apresenta
+estado do cluster, inclusive a versão
+do bundle de configuração.
+end note
+
+note bottom of CNas
+O NAS Docker torna o compartilhamento SMB
+observável no smoke local. No perfil padrão,
+os nós ainda acessam a Bronze pelo named volume;
+fidelidade completa SMB exige ensaio dedicado.
+end note
+
+note bottom of Sql
+Banco operacional: SQL Server.
+PostgreSQL não integra esta implantação.
+Microsoft Fabric não substitui o banco operacional;
+quando usado, pertence à camada analítica.
+end note
+
+note bottom of Prod
+NODE1 e NODE2 são simétricos para tolerância a falha.
+Dimensionamento físico é input de infraestrutura/HML,
+não uma constante embutida no software.
 end note
 
 @enduml
