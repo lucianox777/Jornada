@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "VIGENTE",
-  "note": "Matriz exata de ProjectReference permitidos. Jornada.Integrador.CSharp é cliente de borda sem dependência do núcleo; Jornada.Resultado.Api depende do adapter Jornada.Operational.Sql; Jornada.Integrador.Tests depende somente do cliente C#. Jornada.Operational.Sql depende de Jornada.Contracts para o plano de blocking compartilhado; Contracts e Bronze.Storage permanecem sem ProjectReference.",
+  "note": "Matriz exata de ProjectReference permitidos. Jornada.Integrador.CSharp é cliente de borda sem dependência do núcleo; Jornada.Resultado.Api depende do adapter Jornada.Operational.Sql; Jornada.Ensaio é orquestrador operacional e depende apenas de Contracts e Operational.Sql; Jornada.Integrador.Tests depende somente do cliente C#. Jornada.Operational.Sql depende de Jornada.Contracts para o plano de blocking compartilhado; Contracts e Bronze.Storage permanecem sem ProjectReference.",
   "projects": {
     "Jornada.Contracts": [],
     "Jornada.Bronze.Storage": [],
@@ -52,6 +52,10 @@
       "Jornada.Pipeline.Coordination",
       "Jornada.Contracts",
       "Jornada.Ingestion"
+    ],
+    "Jornada.Ensaio": [
+      "Jornada.Contracts",
+      "Jornada.Operational.Sql"
     ],
     "Jornada.Tests": [
       "Jornada.Operational.Sql",
