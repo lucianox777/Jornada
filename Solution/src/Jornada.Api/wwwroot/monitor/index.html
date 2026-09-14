@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Jornada do Cidadão · Monitor Operacional</title>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#18212f;background:#f4f6f8;line-height:1.4}
+    *{box-sizing:border-box} body{margin:0} button,input{font:inherit}
+    header{background:#fff;border-bottom:1px solid #dfe5eb;padding:18px 24px;position:sticky;top:0;z-index:2}
+    .head{max-width:1500px;margin:auto;display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    h1{font-size:20px;margin:0} .sub{font-size:12px;color:#627083;margin-top:3px}
+    main{max-width:1500px;margin:0 auto;padding:20px 24px 50px}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .badge{border-radius:999px;padding:7px 12px;font-weight:700;font-size:12px;letter-spacing:.04em;background:#e8edf2;color:#465568}
+    .NORMAL{background:#dff5e7;color:#146b36}.ATENCAO{background:#fff1cc;color:#7a5300}.FALHA{background:#ffe0df;color:#9b1c18}
+    button{border:1px solid #ccd5df;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}button:hover{background:#f7f9fb}
+    .login{background:#fff;border:1px solid #dfe5eb;border-radius:12px;padding:18px;margin-bottom:18px;display:flex;gap:12px;align-items:end;flex-wrap:wrap}
+    .login label{display:grid;gap:5px;font-size:12px;color:#536174}.login input{border:1px solid #cbd5df;border-radius:8px;padding:9px 10px;min-width:240px}.login .key{min-width:380px;max-width:100%}
+    .error{background:#ffe8e7;color:#8c201d;border:1px solid #ffc9c6;border-radius:9px;padding:10px 12px;margin-bottom:16px;display:none}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}.card{background:#fff;border:1px solid #dfe5eb;border-radius:12px;padding:16px;min-width:0}.span4{grid-column:span 4}.span6{grid-column:span 6}.span8{grid-column:span 8}.span12{grid-column:span 12}
+    .card h2{font-size:14px;margin:0 0 12px}.muted{color:#6a788a;font-size:12px}.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}.metric{background:#f7f9fb;border-radius:9px;padding:11px}.metric b{font-size:24px;display:block}.metric span{font-size:11px;color:#657386}
+    .node{border:1px solid #e3e8ee;border-radius:9px;padding:12px;margin-top:8px}.node-title{display:flex;justify-content:space-between;gap:8px;align-items:center;font-weight:700}.component{display:grid;grid-template-columns:1fr auto auto;gap:10px;padding:7px 0;border-top:1px solid #edf0f3;font-size:12px}.component:first-of-type{margin-top:8px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#9aa6b4;margin-right:6px}.dot.on{background:#2e9b57}.dot.off{background:#cf3f38}
+    .check{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid #edf0f3;font-size:12px}.check:first-of-type{border-top:0}.ok{color:#16733a;font-weight:700}.bad{color:#a42622;font-weight:700}
+    table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;color:#667487;font-weight:600;border-bottom:1px solid #dfe5eb;padding:8px}td{border-bottom:1px solid #edf0f3;padding:8px;vertical-align:top}tr:last-child td{border-bottom:0}.scroll{overflow:auto;max-width:100%}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px}.empty{font-size:12px;color:#728094;padding:8px 0}.status{font-weight:700}.updated{font-size:11px;color:#667487}.hidden{display:none!important}
+    @media(max-width:900px){.span4,.span6,.span8{grid-column:span 12}.login input,.login .key{min-width:min(100%,300px)}main{padding:14px}.component{grid-template-columns:1fr auto}.component .muted{grid-column:1/-1}}
+  </style>
+</head>
+<body>
+<header><div class="head"><div><h1>Jornada do Cidadão · Monitor Operacional</h1><div class="sub">Cluster, processamento e manutenção em uma única visão</div></div><div class="toolbar"><span id="overall" class="badge">SEM DADOS</span><span id="updated" class="updated"></span><button id="refresh">Atualizar</button><button id="forget">Sair</button></div></div></header>
+<main>
+  <section id="login" class="login">
+    <label>Gestor<input id="gestor" autocomplete="organization" placeholder="SEHAB"></label>
+    <label>Chave de acesso<input id="accessKey" class="key" type="password" autocomplete="current-password" placeholder="X-Jornada-Access-Key"></label>
+    <button id="connect">Conectar</button>
+    <span class="muted">A chave fica somente nesta sessão do navegador.</span>
+  </section>
+  <div id="error" class="error"></div>
+  <section id="dashboard" class="grid hidden">
+    <article class="card span8"><h2>Nós e componentes</h2><div id="nodes"></div></article>
+    <article class="card span4"><h2>Dependências</h2><div id="readiness"></div></article>
+    <article class="card span12"><h2>Fila de processamento</h2><div id="queue" class="metric-grid"></div></article>
+    <article class="card span12"><h2>Agora</h2><div id="processing" class="scroll"></div></article>
+    <article class="card span8"><h2>Entregas recentes</h2><div id="deliveries" class="scroll"></div></article>
+    <article class="card span4"><h2>Bronze · manutenção</h2><div id="bronze"></div></article>
+    <article class="card span12"><h2>Linkage · últimas execuções</h2><div id="linkage" class="scroll"></div></article>
+  </section>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const state = { timer: null, lastGenerated: null };
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const dt = value => value ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'medium'}).format(new Date(value)) : '—';
+  const n = value => new Intl.NumberFormat('pt-BR').format(Number(value ?? 0));
+  const shortId = value => value ? String(value).slice(0,8) : '—';
+
+  function credentials(){ return { gestor: sessionStorage.getItem('jornada.monitor.gestor') || '', key: sessionStorage.getItem('jornada.monitor.key') || '' }; }
+  function showError(message){ $('error').textContent = message; $('error').style.display = message ? 'block' : 'none'; }
+  function setOverall(status){ const el=$('overall'); el.textContent=status || 'SEM DADOS'; el.className='badge '+(status || ''); }
+
+  function renderNodes(items){
+    const byNode = new Map();
+    for(const item of items || []) { if(!byNode.has(item.nodeId)) byNode.set(item.nodeId,[]); byNode.get(item.nodeId).push(item); }
+    if(!byNode.size){ $('nodes').innerHTML='<div class="empty">Nenhum heartbeat operacional registrado.</div>'; return; }
+    $('nodes').innerHTML=[...byNode].map(([node,components]) => {
+      const all=components.every(x=>x.online); const machine=components[0]?.machineName || '';
+      return `<div class="node"><div class="node-title"><span><span class="dot ${all?'on':'off'}"></span>${esc(node)}</span><span class="muted">${esc(machine)}</span></div>${components.map(c=>`<div class="component"><span>${esc(c.component)}</span><b class="${c.online?'ok':'bad'}">${c.online?'ONLINE':'OFFLINE'}</b><span class="muted">heartbeat ${n(c.heartbeatAgeSeconds)}s · desde ${esc(dt(c.startedAt))}</span></div>`).join('')}</div>`;
+    }).join('');
+  }
+
+  function renderReadiness(data){
+    const checks=data?.checks || [];
+    if(!checks.length){ $('readiness').innerHTML='<div class="empty">Sem checks de readiness.</div>'; return; }
+    $('readiness').innerHTML=checks.map(c=>`<div class="check"><span>${esc(c.name ?? c.Name ?? 'check')}</span><b class="${(c.ready ?? c.Ready)?'ok':'bad'}">${(c.ready ?? c.Ready)?'OK':'FALHA'}</b></div>`).join('');
+  }
+
+  function renderQueue(items){
+    const order=['PENDENTE','VALIDANDO','PROCESSANDO','PROCESSADO','REJEITADO','QUARENTENA','POISON'];
+    const map=new Map((items||[]).map(x=>[x.status,x.count]));
+    $('queue').innerHTML=order.map(s=>`<div class="metric"><b>${n(map.get(s)||0)}</b><span>${esc(s)}</span></div>`).join('');
+  }
+
+  function renderProcessing(items){
+    if(!items?.length){ $('processing').innerHTML='<div class="empty">Nenhum lote em processamento neste instante.</div>'; return; }
+    $('processing').innerHTML=`<table><thead><tr><th>Nó/owner</th><th>Estado</th><th>Lote</th><th>Itens</th><th>Início</th><th>Heartbeat</th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(x.leaseOwner)}</td><td class="status">${esc(x.status)}</td><td><span class="mono">${esc(shortId(x.lotId))}</span> · ${n(x.lotSequence)}/${n(x.lotTotal)}</td><td>${n(x.people)} pessoas · ${n(x.records)} registros</td><td>${esc(dt(x.leaseAcquiredAt))}</td><td>${esc(dt(x.heartbeatAt))}</td></tr>`).join('')}</tbody></table>`;
+  }
+
+  function renderDeliveries(items){
+    if(!items?.length){ $('deliveries').innerHTML='<div class="empty">Nenhuma entrega registrada.</div>'; return; }
+    $('deliveries').innerHTML=`<table><thead><tr><th>Recebida</th><th>Gestor / origem</th><th>Arquivo</th><th>Status</th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(dt(x.receivedAt))}</td><td>${esc(x.manager)} · ${esc(x.sourceSystem)}</td><td>${esc(x.fileName)}</td><td class="status">${esc(x.status)}</td></tr>`).join('')}</tbody></table>`;
+  }
+
+  function renderBronze(x){
+    if(!x){ $('bronze').innerHTML='<div class="empty">Nenhum ciclo registrado.</div>'; return; }
+    $('bronze').innerHTML=`<div class="metric-grid"><div class="metric"><b>${n(x.objectsExamined)}</b><span>objetos examinados</span></div><div class="metric"><b>${n(x.orphansRemoved)}</b><span>órfãos removidos</span></div><div class="metric"><b>${n(x.temporariesRemoved)}</b><span>temporários removidos</span></div><div class="metric"><b>${n(x.storageFailures)}</b><span>falhas de storage</span></div></div><p class="muted">Último ciclo: ${esc(dt(x.startedAt))} → ${esc(dt(x.finishedAt))} · locks não adquiridos: ${n(x.locksNotAcquired)}</p>`;
+  }
+
+  function renderLinkage(items){
+    if(!items?.length){ $('linkage').innerHTML='<div class="empty">Nenhuma execução de linkage registrada.</div>'; return; }
+    $('linkage').innerHTML=`<table><thead><tr><th>Início</th><th>Tipo</th><th>Status</th><th>Modelo</th><th>Avaliados</th><th>Resolvidos</th><th>Não resolvidos</th><th>Conflitos</th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(dt(x.startedAt))}</td><td>${esc(x.runType)}</td><td class="status">${esc(x.status)}</td><td>v${n(x.modelVersion)}</td><td>${n(x.evaluated)} / ${n(x.eligible)}</td><td>${n(x.resolved)}</td><td>${n(x.notResolved)}</td><td>${n(x.conflicts)}</td></tr>`).join('')}</tbody></table>`;
+  }
+
+  async function load(){
+    const c=credentials();
+    if(!c.gestor || !c.key){ $('login').classList.remove('hidden'); $('dashboard').classList.add('hidden'); return; }
+    try{
+      const response=await fetch('/api/v1/monitor/status',{headers:{'X-Jornada-Gestor':c.gestor,'X-Jornada-Access-Key':c.key},cache:'no-store'});
+      if(response.status===401 || response.status===403){ sessionStorage.removeItem('jornada.monitor.key'); throw new Error('Credencial sem acesso ao monitor.'); }
+      if(!response.ok){ let detail=''; try{detail=(await response.json()).erro||''}catch{} throw new Error(`Monitor indisponível (${response.status})${detail?': '+detail:''}`); }
+      const data=await response.json(); const m=data.monitor;
+      showError(''); setOverall(m.overallStatus); state.lastGenerated=new Date(m.generatedAt);
+      $('login').classList.add('hidden'); $('dashboard').classList.remove('hidden');
+      renderNodes(m.components); renderReadiness(data.readiness); renderQueue(m.queue); renderProcessing(m.processing); renderDeliveries(m.recentDeliveries); renderBronze(m.bronzeMaintenance); renderLinkage(m.linkageRuns);
+      $('updated').textContent='atualizado '+dt(m.generatedAt);
+    }catch(error){ showError(error.message || 'Falha ao atualizar o monitor.'); setOverall('FALHA'); $('login').classList.remove('hidden'); }
+  }
+
+  $('connect').addEventListener('click',()=>{ const gestor=$('gestor').value.trim(); const key=$('accessKey').value; if(!gestor||!key){showError('Informe Gestor e chave de acesso.');return;} sessionStorage.setItem('jornada.monitor.gestor',gestor);sessionStorage.setItem('jornada.monitor.key',key);$('accessKey').value='';load(); });
+  $('refresh').addEventListener('click',load);
+  $('forget').addEventListener('click',()=>{sessionStorage.removeItem('jornada.monitor.gestor');sessionStorage.removeItem('jornada.monitor.key');$('dashboard').classList.add('hidden');$('login').classList.remove('hidden');setOverall('SEM DADOS');showError('');});
+  const c=credentials(); $('gestor').value=c.gestor; if(c.gestor&&c.key) load();
+  state.timer=setInterval(load,5000);
+})();
+</script>
+</body>
+</html>
