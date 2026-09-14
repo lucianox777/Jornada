@@ -10,24 +10,19 @@ public static class FellegiSunterScoring
         NameComparisonState? motherNameState,
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
-        DateOnly? rightBirthDate = null,
-        NameFrequencyStratum nameFrequencyStratum = NameFrequencyStratum.UNKNOWN,
-        NameFrequencyStratum motherNameFrequencyStratum = NameFrequencyStratum.UNKNOWN)
+        DateOnly? rightBirthDate = null)
     {
         var prior = blockCandidateCount is > 0
             ? CalculateBlockPrior(parameters, blockCandidateCount.Value)
             : Get(parameters, LinkageParameterCatalog.PriorMatchProbability);
         var logOdds = Logit((double)prior);
-        logOdds += LogLikelihoodRatio(parameters, "NOME", nameState, nameFrequencyStratum);
+        logOdds += LogLikelihoodRatio(parameters, "NOME", nameState);
 
-        // Ausência de nome da mãe é evidência não observada: LR=1, log(LR)=0.
-        // LOW continua reservado a uma comparação efetivamente observada de baixa similaridade.
         if (motherNameState is { } observedMotherNameState)
-            logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", observedMotherNameState, motherNameFrequencyStratum);
+            logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", observedMotherNameState);
 
         if (leftBirthDate is { } left && rightBirthDate is { } right)
         {
-            // V3 tem precedência: nascimento é uma única evidência probabilística.
             if (parameters.TryGetValue(LinkageParameterCatalog.BirthSingleEvidenceScoring, out var singleBirth)
                 && singleBirth >= 1m)
             {
@@ -35,7 +30,6 @@ public static class FellegiSunterScoring
             }
             else
             {
-                // Replay V2: componentes permanecem suportados apenas para modelos históricos.
                 logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_DIA", left.Day == right.Day);
                 logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_MES", left.Month == right.Month);
                 logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_ANO", left.Year == right.Year);
@@ -54,41 +48,20 @@ public static class FellegiSunterScoring
         return Math.Clamp(1m / candidateCount, min, max);
     }
 
-    private static double LogLikelihoodRatio(
-        IReadOnlyDictionary<string, decimal> parameters,
-        string attribute,
-        NameComparisonState state,
-        NameFrequencyStratum frequencyStratum)
+    private static double LogLikelihoodRatio(IReadOnlyDictionary<string, decimal> parameters, string attribute, NameComparisonState state)
     {
-        var stateSuffix = state.ToString();
-        var stratumSuffix = frequencyStratum.ToString();
-        var m = TryGetStratified(parameters, $"M_{attribute}_{stateSuffix}", stratumSuffix);
-        var u = TryGetStratified(parameters, $"U_{attribute}_{stateSuffix}", stratumSuffix);
-        return Math.Log((double)ClampProbability(m) / (double)ClampProbability(u));
+        var suffix = state.ToString();
+        var m = ClampProbability(Get(parameters, $"M_{attribute}_{suffix}"));
+        var u = ClampProbability(Get(parameters, $"U_{attribute}_{suffix}"));
+        return Math.Log((double)m / (double)u);
     }
 
-    private static decimal TryGetStratified(
-        IReadOnlyDictionary<string, decimal> parameters,
-        string baseName,
-        string stratumSuffix)
-    {
-        if (!string.Equals(stratumSuffix, nameof(NameFrequencyStratum.UNKNOWN), StringComparison.Ordinal) &&
-            parameters.TryGetValue($"{baseName}_{stratumSuffix}", out var stratified))
-            return stratified;
-
-        return Get(parameters, baseName);
-    }
-
-    private static double TryBinaryLikelihoodRatio(
-        IReadOnlyDictionary<string, decimal> parameters,
-        string attribute,
-        bool exact)
+    private static double TryBinaryLikelihoodRatio(IReadOnlyDictionary<string, decimal> parameters, string attribute, bool exact)
     {
         var suffix = exact ? "EXACT" : "DIFF";
         if (!parameters.TryGetValue($"M_{attribute}_{suffix}", out var m) ||
             !parameters.TryGetValue($"U_{attribute}_{suffix}", out var u))
             return 0d;
-
         return Math.Log((double)ClampProbability(m) / (double)ClampProbability(u));
     }
 
@@ -97,21 +70,11 @@ public static class FellegiSunterScoring
             ? value
             : throw new InvalidOperationException($"Parâmetro de linkage ausente: {name}");
 
-    private static decimal ClampProbability(decimal value) =>
-        Math.Clamp(value, 0.000000001m, 0.999999999m);
+    private static decimal ClampProbability(decimal value) => Math.Clamp(value, 0.000000001m, 0.999999999m);
 
     private static double Logit(double probability)
     {
         var p = Math.Clamp(probability, 0.0000001d, 0.9999999d);
         return Math.Log(p / (1d - p));
     }
-}
-
-public enum NameFrequencyStratum
-{
-    UNKNOWN,
-    RARE,
-    UNCOMMON,
-    COMMON,
-    VERY_COMMON
 }
