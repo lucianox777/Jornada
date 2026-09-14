@@ -127,12 +127,13 @@ DECLARE
         'M_NASC_DIA_EXACT','M_NASC_DIA_DIFF','U_NASC_DIA_EXACT','U_NASC_DIA_DIFF',
         'M_NASC_MES_EXACT','M_NASC_MES_DIFF','U_NASC_MES_EXACT','U_NASC_MES_DIFF',
         'M_NASC_ANO_EXACT','M_NASC_ANO_DIFF','U_NASC_ANO_EXACT','U_NASC_ANO_DIFF',
-        'M_DATA_NASCIMENTO_EXACT','U_DATA_NASCIMENTO_EXACT',
+        'M_DATA_NASCIMENTO_EXACT','M_DATA_NASCIMENTO_DIFF',
+        'U_DATA_NASCIMENTO_EXACT','U_DATA_NASCIMENTO_DIFF',
         'PRIOR_MATCH_PROBABILITY','PRIOR_BLOCK_MIN','PRIOR_BLOCK_MAX',
         'T_LINKAGE','CONFLICT_MARGIN','SMOOTHING_ALPHA','M_SAMPLE_SIZE','U_SAMPLE_SIZE',
         'POPULATION_SIZE','POPULATION_WITH_CPF','DISTINCT_BIRTH_DATE',
         'TRAINING_SAMPLE_POOL_SIZE','MIN_M_INDEPENDENT_PAIRS',
-        'SCORING_BIRTH_COMPONENTS_V2'];
+        'SCORING_BIRTH_SINGLE_EVIDENCE_V3'];
     v_prefix TEXT;
     v_sum NUMERIC;
     v_count BIGINT;
@@ -187,6 +188,13 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'Modelo probabilístico incompleto: parâmetros obrigatórios ausentes.';
     END IF;
+    IF EXISTS (
+        SELECT 1 FROM identidade.parametro_linkage
+         WHERE modelo_id=v_modelo.modelo_id
+           AND nome='SCORING_BIRTH_COMPONENTS_V2' AND valor>=1
+    ) THEN
+        RAISE EXCEPTION 'Modelo novo não pode reativar scoring de nascimento por componentes V2.';
+    END IF;
     SELECT encode(sha256(convert_to(
         string_agg(nome || '=' || valor::text, E'\n' ORDER BY nome COLLATE "C") || E'\n', 'UTF8')), 'hex')
       INTO v_hash FROM identidade.parametro_linkage WHERE modelo_id=v_modelo.modelo_id;
@@ -214,7 +222,7 @@ BEGIN
           ('U_SAMPLE_SIZE',v_modelo.amostra_u_tamanho::NUMERIC),
           ('POPULATION_SIZE',v_modelo.pessoas_unicas::NUMERIC),
           ('MIN_M_INDEPENDENT_PAIRS',v_evidencia.amostra_minima_m::NUMERIC),
-          ('SCORING_BIRTH_COMPONENTS_V2',1::NUMERIC)
+          ('SCORING_BIRTH_SINGLE_EVIDENCE_V3',1::NUMERIC)
         ) AS expected(nome,valor)
         JOIN identidade.parametro_linkage p ON p.modelo_id=v_modelo.modelo_id AND p.nome=expected.nome
         WHERE p.valor <> expected.valor
@@ -230,7 +238,9 @@ BEGIN
             RAISE EXCEPTION 'Distribuição de nomes incompleta ou não normalizada: %.',v_prefix;
         END IF;
     END LOOP;
-    FOR v_prefix IN SELECT unnest(ARRAY['M_NASC_DIA','U_NASC_DIA','M_NASC_MES','U_NASC_MES','M_NASC_ANO','U_NASC_ANO']) LOOP
+    FOR v_prefix IN SELECT unnest(ARRAY[
+        'M_NASC_DIA','U_NASC_DIA','M_NASC_MES','U_NASC_MES','M_NASC_ANO','U_NASC_ANO',
+        'M_DATA_NASCIMENTO','U_DATA_NASCIMENTO']) LOOP
         SELECT count(*),COALESCE(sum(valor),0) INTO v_count,v_sum
           FROM identidade.parametro_linkage WHERE modelo_id=v_modelo.modelo_id
            AND nome=ANY(ARRAY[v_prefix||'_EXACT',v_prefix||'_DIFF']);
