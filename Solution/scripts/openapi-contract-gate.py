@@ -13,7 +13,10 @@ SUPPORTED_MAP_CALLS = {"mapget", "mappost", "mapput", "mapdelete", "mappatch"}
 CONSTRAINT_RE = re.compile(r'\{([^}:]+):[^}]+\}')
 HTTP_METHODS = {"get", "post", "put", "delete", "patch", "options", "head", "trace"}
 # Explicit registration is required. A new Map* extension cannot silently bypass the gate.
-REGISTERED_MODULES = {"mapprogressiveoriginapi": "ProgressiveOriginApi.cs"}
+REGISTERED_MODULES = {
+    "mapprogressiveoriginapi": "ProgressiveOriginApi.cs",
+    "mapoperationalmonitorapi": "OperationalMonitorApi.cs",
+}
 
 
 def normalize_path(path: str) -> str:
@@ -27,18 +30,41 @@ def module_operations(program: Path, name: str) -> tuple[set[tuple[str, str]], l
         return set(), [f"módulo registrado ausente: {filename}"]
     text = path.read_text(encoding="utf-8-sig")
     errors: list[str] = []
-    # O módulo possui exatamente uma rota POST e declara o caminho como constante.
+    calls = [call.lower() for call in APP_MAP_RE.findall(text)]
+
     if name == "mapprogressiveoriginapi":
         route = re.search(r'public\s+const\s+string\s+Route\s*=\s*"([^"]+)"', text)
         definition = re.search(r'public\s+static\s+IEndpointRouteBuilder\s+MapProgressiveOriginApi\s*\(\s*this\s+IEndpointRouteBuilder\s+app\s*\)', text)
-        calls = APP_MAP_RE.findall(text)
-        if not definition or not route or len(calls) != 1 or calls[0].lower() != "mappost" or not re.search(r'app\s*\.\s*MapPost\s*\(\s*Route\s*,', text):
+        expected_calls = ["mappost", "mapoperationalmonitorapi"]
+        if not definition or not route or calls != expected_calls or not re.search(r'app\s*\.\s*MapPost\s*\(\s*Route\s*,', text):
             errors.append("módulo progressivo contém mapeamento ausente, ambíguo ou não inventariado")
             return set(), errors
         if not route.group(1).startswith("/api/v1/"):
             errors.append("rota progressiva fora do namespace V1")
             return set(), errors
-        return {("post", normalize_path(route.group(1)))}, errors
+        operations = {("post", normalize_path(route.group(1)))}
+        nested, nested_errors = module_operations(program, "mapoperationalmonitorapi")
+        operations.update(nested)
+        errors.extend(nested_errors)
+        return operations, errors
+
+    if name == "mapoperationalmonitorapi":
+        page_route = re.search(r'public\s+const\s+string\s+PageRoute\s*=\s*"([^"]+)"', text)
+        status_route = re.search(r'public\s+const\s+string\s+StatusRoute\s*=\s*"([^"]+)"', text)
+        definition = re.search(r'public\s+static\s+IEndpointRouteBuilder\s+MapOperationalMonitorApi\s*\(\s*this\s+IEndpointRouteBuilder\s+app\s*\)', text)
+        if (not definition or not page_route or not status_route or calls != ["mapget", "mapget"]
+                or not re.search(r'app\s*\.\s*MapGet\s*\(\s*PageRoute\s*,', text)
+                or not re.search(r'app\s*\.\s*MapGet\s*\(\s*StatusRoute\s*,', text)):
+            errors.append("módulo de monitor contém mapeamento ausente, ambíguo ou não inventariado")
+            return set(), errors
+        if not status_route.group(1).startswith("/api/v1/") or not page_route.group(1).startswith("/"):
+            errors.append("rotas do monitor fora dos namespaces esperados")
+            return set(), errors
+        return {
+            ("get", normalize_path(page_route.group(1))),
+            ("get", normalize_path(status_route.group(1))),
+        }, errors
+
     return set(), [f"módulo sem verificador: {filename}"]
 
 
