@@ -90,6 +90,8 @@ public sealed class OpenApiRuntimeConformanceTests : IDisposable
         new(HttpMethod.Get, "/health", "/health", "get", null),
         new(HttpMethod.Get, "/health/live", "/health/live", "get", null),
         new(HttpMethod.Get, "/health/ready", "/health/ready", "get", null),
+        new(HttpMethod.Get, "/monitor", "/monitor", "get", null),
+        new(HttpMethod.Get, "/api/v1/monitor/status", "/api/v1/monitor/status", "get", null),
         new(HttpMethod.Post, "/api/v1/identidade/resolver", "/api/v1/identidade/resolver", "post", Json("{\"cpf\":\"52998224725\"}")),
         new(HttpMethod.Post, "/api/v1/ingestao/entregas", "/api/v1/ingestao/entregas", "post", ZipProbe()),
         new(HttpMethod.Get, "/api/v1/ingestao/entregas/11111111-1111-1111-1111-111111111111", "/api/v1/ingestao/entregas/{entregaId}", "get", null),
@@ -132,14 +134,20 @@ public sealed class OpenApiRuntimeConformanceTests : IDisposable
 
         var mediaType = response.Content.Headers.ContentType?.MediaType;
         Assert.That(mediaType, Is.Not.Null.And.Not.Empty, "Resposta com corpo deve declarar Content-Type em runtime.");
-        Assert.That(IsJsonMediaType(mediaType!), Is.True, $"Corpo textual da API deve ser JSON; recebido {mediaType}.");
-        Assert.DoesNotThrow(() => JsonDocument.Parse(bytes).Dispose(), "Corpo application/json deve ser JSON bem-formado.");
 
         if (responseContract.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Object)
         {
             Assert.That(content.EnumerateObject().Any(p => MediaTypeMatches(p.Name, mediaType!)), Is.True,
                 $"Content-Type runtime {mediaType} não está declarado para response {status}.");
         }
+        else
+        {
+            Assert.That(IsJsonMediaType(mediaType!), Is.True,
+                $"Corpo não-JSON precisa ser declarado explicitamente no contrato; recebido {mediaType}.");
+        }
+
+        if (IsJsonMediaType(mediaType!))
+            Assert.DoesNotThrow(() => JsonDocument.Parse(bytes).Dispose(), "Corpo application/json deve ser JSON bem-formado.");
     }
 
     [Test]
