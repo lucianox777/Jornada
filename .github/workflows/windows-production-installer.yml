@@ -106,6 +106,21 @@ jobs:
             -PayloadRoot "$PWD\.local\windows-production-bundle" `
             -ValidateOnly
 
+      - name: Validate canonical cluster profiles and installer
+        shell: pwsh
+        run: |
+          .\install\windows-production\Install-JornadaCluster.ps1 `
+            -ConfigPath .\install\windows-production\Jornada.Cluster.Test.json `
+            -PayloadRoot "$PWD\.local\windows-production-bundle" `
+            -NodeId NODE1 `
+            -ValidateOnly
+
+          .\install\windows-production\Install-JornadaCluster.ps1 `
+            -ConfigPath .\install\windows-production\Jornada.Cluster.Production.example.json `
+            -PayloadRoot "$PWD\.local\windows-production-bundle" `
+            -NodeId NODE1 `
+            -ValidateOnly
+
       - name: Reject placeholder Integrator access key
         shell: pwsh
         run: |
