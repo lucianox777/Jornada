@@ -58,15 +58,19 @@ $databaseDestination = Join-Path $output 'database'
 New-Item -ItemType Directory -Force -Path $databaseDestination | Out-Null
 $baselineSource = Join-Path $solutionRoot 'database\Jornada_Fase1.sql'
 $anchorSource = Join-Path $solutionRoot 'database\migrations\20260907_Cpf_Ancora.sql'
+$monitorSource = Join-Path $solutionRoot 'database\migrations\20260914_Operational_Monitor.sql'
 $bundleDdl = Join-Path $databaseDestination 'Jornada_Fase1.sql'
 Copy-Item -Force -Path $baselineSource -Destination $bundleDdl
 # O instalador legado aplica um único arquivo. Como a solução ainda não foi publicada,
-# o payload de Produção V1 compõe baseline + âncora CPF obrigatória no mesmo DDL instalável.
+# o payload de Produção V1 compõe baseline + migrações V1 obrigatórias no mesmo DDL instalável.
 Add-Content -Encoding UTF8 -Path $bundleDdl -Value "`r`n-- Jornada V1: âncora CPF permanente obrigatória.`r`n"
 Get-Content -Raw -Encoding UTF8 $anchorSource | Add-Content -Encoding UTF8 -Path $bundleDdl
+Add-Content -Encoding UTF8 -Path $bundleDdl -Value "`r`n-- Jornada V1: monitor operacional do cluster.`r`n"
+Get-Content -Raw -Encoding UTF8 $monitorSource | Add-Content -Encoding UTF8 -Path $bundleDdl
 $migrationDestination = Join-Path $databaseDestination 'migrations'
 New-Item -ItemType Directory -Force -Path $migrationDestination | Out-Null
 Copy-Item -Force -Path $anchorSource -Destination $migrationDestination
+Copy-Item -Force -Path $monitorSource -Destination $migrationDestination
 
 $installDestination = Join-Path $output 'install\windows-production'
 New-Item -ItemType Directory -Force -Path $installDestination | Out-Null
