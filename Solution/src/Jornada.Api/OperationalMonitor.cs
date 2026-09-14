@@ -25,9 +25,9 @@ internal sealed record ActiveProcessingStatus(
     int People,
     int Records,
     string Status,
-    string LeaseOwner,
-    DateTimeOffset LeaseAcquiredAt,
-    DateTimeOffset HeartbeatAt);
+    string? LeaseOwner,
+    DateTimeOffset? LeaseAcquiredAt,
+    DateTimeOffset? HeartbeatAt);
 
 internal sealed record RecentDeliveryStatus(
     Guid DeliveryId,
@@ -72,8 +72,6 @@ internal sealed record OperationalMonitorSnapshot(
 
 internal sealed class OperationalMonitorService(IOperationalSqlAdapter connections)
 {
-    private const int OnlineWindowSeconds = 35;
-
     public async Task<OperationalMonitorSnapshot> GetAsync(CancellationToken ct)
     {
         await using var connection = await connections.OpenAsync(ct);
@@ -148,7 +146,7 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
         {
             processing.Add(new ActiveProcessingStatus(
                 reader.GetGuid(0), reader.GetGuid(1), reader.GetInt32(2), reader.GetInt32(3), reader.GetInt32(4), reader.GetInt32(5),
-                reader.GetString(6), reader.GetString(7), ReadDateTimeOffset(reader, 8), ReadDateTimeOffset(reader, 9)));
+                reader.GetString(6), reader.IsDBNull(7) ? null : reader.GetString(7), ReadNullableDateTimeOffset(reader, 8), ReadNullableDateTimeOffset(reader, 9)));
         }
 
         await reader.NextResultAsync(ct);
