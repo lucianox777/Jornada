@@ -24,6 +24,7 @@ var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 var databaseProvider = builder.Configuration["Database:Provider"] ?? OperationalDatabaseProviders.SqlServer;
 var operationalDatabase = OperationalDatabaseAdapterFactory.Create(databaseProvider, jornadaConnectionString);
+OperationalRuntimeHeartbeat? runtimeHeartbeat = null;
 
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<IOperationalDatabaseAdapter>(operationalDatabase);
@@ -60,6 +61,11 @@ if (string.Equals(operationalDatabase.Provider, OperationalDatabaseProviders.Sql
     var operationalSql = operationalDatabase as IOperationalSqlAdapter
         ?? throw new InvalidOperationException("Provider SqlServer não expôs IOperationalSqlAdapter.");
     builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
+    runtimeHeartbeat = new OperationalRuntimeHeartbeat(
+        operationalSql,
+        builder.Configuration["JORNADA_NODE_ID"] ?? Environment.MachineName,
+        "Processor",
+        TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("Monitoring:HeartbeatSeconds", 10))));
 
     var pipelineCoordinator = new SqlPipelineCoordinator(
         operationalSql, coordinationHeartbeat, exclusiveIntentTimeout);
@@ -95,7 +101,10 @@ builder.Services.AddSingleton(_ => new IngestionPackageParser(repositoryRoot, op
 builder.Services.AddSingleton<IngestionProcessor>();
 builder.Services.AddHostedService<ProcessorWorker>();
 
-await builder.Build().RunAsync();
+var host = builder.Build();
+if (runtimeHeartbeat is not null)
+    _ = runtimeHeartbeat.RunAsync(host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping);
+await host.RunAsync();
 
 static string FindRepositoryRoot(string contentRoot)
 {
