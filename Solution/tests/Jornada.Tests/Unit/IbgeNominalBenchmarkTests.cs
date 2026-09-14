@@ -99,6 +99,39 @@ public sealed class IbgeNominalBenchmarkTests
         });
     }
 
+    [Test]
+    public void FactorialCandidates_RejectPartialEstimatorMasqueradingAsCompleteModel()
+    {
+        var m = new[]
+        {
+            new ParameterEstimate(ParameterEstimatorKind.Jornada, "J1", new Dictionary<string, decimal>
+            {
+                ["M_NOME_EXACT"] = 0.9m,
+                ["M_NASC_ANO_EXACT"] = 0.8m
+            }),
+            new ParameterEstimate(ParameterEstimatorKind.Splink, "S1", new Dictionary<string, decimal>
+            {
+                ["M_NOME_EXACT"] = 0.85m
+            })
+        };
+        var u = new[]
+        {
+            new ParameterEstimate(ParameterEstimatorKind.Jornada, "J1", new Dictionary<string, decimal>
+            {
+                ["U_NOME_EXACT"] = 0.01m,
+                ["U_NASC_ANO_EXACT"] = 0.02m
+            }),
+            new ParameterEstimate(ParameterEstimatorKind.Splink, "S1", new Dictionary<string, decimal>
+            {
+                ["U_NOME_EXACT"] = 0.03m
+            })
+        };
+
+        Assert.That(
+            () => FactorialCalibrationCandidateFactory.Create(m, u),
+            Throws.ArgumentException.With.Message.Contains("mesmo conjunto semântico"));
+    }
+
     private static IbgeTypedNameFrequencySnapshot Snapshot() =>
         IbgeTypedNameFrequencyCatalog.Create(
             "TEST-IBGE-1",
