@@ -16,7 +16,7 @@ Os dados são obtidos pela API protegida:
 GET /api/v1/monitor/status
 ```
 
-A página atualiza o snapshot a cada 5 segundos. A chave informada pelo operador é mantida apenas em `sessionStorage` e não é incorporada ao HTML nem persistida pelo monitor.
+A página atualiza o snapshot a cada 5 segundos. Em HML/Produção, a chave informada pelo operador é mantida apenas em `sessionStorage` e não é persistida pelo monitor. No perfil local `Test`, executado como `Development`, a página recebe automaticamente a credencial sintética declarada no próprio `Jornada.Cluster.Test.json`; essa credencial é colocada apenas na sessão do navegador e o snapshot continua passando pela mesma autenticação/autorização de `GET /api/v1/monitor/status`. Nenhum bypass de autorização é criado.
 
 ## O que é mostrado
 
@@ -114,6 +114,8 @@ scope: jornada.monitor.read
 ```
 
 Credenciais `BENEFICIO` e `SERVICO` não podem receber esse scope. O perfil Development concede o scope às credenciais GESTOR sintéticas de `config/security/test-access-keys.json`.
+
+No cluster local, o `entrypoint.sh` exporta `OperationalMonitor__LocalAutoGestor` e `OperationalMonitor__LocalAutoAccessKey` somente quando `environment=Test`. A página `/monitor` injeta essa sessão automaticamente apenas quando o runtime ASP.NET está em `Development`. Fora de `Development`, esses valores não são usados e a tela continua exigindo autenticação explícita do operador.
 
 ## Limite de responsabilidade
 

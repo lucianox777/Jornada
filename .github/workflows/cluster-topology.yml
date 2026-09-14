@@ -104,6 +104,17 @@ jobs:
         shell: bash
         run: bash scripts/local-cluster.sh up
 
+      - name: Prove local monitor opens authenticated dashboard without manual key
+        shell: bash
+        run: |
+          monitor_html="$(curl --fail --silent --show-error http://127.0.0.1:5080/monitor)"
+          grep -F 'const gestor = "SEHAB";' <<<"$monitor_html" >/dev/null
+          grep -F "sessionStorage.setItem('jornada.monitor.key', accessKey);" <<<"$monitor_html" >/dev/null
+          gestor="$(jq -er '.integrator.gestor' install/windows-production/Jornada.Cluster.Test.json)"
+          access_key="$(jq -er '.integrator.accessKey' install/windows-production/Jornada.Cluster.Test.json)"
+          curl --fail --silent --show-error http://127.0.0.1:5080/api/v1/monitor/status -H "X-Jornada-Gestor: $gestor" -H "X-Jornada-Access-Key: $access_key" | jq -e '.monitor and .readiness' >/dev/null
+          echo 'LOCAL MONITOR AUTO-CONNECT: OK'
+
       - name: Prove one-shot binaries are installed but not resident
         shell: bash
         run: |
