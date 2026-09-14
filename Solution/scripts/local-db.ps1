@@ -59,6 +59,18 @@ function Invoke-SqlCmd {
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd falhou ($LASTEXITCODE)." }
     } finally { Pop-Location }
 }
+function Invoke-SqlScalar {
+    param([Parameter(Mandatory=$true)][string]$Query)
+    Push-Location $Root
+    try {
+        $raw = @(& docker compose --env-file $EnvFile exec -T -w /workspace -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -W -h -1 -Q "SET NOCOUNT ON; $Query")
+        if ($LASTEXITCODE -ne 0) { throw "sqlcmd scalar falhou ($LASTEXITCODE)." }
+        $value = @($raw | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ } | Select-Object -Last 1)
+        if ($value.Count -eq 0) { throw 'Consulta scalar não retornou valor.' }
+        return [string]$value[0]
+    }
+    finally { Pop-Location }
+}
 function Wait-Healthy {
     Push-Location $Root
     try {
@@ -90,6 +102,18 @@ function Wait-Healthy {
     }
     finally { Pop-Location }
 }
+function Ensure-SyntheticScale {
+    $count = Invoke-SqlScalar -Query "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';"
+    if ($count -eq '0') {
+        Write-Host 'Carregando corpus sintético local para calibração/linkage...'
+        Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-v', 'SCALE_PEOPLE=5000', 'SCALE_PAIRED=1500', 'SCALE_PENDING=1000', 'SCALE_SEED=355', 'SCALE_COLLISION_MODULO=37', 'SCALE_BIRTH_SHIFT_MODULO=29', '-i', 'database/Jornada_Dev_SyntheticScale.sql')
+        $count = Invoke-SqlScalar -Query "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';"
+    }
+    if ($count -ne '4000') {
+        throw "Massa sintética local inconsistente: esperadas 4000 pessoas de origem SCALE; encontradas=$count. Execute .\scripts\local-db.ps1 reset."
+    }
+    Write-Host 'Corpus sintético local pronto: 5000 pessoas Gold, 1500 pares corroborados e 1000 pendentes.'
+}
 function Bootstrap {
     Invoke-SqlCmd -SqlCmdArgs @('-Q', "IF DB_ID(N'$db') IS NULL CREATE DATABASE [$db];")
     # Ponto único de instalação nova do SQL Server normativo. O consolidado v3.70
@@ -99,6 +123,9 @@ function Bootstrap {
     # Reaplicação idempotente necessária em DEV para reservar CPFs históricos do seed.
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260907_Cpf_Ancora.sql')
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260910_Schema_Consolidation_370.sql')
+    # O perfil local Test deve conseguir exercitar o calibrador real sem afrouxar
+    # o mínimo estatístico. Reutiliza exatamente a massa sintética do harness CI.
+    Ensure-SyntheticScale
 }
 
 switch ($Action) {
