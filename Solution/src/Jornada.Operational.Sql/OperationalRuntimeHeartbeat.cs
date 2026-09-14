@@ -22,6 +22,8 @@ public sealed class OperationalRuntimeHeartbeat(
     private readonly string machineName = Normalize(Environment.MachineName, 128, nameof(Environment.MachineName));
     private readonly int processId = Environment.ProcessId;
     private readonly string? version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString();
+    private readonly string? configurationBundleVersion = OptionalEnvironment("JORNADA_CONFIGURATION_BUNDLE_VERSION", 80);
+    private readonly string? solutionSchemaExpected = OptionalEnvironment("JORNADA_SOLUTION_SCHEMA_VERSION", 32);
 
     public async Task RunAsync(CancellationToken stoppingToken)
     {
@@ -59,11 +61,15 @@ public sealed class OperationalRuntimeHeartbeat(
                     iniciado_em=CASE WHEN alvo.instance_id=@instance_id THEN alvo.iniciado_em ELSE @agora END,
                     heartbeat_em=@agora,
                     encerrado_em=NULL,
-                    versao=@versao
+                    versao=@versao,
+                    configuration_bundle_version=@configuration_bundle_version,
+                    solution_schema_expected=@solution_schema_expected
                 WHEN NOT MATCHED THEN INSERT(
-                    node_id,componente,machine_name,instance_id,process_id,status,iniciado_em,heartbeat_em,encerrado_em,versao)
+                    node_id,componente,machine_name,instance_id,process_id,status,iniciado_em,heartbeat_em,encerrado_em,versao,
+                    configuration_bundle_version,solution_schema_expected)
                 VALUES(
-                    @node_id,@componente,@machine_name,@instance_id,@process_id,N'RUNNING',@agora,@agora,NULL,@versao);
+                    @node_id,@componente,@machine_name,@instance_id,@process_id,N'RUNNING',@agora,@agora,NULL,@versao,
+                    @configuration_bundle_version,@solution_schema_expected);
                 """, connection)
             {
                 CommandTimeout = 5
@@ -74,6 +80,8 @@ public sealed class OperationalRuntimeHeartbeat(
             command.Parameters.Add(new SqlParameter("@instance_id", System.Data.SqlDbType.UniqueIdentifier) { Value = instanceId });
             command.Parameters.Add(new SqlParameter("@process_id", System.Data.SqlDbType.Int) { Value = processId });
             Add(command, "@versao", (object?)version ?? DBNull.Value, 80);
+            Add(command, "@configuration_bundle_version", (object?)configurationBundleVersion ?? DBNull.Value, 80);
+            Add(command, "@solution_schema_expected", (object?)solutionSchemaExpected ?? DBNull.Value, 32);
             await command.ExecuteNonQueryAsync(ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -130,5 +138,12 @@ public sealed class OperationalRuntimeHeartbeat(
         if (string.IsNullOrWhiteSpace(normalized))
             throw new ArgumentException("Valor obrigatório.", parameterName);
         return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
+    }
+
+    private static string? OptionalEnvironment(string name, int maxLength)
+    {
+        var value = Environment.GetEnvironmentVariable(name)?.Trim();
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return value.Length <= maxLength ? value : value[..maxLength];
     }
 }
