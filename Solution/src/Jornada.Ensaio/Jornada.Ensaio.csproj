@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Jornada.Ensaio</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
+    <ProjectReference Include="..\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj" />
+  </ItemGroup>
+</Project>
