@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet('up','reset','down','clean','status','logs','calibrate','linkage')]
     [string]$Action = 'up',
     [switch]$NoBuild
