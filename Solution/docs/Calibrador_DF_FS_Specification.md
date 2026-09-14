@@ -20,6 +20,14 @@ O benchmark deve ter ground truth conhecido e replay determinístico. A parte no
 
 O split `TRAIN/VALIDATION/TEST` é realizado por indivíduo-base antes da geração de pares, evitando que observações derivadas da mesma pessoa contaminem conjuntos diferentes. Seeds, gerador e snapshots são versionados.
 
+A implementação inicial `IBGE_NOMINAL_BENCHMARK_V1` recebe indivíduos-base com atributos semanticamente estruturados. Prenome e sobrenome só entram no benchmark quando existem no snapshot tipado do IBGE e atendem ao suporte mínimo configurado. O corte de suporte é parâmetro versionado do benchmark; não redefine o universo nominal nem transforma ausência em frequência zero.
+
+Para `MATCH`, uma segunda observação do mesmo indivíduo pode substituir prenome ou sobrenome por outro valor efetivamente observado no mesmo universo estatístico do IBGE. A escolha usa vizinhança nominal por `JARO_WINKLER@V1`, preservando valor de origem, valor de destino, frequências observadas e similaridade. Isso é um ensaio controlado de confundibilidade nominal, não uma afirmação sobre frequência real de erro cadastral.
+
+Para `NON_MATCH`, são usados indivíduos-base distintos da mesma partição. A implementação pode selecionar pares nominalmente próximos para criar um benchmark de estresse; essa estratégia não deve ser interpretada como distribuição representativa de produção.
+
+Não existem classes subjetivas de erro como “leve”, “moderado” ou “grave”. A dificuldade emerge das propriedades observadas dos pares e do comportamento dos candidatos.
+
 O benchmark mede separadamente blocking e scoring. Perder um par verdadeiro no blocking não pode ser atribuído ao scorer.
 
 ## 4. DF — primeiro estágio nominal
@@ -58,6 +66,21 @@ O candidato FS deve registrar o conjunto completo de parâmetros relevantes:
 
 Estimadores Jornada e Splink podem produzir candidatos. A comparação é feita pela configuração completa, não por um parâmetro isolado.
 
+### 5.1. Experimento fatorial m/u
+
+Quando houver estimativas independentes de `m` e `u` produzidas pela Jornada e pelo Splink, o Calibrador deve materializar todas as combinações válidas disponíveis, inicialmente:
+
+```text
+M_JORNADA + U_JORNADA
+M_JORNADA + U_SPLINK
+M_SPLINK  + U_JORNADA
+M_SPLINK  + U_SPLINK
+```
+
+O objetivo não é declarar “qual algoritmo é melhor”, mas identificar qual configuração completa produz melhor comportamento no corpus independente. É permitido, portanto, que uma combinação híbrida supere as duas combinações puras.
+
+Os parâmetros comuns, como prior e política de thresholds, permanecem explicitamente versionados e não são silenciosamente herdados de um dos estimadores.
+
 ## 6. Thresholds e seleção
 
 Thresholds são produtos da calibração, não constantes escolhidas por intuição.
@@ -79,6 +102,9 @@ A paridade exigida é semântica/numericamente tolerante, não bit a bit: mesmos
 ## 8. Invariantes
 
 - nenhuma frequência ou nome ausente do IBGE é inventado;
+- um indivíduo-base pertence a uma única partição do benchmark;
+- substituições nominais permanecem no universo observado da mesma classe estatística;
+- o benchmark controlado não declara frequência real de erro administrativo;
 - DF não força NON_MATCH na versão inicial;
 - DF não é somado ao FS após fallback;
 - fuzzy TF usa conservadoramente a maior frequência dos lados;
@@ -99,11 +125,14 @@ train_population_version
 validation_population_version
 test_population_version
 seed
+minimum_nominal_support
 ibge_frequency_version
 similarity_algorithm_version
 term_frequency_algorithm_version
 m_estimator
 u_estimator
+m_estimator_version
+u_estimator_version
 prior_source
 m_u_prior_version
 df_thresholds
