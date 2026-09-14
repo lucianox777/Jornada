@@ -1,0 +1,111 @@
+name: jornada-cluster-topology
+
+on:
+  push:
+    paths:
+      - 'Solution/docker-compose.yml'
+      - 'Solution/install/container-test/**'
+      - 'Solution/install/windows-production/Jornada.Cluster.*.json'
+      - 'Solution/install/windows-production/Install-JornadaCluster.ps1'
+      - 'Solution/scripts/local-cluster.*'
+      - '.github/workflows/cluster-topology.yml'
+  pull_request:
+    paths:
+      - 'Solution/docker-compose.yml'
+      - 'Solution/install/container-test/**'
+      - 'Solution/install/windows-production/Jornada.Cluster.*.json'
+      - 'Solution/install/windows-production/Install-JornadaCluster.ps1'
+      - 'Solution/scripts/local-cluster.*'
+      - '.github/workflows/cluster-topology.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cluster-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Validate cluster config schema parity
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+
+          test_path = Path("install/windows-production/Jornada.Cluster.Test.json")
+          prod_path = Path("install/windows-production/Jornada.Cluster.Production.example.json")
+          test = json.loads(test_path.read_text(encoding="utf-8"))
+          prod = json.loads(prod_path.read_text(encoding="utf-8"))
+
+          def shape(value):
+              if isinstance(value, dict):
+                  return {key: shape(item) for key, item in value.items()}
+              if isinstance(value, list):
+                  return [shape(value[0])] if value else []
+              return type(value).__name__
+
+          if shape(test) != shape(prod):
+              raise SystemExit("Configurações Test e Production não possuem o mesmo schema estrutural.")
+          if test["environment"] != "Test" or prod["environment"] != "Production":
+              raise SystemExit("environment incorreto nos perfis canônicos.")
+          if len(test["nodes"]) != 2 or len(prod["nodes"]) != 2:
+              raise SystemExit("Topologia canônica deve conter NODE1 e NODE2.")
+          if test["storage"]["bronzeRoot"] != "/data/bronze":
+              raise SystemExit("Bronze Test deve usar o mount compartilhado /data/bronze.")
+          for node in test["nodes"]:
+              if node["stagingRoot"] != "/data/staging":
+                  raise SystemExit("Cada container deve enxergar seu Staging local em /data/staging.")
+          print("CLUSTER CONFIG SCHEMA: OK")
+
+      - name: Parse shell and Compose
+        shell: bash
+        run: |
+          bash -n install/container-test/entrypoint.sh
+          bash -n scripts/local-cluster.sh
+          cp .env.example .env
+          docker compose --env-file .env config --quiet
+
+      - name: Start canonical two-node cluster
+        shell: bash
+        run: |
+          chmod +x install/container-test/entrypoint.sh scripts/local-cluster.sh
+          ./scripts/local-cluster.sh up
+
+      - name: Prove shared Bronze and isolated Staging
+        shell: bash
+        run: |
+          docker compose --env-file .env exec -T jornada-node1 sh -lc 'printf shared > /data/bronze/.cluster-smoke'
+          docker compose --env-file .env exec -T jornada-node2 sh -lc 'test "$(cat /data/bronze/.cluster-smoke)" = shared'
+
+          docker compose --env-file .env exec -T jornada-node1 sh -lc 'printf node1 > /data/staging/.node1-only'
+          docker compose --env-file .env exec -T jornada-node2 sh -lc 'test ! -e /data/staging/.node1-only'
+
+          docker compose --env-file .env exec -T jornada-node2 sh -lc 'printf node2 > /data/staging/.node2-only'
+          docker compose --env-file .env exec -T jornada-node1 sh -lc 'test ! -e /data/staging/.node2-only'
+
+          echo 'CLUSTER STORAGE TOPOLOGY: OK'
+
+      - name: Prove one node survives peer stop
+        shell: bash
+        run: |
+          docker compose --env-file .env stop jornada-node1
+          curl --fail --silent --show-error http://127.0.0.1:5180/health/ready >/dev/null
+          echo 'NODE2 READY WITH NODE1 STOPPED: OK'
+
+      - name: Dump cluster logs on failure
+        if: failure()
+        shell: bash
+        run: docker compose --env-file .env logs --tail 200 || true
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: docker compose --env-file .env down -v --remove-orphans || true
