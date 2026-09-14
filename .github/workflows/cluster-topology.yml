@@ -172,6 +172,15 @@ jobs:
           test "$run_status" = 'PUBLICADO'
           echo "LOCAL SYNTHETIC LINKAGE: evaluated=$evaluated resolved=$resolved status=$run_status"
 
+      - name: Prove local Linkage diagnosis explains unresolved and extra seed item
+        shell: bash
+        run: |
+          bash scripts/local-cluster.sh linkage-diagnose | tee /tmp/linkage-diagnose.log
+          grep -F 'Não resolvidos/conflitos por motivo:' /tmp/linkage-diagnose.log >/dev/null
+          grep -F 'SCALE-PEND-' /tmp/linkage-diagnose.log >/dev/null
+          grep -F 'SEH006' /tmp/linkage-diagnose.log >/dev/null
+          echo 'LOCAL LINKAGE DIAGNOSIS: OK'
+
       - name: Prove shared Bronze, NAS visibility and isolated Staging
         shell: bash
         run: |
