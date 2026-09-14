@@ -5,240 +5,48 @@
   "solutionSchema": "3.70",
   "note": "Inventário criptográfico dos schemas contratuais. APROVADO exige aprovação individual e evidência real; hashes não equivalem a assinatura institucional.",
   "contracts": [
-    {
-      "path": "config/contracts/gestores/SEHAB/pessoa/v1/pessoa.json",
-      "sha256": "578abdaf4072e69c51c980b507ce61853df08ff3888b27ee9723896740a81911",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SEHAB/pessoa/v1/pessoa.schema.json",
-      "sha256": "5de6ddecfe95db8575ed321b83fb0eb1801cf3f6767406701f3146d0f474fd44",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SEHAB/pessoa/v2/pessoa.json",
-      "sha256": "70435558a2be814f0b35c3277c990f7c98d2f2953bd796924a41e9af389fe136",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SEHAB/pessoa/v2/pessoa.schema.json",
-      "sha256": "cf6033756c0409469e1defc76ac46650921b8e6c4bf5a76d8b0bc2087efb2e89",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SEHAB/pessoa/v3/pessoa.schema.json",
-      "sha256": "a4ea4f9c337f781e352877e03394f4d0e0db9eab6b9cb348439fe57a067b9752",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMADS/pessoa/v1/pessoa.json",
-      "sha256": "4679f5424f673eea88fec3800eff510661aa62ea92aca054fbb874e1eb0de229",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMADS/pessoa/v1/pessoa.schema.json",
-      "sha256": "a382a796a9b08b68bad09854b59fad6d64e6f0280812bfc604266bf6845f41f1",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMADS/pessoa/v2/pessoa.json",
-      "sha256": "3de6da5ac8b71c3609c56a32d2587f08b392c7101fc764b81cdd5110acf70d99",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMADS/pessoa/v2/pessoa.schema.json",
-      "sha256": "fa1c70cb21eee04606a169c661c168edb83882f4812c0c6ce4656d551dce38a6",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMADS/pessoa/v3/pessoa.schema.json",
-      "sha256": "8b0b9709dc8afe420aa8a4693ce461b73d91cde84561702285e4fb48475cb656",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMADS/pessoa/v4/pessoa.schema.json",
-      "sha256": "a2d490cb8974103cc34137f030bbecb3c09d91faa2698b6e2ae510cbccc1cf49",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMDET/pessoa/v1/pessoa.json",
-      "sha256": "2f406c06eb2c11bbf6638295d0f40c9b30e70804003b2c59c6a807c9c8f6e906",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMDET/pessoa/v1/pessoa.schema.json",
-      "sha256": "dae81766352934486e1d1ef319261911d549fe987817e10f38fd5e0aa6bf4743",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMDET/pessoa/v2/pessoa.json",
-      "sha256": "34adc4d7237768972023f946f7e8e1f16f14a8b1a710614a80b34e2454355a88",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMDET/pessoa/v2/pessoa.schema.json",
-      "sha256": "2ff50ee5a53d095b4da625ab0d2014e1dd2aef91a12011ebea2e52d60da143ed",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMDET/pessoa/v3/pessoa.schema.json",
-      "sha256": "083937b02cdb31bcdd1265f34dacea80523ad08e1439f9ee6c44705f4433ed75",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMS/pessoa/v1/pessoa.json",
-      "sha256": "688cd802519bc5281e2c1350792bce4445a05b6d2c1776d1af9fe6eb6047ae8a",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMS/pessoa/v1/pessoa.schema.json",
-      "sha256": "a3eee657504e51e0d54960b1e87dd24450b1a3d70f4b6ae9a5647c104b39e9a0",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMS/pessoa/v2/pessoa.json",
-      "sha256": "473b0909bc48c34ef7c052b52875c95e2bab08499a24c988820939968c8749c9",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMS/pessoa/v2/pessoa.schema.json",
-      "sha256": "a68da8985cbb709a5c7cd9225192b1ccb2300c7aaf184cfcd26ebf41e9570ec4",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMS/pessoa/v3/pessoa.schema.json",
-      "sha256": "2fd8376496f33a422124dab61238498588ddfd99dfba944963787d9c26ea3550",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/AA01/v1/pessoa.schema.json",
-      "sha256": "30f12102f5a6043f092f3af601ded82bc4e7268c3fdb34d326a91d2e547f5e94",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/AA01/v1/registro.json",
-      "sha256": "568f297059bd5e7b51b751a4d3e9aba969c3c0ddd563b2986ba08bd37db431b6",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/AA01/v1/registro.schema.json",
-      "sha256": "cfb1de16dd73839dba6982f92ee0abe778bd67f4de2c79f9be5cb4b08f291da4",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/AR01/v1/pessoa.schema.json",
-      "sha256": "cfc653b792de1d56d9748ff939ef78b0849ad901f607baddc8559b4b2dcdfa41",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/AR01/v1/registro.json",
-      "sha256": "0bb4c6b9ba04bd7af51745b64b64c126aaf7a35ba48d583951f985b857458b7b",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/AR01/v1/registro.schema.json",
-      "sha256": "fb25b6bd16596e817a667d39ecae933de90362fa5a0d7cd014f41f034f8c446d",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/CAS1/v1/pessoa.schema.json",
-      "sha256": "5de1477d65cfdfd19e7b24771c8bc9a791d18fdc22813ee60d4ea73a8fdec0c8",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/CAS1/v1/registro.json",
-      "sha256": "ae91737ec2dfb04ea27515baa1f2dc1311ebdaa868c4157ebc2dfd93d4bfd2b5",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/CAS1/v1/registro.schema.json",
-      "sha256": "392fb177f9ecb075375632916b55f84033759113bb4d2256f3e7d718bbb0ba18",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/CPO1/v1/pessoa.schema.json",
-      "sha256": "06ae0e7812be6666b3b1630547b057b48c0bfa0777d7cfc525f970c6b7e036c5",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/CPO1/v1/registro.json",
-      "sha256": "4654cfbb7e1f1f559be262d7163b9ac80da38bfc575f94fdbbc92bd0c39b611b",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/CPO1/v1/registro.schema.json",
-      "sha256": "adc382a7602c0b556ea752422c151735e4b54b7b66cdf749d000cf88e76b3312",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/CRA1/v1/pessoa.schema.json",
-      "sha256": "4d715b2cc259f5dd5869a6d50c25f84cbbc390bace6721c663fd3afb2d0d6edc",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/CRA1/v1/registro.json",
-      "sha256": "bdc5b8caf2c2062ebdaa64d9bf6986748bba04d8335ca27062ee0cd681e21f64",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/CRA1/v1/registro.schema.json",
-      "sha256": "fe10e8f81ff29b90379239540f7a94759febba5b2c6be1863e3953cd4dc2da95",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/POT1/v1/pessoa.schema.json",
-      "sha256": "efe204199e2f27e461f1436c079c2055167e03432cad244a6fd6c3b2f84f6614",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/POT1/v1/registro.json",
-      "sha256": "ca8bbdf9759dbd1eab007fca62053c8db870c91ef5e903492cf0b73efe1af410",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/registros/POT1/v1/registro.schema.json",
-      "sha256": "e9dea336183debb4576952e39f6110e7e72f10df27971428d1e3d223359b510c",
-      "status": "PENDENTE",
-      "approval": null
-    }
+    {"path":"config/contracts/gestores/SEHAB/pessoa/v1/pessoa.json","sha256":"578abdaf4072e69c51c980b507ce61853df08ff3888b27ee9723896740a81911","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SEHAB/pessoa/v1/pessoa.schema.json","sha256":"5de6ddecfe95db8575ed321b83fb0eb1801cf3f6767406701f3146d0f474fd44","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SEHAB/pessoa/v2/pessoa.json","sha256":"70435558a2be814f0b35c3277c990f7c98d2f2953bd796924a41e9af389fe136","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SEHAB/pessoa/v2/pessoa.schema.json","sha256":"cf6033756c0409469e1defc76ac46650921b8e6c4bf5a76d8b0bc2087efb2e89","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SEHAB/pessoa/v3/pessoa.schema.json","sha256":"a4ea4f9c337f781e352877e03394f4d0e0db9eab6b9cb348439fe57a067b9752","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SEHAB/pessoa/v4/pessoa.schema.json","sha256":"2d0ae095a5ff2b1299aea9fa42398bdc31a528ae68fa3f4c2d0690fde2e8bf2d","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMADS/pessoa/v1/pessoa.json","sha256":"4679f5424f673eea88fec3800eff510661aa62ea92aca054fbb874e1eb0de229","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMADS/pessoa/v1/pessoa.schema.json","sha256":"a382a796a9b08b68bad09854b59fad6d64e6f0280812bfc604266bf6845f41f1","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMADS/pessoa/v2/pessoa.json","sha256":"3de6da5ac8b71c3609c56a32d2587f08b392c7101fc764b81cdd5110acf70d99","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMADS/pessoa/v2/pessoa.schema.json","sha256":"fa1c70cb21eee04606a169c661c168edb83882f4812c0c6ce4656d551dce38a6","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMADS/pessoa/v3/pessoa.schema.json","sha256":"8b0b9709dc8afe420aa8a4693ce461b73d91cde84561702285e4fb48475cb656","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMADS/pessoa/v4/pessoa.schema.json","sha256":"c1e2ad519ac51081de97ba244ea6fbdefcb6dd081a1a22c5ba61dcd4ed7b6e3c","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMDET/pessoa/v1/pessoa.json","sha256":"2f406c06eb2c11bbf6638295d0f40c9b30e70804003b2c59c6a807c9c8f6e906","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMDET/pessoa/v1/pessoa.schema.json","sha256":"dae81766352934486e1d1ef319261911d549fe987817e10f38fd5e0aa6bf4743","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMDET/pessoa/v2/pessoa.json","sha256":"34adc4d7237768972023f946f7e8e1f16f14a8b1a710614a80b34e2454355a88","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMDET/pessoa/v2/pessoa.schema.json","sha256":"2ff50ee5a53d095b4da625ab0d2014e1dd2aef91a12011ebea2e52d60da143ed","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMDET/pessoa/v3/pessoa.schema.json","sha256":"083937b02cdb31bcdd1265f34dacea80523ad08e1439f9ee6c44705f4433ed75","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMDET/pessoa/v4/pessoa.schema.json","sha256":"f9b2997efd7d687dcefb2e899082cadef4e943d812e9ee736aee4e025a945653","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMS/pessoa/v1/pessoa.json","sha256":"688cd802519bc5281e2c1350792bce4445a05b6d2c1776d1af9fe6eb6047ae8a","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMS/pessoa/v1/pessoa.schema.json","sha256":"a3eee657504e51e0d54960b1e87dd24450b1a3d70f4b6ae9a5647c104b39e9a0","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMS/pessoa/v2/pessoa.json","sha256":"473b0909bc48c34ef7c052b52875c95e2bab08499a24c988820939968c8749c9","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMS/pessoa/v2/pessoa.schema.json","sha256":"a68da8985cbb709a5c7cd9225192b1ccb2300c7aaf184cfcd26ebf41e9570ec4","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMS/pessoa/v3/pessoa.schema.json","sha256":"2fd8376496f33a422124dab61238498588ddfd99dfba944963787d9c26ea3550","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/gestores/SMS/pessoa/v4/pessoa.schema.json","sha256":"be3a7f39882bc619d51e0c113a2118025ef73c4dd7e517c4975247460da4cdea","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/AA01/v1/pessoa.schema.json","sha256":"30f12102f5a6043f092f3af601ded82bc4e7268c3fdb34d326a91d2e547f5e94","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/AA01/v1/registro.json","sha256":"568f297059bd5e7b51b751a4d3e9aba969c3c0ddd563b2986ba08bd37db431b6","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/AA01/v1/registro.schema.json","sha256":"cfb1de16dd73839dba6982f92ee0abe778bd67f4de2c79f9be5cb4b08f291da4","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/AR01/v1/pessoa.schema.json","sha256":"cfc653b792de1d56d9748ff939ef78b0849ad901f607baddc8559b4b2dcdfa41","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/AR01/v1/registro.json","sha256":"0bb4c6b9ba04bd7af51745b64b64c126aaf7a35ba48d583951f985b857458b7b","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/AR01/v1/registro.schema.json","sha256":"fb25b6bd16596e817a667d39ecae933de90362fa5a0d7cd014f41f034f8c446d","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/CAS1/v1/pessoa.schema.json","sha256":"5de1477d65cfdfd19e7b24771c8bc9a791d18fdc22813ee60d4ea73a8fdec0c8","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/CAS1/v1/registro.json","sha256":"ae91737ec2dfb04ea27515baa1f2dc1311ebdaa868c4157ebc2dfd93d4bfd2b5","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/CAS1/v1/registro.schema.json","sha256":"392fb177f9ecb075375632916b55f84033759113bb4d2256f3e7d718bbb0ba18","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/CPO1/v1/pessoa.schema.json","sha256":"06ae0e7812be6666b3b1630547b057b48c0bfa0777d7cfc525f970c6b7e036c5","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/CPO1/v1/registro.json","sha256":"4654cfbb7e1f1f559be262d7163b9ac80da38bfc575f94fdbbc92bd0c39b611b","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/CPO1/v1/registro.schema.json","sha256":"adc382a7602c0b556ea752422c151735e4b54b7b66cdf749d000cf88e76b3312","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/CRA1/v1/pessoa.schema.json","sha256":"4d715b2cc259f5dd5869a6d50c25f84cbbc390bace6721c663fd3afb2d0d6edc","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/CRA1/v1/registro.json","sha256":"bdc5b8caf2c2062ebdaa64d9bf6986748bba04d8335ca27062ee0cd681e21f64","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/CRA1/v1/registro.schema.json","sha256":"fe10e8f81ff29b90379239540f7a94759febba5b2c6be1863e3953cd4dc2da95","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/POT1/v1/pessoa.schema.json","sha256":"efe204199e2f27e461f1436c079c2055167e03432cad244a6fd6c3b2f84f6614","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/POT1/v1/registro.json","sha256":"ca8bbdf9759dbd1eab007fca62053c8db870c91ef5e903492cf0b73efe1af410","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/POT1/v1/registro.schema.json","sha256":"e9dea336183debb4576952e39f6110e7e72f10df27971428d1e3d223359b510c","status":"PENDENTE","approval":null}
   ],
   "approvalContext": null
 }
