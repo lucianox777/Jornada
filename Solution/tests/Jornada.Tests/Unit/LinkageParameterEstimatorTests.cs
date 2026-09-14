@@ -1,3 +1,4 @@
+using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
 
 namespace Jornada.Tests.Unit;
@@ -7,7 +8,7 @@ namespace Jornada.Tests.Unit;
 public sealed class LinkageParameterEstimatorTests
 {
     [Test]
-    public void Generates_m_u_threshold_prior_and_birth_component_parameters()
+    public void Generates_m_u_threshold_prior_and_single_birth_v3_parameters()
     {
         var matched = new[]
         {
@@ -30,8 +31,16 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p["CONFLICT_MARGIN"], Is.EqualTo(0.03m));
             Assert.That(p["PRIOR_MATCH_PROBABILITY"], Is.EqualTo(0.1m));
             Assert.That(p["PRIOR_BLOCK_MAX"], Is.EqualTo(0.25m));
-            Assert.That(p["SCORING_BIRTH_COMPONENTS_V2"], Is.EqualTo(1m));
+            Assert.That(p[LinkageParameterCatalog.BirthSingleEvidenceScoring], Is.EqualTo(1m));
+            Assert.That(p.ContainsKey(LinkageParameterCatalog.BirthComponentScoring), Is.False);
             Assert.That(p.Keys.Any(static x => x.StartsWith("BLOCKING_", StringComparison.Ordinal)), Is.False);
+
+            Assert.That(p.ContainsKey("M_DATA_NASCIMENTO_EXACT"), Is.True);
+            Assert.That(p.ContainsKey("M_DATA_NASCIMENTO_DIFF"), Is.True);
+            Assert.That(p.ContainsKey("U_DATA_NASCIMENTO_EXACT"), Is.True);
+            Assert.That(p.ContainsKey("U_DATA_NASCIMENTO_DIFF"), Is.True);
+            Assert.That(p["M_DATA_NASCIMENTO_EXACT"] + p["M_DATA_NASCIMENTO_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
+            Assert.That(p["U_DATA_NASCIMENTO_EXACT"] + p["U_DATA_NASCIMENTO_DIFF"], Is.EqualTo(1m).Within(0.00000001m));
 
             Assert.That(p.ContainsKey("M_NASC_DIA_EXACT"), Is.True);
             Assert.That(p.ContainsKey("M_NASC_DIA_DIFF"), Is.True);

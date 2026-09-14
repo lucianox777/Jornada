@@ -15,6 +15,8 @@ public sealed class LinkageParameterCatalogTests
         {
             Assert.That(LinkageParameterCatalog.CoreScoringRequired.Distinct(StringComparer.Ordinal).Count(),
                 Is.EqualTo(LinkageParameterCatalog.CoreScoringRequired.Count));
+            Assert.That(LinkageParameterCatalog.BirthSingleEvidenceRequired.Distinct(StringComparer.Ordinal).Count(),
+                Is.EqualTo(LinkageParameterCatalog.BirthSingleEvidenceRequired.Count));
             Assert.That(LinkageParameterCatalog.BirthComponentRequired.Distinct(StringComparer.Ordinal).Count(),
                 Is.EqualTo(LinkageParameterCatalog.BirthComponentRequired.Count));
             Assert.That(LinkageParameterCatalog.CalibrationValidationRequired.Distinct(StringComparer.Ordinal).Count(),
@@ -23,7 +25,7 @@ public sealed class LinkageParameterCatalogTests
     }
 
     [Test]
-    public void Estimator_emits_every_catalogued_scoring_parameter()
+    public void Estimator_emits_current_scoring_contract_and_keeps_legacy_birth_distributions_diagnostic()
     {
         var matched = new[]
         {
@@ -42,9 +44,12 @@ public sealed class LinkageParameterCatalogTests
         {
             foreach (var name in LinkageParameterCatalog.CoreScoringRequired)
                 Assert.That(parameters.ContainsKey(name), Is.True, $"Estimator não emitiu {name}.");
-            foreach (var name in LinkageParameterCatalog.BirthComponentRequired)
+            foreach (var name in LinkageParameterCatalog.BirthSingleEvidenceRequired)
                 Assert.That(parameters.ContainsKey(name), Is.True, $"Estimator não emitiu {name}.");
-            Assert.That(parameters.ContainsKey(LinkageParameterCatalog.BirthComponentScoring), Is.True);
+            foreach (var name in LinkageParameterCatalog.BirthComponentRequired)
+                Assert.That(parameters.ContainsKey(name), Is.True, $"Estimator não materializou a distribuição diagnóstica {name}.");
+            Assert.That(parameters.ContainsKey(LinkageParameterCatalog.BirthSingleEvidenceScoring), Is.True);
+            Assert.That(parameters.ContainsKey(LinkageParameterCatalog.BirthComponentScoring), Is.False);
         });
     }
 

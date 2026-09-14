@@ -25,10 +25,10 @@ public sealed record IdentityTrainingPair(
 /// discordância: esses pares ficam fora da distribuição NOME_MAE e a ausência será
 /// tratada como evidência neutra pelo scorer.
 ///
-/// A partir da V2, nascimento é calibrado também em três evidências binárias separadas:
-/// dia, mês e ano. A data completa continua preservada e sua concordância exata continua
-/// registrada para auditoria/backward compatibility, mas o scorer V2 pode atribuir peso
-/// independente a cada componente.
+/// A partir da V3, nascimento é uma única evidência probabilística: a concordância da
+/// data completa alimenta M/U_DATA_NASCIMENTO_EXACT|DIFF. As distribuições legadas de
+/// dia, mês e ano continuam materializadas para diagnóstico e replay histórico, mas
+/// modelos novos não habilitam SCORING_BIRTH_COMPONENTS_V2.
 /// </summary>
 public static class LinkageParameterEstimator
 {
@@ -59,7 +59,7 @@ public static class LinkageParameterEstimator
             ["SMOOTHING_ALPHA"] = smoothingAlpha,
             ["T_LINKAGE"] = threshold,
             ["CONFLICT_MARGIN"] = conflictMargin,
-            ["SCORING_BIRTH_COMPONENTS_V2"] = 1m,
+            [LinkageParameterCatalog.BirthSingleEvidenceScoring] = 1m,
             ["PRIOR_MATCH_PROBABILITY"] = EstimateReferencePrior(populationSize, distinctBirthDates),
             ["PRIOR_BLOCK_MIN"] = 0.000001m,
             ["PRIOR_BLOCK_MAX"] = 0.25m
@@ -70,10 +70,8 @@ public static class LinkageParameterEstimator
         AddDistribution(result, "M_NOME_MAE", matchedMotherStates, smoothingAlpha);
         AddDistribution(result, "U_NOME_MAE", unmatchedMotherStates, smoothingAlpha);
 
-        result["M_DATA_NASCIMENTO_EXACT"] = SmoothedBinary(
-            matchedPairs.Count(p => p.LeftBirthDate == p.RightBirthDate), matchedPairs.Count, smoothingAlpha);
-        result["U_DATA_NASCIMENTO_EXACT"] = SmoothedBinary(
-            unmatchedPairs.Count(p => p.LeftBirthDate == p.RightBirthDate), unmatchedPairs.Count, smoothingAlpha);
+        AddBinaryDistribution(result, "M_DATA_NASCIMENTO", matchedPairs.Select(p => p.LeftBirthDate == p.RightBirthDate), smoothingAlpha);
+        AddBinaryDistribution(result, "U_DATA_NASCIMENTO", unmatchedPairs.Select(p => p.LeftBirthDate == p.RightBirthDate), smoothingAlpha);
 
         AddBinaryDistribution(result, "M_NASC_DIA", matchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day), smoothingAlpha);
         AddBinaryDistribution(result, "U_NASC_DIA", unmatchedPairs.Select(p => p.LeftBirthDate.Day == p.RightBirthDate.Day), smoothingAlpha);
