@@ -30,6 +30,11 @@ sqlcmd() {
   compose exec -T -w /workspace -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I "$@"
 }
+sql_scalar() {
+  local query="$1"
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -W -h -1 -Q "SET NOCOUNT ON; $query" \
+    | awk 'NF{last=$0} END{gsub(/^[[:space:]]+|[[:space:]]+$/, "", last); print last}'
+}
 wait_healthy() {
   local i status
   for i in $(seq 1 60); do
@@ -41,6 +46,22 @@ wait_healthy() {
   compose logs sqlserver >&2 || true
   exit 3
 }
+ensure_synthetic_scale() {
+  local count
+  count="$(sql_scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")"
+  if [[ "$count" == "0" ]]; then
+    echo "Carregando corpus sintético local para calibração/linkage..."
+    sqlcmd -d "$JORNADA_SQL_DATABASE" \
+      -v SCALE_PEOPLE=5000 SCALE_PAIRED=1500 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 \
+      -i database/Jornada_Dev_SyntheticScale.sql
+    count="$(sql_scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")"
+  fi
+  [[ "$count" == "4000" ]] || {
+    echo "ERRO: massa sintética local inconsistente: esperadas 4000 pessoas de origem SCALE; encontradas=$count. Execute local-db reset." >&2
+    return 4
+  }
+  echo "Corpus sintético local pronto: 5000 pessoas Gold, 1500 pares corroborados e 1000 pendentes."
+}
 bootstrap() {
   sqlcmd -Q "IF DB_ID(N'$JORNADA_SQL_DATABASE') IS NULL CREATE DATABASE [$JORNADA_SQL_DATABASE];"
   # Instalação nova possui um único ponto canônico. O arquivo v3.70 aplica baseline,
@@ -51,6 +72,9 @@ bootstrap() {
   # DEV possui seed; reaplicação idempotente reserva também CPFs históricos do seed.
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260907_Cpf_Ancora.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260910_Schema_Consolidation_370.sql
+  # O perfil local Test deve conseguir exercitar o calibrador real sem afrouxar
+  # o mínimo estatístico de produção. Reutiliza exatamente a massa do harness CI.
+  ensure_synthetic_scale
 }
 
 case "$ACTION" in
