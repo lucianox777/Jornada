@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Runner de calibração Splink para a Jornada.
+"""Runner nominal de calibração Splink para a Jornada.
 
-Consome JORNADA_SPLINK_EXCHANGE_V1 e produz estimativas m/u versionadas.
-Este utilitário é exclusivo de desenvolvimento/calibração: não participa do runtime
+Consome JORNADA_SPLINK_EXCHANGE_V1 e produz estimativas m/u para a evidência NOME
+com a mesma semântica do scorer Jornada: EXACT, HIGH, MEDIUM e LOW.
+Este utilitário é exclusivo de desenvolvimento/calibração e não participa do runtime
 operacional da Jornada.
 """
 
@@ -20,37 +21,26 @@ from splink import DuckDBAPI, Linker, SettingsCreator, block_on
 
 EXPECTED_SCHEMA = "JORNADA_SPLINK_EXCHANGE_V1"
 RUNNER_SCHEMA = "JORNADA_SPLINK_ESTIMATES_V1"
+NOMINAL_SEMANTICS_VERSION = "IDENTITY_NAME_STATES_V1"
+NAME_THRESHOLDS = [0.92, 0.80]
+STATE_ORDER = ["EXACT", "HIGH", "MEDIUM", "LOW"]
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Estima m/u com Splink para o Calibrador Jornada")
+    parser = argparse.ArgumentParser(description="Estima m/u nominal com Splink para o Calibrador Jornada")
     parser.add_argument("--input", required=True, type=Path, help="Pacote JSON exportado pela Jornada")
     parser.add_argument("--output", required=True, type=Path, help="JSON de estimativas")
     parser.add_argument("--seed", required=True, type=int, help="Seed explícita para estimação de u")
     parser.add_argument("--max-pairs", type=int, default=10_000_000, help="Máximo de pares aleatórios para u")
-    parser.add_argument(
-        "--name-thresholds",
-        type=float,
-        nargs="+",
-        default=[0.95, 0.90],
-        help="Thresholds Jaro-Winkler para prenome e sobrenome",
-    )
     return parser.parse_args()
 
 
-def _settings(thresholds: list[float]) -> SettingsCreator:
-    if not thresholds:
-        raise ValueError("Ao menos um threshold nominal é obrigatório")
-    if any(value <= 0.0 or value >= 1.0 for value in thresholds):
-        raise ValueError("Thresholds nominais devem estar em (0,1)")
-
-    ordered = sorted(set(thresholds), reverse=True)
+def _settings() -> SettingsCreator:
     return SettingsCreator(
         link_type="dedupe_only",
         unique_id_column_name="unique_id",
         comparisons=[
-            cl.JaroWinklerAtThresholds("first_name", score_threshold_or_thresholds=ordered),
-            cl.JaroWinklerAtThresholds("surname", score_threshold_or_thresholds=ordered),
+            cl.JaroWinklerAtThresholds("nome", score_threshold_or_thresholds=NAME_THRESHOLDS),
         ],
         blocking_rules_to_generate_predictions=[
             block_on("first_name"),
@@ -75,13 +65,7 @@ def _load_package(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _canonical_u_records(records: list[dict[str, Any]]) -> pd.DataFrame:
-    """Uma observação canônica por indivíduo-base para preservar a hipótese de u.
-
-    O gerador Jornada sempre mantém a observação canônica no lado esquerdo dos pares
-    que origina para cada indivíduo. Preferimos IDs ':L' e usamos ordenação apenas
-    como desempate determinístico.
-    """
+def _records_frame(records: list[dict[str, Any]]) -> pd.DataFrame:
     frame = pd.DataFrame.from_records(records)
     required = {"unique_id", "base_person_id", "first_name", "surname"}
     missing = required.difference(frame.columns)
@@ -89,6 +73,19 @@ def _canonical_u_records(records: list[dict[str, Any]]) -> pd.DataFrame:
         raise ValueError(f"records sem colunas obrigatórias: {sorted(missing)}")
 
     frame = frame.copy()
+    frame["nome"] = (
+        frame["first_name"].fillna("").astype(str).str.strip()
+        + " "
+        + frame["surname"].fillna("").astype(str).str.strip()
+    ).str.strip()
+    if (frame["nome"] == "").any():
+        raise ValueError("Não é possível materializar NOME para todos os records")
+    return frame
+
+
+def _canonical_u_records(records: list[dict[str, Any]]) -> pd.DataFrame:
+    """Uma observação canônica por indivíduo-base para preservar a hipótese de u."""
+    frame = _records_frame(records)
     frame["_canonical_rank"] = (~frame["unique_id"].astype(str).str.endswith(":L")).astype(int)
     frame = frame.sort_values(["base_person_id", "_canonical_rank", "unique_id"], kind="stable")
     frame = frame.drop_duplicates(subset=["base_person_id"], keep="first")
@@ -114,74 +111,61 @@ def _positive_labels(labels: list[dict[str, Any]]) -> pd.DataFrame:
     return positives.drop(columns=["clerical_match_score"])
 
 
-def _extract_estimates(model: dict[str, Any]) -> list[dict[str, Any]]:
+def _extract_name_estimates(model: dict[str, Any]) -> list[dict[str, Any]]:
+    comparisons = model.get("comparisons", [])
+    comparison = next((item for item in comparisons if item.get("output_column_name") == "nome"), None)
+    if comparison is None:
+        raise ValueError("Modelo Splink sem comparação NOME")
+
+    levels = [level for level in comparison.get("comparison_levels", []) if not level.get("is_null_level")]
+    if len(levels) != len(STATE_ORDER):
+        raise ValueError(f"Esperados {len(STATE_ORDER)} níveis NOME não-nulos; recebidos {len(levels)}")
+
     estimates: list[dict[str, Any]] = []
-    for comparison in model.get("comparisons", []):
-        feature = comparison.get("output_column_name")
-        if not feature:
-            raise ValueError("Comparação Splink sem output_column_name")
-        for level in comparison.get("comparison_levels", []):
-            if level.get("is_null_level"):
-                continue
-            estimates.append(
-                {
-                    "feature": feature,
-                    "level": level.get("label_for_charts") or level.get("sql_condition") or "unknown",
-                    "m_probability": level.get("m_probability"),
-                    "u_probability": level.get("u_probability"),
-                    "sql_condition": level.get("sql_condition"),
-                }
-            )
-    if not estimates:
-        raise ValueError("Modelo Splink não produziu níveis de comparação")
+    for state, level in zip(STATE_ORDER, levels, strict=True):
+        estimates.append(
+            {
+                "feature": "NOME",
+                "level": state,
+                "m_probability": level.get("m_probability"),
+                "u_probability": level.get("u_probability"),
+                "sql_condition": level.get("sql_condition"),
+            }
+        )
     return estimates
 
 
-def _estimate_u(records: pd.DataFrame, thresholds: list[float], max_pairs: int, seed: int) -> dict[str, Any]:
+def _estimate_u(records: pd.DataFrame, max_pairs: int, seed: int) -> dict[str, Any]:
     if len(records) < 2:
         raise ValueError("São necessários ao menos dois indivíduos-base para estimar u")
-    linker = Linker(records, _settings(thresholds), db_api=DuckDBAPI())
+    linker = Linker(records, _settings(), db_api=DuckDBAPI())
     linker.training.estimate_u_using_random_sampling(max_pairs=max_pairs, seed=seed)
     return linker.misc.save_model_to_json()
 
 
-def _estimate_m(
-    records: list[dict[str, Any]],
-    labels: pd.DataFrame,
-    thresholds: list[float],
-) -> dict[str, Any]:
-    all_records = pd.DataFrame.from_records(records)
-    linker = Linker(all_records, _settings(thresholds), db_api=DuckDBAPI())
+def _estimate_m(records: list[dict[str, Any]], labels: pd.DataFrame) -> dict[str, Any]:
+    all_records = _records_frame(records)
+    linker = Linker(all_records, _settings(), db_api=DuckDBAPI())
     labels_table = linker.table_management.register_labels_table(labels, overwrite=True)
     linker.training.estimate_m_from_pairwise_labels(labels_table)
     return linker.misc.save_model_to_json()
 
 
 def _merge_m_u(m_model: dict[str, Any], u_model: dict[str, Any]) -> list[dict[str, Any]]:
-    m_levels = _extract_estimates(m_model)
-    u_levels = _extract_estimates(u_model)
-
-    def key(item: dict[str, Any]) -> tuple[str, str]:
-        return str(item["feature"]), str(item["sql_condition"])
-
-    m_by_key = {key(item): item for item in m_levels}
-    u_by_key = {key(item): item for item in u_levels}
-    if set(m_by_key) != set(u_by_key):
-        missing_m = sorted(set(u_by_key).difference(m_by_key))
-        missing_u = sorted(set(m_by_key).difference(u_by_key))
-        raise ValueError(f"Níveis m/u divergentes. sem_m={missing_m}; sem_u={missing_u}")
-
+    m_levels = _extract_name_estimates(m_model)
+    u_levels = _extract_name_estimates(u_model)
     merged: list[dict[str, Any]] = []
-    for level_key in sorted(m_by_key):
-        m = m_by_key[level_key]
-        u = u_by_key[level_key]
+
+    for m, u in zip(m_levels, u_levels, strict=True):
+        if m["level"] != u["level"]:
+            raise ValueError(f"Níveis m/u divergentes: {m['level']} vs {u['level']}")
         if m.get("m_probability") is None:
-            raise ValueError(f"m não estimado para {level_key}")
+            raise ValueError(f"m não estimado para NOME/{m['level']}")
         if u.get("u_probability") is None:
-            raise ValueError(f"u não estimado para {level_key}")
+            raise ValueError(f"u não estimado para NOME/{u['level']}")
         merged.append(
             {
-                "feature": m["feature"],
+                "feature": "NOME",
                 "level": m["level"],
                 "sql_condition": m["sql_condition"],
                 "m_probability": m["m_probability"],
@@ -198,13 +182,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     package = _load_package(args.input)
     records = package["records"]
     labels = package["labels"]
-
     canonical_u = _canonical_u_records(records)
     positive_m = _positive_labels(labels)
-    thresholds = sorted(set(args.name_thresholds), reverse=True)
 
-    u_model = _estimate_u(canonical_u, thresholds, args.max_pairs, args.seed)
-    m_model = _estimate_m(records, positive_m, thresholds)
+    u_model = _estimate_u(canonical_u, args.max_pairs, args.seed)
+    m_model = _estimate_m(records, positive_m)
     estimates = _merge_m_u(m_model, u_model)
 
     return {
@@ -212,13 +194,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "source_schema_version": package["schema_version"],
         "splink_version": importlib.metadata.version("splink"),
         "runner": "calibrador-splink/run_calibration.py",
+        "scope": "NOME",
+        "nominal_semantics_version": NOMINAL_SEMANTICS_VERSION,
         "generator_version": package.get("generator_version"),
         "ibge_source_version": package.get("ibge_source_version"),
         "ibge_fingerprint_sha256": package.get("ibge_fingerprint_sha256"),
         "partition": package.get("partition"),
         "seed": args.seed,
         "max_pairs": args.max_pairs,
-        "name_thresholds": thresholds,
+        "name_thresholds": NAME_THRESHOLDS,
         "u_population_records": len(canonical_u),
         "m_positive_pairs": len(positive_m),
         "estimates": estimates,
