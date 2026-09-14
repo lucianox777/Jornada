@@ -16,130 +16,87 @@ public sealed class FellegiSunterScoringTests
         ["U_NOME_MAE_EXACT"] = 0.001m, ["U_NOME_MAE_HIGH"] = 0.004m, ["U_NOME_MAE_MEDIUM"] = 0.020m, ["U_NOME_MAE_LOW"] = 0.975m
     };
 
-    private static readonly IReadOnlyDictionary<string, decimal> ParametersV2 =
-        new Dictionary<string, decimal>(Parameters)
-        {
-            ["M_NASC_DIA_EXACT"] = 0.95m, ["M_NASC_DIA_DIFF"] = 0.05m,
-            ["U_NASC_DIA_EXACT"] = 0.03m, ["U_NASC_DIA_DIFF"] = 0.97m,
-            ["M_NASC_MES_EXACT"] = 0.98m, ["M_NASC_MES_DIFF"] = 0.02m,
-            ["U_NASC_MES_EXACT"] = 0.08m, ["U_NASC_MES_DIFF"] = 0.92m,
-            ["M_NASC_ANO_EXACT"] = 0.99m, ["M_NASC_ANO_DIFF"] = 0.01m,
-            ["U_NASC_ANO_EXACT"] = 0.02m, ["U_NASC_ANO_DIFF"] = 0.98m
-        };
+    private static readonly IReadOnlyDictionary<string, decimal> ParametersV2 = new Dictionary<string, decimal>(Parameters)
+    {
+        ["M_NASC_DIA_EXACT"] = 0.95m, ["M_NASC_DIA_DIFF"] = 0.05m,
+        ["U_NASC_DIA_EXACT"] = 0.03m, ["U_NASC_DIA_DIFF"] = 0.97m,
+        ["M_NASC_MES_EXACT"] = 0.98m, ["M_NASC_MES_DIFF"] = 0.02m,
+        ["U_NASC_MES_EXACT"] = 0.08m, ["U_NASC_MES_DIFF"] = 0.92m,
+        ["M_NASC_ANO_EXACT"] = 0.99m, ["M_NASC_ANO_DIFF"] = 0.01m,
+        ["U_NASC_ANO_EXACT"] = 0.02m, ["U_NASC_ANO_DIFF"] = 0.98m
+    };
+
+    private static readonly IReadOnlyDictionary<string, decimal> ParametersV3 = new Dictionary<string, decimal>(ParametersV2)
+    {
+        [LinkageParameterCatalog.BirthSingleEvidenceScoring] = 1m,
+        ["M_DATA_NASCIMENTO_EXACT"] = 0.96m,
+        ["M_DATA_NASCIMENTO_DIFF"] = 0.04m,
+        ["U_DATA_NASCIMENTO_EXACT"] = 0.002m,
+        ["U_DATA_NASCIMENTO_DIFF"] = 0.998m
+    };
 
     [Test]
     public void Exact_name_and_mother_name_produce_high_posterior()
     {
-        var score = FellegiSunterScoring.CalculatePosterior(
-            Parameters, NameComparisonState.EXACT, NameComparisonState.EXACT);
+        var score = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.EXACT, NameComparisonState.EXACT);
         Assert.That(score, Is.GreaterThan(0.95m));
     }
 
     [Test]
     public void Missing_mother_name_is_neutral_evidence()
     {
-        var withoutMother = FellegiSunterScoring.CalculatePosterior(
-            Parameters, NameComparisonState.HIGH, null, blockCandidateCount: 100);
-
-        var expectedFromNameOnly = FellegiSunterScoring.CalculatePosterior(
-            new Dictionary<string, decimal>(Parameters)
-            {
-                ["M_NOME_MAE_EXACT"] = 1m,
-                ["U_NOME_MAE_EXACT"] = 1m
-            },
-            NameComparisonState.HIGH,
-            null,
-            blockCandidateCount: 100);
-
-        var observedLowMother = FellegiSunterScoring.CalculatePosterior(
-            Parameters, NameComparisonState.HIGH, NameComparisonState.LOW, blockCandidateCount: 100);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(withoutMother, Is.EqualTo(expectedFromNameOnly));
-            Assert.That(withoutMother, Is.GreaterThan(observedLowMother));
-        });
+        var withoutMother = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.HIGH, null, blockCandidateCount: 100);
+        var expected = FellegiSunterScoring.CalculatePosterior(new Dictionary<string, decimal>(Parameters), NameComparisonState.HIGH, null, blockCandidateCount: 100);
+        var observedLowMother = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.HIGH, NameComparisonState.LOW, blockCandidateCount: 100);
+        Assert.Multiple(() => { Assert.That(withoutMother, Is.EqualTo(expected)); Assert.That(withoutMother, Is.GreaterThan(observedLowMother)); });
     }
 
     [Test]
     public void Low_similarity_produces_low_posterior()
     {
-        var score = FellegiSunterScoring.CalculatePosterior(
-            Parameters, NameComparisonState.LOW, NameComparisonState.LOW);
+        var score = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.LOW, NameComparisonState.LOW);
         Assert.That(score, Is.LessThan(0.01m));
     }
 
     [Test]
     public void Larger_block_produces_lower_posterior_for_same_evidence()
     {
-        var small = FellegiSunterScoring.CalculatePosterior(
-            Parameters, NameComparisonState.HIGH, NameComparisonState.HIGH, blockCandidateCount: 10);
-        var large = FellegiSunterScoring.CalculatePosterior(
-            Parameters, NameComparisonState.HIGH, NameComparisonState.HIGH, blockCandidateCount: 10_000);
+        var small = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.HIGH, NameComparisonState.HIGH, 10);
+        var large = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.HIGH, NameComparisonState.HIGH, 10_000);
         Assert.That(large, Is.LessThan(small));
     }
 
     [Test]
-    public void Birth_day_month_and_year_are_scored_as_separate_evidence_in_v2()
+    public void Birth_day_month_and_year_remain_separate_in_v2_replay()
     {
         var source = new DateOnly(1980, 6, 5);
-        var exact = FellegiSunterScoring.CalculatePosterior(
-            ParametersV2,
-            NameComparisonState.HIGH,
-            NameComparisonState.HIGH,
-            blockCandidateCount: 100,
-            leftBirthDate: source,
-            rightBirthDate: source);
-
-        var dayDifferent = FellegiSunterScoring.CalculatePosterior(
-            ParametersV2,
-            NameComparisonState.HIGH,
-            NameComparisonState.HIGH,
-            blockCandidateCount: 100,
-            leftBirthDate: source,
-            rightBirthDate: new DateOnly(1980, 6, 6));
-
-        var monthDifferent = FellegiSunterScoring.CalculatePosterior(
-            ParametersV2,
-            NameComparisonState.HIGH,
-            NameComparisonState.HIGH,
-            blockCandidateCount: 100,
-            leftBirthDate: source,
-            rightBirthDate: new DateOnly(1980, 7, 5));
-
-        var yearDifferent = FellegiSunterScoring.CalculatePosterior(
-            ParametersV2,
-            NameComparisonState.HIGH,
-            NameComparisonState.HIGH,
-            blockCandidateCount: 100,
-            leftBirthDate: source,
-            rightBirthDate: new DateOnly(1981, 6, 5));
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(exact, Is.GreaterThan(dayDifferent));
-            Assert.That(exact, Is.GreaterThan(monthDifferent));
-            Assert.That(exact, Is.GreaterThan(yearDifferent));
-        });
+        var exact = FellegiSunterScoring.CalculatePosterior(ParametersV2, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, source);
+        var different = FellegiSunterScoring.CalculatePosterior(ParametersV2, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1980, 6, 6));
+        Assert.That(exact, Is.GreaterThan(different));
     }
 
     [Test]
-    public void V1_model_without_birth_component_parameters_keeps_previous_score()
+    public void V3_birth_is_single_evidence_and_ignores_v2_component_strengths()
     {
-        var withoutBirth = FellegiSunterScoring.CalculatePosterior(
-            Parameters,
-            NameComparisonState.HIGH,
-            NameComparisonState.HIGH,
-            blockCandidateCount: 100);
+        var source = new DateOnly(1980, 6, 5);
+        var extremeLegacy = new Dictionary<string, decimal>(ParametersV3)
+        {
+            ["M_NASC_DIA_EXACT"] = 0.999999m, ["U_NASC_DIA_EXACT"] = 0.000001m,
+            ["M_NASC_MES_EXACT"] = 0.999999m, ["U_NASC_MES_EXACT"] = 0.000001m,
+            ["M_NASC_ANO_EXACT"] = 0.999999m, ["U_NASC_ANO_EXACT"] = 0.000001m
+        };
+        var baseline = FellegiSunterScoring.CalculatePosterior(ParametersV3, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, source);
+        var changedLegacy = FellegiSunterScoring.CalculatePosterior(extremeLegacy, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, source);
+        var different = FellegiSunterScoring.CalculatePosterior(ParametersV3, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1980, 6, 6));
+        Assert.Multiple(() => { Assert.That(changedLegacy, Is.EqualTo(baseline)); Assert.That(baseline, Is.GreaterThan(different)); });
+    }
 
-        var withBirthArguments = FellegiSunterScoring.CalculatePosterior(
-            Parameters,
-            NameComparisonState.HIGH,
-            NameComparisonState.HIGH,
-            blockCandidateCount: 100,
-            leftBirthDate: new DateOnly(1980, 6, 5),
-            rightBirthDate: new DateOnly(1981, 7, 6));
-
-        Assert.That(withBirthArguments, Is.EqualTo(withoutBirth));
+    [Test]
+    public void V1_model_without_birth_parameters_keeps_previous_score()
+    {
+        var withoutBirth = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.HIGH, NameComparisonState.HIGH, 100);
+        var withBirth = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.HIGH, NameComparisonState.HIGH, 100,
+            new DateOnly(1980, 6, 5), new DateOnly(1981, 7, 6));
+        Assert.That(withBirth, Is.EqualTo(withoutBirth));
     }
 }
