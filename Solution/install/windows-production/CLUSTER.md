@@ -4,7 +4,7 @@ A topologia canônica da Jornada possui dois nós de aplicação simétricos. O 
 
 Os dois perfis versionados usam o **mesmo schema**:
 
-- `Jornada.Cluster.Test.json` — Docker local, credenciais sintéticas;
+- `Jornada.Cluster.Test.json` — Docker local, valores sintéticos de Development;
 - `Jornada.Cluster.Production.example.json` — exemplo de produção, sem segredo real.
 
 ## Modelo
@@ -54,7 +54,7 @@ Para validar sem alterar a máquina:
 
 ## Segurança
 
-O perfil `Test` pode conter connection string e chaves sintéticas conhecidas. O perfil `Production` não deve receber esses valores. A validação de Production continua recusando connection string que desabilite TLS ou use `TrustServerCertificate=true`.
+O perfil `Test` referencia a senha SQL sintética fornecida pelo ambiente local (`.env.example`) e pode usar a chave sintética de Development. O perfil `Production` não recebe esses valores. A validação de Production exige transporte SQL protegido e não aceita confiança irrestrita no certificado do servidor.
 
 O instalador não provisiona load balancer, VIP, DNS ou reverse proxy. Se a infraestrutura externa encaminhar `X-Forwarded-For`, os proxies/redes confiáveis devem ser configurados explicitamente na configuração da API.
 
