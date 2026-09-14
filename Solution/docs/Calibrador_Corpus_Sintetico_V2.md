@@ -1,0 +1,82 @@
+# Calibrador — JORNADA_SYNTH_CORPUS_V2
+
+## Objetivo
+
+`JORNADA_SYNTH_CORPUS_V2` é o benchmark sintético controlado do Calibrador para testar estimação, robustez a corrupção administrativa e políticas de ground truth sem usar dados pessoais reais.
+
+Ele complementa, mas não substitui, o benchmark nominal IBGE. O benchmark IBGE mede confundibilidade nominal e capacidade de blocking; a V2 mede comportamento do estimador sob uma verdade sintética conhecida.
+
+## Regras normativas
+
+1. O split TRAIN/VALIDATION/TEST é feito por `base_person_id` antes da geração de observações.
+2. `base_person_id` é truth interna. É proibido em blocking, candidate generation e scoring.
+3. `m_exact` usado como gabarito é calculado empiricamente depois da materialização das observações.
+4. Pares com ausência em qualquer lado ficam fora do denominador do campo correspondente.
+5. Taxas declaradas de corrupção são parâmetros do gerador, não gabarito observado.
+6. Prevalência-base de CPF/CNS e retenção por observação são parâmetros diferentes.
+7. CPF e CNS sintéticos devem ser fictícios e estruturalmente válidos no cenário limpo.
+8. Cenários de CNS inválido, reutilizado e com conflito grave de nascimento são explicitamente rotulados.
+9. CNS nunca cria, funde ou seleciona UUID, nem mesmo no benchmark.
+10. Se CPF ou CNS forem usados como fonte de rótulo em uma avaliação, a própria variável e qualquer derivado ficam proibidos em blocking/candidate generation/scoring.
+
+## Implementação
+
+O gerador está em `Solution/tools/calibrador/gen_corpus_v2.py`.
+
+A entrada nominal é `frequencia-brasil.ndjson.gz`, informada explicitamente via `--ibge-source`. Não há caminho absoluto de máquina embutido.
+
+Exemplo:
+
+```bash
+python Solution/tools/calibrador/gen_corpus_v2.py \
+  --ibge-source Solution/data/reference/ibge-nomes-2022/projection/frequencia-brasil.ndjson.gz \
+  --out artifacts/corpus-v2 \
+  --people 50000 \
+  --seed 42 \
+  --error-profile correlated
+```
+
+## Gabarito
+
+`gabarito.json` inclui:
+
+- versão do gerador e seed;
+- fingerprint SHA-256 da fonte nominal;
+- perfil de erro e taxas declaradas;
+- prevalência-base e retenção observacional de CPF/CNS;
+- taxas dos cenários de anomalia CNS;
+- `empirical_m_exact` com `eligible_pairs`, `exact_pairs`, valor bruto e valor reponderado;
+- invariantes anti-leakage.
+
+O valor reponderado usa o peso materializado em cada pessoa/observação para corrigir o oversampling da cauda nominal.
+
+## Identificadores sintéticos
+
+CPF é gerado com dois dígitos verificadores coerentes e sem sequência uniforme.
+
+CNS sintético limpo usa a família provisória iniciada por 7, 8 ou 9, com 15 dígitos e soma ponderada pelos fatores 15..1 divisível por 11. Essa regra é compatível com implementações públicas do algoritmo de validação do CNS e serve apenas à geração de benchmark sintético; a regra operacional homologada da Jornada continua sendo a autoridade para aceitar identificadores reais.
+
+## Cenários CNS
+
+A V2 pode produzir, de modo parametrizado:
+
+- `INVALID_CHECK_DIGIT`: quebra controlada do dígito final;
+- `REUSED`: mesmo CNS atribuído a pessoas-base diferentes;
+- `DOB_CONFLICT_REUSE`: reutilização entre pessoas com diferença de nascimento de pelo menos dez anos;
+- `CLEAN` e `ABSENT`.
+
+Esses cenários existem para testar o filtro de elegibilidade de ground truth. Não transformam CNS em âncora de identidade.
+
+## Testes
+
+`Solution/tools/calibrador/test_gen_corpus_v2.py` cobre:
+
+- validade dos dígitos verificadores de CPF;
+- validade estrutural do CNS provisório;
+- quebra efetiva do CNS inválido;
+- exclusão de missing do denominador de `m`;
+- preservação da truth `base_person_id` sob cenários CNS.
+
+## Limites
+
+O corpus é sintético e não prova representatividade da população sem CPF. Ele valida corretude e invariantes do mecanismo. Representatividade e suficiência para Produção continuam dependentes de evidência observada e diagnóstico versionado do Calibrador.
