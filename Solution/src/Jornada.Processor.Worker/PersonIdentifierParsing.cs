@@ -31,6 +31,8 @@ internal static class PersonIdentifierParsing
                 Add(result, ParseExplicit(identifier));
         }
 
+        EnsureSingleExplicitCpf(result);
+
         if (!string.IsNullOrWhiteSpace(legacyCpf))
         {
             var normalizedCpf = NormalizeDigits(legacyCpf);
@@ -122,6 +124,19 @@ internal static class PersonIdentifierParsing
             return;
 
         result.Add(candidate);
+    }
+
+    private static void EnsureSingleExplicitCpf(IReadOnlyList<ParsedPersonIdentifier> identifiers)
+    {
+        var explicitCpfs = identifiers
+            .Where(i => i.Tipo == "CPF" && !i.OrigemLegada)
+            .Select(i => i.ValorNormalizado)
+            .Distinct(StringComparer.Ordinal)
+            .Take(2)
+            .ToArray();
+
+        if (explicitCpfs.Length > 1)
+            throw new InvalidDataException("identificadores[] contém CPFs distintos para a mesma observação de Pessoa.");
     }
 
     private static void EnsureLegacyCpfConverges(IReadOnlyList<ParsedPersonIdentifier> identifiers, string? legacyCpf)
