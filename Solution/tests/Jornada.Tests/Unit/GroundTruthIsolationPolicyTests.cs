@@ -86,6 +86,30 @@ public sealed class GroundTruthIsolationPolicyTests
     }
 
     [Test]
+    public void SelectionFailsClosedWhenNeitherSourceIsSufficientAndRepresentative()
+    {
+        var cpf = new GroundTruthCoverageDiagnostics(
+            GroundTruthSource.Cpf,
+            GroundTruthPopulationStratum.WithCpf,
+            50,
+            1000,
+            10,
+            StatisticallySufficient: false,
+            RepresentativeForTargetStratum: false);
+        var cns = new GroundTruthCoverageDiagnostics(
+            GroundTruthSource.Cns,
+            GroundTruthPopulationStratum.WithoutCpfWithCns,
+            100,
+            900,
+            30,
+            StatisticallySufficient: true,
+            RepresentativeForTargetStratum: false);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            GroundTruthIsolationPolicy.SelectPreferredLabelSource(cpf, cns));
+    }
+
+    [Test]
     public void CnsCoverageDoesNotClaimRepresentationOfWholeWithoutCpfStratum()
     {
         var cns = new GroundTruthCoverageDiagnostics(
