@@ -56,6 +56,12 @@ public static class SplinkCalibrationExchange
     public const string NominalSemanticsVersion = "IDENTITY_NAME_STATES_V1";
     public const string SourceDataset = "jornada_calibrador";
 
+    private static readonly JsonSerializerOptions ExchangeJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        WriteIndented = true
+    };
+
     public static SplinkCalibrationPackage Export(
         IbgeTypedNameFrequencySnapshot snapshot,
         IEnumerable<IbgeNominalBenchmarkPair> pairs,
@@ -101,11 +107,7 @@ public static class SplinkCalibrationExchange
     public static string Serialize(SplinkCalibrationPackage package)
     {
         ArgumentNullException.ThrowIfNull(package);
-        return JsonSerializer.Serialize(package, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-            WriteIndented = true
-        });
+        return JsonSerializer.Serialize(package, ExchangeJsonOptions);
     }
 
     public static SplinkRunnerResult DeserializeRunnerResult(string json)
