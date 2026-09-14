@@ -97,7 +97,9 @@ public sealed class GroundTruthCalibrationPlanTests
             Assert.That(plan.CandidateGenerationInputs, Is.EquivalentTo(projection.BlockingCandidateFeatures));
             Assert.That(plan.FeatureLineages.Select(static x => x.FeatureName), Does.Contain("name_full"));
             Assert.That(plan.FeatureLineages.Select(static x => x.FeatureName), Does.Contain("birth_year"));
-            Assert.That(plan.FeatureLineages.Single(static x => x.FeatureName == "name_full").SourceAttributes,
+            Assert.That(
+                plan.FeatureLineages.Single(static x => x.FeatureName == "name_full")
+                    .Sources.Select(static source => source.CanonicalAttribute),
                 Is.EquivalentTo(new[] { "nome_completo" }));
         });
     }
