@@ -20,3 +20,7 @@ dotnet_diagnostic.CA1859.severity = none
 # these two diagnostics are micro-optimizations with no correctness impact.
 dotnet_diagnostic.CA1861.severity = none
 dotnet_diagnostic.CA1822.severity = none
+
+[*.ps1]
+# Windows PowerShell 5.1 needs the BOM to decode UTF-8 source literals such as configuração correctly.
+charset = utf-8-bom
