@@ -53,6 +53,24 @@ public sealed class PersonIdentifierParsingTests
     }
 
     [Fact]
+    public void Rejects_Two_Distinct_Explicit_Cpfs()
+    {
+        using var document = JsonDocument.Parse("""
+            {
+              "identificadores":[
+                {"tipo":"CPF","namespace":"BR","valor":"11144477735","statusEvidencia":"DECLARADO"},
+                {"tipo":"CPF","namespace":"BR","valor":"12345678901","statusEvidencia":"DECLARADO"}
+              ]
+            }
+            """);
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, null, null));
+
+        Assert.Contains("CPFs distintos", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Legacy_Source_Code_Does_Not_Fall_Back_To_Cpf()
     {
         using var document = JsonDocument.Parse("{}");
