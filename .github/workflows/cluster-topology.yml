@@ -159,8 +159,8 @@ jobs:
       - name: Prove synthetic Linkage reaches candidates and resolves matches
         shell: bash
         run: |
-          password="$(sed -nE 's/^JORNADA_SQL_SA_PASSWORD=(.*)$/\1/p' .env | tail -n1)"
-          summary="$(docker compose --env-file .env exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$password" -C -d JornadaLocal -W -h -1 -Q "SET NOCOUNT ON; SELECT TOP(1) CONCAT(r.avaliados,'|',r.resolvidos,'|',(SELECT COUNT_BIG(*) FROM identidade.linkage_resultado lr WHERE lr.linkage_run_id=r.linkage_run_id AND lr.motivo LIKE 'SEM_CANDIDATO_%')) FROM identidade.linkage_run r WHERE r.solicitado_por='LOCAL_CLUSTER' ORDER BY r.iniciado_em DESC;" | awk 'NF{last=$0} END{gsub(/^[[:space:]]+|[[:space:]]+$/, "", last); print last}')"
+          sql_secret="$(sed -nE 's/^JORNADA_SQL_SA_PASSWORD=(.*)$/\1/p' .env | tail -n1)"
+          summary="$(docker compose --env-file .env exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$sql_secret" -C -d JornadaLocal -W -h -1 -Q "SET NOCOUNT ON; SELECT TOP(1) CONCAT(r.avaliados,'|',r.resolvidos,'|',(SELECT COUNT_BIG(*) FROM identidade.linkage_resultado lr WHERE lr.linkage_run_id=r.linkage_run_id AND lr.motivo LIKE 'SEM_CANDIDATO_%')) FROM identidade.linkage_run r WHERE r.solicitado_por='LOCAL_CLUSTER' ORDER BY r.iniciado_em DESC;" | awk 'NF{last=$0} END{gsub(/^[[:space:]]+|[[:space:]]+$/, "", last); print last}')"
           IFS='|' read -r evaluated resolved no_candidate <<<"$summary"
           test "${evaluated:-0}" -gt 0
           test "${resolved:-0}" -gt 0
