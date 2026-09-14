@@ -1,30 +1,35 @@
 using System.Data.Common;
-using System.Diagnostics;
-using System.Globalization;
-using System.Net.Http.Headers;
 using Jornada.Ensaio;
 using Jornada.Operational.Sql;
 using Microsoft.Extensions.Configuration;
 
-var config=new ConfigurationBuilder().AddJsonFile("appsettings.json",optional:true).AddEnvironmentVariables().AddCommandLine(args).Build();
-var conexao=config.GetConnectionString("Jornada")??throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
-var dirPacotes=config["Ensaio:PacotesDir"]??AppContext.BaseDirectory;var dirSaida=config["Ensaio:SaidaDir"]??Path.Combine(AppContext.BaseDirectory,"ensaio");var endpoint=config["Ensaio:Endpoints:IngestaoEntregas"]??"http://localhost:8080/api/v1/ingestao/entregas";var apiKey=config["Ensaio:ApiKey"]??"";var baseline=config["Ensaio:BaselineSha"]??"(não informado)";var somente=config["Ensaio:Etapa"];var timeout=TimeSpan.FromMinutes(config.GetValue("Ensaio:DrenagemTimeoutMinutos",120));
-var provider=config["Database:Provider"]??OperationalDatabaseProviders.SqlServer;var adapter=OperationalDatabaseAdapterFactory.Create(provider,conexao);if(adapter.Provider!=OperationalDatabaseProviders.SqlServer)throw new InvalidOperationException("Jornada.Ensaio usa SQL Server como provider operacional padrão.");DbConnection Abrir()=>adapter.CreateConnection();
-var coletor=new CheckpointCollector(Abrir);var etapas=EnsaioPlan.Padrao;Directory.CreateDirectory(dirSaida);using var cts=new CancellationTokenSource();Console.CancelKeyPress+=(_,e)=>{e.Cancel=true;cts.Cancel();};Checkpoint? anterior=null;var log=new List<string>();var checkpoints=new List<Checkpoint>();
-foreach(var etapa in etapas){if(somente is not null&&etapa.Codigo!=somente)continue;Console.WriteLine($"── {etapa.Codigo}  {etapa.Descricao}");try{switch(etapa.Tipo){case EnsaioEtapaTipo.Calibrador:await Calibrar(etapa,cts.Token);break;case EnsaioEtapaTipo.Ingestao:await Ingerir(etapa,cts.Token);break;case EnsaioEtapaTipo.ValidacaoModelo:await ValidarModelo(etapa,cts.Token);break;case EnsaioEtapaTipo.LinkageValidacao:await RodarLinkageValidacao(etapa,cts.Token);break;}}catch(Exception ex){Console.WriteLine($"   [falha] {ex.Message}");log.Add($"{etapa.Codigo}: FALHA — {ex.Message}");}var cp=await coletor.ColetarAsync(etapa,baseline,cts.Token);await CheckpointCollector.GravarAsync(cp,dirSaida,cts.Token);if(anterior is not null)await File.WriteAllTextAsync(Path.Combine(dirSaida,$"diff-{anterior.Etapa}--{cp.Etapa}.md"),CheckpointDiff.Gerar(anterior,cp),cts.Token);checkpoints.Add(cp);anterior=cp;}
-await File.WriteAllLinesAsync(Path.Combine(dirSaida,"ensaio.log"),log,cts.Token);await File.WriteAllTextAsync(Path.Combine(dirSaida,"RELATORIO_ENSAIO.md"),EnsaioReport.Gerar(checkpoints,log),cts.Token);Console.WriteLine($"Relatório interpretativo: {Path.Combine(dirSaida,"RELATORIO_ENSAIO.md")}");return 0;
+var configuration = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json", optional: true)
+    .AddEnvironmentVariables()
+    .AddCommandLine(args)
+    .Build();
 
-async Task Calibrar(EnsaioEtapa etapa,CancellationToken ct){var psi=NovoCalibrador();psi.Environment["LinkageParameters__Operation"]="GENERATE_DRAFT";psi.Environment["LinkageParameters__RunOnce"]="true";foreach(var k in new[]{"AlgorithmVersion","NormalizationVersion","TrainingSampleSize","TrainingSamplePoolSize","SmoothingAlpha","TLinkage","ConflictMargin","ReadCommandTimeoutSeconds","MinimumIndependentMatchedPairs"}){var v=config[$"LinkageParameters:{k}"];if(!string.IsNullOrWhiteSpace(v))psi.Environment[$"LinkageParameters__{k}"]=v;}var exit=await ExecutarProcesso(psi,ct);log.Add($"{etapa.Codigo}: Linkage.Parameters.Worker GENERATE_DRAFT exit={exit}");if(exit!=0)throw new InvalidOperationException($"GENERATE_DRAFT terminou com exit code {exit}.");}
+var options = EnsaioRuntimeOptions.FromConfiguration(configuration);
+var provider = configuration["Database:Provider"] ?? OperationalDatabaseProviders.SqlServer;
+var adapter = OperationalDatabaseAdapterFactory.Create(provider, options.ConnectionString);
 
-async Task ValidarModelo(EnsaioEtapa etapa,CancellationToken ct){var versao=await UltimaVersaoAsync("RASCUNHO",ct)??throw new InvalidOperationException("Nenhum modelo RASCUNHO disponível para validação; o calibrador final pode ter falhado por insuficiência de evidência.");var psi=NovoCalibrador();psi.Environment["LinkageParameters__Operation"]="VALIDATE";psi.Environment["LinkageParameters__TargetVersion"]=versao.ToString(CultureInfo.InvariantCulture);psi.Environment["LinkageParameters__RunOnce"]="true";var exit=await ExecutarProcesso(psi,ct);log.Add($"{etapa.Codigo}: Linkage.Parameters.Worker VALIDATE v{versao} exit={exit}");if(exit!=0)throw new InvalidOperationException($"VALIDATE v{versao} terminou com exit code {exit}.");}
+if (adapter.Provider != OperationalDatabaseProviders.SqlServer)
+    throw new InvalidOperationException("Jornada.Ensaio usa SQL Server como provider operacional padrão.");
 
-async Task RodarLinkageValidacao(EnsaioEtapa etapa,CancellationToken ct){var versao=await UltimaVersaoAsync("VALIDADO",ct)??throw new InvalidOperationException("Nenhum modelo VALIDADO disponível para MODEL_VALIDATION.");var fileName=config["Ensaio:Runner:FileName"]??"dotnet";var prefix=config["Ensaio:Runner:Arguments"]??"run --project ../Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj --configuration Release --";var maxRecords=Math.Max(1,config.GetValue("Ensaio:Runner:MaxRecords",100000));var psi=new ProcessStartInfo{FileName=fileName,Arguments=$"{prefix} --mode MODEL_VALIDATION --model-version {versao} --max-records {maxRecords} --publish false --requested-by Jornada.Ensaio --reason ensaio-realista",UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true,CreateNoWindow=true};psi.Environment["ConnectionStrings__Jornada"]=conexao;psi.Environment["Database__Provider"]=OperationalDatabaseProviders.SqlServer;var exit=await ExecutarProcesso(psi,ct);log.Add($"{etapa.Codigo}: Jornada.Linkage.Runner MODEL_VALIDATION v{versao} exit={exit}");if(exit!=0)throw new InvalidOperationException($"MODEL_VALIDATION v{versao} terminou com exit code {exit}.");}
+DbConnection OpenConnection() => adapter.CreateConnection();
 
-ProcessStartInfo NovoCalibrador(){var psi=new ProcessStartInfo{FileName=config["Ensaio:Calibrador:FileName"]??"dotnet",Arguments=config["Ensaio:Calibrador:Arguments"]??"run --project ../Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj --configuration Release",UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true,CreateNoWindow=true};psi.Environment["ConnectionStrings__Jornada"]=conexao;psi.Environment["Database__Provider"]=OperationalDatabaseProviders.SqlServer;return psi;}
+var log = new List<string>();
+var checkpointCollector = new CheckpointCollector(OpenConnection);
+var drainProbe = new SqlServerPipelineDrainProbe(OpenConnection);
+var linkageRunner = new LinkageProcessRunner(configuration, options, OpenConnection, log);
+var ingestionRunner = new IngestionStageRunner(options, drainProbe, log);
+var runner = new EnsaioRunner(options, checkpointCollector, linkageRunner, ingestionRunner, log);
 
-async Task<int> ExecutarProcesso(ProcessStartInfo psi,CancellationToken ct){using var p=Process.Start(psi)??throw new InvalidOperationException($"Não foi possível iniciar {psi.FileName}.");var stdout=p.StandardOutput.ReadToEndAsync(ct);var stderr=p.StandardError.ReadToEndAsync(ct);await p.WaitForExitAsync(ct);var saida=(await stdout).TrimEnd();if(!string.IsNullOrWhiteSpace(saida))Console.WriteLine(saida);var erro=(await stderr).TrimEnd();if(!string.IsNullOrWhiteSpace(erro))Console.Error.WriteLine(erro);return p.ExitCode;}
+using var cancellation = new CancellationTokenSource();
+Console.CancelKeyPress += (_, eventArgs) =>
+{
+    eventArgs.Cancel = true;
+    cancellation.Cancel();
+};
 
-async Task<int?> UltimaVersaoAsync(string status,CancellationToken ct){await using var c=Abrir();await c.OpenAsync(ct);await using var cmd=c.CreateCommand();cmd.CommandText="SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status=@status AND amostra_metodo='M_INTERGESTOR_U_GOLD_SERIALIZED' ORDER BY gerado_em DESC,versao DESC;";var p=cmd.CreateParameter();p.ParameterName="@status";p.Value=status;cmd.Parameters.Add(p);var valor=await cmd.ExecuteScalarAsync(ct);return valor is null or DBNull?null:Convert.ToInt32(valor,CultureInfo.InvariantCulture);}
-
-async Task Ingerir(EnsaioEtapa etapa,CancellationToken ct){var pacotes=Directory.GetFiles(dirPacotes,$"{etapa.PrefixoArquivo}*.zip").OrderBy(x=>x,StringComparer.Ordinal).ToArray();if(pacotes.Length==0)throw new FileNotFoundException($"Nenhum pacote {etapa.PrefixoArquivo}*.zip encontrado em {dirPacotes}.");using var http=new HttpClient{Timeout=TimeSpan.FromMinutes(30)};if(!string.IsNullOrWhiteSpace(apiKey))http.DefaultRequestHeaders.Add("X-Api-Key",apiKey);var enviados=0;foreach(var caminho in pacotes){var nome=Path.GetFileName(caminho);using var conteudo=new ByteArrayContent(await File.ReadAllBytesAsync(caminho,ct));conteudo.Headers.ContentType=new MediaTypeHeaderValue("application/zip");using var req=new HttpRequestMessage(HttpMethod.Post,endpoint){Content=conteudo};req.Headers.Add("Idempotency-Key",$"ensaio-{etapa.Codigo}-{nome}");using var resp=await http.SendAsync(req,ct);var corpo=await resp.Content.ReadAsStringAsync(ct);if(resp.IsSuccessStatusCode)enviados++;else log.Add($"{etapa.Codigo}: {nome} -> {(int)resp.StatusCode} {corpo}");}log.Add($"{etapa.Codigo}: {enviados}/{pacotes.Length} pacotes aceitos");if(enviados!=pacotes.Length)throw new InvalidOperationException($"A API aceitou apenas {enviados}/{pacotes.Length} pacotes.");await Drenar(ct);}
-async Task Drenar(CancellationToken ct){var limite=DateTimeOffset.Now+timeout;var estavel=0;while(DateTimeOffset.Now<limite&&!ct.IsCancellationRequested){await using var c=Abrir();await c.OpenAsync(ct);await using var cmd=c.CreateCommand();cmd.CommandText="SELECT COUNT(*) FROM ingestao.item_processado WHERE status NOT IN ('PROCESSADO','ERRO','DESCARTADO')";var n=Convert.ToInt64(await cmd.ExecuteScalarAsync(ct)??0L,CultureInfo.InvariantCulture);if(n==0){if(++estavel>=3)return;}else estavel=0;await Task.Delay(TimeSpan.FromSeconds(10),ct);}log.Add("drenagem: timeout");}
+return await runner.RunAsync(cancellation.Token);
