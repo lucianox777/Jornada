@@ -23,7 +23,8 @@ public sealed record IdentityTrainingPair(
 ///
 /// Nome da mãe é anulável no contrato Pessoa v3. Ausência em qualquer lado não é
 /// discordância: esses pares ficam fora da distribuição NOME_MAE e a ausência será
-/// tratada como evidência neutra pelo scorer.
+/// tratada como evidência neutra pelo scorer. O tamanho efetivamente observado dessa
+/// subamostra é persistido separadamente para auditoria.
 ///
 /// A partir da V2, nascimento é calibrado também em três evidências binárias separadas:
 /// dia, mês e ano. A data completa continua preservada e sua concordância exata continua
@@ -56,6 +57,8 @@ public static class LinkageParameterEstimator
         {
             ["M_SAMPLE_SIZE"] = matchedPairs.Count,
             ["U_SAMPLE_SIZE"] = unmatchedPairs.Count,
+            ["M_NOME_MAE_SAMPLE_SIZE"] = matchedMotherStates.Length,
+            ["U_NOME_MAE_SAMPLE_SIZE"] = unmatchedMotherStates.Length,
             ["SMOOTHING_ALPHA"] = smoothingAlpha,
             ["T_LINKAGE"] = threshold,
             ["CONFLICT_MARGIN"] = conflictMargin,
