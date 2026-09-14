@@ -69,7 +69,7 @@ public static class FellegiSunterScoring
         var mask = (left.Day == right.Day ? 1 : 0) |
             (left.Month == right.Month ? 2 : 0) |
             (left.Year == right.Year ? 4 : 0);
-        var state = Convert.ToString(mask, 2).PadLeft(3, '0');
+        var state = LinkageParameterCatalog.BirthJointStates[mask];
         var m = ClampProbability(Get(parameters, $"M_NASCIMENTO_CONJUNTO_{state}"));
         var u = ClampProbability(Get(parameters, $"U_NASCIMENTO_CONJUNTO_{state}"));
         return Math.Log((double)m / (double)u);
