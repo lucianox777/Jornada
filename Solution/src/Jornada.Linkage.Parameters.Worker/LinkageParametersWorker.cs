@@ -31,7 +31,7 @@ public sealed class LinkageParametersWorker(
     private const string DraftOperation = "GENERATE_DRAFT";
     private const string ValidateOperation = "VALIDATE";
     private const string ActivateOperation = "ACTIVATE";
-    private const string CurrentAlgorithmVersion = "FELLEGI_SUNTER_JOINT_BIRTH_V4";
+    private const string CurrentAlgorithmVersion = "FELLEGI_SUNTER_SEMANTIC_BIRTH_V5";
     private const string SqlServerSampleMethod = "M_INTERGESTOR_U_BLOCKING_RULESET_V3";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
