@@ -36,6 +36,7 @@ public sealed class FellegiSunterScoringTests
     };
 
     private static readonly IReadOnlyDictionary<string, decimal> ParametersV4 = JointBirthParameters(includeLegacyFlags: false);
+    private static readonly IReadOnlyDictionary<string, decimal> ParametersV5 = SemanticBirthParameters(includeLegacyFlags: false);
 
     [Test]
     public void Exact_name_and_mother_name_produce_high_posterior()
@@ -127,12 +128,87 @@ public sealed class FellegiSunterScoringTests
     }
 
     [Test]
+    public void V5_birth_uses_exactly_one_semantic_state()
+    {
+        var source = new DateOnly(1975, 6, 7);
+        var exact = FellegiSunterScoring.CalculatePosterior(ParametersV5, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, source);
+        var swapped = FellegiSunterScoring.CalculatePosterior(ParametersV5, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1975, 7, 6));
+        var oneDigit = FellegiSunterScoring.CalculatePosterior(ParametersV5, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1975, 6, 8));
+        var unrelated = FellegiSunterScoring.CalculatePosterior(ParametersV5, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1984, 9, 21));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exact, Is.GreaterThan(swapped));
+            Assert.That(swapped, Is.GreaterThan(oneDigit));
+            Assert.That(oneDigit, Is.GreaterThan(unrelated));
+        });
+    }
+
+    [Test]
+    public void V5_takes_precedence_over_v4_v3_and_v2_when_replaying_mixed_model()
+    {
+        var source = new DateOnly(1975, 6, 7);
+        var mixed = SemanticBirthParameters(includeLegacyFlags: true);
+        var alteredLegacy = new Dictionary<string, decimal>(mixed);
+
+        foreach (var state in LinkageParameterCatalog.BirthJointStates)
+        {
+            alteredLegacy[$"M_NASCIMENTO_CONJUNTO_{state}"] = state == "000" ? .999999m : .000001m;
+            alteredLegacy[$"U_NASCIMENTO_CONJUNTO_{state}"] = state == "000" ? .000001m : .999999m;
+        }
+        alteredLegacy["M_DATA_NASCIMENTO_EXACT"] = .500001m;
+        alteredLegacy["U_DATA_NASCIMENTO_EXACT"] = .499999m;
+        alteredLegacy["M_NASC_DIA_EXACT"] = .500001m;
+        alteredLegacy["U_NASC_DIA_EXACT"] = .499999m;
+
+        var candidate = new DateOnly(1975, 7, 6);
+        var baseline = FellegiSunterScoring.CalculatePosterior(mixed, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, candidate);
+        var changed = FellegiSunterScoring.CalculatePosterior(alteredLegacy, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, candidate);
+        Assert.That(changed, Is.EqualTo(baseline));
+    }
+
+    [Test]
     public void V1_model_without_birth_parameters_keeps_previous_score()
     {
         var withoutBirth = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.HIGH, NameComparisonState.HIGH, 100);
         var withBirth = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.HIGH, NameComparisonState.HIGH, 100,
             new DateOnly(1980, 6, 5), new DateOnly(1981, 7, 6));
         Assert.That(withBirth, Is.EqualTo(withoutBirth));
+    }
+
+    private static Dictionary<string, decimal> SemanticBirthParameters(bool includeLegacyFlags)
+    {
+        var parameters = includeLegacyFlags
+            ? JointBirthParameters(includeLegacyFlags: true)
+            : new Dictionary<string, decimal>(Parameters);
+        parameters[LinkageParameterCatalog.BirthSemanticEvidenceScoring] = 1m;
+
+        var m = new Dictionary<string, decimal>(StringComparer.Ordinal)
+        {
+            [BirthDateSemanticEvidence.Exact] = .55m,
+            [BirthDateSemanticEvidence.DayMonthSwap] = .18m,
+            [BirthDateSemanticEvidence.CenturyShift] = .06m,
+            [BirthDateSemanticEvidence.OneDigitError] = .09m,
+            [BirthDateSemanticEvidence.TwoDigitError] = .05m,
+            [BirthDateSemanticEvidence.PartialComponentAgreement] = .05m,
+            [BirthDateSemanticEvidence.OtherDisagreement] = .02m
+        };
+        var u = new Dictionary<string, decimal>(StringComparer.Ordinal)
+        {
+            [BirthDateSemanticEvidence.Exact] = .01m,
+            [BirthDateSemanticEvidence.DayMonthSwap] = .02m,
+            [BirthDateSemanticEvidence.CenturyShift] = .03m,
+            [BirthDateSemanticEvidence.OneDigitError] = .04m,
+            [BirthDateSemanticEvidence.TwoDigitError] = .08m,
+            [BirthDateSemanticEvidence.PartialComponentAgreement] = .22m,
+            [BirthDateSemanticEvidence.OtherDisagreement] = .60m
+        };
+        foreach (var state in BirthDateSemanticEvidence.States)
+        {
+            parameters[$"M_NASCIMENTO_SEMANTICO_{state}"] = m[state];
+            parameters[$"U_NASCIMENTO_SEMANTICO_{state}"] = u[state];
+        }
+        return parameters;
     }
 
     private static Dictionary<string, decimal> JointBirthParameters(bool includeLegacyFlags)
