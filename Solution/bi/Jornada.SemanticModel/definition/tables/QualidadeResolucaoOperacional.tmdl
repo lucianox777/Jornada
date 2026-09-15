@@ -6,10 +6,10 @@ table QualidadeResolucaoOperacional
 	measure 'Resolvidos' = SUM(QualidadeResolucaoOperacional[resolvidos])
 		formatString: #,##0
 
-	measure 'Conflitos' = SUM(QualidadeResolucaoOperacional[conflitos])
+	measure 'Conflitos - Resolução Geral' = SUM(QualidadeResolucaoOperacional[conflitos])
 		formatString: #,##0
 
-	measure 'Não resolvidos' = SUM(QualidadeResolucaoOperacional[nao_resolvidos])
+	measure 'Não resolvidos - Resolução Geral' = SUM(QualidadeResolucaoOperacional[nao_resolvidos])
 		formatString: #,##0
 
 	measure 'Taxa de resolução' = DIVIDE(SUM(QualidadeResolucaoOperacional[resolvidos]),SUM(QualidadeResolucaoOperacional[avaliados]))
