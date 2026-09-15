@@ -71,7 +71,7 @@ public sealed class ProbabilisticLinkagePolicyTests
     public void EnabledV5_MustHaveCompleteSemanticBirthDistribution_without_legacy_flags()
     {
         var parameters = SemanticBirthParameters(includeLegacyFlags: false);
-        var complete = LinkageModelPolicy.Create(ModelId, 5, "FELLEGI_SUNTER_SEMANTIC_BIRTH_V5", parameters);
+        var complete = LinkageModelPolicy.Create(ModelId, 5, LinkageParameterCatalog.SemanticBirthAlgorithmVersion, parameters);
         Assert.Multiple(() =>
         {
             Assert.That(LinkageModelPolicy.SupportsSemanticBirthScoring(complete), Is.True);
@@ -81,8 +81,24 @@ public sealed class ProbabilisticLinkagePolicyTests
 
         parameters.Remove($"U_NASCIMENTO_SEMANTICO_{BirthDateSemanticEvidence.OneDigitError}");
         var error = Assert.Throws<InvalidOperationException>(() =>
-            LinkageModelPolicy.Create(ModelId, 5, "FELLEGI_SUNTER_SEMANTIC_BIRTH_V5", parameters));
+            LinkageModelPolicy.Create(ModelId, 5, LinkageParameterCatalog.SemanticBirthAlgorithmVersion, parameters));
         Assert.That(error!.Message, Does.Contain($"U_NASCIMENTO_SEMANTICO_{BirthDateSemanticEvidence.OneDigitError}"));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void V5_provenance_requires_enabled_semantic_scoring_flag(bool disabledInsteadOfMissing)
+    {
+        var parameters = SemanticBirthParameters(includeLegacyFlags: false);
+        if (disabledInsteadOfMissing)
+            parameters[LinkageParameterCatalog.BirthSemanticEvidenceScoring] = 0m;
+        else
+            parameters.Remove(LinkageParameterCatalog.BirthSemanticEvidenceScoring);
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            LinkageModelPolicy.Create(ModelId, 5, LinkageParameterCatalog.SemanticBirthAlgorithmVersion, parameters));
+
+        Assert.That(error!.Message, Does.Contain(LinkageParameterCatalog.BirthSemanticEvidenceScoring));
     }
 
     [Test]
@@ -119,7 +135,7 @@ public sealed class ProbabilisticLinkagePolicyTests
             parameters[$"U_{feature}_DIFF"] = .9m;
         }
 
-        var model = LinkageModelPolicy.Create(ModelId, 5, "FELLEGI_SUNTER_SEMANTIC_BIRTH_V5", parameters);
+        var model = LinkageModelPolicy.Create(ModelId, 5, LinkageParameterCatalog.SemanticBirthAlgorithmVersion, parameters);
         Assert.Multiple(() =>
         {
             Assert.That(LinkageModelPolicy.SupportsSemanticBirthScoring(model), Is.True);
