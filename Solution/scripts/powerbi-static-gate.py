@@ -12,6 +12,7 @@ REPORT = BI / "Jornada.Report" / "definition"
 PAGES = REPORT / "pages"
 MODEL = BI / "Jornada.SemanticModel" / "definition"
 TABLES = MODEL / "tables"
+BASELINE = ROOT / "database" / "Jornada_Fase1_v3.70.sql"
 
 EXPECTED_PAGES = {
     "Visão Geral",
@@ -44,6 +45,15 @@ MEASURE_DECL = re.compile(
 )
 COLUMN_DECL = re.compile(
     r"(?m)^\s*column\s+(?:'((?:''|[^'])+)'|([^\s=]+))(?=\s|=|$)"
+)
+SERVING_SOURCE = re.compile(
+    r'Schema\s*=\s*"serving"\s*,\s*Item\s*=\s*"(?P<view>v_bi_[^"]+)"',
+    re.IGNORECASE,
+)
+SQLCMD_INCLUDE = re.compile(r"(?im)^\s*:r\s+(?P<path>.+?)\s*$")
+VIEW_DECL = re.compile(
+    r"(?im)^\s*CREATE\s+(?:OR\s+ALTER\s+)?VIEW\s+"
+    r"(?:\[?serving\]?\.)\[?(?P<view>v_bi_[A-Za-z0-9_]+)\]?"
 )
 
 
@@ -107,6 +117,36 @@ def collect_measures() -> tuple[dict[str, set[str]], int]:
     return measures_by_table, count
 
 
+def collect_sqlcmd_install_surface(path: Path, seen: set[Path] | None = None) -> str:
+    if seen is None:
+        seen = set()
+
+    resolved = path.resolve()
+    root_resolved = ROOT.resolve()
+    try:
+        resolved.relative_to(root_resolved)
+    except ValueError:
+        fail(f"include sqlcmd fora da Solution: {path}")
+
+    if resolved in seen:
+        return ""
+    if not resolved.is_file():
+        fail(f"include sqlcmd ausente no baseline: {resolved.relative_to(root_resolved)}")
+
+    seen.add(resolved)
+    text = resolved.read_text(encoding="utf-8-sig")
+    chunks = [text]
+    for match in SQLCMD_INCLUDE.finditer(text):
+        raw = match.group("path").strip()
+        if raw.startswith('"') and raw.endswith('"'):
+            raw = raw[1:-1]
+        if "$(" in raw:
+            fail(f"include sqlcmd parametrizado não suportado pelo gate: {raw}")
+        include = ROOT / raw.replace("\\", "/")
+        chunks.append(collect_sqlcmd_install_surface(include, seen))
+    return "\n".join(chunks)
+
+
 def iter_measure_refs(node: object):
     if isinstance(node, dict):
         measure = node.get("Measure")
@@ -134,9 +174,10 @@ def main() -> int:
         BI / "Jornada.SemanticModel" / "definition.pbism",
         MODEL / "model.tmdl",
         MODEL / "database.tmdl",
+        BASELINE,
     ]:
         if not required.is_file():
-            fail(f"artefato Power BI ausente: {required.relative_to(ROOT)}")
+            fail(f"artefato Power BI/SQL ausente: {required.relative_to(ROOT)}")
 
     page_files = sorted(PAGES.glob("*/page.json"))
     if len(page_files) != 23:
@@ -197,6 +238,27 @@ def main() -> int:
     if re.search(r"(?i)password\s*=|pwd\s*=|access[_-]?token\s*=", all_tmdl):
         fail("possível segredo versionado no TMDL")
 
+    semantic_serving_views = {
+        match.group("view") for match in SERVING_SOURCE.finditer(all_tmdl)
+    }
+    if not semantic_serving_views:
+        fail("modelo TMDL não referencia nenhuma view serving.v_bi_*")
+
+    install_sql = collect_sqlcmd_install_surface(BASELINE)
+    installed_serving_views = {
+        match.group("view").casefold() for match in VIEW_DECL.finditer(install_sql)
+    }
+    missing_install = sorted(
+        view
+        for view in semantic_serving_views
+        if view.casefold() not in installed_serving_views
+    )
+    if missing_install:
+        fail(
+            "views serving exigidas pelo TMDL não instaladas pelo baseline canônico: "
+            + ", ".join(f"serving.{view}" for view in missing_install)
+        )
+
     measures_by_table, measure_count = collect_measures()
     for visual_file, visual in parsed_visuals:
         for entity, prop in iter_measure_refs(visual):
@@ -215,6 +277,7 @@ def main() -> int:
     print(
         "POWER BI STATIC GATE: OK "
         f"(23 páginas; {len(tmdl_files)} TMDL; {measure_count} measures globais únicas; "
+        f"{len(semantic_serving_views)} fontes serving instaláveis; "
         "catálogo/ordem/visuais/referências/nomes locais coerentes)"
     )
     return 0
