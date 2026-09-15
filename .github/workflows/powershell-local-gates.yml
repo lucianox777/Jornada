@@ -4,12 +4,18 @@ on:
   push:
     paths:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
+      - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-sql-runtime-smoke.ps1'
+      - 'Solution/scripts/local-db.ps1'
       - '.github/workflows/powershell-local-gates.yml'
   pull_request:
     paths:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
+      - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-sql-runtime-smoke.ps1'
+      - 'Solution/scripts/local-db.ps1'
       - '.github/workflows/powershell-local-gates.yml'
   workflow_dispatch:
 
@@ -19,7 +25,7 @@ permissions:
 jobs:
   powershell-contract:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: Solution
@@ -35,7 +41,13 @@ jobs:
       - name: Validate UTF-8 BOM and PowerShell syntax
         shell: pwsh
         run: |
-          $files = @('scripts/local-ddl-upgrade.ps1','scripts/local-test-all.ps1')
+          $files = @(
+            'scripts/local-ddl-upgrade.ps1',
+            'scripts/local-test.ps1',
+            'scripts/local-test-all.ps1',
+            'scripts/local-sql-runtime-smoke.ps1',
+            'scripts/local-db.ps1'
+          )
           foreach ($file in $files) {
             $bytes = [System.IO.File]::ReadAllBytes($file)
             if ($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF) {
@@ -59,6 +71,14 @@ jobs:
           path: Solution/.local/ddl-upgrade
           if-no-files-found: ignore
           include-hidden-files: true
+
+      - name: Recreate canonical local database through PowerShell
+        shell: pwsh
+        run: ./scripts/local-db.ps1 -Action reset
+
+      - name: Execute SQL runtime smoke through PowerShell on schema 3.70
+        shell: pwsh
+        run: ./scripts/local-sql-runtime-smoke.ps1
 
       - name: Cleanup
         if: always()
