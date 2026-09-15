@@ -44,16 +44,26 @@ public sealed class LinkageParametersWorker(
 
         if (operation is ValidateOperation or ActivateOperation)
         {
-            var targetVersion = configuration.GetValue<int?>("LinkageParameters:TargetVersion")
-                ?? throw new InvalidOperationException(
-                    "LinkageParameters:TargetVersion é obrigatório para VALIDATE/ACTIVATE.");
+            try
+            {
+                var targetVersion = configuration.GetValue<int?>("LinkageParameters:TargetVersion")
+                    ?? throw new InvalidOperationException(
+                        "LinkageParameters:TargetVersion é obrigatório para VALIDATE/ACTIVATE.");
 
-            if (operation == ValidateOperation)
-                await ValidateDraftAsync(targetVersion, stoppingToken);
-            else
-                await ActivateValidatedAsync(targetVersion, stoppingToken);
-
-            applicationLifetime.StopApplication();
+                if (operation == ValidateOperation)
+                    await ValidateDraftAsync(targetVersion, stoppingToken);
+                else
+                    await ActivateValidatedAsync(targetVersion, stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Falha na operação explícita {Operation} dos parâmetros de linkage.", operation);
+                Environment.ExitCode = 1;
+            }
+            finally
+            {
+                applicationLifetime.StopApplication();
+            }
             return;
         }
 
@@ -287,7 +297,7 @@ public sealed class LinkageParametersWorker(
             ["DISTINCT_BIRTH_DATE"] = statistics.DistinctBirthDates,
             ["TRAINING_SAMPLE_POOL_SIZE"] = samplePoolSize,
             ["MIN_M_INDEPENDENT_PAIRS"] = minimumIndependentMatchedPairs,
-            ["U_BLOCKING_CANDIDATE_SAMPLE_SIZE"] = unmatchedCandidateSampleSize
+            ["BLOCKING_U_CANDIDATE_SAMPLE_SIZE"] = unmatchedCandidateSampleSize
         };
 
         return parameters.ToDictionary(
