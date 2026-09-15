@@ -82,9 +82,9 @@
     {
       "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "1f0b5b7b35d6860bc6dff9cb1d76e1f34e211e8d16a32769facd07f56db755b7",
-      "sha256": "1f0b5b7b35d6860bc6dff9cb1d76e1f34e211e8d16a32769facd07f56db755b7",
-      "note": "Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.",
+      "sourceSha256": "78ed8abc810feefde3512d090da078ee12fb77e554c39ce04ff1fe2f21ffd002",
+      "sha256": "78ed8abc810feefde3512d090da078ee12fb77e554c39ce04ff1fe2f21ffd002",
+      "note": "Lock regenerado e reproduzido pelo SDK 8.0.424 após reutilizar o runtime do Runner no Evaluation; proveniência validada pelo gate.",
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
