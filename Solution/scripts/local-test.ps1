@@ -1,32 +1,75 @@
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+
+function Invoke-NativeStep {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][scriptblock]$Action
+    )
+
+    Write-Host ''
+    Write-Host "--- $Name ---"
+    $global:LASTEXITCODE = 0
+    & $Action
+    $code = $LASTEXITCODE
+    if ($code -ne 0) { throw "$Name falhou ($code)." }
+}
+
+# Scripts PowerShell internos propagam exceções diretamente. Não usamos LASTEXITCODE para
+# inferir sucesso deles porque esse valor pode refletir o último executável nativo chamado
+# internamente, mesmo quando o script tratou a condição e terminou com sucesso.
 & (Join-Path $PSScriptRoot 'local-db.ps1') -Action up
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 $vars = @{}
 Get-Content (Join-Path $Root '.env') | ForEach-Object {
     $line = $_.Trim()
     if ($line -and -not $line.StartsWith('#') -and $line.Contains('=')) {
-        $parts = $line.Split('=',2); $vars[$parts[0].Trim()] = $parts[1]
+        $parts = $line.Split('=',2)
+        $vars[$parts[0].Trim()] = $parts[1]
     }
 }
 $port = if ($vars['JORNADA_SQL_PORT']) { $vars['JORNADA_SQL_PORT'] } else { '14333' }
 $db = if ($vars['JORNADA_SQL_DATABASE']) { $vars['JORNADA_SQL_DATABASE'] } else { 'JornadaLocal' }
-$env:JORNADA_TEST_SQL_CONNECTION = "Server=localhost,$port;Database=$db;User Id=sa;Password=$($vars['JORNADA_SQL_SA_PASSWORD']);TrustServerCertificate=true;Encrypt=false"
+$password = $vars['JORNADA_SQL_SA_PASSWORD']
+if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD não definido.' }
+$env:JORNADA_TEST_SQL_CONNECTION = "Server=localhost,$port;Database=$db;User Id=sa;Password=$password;TrustServerCertificate=true;Encrypt=false"
+
 Push-Location $Root
 try {
-    if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw 'Python 3 é necessário para o gate OpenAPI.' }
-    python scripts/openapi-contract-gate.py
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    python scripts/technical-closure-gate.py
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw 'Python 3 é necessário para os gates locais.' }
+
+    Invoke-NativeStep 'OpenAPI contract gate' {
+        python scripts/openapi-contract-gate.py
+    }
+
+    Invoke-NativeStep 'Technical closure gate' {
+        python scripts/technical-closure-gate.py
+    }
+
+    Write-Host ''
+    Write-Host '--- SQL runtime smoke 3.70 ---'
     & (Join-Path $PSScriptRoot 'local-sql-runtime-smoke.ps1')
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    dotnet restore Jornada.sln
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    dotnet build Jornada.sln --configuration Release --no-restore -warnaserror
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --configuration Release --no-build
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    dotnet test tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj --configuration Release --no-build
-    exit $LASTEXITCODE
-} finally { Pop-Location }
+
+    Invoke-NativeStep 'dotnet restore' {
+        dotnet restore Jornada.sln
+    }
+
+    Invoke-NativeStep 'dotnet build Release' {
+        dotnet build Jornada.sln --configuration Release --no-restore -warnaserror
+    }
+
+    Invoke-NativeStep 'Unit tests' {
+        dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --configuration Release --no-build
+    }
+
+    Invoke-NativeStep 'Integration tests' {
+        dotnet test tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj --configuration Release --no-build
+    }
+
+    Write-Host ''
+    Write-Host 'LOCAL CORE TEST: OK'
+}
+finally {
+    Pop-Location
+}
