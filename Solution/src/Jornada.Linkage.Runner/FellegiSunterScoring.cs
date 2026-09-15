@@ -2,9 +2,11 @@ using Jornada.Contracts;
 
 namespace Jornada.Linkage.Runner;
 
+public readonly record struct FellegiSunterScore(decimal Posterior, decimal LogOdds);
+
 public static class FellegiSunterScoring
 {
-    public static decimal CalculatePosterior(
+    public static FellegiSunterScore Calculate(
         IReadOnlyDictionary<string, decimal> parameters,
         NameComparisonState nameState,
         NameComparisonState? motherNameState,
@@ -46,9 +48,22 @@ public static class FellegiSunterScoring
             }
         }
 
+        // O posterior continua limitado apenas para a sigmoide/contrato externo. A evidência
+        // acumulada permanece disponível antes do clamp para ranking e margem entre candidatos.
         var posterior = 1d / (1d + Math.Exp(-Math.Clamp(logOdds, -40d, 40d)));
-        return Math.Round((decimal)posterior, 8, MidpointRounding.AwayFromZero);
+        return new FellegiSunterScore(
+            Math.Round((decimal)posterior, 8, MidpointRounding.AwayFromZero),
+            Math.Round((decimal)logOdds, 8, MidpointRounding.AwayFromZero));
     }
+
+    public static decimal CalculatePosterior(
+        IReadOnlyDictionary<string, decimal> parameters,
+        NameComparisonState nameState,
+        NameComparisonState? motherNameState,
+        int? blockCandidateCount = null,
+        DateOnly? leftBirthDate = null,
+        DateOnly? rightBirthDate = null) =>
+        Calculate(parameters, nameState, motherNameState, blockCandidateCount, leftBirthDate, rightBirthDate).Posterior;
 
     private static decimal CalculateBlockPrior(IReadOnlyDictionary<string, decimal> parameters, int candidateCount)
     {
