@@ -20,6 +20,10 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p.ContainsKey("U_NOME_LOW"), Is.True);
             Assert.That(p["T_LINKAGE"], Is.EqualTo(0.95m));
             Assert.That(p["CONFLICT_MARGIN"], Is.EqualTo(0.03m));
+            Assert.That(p[LinkageParameterCatalog.LogOddsConflictMargin], Is.EqualTo(0.03m));
+            Assert.That(p[LinkageParameterCatalog.DecisionEvidenceScoring], Is.EqualTo(1m));
+            Assert.That(p.ContainsKey("M_NOME_MAE_MISSING"), Is.True);
+            Assert.That(p.ContainsKey("U_NOME_MAE_MISSING"), Is.True);
             Assert.That(p["PRIOR_MATCH_PROBABILITY"], Is.EqualTo(0.1m));
             Assert.That(p["PRIOR_BLOCK_MAX"], Is.EqualTo(0.25m));
             Assert.That(p[LinkageParameterCatalog.BirthSemanticEvidenceScoring], Is.EqualTo(1m));
@@ -76,6 +80,10 @@ public sealed class LinkageParameterEstimatorTests
         {
             Assert.That(p[LinkageParameterCatalog.BirthJointEvidenceScoring], Is.EqualTo(1m));
             Assert.That(p.ContainsKey(LinkageParameterCatalog.BirthSemanticEvidenceScoring), Is.False);
+            Assert.That(p.ContainsKey(LinkageParameterCatalog.DecisionEvidenceScoring), Is.False);
+            Assert.That(p.ContainsKey(LinkageParameterCatalog.LogOddsConflictMargin), Is.False);
+            Assert.That(p.ContainsKey("M_NOME_MAE_MISSING"), Is.False);
+            Assert.That(p.ContainsKey("U_NOME_MAE_MISSING"), Is.False);
             foreach (var name in LinkageParameterCatalog.BirthSemanticEvidenceRequired)
                 Assert.That(p.ContainsKey(name), Is.True, $"Distribuição V5 para replay ausente: {name}.");
         });
@@ -95,6 +103,15 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p.ContainsKey(LinkageParameterCatalog.BirthSemanticEvidenceScoring), Is.False);
             Assert.That(p.ContainsKey(LinkageParameterCatalog.BirthJointEvidenceScoring), Is.False);
             Assert.That(p.ContainsKey(LinkageParameterCatalog.BirthComponentScoring), Is.False);
+            Assert.That(p.ContainsKey(LinkageParameterCatalog.DecisionEvidenceScoring), Is.False,
+                "Contrato legado não pode receber flag V6 por acidente.");
+            Assert.That(p.ContainsKey(LinkageParameterCatalog.LogOddsConflictMargin), Is.False);
+            Assert.That(p.ContainsKey("M_NOME_MAE_MISSING"), Is.False);
+            Assert.That(p.ContainsKey("U_NOME_MAE_MISSING"), Is.False);
+            Assert.That(p["M_NOME_MAE_EXACT"] + p["M_NOME_MAE_HIGH"] + p["M_NOME_MAE_MEDIUM"] + p["M_NOME_MAE_LOW"],
+                Is.EqualTo(1m).Within(0.00000001m));
+            Assert.That(p["U_NOME_MAE_EXACT"] + p["U_NOME_MAE_HIGH"] + p["U_NOME_MAE_MEDIUM"] + p["U_NOME_MAE_LOW"],
+                Is.EqualTo(1m).Within(0.00000001m));
             foreach (var name in LinkageParameterCatalog.BirthSemanticEvidenceRequired)
                 Assert.That(p.ContainsKey(name), Is.True, $"Distribuição V5 para replay ausente: {name}.");
             foreach (var name in LinkageParameterCatalog.BirthJointEvidenceRequired)
@@ -105,7 +122,7 @@ public sealed class LinkageParameterEstimatorTests
     }
 
     [Test]
-    public void Missing_mother_name_is_not_counted_as_low_similarity()
+    public void Missing_mother_name_is_an_explicit_v6_state_not_low_similarity()
     {
         var matched = new[]
         {
@@ -124,6 +141,8 @@ public sealed class LinkageParameterEstimatorTests
         {
             Assert.That(p.ContainsKey("M_NOME_MAE_SAMPLE_SIZE"), Is.False);
             Assert.That(p.ContainsKey("U_NOME_MAE_SAMPLE_SIZE"), Is.False);
+            Assert.That(p["M_NOME_MAE_MISSING"], Is.GreaterThan(0m));
+            Assert.That(p["U_NOME_MAE_MISSING"], Is.GreaterThan(0m));
             Assert.That(p["M_NOME_MAE_EXACT"], Is.GreaterThan(p["M_NOME_MAE_LOW"]));
             Assert.That(p["U_NOME_MAE_LOW"], Is.GreaterThan(p["U_NOME_MAE_EXACT"]));
         });
