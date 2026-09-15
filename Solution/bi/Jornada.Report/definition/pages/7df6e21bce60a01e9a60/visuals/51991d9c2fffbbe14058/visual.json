@@ -3,11 +3,11 @@
   "name": "51991d9c2fffbbe14058",
   "position": {
     "x": 60,
-    "y": 655,
-    "z": 9700,
+    "y": 660,
+    "z": 9500,
     "height": 45,
     "width": 1160,
-    "tabOrder": 9700
+    "tabOrder": 9500
   },
   "visual": {
     "visualType": "cardVisual",
@@ -20,14 +20,14 @@
                 "Measure": {
                   "Expression": {
                     "SourceRef": {
-                      "Entity": "Registros"
+                      "Entity": "BeneficiosConcedidos"
                     }
                   },
-                  "Property": "Disclaimer Monetário"
+                  "Property": "Aviso Monetário"
                 }
               },
-              "queryRef": "Registros.Disclaimer Monetário",
-              "nativeQueryRef": "Disclaimer Monetário"
+              "queryRef": "BeneficiosConcedidos.Aviso Monetário",
+              "nativeQueryRef": "Aviso Monetário"
             }
           ]
         }
