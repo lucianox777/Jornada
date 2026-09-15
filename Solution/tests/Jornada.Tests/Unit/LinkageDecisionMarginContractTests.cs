@@ -35,7 +35,7 @@ public sealed class LinkageDecisionMarginContractTests
     }
 
     [Test]
-    public void SqlServer_migration_preserves_probability_scores_but_allows_nonnegative_log_odds_margin()
+    public void SqlServer_migration_preserves_probability_scores_allows_log_odds_margin_and_forbids_self_second_candidate()
     {
         var root = FindSolutionRoot();
         var migration = File.ReadAllText(Path.Combine(
@@ -48,6 +48,8 @@ public sealed class LinkageDecisionMarginContractTests
             Assert.That(migration, Does.Contain("score_segundo >= 0 AND score_segundo <= 1"));
             Assert.That(migration, Does.Contain("margem IS NULL OR margem >= 0"));
             Assert.That(migration, Does.Not.Contain("margem <= 1"));
+            Assert.That(migration, Does.Contain("ck_linkage_resultado_candidatos_distintos"));
+            Assert.That(migration, Does.Contain("segundo_candidato_uuid <> melhor_candidato_uuid"));
         });
     }
 
