@@ -12,12 +12,29 @@ if (-not (Test-Path -LiteralPath $ShellGate)) {
 }
 
 function Get-BashExecutable {
-    $bash = Get-Command bash -ErrorAction SilentlyContinue
+    $git = Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+
+    # No Windows, `bash` no PATH pode ser C:\Windows\System32\bash.exe (launcher do WSL).
+    # Este gate foi escrito para Git Bash e precisa operar sobre os mesmos caminhos/CLI do host
+    # Windows (Docker Desktop, dotnet, arquivos C:\...). Portanto resolvemos Git Bash primeiro e
+    # não delegamos implicitamente ao WSL.
+    if ($env:OS -eq 'Windows_NT') {
+        if ($null -eq $git) { return $null }
+        $gitCmdDir = Split-Path -Parent $git.Source
+        $gitRoot = Split-Path -Parent $gitCmdDir
+        foreach ($candidate in @(
+            (Join-Path $gitRoot 'bin/bash.exe'),
+            (Join-Path $gitRoot 'usr/bin/bash.exe')
+        )) {
+            if (Test-Path -LiteralPath $candidate) { return $candidate }
+        }
+        return $null
+    }
+
+    $bash = Get-Command bash -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($null -ne $bash) { return $bash.Source }
 
-    $git = Get-Command git -ErrorAction SilentlyContinue
     if ($null -eq $git) { return $null }
-
     $gitCmdDir = Split-Path -Parent $git.Source
     $gitRoot = Split-Path -Parent $gitCmdDir
     foreach ($candidate in @(
@@ -31,8 +48,9 @@ function Get-BashExecutable {
 
 $bashExe = Get-BashExecutable
 if ([string]::IsNullOrWhiteSpace($bashExe)) {
-    throw 'Bash não encontrado. No Windows, instale/use o Git for Windows; o PowerShell localiza automaticamente o Git Bash.'
+    throw 'Bash compatível não encontrado. No Windows, este gate exige o Git Bash do Git for Windows e não usa automaticamente o launcher do WSL.'
 }
+Write-Host "Bash selecionado para o gate DDL: $bashExe"
 
 Push-Location $Root
 try {
