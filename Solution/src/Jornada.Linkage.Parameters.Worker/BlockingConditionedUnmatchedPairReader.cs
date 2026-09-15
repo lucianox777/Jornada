@@ -103,7 +103,8 @@ public static class BlockingConditionedUnmatchedPairReader
     FROM eligible_keys k0
     {string.Join("\n    ", joinClauses)}
     WHERE k0.atributo={aliases[0]}
-)""");
+)
+""");
             ctes.Add($"""
 {rankedCte} AS (
     SELECT pessoa_uuid,assinatura,
@@ -111,14 +112,16 @@ public static class BlockingConditionedUnmatchedPairReader
                PARTITION BY assinatura
                ORDER BY HASHBYTES('SHA2_256',CONVERT(nvarchar(36),pessoa_uuid)),pessoa_uuid) AS rn
     FROM {keysCte}
-)""");
+)
+""");
             ctes.Add($"""
 {pairsCte} AS (
     SELECT a.pessoa_uuid AS a_uuid,b.pessoa_uuid AS b_uuid
     FROM {rankedCte} a
     JOIN {rankedCte} b ON b.assinatura=a.assinatura AND b.rn=a.rn+1
     WHERE a.rn % 2=1 AND a.pessoa_uuid<>b.pessoa_uuid
-)""");
+)
+""");
             pairSources.Add($"SELECT a_uuid,b_uuid FROM {pairsCte}");
         }
 
