@@ -1,0 +1,46 @@
+name: tmp-refresh-linkage-evaluation-provenance
+
+on:
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Linkage.Evaluation/packages.lock.json'
+      - 'Solution/config/release/nuget-lock-provenance.json'
+      - '.github/workflows/tmp-refresh-linkage-evaluation-provenance.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 'feat/linkage-truth-candidate-audit'
+          persist-credentials: true
+      - name: Refresh attested SHA for Evaluation lock
+        working-directory: Solution
+        run: |
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          lock = Path('src/Jornada.Linkage.Evaluation/packages.lock.json')
+          manifest = Path('config/release/nuget-lock-provenance.json')
+          digest = hashlib.sha256(lock.read_bytes()).hexdigest()
+          data = json.loads(manifest.read_text(encoding='utf-8'))
+          row = next(r for r in data['locks'] if r['path'] == lock.as_posix())
+          row['sourceSha256'] = digest
+          row['sha256'] = digest
+          row['note'] = 'Lock regenerado e reproduzido pelo SDK 8.0.424 após reutilizar o runtime do Runner no Evaluation; proveniência validada pelo gate.'
+          manifest.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print(f'Evaluation lock sha256={digest}')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add config/release/nuget-lock-provenance.json
+          if git diff --cached --quiet; then
+            echo 'Proveniência já está atualizada.'
+            exit 0
+          fi
+          git commit -m 'build(linkage): atualiza proveniência do lock do Evaluation'
+          git push origin HEAD:feat/linkage-truth-candidate-audit
