@@ -1,5 +1,6 @@
 -- V6: margem entre candidatos é diferença de log-odds, não diferença de posterior.
--- Amplia a coluna de auditoria e promove os contratos V5/V6 a invariantes do banco.
+-- Amplia a coluna de auditoria, ajusta seu domínio e promove os contratos V5/V6
+-- a invariantes do banco.
 SET XACT_ABORT ON;
 GO
 
@@ -7,6 +8,22 @@ IF OBJECT_ID('identidade.linkage_resultado','U') IS NOT NULL
    AND COL_LENGTH('identidade.linkage_resultado','margem') IS NOT NULL
 BEGIN
     ALTER TABLE identidade.linkage_resultado ALTER COLUMN margem DECIMAL(19,8) NULL;
+
+    IF EXISTS (
+        SELECT 1
+        FROM sys.check_constraints
+        WHERE parent_object_id=OBJECT_ID('identidade.linkage_resultado')
+          AND name='ck_linkage_resultado_scores')
+        ALTER TABLE identidade.linkage_resultado DROP CONSTRAINT ck_linkage_resultado_scores;
+
+    -- score_melhor/score_segundo continuam sendo posteriores. A margem, porém, é
+    -- posterior em replay legado e diferença de log-odds na V6; em ambos os casos
+    -- seu único limite universal é ser não-negativa.
+    ALTER TABLE identidade.linkage_resultado WITH CHECK
+        ADD CONSTRAINT ck_linkage_resultado_scores CHECK(
+            score_melhor>=0 AND score_melhor<=1
+            AND (score_segundo IS NULL OR (score_segundo>=0 AND score_segundo<=1))
+            AND (margem IS NULL OR margem>=0));
 END;
 GO
 
