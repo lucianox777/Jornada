@@ -13,6 +13,7 @@ on:
       - 'Solution/install/windows-production/Install-JornadaCluster.ps1'
       - 'Solution/install/windows-production/Invoke-JornadaLinkage*.ps1'
       - 'Solution/scripts/local-cluster.*'
+      - 'Solution/scripts/local-clean-test.ps1'
       - 'Solution/scripts/local-db.*'
       - 'Solution/src/Jornada.Processor.Worker/**'
       - 'Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs'
@@ -30,6 +31,7 @@ on:
       - 'Solution/install/windows-production/Install-JornadaCluster.ps1'
       - 'Solution/install/windows-production/Invoke-JornadaLinkage*.ps1'
       - 'Solution/scripts/local-cluster.*'
+      - 'Solution/scripts/local-clean-test.ps1'
       - 'Solution/scripts/local-db.*'
       - 'Solution/src/Jornada.Processor.Worker/**'
       - 'Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs'
@@ -95,7 +97,7 @@ jobs:
       - name: Validate UTF-8 BOM and parse PowerShell local entrypoints
         shell: pwsh
         run: |
-          $files = @('Install-JornadaLocal.ps1','Clean-JornadaLocal.ps1','scripts/local-cluster.ps1','scripts/local-db.ps1')
+          $files = @('Install-JornadaLocal.ps1','Clean-JornadaLocal.ps1','scripts/local-cluster.ps1','scripts/local-clean-test.ps1','scripts/local-db.ps1')
           foreach ($file in $files) {
             $bytes = [System.IO.File]::ReadAllBytes($file)
             if ($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF) {
