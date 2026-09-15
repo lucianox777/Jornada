@@ -18,6 +18,9 @@
 :r database/migrations/20260910_Linkage_RuleSet_Passes.sql
 :r database/migrations/20260911_Linkage_Blocking_Projection_Contract.sql
 :r database/migrations/20260912_Nome_Mae_Anulavel.sql
+:r database/migrations/20260913_BI_Qualidade_Resolucao.sql
+:r database/migrations/20260913_BI_Qualidade_Resolucao_Gestor_Real.sql
+:r database/migrations/20260913_BI_Qualidade_Resolucao_Estrato_Cpf.sql
 :r database/migrations/20260914_Operational_Monitor.sql
 :r database/migrations/20260915_Linkage_LogOdds_Margin.sql
 
