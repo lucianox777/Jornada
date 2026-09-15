@@ -35,6 +35,9 @@ public static class LinkageParameterCatalog
     public static readonly IReadOnlyList<string> BirthSemanticEvidenceRequired =
         [.. SemanticBirthDistribution("M_NASCIMENTO_SEMANTICO"), .. SemanticBirthDistribution("U_NASCIMENTO_SEMANTICO")];
 
+    public static readonly IReadOnlyList<string> BirthSemanticCalibrationValidationRequired =
+        [BirthSemanticEvidenceScoring, .. BirthSemanticEvidenceRequired];
+
     public static readonly IReadOnlyList<string> BirthJointEvidenceRequired =
         [.. JointBirthDistribution("M_NASCIMENTO_CONJUNTO"), .. JointBirthDistribution("U_NASCIMENTO_CONJUNTO")];
 
