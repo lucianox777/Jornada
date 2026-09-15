@@ -143,6 +143,7 @@ function Bootstrap {
     # aplica todas as extensões operacionais e só promove o marcador após provar completude.
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/Jornada_Fase1_v3.70.sql')
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/Jornada_Seed_Dev.sql')
+    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/Jornada_Seed_Dev_UniquePayloads.sql')
     # Reaplicação idempotente necessária em DEV para reservar CPFs históricos do seed.
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260907_Cpf_Ancora.sql')
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260910_Schema_Consolidation_370.sql')
