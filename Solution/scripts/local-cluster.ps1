@@ -42,7 +42,7 @@ function Get-SqlScalar([string]$Query) {
     Push-Location $Root
     try {
         $lines = @(& docker compose --env-file $EnvFile exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd `
-            -S localhost -U sa -P $password -C -d JornadaLocal -W -h -1 -Q "SET NOCOUNT ON; $Query")
+            -S localhost -U sa -P $password -C -d JornadaLocal -W -h -1 -b -Q "SET NOCOUNT ON; $Query")
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd falhou ($LASTEXITCODE)." }
         $value = @($lines | ForEach-Object { $_.Trim() } | Where-Object { $_ }) | Select-Object -Last 1
         if ($null -eq $value) { return '' }
@@ -57,7 +57,7 @@ function Invoke-SqlReport([string]$Query) {
     Push-Location $Root
     try {
         & docker compose --env-file $EnvFile exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd `
-            -S localhost -U sa -P $password -C -d JornadaLocal -W -s '|' -Q "SET NOCOUNT ON; $Query"
+            -S localhost -U sa -P $password -C -d JornadaLocal -W -s '|' -b -Q "SET NOCOUNT ON; $Query"
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd falhou ($LASTEXITCODE)." }
     }
     finally { Pop-Location }
@@ -185,7 +185,7 @@ function Show-LinkageDiagnosis {
 
     Write-Host ''
     Write-Host 'Composição atual do corpus Gold (explica SCALE versus seed/outros):'
-    Invoke-SqlReport "SELECT COUNT_BIG(*) AS gold_total,SUM(CASE WHEN EXISTS(SELECT 1 FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE vc.pessoa_uuid=g.pessoa_uuid AND vc.status='RESOLVIDO' AND po.codigo_pessoa_origem LIKE 'SCALE-SEHAB-%') THEN 1 ELSE 0 END) AS gold_scale,SUM(CASE WHEN NOT EXISTS(SELECT 1 FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE vc.pessoa_uuid=g.pessoa_uuid AND vc.status='RESOLVIDO' AND po.codigo_pessoa_origem LIKE 'SCALE-SEHAB-%') THEN 1 ELSE 0 END) AS gold_seed_ou_outros FROM gold.pessoa g;"
+    Invoke-SqlReport "WITH scale_gold AS (SELECT DISTINCT vc.pessoa_uuid FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE vc.status='RESOLVIDO' AND po.codigo_pessoa_origem LIKE 'SCALE-SEHAB-%') SELECT COUNT_BIG(*) AS gold_total,SUM(CASE WHEN sg.pessoa_uuid IS NOT NULL THEN CAST(1 AS bigint) ELSE CAST(0 AS bigint) END) AS gold_scale,SUM(CASE WHEN sg.pessoa_uuid IS NULL THEN CAST(1 AS bigint) ELSE CAST(0 AS bigint) END) AS gold_seed_ou_outros FROM gold.pessoa g LEFT JOIN scale_gold sg ON sg.pessoa_uuid=g.pessoa_uuid;"
 
     Write-Host ''
     Write-Host 'Qualidade contra ground truth sintético SCALE (verdade derivada do vínculo CPF da observação SEHAB correspondente):'
