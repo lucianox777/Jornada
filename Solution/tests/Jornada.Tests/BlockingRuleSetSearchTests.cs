@@ -98,6 +98,36 @@ public sealed class BlockingRuleSetSearchTests
     }
 
     [Test]
+    public void SearchBest_WhenUSupportIsRequired_SkipsZeroRetentionWinner()
+    {
+        var observations = new[]
+        {
+            Obs(true, ("a", true), ("b", true)),
+            Obs(true, ("a", true), ("b", true)),
+            Obs(false, ("a", false), ("b", true)),
+            Obs(false, ("a", false), ("b", false))
+        };
+
+        var best = BlockingRuleSetSearch.SearchBest(
+            observations,
+            new[] { "a", "b" },
+            new BlockingRuleSetSearchOptions(
+                MaxFieldsPerPass: 1,
+                MaxPasses: 1,
+                PrimitivePoolSize: 2,
+                MinimumTrueMatchRecall: 1d,
+                RequireObservedNonMatchSupport: true));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(best.Passes, Has.Count.EqualTo(1));
+            Assert.That(best.Passes[0].Fields, Is.EquivalentTo(new[] { "b" }));
+            Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(1d));
+            Assert.That(best.Diagnostic.NonMatchRetention, Is.EqualTo(0.5d));
+        });
+    }
+
+    [Test]
     public void SearchBest_IsDeterministicWhenFeatureInputOrderChanges()
     {
         var observations = new[]
