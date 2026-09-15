@@ -1,9 +1,10 @@
 name: tmp-linkage-evaluation-lock
 
 on:
-  push:
-    branches:
-      - 'feat/linkage-truth-candidate-audit'
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Linkage.Evaluation/**'
+      - '.github/workflows/tmp-linkage-evaluation-lock.yml'
 
 permissions:
   contents: write
@@ -14,6 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: 'feat/linkage-truth-candidate-audit'
           persist-credentials: true
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
