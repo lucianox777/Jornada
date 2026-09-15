@@ -48,6 +48,9 @@ public sealed record ProbabilisticLinkageRunRequest(
 /// <summary>
 /// Resultado interno detalhado de uma observação. Persistem-se apenas os dois
 /// melhores candidatos, nunca a lista completa de candidatos do blocking.
+/// MelhorScore e SegundoScore são posteriores em [0,1]. Margem é não negativa e seu
+/// espaço é versionado pela proveniência do modelo: contratos legados usam diferença
+/// de posterior; DECISION_EVIDENCE_V6 usa diferença de log-odds antes da sigmoide.
 /// </summary>
 public sealed record ProbabilisticLinkageDecision(
     ResolutionStatus Status,
