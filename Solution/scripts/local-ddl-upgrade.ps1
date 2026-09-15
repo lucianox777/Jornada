@@ -52,6 +52,21 @@ if ([string]::IsNullOrWhiteSpace($bashExe)) {
 }
 Write-Host "Bash selecionado para o gate DDL: $bashExe"
 
+# Git Bash/MSYS converte argumentos POSIX enviados a executáveis Windows. Sem esta exclusão,
+# `docker compose exec -w /workspace` vira um caminho do host (por exemplo
+# C:/Program Files/Git/workspace), que não é um cwd absoluto válido dentro do container Linux.
+# Excluímos somente /workspace para manter a conversão normal dos demais caminhos do host.
+$previousArgConvExcl = $env:MSYS2_ARG_CONV_EXCL
+if ($env:OS -eq 'Windows_NT') {
+    $workspaceExclusion = '/workspace'
+    if ([string]::IsNullOrWhiteSpace($previousArgConvExcl)) {
+        $env:MSYS2_ARG_CONV_EXCL = $workspaceExclusion
+    }
+    elseif (($previousArgConvExcl -split ';') -notcontains $workspaceExclusion) {
+        $env:MSYS2_ARG_CONV_EXCL = "$previousArgConvExcl;$workspaceExclusion"
+    }
+}
+
 Push-Location $Root
 try {
     & $bashExe ./scripts/local-ddl-upgrade.sh
@@ -61,4 +76,12 @@ try {
 }
 finally {
     Pop-Location
+    if ($env:OS -eq 'Windows_NT') {
+        if ($null -eq $previousArgConvExcl) {
+            Remove-Item Env:MSYS2_ARG_CONV_EXCL -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:MSYS2_ARG_CONV_EXCL = $previousArgConvExcl
+        }
+    }
 }
