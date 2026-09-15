@@ -23,11 +23,11 @@
                       "Entity": "BeneficiosConcedidos"
                     }
                   },
-                  "Property": "Aviso Fatos e Pessoas"
+                  "Property": "Aviso Fatos e Pessoas - Benefícios"
                 }
               },
-              "queryRef": "BeneficiosConcedidos.Aviso Fatos e Pessoas",
-              "nativeQueryRef": "Aviso Fatos e Pessoas"
+              "queryRef": "BeneficiosConcedidos.Aviso Fatos e Pessoas - Benefícios",
+              "nativeQueryRef": "Aviso Fatos e Pessoas - Benefícios"
             }
           ]
         }
