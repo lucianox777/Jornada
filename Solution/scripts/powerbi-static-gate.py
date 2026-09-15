@@ -17,11 +17,13 @@ BASELINE = ROOT / "database" / "Jornada_Fase1_v3.70.sql"
 PBIP = BI / "Jornada.pbip"
 PBIR = BI / "Jornada.Report" / "definition.pbir"
 PBISM = BI / "Jornada.SemanticModel" / "definition.pbism"
+REPORT_JSON = REPORT / "report.json"
 
 ROOT_SCHEMA_EXPECTATIONS = {
     PBIP: "https://developer.microsoft.com/json-schemas/fabric/pbip/pbipProperties/1.0.0/schema.json",
     PBIR: "https://developer.microsoft.com/json-schemas/fabric/item/report/definitionProperties/2.0.0/schema.json",
     PBISM: "https://developer.microsoft.com/json-schemas/fabric/item/semanticModel/definitionProperties/1.0.0/schema.json",
+    REPORT_JSON: "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/1.2.0/schema.json",
 }
 
 EXPECTED_PAGES = {
@@ -178,7 +180,7 @@ def main() -> int:
     for required in [
         PBIP,
         PBIR,
-        REPORT / "report.json",
+        REPORT_JSON,
         REPORT / "version.json",
         PAGES / "pages.json",
         PBISM,
@@ -197,6 +199,12 @@ def main() -> int:
                 f"$schema ausente/incorreto em {metadata_file.relative_to(ROOT)}: "
                 f"esperado {expected_schema!r}; encontrado {actual_schema!r}"
             )
+
+    report_metadata = json.loads(REPORT_JSON.read_text(encoding="utf-8"))
+    if not isinstance(report_metadata.get("themeCollection"), dict):
+        fail("report.json deve declarar themeCollection como objeto conforme o schema PBIR")
+    if report_metadata.get("layoutOptimization") not in {"None", "PhonePortrait"}:
+        fail("report.json deve declarar layoutOptimization válido conforme o schema PBIR")
 
     page_files = sorted(PAGES.glob("*/page.json"))
     if len(page_files) != 23:
@@ -297,7 +305,7 @@ def main() -> int:
         "POWER BI STATIC GATE: OK "
         f"(23 páginas; {len(tmdl_files)} TMDL; {measure_count} measures globais únicas; "
         f"{len(semantic_serving_views)} fontes serving instaláveis; "
-        "schemas raiz/catálogo/ordem/visuais/referências/nomes locais coerentes)"
+        "schemas raiz/report/catálogo/ordem/visuais/referências/nomes locais coerentes)"
     )
     return 0
 
