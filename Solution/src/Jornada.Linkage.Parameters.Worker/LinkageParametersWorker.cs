@@ -31,7 +31,7 @@ public sealed class LinkageParametersWorker(
     private const string DraftOperation = "GENERATE_DRAFT";
     private const string ValidateOperation = "VALIDATE";
     private const string ActivateOperation = "ACTIVATE";
-    private const string CurrentAlgorithmVersion = LinkageParameterCatalog.SemanticBirthAlgorithmVersion;
+    private const string CurrentAlgorithmVersion = "FELLEGI_SUNTER_SEMANTIC_BIRTH_V5";
     private const string SqlServerSampleMethod = "M_INTERGESTOR_U_BLOCKING_RULESET_V3";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -729,12 +729,11 @@ public sealed class LinkageParametersWorker(
                 DECLARE @registros BIGINT;
                 DECLARE @pessoas BIGINT;
                 DECLARE @amostra_metodo NVARCHAR(80);
-                DECLARE @algoritmo_versao NVARCHAR(80);
 
                 SELECT
                     @modelo_id=modelo_id,@status=status,
                     @registros=registros_lidos,@pessoas=pessoas_unicas,
-                    @amostra_metodo=amostra_metodo,@algoritmo_versao=algoritmo_versao
+                    @amostra_metodo=amostra_metodo
                 FROM identidade.modelo_linkage WITH (UPDLOCK,HOLDLOCK)
                 WHERE versao=@versao;
 
@@ -762,40 +761,6 @@ public sealed class LinkageParametersWorker(
                         WHERE p.modelo_id=@modelo_id AND p.nome=req.nome)
                 )
                     THROW 51010, 'Modelo probabilístico incompleto: parâmetros obrigatórios ausentes.', 1;
-
-                IF @algoritmo_versao=@semantic_algorithm_version
-                BEGIN
-                    IF NOT EXISTS(
-                        SELECT 1 FROM identidade.parametro_linkage
-                        WHERE modelo_id=@modelo_id
-                          AND nome='SCORING_BIRTH_SEMANTIC_EVIDENCE_V5'
-                          AND valor>=1)
-                        THROW 51015, 'Modelo V5 sem scoring semântico de nascimento habilitado.', 1;
-
-                    IF EXISTS (
-                        SELECT req.nome
-                        FROM (VALUES
-                            ('M_NASCIMENTO_SEMANTICO_EXACT'),
-                            ('M_NASCIMENTO_SEMANTICO_DAY_MONTH_SWAP'),
-                            ('M_NASCIMENTO_SEMANTICO_CENTURY_SHIFT'),
-                            ('M_NASCIMENTO_SEMANTICO_ONE_DIGIT_ERROR'),
-                            ('M_NASCIMENTO_SEMANTICO_TWO_DIGIT_ERROR'),
-                            ('M_NASCIMENTO_SEMANTICO_PARTIAL_COMPONENT_AGREEMENT'),
-                            ('M_NASCIMENTO_SEMANTICO_OTHER_DISAGREEMENT'),
-                            ('U_NASCIMENTO_SEMANTICO_EXACT'),
-                            ('U_NASCIMENTO_SEMANTICO_DAY_MONTH_SWAP'),
-                            ('U_NASCIMENTO_SEMANTICO_CENTURY_SHIFT'),
-                            ('U_NASCIMENTO_SEMANTICO_ONE_DIGIT_ERROR'),
-                            ('U_NASCIMENTO_SEMANTICO_TWO_DIGIT_ERROR'),
-                            ('U_NASCIMENTO_SEMANTICO_PARTIAL_COMPONENT_AGREEMENT'),
-                            ('U_NASCIMENTO_SEMANTICO_OTHER_DISAGREEMENT')
-                        ) req(nome)
-                        WHERE NOT EXISTS (
-                            SELECT 1 FROM identidade.parametro_linkage p
-                            WHERE p.modelo_id=@modelo_id AND p.nome=req.nome)
-                    )
-                        THROW 51016, 'Modelo V5 sem distribuição semântica de nascimento completa.', 1;
-                END
 
                 IF EXISTS (
                     SELECT 1 FROM identidade.parametro_linkage
@@ -835,7 +800,6 @@ public sealed class LinkageParametersWorker(
 
             command.Parameters.Add("@versao", SqlDbType.Int).Value = version;
             command.Parameters.Add("@sqlserver_amostra_metodo", SqlDbType.NVarChar, 80).Value = SqlServerSampleMethod;
-            command.Parameters.Add("@semantic_algorithm_version", SqlDbType.NVarChar, 80).Value = CurrentAlgorithmVersion;
             await command.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             logger.LogInformation("Modelo de linkage v{Version} validado explicitamente.", version);
@@ -868,49 +832,13 @@ public sealed class LinkageParametersWorker(
                 DECLARE @modelo_id UNIQUEIDENTIFIER;
                 DECLARE @status NVARCHAR(20);
                 DECLARE @amostra_metodo NVARCHAR(80);
-                DECLARE @algoritmo_versao NVARCHAR(80);
-                SELECT @modelo_id=modelo_id,@status=status,@amostra_metodo=amostra_metodo,@algoritmo_versao=algoritmo_versao
+                SELECT @modelo_id=modelo_id,@status=status,@amostra_metodo=amostra_metodo
                 FROM identidade.modelo_linkage WITH (UPDLOCK,HOLDLOCK)
                 WHERE versao=@versao;
 
                 IF @modelo_id IS NULL THROW 51007, 'Modelo de linkage não encontrado.', 1;
                 IF @status='ATIVO' RETURN;
                 IF @status<>'VALIDADO' THROW 51008, 'Somente modelo VALIDADO pode ser ativado.', 1;
-
-                IF @algoritmo_versao=@semantic_algorithm_version
-                BEGIN
-                    IF NOT EXISTS(
-                        SELECT 1 FROM identidade.parametro_linkage
-                        WHERE modelo_id=@modelo_id
-                          AND nome='SCORING_BIRTH_SEMANTIC_EVIDENCE_V5'
-                          AND valor>=1)
-                        THROW 51017, 'Modelo V5 validado sem scoring semântico de nascimento habilitado.', 1;
-
-                    IF EXISTS (
-                        SELECT req.nome
-                        FROM (VALUES
-                            ('M_NASCIMENTO_SEMANTICO_EXACT'),
-                            ('M_NASCIMENTO_SEMANTICO_DAY_MONTH_SWAP'),
-                            ('M_NASCIMENTO_SEMANTICO_CENTURY_SHIFT'),
-                            ('M_NASCIMENTO_SEMANTICO_ONE_DIGIT_ERROR'),
-                            ('M_NASCIMENTO_SEMANTICO_TWO_DIGIT_ERROR'),
-                            ('M_NASCIMENTO_SEMANTICO_PARTIAL_COMPONENT_AGREEMENT'),
-                            ('M_NASCIMENTO_SEMANTICO_OTHER_DISAGREEMENT'),
-                            ('U_NASCIMENTO_SEMANTICO_EXACT'),
-                            ('U_NASCIMENTO_SEMANTICO_DAY_MONTH_SWAP'),
-                            ('U_NASCIMENTO_SEMANTICO_CENTURY_SHIFT'),
-                            ('U_NASCIMENTO_SEMANTICO_ONE_DIGIT_ERROR'),
-                            ('U_NASCIMENTO_SEMANTICO_TWO_DIGIT_ERROR'),
-                            ('U_NASCIMENTO_SEMANTICO_PARTIAL_COMPONENT_AGREEMENT'),
-                            ('U_NASCIMENTO_SEMANTICO_OTHER_DISAGREEMENT')
-                        ) req(nome)
-                        WHERE NOT EXISTS (
-                            SELECT 1 FROM identidade.parametro_linkage p
-                            WHERE p.modelo_id=@modelo_id AND p.nome=req.nome)
-                    )
-                        THROW 51018, 'Modelo V5 validado sem distribuição semântica de nascimento completa.', 1;
-                END
-
                 IF @amostra_metodo=@sqlserver_amostra_metodo
                    AND NOT EXISTS(
                         SELECT 1
@@ -940,7 +868,6 @@ public sealed class LinkageParametersWorker(
 
             command.Parameters.Add("@versao", SqlDbType.Int).Value = version;
             command.Parameters.Add("@sqlserver_amostra_metodo", SqlDbType.NVarChar, 80).Value = SqlServerSampleMethod;
-            command.Parameters.Add("@semantic_algorithm_version", SqlDbType.NVarChar, 80).Value = CurrentAlgorithmVersion;
             await command.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             logger.LogInformation(
