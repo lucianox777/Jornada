@@ -42,6 +42,9 @@ EXPECTED_PAGES = {
 MEASURE_DECL = re.compile(
     r"(?m)^\s*measure\s+(?:'((?:''|[^'])+)'|([^\s=]+))\s*="
 )
+COLUMN_DECL = re.compile(
+    r"(?m)^\s*column\s+(?:'((?:''|[^'])+)'|([^\s=]+))(?=\s|=|$)"
+)
 
 
 def fail(message: str) -> None:
@@ -66,6 +69,11 @@ def collect_measures() -> tuple[dict[str, set[str]], int]:
         text = table_file.read_text(encoding="utf-8")
         declared: set[str] = set()
         local_keys: set[str] = set()
+        column_names: dict[str, str] = {}
+
+        for match in COLUMN_DECL.finditer(text):
+            name = tmdl_name(match.group(1), match.group(2))
+            column_names[name.casefold()] = name
 
         for match in MEASURE_DECL.finditer(text):
             name = tmdl_name(match.group(1), match.group(2))
@@ -74,6 +82,11 @@ def collect_measures() -> tuple[dict[str, set[str]], int]:
                 fail(
                     f"Measure duplicado na tabela {table}: {name!r} "
                     f"({table_file.relative_to(ROOT)})"
+                )
+            if key in column_names:
+                fail(
+                    f"Measure conflita com coluna na tabela {table}: {name!r} "
+                    f"x coluna {column_names[key]!r} ({table_file.relative_to(ROOT)})"
                 )
             local_keys.add(key)
             declared.add(name)
@@ -202,7 +215,7 @@ def main() -> int:
     print(
         "POWER BI STATIC GATE: OK "
         f"(23 páginas; {len(tmdl_files)} TMDL; {measure_count} measures globais únicas; "
-        "catálogo/ordem/visuais/referências coerentes)"
+        "catálogo/ordem/visuais/referências/nomes locais coerentes)"
     )
     return 0
 

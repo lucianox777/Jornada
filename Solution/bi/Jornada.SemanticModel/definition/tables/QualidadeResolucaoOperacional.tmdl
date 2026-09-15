@@ -3,7 +3,7 @@ table QualidadeResolucaoOperacional
 	measure 'Avaliações de resolução' = SUM(QualidadeResolucaoOperacional[avaliados])
 		formatString: #,##0
 
-	measure 'Resolvidos' = SUM(QualidadeResolucaoOperacional[resolvidos])
+	measure 'Resolvidos - Resolução Geral' = SUM(QualidadeResolucaoOperacional[resolvidos])
 		formatString: #,##0
 
 	measure 'Conflitos - Resolução Geral' = SUM(QualidadeResolucaoOperacional[conflitos])
