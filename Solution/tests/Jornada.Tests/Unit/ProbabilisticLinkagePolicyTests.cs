@@ -68,6 +68,40 @@ public sealed class ProbabilisticLinkagePolicyTests
     }
 
     [Test]
+    public void EnabledV5_MustHaveCompleteSemanticBirthDistribution_without_legacy_flags()
+    {
+        var parameters = SemanticBirthParameters(includeLegacyFlags: false);
+        var complete = LinkageModelPolicy.Create(ModelId, 5, LinkageParameterCatalog.SemanticBirthAlgorithmVersion, parameters);
+        Assert.Multiple(() =>
+        {
+            Assert.That(LinkageModelPolicy.SupportsSemanticBirthScoring(complete), Is.True);
+            Assert.That(LinkageModelPolicy.SupportsJointBirthScoring(complete), Is.False);
+            Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(complete), Is.False);
+        });
+
+        parameters.Remove($"U_NASCIMENTO_SEMANTICO_{BirthDateSemanticEvidence.OneDigitError}");
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            LinkageModelPolicy.Create(ModelId, 5, LinkageParameterCatalog.SemanticBirthAlgorithmVersion, parameters));
+        Assert.That(error!.Message, Does.Contain($"U_NASCIMENTO_SEMANTICO_{BirthDateSemanticEvidence.OneDigitError}"));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void V5_provenance_requires_enabled_semantic_scoring_flag(bool disabledInsteadOfMissing)
+    {
+        var parameters = SemanticBirthParameters(includeLegacyFlags: false);
+        if (disabledInsteadOfMissing)
+            parameters[LinkageParameterCatalog.BirthSemanticEvidenceScoring] = 0m;
+        else
+            parameters.Remove(LinkageParameterCatalog.BirthSemanticEvidenceScoring);
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            LinkageModelPolicy.Create(ModelId, 5, LinkageParameterCatalog.SemanticBirthAlgorithmVersion, parameters));
+
+        Assert.That(error!.Message, Does.Contain(LinkageParameterCatalog.BirthSemanticEvidenceScoring));
+    }
+
+    [Test]
     public void V4_precedes_complete_V3_and_V2_when_replaying_mixed_model()
     {
         var parameters = JointBirthParameters(includeLegacyFlags: true);
@@ -82,6 +116,29 @@ public sealed class ProbabilisticLinkagePolicyTests
         var model = LinkageModelPolicy.Create(ModelId, 4, "FELLEGI_SUNTER_JOINT_BIRTH_V4", parameters);
         Assert.Multiple(() =>
         {
+            Assert.That(LinkageModelPolicy.SupportsJointBirthScoring(model), Is.True);
+            Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(model), Is.True);
+            Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(model), Is.True);
+        });
+    }
+
+    [Test]
+    public void V5_precedes_complete_V4_V3_and_V2_when_replaying_mixed_model()
+    {
+        var parameters = SemanticBirthParameters(includeLegacyFlags: true);
+        parameters[LinkageParameterCatalog.BirthComponentScoring] = 1m;
+        foreach (var feature in new[] { "NASC_DIA", "NASC_MES", "NASC_ANO" })
+        {
+            parameters[$"M_{feature}_EXACT"] = .9m;
+            parameters[$"M_{feature}_DIFF"] = .1m;
+            parameters[$"U_{feature}_EXACT"] = .1m;
+            parameters[$"U_{feature}_DIFF"] = .9m;
+        }
+
+        var model = LinkageModelPolicy.Create(ModelId, 5, LinkageParameterCatalog.SemanticBirthAlgorithmVersion, parameters);
+        Assert.Multiple(() =>
+        {
+            Assert.That(LinkageModelPolicy.SupportsSemanticBirthScoring(model), Is.True);
             Assert.That(LinkageModelPolicy.SupportsJointBirthScoring(model), Is.True);
             Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(model), Is.True);
             Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(model), Is.True);
@@ -122,6 +179,18 @@ public sealed class ProbabilisticLinkagePolicyTests
             Assert.That(tied.SegundoCandidatoUuid, Is.EqualTo(CandidateB));
             Assert.That(tied.Margem, Is.EqualTo(0m));
         });
+    }
+
+    private static Dictionary<string, decimal> SemanticBirthParameters(bool includeLegacyFlags)
+    {
+        var parameters = includeLegacyFlags ? JointBirthParameters(includeLegacyFlags: true) : Parameters();
+        parameters[LinkageParameterCatalog.BirthSemanticEvidenceScoring] = 1m;
+        foreach (var state in BirthDateSemanticEvidence.States)
+        {
+            parameters[$"M_NASCIMENTO_SEMANTICO_{state}"] = .5m;
+            parameters[$"U_NASCIMENTO_SEMANTICO_{state}"] = .5m;
+        }
+        return parameters;
     }
 
     private static Dictionary<string, decimal> JointBirthParameters(bool includeLegacyFlags)

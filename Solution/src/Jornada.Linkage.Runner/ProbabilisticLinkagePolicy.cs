@@ -31,10 +31,31 @@ internal static class LinkageModelPolicy
             throw new InvalidOperationException($"Modelo incompleto. Parâmetros ausentes: {string.Join(", ", missing)}");
         var model = new LinkageModel(modelId, version, algorithm, parameters,
             parameters[LinkageParameterCatalog.Threshold], parameters[LinkageParameterCatalog.ConflictMargin]);
+        _ = SupportsSemanticBirthScoring(model);
         _ = SupportsJointBirthScoring(model);
         _ = SupportsSingleBirthScoring(model);
         _ = SupportsBirthComponentScoring(model);
         return model;
+    }
+
+    internal static bool SupportsSemanticBirthScoring(LinkageModel model)
+    {
+        var requiresSemantic = string.Equals(
+            model.AlgorithmVersion,
+            LinkageParameterCatalog.SemanticBirthAlgorithmVersion,
+            StringComparison.Ordinal);
+        var enabled = model.Parameters.TryGetValue(LinkageParameterCatalog.BirthSemanticEvidenceScoring, out var current) && current >= 1m;
+
+        if (requiresSemantic && !enabled)
+            throw new InvalidOperationException(
+                $"Modelo V5 incompleto. Proveniência {LinkageParameterCatalog.SemanticBirthAlgorithmVersion} exige {LinkageParameterCatalog.BirthSemanticEvidenceScoring} habilitado.");
+        if (!enabled)
+            return false;
+
+        var missing = LinkageParameterCatalog.BirthSemanticEvidenceRequired.Where(x => !model.Parameters.ContainsKey(x)).ToArray();
+        if (missing.Length > 0)
+            throw new InvalidOperationException($"Modelo V5 incompleto. Parâmetros semânticos de nascimento ausentes: {string.Join(", ", missing)}");
+        return true;
     }
 
     internal static bool SupportsJointBirthScoring(LinkageModel model)
@@ -59,7 +80,7 @@ internal static class LinkageModelPolicy
 
     internal static bool SupportsBirthComponentScoring(LinkageModel model)
     {
-        if (SupportsJointBirthScoring(model) || SupportsSingleBirthScoring(model))
+        if (SupportsSemanticBirthScoring(model) || SupportsJointBirthScoring(model) || SupportsSingleBirthScoring(model))
             return true;
         var enabled = model.Parameters.TryGetValue(LinkageParameterCatalog.BirthComponentScoring, out var current)
             ? current
