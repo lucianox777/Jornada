@@ -69,7 +69,7 @@ function Invoke-Node2 {
 }
 
 function Ensure-LocalBlockingProjection {
-    Write-Host 'Verificando projeção de blocking da massa sintética local...'
+    Write-Host 'Verificando projeção de blocking da massa sintética local (contadores do worker mostram apenas reconstruções/chaves novas desta chamada)...'
     Invoke-Node2 -Command @('env','Processor__Operation=REBUILD_LOCAL_BLOCKING','dotnet','/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll')
 }
 
@@ -139,7 +139,8 @@ function Invoke-Calibration {
     Invoke-Node2 -Command @('env','LinkageParameters__Operation=ACTIVATE',"LinkageParameters__TargetVersion=$version",'LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
     $active = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao=$version AND status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO';")
     if ($active -ne 1) { throw "Modelo v$version não ficou ATIVO como modelo calibrado." }
-    Write-Host "Calibração concluída: modelo calibrado v$version ATIVO."
+    $modelId = Get-SqlScalar "SELECT CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE versao=$version;"
+    Write-Host "Calibração concluída: modelo calibrado v$version / ModeloId=$modelId ATIVO."
 }
 
 function Invoke-Linkage {
@@ -149,7 +150,8 @@ function Invoke-Linkage {
         throw "Linkage bloqueado: encontrados $active modelos calibrados ATIVOS. O seed sintético não libera execução. Execute primeiro '.\scripts\local-cluster.ps1 calibrate'."
     }
     $version = Get-SqlScalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;"
-    Write-Host "Executando linkage com modelo calibrado ATIVO v$version."
+    $modelId = Get-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;"
+    Write-Host "Executando linkage com modelo calibrado ATIVO v$version / ModeloId=$modelId."
     Invoke-Node2 -Command @('dotnet','/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll','--mode','ON_DEMAND','--publish','true','--requested-by','LOCAL_CLUSTER','--reason','manual-local-cluster')
 }
 
@@ -158,9 +160,40 @@ function Show-LinkageDiagnosis {
     if ([string]::IsNullOrWhiteSpace($runId)) { throw 'Nenhum linkage ON_DEMAND PUBLICADO encontrado.' }
 
     Write-Host "Diagnóstico do último linkage ON_DEMAND PUBLICADO: $runId"
+    Write-Host 'Nota: modelo_versao é monotônica somente dentro da base corrente; clean/reset recria a base. Para A/B entre bases, compare modelo_id + fingerprints.'
+
     Write-Host ''
     Write-Host 'Resumo do run:'
-    Invoke-SqlReport "SELECT CONVERT(varchar(36),linkage_run_id) AS run_id,modelo_versao,tipo_run,status,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,sem_candidato_no_bloco,publicado_em FROM identidade.linkage_run WHERE linkage_run_id='$runId';"
+    Invoke-SqlReport "SELECT CONVERT(varchar(36),linkage_run_id) AS run_id,CONVERT(varchar(36),modelo_id) AS modelo_id,modelo_versao,tipo_run,status,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,sem_candidato_no_bloco,publicado_em FROM identidade.linkage_run WHERE linkage_run_id='$runId';"
+
+    Write-Host ''
+    Write-Host 'Proveniência do modelo, ruleset, projeção e thresholds efetivos:'
+    Invoke-SqlReport "SELECT CONVERT(varchar(36),lr.modelo_id) AS modelo_id,lr.modelo_versao,m.algoritmo_versao,m.status AS modelo_status,m.amostra_metodo,m.amostra_pool_tamanho,m.amostra_m_tamanho,m.amostra_u_tamanho,rs.ruleset_versao,rs.fingerprint_sha256 AS ruleset_fingerprint,rs.projection_schema_version,rs.projection_fingerprint_sha256 AS projection_fingerprint,MAX(CASE WHEN p.nome='T_LINKAGE' THEN p.valor END) AS t_linkage,COALESCE(MAX(CASE WHEN p.nome='CONFLICT_MARGIN_LOG_ODDS' THEN p.valor END),MAX(CASE WHEN p.nome='CONFLICT_MARGIN' THEN p.valor END)) AS t_margem_efetivo,CASE WHEN m.algoritmo_versao='FELLEGI_SUNTER_DECISION_EVIDENCE_V6' THEN 'LOG_ODDS' ELSE 'POSTERIOR' END AS margem_espaco FROM identidade.linkage_run lr JOIN identidade.modelo_linkage m ON m.modelo_id=lr.modelo_id LEFT JOIN identidade.linkage_ruleset rs ON rs.modelo_id=lr.modelo_id LEFT JOIN identidade.parametro_linkage p ON p.modelo_id=lr.modelo_id WHERE lr.linkage_run_id='$runId' GROUP BY lr.modelo_id,lr.modelo_versao,m.algoritmo_versao,m.status,m.amostra_metodo,m.amostra_pool_tamanho,m.amostra_m_tamanho,m.amostra_u_tamanho,rs.ruleset_versao,rs.fingerprint_sha256,rs.projection_schema_version,rs.projection_fingerprint_sha256;"
+
+    Write-Host ''
+    Write-Host 'Cobertura da fronteira de decisão (mostra se os thresholds foram realmente exercitados):'
+    Invoke-SqlReport "DECLARE @modelo_id uniqueidentifier=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId'); DECLARE @alg nvarchar(100)=(SELECT algoritmo_versao FROM identidade.modelo_linkage WHERE modelo_id=@modelo_id); DECLARE @t decimal(18,8)=(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='T_LINKAGE'); DECLARE @tm decimal(18,8)=COALESCE((SELECT valor FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome=CASE WHEN @alg='FELLEGI_SUNTER_DECISION_EVIDENCE_V6' THEN 'CONFLICT_MARGIN_LOG_ODDS' ELSE 'CONFLICT_MARGIN' END),0); SELECT @t AS t_linkage,MAX(CASE WHEN score_melhor<@t THEN score_melhor END) AS maior_score_abaixo,MIN(CASE WHEN score_melhor>=@t THEN score_melhor END) AS menor_score_acima,SUM(CASE WHEN ABS(score_melhor-@t)<=0.02 THEN 1 ELSE 0 END) AS qtd_score_em_mais_menos_002,@tm AS t_margem,MAX(CASE WHEN margem IS NOT NULL AND margem<@tm THEN margem END) AS maior_margem_abaixo,MIN(CASE WHEN margem IS NOT NULL AND margem>=@tm THEN margem END) AS menor_margem_acima,SUM(CASE WHEN margem IS NOT NULL AND margem<@tm THEN 1 ELSE 0 END) AS qtd_margem_abaixo FROM identidade.linkage_resultado WHERE linkage_run_id='$runId';"
+
+    Write-Host ''
+    Write-Host 'Empates e saturação de apresentação:'
+    Invoke-SqlReport "SELECT status,COUNT_BIG(*) AS qtd,SUM(CASE WHEN score_segundo IS NOT NULL AND margem=0 THEN 1 ELSE 0 END) AS empate_log_odds_exato,SUM(CASE WHEN score_segundo IS NOT NULL AND score_melhor=score_segundo AND ISNULL(margem,0)<>0 THEN 1 ELSE 0 END) AS posterior_igual_mas_log_odds_distinto,SUM(CASE WHEN score_segundo IS NOT NULL AND score_melhor=score_segundo AND margem=0 THEN 1 ELSE 0 END) AS posterior_e_log_odds_empatados FROM identidade.linkage_resultado WHERE linkage_run_id='$runId' GROUP BY status ORDER BY status;"
+    Write-Host 'Em empate_log_odds_exato, UUID ordena apenas a representação determinística do empate; não constitui evidência de desempate.'
+
+    Write-Host ''
+    Write-Host 'Cobertura empírica da amostra u persistida no modelo:'
+    Invoke-SqlReport "SELECT COUNT(*) AS estados_u_com_suporte,MIN(valor) AS suporte_min,MAX(valor) AS suporte_max,SUM(CASE WHEN valor=0 THEN 1 ELSE 0 END) AS estados_zero,SUM(CASE WHEN valor>0 AND valor<5 THEN 1 ELSE 0 END) AS estados_entre_1_e_4 FROM identidade.parametro_linkage WHERE modelo_id=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId') AND nome LIKE 'SUPPORT_U_%'; SELECT nome,valor AS suporte FROM identidade.parametro_linkage WHERE modelo_id=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId') AND nome LIKE 'SUPPORT_U_%' ORDER BY nome;"
+
+    Write-Host ''
+    Write-Host 'Composição atual do corpus Gold (explica SCALE versus seed/outros):'
+    Invoke-SqlReport "SELECT COUNT_BIG(*) AS gold_total,SUM(CASE WHEN EXISTS(SELECT 1 FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE vc.pessoa_uuid=g.pessoa_uuid AND vc.status='RESOLVIDO' AND po.codigo_pessoa_origem LIKE 'SCALE-SEHAB-%') THEN 1 ELSE 0 END) AS gold_scale,SUM(CASE WHEN NOT EXISTS(SELECT 1 FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE vc.pessoa_uuid=g.pessoa_uuid AND vc.status='RESOLVIDO' AND po.codigo_pessoa_origem LIKE 'SCALE-SEHAB-%') THEN 1 ELSE 0 END) AS gold_seed_ou_outros FROM gold.pessoa g;"
+
+    Write-Host ''
+    Write-Host 'Qualidade contra ground truth sintético SCALE (verdade derivada do vínculo CPF da observação SEHAB correspondente):'
+    Invoke-SqlReport "WITH truth AS (SELECT r.*,po.codigo_pessoa_origem,tv.pessoa_uuid AS truth_uuid FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id JOIN silver.pessoa_observacao tpo ON tpo.codigo_pessoa_origem=REPLACE(po.codigo_pessoa_origem,'SCALE-PEND-','SCALE-SEHAB-') JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo='SEHAB' JOIN identidade.v_vinculo_corrente tv ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id AND tv.status='RESOLVIDO' WHERE r.linkage_run_id='$runId' AND po.codigo_pessoa_origem LIKE 'SCALE-PEND-%') SELECT COUNT_BIG(*) AS total_scale,SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END) AS resolvidos,SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END) AS resolvidos_corretos,SUM(CASE WHEN status='RESOLVIDO' AND (pessoa_uuid_resolvido IS NULL OR pessoa_uuid_resolvido<>truth_uuid) THEN 1 ELSE 0 END) AS falsos_positivos,SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END) AS conflitos,SUM(CASE WHEN status='CONFLITO' AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS conflitos_verdade_top2,SUM(CASE WHEN status='NAO_RESOLVIDO' AND melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END) AS nao_resolvidos_verdade_primeiro,SUM(CASE WHEN ISNULL(melhor_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid AND ISNULL(segundo_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid THEN 1 ELSE 0 END) AS verdade_fora_top2,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END),0) AS decimal(9,4)) AS ppv_sintetico_pct,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(COUNT_BIG(*),0) AS decimal(9,4)) AS sensibilidade_sintetica_pct FROM truth;"
+
+    Write-Host ''
+    Write-Host 'Falsos positivos resolvidos no corpus SCALE (deve ficar vazio em um ensaio conservador):'
+    Invoke-SqlReport "WITH truth AS (SELECT r.*,po.codigo_pessoa_origem,tv.pessoa_uuid AS truth_uuid FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id JOIN silver.pessoa_observacao tpo ON tpo.codigo_pessoa_origem=REPLACE(po.codigo_pessoa_origem,'SCALE-PEND-','SCALE-SEHAB-') JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo='SEHAB' JOIN identidade.v_vinculo_corrente tv ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id AND tv.status='RESOLVIDO' WHERE r.linkage_run_id='$runId' AND po.codigo_pessoa_origem LIKE 'SCALE-PEND-%') SELECT pessoa_observacao_id,codigo_pessoa_origem,score_melhor,score_segundo,margem,CONVERT(varchar(36),truth_uuid) AS truth_uuid,CONVERT(varchar(36),pessoa_uuid_resolvido) AS resolvido_uuid,CONVERT(varchar(36),melhor_candidato_uuid) AS melhor_candidato_uuid,CONVERT(varchar(36),segundo_candidato_uuid) AS segundo_candidato_uuid FROM truth WHERE status='RESOLVIDO' AND (pessoa_uuid_resolvido IS NULL OR pessoa_uuid_resolvido<>truth_uuid) ORDER BY codigo_pessoa_origem;"
 
     Write-Host ''
     Write-Host 'Não resolvidos/conflitos por motivo:'
@@ -168,7 +201,7 @@ function Show-LinkageDiagnosis {
 
     Write-Host ''
     Write-Host 'Detalhe dos não resolvidos/conflitos:'
-    Invoke-SqlReport "SELECT r.pessoa_observacao_id,po.codigo_pessoa_origem,g.codigo AS gestor,r.status,COALESCE(r.motivo,'SEM_MOTIVO') AS motivo,r.score_melhor,r.score_segundo,r.margem,CONVERT(varchar(36),r.melhor_candidato_uuid) AS melhor_candidato_uuid,CONVERT(varchar(36),r.segundo_candidato_uuid) AS segundo_candidato_uuid FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id JOIN ref.gestor g ON g.gestor_id=po.gestor_id WHERE r.linkage_run_id='$runId' AND r.status<>'RESOLVIDO' ORDER BY po.codigo_pessoa_origem,r.pessoa_observacao_id;"
+    Invoke-SqlReport "SELECT r.pessoa_observacao_id,po.codigo_pessoa_origem,g.codigo AS gestor,r.status,COALESCE(r.motivo,'SEM_MOTIVO') AS motivo,r.score_melhor,r.score_segundo,r.margem,CASE WHEN r.score_segundo IS NOT NULL AND r.margem=0 THEN 'EMPATE_EVIDENCIAL_UUID_APENAS_DETERMINISTICO' ELSE 'ORDEM_EVIDENCIAL' END AS ranking_interpretacao,CONVERT(varchar(36),r.melhor_candidato_uuid) AS melhor_candidato_uuid,CONVERT(varchar(36),r.segundo_candidato_uuid) AS segundo_candidato_uuid FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id JOIN ref.gestor g ON g.gestor_id=po.gestor_id WHERE r.linkage_run_id='$runId' AND r.status<>'RESOLVIDO' ORDER BY po.codigo_pessoa_origem,r.pessoa_observacao_id;"
 
     Write-Host ''
     Write-Host 'Itens do universo fora de SCALE-PEND-* (explicam avaliados adicionais ao corpus de 1000 pendentes):'
