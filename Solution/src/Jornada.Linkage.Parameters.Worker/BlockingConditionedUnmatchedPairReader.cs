@@ -26,10 +26,8 @@ public static class BlockingConditionedUnmatchedPairReader
         ArgumentNullException.ThrowIfNull(passes);
         if (passes.Count == 0)
             throw new ArgumentException("Ao menos um passe de blocking é obrigatório.", nameof(passes));
-        if (sampleSize <= 0)
-            throw new ArgumentOutOfRangeException(nameof(sampleSize));
-        if (samplePoolSize < sampleSize)
-            throw new ArgumentOutOfRangeException(nameof(samplePoolSize));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleSize);
+        ArgumentOutOfRangeException.ThrowIfLessThan(samplePoolSize, sampleSize);
 
         var canonicalPasses = passes
             .Select(pass => LinkageBlockingPass.Create(pass.PassId, pass.Fields))
