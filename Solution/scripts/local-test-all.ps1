@@ -71,10 +71,26 @@ function Invoke-ClusterAction {
 }
 
 function Get-BashExecutable {
-    $bash = Get-Command bash -ErrorAction SilentlyContinue
+    $git = Get-Command git -CommandType Application -ErrorAction SilentlyContinue
+
+    # No Windows, `bash` no PATH pode resolver para o launcher do WSL. A suíte local usa
+    # ferramentas e caminhos do host Windows, então deve preferir explicitamente o Git Bash.
+    if ($env:OS -eq 'Windows_NT') {
+        if ($null -eq $git) { return $null }
+        $gitCmdDir = Split-Path -Parent $git.Source
+        $gitRoot = Split-Path -Parent $gitCmdDir
+        foreach ($candidate in @(
+            (Join-Path $gitRoot 'bin/bash.exe'),
+            (Join-Path $gitRoot 'usr/bin/bash.exe')
+        )) {
+            if (Test-Path -LiteralPath $candidate) { return $candidate }
+        }
+        return $null
+    }
+
+    $bash = Get-Command bash -CommandType Application -ErrorAction SilentlyContinue
     if ($null -ne $bash) { return $bash.Source }
 
-    $git = Get-Command git -ErrorAction SilentlyContinue
     if ($null -eq $git) { return $null }
     $gitCmdDir = Split-Path -Parent $git.Source
     $gitRoot = Split-Path -Parent $gitCmdDir
@@ -90,8 +106,9 @@ function Get-BashExecutable {
 function Invoke-LinkageEvaluationSmoke {
     $bash = Get-BashExecutable
     if ([string]::IsNullOrWhiteSpace($bash)) {
-        throw 'Git Bash/bash não encontrado; necessário para scripts/linkage-evaluation-smoke.sh.'
+        throw 'Bash compatível não encontrado. No Windows, a auditoria local exige o Git Bash do Git for Windows e não usa automaticamente o launcher do WSL.'
     }
+    Write-Host "Bash selecionado para a auditoria read-only: $bash"
 
     $envFile = Join-Path $Root '.env'
     if (-not (Test-Path -LiteralPath $envFile)) { throw '.env não encontrado após preparação local.' }
