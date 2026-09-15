@@ -7,6 +7,7 @@ namespace Jornada.Contracts;
 /// </summary>
 public static class LinkageParameterCatalog
 {
+    public const string SemanticBirthAlgorithmVersion = "FELLEGI_SUNTER_SEMANTIC_BIRTH_V5";
     public const string PriorMatchProbability = "PRIOR_MATCH_PROBABILITY";
     public const string PriorBlockMin = "PRIOR_BLOCK_MIN";
     public const string PriorBlockMax = "PRIOR_BLOCK_MAX";
