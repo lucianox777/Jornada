@@ -48,7 +48,9 @@ public sealed class ProbabilisticV6TieOrderingTests
             [LinkageParameterCatalog.PriorMatchProbability] = .001m,
             [LinkageParameterCatalog.PriorBlockMin] = .000001m,
             [LinkageParameterCatalog.PriorBlockMax] = .25m,
-            [LinkageParameterCatalog.Threshold] = .90m,
+            // O fixture precisa atravessar T_LINKAGE para exercitar especificamente a regra de margem.
+            // Este valor não é o threshold operacional da Jornada.
+            [LinkageParameterCatalog.Threshold] = .80m,
             [LinkageParameterCatalog.ConflictMargin] = .03m,
             [LinkageParameterCatalog.DecisionEvidenceScoring] = 1m,
             [LinkageParameterCatalog.LogOddsConflictMargin] = .05m,
