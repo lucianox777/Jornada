@@ -12,6 +12,7 @@ public static class LinkageParameterCatalog
     public const string PriorBlockMax = "PRIOR_BLOCK_MAX";
     public const string Threshold = "T_LINKAGE";
     public const string ConflictMargin = "CONFLICT_MARGIN";
+    public const string BirthSemanticEvidenceScoring = "SCORING_BIRTH_SEMANTIC_EVIDENCE_V5";
     public const string BirthJointEvidenceScoring = "SCORING_BIRTH_JOINT_EVIDENCE_V4";
     public const string BirthSingleEvidenceScoring = "SCORING_BIRTH_SINGLE_EVIDENCE_V3";
     public const string BirthComponentScoring = "SCORING_BIRTH_COMPONENTS_V2";
@@ -24,11 +25,15 @@ public static class LinkageParameterCatalog
 
     public static readonly IReadOnlyList<string> NameStates = ["EXACT", "HIGH", "MEDIUM", "LOW"];
     public static readonly IReadOnlyList<string> BirthJointStates = ["000", "001", "010", "011", "100", "101", "110", "111"];
+    public static IReadOnlyList<string> BirthSemanticStates => BirthDateSemanticEvidence.States;
 
     public static readonly IReadOnlyList<string> CoreScoringRequired =
         [PriorMatchProbability, PriorBlockMin, PriorBlockMax, Threshold, ConflictMargin,
          .. Distribution("M_NOME"), .. Distribution("U_NOME"),
          .. Distribution("M_NOME_MAE"), .. Distribution("U_NOME_MAE")];
+
+    public static readonly IReadOnlyList<string> BirthSemanticEvidenceRequired =
+        [.. SemanticBirthDistribution("M_NASCIMENTO_SEMANTICO"), .. SemanticBirthDistribution("U_NASCIMENTO_SEMANTICO")];
 
     public static readonly IReadOnlyList<string> BirthJointEvidenceRequired =
         [.. JointBirthDistribution("M_NASCIMENTO_CONJUNTO"), .. JointBirthDistribution("U_NASCIMENTO_CONJUNTO")];
@@ -46,6 +51,7 @@ public static class LinkageParameterCatalog
 
     public static string Name(string prefix, string state) => $"{prefix}_{state}";
     private static string[] Distribution(string prefix) => NameStates.Select(state => Name(prefix, state)).ToArray();
+    private static string[] SemanticBirthDistribution(string prefix) => BirthSemanticStates.Select(state => Name(prefix, state)).ToArray();
     private static string[] JointBirthDistribution(string prefix) => BirthJointStates.Select(state => Name(prefix, state)).ToArray();
     private static string[] BinaryDistribution(string prefix) => [Name(prefix, "EXACT"), Name(prefix, "DIFF")];
 }
