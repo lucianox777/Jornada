@@ -23,7 +23,12 @@ public static class FellegiSunterScoring
 
         if (leftBirthDate is { } left && rightBirthDate is { } right)
         {
-            if (parameters.TryGetValue(LinkageParameterCatalog.BirthJointEvidenceScoring, out var jointBirth)
+            if (parameters.TryGetValue(LinkageParameterCatalog.BirthSemanticEvidenceScoring, out var semanticBirth)
+                && semanticBirth >= 1m)
+            {
+                logOdds += SemanticBirthLikelihoodRatio(parameters, left, right);
+            }
+            else if (parameters.TryGetValue(LinkageParameterCatalog.BirthJointEvidenceScoring, out var jointBirth)
                 && jointBirth >= 1m)
             {
                 logOdds += JointBirthLikelihoodRatio(parameters, left, right);
@@ -58,6 +63,17 @@ public static class FellegiSunterScoring
         var suffix = state.ToString();
         var m = ClampProbability(Get(parameters, $"M_{attribute}_{suffix}"));
         var u = ClampProbability(Get(parameters, $"U_{attribute}_{suffix}"));
+        return Math.Log((double)m / (double)u);
+    }
+
+    private static double SemanticBirthLikelihoodRatio(
+        IReadOnlyDictionary<string, decimal> parameters,
+        DateOnly left,
+        DateOnly right)
+    {
+        var state = BirthDateSemanticEvidence.Classify(left, right);
+        var m = ClampProbability(Get(parameters, $"M_NASCIMENTO_SEMANTICO_{state}"));
+        var u = ClampProbability(Get(parameters, $"U_NASCIMENTO_SEMANTICO_{state}"));
         return Math.Log((double)m / (double)u);
     }
 
