@@ -1,12 +1,12 @@
 table QualidadeServicos
 
-	measure 'Registros' = COUNTROWS(QualidadeServicos)
+	measure 'Registros - Qualidade Serviços' = COUNTROWS(QualidadeServicos)
 		formatString: #,##0
 
-	measure 'Entrega Completa %' = DIVIDE(SUM(QualidadeServicos[entrega_completa]),COUNTROWS(QualidadeServicos))
+	measure 'Entrega Completa % - Serviços' = DIVIDE(SUM(QualidadeServicos[entrega_completa]),COUNTROWS(QualidadeServicos))
 		formatString: 0.0%
 
-	measure 'Geografia %' = DIVIDE(SUM(QualidadeServicos[geografia_preenchida]),COUNTROWS(QualidadeServicos))
+	measure 'Geografia % - Serviços' = DIVIDE(SUM(QualidadeServicos[geografia_preenchida]),COUNTROWS(QualidadeServicos))
 		formatString: 0.0%
 
 	measure 'Data Hora Preenchida %' = DIVIDE(SUM(QualidadeServicos[data_hora_preenchida]),COUNTROWS(QualidadeServicos))
@@ -18,22 +18,22 @@ table QualidadeServicos
 	measure 'Situacao Preenchida %' = DIVIDE(SUM(QualidadeServicos[situacao_preenchida]),COUNTROWS(QualidadeServicos))
 		formatString: 0.0%
 
-	measure 'QC Implementado %' = DIVIDE(SUM(QualidadeServicos[qc_implementado]),COUNTROWS(QualidadeServicos))
+	measure 'QC Implementado % - Serviços' = DIVIDE(SUM(QualidadeServicos[qc_implementado]),COUNTROWS(QualidadeServicos))
 		formatString: 0.0%
 
-	measure 'QC Valido %' = DIVIDE(SUM(QualidadeServicos[qc_valido]),COUNTROWS(QualidadeServicos))
+	measure 'QC Valido % - Serviços' = DIVIDE(SUM(QualidadeServicos[qc_valido]),COUNTROWS(QualidadeServicos))
 		formatString: 0.0%
 
-	measure 'QC Divergente %' = DIVIDE(SUM(QualidadeServicos[qc_divergente]),COUNTROWS(QualidadeServicos))
+	measure 'QC Divergente % - Serviços' = DIVIDE(SUM(QualidadeServicos[qc_divergente]),COUNTROWS(QualidadeServicos))
 		formatString: 0.0%
 
-	measure 'QC Nao Verificavel %' = DIVIDE(SUM(QualidadeServicos[qc_nao_verificavel]),COUNTROWS(QualidadeServicos))
+	measure 'QC Nao Verificavel % - Serviços' = DIVIDE(SUM(QualidadeServicos[qc_nao_verificavel]),COUNTROWS(QualidadeServicos))
 		formatString: 0.0%
 
-	measure 'Com Versionamento %' = DIVIDE(SUM(QualidadeServicos[possui_versionamento]),COUNTROWS(QualidadeServicos))
+	measure 'Com Versionamento % - Serviços' = DIVIDE(SUM(QualidadeServicos[possui_versionamento]),COUNTROWS(QualidadeServicos))
 		formatString: 0.0%
 
-	measure 'Retificacao Vigente %' = DIVIDE(SUM(QualidadeServicos[retificacao_vigente]),COUNTROWS(QualidadeServicos))
+	measure 'Retificacao Vigente % - Serviços' = DIVIDE(SUM(QualidadeServicos[retificacao_vigente]),COUNTROWS(QualidadeServicos))
 		formatString: 0.0%
 
 	column registro_observacao_id
