@@ -32,7 +32,7 @@ public sealed class LinkageParametersWorker(
     private const string ValidateOperation = "VALIDATE";
     private const string ActivateOperation = "ACTIVATE";
     private const string CurrentAlgorithmVersion = "FELLEGI_SUNTER_JOINT_BIRTH_V4";
-    private const string SqlServerSampleMethod = "M_INTERGESTOR_U_BLOCKING_KEYS_V2";
+    private const string SqlServerSampleMethod = "M_INTERGESTOR_U_BLOCKING_RULESET_V3";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -122,6 +122,9 @@ public sealed class LinkageParametersWorker(
         var threshold = Math.Clamp(configuration.GetValue("LinkageParameters:TLinkage", 0.95m), 0.5m, 0.999999m);
         var conflictMargin = Math.Clamp(configuration.GetValue("LinkageParameters:ConflictMargin", 0.03m), 0.0001m, 0.5m);
         var blockingSearchOptions = BlockingRuleSetSearchConfiguration.FromConfiguration(configuration);
+        var readCommandTimeoutSeconds = Math.Max(
+            30,
+            configuration.GetValue("LinkageParameters:ReadCommandTimeoutSeconds", 900));
 
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
 
@@ -185,9 +188,6 @@ public sealed class LinkageParametersWorker(
             }
             catch (SqlException ex) when (ex.Number == -2)
             {
-                var readCommandTimeoutSeconds = Math.Max(
-                    30,
-                    configuration.GetValue("LinkageParameters:ReadCommandTimeoutSeconds", 900));
                 throw new TimeoutException(
                     $"Uma consulta de captura do Parameters Worker excedeu {readCommandTimeoutSeconds}s. " +
                     "Nenhum modelo foi publicado; verifique carga/índices e calibre o timeout homologado antes de reagendar GENERATE_DRAFT.",
@@ -200,12 +200,17 @@ public sealed class LinkageParametersWorker(
                 BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates,
                 blockingSearchOptions);
 
-            var unmatchedPairs = BlockingConditionedTrainingPairFilter.Retain(
-                unmatchedCandidatePairs,
-                blocking.Passes);
+            var unmatchedPairs = await BlockingConditionedUnmatchedPairReader.ReadAsync(
+                connection,
+                normalizationVersion,
+                blocking.Passes,
+                sampleSize,
+                samplePoolSize,
+                readCommandTimeoutSeconds,
+                workCt);
             if (unmatchedPairs.Count == 0)
                 throw new InvalidOperationException(
-                    "Amostra u vazia após condicionamento ao ruleset vencedor. O modelo permanece sem publicação.");
+                    "Amostra u vazia no universo do ruleset vencedor. O modelo permanece sem publicação.");
 
             var modelParameters = LinkageParameterEstimator.Estimate(
                 matchedPairs,
