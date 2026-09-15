@@ -13,7 +13,7 @@ table LinkageRuns
 		formatString: #,0
 
 
-	measure 'Sem candidato no bloco' = SUM(LinkageRuns[sem_candidato_no_bloco])
+	measure 'Sem candidato no bloco - Runs' = SUM(LinkageRuns[sem_candidato_no_bloco])
 		formatString: #,0
 
 	measure 'Duração média run (s)' = DIVIDE(AVERAGE(LinkageRuns[duracao_ms]),1000)
