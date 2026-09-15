@@ -7,6 +7,31 @@ using Microsoft.Data.SqlClient;
 namespace Jornada.Linkage.Runner;
 
 /// <summary>
+/// Diagnóstico read-only do mesmo candidate set e do mesmo ranking usados pelo Runner.
+/// O rank determinístico inclui UUID apenas como desempate de representação; EvidenceRank
+/// conta somente candidatos com evidência estritamente superior à verdade.
+/// </summary>
+public sealed record ProbabilisticCandidateRankingAudit(
+    long ObservationId,
+    Guid TruthPersonUuid,
+    Guid ModelId,
+    int ModelVersion,
+    string AlgorithmVersion,
+    string RankingSpace,
+    int CandidateCount,
+    bool TruthInCandidateSet,
+    bool TruthInTop2,
+    int? TruthDeterministicRank,
+    int? TruthEvidenceRank,
+    int TruthTieCount,
+    decimal? TruthPosterior,
+    decimal? TruthLogOdds,
+    Guid? TopCandidateUuid,
+    decimal? TopPosterior,
+    decimal? TopLogOdds,
+    decimal? RankingGapToTop);
+
+/// <summary>
 /// Score probabilístico Fellegi-Sunter operacional para registros sem CPF.
 /// Modelos com ruleset persistido usam a projeção indexada identidade.blocking_chave.
 /// Modelos legados preservam integralmente o blocking histórico por data de nascimento.
@@ -57,6 +82,134 @@ public sealed class SqlProbabilisticIdentityLinkage(
         var model = snapshot.Model;
         var candidates = await LoadCandidatesAsync(observation, snapshot, ct);
         return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
+    }
+
+    /// <summary>
+    /// Reexecuta, somente em memória e sem publicação, o candidate generation e o ranking do Runner
+    /// para uma observação existente. Destina-se a ferramentas DEV/HML de avaliação rotulada.
+    /// </summary>
+    public async Task<ProbabilisticCandidateRankingAudit> DiagnoseCandidateRankingAsync(
+        long observationId,
+        Guid truthPersonUuid,
+        Guid modelId,
+        CancellationToken ct)
+    {
+        var observation = await LoadObservationForDiagnosticsAsync(observationId, ct);
+        if (!string.IsNullOrWhiteSpace(observation.Cpf))
+            throw new InvalidOperationException($"Observação {observationId} possui CPF; auditoria probabilística exige SEM_CPF.");
+
+        var snapshot = await GetOrLoadRuntimeSnapshotAsync(modelId, ct);
+        var ranked = ProbabilisticLinkageDecisions.Rank(
+            snapshot.Model,
+            observation,
+            await LoadCandidatesAsync(observation, snapshot, ct));
+        var decisionV6 = string.Equals(
+            snapshot.Model.AlgorithmVersion,
+            LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion,
+            StringComparison.Ordinal);
+
+        CandidateScore? truth = null;
+        var deterministicRank = 0;
+        for (var index = 0; index < ranked.Count; index++)
+        {
+            if (ranked[index].PessoaUuid != truthPersonUuid) continue;
+            truth = ranked[index];
+            deterministicRank = index + 1;
+            break;
+        }
+
+        var top = ranked.Count > 0 ? ranked[0] : null;
+        int? evidenceRank = null;
+        var tieCount = 0;
+        decimal? rankingGap = null;
+        if (truth is not null)
+        {
+            var truthMetric = decisionV6 ? truth.LogOdds : truth.Score;
+            evidenceRank = 1 + ranked.Count(candidate =>
+                (decisionV6 ? candidate.LogOdds : candidate.Score) > truthMetric);
+            tieCount = ranked.Count(candidate =>
+                (decisionV6 ? candidate.LogOdds : candidate.Score) == truthMetric);
+            if (top is not null)
+                rankingGap = (decisionV6 ? top.LogOdds : top.Score) - truthMetric;
+        }
+
+        return new ProbabilisticCandidateRankingAudit(
+            observationId,
+            truthPersonUuid,
+            snapshot.Model.ModelId,
+            snapshot.Model.Version,
+            snapshot.Model.AlgorithmVersion,
+            decisionV6 ? "LOG_ODDS" : "POSTERIOR",
+            ranked.Count,
+            truth is not null,
+            deterministicRank is > 0 and <= 2,
+            truth is null ? null : deterministicRank,
+            evidenceRank,
+            tieCount,
+            truth?.Score,
+            truth?.LogOdds,
+            top?.PessoaUuid,
+            top?.Score,
+            top?.LogOdds,
+            rankingGap);
+    }
+
+    private async Task<IdentityObservation> LoadObservationForDiagnosticsAsync(long observationId, CancellationToken ct)
+    {
+        await using var connection = await operationalSql.OpenAsync(ct);
+        await using var command = new SqlCommand(
+            """
+            SELECT cpf,cpf_ausente_motivo,nome_completo,data_nascimento,nome_mae
+            FROM silver.pessoa_observacao
+            WHERE pessoa_observacao_id=@observation_id;
+            """,
+            connection)
+        {
+            CommandTimeout = Math.Max(1, configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900))
+        };
+        command.Parameters.Add("@observation_id", SqlDbType.BigInt).Value = observationId;
+
+        string? cpf;
+        string? cpfAbsentReason;
+        string name;
+        DateOnly birthDate;
+        string? motherName;
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+        {
+            if (!await reader.ReadAsync(ct))
+                throw new InvalidOperationException($"Observação {observationId} não encontrada.");
+            cpf = reader.IsDBNull(0) ? null : reader.GetString(0);
+            cpfAbsentReason = reader.IsDBNull(1) ? null : reader.GetString(1);
+            name = reader.GetString(2);
+            birthDate = DateOnly.FromDateTime(reader.GetDateTime(3));
+            motherName = reader.IsDBNull(4) ? null : reader.GetString(4);
+        }
+
+        var eligible = PersonResolutionContractCatalog.EligibleTransversal
+            .Select(static field => field.Code)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var attributes = new List<IdentityResolutionAttributeValue>();
+        await using var attributeCommand = new SqlCommand(
+            """
+            SELECT atributo_codigo,valor
+            FROM silver.pessoa_atributo_observacao
+            WHERE pessoa_observacao_id=@observation_id
+            ORDER BY atributo_codigo,atributo_instancia_chave,pessoa_atributo_observacao_id;
+            """,
+            connection)
+        {
+            CommandTimeout = Math.Max(1, configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900))
+        };
+        attributeCommand.Parameters.Add("@observation_id", SqlDbType.BigInt).Value = observationId;
+        await using var attributeReader = await attributeCommand.ExecuteReaderAsync(ct);
+        while (await attributeReader.ReadAsync(ct))
+        {
+            var code = attributeReader.GetString(0);
+            if (eligible.Contains(code))
+                attributes.Add(new IdentityResolutionAttributeValue(code, attributeReader.GetString(1)));
+        }
+
+        return new IdentityObservation(cpf, cpfAbsentReason, name, birthDate, motherName, attributes);
     }
 
     private async Task<LinkageRuntimeSnapshot> GetOrLoadRuntimeSnapshotAsync(Guid modelId, CancellationToken ct)
