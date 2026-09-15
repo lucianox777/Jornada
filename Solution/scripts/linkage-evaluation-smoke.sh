@@ -25,7 +25,7 @@ fi
 [[ -n "$CID" ]] || { echo "ERRO: container SQL Server não encontrado." >&2; exit 3; }
 
 mkdir -p "$OUT"
-rm -f "$OUT/labels.csv" "$OUT/report.json" "$OUT/before.txt" "$OUT/after.txt"
+rm -f "$OUT/labels.csv" "$OUT/report.json" "$OUT/candidate-ranking-audit.json" "$OUT/before.txt" "$OUT/after.txt"
 
 sqlcmd(){
   docker exec -i -e "SQLCMDPASSWORD=$SQL_PASSWORD" "$CID" \
@@ -75,6 +75,11 @@ snapshot "$OUT/before.txt"
 
 (
   cd "$ROOT"
+  dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \
+    --candidate-ranking-audit-labels "$OUT/labels.csv" \
+    --candidate-ranking-audit-output "$OUT/candidate-ranking-audit.json" \
+    --ProbabilisticLinkage:CommandTimeoutSeconds 300
+
   dotnet run --project src/Jornada.Linkage.Evaluation --configuration Release --no-build -- \
     --labels "$OUT/labels.csv" \
     --output "$OUT/report.json" \
@@ -87,7 +92,7 @@ snapshot "$OUT/before.txt"
 
 snapshot "$OUT/after.txt"
 cmp -s "$OUT/before.txt" "$OUT/after.txt" || {
-  echo "ERRO: Evaluation alterou fingerprint de tabelas operacionais monitoradas." >&2
+  echo "ERRO: diagnóstico read-only alterou fingerprint de tabelas operacionais monitoradas." >&2
   diff -u "$OUT/before.txt" "$OUT/after.txt" >&2 || true
   exit 5
 }
@@ -132,6 +137,55 @@ for metric in ('nomeTotalVariation','nomeMaeTotalVariation','dataNascimentoExact
         raise SystemExit(f'distance sem {metric}')
 print('Relatório Evaluation: contrato e métricas OK')
 PY
+
+python3 - "$OUT/candidate-ranking-audit.json" "$LABEL_COUNT" <<'PY'
+import json,sys
+path=sys.argv[1]
+expected=int(sys.argv[2])
+with open(path,encoding='utf-8') as f:
+    r=json.load(f)
+if r.get('purpose')!='DEV_HML_ONLY_READ_ONLY_CANDIDATE_RANKING':
+    raise SystemExit('candidate audit purpose inválido')
+required={
+    'read-only against Jornada operational tables',
+    'does not create linkage_run',
+    'does not write IDENTITY_MAP/vinculo_fonte',
+    'does not update Gold',
+    'reuses Runner active model, frozen ruleset, candidate loader and scorer',
+}
+if not required.issubset(set(r.get('safeguards',[]))):
+    raise SystemExit('candidate audit salvaguardas incompletas')
+model=r.get('model',{})
+summary=r.get('summary',{})
+if not model.get('modelId') or int(model.get('modelVersion',0)) <= 0 or not model.get('algorithmVersion'):
+    raise SystemExit('candidate audit sem proveniência do modelo')
+if summary.get('sampleSize') != expected:
+    raise SystemExit(f"candidate audit sampleSize inesperado: {summary.get('sampleSize')}")
+inside=int(summary.get('truthInsideCandidateSet',-1))
+absent=int(summary.get('truthAbsentFromCandidateSet',-1))
+if inside < 0 or absent < 0 or inside + absent != expected:
+    raise SystemExit('decomposição de candidate recall inconsistente')
+recall=float(summary.get('candidateRecallPct',-1))
+if not 0 <= recall <= 100:
+    raise SystemExit('candidateRecallPct fora de [0,100]')
+for metric in (
+    'truthDeterministicTop1','truthDeterministicTop2',
+    'truthPresentDeterministicRankGreaterThan2','truthEvidenceTop',
+    'truthPresentEvidenceRankGreaterThan2','truthTiedAtBestEvidence',
+    'meanCandidateCount','p95CandidateCount','maxCandidateCount'):
+    if metric not in summary:
+        raise SystemExit(f'candidate audit sem {metric}')
+if int(summary['truthDeterministicTop2']) > inside:
+    raise SystemExit('top2 determinístico maior que truthInsideCandidateSet')
+non_top2=r.get('nonTop2')
+if not isinstance(non_top2,list):
+    raise SystemExit('candidate audit sem lista nonTop2')
+for row in non_top2:
+    if 'truthInCandidateSet' not in row or 'candidateCount' not in row or 'rankingSpace' not in row:
+        raise SystemExit('linha nonTop2 incompleta')
+print('Candidate ranking audit: recall/rank/proveniência OK')
+PY
+
 python3 "$ROOT/scripts/linkage-evaluation-evidence-gate.py" "$OUT/report.json" \
   --policy "$ROOT/config/hml/linkage-evaluation-policy.json" \
   --summary "$OUT/evidence-gate-summary.json"
@@ -143,6 +197,7 @@ python3 "$ROOT/scripts/performance-evidence-gate.py" --self-test
   echo "status=OK"
   echo "labels=$actual_labels"
   echo "report_sha256=$(sha256sum "$OUT/report.json" | awk '{print $1}')"
+  echo "candidate_ranking_audit_sha256=$(sha256sum "$OUT/candidate-ranking-audit.json" | awk '{print $1}')"
   echo "operational_fingerprint_unchanged=true"
 } > "$OUT/result.txt"
 cat "$OUT/result.txt"
