@@ -23,6 +23,6 @@ jobs:
         working-directory: Solution
         run: |
           dotnet restore src/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.csproj --force-evaluate
-          echo '---BEGIN-EVALUATION-LOCK---'
-          cat src/Jornada.Linkage.Evaluation/packages.lock.json
-          echo '---END-EVALUATION-LOCK---'
+          printf '%s' 'EVALUATION_LOCK_BASE64='
+          base64 -w0 src/Jornada.Linkage.Evaluation/packages.lock.json
+          printf '\n'
