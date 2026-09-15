@@ -52,18 +52,21 @@ if ([string]::IsNullOrWhiteSpace($bashExe)) {
 }
 Write-Host "Bash selecionado para o gate DDL: $bashExe"
 
-# Git Bash/MSYS converte argumentos POSIX enviados a executáveis Windows. Sem esta exclusão,
-# `docker compose exec -w /workspace` vira um caminho do host (por exemplo
-# C:/Program Files/Git/workspace), que não é um cwd absoluto válido dentro do container Linux.
-# Excluímos somente /workspace para manter a conversão normal dos demais caminhos do host.
+# Git Bash/MSYS converte argumentos POSIX enviados a executáveis Windows. Sem estas exclusões,
+# `docker compose exec -w /workspace ... /opt/mssql-tools18/bin/sqlcmd` reescreve caminhos que
+# existem somente dentro do container Linux para caminhos do host (por exemplo
+# C:/Program Files/Git/opt/mssql-tools18/bin/sqlcmd). Excluímos somente os caminhos internos do
+# container e preservamos a conversão normal dos demais caminhos do host.
+$requiredArgConvExclusions = @('/workspace', '/opt/mssql-tools18/bin/sqlcmd')
 $previousArgConvExcl = $env:MSYS2_ARG_CONV_EXCL
 if ($env:OS -eq 'Windows_NT') {
-    $workspaceExclusion = '/workspace'
-    if ([string]::IsNullOrWhiteSpace($previousArgConvExcl)) {
-        $env:MSYS2_ARG_CONV_EXCL = $workspaceExclusion
-    }
-    elseif (($previousArgConvExcl -split ';') -notcontains $workspaceExclusion) {
-        $env:MSYS2_ARG_CONV_EXCL = "$previousArgConvExcl;$workspaceExclusion"
+    foreach ($argExclusion in $requiredArgConvExclusions) {
+        if ([string]::IsNullOrWhiteSpace($env:MSYS2_ARG_CONV_EXCL)) {
+            $env:MSYS2_ARG_CONV_EXCL = $argExclusion
+        }
+        elseif (($env:MSYS2_ARG_CONV_EXCL -split ';') -notcontains $argExclusion) {
+            $env:MSYS2_ARG_CONV_EXCL = "$($env:MSYS2_ARG_CONV_EXCL);$argExclusion"
+        }
     }
 }
 

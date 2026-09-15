@@ -10,6 +10,19 @@ DB="${JORNADA_DDL_UPGRADE_DATABASE:-JornadaDdlUpgradeCheck}"
 
 need(){ command -v "$1" >/dev/null 2>&1 || { echo "ERRO: comando '$1' não encontrado." >&2; exit 2; }; }
 need docker; need sha256sum; need dotnet
+
+PYTHON=()
+if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' >/dev/null 2>&1; then
+  PYTHON=(python3)
+elif command -v python >/dev/null 2>&1 && python -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' >/dev/null 2>&1; then
+  PYTHON=(python)
+elif command -v py >/dev/null 2>&1 && py -3 -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' >/dev/null 2>&1; then
+  PYTHON=(py -3)
+else
+  echo "ERRO: Python 3 não encontrado (tentados: python3, python, py -3)." >&2
+  exit 2
+fi
+
 [[ -f "$ENV_FILE" ]] || cp "$EXAMPLE" "$ENV_FILE"
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
@@ -107,7 +120,7 @@ sqlcmd -d "$DB" -i "$CURRENT_REL"
 assert_sentinel
 second_hash="$(fingerprint current-second)"
 sqlcmd -d "$DB" -i database/Jornada_Upgrade_Invariants.sql -y 0 -w 65535 | sed -n '/^[[:space:]]*{/,$p' | tr -d "\r\n" > "$ROOT/.local/ddl-upgrade/invariants-after.json"
-python3 "$ROOT/scripts/upgrade-invariant-gate.py" "$ROOT/.local/ddl-upgrade/invariants-before.json" "$ROOT/.local/ddl-upgrade/invariants-after.json" --summary "$ROOT/.local/ddl-upgrade/invariant-summary.json"
+"${PYTHON[@]}" "$ROOT/scripts/upgrade-invariant-gate.py" "$ROOT/.local/ddl-upgrade/invariants-before.json" "$ROOT/.local/ddl-upgrade/invariants-after.json" --summary "$ROOT/.local/ddl-upgrade/invariant-summary.json"
 
 [[ "$first_hash" == "$second_hash" ]] || { echo "ERRO: fingerprint do DDL mudou na segunda aplicação; idempotência violada." >&2; exit 5; }
 cat > "$ROOT/.local/ddl-upgrade/result.txt" <<TXT
