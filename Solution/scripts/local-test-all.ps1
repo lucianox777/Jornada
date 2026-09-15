@@ -12,6 +12,7 @@ $CurrentPowerShell = (Get-Process -Id $PID).Path
 $Results = [System.Collections.Generic.List[object]]::new()
 $OverallStatus = 'FAILED'
 $FailureMessage = $null
+$testedSha = $null
 $originalBranch = $null
 $originalSha = $null
 $stashCommit = $null
@@ -172,12 +173,12 @@ try {
     Invoke-Git @('checkout','master')
     Invoke-Git @('pull','--ff-only','origin','master')
 
-    $sha = ((Invoke-GitCapture @('rev-parse','HEAD')) -join '').Trim()
+    $testedSha = ((Invoke-GitCapture @('rev-parse','HEAD')) -join '').Trim()
     Write-Host ''
     Write-Host 'Jornada - suíte local canônica'
     Write-Host "Suite:  $Suite"
     Write-Host 'Branch: master'
-    Write-Host "SHA:    $sha"
+    Write-Host "SHA:    $testedSha"
     Write-Host 'A suíte é destrutiva para os bancos/volumes locais de teste, mas preserva alterações Git automaticamente.'
 
     Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
@@ -222,29 +223,10 @@ try {
 }
 catch {
     $FailureMessage = $_.Exception.Message
-    Write-Error $_
+    Write-Warning "Suíte interrompida: $FailureMessage"
 }
 finally {
     try {
-        $reportDir = Join-Path $Root '.local/test-all'
-        New-Item -ItemType Directory -Force $reportDir | Out-Null
-        $reportPath = Join-Path $reportDir 'latest.json'
-        $currentSha = ''
-        try { $currentSha = ((Invoke-GitCapture @('rev-parse','HEAD')) -join '').Trim() } catch { $currentSha = '' }
-        [ordered]@{
-            status = $OverallStatus
-            suite = $Suite
-            gitCommitSha = $currentSha
-            generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
-            failure = $FailureMessage
-            steps = @($Results)
-        } | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 $reportPath
-        Write-Host ''
-        Write-Host "Resumo: $reportPath"
-        foreach ($result in $Results) {
-            Write-Host ("{0,-58} {1,7} {2,8:n1}s" -f $result.name, $result.status, $result.seconds)
-        }
-
         if (-not [string]::IsNullOrWhiteSpace($originalSha)) {
             $currentBranch = ((Invoke-GitCapture @('branch','--show-current')) -join '').Trim()
             if (-not [string]::IsNullOrWhiteSpace($originalBranch)) {
@@ -280,6 +262,24 @@ finally {
                     Write-Host 'Alterações locais restauradas; stash temporário removido.'
                 }
             }
+        }
+
+        $reportDir = Join-Path $Root '.local/test-all'
+        New-Item -ItemType Directory -Force $reportDir | Out-Null
+        $reportPath = Join-Path $reportDir 'latest.json'
+        [ordered]@{
+            status = $OverallStatus
+            suite = $Suite
+            gitCommitSha = $testedSha
+            generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+            failure = $FailureMessage
+            steps = @($Results)
+        } | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 $reportPath
+
+        Write-Host ''
+        Write-Host "Resumo: $reportPath"
+        foreach ($result in $Results) {
+            Write-Host ("{0,-58} {1,7} {2,8:n1}s" -f $result.name, $result.status, $result.seconds)
         }
     }
     finally {
