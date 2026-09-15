@@ -19,7 +19,7 @@ internal sealed record LinkageRuntimeSnapshot(LinkageModel Model, LinkageDynamic
 }
 
 internal sealed record LinkageCandidate(Guid PessoaUuid, string NomeCompleto, DateOnly DataNascimento, string? NomeMae);
-internal sealed record CandidateScore(Guid PessoaUuid, decimal Score);
+internal sealed record CandidateScore(Guid PessoaUuid, decimal Score, decimal LogOdds);
 
 internal static class LinkageModelPolicy
 {
@@ -111,16 +111,33 @@ internal static class ProbabilisticLinkageDecisions
             IdentityComparison.NormalizeText(left) is null || IdentityComparison.NormalizeText(right) is null
                 ? null : IdentityComparison.CompareName(left, right);
 
-        var scored = candidates.Select(candidate => new CandidateScore(candidate.PessoaUuid,
-                FellegiSunterScoring.CalculatePosterior(model.Parameters,
+        var usesLogOddsMargin = string.Equals(
+            model.AlgorithmVersion,
+            LinkageParameterCatalog.SemanticBirthAlgorithmVersion,
+            StringComparison.Ordinal);
+
+        var scored = candidates.Select(candidate =>
+            {
+                var score = FellegiSunterScoring.Calculate(
+                    model.Parameters,
                     IdentityComparison.CompareName(observation.NomeCompleto, candidate.NomeCompleto),
                     CompareOptionalName(observation.NomeMae, candidate.NomeMae),
-                    candidates.Count, observation.DataNascimento, candidate.DataNascimento)))
-            .OrderByDescending(x => x.Score).ThenBy(x => x.PessoaUuid).ToArray();
-        var best = scored[0];
-        var second = scored.Length > 1 ? scored[1] : null;
+                    candidates.Count,
+                    observation.DataNascimento,
+                    candidate.DataNascimento);
+                return new CandidateScore(candidate.PessoaUuid, score.Posterior, score.LogOdds);
+            })
+            .ToArray();
+
+        var ordered = usesLogOddsMargin
+            ? scored.OrderByDescending(x => x.LogOdds).ThenBy(x => x.PessoaUuid).ToArray()
+            : scored.OrderByDescending(x => x.Score).ThenBy(x => x.PessoaUuid).ToArray();
+        var best = ordered[0];
+        var second = ordered.Length > 1 ? ordered[1] : null;
         var secondScore = second?.Score;
         decimal? margin = secondScore is null ? null : best.Score - secondScore.Value;
+        if (usesLogOddsMargin && second is not null)
+            margin = best.LogOdds - second.LogOdds;
 
         if (best.Score < model.Threshold)
             return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null,
