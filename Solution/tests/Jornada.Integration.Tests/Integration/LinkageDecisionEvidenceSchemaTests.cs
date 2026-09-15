@@ -30,6 +30,25 @@ public sealed class LinkageDecisionEvidenceSchemaTests
             });
         }
 
+        await using var scoreConstraint = new SqlCommand(
+            """
+            SELECT definition
+            FROM sys.check_constraints
+            WHERE parent_object_id=OBJECT_ID('identidade.linkage_resultado')
+              AND name='ck_linkage_resultado_scores';
+            """, connection);
+        var scoreDefinition = Convert.ToString(
+            await scoreConstraint.ExecuteScalarAsync(),
+            System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(scoreDefinition, Is.Not.Empty);
+            Assert.That(scoreDefinition, Does.Match(@"(?i)margem\]?\s*>=\s*\(?0"));
+            Assert.That(scoreDefinition, Does.Not.Match(@"(?i)margem\]?\s*<=\s*\(?1"),
+                "Margem V6 é diferença de log-odds e não pode continuar limitada ao intervalo de posterior.");
+        });
+
         await using var trigger = new SqlCommand(
             "SELECT OBJECT_DEFINITION(OBJECT_ID('identidade.tr_modelo_linkage_promotion_contract'));", connection);
         var definition = Convert.ToString(await trigger.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
