@@ -106,6 +106,7 @@ required={
     'does not write IDENTITY_MAP/vinculo_fonte',
     'does not update Gold',
     'V2 is experimental evidence only',
+    'operational candidate audit reuses Runner candidate loader and scorer',
 }
 if not required.issubset(set(r.get('safeguards',[]))):
     raise SystemExit('salvaguardas incompletas')
@@ -114,6 +115,8 @@ if inp.get('labeledNoCpfPairs')!=expected:
     raise SystemExit(f"labeledNoCpfPairs inesperado: {inp.get('labeledNoCpfPairs')}")
 if int(inp.get('cpfAnchoredIndependentPairs',0)) < 100:
     raise SystemExit('amostra CPF-ancorada insuficiente para smoke')
+if not inp.get('activeModelId') or int(inp.get('activeModelVersion',0)) <= 0:
+    raise SystemExit('proveniência do modelo ATIVO ausente')
 blocking=r.get('blocking',{})
 for key in ('v1','v2Candidate','deltaRecall'):
     if key not in blocking:
@@ -123,6 +126,35 @@ for key in ('v1','v2Candidate'):
     for metric in ('sampleSize','trueUuidInsideBlock','recall','meanCandidates','medianCandidates','p95Candidates','maxCandidates'):
         if metric not in b:
             raise SystemExit(f'{key} sem {metric}')
+operational=r.get('operationalCandidateRanking',{})
+model=operational.get('model',{})
+summary=operational.get('summary',{})
+if not model.get('modelId') or int(model.get('modelVersion',0)) <= 0 or not model.get('algorithmVersion'):
+    raise SystemExit('operationalCandidateRanking sem proveniência do modelo')
+if summary.get('sampleSize') != expected:
+    raise SystemExit(f"candidate audit sampleSize inesperado: {summary.get('sampleSize')}")
+inside=int(summary.get('truthInsideCandidateSet',-1))
+absent=int(summary.get('truthAbsentFromCandidateSet',-1))
+if inside < 0 or absent < 0 or inside + absent != expected:
+    raise SystemExit('decomposição de candidate recall inconsistente')
+recall=float(summary.get('candidateRecallPct',-1))
+if not 0 <= recall <= 100:
+    raise SystemExit('candidateRecallPct fora de [0,100]')
+for metric in (
+    'truthDeterministicTop1','truthDeterministicTop2',
+    'truthPresentDeterministicRankGreaterThan2','truthEvidenceTop',
+    'truthPresentEvidenceRankGreaterThan2','truthTiedAtBestEvidence',
+    'meanCandidateCount','p95CandidateCount','maxCandidateCount'):
+    if metric not in summary:
+        raise SystemExit(f'candidate audit sem {metric}')
+if int(summary['truthDeterministicTop2']) > inside:
+    raise SystemExit('top2 determinístico maior que truthInsideCandidateSet')
+non_top2=operational.get('nonTop2')
+if not isinstance(non_top2,list):
+    raise SystemExit('candidate audit sem lista nonTop2')
+for row in non_top2:
+    if 'truthInCandidateSet' not in row or 'candidateCount' not in row or 'rankingSpace' not in row:
+        raise SystemExit('linha nonTop2 incompleta')
 transport=r.get('mTransportability',{})
 for key in ('cpfAnchored','noCpfLabeled','distance'):
     if key not in transport:
@@ -130,7 +162,7 @@ for key in ('cpfAnchored','noCpfLabeled','distance'):
 for metric in ('nomeTotalVariation','nomeMaeTotalVariation','dataNascimentoExactAbsoluteDelta'):
     if metric not in transport['distance']:
         raise SystemExit(f'distance sem {metric}')
-print('Relatório Evaluation: contrato e métricas OK')
+print('Relatório Evaluation: contrato, candidate audit e métricas OK')
 PY
 python3 "$ROOT/scripts/linkage-evaluation-evidence-gate.py" "$OUT/report.json" \
   --policy "$ROOT/config/hml/linkage-evaluation-policy.json" \
