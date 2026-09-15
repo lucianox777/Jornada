@@ -86,24 +86,27 @@ internal static class ProbabilisticLinkageDecisions
     {
         if (!string.IsNullOrWhiteSpace(observation.Cpf)) throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
         var decisionV6 = string.Equals(model.AlgorithmVersion, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, StringComparison.Ordinal);
-        if (candidates.Count == 0)
+        var uniqueCandidates = DeduplicateCandidates(candidates);
+        if (uniqueCandidates.Count == 0)
             return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, null, 0m, null, null, null, model.ModelId,
                 decisionV6 ? "SEM_CANDIDATO_NO_RULESET_BLOCKING" : LinkageModelPolicy.SupportsBirthComponentScoring(model) ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_COMPONENTE" : "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO");
 
         static NameComparisonState? CompareOptionalName(string? left, string? right) =>
             IdentityComparison.NormalizeText(left) is null || IdentityComparison.NormalizeText(right) is null ? null : IdentityComparison.CompareName(left, right);
 
-        var scored = candidates.Select(candidate =>
+        var scored = uniqueCandidates.Select(candidate =>
             {
                 var score = FellegiSunterScoring.Calculate(model.Parameters,
                     IdentityComparison.CompareName(observation.NomeCompleto, candidate.NomeCompleto),
-                    CompareOptionalName(observation.NomeMae, candidate.NomeMae), candidates.Count,
+                    CompareOptionalName(observation.NomeMae, candidate.NomeMae), uniqueCandidates.Count,
                     observation.DataNascimento, candidate.DataNascimento);
                 return new CandidateScore(candidate.PessoaUuid, score.Posterior, score.LogOdds);
             })
             .OrderByDescending(x => decisionV6 ? x.LogOdds : x.Score).ThenBy(x => x.PessoaUuid).ToArray();
         var best = scored[0];
         var second = scored.Length > 1 ? scored[1] : null;
+        if (second is not null && second.PessoaUuid == best.PessoaUuid)
+            throw new InvalidOperationException("Ranking probabilístico inválido: melhor e segundo candidato possuem o mesmo UUID.");
         var secondScore = second?.Score;
         decimal? margin = second is null ? null : decisionV6 ? best.LogOdds - second.LogOdds : best.Score - second.Score;
 
@@ -112,5 +115,22 @@ internal static class ProbabilisticLinkageDecisions
         if (second is not null && margin!.Value < model.ConflictMargin)
             return new ProbabilisticLinkageDecision(ResolutionStatus.CONFLITO, null, best.PessoaUuid, best.Score, second.PessoaUuid, second.Score, margin, model.ModelId, "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE");
         return new ProbabilisticLinkageDecision(ResolutionStatus.RESOLVIDO, best.PessoaUuid, best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId);
+    }
+
+    private static IReadOnlyList<LinkageCandidate> DeduplicateCandidates(IReadOnlyList<LinkageCandidate> candidates)
+    {
+        if (candidates.Count < 2)
+            return candidates;
+
+        var result = new List<LinkageCandidate>(candidates.Count);
+        foreach (var group in candidates.GroupBy(static candidate => candidate.PessoaUuid))
+        {
+            var first = group.First();
+            if (group.Skip(1).Any(candidate => candidate != first))
+                throw new InvalidOperationException(
+                    $"Candidato {first.PessoaUuid} apareceu mais de uma vez com atributos divergentes; ranking recusado fail-closed.");
+            result.Add(first);
+        }
+        return result;
     }
 }

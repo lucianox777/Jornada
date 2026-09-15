@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
@@ -28,6 +29,29 @@ public sealed class LinkageParameterCatalogTests
             Assert.That(LinkageParameterCatalog.CalibrationValidationRequired.Distinct(StringComparer.Ordinal).Count(),
                 Is.EqualTo(LinkageParameterCatalog.CalibrationValidationRequired.Count));
         });
+    }
+
+    [Test]
+    public void Default_calibration_configs_track_current_algorithm_version()
+    {
+        var root = FindRepositoryRoot();
+        var paths = new[]
+        {
+            Path.Combine(root, "src", "Jornada.Linkage.Parameters.Worker", "appsettings.json"),
+            Path.Combine(root, "src", "Jornada.Ensaio", "appsettings.json")
+        };
+
+        foreach (var path in paths)
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            var configured = document.RootElement
+                .GetProperty("LinkageParameters")
+                .GetProperty("AlgorithmVersion")
+                .GetString();
+
+            Assert.That(configured, Is.EqualTo(LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion),
+                $"{path} deve acompanhar a proveniência canônica do calibrador.");
+        }
     }
 
     [Test]
