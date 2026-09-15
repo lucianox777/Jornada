@@ -22,7 +22,8 @@ public static class BlockingRuleSetOptimizer
     public static BlockingRuleSetOptimizationResult SelectBest(
         IReadOnlyCollection<BlockingFeatureObservation> observations,
         IEnumerable<IReadOnlyList<LinkageBlockingPass>> candidates,
-        double minimumTrueMatchRecall = 0d)
+        double minimumTrueMatchRecall = 0d,
+        bool requireObservedNonMatchSupport = false)
     {
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(candidates);
@@ -35,6 +36,7 @@ public static class BlockingRuleSetOptimizer
             .Select(static group => group.First())
             .Select(passes => BuildResult(observations, passes))
             .Where(result => result.Diagnostic.TrueMatchRecall >= minimumTrueMatchRecall)
+            .Where(result => !requireObservedNonMatchSupport || result.Diagnostic.NonMatchRetention > 0d)
             .OrderByDescending(static result => result.Diagnostic.TrueMatchRecall)
             .ThenByDescending(static result => result.Diagnostic.ReductionRatio)
             .ThenByDescending(static result => result.Diagnostic.CompleteMatchCoverage)
@@ -45,8 +47,13 @@ public static class BlockingRuleSetOptimizer
             .ToArray();
 
         if (evaluated.Length == 0)
+        {
+            var supportRequirement = requireObservedNonMatchSupport
+                ? " e suporte observado de não-vínculos retidos"
+                : string.Empty;
             throw new InvalidOperationException(
-                "Nenhum ruleset candidato satisfez o recall mínimo exigido para promoção.");
+                $"Nenhum ruleset candidato satisfez o recall mínimo exigido{supportRequirement} para promoção.");
+        }
 
         return evaluated[0];
     }

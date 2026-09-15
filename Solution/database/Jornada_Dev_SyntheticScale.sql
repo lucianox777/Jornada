@@ -89,24 +89,26 @@ VALUES
 
 INSERT ingestao.lote(lote_id,entrega_id,lote_seq,lote_total,qtd_pessoas,qtd_registros,status,criado_em,atualizado_em)
 VALUES
-(@lotSehab,@entSehab,1,1,CONVERT(INT,@paired),0,'PROCESSADO','2026-08-31T10:00:00+00:00','2026-08-31T10:00:00+00:00'),
+(@lotSehab,@entSehab,1,1,CONVERT(INT,@people),0,'PROCESSADO','2026-08-31T10:00:00+00:00','2026-08-31T10:00:00+00:00'),
 (@lotSmads,@entSmads,1,1,CONVERT(INT,@paired),0,'PROCESSADO','2026-08-31T10:00:00+00:00','2026-08-31T10:00:00+00:00'),
 (@lotSmdet,@entSmdet,1,1,CONVERT(INT,@pending),0,'PROCESSADO','2026-08-31T10:00:00+00:00','2026-08-31T10:00:00+00:00');
 
 INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,ultima_recepcao_em,ultima_referencia_recebida)
-SELECT @soSehab,CONCAT('SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),n),10)),'2026-08-31T10:00:00+00:00','2026-08-31T00:00:00+00:00' FROM #n WHERE n<=@paired
+SELECT @soSehab,CONCAT('SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),n),10)),'2026-08-31T10:00:00+00:00','2026-08-31T00:00:00+00:00' FROM #n WHERE n<=@people
 UNION ALL
 SELECT @soSmads,CONCAT('SCALE-SMADS-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),n),10)),'2026-08-31T10:00:00+00:00','2026-08-31T00:00:00+00:00' FROM #n WHERE n<=@paired
 UNION ALL
 SELECT @soSmdet,CONCAT('SCALE-PEND-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),n),10)),'2026-08-31T10:00:00+00:00','2026-08-31T00:00:00+00:00' FROM #n WHERE n<=@pending;
 
--- Duas fontes independentes por Pessoa permitem estimar m sem circularidade Gold->treino.
+-- SEHAB ancora deterministicamente toda a Gold sintética para que a projeção local de blocking
+-- cubra o mesmo universo usado pela amostra u; os primeiros @paired recebem também uma fonte
+-- SMADS independente e formam os pares inter-Gestor usados para estimar m.
 INSERT silver.pessoa_observacao(pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,versao_interna,conteudo_hash,cpf,cpf_ausente_motivo,nome_completo,nome_cmp,data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
 SELECT po.pessoa_origem_id,@lotSehab,@gSehab,po.codigo_pessoa_origem,1,
        LOWER(CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',CONCAT('SEHAB:',g.n,':',@seed)),2)),
        g.cpf,NULL,g.nome,UPPER(g.nome),g.nascimento,g.mae,UPPER(g.mae),'2026-08-31T00:00:00+00:00'
 FROM #gold g JOIN silver.pessoa_origem po ON po.sistema_origem_id=@soSehab AND po.codigo_pessoa_origem=CONCAT('SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),g.n),10))
-WHERE g.n<=@paired;
+WHERE g.n<=@people;
 
 INSERT silver.pessoa_observacao(pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,versao_interna,conteudo_hash,cpf,cpf_ausente_motivo,nome_completo,nome_cmp,data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
 SELECT po.pessoa_origem_id,@lotSmads,@gSmads,po.codigo_pessoa_origem,1,
@@ -125,7 +127,7 @@ INSERT identidade.vinculo_fonte(pessoa_observacao_id,pessoa_uuid,metodo_resoluca
 SELECT obs.pessoa_observacao_id,g.pessoa_uuid,'CPF_DETERMINISTICO',NULL,'RESOLVIDO',NULL,1,'2026-08-31T10:01:00+00:00','SCALE_CORROBORACAO'
 FROM #gold g
 JOIN silver.pessoa_observacao obs ON obs.codigo_pessoa_origem=CONCAT('SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),g.n),10))
-WHERE g.n<=@paired
+WHERE g.n<=@people
 UNION ALL
 SELECT obs.pessoa_observacao_id,g.pessoa_uuid,'CPF_DETERMINISTICO',NULL,'RESOLVIDO',NULL,1,'2026-08-31T10:01:00+00:00','SCALE_CORROBORACAO'
 FROM #gold g

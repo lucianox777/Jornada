@@ -31,7 +31,8 @@ public sealed class LinkageParametersWorker(
     private const string DraftOperation = "GENERATE_DRAFT";
     private const string ValidateOperation = "VALIDATE";
     private const string ActivateOperation = "ACTIVATE";
-    private const string SqlServerSampleMethod = "M_INTERGESTOR_U_GOLD_SERIALIZED";
+    private const string CurrentAlgorithmVersion = "FELLEGI_SUNTER_JOINT_BIRTH_V4";
+    private const string SqlServerSampleMethod = "M_INTERGESTOR_U_BLOCKING_RULESET_V3";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -43,16 +44,26 @@ public sealed class LinkageParametersWorker(
 
         if (operation is ValidateOperation or ActivateOperation)
         {
-            var targetVersion = configuration.GetValue<int?>("LinkageParameters:TargetVersion")
-                ?? throw new InvalidOperationException(
-                    "LinkageParameters:TargetVersion é obrigatório para VALIDATE/ACTIVATE.");
+            try
+            {
+                var targetVersion = configuration.GetValue<int?>("LinkageParameters:TargetVersion")
+                    ?? throw new InvalidOperationException(
+                        "LinkageParameters:TargetVersion é obrigatório para VALIDATE/ACTIVATE.");
 
-            if (operation == ValidateOperation)
-                await ValidateDraftAsync(targetVersion, stoppingToken);
-            else
-                await ActivateValidatedAsync(targetVersion, stoppingToken);
-
-            applicationLifetime.StopApplication();
+                if (operation == ValidateOperation)
+                    await ValidateDraftAsync(targetVersion, stoppingToken);
+                else
+                    await ActivateValidatedAsync(targetVersion, stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Falha na operação explícita {Operation} dos parâmetros de linkage.", operation);
+                Environment.ExitCode = 1;
+            }
+            finally
+            {
+                applicationLifetime.StopApplication();
+            }
             return;
         }
 
@@ -107,7 +118,11 @@ public sealed class LinkageParametersWorker(
     private async Task GenerateDraftFromGoldAsync(CancellationToken cancellationToken)
     {
         var algorithmVersion = configuration.GetValue(
-            "LinkageParameters:AlgorithmVersion", "FELLEGI_SUNTER_ANCHORED_V1")!;
+            "LinkageParameters:AlgorithmVersion", CurrentAlgorithmVersion)!.Trim();
+        if (!string.Equals(algorithmVersion, CurrentAlgorithmVersion, StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                $"Novos modelos SQL Server devem declarar AlgorithmVersion={CurrentAlgorithmVersion}; recebido={algorithmVersion}.");
+
         var normalizationVersion = configuration.GetValue(
             "LinkageParameters:NormalizationVersion", "IDENTITY_NORMALIZATION_V1")!;
         var sampleSize = Math.Max(1_000, configuration.GetValue("LinkageParameters:TrainingSampleSize", 250_000));
@@ -117,6 +132,9 @@ public sealed class LinkageParametersWorker(
         var threshold = Math.Clamp(configuration.GetValue("LinkageParameters:TLinkage", 0.95m), 0.5m, 0.999999m);
         var conflictMargin = Math.Clamp(configuration.GetValue("LinkageParameters:ConflictMargin", 0.03m), 0.0001m, 0.5m);
         var blockingSearchOptions = BlockingRuleSetSearchConfiguration.FromConfiguration(configuration);
+        var readCommandTimeoutSeconds = Math.Max(
+            30,
+            configuration.GetValue("LinkageParameters:ReadCommandTimeoutSeconds", 900));
 
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
 
@@ -143,7 +161,7 @@ public sealed class LinkageParametersWorker(
 
             PopulationStatistics statistics;
             IReadOnlyList<IdentityTrainingPair> matchedPairs;
-            IReadOnlyList<IdentityTrainingPair> unmatchedPairs;
+            IReadOnlyList<IdentityTrainingPair> unmatchedCandidatePairs;
             DateTime corpusCapturedAtUtc;
 
             // O corpus permanece imóvel durante todo GENERATE_DRAFT porque o gate do pipeline
@@ -163,8 +181,9 @@ public sealed class LinkageParametersWorker(
                     samplePoolSize,
                     workCt);
 
-                unmatchedPairs = await ReadGoldUnmatchedPairsAsync(
+                unmatchedCandidatePairs = await ReadGoldUnmatchedPairsAsync(
                     connection,
+                    normalizationVersion,
                     sampleSize,
                     samplePoolSize,
                     workCt);
@@ -173,20 +192,35 @@ public sealed class LinkageParametersWorker(
                     throw new InvalidOperationException(
                         $"Amostra m independente insuficiente: {matchedPairs.Count} pares inter-Gestores; mínimo={minimumIndependentMatchedPairs}. " +
                         "O modelo permanece sem publicação até existir evidência independente suficiente.");
-                if (unmatchedPairs.Count == 0)
+                if (unmatchedCandidatePairs.Count == 0)
                     throw new InvalidOperationException(
-                        "Amostra u condicionada ao blocking vazia. O modelo permanece sem publicação.");
+                        "Amostra u do universo de chaves de blocking vazia. O modelo permanece sem publicação.");
             }
             catch (SqlException ex) when (ex.Number == -2)
             {
-                var readCommandTimeoutSeconds = Math.Max(
-                    30,
-                    configuration.GetValue("LinkageParameters:ReadCommandTimeoutSeconds", 900));
                 throw new TimeoutException(
                     $"Uma consulta de captura do Parameters Worker excedeu {readCommandTimeoutSeconds}s. " +
                     "Nenhum modelo foi publicado; verifique carga/índices e calibre o timeout homologado antes de reagendar GENERATE_DRAFT.",
                     ex);
             }
+
+            var blockingObservations = BlockingFeatureObservationFactory.Create(matchedPairs, unmatchedCandidatePairs);
+            var blocking = BlockingRuleSetSearch.SearchBest(
+                blockingObservations,
+                BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates,
+                blockingSearchOptions);
+
+            var unmatchedPairs = await BlockingConditionedUnmatchedPairReader.ReadAsync(
+                connection,
+                normalizationVersion,
+                blocking.Passes,
+                sampleSize,
+                samplePoolSize,
+                readCommandTimeoutSeconds,
+                workCt);
+            if (unmatchedPairs.Count == 0)
+                throw new InvalidOperationException(
+                    "Amostra u vazia no universo do ruleset vencedor. O modelo permanece sem publicação.");
 
             var modelParameters = LinkageParameterEstimator.Estimate(
                 matchedPairs,
@@ -201,13 +235,9 @@ public sealed class LinkageParametersWorker(
                 modelParameters,
                 statistics,
                 samplePoolSize,
-                minimumIndependentMatchedPairs);
+                minimumIndependentMatchedPairs,
+                unmatchedCandidatePairs.Count);
 
-            var blockingObservations = BlockingFeatureObservationFactory.Create(matchedPairs, unmatchedPairs);
-            var blocking = BlockingRuleSetSearch.SearchBest(
-                blockingObservations,
-                BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates,
-                blockingSearchOptions);
             var ruleSet = LinkageDynamicRuleSet.CreateWithPasses(
                 $"MODEL_{version}_BLOCKING_V1",
                 algorithmVersion,
@@ -226,12 +256,13 @@ public sealed class LinkageParametersWorker(
                 workCt);
 
             logger.LogInformation(
-                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u={U}; " +
-                "corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
+                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; " +
+                "u_candidatos={UCandidates}; u_condicionado={UConditioned}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
                 version,
                 ruleSet.RuleSetVersion,
                 statistics.PopulationSize,
                 matchedPairs.Count,
+                unmatchedCandidatePairs.Count,
                 unmatchedPairs.Count,
                 corpusCapturedAtUtc,
                 SqlServerSampleMethod,
@@ -254,7 +285,8 @@ public sealed class LinkageParametersWorker(
         IReadOnlyDictionary<string, decimal> estimatedParameters,
         PopulationStatistics statistics,
         int samplePoolSize,
-        int minimumIndependentMatchedPairs)
+        int minimumIndependentMatchedPairs,
+        int unmatchedCandidateSampleSize)
     {
         var parameters = new Dictionary<string, decimal>(estimatedParameters, StringComparer.Ordinal)
         {
@@ -264,7 +296,8 @@ public sealed class LinkageParametersWorker(
             ["DISTINCT_MOTHER_NAME_APPROX"] = statistics.DistinctMotherNames,
             ["DISTINCT_BIRTH_DATE"] = statistics.DistinctBirthDates,
             ["TRAINING_SAMPLE_POOL_SIZE"] = samplePoolSize,
-            ["MIN_M_INDEPENDENT_PAIRS"] = minimumIndependentMatchedPairs
+            ["MIN_M_INDEPENDENT_PAIRS"] = minimumIndependentMatchedPairs,
+            ["BLOCKING_U_CANDIDATE_SAMPLE_SIZE"] = unmatchedCandidateSampleSize
         };
 
         return parameters.ToDictionary(
@@ -443,40 +476,58 @@ public sealed class LinkageParametersWorker(
 
     private async Task<IReadOnlyList<IdentityTrainingPair>> ReadGoldUnmatchedPairsAsync(
         SqlConnection connection,
+        string normalizationVersion,
         int sampleSize,
         int samplePoolSize,
         CancellationToken cancellationToken)
     {
+        var projection = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
+        var features = BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates;
+        var featureParameters = features.Select((_, index) => $"@feature_{index}").ToArray();
+
         var command = new SqlCommand(
-            """
+            $"""
             WITH gold_sample AS (
                 SELECT TOP (@pool_size)
                     pessoa_uuid,nome_completo,data_nascimento,nome_mae
                 FROM gold.pessoa
                 ORDER BY pessoa_uuid
-            ), ranked AS (
+            ), eligible_keys AS (
+                SELECT DISTINCT
+                    k.pessoa_uuid,k.atributo,k.valor_normalizado
+                FROM identidade.blocking_chave k
+                JOIN gold_sample gs ON gs.pessoa_uuid=k.pessoa_uuid
+                WHERE k.normalizacao_versao=@normalizacao
+                  AND k.projection_schema_version=@projection_schema
+                  AND k.projection_fingerprint_sha256=@projection_fingerprint
+                  AND k.atributo IN ({string.Join(",", featureParameters)})
+                  AND (k.semantica_temporal<>'STABLE_IDENTITY_DATUM' OR k.vigencia_fim IS NULL)
+            ), ranked_keys AS (
                 SELECT
-                    pessoa_uuid,nome_completo,data_nascimento,nome_mae,
+                    pessoa_uuid,atributo,valor_normalizado,
                     ROW_NUMBER() OVER (
-                        PARTITION BY data_nascimento
-                        ORDER BY pessoa_uuid) AS rn
-                FROM gold_sample
-            ), pares AS (
-                SELECT
-                    a.pessoa_uuid a_uuid,b.pessoa_uuid b_uuid,
-                    a.nome_completo a_nome,a.data_nascimento a_nascimento,a.nome_mae a_mae,
-                    b.nome_completo b_nome,b.data_nascimento b_nascimento,b.nome_mae b_mae
-                FROM ranked a
-                JOIN ranked b
-                  ON b.data_nascimento=a.data_nascimento
+                        PARTITION BY atributo,valor_normalizado
+                        ORDER BY HASHBYTES('SHA2_256',CONVERT(nvarchar(36),pessoa_uuid)),pessoa_uuid) AS rn
+                FROM eligible_keys
+            ), candidate_pairs AS (
+                SELECT DISTINCT
+                    a.pessoa_uuid AS a_uuid,
+                    b.pessoa_uuid AS b_uuid
+                FROM ranked_keys a
+                JOIN ranked_keys b
+                  ON b.atributo=a.atributo
+                 AND b.valor_normalizado=a.valor_normalizado
                  AND b.rn=a.rn+1
                 WHERE a.rn % 2=1
                   AND a.pessoa_uuid<>b.pessoa_uuid
             )
             SELECT TOP (@sample_size)
-                a_nome,a_nascimento,a_mae,b_nome,b_nascimento,b_mae
-            FROM pares
-            ORDER BY a_uuid,b_uuid;
+                a.nome_completo,a.data_nascimento,a.nome_mae,
+                b.nome_completo,b.data_nascimento,b.nome_mae
+            FROM candidate_pairs p
+            JOIN gold_sample a ON a.pessoa_uuid=p.a_uuid
+            JOIN gold_sample b ON b.pessoa_uuid=p.b_uuid
+            ORDER BY HASHBYTES('SHA2_256',CONCAT(CONVERT(nvarchar(36),p.a_uuid),':',CONVERT(nvarchar(36),p.b_uuid))),p.a_uuid,p.b_uuid;
             """,
             connection)
         {
@@ -484,6 +535,11 @@ public sealed class LinkageParametersWorker(
         };
         command.Parameters.Add("@sample_size", SqlDbType.Int).Value = sampleSize;
         command.Parameters.Add("@pool_size", SqlDbType.Int).Value = samplePoolSize;
+        command.Parameters.Add("@normalizacao", SqlDbType.NVarChar, 80).Value = normalizationVersion;
+        command.Parameters.Add("@projection_schema", SqlDbType.NVarChar, 120).Value = projection.SchemaVersion;
+        command.Parameters.Add("@projection_fingerprint", SqlDbType.Char, 64).Value = projection.Fingerprint;
+        for (var index = 0; index < features.Count; index++)
+            command.Parameters.Add(featureParameters[index], SqlDbType.NVarChar, 80).Value = features[index];
 
         return await ReadTrainingPairsAsync(command, cancellationToken);
     }

@@ -8,7 +8,7 @@ namespace Jornada.Tests.Unit;
 public sealed class BlockingRuleSetSearchConfigurationTests
 {
     [Test]
-    public void Missing_configuration_preserves_current_algorithm_defaults()
+    public void Missing_configuration_uses_calibration_safe_defaults()
     {
         var configuration = new ConfigurationBuilder().Build();
         var options = BlockingRuleSetSearchConfiguration.FromConfiguration(configuration);
@@ -19,6 +19,7 @@ public sealed class BlockingRuleSetSearchConfigurationTests
             Assert.That(options.MaxPasses, Is.EqualTo(2));
             Assert.That(options.PrimitivePoolSize, Is.EqualTo(8));
             Assert.That(options.MinimumTrueMatchRecall, Is.EqualTo(0.95d));
+            Assert.That(options.RequireObservedNonMatchSupport, Is.True);
         });
     }
 
@@ -31,7 +32,8 @@ public sealed class BlockingRuleSetSearchConfigurationTests
                 ["LinkageParameters:BlockingSearch:MaxFieldsPerPass"] = "3",
                 ["LinkageParameters:BlockingSearch:MaxPasses"] = "1",
                 ["LinkageParameters:BlockingSearch:PrimitivePoolSize"] = "16",
-                ["LinkageParameters:BlockingSearch:MinimumTrueMatchRecall"] = "0.975"
+                ["LinkageParameters:BlockingSearch:MinimumTrueMatchRecall"] = "0.975",
+                ["LinkageParameters:BlockingSearch:RequireObservedNonMatchSupport"] = "false"
             })
             .Build();
 
@@ -43,6 +45,7 @@ public sealed class BlockingRuleSetSearchConfigurationTests
             Assert.That(options.MaxPasses, Is.EqualTo(1));
             Assert.That(options.PrimitivePoolSize, Is.EqualTo(16));
             Assert.That(options.MinimumTrueMatchRecall, Is.EqualTo(0.975d));
+            Assert.That(options.RequireObservedNonMatchSupport, Is.False);
         });
     }
 

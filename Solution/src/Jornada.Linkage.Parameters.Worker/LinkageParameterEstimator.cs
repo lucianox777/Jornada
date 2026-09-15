@@ -60,6 +60,8 @@ public static class LinkageParameterEstimator
 
         var matchedMotherStates = PresentMotherNameComparisons(matchedPairs).ToArray();
         var unmatchedMotherStates = PresentMotherNameComparisons(unmatchedPairs).ToArray();
+        var matchedBirthStates = matchedPairs.Select(BirthAgreementMask).ToArray();
+        var unmatchedBirthStates = unmatchedPairs.Select(BirthAgreementMask).ToArray();
 
         var result = new Dictionary<string, decimal>(StringComparer.Ordinal)
         {
@@ -81,8 +83,10 @@ public static class LinkageParameterEstimator
         AddDistribution(result, "M_NOME_MAE", matchedMotherStates, smoothingAlpha);
         AddDistribution(result, "U_NOME_MAE", unmatchedMotherStates, smoothingAlpha);
 
-        AddJointBirthDistribution(result, "M_NASCIMENTO_CONJUNTO", matchedPairs.Select(BirthAgreementMask), smoothingAlpha);
-        AddJointBirthDistribution(result, "U_NASCIMENTO_CONJUNTO", unmatchedPairs.Select(BirthAgreementMask), smoothingAlpha);
+        AddJointBirthDistribution(result, "M_NASCIMENTO_CONJUNTO", matchedBirthStates, smoothingAlpha);
+        AddJointBirthDistribution(result, "U_NASCIMENTO_CONJUNTO", unmatchedBirthStates, smoothingAlpha);
+        AddJointBirthSupport(result, "SUPPORT_M_NASCIMENTO_CONJUNTO", matchedBirthStates);
+        AddJointBirthSupport(result, "SUPPORT_U_NASCIMENTO_CONJUNTO", unmatchedBirthStates);
 
         AddBinaryDistribution(result, "M_DATA_NASCIMENTO", matchedPairs.Select(p => p.LeftBirthDate == p.RightBirthDate), smoothingAlpha);
         AddBinaryDistribution(result, "U_DATA_NASCIMENTO", unmatchedPairs.Select(p => p.LeftBirthDate == p.RightBirthDate), smoothingAlpha);
@@ -147,6 +151,23 @@ public static class LinkageParameterEstimator
         var denominator = total + alpha * counts.Length;
         for (var i = 0; i < counts.Length; i++)
             target[$"{prefix}_{LinkageParameterCatalog.BirthJointStates[i]}"] = (counts[i] + alpha) / denominator;
+    }
+
+    private static void AddJointBirthSupport(
+        IDictionary<string, decimal> target,
+        string prefix,
+        IEnumerable<byte> values)
+    {
+        var counts = new long[LinkageParameterCatalog.BirthJointStates.Count];
+        foreach (var value in values)
+        {
+            if (value >= counts.Length)
+                throw new InvalidOperationException("Estado conjunto de nascimento inválido.");
+            counts[value]++;
+        }
+
+        for (var i = 0; i < counts.Length; i++)
+            target[$"{prefix}_{LinkageParameterCatalog.BirthJointStates[i]}"] = counts[i];
     }
 
     private static byte BirthAgreementMask(IdentityTrainingPair pair)

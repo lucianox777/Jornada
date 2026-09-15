@@ -6,7 +6,8 @@ public sealed record BlockingRuleSetSearchOptions(
     int MaxFieldsPerPass = 2,
     int MaxPasses = 2,
     int PrimitivePoolSize = 8,
-    double MinimumTrueMatchRecall = 0.95d)
+    double MinimumTrueMatchRecall = 0.95d,
+    bool RequireObservedNonMatchSupport = false)
 {
     public void Validate()
     {
@@ -26,6 +27,8 @@ public sealed record BlockingRuleSetSearchOptions(
 /// retém um pool explicitamente limitado e, quando habilitado, testa também pares desses passes.
 /// O limite é parte do algoritmo e evita explosão combinatória sobre corpora grandes.
 /// A promoção é fail-closed: se nenhuma alternativa atingir o recall mínimo, nenhum ruleset é publicado.
+/// Quando a calibração exige suporte u observável, regras que retenham zero não-vínculos no corpus
+/// candidato são descartadas antes da escolha, pois não permitem estimar m/u no universo operacional.
 /// </summary>
 public static class BlockingRuleSetSearch
 {
@@ -79,7 +82,8 @@ public static class BlockingRuleSetSearch
         return BlockingRuleSetOptimizer.SelectBest(
             observations,
             candidates,
-            options.MinimumTrueMatchRecall);
+            options.MinimumTrueMatchRecall,
+            options.RequireObservedNonMatchSupport);
     }
 
     private static IEnumerable<LinkageBlockingPass> GeneratePrimitivePasses(
