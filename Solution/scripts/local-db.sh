@@ -94,6 +94,7 @@ bootstrap() {
   # de promover Jornada.SolutionSchema=3.70.
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/Jornada_Fase1_v3.70.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/Jornada_Seed_Dev.sql
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/Jornada_Seed_Dev_UniquePayloads.sql
   # DEV possui seed; reaplicação idempotente reserva também CPFs históricos do seed.
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260907_Cpf_Ancora.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260910_Schema_Consolidation_370.sql
