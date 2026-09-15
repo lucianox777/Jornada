@@ -110,13 +110,29 @@ SELECT po.pessoa_origem_id,@lotSehab,@gSehab,po.codigo_pessoa_origem,1,
 FROM #gold g JOIN silver.pessoa_origem po ON po.sistema_origem_id=@soSehab AND po.codigo_pessoa_origem=CONCAT('SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),g.n),10))
 WHERE g.n<=@people;
 
+-- A segunda fonte determinística inclui erros cadastrais plausíveis de nascimento. Eles continuam
+-- ligados pelo CPF ao mesmo UUID, portanto alimentam m sem circularidade e sem atribuir pesos à mão.
 INSERT silver.pessoa_observacao(pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,versao_interna,conteudo_hash,cpf,cpf_ausente_motivo,nome_completo,nome_cmp,data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
 SELECT po.pessoa_origem_id,@lotSmads,@gSmads,po.codigo_pessoa_origem,1,
        LOWER(CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',CONCAT('SMADS:',g.n,':',@seed)),2)),
        g.cpf,NULL,
        CASE WHEN g.n%11=0 THEN CONCAT(g.nome,N' Filho') WHEN g.n%7=0 THEN REPLACE(g.nome,N' Teste ',N' T. ') ELSE g.nome END,
        UPPER(CASE WHEN g.n%11=0 THEN CONCAT(g.nome,N' Filho') WHEN g.n%7=0 THEN REPLACE(g.nome,N' Teste ',N' T. ') ELSE g.nome END),
-       g.nascimento,
+       CASE
+         WHEN @birthShiftModulo>0
+          AND g.n%NULLIF(@birthShiftModulo,0)=0
+          AND DAY(g.nascimento)<=12
+          AND DAY(g.nascimento)<>MONTH(g.nascimento)
+           THEN DATEFROMPARTS(YEAR(g.nascimento),DAY(g.nascimento),MONTH(g.nascimento))
+         WHEN @birthShiftModulo>0
+          AND g.n%(@birthShiftModulo+1)=0
+           THEN DATEADD(YEAR,CASE WHEN YEAR(g.nascimento)<=1999 THEN 100 ELSE -100 END,g.nascimento)
+         WHEN @birthShiftModulo>0
+          AND g.n%(@birthShiftModulo+2)=0
+          AND DAY(g.nascimento) BETWEEN 2 AND 27
+           THEN DATEADD(DAY,CASE WHEN DAY(g.nascimento)%10 IN(0,9) THEN -1 ELSE 1 END,g.nascimento)
+         ELSE g.nascimento
+       END,
        CASE WHEN g.n%13=0 THEN REPLACE(g.mae,N'Mae ',N'Maria ') ELSE g.mae END,
        UPPER(CASE WHEN g.n%13=0 THEN REPLACE(g.mae,N'Mae ',N'Maria ') ELSE g.mae END),
        '2026-08-31T00:01:00+00:00'
@@ -134,8 +150,8 @@ FROM #gold g
 JOIN silver.pessoa_observacao obs ON obs.codigo_pessoa_origem=CONCAT('SCALE-SMADS-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),g.n),10))
 WHERE g.n<=@paired;
 
--- Observações sem CPF para exercitar o Runner. 10% não possuem candidato no bloco de nascimento;
--- as demais apontam para datas já existentes na Gold, com pequenas variações determinísticas de nome/mãe.
+-- Observações sem CPF para exercitar o Runner. 10% mantêm data deliberadamente fora do universo;
+-- as demais incluem nascimento exato e as mesmas classes semânticas de erro usadas no treino m.
 INSERT silver.pessoa_observacao(pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,versao_interna,conteudo_hash,cpf,cpf_ausente_motivo,nome_completo,nome_cmp,data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
 SELECT po.pessoa_origem_id,@lotSmdet,@gSmdet,po.codigo_pessoa_origem,1,
        LOWER(CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',CONCAT('PEND:',n.n,':',@seed)),2)),
@@ -144,8 +160,22 @@ SELECT po.pessoa_origem_id,@lotSmdet,@gSmdet,po.codigo_pessoa_origem,1,
             WHEN n.n%9=0 THEN CONCAT(g.nome,N' Junior') WHEN n.n%6=0 THEN REPLACE(g.nome,N' Teste ',N' ') ELSE g.nome END,
        UPPER(CASE WHEN @collisionModulo>0 AND n.n%@collisionModulo=0 THEN CONCAT(N'Pessoa Colisao ',RIGHT(REPLICATE('0',6)+CONVERT(VARCHAR(10),n.n%@collisionModulo),6))
             WHEN n.n%9=0 THEN CONCAT(g.nome,N' Junior') WHEN n.n%6=0 THEN REPLACE(g.nome,N' Teste ',N' ') ELSE g.nome END),
-       CASE WHEN @birthShiftModulo>0 AND n.n%@birthShiftModulo=0 THEN DATEADD(DAY,CASE WHEN n.n%2=0 THEN 1 ELSE -1 END,g.nascimento)
-            WHEN n.n%10=0 THEN DATEADD(DAY,CONVERT(INT,n.n%365),CONVERT(DATE,'1900-01-01')) ELSE g.nascimento END,
+       CASE
+         WHEN n.n%10=0 THEN DATEADD(DAY,CONVERT(INT,n.n%365),CONVERT(DATE,'1900-01-01'))
+         WHEN @birthShiftModulo>0
+          AND n.n%NULLIF(@birthShiftModulo,0)=0
+          AND DAY(g.nascimento)<=12
+          AND DAY(g.nascimento)<>MONTH(g.nascimento)
+           THEN DATEFROMPARTS(YEAR(g.nascimento),DAY(g.nascimento),MONTH(g.nascimento))
+         WHEN @birthShiftModulo>0
+          AND n.n%(@birthShiftModulo+1)=0
+           THEN DATEADD(YEAR,CASE WHEN YEAR(g.nascimento)<=1999 THEN 100 ELSE -100 END,g.nascimento)
+         WHEN @birthShiftModulo>0
+          AND n.n%(@birthShiftModulo+2)=0
+          AND DAY(g.nascimento) BETWEEN 2 AND 27
+           THEN DATEADD(DAY,CASE WHEN DAY(g.nascimento)%10 IN(0,9) THEN -1 ELSE 1 END,g.nascimento)
+         ELSE g.nascimento
+       END,
        CASE WHEN n.n%8=0 THEN REPLACE(g.mae,N'Mae ',N'M. ') ELSE g.mae END,
        UPPER(CASE WHEN n.n%8=0 THEN REPLACE(g.mae,N'Mae ',N'M. ') ELSE g.mae END),
        DATEADD(SECOND,CONVERT(INT,n.n%3600),CONVERT(datetimeoffset(0),'2026-08-31T01:00:00+00:00'))
