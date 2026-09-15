@@ -44,17 +44,17 @@ assert_sentinel(){ local n; n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SE
 assert_phone_v2(){
   local n
   n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT CASE WHEN ref.fn_telefone_br_canonico_v2(N'00 55 11 99999-0001')='5511999990001' AND ref.fn_telefone_br_canonico_v2(N'+55 (11) 99999-0001')='5511999990001' AND ref.fn_telefone_br_canonico_v2(NCHAR(9)+N'+1 (212) 555-0100'+NCHAR(13)+NCHAR(10))='12125550100' AND ref.fn_telefone_br_canonico_v2(NCHAR(160)+N'+55 (11) 99999-0001'+NCHAR(160))='5511999990001' AND (SELECT atributo_instancia_chave FROM silver.pessoa_atributo_observacao WHERE source_record_id='SEH001-TEL-1')='5511999990001' AND (SELECT atributo_instancia_chave FROM gold.pessoa_atributo WHERE source_record_id='SEH001-TEL-1' AND vigencia_fim IS NULL)='5511999990001' THEN 1 ELSE 0 END;" | tr -d '[:space:]')"
-  [[ "$n" == "1" ]] || { echo "ERRO: migração TELEFONE_BR_CANONICO_V2 não convergiu a chave legada 00." >&2; exit 6; }
+  [[ "$n" == 1 ]] || { echo "ERRO: migração TELEFONE_BR_CANONICO_V2 não convergiu a chave legada 00." >&2; exit 6; }
 }
 assert_email_v2(){
   local n
   n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT CASE WHEN ref.fn_email_canonico_v2(N'JOSÉ@EXAMPLE.ORG')=N'josÉ@example.org' AND ref.fn_email_canonico_v2(N'Jose'+NCHAR(769)+N'@Example.org')=N'jose'+NCHAR(769)+N'@example.org' AND (SELECT atributo_instancia_chave FROM silver.pessoa_atributo_observacao WHERE source_record_id='SEH002-EMAIL-1')=N'josÉ@example.org' AND (SELECT atributo_instancia_chave FROM gold.pessoa_atributo WHERE source_record_id='SEH002-EMAIL-1' AND vigencia_fim IS NULL)=N'josÉ@example.org' THEN 1 ELSE 0 END;" | tr -d '[:space:]')"
-  [[ "$n" == "1" ]] || { echo "ERRO: migração EMAIL_CANONICO_V2 não convergiu a chave legada." >&2; exit 7; }
+  [[ "$n" == 1 ]] || { echo "ERRO: migração EMAIL_CANONICO_V2 não convergiu a chave legada." >&2; exit 7; }
 }
 assert_schema_marker(){
   local n
   n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT CASE WHEN CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'))=N'3.62' AND CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'))=N'3.70' THEN 1 ELSE 0 END;" | tr -d '[:space:]')"
-  [[ "$n" == "1" ]] || { echo "ERRO: marcador de versão do schema não está em Base 3.62 / Solution 3.70." >&2; exit 8; }
+  [[ "$n" == 1 ]] || { echo "ERRO: marcador de versão do schema não está em Base 3.62 / Solution 3.70." >&2; exit 8; }
 }
 build_progressive_backfill_runner(){
   local harness="$ROOT/.local/ddl-upgrade/identity-backfill"
@@ -93,7 +93,7 @@ backfill_progressive_identity(){
   grep -F 'PROGRESSIVE IDENTITY BACKFILL: OK provider=SqlServer' "$ROOT/.local/ddl-upgrade/progressive-backfill.log" >/dev/null
   local missing
   missing="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM silver.pessoa_origem o LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE p.pessoa_origem_id IS NULL;" | tr -d '[:space:]')"
-  [[ "$missing" == "0" ]] || { echo "ERRO: backfill progressivo incompleto antes do cutover." >&2; exit 9; }
+  [[ "$missing" == 0 ]] || { echo "ERRO: backfill progressivo incompleto antes do cutover." >&2; exit 9; }
 }
 
 compose up -d sqlserver; wait_healthy
