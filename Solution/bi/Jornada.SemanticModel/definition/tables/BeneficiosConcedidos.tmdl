@@ -9,7 +9,7 @@ table BeneficiosConcedidos
 	measure 'Valor pendente/conflitante' = CALCULATE(SUM(BeneficiosConcedidos[valor_concedido]),BeneficiosConcedidos[estado_atribuicao_identidade]<>"ATRIBUIDA")
 		formatString: R$ #,##0.00
 
-	measure 'Aviso Fatos e Pessoas' = "Fatos contabilizam todas as ocorrências vigentes declaradas pelos Gestores. Indicadores de Pessoas consideram somente fatos com identidade canônica atribuída."
+	measure 'Aviso Fatos e Pessoas - Benefícios' = "Fatos contabilizam todas as ocorrências vigentes declaradas pelos Gestores. Indicadores de Pessoas consideram somente fatos com identidade canônica atribuída."
 
 	measure 'Aviso Monetário' = "Não representa pagamento ocorrido, despesa orçamentária ou desembolso. Fatos incluem ocorrências pendentes/conflitantes de identidade; indicadores de Pessoas usam somente fatos atribuídos."
 
