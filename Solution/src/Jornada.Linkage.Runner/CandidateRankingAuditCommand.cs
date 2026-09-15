@@ -11,6 +11,7 @@ internal static class CandidateRankingAuditCommand
 {
     internal const string LabelsOption = "--candidate-ranking-audit-labels";
     internal const string OutputOption = "--candidate-ranking-audit-output";
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     internal static bool IsRequested(string[] args) =>
         args.Any(static arg =>
@@ -131,7 +132,7 @@ internal static class CandidateRankingAuditCommand
             Directory.CreateDirectory(directory);
         await File.WriteAllTextAsync(
             outputPath,
-            JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }),
+            JsonSerializer.Serialize(report, JsonOptions),
             ct);
         Console.WriteLine($"Auditoria read-only de candidate ranking gravada em {outputPath}");
     }
