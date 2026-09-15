@@ -279,20 +279,22 @@ public static class ResolutionProjectionPlanner
         IReadOnlyList<ResolutionSourceField> sources,
         IReadOnlyList<ResolutionProjectedFeature> features)
     {
+        // O fingerprint é um contrato persistido e precisa ser byte-a-byte idêntico em Linux e
+        // Windows. Nunca use AppendLine/Environment.NewLine nesta serialização canônica.
         var canonical = new StringBuilder()
             .Append(PlannerVersion).Append('|')
             .Append(HomologatedResolutionModelCatalog.CatalogVersion).Append('|')
-            .Append(schemaVersion).AppendLine();
+            .Append(schemaVersion).Append('\n');
 
         foreach (var source in sources)
             canonical.Append("S|").Append(source.CanonicalCode).Append('|').Append(source.Semantic).Append('|')
                 .Append(source.CompatibilityProfile).Append('|').Append(source.EligibleForResolution).Append('|')
-                .Append(source.MultiValued).AppendLine();
+                .Append(source.MultiValued).Append('\n');
         foreach (var feature in features)
             canonical.Append("F|").Append(feature.Feature).Append('|').Append(feature.SourceAttribute).Append('|')
                 .Append(feature.Origin).Append('|').Append(feature.ResolutionModel).Append('|').Append(feature.Algorithm).Append('|')
                 .Append(feature.ProjectionOutput).Append('|').Append(feature.Materialization).Append('|')
-                .Append(feature.MultiValued).Append('|').Append(feature.CandidateForBlocking).AppendLine();
+                .Append(feature.MultiValued).Append('|').Append(feature.CandidateForBlocking).Append('\n');
 
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString()))).ToLowerInvariant();
     }
