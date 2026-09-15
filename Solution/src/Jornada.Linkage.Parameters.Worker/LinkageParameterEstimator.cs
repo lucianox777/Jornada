@@ -31,6 +31,9 @@ public static class LinkageParameterEstimator
         if (unmatchedPairs.Count == 0) throw new InvalidOperationException("Não há pares não-match suficientes para estimar probabilidades u.");
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(smoothingAlpha);
         if (!Enum.IsDefined(birthScoringContract)) throw new ArgumentOutOfRangeException(nameof(birthScoringContract));
+        // V6 operacional exige o contrato semântico de nascimento. Chamadores legados
+        // (V3/V4, inclusive o piloto PostgreSQL) nunca recebem flags/estados V6 por acidente.
+        decisionEvidenceV6 = decisionEvidenceV6 && birthScoringContract == BirthScoringContract.SemanticEvidenceV5;
 
         var matchedSemanticBirthStates = matchedPairs.Select(p => BirthDateSemanticEvidence.Classify(p.LeftBirthDate, p.RightBirthDate)).ToArray();
         var unmatchedSemanticBirthStates = unmatchedPairs.Select(p => BirthDateSemanticEvidence.Classify(p.LeftBirthDate, p.RightBirthDate)).ToArray();
