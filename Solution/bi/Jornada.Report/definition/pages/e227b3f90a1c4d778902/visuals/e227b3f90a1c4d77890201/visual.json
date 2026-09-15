@@ -23,11 +23,11 @@
                       "Entity": "QualidadeServicos"
                     }
                   },
-                  "Property": "Registros"
+                  "Property": "Registros - Qualidade Serviços"
                 }
               },
-              "queryRef": "QualidadeServicos.Registros",
-              "nativeQueryRef": "Registros"
+              "queryRef": "QualidadeServicos.Registros - Qualidade Serviços",
+              "nativeQueryRef": "Registros - Qualidade Serviços"
             }
           ]
         }
