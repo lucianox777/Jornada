@@ -12,7 +12,7 @@ if (-not (Test-Path -LiteralPath $ShellGate)) {
 }
 
 function Get-BashExecutable {
-    $git = Get-Command git -CommandType Application -ErrorAction SilentlyContinue
+    $git = Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 
     # No Windows, `bash` no PATH pode ser C:\Windows\System32\bash.exe (launcher do WSL).
     # Este gate foi escrito para Git Bash e precisa operar sobre os mesmos caminhos/CLI do host
@@ -31,7 +31,7 @@ function Get-BashExecutable {
         return $null
     }
 
-    $bash = Get-Command bash -CommandType Application -ErrorAction SilentlyContinue
+    $bash = Get-Command bash -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($null -ne $bash) { return $bash.Source }
 
     if ($null -eq $git) { return $null }
