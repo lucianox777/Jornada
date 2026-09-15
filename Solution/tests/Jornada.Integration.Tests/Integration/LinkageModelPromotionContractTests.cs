@@ -4,14 +4,23 @@ namespace Jornada.Tests.Integration;
 
 [TestFixture]
 [Category("Integration")]
+[NonParallelizable]
 public sealed class LinkageModelPromotionContractTests
 {
     [Test]
-    public async Task Canonical_sql_server_bootstrap_materializes_v5_v6_promotion_contract()
+    public async Task Sql_server_migration_materializes_v5_v6_promotion_contract_in_isolated_database()
     {
         var connectionString = RequireIntegrationConnection();
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
+
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteFileAsync(
+            connection,
+            Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(
+            connection,
+            Path.Combine(databaseDir, "migrations", "20260915_Linkage_Model_Promotion_Contract.sql"));
 
         await using var command = new SqlCommand(
             "SELECT OBJECT_DEFINITION(OBJECT_ID('identidade.tr_modelo_linkage_promotion_contract'));",
