@@ -71,7 +71,7 @@ function Invoke-ClusterAction {
 }
 
 function Get-BashExecutable {
-    $git = Get-Command git -CommandType Application -ErrorAction SilentlyContinue
+    $git = Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 
     # No Windows, `bash` no PATH pode resolver para o launcher do WSL. A suíte local usa
     # ferramentas e caminhos do host Windows, então deve preferir explicitamente o Git Bash.
@@ -88,7 +88,7 @@ function Get-BashExecutable {
         return $null
     }
 
-    $bash = Get-Command bash -CommandType Application -ErrorAction SilentlyContinue
+    $bash = Get-Command bash -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($null -ne $bash) { return $bash.Source }
 
     if ($null -eq $git) { return $null }
