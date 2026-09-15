@@ -3,7 +3,7 @@ table PendenciasIdentidade
 	measure 'Pendências' = COUNTROWS(PendenciasIdentidade)
 		formatString: #,##0
 
-	measure 'Conflitos' = CALCULATE(COUNTROWS(PendenciasIdentidade),PendenciasIdentidade[linkage_status]="CONFLITO")
+	measure 'Conflitos - Pendências de Identidade' = CALCULATE(COUNTROWS(PendenciasIdentidade),PendenciasIdentidade[linkage_status]="CONFLITO")
 		formatString: #,##0
 
 	measure 'CPF Ausente' = CALCULATE(COUNTROWS(PendenciasIdentidade),PendenciasIdentidade[motivo]="SEM_CPF" || PendenciasIdentidade[motivo]="EM_REGULARIZACAO" || PendenciasIdentidade[motivo]="NAO_INFORMADO_ORIGEM")
