@@ -59,12 +59,15 @@ CREATE TABLE #gold(
     nascimento DATE NOT NULL,
     mae NVARCHAR(500) NOT NULL);
 
+-- Cada par consecutivo mantém a mesma data, mas o multiplicador primo permuta os pares
+-- por aproximadamente 100 anos. Isso preserva colisões reais para u sem concentrar 5.000
+-- Pessoas em poucos anos e criar blocos sinteticamente patológicos por ano de nascimento.
 INSERT #gold(n,pessoa_uuid,cpf,nome,nascimento,mae)
 SELECT n,
        CONVERT(UNIQUEIDENTIFIER,HASHBYTES('MD5',CONCAT('JORNADA-V355-',@seed,'-P-',n))),
        RIGHT(REPLICATE('0',11)+CONVERT(VARCHAR(20),10000000000 + (n % 89999999999)),11),
        CONCAT(N'Pessoa Teste ',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),n),10)),
-       DATEADD(DAY,CONVERT(INT,((((n-1)/2)+@seed)%36500)),CONVERT(DATE,'1930-01-01')),
+       DATEADD(DAY,CONVERT(INT,(((((n-1)/2)*7919)+@seed)%36500)),CONVERT(DATE,'1930-01-01')),
        CONCAT(N'Mae Teste ',RIGHT(REPLICATE('0',8)+CONVERT(VARCHAR(10),(n+@seed)%100000000),8))
 FROM #n WHERE n<=@people;
 
