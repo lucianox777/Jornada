@@ -457,6 +457,15 @@ jobs:
           docker exec -w /var/opt/mssql/data/jornada "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i database/migrations/20260907_Cpf_Ancora.sql
           docker exec -w /var/opt/mssql/data/jornada "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -i database/migrations/20260910_Schema_Consolidation_370.sql
           docker exec -w /var/opt/mssql/data/jornada "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -v SCALE_PEOPLE=5000 SCALE_PAIRED=1500 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 -i database/Jornada_Dev_SyntheticScale.sql
+      - name: Materialize canonical blocking projection for synthetic harness
+        env:
+          DOTNET_ENVIRONMENT: Development
+          Processor__Operation: REBUILD_LOCAL_BLOCKING
+        run: |
+          dotnet run --project src/Jornada.Processor.Worker --configuration Release --no-build
+          CID=$(docker ps -q --filter publish=1433 | head -1)
+          KEY_COUNT=$(docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT_BIG(*) FROM identidade.blocking_chave;" | tr -d '\r' | xargs)
+          test "${KEY_COUNT:-0}" -gt 0
       - name: Generate, validate and activate model
         run: |
           export LinkageParameters__Operation=GENERATE_DRAFT
