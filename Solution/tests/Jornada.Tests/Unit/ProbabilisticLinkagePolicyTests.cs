@@ -34,8 +34,7 @@ public sealed class ProbabilisticLinkagePolicyTests
         var complete = LinkageModelPolicy.Create(ModelId, 2, "FELLEGI_SUNTER_V1", parameters);
         Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(complete), Is.True);
         parameters.Remove("U_NASC_DIA_DIFF");
-        var error = Assert.Throws<InvalidOperationException>(() =>
-            LinkageModelPolicy.Create(ModelId, 2, "FELLEGI_SUNTER_V1", parameters));
+        var error = Assert.Throws<InvalidOperationException>(() => LinkageModelPolicy.Create(ModelId, 2, "FELLEGI_SUNTER_V1", parameters));
         Assert.That(error!.Message, Does.Contain("U_NASC_DIA_DIFF"));
     }
 
@@ -46,8 +45,7 @@ public sealed class ProbabilisticLinkagePolicyTests
         var complete = LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V1", parameters);
         Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(complete), Is.True);
         parameters.Remove("U_DATA_NASCIMENTO_DIFF");
-        var error = Assert.Throws<InvalidOperationException>(() =>
-            LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V1", parameters));
+        var error = Assert.Throws<InvalidOperationException>(() => LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V1", parameters));
         Assert.That(error!.Message, Does.Contain("U_DATA_NASCIMENTO_DIFF"));
     }
 
@@ -62,42 +60,34 @@ public sealed class ProbabilisticLinkagePolicyTests
             Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(complete), Is.False);
         });
         parameters.Remove("U_NASCIMENTO_CONJUNTO_101");
-        var error = Assert.Throws<InvalidOperationException>(() =>
-            LinkageModelPolicy.Create(ModelId, 4, "FELLEGI_SUNTER_JOINT_BIRTH_V4", parameters));
+        var error = Assert.Throws<InvalidOperationException>(() => LinkageModelPolicy.Create(ModelId, 4, "FELLEGI_SUNTER_JOINT_BIRTH_V4", parameters));
         Assert.That(error!.Message, Does.Contain("U_NASCIMENTO_CONJUNTO_101"));
     }
 
     [Test]
-    public void EnabledV5_MustHaveCompleteSemanticBirthDistribution_without_legacy_flags()
+    public void EnabledV6_MustHaveCompleteSemanticBirthAndDecisionEvidence()
     {
         var parameters = SemanticBirthParameters(includeLegacyFlags: false);
-        var complete = LinkageModelPolicy.Create(ModelId, 5, LinkageParameterCatalog.SemanticBirthAlgorithmVersion, parameters);
+        var complete = LinkageModelPolicy.Create(ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters);
         Assert.Multiple(() =>
         {
             Assert.That(LinkageModelPolicy.SupportsSemanticBirthScoring(complete), Is.True);
             Assert.That(LinkageModelPolicy.SupportsJointBirthScoring(complete), Is.False);
             Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(complete), Is.False);
         });
-
         parameters.Remove($"U_NASCIMENTO_SEMANTICO_{BirthDateSemanticEvidence.OneDigitError}");
-        var error = Assert.Throws<InvalidOperationException>(() =>
-            LinkageModelPolicy.Create(ModelId, 5, LinkageParameterCatalog.SemanticBirthAlgorithmVersion, parameters));
+        var error = Assert.Throws<InvalidOperationException>(() => LinkageModelPolicy.Create(ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters));
         Assert.That(error!.Message, Does.Contain($"U_NASCIMENTO_SEMANTICO_{BirthDateSemanticEvidence.OneDigitError}"));
     }
 
     [TestCase(false)]
     [TestCase(true)]
-    public void V5_provenance_requires_enabled_semantic_scoring_flag(bool disabledInsteadOfMissing)
+    public void V6_provenance_requires_enabled_semantic_scoring_flag(bool disabledInsteadOfMissing)
     {
         var parameters = SemanticBirthParameters(includeLegacyFlags: false);
-        if (disabledInsteadOfMissing)
-            parameters[LinkageParameterCatalog.BirthSemanticEvidenceScoring] = 0m;
-        else
-            parameters.Remove(LinkageParameterCatalog.BirthSemanticEvidenceScoring);
-
-        var error = Assert.Throws<InvalidOperationException>(() =>
-            LinkageModelPolicy.Create(ModelId, 5, LinkageParameterCatalog.SemanticBirthAlgorithmVersion, parameters));
-
+        if (disabledInsteadOfMissing) parameters[LinkageParameterCatalog.BirthSemanticEvidenceScoring] = 0m;
+        else parameters.Remove(LinkageParameterCatalog.BirthSemanticEvidenceScoring);
+        var error = Assert.Throws<InvalidOperationException>(() => LinkageModelPolicy.Create(ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters));
         Assert.That(error!.Message, Does.Contain(LinkageParameterCatalog.BirthSemanticEvidenceScoring));
     }
 
@@ -108,10 +98,8 @@ public sealed class ProbabilisticLinkagePolicyTests
         parameters[LinkageParameterCatalog.BirthComponentScoring] = 1m;
         foreach (var feature in new[] { "NASC_DIA", "NASC_MES", "NASC_ANO" })
         {
-            parameters[$"M_{feature}_EXACT"] = .9m;
-            parameters[$"M_{feature}_DIFF"] = .1m;
-            parameters[$"U_{feature}_EXACT"] = .1m;
-            parameters[$"U_{feature}_DIFF"] = .9m;
+            parameters[$"M_{feature}_EXACT"] = .9m; parameters[$"M_{feature}_DIFF"] = .1m;
+            parameters[$"U_{feature}_EXACT"] = .1m; parameters[$"U_{feature}_DIFF"] = .9m;
         }
         var model = LinkageModelPolicy.Create(ModelId, 4, "FELLEGI_SUNTER_JOINT_BIRTH_V4", parameters);
         Assert.Multiple(() =>
@@ -123,19 +111,16 @@ public sealed class ProbabilisticLinkagePolicyTests
     }
 
     [Test]
-    public void V5_precedes_complete_V4_V3_and_V2_when_replaying_mixed_model()
+    public void V6_precedes_complete_V4_V3_and_V2_when_replaying_mixed_model()
     {
         var parameters = SemanticBirthParameters(includeLegacyFlags: true);
         parameters[LinkageParameterCatalog.BirthComponentScoring] = 1m;
         foreach (var feature in new[] { "NASC_DIA", "NASC_MES", "NASC_ANO" })
         {
-            parameters[$"M_{feature}_EXACT"] = .9m;
-            parameters[$"M_{feature}_DIFF"] = .1m;
-            parameters[$"U_{feature}_EXACT"] = .1m;
-            parameters[$"U_{feature}_DIFF"] = .9m;
+            parameters[$"M_{feature}_EXACT"] = .9m; parameters[$"M_{feature}_DIFF"] = .1m;
+            parameters[$"U_{feature}_EXACT"] = .1m; parameters[$"U_{feature}_DIFF"] = .9m;
         }
-
-        var model = LinkageModelPolicy.Create(ModelId, 5, LinkageParameterCatalog.SemanticBirthAlgorithmVersion, parameters);
+        var model = LinkageModelPolicy.Create(ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters);
         Assert.Multiple(() =>
         {
             Assert.That(LinkageModelPolicy.SupportsSemanticBirthScoring(model), Is.True);
@@ -158,8 +143,7 @@ public sealed class ProbabilisticLinkagePolicyTests
     {
         var model = LinkageModelPolicy.Create(ModelId, 1, "FELLEGI_SUNTER_V1", Parameters());
         var observation = Observation();
-        var low = ProbabilisticLinkageDecisions.Resolve(model, observation,
-            [new LinkageCandidate(CandidateA, "Nome sem relação", Birth, "Mãe diferente")]);
+        var low = ProbabilisticLinkageDecisions.Resolve(model, observation, [new LinkageCandidate(CandidateA, "Nome sem relação", Birth, "Mãe diferente")]);
         Assert.Multiple(() =>
         {
             Assert.That(low.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
@@ -167,10 +151,7 @@ public sealed class ProbabilisticLinkagePolicyTests
             Assert.That(low.Motivo, Is.EqualTo("ABAIXO_T_LINKAGE"));
         });
         var tied = ProbabilisticLinkageDecisions.Resolve(model, observation,
-        [
-            new LinkageCandidate(CandidateB, observation.NomeCompleto, Birth, observation.NomeMae),
-            new LinkageCandidate(CandidateA, observation.NomeCompleto, Birth, observation.NomeMae)
-        ]);
+        [new LinkageCandidate(CandidateB, observation.NomeCompleto, Birth, observation.NomeMae), new LinkageCandidate(CandidateA, observation.NomeCompleto, Birth, observation.NomeMae)]);
         Assert.Multiple(() =>
         {
             Assert.That(tied.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
@@ -184,7 +165,11 @@ public sealed class ProbabilisticLinkagePolicyTests
     private static Dictionary<string, decimal> SemanticBirthParameters(bool includeLegacyFlags)
     {
         var parameters = includeLegacyFlags ? JointBirthParameters(includeLegacyFlags: true) : Parameters();
+        parameters[LinkageParameterCatalog.DecisionEvidenceScoring] = 1m;
+        parameters[LinkageParameterCatalog.LogOddsConflictMargin] = .05m;
         parameters[LinkageParameterCatalog.BirthSemanticEvidenceScoring] = 1m;
+        parameters["M_NOME_MAE_MISSING"] = .10m;
+        parameters["U_NOME_MAE_MISSING"] = .10m;
         foreach (var state in BirthDateSemanticEvidence.States)
         {
             parameters[$"M_NASCIMENTO_SEMANTICO_{state}"] = .5m;
@@ -209,10 +194,8 @@ public sealed class ProbabilisticLinkagePolicyTests
     {
         var parameters = Parameters();
         parameters[LinkageParameterCatalog.BirthSingleEvidenceScoring] = 1m;
-        parameters["M_DATA_NASCIMENTO_EXACT"] = .96m;
-        parameters["M_DATA_NASCIMENTO_DIFF"] = .04m;
-        parameters["U_DATA_NASCIMENTO_EXACT"] = .002m;
-        parameters["U_DATA_NASCIMENTO_DIFF"] = .998m;
+        parameters["M_DATA_NASCIMENTO_EXACT"] = .96m; parameters["M_DATA_NASCIMENTO_DIFF"] = .04m;
+        parameters["U_DATA_NASCIMENTO_EXACT"] = .002m; parameters["U_DATA_NASCIMENTO_DIFF"] = .998m;
         return parameters;
     }
 
@@ -222,16 +205,13 @@ public sealed class ProbabilisticLinkagePolicyTests
         parameters[enableParameter] = 1m;
         foreach (var feature in new[] { "NASC_DIA", "NASC_MES", "NASC_ANO" })
         {
-            parameters[$"M_{feature}_EXACT"] = .9m;
-            parameters[$"M_{feature}_DIFF"] = .1m;
-            parameters[$"U_{feature}_EXACT"] = .1m;
-            parameters[$"U_{feature}_DIFF"] = .9m;
+            parameters[$"M_{feature}_EXACT"] = .9m; parameters[$"M_{feature}_DIFF"] = .1m;
+            parameters[$"U_{feature}_EXACT"] = .1m; parameters[$"U_{feature}_DIFF"] = .9m;
         }
         return parameters;
     }
 
-    private static IdentityObservation Observation(string? cpf = null) =>
-        new(cpf, cpf is null ? "NAO_INFORMADO" : null, "Maria da Silva", Birth, "Ana de Souza");
+    private static IdentityObservation Observation(string? cpf = null) => new(cpf, cpf is null ? "NAO_INFORMADO" : null, "Maria da Silva", Birth, "Ana de Souza");
 
     private static Dictionary<string, decimal> Parameters()
     {
@@ -244,11 +224,7 @@ public sealed class ProbabilisticLinkagePolicyTests
             [LinkageParameterCatalog.ConflictMargin] = .05m
         };
         foreach (var feature in new[] { "NOME", "NOME_MAE" })
-            foreach (var (state, m, u) in new[]
-            {
-                ("EXACT", .90m, .01m), ("HIGH", .05m, .04m),
-                ("MEDIUM", .03m, .10m), ("LOW", .02m, .85m)
-            })
+            foreach (var (state, m, u) in new[] { ("EXACT", .90m, .01m), ("HIGH", .05m, .04m), ("MEDIUM", .03m, .10m), ("LOW", .02m, .85m) })
             {
                 parameters[$"M_{feature}_{state}"] = m;
                 parameters[$"U_{feature}_{state}"] = u;
