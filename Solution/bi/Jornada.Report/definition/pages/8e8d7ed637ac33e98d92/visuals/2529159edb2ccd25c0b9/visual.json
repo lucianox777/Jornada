@@ -23,11 +23,11 @@
                       "Entity": "PendenciasIdentidade"
                     }
                   },
-                  "Property": "Conflitos"
+                  "Property": "Conflitos - Pendências de Identidade"
                 }
               },
-              "queryRef": "PendenciasIdentidade.Conflitos",
-              "nativeQueryRef": "Conflitos"
+              "queryRef": "PendenciasIdentidade.Conflitos - Pendências de Identidade",
+              "nativeQueryRef": "Conflitos - Pendências de Identidade"
             }
           ]
         }
