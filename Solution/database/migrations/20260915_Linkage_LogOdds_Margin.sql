@@ -19,6 +19,16 @@ BEGIN
             DROP CONSTRAINT ck_linkage_resultado_scores;
     END;
 
+    IF EXISTS (
+        SELECT 1
+        FROM sys.check_constraints
+        WHERE parent_object_id = OBJECT_ID(N'identidade.linkage_resultado')
+          AND name = N'ck_linkage_resultado_candidatos_distintos')
+    BEGIN
+        ALTER TABLE identidade.linkage_resultado
+            DROP CONSTRAINT ck_linkage_resultado_candidatos_distintos;
+    END;
+
     ALTER TABLE identidade.linkage_resultado
         ALTER COLUMN margem DECIMAL(18,8) NULL;
 
@@ -27,6 +37,14 @@ BEGIN
             score_melhor >= 0 AND score_melhor <= 1
             AND (score_segundo IS NULL OR (score_segundo >= 0 AND score_segundo <= 1))
             AND (margem IS NULL OR margem >= 0)
+        );
+
+    -- O mesmo UUID nunca pode ocupar simultaneamente a primeira e a segunda posição.
+    -- Essa invariável é independente de threshold, algoritmo e unidade da margem.
+    ALTER TABLE identidade.linkage_resultado WITH CHECK
+        ADD CONSTRAINT ck_linkage_resultado_candidatos_distintos CHECK(
+            segundo_candidato_uuid IS NULL
+            OR (melhor_candidato_uuid IS NOT NULL AND segundo_candidato_uuid <> melhor_candidato_uuid)
         );
 END;
 GO
