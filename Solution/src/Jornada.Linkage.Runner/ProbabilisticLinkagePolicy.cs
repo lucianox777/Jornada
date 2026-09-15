@@ -43,7 +43,7 @@ internal static class LinkageModelPolicy
 
     internal static bool SupportsSemanticBirthScoring(LinkageModel model)
     {
-        var requiresSemantic = string.Equals(model.AlgorithmVersion, LinkageParameterCatalog.SemanticBirthAlgorithmVersion, StringComparison.Ordinal) ||
+        var requiresSemantic = string.Equals(model.AlgorithmVersion, LinkageParameterCatalog.LegacySemanticBirthAlgorithmVersion, StringComparison.Ordinal) ||
             string.Equals(model.AlgorithmVersion, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, StringComparison.Ordinal);
         var enabled = model.Parameters.TryGetValue(LinkageParameterCatalog.BirthSemanticEvidenceScoring, out var current) && current >= 1m;
         if (requiresSemantic && !enabled) throw new InvalidOperationException($"Modelo semântico incompleto. Proveniência {model.AlgorithmVersion} exige {LinkageParameterCatalog.BirthSemanticEvidenceScoring} habilitado.");
