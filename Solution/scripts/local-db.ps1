@@ -9,7 +9,8 @@ $Example = Join-Path $Root '.env.example'
 New-Item -ItemType Directory -Force (Join-Path $Root '.local/sql-backup') | Out-Null
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw "Docker não encontrado no PATH." }
-function Test-DockerEngine {
+
+function Test-DockerEngineAvailable {
     $previousErrorActionPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
@@ -17,11 +18,66 @@ function Test-DockerEngine {
         $dockerInfoExitCode = $LASTEXITCODE
     }
     finally { $ErrorActionPreference = $previousErrorActionPreference }
-    if ($dockerInfoExitCode -ne 0) {
-        throw 'Docker Engine não está em execução. Inicie o Docker Desktop e aguarde o Engine ficar disponível.'
-    }
+    return $dockerInfoExitCode -eq 0
 }
-Test-DockerEngine
+
+function Get-DockerDesktopPath {
+    if ($env:OS -ne 'Windows_NT') { return $null }
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
+        $candidates.Add((Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'))
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        $candidates.Add((Join-Path $env:LOCALAPPDATA 'Programs\Docker\Docker\Docker Desktop.exe'))
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_DOCKER_DESKTOP_PATH)) {
+        $candidates.Insert(0, $env:JORNADA_DOCKER_DESKTOP_PATH)
+    }
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    return $null
+}
+
+function Ensure-DockerEngine {
+    if (Test-DockerEngineAvailable) { return }
+
+    if ($env:OS -ne 'Windows_NT') {
+        throw 'Docker Engine não está em execução.'
+    }
+
+    $dockerDesktopPath = Get-DockerDesktopPath
+    if ([string]::IsNullOrWhiteSpace($dockerDesktopPath)) {
+        throw 'Docker Engine não está em execução e o Docker Desktop não foi encontrado. Inicie-o manualmente ou defina JORNADA_DOCKER_DESKTOP_PATH.'
+    }
+
+    $desktopProcess = Get-Process -Name 'Docker Desktop' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $desktopProcess) {
+        Write-Host "Docker Engine parado; iniciando Docker Desktop: $dockerDesktopPath"
+        Start-Process -FilePath $dockerDesktopPath | Out-Null
+    }
+    else {
+        Write-Host 'Docker Desktop já está iniciando; aguardando o Engine ficar disponível...'
+    }
+
+    for ($attempt = 1; $attempt -le 90; $attempt++) {
+        if (Test-DockerEngineAvailable) {
+            $serverVersion = (& docker info --format '{{.ServerVersion}}').Trim()
+            Write-Host "Docker Engine pronto: $serverVersion"
+            return
+        }
+        if ($attempt -eq 1 -or $attempt % 10 -eq 0) {
+            Write-Host "Aguardando Docker Engine... tentativa $attempt/90"
+        }
+        Start-Sleep -Seconds 2
+    }
+
+    throw 'Docker Desktop foi iniciado, mas o Docker Engine não ficou disponível em 180 segundos.'
+}
+
+Ensure-DockerEngine
 if (-not (Test-Path $EnvFile)) {
     Copy-Item $Example $EnvFile
     Write-Warning 'Criado .env local a partir de .env.example. Revise a senha antes de uso compartilhado.'
