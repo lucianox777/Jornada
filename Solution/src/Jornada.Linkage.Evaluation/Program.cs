@@ -2,8 +2,11 @@ using System.Data;
 using System.Globalization;
 using System.Text.Json;
 using Jornada.Contracts;
+using Jornada.Linkage.Runner;
 using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 
 const string Purpose = "DEV_HML_ONLY_NO_PUBLICATION";
 var options = EvaluationOptions.Parse(args);
@@ -36,6 +39,23 @@ if (cpfAnchoredPairs.Count == 0)
 var blocking = await evaluator.EvaluateBlockingAsync(labeledPairs, options.BirthWindowDays);
 var transport = TransportabilityMetrics.Compare(cpfAnchoredPairs, labeledPairs, options.SmoothingAlpha);
 
+var runtimeConfiguration = new ConfigurationBuilder()
+    .AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["ProbabilisticLinkage:CommandTimeoutSeconds"] = options.CommandTimeoutSeconds.ToString(CultureInfo.InvariantCulture)
+    })
+    .Build();
+var runtime = new SqlProbabilisticIdentityLinkage(
+    runtimeConfiguration,
+    operationalSql,
+    NullLogger<SqlProbabilisticIdentityLinkage>.Instance);
+var activeModel = await runtime.GetActiveModelAsync(CancellationToken.None);
+var operationalCandidateRanking = await OperationalCandidateRankingEvaluation.EvaluateAsync(
+    labels,
+    runtime,
+    activeModel,
+    CancellationToken.None);
+
 var report = new
 {
     generatedAtUtc = DateTimeOffset.UtcNow,
@@ -46,7 +66,8 @@ var report = new
         "does not create linkage_run",
         "does not write IDENTITY_MAP/vinculo_fonte",
         "does not update Gold",
-        "V2 is experimental evidence only"
+        "V2 is experimental evidence only",
+        "operational candidate audit reuses Runner candidate loader and scorer"
     },
     input = new
     {
@@ -55,13 +76,17 @@ var report = new
         cpfAnchoredIndependentPairs = cpfAnchoredPairs.Count,
         birthWindowDays = options.BirthWindowDays,
         smoothingAlpha = options.SmoothingAlpha,
-        commandTimeoutSeconds = options.CommandTimeoutSeconds
+        commandTimeoutSeconds = options.CommandTimeoutSeconds,
+        activeModelId = activeModel.ModelId,
+        activeModelVersion = activeModel.Version
     },
     blocking,
+    operationalCandidateRanking,
     mTransportability = transport,
     interpretation = new
     {
         blocking = "Compare recall do UUID verdadeiro e expansão do conjunto candidato. V2 não é promovido automaticamente.",
+        operationalCandidateRanking = "Reexecuta read-only o ruleset, candidate loader e scorer do Runner. Separa verdade ausente do candidate set de verdade presente porém inferior no ranking; rank evidencial ignora a ordenação UUID dentro de empates.",
         m = "Distâncias maiores entre distribuições CPF-ancorada e SEM_CPF indicam menor transportabilidade das probabilidades m. O relatório produz evidência; não altera parâmetros."
     }
 };
@@ -146,7 +171,7 @@ internal sealed record EvaluationOptions(
           --smoothing-alpha <decimal>          padrão 0.5; mesmo default do Parameters Worker
           --command-timeout-seconds <1..3600> padrão 900
 
-        O executável faz apenas SELECT nas tabelas operacionais. V2 é evidência experimental e nunca é publicado.
+        O executável faz apenas SELECT nas tabelas operacionais. A auditoria operacional usa o modelo ATIVO e o mesmo candidate loader/scorer do Runner, sem publicação.
         """;
 }
 
