@@ -59,8 +59,10 @@ try {
         dotnet build Jornada.sln --configuration Release --no-restore -warnaserror
     }
 
-    Invoke-NativeStep 'Unit tests' {
-        dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --configuration Release --no-build
+    # Espelha o gate unitário do CI: este assembly também contém fixtures Integration
+    # (inclusive PostgreSQL) que exigem ambientes dedicados e não pertencem ao core local.
+    Invoke-NativeStep 'Unit/non-integration tests' {
+        dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --configuration Release --no-build --filter 'TestCategory!=Integration'
     }
 
     Invoke-NativeStep 'Integration tests' {
