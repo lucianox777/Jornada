@@ -1,0 +1,66 @@
+name: jornada-powershell-local-gates
+
+on:
+  push:
+    paths:
+      - 'Solution/scripts/local-ddl-upgrade.ps1'
+      - 'Solution/scripts/local-test-all.ps1'
+      - '.github/workflows/powershell-local-gates.yml'
+  pull_request:
+    paths:
+      - 'Solution/scripts/local-ddl-upgrade.ps1'
+      - 'Solution/scripts/local-test-all.ps1'
+      - '.github/workflows/powershell-local-gates.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  powershell-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.424'
+
+      - name: Validate UTF-8 BOM and PowerShell syntax
+        shell: pwsh
+        run: |
+          $files = @('scripts/local-ddl-upgrade.ps1','scripts/local-test-all.ps1')
+          foreach ($file in $files) {
+            $bytes = [System.IO.File]::ReadAllBytes($file)
+            if ($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF) {
+              throw "UTF-8 BOM ausente em $file; Windows PowerShell 5.1 pode corromper acentos."
+            }
+            $null = [scriptblock]::Create((Get-Content -Raw -Encoding UTF8 $file))
+            Write-Host "POWERSHELL UTF-8 BOM/PARSE OK: $file"
+          }
+
+      - name: Execute DDL upgrade gate through PowerShell
+        shell: pwsh
+        run: |
+          Copy-Item .env.example .env
+          ./scripts/local-ddl-upgrade.ps1
+
+      - name: Upload DDL PowerShell evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: powershell-ddl-upgrade-evidence
+          path: Solution/.local/ddl-upgrade
+          if-no-files-found: ignore
+          include-hidden-files: true
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: docker compose --env-file .env down -v --remove-orphans || true
