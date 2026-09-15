@@ -11,6 +11,7 @@ BI = ROOT / "bi"
 REPORT = BI / "Jornada.Report" / "definition"
 PAGES = REPORT / "pages"
 MODEL = BI / "Jornada.SemanticModel" / "definition"
+TABLES = MODEL / "tables"
 
 EXPECTED_PAGES = {
     "Visão Geral",
@@ -38,9 +39,76 @@ EXPECTED_PAGES = {
     "Manutenção da Bronze",
 }
 
+MEASURE_DECL = re.compile(
+    r"(?m)^\s*measure\s+(?:'((?:''|[^'])+)'|([^\s=]+))\s*="
+)
+
 
 def fail(message: str) -> None:
     raise SystemExit(f"ERRO: {message}")
+
+
+def tmdl_name(quoted: str | None, bare: str | None) -> str:
+    if quoted is not None:
+        return quoted.replace("''", "'")
+    if bare is not None:
+        return bare
+    raise ValueError("declaração TMDL sem nome")
+
+
+def collect_measures() -> tuple[dict[str, set[str]], int]:
+    measures_by_table: dict[str, set[str]] = {}
+    global_names: dict[str, list[tuple[str, str, Path]]] = {}
+    count = 0
+
+    for table_file in sorted(TABLES.glob("*.tmdl")):
+        table = table_file.stem
+        text = table_file.read_text(encoding="utf-8")
+        declared: set[str] = set()
+        local_keys: set[str] = set()
+
+        for match in MEASURE_DECL.finditer(text):
+            name = tmdl_name(match.group(1), match.group(2))
+            key = name.casefold()
+            if key in local_keys:
+                fail(
+                    f"Measure duplicado na tabela {table}: {name!r} "
+                    f"({table_file.relative_to(ROOT)})"
+                )
+            local_keys.add(key)
+            declared.add(name)
+            global_names.setdefault(key, []).append((table, name, table_file))
+            count += 1
+
+        measures_by_table[table] = declared
+
+    duplicates = [entries for entries in global_names.values() if len(entries) > 1]
+    if duplicates:
+        details = []
+        for entries in sorted(duplicates, key=lambda item: item[0][1].casefold()):
+            display = entries[0][1]
+            owners = ", ".join(sorted(entry[0] for entry in entries))
+            details.append(f"{display!r} -> {owners}")
+        fail("nomes globais de Measure duplicados: " + "; ".join(details))
+
+    return measures_by_table, count
+
+
+def iter_measure_refs(node: object):
+    if isinstance(node, dict):
+        measure = node.get("Measure")
+        if isinstance(measure, dict):
+            expression = measure.get("Expression")
+            source_ref = expression.get("SourceRef") if isinstance(expression, dict) else None
+            entity = source_ref.get("Entity") if isinstance(source_ref, dict) else None
+            prop = measure.get("Property")
+            if isinstance(entity, str) and isinstance(prop, str):
+                yield entity, prop
+        for value in node.values():
+            yield from iter_measure_refs(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from iter_measure_refs(value)
 
 
 def main() -> int:
@@ -89,10 +157,13 @@ def main() -> int:
     if metadata.get("activePageName") not in names:
         fail("activePageName não referencia página válida")
 
-    for visual_file in PAGES.glob("*/visuals/*/visual.json"):
+    visual_files = sorted(PAGES.glob("*/visuals/*/visual.json"))
+    parsed_visuals: list[tuple[Path, object]] = []
+    for visual_file in visual_files:
         visual = json.loads(visual_file.read_text(encoding="utf-8"))
         if "$schema" not in visual:
             fail(f"visual sem $schema: {visual_file.relative_to(ROOT)}")
+        parsed_visuals.append((visual_file, visual))
 
     tmdl_files = sorted(MODEL.rglob("*.tmdl"))
     if len(tmdl_files) < 20:
@@ -113,13 +184,32 @@ def main() -> int:
     if re.search(r"(?i)password\s*=|pwd\s*=|access[_-]?token\s*=", all_tmdl):
         fail("possível segredo versionado no TMDL")
 
-    print(f"POWER BI STATIC GATE: OK (23 páginas; {len(tmdl_files)} TMDL; catálogo/ordem/visuais coerentes)")
+    measures_by_table, measure_count = collect_measures()
+    for visual_file, visual in parsed_visuals:
+        for entity, prop in iter_measure_refs(visual):
+            declared = measures_by_table.get(entity)
+            if declared is None:
+                fail(
+                    f"visual referencia tabela de Measure inexistente: {entity!r} "
+                    f"em {visual_file.relative_to(ROOT)}"
+                )
+            if prop not in declared:
+                fail(
+                    f"visual referencia Measure inexistente: {entity}.{prop} "
+                    f"em {visual_file.relative_to(ROOT)}"
+                )
+
+    print(
+        "POWER BI STATIC GATE: OK "
+        f"(23 páginas; {len(tmdl_files)} TMDL; {measure_count} measures globais únicas; "
+        "catálogo/ordem/visuais/referências coerentes)"
+    )
     return 0
 
 
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (json.JSONDecodeError, OSError) as exc:
+    except (json.JSONDecodeError, OSError, ValueError) as exc:
         print(f"ERRO: {exc}", file=sys.stderr)
         raise SystemExit(2)
