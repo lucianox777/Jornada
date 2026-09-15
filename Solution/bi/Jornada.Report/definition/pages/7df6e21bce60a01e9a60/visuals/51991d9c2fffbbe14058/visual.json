@@ -1,0 +1,52 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "51991d9c2fffbbe14058",
+  "position": {
+    "x": 60,
+    "y": 655,
+    "z": 9700,
+    "height": 45,
+    "width": 1160,
+    "tabOrder": 9700
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Registros"
+                    }
+                  },
+                  "Property": "Disclaimer Monetário"
+                }
+              },
+              "queryRef": "Registros.Disclaimer Monetário",
+              "nativeQueryRef": "Disclaimer Monetário"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
