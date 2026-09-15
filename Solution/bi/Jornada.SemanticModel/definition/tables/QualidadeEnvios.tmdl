@@ -6,7 +6,7 @@ table QualidadeEnvios
 	measure 'Taxa Processada' = DIVIDE(SUM(QualidadeEnvios[processada]),COUNTROWS(QualidadeEnvios))
 		formatString: 0.0%
 
-	measure 'Itens Recebidos' = SUM(QualidadeEnvios[itens_recebidos])
+	measure 'Itens Recebidos - Qualidade de Envios' = SUM(QualidadeEnvios[itens_recebidos])
 		formatString: #,##0
 
 	measure 'Pessoas Recebidas' = SUM(QualidadeEnvios[pessoas_recebidas])
@@ -15,7 +15,7 @@ table QualidadeEnvios
 	measure 'Registros Recebidos' = SUM(QualidadeEnvios[registros_recebidos])
 		formatString: #,##0
 
-	measure 'Retransmissoes Identicas' = SUM(QualidadeEnvios[retransmitidos])
+	measure 'Retransmissoes Identicas - Qualidade de Envios' = SUM(QualidadeEnvios[retransmitidos])
 		formatString: #,##0
 
 	measure 'Taxa Retransmissao' = DIVIDE(SUM(QualidadeEnvios[retransmitidos]),SUM(QualidadeEnvios[itens_recebidos]))

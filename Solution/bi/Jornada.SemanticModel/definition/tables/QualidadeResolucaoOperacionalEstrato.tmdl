@@ -1,24 +1,24 @@
 table QualidadeResolucaoOperacionalEstrato
 
-	measure 'Avaliações de resolução' = SUM(QualidadeResolucaoOperacionalEstrato[avaliados])
+	measure 'Avaliações de resolução - Estrato' = SUM(QualidadeResolucaoOperacionalEstrato[avaliados])
 		formatString: #,##0
 
-	measure 'Resolvidos' = SUM(QualidadeResolucaoOperacionalEstrato[resolvidos])
+	measure 'Resolvidos - Estrato' = SUM(QualidadeResolucaoOperacionalEstrato[resolvidos])
 		formatString: #,##0
 
-	measure 'Conflitos' = SUM(QualidadeResolucaoOperacionalEstrato[conflitos])
+	measure 'Conflitos - Estrato' = SUM(QualidadeResolucaoOperacionalEstrato[conflitos])
 		formatString: #,##0
 
-	measure 'Não resolvidos' = SUM(QualidadeResolucaoOperacionalEstrato[nao_resolvidos])
+	measure 'Não resolvidos - Estrato' = SUM(QualidadeResolucaoOperacionalEstrato[nao_resolvidos])
 		formatString: #,##0
 
-	measure 'Taxa de resolução' = DIVIDE(SUM(QualidadeResolucaoOperacionalEstrato[resolvidos]),SUM(QualidadeResolucaoOperacionalEstrato[avaliados]))
+	measure 'Taxa de resolução - Estrato' = DIVIDE(SUM(QualidadeResolucaoOperacionalEstrato[resolvidos]),SUM(QualidadeResolucaoOperacionalEstrato[avaliados]))
 		formatString: 0.00%
 
-	measure 'Proporção de conflito' = DIVIDE(SUM(QualidadeResolucaoOperacionalEstrato[conflitos]),SUM(QualidadeResolucaoOperacionalEstrato[avaliados]))
+	measure 'Proporção de conflito - Estrato' = DIVIDE(SUM(QualidadeResolucaoOperacionalEstrato[conflitos]),SUM(QualidadeResolucaoOperacionalEstrato[avaliados]))
 		formatString: 0.00%
 
-	measure 'Proporção de não resolvido' = DIVIDE(SUM(QualidadeResolucaoOperacionalEstrato[nao_resolvidos]),SUM(QualidadeResolucaoOperacionalEstrato[avaliados]))
+	measure 'Proporção de não resolvido - Estrato' = DIVIDE(SUM(QualidadeResolucaoOperacionalEstrato[nao_resolvidos]),SUM(QualidadeResolucaoOperacionalEstrato[avaliados]))
 		formatString: 0.00%
 
 	column linkage_run_id

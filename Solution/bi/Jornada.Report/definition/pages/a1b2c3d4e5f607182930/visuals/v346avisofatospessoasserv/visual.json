@@ -23,11 +23,11 @@
                       "Entity": "ServicosPrestados"
                     }
                   },
-                  "Property": "Aviso Fatos e Pessoas"
+                  "Property": "Aviso Fatos e Pessoas - Serviços"
                 }
               },
-              "queryRef": "ServicosPrestados.Aviso Fatos e Pessoas",
-              "nativeQueryRef": "Aviso Fatos e Pessoas"
+              "queryRef": "ServicosPrestados.Aviso Fatos e Pessoas - Serviços",
+              "nativeQueryRef": "Aviso Fatos e Pessoas - Serviços"
             }
           ]
         }

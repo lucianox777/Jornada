@@ -23,11 +23,11 @@
                       "Entity": "QualidadeBeneficios"
                     }
                   },
-                  "Property": "Registros"
+                  "Property": "Registros - Qualidade Benefícios"
                 }
               },
-              "queryRef": "QualidadeBeneficios.Registros",
-              "nativeQueryRef": "Registros"
+              "queryRef": "QualidadeBeneficios.Registros - Qualidade Benefícios",
+              "nativeQueryRef": "Registros - Qualidade Benefícios"
             }
           ]
         }

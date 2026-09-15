@@ -41,11 +41,11 @@
                       "Entity": "QualidadeServicos"
                     }
                   },
-                  "Property": "Geografia %"
+                  "Property": "Geografia % - Serviços"
                 }
               },
-              "queryRef": "QualidadeServicos.Geografia %",
-              "nativeQueryRef": "Geografia %"
+              "queryRef": "QualidadeServicos.Geografia % - Serviços",
+              "nativeQueryRef": "Geografia % - Serviços"
             }
           ]
         }

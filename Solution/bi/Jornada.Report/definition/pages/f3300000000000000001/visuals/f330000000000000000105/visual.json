@@ -41,11 +41,11 @@
                       "Entity": "QualidadeEnvios"
                     }
                   },
-                  "Property": "Itens Recebidos"
+                  "Property": "Itens Recebidos - Qualidade de Envios"
                 }
               },
-              "queryRef": "QualidadeEnvios.Itens Recebidos",
-              "nativeQueryRef": "Itens Recebidos"
+              "queryRef": "QualidadeEnvios.Itens Recebidos - Qualidade de Envios",
+              "nativeQueryRef": "Itens Recebidos - Qualidade de Envios"
             }
           ]
         }

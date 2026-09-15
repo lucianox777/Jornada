@@ -41,11 +41,11 @@
                       "Entity": "QualidadeServicos"
                     }
                   },
-                  "Property": "QC Divergente %"
+                  "Property": "QC Divergente % - Serviços"
                 }
               },
-              "queryRef": "QualidadeServicos.QC Divergente %",
-              "nativeQueryRef": "QC Divergente %"
+              "queryRef": "QualidadeServicos.QC Divergente % - Serviços",
+              "nativeQueryRef": "QC Divergente % - Serviços"
             }
           ]
         }

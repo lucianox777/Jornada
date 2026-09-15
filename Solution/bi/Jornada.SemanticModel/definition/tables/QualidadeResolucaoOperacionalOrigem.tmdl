@@ -1,24 +1,24 @@
 table QualidadeResolucaoOperacionalOrigem
 
-	measure 'Avaliações de resolução' = SUM(QualidadeResolucaoOperacionalOrigem[avaliados])
+	measure 'Avaliações de resolução - Origem' = SUM(QualidadeResolucaoOperacionalOrigem[avaliados])
 		formatString: #,##0
 
-	measure 'Resolvidos' = SUM(QualidadeResolucaoOperacionalOrigem[resolvidos])
+	measure 'Resolvidos - Origem' = SUM(QualidadeResolucaoOperacionalOrigem[resolvidos])
 		formatString: #,##0
 
-	measure 'Conflitos' = SUM(QualidadeResolucaoOperacionalOrigem[conflitos])
+	measure 'Conflitos - Origem' = SUM(QualidadeResolucaoOperacionalOrigem[conflitos])
 		formatString: #,##0
 
-	measure 'Não resolvidos' = SUM(QualidadeResolucaoOperacionalOrigem[nao_resolvidos])
+	measure 'Não resolvidos - Origem' = SUM(QualidadeResolucaoOperacionalOrigem[nao_resolvidos])
 		formatString: #,##0
 
-	measure 'Taxa de resolução' = DIVIDE(SUM(QualidadeResolucaoOperacionalOrigem[resolvidos]),SUM(QualidadeResolucaoOperacionalOrigem[avaliados]))
+	measure 'Taxa de resolução - Origem' = DIVIDE(SUM(QualidadeResolucaoOperacionalOrigem[resolvidos]),SUM(QualidadeResolucaoOperacionalOrigem[avaliados]))
 		formatString: 0.00%
 
-	measure 'Proporção de conflito' = DIVIDE(SUM(QualidadeResolucaoOperacionalOrigem[conflitos]),SUM(QualidadeResolucaoOperacionalOrigem[avaliados]))
+	measure 'Proporção de conflito - Origem' = DIVIDE(SUM(QualidadeResolucaoOperacionalOrigem[conflitos]),SUM(QualidadeResolucaoOperacionalOrigem[avaliados]))
 		formatString: 0.00%
 
-	measure 'Proporção de não resolvido' = DIVIDE(SUM(QualidadeResolucaoOperacionalOrigem[nao_resolvidos]),SUM(QualidadeResolucaoOperacionalOrigem[avaliados]))
+	measure 'Proporção de não resolvido - Origem' = DIVIDE(SUM(QualidadeResolucaoOperacionalOrigem[nao_resolvidos]),SUM(QualidadeResolucaoOperacionalOrigem[avaliados]))
 		formatString: 0.00%
 
 	column linkage_run_id

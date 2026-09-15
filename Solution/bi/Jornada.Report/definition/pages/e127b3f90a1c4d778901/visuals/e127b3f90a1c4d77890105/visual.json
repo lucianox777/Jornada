@@ -41,11 +41,11 @@
                       "Entity": "QualidadeBeneficios"
                     }
                   },
-                  "Property": "Geografia %"
+                  "Property": "Geografia % - Benefícios"
                 }
               },
-              "queryRef": "QualidadeBeneficios.Geografia %",
-              "nativeQueryRef": "Geografia %"
+              "queryRef": "QualidadeBeneficios.Geografia % - Benefícios",
+              "nativeQueryRef": "Geografia % - Benefícios"
             }
           ]
         }

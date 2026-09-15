@@ -23,11 +23,11 @@
                       "Entity": "QualidadeIdentidadeOrigem"
                     }
                   },
-                  "Property": "Cobertura UUID"
+                  "Property": "Cobertura UUID - Identidade por Origem"
                 }
               },
-              "queryRef": "QualidadeIdentidadeOrigem.Cobertura UUID",
-              "nativeQueryRef": "Cobertura UUID"
+              "queryRef": "QualidadeIdentidadeOrigem.Cobertura UUID - Identidade por Origem",
+              "nativeQueryRef": "Cobertura UUID - Identidade por Origem"
             }
           ]
         }

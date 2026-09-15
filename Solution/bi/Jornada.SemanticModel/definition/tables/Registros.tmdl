@@ -11,7 +11,7 @@ table Registros
 	measure 'Benefícios' = CALCULATE(COUNTROWS(Registros),Registros[natureza]="BENEFICIO")
 		formatString: #,##0
 
-	measure 'Serviços Prestados' = CALCULATE(COUNTROWS(Registros),Registros[natureza]="SERVICO")
+	measure 'Serviços Prestados - Registros' = CALCULATE(COUNTROWS(Registros),Registros[natureza]="SERVICO")
 		formatString: #,##0
 
 	column registro_id

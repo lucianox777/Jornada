@@ -1,6 +1,6 @@
 table ServicosPrestados
 
-	measure 'Aviso Fatos e Pessoas' = "Fatos contabilizam todas as ocorrências vigentes declaradas pelos Gestores. Indicadores de Pessoas consideram somente fatos com identidade canônica atribuída."
+	measure 'Aviso Fatos e Pessoas - Serviços' = "Fatos contabilizam todas as ocorrências vigentes declaradas pelos Gestores. Indicadores de Pessoas consideram somente fatos com identidade canônica atribuída."
 
 	measure 'Serviços pendentes/conflitantes' = CALCULATE(COUNTROWS(ServicosPrestados),ServicosPrestados[estado_atribuicao_identidade]<>"ATRIBUIDA")
 		formatString: #,##0

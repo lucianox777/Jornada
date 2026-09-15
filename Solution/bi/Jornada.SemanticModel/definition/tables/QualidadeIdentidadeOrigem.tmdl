@@ -4,11 +4,11 @@ table QualidadeIdentidadeOrigem
 		formatString: #,##0
 	measure 'Cobertura CPF' = DIVIDE(SUM(QualidadeIdentidadeOrigem[cpf_preenchido]),COUNTROWS(QualidadeIdentidadeOrigem))
 		formatString: 0.0%
-	measure 'Cobertura UUID' = DIVIDE(SUM(QualidadeIdentidadeOrigem[possui_uuid]),COUNTROWS(QualidadeIdentidadeOrigem))
+	measure 'Cobertura UUID - Identidade por Origem' = DIVIDE(SUM(QualidadeIdentidadeOrigem[possui_uuid]),COUNTROWS(QualidadeIdentidadeOrigem))
 		formatString: 0.0%
 	measure 'Taxa Sem Candidato no Bloco' = DIVIDE(SUM(QualidadeIdentidadeOrigem[sem_candidato_no_bloco]),CALCULATE(COUNTROWS(QualidadeIdentidadeOrigem),QualidadeIdentidadeOrigem[metodo_resolucao]="LINKAGE_PROBABILISTICO" || QualidadeIdentidadeOrigem[metodo_resolucao]="PENDENTE_PROBABILISTICO"))
 		formatString: 0.0%
-	measure 'Conflitos' = SUM(QualidadeIdentidadeOrigem[conflito])
+	measure 'Conflitos - Identidade por Origem' = SUM(QualidadeIdentidadeOrigem[conflito])
 		formatString: #,##0
 	measure 'Nascimento 01/01' = DIVIDE(SUM(QualidadeIdentidadeOrigem[nascimento_0101]),COUNTROWS(QualidadeIdentidadeOrigem))
 		formatString: 0.0%

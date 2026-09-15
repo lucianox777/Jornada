@@ -23,11 +23,11 @@
                       "Entity": "Registros"
                     }
                   },
-                  "Property": "Serviços Prestados"
+                  "Property": "Serviços Prestados - Registros"
                 }
               },
-              "queryRef": "Registros.Serviços",
-              "nativeQueryRef": "Serviços Prestados"
+              "queryRef": "Registros.Serviços Prestados - Registros",
+              "nativeQueryRef": "Serviços Prestados - Registros"
             }
           ]
         }

@@ -23,11 +23,11 @@
                       "Entity": "QualidadeServicos"
                     }
                   },
-                  "Property": "Entrega Completa %"
+                  "Property": "Entrega Completa % - Serviços"
                 }
               },
-              "queryRef": "QualidadeServicos.Entrega Completa %",
-              "nativeQueryRef": "Entrega Completa %"
+              "queryRef": "QualidadeServicos.Entrega Completa % - Serviços",
+              "nativeQueryRef": "Entrega Completa % - Serviços"
             }
           ]
         }
