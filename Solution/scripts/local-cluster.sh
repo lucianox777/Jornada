@@ -15,14 +15,14 @@ sql_scalar() {
   local query="$1" password
   password="$(env_value JORNADA_SQL_SA_PASSWORD)"
   [[ -n "$password" ]] || { echo "JORNADA_SQL_SA_PASSWORD ausente do .env" >&2; return 2; }
-  compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$password" -C -d JornadaLocal -W -h -1 -Q "SET NOCOUNT ON; $query" \
+  compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$password" -C -d JornadaLocal -W -h -1 -b -Q "SET NOCOUNT ON; $query" \
     | awk 'NF{last=$0} END{gsub(/^[[:space:]]+|[[:space:]]+$/, "", last); print last}'
 }
 sql_report() {
   local query="$1" password
   password="$(env_value JORNADA_SQL_SA_PASSWORD)"
   [[ -n "$password" ]] || { echo "JORNADA_SQL_SA_PASSWORD ausente do .env" >&2; return 2; }
-  compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$password" -C -d JornadaLocal -W -s '|' -Q "SET NOCOUNT ON; $query"
+  compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$password" -C -d JornadaLocal -W -s '|' -b -Q "SET NOCOUNT ON; $query"
 }
 
 wait_node() {
@@ -134,7 +134,7 @@ diagnose_linkage() {
   sql_report "SELECT COUNT(*) AS estados_u_com_suporte,MIN(valor) AS suporte_min,MAX(valor) AS suporte_max,SUM(CASE WHEN valor=0 THEN 1 ELSE 0 END) AS estados_zero,SUM(CASE WHEN valor>0 AND valor<5 THEN 1 ELSE 0 END) AS estados_entre_1_e_4 FROM identidade.parametro_linkage WHERE modelo_id=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$run_id') AND nome LIKE 'SUPPORT_U_%'; SELECT nome,valor AS suporte FROM identidade.parametro_linkage WHERE modelo_id=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$run_id') AND nome LIKE 'SUPPORT_U_%' ORDER BY nome;"
   echo
   echo 'Composição atual do corpus Gold (explica SCALE versus seed/outros):'
-  sql_report "SELECT COUNT_BIG(*) AS gold_total,SUM(CASE WHEN EXISTS(SELECT 1 FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE vc.pessoa_uuid=g.pessoa_uuid AND vc.status='RESOLVIDO' AND po.codigo_pessoa_origem LIKE 'SCALE-SEHAB-%') THEN 1 ELSE 0 END) AS gold_scale,SUM(CASE WHEN NOT EXISTS(SELECT 1 FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE vc.pessoa_uuid=g.pessoa_uuid AND vc.status='RESOLVIDO' AND po.codigo_pessoa_origem LIKE 'SCALE-SEHAB-%') THEN 1 ELSE 0 END) AS gold_seed_ou_outros FROM gold.pessoa g;"
+  sql_report "WITH scale_gold AS (SELECT DISTINCT vc.pessoa_uuid FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE vc.status='RESOLVIDO' AND po.codigo_pessoa_origem LIKE 'SCALE-SEHAB-%') SELECT COUNT_BIG(*) AS gold_total,SUM(CASE WHEN sg.pessoa_uuid IS NOT NULL THEN CAST(1 AS bigint) ELSE CAST(0 AS bigint) END) AS gold_scale,SUM(CASE WHEN sg.pessoa_uuid IS NULL THEN CAST(1 AS bigint) ELSE CAST(0 AS bigint) END) AS gold_seed_ou_outros FROM gold.pessoa g LEFT JOIN scale_gold sg ON sg.pessoa_uuid=g.pessoa_uuid;"
   echo
   echo 'Qualidade contra ground truth sintético SCALE (verdade derivada do vínculo CPF da observação SEHAB correspondente):'
   sql_report "WITH truth AS (SELECT r.*,po.codigo_pessoa_origem,tv.pessoa_uuid AS truth_uuid FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id JOIN silver.pessoa_observacao tpo ON tpo.codigo_pessoa_origem=REPLACE(po.codigo_pessoa_origem,'SCALE-PEND-','SCALE-SEHAB-') JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo='SEHAB' JOIN identidade.v_vinculo_corrente tv ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id AND tv.status='RESOLVIDO' WHERE r.linkage_run_id='$run_id' AND po.codigo_pessoa_origem LIKE 'SCALE-PEND-%') SELECT COUNT_BIG(*) AS total_scale,SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END) AS resolvidos,SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END) AS resolvidos_corretos,SUM(CASE WHEN status='RESOLVIDO' AND (pessoa_uuid_resolvido IS NULL OR pessoa_uuid_resolvido<>truth_uuid) THEN 1 ELSE 0 END) AS falsos_positivos,SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END) AS conflitos,SUM(CASE WHEN status='CONFLITO' AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS conflitos_verdade_top2,SUM(CASE WHEN status='NAO_RESOLVIDO' AND melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END) AS nao_resolvidos_verdade_primeiro,SUM(CASE WHEN ISNULL(melhor_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid AND ISNULL(segundo_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid THEN 1 ELSE 0 END) AS verdade_fora_top2,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END),0) AS decimal(9,4)) AS ppv_sintetico_pct,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(COUNT_BIG(*),0) AS decimal(9,4)) AS sensibilidade_sintetica_pct FROM truth;"
