@@ -1,12 +1,12 @@
 table QualidadeBeneficios
 
-	measure 'Registros' = COUNTROWS(QualidadeBeneficios)
+	measure 'Registros - Qualidade Benefícios' = COUNTROWS(QualidadeBeneficios)
 		formatString: #,##0
 
 	measure 'Entrega Completa %' = DIVIDE(SUM(QualidadeBeneficios[entrega_completa]),COUNTROWS(QualidadeBeneficios))
 		formatString: 0.0%
 
-	measure 'Geografia %' = DIVIDE(SUM(QualidadeBeneficios[geografia_preenchida]),COUNTROWS(QualidadeBeneficios))
+	measure 'Geografia % - Benefícios' = DIVIDE(SUM(QualidadeBeneficios[geografia_preenchida]),COUNTROWS(QualidadeBeneficios))
 		formatString: 0.0%
 
 	measure 'Medida Preenchida %' = DIVIDE(SUM(QualidadeBeneficios[medida_preenchida]),COUNTROWS(QualidadeBeneficios))
@@ -24,7 +24,7 @@ table QualidadeBeneficios
 	measure 'Concessao Janela Verificavel %' = DIVIDE(SUM(QualidadeBeneficios[concessao_janela_verificavel]),COUNTROWS(QualidadeBeneficios))
 		formatString: 0.0%
 
-	measure 'QC Implementado %' = DIVIDE(SUM(QualidadeBeneficios[qc_implementado]),COUNTROWS(QualidadeBeneficios))
+	measure 'QC Implementado % - Benefícios' = DIVIDE(SUM(QualidadeBeneficios[qc_implementado]),COUNTROWS(QualidadeBeneficios))
 		formatString: 0.0%
 
 	measure 'QC Valido %' = DIVIDE(SUM(QualidadeBeneficios[qc_valido]),COUNTROWS(QualidadeBeneficios))
