@@ -14,6 +14,16 @@ MODEL = BI / "Jornada.SemanticModel" / "definition"
 TABLES = MODEL / "tables"
 BASELINE = ROOT / "database" / "Jornada_Fase1_v3.70.sql"
 
+PBIP = BI / "Jornada.pbip"
+PBIR = BI / "Jornada.Report" / "definition.pbir"
+PBISM = BI / "Jornada.SemanticModel" / "definition.pbism"
+
+ROOT_SCHEMA_EXPECTATIONS = {
+    PBIP: "https://developer.microsoft.com/json-schemas/fabric/pbip/pbipProperties/1.0.0/schema.json",
+    PBIR: "https://developer.microsoft.com/json-schemas/fabric/item/report/definitionProperties/2.0.0/schema.json",
+    PBISM: "https://developer.microsoft.com/json-schemas/fabric/item/semanticModel/definitionProperties/1.0.0/schema.json",
+}
+
 EXPECTED_PAGES = {
     "Visão Geral",
     "Ingestão e Atualidade",
@@ -166,18 +176,27 @@ def iter_measure_refs(node: object):
 
 def main() -> int:
     for required in [
-        BI / "Jornada.pbip",
-        BI / "Jornada.Report" / "definition.pbir",
+        PBIP,
+        PBIR,
         REPORT / "report.json",
         REPORT / "version.json",
         PAGES / "pages.json",
-        BI / "Jornada.SemanticModel" / "definition.pbism",
+        PBISM,
         MODEL / "model.tmdl",
         MODEL / "database.tmdl",
         BASELINE,
     ]:
         if not required.is_file():
             fail(f"artefato Power BI/SQL ausente: {required.relative_to(ROOT)}")
+
+    for metadata_file, expected_schema in ROOT_SCHEMA_EXPECTATIONS.items():
+        metadata = json.loads(metadata_file.read_text(encoding="utf-8"))
+        actual_schema = metadata.get("$schema")
+        if actual_schema != expected_schema:
+            fail(
+                f"$schema ausente/incorreto em {metadata_file.relative_to(ROOT)}: "
+                f"esperado {expected_schema!r}; encontrado {actual_schema!r}"
+            )
 
     page_files = sorted(PAGES.glob("*/page.json"))
     if len(page_files) != 23:
@@ -278,7 +297,7 @@ def main() -> int:
         "POWER BI STATIC GATE: OK "
         f"(23 páginas; {len(tmdl_files)} TMDL; {measure_count} measures globais únicas; "
         f"{len(semantic_serving_views)} fontes serving instaláveis; "
-        "catálogo/ordem/visuais/referências/nomes locais coerentes)"
+        "schemas raiz/catálogo/ordem/visuais/referências/nomes locais coerentes)"
     )
     return 0
 
