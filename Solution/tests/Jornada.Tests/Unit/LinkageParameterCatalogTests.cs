@@ -15,6 +15,10 @@ public sealed class LinkageParameterCatalogTests
         {
             Assert.That(LinkageParameterCatalog.CoreScoringRequired.Distinct(StringComparer.Ordinal).Count(),
                 Is.EqualTo(LinkageParameterCatalog.CoreScoringRequired.Count));
+            Assert.That(LinkageParameterCatalog.BirthSemanticEvidenceRequired.Distinct(StringComparer.Ordinal).Count(),
+                Is.EqualTo(LinkageParameterCatalog.BirthSemanticEvidenceRequired.Count));
+            Assert.That(LinkageParameterCatalog.BirthSemanticCalibrationValidationRequired.Distinct(StringComparer.Ordinal).Count(),
+                Is.EqualTo(LinkageParameterCatalog.BirthSemanticCalibrationValidationRequired.Count));
             Assert.That(LinkageParameterCatalog.BirthJointEvidenceRequired.Distinct(StringComparer.Ordinal).Count(),
                 Is.EqualTo(LinkageParameterCatalog.BirthJointEvidenceRequired.Count));
             Assert.That(LinkageParameterCatalog.BirthSingleEvidenceRequired.Distinct(StringComparer.Ordinal).Count(),
@@ -27,7 +31,7 @@ public sealed class LinkageParameterCatalogTests
     }
 
     [Test]
-    public void Estimator_emits_v4_scoring_contract_and_keeps_legacy_birth_distributions_diagnostic()
+    public void Estimator_emits_v5_scoring_contract_and_keeps_older_birth_distributions_diagnostic()
     {
         var matched = new[]
         {
@@ -46,13 +50,16 @@ public sealed class LinkageParameterCatalogTests
         {
             foreach (var name in LinkageParameterCatalog.CoreScoringRequired)
                 Assert.That(parameters.ContainsKey(name), Is.True, $"Estimator não emitiu {name}.");
-            foreach (var name in LinkageParameterCatalog.BirthJointEvidenceRequired)
+            foreach (var name in LinkageParameterCatalog.BirthSemanticEvidenceRequired)
                 Assert.That(parameters.ContainsKey(name), Is.True, $"Estimator não emitiu {name}.");
+            foreach (var name in LinkageParameterCatalog.BirthJointEvidenceRequired)
+                Assert.That(parameters.ContainsKey(name), Is.True, $"Estimator não materializou a distribuição V4 diagnóstica {name}.");
             foreach (var name in LinkageParameterCatalog.BirthSingleEvidenceRequired)
                 Assert.That(parameters.ContainsKey(name), Is.True, $"Estimator não materializou a distribuição V3 diagnóstica {name}.");
             foreach (var name in LinkageParameterCatalog.BirthComponentRequired)
                 Assert.That(parameters.ContainsKey(name), Is.True, $"Estimator não materializou a distribuição V2 diagnóstica {name}.");
-            Assert.That(parameters.ContainsKey(LinkageParameterCatalog.BirthJointEvidenceScoring), Is.True);
+            Assert.That(parameters.ContainsKey(LinkageParameterCatalog.BirthSemanticEvidenceScoring), Is.True);
+            Assert.That(parameters.ContainsKey(LinkageParameterCatalog.BirthJointEvidenceScoring), Is.False);
             Assert.That(parameters.ContainsKey(LinkageParameterCatalog.BirthSingleEvidenceScoring), Is.False);
             Assert.That(parameters.ContainsKey(LinkageParameterCatalog.BirthComponentScoring), Is.False);
         });
