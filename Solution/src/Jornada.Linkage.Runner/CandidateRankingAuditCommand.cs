@@ -98,7 +98,7 @@ internal static class CandidateRankingAuditCommand
                 modelVersion = model.Version,
                 algorithmVersion = model.AlgorithmVersion,
                 blockingRuleSetVersion = model.BlockingContract?.RuleSetVersion,
-                blockingRuleSetFingerprint = model.BlockingContract?.FingerprintSha256,
+                blockingRuleSetFingerprint = model.BlockingContract?.RuleSetFingerprintSha256,
                 projectionSchemaVersion = model.BlockingContract?.ProjectionSchemaVersion,
                 projectionFingerprint = model.BlockingContract?.ProjectionFingerprintSha256
             },
