@@ -2,6 +2,8 @@ using Jornada.Contracts;
 
 namespace Jornada.Linkage.Runner;
 
+public readonly record struct FellegiSunterScore(decimal Posterior, decimal LogOdds);
+
 public static class FellegiSunterScoring
 {
     public static decimal CalculatePosterior(
@@ -10,34 +12,37 @@ public static class FellegiSunterScoring
         NameComparisonState? motherNameState,
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
+        DateOnly? rightBirthDate = null) =>
+        Calculate(parameters, nameState, motherNameState, blockCandidateCount, leftBirthDate, rightBirthDate).Posterior;
+
+    public static FellegiSunterScore Calculate(
+        IReadOnlyDictionary<string, decimal> parameters,
+        NameComparisonState nameState,
+        NameComparisonState? motherNameState,
+        int? blockCandidateCount = null,
+        DateOnly? leftBirthDate = null,
         DateOnly? rightBirthDate = null)
     {
-        var prior = blockCandidateCount is > 0
-            ? CalculateBlockPrior(parameters, blockCandidateCount.Value)
-            : Get(parameters, LinkageParameterCatalog.PriorMatchProbability);
+        var decisionV6 = parameters.TryGetValue(LinkageParameterCatalog.DecisionEvidenceScoring, out var decisionFlag) && decisionFlag >= 1m;
+        var prior = decisionV6 || blockCandidateCount is not > 0
+            ? Get(parameters, LinkageParameterCatalog.PriorMatchProbability)
+            : CalculateBlockPrior(parameters, blockCandidateCount.Value);
         var logOdds = Logit((double)prior);
-        logOdds += LogLikelihoodRatio(parameters, "NOME", nameState);
+        logOdds += LogLikelihoodRatio(parameters, "NOME", nameState.ToString());
 
         if (motherNameState is { } observedMotherNameState)
-            logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", observedMotherNameState);
+            logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", observedMotherNameState.ToString());
+        else if (decisionV6)
+            logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", "MISSING");
 
         if (leftBirthDate is { } left && rightBirthDate is { } right)
         {
-            if (parameters.TryGetValue(LinkageParameterCatalog.BirthSemanticEvidenceScoring, out var semanticBirth)
-                && semanticBirth >= 1m)
-            {
+            if (parameters.TryGetValue(LinkageParameterCatalog.BirthSemanticEvidenceScoring, out var semanticBirth) && semanticBirth >= 1m)
                 logOdds += SemanticBirthLikelihoodRatio(parameters, left, right);
-            }
-            else if (parameters.TryGetValue(LinkageParameterCatalog.BirthJointEvidenceScoring, out var jointBirth)
-                && jointBirth >= 1m)
-            {
+            else if (parameters.TryGetValue(LinkageParameterCatalog.BirthJointEvidenceScoring, out var jointBirth) && jointBirth >= 1m)
                 logOdds += JointBirthLikelihoodRatio(parameters, left, right);
-            }
-            else if (parameters.TryGetValue(LinkageParameterCatalog.BirthSingleEvidenceScoring, out var singleBirth)
-                && singleBirth >= 1m)
-            {
+            else if (parameters.TryGetValue(LinkageParameterCatalog.BirthSingleEvidenceScoring, out var singleBirth) && singleBirth >= 1m)
                 logOdds += TryBinaryLikelihoodRatio(parameters, "DATA_NASCIMENTO", left == right);
-            }
             else
             {
                 logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_DIA", left.Day == right.Day);
@@ -47,7 +52,9 @@ public static class FellegiSunterScoring
         }
 
         var posterior = 1d / (1d + Math.Exp(-Math.Clamp(logOdds, -40d, 40d)));
-        return Math.Round((decimal)posterior, 8, MidpointRounding.AwayFromZero);
+        return new FellegiSunterScore(
+            Math.Round((decimal)posterior, 8, MidpointRounding.AwayFromZero),
+            Math.Round((decimal)logOdds, 8, MidpointRounding.AwayFromZero));
     }
 
     private static decimal CalculateBlockPrior(IReadOnlyDictionary<string, decimal> parameters, int candidateCount)
@@ -58,18 +65,14 @@ public static class FellegiSunterScoring
         return Math.Clamp(1m / candidateCount, min, max);
     }
 
-    private static double LogLikelihoodRatio(IReadOnlyDictionary<string, decimal> parameters, string attribute, NameComparisonState state)
+    private static double LogLikelihoodRatio(IReadOnlyDictionary<string, decimal> parameters, string attribute, string suffix)
     {
-        var suffix = state.ToString();
         var m = ClampProbability(Get(parameters, $"M_{attribute}_{suffix}"));
         var u = ClampProbability(Get(parameters, $"U_{attribute}_{suffix}"));
         return Math.Log((double)m / (double)u);
     }
 
-    private static double SemanticBirthLikelihoodRatio(
-        IReadOnlyDictionary<string, decimal> parameters,
-        DateOnly left,
-        DateOnly right)
+    private static double SemanticBirthLikelihoodRatio(IReadOnlyDictionary<string, decimal> parameters, DateOnly left, DateOnly right)
     {
         var state = BirthDateSemanticEvidence.Classify(left, right);
         var m = ClampProbability(Get(parameters, $"M_NASCIMENTO_SEMANTICO_{state}"));
@@ -77,14 +80,9 @@ public static class FellegiSunterScoring
         return Math.Log((double)m / (double)u);
     }
 
-    private static double JointBirthLikelihoodRatio(
-        IReadOnlyDictionary<string, decimal> parameters,
-        DateOnly left,
-        DateOnly right)
+    private static double JointBirthLikelihoodRatio(IReadOnlyDictionary<string, decimal> parameters, DateOnly left, DateOnly right)
     {
-        var mask = (left.Day == right.Day ? 1 : 0) |
-            (left.Month == right.Month ? 2 : 0) |
-            (left.Year == right.Year ? 4 : 0);
+        var mask = (left.Day == right.Day ? 1 : 0) | (left.Month == right.Month ? 2 : 0) | (left.Year == right.Year ? 4 : 0);
         var state = LinkageParameterCatalog.BirthJointStates[mask];
         var m = ClampProbability(Get(parameters, $"M_NASCIMENTO_CONJUNTO_{state}"));
         var u = ClampProbability(Get(parameters, $"U_NASCIMENTO_CONJUNTO_{state}"));
@@ -94,16 +92,12 @@ public static class FellegiSunterScoring
     private static double TryBinaryLikelihoodRatio(IReadOnlyDictionary<string, decimal> parameters, string attribute, bool exact)
     {
         var suffix = exact ? "EXACT" : "DIFF";
-        if (!parameters.TryGetValue($"M_{attribute}_{suffix}", out var m) ||
-            !parameters.TryGetValue($"U_{attribute}_{suffix}", out var u))
-            return 0d;
+        if (!parameters.TryGetValue($"M_{attribute}_{suffix}", out var m) || !parameters.TryGetValue($"U_{attribute}_{suffix}", out var u)) return 0d;
         return Math.Log((double)ClampProbability(m) / (double)ClampProbability(u));
     }
 
     private static decimal Get(IReadOnlyDictionary<string, decimal> parameters, string name) =>
-        parameters.TryGetValue(name, out var value)
-            ? value
-            : throw new InvalidOperationException($"Parâmetro de linkage ausente: {name}");
+        parameters.TryGetValue(name, out var value) ? value : throw new InvalidOperationException($"Parâmetro de linkage ausente: {name}");
 
     private static decimal ClampProbability(decimal value) => Math.Clamp(value, 0.000000001m, 0.999999999m);
 
