@@ -65,6 +65,7 @@ VIEW_DECL = re.compile(
     r"(?im)^\s*CREATE\s+(?:OR\s+ALTER\s+)?VIEW\s+"
     r"(?:\[?serving\]?\.)\[?(?P<view>v_bi_[A-Za-z0-9_]+)\]?"
 )
+VISUAL_ID = re.compile(r"^[0-9a-f]{20}$")
 
 
 def fail(message: str) -> None:
@@ -236,6 +237,18 @@ def main() -> int:
         visual = json.loads(visual_file.read_text(encoding="utf-8"))
         if "$schema" not in visual:
             fail(f"visual sem $schema: {visual_file.relative_to(ROOT)}")
+        visual_name = visual.get("name")
+        folder_name = visual_file.parent.name
+        if visual_name != folder_name:
+            fail(
+                f"visual.name diverge do diretório: {visual_name!r} != {folder_name!r} "
+                f"em {visual_file.relative_to(ROOT)}"
+            )
+        if not isinstance(visual_name, str) or not VISUAL_ID.fullmatch(visual_name):
+            fail(
+                f"identificador PBIR de visual inválido (esperados 20 hex minúsculos): "
+                f"{visual_name!r} em {visual_file.relative_to(ROOT)}"
+            )
         parsed_visuals.append((visual_file, visual))
 
     tmdl_files = sorted(MODEL.rglob("*.tmdl"))
@@ -297,7 +310,7 @@ def main() -> int:
         "POWER BI STATIC GATE: OK "
         f"(23 páginas; {len(tmdl_files)} TMDL; {measure_count} measures globais únicas; "
         f"{len(semantic_serving_views)} fontes serving instaláveis; "
-        "schemas raiz/catálogo/ordem/visuais/referências/nomes locais coerentes)"
+        "schemas raiz/catálogo/ordem/visuais/referências/IDs/nomes locais coerentes)"
     )
     return 0
 
