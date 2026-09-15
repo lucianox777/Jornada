@@ -12,8 +12,10 @@ internal enum BlockingQueryDialect
 
 /// <summary>
 /// Executa um ruleset já verificado sobre a projeção indexada de blocking e materializa
-/// os candidatos correntes da Gold. O conjunto de UUIDs é deduplicado pelos UNIONs do plano.
-/// Nunca trunca silenciosamente: lê no máximo limite+1 e falha ao exceder o guard rail.
+/// os candidatos correntes da Gold. O conjunto de UUIDs é deduplicado pelos UNIONs do plano
+/// e novamente na fronteira de leitura, de modo que fan-out físico nunca gere um segundo
+/// candidato igual ao primeiro. Nunca trunca silenciosamente: lê no máximo limite+1 e falha
+/// ao exceder o guard rail.
 /// </summary>
 internal static class BlockingProjectionCandidateLoader
 {
@@ -51,7 +53,7 @@ internal static class BlockingProjectionCandidateLoader
                 WITH candidate_uuid AS (
                     {candidateUuidQuery}
                 )
-                SELECT TOP (@blocking_max_plus_one)
+                SELECT DISTINCT TOP (@blocking_max_plus_one)
                        g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
                   FROM candidate_uuid c
                   JOIN gold.pessoa g ON g.pessoa_uuid=c.pessoa_uuid
@@ -61,7 +63,7 @@ internal static class BlockingProjectionCandidateLoader
                 WITH candidate_uuid AS (
                     {candidateUuidQuery}
                 )
-                SELECT g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
+                SELECT DISTINCT g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
                   FROM candidate_uuid c
                   JOIN gold.pessoa g ON g.pessoa_uuid=c.pessoa_uuid
                  ORDER BY g.pessoa_uuid
