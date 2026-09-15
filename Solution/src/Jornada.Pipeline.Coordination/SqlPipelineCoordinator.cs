@@ -267,7 +267,7 @@ public sealed class PipelineCoordinationLease : IAsyncDisposable
                     await using var reader = await command.ExecuteReaderAsync(ct);
                     if (!await reader.ReadAsync(ct))
                         throw new InvalidOperationException($"Heartbeat sem resposta para {expected.Resource}; SPID esperado={SessionId}.");
-                    var observedSessionId = reader.GetInt32(0);
+                    var observedSessionId = Convert.ToInt32(reader.GetValue(0), System.Globalization.CultureInfo.InvariantCulture);
                     var mode = reader.IsDBNull(1) ? "NoLock" : reader.GetString(1);
                     if (observedSessionId != SessionId)
                         throw new InvalidOperationException(
