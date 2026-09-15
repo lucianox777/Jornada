@@ -44,10 +44,18 @@ public static class BirthDateSemanticEvidence
         var digitDistance = DigitDistance(left, right);
         if (digitDistance == 1)
             return OneDigitError;
+
+        // Duas componentes inteiras concordantes constituem evidência estrutural mais
+        // específica do que uma diferença genérica de dois dígitos. Uma única componente,
+        // por outro lado, não deve esconder um erro cadastral de dois dígitos reconhecível.
+        var matchingComponents = MatchingComponentCount(left, right);
+        if (matchingComponents >= 2)
+            return PartialComponentAgreement;
+
         if (digitDistance == 2)
             return TwoDigitError;
 
-        if (left.Day == right.Day || left.Month == right.Month || left.Year == right.Year)
+        if (matchingComponents == 1)
             return PartialComponentAgreement;
 
         return OtherDisagreement;
@@ -58,6 +66,11 @@ public static class BirthDateSemanticEvidence
         left.Day == right.Month &&
         left.Month == right.Day &&
         (left.Day != left.Month || right.Day != right.Month);
+
+    private static int MatchingComponentCount(DateOnly left, DateOnly right) =>
+        (left.Day == right.Day ? 1 : 0) +
+        (left.Month == right.Month ? 1 : 0) +
+        (left.Year == right.Year ? 1 : 0);
 
     private static int DigitDistance(DateOnly left, DateOnly right)
     {
