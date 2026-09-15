@@ -7,8 +7,20 @@ $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $ClusterScript = Join-Path $PSScriptRoot 'local-cluster.ps1'
 
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    throw 'Git não encontrado no PATH.'
+}
 if (-not (Test-Path -LiteralPath $ClusterScript)) {
     throw "Script do cluster local não encontrado: $ClusterScript"
+}
+
+function Invoke-Git {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+    & git @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "git $($Arguments -join ' ') falhou ($LASTEXITCODE)."
+    }
 }
 
 function Invoke-ClusterStep {
@@ -28,12 +40,26 @@ function Invoke-ClusterStep {
 
 Push-Location $Root
 try {
+    $dirty = @(& git status --porcelain --untracked-files=normal)
+    if ($LASTEXITCODE -ne 0) { throw 'Não foi possível verificar o estado da árvore Git.' }
+    if ($dirty.Count -gt 0) {
+        throw 'Teste limpo bloqueado: há alterações locais não commitadas. Faça commit ou stash antes de continuar.'
+    }
+
+    Write-Host 'Atualizando fonte canônico antes do teste...'
+    Invoke-Git @('fetch','origin','master')
+    Invoke-Git @('checkout','master')
+    Invoke-Git @('pull','--ff-only','origin','master')
+
     $branch = (& git branch --show-current).Trim()
-    if ($LASTEXITCODE -ne 0) { throw 'Não foi possível determinar a branch Git atual.' }
+    if ($LASTEXITCODE -ne 0 -or $branch -ne 'master') {
+        throw "Branch canônica esperada após atualização: master; atual='$branch'."
+    }
 
     $sha = (& git rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Não foi possível determinar o SHA Git atual.' }
 
+    Write-Host ''
     Write-Host 'Teste limpo local de calibração + linkage'
     Write-Host "Branch: $branch"
     Write-Host "SHA:    $sha"
