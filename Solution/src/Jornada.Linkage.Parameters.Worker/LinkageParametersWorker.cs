@@ -621,7 +621,7 @@ public sealed class LinkageParametersWorker(
                 valueParameter.Precision = 30;
                 valueParameter.Scale = 6;
                 valueParameter.Value = row.Value;
-                command.Parameters.Add("@metodo", SqlDbType.NVarChar, 80).Value = "STABLE_HASH_PAIR_SAMPLE";
+                command.Parameters.Add("@metodo", SqlDbType.NVarChar, 80).Value = row.Method;
                 await command.ExecuteNonQueryAsync(cancellationToken);
             }
 
