@@ -10,7 +10,39 @@ SCALE_SEED="${JORNADA_EVALUATION_SCALE_SEED:-355}"
 LABEL_COUNT="${JORNADA_EVALUATION_LABEL_COUNT:-100}"
 
 need(){ command -v "$1" >/dev/null 2>&1 || { echo "ERRO: comando '$1' não encontrado." >&2; exit 2; }; }
-for x in docker dotnet python3 sha256sum; do need "$x"; done
+
+PYTHON_CMD=()
+resolve_python3(){
+  local candidate
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' >/dev/null 2>&1; then
+      PYTHON_CMD=("$candidate")
+      return 0
+    fi
+  done
+  if command -v py >/dev/null 2>&1 && py -3 -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' >/dev/null 2>&1; then
+    PYTHON_CMD=(py -3)
+    return 0
+  fi
+  echo "ERRO: Python 3 não encontrado (tentados: python3, python, py -3)." >&2
+  exit 2
+}
+
+for x in docker dotnet sha256sum; do need "$x"; done
+resolve_python3
+
+# Git Bash converte caminhos POSIX passados a executáveis Windows. Este caminho existe
+# dentro do container Linux e deve chegar intacto ao docker.exe.
+case "$(uname -s 2>/dev/null || true)" in
+  MINGW*|MSYS*|CYGWIN*)
+    required_arg_conv_exclusion='/opt/mssql-tools18/bin/sqlcmd'
+    case ";${MSYS2_ARG_CONV_EXCL:-};" in
+      *";$required_arg_conv_exclusion;"*) ;;
+      *) export MSYS2_ARG_CONV_EXCL="${MSYS2_ARG_CONV_EXCL:+$MSYS2_ARG_CONV_EXCL;}$required_arg_conv_exclusion" ;;
+    esac
+    ;;
+esac
+
 : "${ConnectionStrings__Jornada:?ConnectionStrings__Jornada não definido}"
 : "${SQL_PASSWORD:?JORNADA_EVALUATION_SQL_PASSWORD não definido}"
 [[ "$DB" =~ ^[A-Za-z0-9_]+$ ]] || { echo "ERRO: nome de banco inválido." >&2; exit 2; }
@@ -97,7 +129,7 @@ cmp -s "$OUT/before.txt" "$OUT/after.txt" || {
   exit 5
 }
 
-python3 - "$OUT/report.json" "$LABEL_COUNT" <<'PY'
+"${PYTHON_CMD[@]}" - "$OUT/report.json" "$LABEL_COUNT" <<'PY'
 import json,sys
 path=sys.argv[1]
 expected=int(sys.argv[2])
@@ -138,7 +170,7 @@ for metric in ('nomeTotalVariation','nomeMaeTotalVariation','dataNascimentoExact
 print('Relatório Evaluation: contrato e métricas OK')
 PY
 
-python3 - "$OUT/candidate-ranking-audit.json" "$LABEL_COUNT" <<'PY'
+"${PYTHON_CMD[@]}" - "$OUT/candidate-ranking-audit.json" "$LABEL_COUNT" <<'PY'
 import json,sys
 path=sys.argv[1]
 expected=int(sys.argv[2])
@@ -186,12 +218,12 @@ for row in non_top2:
 print('Candidate ranking audit: recall/rank/proveniência OK')
 PY
 
-python3 "$ROOT/scripts/linkage-evaluation-evidence-gate.py" "$OUT/report.json" \
+"${PYTHON_CMD[@]}" "$ROOT/scripts/linkage-evaluation-evidence-gate.py" "$OUT/report.json" \
   --policy "$ROOT/config/hml/linkage-evaluation-policy.json" \
   --summary "$OUT/evidence-gate-summary.json"
-python3 "$ROOT/scripts/linkage-statistical-readiness-gate.py" \
+"${PYTHON_CMD[@]}" "$ROOT/scripts/linkage-statistical-readiness-gate.py" \
   --root "$ROOT" --self-test
-python3 "$ROOT/scripts/performance-evidence-gate.py" --self-test
+"${PYTHON_CMD[@]}" "$ROOT/scripts/performance-evidence-gate.py" --self-test
 
 {
   echo "status=OK"
