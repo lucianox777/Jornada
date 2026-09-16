@@ -146,9 +146,33 @@ def validate(data: dict) -> list[str]:
         correct = _nonnegative_int(quality.get("resolvedCorrect"), "decisionQuality.resolvedCorrect", errors)
         false_positives = _nonnegative_int(quality.get("falsePositives"), "decisionQuality.falsePositives", errors)
         conflicts = _nonnegative_int(quality.get("conflicts"), "decisionQuality.conflicts", errors)
-        _nonnegative_int(quality.get("conflictsTruthTop2"), "decisionQuality.conflictsTruthTop2", errors)
-        _nonnegative_int(quality.get("unresolvedTruthFirst"), "decisionQuality.unresolvedTruthFirst", errors)
-        _nonnegative_int(quality.get("truthOutsideTop2"), "decisionQuality.truthOutsideTop2", errors)
+        conflicts_truth_top2 = _nonnegative_int(
+            quality.get("conflictsTruthTop2"), "decisionQuality.conflictsTruthTop2", errors
+        )
+        unresolved = _nonnegative_int(quality.get("unresolved"), "decisionQuality.unresolved", errors)
+        truth_first = _nonnegative_int(
+            quality.get("unresolvedTruthFirstWithoutTie"),
+            "decisionQuality.unresolvedTruthFirstWithoutTie",
+            errors,
+        )
+        truth_tie = _nonnegative_int(
+            quality.get("unresolvedTruthInTop2Tie"),
+            "decisionQuality.unresolvedTruthInTop2Tie",
+            errors,
+        )
+        truth_second = _nonnegative_int(
+            quality.get("unresolvedTruthSecondWithoutTie"),
+            "decisionQuality.unresolvedTruthSecondWithoutTie",
+            errors,
+        )
+        truth_outside = _nonnegative_int(
+            quality.get("unresolvedTruthOutsideTop2"),
+            "decisionQuality.unresolvedTruthOutsideTop2",
+            errors,
+        )
+        unresolved_ties = _nonnegative_int(
+            quality.get("unresolvedTieTop2"), "decisionQuality.unresolvedTieTop2", errors
+        )
         ppv = _number(quality.get("ppvPct"), "decisionQuality.ppvPct", errors)
         sensitivity = _number(quality.get("sensitivityPct"), "decisionQuality.sensitivityPct", errors)
 
@@ -164,6 +188,22 @@ def validate(data: dict) -> list[str]:
             errors.append("runner.resolved deve coincidir com decisionQuality.resolved")
         if runner_conflicts != conflicts:
             errors.append("runner.conflicts deve coincidir com decisionQuality.conflicts")
+        if runner_unresolved != unresolved:
+            errors.append("runner.unresolved deve coincidir com decisionQuality.unresolved")
+        if resolved + conflicts + unresolved != total:
+            errors.append("decisionQuality deve fechar resolved + conflicts + unresolved")
+        if correct + false_positives != resolved:
+            errors.append("decisionQuality de resolvidos não fecha")
+        if truth_first + truth_tie + truth_second + truth_outside != unresolved:
+            errors.append(
+                "decisionQuality de não resolvidos deve particionar exatamente firstWithoutTie + top2Tie + secondWithoutTie + outsideTop2"
+            )
+        if truth_tie > unresolved_ties:
+            errors.append("verdade em empate top-2 não pode exceder o total de empates top-2")
+        if unresolved_ties > unresolved:
+            errors.append("empates top-2 não podem exceder os não resolvidos")
+        if conflicts_truth_top2 > conflicts:
+            errors.append("conflictsTruthTop2 não pode exceder conflicts")
         if ppv is not None and resolved > 0:
             expected_ppv = 100.0 * correct / resolved
             if abs(ppv - expected_ppv) > 0.01:
@@ -217,21 +257,25 @@ def self_test() -> int:
         },
         "runner": {
             "evaluated": 20,
-            "resolved": 18,
-            "unresolved": 2,
-            "conflicts": 0,
+            "resolved": 15,
+            "unresolved": 4,
+            "conflicts": 1,
         },
         "decisionQuality": {
             "totalScale": 20,
-            "resolved": 18,
-            "resolvedCorrect": 18,
+            "resolved": 15,
+            "resolvedCorrect": 15,
             "falsePositives": 0,
-            "conflicts": 0,
-            "conflictsTruthTop2": 0,
-            "unresolvedTruthFirst": 2,
-            "truthOutsideTop2": 0,
+            "conflicts": 1,
+            "conflictsTruthTop2": 1,
+            "unresolved": 4,
+            "unresolvedTruthFirstWithoutTie": 1,
+            "unresolvedTruthInTop2Tie": 1,
+            "unresolvedTruthSecondWithoutTie": 1,
+            "unresolvedTruthOutsideTop2": 1,
+            "unresolvedTieTop2": 2,
             "ppvPct": 100.0,
-            "sensitivityPct": 90.0,
+            "sensitivityPct": 75.0,
         },
         "coordinationProbe": {
             "holderDelayMilliseconds": 3000,
@@ -261,11 +305,21 @@ def self_test() -> int:
         raise RuntimeError("self-test: ruleset sem passe deveria ser rejeitado")
 
     bad = copy.deepcopy(valid)
-    bad["decisionQuality"]["resolvedCorrect"] = 17
+    bad["decisionQuality"]["resolvedCorrect"] = 14
     bad["decisionQuality"]["falsePositives"] = 1
-    bad["decisionQuality"]["ppvPct"] = 94.4444
+    bad["decisionQuality"]["ppvPct"] = 93.3333
     if not validate(bad):
         raise RuntimeError("self-test: falso positivo sintético deveria ser rejeitado")
+
+    bad = copy.deepcopy(valid)
+    bad["decisionQuality"]["unresolvedTruthOutsideTop2"] = 0
+    if not validate(bad):
+        raise RuntimeError("self-test: ranking não reconciliado deveria ser rejeitado")
+
+    bad = copy.deepcopy(valid)
+    bad["decisionQuality"]["unresolvedTruthInTop2Tie"] = 3
+    if not validate(bad):
+        raise RuntimeError("self-test: verdade em empate não pode exceder empates observados")
 
     bad = copy.deepcopy(valid)
     bad["blockingPressure"]["maxPeoplePerKey"] = 100
