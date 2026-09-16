@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ACTION="${1:-up}"
+SKIP_SYNTHETIC_SCALE="${JORNADA_LOCAL_SKIP_SYNTHETIC_SCALE:-false}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="$ROOT/.env"
 EXAMPLE="$ROOT/.env.example"
@@ -98,10 +99,13 @@ bootstrap() {
   # DEV possui seed; reaplicação idempotente reserva também CPFs históricos do seed.
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260907_Cpf_Ancora.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260910_Schema_Consolidation_370.sql
-  # O perfil local Test exercita o calibrador com o mínimo estatístico padrão de
-  # 5.000 pares independentes. Usa o mesmo gerador versionado do harness CI, mas
-  # com um perfil local dimensionado para satisfazer o limiar real, sem reduzi-lo.
-  ensure_synthetic_scale
+  # O perfil local padrão exercita o calibrador com a massa sintética DEV. Harnesses
+  # de escala podem omiti-la explicitamente para instalar o próprio corpus versionado.
+  if [[ "$SKIP_SYNTHETIC_SCALE" == "true" ]]; then
+    echo "Corpus sintético SCALE padrão omitido para bootstrap externo."
+  else
+    ensure_synthetic_scale
+  fi
 
   # Seed e massa SCALE são inserções DEV diretas e não passam pelo Processor. Fechamos
   # a invariável ao fim do bootstrap para que o próximo 'up' também seja reentrante.
@@ -122,6 +126,12 @@ case "$ACTION" in
     bootstrap
     echo "Banco local recriado: $JORNADA_SQL_DATABASE (schema 3.70)"
     ;;
+  identity-backfill)
+    compose up -d sqlserver
+    wait_healthy
+    ensure_progressive_identity_backfill
+    echo "Backfill progressivo de identidade local concluído."
+    ;;
   down)
     compose down
     ;;
@@ -131,5 +141,5 @@ case "$ACTION" in
   status)
     compose ps
     ;;
-  *) echo "Uso: $0 {up|reset|down|clean|status}" >&2; exit 2 ;;
+  *) echo "Uso: $0 {up|reset|identity-backfill|down|clean|status}" >&2; exit 2 ;;
 esac
