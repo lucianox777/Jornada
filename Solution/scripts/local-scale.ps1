@@ -13,9 +13,7 @@ function Resolve-Python3 {
         if ($null -eq $command) { continue }
         $prefix = @($candidate.Prefix)
         & $command.Source @prefix -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            return @{ Exe = $command.Source; Prefix = $prefix }
-        }
+        if ($LASTEXITCODE -eq 0) { return @{ Exe = $command.Source; Prefix = $prefix } }
     }
     throw 'Python 3 não encontrado (tentados: python3, python, py -3).'
 }
@@ -39,13 +37,13 @@ $batch=if($env:JORNADA_SCALE_BATCH_SIZE){[int]$env:JORNADA_SCALE_BATCH_SIZE}else
 $lockHolderDelayMs=if($env:JORNADA_SCALE_LOCK_HOLDER_DELAY_MS){[int]$env:JORNADA_SCALE_LOCK_HOLDER_DELAY_MS}else{3000}
 $pendingSince=if($env:JORNADA_SCALE_PENDING_SINCE){$env:JORNADA_SCALE_PENDING_SINCE}else{'2026-08-31T01:00:00Z'}
 
-# O harness de escala é dono da massa SCALE. O reset prepara apenas schema+seed;
-# depois o próprio harness gera o volume solicitado pelo perfil e fecha o backfill.
+# O harness de escala é dono da massa SCALE. O reset prepara apenas schema+seed.
 & $LocalDbScript -Action reset -NoSyntheticCorpus
 $vars=@{}; Get-Content (Join-Path $Root '.env') | % { $l=$_.Trim(); if($l -and -not $l.StartsWith('#') -and $l.Contains('=')){ $p=$l.Split('=',2); $vars[$p[0].Trim()]=$p[1] } }
 $port=if($vars['JORNADA_SQL_PORT']){$vars['JORNADA_SQL_PORT']}else{'14333'}
 $db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
 $sqlPassword=$vars['JORNADA_SQL_SA_PASSWORD']
+$conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$sqlPassword;TrustServerCertificate=true;Encrypt=false"
 
 function SqlCmd {
     param([Parameter(Mandatory=$true)][string[]]$SqlCmdArgs)
@@ -53,8 +51,7 @@ function SqlCmd {
     try {
         & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b @SqlCmdArgs
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
-    }
-    finally { Pop-Location }
+    } finally { Pop-Location }
 }
 function Scalar([string]$Query){
     Push-Location $Root
@@ -62,8 +59,7 @@ function Scalar([string]$Query){
         $o = (& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
         return ($o | ? { $_.Trim() } | Select-Object -Last 1).Trim()
-    }
-    finally { Pop-Location }
+    } finally { Pop-Location }
 }
 function Probe-Lock([string]$Resource,[int]$DelayMs){
     $delay=[TimeSpan]::FromMilliseconds($DelayMs).ToString('hh\:mm\:ss\.fff')
@@ -79,26 +75,36 @@ function Probe-Lock([string]$Resource,[int]$DelayMs){
     Start-Sleep -Milliseconds 250
     $sw=[Diagnostics.Stopwatch]::StartNew()
     $result=[int](Scalar "DECLARE @r int; EXEC @r=sys.sp_getapplock @Resource=N'$Resource',@LockMode='Exclusive',@LockOwner='Session',@LockTimeout=10000; DECLARE @release int; IF @r>=0 EXEC @release=sys.sp_releaseapplock @Resource=N'$Resource',@LockOwner='Session'; SELECT @r;")
-    $sw.Stop()
-    Wait-Job $job | Out-Null
-    Receive-Job $job | Out-Null
-    Remove-Job $job
+    $sw.Stop(); Wait-Job $job | Out-Null; Receive-Job $job | Out-Null; Remove-Job $job
     return [ordered]@{resource=$Resource;lockResult=$result;waitMilliseconds=[int64]$sw.ElapsedMilliseconds}
 }
 
-SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
-SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql')
-& $LocalDbScript -Action backfill
-$conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$sqlPassword;TrustServerCertificate=true;Encrypt=false"
 $previousDotnetEnvironment=$env:DOTNET_ENVIRONMENT
+$previousConnection=$env:ConnectionStrings__Jornada
+$previousLinkageOperation=$env:LinkageParameters__Operation
+$previousSnapshotManifest=$env:NameFrequencySnapshot__ManifestPath
 Push-Location $Root
 try {
-  # Este é um harness local/DEV. Calibrador, Runner e rebuild devem observar o mesmo ambiente
-  # do cluster local para que a evidência seja comparável e não dependa do default Production.
   $env:DOTNET_ENVIRONMENT='Development'
   if($env:JORNADA_LOCKED_RESTORE -eq 'true'){ dotnet restore Jornada.sln --locked-mode } else { dotnet restore Jornada.sln }; if($LASTEXITCODE-ne 0){throw 'restore falhou'}
   dotnet build Jornada.sln --configuration Release --no-restore -warnaserror; if($LASTEXITCODE-ne 0){throw 'build falhou'}
-  $env:ConnectionStrings__Jornada=$conn; $env:PipelineCoordination__HeartbeatSeconds='2'; $env:PipelineCoordination__ExclusiveIntentTimeoutSeconds='5'
+  $env:ConnectionStrings__Jornada=$conn
+  $env:PipelineCoordination__HeartbeatSeconds='2'
+  $env:PipelineCoordination__ExclusiveIntentTimeoutSeconds='5'
+
+  # Usa o loader operacional canônico; não replica parsing/validação do snapshot no SQL.
+  $env:LinkageParameters__Operation='LOAD_NAME_FREQUENCY_SNAPSHOT'
+  $env:NameFrequencySnapshot__ManifestPath=(Join-Path $Root 'data/reference/ibge-nomes-2022/manifest.json')
+  Write-Host 'Carregando referência IBGE canônica para geração da massa SCALE...'
+  dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
+  if($LASTEXITCODE-ne 0){throw 'LOAD_NAME_FREQUENCY_SNAPSHOT falhou'}
+  $activeNameReference=Scalar "SELECT TOP(1) codigo FROM ref.frequencia_nome_versao WHERE status=N'ATIVA';"
+  if($activeNameReference -ne 'CENSO2022_NOMES_BRASIL_V1'){throw "Referência IBGE ATIVA inesperada após carga: $activeNameReference"}
+  Write-Host "Referência de frequências ativa: $activeNameReference"
+
+  SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
+  SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql')
+  & $LocalDbScript -Action backfill
 
   Write-Host 'Materializando projeção canônica de blocking da massa SCALE antes da calibração...'
   $previousProcessorOperation=$env:Processor__Operation
@@ -106,10 +112,7 @@ try {
     $env:Processor__Operation='REBUILD_LOCAL_BLOCKING'
     dotnet run --project src/Jornada.Processor.Worker --configuration Release --no-build
     if($LASTEXITCODE-ne 0){throw 'REBUILD_LOCAL_BLOCKING falhou'}
-  }
-  finally {
-    $env:Processor__Operation=$previousProcessorOperation
-  }
+  } finally { $env:Processor__Operation=$previousProcessorOperation }
   $projectedScalePeople=[int64](Scalar "SELECT COUNT_BIG(*) FROM (SELECT DISTINCT vc.pessoa_uuid FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE po.codigo_pessoa_origem LIKE N'SCALE-%' AND vc.status='RESOLVIDO' AND vc.pessoa_uuid IS NOT NULL AND EXISTS (SELECT 1 FROM identidade.blocking_chave bc WHERE bc.pessoa_uuid=vc.pessoa_uuid AND bc.vigencia_fim IS NULL)) projected;")
   if($projectedScalePeople -ne [int64]$people){throw "Projeção de blocking não materializada para toda a massa SCALE: projetadas=$projectedScalePeople; esperadas=$people."}
   Write-Host "Projeção de blocking validada: $projectedScalePeople Pessoas SCALE com chaves correntes."
@@ -124,6 +127,9 @@ try {
   $corr=[guid]::NewGuid(); $sw=[Diagnostics.Stopwatch]::StartNew(); dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- --mode MODEL_VALIDATION --model-version $model --since $pendingSince --max-records $pending --batch-size $batch --max-parallelism $parallel --publish false --requested-by V373_SCALE_HARNESS --reason $Profile --correlation-id $corr; if($LASTEXITCODE-ne 0){throw 'Runner falhou'}; $sw.Stop(); $runnerMs=$sw.ElapsedMilliseconds
 } finally {
   $env:DOTNET_ENVIRONMENT=$previousDotnetEnvironment
+  $env:ConnectionStrings__Jornada=$previousConnection
+  $env:LinkageParameters__Operation=$previousLinkageOperation
+  $env:NameFrequencySnapshot__ManifestPath=$previousSnapshotManifest
   Pop-Location
 }
 
