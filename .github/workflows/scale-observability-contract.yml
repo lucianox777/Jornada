@@ -3,6 +3,7 @@ name: jornada-scale-observability-contract
 on:
   pull_request:
     paths:
+      - 'Solution/.dockerignore'
       - 'Solution/scripts/local-scale.sh'
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/scale-observability-evidence-gate.py'
@@ -10,6 +11,7 @@ on:
   push:
     branches: [ master ]
     paths:
+      - 'Solution/.dockerignore'
       - 'Solution/scripts/local-scale.sh'
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/scale-observability-evidence-gate.py'
@@ -25,7 +27,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Validate observability evidence contract
+      - name: Validate scale harness contract
         run: |
           set -euo pipefail
           python3 Solution/scripts/scale-observability-evidence-gate.py --self-test
@@ -35,7 +37,16 @@ jobs:
             grep -F 'Jornada.Pipeline.ExclusiveRequest' "$script" >/dev/null
             grep -F 'Jornada.Pipeline.Corpus' "$script" >/dev/null
             grep -F 'scale-observability-evidence-gate.py' "$script" >/dev/null
+            grep -F 'REBUILD_LOCAL_BLOCKING' "$script" >/dev/null
+            grep -F 'Jornada.Processor.Worker' "$script" >/dev/null
+            grep -F "codigo_pessoa_origem LIKE N'SCALE-%'" "$script" >/dev/null
+            grep -F 'Projeção de blocking' "$script" >/dev/null
           done
+          grep -Fx '**/bin/' Solution/.dockerignore >/dev/null
+          grep -Fx '**/obj/' Solution/.dockerignore >/dev/null
+          grep -Fx '.local/' Solution/.dockerignore >/dev/null
+          grep -Fx '.git' Solution/.dockerignore >/dev/null
+          bash -n Solution/scripts/local-scale.sh
       - name: Parse PowerShell scale harness
         shell: pwsh
         run: |
@@ -50,3 +61,16 @@ jobs:
             $errors | ForEach-Object { Write-Error $_.Message }
             exit 1
           }
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.424'
+      - name: Run scale harness smoke end to end
+        working-directory: Solution
+        run: ./scripts/local-scale.sh smoke
+      - name: Upload scale smoke evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: scale-observability-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/performance
+          if-no-files-found: warn
