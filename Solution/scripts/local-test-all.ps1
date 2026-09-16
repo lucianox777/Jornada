@@ -1,7 +1,8 @@
 ﻿[CmdletBinding()]
 param(
     [ValidateSet('standard', 'full')]
-    [string]$Suite = 'full'
+    [string]$Suite = 'full',
+    [switch]$IsolatedExecution
 )
 
 Set-StrictMode -Version Latest
@@ -13,10 +14,6 @@ $Results = [System.Collections.Generic.List[object]]::new()
 $OverallStatus = 'FAILED'
 $FailureMessage = $null
 $testedSha = $null
-$originalBranch = $null
-$originalSha = $null
-$stashCommit = $null
-$stashCreated = $false
 
 function Invoke-Git {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
@@ -73,8 +70,6 @@ function Invoke-ClusterAction {
 function Get-BashExecutable {
     $git = Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 
-    # No Windows, `bash` no PATH pode resolver para o launcher do WSL. A suíte local usa
-    # ferramentas e caminhos do host Windows, então deve preferir explicitamente o Git Bash.
     if ($env:OS -eq 'Windows_NT') {
         if ($null -eq $git) { return $null }
         $gitCmdDir = Split-Path -Parent $git.Source
@@ -168,35 +163,68 @@ foreach ($command in @('git', 'docker', 'dotnet')) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "Comando '$command' não encontrado no PATH." }
 }
 
-Push-Location $Root
-try {
-    $originalBranch = ((Invoke-GitCapture @('branch','--show-current')) -join '').Trim()
-    $originalSha = ((Invoke-GitCapture @('rev-parse','HEAD')) -join '').Trim()
-    if ([string]::IsNullOrWhiteSpace($originalSha)) { throw 'Não foi possível determinar o SHA Git original.' }
+# A invocação pública nunca altera o working tree do desenvolvedor. Busca o SHA remoto,
+# cria um worktree destacado e executa a mesma suíte nesse checkout descartável.
+if (-not $IsolatedExecution) {
+    $worktreePath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-local-test-all-{0}" -f [Guid]::NewGuid().ToString('N'))
+    $childReport = Join-Path $worktreePath 'Solution/.local/test-all/latest.json'
+    $targetReportDir = Join-Path $Root '.local/test-all'
+    $targetReport = Join-Path $targetReportDir 'latest.json'
+    $exitCode = 1
 
-    $dirty = @(Invoke-GitCapture @('status','--porcelain','--untracked-files=normal'))
-    if ($dirty.Count -gt 0) {
-        $stashLabel = "jornada-local-test-all-$([Guid]::NewGuid().ToString('N'))"
-        Write-Host 'Alterações locais detectadas; preservando automaticamente em stash temporário...'
-        Invoke-Git @('stash','push','-u','-m',$stashLabel)
-        $stashCommit = ((Invoke-GitCapture @('rev-parse','--verify','refs/stash')) -join '').Trim()
-        if ([string]::IsNullOrWhiteSpace($stashCommit)) { throw 'Stash temporário não pôde ser identificado.' }
-        $stashCreated = $true
-        Write-Host "Stash temporário: $stashCommit"
+    Push-Location $Root
+    try {
+        Write-Host 'Atualizando referência origin/master sem tocar no working tree atual...'
+        Invoke-Git @('fetch','origin','master')
+        $testedSha = ((Invoke-GitCapture @('rev-parse','origin/master')) -join '').Trim()
+        if ($testedSha -notmatch '^[0-9a-fA-F]{40}$') { throw 'SHA de origin/master inválido.' }
+
+        Write-Host "Criando worktree isolado para $testedSha..."
+        Invoke-Git @('worktree','add','--detach',$worktreePath,$testedSha)
+        $isolatedScript = Join-Path $worktreePath 'Solution/scripts/local-test-all.ps1'
+        & $CurrentPowerShell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $isolatedScript -Suite $Suite -IsolatedExecution
+        $exitCode = $LASTEXITCODE
+    }
+    catch {
+        $FailureMessage = $_.Exception.Message
+        Write-Warning $FailureMessage
+        $exitCode = 1
+    }
+    finally {
+        if (Test-Path -LiteralPath $childReport) {
+            New-Item -ItemType Directory -Force $targetReportDir | Out-Null
+            Copy-Item -LiteralPath $childReport -Destination $targetReport -Force
+            Write-Host "Resumo copiado para: $targetReport"
+        }
+
+        if (Test-Path -LiteralPath $worktreePath) {
+            & git worktree remove --force $worktreePath
+            if ($LASTEXITCODE -ne 0) { Write-Warning "Não foi possível remover automaticamente o worktree temporário: $worktreePath" }
+        }
+        & git worktree prune
+        Pop-Location
     }
 
-    Write-Host 'Atualizando master antes da suíte local...'
-    Invoke-Git @('fetch','origin','master')
-    Invoke-Git @('checkout','master')
-    Invoke-Git @('pull','--ff-only','origin','master')
+    if ($exitCode -ne 0) {
+        throw 'Suíte local isolada falhou. Consulte .local/test-all/latest.json quando disponível.'
+    }
 
+    Write-Host ''
+    Write-Host 'LOCAL TEST ALL: OK (worktree isolado; working tree do desenvolvedor preservado)'
+    return
+}
+
+Push-Location $Root
+try {
     $testedSha = ((Invoke-GitCapture @('rev-parse','HEAD')) -join '').Trim()
+    if ($testedSha -notmatch '^[0-9a-fA-F]{40}$') { throw 'SHA Git inválido no worktree isolado.' }
+
     Write-Host ''
     Write-Host 'Jornada - suíte local canônica'
     Write-Host "Suite:  $Suite"
-    Write-Host 'Branch: master'
+    Write-Host 'Branch: detached worktree de origin/master'
     Write-Host "SHA:    $testedSha"
-    Write-Host 'A suíte é destrutiva para os bancos/volumes locais de teste, mas preserva alterações Git automaticamente.'
+    Write-Host 'A suíte é destrutiva para bancos/volumes locais de teste, mas não altera o working tree do desenvolvedor.'
 
     Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
         Invoke-PowerShellScript 'local-test.ps1'
@@ -243,65 +271,25 @@ catch {
     Write-Warning "Suíte interrompida: $FailureMessage"
 }
 finally {
-    try {
-        if (-not [string]::IsNullOrWhiteSpace($originalSha)) {
-            $currentBranch = ((Invoke-GitCapture @('branch','--show-current')) -join '').Trim()
-            if (-not [string]::IsNullOrWhiteSpace($originalBranch)) {
-                if ($currentBranch -ne $originalBranch) {
-                    Write-Host "Restaurando branch original '$originalBranch'..."
-                    Invoke-Git @('checkout',$originalBranch)
-                }
-            }
-            else {
-                $nowSha = ((Invoke-GitCapture @('rev-parse','HEAD')) -join '').Trim()
-                if ($nowSha -ne $originalSha -or -not [string]::IsNullOrWhiteSpace($currentBranch)) {
-                    Write-Host "Restaurando HEAD destacado original $originalSha..."
-                    Invoke-Git @('checkout','--detach',$originalSha)
-                }
-            }
-        }
+    $reportDir = Join-Path $Root '.local/test-all'
+    New-Item -ItemType Directory -Force $reportDir | Out-Null
+    $reportPath = Join-Path $reportDir 'latest.json'
+    [ordered]@{
+        status = $OverallStatus
+        suite = $Suite
+        gitCommitSha = $testedSha
+        executionMode = 'isolated-worktree'
+        generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+        failure = $FailureMessage
+        steps = @($Results)
+    } | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 $reportPath
 
-        if ($stashCreated -and -not [string]::IsNullOrWhiteSpace($stashCommit)) {
-            Write-Host 'Restaurando alterações locais preservadas...'
-            & git stash apply --index $stashCommit
-            if ($LASTEXITCODE -ne 0) {
-                Write-Warning "Restauração automática encontrou conflito. O stash foi PRESERVADO em $stashCommit."
-                $OverallStatus = 'FAILED'
-                $FailureMessage = "Não foi possível restaurar automaticamente o stash $stashCommit."
-            }
-            else {
-                $stashEntry = @(Invoke-GitCapture @('stash','list','--format=%gd %H')) |
-                    Where-Object { $_ -match "\s$([regex]::Escape($stashCommit))$" } |
-                    Select-Object -First 1
-                if ($null -ne $stashEntry) {
-                    $stashRef = ($stashEntry -split '\s+', 2)[0]
-                    Invoke-Git @('stash','drop',$stashRef)
-                    Write-Host 'Alterações locais restauradas; stash temporário removido.'
-                }
-            }
-        }
-
-        $reportDir = Join-Path $Root '.local/test-all'
-        New-Item -ItemType Directory -Force $reportDir | Out-Null
-        $reportPath = Join-Path $reportDir 'latest.json'
-        [ordered]@{
-            status = $OverallStatus
-            suite = $Suite
-            gitCommitSha = $testedSha
-            generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
-            failure = $FailureMessage
-            steps = @($Results)
-        } | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 $reportPath
-
-        Write-Host ''
-        Write-Host "Resumo: $reportPath"
-        foreach ($result in $Results) {
-            Write-Host ("{0,-58} {1,7} {2,8:n1}s" -f $result.name, $result.status, $result.seconds)
-        }
+    Write-Host ''
+    Write-Host "Resumo: $reportPath"
+    foreach ($result in $Results) {
+        Write-Host ("{0,-58} {1,7} {2,8:n1}s" -f $result.name, $result.status, $result.seconds)
     }
-    finally {
-        Pop-Location
-    }
+    Pop-Location
 }
 
 if ($OverallStatus -ne 'OK') {
