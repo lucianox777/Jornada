@@ -68,6 +68,14 @@ EXEC @release=sys.sp_releaseapplock @Resource=N'{resource}',@LockOwner='Session'
 """
 
 
+def readiness_query(signal_table: str) -> str:
+    escaped = signal_table.replace("'", "''")
+    return (
+        f"IF OBJECT_ID('tempdb..{escaped}') IS NULL SELECT 0; "
+        f"ELSE EXEC(N'SELECT CASE WHEN EXISTS(SELECT 1 FROM {escaped}) THEN 1 ELSE 0 END;');"
+    )
+
+
 def probe(root: Path, database: str, password: str, resource: str, delay_ms: int) -> dict[str, object]:
     signal_table = f"##JornadaScaleLockProbe_{uuid.uuid4().hex}"
     command = [
@@ -87,13 +95,7 @@ def probe(root: Path, database: str, password: str, resource: str, delay_ms: int
                     f"holder encerrou antes de confirmar aquisição de {resource}: "
                     f"{stderr.strip() or stdout.strip() or holder.returncode}"
                 )
-            ready = scalar(
-                root,
-                database,
-                password,
-                f"SELECT CASE WHEN OBJECT_ID('tempdb..{signal_table}') IS NOT NULL "
-                f"AND EXISTS(SELECT 1 FROM {signal_table}) THEN 1 ELSE 0 END;",
-            )
+            ready = scalar(root, database, password, readiness_query(signal_table))
             if ready == "1":
                 break
             if time.monotonic() >= deadline:
