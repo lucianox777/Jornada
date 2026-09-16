@@ -27,6 +27,15 @@ foreach ($name in @('bronze','staging','packages')) {
     New-Item -ItemType Directory -Force $path | Out-Null
 }
 
+function Get-LogTail([string]$path,[int]$lines=40) {
+    if (-not (Test-Path $path)) { return '<sem log>' }
+    return ((Get-Content -Encoding UTF8 $path -Tail $lines -ErrorAction SilentlyContinue) -join [Environment]::NewLine)
+}
+
+function Write-Utf8NoBom([string]$path,[string]$content) {
+    [System.IO.File]::WriteAllText($path, $content, (New-Object System.Text.UTF8Encoding($false)))
+}
+
 & (Join-Path $PSScriptRoot 'local-db.ps1') -Action reset
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -50,16 +59,36 @@ try {
 
 $api = $null; $worker = $null
 try {
-    $api = Start-Process dotnet -WorkingDirectory $Root -ArgumentList @('run','--no-build','--configuration','Release','--no-launch-profile','--project','src/Jornada.Api') -RedirectStandardOutput (Join-Path $Out 'api.log') -RedirectStandardError (Join-Path $Out 'api.err.log') -PassThru
-    $worker = Start-Process dotnet -WorkingDirectory $Root -ArgumentList @('run','--no-build','--configuration','Release','--project','src/Jornada.Processor.Worker') -RedirectStandardOutput (Join-Path $Out 'processor.log') -RedirectStandardError (Join-Path $Out 'processor.err.log') -PassThru
+    $apiLog = Join-Path $Out 'api.log'
+    $apiErrLog = Join-Path $Out 'api.err.log'
+    $processorLog = Join-Path $Out 'processor.log'
+    $processorErrLog = Join-Path $Out 'processor.err.log'
+    $api = Start-Process dotnet -WorkingDirectory $Root -ArgumentList @('run','--no-build','--configuration','Release','--no-launch-profile','--project','src/Jornada.Api') -RedirectStandardOutput $apiLog -RedirectStandardError $apiErrLog -PassThru
+    $worker = Start-Process dotnet -WorkingDirectory $Root -ArgumentList @('run','--no-build','--configuration','Release','--project','src/Jornada.Processor.Worker') -RedirectStandardOutput $processorLog -RedirectStandardError $processorErrLog -PassThru
 
     $ready = $false
     for ($i=0; $i -lt 120; $i++) {
-        $code = (& curl.exe -sS -o (Join-Path $Out 'ready.json') -w '%{http_code}' "$ApiUrl/health/ready" 2>$null | Out-String).Trim()
+        if ($api.HasExited) {
+            throw "API encerrou antes de ficar ready (exit=$($api.ExitCode)).`napi.log:`n$(Get-LogTail $apiLog)`napi.err.log:`n$(Get-LogTail $apiErrLog)"
+        }
+        if ($worker.HasExited) {
+            throw "Processor encerrou antes da API ficar ready (exit=$($worker.ExitCode)).`nprocessor.log:`n$(Get-LogTail $processorLog)`nprocessor.err.log:`n$(Get-LogTail $processorErrLog)"
+        }
+
+        $code = ''
+        try {
+            $code = (& curl.exe -sS -o (Join-Path $Out 'ready.json') -w '%{http_code}' "$ApiUrl/health/ready" 2>$null | Out-String).Trim()
+        }
+        catch {
+            # Connection refused durante o startup é esperado. O runner aguarda até 120 s.
+            $code = ''
+        }
         if ($code -eq '200') { $ready = $true; break }
         Start-Sleep -Seconds 1
     }
-    if (-not $ready) { throw 'API não ficou ready.' }
+    if (-not $ready) {
+        throw "API não ficou ready em 120 s.`napi.log:`n$(Get-LogTail $apiLog)`napi.err.log:`n$(Get-LogTail $apiErrLog)"
+    }
 
     $package = (& python (Join-Path $Root 'scripts/build-ingestion-fixture.py') --fixture (Join-Path $Root 'tests/fixtures/ingestao/AA01_v2') --gestor SEHAB --output-dir (Join-Path $Out 'packages') | Out-String).Trim()
     if (-not (Test-Path $package)) { throw 'Fixture ZIP não foi gerada.' }
@@ -115,9 +144,17 @@ try {
     if ((Scalar "SELECT COUNT(*) FROM gold.pessoa WHERE cpf='70819234532';") -ne '1') { throw 'Gold Pessoa ausente.' }
     if ((Scalar "SELECT COUNT(*) FROM serving.v_beneficios_concedidos_pessoa WHERE codigo_registro_origem='E2E-AA01-2026-000001';") -ne '1') { throw 'Serving factual ausente.' }
 
-    $resolve = Join-Path $Out 'resolve.json'; $resolveCode = Join-Path $Out 'resolve.code'
-    $code = (& curl.exe -sS -o $resolve -w '%{http_code}' -X POST "$ApiUrl/api/v1/identidade/resolver" -H 'Content-Type: application/json' -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $accessKey" --data '{"cpf":"70819234532"}' | Out-String).Trim()
-    Set-Content -Encoding ascii $resolveCode $code; if ($code -ne '200') { throw 'Resolver API falhou.' }
+    $resolve = Join-Path $Out 'resolve.json'; $resolveCode = Join-Path $Out 'resolve.code'; $resolveRequest = Join-Path $Out 'resolve-request.json'
+    Write-Utf8NoBom $resolveRequest '{"cpf":"70819234532"}'
+    $resolveArgs = @('-sS','-o',$resolve,'-w','%{http_code}','-X','POST',"$ApiUrl/api/v1/identidade/resolver",
+        '-H','Content-Type: application/json','-H','X-Jornada-Gestor: SEHAB','-H',"X-Jornada-Access-Key: $accessKey",
+        '--data-binary',"@$resolveRequest")
+    $code = (& curl.exe @resolveArgs | Out-String).Trim()
+    Set-Content -Encoding ascii $resolveCode $code
+    if ($code -ne '200') {
+        $body = if (Test-Path $resolve) { Get-Content -Raw -Encoding UTF8 $resolve } else { '<sem corpo>' }
+        throw "Resolver API retornou HTTP $code. Corpo: $body"
+    }
     $pessoaUuid = (Read-Json $resolve).pessoaUuid; if ([string]::IsNullOrWhiteSpace($pessoaUuid)) { throw 'Resolver não retornou UUID.' }
     $code = (& curl.exe -sS -o (Join-Path $Out 'person.json') -w '%{http_code}' "$ApiUrl/api/v1/pessoas/$pessoaUuid" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $accessKey" | Out-String).Trim()
     if ($code -ne '200') { throw 'Retorno da Pessoa pela API falhou.' }
