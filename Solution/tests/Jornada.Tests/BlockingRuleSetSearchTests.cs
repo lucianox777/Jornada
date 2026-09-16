@@ -34,6 +34,40 @@ public sealed class BlockingRuleSetSearchTests
     }
 
     [Test]
+    public void SearchBest_KeepsSelectivePrimitiveWhenHighRecallUniversalFeaturesWouldFillPool()
+    {
+        var observations = new[]
+        {
+            Obs(true, ("u1", true), ("u2", true), ("s", true)),
+            Obs(true, ("u1", true), ("u2", true), ("s", true)),
+            Obs(true, ("u1", true), ("u2", true), ("s", true)),
+            Obs(true, ("u1", true), ("u2", true), ("s", false)),
+            Obs(false, ("u1", true), ("u2", true), ("s", true)),
+            Obs(false, ("u1", true), ("u2", true), ("s", false)),
+            Obs(false, ("u1", true), ("u2", true), ("s", false)),
+            Obs(false, ("u1", true), ("u2", true), ("s", false))
+        };
+
+        var best = BlockingRuleSetSearch.SearchBest(
+            observations,
+            new[] { "u1", "u2", "s" },
+            new BlockingRuleSetSearchOptions(
+                MaxFieldsPerPass: 1,
+                MaxPasses: 1,
+                PrimitivePoolSize: 2,
+                MinimumTrueMatchRecall: 0.75d,
+                RequireObservedNonMatchSupport: true));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(best.Passes, Has.Count.EqualTo(1));
+            Assert.That(best.Passes[0].Fields, Is.EquivalentTo(new[] { "s" }));
+            Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(0.75d));
+            Assert.That(best.Diagnostic.ReductionRatio, Is.EqualTo(0.75d));
+        });
+    }
+
+    [Test]
     public void SearchBest_CanSelectIntersectionOfDerivedNameAndBirthFeature()
     {
         var name = BlockingCandidateFeatureCatalog.FullNameWithoutParticles;
