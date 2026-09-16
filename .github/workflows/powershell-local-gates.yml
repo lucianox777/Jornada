@@ -6,6 +6,8 @@ on:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-test-round-paused.ps1'
+      - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
       - 'Solution/scripts/local-db.ps1'
@@ -15,6 +17,8 @@ on:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-test-round-paused.ps1'
+      - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
       - 'Solution/scripts/local-db.ps1'
@@ -47,6 +51,8 @@ jobs:
             'scripts/local-ddl-upgrade.ps1',
             'scripts/local-test.ps1',
             'scripts/local-test-all.ps1',
+            'scripts/local-test-round-paused.ps1',
+            'scripts/local-linkage-evaluation-smoke.ps1',
             'scripts/local-scale.ps1',
             'scripts/local-sql-runtime-smoke.ps1',
             'scripts/local-db.ps1'
@@ -108,6 +114,32 @@ jobs:
             throw 'O scale smoke da suíte full deve restaurar deterministicamente o banco canônico ao terminar.'
           }
           Write-Host 'LOCAL SUITE CANONICAL AUDIT/SCALE RESTORE CONTRACT: OK'
+
+      - name: Validate paused round covers Evaluation and isolates SCALE
+        shell: pwsh
+        run: |
+          $content = Get-Content -Raw -Encoding UTF8 scripts/local-test-round-paused.ps1
+          $audit = $content.IndexOf("local-linkage-evaluation-smoke.ps1")
+          $clean = $content.IndexOf("16/19 - Encerrar cluster antes do SCALE")
+          $scale = $content.IndexOf("17/19 - Smoke de escala + probe sincronizado de coordenação")
+          if ($audit -lt 0 -or $clean -lt 0 -or $scale -lt 0 -or -not ($audit -lt $clean -and $clean -lt $scale)) {
+            throw 'A rodada pausada deve executar Evaluation antes de encerrar o cluster e iniciar o SCALE.'
+          }
+          if ($content -notmatch "local-cluster\.ps1 -Action clean" -or
+              $content -notmatch "local-db\.ps1 -Action reset") {
+            throw 'A rodada pausada deve isolar o SCALE e restaurar o banco canônico.'
+          }
+          $wrapper = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-evaluation-smoke.ps1
+          foreach ($required in @(
+            'linkage-evaluation-smoke.sh',
+            "JORNADA_EVALUATION_SCALE_PEOPLE = '5000'",
+            'JORNADA_EVALUATION_SQL_CONTAINER_ID'
+          )) {
+            if (-not $wrapper.Contains($required)) {
+              throw "Wrapper local do Evaluation perdeu contrato obrigatório: $required"
+            }
+          }
+          Write-Host 'PAUSED ROUND EVALUATION/SCALE ISOLATION CONTRACT: OK'
 
       - name: Execute DDL upgrade gate through PowerShell
         shell: pwsh
