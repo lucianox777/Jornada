@@ -37,11 +37,61 @@ $parallel=if($env:JORNADA_SCALE_PARALLELISM){[int]$env:JORNADA_SCALE_PARALLELISM
 $batch=if($env:JORNADA_SCALE_BATCH_SIZE){[int]$env:JORNADA_SCALE_BATCH_SIZE}else{10000}
 $lockHolderDelayMs=if($env:JORNADA_SCALE_LOCK_HOLDER_DELAY_MS){[int]$env:JORNADA_SCALE_LOCK_HOLDER_DELAY_MS}else{3000}
 
-& (Join-Path $PSScriptRoot 'local-db.ps1') -Action reset
+# O harness de escala instala schema + seeds, mas precisa gerar sua própria massa SCALE.
+& (Join-Path $PSScriptRoot 'local-db.ps1') -Action reset -SkipSyntheticScale
 $vars=@{}; Get-Content (Join-Path $Root '.env') | % { $l=$_.Trim(); if($l -and -not $l.StartsWith('#') -and $l.Contains('=')){ $p=$l.Split('=',2); $vars[$p[0].Trim()]=$p[1] } }
 $port=if($vars['JORNADA_SQL_PORT']){$vars['JORNADA_SQL_PORT']}else{'14333'}
 $db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
 $pwd=$vars['JORNADA_SQL_SA_PASSWORD']
+if([string]::IsNullOrWhiteSpace($pwd)){throw 'JORNADA_SQL_SA_PASSWORD não definido para o scale harness.'}
+
+function Get-ContainerSqlPassword {
+    Push-Location $Root
+    try {
+        $previousErrorActionPreference=$ErrorActionPreference
+        try {
+            $ErrorActionPreference='Continue'
+            $raw=@(& docker compose --env-file .env exec -T sqlserver printenv MSSQL_SA_PASSWORD 2>$null)
+            $exitCode=$LASTEXITCODE
+        }
+        finally { $ErrorActionPreference=$previousErrorActionPreference }
+        if($exitCode -ne 0){throw 'Não foi possível ler MSSQL_SA_PASSWORD do container SQL Server.'}
+        $value=($raw -join "`n").Trim()
+        if([string]::IsNullOrWhiteSpace($value)){throw 'MSSQL_SA_PASSWORD efetivo do container está vazio.'}
+        return $value
+    }
+    finally { Pop-Location }
+}
+
+$containerPwd=Get-ContainerSqlPassword
+if(-not [string]::Equals($pwd,$containerPwd,[StringComparison]::Ordinal)){
+    throw 'JORNADA_SQL_SA_PASSWORD da .env diverge da senha efetiva do container SQL Server.'
+}
+$pwd=$containerPwd
+
+function Wait-SqlLogin {
+    Push-Location $Root
+    try {
+        for($attempt=1;$attempt -le 30;$attempt++){
+            $previousErrorActionPreference=$ErrorActionPreference
+            try {
+                $ErrorActionPreference='Continue'
+                & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -Q 'SET NOCOUNT ON; SELECT 1;' *> $null
+                $exitCode=$LASTEXITCODE
+            }
+            finally { $ErrorActionPreference=$previousErrorActionPreference }
+            if($exitCode -eq 0){
+                if($attempt -gt 1){Write-Host "Login SQL do scale harness estabilizado na tentativa $attempt/30."}
+                return
+            }
+            if($attempt -eq 1 -or $attempt % 5 -eq 0){Write-Host "Aguardando login SQL do scale harness... tentativa $attempt/30"}
+            Start-Sleep -Seconds 1
+        }
+        & docker compose --env-file .env logs --tail 80 sqlserver
+        throw 'SQL Server não aceitou autenticação do scale harness em 30 segundos após o reset.'
+    }
+    finally { Pop-Location }
+}
 
 function SqlCmd {
     param([Parameter(Mandatory=$true)][string[]]$SqlCmdArgs)
@@ -55,8 +105,10 @@ function SqlCmd {
 function Scalar([string]$Query){
     Push-Location $Root
     try {
-        $o = (& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -h -1 -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
-        if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
+        # sqlcmd não aceita -h junto com -y. Mantemos -y 0 para preservar JSON/texto longo;
+        # com SET NOCOUNT ON, a última linha não vazia continua sendo o valor escalar.
+        $o = (& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
+        if($LASTEXITCODE-ne 0){throw 'sqlcmd falhou.'}
         return ($o | ? { $_.Trim() } | Select-Object -Last 1).Trim()
     }
     finally { Pop-Location }
@@ -69,7 +121,7 @@ function Probe-Lock([string]$Resource,[int]$DelayMs){
         Push-Location $root
         try {
             & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -Q $sql | Out-Null
-            if($LASTEXITCODE -ne 0){throw 'holder sqlcmd falhou'}
+            if($LASTEXITCODE-ne 0){throw 'holder sqlcmd falhou'}
         } finally { Pop-Location }
     } -ArgumentList $Root,$pwd,$db,$holderSql
     Start-Sleep -Milliseconds 250
@@ -82,12 +134,34 @@ function Probe-Lock([string]$Resource,[int]$DelayMs){
     return [ordered]@{resource=$Resource;lockResult=$result;waitMilliseconds=[int64]$sw.ElapsedMilliseconds}
 }
 
+Wait-SqlLogin
 SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
+$expectedScaleOrigins=[int64]$people+[int64]$paired+[int64]$pending
+$actualScaleOrigins=[int64](Scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")
+if($actualScaleOrigins -ne $expectedScaleOrigins){throw "Massa SCALE customizada inconsistente: esperadas=$expectedScaleOrigins; encontradas=$actualScaleOrigins."}
+& (Join-Path $PSScriptRoot 'local-db.ps1') -Action identity-backfill
 $conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$pwd;TrustServerCertificate=true;Encrypt=false"
 Push-Location $Root
 try {
   if($env:JORNADA_LOCKED_RESTORE -eq 'true'){ dotnet restore Jornada.sln --locked-mode } else { dotnet restore Jornada.sln }; if($LASTEXITCODE-ne 0){throw 'restore falhou'}
   dotnet build Jornada.sln --configuration Release --no-restore -warnaserror; if($LASTEXITCODE-ne 0){throw 'build falhou'}
+
+  $previousConnection=$env:ConnectionStrings__Jornada
+  $previousProcessorOperation=$env:Processor__Operation
+  $previousDotnetEnvironment=$env:DOTNET_ENVIRONMENT
+  try {
+    $env:ConnectionStrings__Jornada=$conn
+    $env:Processor__Operation='REBUILD_LOCAL_BLOCKING'
+    $env:DOTNET_ENVIRONMENT='Development'
+    dotnet run --project src/Jornada.Processor.Worker --configuration Release --no-build
+    if($LASTEXITCODE-ne 0){throw 'REBUILD_LOCAL_BLOCKING falhou'}
+  }
+  finally {
+    $env:ConnectionStrings__Jornada=$previousConnection
+    $env:Processor__Operation=$previousProcessorOperation
+    $env:DOTNET_ENVIRONMENT=$previousDotnetEnvironment
+  }
+
   $env:ConnectionStrings__Jornada=$conn; $env:PipelineCoordination__HeartbeatSeconds='2'; $env:PipelineCoordination__ExclusiveIntentTimeoutSeconds='5'
   $env:LinkageParameters__Operation='GENERATE_DRAFT'; $env:LinkageParameters__RunOnce='true'; $env:LinkageParameters__TrainingSampleSize="$sample"; $env:LinkageParameters__TrainingSamplePoolSize="$pool"; $env:LinkageParameters__MinimumIndependentMatchedPairs=if($env:JORNADA_SCALE_MIN_MATCHED_PAIRS){$env:JORNADA_SCALE_MIN_MATCHED_PAIRS}else{'1000'}; $env:LinkageParameters__ReadCommandTimeoutSeconds=if($env:JORNADA_SCALE_COMMAND_TIMEOUT_SECONDS){$env:JORNADA_SCALE_COMMAND_TIMEOUT_SECONDS}else{'1800'}
   $sw=[Diagnostics.Stopwatch]::StartNew(); dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build; if($LASTEXITCODE-ne 0){throw 'GENERATE_DRAFT falhou'}; $sw.Stop(); $paramMs=$sw.ElapsedMilliseconds

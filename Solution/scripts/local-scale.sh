@@ -22,7 +22,8 @@ PARALLEL="${JORNADA_SCALE_PARALLELISM:-4}"
 BATCH="${JORNADA_SCALE_BATCH_SIZE:-10000}"
 LOCK_HOLDER_DELAY_MS="${JORNADA_SCALE_LOCK_HOLDER_DELAY_MS:-3000}"
 
-"$ROOT/scripts/local-db.sh" reset
+# O harness de escala instala schema + seeds, mas precisa gerar sua própria massa SCALE.
+JORNADA_LOCAL_SKIP_SYNTHETIC_SCALE=true "$ROOT/scripts/local-db.sh" reset
 # shellcheck disable=SC1091
 set -a; source "$ROOT/.env"; set +a
 PORT="${JORNADA_SQL_PORT:-14333}"; DB="${JORNADA_SQL_DATABASE:-JornadaLocal}"
@@ -32,7 +33,8 @@ sqlcmd() {
   compose exec -T -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b "$@"
 }
-scalar() { sqlcmd -d "$DB" -h -1 -y 0 -w 65535 -Q "SET NOCOUNT ON; $1" | tr -d '\r' | sed '/^[[:space:]]*$/d' | tail -1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
+# sqlcmd não aceita -h junto com -y; mantemos -y 0 para preservar JSON/texto longo.
+scalar() { sqlcmd -d "$DB" -y 0 -w 65535 -Q "SET NOCOUNT ON; $1" | tr -d '\r' | sed '/^[[:space:]]*$/d' | tail -1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
 now_ms() { date +%s%3N; }
 probe_lock() {
   local resource="$1"
@@ -58,6 +60,13 @@ PY
 }
 
 sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_PAIRED="$PAIRED" SCALE_PENDING="$PENDING" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" SCALE_BIRTH_SHIFT_MODULO="$BIRTH_SHIFT_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale.sql
+EXPECTED_SCALE_ORIGINS=$((PEOPLE + PAIRED + PENDING))
+ACTUAL_SCALE_ORIGINS="$(scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")"
+[[ "$ACTUAL_SCALE_ORIGINS" == "$EXPECTED_SCALE_ORIGINS" ]] || {
+  echo "ERRO: massa SCALE customizada inconsistente: esperadas=$EXPECTED_SCALE_ORIGINS; encontradas=$ACTUAL_SCALE_ORIGINS." >&2
+  exit 4
+}
+"$ROOT/scripts/local-db.sh" identity-backfill
 
 cd "$ROOT"
 if [[ "${JORNADA_LOCKED_RESTORE:-false}" == "true" ]]; then
@@ -66,6 +75,11 @@ else
   dotnet restore Jornada.sln
 fi
 dotnet build Jornada.sln --configuration Release --no-restore -warnaserror
+DOTNET_ENVIRONMENT=Development \
+Processor__Operation=REBUILD_LOCAL_BLOCKING \
+ConnectionStrings__Jornada="$CONN" \
+  dotnet run --project src/Jornada.Processor.Worker --configuration Release --no-build
+
 export ConnectionStrings__Jornada="$CONN"
 export PipelineCoordination__HeartbeatSeconds=2
 export PipelineCoordination__ExclusiveIntentTimeoutSeconds=5
