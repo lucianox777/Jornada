@@ -22,7 +22,9 @@ PARALLEL="${JORNADA_SCALE_PARALLELISM:-4}"
 BATCH="${JORNADA_SCALE_BATCH_SIZE:-10000}"
 LOCK_HOLDER_DELAY_MS="${JORNADA_SCALE_LOCK_HOLDER_DELAY_MS:-3000}"
 
-"$ROOT/scripts/local-db.sh" reset
+# O harness de escala controla a própria massa. O reset prepara schema+seed sem
+# inserir o corpus SCALE canônico de 5k, evitando a colisão determinística 51553.
+"$ROOT/scripts/local-db.sh" reset --no-synthetic-corpus
 # shellcheck disable=SC1091
 set -a; source "$ROOT/.env"; set +a
 PORT="${JORNADA_SQL_PORT:-14333}"; DB="${JORNADA_SQL_DATABASE:-JornadaLocal}"
@@ -58,6 +60,7 @@ PY
 }
 
 sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_PAIRED="$PAIRED" SCALE_PENDING="$PENDING" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" SCALE_BIRTH_SHIFT_MODULO="$BIRTH_SHIFT_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale.sql
+"$ROOT/scripts/local-db.sh" backfill
 
 cd "$ROOT"
 if [[ "${JORNADA_LOCKED_RESTORE:-false}" == "true" ]]; then
