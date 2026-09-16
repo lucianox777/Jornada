@@ -1,6 +1,7 @@
-﻿param(
-    [ValidateSet('up','reset','down','clean','status')]
-    [string]$Action = 'up'
+param(
+    [ValidateSet('up','reset','identity-backfill','down','clean','status')]
+    [string]$Action = 'up',
+    [switch]$SkipSyntheticScale
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -203,10 +204,14 @@ function Bootstrap {
     # Reaplicação idempotente necessária em DEV para reservar CPFs históricos do seed.
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260907_Cpf_Ancora.sql')
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260910_Schema_Consolidation_370.sql')
-    # O perfil local Test exercita o calibrador com o mínimo estatístico padrão de
-    # 5.000 pares independentes. Usa o mesmo gerador versionado do harness CI, mas
-    # com um perfil local dimensionado para satisfazer o limiar real, sem reduzi-lo.
-    Ensure-SyntheticScale
+    # O perfil local padrão exercita o calibrador com a massa sintética DEV. Harnesses
+    # de escala podem omiti-la explicitamente para instalar o próprio corpus versionado.
+    if ($SkipSyntheticScale) {
+        Write-Host 'Corpus sintético SCALE padrão omitido para bootstrap externo.'
+    }
+    else {
+        Ensure-SyntheticScale
+    }
 
     # Seed e massa SCALE são inserções DEV diretas e não passam pelo Processor. Fechamos
     # a mesma invariável ao fim do bootstrap para que o próximo 'up' também seja reentrante.
@@ -222,6 +227,10 @@ switch ($Action) {
         Invoke-Compose -ComposeArgs @('up','-d','sqlserver'); Wait-Healthy
         Invoke-SqlCmd -SqlCmdArgs @('-Q', "IF DB_ID(N'$db') IS NOT NULL BEGIN ALTER DATABASE [$db] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$db]; END; CREATE DATABASE [$db];")
         Bootstrap; Write-Host "Banco local recriado: $db (schema 3.70)"
+    }
+    'identity-backfill' {
+        Invoke-Compose -ComposeArgs @('up','-d','sqlserver'); Wait-Healthy; Ensure-ProgressiveIdentityBackfill
+        Write-Host 'Backfill progressivo de identidade local concluído.'
     }
     'down' { Invoke-Compose -ComposeArgs @('down') }
     'clean' { Invoke-Compose -ComposeArgs @('down','-v') }
