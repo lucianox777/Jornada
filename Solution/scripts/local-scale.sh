@@ -60,10 +60,6 @@ PY
   printf '%s|%s\n' "$result" "$((t1-t0))"
 }
 
-sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_PAIRED="$PAIRED" SCALE_PENDING="$PENDING" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" SCALE_BIRTH_SHIFT_MODULO="$BIRTH_SHIFT_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale.sql
-sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql
-"$ROOT/scripts/local-db.sh" backfill
-
 cd "$ROOT"
 if [[ "${JORNADA_LOCKED_RESTORE:-false}" == "true" ]]; then
   dotnet restore Jornada.sln --locked-mode
@@ -71,13 +67,28 @@ else
   dotnet restore Jornada.sln
 fi
 dotnet build Jornada.sln --configuration Release --no-restore -warnaserror
-# Este é um harness local/DEV. Calibrador, Runner e rebuild devem observar o mesmo
-# ambiente do cluster local para que a evidência não dependa do default Production.
+
+# O snapshot local é a fonte operacional canônica. Carregá-lo pelo mesmo loader da
+# calibração mantém validação de manifestos, SHA-256, rowCount e publicação ATIVA em
+# um único caminho, em vez de reimplementar parsing de NDJSON no harness SQL.
 export DOTNET_ENVIRONMENT=Development
 export ConnectionStrings__Jornada="$CONN"
 export PipelineCoordination__HeartbeatSeconds=2
 export PipelineCoordination__ExclusiveIntentTimeoutSeconds=5
+export LinkageParameters__Operation=LOAD_NAME_FREQUENCY_SNAPSHOT
+export NameFrequencySnapshot__ManifestPath="$ROOT/data/reference/ibge-nomes-2022/manifest.json"
+echo "Carregando referência IBGE canônica para geração da massa SCALE..."
+dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
+ACTIVE_NAME_REFERENCE="$(scalar "SELECT TOP(1) codigo FROM ref.frequencia_nome_versao WHERE status=N'ATIVA';")"
+[[ "$ACTIVE_NAME_REFERENCE" == "CENSO2022_NOMES_BRASIL_V1" ]] || { echo "ERRO: referência IBGE ATIVA inesperada após carga: $ACTIVE_NAME_REFERENCE" >&2; exit 4; }
+echo "Referência de frequências ativa: $ACTIVE_NAME_REFERENCE"
 
+sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_PAIRED="$PAIRED" SCALE_PENDING="$PENDING" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" SCALE_BIRTH_SHIFT_MODULO="$BIRTH_SHIFT_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale.sql
+sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql
+"$ROOT/scripts/local-db.sh" backfill
+
+# Seed e massa sintética são inserções DEV diretas; materializamos as chaves correntes
+# antes de calibrar para que blocking, ruleset e decisão observem a mesma população.
 echo "Materializando projeção canônica de blocking da massa SCALE antes da calibração..."
 Processor__Operation=REBUILD_LOCAL_BLOCKING \
   dotnet run --project src/Jornada.Processor.Worker --configuration Release --no-build
