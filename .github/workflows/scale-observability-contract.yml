@@ -4,7 +4,6 @@ on:
   pull_request:
     paths:
       - 'Solution/.dockerignore'
-      - 'Solution/docker-compose.yml'
       - 'Solution/data/reference/ibge-nomes-2022/**'
       - 'Solution/database/Jornada_Dev_SyntheticScale.sql'
       - 'Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql'
@@ -16,7 +15,6 @@ on:
     branches: [ master ]
     paths:
       - 'Solution/.dockerignore'
-      - 'Solution/docker-compose.yml'
       - 'Solution/data/reference/ibge-nomes-2022/**'
       - 'Solution/database/Jornada_Dev_SyntheticScale.sql'
       - 'Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql'
@@ -51,14 +49,20 @@ jobs:
             grep -F "codigo_pessoa_origem LIKE N'SCALE-%'" "$script" >/dev/null
             grep -F 'Jornada_Dev_SyntheticScale_Diversify.sql' "$script" >/dev/null
             grep -F 'Projeção de blocking' "$script" >/dev/null
+            grep -F 'LOAD_NAME_FREQUENCY_SNAPSHOT' "$script" >/dev/null
+            grep -F 'data/reference/ibge-nomes-2022/manifest.json' "$script" >/dev/null
           done
           grep -F 'falsePositives' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
           grep -F 'REQUIRED_DIVERSE_ATTRIBUTES' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
           grep -F 'SCALE-PEND-%' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
-          grep -F 'projection-manifest.json' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
+          grep -F 'ref.frequencia_nome' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
+          grep -F "status=N'ATIVA'" Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
           grep -F "HASHBYTES('SHA2_256'" Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
           grep -F 'frequencia' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
-          grep -F './data/reference/ibge-nomes-2022:/workspace/data/reference/ibge-nomes-2022:ro' Solution/docker-compose.yml >/dev/null
+          if grep -F 'OPENROWSET' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null; then
+            echo 'ERRO: o diversificador SCALE não deve reimplementar o loader de snapshot no SQL.' >&2
+            exit 1
+          fi
           if grep -F 'DECLARE @first TABLE' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null; then
             echo 'ERRO: o corpus SCALE voltou a usar catálogo fixo uniforme de primeiros nomes.' >&2
             exit 1
