@@ -65,26 +65,6 @@ function Scalar([string]$Query){
     }
     finally { Pop-Location }
 }
-function Probe-Lock([string]$Resource,[int]$DelayMs){
-    $delay=[TimeSpan]::FromMilliseconds($DelayMs).ToString('hh\:mm\:ss\.fff')
-    $holderSql="DECLARE @r int; EXEC @r=sys.sp_getapplock @Resource=N'$Resource',@LockMode='Exclusive',@LockOwner='Session',@LockTimeout=0; IF @r<0 THROW 51990,'probe holder lock failed',1; WAITFOR DELAY '$delay'; DECLARE @release int; EXEC @release=sys.sp_releaseapplock @Resource=N'$Resource',@LockOwner='Session';"
-    $job=Start-Job -ScriptBlock {
-        param($root,$sqlPassword,$db,$sql)
-        Push-Location $root
-        try {
-            & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -Q $sql | Out-Null
-            if($LASTEXITCODE -ne 0){throw 'holder sqlcmd falhou'}
-        } finally { Pop-Location }
-    } -ArgumentList $Root,$sqlPassword,$db,$holderSql
-    Start-Sleep -Milliseconds 250
-    $sw=[Diagnostics.Stopwatch]::StartNew()
-    $result=[int](Scalar "DECLARE @r int; EXEC @r=sys.sp_getapplock @Resource=N'$Resource',@LockMode='Exclusive',@LockOwner='Session',@LockTimeout=10000; DECLARE @release int; IF @r>=0 EXEC @release=sys.sp_releaseapplock @Resource=N'$Resource',@LockOwner='Session'; SELECT @r;")
-    $sw.Stop()
-    Wait-Job $job | Out-Null
-    Receive-Job $job | Out-Null
-    Remove-Job $job
-    return [ordered]@{resource=$Resource;lockResult=$result;waitMilliseconds=[int64]$sw.ElapsedMilliseconds}
-}
 
 SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
 SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql')
@@ -137,8 +117,14 @@ $decisionQuality=$decisionQualityJson | ConvertFrom-Json
 $blockingPressureJson=Scalar "DECLARE @ruleset uniqueidentifier=(SELECT ruleset_id FROM identidade.linkage_ruleset WHERE modelo_id='$modelId'); SELECT (SELECT (SELECT COUNT(*) FROM identidade.linkage_ruleset_passe WHERE ruleset_id=@ruleset) AS ruleSetPassCount, (SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE vigencia_fim IS NULL) AS blockingRows, (SELECT COUNT_BIG(*) FROM (SELECT atributo,valor_normalizado FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) d) AS distinctKeys, (SELECT ISNULL(MAX(people_per_key),0) FROM (SELECT COUNT_BIG(DISTINCT pessoa_uuid) people_per_key FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) q) AS maxPeoplePerKey, JSON_QUERY((SELECT a.atributo AS attribute, COUNT_BIG(*) AS rows, COUNT_BIG(DISTINCT a.valor_normalizado) AS distinctValues, (SELECT ISNULL(MAX(people_per_value),0) FROM (SELECT COUNT_BIG(DISTINCT b.pessoa_uuid) people_per_value FROM identidade.blocking_chave b WHERE b.vigencia_fim IS NULL AND b.atributo=a.atributo GROUP BY b.valor_normalizado) z) AS maxPeoplePerValue FROM identidade.blocking_chave a WHERE a.vigencia_fim IS NULL GROUP BY a.atributo FOR JSON PATH)) AS attributes FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);"
 if([string]::IsNullOrWhiteSpace($blockingPressureJson)){throw 'métricas de pressão de blocking ausentes.'}
 $blockingPressure=$blockingPressureJson | ConvertFrom-Json
-$exclusiveProbe=Probe-Lock 'Jornada.Pipeline.ExclusiveRequest' $lockHolderDelayMs
-$corpusProbe=Probe-Lock 'Jornada.Pipeline.Corpus' $lockHolderDelayMs
+
+Push-Location $Root
+try {
+  $coordinationArgs = @($Python3.Prefix) + @('scripts/coordination-lock-probe.py', '--root', $Root, '--database', $db, '--delay-ms', "$lockHolderDelayMs")
+  $coordinationProbeJson = (& $Python3.Exe @coordinationArgs | Select-Object -Last 1)
+  if($LASTEXITCODE-ne 0 -or [string]::IsNullOrWhiteSpace($coordinationProbeJson)){throw 'probe sincronizado de coordenação falhou'}
+  $coordinationProbe=$coordinationProbeJson | ConvertFrom-Json
+} finally { Pop-Location }
 
 $gitCommitSha=((& git -C $Root rev-parse HEAD) | Select-Object -Last 1).Trim().ToLowerInvariant()
 if($LASTEXITCODE -ne 0 -or $gitCommitSha -notmatch '^[0-9a-f]{40}$'){throw 'SHA Git inválido para evidência de escala.'}
@@ -146,7 +132,7 @@ $outDir=Join-Path $Root '.local/performance'; New-Item -ItemType Directory -Forc
 $out=Join-Path $outDir ("scale-{0}-{1}.json" -f $Profile,(Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ'))
 $report=[ordered]@{
   reportVersion='LINKAGE_SCALE_EVIDENCE_V1';gitCommitSha=$gitCommitSha;profile=$Profile;seed=$seed;collisionModulo=$collisionModulo;birthShiftModulo=$birthShiftModulo;goldPeople=$people;pairedPeople=$paired;pendingWithoutCpf=$pending;trainingSampleSize=$sample;trainingPoolSize=$pool;modelVersion=$model;runtimeScope=$runtimeScope;parametersGenerateMilliseconds=$paramMs;runnerMilliseconds=$runnerMs;blockingPressure=$blockingPressure;decisionQuality=$decisionQuality;
-  coordinationProbe=[ordered]@{holderDelayMilliseconds=$lockHolderDelayMs;exclusiveRequest=$exclusiveProbe;corpus=$corpusProbe};
+  coordinationProbe=$coordinationProbe;
   runner=[ordered]@{status=$row[0];eligible=[int64]$row[1];evaluated=[int64]$row[2];resolved=[int64]$row[3];unresolved=[int64]$row[4];conflicts=[int64]$row[5];noCandidateInBirthDateBlock=[int64]$row[6]};correlationId="$corr";generatedAtUtc=(Get-Date).ToUniversalTime().ToString('o')
 } | ConvertTo-Json -Depth 10
 [IO.File]::WriteAllText($out, $report + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))

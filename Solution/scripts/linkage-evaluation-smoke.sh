@@ -31,8 +31,6 @@ resolve_python3(){
 for x in docker dotnet sha256sum; do need "$x"; done
 resolve_python3
 
-# Git Bash converte caminhos POSIX passados a executáveis Windows. Este caminho existe
-# dentro do container Linux e deve chegar intacto ao docker.exe.
 case "$(uname -s 2>/dev/null || true)" in
   MINGW*|MSYS*|CYGWIN*)
     required_arg_conv_exclusion='/opt/mssql-tools18/bin/sqlcmd'
@@ -57,7 +55,15 @@ fi
 [[ -n "$CID" ]] || { echo "ERRO: container SQL Server não encontrado." >&2; exit 3; }
 
 mkdir -p "$OUT"
-rm -f "$OUT/labels.csv" "$OUT/report.json" "$OUT/candidate-ranking-audit.json" "$OUT/before.txt" "$OUT/after.txt"
+rm -f \
+  "$OUT/labels.csv" \
+  "$OUT/report.json" \
+  "$OUT/report-repeat.json" \
+  "$OUT/evaluation-semantic.json" \
+  "$OUT/evaluation-semantic-sha256.txt" \
+  "$OUT/candidate-ranking-audit.json" \
+  "$OUT/before.txt" \
+  "$OUT/after.txt"
 
 sqlcmd(){
   docker exec -i -e "SQLCMDPASSWORD=$SQL_PASSWORD" "$CID" \
@@ -83,19 +89,20 @@ SET NOCOUNT ON;
 WITH pend AS (
     SELECT TOP ($LABEL_COUNT)
            po.pessoa_observacao_id,
+           po.codigo_pessoa_origem,
            TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10)) AS n
     FROM silver.pessoa_observacao po
     WHERE po.cpf IS NULL
       AND po.codigo_pessoa_origem LIKE 'SCALE-PEND-%'
-    ORDER BY po.pessoa_observacao_id
+      AND TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10)) IS NOT NULL
+    ORDER BY TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10)),po.codigo_pessoa_origem
 )
 SELECT CONCAT(
     pessoa_observacao_id,',',
     CONVERT(varchar(36),CONVERT(uniqueidentifier,HASHBYTES('MD5',CONCAT('JORNADA-V355-',$SCALE_SEED,'-P-',((n-1)%$SCALE_PEOPLE)+1))))
 )
 FROM pend
-WHERE n IS NOT NULL
-ORDER BY pessoa_observacao_id;" | tr -d '\r' | sed '/^[[:space:]]*$/d' >> "$OUT/labels.csv"
+ORDER BY n,codigo_pessoa_origem;" | tr -d '\r' | sed '/^[[:space:]]*$/d' >> "$OUT/labels.csv"
 
 actual_labels="$(( $(wc -l < "$OUT/labels.csv") - 1 ))"
 [[ "$actual_labels" -eq "$LABEL_COUNT" ]] || {
@@ -120,6 +127,15 @@ snapshot "$OUT/before.txt"
     --sample-pool-size 5000 \
     --smoothing-alpha 0.5 \
     --command-timeout-seconds 300
+
+  dotnet run --project src/Jornada.Linkage.Evaluation --configuration Release --no-build -- \
+    --labels "$OUT/labels.csv" \
+    --output "$OUT/report-repeat.json" \
+    --birth-window-days 7 \
+    --max-cpf-anchored-pairs 500 \
+    --sample-pool-size 5000 \
+    --smoothing-alpha 0.5 \
+    --command-timeout-seconds 300
 )
 
 snapshot "$OUT/after.txt"
@@ -128,6 +144,44 @@ cmp -s "$OUT/before.txt" "$OUT/after.txt" || {
   diff -u "$OUT/before.txt" "$OUT/after.txt" >&2 || true
   exit 5
 }
+
+"${PYTHON_CMD[@]}" - "$OUT/report.json" "$OUT/report-repeat.json" "$OUT/evaluation-semantic.json" "$OUT/evaluation-semantic-sha256.txt" <<'PY'
+import hashlib,json,sys
+first_path,second_path,out_path,hash_path=sys.argv[1:]
+
+def load(path):
+    with open(path,encoding='utf-8') as f:
+        return json.load(f)
+
+def semantic(r):
+    inp=r.get('input',{})
+    return {
+        'purpose':r.get('purpose'),
+        'safeguards':sorted(r.get('safeguards') or []),
+        'input':{
+            'labeledNoCpfPairs':inp.get('labeledNoCpfPairs'),
+            'cpfAnchoredIndependentPairs':inp.get('cpfAnchoredIndependentPairs'),
+            'birthWindowDays':inp.get('birthWindowDays'),
+            'smoothingAlpha':inp.get('smoothingAlpha'),
+            'commandTimeoutSeconds':inp.get('commandTimeoutSeconds'),
+        },
+        'blocking':r.get('blocking'),
+        'mTransportability':r.get('mTransportability'),
+    }
+
+first=semantic(load(first_path))
+second=semantic(load(second_path))
+if first != second:
+    raise SystemExit('Evaluation não é semanticamente reprodutível em duas execuções sobre o mesmo banco/labels')
+canonical=json.dumps(first,ensure_ascii=False,sort_keys=True,separators=(',',':'))
+with open(out_path,'w',encoding='utf-8') as f:
+    json.dump(first,f,ensure_ascii=False,sort_keys=True,indent=2)
+    f.write('\n')
+digest=hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+with open(hash_path,'w',encoding='ascii') as f:
+    f.write(digest+'\n')
+print(f'Evaluation determinism: semantic_sha256={digest}')
+PY
 
 "${PYTHON_CMD[@]}" - "$OUT/report.json" "$LABEL_COUNT" <<'PY'
 import json,sys
@@ -271,11 +325,14 @@ PY
   --root "$ROOT" --self-test
 "${PYTHON_CMD[@]}" "$ROOT/scripts/performance-evidence-gate.py" --self-test
 
+semantic_sha256="$(tr -d '\r\n' < "$OUT/evaluation-semantic-sha256.txt")"
 {
   echo "status=OK"
   echo "labels=$actual_labels"
   echo "report_sha256=$(sha256sum "$OUT/report.json" | awk '{print $1}')"
   echo "candidate_ranking_audit_sha256=$(sha256sum "$OUT/candidate-ranking-audit.json" | awk '{print $1}')"
+  echo "evaluation_semantic_sha256=$semantic_sha256"
+  echo "evaluation_repeat_semantically_equal=true"
   echo "operational_fingerprint_unchanged=true"
 } > "$OUT/result.txt"
 cat "$OUT/result.txt"

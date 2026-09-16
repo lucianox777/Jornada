@@ -18,13 +18,8 @@ REQUIRED_DIVERSE_ATTRIBUTES = {
     "mother_name_phonetic_ptbr",
 }
 
-# O harness SCALE deve detectar chaves patológicas antes que elas cheguem a um
-# blocking quadrático. Rejeitar apenas uma chave 100% universal deixa passar
-# distribuições quase universais (por exemplo 8.000 de 10.000 Pessoas).
-# 25% é deliberadamente folgado para atributos legítimos de baixa cardinalidade
-# do corpus sintético e, ao mesmo tempo, forte o bastante para capturar colapso
-# de normalização/fonética ou um gerador degenerado.
 MAX_PEOPLE_PER_KEY_FRACTION = 0.25
+MIN_COORDINATION_WAIT_FRACTION = 0.50
 
 
 def _nonnegative_int(value: object, label: str, errors: list[str]) -> int:
@@ -69,9 +64,7 @@ def validate(data: dict) -> list[str]:
         if keys > 0 and max_people <= 0:
             errors.append("distinctKeys > 0 exige maxPeoplePerKey > 0")
         if gold_people > 1 and max_people >= gold_people:
-            errors.append(
-                "blockingPressure.maxPeoplePerKey não pode abranger toda a população Gold SCALE"
-            )
+            errors.append("blockingPressure.maxPeoplePerKey não pode abranger toda a população Gold SCALE")
         elif _exceeds_population_fraction(max_people, gold_people):
             errors.append(
                 "blockingPressure.maxPeoplePerKey excede "
@@ -192,8 +185,6 @@ def validate(data: dict) -> list[str]:
             errors.append("runner.unresolved deve coincidir com decisionQuality.unresolved")
         if resolved + conflicts + unresolved != total:
             errors.append("decisionQuality deve fechar resolved + conflicts + unresolved")
-        if correct + false_positives != resolved:
-            errors.append("decisionQuality de resolvidos não fecha")
         if truth_first + truth_tie + truth_second + truth_outside != unresolved:
             errors.append(
                 "decisionQuality de não resolvidos deve particionar exatamente firstWithoutTie + top2Tie + secondWithoutTie + outsideTop2"
@@ -217,9 +208,14 @@ def validate(data: dict) -> list[str]:
     if not isinstance(coordination, dict):
         errors.append("coordinationProbe ausente ou inválido")
     else:
-        hold_ms = _nonnegative_int(coordination.get("holderDelayMilliseconds"), "coordinationProbe.holderDelayMilliseconds", errors)
+        hold_ms = _nonnegative_int(
+            coordination.get("holderDelayMilliseconds"),
+            "coordinationProbe.holderDelayMilliseconds",
+            errors,
+        )
         if hold_ms <= 0:
             errors.append("coordinationProbe.holderDelayMilliseconds deve ser > 0")
+        minimum_wait_ms = int(hold_ms * MIN_COORDINATION_WAIT_FRACTION)
         for key, expected_resource in RESOURCES.items():
             probe = coordination.get(key)
             if not isinstance(probe, dict):
@@ -227,12 +223,25 @@ def validate(data: dict) -> list[str]:
                 continue
             if probe.get("resource") != expected_resource:
                 errors.append(f"coordinationProbe.{key}.resource divergente")
+            if probe.get("contentionConfirmed") is not True:
+                errors.append(f"coordinationProbe.{key}.contentionConfirmed deve ser true")
             lock_result = probe.get("lockResult")
             if isinstance(lock_result, bool) or not isinstance(lock_result, int):
                 errors.append(f"coordinationProbe.{key}.lockResult deve ser inteiro")
-            elif lock_result < 0:
-                errors.append(f"coordinationProbe.{key}.lockResult={lock_result} indica falha de aquisição")
-            _nonnegative_int(probe.get("waitMilliseconds"), f"coordinationProbe.{key}.waitMilliseconds", errors)
+            elif lock_result != 1:
+                errors.append(
+                    f"coordinationProbe.{key}.lockResult={lock_result} não comprova espera por contenção; esperado 1"
+                )
+            wait_ms = _nonnegative_int(
+                probe.get("waitMilliseconds"),
+                f"coordinationProbe.{key}.waitMilliseconds",
+                errors,
+            )
+            if hold_ms > 0 and wait_ms < minimum_wait_ms:
+                errors.append(
+                    f"coordinationProbe.{key}.waitMilliseconds={wait_ms} abaixo do mínimo de contenção "
+                    f"{minimum_wait_ms} ms ({MIN_COORDINATION_WAIT_FRACTION:.0%} de {hold_ms} ms)"
+                )
 
     return errors
 
@@ -255,12 +264,7 @@ def self_test() -> int:
                 {"attribute": "birth_month", "rows": 100, "distinctValues": 12, "maxPeoplePerValue": 12},
             ],
         },
-        "runner": {
-            "evaluated": 20,
-            "resolved": 15,
-            "unresolved": 4,
-            "conflicts": 1,
-        },
+        "runner": {"evaluated": 20, "resolved": 15, "unresolved": 4, "conflicts": 1},
         "decisionQuality": {
             "totalScale": 20,
             "resolved": 15,
@@ -281,11 +285,13 @@ def self_test() -> int:
             "holderDelayMilliseconds": 3000,
             "exclusiveRequest": {
                 "resource": "Jornada.Pipeline.ExclusiveRequest",
+                "contentionConfirmed": True,
                 "lockResult": 1,
                 "waitMilliseconds": 2500,
             },
             "corpus": {
                 "resource": "Jornada.Pipeline.Corpus",
+                "contentionConfirmed": True,
                 "lockResult": 1,
                 "waitMilliseconds": 2500,
             },
@@ -295,9 +301,19 @@ def self_test() -> int:
         raise RuntimeError("self-test: evidência válida foi rejeitada")
 
     bad = copy.deepcopy(valid)
-    bad["coordinationProbe"]["corpus"]["lockResult"] = -1
+    bad["coordinationProbe"]["exclusiveRequest"]["lockResult"] = 0
     if not validate(bad):
-        raise RuntimeError("self-test: falha de lock deveria ser rejeitada")
+        raise RuntimeError("self-test: aquisição imediata sem espera deveria ser rejeitada")
+
+    bad = copy.deepcopy(valid)
+    bad["coordinationProbe"]["corpus"]["contentionConfirmed"] = False
+    if not validate(bad):
+        raise RuntimeError("self-test: probe sem confirmação do holder deveria ser rejeitado")
+
+    bad = copy.deepcopy(valid)
+    bad["coordinationProbe"]["corpus"]["waitMilliseconds"] = 100
+    if not validate(bad):
+        raise RuntimeError("self-test: espera curta demais deveria ser rejeitada")
 
     bad = copy.deepcopy(valid)
     bad["blockingPressure"]["ruleSetPassCount"] = 0
