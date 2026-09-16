@@ -92,9 +92,8 @@ def validate_scale_provenance(data: dict, errors: list[str]) -> None:
         errors.append("runtimeScope.blocking.ruleSetVersion ausente em modo RULESET")
     if not sha256(blocking.get("ruleSetFingerprintSha256")):
         errors.append("runtimeScope.blocking.ruleSetFingerprintSha256 inválido")
-    projection_version = blocking.get("projectionSchemaVersion")
-    if isinstance(projection_version, bool) or not isinstance(projection_version, int) or projection_version <= 0:
-        errors.append("runtimeScope.blocking.projectionSchemaVersion deve ser inteiro > 0")
+    if not nonblank(blocking.get("projectionSchemaVersion")):
+        errors.append("runtimeScope.blocking.projectionSchemaVersion deve ser string não vazia")
     if not sha256(blocking.get("projectionFingerprintSha256")):
         errors.append("runtimeScope.blocking.projectionFingerprintSha256 inválido")
 
@@ -281,7 +280,7 @@ def self_test_report() -> dict:
                 "mode": "RULESET",
                 "ruleSetVersion": "BLOCKING_V2",
                 "ruleSetFingerprintSha256": fake_sha,
-                "projectionSchemaVersion": 1,
+                "projectionSchemaVersion": "PERSON_RESOLUTION_PROJECTION_V2",
                 "projectionFingerprintSha256": fake_sha,
             },
         },
@@ -309,6 +308,11 @@ def run_self_test() -> int:
     missing_ruleset_fingerprint["runtimeScope"]["blocking"]["ruleSetFingerprintSha256"] = None
     if validate_report(missing_ruleset_fingerprint, 1)["status"] != "FAIL":
         raise RuntimeError("self-test esperava rejeição de fingerprint de ruleset ausente")
+
+    numeric_projection_version = copy.deepcopy(valid)
+    numeric_projection_version["runtimeScope"]["blocking"]["projectionSchemaVersion"] = 2
+    if validate_report(numeric_projection_version, 1)["status"] != "FAIL":
+        raise RuntimeError("self-test esperava rejeição de projectionSchemaVersion numérica")
 
     print("PERFORMANCE EVIDENCE GATE SELF-TEST: OK")
     return 0
