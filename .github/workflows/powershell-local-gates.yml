@@ -74,6 +74,26 @@ jobs:
           }
           Write-Host 'LOCAL SUITE ISOLATION/RESET CONTRACT: OK'
 
+      - name: Validate canonical audit before scale and canonical restoration
+        shell: pwsh
+        run: |
+          $content = Get-Content -Raw -Encoding UTF8 scripts/local-test-all.ps1
+          $audit = $content.IndexOf("Invoke-Step 'Auditoria read-only de candidate recall/rank'")
+          $clean = $content.IndexOf("Invoke-Step 'Encerrar cluster antes do harness de escala'")
+          $scale = $content.IndexOf("Invoke-Step 'Scale harness smoke + restauração do banco canônico'")
+          if ($audit -lt 0 -or $clean -lt 0 -or $scale -lt 0 -or -not ($audit -lt $clean -and $clean -lt $scale)) {
+            throw 'A suíte full deve auditar o corpus canônico antes de limpar o cluster e executar o scale smoke.'
+          }
+          if ($content -notmatch "JORNADA_EVALUATION_SCALE_PEOPLE = '5000'") {
+            throw 'A auditoria canônica deve usar a população SCALE Gold canônica de 5000 Pessoas.'
+          }
+          $scaleBlock = $content.Substring($scale)
+          if ($scaleBlock -notmatch "Invoke-PowerShellScript 'local-scale\.ps1' @\('-Profile', 'smoke'\)" -or
+              $scaleBlock -notmatch "Invoke-PowerShellScript 'local-db\.ps1' @\('-Action', 'reset'\)") {
+            throw 'O scale smoke da suíte full deve restaurar deterministicamente o banco canônico ao terminar.'
+          }
+          Write-Host 'LOCAL SUITE CANONICAL AUDIT/SCALE RESTORE CONTRACT: OK'
+
       - name: Execute DDL upgrade gate through PowerShell
         shell: pwsh
         run: |
