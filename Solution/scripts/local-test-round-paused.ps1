@@ -36,81 +36,79 @@ try {
     Write-Host 'RODADA LOCAL DE TESTES - EXECUÇÃO PASSO A PASSO' -ForegroundColor Yellow
     Write-Host "Solution: $Root"
     Write-Host 'O script para na primeira falha e pausa entre todos os comandos.'
+    Write-Host 'A suíte agregada local-test-all é propositalmente separada para não repetir toda a rodada.'
     Write-Host ''
 
-    Invoke-Step '1/18 - Estado atual do Git' {
+    Invoke-Step '1/17 - Estado atual do Git' {
         git status --short --branch
     }
 
-    Invoke-Step '2/18 - Restore locked' {
+    Invoke-Step '2/17 - Restore locked' {
         dotnet restore Jornada.sln --locked-mode
     }
 
-    Invoke-Step '3/18 - Build Release com warnings como erro' {
+    Invoke-Step '3/17 - Build Release com warnings como erro' {
         dotnet build Jornada.sln --configuration Release --no-restore -warnaserror
     }
 
-    Invoke-Step '4/18 - Testes não-integration completos' {
+    Invoke-Step '4/17 - Testes não-integration completos' {
         dotnet test .\tests\Jornada.Tests\Jornada.Tests.csproj --configuration Release --no-build --filter 'TestCategory!=Integration'
     }
 
-    Invoke-Step '5/18 - Reset do banco local canônico' {
+    Invoke-Step '5/17 - Reset do banco local canônico' {
         & .\scripts\local-db.ps1 -Action reset
     }
 
-    Invoke-Step '6/18 - Core local oficial' {
+    Invoke-Step '6/17 - Core local oficial' {
         & .\scripts\local-test.ps1
     }
 
-    Invoke-Step '7/18 - Upgrade DDL e idempotência' {
+    Invoke-Step '7/17 - Upgrade DDL e idempotência' {
         & .\scripts\local-ddl-upgrade.ps1
     }
 
-    Invoke-Step '8/18 - E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP' {
+    Invoke-Step '8/17 - E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP' {
         & .\scripts\local-e2e.ps1
     }
 
-    Invoke-Step '9/18 - Fault injection' {
+    Invoke-Step '9/17 - Fault injection' {
         & .\scripts\local-fault-injection.ps1
     }
 
-    Invoke-Step '10/18 - Cluster clean' {
+    Invoke-Step '10/17 - Cluster clean' {
         & .\scripts\local-cluster.ps1 -Action clean
     }
 
-    Invoke-Step '11/18 - Cluster up' {
+    Invoke-Step '11/17 - Cluster up' {
         & .\scripts\local-cluster.ps1 -Action up
     }
 
-    Invoke-Step '12/18 - Calibração' {
+    Invoke-Step '12/17 - Calibração' {
         & .\scripts\local-cluster.ps1 -Action calibrate
     }
 
-    Invoke-Step '13/18 - Linkage' {
+    Invoke-Step '13/17 - Linkage' {
         & .\scripts\local-cluster.ps1 -Action linkage
     }
 
-    Invoke-Step '14/18 - Diagnóstico tie-aware do Linkage' {
+    Invoke-Step '14/17 - Diagnóstico tie-aware do Linkage' {
         & .\scripts\local-cluster.ps1 -Action linkage-diagnose
     }
 
-    Invoke-Step '15/18 - Smoke de escala' {
+    Invoke-Step '15/17 - Smoke de escala + probe sincronizado de coordenação' {
         & .\scripts\local-scale.ps1 -Profile smoke
     }
 
-    Invoke-Step '16/18 - Restaurar banco canônico após SCALE' {
+    Invoke-Step '16/17 - Restaurar banco canônico após SCALE' {
         & .\scripts\local-db.ps1 -Action reset
     }
 
-    Invoke-Step '17/18 - Suíte completa agregada' {
-        & .\scripts\local-test-all.ps1 -Suite full
-    }
-
-    Invoke-Step '18/18 - Estado final do Git' {
+    Invoke-Step '17/17 - Estado final do Git' {
         git status --short --branch
     }
 
-    Write-Host 'RODADA LOCAL COMPLETA: OK' -ForegroundColor Green
+    Write-Host 'RODADA LOCAL PASSO A PASSO: OK' -ForegroundColor Green
+    Write-Host 'Suíte agregada opcional, em comando separado: .\scripts\local-test-all.ps1 -Suite full'
 }
 finally {
     Pop-Location
