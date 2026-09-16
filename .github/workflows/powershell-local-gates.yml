@@ -57,6 +57,23 @@ jobs:
             Write-Host "POWERSHELL UTF-8 BOM/PARSE OK: $file"
           }
 
+      - name: Validate local suite isolation and deterministic database reset
+        shell: pwsh
+        run: |
+          $content = Get-Content -Raw -Encoding UTF8 scripts/local-test-all.ps1
+          if ($content -notmatch "Invoke-Git @\('worktree','add','--detach'") {
+            throw 'local-test-all.ps1 deve executar origin/master em worktree destacado.'
+          }
+          if ($content -notmatch "Invoke-PowerShellScript 'local-db\.ps1' @\('-Action', 'reset'\)") {
+            throw 'local-test-all.ps1 deve recriar o banco canônico antes do Core.'
+          }
+          foreach ($forbidden in @('Sync-CleanMaster', 'CleanMasterExecution', "reset','--hard", "clean','-fd")) {
+            if ($content.Contains($forbidden)) {
+              throw "local-test-all.ps1 não pode voltar a alterar destrutivamente o working tree: $forbidden"
+            }
+          }
+          Write-Host 'LOCAL SUITE ISOLATION/RESET CONTRACT: OK'
+
       - name: Execute DDL upgrade gate through PowerShell
         shell: pwsh
         run: |
