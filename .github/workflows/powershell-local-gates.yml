@@ -6,6 +6,7 @@ on:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
       - 'Solution/scripts/local-db.ps1'
       - '.github/workflows/powershell-local-gates.yml'
@@ -14,6 +15,7 @@ on:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
       - 'Solution/scripts/local-db.ps1'
       - '.github/workflows/powershell-local-gates.yml'
@@ -45,6 +47,7 @@ jobs:
             'scripts/local-ddl-upgrade.ps1',
             'scripts/local-test.ps1',
             'scripts/local-test-all.ps1',
+            'scripts/local-scale.ps1',
             'scripts/local-sql-runtime-smoke.ps1',
             'scripts/local-db.ps1'
           )
@@ -56,6 +59,18 @@ jobs:
             $null = [scriptblock]::Create((Get-Content -Raw -Encoding UTF8 $file))
             Write-Host "POWERSHELL UTF-8 BOM/PARSE OK: $file"
           }
+
+      - name: Validate local scale environment parity
+        shell: pwsh
+        run: |
+          $content = Get-Content -Raw -Encoding UTF8 scripts/local-scale.ps1
+          if ($content -notmatch "\$env:DOTNET_ENVIRONMENT='Development'") {
+            throw 'local-scale.ps1 deve executar o harness inteiro em DOTNET_ENVIRONMENT=Development.'
+          }
+          if ($content -notmatch "\$env:DOTNET_ENVIRONMENT=\$previousDotnetEnvironment") {
+            throw 'local-scale.ps1 deve restaurar DOTNET_ENVIRONMENT ao terminar.'
+          }
+          Write-Host 'LOCAL SCALE ENVIRONMENT CONTRACT: OK'
 
       - name: Validate local suite isolation and deterministic database reset
         shell: pwsh
