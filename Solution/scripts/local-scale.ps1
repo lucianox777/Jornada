@@ -1,6 +1,25 @@
 param([ValidateSet('smoke','medium','million','custom')][string]$Profile='smoke')
 $ErrorActionPreference='Stop'
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+
+function Resolve-Python3 {
+    foreach ($candidate in @(
+        @{ Name = 'python3'; Prefix = @() },
+        @{ Name = 'python'; Prefix = @() },
+        @{ Name = 'py'; Prefix = @('-3') }
+    )) {
+        $command = Get-Command $candidate.Name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($null -eq $command) { continue }
+        $prefix = @($candidate.Prefix)
+        & $command.Source @prefix -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            return @{ Exe = $command.Source; Prefix = $prefix }
+        }
+    }
+    throw 'Python 3 não encontrado (tentados: python3, python, py -3).'
+}
+
+$Python3 = Resolve-Python3
 switch ($Profile) {
   'smoke'   { $people=10000;   $paired=6000;  $pending=5000;   $sample=5000;  $pool=10000 }
   'medium'  { $people=100000;  $paired=20000; $pending=25000;  $sample=10000; $pool=100000 }
@@ -103,7 +122,9 @@ $report=[ordered]@{
 $latest=Join-Path $outDir ("scale-{0}-latest.json" -f $Profile); Copy-Item $out $latest -Force
 Push-Location $Root
 try {
-  python3 scripts/performance-evidence-gate.py $out --minimum-eligible 1 --baseline config/hml/performance-baseline.json --summary (Join-Path $outDir ("scale-{0}-validation.json" -f $Profile)); if($LASTEXITCODE-ne 0){throw 'evidência de escala inválida'}
-  python3 scripts/scale-observability-evidence-gate.py $out; if($LASTEXITCODE-ne 0){throw 'evidência de observabilidade de escala inválida'}
+  $performanceArgs = @($Python3.Prefix) + @('scripts/performance-evidence-gate.py', $out, '--minimum-eligible', '1', '--baseline', 'config/hml/performance-baseline.json', '--summary', (Join-Path $outDir ("scale-{0}-validation.json" -f $Profile)))
+  & $Python3.Exe @performanceArgs; if($LASTEXITCODE-ne 0){throw 'evidência de escala inválida'}
+  $observabilityArgs = @($Python3.Prefix) + @('scripts/scale-observability-evidence-gate.py', $out)
+  & $Python3.Exe @observabilityArgs; if($LASTEXITCODE-ne 0){throw 'evidência de observabilidade de escala inválida'}
 } finally { Pop-Location }
 Write-Host "Scale harness concluído: $out"; Get-Content $out
