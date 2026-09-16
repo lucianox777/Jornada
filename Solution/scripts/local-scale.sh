@@ -60,6 +60,7 @@ PY
 }
 
 sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_PAIRED="$PAIRED" SCALE_PENDING="$PENDING" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" SCALE_BIRTH_SHIFT_MODULO="$BIRTH_SHIFT_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale.sql
+sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql
 "$ROOT/scripts/local-db.sh" backfill
 
 cd "$ROOT"
@@ -121,6 +122,8 @@ RUNNER_MS=$((R1-R0))
 IFS='|' read -r RUN_STATUS ELIGIBLE EVALUATED RESOLVED UNRESOLVED CONFLICTS NO_CANDIDATE <<< "$(scalar "SELECT CONCAT(status,'|',registros_elegiveis,'|',avaliados,'|',resolvidos,'|',nao_resolvidos,'|',conflitos,'|',sem_candidato_no_bloco) FROM identidade.linkage_run WHERE correlation_id='$CORRELATION';")"
 RUN_SCOPE_JSON="$(scalar "SELECT escopo_json FROM identidade.linkage_run WHERE correlation_id='$CORRELATION';")"
 [[ -n "$RUN_SCOPE_JSON" ]] || { echo "ERRO: escopo_json do linkage_run ausente." >&2; exit 5; }
+DECISION_QUALITY_JSON="$(scalar "DECLARE @run uniqueidentifier=(SELECT linkage_run_id FROM identidade.linkage_run WHERE correlation_id='$CORRELATION'); WITH truth AS (SELECT r.*,po.codigo_pessoa_origem,tv.pessoa_uuid AS truth_uuid FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id JOIN silver.pessoa_observacao tpo ON tpo.codigo_pessoa_origem=REPLACE(po.codigo_pessoa_origem,'SCALE-PEND-','SCALE-SEHAB-') JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo='SEHAB' JOIN identidade.v_vinculo_corrente tv ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id AND tv.status='RESOLVIDO' WHERE r.linkage_run_id=@run AND po.codigo_pessoa_origem LIKE 'SCALE-PEND-%') SELECT (SELECT COUNT_BIG(*) AS totalScale,SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END) AS resolved,SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END) AS resolvedCorrect,SUM(CASE WHEN status='RESOLVIDO' AND (pessoa_uuid_resolvido IS NULL OR pessoa_uuid_resolvido<>truth_uuid) THEN 1 ELSE 0 END) AS falsePositives,SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END) AS conflicts,SUM(CASE WHEN status='CONFLITO' AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS conflictsTruthTop2,SUM(CASE WHEN status='NAO_RESOLVIDO' AND melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END) AS unresolvedTruthFirst,SUM(CASE WHEN ISNULL(melhor_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid AND ISNULL(segundo_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid THEN 1 ELSE 0 END) AS truthOutsideTop2,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END),0) AS decimal(9,4)) AS ppvPct,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(COUNT_BIG(*),0) AS decimal(9,4)) AS sensitivityPct FROM truth FOR JSON PATH,WITHOUT_ARRAY_WRAPPER);")"
+[[ -n "$DECISION_QUALITY_JSON" ]] || { echo "ERRO: qualidade contra ground truth SCALE ausente." >&2; exit 5; }
 
 BLOCKING_PRESSURE_JSON="$(scalar "DECLARE @ruleset uniqueidentifier=(SELECT ruleset_id FROM identidade.linkage_ruleset WHERE modelo_id='$MODEL_ID'); SELECT (SELECT (SELECT COUNT(*) FROM identidade.linkage_ruleset_passe WHERE ruleset_id=@ruleset) AS ruleSetPassCount, (SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE vigencia_fim IS NULL) AS blockingRows, (SELECT COUNT_BIG(*) FROM (SELECT atributo,valor_normalizado FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) d) AS distinctKeys, (SELECT ISNULL(MAX(people_per_key),0) FROM (SELECT COUNT_BIG(DISTINCT pessoa_uuid) people_per_key FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) q) AS maxPeoplePerKey, JSON_QUERY((SELECT a.atributo AS attribute, COUNT_BIG(*) AS rows, COUNT_BIG(DISTINCT a.valor_normalizado) AS distinctValues, (SELECT ISNULL(MAX(people_per_value),0) FROM (SELECT COUNT_BIG(DISTINCT b.pessoa_uuid) people_per_value FROM identidade.blocking_chave b WHERE b.vigencia_fim IS NULL AND b.atributo=a.atributo GROUP BY b.valor_normalizado) z) AS maxPeoplePerValue FROM identidade.blocking_chave a WHERE a.vigencia_fim IS NULL GROUP BY a.atributo FOR JSON PATH)) AS attributes FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);")"
 [[ -n "$BLOCKING_PRESSURE_JSON" ]] || { echo "ERRO: métricas de pressão de blocking ausentes." >&2; exit 5; }
@@ -151,6 +154,7 @@ cat > "$OUT" <<JSON
   "parametersGenerateMilliseconds": $PARAM_MS,
   "runnerMilliseconds": $RUNNER_MS,
   "blockingPressure": $BLOCKING_PRESSURE_JSON,
+  "decisionQuality": $DECISION_QUALITY_JSON,
   "coordinationProbe": {
     "holderDelayMilliseconds": $LOCK_HOLDER_DELAY_MS,
     "exclusiveRequest": {
