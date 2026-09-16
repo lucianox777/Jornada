@@ -69,9 +69,10 @@ fi
 dotnet build Jornada.sln --configuration Release --no-restore -warnaserror
 
 # O reset local representa o schema 3.70. A referência de frequências é evolução
-# posterior e idempotente; o harness aplica sua migração explícita antes do loader.
+# posterior e idempotente; o harness aplica seu contrato completo antes do loader.
 echo "Preparando schema da referência de frequências de nomes..."
 sqlcmd -d "$DB" -i /workspace/database/migrations/20260912_Frequencia_Nomes_Referencia.sql
+sqlcmd -d "$DB" -i /workspace/database/migrations/20260912_Frequencia_Nomes_Cobertura.sql
 
 # O snapshot local é a fonte operacional canônica. Carregá-lo pelo mesmo loader da
 # calibração mantém validação de manifestos, SHA-256, rowCount e publicação ATIVA em
