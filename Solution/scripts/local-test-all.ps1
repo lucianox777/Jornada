@@ -98,6 +98,40 @@ function Get-BashExecutable {
     return $null
 }
 
+function Resolve-LocalSqlContainerId {
+    $canonicalName = 'jornada-sqlserver-local'
+    $idOutput = @(& docker inspect --format '{{.Id}}' $canonicalName 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $idOutput.Count -eq 0) {
+        throw "Container SQL Server local '$canonicalName' não existe. Execute .\scripts\local-cluster.ps1 -Action up."
+    }
+
+    $containerId = (($idOutput | Select-Object -First 1) -as [string]).Trim()
+    if ([string]::IsNullOrWhiteSpace($containerId)) {
+        throw "Container SQL Server local '$canonicalName' foi encontrado sem ID válido."
+    }
+
+    $stateOutput = @(& docker inspect --format '{{.State.Status}}|{{.State.Running}}|{{.State.ExitCode}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' $containerId 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $stateOutput.Count -eq 0) {
+        throw "Não foi possível consultar o estado do container SQL Server local '$canonicalName'."
+    }
+
+    $state = (($stateOutput | Select-Object -First 1) -as [string]).Trim().Split('|')
+    if ($state.Count -lt 4) { throw "Estado inesperado do container SQL Server local '$canonicalName'." }
+    $status = $state[0].Trim()
+    $running = $state[1].Trim().ToLowerInvariant()
+    $exitCode = $state[2].Trim()
+    $health = $state[3].Trim().ToLowerInvariant()
+
+    if ($running -ne 'true') {
+        throw "Container SQL Server local '$canonicalName' existe, mas não está em execução (status=$status; exitCode=$exitCode)."
+    }
+    if ($health -ne 'none' -and $health -ne 'healthy') {
+        throw "Container SQL Server local '$canonicalName' está em execução, mas health=$health."
+    }
+
+    return $containerId
+}
+
 function Invoke-LinkageEvaluationSmoke {
     $bash = Get-BashExecutable
     if ([string]::IsNullOrWhiteSpace($bash)) {
@@ -122,8 +156,9 @@ function Invoke-LinkageEvaluationSmoke {
 
     Push-Location $Root
     try {
-        $containerId = (& docker compose --env-file .env ps -q sqlserver | Select-Object -First 1).Trim()
-        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($containerId)) { throw 'Container SQL Server local não encontrado.' }
+        # A auditoria precisa do container canônico, não de pertencimento ao projeto Compose
+        # do worktree corrente. docker inspect pelo nome fixo é estável entre worktrees.
+        $containerId = Resolve-LocalSqlContainerId
 
         $old = @{
             Connection = $env:ConnectionStrings__Jornada
