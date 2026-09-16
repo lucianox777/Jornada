@@ -49,6 +49,7 @@ jobs:
             grep -F "codigo_pessoa_origem LIKE N'SCALE-%'" "$script" >/dev/null
             grep -F 'Jornada_Dev_SyntheticScale_Diversify.sql' "$script" >/dev/null
             grep -F 'Projeção de blocking' "$script" >/dev/null
+            grep -F '20260912_Frequencia_Nomes_Referencia.sql' "$script" >/dev/null
             grep -F 'LOAD_NAME_FREQUENCY_SNAPSHOT' "$script" >/dev/null
             grep -F 'data/reference/ibge-nomes-2022/manifest.json' "$script" >/dev/null
           done
