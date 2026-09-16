@@ -64,10 +64,10 @@ jobs:
         shell: pwsh
         run: |
           $content = Get-Content -Raw -Encoding UTF8 scripts/local-scale.ps1
-          if ($content -notmatch "\$env:DOTNET_ENVIRONMENT='Development'") {
+          if (-not $content.Contains('$env:DOTNET_ENVIRONMENT=''Development''')) {
             throw 'local-scale.ps1 deve executar o harness inteiro em DOTNET_ENVIRONMENT=Development.'
           }
-          if ($content -notmatch "\$env:DOTNET_ENVIRONMENT=\$previousDotnetEnvironment") {
+          if (-not $content.Contains('$env:DOTNET_ENVIRONMENT=$previousDotnetEnvironment')) {
             throw 'local-scale.ps1 deve restaurar DOTNET_ENVIRONMENT ao terminar.'
           }
           Write-Host 'LOCAL SCALE ENVIRONMENT CONTRACT: OK'
