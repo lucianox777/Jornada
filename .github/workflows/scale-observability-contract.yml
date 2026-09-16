@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'Solution/.dockerignore'
+      - 'Solution/docker-compose.yml'
+      - 'Solution/data/reference/ibge-nomes-2022/**'
       - 'Solution/database/Jornada_Dev_SyntheticScale.sql'
       - 'Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql'
       - 'Solution/scripts/local-scale.sh'
@@ -14,6 +16,8 @@ on:
     branches: [ master ]
     paths:
       - 'Solution/.dockerignore'
+      - 'Solution/docker-compose.yml'
+      - 'Solution/data/reference/ibge-nomes-2022/**'
       - 'Solution/database/Jornada_Dev_SyntheticScale.sql'
       - 'Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql'
       - 'Solution/scripts/local-scale.sh'
@@ -51,6 +55,18 @@ jobs:
           grep -F 'falsePositives' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
           grep -F 'REQUIRED_DIVERSE_ATTRIBUTES' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
           grep -F 'SCALE-PEND-%' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
+          grep -F 'projection-manifest.json' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
+          grep -F "HASHBYTES('SHA2_256'" Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
+          grep -F 'frequencia' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
+          grep -F './data/reference/ibge-nomes-2022:/workspace/data/reference/ibge-nomes-2022:ro' Solution/docker-compose.yml >/dev/null
+          if grep -F 'DECLARE @first TABLE' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null; then
+            echo 'ERRO: o corpus SCALE voltou a usar catálogo fixo uniforme de primeiros nomes.' >&2
+            exit 1
+          fi
+          if grep -F 'DECLARE @surname TABLE' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null; then
+            echo 'ERRO: o corpus SCALE voltou a usar catálogo fixo uniforme de sobrenomes.' >&2
+            exit 1
+          fi
           grep -Fx '**/bin/' Solution/.dockerignore >/dev/null
           grep -Fx '**/obj/' Solution/.dockerignore >/dev/null
           grep -Fx '.local/' Solution/.dockerignore >/dev/null
