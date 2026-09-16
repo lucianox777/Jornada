@@ -1,6 +1,8 @@
+using System.Data;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Jornada.Contracts;
 using Jornada.Operational.Sql;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -37,6 +39,7 @@ internal static class CandidateRankingAuditCommand
         var model = await linkage.GetActiveModelAsync(ct);
 
         var rows = new List<ProbabilisticCandidateRankingAudit>(labels.Count);
+        var decisions = new List<DecisionAuditRow>(labels.Count);
         foreach (var label in labels)
         {
             rows.Add(await linkage.DiagnoseCandidateRankingAsync(
@@ -44,6 +47,14 @@ internal static class CandidateRankingAuditCommand
                 label.TruthPersonUuid,
                 model.ModelId,
                 ct));
+
+            var observation = await LoadObservationAsync(
+                operationalSql,
+                configuration,
+                label.ObservationId,
+                ct);
+            var decision = await linkage.ResolveWithoutCpfAsync(observation, model.ModelId, ct);
+            decisions.Add(new DecisionAuditRow(label.ObservationId, label.TruthPersonUuid, decision));
         }
 
         var candidateCounts = rows
@@ -58,6 +69,14 @@ internal static class CandidateRankingAuditCommand
         var evidenceTop = rows.Count(static row => row.TruthEvidenceRank == 1);
         var evidenceRankGt2 = rows.Count(static row => row.TruthEvidenceRank > 2);
         var tiedAtBestEvidence = rows.Count(static row => row.TruthEvidenceRank == 1 && row.TruthTieCount > 1);
+
+        var resolved = decisions.Count(static row => row.Decision.Status == ResolutionStatus.RESOLVIDO);
+        var correctResolved = decisions.Count(static row =>
+            row.Decision.Status == ResolutionStatus.RESOLVIDO &&
+            row.Decision.PessoaUuidResolvido == row.TruthPersonUuid);
+        var incorrectResolved = resolved - correctResolved;
+        var conflicts = decisions.Count(static row => row.Decision.Status == ResolutionStatus.CONFLITO);
+        var unresolved = decisions.Count(static row => row.Decision.Status == ResolutionStatus.NAO_RESOLVIDO);
 
         var nonTop2 = rows
             .Where(static row => !row.TruthInCandidateSet || row.TruthDeterministicRank > 2)
@@ -80,6 +99,30 @@ internal static class CandidateRankingAuditCommand
             })
             .ToArray();
 
+        var incorrectResolutions = decisions
+            .Where(static row =>
+                row.Decision.Status == ResolutionStatus.RESOLVIDO &&
+                row.Decision.PessoaUuidResolvido != row.TruthPersonUuid)
+            .Select(static row => new
+            {
+                pessoaObservacaoId = row.ObservationId,
+                truthUuid = row.TruthPersonUuid,
+                resolvedUuid = row.Decision.PessoaUuidResolvido,
+                bestCandidateUuid = row.Decision.MelhorCandidatoUuid,
+                bestPosterior = row.Decision.MelhorScore,
+                secondCandidateUuid = row.Decision.SegundoCandidatoUuid,
+                secondPosterior = row.Decision.SegundoScore,
+                decisionMargin = row.Decision.Margem,
+                reason = row.Decision.Motivo
+            })
+            .ToArray();
+
+        var unresolvedReasons = decisions
+            .Where(static row => row.Decision.Status != ResolutionStatus.RESOLVIDO)
+            .GroupBy(static row => row.Decision.Motivo ?? row.Decision.Status.ToString(), StringComparer.Ordinal)
+            .OrderBy(static group => group.Key, StringComparer.Ordinal)
+            .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.Ordinal);
+
         var report = new
         {
             generatedAtUtc = DateTimeOffset.UtcNow,
@@ -90,13 +133,15 @@ internal static class CandidateRankingAuditCommand
                 "does not create linkage_run",
                 "does not write IDENTITY_MAP/vinculo_fonte",
                 "does not update Gold",
-                "reuses Runner active model, frozen ruleset, candidate loader and scorer"
+                "reuses Runner active model, frozen ruleset, candidate loader, scorer and decision policy"
             },
             model = new
             {
                 modelId = model.ModelId,
                 modelVersion = model.Version,
                 algorithmVersion = model.AlgorithmVersion,
+                threshold = model.Threshold,
+                conflictMargin = model.ConflictMargin,
                 blockingRuleSetVersion = model.BlockingContract?.RuleSetVersion,
                 blockingRuleSetFingerprint = model.BlockingContract?.RuleSetFingerprintSha256,
                 projectionSchemaVersion = model.BlockingContract?.ProjectionSchemaVersion,
@@ -118,12 +163,29 @@ internal static class CandidateRankingAuditCommand
                 p95CandidateCount = Percentile(candidateCounts, 0.95),
                 maxCandidateCount = candidateCounts.Length == 0 ? 0 : candidateCounts[^1]
             },
+            decisionQuality = new
+            {
+                sampleSize = decisions.Count,
+                resolved,
+                correctResolved,
+                incorrectResolved,
+                conflicts,
+                unresolved,
+                ppvPct = resolved == 0 ? (decimal?)null : Percentage(correctResolved, resolved),
+                sensitivityPct = Percentage(correctResolved, decisions.Count),
+                resolutionCoveragePct = Percentage(resolved, decisions.Count),
+                unresolvedReasons,
+                incorrectResolutions
+            },
             nonTop2,
             interpretation = new
             {
                 deterministicRank = "Ordena pela evidência do modelo e usa UUID apenas para representação determinística de empates.",
                 evidenceRank = "1 + quantidade de candidatos com evidência estritamente superior. Empates não pioram o rank evidencial.",
-                candidateRecall = "truthAbsentFromCandidateSet isola falha de blocking/candidate recall; verdade presente com evidenceRank>2 isola perda de ranking/scoring."
+                candidateRecall = "truthAbsentFromCandidateSet isola falha de blocking/candidate recall; verdade presente com evidenceRank>2 isola perda de ranking/scoring.",
+                ppv = "correctResolved / resolved no mesmo conjunto rotulado; null quando o modelo não resolve nenhum caso.",
+                sensitivity = "correctResolved / sampleSize; mede a fração da verdade rotulada que seria corretamente resolvida pela política operacional.",
+                resolutionCoverage = "resolved / sampleSize; deve ser analisada junto com PPV e sensibilidade, nunca isoladamente."
             }
         };
 
@@ -134,7 +196,81 @@ internal static class CandidateRankingAuditCommand
             outputPath,
             JsonSerializer.Serialize(report, JsonOptions),
             ct);
-        Console.WriteLine($"Auditoria read-only de candidate ranking gravada em {outputPath}");
+        Console.WriteLine($"Auditoria read-only de candidate ranking/decision quality gravada em {outputPath}");
+    }
+
+    private static async Task<IdentityObservation> LoadObservationAsync(
+        IOperationalSqlAdapter operationalSql,
+        IConfiguration configuration,
+        long observationId,
+        CancellationToken ct)
+    {
+        await using var connection = await operationalSql.OpenAsync(ct);
+        var timeout = Math.Max(1, configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900));
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT cpf,cpf_ausente_motivo,nome_completo,data_nascimento,nome_mae
+            FROM silver.pessoa_observacao
+            WHERE pessoa_observacao_id=@observation_id;
+            """;
+        command.CommandTimeout = timeout;
+        AddParameter(command, "@observation_id", DbType.Int64, observationId);
+
+        string? cpf;
+        string? cpfAbsentReason;
+        string name;
+        DateOnly birthDate;
+        string? motherName;
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+        {
+            if (!await reader.ReadAsync(ct))
+                throw new InvalidOperationException($"Observação {observationId} não encontrada.");
+            cpf = reader.IsDBNull(0) ? null : reader.GetString(0);
+            cpfAbsentReason = reader.IsDBNull(1) ? null : reader.GetString(1);
+            name = reader.GetString(2);
+            birthDate = DateOnly.FromDateTime(reader.GetDateTime(3));
+            motherName = reader.IsDBNull(4) ? null : reader.GetString(4);
+        }
+
+        if (!string.IsNullOrWhiteSpace(cpf))
+            throw new InvalidOperationException($"Observação {observationId} possui CPF; auditoria probabilística exige SEM_CPF.");
+
+        var eligible = PersonResolutionContractCatalog.EligibleTransversal
+            .Select(static field => field.Code)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var attributes = new List<IdentityResolutionAttributeValue>();
+        await using var attributeCommand = connection.CreateCommand();
+        attributeCommand.CommandText = """
+            SELECT atributo_codigo,valor
+            FROM silver.pessoa_atributo_observacao
+            WHERE pessoa_observacao_id=@observation_id
+            ORDER BY atributo_codigo,atributo_instancia_chave,pessoa_atributo_observacao_id;
+            """;
+        attributeCommand.CommandTimeout = timeout;
+        AddParameter(attributeCommand, "@observation_id", DbType.Int64, observationId);
+        await using var attributeReader = await attributeCommand.ExecuteReaderAsync(ct);
+        while (await attributeReader.ReadAsync(ct))
+        {
+            var code = attributeReader.GetString(0);
+            if (eligible.Contains(code))
+                attributes.Add(new IdentityResolutionAttributeValue(code, attributeReader.GetString(1)));
+        }
+
+        return new IdentityObservation(cpf, cpfAbsentReason, name, birthDate, motherName, attributes);
+    }
+
+    private static void AddParameter(
+        System.Data.Common.DbCommand command,
+        string name,
+        DbType type,
+        object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.DbType = type;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
     }
 
     private static string ReadRequiredOption(string[] args, string option)
@@ -229,4 +365,5 @@ internal static class CandidateRankingAuditCommand
     }
 
     private sealed record CandidateRankingLabel(long ObservationId, Guid TruthPersonUuid);
+    private sealed record DecisionAuditRow(long ObservationId, Guid TruthPersonUuid, ProbabilisticLinkageDecision Decision);
 }
