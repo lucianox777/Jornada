@@ -7,24 +7,32 @@ namespace Jornada.Tests;
 public sealed class BlockingRuleSetOptimizerTests
 {
     [Test]
-    public void SelectBest_PrioritizesRecallBeforeStructuralCost()
+    public void SelectBest_MaximizesReductionAfterMinimumRecallIsMet()
     {
         var observations = new[]
         {
-            Obs(true, ("a", true), ("b", true)),
-            Obs(true, ("a", false), ("b", true)),
-            Obs(false, ("a", false), ("b", false)),
-            Obs(false, ("a", false), ("b", true))
+            Obs(true, ("broad", true), ("selective", true)),
+            Obs(true, ("broad", true), ("selective", false)),
+            Obs(false, ("broad", true), ("selective", true)),
+            Obs(false, ("broad", true), ("selective", false)),
+            Obs(false, ("broad", true), ("selective", false)),
+            Obs(false, ("broad", true), ("selective", false))
         };
-        var cheap = new[] { Pass("cheap", "a") };
-        var higherRecall = new[] { Pass("p1", "a"), Pass("p2", "b") };
+        var broad = new[] { Pass("broad", "broad") };
+        var selective = new[] { Pass("selective", "selective") };
 
         var best = BlockingRuleSetOptimizer.SelectBest(
             observations,
-            new IReadOnlyList<LinkageBlockingPass>[] { cheap, higherRecall });
+            new IReadOnlyList<LinkageBlockingPass>[] { broad, selective },
+            minimumTrueMatchRecall: 0.5d,
+            requireObservedNonMatchSupport: true);
 
-        Assert.That(best.CanonicalSignature, Is.EqualTo("p1:a||p2:b"));
-        Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(1d));
+        Assert.Multiple(() =>
+        {
+            Assert.That(best.CanonicalSignature, Is.EqualTo("selective:selective"));
+            Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(0.5d));
+            Assert.That(best.Diagnostic.ReductionRatio, Is.EqualTo(0.75d));
+        });
     }
 
     [Test]
@@ -46,6 +54,32 @@ public sealed class BlockingRuleSetOptimizerTests
 
         Assert.That(best.CanonicalSignature, Is.EqualTo("selective:a+b"));
         Assert.That(best.Diagnostic.ReductionRatio, Is.EqualTo(1d));
+    }
+
+    [Test]
+    public void SelectBest_UsesHigherRecallOnlyAfterReductionTies()
+    {
+        var observations = new[]
+        {
+            Obs(true, ("a", true), ("b", true)),
+            Obs(true, ("a", false), ("b", true)),
+            Obs(false, ("a", false), ("b", false)),
+            Obs(false, ("a", false), ("b", false))
+        };
+        var lowerRecall = new[] { Pass("lower", "a") };
+        var higherRecall = new[] { Pass("higher", "b") };
+
+        var best = BlockingRuleSetOptimizer.SelectBest(
+            observations,
+            new IReadOnlyList<LinkageBlockingPass>[] { lowerRecall, higherRecall },
+            minimumTrueMatchRecall: 0.5d);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(best.CanonicalSignature, Is.EqualTo("higher:b"));
+            Assert.That(best.Diagnostic.ReductionRatio, Is.EqualTo(1d));
+            Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(1d));
+        });
     }
 
     [Test]

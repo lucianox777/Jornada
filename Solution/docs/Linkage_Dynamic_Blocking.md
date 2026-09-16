@@ -70,11 +70,15 @@ O comportamento lógico deve permanecer equivalente nos três providers de refer
 
 ## Busca do ruleset
 
-`BlockingRuleSetSearch` continua bounded e determinístico: avalia passes primitivos, retém pool limitado e testa complementaridade. Promoção é fail-closed se nenhuma alternativa atingir recall mínimo.
+`BlockingRuleSetSearch` V2 continua bounded e determinístico: avalia passes primitivos, retém pool limitado preservando explicitamente alternativas fortes em recall e em redução e testa complementaridade entre passes. Não existe score composto ou peso oculto na busca.
+
+O recall mínimo é uma **restrição fail-closed**, não o objetivo a ser maximizado sem limite. Depois que uma alternativa satisfaz esse piso e, quando exigido, mantém suporte observado de não-vínculos, `BlockingRuleSetOptimizer` V2 prioriza a maior redução do universo candidato; recall é o primeiro desempate, seguido por cobertura e menor custo estrutural. Isso impede que uma regra quase universal de recall 100% vença uma regra discriminante que já atende ao recall mínimo.
 
 O espaço corrente vem de `BlockingCandidateFeatureCatalog.CalibratorCandidates`, derivado do `ResolutionProjectionPlanner`. Features são medidas isoladamente e em combinações; uma feature fraca isoladamente pode acrescentar informação numa interseção, enquanto duas fortes podem ser redundantes.
 
 A fonética PT-BR participa exatamente desse mecanismo: o Calibrador pode mantê-la, descartá-la ou combiná-la com nascimento/mãe conforme evidência do corpus.
+
+A auditoria sintética read-only também recusa o caso degenerado em que a média do conjunto de candidatos coincide com a população Gold inteira. Essa guarda é um invariante técnico de que houve alguma redução; não substitui thresholds de qualidade/homologação HML.
 
 ## Implementação operacional existente
 

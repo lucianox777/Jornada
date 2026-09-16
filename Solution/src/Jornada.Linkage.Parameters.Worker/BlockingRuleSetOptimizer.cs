@@ -11,13 +11,13 @@ public sealed record BlockingRuleSetOptimizationResult(
 
 /// <summary>
 /// Seleciona deterministicamente o melhor ruleset dentre candidatos explicitamente fornecidos.
-/// Não usa score composto ou pesos ocultos: prioriza recall, redução, cobertura e só então
-/// menor custo estrutural. A geração/limitação do espaço de candidatos é responsabilidade
-/// separada e deve ser versionada pelo Calibrador.
+/// Recall mínimo é restrição fail-closed; entre alternativas elegíveis, prioriza redução do universo,
+/// depois recall, cobertura e por fim menor custo estrutural. A geração/limitação do espaço de
+/// candidatos é responsabilidade separada e deve ser versionada pelo Calibrador.
 /// </summary>
 public static class BlockingRuleSetOptimizer
 {
-    public const string MethodVersion = "BLOCKING_RULESET_OPTIMIZER_V1";
+    public const string MethodVersion = "BLOCKING_RULESET_OPTIMIZER_V2";
 
     public static BlockingRuleSetOptimizationResult SelectBest(
         IReadOnlyCollection<BlockingFeatureObservation> observations,
@@ -37,8 +37,8 @@ public static class BlockingRuleSetOptimizer
             .Select(passes => BuildResult(observations, passes))
             .Where(result => result.Diagnostic.TrueMatchRecall >= minimumTrueMatchRecall)
             .Where(result => !requireObservedNonMatchSupport || result.Diagnostic.NonMatchRetention > 0d)
-            .OrderByDescending(static result => result.Diagnostic.TrueMatchRecall)
-            .ThenByDescending(static result => result.Diagnostic.ReductionRatio)
+            .OrderByDescending(static result => result.Diagnostic.ReductionRatio)
+            .ThenByDescending(static result => result.Diagnostic.TrueMatchRecall)
             .ThenByDescending(static result => result.Diagnostic.CompleteMatchCoverage)
             .ThenBy(static result => result.FieldClauseCount)
             .ThenBy(static result => result.DistinctFieldCount)

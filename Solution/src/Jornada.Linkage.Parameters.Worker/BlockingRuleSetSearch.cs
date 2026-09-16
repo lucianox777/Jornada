@@ -23,16 +23,16 @@ public sealed record BlockingRuleSetSearchOptions(
 }
 
 /// <summary>
-/// Busca bounded e determinística. Primeiro avalia todos os passes primitivos com até N campos,
-/// retém um pool explicitamente limitado e, quando habilitado, testa também pares desses passes.
-/// O limite é parte do algoritmo e evita explosão combinatória sobre corpora grandes.
-/// A promoção é fail-closed: se nenhuma alternativa atingir o recall mínimo, nenhum ruleset é publicado.
-/// Quando a calibração exige suporte u observável, regras que retenham zero não-vínculos no corpus
-/// candidato são descartadas antes da escolha, pois não permitem estimar m/u no universo operacional.
+/// Busca bounded e determinística. Primeiro avalia todos os passes primitivos com até N campos.
+/// O pool limitado preserva simultaneamente alternativas fortes em recall e em redução, evitando
+/// que variantes quase universais ocupem toda a busca. Quando habilitado, testa também pares dos
+/// passes retidos. A promoção é fail-closed: recall mínimo é restrição; entre alternativas que a
+/// satisfazem, a redução do universo é o objetivo primário. Quando a calibração exige suporte u
+/// observável, regras que retenham zero não-vínculos são descartadas antes da escolha final.
 /// </summary>
 public static class BlockingRuleSetSearch
 {
-    public const string MethodVersion = "BLOCKING_RULESET_SEARCH_V1";
+    public const string MethodVersion = "BLOCKING_RULESET_SEARCH_V2";
 
     public static BlockingRuleSetOptimizationResult SearchBest(
         IReadOnlyCollection<BlockingFeatureObservation> observations,
@@ -53,18 +53,13 @@ public static class BlockingRuleSetSearch
         if (canonicalFeatures.Length == 0)
             throw new ArgumentException("O espaço de busca não possui atributos.", nameof(features));
 
-        var primitives = GeneratePrimitivePasses(canonicalFeatures, options.MaxFieldsPerPass).ToArray();
-        var ranked = primitives
+        var primitiveResults = GeneratePrimitivePasses(canonicalFeatures, options.MaxFieldsPerPass)
             .Select(pass => BlockingRuleSetOptimizer.SelectBest(
                 observations,
                 new IReadOnlyList<LinkageBlockingPass>[] { new[] { pass } },
                 minimumTrueMatchRecall: 0d))
-            .OrderByDescending(static result => result.Diagnostic.TrueMatchRecall)
-            .ThenByDescending(static result => result.Diagnostic.ReductionRatio)
-            .ThenByDescending(static result => result.Diagnostic.CompleteMatchCoverage)
-            .ThenBy(static result => result.FieldClauseCount)
-            .ThenBy(static result => result.CanonicalSignature, StringComparer.Ordinal)
-            .Take(options.PrimitivePoolSize)
+            .ToArray();
+        var ranked = BuildPrimitivePool(primitiveResults, options)
             .Select(static result => result.Passes[0])
             .ToArray();
 
@@ -84,6 +79,64 @@ public static class BlockingRuleSetSearch
             candidates,
             options.MinimumTrueMatchRecall,
             options.RequireObservedNonMatchSupport);
+    }
+
+    private static IReadOnlyList<BlockingRuleSetOptimizationResult> BuildPrimitivePool(
+        IReadOnlyCollection<BlockingRuleSetOptimizationResult> evaluated,
+        BlockingRuleSetSearchOptions options)
+    {
+        var selected = new List<BlockingRuleSetOptimizationResult>(options.PrimitivePoolSize);
+        var signatures = new HashSet<string>(StringComparer.Ordinal);
+
+        void Add(BlockingRuleSetOptimizationResult candidate)
+        {
+            if (selected.Count < options.PrimitivePoolSize && signatures.Add(candidate.CanonicalSignature))
+                selected.Add(candidate);
+        }
+
+        // Se um passe isolado já satisfaz a restrição, reserva a melhor solução de um passe
+        // segundo o objetivo V2. Isso também torna PrimitivePoolSize=1 semanticamente útil.
+        var bestEligibleSingle = evaluated
+            .Where(result => result.Diagnostic.TrueMatchRecall >= options.MinimumTrueMatchRecall)
+            .Where(result => !options.RequireObservedNonMatchSupport || result.Diagnostic.NonMatchRetention > 0d)
+            .OrderByDescending(static result => result.Diagnostic.ReductionRatio)
+            .ThenByDescending(static result => result.Diagnostic.TrueMatchRecall)
+            .ThenByDescending(static result => result.Diagnostic.CompleteMatchCoverage)
+            .ThenBy(static result => result.FieldClauseCount)
+            .ThenBy(static result => result.CanonicalSignature, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (bestEligibleSingle is not null)
+            Add(bestEligibleSingle);
+
+        var byRecall = evaluated
+            .OrderByDescending(static result => result.Diagnostic.TrueMatchRecall)
+            .ThenByDescending(static result => result.Diagnostic.ReductionRatio)
+            .ThenByDescending(static result => result.Diagnostic.CompleteMatchCoverage)
+            .ThenBy(static result => result.FieldClauseCount)
+            .ThenBy(static result => result.CanonicalSignature, StringComparer.Ordinal)
+            .ToArray();
+        var byReduction = evaluated
+            .OrderByDescending(static result => result.Diagnostic.ReductionRatio)
+            .ThenByDescending(static result => result.Diagnostic.TrueMatchRecall)
+            .ThenByDescending(static result => result.Diagnostic.CompleteMatchCoverage)
+            .ThenBy(static result => result.FieldClauseCount)
+            .ThenBy(static result => result.CanonicalSignature, StringComparer.Ordinal)
+            .ToArray();
+
+        var recallIndex = 0;
+        var reductionIndex = 0;
+        while (selected.Count < options.PrimitivePoolSize &&
+               (recallIndex < byRecall.Length || reductionIndex < byReduction.Length))
+        {
+            if (recallIndex < byRecall.Length)
+                Add(byRecall[recallIndex++]);
+            if (selected.Count >= options.PrimitivePoolSize)
+                break;
+            if (reductionIndex < byReduction.Length)
+                Add(byReduction[reductionIndex++]);
+        }
+
+        return selected;
     }
 
     private static IEnumerable<LinkageBlockingPass> GeneratePrimitivePasses(
