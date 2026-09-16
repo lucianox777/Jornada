@@ -18,6 +18,14 @@ REQUIRED_DIVERSE_ATTRIBUTES = {
     "mother_name_phonetic_ptbr",
 }
 
+# O harness SCALE deve detectar chaves patológicas antes que elas cheguem a um
+# blocking quadrático. Rejeitar apenas uma chave 100% universal deixa passar
+# distribuições quase universais (por exemplo 8.000 de 10.000 Pessoas).
+# 25% é deliberadamente folgado para atributos legítimos de baixa cardinalidade
+# do corpus sintético e, ao mesmo tempo, forte o bastante para capturar colapso
+# de normalização/fonética ou um gerador degenerado.
+MAX_PEOPLE_PER_KEY_FRACTION = 0.25
+
 
 def _nonnegative_int(value: object, label: str, errors: list[str]) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
@@ -31,6 +39,10 @@ def _number(value: object, label: str, errors: list[str]) -> float | None:
         errors.append(f"{label} deve ser numérico")
         return None
     return float(value)
+
+
+def _exceeds_population_fraction(value: int, population: int) -> bool:
+    return population > 0 and value / population > MAX_PEOPLE_PER_KEY_FRACTION
 
 
 def validate(data: dict) -> list[str]:
@@ -59,6 +71,12 @@ def validate(data: dict) -> list[str]:
         if gold_people > 1 and max_people >= gold_people:
             errors.append(
                 "blockingPressure.maxPeoplePerKey não pode abranger toda a população Gold SCALE"
+            )
+        elif _exceeds_population_fraction(max_people, gold_people):
+            errors.append(
+                "blockingPressure.maxPeoplePerKey excede "
+                f"{MAX_PEOPLE_PER_KEY_FRACTION:.0%} da população Gold SCALE "
+                f"({max_people}/{gold_people})"
             )
 
         attributes = pressure.get("attributes")
@@ -101,6 +119,11 @@ def validate(data: dict) -> list[str]:
                     errors.append(f"{attribute} degenerado: distinctValues deve ser > 1")
                 if gold_people > 1 and max_per_value >= gold_people:
                     errors.append(f"{attribute} degenerado: uma chave não pode conter toda a população")
+                elif _exceeds_population_fraction(max_per_value, gold_people):
+                    errors.append(
+                        f"{attribute} concentrado demais: maxPeoplePerValue={max_per_value} "
+                        f"excede {MAX_PEOPLE_PER_KEY_FRACTION:.0%} de goldPeople={gold_people}"
+                    )
 
     runner = data.get("runner")
     if not isinstance(runner, dict):
@@ -250,6 +273,16 @@ def self_test() -> int:
     bad["blockingPressure"]["attributes"][0]["maxPeoplePerValue"] = 100
     if not validate(bad):
         raise RuntimeError("self-test: blocking universal deveria ser rejeitado")
+
+    bad = copy.deepcopy(valid)
+    bad["blockingPressure"]["maxPeoplePerKey"] = 26
+    if not validate(bad):
+        raise RuntimeError("self-test: blocking quase universal deveria exceder o teto proporcional")
+
+    bad = copy.deepcopy(valid)
+    bad["blockingPressure"]["attributes"][1]["maxPeoplePerValue"] = 26
+    if not validate(bad):
+        raise RuntimeError("self-test: atributo de diversidade concentrado deveria ser rejeitado")
 
     print("SCALE OBSERVABILITY EVIDENCE GATE SELF-TEST: OK")
     return 0
