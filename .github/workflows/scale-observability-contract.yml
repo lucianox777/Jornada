@@ -8,6 +8,7 @@ on:
       - 'Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql'
       - 'Solution/scripts/local-scale.sh'
       - 'Solution/scripts/local-scale.ps1'
+      - 'Solution/scripts/coordination-lock-probe.py'
       - 'Solution/scripts/scale-observability-evidence-gate.py'
       - '.github/workflows/scale-observability-contract.yml'
   push:
@@ -18,6 +19,7 @@ on:
       - 'Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql'
       - 'Solution/scripts/local-scale.sh'
       - 'Solution/scripts/local-scale.ps1'
+      - 'Solution/scripts/coordination-lock-probe.py'
       - 'Solution/scripts/scale-observability-evidence-gate.py'
       - '.github/workflows/scale-observability-contract.yml'
 
@@ -34,13 +36,13 @@ jobs:
       - name: Validate scale harness contract
         run: |
           set -euo pipefail
+          python3 -m py_compile Solution/scripts/coordination-lock-probe.py Solution/scripts/scale-observability-evidence-gate.py
           python3 Solution/scripts/scale-observability-evidence-gate.py --self-test
           for script in Solution/scripts/local-scale.sh Solution/scripts/local-scale.ps1; do
             grep -F 'blockingPressure' "$script" >/dev/null
             grep -F 'decisionQuality' "$script" >/dev/null
             grep -F 'coordinationProbe' "$script" >/dev/null
-            grep -F 'Jornada.Pipeline.ExclusiveRequest' "$script" >/dev/null
-            grep -F 'Jornada.Pipeline.Corpus' "$script" >/dev/null
+            grep -F 'coordination-lock-probe.py' "$script" >/dev/null
             grep -F 'scale-observability-evidence-gate.py' "$script" >/dev/null
             grep -F 'REBUILD_LOCAL_BLOCKING' "$script" >/dev/null
             grep -F 'Jornada.Processor.Worker' "$script" >/dev/null
@@ -48,6 +50,10 @@ jobs:
             grep -F 'Jornada_Dev_SyntheticScale_Diversify.sql' "$script" >/dev/null
             grep -F 'Projeção de blocking' "$script" >/dev/null
           done
+          grep -F 'Jornada.Pipeline.ExclusiveRequest' Solution/scripts/coordination-lock-probe.py >/dev/null
+          grep -F 'Jornada.Pipeline.Corpus' Solution/scripts/coordination-lock-probe.py >/dev/null
+          grep -F 'contentionConfirmed' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
+          grep -F 'lock_result != 1' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
           grep -F 'falsePositives' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
           grep -F 'REQUIRED_DIVERSE_ATTRIBUTES' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
           grep -F 'SCALE-PEND-%' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
