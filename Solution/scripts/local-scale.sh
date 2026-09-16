@@ -69,12 +69,15 @@ else
   dotnet restore Jornada.sln
 fi
 dotnet build Jornada.sln --configuration Release --no-restore -warnaserror
+# Este é um harness local/DEV. Calibrador, Runner e rebuild devem observar o mesmo
+# ambiente do cluster local para que a evidência não dependa do default Production.
+export DOTNET_ENVIRONMENT=Development
 export ConnectionStrings__Jornada="$CONN"
 export PipelineCoordination__HeartbeatSeconds=2
 export PipelineCoordination__ExclusiveIntentTimeoutSeconds=5
 
 echo "Materializando projeção canônica de blocking da massa SCALE antes da calibração..."
-DOTNET_ENVIRONMENT=Development Processor__Operation=REBUILD_LOCAL_BLOCKING \
+Processor__Operation=REBUILD_LOCAL_BLOCKING \
   dotnet run --project src/Jornada.Processor.Worker --configuration Release --no-build
 PROJECTED_SCALE_PEOPLE="$(scalar "SELECT COUNT_BIG(*) FROM (SELECT DISTINCT vc.pessoa_uuid FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE po.codigo_pessoa_origem LIKE N'SCALE-%' AND vc.status='RESOLVIDO' AND vc.pessoa_uuid IS NOT NULL AND EXISTS (SELECT 1 FROM identidade.blocking_chave bc WHERE bc.pessoa_uuid=vc.pessoa_uuid AND bc.vigencia_fim IS NULL)) projected;")"
 [[ "$PROJECTED_SCALE_PEOPLE" =~ ^[0-9]+$ ]] || { echo "ERRO: contagem inválida de Pessoas SCALE com blocking: $PROJECTED_SCALE_PEOPLE" >&2; exit 4; }
