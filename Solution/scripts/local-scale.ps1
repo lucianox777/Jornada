@@ -1,4 +1,4 @@
-param([ValidateSet('smoke','medium','million','custom')][string]$Profile='smoke')
+﻿param([ValidateSet('smoke','medium','million','custom')][string]$Profile='smoke')
 $ErrorActionPreference='Stop'
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $LocalDbScript=(Join-Path $PSScriptRoot 'local-db.ps1')
@@ -88,24 +88,25 @@ function Probe-Lock([string]$Resource,[int]$DelayMs){
 SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
 & $LocalDbScript -Action backfill
 $conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$sqlPassword;TrustServerCertificate=true;Encrypt=false"
+$previousDotnetEnvironment=$env:DOTNET_ENVIRONMENT
 Push-Location $Root
 try {
+  # Este é um harness local/DEV. Calibrador, Runner e rebuild devem observar o mesmo ambiente
+  # do cluster local para que a evidência seja comparável e não dependa do default Production.
+  $env:DOTNET_ENVIRONMENT='Development'
   if($env:JORNADA_LOCKED_RESTORE -eq 'true'){ dotnet restore Jornada.sln --locked-mode } else { dotnet restore Jornada.sln }; if($LASTEXITCODE-ne 0){throw 'restore falhou'}
   dotnet build Jornada.sln --configuration Release --no-restore -warnaserror; if($LASTEXITCODE-ne 0){throw 'build falhou'}
   $env:ConnectionStrings__Jornada=$conn; $env:PipelineCoordination__HeartbeatSeconds='2'; $env:PipelineCoordination__ExclusiveIntentTimeoutSeconds='5'
 
   Write-Host 'Materializando projeção canônica de blocking da massa SCALE antes da calibração...'
   $previousProcessorOperation=$env:Processor__Operation
-  $previousDotnetEnvironment=$env:DOTNET_ENVIRONMENT
   try {
     $env:Processor__Operation='REBUILD_LOCAL_BLOCKING'
-    $env:DOTNET_ENVIRONMENT='Development'
     dotnet run --project src/Jornada.Processor.Worker --configuration Release --no-build
     if($LASTEXITCODE-ne 0){throw 'REBUILD_LOCAL_BLOCKING falhou'}
   }
   finally {
     $env:Processor__Operation=$previousProcessorOperation
-    $env:DOTNET_ENVIRONMENT=$previousDotnetEnvironment
   }
   $projectedScalePeople=[int64](Scalar "SELECT COUNT_BIG(*) FROM (SELECT DISTINCT vc.pessoa_uuid FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE po.codigo_pessoa_origem LIKE N'SCALE-%' AND vc.status='RESOLVIDO' AND vc.pessoa_uuid IS NOT NULL AND EXISTS (SELECT 1 FROM identidade.blocking_chave bc WHERE bc.pessoa_uuid=vc.pessoa_uuid AND bc.vigencia_fim IS NULL)) projected;")
   if($projectedScalePeople -ne [int64]$people){throw "Projeção de blocking não materializada para toda a massa SCALE: projetadas=$projectedScalePeople; esperadas=$people."}
@@ -119,7 +120,10 @@ try {
   $env:LinkageParameters__Operation='VALIDATE'; $env:LinkageParameters__TargetVersion="$model"; dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build; if($LASTEXITCODE-ne 0){throw 'VALIDATE falhou'}
   $env:LinkageParameters__Operation='ACTIVATE'; dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build; if($LASTEXITCODE-ne 0){throw 'ACTIVATE falhou'}
   $corr=[guid]::NewGuid(); $sw=[Diagnostics.Stopwatch]::StartNew(); dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- --mode MODEL_VALIDATION --model-version $model --max-records $pending --batch-size $batch --max-parallelism $parallel --publish false --requested-by V373_SCALE_HARNESS --reason $Profile --correlation-id $corr; if($LASTEXITCODE-ne 0){throw 'Runner falhou'}; $sw.Stop(); $runnerMs=$sw.ElapsedMilliseconds
-} finally { Pop-Location }
+} finally {
+  $env:DOTNET_ENVIRONMENT=$previousDotnetEnvironment
+  Pop-Location
+}
 
 $row=(Scalar "SELECT CONCAT(status,'|',registros_elegiveis,'|',avaliados,'|',resolvidos,'|',nao_resolvidos,'|',conflitos,'|',sem_candidato_no_bloco) FROM identidade.linkage_run WHERE correlation_id='$corr';").Split('|')
 $runtimeScopeJson=Scalar "SELECT escopo_json FROM identidade.linkage_run WHERE correlation_id='$corr';"
