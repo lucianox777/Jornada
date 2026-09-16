@@ -17,133 +17,28 @@ IF @people < 1000
 
 /*
   O corpus SCALE usa a referência local, versionada e imutável do Censo 2022 —
-  Nomes no Brasil. A identidade dos tokens é amostrada com peso proporcional à
-  frequência publicada pelo IBGE. A composição do nome completo (nome simples ou
-  composto e quantidade de sobrenomes) é somente uma fixture de cobertura do teste:
-  o produto publicado pelo IBGE não fornece a distribuição conjunta necessária para
-  reconstruir nome completo, coocorrência de sobrenomes ou conectivos.
+  Nomes no Brasil, previamente carregada pelo NameFrequencySnapshotLoader canônico.
+  A identidade dos tokens é amostrada com peso proporcional à frequência publicada.
 
-  O sqlcmd executa dentro do container SQL Server. Os arquivos abaixo são o mesmo
-  snapshot canônico consumido pelo loader operacional e são montados read-only em
-  /workspace/data/reference/ibge-nomes-2022.
+  A composição do nome completo (nome simples/composto, quantidade de sobrenomes e
+  conectivos) é somente uma fixture de cobertura. O produto publicado pelo IBGE não
+  fornece a distribuição conjunta necessária para reconstruir nomes completos,
+  coocorrência de sobrenomes ou conectivos.
 */
 
-DECLARE @projectionManifest NVARCHAR(MAX);
-SELECT @projectionManifest = BulkColumn
-FROM OPENROWSET(
-    BULK '/workspace/data/reference/ibge-nomes-2022/projection-manifest.json',
-    SINGLE_CLOB,
-    CODEPAGE = '65001'
-) AS manifest_file;
+DECLARE @referenceId BIGINT;
+DECLARE @referenceCode NVARCHAR(80);
+DECLARE @referenceSha VARCHAR(64);
 
-DECLARE @referenceCode NVARCHAR(80) = JSON_VALUE(@projectionManifest, '$.referenceCode');
-DECLARE @brasilSha VARCHAR(64);
-DECLARE @brasilRows BIGINT;
-DECLARE @sexoBrasilSha VARCHAR(64);
-DECLARE @sexoBrasilRows BIGINT;
+SELECT TOP(1)
+    @referenceId = frequencia_nome_versao_id,
+    @referenceCode = codigo,
+    @referenceSha = CONVERT(VARCHAR(64),conteudo_sha256,2)
+FROM ref.frequencia_nome_versao
+WHERE status=N'ATIVA';
 
-SELECT
-    @brasilSha = sha256,
-    @brasilRows = rowCount
-FROM OPENJSON(@projectionManifest, '$.files')
-WITH (
-    path NVARCHAR(300) '$.path',
-    sha256 VARCHAR(64) '$.sha256',
-    rowCount BIGINT '$.rowCount'
-)
-WHERE path = N'projection/frequencia-brasil.ndjson.gz';
-
-SELECT
-    @sexoBrasilSha = sha256,
-    @sexoBrasilRows = rowCount
-FROM OPENJSON(@projectionManifest, '$.files')
-WITH (
-    path NVARCHAR(300) '$.path',
-    sha256 VARCHAR(64) '$.sha256',
-    rowCount BIGINT '$.rowCount'
-)
-WHERE path = N'projection/frequencia-sexo-brasil.ndjson.gz';
-
-IF @referenceCode IS NULL OR @brasilSha IS NULL OR @brasilRows IS NULL
-   OR @sexoBrasilSha IS NULL OR @sexoBrasilRows IS NULL
-    THROW 51562, 'Manifesto IBGE local incompleto para o corpus SCALE.', 1;
-
-DECLARE @brasilGzip VARBINARY(MAX);
-DECLARE @sexoBrasilGzip VARBINARY(MAX);
-
-SELECT @brasilGzip = BulkColumn
-FROM OPENROWSET(
-    BULK '/workspace/data/reference/ibge-nomes-2022/projection/frequencia-brasil.ndjson.gz',
-    SINGLE_BLOB
-) AS brasil_file;
-
-SELECT @sexoBrasilGzip = BulkColumn
-FROM OPENROWSET(
-    BULK '/workspace/data/reference/ibge-nomes-2022/projection/frequencia-sexo-brasil.ndjson.gz',
-    SINGLE_BLOB
-) AS sexo_brasil_file;
-
-IF UPPER(CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', @brasilGzip), 2)) <> UPPER(@brasilSha)
-    THROW 51563, 'SHA-256 da referência IBGE BRASIL_TOTAL diverge do manifesto.', 1;
-IF UPPER(CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', @sexoBrasilGzip), 2)) <> UPPER(@sexoBrasilSha)
-    THROW 51564, 'SHA-256 da referência IBGE BRASIL_SEXO diverge do manifesto.', 1;
-
--- A descompressão é feita pelo sistema operacional somente para que BULK INSERT
--- aplique CODEPAGE=65001 linha a linha; a integridade do .gz foi verificada acima.
-!! gzip -dc /workspace/data/reference/ibge-nomes-2022/projection/frequencia-brasil.ndjson.gz > /tmp/jornada-scale-frequencia-brasil.ndjson
-!! gzip -dc /workspace/data/reference/ibge-nomes-2022/projection/frequencia-sexo-brasil.ndjson.gz > /tmp/jornada-scale-frequencia-sexo-brasil.ndjson
-
-CREATE TABLE #raw_brasil(line NVARCHAR(MAX) NOT NULL);
-CREATE TABLE #raw_sexo_brasil(line NVARCHAR(MAX) NOT NULL);
-
-BULK INSERT #raw_brasil
-FROM '/tmp/jornada-scale-frequencia-brasil.ndjson'
-WITH (CODEPAGE = '65001', DATAFILETYPE = 'char', FIELDTERMINATOR = '0x0b', ROWTERMINATOR = '0x0a', TABLOCK);
-
-BULK INSERT #raw_sexo_brasil
-FROM '/tmp/jornada-scale-frequencia-sexo-brasil.ndjson'
-WITH (CODEPAGE = '65001', DATAFILETYPE = 'char', FIELDTERMINATOR = '0x0b', ROWTERMINATOR = '0x0a', TABLOCK);
-
-IF (SELECT COUNT_BIG(*) FROM #raw_brasil) <> @brasilRows
-    THROW 51565, 'rowCount da referência IBGE BRASIL_TOTAL diverge do manifesto.', 1;
-IF (SELECT COUNT_BIG(*) FROM #raw_sexo_brasil) <> @sexoBrasilRows
-    THROW 51566, 'rowCount da referência IBGE BRASIL_SEXO diverge do manifesto.', 1;
-
-CREATE TABLE #freq_brasil(
-    tipo NVARCHAR(20) NOT NULL,
-    valor NVARCHAR(200) NOT NULL,
-    frequencia BIGINT NOT NULL
-);
-
-INSERT #freq_brasil(tipo, valor, frequencia)
-SELECT
-    UPPER(COALESCE(JSON_VALUE(line, '$.tipo'), JSON_VALUE(line, '$.Tipo'))),
-    LTRIM(RTRIM(COALESCE(JSON_VALUE(line, '$.valor'), JSON_VALUE(line, '$.Valor')))),
-    TRY_CONVERT(BIGINT, COALESCE(JSON_VALUE(line, '$.frequencia'), JSON_VALUE(line, '$.Frequencia')))
-FROM #raw_brasil;
-
-IF EXISTS(SELECT 1 FROM #freq_brasil WHERE tipo NOT IN(N'NOME',N'SOBRENOME') OR valor=N'' OR frequencia<=0)
-    THROW 51567, 'Linha inválida na referência IBGE BRASIL_TOTAL.', 1;
-
-CREATE TABLE #freq_nome_feminino(
-    valor NVARCHAR(200) NOT NULL,
-    frequencia BIGINT NOT NULL
-);
-
-INSERT #freq_nome_feminino(valor, frequencia)
-SELECT
-    LTRIM(RTRIM(COALESCE(JSON_VALUE(line, '$.valor'), JSON_VALUE(line, '$.Valor')))),
-    TRY_CONVERT(BIGINT, COALESCE(JSON_VALUE(line, '$.frequencia'), JSON_VALUE(line, '$.Frequencia')))
-FROM #raw_sexo_brasil
-WHERE UPPER(COALESCE(JSON_VALUE(line, '$.tipo'), JSON_VALUE(line, '$.Tipo'))) = N'NOME'
-  AND UPPER(COALESCE(JSON_VALUE(line, '$.sexo'), JSON_VALUE(line, '$.Sexo'))) = N'FEMININO';
-
-IF NOT EXISTS(SELECT 1 FROM #freq_brasil WHERE tipo=N'NOME')
-   OR NOT EXISTS(SELECT 1 FROM #freq_brasil WHERE tipo=N'SOBRENOME')
-   OR NOT EXISTS(SELECT 1 FROM #freq_nome_feminino)
-    THROW 51568, 'Referência IBGE não possui os estratos necessários para o corpus SCALE.', 1;
-IF EXISTS(SELECT 1 FROM #freq_nome_feminino WHERE valor=N'' OR frequencia<=0)
-    THROW 51569, 'Linha inválida na referência IBGE de nomes femininos.', 1;
+IF @referenceId IS NULL OR @referenceCode IS NULL OR @referenceSha IS NULL
+    THROW 51562, 'Corpus SCALE exige referência IBGE de frequências ATIVA.', 1;
 
 CREATE TABLE #nome_range(
     upper_bound BIGINT NOT NULL PRIMARY KEY,
@@ -158,10 +53,17 @@ CREATE TABLE #sobrenome_range(
     valor NVARCHAR(200) NOT NULL
 );
 
+-- NOME nacional total: distribuição marginal publicada, sem sexo/período.
 ;WITH f AS (
-    SELECT valor, SUM(frequencia) AS frequencia
-    FROM #freq_brasil
-    WHERE tipo=N'NOME'
+    SELECT valor, SUM(CONVERT(BIGINT,frequencia)) AS frequencia
+    FROM ref.frequencia_nome
+    WHERE frequencia_nome_versao_id=@referenceId
+      AND tipo=N'NOME'
+      AND sexo=N'TODOS'
+      AND periodo_nascimento=N'TODOS'
+      AND escopo_geografico=N'BRASIL'
+      AND uf_codigo='00'
+      AND municipio_codigo='0000000'
     GROUP BY valor
 ), r AS (
     SELECT valor,
@@ -171,9 +73,17 @@ CREATE TABLE #sobrenome_range(
 INSERT #nome_range(upper_bound,valor)
 SELECT upper_bound,valor FROM r;
 
+-- Para nome da mãe, usa o estrato feminino nacional publicado.
 ;WITH f AS (
-    SELECT valor, SUM(frequencia) AS frequencia
-    FROM #freq_nome_feminino
+    SELECT valor, SUM(CONVERT(BIGINT,frequencia)) AS frequencia
+    FROM ref.frequencia_nome
+    WHERE frequencia_nome_versao_id=@referenceId
+      AND tipo=N'NOME'
+      AND sexo=N'FEMININO'
+      AND periodo_nascimento=N'TODOS'
+      AND escopo_geografico=N'BRASIL'
+      AND uf_codigo='00'
+      AND municipio_codigo='0000000'
     GROUP BY valor
 ), r AS (
     SELECT valor,
@@ -183,10 +93,17 @@ SELECT upper_bound,valor FROM r;
 INSERT #nome_feminino_range(upper_bound,valor)
 SELECT upper_bound,valor FROM r;
 
+-- SOBRENOME é componente publicado sem posição canônica.
 ;WITH f AS (
-    SELECT valor, SUM(frequencia) AS frequencia
-    FROM #freq_brasil
-    WHERE tipo=N'SOBRENOME'
+    SELECT valor, SUM(CONVERT(BIGINT,frequencia)) AS frequencia
+    FROM ref.frequencia_nome
+    WHERE frequencia_nome_versao_id=@referenceId
+      AND tipo=N'SOBRENOME'
+      AND sexo=N'TODOS'
+      AND periodo_nascimento=N'TODOS'
+      AND escopo_geografico=N'BRASIL'
+      AND uf_codigo='00'
+      AND municipio_codigo='0000000'
     GROUP BY valor
 ), r AS (
     SELECT valor,
@@ -199,8 +116,11 @@ SELECT upper_bound,valor FROM r;
 DECLARE @nomeTotal BIGINT=(SELECT MAX(upper_bound) FROM #nome_range);
 DECLARE @nomeFemininoTotal BIGINT=(SELECT MAX(upper_bound) FROM #nome_feminino_range);
 DECLARE @sobrenomeTotal BIGINT=(SELECT MAX(upper_bound) FROM #sobrenome_range);
-IF @nomeTotal IS NULL OR @nomeTotal<=0 OR @nomeFemininoTotal IS NULL OR @nomeFemininoTotal<=0 OR @sobrenomeTotal IS NULL OR @sobrenomeTotal<=0
-    THROW 51570, 'Pesos IBGE inválidos para amostragem SCALE.', 1;
+
+IF @nomeTotal IS NULL OR @nomeTotal<=0
+   OR @nomeFemininoTotal IS NULL OR @nomeFemininoTotal<=0
+   OR @sobrenomeTotal IS NULL OR @sobrenomeTotal<=0
+    THROW 51563, 'Referência IBGE ATIVA não possui os estratos nacionais necessários ao SCALE.', 1;
 
 CREATE TABLE #scale_names(
     n BIGINT NOT NULL PRIMARY KEY,
@@ -241,16 +161,16 @@ SELECT n.n,
        shape.mae_sobrenome_componentes
 FROM source_n n
 CROSS APPLY (SELECT
-    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@seed,N':P:G1:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_pg1,
-    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@seed,N':P:G2:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_pg2,
-    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@seed,N':P:S1:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ps1,
-    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@seed,N':P:S2:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ps2,
-    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@seed,N':P:S3:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ps3,
-    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@seed,N':M:G1:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_mg1,
-    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@seed,N':M:G2:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_mg2,
-    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@seed,N':M:S1:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ms1,
-    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@seed,N':M:S2:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ms2,
-    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@seed,N':M:S3:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ms3
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':P:G1:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_pg1,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':P:G2:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_pg2,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':P:S1:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ps1,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':P:S2:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ps2,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':P:S3:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ps3,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':M:G1:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_mg1,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':M:G2:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_mg2,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':M:S1:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ms1,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':M:S2:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ms2,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':M:S3:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ms3
 ) h
 CROSS APPLY (SELECT
     (h.h_pg1%@nomeTotal)+1 AS t_pg1,
@@ -287,7 +207,7 @@ WHERE n.n IS NOT NULL AND n.n BETWEEN 1 AND @people;
 IF (SELECT COUNT_BIG(*) FROM #scale_names)<>@people
     THROW 51561, 'Diversificação não encontrou toda a população SCALE-SEHAB.', 1;
 IF EXISTS(SELECT 1 FROM #scale_names WHERE nome=N'' OR mae=N'')
-    THROW 51571, 'Amostragem IBGE produziu nome sintético vazio.', 1;
+    THROW 51564, 'Amostragem IBGE produziu nome sintético vazio.', 1;
 
 -- A fonte determinística e a Gold recebem exatamente a mesma identidade textual.
 UPDATE po
@@ -369,19 +289,17 @@ JOIN #scale_names neighbor ON neighbor.n=r.neighbor_n;
 -- O hash inclui a referência e o conteúdo sintético efetivamente persistido.
 UPDATE po
 SET conteudo_hash=LOWER(CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',CONCAT(
-        'SCALE-IBGE-WEIGHTED:',@referenceCode,':',@seed,':',po.codigo_pessoa_origem,':',ISNULL(po.cpf,N''),':',
+        'SCALE-IBGE-WEIGHTED:',@referenceCode,':',@referenceSha,':',@seed,':',po.codigo_pessoa_origem,':',ISNULL(po.cpf,N''),':',
         ISNULL(po.nome_completo,N''),':',ISNULL(CONVERT(VARCHAR(10),po.data_nascimento,23),''),':',
         ISNULL(po.nome_mae,N''))),2))
 FROM silver.pessoa_observacao po
 WHERE po.codigo_pessoa_origem LIKE N'SCALE-%';
 
 SELECT @referenceCode AS frequencia_nome_referencia,
-       @brasilSha AS frequencia_brasil_sha256,
+       @referenceSha AS frequencia_nome_sha256,
        COUNT_BIG(*) AS diversified_people,
        COUNT(DISTINCT LEFT(nome,CHARINDEX(N' ',nome+N' ')-1)) AS distinct_first_names,
        COUNT(DISTINCT LEFT(mae,CHARINDEX(N' ',mae+N' ')-1)) AS distinct_mother_first_names,
        SUM(CASE WHEN nome_componentes=2 THEN 1 ELSE 0 END) AS compound_given_name_fixtures,
        SUM(CASE WHEN sobrenome_componentes>=2 THEN 1 ELSE 0 END) AS multiple_surname_fixtures
 FROM #scale_names;
-
-!! rm -f /tmp/jornada-scale-frequencia-brasil.ndjson /tmp/jornada-scale-frequencia-sexo-brasil.ndjson
