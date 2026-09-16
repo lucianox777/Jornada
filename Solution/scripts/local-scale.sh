@@ -74,8 +74,9 @@ export PipelineCoordination__HeartbeatSeconds=2
 export PipelineCoordination__ExclusiveIntentTimeoutSeconds=5
 
 echo "Materializando projeção canônica de blocking da massa SCALE antes da calibração..."
-Processor__Operation=REBUILD_LOCAL_BLOCKING dotnet run --project src/Jornada.Processor.Worker --configuration Release --no-build
-PROJECTED_SCALE_PEOPLE="$(scalar "SELECT COUNT_BIG(DISTINCT bc.pessoa_uuid) FROM identidade.blocking_chave bc WHERE bc.vigencia_fim IS NULL AND EXISTS (SELECT 1 FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE vc.pessoa_uuid=bc.pessoa_uuid AND vc.status='RESOLVIDO' AND po.codigo_pessoa_origem LIKE N'SCALE-%');")"
+DOTNET_ENVIRONMENT=Development Processor__Operation=REBUILD_LOCAL_BLOCKING \
+  dotnet run --project src/Jornada.Processor.Worker --configuration Release --no-build
+PROJECTED_SCALE_PEOPLE="$(scalar "SELECT COUNT_BIG(*) FROM (SELECT DISTINCT vc.pessoa_uuid FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE po.codigo_pessoa_origem LIKE N'SCALE-%' AND vc.status='RESOLVIDO' AND vc.pessoa_uuid IS NOT NULL AND EXISTS (SELECT 1 FROM identidade.blocking_chave bc WHERE bc.pessoa_uuid=vc.pessoa_uuid AND bc.vigencia_fim IS NULL)) projected;")"
 [[ "$PROJECTED_SCALE_PEOPLE" =~ ^[0-9]+$ ]] || { echo "ERRO: contagem inválida de Pessoas SCALE com blocking: $PROJECTED_SCALE_PEOPLE" >&2; exit 4; }
 [[ "$PROJECTED_SCALE_PEOPLE" -eq "$PEOPLE" ]] || { echo "ERRO: projeção de blocking não materializada para toda a massa SCALE: projetadas=$PROJECTED_SCALE_PEOPLE; esperadas=$PEOPLE." >&2; exit 4; }
 echo "Projeção de blocking validada: $PROJECTED_SCALE_PEOPLE Pessoas SCALE com chaves correntes."
