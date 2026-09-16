@@ -37,7 +37,8 @@ $parallel=if($env:JORNADA_SCALE_PARALLELISM){[int]$env:JORNADA_SCALE_PARALLELISM
 $batch=if($env:JORNADA_SCALE_BATCH_SIZE){[int]$env:JORNADA_SCALE_BATCH_SIZE}else{10000}
 $lockHolderDelayMs=if($env:JORNADA_SCALE_LOCK_HOLDER_DELAY_MS){[int]$env:JORNADA_SCALE_LOCK_HOLDER_DELAY_MS}else{3000}
 
-& (Join-Path $PSScriptRoot 'local-db.ps1') -Action reset
+# O harness de escala instala schema + seeds, mas precisa gerar sua própria massa SCALE.
+& (Join-Path $PSScriptRoot 'local-db.ps1') -Action reset -SkipSyntheticScale
 $vars=@{}; Get-Content (Join-Path $Root '.env') | % { $l=$_.Trim(); if($l -and -not $l.StartsWith('#') -and $l.Contains('=')){ $p=$l.Split('=',2); $vars[$p[0].Trim()]=$p[1] } }
 $port=if($vars['JORNADA_SQL_PORT']){$vars['JORNADA_SQL_PORT']}else{'14333'}
 $db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
@@ -133,6 +134,10 @@ function Probe-Lock([string]$Resource,[int]$DelayMs){
 
 Wait-SqlLogin
 SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
+$expectedScaleOrigins=[int64]$people+[int64]$paired+[int64]$pending
+$actualScaleOrigins=[int64](Scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")
+if($actualScaleOrigins -ne $expectedScaleOrigins){throw "Massa SCALE customizada inconsistente: esperadas=$expectedScaleOrigins; encontradas=$actualScaleOrigins."}
+& (Join-Path $PSScriptRoot 'local-db.ps1') -Action identity-backfill
 $conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$pwd;TrustServerCertificate=true;Encrypt=false"
 Push-Location $Root
 try {
