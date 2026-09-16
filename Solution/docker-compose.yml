@@ -32,7 +32,6 @@ services:
       - jornada_sql_data:/var/opt/mssql
       - ./database:/workspace/database:ro
       - ./scripts:/workspace/scripts:ro
-      - ./data/reference/ibge-nomes-2022:/workspace/data/reference/ibge-nomes-2022:ro
       - ./.local/sql-backup:/var/opt/mssql/backup
     healthcheck:
       test:
