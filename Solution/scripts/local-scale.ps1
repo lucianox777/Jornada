@@ -1,6 +1,7 @@
 param([ValidateSet('smoke','medium','million','custom')][string]$Profile='smoke')
 $ErrorActionPreference='Stop'
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$LocalDbScript=(Join-Path $PSScriptRoot 'local-db.ps1')
 
 function Resolve-Python3 {
     foreach ($candidate in @(
@@ -37,7 +38,9 @@ $parallel=if($env:JORNADA_SCALE_PARALLELISM){[int]$env:JORNADA_SCALE_PARALLELISM
 $batch=if($env:JORNADA_SCALE_BATCH_SIZE){[int]$env:JORNADA_SCALE_BATCH_SIZE}else{10000}
 $lockHolderDelayMs=if($env:JORNADA_SCALE_LOCK_HOLDER_DELAY_MS){[int]$env:JORNADA_SCALE_LOCK_HOLDER_DELAY_MS}else{3000}
 
-& (Join-Path $PSScriptRoot 'local-db.ps1') -Action reset
+# O harness de escala é dono da massa SCALE. O reset prepara apenas schema+seed;
+# depois o próprio harness gera o volume solicitado pelo perfil e fecha o backfill.
+& $LocalDbScript -Action reset -NoSyntheticCorpus
 $vars=@{}; Get-Content (Join-Path $Root '.env') | % { $l=$_.Trim(); if($l -and -not $l.StartsWith('#') -and $l.Contains('=')){ $p=$l.Split('=',2); $vars[$p[0].Trim()]=$p[1] } }
 $port=if($vars['JORNADA_SQL_PORT']){$vars['JORNADA_SQL_PORT']}else{'14333'}
 $db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
@@ -83,6 +86,7 @@ function Probe-Lock([string]$Resource,[int]$DelayMs){
 }
 
 SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
+& $LocalDbScript -Action backfill
 $conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$sqlPassword;TrustServerCertificate=true;Encrypt=false"
 Push-Location $Root
 try {
