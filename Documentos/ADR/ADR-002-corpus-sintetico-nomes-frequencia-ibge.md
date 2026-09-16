@@ -19,9 +19,9 @@ A distinção é importante para o corpus sintético. Sortear uniformemente de u
 
 O corpus SCALE passa a selecionar os valores de `NOME` e `SOBRENOME` com probabilidade proporcional à frequência presente no snapshot local, versionado e imutável do **Censo 2022 — Nomes no Brasil**.
 
-A seleção é determinística para um mesmo `seed`, identificador sintético e versão da referência. A função de sorteio usa SHA-256 para transformar esses valores em uma posição na distribuição acumulada de frequências.
+A seleção é determinística para um mesmo `seed`, identificador sintético e versão da referência. A função de sorteio usa SHA-256 para transformar a versão da referência, o seed, o slot de geração e a pessoa sintética em uma posição na distribuição acumulada de frequências.
 
-Para o nome da mãe, o corpus utiliza o estrato feminino nacional publicado quando disponível no snapshot canônico. Sobrenomes continuam vindo da distribuição nacional de `SOBRENOME`.
+Para o nome da mãe, o corpus utiliza o estrato feminino nacional publicado no snapshot canônico. Sobrenomes continuam vindo da distribuição nacional de `SOBRENOME`.
 
 ### 2. Composição do nome completo é fixture sintética, não estimativa do IBGE
 
@@ -52,20 +52,21 @@ A geração de múltiplos componentes no corpus não altera a decisão da ADR-00
 
 Posições usadas internamente pelo gerador (`S1`, `S2`, `S3`) são apenas slots de geração para montar casos de teste e não são atributos canônicos do domínio.
 
-### 4. A referência usada pelo corpus é verificável
+### 4. A referência usada pelo corpus é verificável e segue o caminho operacional canônico
 
-O diversificador SCALE consome os arquivos da projeção canônica versionada em `Solution/data/reference/ibge-nomes-2022/`.
+Antes de gerar a massa, os harnesses `local-scale.sh` e `local-scale.ps1` executam `LOAD_NAME_FREQUENCY_SNAPSHOT` apontando para `Solution/data/reference/ibge-nomes-2022/manifest.json`.
 
-Antes da geração ele:
+A carga é feita pelo mesmo `NameFrequencySnapshotLoader` utilizado pela referência operacional. Portanto o SCALE não possui um segundo parser de snapshot. O loader existente é responsável por:
 
-1. lê `projection-manifest.json`;
-2. identifica os artefatos nacionais necessários;
-3. valida o SHA-256 físico dos arquivos compactados;
-4. valida o `rowCount` depois da descompressão;
-5. constrói as distribuições acumuladas de frequência;
-6. inclui o código da referência no hash do conteúdo sintético.
+1. validar `manifest.json` e `projection-manifest.json`;
+2. validar o SHA-256 dos arquivos declarados;
+3. validar `rowCount` e integridade da projeção;
+4. carregar a referência em `ref.frequencia_nome`;
+5. publicar de forma versionada a entrada `ATIVA` em `ref.frequencia_nome_versao`.
 
-O SQL Server local recebe o snapshot por montagem read-only. Nenhuma API externa participa do teste de escala.
+O diversificador SQL consome somente a versão `ATIVA` já publicada em `ref.frequencia_nome`, falhando fechado se os estratos nacionais necessários não existirem. O código e o SHA-256 da versão ativa participam do hash do conteúdo sintético.
+
+Nenhuma API externa participa do teste de escala.
 
 ## Consequências
 
@@ -75,6 +76,8 @@ Ao mesmo tempo, a massa continua inteiramente reprodutível. O mesmo commit, sna
 
 A distribuição estrutural de nome completo continua sendo artificial e deve ser tratada como tal nos relatórios e gates. Ela serve para exercitar o sistema, não para estimar a população brasileira.
 
+O harness passa a compilar o worker antes de gerar a massa porque a carga canônica da referência é pré-condição da amostragem. Essa ordem também impede que o teste use silenciosamente um catálogo reduzido ou uma implementação paralela de leitura de NDJSON.
+
 ## Alternativas rejeitadas
 
 **Listas curtas com escolha uniforme.** Rejeitada porque cria distribuição artificial, subestima concentração de nomes comuns e enfraquece o teste de blocking e frequência.
@@ -82,6 +85,8 @@ A distribuição estrutural de nome completo continua sendo artificial e deve se
 **Tratar a referência IBGE como catálogo de nomes completos.** Rejeitada porque o produto publicado não preserva a distribuição conjunta necessária para essa interpretação.
 
 **Fixar sempre um primeiro nome e exatamente dois sobrenomes.** Rejeitada porque reduz a cobertura estrutural do teste e pode mascarar problemas de normalização e comparação.
+
+**Reimplementar leitura de gzip/NDJSON dentro do SQL do SCALE.** Rejeitada porque duplicaria as validações do loader operacional e introduziria diferenças de plataforma entre SQL Server Linux e Windows.
 
 **Consultar o IBGE durante o SCALE.** Rejeitada porque quebra replay, introduz dependência externa e diverge da referência local canônica já adotada pela Jornada.
 
