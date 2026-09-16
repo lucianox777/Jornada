@@ -2,8 +2,7 @@
 param(
     [ValidateSet('standard', 'full')]
     [string]$Suite = 'full',
-    [switch]$IsolatedExecution,
-    [switch]$CleanMasterExecution
+    [switch]$IsolatedExecution
 )
 
 Set-StrictMode -Version Latest
@@ -66,90 +65,6 @@ function Invoke-PowerShellScript {
 function Invoke-ClusterAction {
     param([Parameter(Mandatory = $true)][ValidateSet('clean','up','calibrate','linkage','linkage-diagnose')][string]$Action)
     Invoke-PowerShellScript 'local-cluster.ps1' @($Action)
-}
-
-function Get-GitStatePath {
-    param([Parameter(Mandatory = $true)][string]$Name)
-    return ((Invoke-GitCapture @('rev-parse','--git-path',$Name)) -join '').Trim()
-}
-
-function Stop-InProgressGitOperation {
-    $rebaseMerge = Get-GitStatePath 'rebase-merge'
-    $rebaseApply = Get-GitStatePath 'rebase-apply'
-    $mergeHead = Get-GitStatePath 'MERGE_HEAD'
-    $cherryPickHead = Get-GitStatePath 'CHERRY_PICK_HEAD'
-    $revertHead = Get-GitStatePath 'REVERT_HEAD'
-
-    if ((Test-Path -LiteralPath $rebaseMerge) -or (Test-Path -LiteralPath $rebaseApply)) {
-        Write-Host 'Rebase em andamento detectado; abortando antes da sincronização limpa...'
-        & git rebase --abort
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning 'git rebase --abort falhou; encerrando o estado de rebase com --quit antes do reset forçado.'
-            & git rebase --quit
-            if ($LASTEXITCODE -ne 0) { throw 'Não foi possível encerrar o rebase em andamento.' }
-        }
-    }
-
-    if (Test-Path -LiteralPath $mergeHead) {
-        Write-Host 'Merge em andamento detectado; abortando antes da sincronização limpa...'
-        & git merge --abort
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning 'git merge --abort falhou; o reset --hard subsequente tentará limpar o estado.'
-        }
-    }
-
-    if (Test-Path -LiteralPath $cherryPickHead) {
-        Write-Host 'Cherry-pick em andamento detectado; abortando antes da sincronização limpa...'
-        & git cherry-pick --abort
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning 'git cherry-pick --abort falhou; o reset --hard subsequente tentará limpar o estado.'
-        }
-    }
-
-    if (Test-Path -LiteralPath $revertHead) {
-        Write-Host 'Revert em andamento detectado; abortando antes da sincronização limpa...'
-        & git revert --abort
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning 'git revert --abort falhou; o reset --hard subsequente tentará limpar o estado.'
-        }
-    }
-}
-
-function Sync-CleanMaster {
-    Write-Host ''
-    Write-Host 'ATENÇÃO: -Suite full descarta alterações Git locais e arquivos não rastreados.'
-    Write-Host 'Arquivos ignorados pelo Git (por exemplo .env) são preservados.'
-    Write-Host 'Buscando origin/master antes de alterar o working tree...'
-
-    Invoke-Git @('fetch','origin','master')
-    $remoteSha = ((Invoke-GitCapture @('rev-parse','origin/master')) -join '').Trim()
-    if ($remoteSha -notmatch '^[0-9a-fA-F]{40}$') { throw 'SHA de origin/master inválido.' }
-
-    Stop-InProgressGitOperation
-
-    # Limpa conflitos e alterações rastreadas no checkout atual. A referência remota já foi
-    # obtida com sucesso acima, então uma falha de rede nunca causa perda local antecipada.
-    Invoke-Git @('reset','--hard','HEAD')
-    Invoke-Git @('clean','-fd')
-
-    $currentBranch = ((Invoke-GitCapture @('branch','--show-current')) -join '').Trim()
-    if ($currentBranch -ne 'master') {
-        Invoke-Git @('switch','--discard-changes','master')
-    }
-
-    Invoke-Git @('reset','--hard','origin/master')
-    Invoke-Git @('clean','-fd')
-
-    $localSha = ((Invoke-GitCapture @('rev-parse','HEAD')) -join '').Trim()
-    $branch = ((Invoke-GitCapture @('branch','--show-current')) -join '').Trim()
-    $dirty = @(Invoke-GitCapture @('status','--porcelain','--untracked-files=normal'))
-
-    if ($branch -ne 'master') { throw "Branch esperada 'master', obtida '$branch'." }
-    if ($localSha -ne $remoteSha) { throw "master local ($localSha) diverge de origin/master ($remoteSha)." }
-    if ($dirty.Count -gt 0) { throw 'Working tree ainda possui alterações após a limpeza.' }
-
-    Write-Host "master local sincronizado e limpo em $localSha."
-    return $localSha
 }
 
 function Get-BashExecutable {
@@ -248,32 +163,9 @@ foreach ($command in @('git', 'docker', 'dotnet')) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) { throw "Comando '$command' não encontrado no PATH." }
 }
 
-# -Suite full é o gate canônico destrutivo: sincroniza o próprio checkout com origin/master
-# e executa a versão do script que acabou de ser obtida do remoto. -Suite standard mantém
-# o modo isolado em worktree temporário para uso rápido durante desenvolvimento.
-if (-not $IsolatedExecution -and -not $CleanMasterExecution) {
-    if ($Suite -eq 'full') {
-        Push-Location $Root
-        try {
-            $testedSha = Sync-CleanMaster
-            $syncedScript = Join-Path $Root 'scripts/local-test-all.ps1'
-            Write-Host 'Reiniciando a suíte a partir do script sincronizado do master...'
-            & $CurrentPowerShell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $syncedScript -Suite full -CleanMasterExecution
-            $exitCode = $LASTEXITCODE
-        }
-        finally {
-            Pop-Location
-        }
-
-        if ($exitCode -ne 0) {
-            throw 'Suíte local full falhou. Consulte .local/test-all/latest.json quando disponível.'
-        }
-
-        Write-Host ''
-        Write-Host 'LOCAL TEST ALL: OK (master local limpo e sincronizado com origin/master)'
-        return
-    }
-
+# A invocação pública nunca altera o working tree do desenvolvedor. Busca o SHA remoto,
+# cria um worktree destacado e executa a mesma suíte nesse checkout descartável.
+if (-not $IsolatedExecution) {
     $worktreePath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-local-test-all-{0}" -f [Guid]::NewGuid().ToString('N'))
     $childReport = Join-Path $worktreePath 'Solution/.local/test-all/latest.json'
     $targetReportDir = Join-Path $Root '.local/test-all'
@@ -325,21 +217,17 @@ if (-not $IsolatedExecution -and -not $CleanMasterExecution) {
 Push-Location $Root
 try {
     $testedSha = ((Invoke-GitCapture @('rev-parse','HEAD')) -join '').Trim()
-    if ($testedSha -notmatch '^[0-9a-fA-F]{40}$') { throw 'SHA Git inválido no checkout de teste.' }
-
-    $executionMode = if ($CleanMasterExecution) { 'clean-master' } else { 'isolated-worktree' }
-    $branchDescription = if ($CleanMasterExecution) { 'master sincronizado com origin/master' } else { 'detached worktree de origin/master' }
+    if ($testedSha -notmatch '^[0-9a-fA-F]{40}$') { throw 'SHA Git inválido no worktree isolado.' }
 
     Write-Host ''
     Write-Host 'Jornada - suíte local canônica'
     Write-Host "Suite:  $Suite"
-    Write-Host "Branch: $branchDescription"
+    Write-Host 'Branch: detached worktree de origin/master'
     Write-Host "SHA:    $testedSha"
-    if ($CleanMasterExecution) {
-        Write-Host 'O working tree foi limpo antes da suíte; alterações locais rastreadas e não rastreadas foram descartadas.'
-    }
-    else {
-        Write-Host 'A suíte é destrutiva para bancos/volumes locais de teste, mas não altera o working tree do desenvolvedor.'
+    Write-Host 'A suíte é destrutiva para bancos/volumes locais de teste, mas não altera o working tree do desenvolvedor.'
+
+    Invoke-Step 'Banco local canônico: reset determinístico' {
+        Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')
     }
 
     Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
@@ -394,7 +282,7 @@ finally {
         status = $OverallStatus
         suite = $Suite
         gitCommitSha = $testedSha
-        executionMode = $executionMode
+        executionMode = 'isolated-worktree'
         generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         failure = $FailureMessage
         steps = @($Results)
