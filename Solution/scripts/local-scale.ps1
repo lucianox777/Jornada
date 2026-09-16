@@ -105,7 +105,9 @@ function SqlCmd {
 function Scalar([string]$Query){
     Push-Location $Root
     try {
-        $o = (& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -h -1 -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
+        # sqlcmd não aceita -h junto com -y. Mantemos -y 0 para preservar JSON/texto longo;
+        # com SET NOCOUNT ON, a última linha não vazia continua sendo o valor escalar.
+        $o = (& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
         if($LASTEXITCODE-ne 0){throw 'sqlcmd falhou.'}
         return ($o | ? { $_.Trim() } | Select-Object -Last 1).Trim()
     }
