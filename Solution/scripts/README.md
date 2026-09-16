@@ -9,6 +9,140 @@ O objetivo deste README é responder duas perguntas antes de executar qualquer a
 
 > Execute os comandos abaixo a partir de `Solution`, salvo indicação em contrário. Em PowerShell, isso significa estar em `...\Jornada\Solution` antes de chamar `./scripts/...`.
 
+## Sequência recomendada de validação local
+
+Use esta sequência quando quiser validar uma alteração **passo a passo**, identificando exatamente em qual etapa aparece uma falha. A ideia é começar pelo `master` atualizado, provar compilação e testes rápidos primeiro e só depois avançar para banco, E2E, resiliência, linkage, escala e a suíte agregada.
+
+### 0. Atualizar o `master`
+
+Estes comandos são executados a partir da raiz do repositório (`...\Jornada`):
+
+```powershell
+git status
+git switch master
+git fetch origin
+git pull --ff-only origin master
+cd .\Solution
+```
+
+Se `git status` mostrar alterações locais inesperadas, pare aqui e entenda o que deve ser preservado antes de atualizar o `master`.
+
+### 1. Restaurar dependências
+
+```powershell
+dotnet restore Jornada.sln
+```
+
+Falha aqui indica problema de restore, SDK, NuGet ou dependências. Ainda não é necessário subir banco/containers.
+
+### 2. Compilar em Release
+
+```powershell
+dotnet build Jornada.sln --configuration Release --no-restore -warnaserror
+```
+
+Esse é o primeiro gate de código. A compilação deve terminar sem erros e sem warnings aceitos como sucesso.
+
+### 3. Rodar os testes unitários rápidos
+
+```powershell
+dotnet test .\tests\Jornada.Tests\Jornada.Tests.csproj --configuration Release --no-build --filter "TestCategory=Unit"
+```
+
+Esse comando roda somente os testes explicitamente marcados como `Unit`. Ele é útil para feedback rápido, mas **não equivale** à suíte local principal: `local-test.ps1` também executa o conjunto não-integration mais amplo e os testes de integração do projeto.
+
+### 4. Recriar o banco local conhecido
+
+```powershell
+.\scripts\local-db.ps1 -Action reset
+```
+
+A partir daqui os testes passam a depender do SQL Server local. O `reset` elimina estado residual e cria uma base conhecida para continuar a validação.
+
+### 5. Rodar o core local
+
+```powershell
+.\scripts\local-test.ps1
+```
+
+Este script executa os gates OpenAPI/técnicos, SQL runtime smoke, restore/build Release, testes `TestCategory!=Integration` e os testes de integração SQL. Por desenho ele repete restore/build já executados acima: na sequência passo a passo isso é aceitável porque o objetivo é primeiro isolar uma eventual falha de compilação e depois validar o agregador oficial do core.
+
+Considere esta etapa concluída somente quando aparecer:
+
+```text
+LOCAL CORE TEST: OK
+```
+
+### 6. Validar upgrade de DDL
+
+```powershell
+.\scripts\local-ddl-upgrade.ps1
+```
+
+Valida o caminho de upgrade a partir do baseline suportado e os invariantes de dados/schema. É obrigatório quando houver mudança de banco e continua sendo uma boa prova de regressão antes do fechamento local.
+
+### 7. Rodar E2E
+
+```powershell
+.\scripts\local-e2e.ps1
+```
+
+Exercita o caminho HTTP → Bronze → Silver → Gold → Serving → HTTP.
+
+### 8. Rodar fault injection
+
+```powershell
+.\scripts\local-fault-injection.ps1
+```
+
+Valida comportamento de resiliência e o gate serial diante das falhas previstas pelo harness.
+
+### 9. Recriar o cluster e validar linkage/calibração
+
+```powershell
+.\scripts\local-cluster.ps1 -Action clean
+.\scripts\local-cluster.ps1 -Action up
+.\scripts\local-cluster.ps1 -Action calibrate
+.\scripts\local-cluster.ps1 -Action linkage
+.\scripts\local-cluster.ps1 -Action linkage-diagnose
+```
+
+Use esta sequência para provar o pipeline de resolução de identidade sobre um cluster recriado. Se o objetivo for apenas desenvolvimento cotidiano, `clean` não deve ser usado por reflexo; aqui ele é deliberado porque estamos executando uma validação completa e controlada.
+
+### 10. Rodar o smoke de escala
+
+```powershell
+.\scripts\local-scale.ps1 -Profile smoke
+```
+
+O perfil `smoke` valida o harness de escala com custo menor que `medium` ou `million`. Perfis maiores só devem ser executados quando a alteração ou o critério de aceite exigir evidência adicional de escala.
+
+### 11. Restaurar o banco canônico
+
+```powershell
+.\scripts\local-db.ps1 -Action reset
+```
+
+O ensaio de escala usa dados próprios. O reset antes do fechamento deixa o ambiente novamente em estado canônico conhecido.
+
+### 12. Fechar com a suíte completa
+
+```powershell
+.\scripts\local-test-all.ps1 -Suite full
+```
+
+A suíte completa é o aceite local final. Ela não substitui a utilidade das etapas anteriores: quando executadas uma a uma, elas mostram com precisão onde surgiu a primeira falha.
+
+Considere a validação local concluída somente quando o fechamento terminar com:
+
+```text
+LOCAL TEST ALL: OK
+```
+
+### Regra prática
+
+Durante desenvolvimento, pare no primeiro comando que falhar, corrija a causa e repita a etapa. Antes de considerar uma alteração pronta para PR/merge, percorra a sequência aplicável e finalize com `local-test-all.ps1 -Suite full`.
+
 ## Atalhos: o que usar no dia a dia
 
 | Necessidade | Script | Quando usar |
