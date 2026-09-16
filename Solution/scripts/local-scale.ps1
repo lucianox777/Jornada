@@ -42,6 +42,55 @@ $vars=@{}; Get-Content (Join-Path $Root '.env') | % { $l=$_.Trim(); if($l -and -
 $port=if($vars['JORNADA_SQL_PORT']){$vars['JORNADA_SQL_PORT']}else{'14333'}
 $db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
 $pwd=$vars['JORNADA_SQL_SA_PASSWORD']
+if([string]::IsNullOrWhiteSpace($pwd)){throw 'JORNADA_SQL_SA_PASSWORD não definido para o scale harness.'}
+
+function Get-ContainerSqlPassword {
+    Push-Location $Root
+    try {
+        $previousErrorActionPreference=$ErrorActionPreference
+        try {
+            $ErrorActionPreference='Continue'
+            $raw=@(& docker compose --env-file .env exec -T sqlserver printenv MSSQL_SA_PASSWORD 2>$null)
+            $exitCode=$LASTEXITCODE
+        }
+        finally { $ErrorActionPreference=$previousErrorActionPreference }
+        if($exitCode -ne 0){throw 'Não foi possível ler MSSQL_SA_PASSWORD do container SQL Server.'}
+        $value=($raw -join "`n").Trim()
+        if([string]::IsNullOrWhiteSpace($value)){throw 'MSSQL_SA_PASSWORD efetivo do container está vazio.'}
+        return $value
+    }
+    finally { Pop-Location }
+}
+
+$containerPwd=Get-ContainerSqlPassword
+if(-not [string]::Equals($pwd,$containerPwd,[StringComparison]::Ordinal)){
+    throw 'JORNADA_SQL_SA_PASSWORD da .env diverge da senha efetiva do container SQL Server.'
+}
+$pwd=$containerPwd
+
+function Wait-SqlLogin {
+    Push-Location $Root
+    try {
+        for($attempt=1;$attempt -le 30;$attempt++){
+            $previousErrorActionPreference=$ErrorActionPreference
+            try {
+                $ErrorActionPreference='Continue'
+                & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -Q 'SET NOCOUNT ON; SELECT 1;' *> $null
+                $exitCode=$LASTEXITCODE
+            }
+            finally { $ErrorActionPreference=$previousErrorActionPreference }
+            if($exitCode -eq 0){
+                if($attempt -gt 1){Write-Host "Login SQL do scale harness estabilizado na tentativa $attempt/30."}
+                return
+            }
+            if($attempt -eq 1 -or $attempt % 5 -eq 0){Write-Host "Aguardando login SQL do scale harness... tentativa $attempt/30"}
+            Start-Sleep -Seconds 1
+        }
+        & docker compose --env-file .env logs --tail 80 sqlserver
+        throw 'SQL Server não aceitou autenticação do scale harness em 30 segundos após o reset.'
+    }
+    finally { Pop-Location }
+}
 
 function SqlCmd {
     param([Parameter(Mandatory=$true)][string[]]$SqlCmdArgs)
@@ -82,6 +131,7 @@ function Probe-Lock([string]$Resource,[int]$DelayMs){
     return [ordered]@{resource=$Resource;lockResult=$result;waitMilliseconds=[int64]$sw.ElapsedMilliseconds}
 }
 
+Wait-SqlLogin
 SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
 $conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$pwd;TrustServerCertificate=true;Encrypt=false"
 Push-Location $Root
