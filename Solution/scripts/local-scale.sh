@@ -74,6 +74,11 @@ else
   dotnet restore Jornada.sln
 fi
 dotnet build Jornada.sln --configuration Release --no-restore -warnaserror
+DOTNET_ENVIRONMENT=Development \
+Processor__Operation=REBUILD_LOCAL_BLOCKING \
+ConnectionStrings__Jornada="$CONN" \
+  dotnet run --project src/Jornada.Processor.Worker --configuration Release --no-build
+
 export ConnectionStrings__Jornada="$CONN"
 export PipelineCoordination__HeartbeatSeconds=2
 export PipelineCoordination__ExclusiveIntentTimeoutSeconds=5
