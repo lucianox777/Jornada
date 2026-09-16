@@ -96,15 +96,18 @@ try {
 
   Write-Host 'Materializando projeção canônica de blocking da massa SCALE antes da calibração...'
   $previousProcessorOperation=$env:Processor__Operation
+  $previousDotnetEnvironment=$env:DOTNET_ENVIRONMENT
   try {
     $env:Processor__Operation='REBUILD_LOCAL_BLOCKING'
+    $env:DOTNET_ENVIRONMENT='Development'
     dotnet run --project src/Jornada.Processor.Worker --configuration Release --no-build
     if($LASTEXITCODE-ne 0){throw 'REBUILD_LOCAL_BLOCKING falhou'}
   }
   finally {
     $env:Processor__Operation=$previousProcessorOperation
+    $env:DOTNET_ENVIRONMENT=$previousDotnetEnvironment
   }
-  $projectedScalePeople=[int64](Scalar "SELECT COUNT_BIG(DISTINCT bc.pessoa_uuid) FROM identidade.blocking_chave bc WHERE bc.vigencia_fim IS NULL AND EXISTS (SELECT 1 FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE vc.pessoa_uuid=bc.pessoa_uuid AND vc.status='RESOLVIDO' AND po.codigo_pessoa_origem LIKE N'SCALE-%');")
+  $projectedScalePeople=[int64](Scalar "SELECT COUNT_BIG(*) FROM (SELECT DISTINCT vc.pessoa_uuid FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE po.codigo_pessoa_origem LIKE N'SCALE-%' AND vc.status='RESOLVIDO' AND vc.pessoa_uuid IS NOT NULL AND EXISTS (SELECT 1 FROM identidade.blocking_chave bc WHERE bc.pessoa_uuid=vc.pessoa_uuid AND bc.vigencia_fim IS NULL)) projected;")
   if($projectedScalePeople -ne [int64]$people){throw "Projeção de blocking não materializada para toda a massa SCALE: projetadas=$projectedScalePeople; esperadas=$people."}
   Write-Host "Projeção de blocking validada: $projectedScalePeople Pessoas SCALE com chaves correntes."
 
