@@ -8,6 +8,7 @@ on:
       - 'Solution/scripts/local-test-all.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
       - 'Solution/scripts/local-db.ps1'
+      - 'Solution/scripts/local-scale.ps1'
       - '.github/workflows/powershell-local-gates.yml'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - 'Solution/scripts/local-test-all.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
       - 'Solution/scripts/local-db.ps1'
+      - 'Solution/scripts/local-scale.ps1'
       - '.github/workflows/powershell-local-gates.yml'
   workflow_dispatch:
 
@@ -46,7 +48,8 @@ jobs:
             'scripts/local-test.ps1',
             'scripts/local-test-all.ps1',
             'scripts/local-sql-runtime-smoke.ps1',
-            'scripts/local-db.ps1'
+            'scripts/local-db.ps1',
+            'scripts/local-scale.ps1'
           )
           foreach ($file in $files) {
             $bytes = [System.IO.File]::ReadAllBytes($file)
