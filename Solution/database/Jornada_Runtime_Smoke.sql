@@ -15,9 +15,10 @@ SET XACT_ABORT ON;
 BEGIN TRY
     BEGIN TRANSACTION;
 
-    -- O schema final não pode depender dos warnings de chave larga do SQL Server.
+    -- O schema final da Jornada não pode depender dos warnings de chave larga do SQL Server.
     -- Chaves explícitas de índices rowstore clusterizados têm limite de 900 bytes;
     -- não clusterizados, 1700 bytes. INCLUDE/row locator implícito não entra na soma.
+    -- Objetos internos do SQL Server ficam fora do contrato da aplicação.
     DECLARE @wide_index NVARCHAR(2048)=NULL;
     ;WITH index_width AS (
         SELECT
@@ -28,12 +29,15 @@ BEGIN TRY
             SUM(CASE WHEN c.max_length=-1 THEN 8001 ELSE c.max_length END) AS key_bytes,
             CASE WHEN i.type=1 THEN 900 ELSE 1700 END AS key_limit
         FROM sys.indexes i
+        JOIN sys.objects o
+          ON o.object_id=i.object_id
         JOIN sys.index_columns ic
           ON ic.object_id=i.object_id AND ic.index_id=i.index_id
         JOIN sys.columns c
           ON c.object_id=ic.object_id AND c.column_id=ic.column_id
         WHERE i.type IN(1,2)
           AND i.is_hypothetical=0
+          AND o.is_ms_shipped=0
           AND ic.key_ordinal>0
         GROUP BY i.object_id,i.index_id,i.name,i.type
     )
