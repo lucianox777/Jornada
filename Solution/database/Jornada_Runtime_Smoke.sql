@@ -18,8 +18,15 @@ BEGIN TRY
     -- O schema final não pode depender dos warnings de chave larga do SQL Server.
     -- Chaves explícitas de índices rowstore clusterizados têm limite de 900 bytes;
     -- não clusterizados, 1700 bytes. INCLUDE/row locator implícito não entra na soma.
-    IF EXISTS(
-        SELECT 1
+    DECLARE @wide_index NVARCHAR(2048)=NULL;
+    ;WITH index_width AS (
+        SELECT
+            i.object_id,
+            i.index_id,
+            i.name AS index_name,
+            i.type,
+            SUM(CASE WHEN c.max_length=-1 THEN 8001 ELSE c.max_length END) AS key_bytes,
+            CASE WHEN i.type=1 THEN 900 ELSE 1700 END AS key_limit
         FROM sys.indexes i
         JOIN sys.index_columns ic
           ON ic.object_id=i.object_id AND ic.index_id=i.index_id
@@ -28,11 +35,17 @@ BEGIN TRY
         WHERE i.type IN(1,2)
           AND i.is_hypothetical=0
           AND ic.key_ordinal>0
-        GROUP BY i.object_id,i.index_id,i.type
-        HAVING SUM(CASE WHEN c.max_length=-1 THEN 8001 ELSE c.max_length END)
-             > CASE WHEN i.type=1 THEN 900 ELSE 1700 END
+        GROUP BY i.object_id,i.index_id,i.name,i.type
     )
-        THROW 51987,'Schema final contém índice rowstore com chave teórica acima do limite seguro do SQL Server.',1;
+    SELECT TOP(1) @wide_index=CONCAT(
+        N'Índice ',QUOTENAME(OBJECT_SCHEMA_NAME(object_id)),N'.',QUOTENAME(OBJECT_NAME(object_id)),N'.',QUOTENAME(index_name),
+        N' tem chave teórica de ',key_bytes,N' bytes; limite=',key_limit,N'.')
+    FROM index_width
+    WHERE key_bytes>key_limit
+    ORDER BY key_bytes-key_limit DESC,index_name;
+
+    IF @wide_index IS NOT NULL
+        THROW 51987,@wide_index,1;
 
     -- Re-resolução de metadados dos módulos mais críticos do fluxo governado.
     EXEC sys.sp_refreshsqlmodule N'identidade.sp_recompor_gold_pessoa';
