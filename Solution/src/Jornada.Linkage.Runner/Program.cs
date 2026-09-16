@@ -3,6 +3,20 @@ using Jornada.Contracts;
 using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Runner;
 
+if (BlockingPassAuditCommand.IsRequested(args))
+{
+    var auditBuilder = Host.CreateApplicationBuilder(args);
+    var auditConnectionString = auditBuilder.Configuration.GetConnectionString("Jornada")
+        ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
+    var auditOperationalSql = new OperationalSqlAdapter(auditConnectionString);
+    await BlockingPassAuditCommand.ExecuteAsync(
+        args,
+        auditBuilder.Configuration,
+        auditOperationalSql,
+        CancellationToken.None);
+    return;
+}
+
 if (CandidateRankingAuditCommand.IsRequested(args))
 {
     var auditBuilder = Host.CreateApplicationBuilder(args);
@@ -24,6 +38,10 @@ if (args.Any(a => a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a.Eq
     Console.WriteLine("Auditoria DEV/HML read-only de candidate ranking:");
     Console.WriteLine("  --candidate-ranking-audit-labels <arquivo.csv>");
     Console.WriteLine("  --candidate-ranking-audit-output <arquivo.json>");
+    Console.WriteLine();
+    Console.WriteLine("Auditoria DEV/HML read-only de blocking por passe:");
+    Console.WriteLine("  --blocking-pass-audit-labels <arquivo.csv>");
+    Console.WriteLine("  --blocking-pass-audit-output <arquivo.json>");
     return;
 }
 
