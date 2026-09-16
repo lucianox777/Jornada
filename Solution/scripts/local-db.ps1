@@ -1,6 +1,7 @@
 ﻿param(
-    [ValidateSet('up','reset','down','clean','status')]
-    [string]$Action = 'up'
+    [ValidateSet('up','reset','down','clean','status','backfill')]
+    [string]$Action = 'up',
+    [switch]$NoSyntheticCorpus
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -203,13 +204,15 @@ function Bootstrap {
     # Reaplicação idempotente necessária em DEV para reservar CPFs históricos do seed.
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260907_Cpf_Ancora.sql')
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260910_Schema_Consolidation_370.sql')
-    # O perfil local Test exercita o calibrador com o mínimo estatístico padrão de
-    # 5.000 pares independentes. Usa o mesmo gerador versionado do harness CI, mas
-    # com um perfil local dimensionado para satisfazer o limiar real, sem reduzi-lo.
-    Ensure-SyntheticScale
 
-    # Seed e massa SCALE são inserções DEV diretas e não passam pelo Processor. Fechamos
-    # a mesma invariável ao fim do bootstrap para que o próximo 'up' também seja reentrante.
+    # O banco local canônico carrega o corpus de 5k por padrão. Harnesses que controlam
+    # sua própria massa (por exemplo, escala) usam -NoSyntheticCorpus e carregam o corpus
+    # explicitamente depois do reset, sem apagar ou duplicar dados SCALE.
+    if (-not $NoSyntheticCorpus) {
+        Ensure-SyntheticScale
+    }
+
+    # Seed e eventual massa SCALE são inserções DEV diretas e não passam pelo Processor.
     Ensure-ProgressiveIdentityBackfill
 }
 
@@ -221,7 +224,16 @@ switch ($Action) {
     'reset' {
         Invoke-Compose -ComposeArgs @('up','-d','sqlserver'); Wait-Healthy
         Invoke-SqlCmd -SqlCmdArgs @('-Q', "IF DB_ID(N'$db') IS NOT NULL BEGIN ALTER DATABASE [$db] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$db]; END; CREATE DATABASE [$db];")
-        Bootstrap; Write-Host "Banco local recriado: $db (schema 3.70)"
+        Bootstrap
+        if ($NoSyntheticCorpus) {
+            Write-Host "Banco local recriado sem corpus SCALE: $db (schema 3.70)"
+        }
+        else {
+            Write-Host "Banco local recriado: $db (schema 3.70)"
+        }
+    }
+    'backfill' {
+        Invoke-Compose -ComposeArgs @('up','-d','sqlserver'); Wait-Healthy; Ensure-ProgressiveIdentityBackfill
     }
     'down' { Invoke-Compose -ComposeArgs @('down') }
     'clean' { Invoke-Compose -ComposeArgs @('down','-v') }

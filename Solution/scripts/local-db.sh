@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ACTION="${1:-up}"
+NO_SYNTHETIC="${2:-}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="$ROOT/.env"
 EXAMPLE="$ROOT/.env.example"
@@ -22,6 +23,7 @@ JORNADA_SQL_DATABASE="${JORNADA_SQL_DATABASE:-JornadaLocal}"
 mkdir -p "$ROOT/.local/sql-backup"
 chmod 0777 "$ROOT/.local/sql-backup"
 [[ "$JORNADA_SQL_DATABASE" =~ ^[A-Za-z0-9_]+$ ]] || { echo "ERRO: JORNADA_SQL_DATABASE inválido." >&2; exit 2; }
+[[ -z "$NO_SYNTHETIC" || "$NO_SYNTHETIC" == "--no-synthetic-corpus" ]] || { echo "Uso: $0 {up|reset|down|clean|status|backfill} [--no-synthetic-corpus]" >&2; exit 2; }
 
 compose() { (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
 sqlcmd() {
@@ -98,13 +100,14 @@ bootstrap() {
   # DEV possui seed; reaplicação idempotente reserva também CPFs históricos do seed.
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260907_Cpf_Ancora.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260910_Schema_Consolidation_370.sql
-  # O perfil local Test exercita o calibrador com o mínimo estatístico padrão de
-  # 5.000 pares independentes. Usa o mesmo gerador versionado do harness CI, mas
-  # com um perfil local dimensionado para satisfazer o limiar real, sem reduzi-lo.
-  ensure_synthetic_scale
 
-  # Seed e massa SCALE são inserções DEV diretas e não passam pelo Processor. Fechamos
-  # a invariável ao fim do bootstrap para que o próximo 'up' também seja reentrante.
+  # Por padrão o ambiente local carrega o corpus canônico de 5k. Harnesses que são
+  # donos da própria massa usam --no-synthetic-corpus e a carregam depois do reset.
+  if [[ "$NO_SYNTHETIC" != "--no-synthetic-corpus" ]]; then
+    ensure_synthetic_scale
+  fi
+
+  # Seed e eventual massa SCALE são inserções DEV diretas e não passam pelo Processor.
   ensure_progressive_identity_backfill
 }
 
@@ -120,7 +123,16 @@ case "$ACTION" in
     wait_healthy
     sqlcmd -Q "IF DB_ID(N'$JORNADA_SQL_DATABASE') IS NOT NULL BEGIN ALTER DATABASE [$JORNADA_SQL_DATABASE] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$JORNADA_SQL_DATABASE]; END; CREATE DATABASE [$JORNADA_SQL_DATABASE];"
     bootstrap
-    echo "Banco local recriado: $JORNADA_SQL_DATABASE (schema 3.70)"
+    if [[ "$NO_SYNTHETIC" == "--no-synthetic-corpus" ]]; then
+      echo "Banco local recriado sem corpus SCALE: $JORNADA_SQL_DATABASE (schema 3.70)"
+    else
+      echo "Banco local recriado: $JORNADA_SQL_DATABASE (schema 3.70)"
+    fi
+    ;;
+  backfill)
+    compose up -d sqlserver
+    wait_healthy
+    ensure_progressive_identity_backfill
     ;;
   down)
     compose down
@@ -131,5 +143,5 @@ case "$ACTION" in
   status)
     compose ps
     ;;
-  *) echo "Uso: $0 {up|reset|down|clean|status}" >&2; exit 2 ;;
+  *) echo "Uso: $0 {up|reset|down|clean|status|backfill} [--no-synthetic-corpus]" >&2; exit 2 ;;
 esac
