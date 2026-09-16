@@ -21,6 +21,7 @@ BIRTH_SHIFT_MODULO="${JORNADA_SCALE_BIRTH_SHIFT_MODULO:-29}"
 PARALLEL="${JORNADA_SCALE_PARALLELISM:-4}"
 BATCH="${JORNADA_SCALE_BATCH_SIZE:-10000}"
 LOCK_HOLDER_DELAY_MS="${JORNADA_SCALE_LOCK_HOLDER_DELAY_MS:-3000}"
+PENDING_SINCE="${JORNADA_SCALE_PENDING_SINCE:-2026-08-31T01:00:00Z}"
 
 # O harness de escala controla a própria massa. O reset prepara schema+seed sem
 # inserir o corpus SCALE canônico de 5k, evitando a colisão determinística 51553.
@@ -113,7 +114,7 @@ PY
 )"
 R0=$(now_ms)
 dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \
-  --mode MODEL_VALIDATION --model-version "$MODEL_VERSION" --max-records "$PENDING" \
+  --mode MODEL_VALIDATION --model-version "$MODEL_VERSION" --since "$PENDING_SINCE" --max-records "$PENDING" \
   --batch-size "$BATCH" --max-parallelism "$PARALLEL" --publish false \
   --requested-by V373_SCALE_HARNESS --reason "$PROFILE" --correlation-id "$CORRELATION"
 R1=$(now_ms)
