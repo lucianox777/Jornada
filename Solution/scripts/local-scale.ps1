@@ -37,6 +37,7 @@ $birthShiftModulo=if($env:JORNADA_SCALE_BIRTH_SHIFT_MODULO){[int]$env:JORNADA_SC
 $parallel=if($env:JORNADA_SCALE_PARALLELISM){[int]$env:JORNADA_SCALE_PARALLELISM}else{4}
 $batch=if($env:JORNADA_SCALE_BATCH_SIZE){[int]$env:JORNADA_SCALE_BATCH_SIZE}else{10000}
 $lockHolderDelayMs=if($env:JORNADA_SCALE_LOCK_HOLDER_DELAY_MS){[int]$env:JORNADA_SCALE_LOCK_HOLDER_DELAY_MS}else{3000}
+$pendingSince=if($env:JORNADA_SCALE_PENDING_SINCE){$env:JORNADA_SCALE_PENDING_SINCE}else{'2026-08-31T01:00:00Z'}
 
 # O harness de escala é dono da massa SCALE. O reset prepara apenas schema+seed;
 # depois o próprio harness gera o volume solicitado pelo perfil e fecha o backfill.
@@ -86,6 +87,7 @@ function Probe-Lock([string]$Resource,[int]$DelayMs){
 }
 
 SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
+SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql')
 & $LocalDbScript -Action backfill
 $conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$sqlPassword;TrustServerCertificate=true;Encrypt=false"
 $previousDotnetEnvironment=$env:DOTNET_ENVIRONMENT
@@ -119,7 +121,7 @@ try {
   if($modelId -notmatch '^[0-9a-fA-F-]{36}$'){throw 'modelo_id inválido para evidência de escala.'}
   $env:LinkageParameters__Operation='VALIDATE'; $env:LinkageParameters__TargetVersion="$model"; dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build; if($LASTEXITCODE-ne 0){throw 'VALIDATE falhou'}
   $env:LinkageParameters__Operation='ACTIVATE'; dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build; if($LASTEXITCODE-ne 0){throw 'ACTIVATE falhou'}
-  $corr=[guid]::NewGuid(); $sw=[Diagnostics.Stopwatch]::StartNew(); dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- --mode MODEL_VALIDATION --model-version $model --max-records $pending --batch-size $batch --max-parallelism $parallel --publish false --requested-by V373_SCALE_HARNESS --reason $Profile --correlation-id $corr; if($LASTEXITCODE-ne 0){throw 'Runner falhou'}; $sw.Stop(); $runnerMs=$sw.ElapsedMilliseconds
+  $corr=[guid]::NewGuid(); $sw=[Diagnostics.Stopwatch]::StartNew(); dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- --mode MODEL_VALIDATION --model-version $model --since $pendingSince --max-records $pending --batch-size $batch --max-parallelism $parallel --publish false --requested-by V373_SCALE_HARNESS --reason $Profile --correlation-id $corr; if($LASTEXITCODE-ne 0){throw 'Runner falhou'}; $sw.Stop(); $runnerMs=$sw.ElapsedMilliseconds
 } finally {
   $env:DOTNET_ENVIRONMENT=$previousDotnetEnvironment
   Pop-Location
@@ -129,6 +131,9 @@ $row=(Scalar "SELECT CONCAT(status,'|',registros_elegiveis,'|',avaliados,'|',res
 $runtimeScopeJson=Scalar "SELECT escopo_json FROM identidade.linkage_run WHERE correlation_id='$corr';"
 if([string]::IsNullOrWhiteSpace($runtimeScopeJson)){throw 'escopo_json do linkage_run ausente.'}
 $runtimeScope=$runtimeScopeJson | ConvertFrom-Json
+$decisionQualityJson=Scalar "DECLARE @run uniqueidentifier=(SELECT linkage_run_id FROM identidade.linkage_run WHERE correlation_id='$corr'); WITH truth AS (SELECT r.*,po.codigo_pessoa_origem,tv.pessoa_uuid AS truth_uuid FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id JOIN silver.pessoa_observacao tpo ON tpo.codigo_pessoa_origem=REPLACE(po.codigo_pessoa_origem,'SCALE-PEND-','SCALE-SEHAB-') JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo='SEHAB' JOIN identidade.v_vinculo_corrente tv ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id AND tv.status='RESOLVIDO' WHERE r.linkage_run_id=@run AND po.codigo_pessoa_origem LIKE 'SCALE-PEND-%') SELECT (SELECT COUNT_BIG(*) AS totalScale,SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END) AS resolved,SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END) AS resolvedCorrect,SUM(CASE WHEN status='RESOLVIDO' AND (pessoa_uuid_resolvido IS NULL OR pessoa_uuid_resolvido<>truth_uuid) THEN 1 ELSE 0 END) AS falsePositives,SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END) AS conflicts,SUM(CASE WHEN status='CONFLITO' AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS conflictsTruthTop2,SUM(CASE WHEN status='NAO_RESOLVIDO' AND melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END) AS unresolvedTruthFirst,SUM(CASE WHEN ISNULL(melhor_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid AND ISNULL(segundo_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid THEN 1 ELSE 0 END) AS truthOutsideTop2,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END),0) AS decimal(9,4)) AS ppvPct,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(COUNT_BIG(*),0) AS decimal(9,4)) AS sensitivityPct FROM truth FOR JSON PATH,WITHOUT_ARRAY_WRAPPER);"
+if([string]::IsNullOrWhiteSpace($decisionQualityJson)){throw 'qualidade contra ground truth SCALE ausente.'}
+$decisionQuality=$decisionQualityJson | ConvertFrom-Json
 $blockingPressureJson=Scalar "DECLARE @ruleset uniqueidentifier=(SELECT ruleset_id FROM identidade.linkage_ruleset WHERE modelo_id='$modelId'); SELECT (SELECT (SELECT COUNT(*) FROM identidade.linkage_ruleset_passe WHERE ruleset_id=@ruleset) AS ruleSetPassCount, (SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE vigencia_fim IS NULL) AS blockingRows, (SELECT COUNT_BIG(*) FROM (SELECT atributo,valor_normalizado FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) d) AS distinctKeys, (SELECT ISNULL(MAX(people_per_key),0) FROM (SELECT COUNT_BIG(DISTINCT pessoa_uuid) people_per_key FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) q) AS maxPeoplePerKey, JSON_QUERY((SELECT a.atributo AS attribute, COUNT_BIG(*) AS rows, COUNT_BIG(DISTINCT a.valor_normalizado) AS distinctValues, (SELECT ISNULL(MAX(people_per_value),0) FROM (SELECT COUNT_BIG(DISTINCT b.pessoa_uuid) people_per_value FROM identidade.blocking_chave b WHERE b.vigencia_fim IS NULL AND b.atributo=a.atributo GROUP BY b.valor_normalizado) z) AS maxPeoplePerValue FROM identidade.blocking_chave a WHERE a.vigencia_fim IS NULL GROUP BY a.atributo FOR JSON PATH)) AS attributes FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);"
 if([string]::IsNullOrWhiteSpace($blockingPressureJson)){throw 'métricas de pressão de blocking ausentes.'}
 $blockingPressure=$blockingPressureJson | ConvertFrom-Json
@@ -140,7 +145,7 @@ if($LASTEXITCODE -ne 0 -or $gitCommitSha -notmatch '^[0-9a-f]{40}$'){throw 'SHA 
 $outDir=Join-Path $Root '.local/performance'; New-Item -ItemType Directory -Force $outDir|Out-Null
 $out=Join-Path $outDir ("scale-{0}-{1}.json" -f $Profile,(Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ'))
 $report=[ordered]@{
-  reportVersion='LINKAGE_SCALE_EVIDENCE_V1';gitCommitSha=$gitCommitSha;profile=$Profile;seed=$seed;collisionModulo=$collisionModulo;birthShiftModulo=$birthShiftModulo;goldPeople=$people;pairedPeople=$paired;pendingWithoutCpf=$pending;trainingSampleSize=$sample;trainingPoolSize=$pool;modelVersion=$model;runtimeScope=$runtimeScope;parametersGenerateMilliseconds=$paramMs;runnerMilliseconds=$runnerMs;blockingPressure=$blockingPressure;
+  reportVersion='LINKAGE_SCALE_EVIDENCE_V1';gitCommitSha=$gitCommitSha;profile=$Profile;seed=$seed;collisionModulo=$collisionModulo;birthShiftModulo=$birthShiftModulo;goldPeople=$people;pairedPeople=$paired;pendingWithoutCpf=$pending;trainingSampleSize=$sample;trainingPoolSize=$pool;modelVersion=$model;runtimeScope=$runtimeScope;parametersGenerateMilliseconds=$paramMs;runnerMilliseconds=$runnerMs;blockingPressure=$blockingPressure;decisionQuality=$decisionQuality;
   coordinationProbe=[ordered]@{holderDelayMilliseconds=$lockHolderDelayMs;exclusiveRequest=$exclusiveProbe;corpus=$corpusProbe};
   runner=[ordered]@{status=$row[0];eligible=[int64]$row[1];evaluated=[int64]$row[2];resolved=[int64]$row[3];unresolved=[int64]$row[4];conflicts=[int64]$row[5];noCandidateInBirthDateBlock=[int64]$row[6]};correlationId="$corr";generatedAtUtc=(Get-Date).ToUniversalTime().ToString('o')
 } | ConvertTo-Json -Depth 10
@@ -151,6 +156,6 @@ try {
   $performanceArgs = @($Python3.Prefix) + @('scripts/performance-evidence-gate.py', $out, '--minimum-eligible', '1', '--baseline', 'config/hml/performance-baseline.json', '--summary', (Join-Path $outDir ("scale-{0}-validation.json" -f $Profile)))
   & $Python3.Exe @performanceArgs; if($LASTEXITCODE-ne 0){throw 'evidência de escala inválida'}
   $observabilityArgs = @($Python3.Prefix) + @('scripts/scale-observability-evidence-gate.py', $out)
-  & $Python3.Exe @observabilityArgs; if($LASTEXITCODE-ne 0){throw 'evidência de observabilidade de escala inválida'}
+  & $Python3.Exe @observabilityArgs; if($LASTEXITCODE-ne 0){throw 'evidência de observabilidade/qualidade de escala inválida'}
 } finally { Pop-Location }
 Write-Host "Scale harness concluído: $out"; Get-Content $out
