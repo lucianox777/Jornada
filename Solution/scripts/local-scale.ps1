@@ -89,9 +89,10 @@ try {
   if($env:JORNADA_LOCKED_RESTORE -eq 'true'){ dotnet restore Jornada.sln --locked-mode } else { dotnet restore Jornada.sln }; if($LASTEXITCODE-ne 0){throw 'restore falhou'}
   dotnet build Jornada.sln --configuration Release --no-restore -warnaserror; if($LASTEXITCODE-ne 0){throw 'build falhou'}
 
-  # O reset local representa o schema 3.70; a referência é uma migração posterior.
+  # O reset local representa o schema 3.70; a referência e sua cobertura são migrações posteriores.
   Write-Host 'Preparando schema da referência de frequências de nomes...'
   SqlCmd -SqlCmdArgs @('-d',$db,'-i','/workspace/database/migrations/20260912_Frequencia_Nomes_Referencia.sql')
+  SqlCmd -SqlCmdArgs @('-d',$db,'-i','/workspace/database/migrations/20260912_Frequencia_Nomes_Cobertura.sql')
 
   $env:ConnectionStrings__Jornada=$conn
   $env:PipelineCoordination__HeartbeatSeconds='2'
