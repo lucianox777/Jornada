@@ -170,10 +170,11 @@ for metric in ('nomeTotalVariation','nomeMaeTotalVariation','dataNascimentoExact
 print('Relatório Evaluation: contrato e métricas OK')
 PY
 
-"${PYTHON_CMD[@]}" - "$OUT/candidate-ranking-audit.json" "$LABEL_COUNT" <<'PY'
+"${PYTHON_CMD[@]}" - "$OUT/candidate-ranking-audit.json" "$LABEL_COUNT" "$SCALE_PEOPLE" <<'PY'
 import json,sys
 path=sys.argv[1]
 expected=int(sys.argv[2])
+gold_population=int(sys.argv[3])
 with open(path,encoding='utf-8') as f:
     r=json.load(f)
 if r.get('purpose')!='DEV_HML_ONLY_READ_ONLY_CANDIDATE_RANKING':
@@ -207,6 +208,10 @@ for metric in (
     'meanCandidateCount','p95CandidateCount','maxCandidateCount'):
     if metric not in summary:
         raise SystemExit(f'candidate audit sem {metric}')
+mean_candidates=float(summary['meanCandidateCount'])
+if mean_candidates >= gold_population:
+    raise SystemExit(
+        f'blocking degenerado no smoke: média de candidatos={mean_candidates:g} para população Gold={gold_population}')
 if int(summary['truthDeterministicTop2']) > inside:
     raise SystemExit('top2 determinístico maior que truthInsideCandidateSet')
 non_top2=r.get('nonTop2')
@@ -215,7 +220,7 @@ if not isinstance(non_top2,list):
 for row in non_top2:
     if 'truthInCandidateSet' not in row or 'candidateCount' not in row or 'rankingSpace' not in row:
         raise SystemExit('linha nonTop2 incompleta')
-print('Candidate ranking audit: recall/rank/proveniência OK')
+print('Candidate ranking audit: recall/rank/proveniência/seletividade mínima OK')
 PY
 
 "${PYTHON_CMD[@]}" "$ROOT/scripts/linkage-evaluation-evidence-gate.py" "$OUT/report.json" \
