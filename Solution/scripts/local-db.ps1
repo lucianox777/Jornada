@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet('up','reset','identity-backfill','down','clean','status')]
     [string]$Action = 'up',
     [switch]$SkipSyntheticScale
