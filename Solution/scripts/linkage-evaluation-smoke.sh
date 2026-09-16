@@ -62,6 +62,7 @@ rm -f \
   "$OUT/evaluation-semantic.json" \
   "$OUT/evaluation-semantic-sha256.txt" \
   "$OUT/candidate-ranking-audit.json" \
+  "$OUT/blocking-pass-audit.json" \
   "$OUT/before.txt" \
   "$OUT/after.txt"
 
@@ -117,6 +118,11 @@ snapshot "$OUT/before.txt"
   dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \
     --candidate-ranking-audit-labels "$OUT/labels.csv" \
     --candidate-ranking-audit-output "$OUT/candidate-ranking-audit.json" \
+    --ProbabilisticLinkage:CommandTimeoutSeconds 300
+
+  dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \
+    --blocking-pass-audit-labels "$OUT/labels.csv" \
+    --blocking-pass-audit-output "$OUT/blocking-pass-audit.json" \
     --ProbabilisticLinkage:CommandTimeoutSeconds 300
 
   dotnet run --project src/Jornada.Linkage.Evaluation --configuration Release --no-build -- \
@@ -318,6 +324,99 @@ if not isinstance(dq.get('unresolvedReasons'),dict):
 print('Candidate ranking/decision audit: recall/rank/PPV/sensibilidade/proveniência OK')
 PY
 
+"${PYTHON_CMD[@]}" - "$OUT/blocking-pass-audit.json" "$OUT/candidate-ranking-audit.json" "$LABEL_COUNT" "$SCALE_PEOPLE" <<'PY'
+import json,sys
+pass_path,candidate_path,expected_raw,gold_raw=sys.argv[1:]
+expected=int(expected_raw)
+gold_population=int(gold_raw)
+with open(pass_path,encoding='utf-8') as f:
+    r=json.load(f)
+with open(candidate_path,encoding='utf-8') as f:
+    candidate=json.load(f)
+if r.get('purpose')!='DEV_HML_ONLY_READ_ONLY_BLOCKING_PASS_EVIDENCE':
+    raise SystemExit('blocking pass audit purpose inválido')
+required={
+    'read-only against Jornada operational tables',
+    'does not create linkage_run',
+    'does not write IDENTITY_MAP/vinculo_fonte',
+    'does not update Gold',
+    'reuses Runner active model, frozen ruleset, BlockingRuleSetCandidatePlanner and BlockingProjectionCandidateQueryBuilder',
+}
+if not required.issubset(set(r.get('safeguards',[]))):
+    raise SystemExit('blocking pass audit salvaguardas incompletas')
+model=r.get('model',{})
+candidate_model=candidate.get('model',{})
+for key in ('modelId','blockingRuleSetVersion','blockingRuleSetFingerprint','projectionSchemaVersion','projectionFingerprint'):
+    if model.get(key) != candidate_model.get(key):
+        raise SystemExit(f'proveniência divergente entre pass audit e candidate audit: {key}')
+summary=r.get('summary',{})
+if int(summary.get('sampleSize',-1)) != expected:
+    raise SystemExit('blocking pass audit sampleSize inesperado')
+pass_count=int(summary.get('ruleSetPassCount',0))
+passes=r.get('passes')
+if pass_count <= 0 or not isinstance(passes,list) or len(passes) != pass_count:
+    raise SystemExit('blocking pass audit sem passes completos')
+truth_union=int(summary.get('truthInsideUnion',-1))
+if truth_union < 0 or truth_union > expected:
+    raise SystemExit('truthInsideUnion fora da amostra')
+if truth_union != int(candidate.get('summary',{}).get('truthInsideCandidateSet',-2)):
+    raise SystemExit('candidate recall diverge entre loader operacional e decomposição por passe')
+union_recall=float(summary.get('unionRecallPct',-1))
+if not 0 <= union_recall <= 100:
+    raise SystemExit('unionRecallPct fora de [0,100]')
+union_pairs=int(summary.get('unionCandidatePairs',-1))
+summed_pairs=int(summary.get('summedPassCandidatePairs',-1))
+overlap=int(summary.get('overlapCandidatePairs',-1))
+if union_pairs < 0 or summed_pairs < union_pairs or overlap != summed_pairs-union_pairs:
+    raise SystemExit('contabilidade de candidate pairs por passe inconsistente')
+for metric in ('meanUnionCandidateCount','p95UnionCandidateCount','maxUnionCandidateCount'):
+    if metric not in summary:
+        raise SystemExit(f'blocking pass summary sem {metric}')
+if float(summary['meanUnionCandidateCount']) >= gold_population:
+    raise SystemExit('união dos passes degenerou para a população Gold inteira em média')
+if int(summary['maxUnionCandidateCount']) >= gold_population:
+    raise SystemExit('ao menos uma observação teve união de passes igual à população Gold inteira')
+
+sum_pairs=0
+sum_incremental=0
+seen_ids=set()
+for p in passes:
+    pid=p.get('passId')
+    fields=p.get('fields')
+    if not isinstance(pid,str) or not pid or pid in seen_ids:
+        raise SystemExit('passId ausente ou duplicado')
+    seen_ids.add(pid)
+    if not isinstance(fields,list) or not fields or not all(isinstance(x,str) and x for x in fields):
+        raise SystemExit(f'passe {pid} sem fields válidos')
+    if int(p.get('sampleSize',-1)) != expected:
+        raise SystemExit(f'passe {pid} com sampleSize divergente')
+    planned=int(p.get('plannedObservations',-1))
+    zero=int(p.get('zeroCandidateObservations',-1))
+    truth=int(p.get('truthInsidePass',-1))
+    exclusive=int(p.get('exclusiveTruthRecovered',-1))
+    incremental=int(p.get('incrementalTruthRecovered',-1))
+    pairs=int(p.get('candidatePairs',-1))
+    if min(planned,zero,truth,exclusive,incremental,pairs) < 0:
+        raise SystemExit(f'passe {pid} contém métrica negativa')
+    if planned > expected or zero > expected or truth > expected or exclusive > truth or incremental > truth:
+        raise SystemExit(f'passe {pid} contém contagem acima da amostra')
+    recall=float(p.get('passRecallPct',-1))
+    if not 0 <= recall <= 100:
+        raise SystemExit(f'passe {pid} passRecallPct fora de [0,100]')
+    for metric in ('meanCandidateCount','p95CandidateCount','maxCandidateCount'):
+        if metric not in p:
+            raise SystemExit(f'passe {pid} sem {metric}')
+    if int(p['maxCandidateCount']) >= gold_population:
+        raise SystemExit(f'passe {pid} degenerou para a população Gold inteira')
+    sum_pairs += pairs
+    sum_incremental += incremental
+if sum_pairs != summed_pairs:
+    raise SystemExit('soma de candidatePairs dos passes diverge do summary')
+if sum_incremental != truth_union:
+    raise SystemExit('incrementalTruthRecovered não reconcilia com truthInsideUnion')
+print('Blocking pass audit: fan-out/recall/complementaridade/proveniência OK')
+PY
+
 "${PYTHON_CMD[@]}" "$ROOT/scripts/linkage-evaluation-evidence-gate.py" "$OUT/report.json" \
   --policy "$ROOT/config/hml/linkage-evaluation-policy.json" \
   --summary "$OUT/evidence-gate-summary.json"
@@ -331,6 +430,7 @@ semantic_sha256="$(tr -d '\r\n' < "$OUT/evaluation-semantic-sha256.txt")"
   echo "labels=$actual_labels"
   echo "report_sha256=$(sha256sum "$OUT/report.json" | awk '{print $1}')"
   echo "candidate_ranking_audit_sha256=$(sha256sum "$OUT/candidate-ranking-audit.json" | awk '{print $1}')"
+  echo "blocking_pass_audit_sha256=$(sha256sum "$OUT/blocking-pass-audit.json" | awk '{print $1}')"
   echo "evaluation_semantic_sha256=$semantic_sha256"
   echo "evaluation_repeat_semantically_equal=true"
   echo "operational_fingerprint_unchanged=true"
