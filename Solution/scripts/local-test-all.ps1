@@ -138,7 +138,9 @@ function Invoke-LinkageEvaluationSmoke {
             $env:ConnectionStrings__Jornada = "Server=localhost,$port;Database=$db;User Id=sa;Password=$password;TrustServerCertificate=true;Encrypt=false"
             $env:JORNADA_EVALUATION_SQL_PASSWORD = $password
             $env:JORNADA_EVALUATION_DATABASE = $db
-            $env:JORNADA_EVALUATION_SCALE_PEOPLE = '10000'
+            # A auditoria roda contra o corpus canônico criado por local-db reset:
+            # 5000 Pessoas SCALE Gold + 5000 pares corroborados + 1000 pendentes.
+            $env:JORNADA_EVALUATION_SCALE_PEOPLE = '5000'
             $env:JORNADA_EVALUATION_SCALE_SEED = '355'
             $env:JORNADA_EVALUATION_LABEL_COUNT = '100'
             $env:JORNADA_EVALUATION_SQL_CONTAINER_ID = $containerId
@@ -255,16 +257,40 @@ try {
     }
 
     if ($Suite -eq 'full') {
+        # A auditoria precisa observar o corpus canônico e o modelo calibrado no cluster,
+        # não a massa especial do scale harness. Ela também roda antes de qualquer clean.
+        Invoke-Step 'Auditoria read-only de candidate recall/rank' {
+            Invoke-LinkageEvaluationSmoke
+        }
+
         Invoke-Step 'Encerrar cluster antes do harness de escala' {
             Invoke-ClusterAction 'clean'
         }
 
-        Invoke-Step 'Scale harness smoke' {
-            Invoke-PowerShellScript 'local-scale.ps1' @('-Profile', 'smoke')
-        }
+        Invoke-Step 'Scale harness smoke + restauração do banco canônico' {
+            $scaleFailure = $null
+            $restoreFailure = $null
+            try {
+                Invoke-PowerShellScript 'local-scale.ps1' @('-Profile', 'smoke')
+            }
+            catch {
+                $scaleFailure = $_.Exception
+            }
 
-        Invoke-Step 'Auditoria read-only de candidate recall/rank' {
-            Invoke-LinkageEvaluationSmoke
+            try {
+                # local-scale usa deliberadamente uma massa diferente. A suíte full é dona
+                # do ambiente compartilhado e deve devolvê-lo sempre ao perfil canônico.
+                Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')
+            }
+            catch {
+                $restoreFailure = $_.Exception
+            }
+
+            if ($null -ne $scaleFailure -and $null -ne $restoreFailure) {
+                throw "Scale harness falhou: $($scaleFailure.Message) Falha adicional ao restaurar o banco canônico: $($restoreFailure.Message)"
+            }
+            if ($null -ne $scaleFailure) { throw $scaleFailure }
+            if ($null -ne $restoreFailure) { throw $restoreFailure }
         }
     }
 
