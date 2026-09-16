@@ -41,13 +41,13 @@ $lockHolderDelayMs=if($env:JORNADA_SCALE_LOCK_HOLDER_DELAY_MS){[int]$env:JORNADA
 $vars=@{}; Get-Content (Join-Path $Root '.env') | % { $l=$_.Trim(); if($l -and -not $l.StartsWith('#') -and $l.Contains('=')){ $p=$l.Split('=',2); $vars[$p[0].Trim()]=$p[1] } }
 $port=if($vars['JORNADA_SQL_PORT']){$vars['JORNADA_SQL_PORT']}else{'14333'}
 $db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
-$pwd=$vars['JORNADA_SQL_SA_PASSWORD']
+$sqlPassword=$vars['JORNADA_SQL_SA_PASSWORD']
 
 function SqlCmd {
     param([Parameter(Mandatory=$true)][string[]]$SqlCmdArgs)
     Push-Location $Root
     try {
-        & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b @SqlCmdArgs
+        & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b @SqlCmdArgs
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
     }
     finally { Pop-Location }
@@ -55,7 +55,7 @@ function SqlCmd {
 function Scalar([string]$Query){
     Push-Location $Root
     try {
-        $o = (& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -h -1 -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
+        $o = (& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -h -1 -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
         return ($o | ? { $_.Trim() } | Select-Object -Last 1).Trim()
     }
@@ -65,13 +65,13 @@ function Probe-Lock([string]$Resource,[int]$DelayMs){
     $delay=[TimeSpan]::FromMilliseconds($DelayMs).ToString('hh\:mm\:ss\.fff')
     $holderSql="DECLARE @r int; EXEC @r=sys.sp_getapplock @Resource=N'$Resource',@LockMode='Exclusive',@LockOwner='Session',@LockTimeout=0; IF @r<0 THROW 51990,'probe holder lock failed',1; WAITFOR DELAY '$delay'; DECLARE @release int; EXEC @release=sys.sp_releaseapplock @Resource=N'$Resource',@LockOwner='Session';"
     $job=Start-Job -ScriptBlock {
-        param($root,$pwd,$db,$sql)
+        param($root,$sqlPassword,$db,$sql)
         Push-Location $root
         try {
-            & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -Q $sql | Out-Null
+            & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -Q $sql | Out-Null
             if($LASTEXITCODE -ne 0){throw 'holder sqlcmd falhou'}
         } finally { Pop-Location }
-    } -ArgumentList $Root,$pwd,$db,$holderSql
+    } -ArgumentList $Root,$sqlPassword,$db,$holderSql
     Start-Sleep -Milliseconds 250
     $sw=[Diagnostics.Stopwatch]::StartNew()
     $result=[int](Scalar "DECLARE @r int; EXEC @r=sys.sp_getapplock @Resource=N'$Resource',@LockMode='Exclusive',@LockOwner='Session',@LockTimeout=10000; DECLARE @release int; IF @r>=0 EXEC @release=sys.sp_releaseapplock @Resource=N'$Resource',@LockOwner='Session'; SELECT @r;")
@@ -83,7 +83,7 @@ function Probe-Lock([string]$Resource,[int]$DelayMs){
 }
 
 SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
-$conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$pwd;TrustServerCertificate=true;Encrypt=false"
+$conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$sqlPassword;TrustServerCertificate=true;Encrypt=false"
 Push-Location $Root
 try {
   if($env:JORNADA_LOCKED_RESTORE -eq 'true'){ dotnet restore Jornada.sln --locked-mode } else { dotnet restore Jornada.sln }; if($LASTEXITCODE-ne 0){throw 'restore falhou'}

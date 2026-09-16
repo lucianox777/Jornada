@@ -3,29 +3,29 @@ $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path; $DrillId='35500000-000
 if(-not(Test-Path $Fixture)){throw "Fixture Bronze não encontrado: $Fixture"}
 & (Join-Path $PSScriptRoot 'local-db.ps1') -Action up
 $vars=@{}; Get-Content (Join-Path $Root '.env') | % { $l=$_.Trim(); if($l -and -not $l.StartsWith('#') -and $l.Contains('=')){ $p=$l.Split('=',2); $vars[$p[0].Trim()]=$p[1] } }
-$pwd=$vars['JORNADA_SQL_SA_PASSWORD']; $port=if($vars['JORNADA_SQL_PORT']){$vars['JORNADA_SQL_PORT']}else{'14333'}; $db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}; $restoreDb='JornadaRestoreDrill'
+$sqlPassword=$vars['JORNADA_SQL_SA_PASSWORD']; $port=if($vars['JORNADA_SQL_PORT']){$vars['JORNADA_SQL_PORT']}else{'14333'}; $db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}; $restoreDb='JornadaRestoreDrill'
 New-Item -ItemType Directory -Force (Join-Path $Root '.local/sql-backup'),(Join-Path $Root '.local/backup-drill'),(Join-Path $Root 'data/bronze')|Out-Null
 function SqlCmd {
     param([Parameter(Mandatory=$true)][string[]]$SqlCmdArgs)
     Push-Location $Root
     try {
-        & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b @SqlCmdArgs
+        & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b @SqlCmdArgs
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou'}
     }
     finally { Pop-Location }
 }
-function Scalar([string]$Database,[string]$Query){ Push-Location $Root; try { $o=& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$pwd" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $Database -h -1 -W -Q "SET NOCOUNT ON; $Query"; if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou'}; return ($o|?{$_.Trim()}|Select-Object -Last 1).Trim() } finally { Pop-Location } }
+function Scalar([string]$Database,[string]$Query){ Push-Location $Root; try { $o=& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $Database -h -1 -W -Q "SET NOCOUNT ON; $Query"; if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou'}; return ($o|?{$_.Trim()}|Select-Object -Last 1).Trim() } finally { Pop-Location } }
 $sha=(Get-FileHash $Fixture -Algorithm SHA256).Hash.ToLowerInvariant(); $length=(Get-Item $Fixture).Length; $key="sha256/$($sha.Substring(0,2))/$($sha.Substring(2,2))/$sha.zip"; $dest=Join-Path (Join-Path $Root 'data/bronze') ($key -replace '/', [IO.Path]::DirectorySeparatorChar); New-Item -ItemType Directory -Force (Split-Path $dest)|Out-Null; Copy-Item $Fixture $dest -Force
 SqlCmd -SqlCmdArgs @('-d',$db,'-v',"DRILL_SHA=$sha","DRILL_LENGTH=$length",'-i','/workspace/database/Jornada_Dev_BackupDrill.sql')
 Push-Location $Root; try{ if($env:JORNADA_LOCKED_RESTORE -eq 'true'){dotnet restore Jornada.sln --locked-mode}else{dotnet restore Jornada.sln}; if($LASTEXITCODE-ne 0){throw 'restore falhou'}; dotnet build src/Jornada.Bronze.Verify/Jornada.Bronze.Verify.csproj --configuration Release --no-restore; if($LASTEXITCODE-ne 0){throw 'build Bronze.Verify falhou'} }finally{Pop-Location}
-$env:ConnectionStrings__Jornada="Server=localhost,$port;Database=$db;User Id=sa;Password=$pwd;TrustServerCertificate=true;Encrypt=false"; $env:BronzeStorage__RootPath=(Resolve-Path (Join-Path $Root 'data/bronze')).Path
+$env:ConnectionStrings__Jornada="Server=localhost,$port;Database=$db;User Id=sa;Password=$sqlPassword;TrustServerCertificate=true;Encrypt=false"; $env:BronzeStorage__RootPath=(Resolve-Path (Join-Path $Root 'data/bronze')).Path
 Push-Location $Root; try{ dotnet run --project src/Jornada.Bronze.Verify --configuration Release --no-build -- --entrega-id $DrillId --minimum-count 1 | Tee-Object (Join-Path $Root '.local/backup-drill/source-verify.txt'); if($LASTEXITCODE-ne 0){throw 'verificação Bronze de origem falhou'} }finally{Pop-Location}
 $backupFile="${db}_v370.bak"; Remove-Item (Join-Path $Root ".local/sql-backup/$backupFile") -Force -ErrorAction SilentlyContinue; SqlCmd -SqlCmdArgs @('-Q',"BACKUP DATABASE [$db] TO DISK=N'/var/opt/mssql/backup/$backupFile' WITH INIT,CHECKSUM,STATS=10; RESTORE VERIFYONLY FROM DISK=N'/var/opt/mssql/backup/$backupFile' WITH CHECKSUM;")
 $dataLogical=Scalar $db "SELECT TOP(1) name FROM sys.database_files WHERE type_desc='ROWS' ORDER BY file_id;"; $logLogical=Scalar $db "SELECT TOP(1) name FROM sys.database_files WHERE type_desc='LOG' ORDER BY file_id;"
 $stamp=(Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ'); $evid=Join-Path $Root ".local/backup-drill/$stamp"; New-Item -ItemType Directory -Force $evid|Out-Null; Copy-Item (Join-Path $Root ".local/sql-backup/$backupFile") $evid
 $bronzeArchive=Join-Path $evid 'bronze.zip'; Compress-Archive -Path (Join-Path $Root 'data/bronze/*') -DestinationPath $bronzeArchive -Force; $restored=Join-Path $evid 'restored-bronze'; New-Item -ItemType Directory -Force $restored|Out-Null; Expand-Archive $bronzeArchive $restored -Force
 SqlCmd -SqlCmdArgs @('-Q',"IF DB_ID(N'$restoreDb') IS NOT NULL BEGIN ALTER DATABASE [$restoreDb] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$restoreDb]; END; RESTORE DATABASE [$restoreDb] FROM DISK=N'/var/opt/mssql/backup/$backupFile' WITH MOVE N'$dataLogical' TO N'/var/opt/mssql/data/$restoreDb.mdf', MOVE N'$logLogical' TO N'/var/opt/mssql/data/${restoreDb}_log.ldf', REPLACE, RECOVERY, CHECKSUM;")
-$env:ConnectionStrings__Jornada="Server=localhost,$port;Database=$restoreDb;User Id=sa;Password=$pwd;TrustServerCertificate=true;Encrypt=false"; $env:BronzeStorage__RootPath=(Resolve-Path $restored).Path
+$env:ConnectionStrings__Jornada="Server=localhost,$port;Database=$restoreDb;User Id=sa;Password=$sqlPassword;TrustServerCertificate=true;Encrypt=false"; $env:BronzeStorage__RootPath=(Resolve-Path $restored).Path
 Push-Location $Root; try{ dotnet run --project src/Jornada.Bronze.Verify --configuration Release --no-build -- --entrega-id $DrillId --minimum-count 1 | Tee-Object (Join-Path $evid 'restored-verify.txt'); if($LASTEXITCODE-ne 0){throw 'verificação Bronze restaurada falhou'} }finally{Pop-Location}
 $restoredObject=Join-Path $restored ($key -replace '/', [IO.Path]::DirectorySeparatorChar); if(-not(Test-Path $restoredObject)){throw "objeto restaurado esperado ausente: $restoredObject"}; $original=Join-Path $evid 'original-object.zip'; Copy-Item $restoredObject $original -Force
 $missing="$restoredObject.missing"; Move-Item $restoredObject $missing -Force
