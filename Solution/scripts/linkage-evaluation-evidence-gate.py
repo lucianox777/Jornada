@@ -4,8 +4,15 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 from pathlib import Path
+
+from blocking_pass_fanout_gate import (
+    DEFAULT_MAX_P95_CANDIDATES,
+    DEFAULT_MAX_POPULATION_FRACTION,
+    validate_blocking_pass_fanout,
+)
 
 REQUIRED_SAFEGUARDS = {
     "read-only against Jornada operational tables",
@@ -36,6 +43,30 @@ def load(path: Path) -> dict:
     return value
 
 
+def env_float(name: str, default: float, errors: list[str]) -> float:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        errors.append(f"{name} inválido: {raw!r}")
+        return default
+    return value
+
+
+def env_int(name: str, default: int, errors: list[str]) -> int:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        errors.append(f"{name} inválido: {raw!r}")
+        return default
+    return value
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Valida evidência do Jornada.Linkage.Evaluation e, opcionalmente, critérios HML aprovados.")
     ap.add_argument("report")
@@ -44,8 +75,9 @@ def main() -> int:
     ap.add_argument("--summary")
     args = ap.parse_args()
     errors: list[str] = []
+    report_path = Path(args.report).resolve()
     try:
-        report = load(Path(args.report).resolve())
+        report = load(report_path)
     except (ValueError, json.JSONDecodeError, OSError) as exc:
         print(f"ERRO: {exc}", file=sys.stderr)
         return 2
@@ -116,6 +148,37 @@ def main() -> int:
     v2_mean = block_metrics["v2Candidate"]["meanCandidates"]
     expansion_ratio = (v2_mean / v1_mean) if v1_mean > 0 else (1.0 if v2_mean == 0 else math.inf)
 
+    fanout_metrics = None
+    fanout_path = report_path.parent / "blocking-pass-audit.json"
+    if fanout_path.is_file():
+        population_raw = os.environ.get("JORNADA_EVALUATION_SCALE_PEOPLE", "").strip()
+        if not population_raw:
+            errors.append("JORNADA_EVALUATION_SCALE_PEOPLE é obrigatório quando blocking-pass-audit.json está presente")
+        else:
+            try:
+                gold_population = int(population_raw)
+                fanout_audit = load(fanout_path)
+                max_fraction = env_float(
+                    "JORNADA_BLOCKING_MAX_POPULATION_FRACTION",
+                    DEFAULT_MAX_POPULATION_FRACTION,
+                    errors,
+                )
+                max_p95 = env_int(
+                    "JORNADA_BLOCKING_MAX_P95_CANDIDATES",
+                    DEFAULT_MAX_P95_CANDIDATES,
+                    errors,
+                )
+                fanout_errors, fanout_metrics = validate_blocking_pass_fanout(
+                    fanout_audit,
+                    gold_population,
+                    max_population_fraction=max_fraction,
+                    max_p95_candidates=max_p95,
+                    emit_metrics=True,
+                )
+                errors.extend(fanout_errors)
+            except (ValueError, json.JSONDecodeError, OSError) as exc:
+                errors.append(f"blocking pass fan-out inválido: {exc}")
+
     policy_status = None
     decision = None
     if args.policy:
@@ -151,7 +214,7 @@ def main() -> int:
     summary = {
         "schemaVersion": 1,
         "status": "FAIL" if errors else "PASS",
-        "source": str(Path(args.report).resolve()),
+        "source": str(report_path),
         "policyStatus": policy_status,
         "decision": decision,
         "errors": errors,
@@ -164,6 +227,7 @@ def main() -> int:
             "nomeTotalVariation": tv_name,
             "nomeMaeTotalVariation": tv_mother,
             "dataNascimentoExactAbsoluteDelta": birth_delta,
+            "blockingPassFanOut": fanout_metrics,
         },
         "note": "O gate qualifica evidência contra política aprovada; nunca promove V2 ou altera parâmetros automaticamente.",
     }
