@@ -94,7 +94,8 @@ New-Item -ItemType Directory -Force -Path $databaseDestination | Out-Null
 $bundleDdl = Join-Path $databaseDestination 'Jornada_Fase1.sql'
 $python3 = Resolve-Python3
 $schemaManifestTool = Join-Path $solutionRoot 'scripts\schema-manifest.py'
-& $python3.Exe @($python3.Prefix) $schemaManifestTool --check --flatten-output $bundleDdl
+$pythonArgs = @($python3.Prefix) + @($schemaManifestTool, '--check', '--flatten-output', $bundleDdl)
+& $python3.Exe @pythonArgs
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao renderizar DDL canônico para o bundle Windows.' }
 
 # Inclui o manifesto e seus fontes para proveniência/auditoria do bundle, sem manter
