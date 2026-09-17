@@ -86,6 +86,7 @@ calibrate() {
   ensure_local_blocking_projection
   before="$(sql_scalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;")"
   echo "Calibração iniciando após modelo v$before."
+  echo 'Referência IBGE canônica é materializada no bootstrap do ambiente; GENERATE_DRAFT só usa o fallback de carga em banco criado fora do fluxo oficial.'
   compose exec -T jornada-node2 env LinkageParameters__Operation=GENERATE_DRAFT LinkageParameters__RunOnce=true dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
   count="$(sql_scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")"
   [[ "$count" == "1" ]] || { echo "Esperado exatamente um novo RASCUNHO; encontrados=$count" >&2; return 3; }
@@ -110,11 +111,14 @@ run_linkage() {
 }
 
 diagnose_linkage() {
-  local run_id
-  run_id="$(sql_scalar "SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE status='PUBLICADO' AND tipo_run='ON_DEMAND' ORDER BY publicado_em DESC,iniciado_em DESC,linkage_run_id DESC;")"
-  [[ -n "$run_id" ]] || { echo "Nenhum linkage ON_DEMAND PUBLICADO encontrado." >&2; return 6; }
+  local active_model_id run_id
+  active_model_id="$(sql_scalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;")"
+  [[ -n "$active_model_id" ]] || { echo "Diagnóstico bloqueado: nenhum modelo calibrado ATIVO. Execute primeiro '$0 calibrate'." >&2; return 6; }
 
-  echo "Diagnóstico do último linkage ON_DEMAND PUBLICADO: $run_id"
+  run_id="$(sql_scalar "SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE status='PUBLICADO' AND tipo_run='ON_DEMAND' AND modelo_id='$active_model_id' ORDER BY publicado_em DESC,iniciado_em DESC,linkage_run_id DESC;")"
+  [[ -n "$run_id" ]] || { echo "Nenhum linkage ON_DEMAND PUBLICADO para o modelo calibrado ATIVO $active_model_id. Execute primeiro '$0 linkage'." >&2; return 6; }
+
+  echo "Diagnóstico do último linkage ON_DEMAND PUBLICADO do modelo ATIVO $active_model_id: $run_id"
   echo 'Nota: modelo_versao é monotônica somente dentro da base corrente; clean/reset recria a base. Para A/B entre bases, compare modelo_id + fingerprints.'
   echo
   echo 'Resumo do run:'
