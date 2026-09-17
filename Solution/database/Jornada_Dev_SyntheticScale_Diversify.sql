@@ -15,35 +15,121 @@ DECLARE @collisionModulo INT = $(SCALE_COLLISION_MODULO);
 IF @people < 1000
     THROW 51560, 'SCALE_PEOPLE inválido para diversificação.', 1;
 
-DECLARE @first TABLE(id INT NOT NULL PRIMARY KEY, value NVARCHAR(80) NOT NULL);
-INSERT @first(id,value) VALUES
-(1,N'Ana'),(2,N'Bruno'),(3,N'Carla'),(4,N'Daniel'),(5,N'Eduardo'),
-(6,N'Fernanda'),(7,N'Gabriel'),(8,N'Helena'),(9,N'Igor'),(10,N'Juliana'),
-(11,N'Lucas'),(12,N'Mariana'),(13,N'Nicolas'),(14,N'Patricia'),(15,N'Rafael'),
-(16,N'Sabrina'),(17,N'Tiago'),(18,N'Vanessa'),(19,N'William'),(20,N'Yasmin');
+/*
+  O corpus SCALE usa a referência local, versionada e imutável do Censo 2022 —
+  Nomes no Brasil, previamente carregada pelo NameFrequencySnapshotLoader canônico.
+  A identidade dos tokens é amostrada com peso proporcional à frequência publicada.
 
-DECLARE @motherFirst TABLE(id INT NOT NULL PRIMARY KEY, value NVARCHAR(80) NOT NULL);
-INSERT @motherFirst(id,value) VALUES
-(1,N'Maria'),(2,N'Ana'),(3,N'Francisca'),(4,N'Antonia'),(5,N'Adriana'),
-(6,N'Juliana'),(7,N'Marcia'),(8,N'Fernanda'),(9,N'Patricia'),(10,N'Aline'),
-(11,N'Sandra'),(12,N'Camila'),(13,N'Amanda'),(14,N'Bruna'),(15,N'Luciana'),
-(16,N'Vanessa'),(17,N'Daniela'),(18,N'Simone'),(19,N'Renata'),(20,N'Claudia');
+  A composição do nome completo (nome simples/composto, quantidade de sobrenomes e
+  conectivos) é somente uma fixture de cobertura. O produto publicado pelo IBGE não
+  fornece a distribuição conjunta necessária para reconstruir nomes completos,
+  coocorrência de sobrenomes ou conectivos.
+*/
 
-DECLARE @surname TABLE(id INT NOT NULL PRIMARY KEY, value NVARCHAR(80) NOT NULL);
-INSERT @surname(id,value) VALUES
-(1,N'Silva'),(2,N'Santos'),(3,N'Oliveira'),(4,N'Souza'),(5,N'Pereira'),
-(6,N'Costa'),(7,N'Rodrigues'),(8,N'Almeida'),(9,N'Nascimento'),(10,N'Lima'),
-(11,N'Araujo'),(12,N'Fernandes'),(13,N'Carvalho'),(14,N'Gomes'),(15,N'Martins'),
-(16,N'Rocha'),(17,N'Ribeiro'),(18,N'Alves'),(19,N'Monteiro'),(20,N'Mendes'),
-(21,N'Barbosa'),(22,N'Freitas'),(23,N'Cardoso'),(24,N'Correia'),(25,N'Dias'),
-(26,N'Castro'),(27,N'Campos'),(28,N'Moraes'),(29,N'Ramos'),(30,N'Goncalves'),
-(31,N'Lopes'),(32,N'Moreira'),(33,N'Teixeira'),(34,N'Vieira'),(35,N'Pinto'),
-(36,N'Moura'),(37,N'Cunha');
+DECLARE @referenceId BIGINT;
+DECLARE @referenceCode NVARCHAR(80);
+DECLARE @referenceSha VARCHAR(64);
+
+SELECT TOP(1)
+    @referenceId = frequencia_nome_versao_id,
+    @referenceCode = codigo,
+    @referenceSha = CONVERT(VARCHAR(64),conteudo_sha256,2)
+FROM ref.frequencia_nome_versao
+WHERE status=N'ATIVA';
+
+IF @referenceId IS NULL OR @referenceCode IS NULL OR @referenceSha IS NULL
+    THROW 51562, 'Corpus SCALE exige referência IBGE de frequências ATIVA.', 1;
+
+CREATE TABLE #nome_range(
+    upper_bound BIGINT NOT NULL PRIMARY KEY,
+    valor NVARCHAR(200) NOT NULL
+);
+CREATE TABLE #nome_feminino_range(
+    upper_bound BIGINT NOT NULL PRIMARY KEY,
+    valor NVARCHAR(200) NOT NULL
+);
+CREATE TABLE #sobrenome_range(
+    upper_bound BIGINT NOT NULL PRIMARY KEY,
+    valor NVARCHAR(200) NOT NULL
+);
+
+-- NOME nacional total: distribuição marginal publicada, sem sexo/período.
+;WITH f AS (
+    SELECT valor, SUM(CONVERT(BIGINT,frequencia)) AS frequencia
+    FROM ref.frequencia_nome
+    WHERE frequencia_nome_versao_id=@referenceId
+      AND tipo=N'NOME'
+      AND sexo=N'TODOS'
+      AND periodo_nascimento=N'TODOS'
+      AND escopo_geografico=N'BRASIL'
+      AND uf_codigo='00'
+      AND municipio_codigo='0000000'
+    GROUP BY valor
+), r AS (
+    SELECT valor,
+           SUM(frequencia) OVER(ORDER BY valor COLLATE Latin1_General_100_BIN2 ROWS UNBOUNDED PRECEDING) AS upper_bound
+    FROM f
+)
+INSERT #nome_range(upper_bound,valor)
+SELECT upper_bound,valor FROM r;
+
+-- Para nome da mãe, usa o estrato feminino nacional publicado.
+;WITH f AS (
+    SELECT valor, SUM(CONVERT(BIGINT,frequencia)) AS frequencia
+    FROM ref.frequencia_nome
+    WHERE frequencia_nome_versao_id=@referenceId
+      AND tipo=N'NOME'
+      AND sexo=N'FEMININO'
+      AND periodo_nascimento=N'TODOS'
+      AND escopo_geografico=N'BRASIL'
+      AND uf_codigo='00'
+      AND municipio_codigo='0000000'
+    GROUP BY valor
+), r AS (
+    SELECT valor,
+           SUM(frequencia) OVER(ORDER BY valor COLLATE Latin1_General_100_BIN2 ROWS UNBOUNDED PRECEDING) AS upper_bound
+    FROM f
+)
+INSERT #nome_feminino_range(upper_bound,valor)
+SELECT upper_bound,valor FROM r;
+
+-- SOBRENOME é componente publicado sem posição canônica.
+;WITH f AS (
+    SELECT valor, SUM(CONVERT(BIGINT,frequencia)) AS frequencia
+    FROM ref.frequencia_nome
+    WHERE frequencia_nome_versao_id=@referenceId
+      AND tipo=N'SOBRENOME'
+      AND sexo=N'TODOS'
+      AND periodo_nascimento=N'TODOS'
+      AND escopo_geografico=N'BRASIL'
+      AND uf_codigo='00'
+      AND municipio_codigo='0000000'
+    GROUP BY valor
+), r AS (
+    SELECT valor,
+           SUM(frequencia) OVER(ORDER BY valor COLLATE Latin1_General_100_BIN2 ROWS UNBOUNDED PRECEDING) AS upper_bound
+    FROM f
+)
+INSERT #sobrenome_range(upper_bound,valor)
+SELECT upper_bound,valor FROM r;
+
+DECLARE @nomeTotal BIGINT=(SELECT MAX(upper_bound) FROM #nome_range);
+DECLARE @nomeFemininoTotal BIGINT=(SELECT MAX(upper_bound) FROM #nome_feminino_range);
+DECLARE @sobrenomeTotal BIGINT=(SELECT MAX(upper_bound) FROM #sobrenome_range);
+
+IF @nomeTotal IS NULL OR @nomeTotal<=0
+   OR @nomeFemininoTotal IS NULL OR @nomeFemininoTotal<=0
+   OR @sobrenomeTotal IS NULL OR @sobrenomeTotal<=0
+    THROW 51563, 'Referência IBGE ATIVA não possui os estratos nacionais necessários ao SCALE.', 1;
 
 CREATE TABLE #scale_names(
     n BIGINT NOT NULL PRIMARY KEY,
     nome NVARCHAR(500) NOT NULL,
-    mae NVARCHAR(500) NOT NULL
+    mae NVARCHAR(500) NOT NULL,
+    nome_componentes TINYINT NOT NULL,
+    sobrenome_componentes TINYINT NOT NULL,
+    mae_nome_componentes TINYINT NOT NULL,
+    mae_sobrenome_componentes TINYINT NOT NULL
 );
 
 ;WITH source_n AS (
@@ -51,21 +137,77 @@ CREATE TABLE #scale_names(
     FROM silver.pessoa_origem po
     WHERE po.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%'
 )
-INSERT #scale_names(n,nome,mae)
+INSERT #scale_names(n,nome,mae,nome_componentes,sobrenome_componentes,mae_nome_componentes,mae_sobrenome_componentes)
 SELECT n.n,
-       CONCAT(f.value,N' ',s1.value,N' ',s2.value),
-       CONCAT(mf.value,N' ',ms1.value,N' ',ms2.value)
+       CONCAT(
+           pg1.valor,
+           CASE WHEN shape.nome_componentes=2 AND pg2.valor<>pg1.valor THEN CONCAT(N' ',pg2.valor) ELSE N'' END,
+           N' ',ps1.valor,
+           CASE WHEN shape.sobrenome_componentes>=2 AND ps2.valor<>ps1.valor
+                THEN CONCAT(CASE WHEN shape.conector_pessoa=1 THEN N' dos ' ELSE N' ' END,ps2.valor) ELSE N'' END,
+           CASE WHEN shape.sobrenome_componentes>=3 AND ps3.valor<>ps1.valor AND ps3.valor<>ps2.valor
+                THEN CONCAT(N' ',ps3.valor) ELSE N'' END),
+       CONCAT(
+           mg1.valor,
+           CASE WHEN shape.mae_nome_componentes=2 AND mg2.valor<>mg1.valor THEN CONCAT(N' ',mg2.valor) ELSE N'' END,
+           N' ',ms1.valor,
+           CASE WHEN shape.mae_sobrenome_componentes>=2 AND ms2.valor<>ms1.valor
+                THEN CONCAT(CASE WHEN shape.conector_mae=1 THEN N' de ' ELSE N' ' END,ms2.valor) ELSE N'' END,
+           CASE WHEN shape.mae_sobrenome_componentes>=3 AND ms3.valor<>ms1.valor AND ms3.valor<>ms2.valor
+                THEN CONCAT(N' ',ms3.valor) ELSE N'' END),
+       shape.nome_componentes,
+       shape.sobrenome_componentes,
+       shape.mae_nome_componentes,
+       shape.mae_sobrenome_componentes
 FROM source_n n
-JOIN @first f ON f.id=CONVERT(INT,((n.n+@seed-1)%20)+1)
-JOIN @surname s1 ON s1.id=CONVERT(INT,((n.n*7+@seed)%37)+1)
-JOIN @surname s2 ON s2.id=CONVERT(INT,((n.n*13+@seed+5)%37)+1)
-JOIN @motherFirst mf ON mf.id=CONVERT(INT,((n.n*11+@seed-1)%20)+1)
-JOIN @surname ms1 ON ms1.id=CONVERT(INT,((n.n*17+@seed)%37)+1)
-JOIN @surname ms2 ON ms2.id=CONVERT(INT,((n.n*19+@seed+7)%37)+1)
+CROSS APPLY (SELECT
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':P:G1:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_pg1,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':P:G2:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_pg2,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':P:S1:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ps1,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':P:S2:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ps2,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':P:S3:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ps3,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':M:G1:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_mg1,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':M:G2:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_mg2,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':M:S1:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ms1,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':M:S2:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ms2,
+    CONVERT(BIGINT,SUBSTRING(HASHBYTES('SHA2_256',CONCAT(@referenceSha,N':',@seed,N':M:S3:',n.n)),1,8)) & CAST(9223372036854775807 AS BIGINT) AS h_ms3
+) h
+CROSS APPLY (SELECT
+    (h.h_pg1%@nomeTotal)+1 AS t_pg1,
+    (h.h_pg2%@nomeTotal)+1 AS t_pg2,
+    (h.h_ps1%@sobrenomeTotal)+1 AS t_ps1,
+    (h.h_ps2%@sobrenomeTotal)+1 AS t_ps2,
+    (h.h_ps3%@sobrenomeTotal)+1 AS t_ps3,
+    (h.h_mg1%@nomeFemininoTotal)+1 AS t_mg1,
+    (h.h_mg2%@nomeFemininoTotal)+1 AS t_mg2,
+    (h.h_ms1%@sobrenomeTotal)+1 AS t_ms1,
+    (h.h_ms2%@sobrenomeTotal)+1 AS t_ms2,
+    (h.h_ms3%@sobrenomeTotal)+1 AS t_ms3
+) target
+CROSS APPLY (SELECT
+    CONVERT(TINYINT,CASE WHEN ((n.n+CONVERT(BIGINT,@seed))%4+4)%4=0 THEN 2 ELSE 1 END) AS nome_componentes,
+    CONVERT(TINYINT,1+(((n.n+CONVERT(BIGINT,@seed))%3+3)%3)) AS sobrenome_componentes,
+    CONVERT(TINYINT,CASE WHEN ((n.n+CONVERT(BIGINT,@seed)+1)%5+5)%5=0 THEN 2 ELSE 1 END) AS mae_nome_componentes,
+    CONVERT(TINYINT,1+(((n.n+CONVERT(BIGINT,@seed)+1)%3+3)%3)) AS mae_sobrenome_componentes,
+    CONVERT(BIT,CASE WHEN ((n.n+CONVERT(BIGINT,@seed))%10+10)%10=0 THEN 1 ELSE 0 END) AS conector_pessoa,
+    CONVERT(BIT,CASE WHEN ((n.n+CONVERT(BIGINT,@seed)+3)%10+10)%10=0 THEN 1 ELSE 0 END) AS conector_mae
+) shape
+OUTER APPLY (SELECT TOP(1) valor FROM #nome_range WHERE upper_bound>=target.t_pg1 ORDER BY upper_bound) pg1
+OUTER APPLY (SELECT TOP(1) valor FROM #nome_range WHERE upper_bound>=target.t_pg2 ORDER BY upper_bound) pg2
+OUTER APPLY (SELECT TOP(1) valor FROM #sobrenome_range WHERE upper_bound>=target.t_ps1 ORDER BY upper_bound) ps1
+OUTER APPLY (SELECT TOP(1) valor FROM #sobrenome_range WHERE upper_bound>=target.t_ps2 ORDER BY upper_bound) ps2
+OUTER APPLY (SELECT TOP(1) valor FROM #sobrenome_range WHERE upper_bound>=target.t_ps3 ORDER BY upper_bound) ps3
+OUTER APPLY (SELECT TOP(1) valor FROM #nome_feminino_range WHERE upper_bound>=target.t_mg1 ORDER BY upper_bound) mg1
+OUTER APPLY (SELECT TOP(1) valor FROM #nome_feminino_range WHERE upper_bound>=target.t_mg2 ORDER BY upper_bound) mg2
+OUTER APPLY (SELECT TOP(1) valor FROM #sobrenome_range WHERE upper_bound>=target.t_ms1 ORDER BY upper_bound) ms1
+OUTER APPLY (SELECT TOP(1) valor FROM #sobrenome_range WHERE upper_bound>=target.t_ms2 ORDER BY upper_bound) ms2
+OUTER APPLY (SELECT TOP(1) valor FROM #sobrenome_range WHERE upper_bound>=target.t_ms3 ORDER BY upper_bound) ms3
 WHERE n.n IS NOT NULL AND n.n BETWEEN 1 AND @people;
 
 IF (SELECT COUNT_BIG(*) FROM #scale_names)<>@people
     THROW 51561, 'Diversificação não encontrou toda a população SCALE-SEHAB.', 1;
+IF EXISTS(SELECT 1 FROM #scale_names WHERE nome=N'' OR mae=N'')
+    THROW 51564, 'Amostragem IBGE produziu nome sintético vazio.', 1;
 
 -- A fonte determinística e a Gold recebem exatamente a mesma identidade textual.
 UPDATE po
@@ -86,7 +228,7 @@ JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vc.pessoa_observacao
 JOIN #scale_names sn ON sn.n=TRY_CONVERT(BIGINT,RIGHT(po.codigo_pessoa_origem,10))
 WHERE po.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%';
 
--- A segunda fonte conserva as mutações do corpus, mas sobre tokens alfabéticos variados.
+-- A segunda fonte conserva as mutações do corpus sobre identidades amostradas do IBGE.
 UPDATE po
 SET nome_completo=CASE
         WHEN sn.n%11=0 THEN CONCAT(sn.nome,N' Filho')
@@ -97,18 +239,17 @@ SET nome_completo=CASE
         WHEN sn.n%7=0 THEN CONCAT(LEFT(sn.nome,1),N'. ',SUBSTRING(sn.nome,CHARINDEX(N' ',sn.nome)+1,500))
         ELSE sn.nome END),
     nome_mae=CASE
-        WHEN sn.n%13=0 THEN CONCAT(N'Maria ',SUBSTRING(sn.mae,CHARINDEX(N' ',sn.mae)+1,500))
+        WHEN sn.n%13=0 THEN CONCAT(LEFT(sn.mae,1),N'. ',SUBSTRING(sn.mae,CHARINDEX(N' ',sn.mae)+1,500))
         ELSE sn.mae END,
     nome_mae_cmp=UPPER(CASE
-        WHEN sn.n%13=0 THEN CONCAT(N'Maria ',SUBSTRING(sn.mae,CHARINDEX(N' ',sn.mae)+1,500))
+        WHEN sn.n%13=0 THEN CONCAT(LEFT(sn.mae,1),N'. ',SUBSTRING(sn.mae,CHARINDEX(N' ',sn.mae)+1,500))
         ELSE sn.mae END)
 FROM silver.pessoa_observacao po
 JOIN #scale_names sn ON sn.n=TRY_CONVERT(BIGINT,RIGHT(po.codigo_pessoa_origem,10))
 WHERE po.codigo_pessoa_origem LIKE N'SCALE-SMADS-%';
 
--- As colisões deixam de apontar todas para "Pessoa Colisao 000000". Cada caso usa o nome
--- da pessoa vizinha do mesmo par de data de nascimento, mantendo a mãe verdadeira. Isso cria
--- concorrência evidencial controlada, sem transformar um único token numa chave universal.
+-- Colisões controladas usam a identidade IBGE-amostrada da pessoa vizinha, mantendo
+-- a mãe verdadeira. Assim existe concorrência evidencial sem chave textual universal.
 ;WITH pending AS (
     SELECT po.pessoa_observacao_id,
            po.codigo_pessoa_origem,
@@ -145,16 +286,20 @@ JOIN resolved r ON r.pessoa_observacao_id=po.pessoa_observacao_id
 JOIN #scale_names truth ON truth.n=r.truth_n
 JOIN #scale_names neighbor ON neighbor.n=r.neighbor_n;
 
--- O hash acompanha o conteúdo sintético efetivamente persistido depois da diversificação.
+-- O hash inclui a referência e o conteúdo sintético efetivamente persistido.
 UPDATE po
 SET conteudo_hash=LOWER(CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',CONCAT(
-        'SCALE-DIVERSE:',po.codigo_pessoa_origem,':',ISNULL(po.cpf,N''),':',
+        'SCALE-IBGE-WEIGHTED:',@referenceCode,':',@referenceSha,':',@seed,':',po.codigo_pessoa_origem,':',ISNULL(po.cpf,N''),':',
         ISNULL(po.nome_completo,N''),':',ISNULL(CONVERT(VARCHAR(10),po.data_nascimento,23),''),':',
         ISNULL(po.nome_mae,N''))),2))
 FROM silver.pessoa_observacao po
 WHERE po.codigo_pessoa_origem LIKE N'SCALE-%';
 
-SELECT COUNT_BIG(*) AS diversified_people,
+SELECT @referenceCode AS frequencia_nome_referencia,
+       @referenceSha AS frequencia_nome_sha256,
+       COUNT_BIG(*) AS diversified_people,
        COUNT(DISTINCT LEFT(nome,CHARINDEX(N' ',nome+N' ')-1)) AS distinct_first_names,
-       COUNT(DISTINCT LEFT(mae,CHARINDEX(N' ',mae+N' ')-1)) AS distinct_mother_first_names
+       COUNT(DISTINCT LEFT(mae,CHARINDEX(N' ',mae+N' ')-1)) AS distinct_mother_first_names,
+       SUM(CASE WHEN nome_componentes=2 THEN 1 ELSE 0 END) AS compound_given_name_fixtures,
+       SUM(CASE WHEN sobrenome_componentes>=2 THEN 1 ELSE 0 END) AS multiple_surname_fixtures
 FROM #scale_names;

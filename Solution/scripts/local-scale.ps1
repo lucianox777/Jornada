@@ -46,6 +46,7 @@ $vars=@{}; Get-Content (Join-Path $Root '.env') | % { $l=$_.Trim(); if($l -and -
 $port=if($vars['JORNADA_SQL_PORT']){$vars['JORNADA_SQL_PORT']}else{'14333'}
 $db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
 $sqlPassword=$vars['JORNADA_SQL_SA_PASSWORD']
+$conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$sqlPassword;TrustServerCertificate=true;Encrypt=false"
 
 function SqlCmd {
     param([Parameter(Mandatory=$true)][string[]]$SqlCmdArgs)
@@ -66,19 +67,33 @@ function Scalar([string]$Query){
     finally { Pop-Location }
 }
 
-SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
-SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql')
-& $LocalDbScript -Action backfill
-$conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$sqlPassword;TrustServerCertificate=true;Encrypt=false"
 $previousDotnetEnvironment=$env:DOTNET_ENVIRONMENT
+$previousConnection=$env:ConnectionStrings__Jornada
+$previousLinkageOperation=$env:LinkageParameters__Operation
+$previousSnapshotManifest=$env:NameFrequencySnapshot__ManifestPath
 Push-Location $Root
 try {
-  # Este é um harness local/DEV. Calibrador, Runner e rebuild devem observar o mesmo ambiente
+  # Este é um harness local/DEV. Loader, Calibrador, Runner e rebuild devem observar o mesmo ambiente
   # do cluster local para que a evidência seja comparável e não dependa do default Production.
   $env:DOTNET_ENVIRONMENT='Development'
   if($env:JORNADA_LOCKED_RESTORE -eq 'true'){ dotnet restore Jornada.sln --locked-mode } else { dotnet restore Jornada.sln }; if($LASTEXITCODE-ne 0){throw 'restore falhou'}
   dotnet build Jornada.sln --configuration Release --no-restore -warnaserror; if($LASTEXITCODE-ne 0){throw 'build falhou'}
   $env:ConnectionStrings__Jornada=$conn; $env:PipelineCoordination__HeartbeatSeconds='2'; $env:PipelineCoordination__ExclusiveIntentTimeoutSeconds='5'
+
+  # O schema 3.70 corrente já contém o contrato de frequências. O snapshot versionado é
+  # carregado pelo mesmo loader operacional usado na calibração, sem parser paralelo no SQL.
+  $env:LinkageParameters__Operation='LOAD_NAME_FREQUENCY_SNAPSHOT'
+  $env:NameFrequencySnapshot__ManifestPath=(Join-Path $Root 'data/reference/ibge-nomes-2022/manifest.json')
+  Write-Host 'Carregando referência IBGE canônica para geração da massa SCALE...'
+  dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
+  if($LASTEXITCODE-ne 0){throw 'LOAD_NAME_FREQUENCY_SNAPSHOT falhou'}
+  $activeNameReference=Scalar "SELECT TOP(1) codigo FROM ref.frequencia_nome_versao WHERE status=N'ATIVA';"
+  if($activeNameReference -ne 'CENSO2022_NOMES_BRASIL_V1'){throw "Referência IBGE ATIVA inesperada após carga: $activeNameReference"}
+  Write-Host "Referência de frequências ativa: $activeNameReference"
+
+  SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
+  SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql')
+  & $LocalDbScript -Action backfill
 
   Write-Host 'Materializando projeção canônica de blocking da massa SCALE antes da calibração...'
   $previousProcessorOperation=$env:Processor__Operation
@@ -104,6 +119,9 @@ try {
   $corr=[guid]::NewGuid(); $sw=[Diagnostics.Stopwatch]::StartNew(); dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- --mode MODEL_VALIDATION --model-version $model --since $pendingSince --max-records $pending --batch-size $batch --max-parallelism $parallel --publish false --requested-by V373_SCALE_HARNESS --reason $Profile --correlation-id $corr; if($LASTEXITCODE-ne 0){throw 'Runner falhou'}; $sw.Stop(); $runnerMs=$sw.ElapsedMilliseconds
 } finally {
   $env:DOTNET_ENVIRONMENT=$previousDotnetEnvironment
+  $env:ConnectionStrings__Jornada=$previousConnection
+  $env:LinkageParameters__Operation=$previousLinkageOperation
+  $env:NameFrequencySnapshot__ManifestPath=$previousSnapshotManifest
   Pop-Location
 }
 
