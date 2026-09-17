@@ -75,7 +75,7 @@ function Scalar([string]$Query){
 function QueryLines([string]$Query){
     Push-Location $Root
     try {
-        $o = @(& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -W -h -1 -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
+        $o = @(& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -W -h -1 -w 65535 -Q "SET NOCOUNT ON; $Query")
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
         return @($o | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     }
@@ -198,7 +198,7 @@ $gitCommitSha=((& git -C $Root rev-parse HEAD) | Select-Object -Last 1).Trim().T
 if($LASTEXITCODE -ne 0 -or $gitCommitSha -notmatch '^[0-9a-f]{40}$'){throw 'SHA Git inválido para evidência de escala.'}
 $out=Join-Path $outDir ("scale-{0}-{1}.json" -f $Profile,(Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ'))
 $report=[ordered]@{
-  reportVersion='LINKAGE_SCALE_EVIDENCE_V2';gitCommitSha=$gitCommitSha;profile=$Profile;seed=$seed;collisionModulo=$collisionModulo;birthShiftModulo=$birthShiftModulo;goldPeople=$people;pairedPeople=$paired;pendingWithoutCpf=$pending;trainingSampleSize=$sample;trainingPoolSize=$pool;modelVersion=$model;runtimeScope=$runtimeScope;parametersGenerateMilliseconds=$paramMs;runnerMilliseconds=$runnerMs;blockingPressure=$blockingPressure;blockingPassPressure=$blockingPassPressure;blockingAuditSampleSize=$blockingAuditLabelCount;decisionQuality=$decisionQuality;
+  reportVersion='LINKAGE_SCALE_EVIDENCE_V1';gitCommitSha=$gitCommitSha;profile=$Profile;seed=$seed;collisionModulo=$collisionModulo;birthShiftModulo=$birthShiftModulo;goldPeople=$people;pairedPeople=$paired;pendingWithoutCpf=$pending;trainingSampleSize=$sample;trainingPoolSize=$pool;modelVersion=$model;runtimeScope=$runtimeScope;parametersGenerateMilliseconds=$paramMs;runnerMilliseconds=$runnerMs;blockingPressure=$blockingPressure;blockingPassPressure=$blockingPassPressure;blockingAuditSampleSize=$blockingAuditLabelCount;decisionQuality=$decisionQuality;
   coordinationProbe=$coordinationProbe;
   runner=[ordered]@{status=$row[0];eligible=[int64]$row[1];evaluated=[int64]$row[2];resolved=[int64]$row[3];unresolved=[int64]$row[4];conflicts=[int64]$row[5];noCandidateInBirthDateBlock=[int64]$row[6]};correlationId="$corr";generatedAtUtc=(Get-Date).ToUniversalTime().ToString('o')
 } | ConvertTo-Json -Depth 12
