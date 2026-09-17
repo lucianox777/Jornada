@@ -5,6 +5,7 @@
 
 :on error exit
 :r database/Jornada_Fase1.sql
+:r database/migrations/20260916_Schema_Migration_Ledger.sql
 :r database/Jornada_Identidade_Progressiva.sql
 :r database/migrations/20260907_Cpf_Ancora.sql
 :r database/migrations/20260908_Identidade_Composicao_Ledger.sql
