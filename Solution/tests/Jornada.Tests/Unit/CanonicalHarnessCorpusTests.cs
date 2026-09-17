@@ -37,7 +37,7 @@ public sealed class CanonicalHarnessCorpusTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(workflow, Does.Contain("SEM_CANDIDATO_NO_BLOCO%"));
+            Assert.That(workflow, Does.Contain("SEM_CANDIDATO_%"));
             Assert.That(workflow, Does.Contain("n%10<>0"));
             Assert.That(workflow, Does.Contain("UNEXPECTED_NO_CANDIDATE"));
             Assert.That(workflow, Does.Contain("test \"$UNEXPECTED_NO_CANDIDATE\" = '0'"));
