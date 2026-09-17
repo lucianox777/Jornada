@@ -39,7 +39,7 @@
     {"path":"config/contracts/registros/CAS1/v1/registro.json","sha256":"ae91737ec2dfb04ea27515baa1f2dc1311ebdaa868c4157ebc2dfd93d4bfd2b5","status":"PENDENTE","approval":null},
     {"path":"config/contracts/registros/CAS1/v1/registro.schema.json","sha256":"392fb177f9ecb075375632916b55f84033759113bb4d2256f3e7d718bbb0ba18","status":"PENDENTE","approval":null},
     {"path":"config/contracts/registros/CPO1/v1/pessoa.schema.json","sha256":"06ae0e7812be6666b3b1630547b057b48c0bfa0777d7cfc525f970c6b7e036c5","status":"PENDENTE","approval":null},
-    {"path":"config/contracts/registros/CPO1/v1/registro.json","sha256":"4654cfbb7e1f1f559be262d7163b9ac80b34e2454355a88","status":"PENDENTE","approval":null},
+    {"path":"config/contracts/registros/CPO1/v1/registro.json","sha256":"4654cfbb7e1f1f559be262d7163b9ac80da38bfc575f94fdbbc92bd0c39b611b","status":"PENDENTE","approval":null},
     {"path":"config/contracts/registros/CPO1/v1/registro.schema.json","sha256":"adc382a7602c0b556ea752422c151735e4b54b7b66cdf749d000cf88e76b3312","status":"PENDENTE","approval":null},
     {"path":"config/contracts/registros/CRA1/v1/pessoa.schema.json","sha256":"4d715b2cc259f5dd5869a6d50c25f84cbbc390bace6721c663fd3afb2d0d6edc","status":"PENDENTE","approval":null},
     {"path":"config/contracts/registros/CRA1/v1/registro.json","sha256":"bdc5b8caf2c2062ebdaa64d9bf6986748bba04d8335ca27062ee0cd681e21f64","status":"PENDENTE","approval":null},
