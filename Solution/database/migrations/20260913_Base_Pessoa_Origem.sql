@@ -27,7 +27,10 @@ BEGIN
         ativo BIT NOT NULL CONSTRAINT DF_base_pessoa_origem_ativo DEFAULT(1),
         criado_em DATETIMEOFFSET(7) NOT NULL CONSTRAINT DF_base_pessoa_origem_criado DEFAULT(SYSDATETIMEOFFSET()),
         CONSTRAINT uq_base_pessoa_origem_codigo UNIQUE(codigo),
-        CONSTRAINT ck_base_pessoa_origem_codigo CHECK(LEN(codigo) BETWEEN 1 AND 120 AND codigo COLLATE Latin1_General_100_BIN2 NOT LIKE N'%[^ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-]%'),
+        CONSTRAINT ck_base_pessoa_origem_codigo CHECK(
+            LEN(codigo) BETWEEN 1 AND 120
+            AND REPLACE(REPLACE(codigo COLLATE Latin1_General_100_BIN2,N'_',N''),N'-',N'') NOT LIKE N'%[^A-Z0-9]%'
+        ),
         CONSTRAINT ck_base_pessoa_origem_escopo CHECK(escopo IN('PRIVADA','COMPARTILHADA')),
         CONSTRAINT ck_base_pessoa_origem_confianca CHECK(confianca_identidade IN('HOMOLOGADA_DETERMINISTICA','REFERENCIAL','NAO_HOMOLOGADA'))
     );
@@ -50,17 +53,6 @@ BEGIN
 END;
 GO
 
-/* Diagnóstico fail-fast: usa exatamente o predicado da constraint para revelar a
-   entrada que seria rejeitada, em vez de deixar o SQL Server reportar só o nome do CHECK. */
-DECLARE @codigoJornada NVARCHAR(120)=N'JORNADA';
-IF LEN(@codigoJornada) NOT BETWEEN 1 AND 120
-   OR @codigoJornada COLLATE Latin1_General_100_BIN2 LIKE N'%[^ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-]%'
-BEGIN
-    DECLARE @msgJornada NVARCHAR(2048)=CONCAT(N'Código reservado de base inválido: [',@codigoJornada,N']');
-    THROW 51271,@msgJornada,1;
-END;
-GO
-
 /* Namespace institucional emitido pela própria Jornada.
    É criado sem autorização automática: um sistema só pode usá-lo após vínculo explícito.
    gestor_custodiante_id=NULL significa custódia da própria plataforma, não de uma Secretaria. */
@@ -68,19 +60,6 @@ IF NOT EXISTS(SELECT 1 FROM ref.base_pessoa_origem WHERE codigo='JORNADA')
 BEGIN
     INSERT ref.base_pessoa_origem(codigo,nome,gestor_custodiante_id,escopo,confianca_identidade)
     VALUES('JORNADA','Identificador de Pessoa emitido pela Jornada',NULL,'COMPARTILHADA','HOMOLOGADA_DETERMINISTICA');
-END;
-GO
-
-DECLARE @codigoPrivadoInvalido NVARCHAR(120);
-SELECT TOP(1) @codigoPrivadoInvalido=CONCAT(N'SYS_',CONVERT(NVARCHAR(20),s.sistema_origem_id))
-FROM ref.sistema_origem s
-WHERE LEN(CONCAT(N'SYS_',CONVERT(NVARCHAR(20),s.sistema_origem_id))) NOT BETWEEN 1 AND 120
-   OR CONCAT(N'SYS_',CONVERT(NVARCHAR(20),s.sistema_origem_id)) COLLATE Latin1_General_100_BIN2 LIKE N'%[^ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-]%'
-ORDER BY s.sistema_origem_id;
-IF @codigoPrivadoInvalido IS NOT NULL
-BEGIN
-    DECLARE @msgPrivado NVARCHAR(2048)=CONCAT(N'Código privado de base inválido: [',@codigoPrivadoInvalido,N']');
-    THROW 51272,@msgPrivado,1;
 END;
 GO
 
