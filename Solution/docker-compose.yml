@@ -10,6 +10,8 @@ x-jornada-node-common: &jornada-node-common
       condition: service_healthy
     jornada-nas:
       condition: service_healthy
+    jornada-reference-bootstrap:
+      condition: service_completed_successfully
   restart: unless-stopped
   environment: &jornada-node-environment
     JORNADA_CLUSTER_CONFIG: /etc/jornada/Jornada.Cluster.Test.json
@@ -56,6 +58,29 @@ services:
     volumes:
       - jornada_bronze:/srv/jornada/bronze
     restart: unless-stopped
+
+  # Init service: a referência IBGE 2022 é parte do ambiente, não da calibração.
+  # Em banco novo materializa o snapshot completo; em reinícios posteriores ENSURE
+  # faz somente a consulta de existência e encerra sem reler os milhões de registros.
+  jornada-reference-bootstrap:
+    image: jornada-node:test
+    build:
+      context: .
+      dockerfile: install/container-test/Dockerfile
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      ConnectionStrings__Jornada: "Server=sqlserver,1433;Database=${JORNADA_SQL_DATABASE:-JornadaLocal};User Id=sa;Password=${JORNADA_SQL_SA_PASSWORD:-Jornada_Local_2026!ChangeMe};TrustServerCertificate=true;Encrypt=false"
+      DOTNET_ENVIRONMENT: Development
+      LinkageParameters__Operation: ENSURE_NAME_FREQUENCY_SNAPSHOT
+      LinkageParameters__RunOnce: "true"
+    entrypoint:
+      [
+        "dotnet",
+        "/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll"
+      ]
 
   jornada-node1:
     <<: *jornada-node-common
