@@ -132,8 +132,8 @@ jobs:
             throw "$runnerPath deve começar por cls."
           }
           $audit = $content.IndexOf("local-linkage-evaluation-smoke.ps1")
-          $clean = $content.IndexOf("16/19 - Encerrar cluster antes do SCALE")
-          $scale = $content.IndexOf("17/19 - Smoke de escala + probe sincronizado de coordenação")
+          $clean = $content.IndexOf("15/18 - Encerrar cluster antes do SCALE")
+          $scale = $content.IndexOf("16/18 - Smoke de escala + probe sincronizado de coordenação")
           if ($audit -lt 0 -or $clean -lt 0 -or $scale -lt 0 -or -not ($audit -lt $clean -and $clean -lt $scale)) {
             throw "$runnerPath deve executar Evaluation antes de encerrar o cluster e iniciar o SCALE."
           }
@@ -142,6 +142,15 @@ jobs:
           }
           if (-not $content.Contains('Write-Host "# $CommandText"')) {
             throw "$runnerPath deve imprimir cada comando como comentário antes de executá-lo."
+          }
+          if ($content -match "Invoke-Step\s+'[^']*Upgrade DDL" -or $content -match "Invoke-Step\s+'[^']*3\.65") {
+            throw 'A rodada contínua pré-HML não deve executar upgrade de baseline histórico por padrão.'
+          }
+          if (-not $content.Contains('Gate histórico pré-HML opcional: .\scripts\local-ddl-upgrade.ps1')) {
+            throw 'A rodada contínua deve manter o gate histórico disponível como comando manual explícito.'
+          }
+          if (-not $content.Contains('5.603.287 linhas') -or -not $content.Contains('heartbeat a cada 15 segundos')) {
+            throw 'A etapa de calibração deve explicar a carga IBGE longa e o heartbeat do worker.'
           }
           if ($content.Contains('Read-Host')) {
             throw 'Runner contínuo não pode aguardar ENTER.'
