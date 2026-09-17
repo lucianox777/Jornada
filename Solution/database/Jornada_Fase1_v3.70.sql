@@ -24,6 +24,9 @@
 :r database/migrations/20260912_Frequencia_Nomes_Cobertura.sql
 :r database/migrations/20260912_Gold_Nome_Publicacao.sql
 :r database/migrations/20260912_Linkage_Run_Frequencia_Nome_Proveniencia.sql
+:r database/migrations/20260913_Base_Pessoa_Origem.sql
+:r database/migrations/20260913_Pessoa_Identificadores_Multiplos.sql
+:r database/migrations/20260913_Pessoa_Observacao_Sem_Identificador.sql
 :r database/migrations/20260913_BI_Qualidade_Resolucao.sql
 :r database/migrations/20260913_BI_Qualidade_Resolucao_Gestor_Real.sql
 :r database/migrations/20260913_BI_Qualidade_Resolucao_Estrato_Cpf.sql
