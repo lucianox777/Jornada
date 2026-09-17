@@ -67,6 +67,16 @@ function Assert-CurrentBronzeIndexContract {
     }
 }
 
+function Assert-ShellGatePortableHashContract {
+    $shell = Get-Content -LiteralPath $ShellGate -Raw -Encoding UTF8
+    if ($shell.Contains('sha256sum')) {
+        throw 'Gate DDL shell não pode depender de sha256sum: Git Bash/MSYS pode falhar ao ajustar modo text/binary sob ProcessStartInfo.'
+    }
+    if (-not $shell.Contains('hashlib.sha256')) {
+        throw 'Gate DDL shell deve calcular o fingerprint SHA-256 pelo Python 3 já obrigatório.'
+    }
+}
+
 function Invoke-BashGate {
     param(
         [Parameter(Mandatory=$true)][string]$BashExecutable,
@@ -114,6 +124,8 @@ if ([string]::IsNullOrWhiteSpace($bashExe)) {
 Write-Host "Bash selecionado para o gate DDL: $bashExe"
 Assert-CurrentBronzeIndexContract
 Write-Host 'Índice Bronze corrente: OK (SHA-256 como chave; objeto_chave fora da chave do índice).' -ForegroundColor Green
+Assert-ShellGatePortableHashContract
+Write-Host 'Fingerprint DDL portátil: OK (Python hashlib; sem sha256sum/MSYS).' -ForegroundColor Green
 
 # Git Bash/MSYS converte argumentos POSIX enviados a executáveis Windows. Sem estas exclusões,
 # `docker compose exec -w /workspace ... /opt/mssql-tools18/bin/sqlcmd` reescreve caminhos que
