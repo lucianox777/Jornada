@@ -10,10 +10,8 @@ from pathlib import Path
 
 DEFAULT_MAX_FRACTION = 0.25
 DEFAULT_P95_ABSOLUTE = 1000
-DEFAULT_TARGET_POPULATION_FLOOR = 1_000_000
-DEFAULT_PROJECTION_Z = 1.959963984540054
 TRANSPORTABILITY_VERSION = "BLOCKING_TRANSPORTABILITY_V1"
-TRANSPORTABILITY_METHOD = "WILSON_UPPER_95_FROM_EMPIRICAL_COMPOSITE_KEY_SHARE"
+TRANSPORTABILITY_METHOD = "EMPIRICAL_JOINT_P95_SHARE_V1"
 
 
 def _number(value: object, label: str, errors: list[str]) -> float | None:
@@ -30,38 +28,34 @@ def _positive_int(value: object, label: str, errors: list[str]) -> int | None:
     return value
 
 
-def _wilson_upper(successes: float, trials: int, z: float = DEFAULT_PROJECTION_Z) -> float:
-    if trials <= 0:
-        raise ValueError("trials deve ser > 0")
-    if successes < 0 or successes > trials:
-        raise ValueError("successes deve estar em [0,trials]")
-    proportion = successes / trials
-    z2 = z * z
-    denominator = 1.0 + z2 / trials
-    center = proportion + z2 / (2.0 * trials)
-    adjustment = z * math.sqrt((proportion * (1.0 - proportion) + z2 / (4.0 * trials)) / trials)
-    return min(1.0, (center + adjustment) / denominator)
+def _project_metric(observed: float, reference_population: int, target_population: int) -> float:
+    return round(observed * target_population / reference_population, 4)
 
 
-def _project_p95(observed_p95: float, reference_population: int, target_population: int) -> dict:
-    point = observed_p95 * target_population / reference_population
-    conservative = math.ceil(_wilson_upper(observed_p95, reference_population) * target_population)
+def _projection_row(
+    observed_p95: float,
+    observed_max: float,
+    reference_population: int,
+    target_population: int,
+) -> dict:
     return {
         "observedP95": observed_p95,
-        "pointProjectedP95": round(point, 4),
-        "projectedP95": conservative,
+        "observedMax": observed_max,
+        "observedP95Share": round(observed_p95 / reference_population, 12),
+        "projectedP95": _project_metric(observed_p95, reference_population, target_population),
+        "projectedObservedMax": _project_metric(observed_max, reference_population, target_population),
     }
 
 
 def annotate_transportability(
     data: dict,
     reference_population: int,
-    target_population: int,
+    target_population: int | None,
     p95_absolute: int,
 ) -> dict:
     if reference_population <= 0:
         raise ValueError("reference_population deve ser > 0")
-    if target_population < reference_population:
+    if target_population is not None and target_population < reference_population:
         raise ValueError("target_population não pode ser menor que reference_population")
 
     summary = data.get("summary")
@@ -69,40 +63,54 @@ def annotate_transportability(
     if not isinstance(summary, dict) or not isinstance(passes, list):
         raise ValueError("relatório de blocking inválido para projeção")
 
+    block: dict = {
+        "version": TRANSPORTABILITY_VERSION,
+        "projectionMethod": TRANSPORTABILITY_METHOD,
+        "status": "TARGET_NOT_DECLARED" if target_population is None else "PROJECTED",
+        "referencePopulationSize": reference_population,
+        "targetPopulationSize": target_population,
+        "p95AbsoluteLimit": p95_absolute,
+        "interpretation": {
+            "observedP95": "p95 do fan-out efetivamente medido pelo Runner no corpus de referência.",
+            "projectedP95": "Projeção da participação empírica conjunta do bloco p95 para uma população-alvo explicitamente declarada; não deriva marginais como se fossem independentes.",
+            "projectedObservedMax": "Stress diagnóstico que mantém a maior concentração observada na referência; não é tratado como p95 nem como intervalo de confiança.",
+            "scope": "Evidência de engenharia. Sem população-alvo declarada, não há alegação de transportabilidade para Produção/HML representativa.",
+        },
+    }
+
+    if target_population is None:
+        data["transportability"] = block
+        return data
+
     union_p95 = summary.get("p95UnionCandidateCount")
+    union_max = summary.get("maxUnionCandidateCount")
     if isinstance(union_p95, bool) or not isinstance(union_p95, (int, float)):
         raise ValueError("summary.p95UnionCandidateCount inválido para projeção")
+    if isinstance(union_max, bool) or not isinstance(union_max, (int, float)):
+        raise ValueError("summary.maxUnionCandidateCount inválido para projeção")
 
+    block["union"] = _projection_row(
+        float(union_p95), float(union_max), reference_population, target_population
+    )
     projected_passes: list[dict] = []
     for index, item in enumerate(passes):
         if not isinstance(item, dict):
             raise ValueError(f"passes[{index}] inválido para projeção")
         p95 = item.get("p95CandidateCount")
+        maximum = item.get("maxCandidateCount")
         if isinstance(p95, bool) or not isinstance(p95, (int, float)):
             raise ValueError(f"passes[{index}].p95CandidateCount inválido para projeção")
+        if isinstance(maximum, bool) or not isinstance(maximum, (int, float)):
+            raise ValueError(f"passes[{index}].maxCandidateCount inválido para projeção")
         projected_passes.append(
             {
                 "passId": item.get("passId"),
                 "fields": item.get("fields") or [],
-                **_project_p95(float(p95), reference_population, target_population),
+                **_projection_row(float(p95), float(maximum), reference_population, target_population),
             }
         )
-
-    data["transportability"] = {
-        "version": TRANSPORTABILITY_VERSION,
-        "projectionMethod": TRANSPORTABILITY_METHOD,
-        "confidenceZ": DEFAULT_PROJECTION_Z,
-        "referencePopulationSize": reference_population,
-        "targetPopulationSize": target_population,
-        "p95AbsoluteLimit": p95_absolute,
-        "union": _project_p95(float(union_p95), reference_population, target_population),
-        "passes": projected_passes,
-        "interpretation": {
-            "pointProjectedP95": "Escala proporcional diagnóstica do p95 observado; não é usada isoladamente para promoção.",
-            "projectedP95": "Limite conservador: upper bound de Wilson 95% da participação empírica da chave composta, aplicado à população-alvo.",
-            "scope": "A projeção preserva a distribuição conjunta observada do passe; não assume independência entre atributos. A referência externa deve entrar no corpus que originou a auditoria.",
-        },
-    }
+    block["passes"] = projected_passes
+    data["transportability"] = block
     return data
 
 
@@ -138,14 +146,13 @@ def _validate_metrics(
             f"{label}.maxCandidateCount={maximum:g} excede {max_fraction:.0%} da população Gold ({fraction_limit:g})"
         )
     if p95 > p95_absolute:
-        errors.append(
-            f"{label}.p95CandidateCount={p95:g} excede teto absoluto p95={p95_absolute}"
-        )
+        errors.append(f"{label}.p95CandidateCount={p95:g} excede teto absoluto p95={p95_absolute}")
 
 
 def _validate_projection_metric(
     projection: object,
     observed_p95: float,
+    observed_max: float,
     reference_population: int,
     target_population: int,
     p95_absolute: int,
@@ -155,22 +162,17 @@ def _validate_projection_metric(
     if not isinstance(projection, dict):
         errors.append(f"transportability.{label} ausente ou inválido")
         return
-    expected = _project_p95(observed_p95, reference_population, target_population)
-    observed = _number(projection.get("observedP95"), f"transportability.{label}.observedP95", errors)
-    point = _number(projection.get("pointProjectedP95"), f"transportability.{label}.pointProjectedP95", errors)
-    projected = _number(projection.get("projectedP95"), f"transportability.{label}.projectedP95", errors)
-    if observed is not None and abs(observed - expected["observedP95"]) > 1e-6:
-        errors.append(f"transportability.{label}.observedP95 divergente da auditoria")
-    if point is not None and abs(point - expected["pointProjectedP95"]) > 0.0001:
-        errors.append(f"transportability.{label}.pointProjectedP95 divergente da projeção")
-    if projected is not None:
-        if projected != expected["projectedP95"]:
-            errors.append(f"transportability.{label}.projectedP95 divergente da projeção conservadora")
-        if projected > p95_absolute:
-            errors.append(
-                f"transportability.{label}.projectedP95={projected:g} excede teto absoluto p95={p95_absolute} "
-                f"na população-alvo {target_population}"
-            )
+    expected = _projection_row(observed_p95, observed_max, reference_population, target_population)
+    for key in ("observedP95", "observedMax", "observedP95Share", "projectedP95", "projectedObservedMax"):
+        actual = _number(projection.get(key), f"transportability.{label}.{key}", errors)
+        if actual is not None and abs(actual - float(expected[key])) > 1e-6:
+            errors.append(f"transportability.{label}.{key} divergente da projeção empírica")
+    projected = projection.get("projectedP95")
+    if isinstance(projected, (int, float)) and not isinstance(projected, bool) and projected > p95_absolute:
+        errors.append(
+            f"transportability.{label}.projectedP95={projected:g} excede teto absoluto p95={p95_absolute} "
+            f"na população-alvo {target_population}"
+        )
 
 
 def _validate_transportability(
@@ -178,15 +180,12 @@ def _validate_transportability(
     population: int,
     target_population: int | None,
     p95_absolute: int,
+    require_target_population: bool,
     errors: list[str],
 ) -> None:
     block = data.get("transportability")
-    if block is None:
-        if target_population is not None:
-            errors.append("transportability ausente para projeção obrigatória")
-        return
     if not isinstance(block, dict):
-        errors.append("transportability inválido")
+        errors.append("transportability ausente ou inválido")
         return
     if block.get("version") != TRANSPORTABILITY_VERSION:
         errors.append(f"transportability.version deve ser {TRANSPORTABILITY_VERSION}")
@@ -194,24 +193,40 @@ def _validate_transportability(
         errors.append(f"transportability.projectionMethod deve ser {TRANSPORTABILITY_METHOD}")
 
     reference = _positive_int(block.get("referencePopulationSize"), "transportability.referencePopulationSize", errors)
-    target = _positive_int(block.get("targetPopulationSize"), "transportability.targetPopulationSize", errors)
-    if reference is None or target is None:
+    if reference is None:
         return
     if reference != population:
         errors.append("transportability.referencePopulationSize deve coincidir com population")
+
+    declared_target = block.get("targetPopulationSize")
+    if target_population is None:
+        if declared_target is not None:
+            errors.append("transportability.targetPopulationSize deve ser null quando o alvo não foi declarado")
+        if block.get("status") != "TARGET_NOT_DECLARED":
+            errors.append("transportability.status deve ser TARGET_NOT_DECLARED sem população-alvo")
+        if require_target_population:
+            errors.append("população-alvo é obrigatória para alegação de transportabilidade")
+        return
+
+    target = _positive_int(declared_target, "transportability.targetPopulationSize", errors)
+    if target is None:
+        return
+    if target != target_population:
+        errors.append("transportability.targetPopulationSize divergente do alvo exigido")
     if target < reference:
         errors.append("transportability.targetPopulationSize não pode ser menor que a referência")
-    if target_population is not None and target != target_population:
-        errors.append("transportability.targetPopulationSize divergente do alvo exigido")
+    if block.get("status") != "PROJECTED":
+        errors.append("transportability.status deve ser PROJECTED quando há população-alvo")
 
     summary = data.get("summary")
     passes = data.get("passes")
     if not isinstance(summary, dict) or not isinstance(passes, list):
         return
     union_p95 = _number(summary.get("p95UnionCandidateCount"), "summary.p95UnionCandidateCount", errors)
-    if union_p95 is not None:
+    union_max = _number(summary.get("maxUnionCandidateCount"), "summary.maxUnionCandidateCount", errors)
+    if union_p95 is not None and union_max is not None:
         _validate_projection_metric(
-            block.get("union"), union_p95, reference, target, p95_absolute, "union", errors
+            block.get("union"), union_p95, union_max, reference, target, p95_absolute, "union", errors
         )
 
     projected_passes = block.get("passes")
@@ -230,11 +245,11 @@ def _validate_transportability(
             continue
         pass_id = item.get("passId")
         p95 = _number(item.get("p95CandidateCount"), f"passes[{index}].p95CandidateCount", errors)
-        if not isinstance(pass_id, str) or p95 is None:
+        maximum = _number(item.get("maxCandidateCount"), f"passes[{index}].maxCandidateCount", errors)
+        if not isinstance(pass_id, str) or p95 is None or maximum is None:
             continue
-        projection = by_id.get(pass_id)
         _validate_projection_metric(
-            projection, p95, reference, target, p95_absolute, f"pass[{pass_id}]", errors
+            by_id.get(pass_id), p95, maximum, reference, target, p95_absolute, f"pass[{pass_id}]", errors
         )
     if len(projected_passes) != len(passes):
         errors.append("transportability.passes deve coincidir com o número de passes auditados")
@@ -246,6 +261,7 @@ def validate(
     max_fraction: float,
     p95_absolute: int,
     target_population: int | None = None,
+    require_target_population: bool = False,
 ) -> list[str]:
     errors: list[str] = []
     if population <= 0:
@@ -293,7 +309,14 @@ def validate(
             seen.add(pass_id)
         _validate_metrics(item, label, population, max_fraction, p95_absolute, errors)
 
-    _validate_transportability(data, population, target_population, p95_absolute, errors)
+    _validate_transportability(
+        data,
+        population,
+        target_population,
+        p95_absolute,
+        require_target_population,
+        errors,
+    )
     return errors
 
 
@@ -315,21 +338,28 @@ def print_metrics(data: dict, population: int, max_fraction: float, p95_absolute
             f"truthInside={item.get('truthInsidePass')} incrementalTruth={item.get('incrementalTruthRecovered')}"
         )
     transportability = data.get("transportability")
-    if isinstance(transportability, dict):
-        target = transportability.get("targetPopulationSize")
-        union = transportability.get("union") or {}
+    if not isinstance(transportability, dict):
+        return
+    target = transportability.get("targetPopulationSize")
+    if target is None:
         print(
-            "BLOCKING TRANSPORTABILITY union: "
-            f"observedP95={union.get('observedP95')} pointProjectedP95={union.get('pointProjectedP95')} "
-            f"projectedP95={union.get('projectedP95')} targetPopulation={target}"
+            "BLOCKING TRANSPORTABILITY: targetPopulation=NOT_DECLARED; "
+            f"referencePopulation={transportability.get('referencePopulationSize')} status=TARGET_NOT_DECLARED"
         )
-        for item in transportability.get("passes") or []:
-            fields = "+".join(item.get("fields") or [])
-            print(
-                f"BLOCKING TRANSPORTABILITY pass={item.get('passId')} fields={fields}: "
-                f"observedP95={item.get('observedP95')} pointProjectedP95={item.get('pointProjectedP95')} "
-                f"projectedP95={item.get('projectedP95')} targetPopulation={target}"
-            )
+        return
+    union = transportability.get("union") or {}
+    print(
+        "BLOCKING TRANSPORTABILITY union: "
+        f"observedP95={union.get('observedP95')} projectedP95={union.get('projectedP95')} "
+        f"projectedObservedMax={union.get('projectedObservedMax')} targetPopulation={target}"
+    )
+    for item in transportability.get("passes") or []:
+        fields = "+".join(item.get("fields") or [])
+        print(
+            f"BLOCKING TRANSPORTABILITY pass={item.get('passId')} fields={fields}: "
+            f"observedP95={item.get('observedP95')} projectedP95={item.get('projectedP95')} "
+            f"projectedObservedMax={item.get('projectedObservedMax')} targetPopulation={target}"
+        )
 
 
 def self_test() -> int:
@@ -357,26 +387,36 @@ def self_test() -> int:
             },
         ],
     }
-    if validate(valid, 100, 0.25, 1000):
-        raise RuntimeError("self-test: evidência válida rejeitada")
+
+    observed_only = annotate_transportability(copy.deepcopy(valid), 100, None, 1000)
+    if validate(observed_only, 100, 0.25, 1000):
+        raise RuntimeError("self-test: evidência observada válida rejeitada sem alvo inventado")
+    if not validate(observed_only, 100, 0.25, 1000, require_target_population=True):
+        raise RuntimeError("self-test: gate de transportabilidade deveria exigir alvo explícito")
 
     projected = annotate_transportability(copy.deepcopy(valid), 100, 1000, 1000)
-    projection_errors = validate(projected, 100, 0.25, 1000, target_population=1000)
-    if projection_errors:
-        raise RuntimeError(f"self-test: projeção conservadora válida rejeitada: {projection_errors}")
-    if projected["transportability"]["union"]["observedP95"] != 20:
-        raise RuntimeError("self-test: observedP95 não foi preservado")
-    if projected["transportability"]["union"]["projectedP95"] <= projected["transportability"]["union"]["pointProjectedP95"]:
-        raise RuntimeError("self-test: projectedP95 conservador deveria superar a projeção pontual")
+    errors = validate(projected, 100, 0.25, 1000, target_population=1000, require_target_population=True)
+    if errors:
+        raise RuntimeError(f"self-test: projeção empírica válida rejeitada: {errors}")
+    if projected["transportability"]["union"]["projectedP95"] != 200.0:
+        raise RuntimeError("self-test: projectedP95 deve preservar a participação empírica conjunta")
 
-    oversized_projection = annotate_transportability(copy.deepcopy(valid), 100, 100_000, 1000)
-    if not validate(oversized_projection, 100, 0.25, 1000, target_population=100_000):
-        raise RuntimeError("self-test: projeção para população-alvo excessiva deveria falhar")
+    oversized_projection = annotate_transportability(copy.deepcopy(valid), 100, 10000, 1000)
+    if not validate(
+        oversized_projection,
+        100,
+        0.25,
+        1000,
+        target_population=10000,
+        require_target_population=True,
+    ):
+        raise RuntimeError("self-test: projectedP95 acima do teto deveria falhar")
 
     bad = copy.deepcopy(valid)
     bad["passes"][0]["meanCandidateCount"] = 99.0
     bad["passes"][0]["p95CandidateCount"] = 99
     bad["passes"][0]["maxCandidateCount"] = 99
+    annotate_transportability(bad, 100, None, 1000)
     if not validate(bad, 100, 0.25, 1000):
         raise RuntimeError("self-test: passe com 99% da população deveria falhar")
 
@@ -384,6 +424,7 @@ def self_test() -> int:
     bad["summary"]["meanUnionCandidateCount"] = 24.0
     bad["summary"]["p95UnionCandidateCount"] = 26
     bad["summary"]["maxUnionCandidateCount"] = 26
+    annotate_transportability(bad, 100, None, 1000)
     if not validate(bad, 100, 0.25, 1000):
         raise RuntimeError("self-test: união acima da fração máxima deveria falhar")
 
@@ -391,32 +432,34 @@ def self_test() -> int:
     bad["summary"]["meanUnionCandidateCount"] = 900.0
     bad["summary"]["p95UnionCandidateCount"] = 1001
     bad["summary"]["maxUnionCandidateCount"] = 1200
+    annotate_transportability(bad, 10000, None, 1000)
     if not validate(bad, 10000, 0.25, 1000):
-        raise RuntimeError("self-test: p95 acima do teto absoluto deveria falhar")
+        raise RuntimeError("self-test: p95 observado acima do teto absoluto deveria falhar")
 
     print("BLOCKING PASS FAN-OUT GATE SELF-TEST: OK")
     return 0
 
 
-def _resolve_target_population(reference_population: int, cli_value: int | None) -> int:
+def _resolve_target_population(cli_value: int | None) -> int | None:
     if cli_value is not None:
         return cli_value
     raw = os.environ.get("JORNADA_BLOCKING_TARGET_POPULATION")
-    if raw:
-        try:
-            return int(raw)
-        except ValueError as exc:
-            raise ValueError("JORNADA_BLOCKING_TARGET_POPULATION deve ser inteiro") from exc
-    return max(reference_population, DEFAULT_TARGET_POPULATION_FLOOR)
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ValueError("JORNADA_BLOCKING_TARGET_POPULATION deve ser inteiro") from exc
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Valida fan-out real do ruleset por passe e projeta transportabilidade para população-alvo."
+        description="Valida fan-out real do ruleset por passe e, quando declarado, projeta para população-alvo."
     )
     parser.add_argument("report", nargs="?", type=Path)
     parser.add_argument("--population", type=int)
     parser.add_argument("--target-population", type=int)
+    parser.add_argument("--require-target-population", action="store_true")
     parser.add_argument("--max-fraction", type=float, default=DEFAULT_MAX_FRACTION)
     parser.add_argument("--p95-absolute", type=int, default=DEFAULT_P95_ABSOLUTE)
     parser.add_argument("--self-test", action="store_true")
@@ -428,8 +471,8 @@ def main() -> int:
         parser.error("report e --population são obrigatórios fora de --self-test")
 
     try:
-        target_population = _resolve_target_population(args.population, args.target_population)
-        if target_population < args.population:
+        target_population = _resolve_target_population(args.target_population)
+        if target_population is not None and target_population < args.population:
             parser.error("--target-population não pode ser menor que --population")
     except ValueError as exc:
         parser.error(str(exc))
@@ -445,6 +488,7 @@ def main() -> int:
         args.max_fraction,
         args.p95_absolute,
         target_population=target_population,
+        require_target_population=args.require_target_population,
     )
     if errors:
         print_metrics(data, args.population, args.max_fraction, args.p95_absolute)
