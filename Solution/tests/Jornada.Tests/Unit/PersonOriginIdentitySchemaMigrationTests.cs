@@ -7,7 +7,7 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
     private static string Root => FindSolutionRoot();
 
     [Test]
-    public void Base_origin_migration_separates_transmitter_from_identity_namespace()
+    public void Base_origin_migration_separates_transmitter_from_identity_namespace_without_breaking_legacy_runtime()
     {
         var sql = ReadMigration("20260913_Base_Pessoa_Origem.sql");
 
@@ -15,7 +15,10 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
         Assert.That(sql, Does.Contain("ref.sistema_origem_base_pessoa"));
         Assert.That(sql, Does.Contain("uq_pessoa_origem_base_codigo"));
         Assert.That(sql, Does.Contain("silver.pessoa_origem_sistema"));
-        Assert.That(sql, Does.Contain("WHERE padrao=1 AND ativo=1"));
+        Assert.That(sql, Does.Contain("CONCAT('SYS_',CONVERT(VARCHAR(20),s.sistema_origem_id))"));
+        Assert.That(sql, Does.Contain("WHERE base_pessoa_origem_id IS NOT NULL"));
+        Assert.That(sql, Does.Not.Contain("ALTER COLUMN base_pessoa_origem_id BIGINT NOT NULL"));
+        Assert.That(sql, Does.Not.Contain("DROP CONSTRAINT uq_pessoa_origem"));
     }
 
     [Test]
