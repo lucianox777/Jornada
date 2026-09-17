@@ -9,7 +9,7 @@ CURRENT_REL="${JORNADA_DDL_CURRENT:-database/Jornada_Fase1_v3.70.sql}"
 DB="${JORNADA_DDL_UPGRADE_DATABASE:-JornadaDdlUpgradeCheck}"
 
 need(){ command -v "$1" >/dev/null 2>&1 || { echo "ERRO: comando '$1' não encontrado." >&2; exit 2; }; }
-need docker; need sha256sum; need dotnet
+need docker; need dotnet
 
 PYTHON=()
 if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' >/dev/null 2>&1; then
@@ -39,7 +39,16 @@ mkdir -p "$ROOT/.local/ddl-upgrade"
 compose(){ (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
 sqlcmd(){ compose exec -T -w /workspace -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I "$@"; }
 wait_healthy(){ for _ in $(seq 1 60); do [[ "$(docker inspect -f '{{.State.Health.Status}}' jornada-sqlserver-local 2>/dev/null || true)" == healthy ]] && return 0; sleep 2; done; echo "ERRO: SQL Server não ficou healthy." >&2; exit 3; }
-fingerprint(){ local tag="$1"; local out="$ROOT/.local/ddl-upgrade/fingerprint-$tag.txt"; sqlcmd -d "$DB" -i database/Jornada_Dev_DdlFingerprint.sql -W -h -1 > "$out"; sed -i '/^[[:space:]]*$/d' "$out"; sha256sum "$out" | awk '{print $1}'; }
+fingerprint(){
+  local tag="$1"
+  local out="$ROOT/.local/ddl-upgrade/fingerprint-$tag.txt"
+  sqlcmd -d "$DB" -i database/Jornada_Dev_DdlFingerprint.sql -W -h -1 > "$out"
+  sed -i '/^[[:space:]]*$/d' "$out"
+  # Python já é dependência obrigatória deste gate para upgrade-invariant-gate.py. Usá-lo aqui
+  # evita o sha256sum do MSYS/Git for Windows, que pode falhar ao ajustar modo text/binary quando
+  # o bash é hospedado por ProcessStartInfo com stdout/stderr redirecionados no PowerShell 5.1.
+  "${PYTHON[@]}" -c 'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' "$out"
+}
 assert_sentinel(){ local n; n="$(sqlcmd -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM ref.gestor WHERE codigo='ZZ_UPGRADE_SENTINEL' AND nome='Sentinela DDL Upgrade';" | tr -d '[:space:]')"; [[ "$n" == 1 ]] || { echo "ERRO: dado sentinela não foi preservado." >&2; exit 4; }; }
 assert_phone_v2(){
   local n
