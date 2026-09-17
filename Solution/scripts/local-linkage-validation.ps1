@@ -92,6 +92,34 @@ function Parse-Decimal([string]$Text) {
     return [decimal]::Parse($Text, [Globalization.CultureInfo]::InvariantCulture)
 }
 
+function Get-CompleteValidationRunId {
+    param(
+        [Parameter(Mandatory=$true)][string]$ModelId,
+        [Parameter(Mandatory=$true)][string]$ModelShort
+    )
+
+    return Get-SqlScalar @"
+SELECT TOP(1) CONVERT(varchar(36),lr.linkage_run_id)
+FROM identidade.linkage_run lr
+CROSS APPLY (
+    SELECT
+        SUM(CASE WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$ModelShort-POS-%' THEN 1 ELSE 0 END) AS pos_count,
+        SUM(CASE WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$ModelShort-NEG-%' THEN 1 ELSE 0 END) AS neg_count,
+        SUM(CASE WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$ModelShort-CONFLICT-%' THEN 1 ELSE 0 END) AS conflict_count
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    WHERE r.linkage_run_id=lr.linkage_run_id
+) c
+WHERE lr.status='PUBLICADO'
+  AND lr.tipo_run='ON_DEMAND'
+  AND lr.modelo_id='$ModelId'
+  AND c.pos_count=40
+  AND c.neg_count=40
+  AND c.conflict_count=10
+ORDER BY lr.publicado_em DESC,lr.iniciado_em DESC,lr.linkage_run_id DESC;
+"@
+}
+
 $activeModelId = Get-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'')<>'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;"
 if ([string]::IsNullOrWhiteSpace($activeModelId)) {
     throw "Nenhum modelo calibrado ATIVO. Execute primeiro '.\scripts\local-cluster.ps1 -Action calibrate'."
@@ -104,13 +132,24 @@ Write-Host "Validação independente: modelo v$modelVersion / $activeModelId / $
 # docker compose ... sqlcmd -i /workspace/database/Jornada_Dev_LinkageValidation.sql
 Invoke-SqlFile $Fixture
 
-# .\scripts\local-cluster.ps1 -Action linkage
-Write-CommandLine $LocalCluster @('-Action','linkage')
-& $LocalCluster -Action linkage
-if ($LASTEXITCODE -ne 0) { throw "local-cluster.ps1 linkage falhou ($LASTEXITCODE)." }
+# Reutiliza evidência completa já publicada para o mesmo modelo. Isso torna a validação idempotente:
+# observações resolvidas deixam de entrar no próximo ON_DEMAND e um segundo run isolado seria parcial.
+$runId = Get-CompleteValidationRunId -ModelId $activeModelId -ModelShort $modelShort
+if ([string]::IsNullOrWhiteSpace($runId)) {
+    # .\scripts\local-cluster.ps1 -Action linkage
+    Write-CommandLine $LocalCluster @('-Action','linkage')
+    & $LocalCluster -Action linkage
+    if ($LASTEXITCODE -ne 0) { throw "local-cluster.ps1 linkage falhou ($LASTEXITCODE)." }
 
-$runId = Get-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE status='PUBLICADO' AND tipo_run='ON_DEMAND' AND modelo_id='$activeModelId' ORDER BY publicado_em DESC,iniciado_em DESC,linkage_run_id DESC;"
-if ([string]::IsNullOrWhiteSpace($runId)) { throw 'Nenhum linkage ON_DEMAND PUBLICADO encontrado após a validação.' }
+    $runId = Get-CompleteValidationRunId -ModelId $activeModelId -ModelShort $modelShort
+}
+else {
+    Write-Host "Reutilizando run completo já publicado para este modelo: $runId"
+}
+
+if ([string]::IsNullOrWhiteSpace($runId)) {
+    throw 'Nenhum linkage completo de validação (40 positivos, 40 negativos, 10 conflitos) foi publicado.'
+}
 Write-Host "Run de validação: $runId"
 
 $labelsQuery = @"
