@@ -3,8 +3,20 @@ from __future__ import annotations
 
 import argparse
 import copy
+import importlib.util
 import json
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+BLOCKING_GATE_PATH = Path(__file__).with_name("blocking-pass-evidence-gate.py")
+BLOCKING_POLICY_PATH = ROOT / "config" / "hml" / "blocking-fanout-policy.json"
+
+_spec = importlib.util.spec_from_file_location("blocking_pass_evidence_gate", BLOCKING_GATE_PATH)
+if _spec is None or _spec.loader is None:
+    raise RuntimeError(f"não foi possível carregar {BLOCKING_GATE_PATH}")
+_blocking_gate = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_blocking_gate)
+BLOCKING_POLICY = _blocking_gate.load_policy(BLOCKING_POLICY_PATH)
 
 RESOURCES = {
     "exclusiveRequest": "Jornada.Pipeline.ExclusiveRequest",
@@ -18,7 +30,7 @@ REQUIRED_DIVERSE_ATTRIBUTES = {
     "mother_name_phonetic_ptbr",
 }
 
-MAX_PEOPLE_PER_KEY_FRACTION = 0.25
+MAX_DIVERSITY_ATTRIBUTE_FRACTION = 0.25
 MIN_COORDINATION_WAIT_FRACTION = 0.50
 
 
@@ -36,8 +48,8 @@ def _number(value: object, label: str, errors: list[str]) -> float | None:
     return float(value)
 
 
-def _exceeds_population_fraction(value: int, population: int) -> bool:
-    return population > 0 and value / population > MAX_PEOPLE_PER_KEY_FRACTION
+def _exceeds_diversity_fraction(value: int, population: int) -> bool:
+    return population > 0 and value / population > MAX_DIVERSITY_ATTRIBUTE_FRACTION
 
 
 def validate(data: dict) -> list[str]:
@@ -45,6 +57,7 @@ def validate(data: dict) -> list[str]:
 
     gold_people = _nonnegative_int(data.get("goldPeople"), "goldPeople", errors)
     pending = _nonnegative_int(data.get("pendingWithoutCpf"), "pendingWithoutCpf", errors)
+    model_version = _nonnegative_int(data.get("modelVersion"), "modelVersion", errors)
 
     pressure = data.get("blockingPressure")
     if not isinstance(pressure, dict):
@@ -65,12 +78,6 @@ def validate(data: dict) -> list[str]:
             errors.append("distinctKeys > 0 exige maxPeoplePerKey > 0")
         if gold_people > 1 and max_people >= gold_people:
             errors.append("blockingPressure.maxPeoplePerKey não pode abranger toda a população Gold SCALE")
-        elif _exceeds_population_fraction(max_people, gold_people):
-            errors.append(
-                "blockingPressure.maxPeoplePerKey excede "
-                f"{MAX_PEOPLE_PER_KEY_FRACTION:.0%} da população Gold SCALE "
-                f"({max_people}/{gold_people})"
-            )
 
         attributes = pressure.get("attributes")
         if not isinstance(attributes, list) or not attributes:
@@ -112,11 +119,27 @@ def validate(data: dict) -> list[str]:
                     errors.append(f"{attribute} degenerado: distinctValues deve ser > 1")
                 if gold_people > 1 and max_per_value >= gold_people:
                     errors.append(f"{attribute} degenerado: uma chave não pode conter toda a população")
-                elif _exceeds_population_fraction(max_per_value, gold_people):
+                elif _exceeds_diversity_fraction(max_per_value, gold_people):
                     errors.append(
                         f"{attribute} concentrado demais: maxPeoplePerValue={max_per_value} "
-                        f"excede {MAX_PEOPLE_PER_KEY_FRACTION:.0%} de goldPeople={gold_people}"
+                        f"excede {MAX_DIVERSITY_ATTRIBUTE_FRACTION:.0%} de goldPeople={gold_people}"
                     )
+
+    audit_label_count = _nonnegative_int(
+        data.get("blockingPassAuditLabelCount"), "blockingPassAuditLabelCount", errors
+    )
+    pass_audit = data.get("blockingPassAudit")
+    if not isinstance(pass_audit, dict):
+        errors.append("blockingPassAudit ausente ou inválido")
+    elif gold_people > 0 and model_version > 0 and audit_label_count > 0:
+        fanout_errors, _ = _blocking_gate.validate(
+            pass_audit,
+            gold_people,
+            BLOCKING_POLICY,
+            expected_sample_size=audit_label_count,
+            expected_model_version=model_version,
+        )
+        errors.extend(f"blockingPassAudit: {error}" for error in fanout_errors)
 
     runner = data.get("runner")
     if not isinstance(runner, dict):
@@ -250,18 +273,41 @@ def self_test() -> int:
     valid = {
         "goldPeople": 100,
         "pendingWithoutCpf": 20,
+        "modelVersion": 4,
         "runtimeScope": {"blocking": {"mode": "RULESET"}},
         "blockingPressure": {
-            "ruleSetPassCount": 3,
+            "ruleSetPassCount": 1,
             "blockingRows": 100,
             "distinctKeys": 25,
-            "maxPeoplePerKey": 12,
+            "maxPeoplePerKey": 26,
             "attributes": [
                 {"attribute": "name_first", "rows": 100, "distinctValues": 20, "maxPeoplePerValue": 8},
                 {"attribute": "name_phonetic_ptbr", "rows": 100, "distinctValues": 15, "maxPeoplePerValue": 10},
                 {"attribute": "mother_name_first", "rows": 100, "distinctValues": 18, "maxPeoplePerValue": 9},
                 {"attribute": "mother_name_phonetic_ptbr", "rows": 100, "distinctValues": 14, "maxPeoplePerValue": 11},
-                {"attribute": "birth_month", "rows": 100, "distinctValues": 12, "maxPeoplePerValue": 12},
+                {"attribute": "birth_month", "rows": 100, "distinctValues": 12, "maxPeoplePerValue": 26},
+            ],
+        },
+        "blockingPassAuditLabelCount": 20,
+        "blockingPassAudit": {
+            "purpose": "DEV_HML_ONLY_READ_ONLY_BLOCKING_PASS_EVIDENCE",
+            "model": {"modelVersion": 4},
+            "summary": {
+                "sampleSize": 20,
+                "ruleSetPassCount": 1,
+                "meanUnionCandidateCount": 10.0,
+                "p95UnionCandidateCount": 20,
+                "maxUnionCandidateCount": 40,
+            },
+            "passes": [
+                {
+                    "passId": "P001",
+                    "fields": ["birth_month", "birth_year"],
+                    "sampleSize": 20,
+                    "meanCandidateCount": 10.0,
+                    "p95CandidateCount": 20,
+                    "maxCandidateCount": 40,
+                }
             ],
         },
         "runner": {"evaluated": 20, "resolved": 15, "unresolved": 4, "conflicts": 1},
@@ -342,12 +388,17 @@ def self_test() -> int:
     bad["blockingPressure"]["attributes"][0]["distinctValues"] = 1
     bad["blockingPressure"]["attributes"][0]["maxPeoplePerValue"] = 100
     if not validate(bad):
-        raise RuntimeError("self-test: blocking universal deveria ser rejeitado")
+        raise RuntimeError("self-test: projeção/chave universal deveria ser rejeitada")
+
+    atomic_only = copy.deepcopy(valid)
+    atomic_only["blockingPressure"]["maxPeoplePerKey"] = 30
+    if validate(atomic_only):
+        raise RuntimeError("self-test: concentração atômica >25% não deve reprovar o fan-out real")
 
     bad = copy.deepcopy(valid)
-    bad["blockingPressure"]["maxPeoplePerKey"] = 26
+    bad["blockingPassAudit"]["passes"][0]["p95CandidateCount"] = 26
     if not validate(bad):
-        raise RuntimeError("self-test: blocking quase universal deveria exceder o teto proporcional")
+        raise RuntimeError("self-test: p95 do passe real acima do teto deveria ser rejeitado")
 
     bad = copy.deepcopy(valid)
     bad["blockingPressure"]["attributes"][1]["maxPeoplePerValue"] = 26
@@ -360,7 +411,7 @@ def self_test() -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Valida pressão de blocking, qualidade sintética e coordenação do harness de escala."
+        description="Valida fan-out real por passe, diversidade do corpus, qualidade sintética e coordenação do harness de escala."
     )
     parser.add_argument("report", nargs="?")
     parser.add_argument("--self-test", action="store_true")
