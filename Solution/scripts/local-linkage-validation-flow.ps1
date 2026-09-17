@@ -44,6 +44,9 @@ function Get-SqlScalar {
     return (($output | Where-Object { $_ -and $_ -notmatch '^[- ]+$' } | Select-Object -Last 1).Trim())
 }
 
+Write-Host "# Set-Location '$Root'"
+Set-Location -LiteralPath $Root
+
 Write-Host '# .\scripts\local-cluster.ps1 -Action up'
 Invoke-Checked -Label '.\scripts\local-cluster.ps1 -Action up' -Command { & $Cluster -Action up }
 
