@@ -105,7 +105,7 @@ dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Relea
 
 echo "Auditando fan-out efetivo do ruleset calibrado em $BLOCKING_AUDIT_LABEL_COUNT observações SCALE..."
 printf 'pessoa_observacao_id,pessoa_uuid_verdade\n' > "$BLOCKING_AUDIT_LABELS"
-sqlcmd -d "$DB" -W -h -1 -y 0 -w 65535 -Q "
+sqlcmd -d "$DB" -W -h -1 -w 65535 -Q "
 SET NOCOUNT ON;
 WITH pend AS (
     SELECT TOP ($BLOCKING_AUDIT_LABEL_COUNT)
@@ -168,7 +168,7 @@ GIT_COMMIT_SHA="$(git -C "$ROOT" rev-parse HEAD | tr '[:upper:]' '[:lower:]' | t
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"; OUT="$OUTDIR/scale-${PROFILE}-${STAMP}.json"
 cat > "$OUT" <<JSON
 {
-  "reportVersion": "LINKAGE_SCALE_EVIDENCE_V2",
+  "reportVersion": "LINKAGE_SCALE_EVIDENCE_V1",
   "gitCommitSha": "$GIT_COMMIT_SHA",
   "profile": "$PROFILE",
   "seed": $SEED,
