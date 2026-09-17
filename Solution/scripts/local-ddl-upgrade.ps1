@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $ShellGate = Join-Path $PSScriptRoot 'local-ddl-upgrade.sh'
-$CurrentDdl = Join-Path $Root 'database/Jornada_Fase1_v3.70.sql'
+$CurrentDdl = Join-Path $Root 'database/Jornada_Fase1.sql'
 
 if (-not (Test-Path -LiteralPath $ShellGate)) {
     throw "Gate DDL canônico não encontrado: $ShellGate"
