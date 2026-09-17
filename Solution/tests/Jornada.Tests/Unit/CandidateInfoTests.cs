@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Xml.Linq;
 using NUnit.Framework;
@@ -29,7 +31,7 @@ public sealed class CandidateInfoTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(candidate.RootElement.GetProperty("manifest_version").GetInt32(), Is.EqualTo(2));
+            Assert.That(candidate.RootElement.GetProperty("manifest_version").GetInt32(), Is.EqualTo(3));
             Assert.That(candidate.RootElement.GetProperty("nature").GetString(), Is.EqualTo("ENGINEERING_CANDIDATE"));
             Assert.That(sealedRelease.GetProperty("metadata_source").GetString(), Is.EqualTo("RELEASE_INFO.txt"));
             Assert.That(sealedRelease.GetProperty("solution_engineering").GetString(), Is.EqualTo("v4.05"));
@@ -51,6 +53,36 @@ public sealed class CandidateInfoTests
             Assert.That(releaseInfo, Does.Contain("solution_engenharia=v4.05"));
             Assert.That(releaseInfo, Does.Contain("schema_solution=v3.69"));
             Assert.That(releaseInfo, Does.Not.Contain("solution_engenharia=v5.00"));
+        });
+    }
+
+    [Test]
+    public void Candidate_schema_provenance_must_bind_manifest_and_structural_fingerprint()
+    {
+        var root = FindRepositoryRoot();
+        using var candidate = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "CANDIDATE_INFO.json")));
+        var candidateState = candidate.RootElement.GetProperty("candidate");
+        var provenance = candidateState.GetProperty("schema_provenance");
+        var manifestRelative = provenance.GetProperty("migration_manifest").GetString()!;
+        var manifestPath = Path.Combine(root, manifestRelative.Replace('/', Path.DirectorySeparatorChar));
+        var manifestText = File.ReadAllText(manifestPath)
+            .TrimStart('\uFEFF')
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal);
+        var manifestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(manifestText))).ToLowerInvariant();
+        var recordedManifestHash = provenance.GetProperty("migration_manifest_sha256").GetString();
+        var structuralHash = provenance.GetProperty("structural_fingerprint_sha256").GetString();
+        var sourceCommit = provenance.GetProperty("source_commit").GetString();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(provenance.GetProperty("status").GetString(), Is.EqualTo("MUTABLE_UNTIL_RC_CUT"));
+            Assert.That(provenance.GetProperty("canonical_ddl").GetString(), Is.EqualTo(candidateState.GetProperty("canonical_ddl").GetString()));
+            Assert.That(provenance.GetProperty("migration_manifest_hash_method").GetString(), Is.EqualTo("SHA256_UTF8_LF"));
+            Assert.That(recordedManifestHash, Is.EqualTo(manifestHash));
+            Assert.That(structuralHash, Does.Match("^[0-9a-f]{64}$"));
+            Assert.That(sourceCommit, Does.Match("^[0-9a-f]{40}$"));
+            Assert.That(provenance.GetProperty("ddl_evidence_run_id").GetInt64(), Is.GreaterThan(0));
         });
     }
 
