@@ -28,4 +28,5 @@ migrations/20260913_BI_Qualidade_Resolucao_Estrato_Cpf.sql
 migrations/20260914_Operational_Monitor.sql
 migrations/20260915_Linkage_LogOdds_Margin.sql
 migrations/20260915_Linkage_Model_Promotion_Contract.sql
+migrations/20260916_Linkage_U_Support_Reachability.sql
 migrations/20260910_Schema_Consolidation_370.sql
