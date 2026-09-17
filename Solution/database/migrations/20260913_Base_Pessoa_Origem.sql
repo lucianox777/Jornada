@@ -27,7 +27,7 @@ BEGIN
         ativo BIT NOT NULL CONSTRAINT DF_base_pessoa_origem_ativo DEFAULT(1),
         criado_em DATETIMEOFFSET(7) NOT NULL CONSTRAINT DF_base_pessoa_origem_criado DEFAULT(SYSDATETIMEOFFSET()),
         CONSTRAINT uq_base_pessoa_origem_codigo UNIQUE(codigo),
-        CONSTRAINT ck_base_pessoa_origem_codigo CHECK(LEN(codigo) BETWEEN 1 AND 120 AND codigo NOT LIKE '%[^A-Z0-9_-]%' COLLATE Latin1_General_100_BIN2),
+        CONSTRAINT ck_base_pessoa_origem_codigo CHECK(LEN(codigo) BETWEEN 1 AND 120 AND codigo COLLATE Latin1_General_100_BIN2 NOT LIKE N'%[^ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-]%'),
         CONSTRAINT ck_base_pessoa_origem_escopo CHECK(escopo IN('PRIVADA','COMPARTILHADA')),
         CONSTRAINT ck_base_pessoa_origem_confianca CHECK(confianca_identidade IN('HOMOLOGADA_DETERMINISTICA','REFERENCIAL','NAO_HOMOLOGADA'))
     );
