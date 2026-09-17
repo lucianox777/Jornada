@@ -174,9 +174,9 @@ jobs:
 
           $flow = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-validation-flow.ps1
           foreach ($required in @(
-            "Write-Host '# .\\scripts\\local-cluster.ps1 -Action up'",
-            "Write-Host '# .\\scripts\\local-cluster.ps1 -Action calibrate'",
-            "Write-Host '# .\\scripts\\local-linkage-validation.ps1'",
+            "Write-Host '# .\scripts\local-cluster.ps1 -Action up'",
+            "Write-Host '# .\scripts\local-cluster.ps1 -Action calibrate'",
+            "Write-Host '# .\scripts\local-linkage-validation.ps1'",
             'SQLCMDPASSWORD=<redacted>'
           )) {
             if (-not $flow.Contains($required)) {
@@ -186,7 +186,7 @@ jobs:
 
           $bootstrap = Get-Content -Raw -Encoding UTF8 scripts/local-ibge-u-bootstrap.ps1
           foreach ($required in @(
-            "Write-Host '# .\\scripts\\local-cluster.ps1 -Action up'",
+            "Write-Host '# .\scripts\local-cluster.ps1 -Action up'",
             'function Write-CommandLine',
             "Write-CommandLine 'docker' `$workerArgs",
             "Write-CommandLine 'docker' `$copyArgs",
