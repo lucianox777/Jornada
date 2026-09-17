@@ -1,5 +1,5 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "nature": "ENGINEERING_CANDIDATE",
   "sealed_release": {
     "metadata_source": "RELEASE_INFO.txt",
@@ -12,6 +12,18 @@
     "target_solution_engineering": "v5.00",
     "release_status": "NOT_RELEASED",
     "solution_schema": "v3.70",
+    "schema_provenance": {
+      "status": "MUTABLE_UNTIL_RC_CUT",
+      "source_commit": "5699aa99877daca768a07a624610607a28569c5a",
+      "canonical_ddl": "Solution/database/Jornada_Fase1_v3.70.sql",
+      "structural_fingerprint_sha256": "e1cc07ef02ed0aa99e23f9666aff5b6b238efc98fc80f7d45c85ab55b88c1b72",
+      "structural_fingerprint_method": "SHA256_SORTED_METADATA_LINES_FROM_Jornada_Dev_DdlFingerprint.sql",
+      "migration_manifest": "Solution/database/migrations/manifest.txt",
+      "migration_manifest_sha256": "190efed8212b108d997f0919f60218be60a9543d7dd6c8e98cba0078b77ea121",
+      "migration_manifest_hash_method": "SHA256_UTF8_LF",
+      "ddl_evidence_run_id": 35217875930,
+      "rc_rule": "Before the technical RC is cut, source_commit and both hashes may move together. Once v5.00-rc.1 is cut, this provenance tuple is immutable; a structural change requires a new RC checkpoint."
+    },
     "technical_rc": {
       "identifier": "v5.00-rc.1",
       "semver": "5.0.0-rc.1",
@@ -39,7 +51,7 @@
   "notes": [
     "This manifest describes candidate state only and does not publish or seal a release.",
     "RELEASE_INFO.txt remains the authoritative metadata for the last sealed release.",
-    "The exact source commit is carried by .NET SourceRevisionId in AssemblyInformationalVersion; the mutable candidate manifest intentionally does not embed its own commit SHA.",
+    "The mutable candidate records the durable master commit and schema hashes that produced its current schema snapshot; .NET SourceRevisionId continues to identify each binary build.",
     "The technical RC is prepared but not cut until CI is green for the exact immutable commit selected as the RC checkpoint.",
     "Microsoft SQL Server is the operational relational target for Production; Fabric SQL evidence is historical compatibility evidence and is not a release gate for this candidate."
   ]
