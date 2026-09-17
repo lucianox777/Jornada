@@ -3,13 +3,15 @@ SET XACT_ABORT ON;
 GO
 
 -- Fechamento fail-closed da consolidação do schema operacional v3.70.
--- O marcador só é promovido quando todo o conjunto estrutural introduzido pela
--- identidade progressiva, composição e blocking dinâmico estiver materializado.
-DECLARE @missing TABLE(objeto SYSNAME NOT NULL);
+-- O marcador só é promovido quando todo o conjunto estrutural declarado no
+-- manifesto canônico estiver materializado, inclusive contratos adicionados
+-- após a criação original deste arquivo em 10/09.
+DECLARE @missing TABLE(item NVARCHAR(300) NOT NULL PRIMARY KEY);
 
-INSERT @missing(objeto)
-SELECT v.objeto
+INSERT @missing(item)
+SELECT CONCAT(N'TABLE:',v.objeto)
 FROM (VALUES
+ (N'jornada.schema_migration'),
  (N'identidade.cpf_ancora'),
  (N'identidade.pessoa_origem_progressiva'),
  (N'identidade.pessoa_origem_progressiva_evento'),
@@ -22,14 +24,104 @@ FROM (VALUES
  (N'identidade.blocking_chave'),
  (N'identidade.linkage_ruleset'),
  (N'identidade.linkage_ruleset_passe'),
- (N'identidade.linkage_ruleset_passe_campo')
+ (N'identidade.linkage_ruleset_passe_campo'),
+ (N'ref.frequencia_nome_versao'),
+ (N'ref.frequencia_nome'),
+ (N'ref.frequencia_nome_cobertura'),
+ (N'identidade.linkage_quality_estimate'),
+ (N'controle.runtime_componente')
 ) v(objeto)
 WHERE OBJECT_ID(v.objeto, N'U') IS NULL;
 
+INSERT @missing(item)
+SELECT CONCAT(N'VIEW:',v.objeto)
+FROM (VALUES
+ (N'ref.v_frequencia_nome_ativa'),
+ (N'ref.v_frequencia_nome_cobertura_ativa'),
+ (N'serving.v_bi_qualidade_resolucao_operacional'),
+ (N'serving.v_bi_qualidade_resolucao_calibrada'),
+ (N'serving.v_bi_qualidade_resolucao_operacional_origem'),
+ (N'serving.v_bi_qualidade_resolucao_operacional_estrato')
+) v(objeto)
+WHERE OBJECT_ID(v.objeto, N'V') IS NULL;
+
+INSERT @missing(item)
+SELECT CONCAT(N'TRIGGER:',v.objeto)
+FROM (VALUES
+ (N'ref.tr_frequencia_nome_bloqueia_versao_publicada'),
+ (N'ref.tr_frequencia_nome_versao_metadado_immutavel'),
+ (N'ref.tr_frequencia_nome_cobertura_bloqueia_versao_publicada'),
+ (N'identidade.tr_modelo_linkage_fixa_frequencia_nome_versao'),
+ (N'gold.tr_pessoa_nome_publicacao'),
+ (N'identidade.tr_linkage_run_congela_frequencia_nome'),
+ (N'identidade.tr_linkage_run_frequencia_nome_immutavel'),
+ (N'identidade.tr_modelo_linkage_promotion_contract')
+) v(objeto)
+WHERE OBJECT_ID(v.objeto, N'TR') IS NULL;
+
+IF OBJECT_ID(N'ref.sp_publicar_frequencia_nome_versao',N'P') IS NULL
+    INSERT @missing(item) VALUES(N'PROC:ref.sp_publicar_frequencia_nome_versao');
+
+DECLARE @required_columns TABLE(tabela SYSNAME NOT NULL,coluna SYSNAME NOT NULL,PRIMARY KEY(tabela,coluna));
+INSERT @required_columns(tabela,coluna) VALUES
+ (N'identidade.modelo_linkage',N'frequencia_nome_versao_id'),
+ (N'identidade.linkage_run',N'frequencia_nome_versao_id'),
+ (N'identidade.linkage_run',N'frequencia_nome_versao_codigo'),
+ (N'identidade.linkage_run',N'frequencia_nome_conteudo_sha256'),
+ (N'gold.pessoa',N'nome_publicacao_normalizado'),
+ (N'gold.pessoa',N'nome_publicacao_metodo_versao'),
+ (N'gold.pessoa',N'nome_publicacao_normalizacao_versao'),
+ (N'controle.runtime_componente',N'configuration_bundle_version'),
+ (N'controle.runtime_componente',N'solution_schema_expected');
+
+INSERT @missing(item)
+SELECT CONCAT(N'COLUMN:',tabela,N'.',coluna)
+FROM @required_columns
+WHERE COL_LENGTH(tabela,coluna) IS NULL;
+
+-- Nome da mãe é opcional no contrato corrente. Presença sem nulabilidade continua
+-- sendo schema incompatível, mesmo que o nome da coluna seja o esperado.
+INSERT @missing(item)
+SELECT CONCAT(N'NULLABILITY:',v.tabela,N'.',v.coluna)
+FROM (VALUES
+ (N'silver.pessoa_observacao',N'nome_mae'),
+ (N'silver.pessoa_observacao',N'nome_mae_cmp'),
+ (N'gold.pessoa',N'nome_mae')
+) v(tabela,coluna)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM sys.columns c
+    WHERE c.object_id=OBJECT_ID(v.tabela,N'U')
+      AND c.name=v.coluna
+      AND c.is_nullable=1
+);
+
+-- A margem V6 precisa aceitar log-odds; decimal(18,8) e as constraints abaixo
+-- distinguem o schema novo do contrato legado limitado ao posterior.
+IF NOT EXISTS(
+    SELECT 1
+    FROM sys.columns c
+    JOIN sys.types t ON t.user_type_id=c.user_type_id
+    WHERE c.object_id=OBJECT_ID(N'identidade.linkage_resultado',N'U')
+      AND c.name=N'margem'
+      AND t.name=N'decimal'
+      AND c.precision=18
+      AND c.scale=8
+      AND c.is_nullable=1
+)
+    INSERT @missing(item) VALUES(N'COLUMN_SHAPE:identidade.linkage_resultado.margem decimal(18,8) NULL');
+
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'identidade.linkage_resultado') AND name=N'ck_linkage_resultado_scores')
+    INSERT @missing(item) VALUES(N'CHECK:identidade.linkage_resultado.ck_linkage_resultado_scores');
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'identidade.linkage_resultado') AND name=N'ck_linkage_resultado_candidatos_distintos')
+    INSERT @missing(item) VALUES(N'CHECK:identidade.linkage_resultado.ck_linkage_resultado_candidatos_distintos');
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'gold.pessoa') AND name=N'ck_gold_pessoa_nome_publicacao_completo')
+    INSERT @missing(item) VALUES(N'CHECK:gold.pessoa.ck_gold_pessoa_nome_publicacao_completo');
+
 IF EXISTS(SELECT 1 FROM @missing)
 BEGIN
-    DECLARE @lista NVARCHAR(MAX)=(SELECT STRING_AGG(objeto,N', ') FROM @missing);
-    DECLARE @mensagem NVARCHAR(2048)=CONCAT(N'Schema v3.70 incompleto. Objetos ausentes: ',@lista);
+    DECLARE @lista NVARCHAR(MAX)=(SELECT STRING_AGG(item,N', ') WITHIN GROUP(ORDER BY item) FROM @missing);
+    DECLARE @mensagem NVARCHAR(2048)=CONCAT(N'Schema v3.70 incompleto. Contratos ausentes/incompatíveis: ',@lista);
     THROW 51700, @mensagem, 1;
 END;
 

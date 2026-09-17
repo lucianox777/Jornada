@@ -3,23 +3,30 @@ name: jornada-schema-consolidation-370
 on:
   pull_request:
     paths:
+      - 'Solution/database/Jornada_Fase1.sql'
       - 'Solution/database/Jornada_Fase1_v3.70.sql'
       - 'Solution/database/Jornada_Identidade_Progressiva.sql'
+      - 'Solution/database/Jornada_Dev_DdlFingerprint.sql'
       - 'Solution/database/migrations/**'
       - 'Solution/src/Jornada.Api/ApiHealth.cs'
       - 'Solution/scripts/apply-migrations.sh'
-      - 'Solution/scripts/local-db.*'
+      - 'Solution/scripts/schema-manifest.py'
+      - 'Solution/install/windows-production/Build-WindowsProductionBundle.ps1'
       - '.github/workflows/schema-consolidation-370.yml'
   push:
     branches: [ master ]
     paths:
+      - 'Solution/database/Jornada_Fase1.sql'
       - 'Solution/database/Jornada_Fase1_v3.70.sql'
       - 'Solution/database/Jornada_Identidade_Progressiva.sql'
+      - 'Solution/database/Jornada_Dev_DdlFingerprint.sql'
       - 'Solution/database/migrations/**'
       - 'Solution/src/Jornada.Api/ApiHealth.cs'
       - 'Solution/scripts/apply-migrations.sh'
-      - 'Solution/scripts/local-db.*'
+      - 'Solution/scripts/schema-manifest.py'
+      - 'Solution/install/windows-production/Build-WindowsProductionBundle.ps1'
       - '.github/workflows/schema-consolidation-370.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -27,19 +34,22 @@ permissions:
 jobs:
   sqlserver-consolidated-install:
     runs-on: ubuntu-24.04
+    env:
+      JORNADA_TEST_SQL_PASSWORD: Jornada_${{ github.run_id }}_Aa9!
     services:
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
         env:
           ACCEPT_EULA: Y
           MSSQL_PID: Developer
-          MSSQL_SA_PASSWORD: 'Jornada_Schema_370_Aa9!'
+          MSSQL_SA_PASSWORD: Jornada_${{ github.run_id }}_Aa9!
         ports:
           - 1433:1433
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+
       - name: Install sqlcmd
         run: |
           set -euo pipefail
@@ -48,46 +58,102 @@ jobs:
           sudo apt-get update -qq
           sudo env ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mssql-tools18
           echo '/opt/mssql-tools18/bin' >> "$GITHUB_PATH"
+
       - name: Wait for SQL Server
         run: |
           for i in $(seq 1 60); do
-            /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -Q 'SELECT 1' >/dev/null 2>&1 && exit 0
+            /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$JORNADA_TEST_SQL_PASSWORD" -C -Q 'SELECT 1' >/dev/null 2>&1 && exit 0
             sleep 2
           done
           exit 1
+
+      - name: Validate manifest and render flattened production DDL
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/schema-manifest.py
+          python3 scripts/schema-manifest.py --check --flatten-output .local/schema/Jornada_Fase1_flat.sql
+          count=$(python3 scripts/schema-manifest.py --print-count)
+          test "$count" -ge 1
+          grep -F '20260912_Frequencia_Nomes_Referencia.sql' database/migrations/manifest.txt >/dev/null
+          grep -F '20260913_BI_Qualidade_Resolucao.sql' database/migrations/manifest.txt >/dev/null
+          grep -F '20260916_Schema_Migration_Ledger.sql' database/migrations/manifest.txt >/dev/null
+
       - name: Prove fresh install and reentry
         working-directory: Solution
         run: |
-          sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -Q "CREATE DATABASE JornadaSchema370;"
-          sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -d JornadaSchema370 -i database/Jornada_Fase1_v3.70.sql
-          sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -d JornadaSchema370 -i database/Jornada_Fase1_v3.70.sql
-          result=$(sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -d JornadaSchema370 -W -h -1 -Q "SET NOCOUNT ON; SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" | tr -d '[:space:]')
+          set -euo pipefail
+          sqlcmd -S localhost -U sa -P "$JORNADA_TEST_SQL_PASSWORD" -C -b -Q "CREATE DATABASE JornadaSchema370;"
+          sqlcmd -S localhost -U sa -P "$JORNADA_TEST_SQL_PASSWORD" -C -b -d JornadaSchema370 -i database/Jornada_Fase1_v3.70.sql
+          sqlcmd -S localhost -U sa -P "$JORNADA_TEST_SQL_PASSWORD" -C -b -d JornadaSchema370 -i database/Jornada_Fase1_v3.70.sql
+          result=$(sqlcmd -S localhost -U sa -P "$JORNADA_TEST_SQL_PASSWORD" -C -b -d JornadaSchema370 -W -h -1 -Q "SET NOCOUNT ON; SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" | tr -d '[:space:]')
           test "$result" = '3.70'
-      - name: Prove incomplete schema is not promoted
-        working-directory: Solution
-        run: |
-          sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -Q "CREATE DATABASE JornadaSchemaIncomplete;"
-          sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -d JornadaSchemaIncomplete -i database/Jornada_Fase1.sql
-          result=$(sqlcmd -S localhost -U sa -P 'Jornada_Schema_370_Aa9!' -C -b -d JornadaSchemaIncomplete -W -h -1 -Q "SET NOCOUNT ON; SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" | tr -d '[:space:]')
-          test "$result" != '3.70'
-      - name: Prove migration ledger, reentry and checksum fail-closed
+
+      - name: Prove base 3.69 plus manifest upgrade
         working-directory: Solution
         env:
           JORNADA_SQL_SERVER: localhost
           JORNADA_SQL_USER: sa
-          JORNADA_SQL_PASSWORD: 'Jornada_Schema_370_Aa9!'
+          JORNADA_SQL_DATABASE: JornadaSchemaUpgrade369
+        run: |
+          set -euo pipefail
+          export JORNADA_SQL_PASSWORD="$JORNADA_TEST_SQL_PASSWORD"
+          sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -Q "CREATE DATABASE JornadaSchemaUpgrade369;"
+          sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -d JornadaSchemaUpgrade369 -i database/Jornada_Fase1.sql
+          bash scripts/apply-migrations.sh
+          bash scripts/apply-migrations.sh
+          result=$(sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -d JornadaSchemaUpgrade369 -W -h -1 -Q "SET NOCOUNT ON; SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" | tr -d '[:space:]')
+          test "$result" = '3.70'
+
+      - name: Prove flattened Windows-bundle DDL
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          sqlcmd -S localhost -U sa -P "$JORNADA_TEST_SQL_PASSWORD" -C -b -Q "CREATE DATABASE JornadaSchemaBundle;"
+          sqlcmd -S localhost -U sa -P "$JORNADA_TEST_SQL_PASSWORD" -C -b -d JornadaSchemaBundle -i .local/schema/Jornada_Fase1_flat.sql
+          result=$(sqlcmd -S localhost -U sa -P "$JORNADA_TEST_SQL_PASSWORD" -C -b -d JornadaSchemaBundle -W -h -1 -Q "SET NOCOUNT ON; SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" | tr -d '[:space:]')
+          test "$result" = '3.70'
+
+      - name: Require identical schema fingerprints for all installation paths
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          mkdir -p .local/schema/fingerprints
+          for db in JornadaSchema370 JornadaSchemaUpgrade369 JornadaSchemaBundle; do
+            sqlcmd -S localhost -U sa -P "$JORNADA_TEST_SQL_PASSWORD" -C -b -d "$db" -W -h -1 -i database/Jornada_Dev_DdlFingerprint.sql \
+              | sed '/^[[:space:]]*$/d' > ".local/schema/fingerprints/$db.txt"
+          done
+          diff -u .local/schema/fingerprints/JornadaSchema370.txt .local/schema/fingerprints/JornadaSchemaUpgrade369.txt
+          diff -u .local/schema/fingerprints/JornadaSchema370.txt .local/schema/fingerprints/JornadaSchemaBundle.txt
+          sha256sum .local/schema/fingerprints/*.txt
+
+      - name: Prove incomplete schema is not promoted
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          sqlcmd -S localhost -U sa -P "$JORNADA_TEST_SQL_PASSWORD" -C -b -Q "CREATE DATABASE JornadaSchemaIncomplete;"
+          sqlcmd -S localhost -U sa -P "$JORNADA_TEST_SQL_PASSWORD" -C -b -d JornadaSchemaIncomplete -i database/Jornada_Fase1.sql
+          result=$(sqlcmd -S localhost -U sa -P "$JORNADA_TEST_SQL_PASSWORD" -C -b -d JornadaSchemaIncomplete -W -h -1 -Q "SET NOCOUNT ON; SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" | tr -d '[:space:]')
+          test "$result" != '3.70'
+
+      - name: Prove migration ledger, reentry and checksum fail-closed from v3.65
+        working-directory: Solution
+        env:
+          JORNADA_SQL_SERVER: localhost
+          JORNADA_SQL_USER: sa
           JORNADA_SQL_DATABASE: JornadaMigrationLedger
         run: |
           set -euo pipefail
+          export JORNADA_SQL_PASSWORD="$JORNADA_TEST_SQL_PASSWORD"
           sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -Q "CREATE DATABASE JornadaMigrationLedger;"
           sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -d JornadaMigrationLedger -i database/baselines/Jornada_Fase1_v3.65.sql
-          sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -d JornadaMigrationLedger -i database/Jornada_Identidade_Progressiva.sql
 
           bash scripts/apply-migrations.sh
           bash scripts/apply-migrations.sh
 
+          expected_count=$(python3 scripts/schema-manifest.py --print-count)
           ledger_count=$(sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -d JornadaMigrationLedger -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM jornada.schema_migration;" | tr -d '[:space:]')
-          test "$ledger_count" = '17'
+          test "$ledger_count" = "$expected_count"
           schema=$(sqlcmd -S localhost -U sa -P "$JORNADA_SQL_PASSWORD" -C -b -d JornadaMigrationLedger -W -h -1 -Q "SET NOCOUNT ON; SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" | tr -d '[:space:]')
           test "$schema" = '3.70'
 
@@ -101,3 +167,12 @@ jobs:
           mv "$probe.bak" "$probe"
           test "$tamper_code" -eq 4
           grep -F 'checksum divergente para migração já aplicada' /tmp/jornada-ledger-tamper.log >/dev/null
+
+      - name: Upload schema equivalence evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: schema-370-equivalence
+          path: Solution/.local/schema
+          if-no-files-found: warn
+          retention-days: 30

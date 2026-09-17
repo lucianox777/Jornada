@@ -26,6 +26,23 @@ else if (database.Provider == OperationalDatabaseProviders.PostgreSql)
 else
 {
     var operationalSql = new OperationalSqlAdapter(jornadaConnectionString);
+
+    // A geração de modelo congela a referência ATIVA de frequências. Em um banco novo
+    // o schema existe, mas os dados de referência ainda não foram materializados; nesse
+    // caso executamos uma única vez o loader offline do snapshot versionado. Se já há
+    // referência ATIVA (inclusive uma revisão futura governada), ela é preservada.
+    if (operation == "GENERATE_DRAFT" && !await HasActiveNameFrequencyReferenceAsync(operationalSql))
+    {
+        Console.WriteLine("Referência de frequências ausente; carregando snapshot local canônico antes de GENERATE_DRAFT.");
+        var bootstrapBuilder = Host.CreateApplicationBuilder(args);
+        bootstrapBuilder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
+        bootstrapBuilder.Services.AddHostedService<NameFrequencySnapshotLoader>();
+        await bootstrapBuilder.Build().RunAsync();
+
+        if (Environment.ExitCode != 0 || !await HasActiveNameFrequencyReferenceAsync(operationalSql))
+            throw new InvalidOperationException("GENERATE_DRAFT exige uma referência de frequências ATIVA; carga do snapshot local não foi concluída.");
+    }
+
     builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
 
     if (operation == NameFrequencyReferenceImporter.Operation)
@@ -47,3 +64,12 @@ else
 }
 
 await builder.Build().RunAsync();
+
+static async Task<bool> HasActiveNameFrequencyReferenceAsync(IOperationalSqlAdapter operationalSql)
+{
+    await using var connection = await operationalSql.OpenAsync(CancellationToken.None);
+    await using var command = connection.CreateCommand();
+    command.CommandText = "SELECT COUNT(*) FROM ref.frequencia_nome_versao WHERE status='ATIVA' AND conteudo_sha256 IS NOT NULL;";
+    var value = await command.ExecuteScalarAsync(CancellationToken.None);
+    return Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture) == 1;
+}

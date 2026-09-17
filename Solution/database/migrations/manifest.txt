@@ -1,21 +1,32 @@
-# Jornada SQL Server operational migrations
-# Order is normative and follows explicit migration prerequisites.
-# Smoke/test-only scripts are intentionally excluded.
-# The final entry closes the current SolutionSchema 3.70 baseline.
-20260907_Cpf_Ancora.sql
-20260908_Identidade_Composicao_Ledger.sql
-20260908_Identidade_Progressiva_Processor.sql
-20260908_Identidade_Progressiva_Serving.sql
-20260909_Identidade_Composicao_Aplicacao.sql
-20260909_Identidade_Composicao_Recomposicao_Plano.sql
-20260909_Identidade_Composicao_Publicacao.sql
-20260909_Identidade_Composicao_Historico_Serving.sql
-20260909_Identidade_Composicao_Referencia_Lock.sql
-20260910_Linkage_Blocking_Chave.sql
-20260910_Linkage_RuleSet_Passes.sql
-20260911_Linkage_Blocking_Projection_Contract.sql
-20260914_Operational_Monitor.sql
-20260915_Linkage_LogOdds_Margin.sql
-20260915_Linkage_Model_Promotion_Contract.sql
-20260916_Linkage_U_Support_Reachability.sql
-20260910_Schema_Consolidation_370.sql
+# Jornada SQL Server operational schema manifest
+# Paths are relative to Solution/database. Order is normative and follows explicit prerequisites.
+# Every operational schema mutation required by SolutionSchema 3.70 belongs here.
+# The first entry bootstraps the migration ledger; the final entry is the only migration allowed
+# to promote Jornada.SolutionSchema to 3.70.
+migrations/20260916_Schema_Migration_Ledger.sql
+Jornada_Identidade_Progressiva.sql
+migrations/20260907_Cpf_Ancora.sql
+migrations/20260908_Identidade_Composicao_Ledger.sql
+migrations/20260908_Identidade_Progressiva_Processor.sql
+migrations/20260908_Identidade_Progressiva_Serving.sql
+migrations/20260909_Identidade_Composicao_Aplicacao.sql
+migrations/20260909_Identidade_Composicao_Recomposicao_Plano.sql
+migrations/20260909_Identidade_Composicao_Publicacao.sql
+migrations/20260909_Identidade_Composicao_Historico_Serving.sql
+migrations/20260909_Identidade_Composicao_Referencia_Lock.sql
+migrations/20260910_Linkage_Blocking_Chave.sql
+migrations/20260910_Linkage_RuleSet_Passes.sql
+migrations/20260911_Linkage_Blocking_Projection_Contract.sql
+migrations/20260912_Nome_Mae_Anulavel.sql
+migrations/20260912_Frequencia_Nomes_Referencia.sql
+migrations/20260912_Frequencia_Nomes_Cobertura.sql
+migrations/20260912_Gold_Nome_Publicacao.sql
+migrations/20260912_Linkage_Run_Frequencia_Nome_Proveniencia.sql
+migrations/20260913_BI_Qualidade_Resolucao.sql
+migrations/20260913_BI_Qualidade_Resolucao_Gestor_Real.sql
+migrations/20260913_BI_Qualidade_Resolucao_Estrato_Cpf.sql
+migrations/20260914_Operational_Monitor.sql
+migrations/20260915_Linkage_LogOdds_Margin.sql
+migrations/20260915_Linkage_Model_Promotion_Contract.sql
+migrations/20260916_Linkage_U_Support_Reachability.sql
+migrations/20260910_Schema_Consolidation_370.sql

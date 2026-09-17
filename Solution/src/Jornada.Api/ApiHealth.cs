@@ -33,8 +33,8 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
                 DECLARE @solution NVARCHAR(32)=CONVERT(NVARCHAR(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));
                 SELECT CASE WHEN
                     @base=N'3.62'
-                    AND NOT (@solution=N'3.69')
                     AND @solution=N'3.70'
+                    AND OBJECT_ID(N'jornada.schema_migration',N'U') IS NOT NULL
                     AND OBJECT_ID(N'ref.gestor',N'U') IS NOT NULL
                     AND OBJECT_ID(N'ingestao.entrega',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.pessoa',N'U') IS NOT NULL
@@ -51,12 +51,26 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
                     AND OBJECT_ID(N'identidade.linkage_ruleset',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.linkage_ruleset_passe',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.linkage_ruleset_passe_campo',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'ref.frequencia_nome_versao',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'ref.frequencia_nome',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'ref.frequencia_nome_cobertura',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'identidade.linkage_quality_estimate',N'U') IS NOT NULL
                     AND OBJECT_ID(N'controle.runtime_componente',N'U') IS NOT NULL
                     AND OBJECT_ID(N'gold.pessoa',N'U') IS NOT NULL
                     AND OBJECT_ID(N'serving.registro_integrado',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'serving.v_bi_qualidade_resolucao_operacional',N'V') IS NOT NULL
+                    AND OBJECT_ID(N'serving.v_bi_qualidade_resolucao_calibrada',N'V') IS NOT NULL
+                    AND OBJECT_ID(N'serving.v_bi_qualidade_resolucao_operacional_origem',N'V') IS NOT NULL
+                    AND OBJECT_ID(N'serving.v_bi_qualidade_resolucao_operacional_estrato',N'V') IS NOT NULL
                     AND OBJECT_ID(N'identidade.sp_recompor_gold_pessoa',N'P') IS NOT NULL
                     AND OBJECT_ID(N'ref.fn_email_canonico_v2',N'FN') IS NOT NULL
                     AND OBJECT_ID(N'ref.fn_telefone_br_canonico_v2',N'FN') IS NOT NULL
+                    AND COL_LENGTH(N'gold.pessoa',N'nome_publicacao_normalizado') IS NOT NULL
+                    AND COL_LENGTH(N'identidade.modelo_linkage',N'frequencia_nome_versao_id') IS NOT NULL
+                    AND COL_LENGTH(N'identidade.linkage_run',N'frequencia_nome_versao_id') IS NOT NULL
+                    AND EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'silver.pessoa_observacao') AND name=N'nome_mae' AND is_nullable=1)
+                    AND EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'silver.pessoa_observacao') AND name=N'nome_mae_cmp' AND is_nullable=1)
+                    AND EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'gold.pessoa') AND name=N'nome_mae' AND is_nullable=1)
                 THEN 1 ELSE 0 END;
                 """;
             await using var command = new SqlCommand(readinessSql, connection) { CommandTimeout = 5 };

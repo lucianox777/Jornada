@@ -13,6 +13,23 @@ $output = [IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $output) { Remove-Item -Recurse -Force $output }
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 
+function Resolve-Python3 {
+    foreach ($candidate in @(
+        @{ Name = 'python3'; Prefix = @() },
+        @{ Name = 'python'; Prefix = @() },
+        @{ Name = 'py'; Prefix = @('-3') }
+    )) {
+        $command = Get-Command $candidate.Name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($null -eq $command) { continue }
+        $prefix = @($candidate.Prefix)
+        & $command.Source @prefix -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            return @{ Exe = $command.Source; Prefix = $prefix }
+        }
+    }
+    throw 'Python 3 não encontrado (tentados: python3, python, py -3).'
+}
+
 $projects = [ordered]@{
     'Jornada.Api' = 'src\Jornada.Api\Jornada.Api.csproj'
     'Jornada.Resultado.Api' = 'src\Jornada.Resultado.Api\Jornada.Resultado.Api.csproj'
@@ -68,21 +85,36 @@ foreach ($folder in @('governance','hml','observability','operations','possibili
     if (Test-Path -LiteralPath $source) { Copy-Item -Recurse -Force -Path $source -Destination $configDestination }
 }
 
+# O bundle Windows consome a mesma fonte de verdade do instalador SQL canônico.
+# schema-manifest.py valida que Jornada_Fase1_v3.70.sql está sincronizado com o
+# manifesto e gera uma forma achatada, pois Install-JornadaProduction.ps1 executa
+# batches GO diretamente via SqlClient e não interpreta diretivas sqlcmd :r.
 $databaseDestination = Join-Path $output 'database'
 New-Item -ItemType Directory -Force -Path $databaseDestination | Out-Null
-$baselineSource = Join-Path $solutionRoot 'database\Jornada_Fase1.sql'
-$anchorSource = Join-Path $solutionRoot 'database\migrations\20260907_Cpf_Ancora.sql'
-$monitorSource = Join-Path $solutionRoot 'database\migrations\20260914_Operational_Monitor.sql'
 $bundleDdl = Join-Path $databaseDestination 'Jornada_Fase1.sql'
-Copy-Item -Force -Path $baselineSource -Destination $bundleDdl
-Add-Content -Encoding UTF8 -Path $bundleDdl -Value "`r`n-- Jornada V1: âncora CPF permanente obrigatória.`r`n"
-Get-Content -Raw -Encoding UTF8 $anchorSource | Add-Content -Encoding UTF8 -Path $bundleDdl
-Add-Content -Encoding UTF8 -Path $bundleDdl -Value "`r`n-- Jornada V1: monitor operacional do cluster.`r`n"
-Get-Content -Raw -Encoding UTF8 $monitorSource | Add-Content -Encoding UTF8 -Path $bundleDdl
+$python3 = Resolve-Python3
+$schemaManifestTool = Join-Path $solutionRoot 'scripts\schema-manifest.py'
+$pythonArgs = @($python3.Prefix) + @($schemaManifestTool, '--check', '--flatten-output', $bundleDdl)
+& $python3.Exe @pythonArgs
+if ($LASTEXITCODE -ne 0) { throw 'Falha ao renderizar DDL canônico para o bundle Windows.' }
+
+# Inclui o manifesto e seus fontes para proveniência/auditoria do bundle, sem manter
+# uma lista paralela de migrações no builder.
+$manifestSource = Join-Path $solutionRoot 'database\migrations\manifest.txt'
 $migrationDestination = Join-Path $databaseDestination 'migrations'
 New-Item -ItemType Directory -Force -Path $migrationDestination | Out-Null
-Copy-Item -Force -Path $anchorSource -Destination $migrationDestination
-Copy-Item -Force -Path $monitorSource -Destination $migrationDestination
+Copy-Item -Force -Path $manifestSource -Destination (Join-Path $migrationDestination 'manifest.txt')
+$manifestEntries = Get-Content -Encoding UTF8 $manifestSource |
+    ForEach-Object { ($_ -split '#', 2)[0].Trim() } |
+    Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+foreach ($entry in $manifestEntries) {
+    $relative = $entry.Replace('/', '\')
+    $source = Join-Path (Join-Path $solutionRoot 'database') $relative
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Fonte do manifesto ausente: $entry" }
+    $destination = Join-Path $databaseDestination $relative
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
+    Copy-Item -Force -LiteralPath $source -Destination $destination
+}
 
 $installDestination = Join-Path $output 'install\windows-production'
 New-Item -ItemType Directory -Force -Path $installDestination | Out-Null

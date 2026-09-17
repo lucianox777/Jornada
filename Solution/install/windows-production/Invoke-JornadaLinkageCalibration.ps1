@@ -50,6 +50,12 @@ function Invoke-Parameters([string]$Operation, [Nullable[int]]$TargetVersion = $
     if ($LASTEXITCODE -ne 0) { throw "Linkage Parameters falhou em $Operation. ExitCode=$LASTEXITCODE" }
 }
 
+# A criação de modelo congela a referência ATIVA de frequências. A carga usa apenas
+# o snapshot local versionado no bundle, é idempotente e não acessa rede.
+Invoke-Parameters 'LOAD_NAME_FREQUENCY_SNAPSHOT'
+$activeReference = [int](Invoke-Scalar "SELECT COUNT(*) FROM ref.frequencia_nome_versao WHERE status='ATIVA' AND conteudo_sha256 IS NOT NULL;")
+if ($activeReference -ne 1) { throw "Calibração exige exatamente uma referência de frequências ATIVA; encontradas=$activeReference." }
+
 $before = [int](Invoke-Scalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;")
 Invoke-Parameters 'GENERATE_DRAFT'
 

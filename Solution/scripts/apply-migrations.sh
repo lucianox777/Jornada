@@ -9,8 +9,8 @@ SQL_SERVER="${JORNADA_SQL_SERVER:-${SQLCMDSERVER:-localhost}}"
 SQL_USER="${JORNADA_SQL_USER:-${SQLCMDUSER:-}}"
 SQL_PASSWORD="${JORNADA_SQL_PASSWORD:-${SQLCMDPASSWORD:-}}"
 TARGET_SCHEMA="3.70"
-FINAL_MIGRATION="20260910_Schema_Consolidation_370.sql"
-EXPECTED_MIGRATIONS=17
+LEDGER_MIGRATION="migrations/20260916_Schema_Migration_Ledger.sql"
+FINAL_MIGRATION="migrations/20260910_Schema_Consolidation_370.sql"
 
 [[ -f "$MANIFEST" ]] || { echo "ERRO: manifesto de migrações ausente: $MANIFEST" >&2; exit 2; }
 command -v "$SQLCMD_BIN" >/dev/null 2>&1 || { echo "ERRO: sqlcmd não encontrado: $SQLCMD_BIN" >&2; exit 2; }
@@ -29,8 +29,9 @@ mapfile -t MIGRATIONS < <(
     | sed '/^$/d'
 )
 
-[[ ${#MIGRATIONS[@]} -eq "$EXPECTED_MIGRATIONS" ]] || {
-  echo "ERRO: manifesto 3.70 deve conter exatamente $EXPECTED_MIGRATIONS migrações operacionais; encontrado ${#MIGRATIONS[@]}" >&2
+[[ ${#MIGRATIONS[@]} -gt 0 ]] || { echo "ERRO: manifesto operacional vazio" >&2; exit 3; }
+[[ "${MIGRATIONS[0]}" == "$LEDGER_MIGRATION" ]] || {
+  echo "ERRO: manifesto 3.70 deve iniciar em $LEDGER_MIGRATION" >&2
   exit 3
 }
 last_index=$((${#MIGRATIONS[@]} - 1))
@@ -39,6 +40,24 @@ last_index=$((${#MIGRATIONS[@]} - 1))
   exit 3
 }
 
+for entry in "${MIGRATIONS[@]}"; do
+  [[ "$entry" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*\.sql$ ]] || {
+    echo "ERRO: entrada inválida no manifesto: $entry" >&2
+    exit 3
+  }
+  IFS='/' read -r -a components <<< "$entry"
+  for component in "${components[@]}"; do
+    [[ "$component" != "." && "$component" != ".." ]] || {
+      echo "ERRO: travessia de diretório não permitida no manifesto: $entry" >&2
+      exit 3
+    }
+  done
+  [[ -f "$ROOT/database/$entry" ]] || {
+    echo "ERRO: migração declarada não existe: $entry" >&2
+    exit 3
+  }
+done
+
 SQLCMD_ARGS=(-S "$SQL_SERVER" -C -b -I -d "$DB")
 if [[ -n "$SQL_USER" ]]; then
   SQLCMD_ARGS+=(-U "$SQL_USER")
@@ -46,20 +65,22 @@ if [[ -n "$SQL_USER" ]]; then
 fi
 run_sql() { "$SQLCMD_BIN" "${SQLCMD_ARGS[@]}" "$@"; }
 
-run_sql -Q "IF SCHEMA_ID(N'jornada') IS NULL EXEC(N'CREATE SCHEMA jornada'); IF OBJECT_ID(N'jornada.schema_migration',N'U') IS NULL CREATE TABLE jornada.schema_migration(migration_name nvarchar(260) NOT NULL PRIMARY KEY, sha256 char(64) NOT NULL, applied_at datetime2(3) NOT NULL CONSTRAINT DF_jornada_schema_migration_applied_at DEFAULT SYSUTCDATETIME());"
+# O ledger faz parte do próprio manifesto. A primeira migração é idempotente e é
+# executada uma vez como bootstrap para que os checksums possam ser consultados.
+run_sql -i "$ROOT/database/$LEDGER_MIGRATION"
 
-required=0
+required=${#MIGRATIONS[@]}
 applied=0
 for entry in "${MIGRATIONS[@]}"; do
-  [[ "$entry" =~ ^[A-Za-z0-9_.-]+\.sql$ ]] || { echo "ERRO: entrada inválida no manifesto: $entry" >&2; exit 3; }
-  file="$ROOT/database/migrations/$entry"
-  [[ -f "$file" ]] || { echo "ERRO: migração declarada não existe: $entry" >&2; exit 3; }
+  file="$ROOT/database/$entry"
   checksum="$(sha256sum "$file" | awk '{print $1}')"
-  required=$((required+1))
 
   existing="$(run_sql -h -1 -W -Q "SET NOCOUNT ON; SELECT sha256 FROM jornada.schema_migration WHERE migration_name=N'${entry//\'/\'\'}';" | tr -d '\r[:space:]')"
   if [[ -n "$existing" ]]; then
-    [[ "$existing" == "$checksum" ]] || { echo "ERRO: checksum divergente para migração já aplicada: $entry" >&2; exit 4; }
+    [[ "$existing" == "$checksum" ]] || {
+      echo "ERRO: checksum divergente para migração já aplicada: $entry" >&2
+      exit 4
+    }
     echo "OK já aplicada: $entry"
     applied=$((applied+1))
     continue
@@ -71,10 +92,14 @@ for entry in "${MIGRATIONS[@]}"; do
   applied=$((applied+1))
 done
 
-[[ "$required" -gt 0 && "$applied" -eq "$required" ]] || { echo "ERRO: conjunto obrigatório de migrações incompleto" >&2; exit 5; }
+[[ "$applied" -eq "$required" ]] || { echo "ERRO: conjunto obrigatório de migrações incompleto" >&2; exit 5; }
 
-# O marcador corrente só é reafirmado depois que todo o manifesto foi aplicado/validado.
-# A migração final também faz uma prova estrutural fail-closed antes de promover 3.70.
-run_sql -Q "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema') EXEC sys.sp_updateextendedproperty @name=N'Jornada.SolutionSchema',@value=N'$TARGET_SCHEMA'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.SolutionSchema',@value=N'$TARGET_SCHEMA';"
+# Somente a consolidação final promove o marcador. O executor apenas verifica o
+# resultado; assim nenhuma lista incompleta pode ser mascarada por um UPDATE externo.
+schema="$(run_sql -h -1 -W -Q "SET NOCOUNT ON; SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));" | tr -d '\r[:space:]')"
+[[ "$schema" == "$TARGET_SCHEMA" ]] || {
+  echo "ERRO: manifesto aplicado, mas Jornada.SolutionSchema=$schema (esperado $TARGET_SCHEMA)" >&2
+  exit 5
+}
 
-echo "Migrations OK: $applied/$required; Jornada.SolutionSchema=$TARGET_SCHEMA"
+echo "Migrations OK: $applied/$required; Jornada.SolutionSchema=$schema"

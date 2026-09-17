@@ -21,6 +21,14 @@ public sealed class LinkageProcessRunner(
 
     public async Task GenerateDraftAsync(EnsaioEtapa stage, CancellationToken cancellationToken)
     {
+        var loader = NewCalibrator();
+        loader.Environment["LinkageParameters__Operation"] = "LOAD_NAME_FREQUENCY_SNAPSHOT";
+        loader.Environment["LinkageParameters__RunOnce"] = "true";
+        var loadExitCode = await ExecuteProcessAsync(loader, cancellationToken);
+        log.Add($"{stage.Codigo}: Linkage.Parameters.Worker LOAD_NAME_FREQUENCY_SNAPSHOT exit={loadExitCode}");
+        if (loadExitCode != 0)
+            throw new InvalidOperationException($"LOAD_NAME_FREQUENCY_SNAPSHOT terminou com exit code {loadExitCode}.");
+
         var startInfo = NewCalibrator();
         startInfo.Environment["LinkageParameters__Operation"] = "GENERATE_DRAFT";
         startInfo.Environment["LinkageParameters__RunOnce"] = "true";
