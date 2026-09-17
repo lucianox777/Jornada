@@ -7,8 +7,8 @@ CLUSTER="$SCRIPT_DIR/local-cluster.sh"
 VALIDATION="$SCRIPT_DIR/local-linkage-validation.sh"
 ENV_FILE="$ROOT/.env"
 
-cd "$ROOT"
 echo "# cd '$ROOT'"
+cd "$ROOT"
 
 echo "# ./scripts/local-cluster.sh up"
 bash "$CLUSTER" up
@@ -26,7 +26,7 @@ fi
 
 sql_scalar() {
   local query="$1"
-  echo "# docker compose --env-file $ENV_FILE exec -T -e SQLCMDPASSWORD=<redacted> sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -Q '<query>'"
+  echo "# docker compose --env-file $ENV_FILE exec -T -e SQLCMDPASSWORD=<redacted> sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -Q '<query>'" >&2
   docker compose --env-file "$ENV_FILE" exec -T -e "SQLCMDPASSWORD=$SQL_PASSWORD" sqlserver /opt/mssql-tools18/bin/sqlcmd \
     -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -Q "$query" \
     | tr -d '\r' \
