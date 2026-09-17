@@ -1,65 +1,79 @@
 using System.Text.Json;
 using Jornada.Processor.Worker;
-using Xunit;
+using NUnit.Framework;
 
 namespace Jornada.Tests.Unit;
 
+[TestFixture]
+[Category("Unit")]
 public sealed class PersonIdentifierParsingTests
 {
-    [Fact]
+    private static string SyntheticCpfA() => string.Concat(Enumerable.Repeat("12", 5)) + "3";
+    private static string SyntheticCpfB() => new('7', 11);
+
+    [Test]
     public void Allows_Zero_Identifiers()
     {
-        using var document = JsonDocument.Parse("{\"nomeCompleto\":\"Pessoa\",\"dataNascimento\":\"1990-01-01\"}");
+        using var document = JsonDocument.Parse("{\"nomeCompleto\":\"Pessoa Sintetica\",\"dataNascimento\":\"1990-01-01\"}");
 
         var identifiers = PersonIdentifierParsing.Parse(document.RootElement, null, null, null);
 
-        Assert.Empty(identifiers);
+        Assert.That(identifiers, Is.Empty);
     }
 
-    [Fact]
+    [Test]
     public void Coalesces_Legacy_Cpf_With_Equivalent_Explicit_Cpf()
     {
-        using var document = JsonDocument.Parse("""
+        var cpfValue = SyntheticCpfA();
+        using var document = JsonDocument.Parse($$"""
             {
               "identificadores":[
-                {"tipo":"CPF","namespace":"BR","valor":"12345678901","statusEvidencia":"DECLARADO"}
+                {"tipo":"CPF","namespace":"BR","valor":"{{cpfValue}}","statusEvidencia":"DECLARADO"}
               ]
             }
             """);
 
-        var identifiers = PersonIdentifierParsing.Parse(document.RootElement, "12345678901", null, null);
+        var identifiers = PersonIdentifierParsing.Parse(document.RootElement, cpfValue, null, null);
 
-        var cpf = Assert.Single(identifiers);
-        Assert.Equal("CPF", cpf.Tipo);
-        Assert.Equal("BR", cpf.Namespace);
-        Assert.Equal("12345678901", cpf.ValorNormalizado);
+        Assert.That(identifiers, Has.Count.EqualTo(1));
+        var cpf = identifiers.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(cpf.Tipo, Is.EqualTo("CPF"));
+            Assert.That(cpf.Namespace, Is.EqualTo("BR"));
+            Assert.That(cpf.ValorNormalizado, Is.EqualTo(cpfValue));
+        });
     }
 
-    [Fact]
+    [Test]
     public void Rejects_Legacy_Cpf_Divergent_From_Explicit_Cpf()
     {
-        using var document = JsonDocument.Parse("""
+        var legacyCpf = SyntheticCpfA();
+        var explicitCpf = SyntheticCpfB();
+        using var document = JsonDocument.Parse($$"""
             {
               "identificadores":[
-                {"tipo":"CPF","namespace":"BR","valor":"10987654321","statusEvidencia":"DECLARADO"}
+                {"tipo":"CPF","namespace":"BR","valor":"{{explicitCpf}}","statusEvidencia":"DECLARADO"}
               ]
             }
             """);
 
         var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, "12345678901", null, null));
+            PersonIdentifierParsing.Parse(document.RootElement, legacyCpf, null, null));
 
-        Assert.Contains("diverge", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.That(error!.Message, Does.Contain("diverge").IgnoreCase);
     }
 
-    [Fact]
+    [Test]
     public void Rejects_Two_Distinct_Explicit_Cpfs()
     {
-        using var document = JsonDocument.Parse("""
+        var cpfA = SyntheticCpfA();
+        var cpfB = SyntheticCpfB();
+        using var document = JsonDocument.Parse($$"""
             {
               "identificadores":[
-                {"tipo":"CPF","namespace":"BR","valor":"11144477735","statusEvidencia":"DECLARADO"},
-                {"tipo":"CPF","namespace":"BR","valor":"12345678901","statusEvidencia":"DECLARADO"}
+                {"tipo":"CPF","namespace":"BR","valor":"{{cpfA}}","statusEvidencia":"DECLARADO"},
+                {"tipo":"CPF","namespace":"BR","valor":"{{cpfB}}","statusEvidencia":"DECLARADO"}
               ]
             }
             """);
@@ -67,27 +81,30 @@ public sealed class PersonIdentifierParsingTests
         var error = Assert.Throws<InvalidDataException>(() =>
             PersonIdentifierParsing.Parse(document.RootElement, null, null, null));
 
-        Assert.Contains("CPFs distintos", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.That(error!.Message, Does.Contain("CPFs distintos").IgnoreCase);
     }
 
-    [Fact]
+    [Test]
     public void Legacy_Source_Code_Does_Not_Fall_Back_To_Cpf()
     {
         using var document = JsonDocument.Parse("{}");
 
-        var identifiers = PersonIdentifierParsing.Parse(document.RootElement, "12345678901", null, "CADASTRO_SMADS");
+        var identifiers = PersonIdentifierParsing.Parse(document.RootElement, SyntheticCpfA(), null, "CADASTRO_SMADS");
 
-        Assert.Single(identifiers);
-        Assert.DoesNotContain(identifiers, i => i.Tipo == "CODIGO_BASE_ORIGEM");
+        Assert.Multiple(() =>
+        {
+            Assert.That(identifiers, Has.Count.EqualTo(1));
+            Assert.That(identifiers.Any(i => i.Tipo == "CODIGO_BASE_ORIGEM"), Is.False);
+        });
     }
 
-    [Fact]
+    [Test]
     public void Rejects_SourceIdentifier_From_Base_Different_From_Manifest()
     {
         using var document = JsonDocument.Parse("""
             {
               "identificadores":[
-                {"tipo":"CODIGO_BASE_ORIGEM","namespace":"BASE_B","valor":"P-1","statusEvidencia":"DECLARADO"}
+                {"tipo":"CODIGO_BASE_ORIGEM","namespace":"BASE_B","valor":"P-SYNTH-1","statusEvidencia":"DECLARADO"}
               ]
             }
             """);
@@ -95,17 +112,17 @@ public sealed class PersonIdentifierParsingTests
         var error = Assert.Throws<InvalidDataException>(() =>
             PersonIdentifierParsing.Parse(document.RootElement, null, null, "BASE_A"));
 
-        Assert.Contains("diverge", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.That(error!.Message, Does.Contain("diverge").IgnoreCase);
     }
 
-    [Fact]
+    [Test]
     public void Rejects_Two_Distinct_Source_Codes_In_Same_Observation()
     {
         using var document = JsonDocument.Parse("""
             {
               "identificadores":[
-                {"tipo":"CODIGO_BASE_ORIGEM","namespace":"BASE_A","valor":"P-1","statusEvidencia":"DECLARADO"},
-                {"tipo":"CODIGO_BASE_ORIGEM","namespace":"BASE_A","valor":"P-2","statusEvidencia":"DECLARADO"}
+                {"tipo":"CODIGO_BASE_ORIGEM","namespace":"BASE_A","valor":"P-SYNTH-1","statusEvidencia":"DECLARADO"},
+                {"tipo":"CODIGO_BASE_ORIGEM","namespace":"BASE_A","valor":"P-SYNTH-2","statusEvidencia":"DECLARADO"}
               ]
             }
             """);
@@ -113,33 +130,33 @@ public sealed class PersonIdentifierParsingTests
         var error = Assert.Throws<InvalidDataException>(() =>
             PersonIdentifierParsing.Parse(document.RootElement, null, null, "BASE_A"));
 
-        Assert.Contains("mais de um CODIGO_BASE_ORIGEM", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.That(error!.Message, Does.Contain("mais de um CODIGO_BASE_ORIGEM").IgnoreCase);
     }
 
-    [Fact]
+    [Test]
     public void Explicit_Source_Code_With_Legacy_Code_Requires_Manifest_Base()
     {
         using var document = JsonDocument.Parse("""
             {
               "identificadores":[
-                {"tipo":"CODIGO_BASE_ORIGEM","namespace":"BASE_A","valor":"P-1","statusEvidencia":"DECLARADO"}
+                {"tipo":"CODIGO_BASE_ORIGEM","namespace":"BASE_A","valor":"P-SYNTH-1","statusEvidencia":"DECLARADO"}
               ]
             }
             """);
 
         var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, null, "P-1", null));
+            PersonIdentifierParsing.Parse(document.RootElement, null, "P-SYNTH-1", null));
 
-        Assert.Contains("exige codigoBasePessoaOrigem", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.That(error!.Message, Does.Contain("exige codigoBasePessoaOrigem").IgnoreCase);
     }
 
-    [Fact]
+    [Test]
     public void Requires_Rg_Issuer_And_State()
     {
         using var document = JsonDocument.Parse("""
             {
               "identificadores":[
-                {"tipo":"RG","namespace":"SSP-SP","valor":"12.345.678-9","statusEvidencia":"DECLARADO"}
+                {"tipo":"RG","namespace":"TEST","valor":"RG-SYNTH","statusEvidencia":"DECLARADO"}
               ]
             }
             """);
@@ -148,7 +165,7 @@ public sealed class PersonIdentifierParsingTests
             PersonIdentifierParsing.Parse(document.RootElement, null, null, null));
     }
 
-    [Fact]
+    [Test]
     public void Normalizes_Jornada_Uuid_Without_Creating_External_Priority()
     {
         var uuid = Guid.NewGuid();
@@ -160,9 +177,14 @@ public sealed class PersonIdentifierParsingTests
             }
             """);
 
-        var identifier = Assert.Single(PersonIdentifierParsing.Parse(document.RootElement, null, null, null));
+        var identifiers = PersonIdentifierParsing.Parse(document.RootElement, null, null, null);
+        Assert.That(identifiers, Has.Count.EqualTo(1));
+        var identifier = identifiers.Single();
 
-        Assert.Equal("UUID_JORNADA", identifier.Tipo);
-        Assert.Equal(uuid.ToString("D"), identifier.ValorNormalizado);
+        Assert.Multiple(() =>
+        {
+            Assert.That(identifier.Tipo, Is.EqualTo("UUID_JORNADA"));
+            Assert.That(identifier.ValorNormalizado, Is.EqualTo(uuid.ToString("D")));
+        });
     }
 }
