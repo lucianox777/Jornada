@@ -81,6 +81,19 @@ O objetivo não é declarar “qual algoritmo é melhor”, mas identificar qual
 
 Os parâmetros comuns, como prior e política de thresholds, permanecem explicitamente versionados e não são silenciosamente herdados de um dos estimadores.
 
+### 5.2. Referência populacional IBGE para u nominal
+
+`IBGE_NOMINAL_U_BOOTSTRAP_V1` produz uma **estimativa de referência**, read-only, para os níveis `U_NOME_*`. Ela não substitui silenciosamente o `u` condicionado ao blocking usado pelo modelo operacional.
+
+O recorte inicial usa somente as marginais nacionais publicadas `BRASIL/TODOS/TODOS` da referência versionada. Para tornar os estados `EXACT/HIGH/MEDIUM/LOW` comparáveis ao comparador nominal da Jornada, o bootstrap compõe sinteticamente `prenome + sobrenome` com sorteios independentes ponderados pelas frequências publicadas. Essa composição é explicitamente marcada por `INDEPENDENT_FIRST_NAME_SURNAME_MARGINALS_V1`: o IBGE não publica uma distribuição conjunta de nomes completos e a Jornada não interpreta essa composição como tal.
+
+Não há canal de ruído administrativo na versão inicial (`CLEAN_PUBLISHED_REFERENCE_NO_ERROR_CHANNEL_V1`). Para `u`, os dois lados representam identidades distintas sorteadas da população sintética; coincidência exata de nome continua permitida. Qualquer canal futuro de erro deve possuir versão própria e ser sustentado por evidência independente, preferencialmente observações corroboradas da Jornada, e não por taxas inventadas.
+
+A probabilidade de coincidência exata também é calculada analiticamente a partir das marginais publicadas (`sum(p_i^2)` para prenome e sobrenome; produto sob a hipótese sintética de independência) e funciona como controle do Monte Carlo. Os níveis fuzzy são estimados por amostragem determinística com seed explícita e comparador `IdentityComparison.CompareName` vigente.
+
+O relatório deve preservar pelo menos: versão/SHA da referência IBGE, versão do método, hipótese de composição, canal de observação, seed, número de pares, suportes por nível, erro-padrão Monte Carlo e, quando existir, comparação lado a lado com `U_NOME_*` do modelo ATIVO.
+
+Esse `u` é **populacional não condicionado ao blocking**. O `U_NOME_*` do modelo SQL Server corrente é estimado dentro do universo de candidatos do ruleset. A diferença entre ambos é evidência para análise metodológica, não autorização para copiar um sobre o outro. Promoção continua exigindo avaliação independente e os gates da #31.
 ## 6. Thresholds e seleção
 
 Thresholds são produtos da calibração, não constantes escolhidas por intuição.

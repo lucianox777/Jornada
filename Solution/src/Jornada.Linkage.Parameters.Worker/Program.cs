@@ -20,7 +20,7 @@ if (operation == NameFrequencySourceChecker.Operation)
 }
 else if (database.Provider == OperationalDatabaseProviders.PostgreSql)
 {
-    if (operation is NameFrequencyReferenceImporter.Operation or NameFrequencySnapshotLoader.Operation or EnsureNameFrequencySnapshotOperation)
+    if (operation is NameFrequencyReferenceImporter.Operation or NameFrequencySnapshotLoader.Operation or EnsureNameFrequencySnapshotOperation or IbgeNominalUBootstrapReporter.Operation)
         throw new InvalidOperationException($"{operation} ainda possui implementação canônica apenas para SQL Server.");
 
     builder.Services.AddSingleton(database);
@@ -83,6 +83,10 @@ else
     else if (operation == NameFrequencySnapshotLoader.Operation)
     {
         builder.Services.AddHostedService<NameFrequencySnapshotLoader>();
+    }
+    else if (operation == IbgeNominalUBootstrapReporter.Operation)
+    {
+        builder.Services.AddHostedService<IbgeNominalUBootstrapReporter>();
     }
     else
     {

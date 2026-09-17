@@ -9,6 +9,8 @@ O objetivo deste README é responder duas perguntas antes de executar qualquer a
 
 > Execute os comandos abaixo a partir de `Solution`, salvo indicação em contrário. Em PowerShell, isso significa estar em `...\Jornada\Solution` antes de chamar `./scripts/...`.
 
+> **Rastreabilidade PowerShell:** scripts operacionais `.ps1` deste diretório devem deixar o comando legível no próprio arquivo como comentário e imprimir `# <comando>` imediatamente antes da execução. Segredos nunca entram nessa linha; use `<redacted>`.
+
 ## Sequência recomendada de validação local
 
 Use esta sequência quando quiser validar uma alteração **passo a passo**, identificando exatamente em qual etapa aparece uma falha. A ideia é começar pelo `master` atualizado, provar compilação e testes rápidos primeiro e só depois avançar para banco, E2E, resiliência, linkage, escala e a suíte agregada.
@@ -103,11 +105,15 @@ Valida comportamento de resiliência e o gate serial diante das falhas previstas
 .\scripts\local-cluster.ps1 -Action clean
 .\scripts\local-cluster.ps1 -Action up
 .\scripts\local-cluster.ps1 -Action calibrate
+.\scripts\local-ibge-u-bootstrap.ps1
 .\scripts\local-cluster.ps1 -Action linkage
 .\scripts\local-cluster.ps1 -Action linkage-diagnose
+.\scripts\local-linkage-validation.ps1
 ```
 
 Use esta sequência para provar o pipeline de resolução de identidade sobre um cluster recriado. Se o objetivo for apenas desenvolvimento cotidiano, `clean` não deve ser usado por reflexo; aqui ele é deliberado porque estamos executando uma validação completa e controlada.
+
+`local-ibge-u-bootstrap.ps1` é **read-only**: calcula a referência populacional sintética de `U_NOME_*` a partir das marginais IBGE já internalizadas e, quando há modelo calibrado ATIVO, mostra a diferença para o `u` operacional. Ele não cria nem ativa modelo e não altera thresholds. `local-linkage-validation.ps1` usa o corpus independente DEV com positivos, impostores e probes de conflito; seus números não constituem homologação HML/produção.
 
 ### 10. Rodar o smoke de escala
 
