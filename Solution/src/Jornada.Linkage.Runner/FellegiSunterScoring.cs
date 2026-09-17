@@ -4,6 +4,20 @@ namespace Jornada.Linkage.Runner;
 
 public readonly record struct FellegiSunterScore(decimal Posterior, decimal LogOdds);
 
+public sealed record FellegiSunterEvidenceContribution(
+    string Evidence,
+    string State,
+    decimal? MProbability,
+    decimal? UProbability,
+    decimal LogLikelihoodRatio);
+
+public sealed record FellegiSunterScoreBreakdown(
+    FellegiSunterScore Score,
+    string PriorKind,
+    decimal PriorProbability,
+    decimal PriorLogOdds,
+    IReadOnlyList<FellegiSunterEvidenceContribution> Contributions);
+
 public static class FellegiSunterScoring
 {
     public static decimal CalculatePosterior(
@@ -21,40 +35,109 @@ public static class FellegiSunterScoring
         NameComparisonState? motherNameState,
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
+        DateOnly? rightBirthDate = null) =>
+        CalculateWithBreakdown(parameters, nameState, motherNameState, blockCandidateCount, leftBirthDate, rightBirthDate).Score;
+
+    /// <summary>
+    /// Calcula exatamente o mesmo score usado pelo runtime e expõe, sem alterar a decisão,
+    /// a contribuição aditiva em log-odds de cada evidência. O breakdown é diagnóstico:
+    /// nenhum valor é persistido nem reutilizado como nova evidência pelo scorer.
+    /// </summary>
+    public static FellegiSunterScoreBreakdown CalculateWithBreakdown(
+        IReadOnlyDictionary<string, decimal> parameters,
+        NameComparisonState nameState,
+        NameComparisonState? motherNameState,
+        int? blockCandidateCount = null,
+        DateOnly? leftBirthDate = null,
         DateOnly? rightBirthDate = null)
     {
+        ArgumentNullException.ThrowIfNull(parameters);
+
         var decisionV6 = parameters.TryGetValue(LinkageParameterCatalog.DecisionEvidenceScoring, out var decisionFlag) && decisionFlag >= 1m;
-        var prior = decisionV6 || blockCandidateCount is not > 0
-            ? Get(parameters, LinkageParameterCatalog.PriorMatchProbability)
-            : CalculateBlockPrior(parameters, blockCandidateCount.Value);
-        var logOdds = Logit((double)prior);
-        logOdds += LogLikelihoodRatio(parameters, "NOME", nameState.ToString());
+        var usesBlockPrior = !decisionV6 && blockCandidateCount is > 0;
+        var prior = usesBlockPrior
+            ? CalculateBlockPrior(parameters, blockCandidateCount!.Value)
+            : Get(parameters, LinkageParameterCatalog.PriorMatchProbability);
+        var priorLogOdds = Logit((double)prior);
+        var logOdds = priorLogOdds;
+        var contributions = new List<FellegiSunterEvidenceContribution>(6);
+
+        void Add(string evidence, string state, (decimal? M, decimal? U, double LogLikelihoodRatio) value)
+        {
+            logOdds += value.LogLikelihoodRatio;
+            contributions.Add(new FellegiSunterEvidenceContribution(
+                evidence,
+                state,
+                value.M,
+                value.U,
+                (decimal)value.LogLikelihoodRatio));
+        }
+
+        Add("NOME", nameState.ToString(), RequiredLikelihoodRatio(parameters, "NOME", nameState.ToString()));
 
         if (motherNameState is { } observedMotherNameState)
-            logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", observedMotherNameState.ToString());
+        {
+            Add("NOME_MAE", observedMotherNameState.ToString(),
+                RequiredLikelihoodRatio(parameters, "NOME_MAE", observedMotherNameState.ToString()));
+        }
         else if (decisionV6)
-            logOdds += LogLikelihoodRatio(parameters, "NOME_MAE", "MISSING");
+        {
+            Add("NOME_MAE", "MISSING", RequiredLikelihoodRatio(parameters, "NOME_MAE", "MISSING"));
+        }
+        else
+        {
+            Add("NOME_MAE", "MISSING_NEUTRAL", (null, null, 0d));
+        }
 
         if (leftBirthDate is { } left && rightBirthDate is { } right)
         {
             if (parameters.TryGetValue(LinkageParameterCatalog.BirthSemanticEvidenceScoring, out var semanticBirth) && semanticBirth >= 1m)
-                logOdds += SemanticBirthLikelihoodRatio(parameters, left, right);
+            {
+                var state = BirthDateSemanticEvidence.Classify(left, right);
+                Add("NASCIMENTO_SEMANTICO", state,
+                    RequiredLikelihoodRatio(parameters, "NASCIMENTO_SEMANTICO", state));
+            }
             else if (parameters.TryGetValue(LinkageParameterCatalog.BirthJointEvidenceScoring, out var jointBirth) && jointBirth >= 1m)
-                logOdds += JointBirthLikelihoodRatio(parameters, left, right);
+            {
+                var mask = (left.Day == right.Day ? 1 : 0) | (left.Month == right.Month ? 2 : 0) | (left.Year == right.Year ? 4 : 0);
+                var state = LinkageParameterCatalog.BirthJointStates[mask];
+                Add("NASCIMENTO_CONJUNTO", state,
+                    RequiredLikelihoodRatio(parameters, "NASCIMENTO_CONJUNTO", state));
+            }
             else if (parameters.TryGetValue(LinkageParameterCatalog.BirthSingleEvidenceScoring, out var singleBirth) && singleBirth >= 1m)
-                logOdds += TryBinaryLikelihoodRatio(parameters, "DATA_NASCIMENTO", left == right);
+            {
+                var state = left == right ? "EXACT" : "DIFF";
+                Add("DATA_NASCIMENTO", state, OptionalLikelihoodRatio(parameters, "DATA_NASCIMENTO", state));
+            }
             else
             {
-                logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_DIA", left.Day == right.Day);
-                logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_MES", left.Month == right.Month);
-                logOdds += TryBinaryLikelihoodRatio(parameters, "NASC_ANO", left.Year == right.Year);
+                AddBinary("NASC_DIA", left.Day == right.Day);
+                AddBinary("NASC_MES", left.Month == right.Month);
+                AddBinary("NASC_ANO", left.Year == right.Year);
             }
+        }
+        else
+        {
+            Add("NASCIMENTO", "MISSING_NEUTRAL", (null, null, 0d));
         }
 
         var posterior = 1d / (1d + Math.Exp(-Math.Clamp(logOdds, -40d, 40d)));
-        return new FellegiSunterScore(
+        var score = new FellegiSunterScore(
             Math.Round((decimal)posterior, 8, MidpointRounding.AwayFromZero),
             Math.Round((decimal)logOdds, 8, MidpointRounding.AwayFromZero));
+
+        return new FellegiSunterScoreBreakdown(
+            score,
+            usesBlockPrior ? "BLOCK_CANDIDATE_COUNT" : "MODEL_PRIOR",
+            prior,
+            (decimal)priorLogOdds,
+            contributions);
+
+        void AddBinary(string attribute, bool exact)
+        {
+            var state = exact ? "EXACT" : "DIFF";
+            Add(attribute, state, OptionalLikelihoodRatio(parameters, attribute, state));
+        }
     }
 
     private static decimal CalculateBlockPrior(IReadOnlyDictionary<string, decimal> parameters, int candidateCount)
@@ -65,35 +148,28 @@ public static class FellegiSunterScoring
         return Math.Clamp(1m / candidateCount, min, max);
     }
 
-    private static double LogLikelihoodRatio(IReadOnlyDictionary<string, decimal> parameters, string attribute, string suffix)
+    private static (decimal? M, decimal? U, double LogLikelihoodRatio) RequiredLikelihoodRatio(
+        IReadOnlyDictionary<string, decimal> parameters,
+        string attribute,
+        string suffix)
     {
         var m = ClampProbability(Get(parameters, $"M_{attribute}_{suffix}"));
         var u = ClampProbability(Get(parameters, $"U_{attribute}_{suffix}"));
-        return Math.Log((double)m / (double)u);
+        return (m, u, Math.Log((double)m / (double)u));
     }
 
-    private static double SemanticBirthLikelihoodRatio(IReadOnlyDictionary<string, decimal> parameters, DateOnly left, DateOnly right)
+    private static (decimal? M, decimal? U, double LogLikelihoodRatio) OptionalLikelihoodRatio(
+        IReadOnlyDictionary<string, decimal> parameters,
+        string attribute,
+        string suffix)
     {
-        var state = BirthDateSemanticEvidence.Classify(left, right);
-        var m = ClampProbability(Get(parameters, $"M_NASCIMENTO_SEMANTICO_{state}"));
-        var u = ClampProbability(Get(parameters, $"U_NASCIMENTO_SEMANTICO_{state}"));
-        return Math.Log((double)m / (double)u);
-    }
+        if (!parameters.TryGetValue($"M_{attribute}_{suffix}", out var rawM) ||
+            !parameters.TryGetValue($"U_{attribute}_{suffix}", out var rawU))
+            return (null, null, 0d);
 
-    private static double JointBirthLikelihoodRatio(IReadOnlyDictionary<string, decimal> parameters, DateOnly left, DateOnly right)
-    {
-        var mask = (left.Day == right.Day ? 1 : 0) | (left.Month == right.Month ? 2 : 0) | (left.Year == right.Year ? 4 : 0);
-        var state = LinkageParameterCatalog.BirthJointStates[mask];
-        var m = ClampProbability(Get(parameters, $"M_NASCIMENTO_CONJUNTO_{state}"));
-        var u = ClampProbability(Get(parameters, $"U_NASCIMENTO_CONJUNTO_{state}"));
-        return Math.Log((double)m / (double)u);
-    }
-
-    private static double TryBinaryLikelihoodRatio(IReadOnlyDictionary<string, decimal> parameters, string attribute, bool exact)
-    {
-        var suffix = exact ? "EXACT" : "DIFF";
-        if (!parameters.TryGetValue($"M_{attribute}_{suffix}", out var m) || !parameters.TryGetValue($"U_{attribute}_{suffix}", out var u)) return 0d;
-        return Math.Log((double)ClampProbability(m) / (double)ClampProbability(u));
+        var m = ClampProbability(rawM);
+        var u = ClampProbability(rawU);
+        return (m, u, Math.Log((double)m / (double)u));
     }
 
     private static decimal Get(IReadOnlyDictionary<string, decimal> parameters, string name) =>
