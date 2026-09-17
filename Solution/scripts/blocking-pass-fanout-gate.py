@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import copy
 import json
-import math
 import os
 from pathlib import Path
 
@@ -184,8 +183,12 @@ def _validate_transportability(
     errors: list[str],
 ) -> None:
     block = data.get("transportability")
+    if block is None:
+        if target_population is not None or require_target_population:
+            errors.append("transportability ausente para projeção obrigatória")
+        return
     if not isinstance(block, dict):
-        errors.append("transportability ausente ou inválido")
+        errors.append("transportability inválido")
         return
     if block.get("version") != TRANSPORTABILITY_VERSION:
         errors.append(f"transportability.version deve ser {TRANSPORTABILITY_VERSION}")
