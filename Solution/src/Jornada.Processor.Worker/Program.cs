@@ -19,30 +19,11 @@ var options = new ProcessorOptions
     RetryMaxSeconds = builder.Configuration.GetValue<int?>("Processor:RetryMaxSeconds") ?? 300
 };
 
+var repositoryRoot = FindRepositoryRoot(builder.Environment.ContentRootPath);
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 var databaseProvider = builder.Configuration["Database:Provider"] ?? OperationalDatabaseProviders.SqlServer;
-var processorOperation = builder.Configuration["Processor:Operation"]?.Trim().ToUpperInvariant();
-
-if (string.Equals(processorOperation, "REBUILD_LOCAL_BLOCKING", StringComparison.Ordinal))
-{
-    if (!builder.Environment.IsDevelopment())
-        throw new InvalidOperationException("REBUILD_LOCAL_BLOCKING só pode executar em Development/Test.");
-    if (!string.Equals(databaseProvider, OperationalDatabaseProviders.SqlServer, StringComparison.OrdinalIgnoreCase))
-        throw new InvalidOperationException("REBUILD_LOCAL_BLOCKING requer o provider SQL Server.");
-
-    var result = await LocalBlockingProjectionBootstrap.RebuildMissingSqlServerAsync(
-        jornadaConnectionString,
-        CancellationToken.None);
-    Console.WriteLine(
-        $"Blocking local pronto: {result.SyntheticPersons} Pessoas SCALE; " +
-        $"{result.RebuiltPersons} reconstruídas; {result.ProjectedKeys} chaves materializadas.");
-    return;
-}
-
-var repositoryRoot = FindRepositoryRoot(builder.Environment.ContentRootPath);
 var operationalDatabase = OperationalDatabaseAdapterFactory.Create(databaseProvider, jornadaConnectionString);
-OperationalRuntimeHeartbeat? runtimeHeartbeat = null;
 
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<IOperationalDatabaseAdapter>(operationalDatabase);
@@ -79,11 +60,6 @@ if (string.Equals(operationalDatabase.Provider, OperationalDatabaseProviders.Sql
     var operationalSql = operationalDatabase as IOperationalSqlAdapter
         ?? throw new InvalidOperationException("Provider SqlServer não expôs IOperationalSqlAdapter.");
     builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
-    runtimeHeartbeat = new OperationalRuntimeHeartbeat(
-        operationalSql,
-        builder.Configuration["JORNADA_NODE_ID"] ?? Environment.MachineName,
-        "Processor",
-        TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("Monitoring:HeartbeatSeconds", 10))));
 
     var pipelineCoordinator = new SqlPipelineCoordinator(
         operationalSql, coordinationHeartbeat, exclusiveIntentTimeout);
@@ -107,7 +83,7 @@ else if (string.Equals(operationalDatabase.Provider, OperationalDatabaseProvider
     builder.Services.AddSingleton<PostgreSqlProcessorLeaseRepositoryAdapter>();
     builder.Services.AddSingleton<PostgreSqlProcessorRepository>();
     builder.Services.AddSingleton<IProcessorRepository>(sp =>
-        sp.GetRequiredService<PostgreSqlProcessorRepository>());
+        new PostgreSqlProcessorRepositoryAdapter(sp.GetRequiredService<PostgreSqlProcessorRepository>()));
     builder.Services.AddSingleton<IIdentityMapRepository, PostgreSqlIdentityMapRepository>();
 }
 else
@@ -119,10 +95,7 @@ builder.Services.AddSingleton(_ => new IngestionPackageParser(repositoryRoot, op
 builder.Services.AddSingleton<IngestionProcessor>();
 builder.Services.AddHostedService<ProcessorWorker>();
 
-var host = builder.Build();
-if (runtimeHeartbeat is not null)
-    _ = runtimeHeartbeat.RunAsync(host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping);
-await host.RunAsync();
+await builder.Build().RunAsync();
 
 static string FindRepositoryRoot(string contentRoot)
 {

@@ -2,15 +2,15 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Jornada — Identidade progressiva por origem",
-    "version": "1.0.0",
-    "description": "Contrato complementar da API V1. Consulta somente de leitura, restrita ao Gestor proprietário. Não autoriza acesso a fatos nem ativa Linkage probabilístico."
+    "version": "1.1.0",
+    "description": "Contrato complementar da API V1. Consulta somente de leitura, restrita ao Gestor autorizado. Não autoriza acesso a fatos nem ativa Linkage probabilístico."
   },
   "paths": {
     "/api/v1/identidade/origens/consulta": {
       "post": {
         "operationId": "consultarIdentidadeProgressivaOrigem",
         "summary": "Consultar a referência progressiva de uma identidade de origem",
-        "description": "Exige credencial GESTOR, scope jornada.identidade.origem.read e propriedade do sistema de origem. A comparação de códigos é exata. Não cria ou altera UUIDs.",
+        "description": "Exige credencial GESTOR, scope jornada.identidade.origem.read e propriedade do sistema de origem. Sem codigoBasePessoaOrigem preserva a consulta legada por sistema+código. Com codigoBasePessoaOrigem, o sistema identifica o contexto autorizado e a identidade é localizada por base+código. Não cria ou altera UUIDs.",
         "security": [{ "JornadaAccessKey": [] }],
         "parameters": [
           { "name": "X-Jornada-Gestor", "in": "header", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 80 } }
@@ -20,11 +20,11 @@
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProgressiveOriginQueryRequest" } } }
         },
         "responses": {
-          "200": { "description": "Referência corrente no escopo do Gestor.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProgressiveOriginQueryResponse" } } } },
+          "200": { "description": "Referência corrente no escopo autorizado do Gestor.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProgressiveOriginQueryResponse" } } } },
           "400": { "description": "Corpo ou códigos inválidos." },
           "401": { "description": "Credencial ausente ou inválida." },
           "403": { "description": "Tipo de credencial ou scope não autorizado." },
-          "404": { "description": "Não localizado no escopo do Gestor; não distingue inexistência de falta de propriedade." },
+          "404": { "description": "Não localizado no escopo autorizado; não distingue inexistência de falta de autorização." },
           "429": { "description": "Limite de requisições excedido." },
           "503": { "description": "Schema ou view de identidade progressiva indisponível.", "content": { "application/json": { "schema": { "type": "object", "properties": { "codigo": { "type": "string", "enum": ["IDENTIDADE_PROGRESSIVA_INDISPONIVEL"] } } } } } }
         }
@@ -37,15 +37,17 @@
       "ProgressiveOriginQueryRequest": {
         "type": "object", "required": ["codigoSistemaOrigem", "codigoPessoaOrigem"], "additionalProperties": false,
         "properties": {
-          "codigoSistemaOrigem": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Namespace técnico de origem, não o nome de exibição." },
-          "codigoPessoaOrigem": { "type": "string", "minLength": 1, "maxLength": 255, "description": "Chave interna da pessoa no sistema de origem; não é CPF." }
+          "codigoSistemaOrigem": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Sistema que estabelece o contexto de autorização do Gestor." },
+          "codigoPessoaOrigem": { "type": "string", "minLength": 1, "maxLength": 255, "description": "Código da pessoa dentro do namespace de origem; não é CPF." },
+          "codigoBasePessoaOrigem": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Z0-9_-]+$", "nullable": true, "description": "Namespace de Pessoa compartilhável. Quando informado, a busca usa base+código e exige que o sistema esteja autorizado para a base." }
         }
       },
       "ProgressiveOriginQueryResponse": {
         "type": "object", "required": ["codigoSistemaOrigem", "codigoPessoaOrigem", "initialUuid", "canonicalUuid", "estado", "versao", "criadoEm", "atualizadoEm", "ultimaResolucaoEm"],
         "properties": {
-          "codigoSistemaOrigem": { "type": "string" },
+          "codigoSistemaOrigem": { "type": "string", "description": "Sistema usado como contexto de autorização da consulta." },
           "codigoPessoaOrigem": { "type": "string" },
+          "codigoBasePessoaOrigem": { "type": "string", "nullable": true, "description": "Base efetiva quando a consulta é base-aware; null preserva a resposta legada." },
           "initialUuid": { "type": "string", "format": "uuid", "description": "UUID inicial imutável da identidade de origem." },
           "canonicalUuid": { "type": "string", "format": "uuid", "nullable": true, "description": "Referência canônica publicada somente com estado REFERENCIA." },
           "estado": { "type": "string", "enum": ["PROVISORIA", "REFERENCIA", "INDEFINIDA"] },

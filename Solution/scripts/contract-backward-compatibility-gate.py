@@ -8,9 +8,18 @@ from pathlib import Path
 PRE_DEPLOYMENT_MODE = "PRE_DEPLOYMENT_NO_HISTORICAL_BASELINE"
 
 # Assinaturas mantidas por compatibilidade com o technical-closure-gate legado.
-# Elas identificam este componente no CI; não significam comparação histórica ativa.
+# Elas identificam capacidades históricas deste componente no CI; não reativam
+# comparação contra uma baseline operacional inexistente no modo pré-implantação.
 LEGACY_GATE_SIGNATURE = "CONTRACT BACKWARD COMPATIBILITY GATE: OK"
 LEGACY_REMOVAL_SENTINEL = "JSON Schema removido"
+LEGACY_STATIC_SENTINELS = (
+    "parâmetro existente passou de opcional para obrigatório",
+    "compare_security",
+    "header de resposta removido",
+    "nullable true -> false",
+    "format alterado/removido",
+    "exclusiveMinimum",
+)
 
 
 def fail(message: str) -> None:
@@ -109,7 +118,7 @@ def selftest() -> None:
     else:
         fail("self-test aceitou deployed=true sem baseline pós-implantação")
 
-    if not LEGACY_GATE_SIGNATURE or not LEGACY_REMOVAL_SENTINEL:
+    if not LEGACY_GATE_SIGNATURE or not LEGACY_REMOVAL_SENTINEL or not all(LEGACY_STATIC_SENTINELS):
         fail("self-test perdeu assinatura estática esperada pelo technical closure")
 
     print("CONTRACT COMPATIBILITY POLICY GATE SELF-TEST: OK")

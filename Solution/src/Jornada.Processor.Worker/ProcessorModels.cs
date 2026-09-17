@@ -60,7 +60,7 @@ internal sealed record ParsedPackage(
     IReadOnlyList<ParsedFact> Registros);
 
 internal sealed record ParsedPerson(
-    string CodigoPessoaOrigem,
+    string? CodigoPessoaOrigem,
     string ConteudoHash,
     string? SourceTransactionId,
     string? Cpf,
@@ -69,7 +69,8 @@ internal sealed record ParsedPerson(
     DateOnly DataNascimento,
     string? NomeMae,
     IReadOnlyList<ParsedTransversalAttribute> Atributos,
-    IReadOnlyList<ParsedDocumentVerification> ConferenciasDocumentais);
+    IReadOnlyList<ParsedDocumentVerification> ConferenciasDocumentais,
+    IReadOnlyList<ParsedPersonIdentifier>? Identificadores = null);
 
 internal sealed record ParsedDocumentVerification(
     string CampoCodigo,
@@ -136,7 +137,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
         using var zip = new ZipArchive(payloadStream, ZipArchiveMode.Read, leaveOpen: true);
         var budget = new DecompressedByteBudget(IngestionPackageInspector.MaxUncompressedBytes);
         ConsumeEntryForBudget(zip.GetEntry("manifest.json")!, budget);
-        var pessoas = ParsePeople(batch, zip.GetEntry("pessoas.jsonl")!, personValidator, budget);
+        var pessoas = ParsePeople(batch, manifest.CodigoBasePessoaOrigem, zip.GetEntry("pessoas.jsonl")!, personValidator, budget);
         var factEntry = zip.GetEntry("registros.jsonl")!;
         IReadOnlyList<ParsedFact> registros = Array.Empty<ParsedFact>();
         if (factEntry.Length > 0)
@@ -151,6 +152,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
 
     private IReadOnlyList<ParsedPerson> ParsePeople(
         ReservedBatch batch,
+        string? manifestBasePessoaOrigem,
         ZipArchiveEntry entry,
         JsonSchemaSubsetValidator validator,
         DecompressedByteBudget budget)
@@ -171,14 +173,20 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
             var json = validator.ParseAndValidate(line, "pessoas.jsonl", lineNumber);
             var cpf = OptionalString(json, "cpf");
             var sourceCode = OptionalString(json, "codigoPessoaOrigem");
-            if (string.IsNullOrWhiteSpace(sourceCode))
+
+            // v1-v3 mantêm o contrato legado. A v4 rompe deliberadamente o fallback
+            // CPF -> codigoPessoaOrigem: CPF é identificador próprio e nunca código de base.
+            if (batch.PessoaSchemaVersao < 4 && string.IsNullOrWhiteSpace(sourceCode))
             {
                 if (string.IsNullOrWhiteSpace(cpf))
                     throw new InvalidDataException("pessoas.jsonl: codigoPessoaOrigem ausente exige CPF preenchido para derivação do código de origem.");
                 sourceCode = cpf;
             }
-            if (!sourceCodes.Add(sourceCode))
+
+            if (!string.IsNullOrWhiteSpace(sourceCode) && !sourceCodes.Add(sourceCode))
                 throw new InvalidDataException($"pessoas.jsonl: codigoPessoaOrigem duplicado: {sourceCode}.");
+
+            var identifiers = PersonIdentifierParsing.Parse(json, cpf, sourceCode, manifestBasePessoaOrigem);
 
             var attributes = new List<ParsedTransversalAttribute>();
             if (json.TryGetProperty("atributosTransversais", out var attrs) && attrs.ValueKind == JsonValueKind.Array)
@@ -298,7 +306,8 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
                 RequiredDate(json, "dataNascimento"),
                 OptionalString(json, "nomeMae"),
                 attributes,
-                verifications));
+                verifications,
+                identifiers));
         }
 
         if (result.Count == 0)
@@ -391,7 +400,8 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
     private static void ValidateFactPersonReferences(IReadOnlyList<ParsedPerson> people, IReadOnlyList<ParsedFact> facts)
     {
         var known = people
-            .Select(p => p.CodigoPessoaOrigem)
+            .Where(p => !string.IsNullOrWhiteSpace(p.CodigoPessoaOrigem))
+            .Select(p => p.CodigoPessoaOrigem!)
             .ToHashSet(StringComparer.Ordinal);
         foreach (var fact in facts)
         {

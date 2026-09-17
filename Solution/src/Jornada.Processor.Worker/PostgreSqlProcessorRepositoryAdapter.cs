@@ -1,13 +1,14 @@
 namespace Jornada.Processor.Worker;
 
 /// <summary>
-/// Adapter fino do repositório SQL Server/Fabric para o contrato neutro do Worker.
-/// Mantém v1-v3 no fluxo histórico e roteia Pessoa v4 para o cutover de múltiplos
-/// identificadores/origem opcional.
+/// Fronteira explícita do provider PostgreSQL. O cutover Pessoa v4 (origem opcional e
+/// identificadores 0..N) é normativo no SQL Server e ainda não possui persistência
+/// PostgreSQL equivalente. Falha antes de qualquer escrita em vez de reinterpretar
+/// ausencia de codigoPessoaOrigem pelo contrato legado.
 /// </summary>
-internal sealed class SqlProcessorRepositoryAdapter(SqlProcessorRepository inner) : IProcessorRepository
+internal sealed class PostgreSqlProcessorRepositoryAdapter(PostgreSqlProcessorRepository inner) : IProcessorRepository
 {
-    private readonly SqlProcessorRepository inner = inner ?? throw new ArgumentNullException(nameof(inner));
+    private readonly PostgreSqlProcessorRepository inner = inner ?? throw new ArgumentNullException(nameof(inner));
 
     public Task<int> RecoverExpiredLeasesAsync(int maxAttempts, CancellationToken ct) =>
         inner.RecoverExpiredLeasesAsync(maxAttempts, ct);
@@ -27,10 +28,14 @@ internal sealed class SqlProcessorRepositoryAdapter(SqlProcessorRepository inner
     public Task PersistValidatedAsync(
         ReservedBatch batch,
         ParsedPackage package,
-        CancellationToken ct) =>
-        batch.PessoaSchemaVersao >= 4
-            ? inner.PersistValidatedV4Async(batch, package, ct)
-            : inner.PersistValidatedAsync(batch, package, ct);
+        CancellationToken ct)
+    {
+        if (batch.PessoaSchemaVersao >= 4 || package.Manifest.PessoaSchemaVersao >= 4)
+            throw new InvalidDataException(
+                "Pessoa schema v4 exige o runtime operacional SQL Server; o adapter PostgreSQL não implementa origem opcional/identificadores 0..N.");
+
+        return inner.PersistValidatedAsync(batch, package, ct);
+    }
 
     public Task MarkRejectedAsync(
         ReservedBatch batch,

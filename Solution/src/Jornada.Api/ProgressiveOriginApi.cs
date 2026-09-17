@@ -28,25 +28,61 @@ public sealed class SqlProgressiveOriginQueryService(IOperationalSqlAdapter conn
 
         await using var connection = await connections.OpenAsync(ct);
         await using var command = connection.CreateCommand();
-        // A restrição de proprietário é aplicada no SQL, não apenas na borda.
-        // O namespace da origem e o Gestor autenticado são partes obrigatórias da seleção.
-        // Comparações binárias e DATALENGTH impedem equivalência por case, acento ou
-        // preenchimento de espaços finais, que SQL Server ignora mesmo com BIN2.
-        command.CommandText = """
-            SELECT p.sistema_origem_codigo,p.codigo_pessoa_origem,
-                   p.initial_uuid,p.canonical_uuid,p.estado,p.versao,
-                   p.criado_em,p.atualizado_em,p.ultima_resolucao_em
-              FROM serving.v_identidade_origem_progressiva p
-             WHERE p.gestor_codigo COLLATE Latin1_General_100_BIN2=@gestor
-               AND DATALENGTH(p.gestor_codigo)=DATALENGTH(@gestor)
-               AND p.sistema_origem_codigo COLLATE Latin1_General_100_BIN2=@sistema
-               AND DATALENGTH(p.sistema_origem_codigo)=DATALENGTH(@sistema)
-               AND p.codigo_pessoa_origem COLLATE Latin1_General_100_BIN2=@codigo
-               AND DATALENGTH(p.codigo_pessoa_origem)=DATALENGTH(@codigo);
-            """;
         command.Parameters.Add(new SqlParameter("@gestor", SqlDbType.NVarChar, 80) { Value = context.GestorCodigo });
         command.Parameters.Add(new SqlParameter("@sistema", SqlDbType.NVarChar, 80) { Value = request.CodigoSistemaOrigem });
         command.Parameters.Add(new SqlParameter("@codigo", SqlDbType.NVarChar, 255) { Value = request.CodigoPessoaOrigem });
+
+        if (string.IsNullOrWhiteSpace(request.CodigoBasePessoaOrigem))
+        {
+            // Compatibilidade histórica: o namespace era implicitamente sistema+codigo.
+            command.CommandText = """
+                SELECT p.sistema_origem_codigo,p.codigo_pessoa_origem,
+                       p.initial_uuid,p.canonical_uuid,p.estado,p.versao,
+                       p.criado_em,p.atualizado_em,p.ultima_resolucao_em,
+                       CAST(NULL AS NVARCHAR(120)) AS base_pessoa_origem_codigo
+                  FROM serving.v_identidade_origem_progressiva p
+                 WHERE p.gestor_codigo COLLATE Latin1_General_100_BIN2=@gestor
+                   AND DATALENGTH(p.gestor_codigo)=DATALENGTH(@gestor)
+                   AND p.sistema_origem_codigo COLLATE Latin1_General_100_BIN2=@sistema
+                   AND DATALENGTH(p.sistema_origem_codigo)=DATALENGTH(@sistema)
+                   AND p.codigo_pessoa_origem COLLATE Latin1_General_100_BIN2=@codigo
+                   AND DATALENGTH(p.codigo_pessoa_origem)=DATALENGTH(@codigo);
+                """;
+        }
+        else
+        {
+            // V4: sistema identifica o contexto autorizado, mas a identidade de origem é
+            // encontrada pelo namespace real base+codigo. Uma base compartilhada pode ter
+            // sido materializada originalmente por outro sistema/Gestor; isso não muda sua chave.
+            command.CommandText = """
+                SELECT s.codigo,po.codigo_pessoa_origem,
+                       p.initial_uuid,p.canonical_uuid,p.estado,p.versao,
+                       p.criado_em,p.atualizado_em,p.ultima_resolucao_em,b.codigo
+                  FROM ref.sistema_origem s
+                  JOIN ref.gestor g ON g.gestor_id=s.gestor_id
+                  JOIN ref.sistema_origem_base_pessoa sb
+                    ON sb.sistema_origem_id=s.sistema_origem_id AND sb.ativo=1
+                  JOIN ref.base_pessoa_origem b
+                    ON b.base_pessoa_origem_id=sb.base_pessoa_origem_id AND b.ativo=1
+                  JOIN silver.pessoa_origem po
+                    ON po.base_pessoa_origem_id=b.base_pessoa_origem_id
+                  JOIN identidade.pessoa_origem_progressiva p
+                    ON p.pessoa_origem_id=po.pessoa_origem_id
+                 WHERE g.codigo COLLATE Latin1_General_100_BIN2=@gestor
+                   AND DATALENGTH(g.codigo)=DATALENGTH(@gestor)
+                   AND s.codigo COLLATE Latin1_General_100_BIN2=@sistema
+                   AND DATALENGTH(s.codigo)=DATALENGTH(@sistema)
+                   AND b.codigo COLLATE Latin1_General_100_BIN2=@base
+                   AND DATALENGTH(b.codigo)=DATALENGTH(@base)
+                   AND po.codigo_pessoa_origem COLLATE Latin1_General_100_BIN2=@codigo
+                   AND DATALENGTH(po.codigo_pessoa_origem)=DATALENGTH(@codigo);
+                """;
+            command.Parameters.Add(new SqlParameter("@base", SqlDbType.NVarChar, 120)
+            {
+                Value = request.CodigoBasePessoaOrigem
+            });
+        }
+
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
         var text = reader.GetString(4);
@@ -56,7 +92,8 @@ public sealed class SqlProgressiveOriginQueryService(IOperationalSqlAdapter conn
             reader.GetString(0), reader.GetString(1), reader.GetGuid(2),
             reader.IsDBNull(3) ? null : reader.GetGuid(3), estado, reader.GetInt64(5),
             reader.GetDateTimeOffset(6).ToUniversalTime(), reader.GetDateTimeOffset(7).ToUniversalTime(),
-            reader.IsDBNull(8) ? null : reader.GetDateTimeOffset(8).ToUniversalTime());
+            reader.IsDBNull(8) ? null : reader.GetDateTimeOffset(8).ToUniversalTime(),
+            reader.IsDBNull(9) ? null : reader.GetString(9));
         ProgressiveOriginApi.ValidateSnapshot(result);
         if (await reader.ReadAsync(ct))
             throw new InvalidOperationException("Identidade de origem duplicada.");
@@ -76,8 +113,6 @@ public static class ProgressiveOriginApi
             IAccessContextResolver access, IPolicyEngine policy,
             IProgressiveOriginQueryService service, CancellationToken ct) =>
         {
-            // Mesma autenticação, contexto de auditoria e limite autenticado da API.
-            // Esta família aceita exclusivamente GESTOR, mesmo se um scope for concedido a um Tipo por erro.
             var key = http.Headers["X-Jornada-Access-Key"].ToString();
             if (string.IsNullOrWhiteSpace(key)) return Results.Unauthorized();
             var gestor = http.Headers["X-Jornada-Gestor"].ToString();
@@ -94,7 +129,7 @@ public static class ProgressiveOriginApi
             if (context.CredentialType != AccessCredentialType.GESTOR ||
                 !await policy.IsAllowedAsync(context, Permission, null, null, ct))
                 return Results.StatusCode(StatusCodes.Status403Forbidden);
-            // O código interno nunca é colocado na URL, em erros ou no resourceCode da auditoria.
+            // Identificadores de origem nunca são colocados na URL, em erros ou no resourceCode da auditoria.
             if (!TryValidateRequest(request))
                 return Results.BadRequest(new { erro = "Códigos de origem inválidos." });
             try
@@ -113,21 +148,22 @@ public static class ProgressiveOriginApi
                     statusCode: StatusCodes.Status503ServiceUnavailable);
             }
         }).RequireRateLimiting("identity");
-
-        // O monitor é uma segunda superfície somente-leitura, registrada aqui para manter o
-        // bootstrap do host Minimal API estável enquanto a fase candidata ainda está pré-implantação.
-        app.MapOperationalMonitorApi();
         return app;
     }
 
     public static bool TryValidateRequest(ProgressiveOriginQueryRequest? request) =>
         request is not null &&
         ValidCode(request.CodigoSistemaOrigem, 80) &&
-        ValidCode(request.CodigoPessoaOrigem, 255);
+        ValidCode(request.CodigoPessoaOrigem, 255) &&
+        (request.CodigoBasePessoaOrigem is null || ValidBaseCode(request.CodigoBasePessoaOrigem));
 
     private static bool ValidCode(string? value, int max) =>
         !string.IsNullOrWhiteSpace(value) && value.Length <= max &&
         !value.Any(char.IsControl);
+
+    private static bool ValidBaseCode(string value) =>
+        value.Length is >= 1 and <= 120 &&
+        value.All(c => c is >= 'A' and <= 'Z' or >= '0' and <= '9' or '_' or '-');
 
     public static void ValidateRequest(ProgressiveOriginQueryRequest request)
     {

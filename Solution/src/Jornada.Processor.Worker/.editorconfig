@@ -1,0 +1,11 @@
+# A Pessoa v4 admite codigoPessoaOrigem ausente e é roteada para SqlProcessorRepository.V4.
+# Estes dois arquivos implementam somente o caminho legado v1-v3, cujo parser garante código
+# não nulo (inclusive pelo fallback histórico CPF->código). O PostgreSQL rejeita v4 no adapter.
+# A supressão é deliberadamente restrita a CS8604 e a estes arquivos, sem reduzir a análise
+# de nulabilidade do restante do Worker.
+
+[SqlProcessorRepository.Persistence.cs]
+dotnet_diagnostic.CS8604.severity = none
+
+[PostgreSqlProcessorRepository.cs]
+dotnet_diagnostic.CS8604.severity = none
