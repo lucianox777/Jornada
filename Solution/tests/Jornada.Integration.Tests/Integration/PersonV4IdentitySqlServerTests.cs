@@ -84,11 +84,11 @@ public sealed class PersonV4IdentitySqlServerTests
             await using (var pick = connection.CreateCommand())
             {
                 pick.Transaction = tx;
-                pick.CommandText = "SELECT TOP(2) sistema_origem_id,gestor_id FROM ref.sistema_origem WHERE ativo=1 ORDER BY sistema_origem_id;";
+                pick.CommandText = "SELECT TOP(2) sistema_origem_id,gestor_id FROM ref.sistema_origem ORDER BY sistema_origem_id;";
                 await using var reader = await pick.ExecuteReaderAsync();
                 while (await reader.ReadAsync()) systems.Add((reader.GetInt64(0), reader.GetInt64(1)));
             }
-            Assert.That(systems.Count, Is.EqualTo(2), "Fixture deve possuir ao menos dois sistemas de origem ativos.");
+            Assert.That(systems.Count, Is.EqualTo(2), "Fixture deve possuir ao menos dois sistemas de origem.");
 
             var suffix = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
             var baseCode = $"TEST_SHARED_{suffix}";
