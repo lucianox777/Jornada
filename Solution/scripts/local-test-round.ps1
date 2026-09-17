@@ -5,14 +5,6 @@ $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
 cls
 
-function Wait-ForNextStep {
-    param([Parameter(Mandatory = $true)][string]$CompletedStep)
-    Write-Host ''
-    Write-Host "OK: $CompletedStep" -ForegroundColor Green
-    [void](Read-Host 'Pressione ENTER para executar o próximo comando')
-    Write-Host ''
-}
-
 function Invoke-Step {
     param(
         [Parameter(Mandatory = $true)][string]$Title,
@@ -28,14 +20,15 @@ function Invoke-Step {
     & $Command
     if (-not $?) { throw "Falha em: $Title" }
     if ($LASTEXITCODE -ne 0) { throw "Falha em: $Title (exit code $LASTEXITCODE)" }
-    Wait-ForNextStep $Title
+    Write-Host "OK: $Title" -ForegroundColor Green
+    Write-Host ''
 }
 
 Push-Location $Root
 try {
-    Write-Host 'RODADA LOCAL DE TESTES - EXECUÇÃO PASSO A PASSO' -ForegroundColor Yellow
+    Write-Host 'RODADA LOCAL DE TESTES - EXECUÇÃO CONTÍNUA' -ForegroundColor Yellow
     Write-Host "Solution: $Root"
-    Write-Host 'O script imprime cada comando, para na primeira falha e pausa entre todos os comandos.'
+    Write-Host 'O script imprime cada comando, executa sem pausa e para na primeira falha.'
     Write-Host 'A suíte agregada local-test-all é propositalmente separada para não repetir toda a rodada.'
     Write-Host ''
 
@@ -59,7 +52,8 @@ try {
     Invoke-Step '18/19 - Restaurar banco canônico após SCALE' '.\scripts\local-db.ps1 -Action reset' { & .\scripts\local-db.ps1 -Action reset }
     Invoke-Step '19/19 - Estado final do Git' 'git status --short --branch' { git status --short --branch }
 
-    Write-Host 'RODADA LOCAL PASSO A PASSO: OK' -ForegroundColor Green
+    Write-Host 'RODADA LOCAL CONTÍNUA: OK' -ForegroundColor Green
+    Write-Host 'Versão pausada: .\scripts\local-test-round-paused.ps1'
     Write-Host 'Suíte agregada opcional, em comando separado: .\scripts\local-test-all.ps1 -Suite full'
 }
 finally {
