@@ -286,9 +286,9 @@ $conflictMarginZero = [int]$conf[2]
 $conflictAboveThreshold = [int]$conf[3]
 $conflictResolved = [int]$conf[4]
 
-$positiveSensitivity = if ($positiveTotal -eq 0) { 0m } else { [decimal]$positiveCorrect / [decimal]$positiveTotal }
-$negativeSpecificity = if ($negativeTotal -eq 0) { 0m } else { [decimal]$negativeRejected / [decimal]$negativeTotal }
-$negativeFalseMatchRate = if ($negativeTotal -eq 0) { 0m } else { [decimal]$negativeResolved / [decimal]$negativeTotal }
+$positiveSensitivity = if ($positiveTotal -eq 0) { [decimal]0 } else { [decimal]$positiveCorrect / [decimal]$positiveTotal }
+$negativeSpecificity = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeRejected / [decimal]$negativeTotal }
+$negativeFalseMatchRate = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeResolved / [decimal]$negativeTotal }
 
 $report = [ordered]@{
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
@@ -331,13 +331,13 @@ $report = [ordered]@{
         marginZero = $conflictMarginZero
         aboveThreshold = $conflictAboveThreshold
         resolvedUnexpectedly = $conflictResolved
-        minBestScore = Parse-Decimal $conf[5]
-        maxBestScore = Parse-Decimal $conf[6]
+        minBestScore = (Parse-Decimal $conf[5])
+        maxBestScore = (Parse-Decimal $conf[6])
     }
     thresholdFrontier = [ordered]@{
         actualWithinPlusMinus002 = [int]$frontier[0]
-        actualMaxBelow = Parse-Decimal $frontier[1]
-        actualMinAtOrAbove = Parse-Decimal $frontier[2]
+        actualMaxBelow = (Parse-Decimal $frontier[1])
+        actualMinAtOrAbove = (Parse-Decimal $frontier[2])
         theoreticalClosestStates = $theoretical
     }
     interpretation = [ordered]@{
@@ -354,8 +354,8 @@ Write-Host '=== VALIDAÇÃO INDEPENDENTE DO LINKAGE (DEV SINTÉTICO) ==='
 Write-Host "Modelo: v$modelVersion / $activeModelId / $algorithmVersion"
 Write-Host "Run: $runId"
 Write-Host "Blocking positivo: truthInsideUnion=$($blockingAudit.summary.truthInsideUnion)/$($blockingAudit.summary.sampleSize) recall=$($blockingAudit.summary.unionRecallPct)%"
-Write-Host "Positivos: corretos=$positiveCorrect/$positiveTotal errados=$positiveWrong não_resolvidos_ou_conflitos=$positiveUnresolved sensibilidade_sintética=$([decimal]::Round($positiveSensitivity*100m,2))%"
-Write-Host "Negativos: falsos_vínculos=$negativeResolved/$negativeTotal rejeitados_ou_conflitos=$negativeRejected candidatos_expostos=$negativeCandidateExposure especificidade_sintética=$([decimal]::Round($negativeSpecificity*100m,2))%"
+Write-Host "Positivos: corretos=$positiveCorrect/$positiveTotal errados=$positiveWrong não_resolvidos_ou_conflitos=$positiveUnresolved sensibilidade_sintética=$([decimal]::Round(($positiveSensitivity * [decimal]100),2))%"
+Write-Host "Negativos: falsos_vínculos=$negativeResolved/$negativeTotal rejeitados_ou_conflitos=$negativeRejected candidatos_expostos=$negativeCandidateExposure especificidade_sintética=$([decimal]::Round(($negativeSpecificity * [decimal]100),2))%"
 Write-Host "Conflito forçado: conflito=$conflictStatus/$conflictTotal margem_zero=$conflictMarginZero acima_threshold=$conflictAboveThreshold resolvidos_indevidos=$conflictResolved"
 Write-Host "Fronteira T=$threshold`: casos reais ±0,02=$($frontier[0]); max_abaixo=$($frontier[1]); min_acima=$($frontier[2])"
 Write-Host 'Estados teóricos mais próximos do threshold:'
@@ -364,7 +364,7 @@ Write-Host "Relatório: $ReportPath"
 Write-Host "Auditoria de blocking: $BlockingAuditPath"
 Write-Host ''
 
-if ([decimal]$blockingAudit.summary.unionRecallPct -ne 100m) {
+if ([decimal]$blockingAudit.summary.unionRecallPct -ne [decimal]100) {
     throw "Fixture positivo não ficou integralmente dentro do blocking: recall=$($blockingAudit.summary.unionRecallPct)%."
 }
 if ($negativeCandidateExposure -lt 30) {
