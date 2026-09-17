@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           bash -n scripts/local-linkage-validation.sh
-          pwsh -NoLogo -NoProfile -Command '$bytes=[IO.File]::ReadAllBytes("scripts/local-linkage-validation.ps1"); if($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF){ throw "UTF-8 BOM ausente" }; $null=[scriptblock]::Create((Get-Content -Raw -Encoding UTF8 "scripts/local-linkage-validation.ps1")); Write-Host "LINKAGE VALIDATION POWERSHELL PARSE: OK"'
+          pwsh -NoLogo -NoProfile -Command '$ErrorActionPreference="Stop"; $bytes=[IO.File]::ReadAllBytes("scripts/local-linkage-validation.ps1"); if($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF){ throw "UTF-8 BOM ausente" }; $null=[scriptblock]::Create((Get-Content -Raw -Encoding UTF8 "scripts/local-linkage-validation.ps1")); Write-Host "LINKAGE VALIDATION POWERSHELL PARSE: OK"'
 
       - name: Start canonical local cluster
         shell: bash
@@ -66,6 +66,14 @@ jobs:
         shell: bash
         run: bash scripts/local-linkage-validation.sh
 
+      - name: Exercise PowerShell validation entrypoint
+        shell: pwsh
+        run: |
+          # pwsh -NoLogo -NoProfile -File ./scripts/local-linkage-validation.ps1
+          Write-Host '# pwsh -NoLogo -NoProfile -File ./scripts/local-linkage-validation.ps1'
+          & ./scripts/local-linkage-validation.ps1
+          if ($LASTEXITCODE -ne 0) { throw "local-linkage-validation.ps1 falhou ($LASTEXITCODE)." }
+
       - name: Preserve validation evidence
         if: always()
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
@@ -73,6 +81,7 @@ jobs:
           name: linkage-independent-validation
           path: |
             Solution/.local/linkage-validation/blocking-pass-audit.json
+            Solution/.local/linkage-validation/validation-report.json
           if-no-files-found: warn
           retention-days: 14
 
