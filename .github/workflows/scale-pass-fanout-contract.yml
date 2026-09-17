@@ -1,0 +1,58 @@
+name: jornada-scale-pass-fanout-contract
+
+on:
+  pull_request:
+    paths:
+      - 'Solution/scripts/local-scale-blocking-pass-audit.ps1'
+      - 'Solution/scripts/local-test-round.ps1'
+      - 'Solution/scripts/local-test-round-paused.ps1'
+      - 'Solution/scripts/blocking-pass-fanout-gate.py'
+      - '.github/workflows/scale-pass-fanout-contract.yml'
+  push:
+    branches: [ master ]
+    paths:
+      - 'Solution/scripts/local-scale-blocking-pass-audit.ps1'
+      - 'Solution/scripts/local-test-round.ps1'
+      - 'Solution/scripts/local-test-round-paused.ps1'
+      - 'Solution/scripts/blocking-pass-fanout-gate.py'
+      - '.github/workflows/scale-pass-fanout-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Validate PowerShell syntax and BOM
+        shell: pwsh
+        run: |
+          foreach ($file in @('scripts/local-scale-blocking-pass-audit.ps1','scripts/local-test-round.ps1','scripts/local-test-round-paused.ps1')) {
+            $bytes=[IO.File]::ReadAllBytes($file)
+            if($bytes.Length-lt 3 -or $bytes[0]-ne 0xEF -or $bytes[1]-ne 0xBB -or $bytes[2]-ne 0xBF){throw "UTF-8 BOM ausente em $file"}
+            $null=[scriptblock]::Create((Get-Content -Raw -Encoding UTF8 $file))
+          }
+      - name: Validate SCALE pass-audit contract
+        shell: pwsh
+        run: |
+          $audit=Get-Content -Raw -Encoding UTF8 scripts/local-scale-blocking-pass-audit.ps1
+          foreach($required in @('--blocking-pass-audit-labels','blocking-pass-fanout-gate.py','--population','[Text.UTF8Encoding]::new($false)')){
+            if(-not $audit.Contains($required)){throw "Contrato ausente: $required"}
+          }
+          foreach($runner in @('scripts/local-test-round.ps1','scripts/local-test-round-paused.ps1')){
+            $content=Get-Content -Raw -Encoding UTF8 $runner
+            $scale=$content.IndexOf('17/20 - Smoke de escala + probe sincronizado de coordenação')
+            $auditStep=$content.IndexOf('18/20 - Fan-out real por passe no ruleset SCALE')
+            $reset=$content.IndexOf('19/20 - Restaurar banco canônico após SCALE')
+            if($scale-lt 0 -or $auditStep-lt 0 -or $reset-lt 0 -or -not($scale-lt $auditStep -and $auditStep-lt $reset)){throw "$runner perdeu ordem SCALE -> pass audit -> reset"}
+          }
+      - name: Self-test shared fan-out gate
+        shell: bash
+        run: python3 scripts/blocking-pass-fanout-gate.py --self-test
