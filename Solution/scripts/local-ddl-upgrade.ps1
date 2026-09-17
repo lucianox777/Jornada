@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param()
 
 Set-StrictMode -Version Latest
@@ -67,6 +67,46 @@ function Assert-CurrentBronzeIndexContract {
     }
 }
 
+function Invoke-BashGate {
+    param(
+        [Parameter(Mandatory=$true)][string]$BashExecutable,
+        [Parameter(Mandatory=$true)][string]$WorkingDirectory
+    )
+
+    # Windows PowerShell 5.1 converte qualquer byte escrito em stderr por um executável nativo
+    # conectado com `2>&1` em NativeCommandError. Com $ErrorActionPreference='Stop', uma linha
+    # meramente informativa do Docker (por exemplo "Container ... Running") interrompe a suíte
+    # antes de podermos inspecionar o exit code real do bash. ProcessStartInfo preserva stdout e
+    # stderr como texto e deixa o status do processo ser a única fonte de falha do gate.
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $BashExecutable
+    $startInfo.Arguments = './scripts/local-ddl-upgrade.sh'
+    $startInfo.WorkingDirectory = $WorkingDirectory
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    try {
+        [void]$process.Start()
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+        return [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            StdOut = $stdout
+            StdErr = $stderr
+        }
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
 $bashExe = Get-BashExecutable
 if ([string]::IsNullOrWhiteSpace($bashExe)) {
     throw 'Bash compatível não encontrado. No Windows, este gate exige o Git Bash do Git for Windows e não usa automaticamente o launcher do WSL.'
@@ -97,9 +137,15 @@ Push-Location $Root
 try {
     $historicalWarningSeen = $false
     $skipHistoricalContinuation = $false
+    $gateResult = Invoke-BashGate -BashExecutable $bashExe -WorkingDirectory $Root
 
-    & $bashExe ./scripts/local-ddl-upgrade.sh 2>&1 | ForEach-Object {
-        $line = $_.ToString()
+    # A ordem entre stdout e stderr não é usada como contrato. O gate shell é responsável pelo
+    # fluxo/exit code; aqui somente apresentamos a evidência e omitimos o warning histórico já
+    # conhecido do baseline v3.65.
+    $gateOutput = @($gateResult.StdOut, $gateResult.StdErr) -join [Environment]::NewLine
+    foreach ($rawLine in ($gateOutput -split "`r?`n")) {
+        if ([string]::IsNullOrWhiteSpace($rawLine)) { continue }
+        $line = $rawLine.ToString()
 
         if ($line -like "*The index 'IX_bronze_entrega_arquivo_objeto_chave' has maximum length of 2048 bytes*") {
             if (-not $historicalWarningSeen) {
@@ -107,21 +153,20 @@ try {
                 $historicalWarningSeen = $true
             }
             $skipHistoricalContinuation = $true
-            return
+            continue
         }
 
         if ($skipHistoricalContinuation -and $line -like 'For some combination of large values, the insert/update operation will fail*') {
             $skipHistoricalContinuation = $false
-            return
+            continue
         }
 
         $skipHistoricalContinuation = $false
         Write-Host $line
     }
 
-    $gateExitCode = $LASTEXITCODE
-    if ($gateExitCode -ne 0) {
-        throw "local-ddl-upgrade.sh falhou ($gateExitCode)."
+    if ($gateResult.ExitCode -ne 0) {
+        throw "local-ddl-upgrade.sh falhou ($($gateResult.ExitCode))."
     }
 }
 finally {
