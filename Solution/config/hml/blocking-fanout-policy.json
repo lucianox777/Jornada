@@ -1,0 +1,5 @@
+{
+  "policyVersion": "BLOCKING_FANOUT_POLICY_V1",
+  "maxPopulationFraction": 0.25,
+  "maxP95CandidateCount": 1000
+}
