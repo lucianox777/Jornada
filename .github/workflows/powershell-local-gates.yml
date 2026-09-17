@@ -9,6 +9,9 @@ on:
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
+      - 'Solution/scripts/local-linkage-validation.ps1'
+      - 'Solution/scripts/local-linkage-validation-flow.ps1'
+      - 'Solution/scripts/local-ibge-u-bootstrap.ps1'
       - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
@@ -22,6 +25,9 @@ on:
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
+      - 'Solution/scripts/local-linkage-validation.ps1'
+      - 'Solution/scripts/local-linkage-validation-flow.ps1'
+      - 'Solution/scripts/local-ibge-u-bootstrap.ps1'
       - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
@@ -58,6 +64,9 @@ jobs:
             'scripts/local-test-round.ps1',
             'scripts/local-cluster.ps1',
             'scripts/local-linkage-evaluation-smoke.ps1',
+            'scripts/local-linkage-validation.ps1',
+            'scripts/local-linkage-validation-flow.ps1',
+            'scripts/local-ibge-u-bootstrap.ps1',
             'scripts/local-scale.ps1',
             'scripts/local-sql-runtime-smoke.ps1',
             'scripts/local-db.ps1'
@@ -133,6 +142,48 @@ jobs:
           }
           Write-Host 'LOCAL CLUSTER COMMAND ECHO/SECRET REDACTION CONTRACT: OK'
 
+      - name: Validate linkage validation and IBGE bootstrap command echo
+        shell: pwsh
+        run: |
+          $validation = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-validation.ps1
+          foreach ($required in @(
+            '# .\scripts\local-cluster.ps1 -Action linkage',
+            'Write-CommandLine $LocalCluster',
+            'SQLCMDPASSWORD=<redacted>'
+          )) {
+            if (-not $validation.Contains($required)) {
+              throw "local-linkage-validation.ps1 perdeu contrato de command echo: $required"
+            }
+          }
+          if ($validation -match 'Write-CommandLine[^\r\n]*\$password') {
+            throw 'local-linkage-validation.ps1 não pode imprimir senha SQL.'
+          }
+
+          $flow = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-validation-flow.ps1
+          foreach ($required in @(
+            '# .\scripts\local-cluster.ps1 -Action up',
+            '# .\scripts\local-cluster.ps1 -Action calibrate',
+            '# .\scripts\local-linkage-validation.ps1',
+            'SQLCMDPASSWORD=<redacted>'
+          )) {
+            if (-not $flow.Contains($required)) {
+              throw "local-linkage-validation-flow.ps1 perdeu contrato de command echo: $required"
+            }
+          }
+
+          $bootstrap = Get-Content -Raw -Encoding UTF8 scripts/local-ibge-u-bootstrap.ps1
+          foreach ($required in @(
+            '# .\scripts\local-cluster.ps1 -Action up',
+            'function Write-CommandLine',
+            '# docker compose --env-file .env exec -T jornada-node2 env LinkageParameters__Operation=REPORT_IBGE_U_BOOTSTRAP',
+            '# docker compose --env-file .env cp jornada-node2:/tmp/jornada-ibge-u-bootstrap.json',
+            'REPORT_IBGE_U_BOOTSTRAP'
+          )) {
+            if (-not $bootstrap.Contains($required)) {
+              throw "local-ibge-u-bootstrap.ps1 perdeu contrato de command echo: $required"
+            }
+          }
+          Write-Host 'LINKAGE VALIDATION/IBGE BOOTSTRAP COMMAND ECHO CONTRACT: OK'
       - name: Validate canonical audit before scale and canonical restoration
         shell: pwsh
         run: |
