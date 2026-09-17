@@ -39,71 +39,79 @@ try {
     Write-Host 'A suíte agregada local-test-all é propositalmente separada para não repetir toda a rodada.'
     Write-Host ''
 
-    Invoke-Step '1/17 - Estado atual do Git' {
+    Invoke-Step '1/19 - Estado atual do Git' {
         git status --short --branch
     }
 
-    Invoke-Step '2/17 - Restore locked' {
+    Invoke-Step '2/19 - Restore locked' {
         dotnet restore Jornada.sln --locked-mode
     }
 
-    Invoke-Step '3/17 - Build Release com warnings como erro' {
+    Invoke-Step '3/19 - Build Release com warnings como erro' {
         dotnet build Jornada.sln --configuration Release --no-restore -warnaserror
     }
 
-    Invoke-Step '4/17 - Testes não-integration completos' {
+    Invoke-Step '4/19 - Testes não-integration completos' {
         dotnet test .\tests\Jornada.Tests\Jornada.Tests.csproj --configuration Release --no-build --filter 'TestCategory!=Integration'
     }
 
-    Invoke-Step '5/17 - Reset do banco local canônico' {
+    Invoke-Step '5/19 - Reset do banco local canônico' {
         & .\scripts\local-db.ps1 -Action reset
     }
 
-    Invoke-Step '6/17 - Core local oficial' {
+    Invoke-Step '6/19 - Core local oficial' {
         & .\scripts\local-test.ps1
     }
 
-    Invoke-Step '7/17 - Upgrade DDL e idempotência' {
+    Invoke-Step '7/19 - Upgrade DDL e idempotência' {
         & .\scripts\local-ddl-upgrade.ps1
     }
 
-    Invoke-Step '8/17 - E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP' {
+    Invoke-Step '8/19 - E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP' {
         & .\scripts\local-e2e.ps1
     }
 
-    Invoke-Step '9/17 - Fault injection' {
+    Invoke-Step '9/19 - Fault injection' {
         & .\scripts\local-fault-injection.ps1
     }
 
-    Invoke-Step '10/17 - Cluster clean' {
+    Invoke-Step '10/19 - Cluster clean' {
         & .\scripts\local-cluster.ps1 -Action clean
     }
 
-    Invoke-Step '11/17 - Cluster up' {
+    Invoke-Step '11/19 - Cluster up' {
         & .\scripts\local-cluster.ps1 -Action up
     }
 
-    Invoke-Step '12/17 - Calibração' {
+    Invoke-Step '12/19 - Calibração' {
         & .\scripts\local-cluster.ps1 -Action calibrate
     }
 
-    Invoke-Step '13/17 - Linkage' {
+    Invoke-Step '13/19 - Linkage' {
         & .\scripts\local-cluster.ps1 -Action linkage
     }
 
-    Invoke-Step '14/17 - Diagnóstico tie-aware do Linkage' {
+    Invoke-Step '14/19 - Diagnóstico tie-aware do Linkage' {
         & .\scripts\local-cluster.ps1 -Action linkage-diagnose
     }
 
-    Invoke-Step '15/17 - Smoke de escala + probe sincronizado de coordenação' {
+    Invoke-Step '15/19 - Evaluation read-only + candidate ranking + blocking por passe' {
+        & .\scripts\local-linkage-evaluation-smoke.ps1
+    }
+
+    Invoke-Step '16/19 - Encerrar cluster antes do SCALE' {
+        & .\scripts\local-cluster.ps1 -Action clean
+    }
+
+    Invoke-Step '17/19 - Smoke de escala + probe sincronizado de coordenação' {
         & .\scripts\local-scale.ps1 -Profile smoke
     }
 
-    Invoke-Step '16/17 - Restaurar banco canônico após SCALE' {
+    Invoke-Step '18/19 - Restaurar banco canônico após SCALE' {
         & .\scripts\local-db.ps1 -Action reset
     }
 
-    Invoke-Step '17/17 - Estado final do Git' {
+    Invoke-Step '19/19 - Estado final do Git' {
         git status --short --branch
     }
 
