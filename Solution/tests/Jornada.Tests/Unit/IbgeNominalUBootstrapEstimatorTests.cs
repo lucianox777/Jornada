@@ -23,7 +23,7 @@ public sealed class IbgeNominalUBootstrapEstimatorTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(replay, Is.EqualTo(first));
+            Assert.That(Projection(replay), Is.EqualTo(Projection(first)));
             Assert.That(first.AnalyticExactFirstNameProbability, Is.EqualTo(0.625m));
             Assert.That(first.AnalyticExactSurnameProbability, Is.EqualTo(0.5m));
             Assert.That(first.AnalyticExactSyntheticFullNameProbability, Is.EqualTo(0.3125m));
@@ -38,6 +38,25 @@ public sealed class IbgeNominalUBootstrapEstimatorTests
             Is.LessThan(0.015m),
             "Monte Carlo deve convergir para a colisão exata analítica da composição sintética.");
     }
+
+    private static IReadOnlyList<string> Projection(IbgeNominalUBootstrapEstimate result) =>
+        new[]
+        {
+            result.MethodVersion,
+            result.JointConstructionVersion,
+            result.ObservationChannelVersion,
+            result.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            result.PairCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            result.AnalyticExactFirstNameProbability.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            result.AnalyticExactSurnameProbability.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            result.AnalyticExactSyntheticFullNameProbability.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        }
+        .Concat(result.States.Select(state => string.Join('|',
+            state.State,
+            state.Support,
+            state.Probability,
+            state.StandardError)))
+        .ToArray();
 
     [Test]
     public void Estimate_AllowsExactSameNameForDifferentSyntheticIdentities()
