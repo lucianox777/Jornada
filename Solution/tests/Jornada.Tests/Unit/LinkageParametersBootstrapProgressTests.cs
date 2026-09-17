@@ -38,12 +38,10 @@ public sealed class LinkageParametersBootstrapProgressTests
             "src",
             "Jornada.Linkage.Parameters.Worker",
             "Program.cs"));
-        var entrypoint = File.ReadAllText(Path.Combine(
+        var compose = File.ReadAllText(Path.Combine(
             root,
             "Solution",
-            "install",
-            "container-test",
-            "entrypoint.sh"));
+            "docker-compose.yml"));
         var calibration = File.ReadAllText(Path.Combine(
             root,
             "Solution",
@@ -54,8 +52,9 @@ public sealed class LinkageParametersBootstrapProgressTests
         const string ensureOperation = "ENSURE_NAME_FREQUENCY_SNAPSHOT";
         const string canonicalReference = "CENSO2022_NOMES_BRASIL_V1";
 
-        var ensureIndex = entrypoint.IndexOf(ensureOperation, StringComparison.Ordinal);
-        var residentLoopIndex = entrypoint.IndexOf("while IFS= read -r task_json", StringComparison.Ordinal);
+        var bootstrapServiceIndex = compose.IndexOf("jornada-reference-bootstrap:", StringComparison.Ordinal);
+        var node1Index = compose.IndexOf("jornada-node1:", StringComparison.Ordinal);
+        var node2Index = compose.IndexOf("jornada-node2:", StringComparison.Ordinal);
 
         Assert.Multiple(() =>
         {
@@ -63,9 +62,14 @@ public sealed class LinkageParametersBootstrapProgressTests
             Assert.That(program, Does.Contain($"const string CanonicalNameFrequencyReferenceCode = \"{canonicalReference}\""));
             Assert.That(program, Does.Contain("HasPublishedNameFrequencyReferenceAsync"));
             Assert.That(program, Does.Contain("nenhuma recarga necessária"));
-            Assert.That(entrypoint, Does.Contain("[[ \"$JORNADA_NODE_ID\" == \"NODE2\" ]]"));
-            Assert.That(ensureIndex, Is.GreaterThanOrEqualTo(0));
-            Assert.That(residentLoopIndex, Is.GreaterThan(ensureIndex), "NODE2 deve materializar a referência antes dos processos residentes.");
+
+            Assert.That(bootstrapServiceIndex, Is.GreaterThanOrEqualTo(0));
+            Assert.That(bootstrapServiceIndex, Is.LessThan(node1Index));
+            Assert.That(bootstrapServiceIndex, Is.LessThan(node2Index));
+            Assert.That(compose, Does.Contain("jornada-reference-bootstrap:\n      condition: service_completed_successfully"));
+            Assert.That(compose, Does.Contain($"LinkageParameters__Operation: {ensureOperation}"));
+            Assert.That(compose, Does.Contain("/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll"));
+
             Assert.That(calibration, Does.Contain($"Invoke-Parameters '{ensureOperation}'"));
             Assert.That(calibration, Does.Not.Contain("Invoke-Parameters 'LOAD_NAME_FREQUENCY_SNAPSHOT'"));
         });
