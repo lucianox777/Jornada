@@ -9,7 +9,7 @@ O objetivo deste README é responder duas perguntas antes de executar qualquer a
 
 > Execute os comandos abaixo a partir de `Solution`, salvo indicação em contrário. Em PowerShell, isso significa estar em `...\Jornada\Solution` antes de chamar `./scripts/...`.
 
-> **Rastreabilidade PowerShell:** scripts operacionais `.ps1` deste diretório devem deixar o comando legível no próprio arquivo como comentário e imprimir `# <comando>` imediatamente antes da execução. Segredos nunca entram nessa linha; use `<redacted>`.
+> **Rastreabilidade PowerShell:** scripts operacionais `.ps1` deste diretório devem imprimir `# <comando>` imediatamente antes de executar cada comando externo relevante. O comando executado aparece **somente no output**, sem ser duplicado como comentário de código. Segredos nunca entram nessa linha; use `<redacted>`.
 
 ## Sequência recomendada de validação local
 

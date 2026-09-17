@@ -43,7 +43,6 @@ function Invoke-Compose {
     param([Parameter(Mandatory=$true)][string[]]$ComposeArgs)
     Push-Location $Root
     try {
-        # docker compose --env-file .env <args>
         Write-CommandLine 'docker' (@('compose','--env-file',$EnvFile) + $ComposeArgs)
         & docker compose --env-file $EnvFile @ComposeArgs
         if ($LASTEXITCODE -ne 0) { throw "docker compose falhou ($LASTEXITCODE)." }
@@ -59,7 +58,6 @@ if ([string]::IsNullOrWhiteSpace($db)) { $db = 'JornadaLocal' }
 function Invoke-SqlFile([string]$ContainerPath) {
     Push-Location $Root
     try {
-        # docker compose --env-file .env exec -T -e SQLCMDPASSWORD=<redacted> sqlserver sqlcmd -S localhost -U sa -C -b -d JornadaLocal -i <arquivo.sql>
         Write-CommandLine 'docker' @('compose','--env-file',$EnvFile,'exec','-T','-e','SQLCMDPASSWORD=<redacted>','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-C','-b','-d',$db,'-i',$ContainerPath)
         & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd `
             -S localhost -U sa -C -b -d $db -i $ContainerPath
@@ -71,7 +69,6 @@ function Invoke-SqlFile([string]$ContainerPath) {
 function Get-SqlLines([string]$Query) {
     Push-Location $Root
     try {
-        # docker compose --env-file .env exec -T -e SQLCMDPASSWORD=<redacted> sqlserver sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -s '|' -Q <query>
         Write-CommandLine 'docker' @('compose','--env-file',$EnvFile,'exec','-T','-e','SQLCMDPASSWORD=<redacted>','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-C','-b','-d',$db,'-W','-h','-1','-s','|','-Q',"SET NOCOUNT ON; $Query")
         $lines = @(& docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd `
             -S localhost -U sa -C -b -d $db -W -h -1 -s '|' -Q "SET NOCOUNT ON; $Query")
@@ -129,14 +126,12 @@ $modelVersion = [int](Get-SqlScalar "SELECT versao FROM identidade.modelo_linkag
 $algorithmVersion = Get-SqlScalar "SELECT algoritmo_versao FROM identidade.modelo_linkage WHERE modelo_id='$activeModelId';"
 Write-Host "Validação independente: modelo v$modelVersion / $activeModelId / $algorithmVersion"
 
-# docker compose ... sqlcmd -i /workspace/database/Jornada_Dev_LinkageValidation.sql
 Invoke-SqlFile $Fixture
 
 # Reutiliza evidência completa já publicada para o mesmo modelo. Isso torna a validação idempotente:
 # observações resolvidas deixam de entrar no próximo ON_DEMAND e um segundo run isolado seria parcial.
 $runId = Get-CompleteValidationRunId -ModelId $activeModelId -ModelShort $modelShort
 if ([string]::IsNullOrWhiteSpace($runId)) {
-    # .\scripts\local-cluster.ps1 -Action linkage
     Write-CommandLine $LocalCluster @('-Action','linkage')
     & $LocalCluster -Action linkage
     if ($LASTEXITCODE -ne 0) { throw "local-cluster.ps1 linkage falhou ($LASTEXITCODE)." }
@@ -178,17 +173,14 @@ if (($labelLines.Count - 1) -ne 40) { throw "Esperados 40 rótulos positivos; ob
 $containerLabels = '/tmp/jornada-linkage-validation-labels.csv'
 $containerAudit = '/tmp/jornada-linkage-validation-blocking.json'
 
-# docker compose --env-file .env cp <positive-labels.csv> jornada-node2:/tmp/jornada-linkage-validation-labels.csv
 Invoke-Compose -ComposeArgs @('cp',$LabelsPath,"jornada-node2:$containerLabels")
 
-# docker compose --env-file .env exec -T jornada-node2 dotnet ...Jornada.Linkage.Runner.dll --blocking-pass-audit-labels ... --blocking-pass-audit-output ...
 Invoke-Compose -ComposeArgs @(
     'exec','-T','jornada-node2','dotnet','/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll',
     '--blocking-pass-audit-labels',$containerLabels,
     '--blocking-pass-audit-output',$containerAudit,
     '--ProbabilisticLinkage:CommandTimeoutSeconds','300')
 
-# docker compose --env-file .env cp jornada-node2:/tmp/jornada-linkage-validation-blocking.json <blocking-pass-audit.json>
 Invoke-Compose -ComposeArgs @('cp',"jornada-node2:$containerAudit",$BlockingAuditPath)
 $blockingAudit = Get-Content -Raw -Encoding UTF8 $BlockingAuditPath | ConvertFrom-Json
 

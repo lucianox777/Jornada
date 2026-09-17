@@ -39,11 +39,9 @@ function Assert-ExitCode {
     }
 }
 
-# Set-Location <Solution>
 Write-Host "# Set-Location '$Root'" -ForegroundColor DarkGray
 Set-Location -LiteralPath $Root
 
-# .\scripts\local-cluster.ps1 -Action up
 Write-Host '# .\scripts\local-cluster.ps1 -Action up' -ForegroundColor DarkGray
 & $Cluster -Action up
 Assert-ExitCode '.\scripts\local-cluster.ps1 -Action up'
@@ -61,7 +59,6 @@ $workerArgs = @(
     '/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll'
 )
 
-# docker compose --env-file .env exec -T jornada-node2 env LinkageParameters__Operation=REPORT_IBGE_U_BOOTSTRAP ... dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
 Write-CommandLine 'docker' $workerArgs
 & docker @workerArgs
 Assert-ExitCode 'REPORT_IBGE_U_BOOTSTRAP'
@@ -72,7 +69,6 @@ $copyArgs = @(
     $ReportPath
 )
 
-# docker compose --env-file .env cp jornada-node2:/tmp/jornada-ibge-u-bootstrap.json .local/calibrador-ibge-u/ibge-u-bootstrap.json
 Write-CommandLine 'docker' $copyArgs
 & docker @copyArgs
 Assert-ExitCode 'docker compose cp relatório IBGE u'
