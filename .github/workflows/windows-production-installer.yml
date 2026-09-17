@@ -14,6 +14,10 @@ on:
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/**'
       - 'Solution/src/Jornada.Linkage.Runner/**'
       - 'Solution/database/Jornada_Fase1.sql'
+      - 'Solution/database/Jornada_Fase1_v3.70.sql'
+      - 'Solution/database/Jornada_Identidade_Progressiva.sql'
+      - 'Solution/database/migrations/**'
+      - 'Solution/scripts/schema-manifest.py'
       - '.github/workflows/windows-production-installer.yml'
   pull_request:
     paths:
@@ -28,6 +32,10 @@ on:
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/**'
       - 'Solution/src/Jornada.Linkage.Runner/**'
       - 'Solution/database/Jornada_Fase1.sql'
+      - 'Solution/database/Jornada_Fase1_v3.70.sql'
+      - 'Solution/database/Jornada_Identidade_Progressiva.sql'
+      - 'Solution/database/migrations/**'
+      - 'Solution/scripts/schema-manifest.py'
       - '.github/workflows/windows-production-installer.yml'
   workflow_dispatch:
 
@@ -63,6 +71,12 @@ jobs:
           }
           Write-Host "PowerShell parse: OK ($($files.Count) scripts)"
 
+      - name: Validate canonical schema manifest
+        shell: pwsh
+        run: |
+          python scripts/schema-manifest.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Restore and run C# integrator contract tests
         shell: pwsh
         run: |
@@ -77,6 +91,35 @@ jobs:
         shell: pwsh
         run: |
           .\install\windows-production\Build-WindowsProductionBundle.ps1 -OutputDirectory "$PWD\.local\windows-production-bundle"
+
+      - name: Verify canonical schema payload in bundle
+        shell: pwsh
+        run: |
+          $root = "$PWD\.local\windows-production-bundle"
+          $ddl = Join-Path $root 'database\Jornada_Fase1.sql'
+          $bundleManifest = Join-Path $root 'database\migrations\manifest.txt'
+          if (-not (Test-Path -LiteralPath $ddl)) { throw 'DDL achatado ausente no bundle.' }
+          if (-not (Test-Path -LiteralPath $bundleManifest)) { throw 'Manifesto de schema ausente no bundle.' }
+          if (Select-String -LiteralPath $ddl -Pattern '^\s*:r\s+' -Quiet) { throw 'DDL do bundle ainda contém diretiva sqlcmd :r.' }
+          foreach ($token in @(
+            'Jornada.SolutionSchema',
+            'ref.frequencia_nome_versao',
+            'identidade.linkage_quality_estimate',
+            'serving.v_bi_qualidade_resolucao_operacional',
+            'identidade.tr_modelo_linkage_promotion_contract'
+          )) {
+            if (-not (Select-String -LiteralPath $ddl -SimpleMatch $token -Quiet)) { throw "DDL do bundle não contém contrato: $token" }
+          }
+          $sourceManifest = (Get-Content -Raw -Encoding UTF8 'database\migrations\manifest.txt').Replace("`r`n","`n")
+          $bundledManifest = (Get-Content -Raw -Encoding UTF8 $bundleManifest).Replace("`r`n","`n")
+          if ($sourceManifest -ne $bundledManifest) { throw 'Manifesto empacotado diverge do manifesto canônico.' }
+          foreach ($raw in Get-Content -Encoding UTF8 $bundleManifest) {
+            $entry = ($raw -split '#', 2)[0].Trim()
+            if ([string]::IsNullOrWhiteSpace($entry)) { continue }
+            $path = Join-Path (Join-Path $root 'database') ($entry.Replace('/','\'))
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Fonte do manifesto ausente no bundle: $entry" }
+          }
+          Write-Host 'Schema canônico do bundle: OK'
 
       - name: Prove CLI help aliases from published executable
         shell: pwsh
