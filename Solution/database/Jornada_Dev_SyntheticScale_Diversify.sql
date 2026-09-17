@@ -248,8 +248,10 @@ FROM silver.pessoa_observacao po
 JOIN #scale_names sn ON sn.n=TRY_CONVERT(BIGINT,RIGHT(po.codigo_pessoa_origem,10))
 WHERE po.codigo_pessoa_origem LIKE N'SCALE-SMADS-%';
 
--- Colisões controladas usam a identidade IBGE-amostrada da pessoa vizinha, mantendo
--- a mãe verdadeira. Assim existe concorrência evidencial sem chave textual universal.
+-- A colisão deliberada troca somente o primeiro nome pelo primeiro nome da pessoa
+-- vizinha do mesmo par de nascimento. Os sobrenomes e a mãe permanecem verdadeiros:
+-- isso ainda força competição no blocking sem fabricar uma identidade completa falsa
+-- que possa ultrapassar o threshold de resolução apenas por construção do fixture.
 ;WITH pending AS (
     SELECT po.pessoa_observacao_id,
            po.codigo_pessoa_origem,
@@ -263,28 +265,38 @@ WHERE po.codigo_pessoa_origem LIKE N'SCALE-SMADS-%';
                 WHEN p.truth_n<@people THEN p.truth_n+1
                 ELSE p.truth_n-1 END AS neighbor_n
     FROM pending p
+), prepared AS (
+    SELECT r.*,
+           CONCAT(
+               LEFT(neighbor.nome,CHARINDEX(N' ',neighbor.nome+N' ')-1),
+               N' ',
+               SUBSTRING(truth.nome,CHARINDEX(N' ',truth.nome)+1,500)
+           ) AS collision_nome,
+           truth.nome AS truth_nome,
+           truth.mae AS truth_mae
+    FROM resolved r
+    JOIN #scale_names truth ON truth.n=r.truth_n
+    JOIN #scale_names neighbor ON neighbor.n=r.neighbor_n
 )
 UPDATE po
 SET nome_completo=CASE
-        WHEN @collisionModulo>0 AND r.pending_n%NULLIF(@collisionModulo,0)=0 THEN neighbor.nome
-        WHEN r.pending_n%9=0 THEN CONCAT(truth.nome,N' Junior')
-        WHEN r.pending_n%6=0 THEN CONCAT(LEFT(truth.nome,1),N'. ',SUBSTRING(truth.nome,CHARINDEX(N' ',truth.nome)+1,500))
-        ELSE truth.nome END,
+        WHEN @collisionModulo>0 AND p.pending_n%NULLIF(@collisionModulo,0)=0 THEN p.collision_nome
+        WHEN p.pending_n%9=0 THEN CONCAT(p.truth_nome,N' Junior')
+        WHEN p.pending_n%6=0 THEN CONCAT(LEFT(p.truth_nome,1),N'. ',SUBSTRING(p.truth_nome,CHARINDEX(N' ',p.truth_nome)+1,500))
+        ELSE p.truth_nome END,
     nome_cmp=UPPER(CASE
-        WHEN @collisionModulo>0 AND r.pending_n%NULLIF(@collisionModulo,0)=0 THEN neighbor.nome
-        WHEN r.pending_n%9=0 THEN CONCAT(truth.nome,N' Junior')
-        WHEN r.pending_n%6=0 THEN CONCAT(LEFT(truth.nome,1),N'. ',SUBSTRING(truth.nome,CHARINDEX(N' ',truth.nome)+1,500))
-        ELSE truth.nome END),
+        WHEN @collisionModulo>0 AND p.pending_n%NULLIF(@collisionModulo,0)=0 THEN p.collision_nome
+        WHEN p.pending_n%9=0 THEN CONCAT(p.truth_nome,N' Junior')
+        WHEN p.pending_n%6=0 THEN CONCAT(LEFT(p.truth_nome,1),N'. ',SUBSTRING(p.truth_nome,CHARINDEX(N' ',p.truth_nome)+1,500))
+        ELSE p.truth_nome END),
     nome_mae=CASE
-        WHEN r.pending_n%8=0 THEN CONCAT(LEFT(truth.mae,1),N'. ',SUBSTRING(truth.mae,CHARINDEX(N' ',truth.mae)+1,500))
-        ELSE truth.mae END,
+        WHEN p.pending_n%8=0 THEN CONCAT(LEFT(p.truth_mae,1),N'. ',SUBSTRING(p.truth_mae,CHARINDEX(N' ',p.truth_mae)+1,500))
+        ELSE p.truth_mae END,
     nome_mae_cmp=UPPER(CASE
-        WHEN r.pending_n%8=0 THEN CONCAT(LEFT(truth.mae,1),N'. ',SUBSTRING(truth.mae,CHARINDEX(N' ',truth.mae)+1,500))
-        ELSE truth.mae END)
+        WHEN p.pending_n%8=0 THEN CONCAT(LEFT(p.truth_mae,1),N'. ',SUBSTRING(p.truth_mae,CHARINDEX(N' ',p.truth_mae)+1,500))
+        ELSE p.truth_mae END)
 FROM silver.pessoa_observacao po
-JOIN resolved r ON r.pessoa_observacao_id=po.pessoa_observacao_id
-JOIN #scale_names truth ON truth.n=r.truth_n
-JOIN #scale_names neighbor ON neighbor.n=r.neighbor_n;
+JOIN prepared p ON p.pessoa_observacao_id=po.pessoa_observacao_id;
 
 -- O hash inclui a referência e o conteúdo sintético efetivamente persistido.
 UPDATE po
