@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import re
 from pathlib import Path, PurePosixPath
 
@@ -55,34 +54,17 @@ def read_manifest() -> list[str]:
     return entries
 
 
-def checksum(relative: str) -> str:
-    return hashlib.sha256(source_path(relative).read_bytes()).hexdigest()
-
-
-def ledger_guard(relative: str) -> list[str]:
-    digest = checksum(relative)
-    return [
-        f"IF EXISTS(SELECT 1 FROM jornada.schema_migration WHERE migration_name=N'{relative}' AND sha256<>'{digest}')",
-        f"    THROW 51710, 'Checksum divergente para migração versionada: {relative}', 1;",
-        f"IF NOT EXISTS(SELECT 1 FROM jornada.schema_migration WHERE migration_name=N'{relative}')",
-        f"    INSERT jornada.schema_migration(migration_name,sha256) VALUES(N'{relative}','{digest}');",
-        "GO",
-    ]
-
-
 def render_installer(entries: list[str]) -> str:
     lines = [
         "-- Jornada do Cidadão - Fase 1 - baseline operacional consolidado v3.70",
         "-- GERADO de database/migrations/manifest.txt por scripts/schema-manifest.py.",
-        "-- Não editar a lista de includes/checksums manualmente; altere o manifesto e regenere.",
+        "-- Não editar a lista de includes manualmente; altere o manifesto e regenere.",
         "-- Microsoft SQL Server é a tecnologia relacional normativa.",
         "",
         ":on error exit",
         f":r database/{BASELINE}",
     ]
-    for entry in entries:
-        lines.append(f":r database/{entry}")
-        lines.extend(ledger_guard(entry))
+    lines.extend(f":r database/{entry}" for entry in entries)
     return "\n".join(lines) + "\n"
 
 
@@ -91,17 +73,13 @@ def render_flat(entries: list[str]) -> str:
         "-- Jornada do Cidadão - Fase 1 - SolutionSchema 3.70",
         "-- DDL achatado gerado do mesmo manifesto canônico; apropriado para executores sem suporte a :r.",
         "",
-        f"-- BEGIN {BASELINE}",
-        source_path(BASELINE).read_text(encoding="utf-8-sig").rstrip(),
-        f"-- END {BASELINE}",
-        "",
     ]
-    for relative in entries:
-        text = source_path(relative).read_text(encoding="utf-8-sig").rstrip()
+    for relative in [BASELINE, *entries]:
+        source = source_path(relative)
+        text = source.read_text(encoding="utf-8-sig").rstrip()
         parts.append(f"-- BEGIN {relative}")
         parts.append(text)
         parts.append(f"-- END {relative}")
-        parts.extend(ledger_guard(relative))
         parts.append("")
     return "\n".join(parts).rstrip() + "\n"
 
