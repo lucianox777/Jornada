@@ -35,7 +35,6 @@ function Get-SqlScalar {
     param([Parameter(Mandatory = $true)][string]$Query)
 
     $password = Get-SqlPassword
-    # docker compose --env-file .env exec -T -e SQLCMDPASSWORD=<redacted> sqlserver sqlcmd ... -Q <query>
     Write-Host "# docker compose --env-file $EnvFile exec -T -e 'SQLCMDPASSWORD=<redacted>' sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -Q '<query>'"
     $output = & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -Q $Query
     if ($LASTEXITCODE -ne 0) {
@@ -45,11 +44,9 @@ function Get-SqlScalar {
     return (($output | Where-Object { $_ -and $_ -notmatch '^[- ]+$' } | Select-Object -Last 1).Trim())
 }
 
-# Set-Location <Solution>
 Write-Host "# Set-Location '$Root'"
 Set-Location -LiteralPath $Root
 
-# .\scripts\local-cluster.ps1 -Action up
 Write-Host '# .\scripts\local-cluster.ps1 -Action up'
 Invoke-Checked -Label '.\scripts\local-cluster.ps1 -Action up' -Command { & $Cluster -Action up }
 
@@ -61,13 +58,11 @@ if ([int]$activeModel -eq 0) {
         throw 'Há corpus SCALE-VAL persistido, mas não existe modelo calibrado ATIVO. Não é seguro recalibrar sobre o corpus de validação. Use um ambiente limpo ou restaure o modelo esperado.'
     }
 
-    # .\scripts\local-cluster.ps1 -Action calibrate
     Write-Host '# .\scripts\local-cluster.ps1 -Action calibrate'
     Invoke-Checked -Label '.\scripts\local-cluster.ps1 -Action calibrate' -Command { & $Cluster -Action calibrate }
 } else {
     Write-Host 'Modelo calibrado ATIVO já existe; preservando-o para manter a validação independente.'
 }
 
-# .\scripts\local-linkage-validation.ps1
 Write-Host '# .\scripts\local-linkage-validation.ps1'
 Invoke-Checked -Label '.\scripts\local-linkage-validation.ps1' -Command { & $Validation }
