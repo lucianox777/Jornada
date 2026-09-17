@@ -1,20 +1,15 @@
 using System.Text.Json;
-using Xunit;
+using NUnit.Framework;
 
 namespace Jornada.Tests.Unit;
 
+[TestFixture]
+[Category("Unit")]
 public sealed class PersonV4ContractTests
 {
-    public static IEnumerable<object[]> Gestores()
-    {
-        yield return new object[] { "SEHAB" };
-        yield return new object[] { "SMADS" };
-        yield return new object[] { "SMDET" };
-        yield return new object[] { "SMS" };
-    }
+    private static readonly string[] Gestores = ["SEHAB", "SMADS", "SMDET", "SMS"];
 
-    [Theory]
-    [MemberData(nameof(Gestores))]
+    [TestCaseSource(nameof(Gestores))]
     public void V4_Requires_Demographic_Core_But_Not_Identifier(string gestor)
     {
         using var schema = Load(gestor);
@@ -23,15 +18,17 @@ public sealed class PersonV4ContractTests
             .Select(e => e.GetString())
             .ToArray();
 
-        Assert.Contains("nomeCompleto", required);
-        Assert.Contains("dataNascimento", required);
-        Assert.DoesNotContain("cpf", required);
-        Assert.DoesNotContain("codigoPessoaOrigem", required);
-        Assert.DoesNotContain("identificadores", required);
+        Assert.Multiple(() =>
+        {
+            Assert.That(required, Does.Contain("nomeCompleto"));
+            Assert.That(required, Does.Contain("dataNascimento"));
+            Assert.That(required, Does.Not.Contain("cpf"));
+            Assert.That(required, Does.Not.Contain("codigoPessoaOrigem"));
+            Assert.That(required, Does.Not.Contain("identificadores"));
+        });
     }
 
-    [Theory]
-    [MemberData(nameof(Gestores))]
+    [TestCaseSource(nameof(Gestores))]
     public void V4_Exposes_Zero_To_Many_Typed_Identifiers(string gestor)
     {
         using var schema = Load(gestor);
@@ -47,16 +44,18 @@ public sealed class PersonV4ContractTests
             .Select(e => e.GetString())
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.Contains("CPF", allowedTypes);
-        Assert.Contains("CNS", allowedTypes);
-        Assert.Contains("RG", allowedTypes);
-        Assert.Contains("CODIGO_BASE_ORIGEM", allowedTypes);
-        Assert.Contains("UUID_JORNADA", allowedTypes);
-        Assert.Contains("OUTRO", allowedTypes);
+        Assert.Multiple(() =>
+        {
+            Assert.That(allowedTypes, Does.Contain("CPF"));
+            Assert.That(allowedTypes, Does.Contain("CNS"));
+            Assert.That(allowedTypes, Does.Contain("RG"));
+            Assert.That(allowedTypes, Does.Contain("CODIGO_BASE_ORIGEM"));
+            Assert.That(allowedTypes, Does.Contain("UUID_JORNADA"));
+            Assert.That(allowedTypes, Does.Contain("OUTRO"));
+        });
     }
 
-    [Theory]
-    [MemberData(nameof(Gestores))]
+    [TestCaseSource(nameof(Gestores))]
     public void V4_Keeps_Mother_Name_Optional(string gestor)
     {
         using var schema = Load(gestor);
@@ -65,14 +64,14 @@ public sealed class PersonV4ContractTests
             .Select(e => e.GetString())
             .ToArray();
 
-        Assert.DoesNotContain("nomeMae", required);
+        Assert.That(required, Does.Not.Contain("nomeMae"));
     }
 
     private static JsonDocument Load(string gestor)
     {
         var root = FindSolutionRoot();
         var path = Path.Combine(root, "config", "contracts", "gestores", gestor, "pessoa", "v4", "pessoa.schema.json");
-        Assert.True(File.Exists(path), $"Contrato Pessoa v4 ausente para {gestor}: {path}");
+        Assert.That(File.Exists(path), Is.True, $"Contrato Pessoa v4 ausente para {gestor}: {path}");
         return JsonDocument.Parse(File.ReadAllText(path));
     }
 
