@@ -22,6 +22,12 @@ PARALLEL="${JORNADA_SCALE_PARALLELISM:-4}"
 BATCH="${JORNADA_SCALE_BATCH_SIZE:-10000}"
 LOCK_HOLDER_DELAY_MS="${JORNADA_SCALE_LOCK_HOLDER_DELAY_MS:-3000}"
 PENDING_SINCE="${JORNADA_SCALE_PENDING_SINCE:-2026-08-31T01:00:00Z}"
+BLOCKING_AUDIT_LABEL_COUNT="${JORNADA_SCALE_BLOCKING_AUDIT_LABEL_COUNT:-1000}"
+[[ "$BLOCKING_AUDIT_LABEL_COUNT" =~ ^[1-9][0-9]*$ ]] || { echo "ERRO: JORNADA_SCALE_BLOCKING_AUDIT_LABEL_COUNT deve ser inteiro > 0." >&2; exit 2; }
+if (( BLOCKING_AUDIT_LABEL_COUNT > PENDING )); then BLOCKING_AUDIT_LABEL_COUNT="$PENDING"; fi
+OUTDIR="$ROOT/.local/performance"; mkdir -p "$OUTDIR"
+BLOCKING_AUDIT_LABELS="$OUTDIR/scale-${PROFILE}-blocking-labels.csv"
+BLOCKING_AUDIT="$OUTDIR/scale-${PROFILE}-blocking-pass-audit.json"
 
 # O harness de escala controla a própria massa. O reset prepara schema+seed sem
 # inserir o corpus SCALE canônico de 5k, evitando a colisão determinística 51553.
@@ -97,6 +103,41 @@ dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Relea
 export LinkageParameters__Operation=ACTIVATE
 dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
 
+echo "Auditando fan-out efetivo do ruleset calibrado em $BLOCKING_AUDIT_LABEL_COUNT observações SCALE..."
+printf 'pessoa_observacao_id,pessoa_uuid_verdade\n' > "$BLOCKING_AUDIT_LABELS"
+sqlcmd -d "$DB" -W -h -1 -w 65535 -Q "
+SET NOCOUNT ON;
+WITH pend AS (
+    SELECT TOP ($BLOCKING_AUDIT_LABEL_COUNT)
+           po.pessoa_observacao_id,
+           po.codigo_pessoa_origem,
+           TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10)) AS n
+      FROM silver.pessoa_observacao po
+     WHERE po.cpf IS NULL
+       AND po.codigo_pessoa_origem LIKE N'SCALE-PEND-%'
+       AND TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10)) IS NOT NULL
+     ORDER BY TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10)),po.codigo_pessoa_origem
+)
+SELECT CONCAT(p.pessoa_observacao_id,',',CONVERT(varchar(36),tv.pessoa_uuid))
+  FROM pend p
+  JOIN silver.pessoa_observacao tpo
+    ON tpo.codigo_pessoa_origem=REPLACE(p.codigo_pessoa_origem,N'SCALE-PEND-',N'SCALE-SEHAB-')
+  JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo=N'SEHAB'
+  JOIN identidade.v_vinculo_corrente tv
+    ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id
+   AND tv.status=N'RESOLVIDO'
+   AND tv.pessoa_uuid IS NOT NULL
+ ORDER BY p.n,p.codigo_pessoa_origem;" \
+  | tr -d '\r' | sed '/^[[:space:]]*$/d' >> "$BLOCKING_AUDIT_LABELS"
+ACTUAL_BLOCKING_LABELS="$(( $(wc -l < "$BLOCKING_AUDIT_LABELS") - 1 ))"
+[[ "$ACTUAL_BLOCKING_LABELS" -eq "$BLOCKING_AUDIT_LABEL_COUNT" ]] || { echo "ERRO: rótulos SCALE insuficientes para auditoria de blocking: obtidos=$ACTUAL_BLOCKING_LABELS esperados=$BLOCKING_AUDIT_LABEL_COUNT" >&2; exit 5; }
+dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \
+  --blocking-pass-audit-labels "$BLOCKING_AUDIT_LABELS" \
+  --blocking-pass-audit-output "$BLOCKING_AUDIT" \
+  --ProbabilisticLinkage:CommandTimeoutSeconds 300
+python3 "$ROOT/scripts/blocking-pass-fanout-gate.py" "$BLOCKING_AUDIT" --population "$PEOPLE"
+BLOCKING_PASS_PRESSURE_JSON="$(cat "$BLOCKING_AUDIT")"
+
 CORRELATION="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || python3 - <<'PY'
 import uuid; print(uuid.uuid4())
 PY
@@ -124,7 +165,6 @@ COORDINATION_PROBE_JSON="$(python3 "$ROOT/scripts/coordination-lock-probe.py" --
 GIT_COMMIT_SHA="$(git -C "$ROOT" rev-parse HEAD | tr '[:upper:]' '[:lower:]' | tr -d '\r\n')"
 [[ "$GIT_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "ERRO: SHA Git inválido para evidência de escala." >&2; exit 5; }
 
-OUTDIR="$ROOT/.local/performance"; mkdir -p "$OUTDIR"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"; OUT="$OUTDIR/scale-${PROFILE}-${STAMP}.json"
 cat > "$OUT" <<JSON
 {
@@ -144,6 +184,8 @@ cat > "$OUT" <<JSON
   "parametersGenerateMilliseconds": $PARAM_MS,
   "runnerMilliseconds": $RUNNER_MS,
   "blockingPressure": $BLOCKING_PRESSURE_JSON,
+  "blockingPassPressure": $BLOCKING_PASS_PRESSURE_JSON,
+  "blockingAuditSampleSize": $BLOCKING_AUDIT_LABEL_COUNT,
   "decisionQuality": $DECISION_QUALITY_JSON,
   "coordinationProbe": $COORDINATION_PROBE_JSON,
   "runner": {

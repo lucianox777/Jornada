@@ -38,6 +38,12 @@ $parallel=if($env:JORNADA_SCALE_PARALLELISM){[int]$env:JORNADA_SCALE_PARALLELISM
 $batch=if($env:JORNADA_SCALE_BATCH_SIZE){[int]$env:JORNADA_SCALE_BATCH_SIZE}else{10000}
 $lockHolderDelayMs=if($env:JORNADA_SCALE_LOCK_HOLDER_DELAY_MS){[int]$env:JORNADA_SCALE_LOCK_HOLDER_DELAY_MS}else{3000}
 $pendingSince=if($env:JORNADA_SCALE_PENDING_SINCE){$env:JORNADA_SCALE_PENDING_SINCE}else{'2026-08-31T01:00:00Z'}
+$blockingAuditLabelCount=if($env:JORNADA_SCALE_BLOCKING_AUDIT_LABEL_COUNT){[int]$env:JORNADA_SCALE_BLOCKING_AUDIT_LABEL_COUNT}else{[int][Math]::Min(1000,[int64]$pending)}
+if($blockingAuditLabelCount -le 0){throw 'JORNADA_SCALE_BLOCKING_AUDIT_LABEL_COUNT deve ser > 0.'}
+if($blockingAuditLabelCount -gt $pending){$blockingAuditLabelCount=[int]$pending}
+$outDir=Join-Path $Root '.local/performance'; New-Item -ItemType Directory -Force $outDir|Out-Null
+$blockingAuditLabelsPath=Join-Path $outDir ("scale-{0}-blocking-labels.csv" -f $Profile)
+$blockingAuditPath=Join-Path $outDir ("scale-{0}-blocking-pass-audit.json" -f $Profile)
 
 # O harness de escala é dono da massa SCALE. O reset prepara apenas schema+seed;
 # depois o próprio harness gera o volume solicitado pelo perfil e fecha o backfill.
@@ -63,6 +69,15 @@ function Scalar([string]$Query){
         $o = (& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
         return ($o | ? { $_.Trim() } | Select-Object -Last 1).Trim()
+    }
+    finally { Pop-Location }
+}
+function QueryLines([string]$Query){
+    Push-Location $Root
+    try {
+        $o = @(& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -W -h -1 -w 65535 -Q "SET NOCOUNT ON; $Query")
+        if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
+        return @($o | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     }
     finally { Pop-Location }
 }
@@ -116,6 +131,41 @@ try {
   if($modelId -notmatch '^[0-9a-fA-F-]{36}$'){throw 'modelo_id inválido para evidência de escala.'}
   $env:LinkageParameters__Operation='VALIDATE'; $env:LinkageParameters__TargetVersion="$model"; dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build; if($LASTEXITCODE-ne 0){throw 'VALIDATE falhou'}
   $env:LinkageParameters__Operation='ACTIVATE'; dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build; if($LASTEXITCODE-ne 0){throw 'ACTIVATE falhou'}
+
+  Write-Host "Auditando fan-out efetivo do ruleset calibrado em $blockingAuditLabelCount observações SCALE..."
+  $labelQuery=@"
+WITH pend AS (
+    SELECT TOP ($blockingAuditLabelCount)
+           po.pessoa_observacao_id,
+           po.codigo_pessoa_origem,
+           TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10)) AS n
+      FROM silver.pessoa_observacao po
+     WHERE po.cpf IS NULL
+       AND po.codigo_pessoa_origem LIKE N'SCALE-PEND-%'
+       AND TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10)) IS NOT NULL
+     ORDER BY TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10)),po.codigo_pessoa_origem
+)
+SELECT CONCAT(p.pessoa_observacao_id,',',CONVERT(varchar(36),tv.pessoa_uuid))
+  FROM pend p
+  JOIN silver.pessoa_observacao tpo
+    ON tpo.codigo_pessoa_origem=REPLACE(p.codigo_pessoa_origem,N'SCALE-PEND-',N'SCALE-SEHAB-')
+  JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo=N'SEHAB'
+  JOIN identidade.v_vinculo_corrente tv
+    ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id
+   AND tv.status=N'RESOLVIDO'
+   AND tv.pessoa_uuid IS NOT NULL
+ ORDER BY p.n,p.codigo_pessoa_origem;
+"@
+  $labelLines=@('pessoa_observacao_id,pessoa_uuid_verdade') + @(QueryLines $labelQuery)
+  if(($labelLines.Count-1) -ne $blockingAuditLabelCount){throw "Rótulos SCALE insuficientes para auditoria de blocking: obtidos=$($labelLines.Count-1); esperados=$blockingAuditLabelCount."}
+  [IO.File]::WriteAllLines($blockingAuditLabelsPath,$labelLines,[Text.UTF8Encoding]::new($false))
+  dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- --blocking-pass-audit-labels $blockingAuditLabelsPath --blocking-pass-audit-output $blockingAuditPath --ProbabilisticLinkage:CommandTimeoutSeconds 300
+  if($LASTEXITCODE-ne 0){throw 'Auditoria de blocking por passe do SCALE falhou'}
+  $fanoutArgs=@($Python3.Prefix)+@('scripts/blocking-pass-fanout-gate.py',$blockingAuditPath,'--population',"$people")
+  & $Python3.Exe @fanoutArgs
+  if($LASTEXITCODE-ne 0){throw 'Fan-out efetivo do ruleset calibrado excedeu o contrato de escala'}
+  $blockingPassPressure=Get-Content -Raw -Encoding UTF8 $blockingAuditPath | ConvertFrom-Json
+
   $corr=[guid]::NewGuid(); $sw=[Diagnostics.Stopwatch]::StartNew(); dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- --mode MODEL_VALIDATION --model-version $model --since $pendingSince --max-records $pending --batch-size $batch --max-parallelism $parallel --publish false --requested-by V373_SCALE_HARNESS --reason $Profile --correlation-id $corr; if($LASTEXITCODE-ne 0){throw 'Runner falhou'}; $sw.Stop(); $runnerMs=$sw.ElapsedMilliseconds
 } finally {
   $env:DOTNET_ENVIRONMENT=$previousDotnetEnvironment
@@ -146,13 +196,12 @@ try {
 
 $gitCommitSha=((& git -C $Root rev-parse HEAD) | Select-Object -Last 1).Trim().ToLowerInvariant()
 if($LASTEXITCODE -ne 0 -or $gitCommitSha -notmatch '^[0-9a-f]{40}$'){throw 'SHA Git inválido para evidência de escala.'}
-$outDir=Join-Path $Root '.local/performance'; New-Item -ItemType Directory -Force $outDir|Out-Null
 $out=Join-Path $outDir ("scale-{0}-{1}.json" -f $Profile,(Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ'))
 $report=[ordered]@{
-  reportVersion='LINKAGE_SCALE_EVIDENCE_V1';gitCommitSha=$gitCommitSha;profile=$Profile;seed=$seed;collisionModulo=$collisionModulo;birthShiftModulo=$birthShiftModulo;goldPeople=$people;pairedPeople=$paired;pendingWithoutCpf=$pending;trainingSampleSize=$sample;trainingPoolSize=$pool;modelVersion=$model;runtimeScope=$runtimeScope;parametersGenerateMilliseconds=$paramMs;runnerMilliseconds=$runnerMs;blockingPressure=$blockingPressure;decisionQuality=$decisionQuality;
+  reportVersion='LINKAGE_SCALE_EVIDENCE_V1';gitCommitSha=$gitCommitSha;profile=$Profile;seed=$seed;collisionModulo=$collisionModulo;birthShiftModulo=$birthShiftModulo;goldPeople=$people;pairedPeople=$paired;pendingWithoutCpf=$pending;trainingSampleSize=$sample;trainingPoolSize=$pool;modelVersion=$model;runtimeScope=$runtimeScope;parametersGenerateMilliseconds=$paramMs;runnerMilliseconds=$runnerMs;blockingPressure=$blockingPressure;blockingPassPressure=$blockingPassPressure;blockingAuditSampleSize=$blockingAuditLabelCount;decisionQuality=$decisionQuality;
   coordinationProbe=$coordinationProbe;
   runner=[ordered]@{status=$row[0];eligible=[int64]$row[1];evaluated=[int64]$row[2];resolved=[int64]$row[3];unresolved=[int64]$row[4];conflicts=[int64]$row[5];noCandidateInBirthDateBlock=[int64]$row[6]};correlationId="$corr";generatedAtUtc=(Get-Date).ToUniversalTime().ToString('o')
-} | ConvertTo-Json -Depth 10
+} | ConvertTo-Json -Depth 12
 [IO.File]::WriteAllText($out, $report + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
 $latest=Join-Path $outDir ("scale-{0}-latest.json" -f $Profile); Copy-Item $out $latest -Force
 Push-Location $Root

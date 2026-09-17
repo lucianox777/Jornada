@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import argparse
 import copy
+import importlib.util
 import json
 from pathlib import Path
+from types import ModuleType
 
 RESOURCES = {
     "exclusiveRequest": "Jornada.Pipeline.ExclusiveRequest",
@@ -18,8 +20,17 @@ REQUIRED_DIVERSE_ATTRIBUTES = {
     "mother_name_phonetic_ptbr",
 }
 
-MAX_PEOPLE_PER_KEY_FRACTION = 0.25
 MIN_COORDINATION_WAIT_FRACTION = 0.50
+
+
+def _load_fanout_gate() -> ModuleType:
+    path = Path(__file__).with_name("blocking-pass-fanout-gate.py")
+    spec = importlib.util.spec_from_file_location("jornada_blocking_pass_fanout_gate", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"não foi possível carregar {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _nonnegative_int(value: object, label: str, errors: list[str]) -> int:
@@ -36,10 +47,6 @@ def _number(value: object, label: str, errors: list[str]) -> float | None:
     return float(value)
 
 
-def _exceeds_population_fraction(value: int, population: int) -> bool:
-    return population > 0 and value / population > MAX_PEOPLE_PER_KEY_FRACTION
-
-
 def validate(data: dict) -> list[str]:
     errors: list[str] = []
 
@@ -47,13 +54,18 @@ def validate(data: dict) -> list[str]:
     pending = _nonnegative_int(data.get("pendingWithoutCpf"), "pendingWithoutCpf", errors)
 
     pressure = data.get("blockingPressure")
+    pass_count = 0
     if not isinstance(pressure, dict):
         errors.append("blockingPressure ausente ou inválido")
     else:
-        pass_count = _nonnegative_int(pressure.get("ruleSetPassCount"), "blockingPressure.ruleSetPassCount", errors)
+        pass_count = _nonnegative_int(
+            pressure.get("ruleSetPassCount"), "blockingPressure.ruleSetPassCount", errors
+        )
         rows = _nonnegative_int(pressure.get("blockingRows"), "blockingPressure.blockingRows", errors)
         keys = _nonnegative_int(pressure.get("distinctKeys"), "blockingPressure.distinctKeys", errors)
-        max_people = _nonnegative_int(pressure.get("maxPeoplePerKey"), "blockingPressure.maxPeoplePerKey", errors)
+        max_people = _nonnegative_int(
+            pressure.get("maxPeoplePerKey"), "blockingPressure.maxPeoplePerKey", errors
+        )
 
         runtime_scope = data.get("runtimeScope")
         blocking = runtime_scope.get("blocking") if isinstance(runtime_scope, dict) else None
@@ -63,14 +75,8 @@ def validate(data: dict) -> list[str]:
             errors.append("blockingRows > 0 exige distinctKeys > 0")
         if keys > 0 and max_people <= 0:
             errors.append("distinctKeys > 0 exige maxPeoplePerKey > 0")
-        if gold_people > 1 and max_people >= gold_people:
-            errors.append("blockingPressure.maxPeoplePerKey não pode abranger toda a população Gold SCALE")
-        elif _exceeds_population_fraction(max_people, gold_people):
-            errors.append(
-                "blockingPressure.maxPeoplePerKey excede "
-                f"{MAX_PEOPLE_PER_KEY_FRACTION:.0%} da população Gold SCALE "
-                f"({max_people}/{gold_people})"
-            )
+        if gold_people > 0 and max_people > gold_people:
+            errors.append("blockingPressure.maxPeoplePerKey não pode exceder goldPeople")
 
         attributes = pressure.get("attributes")
         if not isinstance(attributes, list) or not attributes:
@@ -100,6 +106,10 @@ def validate(data: dict) -> list[str]:
                     f"blockingPressure.attributes[{index}].maxPeoplePerValue",
                     errors,
                 )
+                if gold_people > 0 and max_per_value > gold_people:
+                    errors.append(
+                        f"blockingPressure.attributes[{index}].maxPeoplePerValue não pode exceder goldPeople"
+                    )
                 by_name[attribute] = (distinct, max_per_value)
 
             for attribute in sorted(REQUIRED_DIVERSE_ATTRIBUTES):
@@ -107,16 +117,45 @@ def validate(data: dict) -> list[str]:
                 if metrics is None:
                     errors.append(f"atributo de diversidade ausente em blockingPressure: {attribute}")
                     continue
-                distinct, max_per_value = metrics
+                distinct, _ = metrics
                 if gold_people > 1 and distinct <= 1:
                     errors.append(f"{attribute} degenerado: distinctValues deve ser > 1")
-                if gold_people > 1 and max_per_value >= gold_people:
-                    errors.append(f"{attribute} degenerado: uma chave não pode conter toda a população")
-                elif _exceeds_population_fraction(max_per_value, gold_people):
-                    errors.append(
-                        f"{attribute} concentrado demais: maxPeoplePerValue={max_per_value} "
-                        f"excede {MAX_PEOPLE_PER_KEY_FRACTION:.0%} de goldPeople={gold_people}"
-                    )
+
+    audit_sample = _nonnegative_int(
+        data.get("blockingAuditSampleSize"), "blockingAuditSampleSize", errors
+    )
+    pass_pressure = data.get("blockingPassPressure")
+    if not isinstance(pass_pressure, dict):
+        errors.append("blockingPassPressure ausente ou inválido")
+    else:
+        summary = pass_pressure.get("summary")
+        if not isinstance(summary, dict):
+            errors.append("blockingPassPressure.summary ausente ou inválido")
+        else:
+            actual_sample = _nonnegative_int(
+                summary.get("sampleSize"), "blockingPassPressure.summary.sampleSize", errors
+            )
+            actual_pass_count = _nonnegative_int(
+                summary.get("ruleSetPassCount"),
+                "blockingPassPressure.summary.ruleSetPassCount",
+                errors,
+            )
+            if audit_sample != actual_sample:
+                errors.append("blockingAuditSampleSize deve coincidir com blockingPassPressure.summary.sampleSize")
+            if pass_count != actual_pass_count:
+                errors.append(
+                    "blockingPressure.ruleSetPassCount deve coincidir com blockingPassPressure.summary.ruleSetPassCount"
+                )
+
+        if gold_people > 0:
+            fanout = _load_fanout_gate()
+            for error in fanout.validate(
+                pass_pressure,
+                gold_people,
+                fanout.DEFAULT_MAX_FRACTION,
+                fanout.DEFAULT_P95_ABSOLUTE,
+            ):
+                errors.append(f"blockingPassPressure: {error}")
 
     runner = data.get("runner")
     if not isinstance(runner, dict):
@@ -137,7 +176,9 @@ def validate(data: dict) -> list[str]:
         total = _nonnegative_int(quality.get("totalScale"), "decisionQuality.totalScale", errors)
         resolved = _nonnegative_int(quality.get("resolved"), "decisionQuality.resolved", errors)
         correct = _nonnegative_int(quality.get("resolvedCorrect"), "decisionQuality.resolvedCorrect", errors)
-        false_positives = _nonnegative_int(quality.get("falsePositives"), "decisionQuality.falsePositives", errors)
+        false_positives = _nonnegative_int(
+            quality.get("falsePositives"), "decisionQuality.falsePositives", errors
+        )
         conflicts = _nonnegative_int(quality.get("conflicts"), "decisionQuality.conflicts", errors)
         conflicts_truth_top2 = _nonnegative_int(
             quality.get("conflictsTruthTop2"), "decisionQuality.conflictsTruthTop2", errors
@@ -246,22 +287,48 @@ def validate(data: dict) -> list[str]:
     return errors
 
 
-def self_test() -> int:
-    valid = {
+def _valid_fixture() -> dict:
+    return {
         "goldPeople": 100,
         "pendingWithoutCpf": 20,
         "runtimeScope": {"blocking": {"mode": "RULESET"}},
         "blockingPressure": {
-            "ruleSetPassCount": 3,
-            "blockingRows": 100,
-            "distinctKeys": 25,
-            "maxPeoplePerKey": 12,
+            "ruleSetPassCount": 2,
+            "blockingRows": 500,
+            "distinctKeys": 50,
+            "maxPeoplePerKey": 99,
             "attributes": [
-                {"attribute": "name_first", "rows": 100, "distinctValues": 20, "maxPeoplePerValue": 8},
-                {"attribute": "name_phonetic_ptbr", "rows": 100, "distinctValues": 15, "maxPeoplePerValue": 10},
-                {"attribute": "mother_name_first", "rows": 100, "distinctValues": 18, "maxPeoplePerValue": 9},
-                {"attribute": "mother_name_phonetic_ptbr", "rows": 100, "distinctValues": 14, "maxPeoplePerValue": 11},
-                {"attribute": "birth_month", "rows": 100, "distinctValues": 12, "maxPeoplePerValue": 12},
+                {"attribute": "name_first", "rows": 100, "distinctValues": 20, "maxPeoplePerValue": 80},
+                {"attribute": "name_phonetic_ptbr", "rows": 100, "distinctValues": 15, "maxPeoplePerValue": 90},
+                {"attribute": "mother_name_first", "rows": 100, "distinctValues": 18, "maxPeoplePerValue": 85},
+                {"attribute": "mother_name_phonetic_ptbr", "rows": 100, "distinctValues": 14, "maxPeoplePerValue": 95},
+                {"attribute": "birth_month", "rows": 100, "distinctValues": 12, "maxPeoplePerValue": 99},
+            ],
+        },
+        "blockingAuditSampleSize": 20,
+        "blockingPassPressure": {
+            "summary": {
+                "sampleSize": 20,
+                "ruleSetPassCount": 2,
+                "meanUnionCandidateCount": 12.0,
+                "p95UnionCandidateCount": 20,
+                "maxUnionCandidateCount": 25,
+            },
+            "passes": [
+                {
+                    "passId": "P001",
+                    "fields": ["name_first", "birth_year"],
+                    "meanCandidateCount": 8.0,
+                    "p95CandidateCount": 15,
+                    "maxCandidateCount": 20,
+                },
+                {
+                    "passId": "P002",
+                    "fields": ["mother_name_last"],
+                    "meanCandidateCount": 7.0,
+                    "p95CandidateCount": 12,
+                    "maxCandidateCount": 18,
+                },
             ],
         },
         "runner": {"evaluated": 20, "resolved": 15, "unresolved": 4, "conflicts": 1},
@@ -297,8 +364,31 @@ def self_test() -> int:
             },
         },
     }
+
+
+def self_test() -> int:
+    valid = _valid_fixture()
     if validate(valid):
         raise RuntimeError("self-test: evidência válida foi rejeitada")
+
+    # Pressão atômica alta permanece diagnóstico; escalabilidade é decidida pelo passe efetivo.
+    atomic = copy.deepcopy(valid)
+    atomic["blockingPressure"]["maxPeoplePerKey"] = 100
+    atomic["blockingPressure"]["attributes"][4]["maxPeoplePerValue"] = 100
+    if validate(atomic):
+        raise RuntimeError("self-test: concentração atômica válida não deve substituir o gate por passe")
+
+    bad = copy.deepcopy(valid)
+    bad["blockingPassPressure"]["passes"][0]["meanCandidateCount"] = 99.0
+    bad["blockingPassPressure"]["passes"][0]["p95CandidateCount"] = 99
+    bad["blockingPassPressure"]["passes"][0]["maxCandidateCount"] = 99
+    if not validate(bad):
+        raise RuntimeError("self-test: fan-out real de 99% deveria ser rejeitado")
+
+    bad = copy.deepcopy(valid)
+    bad["blockingPassPressure"]["summary"]["sampleSize"] = 19
+    if not validate(bad):
+        raise RuntimeError("self-test: amostra de blocking não reconciliada deveria ser rejeitada")
 
     bad = copy.deepcopy(valid)
     bad["coordinationProbe"]["exclusiveRequest"]["lockResult"] = 0
@@ -338,21 +428,9 @@ def self_test() -> int:
         raise RuntimeError("self-test: verdade em empate não pode exceder empates observados")
 
     bad = copy.deepcopy(valid)
-    bad["blockingPressure"]["maxPeoplePerKey"] = 100
     bad["blockingPressure"]["attributes"][0]["distinctValues"] = 1
-    bad["blockingPressure"]["attributes"][0]["maxPeoplePerValue"] = 100
     if not validate(bad):
-        raise RuntimeError("self-test: blocking universal deveria ser rejeitado")
-
-    bad = copy.deepcopy(valid)
-    bad["blockingPressure"]["maxPeoplePerKey"] = 26
-    if not validate(bad):
-        raise RuntimeError("self-test: blocking quase universal deveria exceder o teto proporcional")
-
-    bad = copy.deepcopy(valid)
-    bad["blockingPressure"]["attributes"][1]["maxPeoplePerValue"] = 26
-    if not validate(bad):
-        raise RuntimeError("self-test: atributo de diversidade concentrado deveria ser rejeitado")
+        raise RuntimeError("self-test: corpus sem diversidade nominal deveria ser rejeitado")
 
     print("SCALE OBSERVABILITY EVIDENCE GATE SELF-TEST: OK")
     return 0
@@ -360,7 +438,7 @@ def self_test() -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Valida pressão de blocking, qualidade sintética e coordenação do harness de escala."
+        description="Valida fan-out real do ruleset, saúde da projeção, qualidade sintética e coordenação do harness de escala."
     )
     parser.add_argument("report", nargs="?")
     parser.add_argument("--self-test", action="store_true")
