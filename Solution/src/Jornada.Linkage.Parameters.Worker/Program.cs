@@ -2,6 +2,9 @@ using Jornada.Operational.Sql;
 using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Parameters.Worker;
 
+const string EnsureNameFrequencySnapshotOperation = "ENSURE_NAME_FREQUENCY_SNAPSHOT";
+const string CanonicalNameFrequencyReferenceCode = "CENSO2022_NOMES_BRASIL_V1";
+
 var builder = Host.CreateApplicationBuilder(args);
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
@@ -17,7 +20,7 @@ if (operation == NameFrequencySourceChecker.Operation)
 }
 else if (database.Provider == OperationalDatabaseProviders.PostgreSql)
 {
-    if (operation is NameFrequencyReferenceImporter.Operation or NameFrequencySnapshotLoader.Operation)
+    if (operation is NameFrequencyReferenceImporter.Operation or NameFrequencySnapshotLoader.Operation or EnsureNameFrequencySnapshotOperation)
         throw new InvalidOperationException($"{operation} ainda possui implementação canônica apenas para SQL Server.");
 
     builder.Services.AddSingleton(database);
@@ -27,10 +30,34 @@ else
 {
     var operationalSql = new OperationalSqlAdapter(jornadaConnectionString);
 
-    // A geração de modelo congela a referência ATIVA de frequências. Em um banco novo
-    // o schema existe, mas os dados de referência ainda não foram materializados; nesse
-    // caso executamos uma única vez o loader offline do snapshot versionado. Se já há
-    // referência ATIVA (inclusive uma revisão futura governada), ela é preservada.
+    if (operation == EnsureNameFrequencySnapshotOperation)
+    {
+        if (await HasPublishedNameFrequencyReferenceAsync(operationalSql, CanonicalNameFrequencyReferenceCode))
+        {
+            Console.WriteLine($"Referência IBGE canônica {CanonicalNameFrequencyReferenceCode} já está materializada; nenhuma recarga necessária.");
+            return;
+        }
+
+        Console.WriteLine($"Referência IBGE canônica {CanonicalNameFrequencyReferenceCode} ausente; materializando snapshot local antes de liberar o ambiente.");
+        Console.WriteLine("A carga canônica contém milhões de linhas e pode levar alguns minutos. O processo imprimirá um heartbeat a cada 15 segundos.");
+        var ensureBuilder = Host.CreateApplicationBuilder(args);
+        ensureBuilder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
+        ensureBuilder.Services.AddHostedService<NameFrequencySnapshotLoader>();
+        await RunHostWithHeartbeatAsync(
+            ensureBuilder.Build(),
+            "Carga da referência de frequências",
+            TimeSpan.FromSeconds(15));
+
+        if (Environment.ExitCode != 0 || !await HasPublishedNameFrequencyReferenceAsync(operationalSql, CanonicalNameFrequencyReferenceCode))
+            throw new InvalidOperationException($"Não foi possível materializar a referência IBGE canônica {CanonicalNameFrequencyReferenceCode}.");
+
+        Console.WriteLine($"Referência IBGE canônica {CanonicalNameFrequencyReferenceCode} materializada e pronta para uso.");
+        return;
+    }
+
+    // A geração de modelo congela a referência ATIVA de frequências. O bootstrap normal
+    // do ambiente já materializa o Censo 2022; este fallback permanece fail-safe para
+    // execuções diretas do calibrador contra um banco criado fora dos entrypoints oficiais.
     if (operation == "GENERATE_DRAFT" && !await HasActiveNameFrequencyReferenceAsync(operationalSql))
     {
         Console.WriteLine("Referência de frequências ausente; carregando snapshot local canônico antes de GENERATE_DRAFT.");
@@ -101,6 +128,21 @@ static async Task<bool> HasActiveNameFrequencyReferenceAsync(IOperationalSqlAdap
     await using var connection = await operationalSql.OpenAsync(CancellationToken.None);
     await using var command = connection.CreateCommand();
     command.CommandText = "SELECT COUNT(*) FROM ref.frequencia_nome_versao WHERE status='ATIVA' AND conteudo_sha256 IS NOT NULL;";
+    var value = await command.ExecuteScalarAsync(CancellationToken.None);
+    return Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture) == 1;
+}
+
+static async Task<bool> HasPublishedNameFrequencyReferenceAsync(
+    IOperationalSqlAdapter operationalSql,
+    string referenceCode)
+{
+    await using var connection = await operationalSql.OpenAsync(CancellationToken.None);
+    await using var command = connection.CreateCommand();
+    command.CommandText = "SELECT COUNT(*) FROM ref.frequencia_nome_versao WHERE codigo=@codigo AND status<>'CARREGANDO' AND conteudo_sha256 IS NOT NULL;";
+    var parameter = command.CreateParameter();
+    parameter.ParameterName = "@codigo";
+    parameter.Value = referenceCode;
+    command.Parameters.Add(parameter);
     var value = await command.ExecuteScalarAsync(CancellationToken.None);
     return Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture) == 1;
 }
