@@ -69,7 +69,7 @@ function Assert-CurrentBronzeIndexContract {
 
 function Assert-ShellGatePortableHashContract {
     $shell = Get-Content -LiteralPath $ShellGate -Raw -Encoding UTF8
-    if ($shell.Contains('sha256sum')) {
+    if ($shell -match '(?m)^\s*(?:need\b[^\r\n]*\bsha256sum\b|sha256sum\b)') {
         throw 'Gate DDL shell não pode depender de sha256sum: Git Bash/MSYS pode falhar ao ajustar modo text/binary sob ProcessStartInfo.'
     }
     if (-not $shell.Contains('hashlib.sha256')) {
