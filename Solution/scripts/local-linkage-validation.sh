@@ -32,6 +32,10 @@ scalar() {
   sql_lines "$1" | tail -n 1 | xargs
 }
 
+complete_validation_run_id() {
+  scalar "SELECT TOP(1) CONVERT(varchar(36),lr.linkage_run_id) FROM identidade.linkage_run lr CROSS APPLY (SELECT SUM(CASE WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$model_short-POS-%' THEN 1 ELSE 0 END) AS pos_count,SUM(CASE WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$model_short-NEG-%' THEN 1 ELSE 0 END) AS neg_count,SUM(CASE WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$model_short-CONFLICT-%' THEN 1 ELSE 0 END) AS conflict_count FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id WHERE r.linkage_run_id=lr.linkage_run_id) c WHERE lr.status='PUBLICADO' AND lr.tipo_run='ON_DEMAND' AND lr.modelo_id='$active_model_id' AND c.pos_count=40 AND c.neg_count=40 AND c.conflict_count=10 ORDER BY lr.publicado_em DESC,lr.iniciado_em DESC,lr.linkage_run_id DESC;"
+}
+
 active_model_id="$(scalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'')<>'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;")"
 [[ -n "$active_model_id" ]] || { echo "ERRO: nenhum modelo calibrado ATIVO. Execute scripts/local-cluster.sh calibrate." >&2; exit 3; }
 model_short="${active_model_id:0:8}"
@@ -44,12 +48,17 @@ echo "# docker compose --env-file $ENV_FILE exec -T -e SQLCMDPASSWORD=<redacted>
 (cd "$ROOT" && docker compose --env-file "$ENV_FILE" exec -T -e "SQLCMDPASSWORD=$SQL_PASSWORD" sqlserver \
   /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d "$DB" -i "$FIXTURE")
 
-# Executa um novo linkage com o mesmo modelo; o wrapper também materializa chaves dos candidatos sintéticos novos.
-echo '# bash scripts/local-cluster.sh linkage'
-(cd "$ROOT" && bash scripts/local-cluster.sh linkage)
-
-run_id="$(scalar "SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE status='PUBLICADO' AND tipo_run='ON_DEMAND' AND modelo_id='$active_model_id' ORDER BY publicado_em DESC,iniciado_em DESC,linkage_run_id DESC;")"
-[[ -n "$run_id" ]] || { echo 'ERRO: linkage de validação não foi publicado.' >&2; exit 4; }
+# Reutiliza evidência completa já publicada para o mesmo modelo. Isso torna a validação idempotente:
+# observações resolvidas deixam de entrar no próximo ON_DEMAND e um segundo run isolado seria parcial.
+run_id="$(complete_validation_run_id)"
+if [[ -n "$run_id" ]]; then
+  echo "Reutilizando run completo já publicado para este modelo: $run_id"
+else
+  echo '# bash scripts/local-cluster.sh linkage'
+  (cd "$ROOT" && bash scripts/local-cluster.sh linkage)
+  run_id="$(complete_validation_run_id)"
+fi
+[[ -n "$run_id" ]] || { echo 'ERRO: linkage completo de validação (40 positivos, 40 negativos, 10 conflitos) não foi publicado.' >&2; exit 4; }
 echo "Run de validação: $run_id"
 
 cat > "$LABELS" <<'CSV'
