@@ -55,7 +55,10 @@ jobs:
       - name: Calibrate before validation corpus exists
         shell: bash
         run: |
-          test "$(docker compose --env-file .env exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Jornada_Local_Dev_2026!' -C -d JornadaLocal -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM silver.pessoa_observacao WHERE codigo_pessoa_origem LIKE 'SCALE-VAL-%';" | tr -d '\r' | xargs)" = '0'
+          SQL_PASSWORD="$(awk -F= '$1=="JORNADA_SQL_SA_PASSWORD"{sub(/^[^=]*=/,""); print; exit}' .env)"
+          test -n "$SQL_PASSWORD"
+          validation_count="$(docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$SQL_PASSWORD" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -d JornadaLocal -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM silver.pessoa_observacao WHERE codigo_pessoa_origem LIKE 'SCALE-VAL-%';" | tr -d '\r' | xargs)"
+          test "$validation_count" = '0'
           bash scripts/local-cluster.sh calibrate
           echo 'CALIBRATION PRECEDES VALIDATION CORPUS: OK'
 
