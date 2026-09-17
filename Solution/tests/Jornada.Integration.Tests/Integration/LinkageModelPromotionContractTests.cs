@@ -40,6 +40,7 @@ public sealed class LinkageModelPromotionContractTests
             Assert.That(triggerDefinition, Does.Contain("M_NOME_MAE_MISSING"));
             Assert.That(triggerDefinition, Does.Contain("U_NOME_MAE_MISSING"));
             Assert.That(triggerDefinition, Does.Contain("SUPPORT_U_NASCIMENTO_SEMANTICO_"));
+            Assert.That(triggerDefinition, Does.Contain("POOL_SUPPORT_U_NASCIMENTO_SEMANTICO_"));
             Assert.That(triggerDefinition, Does.Contain("fn_linkage_birth_semantic_reachability"));
             Assert.That(functionDefinition, Is.Not.Null.And.Not.Empty);
             Assert.That(functionDefinition, Does.Contain("birth_day"));
@@ -51,7 +52,7 @@ public sealed class LinkageModelPromotionContractTests
     }
 
     [Test]
-    public async Task Promotion_rejects_zero_u_support_only_when_semantic_state_is_reachable_by_frozen_ruleset()
+    public async Task Promotion_rejects_only_when_u_sample_loses_state_present_in_candidate_pool()
     {
         var connectionString = RequireIntegrationConnection();
         await using var connection = new SqlConnection(connectionString);
@@ -96,45 +97,45 @@ public sealed class LinkageModelPromotionContractTests
                 (@all_ruleset,0,N'P_NAME'),
                 (@filtered_ruleset,0,N'P_BIRTH_MY');
 
-            -- Passe sem componente de nascimento: qualquer mask de nascimento continua possível.
             INSERT identidade.linkage_ruleset_passe_campo(ruleset_id,passe_ordem,campo_ordem,atributo)
             VALUES(@all_ruleset,0,0,N'mother_name_last');
 
-            -- Este passe exige mês e ano iguais; DAY_MONTH_SWAP (mask 100) não pode entrar nele.
             INSERT identidade.linkage_ruleset_passe_campo(ruleset_id,passe_ordem,campo_ordem,atributo)
             VALUES
                 (@filtered_ruleset,0,0,N'birth_month'),
                 (@filtered_ruleset,0,1,N'birth_year');
 
+            -- Modelo A: DAY_MONTH_SWAP existe no pool, mas sumiu da amostra u => rejeitar.
             INSERT identidade.parametro_linkage(modelo_id,nome,valor)
-            SELECT @all_model,N'M_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857)
-            FROM @states
+            SELECT @all_model,N'M_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857) FROM @states
             UNION ALL
-            SELECT @all_model,N'U_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857)
-            FROM @states
+            SELECT @all_model,N'U_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857) FROM @states
             UNION ALL
             SELECT @all_model,N'SUPPORT_U_NASCIMENTO_SEMANTICO_'+estado,
-                   CONVERT(DECIMAL(30,12),CASE WHEN estado=N'DAY_MONTH_SWAP' THEN 0 ELSE 1 END)
-            FROM @states;
+                   CONVERT(DECIMAL(30,12),CASE WHEN estado=N'DAY_MONTH_SWAP' THEN 0 ELSE 1 END) FROM @states
+            UNION ALL
+            SELECT @all_model,N'POOL_SUPPORT_U_NASCIMENTO_SEMANTICO_'+estado,
+                   CONVERT(DECIMAL(30,12),1) FROM @states;
             INSERT identidade.parametro_linkage(modelo_id,nome,valor)
             VALUES(@all_model,N'SCORING_BIRTH_SEMANTIC_EVIDENCE_V5',1);
 
+            -- Modelo B: o mesmo zero também está ausente do pool e é estruturalmente
+            -- inalcançável pelo passe mês+ano; smoothing é aceitável.
             INSERT identidade.parametro_linkage(modelo_id,nome,valor)
-            SELECT @filtered_model,N'M_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857)
-            FROM @states
+            SELECT @filtered_model,N'M_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857) FROM @states
             UNION ALL
-            SELECT @filtered_model,N'U_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857)
-            FROM @states
+            SELECT @filtered_model,N'U_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857) FROM @states
             UNION ALL
             SELECT @filtered_model,N'SUPPORT_U_NASCIMENTO_SEMANTICO_'+estado,
-                   CONVERT(DECIMAL(30,12),CASE WHEN estado=N'DAY_MONTH_SWAP' THEN 0 ELSE 1 END)
-            FROM @states;
+                   CONVERT(DECIMAL(30,12),CASE WHEN estado=N'DAY_MONTH_SWAP' THEN 0 ELSE 1 END) FROM @states
+            UNION ALL
+            SELECT @filtered_model,N'POOL_SUPPORT_U_NASCIMENTO_SEMANTICO_'+estado,
+                   CONVERT(DECIMAL(30,12),CASE WHEN estado=N'DAY_MONTH_SWAP' THEN 0 ELSE 1 END) FROM @states;
             INSERT identidade.parametro_linkage(modelo_id,nome,valor)
             VALUES(@filtered_model,N'SCORING_BIRTH_SEMANTIC_EVIDENCE_V5',1);
 
             IF EXISTS(
-                SELECT 1
-                FROM identidade.fn_linkage_birth_semantic_reachability(@all_model)
+                SELECT 1 FROM identidade.fn_linkage_birth_semantic_reachability(@all_model)
                 WHERE alcancavel=0)
                 THROW 51980,'Passe sem nascimento deveria tornar todos os estados semânticos alcançáveis.',1;
 
@@ -142,27 +143,16 @@ public sealed class LinkageModelPromotionContractTests
                 WHERE estado=N'DAY_MONTH_SWAP')<>0
                 THROW 51981,'DAY_MONTH_SWAP não deveria ser alcançável por birth_month+birth_year.',1;
 
-            IF (SELECT alcancavel FROM identidade.fn_linkage_birth_semantic_reachability(@filtered_model)
-                WHERE estado=N'EXACT')<>1
-                THROW 51982,'EXACT deveria permanecer alcançável por birth_month+birth_year.',1;
-
-            IF (SELECT alcancavel FROM identidade.fn_linkage_birth_semantic_reachability(@filtered_model)
-                WHERE estado=N'ONE_DIGIT_ERROR')<>1
-                THROW 51983,'ONE_DIGIT_ERROR deveria ser alcançável quando o erro está no dia.',1;
-
-            DECLARE @reachable_zero_rejected BIT=0;
+            DECLARE @lost_pool_state_rejected BIT=0;
             BEGIN TRY
                 UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@all_model;
             END TRY
             BEGIN CATCH
-                IF ERROR_NUMBER()=51032
-                    SET @reachable_zero_rejected=1;
-                ELSE
-                    THROW;
+                IF ERROR_NUMBER()=51032 SET @lost_pool_state_rejected=1; ELSE THROW;
             END CATCH;
 
-            IF @reachable_zero_rejected=0
-                THROW 51984,'Promoção deveria rejeitar suporte u zero em estado alcançável.',1;
+            IF @lost_pool_state_rejected=0
+                THROW 51984,'Promoção deveria rejeitar estado presente no pool e ausente da amostra u.',1;
 
             UPDATE identidade.parametro_linkage
             SET valor=1
@@ -170,13 +160,12 @@ public sealed class LinkageModelPromotionContractTests
               AND nome=N'SUPPORT_U_NASCIMENTO_SEMANTICO_DAY_MONTH_SWAP';
             UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@all_model;
 
-            -- O mesmo zero é aceitável quando o estado não pertence ao universo candidato do ruleset.
             UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@filtered_model;
 
             IF (SELECT status FROM identidade.modelo_linkage WHERE modelo_id=@all_model)<>'VALIDADO'
-                THROW 51985,'Modelo com suporte corrigido não foi validado.',1;
+                THROW 51985,'Modelo com cobertura da amostra corrigida não foi validado.',1;
             IF (SELECT status FROM identidade.modelo_linkage WHERE modelo_id=@filtered_model)<>'VALIDADO'
-                THROW 51986,'Modelo com zero estruturalmente inalcançável não foi validado.',1;
+                THROW 51986,'Modelo com zero ausente do pool não foi validado.',1;
             """;
 
         await using var command = new SqlCommand(sql, connection) { CommandTimeout = 60 };
@@ -186,18 +175,10 @@ public sealed class LinkageModelPromotionContractTests
     private static async Task ApplyContractAsync(SqlConnection connection)
     {
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(
-            connection,
-            Path.Combine(databaseDir, "Jornada_Fase1.sql"));
-        await SqlBatchRunner.ExecuteFileAsync(
-            connection,
-            Path.Combine(databaseDir, "migrations", "20260910_Linkage_RuleSet_Passes.sql"));
-        await SqlBatchRunner.ExecuteFileAsync(
-            connection,
-            Path.Combine(databaseDir, "migrations", "20260915_Linkage_Model_Promotion_Contract.sql"));
-        await SqlBatchRunner.ExecuteFileAsync(
-            connection,
-            Path.Combine(databaseDir, "migrations", "20260916_Linkage_U_Support_Reachability.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260910_Linkage_RuleSet_Passes.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260915_Linkage_Model_Promotion_Contract.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260916_Linkage_U_Support_Reachability.sql"));
     }
 
     private static string RequireIntegrationConnection()
