@@ -96,7 +96,8 @@ $labelRows = Invoke-SqlLines $labelQuery
 if ($labelRows.Count -ne $LabelCount) {
     throw "Amostra SCALE incompleta para auditoria por passe: esperados=$LabelCount; obtidos=$($labelRows.Count)."
 }
-@('pessoa_observacao_id,pessoa_uuid_verdade') + $labelRows | Set-Content -LiteralPath $labelsPath -Encoding UTF8
+$labelContent = (@('pessoa_observacao_id,pessoa_uuid_verdade') + $labelRows) -join [Environment]::NewLine
+[IO.File]::WriteAllText($labelsPath, $labelContent + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
 
 $oldConnection = $env:ConnectionStrings__Jornada
 try {
