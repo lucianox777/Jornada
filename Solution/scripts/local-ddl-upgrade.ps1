@@ -6,9 +6,13 @@ $ErrorActionPreference = 'Stop'
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $ShellGate = Join-Path $PSScriptRoot 'local-ddl-upgrade.sh'
+$CurrentDdl = Join-Path $Root 'database/Jornada_Fase1.sql'
 
 if (-not (Test-Path -LiteralPath $ShellGate)) {
     throw "Gate DDL canônico não encontrado: $ShellGate"
+}
+if (-not (Test-Path -LiteralPath $CurrentDdl)) {
+    throw "DDL corrente não encontrado: $CurrentDdl"
 }
 
 function Get-BashExecutable {
@@ -46,11 +50,30 @@ function Get-BashExecutable {
     return $null
 }
 
+function Assert-CurrentBronzeIndexContract {
+    $ddl = Get-Content -LiteralPath $CurrentDdl -Raw -Encoding UTF8
+    $safeCreate = 'CREATE INDEX IX_bronze_entrega_arquivo_payload_sha256 ON bronze.entrega_arquivo(payload_sha256)'
+    $unsafeCreate = 'CREATE INDEX IX_bronze_entrega_arquivo_objeto_chave ON bronze.entrega_arquivo(objeto_chave)'
+    $legacyDrop = 'DROP INDEX IX_bronze_entrega_arquivo_objeto_chave ON bronze.entrega_arquivo'
+
+    if (-not $ddl.Contains($safeCreate)) {
+        throw 'DDL corrente não contém o índice seguro IX_bronze_entrega_arquivo_payload_sha256.'
+    }
+    if ($ddl.Contains($unsafeCreate)) {
+        throw 'DDL corrente voltou a criar o índice legado de objeto_chave com chave potencial de 2048 bytes.'
+    }
+    if (-not $ddl.Contains($legacyDrop)) {
+        throw 'DDL corrente não contém a remoção explícita do índice legado de objeto_chave.'
+    }
+}
+
 $bashExe = Get-BashExecutable
 if ([string]::IsNullOrWhiteSpace($bashExe)) {
     throw 'Bash compatível não encontrado. No Windows, este gate exige o Git Bash do Git for Windows e não usa automaticamente o launcher do WSL.'
 }
 Write-Host "Bash selecionado para o gate DDL: $bashExe"
+Assert-CurrentBronzeIndexContract
+Write-Host 'Índice Bronze corrente: OK (SHA-256 como chave; objeto_chave fora da chave do índice).' -ForegroundColor Green
 
 # Git Bash/MSYS converte argumentos POSIX enviados a executáveis Windows. Sem estas exclusões,
 # `docker compose exec -w /workspace ... /opt/mssql-tools18/bin/sqlcmd` reescreve caminhos que
@@ -72,9 +95,33 @@ if ($env:OS -eq 'Windows_NT') {
 
 Push-Location $Root
 try {
-    & $bashExe ./scripts/local-ddl-upgrade.sh
-    if ($LASTEXITCODE -ne 0) {
-        throw "local-ddl-upgrade.sh falhou ($LASTEXITCODE)."
+    $historicalWarningSeen = $false
+    $skipHistoricalContinuation = $false
+
+    & $bashExe ./scripts/local-ddl-upgrade.sh 2>&1 | ForEach-Object {
+        $line = $_.ToString()
+
+        if ($line -like "*The index 'IX_bronze_entrega_arquivo_objeto_chave' has maximum length of 2048 bytes*") {
+            if (-not $historicalWarningSeen) {
+                Write-Host 'INFO: baseline histórico v3.65 contém o índice antigo de 2048 bytes; aviso omitido nesta rodada. O DDL corrente já usa o índice SHA-256 e remove o legado.' -ForegroundColor DarkGray
+                $historicalWarningSeen = $true
+            }
+            $skipHistoricalContinuation = $true
+            return
+        }
+
+        if ($skipHistoricalContinuation -and $line -like 'For some combination of large values, the insert/update operation will fail*') {
+            $skipHistoricalContinuation = $false
+            return
+        }
+
+        $skipHistoricalContinuation = $false
+        Write-Host $line
+    }
+
+    $gateExitCode = $LASTEXITCODE
+    if ($gateExitCode -ne 0) {
+        throw "local-ddl-upgrade.sh falhou ($gateExitCode)."
     }
 }
 finally {

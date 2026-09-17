@@ -4,6 +4,8 @@ $EnvFile = Join-Path $Root '.env'
 $Example = Join-Path $Root '.env.example'
 $ApiUrl = if ($env:JORNADA_E2E_API_URL) { $env:JORNADA_E2E_API_URL.TrimEnd('/') } else { 'http://127.0.0.1:5088' }
 $Out = Join-Path $Root '.local/e2e'
+$ProcessStartupGraceSeconds = if ($env:JORNADA_E2E_PROCESS_STARTUP_GRACE_SECONDS) { [int]$env:JORNADA_E2E_PROCESS_STARTUP_GRACE_SECONDS } else { 5 }
+if ($ProcessStartupGraceSeconds -lt 0 -or $ProcessStartupGraceSeconds -gt 60) { throw 'JORNADA_E2E_PROCESS_STARTUP_GRACE_SECONDS deve estar entre 0 e 60.' }
 
 foreach ($cmd in @('docker','dotnet','curl.exe','python')) {
     if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) { throw "Comando '$cmd' não encontrado no PATH." }
@@ -36,6 +38,27 @@ function Write-Utf8NoBom([string]$path,[string]$content) {
     [System.IO.File]::WriteAllText($path, $content, (New-Object System.Text.UTF8Encoding($false)))
 }
 
+function Start-BackgroundDotnet {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$ArgumentList,
+        [Parameter(Mandatory = $true)][string]$StdOut,
+        [Parameter(Mandatory = $true)][string]$StdErr
+    )
+
+    $start = @{
+        FilePath = 'dotnet'
+        WorkingDirectory = $Root
+        ArgumentList = $ArgumentList
+        RedirectStandardOutput = $StdOut
+        RedirectStandardError = $StdErr
+        PassThru = $true
+    }
+    if ($env:OS -eq 'Windows_NT') {
+        $start.WindowStyle = 'Hidden'
+    }
+    return Start-Process @start
+}
+
 & (Join-Path $PSScriptRoot 'local-db.ps1') -Action reset
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -63,16 +86,14 @@ try {
     $apiErrLog = Join-Path $Out 'api.err.log'
     $processorLog = Join-Path $Out 'processor.log'
     $processorErrLog = Join-Path $Out 'processor.err.log'
-    $api = Start-Process dotnet -WorkingDirectory $Root -ArgumentList @('run','--no-build','--configuration','Release','--no-launch-profile','--project','src/Jornada.Api') -RedirectStandardOutput $apiLog -RedirectStandardError $apiErrLog -PassThru
-    $worker = Start-Process dotnet -WorkingDirectory $Root -ArgumentList @('run','--no-build','--configuration','Release','--project','src/Jornada.Processor.Worker') -RedirectStandardOutput $processorLog -RedirectStandardError $processorErrLog -PassThru
+
+    Write-Host 'Iniciando API E2E em background sem abrir nova janela...'
+    $api = Start-BackgroundDotnet -ArgumentList @('run','--no-build','--configuration','Release','--no-launch-profile','--project','src/Jornada.Api') -StdOut $apiLog -StdErr $apiErrLog
 
     $ready = $false
     for ($i=0; $i -lt 120; $i++) {
         if ($api.HasExited) {
             throw "API encerrou antes de ficar ready (exit=$($api.ExitCode)).`napi.log:`n$(Get-LogTail $apiLog)`napi.err.log:`n$(Get-LogTail $apiErrLog)"
-        }
-        if ($worker.HasExited) {
-            throw "Processor encerrou antes da API ficar ready (exit=$($worker.ExitCode)).`nprocessor.log:`n$(Get-LogTail $processorLog)`nprocessor.err.log:`n$(Get-LogTail $processorErrLog)"
         }
 
         $code = ''
@@ -88,6 +109,22 @@ try {
     }
     if (-not $ready) {
         throw "API não ficou ready em 120 s.`napi.log:`n$(Get-LogTail $apiLog)`napi.err.log:`n$(Get-LogTail $apiErrLog)"
+    }
+
+    if ($ProcessStartupGraceSeconds -gt 0) {
+        Write-Host "API ready; aguardando $ProcessStartupGraceSeconds s antes de iniciar o Processor..."
+        Start-Sleep -Seconds $ProcessStartupGraceSeconds
+    }
+
+    Write-Host 'Iniciando Processor E2E em background sem abrir nova janela...'
+    $worker = Start-BackgroundDotnet -ArgumentList @('run','--no-build','--configuration','Release','--project','src/Jornada.Processor.Worker') -StdOut $processorLog -StdErr $processorErrLog
+
+    if ($ProcessStartupGraceSeconds -gt 0) {
+        Write-Host "Aguardando $ProcessStartupGraceSeconds s para estabilização inicial do Processor..."
+        Start-Sleep -Seconds $ProcessStartupGraceSeconds
+    }
+    if ($worker.HasExited) {
+        throw "Processor encerrou durante o startup (exit=$($worker.ExitCode)).`nprocessor.log:`n$(Get-LogTail $processorLog)`nprocessor.err.log:`n$(Get-LogTail $processorErrLog)"
     }
 
     $package = (& python (Join-Path $Root 'scripts/build-ingestion-fixture.py') --fixture (Join-Path $Root 'tests/fixtures/ingestao/AA01_v2') --gestor SEHAB --output-dir (Join-Path $Out 'packages') | Out-String).Trim()
