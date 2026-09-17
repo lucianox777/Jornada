@@ -16,11 +16,10 @@
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
     <DebugType>portable</DebugType>
 
-    <!-- v5.00 technical RC: pre-release engineering identity only. RELEASE_INFO.txt remains v4.05 until formal release. -->
-    <VersionPrefix>5.0.0</VersionPrefix>
-    <VersionSuffix>rc.1</VersionSuffix>
+    <!-- v5.00 technical RC: binary identity only; do not mutate NuGet project versions/lock graphs. -->
     <AssemblyVersion>5.0.0.0</AssemblyVersion>
     <FileVersion>5.0.0.0</FileVersion>
+    <InformationalVersion>5.0.0-rc.1</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>true</IncludeSourceRevisionInInformationalVersion>
     <SourceRevisionId Condition="'$(SourceRevisionId)' == '' and '$(GITHUB_SHA)' != ''">$(GITHUB_SHA)</SourceRevisionId>
   </PropertyGroup>
