@@ -29,10 +29,28 @@ public sealed record SplinkCalibrationPackage(
     IReadOnlyList<SplinkPairwiseLabel> Labels);
 
 public sealed record SplinkComparisonLevelEstimate(
-    string Feature,
-    string Level,
-    decimal? MProbability,
-    decimal? UProbability);
+    [property: JsonPropertyName("feature")] string Feature,
+    [property: JsonPropertyName("level")] string Level,
+    [property: JsonPropertyName("m_probability")] decimal? MProbability,
+    [property: JsonPropertyName("u_probability")] decimal? UProbability);
+
+public sealed record SplinkRunnerResult(
+    [property: JsonPropertyName("schema_version")] string SchemaVersion,
+    [property: JsonPropertyName("source_schema_version")] string SourceSchemaVersion,
+    [property: JsonPropertyName("splink_version")] string SplinkVersion,
+    [property: JsonPropertyName("runner")] string Runner,
+    [property: JsonPropertyName("scope")] string Scope,
+    [property: JsonPropertyName("nominal_semantics_version")] string NominalSemanticsVersion,
+    [property: JsonPropertyName("generator_version")] string GeneratorVersion,
+    [property: JsonPropertyName("ibge_source_version")] string IbgeSourceVersion,
+    [property: JsonPropertyName("ibge_fingerprint_sha256")] string IbgeFingerprintSha256,
+    [property: JsonPropertyName("partition")] BenchmarkPartition Partition,
+    [property: JsonPropertyName("seed")] int Seed,
+    [property: JsonPropertyName("max_pairs")] long MaxPairs,
+    [property: JsonPropertyName("name_thresholds")] IReadOnlyList<decimal> NameThresholds,
+    [property: JsonPropertyName("u_population_records")] int UPopulationRecords,
+    [property: JsonPropertyName("m_positive_pairs")] int MPositivePairs,
+    [property: JsonPropertyName("estimates")] IReadOnlyList<SplinkComparisonLevelEstimate> Estimates);
 
 /// <summary>
 /// Fronteira explícita Jornada -> Splink. O domínio Jornada permanece soberano;
@@ -42,13 +60,19 @@ public sealed record SplinkComparisonLevelEstimate(
 public static class SplinkCalibrationExchange
 {
     public const string SchemaVersion = "JORNADA_SPLINK_EXCHANGE_V1";
+    public const string RunnerSchemaVersion = "JORNADA_SPLINK_ESTIMATES_V1";
+    public const string NominalSemanticsVersion = "IDENTITY_NAME_STATES_V1";
     public const string SourceDataset = "jornada_calibrador";
+    public const string RunnerName = "calibrador-splink/run_calibration.py";
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         WriteIndented = true
     };
+
+    private static readonly string[] ExpectedNameLevels = ["EXACT", "HIGH", "MEDIUM", "LOW"];
+    private static readonly decimal[] ExpectedNameThresholds = [0.92m, 0.80m];
 
     public static SplinkCalibrationPackage Export(
         IbgeTypedNameFrequencySnapshot snapshot,
@@ -98,6 +122,30 @@ public static class SplinkCalibrationExchange
         return JsonSerializer.Serialize(package, SerializerOptions);
     }
 
+    public static SplinkRunnerResult DeserializeRunnerResult(string json)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(json);
+        var result = JsonSerializer.Deserialize<SplinkRunnerResult>(json)
+            ?? throw new InvalidOperationException("Resultado Splink vazio ou inválido.");
+
+        ValidateRunnerResult(result);
+        return result;
+    }
+
+    public static ParameterEstimate ImportM(SplinkRunnerResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        ValidateRunnerResult(result);
+        return ImportM(result.SplinkVersion, result.Estimates);
+    }
+
+    public static ParameterEstimate ImportU(SplinkRunnerResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        ValidateRunnerResult(result);
+        return ImportU(result.SplinkVersion, result.Estimates);
+    }
+
     public static ParameterEstimate ImportM(
         string splinkVersion,
         IEnumerable<SplinkComparisonLevelEstimate> estimates) =>
@@ -114,8 +162,7 @@ public static class SplinkCalibrationExchange
         IEnumerable<SplinkComparisonLevelEstimate> estimates,
         bool importM)
     {
-        if (string.IsNullOrWhiteSpace(version))
-            throw new ArgumentException("A versão do Splink é obrigatória.", nameof(version));
+        ArgumentException.ThrowIfNullOrWhiteSpace(version);
         ArgumentNullException.ThrowIfNull(estimates);
 
         var values = new Dictionary<string, decimal>(StringComparer.Ordinal);
@@ -139,6 +186,60 @@ public static class SplinkCalibrationExchange
 
         return new ParameterEstimate(estimator, version.Trim(), values);
     }
+
+    private static void ValidateRunnerResult(SplinkRunnerResult result)
+    {
+        if (!string.Equals(result.SchemaVersion, RunnerSchemaVersion, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Schema do runner incompatível: {result.SchemaVersion}.");
+        if (!string.Equals(result.SourceSchemaVersion, SchemaVersion, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Schema de origem incompatível: {result.SourceSchemaVersion}.");
+        if (string.IsNullOrWhiteSpace(result.SplinkVersion))
+            throw new InvalidOperationException("Versão do Splink ausente.");
+        if (!string.Equals(result.Runner, RunnerName, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Runner Splink inesperado: {result.Runner}.");
+        if (!string.Equals(result.Scope, "NOME", StringComparison.Ordinal))
+            throw new InvalidOperationException($"Escopo Splink V1 incompatível: {result.Scope}.");
+        if (!string.Equals(result.NominalSemanticsVersion, NominalSemanticsVersion, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Semântica nominal incompatível: {result.NominalSemanticsVersion}.");
+        if (!string.Equals(result.GeneratorVersion, IbgeNominalBenchmarkOptions.GeneratorVersion, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Gerador de benchmark incompatível: {result.GeneratorVersion}.");
+        if (string.IsNullOrWhiteSpace(result.IbgeSourceVersion))
+            throw new InvalidOperationException("Versão da referência IBGE ausente.");
+        if (!IsSha256(result.IbgeFingerprintSha256))
+            throw new InvalidOperationException("Fingerprint SHA-256 da referência IBGE inválido.");
+        if (!Enum.IsDefined(result.Partition))
+            throw new InvalidOperationException($"Partição de benchmark inválida: {result.Partition}.");
+        if (result.MaxPairs <= 0)
+            throw new InvalidOperationException("max_pairs inválido no resultado Splink.");
+        if (result.UPopulationRecords < 2)
+            throw new InvalidOperationException("A população usada para estimar u deve conter ao menos dois indivíduos-base.");
+        if (result.MPositivePairs <= 0)
+            throw new InvalidOperationException("O resultado Splink não contém pares positivos usados para estimar m.");
+        if (!result.NameThresholds.SequenceEqual(ExpectedNameThresholds))
+            throw new InvalidOperationException("Thresholds nominais do runner não coincidem com IdentityComparison.CompareName.");
+        if (result.Estimates.Count != ExpectedNameLevels.Length)
+            throw new InvalidOperationException($"Esperados {ExpectedNameLevels.Length} níveis nominais; recebidos {result.Estimates.Count}.");
+
+        var byLevel = result.Estimates.ToDictionary(static estimate => estimate.Level, StringComparer.Ordinal);
+        if (!byLevel.Keys.OrderBy(static value => value, StringComparer.Ordinal)
+                .SequenceEqual(ExpectedNameLevels.OrderBy(static value => value, StringComparer.Ordinal), StringComparer.Ordinal))
+            throw new InvalidOperationException("Níveis nominais do resultado Splink são incompatíveis com a Jornada.");
+
+        foreach (var level in ExpectedNameLevels)
+        {
+            var estimate = byLevel[level];
+            if (!string.Equals(estimate.Feature, "NOME", StringComparison.Ordinal))
+                throw new InvalidOperationException($"Feature inesperada no nível {level}: {estimate.Feature}.");
+            if (!estimate.MProbability.HasValue || estimate.MProbability.Value <= 0m || estimate.MProbability.Value >= 1m)
+                throw new InvalidOperationException($"m inválido para NOME/{level}.");
+            if (!estimate.UProbability.HasValue || estimate.UProbability.Value <= 0m || estimate.UProbability.Value >= 1m)
+                throw new InvalidOperationException($"u inválido para NOME/{level}.");
+        }
+    }
+
+    private static bool IsSha256(string value) =>
+        value is { Length: 64 } && value.All(static character =>
+            character is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F');
 
     private static SplinkCalibrationRecord ToRecord(string uniqueId, IbgeBenchmarkPerson person) =>
         new(
