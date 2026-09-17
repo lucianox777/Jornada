@@ -10,6 +10,7 @@ on:
       - 'Solution/scripts/local-scale.sh'
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/coordination-lock-probe.py'
+      - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/scale-observability-evidence-gate.py'
       - '.github/workflows/scale-observability-contract.yml'
   push:
@@ -22,6 +23,7 @@ on:
       - 'Solution/scripts/local-scale.sh'
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/coordination-lock-probe.py'
+      - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/scale-observability-evidence-gate.py'
       - '.github/workflows/scale-observability-contract.yml'
 
@@ -38,10 +40,16 @@ jobs:
       - name: Validate scale harness contract
         run: |
           set -euo pipefail
-          python3 -m py_compile Solution/scripts/coordination-lock-probe.py Solution/scripts/scale-observability-evidence-gate.py
+          python3 -m py_compile Solution/scripts/coordination-lock-probe.py Solution/scripts/blocking-pass-fanout-gate.py Solution/scripts/scale-observability-evidence-gate.py
+          python3 Solution/scripts/blocking-pass-fanout-gate.py --self-test
           python3 Solution/scripts/scale-observability-evidence-gate.py --self-test
           for script in Solution/scripts/local-scale.sh Solution/scripts/local-scale.ps1; do
             grep -F 'blockingPressure' "$script" >/dev/null
+            grep -F 'blockingPassPressure' "$script" >/dev/null
+            grep -F 'blockingAuditSampleSize' "$script" >/dev/null
+            grep -F 'blocking-pass-audit-labels' "$script" >/dev/null
+            grep -F 'blocking-pass-audit-output' "$script" >/dev/null
+            grep -F 'blocking-pass-fanout-gate.py' "$script" >/dev/null
             grep -F 'decisionQuality' "$script" >/dev/null
             grep -F 'coordinationProbe' "$script" >/dev/null
             grep -F 'coordination-lock-probe.py' "$script" >/dev/null
@@ -60,6 +68,8 @@ jobs:
           grep -F 'lock_result != 1' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
           grep -F 'falsePositives' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
           grep -F 'REQUIRED_DIVERSE_ATTRIBUTES' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
+          grep -F 'DEFAULT_MAX_FRACTION = 0.25' Solution/scripts/blocking-pass-fanout-gate.py >/dev/null
+          grep -F 'DEFAULT_P95_ABSOLUTE = 1000' Solution/scripts/blocking-pass-fanout-gate.py >/dev/null
           grep -F 'SCALE-PEND-%' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
           grep -F 'ref.frequencia_nome' Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
           grep -F "status=N'ATIVA'" Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql >/dev/null
