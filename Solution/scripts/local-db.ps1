@@ -184,7 +184,7 @@ function Ensure-SyntheticScale {
         $count = Invoke-SqlScalar -Query "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';"
     }
     if ($count -ne '11000') {
-        throw "Massa sintética local inconsistente: esperadas 11000 pessoas de origem SCALE; encontradas=$count. Execute .\scripts\local-db.ps1 reset."
+        throw "Massa sintética local inconsistente: esperadas 11000 observações de origem SCALE; encontradas=$count. Execute .\scripts\local-db.ps1 reset."
     }
     Write-Host 'Corpus sintético local pronto: 5000 pessoas Gold, 5000 pares corroborados e 1000 pendentes.'
 }
