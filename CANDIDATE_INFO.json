@@ -1,5 +1,5 @@
 {
-  "manifest_version": 1,
+  "manifest_version": 2,
   "nature": "ENGINEERING_CANDIDATE",
   "sealed_release": {
     "metadata_source": "RELEASE_INFO.txt",
@@ -12,6 +12,16 @@
     "target_solution_engineering": "v5.00",
     "release_status": "NOT_RELEASED",
     "solution_schema": "v3.70",
+    "technical_rc": {
+      "identifier": "v5.00-rc.1",
+      "semver": "5.0.0-rc.1",
+      "status": "PREPARED_NOT_CUT",
+      "release_effect": "NONE",
+      "assembly_version": "5.0.0.0",
+      "file_version": "5.0.0.0",
+      "source_revision_binding": "DOTNET_SOURCE_REVISION_ID",
+      "cut_rule": "A technical RC is an immutable Git commit selected only after the engineering CI for that exact commit is green. Cutting a technical RC does not rewrite RELEASE_INFO.txt, does not publish a normative release and does not close external gates."
+    },
     "published_specification": "Documentos/Especificacao_Tecnica_Jornada_v3.62.pdf",
     "published_specification_version": "v3.62",
     "candidate_specification": "Documentos/Especificacao_Tecnica_Jornada_Candidata.md",
@@ -29,7 +39,8 @@
   "notes": [
     "This manifest describes candidate state only and does not publish or seal a release.",
     "RELEASE_INFO.txt remains the authoritative metadata for the last sealed release.",
-    "No commit SHA is embedded because candidate HEAD evolves until formal release cut.",
+    "The exact source commit is carried by .NET SourceRevisionId in AssemblyInformationalVersion; the mutable candidate manifest intentionally does not embed its own commit SHA.",
+    "The technical RC is prepared but not cut until CI is green for the exact immutable commit selected as the RC checkpoint.",
     "Microsoft SQL Server is the operational relational target for Production; Fabric SQL evidence is historical compatibility evidence and is not a release gate for this candidate."
   ]
 }
