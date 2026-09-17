@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jornada.pmspsp.local/contracts/gestores/SMDET/pessoa/v4/pessoa.schema.json",
+  "type": "object",
+  "required": ["nomeCompleto", "dataNascimento"],
+  "properties": {
+    "codigoPessoaOrigem": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "Compatibilidade legada. Quando informado, é materializado como identificador CODIGO_BASE_ORIGEM; não é obrigatório e não substitui a coleção identificadores."
+    },
+    "cpf": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9]{11}$",
+      "description": "Compatibilidade legada. CPF também pode ser informado em identificadores[]. Se ambos existirem, devem convergir para o mesmo CPF normalizado."
+    },
+    "cpfAusenteMotivo": {
+      "type": ["string", "null"],
+      "enum": ["SEM_CPF", "EM_REGULARIZACAO", "NAO_INFORMADO_ORIGEM", null]
+    },
+    "identificadores": {
+      "type": ["array", "null"],
+      "description": "Coleção opcional de zero a N identificadores observados. A ausência completa de identificadores é válida.",
+      "items": {
+        "type": "object",
+        "required": ["tipo", "namespace", "valor", "statusEvidencia"],
+        "properties": {
+          "tipo": {"type": "string", "enum": ["CPF", "CNS", "RG", "CODIGO_BASE_ORIGEM", "UUID_JORNADA", "OUTRO"]},
+          "namespace": {"type": "string", "minLength": 1, "maxLength": 120},
+          "valor": {"type": "string", "minLength": 1, "maxLength": 255},
+          "emissor": {"type": ["string", "null"], "minLength": 1, "maxLength": 120},
+          "ufEmissor": {"type": ["string", "null"], "pattern": "^[A-Z]{2}$"},
+          "statusEvidencia": {"type": "string", "enum": ["DECLARADO", "COMPROVADO"]},
+          "evidenciaTipo": {"type": ["string", "null"], "maxLength": 80},
+          "verificadoEm": {"type": ["string", "null"], "format": "date-time"}
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {"if": {"properties": {"tipo": {"const": "CPF"}}, "required": ["tipo"]}, "then": {"properties": {"namespace": {"const": "BR"}, "valor": {"pattern": "^[0-9]{11}$"}}}},
+          {"if": {"properties": {"tipo": {"const": "CNS"}}, "required": ["tipo"]}, "then": {"properties": {"namespace": {"const": "BR"}, "valor": {"pattern": "^[0-9]{15}$"}}}},
+          {"if": {"properties": {"tipo": {"const": "RG"}}, "required": ["tipo"]}, "then": {"required": ["emissor", "ufEmissor"]}},
+          {"if": {"properties": {"tipo": {"const": "UUID_JORNADA"}}, "required": ["tipo"]}, "then": {"properties": {"namespace": {"const": "JORNADA"}, "valor": {"format": "uuid"}}}},
+          {"if": {"properties": {"statusEvidencia": {"const": "COMPROVADO"}}, "required": ["statusEvidencia"]}, "then": {"required": ["verificadoEm"], "properties": {"verificadoEm": {"type": "string", "format": "date-time"}}}}
+        ]
+      }
+    },
+    "nomeCompleto": {"type": "string", "minLength": 1, "maxLength": 500},
+    "dataNascimento": {"type": "string", "format": "date"},
+    "nomeMae": {"type": ["string", "null"], "minLength": 1, "maxLength": 500, "description": "Opcional. Ausência não invalida a observação e representa evidência indisponível para linkage."},
+    "atributosTransversais": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["atributoCodigo", "statusEvidencia"],
+        "properties": {
+          "sourceRecordId": {"type": ["string", "null"], "maxLength": 255},
+          "atributoCodigo": {"type": "string", "minLength": 1, "maxLength": 80},
+          "valor": {"type": "string", "minLength": 1, "maxLength": 2000},
+          "statusEvidencia": {"type": "string", "enum": ["DECLARADO", "COMPROVADO"]},
+          "evidenciaTipo": {"type": ["string", "null"], "maxLength": 80},
+          "referenciaEvidencia": {"type": ["string", "null"], "format": "date-time"},
+          "verificadoEm": {"type": ["string", "null"], "format": "date-time"},
+          "atualizadoEmOrigem": {"type": ["string", "null"], "format": "date-time"},
+          "geografia": {
+            "type": ["object", "null"],
+            "required": ["distritoCodigo", "distritoNome", "subprefeituraCodigo", "subprefeituraNome", "referenciaMalha"],
+            "properties": {
+              "distritoCodigo": {"type": "string", "minLength": 1, "maxLength": 30},
+              "distritoNome": {"type": "string", "minLength": 1, "maxLength": 150},
+              "subprefeituraCodigo": {"type": "string", "minLength": 1, "maxLength": 30},
+              "subprefeituraNome": {"type": "string", "minLength": 1, "maxLength": 150},
+              "referenciaMalha": {"type": "string", "minLength": 1, "maxLength": 120}
+            },
+            "additionalProperties": false
+          },
+          "naturezaReferenciaTerritorial": {"type": ["string", "null"], "enum": ["DOMICILIAR", "ACOLHIMENTO_INSTITUCIONAL", "REFERENCIA_TERRITORIAL_DECLARADA", null]},
+          "situacaoGeografia": {"type": ["string", "null"], "enum": ["RESOLVIDA", "FORA_MUNICIPIO", "SEM_ENDERECO_APTO", "NAO_RESOLVIDA_ORIGEM", null], "description": "Obrigatória para ENDERECO_RESIDENCIAL/REFERENCIA_TERRITORIAL na Fase 1; responsabilidade do Gestor."}
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {"if": {"properties": {"statusEvidencia": {"const": "COMPROVADO"}}, "required": ["statusEvidencia"]}, "then": {"required": ["verificadoEm"], "properties": {"verificadoEm": {"type": "string", "format": "date-time"}}}},
+          {"if": {"required": ["geografia"], "properties": {"geografia": {"type": "object"}}}, "then": {"properties": {"atributoCodigo": {"type": "string", "enum": ["ENDERECO_RESIDENCIAL", "REFERENCIA_TERRITORIAL"]}}},
+          {"if": {"properties": {"atributoCodigo": {"const": "REFERENCIA_TERRITORIAL"}}, "required": ["atributoCodigo"]}, "then": {"required": ["naturezaReferenciaTerritorial"], "properties": {"naturezaReferenciaTerritorial": {"type": "string", "enum": ["DOMICILIAR", "ACOLHIMENTO_INSTITUCIONAL", "REFERENCIA_TERRITORIAL_DECLARADA"]}}}},
+          {"if": {"properties": {"atributoCodigo": {"enum": ["ENDERECO_RESIDENCIAL", "REFERENCIA_TERRITORIAL"]}}, "required": ["atributoCodigo"]}, "then": {"required": ["situacaoGeografia"]}, "else": {"properties": {"situacaoGeografia": {"type": "null"}, "geografia": {"type": "null"}}}},
+          {"if": {"properties": {"situacaoGeografia": {"const": "RESOLVIDA"}}, "required": ["situacaoGeografia"]}, "then": {"required": ["geografia"]}, "else": {"properties": {"geografia": {"type": "null"}}}}
+        ]
+      }
+    },
+    "sourceTransactionId": {"type": ["string", "null"], "maxLength": 255},
+    "conferenciasDocumentais": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["campoCodigo", "evidenciaTipo", "verificadoEm"],
+        "properties": {
+          "campoCodigo": {"type": "string", "enum": ["CPF", "NOME_COMPLETO", "DATA_NASCIMENTO", "NOME_MAE"]},
+          "evidenciaTipo": {"type": "string", "minLength": 1, "maxLength": 80},
+          "referenciaEvidencia": {"type": ["string", "null"], "maxLength": 255},
+          "verificadoEm": {"type": "string", "format": "date-time"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "allOf": [
+    {"if": {"properties": {"cpf": {"type": "null"}}, "required": ["cpf"]}, "then": {"required": ["cpfAusenteMotivo"], "properties": {"cpfAusenteMotivo": {"type": "string"}}}, "else": {"properties": {"cpfAusenteMotivo": {"type": "null"}}}}
+  ],
+  "additionalProperties": false
+}
