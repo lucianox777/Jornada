@@ -7,6 +7,7 @@ on:
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
       - 'Solution/scripts/local-test-round.ps1'
+      - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/local-scale.ps1'
@@ -19,6 +20,7 @@ on:
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
       - 'Solution/scripts/local-test-round.ps1'
+      - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/local-scale.ps1'
@@ -54,6 +56,7 @@ jobs:
             'scripts/local-test.ps1',
             'scripts/local-test-all.ps1',
             'scripts/local-test-round.ps1',
+            'scripts/local-cluster.ps1',
             'scripts/local-linkage-evaluation-smoke.ps1',
             'scripts/local-scale.ps1',
             'scripts/local-sql-runtime-smoke.ps1',
@@ -84,7 +87,7 @@ jobs:
           }
           Write-Host 'LOCAL SCALE ENVIRONMENT CONTRACT: OK'
 
-      - name: Validate local suite isolation and deterministic database reset
+      - name: Validate local suite isolation, command echo and deterministic database reset
         shell: pwsh
         run: |
           $content = Get-Content -Raw -Encoding UTF8 scripts/local-test-all.ps1
@@ -94,12 +97,41 @@ jobs:
           if ($content -notmatch "Invoke-PowerShellScript 'local-db\.ps1' @\('-Action', 'reset'\)") {
             throw 'local-test-all.ps1 deve recriar o banco canônico antes do Core.'
           }
+          if (-not $content.Contains('function Write-CommandLine') -or
+              -not $content.Contains('Write-CommandLine $CurrentPowerShell')) {
+            throw 'local-test-all.ps1 deve imprimir os comandos reais antes de executá-los.'
+          }
+          if ($content -match "Invoke-Step\s+'DDL upgrade" -or $content -match "Invoke-Step\s+'[^']*3\.65") {
+            throw 'local-test-all.ps1 pré-HML não deve executar upgrade histórico por padrão.'
+          }
+          if (-not $content.Contains('historicalUpgradeDefault = $false')) {
+            throw 'O relatório da suíte deve registrar explicitamente que upgrade histórico não é default pré-HML.'
+          }
           foreach ($forbidden in @('Sync-CleanMaster', 'CleanMasterExecution', "reset','--hard", "clean','-fd")) {
             if ($content.Contains($forbidden)) {
               throw "local-test-all.ps1 não pode voltar a alterar destrutivamente o working tree: $forbidden"
             }
           }
-          Write-Host 'LOCAL SUITE ISOLATION/RESET CONTRACT: OK'
+          Write-Host 'LOCAL SUITE ISOLATION/COMMAND ECHO/RESET CONTRACT: OK'
+
+      - name: Validate local cluster command echo without secret disclosure
+        shell: pwsh
+        run: |
+          $content = Get-Content -Raw -Encoding UTF8 scripts/local-cluster.ps1
+          foreach ($required in @(
+            'function Write-CommandLine',
+            "Write-CommandLine 'docker'",
+            "'-P','<redacted>'",
+            "Write-CommandLine `$LocalDb"
+          )) {
+            if (-not $content.Contains($required)) {
+              throw "local-cluster.ps1 perdeu contrato de command echo: $required"
+            }
+          }
+          if ($content -match 'Write-CommandLine[^\r\n]*\$password') {
+            throw 'local-cluster.ps1 não pode imprimir a senha SQL em command echo.'
+          }
+          Write-Host 'LOCAL CLUSTER COMMAND ECHO/SECRET REDACTION CONTRACT: OK'
 
       - name: Validate canonical audit before scale and canonical restoration
         shell: pwsh
