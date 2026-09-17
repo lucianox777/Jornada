@@ -1,9 +1,7 @@
-﻿param()
+﻿cls
 
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-
-cls
 
 function Invoke-Step {
     param(
@@ -15,7 +13,7 @@ function Invoke-Step {
     Write-Host '============================================================'
     Write-Host $Title -ForegroundColor Cyan
     Write-Host '============================================================'
-    Write-Host ">>> $CommandText" -ForegroundColor DarkGray
+    Write-Host "# $CommandText" -ForegroundColor DarkGray
     $global:LASTEXITCODE = 0
     & $Command
     if (-not $?) { throw "Falha em: $Title" }
@@ -28,7 +26,7 @@ Push-Location $Root
 try {
     Write-Host 'RODADA LOCAL DE TESTES - EXECUÇÃO CONTÍNUA' -ForegroundColor Yellow
     Write-Host "Solution: $Root"
-    Write-Host 'O script imprime cada comando, executa sem pausa e para na primeira falha.'
+    Write-Host 'O script imprime cada comando como comentário, executa sem pausa e para na primeira falha.'
     Write-Host 'A suíte agregada local-test-all é propositalmente separada para não repetir toda a rodada.'
     Write-Host ''
 
@@ -53,7 +51,6 @@ try {
     Invoke-Step '19/19 - Estado final do Git' 'git status --short --branch' { git status --short --branch }
 
     Write-Host 'RODADA LOCAL CONTÍNUA: OK' -ForegroundColor Green
-    Write-Host 'Versão pausada: .\scripts\local-test-round-paused.ps1'
     Write-Host 'Suíte agregada opcional, em comando separado: .\scripts\local-test-all.ps1 -Suite full'
 }
 finally {
