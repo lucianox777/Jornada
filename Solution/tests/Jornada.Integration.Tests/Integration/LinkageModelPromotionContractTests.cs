@@ -119,18 +119,19 @@ public sealed class LinkageModelPromotionContractTests
             INSERT identidade.parametro_linkage(modelo_id,nome,valor)
             VALUES(@all_model,N'SCORING_BIRTH_SEMANTIC_EVIDENCE_V5',1);
 
-            -- Modelo B: o mesmo zero também está ausente do pool e é estruturalmente
-            -- inalcançável pelo passe mês+ano; smoothing é aceitável.
+            -- Modelo B: birth_month+birth_year só admite estados em que mês e ano
+            -- permanecem iguais. Os demais ficam ausentes tanto da amostra quanto do
+            -- pool; smoothing nesses estados é aceitável.
             INSERT identidade.parametro_linkage(modelo_id,nome,valor)
             SELECT @filtered_model,N'M_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857) FROM @states
             UNION ALL
             SELECT @filtered_model,N'U_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857) FROM @states
             UNION ALL
             SELECT @filtered_model,N'SUPPORT_U_NASCIMENTO_SEMANTICO_'+estado,
-                   CONVERT(DECIMAL(30,12),CASE WHEN estado=N'DAY_MONTH_SWAP' THEN 0 ELSE 1 END) FROM @states
+                   CONVERT(DECIMAL(30,12),CASE WHEN estado IN (N'EXACT',N'ONE_DIGIT_ERROR') THEN 1 ELSE 0 END) FROM @states
             UNION ALL
             SELECT @filtered_model,N'POOL_SUPPORT_U_NASCIMENTO_SEMANTICO_'+estado,
-                   CONVERT(DECIMAL(30,12),CASE WHEN estado=N'DAY_MONTH_SWAP' THEN 0 ELSE 1 END) FROM @states;
+                   CONVERT(DECIMAL(30,12),CASE WHEN estado IN (N'EXACT',N'ONE_DIGIT_ERROR') THEN 1 ELSE 0 END) FROM @states;
             INSERT identidade.parametro_linkage(modelo_id,nome,valor)
             VALUES(@filtered_model,N'SCORING_BIRTH_SEMANTIC_EVIDENCE_V5',1);
 
