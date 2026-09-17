@@ -230,9 +230,9 @@ public static class SplinkCalibrationExchange
             var estimate = byLevel[level];
             if (!string.Equals(estimate.Feature, "NOME", StringComparison.Ordinal))
                 throw new InvalidOperationException($"Feature inesperada no nível {level}: {estimate.Feature}.");
-            if (estimate.MProbability is not > 0m or >= 1m)
+            if (!estimate.MProbability.HasValue || estimate.MProbability.Value <= 0m || estimate.MProbability.Value >= 1m)
                 throw new InvalidOperationException($"m inválido para NOME/{level}.");
-            if (estimate.UProbability is not > 0m or >= 1m)
+            if (!estimate.UProbability.HasValue || estimate.UProbability.Value <= 0m || estimate.UProbability.Value >= 1m)
                 throw new InvalidOperationException($"u inválido para NOME/{level}.");
         }
     }
