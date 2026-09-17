@@ -77,11 +77,11 @@ public sealed class CandidateInfoTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(properties["VersionPrefix"], Is.EqualTo("5.0.0"));
-            Assert.That(properties["VersionSuffix"], Is.EqualTo("rc.1"));
-            Assert.That($"{properties["VersionPrefix"]}-{properties["VersionSuffix"]}", Is.EqualTo(expectedSemVer));
+            Assert.That(properties.ContainsKey("VersionPrefix"), Is.False, "RC binário não deve alterar a versão NuGet dos projetos.");
+            Assert.That(properties.ContainsKey("VersionSuffix"), Is.False, "RC binário não deve alterar a versão NuGet dos projetos.");
             Assert.That(properties["AssemblyVersion"], Is.EqualTo(expectedAssemblyVersion));
             Assert.That(properties["FileVersion"], Is.EqualTo(expectedFileVersion));
+            Assert.That(properties["InformationalVersion"], Is.EqualTo(expectedSemVer));
             Assert.That(properties["IncludeSourceRevisionInInformationalVersion"], Is.EqualTo("true"));
             Assert.That(properties["SourceRevisionId"], Is.EqualTo("$(GITHUB_SHA)"));
 
