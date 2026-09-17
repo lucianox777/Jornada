@@ -1,0 +1,84 @@
+name: jornada-linkage-independent-validation
+
+on:
+  push:
+    paths:
+      - 'Solution/database/Jornada_Dev_LinkageValidation.sql'
+      - 'Solution/database/Jornada_Dev_SyntheticScale*.sql'
+      - 'Solution/scripts/local-linkage-validation.*'
+      - 'Solution/scripts/local-cluster.*'
+      - 'Solution/scripts/local-db.*'
+      - 'Solution/docker-compose.yml'
+      - 'Solution/src/Jornada.Linkage.Runner/**'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/**'
+      - 'Solution/src/Jornada.Processor.Worker/**'
+      - '.github/workflows/linkage-independent-validation.yml'
+  pull_request:
+    paths:
+      - 'Solution/database/Jornada_Dev_LinkageValidation.sql'
+      - 'Solution/database/Jornada_Dev_SyntheticScale*.sql'
+      - 'Solution/scripts/local-linkage-validation.*'
+      - 'Solution/scripts/local-cluster.*'
+      - 'Solution/scripts/local-db.*'
+      - 'Solution/docker-compose.yml'
+      - 'Solution/src/Jornada.Linkage.Runner/**'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/**'
+      - 'Solution/src/Jornada.Processor.Worker/**'
+      - '.github/workflows/linkage-independent-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  independent-validation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Parse validation entrypoints
+        shell: bash
+        run: |
+          bash -n scripts/local-linkage-validation.sh
+          pwsh -NoLogo -NoProfile -Command '$bytes=[IO.File]::ReadAllBytes("scripts/local-linkage-validation.ps1"); if($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF){ throw "UTF-8 BOM ausente" }; $null=[scriptblock]::Create((Get-Content -Raw -Encoding UTF8 "scripts/local-linkage-validation.ps1")); Write-Host "LINKAGE VALIDATION POWERSHELL PARSE: OK"'
+
+      - name: Start canonical local cluster
+        shell: bash
+        run: bash scripts/local-cluster.sh up
+
+      - name: Calibrate before validation corpus exists
+        shell: bash
+        run: |
+          test "$(docker compose --env-file .env exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Jornada_Local_Dev_2026!' -C -d JornadaLocal -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM silver.pessoa_observacao WHERE codigo_pessoa_origem LIKE 'SCALE-VAL-%';" | tr -d '\r' | xargs)" = '0'
+          bash scripts/local-cluster.sh calibrate
+          echo 'CALIBRATION PRECEDES VALIDATION CORPUS: OK'
+
+      - name: Run independent adversarial validation
+        shell: bash
+        run: bash scripts/local-linkage-validation.sh
+
+      - name: Preserve validation evidence
+        if: always()
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: linkage-independent-validation
+          path: |
+            Solution/.local/linkage-validation/blocking-pass-audit.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Dump cluster logs on failure
+        if: failure()
+        shell: bash
+        run: docker compose --env-file .env logs --tail 250 || true
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: docker compose --env-file .env down -v --remove-orphans || true
