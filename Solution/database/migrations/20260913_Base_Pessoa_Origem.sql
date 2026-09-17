@@ -10,7 +10,8 @@ GO
  inclusive de Gestores diferentes.
 
  Compatibilidade: cada sistema já existente recebe uma base PRIVADA própria,
- preservando exatamente o namespace anterior (sistema_origem_id,codigo_pessoa_origem).
+ preservando o namespace anterior. Esta migração é preparatória: o runtime v1-v3
+ ainda pode inserir pessoa_origem sem base explícita até o cutover do Processor v4.
  Nenhum compartilhamento intersistema é criado automaticamente.
 */
 
@@ -59,24 +60,24 @@ BEGIN
 END;
 GO
 
-/* Uma base privada por sistema existente. O prefixo SYS_ impede colisão com códigos
-   institucionais compartilhados que venham a ser cadastrados futuramente. */
+/* Uma base privada por sistema existente. O código deriva somente da PK técnica do
+   sistema: é determinístico, globalmente único, curto e não depende do tamanho/grafia
+   dos códigos de Gestor/Sistema. Os nomes humanos ficam apenas na descrição. */
 INSERT ref.base_pessoa_origem(codigo,nome,gestor_custodiante_id,escopo,confianca_identidade)
-SELECT CONCAT('SYS_',g.codigo,'_',s.codigo),
+SELECT CONCAT('SYS_',CONVERT(VARCHAR(20),s.sistema_origem_id)),
        CONCAT('Base privativa legada - ',g.codigo,' / ',s.codigo),
        s.gestor_id,'PRIVADA','HOMOLOGADA_DETERMINISTICA'
 FROM ref.sistema_origem s
 JOIN ref.gestor g ON g.gestor_id=s.gestor_id
 WHERE NOT EXISTS(
     SELECT 1 FROM ref.base_pessoa_origem b
-    WHERE b.codigo=CONCAT('SYS_',g.codigo,'_',s.codigo));
+    WHERE b.codigo=CONCAT('SYS_',CONVERT(VARCHAR(20),s.sistema_origem_id)));
 GO
 
 INSERT ref.sistema_origem_base_pessoa(sistema_origem_id,base_pessoa_origem_id,padrao,ativo)
 SELECT s.sistema_origem_id,b.base_pessoa_origem_id,1,1
 FROM ref.sistema_origem s
-JOIN ref.gestor g ON g.gestor_id=s.gestor_id
-JOIN ref.base_pessoa_origem b ON b.codigo=CONCAT('SYS_',g.codigo,'_',s.codigo)
+JOIN ref.base_pessoa_origem b ON b.codigo=CONCAT('SYS_',CONVERT(VARCHAR(20),s.sistema_origem_id))
 WHERE NOT EXISTS(
     SELECT 1 FROM ref.sistema_origem_base_pessoa sb
     WHERE sb.sistema_origem_id=s.sistema_origem_id
@@ -98,7 +99,7 @@ WHERE po.base_pessoa_origem_id IS NULL;
 GO
 
 IF EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE base_pessoa_origem_id IS NULL)
-    THROW 51270,'Não foi possível associar todas as Pessoas de origem a uma Base de Pessoa de Origem.',1;
+    THROW 51270,'Não foi possível associar as Pessoas de origem existentes a uma Base de Pessoa de Origem.',1;
 GO
 
 IF NOT EXISTS(
@@ -110,26 +111,21 @@ IF NOT EXISTS(
         FOREIGN KEY(base_pessoa_origem_id) REFERENCES ref.base_pessoa_origem(base_pessoa_origem_id);
 GO
 
-ALTER TABLE silver.pessoa_origem ALTER COLUMN base_pessoa_origem_id BIGINT NOT NULL;
-GO
-
-/* O namespace de identidade passa a ser base+codigo. O sistema_origem_id continua
-   preservado como proveniência do sistema que materializou originalmente a linha. */
-IF EXISTS(
-    SELECT 1 FROM sys.key_constraints
-    WHERE parent_object_id=OBJECT_ID('silver.pessoa_origem') AND name='uq_pessoa_origem')
-    ALTER TABLE silver.pessoa_origem DROP CONSTRAINT uq_pessoa_origem;
-GO
-
+/* Pré-cutover: preserva uq_pessoa_origem(sistema_origem_id,codigo_pessoa_origem) e
+   mantém base_pessoa_origem_id anulável para o runtime v1-v3. A unicidade do novo
+   namespace vale para linhas já migradas e para o runtime v4 que informar a base.
+   O cutover posterior pode tornar a coluna obrigatória somente depois de o Processor
+   gravar a base explicitamente em todos os caminhos. */
 IF NOT EXISTS(
     SELECT 1 FROM sys.indexes
     WHERE object_id=OBJECT_ID('silver.pessoa_origem') AND name='uq_pessoa_origem_base_codigo')
     CREATE UNIQUE INDEX uq_pessoa_origem_base_codigo
-        ON silver.pessoa_origem(base_pessoa_origem_id,codigo_pessoa_origem);
+        ON silver.pessoa_origem(base_pessoa_origem_id,codigo_pessoa_origem)
+        WHERE base_pessoa_origem_id IS NOT NULL;
 GO
 
-/* Uso efetivo: registra quais sistemas já observaram a mesma identidade de origem.
-   Isso evita reinterpretar sistema_origem_id da linha como dono exclusivo da Pessoa. */
+/* Uso efetivo conhecido no instante da migração: registra quais sistemas já observaram
+   cada identidade de origem. Novas observações passam a ser registradas pelo runtime v4. */
 IF OBJECT_ID('silver.pessoa_origem_sistema','U') IS NULL
 BEGIN
     CREATE TABLE silver.pessoa_origem_sistema(
@@ -146,6 +142,7 @@ MERGE silver.pessoa_origem_sistema AS t
 USING (
     SELECT pessoa_origem_id,sistema_origem_id,criado_em
     FROM silver.pessoa_origem
+    WHERE base_pessoa_origem_id IS NOT NULL
 ) AS s
 ON t.pessoa_origem_id=s.pessoa_origem_id AND t.sistema_origem_id=s.sistema_origem_id
 WHEN NOT MATCHED THEN
