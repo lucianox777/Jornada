@@ -17,6 +17,7 @@ public sealed class IbgeNominalUBootstrapReporter(
     IHostApplicationLifetime applicationLifetime) : BackgroundService
 {
     public const string Operation = "REPORT_IBGE_U_BOOTSTRAP";
+    private static readonly JsonSerializerOptions ReportJsonOptions = new() { WriteIndented = true };
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -129,7 +130,7 @@ public sealed class IbgeNominalUBootstrapReporter(
 
             await File.WriteAllTextAsync(
                 fullPath,
-                JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }),
+                JsonSerializer.Serialize(report, ReportJsonOptions),
                 stoppingToken);
 
             logger.LogInformation(
