@@ -1,7 +1,9 @@
 # Jornada SQL Server operational schema manifest
 # Paths are relative to Solution/database. Order is normative and follows explicit prerequisites.
 # Every operational schema mutation required by SolutionSchema 3.70 belongs here.
-# The final entry is the only migration allowed to promote Jornada.SolutionSchema to 3.70.
+# The first entry bootstraps the migration ledger; the final entry is the only migration allowed
+# to promote Jornada.SolutionSchema to 3.70.
+migrations/20260916_Schema_Migration_Ledger.sql
 Jornada_Identidade_Progressiva.sql
 migrations/20260907_Cpf_Ancora.sql
 migrations/20260908_Identidade_Composicao_Ledger.sql
