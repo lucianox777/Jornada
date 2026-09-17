@@ -79,7 +79,7 @@ ensure_synthetic_scale() {
     count="$(sql_scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")"
   fi
   [[ "$count" == "11000" ]] || {
-    echo "ERRO: massa sintética local inconsistente: esperadas 11000 pessoas de origem SCALE; encontradas=$count. Execute local-db reset." >&2
+    echo "ERRO: massa sintética local inconsistente: esperadas 11000 observações de origem SCALE; encontradas=$count. Execute local-db reset." >&2
     return 4
   }
   echo "Corpus sintético local pronto: 5000 pessoas Gold, 5000 pares corroborados e 1000 pendentes."
