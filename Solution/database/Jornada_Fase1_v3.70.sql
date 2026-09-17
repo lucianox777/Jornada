@@ -30,4 +30,5 @@
 :r database/migrations/20260914_Operational_Monitor.sql
 :r database/migrations/20260915_Linkage_LogOdds_Margin.sql
 :r database/migrations/20260915_Linkage_Model_Promotion_Contract.sql
+:r database/migrations/20260916_Linkage_U_Support_Reachability.sql
 :r database/migrations/20260910_Schema_Consolidation_370.sql
