@@ -7,6 +7,7 @@ on:
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
       - 'Solution/scripts/local-test-round.ps1'
+      - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/local-scale.ps1'
@@ -19,6 +20,7 @@ on:
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
       - 'Solution/scripts/local-test-round.ps1'
+      - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/local-scale.ps1'
@@ -54,6 +56,7 @@ jobs:
             'scripts/local-test.ps1',
             'scripts/local-test-all.ps1',
             'scripts/local-test-round.ps1',
+            'scripts/local-cluster.ps1',
             'scripts/local-linkage-evaluation-smoke.ps1',
             'scripts/local-scale.ps1',
             'scripts/local-sql-runtime-smoke.ps1',
@@ -84,7 +87,7 @@ jobs:
           }
           Write-Host 'LOCAL SCALE ENVIRONMENT CONTRACT: OK'
 
-      - name: Validate local suite isolation and deterministic database reset
+      - name: Validate local suite isolation, command echo and deterministic database reset
         shell: pwsh
         run: |
           $content = Get-Content -Raw -Encoding UTF8 scripts/local-test-all.ps1
@@ -94,12 +97,41 @@ jobs:
           if ($content -notmatch "Invoke-PowerShellScript 'local-db\.ps1' @\('-Action', 'reset'\)") {
             throw 'local-test-all.ps1 deve recriar o banco canônico antes do Core.'
           }
+          if (-not $content.Contains('function Write-CommandLine') -or
+              -not $content.Contains('Write-CommandLine $CurrentPowerShell')) {
+            throw 'local-test-all.ps1 deve imprimir os comandos reais antes de executá-los.'
+          }
+          if ($content -match "Invoke-Step\s+'DDL upgrade" -or $content -match "Invoke-Step\s+'[^']*3\.65") {
+            throw 'local-test-all.ps1 pré-HML não deve executar upgrade histórico por padrão.'
+          }
+          if (-not $content.Contains('historicalUpgradeDefault = $false')) {
+            throw 'O relatório da suíte deve registrar explicitamente que upgrade histórico não é default pré-HML.'
+          }
           foreach ($forbidden in @('Sync-CleanMaster', 'CleanMasterExecution', "reset','--hard", "clean','-fd")) {
             if ($content.Contains($forbidden)) {
               throw "local-test-all.ps1 não pode voltar a alterar destrutivamente o working tree: $forbidden"
             }
           }
-          Write-Host 'LOCAL SUITE ISOLATION/RESET CONTRACT: OK'
+          Write-Host 'LOCAL SUITE ISOLATION/COMMAND ECHO/RESET CONTRACT: OK'
+
+      - name: Validate local cluster command echo without secret disclosure
+        shell: pwsh
+        run: |
+          $content = Get-Content -Raw -Encoding UTF8 scripts/local-cluster.ps1
+          foreach ($required in @(
+            'function Write-CommandLine',
+            "Write-CommandLine 'docker'",
+            "'-P','<redacted>'",
+            "Write-CommandLine `$LocalDb"
+          )) {
+            if (-not $content.Contains($required)) {
+              throw "local-cluster.ps1 perdeu contrato de command echo: $required"
+            }
+          }
+          if ($content -match 'Write-CommandLine[^\r\n]*\$password') {
+            throw 'local-cluster.ps1 não pode imprimir a senha SQL em command echo.'
+          }
+          Write-Host 'LOCAL CLUSTER COMMAND ECHO/SECRET REDACTION CONTRACT: OK'
 
       - name: Validate canonical audit before scale and canonical restoration
         shell: pwsh
@@ -132,8 +164,8 @@ jobs:
             throw "$runnerPath deve começar por cls."
           }
           $audit = $content.IndexOf("local-linkage-evaluation-smoke.ps1")
-          $clean = $content.IndexOf("16/19 - Encerrar cluster antes do SCALE")
-          $scale = $content.IndexOf("17/19 - Smoke de escala + probe sincronizado de coordenação")
+          $clean = $content.IndexOf("15/18 - Encerrar cluster antes do SCALE")
+          $scale = $content.IndexOf("16/18 - Smoke de escala + probe sincronizado de coordenação")
           if ($audit -lt 0 -or $clean -lt 0 -or $scale -lt 0 -or -not ($audit -lt $clean -and $clean -lt $scale)) {
             throw "$runnerPath deve executar Evaluation antes de encerrar o cluster e iniciar o SCALE."
           }
@@ -142,6 +174,15 @@ jobs:
           }
           if (-not $content.Contains('Write-Host "# $CommandText"')) {
             throw "$runnerPath deve imprimir cada comando como comentário antes de executá-lo."
+          }
+          if ($content -match "Invoke-Step\s+'[^']*Upgrade DDL" -or $content -match "Invoke-Step\s+'[^']*3\.65") {
+            throw 'A rodada contínua pré-HML não deve executar upgrade de baseline histórico por padrão.'
+          }
+          if (-not $content.Contains('Gate histórico pré-HML opcional: .\scripts\local-ddl-upgrade.ps1')) {
+            throw 'A rodada contínua deve manter o gate histórico disponível como comando manual explícito.'
+          }
+          if (-not $content.Contains('5.603.287 linhas') -or -not $content.Contains('heartbeat a cada 15 segundos')) {
+            throw 'A etapa de calibração deve explicar a carga IBGE longa e o heartbeat do worker.'
           }
           if ($content.Contains('Read-Host')) {
             throw 'Runner contínuo não pode aguardar ENTER.'

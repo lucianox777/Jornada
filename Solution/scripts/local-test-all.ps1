@@ -15,14 +15,32 @@ $OverallStatus = 'FAILED'
 $FailureMessage = $null
 $testedSha = $null
 
+function Format-CommandArgument {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Value)
+    if ($Value -notmatch '[\s''"`$&|<>]') { return $Value }
+    return "'" + $Value.Replace("'", "''") + "'"
+}
+
+function Write-CommandLine {
+    param(
+        [Parameter(Mandatory = $true)][string]$Executable,
+        [string[]]$Arguments = @()
+    )
+    $tokens = @((Format-CommandArgument $Executable))
+    $tokens += @($Arguments | ForEach-Object { Format-CommandArgument ([string]$_) })
+    Write-Host ("# " + ($tokens -join ' ')) -ForegroundColor DarkGray
+}
+
 function Invoke-Git {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
+    Write-CommandLine 'git' $Arguments
     & git @Arguments
     if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') falhou ($LASTEXITCODE)." }
 }
 
 function Invoke-GitCapture {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
+    Write-CommandLine 'git' $Arguments
     $output = @(& git @Arguments)
     if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') falhou ($LASTEXITCODE)." }
     return $output
@@ -58,13 +76,14 @@ function Invoke-PowerShellScript {
 
     $path = Join-Path $PSScriptRoot $ScriptName
     if (-not (Test-Path -LiteralPath $path)) { throw "Script não encontrado: $path" }
+    Write-CommandLine $CurrentPowerShell (@('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$path) + $Arguments)
     & $CurrentPowerShell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $path @Arguments
     if ($LASTEXITCODE -ne 0) { throw "$ScriptName falhou ($LASTEXITCODE)." }
 }
 
 function Invoke-ClusterAction {
     param([Parameter(Mandatory = $true)][ValidateSet('clean','up','calibrate','linkage','linkage-diagnose')][string]$Action)
-    Invoke-PowerShellScript 'local-cluster.ps1' @($Action)
+    Invoke-PowerShellScript 'local-cluster.ps1' @('-Action', $Action)
 }
 
 function Get-BashExecutable {
@@ -100,6 +119,7 @@ function Get-BashExecutable {
 
 function Resolve-LocalSqlContainerId {
     $canonicalName = 'jornada-sqlserver-local'
+    Write-CommandLine 'docker' @('inspect','--format','{{.Id}}',$canonicalName)
     $idOutput = @(& docker inspect --format '{{.Id}}' $canonicalName 2>$null)
     if ($LASTEXITCODE -ne 0 -or $idOutput.Count -eq 0) {
         throw "Container SQL Server local '$canonicalName' não existe. Execute .\scripts\local-cluster.ps1 -Action up."
@@ -110,6 +130,7 @@ function Resolve-LocalSqlContainerId {
         throw "Container SQL Server local '$canonicalName' foi encontrado sem ID válido."
     }
 
+    Write-CommandLine 'docker' @('inspect','--format','{{.State.Status}}|{{.State.Running}}|{{.State.ExitCode}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}',$containerId)
     $stateOutput = @(& docker inspect --format '{{.State.Status}}|{{.State.Running}}|{{.State.ExitCode}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' $containerId 2>$null)
     if ($LASTEXITCODE -ne 0 -or $stateOutput.Count -eq 0) {
         throw "Não foi possível consultar o estado do container SQL Server local '$canonicalName'."
@@ -180,6 +201,7 @@ function Invoke-LinkageEvaluationSmoke {
             $env:JORNADA_EVALUATION_LABEL_COUNT = '100'
             $env:JORNADA_EVALUATION_SQL_CONTAINER_ID = $containerId
 
+            Write-CommandLine $bash @('./scripts/linkage-evaluation-smoke.sh')
             & $bash ./scripts/linkage-evaluation-smoke.sh
             if ($LASTEXITCODE -ne 0) { throw "linkage-evaluation-smoke.sh falhou ($LASTEXITCODE)." }
         }
@@ -219,6 +241,7 @@ if (-not $IsolatedExecution) {
         Write-Host "Criando worktree isolado para $testedSha..."
         Invoke-Git @('worktree','add','--detach',$worktreePath,$testedSha)
         $isolatedScript = Join-Path $worktreePath 'Solution/scripts/local-test-all.ps1'
+        Write-CommandLine $CurrentPowerShell @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$isolatedScript,'-Suite',$Suite,'-IsolatedExecution')
         & $CurrentPowerShell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $isolatedScript -Suite $Suite -IsolatedExecution
         $exitCode = $LASTEXITCODE
     }
@@ -235,9 +258,11 @@ if (-not $IsolatedExecution) {
         }
 
         if (Test-Path -LiteralPath $worktreePath) {
+            Write-CommandLine 'git' @('worktree','remove','--force',$worktreePath)
             & git worktree remove --force $worktreePath
             if ($LASTEXITCODE -ne 0) { Write-Warning "Não foi possível remover automaticamente o worktree temporário: $worktreePath" }
         }
+        Write-CommandLine 'git' @('worktree','prune')
         & git worktree prune
         Pop-Location
     }
@@ -262,6 +287,7 @@ try {
     Write-Host 'Branch: detached worktree de origin/master'
     Write-Host "SHA:    $testedSha"
     Write-Host 'A suíte é destrutiva para bancos/volumes locais de teste, mas não altera o working tree do desenvolvedor.'
+    Write-Host 'Pré-HML: o upgrade de baselines históricos não é executado por padrão. Para diagnóstico manual: .\scripts\local-ddl-upgrade.ps1.'
 
     Invoke-Step 'Banco local canônico: reset determinístico' {
         Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')
@@ -269,10 +295,6 @@ try {
 
     Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
         Invoke-PowerShellScript 'local-test.ps1'
-    }
-
-    Invoke-Step 'DDL upgrade 3.65 -> 3.70 + idempotência' {
-        Invoke-PowerShellScript 'local-ddl-upgrade.ps1'
     }
 
     Invoke-Step 'E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP' {
@@ -286,6 +308,7 @@ try {
     Invoke-Step 'Cluster limpo: rebuild + calibrate + linkage + diagnose' {
         Invoke-ClusterAction 'clean'
         Invoke-ClusterAction 'up'
+        Write-Host 'Nota: a primeira calibração de um banco novo pode carregar 5.603.287 linhas da referência IBGE. O worker imprime heartbeat a cada 15 segundos durante a carga.' -ForegroundColor DarkYellow
         Invoke-ClusterAction 'calibrate'
         Invoke-ClusterAction 'linkage'
         Invoke-ClusterAction 'linkage-diagnose'
@@ -344,6 +367,7 @@ finally {
         suite = $Suite
         gitCommitSha = $testedSha
         executionMode = 'isolated-worktree'
+        historicalUpgradeDefault = $false
         generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         failure = $FailureMessage
         steps = @($Results)

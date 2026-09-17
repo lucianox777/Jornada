@@ -34,10 +34,14 @@ else
     if (operation == "GENERATE_DRAFT" && !await HasActiveNameFrequencyReferenceAsync(operationalSql))
     {
         Console.WriteLine("Referência de frequências ausente; carregando snapshot local canônico antes de GENERATE_DRAFT.");
+        Console.WriteLine("A carga canônica contém milhões de linhas e pode levar alguns minutos. O processo imprimirá um heartbeat a cada 15 segundos.");
         var bootstrapBuilder = Host.CreateApplicationBuilder(args);
         bootstrapBuilder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
         bootstrapBuilder.Services.AddHostedService<NameFrequencySnapshotLoader>();
-        await bootstrapBuilder.Build().RunAsync();
+        await RunHostWithHeartbeatAsync(
+            bootstrapBuilder.Build(),
+            "Carga da referência de frequências",
+            TimeSpan.FromSeconds(15));
 
         if (Environment.ExitCode != 0 || !await HasActiveNameFrequencyReferenceAsync(operationalSql))
             throw new InvalidOperationException("GENERATE_DRAFT exige uma referência de frequências ATIVA; carga do snapshot local não foi concluída.");
@@ -63,7 +67,34 @@ else
     }
 }
 
-await builder.Build().RunAsync();
+var host = builder.Build();
+if (operation == NameFrequencySnapshotLoader.Operation)
+{
+    Console.WriteLine("Carga explícita da referência de frequências iniciada. O processo imprimirá um heartbeat a cada 15 segundos.");
+    await RunHostWithHeartbeatAsync(host, "Carga da referência de frequências", TimeSpan.FromSeconds(15));
+}
+else
+{
+    await host.RunAsync();
+}
+
+static async Task RunHostWithHeartbeatAsync(IHost host, string activity, TimeSpan interval)
+{
+    var startedAt = DateTimeOffset.UtcNow;
+    var runTask = host.RunAsync();
+
+    while (!runTask.IsCompleted)
+    {
+        var completed = await Task.WhenAny(runTask, Task.Delay(interval));
+        if (completed == runTask)
+            break;
+
+        var elapsed = DateTimeOffset.UtcNow - startedAt;
+        Console.WriteLine($"{activity} em andamento há {elapsed.TotalSeconds:N0}s; processo ativo, aguarde...");
+    }
+
+    await runTask;
+}
 
 static async Task<bool> HasActiveNameFrequencyReferenceAsync(IOperationalSqlAdapter operationalSql)
 {
