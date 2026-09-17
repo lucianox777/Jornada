@@ -30,7 +30,7 @@ public sealed class CanonicalHarnessCorpusTests
     }
 
     [Test]
-    public void CiHarnessMustFailWhenNoCandidateEscapesDeliberateStressFixture()
+    public void CiHarnessMustReconcileNoCandidateCounterAndEnforceBlockingRecallFloor()
     {
         var root = FindRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
@@ -39,11 +39,14 @@ public sealed class CanonicalHarnessCorpusTests
         {
             Assert.That(workflow, Does.Contain("--since 2026-08-31T01:00:00Z"));
             Assert.That(workflow, Does.Contain("SEM_CANDIDATO_%"));
-            Assert.That(workflow, Does.Contain("n%10<>0"));
-            Assert.That(workflow, Does.Contain("UNEXPECTED_NO_CANDIDATE"));
-            Assert.That(workflow, Does.Contain("test \"$UNEXPECTED_NO_CANDIDATE\" = '0'"));
+            Assert.That(workflow, Does.Contain("LinkageParameters__BlockingSearch__MinimumTrueMatchRecall: '0.95'"));
             Assert.That(workflow, Does.Contain("REPORTED_NO_CANDIDATE"));
             Assert.That(workflow, Does.Contain("ACTUAL_NO_CANDIDATE"));
+            Assert.That(workflow, Does.Contain("TOTAL_SYNTHETIC_RESULTS"));
+            Assert.That(workflow, Does.Contain("BLOCKING_RECALL_PPM"));
+            Assert.That(workflow, Does.Contain("test \"$BLOCKING_RECALL_PPM\" -ge 950000"));
+            Assert.That(workflow, Does.Not.Contain("UNEXPECTED_NO_CANDIDATE"));
+            Assert.That(workflow, Does.Not.Contain("n%10<>0"));
         });
     }
 
