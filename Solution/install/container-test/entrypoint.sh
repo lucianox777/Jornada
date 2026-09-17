@@ -67,6 +67,24 @@ while IFS=$'\t' read -r key value; do
   export "$key=$value"
 done < <(jq -r '.runtime.environment // {} | to_entries[] | [.key, (.value|tostring)] | @tsv' "$CONFIG_PATH")
 
+# A referência IBGE é dado de referência do ambiente, não uma etapa conceitual da
+# calibração. NODE2 garante sua materialização antes de anunciar os processos
+# residentes. A operação ENSURE faz apenas uma consulta quando o snapshot já existe;
+# a carga completa ocorre somente em banco novo ou explicitamente recriado.
+if [[ "$JORNADA_NODE_ID" == "NODE2" ]]; then
+  parameters_dll="/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll"
+  [[ -f "$parameters_dll" ]] || { echo "Linkage Parameters publicado ausente: $parameters_dll" >&2; exit 3; }
+  echo "[$JORNADA_NODE_ID] garantindo referência IBGE 2022 canônica antes de iniciar os processos residentes..."
+  (
+    cd "$(dirname "$parameters_dll")"
+    exec env \
+      LinkageParameters__Operation=ENSURE_NAME_FREQUENCY_SNAPSHOT \
+      LinkageParameters__RunOnce=true \
+      dotnet "$parameters_dll"
+  )
+  echo "[$JORNADA_NODE_ID] referência IBGE 2022 pronta."
+fi
+
 mkdir -p \
   "$BronzeStorage__RootPath" \
   "$IngestionStaging__RootPath" \
