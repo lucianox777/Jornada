@@ -25,6 +25,23 @@ function Get-BashExecutable {
     return $null
 }
 
+function Resolve-Python3 {
+    foreach ($candidate in @(
+        @{ Name = 'python3'; Prefix = @() },
+        @{ Name = 'python'; Prefix = @() },
+        @{ Name = 'py'; Prefix = @('-3') }
+    )) {
+        $command = Get-Command $candidate.Name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($null -eq $command) { continue }
+        $prefix = @($candidate.Prefix)
+        & $command.Source @prefix -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            return @{ Exe = $command.Source; Prefix = $prefix }
+        }
+    }
+    throw 'Python 3 não encontrado (tentados: python3, python, py -3).'
+}
+
 function Get-EnvValues {
     if (-not (Test-Path -LiteralPath $EnvFile)) { throw '.env não encontrado. Execute antes o preparo do ambiente local.' }
     $vars = @{}
@@ -68,6 +85,7 @@ $bash = Get-BashExecutable
 if ([string]::IsNullOrWhiteSpace($bash)) {
     throw 'Bash compatível não encontrado. No Windows, instale/use o Git Bash do Git for Windows.'
 }
+$python3 = Resolve-Python3
 
 $vars = Get-EnvValues
 $password = $vars['JORNADA_SQL_SA_PASSWORD']
@@ -99,6 +117,17 @@ try {
     Write-Host "Executando linkage-evaluation-smoke.sh via $bash"
     & $bash ./scripts/linkage-evaluation-smoke.sh
     if ($LASTEXITCODE -ne 0) { throw "linkage-evaluation-smoke.sh falhou ($LASTEXITCODE)." }
+
+    $auditPath = Join-Path $Root '.local/linkage-evaluation-smoke/blocking-pass-audit.json'
+    if (-not (Test-Path -LiteralPath $auditPath)) { throw "Auditoria de blocking por passe não encontrada: $auditPath" }
+    $fanoutArgs = @($python3.Prefix) + @(
+        'scripts/blocking-pass-fanout-gate.py',
+        $auditPath,
+        '--population',
+        $env:JORNADA_EVALUATION_SCALE_PEOPLE
+    )
+    & $python3.Exe @fanoutArgs
+    if ($LASTEXITCODE -ne 0) { throw "blocking-pass-fanout-gate.py falhou ($LASTEXITCODE)." }
 }
 finally {
     $env:ConnectionStrings__Jornada = $old.Connection

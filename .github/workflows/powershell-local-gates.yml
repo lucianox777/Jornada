@@ -6,8 +6,10 @@ on:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-test-round-paused.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
+      - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
       - 'Solution/scripts/local-db.ps1'
@@ -17,8 +19,10 @@ on:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-test-round-paused.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
+      - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
       - 'Solution/scripts/local-db.ps1'
@@ -51,6 +55,7 @@ jobs:
             'scripts/local-ddl-upgrade.ps1',
             'scripts/local-test.ps1',
             'scripts/local-test-all.ps1',
+            'scripts/local-test-round.ps1',
             'scripts/local-test-round-paused.ps1',
             'scripts/local-linkage-evaluation-smoke.ps1',
             'scripts/local-scale.ps1',
@@ -65,6 +70,10 @@ jobs:
             $null = [scriptblock]::Create((Get-Content -Raw -Encoding UTF8 $file))
             Write-Host "POWERSHELL UTF-8 BOM/PARSE OK: $file"
           }
+
+      - name: Validate blocking pass fan-out gate self-test
+        shell: bash
+        run: python3 scripts/blocking-pass-fanout-gate.py --self-test
 
       - name: Validate local scale environment parity
         shell: pwsh
@@ -115,31 +124,41 @@ jobs:
           }
           Write-Host 'LOCAL SUITE CANONICAL AUDIT/SCALE RESTORE CONTRACT: OK'
 
-      - name: Validate paused round covers Evaluation and isolates SCALE
+      - name: Validate round runners and Evaluation fan-out gate
         shell: pwsh
         run: |
-          $content = Get-Content -Raw -Encoding UTF8 scripts/local-test-round-paused.ps1
-          $audit = $content.IndexOf("local-linkage-evaluation-smoke.ps1")
-          $clean = $content.IndexOf("16/19 - Encerrar cluster antes do SCALE")
-          $scale = $content.IndexOf("17/19 - Smoke de escala + probe sincronizado de coordenação")
-          if ($audit -lt 0 -or $clean -lt 0 -or $scale -lt 0 -or -not ($audit -lt $clean -and $clean -lt $scale)) {
-            throw 'A rodada pausada deve executar Evaluation antes de encerrar o cluster e iniciar o SCALE.'
+          foreach ($runnerPath in @('scripts/local-test-round-paused.ps1','scripts/local-test-round.ps1')) {
+            $content = Get-Content -Raw -Encoding UTF8 $runnerPath
+            $audit = $content.IndexOf("local-linkage-evaluation-smoke.ps1")
+            $clean = $content.IndexOf("16/19 - Encerrar cluster antes do SCALE")
+            $scale = $content.IndexOf("17/19 - Smoke de escala + probe sincronizado de coordenação")
+            if ($audit -lt 0 -or $clean -lt 0 -or $scale -lt 0 -or -not ($audit -lt $clean -and $clean -lt $scale)) {
+              throw "$runnerPath deve executar Evaluation antes de encerrar o cluster e iniciar o SCALE."
+            }
+            if ($content -notmatch "local-cluster\.ps1 -Action clean" -or $content -notmatch "local-db\.ps1 -Action reset") {
+              throw "$runnerPath deve isolar o SCALE e restaurar o banco canônico."
+            }
+            if (-not $content.Contains('cls')) { throw "$runnerPath deve limpar a tela no início com cls." }
+            if (-not $content.Contains('>>> $CommandText')) { throw "$runnerPath deve imprimir cada comando antes de executá-lo." }
           }
-          if ($content -notmatch "local-cluster\.ps1 -Action clean" -or
-              $content -notmatch "local-db\.ps1 -Action reset") {
-            throw 'A rodada pausada deve isolar o SCALE e restaurar o banco canônico.'
-          }
+          $paused = Get-Content -Raw -Encoding UTF8 scripts/local-test-round-paused.ps1
+          if (-not $paused.Contains('Read-Host')) { throw 'Runner pausado deve manter pausa por ENTER.' }
+          $continuous = Get-Content -Raw -Encoding UTF8 scripts/local-test-round.ps1
+          if ($continuous.Contains('Read-Host')) { throw 'Runner contínuo não pode aguardar ENTER.' }
+
           $wrapper = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-evaluation-smoke.ps1
           foreach ($required in @(
             'linkage-evaluation-smoke.sh',
             "JORNADA_EVALUATION_SCALE_PEOPLE = '5000'",
-            'JORNADA_EVALUATION_SQL_CONTAINER_ID'
+            'JORNADA_EVALUATION_SQL_CONTAINER_ID',
+            'blocking-pass-fanout-gate.py',
+            'blocking-pass-audit.json'
           )) {
             if (-not $wrapper.Contains($required)) {
               throw "Wrapper local do Evaluation perdeu contrato obrigatório: $required"
             }
           }
-          Write-Host 'PAUSED ROUND EVALUATION/SCALE ISOLATION CONTRACT: OK'
+          Write-Host 'ROUND RUNNERS/EVALUATION FAN-OUT CONTRACT: OK'
 
       - name: Execute DDL upgrade gate through PowerShell
         shell: pwsh
