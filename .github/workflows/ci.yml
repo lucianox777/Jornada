@@ -489,7 +489,7 @@ jobs:
       - name: Run linkage model-validation smoke
         run: |
           dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \
-            --mode MODEL_VALIDATION --model-version "$MODEL_VERSION" --max-records 1000 \
+            --mode MODEL_VALIDATION --model-version "$MODEL_VERSION" --since 2026-08-31T01:00:00Z --max-records 1000 \
             --batch-size 500 --max-parallelism 2 --publish false \
             --requested-by CI_HARNESS --reason ci-harness-evidence
       - name: Prove no-candidate rows are limited to deliberate out-of-universe fixture
