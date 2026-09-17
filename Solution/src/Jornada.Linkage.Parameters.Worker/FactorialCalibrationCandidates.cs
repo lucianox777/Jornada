@@ -23,6 +23,10 @@ public sealed record FactorialCalibrationCandidate(
 /// Combina estimativas m e u de forma fatorial para avaliação end-to-end.
 /// A seleção final ocorre pelo comportamento do candidato completo; não existe
 /// vencedor por atributo nem preferência implícita por implementação.
+///
+/// Todos os estimadores fornecidos na mesma execução devem cobrir exatamente o
+/// mesmo conjunto semântico de níveis. Isso impede que uma estimativa parcial seja
+/// combinada com outra completa e passe a parecer um modelo executável.
 /// </summary>
 public static class FactorialCalibrationCandidateFactory
 {
@@ -43,6 +47,7 @@ public static class FactorialCalibrationCandidateFactory
 
         ValidateUniqueEstimator(mItems, nameof(mEstimates));
         ValidateUniqueEstimator(uItems, nameof(uEstimates));
+        ValidateComparableSemantics(mItems, uItems);
 
         var result = new List<FactorialCalibrationCandidate>(mItems.Length * uItems.Length);
         foreach (var m in mItems.OrderBy(static item => item.Estimator))
@@ -68,6 +73,49 @@ public static class FactorialCalibrationCandidateFactory
         }
 
         return result;
+    }
+
+    private static void ValidateComparableSemantics(
+        IReadOnlyList<ParameterEstimate> mEstimates,
+        IReadOnlyList<ParameterEstimate> uEstimates)
+    {
+        var referenceM = SemanticSuffixes(mEstimates[0], "M_");
+        foreach (var estimate in mEstimates.Skip(1))
+        {
+            var current = SemanticSuffixes(estimate, "M_");
+            if (!referenceM.SetEquals(current))
+                throw new ArgumentException(
+                    $"Estimadores m não cobrem o mesmo conjunto semântico: {mEstimates[0].Estimator} vs {estimate.Estimator}.",
+                    nameof(mEstimates));
+        }
+
+        var referenceU = SemanticSuffixes(uEstimates[0], "U_");
+        foreach (var estimate in uEstimates.Skip(1))
+        {
+            var current = SemanticSuffixes(estimate, "U_");
+            if (!referenceU.SetEquals(current))
+                throw new ArgumentException(
+                    $"Estimadores u não cobrem o mesmo conjunto semântico: {uEstimates[0].Estimator} vs {estimate.Estimator}.",
+                    nameof(uEstimates));
+        }
+
+        if (!referenceM.SetEquals(referenceU))
+            throw new ArgumentException("As famílias m e u não cobrem o mesmo conjunto semântico de níveis.");
+    }
+
+    private static HashSet<string> SemanticSuffixes(ParameterEstimate estimate, string prefix)
+    {
+        var suffixes = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var key in estimate.Values.Keys)
+        {
+            if (!key.StartsWith(prefix, StringComparison.Ordinal))
+                throw new ArgumentException($"Parâmetro '{key}' deve iniciar com '{prefix}'.");
+            suffixes.Add(key[prefix.Length..]);
+        }
+
+        if (suffixes.Count == 0)
+            throw new ArgumentException($"Estimativa {estimate.Estimator} não contém parâmetros {prefix}*.");
+        return suffixes;
     }
 
     private static void AddPrefixed(
