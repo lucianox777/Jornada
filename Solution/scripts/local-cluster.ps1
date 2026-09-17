@@ -150,7 +150,7 @@ function Invoke-Calibration {
     $beforeText = Get-SqlScalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;"
     $before = [int]$beforeText
     Write-Host "Calibração iniciando após modelo v$before."
-    Write-Host 'Se a referência IBGE ainda não estiver materializada, a primeira geração carregará o snapshot canônico completo. O worker emitirá heartbeat a cada 15 segundos durante essa etapa.' -ForegroundColor DarkYellow
+    Write-Host 'Referência IBGE canônica é materializada no bootstrap do ambiente; GENERATE_DRAFT só usa o fallback de carga em banco criado fora do fluxo oficial.' -ForegroundColor DarkYellow
     Invoke-Node2 -Command @('env','LinkageParameters__Operation=GENERATE_DRAFT','LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
     $count = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")
     if ($count -ne 1) { throw "Esperado exatamente um novo RASCUNHO; encontrados=$count." }
@@ -176,10 +176,17 @@ function Invoke-Linkage {
 }
 
 function Show-LinkageDiagnosis {
-    $runId = Get-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE status='PUBLICADO' AND tipo_run='ON_DEMAND' ORDER BY publicado_em DESC,iniciado_em DESC,linkage_run_id DESC;"
-    if ([string]::IsNullOrWhiteSpace($runId)) { throw 'Nenhum linkage ON_DEMAND PUBLICADO encontrado.' }
+    $activeModelId = Get-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;"
+    if ([string]::IsNullOrWhiteSpace($activeModelId)) {
+        throw "Diagnóstico bloqueado: nenhum modelo calibrado ATIVO. Execute primeiro '.\scripts\local-cluster.ps1 calibrate'."
+    }
 
-    Write-Host "Diagnóstico do último linkage ON_DEMAND PUBLICADO: $runId"
+    $runId = Get-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE status='PUBLICADO' AND tipo_run='ON_DEMAND' AND modelo_id='$activeModelId' ORDER BY publicado_em DESC,iniciado_em DESC,linkage_run_id DESC;"
+    if ([string]::IsNullOrWhiteSpace($runId)) {
+        throw "Nenhum linkage ON_DEMAND PUBLICADO para o modelo calibrado ATIVO $activeModelId. Execute primeiro '.\scripts\local-cluster.ps1 linkage'."
+    }
+
+    Write-Host "Diagnóstico do último linkage ON_DEMAND PUBLICADO do modelo ATIVO $activeModelId`: $runId"
     Write-Host 'Nota: modelo_versao é monotônica somente dentro da base corrente; clean/reset recria a base. Para A/B entre bases, compare modelo_id + fingerprints.'
 
     Write-Host ''
