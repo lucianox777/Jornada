@@ -17,6 +17,22 @@ if (-not (Test-Path -LiteralPath $EnvFile)) {
     Write-Host 'Criado .env local com as credenciais sintéticas padrão de teste.'
 }
 
+function Format-CommandArgument {
+    param([Parameter(Mandatory=$true)][AllowEmptyString()][string]$Value)
+    if ($Value -notmatch '[\s''"`$&|<>]') { return $Value }
+    return "'" + $Value.Replace("'", "''") + "'"
+}
+
+function Write-CommandLine {
+    param(
+        [Parameter(Mandatory=$true)][string]$Executable,
+        [string[]]$Arguments = @()
+    )
+    $tokens = @((Format-CommandArgument $Executable))
+    $tokens += @($Arguments | ForEach-Object { Format-CommandArgument ([string]$_) })
+    Write-Host ("# " + ($tokens -join ' ')) -ForegroundColor DarkGray
+}
+
 function Get-EnvValue([string]$Name) {
     foreach ($line in Get-Content -LiteralPath $EnvFile) {
         if ($line -match '^\s*#' -or [string]::IsNullOrWhiteSpace($line)) { continue }
@@ -30,6 +46,7 @@ function Invoke-Compose {
     param([Parameter(Mandatory=$true)][string[]]$ComposeArgs)
     Push-Location $Root
     try {
+        Write-CommandLine 'docker' (@('compose','--env-file',$EnvFile) + $ComposeArgs)
         & docker compose --env-file $EnvFile @ComposeArgs
         if ($LASTEXITCODE -ne 0) { throw "docker compose falhou ($LASTEXITCODE)." }
     }
@@ -41,6 +58,7 @@ function Get-SqlScalar([string]$Query) {
     if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD ausente do .env.' }
     Push-Location $Root
     try {
+        Write-CommandLine 'docker' @('compose','--env-file',$EnvFile,'exec','-T','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-P','<redacted>','-C','-d','JornadaLocal','-W','-h','-1','-b','-Q',"SET NOCOUNT ON; $Query")
         $lines = @(& docker compose --env-file $EnvFile exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd `
             -S localhost -U sa -P $password -C -d JornadaLocal -W -h -1 -b -Q "SET NOCOUNT ON; $Query")
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd falhou ($LASTEXITCODE)." }
@@ -56,6 +74,7 @@ function Invoke-SqlReport([string]$Query) {
     if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD ausente do .env.' }
     Push-Location $Root
     try {
+        Write-CommandLine 'docker' @('compose','--env-file',$EnvFile,'exec','-T','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-P','<redacted>','-C','-d','JornadaLocal','-W','-s','|','-b','-Q',"SET NOCOUNT ON; $Query")
         & docker compose --env-file $EnvFile exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd `
             -S localhost -U sa -P $password -C -d JornadaLocal -W -s '|' -b -Q "SET NOCOUNT ON; $Query"
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd falhou ($LASTEXITCODE)." }
@@ -131,6 +150,7 @@ function Invoke-Calibration {
     $beforeText = Get-SqlScalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;"
     $before = [int]$beforeText
     Write-Host "Calibração iniciando após modelo v$before."
+    Write-Host 'Se a referência IBGE ainda não estiver materializada, a primeira geração carregará o snapshot canônico completo. O worker emitirá heartbeat a cada 15 segundos durante essa etapa.' -ForegroundColor DarkYellow
     Invoke-Node2 -Command @('env','LinkageParameters__Operation=GENERATE_DRAFT','LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
     $count = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")
     if ($count -ne 1) { throw "Esperado exatamente um novo RASCUNHO; encontrados=$count." }
@@ -209,8 +229,19 @@ function Show-LinkageDiagnosis {
 }
 
 switch ($Action) {
-    'up' { & $LocalDb up; if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 up falhou ($LASTEXITCODE)." }; Start-Nodes -Build:(-not $NoBuild) }
-    'reset' { Invoke-Compose -ComposeArgs @('stop','jornada-node1','jornada-node2'); & $LocalDb reset; if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 reset falhou ($LASTEXITCODE)." }; Start-Nodes }
+    'up' {
+        Write-CommandLine $LocalDb @('-Action','up')
+        & $LocalDb -Action up
+        if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 up falhou ($LASTEXITCODE)." }
+        Start-Nodes -Build:(-not $NoBuild)
+    }
+    'reset' {
+        Invoke-Compose -ComposeArgs @('stop','jornada-node1','jornada-node2')
+        Write-CommandLine $LocalDb @('-Action','reset')
+        & $LocalDb -Action reset
+        if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 reset falhou ($LASTEXITCODE)." }
+        Start-Nodes
+    }
     'down' { Invoke-Compose -ComposeArgs @('down') }
     'clean' { Invoke-Compose -ComposeArgs @('down','-v','--remove-orphans') }
     'status' { Invoke-Compose -ComposeArgs @('ps') }
