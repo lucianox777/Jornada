@@ -38,10 +38,6 @@ sqlcmd() {
 scalar() { sqlcmd -d "$DB" -y 0 -w 65535 -Q "SET NOCOUNT ON; $1" | tr -d '\r' | sed '/^[[:space:]]*$/d' | tail -1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
 now_ms() { date +%s%3N; }
 
-sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_PAIRED="$PAIRED" SCALE_PENDING="$PENDING" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" SCALE_BIRTH_SHIFT_MODULO="$BIRTH_SHIFT_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale.sql
-sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql
-"$ROOT/scripts/local-db.sh" backfill
-
 cd "$ROOT"
 if [[ "${JORNADA_LOCKED_RESTORE:-false}" == "true" ]]; then
   dotnet restore Jornada.sln --locked-mode
@@ -49,12 +45,27 @@ else
   dotnet restore Jornada.sln
 fi
 dotnet build Jornada.sln --configuration Release --no-restore -warnaserror
-# Este é um harness local/DEV. Calibrador, Runner e rebuild devem observar o mesmo
-# ambiente do cluster local para que a evidência não dependa do default Production.
+# Este é um harness local/DEV. Loader, Calibrador, Runner e rebuild devem observar o
+# mesmo ambiente do cluster local para que a evidência não dependa do default Production.
 export DOTNET_ENVIRONMENT=Development
 export ConnectionStrings__Jornada="$CONN"
 export PipelineCoordination__HeartbeatSeconds=2
 export PipelineCoordination__ExclusiveIntentTimeoutSeconds=5
+
+# O schema 3.70 corrente já contém o contrato de frequências. O snapshot versionado é
+# carregado pelo mesmo loader operacional usado na calibração, preservando manifestos,
+# SHA-256 e rowCount sem duplicar parsing de NDJSON no harness SQL.
+export LinkageParameters__Operation=LOAD_NAME_FREQUENCY_SNAPSHOT
+export NameFrequencySnapshot__ManifestPath="$ROOT/data/reference/ibge-nomes-2022/manifest.json"
+echo "Carregando referência IBGE canônica para geração da massa SCALE..."
+dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
+ACTIVE_NAME_REFERENCE="$(scalar "SELECT TOP(1) codigo FROM ref.frequencia_nome_versao WHERE status=N'ATIVA';")"
+[[ "$ACTIVE_NAME_REFERENCE" == "CENSO2022_NOMES_BRASIL_V1" ]] || { echo "ERRO: referência IBGE ATIVA inesperada após carga: $ACTIVE_NAME_REFERENCE" >&2; exit 4; }
+echo "Referência de frequências ativa: $ACTIVE_NAME_REFERENCE"
+
+sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_PAIRED="$PAIRED" SCALE_PENDING="$PENDING" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" SCALE_BIRTH_SHIFT_MODULO="$BIRTH_SHIFT_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale.sql
+sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql
+"$ROOT/scripts/local-db.sh" backfill
 
 echo "Materializando projeção canônica de blocking da massa SCALE antes da calibração..."
 Processor__Operation=REBUILD_LOCAL_BLOCKING \
