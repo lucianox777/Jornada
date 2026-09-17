@@ -24,6 +24,7 @@
 :r database/migrations/20260914_Operational_Monitor.sql
 :r database/migrations/20260915_Linkage_LogOdds_Margin.sql
 :r database/migrations/20260915_Linkage_Model_Promotion_Contract.sql
+:r database/migrations/20260916_Linkage_U_Support_Reachability.sql
 
 -- CPF âncora é aplicado por último na instalação sem seed; em DEV o bootstrap reaplica após o seed
 -- para reservar CPFs históricos. A migração é idempotente.

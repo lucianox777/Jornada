@@ -4,15 +4,21 @@ using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Parameters.Worker;
 
+public sealed record BlockingConditionedUnmatchedPairSample(
+    IReadOnlyList<IdentityTrainingPair> Pairs,
+    IReadOnlyDictionary<string, long> SemanticBirthPoolSupport,
+    long CandidatePoolSize);
+
 /// <summary>
 /// Amostra não-vínculos diretamente do universo que sobreviveria ao ruleset vencedor.
 /// Cada passe é materializado como uma assinatura determinística das suas chaves canônicas;
-/// Pessoas distintas com a mesma assinatura formam pares candidatos. Isso evita inferir
-/// a interseção de um passe a partir de pares previamente amostrados por apenas uma chave.
+/// Pessoas distintas com a mesma assinatura formam pares candidatos. Além da amostra u,
+/// percorre o pool candidato apenas com as datas para medir suporte semântico sem carregar
+/// o universo inteiro em memória.
 /// </summary>
 public static class BlockingConditionedUnmatchedPairReader
 {
-    public static async Task<IReadOnlyList<IdentityTrainingPair>> ReadAsync(
+    public static async Task<BlockingConditionedUnmatchedPairSample> ReadAsync(
         SqlConnection connection,
         string normalizationVersion,
         IReadOnlyCollection<LinkageBlockingPass> passes,
@@ -82,9 +88,7 @@ public static class BlockingConditionedUnmatchedPairReader
                     valueParts.Add($"{alias}.valor_normalizado");
                     continue;
                 }
-
-                joinClauses.Add(
-                    $"JOIN eligible_keys {alias} ON {alias}.pessoa_uuid=k0.pessoa_uuid AND {alias}.atributo={aliases[fieldIndex]}");
+                joinClauses.Add($"JOIN eligible_keys {alias} ON {alias}.pessoa_uuid=k0.pessoa_uuid AND {alias}.atributo={aliases[fieldIndex]}");
                 valueParts.Add($"{alias}.valor_normalizado");
             }
 
@@ -130,8 +134,7 @@ WITH gold_sample AS (
     FROM gold.pessoa
     ORDER BY pessoa_uuid
 ), eligible_keys AS (
-    SELECT DISTINCT
-        k.pessoa_uuid,k.atributo,k.valor_normalizado
+    SELECT DISTINCT k.pessoa_uuid,k.atributo,k.valor_normalizado
     FROM identidade.blocking_chave k
     JOIN gold_sample gs ON gs.pessoa_uuid=k.pessoa_uuid
     WHERE k.normalizacao_versao=@normalizacao
@@ -146,33 +149,54 @@ candidate_pairs AS (
     FROM (
         {string.Join("\n        UNION ALL\n        ", pairSources)}
     ) p
+), ordered_pairs AS (
+    SELECT p.a_uuid,p.b_uuid,
+           ROW_NUMBER() OVER (
+             ORDER BY HASHBYTES('SHA2_256',CONCAT(CONVERT(nvarchar(36),p.a_uuid),':',CONVERT(nvarchar(36),p.b_uuid))),p.a_uuid,p.b_uuid) AS sample_rank
+    FROM candidate_pairs p
 )
-SELECT TOP (@sample_size)
-    a.nome_completo,a.data_nascimento,a.nome_mae,
-    b.nome_completo,b.data_nascimento,b.nome_mae
-FROM candidate_pairs p
+SELECT
+    CASE WHEN p.sample_rank<=@sample_size THEN a.nome_completo END AS a_nome,
+    a.data_nascimento AS a_nascimento,
+    CASE WHEN p.sample_rank<=@sample_size THEN a.nome_mae END AS a_mae,
+    CASE WHEN p.sample_rank<=@sample_size THEN b.nome_completo END AS b_nome,
+    b.data_nascimento AS b_nascimento,
+    CASE WHEN p.sample_rank<=@sample_size THEN b.nome_mae END AS b_mae,
+    p.sample_rank
+FROM ordered_pairs p
 JOIN gold_sample a ON a.pessoa_uuid=p.a_uuid
 JOIN gold_sample b ON b.pessoa_uuid=p.b_uuid
-ORDER BY HASHBYTES('SHA2_256',CONCAT(CONVERT(nvarchar(36),p.a_uuid),':',CONVERT(nvarchar(36),p.b_uuid))),p.a_uuid,p.b_uuid;
+ORDER BY p.sample_rank;
 """;
 
         var result = new List<IdentityTrainingPair>();
+        var support = BirthDateSemanticEvidence.States.ToDictionary(state => state, _ => 0L, StringComparer.Ordinal);
+        long candidatePoolSize = 0;
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
+            candidatePoolSize++;
+            var leftBirth = DateOnly.FromDateTime(reader.GetDateTime(1));
+            var rightBirth = DateOnly.FromDateTime(reader.GetDateTime(4));
+            support[BirthDateSemanticEvidence.Classify(leftBirth, rightBirth)]++;
+
+            var rank = reader.GetInt64(6);
+            if (rank > sampleSize)
+                continue;
+
             result.Add(new IdentityTrainingPair(
                 reader.GetString(0),
-                DateOnly.FromDateTime(reader.GetDateTime(1)),
+                leftBirth,
                 reader.IsDBNull(2) ? null : reader.GetString(2),
                 reader.GetString(3),
-                DateOnly.FromDateTime(reader.GetDateTime(4)),
+                rightBirth,
                 reader.IsDBNull(5) ? null : reader.GetString(5)));
         }
 
         var verified = BlockingConditionedTrainingPairFilter.Retain(result, canonicalPasses);
         if (verified.Count != result.Count)
-            throw new InvalidOperationException(
-                $"Invariante violada: {result.Count - verified.Count} pares u amostrados não sobreviveram ao ruleset consultado.");
-        return result;
+            throw new InvalidOperationException($"Invariante violada: {result.Count - verified.Count} pares u amostrados não sobreviveram ao ruleset consultado.");
+
+        return new BlockingConditionedUnmatchedPairSample(result, support, candidatePoolSize);
     }
 }
