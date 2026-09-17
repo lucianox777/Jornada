@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Tests.Integration;
@@ -27,7 +28,7 @@ public sealed class PersonV4IdentitySqlServerTests
                 zero.Transaction = tx;
                 zero.CommandText = "SELECT COUNT(*) FROM silver.pessoa_identificador_observacao WHERE pessoa_observacao_id=@obs;";
                 zero.Parameters.AddWithValue("@obs", zeroObservationId);
-                Assert.That(Convert.ToInt32(await zero.ExecuteScalarAsync()), Is.Zero,
+                Assert.That(Convert.ToInt32(await zero.ExecuteScalarAsync(), CultureInfo.InvariantCulture), Is.Zero,
                     "Pessoa v4 deve aceitar observação sem origem e sem identificadores.");
             }
 
@@ -105,7 +106,7 @@ public sealed class PersonV4IdentitySqlServerTests
                 insertBase.Parameters.AddWithValue("@codigo", baseCode);
                 insertBase.Parameters.AddWithValue("@nome", "Base compartilhada - teste de integração");
                 insertBase.Parameters.AddWithValue("@gestor", systems[0].GestorId);
-                baseId = Convert.ToInt64(await insertBase.ExecuteScalarAsync());
+                baseId = Convert.ToInt64(await insertBase.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
             }
 
             foreach (var system in systems)
@@ -133,7 +134,7 @@ public sealed class PersonV4IdentitySqlServerTests
                 origin.Parameters.AddWithValue("@sistema", systems[0].SystemId);
                 origin.Parameters.AddWithValue("@codigo", personCode);
                 origin.Parameters.AddWithValue("@base", baseId);
-                personOriginId = Convert.ToInt64(await origin.ExecuteScalarAsync());
+                personOriginId = Convert.ToInt64(await origin.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
             }
 
             foreach (var system in systems)
@@ -243,7 +244,7 @@ public sealed class PersonV4IdentitySqlServerTests
         insert.Parameters.Add(new SqlParameter("@hash", SqlDbType.Char, 64) { Value = hash });
         var value = await insert.ExecuteScalarAsync();
         Assert.That(value, Is.Not.Null, "Fixture DEV deve possuir ao menos uma observação para clonar o núcleo demográfico.");
-        return Convert.ToInt64(value);
+        return Convert.ToInt64(value, CultureInfo.InvariantCulture);
     }
 
     private static async Task InsertIdentifierAsync(
