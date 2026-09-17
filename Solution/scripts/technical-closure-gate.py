@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 READINESS = ROOT / "src" / "Jornada.Api" / "ApiHealth.cs"
 CURRENT_INSTALLER = ROOT / "database" / "Jornada_Fase1_v3.70.sql"
 SCHEMA_370 = ROOT / "database" / "migrations" / "20260910_Schema_Consolidation_370.sql"
+SCHEMA_MANIFEST = ROOT / "database" / "migrations" / "manifest.txt"
+SCHEMA_MANIFEST_TOOL = ROOT / "scripts" / "schema-manifest.py"
 SCHEMA_APPROVALS = ROOT / "config" / "governance" / "schema-approvals.json"
 LOCK_PROVENANCE = ROOT / "config" / "release" / "nuget-lock-provenance.json"
 COMPATIBILITY_POLICY = ROOT / "config" / "release" / "contract-compatibility-policy.json"
@@ -78,23 +80,64 @@ def validate_current_schema() -> None:
             "Jornada.BaseNormativa",
             "@base=N'3.62'",
             "Jornada.SolutionSchema",
-            "NOT (@solution=N'3.69')",
             "@solution=N'3.70'",
             "SQL_SCHEMA_INCOMPATIVEL",
+            "jornada.schema_migration",
             "identidade.cpf_ancora",
             "identidade.pessoa_origem_progressiva",
             "identidade.composicao_publicacao",
             "identidade.blocking_chave",
             "identidade.linkage_ruleset_passe_campo",
+            "ref.frequencia_nome_versao",
+            "identidade.linkage_quality_estimate",
+            "serving.v_bi_qualidade_resolucao_operacional",
+            "nome_publicacao_normalizado",
         ),
         "readiness corrente 3.70",
+    )
+
+    if not SCHEMA_MANIFEST_TOOL.is_file():
+        fail("renderizador/validador do manifesto de schema ausente")
+    manifest_check = subprocess.run(
+        [sys.executable, str(SCHEMA_MANIFEST_TOOL), "--check"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if manifest_check.returncode != 0:
+        fail("instalador canônico diverge do manifesto: " + (manifest_check.stderr or manifest_check.stdout).strip())
+
+    manifest = SCHEMA_MANIFEST.read_text(encoding="utf-8")
+    require(
+        manifest,
+        (
+            "migrations/20260916_Schema_Migration_Ledger.sql",
+            "Jornada_Identidade_Progressiva.sql",
+            "migrations/20260912_Nome_Mae_Anulavel.sql",
+            "migrations/20260912_Frequencia_Nomes_Referencia.sql",
+            "migrations/20260912_Frequencia_Nomes_Cobertura.sql",
+            "migrations/20260912_Gold_Nome_Publicacao.sql",
+            "migrations/20260912_Linkage_Run_Frequencia_Nome_Proveniencia.sql",
+            "migrations/20260913_BI_Qualidade_Resolucao.sql",
+            "migrations/20260913_BI_Qualidade_Resolucao_Gestor_Real.sql",
+            "migrations/20260913_BI_Qualidade_Resolucao_Estrato_Cpf.sql",
+            "migrations/20260915_Linkage_LogOdds_Margin.sql",
+            "migrations/20260915_Linkage_Model_Promotion_Contract.sql",
+            "migrations/20260910_Schema_Consolidation_370.sql",
+        ),
+        "manifesto canônico 3.70",
     )
 
     installer = CURRENT_INSTALLER.read_text(encoding="utf-8")
     require(
         installer,
         (
+            "GERADO de database/migrations/manifest.txt",
             "Microsoft SQL Server é a tecnologia relacional normativa.",
+            ":r database/migrations/20260916_Schema_Migration_Ledger.sql",
+            ":r database/migrations/20260912_Frequencia_Nomes_Referencia.sql",
+            ":r database/migrations/20260913_BI_Qualidade_Resolucao.sql",
             ":r database/migrations/20260910_Schema_Consolidation_370.sql",
         ),
         "instalador canônico 3.70",
@@ -108,6 +151,12 @@ def validate_current_schema() -> None:
             "3.70",
             "Jornada.BaseNormativa",
             "3.62",
+            "jornada.schema_migration",
+            "ref.frequencia_nome_versao",
+            "identidade.linkage_quality_estimate",
+            "serving.v_bi_qualidade_resolucao_operacional",
+            "NULLABILITY:",
+            "COLUMN_SHAPE:identidade.linkage_resultado.margem decimal(18,8) NULL",
         ),
         "consolidação final 3.70",
     )
@@ -188,6 +237,9 @@ def validate_standalone_installer() -> None:
                 "Microsoft SQL Server é a tecnologia relacional normativa da Jornada.",
                 "Jornada.SolutionSchema",
                 "3.70",
+                "ref.frequencia_nome_versao",
+                "identidade.linkage_quality_estimate",
+                "identidade.tr_modelo_linkage_promotion_contract",
             ),
             "instalador autocontido 3.70",
         )
@@ -201,7 +253,8 @@ def main() -> int:
     print(
         "TECHNICAL CLOSURE GATE: OK "
         "(pré-implantação sem baseline histórica; invariantes correntes preservados; "
-        "readiness Base 3.62 / SolutionSchema 3.70; governança/proveniência 3.70; "
+        "readiness Base 3.62 / SolutionSchema 3.70; manifesto/instalador/consolidação alinhados; "
+        "governança/proveniência 3.70; "
         f"{release_state}; instalador SQL Server canônico e autocontido verificados)"
     )
     return 0
