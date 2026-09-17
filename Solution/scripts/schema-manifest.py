@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import re
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -9,7 +11,13 @@ DATABASE = ROOT / "database"
 MANIFEST = DATABASE / "migrations" / "manifest.txt"
 INSTALLER = DATABASE / "Jornada_Fase1_v3.70.sql"
 BASELINE = "Jornada_Fase1.sql"
+LEDGER_MIGRATION = "migrations/20260916_Schema_Migration_Ledger.sql"
 FINAL_MIGRATION = "migrations/20260910_Schema_Consolidation_370.sql"
+ENTRY_PATTERN = re.compile(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\.sql\Z")
+
+
+def source_path(relative: str) -> Path:
+    return DATABASE.joinpath(*PurePosixPath(relative).parts)
 
 
 def read_manifest() -> list[str]:
@@ -19,11 +27,13 @@ def read_manifest() -> list[str]:
         if not line:
             continue
         path = PurePosixPath(line)
-        if path.is_absolute() or any(part in {".", "..", ""} for part in path.parts):
+        if (
+            not ENTRY_PATTERN.fullmatch(line)
+            or path.is_absolute()
+            or any(part in {".", "..", ""} for part in path.parts)
+        ):
             raise SystemExit(f"SCHEMA MANIFEST: entrada inválida: {line}")
-        if path.suffix.lower() != ".sql":
-            raise SystemExit(f"SCHEMA MANIFEST: entrada não-SQL: {line}")
-        source = DATABASE.joinpath(*path.parts)
+        source = source_path(line)
         if not source.is_file():
             raise SystemExit(f"SCHEMA MANIFEST: arquivo ausente: {line}")
         entries.append(line)
@@ -32,6 +42,10 @@ def read_manifest() -> list[str]:
         raise SystemExit("SCHEMA MANIFEST: manifesto vazio")
     if len(entries) != len(set(entries)):
         raise SystemExit("SCHEMA MANIFEST: entradas duplicadas")
+    if entries[0] != LEDGER_MIGRATION:
+        raise SystemExit(
+            f"SCHEMA MANIFEST: primeira entrada deve ser {LEDGER_MIGRATION}; atual={entries[0]}"
+        )
     if entries[-1] != FINAL_MIGRATION:
         raise SystemExit(
             f"SCHEMA MANIFEST: última entrada deve ser {FINAL_MIGRATION}; atual={entries[-1]}"
@@ -41,17 +55,34 @@ def read_manifest() -> list[str]:
     return entries
 
 
+def checksum(relative: str) -> str:
+    return hashlib.sha256(source_path(relative).read_bytes()).hexdigest()
+
+
+def ledger_guard(relative: str) -> list[str]:
+    digest = checksum(relative)
+    return [
+        f"IF EXISTS(SELECT 1 FROM jornada.schema_migration WHERE migration_name=N'{relative}' AND sha256<>'{digest}')",
+        f"    THROW 51710, 'Checksum divergente para migração versionada: {relative}', 1;",
+        f"IF NOT EXISTS(SELECT 1 FROM jornada.schema_migration WHERE migration_name=N'{relative}')",
+        f"    INSERT jornada.schema_migration(migration_name,sha256) VALUES(N'{relative}','{digest}');",
+        "GO",
+    ]
+
+
 def render_installer(entries: list[str]) -> str:
     lines = [
         "-- Jornada do Cidadão - Fase 1 - baseline operacional consolidado v3.70",
         "-- GERADO de database/migrations/manifest.txt por scripts/schema-manifest.py.",
-        "-- Não editar a lista de includes manualmente; altere o manifesto e regenere.",
+        "-- Não editar a lista de includes/checksums manualmente; altere o manifesto e regenere.",
         "-- Microsoft SQL Server é a tecnologia relacional normativa.",
         "",
         ":on error exit",
         f":r database/{BASELINE}",
     ]
-    lines.extend(f":r database/{entry}" for entry in entries)
+    for entry in entries:
+        lines.append(f":r database/{entry}")
+        lines.extend(ledger_guard(entry))
     return "\n".join(lines) + "\n"
 
 
@@ -60,13 +91,17 @@ def render_flat(entries: list[str]) -> str:
         "-- Jornada do Cidadão - Fase 1 - SolutionSchema 3.70",
         "-- DDL achatado gerado do mesmo manifesto canônico; apropriado para executores sem suporte a :r.",
         "",
+        f"-- BEGIN {BASELINE}",
+        source_path(BASELINE).read_text(encoding="utf-8-sig").rstrip(),
+        f"-- END {BASELINE}",
+        "",
     ]
-    for relative in [BASELINE, *entries]:
-        source = DATABASE.joinpath(*PurePosixPath(relative).parts)
-        text = source.read_text(encoding="utf-8-sig").rstrip()
+    for relative in entries:
+        text = source_path(relative).read_text(encoding="utf-8-sig").rstrip()
         parts.append(f"-- BEGIN {relative}")
         parts.append(text)
         parts.append(f"-- END {relative}")
+        parts.extend(ledger_guard(relative))
         parts.append("")
     return "\n".join(parts).rstrip() + "\n"
 
