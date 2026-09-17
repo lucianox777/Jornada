@@ -37,6 +37,7 @@ public sealed class CanonicalHarnessCorpusTests
 
         Assert.Multiple(() =>
         {
+            Assert.That(workflow, Does.Contain("--since 2026-08-31T01:00:00Z"));
             Assert.That(workflow, Does.Contain("SEM_CANDIDATO_%"));
             Assert.That(workflow, Does.Contain("n%10<>0"));
             Assert.That(workflow, Does.Contain("UNEXPECTED_NO_CANDIDATE"));
