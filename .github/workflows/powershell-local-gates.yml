@@ -142,17 +142,30 @@ jobs:
           }
           Write-Host 'LOCAL CLUSTER COMMAND ECHO/SECRET REDACTION CONTRACT: OK'
 
-      - name: Validate linkage validation and IBGE bootstrap command echo
+      - name: Validate linkage validation and IBGE bootstrap command output
         shell: pwsh
         run: |
+          $targets = @(
+            'scripts/local-linkage-validation.ps1',
+            'scripts/local-linkage-validation-flow.ps1',
+            'scripts/local-ibge-u-bootstrap.ps1'
+          )
+
+          foreach ($target in $targets) {
+            $content = Get-Content -Raw -Encoding UTF8 $target
+            if ($content -match '(?m)^\s*#\s*(?:\.\\scripts\\|docker\b|Set-Location\b)') {
+              throw "$target não deve duplicar comandos executáveis como comentário de código; o comando deve aparecer somente no output."
+            }
+          }
+
           $validation = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-validation.ps1
           foreach ($required in @(
-            '# .\scripts\local-cluster.ps1 -Action linkage',
             'Write-CommandLine $LocalCluster',
+            "Write-CommandLine 'docker'",
             'SQLCMDPASSWORD=<redacted>'
           )) {
             if (-not $validation.Contains($required)) {
-              throw "local-linkage-validation.ps1 perdeu contrato de command echo: $required"
+              throw "local-linkage-validation.ps1 perdeu contrato de command output: $required"
             }
           }
           if ($validation -match 'Write-CommandLine[^\r\n]*\$password') {
@@ -161,29 +174,29 @@ jobs:
 
           $flow = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-validation-flow.ps1
           foreach ($required in @(
-            '# .\scripts\local-cluster.ps1 -Action up',
-            '# .\scripts\local-cluster.ps1 -Action calibrate',
-            '# .\scripts\local-linkage-validation.ps1',
+            "Write-Host '# .\\scripts\\local-cluster.ps1 -Action up'",
+            "Write-Host '# .\\scripts\\local-cluster.ps1 -Action calibrate'",
+            "Write-Host '# .\\scripts\\local-linkage-validation.ps1'",
             'SQLCMDPASSWORD=<redacted>'
           )) {
             if (-not $flow.Contains($required)) {
-              throw "local-linkage-validation-flow.ps1 perdeu contrato de command echo: $required"
+              throw "local-linkage-validation-flow.ps1 perdeu contrato de command output: $required"
             }
           }
 
           $bootstrap = Get-Content -Raw -Encoding UTF8 scripts/local-ibge-u-bootstrap.ps1
           foreach ($required in @(
-            '# .\scripts\local-cluster.ps1 -Action up',
+            "Write-Host '# .\\scripts\\local-cluster.ps1 -Action up'",
             'function Write-CommandLine',
-            '# docker compose --env-file .env exec -T jornada-node2 env LinkageParameters__Operation=REPORT_IBGE_U_BOOTSTRAP',
-            '# docker compose --env-file .env cp jornada-node2:/tmp/jornada-ibge-u-bootstrap.json',
+            "Write-CommandLine 'docker' `$workerArgs",
+            "Write-CommandLine 'docker' `$copyArgs",
             'REPORT_IBGE_U_BOOTSTRAP'
           )) {
             if (-not $bootstrap.Contains($required)) {
-              throw "local-ibge-u-bootstrap.ps1 perdeu contrato de command echo: $required"
+              throw "local-ibge-u-bootstrap.ps1 perdeu contrato de command output: $required"
             }
           }
-          Write-Host 'LINKAGE VALIDATION/IBGE BOOTSTRAP COMMAND ECHO CONTRACT: OK'
+          Write-Host 'LINKAGE VALIDATION/IBGE BOOTSTRAP COMMAND OUTPUT CONTRACT: OK'
       - name: Validate canonical audit before scale and canonical restoration
         shell: pwsh
         run: |
@@ -224,7 +237,7 @@ jobs:
             throw "$runnerPath deve isolar o SCALE e restaurar o banco canônico."
           }
           if (-not $content.Contains('Write-Host "# $CommandText"')) {
-            throw "$runnerPath deve imprimir cada comando como comentário antes de executá-lo."
+            throw "$runnerPath deve imprimir cada comando no output antes de executá-lo."
           }
           if ($content -match "Invoke-Step\s+'[^']*Upgrade DDL" -or $content -match "Invoke-Step\s+'[^']*3\.65") {
             throw 'A rodada contínua pré-HML não deve executar upgrade de baseline histórico por padrão.'
