@@ -3,10 +3,9 @@ SET XACT_ABORT ON;
 GO
 
 -- Reachability estrutural dos estados semânticos de nascimento no universo candidato
--- do ruleset congelado. Cada passe exige igualdade nos componentes de nascimento que
--- aparecem em seus campos; campos não relacionados a nascimento não restringem o mask.
--- Um estado é alcançável quando pelo menos uma configuração possível desse estado
--- satisfaz os componentes exigidos por algum passe.
+-- do ruleset congelado. A função continua sendo evidência explicativa; a promoção abaixo
+-- usa também o suporte empírico do pool candidato para não confundir possibilidade
+-- estrutural com presença obrigatória numa amostra finita.
 CREATE OR ALTER FUNCTION identidade.fn_linkage_birth_semantic_reachability(
     @modelo_id UNIQUEIDENTIFIER)
 RETURNS TABLE
@@ -67,9 +66,12 @@ RETURN
 );
 GO
 
--- Reaplica o contrato de promoção acrescentando suficiência empírica mínima de u:
--- todo suporte semântico deve existir, e estados estruturalmente alcançáveis pelo
--- ruleset não podem depender exclusivamente de smoothing/prior com suporte bruto zero.
+-- Contrato de promoção V5/V6:
+-- 1) parâmetros semânticos completos;
+-- 2) suporte bruto da amostra u e do pool candidato persistidos para os sete estados;
+-- 3) rejeita somente quando um estado está presente no pool candidato do ruleset mas
+--    desaparece inteiramente da amostra u. Zero no pool é ausência empírica legítima e
+--    pode continuar recebendo smoothing, sem transformar raridade em bloqueio de release.
 CREATE OR ALTER TRIGGER identidade.tr_modelo_linkage_promotion_contract
 ON identidade.modelo_linkage
 AFTER INSERT, UPDATE
@@ -129,22 +131,34 @@ BEGIN
               'FELLEGI_SUNTER_DECISION_EVIDENCE_V6')
           AND (
               NOT EXISTS (
-                  SELECT 1
-                  FROM identidade.parametro_linkage p
+                  SELECT 1 FROM identidade.parametro_linkage p
                   WHERE p.modelo_id=i.modelo_id
                     AND p.nome=N'SUPPORT_U_NASCIMENTO_SEMANTICO_'+r.estado)
+              OR NOT EXISTS (
+                  SELECT 1 FROM identidade.parametro_linkage p
+                  WHERE p.modelo_id=i.modelo_id
+                    AND p.nome=N'POOL_SUPPORT_U_NASCIMENTO_SEMANTICO_'+r.estado)
+              OR EXISTS (
+                  SELECT 1
+                  FROM identidade.parametro_linkage poolp
+                  JOIN identidade.parametro_linkage samplep
+                    ON samplep.modelo_id=poolp.modelo_id
+                   AND samplep.nome=N'SUPPORT_U_NASCIMENTO_SEMANTICO_'+r.estado
+                  WHERE poolp.modelo_id=i.modelo_id
+                    AND poolp.nome=N'POOL_SUPPORT_U_NASCIMENTO_SEMANTICO_'+r.estado
+                    AND poolp.valor>0
+                    AND samplep.valor<=0)
               OR (
-                  r.alcancavel=1
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM identidade.parametro_linkage p
-                      WHERE p.modelo_id=i.modelo_id
-                        AND p.nome=N'SUPPORT_U_NASCIMENTO_SEMANTICO_'+r.estado
-                        AND p.valor>0)
+                  r.alcancavel=0
+                  AND EXISTS (
+                      SELECT 1 FROM identidade.parametro_linkage poolp
+                      WHERE poolp.modelo_id=i.modelo_id
+                        AND poolp.nome=N'POOL_SUPPORT_U_NASCIMENTO_SEMANTICO_'+r.estado
+                        AND poolp.valor>0)
               )
           )
     )
-        THROW 51032, 'Promoção recusada: suporte u semântico ausente ou zero em estado alcançável pelo ruleset.', 1;
+        THROW 51032, 'Promoção recusada: amostra u perdeu estado presente no pool candidato ou proveniência de suporte está inconsistente.', 1;
 
     IF EXISTS (
         SELECT 1
@@ -153,26 +167,22 @@ BEGIN
           AND i.algoritmo_versao='FELLEGI_SUNTER_DECISION_EVIDENCE_V6'
           AND (
               NOT EXISTS (
-                  SELECT 1
-                  FROM identidade.parametro_linkage p
+                  SELECT 1 FROM identidade.parametro_linkage p
                   WHERE p.modelo_id=i.modelo_id
                     AND p.nome='SCORING_DECISION_EVIDENCE_V6'
                     AND p.valor>=1)
               OR NOT EXISTS (
-                  SELECT 1
-                  FROM identidade.parametro_linkage p
+                  SELECT 1 FROM identidade.parametro_linkage p
                   WHERE p.modelo_id=i.modelo_id
                     AND p.nome='CONFLICT_MARGIN_LOG_ODDS'
                     AND p.valor>=0)
               OR NOT EXISTS (
-                  SELECT 1
-                  FROM identidade.parametro_linkage p
+                  SELECT 1 FROM identidade.parametro_linkage p
                   WHERE p.modelo_id=i.modelo_id
                     AND p.nome='M_NOME_MAE_MISSING'
                     AND p.valor>0 AND p.valor<1)
               OR NOT EXISTS (
-                  SELECT 1
-                  FROM identidade.parametro_linkage p
+                  SELECT 1 FROM identidade.parametro_linkage p
                   WHERE p.modelo_id=i.modelo_id
                     AND p.nome='U_NOME_MAE_MISSING'
                     AND p.valor>0 AND p.valor<1)
