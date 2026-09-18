@@ -181,6 +181,8 @@ LOCAL TEST ALL: OK
 
 Durante desenvolvimento, pare no primeiro comando que falhar, corrija a causa e repita a etapa. Antes de considerar uma alteração pronta para PR/merge, percorra a sequência aplicável e finalize com `local-test-all.ps1 -Suite full`.
 
+Para frentes técnicas com testes direcionados, mantenha também um script dedicado em `scripts/` que concentre o comando reproduzível daquela mudança. O script dedicado acelera a iteração; `local-test-all.ps1 -Suite full` continua sendo o fechamento local antes do merge.
+
 ## Atalhos: o que usar no dia a dia
 
 | Necessidade | Script | Quando usar |
@@ -194,6 +196,7 @@ Durante desenvolvimento, pare no primeiro comando que falhar, corrija a causa e 
 | Operar somente o banco local | `local-db.ps1` | Desenvolvimento/testes que precisam apenas do SQL Server local |
 | Rodar a suíte local principal | `local-test-all.ps1` | Antes de abrir/atualizar PR ou quando se quer reproduzir os gates localmente |
 | Rodar validação local específica | `local-test.ps1` | Iteração rápida durante desenvolvimento |
+| Testar calibração DF/benchmark IBGE | `local-test-df-calibration.ps1` | Alterações no DF, term-frequency, benchmark ou separação VALIDATION/TEST; use `-FullUnit` para incluir todos os testes não-integration |
 | Validar upgrade de DDL | `local-ddl-upgrade.ps1` | Toda alteração de schema/migração que precise provar upgrade sem perda de invariantes |
 | Exercitar runtime SQL | `local-sql-runtime-smoke.ps1` | Mudanças em procedures, views, DDL e caminhos SQL que precisam de execução real |
 | Rodar carga/escala | `local-scale.ps1` | Avaliação de comportamento com volumes maiores; não é o teste rápido do dia a dia |
