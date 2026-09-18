@@ -23,6 +23,7 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p[LinkageParameterCatalog.LogOddsConflictMargin], Is.EqualTo(0.03m));
             Assert.That(p[LinkageParameterCatalog.DecisionEvidenceScoring], Is.EqualTo(1m));
             Assert.That(p[LinkageParameterCatalog.DualThresholdConflictGuard], Is.EqualTo(1m));
+            Assert.That(p[LinkageParameterCatalog.OrderedNameLlrMonotonicity], Is.EqualTo(1m));
             Assert.That(p.ContainsKey("M_NOME_MAE_MISSING"), Is.True);
             Assert.That(p.ContainsKey("U_NOME_MAE_MISSING"), Is.True);
             Assert.That(p["PRIOR_MATCH_PROBABILITY"], Is.EqualTo(0.1m));
@@ -83,6 +84,7 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p.ContainsKey(LinkageParameterCatalog.BirthSemanticEvidenceScoring), Is.False);
             Assert.That(p.ContainsKey(LinkageParameterCatalog.DecisionEvidenceScoring), Is.False);
             Assert.That(p.ContainsKey(LinkageParameterCatalog.DualThresholdConflictGuard), Is.False);
+            Assert.That(p.ContainsKey(LinkageParameterCatalog.OrderedNameLlrMonotonicity), Is.False);
             Assert.That(p.ContainsKey(LinkageParameterCatalog.LogOddsConflictMargin), Is.False);
             Assert.That(p.ContainsKey("M_NOME_MAE_MISSING"), Is.False);
             Assert.That(p.ContainsKey("U_NOME_MAE_MISSING"), Is.False);
@@ -109,6 +111,8 @@ public sealed class LinkageParameterEstimatorTests
                 "Contrato legado não pode receber flag V6 por acidente.");
             Assert.That(p.ContainsKey(LinkageParameterCatalog.DualThresholdConflictGuard), Is.False,
                 "Contrato legado não pode receber a trava de decisão V6 por acidente.");
+            Assert.That(p.ContainsKey(LinkageParameterCatalog.OrderedNameLlrMonotonicity), Is.False,
+                "Contrato legado não pode receber proveniência de coerência V6 por acidente.");
             Assert.That(p.ContainsKey(LinkageParameterCatalog.LogOddsConflictMargin), Is.False);
             Assert.That(p.ContainsKey("M_NOME_MAE_MISSING"), Is.False);
             Assert.That(p.ContainsKey("U_NOME_MAE_MISSING"), Is.False);
