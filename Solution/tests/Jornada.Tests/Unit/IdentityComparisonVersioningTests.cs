@@ -57,6 +57,18 @@ public sealed class IdentityComparisonVersioningTests
     }
 
     [Test]
+    public void V2_reuses_versioned_ptbr_particle_boundary_in_structural_guard()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(IdentityComparison.CompareNameV2("MARIA DA SILVA", "MARIA DE SILVA"),
+                Is.EqualTo(NameComparisonState.HIGH));
+            Assert.That(IdentityComparison.CompareNameV2("MARIA SILVA", "MARIA DE SILVA"),
+                Is.EqualTo(NameComparisonState.HIGH));
+        });
+    }
+
+    [Test]
     public void V2_does_not_invent_token_alignment_policy_when_token_counts_differ()
     {
         const string left = "MARIA SILVA";
