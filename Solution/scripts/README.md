@@ -101,7 +101,15 @@ Valida comportamento de resiliência e o gate serial diante das falhas previstas
 
 ### 9. Recriar o cluster e validar linkage/calibração
 
-Para uma rodada reproduzível começando de cluster vazio, prefira o agregador:
+Para uma rodada reproduzível completa — incluindo restore, build, testes unitários e validação a partir de cluster vazio — prefira o agregador único:
+
+```powershell
+.\scripts\local-linkage-monte-carlo-validation.ps1 -PairCount 1000000 -Seed 20260917
+```
+
+O script grava transcript em `.local\linkage-monte-carlo-validation\` e encerra imediatamente na primeira falha.
+
+O agregador mais curto, sem restore/build/testes prévios, permanece disponível em:
 
 ```powershell
 .\scripts\local-linkage-validation-from-zero.ps1 -PairCount 1000000 -Seed 20260917
