@@ -75,13 +75,9 @@ BEGIN
         WHERE i.status IN ('VALIDADO','ATIVO')
           AND i.algoritmo_versao='FELLEGI_SUNTER_DECISION_EVIDENCE_V6'
           AND (
-              CAST(m_melhor.valor AS FLOAT) * CAST(u_pior.valor AS FLOAT)
+              LOG(CAST(m_melhor.valor AS FLOAT) / CAST(u_melhor.valor AS FLOAT)) + 1e-12
               <
-              CAST(m_pior.valor AS FLOAT) * CAST(u_melhor.valor AS FLOAT)
-              - (
-                  ABS(CAST(m_pior.valor AS FLOAT) * CAST(u_melhor.valor AS FLOAT)) * 1e-12
-                  + 1e-18
-                )
+              LOG(CAST(m_pior.valor AS FLOAT) / CAST(u_pior.valor AS FLOAT))
           )
     )
         THROW 51034, 'Promoção recusada: LLR nominal viola monotonicidade EXACT >= HIGH >= MEDIUM >= LOW.', 1;
