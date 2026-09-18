@@ -2,6 +2,7 @@ param(
     [switch]$SkipRestore,
     [switch]$SkipBuild,
     [switch]$Quick,
+    [switch]$Offline,
     [switch]$FullUnit
 )
 
@@ -36,6 +37,14 @@ else {
 
 Push-Location $Root
 try {
+    if (-not $Offline) {
+        Write-Host ''
+        Write-Host '--- Check rapido da referencia IBGE existente ---'
+        Write-Host '# .\scripts\local-check-ibge-reference.ps1'
+        # O check é read-only e nunca materializa/recarrega a referência.
+        # Em caso de divergência, falha fechado antes de gastar tempo em build/testes.
+        & (Join-Path $PSScriptRoot 'local-check-ibge-reference.ps1')
+    }
     if (-not $SkipRestore) {
         Invoke-NativeStep 'Restore locked' 'dotnet restore Jornada.sln --locked-mode' {
             dotnet restore Jornada.sln --locked-mode
@@ -62,7 +71,10 @@ try {
     Write-Host ''
     Write-Host 'LOCAL DF CALIBRATION TEST: OK' -ForegroundColor Green
     Write-Host ''
-    Write-Host 'Fechamento local recomendado antes do merge:'
+    Write-Host 'Validacao ampla preservando a referencia IBGE ja carregada:'
+    Write-Host '# .\scripts\local-test.ps1'
+    Write-Host ''
+    Write-Host 'Instalacao limpa/reset completo (recarrega IBGE; use apenas quando esse gate for necessario):'
     Write-Host '# .\scripts\local-test-all.ps1 -Suite full'
 }
 finally {

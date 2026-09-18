@@ -53,13 +53,17 @@ dotnet test .\tests\Jornada.Tests\Jornada.Tests.csproj --configuration Release -
 
 Esse comando roda somente os testes explicitamente marcados como `Unit`. Ele é útil para feedback rápido, mas **não equivale** à suíte local principal: `local-test.ps1` também executa o conjunto não-integration mais amplo e os testes de integração do projeto.
 
-### 4. Recriar o banco local conhecido
+### 4. Reutilizar o banco local e validar rapidamente a referência IBGE
+
+No fluxo normal de desenvolvimento, preserve o banco local já materializado e valide apenas se a referência IBGE continua compatível com o snapshot versionado do repositório:
 
 ```powershell
-.\scripts\local-db.ps1 -Action reset
+.\scripts\local-check-ibge-reference.ps1
 ```
 
-A partir daqui os testes passam a depender do SQL Server local. O `reset` elimina estado residual e cria uma base conhecida para continuar a validação.
+O script sobe apenas o container SQL Server/volume existente, sem `reset`, sem seed e sem executar o loader do IBGE. Ele verifica a versão `ATIVA`, o `referenceCode`, o total de linhas declarado no `projection-manifest.json`, o SHA-256 publicado e os triggers de imutabilidade. Se houver divergência, falha fechado e exige uma carga/upgrade explícito.
+
+Use `.\scripts\local-db.ps1 -Action reset` somente quando o objetivo do teste for deliberadamente provar instalação limpa, reset determinístico ou reconstrução completa do banco; esse caminho apaga `ref.frequencia_nome` e portanto exige nova materialização da referência.
 
 ### 5. Rodar o core local
 
@@ -179,9 +183,9 @@ LOCAL TEST ALL: OK
 
 ### Regra prática
 
-Durante desenvolvimento, pare no primeiro comando que falhar, corrija a causa e repita a etapa. Antes de considerar uma alteração pronta para PR/merge, percorra a sequência aplicável e finalize com `local-test-all.ps1 -Suite full`.
+Durante desenvolvimento, pare no primeiro comando que falhar, corrija a causa e repita a etapa. Antes de considerar uma alteração pronta para PR/merge, percorra a sequência aplicável e finalize com o script dedicado da frente e os gates de CI. Use `local-test-all.ps1 -Suite full` quando a mudança precisar provar instalação limpa/reconstrução completa ou quando esse fechamento for explicitamente requerido.
 
-Para frentes técnicas com testes direcionados, mantenha também um script dedicado em `scripts/` que concentre o comando reproduzível daquela mudança. O script dedicado acelera a iteração; `local-test-all.ps1 -Suite full` continua sendo o fechamento local antes do merge.
+Para frentes técnicas com testes direcionados, mantenha também um script dedicado em `scripts/` que concentre o comando reproduzível daquela mudança. Quando a referência IBGE já estiver materializada, o padrão é **reutilizá-la e executar um check read-only**, não apagá-la/recarregá-la. `local-test-all.ps1 -Suite full` continua sendo o gate de instalação limpa/isolada quando esse nível de prova for necessário.
 
 ## Atalhos: o que usar no dia a dia
 
@@ -194,9 +198,10 @@ Para frentes técnicas com testes direcionados, mantenha também um script dedic
 | Recriar o cluster | `local-cluster.ps1 -Action reset` | Quando é necessário reconstruir containers/serviços |
 | Apagar completamente o cluster local | `local-cluster.ps1 -Action clean` | Ambiente inconsistente ou necessidade deliberada de começar do zero |
 | Operar somente o banco local | `local-db.ps1` | Desenvolvimento/testes que precisam apenas do SQL Server local |
-| Rodar a suíte local principal | `local-test-all.ps1` | Antes de abrir/atualizar PR ou quando se quer reproduzir os gates localmente |
-| Rodar validação local específica | `local-test.ps1` | Iteração rápida durante desenvolvimento |
-| Testar calibração DF/benchmark IBGE | `local-test-df-calibration.ps1` | Alterações no DF, term-frequency, benchmark ou separação VALIDATION/TEST; use `-FullUnit` para incluir todos os testes não-integration |
+| Rodar suíte isolada de instalação limpa | `local-test-all.ps1` | Quando a mudança exige provar reset/reconstrução completa ou reproduzir o gate amplo isolado; pode recarregar a referência IBGE |
+| Rodar validação local específica | `local-test.ps1` | Iteração rápida durante desenvolvimento; preserva o banco existente |
+| Conferir referência IBGE sem recarga | `local-check-ibge-reference.ps1` | Antes de testes que reutilizam `ref.frequencia_nome`; compara versão/linhas/hash publicado e imutabilidade sem carregar dados |
+| Testar calibração DF/benchmark IBGE | `local-test-df-calibration.ps1` | Reutiliza e checa a referência IBGE existente por padrão; `-Quick` reduz o conjunto de testes e `-Offline` elimina a dependência do SQL local |
 | Validar upgrade de DDL | `local-ddl-upgrade.ps1` | Toda alteração de schema/migração que precise provar upgrade sem perda de invariantes |
 | Exercitar runtime SQL | `local-sql-runtime-smoke.ps1` | Mudanças em procedures, views, DDL e caminhos SQL que precisam de execução real |
 | Rodar carga/escala | `local-scale.ps1` | Avaliação de comportamento com volumes maiores; não é o teste rápido do dia a dia |
@@ -254,7 +259,27 @@ Quando estiver apenas iterando em uma correção pequena, rode primeiro o teste/
 
 ### `local-test.ps1`
 
-Entrada de teste mais focada/rápida. Use durante o ciclo editar → testar → corrigir. Não substitui a suíte completa quando a mudança estiver pronta para integração.
+Entrada de teste mais focada/rápida. Use durante o ciclo editar → testar → corrigir. Ele sobe/reutiliza o banco local sem `reset`, portanto preserva uma `ref.frequencia_nome` já carregada. Não substitui o gate de instalação limpa quando a mudança exigir provar reconstrução completa do ambiente.
+
+### `local-check-ibge-reference.ps1`
+
+Gate read-only para a referência IBGE já materializada:
+
+```powershell
+.\scripts\local-check-ibge-reference.ps1
+```
+
+Ele **não executa o loader**. Compara o `referenceCode` ativo com os manifestos do repositório, confere o total esperado de linhas, exige SHA-256 publicado e valida os triggers que tornam a versão publicada imutável. Use `-NoStart` se quiser exigir que o container SQL já esteja em execução.
+
+### `local-test-df-calibration.ps1`
+
+Teste dedicado da frente DF/benchmark. Por padrão começa pelo check read-only da referência já carregada e depois roda restore/build/testes direcionados:
+
+```powershell
+.\scripts\local-test-df-calibration.ps1 -Quick
+```
+
+Use `-Offline` somente quando quiser o teste puramente em memória, sem consultar o SQL local. Nenhum modo desse script carrega ou substitui a referência IBGE.
 
 ### `local-sql-runtime-smoke.ps1`
 
