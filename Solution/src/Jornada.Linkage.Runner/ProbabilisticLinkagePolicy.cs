@@ -53,13 +53,12 @@ internal static class LinkageModelPolicy
 
     internal static bool SupportsSemanticBirthScoring(LinkageModel model)
     {
-        var requiresSemantic = string.Equals(model.AlgorithmVersion, LinkageParameterCatalog.LegacySemanticBirthAlgorithmVersion, StringComparison.Ordinal) ||
-            string.Equals(model.AlgorithmVersion, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, StringComparison.Ordinal);
+        var requiresSemantic = LinkageParameterCatalog.RequiresSemanticBirthEvidence(model.AlgorithmVersion);
         var enabled = model.Parameters.TryGetValue(LinkageParameterCatalog.BirthSemanticEvidenceScoring, out var current) && current >= 1m;
         if (requiresSemantic && !enabled) throw new InvalidOperationException($"Modelo semântico incompleto. Proveniência {model.AlgorithmVersion} exige {LinkageParameterCatalog.BirthSemanticEvidenceScoring} habilitado.");
         if (!enabled) return false;
         var missing = LinkageParameterCatalog.BirthSemanticEvidenceRequired.Where(x => !model.Parameters.ContainsKey(x)).ToArray();
-        if (missing.Length > 0) throw new InvalidOperationException($"Modelo V5/V6 incompleto. Parâmetros semânticos de nascimento ausentes: {string.Join(", ", missing)}");
+        if (missing.Length > 0) throw new InvalidOperationException($"Modelo V5/V6/V7 incompleto. Parâmetros semânticos de nascimento ausentes: {string.Join(", ", missing)}");
         return true;
     }
 
