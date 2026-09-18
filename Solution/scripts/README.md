@@ -203,6 +203,8 @@ Para frentes técnicas com testes direcionados, mantenha também um script dedic
 | Rodar validação local específica | `local-test.ps1` | Iteração rápida durante desenvolvimento; preserva o banco existente |
 | Conferir referência IBGE sem recarga | `local-check-ibge-reference.ps1` | Antes de testes que reutilizam `ref.frequencia_nome`; compara versão/linhas/hash publicado e imutabilidade sem carregar dados |
 | Diagnosticar referência IBGE local | `local-diagnose-ibge-reference.ps1` | Read-only; lista versões, status, SHA e contagem de linhas por versão para investigar bases legadas/incompletas |
+| Materializar referência IBGE sem reset | `local-load-ibge-reference.ps1 -AllowLoad` | Usa o bootstrap canônico; preserva o banco e só carrega quando o quick check não passa |
+| Testar segurança da carga IBGE | `local-test-ibge-reference-load-safety.ps1` | Prova que o loader humano exige autorização e não chama `reset`, `clean` ou `local-db.ps1` |
 | Testar o diagnóstico IBGE | `local-test-ibge-diagnostic.ps1` | Executa o diagnóstico read-only real e valida que aguarda SQL/banco ONLINE e não contém aspas SQL duplicadas |
 | Reativar referência IBGE já materializada | `local-repair-ibge-reference.ps1` | Somente quando a versão canônica está íntegra, publicada e inativa; altera apenas status/ativado_em, sem recarregar `ref.frequencia_nome`; se a versão canônica não existir, chama o diagnóstico e falha sem alterar dados |
 | Testar calibração DF/benchmark IBGE | `local-test-df-calibration.ps1` | Reutiliza e checa a referência IBGE existente por padrão; `-Quick` reduz o conjunto de testes e `-Offline` elimina a dependência do SQL local |
@@ -241,7 +243,7 @@ Controla o ambiente local centrado no banco de dados.
 
 Ações disponíveis: `up`, `reset`, `down`, `clean`, `status` e `backfill`.
 
-Use este script quando não precisar do cluster completo. `backfill` é destinado aos cenários que exercitam explicitamente a recomposição/backfill local; não é necessário para simplesmente subir o banco.
+Use este script quando não precisar do cluster completo. `backfill` é destinado aos cenários que exercitam explicitamente a recomposição/backfill local; não é necessário para simplesmente subir o banco. O `reset` recria schema/corpus e **não materializa sozinho** os 5.603.287 registros da referência IBGE. Quando precisar recuperar só a referência, use `local-load-ibge-reference.ps1 -AllowLoad` em vez de repetir o reset.
 
 ### `local-clean.ps1`
 
@@ -271,7 +273,7 @@ Para validar o próprio contrato do diagnóstico contra o banco já existente:
 ./scripts/local-test-all.ps1 -Suite full -AllowDestructiveReset
 ```
 
-Use apenas quando a alteração precisar provar instalação limpa/reconstrução completa. O script executa a validação em contexto isolado para evitar que alterações locais não relacionadas contaminem a evidência do SHA testado, mas exige `-AllowDestructiveReset` porque reseta o banco local e pode recarregar a referência IBGE.
+Use apenas quando a alteração precisar provar instalação limpa/reconstrução completa. O script executa a validação em contexto isolado para evitar que alterações locais não relacionadas contaminem a evidência do SHA testado, mas exige `-AllowDestructiveReset` porque reseta o banco local. No fechamento da suíte full, o banco canônico é reconstruído e a referência IBGE canônica é materializada novamente antes de declarar sucesso.
 
 Quando estiver apenas iterando em uma correção pequena, rode primeiro o teste/gate específico. `local-test-all.ps1` sem `-AllowDestructiveReset` agora aborta de propósito; use a flag somente quando quiser explicitamente reconstruir o ambiente.
 
@@ -304,6 +306,23 @@ Quando a versão canônica estiver completa e publicada, mas apenas `OBSOLETA` o
 Esse script falha se existir outra versão `ATIVA`, se a contagem divergir do `projection-manifest.json`, se o hash publicado estiver ausente ou se a proteção de imutabilidade não estiver habilitada. Quando passa, altera somente `status` e `ativado_em` em `ref.frequencia_nome_versao`; os milhões de registros de `ref.frequencia_nome` são preservados.
 
 Se a versão canônica `CENSO2022_NOMES_BRASIL_V1` não existir, o reparo **não cria nem renomeia versões automaticamente**. Ele chama `local-diagnose-ibge-reference.ps1`, que mostra todas as versões existentes, status, SHA e quantidade de linhas por versão. Isso permite distinguir uma referência legada sob outro código de uma base realmente vazia antes de decidir por migração ou recarga.
+
+### `local-load-ibge-reference.ps1`
+
+Recuperação explícita da referência IBGE quando as tabelas existem, mas a versão canônica está ausente/incompleta. O script começa pelo `local-check-ibge-reference.ps1`; se a referência já estiver íntegra e `ATIVA`, sai sem carga. Quando a carga for necessária, exige autorização explícita:
+
+```powershell
+.\scripts\local-load-ibge-reference.ps1 -AllowLoad
+```
+
+Ele sobe somente o SQL existente, compila o serviço `jornada-reference-bootstrap` e executa `ENSURE_NAME_FREQUENCY_SNAPSHOT`. **Não chama `reset`, `clean`, `down -v` ou `local-db.ps1`**. Ao terminar, repete o quick check e só conclui se código, row count, SHA-256 e imutabilidade estiverem corretos. O total canônico esperado pelo `projection-manifest.json` é 5.603.287 linhas.
+
+Se a imagem `jornada-node:test` já foi construída pelo mesmo SHA, `-NoBuild` evita recompilação:
+
+```powershell
+.\scripts\local-load-ibge-reference.ps1 -AllowLoad -NoBuild
+```
+
 
 ### `local-test-df-calibration.ps1`
 

@@ -8,6 +8,9 @@ on:
       - 'Solution/scripts/local-test-all.ps1'
       - 'Solution/scripts/local-diagnose-ibge-reference.ps1'
       - 'Solution/scripts/local-test-ibge-diagnostic.ps1'
+      - 'Solution/scripts/local-check-ibge-reference.ps1'
+      - 'Solution/scripts/local-load-ibge-reference.ps1'
+      - 'Solution/scripts/local-test-ibge-reference-load-safety.ps1'
       - 'Solution/scripts/local-test-test-all-safety.ps1'
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
@@ -29,6 +32,9 @@ on:
       - 'Solution/scripts/local-test-all.ps1'
       - 'Solution/scripts/local-diagnose-ibge-reference.ps1'
       - 'Solution/scripts/local-test-ibge-diagnostic.ps1'
+      - 'Solution/scripts/local-check-ibge-reference.ps1'
+      - 'Solution/scripts/local-load-ibge-reference.ps1'
+      - 'Solution/scripts/local-test-ibge-reference-load-safety.ps1'
       - 'Solution/scripts/local-test-test-all-safety.ps1'
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
@@ -73,6 +79,9 @@ jobs:
             'scripts/local-test-all.ps1',
             'scripts/local-diagnose-ibge-reference.ps1',
             'scripts/local-test-ibge-diagnostic.ps1',
+            'scripts/local-check-ibge-reference.ps1',
+            'scripts/local-load-ibge-reference.ps1',
+            'scripts/local-test-ibge-reference-load-safety.ps1',
             'scripts/local-test-test-all-safety.ps1',
             'scripts/local-test-round.ps1',
             'scripts/local-cluster.ps1',
@@ -98,6 +107,10 @@ jobs:
       - name: Validate local-test-all destructive guard
         shell: pwsh
         run: ./scripts/local-test-test-all-safety.ps1
+
+      - name: Validate IBGE reference load safety
+        shell: pwsh
+        run: ./scripts/local-test-ibge-reference-load-safety.ps1
 
       - name: Validate blocking pass fan-out gate self-test
         shell: bash
@@ -268,8 +281,9 @@ jobs:
           }
           $scaleBlock = $content.Substring($scale)
           if ($scaleBlock -notmatch "Invoke-PowerShellScript 'local-scale\.ps1' @\('-Profile', 'smoke'\)" -or
-              $scaleBlock -notmatch "Invoke-PowerShellScript 'local-db\.ps1' @\('-Action', 'reset'\)") {
-            throw 'O scale smoke da suíte full deve restaurar deterministicamente o banco canônico ao terminar.'
+              $scaleBlock -notmatch "Invoke-PowerShellScript 'local-db\.ps1' @\('-Action', 'reset'\)" -or
+              $scaleBlock -notmatch "Invoke-PowerShellScript 'local-load-ibge-reference\.ps1' @\('-AllowLoad', '-NoBuild'\)") {
+            throw 'O scale smoke da suíte full deve restaurar deterministicamente o banco e a referencia IBGE canonica ao terminar.'
           }
           Write-Host 'LOCAL SUITE CANONICAL AUDIT/SCALE RESTORE CONTRACT: OK'
 

@@ -351,6 +351,9 @@ try {
                 # local-scale usa deliberadamente uma massa diferente. A suíte full é dona
                 # do ambiente compartilhado e deve devolvê-lo sempre ao perfil canônico.
                 Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')
+                # O reset recria schema/corpus, mas nao materializa os 5,6 milhoes de registros IBGE.
+                # A suite full deve devolver o ambiente compartilhado completamente canonico.
+                Invoke-PowerShellScript 'local-load-ibge-reference.ps1' @('-AllowLoad', '-NoBuild')
             }
             catch {
                 $restoreFailure = $_.Exception
