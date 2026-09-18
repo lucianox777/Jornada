@@ -394,6 +394,57 @@ $negativeFalseMatchDetails = @(
     }
 )
 
+$singleProbeLines = @(Get-SqlLines @"
+SELECT CONCAT(
+    CASE
+        WHEN po.codigo_pessoa_origem=N'SCALE-VAL-$modelShort-PROBE-TWIN_SINGLE' THEN N'TWIN_SINGLE'
+        WHEN po.codigo_pessoa_origem=N'SCALE-VAL-$modelShort-PROBE-SURNAME_SINGLE' THEN N'SURNAME_SINGLE'
+        ELSE N'UNKNOWN'
+    END,'|',
+    r.status,'|',
+    COALESCE(CONVERT(varchar(40),r.score_melhor),'NULL'),'|',
+    COALESCE(CONVERT(varchar(36),r.melhor_candidato_uuid),'NULL'),'|',
+    COALESCE(CONVERT(varchar(36),r.segundo_candidato_uuid),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),r.score_segundo),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),r.margem),'NULL'),'|',
+    REPLACE(po.nome_completo,'|',' '),'|',
+    REPLACE(COALESCE(po.nome_mae,N''),'|',' '),'|',
+    CONVERT(varchar(10),po.data_nascimento,23),'|',
+    REPLACE(COALESCE(g.nome_completo,N''),'|',' '),'|',
+    REPLACE(COALESCE(g.nome_mae,N''),'|',' '),'|',
+    COALESCE(CONVERT(varchar(10),g.data_nascimento,23),'NULL'))
+FROM identidade.linkage_resultado r
+JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+LEFT JOIN gold.pessoa g ON g.pessoa_uuid=r.melhor_candidato_uuid
+WHERE r.linkage_run_id='$runId'
+  AND po.codigo_pessoa_origem IN(
+      N'SCALE-VAL-$modelShort-PROBE-TWIN_SINGLE',
+      N'SCALE-VAL-$modelShort-PROBE-SURNAME_SINGLE')
+ORDER BY po.codigo_pessoa_origem;
+"@)
+
+$singleProbeBreakdown = @(
+    foreach ($line in $singleProbeLines) {
+        $parts = $line.Split('|')
+        [ordered]@{
+            probe = $parts[0]
+            status = $parts[1]
+            bestScore = (Parse-Decimal $parts[2])
+            bestCandidateUuid = $parts[3]
+            secondCandidateUuid = $parts[4]
+            secondScore = (Parse-Decimal $parts[5])
+            margin = (Parse-Decimal $parts[6])
+            observationName = $parts[7]
+            observationMotherName = $parts[8]
+            observationBirthDate = $parts[9]
+            bestCandidateName = $parts[10]
+            bestCandidateMotherName = $parts[11]
+            bestCandidateBirthDate = $parts[12]
+        }
+    }
+)
+$singleProbeResolved = @($singleProbeBreakdown | Where-Object { $_.status -eq 'RESOLVIDO' }).Count
+
 $thresholdText = Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='T_LINKAGE';"
 $threshold = Parse-Decimal $thresholdText
 
@@ -689,6 +740,11 @@ $report = [ordered]@{
         scenarioEvidenceProfiles = $negativeScenarioEvidence
         falseMatchDetails = $negativeFalseMatchDetails
     }
+    singleCandidateFamilyRiskProbe = [ordered]@{
+        total = $singleProbeBreakdown.Count
+        resolvedUnexpectedly = $singleProbeResolved
+        probes = $singleProbeBreakdown
+    }
     combinedDecisionQuality = [ordered]@{
         resolvedDecisions = $resolvedDecisionTotal
         correctResolved = $positiveCorrect
@@ -754,6 +810,10 @@ if ($negativeFalseMatchDetails.Count -gt 0) {
         Write-Host ("  {0} | {1} | score={2} segundo={3} margem={4} best={5}" -f $item.scenario,$item.sourceCode,$item.bestScore,$item.secondScore,$item.margin,$item.bestCandidateUuid)
     }
 }
+Write-Host 'Probes familiares com candidato único:'
+foreach ($probe in $singleProbeBreakdown) {
+    Write-Host ("  {0}: status={1} score={2} best={3} second={4} margem={5} observação='{6}' candidato='{7}'" -f $probe.probe,$probe.status,$probe.bestScore,$probe.bestCandidateUuid,$probe.secondCandidateUuid,$probe.margin,$probe.observationName,$probe.bestCandidateName)
+}
 Write-Host "Decisões resolvidas combinadas: corretas=$positiveCorrect falsas=$($positiveWrong+$negativeResolved) PPV_sintético=$([decimal]::Round(($syntheticResolvedPpv * [decimal]100),2))%"
 Write-Host "Conflito forçado: conflito=$conflictStatus/$conflictTotal margem_zero=$conflictMarginZero acima_threshold=$conflictAboveThreshold resolvidos_indevidos=$conflictResolved"
 Write-Host "Fronteira T=$threshold`: casos reais ±0,02=$($frontier[0]); max_abaixo=$($frontier[1]); min_acima=$($frontier[2])"
@@ -772,6 +832,18 @@ if ($negativeCandidateExposure -lt 30) {
 if ($conflictTotal -ne 10 -or $conflictStatus -ne 10 -or $conflictMarginZero -ne 10 -or $conflictAboveThreshold -ne 10 -or $conflictResolved -ne 0) {
     throw "Regra de conflito não foi integralmente exercitada pelo probe: total=$conflictTotal conflito=$conflictStatus margem0=$conflictMarginZero acimaT=$conflictAboveThreshold resolvidos=$conflictResolved."
 }
+if ($singleProbeBreakdown.Count -ne 2) {
+    throw "Probes familiares de candidato único incompletos: total=$($singleProbeBreakdown.Count); esperado=2."
+}
+foreach ($probe in $singleProbeBreakdown) {
+    if ($probe.probe -eq 'UNKNOWN') { throw 'Probe familiar não identificado.' }
+    if ($probe.bestCandidateUuid -eq 'NULL') {
+        throw "Probe $($probe.probe) não recuperou candidato; risco de decisão não foi exercitado."
+    }
+    if ($probe.secondCandidateUuid -ne 'NULL') {
+        throw "Probe $($probe.probe) recuperou segundo candidato=$($probe.secondCandidateUuid); isolamento de candidato único não foi provado."
+    }
+}
 
 Write-Host 'LINKAGE INDEPENDENT VALIDATION STRUCTURAL GATES: OK' -ForegroundColor Green
 
@@ -780,6 +852,9 @@ if ($positiveWrong -ne 0) {
 }
 if ($negativeResolved -ne 0) {
     throw "DEV QUALITY GATE reprovado: houve $negativeResolved falso(s) vínculo(s) resolvido(s) em $negativeTotal negativos independentes."
+}
+if ($singleProbeResolved -ne 0) {
+    throw "DEV QUALITY GATE reprovado: risco familiar confirmado; $singleProbeResolved/2 probe(s) com candidato único foram RESOLVIDOS."
 }
 
 Write-Host 'LINKAGE INDEPENDENT VALIDATION DEV QUALITY GATES: OK' -ForegroundColor Green
