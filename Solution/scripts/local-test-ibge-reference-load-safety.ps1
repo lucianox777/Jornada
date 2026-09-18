@@ -46,7 +46,7 @@ foreach ($required in @(
     if (-not $check.Contains($required)) { throw "Contrato do quick check IBGE ausente: $required" }
 }
 
-if ($check.Contains("if ($canonicalHash -match '^[0-9A-Fa-f]{64}if")) {
+if ($check.Contains('if ($canonicalHash -match ''^[0-9A-Fa-f]{64}if')) {
     throw 'Quick check IBGE contem concatenacao SQL/PowerShell corrompida.'
 }
 
