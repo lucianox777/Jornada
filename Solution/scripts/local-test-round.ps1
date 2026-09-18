@@ -27,7 +27,7 @@ try {
     Write-Host 'RODADA LOCAL DE TESTES - MODO PRESERVADOR' -ForegroundColor Yellow
     Write-Host "Solution: $Root"
     Write-Host 'O banco compartilhado e a referencia IBGE sao preservados por padrao.'
-    Write-Host 'E2E usa banco temporario isolado; scale/clean ficam no fluxo from-zero explicito.'
+    Write-Host 'E2E usa banco isolado JornadaE2E; scale/clean ficam no fluxo from-zero explicito.'
     Write-Host 'Gate histórico pré-HML opcional: .\scripts\local-ddl-upgrade.ps1'
     Write-Host ''
 
