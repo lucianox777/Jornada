@@ -103,10 +103,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
             snapshot.Model,
             observation,
             await LoadCandidatesAsync(observation, snapshot, ct));
-        var decisionV6 = string.Equals(
-            snapshot.Model.AlgorithmVersion,
-            LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion,
-            StringComparison.Ordinal);
+        var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(
+            snapshot.Model.AlgorithmVersion);
 
         CandidateScore? truth = null;
         var deterministicRank = 0;
@@ -124,13 +122,13 @@ public sealed class SqlProbabilisticIdentityLinkage(
         decimal? rankingGap = null;
         if (truth is not null)
         {
-            var truthMetric = decisionV6 ? truth.LogOdds : truth.Score;
+            var truthMetric = decisionEvidence ? truth.LogOdds : truth.Score;
             evidenceRank = 1 + ranked.Count(candidate =>
-                (decisionV6 ? candidate.LogOdds : candidate.Score) > truthMetric);
+                (decisionEvidence ? candidate.LogOdds : candidate.Score) > truthMetric);
             tieCount = ranked.Count(candidate =>
-                (decisionV6 ? candidate.LogOdds : candidate.Score) == truthMetric);
+                (decisionEvidence ? candidate.LogOdds : candidate.Score) == truthMetric);
             if (top is not null)
-                rankingGap = (decisionV6 ? top.LogOdds : top.Score) - truthMetric;
+                rankingGap = (decisionEvidence ? top.LogOdds : top.Score) - truthMetric;
         }
 
         return new ProbabilisticCandidateRankingAudit(
@@ -139,7 +137,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
             snapshot.Model.ModelId,
             snapshot.Model.Version,
             snapshot.Model.AlgorithmVersion,
-            decisionV6 ? "LOG_ODDS" : "POSTERIOR",
+            decisionEvidence ? "LOG_ODDS" : "POSTERIOR",
             ranked.Count,
             truth is not null,
             deterministicRank is > 0 and <= 2,
