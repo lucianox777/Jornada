@@ -281,8 +281,9 @@ jobs:
           }
           $scaleBlock = $content.Substring($scale)
           if ($scaleBlock -notmatch "Invoke-PowerShellScript 'local-scale\.ps1' @\('-Profile', 'smoke'\)" -or
-              $scaleBlock -notmatch "Invoke-PowerShellScript 'local-db\.ps1' @\('-Action', 'reset'\)") {
-            throw 'O scale smoke da suíte full deve restaurar deterministicamente o banco canônico ao terminar.'
+              $scaleBlock -notmatch "Invoke-PowerShellScript 'local-db\.ps1' @\('-Action', 'reset'\)" -or
+              $scaleBlock -notmatch "Invoke-PowerShellScript 'local-load-ibge-reference\.ps1' @\('-AllowLoad', '-NoBuild'\)") {
+            throw 'O scale smoke da suíte full deve restaurar deterministicamente o banco e a referencia IBGE canonica ao terminar.'
           }
           Write-Host 'LOCAL SUITE CANONICAL AUDIT/SCALE RESTORE CONTRACT: OK'
 
