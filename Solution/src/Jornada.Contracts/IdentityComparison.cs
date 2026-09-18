@@ -12,7 +12,7 @@ public static class IdentityComparison
 {
     public const string NormalizationVersion = "IDENTITY_NORMALIZATION_V1";
     public const string NameComparisonVersionV1 = "WHOLE_NAME_JARO_WINKLER_V1";
-    public const string NameComparisonVersionV2 = "POSITIONAL_TOKEN_MIN_JARO_WINKLER_V2";
+    public const string NameComparisonVersionV2 = "PTBR_CONTENT_TOKEN_GUARD_JARO_WINKLER_V2";
 
     public static string? NormalizeText(string? value)
     {
@@ -71,7 +71,7 @@ public static class IdentityComparison
         contract switch
         {
             NameComparisonContract.WholeNameJaroWinklerV1 => CompareNameV1(left, right),
-            NameComparisonContract.PositionalTokenMinJaroWinklerV2 => CompareNameV2(left, right),
+            NameComparisonContract.PtBrContentTokenGuardV2 => CompareNameV2(left, right),
             _ => throw new ArgumentOutOfRangeException(nameof(contract), contract, "Contrato nominal desconhecido.")
         };
 
@@ -83,15 +83,12 @@ public static class IdentityComparison
     }
 
     /// <summary>
-    /// V2 conserva os mesmos thresholds de V1, mas impede que um token fortemente
-    /// divergente seja diluído por uma string longa quase toda igual. Quando as duas
-    /// formas têm a mesma quantidade de tokens, a similaridade efetiva é o mínimo
-    /// entre o Jaro-Winkler do nome completo e o pior Jaro-Winkler posicional entre
-    /// tokens. Com quantidades diferentes, V2 mantém o comportamento V1 até existir
-    /// evidência para uma política versionada de inserção/remoção/reordenação.
-    ///
-    /// O contrato não declara que qualquer token seja "sobrenome IBGE": trata apenas
-    /// a estrutura observável da string e não remove partículas.
+    /// V2 conserva os mesmos thresholds de V1, mas impede que um token de conteúdo
+    /// fortemente divergente seja diluído por uma string longa quase toda igual.
+    /// O guard posicional ignora somente as partículas PT-BR já versionadas pelo
+    /// PERSON_NAME_BASIC_PTBR@V1 (DA/DAS/DE/DO/DOS); o Jaro-Winkler da string completa
+    /// continua compondo a similaridade efetiva. O contrato não declara que qualquer
+    /// token seja "sobrenome IBGE" e não cria política geral de reordenação.
     /// </summary>
     public static NameComparisonState CompareNameV2(string? left, string? right)
     {
@@ -105,8 +102,8 @@ public static class IdentityComparison
             return NameComparisonState.EXACT;
 
         var similarity = JaroWinkler(a, b);
-        var leftTokens = a.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var rightTokens = b.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var leftTokens = ContentTokens(a);
+        var rightTokens = ContentTokens(b);
 
         if (leftTokens.Length == rightTokens.Length && leftTokens.Length > 1)
         {
@@ -121,6 +118,12 @@ public static class IdentityComparison
 
         return ClassifySimilarity(similarity);
     }
+
+    private static string[] ContentTokens(string normalized) =>
+        normalized
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(static token => token is not ("DA" or "DAS" or "DE" or "DO" or "DOS"))
+            .ToArray();
 
     private static NameComparisonState ClassifyWholeNameV1(string? a, string? b)
     {
@@ -193,7 +196,7 @@ public static class IdentityComparison
 public enum NameComparisonContract
 {
     WholeNameJaroWinklerV1,
-    PositionalTokenMinJaroWinklerV2
+    PtBrContentTokenGuardV2
 }
 
 public enum NameComparisonState
