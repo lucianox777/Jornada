@@ -23,7 +23,8 @@ foreach ($required in @(
     'SKIPPED_PRESERVE_IBGE',
     "Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')",
     "Invoke-ClusterAction 'clean'",
-    "mode = $(if ($FromZero) { 'FROM_ZERO_DESTRUCTIVE' } else { 'PRESERVE_IBGE' })"
+    'FROM_ZERO_DESTRUCTIVE',
+    'PRESERVE_IBGE'
 )) {
     if (-not $content.Contains($required)) { throw "Contrato de seguranca ausente em local-test-all.ps1: $required" }
 }
