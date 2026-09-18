@@ -9,6 +9,9 @@ public sealed record NominalDfCalibrationDataset(
     long FrequencyCensoredCount,
     long PublishedFirstNameOccurrences,
     decimal ReferenceExactUProbability,
+    long ReferenceId,
+    string ReferenceCode,
+    string ReferenceContentSha256,
     string PublicationMethodVersion,
     string NormalizationVersion,
     string EvidenceAlgorithmVersion,
@@ -29,12 +32,21 @@ public static class NominalDfCalibrationDatasetFactory
         IReadOnlyList<IdentityTrainingPair> matchedPairs,
         IReadOnlyList<IdentityTrainingPair> unmatchedPairs,
         IEnumerable<IbgeTypedNameFrequencyEntry> referenceEntries,
+        IbgeNominalUReferenceInfo reference,
         decimal tfWeight = 1m,
         decimal tfMinimumUValue = 0m)
     {
         ArgumentNullException.ThrowIfNull(matchedPairs);
         ArgumentNullException.ThrowIfNull(unmatchedPairs);
         ArgumentNullException.ThrowIfNull(referenceEntries);
+        ArgumentNullException.ThrowIfNull(reference);
+
+        if (reference.Id <= 0)
+            throw new ArgumentOutOfRangeException(nameof(reference), "ReferenceId deve ser positivo.");
+        if (string.IsNullOrWhiteSpace(reference.Code))
+            throw new ArgumentException("ReferenceCode é obrigatório.", nameof(reference));
+        if (reference.ContentSha256.Length != 64 || reference.ContentSha256.Any(static c => !Uri.IsHexDigit(c)))
+            throw new ArgumentException("ReferenceContentSha256 deve ser um SHA-256 hexadecimal.", nameof(reference));
 
         if (matchedPairs.Count == 0)
             throw new ArgumentException("Dataset DF exige ao menos um par MATCH rotulado.", nameof(matchedPairs));
@@ -95,6 +107,9 @@ public static class NominalDfCalibrationDatasetFactory
             censored,
             totalOccurrences,
             referenceExactU,
+            reference.Id,
+            reference.Code,
+            reference.ContentSha256.ToLowerInvariant(),
             IbgeNamePublicationSemantics.MethodVersion,
             IdentityComparison.NormalizationVersion,
             NominalDfEvidenceCalculator.AlgorithmVersion,
