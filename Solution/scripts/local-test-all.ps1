@@ -207,7 +207,7 @@ function Invoke-LinkageEvaluationSmoke {
             $env:ConnectionStrings__Jornada = "Server=localhost,$port;Database=$db;User Id=sa;Password=$password;TrustServerCertificate=true;Encrypt=false"
             $env:JORNADA_EVALUATION_SQL_PASSWORD = $password
             $env:JORNADA_EVALUATION_DATABASE = $db
-            # A auditoria roda contra o corpus canônico criado por local-db reset:
+            # A auditoria roda contra o corpus canônico assegurado por local-db up:
             # 5000 Pessoas SCALE Gold + 5000 pares corroborados + 1000 pendentes.
             $env:JORNADA_EVALUATION_SCALE_PEOPLE = '5000'
             $env:JORNADA_EVALUATION_SCALE_SEED = '355'
@@ -322,23 +322,29 @@ try {
             Invoke-PowerShellScript 'local-fault-injection.ps1'
         }
 
-        Invoke-Step 'Cluster preservado: up + calibrate + linkage + diagnose' {
-            try {
+        $clusterStarted = $false
+        try {
+            Invoke-Step 'Cluster preservado: up + calibrate + linkage + diagnose' {
                 Invoke-ClusterAction 'up'
+                $clusterStarted = $true
                 Invoke-ClusterAction 'calibrate'
                 Invoke-ClusterAction 'linkage'
                 Invoke-ClusterAction 'linkage-diagnose'
             }
-            finally {
-                Invoke-PowerShellScript 'local-cluster.ps1' @('-Action', 'down')
+
+            if ($Suite -eq 'full') {
+                Invoke-Step 'Auditoria read-only de candidate recall/rank' {
+                    Invoke-LinkageEvaluationSmoke
+                }
+                $Results.Add([ordered]@{ name = 'E2E/Scale from-zero'; status = 'SKIPPED_PRESERVE_IBGE'; seconds = 0.0 })
             }
         }
-
-        if ($Suite -eq 'full') {
-            Invoke-Step 'Auditoria read-only de candidate recall/rank' {
-                Invoke-LinkageEvaluationSmoke
+        finally {
+            if ($clusterStarted) {
+                Invoke-Step 'Encerrar cluster preservando volumes' {
+                    Invoke-PowerShellScript 'local-cluster.ps1' @('-Action', 'down')
+                }
             }
-            $Results.Add([ordered]@{ name = 'E2E/Scale from-zero'; status = 'SKIPPED_PRESERVE_IBGE'; seconds = 0.0 })
         }
 
         $OverallStatus = 'OK'
