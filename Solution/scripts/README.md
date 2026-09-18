@@ -103,89 +103,68 @@ Exercita o caminho HTTP → Bronze → Silver → Gold → Serving → HTTP.
 
 Valida comportamento de resiliência e o gate serial diante das falhas previstas pelo harness.
 
-### 9. Recriar o cluster e validar linkage/calibração
+### 9. Validar linkage/calibração preservando a referência
 
-Para uma rodada reproduzível completa — incluindo restore, build, testes unitários e validação a partir de cluster vazio — prefira o agregador único:
-
-```powershell
-.\scripts\local-linkage-monte-carlo-validation.ps1 -PairCount 1000000 -Seed 20260917
-```
-
-O script grava transcript em `.local\linkage-monte-carlo-validation\` e encerra imediatamente na primeira falha.
-
-O agregador mais curto, sem restore/build/testes prévios, permanece disponível em:
+No fluxo normal, não execute `clean` nem `reset`. Suba/reutilize o cluster existente e rode a calibração/linkage sobre a referência IBGE já materializada:
 
 ```powershell
-.\scripts\local-linkage-validation-from-zero.ps1 -PairCount 1000000 -Seed 20260917
-```
-
-Ele imprime cada comando antes de executá-lo e percorre, nesta ordem: `clean`, `up`, `calibrate`, relatório Monte Carlo IBGE read-only, `linkage`, `linkage-diagnose` e validação independente DEV.
-
-A mesma sequência, expandida, é:
-
-```powershell
-.\scripts\local-cluster.ps1 -Action clean
 .\scripts\local-cluster.ps1 -Action up
 .\scripts\local-cluster.ps1 -Action calibrate
-.\scripts\local-ibge-u-bootstrap.ps1 -PairCount 1000000 -Seed 20260917
 .\scripts\local-cluster.ps1 -Action linkage
 .\scripts\local-cluster.ps1 -Action linkage-diagnose
-.\scripts\local-linkage-validation.ps1
+.\scripts\local-linkage-evaluation-smoke.ps1
 ```
 
-A calibração nominal usa a referência IBGE internalizada por Monte Carlo: `NOME` combina prenomes nacionais `TODOS` com sobrenomes nacionais; `NOME_MAE` combina prenomes nacionais `FEMININO` com sobrenomes nacionais. A massa `MISSING` da mãe e as evidências de nascimento continuam estimadas no universo condicionado ao blocking.
+A referência IBGE é um snapshot externo, versionado e imutável. No ciclo normal ela deve ser **reutilizada**, não apagada e recarregada.
 
-**Limites que devem aparecer na leitura do resultado:** o recorte corrente de `NOME_MAE` usa `periodo_nascimento='TODOS'`, portanto ainda não condiciona a distribuição feminina por coorte materna; a composição de prenome e sobrenome é a hipótese versionada `INDEPENDENT_FIRST_NAME_SURNAME_MARGINALS_V1`. Não corrija nenhuma das duas hipóteses com fatores arbitrários: trate-as como análise de sensibilidade dentro da #31.
-
-Após a MLE ordenada nominal, audite também `UNRESTRICTED_M_*`, `ORDER_RESTRICTED_BLOCK_*`, `ORDER_RESTRICTED_DELTA_LLR_*`, `ORDER_RESTRICTED_ADJUSTED_STATES_*` e `ORDER_RESTRICTED_MAX_ABS_DELTA_LLR_*`. O gate de monotonicidade não substitui essa leitura: pooling substancial é sinal diagnóstico a investigar.
-
-Para avaliação estatística, uma única seed não basta para atribuir mudança de LLR ao modelo. Repita a calibração com seeds distintos e compare dispersão de `NOME`/`NOME_MAE`. Comparações A/B devem usar artefatos congelados identificados por `modelo_id`, algoritmo, fingerprints, referência e ruleset; não recalibre retrospectivamente um modelo antigo com código novo.
-
-O diagnóstico read-only multi-seed automatiza a primeira parte sem recalibrar ou promover modelos:
+### 10. Rodar E2E isolado
 
 ```powershell
-.\scripts\local-ibge-u-multiseed.ps1 -PairCount 100000 -Seeds 20260917,20260918,20260919,20260920,20260921
+.\scripts\local-e2e.ps1
 ```
 
-Ele preserva um JSON por seed e grava `.local\calibrador-ibge-u\multiseed\summary.json` com média, desvio-padrão, mínimo e máximo de cada estado nominal. Use primeiro uma contagem moderada para detectar instabilidade; aumente `PairCount` somente depois que a instrumentação e o ambiente estiverem validados.
+O E2E usa por padrão um banco temporário `JornadaE2E_*`, criado apenas para a execução e removido ao final. Isso permite testar HTTP → Bronze → Silver → Gold → Serving → HTTP sem resetar `JornadaLocal` nem tocar em `ref.frequencia_nome`.
 
-`local-ibge-u-bootstrap.ps1` é **read-only** e reproduz separadamente as distribuições Monte Carlo de pessoa e mãe para comparação com o modelo ATIVO; não cria, valida ou ativa modelo. `local-linkage-validation.ps1` usa corpus independente DEV com positivos, impostores e probes de conflito. Nesta fase pré-homologação, não há comparação de regressão com modelo anterior; o harness reprova se produzir falso vínculo resolvido.
-
-### 10. Rodar o smoke de escala
+O reset do banco compartilhado só existe como escape explícito:
 
 ```powershell
-.\scripts\local-scale.ps1 -Profile smoke
+.\scripts\local-e2e.ps1 -AllowSharedDatabaseReset
 ```
 
-O perfil `smoke` valida o harness de escala com custo menor que `medium` ou `million`. Perfis maiores só devem ser executados quando a alteração ou o critério de aceite exigir evidência adicional de escala.
-
-### 11. Restaurar o banco canônico
+### 11. Fechar com a suíte ampla preservadora
 
 ```powershell
-.\scripts\local-db.ps1 -Action reset
+.\scripts\local-test-all.ps1 -Suite full
 ```
 
-O ensaio de escala usa dados próprios. O reset antes do fechamento deixa o ambiente novamente em estado canônico conhecido.
+Esse é o fechamento local padrão. Ele:
 
-### 12. Fechar com a suíte completa
+- valida a referência IBGE antes de começar;
+- executa Core, E2E isolado e fault injection;
+- sobe/reutiliza o cluster sem `clean`;
+- calibra, executa linkage e diagnóstico;
+- na suíte `full`, executa a auditoria read-only;
+- valida novamente a referência IBGE ao terminar.
+
+`local-test-all.ps1` **não contém reset do banco compartilhado, `clean` de volumes nem scale harness**. O relatório registra `destructiveReset=false` e `ibgeReferencePreserved=true`.
+
+### 12. Instalação limpa / scale destrutivo somente quando necessário
+
+Quando o objetivo for deliberadamente provar instalação a partir do zero, use o fluxo separado:
 
 ```powershell
-.\scripts\local-test-all.ps1 -Suite full -AllowDestructiveReset
+.\scripts\local-test-from-zero.ps1 -Suite full -AllowDestructiveReset
 ```
 
-A suíte completa é o aceite local final. Ela não substitui a utilidade das etapas anteriores: quando executadas uma a uma, elas mostram com precisão onde surgiu a primeira falha.
+Esse comando é explicitamente destrutivo: remove volumes, recria o banco, materializa novamente a referência IBGE e, na suíte `full`, executa o scale smoke. Ao final tenta restaurar o ambiente canônico e confirma a referência IBGE.
 
-Considere a validação local concluída somente quando o fechamento terminar com:
-
-```text
-LOCAL TEST ALL: OK
-```
+Sem `-AllowDestructiveReset`, o script aborta antes de tocar no ambiente.
 
 ### Regra prática
 
-Durante desenvolvimento, pare no primeiro comando que falhar, corrija a causa e repita a etapa. Antes de considerar uma alteração pronta para PR/merge, percorra a sequência aplicável e finalize com o script dedicado da frente e os gates de CI. Use `local-test-all.ps1 -Suite full` quando a mudança precisar provar instalação limpa/reconstrução completa ou quando esse fechamento for explicitamente requerido.
+Durante desenvolvimento e fechamento normal, **preserve a referência IBGE**. Use o script dedicado da frente e finalize com `local-test-all.ps1 -Suite full`. Reserve `local-test-from-zero.ps1 -AllowDestructiveReset`, `local-cluster.ps1 -Action clean`, resets deliberados e scale para cenários que realmente precisam provar reconstrução/instalação limpa.
 
-Para frentes técnicas com testes direcionados, mantenha também um script dedicado em `scripts/` que concentre o comando reproduzível daquela mudança. Quando a referência IBGE já estiver materializada, o padrão é **reutilizá-la e executar um check read-only**, não apagá-la/recarregá-la. `local-test-all.ps1 -Suite full` continua sendo o gate de instalação limpa/isolada quando esse nível de prova for necessário.
+Para frentes técnicas com testes direcionados, mantenha também um script dedicado em `scripts/` que concentre o comando reproduzível daquela mudança.
 
 ## Atalhos: o que usar no dia a dia
 
@@ -198,8 +177,9 @@ Para frentes técnicas com testes direcionados, mantenha também um script dedic
 | Recriar o cluster | `local-cluster.ps1 -Action reset` | Quando é necessário reconstruir containers/serviços |
 | Apagar completamente o cluster local | `local-cluster.ps1 -Action clean` | Ambiente inconsistente ou necessidade deliberada de começar do zero |
 | Operar somente o banco local | `local-db.ps1` | Desenvolvimento/testes que precisam apenas do SQL Server local |
-| Rodar suíte isolada de instalação limpa | `local-test-all.ps1 -Suite full -AllowDestructiveReset` | Somente quando a mudança exige provar reset/reconstrução completa; sem a flag explícita o script aborta antes de tocar no banco |
-| Testar o guard destrutivo da suíte full | `local-test-test-all-safety.ps1` | Prova que `local-test-all.ps1` sem autorização falha antes de `git fetch`, worktree ou reset do banco |
+| Rodar suíte ampla preservadora | `local-test-all.ps1 -Suite full` | Fechamento local padrão; preserva `JornadaLocal`/IBGE e usa E2E isolado |
+| Provar instalação limpa/from-zero | `local-test-from-zero.ps1 -Suite full -AllowDestructiveReset` | Somente quando reset/clean/recarga IBGE e scale são deliberadamente necessários |
+| Testar separação preservador/from-zero | `local-test-test-all-safety.ps1` | Prova que `local-test-all` não contém reset/clean/scale e que o fluxo destrutivo exige autorização |
 | Rodar validação local específica | `local-test.ps1` | Iteração rápida durante desenvolvimento; preserva o banco existente |
 | Conferir referência IBGE sem recarga | `local-check-ibge-reference.ps1` | Antes de testes que reutilizam `ref.frequencia_nome`; compara versão/linhas/hash publicado e imutabilidade sem carregar dados |
 | Diagnosticar referência IBGE local | `local-diagnose-ibge-reference.ps1` | Read-only; lista versões, status, SHA e contagem de linhas por versão para investigar bases legadas/incompletas |
@@ -243,7 +223,7 @@ Controla o ambiente local centrado no banco de dados.
 
 Ações disponíveis: `up`, `reset`, `down`, `clean`, `status` e `backfill`.
 
-Use este script quando não precisar do cluster completo. `backfill` é destinado aos cenários que exercitam explicitamente a recomposição/backfill local; não é necessário para simplesmente subir o banco. O `reset` recria schema/corpus e **não materializa sozinho** os 5.603.287 registros da referência IBGE. Quando precisar recuperar só a referência, use `local-load-ibge-reference.ps1 -AllowLoad` em vez de repetir o reset.
+Use este script quando não precisar do cluster completo. `backfill` é destinado aos cenários que exercitam explicitamente a recomposição/backfill local; não é necessário para simplesmente subir o banco. O `reset` recria schema/corpus e **não materializa sozinho** os 5.603.287 registros da referência IBGE. Quando precisar recuperar só a referência, use `local-load-ibge-reference.ps1 -AllowLoad` em vez de repetir o reset. Para harnesses isolados, `-DatabaseName <nome>` permite criar/resetar outro banco no mesmo SQL Server sem tocar no `JornadaLocal`; o E2E usa esse mecanismo por padrão.
 
 ### `local-clean.ps1`
 
@@ -267,17 +247,27 @@ Para validar o próprio contrato do diagnóstico contra o banco já existente:
 
 ### `local-test-all.ps1`
 
-É o comando recomendado para a validação local ampla.
+É o comando recomendado para a validação local ampla **preservando o banco compartilhado e a referência IBGE**:
 
 ```powershell
-./scripts/local-test-all.ps1 -Suite full -AllowDestructiveReset
+.\scripts\local-test-all.ps1 -Suite full
 ```
 
-Use apenas quando a alteração precisar provar instalação limpa/reconstrução completa. O script executa a validação em contexto isolado para evitar que alterações locais não relacionadas contaminem a evidência do SHA testado, mas exige `-AllowDestructiveReset` porque reseta o banco local. No fechamento da suíte full, o banco canônico é reconstruído e a referência IBGE canônica é materializada novamente antes de declarar sucesso.
+A invocação pública continua testando `origin/master` em worktree destacado, mas copia o `.env` local para que o checkout isolado use a mesma referência já materializada. O fluxo começa e termina com `local-check-ibge-reference.ps1`, não executa `local-db reset`, não executa `local-cluster clean` e não executa `local-scale.ps1`.
 
-Quando estiver apenas iterando em uma correção pequena, rode primeiro o teste/gate específico. `local-test-all.ps1` sem `-AllowDestructiveReset` agora aborta de propósito; use a flag somente quando quiser explicitamente reconstruir o ambiente.
+O E2E chamado pela suíte usa banco temporário próprio. Calibração/linkage podem acrescentar evidências/modelos ao banco de desenvolvimento, mas não apagam a referência.
 
-O guard pode ser validado isoladamente com:
+### `local-test-from-zero.ps1`
+
+Fluxo separado para reconstrução deliberada:
+
+```powershell
+.\scripts\local-test-from-zero.ps1 -Suite full -AllowDestructiveReset
+```
+
+Somente este agregador é dono de `clean`, reset destrutivo, recarga canônica do IBGE e scale smoke. Sem a flag explícita, aborta antes de executar qualquer ação destrutiva. Mesmo em caso de falha, tenta restaurar banco canônico + referência IBGE no `finally`.
+
+O contrato preservador/from-zero pode ser validado isoladamente com:
 
 ```powershell
 .\scripts\local-test-test-all-safety.ps1
@@ -286,6 +276,12 @@ O guard pode ser validado isoladamente com:
 ### `local-test.ps1`
 
 Entrada de teste mais focada/rápida. Use durante o ciclo editar → testar → corrigir. Ele sobe/reutiliza o banco local sem `reset`, portanto preserva uma `ref.frequencia_nome` já carregada. Não substitui o gate de instalação limpa quando a mudança exigir provar reconstrução completa do ambiente.
+
+### `local-e2e.ps1`
+
+Por padrão cria um banco temporário `JornadaE2E_*`, chama `local-db.ps1 -DatabaseName ... -NoSyntheticCorpus`, executa o fluxo E2E e remove esse banco no `finally`. Assim o E2E não reseta o banco compartilhado.
+
+`-AllowSharedDatabaseReset` existe apenas para uso deliberado e explícito.
 
 ### `local-check-ibge-reference.ps1`
 
