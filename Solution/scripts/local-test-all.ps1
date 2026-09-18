@@ -2,6 +2,7 @@
 param(
     [ValidateSet('standard', 'full')]
     [string]$Suite = 'full',
+    [switch]$AllowDestructiveReset,
     [switch]$IsolatedExecution
 )
 
@@ -14,6 +15,16 @@ $Results = [System.Collections.Generic.List[object]]::new()
 $OverallStatus = 'FAILED'
 $FailureMessage = $null
 $testedSha = $null
+
+if (-not $AllowDestructiveReset) {
+    Write-Host ''
+    Write-Warning 'LOCAL TEST ALL NAO EXECUTADO: esta suite reseta/reconstroi o banco local e pode recarregar a referencia IBGE.'
+    Write-Host 'Para autorizar explicitamente o reset destrutivo, execute:'
+    Write-Host '# .\scripts\local-test-all.ps1 -Suite full -AllowDestructiveReset'
+    Write-Host ''
+    Write-Host 'Para validacao normal preservando o banco e a referencia IBGE, use o script dedicado da frente ou .\scripts\local-test.ps1.'
+    throw 'Reset destrutivo nao autorizado. Informe -AllowDestructiveReset somente quando quiser provar instalacao limpa/reconstrucao completa.'
+}
 
 function Format-CommandArgument {
     param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Value)
@@ -241,8 +252,8 @@ if (-not $IsolatedExecution) {
         Write-Host "Criando worktree isolado para $testedSha..."
         Invoke-Git @('worktree','add','--detach',$worktreePath,$testedSha)
         $isolatedScript = Join-Path $worktreePath 'Solution/scripts/local-test-all.ps1'
-        Write-CommandLine $CurrentPowerShell @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$isolatedScript,'-Suite',$Suite,'-IsolatedExecution')
-        & $CurrentPowerShell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $isolatedScript -Suite $Suite -IsolatedExecution
+        Write-CommandLine $CurrentPowerShell @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$isolatedScript,'-Suite',$Suite,'-AllowDestructiveReset','-IsolatedExecution')
+        & $CurrentPowerShell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $isolatedScript -Suite $Suite -AllowDestructiveReset -IsolatedExecution
         $exitCode = $LASTEXITCODE
     }
     catch {
@@ -286,6 +297,7 @@ try {
     Write-Host "Suite:  $Suite"
     Write-Host 'Branch: detached worktree de origin/master'
     Write-Host "SHA:    $testedSha"
+    Write-Host 'Reset destrutivo explicitamente autorizado: SIM.'
     Write-Host 'A suíte é destrutiva para bancos/volumes locais de teste, mas não altera o working tree do desenvolvedor.'
     Write-Host 'Pré-HML: o upgrade de baselines históricos não é executado por padrão. Para diagnóstico manual: .\scripts\local-ddl-upgrade.ps1.'
 
@@ -368,6 +380,7 @@ finally {
         gitCommitSha = $testedSha
         executionMode = 'isolated-worktree'
         historicalUpgradeDefault = $false
+        destructiveResetExplicitlyAllowed = $true
         generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         failure = $FailureMessage
         steps = @($Results)
