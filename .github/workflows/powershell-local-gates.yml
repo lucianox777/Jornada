@@ -182,9 +182,9 @@ jobs:
 
           foreach ($required in @(
             '[switch]$AllowSharedDatabaseReset',
-            '$usesTemporaryDatabase = -not $AllowSharedDatabaseReset',
-            '-NoSyntheticCorpus -DatabaseName $db',
-            'DROP DATABASE [$db]'
+            '$usesIsolatedDatabase = -not $AllowSharedDatabaseReset',
+            "'JornadaE2E'",
+            '-NoSyntheticCorpus -DatabaseName $db'
           )) {
             if (-not $e2e.Contains($required)) {
               throw "local-e2e.ps1 perdeu isolamento do banco compartilhado: $required"
