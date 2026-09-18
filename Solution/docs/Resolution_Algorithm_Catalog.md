@@ -36,7 +36,7 @@ O catálogo inicial de comparadores universais do sistema contém:
 | `EXACT_ORDINAL@V1` | acordo exato 0/1 | não |
 | `JARO_WINKLER@V1` | score de similaridade | sim |
 | `WHOLE_NAME_JARO_WINKLER_V1` | estado `EXACT/HIGH/MEDIUM/LOW` sobre a string nominal completa; contrato legado dos modelos correntes | thresholds congelados em 0,92/0,80 |
-| `POSITIONAL_TOKEN_MIN_JARO_WINKLER_V2` | estado `EXACT/HIGH/MEDIUM/LOW`; para igual contagem de tokens limita a similaridade pelo token posicional mais divergente | thresholds congelados em 0,92/0,80 |
+| `PTBR_CONTENT_TOKEN_GUARD_JARO_WINKLER_V2` | estado `EXACT/HIGH/MEDIUM/LOW`; limita a similaridade pelo token de conteúdo posicional mais divergente, ignorando somente `DA/DAS/DE/DO/DOS` no guard | thresholds congelados em 0,92/0,80 |
 
 Assim, uma composição como `name_upper_no_diacritics + JARO_WINKLER@V1(threshold=t)` significa: a projeção `upper_no_diacritics` é escolhida pelo Calibrador, Jaro-Winkler é capacidade universal homologada e `t` pode ser aprendido pelo Calibrador.
 
