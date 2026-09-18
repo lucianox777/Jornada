@@ -14,7 +14,7 @@ foreach ($path in @($TestAll,$FromZero)) {
 }
 
 $testAll = Get-Content -LiteralPath $TestAll -Raw -Encoding UTF8
-$fromZero = Get-Content -LiteralPath $FromZero -Raw -Encoding UTF8
+$fromZeroContent = Get-Content -LiteralPath $FromZero -Raw -Encoding UTF8
 
 foreach ($required in @(
     "Invoke-PowerShellScript 'local-check-ibge-reference.ps1'",
@@ -43,7 +43,7 @@ foreach ($required in @(
     "Invoke-Script 'local-scale.ps1' @('-Profile','smoke')",
     "Invoke-Script 'local-load-ibge-reference.ps1' @('-AllowLoad')"
 )) {
-    if (-not $fromZero.Contains($required)) { throw "Contrato destrutivo ausente em local-test-from-zero.ps1: $required" }
+    if (-not $fromZeroContent.Contains($required)) { throw "Contrato destrutivo ausente em local-test-from-zero.ps1: $required" }
 }
 
 $e2e = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'local-e2e.ps1') -Raw -Encoding UTF8
@@ -60,8 +60,8 @@ if (-not $db.Contains('[string]$DatabaseName')) {
     throw 'local-db.ps1 perdeu suporte a banco isolado por nome explicito.'
 }
 
-$guardIndex = $fromZero.IndexOf('if (-not $AllowDestructiveReset)')
-$firstActionIndex = $fromZero.IndexOf("Invoke-Script 'local-cluster.ps1' @('-Action','clean')")
+$guardIndex = $fromZeroContent.IndexOf('if (-not $AllowDestructiveReset)')
+$firstActionIndex = $fromZeroContent.IndexOf("Invoke-Script 'local-cluster.ps1' @('-Action','clean')")
 if ($guardIndex -lt 0 -or $firstActionIndex -lt 0 -or $guardIndex -ge $firstActionIndex) {
     throw 'Guard from-zero deve aparecer antes da primeira acao destrutiva.'
 }
