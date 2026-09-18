@@ -6,6 +6,8 @@ on:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-diagnose-ibge-reference.ps1'
+      - 'Solution/scripts/local-test-ibge-diagnostic.ps1'
       - 'Solution/scripts/local-test-test-all-safety.ps1'
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
@@ -25,6 +27,8 @@ on:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-diagnose-ibge-reference.ps1'
+      - 'Solution/scripts/local-test-ibge-diagnostic.ps1'
       - 'Solution/scripts/local-test-test-all-safety.ps1'
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
@@ -67,6 +71,8 @@ jobs:
             'scripts/local-ddl-upgrade.ps1',
             'scripts/local-test.ps1',
             'scripts/local-test-all.ps1',
+            'scripts/local-diagnose-ibge-reference.ps1',
+            'scripts/local-test-ibge-diagnostic.ps1',
             'scripts/local-test-test-all-safety.ps1',
             'scripts/local-test-round.ps1',
             'scripts/local-cluster.ps1',
@@ -334,6 +340,10 @@ jobs:
       - name: Recreate canonical local database through PowerShell
         shell: pwsh
         run: ./scripts/local-db.ps1 -Action reset
+
+      - name: Execute read-only IBGE diagnostic contract
+        shell: pwsh
+        run: ./scripts/local-test-ibge-diagnostic.ps1 -NoStart
 
       - name: Execute SQL runtime smoke through PowerShell on schema 3.70
         shell: pwsh
