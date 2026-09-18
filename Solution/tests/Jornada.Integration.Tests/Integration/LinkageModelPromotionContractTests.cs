@@ -115,20 +115,22 @@ public sealed class LinkageModelPromotionContractTests
                 (@model,N'M_NOME_HIGH',0.20),
                 (@model,N'M_NOME_MEDIUM',0.08),
                 (@model,N'M_NOME_LOW',0.02),
-                (@model,N'U_NOME_EXACT',0.01),
-                (@model,N'U_NOME_HIGH',0.05),
-                (@model,N'U_NOME_MEDIUM',0.20),
-                -- LOW abaixo de u(MEDIUM) torna LLR(LOW)=20 maior que LLR(MEDIUM)=0,4.
-                (@model,N'U_NOME_LOW',0.001),
+                (@model,N'U_NOME_EXACT',0.001),
+                (@model,N'U_NOME_HIGH',0.009),
+                (@model,N'U_NOME_MEDIUM',0.80),
+                -- Distribuição u normalizada, mas LLR(LOW)=log(0,02/0,19)
+                -- fica ligeiramente acima de LLR(MEDIUM)=log(0,08/0,80).
+                (@model,N'U_NOME_LOW',0.19),
 
-                (@model,N'M_NOME_MAE_EXACT',0.70),
-                (@model,N'M_NOME_MAE_HIGH',0.20),
-                (@model,N'M_NOME_MAE_MEDIUM',0.08),
-                (@model,N'M_NOME_MAE_LOW',0.02),
-                (@model,N'U_NOME_MAE_EXACT',0.01),
-                (@model,N'U_NOME_MAE_HIGH',0.05),
-                (@model,N'U_NOME_MAE_MEDIUM',0.20),
-                (@model,N'U_NOME_MAE_LOW',0.80);
+                -- Mãe: 0,90 de massa presente + 0,10 MISSING; u presente=0,80 + 0,20 MISSING.
+                (@model,N'M_NOME_MAE_EXACT',0.63),
+                (@model,N'M_NOME_MAE_HIGH',0.18),
+                (@model,N'M_NOME_MAE_MEDIUM',0.072),
+                (@model,N'M_NOME_MAE_LOW',0.018),
+                (@model,N'U_NOME_MAE_EXACT',0.0008),
+                (@model,N'U_NOME_MAE_HIGH',0.0072),
+                (@model,N'U_NOME_MAE_MEDIUM',0.152),
+                (@model,N'U_NOME_MAE_LOW',0.64);
 
             DECLARE @rejected BIT=0;
             BEGIN TRY
@@ -144,8 +146,12 @@ public sealed class LinkageModelPromotionContractTests
                 THROW 51991,'Modelo rejeitado deve permanecer RASCUNHO.',1;
 
             UPDATE identidade.parametro_linkage
-            SET valor=0.80
-            WHERE modelo_id=@model AND nome=N'U_NOME_LOW';
+            SET valor=CASE nome
+                WHEN N'U_NOME_MEDIUM' THEN 0.19
+                WHEN N'U_NOME_LOW' THEN 0.80
+                ELSE valor END
+            WHERE modelo_id=@model
+              AND nome IN (N'U_NOME_MEDIUM',N'U_NOME_LOW');
 
             UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@model;
 
