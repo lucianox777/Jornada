@@ -74,7 +74,7 @@ public sealed class IbgeNominalUBootstrapEstimatorTests
         var v2 = IbgeNominalUBootstrapEstimator.Estimate(
             entries,
             options,
-            NameComparisonContract.PositionalTokenMinJaroWinklerV2);
+            NameComparisonContract.PtBrContentTokenGuardV2);
 
         var v1Medium = v1.States.Single(state => state.State == "MEDIUM");
         var v1Low = v1.States.Single(state => state.State == "LOW");
