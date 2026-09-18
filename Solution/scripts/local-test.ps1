@@ -1,6 +1,8 @@
 ﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$DefaultEnvFile = Join-Path $Root '.env'
+$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { $DefaultEnvFile } else { [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE) }
 
 function Invoke-NativeStep {
     param(
@@ -22,7 +24,7 @@ function Invoke-NativeStep {
 & (Join-Path $PSScriptRoot 'local-db.ps1') -Action up
 
 $vars = @{}
-Get-Content (Join-Path $Root '.env') | ForEach-Object {
+Get-Content $EnvFile | ForEach-Object {
     $line = $_.Trim()
     if ($line -and -not $line.StartsWith('#') -and $line.Contains('=')) {
         $parts = $line.Split('=',2)
