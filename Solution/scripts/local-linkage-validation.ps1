@@ -320,6 +320,8 @@ $conflictResolved = [int]$conf[4]
 $positiveSensitivity = if ($positiveTotal -eq 0) { [decimal]0 } else { [decimal]$positiveCorrect / [decimal]$positiveTotal }
 $negativeSpecificity = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeRejected / [decimal]$negativeTotal }
 $negativeFalseMatchRate = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeResolved / [decimal]$negativeTotal }
+$resolvedDecisionTotal = $positiveCorrect + $positiveWrong + $negativeResolved
+$syntheticResolvedPpv = if ($resolvedDecisionTotal -eq 0) { [decimal]0 } else { [decimal]$positiveCorrect / [decimal]$resolvedDecisionTotal }
 
 $report = [ordered]@{
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
@@ -327,8 +329,9 @@ $report = [ordered]@{
     safeguards = @(
         'validation rows are injected only after an active calibrated model exists',
         'fixture prefix is bound to the active model id fragment',
-        'positive and negative quality metrics do not gate promotion or alter thresholds',
-        'blocking recall and conflict-rule coverage are measured separately from decision quality')
+        'quality metrics gate only this DEV validation script; they do not promote models or alter thresholds',
+        'blocking recall and conflict-rule coverage are measured separately from decision quality',
+        'no regression comparison with prior models is required in this pre-homologation phase')
     model = [ordered]@{
         modelId = $activeModelId
         modelVersion = $modelVersion
@@ -356,6 +359,12 @@ $report = [ordered]@{
         syntheticSpecificity = [decimal]::Round($negativeSpecificity,6)
         syntheticFalseMatchRate = [decimal]::Round($negativeFalseMatchRate,6)
     }
+    combinedDecisionQuality = [ordered]@{
+        resolvedDecisions = $resolvedDecisionTotal
+        correctResolved = $positiveCorrect
+        falseResolved = ($positiveWrong + $negativeResolved)
+        syntheticResolvedPpv = [decimal]::Round($syntheticResolvedPpv,6)
+    }
     conflictProbe = [ordered]@{
         total = $conflictTotal
         conflictStatus = $conflictStatus
@@ -373,7 +382,7 @@ $report = [ordered]@{
     }
     interpretation = [ordered]@{
         scope = 'Evidência sintética DEV; não é estimativa de acurácia municipal nem homologação.'
-        negatives = 'Impostores incluem colisões simples e HARD_HOMONYM. Falso vínculo é medido, não escondido nem convertido em gate arbitrário.'
+        negatives = 'Impostores incluem colisões simples e HARD_HOMONYM. Nesta fase DEV, qualquer falso vínculo resolvido reprova o quality gate do harness.'
         frontier = 'A malha teórica mostra se os estados discretos do modelo conseguem sequer ocupar a vizinhança do threshold atual.'
     }
 }
@@ -387,6 +396,7 @@ Write-Host "Run: $runId"
 Write-Host "Blocking positivo: truthInsideUnion=$($blockingAudit.summary.truthInsideUnion)/$($blockingAudit.summary.sampleSize) recall=$($blockingAudit.summary.unionRecallPct)%"
 Write-Host "Positivos: corretos=$positiveCorrect/$positiveTotal errados=$positiveWrong não_resolvidos_ou_conflitos=$positiveUnresolved sensibilidade_sintética=$([decimal]::Round(($positiveSensitivity * [decimal]100),2))%"
 Write-Host "Negativos: falsos_vínculos=$negativeResolved/$negativeTotal rejeitados_ou_conflitos=$negativeRejected candidatos_expostos=$negativeCandidateExposure especificidade_sintética=$([decimal]::Round(($negativeSpecificity * [decimal]100),2))%"
+Write-Host "Decisões resolvidas combinadas: corretas=$positiveCorrect falsas=$($positiveWrong+$negativeResolved) PPV_sintético=$([decimal]::Round(($syntheticResolvedPpv * [decimal]100),2))%"
 Write-Host "Conflito forçado: conflito=$conflictStatus/$conflictTotal margem_zero=$conflictMarginZero acima_threshold=$conflictAboveThreshold resolvidos_indevidos=$conflictResolved"
 Write-Host "Fronteira T=$threshold`: casos reais ±0,02=$($frontier[0]); max_abaixo=$($frontier[1]); min_acima=$($frontier[2])"
 Write-Host 'Estados teóricos mais próximos do threshold:'
@@ -406,3 +416,12 @@ if ($conflictTotal -ne 10 -or $conflictStatus -ne 10 -or $conflictMarginZero -ne
 }
 
 Write-Host 'LINKAGE INDEPENDENT VALIDATION STRUCTURAL GATES: OK' -ForegroundColor Green
+
+if ($positiveWrong -ne 0) {
+    throw "DEV QUALITY GATE reprovado: houve $positiveWrong resolução(ões) positiva(s) para UUID incorreto."
+}
+if ($negativeResolved -ne 0) {
+    throw "DEV QUALITY GATE reprovado: houve $negativeResolved falso(s) vínculo(s) resolvido(s) em $negativeTotal negativos independentes."
+}
+
+Write-Host 'LINKAGE INDEPENDENT VALIDATION DEV QUALITY GATES: OK' -ForegroundColor Green
