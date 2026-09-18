@@ -194,7 +194,7 @@ function Invoke-LinkageEvaluationSmoke {
             $env:ConnectionStrings__Jornada = "Server=localhost,$port;Database=$db;User Id=sa;Password=$password;TrustServerCertificate=true;Encrypt=false"
             $env:JORNADA_EVALUATION_SQL_PASSWORD = $password
             $env:JORNADA_EVALUATION_DATABASE = $db
-            # A auditoria roda contra o corpus canônico criado por local-db reset:
+            # local-db up assegura o corpus SCALE canônico sem resetar a referência:
             # 5000 Pessoas SCALE Gold + 5000 pares corroborados + 1000 pendentes.
             $env:JORNADA_EVALUATION_SCALE_PEOPLE = '5000'
             $env:JORNADA_EVALUATION_SCALE_SEED = '355'
