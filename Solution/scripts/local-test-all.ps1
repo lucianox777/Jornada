@@ -2,6 +2,7 @@
 param(
     [ValidateSet('standard', 'full')]
     [string]$Suite = 'full',
+    [switch]$FromZero,
     [switch]$AllowDestructiveReset,
     [switch]$IsolatedExecution
 )
@@ -16,14 +17,15 @@ $OverallStatus = 'FAILED'
 $FailureMessage = $null
 $testedSha = $null
 
-if (-not $AllowDestructiveReset) {
+if ($FromZero -and -not $AllowDestructiveReset) {
     Write-Host ''
-    Write-Warning 'LOCAL TEST ALL NAO EXECUTADO: esta suite reseta/reconstroi o banco local e pode recarregar a referencia IBGE.'
-    Write-Host 'Para autorizar explicitamente o reset destrutivo, execute:'
-    Write-Host '# .\scripts\local-test-all.ps1 -Suite full -AllowDestructiveReset'
-    Write-Host ''
-    Write-Host 'Para validacao normal preservando o banco e a referencia IBGE, use o script dedicado da frente ou .\scripts\local-test.ps1.'
-    throw 'Reset destrutivo nao autorizado. Informe -AllowDestructiveReset somente quando quiser provar instalacao limpa/reconstrucao completa.'
+    Write-Warning 'FROM ZERO NAO EXECUTADO: este modo reseta/reconstroi o banco e a referencia IBGE.'
+    Write-Host 'Use o wrapper explicito:'
+    Write-Host '# .\scripts\local-test-from-zero.ps1'
+    throw 'Reconstrucao from-zero nao autorizada.'
+}
+if (-not $FromZero -and $AllowDestructiveReset) {
+    throw '-AllowDestructiveReset so e valido junto com -FromZero. O modo padrao preserva a referencia IBGE.'
 }
 
 function Format-CommandArgument {
@@ -205,7 +207,7 @@ function Invoke-LinkageEvaluationSmoke {
             $env:ConnectionStrings__Jornada = "Server=localhost,$port;Database=$db;User Id=sa;Password=$password;TrustServerCertificate=true;Encrypt=false"
             $env:JORNADA_EVALUATION_SQL_PASSWORD = $password
             $env:JORNADA_EVALUATION_DATABASE = $db
-            # A auditoria roda contra o corpus canônico criado por local-db reset:
+            # A auditoria roda contra o corpus canônico assegurado por local-db up:
             # 5000 Pessoas SCALE Gold + 5000 pares corroborados + 1000 pendentes.
             $env:JORNADA_EVALUATION_SCALE_PEOPLE = '5000'
             $env:JORNADA_EVALUATION_SCALE_SEED = '355'
@@ -252,8 +254,13 @@ if (-not $IsolatedExecution) {
         Write-Host "Criando worktree isolado para $testedSha..."
         Invoke-Git @('worktree','add','--detach',$worktreePath,$testedSha)
         $isolatedScript = Join-Path $worktreePath 'Solution/scripts/local-test-all.ps1'
-        Write-CommandLine $CurrentPowerShell @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$isolatedScript,'-Suite',$Suite,'-AllowDestructiveReset','-IsolatedExecution')
-        & $CurrentPowerShell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $isolatedScript -Suite $Suite -AllowDestructiveReset -IsolatedExecution
+        $childArgs = @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$isolatedScript,'-Suite',$Suite)
+        if ($FromZero) {
+            $childArgs += @('-FromZero','-AllowDestructiveReset')
+        }
+        $childArgs += '-IsolatedExecution'
+        Write-CommandLine $CurrentPowerShell $childArgs
+        & $CurrentPowerShell @childArgs
         $exitCode = $LASTEXITCODE
     }
     catch {
@@ -297,36 +304,81 @@ try {
     Write-Host "Suite:  $Suite"
     Write-Host 'Branch: detached worktree de origin/master'
     Write-Host "SHA:    $testedSha"
-    Write-Host 'Reset destrutivo explicitamente autorizado: SIM.'
-    Write-Host 'A suíte é destrutiva para bancos/volumes locais de teste, mas não altera o working tree do desenvolvedor.'
+    Write-Host ("Modo:   " + $(if ($FromZero) { 'FROM_ZERO_DESTRUTIVO' } else { 'PRESERVE_IBGE' }))
     Write-Host 'Pré-HML: o upgrade de baselines históricos não é executado por padrão. Para diagnóstico manual: .\scripts\local-ddl-upgrade.ps1.'
 
-    Invoke-Step 'Banco local canônico: reset determinístico' {
-        Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')
-    }
+    if (-not $FromZero) {
+        Write-Host 'Referencia IBGE: PRESERVADA. Nenhum reset/clean/E2E/scale destrutivo sera executado.'
 
-    Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
-        Invoke-PowerShellScript 'local-test.ps1'
-    }
+        Invoke-Step 'IBGE: quick check read-only da referencia existente' {
+            Invoke-PowerShellScript 'local-check-ibge-reference.ps1' @()
+        }
 
-    Invoke-Step 'E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP' {
-        Invoke-PowerShellScript 'local-e2e.ps1'
-    }
+        Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
+            Invoke-PowerShellScript 'local-test.ps1'
+        }
 
-    Invoke-Step 'Fault injection do gate serial' {
-        Invoke-PowerShellScript 'local-fault-injection.ps1'
-    }
+        Invoke-Step 'Fault injection do gate serial' {
+            Invoke-PowerShellScript 'local-fault-injection.ps1'
+        }
 
-    Invoke-Step 'Cluster limpo: rebuild + calibrate + linkage + diagnose' {
-        Invoke-ClusterAction 'clean'
-        Invoke-ClusterAction 'up'
-        Write-Host 'Nota: a primeira calibração de um banco novo pode carregar 5.603.287 linhas da referência IBGE. O worker imprime heartbeat a cada 15 segundos durante a carga.' -ForegroundColor DarkYellow
-        Invoke-ClusterAction 'calibrate'
-        Invoke-ClusterAction 'linkage'
-        Invoke-ClusterAction 'linkage-diagnose'
-    }
+        $clusterStarted = $false
+        try {
+            Invoke-Step 'Cluster preservado: up + calibrate + linkage + diagnose' {
+                Invoke-ClusterAction 'up'
+                $clusterStarted = $true
+                Invoke-ClusterAction 'calibrate'
+                Invoke-ClusterAction 'linkage'
+                Invoke-ClusterAction 'linkage-diagnose'
+            }
 
-    if ($Suite -eq 'full') {
+            if ($Suite -eq 'full') {
+                Invoke-Step 'Auditoria read-only de candidate recall/rank' {
+                    Invoke-LinkageEvaluationSmoke
+                }
+                $Results.Add([ordered]@{ name = 'E2E/Scale from-zero'; status = 'SKIPPED_PRESERVE_IBGE'; seconds = 0.0 })
+            }
+        }
+        finally {
+            if ($clusterStarted) {
+                Invoke-Step 'Encerrar cluster preservando volumes' {
+                    Invoke-PowerShellScript 'local-cluster.ps1' @('-Action', 'down')
+                }
+            }
+        }
+
+        $OverallStatus = 'OK'
+    }
+    else {
+        Write-Host 'Reset destrutivo explicitamente autorizado: SIM.'
+        Write-Host 'FROM_ZERO recria banco/volumes e prova a materializacao canonica completa.'
+
+        Invoke-Step 'Banco local canônico: reset determinístico' {
+            Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')
+        }
+
+        Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
+            Invoke-PowerShellScript 'local-test.ps1'
+        }
+
+        Invoke-Step 'E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP' {
+            Invoke-PowerShellScript 'local-e2e.ps1'
+        }
+
+        Invoke-Step 'Fault injection do gate serial' {
+            Invoke-PowerShellScript 'local-fault-injection.ps1'
+        }
+
+        Invoke-Step 'Cluster limpo: rebuild + calibrate + linkage + diagnose' {
+            Invoke-ClusterAction 'clean'
+            Invoke-ClusterAction 'up'
+            Write-Host 'Nota: banco novo materializa 5.603.287 linhas da referencia IBGE.' -ForegroundColor DarkYellow
+            Invoke-ClusterAction 'calibrate'
+            Invoke-ClusterAction 'linkage'
+            Invoke-ClusterAction 'linkage-diagnose'
+        }
+
+        if ($Suite -eq 'full') {
         # A auditoria precisa observar o corpus canônico e o modelo calibrado no cluster,
         # não a massa especial do scale harness. Ela também roda antes de qualquer clean.
         Invoke-Step 'Auditoria read-only de candidate recall/rank' {
@@ -367,7 +419,8 @@ try {
         }
     }
 
-    $OverallStatus = 'OK'
+        $OverallStatus = 'OK'
+    }
 }
 catch {
     $FailureMessage = $_.Exception.Message
@@ -383,7 +436,9 @@ finally {
         gitCommitSha = $testedSha
         executionMode = 'isolated-worktree'
         historicalUpgradeDefault = $false
-        destructiveResetExplicitlyAllowed = $true
+        mode = $(if ($FromZero) { 'FROM_ZERO_DESTRUCTIVE' } else { 'PRESERVE_IBGE' })
+        destructiveResetExplicitlyAllowed = [bool]($FromZero -and $AllowDestructiveReset)
+        ibgeReferencePreservedByDefault = [bool](-not $FromZero)
         generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         failure = $FailureMessage
         steps = @($Results)
