@@ -224,8 +224,153 @@ WHERE r.linkage_run_id='$runId'
 "@
 $neg = $negativeMetricLine.Split('|')
 
+$negativeScenarioLines = @(Get-SqlLines @"
+WITH n AS (
+    SELECT
+        CASE
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-EASY-%' THEN N'EASY'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-NAME_COLLISION-%' THEN N'NAME_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-MOTHER_COLLISION-%' THEN N'MOTHER_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%' THEN N'HARD_HOMONYM'
+            ELSE N'UNKNOWN'
+        END AS scenario,
+        r.*
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-%'
+)
+SELECT CONCAT(
+    scenario,'|',
+    COUNT_BIG(*),'|',
+    SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN status='NAO_RESOLVIDO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN melhor_candidato_uuid IS NOT NULL THEN 1 ELSE 0 END),'|',
+    COALESCE(CONVERT(varchar(40),MIN(score_melhor)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MAX(score_melhor)),'NULL'))
+FROM n
+GROUP BY scenario
+ORDER BY CASE scenario
+    WHEN N'EASY' THEN 1
+    WHEN N'NAME_COLLISION' THEN 2
+    WHEN N'MOTHER_COLLISION' THEN 3
+    WHEN N'HARD_HOMONYM' THEN 4
+    ELSE 5 END;
+"@)
+
+$negativeScenarioBreakdown = @(
+    foreach ($line in $negativeScenarioLines) {
+        $parts = $line.Split('|')
+        [ordered]@{
+            scenario = $parts[0]
+            total = [int]$parts[1]
+            resolvedFalseMatches = [int]$parts[2]
+            conflicts = [int]$parts[3]
+            unresolved = [int]$parts[4]
+            candidateExposure = [int]$parts[5]
+            minBestScore = (Parse-Decimal $parts[6])
+            maxBestScore = (Parse-Decimal $parts[7])
+        }
+    }
+)
+
+$negativeFalseMatchLines = @(Get-SqlLines @"
+SELECT CONCAT(
+    CASE
+        WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-EASY-%' THEN N'EASY'
+        WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-NAME_COLLISION-%' THEN N'NAME_COLLISION'
+        WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-MOTHER_COLLISION-%' THEN N'MOTHER_COLLISION'
+        WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%' THEN N'HARD_HOMONYM'
+        ELSE N'UNKNOWN'
+    END,'|',
+    po.codigo_pessoa_origem,'|',
+    CONVERT(varchar(40),r.score_melhor),'|',
+    COALESCE(CONVERT(varchar(40),r.score_segundo),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),r.margem),'NULL'),'|',
+    COALESCE(CONVERT(varchar(36),r.melhor_candidato_uuid),'NULL'),'|',
+    COALESCE(CONVERT(varchar(36),r.segundo_candidato_uuid),'NULL'))
+FROM identidade.linkage_resultado r
+JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+WHERE r.linkage_run_id='$runId'
+  AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-%'
+  AND r.status='RESOLVIDO'
+ORDER BY po.codigo_pessoa_origem;
+"@)
+
+$negativeFalseMatchDetails = @(
+    foreach ($line in $negativeFalseMatchLines) {
+        $parts = $line.Split('|')
+        [ordered]@{
+            scenario = $parts[0]
+            sourceCode = $parts[1]
+            bestScore = (Parse-Decimal $parts[2])
+            secondScore = (Parse-Decimal $parts[3])
+            margin = (Parse-Decimal $parts[4])
+            bestCandidateUuid = $parts[5]
+            secondCandidateUuid = $parts[6]
+        }
+    }
+)
+
 $thresholdText = Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='T_LINKAGE';"
 $threshold = Parse-Decimal $thresholdText
+
+$negativeScenarioEvidenceLines = @(Get-SqlLines @"
+WITH scenarios AS (
+    SELECT *
+    FROM (VALUES
+        (N'EASY',N'LOW',N'LOW',N'EXACT'),
+        (N'NAME_COLLISION',N'EXACT',N'LOW',N'EXACT'),
+        (N'MOTHER_COLLISION',N'LOW',N'EXACT',N'EXACT'),
+        (N'HARD_HOMONYM',N'EXACT',N'EXACT',N'EXACT')
+    ) v(scenario,nome_estado,mae_estado,nascimento_estado)
+), prior AS (
+    SELECT CAST(valor AS float) AS p
+    FROM identidade.parametro_linkage
+    WHERE modelo_id='$activeModelId' AND nome='PRIOR_MATCH_PROBABILITY'
+)
+SELECT CONCAT(
+    s.scenario,'|',
+    s.nome_estado,'|',
+    s.mae_estado,'|',
+    s.nascimento_estado,'|',
+    CONVERT(varchar(40),CAST(LOG(prior.p/(1.0-prior.p)) AS decimal(18,8))),'|',
+    CONVERT(varchar(40),CAST(LOG(CAST(nm.valor AS float)/CAST(nu.valor AS float)) AS decimal(18,8))),'|',
+    CONVERT(varchar(40),CAST(LOG(CAST(mm.valor AS float)/CAST(mu.valor AS float)) AS decimal(18,8))),'|',
+    CONVERT(varchar(40),CAST(LOG(CAST(bm.valor AS float)/CAST(bu.valor AS float)) AS decimal(18,8))),'|',
+    CONVERT(varchar(40),CAST(1.0/(1.0+EXP(-(LOG(prior.p/(1.0-prior.p))+LOG(CAST(nm.valor AS float)/CAST(nu.valor AS float))+LOG(CAST(mm.valor AS float)/CAST(mu.valor AS float))+LOG(CAST(bm.valor AS float)/CAST(bu.valor AS float))))) AS decimal(18,8)))
+FROM scenarios s
+CROSS JOIN prior
+JOIN identidade.parametro_linkage nm ON nm.modelo_id='$activeModelId' AND nm.nome=N'M_NOME_'+s.nome_estado
+JOIN identidade.parametro_linkage nu ON nu.modelo_id='$activeModelId' AND nu.nome=N'U_NOME_'+s.nome_estado
+JOIN identidade.parametro_linkage mm ON mm.modelo_id='$activeModelId' AND mm.nome=N'M_NOME_MAE_'+s.mae_estado
+JOIN identidade.parametro_linkage mu ON mu.modelo_id='$activeModelId' AND mu.nome=N'U_NOME_MAE_'+s.mae_estado
+JOIN identidade.parametro_linkage bm ON bm.modelo_id='$activeModelId' AND bm.nome=N'M_NASCIMENTO_SEMANTICO_'+s.nascimento_estado
+JOIN identidade.parametro_linkage bu ON bu.modelo_id='$activeModelId' AND bu.nome=N'U_NASCIMENTO_SEMANTICO_'+s.nascimento_estado
+ORDER BY CASE s.scenario
+    WHEN N'EASY' THEN 1
+    WHEN N'NAME_COLLISION' THEN 2
+    WHEN N'MOTHER_COLLISION' THEN 3
+    WHEN N'HARD_HOMONYM' THEN 4 END;
+"@)
+
+$negativeScenarioEvidence = @(
+    foreach ($line in $negativeScenarioEvidenceLines) {
+        $parts = $line.Split('|')
+        [ordered]@{
+            scenario = $parts[0]
+            nameState = $parts[1]
+            motherState = $parts[2]
+            birthState = $parts[3]
+            priorLogOdds = (Parse-Decimal $parts[4])
+            nameLlr = (Parse-Decimal $parts[5])
+            motherLlr = (Parse-Decimal $parts[6])
+            birthLlr = (Parse-Decimal $parts[7])
+            theoreticalPosterior = (Parse-Decimal $parts[8])
+        }
+    }
+)
 
 $conflictMetricLine = Get-SqlScalar @"
 SELECT CONCAT(
@@ -358,6 +503,9 @@ $report = [ordered]@{
         noCandidate = $negativeNoCandidate
         syntheticSpecificity = [decimal]::Round($negativeSpecificity,6)
         syntheticFalseMatchRate = [decimal]::Round($negativeFalseMatchRate,6)
+        scenarios = $negativeScenarioBreakdown
+        scenarioEvidenceProfiles = $negativeScenarioEvidence
+        falseMatchDetails = $negativeFalseMatchDetails
     }
     combinedDecisionQuality = [ordered]@{
         resolvedDecisions = $resolvedDecisionTotal
@@ -396,6 +544,20 @@ Write-Host "Run: $runId"
 Write-Host "Blocking positivo: truthInsideUnion=$($blockingAudit.summary.truthInsideUnion)/$($blockingAudit.summary.sampleSize) recall=$($blockingAudit.summary.unionRecallPct)%"
 Write-Host "Positivos: corretos=$positiveCorrect/$positiveTotal errados=$positiveWrong não_resolvidos_ou_conflitos=$positiveUnresolved sensibilidade_sintética=$([decimal]::Round(($positiveSensitivity * [decimal]100),2))%"
 Write-Host "Negativos: falsos_vínculos=$negativeResolved/$negativeTotal rejeitados_ou_conflitos=$negativeRejected candidatos_expostos=$negativeCandidateExposure especificidade_sintética=$([decimal]::Round(($negativeSpecificity * [decimal]100),2))%"
+Write-Host 'Negativos por cenário:'
+foreach ($scenario in $negativeScenarioBreakdown) {
+    Write-Host ("  {0}: total={1} falsos_vínculos={2} conflitos={3} não_resolvidos={4} expostos={5} score=[{6},{7}]" -f $scenario.scenario,$scenario.total,$scenario.resolvedFalseMatches,$scenario.conflicts,$scenario.unresolved,$scenario.candidateExposure,$scenario.minBestScore,$scenario.maxBestScore)
+}
+Write-Host 'Perfil teórico de evidência dos negativos:'
+foreach ($profile in $negativeScenarioEvidence) {
+    Write-Host ("  {0}: {1}/{2}/{3} prior={4} nome_llr={5} mãe_llr={6} nasc_llr={7} posterior={8}" -f $profile.scenario,$profile.nameState,$profile.motherState,$profile.birthState,$profile.priorLogOdds,$profile.nameLlr,$profile.motherLlr,$profile.birthLlr,$profile.theoreticalPosterior)
+}
+if ($negativeFalseMatchDetails.Count -gt 0) {
+    Write-Host 'Falsos vínculos resolvidos:'
+    foreach ($item in $negativeFalseMatchDetails) {
+        Write-Host ("  {0} | {1} | score={2} segundo={3} margem={4} best={5}" -f $item.scenario,$item.sourceCode,$item.bestScore,$item.secondScore,$item.margin,$item.bestCandidateUuid)
+    }
+}
 Write-Host "Decisões resolvidas combinadas: corretas=$positiveCorrect falsas=$($positiveWrong+$negativeResolved) PPV_sintético=$([decimal]::Round(($syntheticResolvedPpv * [decimal]100),2))%"
 Write-Host "Conflito forçado: conflito=$conflictStatus/$conflictTotal margem_zero=$conflictMarginZero acima_threshold=$conflictAboveThreshold resolvidos_indevidos=$conflictResolved"
 Write-Host "Fronteira T=$threshold`: casos reais ±0,02=$($frontier[0]); max_abaixo=$($frontier[1]); min_acima=$($frontier[2])"
