@@ -296,7 +296,7 @@ $negativeScenarioLines = @(Get-SqlLines @"
 WITH n AS (
     SELECT
         CASE
-            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-EASY-%' THEN N'EASY'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-TWIN_LIKE-%' THEN N'TWIN_LIKE'
             WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-NAME_COLLISION-%' THEN N'NAME_COLLISION'
             WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-MOTHER_COLLISION-%' THEN N'MOTHER_COLLISION'
             WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%' THEN N'HARD_HOMONYM'
@@ -320,7 +320,7 @@ SELECT CONCAT(
 FROM n
 GROUP BY scenario
 ORDER BY CASE scenario
-    WHEN N'EASY' THEN 1
+    WHEN N'TWIN_LIKE' THEN 1
     WHEN N'NAME_COLLISION' THEN 2
     WHEN N'MOTHER_COLLISION' THEN 3
     WHEN N'HARD_HOMONYM' THEN 4
@@ -346,7 +346,7 @@ $negativeScenarioBreakdown = @(
 $negativeFalseMatchLines = @(Get-SqlLines @"
 SELECT CONCAT(
     CASE
-        WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-EASY-%' THEN N'EASY'
+        WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-TWIN_LIKE-%' THEN N'TWIN_LIKE'
         WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-NAME_COLLISION-%' THEN N'NAME_COLLISION'
         WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-MOTHER_COLLISION-%' THEN N'MOTHER_COLLISION'
         WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%' THEN N'HARD_HOMONYM'
@@ -402,7 +402,7 @@ if ($null -eq $priorProbability) { throw 'PRIOR_MATCH_PROBABILITY ausente no mod
 $priorLogOddsDouble = [Math]::Log([double]$priorProbability / (1.0 - [double]$priorProbability))
 
 $scenarioDefinitions = @(
-    [ordered]@{ scenario='EASY'; nameState='LOW'; motherState='LOW'; birthState='EXACT' },
+    [ordered]@{ scenario='TWIN_LIKE'; nameState='HIGH'; motherState='EXACT'; birthState='EXACT' },
     [ordered]@{ scenario='NAME_COLLISION'; nameState='EXACT'; motherState='LOW'; birthState='EXACT' },
     [ordered]@{ scenario='MOTHER_COLLISION'; nameState='LOW'; motherState='EXACT'; birthState='EXACT' },
     [ordered]@{ scenario='HARD_HOMONYM'; nameState='EXACT'; motherState='EXACT'; birthState='EXACT' }
@@ -712,7 +712,7 @@ $report = [ordered]@{
     }
     interpretation = [ordered]@{
         scope = 'Evidência sintética DEV; não é estimativa de acurácia municipal nem homologação.'
-        negatives = 'Impostores incluem colisões simples e HARD_HOMONYM. Nesta fase DEV, qualquer falso vínculo resolvido reprova o quality gate do harness.'
+        negatives = 'Impostores incluem TWIN_LIKE (mesma mãe/data e primeiro nome quase igual), colisões simples e HARD_HOMONYM. Nesta fase DEV, qualquer falso vínculo resolvido reprova o quality gate do harness.'
         frontier = 'A malha teórica mostra se os estados discretos do modelo conseguem sequer ocupar a vizinhança do threshold atual.'
         orderRestriction = 'A auditoria mostra quanto a MLE ordenada alterou m/LLR; pooling grande é diagnóstico de tensão entre estimativas, não evidência adicional de identidade.'
     }
