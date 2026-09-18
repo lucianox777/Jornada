@@ -304,7 +304,6 @@ public sealed class SqlProbabilisticIdentityLinkage(
                 observation,
                 maxCandidates,
                 commandTimeoutSeconds,
-                BlockingQueryDialect.SqlServer,
                 ct);
         }
 
