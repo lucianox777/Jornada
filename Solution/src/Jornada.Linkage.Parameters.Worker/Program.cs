@@ -9,7 +9,7 @@ var builder = Host.CreateApplicationBuilder(args);
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 var provider = builder.Configuration.GetValue("Database:Provider", OperationalDatabaseProviders.SqlServer);
-var database = OperationalDatabaseAdapterFactory.Create(provider, jornadaConnectionString);
+_ = OperationalDatabaseAdapterFactory.Create(provider, jornadaConnectionString);
 var operation = builder.Configuration.GetValue("LinkageParameters:Operation", "GENERATE_DRAFT")!
     .Trim()
     .ToUpperInvariant();
@@ -17,14 +17,6 @@ var operation = builder.Configuration.GetValue("LinkageParameters:Operation", "G
 if (operation == NameFrequencySourceChecker.Operation)
 {
     builder.Services.AddHostedService<NameFrequencySourceChecker>();
-}
-else if (database.Provider == OperationalDatabaseProviders.PostgreSql)
-{
-    if (operation is NameFrequencyReferenceImporter.Operation or NameFrequencySnapshotLoader.Operation or EnsureNameFrequencySnapshotOperation or IbgeNominalUBootstrapReporter.Operation)
-        throw new InvalidOperationException($"{operation} ainda possui implementação canônica apenas para SQL Server.");
-
-    builder.Services.AddSingleton(database);
-    builder.Services.AddHostedService<PostgreSqlLinkageParametersWorker>();
 }
 else
 {
