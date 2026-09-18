@@ -25,18 +25,20 @@ public static class LinkageParameterEstimator
         decimal threshold,
         decimal conflictMargin,
         BirthScoringContract birthScoringContract = BirthScoringContract.SemanticEvidenceV5,
-        bool decisionEvidenceV6 = true)
+        bool decisionEvidenceV6 = true,
+        NameComparisonContract nameComparisonContract = NameComparisonContract.WholeNameJaroWinklerV1)
     {
         if (matchedPairs.Count == 0) throw new InvalidOperationException("Não há pares determinísticos suficientes para estimar probabilidades m.");
         if (unmatchedPairs.Count == 0) throw new InvalidOperationException("Não há pares não-match suficientes para estimar probabilidades u.");
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(smoothingAlpha);
         if (!Enum.IsDefined(birthScoringContract)) throw new ArgumentOutOfRangeException(nameof(birthScoringContract));
+        if (!Enum.IsDefined(nameComparisonContract)) throw new ArgumentOutOfRangeException(nameof(nameComparisonContract));
         // V6 operacional exige o contrato semântico de nascimento. Chamadores legados
         // (V3/V4, inclusive o piloto PostgreSQL) nunca recebem flags/estados V6 por acidente.
         decisionEvidenceV6 = decisionEvidenceV6 && birthScoringContract == BirthScoringContract.SemanticEvidenceV5;
 
-        var matchedNameStates = matchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)).ToArray();
-        var unmatchedNameStates = unmatchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)).ToArray();
+        var matchedNameStates = matchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName, nameComparisonContract)).ToArray();
+        var unmatchedNameStates = unmatchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName, nameComparisonContract)).ToArray();
         var matchedSemanticBirthStates = matchedPairs.Select(p => BirthDateSemanticEvidence.Classify(p.LeftBirthDate, p.RightBirthDate)).ToArray();
         var unmatchedSemanticBirthStates = unmatchedPairs.Select(p => BirthDateSemanticEvidence.Classify(p.LeftBirthDate, p.RightBirthDate)).ToArray();
         var matchedBirthStates = matchedPairs.Select(BirthAgreementMask).ToArray();
@@ -76,15 +78,15 @@ public static class LinkageParameterEstimator
 
         if (decisionEvidenceV6)
         {
-            AddMotherDistributionV6(result, "M_NOME_MAE", matchedPairs, smoothingAlpha);
-            AddMotherDistributionV6(result, "U_NOME_MAE", unmatchedPairs, smoothingAlpha);
-            AddMotherSupportV6(result, "SUPPORT_M_NOME_MAE", matchedPairs);
-            AddMotherSupportV6(result, "SUPPORT_U_NOME_MAE", unmatchedPairs);
+            AddMotherDistributionV6(result, "M_NOME_MAE", matchedPairs, smoothingAlpha, nameComparisonContract);
+            AddMotherDistributionV6(result, "U_NOME_MAE", unmatchedPairs, smoothingAlpha, nameComparisonContract);
+            AddMotherSupportV6(result, "SUPPORT_M_NOME_MAE", matchedPairs, nameComparisonContract);
+            AddMotherSupportV6(result, "SUPPORT_U_NOME_MAE", unmatchedPairs, nameComparisonContract);
         }
         else
         {
-            var matchedMotherStates = PresentMotherNameComparisons(matchedPairs).ToArray();
-            var unmatchedMotherStates = PresentMotherNameComparisons(unmatchedPairs).ToArray();
+            var matchedMotherStates = PresentMotherNameComparisons(matchedPairs, nameComparisonContract).ToArray();
+            var unmatchedMotherStates = PresentMotherNameComparisons(unmatchedPairs, nameComparisonContract).ToArray();
             AddDistribution(result, "M_NOME_MAE", matchedMotherStates, smoothingAlpha);
             AddDistribution(result, "U_NOME_MAE", unmatchedMotherStates, smoothingAlpha);
             AddNameSupport(result, "SUPPORT_M_NOME_MAE", matchedMotherStates);
@@ -110,24 +112,31 @@ public static class LinkageParameterEstimator
         return result;
     }
 
-    private static IEnumerable<NameComparisonState> PresentMotherNameComparisons(IEnumerable<IdentityTrainingPair> pairs)
+    private static IEnumerable<NameComparisonState> PresentMotherNameComparisons(
+        IEnumerable<IdentityTrainingPair> pairs,
+        NameComparisonContract nameComparisonContract)
     {
         foreach (var pair in pairs)
         {
             if (IdentityComparison.NormalizeText(pair.LeftMotherName) is null ||
                 IdentityComparison.NormalizeText(pair.RightMotherName) is null)
                 continue;
-            yield return IdentityComparison.CompareName(pair.LeftMotherName, pair.RightMotherName);
+            yield return IdentityComparison.CompareName(pair.LeftMotherName, pair.RightMotherName, nameComparisonContract);
         }
     }
 
-    private static void AddMotherDistributionV6(IDictionary<string, decimal> target, string prefix, IEnumerable<IdentityTrainingPair> pairs, decimal alpha)
+    private static void AddMotherDistributionV6(
+        IDictionary<string, decimal> target,
+        string prefix,
+        IEnumerable<IdentityTrainingPair> pairs,
+        decimal alpha,
+        NameComparisonContract nameComparisonContract)
     {
         var counts = LinkageParameterCatalog.MotherNameStates.ToDictionary(s => s, _ => 0L, StringComparer.Ordinal);
         long total = 0;
         foreach (var p in pairs)
         {
-            var state = MotherNameState(p);
+            var state = MotherNameState(p, nameComparisonContract);
             counts[state]++;
             total++;
         }
@@ -136,19 +145,25 @@ public static class LinkageParameterEstimator
             target[$"{prefix}_{state}"] = (counts[state] + alpha) / denominator;
     }
 
-    private static void AddMotherSupportV6(IDictionary<string, decimal> target, string prefix, IEnumerable<IdentityTrainingPair> pairs)
+    private static void AddMotherSupportV6(
+        IDictionary<string, decimal> target,
+        string prefix,
+        IEnumerable<IdentityTrainingPair> pairs,
+        NameComparisonContract nameComparisonContract)
     {
         var counts = LinkageParameterCatalog.MotherNameStates.ToDictionary(s => s, _ => 0L, StringComparer.Ordinal);
         foreach (var pair in pairs)
-            counts[MotherNameState(pair)]++;
+            counts[MotherNameState(pair, nameComparisonContract)]++;
         foreach (var state in LinkageParameterCatalog.MotherNameStates)
             target[$"{prefix}_{state}"] = counts[state];
     }
 
-    private static string MotherNameState(IdentityTrainingPair pair) =>
+    private static string MotherNameState(
+        IdentityTrainingPair pair,
+        NameComparisonContract nameComparisonContract) =>
         IdentityComparison.NormalizeText(pair.LeftMotherName) is null || IdentityComparison.NormalizeText(pair.RightMotherName) is null
             ? "MISSING"
-            : IdentityComparison.CompareName(pair.LeftMotherName, pair.RightMotherName).ToString();
+            : IdentityComparison.CompareName(pair.LeftMotherName, pair.RightMotherName, nameComparisonContract).ToString();
 
     private static void AddDistribution(IDictionary<string, decimal> target, string prefix, IEnumerable<NameComparisonState> values, decimal alpha)
     {

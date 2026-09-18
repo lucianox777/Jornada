@@ -51,12 +51,15 @@ public static class IbgeNominalUBootstrapEstimator
 
     public static IbgeNominalUBootstrapEstimate Estimate(
         IEnumerable<IbgeTypedNameFrequencyEntry> entries,
-        IbgeNominalUBootstrapOptions options)
+        IbgeNominalUBootstrapOptions options,
+        NameComparisonContract nameComparisonContract = NameComparisonContract.WholeNameJaroWinklerV1)
     {
         ArgumentNullException.ThrowIfNull(entries);
         ArgumentNullException.ThrowIfNull(options);
         if (options.PairCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(options), "PairCount deve ser positivo.");
+        if (!Enum.IsDefined(nameComparisonContract))
+            throw new ArgumentOutOfRangeException(nameof(nameComparisonContract));
 
         var materialized = entries.ToArray();
         var firstNames = BuildSampler(materialized, IbgeNameStatisticKind.FirstName);
@@ -74,7 +77,7 @@ public static class IbgeNominalUBootstrapEstimator
                 " ",
                 surnames.Sample(options.Seed, pairIndex, "R_SURNAME"));
 
-            counts[IdentityComparison.CompareName(left, right)]++;
+            counts[IdentityComparison.CompareName(left, right, nameComparisonContract)]++;
         }
 
         var stateEstimates = States

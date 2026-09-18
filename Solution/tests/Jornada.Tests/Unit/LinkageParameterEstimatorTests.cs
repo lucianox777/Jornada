@@ -130,6 +130,41 @@ public sealed class LinkageParameterEstimatorTests
     }
 
     [Test]
+    public void Explicit_name_contract_reclassifies_person_and_mother_without_changing_default_v1()
+    {
+        const string left = "MARIA APARECIDA DA SILVA VALIDACAO UNICA";
+        const string right = "MARIA APARECIDA DA SOUZA VALIDACAO UNICA";
+        var birth = new DateOnly(1980, 1, 1);
+        var matched = new[]
+        {
+            new IdentityTrainingPair(left, birth, left, left, birth, left)
+        };
+        var unmatched = new[]
+        {
+            new IdentityTrainingPair(left, birth, left, right, birth, right)
+        };
+
+        var v1 = LinkageParameterEstimator.Estimate(
+            matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m);
+        var v2 = LinkageParameterEstimator.Estimate(
+            matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m,
+            nameComparisonContract: NameComparisonContract.PtBrContentTokenGuardV2);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(v1["SUPPORT_U_NOME_HIGH"], Is.EqualTo(1m));
+            Assert.That(v1["SUPPORT_U_NOME_LOW"], Is.EqualTo(0m));
+            Assert.That(v1["SUPPORT_U_NOME_MAE_HIGH"], Is.EqualTo(1m));
+            Assert.That(v1["SUPPORT_U_NOME_MAE_LOW"], Is.EqualTo(0m));
+
+            Assert.That(v2["SUPPORT_U_NOME_HIGH"], Is.EqualTo(0m));
+            Assert.That(v2["SUPPORT_U_NOME_LOW"], Is.EqualTo(1m));
+            Assert.That(v2["SUPPORT_U_NOME_MAE_HIGH"], Is.EqualTo(0m));
+            Assert.That(v2["SUPPORT_U_NOME_MAE_LOW"], Is.EqualTo(1m));
+        });
+    }
+
+    [Test]
     public void Missing_mother_name_is_an_explicit_v6_state_not_low_similarity()
     {
         var matched = new[]
