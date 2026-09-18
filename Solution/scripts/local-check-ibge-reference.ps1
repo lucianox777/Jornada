@@ -6,7 +6,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$EnvFile = Join-Path $Root '.env'
+$DefaultEnvFile = Join-Path $Root '.env'
+$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { $DefaultEnvFile } else { [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE) }
 $ManifestPath = Join-Path $Root 'data\reference\ibge-nomes-2022\manifest.json'
 $ProjectionManifestPath = Join-Path $Root 'data\reference\ibge-nomes-2022\projection-manifest.json'
 
