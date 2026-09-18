@@ -1,6 +1,7 @@
 param(
     [switch]$SkipRestore,
     [switch]$SkipBuild,
+    [switch]$Quick,
     [switch]$FullUnit
 )
 
@@ -26,7 +27,12 @@ function Invoke-NativeStep {
     }
 }
 
-$TargetedFilter = 'FullyQualifiedName~NominalDfBenchmarkCalibrationTests|FullyQualifiedName~NominalDfCalibrationDatasetTests|FullyQualifiedName~SplinkCompatibleTermFrequencyTests|FullyQualifiedName~IbgeNominalBenchmarkTests'
+$TargetedFilter = if ($Quick) {
+    'FullyQualifiedName~NominalDfBenchmarkCalibrationTests'
+}
+else {
+    'FullyQualifiedName~NominalDfBenchmarkCalibrationTests|FullyQualifiedName~NominalDfCalibrationDatasetTests|FullyQualifiedName~SplinkCompatibleTermFrequencyTests|FullyQualifiedName~IbgeNominalBenchmarkTests'
+}
 
 Push-Location $Root
 try {
@@ -42,7 +48,8 @@ try {
         }
     }
 
-    Invoke-NativeStep 'Testes direcionados DF / benchmark / IBGE' "dotnet test .\tests\Jornada.Tests\Jornada.Tests.csproj --configuration Release --no-build --filter `"$TargetedFilter`"" {
+    $testStepName = if ($Quick) { 'Teste rapido DF validation/test (snapshot em memoria)' } else { 'Testes direcionados DF / benchmark / IBGE' }
+    Invoke-NativeStep $testStepName "dotnet test .\tests\Jornada.Tests\Jornada.Tests.csproj --configuration Release --no-build --filter `"$TargetedFilter`"" {
         dotnet test .\tests\Jornada.Tests\Jornada.Tests.csproj --configuration Release --no-build --filter $TargetedFilter
     }
 
