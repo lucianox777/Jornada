@@ -49,37 +49,53 @@ BEGIN
     )
         THROW 51033, 'Promoção recusada: V6 exige parâmetros nominais positivos para verificar monotonicidade de LLR.', 1;
 
-    IF EXISTS (
-        SELECT 1
-        FROM inserted i
-        CROSS JOIN (VALUES
-            (N'NOME',N'EXACT',N'HIGH'),
-            (N'NOME',N'HIGH',N'MEDIUM'),
-            (N'NOME',N'MEDIUM',N'LOW'),
-            (N'NOME_MAE',N'EXACT',N'HIGH'),
-            (N'NOME_MAE',N'HIGH',N'MEDIUM'),
-            (N'NOME_MAE',N'MEDIUM',N'LOW')
-        ) ord(campo,estado_melhor,estado_pior)
-        JOIN identidade.parametro_linkage m_melhor
-          ON m_melhor.modelo_id=i.modelo_id
-         AND m_melhor.nome=CONCAT(N'M_',ord.campo,N'_',ord.estado_melhor)
-        JOIN identidade.parametro_linkage u_melhor
-          ON u_melhor.modelo_id=i.modelo_id
-         AND u_melhor.nome=CONCAT(N'U_',ord.campo,N'_',ord.estado_melhor)
-        JOIN identidade.parametro_linkage m_pior
-          ON m_pior.modelo_id=i.modelo_id
-         AND m_pior.nome=CONCAT(N'M_',ord.campo,N'_',ord.estado_pior)
-        JOIN identidade.parametro_linkage u_pior
-          ON u_pior.modelo_id=i.modelo_id
-         AND u_pior.nome=CONCAT(N'U_',ord.campo,N'_',ord.estado_pior)
-        WHERE i.status IN ('VALIDADO','ATIVO')
-          AND i.algoritmo_versao='FELLEGI_SUNTER_DECISION_EVIDENCE_V6'
-          AND (
-              LOG(CAST(m_melhor.valor AS FLOAT) / CAST(u_melhor.valor AS FLOAT)) + 1e-12
-              <
-              LOG(CAST(m_pior.valor AS FLOAT) / CAST(u_pior.valor AS FLOAT))
-          )
-    )
-        THROW 51034, 'Promoção recusada: LLR nominal viola monotonicidade EXACT >= HIGH >= MEDIUM >= LOW.', 1;
+    DECLARE @violacao_campo NVARCHAR(40);
+    DECLARE @violacao_melhor NVARCHAR(20);
+    DECLARE @violacao_pior NVARCHAR(20);
+    DECLARE @violacao_llr_melhor FLOAT;
+    DECLARE @violacao_llr_pior FLOAT;
+
+    SELECT TOP(1)
+        @violacao_campo=ord.campo,
+        @violacao_melhor=ord.estado_melhor,
+        @violacao_pior=ord.estado_pior,
+        @violacao_llr_melhor=LOG(CAST(m_melhor.valor AS FLOAT) / CAST(u_melhor.valor AS FLOAT)),
+        @violacao_llr_pior=LOG(CAST(m_pior.valor AS FLOAT) / CAST(u_pior.valor AS FLOAT))
+    FROM inserted i
+    CROSS JOIN (VALUES
+        (1,N'NOME',N'EXACT',N'HIGH'),
+        (2,N'NOME',N'HIGH',N'MEDIUM'),
+        (3,N'NOME',N'MEDIUM',N'LOW'),
+        (4,N'NOME_MAE',N'EXACT',N'HIGH'),
+        (5,N'NOME_MAE',N'HIGH',N'MEDIUM'),
+        (6,N'NOME_MAE',N'MEDIUM',N'LOW')
+    ) ord(ordem,campo,estado_melhor,estado_pior)
+    JOIN identidade.parametro_linkage m_melhor
+      ON m_melhor.modelo_id=i.modelo_id
+     AND m_melhor.nome=CONCAT(N'M_',ord.campo,N'_',ord.estado_melhor)
+    JOIN identidade.parametro_linkage u_melhor
+      ON u_melhor.modelo_id=i.modelo_id
+     AND u_melhor.nome=CONCAT(N'U_',ord.campo,N'_',ord.estado_melhor)
+    JOIN identidade.parametro_linkage m_pior
+      ON m_pior.modelo_id=i.modelo_id
+     AND m_pior.nome=CONCAT(N'M_',ord.campo,N'_',ord.estado_pior)
+    JOIN identidade.parametro_linkage u_pior
+      ON u_pior.modelo_id=i.modelo_id
+     AND u_pior.nome=CONCAT(N'U_',ord.campo,N'_',ord.estado_pior)
+    WHERE i.status IN ('VALIDADO','ATIVO')
+      AND i.algoritmo_versao='FELLEGI_SUNTER_DECISION_EVIDENCE_V6'
+      AND LOG(CAST(m_melhor.valor AS FLOAT) / CAST(u_melhor.valor AS FLOAT)) + 1e-12
+          < LOG(CAST(m_pior.valor AS FLOAT) / CAST(u_pior.valor AS FLOAT))
+    ORDER BY ord.ordem;
+
+    IF @violacao_campo IS NOT NULL
+    BEGIN
+        DECLARE @violacao_msg NVARCHAR(2048)=CONCAT(
+            N'Promoção recusada: LLR nominal viola monotonicidade em ',
+            @violacao_campo,N' ',@violacao_melhor,N'->',@violacao_pior,
+            N' (',CONVERT(NVARCHAR(60),@violacao_llr_melhor),
+            N' < ',CONVERT(NVARCHAR(60),@violacao_llr_pior),N').');
+        THROW 51034, @violacao_msg, 1;
+    END;
 END;
 GO
