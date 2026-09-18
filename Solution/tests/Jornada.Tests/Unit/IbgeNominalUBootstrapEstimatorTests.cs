@@ -1,3 +1,4 @@
+using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
 
 namespace Jornada.Tests.Unit;
@@ -57,6 +58,38 @@ public sealed class IbgeNominalUBootstrapEstimatorTests
             state.Probability,
             state.StandardError)))
         .ToArray();
+
+    [Test]
+    public void Estimate_UsesSelectedNameComparisonContractWithoutChangingDefaultV1()
+    {
+        var entries = new[]
+        {
+            new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.FirstName, "MARIA", 100),
+            new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.Surname, "SILVA", 100),
+            new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.Surname, "SOUZA", 100)
+        };
+        var options = new IbgeNominalUBootstrapOptions(20260918, 20_000);
+
+        var v1 = IbgeNominalUBootstrapEstimator.Estimate(entries, options);
+        var v2 = IbgeNominalUBootstrapEstimator.Estimate(
+            entries,
+            options,
+            NameComparisonContract.PositionalTokenMinJaroWinklerV2);
+
+        var v1Medium = v1.States.Single(state => state.State == "MEDIUM");
+        var v1Low = v1.States.Single(state => state.State == "LOW");
+        var v2Medium = v2.States.Single(state => state.State == "MEDIUM");
+        var v2Low = v2.States.Single(state => state.State == "LOW");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(v1Medium.Support, Is.GreaterThan(0));
+            Assert.That(v1Low.Support, Is.EqualTo(0));
+            Assert.That(v2Medium.Support, Is.EqualTo(0));
+            Assert.That(v2Low.Support, Is.EqualTo(v1Medium.Support));
+            Assert.That(v2.States.Sum(state => state.Support), Is.EqualTo(options.PairCount));
+        });
+    }
 
     [Test]
     public void Estimate_AllowsExactSameNameForDifferentSyntheticIdentities()
