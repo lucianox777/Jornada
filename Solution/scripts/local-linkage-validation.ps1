@@ -209,6 +209,74 @@ FROM truth;
 "@
 $pos = $positiveMetricLine.Split('|')
 
+$positiveScenarioLines = @(Get-SqlLines @"
+WITH truth AS (
+    SELECT
+        CASE
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-EXACT-%' THEN N'EXACT'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-NAME_ABBREV-%' THEN N'NAME_ABBREV'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-MOTHER_ABBREV-%' THEN N'MOTHER_ABBREV'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-BIRTH_SHIFT-%' THEN N'BIRTH_SHIFT'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-COMBINED-%' THEN N'COMBINED'
+            ELSE N'UNKNOWN'
+        END AS scenario,
+        r.*,
+        vc.pessoa_uuid AS truth_uuid
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    JOIN silver.pessoa_observacao tpo
+      ON tpo.codigo_pessoa_origem=CONCAT(N'SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(varchar(10),TRY_CONVERT(int,RIGHT(po.codigo_pessoa_origem,6))),10))
+    JOIN identidade.v_vinculo_corrente vc
+      ON vc.pessoa_observacao_id=tpo.pessoa_observacao_id
+     AND vc.status=N'RESOLVIDO'
+     AND vc.pessoa_uuid IS NOT NULL
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-%'
+)
+SELECT CONCAT(
+    scenario,'|',
+    COUNT_BIG(*),'|',
+    SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido<>truth_uuid THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN status='NAO_RESOLVIDO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN segundo_candidato_uuid=truth_uuid THEN 1 ELSE 0 END),'|',
+    COALESCE(CONVERT(varchar(40),MIN(score_melhor)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MAX(score_melhor)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MIN(score_segundo)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MAX(score_segundo)),'NULL'))
+FROM truth
+GROUP BY scenario
+ORDER BY CASE scenario
+    WHEN N'EXACT' THEN 1
+    WHEN N'NAME_ABBREV' THEN 2
+    WHEN N'MOTHER_ABBREV' THEN 3
+    WHEN N'BIRTH_SHIFT' THEN 4
+    WHEN N'COMBINED' THEN 5
+    ELSE 6 END;
+"@)
+
+$positiveScenarioBreakdown = @(
+    foreach ($line in $positiveScenarioLines) {
+        $parts = $line.Split('|')
+        [ordered]@{
+            scenario = $parts[0]
+            total = [int]$parts[1]
+            resolvedCorrect = [int]$parts[2]
+            resolvedWrong = [int]$parts[3]
+            conflicts = [int]$parts[4]
+            unresolved = [int]$parts[5]
+            truthTop1 = [int]$parts[6]
+            truthTop2 = [int]$parts[7]
+            minBestScore = (Parse-Decimal $parts[8])
+            maxBestScore = (Parse-Decimal $parts[9])
+            minSecondScore = (Parse-Decimal $parts[10])
+            maxSecondScore = (Parse-Decimal $parts[11])
+        }
+    }
+)
+
 $negativeMetricLine = Get-SqlScalar @"
 SELECT CONCAT(
     COUNT_BIG(*),'|',
@@ -494,6 +562,7 @@ $report = [ordered]@{
         truthTop1 = $positiveTruthTop1
         truthTop2 = $positiveTruthTop2
         syntheticSensitivity = [decimal]::Round($positiveSensitivity,6)
+        scenarios = $positiveScenarioBreakdown
     }
     negative = [ordered]@{
         total = $negativeTotal
@@ -544,6 +613,10 @@ Write-Host "Modelo: v$modelVersion / $activeModelId / $algorithmVersion"
 Write-Host "Run: $runId"
 Write-Host "Blocking positivo: truthInsideUnion=$($blockingAudit.summary.truthInsideUnion)/$($blockingAudit.summary.sampleSize) recall=$($blockingAudit.summary.unionRecallPct)%"
 Write-Host "Positivos: corretos=$positiveCorrect/$positiveTotal errados=$positiveWrong não_resolvidos_ou_conflitos=$positiveUnresolved sensibilidade_sintética=$([decimal]::Round(($positiveSensitivity * [decimal]100),2))%"
+Write-Host 'Positivos por cenário:'
+foreach ($scenario in $positiveScenarioBreakdown) {
+    Write-Host ("  {0}: total={1} corretos={2} errados={3} conflitos={4} não_resolvidos={5} truth_top1={6} truth_top2={7} best=[{8},{9}] second=[{10},{11}]" -f $scenario.scenario,$scenario.total,$scenario.resolvedCorrect,$scenario.resolvedWrong,$scenario.conflicts,$scenario.unresolved,$scenario.truthTop1,$scenario.truthTop2,$scenario.minBestScore,$scenario.maxBestScore,$scenario.minSecondScore,$scenario.maxSecondScore)
+}
 Write-Host "Negativos: falsos_vínculos=$negativeResolved/$negativeTotal rejeitados_ou_conflitos=$negativeRejected candidatos_expostos=$negativeCandidateExposure especificidade_sintética=$([decimal]::Round(($negativeSpecificity * [decimal]100),2))%"
 Write-Host 'Negativos por cenário:'
 foreach ($scenario in $negativeScenarioBreakdown) {
