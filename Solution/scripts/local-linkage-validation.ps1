@@ -316,58 +316,46 @@ $negativeFalseMatchDetails = @(
 $thresholdText = Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='T_LINKAGE';"
 $threshold = Parse-Decimal $thresholdText
 
-$negativeScenarioEvidenceLines = @(Get-SqlLines @"
-WITH scenarios AS (
-    SELECT *
-    FROM (VALUES
-        (N'EASY',N'LOW',N'LOW',N'EXACT'),
-        (N'NAME_COLLISION',N'EXACT',N'LOW',N'EXACT'),
-        (N'MOTHER_COLLISION',N'LOW',N'EXACT',N'EXACT'),
-        (N'HARD_HOMONYM',N'EXACT',N'EXACT',N'EXACT')
-    ) v(scenario,nome_estado,mae_estado,nascimento_estado)
-), prior AS (
-    SELECT CAST(valor AS float) AS p
-    FROM identidade.parametro_linkage
-    WHERE modelo_id='$activeModelId' AND nome='PRIOR_MATCH_PROBABILITY'
+$priorProbability = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='PRIOR_MATCH_PROBABILITY';")
+if ($null -eq $priorProbability) { throw 'PRIOR_MATCH_PROBABILITY ausente no modelo ativo.' }
+$priorLogOddsDouble = [Math]::Log([double]$priorProbability / (1.0 - [double]$priorProbability))
+
+$scenarioDefinitions = @(
+    [ordered]@{ scenario='EASY'; nameState='LOW'; motherState='LOW'; birthState='EXACT' },
+    [ordered]@{ scenario='NAME_COLLISION'; nameState='EXACT'; motherState='LOW'; birthState='EXACT' },
+    [ordered]@{ scenario='MOTHER_COLLISION'; nameState='LOW'; motherState='EXACT'; birthState='EXACT' },
+    [ordered]@{ scenario='HARD_HOMONYM'; nameState='EXACT'; motherState='EXACT'; birthState='EXACT' }
 )
-SELECT CONCAT(
-    s.scenario,'|',
-    s.nome_estado,'|',
-    s.mae_estado,'|',
-    s.nascimento_estado,'|',
-    CONVERT(varchar(40),CAST(LOG(prior.p/(1.0-prior.p)) AS decimal(18,8))),'|',
-    CONVERT(varchar(40),CAST(LOG(CAST(nm.valor AS float)/CAST(nu.valor AS float)) AS decimal(18,8))),'|',
-    CONVERT(varchar(40),CAST(LOG(CAST(mm.valor AS float)/CAST(mu.valor AS float)) AS decimal(18,8))),'|',
-    CONVERT(varchar(40),CAST(LOG(CAST(bm.valor AS float)/CAST(bu.valor AS float)) AS decimal(18,8))),'|',
-    CONVERT(varchar(40),CAST(1.0/(1.0+EXP(-(LOG(prior.p/(1.0-prior.p))+LOG(CAST(nm.valor AS float)/CAST(nu.valor AS float))+LOG(CAST(mm.valor AS float)/CAST(mu.valor AS float))+LOG(CAST(bm.valor AS float)/CAST(bu.valor AS float))))) AS decimal(18,8)))
-FROM scenarios s
-CROSS JOIN prior
-JOIN identidade.parametro_linkage nm ON nm.modelo_id='$activeModelId' AND nm.nome=N'M_NOME_'+s.nome_estado
-JOIN identidade.parametro_linkage nu ON nu.modelo_id='$activeModelId' AND nu.nome=N'U_NOME_'+s.nome_estado
-JOIN identidade.parametro_linkage mm ON mm.modelo_id='$activeModelId' AND mm.nome=N'M_NOME_MAE_'+s.mae_estado
-JOIN identidade.parametro_linkage mu ON mu.modelo_id='$activeModelId' AND mu.nome=N'U_NOME_MAE_'+s.mae_estado
-JOIN identidade.parametro_linkage bm ON bm.modelo_id='$activeModelId' AND bm.nome=N'M_NASCIMENTO_SEMANTICO_'+s.nascimento_estado
-JOIN identidade.parametro_linkage bu ON bu.modelo_id='$activeModelId' AND bu.nome=N'U_NASCIMENTO_SEMANTICO_'+s.nascimento_estado
-ORDER BY CASE s.scenario
-    WHEN N'EASY' THEN 1
-    WHEN N'NAME_COLLISION' THEN 2
-    WHEN N'MOTHER_COLLISION' THEN 3
-    WHEN N'HARD_HOMONYM' THEN 4 END;
-"@)
 
 $negativeScenarioEvidence = @(
-    foreach ($line in $negativeScenarioEvidenceLines) {
-        $parts = $line.Split('|')
+    foreach ($definition in $scenarioDefinitions) {
+        $nameM = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='M_NOME_$($definition.nameState)';")
+        $nameU = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='U_NOME_$($definition.nameState)';")
+        $motherM = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='M_NOME_MAE_$($definition.motherState)';")
+        $motherU = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='U_NOME_MAE_$($definition.motherState)';")
+        $birthM = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='M_NASCIMENTO_SEMANTICO_$($definition.birthState)';")
+        $birthU = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='U_NASCIMENTO_SEMANTICO_$($definition.birthState)';")
+
+        if ($null -in @($nameM,$nameU,$motherM,$motherU,$birthM,$birthU)) {
+            throw "Parâmetro probabilístico ausente ao montar perfil do cenário $($definition.scenario)."
+        }
+
+        $nameLlrDouble = [Math]::Log([double]$nameM / [double]$nameU)
+        $motherLlrDouble = [Math]::Log([double]$motherM / [double]$motherU)
+        $birthLlrDouble = [Math]::Log([double]$birthM / [double]$birthU)
+        $logOddsDouble = $priorLogOddsDouble + $nameLlrDouble + $motherLlrDouble + $birthLlrDouble
+        $posteriorDouble = 1.0 / (1.0 + [Math]::Exp(-[Math]::Max(-40.0,[Math]::Min(40.0,$logOddsDouble))))
+
         [ordered]@{
-            scenario = $parts[0]
-            nameState = $parts[1]
-            motherState = $parts[2]
-            birthState = $parts[3]
-            priorLogOdds = (Parse-Decimal $parts[4])
-            nameLlr = (Parse-Decimal $parts[5])
-            motherLlr = (Parse-Decimal $parts[6])
-            birthLlr = (Parse-Decimal $parts[7])
-            theoreticalPosterior = (Parse-Decimal $parts[8])
+            scenario = $definition.scenario
+            nameState = $definition.nameState
+            motherState = $definition.motherState
+            birthState = $definition.birthState
+            priorLogOdds = [decimal]::Round([decimal]$priorLogOddsDouble,8)
+            nameLlr = [decimal]::Round([decimal]$nameLlrDouble,8)
+            motherLlr = [decimal]::Round([decimal]$motherLlrDouble,8)
+            birthLlr = [decimal]::Round([decimal]$birthLlrDouble,8)
+            theoreticalPosterior = [decimal]::Round([decimal]$posteriorDouble,8)
         }
     }
 )
