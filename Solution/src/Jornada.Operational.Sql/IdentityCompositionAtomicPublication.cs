@@ -27,7 +27,6 @@ public sealed record IdentityCompositionPublicationResult(
 /// </summary>
 public sealed class IdentityCompositionAtomicPublication
 {
-    private readonly bool postgres;
     private readonly IdentityCompositionRecompositionPlanStore recompositionStore;
     private readonly IIdentityCompositionFactualAuthorityReader factualAuthority;
 
@@ -36,12 +35,9 @@ public sealed class IdentityCompositionAtomicPublication
         IIdentityCompositionFactualAuthorityReader? factualAuthority = null)
     {
         ArgumentNullException.ThrowIfNull(database);
-        postgres = database.Provider switch
-        {
-            OperationalDatabaseProviders.PostgreSql => true,
-            OperationalDatabaseProviders.SqlServer => false,
-            _ => throw new ArgumentException("Provider operacional não suportado.", nameof(database))
-        };
+        if (database.Provider != OperationalDatabaseProviders.SqlServer)
+
+            throw new ArgumentException("Provider operacional não suportado.", nameof(database));
         recompositionStore = new IdentityCompositionRecompositionPlanStore(database);
         this.factualAuthority = factualAuthority ?? new IdentityCompositionFactualAuthorityReader(database);
     }
@@ -104,9 +100,7 @@ public sealed class IdentityCompositionAtomicPublication
 
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "SELECT decision_id,recomposition_plan_hash,factual_revalidation_version,publication_version,command_hash,published_by,published_at,mutation_count,state FROM identidade.composicao_publicacao WHERE decision_id=@decision FOR UPDATE;"
-            : "SELECT decision_id,recomposition_plan_hash,factual_revalidation_version,publication_version,command_hash,published_by,published_at,mutation_count,state FROM identidade.composicao_publicacao WITH(UPDLOCK,HOLDLOCK) WHERE decision_id=@decision;";
+        command.CommandText = "SELECT decision_id,recomposition_plan_hash,factual_revalidation_version,publication_version,command_hash,published_by,published_at,mutation_count,state FROM identidade.composicao_publicacao WITH(UPDLOCK,HOLDLOCK) WHERE decision_id=@decision;";
         Add(command, "@decision", DbType.Guid, decisionId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
@@ -202,9 +196,7 @@ public sealed class IdentityCompositionAtomicPublication
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "INSERT INTO identidade.composicao_publicacao(decision_id,recomposition_plan_hash,factual_revalidation_version,publication_version,command_hash,published_by,published_at,mutation_count,state) VALUES(@decision,@plan_hash,@factual_version,@publication_version,@command_hash,@by,@at,@count,'PUBLICADA');"
-            : "INSERT identidade.composicao_publicacao(decision_id,recomposition_plan_hash,factual_revalidation_version,publication_version,command_hash,published_by,published_at,mutation_count,state) VALUES(@decision,@plan_hash,@factual_version,@publication_version,@command_hash,@by,@at,@count,'PUBLICADA');";
+        command.CommandText = "INSERT identidade.composicao_publicacao(decision_id,recomposition_plan_hash,factual_revalidation_version,publication_version,command_hash,published_by,published_at,mutation_count,state) VALUES(@decision,@plan_hash,@factual_version,@publication_version,@command_hash,@by,@at,@count,'PUBLICADA');";
         Add(command, "@decision", DbType.Guid, publication.DecisionId);
         Add(command, "@plan_hash", DbType.String, publication.RecompositionPlanHash);
         Add(command, "@factual_version", DbType.String, publication.FactualRevalidationVersion);

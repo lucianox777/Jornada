@@ -1,5 +1,4 @@
 using System.Data;
-using System.Data.Common;
 using Jornada.Contracts;
 using Microsoft.Data.SqlClient;
 
@@ -21,16 +20,6 @@ internal static class BlockingProjectionPersistence
     {
         var snapshot = await LoadSqlServerSnapshotAsync(connection, tx, pessoaUuid, ct);
         await ReplaceSqlServerAsync(connection, tx, pessoaUuid, snapshot, ct);
-    }
-
-    internal static async Task RefreshPostgreSqlAsync(
-        DbConnection connection,
-        DbTransaction tx,
-        Guid pessoaUuid,
-        CancellationToken ct)
-    {
-        var snapshot = await LoadPostgreSqlSnapshotAsync(connection, tx, pessoaUuid, ct);
-        await ReplacePostgreSqlAsync(connection, tx, pessoaUuid, snapshot, ct);
     }
 
     private static async Task<BlockingProjectionSnapshot> LoadSqlServerSnapshotAsync(
@@ -152,130 +141,6 @@ internal static class BlockingProjectionPersistence
                         reader.GetString(0),
                         reader.GetString(1),
                         reader.GetDateTimeOffset(2),
-                        null));
-                }
-            }
-        }
-
-        return BuildSnapshot(currentName, currentMother, currentBirth, currentAsOf, observations, dynamic);
-    }
-
-    private static async Task<BlockingProjectionSnapshot> LoadPostgreSqlSnapshotAsync(
-        DbConnection connection,
-        DbTransaction tx,
-        Guid pessoaUuid,
-        CancellationToken ct)
-    {
-        string? currentName;
-        string? currentMother;
-        DateOnly currentBirth;
-        DateTimeOffset currentAsOf;
-
-        await using (var current = connection.CreateCommand())
-        {
-            current.Transaction = tx;
-            current.CommandText = "SELECT nome_completo,nome_mae,data_nascimento,atualizado_em FROM gold.pessoa WHERE pessoa_uuid=@uuid;";
-            Add(current, "@uuid", DbType.Guid, pessoaUuid);
-            await using var reader = await current.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct))
-                return BlockingProjectionSnapshot.Empty;
-            currentName = reader.GetString(0);
-            currentMother = reader.IsDBNull(1) ? null : reader.GetString(1);
-            currentBirth = reader.GetFieldValue<DateOnly>(2);
-            currentAsOf = reader.GetFieldValue<DateTimeOffset>(3);
-        }
-
-        var observations = new List<BlockingNameObservation>();
-        await using (var history = connection.CreateCommand())
-        {
-            history.Transaction = tx;
-            history.CommandText = """
-                SELECT po.nome_completo,po.nome_mae,po.source_as_of
-                FROM silver.pessoa_observacao po
-                JOIN identidade.v_vinculo_corrente vc
-                  ON vc.pessoa_observacao_id=po.pessoa_observacao_id
-                WHERE vc.pessoa_uuid=@uuid
-                  AND vc.status='RESOLVIDO'
-                ORDER BY po.source_as_of,po.pessoa_observacao_id;
-                """;
-            Add(history, "@uuid", DbType.Guid, pessoaUuid);
-            await using var reader = await history.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
-            {
-                observations.Add(new BlockingNameObservation(
-                    reader.IsDBNull(0) ? null : reader.GetString(0),
-                    reader.IsDBNull(1) ? null : reader.GetString(1),
-                    reader.GetFieldValue<DateTimeOffset>(2)));
-            }
-        }
-
-        var dynamic = new List<BlockingDynamicAttributeObservation>();
-        var eligible = PersonResolutionContractCatalog.EligibleTransversal
-            .Select(static field => field.Code)
-            .OrderBy(static code => code, StringComparer.Ordinal)
-            .ToArray();
-        if (eligible.Length > 0)
-        {
-            var parameterNames = eligible.Select((_, index) => $"@eligible_attr_{index}").ToArray();
-            await using (var attributes = connection.CreateCommand())
-            {
-                attributes.Transaction = tx;
-                attributes.CommandText = $"""
-                    SELECT atributo_codigo,valor,vigencia_inicio,vigencia_fim
-                    FROM gold.pessoa_atributo
-                    WHERE pessoa_uuid=@uuid
-                      AND atributo_codigo IN ({string.Join(",", parameterNames)})
-                    ORDER BY atributo_codigo,atributo_instancia_chave,vigencia_inicio,pessoa_atributo_id;
-                    """;
-                Add(attributes, "@uuid", DbType.Guid, pessoaUuid);
-                for (var index = 0; index < eligible.Length; index++)
-                    Add(attributes, parameterNames[index], DbType.String, eligible[index], 80);
-
-                await using var reader = await attributes.ExecuteReaderAsync(ct);
-                while (await reader.ReadAsync(ct))
-                {
-                    dynamic.Add(new BlockingDynamicAttributeObservation(
-                        reader.GetString(0),
-                        reader.GetString(1),
-                        reader.GetFieldValue<DateTimeOffset>(2),
-                        reader.IsDBNull(3) ? null : reader.GetFieldValue<DateTimeOffset>(3)));
-                }
-            }
-
-            await using var pending = connection.CreateCommand();
-            pending.Transaction = tx;
-            pending.CommandText = $"""
-                WITH candidatos AS(
-                    SELECT pa.atributo_codigo,pa.valor,
-                           COALESCE(pa.referencia_evidencia,pa.verificado_em) AS precedencia,
-                           ROW_NUMBER() OVER(
-                               PARTITION BY pa.atributo_codigo,pa.atributo_instancia_chave
-                               ORDER BY COALESCE(pa.referencia_evidencia,pa.verificado_em) DESC,
-                                        pa.verificado_em DESC,pa.pessoa_atributo_observacao_id DESC) rn
-                    FROM silver.pessoa_atributo_observacao pa
-                    JOIN identidade.v_vinculo_corrente vc
-                      ON vc.pessoa_observacao_id=pa.pessoa_observacao_id
-                    WHERE vc.pessoa_uuid=@uuid
-                      AND vc.status='RESOLVIDO'
-                      AND pa.status_evidencia='COMPROVADO'
-                      AND pa.atributo_codigo IN ({string.Join(",", parameterNames)})
-                )
-                SELECT atributo_codigo,valor,precedencia
-                FROM candidatos
-                WHERE rn=1
-                ORDER BY atributo_codigo,valor;
-                """;
-            Add(pending, "@uuid", DbType.Guid, pessoaUuid);
-            for (var index = 0; index < eligible.Length; index++)
-                Add(pending, parameterNames[index], DbType.String, eligible[index], 80);
-            await using (var reader = await pending.ExecuteReaderAsync(ct))
-            {
-                while (await reader.ReadAsync(ct))
-                {
-                    dynamic.Add(new BlockingDynamicAttributeObservation(
-                        reader.GetString(0),
-                        reader.GetString(1),
-                        reader.GetFieldValue<DateTimeOffset>(2),
                         null));
                 }
             }
@@ -424,52 +289,6 @@ internal static class BlockingProjectionPersistence
             insert.Parameters.Add(new SqlParameter("@fim", SqlDbType.DateTimeOffset) { Value = (object?)row.ValidTo ?? DBNull.Value });
             await insert.ExecuteNonQueryAsync(ct);
         }
-    }
-
-    private static async Task ReplacePostgreSqlAsync(
-        DbConnection connection,
-        DbTransaction tx,
-        Guid pessoaUuid,
-        BlockingProjectionSnapshot snapshot,
-        CancellationToken ct)
-    {
-        await using (var delete = connection.CreateCommand())
-        {
-            delete.Transaction = tx;
-            delete.CommandText = "DELETE FROM identidade.blocking_chave WHERE pessoa_uuid=@uuid AND normalizacao_versao=@normalizacao;";
-            Add(delete, "@uuid", DbType.Guid, pessoaUuid);
-            Add(delete, "@normalizacao", DbType.String, IdentityComparison.NormalizationVersion, 80);
-            await delete.ExecuteNonQueryAsync(ct);
-        }
-
-        foreach (var row in snapshot.Rows)
-        {
-            await using var insert = connection.CreateCommand();
-            insert.Transaction = tx;
-            insert.CommandText = """
-                INSERT INTO identidade.blocking_chave(
-                    pessoa_uuid,normalizacao_versao,atributo,valor_normalizado,semantica_temporal,vigencia_inicio,vigencia_fim)
-                VALUES(@uuid,@normalizacao,@atributo,@valor,@semantica,@inicio,@fim);
-                """;
-            Add(insert, "@uuid", DbType.Guid, pessoaUuid);
-            Add(insert, "@normalizacao", DbType.String, IdentityComparison.NormalizationVersion, 80);
-            Add(insert, "@atributo", DbType.String, row.Feature, 80);
-            Add(insert, "@valor", DbType.String, row.Value, 500);
-            Add(insert, "@semantica", DbType.String, row.TemporalSemantics, 30);
-            Add(insert, "@inicio", DbType.DateTimeOffset, row.ValidFrom);
-            Add(insert, "@fim", DbType.DateTimeOffset, row.ValidTo);
-            await insert.ExecuteNonQueryAsync(ct);
-        }
-    }
-
-    private static void Add(DbCommand command, string name, DbType type, object? value, int? size = null)
-    {
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = name;
-        parameter.DbType = type;
-        if (size.HasValue) parameter.Size = size.Value;
-        parameter.Value = value ?? DBNull.Value;
-        command.Parameters.Add(parameter);
     }
 
     private static DateTimeOffset Min(DateTimeOffset left, DateTimeOffset right) => left <= right ? left : right;

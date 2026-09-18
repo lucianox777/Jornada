@@ -9,7 +9,6 @@ namespace Jornada.Operational.Sql;
 /// <summary>Leitura transacional de históricos efetivados. Não reconstrói estado temporal nem publica projeções.</summary>
 public sealed class IdentityCompositionAppliedHistoryStore
 {
-    private readonly bool postgres;
     private readonly IdentityCompositionLedgerStore ledger;
     private readonly IdentityCompositionApplicationStore application;
 
@@ -18,12 +17,9 @@ public sealed class IdentityCompositionAppliedHistoryStore
         ArgumentNullException.ThrowIfNull(database);
         ledger = new IdentityCompositionLedgerStore(database);
         application = new IdentityCompositionApplicationStore(database);
-        postgres = database.Provider switch
-        {
-            OperationalDatabaseProviders.PostgreSql => true,
-            OperationalDatabaseProviders.SqlServer => false,
-            _ => throw new ArgumentException("Provider operacional não suportado.", nameof(database))
-        };
+        if (database.Provider != OperationalDatabaseProviders.SqlServer)
+
+            throw new ArgumentException("Provider operacional não suportado.", nameof(database));
     }
 
     public async Task<ImmutableArray<IdentityCompositionHistory>> LoadAsync(
@@ -43,9 +39,7 @@ public sealed class IdentityCompositionAppliedHistoryStore
         {
             await using var command = connection.CreateCommand();
             command.Transaction = transaction;
-            command.CommandText = postgres
-                ? "SELECT decision_id FROM identidade.composicao_historico_aplicado WHERE reference_uuid=@reference ORDER BY decision_id FOR UPDATE;"
-                : "SELECT decision_id FROM identidade.composicao_historico_aplicado WITH(UPDLOCK,HOLDLOCK) WHERE reference_uuid=@reference ORDER BY decision_id;";
+            command.CommandText = "SELECT decision_id FROM identidade.composicao_historico_aplicado WITH(UPDLOCK,HOLDLOCK) WHERE reference_uuid=@reference ORDER BY decision_id;";
             Add(command, "@reference", DbType.Guid, reference);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
@@ -100,9 +94,7 @@ public sealed class IdentityCompositionAppliedHistoryStore
         await using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = postgres
-                ? "SELECT decision_id,reference_uuid,members_json,members_hash,registrado_em FROM identidade.composicao_historico_aplicado WHERE decision_id=@decision ORDER BY reference_uuid FOR UPDATE;"
-                : "SELECT decision_id,reference_uuid,members_json,members_hash,registrado_em FROM identidade.composicao_historico_aplicado WITH(UPDLOCK,HOLDLOCK) WHERE decision_id=@decision ORDER BY reference_uuid;";
+            command.CommandText = "SELECT decision_id,reference_uuid,members_json,members_hash,registrado_em FROM identidade.composicao_historico_aplicado WITH(UPDLOCK,HOLDLOCK) WHERE decision_id=@decision ORDER BY reference_uuid;";
             Add(command, "@decision", DbType.Guid, decisionId);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))

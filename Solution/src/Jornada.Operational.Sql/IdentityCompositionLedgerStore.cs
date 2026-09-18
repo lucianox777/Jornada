@@ -27,17 +27,13 @@ public sealed record IdentityCompositionPreparedReceipt(
 /// </summary>
 public sealed class IdentityCompositionLedgerStore
 {
-    private readonly bool postgres;
 
     public IdentityCompositionLedgerStore(IOperationalDatabaseAdapter database)
     {
         ArgumentNullException.ThrowIfNull(database);
-        postgres = database.Provider switch
-        {
-            OperationalDatabaseProviders.PostgreSql => true,
-            OperationalDatabaseProviders.SqlServer => false,
-            _ => throw new ArgumentException("Provider operacional não suportado.", nameof(database))
-        };
+        if (database.Provider != OperationalDatabaseProviders.SqlServer)
+
+            throw new ArgumentException("Provider operacional não suportado.", nameof(database));
     }
 
     public async Task<Guid> ReserveAsync(
@@ -53,9 +49,7 @@ public sealed class IdentityCompositionLedgerStore
 
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "SELECT identidade.reservar_uuid_composicao(@decision,@reservation);"
-            : "DECLARE @uuid uniqueidentifier; EXEC identidade.sp_reservar_uuid_composicao @decision_id=@decision,@reserva_id=@reservation,@uuid_resultado=@uuid OUTPUT; SELECT @uuid;";
+        command.CommandText = "DECLARE @uuid uniqueidentifier; EXEC identidade.sp_reservar_uuid_composicao @decision_id=@decision,@reserva_id=@reservation,@uuid_resultado=@uuid OUTPUT; SELECT @uuid;";
         Add(command, "@decision", DbType.Guid, decisionId);
         Add(command, "@reservation", DbType.Guid, reservationId);
         var value = await command.ExecuteScalarAsync(cancellationToken);
@@ -94,9 +88,7 @@ public sealed class IdentityCompositionLedgerStore
 
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "SELECT identidade.registrar_plano_composicao(@decision,@request,@plan,@reservations,@requester,@correlation);"
-            : "DECLARE @hash char(64); EXEC identidade.sp_registrar_plano_composicao @decision_id=@decision,@request_json=@request,@plan_json=@plan,@reservas_json=@reservations,@solicitante_referencia=@requester,@correlation_id=@correlation,@request_hash=@hash OUTPUT; SELECT @hash;";
+        command.CommandText = "DECLARE @hash char(64); EXEC identidade.sp_registrar_plano_composicao @decision_id=@decision,@request_json=@request,@plan_json=@plan,@reservas_json=@reservations,@solicitante_referencia=@requester,@correlation_id=@correlation,@request_hash=@hash OUTPUT; SELECT @hash;";
         Add(command, "@decision", DbType.Guid, decision.DecisionId);
         Add(command, "@request", DbType.String, requestJson);
         Add(command, "@plan", DbType.String, planJson);
@@ -126,9 +118,7 @@ public sealed class IdentityCompositionLedgerStore
 
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "SELECT decision_id,request_hash,plan_hash,reservas_hash,request_json,plan_json,reservas_json,solicitante_referencia,correlation_id,estado FROM identidade.composicao_plano WHERE decision_id=@decision FOR UPDATE;"
-            : "SELECT decision_id,request_hash,plan_hash,reservas_hash,request_json,plan_json,reservas_json,solicitante_referencia,correlation_id,estado FROM identidade.composicao_plano WITH(UPDLOCK,HOLDLOCK) WHERE decision_id=@decision;";
+        command.CommandText = "SELECT decision_id,request_hash,plan_hash,reservas_hash,request_json,plan_json,reservas_json,solicitante_referencia,correlation_id,estado FROM identidade.composicao_plano WITH(UPDLOCK,HOLDLOCK) WHERE decision_id=@decision;";
         Add(command, "@decision", DbType.Guid, decisionId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
@@ -160,9 +150,7 @@ public sealed class IdentityCompositionLedgerStore
         if (decisionId == Guid.Empty) throw new ArgumentException("Decisão inválida.", nameof(decisionId));
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "SELECT pessoa_uuid FROM identidade.composicao_uuid_reserva WHERE decision_id=@decision ORDER BY pessoa_uuid FOR UPDATE;"
-            : "SELECT pessoa_uuid FROM identidade.composicao_uuid_reserva WITH(UPDLOCK,HOLDLOCK) WHERE decision_id=@decision ORDER BY pessoa_uuid;";
+        command.CommandText = "SELECT pessoa_uuid FROM identidade.composicao_uuid_reserva WITH(UPDLOCK,HOLDLOCK) WHERE decision_id=@decision ORDER BY pessoa_uuid;";
         Add(command, "@decision", DbType.Guid, decisionId);
         var values = new List<Guid>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);

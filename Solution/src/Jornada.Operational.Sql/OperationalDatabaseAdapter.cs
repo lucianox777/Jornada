@@ -5,11 +5,6 @@ namespace Jornada.Operational.Sql;
 public static class OperationalDatabaseProviders
 {
     public const string SqlServer = "SqlServer";
-
-    // Token histórico mantido temporariamente apenas para permitir a remoção incremental
-    // de ramificações de dialeto em componentes compartilhados. A factory não aceita
-    // PostgreSQL e nenhum entrypoint da Jornada registra adapter/repositório PostgreSQL.
-    public const string PostgreSql = "PostgreSql";
 }
 
 /// <summary>
