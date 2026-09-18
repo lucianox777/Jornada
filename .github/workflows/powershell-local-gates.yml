@@ -112,6 +112,11 @@ jobs:
           if ($content -notmatch "Invoke-PowerShellScript 'local-db\.ps1' @\('-Action', 'reset'\)") {
             throw 'local-test-all.ps1 deve recriar o banco canônico antes do Core.'
           }
+          if (-not $content.Contains('[switch]$AllowDestructiveReset') -or
+              -not $content.Contains('if (-not $AllowDestructiveReset)') -or
+              -not $content.Contains('-AllowDestructiveReset -IsolatedExecution')) {
+            throw 'local-test-all.ps1 deve exigir e propagar autorizacao explicita antes de qualquer reset destrutivo.'
+          }
           if (-not $content.Contains('function Write-CommandLine') -or
               -not $content.Contains('Write-CommandLine $CurrentPowerShell')) {
             throw 'local-test-all.ps1 deve imprimir os comandos reais antes de executá-los.'
