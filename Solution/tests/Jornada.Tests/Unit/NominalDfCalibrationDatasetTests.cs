@@ -29,7 +29,8 @@ public sealed class NominalDfCalibrationDatasetTests
         var dataset = NominalDfCalibrationDatasetFactory.Create(
             matched,
             unmatched,
-            reference);
+            reference,
+            Reference());
 
         var trueMatch = dataset.Observations.Single(observation => observation.IsTrueMatch);
         var censored = dataset.Observations.Single(observation =>
@@ -43,6 +44,9 @@ public sealed class NominalDfCalibrationDatasetTests
             Assert.That(dataset.FrequencyCensoredCount, Is.EqualTo(1));
             Assert.That(dataset.PublishedFirstNameOccurrences, Is.EqualTo(4));
             Assert.That(dataset.ReferenceExactUProbability, Is.EqualTo(0.625m));
+            Assert.That(dataset.ReferenceId, Is.EqualTo(42));
+            Assert.That(dataset.ReferenceCode, Is.EqualTo("TEST_IBGE"));
+            Assert.That(dataset.ReferenceContentSha256, Is.EqualTo(new string('a', 64)));
             Assert.That(dataset.PublicationMethodVersion,
                 Is.EqualTo("IBGE_CENSO_2022_NOMES_PUBLICACAO_V1"));
             Assert.That(dataset.EvidenceAlgorithmVersion,
@@ -74,7 +78,8 @@ public sealed class NominalDfCalibrationDatasetTests
             {
                 new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.FirstName, "ANA", 3),
                 new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.FirstName, "BIA", 1)
-            });
+            },
+            Reference());
 
         var matchEvidence = dataset.Observations.Single(observation => observation.IsTrueMatch).Evidence;
         var candidate = new DfThresholdCandidate(
@@ -105,7 +110,8 @@ public sealed class NominalDfCalibrationDatasetTests
                 new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.FirstName, "BIA", 1),
                 new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.Surname, "RARA", 1),
                 new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.Surname, "COMUM", 999_999)
-            });
+            },
+            Reference());
 
         var match = dataset.Observations.Single(observation => observation.IsTrueMatch);
 
@@ -117,6 +123,9 @@ public sealed class NominalDfCalibrationDatasetTests
             Assert.That(match.Evidence.RightFrequency, Is.EqualTo(0.9m));
         });
     }
+
+    private static IbgeNominalUReferenceInfo Reference() =>
+        new(42, "TEST_IBGE", "IBGE", new string('a', 64));
 
     private static IdentityTrainingPair Pair(string leftName, string rightName) =>
         new(
