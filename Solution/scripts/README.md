@@ -170,7 +170,7 @@ O ensaio de escala usa dados próprios. O reset antes do fechamento deixa o ambi
 ### 12. Fechar com a suíte completa
 
 ```powershell
-.\scripts\local-test-all.ps1 -Suite full
+.\scripts\local-test-all.ps1 -Suite full -AllowDestructiveReset
 ```
 
 A suíte completa é o aceite local final. Ela não substitui a utilidade das etapas anteriores: quando executadas uma a uma, elas mostram com precisão onde surgiu a primeira falha.
@@ -198,7 +198,8 @@ Para frentes técnicas com testes direcionados, mantenha também um script dedic
 | Recriar o cluster | `local-cluster.ps1 -Action reset` | Quando é necessário reconstruir containers/serviços |
 | Apagar completamente o cluster local | `local-cluster.ps1 -Action clean` | Ambiente inconsistente ou necessidade deliberada de começar do zero |
 | Operar somente o banco local | `local-db.ps1` | Desenvolvimento/testes que precisam apenas do SQL Server local |
-| Rodar suíte isolada de instalação limpa | `local-test-all.ps1` | Quando a mudança exige provar reset/reconstrução completa ou reproduzir o gate amplo isolado; pode recarregar a referência IBGE |
+| Rodar suíte isolada de instalação limpa | `local-test-all.ps1 -Suite full -AllowDestructiveReset` | Somente quando a mudança exige provar reset/reconstrução completa; sem a flag explícita o script aborta antes de tocar no banco |
+| Testar o guard destrutivo da suíte full | `local-test-test-all-safety.ps1` | Prova que `local-test-all.ps1` sem autorização falha antes de `git fetch`, worktree ou reset do banco |
 | Rodar validação local específica | `local-test.ps1` | Iteração rápida durante desenvolvimento; preserva o banco existente |
 | Conferir referência IBGE sem recarga | `local-check-ibge-reference.ps1` | Antes de testes que reutilizam `ref.frequencia_nome`; compara versão/linhas/hash publicado e imutabilidade sem carregar dados |
 | Diagnosticar referência IBGE local | `local-diagnose-ibge-reference.ps1` | Read-only; lista versões, status, SHA e contagem de linhas por versão para investigar bases legadas/incompletas |
@@ -252,12 +253,18 @@ Limpa artefatos do ambiente local. É uma ferramenta de recuperação/manutenç�
 É o comando recomendado para a validação local ampla.
 
 ```powershell
-./scripts/local-test-all.ps1
+./scripts/local-test-all.ps1 -Suite full -AllowDestructiveReset
 ```
 
-Use antes de considerar uma alteração pronta para merge, especialmente quando ela atravessa mais de uma camada. O script executa a validação em contexto isolado para evitar que alterações locais não relacionadas contaminem a evidência do SHA testado.
+Use apenas quando a alteração precisar provar instalação limpa/reconstrução completa. O script executa a validação em contexto isolado para evitar que alterações locais não relacionadas contaminem a evidência do SHA testado, mas exige `-AllowDestructiveReset` porque reseta o banco local e pode recarregar a referência IBGE.
 
-Quando estiver apenas iterando em uma correção pequena, rode primeiro o teste/gate específico e deixe `local-test-all.ps1` para o fechamento.
+Quando estiver apenas iterando em uma correção pequena, rode primeiro o teste/gate específico. `local-test-all.ps1` sem `-AllowDestructiveReset` agora aborta de propósito; use a flag somente quando quiser explicitamente reconstruir o ambiente.
+
+O guard pode ser validado isoladamente com:
+
+```powershell
+.\scripts\local-test-test-all-safety.ps1
+```
 
 ### `local-test.ps1`
 
