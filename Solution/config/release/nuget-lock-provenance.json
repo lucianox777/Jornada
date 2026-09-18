@@ -234,7 +234,7 @@
     "sdk": "8.0.424",
     "reason": "Extração do runtime PostgreSQL/Npgsql da candidata v5.00; o histórico atestado v4.05 é preservado e somente os locks efetivamente alterados recebem override candidato.",
     "lockCount": 19,
-    "changedLockCount": 13,
+    "changedLockCount": 14,
     "combinedSha256": "0d5a8c729a231c13022d2a6724dbec3a8dba53346afe932e0b8685bb1244bf9f",
     "overrides": [
       {
@@ -280,6 +280,10 @@
       {
         "path": "src/Jornada.Processor.Worker/packages.lock.json",
         "sha256": "27ad575fbd6a92980930f08cdb93637f4cd3a8e32026cdff6b82d44f447cf333"
+      },
+      {
+        "path": "src/Jornada.Resultado.Api/packages.lock.json",
+        "sha256": "eb85a353f31d391aa25bbd02cba1896d8eb06039488321d8e75e7689942c485f"
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
