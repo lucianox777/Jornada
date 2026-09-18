@@ -513,6 +513,113 @@ FROM lattice
 ORDER BY ABS(posterior-$thresholdText),nome_estado,mae_estado,nascimento_estado;
 "@)
 
+$orderedMleValue = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='ORDER_RESTRICTED_NAME_LLR_MLE_V1';")
+$orderedMleEnabled = ($null -ne $orderedMleValue -and $orderedMleValue -ge [decimal]1)
+
+$orderRestrictionLines = @(Get-SqlLines @"
+WITH ord AS (
+    SELECT *
+    FROM (VALUES
+        (1,N'NOME',N'EXACT'),
+        (2,N'NOME',N'HIGH'),
+        (3,N'NOME',N'MEDIUM'),
+        (4,N'NOME',N'LOW'),
+        (5,N'NOME_MAE',N'EXACT'),
+        (6,N'NOME_MAE',N'HIGH'),
+        (7,N'NOME_MAE',N'MEDIUM'),
+        (8,N'NOME_MAE',N'LOW')
+    ) v(ordem,campo,estado)
+)
+SELECT CONCAT(
+    o.campo,'|',o.estado,'|',
+    CONVERT(varchar(40),um.valor),'|',
+    CONVERT(varchar(40),m.valor),'|',
+    CONVERT(varchar(40),u.valor),'|',
+    CONVERT(varchar(40),support_m.valor),'|',
+    CONVERT(varchar(40),blk.valor),'|',
+    CONVERT(varchar(40),delta.valor),'|',
+    CONVERT(varchar(40),CAST(LOG(CAST(um.valor AS float)/CAST(u.valor AS float)) AS decimal(30,12))),'|',
+    CONVERT(varchar(40),CAST(LOG(CAST(m.valor AS float)/CAST(u.valor AS float)) AS decimal(30,12))),'|',
+    CONVERT(varchar(40),adj.valor),'|',
+    CONVERT(varchar(40),mx.valor))
+FROM ord o
+JOIN identidade.parametro_linkage um
+  ON um.modelo_id='$activeModelId'
+ AND um.nome=CONCAT(N'UNRESTRICTED_M_',o.campo,N'_',o.estado)
+JOIN identidade.parametro_linkage m
+  ON m.modelo_id=um.modelo_id
+ AND m.nome=CONCAT(N'M_',o.campo,N'_',o.estado)
+JOIN identidade.parametro_linkage u
+  ON u.modelo_id=um.modelo_id
+ AND u.nome=CONCAT(N'U_',o.campo,N'_',o.estado)
+JOIN identidade.parametro_linkage support_m
+  ON support_m.modelo_id=um.modelo_id
+ AND support_m.nome=CONCAT(N'SUPPORT_M_',o.campo,N'_',o.estado)
+JOIN identidade.parametro_linkage blk
+  ON blk.modelo_id=um.modelo_id
+ AND blk.nome=CONCAT(N'ORDER_RESTRICTED_BLOCK_',o.campo,N'_',o.estado)
+JOIN identidade.parametro_linkage delta
+  ON delta.modelo_id=um.modelo_id
+ AND delta.nome=CONCAT(N'ORDER_RESTRICTED_DELTA_LLR_',o.campo,N'_',o.estado)
+JOIN identidade.parametro_linkage adj
+  ON adj.modelo_id=um.modelo_id
+ AND adj.nome=CONCAT(N'ORDER_RESTRICTED_ADJUSTED_STATES_',o.campo)
+JOIN identidade.parametro_linkage mx
+  ON mx.modelo_id=um.modelo_id
+ AND mx.nome=CONCAT(N'ORDER_RESTRICTED_MAX_ABS_DELTA_LLR_',o.campo)
+ORDER BY o.ordem;
+"@)
+
+$orderRestrictionStates = @(
+    foreach ($line in $orderRestrictionLines) {
+        $parts = $line.Split('|')
+        [ordered]@{
+            field = $parts[0]
+            state = $parts[1]
+            unrestrictedM = (Parse-Decimal $parts[2])
+            restrictedM = (Parse-Decimal $parts[3])
+            u = (Parse-Decimal $parts[4])
+            matchedSupport = [int](Parse-Decimal $parts[5])
+            block = [int](Parse-Decimal $parts[6])
+            deltaLlr = (Parse-Decimal $parts[7])
+            unrestrictedLlr = (Parse-Decimal $parts[8])
+            restrictedLlr = (Parse-Decimal $parts[9])
+            persistedAdjustedStates = [int](Parse-Decimal $parts[10])
+            persistedMaxAbsDeltaLlr = (Parse-Decimal $parts[11])
+        }
+    }
+)
+
+$orderRestrictionFields = @(
+    foreach ($field in @('NOME','NOME_MAE')) {
+        $items = @($orderRestrictionStates | Where-Object { $_.field -eq $field })
+        if ($items.Count -eq 0) { continue }
+        $computedAdjusted = @($items | Where-Object { [Math]::Abs([double]$_.deltaLlr) -gt 1e-12 }).Count
+        $computedMax = [decimal](($items | ForEach-Object { [Math]::Abs([double]$_.deltaLlr) } | Measure-Object -Maximum).Maximum)
+        [ordered]@{
+            field = $field
+            adjustedStates = $items[0].persistedAdjustedStates
+            maxAbsDeltaLlr = $items[0].persistedMaxAbsDeltaLlr
+            computedAdjustedStates = $computedAdjusted
+            computedMaxAbsDeltaLlr = $computedMax
+        }
+    }
+)
+
+if ($orderedMleEnabled) {
+    if ($orderRestrictionStates.Count -ne 8) {
+        throw "Auditoria MLE ordenada incompleta: estados=$($orderRestrictionStates.Count); esperado=8."
+    }
+    foreach ($fieldSummary in $orderRestrictionFields) {
+        if ($fieldSummary.adjustedStates -ne $fieldSummary.computedAdjustedStates) {
+            throw "Auditoria MLE ordenada inconsistente em $($fieldSummary.field): adjusted persistido=$($fieldSummary.adjustedStates), calculado=$($fieldSummary.computedAdjustedStates)."
+        }
+        if ([Math]::Abs([double]($fieldSummary.maxAbsDeltaLlr - $fieldSummary.computedMaxAbsDeltaLlr)) -gt 1e-10) {
+            throw "Auditoria MLE ordenada inconsistente em $($fieldSummary.field): max |delta LLR| persistido=$($fieldSummary.maxAbsDeltaLlr), calculado=$($fieldSummary.computedMaxAbsDeltaLlr)."
+        }
+    }
+}
+
 $positiveTotal = [int]$pos[0]
 $positiveCorrect = [int]$pos[1]
 $positiveWrong = [int]$pos[2]
@@ -553,6 +660,11 @@ $report = [ordered]@{
         threshold = $threshold
     }
     runId = $runId
+    nominalOrderRestriction = [ordered]@{
+        enabled = $orderedMleEnabled
+        fields = $orderRestrictionFields
+        states = $orderRestrictionStates
+    }
     blocking = $blockingAudit.summary
     positive = [ordered]@{
         total = $positiveTotal
@@ -602,6 +714,7 @@ $report = [ordered]@{
         scope = 'Evidência sintética DEV; não é estimativa de acurácia municipal nem homologação.'
         negatives = 'Impostores incluem colisões simples e HARD_HOMONYM. Nesta fase DEV, qualquer falso vínculo resolvido reprova o quality gate do harness.'
         frontier = 'A malha teórica mostra se os estados discretos do modelo conseguem sequer ocupar a vizinhança do threshold atual.'
+        orderRestriction = 'A auditoria mostra quanto a MLE ordenada alterou m/LLR; pooling grande é diagnóstico de tensão entre estimativas, não evidência adicional de identidade.'
     }
 }
 
@@ -611,6 +724,15 @@ Write-Host ''
 Write-Host '=== VALIDAÇÃO INDEPENDENTE DO LINKAGE (DEV SINTÉTICO) ==='
 Write-Host "Modelo: v$modelVersion / $activeModelId / $algorithmVersion"
 Write-Host "Run: $runId"
+if ($orderedMleEnabled) {
+    Write-Host 'MLE nominal ordenada (auditoria do pooling):'
+    foreach ($fieldSummary in $orderRestrictionFields) {
+        Write-Host ("  {0}: estados_ajustados={1}/4 max_abs_delta_llr={2}" -f $fieldSummary.field,$fieldSummary.adjustedStates,$fieldSummary.maxAbsDeltaLlr)
+        foreach ($state in @($orderRestrictionStates | Where-Object { $_.field -eq $fieldSummary.field })) {
+            Write-Host ("    {0}: suporte_m={1} bloco={2} m_irrestrito={3} m_final={4} u={5} llr_irrestrito={6} llr_final={7} delta_llr={8}" -f $state.state,$state.matchedSupport,$state.block,$state.unrestrictedM,$state.restrictedM,$state.u,$state.unrestrictedLlr,$state.restrictedLlr,$state.deltaLlr)
+        }
+    }
+}
 Write-Host "Blocking positivo: truthInsideUnion=$($blockingAudit.summary.truthInsideUnion)/$($blockingAudit.summary.sampleSize) recall=$($blockingAudit.summary.unionRecallPct)%"
 Write-Host "Positivos: corretos=$positiveCorrect/$positiveTotal errados=$positiveWrong não_resolvidos_ou_conflitos=$positiveUnresolved sensibilidade_sintética=$([decimal]::Round(($positiveSensitivity * [decimal]100),2))%"
 Write-Host 'Positivos por cenário:'
