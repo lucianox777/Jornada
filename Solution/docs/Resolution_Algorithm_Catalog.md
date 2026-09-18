@@ -42,6 +42,9 @@ Assim, uma composição como `name_upper_no_diacritics + JARO_WINKLER@V1(thresho
 
 `PTBR_CONTENT_TOKEN_GUARD_JARO_WINKLER_V2` existe para impedir que uma substituição forte em um token de conteúdo seja diluída por um nome completo longo quase todo igual. O Jaro-Winkler do nome completo continua sendo calculado; apenas o guard estrutural ignora as mesmas partículas exatas `DA`, `DAS`, `DE`, `DO`, `DOS` já declaradas por `PERSON_NAME_BASIC_PTBR@V1`. Ele não atribui semântica IBGE aos tokens nem cria política geral de reordenação. `IdentityComparison.CompareName` permanece alias explícito de V1 para preservar replay; V2 só pode ser usada por chamada/algoritmo que a selecione explicitamente.
 
+O identificador `FELLEGI_SUNTER_DECISION_EVIDENCE_NOMINAL_V2_V7` é reservado para testar o mesmo pipeline de decisão V6 com o contrato nominal V2. Ele exige o marcador persistido `SCORING_NAME_PTBR_CONTENT_TOKEN_GUARD_V2` e é rejeitado sem essa proveniência. **Isto não promove V7 para geração operacional:** o `LinkageParametersWorker` continua aceitando como versão corrente apenas V6. Abrir geração/validação/ativação de V7 exige calibração explícita de prior/threshold e aprovação dos gates adversariais; não se reutiliza silenciosamente `T_LINKAGE=0,95` nem o prior V6.
+
+
 Comparadores de distância não devem ser transformados artificialmente em coluna ou índice comum. O blocking primário continua privilegiando projeções indexáveis/exatas para reduzir o universo; comparadores fuzzy operam sobre candidatos. Se futuramente um provider possuir método de acesso aproximado homologado, isso será uma otimização física do provider, não mudança da semântica do comparador.
 
 ## Ajustes estatísticos e resolvedores compostos
