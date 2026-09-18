@@ -112,6 +112,10 @@ Thresholds são produtos da calibração, não constantes escolhidas por intuiç
 
 Para DF, a grade inicial é formada por fronteiras observadas de similaridade e TF no conjunto de validação, com redução determinística quando necessário para limitar custo combinatório.
 
+`NOMINAL_DF_BENCHMARK_CALIBRATION_V1` operacionaliza essa separação: pares `TRAIN` não entram na pesquisa de thresholds; a grade e a fronteira de Pareto são determinadas exclusivamente em `VALIDATION`; somente depois os candidatos não dominados são congelados e reaplicados, sem alteração, em `TEST`. Alterar os pares de teste não pode mudar `candidate_id`, thresholds ou a fronteira selecionada em validação. O calibrador também rejeita vazamento do mesmo indivíduo-base entre partições e preserva seed, proporções do split, suporte mínimo, versão/fingerprint/recorte geográfico do snapshot IBGE e versões dos algoritmos DF/TF.
+
+`TEST` é evidência independente de comportamento do candidato congelado, não fonte adicional de ajuste. Resultado ruim em `TEST` pode bloquear promoção ou motivar uma nova rodada de desenho/calibração, mas não autoriza recalibrar o mesmo candidato olhando o conjunto de teste.
+
 Para a configuração completa, o Calibrador registra TP, TN, FP, FN e inconclusivos. Um candidato domina outro somente se não piorar FP e FN e melhorar ao menos um deles; quando FP/FN empatam, menor inconclusão domina.
 
 Se dois candidatos trocam FP por FN, ambos permanecem na fronteira de Pareto. O Calibrador não inventa o custo institucional relativo desses erros.
@@ -135,7 +139,8 @@ A paridade exigida é semântica/numericamente tolerante, não bit a bit: mesmos
 - fuzzy TF usa conservadoramente a maior frequência dos lados;
 - piorar o piso de TF não pode aumentar evidência de raridade;
 - `tf_adjustment_weight=0` neutraliza TF;
-- thresholds vêm de dados de validação;
+- thresholds vêm exclusivamente de dados de validação; `TRAIN` e `TEST` não participam da seleção DF;
+- candidatos DF avaliados em `TEST` são exatamente a fronteira congelada em `VALIDATION`;
 - `INCONCLUSIVO` é resultado válido;
 - novas evidências da Jornada podem permitir reavaliação posterior.
 
