@@ -63,6 +63,9 @@ public static class LinkageParameterEstimator
             [LinkageParameterCatalog.PriorBlockMin] = 0.000001m,
             [LinkageParameterCatalog.PriorBlockMax] = 0.25m
         };
+        if (nameComparisonContract == NameComparisonContract.PtBrContentTokenGuardV2)
+            result[LinkageParameterCatalog.NameComparisonPtBrContentTokenGuardV2] = 1m;
+
         if (decisionEvidenceV6)
         {
             result[LinkageParameterCatalog.LogOddsConflictMargin] = conflictMargin;
