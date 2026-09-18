@@ -13,6 +13,7 @@ public static class LinkageParameterCatalog
     public const string LogOddsConflictMargin = "CONFLICT_MARGIN_LOG_ODDS";
     public const string DecisionEvidenceScoring = "SCORING_DECISION_EVIDENCE_V6";
     public const string DualThresholdConflictGuard = "SCORING_DUAL_THRESHOLD_CONFLICT_V1";
+    public const string OrderedNameLlrMonotonicity = "MODEL_COHERENCE_ORDERED_NAME_LLR_V1";
     public const string BirthSemanticEvidenceScoring = "SCORING_BIRTH_SEMANTIC_EVIDENCE_V5";
     public const string BirthJointEvidenceScoring = "SCORING_BIRTH_JOINT_EVIDENCE_V4";
     public const string BirthSingleEvidenceScoring = "SCORING_BIRTH_SINGLE_EVIDENCE_V3";
