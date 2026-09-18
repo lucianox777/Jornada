@@ -90,7 +90,7 @@ try {
         '.\tests\Jornada.Tests\Jornada.Tests.csproj',
         '--configuration','Release',
         '--no-build',
-        '--filter','TestCategory=Unit'
+        '--filter','TestCategory!=Integration'
     ) 'dotnet test Unit'
 
     Write-Step 4 $total 'Limpar cluster local' '.\scripts\local-cluster.ps1 -Action clean'
