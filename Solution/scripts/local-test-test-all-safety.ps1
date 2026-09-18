@@ -60,28 +60,23 @@ if (-not $db.Contains('[string]$DatabaseName')) {
     throw 'local-db.ps1 perdeu suporte a banco isolado por nome explicito.'
 }
 
-$stdoutPath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-from-zero-guard-{0}.out" -f [Guid]::NewGuid().ToString('N'))
-$stderrPath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-from-zero-guard-{0}.err" -f [Guid]::NewGuid().ToString('N'))
+$guardIndex = $fromZero.IndexOf('if (-not $AllowDestructiveReset)')
+$firstActionIndex = $fromZero.IndexOf("Invoke-Script 'local-cluster.ps1' @('-Action','clean')")
+if ($guardIndex -lt 0 -or $firstActionIndex -lt 0 -or $guardIndex -ge $firstActionIndex) {
+    throw 'Guard from-zero deve aparecer antes da primeira acao destrutiva.'
+}
 
+Write-Host '# local-test-from-zero.ps1 -Suite standard  # esperado: abortar sem tocar no ambiente'
+$caught = $null
 try {
-    Write-Host '# local-test-from-zero.ps1 -Suite standard  # esperado: abortar sem tocar no ambiente'
-    $process = Start-Process -FilePath $CurrentPowerShell -ArgumentList @(
-        '-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$FromZero,'-Suite','standard'
-    ) -Wait -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
-
-    $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { '' }
-    $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw } else { '' }
-    $combined = $stdout + "`n" + $stderr
-
-    if ($process.ExitCode -eq 0) { throw 'local-test-from-zero.ps1 sem autorizacao deveria falhar.' }
-    if (-not $combined.Contains('Reset destrutivo nao autorizado')) { throw 'Guard from-zero nao confirmou bloqueio destrutivo.' }
-
-    foreach ($forbidden in @('docker compose','local-cluster.ps1','local-db.ps1 -Action reset','local-scale.ps1')) {
-        if ($combined.Contains($forbidden)) { throw "Guard from-zero executou/ecoou acao proibida antes de abortar: $forbidden" }
-    }
-
-    Write-Host 'LOCAL TEST PRESERVATION/FROM-ZERO GUARD: OK' -ForegroundColor Green
+    & $FromZero -Suite standard
 }
-finally {
-    Remove-Item -LiteralPath $stdoutPath,$stderrPath -Force -ErrorAction SilentlyContinue
+catch {
+    $caught = $_.Exception.Message
 }
+
+if ($caught -ne 'Reset destrutivo nao autorizado.') {
+    throw "Guard from-zero retornou falha inesperada: $caught"
+}
+
+Write-Host 'LOCAL TEST PRESERVATION/FROM-ZERO GUARD: OK' -ForegroundColor Green
