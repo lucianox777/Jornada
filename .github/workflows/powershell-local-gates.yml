@@ -11,6 +11,7 @@ on:
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-linkage-validation.ps1'
       - 'Solution/scripts/local-linkage-validation-flow.ps1'
+      - 'Solution/scripts/local-linkage-validation-from-zero.ps1'
       - 'Solution/scripts/local-ibge-u-bootstrap.ps1'
       - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/local-scale.ps1'
@@ -27,6 +28,7 @@ on:
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-linkage-validation.ps1'
       - 'Solution/scripts/local-linkage-validation-flow.ps1'
+      - 'Solution/scripts/local-linkage-validation-from-zero.ps1'
       - 'Solution/scripts/local-ibge-u-bootstrap.ps1'
       - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/local-scale.ps1'
@@ -66,6 +68,7 @@ jobs:
             'scripts/local-linkage-evaluation-smoke.ps1',
             'scripts/local-linkage-validation.ps1',
             'scripts/local-linkage-validation-flow.ps1',
+            'scripts/local-linkage-validation-from-zero.ps1',
             'scripts/local-ibge-u-bootstrap.ps1',
             'scripts/local-scale.ps1',
             'scripts/local-sql-runtime-smoke.ps1',
@@ -148,6 +151,7 @@ jobs:
           $targets = @(
             'scripts/local-linkage-validation.ps1',
             'scripts/local-linkage-validation-flow.ps1',
+            'scripts/local-linkage-validation-from-zero.ps1',
             'scripts/local-ibge-u-bootstrap.ps1'
           )
 
@@ -181,6 +185,19 @@ jobs:
           )) {
             if (-not $flow.Contains($required)) {
               throw "local-linkage-validation-flow.ps1 perdeu contrato de command output: $required"
+            }
+          }
+
+          $fromZero = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-validation-from-zero.ps1
+          foreach ($required in @(
+            'function Invoke-Step',
+            'Write-Host "# $CommandText"',
+            "local-cluster.ps1",
+            "local-ibge-u-bootstrap.ps1",
+            "local-linkage-validation.ps1"
+          )) {
+            if (-not $fromZero.Contains($required)) {
+              throw "local-linkage-validation-from-zero.ps1 perdeu contrato de command output: $required"
             }
           }
 
