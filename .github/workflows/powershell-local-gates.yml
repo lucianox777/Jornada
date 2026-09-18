@@ -6,6 +6,8 @@ on:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-test-from-zero.ps1'
+      - 'Solution/scripts/local-e2e.ps1'
       - 'Solution/scripts/local-diagnose-ibge-reference.ps1'
       - 'Solution/scripts/local-test-ibge-diagnostic.ps1'
       - 'Solution/scripts/local-check-ibge-reference.ps1'
@@ -30,6 +32,8 @@ on:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-test-from-zero.ps1'
+      - 'Solution/scripts/local-e2e.ps1'
       - 'Solution/scripts/local-diagnose-ibge-reference.ps1'
       - 'Solution/scripts/local-test-ibge-diagnostic.ps1'
       - 'Solution/scripts/local-check-ibge-reference.ps1'
@@ -77,6 +81,8 @@ jobs:
             'scripts/local-ddl-upgrade.ps1',
             'scripts/local-test.ps1',
             'scripts/local-test-all.ps1',
+            'scripts/local-test-from-zero.ps1',
+            'scripts/local-e2e.ps1',
             'scripts/local-diagnose-ibge-reference.ps1',
             'scripts/local-test-ibge-diagnostic.ps1',
             'scripts/local-check-ibge-reference.ps1',
@@ -128,21 +134,66 @@ jobs:
           }
           Write-Host 'LOCAL SCALE ENVIRONMENT CONTRACT: OK'
 
-      - name: Validate local suite isolation, command echo and deterministic database reset
+      - name: Validate local suite preservation and from-zero separation
         shell: pwsh
         run: |
           $content = Get-Content -Raw -Encoding UTF8 scripts/local-test-all.ps1
+          $fromZero = Get-Content -Raw -Encoding UTF8 scripts/local-test-from-zero.ps1
+          $e2e = Get-Content -Raw -Encoding UTF8 scripts/local-e2e.ps1
+          $db = Get-Content -Raw -Encoding UTF8 scripts/local-db.ps1
+
           if ($content -notmatch "Invoke-Git @\('worktree','add','--detach'") {
             throw 'local-test-all.ps1 deve executar origin/master em worktree destacado.'
           }
-          if ($content -notmatch "Invoke-PowerShellScript 'local-db\.ps1' @\('-Action', 'reset'\)") {
-            throw 'local-test-all.ps1 deve recriar o banco canônico antes do Core.'
+          foreach ($required in @(
+            "Invoke-PowerShellScript 'local-check-ibge-reference.ps1' @('-NoStart')",
+            "Invoke-PowerShellScript 'local-e2e.ps1'",
+            "Invoke-ClusterAction 'up'",
+            'ibgeReferencePreserved = $true',
+            'destructiveReset = $false'
+          )) {
+            if (-not $content.Contains($required)) {
+              throw "local-test-all.ps1 perdeu contrato preservador: $required"
+            }
           }
-          if (-not $content.Contains('[switch]$AllowDestructiveReset') -or
-              -not $content.Contains('if (-not $AllowDestructiveReset)') -or
-              -not $content.Contains('-AllowDestructiveReset -IsolatedExecution')) {
-            throw 'local-test-all.ps1 deve exigir e propagar autorizacao explicita antes de qualquer reset destrutivo.'
+          foreach ($forbidden in @(
+            '[switch]$AllowDestructiveReset',
+            "Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')",
+            "Invoke-ClusterAction 'clean'",
+            "Invoke-PowerShellScript 'local-scale.ps1'"
+          )) {
+            if ($content.Contains($forbidden)) {
+              throw "local-test-all.ps1 nao pode ser destrutivo: $forbidden"
+            }
           }
+
+          foreach ($required in @(
+            '[switch]$AllowDestructiveReset',
+            'if (-not $AllowDestructiveReset)',
+            "Invoke-Script 'local-cluster.ps1' @('-Action','clean')",
+            "Invoke-Script 'local-db.ps1' @('-Action','reset')",
+            "Invoke-Script 'local-scale.ps1' @('-Profile','smoke')",
+            "Invoke-Script 'local-load-ibge-reference.ps1' @('-AllowLoad')"
+          )) {
+            if (-not $fromZero.Contains($required)) {
+              throw "local-test-from-zero.ps1 perdeu contrato explicito: $required"
+            }
+          }
+
+          foreach ($required in @(
+            '[switch]$AllowSharedDatabaseReset',
+            '$usesTemporaryDatabase = -not $AllowSharedDatabaseReset',
+            '-NoSyntheticCorpus -DatabaseName $db',
+            'DROP DATABASE [$db]'
+          )) {
+            if (-not $e2e.Contains($required)) {
+              throw "local-e2e.ps1 perdeu isolamento do banco compartilhado: $required"
+            }
+          }
+          if (-not $db.Contains('[string]$DatabaseName')) {
+            throw 'local-db.ps1 deve permitir banco isolado por nome explicito.'
+          }
+
           if (-not $content.Contains('function Write-CommandLine') -or
               -not $content.Contains('Write-CommandLine $CurrentPowerShell')) {
             throw 'local-test-all.ps1 deve imprimir os comandos reais antes de executá-los.'
@@ -158,7 +209,7 @@ jobs:
               throw "local-test-all.ps1 não pode voltar a alterar destrutivamente o working tree: $forbidden"
             }
           }
-          Write-Host 'LOCAL SUITE ISOLATION/COMMAND ECHO/RESET CONTRACT: OK'
+          Write-Host 'LOCAL SUITE PRESERVATION/FROM-ZERO CONTRACT: OK'
 
       - name: Validate local cluster command echo without secret disclosure
         shell: pwsh
@@ -266,26 +317,34 @@ jobs:
             }
           }
           Write-Host 'LINKAGE VALIDATION/IBGE BOOTSTRAP COMMAND OUTPUT CONTRACT: OK'
-      - name: Validate canonical audit before scale and canonical restoration
+      - name: Validate canonical audit preservation and destructive scale ownership
         shell: pwsh
         run: |
           $content = Get-Content -Raw -Encoding UTF8 scripts/local-test-all.ps1
+          $fromZero = Get-Content -Raw -Encoding UTF8 scripts/local-test-from-zero.ps1
+
           $audit = $content.IndexOf("Invoke-Step 'Auditoria read-only de candidate recall/rank'")
-          $clean = $content.IndexOf("Invoke-Step 'Encerrar cluster antes do harness de escala'")
-          $scale = $content.IndexOf("Invoke-Step 'Scale harness smoke + restauração do banco canônico'")
-          if ($audit -lt 0 -or $clean -lt 0 -or $scale -lt 0 -or -not ($audit -lt $clean -and $clean -lt $scale)) {
-            throw 'A suíte full deve auditar o corpus canônico antes de limpar o cluster e executar o scale smoke.'
+          $finalCheck = $content.IndexOf("Invoke-Step 'Referencia IBGE final: continua integra e ATIVA'")
+          if ($audit -lt 0 -or $finalCheck -lt 0 -or $audit -ge $finalCheck) {
+            throw 'A suite full preservadora deve auditar e depois confirmar novamente a referencia IBGE.'
           }
           if ($content -notmatch "JORNADA_EVALUATION_SCALE_PEOPLE = '5000'") {
-            throw 'A auditoria canônica deve usar a população SCALE Gold canônica de 5000 Pessoas.'
+            throw 'A auditoria canonica deve usar a populacao SCALE Gold canonica de 5000 Pessoas.'
           }
-          $scaleBlock = $content.Substring($scale)
-          if ($scaleBlock -notmatch "Invoke-PowerShellScript 'local-scale\.ps1' @\('-Profile', 'smoke'\)" -or
-              $scaleBlock -notmatch "Invoke-PowerShellScript 'local-db\.ps1' @\('-Action', 'reset'\)" -or
-              $scaleBlock -notmatch "Invoke-PowerShellScript 'local-load-ibge-reference\.ps1' @\('-AllowLoad', '-NoBuild'\)") {
-            throw 'O scale smoke da suíte full deve restaurar deterministicamente o banco e a referencia IBGE canonica ao terminar.'
+          if ($content.Contains('local-scale.ps1') -or $content.Contains("Invoke-ClusterAction 'clean'")) {
+            throw 'Scale/clean pertencem exclusivamente ao fluxo from-zero.'
           }
-          Write-Host 'LOCAL SUITE CANONICAL AUDIT/SCALE RESTORE CONTRACT: OK'
+          foreach ($required in @(
+            "Invoke-Script 'local-scale.ps1' @('-Profile','smoke')",
+            "Invoke-Script 'local-db.ps1' @('-Action','reset')",
+            "Invoke-Script 'local-load-ibge-reference.ps1' @('-AllowLoad','-NoBuild')",
+            "Invoke-Script 'local-check-ibge-reference.ps1'"
+          )) {
+            if (-not $fromZero.Contains($required)) {
+              throw "Fluxo from-zero perdeu fechamento destrutivo/restauracao: $required"
+            }
+          }
+          Write-Host 'LOCAL SUITE PRESERVATION/DESTRUCTIVE SCALE OWNERSHIP: OK'
 
       - name: Validate continuous round runner and Evaluation fan-out gate
         shell: pwsh
@@ -298,13 +357,17 @@ jobs:
             throw "$runnerPath deve começar por cls."
           }
           $audit = $content.IndexOf("local-linkage-evaluation-smoke.ps1")
-          $clean = $content.IndexOf("15/18 - Encerrar cluster antes do SCALE")
-          $scale = $content.IndexOf("16/18 - Smoke de escala + probe sincronizado de coordenação")
-          if ($audit -lt 0 -or $clean -lt 0 -or $scale -lt 0 -or -not ($audit -lt $clean -and $clean -lt $scale)) {
-            throw "$runnerPath deve executar Evaluation antes de encerrar o cluster e iniciar o SCALE."
+          $finalCheck = $content.IndexOf("14/14 - Quick check IBGE final")
+          if ($audit -lt 0 -or $finalCheck -lt 0 -or $audit -ge $finalCheck) {
+            throw "$runnerPath deve executar Evaluation antes do quick check IBGE final."
           }
-          if ($content -notmatch "local-cluster\.ps1 -Action clean" -or $content -notmatch "local-db\.ps1 -Action reset") {
-            throw "$runnerPath deve isolar o SCALE e restaurar o banco canônico."
+          foreach ($forbidden in @('local-cluster.ps1 -Action clean','local-db.ps1 -Action reset','local-scale.ps1 -Profile smoke')) {
+            if ($content.Contains($forbidden)) {
+              throw "$runnerPath padrao deve preservar banco/IBGE; encontrado: $forbidden"
+            }
+          }
+          if (-not $content.Contains('local-test-from-zero.ps1 -Suite full -AllowDestructiveReset')) {
+            throw "$runnerPath deve apontar explicitamente o fluxo destrutivo from-zero."
           }
           if (-not $content.Contains('Write-Host "# $CommandText"')) {
             throw "$runnerPath deve imprimir cada comando no output antes de executá-lo."
@@ -314,9 +377,6 @@ jobs:
           }
           if (-not $content.Contains('Gate histórico pré-HML opcional: .\scripts\local-ddl-upgrade.ps1')) {
             throw 'A rodada contínua deve manter o gate histórico disponível como comando manual explícito.'
-          }
-          if (-not $content.Contains('5.603.287 linhas') -or -not $content.Contains('heartbeat a cada 15 segundos')) {
-            throw 'A etapa de calibração deve explicar a carga IBGE longa e o heartbeat do worker.'
           }
           if ($content.Contains('Read-Host')) {
             throw 'Runner contínuo não pode aguardar ENTER.'
