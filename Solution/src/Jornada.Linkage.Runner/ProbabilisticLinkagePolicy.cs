@@ -99,23 +99,26 @@ internal static class ProbabilisticLinkageDecisions
         if (!string.IsNullOrWhiteSpace(observation.Cpf))
             throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
 
-        var decisionV6 = string.Equals(model.AlgorithmVersion, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, StringComparison.Ordinal);
+        var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(model.AlgorithmVersion);
+        var nameComparisonContract = LinkageParameterCatalog.NameComparisonContractForAlgorithm(model.AlgorithmVersion);
         var uniqueCandidates = DeduplicateCandidates(candidates);
         if (uniqueCandidates.Count == 0)
             return Array.Empty<CandidateScore>();
 
-        static NameComparisonState? CompareOptionalName(string? left, string? right) =>
-            IdentityComparison.NormalizeText(left) is null || IdentityComparison.NormalizeText(right) is null ? null : IdentityComparison.CompareName(left, right);
+        NameComparisonState? CompareOptionalName(string? left, string? right) =>
+            IdentityComparison.NormalizeText(left) is null || IdentityComparison.NormalizeText(right) is null
+                ? null
+                : IdentityComparison.CompareName(left, right, nameComparisonContract);
 
         return uniqueCandidates.Select(candidate =>
             {
                 var score = FellegiSunterScoring.Calculate(model.Parameters,
-                    IdentityComparison.CompareName(observation.NomeCompleto, candidate.NomeCompleto),
+                    IdentityComparison.CompareName(observation.NomeCompleto, candidate.NomeCompleto, nameComparisonContract),
                     CompareOptionalName(observation.NomeMae, candidate.NomeMae), uniqueCandidates.Count,
                     observation.DataNascimento, candidate.DataNascimento);
                 return new CandidateScore(candidate.PessoaUuid, score.Posterior, score.LogOdds);
             })
-            .OrderByDescending(x => decisionV6 ? x.LogOdds : x.Score)
+            .OrderByDescending(x => decisionEvidence ? x.LogOdds : x.Score)
             .ThenBy(x => x.PessoaUuid)
             .ToArray();
     }
