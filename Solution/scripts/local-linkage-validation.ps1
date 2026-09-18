@@ -289,9 +289,16 @@ SELECT CONCAT(
     COALESCE(CONVERT(varchar(40),r.score_segundo),'NULL'),'|',
     COALESCE(CONVERT(varchar(40),r.margem),'NULL'),'|',
     COALESCE(CONVERT(varchar(36),r.melhor_candidato_uuid),'NULL'),'|',
-    COALESCE(CONVERT(varchar(36),r.segundo_candidato_uuid),'NULL'))
+    COALESCE(CONVERT(varchar(36),r.segundo_candidato_uuid),'NULL'),'|',
+    REPLACE(po.nome_completo,'|',' '),'|',
+    REPLACE(COALESCE(po.nome_mae,N''),'|',' '),'|',
+    CONVERT(varchar(10),po.data_nascimento,23),'|',
+    REPLACE(g.nome_completo,'|',' '),'|',
+    REPLACE(COALESCE(g.nome_mae,N''),'|',' '),'|',
+    CONVERT(varchar(10),g.data_nascimento,23))
 FROM identidade.linkage_resultado r
 JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+JOIN gold.pessoa g ON g.pessoa_uuid=r.melhor_candidato_uuid
 WHERE r.linkage_run_id='$runId'
   AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-%'
   AND r.status='RESOLVIDO'
@@ -309,6 +316,12 @@ $negativeFalseMatchDetails = @(
             margin = (Parse-Decimal $parts[4])
             bestCandidateUuid = $parts[5]
             secondCandidateUuid = $parts[6]
+            observationName = $parts[7]
+            observationMotherName = $parts[8]
+            observationBirthDate = $parts[9]
+            bestCandidateName = $parts[10]
+            bestCandidateMotherName = $parts[11]
+            bestCandidateBirthDate = $parts[12]
         }
     }
 )
