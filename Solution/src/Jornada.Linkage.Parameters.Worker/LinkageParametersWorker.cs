@@ -562,6 +562,9 @@ public sealed class LinkageParametersWorker(
                 END
                 IF EXISTS (SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND (((((nome LIKE 'M[_]%' OR nome LIKE 'U[_]%') AND nome NOT IN('M_SAMPLE_SIZE','U_SAMPLE_SIZE')) OR nome IN('PRIOR_MATCH_PROBABILITY','PRIOR_BLOCK_MIN','PRIOR_BLOCK_MAX')) AND (valor<=0 OR valor>=1)) OR (nome='T_LINKAGE' AND (valor<=0 OR valor>1)) OR (nome='CONFLICT_MARGIN' AND (valor<=0 OR valor>=1)))) THROW 51011, 'Parâmetros probabilísticos fora do domínio esperado.', 1;
                 IF (SELECT valor FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='PRIOR_BLOCK_MIN') > (SELECT valor FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='PRIOR_BLOCK_MAX') THROW 51012, 'PRIOR_BLOCK_MIN não pode ser maior que PRIOR_BLOCK_MAX.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='MODEL_COHERENCE_ORDERED_NAME_LLR_V1' AND valor>=1)
+                    THROW 51019, 'Modelo SQL Server V6 sem proveniência do gate de monotonicidade nominal.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset r WHERE r.modelo_id=@modelo_id AND EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id) AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe_campo rc WHERE rc.ruleset_id=rp.ruleset_id AND rc.passe_ordem=rp.passe_ordem))) THROW 51013, 'Modelo SQL Server sem ruleset dinâmico completo.', 1;
                 UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@modelo_id;
                 """, connection, transaction);
