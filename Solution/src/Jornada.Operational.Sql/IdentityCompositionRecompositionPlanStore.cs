@@ -24,18 +24,14 @@ public sealed record IdentityCompositionRecompositionPlanRegistration(
 /// </summary>
 public sealed class IdentityCompositionRecompositionPlanStore
 {
-    private readonly bool postgres;
     private readonly IdentityCompositionApplicationStore application;
 
     public IdentityCompositionRecompositionPlanStore(IOperationalDatabaseAdapter database)
     {
         ArgumentNullException.ThrowIfNull(database);
-        postgres = database.Provider switch
-        {
-            OperationalDatabaseProviders.PostgreSql => true,
-            OperationalDatabaseProviders.SqlServer => false,
-            _ => throw new ArgumentException("Provider operacional não suportado.", nameof(database))
-        };
+        if (database.Provider != OperationalDatabaseProviders.SqlServer)
+
+            throw new ArgumentException("Provider operacional não suportado.", nameof(database));
         application = new IdentityCompositionApplicationStore(database);
     }
 
@@ -50,9 +46,7 @@ public sealed class IdentityCompositionRecompositionPlanStore
 
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "SELECT decision_id,composition_request_hash,recomposition_version,plan_json,plan_hash,registrado_em,estado FROM identidade.composicao_recomposicao_plano WHERE decision_id=@decision FOR UPDATE;"
-            : "SELECT decision_id,composition_request_hash,recomposition_version,plan_json,plan_hash,registrado_em,estado FROM identidade.composicao_recomposicao_plano WITH(UPDLOCK,HOLDLOCK) WHERE decision_id=@decision;";
+        command.CommandText = "SELECT decision_id,composition_request_hash,recomposition_version,plan_json,plan_hash,registrado_em,estado FROM identidade.composicao_recomposicao_plano WITH(UPDLOCK,HOLDLOCK) WHERE decision_id=@decision;";
         Add(command, "@decision", DbType.Guid, decisionId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
@@ -93,9 +87,7 @@ public sealed class IdentityCompositionRecompositionPlanStore
 
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "INSERT INTO identidade.composicao_recomposicao_plano(decision_id,composition_request_hash,recomposition_version,plan_json,plan_hash,registrado_em,estado) VALUES(@decision,@request_hash,@version,@json,@hash,@at,'PLANEJADA');"
-            : "INSERT identidade.composicao_recomposicao_plano(decision_id,composition_request_hash,recomposition_version,plan_json,plan_hash,registrado_em,estado) VALUES(@decision,@request_hash,@version,@json,@hash,@at,'PLANEJADA');";
+        command.CommandText = "INSERT identidade.composicao_recomposicao_plano(decision_id,composition_request_hash,recomposition_version,plan_json,plan_hash,registrado_em,estado) VALUES(@decision,@request_hash,@version,@json,@hash,@at,'PLANEJADA');";
         Add(command, "@decision", DbType.Guid, plan.DecisionId);
         Add(command, "@request_hash", DbType.String, plan.CompositionRequestHash);
         Add(command, "@version", DbType.String, IdentityCompositionRecompositionPlanner.Version);
