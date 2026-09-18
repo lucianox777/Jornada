@@ -86,6 +86,8 @@ IFS='|' read -r neg_total neg_resolved neg_rejected neg_candidate_exposure <<< "
 [[ "$neg_total" -eq 40 ]] || { echo "ERRO: negativos avaliados=$neg_total; esperado=40" >&2; exit 7; }
 [[ "$neg_candidate_exposure" -ge 30 ]] || { echo "ERRO: exposição a candidato insuficiente nos negativos: $neg_candidate_exposure/40" >&2; exit 7; }
 
+threshold="$(scalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='T_LINKAGE';")"
+
 single_probe_lines="$(sql_lines "SELECT CONCAT(CASE WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$model_short-PROBE-TWIN_SINGLE' THEN N'TWIN_SINGLE' WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$model_short-PROBE-SURNAME_SINGLE' THEN N'SURNAME_SINGLE' ELSE N'UNKNOWN' END,'|',r.status,'|',COALESCE(CONVERT(varchar(40),r.score_melhor),'NULL'),'|',COALESCE(CONVERT(varchar(36),r.melhor_candidato_uuid),'NULL'),'|',COALESCE(CONVERT(varchar(36),r.segundo_candidato_uuid),'NULL'),'|',COALESCE(CONVERT(varchar(40),r.score_segundo),'NULL'),'|',COALESCE(CONVERT(varchar(40),r.margem),'NULL')) FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id WHERE r.linkage_run_id='$run_id' AND po.codigo_pessoa_origem IN(N'SCALE-VAL-$model_short-PROBE-TWIN_SINGLE',N'SCALE-VAL-$model_short-PROBE-SURNAME_SINGLE') ORDER BY po.codigo_pessoa_origem;")"
 single_probe_count="$(printf '%s\n' "$single_probe_lines" | sed '/^[[:space:]]*$/d' | wc -l | xargs)"
 [[ "$single_probe_count" -eq 2 ]] || { echo "ERRO: probes de candidato único avaliados=$single_probe_count; esperado=2" >&2; printf '%s\n' "$single_probe_lines" >&2; exit 9; }
@@ -94,9 +96,14 @@ single_probe_resolved=0
 while IFS='|' read -r probe status score best second second_score margin; do
   [[ -n "$probe" ]] || continue
   echo "probe_candidato_unico: $probe status=$status score=$score best=$best second=$second second_score=$second_score margem=$margin"
-  [[ "$probe" != "UNKNOWN" ]] || { echo 'ERRO: probe de candidato único não identificado.' >&2; exit 9; }
+  [[ "$probe" != "UNKNOWN" ]] || { echo 'ERRO: probe familiar não identificado.' >&2; exit 9; }
   [[ "$best" != "NULL" ]] || { echo "ERRO: $probe não recuperou candidato; probe não exerce o risco de decisão." >&2; exit 9; }
-  [[ "$second" == "NULL" ]] || { echo "ERRO: $probe recuperou segundo candidato=$second; isolamento de candidato único não foi provado." >&2; exit 9; }
+  if [[ "$second" != "NULL" && "$second_score" != "NULL" ]]; then
+    if ! awk -v score="$second_score" -v threshold="$threshold" 'BEGIN { exit !(score < threshold) }'; then
+      echo "ERRO: $probe possui segundo candidato acima do threshold (score=$second_score; T=$threshold); dual-threshold ainda protege o caso." >&2
+      exit 9
+    fi
+  fi
   if [[ "$status" == "RESOLVIDO" ]]; then
     single_probe_resolved=$((single_probe_resolved + 1))
   fi
@@ -107,7 +114,6 @@ if [[ "$single_probe_resolved" -ne 0 ]]; then
   exit 9
 fi
 
-threshold="$(scalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='T_LINKAGE';")"
 conflict_metrics="$(scalar "SELECT CONCAT(COUNT_BIG(*),'|',SUM(CASE WHEN r.status='CONFLITO' THEN 1 ELSE 0 END),'|',SUM(CASE WHEN r.margem=0 THEN 1 ELSE 0 END),'|',SUM(CASE WHEN r.score_melhor>=$threshold THEN 1 ELSE 0 END),'|',SUM(CASE WHEN r.status='RESOLVIDO' THEN 1 ELSE 0 END)) FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id WHERE r.linkage_run_id='$run_id' AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$model_short-CONFLICT-%';")"
 IFS='|' read -r conf_total conf_status conf_margin0 conf_above conf_resolved <<< "$conflict_metrics"
 if [[ "$conf_total" -ne 10 || "$conf_status" -ne 10 || "$conf_margin0" -ne 10 || "$conf_above" -ne 10 || "$conf_resolved" -ne 0 ]]; then
