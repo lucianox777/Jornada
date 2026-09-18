@@ -535,6 +535,7 @@ SELECT CONCAT(
     CONVERT(varchar(40),um.valor),'|',
     CONVERT(varchar(40),m.valor),'|',
     CONVERT(varchar(40),u.valor),'|',
+    CONVERT(varchar(40),support_m.valor),'|',
     CONVERT(varchar(40),blk.valor),'|',
     CONVERT(varchar(40),delta.valor),'|',
     CONVERT(varchar(40),CAST(LOG(CAST(um.valor AS float)/CAST(u.valor AS float)) AS decimal(30,12))),'|',
@@ -551,6 +552,9 @@ JOIN identidade.parametro_linkage m
 JOIN identidade.parametro_linkage u
   ON u.modelo_id=um.modelo_id
  AND u.nome=CONCAT(N'U_',o.campo,N'_',o.estado)
+JOIN identidade.parametro_linkage support_m
+  ON support_m.modelo_id=um.modelo_id
+ AND support_m.nome=CONCAT(N'SUPPORT_M_',o.campo,N'_',o.estado)
 JOIN identidade.parametro_linkage blk
   ON blk.modelo_id=um.modelo_id
  AND blk.nome=CONCAT(N'ORDER_RESTRICTED_BLOCK_',o.campo,N'_',o.estado)
@@ -575,12 +579,13 @@ $orderRestrictionStates = @(
             unrestrictedM = (Parse-Decimal $parts[2])
             restrictedM = (Parse-Decimal $parts[3])
             u = (Parse-Decimal $parts[4])
-            block = [int](Parse-Decimal $parts[5])
-            deltaLlr = (Parse-Decimal $parts[6])
-            unrestrictedLlr = (Parse-Decimal $parts[7])
-            restrictedLlr = (Parse-Decimal $parts[8])
-            persistedAdjustedStates = [int](Parse-Decimal $parts[9])
-            persistedMaxAbsDeltaLlr = (Parse-Decimal $parts[10])
+            matchedSupport = [int](Parse-Decimal $parts[5])
+            block = [int](Parse-Decimal $parts[6])
+            deltaLlr = (Parse-Decimal $parts[7])
+            unrestrictedLlr = (Parse-Decimal $parts[8])
+            restrictedLlr = (Parse-Decimal $parts[9])
+            persistedAdjustedStates = [int](Parse-Decimal $parts[10])
+            persistedMaxAbsDeltaLlr = (Parse-Decimal $parts[11])
         }
     }
 )
@@ -724,7 +729,7 @@ if ($orderedMleEnabled) {
     foreach ($fieldSummary in $orderRestrictionFields) {
         Write-Host ("  {0}: estados_ajustados={1}/4 max_abs_delta_llr={2}" -f $fieldSummary.field,$fieldSummary.adjustedStates,$fieldSummary.maxAbsDeltaLlr)
         foreach ($state in @($orderRestrictionStates | Where-Object { $_.field -eq $fieldSummary.field })) {
-            Write-Host ("    {0}: bloco={1} m_irrestrito={2} m_final={3} u={4} llr_irrestrito={5} llr_final={6} delta_llr={7}" -f $state.state,$state.block,$state.unrestrictedM,$state.restrictedM,$state.u,$state.unrestrictedLlr,$state.restrictedLlr,$state.deltaLlr)
+            Write-Host ("    {0}: suporte_m={1} bloco={2} m_irrestrito={3} m_final={4} u={5} llr_irrestrito={6} llr_final={7} delta_llr={8}" -f $state.state,$state.matchedSupport,$state.block,$state.unrestrictedM,$state.restrictedM,$state.u,$state.unrestrictedLlr,$state.restrictedLlr,$state.deltaLlr)
         }
     }
 }
