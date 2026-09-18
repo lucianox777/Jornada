@@ -22,7 +22,7 @@ public sealed class LinkageParametersBootstrapProgressTests
             Assert.That(program, Does.Contain("RunHostWithHeartbeatAsync"));
             Assert.That(program, Does.Contain("TimeSpan.FromSeconds(15)"));
             Assert.That(program, Does.Contain("processo ativo, aguarde"));
-            Assert.That(program, Does.Contain("milhões de linhas e pode levar alguns minutos"));
+            Assert.That(program, Does.Contain("milhoes de linhas e pode levar alguns minutos"));
             Assert.That(program, Does.Contain("bootstrapBuilder.Build(),"));
             Assert.That(program, Does.Contain("operation == NameFrequencySnapshotLoader.Operation"));
         });
