@@ -276,17 +276,25 @@ Para validar o próprio contrato do diagnóstico contra o banco já existente:
 
 ### `local-test-all.ps1`
 
-É o comando recomendado para a validação local ampla.
+É o fechamento local amplo **padrão e preservador**:
 
 ```powershell
-./scripts/local-test-all.ps1 -Suite full -AllowDestructiveReset
+.\scripts\local-test-all.ps1 -Suite full
 ```
 
-Use apenas quando a alteração precisar provar instalação limpa/reconstrução completa. O script executa a validação em contexto isolado para evitar que alterações locais não relacionadas contaminem a evidência do SHA testado, mas exige `-AllowDestructiveReset` porque reseta o banco local. No fechamento da suíte full, o banco canônico é reconstruído e a referência IBGE canônica é materializada novamente antes de declarar sucesso.
+A execução pública busca `origin/master`, cria um worktree destacado e roda o SHA remoto sem alterar o working tree do desenvolvedor. O worktree **não recebe uma cópia do `.env`**: o wrapper aponta temporariamente `JORNADA_LOCAL_ENV_FILE` para o `.env` do checkout principal, e os scripts internos reutilizam essa configuração para acessar o mesmo SQL/volumes canônicos.
 
-Quando estiver apenas iterando em uma correção pequena, rode primeiro o teste/gate específico. `local-test-all.ps1` sem `-AllowDestructiveReset` agora aborta de propósito; use a flag somente quando quiser explicitamente reconstruir o ambiente.
+Nesse modo, a referência IBGE é checada em modo read-only e preservada; não há `reset`, `clean`, E2E ou scale destrutivo.
 
-O guard pode ser validado isoladamente com:
+Para provar instalação limpa/reconstrução completa, use exclusivamente:
+
+```powershell
+.\scripts\local-test-from-zero.ps1 -Suite full
+```
+
+Esse wrapper aciona o modo `-FromZero -AllowDestructiveReset`, recria banco/volumes e rematerializa a referência IBGE antes de concluir.
+
+O contrato preserve/from-zero e a propagação segura do `.env` podem ser validados isoladamente com:
 
 ```powershell
 .\scripts\local-test-test-all-safety.ps1
