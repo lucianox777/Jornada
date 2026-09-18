@@ -18,15 +18,6 @@
           "System.Runtime.Caching": "8.0.0"
         }
       },
-      "Npgsql": {
-        "type": "Direct",
-        "requested": "[8.0.9, )",
-        "resolved": "8.0.9",
-        "contentHash": "H7O9NrvSO+BaojUOK59YmSOi7+RabnBoNPw1F7NgtZhw5uBeAA3bCjTH2VjgacUVHe8K1asPyj/a/mnhJ/e1yA==",
-        "dependencies": {
-          "Microsoft.Extensions.Logging.Abstractions": "8.0.0"
-        }
-      },
       "Azure.Core": {
         "type": "Transitive",
         "resolved": "1.38.0",
