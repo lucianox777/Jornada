@@ -166,18 +166,28 @@ SELECT n.n,
        CONCAT(N'SCALE-VAL-',@modelShort,N'-NEG-',scenario.codigo,N'-',RIGHT(REPLICATE('0',6)+CONVERT(VARCHAR(6),n.n),6)),
        scenario.codigo,
        CASE scenario.codigo
+           WHEN N'TWIN_LIKE' THEN
+               CASE
+                   WHEN CHARINDEX(N' ',t.nome)>0
+                       THEN CONCAT(
+                           LEFT(t.nome,CHARINDEX(N' ',t.nome)-1),
+                           N'A',
+                           SUBSTRING(t.nome,CHARINDEX(N' ',t.nome),500))
+                   ELSE CONCAT(t.nome,N'A')
+               END
            WHEN N'NAME_COLLISION' THEN t.nome
            WHEN N'HARD_HOMONYM' THEN t.nome
            ELSE CONCAT(N'Pessoa Distinta Validacao ',RIGHT(REPLICATE('0',6)+CONVERT(VARCHAR(6),n.n),6)) END,
        t.nascimento,
        CASE scenario.codigo
+           WHEN N'TWIN_LIKE' THEN t.mae
            WHEN N'MOTHER_COLLISION' THEN t.mae
            WHEN N'HARD_HOMONYM' THEN t.mae
            ELSE CONCAT(N'Mae Distinta Validacao ',RIGHT(REPLICATE('0',6)+CONVERT(VARCHAR(6),n.n),6)) END
 FROM #n n
 JOIN #truth t ON t.n=100+n.n
 CROSS APPLY (SELECT CASE (n.n-1)%4
-    WHEN 0 THEN N'EASY'
+    WHEN 0 THEN N'TWIN_LIKE'
     WHEN 1 THEN N'NAME_COLLISION'
     WHEN 2 THEN N'MOTHER_COLLISION'
     ELSE N'HARD_HOMONYM' END AS codigo) scenario;
