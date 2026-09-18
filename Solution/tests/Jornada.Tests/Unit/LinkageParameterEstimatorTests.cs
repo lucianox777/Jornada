@@ -148,7 +148,7 @@ public sealed class LinkageParameterEstimatorTests
             matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m);
         var v2 = LinkageParameterEstimator.Estimate(
             matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m,
-            nameComparisonContract: NameComparisonContract.PositionalTokenMinJaroWinklerV2);
+            nameComparisonContract: NameComparisonContract.PtBrContentTokenGuardV2);
 
         Assert.Multiple(() =>
         {
