@@ -199,6 +199,7 @@ Para frentes técnicas com testes direcionados, mantenha também um script dedic
 | Apagar completamente o cluster local | `local-cluster.ps1 -Action clean` | Ambiente inconsistente ou necessidade deliberada de começar do zero |
 | Operar somente o banco local | `local-db.ps1` | Desenvolvimento/testes que precisam apenas do SQL Server local |
 | Rodar suíte isolada de instalação limpa | `local-test-all.ps1 -Suite full -AllowDestructiveReset` | Somente quando a mudança exige provar reset/reconstrução completa; sem a flag explícita o script aborta antes de tocar no banco |
+| Testar o guard destrutivo da suíte full | `local-test-test-all-safety.ps1` | Prova que `local-test-all.ps1` sem autorização falha antes de `git fetch`, worktree ou reset do banco |
 | Rodar validação local específica | `local-test.ps1` | Iteração rápida durante desenvolvimento; preserva o banco existente |
 | Conferir referência IBGE sem recarga | `local-check-ibge-reference.ps1` | Antes de testes que reutilizam `ref.frequencia_nome`; compara versão/linhas/hash publicado e imutabilidade sem carregar dados |
 | Diagnosticar referência IBGE local | `local-diagnose-ibge-reference.ps1` | Read-only; lista versões, status, SHA e contagem de linhas por versão para investigar bases legadas/incompletas |
@@ -257,7 +258,13 @@ Limpa artefatos do ambiente local. É uma ferramenta de recuperação/manutenç�
 
 Use apenas quando a alteração precisar provar instalação limpa/reconstrução completa. O script executa a validação em contexto isolado para evitar que alterações locais não relacionadas contaminem a evidência do SHA testado, mas exige `-AllowDestructiveReset` porque reseta o banco local e pode recarregar a referência IBGE.
 
-Quando estiver apenas iterando em uma correção pequena, rode primeiro o teste/gate específico e deixe `local-test-all.ps1` para o fechamento.
+Quando estiver apenas iterando em uma correção pequena, rode primeiro o teste/gate específico. `local-test-all.ps1` sem `-AllowDestructiveReset` agora aborta de propósito; use a flag somente quando quiser explicitamente reconstruir o ambiente.
+
+O guard pode ser validado isoladamente com:
+
+```powershell
+.\scripts\local-test-test-all-safety.ps1
+```
 
 ### `local-test.ps1`
 
