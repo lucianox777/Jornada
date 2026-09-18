@@ -137,6 +137,14 @@ Após a MLE ordenada nominal, audite também `UNRESTRICTED_M_*`, `ORDER_RESTRICT
 
 Para avaliação estatística, uma única seed não basta para atribuir mudança de LLR ao modelo. Repita a calibração com seeds distintos e compare dispersão de `NOME`/`NOME_MAE`. Comparações A/B devem usar artefatos congelados identificados por `modelo_id`, algoritmo, fingerprints, referência e ruleset; não recalibre retrospectivamente um modelo antigo com código novo.
 
+O diagnóstico read-only multi-seed automatiza a primeira parte sem recalibrar ou promover modelos:
+
+```powershell
+.\scripts\local-ibge-u-multiseed.ps1 -PairCount 100000 -Seeds 20260917,20260918,20260919,20260920,20260921
+```
+
+Ele preserva um JSON por seed e grava `.local\calibrador-ibge-u\multiseed\summary.json` com média, desvio-padrão, mínimo e máximo de cada estado nominal. Use primeiro uma contagem moderada para detectar instabilidade; aumente `PairCount` somente depois que a instrumentação e o ambiente estiverem validados.
+
 `local-ibge-u-bootstrap.ps1` é **read-only** e reproduz separadamente as distribuições Monte Carlo de pessoa e mãe para comparação com o modelo ATIVO; não cria, valida ou ativa modelo. `local-linkage-validation.ps1` usa corpus independente DEV com positivos, impostores e probes de conflito. Nesta fase pré-homologação, não há comparação de regressão com modelo anterior; o harness reprova se produzir falso vínculo resolvido.
 
 ### 10. Rodar o smoke de escala
