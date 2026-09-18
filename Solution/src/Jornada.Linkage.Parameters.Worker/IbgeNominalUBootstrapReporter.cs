@@ -165,7 +165,7 @@ public sealed class IbgeNominalUBootstrapReporter(
                         exactSurnameProbability = Round12(motherEstimate.AnalyticExactSurnameProbability),
                         exactSyntheticFullNameProbability = Round12(motherEstimate.AnalyticExactSyntheticFullNameProbability)
                     },
-                    activeModelPresentMass = motherPresentMass is null ? null : Round12(motherPresentMass.Value),
+                    activeModelPresentMass = motherPresentMass is null ? (decimal?)null : Round12(motherPresentMass.Value),
                     states = motherComparison
                 },
                 activeModel = activeModel is null
