@@ -225,5 +225,70 @@
     ],
     "restoreTargetCount": 18,
     "combinedSha256": "660b7fa485e36aca041c78342d6349c2134f5eadeb1d5c995760d18f1743c2e8"
+  },
+  "candidateGraph": {
+    "candidate": "v5.00",
+    "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
+    "sourceCommit": "d42f71438e8abb6cd24d6aee8b03916d975a3dc4",
+    "githubRunId": "35366258560",
+    "sdk": "8.0.424",
+    "reason": "Extração do runtime PostgreSQL/Npgsql da candidata v5.00; o histórico atestado v4.05 é preservado e somente os locks efetivamente alterados recebem override candidato.",
+    "lockCount": 19,
+    "changedLockCount": 13,
+    "combinedSha256": "0d5a8c729a231c13022d2a6724dbec3a8dba53346afe932e0b8685bb1244bf9f",
+    "overrides": [
+      {
+        "path": "src/Jornada.Api/packages.lock.json",
+        "sha256": "873c99b6d697fe5d2fa67cbbc1b0dd708cdd0017c97713dd92a8cfcb006a985f"
+      },
+      {
+        "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
+        "sha256": "da3310e03d551d957d6f5295f6344460ca1715d77018312e1893d2cc9b2e5793"
+      },
+      {
+        "path": "src/Jornada.Bronze.Verify/packages.lock.json",
+        "sha256": "f16e98037a393cff9bef5c40197db60e82f0df0366e3495d4567461b75df3477"
+      },
+      {
+        "path": "src/Jornada.Ensaio/packages.lock.json",
+        "sha256": "6390dfb9d50e2fdb04d87e3217ba93ac3db1d3977328e9819f0d339d58023d72"
+      },
+      {
+        "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
+        "sha256": "ecac8b942d58945defd1eef60c0909bc1c13e791274dcd3bbafcc43610cc607a"
+      },
+      {
+        "path": "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
+        "sha256": "10cf5708437f1b2d0c19e3986713140f5fa8a2b9222983eb92bf239d256fb3ba"
+      },
+      {
+        "path": "src/Jornada.Linkage.Runner/packages.lock.json",
+        "sha256": "10cf5708437f1b2d0c19e3986713140f5fa8a2b9222983eb92bf239d256fb3ba"
+      },
+      {
+        "path": "src/Jornada.Operational.Sql/packages.lock.json",
+        "sha256": "ff40971c9524193fddd81cc387a2349d30355dc25dc20728d15cdd360cc31c93"
+      },
+      {
+        "path": "src/Jornada.Operations.Maintenance.Worker/packages.lock.json",
+        "sha256": "da3310e03d551d957d6f5295f6344460ca1715d77018312e1893d2cc9b2e5793"
+      },
+      {
+        "path": "src/Jornada.Pipeline.Coordination/packages.lock.json",
+        "sha256": "ecac8b942d58945defd1eef60c0909bc1c13e791274dcd3bbafcc43610cc607a"
+      },
+      {
+        "path": "src/Jornada.Processor.Worker/packages.lock.json",
+        "sha256": "27ad575fbd6a92980930f08cdb93637f4cd3a8e32026cdff6b82d44f447cf333"
+      },
+      {
+        "path": "tests/Jornada.Integration.Tests/packages.lock.json",
+        "sha256": "d9ed668f6e384a508118ad634f2bdacba426f6faaf3bbb2854283adec013a8e7"
+      },
+      {
+        "path": "tests/Jornada.Tests/packages.lock.json",
+        "sha256": "0a5c499e4b7a9ca0be4b25b7b6c1df7cfd47746fe0de587bdfe452dd9dfb2b42"
+      }
+    ]
   }
 }
