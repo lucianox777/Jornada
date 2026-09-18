@@ -17,7 +17,7 @@ $testAll = Get-Content -LiteralPath $TestAll -Raw -Encoding UTF8
 $fromZero = Get-Content -LiteralPath $FromZero -Raw -Encoding UTF8
 
 foreach ($required in @(
-    "Invoke-PowerShellScript 'local-check-ibge-reference.ps1' @('-NoStart')",
+    "Invoke-PowerShellScript 'local-check-ibge-reference.ps1'",
     "Invoke-PowerShellScript 'local-e2e.ps1'",
     "Invoke-ClusterAction 'up'",
     'ibgeReferencePreserved = $true',
@@ -44,6 +44,20 @@ foreach ($required in @(
     "Invoke-Script 'local-load-ibge-reference.ps1' @('-AllowLoad')"
 )) {
     if (-not $fromZero.Contains($required)) { throw "Contrato destrutivo ausente em local-test-from-zero.ps1: $required" }
+}
+
+$e2e = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'local-e2e.ps1') -Raw -Encoding UTF8
+$db = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'local-db.ps1') -Raw -Encoding UTF8
+foreach ($required in @(
+    '[switch]$AllowSharedDatabaseReset',
+    '$usesTemporaryDatabase = -not $AllowSharedDatabaseReset',
+    '-NoSyntheticCorpus -DatabaseName $db',
+    'DROP DATABASE [$db]'
+)) {
+    if (-not $e2e.Contains($required)) { throw "Contrato de isolamento E2E ausente: $required" }
+}
+if (-not $db.Contains('[string]$DatabaseName')) {
+    throw 'local-db.ps1 perdeu suporte a banco isolado por nome explicito.'
 }
 
 $stdoutPath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-from-zero-guard-{0}.out" -f [Guid]::NewGuid().ToString('N'))
