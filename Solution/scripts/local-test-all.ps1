@@ -317,7 +317,7 @@ try {
     Write-Host 'Pré-HML: o upgrade de baselines históricos não é executado por padrão. Para diagnóstico manual: .\scripts\local-ddl-upgrade.ps1.'
 
     Invoke-Step 'Referencia IBGE existente: quick check read-only' {
-        Invoke-PowerShellScript 'local-check-ibge-reference.ps1' @('-NoStart')
+        Invoke-PowerShellScript 'local-check-ibge-reference.ps1'
     }
 
     Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
