@@ -185,7 +185,7 @@ ou:
 ./scripts/local-e2e.sh
 ```
 
-O teste usa por padrão um banco temporário `JornadaE2E_*`, criado via `local-db.ps1 -DatabaseName ... -NoSyntheticCorpus` e removido no `finally`; portanto não reseta `JornadaLocal` nem a referência IBGE compartilhada. Compila a Solution, inicia API e Processor, aguarda `/health/ready`, gera ZIP determinístico da fixture `AA01_v2` e verifica HTTP → Bronze → Silver → Gold → Serving → consulta HTTP. Depois prova duas propriedades distintas: replay da mesma `Idempotency-Key` retorna a mesma Entrega; mesmos bytes sob nova chave criam nova Entrega lógica, mas os itens são `RETRANSMITIDO` e não nasce segunda versão Gold vigente. Evidência e logs ficam em `.local/e2e/`. O reset do banco compartilhado só ocorre com `-AllowSharedDatabaseReset` explícito.
+O teste usa por padrão o banco isolado `JornadaE2E`, preparado via `local-db.ps1 -DatabaseName JornadaE2E -NoSyntheticCorpus`; portanto não reseta `JornadaLocal` nem a referência IBGE compartilhada. Compila a Solution, inicia API e Processor, aguarda `/health/ready`, gera ZIP determinístico da fixture `AA01_v2` e verifica HTTP → Bronze → Silver → Gold → Serving → consulta HTTP. Depois prova duas propriedades distintas: replay da mesma `Idempotency-Key` retorna a mesma Entrega; mesmos bytes sob nova chave criam nova Entrega lógica, mas os itens são `RETRANSMITIDO` e não nasce segunda versão Gold vigente. Evidência e logs ficam em `.local/e2e/`. O reset do banco compartilhado só ocorre com `-AllowSharedDatabaseReset` explícito.
 
 ## 7. Avaliação metodológica de linkage — DEV/HML somente
 
