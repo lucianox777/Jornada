@@ -11,6 +11,16 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$DefaultEnvFile = Join-Path $Root '.env'
+$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) {
+    $DefaultEnvFile
+}
+else {
+    [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE)
+}
+if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE) -and -not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+    throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile"
+}
 $CurrentPowerShell = (Get-Process -Id $PID).Path
 $Results = [System.Collections.Generic.List[object]]::new()
 $OverallStatus = 'FAILED'
@@ -173,8 +183,8 @@ function Invoke-LinkageEvaluationSmoke {
     }
     Write-Host "Bash selecionado para a auditoria read-only: $bash"
 
-    $envFile = Join-Path $Root '.env'
-    if (-not (Test-Path -LiteralPath $envFile)) { throw '.env não encontrado após preparação local.' }
+    $envFile = $EnvFile
+    if (-not (Test-Path -LiteralPath $envFile -PathType Leaf)) { throw ".env nao encontrado para auditoria local: $envFile" }
     $vars = @{}
     Get-Content $envFile | ForEach-Object {
         $line = $_.Trim()
@@ -238,6 +248,10 @@ foreach ($command in @('git', 'docker', 'dotnet')) {
 # A invocação pública nunca altera o working tree do desenvolvedor. Busca o SHA remoto,
 # cria um worktree destacado e executa a mesma suíte nesse checkout descartável.
 if (-not $IsolatedExecution) {
+    $sharedEnvFile = Join-Path $Root '.env'
+    if (-not $FromZero -and -not (Test-Path -LiteralPath $sharedEnvFile -PathType Leaf)) {
+        throw "Modo PRESERVE_IBGE exige o .env do checkout principal: $sharedEnvFile"
+    }
     $worktreePath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-local-test-all-{0}" -f [Guid]::NewGuid().ToString('N'))
     $childReport = Join-Path $worktreePath 'Solution/.local/test-all/latest.json'
     $targetReportDir = Join-Path $Root '.local/test-all'
@@ -260,8 +274,19 @@ if (-not $IsolatedExecution) {
         }
         $childArgs += '-IsolatedExecution'
         Write-CommandLine $CurrentPowerShell $childArgs
-        & $CurrentPowerShell @childArgs
-        $exitCode = $LASTEXITCODE
+
+        $previousSharedEnvFile = $env:JORNADA_LOCAL_ENV_FILE
+        try {
+            if (Test-Path -LiteralPath $sharedEnvFile -PathType Leaf) {
+                $env:JORNADA_LOCAL_ENV_FILE = (Resolve-Path -LiteralPath $sharedEnvFile).Path
+                Write-Host "Config local compartilhada com o worktree via JORNADA_LOCAL_ENV_FILE (arquivo nao copiado)."
+            }
+            & $CurrentPowerShell @childArgs
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            $env:JORNADA_LOCAL_ENV_FILE = $previousSharedEnvFile
+        }
     }
     catch {
         $FailureMessage = $_.Exception.Message
@@ -305,6 +330,7 @@ try {
     Write-Host 'Branch: detached worktree de origin/master'
     Write-Host "SHA:    $testedSha"
     Write-Host ("Modo:   " + $(if ($FromZero) { 'FROM_ZERO_DESTRUTIVO' } else { 'PRESERVE_IBGE' }))
+    Write-Host "Env:    $EnvFile"
     Write-Host 'Pré-HML: o upgrade de baselines históricos não é executado por padrão. Para diagnóstico manual: .\scripts\local-ddl-upgrade.ps1.'
 
     if (-not $FromZero) {
@@ -439,6 +465,7 @@ finally {
         mode = $(if ($FromZero) { 'FROM_ZERO_DESTRUCTIVE' } else { 'PRESERVE_IBGE' })
         destructiveResetExplicitlyAllowed = [bool]($FromZero -and $AllowDestructiveReset)
         ibgeReferencePreservedByDefault = [bool](-not $FromZero)
+        sharedEnvFile = $EnvFile
         generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         failure = $FailureMessage
         steps = @($Results)
