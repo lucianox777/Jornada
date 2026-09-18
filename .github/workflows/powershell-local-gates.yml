@@ -6,6 +6,7 @@ on:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-test-test-all-safety.ps1'
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
@@ -65,6 +66,7 @@ jobs:
             'scripts/local-ddl-upgrade.ps1',
             'scripts/local-test.ps1',
             'scripts/local-test-all.ps1',
+            'scripts/local-test-test-all-safety.ps1',
             'scripts/local-test-round.ps1',
             'scripts/local-cluster.ps1',
             'scripts/local-linkage-evaluation-smoke.ps1',
@@ -85,6 +87,10 @@ jobs:
             $null = [scriptblock]::Create((Get-Content -Raw -Encoding UTF8 $file))
             Write-Host "POWERSHELL UTF-8 BOM/PARSE OK: $file"
           }
+
+      - name: Validate local-test-all destructive guard
+        shell: pwsh
+        run: ./scripts/local-test-test-all-safety.ps1
 
       - name: Validate blocking pass fan-out gate self-test
         shell: bash
