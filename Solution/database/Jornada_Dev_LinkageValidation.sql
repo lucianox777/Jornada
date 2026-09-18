@@ -223,6 +223,44 @@ FROM #n n
 JOIN #truth t ON t.n=200+n.n
 WHERE n.n<=10;
 
+CREATE TABLE #single_probe(
+    probe NVARCHAR(40) NOT NULL PRIMARY KEY,
+    candidate_uuid UNIQUEIDENTIFIER NOT NULL,
+    candidate_cpf CHAR(11) NOT NULL UNIQUE,
+    candidate_codigo NVARCHAR(200) NOT NULL UNIQUE,
+    pending_codigo NVARCHAR(200) NOT NULL UNIQUE,
+    candidate_nome NVARCHAR(500) NOT NULL,
+    pending_nome NVARCHAR(500) NOT NULL,
+    nascimento DATE NOT NULL,
+    mae NVARCHAR(500) NOT NULL);
+
+INSERT #single_probe(
+    probe,candidate_uuid,candidate_cpf,candidate_codigo,pending_codigo,
+    candidate_nome,pending_nome,nascimento,mae)
+VALUES
+(
+    N'TWIN_SINGLE',
+    CONVERT(UNIQUEIDENTIFIER,HASHBYTES('MD5',CONCAT('JORNADA-VAL-TWIN-SINGLE:',CONVERT(VARCHAR(36),@activeModelId)))),
+    '88999999001',
+    CONCAT(N'SCALE-VAL-',@modelShort,N'-PROBE-CAND-TWIN_SINGLE'),
+    CONCAT(N'SCALE-VAL-',@modelShort,N'-PROBE-TWIN_SINGLE'),
+    N'GABRIEL OLIVEIRA LIMA VALIDACAO UNICA',
+    N'GABRIELA OLIVEIRA LIMA VALIDACAO UNICA',
+    CONVERT(DATE,'2099-12-30'),
+    N'MARIA APARECIDA LIMA VALIDACAO UNICA'
+),
+(
+    N'SURNAME_SINGLE',
+    CONVERT(UNIQUEIDENTIFIER,HASHBYTES('MD5',CONCAT('JORNADA-VAL-SURNAME-SINGLE:',CONVERT(VARCHAR(36),@activeModelId)))),
+    '88999999002',
+    CONCAT(N'SCALE-VAL-',@modelShort,N'-PROBE-CAND-SURNAME_SINGLE'),
+    CONCAT(N'SCALE-VAL-',@modelShort,N'-PROBE-SURNAME_SINGLE'),
+    N'MARIA APARECIDA DA SILVA VALIDACAO UNICA',
+    N'MARIA APARECIDA DA SOUZA VALIDACAO UNICA',
+    CONVERT(DATE,'2099-12-31'),
+    N'ANA CRISTINA SILVA VALIDACAO UNICA'
+);
+
 BEGIN TRY
     BEGIN TRAN;
 
@@ -235,17 +273,25 @@ BEGIN TRY
     UNION ALL
     SELECT @soSehab,candidate_a_codigo,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #conflict
     UNION ALL
-    SELECT @soSehab,candidate_b_codigo,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #conflict;
+    SELECT @soSehab,candidate_b_codigo,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #conflict
+    UNION ALL
+    SELECT @soSehab,candidate_codigo,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #single_probe
+    UNION ALL
+    SELECT @soSmdet,pending_codigo,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #single_probe;
 
     INSERT identidade.pessoa(pessoa_uuid,status,criado_em)
     SELECT candidate_a_uuid,N'ATIVO','2026-09-17T12:00:00+00:00' FROM #conflict
     UNION ALL
-    SELECT candidate_b_uuid,N'ATIVO','2026-09-17T12:00:00+00:00' FROM #conflict;
+    SELECT candidate_b_uuid,N'ATIVO','2026-09-17T12:00:00+00:00' FROM #conflict
+    UNION ALL
+    SELECT candidate_uuid,N'ATIVO','2026-09-17T12:00:00+00:00' FROM #single_probe;
 
     INSERT gold.pessoa(pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,estado_concordancia,atualizado_em)
     SELECT candidate_a_uuid,candidate_a_cpf,N'PRESENTE',nome,nascimento,mae,1,N'BASELINE_FONTE_UNICA','2026-09-17T12:00:00+00:00' FROM #conflict
     UNION ALL
-    SELECT candidate_b_uuid,candidate_b_cpf,N'PRESENTE',nome,nascimento,mae,1,N'BASELINE_FONTE_UNICA','2026-09-17T12:00:00+00:00' FROM #conflict;
+    SELECT candidate_b_uuid,candidate_b_cpf,N'PRESENTE',nome,nascimento,mae,1,N'BASELINE_FONTE_UNICA','2026-09-17T12:00:00+00:00' FROM #conflict
+    UNION ALL
+    SELECT candidate_uuid,candidate_cpf,N'PRESENTE',candidate_nome,nascimento,mae,1,N'BASELINE_FONTE_UNICA','2026-09-17T12:00:00+00:00' FROM #single_probe;
 
     INSERT silver.pessoa_observacao(
         pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,versao_interna,conteudo_hash,
@@ -260,7 +306,13 @@ BEGIN TRY
            LOWER(CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',CONCAT('VAL-CAND-B:',@modelShort,':',c.n)),2)),
            c.candidate_b_cpf,NULL,c.nome,UPPER(c.nome),c.nascimento,c.mae,UPPER(c.mae),'2026-09-17T12:00:00+00:00'
     FROM #conflict c
-    JOIN silver.pessoa_origem po ON po.sistema_origem_id=@soSehab AND po.codigo_pessoa_origem=c.candidate_b_codigo;
+    JOIN silver.pessoa_origem po ON po.sistema_origem_id=@soSehab AND po.codigo_pessoa_origem=c.candidate_b_codigo
+    UNION ALL
+    SELECT po.pessoa_origem_id,@lotSehab,@gSehab,p.candidate_codigo,1,
+           LOWER(CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',CONCAT('VAL-PROBE-CAND:',@modelShort,':',p.probe)),2)),
+           p.candidate_cpf,NULL,p.candidate_nome,UPPER(p.candidate_nome),p.nascimento,p.mae,UPPER(p.mae),'2026-09-17T12:00:00+00:00'
+    FROM #single_probe p
+    JOIN silver.pessoa_origem po ON po.sistema_origem_id=@soSehab AND po.codigo_pessoa_origem=p.candidate_codigo;
 
     INSERT identidade.vinculo_fonte(
         pessoa_observacao_id,pessoa_uuid,metodo_resolucao,score,status,modelo_id,ativo,resolvido_em,motivo)
@@ -270,7 +322,11 @@ BEGIN TRY
     UNION ALL
     SELECT obs.pessoa_observacao_id,c.candidate_b_uuid,N'CPF_DETERMINISTICO',NULL,N'RESOLVIDO',NULL,1,'2026-09-17T12:01:00+00:00',N'VALIDACAO_INDEPENDENTE_CANDIDATO'
     FROM #conflict c
-    JOIN silver.pessoa_observacao obs ON obs.codigo_pessoa_origem=c.candidate_b_codigo;
+    JOIN silver.pessoa_observacao obs ON obs.codigo_pessoa_origem=c.candidate_b_codigo
+    UNION ALL
+    SELECT obs.pessoa_observacao_id,p.candidate_uuid,N'CPF_DETERMINISTICO',NULL,N'RESOLVIDO',NULL,1,'2026-09-17T12:01:00+00:00',N'VALIDACAO_INDEPENDENTE_PROBE_CANDIDATO'
+    FROM #single_probe p
+    JOIN silver.pessoa_observacao obs ON obs.codigo_pessoa_origem=p.candidate_codigo;
 
     INSERT silver.pessoa_observacao(
         pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,versao_interna,conteudo_hash,
@@ -294,7 +350,14 @@ BEGIN TRY
            NULL,N'SEM_CPF',c.nome,UPPER(c.nome),c.nascimento,c.mae,UPPER(c.mae),
            DATEADD(SECOND,200+c.n,CONVERT(datetimeoffset(0),'2026-09-17T12:10:00+00:00'))
     FROM #conflict c
-    JOIN silver.pessoa_origem po ON po.sistema_origem_id=@soSmdet AND po.codigo_pessoa_origem=c.pending_codigo;
+    JOIN silver.pessoa_origem po ON po.sistema_origem_id=@soSmdet AND po.codigo_pessoa_origem=c.pending_codigo
+    UNION ALL
+    SELECT po.pessoa_origem_id,@lotSmdet,@gSmdet,p.pending_codigo,1,
+           LOWER(CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',CONCAT('VAL-PROBE-PENDING:',@modelShort,':',p.probe)),2)),
+           NULL,N'SEM_CPF',p.pending_nome,UPPER(p.pending_nome),p.nascimento,p.mae,UPPER(p.mae),
+           DATEADD(SECOND,300+ROW_NUMBER() OVER(ORDER BY p.probe),CONVERT(datetimeoffset(0),'2026-09-17T12:10:00+00:00'))
+    FROM #single_probe p
+    JOIN silver.pessoa_origem po ON po.sistema_origem_id=@soSmdet AND po.codigo_pessoa_origem=p.pending_codigo;
 
     COMMIT;
 END TRY
@@ -311,4 +374,5 @@ SELECT
     (SELECT COUNT(*) FROM #negative) AS negativos,
     (SELECT COUNT(*) FROM #conflict) AS conflitos,
     (SELECT COUNT(*)*2 FROM #conflict) AS candidatos_conflito,
+    (SELECT COUNT(*) FROM #single_probe) AS probes_candidato_unico,
     N'INJETADO_APOS_CALIBRACAO' AS estado;
