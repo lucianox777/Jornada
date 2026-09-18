@@ -35,7 +35,6 @@ public sealed record IdentityCompositionOriginSnapshot(
 /// </summary>
 public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositionAuthoritativeReader
 {
-    private readonly bool postgres;
     private readonly IIdentityCompositionCpfAuthorityReader cpfAuthority;
     private readonly IdentityCompositionAppliedHistoryStore appliedHistory;
 
@@ -46,12 +45,8 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
         ArgumentNullException.ThrowIfNull(database);
         this.cpfAuthority = cpfAuthority ?? throw new ArgumentNullException(nameof(cpfAuthority));
         appliedHistory = new IdentityCompositionAppliedHistoryStore(database);
-        postgres = database.Provider switch
-        {
-            OperationalDatabaseProviders.PostgreSql => true,
-            OperationalDatabaseProviders.SqlServer => false,
-            _ => throw new ArgumentException("Provider operacional não suportado.", nameof(database))
-        };
+        if (database.Provider != OperationalDatabaseProviders.SqlServer)
+            throw new ArgumentException("Provider operacional não suportado.", nameof(database));
     }
 
     public async Task<IdentityCompositionReadSet> LoadClosedReadSetAsync(
@@ -188,9 +183,7 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "SELECT pessoa_origem_id,initial_uuid,canonical_uuid,estado,versao FROM identidade.pessoa_origem_progressiva WHERE initial_uuid=@uuid FOR UPDATE;"
-            : "SELECT pessoa_origem_id,initial_uuid,canonical_uuid,estado,versao FROM identidade.pessoa_origem_progressiva WITH(UPDLOCK,HOLDLOCK) WHERE initial_uuid=@uuid;";
+        command.CommandText = "SELECT pessoa_origem_id,initial_uuid,canonical_uuid,estado,versao FROM identidade.pessoa_origem_progressiva WITH(UPDLOCK,HOLDLOCK) WHERE initial_uuid=@uuid;";
         Add(command, "@uuid", DbType.Guid, initialUuid);
         return await ReadSingleAsync(command, cancellationToken);
     }
@@ -203,9 +196,7 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "SELECT pessoa_origem_id,initial_uuid,canonical_uuid,estado,versao FROM identidade.pessoa_origem_progressiva WHERE canonical_uuid=@uuid ORDER BY initial_uuid FOR UPDATE;"
-            : "SELECT pessoa_origem_id,initial_uuid,canonical_uuid,estado,versao FROM identidade.pessoa_origem_progressiva WITH(UPDLOCK,HOLDLOCK) WHERE canonical_uuid=@uuid ORDER BY initial_uuid;";
+        command.CommandText = "SELECT pessoa_origem_id,initial_uuid,canonical_uuid,estado,versao FROM identidade.pessoa_origem_progressiva WITH(UPDLOCK,HOLDLOCK) WHERE canonical_uuid=@uuid ORDER BY initial_uuid;";
         Add(command, "@uuid", DbType.Guid, canonicalUuid);
         var result = new List<IdentityCompositionOriginSnapshot>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -223,16 +214,8 @@ public sealed class IdentityCompositionAuthoritativeReader : IIdentityCompositio
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        if (postgres)
-        {
-            command.CommandText = "SELECT pg_advisory_xact_lock(hashtextextended(@resource,0));";
-            Add(command, "@resource", DbType.String, $"JORNADA:COMPOSICAO:REF:{reference:D}");
-        }
-        else
-        {
-            command.CommandText = "DECLARE @r int; EXEC @r=sys.sp_getapplock @Resource=@resource,@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=30000; IF @r<0 THROW 51440,'Não foi possível travar referência de composição.',1;";
-            Add(command, "@resource", DbType.String, $"JORNADA:COMPOSICAO:REF:{reference:D}");
-        }
+        command.CommandText = "DECLARE @r int; EXEC @r=sys.sp_getapplock @Resource=@resource,@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=30000; IF @r<0 THROW 51440,'Não foi possível travar referência de composição.',1;";
+        Add(command, "@resource", DbType.String, $"JORNADA:COMPOSICAO:REF:{reference:D}");
         _ = decisionId; // decision_id permanece no contrato para futura hierarquia de locks da publicação.
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
