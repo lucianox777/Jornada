@@ -7,7 +7,7 @@ on:
       - 'Solution/docs/ADR_Identidade_Progressiva.md'
       - 'Solution/docs/Identidade_Progressiva_Impacto.md'
       - 'Solution/scripts/test-evidence-gate.py'
-      - 'Solution/scripts/postgresql-linkage-evidence.sh'
+      - 'Solution/scripts/evidence-stage.sh'
       - '.github/workflows/identity-progressive-foundation.yml'
   push:
     paths:
@@ -16,7 +16,7 @@ on:
       - 'Solution/docs/ADR_Identidade_Progressiva.md'
       - 'Solution/docs/Identidade_Progressiva_Impacto.md'
       - 'Solution/scripts/test-evidence-gate.py'
-      - 'Solution/scripts/postgresql-linkage-evidence.sh'
+      - 'Solution/scripts/evidence-stage.sh'
       - '.github/workflows/identity-progressive-foundation.yml'
   workflow_dispatch:
 permissions:
@@ -31,7 +31,7 @@ jobs:
         shell: bash
     env:
       JORNADA_LINKAGE_EVIDENCE_DIR: ${{ github.workspace }}/Solution/.local/progressive-identity-evidence
-      JORNADA_LINKAGE_EVIDENCE_REQUIRED_STAGES: 'environment restore build unit policy'
+      JORNADA_EVIDENCE_REQUIRED_STAGES: 'environment restore build unit policy'
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -41,32 +41,32 @@ jobs:
         with:
           dotnet-version: '8.0.424'
       - name: Record source and toolchain
-        run: bash scripts/postgresql-linkage-evidence.sh run environment bash -c 'set -euo pipefail; dotnet --info; git rev-parse HEAD; git diff --check'
+        run: bash scripts/evidence-stage.sh run environment bash -c 'set -euo pipefail; dotnet --info; git rev-parse HEAD; git diff --check'
       - name: Restore locked dependencies
-        run: bash scripts/postgresql-linkage-evidence.sh run restore dotnet restore tests/Jornada.Tests/Jornada.Tests.csproj --locked-mode -v:normal "-bl:$JORNADA_LINKAGE_EVIDENCE_DIR/restore.binlog;ProjectImports=None"
+        run: bash scripts/evidence-stage.sh run restore dotnet restore tests/Jornada.Tests/Jornada.Tests.csproj --locked-mode -v:normal "-bl:$JORNADA_LINKAGE_EVIDENCE_DIR/restore.binlog;ProjectImports=None"
       - name: Build real projects and tests
-        run: bash scripts/postgresql-linkage-evidence.sh run build dotnet build tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-restore -warnaserror -v:normal "-bl:$JORNADA_LINKAGE_EVIDENCE_DIR/build.binlog;ProjectImports=None"
+        run: bash scripts/evidence-stage.sh run build dotnet build tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-restore -warnaserror -v:normal "-bl:$JORNADA_LINKAGE_EVIDENCE_DIR/build.binlog;ProjectImports=None"
       - name: Progressive identity contract regressions
         run: |
-          bash scripts/postgresql-linkage-evidence.sh run identity bash -c '
+          bash scripts/evidence-stage.sh run identity bash -c '
             set -euo pipefail
             dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter "FullyQualifiedName~ProgressiveIdentityTests" --logger "trx;LogFileName=progressive-identity.trx" --results-directory "$JORNADA_LINKAGE_EVIDENCE_DIR"
             python3 scripts/test-evidence-gate.py "$JORNADA_LINKAGE_EVIDENCE_DIR/progressive-identity.trx" --forbid-skipped --minimum-tests 8 --summary "$JORNADA_LINKAGE_EVIDENCE_DIR/identity-tests.json"'
       - name: All existing and new unit regressions
         run: |
-          bash scripts/postgresql-linkage-evidence.sh run unit bash -c '
+          bash scripts/evidence-stage.sh run unit bash -c '
             set -euo pipefail
             dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter "TestCategory=Unit" --logger "trx;LogFileName=unit.trx" --results-directory "$JORNADA_LINKAGE_EVIDENCE_DIR"
             python3 scripts/test-evidence-gate.py "$JORNADA_LINKAGE_EVIDENCE_DIR/unit.trx" --forbid-skipped --minimum-tests 1 --summary "$JORNADA_LINKAGE_EVIDENCE_DIR/unit-tests.json"'
       - name: Existing probabilistic scoring policy regressions
         run: |
-          bash scripts/postgresql-linkage-evidence.sh run policy bash -c '
+          bash scripts/evidence-stage.sh run policy bash -c '
             set -euo pipefail
             dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --no-build --no-restore --filter "FullyQualifiedName~ProbabilisticLinkagePolicyTests" --logger "trx;LogFileName=policy.trx" --results-directory "$JORNADA_LINKAGE_EVIDENCE_DIR"
             python3 scripts/test-evidence-gate.py "$JORNADA_LINKAGE_EVIDENCE_DIR/policy.trx" --forbid-skipped --minimum-tests 1 --summary "$JORNADA_LINKAGE_EVIDENCE_DIR/policy-tests.json"'
       - name: Summarize validation evidence
         if: always()
-        run: bash scripts/postgresql-linkage-evidence.sh summary
+        run: bash scripts/evidence-stage.sh summary
       - name: Require scoped evidence completeness
         if: always()
         run: |
