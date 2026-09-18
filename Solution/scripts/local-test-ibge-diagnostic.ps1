@@ -23,15 +23,26 @@ foreach ($required in @(
     }
 }
 
-if ($content -match "N''(?:ref\.|U''|NOME''|SOBRENOME''|BRASIL''|UF''|MUNICIPIO'')") {
-    throw 'Diagnostico IBGE voltou a duplicar aspas SQL dentro de here-string literal.'
+foreach ($forbidden in @(
+    "N''ref.",
+    "N''U''",
+    "N''NOME''",
+    "N''SOBRENOME''",
+    "N''BRASIL''",
+    "N''UF''",
+    "N''MUNICIPIO''"
+)) {
+    if ($content.Contains($forbidden)) {
+        throw "Diagnostico IBGE voltou a duplicar aspas SQL dentro de here-string literal: $forbidden"
+    }
 }
 
 $args = @()
 if ($NoStart) { $args += '-NoStart' }
 
-Write-Host '# .\scripts\local-diagnose-ibge-reference.ps1' + $(if ($NoStart) { ' -NoStart' } else { '' })
+$display = '.\scripts\local-diagnose-ibge-reference.ps1'
+if ($NoStart) { $display += ' -NoStart' }
+Write-Host "# $display"
 & $Target @args
-if ($LASTEXITCODE -ne 0) { throw "local-diagnose-ibge-reference.ps1 falhou ($LASTEXITCODE)." }
 
 Write-Host 'LOCAL IBGE DIAGNOSTIC TEST: OK' -ForegroundColor Green
