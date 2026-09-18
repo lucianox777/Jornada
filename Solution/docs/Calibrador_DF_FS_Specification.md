@@ -50,6 +50,10 @@ A implementação `SPLINK_TERM_FREQUENCY_V1` preserva:
 
 A frequência pode ser externa/versionada (IBGE) ou empírica quando a metodologia explicitamente definir esse uso; a proveniência nunca é descartada.
 
+A implementação `NominalDfCalibrationDatasetFactory` conecta a referência IBGE tipada aos pares rotulados do Calibrador usando somente a projeção de primeiro nome `IBGE_CENSO_2022_NOMES_PUBLICACAO_V1`. O `referenceUProbability` do ajuste TF é a colisão exata analítica da própria projeção de primeiro nome, `sum(p_i^2)`. Entradas `SOBRENOME` não participam dessa distribuição e tokens de sobrenome não são inferidos de `nome_completo`. Quando um primeiro nome não existe na publicação, o par é preservado com `FrequencyCensored=true`, sem ajuste TF; consequentemente permanece `INCONCLUSIVO` no estágio DF e segue ao FS. O dataset carrega também `ReferenceId`, `ReferenceCode` e `ReferenceContentSha256`, além das versões de semântica/normalização/algoritmos, para replay da calibração.
+
+Essa integração produz dataset/grade de calibração reproduzível; por si só não escolhe nem promove fronteira DF e não altera `T_LINKAGE`, prior ou o algoritmo operacional.
+
 ## 5. Fellegi–Sunter — segundo estágio
 
 Quando DF não resolve, o par segue para o Fellegi–Sunter da Jornada. O score DF anterior não é adicionado ao FS.
