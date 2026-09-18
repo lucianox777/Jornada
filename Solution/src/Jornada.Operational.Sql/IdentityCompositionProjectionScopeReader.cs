@@ -21,17 +21,13 @@ public interface IIdentityCompositionProjectionScopeReader
 /// </summary>
 public sealed class IdentityCompositionProjectionScopeReader : IIdentityCompositionProjectionScopeReader
 {
-    private readonly bool postgres;
 
     public IdentityCompositionProjectionScopeReader(IOperationalDatabaseAdapter database)
     {
         ArgumentNullException.ThrowIfNull(database);
-        postgres = database.Provider switch
-        {
-            OperationalDatabaseProviders.PostgreSql => true,
-            OperationalDatabaseProviders.SqlServer => false,
-            _ => throw new ArgumentException("Provider operacional não suportado.", nameof(database))
-        };
+        if (database.Provider != OperationalDatabaseProviders.SqlServer)
+
+            throw new ArgumentException("Provider operacional não suportado.", nameof(database));
     }
 
     public async Task<ImmutableArray<IdentityCompositionProjectionScope>> LoadAsync(
@@ -93,15 +89,7 @@ public sealed class IdentityCompositionProjectionScopeReader : IIdentityComposit
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? """
-              SELECT pop.pessoa_origem_id
-              FROM identidade.pessoa_origem_progressiva pop
-              JOIN silver.pessoa_origem po ON po.pessoa_origem_id=pop.pessoa_origem_id
-              WHERE pop.initial_uuid=@uuid
-              FOR UPDATE OF pop,po;
-              """
-            : """
+        command.CommandText = """
               SELECT pop.pessoa_origem_id
               FROM identidade.pessoa_origem_progressiva pop WITH(UPDLOCK,HOLDLOCK)
               JOIN silver.pessoa_origem po WITH(UPDLOCK,HOLDLOCK) ON po.pessoa_origem_id=pop.pessoa_origem_id
@@ -127,15 +115,7 @@ public sealed class IdentityCompositionProjectionScopeReader : IIdentityComposit
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? """
-              SELECT pessoa_observacao_id
-              FROM silver.pessoa_observacao
-              WHERE pessoa_origem_id=@source
-              ORDER BY pessoa_observacao_id
-              FOR UPDATE;
-              """
-            : """
+        command.CommandText = """
               SELECT pessoa_observacao_id
               FROM silver.pessoa_observacao WITH(UPDLOCK,HOLDLOCK)
               WHERE pessoa_origem_id=@source
@@ -162,16 +142,7 @@ public sealed class IdentityCompositionProjectionScopeReader : IIdentityComposit
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? """
-              SELECT ro.registro_observacao_id
-              FROM silver.registro_observacao ro
-              JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=ro.pessoa_observacao_id
-              WHERE po.pessoa_origem_id=@source
-              ORDER BY ro.registro_observacao_id
-              FOR UPDATE OF ro,po;
-              """
-            : """
+        command.CommandText = """
               SELECT ro.registro_observacao_id
               FROM silver.registro_observacao ro WITH(UPDLOCK,HOLDLOCK)
               JOIN silver.pessoa_observacao po WITH(UPDLOCK,HOLDLOCK) ON po.pessoa_observacao_id=ro.pessoa_observacao_id
