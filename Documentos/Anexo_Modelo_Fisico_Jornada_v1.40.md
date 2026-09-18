@@ -23,7 +23,7 @@ Os scripts em `Solution/database/migrations/` permanecem preservados como histó
 
 `GET /health/ready` exige Base Normativa 3.62, SolutionSchema 3.70 e os objetos operacionais essenciais da identidade progressiva, composição e Linkage. Uma instalação parcial não pode ser declarada pronta.
 
-O mesmo contrato relacional canônico pode ser homologado em **SQL Database in Microsoft Fabric** para HML/Produção. Essa hospedagem não cria uma segunda definição do modelo físico nem autoriza DDL divergente: o baseline independente de ambiente permanece o SQL Server 2022 exercitado em DEV/CI, e qualquer diferença de compatibilidade deve falhar explicitamente ou ser tratada por mudança versionada do contrato comum.
+A candidata v5.00 adota **Microsoft SQL Server como único runtime relacional suportado**. O baseline independente de ambiente permanece SQL Server 2022 exercitado em DEV/CI. Evidências anteriores em SQL Database in Microsoft Fabric são histórico de compatibilidade e não definem alvo operacional, DDL alternativo ou gate de release.
 
 ## 3. Inventário medido
 
@@ -174,8 +174,8 @@ Também não há índice novo sobre `nome_publicacao_normalizado` apenas por sua
 2. Toda instalação nova deve partir do ponto canônico v3.70 ou sucessor.
 3. O marcador `Jornada.SolutionSchema` só pode ser promovido após verificação de completude.
 4. O inventário de tabelas deve ser gerado por script, não mantido apenas por contagem manual em anexos.
-5. PostgreSQL pode possuir implementações paralelas em escopos explicitamente suportados, mas não redefine o baseline relacional normativo.
-6. **SQL Database in Microsoft Fabric pode hospedar o banco relacional operacional de HML/Produção quando homologado para a release exata, usando o mesmo contrato Microsoft SQL; Lakehouse e SQL Analytics Endpoint permanecem analíticos/compatibilidade e não são fonte de verdade operacional implícita.**
+5. PostgreSQL não integra o runtime relacional da candidata v5.00; a implementação anterior permanece apenas no histórico Git para eventual projeto independente.
+6. **SQL Database in Microsoft Fabric não é alvo operacional nem gate desta candidata; Lakehouse e SQL Analytics Endpoint permanecem analíticos/compatibilidade e não são fonte de verdade operacional implícita.**
 7. DER/modelo físico é auxiliar; diagramas normativos de estrutura/fluxo devem usar UML.
 8. Os artefatos de leitura/entrega dos diagramas devem ser DOCX/PDF com as figuras incorporadas, sem exigir formatos especializados do destinatário.
 9. Uma referência estatística externa incorporada à Jornada deve ser versionada e preservada; replay de modelo/run não pode depender da referência que estiver ativa no momento da reexecução.
