@@ -183,7 +183,7 @@ LOCAL TEST ALL: OK
 
 ### Regra prática
 
-Durante desenvolvimento, pare no primeiro comando que falhar, corrija a causa e repita a etapa. Antes de considerar uma alteração pronta para PR/merge, percorra a sequência aplicável e finalize com `local-test-all.ps1 -Suite full`.
+Durante desenvolvimento, pare no primeiro comando que falhar, corrija a causa e repita a etapa. Antes de considerar uma alteração pronta para PR/merge, percorra a sequência aplicável e finalize com o script dedicado da frente e os gates de CI. Use `local-test-all.ps1 -Suite full` quando a mudança precisar provar instalação limpa/reconstrução completa ou quando esse fechamento for explicitamente requerido.
 
 Para frentes técnicas com testes direcionados, mantenha também um script dedicado em `scripts/` que concentre o comando reproduzível daquela mudança. Quando a referência IBGE já estiver materializada, o padrão é **reutilizá-la e executar um check read-only**, não apagá-la/recarregá-la. `local-test-all.ps1 -Suite full` continua sendo o gate de instalação limpa/isolada quando esse nível de prova for necessário.
 
@@ -198,7 +198,7 @@ Para frentes técnicas com testes direcionados, mantenha também um script dedic
 | Recriar o cluster | `local-cluster.ps1 -Action reset` | Quando é necessário reconstruir containers/serviços |
 | Apagar completamente o cluster local | `local-cluster.ps1 -Action clean` | Ambiente inconsistente ou necessidade deliberada de começar do zero |
 | Operar somente o banco local | `local-db.ps1` | Desenvolvimento/testes que precisam apenas do SQL Server local |
-| Rodar a suíte local principal | `local-test-all.ps1` | Antes de abrir/atualizar PR ou quando se quer reproduzir os gates localmente |
+| Rodar suíte isolada de instalação limpa | `local-test-all.ps1` | Quando a mudança exige provar reset/reconstrução completa ou reproduzir o gate amplo isolado; pode recarregar a referência IBGE |
 | Rodar validação local específica | `local-test.ps1` | Iteração rápida durante desenvolvimento; preserva o banco existente |
 | Conferir referência IBGE sem recarga | `local-check-ibge-reference.ps1` | Antes de testes que reutilizam `ref.frequencia_nome`; compara versão/linhas/hash publicado e imutabilidade sem carregar dados |
 | Testar calibração DF/benchmark IBGE | `local-test-df-calibration.ps1` | Reutiliza e checa a referência IBGE existente por padrão; `-Quick` reduz o conjunto de testes e `-Offline` elimina a dependência do SQL local |
