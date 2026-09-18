@@ -201,7 +201,8 @@ Para frentes técnicas com testes direcionados, mantenha também um script dedic
 | Rodar suíte isolada de instalação limpa | `local-test-all.ps1` | Quando a mudança exige provar reset/reconstrução completa ou reproduzir o gate amplo isolado; pode recarregar a referência IBGE |
 | Rodar validação local específica | `local-test.ps1` | Iteração rápida durante desenvolvimento; preserva o banco existente |
 | Conferir referência IBGE sem recarga | `local-check-ibge-reference.ps1` | Antes de testes que reutilizam `ref.frequencia_nome`; compara versão/linhas/hash publicado e imutabilidade sem carregar dados |
-| Reativar referência IBGE já materializada | `local-repair-ibge-reference.ps1` | Somente quando a versão canônica está íntegra, publicada e inativa; altera apenas status/ativado_em, sem recarregar `ref.frequencia_nome` |
+| Diagnosticar referência IBGE local | `local-diagnose-ibge-reference.ps1` | Read-only; lista versões, status, SHA e contagem de linhas por versão para investigar bases legadas/incompletas |
+| Reativar referência IBGE já materializada | `local-repair-ibge-reference.ps1` | Somente quando a versão canônica está íntegra, publicada e inativa; altera apenas status/ativado_em, sem recarregar `ref.frequencia_nome`; se a versão canônica não existir, chama o diagnóstico e falha sem alterar dados |
 | Testar calibração DF/benchmark IBGE | `local-test-df-calibration.ps1` | Reutiliza e checa a referência IBGE existente por padrão; `-Quick` reduz o conjunto de testes e `-Offline` elimina a dependência do SQL local |
 | Validar upgrade de DDL | `local-ddl-upgrade.ps1` | Toda alteração de schema/migração que precise provar upgrade sem perda de invariantes |
 | Exercitar runtime SQL | `local-sql-runtime-smoke.ps1` | Mudanças em procedures, views, DDL e caminhos SQL que precisam de execução real |
@@ -279,6 +280,8 @@ Quando a versão canônica estiver completa e publicada, mas apenas `OBSOLETA` o
 ```
 
 Esse script falha se existir outra versão `ATIVA`, se a contagem divergir do `projection-manifest.json`, se o hash publicado estiver ausente ou se a proteção de imutabilidade não estiver habilitada. Quando passa, altera somente `status` e `ativado_em` em `ref.frequencia_nome_versao`; os milhões de registros de `ref.frequencia_nome` são preservados.
+
+Se a versão canônica `CENSO2022_NOMES_BRASIL_V1` não existir, o reparo **não cria nem renomeia versões automaticamente**. Ele chama `local-diagnose-ibge-reference.ps1`, que mostra todas as versões existentes, status, SHA e quantidade de linhas por versão. Isso permite distinguir uma referência legada sob outro código de uma base realmente vazia antes de decidir por migração ou recarga.
 
 ### `local-test-df-calibration.ps1`
 
