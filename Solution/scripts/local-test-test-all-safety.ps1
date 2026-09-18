@@ -4,66 +4,69 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$Target = Join-Path $PSScriptRoot 'local-test-all.ps1'
+$TestAll = Join-Path $PSScriptRoot 'local-test-all.ps1'
+$FromZero = Join-Path $PSScriptRoot 'local-test-from-zero.ps1'
 $CurrentPowerShell = (Get-Process -Id $PID).Path
 
-if (-not (Test-Path -LiteralPath $Target -PathType Leaf)) {
-    throw "Script alvo nao encontrado: $Target"
+foreach ($path in @($TestAll,$FromZero)) {
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Script nao encontrado: $path" }
+    $null = [scriptblock]::Create((Get-Content -LiteralPath $path -Raw -Encoding UTF8))
 }
 
-$content = Get-Content -LiteralPath $Target -Raw -Encoding UTF8
-$null = [scriptblock]::Create($content)
+$testAll = Get-Content -LiteralPath $TestAll -Raw -Encoding UTF8
+$fromZero = Get-Content -LiteralPath $FromZero -Raw -Encoding UTF8
+
+foreach ($required in @(
+    "Invoke-PowerShellScript 'local-check-ibge-reference.ps1' @('-NoStart')",
+    "Invoke-PowerShellScript 'local-e2e.ps1'",
+    "Invoke-ClusterAction 'up'",
+    'ibgeReferencePreserved = $true',
+    'destructiveReset = $false'
+)) {
+    if (-not $testAll.Contains($required)) { throw "Contrato preservador ausente em local-test-all.ps1: $required" }
+}
+
+foreach ($forbidden in @(
+    '[switch]$AllowDestructiveReset',
+    "Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')",
+    "Invoke-ClusterAction 'clean'",
+    "Invoke-PowerShellScript 'local-scale.ps1'"
+)) {
+    if ($testAll.Contains($forbidden)) { throw "local-test-all.ps1 voltou a conter operacao destrutiva: $forbidden" }
+}
 
 foreach ($required in @(
     '[switch]$AllowDestructiveReset',
     'if (-not $AllowDestructiveReset)',
-    '-AllowDestructiveReset -IsolatedExecution',
-    "Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')"
+    "Invoke-Script 'local-cluster.ps1' @('-Action','clean')",
+    "Invoke-Script 'local-db.ps1' @('-Action','reset')",
+    "Invoke-Script 'local-scale.ps1' @('-Profile','smoke')",
+    "Invoke-Script 'local-load-ibge-reference.ps1' @('-AllowLoad')"
 )) {
-    if (-not $content.Contains($required)) {
-        throw "Contrato de seguranca ausente em local-test-all.ps1: $required"
-    }
+    if (-not $fromZero.Contains($required)) { throw "Contrato destrutivo ausente em local-test-from-zero.ps1: $required" }
 }
 
-$stdoutPath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-test-all-guard-{0}.out" -f [Guid]::NewGuid().ToString('N'))
-$stderrPath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-test-all-guard-{0}.err" -f [Guid]::NewGuid().ToString('N'))
+$stdoutPath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-from-zero-guard-{0}.out" -f [Guid]::NewGuid().ToString('N'))
+$stderrPath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-from-zero-guard-{0}.err" -f [Guid]::NewGuid().ToString('N'))
 
 try {
-    Write-Host '# local-test-all.ps1 -Suite standard  # esperado: abortar sem tocar no banco'
+    Write-Host '# local-test-from-zero.ps1 -Suite standard  # esperado: abortar sem tocar no ambiente'
     $process = Start-Process -FilePath $CurrentPowerShell -ArgumentList @(
-        '-NoLogo',
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        $Target,
-        '-Suite',
-        'standard'
+        '-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$FromZero,'-Suite','standard'
     ) -Wait -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
 
     $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { '' }
     $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw } else { '' }
     $combined = $stdout + "`n" + $stderr
 
-    if ($process.ExitCode -eq 0) {
-        throw 'local-test-all.ps1 sem -AllowDestructiveReset deveria falhar antes de qualquer acao.'
-    }
-    if (-not $combined.Contains('Reset destrutivo nao autorizado')) {
-        throw 'Falha esperada nao confirmou o guard de reset destrutivo.'
-    }
-    foreach ($forbidden in @(
-        'git fetch',
-        "local-db.ps1 '-Action' reset",
-        'Criando worktree isolado',
-        'Atualizando referencia origin/master'
-    )) {
-        if ($combined.Contains($forbidden)) {
-            throw "Guard executou acao proibida antes de abortar: $forbidden"
-        }
+    if ($process.ExitCode -eq 0) { throw 'local-test-from-zero.ps1 sem autorizacao deveria falhar.' }
+    if (-not $combined.Contains('Reset destrutivo nao autorizado')) { throw 'Guard from-zero nao confirmou bloqueio destrutivo.' }
+
+    foreach ($forbidden in @('docker compose','local-cluster.ps1','local-db.ps1 -Action reset','local-scale.ps1')) {
+        if ($combined.Contains($forbidden)) { throw "Guard from-zero executou/ecoou acao proibida antes de abortar: $forbidden" }
     }
 
-    Write-Host 'LOCAL TEST ALL DESTRUCTIVE GUARD: OK' -ForegroundColor Green
+    Write-Host 'LOCAL TEST PRESERVATION/FROM-ZERO GUARD: OK' -ForegroundColor Green
 }
 finally {
     Remove-Item -LiteralPath $stdoutPath,$stderrPath -Force -ErrorAction SilentlyContinue
