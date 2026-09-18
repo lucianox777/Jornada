@@ -66,6 +66,7 @@ public static class LinkageParameterEstimator
             result[LinkageParameterCatalog.LogOddsConflictMargin] = conflictMargin;
             result[LinkageParameterCatalog.DecisionEvidenceScoring] = 1m;
             result[LinkageParameterCatalog.DualThresholdConflictGuard] = 1m;
+            result[LinkageParameterCatalog.OrderedNameLlrMonotonicity] = 1m;
         }
 
         AddDistribution(result, "M_NOME", matchedNameStates, smoothingAlpha);
