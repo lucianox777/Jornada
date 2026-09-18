@@ -35,8 +35,12 @@ O catálogo inicial de comparadores universais do sistema contém:
 |---|---|---|
 | `EXACT_ORDINAL@V1` | acordo exato 0/1 | não |
 | `JARO_WINKLER@V1` | score de similaridade | sim |
+| `WHOLE_NAME_JARO_WINKLER_V1` | estado `EXACT/HIGH/MEDIUM/LOW` sobre a string nominal completa; contrato legado dos modelos correntes | thresholds congelados em 0,92/0,80 |
+| `PTBR_CONTENT_TOKEN_GUARD_JARO_WINKLER_V2` | estado `EXACT/HIGH/MEDIUM/LOW`; limita a similaridade pelo token de conteúdo posicional mais divergente, ignorando somente `DA/DAS/DE/DO/DOS` no guard | thresholds congelados em 0,92/0,80 |
 
 Assim, uma composição como `name_upper_no_diacritics + JARO_WINKLER@V1(threshold=t)` significa: a projeção `upper_no_diacritics` é escolhida pelo Calibrador, Jaro-Winkler é capacidade universal homologada e `t` pode ser aprendido pelo Calibrador.
+
+`PTBR_CONTENT_TOKEN_GUARD_JARO_WINKLER_V2` existe para impedir que uma substituição forte em um token de conteúdo seja diluída por um nome completo longo quase todo igual. O Jaro-Winkler do nome completo continua sendo calculado; apenas o guard estrutural ignora as mesmas partículas exatas `DA`, `DAS`, `DE`, `DO`, `DOS` já declaradas por `PERSON_NAME_BASIC_PTBR@V1`. Ele não atribui semântica IBGE aos tokens nem cria política geral de reordenação. `IdentityComparison.CompareName` permanece alias explícito de V1 para preservar replay; V2 só pode ser usada por chamada/algoritmo que a selecione explicitamente.
 
 Comparadores de distância não devem ser transformados artificialmente em coluna ou índice comum. O blocking primário continua privilegiando projeções indexáveis/exatas para reduzir o universo; comparadores fuzzy operam sobre candidatos. Se futuramente um provider possuir método de acesso aproximado homologado, isso será uma otimização física do provider, não mudança da semântica do comparador.
 

@@ -11,6 +11,8 @@ namespace Jornada.Contracts;
 public static class IdentityComparison
 {
     public const string NormalizationVersion = "IDENTITY_NORMALIZATION_V1";
+    public const string NameComparisonVersionV1 = "WHOLE_NAME_JARO_WINKLER_V1";
+    public const string NameComparisonVersionV2 = "PTBR_CONTENT_TOKEN_GUARD_JARO_WINKLER_V2";
 
     public static string? NormalizeText(string? value)
     {
@@ -54,7 +56,41 @@ public static class IdentityComparison
         return normalized.Length == 0 ? null : normalized.ToString();
     }
 
-    public static NameComparisonState CompareName(string? left, string? right)
+    /// <summary>
+    /// Alias legado. Mantém exatamente a semântica histórica de V1 para que modelos
+    /// persistidos não sejam reinterpretados quando novos comparadores forem adicionados.
+    /// Novos algoritmos devem escolher explicitamente o contrato nominal.
+    /// </summary>
+    public static NameComparisonState CompareName(string? left, string? right) =>
+        CompareName(left, right, NameComparisonContract.WholeNameJaroWinklerV1);
+
+    public static NameComparisonState CompareName(
+        string? left,
+        string? right,
+        NameComparisonContract contract) =>
+        contract switch
+        {
+            NameComparisonContract.WholeNameJaroWinklerV1 => CompareNameV1(left, right),
+            NameComparisonContract.PtBrContentTokenGuardV2 => CompareNameV2(left, right),
+            _ => throw new ArgumentOutOfRangeException(nameof(contract), contract, "Contrato nominal desconhecido.")
+        };
+
+    public static NameComparisonState CompareNameV1(string? left, string? right)
+    {
+        var a = NormalizeText(left);
+        var b = NormalizeText(right);
+        return ClassifyWholeNameV1(a, b);
+    }
+
+    /// <summary>
+    /// V2 conserva os mesmos thresholds de V1, mas impede que um token de conteúdo
+    /// fortemente divergente seja diluído por uma string longa quase toda igual.
+    /// O guard posicional ignora somente as partículas PT-BR já versionadas pelo
+    /// PERSON_NAME_BASIC_PTBR@V1 (DA/DAS/DE/DO/DOS); o Jaro-Winkler da string completa
+    /// continua compondo a similaridade efetiva. O contrato não declara que qualquer
+    /// token seja "sobrenome IBGE" e não cria política geral de reordenação.
+    /// </summary>
+    public static NameComparisonState CompareNameV2(string? left, string? right)
     {
         var a = NormalizeText(left);
         var b = NormalizeText(right);
@@ -66,6 +102,42 @@ public static class IdentityComparison
             return NameComparisonState.EXACT;
 
         var similarity = JaroWinkler(a, b);
+        var leftTokens = ContentTokens(a);
+        var rightTokens = ContentTokens(b);
+
+        if (leftTokens.Length == rightTokens.Length && leftTokens.Length > 1)
+        {
+            var weakestTokenSimilarity = 1d;
+            for (var i = 0; i < leftTokens.Length; i++)
+                weakestTokenSimilarity = Math.Min(
+                    weakestTokenSimilarity,
+                    JaroWinkler(leftTokens[i], rightTokens[i]));
+
+            similarity = Math.Min(similarity, weakestTokenSimilarity);
+        }
+
+        return ClassifySimilarity(similarity);
+    }
+
+    private static string[] ContentTokens(string normalized) =>
+        normalized
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(static token => token is not ("DA" or "DAS" or "DE" or "DO" or "DOS"))
+            .ToArray();
+
+    private static NameComparisonState ClassifyWholeNameV1(string? a, string? b)
+    {
+        if (a is null || b is null)
+            return NameComparisonState.LOW;
+
+        if (string.Equals(a, b, StringComparison.Ordinal))
+            return NameComparisonState.EXACT;
+
+        return ClassifySimilarity(JaroWinkler(a, b));
+    }
+
+    private static NameComparisonState ClassifySimilarity(double similarity)
+    {
         if (similarity >= 0.92d) return NameComparisonState.HIGH;
         if (similarity >= 0.80d) return NameComparisonState.MEDIUM;
         return NameComparisonState.LOW;
@@ -119,6 +191,12 @@ public static class IdentityComparison
 
         return jaro + prefix * 0.1d * (1d - jaro);
     }
+}
+
+public enum NameComparisonContract
+{
+    WholeNameJaroWinklerV1,
+    PtBrContentTokenGuardV2
 }
 
 public enum NameComparisonState
