@@ -50,9 +50,9 @@ $e2e = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'local-e2e.ps1') -Raw -
 $db = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'local-db.ps1') -Raw -Encoding UTF8
 foreach ($required in @(
     '[switch]$AllowSharedDatabaseReset',
-    '$usesTemporaryDatabase = -not $AllowSharedDatabaseReset',
-    '-NoSyntheticCorpus -DatabaseName $db',
-    'DROP DATABASE [$db]'
+    '$usesIsolatedDatabase = -not $AllowSharedDatabaseReset',
+    "'JornadaE2E'",
+    '-NoSyntheticCorpus -DatabaseName $db'
 )) {
     if (-not $e2e.Contains($required)) { throw "Contrato de isolamento E2E ausente: $required" }
 }
