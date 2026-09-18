@@ -101,19 +101,29 @@ Valida comportamento de resiliência e o gate serial diante das falhas previstas
 
 ### 9. Recriar o cluster e validar linkage/calibração
 
+Para uma rodada reproduzível começando de cluster vazio, prefira o agregador:
+
+```powershell
+.\scripts\local-linkage-validation-from-zero.ps1 -PairCount 1000000 -Seed 20260917
+```
+
+Ele imprime cada comando antes de executá-lo e percorre, nesta ordem: `clean`, `up`, `calibrate`, relatório Monte Carlo IBGE read-only, `linkage`, `linkage-diagnose` e validação independente DEV.
+
+A mesma sequência, expandida, é:
+
 ```powershell
 .\scripts\local-cluster.ps1 -Action clean
 .\scripts\local-cluster.ps1 -Action up
 .\scripts\local-cluster.ps1 -Action calibrate
-.\scripts\local-ibge-u-bootstrap.ps1
+.\scripts\local-ibge-u-bootstrap.ps1 -PairCount 1000000 -Seed 20260917
 .\scripts\local-cluster.ps1 -Action linkage
 .\scripts\local-cluster.ps1 -Action linkage-diagnose
 .\scripts\local-linkage-validation.ps1
 ```
 
-Use esta sequência para provar o pipeline de resolução de identidade sobre um cluster recriado. Se o objetivo for apenas desenvolvimento cotidiano, `clean` não deve ser usado por reflexo; aqui ele é deliberado porque estamos executando uma validação completa e controlada.
+A calibração nominal usa a referência IBGE internalizada por Monte Carlo: `NOME` combina prenomes nacionais `TODOS` com sobrenomes nacionais; `NOME_MAE` combina prenomes nacionais `FEMININO` com sobrenomes nacionais. A massa `MISSING` da mãe e as evidências de nascimento continuam estimadas no universo condicionado ao blocking.
 
-`local-ibge-u-bootstrap.ps1` é **read-only**: calcula a referência populacional sintética de `U_NOME_*` a partir das marginais IBGE já internalizadas e, quando há modelo calibrado ATIVO, mostra a diferença para o `u` operacional. Ele não cria nem ativa modelo e não altera thresholds. `local-linkage-validation.ps1` usa o corpus independente DEV com positivos, impostores e probes de conflito; seus números não constituem homologação HML/produção.
+`local-ibge-u-bootstrap.ps1` é **read-only** e reproduz separadamente as distribuições Monte Carlo de pessoa e mãe para comparação com o modelo ATIVO; não cria, valida ou ativa modelo. `local-linkage-validation.ps1` usa corpus independente DEV com positivos, impostores e probes de conflito. Nesta fase pré-homologação, não há comparação de regressão com modelo anterior; o harness reprova se produzir falso vínculo resolvido.
 
 ### 10. Rodar o smoke de escala
 
