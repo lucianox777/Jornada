@@ -1,4 +1,4 @@
-# ADR-003 — Ground truth do Calibrador: CPF preferencial e CNS auxiliar condicionado
+# ADR-005 — Ground truth do Calibrador: CPF preferencial e CNS auxiliar condicionado
 
 - **Status:** Aceita
 - **Data:** 2026-09-13

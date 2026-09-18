@@ -275,15 +275,6 @@ Quando o gate ficar verde, ainda rode o agregador apropriado antes do merge.
 
 ## 3. Linkage e calibração
 
-### `postgresql-linkage-local-build.ps1`
-
-Compila/valida localmente o caminho PostgreSQL do linkage.
-
-```powershell
-./scripts/postgresql-linkage-local-build.ps1
-./scripts/postgresql-linkage-local-build.ps1 -RunIntegration
-```
-
 Use `-RunIntegration` quando precisar incluir a integração real, e não apenas o build/validações rápidas.
 
 ### `local-cluster.ps1 -Action calibrate`
