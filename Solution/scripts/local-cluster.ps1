@@ -150,7 +150,7 @@ function Invoke-Calibration {
     $beforeText = Get-SqlScalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;"
     $before = [int]$beforeText
     Write-Host "Calibração iniciando após modelo v$before."
-    Write-Host 'Referência IBGE canônica é materializada no bootstrap do ambiente; GENERATE_DRAFT usa Monte Carlo nominal para NOME/NOME_MAE e mantém nascimento condicionado ao blocking.' -ForegroundColor DarkYellow
+    Write-Host 'Referência IBGE canônica é materializada no bootstrap do ambiente; fallback de carga em banco criado fora do fluxo oficial permanece fail-closed; GENERATE_DRAFT usa Monte Carlo nominal para NOME/NOME_MAE e mantém nascimento condicionado ao blocking.' -ForegroundColor DarkYellow
     $ibgeMcPairCount = if ($env:JORNADA_LINKAGE_IBGE_MC_PAIR_COUNT) { [int]$env:JORNADA_LINKAGE_IBGE_MC_PAIR_COUNT } else { 1000000 }
     $ibgeMcSeed = if ($env:JORNADA_LINKAGE_IBGE_MC_SEED) { [int]$env:JORNADA_LINKAGE_IBGE_MC_SEED } else { 20260917 }
     Write-Host "IBGE Monte Carlo nominal: pares_por_campo=$ibgeMcPairCount seed_pessoa=$ibgeMcSeed seed_mae=$($ibgeMcSeed+1)."
