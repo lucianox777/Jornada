@@ -126,18 +126,18 @@ internal static class ProbabilisticLinkageDecisions
     internal static ProbabilisticLinkageDecision Resolve(LinkageModel model, IdentityObservation observation, IReadOnlyList<LinkageCandidate> candidates)
     {
         if (!string.IsNullOrWhiteSpace(observation.Cpf)) throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
-        var decisionV6 = string.Equals(model.AlgorithmVersion, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, StringComparison.Ordinal);
+        var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(model.AlgorithmVersion);
         var scored = Rank(model, observation, candidates);
         if (scored.Count == 0)
             return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, null, 0m, null, null, null, model.ModelId,
-                decisionV6 ? "SEM_CANDIDATO_NO_RULESET_BLOCKING" : LinkageModelPolicy.SupportsBirthComponentScoring(model) ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_COMPONENTE" : "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO");
+                decisionEvidence ? "SEM_CANDIDATO_NO_RULESET_BLOCKING" : LinkageModelPolicy.SupportsBirthComponentScoring(model) ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_COMPONENTE" : "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO");
 
         var best = scored[0];
         var second = scored.Count > 1 ? scored[1] : null;
         if (second is not null && second.PessoaUuid == best.PessoaUuid)
             throw new InvalidOperationException("Ranking probabilístico inválido: melhor e segundo candidato possuem o mesmo UUID.");
         var secondScore = second?.Score;
-        decimal? margin = second is null ? null : decisionV6 ? best.LogOdds - second.LogOdds : best.Score - second.Score;
+        decimal? margin = second is null ? null : decisionEvidence ? best.LogOdds - second.LogOdds : best.Score - second.Score;
 
         if (best.Score < model.Threshold)
             return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId, "ABAIXO_T_LINKAGE");
