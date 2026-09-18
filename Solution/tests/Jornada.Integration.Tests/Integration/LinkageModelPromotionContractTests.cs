@@ -100,7 +100,11 @@ public sealed class LinkageModelPromotionContractTests
             INSERT identidade.parametro_linkage(modelo_id,nome,valor)
             SELECT @model,N'M_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857) FROM @birth_states
             UNION ALL
-            SELECT @model,N'U_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857) FROM @birth_states;
+            SELECT @model,N'U_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857) FROM @birth_states
+            UNION ALL
+            SELECT @model,N'SUPPORT_U_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),1) FROM @birth_states
+            UNION ALL
+            SELECT @model,N'POOL_SUPPORT_U_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),1) FROM @birth_states;
 
             INSERT identidade.parametro_linkage(modelo_id,nome,valor)
             VALUES
