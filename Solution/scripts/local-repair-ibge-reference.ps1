@@ -127,7 +127,13 @@ if ($activeCount -eq 1) {
 if ($activeCount -ne 0) { throw "Estado invalido: referencias ATIVAS=$activeCount." }
 
 $canonicalCount = [int](Invoke-SqlScalar -Database $db -Query "SELECT COUNT(*) FROM ref.frequencia_nome_versao WHERE codigo=N'$expectedCode';")
-if ($canonicalCount -ne 1) { throw "Esperada exatamente uma versao canonica $expectedCode; encontrada=$canonicalCount." }
+if ($canonicalCount -ne 1) {
+    Write-Host ''
+    Write-Warning "Versao canonica $expectedCode encontrada=$canonicalCount. Executando diagnostico read-only antes de abortar o reparo."
+    Write-Host '# .\scripts\local-diagnose-ibge-reference.ps1 -NoStart'
+    & (Join-Path $PSScriptRoot 'local-diagnose-ibge-reference.ps1') -NoStart
+    throw "Nao e seguro criar/adotar automaticamente uma versao canonica ausente. Use o diagnostico acima para decidir entre migracao de referencia legada e carga canonica."
+}
 
 $status = Invoke-SqlScalar -Database $db -Query "SELECT status FROM ref.frequencia_nome_versao WHERE codigo=N'$expectedCode';"
 if ($status -notin @('OBSOLETA','VALIDADA')) {
