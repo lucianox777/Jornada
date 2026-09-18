@@ -110,7 +110,7 @@ jobs:
             Write-Host "POWERSHELL UTF-8 BOM/PARSE OK: $file"
           }
 
-      - name: Validate local-test-all destructive guard
+      - name: Validate local-test-all preservation and from-zero guard
         shell: pwsh
         run: ./scripts/local-test-test-all-safety.ps1
 
@@ -146,7 +146,7 @@ jobs:
             throw 'local-test-all.ps1 deve executar origin/master em worktree destacado.'
           }
           foreach ($required in @(
-            "Invoke-PowerShellScript 'local-check-ibge-reference.ps1' @('-NoStart')",
+            "Invoke-PowerShellScript 'local-check-ibge-reference.ps1'",
             "Invoke-PowerShellScript 'local-e2e.ps1'",
             "Invoke-ClusterAction 'up'",
             'ibgeReferencePreserved = $true',
