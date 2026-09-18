@@ -45,7 +45,9 @@ public static class NominalDfCalibrationDatasetFactory
             throw new ArgumentOutOfRangeException(nameof(reference), "ReferenceId deve ser positivo.");
         if (string.IsNullOrWhiteSpace(reference.Code))
             throw new ArgumentException("ReferenceCode é obrigatório.", nameof(reference));
-        if (reference.ContentSha256.Length != 64 || reference.ContentSha256.Any(static c => !Uri.IsHexDigit(c)))
+        if (string.IsNullOrWhiteSpace(reference.ContentSha256) ||
+            reference.ContentSha256.Length != 64 ||
+            reference.ContentSha256.Any(static c => !Uri.IsHexDigit(c)))
             throw new ArgumentException("ReferenceContentSha256 deve ser um SHA-256 hexadecimal.", nameof(reference));
 
         if (matchedPairs.Count == 0)
