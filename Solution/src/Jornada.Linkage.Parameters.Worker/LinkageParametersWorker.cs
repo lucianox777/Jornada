@@ -279,7 +279,56 @@ public sealed class LinkageParametersWorker(
                 throw new InvalidOperationException($"Monte Carlo IBGE sem suporte para U_NOME_MAE_{state}; aumente LinkageParameters:IbgeNominalU:PairCount.");
         }
 
+        // m e u vêm de fontes diferentes (pares determinísticos e referência IBGE). A combinação
+        // irrestrita pode inverter estados ordenados por ruído amostral. Em vez de mascarar a
+        // inversão no gate, aplicamos a MLE com restrição de ordem sobre a razão m/u (PAVA).
+        // O ajuste preserva exatamente a massa m observada dos estados presentes e persiste a
+        // estimativa irrestrita para auditoria/replay da calibração.
+        ApplyOrderedNameLikelihoodRatioMle(result, "NOME");
+        ApplyOrderedNameLikelihoodRatioMle(result, "NOME_MAE");
+        result["ORDER_RESTRICTED_NAME_LLR_MLE_V1"] = 1m;
+
         return result;
+    }
+
+    private static void ApplyOrderedNameLikelihoodRatioMle(
+        IDictionary<string, decimal> parameters,
+        string field)
+    {
+        var states = LinkageParameterCatalog.NameStates.ToArray();
+        var m = states.Select(state => parameters[$"M_{field}_{state}"]).ToArray();
+        var u = states.Select(state => parameters[$"U_{field}_{state}"]).ToArray();
+
+        for (var i = 0; i < states.Length; i++)
+        {
+            if (m[i] <= 0m || u[i] <= 0m)
+                throw new InvalidOperationException($"MLE ordenada exige m/u positivos em {field}_{states[i]}.");
+            parameters[$"UNRESTRICTED_M_{field}_{states[i]}"] = m[i];
+        }
+
+        var blocks = new List<(int Start, int End, decimal M, decimal U)>();
+        for (var i = 0; i < states.Length; i++)
+        {
+            blocks.Add((i, i, m[i], u[i]));
+            while (blocks.Count >= 2)
+            {
+                var right = blocks[^1];
+                var left = blocks[^2];
+                // EXACT >= HIGH >= MEDIUM >= LOW em LLR equivale a m/u não crescente.
+                if (left.M / left.U >= right.M / right.U)
+                    break;
+
+                blocks.RemoveRange(blocks.Count - 2, 2);
+                blocks.Add((left.Start, right.End, left.M + right.M, left.U + right.U));
+            }
+        }
+
+        foreach (var block in blocks)
+        {
+            var ratio = block.M / block.U;
+            for (var i = block.Start; i <= block.End; i++)
+                parameters[$"M_{field}_{states[i]}"] = u[i] * ratio;
+        }
     }
 
     private static IReadOnlyDictionary<string, decimal> BuildPersistedParameters(
