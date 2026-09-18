@@ -75,7 +75,7 @@ try {
     Write-Host '# .\scripts\local-test.ps1'
     Write-Host ''
     Write-Host 'Instalacao limpa/reset completo (recarrega IBGE; use apenas quando esse gate for necessario):'
-    Write-Host '# .\scripts\local-test-all.ps1 -Suite full'
+    Write-Host '# .\scripts\local-test-all.ps1 -Suite full -AllowDestructiveReset'
 }
 finally {
     Pop-Location
