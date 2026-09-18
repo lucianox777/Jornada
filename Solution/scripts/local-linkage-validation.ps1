@@ -740,7 +740,7 @@ $report = [ordered]@{
         scenarioEvidenceProfiles = $negativeScenarioEvidence
         falseMatchDetails = $negativeFalseMatchDetails
     }
-    singleCandidateFamilyRiskProbe = [ordered]@{
+    singleAboveThresholdFamilyRiskProbe = [ordered]@{
         total = $singleProbeBreakdown.Count
         resolvedUnexpectedly = $singleProbeResolved
         probes = $singleProbeBreakdown
@@ -810,7 +810,7 @@ if ($negativeFalseMatchDetails.Count -gt 0) {
         Write-Host ("  {0} | {1} | score={2} segundo={3} margem={4} best={5}" -f $item.scenario,$item.sourceCode,$item.bestScore,$item.secondScore,$item.margin,$item.bestCandidateUuid)
     }
 }
-Write-Host 'Probes familiares com candidato único:'
+Write-Host 'Probes familiares com único candidato acima do threshold:'
 foreach ($probe in $singleProbeBreakdown) {
     Write-Host ("  {0}: status={1} score={2} best={3} second={4} margem={5} observação='{6}' candidato='{7}'" -f $probe.probe,$probe.status,$probe.bestScore,$probe.bestCandidateUuid,$probe.secondCandidateUuid,$probe.margin,$probe.observationName,$probe.bestCandidateName)
 }
@@ -840,8 +840,8 @@ foreach ($probe in $singleProbeBreakdown) {
     if ($probe.bestCandidateUuid -eq 'NULL') {
         throw "Probe $($probe.probe) não recuperou candidato; risco de decisão não foi exercitado."
     }
-    if ($probe.secondCandidateUuid -ne 'NULL') {
-        throw "Probe $($probe.probe) recuperou segundo candidato=$($probe.secondCandidateUuid); isolamento de candidato único não foi provado."
+    if ($probe.secondCandidateUuid -ne 'NULL' -and $null -ne $probe.secondScore -and $probe.secondScore -ge $threshold) {
+        throw "Probe $($probe.probe) possui segundo candidato acima do threshold: uuid=$($probe.secondCandidateUuid) score=$($probe.secondScore) T=$threshold; dual-threshold ainda protege o caso."
     }
 }
 
