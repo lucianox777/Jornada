@@ -277,12 +277,12 @@ if (-not $IsolatedExecution) {
         Write-CommandLine 'git' @('worktree','prune')
         & git worktree prune
 
-        # local-cluster pode recriar o container SQL a partir do worktree isolado.
-        # Reaplica a composicao do checkout do desenvolvedor antes de remover a referencia
-        # ao worktree temporario, sem resetar o banco nem a referencia IBGE.
+        # O cluster isolado pode recriar SQL/nos com bind-mounts do worktree temporario.
+        # Reaplica a composicao do checkout do desenvolvedor antes de sair, preservando
+        # volumes, banco e referencia IBGE; -NoBuild evita recompilacao desnecessaria.
         try {
-            Write-Host 'Restaurando composicao SQL do checkout do desenvolvedor sem reset...'
-            & (Join-Path $PSScriptRoot 'local-db.ps1') -Action up
+            Write-Host 'Restaurando composicao do checkout do desenvolvedor sem reset/clean...'
+            & (Join-Path $PSScriptRoot 'local-cluster.ps1') -Action up -NoBuild
         }
         catch {
             Write-Warning ("Nao foi possivel restaurar automaticamente a composicao local: " + $_.Exception.Message)
