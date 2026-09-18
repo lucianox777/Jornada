@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run from Solution. Logs and results are restricted to this CI-owned directory.
-EVIDENCE="${JORNADA_LINKAGE_EVIDENCE_DIR:-.local/postgresql-linkage-evidence}"
+# Executa estágios de validação e materializa evidência estruturada, sem vínculo com provider.
+EVIDENCE="${JORNADA_EVIDENCE_DIR:-${JORNADA_LINKAGE_EVIDENCE_DIR:-.local/validation-evidence}}"
 mkdir -p "$EVIDENCE"
 EVIDENCE="$(cd "$EVIDENCE" && pwd)"
 
@@ -47,7 +47,8 @@ root = pathlib.Path(sys.argv[1])
 path = root / 'results.jsonl'
 rows = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines()] if path.exists() else []
 expected = ['environment', 'restore', 'build', 'ddl', 'unit', 'policy', 'integration']
-required = os.environ.get('JORNADA_LINKAGE_EVIDENCE_REQUIRED_STAGES', ' '.join(expected)).split()
+required = os.environ.get('JORNADA_EVIDENCE_REQUIRED_STAGES',
+          os.environ.get('JORNADA_LINKAGE_EVIDENCE_REQUIRED_STAGES', ' '.join(expected))).split()
 if (not required or len(required) != len(set(required)) or
         not set(required).issubset(expected) or
         not {'environment', 'restore', 'build'}.issubset(required) or
@@ -70,7 +71,7 @@ summary = {'schema_version': 1, 'commit': os.environ.get('GITHUB_SHA'),
            'runner_started': runner_started, 'required_stages': required,
            'outcome': 'passed' if passed else 'incomplete_or_failed', 'checks': checks}
 (root / 'summary.json').write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-lines = ['### PostgreSQL Linkage validation', '', f"Commit: `{summary['commit']}`", '',
+lines = ['### Validation evidence', '', f"Commit: `{summary['commit']}`", '',
          '| Stage | Required | Status | Exit code |', '|---|---|---|---|']
 lines += [f"| {row['stage']} | {row['required']} | {row['status']} | {row['exit_code'] if row['exit_code'] is not None else '—'} |" for row in checks]
 lines += ['', 'Logs, MSBuild binary logs and TRX files are retained in the CI evidence artifact.',
@@ -82,5 +83,5 @@ if os.environ.get('GITHUB_STEP_SUMMARY'):
         out.write(text)
 PY
         ;;
-    *) echo 'Usage: postgresql-linkage-evidence.sh run STAGE COMMAND... | summary' >&2; exit 2 ;;
+    *) echo 'Usage: evidence-stage.sh run STAGE COMMAND... | summary' >&2; exit 2 ;;
 esac

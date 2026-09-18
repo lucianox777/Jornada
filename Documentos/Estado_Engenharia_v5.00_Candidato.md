@@ -1,83 +1,70 @@
 # Estado de Engenharia — candidato Solution Engenharia v5.00
 
-**Data de consolidação:** 10/09/2026  
+**Data de consolidação:** 18/09/2026  
 **Status:** CANDIDATO TÉCNICO — RELEASE/TAG NÃO CORTADA  
-**Branch de fechamento:** `docs/fechamento-v5-fabric`  
-**Base do trabalho:** `master` em `29bba9631c2184a22e035860cd15bdc0185eebf8`  
 **SolutionSchema corrente:** `3.70`
 
 ## 1. Relação com a última release selada
 
 A última release selada continua sendo a **Solution Engenharia v4.05**, com `schema_solution=v3.69` e tag `jornada-solution-v4.05`, conforme `RELEASE_INFO.txt`.
 
-Este documento **não altera, substitui nem reescreve retroativamente** essa release. O estado 3.70 é tratado como candidato técnico à v5.00 até que todos os gates de fechamento estejam satisfeitos e a release seja cortada explicitamente.
+Este documento descreve somente a candidata v5.00. O commit imutável da RC, quando existir, será registrado pelos metadados de candidato/release; este arquivo não congela antecipadamente um SHA mutável de `master`.
 
-## 2. Estado do master de referência
+## 2. Runtime relacional da candidata
 
-O `master` usado como base deste fechamento é:
+**Microsoft SQL Server é o único runtime relacional suportado pela Jornada candidata v5.00.**
 
-```text
-29bba9631c2184a22e035860cd15bdc0185eebf8
-```
+O DDL canônico, o Processor, o Linkage, a coordenação transacional, os testes de integração, o instalador Windows e os gates de promoção usam o contrato Microsoft SQL exercitado em SQL Server 2022 Developer/Testcontainers no desenvolvimento e CI.
 
-Nesse SHA, após a integração da correção de deadlock do polling de status de ingestão, os workflows de push observados incluem:
+O suporte operacional paralelo a PostgreSQL foi retirado desta candidata: não há provider selecionável, adapter Npgsql, persistência de identidade PostgreSQL, calibrador PostgreSQL, DDL PostgreSQL nem gates de paridade PostgreSQL no produto corrente. O histórico Git preserva a implementação anterior para eventual migração a projeto independente; ele não constitui suporte runtime desta Jornada.
 
-- `jornada-ci` — run 1651 — **success**;
-- `jornada-windows-production-installer` — run 437 — **success**.
+## 3. Microsoft Fabric
 
-Essas execuções demonstram que existe CI verde no estado corrente de engenharia. Elas não substituem evidências externas/condicionais que dependem de ambiente institucional específico, como a homologação Fabric.
+SQL Database in Microsoft Fabric **não é alvo operacional da candidata v5.00 e não é gate para o corte da RC/release**. Evidências Fabric anteriores permanecem como histórico de compatibilidade técnica.
 
-## 3. UML / RNF34-C
+Lakehouse e SQL Analytics Endpoint permanecem no escopo analítico/compatibilidade e não substituem o banco relacional operacional SQL Server.
 
-O requisito de possuir:
+Nenhuma hospedagem Fabric autoriza DDL alternativo, branch funcional ou segunda fonte de verdade operacional nesta candidata.
 
-1. diagrama de classes UML para Identidade/Linkage; e
-2. diagrama de atividade UML para resolução de identidade
+## 4. Linkage e calibração
 
-está implementado no processo reprodutível de geração documental.
+O caminho operacional SQL Server usa `LinkageParametersWorker` e o modelo de decisão versionado da Jornada. A candidata já contém componentes normativos/experimentais do ADR do calibrador DF → Fellegi–Sunter — busca de thresholds, Pareto, intercâmbio Splink, planejamento de ground truth e política conservadora de agrupamento — porém **esses componentes ainda não formam um fluxo SQL Server ponta a ponta que produza e promova thresholds calibrados por Pareto**.
 
-`Solution/scripts/generate-document-deliverables.py` gera as figuras:
+Portanto, a existência dessas bibliotecas e de seus testes unitários não equivale a implementação operacional integral do ADR.
 
-- `Jornada_Identidade_Linkage_Classes.png`;
-- `Jornada_Resolucao_Identidade_Atividade.png`.
+A validação estatística representativa permanece gate externo. Corpus sintético, Monte Carlo e validação adversarial DEV são evidência de engenharia, não homologação populacional.
 
-O mesmo processo as incorpora ao `Anexo_Modelo_Fisico_Jornada_v1.40.docx` e falha se o DOCX final não contiver **exatamente duas figuras UML incorporadas**. Portanto, a ausência dessas duas visões como arquivos `.puml` em `Solution/docs/uml` não caracteriza, isoladamente, ausência dos artefatos UML exigidos pelo RNF34-C.
+## 5. Proveniência de schema
 
-## 4. Fabric — distinção arquitetural
+A fonte canônica permanece `Solution/database/Jornada_Fase1_v3.70.sql`, com migrações versionadas e fingerprint estrutural controlado em `CANDIDATE_INFO.json`.
 
-Para evitar a ambiguidade de tratar “Microsoft Fabric” como um único tipo de armazenamento, o fechamento v5.00 usa a seguinte distinção:
+Antes do corte da RC, o tuple de proveniência deve corresponder ao HEAD exato escolhido e aos gates DDL executados para esse estado. Após o corte da RC, mudança estrutural exige novo checkpoint de RC.
 
-- **SQL Server 2022 Developer/Testcontainers:** baseline obrigatório de desenvolvimento, CI, DDL canônico e validação ordinária independente de ambiente;
-- **SQL Database in Microsoft Fabric:** destino relacional operacional preferencial de HML/Produção, condicionado à homologação da release exata;
-- **Lakehouse / SQL Analytics Endpoint:** escopo analítico, sem substituir implicitamente o banco relacional operacional.
+## 6. Documentação e UML
 
-A aplicação deve continuar usando o mesmo `OperationalSqlAdapter`/`Microsoft.Data.SqlClient` e o mesmo contrato funcional, sem bifurcação de regra de negócio por hospedagem.
+Os documentos destinados à entrega permanecem em DOCX/PDF, com UML incorporada quando exigida. As fontes Markdown e scripts de geração são artefatos de engenharia e rastreabilidade.
 
-## 5. Evidência Fabric disponível e limite da evidência
+Documentação histórica não deve ser usada para inferir arquitetura corrente quando divergir deste estado candidato, da Especificação/Requisitos correntes ou de `CANDIDATE_INFO.json`.
 
-A execução de 03/09/2026 registrou **58/58 Integration PASS, 0 falhas e 0 skips** contra SQL Database in Microsoft Fabric real.
+## 7. Pendências que bloqueiam o corte da v5.00-rc.1
 
-Essa evidência pertence à linha histórica v4.00 e permanece válida como antecedente de compatibilidade. Ela **não homologa automaticamente** o `master` atual, o SolutionSchema v3.70 ou o candidato v5.00.
+1. concluir e integrar a extração do runtime PostgreSQL e confirmar CI completo no HEAD exato;
+2. alinhar os documentos correntes e a numeração das ADRs ao estado SQL Server-only;
+3. fechar a lacuna de orquestração ponta a ponta do ADR de calibração no caminho SQL Server, ou registrar explicitamente o recorte que ficará pós-RC sem alegar implementação inexistente;
+4. manter verde o conjunto canônico de build, unitários, integração SQL, DDL/upgrade, E2E, segurança, harness e validação independente;
+5. atualizar a proveniência da candidata para o commit imutável escolhido para a RC;
+6. preservar como pendentes, sem fabricar aprovação, os gates externos/institucionais aplicáveis, inclusive validação estatística representativa do Linkage.
 
-Antes do corte da v5.00 deve existir nova evidência versionada executada contra o **HEAD exato candidato à release**, registrando ao menos SHA, SolutionSchema, data/hora, alvo Fabric, contagens de testes executados/aprovados/falhados/ignorados e referência ao TRX ou artefato equivalente.
+Homologação Fabric não integra essa lista.
 
-## 6. Pendências que bloqueiam o corte v5.00
+## 8. O que este estado não autoriza
 
-No estado deste documento, permanecem bloqueantes:
+Este documento não autoriza:
 
-1. reexecutar o harness `FABRIC_SQL_DATABASE` contra o HEAD exato candidato e SolutionSchema v3.70;
-2. versionar a nova evidência de homologação Fabric;
-3. eliminar a ambiguidade remanescente em textos correntes que ainda usem “Fabric” genericamente como sinônimo apenas de ambiente analítico/compatibilidade, distinguindo SQL Database in Fabric de Lakehouse/SQL Analytics Endpoint;
-4. confirmar os gates obrigatórios de CI no HEAD final após o change-set de fechamento;
-5. somente então cortar a release/tag v5.00 e atualizar atomicamente os metadados de release.
+- criar tag/release v5.00 ou v5.00-rc.1 antes dos gates do HEAD exato;
+- reescrever `RELEASE_INFO.txt` da última release selada antes do novo corte;
+- ativar modelo probabilístico por evidência sintética isolada;
+- tratar código histórico PostgreSQL como runtime suportado;
+- tratar evidência histórica Fabric como requisito ou homologação da candidata atual.
 
-## 7. O que este fechamento não autoriza
-
-Este estado candidato não autoriza, por si só:
-
-- criação da tag/release v5.00;
-- alteração retroativa de `RELEASE_INFO.txt` da v4.05 antes do corte;
-- ativação probabilística sem os gates de corpus/calibração/governança já definidos;
-- tratar a evidência Fabric v4.00 como evidência da v5.00.
-
-O objetivo é separar claramente **engenharia corrente validada** de **release formalmente selada** e impedir que documentação histórica seja confundida com evidência do HEAD atual.
+O objetivo do fechamento é manter **uma arquitetura operacional, um contrato relacional e uma cadeia de evidência reproduzível**, sem segunda persistência concorrente.

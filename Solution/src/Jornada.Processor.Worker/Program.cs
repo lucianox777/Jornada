@@ -95,25 +95,6 @@ if (string.Equals(operationalDatabase.Provider, OperationalDatabaseProviders.Sql
     builder.Services.AddSingleton<IProcessorRepository>(sp =>
         new SqlProcessorRepositoryAdapter(sp.GetRequiredService<SqlProcessorRepository>()));
 }
-else if (string.Equals(operationalDatabase.Provider, OperationalDatabaseProviders.PostgreSql, StringComparison.Ordinal))
-{
-    var pipelineCoordinator = new PostgreSqlPipelineCoordinator(
-        operationalDatabase, coordinationHeartbeat, exclusiveIntentTimeout);
-    builder.Services.AddSingleton(pipelineCoordinator);
-    builder.Services.AddSingleton<IProcessorPipelineCoordinator>(
-        new PostgreSqlProcessorPipelineCoordinatorAdapter(pipelineCoordinator));
-
-    builder.Services.AddSingleton<PostgreSqlProcessorLeaseStore>();
-    builder.Services.AddSingleton<PostgreSqlProcessorLeaseRepositoryAdapter>();
-    builder.Services.AddSingleton<PostgreSqlProcessorRepository>();
-    builder.Services.AddSingleton<IProcessorRepository>(sp =>
-        sp.GetRequiredService<PostgreSqlProcessorRepository>());
-    builder.Services.AddSingleton<IIdentityMapRepository, PostgreSqlIdentityMapRepository>();
-}
-else
-{
-    throw new InvalidOperationException($"Database:Provider não suportado pelo Processor: {operationalDatabase.Provider}.");
-}
 
 builder.Services.AddSingleton(_ => new IngestionPackageParser(repositoryRoot, options));
 builder.Services.AddSingleton<IngestionProcessor>();

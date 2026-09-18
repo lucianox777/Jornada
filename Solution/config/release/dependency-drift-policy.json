@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "release": "v4.03",
+  "release": "v5.00-candidate",
   "predecessorTag": "jornada-solution-v4.02",
-  "status": "VIGENTE",
+  "status": "CANDIDATE",
   "allowedChanges": [
     {
-      "kind": "ADD",
+      "kind": "REMOVE",
       "project": "Solution/src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj",
       "package": "Npgsql",
-      "from": null,
-      "to": "8.0.9",
-      "justification": "Provider ADO.NET PostgreSQL necessário ao adapter operacional explícito; mantém SQL Server intacto e habilita portabilidade testada sem Entity Framework."
+      "from": "8.0.9",
+      "to": null,
+      "justification": "PostgreSQL deixou de ser runtime suportado da Jornada candidata v5.00; Npgsql e os caminhos paralelos de persistência/calibração foram extraídos do produto corrente."
     }
   ],
-  "note": "A adição de Npgsql é governada e restrita ao adapter operacional; nenhuma dependência ORM foi introduzida."
+  "note": "Microsoft SQL Server é o único runtime relacional suportado pela candidata v5.00. PostgreSQL pertence a uma linha/projeto separado e não participa dos gates de release deste repositório."
 }

@@ -1,4 +1,4 @@
-# ADR-002 — Composição de nomes no corpus sintético a partir da referência IBGE
+# ADR-003 — Composição de nomes no corpus sintético a partir da referência IBGE
 
 - **Status:** Aceita
 - **Data:** 2026-09-16
