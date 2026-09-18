@@ -6,13 +6,15 @@
 
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$EnvFile = Join-Path $Root '.env'
+$DefaultEnvFile = Join-Path $Root '.env'
+$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { $DefaultEnvFile } else { [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE) }
 $Example = Join-Path $Root '.env.example'
 $LocalDb = Join-Path $PSScriptRoot 'local-db.ps1'
 $ClusterConfig = Join-Path $Root 'install\windows-production\Jornada.Cluster.Test.json'
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw 'Docker não encontrado no PATH.' }
-if (-not (Test-Path -LiteralPath $EnvFile)) {
+if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile" }
     Copy-Item -LiteralPath $Example -Destination $EnvFile
     Write-Host 'Criado .env local com as credenciais sintéticas padrão de teste.'
 }

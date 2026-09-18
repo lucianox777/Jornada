@@ -1,6 +1,8 @@
 ﻿param([ValidateSet('smoke','medium','million','custom')][string]$Profile='smoke')
 $ErrorActionPreference='Stop'
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$DefaultEnvFile=Join-Path $Root '.env'
+$EnvFile=if([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)){$DefaultEnvFile}else{[IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE)}
 $LocalDbScript=(Join-Path $PSScriptRoot 'local-db.ps1')
 
 function Resolve-Python3 {
@@ -48,7 +50,7 @@ $blockingAuditPath=Join-Path $outDir ("scale-{0}-blocking-pass-audit.json" -f $P
 # O harness de escala é dono da massa SCALE. O reset prepara apenas schema+seed;
 # depois o próprio harness gera o volume solicitado pelo perfil e fecha o backfill.
 & $LocalDbScript -Action reset -NoSyntheticCorpus
-$vars=@{}; Get-Content (Join-Path $Root '.env') | % { $l=$_.Trim(); if($l -and -not $l.StartsWith('#') -and $l.Contains('=')){ $p=$l.Split('=',2); $vars[$p[0].Trim()]=$p[1] } }
+$vars=@{}; Get-Content $EnvFile | % { $l=$_.Trim(); if($l -and -not $l.StartsWith('#') -and $l.Contains('=')){ $p=$l.Split('=',2); $vars[$p[0].Trim()]=$p[1] } }
 $port=if($vars['JORNADA_SQL_PORT']){$vars['JORNADA_SQL_PORT']}else{'14333'}
 $db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
 $sqlPassword=$vars['JORNADA_SQL_SA_PASSWORD']
@@ -58,7 +60,7 @@ function SqlCmd {
     param([Parameter(Mandatory=$true)][string[]]$SqlCmdArgs)
     Push-Location $Root
     try {
-        & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b @SqlCmdArgs
+        & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b @SqlCmdArgs
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
     }
     finally { Pop-Location }
@@ -66,7 +68,7 @@ function SqlCmd {
 function Scalar([string]$Query){
     Push-Location $Root
     try {
-        $o = (& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
+        $o = (& docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
         return ($o | ? { $_.Trim() } | Select-Object -Last 1).Trim()
     }
@@ -75,7 +77,7 @@ function Scalar([string]$Query){
 function QueryLines([string]$Query){
     Push-Location $Root
     try {
-        $o = @(& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -W -h -1 -w 65535 -Q "SET NOCOUNT ON; $Query")
+        $o = @(& docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -W -h -1 -w 65535 -Q "SET NOCOUNT ON; $Query")
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
         return @($o | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     }

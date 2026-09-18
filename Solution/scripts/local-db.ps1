@@ -5,7 +5,8 @@
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$EnvFile = Join-Path $Root '.env'
+$DefaultEnvFile = Join-Path $Root '.env'
+$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { $DefaultEnvFile } else { [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE) }
 $Example = Join-Path $Root '.env.example'
 New-Item -ItemType Directory -Force (Join-Path $Root '.local/sql-backup') | Out-Null
 
@@ -79,7 +80,8 @@ function Ensure-DockerEngine {
 }
 
 Ensure-DockerEngine
-if (-not (Test-Path $EnvFile)) {
+if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile" }
     Copy-Item $Example $EnvFile
     Write-Warning 'Criado .env local a partir de .env.example. Revise a senha antes de uso compartilhado.'
 }
