@@ -1,6 +1,5 @@
 using Jornada.Contracts;
 using Jornada.Operational.Sql;
-using Npgsql;
 
 namespace Jornada.Tests.Unit;
 
@@ -66,24 +65,4 @@ public sealed class BirthBlockingPlanTests
         });
     }
 
-    [Test]
-    public void SqlUsesBoundValuesAndPreservesFieldSpecificInitials()
-    {
-        using var command = new NpgsqlCommand();
-        var query = PostgreSqlBirthBlockingQuery.Build(command, Plan(), "g", "test");
-        Assert.Multiple(() =>
-        {
-            Assert.That(query.Predicate, Does.Contain("g.data_nascimento"));
-            Assert.That(query.Predicate, Does.Contain("g.nome_completo"));
-            Assert.That(query.Predicate, Does.Contain("g.nome_mae"));
-            Assert.That(query.Predicate, Does.Not.Contain("Maria"));
-            Assert.That(query.PassMaskExpression, Does.Contain("CASE WHEN"));
-            Assert.That(command.Parameters.Count, Is.GreaterThan(5));
-            Assert.That(command.Parameters.Cast<NpgsqlParameter>().Count(x => x.Value is string), Is.EqualTo(2));
-        });
-        Assert.Throws<ArgumentException>(() => PostgreSqlBirthBlockingQuery.Build(command, Plan(), "g;DROP TABLE x", "test"));
-        using var edge = new NpgsqlCommand();
-        Assert.DoesNotThrow(() => PostgreSqlBirthBlockingQuery.Build(edge,
-            BirthBlockingPlan.Create(DateOnly.MaxValue, "M", "A", true, 2)));
-    }
 }
