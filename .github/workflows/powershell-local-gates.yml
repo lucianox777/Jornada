@@ -25,6 +25,7 @@ on:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
       - 'Solution/scripts/local-test-all.ps1'
+      - 'Solution/scripts/local-test-test-all-safety.ps1'
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
