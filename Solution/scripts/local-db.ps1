@@ -189,7 +189,9 @@ function Ensure-SyntheticScale {
     Write-Host 'Corpus sintético local pronto: 5000 pessoas Gold, 5000 pares corroborados e 1000 pendentes.'
 }
 function Bootstrap {
-    Invoke-SqlCmd -SqlCmdArgs @('-Q', "IF DB_ID(N'$db') IS NULL CREATE DATABASE [$db];")
+    # Operações de criação/estado do próprio banco devem partir explicitamente de master.
+    # Isso evita que o login fique preso ao banco-alvo durante reset/bootstrap.
+    Invoke-SqlCmd -SqlCmdArgs @('-d', 'master', '-Q', "IF DB_ID(N'$db') IS NULL CREATE DATABASE [$db];")
 
     # Upgrade local de volume existente: o baseline v3.70 contém um cutover que deve
     # continuar falhando fechado. Antes de reaplicá-lo, concluímos o backfill paginado
@@ -223,7 +225,9 @@ switch ($Action) {
     }
     'reset' {
         Invoke-Compose -ComposeArgs @('up','-d','sqlserver'); Wait-Healthy
-        Invoke-SqlCmd -SqlCmdArgs @('-Q', "IF DB_ID(N'$db') IS NOT NULL BEGIN ALTER DATABASE [$db] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$db]; END; CREATE DATABASE [$db];")
+        # O reset precisa executar a partir de master. Sem isso, se a sessão administrativa
+        # estiver conectada ao próprio banco-alvo, ela impede o SINGLE_USER/DROP que tenta executar.
+        Invoke-SqlCmd -SqlCmdArgs @('-d', 'master', '-Q', "IF DB_ID(N'$db') IS NOT NULL BEGIN ALTER DATABASE [$db] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$db]; END; CREATE DATABASE [$db];")
         Bootstrap
         if ($NoSyntheticCorpus) {
             Write-Host "Banco local recriado sem corpus SCALE: $db (schema 3.70)"
