@@ -203,6 +203,7 @@ Para frentes técnicas com testes direcionados, mantenha também um script dedic
 | Rodar validação local específica | `local-test.ps1` | Iteração rápida durante desenvolvimento; preserva o banco existente |
 | Conferir referência IBGE sem recarga | `local-check-ibge-reference.ps1` | Antes de testes que reutilizam `ref.frequencia_nome`; compara versão/linhas/hash publicado e imutabilidade sem carregar dados |
 | Diagnosticar referência IBGE local | `local-diagnose-ibge-reference.ps1` | Read-only; lista versões, status, SHA e contagem de linhas por versão para investigar bases legadas/incompletas |
+| Testar o diagnóstico IBGE | `local-test-ibge-diagnostic.ps1` | Executa o diagnóstico read-only real e valida que aguarda SQL/banco ONLINE e não contém aspas SQL duplicadas |
 | Reativar referência IBGE já materializada | `local-repair-ibge-reference.ps1` | Somente quando a versão canônica está íntegra, publicada e inativa; altera apenas status/ativado_em, sem recarregar `ref.frequencia_nome`; se a versão canônica não existir, chama o diagnóstico e falha sem alterar dados |
 | Testar calibração DF/benchmark IBGE | `local-test-df-calibration.ps1` | Reutiliza e checa a referência IBGE existente por padrão; `-Quick` reduz o conjunto de testes e `-Offline` elimina a dependência do SQL local |
 | Validar upgrade de DDL | `local-ddl-upgrade.ps1` | Toda alteração de schema/migração que precise provar upgrade sem perda de invariantes |
@@ -247,6 +248,20 @@ Use este script quando não precisar do cluster completo. `backfill` é destinad
 Limpa artefatos do ambiente local. É uma ferramenta de recuperação/manutenção, não um passo obrigatório antes de cada teste. Antes de usá-la, prefira os comandos `down` ou `reset` dos scripts de ambiente quando eles forem suficientes.
 
 ## 2. Testes e gates locais
+
+### `local-diagnose-ibge-reference.ps1`
+
+Diagnóstico **read-only** da referência IBGE local. Ao subir um volume existente, aguarda o SQL Server aceitar conexões e o `JornadaLocal` ficar `ONLINE` antes de consultar as tabelas `ref`. Não executa loader, seed, reset, alteração de status ou reparo.
+
+```powershell
+.\scripts\local-diagnose-ibge-reference.ps1
+```
+
+Para validar o próprio contrato do diagnóstico contra o banco já existente:
+
+```powershell
+.\scripts\local-test-ibge-diagnostic.ps1
+```
 
 ### `local-test-all.ps1`
 
