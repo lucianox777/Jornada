@@ -72,7 +72,7 @@ public sealed class IdentityComparisonVersioningTests
     public void V2_does_not_invent_token_alignment_policy_when_token_counts_differ()
     {
         const string left = "MARIA SILVA";
-        const string right = "MARIA DE SILVA";
+        const string right = "MARIA JOSE SILVA";
 
         Assert.That(IdentityComparison.CompareNameV2(left, right),
             Is.EqualTo(IdentityComparison.CompareNameV1(left, right)));
