@@ -6,9 +6,8 @@ using Jornada.Operational.Sql;
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
-/// Operação read-only que estima u nominal populacional sobre a referência IBGE já
-/// internalizada e compara a estimativa com U_NOME_* do modelo ATIVO, quando existir.
-/// Não cria rascunho, não valida/ativa modelo e não altera thresholds.
+/// Operação read-only que reproduz o Monte Carlo nominal IBGE usado para u de NOME e
+/// NOME_MAE e compara com o modelo ATIVO, quando existir. Não cria, valida ou ativa modelo.
 /// </summary>
 public sealed class IbgeNominalUBootstrapReporter(
     ILogger<IbgeNominalUBootstrapReporter> logger,
@@ -23,9 +22,13 @@ public sealed class IbgeNominalUBootstrapReporter(
     {
         try
         {
-            var seed = configuration.GetValue("LinkageParameters:IbgeUBootstrap:Seed", 20260917);
+            var seed = configuration.GetValue(
+                "LinkageParameters:IbgeUBootstrap:Seed",
+                configuration.GetValue("LinkageParameters:IbgeNominalU:Seed", 20260917));
             var pairCount = Math.Clamp(
-                configuration.GetValue("LinkageParameters:IbgeUBootstrap:PairCount", 250_000),
+                configuration.GetValue(
+                    "LinkageParameters:IbgeUBootstrap:PairCount",
+                    configuration.GetValue("LinkageParameters:IbgeNominalU:PairCount", 1_000_000)),
                 10_000,
                 5_000_000);
             var outputPath = configuration.GetValue(
@@ -33,45 +36,80 @@ public sealed class IbgeNominalUBootstrapReporter(
                 "/tmp/jornada-ibge-u-bootstrap.json")!;
 
             await using var connection = await operationalSql.OpenAsync(stoppingToken);
-            var reference = await ReadActiveReferenceAsync(connection, stoppingToken);
-            var entries = await ReadBrazilPublishedMarginalsAsync(connection, reference.Id, stoppingToken);
+            var reference = await IbgeNominalUReferenceReader.ReadActiveReferenceAsync(connection, stoppingToken);
 
-            var estimate = IbgeNominalUBootstrapEstimator.Estimate(
-                entries,
+            var personEntries = await IbgeNominalUReferenceReader.ReadBrazilPublishedMarginalsAsync(
+                connection, reference.Id, "TODOS", stoppingToken);
+            var motherEntries = await IbgeNominalUReferenceReader.ReadBrazilPublishedMarginalsAsync(
+                connection, reference.Id, "FEMININO", stoppingToken);
+
+            var personEstimate = IbgeNominalUBootstrapEstimator.Estimate(
+                personEntries,
                 new IbgeNominalUBootstrapOptions(seed, pairCount));
+            var motherEstimate = IbgeNominalUBootstrapEstimator.Estimate(
+                motherEntries,
+                new IbgeNominalUBootstrapOptions(unchecked(seed + 1), pairCount));
 
             var activeModel = await ReadActiveModelAsync(connection, stoppingToken);
-            var currentU = activeModel is null
+            var personU = activeModel is null
                 ? new Dictionary<string, decimal>(StringComparer.Ordinal)
-                : await ReadCurrentNominalUAsync(connection, activeModel.ModelId, stoppingToken);
-            var currentSupport = activeModel is null
+                : await ReadParametersAsync(connection, activeModel.ModelId, "U_NOME_", stoppingToken);
+            var personSupport = activeModel is null
                 ? new Dictionary<string, decimal>(StringComparer.Ordinal)
-                : await ReadCurrentNominalSupportAsync(connection, activeModel.ModelId, stoppingToken);
+                : await ReadParametersAsync(connection, activeModel.ModelId, "IBGE_MC_SUPPORT_U_NOME_", stoppingToken);
+            var motherU = activeModel is null
+                ? new Dictionary<string, decimal>(StringComparer.Ordinal)
+                : await ReadParametersAsync(connection, activeModel.ModelId, "U_NOME_MAE_", stoppingToken);
+            var motherSupport = activeModel is null
+                ? new Dictionary<string, decimal>(StringComparer.Ordinal)
+                : await ReadParametersAsync(connection, activeModel.ModelId, "IBGE_MC_SUPPORT_U_NOME_MAE_", stoppingToken);
 
-            var comparison = estimate.States.ToDictionary(
+            var personComparison = personEstimate.States.ToDictionary(
                 state => state.State,
                 state =>
                 {
-                    currentU.TryGetValue($"U_NOME_{state.State}", out var observed);
-                    currentSupport.TryGetValue($"SUPPORT_U_NOME_{state.State}", out var support);
-                    return new
+                    personU.TryGetValue($"U_NOME_{state.State}", out var activeProbability);
+                    personSupport.TryGetValue($"IBGE_MC_SUPPORT_U_NOME_{state.State}", out var activeSupport);
+                    return (object)new
                     {
-                        ibgeBootstrapProbability = Round12(state.Probability),
-                        ibgeBootstrapSupport = state.Support,
-                        ibgeBootstrapStandardError = Round12(state.StandardError),
-                        activeModelProbability = currentU.ContainsKey($"U_NOME_{state.State}") ? Round12(observed) : (decimal?)null,
-                        activeModelSupport = currentSupport.ContainsKey($"SUPPORT_U_NOME_{state.State}") ? support : (decimal?)null,
-                        deltaBootstrapMinusActive = currentU.ContainsKey($"U_NOME_{state.State}")
-                            ? Round12(state.Probability - observed)
-                            : (decimal?)null
+                        monteCarloProbability = Round12(state.Probability),
+                        monteCarloSupport = state.Support,
+                        monteCarloStandardError = Round12(state.StandardError),
+                        activeModelProbability = personU.ContainsKey($"U_NOME_{state.State}") ? Round12(activeProbability) : (decimal?)null,
+                        activeModelMonteCarloSupport = personSupport.ContainsKey($"IBGE_MC_SUPPORT_U_NOME_{state.State}") ? activeSupport : (decimal?)null
+                    };
+                },
+                StringComparer.Ordinal);
+
+            decimal? motherPresentMass = null;
+            if (motherU.TryGetValue("U_NOME_MAE_MISSING", out var missingProbability))
+                motherPresentMass = 1m - missingProbability;
+
+            var motherComparison = motherEstimate.States.ToDictionary(
+                state => state.State,
+                state =>
+                {
+                    motherU.TryGetValue($"U_NOME_MAE_{state.State}", out var activeProbability);
+                    motherSupport.TryGetValue($"IBGE_MC_SUPPORT_U_NOME_MAE_{state.State}", out var activeSupport);
+                    var conditional = motherPresentMass is > 0m && motherU.ContainsKey($"U_NOME_MAE_{state.State}")
+                        ? Round12(activeProbability / motherPresentMass.Value)
+                        : (decimal?)null;
+                    return (object)new
+                    {
+                        monteCarloProbabilityGivenPresent = Round12(state.Probability),
+                        monteCarloSupport = state.Support,
+                        monteCarloStandardError = Round12(state.StandardError),
+                        activeModelJointProbability = motherU.ContainsKey($"U_NOME_MAE_{state.State}") ? Round12(activeProbability) : (decimal?)null,
+                        activeModelProbabilityGivenPresent = conditional,
+                        activeModelMonteCarloSupport = motherSupport.ContainsKey($"IBGE_MC_SUPPORT_U_NOME_MAE_{state.State}") ? activeSupport : (decimal?)null
                     };
                 },
                 StringComparer.Ordinal);
 
             var report = new
             {
-                schemaVersion = "JORNADA_IBGE_U_BOOTSTRAP_REPORT_V1",
-                purpose = "DEV_REFERENCE_ONLY_NO_AUTOMATIC_MODEL_PROMOTION",
+                schemaVersion = "JORNADA_IBGE_U_BOOTSTRAP_REPORT_V2",
+                purpose = "DEV_MONTE_CARLO_NOMINAL_U_DIAGNOSTIC_NO_AUTOMATIC_PROMOTION",
                 generatedAtUtc = DateTimeOffset.UtcNow,
                 reference = new
                 {
@@ -82,27 +120,53 @@ public sealed class IbgeNominalUBootstrapReporter(
                 },
                 methodology = new
                 {
-                    estimate.MethodVersion,
-                    estimate.JointConstructionVersion,
-                    estimate.ObservationChannelVersion,
-                    note = "Prenome e sobrenome são marginais IBGE compostas independentemente. Não representa distribuição conjunta oficial de nome completo nem taxa real de erro administrativo.",
-                    universe = "BRASIL/TODOS/TODOS; somente valores publicados com frequência positiva",
-                    relationshipToOperationalU = "Referência populacional não condicionada ao blocking; U operacional atual é condicionado ao ruleset e não é substituído por este relatório."
+                    personFirstNameSex = "TODOS",
+                    motherFirstNameSex = "FEMININO",
+                    surnameSex = "TODOS",
+                    personEstimate.MethodVersion,
+                    personEstimate.JointConstructionVersion,
+                    personEstimate.ObservationChannelVersion,
+                    note = "Prenome e sobrenome são marginais IBGE compostas independentemente; não constituem distribuição conjunta oficial de nome completo.",
+                    operationalUse = "U nominal de NOME usa Monte Carlo IBGE. U nominal presente de NOME_MAE usa Monte Carlo IBGE feminino e é multiplicado pela massa de presença observada no u condicionado ao blocking. Datas de nascimento permanecem condicionadas ao blocking."
                 },
-                sampling = new
+                personName = new
                 {
-                    estimate.Seed,
-                    estimate.PairCount,
-                    estimate.FirstNamePublishedOccurrences,
-                    estimate.SurnamePublishedOccurrences,
-                    estimate.FirstNameVocabularySize,
-                    estimate.SurnameVocabularySize
+                    sampling = new
+                    {
+                        personEstimate.Seed,
+                        personEstimate.PairCount,
+                        personEstimate.FirstNamePublishedOccurrences,
+                        personEstimate.SurnamePublishedOccurrences,
+                        personEstimate.FirstNameVocabularySize,
+                        personEstimate.SurnameVocabularySize
+                    },
+                    analytic = new
+                    {
+                        exactFirstNameProbability = Round12(personEstimate.AnalyticExactFirstNameProbability),
+                        exactSurnameProbability = Round12(personEstimate.AnalyticExactSurnameProbability),
+                        exactSyntheticFullNameProbability = Round12(personEstimate.AnalyticExactSyntheticFullNameProbability)
+                    },
+                    states = personComparison
                 },
-                analytic = new
+                motherName = new
                 {
-                    exactFirstNameProbability = Round12(estimate.AnalyticExactFirstNameProbability),
-                    exactSurnameProbability = Round12(estimate.AnalyticExactSurnameProbability),
-                    exactSyntheticFullNameProbability = Round12(estimate.AnalyticExactSyntheticFullNameProbability)
+                    sampling = new
+                    {
+                        motherEstimate.Seed,
+                        motherEstimate.PairCount,
+                        motherEstimate.FirstNamePublishedOccurrences,
+                        motherEstimate.SurnamePublishedOccurrences,
+                        motherEstimate.FirstNameVocabularySize,
+                        motherEstimate.SurnameVocabularySize
+                    },
+                    analytic = new
+                    {
+                        exactFirstNameProbability = Round12(motherEstimate.AnalyticExactFirstNameProbability),
+                        exactSurnameProbability = Round12(motherEstimate.AnalyticExactSurnameProbability),
+                        exactSyntheticFullNameProbability = Round12(motherEstimate.AnalyticExactSyntheticFullNameProbability)
+                    },
+                    activeModelPresentMass = motherPresentMass is null ? null : Round12(motherPresentMass.Value),
+                    states = motherComparison
                 },
                 activeModel = activeModel is null
                     ? null
@@ -113,13 +177,12 @@ public sealed class IbgeNominalUBootstrapReporter(
                         activeModel.AlgorithmVersion,
                         activeModel.SampleMethod
                     },
-                states = comparison,
                 safeguards = new[]
                 {
                     "read-only: nenhum modelo é criado, validado ou ativado",
                     "nenhum threshold ou margem é alterado",
-                    "não há canal de ruído inventado; ruído futuro exige versão e evidência independente",
-                    "o resultado não constitui homologação HML/produção nem estimativa de acurácia municipal"
+                    "datas de nascimento não são substituídas pela referência nominal",
+                    "resultado DEV; não constitui homologação nem estimativa de acurácia municipal"
                 }
             };
 
@@ -134,7 +197,7 @@ public sealed class IbgeNominalUBootstrapReporter(
                 stoppingToken);
 
             logger.LogInformation(
-                "Bootstrap nominal IBGE u concluído. Referência={Reference}; pares={Pairs}; saída={Output}; modelo_ativo={Model}.",
+                "Monte Carlo nominal IBGE concluído. Referência={Reference}; pares_por_campo={Pairs}; saída={Output}; modelo_ativo={Model}.",
                 reference.Code,
                 pairCount,
                 fullPath,
@@ -142,91 +205,13 @@ public sealed class IbgeNominalUBootstrapReporter(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Falha no bootstrap nominal IBGE de u.");
+            logger.LogError(ex, "Falha no Monte Carlo nominal IBGE de u.");
             Environment.ExitCode = 1;
         }
         finally
         {
             applicationLifetime.StopApplication();
         }
-    }
-
-    private static async Task<ReferenceInfo> ReadActiveReferenceAsync(
-        System.Data.Common.DbConnection connection,
-        CancellationToken cancellationToken)
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            SELECT frequencia_nome_versao_id,codigo,fonte,conteudo_sha256
-            FROM ref.frequencia_nome_versao
-            WHERE status='ATIVA'
-            ORDER BY frequencia_nome_versao_id DESC;
-            """;
-
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
-            throw new InvalidOperationException("Nenhuma referência IBGE de frequências está ATIVA.");
-
-        var info = new ReferenceInfo(
-            reader.GetInt64(0),
-            reader.GetString(1),
-            reader.GetString(2),
-            Convert.ToHexString((byte[])reader.GetValue(3)).ToLowerInvariant());
-
-        if (await reader.ReadAsync(cancellationToken))
-            throw new InvalidOperationException("Mais de uma referência de frequências está ATIVA; bootstrap recusado fail-closed.");
-
-        return info;
-    }
-
-    private static async Task<IReadOnlyList<IbgeTypedNameFrequencyEntry>> ReadBrazilPublishedMarginalsAsync(
-        System.Data.Common.DbConnection connection,
-        long referenceId,
-        CancellationToken cancellationToken)
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            SELECT tipo,valor_normalizado,SUM(CONVERT(bigint,frequencia)) AS ocorrencias
-            FROM ref.frequencia_nome
-            WHERE frequencia_nome_versao_id=@id
-              AND escopo_geografico='BRASIL'
-              AND sexo='TODOS'
-              AND periodo_nascimento='TODOS'
-              AND uf_codigo='00'
-              AND municipio_codigo='0000000'
-            GROUP BY tipo,valor_normalizado
-            ORDER BY tipo,valor_normalizado;
-            """;
-        var id = command.CreateParameter();
-        id.ParameterName = "@id";
-        id.DbType = DbType.Int64;
-        id.Value = referenceId;
-        command.Parameters.Add(id);
-
-        var result = new List<IbgeTypedNameFrequencyEntry>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            var type = reader.GetString(0);
-            var kind = type switch
-            {
-                "NOME" => IbgeNameStatisticKind.FirstName,
-                "SOBRENOME" => IbgeNameStatisticKind.Surname,
-                _ => throw new InvalidOperationException($"Tipo IBGE inesperado no recorte nacional: {type}.")
-            };
-            var value = reader.GetString(1);
-            var occurrences = reader.GetInt64(2);
-            if (occurrences > 0)
-                result.Add(new IbgeTypedNameFrequencyEntry(kind, value, occurrences));
-        }
-
-        if (!result.Any(entry => entry.StatisticKind == IbgeNameStatisticKind.FirstName) ||
-            !result.Any(entry => entry.StatisticKind == IbgeNameStatisticKind.Surname))
-            throw new InvalidOperationException("Recorte IBGE nacional publicado não contém simultaneamente NOME e SOBRENOME.");
-
-        return result;
     }
 
     private static async Task<ActiveModelInfo?> ReadActiveModelAsync(
@@ -253,18 +238,6 @@ public sealed class IbgeNominalUBootstrapReporter(
             reader.GetString(2),
             reader.IsDBNull(3) ? null : reader.GetString(3));
     }
-
-    private static Task<Dictionary<string, decimal>> ReadCurrentNominalUAsync(
-        System.Data.Common.DbConnection connection,
-        Guid modelId,
-        CancellationToken cancellationToken) =>
-        ReadParametersAsync(connection, modelId, "U_NOME_", cancellationToken);
-
-    private static Task<Dictionary<string, decimal>> ReadCurrentNominalSupportAsync(
-        System.Data.Common.DbConnection connection,
-        Guid modelId,
-        CancellationToken cancellationToken) =>
-        ReadParametersAsync(connection, modelId, "SUPPORT_U_NOME_", cancellationToken);
 
     private static async Task<Dictionary<string, decimal>> ReadParametersAsync(
         System.Data.Common.DbConnection connection,
@@ -303,6 +276,5 @@ public sealed class IbgeNominalUBootstrapReporter(
     private static decimal Round12(decimal value) =>
         decimal.Round(value, 12, MidpointRounding.AwayFromZero);
 
-    private sealed record ReferenceInfo(long Id, string Code, string Source, string ContentSha256);
     private sealed record ActiveModelInfo(Guid ModelId, int Version, string AlgorithmVersion, string? SampleMethod);
 }
