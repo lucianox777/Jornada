@@ -123,7 +123,7 @@ A referência IBGE é um snapshot externo, versionado e imutável. No ciclo norm
 .\scripts\local-e2e.ps1
 ```
 
-O E2E usa por padrão um banco temporário `JornadaE2E_*`, criado apenas para a execução e removido ao final. Isso permite testar HTTP → Bronze → Silver → Gold → Serving → HTTP sem resetar `JornadaLocal` nem tocar em `ref.frequencia_nome`.
+O E2E usa por padrão o banco isolado `JornadaE2E`, que pode ser resetado pelo próprio harness sem tocar no `JornadaLocal`. Isso permite testar HTTP → Bronze → Silver → Gold → Serving → HTTP sem resetar `JornadaLocal` nem tocar em `ref.frequencia_nome`.
 
 O reset do banco compartilhado só existe como escape explícito:
 
@@ -279,7 +279,7 @@ Entrada de teste mais focada/rápida. Use durante o ciclo editar → testar → 
 
 ### `local-e2e.ps1`
 
-Por padrão cria um banco temporário `JornadaE2E_*`, chama `local-db.ps1 -DatabaseName ... -NoSyntheticCorpus`, executa o fluxo E2E e remove esse banco no `finally`. Assim o E2E não reseta o banco compartilhado.
+Por padrão usa o banco isolado `JornadaE2E`, chama `local-db.ps1 -DatabaseName JornadaE2E -NoSyntheticCorpus` e reseta somente esse banco. Assim o E2E não reseta o banco compartilhado nem a referência IBGE.
 
 `-AllowSharedDatabaseReset` existe apenas para uso deliberado e explícito.
 
