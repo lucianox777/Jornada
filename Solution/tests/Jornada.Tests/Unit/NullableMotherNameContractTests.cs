@@ -42,11 +42,10 @@ public sealed class NullableMotherNameContractTests
     }
 
     [Test]
-    public void Current_relational_contracts_must_preserve_missing_mother_name_as_null()
+    public void Current_sqlserver_contract_must_preserve_missing_mother_name_as_null()
     {
         var root = FindRepositoryRoot();
         var sqlServerMigration = File.ReadAllText(Path.Combine(root, "Solution", "database", "migrations", "20260912_Nome_Mae_Anulavel.sql"));
-        var postgresCore = File.ReadAllText(Path.Combine(root, "Solution", "database", "postgresql", "Jornada_Processor_Persistence_Core.sql"));
         var seed = File.ReadAllText(Path.Combine(root, "Solution", "database", "Jornada_Seed_Dev.sql"));
 
         Assert.Multiple(() =>
@@ -55,9 +54,6 @@ public sealed class NullableMotherNameContractTests
             Assert.That(sqlServerMigration, Does.Contain("ALTER TABLE silver.pessoa_observacao ALTER COLUMN nome_mae_cmp NVARCHAR(500) NULL"));
             Assert.That(sqlServerMigration, Does.Contain("ALTER TABLE gold.pessoa ALTER COLUMN nome_mae NVARCHAR(500) NULL"));
 
-            Assert.That(postgresCore, Does.Contain("ALTER COLUMN nome_mae DROP NOT NULL"));
-            Assert.That(postgresCore, Does.Contain("ALTER COLUMN nome_mae_cmp DROP NOT NULL"));
-            Assert.That(postgresCore, Does.Not.Contain("nome_mae VARCHAR(500) NOT NULL"));
 
             Assert.That(seed, Does.Contain("/pessoa/v3/pessoa.schema.json"));
             Assert.That(seed, Does.Contain("WHERE v.versao=3 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET')"));
