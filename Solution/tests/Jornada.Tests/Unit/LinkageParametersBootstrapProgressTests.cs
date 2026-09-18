@@ -22,9 +22,32 @@ public sealed class LinkageParametersBootstrapProgressTests
             Assert.That(program, Does.Contain("RunHostWithHeartbeatAsync"));
             Assert.That(program, Does.Contain("TimeSpan.FromSeconds(15)"));
             Assert.That(program, Does.Contain("processo ativo, aguarde"));
-            Assert.That(program, Does.Contain("milhões de linhas e pode levar alguns minutos"));
+            Assert.That(program, Does.Contain("milhoes de linhas e pode levar alguns minutos"));
             Assert.That(program, Does.Contain("bootstrapBuilder.Build(),"));
             Assert.That(program, Does.Contain("operation == NameFrequencySnapshotLoader.Operation"));
+        });
+    }
+
+    [Test]
+    public void CanonicalIbgeReference_RequiresActiveStateAndCanReusePublishedRows()
+    {
+        var root = FindRepositoryRoot();
+        var state = File.ReadAllText(Path.Combine(
+            root,
+            "Solution",
+            "src",
+            "Jornada.Linkage.Parameters.Worker",
+            "NameFrequencyReferenceState.cs"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(state, Does.Contain("status == \"ATIVA\""));
+            Assert.That(state, Does.Contain("status == \"CARREGANDO\""));
+            Assert.That(state, Does.Contain("conteudo_sha256"));
+            Assert.That(state, Does.Contain("tipo='NOME'"));
+            Assert.That(state, Does.Contain("tipo='SOBRENOME'"));
+            Assert.That(state, Does.Contain("SET status='ATIVA'"));
+            Assert.That(state, Does.Contain("IsolationLevel.Serializable"));
         });
     }
 
@@ -60,8 +83,10 @@ public sealed class LinkageParametersBootstrapProgressTests
         {
             Assert.That(program, Does.Contain($"const string EnsureNameFrequencySnapshotOperation = \"{ensureOperation}\""));
             Assert.That(program, Does.Contain($"const string CanonicalNameFrequencyReferenceCode = \"{canonicalReference}\""));
-            Assert.That(program, Does.Contain("HasPublishedNameFrequencyReferenceAsync"));
-            Assert.That(program, Does.Contain("nenhuma recarga necessária"));
+            Assert.That(program, Does.Contain("NameFrequencyReferenceState.EnsureCanonicalActiveAsync"));
+            Assert.That(program, Does.Contain("CanonicalNameFrequencyReferenceState.Reactivated"));
+            Assert.That(program, Does.Contain("reativada sem recarga"));
+            Assert.That(program, Does.Not.Contain("HasPublishedNameFrequencyReferenceAsync"));
 
             Assert.That(bootstrapServiceIndex, Is.GreaterThanOrEqualTo(0));
             Assert.That(bootstrapServiceIndex, Is.LessThan(node1Index));

@@ -24,26 +24,42 @@ else
 
     if (operation == EnsureNameFrequencySnapshotOperation)
     {
-        if (await HasPublishedNameFrequencyReferenceAsync(operationalSql, CanonicalNameFrequencyReferenceCode))
+        var referenceState = await NameFrequencyReferenceState.EnsureCanonicalActiveAsync(
+            operationalSql,
+            CanonicalNameFrequencyReferenceCode,
+            CancellationToken.None);
+
+        if (referenceState == CanonicalNameFrequencyReferenceState.AlreadyActive)
         {
-            Console.WriteLine($"Referência IBGE canônica {CanonicalNameFrequencyReferenceCode} já está materializada; nenhuma recarga necessária.");
+            Console.WriteLine($"Referencia IBGE canonica {CanonicalNameFrequencyReferenceCode} ja esta ATIVA; nenhuma recarga necessaria.");
             return;
         }
 
-        Console.WriteLine($"Referência IBGE canônica {CanonicalNameFrequencyReferenceCode} ausente; materializando snapshot local antes de liberar o ambiente.");
-        Console.WriteLine("A carga canônica contém milhões de linhas e pode levar alguns minutos. O processo imprimirá um heartbeat a cada 15 segundos.");
+        if (referenceState == CanonicalNameFrequencyReferenceState.Reactivated)
+        {
+            Console.WriteLine($"Referencia IBGE canonica {CanonicalNameFrequencyReferenceCode} ja estava materializada e foi reativada sem recarga.");
+            return;
+        }
+
+        Console.WriteLine($"Referencia IBGE canonica {CanonicalNameFrequencyReferenceCode} ausente ou ainda CARREGANDO; materializando snapshot local antes de liberar o ambiente.");
+        Console.WriteLine("A carga canonica contem milhoes de linhas e pode levar alguns minutos. O processo imprimira um heartbeat a cada 15 segundos.");
         var ensureBuilder = Host.CreateApplicationBuilder(args);
         ensureBuilder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
         ensureBuilder.Services.AddHostedService<NameFrequencySnapshotLoader>();
         await RunHostWithHeartbeatAsync(
             ensureBuilder.Build(),
-            "Carga da referência de frequências",
+            "Carga da referencia de frequencias",
             TimeSpan.FromSeconds(15));
 
-        if (Environment.ExitCode != 0 || !await HasPublishedNameFrequencyReferenceAsync(operationalSql, CanonicalNameFrequencyReferenceCode))
-            throw new InvalidOperationException($"Não foi possível materializar a referência IBGE canônica {CanonicalNameFrequencyReferenceCode}.");
+        var finalState = await NameFrequencyReferenceState.EnsureCanonicalActiveAsync(
+            operationalSql,
+            CanonicalNameFrequencyReferenceCode,
+            CancellationToken.None);
 
-        Console.WriteLine($"Referência IBGE canônica {CanonicalNameFrequencyReferenceCode} materializada e pronta para uso.");
+        if (Environment.ExitCode != 0 || finalState == CanonicalNameFrequencyReferenceState.MissingOrLoading)
+            throw new InvalidOperationException($"Nao foi possivel materializar e ativar a referencia IBGE canonica {CanonicalNameFrequencyReferenceCode}.");
+
+        Console.WriteLine($"Referencia IBGE canonica {CanonicalNameFrequencyReferenceCode} materializada e ATIVA.");
         return;
     }
 
@@ -52,18 +68,29 @@ else
     // execuções diretas do calibrador contra um banco criado fora dos entrypoints oficiais.
     if (operation == "GENERATE_DRAFT" && !await HasActiveNameFrequencyReferenceAsync(operationalSql))
     {
-        Console.WriteLine("Referência de frequências ausente; carregando snapshot local canônico antes de GENERATE_DRAFT.");
-        Console.WriteLine("A carga canônica contém milhões de linhas e pode levar alguns minutos. O processo imprimirá um heartbeat a cada 15 segundos.");
-        var bootstrapBuilder = Host.CreateApplicationBuilder(args);
-        bootstrapBuilder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
-        bootstrapBuilder.Services.AddHostedService<NameFrequencySnapshotLoader>();
-        await RunHostWithHeartbeatAsync(
-            bootstrapBuilder.Build(),
-            "Carga da referência de frequências",
-            TimeSpan.FromSeconds(15));
+        var canonicalState = await NameFrequencyReferenceState.EnsureCanonicalActiveAsync(
+            operationalSql,
+            CanonicalNameFrequencyReferenceCode,
+            CancellationToken.None);
+
+        if (canonicalState == CanonicalNameFrequencyReferenceState.Reactivated)
+            Console.WriteLine($"Referencia IBGE canonica {CanonicalNameFrequencyReferenceCode} reativada sem recarga antes de GENERATE_DRAFT.");
+
+        if (canonicalState == CanonicalNameFrequencyReferenceState.MissingOrLoading)
+        {
+            Console.WriteLine("Referencia de frequencias ausente; carregando snapshot local canonico antes de GENERATE_DRAFT.");
+            Console.WriteLine("A carga canonica contem milhoes de linhas e pode levar alguns minutos. O processo imprimira um heartbeat a cada 15 segundos.");
+            var bootstrapBuilder = Host.CreateApplicationBuilder(args);
+            bootstrapBuilder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
+            bootstrapBuilder.Services.AddHostedService<NameFrequencySnapshotLoader>();
+            await RunHostWithHeartbeatAsync(
+                bootstrapBuilder.Build(),
+                "Carga da referencia de frequencias",
+                TimeSpan.FromSeconds(15));
+        }
 
         if (Environment.ExitCode != 0 || !await HasActiveNameFrequencyReferenceAsync(operationalSql))
-            throw new InvalidOperationException("GENERATE_DRAFT exige uma referência de frequências ATIVA; carga do snapshot local não foi concluída.");
+            throw new InvalidOperationException("GENERATE_DRAFT exige uma referencia de frequencias ATIVA; carga/reativacao da referencia canonica nao foi concluida.");
     }
 
     builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
@@ -128,17 +155,3 @@ static async Task<bool> HasActiveNameFrequencyReferenceAsync(IOperationalSqlAdap
     return Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture) == 1;
 }
 
-static async Task<bool> HasPublishedNameFrequencyReferenceAsync(
-    IOperationalSqlAdapter operationalSql,
-    string referenceCode)
-{
-    await using var connection = await operationalSql.OpenAsync(CancellationToken.None);
-    await using var command = connection.CreateCommand();
-    command.CommandText = "SELECT COUNT(*) FROM ref.frequencia_nome_versao WHERE codigo=@codigo AND status<>'CARREGANDO' AND conteudo_sha256 IS NOT NULL;";
-    var parameter = command.CreateParameter();
-    parameter.ParameterName = "@codigo";
-    parameter.Value = referenceCode;
-    command.Parameters.Add(parameter);
-    var value = await command.ExecuteScalarAsync(CancellationToken.None);
-    return Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture) == 1;
-}

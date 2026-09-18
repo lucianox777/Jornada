@@ -201,6 +201,7 @@ Para frentes técnicas com testes direcionados, mantenha também um script dedic
 | Rodar suíte isolada de instalação limpa | `local-test-all.ps1` | Quando a mudança exige provar reset/reconstrução completa ou reproduzir o gate amplo isolado; pode recarregar a referência IBGE |
 | Rodar validação local específica | `local-test.ps1` | Iteração rápida durante desenvolvimento; preserva o banco existente |
 | Conferir referência IBGE sem recarga | `local-check-ibge-reference.ps1` | Antes de testes que reutilizam `ref.frequencia_nome`; compara versão/linhas/hash publicado e imutabilidade sem carregar dados |
+| Reativar referência IBGE já materializada | `local-repair-ibge-reference.ps1` | Somente quando a versão canônica está íntegra, publicada e inativa; altera apenas status/ativado_em, sem recarregar `ref.frequencia_nome` |
 | Testar calibração DF/benchmark IBGE | `local-test-df-calibration.ps1` | Reutiliza e checa a referência IBGE existente por padrão; `-Quick` reduz o conjunto de testes e `-Offline` elimina a dependência do SQL local |
 | Validar upgrade de DDL | `local-ddl-upgrade.ps1` | Toda alteração de schema/migração que precise provar upgrade sem perda de invariantes |
 | Exercitar runtime SQL | `local-sql-runtime-smoke.ps1` | Mudanças em procedures, views, DDL e caminhos SQL que precisam de execução real |
@@ -269,7 +270,15 @@ Gate read-only para a referência IBGE já materializada:
 .\scripts\local-check-ibge-reference.ps1
 ```
 
-Ele **não executa o loader**. Compara o `referenceCode` ativo com os manifestos do repositório, confere o total esperado de linhas, exige SHA-256 publicado e valida os triggers que tornam a versão publicada imutável. Use `-NoStart` se quiser exigir que o container SQL já esteja em execução.
+Ele **não executa o loader**. Compara o `referenceCode` ativo com os manifestos do repositório, confere o total esperado de linhas, exige SHA-256 publicado e valida os triggers que tornam a versão publicada imutável. Se não houver versão `ATIVA`, também diagnostica a versão canônica publicada e informa status/linhas/hash. Use `-NoStart` se quiser exigir que o container SQL já esteja em execução.
+
+Quando a versão canônica estiver completa e publicada, mas apenas `OBSOLETA` ou `VALIDADA`, use o reparo explícito:
+
+```powershell
+.\scripts\local-repair-ibge-reference.ps1
+```
+
+Esse script falha se existir outra versão `ATIVA`, se a contagem divergir do `projection-manifest.json`, se o hash publicado estiver ausente ou se a proteção de imutabilidade não estiver habilitada. Quando passa, altera somente `status` e `ativado_em` em `ref.frequencia_nome_versao`; os milhões de registros de `ref.frequencia_nome` são preservados.
 
 ### `local-test-df-calibration.ps1`
 
