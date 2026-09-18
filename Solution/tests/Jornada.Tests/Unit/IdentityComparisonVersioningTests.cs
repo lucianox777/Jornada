@@ -42,13 +42,18 @@ public sealed class IdentityComparisonVersioningTests
     }
 
     [Test]
-    public void V2_preserves_high_similarity_for_small_change_inside_one_aligned_token()
+    public void V2_does_not_inflate_v1_when_full_name_similarity_is_only_medium()
     {
         const string left = "GABRIEL OLIVEIRA LIMA VALIDACAO UNICA";
         const string right = "GABRIELA OLIVEIRA LIMA VALIDACAO UNICA";
 
-        Assert.That(IdentityComparison.CompareNameV2(left, right),
-            Is.EqualTo(NameComparisonState.HIGH));
+        Assert.Multiple(() =>
+        {
+            Assert.That(IdentityComparison.CompareNameV1(left, right),
+                Is.EqualTo(NameComparisonState.MEDIUM));
+            Assert.That(IdentityComparison.CompareNameV2(left, right),
+                Is.EqualTo(NameComparisonState.MEDIUM));
+        });
     }
 
     [Test]
