@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$EnvFile = Join-Path $Root '.env'
+$DefaultEnvFile = Join-Path $Root '.env'
+$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { $DefaultEnvFile } else { [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE) }
 $Example = Join-Path $Root '.env.example'
 $ApiUrl = if ($env:JORNADA_E2E_API_URL) { $env:JORNADA_E2E_API_URL.TrimEnd('/') } else { 'http://127.0.0.1:5088' }
 $Out = Join-Path $Root '.local/e2e'
@@ -10,7 +11,10 @@ if ($ProcessStartupGraceSeconds -lt 0 -or $ProcessStartupGraceSeconds -gt 60) { 
 foreach ($cmd in @('docker','dotnet','curl.exe','python')) {
     if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) { throw "Comando '$cmd' não encontrado no PATH." }
 }
-if (-not (Test-Path $EnvFile)) { Copy-Item $Example $EnvFile }
+if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile" }
+    Copy-Item $Example $EnvFile
+}
 $vars = @{}
 Get-Content $EnvFile | ForEach-Object {
     $line = $_.Trim()
