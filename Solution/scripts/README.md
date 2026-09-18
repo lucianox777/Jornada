@@ -87,13 +87,13 @@ LOCAL CORE TEST: OK
 
 Valida o caminho de upgrade a partir do baseline suportado e os invariantes de dados/schema. É obrigatório quando houver mudança de banco e continua sendo uma boa prova de regressão antes do fechamento local.
 
-### 7. Rodar E2E
+### 7. Rodar E2E destrutivo, quando necessário
 
 ```powershell
 .\scripts\local-e2e.ps1
 ```
 
-Exercita o caminho HTTP → Bronze → Silver → Gold → Serving → HTTP.
+Exercita o caminho HTTP → Bronze → Silver → Gold → Serving → HTTP, mas atualmente faz `local-db reset`. Por isso não pertence ao fechamento padrão que preserva a referência IBGE; ele é exercitado pelo fluxo `local-test-from-zero.ps1`.
 
 ### 8. Rodar fault injection
 
@@ -151,13 +151,13 @@ Ele preserva um JSON por seed e grava `.local\calibrador-ibge-u\multiseed\summar
 
 `local-ibge-u-bootstrap.ps1` é **read-only** e reproduz separadamente as distribuições Monte Carlo de pessoa e mãe para comparação com o modelo ATIVO; não cria, valida ou ativa modelo. `local-linkage-validation.ps1` usa corpus independente DEV com positivos, impostores e probes de conflito. Nesta fase pré-homologação, não há comparação de regressão com modelo anterior; o harness reprova se produzir falso vínculo resolvido.
 
-### 10. Rodar o smoke de escala
+### 10. Rodar o smoke de escala, quando necessário
 
 ```powershell
 .\scripts\local-scale.ps1 -Profile smoke
 ```
 
-O perfil `smoke` valida o harness de escala com custo menor que `medium` ou `million`. Perfis maiores só devem ser executados quando a alteração ou o critério de aceite exigir evidência adicional de escala.
+O harness de escala também recria a base com massa própria. Portanto é um teste from-zero/destrutivo, não parte do fechamento padrão preservador. O perfil `smoke` valida com custo menor que `medium` ou `million`.
 
 ### 11. Restaurar o banco canônico
 
@@ -167,13 +167,21 @@ O perfil `smoke` valida o harness de escala com custo menor que `medium` ou `mil
 
 O ensaio de escala usa dados próprios. O reset antes do fechamento deixa o ambiente novamente em estado canônico conhecido.
 
-### 12. Fechar com a suíte completa
+### 12. Fechar com a suíte completa preservando a referência IBGE
 
 ```powershell
-.\scripts\local-test-all.ps1 -Suite full -AllowDestructiveReset
+.\scripts\local-test-all.ps1 -Suite full
 ```
 
-A suíte completa é o aceite local final. Ela não substitui a utilidade das etapas anteriores: quando executadas uma a uma, elas mostram com precisão onde surgiu a primeira falha.
+Este é o fechamento local padrão. Ele começa pelo quick check da referência IBGE já materializada e **não executa `reset`, `clean`, E2E ou scale harness destrutivos**. O core, fault injection, calibração/linkage e auditoria read-only rodam reutilizando a referência existente.
+
+Quando o objetivo for deliberadamente provar instalação limpa/reconstrução completa, use o comando separado:
+
+```powershell
+.\scripts\local-test-from-zero.ps1 -Suite full
+```
+
+Esse segundo fluxo recria banco/volumes, executa E2E e scale e rematerializa a referência IBGE antes de concluir.
 
 Considere a validação local concluída somente quando o fechamento terminar com:
 
@@ -183,9 +191,9 @@ LOCAL TEST ALL: OK
 
 ### Regra prática
 
-Durante desenvolvimento, pare no primeiro comando que falhar, corrija a causa e repita a etapa. Antes de considerar uma alteração pronta para PR/merge, percorra a sequência aplicável e finalize com o script dedicado da frente e os gates de CI. Use `local-test-all.ps1 -Suite full` quando a mudança precisar provar instalação limpa/reconstrução completa ou quando esse fechamento for explicitamente requerido.
+Durante desenvolvimento, pare no primeiro comando que falhar, corrija a causa e repita a etapa. Antes de considerar uma alteração pronta para PR/merge, percorra a sequência aplicável e finalize com o script dedicado da frente e os gates de CI. O padrão é `local-test-all.ps1 -Suite full`, que preserva a referência IBGE. Use `local-test-from-zero.ps1 -Suite full` somente quando a mudança precisar provar reconstrução completa.
 
-Para frentes técnicas com testes direcionados, mantenha também um script dedicado em `scripts/` que concentre o comando reproduzível daquela mudança. Quando a referência IBGE já estiver materializada, o padrão é **reutilizá-la e executar um check read-only**, não apagá-la/recarregá-la. `local-test-all.ps1 -Suite full` continua sendo o gate de instalação limpa/isolada quando esse nível de prova for necessário.
+Para frentes técnicas com testes direcionados, mantenha também um script dedicado em `scripts/` que concentre o comando reproduzível daquela mudança. Quando a referência IBGE já estiver materializada, o padrão é **reutilizá-la e executar um check read-only**, não apagá-la/recarregá-la.
 
 ## Atalhos: o que usar no dia a dia
 
@@ -198,8 +206,9 @@ Para frentes técnicas com testes direcionados, mantenha também um script dedic
 | Recriar o cluster | `local-cluster.ps1 -Action reset` | Quando é necessário reconstruir containers/serviços |
 | Apagar completamente o cluster local | `local-cluster.ps1 -Action clean` | Ambiente inconsistente ou necessidade deliberada de começar do zero |
 | Operar somente o banco local | `local-db.ps1` | Desenvolvimento/testes que precisam apenas do SQL Server local |
-| Rodar suíte isolada de instalação limpa | `local-test-all.ps1 -Suite full -AllowDestructiveReset` | Somente quando a mudança exige provar reset/reconstrução completa; sem a flag explícita o script aborta antes de tocar no banco |
-| Testar o guard destrutivo da suíte full | `local-test-test-all-safety.ps1` | Prova que `local-test-all.ps1` sem autorização falha antes de `git fetch`, worktree ou reset do banco |
+| Rodar suíte completa preservando IBGE | `local-test-all.ps1 -Suite full` | Fechamento padrão; reutiliza a referência existente e não executa reset/clean/E2E/scale destrutivos |
+| Provar instalação limpa from-zero | `local-test-from-zero.ps1 -Suite full` | Cenário explicitamente destrutivo; recria banco/volumes e rematerializa a referência IBGE |
+| Testar separação preserve/from-zero | `local-test-test-all-safety.ps1` | Prova que o modo padrão preserva a referência e que `-FromZero` sem autorização aborta antes de qualquer ação destrutiva |
 | Rodar validação local específica | `local-test.ps1` | Iteração rápida durante desenvolvimento; preserva o banco existente |
 | Conferir referência IBGE sem recarga | `local-check-ibge-reference.ps1` | Antes de testes que reutilizam `ref.frequencia_nome`; compara versão/linhas/hash publicado e imutabilidade sem carregar dados |
 | Diagnosticar referência IBGE local | `local-diagnose-ibge-reference.ps1` | Read-only; lista versões, status, SHA e contagem de linhas por versão para investigar bases legadas/incompletas |
