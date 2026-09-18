@@ -13,7 +13,7 @@ public interface IProcessorPipelineLease : IAsyncDisposable
 
 /// <summary>
 /// Fronteira mínima entre o Processor e a coordenação do corpus integrado.
-/// SQL Server/Fabric e PostgreSQL mantêm implementações de locking próprias.
+/// SQL Server mantém a implementação operacional de locking da Jornada candidata v5.00.
 /// </summary>
 public interface IProcessorPipelineCoordinator
 {
