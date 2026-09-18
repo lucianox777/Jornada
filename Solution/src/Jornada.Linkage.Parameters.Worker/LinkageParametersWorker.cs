@@ -323,12 +323,30 @@ public sealed class LinkageParametersWorker(
             }
         }
 
+        var adjustedStates = 0;
+        var maxAbsoluteDeltaLlr = 0m;
+        var blockOrdinal = 0;
         foreach (var block in blocks)
         {
+            blockOrdinal++;
             var ratio = block.M / block.U;
             for (var i = block.Start; i <= block.End; i++)
-                parameters[$"M_{field}_{states[i]}"] = u[i] * ratio;
+            {
+                var unrestrictedRatio = m[i] / u[i];
+                var adjustedM = u[i] * ratio;
+                parameters[$"M_{field}_{states[i]}"] = adjustedM;
+                parameters[$"ORDER_RESTRICTED_BLOCK_{field}_{states[i]}"] = blockOrdinal;
+
+                var deltaLlr = Convert.ToDecimal(Math.Log(Convert.ToDouble(ratio / unrestrictedRatio)));
+                parameters[$"ORDER_RESTRICTED_DELTA_LLR_{field}_{states[i]}"] = deltaLlr;
+                if (adjustedM != m[i])
+                    adjustedStates++;
+                maxAbsoluteDeltaLlr = Math.Max(maxAbsoluteDeltaLlr, Math.Abs(deltaLlr));
+            }
         }
+
+        parameters[$"ORDER_RESTRICTED_ADJUSTED_STATES_{field}"] = adjustedStates;
+        parameters[$"ORDER_RESTRICTED_MAX_ABS_DELTA_LLR_{field}"] = maxAbsoluteDeltaLlr;
     }
 
     private static IReadOnlyDictionary<string, decimal> BuildPersistedParameters(

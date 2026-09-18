@@ -83,6 +83,14 @@ Os parâmetros comuns, como prior e política de thresholds, permanecem explicit
 
 ### 5.2. Referência populacional IBGE para u nominal
 
+### Auditoria da calibração nominal corrente
+
+No contrato corrente pós-#311, o Monte Carlo nominal deixou de ser apenas relatório: `u` de `NOME` e `NOME_MAE` usa a referência IBGE internalizada. O recorte materno usa prenomes `FEMININO`, mas ainda lê `periodo_nascimento='TODOS'`; portanto **não há condicionamento por coorte de nascimento da mãe**. Isso é uma hipótese explícita a medir na #31, não autorização para inferir idade materna ou corrigir pesos sem evidência.
+
+Após #312, `EXACT/HIGH/MEDIUM/LOW` são ajustados por MLE com restrição de ordem quando a combinação de `m` e `u` produz inversão de LLR. A estimativa irrestrita permanece persistida em `UNRESTRICTED_M_<campo>_<estado>`. A instrumentação de auditoria também registra o bloco isotônico, o delta de LLR por estado, a quantidade de estados ajustados e o maior `|delta LLR|` por campo. Pooling grande deve ser tratado como evidência diagnóstica de tensão do estimador, não como prova de qualidade do modelo.
+
+A composição `prenome × sobrenome` continua sob `INDEPENDENT_FIRST_NAME_SURNAME_MARGINALS_V1`. Eventual dependência deve ser estudada por sensibilidade/validação independente; não se introduz fator de correlação arbitrário no modelo canônico. A validação pré-HML deve ainda comparar artefatos congelados por `modelo_id`/fingerprints e repetir seeds para separar variabilidade Monte Carlo de efeito de mudança de modelo. Corpus sintético e adversarial servem para engenharia e falsificação; não constituem homologação populacional.
+
 `IBGE_NOMINAL_U_BOOTSTRAP_V1` produz uma **estimativa de referência**, read-only, para os níveis `U_NOME_*`. Ela não substitui silenciosamente o `u` condicionado ao blocking usado pelo modelo operacional.
 
 O recorte inicial usa somente as marginais nacionais publicadas `BRASIL/TODOS/TODOS` da referência versionada. Para tornar os estados `EXACT/HIGH/MEDIUM/LOW` comparáveis ao comparador nominal da Jornada, o bootstrap compõe sinteticamente `prenome + sobrenome` com sorteios independentes ponderados pelas frequências publicadas. Essa composição é explicitamente marcada por `INDEPENDENT_FIRST_NAME_SURNAME_MARGINALS_V1`: o IBGE não publica uma distribuição conjunta de nomes completos e a Jornada não interpreta essa composição como tal.

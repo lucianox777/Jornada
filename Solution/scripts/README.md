@@ -131,6 +131,12 @@ A mesma sequência, expandida, é:
 
 A calibração nominal usa a referência IBGE internalizada por Monte Carlo: `NOME` combina prenomes nacionais `TODOS` com sobrenomes nacionais; `NOME_MAE` combina prenomes nacionais `FEMININO` com sobrenomes nacionais. A massa `MISSING` da mãe e as evidências de nascimento continuam estimadas no universo condicionado ao blocking.
 
+**Limites que devem aparecer na leitura do resultado:** o recorte corrente de `NOME_MAE` usa `periodo_nascimento='TODOS'`, portanto ainda não condiciona a distribuição feminina por coorte materna; a composição de prenome e sobrenome é a hipótese versionada `INDEPENDENT_FIRST_NAME_SURNAME_MARGINALS_V1`. Não corrija nenhuma das duas hipóteses com fatores arbitrários: trate-as como análise de sensibilidade dentro da #31.
+
+Após a MLE ordenada nominal, audite também `UNRESTRICTED_M_*`, `ORDER_RESTRICTED_BLOCK_*`, `ORDER_RESTRICTED_DELTA_LLR_*`, `ORDER_RESTRICTED_ADJUSTED_STATES_*` e `ORDER_RESTRICTED_MAX_ABS_DELTA_LLR_*`. O gate de monotonicidade não substitui essa leitura: pooling substancial é sinal diagnóstico a investigar.
+
+Para avaliação estatística, uma única seed não basta para atribuir mudança de LLR ao modelo. Repita a calibração com seeds distintos e compare dispersão de `NOME`/`NOME_MAE`. Comparações A/B devem usar artefatos congelados identificados por `modelo_id`, algoritmo, fingerprints, referência e ruleset; não recalibre retrospectivamente um modelo antigo com código novo.
+
 `local-ibge-u-bootstrap.ps1` é **read-only** e reproduz separadamente as distribuições Monte Carlo de pessoa e mãe para comparação com o modelo ATIVO; não cria, valida ou ativa modelo. `local-linkage-validation.ps1` usa corpus independente DEV com positivos, impostores e probes de conflito. Nesta fase pré-homologação, não há comparação de regressão com modelo anterior; o harness reprova se produzir falso vínculo resolvido.
 
 ### 10. Rodar o smoke de escala
