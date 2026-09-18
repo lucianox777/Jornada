@@ -27,15 +27,25 @@ internal static class LinkageModelPolicy
     {
         var missing = LinkageParameterCatalog.CoreScoringRequired.Where(x => !parameters.ContainsKey(x)).ToArray();
         if (missing.Length > 0) throw new InvalidOperationException($"Modelo incompleto. Parâmetros ausentes: {string.Join(", ", missing)}");
-        var decisionV6 = string.Equals(algorithm, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, StringComparison.Ordinal);
-        if (decisionV6)
+        var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(algorithm);
+        if (decisionEvidence)
         {
-            var missingV6 = LinkageParameterCatalog.DecisionEvidenceRequired.Where(x => !parameters.ContainsKey(x)).ToArray();
-            if (missingV6.Length > 0) throw new InvalidOperationException($"Modelo V6 incompleto. Parâmetros de decisão/evidência ausentes: {string.Join(", ", missingV6)}");
+            var missingDecision = LinkageParameterCatalog.DecisionEvidenceRequired.Where(x => !parameters.ContainsKey(x)).ToArray();
+            if (missingDecision.Length > 0) throw new InvalidOperationException($"Modelo de decisão/evidência incompleto. Parâmetros ausentes: {string.Join(", ", missingDecision)}");
             if (parameters[LinkageParameterCatalog.DecisionEvidenceScoring] < 1m)
-                throw new InvalidOperationException($"Modelo V6 incompleto. {LinkageParameterCatalog.DecisionEvidenceScoring} deve estar habilitado.");
+                throw new InvalidOperationException($"Modelo de decisão/evidência incompleto. {LinkageParameterCatalog.DecisionEvidenceScoring} deve estar habilitado.");
         }
-        var margin = decisionV6 ? parameters[LinkageParameterCatalog.LogOddsConflictMargin] : parameters[LinkageParameterCatalog.ConflictMargin];
+
+        if (string.Equals(algorithm, LinkageParameterCatalog.NominalGuardDecisionEvidenceAlgorithmVersion, StringComparison.Ordinal))
+        {
+            var missingV7 = LinkageParameterCatalog.NominalGuardV7Required.Where(x => !parameters.ContainsKey(x)).ToArray();
+            if (missingV7.Length > 0)
+                throw new InvalidOperationException($"Modelo V7 nominal incompleto. Proveniência ausente: {string.Join(", ", missingV7)}");
+            if (parameters[LinkageParameterCatalog.NameComparisonPtBrContentTokenGuardV2] < 1m)
+                throw new InvalidOperationException($"Modelo V7 nominal incompleto. {LinkageParameterCatalog.NameComparisonPtBrContentTokenGuardV2} deve estar habilitado.");
+        }
+
+        var margin = decisionEvidence ? parameters[LinkageParameterCatalog.LogOddsConflictMargin] : parameters[LinkageParameterCatalog.ConflictMargin];
         var model = new LinkageModel(modelId, version, algorithm, parameters, parameters[LinkageParameterCatalog.Threshold], margin);
         _ = SupportsSemanticBirthScoring(model); _ = SupportsJointBirthScoring(model); _ = SupportsSingleBirthScoring(model); _ = SupportsBirthComponentScoring(model);
         return model;
