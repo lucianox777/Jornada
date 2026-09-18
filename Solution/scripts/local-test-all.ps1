@@ -312,7 +312,7 @@ try {
     Write-Host 'Branch: detached worktree de origin/master'
     Write-Host "SHA:    $testedSha"
     Write-Host 'Referencia IBGE do banco compartilhado: PRESERVADA.'
-    Write-Host 'A suite normal nao executa reset/clean do JornadaLocal; E2E usa banco temporario isolado.'
+    Write-Host 'A suite normal nao executa reset/clean do JornadaLocal; E2E usa banco isolado JornadaE2E.'
     Write-Host 'Instalacao limpa/scale destrutivo: use .\scripts\local-test-from-zero.ps1 -AllowDestructiveReset.'
     Write-Host 'Pré-HML: o upgrade de baselines históricos não é executado por padrão. Para diagnóstico manual: .\scripts\local-ddl-upgrade.ps1.'
 
