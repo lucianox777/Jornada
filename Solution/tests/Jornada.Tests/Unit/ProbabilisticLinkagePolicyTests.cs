@@ -139,6 +139,59 @@ public sealed class ProbabilisticLinkagePolicyTests
     }
 
     [Test]
+    public void V6_dual_threshold_guard_marks_conflict_when_both_candidates_clear_threshold()
+    {
+        var parameters = SemanticBirthParameters(includeLegacyFlags: false);
+        parameters[LinkageParameterCatalog.PriorMatchProbability] = .25m;
+        parameters[LinkageParameterCatalog.Threshold] = .30m;
+        parameters[LinkageParameterCatalog.DualThresholdConflictGuard] = 1m;
+        var model = LinkageModelPolicy.Create(ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters);
+        var observation = Observation();
+
+        var decision = ProbabilisticLinkageDecisions.Resolve(model, observation,
+        [
+            new LinkageCandidate(CandidateA, observation.NomeCompleto, Birth, observation.NomeMae),
+            new LinkageCandidate(CandidateB, observation.NomeCompleto, Birth, "Pessoa sem relação")
+        ]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(decision.MelhorScore, Is.GreaterThanOrEqualTo(model.Threshold));
+            Assert.That(decision.SegundoScore, Is.GreaterThanOrEqualTo(model.Threshold));
+            Assert.That(decision.Margem, Is.GreaterThan(model.ConflictMargin),
+                "O caso deve provar que a nova trava atua mesmo quando a margem V6 isoladamente permitiria resolver.");
+            Assert.That(decision.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
+            Assert.That(decision.PessoaUuidResolvido, Is.Null);
+            Assert.That(decision.Motivo, Is.EqualTo("DOIS_CANDIDATOS_ACIMA_T_LINKAGE"));
+        });
+    }
+
+    [Test]
+    public void V6_without_dual_threshold_guard_preserves_replay_of_previous_models()
+    {
+        var parameters = SemanticBirthParameters(includeLegacyFlags: false);
+        parameters[LinkageParameterCatalog.PriorMatchProbability] = .25m;
+        parameters[LinkageParameterCatalog.Threshold] = .30m;
+        parameters.Remove(LinkageParameterCatalog.DualThresholdConflictGuard);
+        var model = LinkageModelPolicy.Create(ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters);
+        var observation = Observation();
+
+        var decision = ProbabilisticLinkageDecisions.Resolve(model, observation,
+        [
+            new LinkageCandidate(CandidateA, observation.NomeCompleto, Birth, observation.NomeMae),
+            new LinkageCandidate(CandidateB, observation.NomeCompleto, Birth, "Pessoa sem relação")
+        ]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(decision.SegundoScore, Is.GreaterThanOrEqualTo(model.Threshold));
+            Assert.That(decision.Margem, Is.GreaterThan(model.ConflictMargin));
+            Assert.That(decision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
+            Assert.That(decision.PessoaUuidResolvido, Is.EqualTo(CandidateA));
+        });
+    }
+
+    [Test]
     public void Decisions_KeepThresholdMarginAndDeterministicOrdering()
     {
         var model = LinkageModelPolicy.Create(ModelId, 1, "FELLEGI_SUNTER_V1", Parameters());

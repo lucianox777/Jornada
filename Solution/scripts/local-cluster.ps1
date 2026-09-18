@@ -150,8 +150,18 @@ function Invoke-Calibration {
     $beforeText = Get-SqlScalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;"
     $before = [int]$beforeText
     Write-Host "Calibração iniciando após modelo v$before."
-    Write-Host 'Referência IBGE canônica é materializada no bootstrap do ambiente; GENERATE_DRAFT só usa o fallback de carga em banco criado fora do fluxo oficial.' -ForegroundColor DarkYellow
-    Invoke-Node2 -Command @('env','LinkageParameters__Operation=GENERATE_DRAFT','LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
+    Write-Host 'Referência IBGE canônica é materializada no bootstrap do ambiente; fallback de carga em banco criado fora do fluxo oficial permanece fail-closed; GENERATE_DRAFT usa Monte Carlo nominal para NOME/NOME_MAE e mantém nascimento condicionado ao blocking.' -ForegroundColor DarkYellow
+    $ibgeMcPairCount = if ($env:JORNADA_LINKAGE_IBGE_MC_PAIR_COUNT) { [int]$env:JORNADA_LINKAGE_IBGE_MC_PAIR_COUNT } else { 1000000 }
+    $ibgeMcSeed = if ($env:JORNADA_LINKAGE_IBGE_MC_SEED) { [int]$env:JORNADA_LINKAGE_IBGE_MC_SEED } else { 20260917 }
+    Write-Host "IBGE Monte Carlo nominal: pares_por_campo=$ibgeMcPairCount seed_pessoa=$ibgeMcSeed seed_mae=$($ibgeMcSeed+1)."
+    Invoke-Node2 -Command @(
+        'env',
+        'LinkageParameters__Operation=GENERATE_DRAFT',
+        'LinkageParameters__RunOnce=true',
+        "LinkageParameters__IbgeNominalU__PairCount=$ibgeMcPairCount",
+        "LinkageParameters__IbgeNominalU__Seed=$ibgeMcSeed",
+        'dotnet',
+        '/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
     $count = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")
     if ($count -ne 1) { throw "Esperado exatamente um novo RASCUNHO; encontrados=$count." }
     $version = [int](Get-SqlScalar "SELECT MAX(versao) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")
@@ -207,8 +217,12 @@ function Show-LinkageDiagnosis {
     Write-Host 'Em empate_log_odds_exato, UUID ordena apenas a representação determinística do empate; não constitui evidência de desempate.'
 
     Write-Host ''
-    Write-Host 'Cobertura empírica da amostra u persistida no modelo:'
-    Invoke-SqlReport "SELECT COUNT(*) AS estados_u_com_suporte,MIN(valor) AS suporte_min,MAX(valor) AS suporte_max,SUM(CASE WHEN valor=0 THEN 1 ELSE 0 END) AS estados_zero,SUM(CASE WHEN valor>0 AND valor<5 THEN 1 ELSE 0 END) AS estados_entre_1_e_4 FROM identidade.parametro_linkage WHERE modelo_id=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId') AND nome LIKE 'SUPPORT_U_%'; SELECT nome,valor AS suporte FROM identidade.parametro_linkage WHERE modelo_id=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId') AND nome LIKE 'SUPPORT_U_%' ORDER BY nome;"
+    Write-Host 'u nominal usado no scoring de nomes (Monte Carlo IBGE):'
+    Invoke-SqlReport "DECLARE @modelo_id uniqueidentifier=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId'); SELECT nome,valor FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND (nome IN('IBGE_MC_NOMINAL_U_ENABLED','IBGE_MC_NOMINAL_U_PAIR_COUNT','IBGE_MC_NOMINAL_U_SEED_PERSON','IBGE_MC_NOMINAL_U_SEED_MOTHER','IBGE_NAME_REFERENCE_ID','IBGE_MC_PERSON_EXACT_ANALYTIC','IBGE_MC_MOTHER_EXACT_ANALYTIC') OR nome LIKE 'U_NOME[_]%' OR nome LIKE 'U_NOME_MAE[_]%' OR nome LIKE 'IBGE_MC_SUPPORT_U_NOME[_]%' OR nome LIKE 'IBGE_MC_SUPPORT_U_NOME_MAE[_]%') ORDER BY nome;"
+
+    Write-Host ''
+    Write-Host 'Suporte condicionado ao blocking preservado para diagnóstico e nascimento:'
+    Invoke-SqlReport "DECLARE @modelo_id uniqueidentifier=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId'); SELECT nome,valor AS suporte FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND (nome LIKE 'BLOCKING_SUPPORT_U_NOME[_]%' OR nome LIKE 'BLOCKING_SUPPORT_U_NOME_MAE[_]%' OR nome LIKE 'SUPPORT_U_NASCIMENTO_SEMANTICO[_]%' OR nome LIKE 'POOL_SUPPORT_U_NASCIMENTO_SEMANTICO[_]%') ORDER BY nome;"
 
     Write-Host ''
     Write-Host 'Composição atual do corpus Gold (explica SCALE versus seed/outros):'

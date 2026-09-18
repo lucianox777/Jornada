@@ -129,6 +129,18 @@ internal static class ProbabilisticLinkageDecisions
 
         if (best.Score < model.Threshold)
             return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId, "ABAIXO_T_LINKAGE");
+
+        var dualThresholdGuard = model.Parameters.TryGetValue(
+            LinkageParameterCatalog.DualThresholdConflictGuard,
+            out var dualThresholdFlag) && dualThresholdFlag >= 1m;
+        if (dualThresholdGuard && second is not null && second.Score >= model.Threshold)
+            return new ProbabilisticLinkageDecision(
+                ResolutionStatus.CONFLITO, null,
+                best.PessoaUuid, best.Score,
+                second.PessoaUuid, second.Score,
+                margin, model.ModelId,
+                "DOIS_CANDIDATOS_ACIMA_T_LINKAGE");
+
         if (second is not null && margin!.Value < model.ConflictMargin)
             return new ProbabilisticLinkageDecision(ResolutionStatus.CONFLITO, null, best.PessoaUuid, best.Score, second.PessoaUuid, second.Score, margin, model.ModelId, "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE");
         return new ProbabilisticLinkageDecision(ResolutionStatus.RESOLVIDO, best.PessoaUuid, best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId);

@@ -209,6 +209,74 @@ FROM truth;
 "@
 $pos = $positiveMetricLine.Split('|')
 
+$positiveScenarioLines = @(Get-SqlLines @"
+WITH truth AS (
+    SELECT
+        CASE
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-EXACT-%' THEN N'EXACT'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-NAME_ABBREV-%' THEN N'NAME_ABBREV'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-MOTHER_ABBREV-%' THEN N'MOTHER_ABBREV'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-BIRTH_SHIFT-%' THEN N'BIRTH_SHIFT'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-COMBINED-%' THEN N'COMBINED'
+            ELSE N'UNKNOWN'
+        END AS scenario,
+        r.*,
+        vc.pessoa_uuid AS truth_uuid
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    JOIN silver.pessoa_observacao tpo
+      ON tpo.codigo_pessoa_origem=CONCAT(N'SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(varchar(10),TRY_CONVERT(int,RIGHT(po.codigo_pessoa_origem,6))),10))
+    JOIN identidade.v_vinculo_corrente vc
+      ON vc.pessoa_observacao_id=tpo.pessoa_observacao_id
+     AND vc.status=N'RESOLVIDO'
+     AND vc.pessoa_uuid IS NOT NULL
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-%'
+)
+SELECT CONCAT(
+    scenario,'|',
+    COUNT_BIG(*),'|',
+    SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido<>truth_uuid THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN status='NAO_RESOLVIDO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN segundo_candidato_uuid=truth_uuid THEN 1 ELSE 0 END),'|',
+    COALESCE(CONVERT(varchar(40),MIN(score_melhor)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MAX(score_melhor)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MIN(score_segundo)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MAX(score_segundo)),'NULL'))
+FROM truth
+GROUP BY scenario
+ORDER BY CASE scenario
+    WHEN N'EXACT' THEN 1
+    WHEN N'NAME_ABBREV' THEN 2
+    WHEN N'MOTHER_ABBREV' THEN 3
+    WHEN N'BIRTH_SHIFT' THEN 4
+    WHEN N'COMBINED' THEN 5
+    ELSE 6 END;
+"@)
+
+$positiveScenarioBreakdown = @(
+    foreach ($line in $positiveScenarioLines) {
+        $parts = $line.Split('|')
+        [ordered]@{
+            scenario = $parts[0]
+            total = [int]$parts[1]
+            resolvedCorrect = [int]$parts[2]
+            resolvedWrong = [int]$parts[3]
+            conflicts = [int]$parts[4]
+            unresolved = [int]$parts[5]
+            truthTop1 = [int]$parts[6]
+            truthTop2 = [int]$parts[7]
+            minBestScore = (Parse-Decimal $parts[8])
+            maxBestScore = (Parse-Decimal $parts[9])
+            minSecondScore = (Parse-Decimal $parts[10])
+            maxSecondScore = (Parse-Decimal $parts[11])
+        }
+    }
+)
+
 $negativeMetricLine = Get-SqlScalar @"
 SELECT CONCAT(
     COUNT_BIG(*),'|',
@@ -224,8 +292,154 @@ WHERE r.linkage_run_id='$runId'
 "@
 $neg = $negativeMetricLine.Split('|')
 
+$negativeScenarioLines = @(Get-SqlLines @"
+WITH n AS (
+    SELECT
+        CASE
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-EASY-%' THEN N'EASY'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-NAME_COLLISION-%' THEN N'NAME_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-MOTHER_COLLISION-%' THEN N'MOTHER_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%' THEN N'HARD_HOMONYM'
+            ELSE N'UNKNOWN'
+        END AS scenario,
+        r.*
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-%'
+)
+SELECT CONCAT(
+    scenario,'|',
+    COUNT_BIG(*),'|',
+    SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN status='NAO_RESOLVIDO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN melhor_candidato_uuid IS NOT NULL THEN 1 ELSE 0 END),'|',
+    COALESCE(CONVERT(varchar(40),MIN(score_melhor)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MAX(score_melhor)),'NULL'))
+FROM n
+GROUP BY scenario
+ORDER BY CASE scenario
+    WHEN N'EASY' THEN 1
+    WHEN N'NAME_COLLISION' THEN 2
+    WHEN N'MOTHER_COLLISION' THEN 3
+    WHEN N'HARD_HOMONYM' THEN 4
+    ELSE 5 END;
+"@)
+
+$negativeScenarioBreakdown = @(
+    foreach ($line in $negativeScenarioLines) {
+        $parts = $line.Split('|')
+        [ordered]@{
+            scenario = $parts[0]
+            total = [int]$parts[1]
+            resolvedFalseMatches = [int]$parts[2]
+            conflicts = [int]$parts[3]
+            unresolved = [int]$parts[4]
+            candidateExposure = [int]$parts[5]
+            minBestScore = (Parse-Decimal $parts[6])
+            maxBestScore = (Parse-Decimal $parts[7])
+        }
+    }
+)
+
+$negativeFalseMatchLines = @(Get-SqlLines @"
+SELECT CONCAT(
+    CASE
+        WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-EASY-%' THEN N'EASY'
+        WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-NAME_COLLISION-%' THEN N'NAME_COLLISION'
+        WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-MOTHER_COLLISION-%' THEN N'MOTHER_COLLISION'
+        WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%' THEN N'HARD_HOMONYM'
+        ELSE N'UNKNOWN'
+    END,'|',
+    po.codigo_pessoa_origem,'|',
+    CONVERT(varchar(40),r.score_melhor),'|',
+    COALESCE(CONVERT(varchar(40),r.score_segundo),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),r.margem),'NULL'),'|',
+    COALESCE(CONVERT(varchar(36),r.melhor_candidato_uuid),'NULL'),'|',
+    COALESCE(CONVERT(varchar(36),r.segundo_candidato_uuid),'NULL'),'|',
+    REPLACE(po.nome_completo,'|',' '),'|',
+    REPLACE(COALESCE(po.nome_mae,N''),'|',' '),'|',
+    CONVERT(varchar(10),po.data_nascimento,23),'|',
+    REPLACE(g.nome_completo,'|',' '),'|',
+    REPLACE(COALESCE(g.nome_mae,N''),'|',' '),'|',
+    CONVERT(varchar(10),g.data_nascimento,23))
+FROM identidade.linkage_resultado r
+JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+JOIN gold.pessoa g ON g.pessoa_uuid=r.melhor_candidato_uuid
+WHERE r.linkage_run_id='$runId'
+  AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-%'
+  AND r.status='RESOLVIDO'
+ORDER BY po.codigo_pessoa_origem;
+"@)
+
+$negativeFalseMatchDetails = @(
+    foreach ($line in $negativeFalseMatchLines) {
+        $parts = $line.Split('|')
+        [ordered]@{
+            scenario = $parts[0]
+            sourceCode = $parts[1]
+            bestScore = (Parse-Decimal $parts[2])
+            secondScore = (Parse-Decimal $parts[3])
+            margin = (Parse-Decimal $parts[4])
+            bestCandidateUuid = $parts[5]
+            secondCandidateUuid = $parts[6]
+            observationName = $parts[7]
+            observationMotherName = $parts[8]
+            observationBirthDate = $parts[9]
+            bestCandidateName = $parts[10]
+            bestCandidateMotherName = $parts[11]
+            bestCandidateBirthDate = $parts[12]
+        }
+    }
+)
+
 $thresholdText = Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='T_LINKAGE';"
 $threshold = Parse-Decimal $thresholdText
+
+$priorProbability = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='PRIOR_MATCH_PROBABILITY';")
+if ($null -eq $priorProbability) { throw 'PRIOR_MATCH_PROBABILITY ausente no modelo ativo.' }
+$priorLogOddsDouble = [Math]::Log([double]$priorProbability / (1.0 - [double]$priorProbability))
+
+$scenarioDefinitions = @(
+    [ordered]@{ scenario='EASY'; nameState='LOW'; motherState='LOW'; birthState='EXACT' },
+    [ordered]@{ scenario='NAME_COLLISION'; nameState='EXACT'; motherState='LOW'; birthState='EXACT' },
+    [ordered]@{ scenario='MOTHER_COLLISION'; nameState='LOW'; motherState='EXACT'; birthState='EXACT' },
+    [ordered]@{ scenario='HARD_HOMONYM'; nameState='EXACT'; motherState='EXACT'; birthState='EXACT' }
+)
+
+$negativeScenarioEvidence = @(
+    foreach ($definition in $scenarioDefinitions) {
+        $nameM = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='M_NOME_$($definition.nameState)';")
+        $nameU = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='U_NOME_$($definition.nameState)';")
+        $motherM = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='M_NOME_MAE_$($definition.motherState)';")
+        $motherU = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='U_NOME_MAE_$($definition.motherState)';")
+        $birthM = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='M_NASCIMENTO_SEMANTICO_$($definition.birthState)';")
+        $birthU = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='U_NASCIMENTO_SEMANTICO_$($definition.birthState)';")
+
+        if ($null -in @($nameM,$nameU,$motherM,$motherU,$birthM,$birthU)) {
+            throw "Parâmetro probabilístico ausente ao montar perfil do cenário $($definition.scenario)."
+        }
+
+        $nameLlrDouble = [Math]::Log([double]$nameM / [double]$nameU)
+        $motherLlrDouble = [Math]::Log([double]$motherM / [double]$motherU)
+        $birthLlrDouble = [Math]::Log([double]$birthM / [double]$birthU)
+        $logOddsDouble = $priorLogOddsDouble + $nameLlrDouble + $motherLlrDouble + $birthLlrDouble
+        $posteriorDouble = 1.0 / (1.0 + [Math]::Exp(-[Math]::Max(-40.0,[Math]::Min(40.0,$logOddsDouble))))
+
+        [ordered]@{
+            scenario = $definition.scenario
+            nameState = $definition.nameState
+            motherState = $definition.motherState
+            birthState = $definition.birthState
+            priorLogOdds = [decimal]::Round([decimal]$priorLogOddsDouble,8)
+            nameLlr = [decimal]::Round([decimal]$nameLlrDouble,8)
+            motherLlr = [decimal]::Round([decimal]$motherLlrDouble,8)
+            birthLlr = [decimal]::Round([decimal]$birthLlrDouble,8)
+            theoreticalPosterior = [decimal]::Round([decimal]$posteriorDouble,8)
+        }
+    }
+)
 
 $conflictMetricLine = Get-SqlScalar @"
 SELECT CONCAT(
@@ -320,6 +534,8 @@ $conflictResolved = [int]$conf[4]
 $positiveSensitivity = if ($positiveTotal -eq 0) { [decimal]0 } else { [decimal]$positiveCorrect / [decimal]$positiveTotal }
 $negativeSpecificity = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeRejected / [decimal]$negativeTotal }
 $negativeFalseMatchRate = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeResolved / [decimal]$negativeTotal }
+$resolvedDecisionTotal = $positiveCorrect + $positiveWrong + $negativeResolved
+$syntheticResolvedPpv = if ($resolvedDecisionTotal -eq 0) { [decimal]0 } else { [decimal]$positiveCorrect / [decimal]$resolvedDecisionTotal }
 
 $report = [ordered]@{
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
@@ -327,8 +543,9 @@ $report = [ordered]@{
     safeguards = @(
         'validation rows are injected only after an active calibrated model exists',
         'fixture prefix is bound to the active model id fragment',
-        'positive and negative quality metrics do not gate promotion or alter thresholds',
-        'blocking recall and conflict-rule coverage are measured separately from decision quality')
+        'quality metrics gate only this DEV validation script; they do not promote models or alter thresholds',
+        'blocking recall and conflict-rule coverage are measured separately from decision quality',
+        'no regression comparison with prior models is required in this pre-homologation phase')
     model = [ordered]@{
         modelId = $activeModelId
         modelVersion = $modelVersion
@@ -345,6 +562,7 @@ $report = [ordered]@{
         truthTop1 = $positiveTruthTop1
         truthTop2 = $positiveTruthTop2
         syntheticSensitivity = [decimal]::Round($positiveSensitivity,6)
+        scenarios = $positiveScenarioBreakdown
     }
     negative = [ordered]@{
         total = $negativeTotal
@@ -355,6 +573,15 @@ $report = [ordered]@{
         noCandidate = $negativeNoCandidate
         syntheticSpecificity = [decimal]::Round($negativeSpecificity,6)
         syntheticFalseMatchRate = [decimal]::Round($negativeFalseMatchRate,6)
+        scenarios = $negativeScenarioBreakdown
+        scenarioEvidenceProfiles = $negativeScenarioEvidence
+        falseMatchDetails = $negativeFalseMatchDetails
+    }
+    combinedDecisionQuality = [ordered]@{
+        resolvedDecisions = $resolvedDecisionTotal
+        correctResolved = $positiveCorrect
+        falseResolved = ($positiveWrong + $negativeResolved)
+        syntheticResolvedPpv = [decimal]::Round($syntheticResolvedPpv,6)
     }
     conflictProbe = [ordered]@{
         total = $conflictTotal
@@ -373,7 +600,7 @@ $report = [ordered]@{
     }
     interpretation = [ordered]@{
         scope = 'Evidência sintética DEV; não é estimativa de acurácia municipal nem homologação.'
-        negatives = 'Impostores incluem colisões simples e HARD_HOMONYM. Falso vínculo é medido, não escondido nem convertido em gate arbitrário.'
+        negatives = 'Impostores incluem colisões simples e HARD_HOMONYM. Nesta fase DEV, qualquer falso vínculo resolvido reprova o quality gate do harness.'
         frontier = 'A malha teórica mostra se os estados discretos do modelo conseguem sequer ocupar a vizinhança do threshold atual.'
     }
 }
@@ -386,7 +613,26 @@ Write-Host "Modelo: v$modelVersion / $activeModelId / $algorithmVersion"
 Write-Host "Run: $runId"
 Write-Host "Blocking positivo: truthInsideUnion=$($blockingAudit.summary.truthInsideUnion)/$($blockingAudit.summary.sampleSize) recall=$($blockingAudit.summary.unionRecallPct)%"
 Write-Host "Positivos: corretos=$positiveCorrect/$positiveTotal errados=$positiveWrong não_resolvidos_ou_conflitos=$positiveUnresolved sensibilidade_sintética=$([decimal]::Round(($positiveSensitivity * [decimal]100),2))%"
+Write-Host 'Positivos por cenário:'
+foreach ($scenario in $positiveScenarioBreakdown) {
+    Write-Host ("  {0}: total={1} corretos={2} errados={3} conflitos={4} não_resolvidos={5} truth_top1={6} truth_top2={7} best=[{8},{9}] second=[{10},{11}]" -f $scenario.scenario,$scenario.total,$scenario.resolvedCorrect,$scenario.resolvedWrong,$scenario.conflicts,$scenario.unresolved,$scenario.truthTop1,$scenario.truthTop2,$scenario.minBestScore,$scenario.maxBestScore,$scenario.minSecondScore,$scenario.maxSecondScore)
+}
 Write-Host "Negativos: falsos_vínculos=$negativeResolved/$negativeTotal rejeitados_ou_conflitos=$negativeRejected candidatos_expostos=$negativeCandidateExposure especificidade_sintética=$([decimal]::Round(($negativeSpecificity * [decimal]100),2))%"
+Write-Host 'Negativos por cenário:'
+foreach ($scenario in $negativeScenarioBreakdown) {
+    Write-Host ("  {0}: total={1} falsos_vínculos={2} conflitos={3} não_resolvidos={4} expostos={5} score=[{6},{7}]" -f $scenario.scenario,$scenario.total,$scenario.resolvedFalseMatches,$scenario.conflicts,$scenario.unresolved,$scenario.candidateExposure,$scenario.minBestScore,$scenario.maxBestScore)
+}
+Write-Host 'Perfil teórico de evidência dos negativos:'
+foreach ($profile in $negativeScenarioEvidence) {
+    Write-Host ("  {0}: {1}/{2}/{3} prior={4} nome_llr={5} mãe_llr={6} nasc_llr={7} posterior={8}" -f $profile.scenario,$profile.nameState,$profile.motherState,$profile.birthState,$profile.priorLogOdds,$profile.nameLlr,$profile.motherLlr,$profile.birthLlr,$profile.theoreticalPosterior)
+}
+if ($negativeFalseMatchDetails.Count -gt 0) {
+    Write-Host 'Falsos vínculos resolvidos:'
+    foreach ($item in $negativeFalseMatchDetails) {
+        Write-Host ("  {0} | {1} | score={2} segundo={3} margem={4} best={5}" -f $item.scenario,$item.sourceCode,$item.bestScore,$item.secondScore,$item.margin,$item.bestCandidateUuid)
+    }
+}
+Write-Host "Decisões resolvidas combinadas: corretas=$positiveCorrect falsas=$($positiveWrong+$negativeResolved) PPV_sintético=$([decimal]::Round(($syntheticResolvedPpv * [decimal]100),2))%"
 Write-Host "Conflito forçado: conflito=$conflictStatus/$conflictTotal margem_zero=$conflictMarginZero acima_threshold=$conflictAboveThreshold resolvidos_indevidos=$conflictResolved"
 Write-Host "Fronteira T=$threshold`: casos reais ±0,02=$($frontier[0]); max_abaixo=$($frontier[1]); min_acima=$($frontier[2])"
 Write-Host 'Estados teóricos mais próximos do threshold:'
@@ -406,3 +652,12 @@ if ($conflictTotal -ne 10 -or $conflictStatus -ne 10 -or $conflictMarginZero -ne
 }
 
 Write-Host 'LINKAGE INDEPENDENT VALIDATION STRUCTURAL GATES: OK' -ForegroundColor Green
+
+if ($positiveWrong -ne 0) {
+    throw "DEV QUALITY GATE reprovado: houve $positiveWrong resolução(ões) positiva(s) para UUID incorreto."
+}
+if ($negativeResolved -ne 0) {
+    throw "DEV QUALITY GATE reprovado: houve $negativeResolved falso(s) vínculo(s) resolvido(s) em $negativeTotal negativos independentes."
+}
+
+Write-Host 'LINKAGE INDEPENDENT VALIDATION DEV QUALITY GATES: OK' -ForegroundColor Green
