@@ -1,6 +1,6 @@
 ﻿param(
     [ValidateRange(10000, 5000000)]
-    [int]$PairCount = 250000,
+    [int]$PairCount = 1000000,
 
     [int]$Seed = 20260917
 )
@@ -76,36 +76,56 @@ Assert-ExitCode 'docker compose cp relatório IBGE u'
 $report = Get-Content -Raw -Encoding UTF8 $ReportPath | ConvertFrom-Json
 
 Write-Host ''
-Write-Host '=== BOOTSTRAP POPULACIONAL IBGE DE u NOMINAL ==='
+Write-Host '=== MONTE CARLO IBGE DE u NOMINAL ==='
 Write-Host "Referência: $($report.reference.code) / SHA=$($report.reference.contentSha256)"
+Write-Host "Pessoa: prenome=$($report.methodology.personFirstNameSex); sobrenome=$($report.methodology.surnameSex)"
+Write-Host "Mãe:    prenome=$($report.methodology.motherFirstNameSex); sobrenome=$($report.methodology.surnameSex)"
 Write-Host "Método: $($report.methodology.methodVersion)"
 Write-Host "Construção: $($report.methodology.jointConstructionVersion)"
 Write-Host "Canal de observação: $($report.methodology.observationChannelVersion)"
-Write-Host "Seed=$($report.sampling.seed); pares=$($report.sampling.pairCount)"
-Write-Host "P(EXACT) analítico sintético=$($report.analytic.exactSyntheticFullNameProbability)"
+Write-Host ''
 
+Write-Host '--- NOME DA PESSOA ---'
+Write-Host "Seed=$($report.personName.sampling.seed); pares=$($report.personName.sampling.pairCount)"
+Write-Host "P(EXACT) analítico sintético=$($report.personName.analytic.exactSyntheticFullNameProbability)"
 foreach ($stateName in @('EXACT','HIGH','MEDIUM','LOW')) {
-    $state = $report.states.$stateName
+    $state = $report.personName.states.$stateName
     if ($null -eq $state) { continue }
-
     $activeText = if ($null -eq $state.activeModelProbability) {
         'modelo_ativo=n/a'
     }
     else {
-        "modelo_ativo=$($state.activeModelProbability); delta=$($state.deltaBootstrapMinusActive)"
+        "modelo_ativo=$($state.activeModelProbability); suporte_modelo_mc=$($state.activeModelMonteCarloSupport)"
     }
+    Write-Host "$($stateName): mc=$($state.monteCarloProbability); suporte=$($state.monteCarloSupport); se=$($state.monteCarloStandardError); $activeText"
+}
 
-    Write-Host "$($stateName): ibge=$($state.ibgeBootstrapProbability); suporte=$($state.ibgeBootstrapSupport); se=$($state.ibgeBootstrapStandardError); $activeText"
+Write-Host ''
+Write-Host '--- NOME DA MÃE ---'
+Write-Host "Seed=$($report.motherName.sampling.seed); pares=$($report.motherName.sampling.pairCount); massa_presente_modelo=$($report.motherName.activeModelPresentMass)"
+Write-Host "P(EXACT) analítico sintético condicional à presença=$($report.motherName.analytic.exactSyntheticFullNameProbability)"
+foreach ($stateName in @('EXACT','HIGH','MEDIUM','LOW')) {
+    $state = $report.motherName.states.$stateName
+    if ($null -eq $state) { continue }
+    $activeText = if ($null -eq $state.activeModelProbabilityGivenPresent) {
+        'modelo_ativo_cond_presenca=n/a'
+    }
+    else {
+        "modelo_ativo_cond_presenca=$($state.activeModelProbabilityGivenPresent); conjunto=$($state.activeModelJointProbability); suporte_modelo_mc=$($state.activeModelMonteCarloSupport)"
+    }
+    Write-Host "$($stateName): mc_cond_presenca=$($state.monteCarloProbabilityGivenPresent); suporte=$($state.monteCarloSupport); se=$($state.monteCarloStandardError); $activeText"
 }
 
 if ($null -eq $report.activeModel) {
     Write-Host 'Nenhum modelo calibrado ATIVO: relatório IBGE foi produzido sem comparação operacional.' -ForegroundColor DarkYellow
 }
 else {
-    Write-Host "Comparação: modelo ATIVO v$($report.activeModel.version) / $($report.activeModel.modelId) / amostra=$($report.activeModel.sampleMethod)"
+    Write-Host ''
+    Write-Host "Modelo ATIVO: v$($report.activeModel.version) / $($report.activeModel.modelId) / amostra=$($report.activeModel.sampleMethod)"
 }
 
 Write-Host ''
-Write-Host 'Este relatório é read-only e NÃO ativa nem altera o modelo.' -ForegroundColor Yellow
+Write-Host 'Este relatório é read-only. Não cria, valida, ativa ou altera modelo.' -ForegroundColor Yellow
+Write-Host 'Datas de nascimento permanecem fora deste Monte Carlo nominal.' -ForegroundColor Yellow
 Write-Host "Relatório: $ReportPath"
-Write-Host 'IBGE NOMINAL U BOOTSTRAP REPORT: OK' -ForegroundColor Green
+Write-Host 'IBGE NOMINAL U MONTE CARLO REPORT: OK' -ForegroundColor Green
