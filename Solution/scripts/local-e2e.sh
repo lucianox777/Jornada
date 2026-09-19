@@ -155,7 +155,11 @@ post_delivery 'local-e2e-002' "$OUT/post2.json" "$OUT/post2.code"
 id2="$(json_get "$OUT/post2.json" entregaId)"; [[ "$id2" != "$id1" ]] || exit 8
 wait_processed "$id2" "$OUT/status2.json"
 retrans="$(scalar "SELECT COUNT(*) FROM ingestao.item_processado ip JOIN ingestao.lote l ON l.lote_id=ip.lote_id WHERE l.entrega_id='$id2' AND ip.resultado='RETRANSMITIDO';")"
-[[ "$retrans" -ge 2 ]] || { echo "ERRO: retransmissão não foi reconhecida; itens=$retrans" >&2; exit 8; }
+fact_retrans="$(scalar "SELECT COUNT(*) FROM ingestao.item_processado ip JOIN ingestao.lote l ON l.lote_id=ip.lote_id WHERE l.entrega_id='$id2' AND ip.classe_item='REGISTRO' AND ip.codigo_origem='E2E-AA01-2026-000001' AND ip.resultado='RETRANSMITIDO';")"
+[[ "$fact_retrans" == 1 ]] || { echo "ERRO: fato com chave persistente não foi reconhecido como retransmissão; fatos=$fact_retrans" >&2; exit 8; }
+# A Pessoa do fixture não possui codigoPessoaOrigem. idPessoaEntrega é local à remessa,
+# portanto a segunda Entrega recebe nova observação da Pessoa, ancorada ao mesmo CPF,
+# e não é falsamente tratada como a mesma origem persistente.
 [[ "$(scalar "SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem='E2E-AA01-2026-000001' AND status_analitico='VIGENTE';")" == 1 ]] || { echo 'ERRO: retransmissão duplicou a versão Gold vigente.' >&2; exit 8; }
 
 python3 - "$OUT/evidence.json" "$id1" "$id2" "$pessoa_uuid" "$retrans" <<'PY'
