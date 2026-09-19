@@ -1276,6 +1276,7 @@ IF OBJECT_ID('identidade.vinculo_fonte','U') IS NULL CREATE TABLE identidade.vin
  CONSTRAINT ck_vinculo_metodo CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA')),
  CONSTRAINT ck_vinculo_modelo CHECK(
     (metodo_resolucao='CPF_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
+    (metodo_resolucao='UUID_JORNADA_RETROALIMENTACAO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='PENDENTE_PROBABILISTICO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL) OR
     (metodo_resolucao='LINKAGE_PROBABILISTICO' AND score IS NOT NULL AND modelo_id IS NOT NULL) OR
     (metodo_resolucao='CORRECAO_GOVERNADA' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NOT NULL)));
@@ -1305,13 +1306,14 @@ GO
 -- v3.93: este bloco de compatibilidade pode ser reaplicado sobre banco já evoluído até v3.44+.
 -- Não pode rebaixar temporariamente o domínio e rejeitar linhas CONFLITO_GOVERNADO já válidas.
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_metodo
- CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
+ CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
 GO
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID('identidade.vinculo_fonte') AND name='ck_vinculo_modelo')
  ALTER TABLE identidade.vinculo_fonte DROP CONSTRAINT ck_vinculo_modelo;
 GO
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_modelo CHECK(
     (metodo_resolucao='CPF_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
+    (metodo_resolucao='UUID_JORNADA_RETROALIMENTACAO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='PENDENTE_PROBABILISTICO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL) OR
     (metodo_resolucao='LINKAGE_PROBABILISTICO' AND score IS NOT NULL AND modelo_id IS NOT NULL) OR
     (metodo_resolucao='CORRECAO_GOVERNADA' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NOT NULL) OR
@@ -2514,9 +2516,10 @@ IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID('
 IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID('identidade.vinculo_fonte') AND name='ck_vinculo_modelo')
  ALTER TABLE identidade.vinculo_fonte DROP CONSTRAINT ck_vinculo_modelo;
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_metodo
- CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
+ CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_modelo CHECK(
     (metodo_resolucao='CPF_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
+    (metodo_resolucao='UUID_JORNADA_RETROALIMENTACAO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='PENDENTE_PROBABILISTICO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL) OR
     (metodo_resolucao='LINKAGE_PROBABILISTICO' AND score IS NOT NULL AND modelo_id IS NOT NULL) OR
     (metodo_resolucao='CORRECAO_GOVERNADA' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NOT NULL) OR
@@ -2533,14 +2536,14 @@ WITH probabilistico_publicado AS (
 base_ativa AS (SELECT vf.* FROM identidade.vinculo_fonte vf WHERE vf.ativo=1)
 SELECT b.vinculo_id,b.pessoa_observacao_id,b.pessoa_uuid,b.metodo_resolucao,b.score,b.status,b.motivo,b.modelo_id,b.linkage_run_id,b.resolvido_em
 FROM base_ativa b
-WHERE b.metodo_resolucao IN('CPF_DETERMINISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO')
+WHERE b.metodo_resolucao IN('CPF_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO')
    OR NOT EXISTS (SELECT 1 FROM prob_corrente p WHERE p.pessoa_observacao_id=b.pessoa_observacao_id)
 UNION ALL
 SELECT CAST(NULL AS BIGINT),p.pessoa_observacao_id,p.pessoa_uuid_resolvido,'LINKAGE_PROBABILISTICO',p.score_melhor,p.status,p.motivo,p.modelo_id,p.linkage_run_id,p.calculado_em
 FROM prob_corrente p
 WHERE NOT EXISTS (
     SELECT 1 FROM base_ativa b WHERE b.pessoa_observacao_id=p.pessoa_observacao_id
-      AND b.metodo_resolucao IN('CPF_DETERMINISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
+      AND b.metodo_resolucao IN('CPF_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
 GO
 
 -- v3.45: sujeito declarado do fato. O código de origem é opaco; formato semelhante a CPF nunca é inferido como CPF.
