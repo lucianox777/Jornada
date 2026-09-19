@@ -69,6 +69,8 @@ DECLARE @gSehab BIGINT=(SELECT gestor_id FROM ref.gestor WHERE codigo=N'SEHAB');
 DECLARE @gSmdet BIGINT=(SELECT gestor_id FROM ref.gestor WHERE codigo=N'SMDET');
 DECLARE @soSehab BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSehab AND codigo=N'SEHAB');
 DECLARE @soSmdet BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSmdet AND codigo=N'TRABALHO');
+DECLARE @bpSehab BIGINT=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@soSehab AND padrao=1 AND ativo=1);
+DECLARE @bpSmdet BIGINT=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@soSmdet AND padrao=1 AND ativo=1);
 DECLARE @lotSehab UNIQUEIDENTIFIER=(
     SELECT TOP(1) po.lote_id
     FROM silver.pessoa_observacao po
@@ -80,8 +82,9 @@ DECLARE @lotSmdet UNIQUEIDENTIFIER=(
     WHERE po.codigo_pessoa_origem LIKE N'SCALE-PEND-%'
     ORDER BY po.pessoa_observacao_id);
 
-IF @gSehab IS NULL OR @gSmdet IS NULL OR @soSehab IS NULL OR @soSmdet IS NULL OR @lotSehab IS NULL OR @lotSmdet IS NULL
-    THROW 51612, 'Corpus SCALE base deve existir antes da validação independente.', 1;
+IF @gSehab IS NULL OR @gSmdet IS NULL OR @soSehab IS NULL OR @soSmdet IS NULL
+   OR @bpSehab IS NULL OR @bpSmdet IS NULL OR @lotSehab IS NULL OR @lotSmdet IS NULL
+    THROW 51612, 'Corpus SCALE v4 com Bases de Pessoa deve existir antes da validação independente.', 1;
 
 CREATE TABLE #n(n INT NOT NULL PRIMARY KEY);
 ;WITH d(n) AS (
@@ -216,16 +219,16 @@ WHERE n.n<=10;
 BEGIN TRY
     BEGIN TRAN;
 
-    INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,ultima_recepcao_em,ultima_referencia_recebida)
-    SELECT @soSmdet,codigo,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #positive
+    INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id,ultima_recepcao_em,ultima_referencia_recebida)
+    SELECT @soSmdet,codigo,@bpSmdet,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #positive
     UNION ALL
-    SELECT @soSmdet,codigo,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #negative
+    SELECT @soSmdet,codigo,@bpSmdet,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #negative
     UNION ALL
-    SELECT @soSmdet,pending_codigo,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #conflict
+    SELECT @soSmdet,pending_codigo,@bpSmdet,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #conflict
     UNION ALL
-    SELECT @soSehab,candidate_a_codigo,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #conflict
+    SELECT @soSehab,candidate_a_codigo,@bpSehab,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #conflict
     UNION ALL
-    SELECT @soSehab,candidate_b_codigo,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #conflict;
+    SELECT @soSehab,candidate_b_codigo,@bpSehab,'2026-09-17T12:00:00+00:00','2026-09-17T12:00:00+00:00' FROM #conflict;
 
     INSERT identidade.pessoa(pessoa_uuid,status,criado_em)
     SELECT candidate_a_uuid,N'ATIVO','2026-09-17T12:00:00+00:00' FROM #conflict

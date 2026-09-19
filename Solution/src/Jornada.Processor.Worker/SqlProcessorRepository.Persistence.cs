@@ -13,18 +13,18 @@ internal sealed partial class SqlProcessorRepository
         try
         {
             await SetProcessingAsync(connection, tx, batch, ct);
-            var peopleBySource = new Dictionary<string, ProcessedPerson>(StringComparer.Ordinal);
+            var peopleByDeliveryId = new Dictionary<string, ProcessedPerson>(StringComparer.Ordinal);
 
             foreach (var person in package.Pessoas)
             {
-                var processed = await PersistPersonAsync(connection, tx, batch, person, ct);
-                peopleBySource[person.CodigoPessoaOrigem] = processed;
+                var processed = await PersistPersonAsync(connection, tx, batch, package.Manifest, person, ct);
+                peopleByDeliveryId[person.IdPessoaEntrega] = processed;
             }
 
             foreach (var fact in package.Registros)
             {
-                if (!peopleBySource.TryGetValue(fact.CodigoPessoaOrigem, out var person))
-                    throw new InvalidDataException($"Pessoa de origem não encontrada para registro: {fact.CodigoPessoaOrigem}.");
+                if (!peopleByDeliveryId.TryGetValue(fact.IdPessoaEntrega, out var person))
+                    throw new InvalidDataException($"Pessoa da entrega não encontrada para registro: {fact.IdPessoaEntrega}.");
                 await PersistFactAsync(connection, tx, batch, person, fact, ct);
             }
 
@@ -61,16 +61,41 @@ internal sealed partial class SqlProcessorRepository
         SqlConnection connection,
         SqlTransaction tx,
         ReservedBatch batch,
+        IngestionPackageManifest manifest,
         ParsedPerson person,
         CancellationToken ct)
     {
-        var pessoaOrigemId = await EnsurePersonOriginAsync(connection, tx, batch.SistemaOrigemId, person.CodigoPessoaOrigem, ct);
-        var latest = await GetLatestPersonVersionAsync(connection, tx, pessoaOrigemId, ct);
-        if (latest is not null && string.Equals(latest.ConteudoHash, person.ConteudoHash, StringComparison.Ordinal))
+        var deliveryObservation = await GetDeliveryPersonObservationAsync(
+            connection, tx, batch.LoteId, person.IdPessoaEntrega, ct);
+        if (deliveryObservation is not null)
         {
-            await TouchPersonOriginAsync(connection, tx, pessoaOrigemId, batch.DataReferencia, ct);
+            if (!string.Equals(deliveryObservation.ConteudoHash, person.ConteudoHash, StringComparison.Ordinal))
+                throw new InvalidDataException($"idPessoaEntrega {person.IdPessoaEntrega} já foi persistido neste lote com conteúdo diferente.");
+
+            var replayed = await LoadProcessedPersonAsync(connection, tx, deliveryObservation.ObservationId, ct);
+            await RecordProcessedItemAsync(
+                connection, tx, batch, "PESSOA", replayed.PessoaOrigemId, null, person.IdPessoaEntrega,
+                "RETRANSMITIDO", deliveryObservation.VersaoInterna, person.ConteudoHash, ct);
+            if (replayed.PessoaUuid is Guid replayedUuid)
+                await RefreshGoldPersonAsync(connection, tx, replayedUuid, ct);
+            return replayed;
+        }
+
+        var identifiers = person.Identificadores ?? Array.Empty<ParsedPersonIdentifier>();
+        var origin = await ResolvePersonOriginV4Async(
+            connection, tx, batch.SistemaOrigemId, person.CodigoPessoaOrigem,
+            manifest.CodigoBasePessoaOrigem, identifiers, ct);
+        long? pessoaOrigemId = origin?.PessoaOrigemId;
+        var latest = pessoaOrigemId.HasValue
+            ? await GetLatestPersonVersionAsync(connection, tx, pessoaOrigemId.Value, ct)
+            : null;
+        if (latest is not null && pessoaOrigemId.HasValue
+            && string.Equals(latest.ConteudoHash, person.ConteudoHash, StringComparison.Ordinal))
+        {
+            await TouchPersonOriginAsync(connection, tx, pessoaOrigemId.Value, batch.DataReferencia, ct);
             await RecordProcessedItemAsync(connection, tx, batch, "PESSOA", pessoaOrigemId, null,
-                person.CodigoPessoaOrigem, "RETRANSMITIDO", latest.VersaoInterna, person.ConteudoHash, ct);
+                person.IdPessoaEntrega,
+                "RETRANSMITIDO", latest.VersaoInterna, person.ConteudoHash, ct);
             var retransmitted = await LoadProcessedPersonAsync(connection, tx, latest.ObservationId, ct);
             if (retransmitted.PessoaUuid is Guid retransmittedUuid)
                 await RefreshGoldPersonAsync(connection, tx, retransmittedUuid, ct);
@@ -86,16 +111,17 @@ internal sealed partial class SqlProcessorRepository
             insert.Transaction = tx;
             insert.CommandText = """
                 INSERT silver.pessoa_observacao(
-                    pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,versao_interna,conteudo_hash,
+                    pessoa_origem_id,lote_id,id_pessoa_entrega,gestor_id,codigo_pessoa_origem,versao_interna,conteudo_hash,
                     cpf,cpf_ausente_motivo,nome_completo,nome_cmp,data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
                 OUTPUT INSERTED.pessoa_observacao_id
-                VALUES(@pessoa_origem_id,@lote_id,@gestor_id,@codigo,@versao,@hash,
+                VALUES(@pessoa_origem_id,@lote_id,@id_pessoa_entrega,@gestor_id,@codigo,@versao,@hash,
                        @cpf,@cpf_motivo,@nome,@nome_cmp,@nascimento,@mae,@mae_cmp,@source_as_of);
                 """;
-            insert.Parameters.AddWithValue("@pessoa_origem_id", pessoaOrigemId);
+            insert.Parameters.Add(new SqlParameter("@pessoa_origem_id", SqlDbType.BigInt) { Value = (object?)pessoaOrigemId ?? DBNull.Value });
             insert.Parameters.AddWithValue("@lote_id", batch.LoteId);
+            insert.Parameters.Add(new SqlParameter("@id_pessoa_entrega", SqlDbType.NVarChar, 120) { Value = person.IdPessoaEntrega });
             insert.Parameters.AddWithValue("@gestor_id", batch.GestorId);
-            insert.Parameters.Add(new SqlParameter("@codigo", SqlDbType.NVarChar, 255) { Value = person.CodigoPessoaOrigem });
+            AddNullable(insert, "@codigo", SqlDbType.NVarChar, 255, person.CodigoPessoaOrigem);
             insert.Parameters.AddWithValue("@versao", internalVersion);
             insert.Parameters.Add(new SqlParameter("@hash", SqlDbType.Char, 64) { Value = person.ConteudoHash });
             AddNullable(insert, "@cpf", SqlDbType.Char, 11, person.Cpf);
@@ -113,6 +139,7 @@ internal sealed partial class SqlProcessorRepository
         ResolutionStatus resolutionStatus;
         ResolutionMethod resolutionMethod;
         string? resolutionReason = null;
+        var jornadaUuid = await ResolveJornadaUuidAsync(connection, tx, identifiers, ct);
         var cpf = string.IsNullOrWhiteSpace(person.Cpf) ? null : CpfRules.NormalizeAndValidate(person.Cpf);
         if (!string.IsNullOrWhiteSpace(person.Cpf) && cpf is null)
         {
@@ -131,12 +158,29 @@ internal sealed partial class SqlProcessorRepository
             resolutionMethod = identity.MetodoResolucao;
             resolutionReason = identity.Motivo;
         }
+        else if (jornadaUuid?.Canonico is Guid canonicalUuid)
+        {
+            uuid = canonicalUuid;
+            resolutionStatus = ResolutionStatus.RESOLVIDO;
+            resolutionMethod = ResolutionMethod.UUID_JORNADA_RETROALIMENTACAO;
+            resolutionReason = jornadaUuid.Recebido == canonicalUuid
+                ? "UUID_JORNADA_CONFIRMADO"
+                : "UUID_JORNADA_REDIRECIONADO";
+        }
+        else if (jornadaUuid is not null)
+        {
+            resolutionStatus = ResolutionStatus.CONFLITO;
+            resolutionMethod = ResolutionMethod.UUID_JORNADA_RETROALIMENTACAO;
+            resolutionReason = "UUID_JORNADA_DESCONHECIDO";
+        }
         else
         {
             resolutionStatus = ResolutionStatus.NAO_RESOLVIDO;
             resolutionMethod = ResolutionMethod.PENDENTE_PROBABILISTICO;
             resolutionReason = "AGUARDA_LINKAGE_SOB_DEMANDA";
         }
+
+        await PersistPersonIdentifiersAsync(connection, tx, observationId, identifiers, origin, jornadaUuid, ct);
 
         await using (var link = connection.CreateCommand())
         {
@@ -157,6 +201,14 @@ internal sealed partial class SqlProcessorRepository
 
         if (resolutionStatus == ResolutionStatus.CONFLITO)
             await RecordIdentityDivergenceAsync(connection, tx, batch.GestorId, observationId, person.CodigoPessoaOrigem, resolutionReason ?? "CONFLITO_IDENTIDADE", ct);
+
+        if (cpf is not null && uuid.HasValue && jornadaUuid is not null
+            && (!jornadaUuid.Canonico.HasValue || jornadaUuid.Canonico.Value != uuid.Value))
+        {
+            await RecordIdentityDivergenceAsync(
+                connection, tx, batch.GestorId, observationId, person.CodigoPessoaOrigem,
+                "INCONSISTENCIA_RETROALIMENTACAO", ct);
+        }
 
         foreach (var verification in person.ConferenciasDocumentais)
         {
@@ -253,9 +305,11 @@ internal sealed partial class SqlProcessorRepository
                 await PromoteAttributeAsync(connection, tx, batch.GestorId, uuid.Value, attribute, ct);
         }
 
-        await TouchPersonOriginAsync(connection, tx, pessoaOrigemId, batch.DataReferencia, ct);
+        if (pessoaOrigemId.HasValue)
+            await TouchPersonOriginAsync(connection, tx, pessoaOrigemId.Value, batch.DataReferencia, ct);
         await RecordProcessedItemAsync(connection, tx, batch, "PESSOA", pessoaOrigemId, null,
-            person.CodigoPessoaOrigem, latest is null ? "INCLUIDO" : "VERSIONADO", internalVersion, person.ConteudoHash, ct);
+            person.IdPessoaEntrega,
+            latest is null ? "INCLUIDO" : "VERSIONADO", internalVersion, person.ConteudoHash, ct);
 
         return new ProcessedPerson(observationId, pessoaOrigemId, batch.SistemaOrigemId, person.CodigoPessoaOrigem, person.Cpf, person.CpfAusenteMotivo, uuid, ToAssignmentState(resolutionStatus), selectedGeography.ReferenciaTerritorialObservacaoId, selectedGeography.NaturezaReferenciaTerritorial, selectedGeography.SubprefeituraId, selectedGeography.DistritoId);
     }
@@ -429,7 +483,7 @@ internal sealed partial class SqlProcessorRepository
         _ => "PENDENTE_IDENTIDADE"
     };
 
-    private static async Task RecordIdentityDivergenceAsync(SqlConnection connection, SqlTransaction tx, long gestorId, long pessoaObservacaoId, string codigoPessoaOrigem, string motivo, CancellationToken ct)
+    private static async Task RecordIdentityDivergenceAsync(SqlConnection connection, SqlTransaction tx, long gestorId, long pessoaObservacaoId, string? codigoPessoaOrigem, string motivo, CancellationToken ct)
     {
         await using var command=connection.CreateCommand(); command.Transaction=tx;
         command.CommandText="""
@@ -437,7 +491,7 @@ internal sealed partial class SqlProcessorRepository
              INSERT qualidade.divergencia_gestor(gestor_id,tipo,motivo,pessoa_observacao_id,codigo_pessoa_origem,status) VALUES(@gestor,'DIVERGENCIA_IDENTIDADE',@motivo,@obs,@codigo,'ABERTA');
             """;
         command.Parameters.AddWithValue("@gestor",gestorId); command.Parameters.AddWithValue("@obs",pessoaObservacaoId);
-        command.Parameters.Add(new SqlParameter("@codigo",SqlDbType.NVarChar,255){Value=codigoPessoaOrigem});
+        command.Parameters.Add(new SqlParameter("@codigo",SqlDbType.NVarChar,255){Value=(object?)codigoPessoaOrigem ?? DBNull.Value});
         command.Parameters.Add(new SqlParameter("@motivo",SqlDbType.NVarChar,120){Value=motivo});
         await command.ExecuteNonQueryAsync(ct);
     }
@@ -486,32 +540,22 @@ internal sealed partial class SqlProcessorRepository
         await command.ExecuteNonQueryAsync(ct);
     }
 
-    private static async Task<long> EnsurePersonOriginAsync(
-        SqlConnection connection, SqlTransaction tx, long sistemaOrigemId, string codigo, CancellationToken ct)
+    private static async Task<PersonVersionState?> GetDeliveryPersonObservationAsync(
+        SqlConnection connection, SqlTransaction tx, Guid loteId, string idPessoaEntrega, CancellationToken ct)
     {
-        await using (var find = connection.CreateCommand())
-        {
-            find.Transaction = tx;
-            find.CommandText = """
-                SELECT pessoa_origem_id
-                FROM silver.pessoa_origem WITH (UPDLOCK,HOLDLOCK)
-                WHERE sistema_origem_id=@sistema AND codigo_pessoa_origem=@codigo;
-                """;
-            find.Parameters.AddWithValue("@sistema", sistemaOrigemId);
-            find.Parameters.Add(new SqlParameter("@codigo", SqlDbType.NVarChar, 255) { Value = codigo });
-            var value = await find.ExecuteScalarAsync(ct);
-            if (value is not null && value is not DBNull) return Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture);
-        }
-
-        await using var insert = connection.CreateCommand();
-        insert.Transaction = tx;
-        insert.CommandText = """
-            INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem)
-            OUTPUT INSERTED.pessoa_origem_id VALUES(@sistema,@codigo);
+        await using var command = connection.CreateCommand();
+        command.Transaction = tx;
+        command.CommandText = """
+            SELECT pessoa_observacao_id,versao_interna,conteudo_hash
+            FROM silver.pessoa_observacao WITH (UPDLOCK,HOLDLOCK)
+            WHERE lote_id=@lote AND id_pessoa_entrega=@id_pessoa_entrega;
             """;
-        insert.Parameters.AddWithValue("@sistema", sistemaOrigemId);
-        insert.Parameters.Add(new SqlParameter("@codigo", SqlDbType.NVarChar, 255) { Value = codigo });
-        return Convert.ToInt64(await insert.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
+        command.Parameters.AddWithValue("@lote", loteId);
+        command.Parameters.Add(new SqlParameter("@id_pessoa_entrega", SqlDbType.NVarChar, 120) { Value = idPessoaEntrega });
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct)
+            ? new PersonVersionState(reader.GetInt64(0), reader.GetInt32(1), reader.GetString(2))
+            : null;
     }
 
     private static async Task<PersonVersionState?> GetLatestPersonVersionAsync(
@@ -535,23 +579,31 @@ internal sealed partial class SqlProcessorRepository
     private static async Task<ProcessedPerson> LoadProcessedPersonAsync(
         SqlConnection connection, SqlTransaction tx, long observationId, CancellationToken ct)
     {
-        long pessoaOrigemId; long sistemaOrigemId; string codigo; string? cpf; string? cpfMotivo; Guid? uuid=null; string status="NAO_RESOLVIDO";
+        long? pessoaOrigemId; long sistemaOrigemId; string? codigo; string? cpf; string? cpfMotivo; Guid? uuid=null; string status="NAO_RESOLVIDO";
         await using (var command = connection.CreateCommand())
         {
             command.Transaction = tx;
             command.CommandText = """
-                SELECT po.pessoa_origem_id,pori.sistema_origem_id,po.codigo_pessoa_origem,po.cpf,po.cpf_ausente_motivo,vc.pessoa_uuid,COALESCE(vc.status,'NAO_RESOLVIDO')
+                SELECT po.pessoa_origem_id,COALESCE(pori.sistema_origem_id,e.sistema_origem_id),
+                       po.codigo_pessoa_origem,po.cpf,po.cpf_ausente_motivo,
+                       vc.pessoa_uuid,COALESCE(vc.status,'NAO_RESOLVIDO')
                 FROM silver.pessoa_observacao po
-                JOIN silver.pessoa_origem pori ON pori.pessoa_origem_id=po.pessoa_origem_id
+                JOIN ingestao.lote l ON l.lote_id=po.lote_id
+                JOIN ingestao.entrega e ON e.entrega_id=l.entrega_id
+                LEFT JOIN silver.pessoa_origem pori ON pori.pessoa_origem_id=po.pessoa_origem_id
                 LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id
                 WHERE po.pessoa_observacao_id=@obs;
                 """;
             command.Parameters.AddWithValue("@obs", observationId);
             await using var reader=await command.ExecuteReaderAsync(ct);
             if(!await reader.ReadAsync(ct)) throw new InvalidDataException($"Pessoa observação {observationId} inexistente.");
-            pessoaOrigemId=reader.GetInt64(0); sistemaOrigemId=reader.GetInt64(1); codigo=reader.GetString(2);
-            cpf=reader.IsDBNull(3)?null:reader.GetString(3); cpfMotivo=reader.IsDBNull(4)?null:reader.GetString(4);
-            if(!reader.IsDBNull(5)) uuid=reader.GetGuid(5); status=reader.GetString(6);
+            pessoaOrigemId=reader.IsDBNull(0)?null:reader.GetInt64(0);
+            sistemaOrigemId=reader.GetInt64(1);
+            codigo=reader.IsDBNull(2)?null:reader.GetString(2);
+            cpf=reader.IsDBNull(3)?null:reader.GetString(3);
+            cpfMotivo=reader.IsDBNull(4)?null:reader.GetString(4);
+            if(!reader.IsDBNull(5)) uuid=reader.GetGuid(5);
+            status=reader.GetString(6);
         }
         var geography = await SelectTerritorialReferenceAsync(connection, tx, observationId, ct);
         var assignment = status == "RESOLVIDO" && uuid.HasValue ? "ATRIBUIDA" : status == "CONFLITO" ? "CONFLITO_IDENTIDADE" : "PENDENTE_IDENTIDADE";

@@ -665,7 +665,7 @@ IF OBJECT_ID('ingestao.item_processado','U') IS NULL CREATE TABLE ingestao.item_
  CONSTRAINT ck_item_processado_versao CHECK(versao_interna>=1),
  CONSTRAINT ck_item_processado_hash CHECK(LEN(conteudo_hash)=64 AND conteudo_hash NOT LIKE '%[^0-9a-f]%' COLLATE Latin1_General_100_BIN2),
  CONSTRAINT ck_item_processado_origem CHECK(
-   (classe_item='PESSOA' AND pessoa_origem_id IS NOT NULL AND registro_origem_id IS NULL) OR
+   (classe_item='PESSOA' AND registro_origem_id IS NULL) OR
    (classe_item='REGISTRO' AND pessoa_origem_id IS NULL AND registro_origem_id IS NOT NULL)));
 GO
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('ingestao.item_processado') AND name='IX_item_processado_resultado')
@@ -878,6 +878,7 @@ IF OBJECT_ID('silver.pessoa_observacao','U') IS NULL CREATE TABLE silver.pessoa_
  pessoa_observacao_id BIGINT IDENTITY PRIMARY KEY,
  pessoa_origem_id BIGINT NOT NULL,
  lote_id UNIQUEIDENTIFIER NOT NULL REFERENCES ingestao.lote(lote_id),
+ id_pessoa_entrega NVARCHAR(120) NULL,
  gestor_id BIGINT NOT NULL REFERENCES ref.gestor(gestor_id),
  codigo_pessoa_origem NVARCHAR(255) NOT NULL,
  versao_interna INT NOT NULL,
@@ -896,8 +897,16 @@ IF OBJECT_ID('silver.pessoa_observacao','U') IS NULL CREATE TABLE silver.pessoa_
  CONSTRAINT ck_pessoa_observacao_hash CHECK(LEN(conteudo_hash)=64 AND conteudo_hash NOT LIKE '%[^0-9a-f]%' COLLATE Latin1_General_100_BIN2),
  CONSTRAINT ck_pessoa_cpf_motivo CHECK((cpf IS NULL AND cpf_ausente_motivo IN('SEM_CPF','EM_REGULARIZACAO','NAO_INFORMADO_ORIGEM')) OR (cpf IS NOT NULL AND cpf_ausente_motivo IS NULL)));
 GO
+IF COL_LENGTH('silver.pessoa_observacao','id_pessoa_entrega') IS NULL
+ ALTER TABLE silver.pessoa_observacao ADD id_pessoa_entrega NVARCHAR(120) NULL;
+GO
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('silver.pessoa_observacao') AND name='IX_pessoa_observacao_origem_corrente')
  CREATE INDEX IX_pessoa_observacao_origem_corrente ON silver.pessoa_observacao(pessoa_origem_id,versao_interna DESC) INCLUDE(conteudo_hash,pessoa_observacao_id,source_as_of);
+GO
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('silver.pessoa_observacao') AND name='UX_pessoa_observacao_lote_id_entrega')
+ CREATE UNIQUE INDEX UX_pessoa_observacao_lote_id_entrega
+ ON silver.pessoa_observacao(lote_id,id_pessoa_entrega)
+ WHERE id_pessoa_entrega IS NOT NULL;
 GO
 
 -- Conferência documental do núcleo é evidência por campo, recebida junto da observação de Pessoa.
@@ -1267,6 +1276,7 @@ IF OBJECT_ID('identidade.vinculo_fonte','U') IS NULL CREATE TABLE identidade.vin
  CONSTRAINT ck_vinculo_metodo CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA')),
  CONSTRAINT ck_vinculo_modelo CHECK(
     (metodo_resolucao='CPF_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
+    (metodo_resolucao='UUID_JORNADA_RETROALIMENTACAO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='PENDENTE_PROBABILISTICO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL) OR
     (metodo_resolucao='LINKAGE_PROBABILISTICO' AND score IS NOT NULL AND modelo_id IS NOT NULL) OR
     (metodo_resolucao='CORRECAO_GOVERNADA' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NOT NULL)));
@@ -1296,13 +1306,14 @@ GO
 -- v3.93: este bloco de compatibilidade pode ser reaplicado sobre banco já evoluído até v3.44+.
 -- Não pode rebaixar temporariamente o domínio e rejeitar linhas CONFLITO_GOVERNADO já válidas.
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_metodo
- CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
+ CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
 GO
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID('identidade.vinculo_fonte') AND name='ck_vinculo_modelo')
  ALTER TABLE identidade.vinculo_fonte DROP CONSTRAINT ck_vinculo_modelo;
 GO
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_modelo CHECK(
     (metodo_resolucao='CPF_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
+    (metodo_resolucao='UUID_JORNADA_RETROALIMENTACAO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='PENDENTE_PROBABILISTICO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL) OR
     (metodo_resolucao='LINKAGE_PROBABILISTICO' AND score IS NOT NULL AND modelo_id IS NOT NULL) OR
     (metodo_resolucao='CORRECAO_GOVERNADA' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NOT NULL) OR
@@ -2505,9 +2516,10 @@ IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID('
 IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID('identidade.vinculo_fonte') AND name='ck_vinculo_modelo')
  ALTER TABLE identidade.vinculo_fonte DROP CONSTRAINT ck_vinculo_modelo;
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_metodo
- CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
+ CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_modelo CHECK(
     (metodo_resolucao='CPF_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
+    (metodo_resolucao='UUID_JORNADA_RETROALIMENTACAO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='PENDENTE_PROBABILISTICO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL) OR
     (metodo_resolucao='LINKAGE_PROBABILISTICO' AND score IS NOT NULL AND modelo_id IS NOT NULL) OR
     (metodo_resolucao='CORRECAO_GOVERNADA' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NOT NULL) OR
@@ -2524,14 +2536,14 @@ WITH probabilistico_publicado AS (
 base_ativa AS (SELECT vf.* FROM identidade.vinculo_fonte vf WHERE vf.ativo=1)
 SELECT b.vinculo_id,b.pessoa_observacao_id,b.pessoa_uuid,b.metodo_resolucao,b.score,b.status,b.motivo,b.modelo_id,b.linkage_run_id,b.resolvido_em
 FROM base_ativa b
-WHERE b.metodo_resolucao IN('CPF_DETERMINISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO')
+WHERE b.metodo_resolucao IN('CPF_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO')
    OR NOT EXISTS (SELECT 1 FROM prob_corrente p WHERE p.pessoa_observacao_id=b.pessoa_observacao_id)
 UNION ALL
 SELECT CAST(NULL AS BIGINT),p.pessoa_observacao_id,p.pessoa_uuid_resolvido,'LINKAGE_PROBABILISTICO',p.score_melhor,p.status,p.motivo,p.modelo_id,p.linkage_run_id,p.calculado_em
 FROM prob_corrente p
 WHERE NOT EXISTS (
     SELECT 1 FROM base_ativa b WHERE b.pessoa_observacao_id=p.pessoa_observacao_id
-      AND b.metodo_resolucao IN('CPF_DETERMINISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
+      AND b.metodo_resolucao IN('CPF_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
 GO
 
 -- v3.45: sujeito declarado do fato. O código de origem é opaco; formato semelhante a CPF nunca é inferido como CPF.
@@ -2573,20 +2585,27 @@ FROM serving.registro_integrado ri JOIN silver.registro_observacao ro ON ro.regi
 JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=ro.pessoa_observacao_id JOIN silver.pessoa_origem pori ON pori.pessoa_origem_id=po.pessoa_origem_id
 WHERE ri.pessoa_origem_id IS NULL;
 GO
--- A atribuição canônica é projeção mutável; a declaração de origem permanece obrigatória e imutável por versão factual.
+-- A atribuição canônica é projeção mutável. A proveniência local da Pessoa é opcional
+-- no contrato v4; o endurecimento legado só se aplica antes da chave local de entrega existir.
 ALTER TABLE gold.beneficio_concedido ALTER COLUMN pessoa_uuid UNIQUEIDENTIFIER NULL;
 ALTER TABLE gold.servico_prestado ALTER COLUMN pessoa_uuid UNIQUEIDENTIFIER NULL;
 ALTER TABLE serving.registro_integrado ALTER COLUMN pessoa_uuid UNIQUEIDENTIFIER NULL;
+IF COL_LENGTH('silver.pessoa_observacao','id_pessoa_entrega') IS NULL
 ALTER TABLE gold.beneficio_concedido ALTER COLUMN pessoa_origem_id BIGINT NOT NULL;
 ALTER TABLE gold.beneficio_concedido ALTER COLUMN sistema_origem_id BIGINT NOT NULL;
+IF COL_LENGTH('silver.pessoa_observacao','id_pessoa_entrega') IS NULL
 ALTER TABLE gold.beneficio_concedido ALTER COLUMN codigo_pessoa_origem NVARCHAR(255) NOT NULL;
 ALTER TABLE gold.beneficio_concedido ALTER COLUMN estado_atribuicao_identidade NVARCHAR(30) NOT NULL;
+IF COL_LENGTH('silver.pessoa_observacao','id_pessoa_entrega') IS NULL
 ALTER TABLE gold.servico_prestado ALTER COLUMN pessoa_origem_id BIGINT NOT NULL;
 ALTER TABLE gold.servico_prestado ALTER COLUMN sistema_origem_id BIGINT NOT NULL;
+IF COL_LENGTH('silver.pessoa_observacao','id_pessoa_entrega') IS NULL
 ALTER TABLE gold.servico_prestado ALTER COLUMN codigo_pessoa_origem NVARCHAR(255) NOT NULL;
 ALTER TABLE gold.servico_prestado ALTER COLUMN estado_atribuicao_identidade NVARCHAR(30) NOT NULL;
+IF COL_LENGTH('silver.pessoa_observacao','id_pessoa_entrega') IS NULL
 ALTER TABLE serving.registro_integrado ALTER COLUMN pessoa_origem_id BIGINT NOT NULL;
 ALTER TABLE serving.registro_integrado ALTER COLUMN sistema_origem_id BIGINT NOT NULL;
+IF COL_LENGTH('silver.pessoa_observacao','id_pessoa_entrega') IS NULL
 ALTER TABLE serving.registro_integrado ALTER COLUMN codigo_pessoa_origem NVARCHAR(255) NOT NULL;
 ALTER TABLE serving.registro_integrado ALTER COLUMN estado_atribuicao_identidade NVARCHAR(30) NOT NULL;
 GO

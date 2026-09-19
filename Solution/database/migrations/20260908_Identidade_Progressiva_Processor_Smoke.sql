@@ -1,11 +1,11 @@
 SET XACT_ABORT ON;
 GO
-DECLARE @sistema BIGINT,@lote UNIQUEIDENTIFIER,@gestor BIGINT;
-SELECT TOP(1) @sistema=o.sistema_origem_id,@lote=po.lote_id,@gestor=po.gestor_id
+DECLARE @sistema BIGINT,@base BIGINT,@lote UNIQUEIDENTIFIER,@gestor BIGINT;
+SELECT TOP(1) @sistema=o.sistema_origem_id,@base=o.base_pessoa_origem_id,@lote=po.lote_id,@gestor=po.gestor_id
 FROM silver.pessoa_observacao po
 JOIN silver.pessoa_origem o ON o.pessoa_origem_id=po.pessoa_origem_id
 ORDER BY po.pessoa_observacao_id;
-IF @sistema IS NULL OR @lote IS NULL OR @gestor IS NULL THROW 51140,'Fixture base insuficiente para smoke de cutover.',1;
+IF @sistema IS NULL OR @base IS NULL OR @lote IS NULL OR @gestor IS NULL THROW 51140,'Fixture base v4 insuficiente para smoke de cutover.',1;
 
 DECLARE @code NVARCHAR(255)=N'CUTOVER-COMMIT-20260908';
 DECLARE @source BIGINT,@obs BIGINT,@uuid UNIQUEIDENTIFIER,@uuid2 UNIQUEIDENTIFIER;
@@ -13,7 +13,7 @@ IF EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE codigo_pessoa_origem=@code) T
 
 CREATE TABLE #cutover_obs(pessoa_observacao_id BIGINT NOT NULL);
 BEGIN TRANSACTION;
-INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@sistema,@code);
+INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@sistema,@code,@base);
 SET @source=CONVERT(BIGINT,SCOPE_IDENTITY());
 INSERT silver.pessoa_observacao(
  pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,versao_interna,conteudo_hash,
@@ -125,7 +125,7 @@ DECLARE @rollbackCode NVARCHAR(255)=N'CUTOVER-ROLLBACK-20260908';
 DECLARE @rollbackSource BIGINT,@rollbackObs BIGINT,@rollbackUuid UNIQUEIDENTIFIER;
 CREATE TABLE #cutover_rollback_obs(pessoa_observacao_id BIGINT NOT NULL);
 BEGIN TRANSACTION;
-INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@sistema,@rollbackCode);
+INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@sistema,@rollbackCode,@base);
 SET @rollbackSource=CONVERT(BIGINT,SCOPE_IDENTITY());
 INSERT silver.pessoa_observacao(
  pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,versao_interna,conteudo_hash,

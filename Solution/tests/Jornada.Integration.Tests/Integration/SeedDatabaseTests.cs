@@ -22,7 +22,7 @@ public sealed class SeedDatabaseTests
         await connection.OpenAsync();
 
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
 
         var gestores = await ScalarAsync(connection, "SELECT COUNT(*) FROM ref.gestor WHERE codigo IN ('SEHAB','SMADS','SMDET','SMS')");
@@ -243,7 +243,7 @@ WHERE c.credencial_id<>x.credencial_id;");
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync();
 
@@ -357,7 +357,7 @@ WHERE c.credencial_id<>x.credencial_id;");
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
 
         Guid entregaId;

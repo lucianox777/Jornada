@@ -42,7 +42,21 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
         Assert.That(sql, Does.Contain("ALTER COLUMN pessoa_origem_id BIGINT NULL"));
         Assert.That(sql, Does.Contain("ALTER COLUMN codigo_pessoa_origem NVARCHAR(255) NULL"));
         Assert.That(sql, Does.Contain("ck_pessoa_observacao_origem_coerente"));
+        Assert.That(sql, Does.Contain("CREATE UNIQUE INDEX uq_pessoa_observacao_versao"));
+        Assert.That(sql, Does.Contain("WHERE pessoa_origem_id IS NOT NULL"));
         Assert.That(sql, Does.Not.Contain("COALESCE(codigo_pessoa_origem,cpf)").IgnoreCase);
+    }
+
+    [Test]
+    public void Runtime_v4_cutover_makes_base_authoritative_and_authorizes_internal_uuid_feedback()
+    {
+        var sql = ReadMigration("20260919_Pessoa_Origem_Runtime_V4_Cutover.sql");
+
+        Assert.That(sql, Does.Contain("DROP CONSTRAINT uq_pessoa_origem"));
+        Assert.That(sql, Does.Contain("ALTER COLUMN base_pessoa_origem_id BIGINT NOT NULL"));
+        Assert.That(sql, Does.Contain("uq_pessoa_origem_base_codigo"));
+        Assert.That(sql, Does.Contain("UUID_JORNADA_RETROALIMENTACAO"));
+        Assert.That(sql, Does.Not.Contain("INSERT identidade.identity_map").IgnoreCase);
     }
 
     [Test]
@@ -55,10 +69,14 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
         var origin = Array.IndexOf(lines, "migrations/20260913_Base_Pessoa_Origem.sql");
         var identifiers = Array.IndexOf(lines, "migrations/20260913_Pessoa_Identificadores_Multiplos.sql");
         var nullableObservation = Array.IndexOf(lines, "migrations/20260913_Pessoa_Observacao_Sem_Identificador.sql");
+        var deliveryPersonLink = Array.IndexOf(lines, "migrations/20260919_Fato_Referencia_Pessoa_Entrega.sql");
+        var runtimeCutover = Array.IndexOf(lines, "migrations/20260919_Pessoa_Origem_Runtime_V4_Cutover.sql");
 
         Assert.That(origin, Is.GreaterThanOrEqualTo(0));
         Assert.That(identifiers, Is.GreaterThan(origin));
         Assert.That(nullableObservation, Is.GreaterThan(identifiers));
+        Assert.That(deliveryPersonLink, Is.GreaterThan(nullableObservation));
+        Assert.That(runtimeCutover, Is.GreaterThan(deliveryPersonLink));
         Assert.That(lines[^1], Is.EqualTo("migrations/20260910_Schema_Consolidation_370.sql"));
     }
 

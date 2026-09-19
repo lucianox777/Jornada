@@ -14,7 +14,7 @@ public sealed class GeographicEnrichmentTests
             "A1", "ENDERECO_RESIDENCIAL", "CEP=01001000|NUMERO=1", "COMPROVADO", "DOCUMENTO", null,
             DateTimeOffset.Parse("2026-08-20T10:00:00-03:00", System.Globalization.CultureInfo.InvariantCulture), null, null,
             GeographicResolutionStatus.RESOLVIDA, sourceGeo);
-        var person = new ParsedPerson("P1", new string('a',64), null, "11144477735", null, "Pessoa", new DateOnly(1990,1,1), "Mae", [attr], []);
+        var person = new ParsedPerson("P1", "P1", new string('a',64), null, "11144477735", null, "Pessoa", new DateOnly(1990,1,1), "Mae", [attr], []);
         var manifest = new IngestionPackageManifest(2, 1, "SAUDE", null, null, null, DateTimeOffset.Parse("2026-08-21T00:00:00-03:00", System.Globalization.CultureInfo.InvariantCulture));
 
         var result = OriginTerritorialGeography.ApplyResolutionTimestamp(new ParsedPackage(manifest, [person], []));
@@ -33,7 +33,7 @@ public sealed class GeographicEnrichmentTests
         var attr = new ParsedTransversalAttribute(
             "A2", "ENDERECO_RESIDENCIAL", "ENDERECO_INSUFICIENTE", "DECLARADO", null, null, null, null, null,
             GeographicResolutionStatus.NAO_RESOLVIDA_ORIGEM, null);
-        var person = new ParsedPerson("P2", new string('b',64), null, null, "NAO_INFORMADO", "Pessoa 2", new DateOnly(1991,2,2), "Mae 2", [attr], []);
+        var person = new ParsedPerson("P2", "P2", new string('b',64), null, null, "NAO_INFORMADO", "Pessoa 2", new DateOnly(1991,2,2), "Mae 2", [attr], []);
         var manifest = new IngestionPackageManifest(2, 1, "ASSISTENCIA", null, null, null, DateTimeOffset.Parse("2026-08-21T00:00:00-03:00", System.Globalization.CultureInfo.InvariantCulture));
 
         var result = OriginTerritorialGeography.ApplyResolutionTimestamp(new ParsedPackage(manifest, [person], []));

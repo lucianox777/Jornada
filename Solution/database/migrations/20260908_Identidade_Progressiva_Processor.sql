@@ -51,7 +51,8 @@ BEGIN
             ON o.pessoa_observacao_id=i.pessoa_observacao_id
           LEFT JOIN identidade.pessoa_origem_progressiva p
             ON p.pessoa_origem_id=o.pessoa_origem_id
-         WHERE p.pessoa_origem_id IS NULL;
+         WHERE o.pessoa_origem_id IS NOT NULL
+           AND p.pessoa_origem_id IS NULL;
 
     OPEN progressiva_novos;
     FETCH NEXT FROM progressiva_novos INTO @pessoa_origem_id;
@@ -70,7 +71,8 @@ BEGIN
         SELECT o.pessoa_origem_id
           FROM inserted i
           JOIN silver.pessoa_observacao o ON o.pessoa_observacao_id=i.pessoa_observacao_id
-         WHERE i.metodo_resolucao='CPF_DETERMINISTICO' AND i.status='RESOLVIDO' AND i.pessoa_uuid IS NOT NULL
+         WHERE o.pessoa_origem_id IS NOT NULL
+           AND i.metodo_resolucao='CPF_DETERMINISTICO' AND i.status='RESOLVIDO' AND i.pessoa_uuid IS NOT NULL
          GROUP BY o.pessoa_origem_id
         HAVING COUNT(DISTINCT i.pessoa_uuid)>1)
         THROW 51132,'Vínculos CPF determinísticos divergentes para a mesma origem na mesma transação.',1;
@@ -79,7 +81,8 @@ BEGIN
         SELECT DISTINCT o.pessoa_origem_id,i.pessoa_uuid
           FROM inserted i
           JOIN silver.pessoa_observacao o ON o.pessoa_observacao_id=i.pessoa_observacao_id
-         WHERE i.metodo_resolucao='CPF_DETERMINISTICO' AND i.status='RESOLVIDO' AND i.pessoa_uuid IS NOT NULL;
+         WHERE o.pessoa_origem_id IS NOT NULL
+           AND i.metodo_resolucao='CPF_DETERMINISTICO' AND i.status='RESOLVIDO' AND i.pessoa_uuid IS NOT NULL;
 
     OPEN progressiva_referencias;
     FETCH NEXT FROM progressiva_referencias INTO @pessoa_origem_id,@canonical_uuid;

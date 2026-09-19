@@ -162,8 +162,9 @@ Exemplo com contexto de Benefício Concedido (o mesmo manifesto é válido mesmo
 
 Todo manifesto declara `codigoSistemaOrigem`, identificando o sistema finalístico que atribui as chaves locais. Um mesmo Gestor pode possuir vários sistemas; por isso a identidade externa é sempre no namespace do sistema.
 
-- toda Pessoa exige `codigoPessoaOrigem` **ou** CPF preenchido; se o código estiver ausente, a Jornada usa o CPF como `codigoPessoaOrigem` interno;
-- todo fato exige `codigoRegistroOrigem`;
+- toda Pessoa exige `idPessoaEntrega`; `codigoPessoaOrigem` é opcional e nunca é derivado do CPF;
+- todo fato referencia `idPessoaEntrega` da mesma remessa;
+- a obrigatoriedade do código interno do fato (`codigoRegistroOrigem`) pertence ao **schema versionado do Tipo de Benefício/Serviço**. Enquanto um contrato o declarar em `required`, ele é obrigatório; contratos futuros podem explicitamente permitir ausência sem que o parser imponha uma regra global paralela;
 - a finalística **não envia número de versão**.
 
 A Jornada calcula um hash canônico do conteúdo de negócio. Para a mesma chave:

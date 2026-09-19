@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Jornada.Contracts;
 
 public enum ResolutionStatus { RESOLVIDO, NAO_RESOLVIDO, CONFLITO }
-public enum ResolutionMethod { CPF_DETERMINISTICO, PENDENTE_PROBABILISTICO, LINKAGE_PROBABILISTICO, CORRECAO_GOVERNADA }
+public enum ResolutionMethod { CPF_DETERMINISTICO, UUID_JORNADA_RETROALIMENTACAO, PENDENTE_PROBABILISTICO, LINKAGE_PROBABILISTICO, CORRECAO_GOVERNADA }
 public enum IntegrationNature { BENEFICIO, SERVICO }
 public enum RegistroOperacao { INCLUSAO, ALTERACAO, RETIFICACAO, EXCLUSAO }
 public enum PossibilityResult { COMPATIVEL, NAO_COMPATIVEL, NAO_AVALIAVEL }
@@ -80,7 +80,8 @@ public sealed record IngestionPackageManifest(
     IntegrationNature? Natureza,
     string? CodigoTipo,
     int? TipoVersao,
-    DateTimeOffset DataReferencia);
+    DateTimeOffset DataReferencia,
+    string? CodigoBasePessoaOrigem = null);
 
 public sealed record IngestionReceipt(
     Guid EntregaId,

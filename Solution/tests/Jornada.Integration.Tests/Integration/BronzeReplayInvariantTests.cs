@@ -141,8 +141,8 @@ public sealed class BronzeReplayInvariantTests
             DECLARE @entrega uniqueidentifier='20000000-0000-4000-8000-000000000001';
             DECLARE @lote uniqueidentifier='20000000-0000-4000-8000-000000000002';
             DECLARE @gestor bigint=(SELECT gestor_id FROM ref.gestor WHERE codigo='SEHAB');
-            DECLARE @gpv bigint=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gestor AND versao=2);
-            IF @gpv IS NULL THROW 51000, 'Fixture AA01_v2 exige Pessoa schema v2 para SEHAB.', 1;
+            DECLARE @gpv bigint=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gestor AND versao=4);
+            IF @gpv IS NULL THROW 51000, 'Fixture AA01_v2 usa Pessoa schema v4 para SEHAB.', 1;
             DELETE FROM ingestao.item_processado WHERE lote_id=@lote;
             UPDATE ingestao.entrega
                SET gestor_pessoa_versao_id=@gpv,payload_sha256=@sha,bytes_recebidos=@bytes,status='RECEBIDA',
@@ -246,7 +246,7 @@ public sealed class BronzeReplayInvariantTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
         await using var reset = connection.CreateCommand();
         reset.CommandText = """

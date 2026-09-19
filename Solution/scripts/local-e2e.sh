@@ -74,8 +74,16 @@ PY
 }
 wait_processed(){
   local id="$1" out="$2" status='' code=''
+  # A rota de status pertence ao bucket autenticado INGESTAO (20 req/min por default).
+  # Polling de 1s fazia o próprio E2E esgotar o contrato de rate limit. Quatro segundos
+  # mantêm o harness abaixo do teto e 429 transitório é tratado como backpressure normal.
+  local poll_seconds="${JORNADA_E2E_STATUS_POLL_SECONDS:-4}"
   for _ in $(seq 1 120); do
     code="$(curl -sS -o "$out" -w '%{http_code}' "$API_URL/api/v1/ingestao/entregas/$id" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $access_key" || true)"
+    if [[ "$code" == 429 ]]; then
+      sleep "$poll_seconds"
+      continue
+    fi
     if [[ "$code" != 200 ]]; then
       echo "ERRO: consulta de status da Entrega $id retornou HTTP $code." >&2
       [[ -f "$out" ]] && cat "$out" >&2 || true
@@ -84,7 +92,7 @@ wait_processed(){
     status="$(json_get "$out" status)"
     [[ "$status" == PROCESSADA ]] && return 0
     [[ "$status" == REJEITADA || "$status" == QUARENTENA ]] && { echo "ERRO: Entrega $id terminou $status" >&2; return 1; }
-    sleep 1
+    sleep "$poll_seconds"
   done
   echo "ERRO: timeout aguardando Entrega $id; último status=$status" >&2; return 1
 }
@@ -147,7 +155,11 @@ post_delivery 'local-e2e-002' "$OUT/post2.json" "$OUT/post2.code"
 id2="$(json_get "$OUT/post2.json" entregaId)"; [[ "$id2" != "$id1" ]] || exit 8
 wait_processed "$id2" "$OUT/status2.json"
 retrans="$(scalar "SELECT COUNT(*) FROM ingestao.item_processado ip JOIN ingestao.lote l ON l.lote_id=ip.lote_id WHERE l.entrega_id='$id2' AND ip.resultado='RETRANSMITIDO';")"
-[[ "$retrans" -ge 2 ]] || { echo "ERRO: retransmissão não foi reconhecida; itens=$retrans" >&2; exit 8; }
+fact_retrans="$(scalar "SELECT COUNT(*) FROM ingestao.item_processado ip JOIN ingestao.lote l ON l.lote_id=ip.lote_id WHERE l.entrega_id='$id2' AND ip.classe_item='REGISTRO' AND ip.codigo_origem='E2E-AA01-2026-000001' AND ip.resultado='RETRANSMITIDO';")"
+[[ "$fact_retrans" == 1 ]] || { echo "ERRO: fato com chave persistente não foi reconhecido como retransmissão; fatos=$fact_retrans" >&2; exit 8; }
+# A Pessoa do fixture não possui codigoPessoaOrigem. idPessoaEntrega é local à remessa,
+# portanto a segunda Entrega recebe nova observação da Pessoa, ancorada ao mesmo CPF,
+# e não é falsamente tratada como a mesma origem persistente.
 [[ "$(scalar "SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem='E2E-AA01-2026-000001' AND status_analitico='VIGENTE';")" == 1 ]] || { echo 'ERRO: retransmissão duplicou a versão Gold vigente.' >&2; exit 8; }
 
 python3 - "$OUT/evidence.json" "$id1" "$id2" "$pessoa_uuid" "$retrans" <<'PY'

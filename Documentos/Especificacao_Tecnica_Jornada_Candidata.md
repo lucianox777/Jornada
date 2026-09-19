@@ -34,7 +34,7 @@ A evidência histórica Fabric permanece válida como antecedente técnico, mas 
 
 A Jornada admite identidade progressiva e não condiciona a existência de uma observação válida à resolução canônica imediata da pessoa.
 
-Cada identidade de origem admitida recebe um `initial_uuid` estável, aleatório e não derivado de PII. A chave de origem `(sistema_origem_id, codigo_pessoa_origem)` recupera idempotentemente a mesma referência inicial. O `initial_uuid` não é reciclado e permanece distinto do vínculo canônico que possa ser posteriormente atribuído.
+Cada **identidade persistente de origem** admitida recebe um `initial_uuid` estável, aleatório e não derivado de PII. O namespace persistente é definido por `(base_pessoa_origem_id, codigo_pessoa_origem)`, podendo a mesma Base ser utilizada por sistemas autorizados. `codigoPessoaOrigem` é opcional: uma observação sem código local continua válida, mas não recebe origem nem `initial_uuid` sintético. `idPessoaEntrega` é a ligação obrigatória entre Pessoa e fatos somente dentro da mesma remessa. O `initial_uuid` não é reciclado, não entra como evidência no score probabilístico e permanece distinto do vínculo canônico que possa ser posteriormente atribuído. Quando uma busca probabilística comprovadamente completa não encontra candidato para uma origem persistente, o próprio `initial_uuid` pode ser promovido a referência canônica com resultado `NOVA_IDENTIDADE`, mantendo modelo, política e universo auditáveis.
 
 A persistência separa os conceitos:
 
@@ -55,7 +55,7 @@ A ausência de CPF, entretanto, não impede a ingestão de um fato válido. O si
 
 Benefícios concedidos, serviços prestados e demais fatos finalísticos validamente declarados pelo Gestor devem ser materializados mesmo quando a identidade canônica ainda estiver pendente ou em conflito.
 
-O modelo factual deve preservar, conforme o contrato aplicável, a origem da pessoa, sistema de origem, código da pessoa na origem, CPF declarado quando existente e estado da atribuição de identidade. `pessoa_uuid` não pode ser usada como requisito artificial para a existência do fato.
+O modelo factual deve preservar o vínculo obrigatório com a observação de Pessoa da remessa e, **quando existirem**, a origem persistente e o código local da Pessoa. Deve preservar também sistema de origem, CPF declarado quando existente e estado da atribuição de identidade. `pessoa_uuid`, `pessoa_origem_id` e `codigo_pessoa_origem` não podem ser usados como requisitos artificiais para a existência do fato. A obrigatoriedade de `codigoRegistroOrigem` é declarada pelo schema versionado de cada Tipo de Benefício/Serviço, e não por uma regra global paralela do Processor.
 
 A camada analítica deve conseguir distinguir, de forma explícita, fatos com identidade atribuída, pendente ou em conflito.
 

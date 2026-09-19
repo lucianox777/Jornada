@@ -53,6 +53,34 @@ DECLARE @soSehab BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE 
         @soSmdet BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSmdet AND codigo='TRABALHO'),
         @soSms BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSms AND codigo='SAUDE');
 
+/* Runtime v4: cada sistema DEV recebe explicitamente sua Base privativa padrão.
+   Sistemas compartilhados reais continuam exigindo autorização explícita separada. */
+INSERT ref.base_pessoa_origem(codigo,nome,gestor_custodiante_id,escopo,confianca_identidade)
+SELECT CONCAT('SYS_',CONVERT(VARCHAR(20),s.sistema_origem_id)),
+       CONCAT('Base privativa DEV - ',g.codigo,' / ',s.codigo),
+       s.gestor_id,'PRIVADA','HOMOLOGADA_DETERMINISTICA'
+FROM ref.sistema_origem s
+JOIN ref.gestor g ON g.gestor_id=s.gestor_id
+WHERE s.sistema_origem_id IN(@soSehab,@soSmads,@soSmdet,@soSms)
+  AND NOT EXISTS(
+      SELECT 1 FROM ref.base_pessoa_origem b
+      WHERE b.codigo=CONCAT('SYS_',CONVERT(VARCHAR(20),s.sistema_origem_id)));
+
+INSERT ref.sistema_origem_base_pessoa(sistema_origem_id,base_pessoa_origem_id,padrao,ativo)
+SELECT s.sistema_origem_id,b.base_pessoa_origem_id,1,1
+FROM ref.sistema_origem s
+JOIN ref.base_pessoa_origem b ON b.codigo=CONCAT('SYS_',CONVERT(VARCHAR(20),s.sistema_origem_id))
+WHERE s.sistema_origem_id IN(@soSehab,@soSmads,@soSmdet,@soSms)
+  AND NOT EXISTS(
+      SELECT 1 FROM ref.sistema_origem_base_pessoa sb
+      WHERE sb.sistema_origem_id=s.sistema_origem_id
+        AND sb.base_pessoa_origem_id=b.base_pessoa_origem_id);
+
+DECLARE @bpSehab BIGINT=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@soSehab AND padrao=1 AND ativo=1),
+        @bpSmads BIGINT=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@soSmads AND padrao=1 AND ativo=1),
+        @bpSmdet BIGINT=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@soSmdet AND padrao=1 AND ativo=1),
+        @bpSms BIGINT=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@soSms AND padrao=1 AND ativo=1);
+
 -- Código do Tipo: exatamente 4 caracteres alfanuméricos A-Z/0-9.
 MERGE ref.tipo_registro AS t USING (VALUES
  (@gSehab,'BENEFICIO','AA01','Auxílio Aluguel'),
@@ -73,12 +101,12 @@ DECLARE @aa BIGINT=(SELECT tipo_registro_id FROM ref.tipo_registro WHERE codigo=
 
 DECLARE @tipos TABLE(tipo_registro_id BIGINT,regras NVARCHAR(200),schema_pessoa NVARCHAR(255),schema_pessoa_hash BINARY(32),schema_registro NVARCHAR(255),schema_registro_hash BINARY(32),tipo_medida NVARCHAR(30),qc NVARCHAR(20),regime_vigencia NVARCHAR(30),data_inicio_permitida_concessao DATE,data_fim_permitida_concessao DATE,monitorar_atraso BIT,prazo_recebimento_dias INT,marco_atraso_codigo NVARCHAR(30),origina_endereco_casa_abrigo_sigilosa BIT);
 INSERT @tipos VALUES
-(@aa,'Regras sintéticas AA01.','config/contracts/registros/AA01/v1/pessoa.schema.json',0x30f12102f5a6043f092f3af601ded82bc4e7268c3fdb34d326a91d2e547f5e94,'config/contracts/registros/AA01/v1/registro.schema.json',0xcfb1de16dd73839dba6982f92ee0abe778bd67f4de2c79f9be5cb4b08f291da4,'MONETARIO','IMPLEMENTADO','PRAZO_INDETERMINADO',NULL,NULL,1,7,'DATA_EVENTO_CONCESSAO',0),
-(@ar,'Regras sintéticas AR01.','config/contracts/registros/AR01/v1/pessoa.schema.json',0xcfc653b792de1d56d9748ff939ef78b0849ad901f607baddc8559b4b2dcdfa41,'config/contracts/registros/AR01/v1/registro.schema.json',0xfb25b6bd16596e817a667d39ecae933de90362fa5a0d7cd014f41f034f8c446d,'MONETARIO','NAO_IMPLEMENTADO','PRAZO_INDETERMINADO',NULL,NULL,1,7,'DATA_EVENTO_CONCESSAO',0),
-(@pot,'Regras sintéticas POT1.','config/contracts/registros/POT1/v1/pessoa.schema.json',0xefe204199e2f27e461f1436c079c2055167e03432cad244a6fd6c3b2f84f6614,'config/contracts/registros/POT1/v1/registro.schema.json',0xe9dea336183debb4576952e39f6110e7e72f10df27971428d1e3d223359b510c,'MONETARIO','IMPLEMENTADO','PRAZO_INDETERMINADO',NULL,NULL,1,7,'DATA_EVENTO_CONCESSAO',0),
-(@cras,'Regras sintéticas CRA1.','config/contracts/registros/CRA1/v1/pessoa.schema.json',0x4d715b2cc259f5dd5869a6d50c25f84cbbc390bace6721c663fd3afb2d0d6edc,'config/contracts/registros/CRA1/v1/registro.schema.json',0xfe10e8f81ff29b90379239540f7a94759febba5b2c6be1863e3953cd4dc2da95,'SEM_MEDIDA','NAO_IMPLEMENTADO','NAO_APLICAVEL',NULL,NULL,1,7,'DATA_HORA_SERVICO',0),
-(@cpop,'Regras sintéticas CPO1.','config/contracts/registros/CPO1/v1/pessoa.schema.json',0x06ae0e7812be6666b3b1630547b057b48c0bfa0777d7cfc525f970c6b7e036c5,'config/contracts/registros/CPO1/v1/registro.schema.json',0xadc382a7602c0b556ea752422c151735e4b54b7b66cdf749d000cf88e76b3312,'SEM_MEDIDA','NAO_IMPLEMENTADO','NAO_APLICAVEL',NULL,NULL,1,7,'DATA_HORA_SERVICO',0),
-(@cas1,'Regras sintéticas CAS1 - casa-abrigo-sigilosa.','config/contracts/registros/CAS1/v1/pessoa.schema.json',0x5de1477d65cfdfd19e7b24771c8bc9a791d18fdc22813ee60d4ea73a8fdec0c8,'config/contracts/registros/CAS1/v1/registro.schema.json',0x392fb177f9ecb075375632916b55f84033759113bb4d2256f3e7d718bbb0ba18,'SEM_MEDIDA','NAO_IMPLEMENTADO','NAO_APLICAVEL',NULL,NULL,0,NULL,NULL,1);
+(@aa,'Regras sintéticas AA01.','config/contracts/registros/AA01/v1/pessoa.schema.json',0x30f12102f5a6043f092f3af601ded82bc4e7268c3fdb34d326a91d2e547f5e94,'config/contracts/registros/AA01/v1/registro.schema.json',0x8fa7723753cb083a8be6dc1bf083f24dac41dddd55e731be00f113b4313e616d,'MONETARIO','IMPLEMENTADO','PRAZO_INDETERMINADO',NULL,NULL,1,7,'DATA_EVENTO_CONCESSAO',0),
+(@ar,'Regras sintéticas AR01.','config/contracts/registros/AR01/v1/pessoa.schema.json',0xcfc653b792de1d56d9748ff939ef78b0849ad901f607baddc8559b4b2dcdfa41,'config/contracts/registros/AR01/v1/registro.schema.json',0xc2a05ff8b3b8c36bcdcb8f604455c0e8ddf97a1cb46868e4c2586896918ae73a,'MONETARIO','NAO_IMPLEMENTADO','PRAZO_INDETERMINADO',NULL,NULL,1,7,'DATA_EVENTO_CONCESSAO',0),
+(@pot,'Regras sintéticas POT1.','config/contracts/registros/POT1/v1/pessoa.schema.json',0xefe204199e2f27e461f1436c079c2055167e03432cad244a6fd6c3b2f84f6614,'config/contracts/registros/POT1/v1/registro.schema.json',0x83d504b286ff54b4a09d8d9efc9cb273a5027662a5f2deb82f17850918593d12,'MONETARIO','IMPLEMENTADO','PRAZO_INDETERMINADO',NULL,NULL,1,7,'DATA_EVENTO_CONCESSAO',0),
+(@cras,'Regras sintéticas CRA1.','config/contracts/registros/CRA1/v1/pessoa.schema.json',0x4d715b2cc259f5dd5869a6d50c25f84cbbc390bace6721c663fd3afb2d0d6edc,'config/contracts/registros/CRA1/v1/registro.schema.json',0xc6342a5fc5486d1e180b2dd8bd9e5b2e02fc1c8562ed6c84968e1da872612154,'SEM_MEDIDA','NAO_IMPLEMENTADO','NAO_APLICAVEL',NULL,NULL,1,7,'DATA_HORA_SERVICO',0),
+(@cpop,'Regras sintéticas CPO1.','config/contracts/registros/CPO1/v1/pessoa.schema.json',0x06ae0e7812be6666b3b1630547b057b48c0bfa0777d7cfc525f970c6b7e036c5,'config/contracts/registros/CPO1/v1/registro.schema.json',0x979d14dcbef7723bdf10138faecb1de458ba24174610b2af61a3361148780ff6,'SEM_MEDIDA','NAO_IMPLEMENTADO','NAO_APLICAVEL',NULL,NULL,1,7,'DATA_HORA_SERVICO',0),
+(@cas1,'Regras sintéticas CAS1 - casa-abrigo-sigilosa.','config/contracts/registros/CAS1/v1/pessoa.schema.json',0x5de1477d65cfdfd19e7b24771c8bc9a791d18fdc22813ee60d4ea73a8fdec0c8,'config/contracts/registros/CAS1/v1/registro.schema.json',0x6fb43af824f9dc799e644d14ed7fbadd56451fdbdd952cf0b6cd4eb76c23bbb6,'SEM_MEDIDA','NAO_IMPLEMENTADO','NAO_APLICAVEL',NULL,NULL,0,NULL,NULL,1);
 INSERT ref.tipo_registro_versao(tipo_registro_id,versao,vigencia_inicio,regras_texto,schema_pessoa_ref,schema_pessoa_sha256,schema_registro_ref,schema_registro_sha256,tipo_medida,regime_vigencia,data_inicio_permitida_concessao,data_fim_permitida_concessao,monitorar_atraso,prazo_recebimento_dias,marco_atraso_codigo,qc_status,origina_endereco_casa_abrigo_sigilosa,status)
 SELECT x.tipo_registro_id,1,'2026-01-01',x.regras,x.schema_pessoa,x.schema_pessoa_hash,x.schema_registro,x.schema_registro_hash,x.tipo_medida,x.regime_vigencia,x.data_inicio_permitida_concessao,x.data_fim_permitida_concessao,x.monitorar_atraso,x.prazo_recebimento_dias,x.marco_atraso_codigo,x.qc,x.origina_endereco_casa_abrigo_sigilosa,'ATIVA'
 FROM @tipos x WHERE NOT EXISTS(SELECT 1 FROM ref.tipo_registro_versao v WHERE v.tipo_registro_id=x.tipo_registro_id AND v.versao=1);
@@ -135,12 +163,25 @@ FROM ref.gestor g WHERE g.codigo IN('SMS','SEHAB','SMADS','SMDET')
 AND NOT EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v WHERE v.gestor_id=g.gestor_id AND v.versao=3);
 UPDATE v SET pessoa_schema_ref=CONCAT('config/contracts/gestores/',g.codigo,'/pessoa/v3/pessoa.schema.json'),
              pessoa_schema_sha256=CASE g.codigo WHEN 'SEHAB' THEN 0xa4ea4f9c337f781e352877e03394f4d0e0db9eab6b9cb348439fe57a067b9752 WHEN 'SMADS' THEN 0x8b0b9709dc8afe420aa8a4693ce461b73d91cde84561702285e4fb48475cb656 WHEN 'SMDET' THEN 0x083937b02cdb31bcdd1265f34dacea80523ad08e1439f9ee6c44705f4433ed75 WHEN 'SMS' THEN 0x2fd8376496f33a422124dab61238498588ddfd99dfba944963787d9c26ea3550 END,
-             status='ATIVA',vigencia_inicio='2026-09-12',vigencia_fim=NULL,ativado_em=COALESCE(v.ativado_em,'2026-09-12')
+             status='ENCERRADA',vigencia_inicio='2026-09-12',vigencia_fim=COALESCE(v.vigencia_fim,'2026-09-19'),ativado_em=COALESCE(v.ativado_em,'2026-09-12')
 FROM ref.gestor_pessoa_versao v JOIN ref.gestor g ON g.gestor_id=v.gestor_id
 WHERE v.versao=3 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
-DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=3),
-        @gpvSmads BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSmads AND versao=3),
-        @gpvSms BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSms AND versao=3);
+
+INSERT ref.gestor_pessoa_versao(gestor_id,versao,vigencia_inicio,pessoa_schema_ref,pessoa_schema_sha256,status,ativado_em)
+SELECT g.gestor_id,4,'2026-09-19',CONCAT('config/contracts/gestores/',g.codigo,'/pessoa/v4/pessoa.schema.json'),
+       CASE g.codigo WHEN 'SEHAB' THEN 0x121d59b4ce85b7b9a6c83e54f87f2ca10a54313895e61499d93a27cb4b290d2c WHEN 'SMADS' THEN 0x5aa6327de61f96abc3d504f9247a646333fd7bb0f0e77e5be8b73513edcdf1de WHEN 'SMDET' THEN 0xbe764328439c1f3e3d3c1bc7b2c2c07d0345fe61189aebc699e931b85a556b0f WHEN 'SMS' THEN 0x44a07bd307390a19559f59598906fa765374b0eee244a7d3e1b9605047898e08 END,
+       'ATIVA','2026-09-19'
+FROM ref.gestor g WHERE g.codigo IN('SMS','SEHAB','SMADS','SMDET')
+AND NOT EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v WHERE v.gestor_id=g.gestor_id AND v.versao=4);
+UPDATE v SET pessoa_schema_ref=CONCAT('config/contracts/gestores/',g.codigo,'/pessoa/v4/pessoa.schema.json'),
+             pessoa_schema_sha256=CASE g.codigo WHEN 'SEHAB' THEN 0x121d59b4ce85b7b9a6c83e54f87f2ca10a54313895e61499d93a27cb4b290d2c WHEN 'SMADS' THEN 0x5aa6327de61f96abc3d504f9247a646333fd7bb0f0e77e5be8b73513edcdf1de WHEN 'SMDET' THEN 0xbe764328439c1f3e3d3c1bc7b2c2c07d0345fe61189aebc699e931b85a556b0f WHEN 'SMS' THEN 0x44a07bd307390a19559f59598906fa765374b0eee244a7d3e1b9605047898e08 END,
+             status='ATIVA',vigencia_inicio='2026-09-19',vigencia_fim=NULL,ativado_em=COALESCE(v.ativado_em,'2026-09-19')
+FROM ref.gestor_pessoa_versao v JOIN ref.gestor g ON g.gestor_id=v.gestor_id
+WHERE v.versao=4 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
+
+DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=4),
+        @gpvSmads BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSmads AND versao=4),
+        @gpvSms BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSms AND versao=4);
 
 -- Credenciais no banco guardam somente secret_ref. Os IDs abaixo são os mesmos da fixture
 -- config/security/test-access-keys.json para que toda chamada DEV possa ser auditada por FK.
@@ -216,8 +257,8 @@ IF NOT EXISTS(SELECT 1 FROM bronze.entrega_arquivo WHERE entrega_id=@entPessoa)
  INSERT bronze.entrega_arquivo(entrega_id,nome_arquivo,content_type,objeto_chave,payload_sha256,tamanho_bytes,recebido_em) VALUES(@entPessoa,'ENTREGA_SMS_SAUDE_v2_8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','application/zip','sha256/8d/cc/8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',4,'2026-08-27T11:00:00+00:00');
 IF NOT EXISTS(SELECT 1 FROM ingestao.lote WHERE lote_id=@lotPessoa)
  INSERT ingestao.lote(lote_id,entrega_id,lote_seq,lote_total,qtd_pessoas,qtd_registros,status,criado_em,atualizado_em) VALUES(@lotPessoa,@entPessoa,1,1,2,0,'PROCESSADO','2026-08-27T08:00:01-03:00','2026-08-27T08:03:00-03:00');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSms AND codigo_pessoa_origem='SMS001') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSms,'SMS001');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSms AND codigo_pessoa_origem='SMS002') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSms,'SMS002');
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSms AND codigo_pessoa_origem='SMS001') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSms,'SMS001',@bpSms);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSms AND codigo_pessoa_origem='SMS002') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSms,'SMS002',@bpSms);
 DECLARE @smsO1 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSms AND codigo_pessoa_origem='SMS001'),
         @smsO2 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSms AND codigo_pessoa_origem='SMS002');
 IF NOT EXISTS(SELECT 1 FROM silver.pessoa_observacao WHERE lote_id=@lotPessoa)
@@ -246,12 +287,12 @@ IF NOT EXISTS(SELECT 1 FROM bronze.entrega_arquivo WHERE entrega_id=@entBen)
  INSERT bronze.entrega_arquivo(entrega_id,nome_arquivo,content_type,objeto_chave,payload_sha256,tamanho_bytes,recebido_em) VALUES(@entBen,'ENTREGA_SEHAB_SEHAB_v2_8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','application/zip','sha256/8d/cc/8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',4,'2026-08-27T12:00:00+00:00');
 IF NOT EXISTS(SELECT 1 FROM ingestao.lote WHERE lote_id=@lotBen)
  INSERT ingestao.lote(lote_id,entrega_id,lote_seq,lote_total,qtd_pessoas,qtd_registros,status,criado_em,atualizado_em) VALUES(@lotBen,@entBen,1,1,6,6,'PROCESSADO','2026-08-27T09:00:01-03:00','2026-08-27T09:03:00-03:00');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH001') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSehab,'SEH001');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH002') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSehab,'SEH002');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH003') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSehab,'SEH003');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH004') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSehab,'SEH004');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH005') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSehab,'SEH005');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH006') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSehab,'SEH006');
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH001') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSehab,'SEH001',@bpSehab);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH002') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSehab,'SEH002',@bpSehab);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH003') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSehab,'SEH003',@bpSehab);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH004') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSehab,'SEH004',@bpSehab);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH005') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSehab,'SEH005',@bpSehab);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH006') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSehab,'SEH006',@bpSehab);
 DECLARE @po1 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH001'),
         @po2 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH002'),
         @po3 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH003'),
@@ -355,8 +396,8 @@ IF NOT EXISTS(SELECT 1 FROM bronze.entrega_arquivo WHERE entrega_id=@entS)
  INSERT bronze.entrega_arquivo(entrega_id,nome_arquivo,content_type,objeto_chave,payload_sha256,tamanho_bytes,recebido_em) VALUES(@entS,'ENTREGA_SMADS_ASSISTENCIA_v2_8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','application/zip','sha256/8d/cc/8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',4,'2026-08-27T13:00:00+00:00');
 IF NOT EXISTS(SELECT 1 FROM ingestao.lote WHERE lote_id=@lotS)
  INSERT ingestao.lote(lote_id,entrega_id,lote_seq,lote_total,qtd_pessoas,qtd_registros,status,criado_em,atualizado_em) VALUES(@lotS,@entS,1,1,2,2,'PROCESSADO','2026-08-27T10:00:01-03:00','2026-08-27T10:01:00-03:00');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSmads AND codigo_pessoa_origem='CRAS001') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSmads,'CRAS001');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSmads AND codigo_pessoa_origem='CRAS002') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSmads,'CRAS002');
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSmads AND codigo_pessoa_origem='CRAS001') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSmads,'CRAS001',@bpSmads);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSmads AND codigo_pessoa_origem='CRAS002') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSmads,'CRAS002',@bpSmads);
 DECLARE @spo1 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSmads AND codigo_pessoa_origem='CRAS001'),
         @spo2 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSmads AND codigo_pessoa_origem='CRAS002');
 IF NOT EXISTS(SELECT 1 FROM silver.pessoa_observacao WHERE lote_id=@lotS)
@@ -503,9 +544,14 @@ CLOSE c; DEALLOCATE c;
 
 -- Observabilidade de processamento v3.26: cada item recebido tem resultado consultável sem criar versão extra na Silver.
 INSERT ingestao.item_processado(lote_id,classe_item,pessoa_origem_id,registro_origem_id,codigo_origem,resultado,versao_interna,conteudo_hash,data_referencia,processado_em)
-SELECT po.lote_id,'PESSOA',po.pessoa_origem_id,NULL,po.codigo_pessoa_origem,'INCLUIDO',po.versao_interna,po.conteudo_hash,po.source_as_of,COALESCE(l.atualizado_em,SYSDATETIMEOFFSET())
+SELECT po.lote_id,'PESSOA',po.pessoa_origem_id,NULL,COALESCE(po.id_pessoa_entrega,po.codigo_pessoa_origem),'INCLUIDO',po.versao_interna,po.conteudo_hash,po.source_as_of,COALESCE(l.atualizado_em,SYSDATETIMEOFFSET())
 FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id
-WHERE NOT EXISTS(SELECT 1 FROM ingestao.item_processado ip WHERE ip.lote_id=po.lote_id AND ip.classe_item='PESSOA' AND ip.codigo_origem=po.codigo_pessoa_origem);
+WHERE COALESCE(po.id_pessoa_entrega,po.codigo_pessoa_origem) IS NOT NULL
+  AND NOT EXISTS(
+      SELECT 1 FROM ingestao.item_processado ip
+      WHERE ip.lote_id=po.lote_id
+        AND ip.classe_item='PESSOA'
+        AND ip.codigo_origem=COALESCE(po.id_pessoa_entrega,po.codigo_pessoa_origem));
 
 INSERT ingestao.item_processado(lote_id,classe_item,pessoa_origem_id,registro_origem_id,codigo_origem,resultado,versao_interna,conteudo_hash,data_referencia,processado_em)
 SELECT ro.lote_id,'REGISTRO',NULL,ro.registro_origem_id,ro.codigo_registro_origem,

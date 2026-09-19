@@ -1,11 +1,12 @@
 # Gold Pessoa — universo definido pela âncora CPF, nome civil e nome social
 
-**Status:** proposta de especificação para a candidata v5.00 (ainda não publicada) — revisão 6.
+**Status:** proposta de especificação para a candidata v5.00 (ainda não publicada) — revisão 8.
 **Base analisada:** `master` em `e69d6f77`. A comparação `14b7130..e69d6f77` altera apenas workflows/scripts; não há mudança em `Solution/src` nem em `Solution/database`, portanto as referências técnicas herdadas da revisão 5 permanecem materialmente válidas.
 **Subordinação:** Especificação Técnica vigente → `Arquitetura_Identidade_Linkage.md` (§1, §2, §5, §6) → este documento → implementação.
 
 **Mudanças desta revisão**
 
+- **Revisão 8:** consolida a separação entre vínculo técnico da Entrega e identidade persistente da fonte. `idPessoaEntrega` é obrigatório e único dentro da Entrega para ligar `registros.jsonl` a `pessoas.jsonl`; `codigoPessoaOrigem` permanece opcional e nunca é derivado de CPF. Uma Pessoa sem código local pode ter fatos: o vínculo persistido é `silver.registro_observacao.pessoa_observacao_id`. `base_pessoa_origem_id` só existe quando há uma origem persistente em `silver.pessoa_origem`; não é requisito de toda observação de Pessoa. RN-CT-12 passa a comparar a Pessoa ligada ao fato, e não a exigir `codigoPessoaOrigem`, porque `idPessoaEntrega` é local à remessa e não é identidade entre entregas.
 - **Revisão 6:** fecha `codigoPessoaOrigem` como obrigatório na v5 e bloqueia produção para sistema de origem não certificado; explicita o rito de certificação sem fixar SLA institucional arbitrário; corrige T29 para separar origem sem CPF de outra origem não ancorada versus linkage de uma origem sem CPF para âncora existente; classifica a proibição de ligação entre duas origens não ancoradas como decisão de política pública ainda pendente de aprovação institucional; mantém `nomeAusenteMotivo` como proveniência da observação, não como atributo único da Pessoa Gold; restringe `EM_CONFLITO` a conflito de identidade/âncora; explicita a supremacia da âncora CPF quando uma origem já existente informa depois CPF ancorado em outro UUID; acrescenta diagnósticos de qualidade do linkage para posição da verdade, coortes sintéticas e saturação do posterior.
 - **Revisão 5:** resolução em dois escopos. Dentro do namespace de código, a resolução é pelo código interno. Entre namespaces, é por observações: âncora CPF e, sem CPF, linkage para âncora. Entram a certificação da semântica do código por sistema de origem e a observação mínima contendo só o código.
 - **Revisão 4:** o contrato passa a permitir nome nulo sem rejeição; o motivo fica opcional e sua falta é registrada como `NAO_INFORMADO_ORIGEM`. Entra a Parte D (contrato Pessoa), com a identificação posterior: estabilidade de `codigoPessoaOrigem`, usando a fusão e o desmembramento de UUID já previstos.
@@ -282,12 +283,14 @@ O BI deve expor um indicador separado de **origens** sem CPF, sem chamá-las de 
 
 ## Parte D — Contrato Pessoa (nova versão v5)
 
-### D.1 Situação atual (v4, verificado em `config/contracts/gestores/*/pessoa/v4/pessoa.schema.json`)
+### D.1 Situação atual (v4 corrente na branch de cutover)
 
-- `required: ["nomeCompleto", "dataNascimento"]`, e `nomeCompleto` é `string` com `minLength: 1`. Um atendimento emergencial sem nome é rejeitado, e a fonte é empurrada para inventar um nome.
-- `nomeMae` já é opcional.
-- `codigoPessoaOrigem` não é obrigatório. Quando ausente, o Processor usa o CPF como código de origem (`ProcessorModels.cs:173–178`); sem CPF e sem código, a observação é rejeitada.
-- No fluxo normal do Processor, não encontrei reatribuição dos fatos de observações anteriores da mesma origem quando uma versão nova é resolvida. A desativação de `vinculo_fonte` aparece só nos procedimentos governados. **Isso precisa ser confirmado por teste (T24) antes de ser tratado como defeito.**
+- O contrato v4 corrente exige `idPessoaEntrega`, `nomeCompleto` e `dataNascimento`. `nomeMae` já é opcional.
+- `idPessoaEntrega` é uma chave técnica de ligação **somente dentro da Entrega**. Ela é única em `pessoas.jsonl` e cada fato em `registros.jsonl` aponta para uma `idPessoaEntrega` existente na mesma Entrega. Ela não identifica a Pessoa entre entregas e não substitui uma chave de origem.
+- `codigoPessoaOrigem` é opcional. O Processor não deriva esse código do CPF nem de nome, nascimento, hash ou outro atributo. Se a fonte não possuir código local estável, `silver.pessoa_observacao.pessoa_origem_id` e `codigo_pessoa_origem` permanecem nulos.
+- `base_pessoa_origem_id` pertence a `silver.pessoa_origem`: define o namespace de uma identidade persistente **quando essa identidade existe**. Não é requisito para toda observação de Pessoa.
+- O vínculo factual persistente é `silver.registro_observacao.pessoa_observacao_id`. Portanto uma Pessoa sem `codigoPessoaOrigem` pode ter benefício ou serviço normalmente; sua identidade canônica pode permanecer `PENDENTE_IDENTIDADE` até haver evidência suficiente.
+- No fluxo normal do Processor, a reatribuição dos fatos de observações anteriores da mesma origem quando uma versão nova é resolvida continua sendo matéria do T24.
 
 ### D.2 Regras
 
@@ -297,100 +300,132 @@ O BI deve expor um indicador separado de **origens** sem CPF, sem chamá-las de 
 
 **RN-CT-03 — Formato quando presente.** Um campo informado continua sujeito às regras de formato: `nomeCompleto` não vazio e até 500 caracteres; `dataNascimento` em data ISO válida. String vazia não é forma de ausência; ausência é `null`.
 
-**RN-CT-04 — Estabilidade do código de origem.** `codigoPessoaOrigem` identifica a pessoa no sistema da fonte e deve permanecer o mesmo durante toda a vida do cadastro, inclusive quando a pessoa for identificada depois. A identificação posterior de uma pessoa atendida sem nome ou sem CPF é enviada como **nova versão da mesma origem**, com o mesmo `codigoPessoaOrigem`, e nunca como cadastro novo.
+**RN-CT-04 — Estabilidade do código de origem quando existente.** Quando a fonte possui `codigoPessoaOrigem`, ele identifica a Pessoa no namespace de origem e deve permanecer o mesmo durante toda a vida daquele cadastro, inclusive quando a Pessoa for identificada depois. A identificação posterior é enviada como nova versão da mesma origem, com o mesmo código.
 
-*Justificativa:* o código estável é o único vínculo determinístico intra-namespace antes do CPF. Entre namespaces, duas origens ainda não ancoradas não são unidas automaticamente pela regra candidata de D11; uma origem sem CPF pode, porém, ser ligada probabilisticamente a uma âncora CPF existente. Se a própria fonte criar um cadastro novo ao identificar a pessoa, perde-se a continuidade determinística do atendimento emergencial.
+A ausência de código local é válida. Nesse caso a Jornada não inventa uma origem persistente: a observação existe por si e os fatos da Entrega se ligam a ela por `idPessoaEntrega`/`pessoa_observacao_id`.
 
-**RN-CT-05 — Código de origem obrigatório.** `codigoPessoaOrigem` é obrigatório na v5, e a derivação a partir do CPF deixa de existir para novas entregas. Derivar do CPF amarra a origem a um dado que pode chegar depois ou ser corrigido, e cada mudança criaria uma origem nova.
+**RN-CT-05 — Ligação obrigatória da Entrega; código de origem opcional (D8).**
 
-**RN-CT-06 — Identificação posterior pelo código interno.** O mecanismo principal da identificação posterior é o `codigoPessoaOrigem`, que é a rota determinística dentro do namespace Gestor + Sistema de Origem (§7 da Arquitetura). A identificação chega como nova versão da mesma origem, e a mesma origem tem o mesmo `initial_uuid`. Com isso:
+- `idPessoaEntrega` é obrigatório e único por linha de `pessoas.jsonl` dentro da Entrega.
+- Todo fato informa `idPessoaEntrega` e deve encontrar exatamente uma Pessoa na mesma Entrega.
+- `codigoPessoaOrigem` é opcional. Quando informado, participa da identidade persistente no namespace e da verificação contínua (RN-CT-09).
+- Quando omitido, permanece omitido. **CPF nunca é convertido em `codigoPessoaOrigem`.**
+- `idPessoaEntrega` não deve ser reutilizado como identificador entre Entregas; seu escopo termina com a remessa.
 
-- o nome, o CPF e os demais campos compõem o Gold pela RN-GP-04, sem linkage e sem decisão caso a caso;
-- havendo CPF, a publicação determinística de `REFERENCIA` pela âncora vale para a origem;
-- os fatos de versões anteriores da mesma origem acompanham a atribuição corrente da origem, porque pertencem ao mesmo cadastro no sistema da fonte. Isso não é inferência: a própria fonte declarou que é a mesma pessoa ao manter o código.
+**RN-CT-06 — Identificação posterior pelo código interno, quando houver código.** Para uma origem que possui `codigoPessoaOrigem`, esse código é a rota determinística dentro do namespace. A mesma origem conserva o mesmo `initial_uuid`; nome, CPF e demais campos podem chegar depois. Havendo CPF, a publicação determinística pela âncora continua prevalecendo.
 
-A composição reversível de UUID (fusão e desmembramento) fica para os casos entre origens diferentes, inclusive unificações feitas no sistema da fonte, sem campo novo no contrato.
+Para observação sem `codigoPessoaOrigem`, não existe continuidade determinística de origem a ser inventada. Ela pode ser resolvida pela âncora CPF, por retroalimentação UUID Jornada ou pelos mecanismos de Linkage/composição governada aplicáveis.
 
-O T24 verifica essa regra: depois da identificação, os fatos do atendimento anterior não podem permanecer `PENDENTE_IDENTIDADE`. Hoje o vínculo é por observação, e não encontrei no Processor a propagação para versões anteriores da origem. Se o T24 falhar, a correção é implementar a atribuição por origem, e não criar um mecanismo novo.
+O T24 verifica a propagação dos fatos históricos quando existe de fato uma origem persistente.
 
 **RN-CT-07 — Dois escopos de resolução.**
 
-*Intra (mesmo namespace).* Dentro do namespace Gestor + Sistema de Origem, a identidade de origem é resolvida pelo `codigoPessoaOrigem`, de forma determinística. A fonte é a autoridade sobre quais registros pertencem ao mesmo cadastro, e nenhum dado cadastral é necessário para isso. Fatos com o mesmo código pertencem à mesma origem e ao mesmo `initial_uuid`, mesmo que nenhuma observação traga nome, CPF ou outro campo.
+*Intra (mesmo namespace e código persistente existente).* A identidade de origem é resolvida pelo par Base de Pessoa + `codigoPessoaOrigem`, de forma determinística. Nenhum dado cadastral é necessário para afirmar que versões com a mesma chave de origem pertencem ao mesmo cadastro.
 
-*Inter (namespaces diferentes: outro sistema, benefício, serviço ou Secretaria).* A ligação entre origens é feita somente por observações:
+*Observação sem código persistente.* Não há resolução intra por chave sintética. A observação permanece independente até que CPF, UUID Jornada ou Linkage/composição governada estabeleça a atribuição possível.
+
+*Inter (namespaces diferentes).* A ligação entre origens é feita somente por observações:
 
 1. âncora CPF, por rota determinística;
-2. sem CPF, linkage probabilístico para uma âncora existente, conforme política homologada;
-3. composição reversível de UUID (fusão e desmembramento) para correções e decisões governadas.
+2. sem CPF, Linkage probabilístico para uma âncora existente, conforme política homologada;
+3. composição reversível de UUID para correções e decisões governadas.
 
-Uma origem sem CPF pode ser ligada probabilisticamente a uma **âncora CPF já existente**, conforme política homologada. Duas origens de namespaces diferentes que continuam **ambas sem associação a qualquer âncora CPF** não são ligadas automaticamente entre si. Essa última restrição é uma decisão de política pública, não mera consequência técnica, e permanece sujeita à confirmação institucional de D11. O código interno de uma fonte nunca é usado para ligar registros de outra fonte.
+Uma origem sem CPF pode ser ligada probabilisticamente a uma âncora CPF já existente. Duas origens de namespaces diferentes que continuem ambas sem associação a qualquer âncora CPF não são ligadas automaticamente entre si; D11 continua governando essa política.
 
-**RN-CT-08 — O escopo "intra" é o namespace, não a Secretaria.** Dois sistemas da mesma Secretaria têm namespaces distintos e são tratados como "inter". Eles só formam um único namespace se o Gestor declarar formalmente, no cadastro do sistema de origem, que compartilham o mesmo cadastro de pessoas com o mesmo código. A declaração é versionada, e a mudança dela passa por composição governada, não por reprocessamento silencioso.
+**RN-CT-08 — O escopo "intra" é a Base/namespace, não a Secretaria.** Dois sistemas da mesma Secretaria têm namespaces distintos salvo declaração explícita de compartilhamento da mesma Base de Pessoa. A autorização é versionada; mudança de namespace passa por composição governada, não por reprocessamento silencioso.
 
-**RN-CT-09 — Certificação da semântica do código.** A resolução intra só é válida para sistemas de origem cujo código tenha sido certificado no onboarding como:
+**RN-CT-09 — Responsabilidade do Gestor e verificação contínua do código quando informado.**
 
-- **por pessoa:** um código identifica uma pessoa, e não uma unidade de atendimento, episódio, prontuário local, família ou benefício;
-- **estável:** o código não muda durante a vida do cadastro;
-- **não reciclado:** um código nunca é reatribuído a outra pessoa, inclusive após exclusão ou inativação.
+*Responsabilidade.* Quando a fonte usa `codigoPessoaOrigem`, o Gestor é responsável por garantir que a mesma Pessoa conserve o código e que um código não represente mais de uma Pessoa. A declaração de responsabilidade pode ser registrada no onboarding, mas **não é gate de entrega**.
 
-A certificação é registrada no cadastro do sistema de origem, com responsável e data. Para Produção, sistema não certificado **não pode entregar dados de Pessoa/fatos dependentes de Pessoa**: o onboarding falha fechado antes de a resolução intra ser usada. DEV/HML podem receber massa de validação em fluxo explicitamente não produtivo e sem publicar identidade operacional.
+*Premissa.* Erros de código são possíveis na operação real. A Jornada usa a chave como declaração da fonte, mas verifica continuamente suas observações. O CPF prevalece sobre o código quando houver evidência determinística conflitante.
 
-O rito mínimo de certificação inclui: declaração formal do Gestor; identificação do responsável; evidência de que o código é por pessoa, estável e não reciclado; identificação do namespace a que a declaração se aplica; data e versão da certificação; e registro da evidência/amostra usada na verificação. Mudança na semântica do código, reciclagem, fusão de cadastros ou alteração de namespace exige nova certificação antes do retorno à Produção. O prazo/SLA de certificação é parâmetro de governança a ser aprovado por Gestor e SGM/SEPE antes da homologação; não é arbitrado por esta especificação.
+**(a) Duplicação — a mesma Pessoa com dois ou mais códigos.**
+- Com CPF, as origens convergem para a mesma âncora; a ocorrência alimenta indicador de qualidade por namespace.
+- Sem CPF, as origens permanecem separadas. Suspeita de duplicidade gera alerta/relatório, nunca união automática.
 
-Se o código for por família ou por outro agrupamento que não é pessoa, o sistema não é certificado. A Jornada não tenta derivar pessoas a partir desse agrupamento.
+**(b) Junção — duas Pessoas no mesmo código.**
+- CPFs válidos diferentes em versões da mesma origem já ancorada configuram sinal forte: a origem entra em conflito de identidade, a resolução intra é suspensa para ela e nenhum fato troca de âncora sem decisão governada.
+- Sem CPF, incompatibilidades fortes de atributos podem gerar alerta conforme critério versionado, sem alterar identidade automaticamente.
+- Mudança isolada de nome não é suficiente para concluir junção.
 
-**RN-CT-10 — Observação mínima.** Todo fato continua exigindo uma linha em `pessoas.jsonl` com o mesmo `codigoPessoaOrigem` na mesma entrega (regra vigente em `ProcessorModels.cs`). Como todos os campos cadastrais são anuláveis (RN-CT-01), essa linha pode conter só o código. Não se abre exceção para fato sem pessoa, o que quebraria a proveniência.
+**(c) Código não pessoal.** Indicadores contínuos podem revelar que o namespace usa código por unidade, episódio, família, benefício ou outro agrupamento. Se classificado como código não pessoal, a resolução intra por `codigoPessoaOrigem` deixa de se aplicar.
 
-**RN-CT-11 — Supremacia da âncora CPF na identificação posterior.** `initial_uuid` é histórico da origem, não autoridade para deslocar um CPF já ancorado. Se uma origem criada como `initial_uuid=A` informar depois um CPF que já pertence à âncora `B`, a âncora permanece em `B`; a origem é reconciliada para a referência `B` e seus fatos acompanham a atribuição corrente. `A` continua auditável no histórico/composição reversível. O sistema nunca cria duas âncoras para o mesmo CPF nem transfere silenciosamente o CPF de `B` para `A`.
+Os limiares e critérios são parâmetros versionados sujeitos à D12.
+
+**RN-CT-12 — Chave do registro: obrigatoriedade contratual e verificação contínua.** `codigoRegistroOrigem`, quando previsto pelo Tipo, identifica persistentemente um fato no sistema da fonte.
+
+- **Obrigatoriedade definida pelo contrato:** cada versão de Tipo de Benefício/Serviço declara em seu schema factual se `codigoRegistroOrigem` é obrigatório. O Processor não cria uma exigência global além do schema aprovado.
+- **Quando informado/exigido, é único no namespace:** a chave identifica um único fato durante toda a vida desse fato e não deve ser reciclada.
+- **Responsabilidade do Gestor:** aplica-se a mesma responsabilidade operacional da RN-CT-09.
+- **Duplicação:** o mesmo fato enviado sob duas chaves distintas gera alerta de possível duplicação; nenhum fato é removido automaticamente.
+- **Reaproveitamento:** uma chave existente usada para outro fato não pode transformar o novo conteúdo em retificação silenciosa. Uma alteração de Pessoa ligada ao fato, Tipo/Natureza ou marco inicial do fato é sinal de reaproveitamento. A nova observação vai para **conflito de retificação**, a versão anterior não é encerrada/substituída automaticamente, as evidências de ambas são preservadas e o Gestor recebe alerta.
+- Para comparar a Pessoa entre versões, usa-se identidade persistente/âncora quando disponível. `idPessoaEntrega` **não** é comparado entre Entregas porque é apenas chave local da remessa.
+- Os critérios adicionais de duplicação/reaproveitamento são parâmetros versionados sem valor arbitrado nesta especificação (D12).
+
+**RN-CT-10 — Observação mínima e vínculo factual.** Todo fato exige uma linha em `pessoas.jsonl` na mesma Entrega, referenciada por `idPessoaEntrega`. A Pessoa pode não possuir `codigoPessoaOrigem` e pode ainda não possuir CPF; isso não autoriza fato sem Pessoa. Na persistência, a FK obrigatória é `silver.registro_observacao.pessoa_observacao_id`.
+
+**RN-CT-11 — Supremacia da âncora CPF na identificação posterior.** Esta regra vale para origem sem âncora prévia que passa a informar um CPF. Uma origem já associada a uma âncora que passa a informar outro CPF segue a RN-CT-09(b). `initial_uuid` é histórico da origem, não autoridade para deslocar CPF já ancorado. Se uma origem criada como `initial_uuid=A` informar depois CPF que já pertence à âncora `B`, a âncora permanece em `B`; a atribuição corrente pode ser reconciliada de forma governada, mantendo `A` auditável.
 
 ### D.3 Fragmento proposto de JSON Schema (v5)
 
 ```json
 {
-  "required": ["codigoPessoaOrigem"],
+  "required": ["idPessoaEntrega"],
   "properties": {
+    "idPessoaEntrega": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "Chave técnica única dentro da Entrega; usada apenas para ligar fatos à Pessoa da mesma remessa."
+    },
     "codigoPessoaOrigem": { "type": "string", "minLength": 1, "maxLength": 255 },
-    "nomeCompleto": { "type": ["string", "null"], "minLength": 1, "maxLength": 500,
-      "description": "Nome civil. Nulo quando desconhecido; nunca usar texto convencional como 'Desconhecido'." },
-    "nomeAusenteMotivo": { "type": ["string", "null"],
-      "enum": ["NAO_IDENTIFICADO", "RECEM_NASCIDO_SEM_REGISTRO", "RECUSA_INFORMAR", "NAO_INFORMADO_ORIGEM", null] },
+    "nomeCompleto": { "type": ["string", "null"], "minLength": 1, "maxLength": 500 },
+    "nomeAusenteMotivo": {
+      "type": ["string", "null"],
+      "enum": ["NAO_IDENTIFICADO", "RECEM_NASCIDO_SEM_REGISTRO", "RECUSA_INFORMAR", "NAO_INFORMADO_ORIGEM", null]
+    },
     "dataNascimento": { "type": ["string", "null"], "format": "date" },
     "nomeMae": { "type": ["string", "null"], "minLength": 1, "maxLength": 500 }
-  },
-  "allOf": [
-    { "if": { "properties": { "nomeCompleto": { "type": "string" } }, "required": ["nomeCompleto"] },
-      "then": { "properties": { "nomeAusenteMotivo": { "type": "null" } } } }
-  ]
+  }
 }
 ```
 
-O bloco `allOf` existente para `cpf`/`cpfAusenteMotivo` é mantido. A v4 continua sendo a fronteira de compatibilidade para fontes antigas; a v5 não herda a derivação de `codigoPessoaOrigem` a partir do CPF.
+O bloco existente de consistência de `cpf`/`cpfAusenteMotivo` é mantido. A ausência de `codigoPessoaOrigem` não aciona derivação por CPF.
 
 ### D.4 Critérios de aceitação
 
-- **T22.** Atendimento com `nomeCompleto` nulo, sem CPF e com `codigoPessoaOrigem` é aceito, e o fato é materializado como `PENDENTE_IDENTIDADE`.
-- **T23.** String vazia em `nomeCompleto` é rejeitada; `null` é aceito.
-- **T24.** Origem enviada primeiro sem nome e sem CPF, e depois como nova versão com nome e CPF: os fatos da primeira versão passam a `ATRIBUIDA` à âncora do CPF, e o Gold mostra o nome. Este teste também confirma ou descarta o defeito descrito em D.1.
-- **T25.** Duas versões da mesma origem com CPFs distintos seguem o tratamento de conflito de CPF previsto (anomalia de dados, correção governada), sem escolha automática.
-- **T26.** O `initial_uuid` da origem é o mesmo antes e depois da identificação posterior.
-- **T27.** Entrega com pessoa contendo só `codigoPessoaOrigem` e fato referenciando esse código é aceita. O fato é materializado com a origem e o `initial_uuid` corretos.
-- **T28.** Dois sistemas da mesma Secretaria com o mesmo valor de código, sem declaração de namespace compartilhado, geram duas origens distintas.
-- **T29.** Duas origens de namespaces diferentes que permanecem ambas sem associação a qualquer âncora CPF, mesmo com nome, nascimento e nome da mãe idênticos, não são ligadas automaticamente uma à outra; o gate fica marcado como política institucional pendente em D11.
-- **T29b.** Uma origem sem CPF pode ser ligada probabilisticamente a uma Pessoa Gold já ancorada por CPF, conforme a política homologada; esse caso não é proibido por T29.
-- **T30.** Sistema de origem não certificado é rejeitado para Produção antes da resolução intra. Um fluxo DEV/HML de certificação pode validar amostras, mas não publica identidade operacional.
-- **T31.** Origem com `initial_uuid=A` que, em versão posterior, informa CPF já ancorado no UUID `B` não desloca a âncora para `A`: o CPF permanece ancorado em `B`, a atribuição corrente da origem e seus fatos passam a `B` conforme o mecanismo governado, e `A` permanece como histórico auditável da origem.
+- **T22.** Pessoa com `idPessoaEntrega`, sem nome e sem CPF é aceita conforme o contrato v5; um fato que a referencia é materializado como `PENDENTE_IDENTIDADE`.
+- **T23.** String vazia em `nomeCompleto` é rejeitada quando o campo é informado; `null` é aceito.
+- **T24.** Origem persistente enviada primeiro sem nome e sem CPF, e depois como nova versão com nome e CPF: os fatos anteriores acompanham a atribuição corrente conforme RN-CT-06.
+- **T25.** Duas versões da mesma origem persistente com CPFs distintos seguem o tratamento de conflito da RN-CT-09(b), sem escolha automática.
+- **T26.** O `initial_uuid` de uma origem persistente é o mesmo antes e depois da identificação posterior, salvo composição governada registrada.
+- **T27.** Entrega com Pessoa contendo apenas `idPessoaEntrega` e fato referenciando essa chave é aceita; não se cria `pessoa_origem` artificial, e o fato fica ligado à `pessoa_observacao`.
+- **T28.** Dois sistemas autorizados a Bases distintas podem usar o mesmo valor de `codigoPessoaOrigem` sem colidir.
+- **T29.** Duas origens de namespaces diferentes que permanecem ambas sem âncora CPF não são ligadas automaticamente entre si.
+- **T29b.** Uma origem sem CPF pode ser ligada probabilisticamente a uma Pessoa Gold já ancorada por CPF, conforme política homologada.
+- **T30.** A ausência do registro de declaração do Gestor (RN-CT-09) não bloqueia a entrega.
+- **T32.** Duplicação com CPF: dois códigos do mesmo namespace com o mesmo CPF convergem para a mesma âncora e alimentam o indicador de qualidade.
+- **T33.** Junção com CPF: origem já ancorada recebe versão com CPF incompatível; a origem entra em conflito e nenhum fato troca de âncora silenciosamente.
+- **T34.** Sem CPF, versões do mesmo código com evidência fortemente incompatível geram alerta conforme critério versionado, sem alteração automática de identidade.
+- **T35.** Namespace classificado como código não pessoal deixa de usar resolução intra por `codigoPessoaOrigem`.
+- **T36.** Pessoa sem `codigoPessoaOrigem`, com ou sem CPF, é aceita quando possui `idPessoaEntrega`; a Jornada não deriva código de origem do CPF. Fatos da mesma Entrega referenciam `idPessoaEntrega`.
+- **T37.** Nova versão de um `codigoRegistroOrigem` que indique outra Pessoa, outro Tipo/Natureza ou outro marco inicial não substitui a versão anterior: abre conflito de retificação, preserva as evidências das duas versões e alerta o Gestor.
+- **T38.** Dois registros distintos que aparentem representar o mesmo fato geram alerta de possível duplicação, sem remoção automática.
+- **T31.** Origem com `initial_uuid=A` que depois informa CPF já ancorado em `B` não desloca silenciosamente a âncora para `A`.
 
 ### D.5 Decisões
 
-**Fechadas nesta revisão**
+**Decididas pelo responsável**
 
-- **D8 — FECHADA.** `codigoPessoaOrigem` é obrigatório na v5. Não existe derivação automática a partir do CPF para novas entregas v5; compatibilidade anterior permanece no contrato v4.
-- **D9 — FECHADA.** Sistema de origem não certificado é recusado em Produção até concluir o rito da RN-CT-09. DEV/HML podem ser usados para certificação em modo não produtivo. O SLA de onboarding/certificação deve ser definido institucionalmente antes da homologação e monitorado; não é codificado nesta especificação.
+- **D8 — Decidida (19/09/2026).** `codigoPessoaOrigem` não é obrigatório. A ligação obrigatória dentro da Entrega é `idPessoaEntrega`; código ausente não é derivado do CPF.
+- **D9 — Decidida (19/09/2026).** Não há bloqueio de sistema de origem por certificação. O Gestor é responsável pelas chaves que fornece e a Jornada executa verificação contínua.
 
-**Pendentes de confirmação institucional**
+**Pendentes**
 
-- **D10.** Quem certifica (RN-CT-09): o Gestor, sob sua responsabilidade como controlador, com registro na Jornada. A alternativa é uma verificação técnica adicional por amostragem feita pela SGM/SEPE.
-- **D11.** Política para duas origens de namespaces diferentes que permanecem ambas sem CPF/sem âncora. A regra técnica candidata é não ligá-las automaticamente. A decisão deve ser aprovada institucionalmente porque afeta especialmente pessoas sem documentação ou sem CPF. A aprovação deve registrar responsável, justificativa, critérios de revisão e monitoramento de volume/tempo em `PENDENTE_IDENTIDADE` por Gestor/serviço; exceções seguem composição/correção governada, nunca união probabilística silenciosa.
+- **D10.** Prejudicada pela D9: não há certificação como gate a atribuir.
+- **D12.** Limiares e critérios dos indicadores de duplicação/junção de Pessoa e duplicação/reaproveitamento de registro, além da periodicidade de relatório, dependem de aprovação após medição em HML.
+- **D11.** Política institucional para duas origens de namespaces diferentes que permaneçam ambas sem CPF/sem âncora: a regra técnica candidata continua sendo não ligá-las automaticamente.
 
 ---
 

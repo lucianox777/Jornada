@@ -193,12 +193,15 @@ def main() -> None:
     # rebaixar temporariamente o domínio de vinculo_fonte antes do bloco v3.44.
     # Existem duas definições pós-criação que precisam aceitar CONFLITO_GOVERNADO:
     # o bloco de compatibilidade/reentrada e o bloco evolutivo v3.44.
-    metodo_final = "CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'))"
+    metodo_final = "CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'))"
     modelo_conflict = "(metodo_resolucao='CONFLITO_GOVERNADO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL)"
+    modelo_uuid_jornada = "(metodo_resolucao='UUID_JORNADA_RETROALIMENTACAO' AND score IS NULL AND modelo_id IS NULL)"
     if sql.count(metodo_final) < 2:
-        fail("ck_vinculo_metodo: bloco de reentrada e bloco v3.44 devem aceitar CONFLITO_GOVERNADO")
+        fail("ck_vinculo_metodo: blocos de reentrada devem aceitar UUID_JORNADA_RETROALIMENTACAO e CONFLITO_GOVERNADO")
     if sql.count(modelo_conflict) < 2:
-        fail("ck_vinculo_modelo: bloco de reentrada e bloco v3.44 devem aceitar CONFLITO_GOVERNADO")
+        fail("ck_vinculo_modelo: blocos de reentrada devem aceitar CONFLITO_GOVERNADO")
+    if sql.count(modelo_uuid_jornada) < 2:
+        fail("ck_vinculo_modelo: blocos de reentrada devem aceitar UUID_JORNADA_RETROALIMENTACAO")
     tx_snippets = [
         "SET XACT_ABORT ON",
         "DECLARE @jornada_own_tran BIT=CASE WHEN @@TRANCOUNT=0 THEN 1 ELSE 0 END",
