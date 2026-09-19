@@ -828,7 +828,10 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 FROM serving.registro_integrado ri
                 JOIN silver.registro_observacao ro ON ro.registro_observacao_id=ri.registro_observacao_id
                 JOIN corrente c ON c.pessoa_observacao_id=ro.pessoa_observacao_id;
-                """, connection, transaction);
+                """, connection, transaction)
+            {
+                CommandTimeout = Math.Max(1, configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900))
+            };
             command.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
             command.Parameters.Add("@avaliados", SqlDbType.BigInt).Value = evaluated;
             command.Parameters.Add("@elegiveis", SqlDbType.BigInt).Value = eligible;
