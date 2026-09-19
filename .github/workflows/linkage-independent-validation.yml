@@ -99,6 +99,19 @@ jobs:
             and .model.priorProvenance.estimatorFormula == "clamp(DISTINCT_BIRTH_DATE / POPULATION_SIZE, 0.000001, PRIOR_BLOCK_MAX)"
             and .model.priorProvenance.populationSize > 0
             and .model.priorProvenance.distinctBirthDates > 0
+            and .model.priorProvenance.candidatePairDiagnostic.enabled == true
+            and .model.priorProvenance.candidatePairDiagnostic.available == true
+            and .model.priorProvenance.candidatePairDiagnostic.methodVersion == "CPF_LABELED_BLOCKING_CANDIDATE_PAIR_PRIOR_V1"
+            and .model.priorProvenance.candidatePairDiagnostic.observationSampleSize > 0
+            and .model.priorProvenance.candidatePairDiagnostic.truthCandidatePairs > 0
+            and .model.priorProvenance.candidatePairDiagnostic.falseCandidatePairs >= 0
+            and .model.priorProvenance.candidatePairDiagnostic.totalCandidatePairs
+                == (.model.priorProvenance.candidatePairDiagnostic.truthCandidatePairs + .model.priorProvenance.candidatePairDiagnostic.falseCandidatePairs)
+            and .model.priorProvenance.candidatePairDiagnostic.matchProbability > 0
+            and .model.priorProvenance.candidatePairDiagnostic.matchProbability <= 1
+            and .model.priorProvenance.candidatePairDiagnostic.candidateRecall > 0
+            and .model.priorProvenance.candidatePairDiagnostic.activeScoreChanged == false
+            and .model.priorProvenance.candidatePairDiagnostic.validationCandidatesExcluded == true
             and (.negative.generatorIntendedEvidenceProfiles | length) == 4
             and (.negative.plannedColliderAlignment | length) == 4
             and (.negative.observedBestScoreStates | length) > 0
@@ -278,19 +291,31 @@ jobs:
                   WHERE status='RASCUNHO'
                     AND ISNULL(amostra_metodo,'')<>'SEED_DEV_FIXO_NAO_TREINADO'
                   ORDER BY versao DESC);
+                DECLARE @a uniqueidentifier=(
+                  SELECT TOP(1) modelo_id
+                  FROM identidade.modelo_linkage
+                  WHERE status='ATIVO'
+                    AND ISNULL(amostra_metodo,'')<>'SEED_DEV_FIXO_NAO_TREINADO'
+                  ORDER BY versao DESC);
                 SELECT CONCAT(
                   (SELECT CONVERT(bigint,valor) FROM identidade.parametro_linkage WHERE modelo_id=@m AND nome='POPULATION_SIZE'),'|',
                   (SELECT COUNT_BIG(*) FROM gold.pessoa),'|',
                   (SELECT COUNT_BIG(*) FROM gold.pessoa g WHERE EXISTS(
                      SELECT 1 FROM identidade.vinculo_fonte vf
                      JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vf.pessoa_observacao_id
-                     WHERE vf.pessoa_uuid=g.pessoa_uuid AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-%')));
+                     WHERE vf.pessoa_uuid=g.pessoa_uuid AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-%')),'|',
+                  (SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id=@a AND nome='DIAG_CANDIDATE_PRIOR_MATCH_PROBABILITY'),'|',
+                  (SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id=@m AND nome='DIAG_CANDIDATE_PRIOR_MATCH_PROBABILITY'),'|',
+                  (SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id=@a AND nome='DIAG_CANDIDATE_PRIOR_TOTAL_PAIRS'),'|',
+                  (SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id=@m AND nome='DIAG_CANDIDATE_PRIOR_TOTAL_PAIRS'));
               " | tr -d '\r' | xargs)"
-          IFS='|' read -r calibrated_population total_gold validation_gold <<< "$stats"
+          IFS='|' read -r calibrated_population total_gold validation_gold active_candidate_prior draft_candidate_prior active_candidate_pairs draft_candidate_pairs <<< "$stats"
           test "$calibrated_population" = '5005'
           test "$total_gold" = '5025'
           test "$validation_gold" = '20'
-          echo "LINKAGE VALIDATION TRAINING ISOLATION: OK population=$calibrated_population total_gold=$total_gold validation_gold=$validation_gold"
+          test "$active_candidate_prior" = "$draft_candidate_prior"
+          test "$active_candidate_pairs" = "$draft_candidate_pairs"
+          echo "LINKAGE VALIDATION TRAINING ISOLATION: OK population=$calibrated_population total_gold=$total_gold validation_gold=$validation_gold candidate_prior=$draft_candidate_prior candidate_pairs=$draft_candidate_pairs"
 
       - name: Preserve validation evidence
         if: always()

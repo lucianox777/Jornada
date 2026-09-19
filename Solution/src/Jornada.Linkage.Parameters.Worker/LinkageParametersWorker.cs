@@ -171,6 +171,18 @@ public sealed class LinkageParametersWorker(
             var blockingObservations = BlockingFeatureObservationFactory.Create(matchedPairs, unmatchedCandidatePairs);
             var blocking = BlockingRuleSetSearch.SearchBest(blockingObservations, BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates, blockingSearchOptions);
 
+            // O prior operacional V6 é um escalar global. Antes de substituí-lo, medimos diretamente
+            // P(match | par candidato) usando observações resolvidas por CPF como rótulo, mas removendo
+            // CPF da geração de candidatos e aplicando o mesmo ruleset vencedor/projeção do Runner.
+            // Nesta versão a medição é diagnóstica e não altera o score.
+            var candidatePrior = await BlockingCandidatePriorEstimator.EstimateAsync(
+                connection,
+                normalizationVersion,
+                blocking.Passes,
+                sampleSize,
+                readCommandTimeoutSeconds,
+                workCt);
+
             var unmatchedSample = await BlockingConditionedUnmatchedPairReader.ReadAsync(
                 connection, normalizationVersion, blocking.Passes, sampleSize, samplePoolSize, readCommandTimeoutSeconds, workCt);
             var unmatchedPairs = unmatchedSample.Pairs;
@@ -203,6 +215,9 @@ public sealed class LinkageParametersWorker(
                 modelParameters,
                 matchedPairs,
                 unmatchedPairs);
+            modelParameters = BlockingCandidatePriorEstimator.AppendDiagnostics(
+                modelParameters,
+                candidatePrior);
 
             var persistedParameters = BuildPersistedParameters(
                 modelParameters, statistics, samplePoolSize, minimumIndependentMatchedPairs,
@@ -214,10 +229,14 @@ public sealed class LinkageParametersWorker(
                 persistedParameters, ruleSet, ibgeReference, workCt);
 
             logger.LogInformation(
-                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; abbrev_m_nome={AbbrevMName}; abbrev_u_ref_nome={AbbrevUName}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
+                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; abbrev_m_nome={AbbrevMName}; abbrev_u_ref_nome={AbbrevUName}; prior_ativo={ActivePrior}; prior_candidato_par={CandidatePairPrior}; prior_pares={CandidatePairs}; prior_recall={CandidateRecall}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
                 version, ruleSet.RuleSetVersion, statistics.PopulationSize, matchedPairs.Count, unmatchedCandidatePairs.Count,
                 unmatchedPairs.Count, unmatchedSample.CandidatePoolSize, ibgeNominalUPairCount, ibgeReference.Code,
                 persistedParameters["DIAG_ABBREV_M_NOME_SUPPORT"], persistedParameters["DIAG_ABBREV_U_NOME_SUPPORT"],
+                persistedParameters[LinkageParameterCatalog.PriorMatchProbability],
+                candidatePrior.MatchProbability,
+                candidatePrior.TotalCandidatePairs,
+                candidatePrior.CandidateRecall,
                 corpusCapturedAtUtc, SqlServerSampleMethod, samplePoolSize);
         }
         catch (OperationCanceledException) when (pipelineLease.IsLost)

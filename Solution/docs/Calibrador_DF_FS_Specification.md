@@ -117,6 +117,16 @@ Essa assimetria é intencional e impede uma promoção prematura. Uma abreviaç�
 
 Consequentemente, suporte `m` positivo e separação no fixture adversarial são necessários, mas insuficientes para criar um novo estado probabilístico. A promoção exige um estimador `u` versionado que modele a observação abreviada de um lado e a população de candidatos do outro, sustentado por dados representativos ou por um canal de erro explicitamente estimado — nunca por uma taxa arbitrária.
 
+### 5.4. Prior condicionado ao conjunto candidato
+
+O prior operacional V6 é um escalar global aplicado antes dos LLRs. A fórmula histórica `clamp(DISTINCT_BIRTH_DATE / POPULATION_SIZE, 0.000001, 0.25)` permanece, nesta etapa, somente como prior ativo legado e deve ser identificada explicitamente como heurística: número de datas distintas dividido pela população não é uma estimativa de `P(match | par candidato)`.
+
+`CPF_LABELED_BLOCKING_CANDIDATE_PAIR_PRIOR_V1` mede diretamente essa quantidade como diagnóstico. A amostra é formada por observações correntes ligadas deterministicamente por CPF; o CPF é usado apenas como ground truth. Para cada observação rotulada, as chaves de blocking são reconstruídas sem CPF, com a mesma projeção física e o mesmo ruleset vencedor do modelo. O estimador conta pares candidato-verdade, pares candidato-não-match e calcula `truth_pairs / total_candidate_pairs`, além do recall da verdade no candidate set.
+
+A instrumentação persiste `DIAG_CANDIDATE_PRIOR_*`, inclusive tamanho da amostra, observações com candidatos, pares verdadeiros/falsos, prior empírico e delta de log-odds contra o prior ativo. Fixtures `SCALE-VAL-*` são excluídos tanto da amostra rotulada quanto do universo candidato diagnóstico; uma recalibração após a validação deve reproduzir o mesmo total de pares e o mesmo prior. `DIAG_CANDIDATE_PRIOR_ACTIVE_SCORE_CHANGED=0` é uma invariável desta versão: o diagnóstico não altera score, threshold, margem ou decisão.
+
+A principal limitação é de transportabilidade: o rótulo vem de observações que possuem CPF, enquanto o fallback probabilístico resolve observações sem CPF. Diferença sistemática entre esses subconjuntos pode enviesar o prior. Portanto a medição remove a arbitrariedade conceitual da fórmula histórica e quantifica a alternativa correta no universo candidato, mas sua promoção exige validação independente de representatividade/transportabilidade; corpus sintético não constitui estimativa municipal.
+
 ## 6. Thresholds e seleção
 
 Thresholds são produtos da calibração, não constantes escolhidas por intuição.

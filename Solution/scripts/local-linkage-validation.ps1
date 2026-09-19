@@ -840,7 +840,14 @@ WHERE modelo_id='$activeModelId'
     'DIAG_ABBREV_M_NOME_MAE_DENOM','DIAG_ABBREV_M_NOME_MAE_SUPPORT','DIAG_ABBREV_M_NOME_MAE_RATE',
     'DIAG_ABBREV_U_NOME_MAE_DENOM','DIAG_ABBREV_U_NOME_MAE_SUPPORT','DIAG_ABBREV_U_NOME_MAE_RATE',
     'DIAG_ABBREV_NOME_OBSERVED_IN_BOTH_M_U','DIAG_ABBREV_NOME_MAE_OBSERVED_IN_BOTH_M_U',
-    'DIAG_ABBREV_M_REFERENCE_CPF_INTERGESTOR_V1','DIAG_ABBREV_U_REFERENCE_BLOCKING_GOLD_GOLD_V1'
+    'DIAG_ABBREV_M_REFERENCE_CPF_INTERGESTOR_V1','DIAG_ABBREV_U_REFERENCE_BLOCKING_GOLD_GOLD_V1',
+    'DIAG_CANDIDATE_PAIR_PRIOR_V1','DIAG_CANDIDATE_PRIOR_AVAILABLE',
+    'DIAG_CANDIDATE_PRIOR_OBSERVATION_SAMPLE_SIZE','DIAG_CANDIDATE_PRIOR_OBSERVATIONS_WITH_CANDIDATES',
+    'DIAG_CANDIDATE_PRIOR_TRUTH_PAIRS','DIAG_CANDIDATE_PRIOR_FALSE_PAIRS','DIAG_CANDIDATE_PRIOR_TOTAL_PAIRS',
+    'DIAG_CANDIDATE_PRIOR_CANDIDATE_RECALL','DIAG_CANDIDATE_PRIOR_MEAN_CANDIDATES_PER_OBSERVATION',
+    'DIAG_CANDIDATE_PRIOR_BOTH_CLASSES_OBSERVED','DIAG_CANDIDATE_PRIOR_MATCH_PROBABILITY',
+    'DIAG_CANDIDATE_PRIOR_ACTIVE_PRIOR_PROBABILITY','DIAG_CANDIDATE_PRIOR_DELTA_LOG_ODDS_VS_ACTIVE',
+    'DIAG_CANDIDATE_PRIOR_ACTIVE_SCORE_CHANGED','DIAG_CANDIDATE_PRIOR_VALIDATION_CANDIDATES_EXCLUDED'
   )
 ORDER BY nome;
 "@)
@@ -867,6 +874,45 @@ $priorClampedAtUpperBound = (
     $priorProbability -eq $priorBlockMax
 )
 $priorLogOddsDouble = [Math]::Log([double]$priorProbability / (1.0 - [double]$priorProbability))
+
+$candidatePriorEnabled = (Get-DiagnosticParameter 'DIAG_CANDIDATE_PAIR_PRIOR_V1') -eq 1
+$candidatePriorAvailable = (Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_AVAILABLE') -eq 1
+$candidatePriorObservationSample = [long](Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_OBSERVATION_SAMPLE_SIZE')
+$candidatePriorObservationsWithCandidates = [long](Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_OBSERVATIONS_WITH_CANDIDATES')
+$candidatePriorTruthPairs = [long](Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_TRUTH_PAIRS')
+$candidatePriorFalsePairs = [long](Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_FALSE_PAIRS')
+$candidatePriorTotalPairs = [long](Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_TOTAL_PAIRS')
+$candidatePriorRecall = Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_CANDIDATE_RECALL'
+$candidatePriorMeanCandidates = Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_MEAN_CANDIDATES_PER_OBSERVATION'
+$candidatePriorBothClasses = (Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_BOTH_CLASSES_OBSERVED') -eq 1
+$candidatePriorProbability = Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_MATCH_PROBABILITY'
+$candidatePriorActiveReference = Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_ACTIVE_PRIOR_PROBABILITY'
+$candidatePriorDeltaLogOdds = Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_DELTA_LOG_ODDS_VS_ACTIVE'
+$candidatePriorScoreChanged = (Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_ACTIVE_SCORE_CHANGED') -eq 1
+$candidatePriorValidationCandidatesExcluded = (Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_VALIDATION_CANDIDATES_EXCLUDED') -eq 1
+
+$candidatePairPriorDiagnostic = [ordered]@{
+    enabled = $candidatePriorEnabled
+    available = $candidatePriorAvailable
+    methodVersion = 'CPF_LABELED_BLOCKING_CANDIDATE_PAIR_PRIOR_V1'
+    observationSampleSize = $candidatePriorObservationSample
+    observationsWithCandidates = $candidatePriorObservationsWithCandidates
+    truthCandidatePairs = $candidatePriorTruthPairs
+    falseCandidatePairs = $candidatePriorFalsePairs
+    totalCandidatePairs = $candidatePriorTotalPairs
+    candidateRecall = [decimal]::Round($candidatePriorRecall,12)
+    meanCandidatesPerObservation = [decimal]::Round($candidatePriorMeanCandidates,12)
+    bothMatchAndNonMatchPairsObserved = $candidatePriorBothClasses
+    matchProbability = [decimal]::Round($candidatePriorProbability,12)
+    activePriorProbability = [decimal]::Round($candidatePriorActiveReference,12)
+    deltaLogOddsVsActive = [decimal]::Round($candidatePriorDeltaLogOdds,12)
+    activeScoreChanged = $candidatePriorScoreChanged
+    validationCandidatesExcluded = $candidatePriorValidationCandidatesExcluded
+    groundTruth = 'CPF_DETERMINISTICO'
+    candidateGeneration = 'SAME_WINNING_RULESET_WITH_CPF_REMOVED_FROM_BLOCKING'
+    limitation = 'A amostra rotulada contém observações com CPF. Ela mede P(match|par candidato) no corpus disponível, mas pode não representar o subconjunto operacional sem CPF; promoção do prior exige validação independente dessa transportabilidade.'
+}
+Write-Host "Prior candidato-par (diagnóstico): p=$([decimal]::Round($candidatePriorProbability,6)); ativo=$([decimal]::Round($priorProbability,6)); delta_log_odds=$([decimal]::Round($candidatePriorDeltaLogOdds,6)); pares=$candidatePriorTruthPairs+$candidatePriorFalsePairs=$candidatePriorTotalPairs; recall=$([decimal]::Round($candidatePriorRecall,6)); score_alterado=$candidatePriorScoreChanged"
 
 $abbrevDiagnosticEnabled = (Get-DiagnosticParameter 'DIAG_ABBREV_COMPATIBLE_V1') -eq 1
 $abbrevMNameDenom = Get-DiagnosticParameter 'DIAG_ABBREV_M_NOME_DENOM'
@@ -1337,6 +1383,7 @@ $report = [ordered]@{
             priorBlockMax = $priorBlockMax
             clampedAtUpperBound = $priorClampedAtUpperBound
             interpretation = 'Este prior é uma heurística de referência do estimador, não uma taxa empiricamente medida de match condicionada ao blocking.'
+            candidatePairDiagnostic = $candidatePairPriorDiagnostic
         }
     }
     runId = $runId
