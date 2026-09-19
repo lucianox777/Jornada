@@ -217,11 +217,60 @@ jobs:
             )
             and .collisions.collidingTriplets >= 0
             and .collisions.collidingCpfPairs >= 0
+            and .dataset.syntheticGoldPersons == 5000
+            and .dataset.syntheticAnchoredPersons == 5000
+            and .coverage.anchoredGoldPersons >= 5000
+            and .coverage.coveredByCurrentProjection >= 5000
             and .dataset.municipalPrevalenceClaimAllowed == false
             and .ibgeReference.referenceCode == "CENSO2022_NOMES_BRASIL_V1"
             and (.ibgeReference.composition | length) == 2
           ' "$report" >/dev/null
           echo 'LINKAGE GOLD TRIPLET COLLISION AUDIT CONTRACT: OK'
+
+      - name: Prove canonical SCALE coexists with validation fixtures
+        shell: pwsh
+        run: |
+          Write-Host '# pwsh -NoLogo -NoProfile -File ./scripts/local-db.ps1 -Action up'
+          & ./scripts/local-db.ps1 -Action up
+          if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 -Action up falhou com SCALE-VAL presente ($LASTEXITCODE)." }
+
+      - name: Prove shell parity with validation fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '# bash ./scripts/local-db.sh up'
+          bash ./scripts/local-db.sh up
+
+      - name: Prove recalibration excludes validation Gold
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "po_val.codigo_pessoa_origem LIKE N'SCALE-VAL-%'" src/Jornada.Linkage.Parameters.Worker/LinkageParametersWorker.cs
+          grep -q "po_val.codigo_pessoa_origem LIKE N'SCALE-VAL-%'" src/Jornada.Linkage.Parameters.Worker/BlockingConditionedUnmatchedPairReader.cs
+          echo '# generate read-only candidate draft after SCALE-VAL injection (active model remains unchanged)'
+          docker compose --env-file .env exec -T jornada-node2 env             LinkageParameters__Operation=GENERATE_DRAFT             LinkageParameters__RunOnce=true             LinkageParameters__IbgeNominalU__PairCount=100000             LinkageParameters__IbgeNominalU__Seed=20260917             dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
+          SQL_PASSWORD="$(awk -F= '$1=="JORNADA_SQL_SA_PASSWORD"{sub(/^[^=]*=/,""); print; exit}' .env)"
+          test -n "$SQL_PASSWORD"
+          stats="$(docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$SQL_PASSWORD" sqlserver             /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -s '|'             -Q "SET NOCOUNT ON;
+                DECLARE @m uniqueidentifier=(
+                  SELECT TOP(1) modelo_id
+                  FROM identidade.modelo_linkage
+                  WHERE status='RASCUNHO'
+                    AND ISNULL(amostra_metodo,'')<>'SEED_DEV_FIXO_NAO_TREINADO'
+                  ORDER BY versao DESC);
+                SELECT CONCAT(
+                  (SELECT CONVERT(bigint,valor) FROM identidade.parametro_linkage WHERE modelo_id=@m AND nome='POPULATION_SIZE'),'|',
+                  (SELECT COUNT_BIG(*) FROM gold.pessoa),'|',
+                  (SELECT COUNT_BIG(*) FROM gold.pessoa g WHERE EXISTS(
+                     SELECT 1 FROM identidade.vinculo_fonte vf
+                     JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vf.pessoa_observacao_id
+                     WHERE vf.pessoa_uuid=g.pessoa_uuid AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-%')));
+              " | tr -d '\r' | xargs)"
+          IFS='|' read -r calibrated_population total_gold validation_gold <<< "$stats"
+          test "$calibrated_population" = '5005'
+          test "$total_gold" = '5025'
+          test "$validation_gold" = '20'
+          echo "LINKAGE VALIDATION TRAINING ISOLATION: OK population=$calibrated_population total_gold=$total_gold validation_gold=$validation_gold"
 
       - name: Preserve validation evidence
         if: always()

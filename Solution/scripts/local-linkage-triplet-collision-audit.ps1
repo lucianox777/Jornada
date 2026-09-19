@@ -172,6 +172,20 @@ FROM (
        OR po.codigo_pessoa_origem LIKE N'SEED-%'
 ) x;
 "@)
+$syntheticGold=[long](Get-SqlScalar @"
+SELECT COUNT_BIG(*)
+FROM (
+    SELECT DISTINCT vc.pessoa_uuid
+    FROM silver.pessoa_observacao po
+    JOIN identidade.v_vinculo_corrente vc
+      ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+     AND vc.status=N'RESOLVIDO'
+     AND vc.pessoa_uuid IS NOT NULL
+    JOIN gold.pessoa g ON g.pessoa_uuid=vc.pessoa_uuid
+    WHERE po.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%'
+       OR po.codigo_pessoa_origem LIKE N'SCALE-SMADS-%'
+) x;
+"@)
 $referenceLine=Get-SqlScalar @"
 SELECT CONCAT(
     CONVERT(varchar(30),m.frequencia_nome_versao_id),'|',
@@ -247,7 +261,15 @@ foreach($item in $referenceComposition){
 }
 $publishedCompoundEvidencePresent=(@($referenceComposition | Where-Object { $_.compoundPublishedValues -gt 0 }).Count -gt 0)
 
-$datasetHint=if($anchored -gt 0 -and $syntheticAnchored -eq $anchored){'SYNTHETIC_LOCAL'}elseif($syntheticAnchored -gt 0){'MIXED_WITH_SYNTHETIC'}else{'NO_SYNTHETIC_MARKER_DETECTED'}
+$datasetHint=if($anchored -gt 0 -and $syntheticAnchored -eq $anchored){
+    'SYNTHETIC_CPF_ANCHORED'
+}elseif($syntheticAnchored -gt 0){
+    'MIXED_WITH_SYNTHETIC_CPF_ANCHORS'
+}elseif($syntheticGold -gt 0){
+    'SYNTHETIC_GOLD_PRESENT_WITHOUT_CPF_ANCHOR_COVERAGE'
+}else{
+    'NO_SYNTHETIC_MARKER_DETECTED'
+}
 
 $report=[ordered]@{
     generatedAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
@@ -299,6 +321,7 @@ $report=[ordered]@{
         randomPairCollisionProbability=if($null -eq $randomPairCollisionProbability){$null}else{[decimal]::Round($randomPairCollisionProbability,16)}
     }
     dataset=[ordered]@{
+        syntheticGoldPersons=$syntheticGold
         syntheticAnchoredPersons=$syntheticAnchored
         hint=$datasetHint
         municipalPrevalenceClaimAllowed=$false
@@ -321,7 +344,7 @@ Write-Host "Triplas distintas=$distinctTriplets; triplas_colidentes=$collidingTr
 $personRateText=if($null -eq $personCollisionRate){'N/A'}else{"$([decimal]::Round($personCollisionRate*[decimal]100,8))%"}
 $pairRateText=if($null -eq $randomPairCollisionProbability){'N/A'}else{"$([decimal]::Round($randomPairCollisionProbability*[decimal]100,12))%"}
 Write-Host "Taxa de pessoas em tripla colidente=$personRateText; probabilidade de colisão entre dois CPFs aleatórios=$pairRateText"
-Write-Host "Dataset hint=$datasetHint; isto não é automaticamente uma estimativa municipal."
+Write-Host "Dataset hint=$datasetHint; Gold sintética=$syntheticGold; sintéticos ancorados por CPF=$syntheticAnchored; isto não é automaticamente uma estimativa municipal."
 Write-Host "Referência IBGE: $referenceCode / $referenceSha"
 foreach($item in $referenceComposition){
     Write-Host ("IBGE {0}: valores={1} compostos={2} ocorrencias={3} ocorrencias_compostas={4} periodos_nascimento={5}" -f $item.kind,$item.publishedValues,$item.compoundPublishedValues,$item.publishedOccurrences,$item.compoundPublishedOccurrences,$item.publishedBirthPeriods)

@@ -121,6 +121,8 @@ O agregador mais curto, sem restore/build/testes prévios, permanece disponível
 
 Ele imprime cada comando antes de executá-lo e percorre, nesta ordem: `clean`, `up`, `calibrate`, relatório Monte Carlo IBGE read-only, `linkage`, `linkage-diagnose` e validação independente DEV.
 
+A validação independente persiste fixtures auxiliares `SCALE-VAL-*` no mesmo banco. Eles **não fazem parte** da massa SCALE canônica de 11.000 origens (`5.000 SCALE-SEHAB + 5.000 SCALE-SMADS + 1.000 SCALE-PEND`). `local-db.ps1 -Action up` e o equivalente shell validam esses três segmentos separadamente e preservam fixtures adicionais; por isso o fechamento preservador pode ser executado depois da validação sem exigir `reset` apenas porque existem linhas `SCALE-VAL-*`.
+
 A mesma sequência, expandida, é:
 
 ```powershell
@@ -185,6 +187,8 @@ Para medir a pergunta de prevalência sem expor PII, use:
 A auditoria conta, na Gold ancorada por CPF, quantas Pessoas distintas compartilham a tripla `NOME_NORMALIZADO + NOME_MAE_NORMALIZADO + DATA_NASCIMENTO`. Os nomes normalizados vêm das chaves correntes `name_full` e `mother_name_full` da mesma projeção de blocking do modelo; o script exige cobertura de projeção coerente e grava apenas agregados, nunca nomes, CPFs, UUIDs ou datas individuais. O relatório fica em `.local\linkage-triplet-collision-audit\triplet-collision-audit.json`.
 
 **Não interprete automaticamente essa taxa como municipal.** Em DEV/CI a Gold é sintética e o relatório marca o contexto do dataset. Uma estimativa de prevalência do município exige executar a mesma auditoria read-only sobre uma Gold ancorada representativa e governada. A medida serve para quantificar a classe de colisão; por si só não autoriza relaxar a guarda de dois candidatos acima de `T_LINKAGE`.
+
+A massa SCALE pode existir na Gold sem estar representada em `identidade.cpf_ancora`, pois o corpus DEV usa identificadores sintéticos e links determinísticos próprios. Nesse caso o relatório marca `SYNTHETIC_GOLD_PRESENT_WITHOUT_CPF_ANCHOR_COVERAGE`; a colisão da tripla fica `N/A` para a população sintética não ancorada, em vez de ser apresentada como zero.
 
 ### 10. Rodar o smoke de escala, quando necessário
 
