@@ -10,6 +10,8 @@ O Calibrador deve comparar configurações completas de linkage em benchmark rep
 
 A referência nominal é o snapshot versionado do produto **IBGE — Nomes no Brasil** já internalizado pela Jornada. O Calibrador usa somente valores/frequências efetivamente presentes na referência e sua semântica publicada.
 
+O cálculo estatístico e o Monte Carlo **não dependem dos Parquet brutos em runtime**. A entrada operacional é a projeção versionada e imutável já carregada em `ref.frequencia_nome`, com `referenceCode` e SHA preservados. Os Parquet permanecem como matéria-prima de proveniência/reconstrução determinística da referência; só precisam ser revisitados se for necessário reconstruir uma dimensão que a projeção operacional não preserva.
+
 A Jornada não cria nomes raros fictícios, não reconstrói a cauda suprimida e não atribui frequência inventada a valor ausente. Quando a ausência puder ser interpretada como censura da publicação, essa condição é registrada como tal na evidência.
 
 Primeiro nome e sobrenome permanecem semanticamente distintos. Estatística oficial de `Surname` somente pode ser associada a atributo de origem cuja fronteira de sobrenome seja estruturada e compatível; tokens inferidos de `nome_completo` não recebem automaticamente essa frequência.
