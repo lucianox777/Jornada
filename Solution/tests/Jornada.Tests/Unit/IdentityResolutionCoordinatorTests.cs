@@ -92,6 +92,39 @@ public sealed class IdentityResolutionCoordinatorTests
     }
 
     [Test]
+    public void Consistency_v2_treats_missing_name_as_unavailable_not_conflict()
+    {
+        var existing = new IdentityCore("Maria Aparecida da Silva", new DateOnly(1975, 2, 10), "Joana Pereira");
+        var incoming = new IdentityCore(null, new DateOnly(2017, 8, 21), null);
+
+        var result = CpfIdentityConsistency.Evaluate(existing, incoming);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsConflict, Is.False);
+            Assert.That(result.Nome, Is.Null);
+            Assert.That(result.NomeMae, Is.Null);
+            Assert.That(result.DataNascimentoIgual, Is.False);
+        });
+    }
+
+    [Test]
+    public void Consistency_v2_treats_missing_birth_as_unavailable_not_conflict()
+    {
+        var existing = new IdentityCore("Maria Aparecida da Silva", new DateOnly(1975, 2, 10), "Joana Pereira");
+        var incoming = new IdentityCore("Pedro Henrique Santos", null, "Outra Pessoa");
+
+        var result = CpfIdentityConsistency.Evaluate(existing, incoming);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsConflict, Is.False);
+            Assert.That(result.Nome, Is.EqualTo(NameComparisonState.LOW));
+            Assert.That(result.DataNascimentoIgual, Is.Null);
+        });
+    }
+
+    [Test]
     public async Task Missing_cpf_with_admitted_reason_stays_pending_until_on_demand_run()
     {
         var map = new FakeIdentityMap(new InternalIdentityResolution(
