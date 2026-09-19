@@ -11,11 +11,11 @@ A hierarquia de precedência da Jornada é única: **Especificação Técnica vi
 
 **Microsoft SQL Server é a única tecnologia relacional operacional suportada pela Jornada candidata v5.00.** O DDL canônico, o contrato de prontidão e o baseline independente de ambiente permanecem definidos e testados em SQL Server 2022. PostgreSQL/Npgsql não integram o runtime, a persistência, a calibração ou os gates correntes; a implementação anterior permanece apenas no histórico Git para eventual projeto independente. **SQL Database in Microsoft Fabric não é alvo operacional nem gate desta candidata**; evidências anteriores são histórico de compatibilidade. **Lakehouse e SQL Analytics Endpoint permanecem no escopo analítico/compatibilidade** e não substituem o banco relacional operacional.
 
-Durante a consolidação de engenharia v5.00, novas features ficam suspensas: ideias adicionais devem ser registradas como issues até o fechamento do schema, requisitos, UML, artefatos normativos e release.
+Durante a consolidação de engenharia v5.00, mudanças estruturais devem ser integradas com contrato, testes e documentação no mesmo change-set. O motor probabilístico permanece tecnicamente implementável/evolutivo, mas sua ativação automática real continua sujeita ao gate estatístico e institucional.
 
 ## 1. Identidade progressiva
 
-A Jornada atribui um `initial_uuid` a cada identidade de origem admitida, inclusive sem CPF. A chave `(sistema_origem_id, codigo_pessoa_origem)` recupera de forma idempotente a mesma referência inicial. O UUID inicial é aleatório, não deriva de PII, nunca é reciclado, transferido ou alterado e não constitui prova de unicidade municipal.
+A Jornada atribui um `initial_uuid` a cada **identidade persistente de origem** admitida, inclusive sem CPF. A chave autoritativa é `(base_pessoa_origem_id, codigo_pessoa_origem)`; sistemas autorizados podem compartilhar a mesma Base de Pessoa sem criar identidades paralelas. Uma observação que não possua `codigoPessoaOrigem` continua válida, mas não recebe origem sintética nem `initial_uuid` inventado. O UUID inicial é aleatório, não deriva de PII, nunca é reciclado, transferido ou alterado e não constitui prova de unicidade municipal.
 
 A referência canônica corrente é representada por `canonical_uuid` e pode evoluir somente por decisão explícita, versionada e auditável. Os únicos estados públicos da identidade progressiva são:
 
@@ -90,7 +90,7 @@ A data de nascimento é preservada integralmente e pode ser decomposta para Link
 
 CPF válido, confiável e não conflitado é rota determinística prioritária. Regras determinísticas adicionais só podem operar quando explicitamente definidas, qualificadas e únicas no corpus/política vigente; não substituem a preservação dos campos originais.
 
-`codigoPessoaOrigem` identifica e versiona o registro dentro do namespace Gestor + Sistema de Origem. Não é identidade municipal transversal. Quando existe código interno estável, ele é preferível para rastreabilidade da origem mesmo que atributos cadastrais sejam corrigidos.
+`codigoPessoaOrigem`, quando informado, identifica e versiona a Pessoa dentro da **Base de Pessoa/namespace** declarada. Não é identidade municipal transversal e nunca é derivado de CPF. `idPessoaEntrega` é a chave obrigatória apenas dentro da remessa. A ausência de código local não invalida Pessoa nem fatos. Quando existe código interno estável, ele é preferível para continuidade da origem mesmo que atributos cadastrais sejam corrigidos.
 
 ## 8. Blocking e geração de candidatos
 
@@ -112,9 +112,9 @@ Dados oficiais agregados do IBGE podem enriquecer atributos semanticamente compa
 
 Antes de materializar novo snapshot IBGE, a rotina verifica validadores baratos disponíveis, preferencialmente ETag/Last-Modified/Content-Length, e mantém fingerprint/hash do conteúdo incorporado. Igualdade de tamanho é sinal de otimização, não prova criptográfica de identidade.
 
-## 10. BI, segurança e governança
+## 10. BI, QC, segurança e governança
 
-O BI deve distinguir identidade de origem de referência canônica e evitar dupla contagem de Pessoas. Indicadores de qualidade devem ser segmentáveis por Gestor, Sistema, tipo de origem e data de referência, sem expor identificadores pessoais em claro apenas para produzir métricas.
+O BI deve distinguir identidade de origem de referência canônica e evitar dupla contagem de Pessoas. QC e BI devem tornar **visíveis e segmentáveis** as classificações de qualidade de CPF e os problemas de identidade associados, incluindo no mínimo CPF ausente, estruturalmente inválido, conflito de CPF para a mesma origem, duplicação de códigos para a mesma âncora e tentativa de junção de CPFs distintos sob a mesma origem. A visibilidade operacional deve ocorrer por classes/motivos e contagens, sem exigir exposição do CPF em claro. Indicadores de qualidade devem ser segmentáveis por Gestor, Sistema, Base de Pessoa, Tipo de Registro e data de referência.
 
 Dados sensíveis seguem minimização, finalidade e controles de acesso compatíveis com LGPD. A identidade técnica não amplia automaticamente o compartilhamento de dados. Correções cadastrais permanecem responsabilidade das áreas finalísticas; a Jornada preserva versões e evidências recebidas.
 
