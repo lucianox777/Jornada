@@ -334,7 +334,12 @@ CREATE OR ALTER VIEW identidade.v_vinculo_corrente AS
 WITH probabilistico_publicado AS (
     SELECT r.pessoa_observacao_id,
            r.pessoa_uuid_publicado AS pessoa_uuid_resolvido,
-           r.score_melhor,
+           CASE
+             WHEN r.resultado_publicacao=N'ASSOCIACAO_EXISTENTE'
+              AND r.status=N'RESOLVIDO'
+              AND r.pessoa_uuid_resolvido=r.pessoa_uuid_publicado
+             THEN r.score_melhor
+           END AS score_publicacao,
            r.status_publicacao AS status,
            r.motivo_publicacao AS motivo,
            r.modelo_id,r.linkage_run_id,r.publicado_em AS calculado_em,
@@ -358,7 +363,7 @@ WHERE b.metodo_resolucao IN(N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACA
    OR NOT EXISTS (SELECT 1 FROM prob_corrente p WHERE p.pessoa_observacao_id=b.pessoa_observacao_id)
 UNION ALL
 SELECT CAST(NULL AS BIGINT),p.pessoa_observacao_id,p.pessoa_uuid_resolvido,N'LINKAGE_PROBABILISTICO',
-       p.score_melhor,p.status,p.motivo,p.modelo_id,p.linkage_run_id,p.calculado_em
+       p.score_publicacao,p.status,p.motivo,p.modelo_id,p.linkage_run_id,p.calculado_em
 FROM prob_corrente p
 WHERE NOT EXISTS (
     SELECT 1 FROM base_ativa b
