@@ -41,7 +41,8 @@ public static class BlockingCandidatePriorEstimator
             ["DIAG_CANDIDATE_PRIOR_CANDIDATE_RECALL"] = estimate.CandidateRecall,
             ["DIAG_CANDIDATE_PRIOR_BOTH_CLASSES_OBSERVED"] =
                 estimate.TruthCandidatePairs > 0 && estimate.FalseCandidatePairs > 0 ? 1m : 0m,
-            ["DIAG_CANDIDATE_PRIOR_ACTIVE_SCORE_CHANGED"] = 0m
+            ["DIAG_CANDIDATE_PRIOR_ACTIVE_SCORE_CHANGED"] = 0m,
+            ["DIAG_CANDIDATE_PRIOR_VALIDATION_CANDIDATES_EXCLUDED"] = 1m
         };
 
         if (estimate.ObservationSampleSize > 0)
@@ -135,6 +136,14 @@ public static class BlockingCandidatePriorEstimator
                  AND k.atributo=pk.feature
                  AND k.valor_normalizado=pk.valor
                  AND (pk.current_only=0 OR k.vigencia_fim IS NULL)
+                 AND NOT EXISTS (
+                     SELECT 1
+                     FROM identidade.vinculo_fonte vf_val
+                     JOIN silver.pessoa_observacao po_val
+                       ON po_val.pessoa_observacao_id=vf_val.pessoa_observacao_id
+                     WHERE vf_val.pessoa_uuid=k.pessoa_uuid
+                       AND po_val.codigo_pessoa_origem LIKE N'SCALE-VAL-%'
+                 )
             ),
             pass_candidates AS (
                 SELECT h.observation_id,h.pass_id,h.pessoa_uuid
