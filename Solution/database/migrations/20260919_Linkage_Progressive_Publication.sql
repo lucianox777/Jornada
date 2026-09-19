@@ -143,6 +143,15 @@ BEGIN
  IF @pessoa_origem_id IS NULL
     THROW 51835,'Observação sem origem persistente não possui ledger progressivo.',1;
 
+ IF EXISTS(
+    SELECT 1
+    FROM identidade.vinculo_fonte vf WITH(HOLDLOCK)
+    WHERE vf.pessoa_observacao_id=@pessoa_observacao_id
+      AND vf.ativo=1
+      AND vf.metodo_resolucao IN(
+        'CPF_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'))
+    THROW 51844,'Vínculo determinístico/governado tem precedência sobre publicação probabilística.',1;
+
  DECLARE @ensure TABLE(
    initial_uuid UNIQUEIDENTIFIER NOT NULL,
    legacy_pessoa_uuid UNIQUEIDENTIFIER NULL,
