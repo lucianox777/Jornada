@@ -33,7 +33,6 @@ foreach ($forbidden in @(
 }
 
 foreach ($required in @(
-    '[switch]$FromZero',
     '[switch]$AllowDestructiveReset',
     'if (-not $AllowDestructiveReset)',
     "Invoke-Script 'local-cluster.ps1' @('-Action','clean')",
