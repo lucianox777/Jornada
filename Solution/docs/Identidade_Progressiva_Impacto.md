@@ -55,6 +55,6 @@ Estado: contrato, persistência, cutover transacional do UUID inicial, âncora C
 - CPF permanente nunca é transferido, reciclado ou substituído por decisão probabilística.
 - Fatos válidos sobrevivem à ausência, conflito ou mudança de referência.
 - UUID histórico nunca é reciclado; separação não redireciona dados para sucessor arbitrário.
-- BI conta Pessoas referenciadas por `canonical_uuid` distinto, nunca por UUID inicial provisório.
+- KPIs substantivos de população/atendimento continuam contando referências canônicas distintas; QC e BI de identidade/completude podem e devem expor `PROVISORIA` e `INDEFINIDA` separadamente, usando `initial_uuid` apenas como chave técnica da casca progressiva, nunca como pessoa canônica.
 - CI e testes não autorizam por si só ativação de modelo probabilístico.
 - Não há módulo de Regularização Cadastral nem decisão humana obrigatória caso a caso.
