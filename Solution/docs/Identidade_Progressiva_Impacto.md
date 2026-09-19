@@ -13,7 +13,7 @@ Estado: contrato, persistência, cutover transacional do UUID inicial, âncora C
 | `identidade.cpf_ancora` e writers SQL Server | Âncora CPF permanente integrada. CPF admitido recupera sempre o mesmo UUID e não pode ser transferido por composição probabilística. |
 | `IdentityComposition*` | Planejamento, ledger, leitura autoritativa, aplicação, recomposição e publicação atômica implementados, com replay, rollback e conservação da autoridade factual. |
 | `database/Jornada_Fase1.sql` | `identidade.vinculo_fonte.status='RESOLVIDO'` permanece: esse estado significa atribuição de uma observação e não deve ser confundido com `REFERENCIA`. |
-| Linkage Parameters/Calibration/Scoring | Infraestrutura diagnóstica disponível, sem autorização de ativação. Issue #31 continua sendo o gate estatístico independente. |
+| Linkage Parameters/Calibration/Scoring | Resultado bruto e decisão operacional publicada são persistidos separadamente. `initial_uuid` não entra no score; pode ser promovido somente em `NOVA_IDENTIDADE` após run completo/materializado sem candidato. Issue #31 continua sendo o gate estatístico independente antes da ativação real. |
 
 ## Superfícies externas e derivadas
 
@@ -51,6 +51,7 @@ Estado: contrato, persistência, cutover transacional do UUID inicial, âncora C
 - `RESOLVIDO` pode existir em `identidade.vinculo_fonte` porque ali descreve atribuição de observação; não é estado progressivo.
 - Ausência de CPF não impede UUID inicial e não equivale a `INDEFINIDA`.
 - Execução incompleta não publica referência.
+- `initial_uuid` nunca participa de blocking, features, LLR/posterior, margem ou calibração; é apenas continuidade/proveniência e destino próprio possível de `NOVA_IDENTIDADE`.
 - CPF permanente nunca é transferido, reciclado ou substituído por decisão probabilística.
 - Fatos válidos sobrevivem à ausência, conflito ou mudança de referência.
 - UUID histórico nunca é reciclado; separação não redireciona dados para sucessor arbitrário.
