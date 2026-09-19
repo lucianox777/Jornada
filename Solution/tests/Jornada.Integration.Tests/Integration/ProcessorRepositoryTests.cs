@@ -233,7 +233,9 @@ public sealed class ProcessorRepositoryTests
               (SELECT COUNT(*) FROM serving.v_bi_pendencias_identidade p WHERE p.pessoa_observacao_id=po.pessoa_observacao_id),
               (SELECT TOP(1) estado FROM identidade.identity_map WHERE tipo='CPF' AND identificador='52998224725' AND vigencia_fim IS NULL),
               (SELECT TOP(1) estado_motivo FROM identidade.identity_map WHERE tipo='CPF' AND identificador='52998224725' AND vigencia_fim IS NULL),
-              (SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf='52998224725')
+              (SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf='52998224725'),
+              (SELECT TOP(1) cpf_classificacao FROM serving.v_bi_qualidade_identidade_origem q WHERE q.pessoa_observacao_id=po.pessoa_observacao_id),
+              (SELECT TOP(1) cpf_problema FROM serving.v_bi_qualidade_identidade_origem q WHERE q.pessoa_observacao_id=po.pessoa_observacao_id)
             FROM silver.pessoa_observacao po
             JOIN identidade.v_vinculo_corrente vf ON vf.pessoa_observacao_id=po.pessoa_observacao_id
             WHERE po.codigo_pessoa_origem='CPF-COMPARTILHADO-FILHO'
@@ -256,6 +258,9 @@ public sealed class ProcessorRepositoryTests
             Assert.That(reader.GetString(10), Is.EqualTo("CPF_COMPARTILHADO_SUSPEITO"));
             Assert.That(reader.GetGuid(2), Is.EqualTo(reader.GetGuid(7)));
             Assert.That(reader.GetGuid(2), Is.EqualTo(reader.GetGuid(11)), "Observação, fato e âncora devem preservar o mesmo UUID.");
+            Assert.That(reader.GetString(12), Is.EqualTo("CPF_CONFLITO_DETERMINISTICO"),
+                "QC/BI deve tornar o conflito global do CPF explicitamente visível.");
+            Assert.That(reader.GetInt32(13), Is.EqualTo(1));
         });
     }
 
@@ -653,7 +658,11 @@ public sealed class ProcessorRepositoryTests
                    vc.status,vc.metodo_resolucao,
                    (SELECT COUNT(*) FROM ingestao.item_processado ip
                      WHERE ip.lote_id=po.lote_id AND ip.classe_item='PESSOA'
-                       AND ip.codigo_origem='DELIVERY-V4-NO-ID')
+                       AND ip.codigo_origem='DELIVERY-V4-NO-ID'),
+                   (SELECT TOP(1) cpf_classificacao FROM serving.v_bi_qualidade_identidade_origem q
+                     WHERE q.pessoa_observacao_id=po.pessoa_observacao_id),
+                   (SELECT TOP(1) cpf_problema FROM serving.v_bi_qualidade_identidade_origem q
+                     WHERE q.pessoa_observacao_id=po.pessoa_observacao_id)
             FROM silver.pessoa_observacao po
             JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id
             WHERE po.lote_id=@lote AND po.source_transaction_id='TX-V4-NO-ID';
@@ -669,6 +678,9 @@ public sealed class ProcessorRepositoryTests
             Assert.That(reader.GetString(3), Is.EqualTo("NAO_RESOLVIDO"));
             Assert.That(reader.GetString(4), Is.EqualTo("PENDENTE_PROBABILISTICO"));
             Assert.That(reader.GetInt32(5), Is.EqualTo(1));
+            Assert.That(reader.GetString(6), Is.EqualTo("CPF_AUSENTE"),
+                "Pessoa sem origem persistente também deve aparecer no QC/BI.");
+            Assert.That(reader.GetInt32(7), Is.EqualTo(1));
         });
     }
 
