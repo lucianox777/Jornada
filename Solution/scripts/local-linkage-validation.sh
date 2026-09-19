@@ -91,11 +91,11 @@ run_id="$(complete_validation_run_id)"
 created_run=0
 if [[ -n "$run_id" ]]; then
   [[ -f "$PROVENANCE" ]] || {
-    echo "ERRO: run completo existente sem fingerprint verificável ($run_id). Execute scripts/local-linkage-validation-from-zero.sh." >&2
+    echo "ERRO: run completo existente sem fingerprint verificável ($run_id). Recrie o ambiente com scripts/local-cluster.sh clean/up/calibrate e execute novamente a validação." >&2
     exit 9
   }
   jq -e --arg run "$run_id" --arg model "$active_model_id" --arg fp "$runtime_fingerprint" '.runId==$run and .modelId==$model and .runtimeFingerprint==$fp' "$PROVENANCE" >/dev/null || {
-    echo 'ERRO: run completo existente foi produzido por runtime/fixture diferente. Execute scripts/local-linkage-validation-from-zero.sh.' >&2
+    echo 'ERRO: run completo existente foi produzido por runtime/fixture diferente. Recrie o ambiente com scripts/local-cluster.sh clean/up/calibrate e execute novamente a validação.' >&2
     exit 9
   }
   echo "Reutilizando run completo com fingerprint de runtime verificado: $run_id"
