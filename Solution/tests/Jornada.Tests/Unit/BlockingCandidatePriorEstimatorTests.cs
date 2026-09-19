@@ -35,6 +35,7 @@ public sealed class BlockingCandidatePriorEstimatorTests
             Assert.That(result["DIAG_CANDIDATE_PRIOR_MEAN_CANDIDATES_PER_OBSERVATION"], Is.EqualTo(9m));
             Assert.That(result["DIAG_CANDIDATE_PRIOR_BOTH_CLASSES_OBSERVED"], Is.EqualTo(1m));
             Assert.That(result["DIAG_CANDIDATE_PRIOR_ACTIVE_SCORE_CHANGED"], Is.EqualTo(0m));
+            Assert.That(result["DIAG_CANDIDATE_PRIOR_VALIDATION_CANDIDATES_EXCLUDED"], Is.EqualTo(1m));
             Assert.That(result["DIAG_CANDIDATE_PRIOR_DELTA_LOG_ODDS_VS_ACTIVE"], Is.LessThan(0m));
         });
     }
