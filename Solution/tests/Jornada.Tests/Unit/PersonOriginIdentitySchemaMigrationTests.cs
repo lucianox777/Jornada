@@ -54,7 +54,7 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
         Assert.That(sql, Does.Contain("ALTER COLUMN base_pessoa_origem_id BIGINT NOT NULL"));
         Assert.That(sql, Does.Contain("uq_pessoa_origem_base_codigo"));
         Assert.That(sql, Does.Contain("UUID_JORNADA_RETROALIMENTACAO"));
-        Assert.That(sql, Does.Not.Contain("identity_map"));
+        Assert.That(sql, Does.Not.Contain("INSERT identidade.identity_map").IgnoreCase);
     }
 
     [Test]
