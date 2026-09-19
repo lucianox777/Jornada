@@ -17,6 +17,7 @@ public static class LinkageParameterCatalog
     public const string OrderedNameLlrMonotonicity = "MODEL_COHERENCE_ORDERED_NAME_LLR_V1";
     public const string NameComparisonPtBrContentTokenGuardV2 = "SCORING_NAME_PTBR_CONTENT_TOKEN_GUARD_V2";
     public const string AbbreviationCompatibilityDiagnosticV1 = "DIAG_ABBREV_COMPATIBLE_V1";
+    public const string CandidatePairPriorDiagnosticV1 = "DIAG_CANDIDATE_PAIR_PRIOR_V1";
     public const string BirthSemanticEvidenceScoring = "SCORING_BIRTH_SEMANTIC_EVIDENCE_V5";
     public const string BirthJointEvidenceScoring = "SCORING_BIRTH_JOINT_EVIDENCE_V4";
     public const string BirthSingleEvidenceScoring = "SCORING_BIRTH_SINGLE_EVIDENCE_V3";
