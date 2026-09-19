@@ -156,7 +156,9 @@ BEGIN
          @raw_motivo NVARCHAR(120),
          @modelo_id UNIQUEIDENTIFIER,
          @modelo_versao INT,
-         @run_status NVARCHAR(30);
+         @run_status NVARCHAR(30),
+         @run_avaliados BIGINT,
+         @run_elegiveis BIGINT;
 
  SELECT @pessoa_origem_id=po.pessoa_origem_id,
         @resultado=r.resultado_publicacao,
@@ -169,7 +171,9 @@ BEGIN
         @raw_motivo=r.motivo,
         @modelo_id=r.modelo_id,
         @modelo_versao=r.modelo_versao,
-        @run_status=lr.status
+        @run_status=lr.status,
+        @run_avaliados=lr.avaliados,
+        @run_elegiveis=lr.registros_elegiveis
  FROM identidade.linkage_resultado r WITH(UPDLOCK,HOLDLOCK)
  JOIN identidade.linkage_run lr WITH(UPDLOCK,HOLDLOCK) ON lr.linkage_run_id=r.linkage_run_id
  JOIN silver.pessoa_observacao po WITH(HOLDLOCK) ON po.pessoa_observacao_id=r.pessoa_observacao_id
@@ -178,8 +182,18 @@ BEGIN
 
  IF @resultado IS NULL THROW 51802,'Resultado de publicação do Linkage ausente.',1;
  IF @run_status<>N'EXECUTANDO' THROW 51803,'Evento progressivo só pode ser produzido antes da transição do run para PUBLICADO.',1;
+ IF @run_avaliados<>@run_elegiveis THROW 51818,'Run incompleto não pode publicar resolução progressiva.',1;
  IF @pessoa_origem_id IS NULL THROW 51804,'Observação sem origem persistente não possui ledger progressivo.',1;
  IF @politica IS NULL OR LTRIM(RTRIM(@politica))=N'' THROW 51805,'Política de publicação ausente.',1;
+ IF EXISTS(
+   SELECT 1
+   FROM identidade.vinculo_fonte vf WITH(HOLDLOCK)
+   WHERE vf.pessoa_observacao_id=@pessoa_observacao_id
+     AND vf.ativo=1
+     AND vf.metodo_resolucao IN(
+       N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
+       N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO'))
+   THROW 51819,'Vínculo determinístico/governado tem precedência sobre publicação probabilística.',1;
 
  DECLARE @ensure TABLE(
    initial_uuid UNIQUEIDENTIFIER NOT NULL,
