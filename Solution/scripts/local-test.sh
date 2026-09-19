@@ -9,6 +9,7 @@ cd "$ROOT"
 command -v python3 >/dev/null 2>&1 || { echo "ERRO: python3 é necessário para o gate OpenAPI." >&2; exit 2; }
 python3 scripts/openapi-contract-gate.py
 python3 scripts/technical-closure-gate.py
+python3 scripts/linkage-decision-quality-gate.py --self-test
 "$ROOT/scripts/local-sql-runtime-smoke.sh"
 dotnet restore Jornada.sln
 dotnet build Jornada.sln --configuration Release --no-restore -warnaserror

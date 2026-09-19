@@ -387,6 +387,14 @@ Use para executar o linkage local deliberadamente. Não é necessário em toda m
 
 Use quando o objetivo for diagnóstico do linkage — por exemplo, investigar candidatos, conflitos, transitividade ou comportamento do modelo — sem tratar a execução normal como ferramenta de diagnóstico.
 
+O diagnóstico corrente também separa, no corpus SCALE, a verdade em primeiro/segundo/empate/fora do top-2, a coorte sintética em que cada décimo nascimento é deliberadamente deslocado para fora do universo, a saturação dos posteriores e o limite superior aproximado de falso positivo pela regra do três quando nenhum FP é observado. Essas métricas são diagnósticas: não autorizam remover a trava de dois candidatos acima do limiar sem decisão explícita de política.
+
+O contrato estrutural dessas métricas pode ser testado isoladamente com:
+
+```powershell
+python scripts/linkage-decision-quality-gate.py --self-test
+```
+
 ## 4. Escala, resiliência e recuperação
 
 ### `local-scale.ps1`
