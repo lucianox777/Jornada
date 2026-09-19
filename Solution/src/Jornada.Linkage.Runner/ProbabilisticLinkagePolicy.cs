@@ -18,7 +18,7 @@ internal sealed record LinkageRuntimeSnapshot(LinkageModel Model, LinkageDynamic
     };
 }
 
-internal sealed record LinkageCandidate(Guid PessoaUuid, string NomeCompleto, DateOnly DataNascimento, string? NomeMae);
+internal sealed record LinkageCandidate(Guid PessoaUuid, string? NomeCompleto, DateOnly? DataNascimento, string? NomeMae);
 internal sealed record CandidateScore(Guid PessoaUuid, decimal Score, decimal LogOdds);
 
 internal static class LinkageModelPolicy
@@ -113,7 +113,7 @@ internal static class ProbabilisticLinkageDecisions
         return uniqueCandidates.Select(candidate =>
             {
                 var score = FellegiSunterScoring.Calculate(model.Parameters,
-                    IdentityComparison.CompareName(observation.NomeCompleto, candidate.NomeCompleto, nameComparisonContract),
+                    CompareOptionalName(observation.NomeCompleto, candidate.NomeCompleto),
                     CompareOptionalName(observation.NomeMae, candidate.NomeMae), uniqueCandidates.Count,
                     observation.DataNascimento, candidate.DataNascimento);
                 return new CandidateScore(candidate.PessoaUuid, score.Posterior, score.LogOdds);
