@@ -81,6 +81,23 @@ model_version="$(scalar "SELECT versao FROM identidade.modelo_linkage WHERE mode
 algorithm_version="$(scalar "SELECT algoritmo_versao FROM identidade.modelo_linkage WHERE modelo_id='$active_model_id';")"
 echo "Validação independente: modelo v$model_version / $active_model_id / $algorithm_version"
 
+abbrev_training="$(scalar "SELECT CONCAT(
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_ABBREV_COMPATIBLE_V1')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_ABBREV_M_NOME_DENOM')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_ABBREV_M_NOME_SUPPORT')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_ABBREV_U_NOME_DENOM')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_ABBREV_U_NOME_SUPPORT')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_ABBREV_M_NOME_MAE_DENOM')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_ABBREV_M_NOME_MAE_SUPPORT')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_ABBREV_U_NOME_MAE_DENOM')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_ABBREV_U_NOME_MAE_SUPPORT')),'NULL'))")"
+IFS='|' read -r abbrev_enabled abbrev_m_name_denom abbrev_m_name_support abbrev_u_name_denom abbrev_u_name_support abbrev_m_mother_denom abbrev_m_mother_support abbrev_u_mother_denom abbrev_u_mother_support <<< "$abbrev_training"
+[[ "$abbrev_enabled" != "NULL" && "$abbrev_m_name_denom" != "NULL" && "$abbrev_u_name_denom" != "NULL" ]] || {
+  echo 'ERRO: diagnóstico persistido de suporte ABBREV_COMPATIBLE ausente. Recalibre o modelo com o runtime atual.' >&2
+  exit 9
+}
+echo "Suporte ABBREV treino: NOME m=$abbrev_m_name_support/$abbrev_m_name_denom u_ref=$abbrev_u_name_support/$abbrev_u_name_denom; NOME_MAE m=$abbrev_m_mother_support/$abbrev_m_mother_denom u_ref=$abbrev_u_mother_support/$abbrev_u_mother_denom; LLR_estimado=False"
+
 # Injeta o corpus somente depois de confirmar o modelo ativo.
 echo "# docker compose --env-file $ENV_FILE exec -T -e SQLCMDPASSWORD=<redacted> sqlserver sqlcmd -S localhost -U sa -C -b -d $DB -i $FIXTURE"
 (cd "$ROOT" && docker compose --env-file "$ENV_FILE" exec -T -e "SQLCMDPASSWORD=$SQL_PASSWORD" sqlserver \
