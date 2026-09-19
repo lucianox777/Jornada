@@ -524,34 +524,6 @@ internal sealed partial class SqlProcessorRepository
         await command.ExecuteNonQueryAsync(ct);
     }
 
-    private static async Task<long> EnsurePersonOriginAsync(
-        SqlConnection connection, SqlTransaction tx, long sistemaOrigemId, string codigo, CancellationToken ct)
-    {
-        await using (var find = connection.CreateCommand())
-        {
-            find.Transaction = tx;
-            find.CommandText = """
-                SELECT pessoa_origem_id
-                FROM silver.pessoa_origem WITH (UPDLOCK,HOLDLOCK)
-                WHERE sistema_origem_id=@sistema AND codigo_pessoa_origem=@codigo;
-                """;
-            find.Parameters.AddWithValue("@sistema", sistemaOrigemId);
-            find.Parameters.Add(new SqlParameter("@codigo", SqlDbType.NVarChar, 255) { Value = codigo });
-            var value = await find.ExecuteScalarAsync(ct);
-            if (value is not null && value is not DBNull) return Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture);
-        }
-
-        await using var insert = connection.CreateCommand();
-        insert.Transaction = tx;
-        insert.CommandText = """
-            INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem)
-            OUTPUT INSERTED.pessoa_origem_id VALUES(@sistema,@codigo);
-            """;
-        insert.Parameters.AddWithValue("@sistema", sistemaOrigemId);
-        insert.Parameters.Add(new SqlParameter("@codigo", SqlDbType.NVarChar, 255) { Value = codigo });
-        return Convert.ToInt64(await insert.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
-    }
-
     private static async Task<PersonVersionState?> GetLatestPersonVersionAsync(
         SqlConnection connection, SqlTransaction tx, long pessoaOrigemId, CancellationToken ct)
     {
