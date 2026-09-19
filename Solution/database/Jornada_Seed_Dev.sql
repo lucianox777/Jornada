@@ -53,6 +53,34 @@ DECLARE @soSehab BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE 
         @soSmdet BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSmdet AND codigo='TRABALHO'),
         @soSms BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSms AND codigo='SAUDE');
 
+/* Runtime v4: cada sistema DEV recebe explicitamente sua Base privativa padrão.
+   Sistemas compartilhados reais continuam exigindo autorização explícita separada. */
+INSERT ref.base_pessoa_origem(codigo,nome,gestor_custodiante_id,escopo,confianca_identidade)
+SELECT CONCAT('SYS_',CONVERT(VARCHAR(20),s.sistema_origem_id)),
+       CONCAT('Base privativa DEV - ',g.codigo,' / ',s.codigo),
+       s.gestor_id,'PRIVADA','HOMOLOGADA_DETERMINISTICA'
+FROM ref.sistema_origem s
+JOIN ref.gestor g ON g.gestor_id=s.gestor_id
+WHERE s.sistema_origem_id IN(@soSehab,@soSmads,@soSmdet,@soSms)
+  AND NOT EXISTS(
+      SELECT 1 FROM ref.base_pessoa_origem b
+      WHERE b.codigo=CONCAT('SYS_',CONVERT(VARCHAR(20),s.sistema_origem_id)));
+
+INSERT ref.sistema_origem_base_pessoa(sistema_origem_id,base_pessoa_origem_id,padrao,ativo)
+SELECT s.sistema_origem_id,b.base_pessoa_origem_id,1,1
+FROM ref.sistema_origem s
+JOIN ref.base_pessoa_origem b ON b.codigo=CONCAT('SYS_',CONVERT(VARCHAR(20),s.sistema_origem_id))
+WHERE s.sistema_origem_id IN(@soSehab,@soSmads,@soSmdet,@soSms)
+  AND NOT EXISTS(
+      SELECT 1 FROM ref.sistema_origem_base_pessoa sb
+      WHERE sb.sistema_origem_id=s.sistema_origem_id
+        AND sb.base_pessoa_origem_id=b.base_pessoa_origem_id);
+
+DECLARE @bpSehab BIGINT=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@soSehab AND padrao=1 AND ativo=1),
+        @bpSmads BIGINT=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@soSmads AND padrao=1 AND ativo=1),
+        @bpSmdet BIGINT=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@soSmdet AND padrao=1 AND ativo=1),
+        @bpSms BIGINT=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@soSms AND padrao=1 AND ativo=1);
+
 -- Código do Tipo: exatamente 4 caracteres alfanuméricos A-Z/0-9.
 MERGE ref.tipo_registro AS t USING (VALUES
  (@gSehab,'BENEFICIO','AA01','Auxílio Aluguel'),
@@ -246,12 +274,12 @@ IF NOT EXISTS(SELECT 1 FROM bronze.entrega_arquivo WHERE entrega_id=@entBen)
  INSERT bronze.entrega_arquivo(entrega_id,nome_arquivo,content_type,objeto_chave,payload_sha256,tamanho_bytes,recebido_em) VALUES(@entBen,'ENTREGA_SEHAB_SEHAB_v2_8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','application/zip','sha256/8d/cc/8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',4,'2026-08-27T12:00:00+00:00');
 IF NOT EXISTS(SELECT 1 FROM ingestao.lote WHERE lote_id=@lotBen)
  INSERT ingestao.lote(lote_id,entrega_id,lote_seq,lote_total,qtd_pessoas,qtd_registros,status,criado_em,atualizado_em) VALUES(@lotBen,@entBen,1,1,6,6,'PROCESSADO','2026-08-27T09:00:01-03:00','2026-08-27T09:03:00-03:00');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH001') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSehab,'SEH001');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH002') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSehab,'SEH002');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH003') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSehab,'SEH003');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH004') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSehab,'SEH004');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH005') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSehab,'SEH005');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH006') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSehab,'SEH006');
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH001') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSehab,'SEH001',@bpSehab);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH002') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSehab,'SEH002',@bpSehab);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH003') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSehab,'SEH003',@bpSehab);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH004') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSehab,'SEH004',@bpSehab);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH005') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSehab,'SEH005',@bpSehab);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH006') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSehab,'SEH006',@bpSehab);
 DECLARE @po1 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH001'),
         @po2 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH002'),
         @po3 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSehab AND codigo_pessoa_origem='SEH003'),
