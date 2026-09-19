@@ -11,6 +11,18 @@ GO
  sistema_origem_id permanece obrigatório porque o fato sempre pertence a um sistema.
 */
 
+IF COL_LENGTH('silver.pessoa_observacao','id_pessoa_entrega') IS NULL
+    ALTER TABLE silver.pessoa_observacao ADD id_pessoa_entrega NVARCHAR(120) NULL;
+GO
+IF NOT EXISTS(
+    SELECT 1 FROM sys.indexes
+    WHERE object_id=OBJECT_ID('silver.pessoa_observacao')
+      AND name='UX_pessoa_observacao_lote_id_entrega')
+    CREATE UNIQUE INDEX UX_pessoa_observacao_lote_id_entrega
+      ON silver.pessoa_observacao(lote_id,id_pessoa_entrega)
+      WHERE id_pessoa_entrega IS NOT NULL;
+GO
+
 ALTER TABLE gold.beneficio_concedido ALTER COLUMN pessoa_origem_id BIGINT NULL;
 ALTER TABLE gold.beneficio_concedido ALTER COLUMN codigo_pessoa_origem NVARCHAR(255) NULL;
 ALTER TABLE gold.servico_prestado ALTER COLUMN pessoa_origem_id BIGINT NULL;
