@@ -114,11 +114,11 @@ SELECT po.pessoa_observacao_id,
        CASE
          WHEN po.cpf IS NULL THEN 'CPF_AUSENTE'
          WHEN vc.motivo='CPF_ESTRUTURALMENTE_INVALIDO' THEN 'CPF_ESTRUTURALMENTE_INVALIDO'
-         WHEN os.qtd_cpfs_mesma_origem>1 THEN 'JUNCAO_CPFS_MESMA_ORIGEM'
-         WHEN bs.qtd_codigos_mesma_base_ancora>1 THEN 'DUPLICACAO_CODIGO_MESMA_ANCORA'
          WHEN im.estado='EM_CONFLITO'
            OR (vc.status='CONFLITO' AND vc.metodo_resolucao='CPF_DETERMINISTICO')
            THEN 'CPF_CONFLITO_DETERMINISTICO'
+         WHEN os.qtd_cpfs_mesma_origem>1 THEN 'JUNCAO_CPFS_MESMA_ORIGEM'
+         WHEN bs.qtd_codigos_mesma_base_ancora>1 THEN 'DUPLICACAO_CODIGO_MESMA_ANCORA'
          ELSE 'CPF_SEM_PROBLEMA_DETECTADO'
        END cpf_classificacao,
        CAST(CASE
@@ -132,11 +132,11 @@ SELECT po.pessoa_observacao_id,
        CASE
          WHEN po.cpf IS NULL THEN COALESCE(po.cpf_ausente_motivo,'SEM_CPF')
          WHEN vc.motivo='CPF_ESTRUTURALMENTE_INVALIDO' THEN vc.motivo
-         WHEN os.qtd_cpfs_mesma_origem>1 THEN 'MAIS_DE_UM_CPF_NA_MESMA_ORIGEM'
-         WHEN bs.qtd_codigos_mesma_base_ancora>1 THEN 'MESMO_CPF_EM_MULTIPLOS_CODIGOS_DA_MESMA_BASE'
          WHEN im.estado='EM_CONFLITO' THEN COALESCE(im.estado_motivo,'CPF_EM_CONFLITO_IDENTIDADE')
          WHEN vc.status='CONFLITO' AND vc.metodo_resolucao='CPF_DETERMINISTICO'
            THEN COALESCE(vc.motivo,'CPF_CONFLITO_DETERMINISTICO')
+         WHEN os.qtd_cpfs_mesma_origem>1 THEN 'MAIS_DE_UM_CPF_NA_MESMA_ORIGEM'
+         WHEN bs.qtd_codigos_mesma_base_ancora>1 THEN 'MESMO_CPF_EM_MULTIPLOS_CODIGOS_DA_MESMA_BASE'
        END cpf_motivo_qualidade,
        im.estado cpf_estado_identificador,
        im.estado_motivo cpf_estado_motivo,
