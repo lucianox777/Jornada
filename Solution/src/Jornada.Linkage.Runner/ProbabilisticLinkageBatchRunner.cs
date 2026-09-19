@@ -422,6 +422,18 @@ public sealed class ProbabilisticLinkageBatchRunner(
             N';HW:',CONVERT(NVARCHAR(30),@run_high_watermark),
             N';ELIGIVEIS:',CONVERT(NVARCHAR(30),@run_elegiveis));
 
+        IF EXISTS(
+            SELECT 1
+            FROM identidade.linkage_resultado r WITH(HOLDLOCK)
+            JOIN silver.pessoa_observacao po WITH(HOLDLOCK)
+              ON po.pessoa_observacao_id=r.pessoa_observacao_id
+            LEFT JOIN identidade.pessoa_origem_progressiva p WITH(HOLDLOCK)
+              ON p.pessoa_origem_id=po.pessoa_origem_id
+            WHERE r.linkage_run_id=@run_id
+              AND po.pessoa_origem_id IS NOT NULL
+              AND p.pessoa_origem_id IS NULL)
+            THROW 51819, 'Origem persistente sem initial_uuid; publicação progressiva recusada.', 1;
+
         ;WITH contexto AS (
             SELECT r.linkage_resultado_id,
                    r.pessoa_observacao_id,
@@ -546,28 +558,32 @@ public sealed class ProbabilisticLinkageBatchRunner(
 
         DECLARE @progressiva_origem BIGINT,@progressiva_obs BIGINT,@progressiva_versao BIGINT;
         DECLARE progressiva_linkage CURSOR LOCAL FAST_FORWARD FOR
-            SELECT x.pessoa_origem_id,x.pessoa_observacao_id
+            SELECT y.pessoa_origem_id,y.pessoa_observacao_id
             FROM (
-                SELECT po.pessoa_origem_id,r.pessoa_observacao_id,
-                       CASE WHEN EXISTS(
-                           SELECT 1 FROM identidade.vinculo_fonte vf WITH(HOLDLOCK)
-                           WHERE vf.pessoa_observacao_id=r.pessoa_observacao_id
-                             AND vf.ativo=1
-                             AND vf.metodo_resolucao IN(
-                               N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
-                               N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO')
-                       ) THEN 1 ELSE 0 END AS protegido,
-                       ROW_NUMBER() OVER(
-                         PARTITION BY po.pessoa_origem_id
-                         ORDER BY po.versao_interna DESC,r.pessoa_observacao_id DESC) rn
-                FROM identidade.linkage_resultado r WITH(HOLDLOCK)
-                JOIN silver.pessoa_observacao po WITH(HOLDLOCK)
-                  ON po.pessoa_observacao_id=r.pessoa_observacao_id
-                WHERE r.linkage_run_id=@run_id
-                  AND po.pessoa_origem_id IS NOT NULL
-            ) x
-            WHERE x.rn=1 AND x.protegido=0
-            ORDER BY x.pessoa_origem_id;
+                SELECT x.*,
+                       MAX(x.protegido) OVER(PARTITION BY x.pessoa_origem_id) AS origem_protegida
+                FROM (
+                    SELECT po.pessoa_origem_id,r.pessoa_observacao_id,
+                           CASE WHEN EXISTS(
+                               SELECT 1 FROM identidade.vinculo_fonte vf WITH(HOLDLOCK)
+                               WHERE vf.pessoa_observacao_id=r.pessoa_observacao_id
+                                 AND vf.ativo=1
+                                 AND vf.metodo_resolucao IN(
+                                   N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
+                                   N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO')
+                           ) THEN 1 ELSE 0 END AS protegido,
+                           ROW_NUMBER() OVER(
+                             PARTITION BY po.pessoa_origem_id
+                             ORDER BY po.versao_interna DESC,r.pessoa_observacao_id DESC) rn
+                    FROM identidade.linkage_resultado r WITH(HOLDLOCK)
+                    JOIN silver.pessoa_observacao po WITH(HOLDLOCK)
+                      ON po.pessoa_observacao_id=r.pessoa_observacao_id
+                    WHERE r.linkage_run_id=@run_id
+                      AND po.pessoa_origem_id IS NOT NULL
+                ) x
+            ) y
+            WHERE y.rn=1 AND y.origem_protegida=0
+            ORDER BY y.pessoa_origem_id;
 
         OPEN progressiva_linkage;
         FETCH NEXT FROM progressiva_linkage INTO @progressiva_origem,@progressiva_obs;
@@ -614,12 +630,18 @@ public sealed class ProbabilisticLinkageBatchRunner(
             WHERE r.linkage_run_id=@run_id
               AND r.pessoa_origem_id_publicado IS NOT NULL
               AND NOT EXISTS(
-                  SELECT 1 FROM identidade.vinculo_fonte vf
-                  WHERE vf.pessoa_observacao_id=r.pessoa_observacao_id
-                    AND vf.ativo=1
-                    AND vf.metodo_resolucao IN(
-                      N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
-                      N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO'))
+                  SELECT 1
+                  FROM identidade.linkage_resultado r2
+                  JOIN silver.pessoa_observacao po2
+                    ON po2.pessoa_observacao_id=r2.pessoa_observacao_id
+                  JOIN identidade.vinculo_fonte vf
+                    ON vf.pessoa_observacao_id=r2.pessoa_observacao_id
+                   AND vf.ativo=1
+                   AND vf.metodo_resolucao IN(
+                     N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
+                     N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO')
+                  WHERE r2.linkage_run_id=@run_id
+                    AND po2.pessoa_origem_id=r.pessoa_origem_id_publicado)
               AND r.progressiva_versao IS NULL)
             THROW 51821, 'Origem persistente ficou sem versão progressiva na publicação.', 1;
         """;
