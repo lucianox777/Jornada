@@ -17,6 +17,8 @@ Durante a consolidação de engenharia v5.00, mudanças estruturais devem ser in
 
 A Jornada atribui um `initial_uuid` a cada **identidade persistente de origem** admitida, inclusive sem CPF. A chave autoritativa é `(base_pessoa_origem_id, codigo_pessoa_origem)`; sistemas autorizados podem compartilhar a mesma Base de Pessoa sem criar identidades paralelas. Uma observação que não possua `codigoPessoaOrigem` continua válida, mas não recebe origem sintética nem `initial_uuid` inventado. O UUID inicial é aleatório, não deriva de PII, nunca é reciclado, transferido ou alterado e não constitui prova de unicidade municipal.
 
+O `initial_uuid` é **proveniência e continuidade**, não evidência de semelhança. Ele não participa de blocking, geração de candidatos, features, LLR, posterior, margem ou calibração. Seu único papel na decisão probabilística é poder tornar-se o próprio `canonical_uuid` em `NOVA_IDENTIDADE` quando um run íntegro e completo termina sem candidato para uma origem persistente; observação sem origem persistente não recebe UUID artificial para viabilizar esse caminho.
+
 A referência canônica corrente é representada por `canonical_uuid` e pode evoluir somente por decisão explícita, versionada e auditável. Os únicos estados públicos da identidade progressiva são:
 
 - `PROVISORIA`: UUID inicial criado, sem referência canônica publicada;
@@ -69,6 +71,8 @@ Publicação de composição deve manter decisão, eventos progressivos, víncul
 Todos os campos recebidos e preservados pela Jornada podem ser evidências candidatas, desde que sua utilização seja semanticamente legítima, segura, calibrada e mensurável. Não existe lista fechada limitada ao núcleo cadastral e nenhum campo entra automaticamente no score apenas por existir.
 
 O núcleo probabilístico canônico é explicável e baseado em Fellegi–Sunter. Não se usa IA generativa como mecanismo de resolução e não se acrescenta segundo modelo de ML apenas para substituir o papel estatístico do calibrador. Comparadores como Jaro–Winkler produzem estados de concordância; não concorrem com Fellegi–Sunter.
+
+`identidade.linkage_resultado` preserva o **resultado bruto reproduzível** do scorer. A publicação operacional é uma camada separada: `ASSOCIACAO_EXISTENTE`, `NOVA_IDENTIDADE` ou `INDEFINIDA`, com política, universo, run e versão progressiva auditáveis. O vínculo corrente e Gold/Serving consomem a decisão publicada; a política não reescreve score, ranking ou motivo bruto para fabricar um match.
 
 Cada feature habilitada possui identificação, origem, semântica, normalizador/comparador versionados, estados de qualidade, política de ausência, parâmetros `m/u`, proveniência e evidência de validação. O modelo publicado congela features, versões, parâmetros, regras de dependência e ruleset de blocking.
 
