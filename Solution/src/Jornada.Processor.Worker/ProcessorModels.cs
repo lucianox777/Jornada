@@ -60,6 +60,7 @@ internal sealed record ParsedPackage(
     IReadOnlyList<ParsedFact> Registros);
 
 internal sealed record ParsedPerson(
+    string IdPessoaEntrega,
     string? CodigoPessoaOrigem,
     string ConteudoHash,
     string? SourceTransactionId,
@@ -92,7 +93,7 @@ internal sealed record ParsedTransversalAttribute(
     ReferenceGeography? Geografia);
 
 internal sealed record ParsedFact(
-    string CodigoPessoaOrigem,
+    string IdPessoaEntrega,
     string CodigoRegistroOrigem,
     RegistroOperacao Operacao,
     string ConteudoHash,
@@ -158,6 +159,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
         DecompressedByteBudget budget)
     {
         var result = new List<ParsedPerson>();
+        var deliveryPersonIds = new HashSet<string>(StringComparer.Ordinal);
         var sourceCodes = new HashSet<string>(StringComparer.Ordinal);
         using var reader = new StreamReader(new DecompressedLimitStream(entry.Open(), budget));
         string? line;
@@ -171,6 +173,10 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
                 throw new InvalidDataException($"pessoas.jsonl excede o limite de {options.MaxPessoasPorEntrega} registros por Entrega.");
 
             var json = validator.ParseAndValidate(line, "pessoas.jsonl", lineNumber);
+            var deliveryPersonId = RequiredString(json, "idPessoaEntrega");
+            if (!deliveryPersonIds.Add(deliveryPersonId))
+                throw new InvalidDataException($"pessoas.jsonl: idPessoaEntrega duplicado: {deliveryPersonId}.");
+
             var legacyCpf = OptionalString(json, "cpf");
             var sourceCode = OptionalString(json, "codigoPessoaOrigem");
 
@@ -306,6 +312,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
             }
 
             result.Add(new ParsedPerson(
+                deliveryPersonId,
                 sourceCode,
                 CanonicalJsonHash.ComputePerson(json),
                 OptionalString(json, "sourceTransactionId"),
@@ -345,7 +352,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
                 throw new InvalidDataException($"{logicalFile} excede o limite de {options.MaxRegistrosPorEntrega} registros por Entrega.");
 
             var json = validator.ParseAndValidate(line, logicalFile, lineNumber);
-            var sourceCode = RequiredString(json, "codigoPessoaOrigem");
+            var deliveryPersonId = RequiredString(json, "idPessoaEntrega");
             var recordCode = RequiredString(json, "codigoRegistroOrigem");
             if (!recordCodes.Add(recordCode))
                 throw new InvalidDataException($"{logicalFile}: codigoRegistroOrigem duplicado na Entrega: {recordCode}.");
@@ -357,7 +364,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
             if (nature == IntegrationNature.BENEFICIO)
             {
                 fact = new ParsedFact(
-                    sourceCode,
+                    deliveryPersonId,
                     recordCode,
                     operation,
                     contentHash,
@@ -377,7 +384,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
             else
             {
                 fact = new ParsedFact(
-                    sourceCode,
+                    deliveryPersonId,
                     recordCode,
                     operation,
                     contentHash,
@@ -409,14 +416,12 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
     private static void ValidateFactPersonReferences(IReadOnlyList<ParsedPerson> people, IReadOnlyList<ParsedFact> facts)
     {
         var known = people
-            .Select(p => p.CodigoPessoaOrigem)
-            .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Select(c => c!)
+            .Select(p => p.IdPessoaEntrega)
             .ToHashSet(StringComparer.Ordinal);
         foreach (var fact in facts)
         {
-            if (!known.Contains(fact.CodigoPessoaOrigem))
-                throw new InvalidDataException($"Registro referencia codigoPessoaOrigem ausente em pessoas.jsonl: {fact.CodigoPessoaOrigem}.");
+            if (!known.Contains(fact.IdPessoaEntrega))
+                throw new InvalidDataException($"Registro referencia idPessoaEntrega ausente em pessoas.jsonl: {fact.IdPessoaEntrega}.");
         }
     }
 
