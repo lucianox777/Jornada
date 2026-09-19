@@ -39,6 +39,10 @@ internal static class PriorCounterfactualAuditCommand
             operationalSql,
             NullLogger<SqlProbabilisticIdentityLinkage>.Instance);
         var activeModel = await linkage.GetActiveModelAsync(ct);
+        var frozenModel = await linkage.GetModelForDiagnosticsAsync(activeModel.ModelId, ct);
+        if (!LinkageParameterCatalog.UsesDecisionEvidence(frozenModel.AlgorithmVersion))
+            throw new InvalidOperationException(
+                "Contrafactual congelado de prior exige modelo DECISION_EVIDENCE, pois contratos legados podem usar prior condicionado ao tamanho do bloco.");
 
         var counterfactualPrior = await ReadParameterAsync(
             operationalSql,
@@ -71,18 +75,36 @@ internal static class PriorCounterfactualAuditCommand
         var audits = new List<AuditRow>(rows.Count);
         foreach (var row in rows)
         {
-            var audit = await linkage.DiagnosePriorCounterfactualAsync(
+            // O run publicado já pode ter criado novas REFERENCIA/blocking_chave.
+            // O replay autoritativo usa o top-2 e os scores persistidos no próprio run;
+            // a reexecução contra o corpus corrente fica separada como diagnóstico de deriva.
+            var currentCorpusAudit = await linkage.DiagnosePriorCounterfactualAsync(
                 row.ObservationId,
                 activeModel.ModelId,
                 counterfactualPrior,
                 ct);
-            audits.Add(new AuditRow(row, audit));
+            var frozen = RecalculateFrozen(
+                frozenModel,
+                row,
+                activePrior,
+                counterfactualPrior);
+            audits.Add(new AuditRow(
+                row,
+                currentCorpusAudit,
+                frozen.ActiveDecision,
+                frozen.CounterfactualDecision));
         }
 
         var replayMismatchCount = audits.Count(row =>
-            row.Source.PersistedStatus != row.Audit.ActiveDecision.Status ||
-            row.Source.PersistedResolvedUuid != row.Audit.ActiveDecision.PessoaUuidResolvido);
-        var rankingTopChanged = audits.Count(static row => row.Audit.RankingTopChanged);
+            row.Source.PersistedStatus != row.FrozenActiveDecision.Status ||
+            row.Source.PersistedResolvedUuid != row.FrozenActiveDecision.PessoaUuidResolvido);
+        var currentCorpusDecisionMismatchCount = audits.Count(row =>
+            row.Source.PersistedStatus != row.CurrentCorpusAudit.ActiveDecision.Status ||
+            row.Source.PersistedResolvedUuid != row.CurrentCorpusAudit.ActiveDecision.PessoaUuidResolvido);
+        var currentCorpusTopCandidateMismatchCount = audits.Count(row =>
+            row.Source.PersistedBestCandidateUuid != row.CurrentCorpusAudit.ActiveDecision.MelhorCandidatoUuid ||
+            row.Source.PersistedSecondCandidateUuid != row.CurrentCorpusAudit.ActiveDecision.SegundoCandidatoUuid);
+        var rankingTopChanged = audits.Count(static row => row.CurrentCorpusAudit.RankingTopChanged);
         if (rankingTopChanged != 0)
             throw new InvalidOperationException(
                 $"Contrafactual de prior alterou o candidato top em {rankingTopChanged} observações; isso viola a invariável aditiva do prior.");
@@ -97,8 +119,8 @@ internal static class PriorCounterfactualAuditCommand
         var counterfactualPositive = SummarizePositive(positive, counterfactual: true);
         var activeNegative = SummarizeNegative(negative, counterfactual: false);
         var counterfactualNegative = SummarizeNegative(negative, counterfactual: true);
-        var candidateCounts = audits.Select(static row => row.Audit.CandidateCount).Order().ToArray();
-        var validationMeanCandidateCount = audits.Average(static row => (decimal)row.Audit.CandidateCount);
+        var candidateCounts = audits.Select(static row => row.CurrentCorpusAudit.CandidateCount).Order().ToArray();
+        var validationMeanCandidateCount = audits.Average(static row => (decimal)row.CurrentCorpusAudit.CandidateCount);
 
         var transitions = audits
             .GroupBy(row =>
@@ -108,23 +130,26 @@ internal static class PriorCounterfactualAuditCommand
             .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.Ordinal);
 
         var changedRows = audits
-            .Where(static row => row.Audit.DecisionChanged)
+            .Where(static row =>
+                row.FrozenActiveDecision.Status != row.FrozenCounterfactualDecision.Status ||
+                row.FrozenActiveDecision.PessoaUuidResolvido != row.FrozenCounterfactualDecision.PessoaUuidResolvido ||
+                row.FrozenActiveDecision.Motivo != row.FrozenCounterfactualDecision.Motivo)
             .Select(row => new
             {
                 kind = row.Source.Kind,
                 scenario = row.Source.Scenario,
                 observationId = row.Source.ObservationId,
-                activeStatus = row.Audit.ActiveDecision.Status.ToString(),
-                counterfactualStatus = row.Audit.CounterfactualDecision.Status.ToString(),
-                activeBestPosterior = row.Audit.ActiveDecision.MelhorScore,
-                counterfactualBestPosterior = row.Audit.CounterfactualDecision.MelhorScore,
-                activeSecondPosterior = row.Audit.ActiveDecision.SegundoScore,
-                counterfactualSecondPosterior = row.Audit.CounterfactualDecision.SegundoScore,
-                activeMarginLogOdds = row.Audit.ActiveDecision.Margem,
-                counterfactualMarginLogOdds = row.Audit.CounterfactualDecision.Margem,
-                activeReason = row.Audit.ActiveDecision.Motivo,
-                counterfactualReason = row.Audit.CounterfactualDecision.Motivo,
-                bestCandidateUuid = row.Audit.ActiveTopCandidateUuid
+                activeStatus = row.FrozenActiveDecision.Status.ToString(),
+                counterfactualStatus = row.FrozenCounterfactualDecision.Status.ToString(),
+                activeBestPosterior = row.FrozenActiveDecision.MelhorScore,
+                counterfactualBestPosterior = row.FrozenCounterfactualDecision.MelhorScore,
+                activeSecondPosterior = row.FrozenActiveDecision.SegundoScore,
+                counterfactualSecondPosterior = row.FrozenCounterfactualDecision.SegundoScore,
+                activeMarginLogOdds = row.FrozenActiveDecision.Margem,
+                counterfactualMarginLogOdds = row.FrozenCounterfactualDecision.Margem,
+                activeReason = row.FrozenActiveDecision.Motivo,
+                counterfactualReason = row.FrozenCounterfactualDecision.Motivo,
+                bestCandidateUuid = row.Source.PersistedBestCandidateUuid
             })
             .ToArray();
 
@@ -145,7 +170,7 @@ internal static class PriorCounterfactualAuditCommand
             {
                 active = activePrior,
                 counterfactual = counterfactualPrior,
-                deltaLogOdds = audits[0].Audit.DeltaPriorLogOdds,
+                deltaLogOdds = DeltaLogOdds(activePrior, counterfactualPrior),
                 source = "DIAG_CANDIDATE_PRIOR_MATCH_PROBABILITY",
                 changesPersistedModel = false,
                 changesScoringParametersOtherThanPrior = false
@@ -153,12 +178,16 @@ internal static class PriorCounterfactualAuditCommand
             replay = new
             {
                 sampleSize = audits.Count,
+                source = "identidade.linkage_resultado:top2+scores+margin",
                 persistedDecisionMismatchCount = replayMismatchCount,
                 rankingTopChangedCount = rankingTopChanged,
-                rankingInvariantPreserved = rankingTopChanged == 0
+                rankingInvariantPreserved = rankingTopChanged == 0,
+                currentCorpusDecisionMismatchCount,
+                currentCorpusTopCandidateMismatchCount
             },
             candidateFanout = new
             {
+                measurement = "POST_PUBLICATION_CURRENT_CORPUS_DIAGNOSTIC",
                 priorCpfLabeledMeanCandidateCount = priorSourceMeanCandidateCount,
                 validationNoCpfMeanCandidateCount = decimal.Round(validationMeanCandidateCount, 6),
                 validationNoCpfP95CandidateCount = Percentile(candidateCounts, 0.95),
@@ -206,8 +235,9 @@ internal static class PriorCounterfactualAuditCommand
             },
             interpretation = new
             {
-                ranking = "Changing only a global prior adds the same log-odds constant to every candidate, so candidate ordering and log-odds margins must remain unchanged.",
-                decisions = "Decision changes can occur only through posterior threshold crossings and the dual-threshold guard; this audit recalculates the runtime policy instead of transforming persisted rounded posteriors.",
+                ranking = "Changing only a global prior adds the same log-odds constant to every frozen candidate, so candidate ordering and log-odds margins must remain unchanged.",
+                decisions = "Replay and threshold crossings use the top-2, rounded posterior scores and log-odds margin persisted by the run, then reapply the shared runtime decision policy. This prevents publication-created references from rewriting the historical candidate set.",
+                currentCorpus = "Candidate generation is also reexecuted after publication only to expose corpus drift; those mismatches do not replace the frozen replay.",
                 scope = "DEV synthetic read-only counterfactual. It does not alter the active model, linkage_run, identity links or Gold."
             }
         };
@@ -257,7 +287,103 @@ internal static class PriorCounterfactualAuditCommand
     }
 
     private static ProbabilisticLinkageDecision Decision(AuditRow row, bool counterfactual) =>
-        counterfactual ? row.Audit.CounterfactualDecision : row.Audit.ActiveDecision;
+        counterfactual ? row.FrozenCounterfactualDecision : row.FrozenActiveDecision;
+
+    private static FrozenPriorDecisions RecalculateFrozen(
+        LinkageModel activeModel,
+        ValidationRow row,
+        decimal activePrior,
+        decimal counterfactualPrior)
+    {
+        var delta = DeltaLogOdds(activePrior, counterfactualPrior);
+        var activeRanking = BuildFrozenRanking(row, priorDeltaLogOdds: 0m);
+        var counterfactualRanking = BuildFrozenRanking(row, delta);
+
+        var counterfactualParameters = new Dictionary<string, decimal>(
+            activeModel.Parameters,
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [LinkageParameterCatalog.PriorMatchProbability] = counterfactualPrior
+        };
+        var counterfactualModel = LinkageModelPolicy.Create(
+            activeModel.ModelId,
+            activeModel.Version,
+            activeModel.AlgorithmVersion,
+            counterfactualParameters);
+
+        var noCandidateReason = string.IsNullOrWhiteSpace(row.PersistedReason)
+            ? "SEM_CANDIDATO_NO_RULESET_BLOCKING"
+            : row.PersistedReason!;
+
+        return new FrozenPriorDecisions(
+            ProbabilisticLinkageDecisions.ResolveRanked(activeModel, activeRanking, noCandidateReason),
+            ProbabilisticLinkageDecisions.ResolveRanked(counterfactualModel, counterfactualRanking, noCandidateReason));
+    }
+
+    private static IReadOnlyList<CandidateScore> BuildFrozenRanking(
+        ValidationRow row,
+        decimal priorDeltaLogOdds)
+    {
+        if (row.PersistedBestCandidateUuid is not { } bestUuid)
+            return Array.Empty<CandidateScore>();
+
+        if (row.PersistedSecondCandidateUuid is not null && row.PersistedSecondScore is null)
+            throw new InvalidOperationException(
+                $"Observação {row.ObservationId} possui segundo candidato sem score persistido.");
+        if (row.PersistedSecondCandidateUuid is not null && row.PersistedMargin is null)
+            throw new InvalidOperationException(
+                $"Observação {row.ObservationId} possui segundo candidato sem margem persistida.");
+
+        var bestLogOdds = priorDeltaLogOdds;
+        var best = new CandidateScore(
+            bestUuid,
+            ShiftPosterior(row.PersistedBestScore, priorDeltaLogOdds),
+            bestLogOdds);
+
+        if (row.PersistedSecondCandidateUuid is not { } secondUuid)
+            return new[] { best };
+
+        var second = new CandidateScore(
+            secondUuid,
+            ShiftPosterior(row.PersistedSecondScore!.Value, priorDeltaLogOdds),
+            bestLogOdds - row.PersistedMargin!.Value);
+        return new[] { best, second };
+    }
+
+    private static decimal ShiftPosterior(decimal persistedPosterior, decimal deltaLogOdds)
+    {
+        if (deltaLogOdds == 0m)
+            return persistedPosterior;
+
+        var p = Math.Clamp(
+            Convert.ToDouble(persistedPosterior, CultureInfo.InvariantCulture),
+            0.0000001d,
+            0.9999999d);
+        var shiftedLogOdds =
+            Math.Log(p / (1d - p)) +
+            Convert.ToDouble(deltaLogOdds, CultureInfo.InvariantCulture);
+        var posterior = 1d / (1d + Math.Exp(-Math.Clamp(shiftedLogOdds, -40d, 40d)));
+        return Math.Round(
+            Convert.ToDecimal(posterior, CultureInfo.InvariantCulture),
+            8,
+            MidpointRounding.AwayFromZero);
+    }
+
+    private static decimal DeltaLogOdds(decimal activePrior, decimal counterfactualPrior)
+    {
+        static double Logit(decimal probability)
+        {
+            var value = Math.Clamp(
+                Convert.ToDouble(probability, CultureInfo.InvariantCulture),
+                0.0000001d,
+                0.9999999d);
+            return Math.Log(value / (1d - value));
+        }
+
+        return Convert.ToDecimal(
+            Logit(counterfactualPrior) - Logit(activePrior),
+            CultureInfo.InvariantCulture);
+    }
 
     private static async Task<decimal> ReadParameterAsync(
         IOperationalSqlAdapter operationalSql,
@@ -302,6 +428,12 @@ internal static class PriorCounterfactualAuditCommand
                 po.codigo_pessoa_origem,
                 r.status,
                 r.pessoa_uuid_resolvido,
+                r.melhor_candidato_uuid,
+                r.score_melhor,
+                r.segundo_candidato_uuid,
+                r.score_segundo,
+                r.margem,
+                r.motivo,
                 CASE
                   WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-%-POS-%' THEN N'POS'
                   WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-%-NEG-%' THEN N'NEG'
@@ -358,8 +490,8 @@ internal static class PriorCounterfactualAuditCommand
         await using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            var kind = reader.GetString(4);
-            var truth = reader.IsDBNull(6) ? (Guid?)null : reader.GetGuid(6);
+            var kind = reader.GetString(10);
+            var truth = reader.IsDBNull(12) ? (Guid?)null : reader.GetGuid(12);
             if (kind == "POS" && truth is null)
                 throw new InvalidOperationException(
                     $"Observação positiva {reader.GetInt64(0)} sem truth UUID.");
@@ -368,9 +500,15 @@ internal static class PriorCounterfactualAuditCommand
                 reader.GetInt64(0),
                 reader.GetString(1),
                 kind,
-                reader.GetString(5),
+                reader.GetString(11),
                 Enum.Parse<ResolutionStatus>(reader.GetString(2), ignoreCase: false),
                 reader.IsDBNull(3) ? null : reader.GetGuid(3),
+                reader.IsDBNull(4) ? null : reader.GetGuid(4),
+                reader.GetDecimal(5),
+                reader.IsDBNull(6) ? null : reader.GetGuid(6),
+                reader.IsDBNull(7) ? null : reader.GetDecimal(7),
+                reader.IsDBNull(8) ? null : reader.GetDecimal(8),
+                reader.IsDBNull(9) ? null : reader.GetString(9),
                 truth));
         }
 
@@ -427,11 +565,23 @@ internal static class PriorCounterfactualAuditCommand
         string Scenario,
         ResolutionStatus PersistedStatus,
         Guid? PersistedResolvedUuid,
+        Guid? PersistedBestCandidateUuid,
+        decimal PersistedBestScore,
+        Guid? PersistedSecondCandidateUuid,
+        decimal? PersistedSecondScore,
+        decimal? PersistedMargin,
+        string? PersistedReason,
         Guid? TruthUuid);
 
     private sealed record AuditRow(
         ValidationRow Source,
-        ProbabilisticPriorCounterfactualAudit Audit);
+        ProbabilisticPriorCounterfactualAudit CurrentCorpusAudit,
+        ProbabilisticLinkageDecision FrozenActiveDecision,
+        ProbabilisticLinkageDecision FrozenCounterfactualDecision);
+
+    private sealed record FrozenPriorDecisions(
+        ProbabilisticLinkageDecision ActiveDecision,
+        ProbabilisticLinkageDecision CounterfactualDecision);
 
     private sealed record DecisionSummary(
         int Total,
