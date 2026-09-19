@@ -327,9 +327,9 @@ public sealed class ProbabilisticLinkageBatchRunner(
             var pessoaObservacaoId = reader.GetInt64(0);
             var cpf = reader.IsDBNull(1) ? null : reader.GetString(1);
             var cpfAusenteMotivo = reader.IsDBNull(2) ? null : reader.GetString(2);
-            var nomeCompleto = reader.GetString(3);
-            var dataNascimento = DateOnly.FromDateTime(reader.GetDateTime(4));
-            var nomeMae = reader.GetString(5);
+            var nomeCompleto = reader.IsDBNull(3) ? null : reader.GetString(3);
+            var dataNascimento = reader.IsDBNull(4) ? null : DateOnly.FromDateTime(reader.GetDateTime(4));
+            var nomeMae = reader.IsDBNull(5) ? null : reader.GetString(5);
             var attributes = reader.IsDBNull(6)
                 ? Array.Empty<IdentityResolutionAttributeValue>()
                 : JsonSerializer.Deserialize<IdentityResolutionAttributeValue[]>(reader.GetString(6))
@@ -744,6 +744,37 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 SET status='PUBLICADO', finalizado_em=@fim, publicado_em=@fim
                 WHERE linkage_run_id=@run_id;
 
+                -- A view corrente só passa a enxergar o run após PUBLICADO.
+                -- Recompomos referência publicada e initial_uuid na mesma transação.
+                DECLARE @gold_uuid UNIQUEIDENTIFIER;
+                DECLARE gold_progressiva CURSOR LOCAL FAST_FORWARD FOR
+                    SELECT DISTINCT pessoa_uuid
+                    FROM (
+                        SELECT r.pessoa_uuid_publicado pessoa_uuid
+                        FROM identidade.linkage_resultado r
+                        WHERE r.linkage_run_id=@run_id
+                          AND r.pessoa_uuid_publicado IS NOT NULL
+                        UNION
+                        SELECT p.initial_uuid
+                        FROM identidade.linkage_resultado r
+                        JOIN silver.pessoa_observacao po
+                          ON po.pessoa_observacao_id=r.pessoa_observacao_id
+                        JOIN identidade.pessoa_origem_progressiva p
+                          ON p.pessoa_origem_id=po.pessoa_origem_id
+                        WHERE r.linkage_run_id=@run_id
+                    ) u
+                    WHERE pessoa_uuid IS NOT NULL;
+
+                OPEN gold_progressiva;
+                FETCH NEXT FROM gold_progressiva INTO @gold_uuid;
+                WHILE @@FETCH_STATUS=0
+                BEGIN
+                    EXEC identidade.sp_recompor_gold_pessoa @pessoa_uuid=@gold_uuid;
+                    FETCH NEXT FROM gold_progressiva INTO @gold_uuid;
+                END;
+                CLOSE gold_progressiva;
+                DEALLOCATE gold_progressiva;
+
                 -- v3.45: o fato já existe independentemente da identidade. Ao publicar o linkage,
                 -- sincroniza-se somente a atribuição canônica materializada, sem reescrever o
                 -- sujeito declarado (origem/CPF snapshot) nem criar nova versão factual.
@@ -803,6 +834,29 @@ public sealed class ProbabilisticLinkageBatchRunner(
             command.Parameters.Add("@elegiveis", SqlDbType.BigInt).Value = eligible;
             command.Parameters.Add("@fim", SqlDbType.DateTimeOffset).Value = finished;
             await command.ExecuteNonQueryAsync(ct);
+
+            // NOVA_IDENTIDADE cria uma referência que ainda não existia no corpus.
+            // Ela precisa ganhar blocking antes do commit para o próximo run poder encontrá-la.
+            var newReferences = new List<Guid>();
+            await using (var projected = connection.CreateCommand())
+            {
+                projected.Transaction = transaction;
+                projected.CommandText = """
+                    SELECT DISTINCT pessoa_uuid_publicado
+                    FROM identidade.linkage_resultado
+                    WHERE linkage_run_id=@run_id
+                      AND resultado_publicacao='NOVA_IDENTIDADE'
+                      AND pessoa_uuid_publicado IS NOT NULL;
+                    """;
+                projected.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+                await using var reader = await projected.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                    newReferences.Add(reader.GetGuid(0));
+            }
+
+            foreach (var uuid in newReferences)
+                await BlockingProjectionPersistence.RefreshSqlServerAsync(connection, transaction, uuid, ct);
+
             await transaction.CommitAsync(ct);
             return LinkageRunStatus.PUBLICADO;
         }
