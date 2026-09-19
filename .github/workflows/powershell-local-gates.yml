@@ -19,6 +19,7 @@ on:
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-linkage-validation.ps1'
+      - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
       - 'Solution/scripts/local-linkage-validation-flow.ps1'
       - 'Solution/scripts/local-linkage-validation-from-zero.ps1'
       - 'Solution/scripts/local-linkage-monte-carlo-validation.ps1'
@@ -46,6 +47,7 @@ on:
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-linkage-validation.ps1'
+      - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
       - 'Solution/scripts/local-linkage-validation-flow.ps1'
       - 'Solution/scripts/local-linkage-validation-from-zero.ps1'
       - 'Solution/scripts/local-linkage-monte-carlo-validation.ps1'
@@ -91,7 +93,12 @@ jobs:
           if ($content -match 'Measure-Object\s+-Property\s+conflicts') {
             throw 'local-linkage-validation.ps1 não pode depender de Measure-Object -Property conflicts sobre OrderedDictionary no Windows PowerShell 5.1.'
           }
-          Write-Host 'WINDOWS POWERSHELL 5.1 ORDEREDDICTIONARY AGGREGATION: OK'
+          $readiness = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-evidence-readiness.ps1
+          $null = [scriptblock]::Create($readiness)
+          if ($readiness -match 'Measure-Object\s+-Property') {
+            throw 'local-linkage-evidence-readiness.ps1 deve acessar OrderedDictionary por chave no Windows PowerShell 5.1.'
+          }
+          Write-Host 'WINDOWS POWERSHELL 5.1 ORDEREDDICTIONARY/PARSE: OK'
 
   powershell-contract:
     runs-on: ubuntu-24.04
@@ -128,6 +135,7 @@ jobs:
             'scripts/local-cluster.ps1',
             'scripts/local-linkage-evaluation-smoke.ps1',
             'scripts/local-linkage-validation.ps1',
+            'scripts/local-linkage-evidence-readiness.ps1',
             'scripts/local-linkage-validation-flow.ps1',
             'scripts/local-linkage-validation-from-zero.ps1',
             'scripts/local-linkage-monte-carlo-validation.ps1',
@@ -236,6 +244,7 @@ jobs:
         run: |
           $targets = @(
             'scripts/local-linkage-validation.ps1',
+            'scripts/local-linkage-evidence-readiness.ps1',
             'scripts/local-linkage-validation-flow.ps1',
             'scripts/local-linkage-validation-from-zero.ps1',
             'scripts/local-linkage-monte-carlo-validation.ps1',
@@ -246,6 +255,17 @@ jobs:
             $content = Get-Content -Raw -Encoding UTF8 $target
             if ($content -match '(?m)^\s*#\s*(?:\.\\scripts\\|docker\b|Set-Location\b)') {
               throw "$target não deve duplicar comandos executáveis como comentário de código; o comando deve aparecer somente no output."
+            }
+          }
+
+          $readiness = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-evidence-readiness.ps1
+          foreach ($required in @(
+            'function Write-CommandLine',
+            'SQLCMDPASSWORD=<redacted>',
+            'LINKAGE ADDITIONAL EVIDENCE READINESS: OK'
+          )) {
+            if (-not $readiness.Contains($required)) {
+              throw "local-linkage-evidence-readiness.ps1 perdeu contrato obrigatório: $required"
             }
           }
 
