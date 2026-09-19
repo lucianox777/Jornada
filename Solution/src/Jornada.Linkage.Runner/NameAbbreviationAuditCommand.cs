@@ -11,7 +11,11 @@ internal static class NameAbbreviationAuditCommand
 {
     internal const string RunOption = "--name-abbreviation-audit-run";
     internal const string OutputOption = "--name-abbreviation-audit-output";
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
     internal static bool IsRequested(string[] args) =>
         args.Any(static arg =>
