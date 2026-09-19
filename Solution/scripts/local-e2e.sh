@@ -74,8 +74,16 @@ PY
 }
 wait_processed(){
   local id="$1" out="$2" status='' code=''
+  # A rota de status pertence ao bucket autenticado INGESTAO (20 req/min por default).
+  # Polling de 1s fazia o próprio E2E esgotar o contrato de rate limit. Quatro segundos
+  # mantêm o harness abaixo do teto e 429 transitório é tratado como backpressure normal.
+  local poll_seconds="${JORNADA_E2E_STATUS_POLL_SECONDS:-4}"
   for _ in $(seq 1 120); do
     code="$(curl -sS -o "$out" -w '%{http_code}' "$API_URL/api/v1/ingestao/entregas/$id" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $access_key" || true)"
+    if [[ "$code" == 429 ]]; then
+      sleep "$poll_seconds"
+      continue
+    fi
     if [[ "$code" != 200 ]]; then
       echo "ERRO: consulta de status da Entrega $id retornou HTTP $code." >&2
       [[ -f "$out" ]] && cat "$out" >&2 || true
@@ -84,7 +92,7 @@ wait_processed(){
     status="$(json_get "$out" status)"
     [[ "$status" == PROCESSADA ]] && return 0
     [[ "$status" == REJEITADA || "$status" == QUARENTENA ]] && { echo "ERRO: Entrega $id terminou $status" >&2; return 1; }
-    sleep 1
+    sleep "$poll_seconds"
   done
   echo "ERRO: timeout aguardando Entrega $id; último status=$status" >&2; return 1
 }
