@@ -108,6 +108,21 @@ public sealed class BlockingProjectionKeyProjectorTests
     }
 
     [Test]
+    public void Project_AllowsPartialCoreWithoutInventingBirthKeys()
+    {
+        var keys = BlockingProjectionKeyProjector.Project("Maria Silva", null, null);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(keys, Does.Contain(new BlockingProjectionKey(
+                BlockingCandidateFeatureCatalog.FullName, "MARIA SILVA")));
+            Assert.That(keys.Any(k => k.Feature == BlockingCandidateFeatureCatalog.BirthDay), Is.False);
+            Assert.That(keys.Any(k => k.Feature == BlockingCandidateFeatureCatalog.BirthMonth), Is.False);
+            Assert.That(keys.Any(k => k.Feature == BlockingCandidateFeatureCatalog.BirthYear), Is.False);
+        });
+    }
+
+    [Test]
     public void Project_IsDeterministicAndDoesNotEmitDuplicateKeys()
     {
         var first = BlockingProjectionKeyProjector.Project(
