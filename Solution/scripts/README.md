@@ -157,7 +157,7 @@ O fechamento do corpus independente é deliberadamente um **safety gate**, não 
 
 Quando nenhuma decisão é resolvida, PPV é matematicamente indefinido. O relatório grava `syntheticResolvedPpv=null` e o console mostra `N/A`; nunca use `0%` para representar `0/0`.
 
-O diagnóstico dos negativos separa agora o **colisor planejado pelo fixture** do **melhor candidato realmente observado**. `plannedColliderEvidenceProfiles` descreve apenas o par que o gerador construiu; `plannedColliderAlignment` informa quantas vezes esse UUID foi de fato o melhor candidato. Assim, um `NAME_COLLISION` planejado em `EXACT/LOW/EXACT` não é usado para explicar um score maior obtido contra outra Pessoa da Gold.
+O diagnóstico dos negativos separa agora o **colisor planejado pelo fixture** do **melhor candidato realmente observado**. `generatorIntendedEvidenceProfiles` descreve o estado que o gerador pretendia criar; `plannedColliderAlignment` informa quantas vezes o UUID plantado foi de fato o melhor candidato; `observedBestScoreStates` mapeia os scores realmente produzidos de volta aos estados compatíveis da malha do modelo. Assim, um `NAME_COLLISION` planejado em `EXACT/LOW/EXACT` não é usado para explicar um score maior obtido contra outra Pessoa da Gold.
 
 Runs completos só podem ser reutilizados quando `modelo_id` **e** o fingerprint do runtime/fixture corrente coincidirem com `.local\linkage-validation\run-provenance.json`. Run antigo sem essa proveniência falha fechado; gere evidência nova com `local-linkage-validation-from-zero.ps1`. Isso impede avaliar um resultado persistido produzido por código anterior apenas porque o modelo continuou com o mesmo UUID.
 
