@@ -50,3 +50,34 @@ IF NOT EXISTS(
     CREATE UNIQUE INDEX uq_pessoa_origem_base_codigo
         ON silver.pessoa_origem(base_pessoa_origem_id,codigo_pessoa_origem);
 GO
+
+
+/* UUID_JORNADA é retroalimentação interna: vincula a observação a uma Pessoa já
+   existente, sem criar identity_map externo e sem score/modelo probabilístico. */
+IF EXISTS(
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id=OBJECT_ID('identidade.vinculo_fonte')
+      AND name='ck_vinculo_metodo')
+    ALTER TABLE identidade.vinculo_fonte DROP CONSTRAINT ck_vinculo_metodo;
+GO
+ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_metodo
+ CHECK(metodo_resolucao IN(
+    'CPF_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO',
+    'PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO',
+    'CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
+GO
+
+IF EXISTS(
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id=OBJECT_ID('identidade.vinculo_fonte')
+      AND name='ck_vinculo_modelo')
+    ALTER TABLE identidade.vinculo_fonte DROP CONSTRAINT ck_vinculo_modelo;
+GO
+ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_modelo CHECK(
+    (metodo_resolucao='CPF_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
+    (metodo_resolucao='UUID_JORNADA_RETROALIMENTACAO' AND score IS NULL AND modelo_id IS NULL) OR
+    (metodo_resolucao='PENDENTE_PROBABILISTICO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL) OR
+    (metodo_resolucao='LINKAGE_PROBABILISTICO' AND score IS NOT NULL AND modelo_id IS NOT NULL) OR
+    (metodo_resolucao='CORRECAO_GOVERNADA' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NOT NULL) OR
+    (metodo_resolucao='CONFLITO_GOVERNADO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL));
+GO
