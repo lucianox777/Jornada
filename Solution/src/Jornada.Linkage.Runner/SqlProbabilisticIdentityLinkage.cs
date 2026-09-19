@@ -91,6 +91,9 @@ public sealed class SqlProbabilisticIdentityLinkage(
         return snapshot.Reference;
     }
 
+    internal async Task<LinkageModel> GetModelForDiagnosticsAsync(Guid modelId, CancellationToken ct) =>
+        (await GetOrLoadRuntimeSnapshotAsync(modelId, ct)).Model;
+
     public async Task<ProbabilisticLinkageDecision> ResolveWithoutCpfAsync(
         IdentityObservation observation, Guid modeloId, CancellationToken ct)
     {
