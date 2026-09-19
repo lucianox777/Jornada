@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using System.Data;
+using Jornada.Operational.Sql;
 
 namespace Jornada.Tests.Integration;
 
@@ -127,6 +128,120 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                     Assert.That(reader.GetString(11), Is.EqualTo("NOVA_IDENTIDADE"));
                 });
             }
+        }
+        finally
+        {
+            await tx.RollbackAsync();
+        }
+    }
+
+    [Test]
+    public async Task Partial_provisional_shell_is_visible_in_gold_but_only_reference_receives_available_blocking_keys()
+    {
+        var cs = RequireIntegrationConnection();
+        await using var connection = new SqlConnection(cs);
+        await connection.OpenAsync();
+
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
+
+        var source = await ReadProvisionalSourceAsync(connection);
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
+        try
+        {
+            await using (var partial = connection.CreateCommand())
+            {
+                partial.Transaction = tx;
+                partial.CommandText = """
+                    UPDATE silver.pessoa_observacao
+                       SET nome_completo=N'Maria Parcial',
+                           nome_cmp=N'MARIA PARCIAL',
+                           data_nascimento=NULL,
+                           nome_mae=NULL,
+                           nome_mae_cmp=NULL
+                     WHERE pessoa_origem_id=@source;
+
+                    EXEC identidade.sp_recompor_gold_pessoa @pessoa_uuid=@initial;
+                    """;
+                partial.Parameters.AddWithValue("@source", source.SourceId);
+                partial.Parameters.AddWithValue("@initial", source.InitialUuid);
+                await partial.ExecuteNonQueryAsync();
+            }
+
+            await BlockingProjectionPersistence.RefreshSqlServerAsync(
+                connection, tx, source.InitialUuid, CancellationToken.None);
+
+            await using (var provisional = connection.CreateCommand())
+            {
+                provisional.Transaction = tx;
+                provisional.CommandText = """
+                    SELECT g.estado_identidade,g.completude_nucleo,g.nome_completo,
+                           g.data_nascimento,g.nome_mae,
+                           (SELECT COUNT(*) FROM identidade.blocking_chave b WHERE b.pessoa_uuid=g.pessoa_uuid)
+                    FROM gold.pessoa g
+                    WHERE g.pessoa_uuid=@initial;
+                    """;
+                provisional.Parameters.AddWithValue("@initial", source.InitialUuid);
+                await using var reader = await provisional.ExecuteReaderAsync();
+                Assert.That(await reader.ReadAsync(), Is.True, "A casca progressiva deve existir na Gold mesmo com núcleo parcial.");
+                Assert.Multiple(() =>
+                {
+                    Assert.That(reader.GetString(0), Is.EqualTo("PROVISORIA"));
+                    Assert.That(reader.GetString(1), Is.EqualTo("PARCIAL"));
+                    Assert.That(reader.GetString(2), Is.EqualTo("Maria Parcial"));
+                    Assert.That(reader.IsDBNull(3), Is.True);
+                    Assert.That(reader.IsDBNull(4), Is.True);
+                    Assert.That(reader.GetInt32(5), Is.Zero,
+                        "PROVISORIA não pode contaminar o corpus de candidate generation.");
+                });
+            }
+
+            await using (var promote = connection.CreateCommand())
+            {
+                promote.Transaction = tx;
+                promote.CommandText = """
+                    DECLARE @v BIGINT;
+                    EXEC identidade.sp_publicar_referencia_progressiva_deterministica
+                         @pessoa_origem_id=@source,
+                         @canonical_uuid=@initial,
+                         @evidencia_referencia=N'TESTE_GOLD_PROGRESSIVA_PARCIAL',
+                         @politica_versao=N'TEST_GOLD_PROGRESSIVA_V1',
+                         @versao_resultado=@v OUTPUT;
+                    EXEC identidade.sp_recompor_gold_pessoa @pessoa_uuid=@initial;
+                    """;
+                promote.Parameters.AddWithValue("@source", source.SourceId);
+                promote.Parameters.AddWithValue("@initial", source.InitialUuid);
+                await promote.ExecuteNonQueryAsync();
+            }
+
+            await BlockingProjectionPersistence.RefreshSqlServerAsync(
+                connection, tx, source.InitialUuid, CancellationToken.None);
+
+            await using var reference = connection.CreateCommand();
+            reference.Transaction = tx;
+            reference.CommandText = """
+                SELECT g.estado_identidade,g.completude_nucleo,
+                       (SELECT COUNT(*) FROM identidade.blocking_chave b WHERE b.pessoa_uuid=g.pessoa_uuid) total_keys,
+                       (SELECT COUNT(*) FROM identidade.blocking_chave b
+                         WHERE b.pessoa_uuid=g.pessoa_uuid
+                           AND b.atributo IN(N'birth_day',N'birth_month',N'birth_year')) birth_keys
+                FROM gold.pessoa g
+                WHERE g.pessoa_uuid=@initial;
+                """;
+            reference.Parameters.AddWithValue("@initial", source.InitialUuid);
+            await using var referenceReader = await reference.ExecuteReaderAsync();
+            Assert.That(await referenceReader.ReadAsync(), Is.True);
+            Assert.Multiple(() =>
+            {
+                Assert.That(referenceReader.GetString(0), Is.EqualTo("REFERENCIA"));
+                Assert.That(referenceReader.GetString(1), Is.EqualTo("PARCIAL"),
+                    "Resolver identidade não deve fabricar completude cadastral.");
+                Assert.That(referenceReader.GetInt32(2), Is.GreaterThan(0),
+                    "A referência deve projetar chaves derivadas do nome disponível.");
+                Assert.That(referenceReader.GetInt32(3), Is.Zero,
+                    "Data ausente não pode gerar chaves de nascimento sintéticas.");
+            });
         }
         finally
         {
