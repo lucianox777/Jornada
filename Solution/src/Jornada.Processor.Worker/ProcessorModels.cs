@@ -180,15 +180,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
             var legacyCpf = OptionalString(json, "cpf");
             var sourceCode = OptionalString(json, "codigoPessoaOrigem");
 
-            // v1-v3 preservam integralmente o contrato histórico. A partir da v4,
-            // ausência de código local é válida e CPF jamais vira código de origem.
-            if (manifest.PessoaSchemaVersao < 4 && string.IsNullOrWhiteSpace(sourceCode))
-            {
-                if (string.IsNullOrWhiteSpace(legacyCpf))
-                    throw new InvalidDataException("pessoas.jsonl: codigoPessoaOrigem ausente exige CPF preenchido para derivação do código de origem.");
-                sourceCode = legacyCpf;
-            }
-
+            // codigoPessoaOrigem é opcional e nunca é derivado de CPF ou de atributos cadastrais.
             var identifiers = PersonIdentifierParsing.Parse(
                 json,
                 legacyCpf,
