@@ -143,13 +143,16 @@ internal sealed partial class SqlProcessorRepository
         SqlCommand command, ReservedBatch batch, ProcessedPerson person,
         long registroOrigemId, int versaoInterna, long recordId, ParsedFact fact, DateTimeOffset versionedAt)
     {
+        if (!person.PessoaOrigemId.HasValue || string.IsNullOrWhiteSpace(person.CodigoPessoaOrigem))
+            throw new InvalidDataException("Fato exige Pessoa com origem local estável.");
+
         command.Parameters.AddWithValue("@registro", recordId);
         command.Parameters.AddWithValue("@registro_origem", registroOrigemId);
         command.Parameters.Add(new SqlParameter("@codigo_registro", SqlDbType.NVarChar, 255) { Value = fact.CodigoRegistroOrigem });
         command.Parameters.AddWithValue("@versao_interna", versaoInterna);
         command.Parameters.Add(new SqlParameter("@operacao", SqlDbType.NVarChar, 20) { Value = fact.Operacao.ToString() });
         command.Parameters.Add(new SqlParameter("@uuid", SqlDbType.UniqueIdentifier) { Value = (object?)person.PessoaUuid ?? DBNull.Value });
-        command.Parameters.AddWithValue("@pessoa_origem", person.PessoaOrigemId);
+        command.Parameters.AddWithValue("@pessoa_origem", person.PessoaOrigemId.Value);
         command.Parameters.AddWithValue("@sistema_origem", person.SistemaOrigemId);
         command.Parameters.Add(new SqlParameter("@codigo_pessoa", SqlDbType.NVarChar, 255) { Value = person.CodigoPessoaOrigem });
         AddNullable(command, "@cpf_declarado", SqlDbType.Char, 11, person.CpfDeclarado);
@@ -452,7 +455,7 @@ internal sealed partial class SqlProcessorRepository
         command.Parameters.Add(new SqlParameter(name, type) { Precision = precision, Scale = scale, Value = value.HasValue ? value.Value : DBNull.Value });
     }
 
-    private sealed record ProcessedPerson(long ObservationId, long PessoaOrigemId, long SistemaOrigemId, string CodigoPessoaOrigem, string? CpfDeclarado, string? CpfAusenteMotivo, Guid? PessoaUuid, string EstadoAtribuicaoIdentidade, long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId);
+    private sealed record ProcessedPerson(long ObservationId, long? PessoaOrigemId, long SistemaOrigemId, string? CodigoPessoaOrigem, string? CpfDeclarado, string? CpfAusenteMotivo, Guid? PessoaUuid, string EstadoAtribuicaoIdentidade, long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId);
     private sealed record TerritorialReferenceSelection(long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId);
     private sealed record PersistedAttribute(long ObservationId, ParsedTransversalAttribute Value, string InstanceKey, string Cardinality);
     private sealed record AttributeIdentityRule(string Cardinality, string InstanceKeyRule);
