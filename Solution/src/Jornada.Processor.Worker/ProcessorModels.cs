@@ -60,7 +60,7 @@ internal sealed record ParsedPackage(
     IReadOnlyList<ParsedFact> Registros);
 
 internal sealed record ParsedPerson(
-    string CodigoPessoaOrigem,
+    string? CodigoPessoaOrigem,
     string ConteudoHash,
     string? SourceTransactionId,
     string? Cpf,
@@ -69,7 +69,8 @@ internal sealed record ParsedPerson(
     DateOnly DataNascimento,
     string? NomeMae,
     IReadOnlyList<ParsedTransversalAttribute> Atributos,
-    IReadOnlyList<ParsedDocumentVerification> ConferenciasDocumentais);
+    IReadOnlyList<ParsedDocumentVerification> ConferenciasDocumentais,
+    IReadOnlyList<ParsedPersonIdentifier>? Identificadores = null);
 
 internal sealed record ParsedDocumentVerification(
     string CampoCodigo,
@@ -136,7 +137,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
         using var zip = new ZipArchive(payloadStream, ZipArchiveMode.Read, leaveOpen: true);
         var budget = new DecompressedByteBudget(IngestionPackageInspector.MaxUncompressedBytes);
         ConsumeEntryForBudget(zip.GetEntry("manifest.json")!, budget);
-        var pessoas = ParsePeople(batch, zip.GetEntry("pessoas.jsonl")!, personValidator, budget);
+        var pessoas = ParsePeople(batch, manifest, zip.GetEntry("pessoas.jsonl")!, personValidator, budget);
         var factEntry = zip.GetEntry("registros.jsonl")!;
         IReadOnlyList<ParsedFact> registros = Array.Empty<ParsedFact>();
         if (factEntry.Length > 0)
@@ -151,6 +152,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
 
     private IReadOnlyList<ParsedPerson> ParsePeople(
         ReservedBatch batch,
+        IngestionPackageManifest manifest,
         ZipArchiveEntry entry,
         JsonSchemaSubsetValidator validator,
         DecompressedByteBudget budget)
@@ -169,16 +171,31 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
                 throw new InvalidDataException($"pessoas.jsonl excede o limite de {options.MaxPessoasPorEntrega} registros por Entrega.");
 
             var json = validator.ParseAndValidate(line, "pessoas.jsonl", lineNumber);
-            var cpf = OptionalString(json, "cpf");
+            var legacyCpf = OptionalString(json, "cpf");
             var sourceCode = OptionalString(json, "codigoPessoaOrigem");
-            if (string.IsNullOrWhiteSpace(sourceCode))
+
+            // v1-v3 preservam integralmente o contrato histórico. A partir da v4,
+            // ausência de código local é válida e CPF jamais vira código de origem.
+            if (manifest.PessoaSchemaVersao < 4 && string.IsNullOrWhiteSpace(sourceCode))
             {
-                if (string.IsNullOrWhiteSpace(cpf))
+                if (string.IsNullOrWhiteSpace(legacyCpf))
                     throw new InvalidDataException("pessoas.jsonl: codigoPessoaOrigem ausente exige CPF preenchido para derivação do código de origem.");
-                sourceCode = cpf;
+                sourceCode = legacyCpf;
             }
-            if (!sourceCodes.Add(sourceCode))
+
+            var identifiers = PersonIdentifierParsing.Parse(
+                json,
+                legacyCpf,
+                sourceCode,
+                manifest.CodigoBasePessoaOrigem);
+
+            var sourceIdentifier = identifiers.SingleOrDefault(i => i.Tipo == "CODIGO_BASE_ORIGEM");
+            sourceCode ??= sourceIdentifier?.ValorNormalizado;
+            if (!string.IsNullOrWhiteSpace(sourceCode) && !sourceCodes.Add(sourceCode))
                 throw new InvalidDataException($"pessoas.jsonl: codigoPessoaOrigem duplicado: {sourceCode}.");
+
+            var cpf = legacyCpf
+                ?? identifiers.FirstOrDefault(i => i.Tipo == "CPF")?.ValorNormalizado;
 
             var attributes = new List<ParsedTransversalAttribute>();
             if (json.TryGetProperty("atributosTransversais", out var attrs) && attrs.ValueKind == JsonValueKind.Array)
@@ -298,7 +315,8 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
                 RequiredDate(json, "dataNascimento"),
                 OptionalString(json, "nomeMae"),
                 attributes,
-                verifications));
+                verifications,
+                identifiers));
         }
 
         if (result.Count == 0)
@@ -392,6 +410,8 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
     {
         var known = people
             .Select(p => p.CodigoPessoaOrigem)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c!)
             .ToHashSet(StringComparer.Ordinal);
         foreach (var fact in facts)
         {
