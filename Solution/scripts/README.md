@@ -153,6 +153,8 @@ Ele preserva um JSON por seed e grava `.local\calibrador-ibge-u\multiseed\summar
 
 A mesma validação também calcula um **contrafactual read-only de política**: reaplica os rankings já produzidos como se apenas `SCORING_DUAL_THRESHOLD_CONFLICT_V1` fosse removido, mantendo `T_LINKAGE` e `CONFLICT_MARGIN_LOG_ODDS`. O bloco `counterfactualNoDualThresholdGuard` do `validation-report.json` mostra, para positivos e negativos, quantos casos seriam resolvidos, continuariam em conflito ou permaneceriam não resolvidos. Esse cálculo não recalibra o modelo, não altera parâmetros, não publica vínculos e não é autorização para mudar a política.
 
+Além disso, `dualThresholdMarginFrontier` testa a alternativa mais restrita de **manter o guard como referência, mas perguntar se uma margem de log-odds maior permitiria liberar com segurança apenas parte dos casos em que os dois candidatos estão acima de `T_LINKAGE`**. O diagnóstico percorre os cortes de margem observados no próprio corpus e registra quantos positivos corretos e falsos vínculos seriam liberados em cada ponto. Sobreposição das margens verdadeiras com as margens dos impostores significa que a margem, sozinha, não é evidência discriminante suficiente. O cálculo também é read-only e não altera a política.
+
 ### 10. Rodar o smoke de escala, quando necessário
 
 ```powershell

@@ -572,6 +572,124 @@ $counterfactualNegativeScenarios = @(
     }
 )
 
+$dualThresholdMarginLines = @(Get-SqlLines @"
+WITH positive_truth AS (
+    SELECT
+        CASE
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-EXACT-%' THEN N'EXACT'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-NAME_ABBREV-%' THEN N'NAME_ABBREV'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-MOTHER_ABBREV-%' THEN N'MOTHER_ABBREV'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-BIRTH_SHIFT-%' THEN N'BIRTH_SHIFT'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-COMBINED-%' THEN N'COMBINED'
+            ELSE N'UNKNOWN'
+        END AS scenario,
+        r.*,vc.pessoa_uuid AS truth_uuid
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    JOIN silver.pessoa_observacao tpo
+      ON tpo.codigo_pessoa_origem=CONCAT(N'SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(varchar(10),TRY_CONVERT(int,RIGHT(po.codigo_pessoa_origem,6))),10))
+    JOIN identidade.v_vinculo_corrente vc
+      ON vc.pessoa_observacao_id=tpo.pessoa_observacao_id
+     AND vc.status=N'RESOLVIDO'
+     AND vc.pessoa_uuid IS NOT NULL
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-%'
+), negative_rows AS (
+    SELECT
+        CASE
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-EASY-%' THEN N'EASY'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-NAME_COLLISION-%' THEN N'NAME_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-MOTHER_COLLISION-%' THEN N'MOTHER_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%' THEN N'HARD_HOMONYM'
+            ELSE N'UNKNOWN'
+        END AS scenario,
+        r.*
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-%'
+)
+SELECT CONCAT(
+    N'POS','|',scenario,'|',
+    CONVERT(varchar(40),margem),'|',
+    CASE WHEN melhor_candidato_uuid=truth_uuid THEN '1' ELSE '0' END,'|',
+    CONVERT(varchar(40),score_melhor),'|',
+    CONVERT(varchar(40),score_segundo))
+FROM positive_truth
+WHERE score_melhor >= $thresholdText
+  AND score_segundo >= $thresholdText
+  AND margem IS NOT NULL
+UNION ALL
+SELECT CONCAT(
+    N'NEG','|',scenario,'|',
+    CONVERT(varchar(40),margem),'|0|',
+    CONVERT(varchar(40),score_melhor),'|',
+    CONVERT(varchar(40),score_segundo))
+FROM negative_rows
+WHERE score_melhor >= $thresholdText
+  AND score_segundo >= $thresholdText
+  AND margem IS NOT NULL;
+"@)
+
+$dualThresholdMarginRows = @(
+    foreach ($line in $dualThresholdMarginLines) {
+        $parts = $line.Split('|')
+        [pscustomobject]@{
+            Kind = $parts[0]
+            Scenario = $parts[1]
+            Margin = (Parse-Decimal $parts[2])
+            PositiveBestIsTruth = ($parts[3] -eq '1')
+            BestScore = (Parse-Decimal $parts[4])
+            SecondScore = (Parse-Decimal $parts[5])
+        }
+    }
+)
+
+function New-MarginFrontierPoint {
+    param(
+        [Parameter(Mandatory=$true)][decimal]$Cutoff,
+        [Parameter(Mandatory=$true)][string]$Source
+    )
+    $released = @($dualThresholdMarginRows | Where-Object { $_.Margin -ge $Cutoff })
+    $correct = @($released | Where-Object { $_.Kind -eq 'POS' -and $_.PositiveBestIsTruth }).Count
+    $positiveWrong = @($released | Where-Object { $_.Kind -eq 'POS' -and -not $_.PositiveBestIsTruth }).Count
+    $negativeFalse = @($released | Where-Object { $_.Kind -eq 'NEG' }).Count
+    $falseResolved = $positiveWrong + $negativeFalse
+    $resolved = $released.Count
+    $ppv = if ($resolved -eq 0) { $null } else { [decimal]$correct / [decimal]$resolved }
+    return [pscustomobject][ordered]@{
+        cutoffLogOdds = $Cutoff
+        source = $Source
+        resolved = $resolved
+        correctResolved = $correct
+        positiveWrongResolved = $positiveWrong
+        negativeFalseResolved = $negativeFalse
+        falseResolved = $falseResolved
+        syntheticResolvedPpv = if ($null -eq $ppv) { $null } else { [decimal]::Round($ppv,6) }
+    }
+}
+
+$observedMarginCutoffs = @($dualThresholdMarginRows | ForEach-Object { $_.Margin } | Sort-Object -Unique -Descending)
+$marginFrontier = @(
+    foreach ($cutoff in $observedMarginCutoffs) {
+        New-MarginFrontierPoint -Cutoff $cutoff -Source 'OBSERVED_MARGIN_GROUP'
+    }
+)
+$currentMarginFrontierPoint = New-MarginFrontierPoint -Cutoff $conflictMarginLogOdds -Source 'CURRENT_CONFLICT_MARGIN'
+$zeroFalseMarginPoints = @($marginFrontier | Where-Object { $_.falseResolved -eq 0 })
+$bestZeroFalseMarginPoint = @($zeroFalseMarginPoints | Sort-Object -Property @{Expression='correctResolved';Descending=$true},@{Expression='cutoffLogOdds';Descending=$false} | Select-Object -First 1)
+$positiveTop1Margins = @($dualThresholdMarginRows | Where-Object { $_.Kind -eq 'POS' -and $_.PositiveBestIsTruth } | ForEach-Object { $_.Margin })
+$positiveWrongMargins = @($dualThresholdMarginRows | Where-Object { $_.Kind -eq 'POS' -and -not $_.PositiveBestIsTruth } | ForEach-Object { $_.Margin })
+$negativeMargins = @($dualThresholdMarginRows | Where-Object { $_.Kind -eq 'NEG' } | ForEach-Object { $_.Margin })
+
+function Get-MinOrNull([object[]]$Values) {
+    if ($Values.Count -eq 0) { return $null }
+    return [decimal](($Values | Measure-Object -Minimum).Minimum)
+}
+function Get-MaxOrNull([object[]]$Values) {
+    if ($Values.Count -eq 0) { return $null }
+    return [decimal](($Values | Measure-Object -Maximum).Maximum)
+}
 
 $priorProbability = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='PRIOR_MATCH_PROBABILITY';")
 if ($null -eq $priorProbability) { throw 'PRIOR_MATCH_PROBABILITY ausente no modelo ativo.' }
@@ -929,6 +1047,28 @@ $report = [ordered]@{
         }
         interpretation = 'Contrafactual read-only: reaplica as decisões sobre ranking/score já persistidos, removendo somente o guard de dois candidatos acima de T. Não recalibra o modelo, não publica vínculos e não recomenda alterar a política.'
     }
+    dualThresholdMarginFrontier = [ordered]@{
+        purpose = 'READ_ONLY_MARGIN_POLICY_DIAGNOSTIC'
+        changesPolicy = $false
+        population = 'Somente casos positivos/negativos em que melhor e segundo candidatos estão acima de T_LINKAGE.'
+        eligibleRows = $dualThresholdMarginRows.Count
+        positiveRows = @($dualThresholdMarginRows | Where-Object { $_.Kind -eq 'POS' }).Count
+        negativeRows = @($dualThresholdMarginRows | Where-Object { $_.Kind -eq 'NEG' }).Count
+        currentConflictMarginLogOdds = $conflictMarginLogOdds
+        marginRanges = [ordered]@{
+            positiveBestTruthMin = (Get-MinOrNull $positiveTop1Margins)
+            positiveBestTruthMax = (Get-MaxOrNull $positiveTop1Margins)
+            positiveBestWrongMin = (Get-MinOrNull $positiveWrongMargins)
+            positiveBestWrongMax = (Get-MaxOrNull $positiveWrongMargins)
+            negativeMin = (Get-MinOrNull $negativeMargins)
+            negativeMax = (Get-MaxOrNull $negativeMargins)
+        }
+        currentMarginPoint = $currentMarginFrontierPoint
+        bestObservedZeroFalsePoint = if ($bestZeroFalseMarginPoint.Count -eq 0) { $null } else { $bestZeroFalseMarginPoint[0] }
+        positiveGainWithZeroFalseAtObservedCutoff = ($bestZeroFalseMarginPoint.Count -gt 0 -and $bestZeroFalseMarginPoint[0].correctResolved -gt 0)
+        frontier = $marginFrontier
+        interpretation = 'Diagnóstico read-only da margem dentro do conjunto que hoje aciona o dual-threshold guard. Cada ponto libera o melhor candidato quando margem >= cutoff. Sobreposição entre margens verdadeiras e impostoras indica que margem sozinha não discrimina com segurança neste corpus.'
+    }
     thresholdFrontier = [ordered]@{
         actualWithinPlusMinus002 = [int]$frontier[0]
         actualMaxBelow = (Parse-Decimal $frontier[1])
@@ -982,6 +1122,11 @@ if ($negativeFalseMatchDetails.Count -gt 0) {
 Write-Host "Decisões resolvidas combinadas: corretas=$positiveCorrect falsas=$($positiveWrong+$negativeResolved) PPV_sintético=$([decimal]::Round(($syntheticResolvedPpv * [decimal]100),2))%"
 Write-Host "Conflito forçado: conflito=$conflictStatus/$conflictTotal margem_zero=$conflictMarginZero acima_threshold=$conflictAboveThreshold resolvidos_indevidos=$conflictResolved"
 Write-Host ("Contrafactual sem dual-threshold guard (mantém T={0} e margem_log_odds={1}): positivos_corretos={2}/{3} positivos_errados={4} positivos_conflitos={5} positivos_nao_resolvidos={6} negativos_falsos_vinculos={7}/{8} negativos_conflitos={9} negativos_nao_resolvidos={10} PPV_sintetico={11}%" -f $threshold,$conflictMarginLogOdds,$cfPositiveCorrect,$cfPositiveTotal,$cfPositiveWrong,$cfPositiveConflicts,$cfPositiveUnresolved,$cfNegativeResolved,$cfNegativeTotal,$cfNegativeConflicts,$cfNegativeUnresolved,[decimal]::Round(($cfSyntheticResolvedPpv * [decimal]100),2))
+if ($bestZeroFalseMarginPoint.Count -gt 0) {
+    Write-Host ("Fronteira de margem dual-threshold: elegiveis={0} positivos={1} negativos={2} melhor_ponto_zero_falso cutoff={3} corretos={4} ganho_seguro={5}" -f $dualThresholdMarginRows.Count,@($dualThresholdMarginRows | Where-Object { $_.Kind -eq 'POS' }).Count,@($dualThresholdMarginRows | Where-Object { $_.Kind -eq 'NEG' }).Count,$bestZeroFalseMarginPoint[0].cutoffLogOdds,$bestZeroFalseMarginPoint[0].correctResolved,($bestZeroFalseMarginPoint[0].correctResolved -gt 0))
+} else {
+    Write-Host ("Fronteira de margem dual-threshold: elegiveis={0}; nenhum cutoff observado com zero falso vínculo." -f $dualThresholdMarginRows.Count)
+}
 Write-Host "Fronteira T=$threshold`: casos reais ±0,02=$($frontier[0]); max_abaixo=$($frontier[1]); min_acima=$($frontier[2])"
 Write-Host 'Estados teóricos mais próximos do threshold:'
 $theoretical | ForEach-Object { Write-Host "  $_" }
