@@ -18,8 +18,8 @@ public sealed record IdentityResolutionAttributeValue(string AttributeCode, stri
 public sealed record IdentityObservation(
     string? Cpf,
     string? CpfAusenteMotivo,
-    string NomeCompleto,
-    DateOnly DataNascimento,
+    string? NomeCompleto,
+    DateOnly? DataNascimento,
     string? NomeMae,
     IReadOnlyList<IdentityResolutionAttributeValue>? ResolutionAttributes = null);
 
