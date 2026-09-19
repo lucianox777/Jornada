@@ -69,6 +69,16 @@ table QualidadePessoa
 		summarizeBy: none
 		sourceColumn: cpf_ausente_motivo
 
+	column estado_identidade
+		dataType: string
+		summarizeBy: none
+		sourceColumn: estado_identidade
+
+	column completude_nucleo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: completude_nucleo
+
 	column natureza_referencia_territorial
 		dataType: string
 		summarizeBy: none
