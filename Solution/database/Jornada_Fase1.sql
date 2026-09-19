@@ -892,10 +892,14 @@ IF OBJECT_ID('silver.pessoa_observacao','U') IS NULL CREATE TABLE silver.pessoa_
  nome_mae_cmp NVARCHAR(500) NOT NULL,
  source_as_of DATETIMEOFFSET(7) NOT NULL,
  CONSTRAINT fk_pessoa_observacao_origem FOREIGN KEY(pessoa_origem_id,codigo_pessoa_origem) REFERENCES silver.pessoa_origem(pessoa_origem_id,codigo_pessoa_origem),
- CONSTRAINT uq_pessoa_observacao_versao UNIQUE(pessoa_origem_id,versao_interna),
  CONSTRAINT ck_pessoa_observacao_versao CHECK(versao_interna>=1),
  CONSTRAINT ck_pessoa_observacao_hash CHECK(LEN(conteudo_hash)=64 AND conteudo_hash NOT LIKE '%[^0-9a-f]%' COLLATE Latin1_General_100_BIN2),
  CONSTRAINT ck_pessoa_cpf_motivo CHECK((cpf IS NULL AND cpf_ausente_motivo IN('SEM_CPF','EM_REGULARIZACAO','NAO_INFORMADO_ORIGEM')) OR (cpf IS NOT NULL AND cpf_ausente_motivo IS NULL)));
+GO
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('silver.pessoa_observacao') AND name='uq_pessoa_observacao_versao')
+ CREATE UNIQUE INDEX uq_pessoa_observacao_versao
+ ON silver.pessoa_observacao(pessoa_origem_id,versao_interna)
+ WHERE pessoa_origem_id IS NOT NULL;
 GO
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('silver.pessoa_observacao') AND name='IX_pessoa_observacao_origem_corrente')
  CREATE INDEX IX_pessoa_observacao_origem_corrente ON silver.pessoa_observacao(pessoa_origem_id,versao_interna DESC) INCLUDE(conteudo_hash,pessoa_observacao_id,source_as_of);
