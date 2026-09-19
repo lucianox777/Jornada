@@ -8,7 +8,17 @@
       "sha256": "6e39678324befef0a28e6847408d075240aecb99ccf7aa16bc5a967260d2c2fe",
       "justification": "A constraint ck_atributo_transversal_chave do predecessor v3.65/v4.04 aceita apenas o vocabulário V1 e precisa ser removida imediatamente antes da migração controlada para TELEFONE_BR_CANONICO_V2 e EMAIL_CANONICO_V2. O DDL corrente recria a constraint autoritativa após a conversão, portanto não há janela persistente sem integridade declarativa.",
       "migrationEvidence": "scripts/local-ddl-upgrade.sh executa baseline v3.65, injeta dados legados V1, aplica Jornada_Fase1.sql, valida convergência de telefone/e-mail, preservação de sentinela, invariantes, runtime smoke e reaplicação idempotente; job ddl-upgrade do CI run 152 passou integralmente."
+    },
+    {
+      "sha256": "fe3572cbeeb2154d175c489100b29d4493d75192418bab763f9e1610f8a245e6",
+      "justification": "A linha predecessora de ck_gold_pessoa_status_cpf é substituída por uma constraint mais abrangente que preserva PRESENTE/SEM_CPF/EM_REGULARIZACAO e acrescenta NAO_INFORMADO_ORIGEM para distinguir ausência documental de ausência na fonte. Não há remoção de coluna nem relaxamento semântico fora desse novo estado explícito.",
+      "migrationEvidence": "migrations/20260919_Gold_Pessoa_Progressiva.sql remove e recria ck_gold_pessoa_status_cpf WITH CHECK após normalizar a representação progressiva. O gate sqlserver-consolidated-install provou fresh install, reentry, upgrade 3.69->3.70, equivalência de fingerprint e ledger/checksum no CI do PR #354."
+    },
+    {
+      "sha256": "7447816f2dc642110d64c3d93ab712a86fc11a6922554f3541df28b253fe9240",
+      "justification": "ck_gold_pessoa_concordancia não é removida semanticamente. A linha do predecessor termina a CREATE TABLE; no DDL corrente a mesma constraint permanece com o mesmo nome e predicado, mas passa a ser seguida pelas novas constraints de estado_identidade e completude_nucleo.",
+      "migrationEvidence": "database/Jornada_Fase1.sql mantém ck_gold_pessoa_concordancia com o mesmo predicado, e migrations/20260919_Gold_Pessoa_Progressiva.sql adiciona somente os contratos ortogonais de estado/completude. O gate de equivalência do schema 3.70 passou nos caminhos fresh/reentry/upgrade."
     }
   ],
-  "note": "v4.05 governa explicitamente a substituição transitória da constraint de chave de atributo necessária à migração V1→V2; nenhuma tabela ou coluna é descartada."
+  "note": "v4.05 governa as exceções destrutivas explicitamente evidenciadas: migração V1→V2 de chaves de atributo e a evolução progressiva de gold.pessoa, sem descarte de tabela/coluna e com constraints finais validadas pelo schema 3.70."
 }
