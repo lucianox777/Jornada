@@ -691,6 +691,70 @@ function Get-MaxOrNull([object[]]$Values) {
     return [decimal](($Values | Measure-Object -Maximum).Maximum)
 }
 
+$identifiabilityLine = Get-SqlScalar @"
+WITH classified AS (
+    SELECT
+        CASE
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-EXACT-%' THEN N'POS_EXACT'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%' THEN N'NEG_HARD_HOMONYM'
+            ELSE NULL
+        END AS classe,
+        po.nome_completo AS obs_nome,
+        po.nome_mae AS obs_mae,
+        po.data_nascimento AS obs_nascimento,
+        gp.nome_completo AS cand_nome,
+        gp.nome_mae AS cand_mae,
+        gp.data_nascimento AS cand_nascimento,
+        r.score_melhor
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po
+      ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    LEFT JOIN gold.pessoa gp
+      ON gp.pessoa_uuid=r.melhor_candidato_uuid
+    WHERE r.linkage_run_id='$runId'
+      AND (
+        po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-EXACT-%'
+        OR po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%'
+      )
+), evaluated AS (
+    SELECT *,
+        CASE WHEN cand_nome IS NOT NULL
+              AND UPPER(LTRIM(RTRIM(obs_nome)))=UPPER(LTRIM(RTRIM(cand_nome)))
+              AND obs_nascimento=cand_nascimento
+              AND (
+                    (obs_mae IS NULL AND cand_mae IS NULL)
+                    OR UPPER(LTRIM(RTRIM(COALESCE(obs_mae,N''))))=UPPER(LTRIM(RTRIM(COALESCE(cand_mae,N''))))
+                  )
+             THEN 1 ELSE 0 END AS all_current_evidence_exact
+    FROM classified
+)
+SELECT CONCAT(
+    SUM(CASE WHEN classe=N'POS_EXACT' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN classe=N'POS_EXACT' AND all_current_evidence_exact=1 THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN classe=N'NEG_HARD_HOMONYM' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN classe=N'NEG_HARD_HOMONYM' AND all_current_evidence_exact=1 THEN 1 ELSE 0 END),'|',
+    COALESCE(CONVERT(varchar(40),MIN(CASE WHEN classe=N'POS_EXACT' THEN score_melhor END)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MAX(CASE WHEN classe=N'POS_EXACT' THEN score_melhor END)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MIN(CASE WHEN classe=N'NEG_HARD_HOMONYM' THEN score_melhor END)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MAX(CASE WHEN classe=N'NEG_HARD_HOMONYM' THEN score_melhor END)),'NULL')
+)
+FROM evaluated;
+"@
+$identifiabilityParts = $identifiabilityLine.Split('|')
+if ($identifiabilityParts.Count -ne 8) { throw "Diagnóstico de identificabilidade inválido: $identifiabilityLine" }
+$identPositiveExactTotal = [int]$identifiabilityParts[0]
+$identPositiveExactAllFields = [int]$identifiabilityParts[1]
+$identNegativeHardTotal = [int]$identifiabilityParts[2]
+$identNegativeHardAllFields = [int]$identifiabilityParts[3]
+$identPositiveScoreMin = Parse-Decimal $identifiabilityParts[4]
+$identPositiveScoreMax = Parse-Decimal $identifiabilityParts[5]
+$identNegativeScoreMin = Parse-Decimal $identifiabilityParts[6]
+$identNegativeScoreMax = Parse-Decimal $identifiabilityParts[7]
+$observationalOverlapDetected = (
+    $identPositiveExactAllFields -gt 0 -and
+    $identNegativeHardAllFields -gt 0
+)
+
 $priorProbability = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='PRIOR_MATCH_PROBABILITY';")
 if ($null -eq $priorProbability) { throw 'PRIOR_MATCH_PROBABILITY ausente no modelo ativo.' }
 $priorLogOddsDouble = [Math]::Log([double]$priorProbability / (1.0 - [double]$priorProbability))
@@ -1069,6 +1133,27 @@ $report = [ordered]@{
         frontier = $marginFrontier
         interpretation = 'Diagnóstico read-only da margem dentro do conjunto que hoje aciona o dual-threshold guard. Cada ponto libera o melhor candidato quando margem >= cutoff. Sobreposição entre margens verdadeiras e impostoras indica que margem sozinha não discrimina com segurança neste corpus.'
     }
+    currentEvidenceIdentifiability = [ordered]@{
+        purpose = 'READ_ONLY_CURRENT_EVIDENCE_IDENTIFIABILITY'
+        changesPolicy = $false
+        evidenceFields = @('NOME','NOME_MAE','DATA_NASCIMENTO')
+        positiveExact = [ordered]@{
+            total = $identPositiveExactTotal
+            allCurrentEvidenceExactToBestCandidate = $identPositiveExactAllFields
+            bestScoreMin = $identPositiveScoreMin
+            bestScoreMax = $identPositiveScoreMax
+        }
+        negativeHardHomonym = [ordered]@{
+            total = $identNegativeHardTotal
+            allCurrentEvidenceExactToBestCandidate = $identNegativeHardAllFields
+            bestScoreMin = $identNegativeScoreMin
+            bestScoreMax = $identNegativeScoreMax
+        }
+        sharedEvidenceState = 'EXACT/EXACT/EXACT'
+        observationalOverlapDetected = $observationalOverlapDetected
+        implication = 'Quando exemplos positivos e negativos apresentam a mesma assinatura em todos os campos usados pelo score, nenhuma regra determinística baseada somente nesses campos consegue separar corretamente ambos os exemplos. Para esses casos, é necessário manter abstenção/conflito ou acrescentar evidência independente.'
+        interpretation = 'Diagnóstico estrutural read-only do espaço de evidência atual; não escolhe novo atributo, não altera score, thresholds, margens nem política operacional.'
+    }
     thresholdFrontier = [ordered]@{
         actualWithinPlusMinus002 = [int]$frontier[0]
         actualMaxBelow = (Parse-Decimal $frontier[1])
@@ -1127,6 +1212,7 @@ if ($bestZeroFalseMarginPoint.Count -gt 0) {
 } else {
     Write-Host ("Fronteira de margem dual-threshold: elegiveis={0}; nenhum cutoff observado com zero falso vínculo." -f $dualThresholdMarginRows.Count)
 }
+Write-Host ("Identificabilidade da evidência atual: POS_EXACT exatos={0}/{1}; NEG_HARD_HOMONYM exatos={2}/{3}; assinatura_compartilhada=EXACT/EXACT/EXACT sobreposicao={4}" -f $identPositiveExactAllFields,$identPositiveExactTotal,$identNegativeHardAllFields,$identNegativeHardTotal,$observationalOverlapDetected)
 Write-Host "Fronteira T=$threshold`: casos reais ±0,02=$($frontier[0]); max_abaixo=$($frontier[1]); min_acima=$($frontier[2])"
 Write-Host 'Estados teóricos mais próximos do threshold:'
 $theoretical | ForEach-Object { Write-Host "  $_" }
