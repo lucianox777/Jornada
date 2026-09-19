@@ -131,6 +131,7 @@ A mesma sequência, expandida, é:
 .\scripts\local-cluster.ps1 -Action linkage
 .\scripts\local-cluster.ps1 -Action linkage-diagnose
 .\scripts\local-linkage-validation.ps1
+.\scripts\local-linkage-evidence-readiness.ps1
 ```
 
 A calibração nominal usa a referência IBGE internalizada por Monte Carlo: `NOME` combina prenomes nacionais `TODOS` com sobrenomes nacionais; `NOME_MAE` combina prenomes nacionais `FEMININO` com sobrenomes nacionais. A massa `MISSING` da mãe e as evidências de nascimento continuam estimadas no universo condicionado ao blocking.
@@ -156,6 +157,11 @@ A mesma validação também calcula um **contrafactual read-only de política**:
 Além disso, `dualThresholdMarginFrontier` testa a alternativa mais restrita de **manter o guard como referência, mas perguntar se uma margem de log-odds maior permitiria liberar com segurança apenas parte dos casos em que os dois candidatos estão acima de `T_LINKAGE`**. O diagnóstico percorre os cortes de margem observados no próprio corpus e registra quantos positivos corretos e falsos vínculos seriam liberados em cada ponto. Sobreposição das margens verdadeiras com as margens dos impostores significa que a margem, sozinha, não é evidência discriminante suficiente. O cálculo também é read-only e não altera a política.
 
 O bloco `currentEvidenceIdentifiability` fecha a pergunta seguinte: existem positivos e negativos que apresentam a mesma assinatura `EXACT/EXACT/EXACT` nos três campos atualmente usados pelo score (`NOME`, `NOME_MAE`, `DATA_NASCIMENTO`)? No cenário sintético `HARD_HOMONYM`, a validação comprova diretamente a igualdade desses três campos entre a observação negativa e seu melhor candidato. Se a mesma assinatura também aparece nos positivos `EXACT`, o relatório marca `observationalOverlapDetected=true`. Nessa situação, nenhuma regra determinística baseada somente nesses três campos consegue separar corretamente todos esses exemplos; a saída técnica é manter abstenção/conflito nesses casos ou acrescentar evidência independente. O diagnóstico não escolhe qual novo atributo deve existir e não altera a política.
+
+
+Depois desse gate, `local-linkage-evidence-readiness.ps1` inventaria evidência se tentasse melhorar o score; por isso ele faz apenas o oposto: **mede a evidência já existente**. O relatório `.local\linkage-evidence-readiness\evidence-readiness.json` separa identificadores (`CPF`, `CNS`, `RG`, `UUID_JORNADA`) de atributos transversais. `TELEFONE_CONTATO`, `EMAIL_CONTATO` e `NOME_SOCIAL` já são elegíveis para resolução/blocking no catálogo e possuem projeção física, mas o scorer V6 ainda calcula LLR somente com `NOME`, `NOME_MAE` e `DATA_NASCIMENTO`. `CNS` e `RG` continuam condicionais e o diagnóstico não os promove a âncoras. `ENDERECO_RESIDENCIAL`, `REFERENCIA_TERRITORIAL` e `ENDERECO_CASA_ABRIGO_SIGILOSA` permanecem explicitamente inelegíveis para resolução de identidade.
+
+A leitura principal é a cobertura em `POS_EXACT` e `NEG_HARD_HOMONYM`. Se uma evidência adicional não estiver presente/comparável nos dois grupos, o corpus DEV atual **não mede seu ganho discriminativo**; não se deve preencher essa lacuna com peso arbitrário, threshold novo ou hipótese sobre a população municipal. O próximo experimento somente deve calibrar `m/u` dessa evidência depois de existir cobertura representativa e regra de governança correspondente.
 
 ### 10. Rodar o smoke de escala, quando necessário
 
