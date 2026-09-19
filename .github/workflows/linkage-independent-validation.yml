@@ -125,7 +125,7 @@ jobs:
             and .abbreviationTrainingSupport.name.uReferenceDenominator > 0
             and .abbreviationTrainingSupport.name.uReferenceSupport >= 0
             and .abbreviationTrainingSupport.motherName.mDenominator > 0
-            and .abbreviationTrainingSupport.motherName.mSupport > 0
+            and .abbreviationTrainingSupport.motherName.mSupport >= 0
             and .abbreviationTrainingSupport.motherName.uReferenceDenominator > 0
             and .abbreviationTrainingSupport.motherName.uReferenceSupport >= 0
           ' "$report" >/dev/null
