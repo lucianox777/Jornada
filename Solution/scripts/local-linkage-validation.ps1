@@ -8,6 +8,7 @@ $LocalCluster = Join-Path $PSScriptRoot 'local-cluster.ps1'
 $OutDir = Join-Path $Root '.local\linkage-validation'
 $LabelsPath = Join-Path $OutDir 'positive-labels.csv'
 $BlockingAuditPath = Join-Path $OutDir 'blocking-pass-audit.json'
+$AbbreviationAuditPath = Join-Path $OutDir 'abbreviation-compatibility-audit.json'
 $ReportPath = Join-Path $OutDir 'validation-report.json'
 $RunProvenancePath = Join-Path $OutDir 'run-provenance.json'
 
@@ -238,6 +239,20 @@ Invoke-Compose -ComposeArgs @(
 
 Invoke-Compose -ComposeArgs @('cp',"jornada-node2:$containerAudit",$BlockingAuditPath)
 $blockingAudit = Get-Content -Raw -Encoding UTF8 $BlockingAuditPath | ConvertFrom-Json
+
+$containerAbbreviationAudit = '/tmp/jornada-linkage-validation-abbreviation.json'
+Invoke-Compose -ComposeArgs @(
+    'exec','-T','jornada-node2','dotnet','/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll',
+    '--name-abbreviation-audit-run',$runId,
+    '--name-abbreviation-audit-output',$containerAbbreviationAudit,
+    '--ProbabilisticLinkage:CommandTimeoutSeconds','300')
+Invoke-Compose -ComposeArgs @('cp',"jornada-node2:$containerAbbreviationAudit",$AbbreviationAuditPath)
+$abbreviationAudit = Get-Content -Raw -Encoding UTF8 $AbbreviationAuditPath | ConvertFrom-Json
+if ([int]$abbreviationAudit.positiveNameAbbrev.total -ne 8 -or
+    [int]$abbreviationAudit.negativeMotherCollision.total -ne 10) {
+    throw "Auditoria de abreviação incompleta: NAME_ABBREV=$($abbreviationAudit.positiveNameAbbrev.total); MOTHER_COLLISION=$($abbreviationAudit.negativeMotherCollision.total)."
+}
+Write-Host "Abreviação compatível (diagnóstico): NAME_ABBREV=$($abbreviationAudit.positiveNameAbbrev.compatible)/8; MOTHER_COLLISION=$($abbreviationAudit.negativeMotherCollision.compatible)/10; separa=$($abbreviationAudit.separation.selectedFixtureClassesSeparated)"
 
 $positiveMetricLine = Get-SqlScalar @"
 WITH truth AS (
@@ -1269,6 +1284,7 @@ $report = [ordered]@{
         zeroMatchedSupportStates = $zeroMatchedSupportStates
     }
     blocking = $blockingAudit.summary
+    abbreviationCompatibilityDiagnostic = $abbreviationAudit
     positive = [ordered]@{
         total = $positiveTotal
         resolvedCorrect = $positiveCorrect
