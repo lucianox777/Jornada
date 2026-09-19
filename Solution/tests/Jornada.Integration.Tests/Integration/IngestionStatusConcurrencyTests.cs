@@ -95,7 +95,7 @@ public sealed class IngestionStatusConcurrencyTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
 
         // O lote permanece no estado terminal válido fornecido pelo seed. Para a prova concorrencial,
