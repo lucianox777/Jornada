@@ -1098,6 +1098,21 @@ $orderRestrictionStates = @(
     }
 )
 
+$zeroMatchedSupportStates = @(
+    $orderRestrictionStates |
+        Where-Object { $_.matchedSupport -eq 0 } |
+        ForEach-Object {
+            [ordered]@{
+                field = $_.field
+                state = $_.state
+                restrictedM = $_.restrictedM
+                u = $_.u
+                restrictedLlr = $_.restrictedLlr
+                interpretation = 'Sem suporte m observado no treino corrente; o valor resulta de suavização e/ou restrição de ordem, portanto desempenho deste estado não deve ser tratado como evidência empírica de capacidade.'
+            }
+        }
+)
+
 $orderRestrictionFields = @(
     foreach ($field in @('NOME','NOME_MAE')) {
         $items = @($orderRestrictionStates | Where-Object { $_.field -eq $field })
@@ -1195,6 +1210,7 @@ $report = [ordered]@{
         enabled = $orderedMleEnabled
         fields = $orderRestrictionFields
         states = $orderRestrictionStates
+        zeroMatchedSupportStates = $zeroMatchedSupportStates
     }
     blocking = $blockingAudit.summary
     positive = [ordered]@{
@@ -1321,6 +1337,7 @@ $report = [ordered]@{
         actualMaxBelow = (Parse-Decimal $frontier[1])
         actualMinAtOrAbove = (Parse-Decimal $frontier[2])
         theoreticalClosestStates = $theoretical
+        interpretation = 'O threshold atua sobre uma malha discreta de estados de evidência; sua leitura deve ser feita junto com dual-threshold guard e margem, não como ajuste contínuo isolado.'
     }
     interpretation = [ordered]@{
         scope = 'Evidência sintética DEV; não é estimativa de acurácia municipal nem homologação.'
@@ -1343,6 +1360,12 @@ if ($orderedMleEnabled) {
         foreach ($state in @($orderRestrictionStates | Where-Object { $_.field -eq $fieldSummary.field })) {
             Write-Host ("    {0}: suporte_m={1} bloco={2} m_irrestrito={3} m_final={4} u={5} llr_irrestrito={6} llr_final={7} delta_llr={8}" -f $state.state,$state.matchedSupport,$state.block,$state.unrestrictedM,$state.restrictedM,$state.u,$state.unrestrictedLlr,$state.restrictedLlr,$state.deltaLlr)
         }
+    }
+}
+if ($zeroMatchedSupportStates.Count -gt 0) {
+    Write-Host 'Estados nominais sem suporte m observado no treino corrente:'
+    foreach ($state in $zeroMatchedSupportStates) {
+        Write-Host ("  {0}/{1}: m_final={2} u={3} llr={4} (valor sustentado por suavização/restrição, não por exemplos m observados)" -f $state.field,$state.state,$state.restrictedM,$state.u,$state.restrictedLlr)
     }
 }
 Write-Host "Blocking positivo: truthInsideUnion=$($blockingAudit.summary.truthInsideUnion)/$($blockingAudit.summary.sampleSize) recall=$($blockingAudit.summary.unionRecallPct)%"
