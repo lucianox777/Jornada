@@ -665,7 +665,7 @@ IF OBJECT_ID('ingestao.item_processado','U') IS NULL CREATE TABLE ingestao.item_
  CONSTRAINT ck_item_processado_versao CHECK(versao_interna>=1),
  CONSTRAINT ck_item_processado_hash CHECK(LEN(conteudo_hash)=64 AND conteudo_hash NOT LIKE '%[^0-9a-f]%' COLLATE Latin1_General_100_BIN2),
  CONSTRAINT ck_item_processado_origem CHECK(
-   (classe_item='PESSOA' AND pessoa_origem_id IS NOT NULL AND registro_origem_id IS NULL) OR
+   (classe_item='PESSOA' AND registro_origem_id IS NULL) OR
    (classe_item='REGISTRO' AND pessoa_origem_id IS NULL AND registro_origem_id IS NOT NULL)));
 GO
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('ingestao.item_processado') AND name='IX_item_processado_resultado')
