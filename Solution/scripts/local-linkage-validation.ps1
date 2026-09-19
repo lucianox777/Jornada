@@ -810,8 +810,40 @@ $observationalOverlapDetected = (
     $identNegativeHardAllFields -gt 0
 )
 
-$priorProbability = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='PRIOR_MATCH_PROBABILITY';")
-if ($null -eq $priorProbability) { throw 'PRIOR_MATCH_PROBABILITY ausente no modelo ativo.' }
+$diagnosticParameterLines = @(Get-SqlLines @"
+SELECT CONCAT(nome,'|',CONVERT(varchar(40),valor))
+FROM identidade.parametro_linkage
+WHERE modelo_id='$activeModelId'
+  AND nome IN (
+    'PRIOR_MATCH_PROBABILITY','PRIOR_BLOCK_MAX','POPULATION_SIZE','DISTINCT_BIRTH_DATE',
+    'M_NOME_EXACT','U_NOME_EXACT','M_NOME_LOW','U_NOME_LOW',
+    'M_NOME_MAE_EXACT','U_NOME_MAE_EXACT','M_NOME_MAE_LOW','U_NOME_MAE_LOW',
+    'M_NASCIMENTO_SEMANTICO_EXACT','U_NASCIMENTO_SEMANTICO_EXACT'
+  )
+ORDER BY nome;
+"@)
+$diagnosticParameters = @{}
+foreach ($line in $diagnosticParameterLines) {
+    $parts = $line.Split('|',2)
+    if ($parts.Count -eq 2) { $diagnosticParameters[$parts[0]] = Parse-Decimal $parts[1] }
+}
+function Get-DiagnosticParameter([string]$Name) {
+    if (-not $diagnosticParameters.ContainsKey($Name) -or $null -eq $diagnosticParameters[$Name]) {
+        throw "Parâmetro diagnóstico ausente no modelo ativo: $Name."
+    }
+    return [decimal]$diagnosticParameters[$Name]
+}
+
+$priorProbability = Get-DiagnosticParameter 'PRIOR_MATCH_PROBABILITY'
+$priorBlockMax = Get-DiagnosticParameter 'PRIOR_BLOCK_MAX'
+$populationSize = Get-DiagnosticParameter 'POPULATION_SIZE'
+$distinctBirthDates = Get-DiagnosticParameter 'DISTINCT_BIRTH_DATE'
+$rawReferencePrior = if ($populationSize -gt 0) { [decimal]$distinctBirthDates / [decimal]$populationSize } else { $null }
+$priorClampedAtUpperBound = (
+    $null -ne $rawReferencePrior -and
+    $rawReferencePrior -gt $priorBlockMax -and
+    $priorProbability -eq $priorBlockMax
+)
 $priorLogOddsDouble = [Math]::Log([double]$priorProbability / (1.0 - [double]$priorProbability))
 
 $scenarioDefinitions = @(
@@ -823,12 +855,12 @@ $scenarioDefinitions = @(
 
 $negativeScenarioEvidence = @(
     foreach ($definition in $scenarioDefinitions) {
-        $nameM = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='M_NOME_$($definition.nameState)';")
-        $nameU = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='U_NOME_$($definition.nameState)';")
-        $motherM = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='M_NOME_MAE_$($definition.motherState)';")
-        $motherU = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='U_NOME_MAE_$($definition.motherState)';")
-        $birthM = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='M_NASCIMENTO_SEMANTICO_$($definition.birthState)';")
-        $birthU = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='U_NASCIMENTO_SEMANTICO_$($definition.birthState)';")
+        $nameM = Get-DiagnosticParameter "M_NOME_$($definition.nameState)"
+        $nameU = Get-DiagnosticParameter "U_NOME_$($definition.nameState)"
+        $motherM = Get-DiagnosticParameter "M_NOME_MAE_$($definition.motherState)"
+        $motherU = Get-DiagnosticParameter "U_NOME_MAE_$($definition.motherState)"
+        $birthM = Get-DiagnosticParameter "M_NASCIMENTO_SEMANTICO_$($definition.birthState)"
+        $birthU = Get-DiagnosticParameter "U_NASCIMENTO_SEMANTICO_$($definition.birthState)"
 
         if ($null -in @($nameM,$nameU,$motherM,$motherU,$birthM,$birthU)) {
             throw "Parâmetro probabilístico ausente ao montar perfil do cenário $($definition.scenario)."
@@ -850,6 +882,69 @@ $negativeScenarioEvidence = @(
             motherLlr = [decimal]::Round([decimal]$motherLlrDouble,8)
             birthLlr = [decimal]::Round([decimal]$birthLlrDouble,8)
             theoreticalPosterior = [decimal]::Round([decimal]$posteriorDouble,8)
+        }
+    }
+)
+
+$negativePlannedColliderLines = @(Get-SqlLines @"
+WITH negative_rows AS (
+    SELECT
+        CASE
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-EASY-%' THEN N'EASY'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-NAME_COLLISION-%' THEN N'NAME_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-MOTHER_COLLISION-%' THEN N'MOTHER_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%' THEN N'HARD_HOMONYM'
+            ELSE N'UNKNOWN'
+        END AS scenario,
+        TRY_CONVERT(int,RIGHT(po.codigo_pessoa_origem,6)) AS n,
+        r.melhor_candidato_uuid,
+        r.score_melhor
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-%'
+), planted AS (
+    SELECT n.*,vc.pessoa_uuid AS planted_uuid
+    FROM negative_rows n
+    JOIN silver.pessoa_observacao tpo
+      ON tpo.codigo_pessoa_origem=CONCAT(N'SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(varchar(10),100+n.n),10))
+    JOIN identidade.v_vinculo_corrente vc
+      ON vc.pessoa_observacao_id=tpo.pessoa_observacao_id
+     AND vc.status=N'RESOLVIDO'
+     AND vc.pessoa_uuid IS NOT NULL
+)
+SELECT CONCAT(
+    scenario,'|',COUNT_BIG(*),'|',
+    SUM(CASE WHEN melhor_candidato_uuid=planted_uuid THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN melhor_candidato_uuid IS NOT NULL AND melhor_candidato_uuid<>planted_uuid THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN melhor_candidato_uuid IS NULL THEN 1 ELSE 0 END),'|',
+    COALESCE(CONVERT(varchar(40),MIN(CASE WHEN melhor_candidato_uuid=planted_uuid THEN score_melhor END)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MAX(CASE WHEN melhor_candidato_uuid=planted_uuid THEN score_melhor END)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MIN(CASE WHEN melhor_candidato_uuid IS NOT NULL AND melhor_candidato_uuid<>planted_uuid THEN score_melhor END)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MAX(CASE WHEN melhor_candidato_uuid IS NOT NULL AND melhor_candidato_uuid<>planted_uuid THEN score_melhor END)),'NULL'))
+FROM planted
+GROUP BY scenario
+ORDER BY CASE scenario
+    WHEN N'EASY' THEN 1
+    WHEN N'NAME_COLLISION' THEN 2
+    WHEN N'MOTHER_COLLISION' THEN 3
+    WHEN N'HARD_HOMONYM' THEN 4
+    ELSE 5 END;
+"@)
+
+$negativePlannedColliderAlignment = @(
+    foreach ($line in $negativePlannedColliderLines) {
+        $parts = $line.Split('|')
+        [ordered]@{
+            scenario = $parts[0]
+            total = [int]$parts[1]
+            bestIsPlannedCollider = [int]$parts[2]
+            bestIsOtherCandidate = [int]$parts[3]
+            bestIsNull = [int]$parts[4]
+            plannedColliderBestScoreMin = (Parse-Decimal $parts[5])
+            plannedColliderBestScoreMax = (Parse-Decimal $parts[6])
+            otherCandidateBestScoreMin = (Parse-Decimal $parts[7])
+            otherCandidateBestScoreMax = (Parse-Decimal $parts[8])
         }
     }
 )
@@ -1055,7 +1150,7 @@ $positiveSensitivity = if ($positiveTotal -eq 0) { [decimal]0 } else { [decimal]
 $negativeSpecificity = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeRejected / [decimal]$negativeTotal }
 $negativeFalseMatchRate = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeResolved / [decimal]$negativeTotal }
 $resolvedDecisionTotal = $positiveCorrect + $positiveWrong + $negativeResolved
-$syntheticResolvedPpv = if ($resolvedDecisionTotal -eq 0) { [decimal]0 } else { [decimal]$positiveCorrect / [decimal]$resolvedDecisionTotal }
+$syntheticResolvedPpv = if ($resolvedDecisionTotal -eq 0) { $null } else { [decimal]$positiveCorrect / [decimal]$resolvedDecisionTotal }
 
 $cfPositiveTotal = [int]$cfPos[0]
 $cfPositiveCorrect = [int]$cfPos[1]
@@ -1067,7 +1162,7 @@ $cfNegativeResolved = [int]$cfNeg[1]
 $cfNegativeConflicts = [int]$cfNeg[2]
 $cfNegativeUnresolved = [int]$cfNeg[3]
 $cfResolvedDecisionTotal = $cfPositiveCorrect + $cfPositiveWrong + $cfNegativeResolved
-$cfSyntheticResolvedPpv = if ($cfResolvedDecisionTotal -eq 0) { [decimal]0 } else { [decimal]$cfPositiveCorrect / [decimal]$cfResolvedDecisionTotal }
+$cfSyntheticResolvedPpv = if ($cfResolvedDecisionTotal -eq 0) { $null } else { [decimal]$cfPositiveCorrect / [decimal]$cfResolvedDecisionTotal }
 
 $report = [ordered]@{
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
@@ -1075,7 +1170,7 @@ $report = [ordered]@{
     safeguards = @(
         'validation rows are injected only after an active calibrated model exists',
         'fixture prefix is bound to the active model id fragment',
-        'quality metrics gate only this DEV validation script; they do not promote models or alter thresholds',
+        'safety gates only this DEV validation script; capability/sensitivity remains diagnostic until a dedicated positive-control gate is defined',
         'blocking recall and conflict-rule coverage are measured separately from decision quality',
         'no regression comparison with prior models is required in this pre-homologation phase')
     model = [ordered]@{
@@ -1083,6 +1178,17 @@ $report = [ordered]@{
         modelVersion = $modelVersion
         algorithmVersion = $algorithmVersion
         threshold = $threshold
+        runtimeFingerprint = $validationRuntimeFingerprint
+        priorProvenance = [ordered]@{
+            priorMatchProbability = $priorProbability
+            estimatorFormula = 'clamp(DISTINCT_BIRTH_DATE / POPULATION_SIZE, 0.000001, PRIOR_BLOCK_MAX)'
+            populationSize = $populationSize
+            distinctBirthDates = $distinctBirthDates
+            rawReferenceRatio = $rawReferencePrior
+            priorBlockMax = $priorBlockMax
+            clampedAtUpperBound = $priorClampedAtUpperBound
+            interpretation = 'Este prior é uma heurística de referência do estimador, não uma taxa empiricamente medida de match condicionada ao blocking.'
+        }
     }
     runId = $runId
     nominalOrderRestriction = [ordered]@{
@@ -1111,14 +1217,15 @@ $report = [ordered]@{
         syntheticSpecificity = [decimal]::Round($negativeSpecificity,6)
         syntheticFalseMatchRate = [decimal]::Round($negativeFalseMatchRate,6)
         scenarios = $negativeScenarioBreakdown
-        scenarioEvidenceProfiles = $negativeScenarioEvidence
+        plannedColliderEvidenceProfiles = $negativeScenarioEvidence
+        plannedColliderAlignment = $negativePlannedColliderAlignment
         falseMatchDetails = $negativeFalseMatchDetails
     }
     combinedDecisionQuality = [ordered]@{
         resolvedDecisions = $resolvedDecisionTotal
         correctResolved = $positiveCorrect
         falseResolved = ($positiveWrong + $negativeResolved)
-        syntheticResolvedPpv = [decimal]::Round($syntheticResolvedPpv,6)
+        syntheticResolvedPpv = if ($null -eq $syntheticResolvedPpv) { $null } else { [decimal]::Round($syntheticResolvedPpv,6) }
     }
     conflictProbe = [ordered]@{
         total = $conflictTotal
@@ -1156,7 +1263,7 @@ $report = [ordered]@{
             resolvedDecisions = $cfResolvedDecisionTotal
             correctResolved = $cfPositiveCorrect
             falseResolved = ($cfPositiveWrong + $cfNegativeResolved)
-            syntheticResolvedPpv = [decimal]::Round($cfSyntheticResolvedPpv,6)
+            syntheticResolvedPpv = if ($null -eq $cfSyntheticResolvedPpv) { $null } else { [decimal]::Round($cfSyntheticResolvedPpv,6) }
         }
         deltaVsCurrent = [ordered]@{
             correctResolved = ($cfPositiveCorrect - $positiveCorrect)
@@ -1217,7 +1324,7 @@ $report = [ordered]@{
     }
     interpretation = [ordered]@{
         scope = 'Evidência sintética DEV; não é estimativa de acurácia municipal nem homologação.'
-        negatives = 'Impostores incluem colisões simples e HARD_HOMONYM. Nesta fase DEV, qualquer falso vínculo resolvido reprova o quality gate do harness.'
+        negatives = 'Impostores incluem colisões simples e HARD_HOMONYM. Nesta fase DEV, qualquer falso vínculo resolvido reprova o safety gate do harness; sensibilidade é reportada separadamente e não é aprovada por este gate.'
         frontier = 'A malha teórica mostra se os estados discretos do modelo conseguem sequer ocupar a vizinhança do threshold atual.'
         orderRestriction = 'A auditoria mostra quanto a MLE ordenada alterou m/LLR; pooling grande é diagnóstico de tensão entre estimativas, não evidência adicional de identidade.'
     }
@@ -1249,19 +1356,26 @@ Write-Host 'Negativos por cenário:'
 foreach ($scenario in $negativeScenarioBreakdown) {
     Write-Host ("  {0}: total={1} falsos_vínculos={2} conflitos={3} não_resolvidos={4} expostos={5} score=[{6},{7}]" -f $scenario.scenario,$scenario.total,$scenario.resolvedFalseMatches,$scenario.conflicts,$scenario.unresolved,$scenario.candidateExposure,$scenario.minBestScore,$scenario.maxBestScore)
 }
-Write-Host 'Perfil teórico de evidência dos negativos:'
+Write-Host 'Perfil teórico do colisor planejado (não necessariamente o melhor candidato observado):'
 foreach ($profile in $negativeScenarioEvidence) {
     Write-Host ("  {0}: {1}/{2}/{3} prior={4} nome_llr={5} mãe_llr={6} nasc_llr={7} posterior={8}" -f $profile.scenario,$profile.nameState,$profile.motherState,$profile.birthState,$profile.priorLogOdds,$profile.nameLlr,$profile.motherLlr,$profile.birthLlr,$profile.theoreticalPosterior)
 }
+Write-Host 'Alinhamento do melhor candidato com o colisor planejado:'
+foreach ($item in $negativePlannedColliderAlignment) {
+    Write-Host ("  {0}: total={1} best_planejado={2} best_outro={3} best_nulo={4} score_planejado=[{5},{6}] score_outro=[{7},{8}]" -f $item.scenario,$item.total,$item.bestIsPlannedCollider,$item.bestIsOtherCandidate,$item.bestIsNull,$item.plannedColliderBestScoreMin,$item.plannedColliderBestScoreMax,$item.otherCandidateBestScoreMin,$item.otherCandidateBestScoreMax)
+}
+Write-Host ("Prior: p={0} raw_distinct_birth/population={1} cap={2} saturado_no_cap={3}" -f $priorProbability,$rawReferencePrior,$priorBlockMax,$priorClampedAtUpperBound)
 if ($negativeFalseMatchDetails.Count -gt 0) {
     Write-Host 'Falsos vínculos resolvidos:'
     foreach ($item in $negativeFalseMatchDetails) {
         Write-Host ("  {0} | {1} | score={2} segundo={3} margem={4} best={5}" -f $item.scenario,$item.sourceCode,$item.bestScore,$item.secondScore,$item.margin,$item.bestCandidateUuid)
     }
 }
-Write-Host "Decisões resolvidas combinadas: corretas=$positiveCorrect falsas=$($positiveWrong+$negativeResolved) PPV_sintético=$([decimal]::Round(($syntheticResolvedPpv * [decimal]100),2))%"
+$syntheticPpvText = if ($null -eq $syntheticResolvedPpv) { 'N/A' } else { "$([decimal]::Round(($syntheticResolvedPpv * [decimal]100),2))%" }
+Write-Host "Decisões resolvidas combinadas: corretas=$positiveCorrect falsas=$($positiveWrong+$negativeResolved) PPV_sintético=$syntheticPpvText"
 Write-Host "Conflito forçado: conflito=$conflictStatus/$conflictTotal margem_zero=$conflictMarginZero acima_threshold=$conflictAboveThreshold resolvidos_indevidos=$conflictResolved"
-Write-Host ("Contrafactual sem dual-threshold guard (mantém T={0} e margem_log_odds={1}): positivos_corretos={2}/{3} positivos_errados={4} positivos_conflitos={5} positivos_nao_resolvidos={6} negativos_falsos_vinculos={7}/{8} negativos_conflitos={9} negativos_nao_resolvidos={10} PPV_sintetico={11}%" -f $threshold,$conflictMarginLogOdds,$cfPositiveCorrect,$cfPositiveTotal,$cfPositiveWrong,$cfPositiveConflicts,$cfPositiveUnresolved,$cfNegativeResolved,$cfNegativeTotal,$cfNegativeConflicts,$cfNegativeUnresolved,[decimal]::Round(($cfSyntheticResolvedPpv * [decimal]100),2))
+$cfPpvText = if ($null -eq $cfSyntheticResolvedPpv) { 'N/A' } else { "$([decimal]::Round(($cfSyntheticResolvedPpv * [decimal]100),2))%" }
+Write-Host ("Contrafactual sem dual-threshold guard (mantém T={0} e margem_log_odds={1}): positivos_corretos={2}/{3} positivos_errados={4} positivos_conflitos={5} positivos_nao_resolvidos={6} negativos_falsos_vinculos={7}/{8} negativos_conflitos={9} negativos_nao_resolvidos={10} PPV_sintetico={11}" -f $threshold,$conflictMarginLogOdds,$cfPositiveCorrect,$cfPositiveTotal,$cfPositiveWrong,$cfPositiveConflicts,$cfPositiveUnresolved,$cfNegativeResolved,$cfNegativeTotal,$cfNegativeConflicts,$cfNegativeUnresolved,$cfPpvText)
 if ($bestZeroFalseMarginPoint.Count -gt 0) {
     Write-Host ("Fronteira de margem dual-threshold: elegiveis={0} positivos={1} negativos={2} melhor_ponto_zero_falso cutoff={3} corretos={4} ganho_seguro={5}" -f $dualThresholdMarginRows.Count,@($dualThresholdMarginRows | Where-Object { $_.Kind -eq 'POS' }).Count,@($dualThresholdMarginRows | Where-Object { $_.Kind -eq 'NEG' }).Count,$bestZeroFalseMarginPoint[0].cutoffLogOdds,$bestZeroFalseMarginPoint[0].correctResolved,($bestZeroFalseMarginPoint[0].correctResolved -gt 0))
 } else {
@@ -1288,10 +1402,10 @@ if ($conflictTotal -ne 10 -or $conflictStatus -ne 10 -or $conflictMarginZero -ne
 Write-Host 'LINKAGE INDEPENDENT VALIDATION STRUCTURAL GATES: OK' -ForegroundColor Green
 
 if ($positiveWrong -ne 0) {
-    throw "DEV QUALITY GATE reprovado: houve $positiveWrong resolução(ões) positiva(s) para UUID incorreto."
+    throw "DEV SAFETY GATE reprovado: houve $positiveWrong resolução(ões) positiva(s) para UUID incorreto."
 }
 if ($negativeResolved -ne 0) {
-    throw "DEV QUALITY GATE reprovado: houve $negativeResolved falso(s) vínculo(s) resolvido(s) em $negativeTotal negativos independentes."
+    throw "DEV SAFETY GATE reprovado: houve $negativeResolved falso(s) vínculo(s) resolvido(s) em $negativeTotal negativos independentes."
 }
 
-Write-Host 'LINKAGE INDEPENDENT VALIDATION DEV QUALITY GATES: OK' -ForegroundColor Green
+Write-Host 'LINKAGE INDEPENDENT VALIDATION DEV SAFETY GATES: OK' -ForegroundColor Green
