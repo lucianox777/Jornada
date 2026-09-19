@@ -143,18 +143,15 @@ internal sealed partial class SqlProcessorRepository
         SqlCommand command, ReservedBatch batch, ProcessedPerson person,
         long registroOrigemId, int versaoInterna, long recordId, ParsedFact fact, DateTimeOffset versionedAt)
     {
-        if (!person.PessoaOrigemId.HasValue || string.IsNullOrWhiteSpace(person.CodigoPessoaOrigem))
-            throw new InvalidDataException("Fato exige Pessoa com origem local estável.");
-
         command.Parameters.AddWithValue("@registro", recordId);
         command.Parameters.AddWithValue("@registro_origem", registroOrigemId);
         command.Parameters.Add(new SqlParameter("@codigo_registro", SqlDbType.NVarChar, 255) { Value = fact.CodigoRegistroOrigem });
         command.Parameters.AddWithValue("@versao_interna", versaoInterna);
         command.Parameters.Add(new SqlParameter("@operacao", SqlDbType.NVarChar, 20) { Value = fact.Operacao.ToString() });
         command.Parameters.Add(new SqlParameter("@uuid", SqlDbType.UniqueIdentifier) { Value = (object?)person.PessoaUuid ?? DBNull.Value });
-        command.Parameters.AddWithValue("@pessoa_origem", person.PessoaOrigemId.Value);
+        command.Parameters.Add(new SqlParameter("@pessoa_origem", SqlDbType.BigInt) { Value = (object?)person.PessoaOrigemId ?? DBNull.Value });
         command.Parameters.AddWithValue("@sistema_origem", person.SistemaOrigemId);
-        command.Parameters.Add(new SqlParameter("@codigo_pessoa", SqlDbType.NVarChar, 255) { Value = person.CodigoPessoaOrigem });
+        AddNullable(command, "@codigo_pessoa", SqlDbType.NVarChar, 255, person.CodigoPessoaOrigem);
         AddNullable(command, "@cpf_declarado", SqlDbType.Char, 11, person.CpfDeclarado);
         AddNullable(command, "@cpf_ausente", SqlDbType.NVarChar, 30, person.CpfAusenteMotivo);
         command.Parameters.Add(new SqlParameter("@estado_atribuicao", SqlDbType.NVarChar, 30) { Value = person.EstadoAtribuicaoIdentidade });
