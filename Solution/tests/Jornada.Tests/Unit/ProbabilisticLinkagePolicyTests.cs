@@ -167,6 +167,58 @@ public sealed class ProbabilisticLinkagePolicyTests
     }
 
     [Test]
+    public void Changing_only_global_prior_preserves_ranking_and_log_odds_margin()
+    {
+        var activeParameters = SemanticBirthParameters(includeLegacyFlags: false);
+        activeParameters[LinkageParameterCatalog.PriorMatchProbability] = .25m;
+        activeParameters[LinkageParameterCatalog.Threshold] = .95m;
+        activeParameters[LinkageParameterCatalog.DualThresholdConflictGuard] = 1m;
+        var active = LinkageModelPolicy.Create(
+            ModelId,
+            6,
+            LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion,
+            activeParameters);
+
+        var counterfactualParameters = new Dictionary<string, decimal>(
+            activeParameters,
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [LinkageParameterCatalog.PriorMatchProbability] = .218397833493m
+        };
+        var counterfactual = LinkageModelPolicy.Create(
+            ModelId,
+            6,
+            LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion,
+            counterfactualParameters);
+
+        var observation = Observation();
+        var candidates = new[]
+        {
+            new LinkageCandidate(CandidateA, observation.NomeCompleto, Birth, observation.NomeMae),
+            new LinkageCandidate(CandidateB, observation.NomeCompleto, Birth, "Pessoa sem relação")
+        };
+
+        var activeRanking = ProbabilisticLinkageDecisions.Rank(active, observation, candidates);
+        var counterfactualRanking = ProbabilisticLinkageDecisions.Rank(counterfactual, observation, candidates);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                counterfactualRanking.Select(static row => row.PessoaUuid),
+                Is.EqualTo(activeRanking.Select(static row => row.PessoaUuid)));
+            Assert.That(
+                counterfactualRanking[0].LogOdds - counterfactualRanking[1].LogOdds,
+                Is.EqualTo(activeRanking[0].LogOdds - activeRanking[1].LogOdds));
+            Assert.That(
+                counterfactualRanking[0].LogOdds - activeRanking[0].LogOdds,
+                Is.EqualTo(counterfactualRanking[1].LogOdds - activeRanking[1].LogOdds));
+            Assert.That(
+                counterfactualRanking[0].Score,
+                Is.LessThan(activeRanking[0].Score));
+        });
+    }
+
+    [Test]
     public void V6_without_dual_threshold_guard_preserves_replay_of_previous_models()
     {
         var parameters = SemanticBirthParameters(includeLegacyFlags: false);
