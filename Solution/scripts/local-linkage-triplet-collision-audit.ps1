@@ -159,12 +159,98 @@ $allPairs=([decimal]$covered*([decimal]$covered-[decimal]1))/[decimal]2
 $randomPairCollisionProbability=if($allPairs -le 0){$null}else{$collidingPairs/$allPairs}
 
 $syntheticAnchored=[long](Get-SqlScalar @"
-SELECT COUNT_BIG(DISTINCT a.pessoa_uuid)
-FROM identidade.cpf_ancora a
-JOIN silver.pessoa_observacao po ON po.cpf=a.cpf
-WHERE po.codigo_pessoa_origem LIKE N'SCALE-%'
-   OR po.codigo_pessoa_origem LIKE N'SEED-%';
+SELECT COUNT_BIG(*)
+FROM (
+    SELECT DISTINCT a.pessoa_uuid
+    FROM identidade.cpf_ancora a
+    JOIN silver.pessoa_observacao po ON po.cpf=a.cpf
+    WHERE po.codigo_pessoa_origem LIKE N'SCALE-%'
+       OR po.codigo_pessoa_origem LIKE N'SEED-%'
+) x;
 "@)
+$referenceLine=Get-SqlScalar @"
+SELECT CONCAT(
+    CONVERT(varchar(30),m.frequencia_nome_versao_id),'|',
+    v.codigo,'|',
+    CONVERT(varchar(64),v.conteudo_sha256,2))
+FROM identidade.modelo_linkage m
+JOIN ref.frequencia_nome_versao v
+  ON v.frequencia_nome_versao_id=m.frequencia_nome_versao_id
+WHERE m.modelo_id='$activeModelId';
+"@
+$referenceParts=$referenceLine.Split('|')
+if($referenceParts.Count -ne 3){ throw "Referência IBGE do modelo inválida: $referenceLine" }
+$referenceId=[long]$referenceParts[0]
+$referenceCode=$referenceParts[1]
+$referenceSha=$referenceParts[2]
+
+$referenceCompositionLines=@(Get-SqlLines @"
+WITH national AS (
+    SELECT
+        tipo,
+        valor_normalizado,
+        SUM(CONVERT(bigint,frequencia)) AS frequencia
+    FROM ref.frequencia_nome
+    WHERE frequencia_nome_versao_id=$referenceId
+      AND escopo_geografico=N'BRASIL'
+      AND uf_codigo='00'
+      AND municipio_codigo='0000000'
+      AND periodo_nascimento=N'TODOS'
+      AND (
+           (tipo=N'NOME' AND sexo=N'TODOS')
+        OR (tipo=N'SOBRENOME' AND sexo=N'TODOS')
+      )
+    GROUP BY tipo,valor_normalizado
+), national_agg AS (
+    SELECT
+        tipo,
+        COUNT_BIG(*) AS valores,
+        SUM(CASE WHEN CHARINDEX(N' ',valor_normalizado)>0 THEN 1 ELSE 0 END) AS valores_compostos,
+        SUM(frequencia) AS ocorrencias,
+        SUM(CASE WHEN CHARINDEX(N' ',valor_normalizado)>0 THEN frequencia ELSE CONVERT(bigint,0) END) AS ocorrencias_compostas
+    FROM national
+    GROUP BY tipo
+), periods AS (
+    SELECT
+        COUNT_BIG(*) AS linhas_periodo_nome,
+        SUM(CASE WHEN CHARINDEX(N' ',valor_normalizado)>0 THEN 1 ELSE 0 END) AS linhas_periodo_nome_composto,
+        COUNT(DISTINCT periodo_nascimento) AS periodos_publicados
+    FROM ref.frequencia_nome
+    WHERE frequencia_nome_versao_id=$referenceId
+      AND tipo=N'NOME'
+      AND escopo_geografico=N'BRASIL'
+      AND uf_codigo='00'
+      AND municipio_codigo='0000000'
+      AND periodo_nascimento<>N'TODOS'
+)
+SELECT CONCAT(
+    a.tipo,'|',a.valores,'|',a.valores_compostos,'|',
+    a.ocorrencias,'|',a.ocorrencias_compostas,'|',
+    p.linhas_periodo_nome,'|',p.linhas_periodo_nome_composto,'|',p.periodos_publicados)
+FROM national_agg a
+CROSS JOIN periods p
+ORDER BY a.tipo;
+"@)
+
+$referenceComposition=@(
+    foreach($line in $referenceCompositionLines){
+        $parts=$line.Split('|')
+        [ordered]@{
+            kind=$parts[0]
+            publishedValues=[long]$parts[1]
+            compoundPublishedValues=[long]$parts[2]
+            publishedOccurrences=[long]$parts[3]
+            compoundPublishedOccurrences=[long]$parts[4]
+            compoundValueShare=if([long]$parts[1] -eq 0){$null}else{[decimal]::Round(([decimal]$parts[2]/[decimal]$parts[1]),12)}
+            compoundOccurrenceShare=if([long]$parts[3] -eq 0){$null}else{[decimal]::Round(([decimal]$parts[4]/[decimal]$parts[3]),12)}
+            periodNameRows=[long]$parts[5]
+            periodCompoundNameRows=[long]$parts[6]
+            publishedBirthPeriods=[int]$parts[7]
+        }
+    }
+)
+$publishedCompoundEvidencePresent=(@($referenceComposition | Where-Object { $_.compoundPublishedValues -gt 0 }).Count -gt 0)
+
 $datasetHint=if($anchored -gt 0 -and $syntheticAnchored -eq $anchored){'SYNTHETIC_LOCAL'}elseif($syntheticAnchored -gt 0){'MIXED_WITH_SYNTHETIC'}else{'NO_SYNTHETIC_MARKER_DETECTED'}
 
 $report=[ordered]@{
@@ -186,6 +272,14 @@ $report=[ordered]@{
         normalizationVersion=$normalizationVersion
         projectionSchemaVersion=$projectionSchema
         projectionFingerprintSha256=$projectionFingerprint
+    }
+    ibgeReference=[ordered]@{
+        referenceId=$referenceId
+        referenceCode=$referenceCode
+        contentSha256=$referenceSha
+        publishedCompoundEvidencePresent=$publishedCompoundEvidencePresent
+        composition=$referenceComposition
+        interpretation='Valores NOME/SOBRENOME são tratados como unidades publicadas da referência. Presença de espaço demonstra valor composto preservado na projeção operacional; não autoriza decompor o valor em tokens independentes.'
     }
     coverage=[ordered]@{
         anchoredGoldPersons=$anchored
@@ -217,7 +311,8 @@ $report=[ordered]@{
         'A auditoria conta CPFs/UUIDs âncora distintos que compartilham exatamente nome normalizado, nome da mãe normalizado e data de nascimento.',
         'Nenhum nome, CPF, UUID ou data individual é gravado no relatório.',
         'A taxa só pode ser interpretada como prevalência municipal se a base executada for representativa e a cobertura da projeção for completa.',
-        'Resultado em corpus DEV/sintético mede apenas o corpus sintético e não autoriza relaxar o dual-threshold guard.'
+        'Resultado em corpus DEV/sintético mede apenas o corpus sintético e não autoriza relaxar o dual-threshold guard.',
+        'A frequência populacional de cenários raros deve ser estimada separadamente do corpus adversarial, usando a referência IBGE publicada e distribuição de nascimento/coorte; a proporção deliberada do fixture não é prevalência.'
     )
 }
 $report | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $ReportPath -Encoding UTF8
@@ -231,6 +326,11 @@ $personRateText=if($null -eq $personCollisionRate){'N/A'}else{"$([decimal]::Roun
 $pairRateText=if($null -eq $randomPairCollisionProbability){'N/A'}else{"$([decimal]::Round($randomPairCollisionProbability*[decimal]100,12))%"}
 Write-Host "Taxa de pessoas em tripla colidente=$personRateText; probabilidade de colisão entre dois CPFs aleatórios=$pairRateText"
 Write-Host "Dataset hint=$datasetHint; isto não é automaticamente uma estimativa municipal."
+Write-Host "Referência IBGE: $referenceCode / $referenceSha"
+foreach($item in $referenceComposition){
+    Write-Host ("IBGE {0}: valores={1} compostos={2} ocorrencias={3} ocorrencias_compostas={4} periodos_nascimento={5}" -f $item.kind,$item.publishedValues,$item.compoundPublishedValues,$item.publishedOccurrences,$item.compoundPublishedOccurrences,$item.publishedBirthPeriods)
+}
+Write-Host "Valores compostos preservados na projeção operacional=$publishedCompoundEvidencePresent"
 Write-Host "Relatório agregado sem PII: $ReportPath"
 Write-Host ''
 Write-Host 'LINKAGE GOLD TRIPLET COLLISION AUDIT: OK'
