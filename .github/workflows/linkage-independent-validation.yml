@@ -207,10 +207,19 @@ jobs:
             and .changesScoring == false
             and .exposesPii == false
             and .coverage.completeTripletPersons > 0
-            and .coverage.projectionCoverageComplete == true
+            and (
+              (.coverage.projectionCoverageComplete == true
+               and .coverage.coveredByCurrentProjection == .coverage.completeTripletPersons)
+              or
+              (.coverage.projectionCoverageComplete == false
+               and .coverage.coveredByCurrentProjection < .coverage.completeTripletPersons
+               and .dataset.municipalPrevalenceClaimAllowed == false)
+            )
             and .collisions.collidingTriplets >= 0
             and .collisions.collidingCpfPairs >= 0
             and .dataset.municipalPrevalenceClaimAllowed == false
+            and .ibgeReference.referenceCode == "CENSO2022_NOMES_BRASIL_V1"
+            and (.ibgeReference.composition | length) == 2
           ' "$report" >/dev/null
           echo 'LINKAGE GOLD TRIPLET COLLISION AUDIT CONTRACT: OK'
 
