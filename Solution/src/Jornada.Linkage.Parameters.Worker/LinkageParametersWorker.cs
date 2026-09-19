@@ -199,6 +199,10 @@ public sealed class LinkageParametersWorker(
                 ibgeReference,
                 ibgePersonU,
                 ibgeMotherU);
+            modelParameters = AbbreviationCompatibilityTrainingDiagnostics.Append(
+                modelParameters,
+                matchedPairs,
+                unmatchedPairs);
 
             var persistedParameters = BuildPersistedParameters(
                 modelParameters, statistics, samplePoolSize, minimumIndependentMatchedPairs,
@@ -210,9 +214,10 @@ public sealed class LinkageParametersWorker(
                 persistedParameters, ruleSet, ibgeReference, workCt);
 
             logger.LogInformation(
-                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
+                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; abbrev_m_nome={AbbrevMName}; abbrev_u_ref_nome={AbbrevUName}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
                 version, ruleSet.RuleSetVersion, statistics.PopulationSize, matchedPairs.Count, unmatchedCandidatePairs.Count,
                 unmatchedPairs.Count, unmatchedSample.CandidatePoolSize, ibgeNominalUPairCount, ibgeReference.Code,
+                persistedParameters["DIAG_ABBREV_M_NOME_SUPPORT"], persistedParameters["DIAG_ABBREV_U_NOME_SUPPORT"],
                 corpusCapturedAtUtc, SqlServerSampleMethod, samplePoolSize);
         }
         catch (OperationCanceledException) when (pipelineLease.IsLost)
