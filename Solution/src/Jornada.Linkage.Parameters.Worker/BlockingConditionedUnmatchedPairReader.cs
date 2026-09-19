@@ -132,7 +132,10 @@ WITH gold_sample AS (
     SELECT TOP (@pool_size)
         g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
     FROM gold.pessoa g
-    WHERE NOT EXISTS (
+    WHERE g.estado_identidade=N'REFERENCIA'
+      AND g.nome_completo IS NOT NULL
+      AND g.data_nascimento IS NOT NULL
+      AND NOT EXISTS (
         SELECT 1
         FROM identidade.vinculo_fonte vf_val
         JOIN silver.pessoa_observacao po_val
