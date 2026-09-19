@@ -17,7 +17,7 @@ O Gestor é responsável por:
 - designar interlocutor técnico para integração e qualidade cadastral;
 - declarar o `codigoSistemaOrigem` de cada sistema finalístico integrado;
 - mapear os campos nativos para os contratos vigentes de Pessoa e de Registro;
-- gerar chaves locais estáveis (`codigoPessoaOrigem` e `codigoRegistroOrigem`) quando existirem;
+- gerar chaves locais estáveis quando existirem; `codigoPessoaOrigem` é opcional e a exigência de `codigoRegistroOrigem` é definida pelo contrato versionado de cada Tipo de Benefício/Serviço;
 - não inventar informação ausente nem inferir estados de negócio não declarados pela origem;
 - resolver a geografia exigida pelos contratos quando aplicável;
 - autenticar e autorizar seus agentes humanos; a Jornada não substitui a autenticação da finalística;
@@ -45,7 +45,7 @@ Antes da primeira carga, devem estar definidos:
 3. versão de schema de Pessoa autorizada para o Gestor;
 4. Natureza e Tipo dos fatos enviados (`BENEFICIO` ou `SERVICO`, com código de Tipo contratado);
 5. credencial técnica e scopes aplicáveis;
-6. estratégia de geração de `codigoPessoaOrigem` e `codigoRegistroOrigem`;
+6. estratégia de `idPessoaEntrega`, eventual `codigoPessoaOrigem` e, quando exigido pelo schema do Tipo, `codigoRegistroOrigem`;
 7. regra de extração incremental ou de carga inicial;
 8. adapter/exportador para produzir o envelope Jornada v2;
 9. massa de homologação sem dados pessoais reais sempre que possível;
@@ -108,11 +108,11 @@ A entrega deve conter, no mínimo:
 - Pessoas alteradas cadastralmente no período;
 - todas as Pessoas referenciadas pelos fatos de `registros.jsonl`.
 
-`codigoPessoaOrigem` é a chave local opaca da finalística. Na versão de Pessoa que admite o fallback implementado, quando `codigoPessoaOrigem` não for informado e houver CPF válido, a Jornada pode usar o CPF como código interno de origem. Isso **não transforma o código em CPF semanticamente**: somente o campo `cpf` é tratado como CPF.
+`idPessoaEntrega` é obrigatório e liga fatos à Pessoa somente dentro da remessa. `codigoPessoaOrigem` é uma chave local opaca e **opcional**; quando ausente, a Jornada não inventa uma origem persistente e nunca usa CPF, nome, nascimento ou hash como substituto.
 
 ### `registros.jsonl`
 
-Cada linha contém um fato finalístico compatível com o Tipo declarado no manifesto. `codigoRegistroOrigem` é obrigatório e deve ser estável no namespace do sistema de origem.
+Cada linha contém um fato finalístico compatível com o Tipo declarado no manifesto e referencia `idPessoaEntrega`. A obrigatoriedade de `codigoRegistroOrigem` é declarada no JSON Schema versionado daquele Tipo. Quando exigido, deve ser estável no namespace factual da origem; quando o contrato não o exigir, a Jornada não deve inventar um código persistente apenas para satisfazer infraestrutura interna.
 
 A finalística não envia número de versão. Para a mesma chave:
 
