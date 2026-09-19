@@ -127,6 +127,8 @@ A instrumentação persiste `DIAG_CANDIDATE_PRIOR_*`, inclusive tamanho da amost
 
 A principal limitação é de transportabilidade: o rótulo vem de observações que possuem CPF, enquanto o fallback probabilístico resolve observações sem CPF. Diferença sistemática entre esses subconjuntos pode enviesar o prior. Portanto a medição remove a arbitrariedade conceitual da fórmula histórica e quantifica a alternativa correta no universo candidato, mas sua promoção exige validação independente de representatividade/transportabilidade; corpus sintético não constitui estimativa municipal.
 
+O contrafactual `DEV_READ_ONLY_CANDIDATE_PAIR_PRIOR_COUNTERFACTUAL` testa o efeito da substituição sem publicar modelo. Ele recarrega observações sem CPF do corpus independente, gera novamente candidatos pelo ruleset congelado e executa duas decisões com os mesmos `m/u`, threshold, margem e guards: uma com o prior ativo e outra com o prior candidato-par. A troca de prior não pode alterar a ordem dos candidatos nem a margem em log-odds; somente scores posteriores e cruzamentos de threshold podem mudar. O relatório também compara fan-out médio do conjunto rotulado com CPF com o fan-out das observações sem CPF, mas esse comparativo não estabelece transportabilidade quando o segundo conjunto é sintético/adversarial.
+
 ## 6. Thresholds e seleção
 
 Thresholds são produtos da calibração, não constantes escolhidas por intuição.

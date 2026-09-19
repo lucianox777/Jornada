@@ -141,6 +141,18 @@ jobs:
             and .abbreviationTrainingSupport.motherName.mSupport >= 0
             and .abbreviationTrainingSupport.motherName.uReferenceDenominator > 0
             and .abbreviationTrainingSupport.motherName.uReferenceSupport >= 0
+            and .priorCounterfactual.purpose == "DEV_READ_ONLY_CANDIDATE_PAIR_PRIOR_COUNTERFACTUAL"
+            and .priorCounterfactual.prior.changesPersistedModel == false
+            and .priorCounterfactual.prior.changesScoringParametersOtherThanPrior == false
+            and .priorCounterfactual.replay.persistedDecisionMismatchCount == 0
+            and .priorCounterfactual.replay.rankingTopChangedCount == 0
+            and .priorCounterfactual.replay.rankingInvariantPreserved == true
+            and .priorCounterfactual.prior.counterfactual == .model.priorProvenance.candidatePairDiagnostic.matchProbability
+            and .priorCounterfactual.transportability.established == false
+            and .priorCounterfactual.active.positive.total == 40
+            and .priorCounterfactual.active.negative.total == 40
+            and .priorCounterfactual.counterfactual.positive.total == 40
+            and .priorCounterfactual.counterfactual.negative.total == 40
           ' "$report" >/dev/null
           echo 'LINKAGE SAFETY/REPORT SEMANTICS: OK'
 
@@ -325,6 +337,7 @@ jobs:
           path: |
             Solution/.local/linkage-validation/blocking-pass-audit.json
             Solution/.local/linkage-validation/abbreviation-compatibility-audit.json
+            Solution/.local/linkage-validation/prior-counterfactual-audit.json
             Solution/.local/linkage-validation/validation-report.json
             Solution/.local/linkage-evidence-readiness/evidence-readiness.json
             Solution/.local/linkage-validation/run-provenance.json

@@ -7,6 +7,7 @@ OUT_DIR="$ROOT/.local/linkage-validation"
 LABELS="$OUT_DIR/positive-labels.csv"
 AUDIT="$OUT_DIR/blocking-pass-audit.json"
 ABBREV_AUDIT="$OUT_DIR/abbreviation-compatibility-audit.json"
+PRIOR_CF_AUDIT="$OUT_DIR/prior-counterfactual-audit.json"
 PROVENANCE="$OUT_DIR/run-provenance.json"
 FIXTURE="/workspace/database/Jornada_Dev_LinkageValidation.sql"
 mkdir -p "$OUT_DIR"
@@ -180,6 +181,27 @@ jq -e '
   exit 6
 }
 echo "Abreviação compatível (diagnóstico): NAME_ABBREV=$(jq -r '.positiveNameAbbrev.compatible' "$ABBREV_AUDIT")/8; MOTHER_COLLISION=$(jq -r '.negativeMotherCollision.compatible' "$ABBREV_AUDIT")/10; separa=$(jq -r '.separation.selectedFixtureClassesSeparated' "$ABBREV_AUDIT")"
+
+compose exec -T jornada-node2 dotnet /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll \
+  --prior-counterfactual-run "$run_id" \
+  --prior-counterfactual-output /tmp/jornada-linkage-prior-counterfactual.json \
+  --ProbabilisticLinkage:CommandTimeoutSeconds 300
+compose cp jornada-node2:/tmp/jornada-linkage-prior-counterfactual.json "$PRIOR_CF_AUDIT"
+
+jq -e '
+  .purpose == "DEV_READ_ONLY_CANDIDATE_PAIR_PRIOR_COUNTERFACTUAL"
+  and .prior.changesPersistedModel == false
+  and .prior.changesScoringParametersOtherThanPrior == false
+  and .replay.persistedDecisionMismatchCount == 0
+  and .replay.rankingTopChangedCount == 0
+  and .replay.rankingInvariantPreserved == true
+  and .transportability.established == false
+' "$PRIOR_CF_AUDIT" >/dev/null || {
+  echo 'ERRO: contrafactual read-only do prior inválido.' >&2
+  jq '.' "$PRIOR_CF_AUDIT" >&2
+  exit 6
+}
+echo "Prior contrafactual: ativo=$(jq -r '.prior.active' "$PRIOR_CF_AUDIT") alternativo=$(jq -r '.prior.counterfactual' "$PRIOR_CF_AUDIT") mudanças=$(jq -r '.delta.decisionChangedRows' "$PRIOR_CF_AUDIT") POS_corretos=$(jq -r '.active.positive.correctResolved' "$PRIOR_CF_AUDIT")->$(jq -r '.counterfactual.positive.correctResolved' "$PRIOR_CF_AUDIT") NEG_falsos=$(jq -r '.active.negative.falseResolved' "$PRIOR_CF_AUDIT")->$(jq -r '.counterfactual.negative.falseResolved' "$PRIOR_CF_AUDIT")"
 
 jq -e '.summary.sampleSize == 40 and .summary.truthInsideUnion == 40 and .summary.unionRecallPct == 100' "$AUDIT" >/dev/null || {
   echo 'ERRO: blocking do corpus positivo não recuperou 100% das verdades do fixture.' >&2
