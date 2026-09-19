@@ -6,9 +6,11 @@ GO
  Runtime v4 - cutover da Pessoa de origem
  ----------------------------------------
  Pré-requisitos: 20260913_Base_Pessoa_Origem.sql.
- Depois deste ponto todo pessoa_origem possui Base explícita. A unicidade deixa de
- ser (sistema,codigo) e passa a ser (base,codigo), permitindo que um mesmo sistema
- autorizado consulte bases distintas sem colidir namespaces.
+ Depois deste ponto toda LINHA EXISTENTE em silver.pessoa_origem possui Base explícita.
+ Isto não obriga toda observação de Pessoa a possuir código/origem: quando a fonte não
+ possui código local, silver.pessoa_observacao.pessoa_origem_id permanece NULL e nenhuma
+ linha artificial é criada em silver.pessoa_origem. Para as origens que existem, a
+ unicidade deixa de ser (sistema,codigo) e passa a ser (base,codigo).
 */
 
 IF OBJECT_ID('ref.base_pessoa_origem','U') IS NULL
