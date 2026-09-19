@@ -878,6 +878,7 @@ IF OBJECT_ID('silver.pessoa_observacao','U') IS NULL CREATE TABLE silver.pessoa_
  pessoa_observacao_id BIGINT IDENTITY PRIMARY KEY,
  pessoa_origem_id BIGINT NOT NULL,
  lote_id UNIQUEIDENTIFIER NOT NULL REFERENCES ingestao.lote(lote_id),
+ id_pessoa_entrega NVARCHAR(120) NULL,
  gestor_id BIGINT NOT NULL REFERENCES ref.gestor(gestor_id),
  codigo_pessoa_origem NVARCHAR(255) NOT NULL,
  versao_interna INT NOT NULL,
@@ -898,6 +899,11 @@ IF OBJECT_ID('silver.pessoa_observacao','U') IS NULL CREATE TABLE silver.pessoa_
 GO
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('silver.pessoa_observacao') AND name='IX_pessoa_observacao_origem_corrente')
  CREATE INDEX IX_pessoa_observacao_origem_corrente ON silver.pessoa_observacao(pessoa_origem_id,versao_interna DESC) INCLUDE(conteudo_hash,pessoa_observacao_id,source_as_of);
+GO
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('silver.pessoa_observacao') AND name='UX_pessoa_observacao_lote_id_entrega')
+ CREATE UNIQUE INDEX UX_pessoa_observacao_lote_id_entrega
+ ON silver.pessoa_observacao(lote_id,id_pessoa_entrega)
+ WHERE id_pessoa_entrega IS NOT NULL;
 GO
 
 -- Conferência documental do núcleo é evidência por campo, recebida junto da observação de Pessoa.
