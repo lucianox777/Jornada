@@ -95,6 +95,8 @@ public static class BlockingCandidatePriorEstimator
             .OrderBy(pass => pass.PassId, StringComparer.Ordinal)
             .ToArray();
 
+        await CreatePriorTablesAsync(connection, commandTimeoutSeconds, cancellationToken);
+
         var observations = await LoadLabeledObservationsAsync(
             connection,
             observationSampleSize,
@@ -103,7 +105,6 @@ public static class BlockingCandidatePriorEstimator
         if (observations.Count == 0)
             return new BlockingCandidatePriorEstimate(0, 0, 0, 0, 0, 0m, null);
 
-        await CreatePriorKeysTableAsync(connection, commandTimeoutSeconds, cancellationToken);
         var keyRows = BuildPriorKeyRows(observations, canonicalPasses);
         if (keyRows.Rows.Count == 0)
             return new BlockingCandidatePriorEstimate(observations.Count, 0, 0, 0, 0, 0m, null);
@@ -197,17 +198,6 @@ public static class BlockingCandidatePriorEstimator
     {
         await using var command = new SqlCommand(
             """
-            IF OBJECT_ID('tempdb..#candidate_prior_observations') IS NOT NULL
-                DROP TABLE #candidate_prior_observations;
-
-            CREATE TABLE #candidate_prior_observations(
-                observation_id bigint NOT NULL PRIMARY KEY,
-                truth_uuid uniqueidentifier NOT NULL,
-                nome nvarchar(500) NOT NULL,
-                nascimento date NOT NULL,
-                nome_mae nvarchar(500) NULL
-            );
-
             ;WITH latest AS (
                 SELECT
                     po.pessoa_observacao_id,
@@ -284,15 +274,28 @@ public static class BlockingCandidatePriorEstimator
         return result;
     }
 
-    private static async Task CreatePriorKeysTableAsync(
+    private static async Task CreatePriorTablesAsync(
         SqlConnection connection,
         int commandTimeoutSeconds,
         CancellationToken cancellationToken)
     {
+        // Sem parâmetros: executado no escopo da sessão, não em um sp_executesql aninhado.
+        // Assim as #temp permanecem disponíveis para os comandos parametrizados seguintes.
         await using var command = new SqlCommand(
             """
+            IF OBJECT_ID('tempdb..#candidate_prior_observations') IS NOT NULL
+                DROP TABLE #candidate_prior_observations;
             IF OBJECT_ID('tempdb..#candidate_prior_keys') IS NOT NULL
                 DROP TABLE #candidate_prior_keys;
+
+            CREATE TABLE #candidate_prior_observations(
+                observation_id bigint NOT NULL PRIMARY KEY,
+                truth_uuid uniqueidentifier NOT NULL,
+                nome nvarchar(500) NOT NULL,
+                nascimento date NOT NULL,
+                nome_mae nvarchar(500) NULL
+            );
+
             CREATE TABLE #candidate_prior_keys(
                 observation_id bigint NOT NULL,
                 pass_id nvarchar(160) NOT NULL,
