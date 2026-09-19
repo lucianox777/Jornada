@@ -61,6 +61,38 @@ permissions:
   contents: read
 
 jobs:
+  windows-powershell51-compat:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Validate OrderedDictionary aggregation on Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          if ($PSVersionTable.PSVersion.Major -ne 5) {
+            throw "Este gate deve executar em Windows PowerShell 5.1; encontrado $($PSVersionTable.PSVersion)."
+          }
+          $sample = @(
+            [ordered]@{ conflicts = 8 },
+            [ordered]@{ conflicts = 0 },
+            [ordered]@{ conflicts = 3 }
+          )
+          $sum = [int](($sample | ForEach-Object { [int]$_['conflicts'] } | Measure-Object -Sum).Sum)
+          if ($sum -ne 11) {
+            throw "Soma compatível com OrderedDictionary falhou: $sum"
+          }
+          $content = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-validation.ps1
+          if ($content -match 'Measure-Object\s+-Property\s+conflicts') {
+            throw 'local-linkage-validation.ps1 não pode depender de Measure-Object -Property conflicts sobre OrderedDictionary no Windows PowerShell 5.1.'
+          }
+          Write-Host 'WINDOWS POWERSHELL 5.1 ORDEREDDICTIONARY AGGREGATION: OK'
+
   powershell-contract:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
