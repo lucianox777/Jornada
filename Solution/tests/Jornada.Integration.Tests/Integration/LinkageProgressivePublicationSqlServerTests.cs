@@ -250,10 +250,20 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                 pessoa_observacao_id_high_watermark,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,
                 sem_candidato_no_bloco,solicitado_por,motivo,correlation_id,iniciado_em)
             VALUES(
-                @run,@model,@version,N'ON_DEMAND',N'EXECUTANDO',
+                @run,@model,@version,N'ON_DEMAND',N'PREPARANDO',
                 @obs,1,N'{"test":"progressive-publication"}',1,1,
-                @obs,1,1,@resolved,@unresolved,0,@no_candidate,
+                @obs,0,0,0,0,0,0,
                 N'CI',N'progressive publication integration',NEWID(),SYSUTCDATETIME());
+
+            UPDATE identidade.linkage_run
+               SET status=N'EXECUTANDO',
+                   registros_elegiveis=1,
+                   avaliados=1,
+                   resolvidos=@resolved,
+                   nao_resolvidos=@unresolved,
+                   conflitos=0,
+                   sem_candidato_no_bloco=@no_candidate
+             WHERE linkage_run_id=@run;
 
             INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)
             VALUES(@run,@obs);
