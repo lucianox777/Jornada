@@ -151,6 +151,8 @@ Ele preserva um JSON por seed e grava `.local\calibrador-ibge-u\multiseed\summar
 
 `local-ibge-u-bootstrap.ps1` é **read-only** e reproduz separadamente as distribuições Monte Carlo de pessoa e mãe para comparação com o modelo ATIVO; não cria, valida ou ativa modelo. `local-linkage-validation.ps1` usa corpus independente DEV com positivos, impostores e probes de conflito. Nesta fase pré-homologação, não há comparação de regressão com modelo anterior; o harness reprova se produzir falso vínculo resolvido.
 
+A mesma validação também calcula um **contrafactual read-only de política**: reaplica os rankings já produzidos como se apenas `SCORING_DUAL_THRESHOLD_CONFLICT_V1` fosse removido, mantendo `T_LINKAGE` e `CONFLICT_MARGIN_LOG_ODDS`. O bloco `counterfactualNoDualThresholdGuard` do `validation-report.json` mostra, para positivos e negativos, quantos casos seriam resolvidos, continuariam em conflito ou permaneceriam não resolvidos. Esse cálculo não recalibra o modelo, não altera parâmetros, não publica vínculos e não é autorização para mudar a política.
+
 ### 10. Rodar o smoke de escala, quando necessário
 
 ```powershell
