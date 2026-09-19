@@ -74,6 +74,22 @@ jobs:
           & ./scripts/local-linkage-validation.ps1
           if ($LASTEXITCODE -ne 0) { throw "local-linkage-validation.ps1 falhou ($LASTEXITCODE)." }
 
+      - name: Validate policy counterfactual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          report='.local/linkage-validation/validation-report.json'
+          jq -e '
+            .counterfactualNoDualThresholdGuard.purpose == "READ_ONLY_POLICY_COUNTERFACTUAL"
+            and .counterfactualNoDualThresholdGuard.changesPolicy == false
+            and .counterfactualNoDualThresholdGuard.removedRuleOnly == "SCORING_DUAL_THRESHOLD_CONFLICT_V1"
+            and .counterfactualNoDualThresholdGuard.positive.total == 40
+            and .counterfactualNoDualThresholdGuard.negative.total == 40
+            and (.counterfactualNoDualThresholdGuard.retainedRules | index("T_LINKAGE") != null)
+            and (.counterfactualNoDualThresholdGuard.retainedRules | index("CONFLICT_MARGIN_LOG_ODDS") != null)
+          ' "$report" >/dev/null
+          echo 'LINKAGE POLICY COUNTERFACTUAL EVIDENCE: OK'
+
       - name: Preserve validation evidence
         if: always()
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08

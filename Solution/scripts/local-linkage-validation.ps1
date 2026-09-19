@@ -396,6 +396,182 @@ $negativeFalseMatchDetails = @(
 
 $thresholdText = Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='T_LINKAGE';"
 $threshold = Parse-Decimal $thresholdText
+$conflictMarginText = Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='CONFLICT_MARGIN_LOG_ODDS';"
+$conflictMarginLogOdds = Parse-Decimal $conflictMarginText
+if ($null -eq $conflictMarginLogOdds) { throw 'CONFLICT_MARGIN_LOG_ODDS ausente no modelo ativo.' }
+$dualThresholdFlagText = Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='SCORING_DUAL_THRESHOLD_CONFLICT_V1';"
+$dualThresholdFlag = Parse-Decimal $dualThresholdFlagText
+$dualThresholdGuardEnabled = ($null -ne $dualThresholdFlag -and $dualThresholdFlag -ge [decimal]1)
+
+$counterfactualPositiveLine = Get-SqlScalar @"
+WITH truth AS (
+    SELECT r.*,vc.pessoa_uuid AS truth_uuid
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    JOIN silver.pessoa_observacao tpo
+      ON tpo.codigo_pessoa_origem=CONCAT(N'SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(varchar(10),TRY_CONVERT(int,RIGHT(po.codigo_pessoa_origem,6))),10))
+    JOIN identidade.v_vinculo_corrente vc
+      ON vc.pessoa_observacao_id=tpo.pessoa_observacao_id
+     AND vc.status=N'RESOLVIDO'
+     AND vc.pessoa_uuid IS NOT NULL
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-%'
+), cf AS (
+    SELECT *,
+           CASE
+             WHEN score_melhor < $thresholdText THEN N'NAO_RESOLVIDO'
+             WHEN segundo_candidato_uuid IS NOT NULL AND (margem IS NULL OR margem < $conflictMarginText) THEN N'CONFLITO'
+             ELSE N'RESOLVIDO'
+           END AS cf_status
+    FROM truth
+)
+SELECT CONCAT(
+    COUNT_BIG(*),'|',
+    SUM(CASE WHEN cf_status=N'RESOLVIDO' AND melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN cf_status=N'RESOLVIDO' AND (melhor_candidato_uuid IS NULL OR melhor_candidato_uuid<>truth_uuid) THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN cf_status=N'CONFLITO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN cf_status=N'NAO_RESOLVIDO' THEN 1 ELSE 0 END))
+FROM cf;
+"@
+$cfPos = $counterfactualPositiveLine.Split('|')
+
+$counterfactualNegativeLine = Get-SqlScalar @"
+WITH n AS (
+    SELECT r.*
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-%'
+), cf AS (
+    SELECT *,
+           CASE
+             WHEN score_melhor < $thresholdText THEN N'NAO_RESOLVIDO'
+             WHEN segundo_candidato_uuid IS NOT NULL AND (margem IS NULL OR margem < $conflictMarginText) THEN N'CONFLITO'
+             ELSE N'RESOLVIDO'
+           END AS cf_status
+    FROM n
+)
+SELECT CONCAT(
+    COUNT_BIG(*),'|',
+    SUM(CASE WHEN cf_status=N'RESOLVIDO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN cf_status=N'CONFLITO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN cf_status=N'NAO_RESOLVIDO' THEN 1 ELSE 0 END))
+FROM cf;
+"@
+$cfNeg = $counterfactualNegativeLine.Split('|')
+
+$counterfactualPositiveScenarioLines = @(Get-SqlLines @"
+WITH truth AS (
+    SELECT
+        CASE
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-EXACT-%' THEN N'EXACT'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-NAME_ABBREV-%' THEN N'NAME_ABBREV'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-MOTHER_ABBREV-%' THEN N'MOTHER_ABBREV'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-BIRTH_SHIFT-%' THEN N'BIRTH_SHIFT'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-COMBINED-%' THEN N'COMBINED'
+            ELSE N'UNKNOWN'
+        END AS scenario,
+        r.*,vc.pessoa_uuid AS truth_uuid
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    JOIN silver.pessoa_observacao tpo
+      ON tpo.codigo_pessoa_origem=CONCAT(N'SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(varchar(10),TRY_CONVERT(int,RIGHT(po.codigo_pessoa_origem,6))),10))
+    JOIN identidade.v_vinculo_corrente vc
+      ON vc.pessoa_observacao_id=tpo.pessoa_observacao_id
+     AND vc.status=N'RESOLVIDO'
+     AND vc.pessoa_uuid IS NOT NULL
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-POS-%'
+), cf AS (
+    SELECT *,
+           CASE
+             WHEN score_melhor < $thresholdText THEN N'NAO_RESOLVIDO'
+             WHEN segundo_candidato_uuid IS NOT NULL AND (margem IS NULL OR margem < $conflictMarginText) THEN N'CONFLITO'
+             ELSE N'RESOLVIDO'
+           END AS cf_status
+    FROM truth
+)
+SELECT CONCAT(
+    scenario,'|',COUNT_BIG(*),'|',
+    SUM(CASE WHEN cf_status=N'RESOLVIDO' AND melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN cf_status=N'RESOLVIDO' AND (melhor_candidato_uuid IS NULL OR melhor_candidato_uuid<>truth_uuid) THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN cf_status=N'CONFLITO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN cf_status=N'NAO_RESOLVIDO' THEN 1 ELSE 0 END))
+FROM cf
+GROUP BY scenario
+ORDER BY CASE scenario
+    WHEN N'EXACT' THEN 1
+    WHEN N'NAME_ABBREV' THEN 2
+    WHEN N'MOTHER_ABBREV' THEN 3
+    WHEN N'BIRTH_SHIFT' THEN 4
+    WHEN N'COMBINED' THEN 5
+    ELSE 6 END;
+"@)
+$counterfactualPositiveScenarios = @(
+    foreach ($line in $counterfactualPositiveScenarioLines) {
+        $parts = $line.Split('|')
+        [ordered]@{
+            scenario = $parts[0]
+            total = [int]$parts[1]
+            resolvedCorrect = [int]$parts[2]
+            resolvedWrong = [int]$parts[3]
+            conflicts = [int]$parts[4]
+            unresolved = [int]$parts[5]
+        }
+    }
+)
+
+$counterfactualNegativeScenarioLines = @(Get-SqlLines @"
+WITH n AS (
+    SELECT
+        CASE
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-EASY-%' THEN N'EASY'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-NAME_COLLISION-%' THEN N'NAME_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-MOTHER_COLLISION-%' THEN N'MOTHER_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%' THEN N'HARD_HOMONYM'
+            ELSE N'UNKNOWN'
+        END AS scenario,
+        r.*
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-%'
+), cf AS (
+    SELECT *,
+           CASE
+             WHEN score_melhor < $thresholdText THEN N'NAO_RESOLVIDO'
+             WHEN segundo_candidato_uuid IS NOT NULL AND (margem IS NULL OR margem < $conflictMarginText) THEN N'CONFLITO'
+             ELSE N'RESOLVIDO'
+           END AS cf_status
+    FROM n
+)
+SELECT CONCAT(
+    scenario,'|',COUNT_BIG(*),'|',
+    SUM(CASE WHEN cf_status=N'RESOLVIDO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN cf_status=N'CONFLITO' THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN cf_status=N'NAO_RESOLVIDO' THEN 1 ELSE 0 END))
+FROM cf
+GROUP BY scenario
+ORDER BY CASE scenario
+    WHEN N'EASY' THEN 1
+    WHEN N'NAME_COLLISION' THEN 2
+    WHEN N'MOTHER_COLLISION' THEN 3
+    WHEN N'HARD_HOMONYM' THEN 4
+    ELSE 5 END;
+"@)
+$counterfactualNegativeScenarios = @(
+    foreach ($line in $counterfactualNegativeScenarioLines) {
+        $parts = $line.Split('|')
+        [ordered]@{
+            scenario = $parts[0]
+            total = [int]$parts[1]
+            resolvedFalseMatches = [int]$parts[2]
+            conflicts = [int]$parts[3]
+            unresolved = [int]$parts[4]
+        }
+    }
+)
+
 
 $priorProbability = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='PRIOR_MATCH_PROBABILITY';")
 if ($null -eq $priorProbability) { throw 'PRIOR_MATCH_PROBABILITY ausente no modelo ativo.' }
@@ -644,6 +820,18 @@ $negativeFalseMatchRate = if ($negativeTotal -eq 0) { [decimal]0 } else { [decim
 $resolvedDecisionTotal = $positiveCorrect + $positiveWrong + $negativeResolved
 $syntheticResolvedPpv = if ($resolvedDecisionTotal -eq 0) { [decimal]0 } else { [decimal]$positiveCorrect / [decimal]$resolvedDecisionTotal }
 
+$cfPositiveTotal = [int]$cfPos[0]
+$cfPositiveCorrect = [int]$cfPos[1]
+$cfPositiveWrong = [int]$cfPos[2]
+$cfPositiveConflicts = [int]$cfPos[3]
+$cfPositiveUnresolved = [int]$cfPos[4]
+$cfNegativeTotal = [int]$cfNeg[0]
+$cfNegativeResolved = [int]$cfNeg[1]
+$cfNegativeConflicts = [int]$cfNeg[2]
+$cfNegativeUnresolved = [int]$cfNeg[3]
+$cfResolvedDecisionTotal = $cfPositiveCorrect + $cfPositiveWrong + $cfNegativeResolved
+$cfSyntheticResolvedPpv = if ($cfResolvedDecisionTotal -eq 0) { [decimal]0 } else { [decimal]$cfPositiveCorrect / [decimal]$cfResolvedDecisionTotal }
+
 $report = [ordered]@{
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
     purpose = 'DEV_SYNTHETIC_INDEPENDENT_VALIDATION_NO_HML_CLAIM'
@@ -704,6 +892,43 @@ $report = [ordered]@{
         minBestScore = (Parse-Decimal $conf[5])
         maxBestScore = (Parse-Decimal $conf[6])
     }
+    counterfactualNoDualThresholdGuard = [ordered]@{
+        purpose = 'READ_ONLY_POLICY_COUNTERFACTUAL'
+        changesPolicy = $false
+        dualThresholdGuardEnabledInModel = $dualThresholdGuardEnabled
+        retainedRules = @('T_LINKAGE','CONFLICT_MARGIN_LOG_ODDS')
+        removedRuleOnly = 'SCORING_DUAL_THRESHOLD_CONFLICT_V1'
+        threshold = $threshold
+        conflictMarginLogOdds = $conflictMarginLogOdds
+        positive = [ordered]@{
+            total = $cfPositiveTotal
+            resolvedCorrect = $cfPositiveCorrect
+            resolvedWrong = $cfPositiveWrong
+            conflicts = $cfPositiveConflicts
+            unresolved = $cfPositiveUnresolved
+            scenarios = $counterfactualPositiveScenarios
+        }
+        negative = [ordered]@{
+            total = $cfNegativeTotal
+            resolvedFalseMatches = $cfNegativeResolved
+            conflicts = $cfNegativeConflicts
+            unresolved = $cfNegativeUnresolved
+            scenarios = $counterfactualNegativeScenarios
+        }
+        combined = [ordered]@{
+            resolvedDecisions = $cfResolvedDecisionTotal
+            correctResolved = $cfPositiveCorrect
+            falseResolved = ($cfPositiveWrong + $cfNegativeResolved)
+            syntheticResolvedPpv = [decimal]::Round($cfSyntheticResolvedPpv,6)
+        }
+        deltaVsCurrent = [ordered]@{
+            correctResolved = ($cfPositiveCorrect - $positiveCorrect)
+            falseResolved = (($cfPositiveWrong + $cfNegativeResolved) - ($positiveWrong + $negativeResolved))
+            positiveConflicts = ($cfPositiveConflicts - [int](@($positiveScenarioBreakdown | Measure-Object -Property conflicts -Sum).Sum))
+            negativeConflicts = ($cfNegativeConflicts - $negativeConflicts)
+        }
+        interpretation = 'Contrafactual read-only: reaplica as decisões sobre ranking/score já persistidos, removendo somente o guard de dois candidatos acima de T. Não recalibra o modelo, não publica vínculos e não recomenda alterar a política.'
+    }
     thresholdFrontier = [ordered]@{
         actualWithinPlusMinus002 = [int]$frontier[0]
         actualMaxBelow = (Parse-Decimal $frontier[1])
@@ -756,6 +981,7 @@ if ($negativeFalseMatchDetails.Count -gt 0) {
 }
 Write-Host "Decisões resolvidas combinadas: corretas=$positiveCorrect falsas=$($positiveWrong+$negativeResolved) PPV_sintético=$([decimal]::Round(($syntheticResolvedPpv * [decimal]100),2))%"
 Write-Host "Conflito forçado: conflito=$conflictStatus/$conflictTotal margem_zero=$conflictMarginZero acima_threshold=$conflictAboveThreshold resolvidos_indevidos=$conflictResolved"
+Write-Host ("Contrafactual sem dual-threshold guard (mantém T={0} e margem_log_odds={1}): positivos_corretos={2}/{3} positivos_errados={4} positivos_conflitos={5} positivos_nao_resolvidos={6} negativos_falsos_vinculos={7}/{8} negativos_conflitos={9} negativos_nao_resolvidos={10} PPV_sintetico={11}%" -f $threshold,$conflictMarginLogOdds,$cfPositiveCorrect,$cfPositiveTotal,$cfPositiveWrong,$cfPositiveConflicts,$cfPositiveUnresolved,$cfNegativeResolved,$cfNegativeTotal,$cfNegativeConflicts,$cfNegativeUnresolved,[decimal]::Round(($cfSyntheticResolvedPpv * [decimal]100),2))
 Write-Host "Fronteira T=$threshold`: casos reais ±0,02=$($frontier[0]); max_abaixo=$($frontier[1]); min_acima=$($frontier[2])"
 Write-Host 'Estados teóricos mais próximos do threshold:'
 $theoretical | ForEach-Object { Write-Host "  $_" }
