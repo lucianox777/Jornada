@@ -23,6 +23,57 @@ public static class BlockingCandidatePriorEstimator
 {
     public const string MethodVersion = "CPF_LABELED_BLOCKING_CANDIDATE_PAIR_PRIOR_V1";
 
+    public static IReadOnlyDictionary<string, decimal> AppendDiagnostics(
+        IReadOnlyDictionary<string, decimal> parameters,
+        BlockingCandidatePriorEstimate estimate)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(estimate);
+
+        var result = new Dictionary<string, decimal>(parameters, StringComparer.Ordinal)
+        {
+            [LinkageParameterCatalog.CandidatePairPriorDiagnosticV1] = 1m,
+            ["DIAG_CANDIDATE_PRIOR_OBSERVATION_SAMPLE_SIZE"] = estimate.ObservationSampleSize,
+            ["DIAG_CANDIDATE_PRIOR_OBSERVATIONS_WITH_CANDIDATES"] = estimate.ObservationsWithCandidates,
+            ["DIAG_CANDIDATE_PRIOR_TRUTH_PAIRS"] = estimate.TruthCandidatePairs,
+            ["DIAG_CANDIDATE_PRIOR_FALSE_PAIRS"] = estimate.FalseCandidatePairs,
+            ["DIAG_CANDIDATE_PRIOR_TOTAL_PAIRS"] = estimate.TotalCandidatePairs,
+            ["DIAG_CANDIDATE_PRIOR_CANDIDATE_RECALL"] = estimate.CandidateRecall,
+            ["DIAG_CANDIDATE_PRIOR_BOTH_CLASSES_OBSERVED"] =
+                estimate.TruthCandidatePairs > 0 && estimate.FalseCandidatePairs > 0 ? 1m : 0m,
+            ["DIAG_CANDIDATE_PRIOR_ACTIVE_SCORE_CHANGED"] = 0m
+        };
+
+        if (estimate.ObservationSampleSize > 0)
+            result["DIAG_CANDIDATE_PRIOR_MEAN_CANDIDATES_PER_OBSERVATION"] =
+                decimal.Divide(estimate.TotalCandidatePairs, estimate.ObservationSampleSize);
+
+        if (estimate.MatchProbability is { } empirical)
+        {
+            result["DIAG_CANDIDATE_PRIOR_AVAILABLE"] = 1m;
+            result["DIAG_CANDIDATE_PRIOR_MATCH_PROBABILITY"] = empirical;
+
+            if (parameters.TryGetValue(LinkageParameterCatalog.PriorMatchProbability, out var active))
+            {
+                result["DIAG_CANDIDATE_PRIOR_ACTIVE_PRIOR_PROBABILITY"] = active;
+                result["DIAG_CANDIDATE_PRIOR_DELTA_LOG_ODDS_VS_ACTIVE"] =
+                    Convert.ToDecimal(Logit(empirical) - Logit(active), CultureInfo.InvariantCulture);
+            }
+        }
+        else
+        {
+            result["DIAG_CANDIDATE_PRIOR_AVAILABLE"] = 0m;
+        }
+
+        return result;
+    }
+
+    private static double Logit(decimal probability)
+    {
+        var p = Math.Clamp(Convert.ToDouble(probability, CultureInfo.InvariantCulture), 0.000000001d, 0.999999999d);
+        return Math.Log(p / (1d - p));
+    }
+
     public static async Task<BlockingCandidatePriorEstimate> EstimateAsync(
         SqlConnection connection,
         string normalizationVersion,
