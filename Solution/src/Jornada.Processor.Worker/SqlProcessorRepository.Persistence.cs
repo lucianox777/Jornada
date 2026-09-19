@@ -72,10 +72,10 @@ internal sealed partial class SqlProcessorRepository
             if (!string.Equals(deliveryObservation.ConteudoHash, person.ConteudoHash, StringComparison.Ordinal))
                 throw new InvalidDataException($"idPessoaEntrega {person.IdPessoaEntrega} já foi persistido neste lote com conteúdo diferente.");
 
-            await RecordProcessedItemAsync(
-                connection, tx, batch, "PESSOA", null, null, person.IdPessoaEntrega,
-                "RETRANSMITIDO", deliveryObservation.VersaoInterna, person.ConteudoHash, ct);
             var replayed = await LoadProcessedPersonAsync(connection, tx, deliveryObservation.ObservationId, ct);
+            await RecordProcessedItemAsync(
+                connection, tx, batch, "PESSOA", replayed.PessoaOrigemId, null, person.IdPessoaEntrega,
+                "RETRANSMITIDO", deliveryObservation.VersaoInterna, person.ConteudoHash, ct);
             if (replayed.PessoaUuid is Guid replayedUuid)
                 await RefreshGoldPersonAsync(connection, tx, replayedUuid, ct);
             return replayed;
