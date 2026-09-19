@@ -90,6 +90,22 @@ jobs:
           ' "$report" >/dev/null
           echo 'LINKAGE POLICY COUNTERFACTUAL EVIDENCE: OK'
 
+      - name: Validate dual-threshold margin frontier evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          report='.local/linkage-validation/validation-report.json'
+          jq -e '
+            .dualThresholdMarginFrontier.purpose == "READ_ONLY_MARGIN_POLICY_DIAGNOSTIC"
+            and .dualThresholdMarginFrontier.changesPolicy == false
+            and .dualThresholdMarginFrontier.eligibleRows > 0
+            and .dualThresholdMarginFrontier.positiveRows > 0
+            and .dualThresholdMarginFrontier.negativeRows > 0
+            and (.dualThresholdMarginFrontier.frontier | length) > 0
+            and .dualThresholdMarginFrontier.currentConflictMarginLogOdds == .counterfactualNoDualThresholdGuard.conflictMarginLogOdds
+          ' "$report" >/dev/null
+          echo 'LINKAGE DUAL-THRESHOLD MARGIN FRONTIER EVIDENCE: OK'
+
       - name: Preserve validation evidence
         if: always()
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
