@@ -99,9 +99,32 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
         var snapshot = await GetOrLoadRuntimeSnapshotAsync(modeloId, ct);
         var model = snapshot.Model;
+
+        if (snapshot.RuleSet is { } ruleSet)
+        {
+            if (BlockingRuleSetCandidatePlanner.Plan(ruleSet, observation).Count == 0)
+                return InsufficientEvidence(model.ModelId);
+        }
+        else if (observation.DataNascimento is null)
+        {
+            return InsufficientEvidence(model.ModelId);
+        }
+
         var candidates = await LoadCandidatesAsync(observation, snapshot, ct);
         return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
     }
+
+    private static ProbabilisticLinkageDecision InsufficientEvidence(Guid modelId) =>
+        new(
+            ResolutionStatus.NAO_RESOLVIDO,
+            null,
+            null,
+            0m,
+            null,
+            null,
+            null,
+            modelId,
+            "EVIDENCIA_INSUFICIENTE_PARA_BLOCKING");
 
     /// <summary>
     /// Reexecuta, somente em memória e sem publicação, o candidate generation e o ranking do Runner
@@ -277,8 +300,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
         string? cpf;
         string? cpfAbsentReason;
-        string name;
-        DateOnly birthDate;
+        string? name;
+        DateOnly? birthDate;
         string? motherName;
         await using (var reader = await command.ExecuteReaderAsync(ct))
         {
@@ -286,8 +309,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
                 throw new InvalidOperationException($"Observação {observationId} não encontrada.");
             cpf = reader.IsDBNull(0) ? null : reader.GetString(0);
             cpfAbsentReason = reader.IsDBNull(1) ? null : reader.GetString(1);
-            name = reader.GetString(2);
-            birthDate = DateOnly.FromDateTime(reader.GetDateTime(3));
+            name = reader.IsDBNull(2) ? null : reader.GetString(2);
+            birthDate = reader.IsDBNull(3) ? null : DateOnly.FromDateTime(reader.GetDateTime(3));
             motherName = reader.IsDBNull(4) ? null : reader.GetString(4);
         }
 
@@ -413,6 +436,9 @@ public sealed class SqlProbabilisticIdentityLinkage(
                 ct);
         }
 
+        if (observation.DataNascimento is null)
+            return Array.Empty<LinkageCandidate>();
+
         return await LoadLegacyCandidatesAsync(
             connection,
             observation,
@@ -430,7 +456,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
         int commandTimeoutSeconds,
         CancellationToken ct)
     {
-        var birthDate = observation.DataNascimento;
+        var birthDate = observation.DataNascimento
+            ?? throw new InvalidOperationException("Blocking legado exige data de nascimento observada.");
         await using var command = new SqlCommand
         {
             Connection = connection,
@@ -516,9 +543,11 @@ public sealed class SqlProbabilisticIdentityLinkage(
             WITH candidate AS (
                 {string.Join("\nUNION\n", unionParts)}
             )
-            SELECT TOP (@max_plus_one) pessoa_uuid, nome_completo, data_nascimento, nome_mae
-            FROM candidate
-            ORDER BY pessoa_uuid;
+            SELECT TOP (@max_plus_one) c.pessoa_uuid,c.nome_completo,c.data_nascimento,c.nome_mae
+            FROM candidate c
+            JOIN gold.pessoa g ON g.pessoa_uuid=c.pessoa_uuid
+            WHERE g.estado_identidade='REFERENCIA'
+            ORDER BY c.pessoa_uuid;
             """;
 
         var result = new List<LinkageCandidate>();
@@ -527,8 +556,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
         {
             result.Add(new LinkageCandidate(
                 reader.GetGuid(0),
-                reader.GetString(1),
-                DateOnly.FromDateTime(reader.GetDateTime(2)),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                reader.IsDBNull(2) ? null : DateOnly.FromDateTime(reader.GetDateTime(2)),
                 reader.IsDBNull(3) ? null : reader.GetString(3)));
             if (result.Count > maxCandidates)
                 throw new InvalidOperationException(
