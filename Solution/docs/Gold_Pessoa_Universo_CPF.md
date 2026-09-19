@@ -299,7 +299,7 @@ O BI deve expor um indicador separado de **origens** sem CPF, sem chamá-las de 
 
 **RN-CT-04 — Estabilidade do código de origem.** `codigoPessoaOrigem` identifica a pessoa no sistema da fonte e deve permanecer o mesmo durante toda a vida do cadastro, inclusive quando a pessoa for identificada depois. A identificação posterior de uma pessoa atendida sem nome ou sem CPF é enviada como **nova versão da mesma origem**, com o mesmo `codigoPessoaOrigem`, e nunca como cadastro novo.
 
-*Justificativa:* a Jornada não liga registros sem CPF entre si. Se a fonte criar um cadastro novo ao identificar a pessoa, o registro emergencial fica órfão, sem CPF, para sempre.
+*Justificativa:* o código estável é o único vínculo determinístico intra-namespace antes do CPF. Entre namespaces, duas origens ainda não ancoradas não são unidas automaticamente pela regra candidata de D11; uma origem sem CPF pode, porém, ser ligada probabilisticamente a uma âncora CPF existente. Se a própria fonte criar um cadastro novo ao identificar a pessoa, perde-se a continuidade determinística do atendimento emergencial.
 
 **RN-CT-05 — Código de origem obrigatório.** `codigoPessoaOrigem` é obrigatório na v5, e a derivação a partir do CPF deixa de existir para novas entregas. Derivar do CPF amarra a origem a um dado que pode chegar depois ou ser corrigido, e cada mudança criaria uma origem nova.
 
