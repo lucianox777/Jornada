@@ -34,11 +34,13 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
         Assert.Multiple(() =>
         {
             Assert.That(migration, Does.Contain("@run_avaliados<>@run_elegiveis"));
+            Assert.That(migration, Does.Contain("@run_itens<>@run_elegiveis"));
             Assert.That(migration, Does.Contain("@raw_motivo NOT LIKE N'SEM_CANDIDATO_%'"));
-            Assert.That(migration, Does.Contain("@target<>@initial"));
-            Assert.That(migration, Does.Contain("ASSOCIACAO_EXISTENTE exige referência canônica previamente estabelecida"));
-            Assert.That(migration, Does.Contain("resultado_publicacao IN('NOVA_IDENTIDADE','ASSOCIACAO_EXISTENTE','INDEFINIDA')"));
-            Assert.That(migration, Does.Contain("COALESCE(r.pessoa_uuid_publicado,r.pessoa_uuid_resolvido)"));
+            Assert.That(migration, Does.Contain("@canonical_uuid<>@initial"));
+            Assert.That(migration, Does.Contain("Destino probabilístico não é referência canônica estabelecida"));
+            Assert.That(migration, Does.Contain("Vínculo determinístico/governado tem precedência"));
+            Assert.That(migration, Does.Contain("resultado_publicacao IN(N'ASSOCIACAO_EXISTENTE',N'NOVA_IDENTIDADE',N'INDEFINIDA')"));
+            Assert.That(migration, Does.Contain("r.pessoa_uuid_publicado AS pessoa_uuid_resolvido"));
             Assert.That(migration, Does.Not.Contain("score_melhor=initial_uuid").IgnoreCase);
             Assert.That(migration, Does.Not.Contain("score_segundo=initial_uuid").IgnoreCase);
         });
