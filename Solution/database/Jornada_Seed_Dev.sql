@@ -544,9 +544,14 @@ CLOSE c; DEALLOCATE c;
 
 -- Observabilidade de processamento v3.26: cada item recebido tem resultado consultável sem criar versão extra na Silver.
 INSERT ingestao.item_processado(lote_id,classe_item,pessoa_origem_id,registro_origem_id,codigo_origem,resultado,versao_interna,conteudo_hash,data_referencia,processado_em)
-SELECT po.lote_id,'PESSOA',po.pessoa_origem_id,NULL,po.codigo_pessoa_origem,'INCLUIDO',po.versao_interna,po.conteudo_hash,po.source_as_of,COALESCE(l.atualizado_em,SYSDATETIMEOFFSET())
+SELECT po.lote_id,'PESSOA',po.pessoa_origem_id,NULL,COALESCE(po.id_pessoa_entrega,po.codigo_pessoa_origem),'INCLUIDO',po.versao_interna,po.conteudo_hash,po.source_as_of,COALESCE(l.atualizado_em,SYSDATETIMEOFFSET())
 FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id
-WHERE NOT EXISTS(SELECT 1 FROM ingestao.item_processado ip WHERE ip.lote_id=po.lote_id AND ip.classe_item='PESSOA' AND ip.codigo_origem=po.codigo_pessoa_origem);
+WHERE COALESCE(po.id_pessoa_entrega,po.codigo_pessoa_origem) IS NOT NULL
+  AND NOT EXISTS(
+      SELECT 1 FROM ingestao.item_processado ip
+      WHERE ip.lote_id=po.lote_id
+        AND ip.classe_item='PESSOA'
+        AND ip.codigo_origem=COALESCE(po.id_pessoa_entrega,po.codigo_pessoa_origem));
 
 INSERT ingestao.item_processado(lote_id,classe_item,pessoa_origem_id,registro_origem_id,codigo_origem,resultado,versao_interna,conteudo_hash,data_referencia,processado_em)
 SELECT ro.lote_id,'REGISTRO',NULL,ro.registro_origem_id,ro.codigo_registro_origem,
