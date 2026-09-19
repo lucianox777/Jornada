@@ -131,6 +131,56 @@ ALTER TABLE identidade.linkage_resultado WITH CHECK
 GO
 
 /*
+ A evidência bruta do scorer é imutável. O envelope operacional pode ser finalizado
+ apenas dentro da transação curta de publicação, enquanto o cabeçalho ainda está EXECUTANDO.
+ Depois de PUBLICADO nem o envelope pode ser reescrito. DELETE nunca é permitido.
+*/
+CREATE OR ALTER TRIGGER identidade.tr_linkage_resultado_publicacao_imutavel
+ON identidade.linkage_resultado
+AFTER UPDATE
+AS
+BEGIN
+ SET NOCOUNT ON;
+
+ IF EXISTS(
+   SELECT 1
+   FROM inserted i
+   JOIN deleted d ON d.linkage_resultado_id=i.linkage_resultado_id
+   WHERE i.linkage_run_id<>d.linkage_run_id
+      OR i.modelo_id<>d.modelo_id
+      OR i.modelo_versao<>d.modelo_versao
+      OR i.pessoa_observacao_id<>d.pessoa_observacao_id
+      OR ISNULL(CONVERT(NVARCHAR(36),i.pessoa_uuid_resolvido),N'')<>ISNULL(CONVERT(NVARCHAR(36),d.pessoa_uuid_resolvido),N'')
+      OR ISNULL(CONVERT(NVARCHAR(36),i.melhor_candidato_uuid),N'')<>ISNULL(CONVERT(NVARCHAR(36),d.melhor_candidato_uuid),N'')
+      OR i.score_melhor<>d.score_melhor
+      OR ISNULL(CONVERT(NVARCHAR(36),i.segundo_candidato_uuid),N'')<>ISNULL(CONVERT(NVARCHAR(36),d.segundo_candidato_uuid),N'')
+      OR ISNULL(i.score_segundo,CONVERT(DECIMAL(9,8),-1))<>ISNULL(d.score_segundo,CONVERT(DECIMAL(9,8),-1))
+      OR ISNULL(i.margem,CONVERT(DECIMAL(18,8),-1))<>ISNULL(d.margem,CONVERT(DECIMAL(18,8),-1))
+      OR i.status<>d.status
+      OR ISNULL(i.motivo,N'')<>ISNULL(d.motivo,N'')
+      OR i.calculado_em<>d.calculado_em)
+   THROW 51822,'Evidência bruta de linkage_resultado é imutável.',1;
+
+ IF EXISTS(
+   SELECT 1
+   FROM inserted i
+   JOIN identidade.linkage_run lr ON lr.linkage_run_id=i.linkage_run_id
+   WHERE lr.status<>N'EXECUTANDO')
+   THROW 51823,'Envelope de publicação só pode ser finalizado enquanto o run está EXECUTANDO.',1;
+END;
+GO
+
+CREATE OR ALTER TRIGGER identidade.tr_linkage_resultado_bloqueia_delete
+ON identidade.linkage_resultado
+INSTEAD OF DELETE
+AS
+BEGIN
+ SET NOCOUNT ON;
+ THROW 51824,'linkage_resultado é histórico e não admite DELETE.',1;
+END;
+GO
+
+/*
  Aplica UMA decisão já derivada para uma origem persistente. O procedimento relê o
  próprio linkage_resultado, não recebe score/target do chamador e exige a transação
  serializável de publicação do linkage_run.
