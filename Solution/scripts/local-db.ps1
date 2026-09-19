@@ -1,7 +1,8 @@
 ﻿param(
     [ValidateSet('up','reset','down','clean','status','backfill')]
     [string]$Action = 'up',
-    [switch]$NoSyntheticCorpus
+    [switch]$NoSyntheticCorpus,
+    [string]$DatabaseName
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -96,9 +97,17 @@ Get-Content $EnvFile | ForEach-Object {
 }
 $password = $vars['JORNADA_SQL_SA_PASSWORD']
 $port = if ($vars['JORNADA_SQL_PORT']) { $vars['JORNADA_SQL_PORT'] } else { '14333' }
-$db = if ($vars['JORNADA_SQL_DATABASE']) { $vars['JORNADA_SQL_DATABASE'] } else { 'JornadaLocal' }
+$db = if (-not [string]::IsNullOrWhiteSpace($DatabaseName)) {
+    $DatabaseName
+}
+elseif ($vars['JORNADA_SQL_DATABASE']) {
+    $vars['JORNADA_SQL_DATABASE']
+}
+else {
+    'JornadaLocal'
+}
 if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD não definido.' }
-if ($db -notmatch '^[A-Za-z0-9_]+$') { throw 'JORNADA_SQL_DATABASE inválido.' }
+if ($db -notmatch '^[A-Za-z0-9_]+$') { throw 'Nome de banco local inválido.' }
 
 function Invoke-Compose {
     param([Parameter(Mandatory=$true)][string[]]$ComposeArgs)

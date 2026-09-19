@@ -2,8 +2,6 @@
 param(
     [ValidateSet('standard', 'full')]
     [string]$Suite = 'full',
-    [switch]$FromZero,
-    [switch]$AllowDestructiveReset,
     [switch]$IsolatedExecution
 )
 
@@ -26,17 +24,6 @@ $Results = [System.Collections.Generic.List[object]]::new()
 $OverallStatus = 'FAILED'
 $FailureMessage = $null
 $testedSha = $null
-
-if ($FromZero -and -not $AllowDestructiveReset) {
-    Write-Host ''
-    Write-Warning 'FROM ZERO NAO EXECUTADO: este modo reseta/reconstroi o banco e a referencia IBGE.'
-    Write-Host 'Use o wrapper explicito:'
-    Write-Host '# .\scripts\local-test-from-zero.ps1'
-    throw 'Reconstrucao from-zero nao autorizada.'
-}
-if (-not $FromZero -and $AllowDestructiveReset) {
-    throw '-AllowDestructiveReset so e valido junto com -FromZero. O modo padrao preserva a referencia IBGE.'
-}
 
 function Format-CommandArgument {
     param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Value)
@@ -105,7 +92,7 @@ function Invoke-PowerShellScript {
 }
 
 function Invoke-ClusterAction {
-    param([Parameter(Mandatory = $true)][ValidateSet('clean','up','calibrate','linkage','linkage-diagnose')][string]$Action)
+    param([Parameter(Mandatory = $true)][ValidateSet('up','calibrate','linkage','linkage-diagnose')][string]$Action)
     Invoke-PowerShellScript 'local-cluster.ps1' @('-Action', $Action)
 }
 
@@ -217,7 +204,7 @@ function Invoke-LinkageEvaluationSmoke {
             $env:ConnectionStrings__Jornada = "Server=localhost,$port;Database=$db;User Id=sa;Password=$password;TrustServerCertificate=true;Encrypt=false"
             $env:JORNADA_EVALUATION_SQL_PASSWORD = $password
             $env:JORNADA_EVALUATION_DATABASE = $db
-            # A auditoria roda contra o corpus canônico assegurado por local-db up:
+            # local-db up assegura o corpus SCALE canônico sem resetar a referência:
             # 5000 Pessoas SCALE Gold + 5000 pares corroborados + 1000 pendentes.
             $env:JORNADA_EVALUATION_SCALE_PEOPLE = '5000'
             $env:JORNADA_EVALUATION_SCALE_SEED = '355'
@@ -249,7 +236,7 @@ foreach ($command in @('git', 'docker', 'dotnet')) {
 # cria um worktree destacado e executa a mesma suíte nesse checkout descartável.
 if (-not $IsolatedExecution) {
     $sharedEnvFile = Join-Path $Root '.env'
-    if (-not $FromZero -and -not (Test-Path -LiteralPath $sharedEnvFile -PathType Leaf)) {
+    if (-not (Test-Path -LiteralPath $sharedEnvFile -PathType Leaf)) {
         throw "Modo PRESERVE_IBGE exige o .env do checkout principal: $sharedEnvFile"
     }
     $worktreePath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-local-test-all-{0}" -f [Guid]::NewGuid().ToString('N'))
@@ -267,11 +254,10 @@ if (-not $IsolatedExecution) {
 
         Write-Host "Criando worktree isolado para $testedSha..."
         Invoke-Git @('worktree','add','--detach',$worktreePath,$testedSha)
+
+        # O .env permanece no checkout principal; o child recebe o caminho via JORNADA_LOCAL_ENV_FILE.
         $isolatedScript = Join-Path $worktreePath 'Solution/scripts/local-test-all.ps1'
         $childArgs = @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$isolatedScript,'-Suite',$Suite)
-        if ($FromZero) {
-            $childArgs += @('-FromZero','-AllowDestructiveReset')
-        }
         $childArgs += '-IsolatedExecution'
         Write-CommandLine $CurrentPowerShell $childArgs
 
@@ -307,6 +293,19 @@ if (-not $IsolatedExecution) {
         }
         Write-CommandLine 'git' @('worktree','prune')
         & git worktree prune
+
+        # O cluster isolado pode recriar SQL/nos com bind-mounts do worktree temporario.
+        # Reaplica a composicao do checkout do desenvolvedor antes de sair, preservando
+        # volumes, banco e referencia IBGE; -NoBuild evita recompilacao desnecessaria.
+        try {
+            Write-Host 'Restaurando composicao do checkout do desenvolvedor sem reset/clean...'
+            & (Join-Path $PSScriptRoot 'local-cluster.ps1') -Action up -NoBuild
+        }
+        catch {
+            Write-Warning ("Nao foi possivel restaurar automaticamente a composicao local: " + $_.Exception.Message)
+            if ($exitCode -eq 0) { $exitCode = 1 }
+        }
+
         Pop-Location
     }
 
@@ -329,124 +328,45 @@ try {
     Write-Host "Suite:  $Suite"
     Write-Host 'Branch: detached worktree de origin/master'
     Write-Host "SHA:    $testedSha"
-    Write-Host ("Modo:   " + $(if ($FromZero) { 'FROM_ZERO_DESTRUTIVO' } else { 'PRESERVE_IBGE' }))
-    Write-Host "Env:    $EnvFile"
+    Write-Host 'Referencia IBGE do banco compartilhado: PRESERVADA.'
+    Write-Host 'A suite normal nao executa reset/clean do JornadaLocal; E2E usa banco isolado JornadaE2E.'
+    Write-Host 'Instalacao limpa/scale destrutivo: use .\scripts\local-test-from-zero.ps1 -AllowDestructiveReset.'
     Write-Host 'Pré-HML: o upgrade de baselines históricos não é executado por padrão. Para diagnóstico manual: .\scripts\local-ddl-upgrade.ps1.'
 
-    if (-not $FromZero) {
-        Write-Host 'Referencia IBGE: PRESERVADA. Nenhum reset/clean/E2E/scale destrutivo sera executado.'
-
-        Invoke-Step 'IBGE: quick check read-only da referencia existente' {
-            Invoke-PowerShellScript 'local-check-ibge-reference.ps1' @()
-        }
-
-        Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
-            Invoke-PowerShellScript 'local-test.ps1'
-        }
-
-        Invoke-Step 'Fault injection do gate serial' {
-            Invoke-PowerShellScript 'local-fault-injection.ps1'
-        }
-
-        $clusterStarted = $false
-        try {
-            Invoke-Step 'Cluster preservado: up + calibrate + linkage + diagnose' {
-                Invoke-ClusterAction 'up'
-                $clusterStarted = $true
-                Invoke-ClusterAction 'calibrate'
-                Invoke-ClusterAction 'linkage'
-                Invoke-ClusterAction 'linkage-diagnose'
-            }
-
-            if ($Suite -eq 'full') {
-                Invoke-Step 'Auditoria read-only de candidate recall/rank' {
-                    Invoke-LinkageEvaluationSmoke
-                }
-                $Results.Add([ordered]@{ name = 'E2E/Scale from-zero'; status = 'SKIPPED_PRESERVE_IBGE'; seconds = 0.0 })
-            }
-        }
-        finally {
-            if ($clusterStarted) {
-                Invoke-Step 'Encerrar cluster preservando volumes' {
-                    Invoke-PowerShellScript 'local-cluster.ps1' @('-Action', 'down')
-                }
-            }
-        }
-
-        $OverallStatus = 'OK'
+    Invoke-Step 'Referencia IBGE existente: quick check read-only' {
+        Invoke-PowerShellScript 'local-check-ibge-reference.ps1'
     }
-    else {
-        Write-Host 'Reset destrutivo explicitamente autorizado: SIM.'
-        Write-Host 'FROM_ZERO recria banco/volumes e prova a materializacao canonica completa.'
 
-        Invoke-Step 'Banco local canônico: reset determinístico' {
-            Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')
-        }
+    Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
+        Invoke-PowerShellScript 'local-test.ps1'
+    }
 
-        Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
-            Invoke-PowerShellScript 'local-test.ps1'
-        }
+    Invoke-Step 'E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP (banco isolado)' {
+        Invoke-PowerShellScript 'local-e2e.ps1'
+    }
 
-        Invoke-Step 'E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP' {
-            Invoke-PowerShellScript 'local-e2e.ps1'
-        }
+    Invoke-Step 'Fault injection do gate serial' {
+        Invoke-PowerShellScript 'local-fault-injection.ps1'
+    }
 
-        Invoke-Step 'Fault injection do gate serial' {
-            Invoke-PowerShellScript 'local-fault-injection.ps1'
-        }
+    Invoke-Step 'Cluster preservado: up + calibrate + linkage + diagnose' {
+        Invoke-ClusterAction 'up'
+        Invoke-ClusterAction 'calibrate'
+        Invoke-ClusterAction 'linkage'
+        Invoke-ClusterAction 'linkage-diagnose'
+    }
 
-        Invoke-Step 'Cluster limpo: rebuild + calibrate + linkage + diagnose' {
-            Invoke-ClusterAction 'clean'
-            Invoke-ClusterAction 'up'
-            Write-Host 'Nota: banco novo materializa 5.603.287 linhas da referencia IBGE.' -ForegroundColor DarkYellow
-            Invoke-ClusterAction 'calibrate'
-            Invoke-ClusterAction 'linkage'
-            Invoke-ClusterAction 'linkage-diagnose'
-        }
-
-        if ($Suite -eq 'full') {
-        # A auditoria precisa observar o corpus canônico e o modelo calibrado no cluster,
-        # não a massa especial do scale harness. Ela também roda antes de qualquer clean.
+    if ($Suite -eq 'full') {
         Invoke-Step 'Auditoria read-only de candidate recall/rank' {
             Invoke-LinkageEvaluationSmoke
         }
-
-        Invoke-Step 'Encerrar cluster antes do harness de escala' {
-            Invoke-ClusterAction 'clean'
-        }
-
-        Invoke-Step 'Scale harness smoke + restauração do banco canônico' {
-            $scaleFailure = $null
-            $restoreFailure = $null
-            try {
-                Invoke-PowerShellScript 'local-scale.ps1' @('-Profile', 'smoke')
-            }
-            catch {
-                $scaleFailure = $_.Exception
-            }
-
-            try {
-                # local-scale usa deliberadamente uma massa diferente. A suíte full é dona
-                # do ambiente compartilhado e deve devolvê-lo sempre ao perfil canônico.
-                Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')
-                # O reset recria schema/corpus, mas nao materializa os 5,6 milhoes de registros IBGE.
-                # A suite full deve devolver o ambiente compartilhado completamente canonico.
-                Invoke-PowerShellScript 'local-load-ibge-reference.ps1' @('-AllowLoad', '-NoBuild')
-            }
-            catch {
-                $restoreFailure = $_.Exception
-            }
-
-            if ($null -ne $scaleFailure -and $null -ne $restoreFailure) {
-                throw "Scale harness falhou: $($scaleFailure.Message) Falha adicional ao restaurar o banco canônico: $($restoreFailure.Message)"
-            }
-            if ($null -ne $scaleFailure) { throw $scaleFailure }
-            if ($null -ne $restoreFailure) { throw $restoreFailure }
-        }
     }
 
-        $OverallStatus = 'OK'
+    Invoke-Step 'Referencia IBGE final: continua integra e ATIVA' {
+        Invoke-PowerShellScript 'local-check-ibge-reference.ps1' @('-NoStart')
     }
+
+    $OverallStatus = 'OK'
 }
 catch {
     $FailureMessage = $_.Exception.Message
@@ -462,10 +382,8 @@ finally {
         gitCommitSha = $testedSha
         executionMode = 'isolated-worktree'
         historicalUpgradeDefault = $false
-        mode = $(if ($FromZero) { 'FROM_ZERO_DESTRUCTIVE' } else { 'PRESERVE_IBGE' })
-        destructiveResetExplicitlyAllowed = [bool]($FromZero -and $AllowDestructiveReset)
-        ibgeReferencePreservedByDefault = [bool](-not $FromZero)
-        sharedEnvFile = $EnvFile
+        destructiveReset = $false
+        ibgeReferencePreserved = $true
         generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         failure = $FailureMessage
         steps = @($Results)
