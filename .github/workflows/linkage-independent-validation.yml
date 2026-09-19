@@ -16,6 +16,7 @@ on:
       - 'Solution/src/Jornada.Processor.Worker/**'
       - 'Solution/src/Jornada.Contracts/PersonResolutionContractCatalog.cs'
       - 'Solution/src/Jornada.Contracts/LinkageParameterCatalog.cs'
+      - 'Solution/src/Jornada.Contracts/IdentityComparison.cs'
       - 'Solution/database/migrations/20260913_Pessoa_Identificadores_Multiplos.sql'
       - 'Solution/config/catalog/atributos-transversais.json'
       - '.github/workflows/linkage-independent-validation.yml'
@@ -108,6 +109,12 @@ jobs:
               (.combinedDecisionQuality.resolvedDecisions > 0 and .combinedDecisionQuality.syntheticResolvedPpv != null)
             )
             and (.nominalOrderRestriction.zeroMatchedSupportStates | type=="array")
+            and .abbreviationCompatibilityDiagnostic.purpose == "DEV_READ_ONLY_ABBREVIATION_COMPATIBILITY_DIAGNOSTIC"
+            and .abbreviationCompatibilityDiagnostic.proposedDiagnostic.version == "PTBR_POSITIONAL_INITIAL_COMPATIBLE_V1"
+            and .abbreviationCompatibilityDiagnostic.proposedDiagnostic.changesPolicy == false
+            and .abbreviationCompatibilityDiagnostic.proposedDiagnostic.changesScoring == false
+            and .abbreviationCompatibilityDiagnostic.positiveNameAbbrev.total == 8
+            and .abbreviationCompatibilityDiagnostic.negativeMotherCollision.total == 10
           ' "$report" >/dev/null
           echo 'LINKAGE SAFETY/REPORT SEMANTICS: OK'
 
@@ -279,6 +286,7 @@ jobs:
           name: linkage-independent-validation
           path: |
             Solution/.local/linkage-validation/blocking-pass-audit.json
+            Solution/.local/linkage-validation/abbreviation-compatibility-audit.json
             Solution/.local/linkage-validation/validation-report.json
             Solution/.local/linkage-evidence-readiness/evidence-readiness.json
             Solution/.local/linkage-validation/run-provenance.json
