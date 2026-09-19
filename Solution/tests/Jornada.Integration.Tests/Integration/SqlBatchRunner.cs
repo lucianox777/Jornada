@@ -7,6 +7,34 @@ internal static class SqlBatchRunner
 {
     private static readonly Regex GoLine = new(@"^\s*GO\s*(?:--.*)?$", RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+    public static async Task ExecuteCanonicalSchemaAsync(
+        SqlConnection connection,
+        string databaseDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        var baseline = Path.Combine(databaseDirectory, "Jornada_Fase1.sql");
+        var manifest = Path.Combine(databaseDirectory, "migrations", "manifest.txt");
+        if (!File.Exists(baseline) || !File.Exists(manifest))
+            throw new FileNotFoundException("Schema canônico 3.70 incompleto no output de Integration.");
+
+        await ExecuteScriptAsync(connection, baseline, cancellationToken);
+
+        foreach (var raw in await File.ReadAllLinesAsync(manifest, cancellationToken))
+        {
+            var entry = raw.Split('#', 2)[0].Trim();
+            if (string.IsNullOrWhiteSpace(entry))
+                continue;
+
+            var relative = entry.Replace('/', Path.DirectorySeparatorChar);
+            var migration = Path.Combine(databaseDirectory, relative);
+            if (!File.Exists(migration))
+                throw new FileNotFoundException($"Entrada do manifesto de schema ausente: {entry}", migration);
+            await ExecuteScriptAsync(connection, migration, cancellationToken);
+        }
+
+        await ResetSessionAsync(connection, cancellationToken);
+    }
+
     public static async Task ExecuteFileAsync(SqlConnection connection, string path, CancellationToken cancellationToken = default)
     {
         await ExecuteScriptAsync(connection, path, cancellationToken);
@@ -27,6 +55,11 @@ internal static class SqlBatchRunner
         // Os scripts de bootstrap usam NOCOUNT/XACT_ABORT para execução fail-closed.
         // Essas opções são de sessão e não devem vazar para a lógica dos testes que reutiliza a conexão:
         // NOCOUNT ON altera ExecuteNonQuery para -1 e XACT_ABORT ON invalida transações de cenários negativos.
+        await ResetSessionAsync(connection, cancellationToken);
+    }
+
+    private static async Task ResetSessionAsync(SqlConnection connection, CancellationToken cancellationToken)
+    {
         using var resetSession = connection.CreateCommand();
         resetSession.CommandText = "SET NOCOUNT OFF; SET XACT_ABORT OFF;";
         await resetSession.ExecuteNonQueryAsync(cancellationToken);
