@@ -1106,7 +1106,7 @@ $report = [ordered]@{
         deltaVsCurrent = [ordered]@{
             correctResolved = ($cfPositiveCorrect - $positiveCorrect)
             falseResolved = (($cfPositiveWrong + $cfNegativeResolved) - ($positiveWrong + $negativeResolved))
-            positiveConflicts = ($cfPositiveConflicts - [int](@($positiveScenarioBreakdown | Measure-Object -Property conflicts -Sum).Sum))
+            positiveConflicts = ($cfPositiveConflicts - [int](($positiveScenarioBreakdown | ForEach-Object { [int]$_['conflicts'] } | Measure-Object -Sum).Sum))
             negativeConflicts = ($cfNegativeConflicts - $negativeConflicts)
         }
         interpretation = 'Contrafactual read-only: reaplica as decisões sobre ranking/score já persistidos, removendo somente o guard de dois candidatos acima de T. Não recalibra o modelo, não publica vínculos e não recomenda alterar a política.'
