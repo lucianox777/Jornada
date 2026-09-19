@@ -48,6 +48,7 @@ internal static class BlockingProjectionCandidateLoader
                    g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
               FROM candidate_uuid c
               JOIN gold.pessoa g ON g.pessoa_uuid=c.pessoa_uuid
+             WHERE g.estado_identidade='REFERENCIA'
              ORDER BY g.pessoa_uuid;
             """;
 
@@ -57,7 +58,7 @@ internal static class BlockingProjectionCandidateLoader
         {
             result.Add(new LinkageCandidate(
                 reader.GetGuid(0),
-                reader.GetString(1),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
                 ReadDateOnly(reader, 2),
                 reader.IsDBNull(3) ? null : reader.GetString(3)));
 
@@ -72,8 +73,11 @@ internal static class BlockingProjectionCandidateLoader
         return result;
     }
 
-    private static DateOnly ReadDateOnly(DbDataReader reader, int ordinal)
+    private static DateOnly? ReadDateOnly(DbDataReader reader, int ordinal)
     {
+        if (reader.IsDBNull(ordinal))
+            return null;
+
         var value = reader.GetValue(ordinal);
         return value switch
         {
