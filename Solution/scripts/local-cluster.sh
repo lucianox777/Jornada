@@ -143,6 +143,43 @@ diagnose_linkage() {
   echo 'Qualidade contra ground truth sintético SCALE (verdade derivada do vínculo CPF da observação SEHAB correspondente):'
   sql_report "WITH truth AS (SELECT r.*,po.codigo_pessoa_origem,tv.pessoa_uuid AS truth_uuid FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id JOIN silver.pessoa_observacao tpo ON tpo.codigo_pessoa_origem=REPLACE(po.codigo_pessoa_origem,'SCALE-PEND-','SCALE-SEHAB-') JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo='SEHAB' JOIN identidade.v_vinculo_corrente tv ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id AND tv.status='RESOLVIDO' WHERE r.linkage_run_id='$run_id' AND po.codigo_pessoa_origem LIKE 'SCALE-PEND-%') SELECT COUNT_BIG(*) AS total_scale,SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END) AS resolvidos,SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END) AS resolvidos_corretos,SUM(CASE WHEN status='RESOLVIDO' AND (pessoa_uuid_resolvido IS NULL OR pessoa_uuid_resolvido<>truth_uuid) THEN 1 ELSE 0 END) AS falsos_positivos,SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END) AS conflitos,SUM(CASE WHEN status='CONFLITO' AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS conflitos_verdade_top2,SUM(CASE WHEN status='NAO_RESOLVIDO' THEN 1 ELSE 0 END) AS nao_resolvidos,SUM(CASE WHEN status='NAO_RESOLVIDO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END) AS nao_resolvidos_verdade_primeiro_sem_empate,SUM(CASE WHEN status='NAO_RESOLVIDO' AND segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001 AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS nao_resolvidos_verdade_empate_top2,SUM(CASE WHEN status='NAO_RESOLVIDO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND segundo_candidato_uuid=truth_uuid AND (melhor_candidato_uuid IS NULL OR melhor_candidato_uuid<>truth_uuid) THEN 1 ELSE 0 END) AS nao_resolvidos_verdade_segundo_sem_empate,SUM(CASE WHEN status='NAO_RESOLVIDO' AND ISNULL(melhor_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid AND ISNULL(segundo_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid THEN 1 ELSE 0 END) AS nao_resolvidos_verdade_fora_top2,SUM(CASE WHEN status='NAO_RESOLVIDO' AND segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001 THEN 1 ELSE 0 END) AS nao_resolvidos_empate_top2,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END),0) AS decimal(9,4)) AS ppv_sintetico_pct,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(COUNT_BIG(*),0) AS decimal(9,4)) AS sensibilidade_sintetica_pct FROM truth;"
   echo
+  echo 'Diagnóstico dos conflitos: posição da verdade, saturação e coortes sintéticas:'
+  sql_report "WITH truth AS (
+  SELECT r.*,po.codigo_pessoa_origem,
+         TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10)) AS scale_n,
+         tv.pessoa_uuid AS truth_uuid
+  FROM identidade.linkage_resultado r
+  JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+  JOIN silver.pessoa_observacao tpo ON tpo.codigo_pessoa_origem=REPLACE(po.codigo_pessoa_origem,'SCALE-PEND-','SCALE-SEHAB-')
+  JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo='SEHAB'
+  JOIN identidade.v_vinculo_corrente tv ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id AND tv.status='RESOLVIDO'
+  WHERE r.linkage_run_id='$run_id' AND po.codigo_pessoa_origem LIKE 'SCALE-PEND-%'
+)
+SELECT
+  SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END) AS conflitos,
+  SUM(CASE WHEN status='CONFLITO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END) AS verdade_primeiro_sem_empate,
+  SUM(CASE WHEN status='CONFLITO' AND segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001 AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS verdade_empate_top2,
+  SUM(CASE WHEN status='CONFLITO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND segundo_candidato_uuid=truth_uuid AND (melhor_candidato_uuid IS NULL OR melhor_candidato_uuid<>truth_uuid) THEN 1 ELSE 0 END) AS verdade_segundo_sem_empate,
+  SUM(CASE WHEN status='CONFLITO' AND ISNULL(melhor_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid AND ISNULL(segundo_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid THEN 1 ELSE 0 END) AS verdade_fora_top2,
+  SUM(CASE WHEN status='CONFLITO' AND motivo='DOIS_CANDIDATOS_ACIMA_T_LINKAGE' THEN 1 ELSE 0 END) AS conflitos_duplo_threshold,
+  SUM(CASE WHEN status='CONFLITO' AND score_melhor>=0.9999 THEN 1 ELSE 0 END) AS melhor_posterior_ge_09999,
+  SUM(CASE WHEN status='CONFLITO' AND score_segundo>=0.999 THEN 1 ELSE 0 END) AS segundo_posterior_ge_0999,
+  SUM(CASE WHEN status='CONFLITO' AND score_segundo>=0.9999 THEN 1 ELSE 0 END) AS segundo_posterior_ge_09999,
+  CAST(MIN(CASE WHEN status='CONFLITO' THEN margem END) AS decimal(30,12)) AS margem_min,
+  CAST(AVG(CASE WHEN status='CONFLITO' THEN CONVERT(decimal(30,12),margem) END) AS decimal(30,12)) AS margem_media,
+  CAST(MAX(CASE WHEN status='CONFLITO' THEN margem END) AS decimal(30,12)) AS margem_max,
+  SUM(CASE WHEN scale_n%10=0 THEN 1 ELSE 0 END) AS coorte_cada_decimo_total,
+  SUM(CASE WHEN scale_n%10=0 AND status='RESOLVIDO' THEN 1 ELSE 0 END) AS coorte_cada_decimo_resolvidos,
+  SUM(CASE WHEN scale_n%10<>0 THEN 1 ELSE 0 END) AS coorte_demais_total,
+  SUM(CASE WHEN scale_n%10<>0 AND status='CONFLITO' THEN 1 ELSE 0 END) AS coorte_demais_conflitos,
+  CAST(CASE
+    WHEN SUM(CASE WHEN status='RESOLVIDO' AND (pessoa_uuid_resolvido IS NULL OR pessoa_uuid_resolvido<>truth_uuid) THEN 1 ELSE 0 END)=0
+     AND SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END)>0
+    THEN 300.0/SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END)
+  END AS decimal(9,4)) AS limite_superior_fp_95_regra_tres_pct
+FROM truth;"
+
+  echo
   echo 'Falsos positivos resolvidos no corpus SCALE (deve ficar vazio em um ensaio conservador):'
   sql_report "WITH truth AS (SELECT r.*,po.codigo_pessoa_origem,tv.pessoa_uuid AS truth_uuid FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id JOIN silver.pessoa_observacao tpo ON tpo.codigo_pessoa_origem=REPLACE(po.codigo_pessoa_origem,'SCALE-PEND-','SCALE-SEHAB-') JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo='SEHAB' JOIN identidade.v_vinculo_corrente tv ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id AND tv.status='RESOLVIDO' WHERE r.linkage_run_id='$run_id' AND po.codigo_pessoa_origem LIKE 'SCALE-PEND-%') SELECT pessoa_observacao_id,codigo_pessoa_origem,score_melhor,score_segundo,margem,CONVERT(varchar(36),truth_uuid) AS truth_uuid,CONVERT(varchar(36),pessoa_uuid_resolvido) AS resolvido_uuid,CONVERT(varchar(36),melhor_candidato_uuid) AS melhor_candidato_uuid,CONVERT(varchar(36),segundo_candidato_uuid) AS segundo_candidato_uuid FROM truth WHERE status='RESOLVIDO' AND (pessoa_uuid_resolvido IS NULL OR pessoa_uuid_resolvido<>truth_uuid) ORDER BY codigo_pessoa_origem;"
   echo
