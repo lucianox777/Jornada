@@ -376,11 +376,13 @@ public sealed class ProbabilisticLinkageBatchRunner(
         DECLARE @run_modelo_id UNIQUEIDENTIFIER,
                 @run_modelo_versao INT,
                 @run_elegiveis BIGINT,
+                @run_high_watermark BIGINT,
                 @itens BIGINT;
 
         SELECT @run_modelo_id=modelo_id,
                @run_modelo_versao=modelo_versao,
-               @run_elegiveis=registros_elegiveis
+               @run_elegiveis=registros_elegiveis,
+               @run_high_watermark=pessoa_observacao_id_high_watermark
         FROM identidade.linkage_run WITH (UPDLOCK,HOLDLOCK)
         WHERE linkage_run_id=@run_id;
 
@@ -410,6 +412,216 @@ public sealed class ProbabilisticLinkageBatchRunner(
                       AND i.pessoa_observacao_id=r.pessoa_observacao_id)
         )
             THROW 51110, 'Resultado fora do universo materializado do linkage_run; publicação recusada.', 1;
+        """;
+
+    internal static string ProgressivePublicationSql() =>
+        """
+        DECLARE @politica_publicacao NVARCHAR(120)=N'LINKAGE_PROGRESSIVE_PUBLICATION_V1';
+        DECLARE @universo_publicacao NVARCHAR(255)=CONCAT(
+            N'LINKAGE_RUN:',CONVERT(NVARCHAR(36),@run_id),
+            N';HW:',CONVERT(NVARCHAR(30),@run_high_watermark),
+            N';ELIGIVEIS:',CONVERT(NVARCHAR(30),@run_elegiveis));
+
+        ;WITH contexto AS (
+            SELECT r.linkage_resultado_id,
+                   r.pessoa_observacao_id,
+                   r.status AS raw_status,
+                   r.motivo AS raw_motivo,
+                   r.pessoa_uuid_resolvido AS raw_uuid,
+                   po.pessoa_origem_id,
+                   p.initial_uuid,
+                   p.canonical_uuid,
+                   p.estado AS estado_progressivo,
+                   p.ultimo_destino_externo_uuid,
+                   protegido.metodo_resolucao AS metodo_protegido,
+                   protegido.status AS status_protegido,
+                   CASE WHEN r.pessoa_uuid_resolvido IS NOT NULL AND (
+                        EXISTS(SELECT 1 FROM identidade.cpf_ancora a WITH(HOLDLOCK)
+                               WHERE a.pessoa_uuid=r.pessoa_uuid_resolvido)
+                        OR EXISTS(SELECT 1 FROM identidade.pessoa_origem_progressiva px WITH(HOLDLOCK)
+                                  WHERE px.estado=N'REFERENCIA' AND px.canonical_uuid=r.pessoa_uuid_resolvido)
+                        OR EXISTS(SELECT 1 FROM identidade.vinculo_fonte vx WITH(HOLDLOCK)
+                                  WHERE vx.ativo=1 AND vx.status=N'RESOLVIDO'
+                                    AND vx.pessoa_uuid=r.pessoa_uuid_resolvido
+                                    AND vx.metodo_resolucao IN(
+                                      N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',N'CORRECAO_GOVERNADA'))
+                   ) THEN 1 ELSE 0 END AS destino_estabelecido
+            FROM identidade.linkage_resultado r WITH(UPDLOCK,HOLDLOCK)
+            JOIN silver.pessoa_observacao po WITH(HOLDLOCK)
+              ON po.pessoa_observacao_id=r.pessoa_observacao_id
+            LEFT JOIN identidade.pessoa_origem_progressiva p WITH(HOLDLOCK)
+              ON p.pessoa_origem_id=po.pessoa_origem_id
+            OUTER APPLY(
+                SELECT TOP(1) vf.metodo_resolucao,vf.status,vf.pessoa_uuid
+                FROM identidade.vinculo_fonte vf WITH(HOLDLOCK)
+                WHERE vf.pessoa_observacao_id=r.pessoa_observacao_id
+                  AND vf.ativo=1
+                  AND vf.metodo_resolucao IN(
+                    N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
+                    N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO')
+                ORDER BY vf.vinculo_id DESC
+            ) protegido
+            WHERE r.linkage_run_id=@run_id
+        )
+        UPDATE r
+           SET resultado_publicacao=
+               CASE
+                 WHEN c.metodo_protegido IS NOT NULL THEN N'INDEFINIDA'
+                 WHEN c.estado_progressivo=N'REFERENCIA' AND c.canonical_uuid IS NOT NULL THEN N'ASSOCIACAO_EXISTENTE'
+                 WHEN c.raw_status=N'RESOLVIDO' AND c.destino_estabelecido=1 THEN N'ASSOCIACAO_EXISTENTE'
+                 WHEN c.raw_status=N'NAO_RESOLVIDO'
+                      AND c.raw_motivo LIKE N'SEM_CANDIDATO_%'
+                      AND c.pessoa_origem_id IS NOT NULL
+                      AND c.initial_uuid IS NOT NULL
+                      AND c.ultimo_destino_externo_uuid IS NULL THEN N'NOVA_IDENTIDADE'
+                 ELSE N'INDEFINIDA'
+               END,
+               pessoa_uuid_publicado=
+               CASE
+                 WHEN c.metodo_protegido IS NOT NULL THEN NULL
+                 WHEN c.estado_progressivo=N'REFERENCIA' AND c.canonical_uuid IS NOT NULL THEN c.canonical_uuid
+                 WHEN c.raw_status=N'RESOLVIDO' AND c.destino_estabelecido=1 THEN c.raw_uuid
+                 WHEN c.raw_status=N'NAO_RESOLVIDO'
+                      AND c.raw_motivo LIKE N'SEM_CANDIDATO_%'
+                      AND c.pessoa_origem_id IS NOT NULL
+                      AND c.initial_uuid IS NOT NULL
+                      AND c.ultimo_destino_externo_uuid IS NULL THEN c.initial_uuid
+                 ELSE NULL
+               END,
+               status_publicacao=
+               CASE
+                 WHEN c.metodo_protegido IS NOT NULL
+                    THEN CASE WHEN c.status_protegido=N'CONFLITO' THEN N'CONFLITO' ELSE N'NAO_RESOLVIDO' END
+                 WHEN c.estado_progressivo=N'REFERENCIA' AND c.canonical_uuid IS NOT NULL THEN N'RESOLVIDO'
+                 WHEN c.raw_status=N'RESOLVIDO' AND c.destino_estabelecido=1 THEN N'RESOLVIDO'
+                 WHEN c.raw_status=N'NAO_RESOLVIDO'
+                      AND c.raw_motivo LIKE N'SEM_CANDIDATO_%'
+                      AND c.pessoa_origem_id IS NOT NULL
+                      AND c.initial_uuid IS NOT NULL
+                      AND c.ultimo_destino_externo_uuid IS NULL THEN N'RESOLVIDO'
+                 WHEN c.raw_status=N'CONFLITO' THEN N'CONFLITO'
+                 ELSE N'NAO_RESOLVIDO'
+               END,
+               motivo_publicacao=
+               CASE
+                 WHEN c.metodo_protegido IS NOT NULL THEN LEFT(CONCAT(N'PRECEDENCIA_',c.metodo_protegido),160)
+                 WHEN c.estado_progressivo=N'REFERENCIA' AND c.canonical_uuid IS NOT NULL
+                      AND c.raw_status=N'RESOLVIDO' AND c.raw_uuid=c.canonical_uuid
+                    THEN N'REFERENCIA_PROGRESSIVA_CONFIRMADA'
+                 WHEN c.estado_progressivo=N'REFERENCIA' AND c.canonical_uuid IS NOT NULL
+                      AND c.raw_status=N'RESOLVIDO' AND c.raw_uuid<>c.canonical_uuid
+                    THEN N'REFERENCIA_PROGRESSIVA_PRESERVADA_DESTINO_DIVERGENTE'
+                 WHEN c.estado_progressivo=N'REFERENCIA' AND c.canonical_uuid IS NOT NULL
+                    THEN N'REFERENCIA_PROGRESSIVA_PRESERVADA'
+                 WHEN c.raw_status=N'RESOLVIDO' AND c.destino_estabelecido=1
+                    THEN N'ASSOCIACAO_EXISTENTE_LINKAGE'
+                 WHEN c.raw_status=N'RESOLVIDO'
+                    THEN N'DESTINO_LINKAGE_NAO_ESTABELECIDO'
+                 WHEN c.raw_status=N'NAO_RESOLVIDO' AND c.raw_motivo LIKE N'SEM_CANDIDATO_%'
+                      AND c.pessoa_origem_id IS NULL
+                    THEN N'SEM_ORIGEM_PERSISTENTE_PARA_NOVA_IDENTIDADE'
+                 WHEN c.raw_status=N'NAO_RESOLVIDO' AND c.raw_motivo LIKE N'SEM_CANDIDATO_%'
+                      AND c.ultimo_destino_externo_uuid IS NOT NULL
+                    THEN N'RECOMPOSICAO_REQUERIDA_ANTES_NOVA_IDENTIDADE'
+                 WHEN c.raw_status=N'NAO_RESOLVIDO' AND c.raw_motivo LIKE N'SEM_CANDIDATO_%'
+                      AND c.pessoa_origem_id IS NOT NULL AND c.initial_uuid IS NOT NULL
+                    THEN N'NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA'
+                 WHEN c.raw_status=N'CONFLITO' THEN COALESCE(c.raw_motivo,N'LINKAGE_AMBIGUO')
+                 ELSE COALESCE(c.raw_motivo,N'LINKAGE_INDEFINIDO')
+               END,
+               pessoa_origem_id_publicado=c.pessoa_origem_id,
+               progressiva_versao=NULL,
+               politica_publicacao_versao=@politica_publicacao,
+               universo_referencia=@universo_publicacao,
+               publicado_em=@fim
+        FROM identidade.linkage_resultado r
+        JOIN contexto c ON c.linkage_resultado_id=r.linkage_resultado_id;
+
+        IF EXISTS(
+            SELECT 1 FROM identidade.linkage_resultado
+            WHERE linkage_run_id=@run_id
+              AND (resultado_publicacao IS NULL OR status_publicacao IS NULL
+                   OR motivo_publicacao IS NULL OR politica_publicacao_versao IS NULL OR publicado_em IS NULL))
+            THROW 51820, 'Decisão operacional incompleta; publicação do linkage recusada.', 1;
+
+        DECLARE @progressiva_origem BIGINT,@progressiva_obs BIGINT,@progressiva_versao BIGINT;
+        DECLARE progressiva_linkage CURSOR LOCAL FAST_FORWARD FOR
+            SELECT x.pessoa_origem_id,x.pessoa_observacao_id
+            FROM (
+                SELECT po.pessoa_origem_id,r.pessoa_observacao_id,
+                       CASE WHEN EXISTS(
+                           SELECT 1 FROM identidade.vinculo_fonte vf WITH(HOLDLOCK)
+                           WHERE vf.pessoa_observacao_id=r.pessoa_observacao_id
+                             AND vf.ativo=1
+                             AND vf.metodo_resolucao IN(
+                               N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
+                               N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO')
+                       ) THEN 1 ELSE 0 END AS protegido,
+                       ROW_NUMBER() OVER(
+                         PARTITION BY po.pessoa_origem_id
+                         ORDER BY po.versao_interna DESC,r.pessoa_observacao_id DESC) rn
+                FROM identidade.linkage_resultado r WITH(HOLDLOCK)
+                JOIN silver.pessoa_observacao po WITH(HOLDLOCK)
+                  ON po.pessoa_observacao_id=r.pessoa_observacao_id
+                WHERE r.linkage_run_id=@run_id
+                  AND po.pessoa_origem_id IS NOT NULL
+            ) x
+            WHERE x.rn=1 AND x.protegido=0
+            ORDER BY x.pessoa_origem_id;
+
+        OPEN progressiva_linkage;
+        FETCH NEXT FROM progressiva_linkage INTO @progressiva_origem,@progressiva_obs;
+        WHILE @@FETCH_STATUS=0
+        BEGIN
+            SET @progressiva_versao=NULL;
+            EXEC identidade.sp_publicar_resolucao_progressiva_linkage
+                 @linkage_run_id=@run_id,
+                 @pessoa_observacao_id=@progressiva_obs,
+                 @versao_resultado=@progressiva_versao OUTPUT;
+
+            UPDATE rr
+               SET progressiva_versao=@progressiva_versao,
+                   resultado_publicacao=CASE
+                     WHEN rr.pessoa_observacao_id=@progressiva_obs THEN rr.resultado_publicacao
+                     WHEN p.estado=N'REFERENCIA' THEN N'ASSOCIACAO_EXISTENTE'
+                     ELSE N'INDEFINIDA' END,
+                   pessoa_uuid_publicado=CASE
+                     WHEN rr.pessoa_observacao_id=@progressiva_obs THEN rr.pessoa_uuid_publicado
+                     WHEN p.estado=N'REFERENCIA' THEN p.canonical_uuid
+                     ELSE NULL END,
+                   status_publicacao=CASE
+                     WHEN rr.pessoa_observacao_id=@progressiva_obs THEN rr.status_publicacao
+                     WHEN p.estado=N'REFERENCIA' THEN N'RESOLVIDO'
+                     WHEN rr.status=N'CONFLITO' THEN N'CONFLITO'
+                     ELSE N'NAO_RESOLVIDO' END,
+                   motivo_publicacao=CASE
+                     WHEN rr.pessoa_observacao_id=@progressiva_obs THEN rr.motivo_publicacao
+                     WHEN p.estado=N'REFERENCIA' THEN N'REFERENCIA_PROGRESSIVA_PROPAGADA_NA_ORIGEM'
+                     ELSE N'INDEFINICAO_PROGRESSIVA_PROPAGADA_NA_ORIGEM' END
+            FROM identidade.linkage_resultado rr
+            JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=rr.pessoa_observacao_id
+            JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=po.pessoa_origem_id
+            WHERE rr.linkage_run_id=@run_id
+              AND po.pessoa_origem_id=@progressiva_origem;
+
+            FETCH NEXT FROM progressiva_linkage INTO @progressiva_origem,@progressiva_obs;
+        END;
+        CLOSE progressiva_linkage;
+        DEALLOCATE progressiva_linkage;
+
+        IF EXISTS(
+            SELECT 1 FROM identidade.linkage_resultado r
+            WHERE r.linkage_run_id=@run_id
+              AND r.pessoa_origem_id_publicado IS NOT NULL
+              AND NOT EXISTS(
+                  SELECT 1 FROM identidade.vinculo_fonte vf
+                  WHERE vf.pessoa_observacao_id=r.pessoa_observacao_id
+                    AND vf.ativo=1
+                    AND vf.metodo_resolucao IN(
+                      N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
+                      N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO'))
+              AND r.progressiva_versao IS NULL)
+            THROW 51821, 'Origem persistente ficou sem versão progressiva na publicação.', 1;
         """;
 
     private async Task PersistBatchAsync(
@@ -503,6 +715,8 @@ public sealed class ProbabilisticLinkageBatchRunner(
                     THROW 51106, 'Contagens do run não fecham; publicação recusada.', 1;
 
                 {PublicationIntegrityGuardSql()}
+
+                {ProgressivePublicationSql()}
 
                 UPDATE identidade.linkage_run
                 SET status='PUBLICADO', finalizado_em=@fim, publicado_em=@fim
