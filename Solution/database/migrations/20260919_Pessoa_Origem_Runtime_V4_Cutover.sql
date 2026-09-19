@@ -39,16 +39,21 @@ IF EXISTS(
     ALTER TABLE silver.pessoa_origem DROP CONSTRAINT uq_pessoa_origem;
 GO
 
+/* O índice filtrado preparatório depende da coluna ainda anulável. Ele precisa sair
+   antes do ALTER COLUMN e é recriado abaixo já como unicidade definitiva v4. */
+IF EXISTS(
+    SELECT 1 FROM sys.indexes
+    WHERE object_id=OBJECT_ID('silver.pessoa_origem')
+      AND name='uq_pessoa_origem_base_codigo')
+    DROP INDEX uq_pessoa_origem_base_codigo ON silver.pessoa_origem;
+GO
+
 ALTER TABLE silver.pessoa_origem
     ALTER COLUMN base_pessoa_origem_id BIGINT NOT NULL;
 GO
 
-IF NOT EXISTS(
-    SELECT 1 FROM sys.indexes
-    WHERE object_id=OBJECT_ID('silver.pessoa_origem')
-      AND name='uq_pessoa_origem_base_codigo')
-    CREATE UNIQUE INDEX uq_pessoa_origem_base_codigo
-        ON silver.pessoa_origem(base_pessoa_origem_id,codigo_pessoa_origem);
+CREATE UNIQUE INDEX uq_pessoa_origem_base_codigo
+    ON silver.pessoa_origem(base_pessoa_origem_id,codigo_pessoa_origem);
 GO
 
 
