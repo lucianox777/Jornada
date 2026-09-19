@@ -624,6 +624,188 @@ public sealed class ProcessorRepositoryTests
     }
 
     [Test]
+    public async Task V4_originless_person_with_zero_identifiers_is_persisted_and_left_for_linkage()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+        await SetOneCadastralBatchPendingAsync(connectionString);
+        var repository = CreateRepository(connectionString);
+        var batch = await repository.ReserveNextAsync(CancellationToken.None);
+        Assert.That(batch, Is.Not.Null);
+
+        var person = new ParsedPerson(
+            null, new string('7', 64), "TX-V4-NO-ID", null, "SEM_CPF",
+            "Pessoa V4 Sem Identificador", new DateOnly(1993, 5, 17), "Mae V4 Sem Identificador",
+            [], [], Array.Empty<ParsedPersonIdentifier>());
+        var manifest = new IngestionPackageManifest(
+            2, 4, batch!.CodigoSistemaOrigem, null, null, null, batch.DataReferencia);
+
+        await repository.PersistValidatedAsync(
+            batch, new ParsedPackage(manifest, [person], []), CancellationToken.None);
+
+        await using var verify = new SqlConnection(connectionString);
+        await verify.OpenAsync();
+        await using var query = verify.CreateCommand();
+        query.CommandText = """
+            SELECT po.pessoa_origem_id,po.codigo_pessoa_origem,
+                   (SELECT COUNT(*) FROM silver.pessoa_identificador_observacao i
+                     WHERE i.pessoa_observacao_id=po.pessoa_observacao_id),
+                   vc.status,vc.metodo_resolucao,
+                   (SELECT COUNT(*) FROM ingestao.item_processado ip
+                     WHERE ip.lote_id=po.lote_id AND ip.classe_item='PESSOA'
+                       AND ip.codigo_origem=CONCAT('OBSERVACAO:',po.pessoa_observacao_id))
+            FROM silver.pessoa_observacao po
+            JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+            WHERE po.lote_id=@lote AND po.source_transaction_id='TX-V4-NO-ID';
+            """;
+        query.Parameters.AddWithValue("@lote", batch.LoteId);
+        await using var reader = await query.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.IsDBNull(0), Is.True);
+            Assert.That(reader.IsDBNull(1), Is.True);
+            Assert.That(reader.GetInt32(2), Is.Zero);
+            Assert.That(reader.GetString(3), Is.EqualTo("NAO_RESOLVIDO"));
+            Assert.That(reader.GetString(4), Is.EqualTo("PENDENTE_PROBABILISTICO"));
+            Assert.That(reader.GetInt32(5), Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public async Task V4_runtime_resolves_authorized_shared_base_and_persists_multiple_identifiers()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+        await SetOneCadastralBatchPendingAsync(connectionString);
+        var repository = CreateRepository(connectionString);
+        var batch = await repository.ReserveNextAsync(CancellationToken.None);
+        Assert.That(batch, Is.Not.Null);
+
+        var suffix = Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();
+        var baseCode = $"TEST_SHARED_{suffix}";
+        var sourceCode = $"P-{suffix}";
+        await using (var setup = new SqlConnection(connectionString))
+        {
+            await setup.OpenAsync();
+            await using var command = setup.CreateCommand();
+            command.CommandText = """
+                INSERT ref.base_pessoa_origem(codigo,nome,gestor_custodiante_id,escopo,confianca_identidade)
+                VALUES(@base,@base,@gestor,'COMPARTILHADA','HOMOLOGADA_DETERMINISTICA');
+                DECLARE @base_id BIGINT=SCOPE_IDENTITY();
+                INSERT ref.sistema_origem_base_pessoa(sistema_origem_id,base_pessoa_origem_id,padrao,ativo)
+                VALUES(@sistema,@base_id,0,1);
+                """;
+            command.Parameters.AddWithValue("@base", baseCode);
+            command.Parameters.AddWithValue("@gestor", batch!.GestorId);
+            command.Parameters.AddWithValue("@sistema", batch.SistemaOrigemId);
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var identifiers = new ParsedPersonIdentifier[]
+        {
+            new("CODIGO_BASE_ORIGEM", baseCode, sourceCode, sourceCode, null, null, "DECLARADO", null, null, false),
+            new("CNS", "BR", "898001160018261", "898001160018261", null, null, "DECLARADO", null, null, false),
+            new("RG", "SSP_SP", "12.345.678-9", "123456789", "SSP", "SP", "DECLARADO", null, null, false)
+        };
+        var person = new ParsedPerson(
+            sourceCode, new string('8', 64), $"TX-{suffix}", null, "SEM_CPF",
+            "Pessoa V4 Base Compartilhada", new DateOnly(1987, 8, 9), "Mae V4 Base Compartilhada",
+            [], [], identifiers);
+        var manifest = new IngestionPackageManifest(
+            2, 4, batch.CodigoSistemaOrigem, null, null, null, batch.DataReferencia, baseCode);
+
+        await repository.PersistValidatedAsync(
+            batch, new ParsedPackage(manifest, [person], []), CancellationToken.None);
+
+        await using var verify = new SqlConnection(connectionString);
+        await verify.OpenAsync();
+        await using var query = verify.CreateCommand();
+        query.CommandText = """
+            SELECT b.codigo,COUNT(i.pessoa_identificador_observacao_id),
+                   MAX(CASE WHEN i.tipo_identificador_codigo='CODIGO_BASE_ORIGEM' THEN i.status_validacao END),
+                   MAX(CASE WHEN i.tipo_identificador_codigo='CNS' THEN i.status_validacao END)
+            FROM silver.pessoa_observacao po
+            JOIN silver.pessoa_origem porg ON porg.pessoa_origem_id=po.pessoa_origem_id
+            JOIN ref.base_pessoa_origem b ON b.base_pessoa_origem_id=porg.base_pessoa_origem_id
+            LEFT JOIN silver.pessoa_identificador_observacao i ON i.pessoa_observacao_id=po.pessoa_observacao_id
+            WHERE po.lote_id=@lote AND po.codigo_pessoa_origem=@codigo
+            GROUP BY b.codigo;
+            """;
+        query.Parameters.AddWithValue("@lote", batch.LoteId);
+        query.Parameters.AddWithValue("@codigo", sourceCode);
+        await using var reader = await query.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.GetString(0), Is.EqualTo(baseCode));
+            Assert.That(reader.GetInt32(1), Is.EqualTo(3));
+            Assert.That(reader.GetString(2), Is.EqualTo("VALIDO"));
+            Assert.That(reader.GetString(3), Is.EqualTo("NAO_VALIDADO"));
+        });
+    }
+
+    [Test]
+    public async Task V4_jornada_uuid_feedback_reuses_existing_canonical_person_without_creating_external_map()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+        await SetOneCadastralBatchPendingAsync(connectionString);
+        var repository = CreateRepository(connectionString);
+        var batch = await repository.ReserveNextAsync(CancellationToken.None);
+        Assert.That(batch, Is.Not.Null);
+
+        var uuid = Guid.NewGuid();
+        await using (var setup = new SqlConnection(connectionString))
+        {
+            await setup.OpenAsync();
+            await using var command = setup.CreateCommand();
+            command.CommandText = "INSERT identidade.pessoa(pessoa_uuid,status) VALUES(@uuid,'ATIVO');";
+            command.Parameters.AddWithValue("@uuid", uuid);
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var identifier = new ParsedPersonIdentifier(
+            "UUID_JORNADA", "JORNADA", uuid.ToString("D"), uuid.ToString("D"),
+            null, null, "DECLARADO", null, null, false);
+        var person = new ParsedPerson(
+            null, new string('9', 64), "TX-V4-UUID", null, "SEM_CPF",
+            "Pessoa V4 UUID Jornada", new DateOnly(1995, 2, 11), "Mae V4 UUID Jornada",
+            [], [], [identifier]);
+        var manifest = new IngestionPackageManifest(
+            2, 4, batch!.CodigoSistemaOrigem, null, null, null, batch.DataReferencia);
+
+        await repository.PersistValidatedAsync(
+            batch, new ParsedPackage(manifest, [person], []), CancellationToken.None);
+
+        await using var verify = new SqlConnection(connectionString);
+        await verify.OpenAsync();
+        await using var query = verify.CreateCommand();
+        query.CommandText = """
+            SELECT vc.status,vc.metodo_resolucao,vc.pessoa_uuid,i.status_validacao,
+                   (SELECT COUNT(*) FROM identidade.identity_map m WHERE m.pessoa_uuid=@uuid)
+            FROM silver.pessoa_observacao po
+            JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+            JOIN silver.pessoa_identificador_observacao i
+              ON i.pessoa_observacao_id=po.pessoa_observacao_id
+             AND i.tipo_identificador_codigo='UUID_JORNADA'
+            WHERE po.lote_id=@lote AND po.source_transaction_id='TX-V4-UUID';
+            """;
+        query.Parameters.AddWithValue("@uuid", uuid);
+        query.Parameters.AddWithValue("@lote", batch.LoteId);
+        await using var reader = await query.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.GetString(0), Is.EqualTo("RESOLVIDO"));
+            Assert.That(reader.GetString(1), Is.EqualTo("UUID_JORNADA_RETROALIMENTACAO"));
+            Assert.That(reader.GetGuid(2), Is.EqualTo(uuid));
+            Assert.That(reader.GetString(3), Is.EqualTo("VALIDO"));
+            Assert.That(reader.GetInt32(4), Is.Zero);
+        });
+    }
+
+    [Test]
     public async Task Expired_lease_is_fenced_after_recovery_and_new_reservation()
     {
         var connectionString = RequireIntegrationConnection();
@@ -648,6 +830,32 @@ public sealed class ProcessorRepositoryTests
 
         Assert.ThrowsAsync<SqlException>(async () =>
             await repository.MarkRejectedAsync(oldBatch!, "STALE_WORKER", CancellationToken.None));
+    }
+
+    private static async Task SetOneCadastralBatchPendingAsync(string connectionString)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            DECLARE @lote UNIQUEIDENTIFIER=(
+                SELECT TOP(1) l.lote_id
+                FROM ingestao.lote l
+                JOIN ingestao.entrega e ON e.entrega_id=l.entrega_id
+                WHERE e.natureza IS NULL
+                ORDER BY l.criado_em,l.lote_id);
+            IF @lote IS NULL THROW 51299,'Fixture sem lote cadastral.',1;
+            UPDATE ingestao.lote
+               SET status='PENDENTE',erro_codigo=NULL,tentativa_count=0,recuperacao_count=0,
+                   lease_id=NULL,lease_owner=NULL,lease_adquirido_em=NULL,heartbeat_em=NULL,lease_expira_em=NULL,
+                   ultima_tentativa_em=NULL,proxima_tentativa_em=NULL,poison_em=NULL,atualizado_em=SYSUTCDATETIME()
+             WHERE lote_id=@lote;
+            UPDATE e SET status='RECEBIDA',ultima_atualizacao=SYSUTCDATETIME()
+            FROM ingestao.entrega e
+            JOIN ingestao.lote l ON l.entrega_id=e.entrega_id
+            WHERE l.lote_id=@lote;
+            """;
+        await command.ExecuteNonQueryAsync();
     }
 
     private static async Task SetOnePendingAsync(string connectionString)
