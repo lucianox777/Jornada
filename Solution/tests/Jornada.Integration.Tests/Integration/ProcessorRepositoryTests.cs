@@ -139,7 +139,7 @@ public sealed class ProcessorRepositoryTests
         var reservedBatch = batch!;
 
         var person = new ParsedPerson(
-            "PROC-V325", new string('a',64), "TX-PROC-V325", "98765432100", null, "Pessoa Teste Processor", new DateOnly(1990,1,1), "Mae Teste", [], []);
+            "PROC-V325", "PROC-V325", new string('a',64), "TX-PROC-V325", "98765432100", null, "Pessoa Teste Processor", new DateOnly(1990,1,1), "Mae Teste", [], []);
         var fact = reservedBatch.Natureza == IntegrationNature.BENEFICIO
             ? new ParsedFact("PROC-V325", "REG-PROC-V325", RegistroOperacao.INCLUSAO, new string('b',64), DateOnly.FromDateTime(DateTime.UtcNow.Date), null, null, null, null, null, "VIGENTE", null, null, 25m, null, null)
             : new ParsedFact("PROC-V325", "REG-PROC-V325", RegistroOperacao.INCLUSAO, new string('b',64), null, null, null, DateTimeOffset.UtcNow, "UNIDADE TESTE", "REALIZADO", null, null, null, null, null, null);
@@ -209,7 +209,7 @@ public sealed class ProcessorRepositoryTests
         // O seed associa 52998224725 a João de Souza, nascido em 1977-09-22.
         // A nova observação é incompatível, mas não há base para escolhê-la como a observação errada.
         var person = new ParsedPerson(
-            "CPF-COMPARTILHADO-FILHO", new string('e',64), "TX-CPF-COMPARTILHADO", "52998224725", null,
+            "CPF-COMPARTILHADO-FILHO", "CPF-COMPARTILHADO-FILHO", new string('e',64), "TX-CPF-COMPARTILHADO", "52998224725", null,
             "Pedro Henrique Santos", new DateOnly(2017,8,21), "Joana Santos", [], []);
         var fact = new ParsedFact(
             "CPF-COMPARTILHADO-FILHO", "REG-CPF-COMPARTILHADO", RegistroOperacao.INCLUSAO, new string('f',64),
@@ -279,7 +279,7 @@ public sealed class ProcessorRepositoryTests
         var batch = await repository.ReserveNextAsync(CancellationToken.None);
         Assert.That(batch, Is.Not.Null);
         var person = new ParsedPerson(
-            "16899535009", new string('a',64), "TX-OPAQUE-CODE", null, "SEM_CPF",
+            "16899535009", "16899535009", new string('a',64), "TX-OPAQUE-CODE", null, "SEM_CPF",
             "Pessoa Sem CPF", new DateOnly(1991,4,13), "Mae Sem CPF", [], []);
         var fact = new ParsedFact(
             "16899535009", "REG-OPAQUE-CODE", RegistroOperacao.INCLUSAO, new string('b',64),
@@ -341,7 +341,7 @@ public sealed class ProcessorRepositoryTests
         Assert.That(batch, Is.Not.Null);
 
         var person = new ParsedPerson(
-            "CPF-SEM-NUCLEO", new string('a',64), "TX-CPF-SEM-NUCLEO", "16899535009", null,
+            "CPF-SEM-NUCLEO", "CPF-SEM-NUCLEO", new string('a',64), "TX-CPF-SEM-NUCLEO", "16899535009", null,
             "Pessoa de Teste", new DateOnly(1991,5,17), "Mae de Teste", [], []);
         var manifest = new IngestionPackageManifest(2, batch!.PessoaSchemaVersao,
             batch.CodigoSistemaOrigem, batch.Natureza, batch.CodigoTipo, batch.TipoVersao, batch.DataReferencia);
@@ -450,9 +450,9 @@ public sealed class ProcessorRepositoryTests
         var reservedBatch = batch!;
 
         var valid = new ParsedPerson(
-            "PROC-V325-ROLLBACK-A", new string('c',64), "TX-ROLLBACK-A", "31415926590", null, "Pessoa Rollback A", new DateOnly(1991, 2, 3), "Mae Rollback A", [], []);
+            "PROC-V325-ROLLBACK-A", "PROC-V325-ROLLBACK-A", new string('c',64), "TX-ROLLBACK-A", "31415926590", null, "Pessoa Rollback A", new DateOnly(1991, 2, 3), "Mae Rollback A", [], []);
         var failsAfterSilver = new ParsedPerson(
-            "PROC-V325-ROLLBACK-B", new string('d',64), "TX-ROLLBACK-B", "27182818205", null, "Pessoa Rollback B", new DateOnly(1992, 3, 4), "Mae Rollback B",
+            "PROC-V325-ROLLBACK-B", "PROC-V325-ROLLBACK-B", new string('d',64), "TX-ROLLBACK-B", "27182818205", null, "Pessoa Rollback B", new DateOnly(1992, 3, 4), "Mae Rollback B",
             [new ParsedTransversalAttribute("PROC-V320-EVID", "ENDERECO_RESIDENCIAL", "CEP=01001000|NUMERO=1",
                 "COMPROVADO", "DOCUMENTO", null, null, DateTimeOffset.UtcNow, null, GeographicResolutionStatus.NAO_RESOLVIDA_ORIGEM, null)], []);
         var manifest = new IngestionPackageManifest(2, reservedBatch.PessoaSchemaVersao,
@@ -634,7 +634,7 @@ public sealed class ProcessorRepositoryTests
         Assert.That(batch, Is.Not.Null);
 
         var person = new ParsedPerson(
-            null, new string('7', 64), "TX-V4-NO-ID", null, "SEM_CPF",
+            "DELIVERY-V4-NO-ID", null, new string('7', 64), "TX-V4-NO-ID", null, "SEM_CPF",
             "Pessoa V4 Sem Identificador", new DateOnly(1993, 5, 17), "Mae V4 Sem Identificador",
             [], [], Array.Empty<ParsedPersonIdentifier>());
         var manifest = new IngestionPackageManifest(
@@ -709,7 +709,7 @@ public sealed class ProcessorRepositoryTests
             new("RG", "SSP_SP", "12.345.678-9", "123456789", "SSP", "SP", "DECLARADO", null, null, false)
         };
         var person = new ParsedPerson(
-            sourceCode, new string('8', 64), $"TX-{suffix}", null, "SEM_CPF",
+            sourceCode, sourceCode, new string('8', 64), $"TX-{suffix}", null, "SEM_CPF",
             "Pessoa V4 Base Compartilhada", new DateOnly(1987, 8, 9), "Mae V4 Base Compartilhada",
             [], [], identifiers);
         var manifest = new IngestionPackageManifest(
@@ -769,7 +769,7 @@ public sealed class ProcessorRepositoryTests
             "UUID_JORNADA", "JORNADA", uuid.ToString("D"), uuid.ToString("D"),
             null, null, "DECLARADO", null, null, false);
         var person = new ParsedPerson(
-            null, new string('9', 64), "TX-V4-UUID", null, "SEM_CPF",
+            "DELIVERY-V4-UUID", null, new string('9', 64), "TX-V4-UUID", null, "SEM_CPF",
             "Pessoa V4 UUID Jornada", new DateOnly(1995, 2, 11), "Mae V4 UUID Jornada",
             [], [], [identifier]);
         var manifest = new IngestionPackageManifest(
