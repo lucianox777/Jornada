@@ -9,6 +9,7 @@ $OutDir = Join-Path $Root '.local\linkage-validation'
 $LabelsPath = Join-Path $OutDir 'positive-labels.csv'
 $BlockingAuditPath = Join-Path $OutDir 'blocking-pass-audit.json'
 $ReportPath = Join-Path $OutDir 'validation-report.json'
+$RunProvenancePath = Join-Path $OutDir 'run-provenance.json'
 
 if (-not (Test-Path -LiteralPath $EnvFile)) { throw "Arquivo .env ausente em $Root. Execute primeiro '.\scripts\local-cluster.ps1 -Action up'." }
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw 'Docker não encontrado no PATH.' }
@@ -89,6 +90,37 @@ function Parse-Decimal([string]$Text) {
     return [decimal]::Parse($Text, [Globalization.CultureInfo]::InvariantCulture)
 }
 
+function Get-ValidationRuntimeFingerprint {
+    $repoRoot = (Resolve-Path (Join-Path $Root '..')).Path
+    $paths = @(
+        'Solution/src/Jornada.Linkage.Runner',
+        'Solution/src/Jornada.Contracts',
+        'Solution/src/Jornada.Processor.Worker',
+        'Solution/src/Jornada.Linkage.Parameters.Worker',
+        'Solution/database/Jornada_Dev_LinkageValidation.sql',
+        'Solution/database/Jornada_Dev_SyntheticScale.sql',
+        'Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql'
+    )
+    Push-Location $repoRoot
+    try {
+        Write-CommandLine 'git' (@('status','--porcelain','--') + $paths)
+        $dirty = @(& git status --porcelain -- @paths)
+        if ($LASTEXITCODE -ne 0) { throw "git status falhou ($LASTEXITCODE)." }
+        if ($dirty.Count -gt 0) {
+            throw "Proveniência da validação exige os caminhos de runtime/fixture limpos. Alterações locais detectadas: $($dirty -join '; '). Faça commit/stash ou use um checkout limpo."
+        }
+
+        $objects = @($paths | ForEach-Object { "HEAD:$_" })
+        Write-CommandLine 'git' (@('rev-parse') + $objects)
+        $objectIds = @(& git rev-parse @objects | ForEach-Object { $_.Trim().ToLowerInvariant() })
+        if ($LASTEXITCODE -ne 0 -or $objectIds.Count -ne $paths.Count) {
+            throw 'Não foi possível calcular o fingerprint do runtime/fixture da validação.'
+        }
+        return ($objectIds -join ':')
+    }
+    finally { Pop-Location }
+}
+
 function Get-CompleteValidationRunId {
     param(
         [Parameter(Mandatory=$true)][string]$ModelId,
@@ -117,6 +149,8 @@ ORDER BY lr.publicado_em DESC,lr.iniciado_em DESC,lr.linkage_run_id DESC;
 "@
 }
 
+$validationRuntimeFingerprint = Get-ValidationRuntimeFingerprint
+
 $activeModelId = Get-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'')<>'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;"
 if ([string]::IsNullOrWhiteSpace($activeModelId)) {
     throw "Nenhum modelo calibrado ATIVO. Execute primeiro '.\scripts\local-cluster.ps1 -Action calibrate'."
@@ -131,21 +165,42 @@ Invoke-SqlFile $Fixture
 # Reutiliza evidência completa já publicada para o mesmo modelo. Isso torna a validação idempotente:
 # observações resolvidas deixam de entrar no próximo ON_DEMAND e um segundo run isolado seria parcial.
 $runId = Get-CompleteValidationRunId -ModelId $activeModelId -ModelShort $modelShort
+$createdRunThisInvocation = $false
 if ([string]::IsNullOrWhiteSpace($runId)) {
     Write-CommandLine $LocalCluster @('-Action','linkage')
     & $LocalCluster -Action linkage
     if ($LASTEXITCODE -ne 0) { throw "local-cluster.ps1 linkage falhou ($LASTEXITCODE)." }
 
     $runId = Get-CompleteValidationRunId -ModelId $activeModelId -ModelShort $modelShort
+    $createdRunThisInvocation = $true
 }
 else {
-    Write-Host "Reutilizando run completo já publicado para este modelo: $runId"
+    if (-not (Test-Path -LiteralPath $RunProvenancePath)) {
+        throw "Run completo existente sem fingerprint de runtime verificável: $runId. Para evitar avaliar resultado produzido por código antigo, execute '.\scripts\local-linkage-validation-from-zero.ps1'."
+    }
+    $runProvenance = Get-Content -Raw -Encoding UTF8 -LiteralPath $RunProvenancePath | ConvertFrom-Json
+    if ([string]$runProvenance.runId -ne $runId -or
+        [string]$runProvenance.modelId -ne $activeModelId -or
+        [string]$runProvenance.runtimeFingerprint -ne $validationRuntimeFingerprint) {
+        throw "Run completo existente não corresponde ao runtime/fixture atual. Execute '.\scripts\local-linkage-validation-from-zero.ps1' para gerar evidência nova."
+    }
+    Write-Host "Reutilizando run completo com fingerprint de runtime verificado: $runId"
 }
 
 if ([string]::IsNullOrWhiteSpace($runId)) {
     throw 'Nenhum linkage completo de validação (40 positivos, 40 negativos, 10 conflitos) foi publicado.'
 }
+if ($createdRunThisInvocation) {
+    $provenance = [ordered]@{
+        runId = $runId
+        modelId = $activeModelId
+        runtimeFingerprint = $validationRuntimeFingerprint
+        generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+    }
+    [IO.File]::WriteAllText($RunProvenancePath, ($provenance | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+}
 Write-Host "Run de validação: $runId"
+Write-Host "Fingerprint runtime/fixture: $validationRuntimeFingerprint"
 
 $labelsQuery = @"
 WITH pos AS (
