@@ -99,6 +99,18 @@ jobs:
             and .model.priorProvenance.estimatorFormula == "clamp(DISTINCT_BIRTH_DATE / POPULATION_SIZE, 0.000001, PRIOR_BLOCK_MAX)"
             and .model.priorProvenance.populationSize > 0
             and .model.priorProvenance.distinctBirthDates > 0
+            and .model.priorProvenance.candidatePairDiagnostic.enabled == true
+            and .model.priorProvenance.candidatePairDiagnostic.available == true
+            and .model.priorProvenance.candidatePairDiagnostic.methodVersion == "CPF_LABELED_BLOCKING_CANDIDATE_PAIR_PRIOR_V1"
+            and .model.priorProvenance.candidatePairDiagnostic.observationSampleSize > 0
+            and .model.priorProvenance.candidatePairDiagnostic.truthCandidatePairs > 0
+            and .model.priorProvenance.candidatePairDiagnostic.falseCandidatePairs >= 0
+            and .model.priorProvenance.candidatePairDiagnostic.totalCandidatePairs
+                == (.model.priorProvenance.candidatePairDiagnostic.truthCandidatePairs + .model.priorProvenance.candidatePairDiagnostic.falseCandidatePairs)
+            and .model.priorProvenance.candidatePairDiagnostic.matchProbability > 0
+            and .model.priorProvenance.candidatePairDiagnostic.matchProbability <= 1
+            and .model.priorProvenance.candidatePairDiagnostic.candidateRecall > 0
+            and .model.priorProvenance.candidatePairDiagnostic.activeScoreChanged == false
             and (.negative.generatorIntendedEvidenceProfiles | length) == 4
             and (.negative.plannedColliderAlignment | length) == 4
             and (.negative.observedBestScoreStates | length) > 0
