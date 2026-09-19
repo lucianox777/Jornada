@@ -1,10 +1,10 @@
 # Identidade progressiva — persistência V1
 
-Estado: persistência e cutover transacional implementados em SQL Server e PostgreSQL. Este documento detalha a persistência da arquitetura consolidada em `Arquitetura_Identidade_Linkage.md`. A implementação não ativa resolução/fusão probabilística e não altera por si só a semântica factual de Gold ou Serving.
+Estado: persistência e cutover transacional correntes implementados em SQL Server 2022. Este documento detalha a persistência da arquitetura consolidada em `Arquitetura_Identidade_Linkage.md`. A implementação não ativa resolução/fusão probabilística e não altera por si só a semântica factual de Gold ou Serving.
 
 ## Modelo e semântica
 
-`identidade.pessoa_origem_progressiva` possui uma linha por `silver.pessoa_origem.pessoa_origem_id`, cuja chave estável é `(sistema_origem_id,codigo_pessoa_origem)`. O banco garante unicidade da origem e do UUID inicial, FKs e imutabilidade da origem, `initial_uuid`, instante de criação e referência legada. O UUID é aleatório, não derivado de CPF ou outros dados pessoais, e é reservado em `identidade.pessoa` na mesma transação.
+`identidade.pessoa_origem_progressiva` possui uma linha por `silver.pessoa_origem.pessoa_origem_id`, cuja identidade persistente é definida por `(base_pessoa_origem_id,codigo_pessoa_origem)`. O banco garante unicidade da origem e do UUID inicial, FKs e imutabilidade da origem, `initial_uuid`, instante de criação e referência legada. O UUID é aleatório, não derivado de CPF ou outros dados pessoais, e é reservado em `identidade.pessoa` na mesma transação.
 
 O estado começa em `PROVISORIA`, versão zero, sem referência canônica. Os únicos outros estados públicos são `REFERENCIA` e `INDEFINIDA`. `REFERENCIA` significa que existe uma referência canônica estabelecida segundo a política e as evidências declaradas; não significa certeza absoluta de identidade civil nem valida automaticamente todos os registros associados. Estado técnico de `identidade.pessoa`, estado de `identidade.vinculo_fonte`, situação do CPF e atribuição de cada fato continuam separados.
 
@@ -16,7 +16,7 @@ A tabela de eventos registra resultado, versão esperada, política, evidência,
 
 ## Instalação, backfill e cutover
 
-SQL Server instala `database/Jornada_Identidade_Progressiva.sql` após `database/Jornada_Fase1.sql`. PostgreSQL instala `database/postgresql/Jornada_Identidade_Progressiva.sql` após os cores Resultado, Ingestion Processor e Processor Persistence. Como a solução ainda não foi publicada, ambos os schemas V1 nascem diretamente com `PROVISORIA`, `REFERENCIA` e `INDEFINIDA`; não existe camada pública de compatibilidade `RESOLVIDA→REFERENCIA`.
+SQL Server instala `database/Jornada_Identidade_Progressiva.sql` após `database/Jornada_Fase1.sql`. PostgreSQL não integra o runtime operacional corrente da candidata v5.00; artefatos históricos não definem paridade normativa. O schema V1 nasce diretamente com `PROVISORIA`, `REFERENCIA` e `INDEFINIDA`; não existe camada pública de compatibilidade `RESOLVIDA→REFERENCIA`.
 
 `ProgressiveIdentityOriginStore.EnsureInitialAsync(sourceId)` exige a origem já persistida. O overload com conexão/transação assegura a referência dentro da transação do chamador. Locks da origem e constraints de unicidade serializam criações concorrentes. Falha da transação não é convertida em UUID persistido fora dela.
 
@@ -28,7 +28,7 @@ Rollback de um lote que criou origem, observação, vínculo e referência progr
 
 ## Validação e limites
 
-Os workflows dedicados usam bancos descartáveis em SQL Server e PostgreSQL, aplicam instalação repetida e executam harnesses reais. A persistência cobre concorrência, retransmissão, rollback, origem inexistente, referência legada, backfill e imutabilidade. O cutover cobre recusa pré-backfill, convergência do backfill, instalação reentrante, criação automática e rollback transacional nos dois providers.
+Os workflows correntes usam bancos descartáveis SQL Server, aplicam instalação repetida e executam harnesses reais. A persistência cobre concorrência, retransmissão, rollback, origem inexistente, referência legada, backfill e imutabilidade. O cutover cobre recusa pré-backfill, convergência do backfill, instalação reentrante, criação automática e rollback transacional nos dois providers.
 
 A criação do UUID inicial no Processor está implementada. Ainda não estão ativados: publicação probabilística de `REFERENCIA`, fusão/separação automática, aliases históricos, recomposição automática decorrente de Linkage, APIs públicas específicas de referência, BI de composição ou thresholds reais. A integração universal da âncora CPF aos escritores e procedimentos de correção permanece etapa necessária.
 
