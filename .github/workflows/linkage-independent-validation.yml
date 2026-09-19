@@ -98,8 +98,10 @@ jobs:
             and .model.priorProvenance.estimatorFormula == "clamp(DISTINCT_BIRTH_DATE / POPULATION_SIZE, 0.000001, PRIOR_BLOCK_MAX)"
             and .model.priorProvenance.populationSize > 0
             and .model.priorProvenance.distinctBirthDates > 0
-            and (.negative.plannedColliderEvidenceProfiles | length) == 4
+            and (.negative.generatorIntendedEvidenceProfiles | length) == 4
             and (.negative.plannedColliderAlignment | length) == 4
+            and (.negative.observedBestScoreStates | length) > 0
+            and .capabilityAssessment.isGate == false
             and (
               (.combinedDecisionQuality.resolvedDecisions == 0 and .combinedDecisionQuality.syntheticResolvedPpv == null)
               or
