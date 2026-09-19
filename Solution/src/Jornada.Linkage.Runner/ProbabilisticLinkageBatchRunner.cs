@@ -328,7 +328,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
             var cpf = reader.IsDBNull(1) ? null : reader.GetString(1);
             var cpfAusenteMotivo = reader.IsDBNull(2) ? null : reader.GetString(2);
             var nomeCompleto = reader.IsDBNull(3) ? null : reader.GetString(3);
-            var dataNascimento = reader.IsDBNull(4) ? null : DateOnly.FromDateTime(reader.GetDateTime(4));
+            DateOnly? dataNascimento = reader.IsDBNull(4) ? null : DateOnly.FromDateTime(reader.GetDateTime(4));
             var nomeMae = reader.IsDBNull(5) ? null : reader.GetString(5);
             var attributes = reader.IsDBNull(6)
                 ? Array.Empty<IdentityResolutionAttributeValue>()
