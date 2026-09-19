@@ -417,12 +417,20 @@ public sealed class LinkageParametersWorker(
         var command = new SqlCommand(
             """
             SELECT COUNT_BIG(*) AS population_size,
-                   SUM(CONVERT(BIGINT,CASE WHEN cpf IS NOT NULL THEN 1 ELSE 0 END)) AS with_cpf,
-                   APPROX_COUNT_DISTINCT(nome_completo) AS distinct_full_name,
-                   APPROX_COUNT_DISTINCT(nome_mae) AS distinct_mother_name,
-                   APPROX_COUNT_DISTINCT(data_nascimento) AS distinct_birth_date,
-                   MAX(atualizado_em) AS max_updated_at
-            FROM gold.pessoa;
+                   SUM(CONVERT(BIGINT,CASE WHEN g.cpf IS NOT NULL THEN 1 ELSE 0 END)) AS with_cpf,
+                   APPROX_COUNT_DISTINCT(g.nome_completo) AS distinct_full_name,
+                   APPROX_COUNT_DISTINCT(g.nome_mae) AS distinct_mother_name,
+                   APPROX_COUNT_DISTINCT(g.data_nascimento) AS distinct_birth_date,
+                   MAX(g.atualizado_em) AS max_updated_at
+            FROM gold.pessoa g
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM identidade.vinculo_fonte vf
+                JOIN silver.pessoa_observacao po
+                  ON po.pessoa_observacao_id=vf.pessoa_observacao_id
+                WHERE vf.pessoa_uuid=g.pessoa_uuid
+                  AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-%'
+            );
             """, connection)
         { CommandTimeout = Math.Max(30, configuration.GetValue("LinkageParameters:ReadCommandTimeoutSeconds", 900)) };
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -437,7 +445,17 @@ public sealed class LinkageParametersWorker(
         var command = new SqlCommand(
             """
             WITH gold_sample AS (
-                SELECT TOP (@pool_size) pessoa_uuid FROM gold.pessoa ORDER BY pessoa_uuid
+                SELECT TOP (@pool_size) g.pessoa_uuid
+                FROM gold.pessoa g
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM identidade.vinculo_fonte vf_val
+                    JOIN silver.pessoa_observacao po_val
+                      ON po_val.pessoa_observacao_id=vf_val.pessoa_observacao_id
+                    WHERE vf_val.pessoa_uuid=g.pessoa_uuid
+                      AND po_val.codigo_pessoa_origem LIKE N'SCALE-VAL-%'
+                )
+                ORDER BY g.pessoa_uuid
             ), obs_por_gestor AS (
                 SELECT vf.pessoa_uuid,po.gestor_id,po.pessoa_observacao_id,po.nome_completo,po.data_nascimento,po.nome_mae,
                        ROW_NUMBER() OVER (PARTITION BY vf.pessoa_uuid,po.gestor_id ORDER BY po.source_as_of DESC,po.pessoa_observacao_id DESC) AS rn_gestor
@@ -445,6 +463,7 @@ public sealed class LinkageParametersWorker(
                 JOIN identidade.vinculo_fonte vf ON vf.pessoa_uuid=gs.pessoa_uuid AND vf.ativo=1 AND vf.status='RESOLVIDO' AND vf.metodo_resolucao='CPF_DETERMINISTICO'
                 JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vf.pessoa_observacao_id
                 WHERE po.cpf IS NOT NULL
+                  AND po.codigo_pessoa_origem NOT LIKE N'SCALE-VAL-%'
             ), fontes_independentes AS (
                 SELECT opg.pessoa_uuid,opg.gestor_id,g.codigo AS gestor_codigo,opg.pessoa_observacao_id,opg.nome_completo,opg.data_nascimento,opg.nome_mae,
                        ROW_NUMBER() OVER (PARTITION BY opg.pessoa_uuid ORDER BY HASHBYTES('SHA2_256',CONCAT(CONVERT(nvarchar(36),opg.pessoa_uuid),':',CONVERT(nvarchar(20),opg.gestor_id))),opg.gestor_id,opg.pessoa_observacao_id) AS rn_fonte,
@@ -470,7 +489,17 @@ public sealed class LinkageParametersWorker(
         var command = new SqlCommand(
             $"""
             WITH gold_sample AS (
-                SELECT TOP (@pool_size) pessoa_uuid,nome_completo,data_nascimento,nome_mae FROM gold.pessoa ORDER BY pessoa_uuid
+                SELECT TOP (@pool_size) g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
+                FROM gold.pessoa g
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM identidade.vinculo_fonte vf_val
+                    JOIN silver.pessoa_observacao po_val
+                      ON po_val.pessoa_observacao_id=vf_val.pessoa_observacao_id
+                    WHERE vf_val.pessoa_uuid=g.pessoa_uuid
+                      AND po_val.codigo_pessoa_origem LIKE N'SCALE-VAL-%'
+                )
+                ORDER BY g.pessoa_uuid
             ), eligible_keys AS (
                 SELECT DISTINCT k.pessoa_uuid,k.atributo,k.valor_normalizado
                 FROM identidade.blocking_chave k JOIN gold_sample gs ON gs.pessoa_uuid=k.pessoa_uuid
