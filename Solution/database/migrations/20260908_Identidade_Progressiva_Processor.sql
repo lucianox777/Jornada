@@ -81,7 +81,8 @@ BEGIN
         SELECT DISTINCT o.pessoa_origem_id,i.pessoa_uuid
           FROM inserted i
           JOIN silver.pessoa_observacao o ON o.pessoa_observacao_id=i.pessoa_observacao_id
-         WHERE i.metodo_resolucao='CPF_DETERMINISTICO' AND i.status='RESOLVIDO' AND i.pessoa_uuid IS NOT NULL;
+         WHERE o.pessoa_origem_id IS NOT NULL
+           AND i.metodo_resolucao='CPF_DETERMINISTICO' AND i.status='RESOLVIDO' AND i.pessoa_uuid IS NOT NULL;
 
     OPEN progressiva_referencias;
     FETCH NEXT FROM progressiva_referencias INTO @pessoa_origem_id,@canonical_uuid;
