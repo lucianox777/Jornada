@@ -983,7 +983,7 @@ FROM v;
 "@
 $frontier = $frontierLine.Split('|')
 
-$theoretical = @(Get-SqlLines @"
+$theoreticalLatticeLines = @(Get-SqlLines @"
 WITH prior AS (
     SELECT CAST(valor AS float) AS p
     FROM identidade.parametro_linkage
@@ -1016,10 +1016,66 @@ WITH prior AS (
     CROSS JOIN mothers ma
     CROSS JOIN births b
 )
-SELECT TOP(12) CONCAT(nome_estado,'/',mae_estado,'/',nascimento_estado,'|',CONVERT(varchar(40),CAST(posterior AS decimal(18,8))))
+SELECT CONCAT(nome_estado,'/',mae_estado,'/',nascimento_estado,'|',CONVERT(varchar(40),CAST(posterior AS decimal(18,8))))
 FROM lattice
 ORDER BY ABS(posterior-$thresholdText),nome_estado,mae_estado,nascimento_estado;
 "@)
+
+$theoreticalLattice = @(
+    foreach ($line in $theoreticalLatticeLines) {
+        $parts = $line.Split('|',2)
+        [pscustomobject]@{
+            Signature = $parts[0]
+            Posterior = (Parse-Decimal $parts[1])
+        }
+    }
+)
+$theoretical = @(
+    $theoreticalLattice |
+        Select-Object -First 12 |
+        ForEach-Object { "$($_.Signature)|$($_.Posterior)" }
+)
+
+$negativeObservedScoreLines = @(Get-SqlLines @"
+WITH n AS (
+    SELECT
+        CASE
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-EASY-%' THEN N'EASY'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-NAME_COLLISION-%' THEN N'NAME_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-MOTHER_COLLISION-%' THEN N'MOTHER_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%' THEN N'HARD_HOMONYM'
+            ELSE N'UNKNOWN'
+        END AS scenario,
+        r.score_melhor
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-%'
+)
+SELECT CONCAT(scenario,'|',CONVERT(varchar(40),score_melhor),'|',COUNT_BIG(*))
+FROM n
+GROUP BY scenario,score_melhor
+ORDER BY scenario,score_melhor;
+"@)
+
+$negativeObservedBestScoreStates = @(
+    foreach ($line in $negativeObservedScoreLines) {
+        $parts = $line.Split('|')
+        $score = Parse-Decimal $parts[1]
+        $signatures = @(
+            $theoreticalLattice |
+                Where-Object { $_.Posterior -eq $score } |
+                ForEach-Object { $_.Signature }
+        )
+        [ordered]@{
+            scenario = $parts[0]
+            observedBestScore = $score
+            rows = [int]$parts[2]
+            compatibleEvidenceStates = $signatures
+            uniqueState = ($signatures.Count -eq 1)
+        }
+    }
+)
 
 $orderedMleValue = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='ORDER_RESTRICTED_NAME_LLR_MLE_V1';")
 $orderedMleEnabled = ($null -ne $orderedMleValue -and $orderedMleValue -ge [decimal]1)
@@ -1233,8 +1289,9 @@ $report = [ordered]@{
         syntheticSpecificity = [decimal]::Round($negativeSpecificity,6)
         syntheticFalseMatchRate = [decimal]::Round($negativeFalseMatchRate,6)
         scenarios = $negativeScenarioBreakdown
-        plannedColliderEvidenceProfiles = $negativeScenarioEvidence
+        generatorIntendedEvidenceProfiles = $negativeScenarioEvidence
         plannedColliderAlignment = $negativePlannedColliderAlignment
+        observedBestScoreStates = $negativeObservedBestScoreStates
         falseMatchDetails = $negativeFalseMatchDetails
     }
     combinedDecisionQuality = [ordered]@{
@@ -1339,11 +1396,20 @@ $report = [ordered]@{
         theoreticalClosestStates = $theoretical
         interpretation = 'O threshold atua sobre uma malha discreta de estados de evidência; sua leitura deve ser feita junto com dual-threshold guard e margem, não como ajuste contínuo isolado.'
     }
+    capabilityAssessment = [ordered]@{
+        status = if ($positiveCorrect -eq 0) { 'NOT_DEMONSTRATED_BY_CURRENT_ADVERSARIAL_CORPUS' } else { 'PARTIALLY_DEMONSTRATED_IN_CURRENT_CORPUS' }
+        positiveTotal = $positiveTotal
+        resolvedCorrect = $positiveCorrect
+        syntheticSensitivity = [decimal]::Round($positiveSensitivity,6)
+        isGate = $false
+        interpretation = 'Métrica diagnóstica separada do safety gate. O corpus adversarial atual não define piso normativo de sensibilidade.'
+    }
     interpretation = [ordered]@{
         scope = 'Evidência sintética DEV; não é estimativa de acurácia municipal nem homologação.'
         negatives = 'Impostores incluem colisões simples e HARD_HOMONYM. Nesta fase DEV, qualquer falso vínculo resolvido reprova o safety gate do harness; sensibilidade é reportada separadamente e não é aprovada por este gate.'
         frontier = 'A malha teórica mostra se os estados discretos do modelo conseguem sequer ocupar a vizinhança do threshold atual.'
         orderRestriction = 'A auditoria mostra quanto a MLE ordenada alterou m/LLR; pooling grande é diagnóstico de tensão entre estimativas, não evidência adicional de identidade.'
+        negativeProfiles = 'Os perfis generatorIntendedEvidenceProfiles descrevem a intenção do fixture. observedBestScoreStates mapeia os scores realmente produzidos de volta à malha do modelo; divergência entre ambos evidencia que o comparador/runtime não realizou o estado nominal pretendido pelo nome do cenário.'
     }
 }
 
@@ -1379,13 +1445,18 @@ Write-Host 'Negativos por cenário:'
 foreach ($scenario in $negativeScenarioBreakdown) {
     Write-Host ("  {0}: total={1} falsos_vínculos={2} conflitos={3} não_resolvidos={4} expostos={5} score=[{6},{7}]" -f $scenario.scenario,$scenario.total,$scenario.resolvedFalseMatches,$scenario.conflicts,$scenario.unresolved,$scenario.candidateExposure,$scenario.minBestScore,$scenario.maxBestScore)
 }
-Write-Host 'Perfil teórico do colisor planejado (não necessariamente o melhor candidato observado):'
+Write-Host 'Perfil teórico pretendido pelo gerador (não é medição do estado realmente comparado):'
 foreach ($profile in $negativeScenarioEvidence) {
     Write-Host ("  {0}: {1}/{2}/{3} prior={4} nome_llr={5} mãe_llr={6} nasc_llr={7} posterior={8}" -f $profile.scenario,$profile.nameState,$profile.motherState,$profile.birthState,$profile.priorLogOdds,$profile.nameLlr,$profile.motherLlr,$profile.birthLlr,$profile.theoreticalPosterior)
 }
 Write-Host 'Alinhamento do melhor candidato com o colisor planejado:'
 foreach ($item in $negativePlannedColliderAlignment) {
     Write-Host ("  {0}: total={1} best_planejado={2} best_outro={3} best_nulo={4} score_planejado=[{5},{6}] score_outro=[{7},{8}]" -f $item.scenario,$item.total,$item.bestIsPlannedCollider,$item.bestIsOtherCandidate,$item.bestIsNull,$item.plannedColliderBestScoreMin,$item.plannedColliderBestScoreMax,$item.otherCandidateBestScoreMin,$item.otherCandidateBestScoreMax)
+}
+Write-Host 'Estados de evidência compatíveis com os scores realmente observados:'
+foreach ($item in $negativeObservedBestScoreStates) {
+    $states = if ($item.compatibleEvidenceStates.Count -eq 0) { 'SEM_MAPEAMENTO_NO_LATTICE' } else { $item.compatibleEvidenceStates -join ',' }
+    Write-Host ("  {0}: score={1} linhas={2} estados={3}" -f $item.scenario,$item.observedBestScore,$item.rows,$states)
 }
 Write-Host ("Prior: p={0} raw_distinct_birth/population={1} cap={2} saturado_no_cap={3}" -f $priorProbability,$rawReferencePrior,$priorBlockMax,$priorClampedAtUpperBound)
 if ($negativeFalseMatchDetails.Count -gt 0) {
