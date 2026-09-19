@@ -1676,6 +1676,13 @@ IF OBJECT_ID('gold.pessoa','U') IS NULL CREATE TABLE gold.pessoa(
    (completude_nucleo='COMPLETO' AND nome_completo IS NOT NULL AND data_nascimento IS NOT NULL AND nome_mae IS NOT NULL)
    OR (completude_nucleo='PARCIAL' AND (nome_completo IS NULL OR data_nascimento IS NULL OR nome_mae IS NULL))));
 GO
+-- Compatibilidade de reentrada: em upgrade, gold.pessoa pode existir antes das colunas
+-- progressivas. As views do baseline precisam compilar antes de o manifesto executar o
+-- backfill/constraints da migração 20260919_Gold_Pessoa_Progressiva.sql.
+IF COL_LENGTH('gold.pessoa','estado_identidade') IS NULL
+ ALTER TABLE gold.pessoa ADD estado_identidade NVARCHAR(20) NULL;
+IF COL_LENGTH('gold.pessoa','completude_nucleo') IS NULL
+ ALTER TABLE gold.pessoa ADD completude_nucleo NVARCHAR(20) NULL;
 GO
 -- v3.40: o contador representa fontes distintas observadas; uma fonte única não é 'corroboração'.
 IF COL_LENGTH('gold.pessoa','fontes_distintas') IS NULL AND COL_LENGTH('gold.pessoa','fontes_corrobora') IS NOT NULL
