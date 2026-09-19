@@ -19,7 +19,7 @@
       "structural_fingerprint_sha256": "75d0674671d54153a1a9f5c7d39846f2cba287d34299eee3da263275cd1713cf",
       "structural_fingerprint_method": "SHA256_SORTED_METADATA_LINES_FROM_Jornada_Dev_DdlFingerprint.sql",
       "migration_manifest": "Solution/database/migrations/manifest.txt",
-      "migration_manifest_sha256": "99541809a485ff8d01f918a1210efcd9e7df13ffad90fcf38df3302b03bcdba0",
+      "migration_manifest_sha256": "111b8adbf82cf5c1604f4c7e11e80da8a8cfca23702d313d245edd8ce2e7dabe",
       "migration_manifest_hash_method": "SHA256_UTF8_LF",
       "ddl_evidence_run_id": 35300248099,
       "rc_rule": "Before the technical RC is cut, source_commit and both hashes may move together. Once v5.00-rc.1 is cut, this provenance tuple is immutable; a structural change requires a new RC checkpoint."
