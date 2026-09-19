@@ -85,8 +85,34 @@ jobs:
         run: |
           # pwsh -NoLogo -NoProfile -File ./scripts/local-linkage-validation.ps1
           Write-Host '# pwsh -NoLogo -NoProfile -File ./scripts/local-linkage-validation.ps1'
-          & ./scripts/local-linkage-validation.ps1
+          & ./scripts/local-linkage-validation.ps1 2>&1 | Tee-Object -FilePath .local/linkage-validation/validation-console.txt
           if ($LASTEXITCODE -ne 0) { throw "local-linkage-validation.ps1 falhou ($LASTEXITCODE)." }
+
+      - name: Validate safety/report semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          report='.local/linkage-validation/validation-report.json'
+          jq -e '
+            (.model.runtimeFingerprint | type=="string" and length>0)
+            and .model.priorProvenance.estimatorFormula == "clamp(DISTINCT_BIRTH_DATE / POPULATION_SIZE, 0.000001, PRIOR_BLOCK_MAX)"
+            and .model.priorProvenance.populationSize > 0
+            and .model.priorProvenance.distinctBirthDates > 0
+            and (.negative.plannedColliderEvidenceProfiles | length) == 4
+            and (.negative.plannedColliderAlignment | length) == 4
+            and (
+              (.combinedDecisionQuality.resolvedDecisions == 0 and .combinedDecisionQuality.syntheticResolvedPpv == null)
+              or
+              (.combinedDecisionQuality.resolvedDecisions > 0 and .combinedDecisionQuality.syntheticResolvedPpv != null)
+            )
+            and (.nominalOrderRestriction.zeroMatchedSupportStates | type=="array")
+          ' "$report" >/dev/null
+          grep -q 'LINKAGE INDEPENDENT VALIDATION DEV SAFETY GATES: OK' .local/linkage-validation/validation-console.txt
+          if grep -q 'DEV QUALITY GATES: OK' .local/linkage-validation/validation-console.txt; then
+            echo 'ERRO: banner antigo de quality gate ainda presente.' >&2
+            exit 1
+          fi
+          echo 'LINKAGE SAFETY/REPORT SEMANTICS: OK'
 
       - name: Validate policy counterfactual evidence
         shell: bash
@@ -201,6 +227,7 @@ jobs:
             Solution/.local/linkage-validation/validation-report.json
             Solution/.local/linkage-evidence-readiness/evidence-readiness.json
             Solution/.local/linkage-validation/run-provenance.json
+            Solution/.local/linkage-validation/validation-console.txt
             Solution/.local/linkage-triplet-collision-audit/triplet-collision-audit.json
           if-no-files-found: warn
           retention-days: 14
