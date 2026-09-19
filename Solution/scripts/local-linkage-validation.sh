@@ -6,6 +6,7 @@ ENV_FILE="$ROOT/.env"
 OUT_DIR="$ROOT/.local/linkage-validation"
 LABELS="$OUT_DIR/positive-labels.csv"
 AUDIT="$OUT_DIR/blocking-pass-audit.json"
+ABBREV_AUDIT="$OUT_DIR/abbreviation-compatibility-audit.json"
 PROVENANCE="$OUT_DIR/run-provenance.json"
 FIXTURE="/workspace/database/Jornada_Dev_LinkageValidation.sql"
 mkdir -p "$OUT_DIR"
@@ -125,6 +126,26 @@ compose exec -T jornada-node2 dotnet /opt/jornada/apps/Jornada.Linkage.Runner/Jo
   --blocking-pass-audit-output /tmp/jornada-linkage-validation-blocking.json \
   --ProbabilisticLinkage:CommandTimeoutSeconds 300
 compose cp jornada-node2:/tmp/jornada-linkage-validation-blocking.json "$AUDIT"
+
+compose exec -T jornada-node2 dotnet /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll \
+  --name-abbreviation-audit-run "$run_id" \
+  --name-abbreviation-audit-output /tmp/jornada-linkage-validation-abbreviation.json \
+  --ProbabilisticLinkage:CommandTimeoutSeconds 300
+compose cp jornada-node2:/tmp/jornada-linkage-validation-abbreviation.json "$ABBREV_AUDIT"
+
+jq -e '
+  .purpose == "DEV_READ_ONLY_ABBREVIATION_COMPATIBILITY_DIAGNOSTIC"
+  and .proposedDiagnostic.version == "PTBR_POSITIONAL_INITIAL_COMPATIBLE_V1"
+  and .proposedDiagnostic.changesPolicy == false
+  and .proposedDiagnostic.changesScoring == false
+  and .positiveNameAbbrev.total == 8
+  and .negativeMotherCollision.total == 10
+' "$ABBREV_AUDIT" >/dev/null || {
+  echo 'ERRO: auditoria de abreviação compatível inválida.' >&2
+  jq '.' "$ABBREV_AUDIT" >&2
+  exit 6
+}
+echo "Abreviação compatível (diagnóstico): NAME_ABBREV=$(jq -r '.positiveNameAbbrev.compatible' "$ABBREV_AUDIT")/8; MOTHER_COLLISION=$(jq -r '.negativeMotherCollision.compatible' "$ABBREV_AUDIT")/10; separa=$(jq -r '.separation.selectedFixtureClassesSeparated' "$ABBREV_AUDIT")"
 
 jq -e '.summary.sampleSize == 40 and .summary.truthInsideUnion == 40 and .summary.unionRecallPct == 100' "$AUDIT" >/dev/null || {
   echo 'ERRO: blocking do corpus positivo não recuperou 100% das verdades do fixture.' >&2
