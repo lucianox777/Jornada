@@ -9,6 +9,16 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$DefaultEnvFile = Join-Path $Root '.env'
+$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) {
+    $DefaultEnvFile
+}
+else {
+    [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE)
+}
+if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE) -and -not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+    throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile"
+}
 $CurrentPowerShell = (Get-Process -Id $PID).Path
 $Results = [System.Collections.Generic.List[object]]::new()
 $OverallStatus = 'FAILED'
@@ -160,8 +170,8 @@ function Invoke-LinkageEvaluationSmoke {
     }
     Write-Host "Bash selecionado para a auditoria read-only: $bash"
 
-    $envFile = Join-Path $Root '.env'
-    if (-not (Test-Path -LiteralPath $envFile)) { throw '.env não encontrado após preparação local.' }
+    $envFile = $EnvFile
+    if (-not (Test-Path -LiteralPath $envFile -PathType Leaf)) { throw ".env nao encontrado para auditoria local: $envFile" }
     $vars = @{}
     Get-Content $envFile | ForEach-Object {
         $line = $_.Trim()
@@ -225,6 +235,10 @@ foreach ($command in @('git', 'docker', 'dotnet')) {
 # A invocação pública nunca altera o working tree do desenvolvedor. Busca o SHA remoto,
 # cria um worktree destacado e executa a mesma suíte nesse checkout descartável.
 if (-not $IsolatedExecution) {
+    $sharedEnvFile = Join-Path $Root '.env'
+    if (-not $FromZero -and -not (Test-Path -LiteralPath $sharedEnvFile -PathType Leaf)) {
+        throw "Modo PRESERVE_IBGE exige o .env do checkout principal: $sharedEnvFile"
+    }
     $worktreePath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-local-test-all-{0}" -f [Guid]::NewGuid().ToString('N'))
     $childReport = Join-Path $worktreePath 'Solution/.local/test-all/latest.json'
     $targetReportDir = Join-Path $Root '.local/test-all'
@@ -253,9 +267,22 @@ if (-not $IsolatedExecution) {
         }
 
         $isolatedScript = Join-Path $worktreePath 'Solution/scripts/local-test-all.ps1'
-        Write-CommandLine $CurrentPowerShell @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$isolatedScript,'-Suite',$Suite,'-IsolatedExecution')
-        & $CurrentPowerShell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $isolatedScript -Suite $Suite -IsolatedExecution
-        $exitCode = $LASTEXITCODE
+        $childArgs = @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$isolatedScript,'-Suite',$Suite)
+        $childArgs += '-IsolatedExecution'
+        Write-CommandLine $CurrentPowerShell $childArgs
+
+        $previousSharedEnvFile = $env:JORNADA_LOCAL_ENV_FILE
+        try {
+            if (Test-Path -LiteralPath $sharedEnvFile -PathType Leaf) {
+                $env:JORNADA_LOCAL_ENV_FILE = (Resolve-Path -LiteralPath $sharedEnvFile).Path
+                Write-Host "Config local compartilhada com o worktree via JORNADA_LOCAL_ENV_FILE (arquivo nao copiado)."
+            }
+            & $CurrentPowerShell @childArgs
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            $env:JORNADA_LOCAL_ENV_FILE = $previousSharedEnvFile
+        }
     }
     catch {
         $FailureMessage = $_.Exception.Message
@@ -319,18 +346,25 @@ try {
     Invoke-Step 'Referencia IBGE existente: quick check read-only' {
         Invoke-PowerShellScript 'local-check-ibge-reference.ps1'
     }
+    else {
+        Write-Host 'Reset destrutivo explicitamente autorizado: SIM.'
+        Write-Host 'FROM_ZERO recria banco/volumes e prova a materializacao canonica completa.'
 
-    Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
-        Invoke-PowerShellScript 'local-test.ps1'
-    }
+        Invoke-Step 'Banco local canônico: reset determinístico' {
+            Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')
+        }
 
-    Invoke-Step 'E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP' {
-        Invoke-PowerShellScript 'local-e2e.ps1'
-    }
+        Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
+            Invoke-PowerShellScript 'local-test.ps1'
+        }
 
-    Invoke-Step 'Fault injection do gate serial' {
-        Invoke-PowerShellScript 'local-fault-injection.ps1'
-    }
+        Invoke-Step 'E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP' {
+            Invoke-PowerShellScript 'local-e2e.ps1'
+        }
+
+        Invoke-Step 'Fault injection do gate serial' {
+            Invoke-PowerShellScript 'local-fault-injection.ps1'
+        }
 
     Invoke-Step 'Cluster preservado: up + calibrate + linkage + diagnose' {
         Invoke-ClusterAction 'up'
@@ -339,7 +373,7 @@ try {
         Invoke-ClusterAction 'linkage-diagnose'
     }
 
-    if ($Suite -eq 'full') {
+        if ($Suite -eq 'full') {
         Invoke-Step 'Auditoria read-only de candidate recall/rank' {
             Invoke-LinkageEvaluationSmoke
         }
@@ -349,7 +383,8 @@ try {
         Invoke-PowerShellScript 'local-check-ibge-reference.ps1' @('-NoStart')
     }
 
-    $OverallStatus = 'OK'
+        $OverallStatus = 'OK'
+    }
 }
 catch {
     $FailureMessage = $_.Exception.Message

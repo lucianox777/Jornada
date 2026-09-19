@@ -130,9 +130,17 @@ public static class BlockingConditionedUnmatchedPairReader
         command.CommandText = $"""
 WITH gold_sample AS (
     SELECT TOP (@pool_size)
-        pessoa_uuid,nome_completo,data_nascimento,nome_mae
-    FROM gold.pessoa
-    ORDER BY pessoa_uuid
+        g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
+    FROM gold.pessoa g
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM identidade.vinculo_fonte vf_val
+        JOIN silver.pessoa_observacao po_val
+          ON po_val.pessoa_observacao_id=vf_val.pessoa_observacao_id
+        WHERE vf_val.pessoa_uuid=g.pessoa_uuid
+          AND po_val.codigo_pessoa_origem LIKE N'SCALE-VAL-%'
+    )
+    ORDER BY g.pessoa_uuid
 ), eligible_keys AS (
     SELECT DISTINCT k.pessoa_uuid,k.atributo,k.valor_normalizado
     FROM identidade.blocking_chave k

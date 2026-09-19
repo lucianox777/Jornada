@@ -13,6 +13,7 @@ public static class IdentityComparison
     public const string NormalizationVersion = "IDENTITY_NORMALIZATION_V1";
     public const string NameComparisonVersionV1 = "WHOLE_NAME_JARO_WINKLER_V1";
     public const string NameComparisonVersionV2 = "PTBR_CONTENT_TOKEN_GUARD_JARO_WINKLER_V2";
+    public const string AbbreviationCompatibilityVersionV1 = "PTBR_POSITIONAL_INITIAL_COMPATIBLE_V1";
 
     public static string? NormalizeText(string? value)
     {
@@ -124,6 +125,63 @@ public static class IdentityComparison
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Where(static token => token is not ("DA" or "DAS" or "DE" or "DO" or "DOS"))
             .ToArray();
+
+    /// <summary>
+    /// Diagnóstico versionado de abreviação compatível. Não altera os estados
+    /// EXACT/HIGH/MEDIUM/LOW nem o scorer. Exige alinhamento posicional dos tokens
+    /// de conteúdo: cada posição deve ser idêntica ou representar uma inicial
+    /// de um token completo com a mesma letra. Ao menos uma posição precisa ser
+    /// abreviada e nenhum token conflitante é aceito.
+    /// </summary>
+    public static bool IsAbbreviationCompatible(string? left, string? right)
+    {
+        var a = NormalizeText(left);
+        var b = NormalizeText(right);
+        if (a is null || b is null || string.Equals(a, b, StringComparison.Ordinal))
+            return false;
+
+        var leftTokens = ContentTokens(a);
+        var rightTokens = ContentTokens(b);
+        if (leftTokens.Length != rightTokens.Length || leftTokens.Length == 0)
+            return false;
+
+        var hasAbbreviation = false;
+        for (var i = 0; i < leftTokens.Length; i++)
+        {
+            var leftToken = CanonicalInitialToken(leftTokens[i]);
+            var rightToken = CanonicalInitialToken(rightTokens[i]);
+            if (string.Equals(leftToken, rightToken, StringComparison.Ordinal))
+                continue;
+
+            var leftInitial = TryGetInitial(leftTokens[i]);
+            var rightInitial = TryGetInitial(rightTokens[i]);
+            if (leftInitial is not null && rightInitial is null &&
+                rightTokens[i].Length > 1 && rightTokens[i][0] == leftInitial.Value)
+            {
+                hasAbbreviation = true;
+                continue;
+            }
+            if (rightInitial is not null && leftInitial is null &&
+                leftTokens[i].Length > 1 && leftTokens[i][0] == rightInitial.Value)
+            {
+                hasAbbreviation = true;
+                continue;
+            }
+
+            return false;
+        }
+
+        return hasAbbreviation;
+    }
+
+    private static string CanonicalInitialToken(string token) =>
+        token.Length == 2 && token[1] == '.' ? token[..1] : token;
+
+    private static char? TryGetInitial(string token)
+    {
+        var canonical = CanonicalInitialToken(token);
+        return canonical.Length == 1 && char.IsLetter(canonical[0]) ? canonical[0] : null;
+    }
 
     private static NameComparisonState ClassifyWholeNameV1(string? a, string? b)
     {

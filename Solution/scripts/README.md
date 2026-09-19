@@ -87,13 +87,13 @@ LOCAL CORE TEST: OK
 
 Valida o caminho de upgrade a partir do baseline suportado e os invariantes de dados/schema. É obrigatório quando houver mudança de banco e continua sendo uma boa prova de regressão antes do fechamento local.
 
-### 7. Rodar E2E
+### 7. Rodar E2E destrutivo, quando necessário
 
 ```powershell
 .\scripts\local-e2e.ps1
 ```
 
-Exercita o caminho HTTP → Bronze → Silver → Gold → Serving → HTTP.
+Exercita o caminho HTTP → Bronze → Silver → Gold → Serving → HTTP, mas atualmente faz `local-db reset`. Por isso não pertence ao fechamento padrão que preserva a referência IBGE; ele é exercitado pelo fluxo `local-test-from-zero.ps1`.
 
 ### 8. Rodar fault injection
 
@@ -108,11 +108,32 @@ Valida comportamento de resiliência e o gate serial diante das falhas previstas
 No fluxo normal, não execute `clean` nem `reset`. Suba/reutilize o cluster existente e rode a calibração/linkage sobre a referência IBGE já materializada:
 
 ```powershell
+.\scripts\local-linkage-monte-carlo-validation.ps1 -PairCount 1000000 -Seed 20260917
+```
+
+O script grava transcript em `.local\linkage-monte-carlo-validation\` e encerra imediatamente na primeira falha.
+
+O agregador mais curto, sem restore/build/testes prévios, permanece disponível em:
+
+```powershell
+.\scripts\local-linkage-validation-from-zero.ps1 -PairCount 1000000 -Seed 20260917
+```
+
+Ele imprime cada comando antes de executá-lo e percorre, nesta ordem: `clean`, `up`, `calibrate`, relatório Monte Carlo IBGE read-only, `linkage`, `linkage-diagnose` e validação independente DEV.
+
+A validação independente persiste fixtures auxiliares `SCALE-VAL-*` no mesmo banco. Eles **não fazem parte** da massa SCALE canônica de 11.000 origens (`5.000 SCALE-SEHAB + 5.000 SCALE-SMADS + 1.000 SCALE-PEND`). `local-db.ps1 -Action up` e o equivalente shell validam esses três segmentos separadamente e preservam fixtures adicionais; por isso o fechamento preservador pode ser executado depois da validação sem exigir `reset` apenas porque existem linhas `SCALE-VAL-*`.
+
+A mesma sequência, expandida, é:
+
+```powershell
+.\scripts\local-cluster.ps1 -Action clean
 .\scripts\local-cluster.ps1 -Action up
 .\scripts\local-cluster.ps1 -Action calibrate
 .\scripts\local-cluster.ps1 -Action linkage
 .\scripts\local-cluster.ps1 -Action linkage-diagnose
-.\scripts\local-linkage-evaluation-smoke.ps1
+.\scripts\local-linkage-validation.ps1
+.\scripts\local-linkage-evidence-readiness.ps1
+.\scripts\local-linkage-triplet-collision-audit.ps1
 ```
 
 A referência IBGE é um snapshot externo, versionado e imutável. No ciclo normal ela deve ser **reutilizada**, não apagada e recarregada.
@@ -133,38 +154,88 @@ O reset do banco compartilhado só existe como escape explícito:
 
 ### 11. Fechar com a suíte ampla preservadora
 
+`local-ibge-u-bootstrap.ps1` é **read-only** e reproduz separadamente as distribuições Monte Carlo de pessoa e mãe para comparação com o modelo ATIVO; não cria, valida ou ativa modelo. `local-linkage-validation.ps1` usa corpus independente DEV com positivos, impostores e probes de conflito. Nesta fase pré-homologação, não há comparação de regressão com modelo anterior; o harness reprova se produzir falso vínculo resolvido.
+
+O fechamento do corpus independente é deliberadamente um **safety gate**, não um gate de capacidade. Zero falso vínculo é condição para passar; sensibilidade permanece métrica diagnóstica e pode ser zero sem que o safety gate seja reprovado. Portanto, `LINKAGE INDEPENDENT VALIDATION DEV SAFETY GATES: OK` significa somente que as invariantes conservadoras foram preservadas naquele corpus. Um futuro gate de capacidade precisa de controles positivos desenhados para medir resolução útil e não deve receber um piso de sensibilidade arbitrário sobre o corpus adversarial atual.
+
+Quando nenhuma decisão é resolvida, PPV é matematicamente indefinido. O relatório grava `syntheticResolvedPpv=null` e o console mostra `N/A`; nunca use `0%` para representar `0/0`.
+
+O diagnóstico dos negativos separa agora o **colisor planejado pelo fixture** do **melhor candidato realmente observado**. `generatorIntendedEvidenceProfiles` descreve o estado que o gerador pretendia criar; `plannedColliderAlignment` informa quantas vezes o UUID plantado foi de fato o melhor candidato; `observedBestScoreStates` mapeia os scores realmente produzidos de volta aos estados compatíveis da malha do modelo. Assim, um `NAME_COLLISION` planejado em `EXACT/LOW/EXACT` não é usado para explicar um score maior obtido contra outra Pessoa da Gold.
+
+Runs completos só podem ser reutilizados quando `modelo_id` **e** o fingerprint do runtime/fixture corrente coincidirem com `.local\linkage-validation\run-provenance.json`. Run antigo sem essa proveniência falha fechado; gere evidência nova com `local-linkage-validation-from-zero.ps1`. Isso impede avaliar um resultado persistido produzido por código anterior apenas porque o modelo continuou com o mesmo UUID.
+
+O relatório também explicita a proveniência do `PRIOR_MATCH_PROBABILITY`. Hoje o valor **ativo** ainda vem de `clamp(DISTINCT_BIRTH_DATE / POPULATION_SIZE, 0.000001, PRIOR_BLOCK_MAX)`; isto é uma heurística, não a frequência empírica de match condicionada ao blocking. Se `clampedAtUpperBound=true`, o prior publicado está no teto da regra.
+
+Em paralelo, o Parameters Worker mede `CPF_LABELED_BLOCKING_CANDIDATE_PAIR_PRIOR_V1`: usa observações correntes resolvidas por CPF apenas como ground truth, remove CPF da geração de candidatos e reaplica o mesmo ruleset vencedor/projeção física. O bloco `model.priorProvenance.candidatePairDiagnostic` registra pares candidato-verdade, pares candidato-não-match, recall do truth no candidate set, `P(match|par candidato)` observada e o delta de log-odds contra o prior ativo. Nesta etapa `activeScoreChanged=false`: a medição é deliberadamente read-only. A limitação principal também fica explícita: observações com CPF podem não ser representativas do fluxo sem CPF; corpus SCALE não autoriza declarar prevalência municipal nem promover automaticamente esse prior.
+
+A validação independente também executa um **contrafactual read-only do prior**. O Runner recarrega o candidate set e o scorer do modelo ativo, troca somente `PRIOR_MATCH_PROBABILITY` em memória pelo `DIAG_CANDIDATE_PRIOR_MATCH_PROBABILITY` e recalcula a política completa. O relatório `prior-counterfactual-audit.json` preserva a decisão ativa, a contrafactual, transições de status, positivos corretos/errados, falsos vínculos negativos e fan-out. Como o prior global soma a mesma constante aos log-odds de todos os candidatos, o candidato top e a margem em log-odds devem permanecer invariantes; qualquer mudança de ranking invalida o diagnóstico. Diferenças de decisão só podem ocorrer por cruzamento de `T_LINKAGE`/dual-threshold guard. O comparativo de fan-out entre a amostra rotulada com CPF e o fixture sem CPF é diagnóstico de transportabilidade, não prova de representatividade municipal.
+
+Estados nominais com `matchedSupport=0` aparecem em `zeroMatchedSupportStates`. Seu `m` é sustentado por suavização e, quando aplicável, pela restrição de ordem, não por exemplos positivos observados. Assim, desempenho de abreviações nesses estados não deve ser generalizado para dados reais sem uma amostra `m` representativa.
+
+A validação também executa a auditoria read-only `PTBR_POSITIONAL_INITIAL_COMPATIBLE_V1`. Ela testa, sobre o melhor candidato já produzido, uma regra estrita de abreviação: tokens de conteúdo precisam estar alinhados por posição; cada token deve ser idêntico ou uma inicial de uma palavra completa com a mesma letra; ao menos uma abreviação deve existir e qualquer token conflitante reprova a compatibilidade. O resultado fica em `.local\linkage-validation\abbreviation-compatibility-audit.json` e também entra em `validation-report.json`. Esse diagnóstico **não cria um quinto estado**, não estima `m/u`, não altera scorer, threshold ou prior; serve apenas para provar se `NAME_ABBREV` pode ser separado de `MOTHER_COLLISION` antes de qualquer mudança de modelo.
+
+A calibração agora também persiste **suporte de treino** para essa mesma regra, sem transformá-la em evidência de score. `DIAG_ABBREV_M_*` conta compatibilidade nos pares inter-Gestores ligados por CPF; `DIAG_ABBREV_U_*` conta somente a amostra Gold-Gold condicionada ao ruleset. O relatório expõe essas contagens em `abbreviationTrainingSupport` e mantém `llrEstimated=false`. Isso é deliberado: o `u` nominal operacional de nome continua vindo da referência IBGE por Monte Carlo, enquanto a probabilidade de uma abreviação aparecer depende também do processo de registro da fonte. Portanto, mesmo com suporte m positivo, não se calcula `LLR_ABBREV_COMPATIBLE` até existir uma estimativa u semanticamente compatível.
+
+A mesma validação também calcula um **contrafactual read-only de política**: reaplica os rankings já produzidos como se apenas `SCORING_DUAL_THRESHOLD_CONFLICT_V1` fosse removido, mantendo `T_LINKAGE` e `CONFLICT_MARGIN_LOG_ODDS`. O bloco `counterfactualNoDualThresholdGuard` do `validation-report.json` mostra, para positivos e negativos, quantos casos seriam resolvidos, continuariam em conflito ou permaneceriam não resolvidos. Esse cálculo não recalibra o modelo, não altera parâmetros, não publica vínculos e não é autorização para mudar a política.
+
+Além disso, `dualThresholdMarginFrontier` testa a alternativa mais restrita de **manter o guard como referência, mas perguntar se uma margem de log-odds maior permitiria liberar com segurança apenas parte dos casos em que os dois candidatos estão acima de `T_LINKAGE`**. O diagnóstico percorre os cortes de margem observados no próprio corpus e registra quantos positivos corretos e falsos vínculos seriam liberados em cada ponto. Sobreposição das margens verdadeiras com as margens dos impostores significa que a margem, sozinha, não é evidência discriminante suficiente. O cálculo também é read-only e não altera a política.
+
+O bloco `currentEvidenceIdentifiability` fecha a pergunta seguinte: existem positivos e negativos que apresentam a mesma assinatura `EXACT/EXACT/EXACT` nos três campos atualmente usados pelo score (`NOME`, `NOME_MAE`, `DATA_NASCIMENTO`)? No cenário sintético `HARD_HOMONYM`, a validação comprova diretamente a igualdade desses três campos entre a observação negativa e seu melhor candidato. Se a mesma assinatura também aparece nos positivos `EXACT`, o relatório marca `observationalOverlapDetected=true`. Nessa situação, nenhuma regra determinística baseada somente nesses três campos consegue separar corretamente todos esses exemplos; a saída técnica é manter abstenção/conflito nesses casos ou acrescentar evidência independente. O diagnóstico não escolhe qual novo atributo deve existir e não altera a política.
+
+
+Depois desse gate, `local-linkage-evidence-readiness.ps1` inventaria evidência se tentasse melhorar o score; por isso ele faz apenas o oposto: **mede a evidência já existente**. O relatório `.local\linkage-evidence-readiness\evidence-readiness.json` separa identificadores (`CPF`, `CNS`, `RG`, `UUID_JORNADA`) de atributos transversais. `TELEFONE_CONTATO`, `EMAIL_CONTATO` e `NOME_SOCIAL` já são elegíveis para resolução/blocking no catálogo e possuem projeção física, mas o scorer V6 ainda calcula LLR somente com `NOME`, `NOME_MAE` e `DATA_NASCIMENTO`. `CNS` e `RG` continuam condicionais e o diagnóstico não os promove a âncoras. `ENDERECO_RESIDENCIAL`, `REFERENCIA_TERRITORIAL` e `ENDERECO_CASA_ABRIGO_SIGILOSA` permanecem explicitamente inelegíveis para resolução de identidade.
+
+A leitura principal é a cobertura em `POS_EXACT` e `NEG_HARD_HOMONYM`. Se uma evidência adicional não estiver presente/comparável nos dois grupos, o corpus DEV atual **não mede seu ganho discriminativo**; não se deve preencher essa lacuna com peso arbitrário, threshold novo ou hipótese sobre a população municipal. O próximo experimento somente deve calibrar `m/u` dessa evidência depois de existir cobertura representativa e regra de governança correspondente.
+
+Para medir a pergunta de prevalência sem expor PII, use:
+
+```powershell
+.\scripts\local-linkage-triplet-collision-audit.ps1
+```
+
+A auditoria conta, na Gold ancorada por CPF, quantas Pessoas distintas compartilham a tripla `NOME_NORMALIZADO + NOME_MAE_NORMALIZADO + DATA_NASCIMENTO`. Os nomes normalizados vêm das chaves correntes `name_full` e `mother_name_full` da mesma projeção de blocking do modelo; o script exige cobertura de projeção coerente e grava apenas agregados, nunca nomes, CPFs, UUIDs ou datas individuais. O relatório fica em `.local\linkage-triplet-collision-audit\triplet-collision-audit.json`.
+
+**Não interprete automaticamente essa taxa como municipal.** Em DEV/CI a Gold é sintética e o relatório marca o contexto do dataset. Uma estimativa de prevalência do município exige executar a mesma auditoria read-only sobre uma Gold ancorada representativa e governada. A medida serve para quantificar a classe de colisão; por si só não autoriza relaxar a guarda de dois candidatos acima de `T_LINKAGE`.
+
+A massa SCALE canônica materializa 5.000 CPFs sintéticos estruturalmente válidos em `identidade.cpf_ancora`, obedecendo à mesma fonte de verdade normativa da produção. A auditoria exige essa cobertura para o corpus DEV e continua marcando o resultado como sintético; nenhuma taxa obtida da SCALE deve ser promovida a prevalência municipal.
+
+### 10. Rodar o smoke de escala, quando necessário
+
 ```powershell
 .\scripts\local-test-all.ps1 -Suite full
 ```
 
-Esse é o fechamento local padrão. Ele:
+O harness de escala também recria a base com massa própria. Portanto é um teste from-zero/destrutivo, não parte do fechamento padrão preservador. O perfil `smoke` valida com custo menor que `medium` ou `million`.
 
-- valida a referência IBGE antes de começar;
-- executa Core, E2E isolado e fault injection;
-- sobe/reutiliza o cluster sem `clean`;
-- calibra, executa linkage e diagnóstico;
-- na suíte `full`, executa a auditoria read-only;
-- valida novamente a referência IBGE ao terminar.
+### 11. Escolher o fechamento depois de ensaio destrutivo
 
-`local-test-all.ps1` **não contém reset do banco compartilhado, `clean` de volumes nem scale harness**. O relatório registra `destructiveReset=false` e `ibgeReferencePreserved=true`.
+O harness de escala usa dados próprios e pode destruir a referência IBGE local. **Não execute `local-db.ps1 -Action reset` imediatamente antes do fechamento preservador**, porque esse reset também remove a referência que `local-test-all.ps1` espera reutilizar.
 
-### 12. Instalação limpa / scale destrutivo somente quando necessário
+Se a referência IBGE ainda estiver materializada e o ambiente não tiver sido recriado pelo harness, siga para o fechamento preservador da etapa 12. Se você acabou de executar um fluxo destrutivo/scale e quer provar reconstrução completa, use diretamente `local-test-from-zero.ps1 -Suite full -AllowDestructiveReset`, que rematerializa a referência de forma explícita.
 
-Quando o objetivo for deliberadamente provar instalação a partir do zero, use o fluxo separado:
+### 12. Fechar com a suíte completa preservando a referência IBGE
+
+```powershell
+.\scripts\local-test-all.ps1 -Suite full
+```
+
+Este é o fechamento local padrão. Ele começa pelo quick check da referência IBGE já materializada e **não executa `reset`, `clean`, E2E ou scale harness destrutivos**. O core, fault injection, calibração/linkage e auditoria read-only rodam reutilizando a referência existente.
+
+Quando o objetivo for deliberadamente provar instalação limpa/reconstrução completa, use o comando separado:
 
 ```powershell
 .\scripts\local-test-from-zero.ps1 -Suite full -AllowDestructiveReset
 ```
 
-Esse comando é explicitamente destrutivo: remove volumes, recria o banco, materializa novamente a referência IBGE e, na suíte `full`, executa o scale smoke. Ao final tenta restaurar o ambiente canônico e confirma a referência IBGE.
+Esse segundo fluxo recria banco/volumes, executa E2E e scale e rematerializa a referência IBGE antes de concluir.
 
 Sem `-AllowDestructiveReset`, o script aborta antes de tocar no ambiente.
 
 ### Regra prática
 
-Durante desenvolvimento e fechamento normal, **preserve a referência IBGE**. Use o script dedicado da frente e finalize com `local-test-all.ps1 -Suite full`. Reserve `local-test-from-zero.ps1 -AllowDestructiveReset`, `local-cluster.ps1 -Action clean`, resets deliberados e scale para cenários que realmente precisam provar reconstrução/instalação limpa.
+Durante desenvolvimento, pare no primeiro comando que falhar, corrija a causa e repita a etapa. Antes de considerar uma alteração pronta para PR/merge, percorra a sequência aplicável e finalize com o script dedicado da frente e os gates de CI. O padrão é `local-test-all.ps1 -Suite full`, que preserva a referência IBGE. Use `local-test-from-zero.ps1 -Suite full -AllowDestructiveReset` somente quando a mudança precisar provar reconstrução completa.
 
-Para frentes técnicas com testes direcionados, mantenha também um script dedicado em `scripts/` que concentre o comando reproduzível daquela mudança.
+Para frentes técnicas com testes direcionados, mantenha também um script dedicado em `scripts/` que concentre o comando reproduzível daquela mudança. Quando a referência IBGE já estiver materializada, o padrão é **reutilizá-la e executar um check read-only**, não apagá-la/recarregá-la.
 
 ## Atalhos: o que usar no dia a dia
 
@@ -177,9 +248,9 @@ Para frentes técnicas com testes direcionados, mantenha também um script dedic
 | Recriar o cluster | `local-cluster.ps1 -Action reset` | Quando é necessário reconstruir containers/serviços |
 | Apagar completamente o cluster local | `local-cluster.ps1 -Action clean` | Ambiente inconsistente ou necessidade deliberada de começar do zero |
 | Operar somente o banco local | `local-db.ps1` | Desenvolvimento/testes que precisam apenas do SQL Server local |
-| Rodar suíte ampla preservadora | `local-test-all.ps1 -Suite full` | Fechamento local padrão; preserva `JornadaLocal`/IBGE e usa E2E isolado |
-| Provar instalação limpa/from-zero | `local-test-from-zero.ps1 -Suite full -AllowDestructiveReset` | Somente quando reset/clean/recarga IBGE e scale são deliberadamente necessários |
-| Testar separação preservador/from-zero | `local-test-test-all-safety.ps1` | Prova que `local-test-all` não contém reset/clean/scale e que o fluxo destrutivo exige autorização |
+| Rodar suíte completa preservando IBGE | `local-test-all.ps1 -Suite full` | Fechamento padrão; reutiliza a referência existente e não executa reset/clean/E2E/scale destrutivos |
+| Provar instalação limpa from-zero | `local-test-from-zero.ps1 -Suite full -AllowDestructiveReset` | Cenário explicitamente destrutivo; recria banco/volumes e rematerializa a referência IBGE |
+| Testar separação preserve/from-zero | `local-test-test-all-safety.ps1` | Prova que o modo padrão preserva a referência e que `-FromZero` sem autorização aborta antes de qualquer ação destrutiva |
 | Rodar validação local específica | `local-test.ps1` | Iteração rápida durante desenvolvimento; preserva o banco existente |
 | Conferir referência IBGE sem recarga | `local-check-ibge-reference.ps1` | Antes de testes que reutilizam `ref.frequencia_nome`; compara versão/linhas/hash publicado e imutabilidade sem carregar dados |
 | Diagnosticar referência IBGE local | `local-diagnose-ibge-reference.ps1` | Read-only; lista versões, status, SHA e contagem de linhas por versão para investigar bases legadas/incompletas |
@@ -247,27 +318,25 @@ Para validar o próprio contrato do diagnóstico contra o banco já existente:
 
 ### `local-test-all.ps1`
 
-É o comando recomendado para a validação local ampla **preservando o banco compartilhado e a referência IBGE**:
+É o fechamento local amplo **padrão e preservador**:
 
 ```powershell
 .\scripts\local-test-all.ps1 -Suite full
 ```
 
-A invocação pública continua testando `origin/master` em worktree destacado, mas copia o `.env` local para que o checkout isolado use a mesma referência já materializada. O fluxo começa e termina com `local-check-ibge-reference.ps1`, não executa `local-db reset`, não executa `local-cluster clean` e não executa `local-scale.ps1`.
+A execução pública busca `origin/master`, cria um worktree destacado e roda o SHA remoto sem alterar o working tree do desenvolvedor. O worktree **não recebe uma cópia do `.env`**: o wrapper aponta temporariamente `JORNADA_LOCAL_ENV_FILE` para o `.env` do checkout principal, e os scripts internos reutilizam essa configuração para acessar o mesmo SQL/volumes canônicos.
 
-O E2E chamado pela suíte usa banco temporário próprio. Calibração/linkage podem acrescentar evidências/modelos ao banco de desenvolvimento, mas não apagam a referência.
+Nesse modo, a referência IBGE é checada em modo read-only e preservada; não há `reset`, `clean`, E2E ou scale destrutivo.
 
-### `local-test-from-zero.ps1`
-
-Fluxo separado para reconstrução deliberada:
+Para provar instalação limpa/reconstrução completa, use exclusivamente:
 
 ```powershell
 .\scripts\local-test-from-zero.ps1 -Suite full -AllowDestructiveReset
 ```
 
-Somente este agregador é dono de `clean`, reset destrutivo, recarga canônica do IBGE e scale smoke. Sem a flag explícita, aborta antes de executar qualquer ação destrutiva. Mesmo em caso de falha, tenta restaurar banco canônico + referência IBGE no `finally`.
+Esse fluxo separado exige `-AllowDestructiveReset`, recria banco/volumes e rematerializa a referência IBGE antes de concluir.
 
-O contrato preservador/from-zero pode ser validado isoladamente com:
+O contrato preserve/from-zero e a propagação segura do `.env` podem ser validados isoladamente com:
 
 ```powershell
 .\scripts\local-test-test-all-safety.ps1
@@ -365,6 +434,14 @@ Use para executar o linkage local deliberadamente. Não é necessário em toda m
 ### `local-cluster.ps1 -Action linkage-diagnose`
 
 Use quando o objetivo for diagnóstico do linkage — por exemplo, investigar candidatos, conflitos, transitividade ou comportamento do modelo — sem tratar a execução normal como ferramenta de diagnóstico.
+
+O diagnóstico corrente também separa, no corpus SCALE, a verdade em primeiro/segundo/empate/fora do top-2, a coorte sintética em que cada décimo nascimento é deliberadamente deslocado para fora do universo, a saturação dos posteriores e o limite superior aproximado de falso positivo pela regra do três quando nenhum FP é observado. Essas métricas são diagnósticas: não autorizam remover a trava de dois candidatos acima do limiar sem decisão explícita de política.
+
+O contrato estrutural dessas métricas pode ser testado isoladamente com:
+
+```powershell
+python scripts/linkage-decision-quality-gate.py --self-test
+```
 
 ## 4. Escala, resiliência e recuperação
 

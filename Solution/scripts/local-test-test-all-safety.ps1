@@ -1,7 +1,4 @@
-﻿[CmdletBinding()]
-param()
-
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $TestAll = Join-Path $PSScriptRoot 'local-test-all.ps1'
@@ -36,6 +33,7 @@ foreach ($forbidden in @(
 }
 
 foreach ($required in @(
+    '[switch]$FromZero',
     '[switch]$AllowDestructiveReset',
     'if (-not $AllowDestructiveReset)',
     "Invoke-Script 'local-cluster.ps1' @('-Action','clean')",
@@ -60,6 +58,24 @@ if (-not $db.Contains('[string]$DatabaseName')) {
     throw 'local-db.ps1 perdeu suporte a banco isolado por nome explicito.'
 }
 
+$envAwareScripts = @(
+    'local-check-ibge-reference.ps1',
+    'local-test.ps1',
+    'local-fault-injection.ps1',
+    'local-sql-runtime-smoke.ps1',
+    'local-db.ps1',
+    'local-cluster.ps1',
+    'local-e2e.ps1',
+    'local-scale.ps1',
+    'local-load-ibge-reference.ps1'
+)
+foreach ($scriptName in $envAwareScripts) {
+    $scriptPath = Join-Path $PSScriptRoot $scriptName
+    if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) { throw "Script env-aware ausente: $scriptPath" }
+    $scriptContent = Get-Content -LiteralPath $scriptPath -Raw -Encoding UTF8
+    $null = [scriptblock]::Create($scriptContent)
+    if (-not $scriptContent.Contains('JORNADA_LOCAL_ENV_FILE')) { throw "$scriptName deve honrar JORNADA_LOCAL_ENV_FILE no worktree isolado." }
+}
 $guardIndex = $fromZeroContent.IndexOf('if (-not $AllowDestructiveReset)')
 $firstActionIndex = $fromZeroContent.IndexOf("Invoke-Script 'local-cluster.ps1' @('-Action','clean')")
 if ($guardIndex -lt 0 -or $firstActionIndex -lt 0 -or $guardIndex -ge $firstActionIndex) {

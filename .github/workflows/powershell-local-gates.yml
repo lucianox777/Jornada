@@ -5,6 +5,8 @@ on:
     paths:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
+      - 'Solution/scripts/local-fault-injection.ps1'
+      - 'Solution/scripts/local-e2e.ps1'
       - 'Solution/scripts/local-test-all.ps1'
       - 'Solution/scripts/local-test-from-zero.ps1'
       - 'Solution/scripts/local-e2e.ps1'
@@ -18,6 +20,8 @@ on:
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-linkage-validation.ps1'
+      - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
+      - 'Solution/scripts/local-linkage-triplet-collision-audit.ps1'
       - 'Solution/scripts/local-linkage-validation-flow.ps1'
       - 'Solution/scripts/local-linkage-validation-from-zero.ps1'
       - 'Solution/scripts/local-linkage-monte-carlo-validation.ps1'
@@ -31,6 +35,8 @@ on:
     paths:
       - 'Solution/scripts/local-ddl-upgrade.ps1'
       - 'Solution/scripts/local-test.ps1'
+      - 'Solution/scripts/local-fault-injection.ps1'
+      - 'Solution/scripts/local-e2e.ps1'
       - 'Solution/scripts/local-test-all.ps1'
       - 'Solution/scripts/local-test-from-zero.ps1'
       - 'Solution/scripts/local-e2e.ps1'
@@ -44,6 +50,8 @@ on:
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-linkage-validation.ps1'
+      - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
+      - 'Solution/scripts/local-linkage-triplet-collision-audit.ps1'
       - 'Solution/scripts/local-linkage-validation-flow.ps1'
       - 'Solution/scripts/local-linkage-validation-from-zero.ps1'
       - 'Solution/scripts/local-linkage-monte-carlo-validation.ps1'
@@ -59,6 +67,45 @@ permissions:
   contents: read
 
 jobs:
+  windows-powershell51-compat:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Validate OrderedDictionary aggregation on Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          if ($PSVersionTable.PSVersion.Major -ne 5) {
+            throw "Este gate deve executar em Windows PowerShell 5.1; encontrado $($PSVersionTable.PSVersion)."
+          }
+          $sample = @(
+            [ordered]@{ conflicts = 8 },
+            [ordered]@{ conflicts = 0 },
+            [ordered]@{ conflicts = 3 }
+          )
+          $sum = [int](($sample | ForEach-Object { [int]$_['conflicts'] } | Measure-Object -Sum).Sum)
+          if ($sum -ne 11) {
+            throw "Soma compatível com OrderedDictionary falhou: $sum"
+          }
+          $content = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-validation.ps1
+          if ($content -match 'Measure-Object\s+-Property\s+conflicts') {
+            throw 'local-linkage-validation.ps1 não pode depender de Measure-Object -Property conflicts sobre OrderedDictionary no Windows PowerShell 5.1.'
+          }
+          $readiness = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-evidence-readiness.ps1
+          $null = [scriptblock]::Create($readiness)
+          if ($readiness -match 'Measure-Object\s+-Property') {
+            throw 'local-linkage-evidence-readiness.ps1 deve acessar OrderedDictionary por chave no Windows PowerShell 5.1.'
+          }
+          $triplet = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-triplet-collision-audit.ps1
+          $null = [scriptblock]::Create($triplet)
+          Write-Host 'WINDOWS POWERSHELL 5.1 ORDEREDDICTIONARY/PARSE: OK'
+
   powershell-contract:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -80,6 +127,8 @@ jobs:
           $files = @(
             'scripts/local-ddl-upgrade.ps1',
             'scripts/local-test.ps1',
+            'scripts/local-fault-injection.ps1',
+            'scripts/local-e2e.ps1',
             'scripts/local-test-all.ps1',
             'scripts/local-test-from-zero.ps1',
             'scripts/local-e2e.ps1',
@@ -93,6 +142,8 @@ jobs:
             'scripts/local-cluster.ps1',
             'scripts/local-linkage-evaluation-smoke.ps1',
             'scripts/local-linkage-validation.ps1',
+            'scripts/local-linkage-evidence-readiness.ps1',
+            'scripts/local-linkage-triplet-collision-audit.ps1',
             'scripts/local-linkage-validation-flow.ps1',
             'scripts/local-linkage-validation-from-zero.ps1',
             'scripts/local-linkage-monte-carlo-validation.ps1',
@@ -196,17 +247,17 @@ jobs:
 
           if (-not $content.Contains('function Write-CommandLine') -or
               -not $content.Contains('Write-CommandLine $CurrentPowerShell')) {
-            throw 'local-test-all.ps1 deve imprimir os comandos reais antes de executá-los.'
+            throw 'local-test-all.ps1 deve imprimir os comandos reais antes de executa-los.'
           }
           if ($content -match "Invoke-Step\s+'DDL upgrade" -or $content -match "Invoke-Step\s+'[^']*3\.65") {
-            throw 'local-test-all.ps1 pré-HML não deve executar upgrade histórico por padrão.'
+            throw 'local-test-all.ps1 pre-HML nao deve executar upgrade historico por padrao.'
           }
           if (-not $content.Contains('historicalUpgradeDefault = $false')) {
-            throw 'O relatório da suíte deve registrar explicitamente que upgrade histórico não é default pré-HML.'
+            throw 'O relatorio da suite deve registrar que upgrade historico nao e default pre-HML.'
           }
           foreach ($forbidden in @('Sync-CleanMaster', 'CleanMasterExecution', "reset','--hard", "clean','-fd")) {
             if ($content.Contains($forbidden)) {
-              throw "local-test-all.ps1 não pode voltar a alterar destrutivamente o working tree: $forbidden"
+              throw "local-test-all.ps1 nao pode alterar destrutivamente o working tree: $forbidden"
             }
           }
           Write-Host 'LOCAL SUITE PRESERVATION/FROM-ZERO CONTRACT: OK'
@@ -235,6 +286,8 @@ jobs:
         run: |
           $targets = @(
             'scripts/local-linkage-validation.ps1',
+            'scripts/local-linkage-evidence-readiness.ps1',
+            'scripts/local-linkage-triplet-collision-audit.ps1',
             'scripts/local-linkage-validation-flow.ps1',
             'scripts/local-linkage-validation-from-zero.ps1',
             'scripts/local-linkage-monte-carlo-validation.ps1',
@@ -248,11 +301,29 @@ jobs:
             }
           }
 
+          $readiness = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-evidence-readiness.ps1
+          foreach ($required in @(
+            'function Write-CommandLine',
+            'SQLCMDPASSWORD=<redacted>',
+            'LINKAGE ADDITIONAL EVIDENCE READINESS: OK'
+          )) {
+            if (-not $readiness.Contains($required)) {
+              throw "local-linkage-evidence-readiness.ps1 perdeu contrato obrigatório: $required"
+            }
+          }
+
           $validation = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-validation.ps1
           foreach ($required in @(
             'Write-CommandLine $LocalCluster',
             "Write-CommandLine 'docker'",
-            'SQLCMDPASSWORD=<redacted>'
+            'SQLCMDPASSWORD=<redacted>',
+            'LINKAGE INDEPENDENT VALIDATION DEV SAFETY GATES: OK',
+            'syntheticResolvedPpv = if ($null -eq $syntheticResolvedPpv)',
+            'plannedColliderAlignment',
+            'observedBestScoreStates',
+            'capabilityAssessment',
+            'runtimeFingerprint',
+            'zeroMatchedSupportStates'
           )) {
             if (-not $validation.Contains($required)) {
               throw "local-linkage-validation.ps1 perdeu contrato de command output: $required"
@@ -261,6 +332,24 @@ jobs:
           if ($validation -match 'Write-CommandLine[^\r\n]*\$password') {
             throw 'local-linkage-validation.ps1 não pode imprimir senha SQL.'
           }
+          if ($validation.Contains('LINKAGE INDEPENDENT VALIDATION DEV QUALITY GATES: OK')) {
+            throw 'local-linkage-validation.ps1 não pode chamar safety-only de quality gate.'
+          }
+
+          $triplet = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-triplet-collision-audit.ps1
+          foreach ($required in @(
+            'READ_ONLY_GOLD_ANCHORED_TRIPLET_COLLISION_AUDIT',
+            'exposesPii=$false',
+            "atributo=N'name_full'",
+            "atributo=N'mother_name_full'",
+            'municipalPrevalenceClaimAllowed=$false',
+            'LINKAGE GOLD TRIPLET COLLISION AUDIT: OK'
+          )) {
+            if (-not $triplet.Contains($required)) {
+              throw "local-linkage-triplet-collision-audit.ps1 perdeu contrato obrigatório: $required"
+            }
+          }
+
 
           $flow = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-validation-flow.ps1
           foreach ($required in @(

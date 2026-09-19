@@ -62,17 +62,69 @@ CREATE TABLE #gold(
 -- Cada par consecutivo mantém a mesma data, mas o multiplicador primo permuta os pares
 -- por aproximadamente 100 anos. Isso preserva colisões reais para u sem concentrar 5.000
 -- Pessoas em poucos anos e criar blocos sinteticamente patológicos por ano de nascimento.
+;WITH generated AS (
+    SELECT n,
+           RIGHT(REPLICATE('0',9)+CONVERT(VARCHAR(9),700000000+n),9) AS cpf_base9
+    FROM #n
+    WHERE n<=@people
+)
 INSERT #gold(n,pessoa_uuid,cpf,nome,nascimento,mae)
-SELECT n,
-       CONVERT(UNIQUEIDENTIFIER,HASHBYTES('MD5',CONCAT('JORNADA-V355-',@seed,'-P-',n))),
-       RIGHT(REPLICATE('0',11)+CONVERT(VARCHAR(20),10000000000 + (n % 89999999999)),11),
-       CONCAT(N'Pessoa Teste ',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),n),10)),
-       DATEADD(DAY,CONVERT(INT,(((((n-1)/2)*7919)+@seed)%36500)),CONVERT(DATE,'1930-01-01')),
-       CONCAT(N'Mae Teste ',RIGHT(REPLICATE('0',8)+CONVERT(VARCHAR(10),(n+@seed)%100000000),8))
-FROM #n WHERE n<=@people;
+SELECT g.n,
+       CONVERT(UNIQUEIDENTIFIER,HASHBYTES('MD5',CONCAT('JORNADA-V355-',@seed,'-P-',g.n))),
+       CONVERT(CHAR(11),CONCAT(g.cpf_base9,d1.digito,d2.digito)),
+       CONCAT(N'Pessoa Teste ',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),g.n),10)),
+       DATEADD(DAY,CONVERT(INT,(((((g.n-1)/2)*7919)+@seed)%36500)),CONVERT(DATE,'1930-01-01')),
+       CONCAT(N'Mae Teste ',RIGHT(REPLICATE('0',8)+CONVERT(VARCHAR(10),(g.n+@seed)%100000000),8))
+FROM generated g
+CROSS APPLY (
+    SELECT
+        CONVERT(INT,SUBSTRING(g.cpf_base9,1,1))*10+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,2,1))*9+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,3,1))*8+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,4,1))*7+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,5,1))*6+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,6,1))*5+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,7,1))*4+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,8,1))*3+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,9,1))*2 AS soma
+) s1
+CROSS APPLY (
+    SELECT CASE WHEN s1.soma%11<2 THEN 0 ELSE 11-(s1.soma%11) END AS digito
+) d1
+CROSS APPLY (
+    SELECT
+        CONVERT(INT,SUBSTRING(g.cpf_base9,1,1))*11+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,2,1))*10+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,3,1))*9+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,4,1))*8+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,5,1))*7+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,6,1))*6+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,7,1))*5+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,8,1))*4+
+        CONVERT(INT,SUBSTRING(g.cpf_base9,9,1))*3+
+        d1.digito*2 AS soma
+) s2
+CROSS APPLY (
+    SELECT CASE WHEN s2.soma%11<2 THEN 0 ELSE 11-(s2.soma%11) END AS digito
+) d2;
+
+IF EXISTS(SELECT 1 FROM #gold WHERE identidade.fn_cpf_ancora_valido(cpf)=0)
+    THROW 51556, 'Gerador SCALE produziu CPF sintético estruturalmente inválido.', 1;
+IF EXISTS(
+    SELECT 1
+    FROM #gold g
+    JOIN identidade.cpf_ancora a
+      ON a.cpf=g.cpf COLLATE Latin1_General_100_BIN2
+      OR a.pessoa_uuid=g.pessoa_uuid)
+    THROW 51557, 'Faixa de CPF/UUID sintético SCALE colide com âncora existente.', 1;
 
 INSERT identidade.pessoa(pessoa_uuid,status,criado_em)
 SELECT pessoa_uuid,'ATIVO','2026-08-31T10:00:00+00:00' FROM #gold;
+
+-- O corpus DEV deve obedecer à mesma fonte de verdade da produção:
+-- CPF presente na Gold implica uma âncora permanente CPF -> UUID.
+INSERT identidade.cpf_ancora(cpf,pessoa_uuid,criado_em)
+SELECT cpf,pessoa_uuid,'2026-08-31T10:00:00+00:00' FROM #gold;
 
 INSERT gold.pessoa(pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,estado_concordancia,atualizado_em)
 SELECT pessoa_uuid,cpf,'PRESENTE',nome,nascimento,mae,2,'CORROBORADO','2026-08-31T10:00:00+00:00' FROM #gold;

@@ -7,7 +7,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$EnvFile = Join-Path $Root '.env'
+$DefaultEnvFile = Join-Path $Root '.env'
+$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { $DefaultEnvFile } else { [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE) }
 $CheckScript = Join-Path $PSScriptRoot 'local-check-ibge-reference.ps1'
 
 if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) { throw '.env local nao encontrado.' }

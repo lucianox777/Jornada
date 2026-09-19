@@ -6,7 +6,8 @@
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$EnvFile = Join-Path $Root '.env'
+$DefaultEnvFile = Join-Path $Root '.env'
+$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { $DefaultEnvFile } else { [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE) }
 $Example = Join-Path $Root '.env.example'
 New-Item -ItemType Directory -Force (Join-Path $Root '.local/sql-backup') | Out-Null
 
@@ -80,7 +81,8 @@ function Ensure-DockerEngine {
 }
 
 Ensure-DockerEngine
-if (-not (Test-Path $EnvFile)) {
+if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile" }
     Copy-Item $Example $EnvFile
     Write-Warning 'Criado .env local a partir de .env.example. Revise a senha antes de uso compartilhado.'
 }
@@ -185,15 +187,44 @@ function Ensure-ProgressiveIdentityBackfill {
     }
     Write-Host 'Backfill progressivo local concluído: todas as origens possuem initial_uuid.'
 }
+function Get-SyntheticScaleCounts {
+    $line = Invoke-SqlScalar -Query @"
+SELECT CONCAT(
+    SUM(CASE WHEN codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' THEN CONVERT(bigint,1) ELSE CONVERT(bigint,0) END),'|',
+    SUM(CASE WHEN codigo_pessoa_origem LIKE N'SCALE-SMADS-%' THEN CONVERT(bigint,1) ELSE CONVERT(bigint,0) END),'|',
+    SUM(CASE WHEN codigo_pessoa_origem LIKE N'SCALE-PEND-%' THEN CONVERT(bigint,1) ELSE CONVERT(bigint,0) END),'|',
+    SUM(CASE WHEN codigo_pessoa_origem LIKE N'SCALE-%'
+              AND codigo_pessoa_origem NOT LIKE N'SCALE-SEHAB-%'
+              AND codigo_pessoa_origem NOT LIKE N'SCALE-SMADS-%'
+              AND codigo_pessoa_origem NOT LIKE N'SCALE-PEND-%'
+             THEN CONVERT(bigint,1) ELSE CONVERT(bigint,0) END))
+FROM silver.pessoa_origem;
+"@
+    $parts = $line.Split('|')
+    if ($parts.Count -ne 4) { throw "Contagem da massa SCALE inválida: $line" }
+    return [ordered]@{
+        Sehab = [long]$parts[0]
+        Smads = [long]$parts[1]
+        Pending = [long]$parts[2]
+        ExtraFixtures = [long]$parts[3]
+    }
+}
 function Ensure-SyntheticScale {
-    $count = Invoke-SqlScalar -Query "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';"
-    if ($count -eq '0') {
+    $counts = Get-SyntheticScaleCounts
+    $canonicalTotal = [long]$counts['Sehab'] + [long]$counts['Smads'] + [long]$counts['Pending']
+    if ($canonicalTotal -eq 0) {
+        if ([long]$counts['ExtraFixtures'] -gt 0) {
+            throw "Fixtures SCALE adicionais existem sem a massa canônica (extras=$($counts['ExtraFixtures'])). Execute .\scripts\local-db.ps1 reset."
+        }
         Write-Host 'Carregando corpus sintético local para calibração/linkage...'
         Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-v', 'SCALE_PEOPLE=5000', 'SCALE_PAIRED=5000', 'SCALE_PENDING=1000', 'SCALE_SEED=355', 'SCALE_COLLISION_MODULO=37', 'SCALE_BIRTH_SHIFT_MODULO=29', '-i', 'database/Jornada_Dev_SyntheticScale.sql')
-        $count = Invoke-SqlScalar -Query "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';"
+        $counts = Get-SyntheticScaleCounts
     }
-    if ($count -ne '11000') {
-        throw "Massa sintética local inconsistente: esperadas 11000 observações de origem SCALE; encontradas=$count. Execute .\scripts\local-db.ps1 reset."
+    if ([long]$counts['Sehab'] -ne 5000 -or [long]$counts['Smads'] -ne 5000 -or [long]$counts['Pending'] -ne 1000) {
+        throw "Massa sintética local inconsistente: esperado SCALE-SEHAB=5000, SCALE-SMADS=5000, SCALE-PEND=1000; encontrado SEHAB=$($counts['Sehab']) SMADS=$($counts['Smads']) PEND=$($counts['Pending']) extras=$($counts['ExtraFixtures']). Execute .\scripts\local-db.ps1 reset."
+    }
+    if ([long]$counts['ExtraFixtures'] -gt 0) {
+        Write-Host "Fixtures SCALE adicionais preservados fora da massa canônica: $($counts['ExtraFixtures'])."
     }
     Write-Host 'Corpus sintético local pronto: 5000 pessoas Gold, 5000 pares corroborados e 1000 pendentes.'
 }

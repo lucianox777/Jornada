@@ -6,24 +6,37 @@ on:
       - 'Solution/database/Jornada_Dev_LinkageValidation.sql'
       - 'Solution/database/Jornada_Dev_SyntheticScale*.sql'
       - 'Solution/scripts/local-linkage-validation.*'
+      - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
+      - 'Solution/scripts/local-linkage-triplet-collision-audit.ps1'
       - 'Solution/scripts/local-cluster.*'
       - 'Solution/scripts/local-db.*'
       - 'Solution/docker-compose.yml'
       - 'Solution/src/Jornada.Linkage.Runner/**'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/**'
       - 'Solution/src/Jornada.Processor.Worker/**'
+      - 'Solution/src/Jornada.Contracts/PersonResolutionContractCatalog.cs'
+      - 'Solution/src/Jornada.Contracts/LinkageParameterCatalog.cs'
+      - 'Solution/src/Jornada.Contracts/IdentityComparison.cs'
+      - 'Solution/database/migrations/20260913_Pessoa_Identificadores_Multiplos.sql'
+      - 'Solution/config/catalog/atributos-transversais.json'
       - '.github/workflows/linkage-independent-validation.yml'
   pull_request:
     paths:
       - 'Solution/database/Jornada_Dev_LinkageValidation.sql'
       - 'Solution/database/Jornada_Dev_SyntheticScale*.sql'
       - 'Solution/scripts/local-linkage-validation.*'
+      - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
+      - 'Solution/scripts/local-linkage-triplet-collision-audit.ps1'
       - 'Solution/scripts/local-cluster.*'
       - 'Solution/scripts/local-db.*'
       - 'Solution/docker-compose.yml'
       - 'Solution/src/Jornada.Linkage.Runner/**'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/**'
       - 'Solution/src/Jornada.Processor.Worker/**'
+      - 'Solution/src/Jornada.Contracts/PersonResolutionContractCatalog.cs'
+      - 'Solution/src/Jornada.Contracts/LinkageParameterCatalog.cs'
+      - 'Solution/database/migrations/20260913_Pessoa_Identificadores_Multiplos.sql'
+      - 'Solution/config/catalog/atributos-transversais.json'
       - '.github/workflows/linkage-independent-validation.yml'
   workflow_dispatch:
 
@@ -47,6 +60,8 @@ jobs:
         run: |
           bash -n scripts/local-linkage-validation.sh
           pwsh -NoLogo -NoProfile -Command '$ErrorActionPreference="Stop"; $bytes=[IO.File]::ReadAllBytes("scripts/local-linkage-validation.ps1"); if($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF){ throw "UTF-8 BOM ausente" }; $null=[scriptblock]::Create((Get-Content -Raw -Encoding UTF8 "scripts/local-linkage-validation.ps1")); Write-Host "LINKAGE VALIDATION POWERSHELL PARSE: OK"'
+          pwsh -NoLogo -NoProfile -Command '$ErrorActionPreference="Stop"; $bytes=[IO.File]::ReadAllBytes("scripts/local-linkage-evidence-readiness.ps1"); if($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF){ throw "UTF-8 BOM ausente" }; $null=[scriptblock]::Create((Get-Content -Raw -Encoding UTF8 "scripts/local-linkage-evidence-readiness.ps1")); Write-Host "LINKAGE EVIDENCE READINESS POWERSHELL PARSE: OK"'
+          pwsh -NoLogo -NoProfile -Command '$ErrorActionPreference="Stop"; $bytes=[IO.File]::ReadAllBytes("scripts/local-linkage-triplet-collision-audit.ps1"); if($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF){ throw "UTF-8 BOM ausente" }; $null=[scriptblock]::Create((Get-Content -Raw -Encoding UTF8 "scripts/local-linkage-triplet-collision-audit.ps1")); Write-Host "LINKAGE TRIPLET COLLISION POWERSHELL PARSE: OK"'
 
       - name: Start canonical local cluster
         shell: bash
@@ -74,6 +89,246 @@ jobs:
           & ./scripts/local-linkage-validation.ps1
           if ($LASTEXITCODE -ne 0) { throw "local-linkage-validation.ps1 falhou ($LASTEXITCODE)." }
 
+      - name: Validate safety/report semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          report='.local/linkage-validation/validation-report.json'
+          jq -e '
+            (.model.runtimeFingerprint | type=="string" and length>0)
+            and .model.priorProvenance.estimatorFormula == "clamp(DISTINCT_BIRTH_DATE / POPULATION_SIZE, 0.000001, PRIOR_BLOCK_MAX)"
+            and .model.priorProvenance.populationSize > 0
+            and .model.priorProvenance.distinctBirthDates > 0
+            and .model.priorProvenance.candidatePairDiagnostic.enabled == true
+            and .model.priorProvenance.candidatePairDiagnostic.available == true
+            and .model.priorProvenance.candidatePairDiagnostic.methodVersion == "CPF_LABELED_BLOCKING_CANDIDATE_PAIR_PRIOR_V1"
+            and .model.priorProvenance.candidatePairDiagnostic.observationSampleSize > 0
+            and .model.priorProvenance.candidatePairDiagnostic.truthCandidatePairs > 0
+            and .model.priorProvenance.candidatePairDiagnostic.falseCandidatePairs >= 0
+            and .model.priorProvenance.candidatePairDiagnostic.totalCandidatePairs
+                == (.model.priorProvenance.candidatePairDiagnostic.truthCandidatePairs + .model.priorProvenance.candidatePairDiagnostic.falseCandidatePairs)
+            and .model.priorProvenance.candidatePairDiagnostic.matchProbability > 0
+            and .model.priorProvenance.candidatePairDiagnostic.matchProbability <= 1
+            and .model.priorProvenance.candidatePairDiagnostic.candidateRecall > 0
+            and .model.priorProvenance.candidatePairDiagnostic.activeScoreChanged == false
+            and .model.priorProvenance.candidatePairDiagnostic.validationCandidatesExcluded == true
+            and (.negative.generatorIntendedEvidenceProfiles | length) == 4
+            and (.negative.plannedColliderAlignment | length) == 4
+            and (.negative.observedBestScoreStates | length) > 0
+            and .capabilityAssessment.isGate == false
+            and (
+              (.combinedDecisionQuality.resolvedDecisions == 0 and .combinedDecisionQuality.syntheticResolvedPpv == null)
+              or
+              (.combinedDecisionQuality.resolvedDecisions > 0 and .combinedDecisionQuality.syntheticResolvedPpv != null)
+            )
+            and (.nominalOrderRestriction.zeroMatchedSupportStates | type=="array")
+            and .abbreviationCompatibilityDiagnostic.purpose == "DEV_READ_ONLY_ABBREVIATION_COMPATIBILITY_DIAGNOSTIC"
+            and .abbreviationCompatibilityDiagnostic.proposedDiagnostic.version == "PTBR_POSITIONAL_INITIAL_COMPATIBLE_V1"
+            and .abbreviationCompatibilityDiagnostic.proposedDiagnostic.changesPolicy == false
+            and .abbreviationCompatibilityDiagnostic.proposedDiagnostic.changesScoring == false
+            and .abbreviationCompatibilityDiagnostic.positiveNameAbbrev.total == 8
+            and .abbreviationCompatibilityDiagnostic.negativeMotherCollision.total == 10
+            and .abbreviationTrainingSupport.diagnosticEnabled == true
+            and .abbreviationTrainingSupport.scoringChanged == false
+            and .abbreviationTrainingSupport.llrEstimated == false
+            and .abbreviationTrainingSupport.mReference == "CPF_INTERGESTOR_SOURCE_SOURCE"
+            and .abbreviationTrainingSupport.uReference == "BLOCKING_CONDITIONED_GOLD_GOLD_REFERENCE_ONLY"
+            and .abbreviationTrainingSupport.name.mDenominator > 0
+            and .abbreviationTrainingSupport.name.mSupport > 0
+            and .abbreviationTrainingSupport.name.uReferenceDenominator > 0
+            and .abbreviationTrainingSupport.name.uReferenceSupport >= 0
+            and .abbreviationTrainingSupport.motherName.mDenominator > 0
+            and .abbreviationTrainingSupport.motherName.mSupport >= 0
+            and .abbreviationTrainingSupport.motherName.uReferenceDenominator > 0
+            and .abbreviationTrainingSupport.motherName.uReferenceSupport >= 0
+            and .priorCounterfactual.purpose == "DEV_READ_ONLY_CANDIDATE_PAIR_PRIOR_COUNTERFACTUAL"
+            and .priorCounterfactual.prior.changesPersistedModel == false
+            and .priorCounterfactual.prior.changesScoringParametersOtherThanPrior == false
+            and .priorCounterfactual.replay.persistedDecisionMismatchCount == 0
+            and .priorCounterfactual.replay.rankingTopChangedCount == 0
+            and .priorCounterfactual.replay.rankingInvariantPreserved == true
+            and .priorCounterfactual.prior.counterfactual == .model.priorProvenance.candidatePairDiagnostic.matchProbability
+            and .priorCounterfactual.transportability.established == false
+            and .priorCounterfactual.active.positive.total == 40
+            and .priorCounterfactual.active.negative.total == 40
+            and .priorCounterfactual.counterfactual.positive.total == 40
+            and .priorCounterfactual.counterfactual.negative.total == 40
+          ' "$report" >/dev/null
+          echo 'LINKAGE SAFETY/REPORT SEMANTICS: OK'
+
+      - name: Validate policy counterfactual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          report='.local/linkage-validation/validation-report.json'
+          jq -e '
+            .counterfactualNoDualThresholdGuard.purpose == "READ_ONLY_POLICY_COUNTERFACTUAL"
+            and .counterfactualNoDualThresholdGuard.changesPolicy == false
+            and .counterfactualNoDualThresholdGuard.removedRuleOnly == "SCORING_DUAL_THRESHOLD_CONFLICT_V1"
+            and .counterfactualNoDualThresholdGuard.positive.total == 40
+            and .counterfactualNoDualThresholdGuard.negative.total == 40
+            and (.counterfactualNoDualThresholdGuard.retainedRules | index("T_LINKAGE") != null)
+            and (.counterfactualNoDualThresholdGuard.retainedRules | index("CONFLICT_MARGIN_LOG_ODDS") != null)
+          ' "$report" >/dev/null
+          echo 'LINKAGE POLICY COUNTERFACTUAL EVIDENCE: OK'
+
+      - name: Validate dual-threshold margin frontier evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          report='.local/linkage-validation/validation-report.json'
+          jq -e '
+            .dualThresholdMarginFrontier.purpose == "READ_ONLY_MARGIN_POLICY_DIAGNOSTIC"
+            and .dualThresholdMarginFrontier.changesPolicy == false
+            and .dualThresholdMarginFrontier.eligibleRows > 0
+            and .dualThresholdMarginFrontier.positiveRows > 0
+            and .dualThresholdMarginFrontier.negativeRows > 0
+            and (.dualThresholdMarginFrontier.frontier | length) > 0
+            and .dualThresholdMarginFrontier.currentConflictMarginLogOdds == .counterfactualNoDualThresholdGuard.conflictMarginLogOdds
+          ' "$report" >/dev/null
+          echo 'LINKAGE DUAL-THRESHOLD MARGIN FRONTIER EVIDENCE: OK'
+
+      - name: Validate current-evidence identifiability boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          report='.local/linkage-validation/validation-report.json'
+          jq -e '
+            .currentEvidenceIdentifiability.purpose == "READ_ONLY_CURRENT_EVIDENCE_IDENTIFIABILITY"
+            and .currentEvidenceIdentifiability.changesPolicy == false
+            and .currentEvidenceIdentifiability.observationalOverlapDetected == true
+            and .currentEvidenceIdentifiability.positiveExact.allCurrentEvidenceExactToBestCandidate > 0
+            and .currentEvidenceIdentifiability.negativeHardHomonym.allCurrentEvidenceExactToBestCandidate > 0
+            and .currentEvidenceIdentifiability.sharedEvidenceState == "EXACT/EXACT/EXACT"
+            and (.currentEvidenceIdentifiability.evidenceFields | sort) == (["NOME","NOME_MAE","DATA_NASCIMENTO"] | sort)
+          ' "$report" >/dev/null
+          echo 'LINKAGE CURRENT-EVIDENCE IDENTIFIABILITY BOUNDARY: OK'
+
+      - name: Run additional evidence readiness
+        shell: pwsh
+        run: |
+          Write-Host '# pwsh -NoLogo -NoProfile -File ./scripts/local-linkage-evidence-readiness.ps1'
+          & ./scripts/local-linkage-evidence-readiness.ps1
+          if ($LASTEXITCODE -ne 0) { throw "local-linkage-evidence-readiness.ps1 falhou ($LASTEXITCODE)." }
+
+      - name: Validate additional evidence readiness contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          report='.local/linkage-evidence-readiness/evidence-readiness.json'
+          jq -e '
+            .purpose == "READ_ONLY_ADDITIONAL_IDENTITY_EVIDENCE_READINESS"
+            and .changesPolicy == false
+            and .changesScoring == false
+            and .changesThresholds == false
+            and (.currentProbabilisticScore.fields | sort) == (["NOME","NOME_MAE","DATA_NASCIMENTO"] | sort)
+            and ([.validationCoverage[] | select(.segment=="ALL")][0].total == 80)
+            and ([.validationCoverage[] | select(.segment=="POS_EXACT")][0].total == 8)
+            and ([.validationCoverage[] | select(.segment=="NEG_HARD_HOMONYM")][0].total == 10)
+            and ([.evidenceCatalog[] | select(.code=="TELEFONE_CONTATO")][0].currentRole == "BLOCKING_ELIGIBLE_VERSIONED_ALIAS")
+            and ([.evidenceCatalog[] | select(.code=="EMAIL_CONTATO")][0].currentRole == "BLOCKING_ELIGIBLE_VERSIONED_ALIAS")
+            and ([.evidenceCatalog[] | select(.code=="NOME_SOCIAL")][0].currentRole == "BLOCKING_ELIGIBLE_VERSIONED_ALIAS")
+            and ([.evidenceCatalog[] | select(.code=="ENDERECO_RESIDENCIAL")][0].currentRole == "INELIGIBLE_FOR_RESOLUTION")
+            and ([.evidenceCatalog[] | select(.code=="REFERENCIA_TERRITORIAL")][0].currentRole == "INELIGIBLE_FOR_RESOLUTION")
+            and ([.evidenceCatalog[] | select(.code=="ENDERECO_CASA_ABRIGO_SIGILOSA")][0].currentRole == "INELIGIBLE_FOR_RESOLUTION")
+          ' "$report" >/dev/null
+          echo 'LINKAGE ADDITIONAL EVIDENCE READINESS CONTRACT: OK'
+
+      - name: Run Gold triplet collision audit
+        shell: pwsh
+        run: |
+          Write-Host '# pwsh -NoLogo -NoProfile -File ./scripts/local-linkage-triplet-collision-audit.ps1'
+          & ./scripts/local-linkage-triplet-collision-audit.ps1
+          if ($LASTEXITCODE -ne 0) { throw "local-linkage-triplet-collision-audit.ps1 falhou ($LASTEXITCODE)." }
+
+      - name: Validate Gold triplet collision audit contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          report='.local/linkage-triplet-collision-audit/triplet-collision-audit.json'
+          jq -e '
+            .purpose == "READ_ONLY_GOLD_ANCHORED_TRIPLET_COLLISION_AUDIT"
+            and .changesPolicy == false
+            and .changesScoring == false
+            and .exposesPii == false
+            and .coverage.completeTripletPersons > 0
+            and (
+              (.coverage.projectionCoverageComplete == true
+               and .coverage.coveredByCurrentProjection == .coverage.completeTripletPersons)
+              or
+              (.coverage.projectionCoverageComplete == false
+               and .coverage.coveredByCurrentProjection < .coverage.completeTripletPersons
+               and .dataset.municipalPrevalenceClaimAllowed == false)
+            )
+            and .collisions.collidingTriplets >= 0
+            and .collisions.collidingCpfPairs >= 0
+            and .dataset.syntheticGoldPersons == 5000
+            and .dataset.syntheticAnchoredPersons == 5000
+            and .coverage.anchoredGoldPersons >= 5000
+            and .coverage.coveredByCurrentProjection >= 5000
+            and .dataset.municipalPrevalenceClaimAllowed == false
+            and .ibgeReference.referenceCode == "CENSO2022_NOMES_BRASIL_V1"
+            and (.ibgeReference.composition | length) == 2
+          ' "$report" >/dev/null
+          echo 'LINKAGE GOLD TRIPLET COLLISION AUDIT CONTRACT: OK'
+
+      - name: Prove canonical SCALE coexists with validation fixtures
+        shell: pwsh
+        run: |
+          Write-Host '# pwsh -NoLogo -NoProfile -File ./scripts/local-db.ps1 -Action up'
+          & ./scripts/local-db.ps1 -Action up
+          if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 -Action up falhou com SCALE-VAL presente ($LASTEXITCODE)." }
+
+      - name: Prove shell parity with validation fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '# bash ./scripts/local-db.sh up'
+          bash ./scripts/local-db.sh up
+
+      - name: Prove recalibration excludes validation Gold
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "po_val.codigo_pessoa_origem LIKE N'SCALE-VAL-%'" src/Jornada.Linkage.Parameters.Worker/LinkageParametersWorker.cs
+          grep -q "po_val.codigo_pessoa_origem LIKE N'SCALE-VAL-%'" src/Jornada.Linkage.Parameters.Worker/BlockingConditionedUnmatchedPairReader.cs
+          echo '# generate read-only candidate draft after SCALE-VAL injection (active model remains unchanged)'
+          docker compose --env-file .env exec -T jornada-node2 env             LinkageParameters__Operation=GENERATE_DRAFT             LinkageParameters__RunOnce=true             LinkageParameters__IbgeNominalU__PairCount=100000             LinkageParameters__IbgeNominalU__Seed=20260917             dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
+          SQL_PASSWORD="$(awk -F= '$1=="JORNADA_SQL_SA_PASSWORD"{sub(/^[^=]*=/,""); print; exit}' .env)"
+          test -n "$SQL_PASSWORD"
+          stats="$(docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$SQL_PASSWORD" sqlserver             /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -s '|'             -Q "SET NOCOUNT ON;
+                DECLARE @m uniqueidentifier=(
+                  SELECT TOP(1) modelo_id
+                  FROM identidade.modelo_linkage
+                  WHERE status='RASCUNHO'
+                    AND ISNULL(amostra_metodo,'')<>'SEED_DEV_FIXO_NAO_TREINADO'
+                  ORDER BY versao DESC);
+                DECLARE @a uniqueidentifier=(
+                  SELECT TOP(1) modelo_id
+                  FROM identidade.modelo_linkage
+                  WHERE status='ATIVO'
+                    AND ISNULL(amostra_metodo,'')<>'SEED_DEV_FIXO_NAO_TREINADO'
+                  ORDER BY versao DESC);
+                SELECT CONCAT(
+                  (SELECT CONVERT(bigint,valor) FROM identidade.parametro_linkage WHERE modelo_id=@m AND nome='POPULATION_SIZE'),'|',
+                  (SELECT COUNT_BIG(*) FROM gold.pessoa),'|',
+                  (SELECT COUNT_BIG(*) FROM gold.pessoa g WHERE EXISTS(
+                     SELECT 1 FROM identidade.vinculo_fonte vf
+                     JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vf.pessoa_observacao_id
+                     WHERE vf.pessoa_uuid=g.pessoa_uuid AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-%')),'|',
+                  (SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id=@a AND nome='DIAG_CANDIDATE_PRIOR_MATCH_PROBABILITY'),'|',
+                  (SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id=@m AND nome='DIAG_CANDIDATE_PRIOR_MATCH_PROBABILITY'),'|',
+                  (SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id=@a AND nome='DIAG_CANDIDATE_PRIOR_TOTAL_PAIRS'),'|',
+                  (SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id=@m AND nome='DIAG_CANDIDATE_PRIOR_TOTAL_PAIRS'));
+              " | tr -d '\r' | xargs)"
+          IFS='|' read -r calibrated_population total_gold validation_gold active_candidate_prior draft_candidate_prior active_candidate_pairs draft_candidate_pairs <<< "$stats"
+          test "$calibrated_population" = '5005'
+          test "$total_gold" = '5025'
+          test "$validation_gold" = '20'
+          test "$active_candidate_prior" = "$draft_candidate_prior"
+          test "$active_candidate_pairs" = "$draft_candidate_pairs"
+          echo "LINKAGE VALIDATION TRAINING ISOLATION: OK population=$calibrated_population total_gold=$total_gold validation_gold=$validation_gold candidate_prior=$draft_candidate_prior candidate_pairs=$draft_candidate_pairs"
+
       - name: Preserve validation evidence
         if: always()
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
@@ -81,7 +336,12 @@ jobs:
           name: linkage-independent-validation
           path: |
             Solution/.local/linkage-validation/blocking-pass-audit.json
+            Solution/.local/linkage-validation/abbreviation-compatibility-audit.json
+            Solution/.local/linkage-validation/prior-counterfactual-audit.json
             Solution/.local/linkage-validation/validation-report.json
+            Solution/.local/linkage-evidence-readiness/evidence-readiness.json
+            Solution/.local/linkage-validation/run-provenance.json
+            Solution/.local/linkage-triplet-collision-audit/triplet-collision-audit.json
           if-no-files-found: warn
           retention-days: 14
 
