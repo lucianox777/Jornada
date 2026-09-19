@@ -121,8 +121,8 @@ internal static class LocalBlockingProjectionBootstrap
         {
             result.Add(new SyntheticPerson(
                 reader.GetGuid(0),
-                reader.GetString(1),
-                DateOnly.FromDateTime(reader.GetDateTime(2)),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                reader.IsDBNull(2) ? null : DateOnly.FromDateTime(reader.GetDateTime(2)),
                 reader.IsDBNull(3) ? null : reader.GetString(3),
                 reader.GetDateTimeOffset(4)));
         }
@@ -141,7 +141,8 @@ internal static class LocalBlockingProjectionBootstrap
                 SELECT DISTINCT
                        g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae,g.atualizado_em
                 FROM gold.pessoa g
-                WHERE EXISTS (
+                WHERE g.estado_identidade='REFERENCIA'
+                  AND EXISTS (
                     SELECT 1
                     FROM silver.pessoa_observacao po
                     JOIN identidade.v_vinculo_corrente vc
@@ -186,8 +187,8 @@ internal static class LocalBlockingProjectionBootstrap
 
     private sealed record SyntheticPerson(
         Guid PersonUuid,
-        string Name,
-        DateOnly BirthDate,
+        string? Name,
+        DateOnly? BirthDate,
         string? MotherName,
         DateTimeOffset UpdatedAt);
 }
