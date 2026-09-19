@@ -244,8 +244,8 @@ IF NOT EXISTS(SELECT 1 FROM bronze.entrega_arquivo WHERE entrega_id=@entPessoa)
  INSERT bronze.entrega_arquivo(entrega_id,nome_arquivo,content_type,objeto_chave,payload_sha256,tamanho_bytes,recebido_em) VALUES(@entPessoa,'ENTREGA_SMS_SAUDE_v2_8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','application/zip','sha256/8d/cc/8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',4,'2026-08-27T11:00:00+00:00');
 IF NOT EXISTS(SELECT 1 FROM ingestao.lote WHERE lote_id=@lotPessoa)
  INSERT ingestao.lote(lote_id,entrega_id,lote_seq,lote_total,qtd_pessoas,qtd_registros,status,criado_em,atualizado_em) VALUES(@lotPessoa,@entPessoa,1,1,2,0,'PROCESSADO','2026-08-27T08:00:01-03:00','2026-08-27T08:03:00-03:00');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSms AND codigo_pessoa_origem='SMS001') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSms,'SMS001');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSms AND codigo_pessoa_origem='SMS002') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSms,'SMS002');
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSms AND codigo_pessoa_origem='SMS001') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSms,'SMS001',@bpSms);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSms AND codigo_pessoa_origem='SMS002') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSms,'SMS002',@bpSms);
 DECLARE @smsO1 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSms AND codigo_pessoa_origem='SMS001'),
         @smsO2 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSms AND codigo_pessoa_origem='SMS002');
 IF NOT EXISTS(SELECT 1 FROM silver.pessoa_observacao WHERE lote_id=@lotPessoa)
@@ -383,8 +383,8 @@ IF NOT EXISTS(SELECT 1 FROM bronze.entrega_arquivo WHERE entrega_id=@entS)
  INSERT bronze.entrega_arquivo(entrega_id,nome_arquivo,content_type,objeto_chave,payload_sha256,tamanho_bytes,recebido_em) VALUES(@entS,'ENTREGA_SMADS_ASSISTENCIA_v2_8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','application/zip','sha256/8d/cc/8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2.zip','8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2',4,'2026-08-27T13:00:00+00:00');
 IF NOT EXISTS(SELECT 1 FROM ingestao.lote WHERE lote_id=@lotS)
  INSERT ingestao.lote(lote_id,entrega_id,lote_seq,lote_total,qtd_pessoas,qtd_registros,status,criado_em,atualizado_em) VALUES(@lotS,@entS,1,1,2,2,'PROCESSADO','2026-08-27T10:00:01-03:00','2026-08-27T10:01:00-03:00');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSmads AND codigo_pessoa_origem='CRAS001') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSmads,'CRAS001');
-IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSmads AND codigo_pessoa_origem='CRAS002') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem) VALUES(@soSmads,'CRAS002');
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSmads AND codigo_pessoa_origem='CRAS001') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSmads,'CRAS001',@bpSmads);
+IF NOT EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE sistema_origem_id=@soSmads AND codigo_pessoa_origem='CRAS002') INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id) VALUES(@soSmads,'CRAS002',@bpSmads);
 DECLARE @spo1 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSmads AND codigo_pessoa_origem='CRAS001'),
         @spo2 BIGINT=(SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE sistema_origem_id=@soSmads AND codigo_pessoa_origem='CRAS002');
 IF NOT EXISTS(SELECT 1 FROM silver.pessoa_observacao WHERE lote_id=@lotS)
