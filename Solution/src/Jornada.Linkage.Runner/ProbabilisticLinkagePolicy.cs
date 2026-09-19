@@ -152,7 +152,7 @@ internal static class ProbabilisticLinkageDecisions
         if (second is not null && second.PessoaUuid == best.PessoaUuid)
             throw new InvalidOperationException("Ranking probabilístico inválido: melhor e segundo candidato possuem o mesmo UUID.");
         var secondScore = second?.Score;
-        decimal? margin = second is null ? null : decisionEvidence ? best.LogOdds - second.LogOdds : best.Score - second.Score;
+        decimal? margin = second is null ? null : decisionEvidence ? best.LogOdds - second.LogOdds : best.Score - secondScore.Value;
 
         if (best.Score < model.Threshold)
             return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId, "ABAIXO_T_LINKAGE");
