@@ -1,5 +1,6 @@
 using System.Data;
 using Jornada.Contracts;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Processor.Worker;
@@ -195,69 +196,46 @@ internal sealed partial class SqlProcessorRepository
         AddNullable(command, "@situacao", SqlDbType.NVarChar, 80, fact.Situacao);
     }
 
-    private static async Task RefreshGoldPersonAsync(SqlConnection connection, SqlTransaction tx, Guid uuid, CancellationToken ct)
+    private static async Task RefreshGoldRepresentationsAsync(
+        SqlConnection connection,
+        SqlTransaction tx,
+        long? pessoaOrigemId,
+        Guid? canonicalUuid,
+        CancellationToken ct)
+    {
+        var uuids = new HashSet<Guid>();
+        if (canonicalUuid is Guid canonical)
+            uuids.Add(canonical);
+
+        if (pessoaOrigemId is long originId)
+        {
+            await using var initial = connection.CreateCommand();
+            initial.Transaction = tx;
+            initial.CommandText = "SELECT initial_uuid FROM identidade.pessoa_origem_progressiva WHERE pessoa_origem_id=@origem;";
+            initial.Parameters.AddWithValue("@origem", originId);
+            var value = await initial.ExecuteScalarAsync(ct);
+            if (value is Guid initialUuid)
+                uuids.Add(initialUuid);
+        }
+
+        foreach (var uuid in uuids)
+            await RefreshGoldPersonAsync(connection, tx, uuid, ct);
+    }
+
+    private static async Task RefreshGoldPersonAsync(
+        SqlConnection connection,
+        SqlTransaction tx,
+        Guid uuid,
+        CancellationToken ct)
     {
         await using var command = connection.CreateCommand();
         command.Transaction = tx;
-        command.CommandText = """
-            ;WITH obs AS(
-                SELECT po.*
-                FROM silver.pessoa_observacao po
-                JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id
-                WHERE vc.pessoa_uuid=@uuid AND vc.status='RESOLVIDO'
-            ), stats AS(
-                SELECT COUNT(DISTINCT gestor_id) fontes,
-                       CASE WHEN COUNT(DISTINCT CONCAT(nome_cmp,'|',CONVERT(char(10),data_nascimento,23),'|',nome_mae_cmp))>1
-                            THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END divergente
-                FROM obs
-            )
-            MERGE gold.pessoa AS t
-            USING(
-                SELECT @uuid pessoa_uuid,
-                       COALESCE((SELECT TOP(1) identificador FROM identidade.identity_map WHERE pessoa_uuid=@uuid AND tipo='CPF' AND vigencia_fim IS NULL AND estado='ATIVO' ORDER BY vigencia_inicio DESC),cpf_src.cpf) cpf,
-                       nome_src.nome_completo,
-                       nasc_src.data_nascimento,
-                       mae_src.nome_mae,
-                       st.fontes,st.divergente,cpf_src.cpf_ausente_motivo
-                FROM stats st
-                OUTER APPLY(
-                    SELECT TOP(1) o.cpf,o.cpf_ausente_motivo
-                    FROM obs o
-                    LEFT JOIN silver.pessoa_campo_verificacao_observacao v ON v.pessoa_observacao_id=o.pessoa_observacao_id AND v.campo_codigo='CPF'
-                    ORDER BY CASE WHEN v.pessoa_campo_verificacao_id IS NULL THEN 1 ELSE 0 END,v.verificado_em DESC,o.source_as_of DESC,o.pessoa_observacao_id DESC
-                ) cpf_src
-                OUTER APPLY(
-                    SELECT TOP(1) o.nome_completo
-                    FROM obs o
-                    LEFT JOIN silver.pessoa_campo_verificacao_observacao v ON v.pessoa_observacao_id=o.pessoa_observacao_id AND v.campo_codigo='NOME_COMPLETO'
-                    ORDER BY CASE WHEN v.pessoa_campo_verificacao_id IS NULL THEN 1 ELSE 0 END,v.verificado_em DESC,o.source_as_of DESC,o.pessoa_observacao_id DESC
-                ) nome_src
-                OUTER APPLY(
-                    SELECT TOP(1) o.data_nascimento
-                    FROM obs o
-                    LEFT JOIN silver.pessoa_campo_verificacao_observacao v ON v.pessoa_observacao_id=o.pessoa_observacao_id AND v.campo_codigo='DATA_NASCIMENTO'
-                    ORDER BY CASE WHEN v.pessoa_campo_verificacao_id IS NULL THEN 1 ELSE 0 END,v.verificado_em DESC,o.source_as_of DESC,o.pessoa_observacao_id DESC
-                ) nasc_src
-                OUTER APPLY(
-                    SELECT TOP(1) o.nome_mae
-                    FROM obs o
-                    LEFT JOIN silver.pessoa_campo_verificacao_observacao v ON v.pessoa_observacao_id=o.pessoa_observacao_id AND v.campo_codigo='NOME_MAE'
-                    ORDER BY CASE WHEN v.pessoa_campo_verificacao_id IS NULL THEN 1 ELSE 0 END,v.verificado_em DESC,o.source_as_of DESC,o.pessoa_observacao_id DESC
-                ) mae_src
-                WHERE nome_src.nome_completo IS NOT NULL AND nasc_src.data_nascimento IS NOT NULL AND mae_src.nome_mae IS NOT NULL
-            ) s ON t.pessoa_uuid=s.pessoa_uuid
-            WHEN MATCHED THEN UPDATE SET
-                cpf=s.cpf,
-                status_cpf=CASE WHEN s.cpf IS NOT NULL THEN 'PRESENTE' WHEN s.cpf_ausente_motivo='EM_REGULARIZACAO' THEN 'EM_REGULARIZACAO' ELSE 'SEM_CPF' END,
-                nome_completo=s.nome_completo,data_nascimento=s.data_nascimento,nome_mae=s.nome_mae,fontes_distintas=s.fontes,
-                estado_concordancia=CASE WHEN s.divergente=1 THEN 'DIVERGENTE' WHEN s.fontes>1 THEN 'CORROBORADO' ELSE 'BASELINE_FONTE_UNICA' END,
-                atualizado_em=SYSDATETIMEOFFSET()
-            WHEN NOT MATCHED THEN INSERT(pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,estado_concordancia,atualizado_em)
-                VALUES(s.pessoa_uuid,s.cpf,CASE WHEN s.cpf IS NOT NULL THEN 'PRESENTE' WHEN s.cpf_ausente_motivo='EM_REGULARIZACAO' THEN 'EM_REGULARIZACAO' ELSE 'SEM_CPF' END,
-                       s.nome_completo,s.data_nascimento,s.nome_mae,s.fontes,CASE WHEN s.divergente=1 THEN 'DIVERGENTE' WHEN s.fontes>1 THEN 'CORROBORADO' ELSE 'BASELINE_FONTE_UNICA' END,SYSDATETIMEOFFSET());
-            """;
+        command.CommandText = "EXEC identidade.sp_recompor_gold_pessoa @pessoa_uuid=@uuid;";
         command.Parameters.AddWithValue("@uuid", uuid);
         await command.ExecuteNonQueryAsync(ct);
+
+        // PROVISORIA/INDEFINIDA existem para representação e QC, mas não são
+        // referências canônicas e não podem alimentar candidate generation.
         await BlockingProjectionPersistence.RefreshSqlServerAsync(connection, tx, uuid, ct);
     }
 
