@@ -49,6 +49,10 @@ try {
         python scripts/technical-closure-gate.py
     }
 
+    Invoke-NativeStep 'Linkage decision-quality gate self-test' {
+        python scripts/linkage-decision-quality-gate.py --self-test
+    }
+
     Write-Host ''
     Write-Host '--- SQL runtime smoke 3.70 ---'
     & (Join-Path $PSScriptRoot 'local-sql-runtime-smoke.ps1')
