@@ -245,6 +245,7 @@ internal static class BlockingPassAuditCommand
                 SELECT DISTINCT g.pessoa_uuid
                   FROM candidate_uuid c
                   JOIN gold.pessoa g ON g.pessoa_uuid=c.pessoa_uuid
+                 WHERE g.estado_identidade=N'REFERENCIA'
             )
             SELECT CAST(COUNT(*) AS BIGINT),
                    COALESCE(MAX(CASE WHEN pessoa_uuid=@truth_uuid THEN 1 ELSE 0 END),0)
