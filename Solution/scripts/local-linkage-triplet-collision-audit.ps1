@@ -161,9 +161,13 @@ $randomPairCollisionProbability=if($allPairs -le 0){$null}else{$collidingPairs/$
 $syntheticAnchored=[long](Get-SqlScalar @"
 SELECT COUNT_BIG(*)
 FROM (
-    SELECT DISTINCT a.pessoa_uuid
-    FROM identidade.cpf_ancora a
-    JOIN silver.pessoa_observacao po ON po.cpf=a.cpf
+    SELECT DISTINCT vc.pessoa_uuid
+    FROM silver.pessoa_observacao po
+    JOIN identidade.v_vinculo_corrente vc
+      ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+     AND vc.status=N'RESOLVIDO'
+     AND vc.pessoa_uuid IS NOT NULL
+    JOIN identidade.cpf_ancora a ON a.pessoa_uuid=vc.pessoa_uuid
     WHERE po.codigo_pessoa_origem LIKE N'SCALE-%'
        OR po.codigo_pessoa_origem LIKE N'SEED-%'
 ) x;
