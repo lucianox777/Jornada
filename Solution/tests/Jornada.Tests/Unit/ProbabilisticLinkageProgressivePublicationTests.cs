@@ -29,7 +29,7 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
     public void Migration_requires_complete_run_and_never_uses_initial_uuid_as_similarity_evidence()
     {
         var migration = File.ReadAllText(Path.Combine(FindSolutionRoot(), "database", "migrations",
-            "20260919_Linkage_Progressive_Publication.sql"));
+            "20260919_Linkage_Publicacao_Progressiva.sql"));
 
         Assert.Multiple(() =>
         {
