@@ -41,7 +41,8 @@ FROM (VALUES
  (N'serving.v_bi_qualidade_resolucao_operacional'),
  (N'serving.v_bi_qualidade_resolucao_calibrada'),
  (N'serving.v_bi_qualidade_resolucao_operacional_origem'),
- (N'serving.v_bi_qualidade_resolucao_operacional_estrato')
+ (N'serving.v_bi_qualidade_resolucao_operacional_estrato'),
+ (N'serving.v_bi_completude_pessoa')
 ) v(objeto)
 WHERE OBJECT_ID(v.objeto, N'V') IS NULL;
 
@@ -82,6 +83,8 @@ INSERT @required_columns(tabela,coluna) VALUES
  (N'identidade.linkage_resultado',N'universo_referencia'),
  (N'identidade.linkage_resultado',N'publicado_em'),
  (N'identidade.pessoa_origem_progressiva_evento',N'linkage_run_id'),
+ (N'gold.pessoa',N'estado_identidade'),
+ (N'gold.pessoa',N'completude_nucleo'),
  (N'gold.pessoa',N'nome_publicacao_normalizado'),
  (N'gold.pessoa',N'nome_publicacao_metodo_versao'),
  (N'gold.pessoa',N'nome_publicacao_normalizacao_versao'),
@@ -93,13 +96,18 @@ SELECT CONCAT(N'COLUMN:',tabela,N'.',coluna)
 FROM @required_columns
 WHERE COL_LENGTH(tabela,coluna) IS NULL;
 
--- Nome da mãe é opcional no contrato corrente. Presença sem nulabilidade continua
--- sendo schema incompatível, mesmo que o nome da coluna seja o esperado.
+-- O núcleo cadastral é progressivo. Obrigatoriedade pertence ao schema da fonte,
+-- não à representação canônica; Silver e Gold precisam aceitar ausência.
 INSERT @missing(item)
 SELECT CONCAT(N'NULLABILITY:',v.tabela,N'.',v.coluna)
 FROM (VALUES
+ (N'silver.pessoa_observacao',N'nome_completo'),
+ (N'silver.pessoa_observacao',N'nome_cmp'),
+ (N'silver.pessoa_observacao',N'data_nascimento'),
  (N'silver.pessoa_observacao',N'nome_mae'),
  (N'silver.pessoa_observacao',N'nome_mae_cmp'),
+ (N'gold.pessoa',N'nome_completo'),
+ (N'gold.pessoa',N'data_nascimento'),
  (N'gold.pessoa',N'nome_mae')
 ) v(tabela,coluna)
 WHERE NOT EXISTS(
@@ -135,6 +143,10 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'identidade.p
     INSERT @missing(item) VALUES(N'INDEX:identidade.pessoa_origem_progressiva_evento.UX_progressiva_evento_origem_linkage_run');
 IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'gold.pessoa') AND name=N'ck_gold_pessoa_nome_publicacao_completo')
     INSERT @missing(item) VALUES(N'CHECK:gold.pessoa.ck_gold_pessoa_nome_publicacao_completo');
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'gold.pessoa') AND name=N'ck_gold_pessoa_estado_identidade')
+    INSERT @missing(item) VALUES(N'CHECK:gold.pessoa.ck_gold_pessoa_estado_identidade');
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'gold.pessoa') AND name=N'ck_gold_pessoa_completude_nucleo')
+    INSERT @missing(item) VALUES(N'CHECK:gold.pessoa.ck_gold_pessoa_completude_nucleo');
 
 IF EXISTS(SELECT 1 FROM @missing)
 BEGIN
