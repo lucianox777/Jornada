@@ -115,6 +115,19 @@ jobs:
             and .abbreviationCompatibilityDiagnostic.proposedDiagnostic.changesScoring == false
             and .abbreviationCompatibilityDiagnostic.positiveNameAbbrev.total == 8
             and .abbreviationCompatibilityDiagnostic.negativeMotherCollision.total == 10
+            and .abbreviationTrainingSupport.diagnosticEnabled == true
+            and .abbreviationTrainingSupport.scoringChanged == false
+            and .abbreviationTrainingSupport.llrEstimated == false
+            and .abbreviationTrainingSupport.mReference == "CPF_INTERGESTOR_SOURCE_SOURCE"
+            and .abbreviationTrainingSupport.uReference == "BLOCKING_CONDITIONED_GOLD_GOLD_REFERENCE_ONLY"
+            and .abbreviationTrainingSupport.name.mDenominator > 0
+            and .abbreviationTrainingSupport.name.mSupport > 0
+            and .abbreviationTrainingSupport.name.uReferenceDenominator > 0
+            and .abbreviationTrainingSupport.name.uReferenceSupport >= 0
+            and .abbreviationTrainingSupport.motherName.mDenominator > 0
+            and .abbreviationTrainingSupport.motherName.mSupport > 0
+            and .abbreviationTrainingSupport.motherName.uReferenceDenominator > 0
+            and .abbreviationTrainingSupport.motherName.uReferenceSupport >= 0
           ' "$report" >/dev/null
           echo 'LINKAGE SAFETY/REPORT SEMANTICS: OK'
 
