@@ -29,7 +29,6 @@
 :r database/migrations/20260913_Pessoa_Observacao_Sem_Identificador.sql
 :r database/migrations/20260919_Fato_Referencia_Pessoa_Entrega.sql
 :r database/migrations/20260919_Pessoa_Origem_Runtime_V4_Cutover.sql
-:r database/migrations/20260919_Linkage_Progressive_Publication.sql
 :r database/migrations/20260913_BI_Qualidade_Resolucao.sql
 :r database/migrations/20260913_BI_Qualidade_Resolucao_Gestor_Real.sql
 :r database/migrations/20260913_BI_Qualidade_Resolucao_Estrato_Cpf.sql
