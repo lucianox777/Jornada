@@ -137,7 +137,7 @@ public sealed class OperationalAtomicityTests
     private static async Task ApplyDdlAndSeedAsync(SqlConnection connection)
     {
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
     }
 
