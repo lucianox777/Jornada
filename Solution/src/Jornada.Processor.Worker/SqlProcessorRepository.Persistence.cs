@@ -13,19 +13,18 @@ internal sealed partial class SqlProcessorRepository
         try
         {
             await SetProcessingAsync(connection, tx, batch, ct);
-            var peopleBySource = new Dictionary<string, ProcessedPerson>(StringComparer.Ordinal);
+            var peopleByDeliveryId = new Dictionary<string, ProcessedPerson>(StringComparer.Ordinal);
 
             foreach (var person in package.Pessoas)
             {
                 var processed = await PersistPersonAsync(connection, tx, batch, package.Manifest, person, ct);
-                if (!string.IsNullOrWhiteSpace(person.CodigoPessoaOrigem))
-                    peopleBySource[person.CodigoPessoaOrigem] = processed;
+                peopleByDeliveryId[person.IdPessoaEntrega] = processed;
             }
 
             foreach (var fact in package.Registros)
             {
-                if (!peopleBySource.TryGetValue(fact.CodigoPessoaOrigem, out var person))
-                    throw new InvalidDataException($"Pessoa de origem não encontrada para registro: {fact.CodigoPessoaOrigem}.");
+                if (!peopleByDeliveryId.TryGetValue(fact.IdPessoaEntrega, out var person))
+                    throw new InvalidDataException($"Pessoa da entrega não encontrada para registro: {fact.IdPessoaEntrega}.");
                 await PersistFactAsync(connection, tx, batch, person, fact, ct);
             }
 
