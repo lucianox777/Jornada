@@ -673,6 +673,55 @@ public sealed class ProcessorRepositoryTests
     }
 
     [Test]
+    public async Task V4_two_originless_people_in_same_delivery_keep_distinct_delivery_links()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+        await SetOneCadastralBatchPendingAsync(connectionString);
+        var repository = CreateRepository(connectionString);
+        var batch = await repository.ReserveNextAsync(CancellationToken.None);
+        Assert.That(batch, Is.Not.Null);
+
+        var first = new ParsedPerson(
+            "DELIVERY-ORIGINLESS-A", null, new string('1',64), "TX-ORIGINLESS-A", null, "SEM_CPF",
+            "Pessoa Sem Origem A", new DateOnly(1990,1,2), "Mae A",
+            [], [], Array.Empty<ParsedPersonIdentifier>());
+        var second = new ParsedPerson(
+            "DELIVERY-ORIGINLESS-B", null, new string('2',64), "TX-ORIGINLESS-B", null, "SEM_CPF",
+            "Pessoa Sem Origem B", new DateOnly(1991,2,3), "Mae B",
+            [], [], Array.Empty<ParsedPersonIdentifier>());
+        var manifest = new IngestionPackageManifest(
+            2, 4, batch!.CodigoSistemaOrigem, null, null, null, batch.DataReferencia);
+
+        await repository.PersistValidatedAsync(
+            batch, new ParsedPackage(manifest, [first, second], []), CancellationToken.None);
+
+        await using var verify = new SqlConnection(connectionString);
+        await verify.OpenAsync();
+        await using var query = verify.CreateCommand();
+        query.CommandText = """
+            SELECT COUNT(*),COUNT(DISTINCT id_pessoa_entrega),
+                   SUM(CASE WHEN pessoa_origem_id IS NULL AND codigo_pessoa_origem IS NULL THEN 1 ELSE 0 END),
+                   (SELECT COUNT(*) FROM ingestao.item_processado ip
+                     WHERE ip.lote_id=@lote AND ip.classe_item='PESSOA'
+                       AND ip.codigo_origem IN('DELIVERY-ORIGINLESS-A','DELIVERY-ORIGINLESS-B'))
+            FROM silver.pessoa_observacao
+            WHERE lote_id=@lote
+              AND id_pessoa_entrega IN('DELIVERY-ORIGINLESS-A','DELIVERY-ORIGINLESS-B');
+            """;
+        query.Parameters.AddWithValue("@lote", batch.LoteId);
+        await using var reader = await query.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.GetInt32(0), Is.EqualTo(2));
+            Assert.That(reader.GetInt32(1), Is.EqualTo(2));
+            Assert.That(reader.GetInt32(2), Is.EqualTo(2));
+            Assert.That(reader.GetInt32(3), Is.EqualTo(2));
+        });
+    }
+
+    [Test]
     public async Task V4_fact_links_to_originless_person_by_delivery_id()
     {
         var connectionString = RequireIntegrationConnection();
