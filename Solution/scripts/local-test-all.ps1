@@ -236,7 +236,7 @@ foreach ($command in @('git', 'docker', 'dotnet')) {
 # cria um worktree destacado e executa a mesma suíte nesse checkout descartável.
 if (-not $IsolatedExecution) {
     $sharedEnvFile = Join-Path $Root '.env'
-    if (-not $FromZero -and -not (Test-Path -LiteralPath $sharedEnvFile -PathType Leaf)) {
+    if (-not (Test-Path -LiteralPath $sharedEnvFile -PathType Leaf)) {
         throw "Modo PRESERVE_IBGE exige o .env do checkout principal: $sharedEnvFile"
     }
     $worktreePath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-local-test-all-{0}" -f [Guid]::NewGuid().ToString('N'))
@@ -255,17 +255,7 @@ if (-not $IsolatedExecution) {
         Write-Host "Criando worktree isolado para $testedSha..."
         Invoke-Git @('worktree','add','--detach',$worktreePath,$testedSha)
 
-        # .env e local/nao versionado. A suite isolada deve usar exatamente a mesma
-        # conexao local do desenvolvedor para validar e preservar a referencia IBGE existente.
-        $sourceEnv = Join-Path $Root '.env'
-        $isolatedEnv = Join-Path $worktreePath 'Solution/.env'
-        if (Test-Path -LiteralPath $sourceEnv -PathType Leaf) {
-            Copy-Item -LiteralPath $sourceEnv -Destination $isolatedEnv -Force
-        }
-        else {
-            Copy-Item -LiteralPath (Join-Path $worktreePath 'Solution/.env.example') -Destination $isolatedEnv -Force
-        }
-
+        # O .env permanece no checkout principal; o child recebe o caminho via JORNADA_LOCAL_ENV_FILE.
         $isolatedScript = Join-Path $worktreePath 'Solution/scripts/local-test-all.ps1'
         $childArgs = @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$isolatedScript,'-Suite',$Suite)
         $childArgs += '-IsolatedExecution'
@@ -346,25 +336,18 @@ try {
     Invoke-Step 'Referencia IBGE existente: quick check read-only' {
         Invoke-PowerShellScript 'local-check-ibge-reference.ps1'
     }
-    else {
-        Write-Host 'Reset destrutivo explicitamente autorizado: SIM.'
-        Write-Host 'FROM_ZERO recria banco/volumes e prova a materializacao canonica completa.'
 
-        Invoke-Step 'Banco local canônico: reset determinístico' {
-            Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')
-        }
+    Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
+        Invoke-PowerShellScript 'local-test.ps1'
+    }
 
-        Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
-            Invoke-PowerShellScript 'local-test.ps1'
-        }
+    Invoke-Step 'E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP (banco isolado)' {
+        Invoke-PowerShellScript 'local-e2e.ps1'
+    }
 
-        Invoke-Step 'E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP' {
-            Invoke-PowerShellScript 'local-e2e.ps1'
-        }
-
-        Invoke-Step 'Fault injection do gate serial' {
-            Invoke-PowerShellScript 'local-fault-injection.ps1'
-        }
+    Invoke-Step 'Fault injection do gate serial' {
+        Invoke-PowerShellScript 'local-fault-injection.ps1'
+    }
 
     Invoke-Step 'Cluster preservado: up + calibrate + linkage + diagnose' {
         Invoke-ClusterAction 'up'
@@ -373,7 +356,7 @@ try {
         Invoke-ClusterAction 'linkage-diagnose'
     }
 
-        if ($Suite -eq 'full') {
+    if ($Suite -eq 'full') {
         Invoke-Step 'Auditoria read-only de candidate recall/rank' {
             Invoke-LinkageEvaluationSmoke
         }
@@ -383,8 +366,7 @@ try {
         Invoke-PowerShellScript 'local-check-ibge-reference.ps1' @('-NoStart')
     }
 
-        $OverallStatus = 'OK'
-    }
+    $OverallStatus = 'OK'
 }
 catch {
     $FailureMessage = $_.Exception.Message
