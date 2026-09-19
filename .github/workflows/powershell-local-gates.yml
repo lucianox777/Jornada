@@ -283,6 +283,8 @@ jobs:
             'LINKAGE INDEPENDENT VALIDATION DEV SAFETY GATES: OK',
             'syntheticResolvedPpv = if ($null -eq $syntheticResolvedPpv)',
             'plannedColliderAlignment',
+            'observedBestScoreStates',
+            'capabilityAssessment',
             'runtimeFingerprint',
             'zeroMatchedSupportStates'
           )) {
