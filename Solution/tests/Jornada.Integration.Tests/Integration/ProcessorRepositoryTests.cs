@@ -665,7 +665,7 @@ public sealed class ProcessorRepositoryTests
                      WHERE q.pessoa_observacao_id=po.pessoa_observacao_id)
             FROM silver.pessoa_observacao po
             JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id
-            WHERE po.lote_id=@lote AND po.source_transaction_id='TX-V4-NO-ID';
+            WHERE po.lote_id=@lote AND po.id_pessoa_entrega='DELIVERY-V4-NO-ID';
             """;
         query.Parameters.AddWithValue("@lote", batch.LoteId);
         await using var reader = await query.ExecuteReaderAsync();
@@ -928,7 +928,7 @@ public sealed class ProcessorRepositoryTests
             JOIN silver.pessoa_identificador_observacao i
               ON i.pessoa_observacao_id=po.pessoa_observacao_id
              AND i.tipo_identificador_codigo='UUID_JORNADA'
-            WHERE po.lote_id=@lote AND po.source_transaction_id='TX-V4-UUID';
+            WHERE po.lote_id=@lote AND po.id_pessoa_entrega='DELIVERY-V4-UUID';
             """;
         query.Parameters.AddWithValue("@uuid", uuid);
         query.Parameters.AddWithValue("@lote", batch.LoteId);
