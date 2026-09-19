@@ -9,6 +9,7 @@ $OutDir = Join-Path $Root '.local\linkage-validation'
 $LabelsPath = Join-Path $OutDir 'positive-labels.csv'
 $BlockingAuditPath = Join-Path $OutDir 'blocking-pass-audit.json'
 $AbbreviationAuditPath = Join-Path $OutDir 'abbreviation-compatibility-audit.json'
+$PriorCounterfactualPath = Join-Path $OutDir 'prior-counterfactual-audit.json'
 $ReportPath = Join-Path $OutDir 'validation-report.json'
 $RunProvenancePath = Join-Path $OutDir 'run-provenance.json'
 
@@ -253,6 +254,23 @@ if ([int]$abbreviationAudit.positiveNameAbbrev.total -ne 8 -or
     throw "Auditoria de abreviação incompleta: NAME_ABBREV=$($abbreviationAudit.positiveNameAbbrev.total); MOTHER_COLLISION=$($abbreviationAudit.negativeMotherCollision.total)."
 }
 Write-Host "Abreviação compatível (diagnóstico): NAME_ABBREV=$($abbreviationAudit.positiveNameAbbrev.compatible)/8; MOTHER_COLLISION=$($abbreviationAudit.negativeMotherCollision.compatible)/10; separa=$($abbreviationAudit.separation.selectedFixtureClassesSeparated)"
+
+$containerPriorCounterfactual = '/tmp/jornada-linkage-prior-counterfactual.json'
+Invoke-Compose -ComposeArgs @(
+    'exec','-T','jornada-node2','dotnet','/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll',
+    '--prior-counterfactual-run',$runId,
+    '--prior-counterfactual-output',$containerPriorCounterfactual,
+    '--ProbabilisticLinkage:CommandTimeoutSeconds','300')
+Invoke-Compose -ComposeArgs @('cp',"jornada-node2:$containerPriorCounterfactual",$PriorCounterfactualPath)
+$priorCounterfactualAudit = Get-Content -Raw -Encoding UTF8 $PriorCounterfactualPath | ConvertFrom-Json
+if ($priorCounterfactualAudit.purpose -ne 'DEV_READ_ONLY_CANDIDATE_PAIR_PRIOR_COUNTERFACTUAL') {
+    throw "Auditoria contrafactual do prior possui purpose inesperado: $($priorCounterfactualAudit.purpose)."
+}
+if ([int]$priorCounterfactualAudit.replay.rankingTopChangedCount -ne 0 -or
+    [int]$priorCounterfactualAudit.replay.persistedDecisionMismatchCount -ne 0) {
+    throw "Contrafactual do prior violou replay/ranking: top_changed=$($priorCounterfactualAudit.replay.rankingTopChangedCount); persisted_mismatch=$($priorCounterfactualAudit.replay.persistedDecisionMismatchCount)."
+}
+Write-Host "Prior contrafactual: ativo=$($priorCounterfactualAudit.prior.active) alternativo=$($priorCounterfactualAudit.prior.counterfactual) mudanças=$($priorCounterfactualAudit.delta.decisionChangedRows) POS_corretos=$($priorCounterfactualAudit.active.positive.correctResolved)->$($priorCounterfactualAudit.counterfactual.positive.correctResolved) NEG_falsos=$($priorCounterfactualAudit.active.negative.falseResolved)->$($priorCounterfactualAudit.counterfactual.negative.falseResolved)"
 
 $positiveMetricLine = Get-SqlScalar @"
 WITH truth AS (
@@ -1396,6 +1414,7 @@ $report = [ordered]@{
     blocking = $blockingAudit.summary
     abbreviationCompatibilityDiagnostic = $abbreviationAudit
     abbreviationTrainingSupport = $abbreviationTrainingSupport
+    priorCounterfactual = $priorCounterfactualAudit
     positive = [ordered]@{
         total = $positiveTotal
         resolvedCorrect = $positiveCorrect
