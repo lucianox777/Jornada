@@ -833,7 +833,14 @@ WHERE modelo_id='$activeModelId'
     'PRIOR_MATCH_PROBABILITY','PRIOR_BLOCK_MAX','POPULATION_SIZE','DISTINCT_BIRTH_DATE',
     'M_NOME_EXACT','U_NOME_EXACT','M_NOME_LOW','U_NOME_LOW',
     'M_NOME_MAE_EXACT','U_NOME_MAE_EXACT','M_NOME_MAE_LOW','U_NOME_MAE_LOW',
-    'M_NASCIMENTO_SEMANTICO_EXACT','U_NASCIMENTO_SEMANTICO_EXACT'
+    'M_NASCIMENTO_SEMANTICO_EXACT','U_NASCIMENTO_SEMANTICO_EXACT',
+    'DIAG_ABBREV_COMPATIBLE_V1',
+    'DIAG_ABBREV_M_NOME_DENOM','DIAG_ABBREV_M_NOME_SUPPORT','DIAG_ABBREV_M_NOME_RATE',
+    'DIAG_ABBREV_U_NOME_DENOM','DIAG_ABBREV_U_NOME_SUPPORT','DIAG_ABBREV_U_NOME_RATE',
+    'DIAG_ABBREV_M_NOME_MAE_DENOM','DIAG_ABBREV_M_NOME_MAE_SUPPORT','DIAG_ABBREV_M_NOME_MAE_RATE',
+    'DIAG_ABBREV_U_NOME_MAE_DENOM','DIAG_ABBREV_U_NOME_MAE_SUPPORT','DIAG_ABBREV_U_NOME_MAE_RATE',
+    'DIAG_ABBREV_NOME_OBSERVED_IN_BOTH_M_U','DIAG_ABBREV_NOME_MAE_OBSERVED_IN_BOTH_M_U',
+    'DIAG_ABBREV_M_REFERENCE_CPF_INTERGESTOR_V1','DIAG_ABBREV_U_REFERENCE_BLOCKING_GOLD_GOLD_V1'
   )
 ORDER BY nome;
 "@)
@@ -860,6 +867,53 @@ $priorClampedAtUpperBound = (
     $priorProbability -eq $priorBlockMax
 )
 $priorLogOddsDouble = [Math]::Log([double]$priorProbability / (1.0 - [double]$priorProbability))
+
+$abbrevDiagnosticEnabled = (Get-DiagnosticParameter 'DIAG_ABBREV_COMPATIBLE_V1') -eq 1
+$abbrevMNameDenom = Get-DiagnosticParameter 'DIAG_ABBREV_M_NOME_DENOM'
+$abbrevMNameSupport = Get-DiagnosticParameter 'DIAG_ABBREV_M_NOME_SUPPORT'
+$abbrevMNameRate = Get-DiagnosticParameter 'DIAG_ABBREV_M_NOME_RATE'
+$abbrevUNameDenom = Get-DiagnosticParameter 'DIAG_ABBREV_U_NOME_DENOM'
+$abbrevUNameSupport = Get-DiagnosticParameter 'DIAG_ABBREV_U_NOME_SUPPORT'
+$abbrevUNameRate = Get-DiagnosticParameter 'DIAG_ABBREV_U_NOME_RATE'
+$abbrevMMotherDenom = Get-DiagnosticParameter 'DIAG_ABBREV_M_NOME_MAE_DENOM'
+$abbrevMMotherSupport = Get-DiagnosticParameter 'DIAG_ABBREV_M_NOME_MAE_SUPPORT'
+$abbrevMMotherRate = Get-DiagnosticParameter 'DIAG_ABBREV_M_NOME_MAE_RATE'
+$abbrevUMotherDenom = Get-DiagnosticParameter 'DIAG_ABBREV_U_NOME_MAE_DENOM'
+$abbrevUMotherSupport = Get-DiagnosticParameter 'DIAG_ABBREV_U_NOME_MAE_SUPPORT'
+$abbrevUMotherRate = Get-DiagnosticParameter 'DIAG_ABBREV_U_NOME_MAE_RATE'
+$abbrevNameObservedBoth = (Get-DiagnosticParameter 'DIAG_ABBREV_NOME_OBSERVED_IN_BOTH_M_U') -eq 1
+$abbrevMotherObservedBoth = (Get-DiagnosticParameter 'DIAG_ABBREV_NOME_MAE_OBSERVED_IN_BOTH_M_U') -eq 1
+$abbrevMReference = (Get-DiagnosticParameter 'DIAG_ABBREV_M_REFERENCE_CPF_INTERGESTOR_V1') -eq 1
+$abbrevUReference = (Get-DiagnosticParameter 'DIAG_ABBREV_U_REFERENCE_BLOCKING_GOLD_GOLD_V1') -eq 1
+
+$abbreviationTrainingSupport = [ordered]@{
+    diagnosticEnabled = $abbrevDiagnosticEnabled
+    compatibilityVersion = 'PTBR_POSITIONAL_INITIAL_COMPATIBLE_V1'
+    scoringChanged = $false
+    llrEstimated = $false
+    mReference = if ($abbrevMReference) { 'CPF_INTERGESTOR_SOURCE_SOURCE' } else { 'UNKNOWN' }
+    uReference = if ($abbrevUReference) { 'BLOCKING_CONDITIONED_GOLD_GOLD_REFERENCE_ONLY' } else { 'UNKNOWN' }
+    name = [ordered]@{
+        mDenominator = [long]$abbrevMNameDenom
+        mSupport = [long]$abbrevMNameSupport
+        mRate = [decimal]::Round($abbrevMNameRate,12)
+        uReferenceDenominator = [long]$abbrevUNameDenom
+        uReferenceSupport = [long]$abbrevUNameSupport
+        uReferenceRate = [decimal]::Round($abbrevUNameRate,12)
+        observedInBothSamples = $abbrevNameObservedBoth
+    }
+    motherName = [ordered]@{
+        mDenominator = [long]$abbrevMMotherDenom
+        mSupport = [long]$abbrevMMotherSupport
+        mRate = [decimal]::Round($abbrevMMotherRate,12)
+        uReferenceDenominator = [long]$abbrevUMotherDenom
+        uReferenceSupport = [long]$abbrevUMotherSupport
+        uReferenceRate = [decimal]::Round($abbrevUMotherRate,12)
+        observedInBothSamples = $abbrevMotherObservedBoth
+    }
+    interpretation = 'O suporte m é observado em pares fonte-fonte ligados por CPF. O suporte u mostrado é somente referência Gold-Gold condicionada ao blocking; o u nominal operacional do nome continua vindo do IBGE Monte Carlo. Portanto estes números não estimam LLR de ABBREV_COMPATIBLE e não autorizam criar/promover um novo estado.'
+}
+Write-Host "Suporte ABBREV treino: NOME m=$([long]$abbrevMNameSupport)/$([long]$abbrevMNameDenom) u_ref=$([long]$abbrevUNameSupport)/$([long]$abbrevUNameDenom); NOME_MAE m=$([long]$abbrevMMotherSupport)/$([long]$abbrevMMotherDenom) u_ref=$([long]$abbrevUMotherSupport)/$([long]$abbrevUMotherDenom); LLR_estimado=False"
 
 $scenarioDefinitions = @(
     [ordered]@{ scenario='EASY'; nameState='LOW'; motherState='LOW'; birthState='EXACT' },
@@ -1285,6 +1339,7 @@ $report = [ordered]@{
     }
     blocking = $blockingAudit.summary
     abbreviationCompatibilityDiagnostic = $abbreviationAudit
+    abbreviationTrainingSupport = $abbreviationTrainingSupport
     positive = [ordered]@{
         total = $positiveTotal
         resolvedCorrect = $positiveCorrect
