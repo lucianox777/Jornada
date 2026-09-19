@@ -188,71 +188,63 @@ $referenceId=[long]$referenceParts[0]
 $referenceCode=$referenceParts[1]
 $referenceSha=$referenceParts[2]
 
-$referenceCompositionLines=@(Get-SqlLines @"
-WITH national AS (
-    SELECT
-        tipo,
-        valor_normalizado,
-        SUM(CONVERT(bigint,frequencia)) AS frequencia
-    FROM ref.frequencia_nome
-    WHERE frequencia_nome_versao_id=$referenceId
-      AND escopo_geografico=N'BRASIL'
-      AND uf_codigo='00'
-      AND municipio_codigo='0000000'
-      AND periodo_nascimento=N'TODOS'
-      AND (
-           (tipo=N'NOME' AND sexo=N'TODOS')
-        OR (tipo=N'SOBRENOME' AND sexo=N'TODOS')
-      )
-    GROUP BY tipo,valor_normalizado
-), national_agg AS (
-    SELECT
-        tipo,
-        COUNT_BIG(*) AS valores,
-        SUM(CASE WHEN CHARINDEX(N' ',valor_normalizado)>0 THEN 1 ELSE 0 END) AS valores_compostos,
-        SUM(frequencia) AS ocorrencias,
-        SUM(CASE WHEN CHARINDEX(N' ',valor_normalizado)>0 THEN frequencia ELSE CONVERT(bigint,0) END) AS ocorrencias_compostas
-    FROM national
-    GROUP BY tipo
-), periods AS (
-    SELECT
-        COUNT_BIG(*) AS linhas_periodo_nome,
-        SUM(CASE WHEN CHARINDEX(N' ',valor_normalizado)>0 THEN 1 ELSE 0 END) AS linhas_periodo_nome_composto,
-        COUNT(DISTINCT periodo_nascimento) AS periodos_publicados
-    FROM ref.frequencia_nome
-    WHERE frequencia_nome_versao_id=$referenceId
-      AND tipo=N'NOME'
-      AND escopo_geografico=N'BRASIL'
-      AND uf_codigo='00'
-      AND municipio_codigo='0000000'
-      AND periodo_nascimento<>N'TODOS'
-)
+$referenceComposition=@()
+foreach($kind in @('NOME','SOBRENOME')){
+    $kindFilter=if($kind -eq 'NOME'){"tipo=N'NOME' AND sexo=N'TODOS'"}else{"tipo=N'SOBRENOME' AND sexo=N'TODOS'"}
+    $line=Get-SqlScalar @"
 SELECT CONCAT(
-    a.tipo,'|',a.valores,'|',a.valores_compostos,'|',
-    a.ocorrencias,'|',a.ocorrencias_compostas,'|',
-    p.linhas_periodo_nome,'|',p.linhas_periodo_nome_composto,'|',p.periodos_publicados)
-FROM national_agg a
-CROSS JOIN periods p
-ORDER BY a.tipo;
-"@)
-
-$referenceComposition=@(
-    foreach($line in $referenceCompositionLines){
-        $parts=$line.Split('|')
-        [ordered]@{
-            kind=$parts[0]
-            publishedValues=[long]$parts[1]
-            compoundPublishedValues=[long]$parts[2]
-            publishedOccurrences=[long]$parts[3]
-            compoundPublishedOccurrences=[long]$parts[4]
-            compoundValueShare=if([long]$parts[1] -eq 0){$null}else{[decimal]::Round(([decimal]$parts[2]/[decimal]$parts[1]),12)}
-            compoundOccurrenceShare=if([long]$parts[3] -eq 0){$null}else{[decimal]::Round(([decimal]$parts[4]/[decimal]$parts[3]),12)}
-            periodNameRows=[long]$parts[5]
-            periodCompoundNameRows=[long]$parts[6]
-            publishedBirthPeriods=[int]$parts[7]
-        }
+    COUNT_BIG(*),'|',
+    COALESCE(SUM(CONVERT(bigint,CASE WHEN CHARINDEX(N' ',valor_normalizado)>0 THEN 1 ELSE 0 END)),0),'|',
+    COALESCE(SUM(CONVERT(bigint,frequencia)),0),'|',
+    COALESCE(SUM(CASE WHEN CHARINDEX(N' ',valor_normalizado)>0 THEN CONVERT(bigint,frequencia) ELSE CONVERT(bigint,0) END),0))
+FROM ref.frequencia_nome
+WHERE frequencia_nome_versao_id=$referenceId
+  AND $kindFilter
+  AND escopo_geografico=N'BRASIL'
+  AND uf_codigo='00'
+  AND municipio_codigo='0000000'
+  AND periodo_nascimento=N'TODOS';
+"@
+    $parts=$line.Split('|')
+    if($parts.Count -ne 4){ throw "Métrica IBGE nacional inválida para ${kind}: $line" }
+    $values=[long]$parts[0]
+    $compoundValues=[long]$parts[1]
+    $occurrences=[long]$parts[2]
+    $compoundOccurrences=[long]$parts[3]
+    $referenceComposition += [ordered]@{
+        kind=$kind
+        publishedValues=$values
+        compoundPublishedValues=$compoundValues
+        publishedOccurrences=$occurrences
+        compoundPublishedOccurrences=$compoundOccurrences
+        compoundValueShare=if($values -eq 0){$null}else{[decimal]::Round(([decimal]$compoundValues/[decimal]$values),12)}
+        compoundOccurrenceShare=if($occurrences -eq 0){$null}else{[decimal]::Round(([decimal]$compoundOccurrences/[decimal]$occurrences),12)}
+        periodNameRows=$null
+        periodCompoundNameRows=$null
+        publishedBirthPeriods=$null
     }
-)
+}
+
+$periodLine=Get-SqlScalar @"
+SELECT CONCAT(
+    COUNT_BIG(*),'|',
+    COALESCE(SUM(CONVERT(bigint,CASE WHEN CHARINDEX(N' ',valor_normalizado)>0 THEN 1 ELSE 0 END)),0),'|',
+    COUNT(DISTINCT periodo_nascimento))
+FROM ref.frequencia_nome
+WHERE frequencia_nome_versao_id=$referenceId
+  AND tipo=N'NOME'
+  AND escopo_geografico=N'BRASIL'
+  AND uf_codigo='00'
+  AND municipio_codigo='0000000'
+  AND periodo_nascimento<>N'TODOS';
+"@
+$periodParts=$periodLine.Split('|')
+if($periodParts.Count -ne 3){ throw "Métrica IBGE por período inválida: $periodLine" }
+foreach($item in $referenceComposition){
+    $item.periodNameRows=[long]$periodParts[0]
+    $item.periodCompoundNameRows=[long]$periodParts[1]
+    $item.publishedBirthPeriods=[int]$periodParts[2]
+}
 $publishedCompoundEvidencePresent=(@($referenceComposition | Where-Object { $_.compoundPublishedValues -gt 0 }).Count -gt 0)
 
 $datasetHint=if($anchored -gt 0 -and $syntheticAnchored -eq $anchored){'SYNTHETIC_LOCAL'}elseif($syntheticAnchored -gt 0){'MIXED_WITH_SYNTHETIC'}else{'NO_SYNTHETIC_MARKER_DETECTED'}
