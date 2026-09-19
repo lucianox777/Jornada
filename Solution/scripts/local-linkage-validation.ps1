@@ -847,7 +847,7 @@ WHERE modelo_id='$activeModelId'
     'DIAG_CANDIDATE_PRIOR_CANDIDATE_RECALL','DIAG_CANDIDATE_PRIOR_MEAN_CANDIDATES_PER_OBSERVATION',
     'DIAG_CANDIDATE_PRIOR_BOTH_CLASSES_OBSERVED','DIAG_CANDIDATE_PRIOR_MATCH_PROBABILITY',
     'DIAG_CANDIDATE_PRIOR_ACTIVE_PRIOR_PROBABILITY','DIAG_CANDIDATE_PRIOR_DELTA_LOG_ODDS_VS_ACTIVE',
-    'DIAG_CANDIDATE_PRIOR_ACTIVE_SCORE_CHANGED'
+    'DIAG_CANDIDATE_PRIOR_ACTIVE_SCORE_CHANGED','DIAG_CANDIDATE_PRIOR_VALIDATION_CANDIDATES_EXCLUDED'
   )
 ORDER BY nome;
 "@)
@@ -889,6 +889,7 @@ $candidatePriorProbability = Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_MATCH
 $candidatePriorActiveReference = Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_ACTIVE_PRIOR_PROBABILITY'
 $candidatePriorDeltaLogOdds = Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_DELTA_LOG_ODDS_VS_ACTIVE'
 $candidatePriorScoreChanged = (Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_ACTIVE_SCORE_CHANGED') -eq 1
+$candidatePriorValidationCandidatesExcluded = (Get-DiagnosticParameter 'DIAG_CANDIDATE_PRIOR_VALIDATION_CANDIDATES_EXCLUDED') -eq 1
 
 $candidatePairPriorDiagnostic = [ordered]@{
     enabled = $candidatePriorEnabled
@@ -906,6 +907,7 @@ $candidatePairPriorDiagnostic = [ordered]@{
     activePriorProbability = [decimal]::Round($candidatePriorActiveReference,12)
     deltaLogOddsVsActive = [decimal]::Round($candidatePriorDeltaLogOdds,12)
     activeScoreChanged = $candidatePriorScoreChanged
+    validationCandidatesExcluded = $candidatePriorValidationCandidatesExcluded
     groundTruth = 'CPF_DETERMINISTICO'
     candidateGeneration = 'SAME_WINNING_RULESET_WITH_CPF_REMOVED_FROM_BLOCKING'
     limitation = 'A amostra rotulada contém observações com CPF. Ela mede P(match|par candidato) no corpus disponível, mas pode não representar o subconjunto operacional sem CPF; promoção do prior exige validação independente dessa transportabilidade.'
