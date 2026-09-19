@@ -71,7 +71,7 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
         var nullableObservation = Array.IndexOf(lines, "migrations/20260913_Pessoa_Observacao_Sem_Identificador.sql");
         var deliveryPersonLink = Array.IndexOf(lines, "migrations/20260919_Fato_Referencia_Pessoa_Entrega.sql");
         var runtimeCutover = Array.IndexOf(lines, "migrations/20260919_Pessoa_Origem_Runtime_V4_Cutover.sql");
-        var progressivePublication = Array.IndexOf(lines, "migrations/20260919_Linkage_Progressive_Publication.sql");
+        var progressivePublication = Array.IndexOf(lines, "migrations/20260919_Linkage_Publicacao_Progressiva.sql");
 
         Assert.That(origin, Is.GreaterThanOrEqualTo(0));
         Assert.That(identifiers, Is.GreaterThan(origin));
