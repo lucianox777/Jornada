@@ -178,7 +178,7 @@ public static class BlockingCandidatePriorEstimator
             throw new InvalidOperationException("Estimador de prior produziu contagem negativa de pares não-match.");
 
         var recall = sampleSize == 0 ? 0m : decimal.Divide(truthPairs, sampleSize);
-        var prior = totalPairs == 0 ? null : decimal.Divide(truthPairs, totalPairs);
+        decimal? prior = totalPairs == 0 ? null : decimal.Divide(truthPairs, totalPairs);
         return new BlockingCandidatePriorEstimate(
             sampleSize,
             withCandidates,
