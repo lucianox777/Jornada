@@ -15,6 +15,29 @@ GO
  resolução de identidade e/ou de um identificador posteriormente retroalimentado.
 */
 
+/* A unicidade histórica depende de pessoa_origem_id e deve sair antes de
+   alterar a nulabilidade da coluna. Em fresh install ela já pode existir como
+   índice filtrado; em upgrade legado pode existir como UNIQUE constraint. */
+IF EXISTS(
+    SELECT 1
+    FROM sys.key_constraints
+    WHERE parent_object_id=OBJECT_ID('silver.pessoa_observacao')
+      AND name='uq_pessoa_observacao_versao')
+BEGIN
+    ALTER TABLE silver.pessoa_observacao DROP CONSTRAINT uq_pessoa_observacao_versao;
+END;
+GO
+
+IF EXISTS(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id=OBJECT_ID('silver.pessoa_observacao')
+      AND name='uq_pessoa_observacao_versao')
+BEGIN
+    DROP INDEX uq_pessoa_observacao_versao ON silver.pessoa_observacao;
+END;
+GO
+
 IF COL_LENGTH('silver.pessoa_observacao','pessoa_origem_id') IS NOT NULL
 BEGIN
     ALTER TABLE silver.pessoa_observacao ALTER COLUMN pessoa_origem_id BIGINT NULL;
@@ -24,16 +47,6 @@ GO
 IF COL_LENGTH('silver.pessoa_observacao','codigo_pessoa_origem') IS NOT NULL
 BEGIN
     ALTER TABLE silver.pessoa_observacao ALTER COLUMN codigo_pessoa_origem NVARCHAR(255) NULL;
-END;
-GO
-
-IF EXISTS(
-    SELECT 1
-    FROM sys.key_constraints
-    WHERE parent_object_id=OBJECT_ID('silver.pessoa_observacao')
-      AND name='uq_pessoa_observacao_versao')
-BEGIN
-    ALTER TABLE silver.pessoa_observacao DROP CONSTRAINT uq_pessoa_observacao_versao;
 END;
 GO
 
