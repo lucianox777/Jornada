@@ -50,9 +50,10 @@ function Invoke-Parameters([string]$Operation, [Nullable[int]]$TargetVersion = $
     if ($LASTEXITCODE -ne 0) { throw "Linkage Parameters falhou em $Operation. ExitCode=$LASTEXITCODE" }
 }
 
-# A criação de modelo congela a referência ATIVA de frequências. A carga usa apenas
-# o snapshot local versionado no bundle, é idempotente e não acessa rede.
-Invoke-Parameters 'LOAD_NAME_FREQUENCY_SNAPSHOT'
+# A referência IBGE é bootstrap do ambiente. ENSURE retorna imediatamente quando o
+# snapshot canônico já está materializado e só executa a carga completa em banco novo.
+# Isso evita reler milhões de linhas a cada recalibração, mantendo fallback fail-closed.
+Invoke-Parameters 'ENSURE_NAME_FREQUENCY_SNAPSHOT'
 $activeReference = [int](Invoke-Scalar "SELECT COUNT(*) FROM ref.frequencia_nome_versao WHERE status='ATIVA' AND conteudo_sha256 IS NOT NULL;")
 if ($activeReference -ne 1) { throw "Calibração exige exatamente uma referência de frequências ATIVA; encontradas=$activeReference." }
 

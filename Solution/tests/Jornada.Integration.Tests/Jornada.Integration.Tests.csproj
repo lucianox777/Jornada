@@ -40,6 +40,7 @@
     <None Include="..\..\database\migrations\20260914_Operational_Monitor.sql" Link="database\migrations\20260914_Operational_Monitor.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\database\migrations\20260915_Linkage_Model_Promotion_Contract.sql" Link="database\migrations\20260915_Linkage_Model_Promotion_Contract.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\database\migrations\20260916_Linkage_U_Support_Reachability.sql" Link="database\migrations\20260916_Linkage_U_Support_Reachability.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\database\migrations\20260917_Linkage_Llr_Monotonicity.sql" Link="database\migrations\20260917_Linkage_Llr_Monotonicity.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\config\contracts\**\*.json" Link="config\contracts\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\config\security\authorization-matrix.json" Link="config\security\authorization-matrix.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\config\security\test-access-keys.json" Link="config\security\test-access-keys.json" CopyToOutputDirectory="PreserveNewest" />

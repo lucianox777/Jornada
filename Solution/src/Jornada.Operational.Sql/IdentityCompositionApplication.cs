@@ -26,17 +26,13 @@ public sealed record IdentityCompositionApplicationResult(
 /// </summary>
 public sealed class IdentityCompositionApplicationStore
 {
-    private readonly bool postgres;
 
     public IdentityCompositionApplicationStore(IOperationalDatabaseAdapter database)
     {
         ArgumentNullException.ThrowIfNull(database);
-        postgres = database.Provider switch
-        {
-            OperationalDatabaseProviders.PostgreSql => true,
-            OperationalDatabaseProviders.SqlServer => false,
-            _ => throw new ArgumentException("Provider operacional não suportado.", nameof(database))
-        };
+        if (database.Provider != OperationalDatabaseProviders.SqlServer)
+
+            throw new ArgumentException("Provider operacional não suportado.", nameof(database));
     }
 
     public async Task<IdentityCompositionAppliedReceipt?> ReadAppliedAsync(
@@ -49,9 +45,7 @@ public sealed class IdentityCompositionApplicationStore
         if (decisionId == Guid.Empty) throw new ArgumentException("Decisão inválida.", nameof(decisionId));
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "SELECT decision_id,request_hash,plan_hash,reservas_hash,aplicador_referencia,aplicado_em,alteracoes_aplicadas,historicos_registrados,estado FROM identidade.composicao_aplicacao WHERE decision_id=@decision FOR UPDATE;"
-            : "SELECT decision_id,request_hash,plan_hash,reservas_hash,aplicador_referencia,aplicado_em,alteracoes_aplicadas,historicos_registrados,estado FROM identidade.composicao_aplicacao WITH(UPDLOCK,HOLDLOCK) WHERE decision_id=@decision;";
+        command.CommandText = "SELECT decision_id,request_hash,plan_hash,reservas_hash,aplicador_referencia,aplicado_em,alteracoes_aplicadas,historicos_registrados,estado FROM identidade.composicao_aplicacao WITH(UPDLOCK,HOLDLOCK) WHERE decision_id=@decision;";
         Add(command, "@decision", DbType.Guid, decisionId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
@@ -132,9 +126,7 @@ public sealed class IdentityCompositionApplicationStore
             var hash = IdentityCompositionCanonical.HashUtf8(json);
             await using var command = connection.CreateCommand();
             command.Transaction = transaction;
-            command.CommandText = postgres
-                ? "INSERT INTO identidade.composicao_historico_aplicado(decision_id,reference_uuid,members_json,members_hash,registrado_em) VALUES(@decision,@reference,@members,@hash,@at);"
-                : "INSERT identidade.composicao_historico_aplicado(decision_id,reference_uuid,members_json,members_hash,registrado_em) VALUES(@decision,@reference,@members,@hash,@at);";
+            command.CommandText = "INSERT identidade.composicao_historico_aplicado(decision_id,reference_uuid,members_json,members_hash,registrado_em) VALUES(@decision,@reference,@members,@hash,@at);";
             Add(command, "@decision", DbType.Guid, plan.DecisionId);
             Add(command, "@reference", DbType.Guid, history.ReferenceUuid);
             Add(command, "@members", DbType.String, json);
@@ -170,9 +162,7 @@ public sealed class IdentityCompositionApplicationStore
 
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "INSERT INTO identidade.composicao_aplicacao(decision_id,request_hash,plan_hash,reservas_hash,aplicador_referencia,aplicado_em,alteracoes_aplicadas,historicos_registrados,estado) VALUES(@decision,@request_hash,@plan_hash,@reservations_hash,@applier,@at,@changes,@histories,'APLICADA');"
-            : "INSERT identidade.composicao_aplicacao(decision_id,request_hash,plan_hash,reservas_hash,aplicador_referencia,aplicado_em,alteracoes_aplicadas,historicos_registrados,estado) VALUES(@decision,@request_hash,@plan_hash,@reservations_hash,@applier,@at,@changes,@histories,'APLICADA');";
+        command.CommandText = "INSERT identidade.composicao_aplicacao(decision_id,request_hash,plan_hash,reservas_hash,aplicador_referencia,aplicado_em,alteracoes_aplicadas,historicos_registrados,estado) VALUES(@decision,@request_hash,@plan_hash,@reservations_hash,@applier,@at,@changes,@histories,'APLICADA');";
         Add(command, "@decision", DbType.Guid, prepared.DecisionId);
         Add(command, "@request_hash", DbType.String, prepared.RequestHash);
         Add(command, "@plan_hash", DbType.String, prepared.PlanHash);
@@ -214,9 +204,7 @@ public sealed class IdentityCompositionApplicationStore
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "SELECT pessoa_origem_id,canonical_uuid,estado,versao FROM identidade.pessoa_origem_progressiva WHERE initial_uuid=@initial FOR UPDATE;"
-            : "SELECT pessoa_origem_id,canonical_uuid,estado,versao FROM identidade.pessoa_origem_progressiva WITH(UPDLOCK,HOLDLOCK) WHERE initial_uuid=@initial;";
+        command.CommandText = "SELECT pessoa_origem_id,canonical_uuid,estado,versao FROM identidade.pessoa_origem_progressiva WITH(UPDLOCK,HOLDLOCK) WHERE initial_uuid=@initial;";
         Add(command, "@initial", DbType.Guid, initialUuid);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
@@ -246,9 +234,7 @@ public sealed class IdentityCompositionApplicationStore
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "INSERT INTO identidade.pessoa_origem_progressiva_evento(evento_id,pessoa_origem_id,versao,tipo,estado,canonical_uuid,expected_version,resultado,target_uuid,evidencia_referencia,politica_versao,modelo_versao,universo_referencia,completo,ocorrido_em) VALUES(@event,@source,@version,'RESOLUCAO',@state,@canonical,@expected,@outcome,@target,@evidence,@policy,NULL,@universe,TRUE,@at);"
-            : "INSERT identidade.pessoa_origem_progressiva_evento(evento_id,pessoa_origem_id,versao,tipo,estado,canonical_uuid,expected_version,resultado,target_uuid,evidencia_referencia,politica_versao,modelo_versao,universo_referencia,completo,ocorrido_em) VALUES(@event,@source,@version,'RESOLUCAO',@state,@canonical,@expected,@outcome,@target,@evidence,@policy,NULL,@universe,1,@at);";
+        command.CommandText = "INSERT identidade.pessoa_origem_progressiva_evento(evento_id,pessoa_origem_id,versao,tipo,estado,canonical_uuid,expected_version,resultado,target_uuid,evidencia_referencia,politica_versao,modelo_versao,universo_referencia,completo,ocorrido_em) VALUES(@event,@source,@version,'RESOLUCAO',@state,@canonical,@expected,@outcome,@target,@evidence,@policy,NULL,@universe,1,@at);";
         Add(command, "@event", DbType.Guid, Guid.NewGuid());
         Add(command, "@source", DbType.Int64, sourceId);
         Add(command, "@version", DbType.Int64, change.NewVersion);

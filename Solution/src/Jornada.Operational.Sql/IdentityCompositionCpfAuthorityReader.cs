@@ -12,17 +12,13 @@ namespace Jornada.Operational.Sql;
 /// </summary>
 public sealed class IdentityCompositionCpfAuthorityReader : IIdentityCompositionCpfAuthorityReader
 {
-    private readonly bool postgres;
 
     public IdentityCompositionCpfAuthorityReader(IOperationalDatabaseAdapter database)
     {
         ArgumentNullException.ThrowIfNull(database);
-        postgres = database.Provider switch
-        {
-            OperationalDatabaseProviders.PostgreSql => true,
-            OperationalDatabaseProviders.SqlServer => false,
-            _ => throw new ArgumentException("Provider operacional não suportado.", nameof(database))
-        };
+        if (database.Provider != OperationalDatabaseProviders.SqlServer)
+
+            throw new ArgumentException("Provider operacional não suportado.", nameof(database));
     }
 
     public async Task<IReadOnlyDictionary<Guid, Guid?>> LoadAnchorUuidsAsync(
@@ -72,9 +68,7 @@ public sealed class IdentityCompositionCpfAuthorityReader : IIdentityComposition
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "SELECT pessoa_observacao_id,cpf FROM silver.pessoa_observacao WHERE pessoa_origem_id=@source ORDER BY versao_interna DESC,pessoa_observacao_id DESC LIMIT 1 FOR UPDATE;"
-            : "SELECT TOP(1) pessoa_observacao_id,cpf FROM silver.pessoa_observacao WITH(UPDLOCK,HOLDLOCK) WHERE pessoa_origem_id=@source ORDER BY versao_interna DESC,pessoa_observacao_id DESC;";
+        command.CommandText = "SELECT TOP(1) pessoa_observacao_id,cpf FROM silver.pessoa_observacao WITH(UPDLOCK,HOLDLOCK) WHERE pessoa_origem_id=@source ORDER BY versao_interna DESC,pessoa_observacao_id DESC;";
         Add(command, "@source", DbType.Int64, sourceId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
@@ -93,9 +87,7 @@ public sealed class IdentityCompositionCpfAuthorityReader : IIdentityComposition
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "SELECT pessoa_uuid FROM identidade.cpf_ancora WHERE cpf=@cpf FOR UPDATE;"
-            : "SELECT pessoa_uuid FROM identidade.cpf_ancora WITH(UPDLOCK,HOLDLOCK) WHERE cpf=@cpf;";
+        command.CommandText = "SELECT pessoa_uuid FROM identidade.cpf_ancora WITH(UPDLOCK,HOLDLOCK) WHERE cpf=@cpf;";
         Add(command, "@cpf", DbType.AnsiStringFixedLength, cpf);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
@@ -114,9 +106,7 @@ public sealed class IdentityCompositionCpfAuthorityReader : IIdentityComposition
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? "SELECT pessoa_uuid,metodo_resolucao,status FROM identidade.vinculo_fonte WHERE pessoa_observacao_id=@observation AND ativo ORDER BY vinculo_fonte_id FOR UPDATE;"
-            : "SELECT pessoa_uuid,metodo_resolucao,status FROM identidade.vinculo_fonte WITH(UPDLOCK,HOLDLOCK) WHERE pessoa_observacao_id=@observation AND ativo=1 ORDER BY vinculo_id;";
+        command.CommandText = "SELECT pessoa_uuid,metodo_resolucao,status FROM identidade.vinculo_fonte WITH(UPDLOCK,HOLDLOCK) WHERE pessoa_observacao_id=@observation AND ativo=1 ORDER BY vinculo_id;";
         Add(command, "@observation", DbType.Int64, observationId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;

@@ -154,6 +154,8 @@ jobs:
           python3 scripts/possibility-rules-gate.py --self-test
       - name: Self-test aggregate release evidence gate
         run: python3 scripts/release-evidence-gate.py --self-test
+      - name: Self-test IBGE nominal u multi-seed diagnostic
+        run: pwsh -NoLogo -NoProfile -File scripts/local-ibge-u-multiseed.ps1 -SelfTest
       - run: dotnet build Jornada.sln --configuration Release --no-restore
       - name: Unit tests must execute without skips
         run: |

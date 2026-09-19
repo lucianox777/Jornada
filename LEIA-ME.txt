@@ -1,4 +1,24 @@
-﻿Jornada do Cidadão - pacote completo convergente
+Jornada do Cidadão - estado corrente da candidata v5.00
+
+STATUS: CANDIDATA TÉCNICA - RELEASE/TAG NÃO CORTADA
+SolutionSchema corrente: 3.70
+Especificação publicada de referência: v3.62
+Última release selada: Solution Engenharia v4.05 / SolutionSchema 3.69
+
+ARQUITETURA CORRENTE DA CANDIDATA
+- Microsoft SQL Server é o único runtime relacional suportado;
+- PostgreSQL foi retirado do runtime, DDL, dependências e gates correntes; a implementação anterior permanece no histórico Git para eventual projeto independente;
+- SQL Database in Microsoft Fabric não é alvo operacional nem gate de release da candidata v5.00; evidências anteriores são histórico de compatibilidade;
+- Lakehouse e SQL Analytics Endpoint permanecem na camada analítica/compatibilidade;
+- a fonte canônica de instalação é Solution/database/Jornada_Fase1_v3.70.sql;
+- CANDIDATE_INFO.json e Documentos/Estado_Engenharia_v5.00_Candidato.md descrevem o estado candidato corrente;
+- RELEASE_INFO.txt continua descrevendo a última release selada até que novo corte seja realizado.
+
+A seção abaixo é HISTÓRICO e não deve ser usada para inferir arquitetura, schema ou gates correntes quando divergir dos artefatos de candidata acima.
+
+===============================================================================
+
+Jornada do Cidadão - HISTÓRICO CONGELADO até Solution Engenharia v4.05
 
 Base normativa: v3.64
 Schema persistido: Base 3.62 / SolutionSchema 3.69

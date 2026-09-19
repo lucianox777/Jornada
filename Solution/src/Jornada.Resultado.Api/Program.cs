@@ -103,49 +103,27 @@ internal sealed class ResultadoDatabaseDialect
 {
     public ResultadoDatabaseDialect(string provider)
     {
-        Provider = provider;
-        FindLatestDeliverySql = provider switch
-        {
-            OperationalDatabaseProviders.SqlServer => """
-                SELECT TOP(1) e.entrega_id, COUNT_BIG(*) OVER() AS entregas_encontradas
-                FROM ingestao.entrega e
-                JOIN ref.gestor g ON g.gestor_id=e.gestor_id
-                JOIN bronze.entrega_arquivo b ON b.entrega_id=e.entrega_id
-                WHERE g.codigo=@gestor
-                  AND b.nome_arquivo=@nomeArquivo
-                ORDER BY e.recebido_em DESC,e.entrega_id DESC;
-                """,
-            OperationalDatabaseProviders.PostgreSql => """
-                SELECT e.entrega_id, COUNT(*) OVER() AS entregas_encontradas
-                FROM ingestao.entrega e
-                JOIN ref.gestor g ON g.gestor_id=e.gestor_id
-                JOIN bronze.entrega_arquivo b ON b.entrega_id=e.entrega_id
-                WHERE g.codigo=@gestor
-                  AND b.nome_arquivo=@nomeArquivo
-                ORDER BY e.recebido_em DESC,e.entrega_id DESC
-                LIMIT 1;
-                """,
-            _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Provider de banco não suportado.")
-        };
+        if (provider != OperationalDatabaseProviders.SqlServer)
+            throw new ArgumentOutOfRangeException(nameof(provider), provider, "Provider de banco não suportado.");
 
-        CountDetailedItemsSql = provider switch
-        {
-            OperationalDatabaseProviders.SqlServer => """
-                SELECT ip.classe_item,ip.resultado,COUNT_BIG(*)
-                FROM ingestao.item_processado ip
-                JOIN ingestao.lote l ON l.lote_id=ip.lote_id
-                WHERE l.entrega_id=@entrega
-                GROUP BY ip.classe_item,ip.resultado;
-                """,
-            OperationalDatabaseProviders.PostgreSql => """
-                SELECT ip.classe_item,ip.resultado,COUNT(*)
-                FROM ingestao.item_processado ip
-                JOIN ingestao.lote l ON l.lote_id=ip.lote_id
-                WHERE l.entrega_id=@entrega
-                GROUP BY ip.classe_item,ip.resultado;
-                """,
-            _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Provider de banco não suportado.")
-        };
+        Provider = OperationalDatabaseProviders.SqlServer;
+        FindLatestDeliverySql = """
+            SELECT TOP(1) e.entrega_id, COUNT_BIG(*) OVER() AS entregas_encontradas
+            FROM ingestao.entrega e
+            JOIN ref.gestor g ON g.gestor_id=e.gestor_id
+            JOIN bronze.entrega_arquivo b ON b.entrega_id=e.entrega_id
+            WHERE g.codigo=@gestor
+              AND b.nome_arquivo=@nomeArquivo
+            ORDER BY e.recebido_em DESC,e.entrega_id DESC;
+            """;
+
+        CountDetailedItemsSql = """
+            SELECT ip.classe_item,ip.resultado,COUNT_BIG(*)
+            FROM ingestao.item_processado ip
+            JOIN ingestao.lote l ON l.lote_id=ip.lote_id
+            WHERE l.entrega_id=@entrega
+            GROUP BY ip.classe_item,ip.resultado;
+            """;
     }
 
     public string Provider { get; }

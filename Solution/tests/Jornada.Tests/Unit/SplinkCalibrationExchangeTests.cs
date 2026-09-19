@@ -62,4 +62,57 @@ public sealed class SplinkCalibrationExchangeTests
             Assert.That(u.Values["U_NOME_FUZZY_HIGH"], Is.EqualTo(0.04m));
         });
     }
+
+    [Test]
+    public void DeserializeRunnerResult_ValidatesProvenanceAndImportsAllNominalLevels()
+    {
+        var json = RunnerJson("[0.92,0.80]");
+
+        var result = SplinkCalibrationExchange.DeserializeRunnerResult(json);
+        var m = SplinkCalibrationExchange.ImportM(result);
+        var u = SplinkCalibrationExchange.ImportU(result);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.SchemaVersion, Is.EqualTo(SplinkCalibrationExchange.RunnerSchemaVersion));
+            Assert.That(result.GeneratorVersion, Is.EqualTo(IbgeNominalBenchmarkOptions.GeneratorVersion));
+            Assert.That(result.UPopulationRecords, Is.EqualTo(9));
+            Assert.That(m.Values.Keys, Is.EquivalentTo(new[] { "M_NOME_EXACT", "M_NOME_HIGH", "M_NOME_MEDIUM", "M_NOME_LOW" }));
+            Assert.That(u.Values.Keys, Is.EquivalentTo(new[] { "U_NOME_EXACT", "U_NOME_HIGH", "U_NOME_MEDIUM", "U_NOME_LOW" }));
+        });
+    }
+
+    [Test]
+    public void DeserializeRunnerResult_RejectsThresholdDriftFromIdentityComparison()
+    {
+        Assert.That(
+            () => SplinkCalibrationExchange.DeserializeRunnerResult(RunnerJson("[0.90,0.80]")),
+            Throws.InvalidOperationException.With.Message.Contains("Thresholds nominais"));
+    }
+
+    private static string RunnerJson(string thresholds) => $$"""
+        {
+          "schema_version": "JORNADA_SPLINK_ESTIMATES_V1",
+          "source_schema_version": "JORNADA_SPLINK_EXCHANGE_V1",
+          "splink_version": "4.0.17",
+          "runner": "calibrador-splink/run_calibration.py",
+          "scope": "NOME",
+          "nominal_semantics_version": "IDENTITY_NAME_STATES_V1",
+          "generator_version": "IBGE_NOMINAL_BENCHMARK_V1",
+          "ibge_source_version": "CENSO2022_NOMES_BRASIL_V1",
+          "ibge_fingerprint_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "partition": 0,
+          "seed": 20260913,
+          "max_pairs": 1000,
+          "name_thresholds": {{thresholds}},
+          "u_population_records": 9,
+          "m_positive_pairs": 9,
+          "estimates": [
+            {"feature":"NOME","level":"EXACT","m_probability":0.70,"u_probability":0.10},
+            {"feature":"NOME","level":"HIGH","m_probability":0.15,"u_probability":0.10},
+            {"feature":"NOME","level":"MEDIUM","m_probability":0.10,"u_probability":0.20},
+            {"feature":"NOME","level":"LOW","m_probability":0.05,"u_probability":0.60}
+          ]
+        }
+        """;
 }

@@ -4,12 +4,6 @@ using Jornada.Contracts;
 
 namespace Jornada.Linkage.Runner;
 
-internal enum BlockingQueryDialect
-{
-    SqlServer,
-    PostgreSql
-}
-
 /// <summary>
 /// Executa um ruleset já verificado sobre a projeção indexada de blocking e materializa
 /// os candidatos correntes da Gold. O conjunto de UUIDs é deduplicado pelos UNIONs do plano
@@ -25,7 +19,6 @@ internal static class BlockingProjectionCandidateLoader
         IdentityObservation observation,
         int maxCandidates,
         int commandTimeoutSeconds,
-        BlockingQueryDialect dialect,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -47,30 +40,16 @@ internal static class BlockingProjectionCandidateLoader
             ruleSet.ProjectionFingerprintSha256);
         Add(command, "@blocking_max_plus_one", DbType.Int32, maxCandidates + 1);
 
-        command.CommandText = dialect switch
-        {
-            BlockingQueryDialect.SqlServer => $"""
-                WITH candidate_uuid AS (
-                    {candidateUuidQuery}
-                )
-                SELECT DISTINCT TOP (@blocking_max_plus_one)
-                       g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
-                  FROM candidate_uuid c
-                  JOIN gold.pessoa g ON g.pessoa_uuid=c.pessoa_uuid
-                 ORDER BY g.pessoa_uuid;
-                """,
-            BlockingQueryDialect.PostgreSql => $"""
-                WITH candidate_uuid AS (
-                    {candidateUuidQuery}
-                )
-                SELECT DISTINCT g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
-                  FROM candidate_uuid c
-                  JOIN gold.pessoa g ON g.pessoa_uuid=c.pessoa_uuid
-                 ORDER BY g.pessoa_uuid
-                 LIMIT @blocking_max_plus_one;
-                """,
-            _ => throw new ArgumentOutOfRangeException(nameof(dialect), dialect, "Unsupported blocking SQL dialect.")
-        };
+        command.CommandText = $"""
+            WITH candidate_uuid AS (
+                {candidateUuidQuery}
+            )
+            SELECT DISTINCT TOP (@blocking_max_plus_one)
+                   g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
+              FROM candidate_uuid c
+              JOIN gold.pessoa g ON g.pessoa_uuid=c.pessoa_uuid
+             ORDER BY g.pessoa_uuid;
+            """;
 
         var result = new List<LinkageCandidate>();
         await using var reader = await command.ExecuteReaderAsync(ct);

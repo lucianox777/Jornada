@@ -32,7 +32,7 @@ public sealed class LinkageParametersWorker(
     private const string ValidateOperation = "VALIDATE";
     private const string ActivateOperation = "ACTIVATE";
     private const string CurrentAlgorithmVersion = LinkageParameterCatalog.SemanticBirthAlgorithmVersion;
-    private const string SqlServerSampleMethod = "M_INTERGESTOR_U_BLOCKING_RULESET_V3";
+    private const string SqlServerSampleMethod = "M_INTERGESTOR_U_BIRTH_BLOCKING_IBGE_NAMES_MC_V4";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -126,6 +126,11 @@ public sealed class LinkageParametersWorker(
         var conflictMargin = Math.Clamp(configuration.GetValue("LinkageParameters:ConflictMargin", 0.03m), 0.0001m, 0.5m);
         var blockingSearchOptions = BlockingRuleSetSearchConfiguration.FromConfiguration(configuration);
         var readCommandTimeoutSeconds = Math.Max(30, configuration.GetValue("LinkageParameters:ReadCommandTimeoutSeconds", 900));
+        var ibgeNominalUPairCount = Math.Clamp(
+            configuration.GetValue("LinkageParameters:IbgeNominalU:PairCount", 1_000_000),
+            10_000,
+            5_000_000);
+        var ibgeNominalUSeed = configuration.GetValue("LinkageParameters:IbgeNominalU:Seed", 20260917);
 
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
         var drainTimeoutSeconds = Math.Max(30, configuration.GetValue("PipelineCoordination:CurrentBatchDrainTimeoutSeconds", 900));
@@ -166,26 +171,73 @@ public sealed class LinkageParametersWorker(
             var blockingObservations = BlockingFeatureObservationFactory.Create(matchedPairs, unmatchedCandidatePairs);
             var blocking = BlockingRuleSetSearch.SearchBest(blockingObservations, BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates, blockingSearchOptions);
 
+            // O prior operacional V6 é um escalar global. Antes de substituí-lo, medimos diretamente
+            // P(match | par candidato) usando observações resolvidas por CPF como rótulo, mas removendo
+            // CPF da geração de candidatos e aplicando o mesmo ruleset vencedor/projeção do Runner.
+            // Nesta versão a medição é diagnóstica e não altera o score.
+            var candidatePrior = await BlockingCandidatePriorEstimator.EstimateAsync(
+                connection,
+                normalizationVersion,
+                blocking.Passes,
+                sampleSize,
+                readCommandTimeoutSeconds,
+                workCt);
+
             var unmatchedSample = await BlockingConditionedUnmatchedPairReader.ReadAsync(
                 connection, normalizationVersion, blocking.Passes, sampleSize, samplePoolSize, readCommandTimeoutSeconds, workCt);
             var unmatchedPairs = unmatchedSample.Pairs;
             if (unmatchedPairs.Count == 0)
                 throw new InvalidOperationException("Amostra u vazia no universo do ruleset vencedor. O modelo permanece sem publicação.");
 
-            var modelParameters = LinkageParameterEstimator.Estimate(
-                matchedPairs, unmatchedPairs, statistics.PopulationSize, statistics.DistinctBirthDates, smoothingAlpha, threshold, conflictMargin);
+            // Datas de nascimento e missingness continuam estimados no universo condicionado ao blocking.
+            // Para nome da pessoa e nome da mãe, u nominal vem da referência IBGE por Monte Carlo:
+            // pessoa = prenomes TODOS + sobrenomes TODOS; mãe = prenomes FEMININO + sobrenomes TODOS.
+            var ibgeReference = await IbgeNominalUReferenceReader.ReadActiveReferenceAsync(connection, workCt);
+            var ibgePersonEntries = await IbgeNominalUReferenceReader.ReadBrazilPublishedMarginalsAsync(
+                connection, ibgeReference.Id, "TODOS", workCt);
+            var ibgeMotherEntries = await IbgeNominalUReferenceReader.ReadBrazilPublishedMarginalsAsync(
+                connection, ibgeReference.Id, "FEMININO", workCt);
+            var ibgePersonU = IbgeNominalUBootstrapEstimator.Estimate(
+                ibgePersonEntries,
+                new IbgeNominalUBootstrapOptions(ibgeNominalUSeed, ibgeNominalUPairCount));
+            var ibgeMotherU = IbgeNominalUBootstrapEstimator.Estimate(
+                ibgeMotherEntries,
+                new IbgeNominalUBootstrapOptions(unchecked(ibgeNominalUSeed + 1), ibgeNominalUPairCount));
+
+            var modelParameters = ApplyIbgeNominalU(
+                LinkageParameterEstimator.Estimate(
+                    matchedPairs, unmatchedPairs, statistics.PopulationSize, statistics.DistinctBirthDates,
+                    smoothingAlpha, threshold, conflictMargin),
+                ibgeReference,
+                ibgePersonU,
+                ibgeMotherU);
+            modelParameters = AbbreviationCompatibilityTrainingDiagnostics.Append(
+                modelParameters,
+                matchedPairs,
+                unmatchedPairs);
+            modelParameters = BlockingCandidatePriorEstimator.AppendDiagnostics(
+                modelParameters,
+                candidatePrior);
 
             var persistedParameters = BuildPersistedParameters(
                 modelParameters, statistics, samplePoolSize, minimumIndependentMatchedPairs,
                 unmatchedCandidatePairs.Count, unmatchedSample.SemanticBirthPoolSupport, unmatchedSample.CandidatePoolSize);
 
             var ruleSet = LinkageDynamicRuleSet.CreateWithPasses($"MODEL_{version}_BLOCKING_V1", algorithmVersion, blocking.Passes, persistedParameters);
-            await PublishDraftModelAsync(connection, modelId, corpusCapturedAtUtc, statistics, matchedPairs, unmatchedPairs.Count, persistedParameters, ruleSet, workCt);
+            await PublishDraftModelAsync(
+                connection, modelId, corpusCapturedAtUtc, statistics, matchedPairs, unmatchedPairs.Count,
+                persistedParameters, ruleSet, ibgeReference, workCt);
 
             logger.LogInformation(
-                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado={UConditioned}; u_pool_ruleset={UPool}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
+                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; abbrev_m_nome={AbbrevMName}; abbrev_u_ref_nome={AbbrevUName}; prior_ativo={ActivePrior}; prior_candidato_par={CandidatePairPrior}; prior_pares={CandidatePairs}; prior_recall={CandidateRecall}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
                 version, ruleSet.RuleSetVersion, statistics.PopulationSize, matchedPairs.Count, unmatchedCandidatePairs.Count,
-                unmatchedPairs.Count, unmatchedSample.CandidatePoolSize, corpusCapturedAtUtc, SqlServerSampleMethod, samplePoolSize);
+                unmatchedPairs.Count, unmatchedSample.CandidatePoolSize, ibgeNominalUPairCount, ibgeReference.Code,
+                persistedParameters["DIAG_ABBREV_M_NOME_SUPPORT"], persistedParameters["DIAG_ABBREV_U_NOME_SUPPORT"],
+                persistedParameters[LinkageParameterCatalog.PriorMatchProbability],
+                candidatePrior.MatchProbability,
+                candidatePrior.TotalCandidatePairs,
+                candidatePrior.CandidateRecall,
+                corpusCapturedAtUtc, SqlServerSampleMethod, samplePoolSize);
         }
         catch (OperationCanceledException) when (pipelineLease.IsLost)
         {
@@ -197,6 +249,128 @@ public sealed class LinkageParametersWorker(
             await MarkModelFailedAsync(connection, modelId, ex.Message, CancellationToken.None);
             throw;
         }
+    }
+
+    private static IReadOnlyDictionary<string, decimal> ApplyIbgeNominalU(
+        IReadOnlyDictionary<string, decimal> estimatedParameters,
+        IbgeNominalUReferenceInfo reference,
+        IbgeNominalUBootstrapEstimate personName,
+        IbgeNominalUBootstrapEstimate motherName)
+    {
+        var result = new Dictionary<string, decimal>(estimatedParameters, StringComparer.Ordinal);
+
+        foreach (var state in personName.States)
+        {
+            var suffix = state.State;
+            if (result.TryGetValue($"SUPPORT_U_NOME_{suffix}", out var blockingSupport))
+                result[$"BLOCKING_SUPPORT_U_NOME_{suffix}"] = blockingSupport;
+
+            result[$"U_NOME_{suffix}"] = state.Probability;
+            result[$"IBGE_MC_SUPPORT_U_NOME_{suffix}"] = state.Support;
+        }
+
+        var motherMissingProbability = result.TryGetValue("U_NOME_MAE_MISSING", out var missing)
+            ? missing
+            : 0m;
+        var motherPresentMass = 1m - motherMissingProbability;
+        if (motherPresentMass <= 0m)
+            throw new InvalidOperationException("Nome da mãe está ausente em 100% da amostra u condicionada; não há massa observável para calibração nominal IBGE.");
+
+        foreach (var state in motherName.States)
+        {
+            var suffix = state.State;
+            if (result.TryGetValue($"SUPPORT_U_NOME_MAE_{suffix}", out var blockingSupport))
+                result[$"BLOCKING_SUPPORT_U_NOME_MAE_{suffix}"] = blockingSupport;
+
+            result[$"U_NOME_MAE_{suffix}"] = motherPresentMass * state.Probability;
+            result[$"IBGE_MC_SUPPORT_U_NOME_MAE_{suffix}"] = state.Support;
+        }
+
+        result["IBGE_MC_NOMINAL_U_ENABLED"] = 1m;
+        result["IBGE_MC_NOMINAL_U_PAIR_COUNT"] = personName.PairCount;
+        result["IBGE_MC_NOMINAL_U_SEED_PERSON"] = personName.Seed;
+        result["IBGE_MC_NOMINAL_U_SEED_MOTHER"] = motherName.Seed;
+        result["IBGE_NAME_REFERENCE_ID"] = reference.Id;
+        result["IBGE_MC_PERSON_EXACT_ANALYTIC"] = personName.AnalyticExactSyntheticFullNameProbability;
+        result["IBGE_MC_MOTHER_EXACT_ANALYTIC"] = motherName.AnalyticExactSyntheticFullNameProbability;
+
+        foreach (var state in LinkageParameterCatalog.NameStates)
+        {
+            if (!result.TryGetValue($"IBGE_MC_SUPPORT_U_NOME_{state}", out var personSupport) || personSupport <= 0m)
+                throw new InvalidOperationException($"Monte Carlo IBGE sem suporte para U_NOME_{state}; aumente LinkageParameters:IbgeNominalU:PairCount.");
+
+            if (!result.TryGetValue($"IBGE_MC_SUPPORT_U_NOME_MAE_{state}", out var motherSupport) || motherSupport <= 0m)
+                throw new InvalidOperationException($"Monte Carlo IBGE sem suporte para U_NOME_MAE_{state}; aumente LinkageParameters:IbgeNominalU:PairCount.");
+        }
+
+        // m e u vêm de fontes diferentes (pares determinísticos e referência IBGE). A combinação
+        // irrestrita pode inverter estados ordenados por ruído amostral. Em vez de mascarar a
+        // inversão no gate, aplicamos a MLE com restrição de ordem sobre a razão m/u (PAVA).
+        // O ajuste preserva exatamente a massa m observada dos estados presentes e persiste a
+        // estimativa irrestrita para auditoria/replay da calibração.
+        ApplyOrderedNameLikelihoodRatioMle(result, "NOME");
+        ApplyOrderedNameLikelihoodRatioMle(result, "NOME_MAE");
+        result["ORDER_RESTRICTED_NAME_LLR_MLE_V1"] = 1m;
+
+        return result;
+    }
+
+    private static void ApplyOrderedNameLikelihoodRatioMle(
+        IDictionary<string, decimal> parameters,
+        string field)
+    {
+        var states = LinkageParameterCatalog.NameStates.ToArray();
+        var m = states.Select(state => parameters[$"M_{field}_{state}"]).ToArray();
+        var u = states.Select(state => parameters[$"U_{field}_{state}"]).ToArray();
+
+        for (var i = 0; i < states.Length; i++)
+        {
+            if (m[i] <= 0m || u[i] <= 0m)
+                throw new InvalidOperationException($"MLE ordenada exige m/u positivos em {field}_{states[i]}.");
+            parameters[$"UNRESTRICTED_M_{field}_{states[i]}"] = m[i];
+        }
+
+        var blocks = new List<(int Start, int End, decimal M, decimal U)>();
+        for (var i = 0; i < states.Length; i++)
+        {
+            blocks.Add((i, i, m[i], u[i]));
+            while (blocks.Count >= 2)
+            {
+                var right = blocks[^1];
+                var left = blocks[^2];
+                // EXACT >= HIGH >= MEDIUM >= LOW em LLR equivale a m/u não crescente.
+                if (left.M / left.U >= right.M / right.U)
+                    break;
+
+                blocks.RemoveRange(blocks.Count - 2, 2);
+                blocks.Add((left.Start, right.End, left.M + right.M, left.U + right.U));
+            }
+        }
+
+        var adjustedStates = 0;
+        var maxAbsoluteDeltaLlr = 0m;
+        var blockOrdinal = 0;
+        foreach (var block in blocks)
+        {
+            blockOrdinal++;
+            var ratio = block.M / block.U;
+            for (var i = block.Start; i <= block.End; i++)
+            {
+                var unrestrictedRatio = m[i] / u[i];
+                var adjustedM = u[i] * ratio;
+                parameters[$"M_{field}_{states[i]}"] = adjustedM;
+                parameters[$"ORDER_RESTRICTED_BLOCK_{field}_{states[i]}"] = blockOrdinal;
+
+                var deltaLlr = Convert.ToDecimal(Math.Log(Convert.ToDouble(ratio / unrestrictedRatio)));
+                parameters[$"ORDER_RESTRICTED_DELTA_LLR_{field}_{states[i]}"] = deltaLlr;
+                if (adjustedM != m[i])
+                    adjustedStates++;
+                maxAbsoluteDeltaLlr = Math.Max(maxAbsoluteDeltaLlr, Math.Abs(deltaLlr));
+            }
+        }
+
+        parameters[$"ORDER_RESTRICTED_ADJUSTED_STATES_{field}"] = adjustedStates;
+        parameters[$"ORDER_RESTRICTED_MAX_ABS_DELTA_LLR_{field}"] = maxAbsoluteDeltaLlr;
     }
 
     private static IReadOnlyDictionary<string, decimal> BuildPersistedParameters(
@@ -267,12 +441,20 @@ public sealed class LinkageParametersWorker(
         var command = new SqlCommand(
             """
             SELECT COUNT_BIG(*) AS population_size,
-                   SUM(CONVERT(BIGINT,CASE WHEN cpf IS NOT NULL THEN 1 ELSE 0 END)) AS with_cpf,
-                   APPROX_COUNT_DISTINCT(nome_completo) AS distinct_full_name,
-                   APPROX_COUNT_DISTINCT(nome_mae) AS distinct_mother_name,
-                   APPROX_COUNT_DISTINCT(data_nascimento) AS distinct_birth_date,
-                   MAX(atualizado_em) AS max_updated_at
-            FROM gold.pessoa;
+                   SUM(CONVERT(BIGINT,CASE WHEN g.cpf IS NOT NULL THEN 1 ELSE 0 END)) AS with_cpf,
+                   APPROX_COUNT_DISTINCT(g.nome_completo) AS distinct_full_name,
+                   APPROX_COUNT_DISTINCT(g.nome_mae) AS distinct_mother_name,
+                   APPROX_COUNT_DISTINCT(g.data_nascimento) AS distinct_birth_date,
+                   MAX(g.atualizado_em) AS max_updated_at
+            FROM gold.pessoa g
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM identidade.vinculo_fonte vf
+                JOIN silver.pessoa_observacao po
+                  ON po.pessoa_observacao_id=vf.pessoa_observacao_id
+                WHERE vf.pessoa_uuid=g.pessoa_uuid
+                  AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-%'
+            );
             """, connection)
         { CommandTimeout = Math.Max(30, configuration.GetValue("LinkageParameters:ReadCommandTimeoutSeconds", 900)) };
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -287,7 +469,17 @@ public sealed class LinkageParametersWorker(
         var command = new SqlCommand(
             """
             WITH gold_sample AS (
-                SELECT TOP (@pool_size) pessoa_uuid FROM gold.pessoa ORDER BY pessoa_uuid
+                SELECT TOP (@pool_size) g.pessoa_uuid
+                FROM gold.pessoa g
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM identidade.vinculo_fonte vf_val
+                    JOIN silver.pessoa_observacao po_val
+                      ON po_val.pessoa_observacao_id=vf_val.pessoa_observacao_id
+                    WHERE vf_val.pessoa_uuid=g.pessoa_uuid
+                      AND po_val.codigo_pessoa_origem LIKE N'SCALE-VAL-%'
+                )
+                ORDER BY g.pessoa_uuid
             ), obs_por_gestor AS (
                 SELECT vf.pessoa_uuid,po.gestor_id,po.pessoa_observacao_id,po.nome_completo,po.data_nascimento,po.nome_mae,
                        ROW_NUMBER() OVER (PARTITION BY vf.pessoa_uuid,po.gestor_id ORDER BY po.source_as_of DESC,po.pessoa_observacao_id DESC) AS rn_gestor
@@ -295,6 +487,7 @@ public sealed class LinkageParametersWorker(
                 JOIN identidade.vinculo_fonte vf ON vf.pessoa_uuid=gs.pessoa_uuid AND vf.ativo=1 AND vf.status='RESOLVIDO' AND vf.metodo_resolucao='CPF_DETERMINISTICO'
                 JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vf.pessoa_observacao_id
                 WHERE po.cpf IS NOT NULL
+                  AND po.codigo_pessoa_origem NOT LIKE N'SCALE-VAL-%'
             ), fontes_independentes AS (
                 SELECT opg.pessoa_uuid,opg.gestor_id,g.codigo AS gestor_codigo,opg.pessoa_observacao_id,opg.nome_completo,opg.data_nascimento,opg.nome_mae,
                        ROW_NUMBER() OVER (PARTITION BY opg.pessoa_uuid ORDER BY HASHBYTES('SHA2_256',CONCAT(CONVERT(nvarchar(36),opg.pessoa_uuid),':',CONVERT(nvarchar(20),opg.gestor_id))),opg.gestor_id,opg.pessoa_observacao_id) AS rn_fonte,
@@ -320,7 +513,17 @@ public sealed class LinkageParametersWorker(
         var command = new SqlCommand(
             $"""
             WITH gold_sample AS (
-                SELECT TOP (@pool_size) pessoa_uuid,nome_completo,data_nascimento,nome_mae FROM gold.pessoa ORDER BY pessoa_uuid
+                SELECT TOP (@pool_size) g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
+                FROM gold.pessoa g
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM identidade.vinculo_fonte vf_val
+                    JOIN silver.pessoa_observacao po_val
+                      ON po_val.pessoa_observacao_id=vf_val.pessoa_observacao_id
+                    WHERE vf_val.pessoa_uuid=g.pessoa_uuid
+                      AND po_val.codigo_pessoa_origem LIKE N'SCALE-VAL-%'
+                )
+                ORDER BY g.pessoa_uuid
             ), eligible_keys AS (
                 SELECT DISTINCT k.pessoa_uuid,k.atributo,k.valor_normalizado
                 FROM identidade.blocking_chave k JOIN gold_sample gs ON gs.pessoa_uuid=k.pessoa_uuid
@@ -359,7 +562,17 @@ public sealed class LinkageParametersWorker(
         return result;
     }
 
-    private async Task PublishDraftModelAsync(SqlConnection connection, Guid modelId, DateTime corpusCapturedAtUtc, PopulationStatistics statistics, IReadOnlyList<IdentityTrainingPair> matchedPairs, int unmatchedSampleSize, IReadOnlyDictionary<string, decimal> parameters, LinkageDynamicRuleSet ruleSet, CancellationToken cancellationToken)
+    private async Task PublishDraftModelAsync(
+        SqlConnection connection,
+        Guid modelId,
+        DateTime corpusCapturedAtUtc,
+        PopulationStatistics statistics,
+        IReadOnlyList<IdentityTrainingPair> matchedPairs,
+        int unmatchedSampleSize,
+        IReadOnlyDictionary<string, decimal> parameters,
+        LinkageDynamicRuleSet ruleSet,
+        IbgeNominalUReferenceInfo ibgeReference,
+        CancellationToken cancellationToken)
     {
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
         try
@@ -405,7 +618,10 @@ public sealed class LinkageParametersWorker(
             }
 
             await LinkageRuleSetWriter.WriteAsync(connection, transaction, modelId, ruleSet, cancellationToken);
-            var snapshotReference = statistics.MaxGoldUpdatedAt is null ? $"gold.pessoa;corpus_utc={corpusCapturedAtUtc:O}" : $"gold.pessoa;corpus_utc={corpusCapturedAtUtc:O};max_atualizado={statistics.MaxGoldUpdatedAt:O}";
+            var goldSnapshot = statistics.MaxGoldUpdatedAt is null
+                ? $"gold.pessoa;corpus_utc={corpusCapturedAtUtc:O}"
+                : $"gold.pessoa;corpus_utc={corpusCapturedAtUtc:O};max_atualizado={statistics.MaxGoldUpdatedAt:O}";
+            var snapshotReference = $"{goldSnapshot};ibge={ibgeReference.Code};ibge_sha={ibgeReference.ContentSha256}";
             var update = new SqlCommand(
                 """
                 UPDATE identidade.modelo_linkage
@@ -466,6 +682,9 @@ public sealed class LinkageParametersWorker(
                 END
                 IF EXISTS (SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND (((((nome LIKE 'M[_]%' OR nome LIKE 'U[_]%') AND nome NOT IN('M_SAMPLE_SIZE','U_SAMPLE_SIZE')) OR nome IN('PRIOR_MATCH_PROBABILITY','PRIOR_BLOCK_MIN','PRIOR_BLOCK_MAX')) AND (valor<=0 OR valor>=1)) OR (nome='T_LINKAGE' AND (valor<=0 OR valor>1)) OR (nome='CONFLICT_MARGIN' AND (valor<=0 OR valor>=1)))) THROW 51011, 'Parâmetros probabilísticos fora do domínio esperado.', 1;
                 IF (SELECT valor FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='PRIOR_BLOCK_MIN') > (SELECT valor FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='PRIOR_BLOCK_MAX') THROW 51012, 'PRIOR_BLOCK_MIN não pode ser maior que PRIOR_BLOCK_MAX.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='MODEL_COHERENCE_ORDERED_NAME_LLR_V1' AND valor>=1)
+                    THROW 51019, 'Modelo SQL Server V6 sem proveniência do gate de monotonicidade nominal.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset r WHERE r.modelo_id=@modelo_id AND EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id) AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe_campo rc WHERE rc.ruleset_id=rp.ruleset_id AND rc.passe_ordem=rp.passe_ordem))) THROW 51013, 'Modelo SQL Server sem ruleset dinâmico completo.', 1;
                 UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@modelo_id;
                 """, connection, transaction);

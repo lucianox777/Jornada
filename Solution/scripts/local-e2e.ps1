@@ -1,6 +1,11 @@
+﻿param(
+    [switch]$AllowSharedDatabaseReset
+)
+
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$EnvFile = Join-Path $Root '.env'
+$DefaultEnvFile = Join-Path $Root '.env'
+$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { $DefaultEnvFile } else { [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE) }
 $Example = Join-Path $Root '.env.example'
 $ApiUrl = if ($env:JORNADA_E2E_API_URL) { $env:JORNADA_E2E_API_URL.TrimEnd('/') } else { 'http://127.0.0.1:5088' }
 $Out = Join-Path $Root '.local/e2e'
@@ -10,7 +15,10 @@ if ($ProcessStartupGraceSeconds -lt 0 -or $ProcessStartupGraceSeconds -gt 60) { 
 foreach ($cmd in @('docker','dotnet','curl.exe','python')) {
     if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) { throw "Comando '$cmd' não encontrado no PATH." }
 }
-if (-not (Test-Path $EnvFile)) { Copy-Item $Example $EnvFile }
+if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile" }
+    Copy-Item $Example $EnvFile
+}
 $vars = @{}
 Get-Content $EnvFile | ForEach-Object {
     $line = $_.Trim()
@@ -20,7 +28,9 @@ Get-Content $EnvFile | ForEach-Object {
 }
 $password = $vars['JORNADA_SQL_SA_PASSWORD']; if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD não definido.' }
 $port = if ($vars['JORNADA_SQL_PORT']) { $vars['JORNADA_SQL_PORT'] } else { '14333' }
-$db = if ($vars['JORNADA_SQL_DATABASE']) { $vars['JORNADA_SQL_DATABASE'] } else { 'JornadaLocal' }
+$sharedDb = if ($vars['JORNADA_SQL_DATABASE']) { $vars['JORNADA_SQL_DATABASE'] } else { 'JornadaLocal' }
+$usesIsolatedDatabase = -not $AllowSharedDatabaseReset
+$db = if ($usesIsolatedDatabase) { 'JornadaE2E' } else { $sharedDb }
 
 New-Item -ItemType Directory -Force $Out | Out-Null
 foreach ($name in @('bronze','staging','packages')) {
@@ -59,7 +69,14 @@ function Start-BackgroundDotnet {
     return Start-Process @start
 }
 
-& (Join-Path $PSScriptRoot 'local-db.ps1') -Action reset
+if ($usesIsolatedDatabase) {
+    Write-Host "E2E usando banco isolado: $db"
+    & (Join-Path $PSScriptRoot 'local-db.ps1') -Action reset -NoSyntheticCorpus -DatabaseName $db
+}
+else {
+    Write-Warning "E2E autorizado a resetar o banco compartilhado: $db"
+    & (Join-Path $PSScriptRoot 'local-db.ps1') -Action reset -DatabaseName $db
+}
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $conn = "Server=localhost,$port;Database=$db;User Id=sa;Password=$password;TrustServerCertificate=true;Encrypt=false"

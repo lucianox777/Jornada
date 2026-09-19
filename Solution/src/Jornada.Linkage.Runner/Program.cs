@@ -31,6 +31,34 @@ if (CandidateRankingAuditCommand.IsRequested(args))
     return;
 }
 
+if (NameAbbreviationAuditCommand.IsRequested(args))
+{
+    var auditBuilder = Host.CreateApplicationBuilder(args);
+    var auditConnectionString = auditBuilder.Configuration.GetConnectionString("Jornada")
+        ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
+    var auditOperationalSql = new OperationalSqlAdapter(auditConnectionString);
+    await NameAbbreviationAuditCommand.ExecuteAsync(
+        args,
+        auditBuilder.Configuration,
+        auditOperationalSql,
+        CancellationToken.None);
+    return;
+}
+
+if (PriorCounterfactualAuditCommand.IsRequested(args))
+{
+    var auditBuilder = Host.CreateApplicationBuilder(args);
+    var auditConnectionString = auditBuilder.Configuration.GetConnectionString("Jornada")
+        ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
+    var auditOperationalSql = new OperationalSqlAdapter(auditConnectionString);
+    await PriorCounterfactualAuditCommand.ExecuteAsync(
+        args,
+        auditBuilder.Configuration,
+        auditOperationalSql,
+        CancellationToken.None);
+    return;
+}
+
 if (args.Any(a => a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a.Equals("-h", StringComparison.OrdinalIgnoreCase)))
 {
     Console.WriteLine(LinkageRunOptions.Usage);
@@ -38,6 +66,14 @@ if (args.Any(a => a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a.Eq
     Console.WriteLine("Auditoria DEV/HML read-only de candidate ranking:");
     Console.WriteLine("  --candidate-ranking-audit-labels <arquivo.csv>");
     Console.WriteLine("  --candidate-ranking-audit-output <arquivo.json>");
+    Console.WriteLine();
+    Console.WriteLine("Auditoria DEV read-only de abreviação compatível:");
+    Console.WriteLine("  --name-abbreviation-audit-run <linkage_run_id>");
+    Console.WriteLine("  --name-abbreviation-audit-output <arquivo.json>");
+    Console.WriteLine();
+    Console.WriteLine("Contrafactual DEV read-only do prior candidato-par:");
+    Console.WriteLine("  --prior-counterfactual-run <linkage_run_id>");
+    Console.WriteLine("  --prior-counterfactual-output <arquivo.json>");
     Console.WriteLine();
     Console.WriteLine("Auditoria DEV/HML read-only de blocking por passe:");
     Console.WriteLine("  --blocking-pass-audit-labels <arquivo.csv>");

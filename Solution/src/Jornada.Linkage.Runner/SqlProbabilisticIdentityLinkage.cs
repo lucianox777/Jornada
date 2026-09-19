@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Data;
+using System.Globalization;
 using Jornada.Contracts;
 using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
@@ -30,6 +31,24 @@ public sealed record ProbabilisticCandidateRankingAudit(
     decimal? TopPosterior,
     decimal? TopLogOdds,
     decimal? RankingGapToTop);
+
+public sealed record ProbabilisticPriorCounterfactualAudit(
+    long ObservationId,
+    Guid ModelId,
+    int ModelVersion,
+    string AlgorithmVersion,
+    int CandidateCount,
+    decimal ActivePrior,
+    decimal CounterfactualPrior,
+    decimal DeltaPriorLogOdds,
+    ProbabilisticLinkageDecision ActiveDecision,
+    ProbabilisticLinkageDecision CounterfactualDecision,
+    Guid? ActiveTopCandidateUuid,
+    Guid? CounterfactualTopCandidateUuid,
+    decimal? ActiveTopLogOdds,
+    decimal? CounterfactualTopLogOdds,
+    bool RankingTopChanged,
+    bool DecisionChanged);
 
 /// <summary>
 /// Score probabilístico Fellegi-Sunter operacional para registros sem CPF.
@@ -103,10 +122,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
             snapshot.Model,
             observation,
             await LoadCandidatesAsync(observation, snapshot, ct));
-        var decisionV6 = string.Equals(
-            snapshot.Model.AlgorithmVersion,
-            LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion,
-            StringComparison.Ordinal);
+        var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(
+            snapshot.Model.AlgorithmVersion);
 
         CandidateScore? truth = null;
         var deterministicRank = 0;
@@ -124,13 +141,13 @@ public sealed class SqlProbabilisticIdentityLinkage(
         decimal? rankingGap = null;
         if (truth is not null)
         {
-            var truthMetric = decisionV6 ? truth.LogOdds : truth.Score;
+            var truthMetric = decisionEvidence ? truth.LogOdds : truth.Score;
             evidenceRank = 1 + ranked.Count(candidate =>
-                (decisionV6 ? candidate.LogOdds : candidate.Score) > truthMetric);
+                (decisionEvidence ? candidate.LogOdds : candidate.Score) > truthMetric);
             tieCount = ranked.Count(candidate =>
-                (decisionV6 ? candidate.LogOdds : candidate.Score) == truthMetric);
+                (decisionEvidence ? candidate.LogOdds : candidate.Score) == truthMetric);
             if (top is not null)
-                rankingGap = (decisionV6 ? top.LogOdds : top.Score) - truthMetric;
+                rankingGap = (decisionEvidence ? top.LogOdds : top.Score) - truthMetric;
         }
 
         return new ProbabilisticCandidateRankingAudit(
@@ -139,7 +156,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
             snapshot.Model.ModelId,
             snapshot.Model.Version,
             snapshot.Model.AlgorithmVersion,
-            decisionV6 ? "LOG_ODDS" : "POSTERIOR",
+            decisionEvidence ? "LOG_ODDS" : "POSTERIOR",
             ranked.Count,
             truth is not null,
             deterministicRank is > 0 and <= 2,
@@ -152,6 +169,95 @@ public sealed class SqlProbabilisticIdentityLinkage(
             top?.Score,
             top?.LogOdds,
             rankingGap);
+    }
+
+    /// <summary>
+    /// Recalcula read-only a decisão da mesma observação/candidate set trocando apenas
+    /// PRIOR_MATCH_PROBABILITY. O método não persiste modelo, run, vínculo ou Gold.
+    /// </summary>
+    public async Task<ProbabilisticPriorCounterfactualAudit> DiagnosePriorCounterfactualAsync(
+        long observationId,
+        Guid modelId,
+        decimal counterfactualPrior,
+        CancellationToken ct)
+    {
+        if (counterfactualPrior <= 0m || counterfactualPrior >= 1m)
+            throw new ArgumentOutOfRangeException(
+                nameof(counterfactualPrior),
+                "O prior contrafactual deve estar estritamente entre 0 e 1.");
+
+        var observation = await LoadObservationForDiagnosticsAsync(observationId, ct);
+        if (!string.IsNullOrWhiteSpace(observation.Cpf))
+            throw new InvalidOperationException(
+                $"Observação {observationId} possui CPF; contrafactual probabilístico exige SEM_CPF.");
+
+        var snapshot = await GetOrLoadRuntimeSnapshotAsync(modelId, ct);
+        var activeModel = snapshot.Model;
+        if (!activeModel.Parameters.TryGetValue(LinkageParameterCatalog.PriorMatchProbability, out var activePrior))
+            throw new InvalidOperationException(
+                $"Modelo {modelId} não possui {LinkageParameterCatalog.PriorMatchProbability}.");
+
+        var candidates = await LoadCandidatesAsync(observation, snapshot, ct);
+        var activeRanking = ProbabilisticLinkageDecisions.Rank(activeModel, observation, candidates);
+        var activeDecision = ProbabilisticLinkageDecisions.Resolve(activeModel, observation, candidates);
+
+        var counterfactualParameters = new Dictionary<string, decimal>(
+            activeModel.Parameters,
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [LinkageParameterCatalog.PriorMatchProbability] = counterfactualPrior
+        };
+        var counterfactualModel = LinkageModelPolicy.Create(
+            activeModel.ModelId,
+            activeModel.Version,
+            activeModel.AlgorithmVersion,
+            counterfactualParameters);
+        var counterfactualRanking = ProbabilisticLinkageDecisions.Rank(
+            counterfactualModel,
+            observation,
+            candidates);
+        var counterfactualDecision = ProbabilisticLinkageDecisions.Resolve(
+            counterfactualModel,
+            observation,
+            candidates);
+
+        var activeTop = activeRanking.Count == 0 ? null : activeRanking[0];
+        var counterfactualTop = counterfactualRanking.Count == 0 ? null : counterfactualRanking[0];
+        var activeTopUuid = activeTop?.PessoaUuid;
+        var counterfactualTopUuid = counterfactualTop?.PessoaUuid;
+
+        return new ProbabilisticPriorCounterfactualAudit(
+            observationId,
+            activeModel.ModelId,
+            activeModel.Version,
+            activeModel.AlgorithmVersion,
+            candidates.Count,
+            activePrior,
+            counterfactualPrior,
+            DeltaLogOdds(activePrior, counterfactualPrior),
+            activeDecision,
+            counterfactualDecision,
+            activeTopUuid,
+            counterfactualTopUuid,
+            activeTop?.LogOdds,
+            counterfactualTop?.LogOdds,
+            activeTopUuid != counterfactualTopUuid,
+            activeDecision.Status != counterfactualDecision.Status ||
+            activeDecision.PessoaUuidResolvido != counterfactualDecision.PessoaUuidResolvido ||
+            activeDecision.Motivo != counterfactualDecision.Motivo);
+    }
+
+    private static decimal DeltaLogOdds(decimal activePrior, decimal counterfactualPrior)
+    {
+        static double Logit(decimal p)
+        {
+            var value = Convert.ToDouble(p, CultureInfo.InvariantCulture);
+            return Math.Log(value / (1d - value));
+        }
+
+        return Convert.ToDecimal(
+            Logit(counterfactualPrior) - Logit(activePrior),
+            CultureInfo.InvariantCulture);
     }
 
     private async Task<IdentityObservation> LoadObservationForDiagnosticsAsync(long observationId, CancellationToken ct)
@@ -304,7 +410,6 @@ public sealed class SqlProbabilisticIdentityLinkage(
                 observation,
                 maxCandidates,
                 commandTimeoutSeconds,
-                BlockingQueryDialect.SqlServer,
                 ct);
         }
 

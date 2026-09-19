@@ -18,17 +18,12 @@ public sealed record ProgressiveOriginRegistration(
 public sealed class ProgressiveIdentityOriginStore
 {
     private readonly IOperationalDatabaseAdapter database;
-    private readonly bool postgres;
 
     public ProgressiveIdentityOriginStore(IOperationalDatabaseAdapter database)
     {
         this.database = database ?? throw new ArgumentNullException(nameof(database));
-        postgres = database.Provider switch
-        {
-            OperationalDatabaseProviders.PostgreSql => true,
-            OperationalDatabaseProviders.SqlServer => false,
-            _ => throw new ArgumentException("Provider operacional não suportado.", nameof(database))
-        };
+        if (database.Provider != OperationalDatabaseProviders.SqlServer)
+            throw new ArgumentException("Provider operacional não suportado.", nameof(database));
     }
 
     public async Task<ProgressiveOriginRegistration> EnsureInitialAsync(long sourceId, CancellationToken ct = default)
@@ -58,20 +53,9 @@ public sealed class ProgressiveIdentityOriginStore
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceId);
         await using var command = connection.CreateCommand();
         command.Transaction = tx;
-        command.CommandText = postgres
-            ? "SELECT identidade.assegurar_origem_progressiva(@source_id);"
-            : "EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source_id;";
+        command.CommandText = "EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source_id;";
         Add(command, "@source_id", DbType.Int64, sourceId);
-        if (postgres)
-        {
-            var value = await command.ExecuteScalarAsync(ct);
-            if (value is not Guid uuid || uuid==Guid.Empty)
-                throw new InvalidOperationException("Criação progressiva não devolveu UUID válido.");
-        }
-        else
-        {
-            await command.ExecuteNonQueryAsync(ct);
-        }
+        await command.ExecuteNonQueryAsync(ct);
         return await ReadInTransactionAsync(connection, tx, sourceId, ct)
             ?? throw new InvalidOperationException("Criação progressiva não persistiu a referência.");
     }
@@ -91,9 +75,7 @@ public sealed class ProgressiveIdentityOriginStore
         await using (var connection = await database.OpenAsync(ct))
         {
             await using var command = connection.CreateCommand();
-            command.CommandText = postgres
-                ? "SELECT o.pessoa_origem_id FROM silver.pessoa_origem o LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE p.pessoa_origem_id IS NULL ORDER BY o.pessoa_origem_id LIMIT @max_sources;"
-                : "SELECT TOP (@max_sources) o.pessoa_origem_id FROM silver.pessoa_origem o LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE p.pessoa_origem_id IS NULL ORDER BY o.pessoa_origem_id;";
+            command.CommandText = "SELECT TOP (@max_sources) o.pessoa_origem_id FROM silver.pessoa_origem o LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE p.pessoa_origem_id IS NULL ORDER BY o.pessoa_origem_id;";
             Add(command, "@max_sources", DbType.Int32, maxSources);
             await using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct)) ids.Add(reader.GetInt64(0));

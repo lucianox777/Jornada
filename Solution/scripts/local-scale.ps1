@@ -1,6 +1,8 @@
 ﻿param([ValidateSet('smoke','medium','million','custom')][string]$Profile='smoke')
 $ErrorActionPreference='Stop'
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$DefaultEnvFile=Join-Path $Root '.env'
+$EnvFile=if([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)){$DefaultEnvFile}else{[IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE)}
 $LocalDbScript=(Join-Path $PSScriptRoot 'local-db.ps1')
 
 function Resolve-Python3 {
@@ -48,7 +50,7 @@ $blockingAuditPath=Join-Path $outDir ("scale-{0}-blocking-pass-audit.json" -f $P
 # O harness de escala é dono da massa SCALE. O reset prepara apenas schema+seed;
 # depois o próprio harness gera o volume solicitado pelo perfil e fecha o backfill.
 & $LocalDbScript -Action reset -NoSyntheticCorpus
-$vars=@{}; Get-Content (Join-Path $Root '.env') | % { $l=$_.Trim(); if($l -and -not $l.StartsWith('#') -and $l.Contains('=')){ $p=$l.Split('=',2); $vars[$p[0].Trim()]=$p[1] } }
+$vars=@{}; Get-Content $EnvFile | % { $l=$_.Trim(); if($l -and -not $l.StartsWith('#') -and $l.Contains('=')){ $p=$l.Split('=',2); $vars[$p[0].Trim()]=$p[1] } }
 $port=if($vars['JORNADA_SQL_PORT']){$vars['JORNADA_SQL_PORT']}else{'14333'}
 $db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
 $sqlPassword=$vars['JORNADA_SQL_SA_PASSWORD']
@@ -58,7 +60,7 @@ function SqlCmd {
     param([Parameter(Mandatory=$true)][string[]]$SqlCmdArgs)
     Push-Location $Root
     try {
-        & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b @SqlCmdArgs
+        & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b @SqlCmdArgs
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
     }
     finally { Pop-Location }
@@ -66,7 +68,7 @@ function SqlCmd {
 function Scalar([string]$Query){
     Push-Location $Root
     try {
-        $o = (& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
+        $o = (& docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
         return ($o | ? { $_.Trim() } | Select-Object -Last 1).Trim()
     }
@@ -75,7 +77,7 @@ function Scalar([string]$Query){
 function QueryLines([string]$Query){
     Push-Location $Root
     try {
-        $o = @(& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -W -h -1 -w 65535 -Q "SET NOCOUNT ON; $Query")
+        $o = @(& docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -W -h -1 -w 65535 -Q "SET NOCOUNT ON; $Query")
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
         return @($o | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     }
@@ -179,7 +181,66 @@ $row=(Scalar "SELECT CONCAT(status,'|',registros_elegiveis,'|',avaliados,'|',res
 $runtimeScopeJson=Scalar "SELECT escopo_json FROM identidade.linkage_run WHERE correlation_id='$corr';"
 if([string]::IsNullOrWhiteSpace($runtimeScopeJson)){throw 'escopo_json do linkage_run ausente.'}
 $runtimeScope=$runtimeScopeJson | ConvertFrom-Json
-$decisionQualityJson=Scalar "DECLARE @run uniqueidentifier=(SELECT linkage_run_id FROM identidade.linkage_run WHERE correlation_id='$corr'); WITH truth AS (SELECT r.*,po.codigo_pessoa_origem,tv.pessoa_uuid AS truth_uuid FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id JOIN silver.pessoa_observacao tpo ON tpo.codigo_pessoa_origem=REPLACE(po.codigo_pessoa_origem,'SCALE-PEND-','SCALE-SEHAB-') JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo='SEHAB' JOIN identidade.v_vinculo_corrente tv ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id AND tv.status='RESOLVIDO' WHERE r.linkage_run_id=@run AND po.codigo_pessoa_origem LIKE 'SCALE-PEND-%') SELECT (SELECT COUNT_BIG(*) AS totalScale,SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END) AS resolved,SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END) AS resolvedCorrect,SUM(CASE WHEN status='RESOLVIDO' AND (pessoa_uuid_resolvido IS NULL OR pessoa_uuid_resolvido<>truth_uuid) THEN 1 ELSE 0 END) AS falsePositives,SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END) AS conflicts,SUM(CASE WHEN status='CONFLITO' AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS conflictsTruthTop2,SUM(CASE WHEN status='NAO_RESOLVIDO' THEN 1 ELSE 0 END) AS unresolved,SUM(CASE WHEN status='NAO_RESOLVIDO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END) AS unresolvedTruthFirstWithoutTie,SUM(CASE WHEN status='NAO_RESOLVIDO' AND segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001 AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS unresolvedTruthInTop2Tie,SUM(CASE WHEN status='NAO_RESOLVIDO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND segundo_candidato_uuid=truth_uuid AND (melhor_candidato_uuid IS NULL OR melhor_candidato_uuid<>truth_uuid) THEN 1 ELSE 0 END) AS unresolvedTruthSecondWithoutTie,SUM(CASE WHEN status='NAO_RESOLVIDO' AND ISNULL(melhor_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid AND ISNULL(segundo_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid THEN 1 ELSE 0 END) AS unresolvedTruthOutsideTop2,SUM(CASE WHEN status='NAO_RESOLVIDO' AND segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001 THEN 1 ELSE 0 END) AS unresolvedTieTop2,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END),0) AS decimal(9,4)) AS ppvPct,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(COUNT_BIG(*),0) AS decimal(9,4)) AS sensitivityPct FROM truth FOR JSON PATH,WITHOUT_ARRAY_WRAPPER);"
+$decisionQualityQuery=@"
+DECLARE @run uniqueidentifier=(SELECT linkage_run_id FROM identidade.linkage_run WHERE correlation_id='$corr');
+WITH truth AS (
+  SELECT r.*,po.codigo_pessoa_origem,
+         TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10)) AS scale_n,
+         tv.pessoa_uuid AS truth_uuid
+  FROM identidade.linkage_resultado r
+  JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+  JOIN silver.pessoa_observacao tpo ON tpo.codigo_pessoa_origem=REPLACE(po.codigo_pessoa_origem,'SCALE-PEND-','SCALE-SEHAB-')
+  JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo='SEHAB'
+  JOIN identidade.v_vinculo_corrente tv ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id AND tv.status='RESOLVIDO'
+  WHERE r.linkage_run_id=@run AND po.codigo_pessoa_origem LIKE 'SCALE-PEND-%'
+)
+SELECT (
+  SELECT
+    COUNT_BIG(*) AS totalScale,
+    SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END) AS resolved,
+    SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END) AS resolvedCorrect,
+    SUM(CASE WHEN status='RESOLVIDO' AND (pessoa_uuid_resolvido IS NULL OR pessoa_uuid_resolvido<>truth_uuid) THEN 1 ELSE 0 END) AS falsePositives,
+    SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END) AS conflicts,
+    SUM(CASE WHEN status='CONFLITO' AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS conflictsTruthTop2,
+    SUM(CASE WHEN status='CONFLITO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END) AS conflictsTruthFirstWithoutTie,
+    SUM(CASE WHEN status='CONFLITO' AND segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001 AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS conflictsTruthInTop2Tie,
+    SUM(CASE WHEN status='CONFLITO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND segundo_candidato_uuid=truth_uuid AND (melhor_candidato_uuid IS NULL OR melhor_candidato_uuid<>truth_uuid) THEN 1 ELSE 0 END) AS conflictsTruthSecondWithoutTie,
+    SUM(CASE WHEN status='CONFLITO' AND ISNULL(melhor_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid AND ISNULL(segundo_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid THEN 1 ELSE 0 END) AS conflictsTruthOutsideTop2,
+    SUM(CASE WHEN status='CONFLITO' AND motivo='DOIS_CANDIDATOS_ACIMA_T_LINKAGE' THEN 1 ELSE 0 END) AS dualThresholdConflicts,
+    SUM(CASE WHEN status='CONFLITO' AND score_melhor>=0.9999 THEN 1 ELSE 0 END) AS conflictsBestPosteriorGe9999,
+    SUM(CASE WHEN status='CONFLITO' AND score_segundo>=0.999 THEN 1 ELSE 0 END) AS conflictsSecondPosteriorGe999,
+    SUM(CASE WHEN status='CONFLITO' AND score_segundo>=0.9999 THEN 1 ELSE 0 END) AS conflictsSecondPosteriorGe9999,
+    CAST(MIN(CASE WHEN status='CONFLITO' THEN margem END) AS decimal(30,12)) AS conflictMarginMin,
+    CAST(AVG(CASE WHEN status='CONFLITO' THEN CONVERT(decimal(30,12),margem) END) AS decimal(30,12)) AS conflictMarginAvg,
+    CAST(MAX(CASE WHEN status='CONFLITO' THEN margem END) AS decimal(30,12)) AS conflictMarginMax,
+    SUM(CASE WHEN status='NAO_RESOLVIDO' THEN 1 ELSE 0 END) AS unresolved,
+    SUM(CASE WHEN status='NAO_RESOLVIDO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END) AS unresolvedTruthFirstWithoutTie,
+    SUM(CASE WHEN status='NAO_RESOLVIDO' AND segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001 AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS unresolvedTruthInTop2Tie,
+    SUM(CASE WHEN status='NAO_RESOLVIDO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND segundo_candidato_uuid=truth_uuid AND (melhor_candidato_uuid IS NULL OR melhor_candidato_uuid<>truth_uuid) THEN 1 ELSE 0 END) AS unresolvedTruthSecondWithoutTie,
+    SUM(CASE WHEN status='NAO_RESOLVIDO' AND ISNULL(melhor_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid AND ISNULL(segundo_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid THEN 1 ELSE 0 END) AS unresolvedTruthOutsideTop2,
+    SUM(CASE WHEN status='NAO_RESOLVIDO' AND segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001 THEN 1 ELSE 0 END) AS unresolvedTieTop2,
+    SUM(CASE WHEN scale_n%10=0 THEN 1 ELSE 0 END) AS birthOutOfUniverseEveryTenthTotal,
+    SUM(CASE WHEN scale_n%10=0 AND status='RESOLVIDO' THEN 1 ELSE 0 END) AS birthOutOfUniverseEveryTenthResolved,
+    SUM(CASE WHEN scale_n%10=0 AND status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END) AS birthOutOfUniverseEveryTenthResolvedCorrect,
+    SUM(CASE WHEN scale_n%10=0 AND status='CONFLITO' THEN 1 ELSE 0 END) AS birthOutOfUniverseEveryTenthConflicts,
+    SUM(CASE WHEN scale_n%10=0 AND status='NAO_RESOLVIDO' THEN 1 ELSE 0 END) AS birthOutOfUniverseEveryTenthUnresolved,
+    SUM(CASE WHEN scale_n%10<>0 THEN 1 ELSE 0 END) AS birthInUniverseOtherRowsTotal,
+    SUM(CASE WHEN scale_n%10<>0 AND status='RESOLVIDO' THEN 1 ELSE 0 END) AS birthInUniverseOtherRowsResolved,
+    SUM(CASE WHEN scale_n%10<>0 AND status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END) AS birthInUniverseOtherRowsResolvedCorrect,
+    SUM(CASE WHEN scale_n%10<>0 AND status='CONFLITO' THEN 1 ELSE 0 END) AS birthInUniverseOtherRowsConflicts,
+    SUM(CASE WHEN scale_n%10<>0 AND status='NAO_RESOLVIDO' THEN 1 ELSE 0 END) AS birthInUniverseOtherRowsUnresolved,
+    CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END),0) AS decimal(9,4)) AS ppvPct,
+    CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(COUNT_BIG(*),0) AS decimal(9,4)) AS sensitivityPct,
+    CAST(CASE
+      WHEN SUM(CASE WHEN status='RESOLVIDO' AND (pessoa_uuid_resolvido IS NULL OR pessoa_uuid_resolvido<>truth_uuid) THEN 1 ELSE 0 END)=0
+       AND SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END)>0
+      THEN 300.0/SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END)
+    END AS decimal(9,4)) AS zeroFpUpper95PctRuleOfThree
+  FROM truth
+  FOR JSON PATH,WITHOUT_ARRAY_WRAPPER
+);
+"@
+$decisionQualityJson=Scalar $decisionQualityQuery
 if([string]::IsNullOrWhiteSpace($decisionQualityJson)){throw 'qualidade contra ground truth SCALE ausente.'}
 $decisionQuality=$decisionQualityJson | ConvertFrom-Json
 $blockingPressureJson=Scalar "DECLARE @ruleset uniqueidentifier=(SELECT ruleset_id FROM identidade.linkage_ruleset WHERE modelo_id='$modelId'); SELECT (SELECT (SELECT COUNT(*) FROM identidade.linkage_ruleset_passe WHERE ruleset_id=@ruleset) AS ruleSetPassCount, (SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE vigencia_fim IS NULL) AS blockingRows, (SELECT COUNT_BIG(*) FROM (SELECT atributo,valor_normalizado FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) d) AS distinctKeys, (SELECT ISNULL(MAX(people_per_key),0) FROM (SELECT COUNT_BIG(DISTINCT pessoa_uuid) people_per_key FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) q) AS maxPeoplePerKey, JSON_QUERY((SELECT a.atributo AS attribute, COUNT_BIG(*) AS rows, COUNT_BIG(DISTINCT a.valor_normalizado) AS distinctValues, (SELECT ISNULL(MAX(people_per_value),0) FROM (SELECT COUNT_BIG(DISTINCT b.pessoa_uuid) people_per_value FROM identidade.blocking_chave b WHERE b.vigencia_fim IS NULL AND b.atributo=a.atributo GROUP BY b.valor_normalizado) z) AS maxPeoplePerValue FROM identidade.blocking_chave a WHERE a.vigencia_fim IS NULL GROUP BY a.atributo FOR JSON PATH)) AS attributes FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);"
@@ -210,5 +271,6 @@ try {
   & $Python3.Exe @performanceArgs; if($LASTEXITCODE-ne 0){throw 'evidência de escala inválida'}
   $observabilityArgs = @($Python3.Prefix) + @('scripts/scale-observability-evidence-gate.py', $out)
   & $Python3.Exe @observabilityArgs; if($LASTEXITCODE-ne 0){throw 'evidência de observabilidade/qualidade de escala inválida'}
+  & $Python3.Exe @($Python3.Prefix) 'scripts/linkage-decision-quality-gate.py' $out; if($LASTEXITCODE-ne 0){throw 'evidência diagnóstica de decisão do linkage inválida'}
 } finally { Pop-Location }
 Write-Host "Scale harness concluído: $out"; Get-Content $out

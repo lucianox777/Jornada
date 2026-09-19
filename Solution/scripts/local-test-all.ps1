@@ -9,6 +9,16 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$DefaultEnvFile = Join-Path $Root '.env'
+$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) {
+    $DefaultEnvFile
+}
+else {
+    [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE)
+}
+if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE) -and -not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+    throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile"
+}
 $CurrentPowerShell = (Get-Process -Id $PID).Path
 $Results = [System.Collections.Generic.List[object]]::new()
 $OverallStatus = 'FAILED'
@@ -82,7 +92,7 @@ function Invoke-PowerShellScript {
 }
 
 function Invoke-ClusterAction {
-    param([Parameter(Mandatory = $true)][ValidateSet('clean','up','calibrate','linkage','linkage-diagnose')][string]$Action)
+    param([Parameter(Mandatory = $true)][ValidateSet('up','calibrate','linkage','linkage-diagnose')][string]$Action)
     Invoke-PowerShellScript 'local-cluster.ps1' @('-Action', $Action)
 }
 
@@ -160,8 +170,8 @@ function Invoke-LinkageEvaluationSmoke {
     }
     Write-Host "Bash selecionado para a auditoria read-only: $bash"
 
-    $envFile = Join-Path $Root '.env'
-    if (-not (Test-Path -LiteralPath $envFile)) { throw '.env não encontrado após preparação local.' }
+    $envFile = $EnvFile
+    if (-not (Test-Path -LiteralPath $envFile -PathType Leaf)) { throw ".env nao encontrado para auditoria local: $envFile" }
     $vars = @{}
     Get-Content $envFile | ForEach-Object {
         $line = $_.Trim()
@@ -194,7 +204,7 @@ function Invoke-LinkageEvaluationSmoke {
             $env:ConnectionStrings__Jornada = "Server=localhost,$port;Database=$db;User Id=sa;Password=$password;TrustServerCertificate=true;Encrypt=false"
             $env:JORNADA_EVALUATION_SQL_PASSWORD = $password
             $env:JORNADA_EVALUATION_DATABASE = $db
-            # A auditoria roda contra o corpus canônico criado por local-db reset:
+            # local-db up assegura o corpus SCALE canônico sem resetar a referência:
             # 5000 Pessoas SCALE Gold + 5000 pares corroborados + 1000 pendentes.
             $env:JORNADA_EVALUATION_SCALE_PEOPLE = '5000'
             $env:JORNADA_EVALUATION_SCALE_SEED = '355'
@@ -225,6 +235,10 @@ foreach ($command in @('git', 'docker', 'dotnet')) {
 # A invocação pública nunca altera o working tree do desenvolvedor. Busca o SHA remoto,
 # cria um worktree destacado e executa a mesma suíte nesse checkout descartável.
 if (-not $IsolatedExecution) {
+    $sharedEnvFile = Join-Path $Root '.env'
+    if (-not (Test-Path -LiteralPath $sharedEnvFile -PathType Leaf)) {
+        throw "Modo PRESERVE_IBGE exige o .env do checkout principal: $sharedEnvFile"
+    }
     $worktreePath = Join-Path ([IO.Path]::GetTempPath()) ("jornada-local-test-all-{0}" -f [Guid]::NewGuid().ToString('N'))
     $childReport = Join-Path $worktreePath 'Solution/.local/test-all/latest.json'
     $targetReportDir = Join-Path $Root '.local/test-all'
@@ -240,10 +254,25 @@ if (-not $IsolatedExecution) {
 
         Write-Host "Criando worktree isolado para $testedSha..."
         Invoke-Git @('worktree','add','--detach',$worktreePath,$testedSha)
+
+        # O .env permanece no checkout principal; o child recebe o caminho via JORNADA_LOCAL_ENV_FILE.
         $isolatedScript = Join-Path $worktreePath 'Solution/scripts/local-test-all.ps1'
-        Write-CommandLine $CurrentPowerShell @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$isolatedScript,'-Suite',$Suite,'-IsolatedExecution')
-        & $CurrentPowerShell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $isolatedScript -Suite $Suite -IsolatedExecution
-        $exitCode = $LASTEXITCODE
+        $childArgs = @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$isolatedScript,'-Suite',$Suite)
+        $childArgs += '-IsolatedExecution'
+        Write-CommandLine $CurrentPowerShell $childArgs
+
+        $previousSharedEnvFile = $env:JORNADA_LOCAL_ENV_FILE
+        try {
+            if (Test-Path -LiteralPath $sharedEnvFile -PathType Leaf) {
+                $env:JORNADA_LOCAL_ENV_FILE = (Resolve-Path -LiteralPath $sharedEnvFile).Path
+                Write-Host "Config local compartilhada com o worktree via JORNADA_LOCAL_ENV_FILE (arquivo nao copiado)."
+            }
+            & $CurrentPowerShell @childArgs
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            $env:JORNADA_LOCAL_ENV_FILE = $previousSharedEnvFile
+        }
     }
     catch {
         $FailureMessage = $_.Exception.Message
@@ -264,6 +293,19 @@ if (-not $IsolatedExecution) {
         }
         Write-CommandLine 'git' @('worktree','prune')
         & git worktree prune
+
+        # O cluster isolado pode recriar SQL/nos com bind-mounts do worktree temporario.
+        # Reaplica a composicao do checkout do desenvolvedor antes de sair, preservando
+        # volumes, banco e referencia IBGE; -NoBuild evita recompilacao desnecessaria.
+        try {
+            Write-Host 'Restaurando composicao do checkout do desenvolvedor sem reset/clean...'
+            & (Join-Path $PSScriptRoot 'local-cluster.ps1') -Action up -NoBuild
+        }
+        catch {
+            Write-Warning ("Nao foi possivel restaurar automaticamente a composicao local: " + $_.Exception.Message)
+            if ($exitCode -eq 0) { $exitCode = 1 }
+        }
+
         Pop-Location
     }
 
@@ -286,18 +328,20 @@ try {
     Write-Host "Suite:  $Suite"
     Write-Host 'Branch: detached worktree de origin/master'
     Write-Host "SHA:    $testedSha"
-    Write-Host 'A suíte é destrutiva para bancos/volumes locais de teste, mas não altera o working tree do desenvolvedor.'
+    Write-Host 'Referencia IBGE do banco compartilhado: PRESERVADA.'
+    Write-Host 'A suite normal nao executa reset/clean do JornadaLocal; E2E usa banco isolado JornadaE2E.'
+    Write-Host 'Instalacao limpa/scale destrutivo: use .\scripts\local-test-from-zero.ps1 -AllowDestructiveReset.'
     Write-Host 'Pré-HML: o upgrade de baselines históricos não é executado por padrão. Para diagnóstico manual: .\scripts\local-ddl-upgrade.ps1.'
 
-    Invoke-Step 'Banco local canônico: reset determinístico' {
-        Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')
+    Invoke-Step 'Referencia IBGE existente: quick check read-only' {
+        Invoke-PowerShellScript 'local-check-ibge-reference.ps1'
     }
 
     Invoke-Step 'Core: contratos + runtime SQL + Unit + Integration' {
         Invoke-PowerShellScript 'local-test.ps1'
     }
 
-    Invoke-Step 'E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP' {
+    Invoke-Step 'E2E HTTP -> Bronze -> Silver -> Gold -> Serving -> HTTP (banco isolado)' {
         Invoke-PowerShellScript 'local-e2e.ps1'
     }
 
@@ -305,51 +349,21 @@ try {
         Invoke-PowerShellScript 'local-fault-injection.ps1'
     }
 
-    Invoke-Step 'Cluster limpo: rebuild + calibrate + linkage + diagnose' {
-        Invoke-ClusterAction 'clean'
+    Invoke-Step 'Cluster preservado: up + calibrate + linkage + diagnose' {
         Invoke-ClusterAction 'up'
-        Write-Host 'Nota: a primeira calibração de um banco novo pode carregar 5.603.287 linhas da referência IBGE. O worker imprime heartbeat a cada 15 segundos durante a carga.' -ForegroundColor DarkYellow
         Invoke-ClusterAction 'calibrate'
         Invoke-ClusterAction 'linkage'
         Invoke-ClusterAction 'linkage-diagnose'
     }
 
     if ($Suite -eq 'full') {
-        # A auditoria precisa observar o corpus canônico e o modelo calibrado no cluster,
-        # não a massa especial do scale harness. Ela também roda antes de qualquer clean.
         Invoke-Step 'Auditoria read-only de candidate recall/rank' {
             Invoke-LinkageEvaluationSmoke
         }
+    }
 
-        Invoke-Step 'Encerrar cluster antes do harness de escala' {
-            Invoke-ClusterAction 'clean'
-        }
-
-        Invoke-Step 'Scale harness smoke + restauração do banco canônico' {
-            $scaleFailure = $null
-            $restoreFailure = $null
-            try {
-                Invoke-PowerShellScript 'local-scale.ps1' @('-Profile', 'smoke')
-            }
-            catch {
-                $scaleFailure = $_.Exception
-            }
-
-            try {
-                # local-scale usa deliberadamente uma massa diferente. A suíte full é dona
-                # do ambiente compartilhado e deve devolvê-lo sempre ao perfil canônico.
-                Invoke-PowerShellScript 'local-db.ps1' @('-Action', 'reset')
-            }
-            catch {
-                $restoreFailure = $_.Exception
-            }
-
-            if ($null -ne $scaleFailure -and $null -ne $restoreFailure) {
-                throw "Scale harness falhou: $($scaleFailure.Message) Falha adicional ao restaurar o banco canônico: $($restoreFailure.Message)"
-            }
-            if ($null -ne $scaleFailure) { throw $scaleFailure }
-            if ($null -ne $restoreFailure) { throw $restoreFailure }
-        }
+    Invoke-Step 'Referencia IBGE final: continua integra e ATIVA' {
+        Invoke-PowerShellScript 'local-check-ibge-reference.ps1' @('-NoStart')
     }
 
     $OverallStatus = 'OK'
@@ -368,6 +382,8 @@ finally {
         gitCommitSha = $testedSha
         executionMode = 'isolated-worktree'
         historicalUpgradeDefault = $false
+        destructiveReset = $false
+        ibgeReferencePreserved = $true
         generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         failure = $FailureMessage
         steps = @($Results)

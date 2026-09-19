@@ -23,7 +23,7 @@ Os instrumentos são exclusivos de Development/HML. Não definem capacidade de P
 - shell POSIX ou PowerShell;
 - Python 3 para gate OpenAPI e fixture E2E.
 
-O banco local é destrutível. `local-scale` executa `local-db reset` antes de gerar a massa.
+O fluxo local **padrão é preservador**: `local-test-all.ps1` não executa `reset`, `clean` nem scale e mantém a referência IBGE materializada. Ensaios destrutivos ficam em `local-test-from-zero.ps1 -AllowDestructiveReset` e nos harnesses explicitamente destrutivos, como `local-scale`.
 
 ## 1. Massa sintética e escala
 
@@ -56,6 +56,8 @@ O gerador é `database/Jornada_Dev_SyntheticScale.sql`. Ele cria:
 - observações sem CPF para o Runner;
 - 10% das observações sem CPF com data de nascimento deliberadamente fora do universo Gold, exercitando `SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO`;
 - variações sintéticas reprodutíveis de nome e nome da mãe.
+
+O harness de escala é deliberadamente destrutivo e não faz parte da suíte ampla padrão. Para uma prova completa a partir do zero, prefira `local-test-from-zero.ps1 -Suite full -AllowDestructiveReset`.
 
 O harness executa na sequência:
 
@@ -183,7 +185,7 @@ ou:
 ./scripts/local-e2e.sh
 ```
 
-O teste recria `JornadaLocal`, compila a Solution, inicia API e Processor, aguarda `/health/ready`, gera ZIP determinístico da fixture `AA01_v2` e verifica HTTP → Bronze → Silver → Gold → Serving → consulta HTTP. Depois prova duas propriedades distintas: replay da mesma `Idempotency-Key` retorna a mesma Entrega; mesmos bytes sob nova chave criam nova Entrega lógica, mas os itens são `RETRANSMITIDO` e não nasce segunda versão Gold vigente. Evidência e logs ficam em `.local/e2e/`.
+O teste usa por padrão o banco isolado `JornadaE2E`, preparado via `local-db.ps1 -DatabaseName JornadaE2E -NoSyntheticCorpus`; portanto não reseta `JornadaLocal` nem a referência IBGE compartilhada. Compila a Solution, inicia API e Processor, aguarda `/health/ready`, gera ZIP determinístico da fixture `AA01_v2` e verifica HTTP → Bronze → Silver → Gold → Serving → consulta HTTP. Depois prova duas propriedades distintas: replay da mesma `Idempotency-Key` retorna a mesma Entrega; mesmos bytes sob nova chave criam nova Entrega lógica, mas os itens são `RETRANSMITIDO` e não nasce segunda versão Gold vigente. Evidência e logs ficam em `.local/e2e/`. O reset do banco compartilhado só ocorre com `-AllowSharedDatabaseReset` explícito.
 
 ## 7. Avaliação metodológica de linkage — DEV/HML somente
 

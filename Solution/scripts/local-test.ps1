@@ -1,6 +1,8 @@
 ﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$DefaultEnvFile = Join-Path $Root '.env'
+$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { $DefaultEnvFile } else { [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE) }
 
 function Invoke-NativeStep {
     param(
@@ -22,7 +24,7 @@ function Invoke-NativeStep {
 & (Join-Path $PSScriptRoot 'local-db.ps1') -Action up
 
 $vars = @{}
-Get-Content (Join-Path $Root '.env') | ForEach-Object {
+Get-Content $EnvFile | ForEach-Object {
     $line = $_.Trim()
     if ($line -and -not $line.StartsWith('#') -and $line.Contains('=')) {
         $parts = $line.Split('=',2)
@@ -47,6 +49,10 @@ try {
         python scripts/technical-closure-gate.py
     }
 
+    Invoke-NativeStep 'Linkage decision-quality gate self-test' {
+        python scripts/linkage-decision-quality-gate.py --self-test
+    }
+
     Write-Host ''
     Write-Host '--- SQL runtime smoke 3.70 ---'
     & (Join-Path $PSScriptRoot 'local-sql-runtime-smoke.ps1')
@@ -60,7 +66,7 @@ try {
     }
 
     # Espelha o gate unitário do CI: este assembly também contém fixtures Integration
-    # (inclusive PostgreSQL) que exigem ambientes dedicados e não pertencem ao core local.
+    # que exigem ambientes dedicados e não pertencem ao core local.
     Invoke-NativeStep 'Unit/non-integration tests' {
         dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --configuration Release --no-build --filter 'TestCategory!=Integration'
     }

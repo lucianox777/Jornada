@@ -6,13 +6,15 @@
 
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$EnvFile = Join-Path $Root '.env'
+$DefaultEnvFile = Join-Path $Root '.env'
+$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { $DefaultEnvFile } else { [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE) }
 $Example = Join-Path $Root '.env.example'
 $LocalDb = Join-Path $PSScriptRoot 'local-db.ps1'
 $ClusterConfig = Join-Path $Root 'install\windows-production\Jornada.Cluster.Test.json'
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw 'Docker não encontrado no PATH.' }
-if (-not (Test-Path -LiteralPath $EnvFile)) {
+if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile" }
     Copy-Item -LiteralPath $Example -Destination $EnvFile
     Write-Host 'Criado .env local com as credenciais sintéticas padrão de teste.'
 }
@@ -150,8 +152,18 @@ function Invoke-Calibration {
     $beforeText = Get-SqlScalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;"
     $before = [int]$beforeText
     Write-Host "Calibração iniciando após modelo v$before."
-    Write-Host 'Se a referência IBGE ainda não estiver materializada, a primeira geração carregará o snapshot canônico completo. O worker emitirá heartbeat a cada 15 segundos durante essa etapa.' -ForegroundColor DarkYellow
-    Invoke-Node2 -Command @('env','LinkageParameters__Operation=GENERATE_DRAFT','LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
+    Write-Host 'Referência IBGE canônica é materializada no bootstrap do ambiente; fallback de carga em banco criado fora do fluxo oficial permanece fail-closed; GENERATE_DRAFT usa Monte Carlo nominal para NOME/NOME_MAE e mantém nascimento condicionado ao blocking.' -ForegroundColor DarkYellow
+    $ibgeMcPairCount = if ($env:JORNADA_LINKAGE_IBGE_MC_PAIR_COUNT) { [int]$env:JORNADA_LINKAGE_IBGE_MC_PAIR_COUNT } else { 1000000 }
+    $ibgeMcSeed = if ($env:JORNADA_LINKAGE_IBGE_MC_SEED) { [int]$env:JORNADA_LINKAGE_IBGE_MC_SEED } else { 20260917 }
+    Write-Host "IBGE Monte Carlo nominal: pares_por_campo=$ibgeMcPairCount seed_pessoa=$ibgeMcSeed seed_mae=$($ibgeMcSeed+1)."
+    Invoke-Node2 -Command @(
+        'env',
+        'LinkageParameters__Operation=GENERATE_DRAFT',
+        'LinkageParameters__RunOnce=true',
+        "LinkageParameters__IbgeNominalU__PairCount=$ibgeMcPairCount",
+        "LinkageParameters__IbgeNominalU__Seed=$ibgeMcSeed",
+        'dotnet',
+        '/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
     $count = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")
     if ($count -ne 1) { throw "Esperado exatamente um novo RASCUNHO; encontrados=$count." }
     $version = [int](Get-SqlScalar "SELECT MAX(versao) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")
@@ -176,10 +188,17 @@ function Invoke-Linkage {
 }
 
 function Show-LinkageDiagnosis {
-    $runId = Get-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE status='PUBLICADO' AND tipo_run='ON_DEMAND' ORDER BY publicado_em DESC,iniciado_em DESC,linkage_run_id DESC;"
-    if ([string]::IsNullOrWhiteSpace($runId)) { throw 'Nenhum linkage ON_DEMAND PUBLICADO encontrado.' }
+    $activeModelId = Get-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;"
+    if ([string]::IsNullOrWhiteSpace($activeModelId)) {
+        throw "Diagnóstico bloqueado: nenhum modelo calibrado ATIVO. Execute primeiro '.\scripts\local-cluster.ps1 calibrate'."
+    }
 
-    Write-Host "Diagnóstico do último linkage ON_DEMAND PUBLICADO: $runId"
+    $runId = Get-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE status='PUBLICADO' AND tipo_run='ON_DEMAND' AND modelo_id='$activeModelId' ORDER BY publicado_em DESC,iniciado_em DESC,linkage_run_id DESC;"
+    if ([string]::IsNullOrWhiteSpace($runId)) {
+        throw "Nenhum linkage ON_DEMAND PUBLICADO para o modelo calibrado ATIVO $activeModelId. Execute primeiro '.\scripts\local-cluster.ps1 linkage'."
+    }
+
+    Write-Host "Diagnóstico do último linkage ON_DEMAND PUBLICADO do modelo ATIVO $activeModelId`: $runId"
     Write-Host 'Nota: modelo_versao é monotônica somente dentro da base corrente; clean/reset recria a base. Para A/B entre bases, compare modelo_id + fingerprints.'
 
     Write-Host ''
@@ -200,8 +219,12 @@ function Show-LinkageDiagnosis {
     Write-Host 'Em empate_log_odds_exato, UUID ordena apenas a representação determinística do empate; não constitui evidência de desempate.'
 
     Write-Host ''
-    Write-Host 'Cobertura empírica da amostra u persistida no modelo:'
-    Invoke-SqlReport "SELECT COUNT(*) AS estados_u_com_suporte,MIN(valor) AS suporte_min,MAX(valor) AS suporte_max,SUM(CASE WHEN valor=0 THEN 1 ELSE 0 END) AS estados_zero,SUM(CASE WHEN valor>0 AND valor<5 THEN 1 ELSE 0 END) AS estados_entre_1_e_4 FROM identidade.parametro_linkage WHERE modelo_id=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId') AND nome LIKE 'SUPPORT_U_%'; SELECT nome,valor AS suporte FROM identidade.parametro_linkage WHERE modelo_id=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId') AND nome LIKE 'SUPPORT_U_%' ORDER BY nome;"
+    Write-Host 'u nominal usado no scoring de nomes (Monte Carlo IBGE):'
+    Invoke-SqlReport "DECLARE @modelo_id uniqueidentifier=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId'); SELECT nome,valor FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND (nome IN('IBGE_MC_NOMINAL_U_ENABLED','IBGE_MC_NOMINAL_U_PAIR_COUNT','IBGE_MC_NOMINAL_U_SEED_PERSON','IBGE_MC_NOMINAL_U_SEED_MOTHER','IBGE_NAME_REFERENCE_ID','IBGE_MC_PERSON_EXACT_ANALYTIC','IBGE_MC_MOTHER_EXACT_ANALYTIC') OR nome LIKE 'U_NOME[_]%' OR nome LIKE 'U_NOME_MAE[_]%' OR nome LIKE 'IBGE_MC_SUPPORT_U_NOME[_]%' OR nome LIKE 'IBGE_MC_SUPPORT_U_NOME_MAE[_]%') ORDER BY nome;"
+
+    Write-Host ''
+    Write-Host 'Suporte condicionado ao blocking preservado para diagnóstico e nascimento:'
+    Invoke-SqlReport "DECLARE @modelo_id uniqueidentifier=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId'); SELECT nome,valor AS suporte FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND (nome LIKE 'BLOCKING_SUPPORT_U_NOME[_]%' OR nome LIKE 'BLOCKING_SUPPORT_U_NOME_MAE[_]%' OR nome LIKE 'SUPPORT_U_NASCIMENTO_SEMANTICO[_]%' OR nome LIKE 'POOL_SUPPORT_U_NASCIMENTO_SEMANTICO[_]%') ORDER BY nome;"
 
     Write-Host ''
     Write-Host 'Composição atual do corpus Gold (explica SCALE versus seed/outros):'
@@ -210,6 +233,46 @@ function Show-LinkageDiagnosis {
     Write-Host ''
     Write-Host 'Qualidade contra ground truth sintético SCALE (verdade derivada do vínculo CPF da observação SEHAB correspondente):'
     Invoke-SqlReport "WITH truth AS (SELECT r.*,po.codigo_pessoa_origem,tv.pessoa_uuid AS truth_uuid FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id JOIN silver.pessoa_observacao tpo ON tpo.codigo_pessoa_origem=REPLACE(po.codigo_pessoa_origem,'SCALE-PEND-','SCALE-SEHAB-') JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo='SEHAB' JOIN identidade.v_vinculo_corrente tv ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id AND tv.status='RESOLVIDO' WHERE r.linkage_run_id='$runId' AND po.codigo_pessoa_origem LIKE 'SCALE-PEND-%') SELECT COUNT_BIG(*) AS total_scale,SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END) AS resolvidos,SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END) AS resolvidos_corretos,SUM(CASE WHEN status='RESOLVIDO' AND (pessoa_uuid_resolvido IS NULL OR pessoa_uuid_resolvido<>truth_uuid) THEN 1 ELSE 0 END) AS falsos_positivos,SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END) AS conflitos,SUM(CASE WHEN status='CONFLITO' AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS conflitos_verdade_top2,SUM(CASE WHEN status='NAO_RESOLVIDO' THEN 1 ELSE 0 END) AS nao_resolvidos,SUM(CASE WHEN status='NAO_RESOLVIDO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END) AS nao_resolvidos_verdade_primeiro_sem_empate,SUM(CASE WHEN status='NAO_RESOLVIDO' AND segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001 AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS nao_resolvidos_verdade_empate_top2,SUM(CASE WHEN status='NAO_RESOLVIDO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND segundo_candidato_uuid=truth_uuid AND (melhor_candidato_uuid IS NULL OR melhor_candidato_uuid<>truth_uuid) THEN 1 ELSE 0 END) AS nao_resolvidos_verdade_segundo_sem_empate,SUM(CASE WHEN status='NAO_RESOLVIDO' AND ISNULL(melhor_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid AND ISNULL(segundo_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid THEN 1 ELSE 0 END) AS nao_resolvidos_verdade_fora_top2,SUM(CASE WHEN status='NAO_RESOLVIDO' AND segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001 THEN 1 ELSE 0 END) AS nao_resolvidos_empate_top2,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END),0) AS decimal(9,4)) AS ppv_sintetico_pct,CAST(100.0*SUM(CASE WHEN status='RESOLVIDO' AND pessoa_uuid_resolvido=truth_uuid THEN 1 ELSE 0 END)/NULLIF(COUNT_BIG(*),0) AS decimal(9,4)) AS sensibilidade_sintetica_pct FROM truth;"
+
+    Write-Host ''
+    Write-Host 'Diagnóstico dos conflitos: posição da verdade, saturação e coortes sintéticas:'
+    $decisionDiagnosticQuery=@"
+WITH truth AS (
+  SELECT r.*,po.codigo_pessoa_origem,
+         TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10)) AS scale_n,
+         tv.pessoa_uuid AS truth_uuid
+  FROM identidade.linkage_resultado r
+  JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+  JOIN silver.pessoa_observacao tpo ON tpo.codigo_pessoa_origem=REPLACE(po.codigo_pessoa_origem,'SCALE-PEND-','SCALE-SEHAB-')
+  JOIN ref.gestor tg ON tg.gestor_id=tpo.gestor_id AND tg.codigo='SEHAB'
+  JOIN identidade.v_vinculo_corrente tv ON tv.pessoa_observacao_id=tpo.pessoa_observacao_id AND tv.status='RESOLVIDO'
+  WHERE r.linkage_run_id='$runId' AND po.codigo_pessoa_origem LIKE 'SCALE-PEND-%'
+)
+SELECT
+  SUM(CASE WHEN status='CONFLITO' THEN 1 ELSE 0 END) AS conflitos,
+  SUM(CASE WHEN status='CONFLITO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND melhor_candidato_uuid=truth_uuid THEN 1 ELSE 0 END) AS verdade_primeiro_sem_empate,
+  SUM(CASE WHEN status='CONFLITO' AND segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001 AND (melhor_candidato_uuid=truth_uuid OR segundo_candidato_uuid=truth_uuid) THEN 1 ELSE 0 END) AS verdade_empate_top2,
+  SUM(CASE WHEN status='CONFLITO' AND NOT(segundo_candidato_uuid IS NOT NULL AND margem IS NOT NULL AND ABS(margem)<=0.000000001) AND segundo_candidato_uuid=truth_uuid AND (melhor_candidato_uuid IS NULL OR melhor_candidato_uuid<>truth_uuid) THEN 1 ELSE 0 END) AS verdade_segundo_sem_empate,
+  SUM(CASE WHEN status='CONFLITO' AND ISNULL(melhor_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid AND ISNULL(segundo_candidato_uuid,'00000000-0000-0000-0000-000000000000')<>truth_uuid THEN 1 ELSE 0 END) AS verdade_fora_top2,
+  SUM(CASE WHEN status='CONFLITO' AND motivo='DOIS_CANDIDATOS_ACIMA_T_LINKAGE' THEN 1 ELSE 0 END) AS conflitos_duplo_threshold,
+  SUM(CASE WHEN status='CONFLITO' AND score_melhor>=0.9999 THEN 1 ELSE 0 END) AS melhor_posterior_ge_09999,
+  SUM(CASE WHEN status='CONFLITO' AND score_segundo>=0.999 THEN 1 ELSE 0 END) AS segundo_posterior_ge_0999,
+  SUM(CASE WHEN status='CONFLITO' AND score_segundo>=0.9999 THEN 1 ELSE 0 END) AS segundo_posterior_ge_09999,
+  CAST(MIN(CASE WHEN status='CONFLITO' THEN margem END) AS decimal(30,12)) AS margem_min,
+  CAST(AVG(CASE WHEN status='CONFLITO' THEN CONVERT(decimal(30,12),margem) END) AS decimal(30,12)) AS margem_media,
+  CAST(MAX(CASE WHEN status='CONFLITO' THEN margem END) AS decimal(30,12)) AS margem_max,
+  SUM(CASE WHEN scale_n%10=0 THEN 1 ELSE 0 END) AS coorte_cada_decimo_total,
+  SUM(CASE WHEN scale_n%10=0 AND status='RESOLVIDO' THEN 1 ELSE 0 END) AS coorte_cada_decimo_resolvidos,
+  SUM(CASE WHEN scale_n%10<>0 THEN 1 ELSE 0 END) AS coorte_demais_total,
+  SUM(CASE WHEN scale_n%10<>0 AND status='CONFLITO' THEN 1 ELSE 0 END) AS coorte_demais_conflitos,
+  CAST(CASE
+    WHEN SUM(CASE WHEN status='RESOLVIDO' AND (pessoa_uuid_resolvido IS NULL OR pessoa_uuid_resolvido<>truth_uuid) THEN 1 ELSE 0 END)=0
+     AND SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END)>0
+    THEN 300.0/SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END)
+  END AS decimal(9,4)) AS limite_superior_fp_95_regra_tres_pct
+FROM truth;
+"@
+    Invoke-SqlReport $decisionDiagnosticQuery
 
     Write-Host ''
     Write-Host 'Falsos positivos resolvidos no corpus SCALE (deve ficar vazio em um ensaio conservador):'

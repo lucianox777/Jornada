@@ -22,9 +22,81 @@ public sealed class LinkageParametersBootstrapProgressTests
             Assert.That(program, Does.Contain("RunHostWithHeartbeatAsync"));
             Assert.That(program, Does.Contain("TimeSpan.FromSeconds(15)"));
             Assert.That(program, Does.Contain("processo ativo, aguarde"));
-            Assert.That(program, Does.Contain("milhões de linhas e pode levar alguns minutos"));
+            Assert.That(program, Does.Contain("milhoes de linhas e pode levar alguns minutos"));
             Assert.That(program, Does.Contain("bootstrapBuilder.Build(),"));
             Assert.That(program, Does.Contain("operation == NameFrequencySnapshotLoader.Operation"));
+        });
+    }
+
+    [Test]
+    public void CanonicalIbgeReference_RequiresActiveStateAndCanReusePublishedRows()
+    {
+        var root = FindRepositoryRoot();
+        var state = File.ReadAllText(Path.Combine(
+            root,
+            "Solution",
+            "src",
+            "Jornada.Linkage.Parameters.Worker",
+            "NameFrequencyReferenceState.cs"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(state, Does.Contain("status == \"ATIVA\""));
+            Assert.That(state, Does.Contain("status == \"CARREGANDO\""));
+            Assert.That(state, Does.Contain("conteudo_sha256"));
+            Assert.That(state, Does.Contain("tipo='NOME'"));
+            Assert.That(state, Does.Contain("tipo='SOBRENOME'"));
+            Assert.That(state, Does.Contain("SET status='ATIVA'"));
+            Assert.That(state, Does.Contain("IsolationLevel.Serializable"));
+        });
+    }
+
+    [Test]
+    public void CanonicalIbgeReference_IsPreloadedAsEnvironmentBootstrap()
+    {
+        var root = FindRepositoryRoot();
+        var program = File.ReadAllText(Path.Combine(
+            root,
+            "Solution",
+            "src",
+            "Jornada.Linkage.Parameters.Worker",
+            "Program.cs"));
+        var compose = File.ReadAllText(Path.Combine(
+            root,
+            "Solution",
+            "docker-compose.yml"));
+        var calibration = File.ReadAllText(Path.Combine(
+            root,
+            "Solution",
+            "install",
+            "windows-production",
+            "Invoke-JornadaLinkageCalibration.ps1"));
+
+        const string ensureOperation = "ENSURE_NAME_FREQUENCY_SNAPSHOT";
+        const string canonicalReference = "CENSO2022_NOMES_BRASIL_V1";
+
+        var bootstrapServiceIndex = compose.IndexOf("jornada-reference-bootstrap:", StringComparison.Ordinal);
+        var node1Index = compose.IndexOf("jornada-node1:", StringComparison.Ordinal);
+        var node2Index = compose.IndexOf("jornada-node2:", StringComparison.Ordinal);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(program, Does.Contain($"const string EnsureNameFrequencySnapshotOperation = \"{ensureOperation}\""));
+            Assert.That(program, Does.Contain($"const string CanonicalNameFrequencyReferenceCode = \"{canonicalReference}\""));
+            Assert.That(program, Does.Contain("NameFrequencyReferenceState.EnsureCanonicalActiveAsync"));
+            Assert.That(program, Does.Contain("CanonicalNameFrequencyReferenceState.Reactivated"));
+            Assert.That(program, Does.Contain("reativada sem recarga"));
+            Assert.That(program, Does.Not.Contain("HasPublishedNameFrequencyReferenceAsync"));
+
+            Assert.That(bootstrapServiceIndex, Is.GreaterThanOrEqualTo(0));
+            Assert.That(bootstrapServiceIndex, Is.LessThan(node1Index));
+            Assert.That(bootstrapServiceIndex, Is.LessThan(node2Index));
+            Assert.That(compose, Does.Contain("jornada-reference-bootstrap:\n      condition: service_completed_successfully"));
+            Assert.That(compose, Does.Contain($"LinkageParameters__Operation: {ensureOperation}"));
+            Assert.That(compose, Does.Contain("/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll"));
+
+            Assert.That(calibration, Does.Contain($"Invoke-Parameters '{ensureOperation}'"));
+            Assert.That(calibration, Does.Not.Contain("Invoke-Parameters 'LOAD_NAME_FREQUENCY_SNAPSHOT'"));
         });
     }
 

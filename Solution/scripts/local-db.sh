@@ -68,20 +68,42 @@ ensure_progressive_identity_backfill() {
   done
   echo "Backfill progressivo local concluído: todas as origens possuem initial_uuid."
 }
+synthetic_scale_counts() {
+  sql_scalar "SELECT CONCAT(
+    SUM(CASE WHEN codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' THEN CONVERT(bigint,1) ELSE CONVERT(bigint,0) END),'|',
+    SUM(CASE WHEN codigo_pessoa_origem LIKE N'SCALE-SMADS-%' THEN CONVERT(bigint,1) ELSE CONVERT(bigint,0) END),'|',
+    SUM(CASE WHEN codigo_pessoa_origem LIKE N'SCALE-PEND-%' THEN CONVERT(bigint,1) ELSE CONVERT(bigint,0) END),'|',
+    SUM(CASE WHEN codigo_pessoa_origem LIKE N'SCALE-%'
+              AND codigo_pessoa_origem NOT LIKE N'SCALE-SEHAB-%'
+              AND codigo_pessoa_origem NOT LIKE N'SCALE-SMADS-%'
+              AND codigo_pessoa_origem NOT LIKE N'SCALE-PEND-%'
+             THEN CONVERT(bigint,1) ELSE CONVERT(bigint,0) END))
+  FROM silver.pessoa_origem;"
+}
 ensure_synthetic_scale() {
-  local count
-  count="$(sql_scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")"
-  if [[ "$count" == "0" ]]; then
+  local counts sehab smads pending extra canonical_total
+  counts="$(synthetic_scale_counts)"
+  IFS='|' read -r sehab smads pending extra <<< "$counts"
+  canonical_total=$((sehab + smads + pending))
+  if [[ "$canonical_total" == "0" ]]; then
+    if [[ "$extra" != "0" ]]; then
+      echo "ERRO: fixtures SCALE adicionais existem sem a massa canônica (extras=$extra). Execute local-db reset." >&2
+      return 4
+    fi
     echo "Carregando corpus sintético local para calibração/linkage..."
     sqlcmd -d "$JORNADA_SQL_DATABASE" \
       -v SCALE_PEOPLE=5000 SCALE_PAIRED=5000 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 \
       -i database/Jornada_Dev_SyntheticScale.sql
-    count="$(sql_scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")"
+    counts="$(synthetic_scale_counts)"
+    IFS='|' read -r sehab smads pending extra <<< "$counts"
   fi
-  [[ "$count" == "11000" ]] || {
-    echo "ERRO: massa sintética local inconsistente: esperadas 11000 observações de origem SCALE; encontradas=$count. Execute local-db reset." >&2
+  [[ "$sehab" == "5000" && "$smads" == "5000" && "$pending" == "1000" ]] || {
+    echo "ERRO: massa sintética local inconsistente: esperado SCALE-SEHAB=5000, SCALE-SMADS=5000, SCALE-PEND=1000; encontrado SEHAB=$sehab SMADS=$smads PEND=$pending extras=$extra. Execute local-db reset." >&2
     return 4
   }
+  if [[ "$extra" != "0" ]]; then
+    echo "Fixtures SCALE adicionais preservados fora da massa canônica: $extra."
+  fi
   echo "Corpus sintético local pronto: 5000 pessoas Gold, 5000 pares corroborados e 1000 pendentes."
 }
 bootstrap() {

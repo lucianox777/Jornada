@@ -21,17 +21,13 @@ public interface IIdentityCompositionFactualAuthorityReader
 /// </summary>
 public sealed class IdentityCompositionFactualAuthorityReader : IIdentityCompositionFactualAuthorityReader
 {
-    private readonly bool postgres;
 
     public IdentityCompositionFactualAuthorityReader(IOperationalDatabaseAdapter database)
     {
         ArgumentNullException.ThrowIfNull(database);
-        postgres = database.Provider switch
-        {
-            OperationalDatabaseProviders.PostgreSql => true,
-            OperationalDatabaseProviders.SqlServer => false,
-            _ => throw new ArgumentException("Provider operacional não suportado.", nameof(database))
-        };
+        if (database.Provider != OperationalDatabaseProviders.SqlServer)
+
+            throw new ArgumentException("Provider operacional não suportado.", nameof(database));
     }
 
     public async Task<ImmutableArray<IdentityCompositionFactualAttributionSnapshot>> LoadAsync(
@@ -85,16 +81,7 @@ public sealed class IdentityCompositionFactualAuthorityReader : IIdentityComposi
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? """
-              SELECT pop.initial_uuid,po.pessoa_origem_id,po.pessoa_observacao_id
-              FROM silver.registro_observacao ro
-              JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=ro.pessoa_observacao_id
-              JOIN identidade.pessoa_origem_progressiva pop ON pop.pessoa_origem_id=po.pessoa_origem_id
-              WHERE ro.registro_observacao_id=@record
-              FOR UPDATE OF ro,po,pop;
-              """
-            : """
+        command.CommandText = """
               SELECT pop.initial_uuid,po.pessoa_origem_id,po.pessoa_observacao_id
               FROM silver.registro_observacao ro WITH(UPDLOCK,HOLDLOCK)
               JOIN silver.pessoa_observacao po WITH(UPDLOCK,HOLDLOCK) ON po.pessoa_observacao_id=ro.pessoa_observacao_id
@@ -122,15 +109,7 @@ public sealed class IdentityCompositionFactualAuthorityReader : IIdentityComposi
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = postgres
-            ? """
-              SELECT pessoa_uuid,status
-              FROM identidade.vinculo_fonte
-              WHERE pessoa_observacao_id=@observation AND ativo
-              ORDER BY vinculo_fonte_id
-              FOR UPDATE;
-              """
-            : """
+        command.CommandText = """
               SELECT pessoa_uuid,status
               FROM identidade.vinculo_fonte WITH(UPDLOCK,HOLDLOCK)
               WHERE pessoa_observacao_id=@observation AND ativo=1

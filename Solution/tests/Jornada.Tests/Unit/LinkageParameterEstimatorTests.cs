@@ -22,6 +22,8 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p["CONFLICT_MARGIN"], Is.EqualTo(0.03m));
             Assert.That(p[LinkageParameterCatalog.LogOddsConflictMargin], Is.EqualTo(0.03m));
             Assert.That(p[LinkageParameterCatalog.DecisionEvidenceScoring], Is.EqualTo(1m));
+            Assert.That(p[LinkageParameterCatalog.DualThresholdConflictGuard], Is.EqualTo(1m));
+            Assert.That(p[LinkageParameterCatalog.OrderedNameLlrMonotonicity], Is.EqualTo(1m));
             Assert.That(p.ContainsKey("M_NOME_MAE_MISSING"), Is.True);
             Assert.That(p.ContainsKey("U_NOME_MAE_MISSING"), Is.True);
             Assert.That(p["PRIOR_MATCH_PROBABILITY"], Is.EqualTo(0.1m));
@@ -81,6 +83,8 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p[LinkageParameterCatalog.BirthJointEvidenceScoring], Is.EqualTo(1m));
             Assert.That(p.ContainsKey(LinkageParameterCatalog.BirthSemanticEvidenceScoring), Is.False);
             Assert.That(p.ContainsKey(LinkageParameterCatalog.DecisionEvidenceScoring), Is.False);
+            Assert.That(p.ContainsKey(LinkageParameterCatalog.DualThresholdConflictGuard), Is.False);
+            Assert.That(p.ContainsKey(LinkageParameterCatalog.OrderedNameLlrMonotonicity), Is.False);
             Assert.That(p.ContainsKey(LinkageParameterCatalog.LogOddsConflictMargin), Is.False);
             Assert.That(p.ContainsKey("M_NOME_MAE_MISSING"), Is.False);
             Assert.That(p.ContainsKey("U_NOME_MAE_MISSING"), Is.False);
@@ -105,6 +109,10 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p.ContainsKey(LinkageParameterCatalog.BirthComponentScoring), Is.False);
             Assert.That(p.ContainsKey(LinkageParameterCatalog.DecisionEvidenceScoring), Is.False,
                 "Contrato legado não pode receber flag V6 por acidente.");
+            Assert.That(p.ContainsKey(LinkageParameterCatalog.DualThresholdConflictGuard), Is.False,
+                "Contrato legado não pode receber a trava de decisão V6 por acidente.");
+            Assert.That(p.ContainsKey(LinkageParameterCatalog.OrderedNameLlrMonotonicity), Is.False,
+                "Contrato legado não pode receber proveniência de coerência V6 por acidente.");
             Assert.That(p.ContainsKey(LinkageParameterCatalog.LogOddsConflictMargin), Is.False);
             Assert.That(p.ContainsKey("M_NOME_MAE_MISSING"), Is.False);
             Assert.That(p.ContainsKey("U_NOME_MAE_MISSING"), Is.False);
@@ -118,6 +126,41 @@ public sealed class LinkageParameterEstimatorTests
                 Assert.That(p.ContainsKey(name), Is.True, $"Distribuição V4 para replay ausente: {name}.");
             foreach (var name in LinkageParameterCatalog.BirthSingleEvidenceRequired)
                 Assert.That(p.ContainsKey(name), Is.True, $"Distribuição V3 ausente: {name}.");
+        });
+    }
+
+    [Test]
+    public void Explicit_name_contract_reclassifies_person_and_mother_without_changing_default_v1()
+    {
+        const string left = "MARIA APARECIDA DA SILVA VALIDACAO UNICA";
+        const string right = "MARIA APARECIDA DA SOUZA VALIDACAO UNICA";
+        var birth = new DateOnly(1980, 1, 1);
+        var matched = new[]
+        {
+            new IdentityTrainingPair(left, birth, left, left, birth, left)
+        };
+        var unmatched = new[]
+        {
+            new IdentityTrainingPair(left, birth, left, right, birth, right)
+        };
+
+        var v1 = LinkageParameterEstimator.Estimate(
+            matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m);
+        var v2 = LinkageParameterEstimator.Estimate(
+            matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m,
+            nameComparisonContract: NameComparisonContract.PtBrContentTokenGuardV2);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(v1["SUPPORT_U_NOME_HIGH"], Is.EqualTo(1m));
+            Assert.That(v1["SUPPORT_U_NOME_LOW"], Is.EqualTo(0m));
+            Assert.That(v1["SUPPORT_U_NOME_MAE_HIGH"], Is.EqualTo(1m));
+            Assert.That(v1["SUPPORT_U_NOME_MAE_LOW"], Is.EqualTo(0m));
+
+            Assert.That(v2["SUPPORT_U_NOME_HIGH"], Is.EqualTo(0m));
+            Assert.That(v2["SUPPORT_U_NOME_LOW"], Is.EqualTo(1m));
+            Assert.That(v2["SUPPORT_U_NOME_MAE_HIGH"], Is.EqualTo(0m));
+            Assert.That(v2["SUPPORT_U_NOME_MAE_LOW"], Is.EqualTo(1m));
         });
     }
 
