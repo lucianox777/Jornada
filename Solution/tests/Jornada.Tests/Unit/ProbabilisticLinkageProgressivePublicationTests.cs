@@ -44,6 +44,10 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
             Assert.That(migration, Does.Contain("r.pessoa_uuid_resolvido=r.pessoa_uuid_publicado"));
             Assert.That(migration, Does.Contain("END AS score_publicacao"));
             Assert.That(migration, Does.Contain("p.score_publicacao,p.status"));
+            Assert.That(migration, Does.Contain("tr_linkage_resultado_publicacao_imutavel"));
+            Assert.That(migration, Does.Contain("Evidência bruta de linkage_resultado é imutável"));
+            Assert.That(migration, Does.Contain("lr.status<>N'EXECUTANDO'"));
+            Assert.That(migration, Does.Contain("tr_linkage_resultado_bloqueia_delete"));
             Assert.That(migration, Does.Not.Contain("score_melhor=initial_uuid").IgnoreCase);
             Assert.That(migration, Does.Not.Contain("score_segundo=initial_uuid").IgnoreCase);
         });
