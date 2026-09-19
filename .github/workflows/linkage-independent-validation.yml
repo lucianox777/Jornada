@@ -7,6 +7,7 @@ on:
       - 'Solution/database/Jornada_Dev_SyntheticScale*.sql'
       - 'Solution/scripts/local-linkage-validation.*'
       - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
+      - 'Solution/scripts/local-linkage-triplet-collision-audit.ps1'
       - 'Solution/scripts/local-cluster.*'
       - 'Solution/scripts/local-db.*'
       - 'Solution/docker-compose.yml'
@@ -24,6 +25,7 @@ on:
       - 'Solution/database/Jornada_Dev_SyntheticScale*.sql'
       - 'Solution/scripts/local-linkage-validation.*'
       - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
+      - 'Solution/scripts/local-linkage-triplet-collision-audit.ps1'
       - 'Solution/scripts/local-cluster.*'
       - 'Solution/scripts/local-db.*'
       - 'Solution/docker-compose.yml'
@@ -58,6 +60,7 @@ jobs:
           bash -n scripts/local-linkage-validation.sh
           pwsh -NoLogo -NoProfile -Command '$ErrorActionPreference="Stop"; $bytes=[IO.File]::ReadAllBytes("scripts/local-linkage-validation.ps1"); if($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF){ throw "UTF-8 BOM ausente" }; $null=[scriptblock]::Create((Get-Content -Raw -Encoding UTF8 "scripts/local-linkage-validation.ps1")); Write-Host "LINKAGE VALIDATION POWERSHELL PARSE: OK"'
           pwsh -NoLogo -NoProfile -Command '$ErrorActionPreference="Stop"; $bytes=[IO.File]::ReadAllBytes("scripts/local-linkage-evidence-readiness.ps1"); if($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF){ throw "UTF-8 BOM ausente" }; $null=[scriptblock]::Create((Get-Content -Raw -Encoding UTF8 "scripts/local-linkage-evidence-readiness.ps1")); Write-Host "LINKAGE EVIDENCE READINESS POWERSHELL PARSE: OK"'
+          pwsh -NoLogo -NoProfile -Command '$ErrorActionPreference="Stop"; $bytes=[IO.File]::ReadAllBytes("scripts/local-linkage-triplet-collision-audit.ps1"); if($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF){ throw "UTF-8 BOM ausente" }; $null=[scriptblock]::Create((Get-Content -Raw -Encoding UTF8 "scripts/local-linkage-triplet-collision-audit.ps1")); Write-Host "LINKAGE TRIPLET COLLISION POWERSHELL PARSE: OK"'
 
       - name: Start canonical local cluster
         shell: bash
@@ -163,6 +166,31 @@ jobs:
           ' "$report" >/dev/null
           echo 'LINKAGE ADDITIONAL EVIDENCE READINESS CONTRACT: OK'
 
+      - name: Run Gold triplet collision audit
+        shell: pwsh
+        run: |
+          Write-Host '# pwsh -NoLogo -NoProfile -File ./scripts/local-linkage-triplet-collision-audit.ps1'
+          & ./scripts/local-linkage-triplet-collision-audit.ps1
+          if ($LASTEXITCODE -ne 0) { throw "local-linkage-triplet-collision-audit.ps1 falhou ($LASTEXITCODE)." }
+
+      - name: Validate Gold triplet collision audit contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          report='.local/linkage-triplet-collision-audit/triplet-collision-audit.json'
+          jq -e '
+            .purpose == "READ_ONLY_GOLD_ANCHORED_TRIPLET_COLLISION_AUDIT"
+            and .changesPolicy == false
+            and .changesScoring == false
+            and .exposesPii == false
+            and .coverage.completeTripletPersons > 0
+            and .coverage.projectionCoverageComplete == true
+            and .collisions.collidingTriplets >= 0
+            and .collisions.collidingCpfPairs >= 0
+            and .dataset.municipalPrevalenceClaimAllowed == false
+          ' "$report" >/dev/null
+          echo 'LINKAGE GOLD TRIPLET COLLISION AUDIT CONTRACT: OK'
+
       - name: Preserve validation evidence
         if: always()
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
@@ -172,6 +200,8 @@ jobs:
             Solution/.local/linkage-validation/blocking-pass-audit.json
             Solution/.local/linkage-validation/validation-report.json
             Solution/.local/linkage-evidence-readiness/evidence-readiness.json
+            Solution/.local/linkage-validation/run-provenance.json
+            Solution/.local/linkage-triplet-collision-audit/triplet-collision-audit.json
           if-no-files-found: warn
           retention-days: 14
 
