@@ -2,7 +2,7 @@
 
 A view `serving.v_identidade_origem_progressiva` expõe o estado da identidade de origem sem confundir referência técnica inicial, referência canônica e Pessoa consolidada.
 
-Ela contém uma linha por `(sistema_origem_codigo, codigo_pessoa_origem)` e publica separadamente `initial_uuid`, `canonical_uuid`, `estado` e `versao`. `initial_uuid` permanece imutável. `canonical_uuid` só é preenchido quando existe uma referência publicada. Os estados públicos continuam exclusivamente `PROVISORIA`, `REFERENCIA` e `INDEFINIDA`.
+Ela contém uma linha por identidade persistente de origem e deve ser interpretada no namespace da Base de Pessoa; `sistema_origem_codigo` é proveniência de uso, não a identidade do namespace e publica separadamente `initial_uuid`, `canonical_uuid`, `estado` e `versao`. `initial_uuid` permanece imutável. `canonical_uuid` só é preenchido quando existe uma referência publicada. Os estados públicos continuam exclusivamente `PROVISORIA`, `REFERENCIA` e `INDEFINIDA`.
 
 ## Regra de contagem
 
@@ -12,6 +12,10 @@ Para métricas de Pessoas com referência publicada, usar `COUNT(DISTINCT canoni
 
 A view não altera fatos, `vinculo_fonte`, Gold, CPF âncora nem autorização de compartilhamento. Também não executa Linkage e não constitui evidência de homologação probabilística. O gate estatístico da issue #31 permanece obrigatório antes de qualquer ativação probabilística.
 
-## Paridade
+## QC e BI
 
-A projeção existe em SQL Server e PostgreSQL com o mesmo conjunto lógico de colunas. A instalação é idempotente (`CREATE OR ALTER VIEW` / `CREATE OR REPLACE VIEW`) e deve ocorrer após a infraestrutura de identidade progressiva.
+A projeção de identidade progressiva deve ser consumida junto das views de qualidade/pendências. Problemas de CPF não podem desaparecer dentro de um estado genérico de Linkage: BI deve distinguir ausência, CPF inválido, conflito determinístico, duplicação de código e junção suspeita por classes/motivos. O CPF em claro não é necessário para essas métricas.
+
+## Persistência corrente
+
+A projeção operacional corrente é SQL Server e sua instalação é idempotente com `CREATE OR ALTER VIEW`, após a infraestrutura de identidade progressiva.
