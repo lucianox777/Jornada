@@ -32,12 +32,16 @@ DECLARE @gSehab BIGINT=(SELECT gestor_id FROM ref.gestor WHERE codigo='SEHAB'),
 DECLARE @soSehab BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSehab AND codigo='SEHAB'),
         @soSmads BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSmads AND codigo='ASSISTENCIA'),
         @soSmdet BIGINT=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@gSmdet AND codigo='TRABALHO');
+DECLARE @bpSehab BIGINT=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@soSehab AND padrao=1 AND ativo=1),
+        @bpSmads BIGINT=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@soSmads AND padrao=1 AND ativo=1),
+        @bpSmdet BIGINT=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@soSmdet AND padrao=1 AND ativo=1);
 DECLARE @gpvSehab BIGINT=(SELECT TOP(1) gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND status='ATIVA' ORDER BY versao DESC),
         @gpvSmads BIGINT=(SELECT TOP(1) gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSmads AND status='ATIVA' ORDER BY versao DESC),
         @gpvSmdet BIGINT=(SELECT TOP(1) gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSmdet AND status='ATIVA' ORDER BY versao DESC);
 
 IF @gSehab IS NULL OR @gSmads IS NULL OR @gSmdet IS NULL OR @soSehab IS NULL OR @soSmads IS NULL OR @soSmdet IS NULL
-    THROW 51554, 'Jornada_Seed_Dev.sql deve ser aplicado antes da massa SCALE.', 1;
+   OR @bpSehab IS NULL OR @bpSmads IS NULL OR @bpSmdet IS NULL
+    THROW 51554, 'Jornada_Seed_Dev.sql com Bases de Pessoa v4 deve ser aplicado antes da massa SCALE.', 1;
 
 DECLARE @maxN BIGINT = (SELECT MAX(v) FROM (VALUES(@people),(@paired),(@pending)) x(v));
 CREATE TABLE #n(n BIGINT NOT NULL PRIMARY KEY);
@@ -148,12 +152,12 @@ VALUES
 (@lotSmads,@entSmads,1,1,CONVERT(INT,@paired),0,'PROCESSADO','2026-08-31T10:00:00+00:00','2026-08-31T10:00:00+00:00'),
 (@lotSmdet,@entSmdet,1,1,CONVERT(INT,@pending),0,'PROCESSADO','2026-08-31T10:00:00+00:00','2026-08-31T10:00:00+00:00');
 
-INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,ultima_recepcao_em,ultima_referencia_recebida)
-SELECT @soSehab,CONCAT('SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),n),10)),'2026-08-31T10:00:00+00:00','2026-08-31T00:00:00+00:00' FROM #n WHERE n<=@people
+INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id,ultima_recepcao_em,ultima_referencia_recebida)
+SELECT @soSehab,CONCAT('SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),n),10)),@bpSehab,'2026-08-31T10:00:00+00:00','2026-08-31T00:00:00+00:00' FROM #n WHERE n<=@people
 UNION ALL
-SELECT @soSmads,CONCAT('SCALE-SMADS-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),n),10)),'2026-08-31T10:00:00+00:00','2026-08-31T00:00:00+00:00' FROM #n WHERE n<=@paired
+SELECT @soSmads,CONCAT('SCALE-SMADS-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),n),10)),@bpSmads,'2026-08-31T10:00:00+00:00','2026-08-31T00:00:00+00:00' FROM #n WHERE n<=@paired
 UNION ALL
-SELECT @soSmdet,CONCAT('SCALE-PEND-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),n),10)),'2026-08-31T10:00:00+00:00','2026-08-31T00:00:00+00:00' FROM #n WHERE n<=@pending;
+SELECT @soSmdet,CONCAT('SCALE-PEND-',RIGHT(REPLICATE('0',10)+CONVERT(VARCHAR(10),n),10)),@bpSmdet,'2026-08-31T10:00:00+00:00','2026-08-31T00:00:00+00:00' FROM #n WHERE n<=@pending;
 
 -- SEHAB ancora deterministicamente toda a Gold sintética para que a projeção local de blocking
 -- cubra o mesmo universo usado pela amostra u; os primeiros @paired recebem também uma fonte

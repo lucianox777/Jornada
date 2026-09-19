@@ -44,7 +44,9 @@ END;
 GO
 
 /*
- Fatos continuam exigindo uma referência local estável ao registro de Pessoa no
- pacote/contrato factual vigente. A permissão de observação sem identificador não
- autoriza inventar codigoPessoaOrigem nem associar fatos por atributos mutáveis.
+ Fatos exigem uma referência explícita à Pessoa da mesma entrega, mas essa referência
+ não é codigoPessoaOrigem. O vínculo factual persistido é pessoa_observacao_id.
+ codigoPessoaOrigem/pessoa_origem_id são metadados opcionais: só existem quando a fonte
+ possui um identificador local estável. Nunca se inventa código a partir de CPF, nome,
+ nascimento ou hash.
 */

@@ -46,6 +46,18 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
     }
 
     [Test]
+    public void Runtime_v4_cutover_makes_base_authoritative_and_authorizes_internal_uuid_feedback()
+    {
+        var sql = ReadMigration("20260919_Pessoa_Origem_Runtime_V4_Cutover.sql");
+
+        Assert.That(sql, Does.Contain("DROP CONSTRAINT uq_pessoa_origem"));
+        Assert.That(sql, Does.Contain("ALTER COLUMN base_pessoa_origem_id BIGINT NOT NULL"));
+        Assert.That(sql, Does.Contain("uq_pessoa_origem_base_codigo"));
+        Assert.That(sql, Does.Contain("UUID_JORNADA_RETROALIMENTACAO"));
+        Assert.That(sql, Does.Not.Contain("INSERT identidade.identity_map").IgnoreCase);
+    }
+
+    [Test]
     public void Canonical_manifest_orders_origin_before_identifiers_and_keeps_consolidation_last()
     {
         var lines = File.ReadAllLines(Path.Combine(Root, "database", "migrations", "manifest.txt"))
@@ -55,10 +67,12 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
         var origin = Array.IndexOf(lines, "migrations/20260913_Base_Pessoa_Origem.sql");
         var identifiers = Array.IndexOf(lines, "migrations/20260913_Pessoa_Identificadores_Multiplos.sql");
         var nullableObservation = Array.IndexOf(lines, "migrations/20260913_Pessoa_Observacao_Sem_Identificador.sql");
+        var runtimeCutover = Array.IndexOf(lines, "migrations/20260919_Pessoa_Origem_Runtime_V4_Cutover.sql");
 
         Assert.That(origin, Is.GreaterThanOrEqualTo(0));
         Assert.That(identifiers, Is.GreaterThan(origin));
         Assert.That(nullableObservation, Is.GreaterThan(identifiers));
+        Assert.That(runtimeCutover, Is.GreaterThan(nullableObservation));
         Assert.That(lines[^1], Is.EqualTo("migrations/20260910_Schema_Consolidation_370.sql"));
     }
 

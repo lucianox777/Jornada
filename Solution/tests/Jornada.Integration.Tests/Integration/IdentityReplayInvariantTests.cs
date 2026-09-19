@@ -81,7 +81,7 @@ public sealed class IdentityReplayInvariantTests
     private static async Task PrepareAsync(SqlConnection connection)
     {
         var dir=Path.Combine(AppContext.BaseDirectory,"database");
-        await SqlBatchRunner.ExecuteFileAsync(connection,Path.Combine(dir,"Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, dir);
         await SqlBatchRunner.ExecuteFileAsync(connection,Path.Combine(dir,"Jornada_Seed_Dev.sql"));
     }
     private static async Task ExecRecomposeAsync(SqlConnection c, Guid uuid)

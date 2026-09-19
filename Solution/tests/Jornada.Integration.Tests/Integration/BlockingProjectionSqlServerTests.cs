@@ -32,6 +32,7 @@ public sealed class BlockingProjectionSqlServerTests
             System.Globalization.CultureInfo.InvariantCulture);
         var person = new ParsedPerson(
             "BLOCKING-SQLSERVER-001",
+            "BLOCKING-SQLSERVER-001",
             new string('a', 64),
             "TX-BLOCKING-SQLSERVER-001",
             cpf,
@@ -124,8 +125,16 @@ public sealed class BlockingProjectionSqlServerTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260913_Base_Pessoa_Origem.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260913_Pessoa_Identificadores_Multiplos.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260913_Pessoa_Observacao_Sem_Identificador.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260919_Pessoa_Origem_Runtime_V4_Cutover.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection,
             Path.Combine(databaseDir, "migrations", "20260910_Linkage_Blocking_Chave.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection,

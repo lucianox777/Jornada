@@ -15,7 +15,7 @@ public sealed class IdentityGovernanceTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
 
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
@@ -127,7 +127,7 @@ public sealed class IdentityGovernanceTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
 
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
@@ -226,7 +226,7 @@ public sealed class IdentityGovernanceTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
 
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
@@ -285,7 +285,7 @@ public sealed class IdentityGovernanceTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
 
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
@@ -346,7 +346,7 @@ public sealed class IdentityGovernanceTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
 
         long observation;
@@ -416,7 +416,7 @@ public sealed class IdentityGovernanceTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
 
         long observation;
@@ -497,7 +497,7 @@ public sealed class IdentityGovernanceTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
 
         const string cpf = "11144477735";
@@ -586,7 +586,7 @@ public sealed class IdentityGovernanceTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
 
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
@@ -651,7 +651,7 @@ public sealed class IdentityGovernanceTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
         try

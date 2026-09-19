@@ -149,9 +149,9 @@ internal sealed partial class SqlProcessorRepository
         command.Parameters.AddWithValue("@versao_interna", versaoInterna);
         command.Parameters.Add(new SqlParameter("@operacao", SqlDbType.NVarChar, 20) { Value = fact.Operacao.ToString() });
         command.Parameters.Add(new SqlParameter("@uuid", SqlDbType.UniqueIdentifier) { Value = (object?)person.PessoaUuid ?? DBNull.Value });
-        command.Parameters.AddWithValue("@pessoa_origem", person.PessoaOrigemId);
+        command.Parameters.Add(new SqlParameter("@pessoa_origem", SqlDbType.BigInt) { Value = (object?)person.PessoaOrigemId ?? DBNull.Value });
         command.Parameters.AddWithValue("@sistema_origem", person.SistemaOrigemId);
-        command.Parameters.Add(new SqlParameter("@codigo_pessoa", SqlDbType.NVarChar, 255) { Value = person.CodigoPessoaOrigem });
+        AddNullable(command, "@codigo_pessoa", SqlDbType.NVarChar, 255, person.CodigoPessoaOrigem);
         AddNullable(command, "@cpf_declarado", SqlDbType.Char, 11, person.CpfDeclarado);
         AddNullable(command, "@cpf_ausente", SqlDbType.NVarChar, 30, person.CpfAusenteMotivo);
         command.Parameters.Add(new SqlParameter("@estado_atribuicao", SqlDbType.NVarChar, 30) { Value = person.EstadoAtribuicaoIdentidade });
@@ -452,7 +452,7 @@ internal sealed partial class SqlProcessorRepository
         command.Parameters.Add(new SqlParameter(name, type) { Precision = precision, Scale = scale, Value = value.HasValue ? value.Value : DBNull.Value });
     }
 
-    private sealed record ProcessedPerson(long ObservationId, long PessoaOrigemId, long SistemaOrigemId, string CodigoPessoaOrigem, string? CpfDeclarado, string? CpfAusenteMotivo, Guid? PessoaUuid, string EstadoAtribuicaoIdentidade, long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId);
+    private sealed record ProcessedPerson(long ObservationId, long? PessoaOrigemId, long SistemaOrigemId, string? CodigoPessoaOrigem, string? CpfDeclarado, string? CpfAusenteMotivo, Guid? PessoaUuid, string EstadoAtribuicaoIdentidade, long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId);
     private sealed record TerritorialReferenceSelection(long? ReferenciaTerritorialObservacaoId, string? NaturezaReferenciaTerritorial, long? SubprefeituraId, long? DistritoId);
     private sealed record PersistedAttribute(long ObservationId, ParsedTransversalAttribute Value, string InstanceKey, string Cardinality);
     private sealed record AttributeIdentityRule(string Cardinality, string InstanceKeyRule);

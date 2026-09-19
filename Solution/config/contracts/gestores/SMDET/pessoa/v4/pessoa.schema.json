@@ -3,6 +3,7 @@
   "$id": "https://jornada.pmspsp.local/contracts/gestores/SMDET/pessoa/v4/pessoa.schema.json",
   "type": "object",
   "required": [
+    "idPessoaEntrega",
     "nomeCompleto",
     "dataNascimento"
   ],
@@ -548,6 +549,12 @@
         },
         "additionalProperties": false
       }
+    },
+    "idPessoaEntrega": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "Chave técnica única dentro da Entrega para ligar registros.jsonl à Pessoa; não é identificador persistente da fonte."
     }
   },
   "allOf": [
