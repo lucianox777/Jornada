@@ -127,6 +127,14 @@ public sealed class BlockingProjectionSqlServerTests
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260913_Base_Pessoa_Origem.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260913_Pessoa_Identificadores_Multiplos.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260913_Pessoa_Observacao_Sem_Identificador.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260919_Pessoa_Origem_Runtime_V4_Cutover.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection,
             Path.Combine(databaseDir, "migrations", "20260910_Linkage_Blocking_Chave.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection,
             Path.Combine(databaseDir, "migrations", "20260910_Linkage_RuleSet_Passes.sql"));
