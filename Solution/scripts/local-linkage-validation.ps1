@@ -9,6 +9,7 @@ $OutDir = Join-Path $Root '.local\linkage-validation'
 $LabelsPath = Join-Path $OutDir 'positive-labels.csv'
 $BlockingAuditPath = Join-Path $OutDir 'blocking-pass-audit.json'
 $ReportPath = Join-Path $OutDir 'validation-report.json'
+$RunProvenancePath = Join-Path $OutDir 'run-provenance.json'
 
 if (-not (Test-Path -LiteralPath $EnvFile)) { throw "Arquivo .env ausente em $Root. Execute primeiro '.\scripts\local-cluster.ps1 -Action up'." }
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw 'Docker não encontrado no PATH.' }
@@ -89,6 +90,37 @@ function Parse-Decimal([string]$Text) {
     return [decimal]::Parse($Text, [Globalization.CultureInfo]::InvariantCulture)
 }
 
+function Get-ValidationRuntimeFingerprint {
+    $repoRoot = (Resolve-Path (Join-Path $Root '..')).Path
+    $paths = @(
+        'Solution/src/Jornada.Linkage.Runner',
+        'Solution/src/Jornada.Contracts',
+        'Solution/src/Jornada.Processor.Worker',
+        'Solution/src/Jornada.Linkage.Parameters.Worker',
+        'Solution/database/Jornada_Dev_LinkageValidation.sql',
+        'Solution/database/Jornada_Dev_SyntheticScale.sql',
+        'Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql'
+    )
+    Push-Location $repoRoot
+    try {
+        Write-CommandLine 'git' (@('status','--porcelain','--') + $paths)
+        $dirty = @(& git status --porcelain -- @paths)
+        if ($LASTEXITCODE -ne 0) { throw "git status falhou ($LASTEXITCODE)." }
+        if ($dirty.Count -gt 0) {
+            throw "Proveniência da validação exige os caminhos de runtime/fixture limpos. Alterações locais detectadas: $($dirty -join '; '). Faça commit/stash ou use um checkout limpo."
+        }
+
+        $objects = @($paths | ForEach-Object { "HEAD:$_" })
+        Write-CommandLine 'git' (@('rev-parse') + $objects)
+        $objectIds = @(& git rev-parse @objects | ForEach-Object { $_.Trim().ToLowerInvariant() })
+        if ($LASTEXITCODE -ne 0 -or $objectIds.Count -ne $paths.Count) {
+            throw 'Não foi possível calcular o fingerprint do runtime/fixture da validação.'
+        }
+        return ($objectIds -join ':')
+    }
+    finally { Pop-Location }
+}
+
 function Get-CompleteValidationRunId {
     param(
         [Parameter(Mandatory=$true)][string]$ModelId,
@@ -117,6 +149,8 @@ ORDER BY lr.publicado_em DESC,lr.iniciado_em DESC,lr.linkage_run_id DESC;
 "@
 }
 
+$validationRuntimeFingerprint = Get-ValidationRuntimeFingerprint
+
 $activeModelId = Get-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'')<>'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;"
 if ([string]::IsNullOrWhiteSpace($activeModelId)) {
     throw "Nenhum modelo calibrado ATIVO. Execute primeiro '.\scripts\local-cluster.ps1 -Action calibrate'."
@@ -131,21 +165,42 @@ Invoke-SqlFile $Fixture
 # Reutiliza evidência completa já publicada para o mesmo modelo. Isso torna a validação idempotente:
 # observações resolvidas deixam de entrar no próximo ON_DEMAND e um segundo run isolado seria parcial.
 $runId = Get-CompleteValidationRunId -ModelId $activeModelId -ModelShort $modelShort
+$createdRunThisInvocation = $false
 if ([string]::IsNullOrWhiteSpace($runId)) {
     Write-CommandLine $LocalCluster @('-Action','linkage')
     & $LocalCluster -Action linkage
     if ($LASTEXITCODE -ne 0) { throw "local-cluster.ps1 linkage falhou ($LASTEXITCODE)." }
 
     $runId = Get-CompleteValidationRunId -ModelId $activeModelId -ModelShort $modelShort
+    $createdRunThisInvocation = $true
 }
 else {
-    Write-Host "Reutilizando run completo já publicado para este modelo: $runId"
+    if (-not (Test-Path -LiteralPath $RunProvenancePath)) {
+        throw "Run completo existente sem fingerprint de runtime verificável: $runId. Para evitar avaliar resultado produzido por código antigo, execute '.\scripts\local-linkage-validation-from-zero.ps1'."
+    }
+    $runProvenance = Get-Content -Raw -Encoding UTF8 -LiteralPath $RunProvenancePath | ConvertFrom-Json
+    if ([string]$runProvenance.runId -ne $runId -or
+        [string]$runProvenance.modelId -ne $activeModelId -or
+        [string]$runProvenance.runtimeFingerprint -ne $validationRuntimeFingerprint) {
+        throw "Run completo existente não corresponde ao runtime/fixture atual. Execute '.\scripts\local-linkage-validation-from-zero.ps1' para gerar evidência nova."
+    }
+    Write-Host "Reutilizando run completo com fingerprint de runtime verificado: $runId"
 }
 
 if ([string]::IsNullOrWhiteSpace($runId)) {
     throw 'Nenhum linkage completo de validação (40 positivos, 40 negativos, 10 conflitos) foi publicado.'
 }
+if ($createdRunThisInvocation) {
+    $provenance = [ordered]@{
+        runId = $runId
+        modelId = $activeModelId
+        runtimeFingerprint = $validationRuntimeFingerprint
+        generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+    }
+    [IO.File]::WriteAllText($RunProvenancePath, ($provenance | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+}
 Write-Host "Run de validação: $runId"
+Write-Host "Fingerprint runtime/fixture: $validationRuntimeFingerprint"
 
 $labelsQuery = @"
 WITH pos AS (
@@ -755,8 +810,40 @@ $observationalOverlapDetected = (
     $identNegativeHardAllFields -gt 0
 )
 
-$priorProbability = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='PRIOR_MATCH_PROBABILITY';")
-if ($null -eq $priorProbability) { throw 'PRIOR_MATCH_PROBABILITY ausente no modelo ativo.' }
+$diagnosticParameterLines = @(Get-SqlLines @"
+SELECT CONCAT(nome,'|',CONVERT(varchar(40),valor))
+FROM identidade.parametro_linkage
+WHERE modelo_id='$activeModelId'
+  AND nome IN (
+    'PRIOR_MATCH_PROBABILITY','PRIOR_BLOCK_MAX','POPULATION_SIZE','DISTINCT_BIRTH_DATE',
+    'M_NOME_EXACT','U_NOME_EXACT','M_NOME_LOW','U_NOME_LOW',
+    'M_NOME_MAE_EXACT','U_NOME_MAE_EXACT','M_NOME_MAE_LOW','U_NOME_MAE_LOW',
+    'M_NASCIMENTO_SEMANTICO_EXACT','U_NASCIMENTO_SEMANTICO_EXACT'
+  )
+ORDER BY nome;
+"@)
+$diagnosticParameters = @{}
+foreach ($line in $diagnosticParameterLines) {
+    $parts = $line.Split('|',2)
+    if ($parts.Count -eq 2) { $diagnosticParameters[$parts[0]] = Parse-Decimal $parts[1] }
+}
+function Get-DiagnosticParameter([string]$Name) {
+    if (-not $diagnosticParameters.ContainsKey($Name) -or $null -eq $diagnosticParameters[$Name]) {
+        throw "Parâmetro diagnóstico ausente no modelo ativo: $Name."
+    }
+    return [decimal]$diagnosticParameters[$Name]
+}
+
+$priorProbability = Get-DiagnosticParameter 'PRIOR_MATCH_PROBABILITY'
+$priorBlockMax = Get-DiagnosticParameter 'PRIOR_BLOCK_MAX'
+$populationSize = Get-DiagnosticParameter 'POPULATION_SIZE'
+$distinctBirthDates = Get-DiagnosticParameter 'DISTINCT_BIRTH_DATE'
+$rawReferencePrior = if ($populationSize -gt 0) { [decimal]$distinctBirthDates / [decimal]$populationSize } else { $null }
+$priorClampedAtUpperBound = (
+    $null -ne $rawReferencePrior -and
+    $rawReferencePrior -gt $priorBlockMax -and
+    $priorProbability -eq $priorBlockMax
+)
 $priorLogOddsDouble = [Math]::Log([double]$priorProbability / (1.0 - [double]$priorProbability))
 
 $scenarioDefinitions = @(
@@ -768,12 +855,12 @@ $scenarioDefinitions = @(
 
 $negativeScenarioEvidence = @(
     foreach ($definition in $scenarioDefinitions) {
-        $nameM = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='M_NOME_$($definition.nameState)';")
-        $nameU = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='U_NOME_$($definition.nameState)';")
-        $motherM = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='M_NOME_MAE_$($definition.motherState)';")
-        $motherU = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='U_NOME_MAE_$($definition.motherState)';")
-        $birthM = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='M_NASCIMENTO_SEMANTICO_$($definition.birthState)';")
-        $birthU = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='U_NASCIMENTO_SEMANTICO_$($definition.birthState)';")
+        $nameM = Get-DiagnosticParameter "M_NOME_$($definition.nameState)"
+        $nameU = Get-DiagnosticParameter "U_NOME_$($definition.nameState)"
+        $motherM = Get-DiagnosticParameter "M_NOME_MAE_$($definition.motherState)"
+        $motherU = Get-DiagnosticParameter "U_NOME_MAE_$($definition.motherState)"
+        $birthM = Get-DiagnosticParameter "M_NASCIMENTO_SEMANTICO_$($definition.birthState)"
+        $birthU = Get-DiagnosticParameter "U_NASCIMENTO_SEMANTICO_$($definition.birthState)"
 
         if ($null -in @($nameM,$nameU,$motherM,$motherU,$birthM,$birthU)) {
             throw "Parâmetro probabilístico ausente ao montar perfil do cenário $($definition.scenario)."
@@ -795,6 +882,69 @@ $negativeScenarioEvidence = @(
             motherLlr = [decimal]::Round([decimal]$motherLlrDouble,8)
             birthLlr = [decimal]::Round([decimal]$birthLlrDouble,8)
             theoreticalPosterior = [decimal]::Round([decimal]$posteriorDouble,8)
+        }
+    }
+)
+
+$negativePlannedColliderLines = @(Get-SqlLines @"
+WITH negative_rows AS (
+    SELECT
+        CASE
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-EASY-%' THEN N'EASY'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-NAME_COLLISION-%' THEN N'NAME_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-MOTHER_COLLISION-%' THEN N'MOTHER_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%' THEN N'HARD_HOMONYM'
+            ELSE N'UNKNOWN'
+        END AS scenario,
+        TRY_CONVERT(int,RIGHT(po.codigo_pessoa_origem,6)) AS n,
+        r.melhor_candidato_uuid,
+        r.score_melhor
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-%'
+), planted AS (
+    SELECT n.*,vc.pessoa_uuid AS planted_uuid
+    FROM negative_rows n
+    JOIN silver.pessoa_observacao tpo
+      ON tpo.codigo_pessoa_origem=CONCAT(N'SCALE-SEHAB-',RIGHT(REPLICATE('0',10)+CONVERT(varchar(10),100+n.n),10))
+    JOIN identidade.v_vinculo_corrente vc
+      ON vc.pessoa_observacao_id=tpo.pessoa_observacao_id
+     AND vc.status=N'RESOLVIDO'
+     AND vc.pessoa_uuid IS NOT NULL
+)
+SELECT CONCAT(
+    scenario,'|',COUNT_BIG(*),'|',
+    SUM(CASE WHEN melhor_candidato_uuid=planted_uuid THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN melhor_candidato_uuid IS NOT NULL AND melhor_candidato_uuid<>planted_uuid THEN 1 ELSE 0 END),'|',
+    SUM(CASE WHEN melhor_candidato_uuid IS NULL THEN 1 ELSE 0 END),'|',
+    COALESCE(CONVERT(varchar(40),MIN(CASE WHEN melhor_candidato_uuid=planted_uuid THEN score_melhor END)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MAX(CASE WHEN melhor_candidato_uuid=planted_uuid THEN score_melhor END)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MIN(CASE WHEN melhor_candidato_uuid IS NOT NULL AND melhor_candidato_uuid<>planted_uuid THEN score_melhor END)),'NULL'),'|',
+    COALESCE(CONVERT(varchar(40),MAX(CASE WHEN melhor_candidato_uuid IS NOT NULL AND melhor_candidato_uuid<>planted_uuid THEN score_melhor END)),'NULL'))
+FROM planted
+GROUP BY scenario
+ORDER BY CASE scenario
+    WHEN N'EASY' THEN 1
+    WHEN N'NAME_COLLISION' THEN 2
+    WHEN N'MOTHER_COLLISION' THEN 3
+    WHEN N'HARD_HOMONYM' THEN 4
+    ELSE 5 END;
+"@)
+
+$negativePlannedColliderAlignment = @(
+    foreach ($line in $negativePlannedColliderLines) {
+        $parts = $line.Split('|')
+        [ordered]@{
+            scenario = $parts[0]
+            total = [int]$parts[1]
+            bestIsPlannedCollider = [int]$parts[2]
+            bestIsOtherCandidate = [int]$parts[3]
+            bestIsNull = [int]$parts[4]
+            plannedColliderBestScoreMin = (Parse-Decimal $parts[5])
+            plannedColliderBestScoreMax = (Parse-Decimal $parts[6])
+            otherCandidateBestScoreMin = (Parse-Decimal $parts[7])
+            otherCandidateBestScoreMax = (Parse-Decimal $parts[8])
         }
     }
 )
@@ -833,7 +983,7 @@ FROM v;
 "@
 $frontier = $frontierLine.Split('|')
 
-$theoretical = @(Get-SqlLines @"
+$theoreticalLatticeLines = @(Get-SqlLines @"
 WITH prior AS (
     SELECT CAST(valor AS float) AS p
     FROM identidade.parametro_linkage
@@ -866,10 +1016,66 @@ WITH prior AS (
     CROSS JOIN mothers ma
     CROSS JOIN births b
 )
-SELECT TOP(12) CONCAT(nome_estado,'/',mae_estado,'/',nascimento_estado,'|',CONVERT(varchar(40),CAST(posterior AS decimal(18,8))))
+SELECT CONCAT(nome_estado,'/',mae_estado,'/',nascimento_estado,'|',CONVERT(varchar(40),CAST(posterior AS decimal(18,8))))
 FROM lattice
 ORDER BY ABS(posterior-$thresholdText),nome_estado,mae_estado,nascimento_estado;
 "@)
+
+$theoreticalLattice = @(
+    foreach ($line in $theoreticalLatticeLines) {
+        $parts = $line.Split('|',2)
+        [pscustomobject]@{
+            Signature = $parts[0]
+            Posterior = (Parse-Decimal $parts[1])
+        }
+    }
+)
+$theoretical = @(
+    $theoreticalLattice |
+        Select-Object -First 12 |
+        ForEach-Object { "$($_.Signature)|$($_.Posterior)" }
+)
+
+$negativeObservedScoreLines = @(Get-SqlLines @"
+WITH n AS (
+    SELECT
+        CASE
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-EASY-%' THEN N'EASY'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-NAME_COLLISION-%' THEN N'NAME_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-MOTHER_COLLISION-%' THEN N'MOTHER_COLLISION'
+            WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-HARD_HOMONYM-%' THEN N'HARD_HOMONYM'
+            ELSE N'UNKNOWN'
+        END AS scenario,
+        r.score_melhor
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id
+    WHERE r.linkage_run_id='$runId'
+      AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-$modelShort-NEG-%'
+)
+SELECT CONCAT(scenario,'|',CONVERT(varchar(40),score_melhor),'|',COUNT_BIG(*))
+FROM n
+GROUP BY scenario,score_melhor
+ORDER BY scenario,score_melhor;
+"@)
+
+$negativeObservedBestScoreStates = @(
+    foreach ($line in $negativeObservedScoreLines) {
+        $parts = $line.Split('|')
+        $score = Parse-Decimal $parts[1]
+        $signatures = @(
+            $theoreticalLattice |
+                Where-Object { $_.Posterior -eq $score } |
+                ForEach-Object { $_.Signature }
+        )
+        [ordered]@{
+            scenario = $parts[0]
+            observedBestScore = $score
+            rows = [int]$parts[2]
+            compatibleEvidenceStates = $signatures
+            uniqueState = ($signatures.Count -eq 1)
+        }
+    }
+)
 
 $orderedMleValue = Parse-Decimal (Get-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$activeModelId' AND nome='ORDER_RESTRICTED_NAME_LLR_MLE_V1';")
 $orderedMleEnabled = ($null -ne $orderedMleValue -and $orderedMleValue -ge [decimal]1)
@@ -948,6 +1154,21 @@ $orderRestrictionStates = @(
     }
 )
 
+$zeroMatchedSupportStates = @(
+    $orderRestrictionStates |
+        Where-Object { $_.matchedSupport -eq 0 } |
+        ForEach-Object {
+            [ordered]@{
+                field = $_.field
+                state = $_.state
+                restrictedM = $_.restrictedM
+                u = $_.u
+                restrictedLlr = $_.restrictedLlr
+                interpretation = 'Sem suporte m observado no treino corrente; o valor resulta de suavização e/ou restrição de ordem, portanto desempenho deste estado não deve ser tratado como evidência empírica de capacidade.'
+            }
+        }
+)
+
 $orderRestrictionFields = @(
     foreach ($field in @('NOME','NOME_MAE')) {
         $items = @($orderRestrictionStates | Where-Object { $_.field -eq $field })
@@ -1000,7 +1221,7 @@ $positiveSensitivity = if ($positiveTotal -eq 0) { [decimal]0 } else { [decimal]
 $negativeSpecificity = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeRejected / [decimal]$negativeTotal }
 $negativeFalseMatchRate = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeResolved / [decimal]$negativeTotal }
 $resolvedDecisionTotal = $positiveCorrect + $positiveWrong + $negativeResolved
-$syntheticResolvedPpv = if ($resolvedDecisionTotal -eq 0) { [decimal]0 } else { [decimal]$positiveCorrect / [decimal]$resolvedDecisionTotal }
+$syntheticResolvedPpv = if ($resolvedDecisionTotal -eq 0) { $null } else { [decimal]$positiveCorrect / [decimal]$resolvedDecisionTotal }
 
 $cfPositiveTotal = [int]$cfPos[0]
 $cfPositiveCorrect = [int]$cfPos[1]
@@ -1012,7 +1233,7 @@ $cfNegativeResolved = [int]$cfNeg[1]
 $cfNegativeConflicts = [int]$cfNeg[2]
 $cfNegativeUnresolved = [int]$cfNeg[3]
 $cfResolvedDecisionTotal = $cfPositiveCorrect + $cfPositiveWrong + $cfNegativeResolved
-$cfSyntheticResolvedPpv = if ($cfResolvedDecisionTotal -eq 0) { [decimal]0 } else { [decimal]$cfPositiveCorrect / [decimal]$cfResolvedDecisionTotal }
+$cfSyntheticResolvedPpv = if ($cfResolvedDecisionTotal -eq 0) { $null } else { [decimal]$cfPositiveCorrect / [decimal]$cfResolvedDecisionTotal }
 
 $report = [ordered]@{
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
@@ -1020,7 +1241,7 @@ $report = [ordered]@{
     safeguards = @(
         'validation rows are injected only after an active calibrated model exists',
         'fixture prefix is bound to the active model id fragment',
-        'quality metrics gate only this DEV validation script; they do not promote models or alter thresholds',
+        'safety gates only this DEV validation script; capability/sensitivity remains diagnostic until a dedicated positive-control gate is defined',
         'blocking recall and conflict-rule coverage are measured separately from decision quality',
         'no regression comparison with prior models is required in this pre-homologation phase')
     model = [ordered]@{
@@ -1028,12 +1249,24 @@ $report = [ordered]@{
         modelVersion = $modelVersion
         algorithmVersion = $algorithmVersion
         threshold = $threshold
+        runtimeFingerprint = $validationRuntimeFingerprint
+        priorProvenance = [ordered]@{
+            priorMatchProbability = $priorProbability
+            estimatorFormula = 'clamp(DISTINCT_BIRTH_DATE / POPULATION_SIZE, 0.000001, PRIOR_BLOCK_MAX)'
+            populationSize = $populationSize
+            distinctBirthDates = $distinctBirthDates
+            rawReferenceRatio = $rawReferencePrior
+            priorBlockMax = $priorBlockMax
+            clampedAtUpperBound = $priorClampedAtUpperBound
+            interpretation = 'Este prior é uma heurística de referência do estimador, não uma taxa empiricamente medida de match condicionada ao blocking.'
+        }
     }
     runId = $runId
     nominalOrderRestriction = [ordered]@{
         enabled = $orderedMleEnabled
         fields = $orderRestrictionFields
         states = $orderRestrictionStates
+        zeroMatchedSupportStates = $zeroMatchedSupportStates
     }
     blocking = $blockingAudit.summary
     positive = [ordered]@{
@@ -1056,14 +1289,16 @@ $report = [ordered]@{
         syntheticSpecificity = [decimal]::Round($negativeSpecificity,6)
         syntheticFalseMatchRate = [decimal]::Round($negativeFalseMatchRate,6)
         scenarios = $negativeScenarioBreakdown
-        scenarioEvidenceProfiles = $negativeScenarioEvidence
+        generatorIntendedEvidenceProfiles = $negativeScenarioEvidence
+        plannedColliderAlignment = $negativePlannedColliderAlignment
+        observedBestScoreStates = $negativeObservedBestScoreStates
         falseMatchDetails = $negativeFalseMatchDetails
     }
     combinedDecisionQuality = [ordered]@{
         resolvedDecisions = $resolvedDecisionTotal
         correctResolved = $positiveCorrect
         falseResolved = ($positiveWrong + $negativeResolved)
-        syntheticResolvedPpv = [decimal]::Round($syntheticResolvedPpv,6)
+        syntheticResolvedPpv = if ($null -eq $syntheticResolvedPpv) { $null } else { [decimal]::Round($syntheticResolvedPpv,6) }
     }
     conflictProbe = [ordered]@{
         total = $conflictTotal
@@ -1101,7 +1336,7 @@ $report = [ordered]@{
             resolvedDecisions = $cfResolvedDecisionTotal
             correctResolved = $cfPositiveCorrect
             falseResolved = ($cfPositiveWrong + $cfNegativeResolved)
-            syntheticResolvedPpv = [decimal]::Round($cfSyntheticResolvedPpv,6)
+            syntheticResolvedPpv = if ($null -eq $cfSyntheticResolvedPpv) { $null } else { [decimal]::Round($cfSyntheticResolvedPpv,6) }
         }
         deltaVsCurrent = [ordered]@{
             correctResolved = ($cfPositiveCorrect - $positiveCorrect)
@@ -1159,12 +1394,22 @@ $report = [ordered]@{
         actualMaxBelow = (Parse-Decimal $frontier[1])
         actualMinAtOrAbove = (Parse-Decimal $frontier[2])
         theoreticalClosestStates = $theoretical
+        interpretation = 'O threshold atua sobre uma malha discreta de estados de evidência; sua leitura deve ser feita junto com dual-threshold guard e margem, não como ajuste contínuo isolado.'
+    }
+    capabilityAssessment = [ordered]@{
+        status = if ($positiveCorrect -eq 0) { 'NOT_DEMONSTRATED_BY_CURRENT_ADVERSARIAL_CORPUS' } else { 'PARTIALLY_DEMONSTRATED_IN_CURRENT_CORPUS' }
+        positiveTotal = $positiveTotal
+        resolvedCorrect = $positiveCorrect
+        syntheticSensitivity = [decimal]::Round($positiveSensitivity,6)
+        isGate = $false
+        interpretation = 'Métrica diagnóstica separada do safety gate. O corpus adversarial atual não define piso normativo de sensibilidade.'
     }
     interpretation = [ordered]@{
         scope = 'Evidência sintética DEV; não é estimativa de acurácia municipal nem homologação.'
-        negatives = 'Impostores incluem colisões simples e HARD_HOMONYM. Nesta fase DEV, qualquer falso vínculo resolvido reprova o quality gate do harness.'
+        negatives = 'Impostores incluem colisões simples e HARD_HOMONYM. Nesta fase DEV, qualquer falso vínculo resolvido reprova o safety gate do harness; sensibilidade é reportada separadamente e não é aprovada por este gate.'
         frontier = 'A malha teórica mostra se os estados discretos do modelo conseguem sequer ocupar a vizinhança do threshold atual.'
         orderRestriction = 'A auditoria mostra quanto a MLE ordenada alterou m/LLR; pooling grande é diagnóstico de tensão entre estimativas, não evidência adicional de identidade.'
+        negativeProfiles = 'Os perfis generatorIntendedEvidenceProfiles descrevem a intenção do fixture. observedBestScoreStates mapeia os scores realmente produzidos de volta à malha do modelo; divergência entre ambos evidencia que o comparador/runtime não realizou o estado nominal pretendido pelo nome do cenário.'
     }
 }
 
@@ -1183,6 +1428,12 @@ if ($orderedMleEnabled) {
         }
     }
 }
+if ($zeroMatchedSupportStates.Count -gt 0) {
+    Write-Host 'Estados nominais sem suporte m observado no treino corrente:'
+    foreach ($state in $zeroMatchedSupportStates) {
+        Write-Host ("  {0}/{1}: m_final={2} u={3} llr={4} (valor sustentado por suavização/restrição, não por exemplos m observados)" -f $state.field,$state.state,$state.restrictedM,$state.u,$state.restrictedLlr)
+    }
+}
 Write-Host "Blocking positivo: truthInsideUnion=$($blockingAudit.summary.truthInsideUnion)/$($blockingAudit.summary.sampleSize) recall=$($blockingAudit.summary.unionRecallPct)%"
 Write-Host "Positivos: corretos=$positiveCorrect/$positiveTotal errados=$positiveWrong não_resolvidos_ou_conflitos=$positiveUnresolved sensibilidade_sintética=$([decimal]::Round(($positiveSensitivity * [decimal]100),2))%"
 Write-Host 'Positivos por cenário:'
@@ -1194,19 +1445,31 @@ Write-Host 'Negativos por cenário:'
 foreach ($scenario in $negativeScenarioBreakdown) {
     Write-Host ("  {0}: total={1} falsos_vínculos={2} conflitos={3} não_resolvidos={4} expostos={5} score=[{6},{7}]" -f $scenario.scenario,$scenario.total,$scenario.resolvedFalseMatches,$scenario.conflicts,$scenario.unresolved,$scenario.candidateExposure,$scenario.minBestScore,$scenario.maxBestScore)
 }
-Write-Host 'Perfil teórico de evidência dos negativos:'
+Write-Host 'Perfil teórico pretendido pelo gerador (não é medição do estado realmente comparado):'
 foreach ($profile in $negativeScenarioEvidence) {
     Write-Host ("  {0}: {1}/{2}/{3} prior={4} nome_llr={5} mãe_llr={6} nasc_llr={7} posterior={8}" -f $profile.scenario,$profile.nameState,$profile.motherState,$profile.birthState,$profile.priorLogOdds,$profile.nameLlr,$profile.motherLlr,$profile.birthLlr,$profile.theoreticalPosterior)
 }
+Write-Host 'Alinhamento do melhor candidato com o colisor planejado:'
+foreach ($item in $negativePlannedColliderAlignment) {
+    Write-Host ("  {0}: total={1} best_planejado={2} best_outro={3} best_nulo={4} score_planejado=[{5},{6}] score_outro=[{7},{8}]" -f $item.scenario,$item.total,$item.bestIsPlannedCollider,$item.bestIsOtherCandidate,$item.bestIsNull,$item.plannedColliderBestScoreMin,$item.plannedColliderBestScoreMax,$item.otherCandidateBestScoreMin,$item.otherCandidateBestScoreMax)
+}
+Write-Host 'Estados de evidência compatíveis com os scores realmente observados:'
+foreach ($item in $negativeObservedBestScoreStates) {
+    $states = if ($item.compatibleEvidenceStates.Count -eq 0) { 'SEM_MAPEAMENTO_NO_LATTICE' } else { $item.compatibleEvidenceStates -join ',' }
+    Write-Host ("  {0}: score={1} linhas={2} estados={3}" -f $item.scenario,$item.observedBestScore,$item.rows,$states)
+}
+Write-Host ("Prior: p={0} raw_distinct_birth/population={1} cap={2} saturado_no_cap={3}" -f $priorProbability,$rawReferencePrior,$priorBlockMax,$priorClampedAtUpperBound)
 if ($negativeFalseMatchDetails.Count -gt 0) {
     Write-Host 'Falsos vínculos resolvidos:'
     foreach ($item in $negativeFalseMatchDetails) {
         Write-Host ("  {0} | {1} | score={2} segundo={3} margem={4} best={5}" -f $item.scenario,$item.sourceCode,$item.bestScore,$item.secondScore,$item.margin,$item.bestCandidateUuid)
     }
 }
-Write-Host "Decisões resolvidas combinadas: corretas=$positiveCorrect falsas=$($positiveWrong+$negativeResolved) PPV_sintético=$([decimal]::Round(($syntheticResolvedPpv * [decimal]100),2))%"
+$syntheticPpvText = if ($null -eq $syntheticResolvedPpv) { 'N/A' } else { "$([decimal]::Round(($syntheticResolvedPpv * [decimal]100),2))%" }
+Write-Host "Decisões resolvidas combinadas: corretas=$positiveCorrect falsas=$($positiveWrong+$negativeResolved) PPV_sintético=$syntheticPpvText"
 Write-Host "Conflito forçado: conflito=$conflictStatus/$conflictTotal margem_zero=$conflictMarginZero acima_threshold=$conflictAboveThreshold resolvidos_indevidos=$conflictResolved"
-Write-Host ("Contrafactual sem dual-threshold guard (mantém T={0} e margem_log_odds={1}): positivos_corretos={2}/{3} positivos_errados={4} positivos_conflitos={5} positivos_nao_resolvidos={6} negativos_falsos_vinculos={7}/{8} negativos_conflitos={9} negativos_nao_resolvidos={10} PPV_sintetico={11}%" -f $threshold,$conflictMarginLogOdds,$cfPositiveCorrect,$cfPositiveTotal,$cfPositiveWrong,$cfPositiveConflicts,$cfPositiveUnresolved,$cfNegativeResolved,$cfNegativeTotal,$cfNegativeConflicts,$cfNegativeUnresolved,[decimal]::Round(($cfSyntheticResolvedPpv * [decimal]100),2))
+$cfPpvText = if ($null -eq $cfSyntheticResolvedPpv) { 'N/A' } else { "$([decimal]::Round(($cfSyntheticResolvedPpv * [decimal]100),2))%" }
+Write-Host ("Contrafactual sem dual-threshold guard (mantém T={0} e margem_log_odds={1}): positivos_corretos={2}/{3} positivos_errados={4} positivos_conflitos={5} positivos_nao_resolvidos={6} negativos_falsos_vinculos={7}/{8} negativos_conflitos={9} negativos_nao_resolvidos={10} PPV_sintetico={11}" -f $threshold,$conflictMarginLogOdds,$cfPositiveCorrect,$cfPositiveTotal,$cfPositiveWrong,$cfPositiveConflicts,$cfPositiveUnresolved,$cfNegativeResolved,$cfNegativeTotal,$cfNegativeConflicts,$cfNegativeUnresolved,$cfPpvText)
 if ($bestZeroFalseMarginPoint.Count -gt 0) {
     Write-Host ("Fronteira de margem dual-threshold: elegiveis={0} positivos={1} negativos={2} melhor_ponto_zero_falso cutoff={3} corretos={4} ganho_seguro={5}" -f $dualThresholdMarginRows.Count,@($dualThresholdMarginRows | Where-Object { $_.Kind -eq 'POS' }).Count,@($dualThresholdMarginRows | Where-Object { $_.Kind -eq 'NEG' }).Count,$bestZeroFalseMarginPoint[0].cutoffLogOdds,$bestZeroFalseMarginPoint[0].correctResolved,($bestZeroFalseMarginPoint[0].correctResolved -gt 0))
 } else {
@@ -1233,10 +1496,10 @@ if ($conflictTotal -ne 10 -or $conflictStatus -ne 10 -or $conflictMarginZero -ne
 Write-Host 'LINKAGE INDEPENDENT VALIDATION STRUCTURAL GATES: OK' -ForegroundColor Green
 
 if ($positiveWrong -ne 0) {
-    throw "DEV QUALITY GATE reprovado: houve $positiveWrong resolução(ões) positiva(s) para UUID incorreto."
+    throw "DEV SAFETY GATE reprovado: houve $positiveWrong resolução(ões) positiva(s) para UUID incorreto."
 }
 if ($negativeResolved -ne 0) {
-    throw "DEV QUALITY GATE reprovado: houve $negativeResolved falso(s) vínculo(s) resolvido(s) em $negativeTotal negativos independentes."
+    throw "DEV SAFETY GATE reprovado: houve $negativeResolved falso(s) vínculo(s) resolvido(s) em $negativeTotal negativos independentes."
 }
 
-Write-Host 'LINKAGE INDEPENDENT VALIDATION DEV QUALITY GATES: OK' -ForegroundColor Green
+Write-Host 'LINKAGE INDEPENDENT VALIDATION DEV SAFETY GATES: OK' -ForegroundColor Green

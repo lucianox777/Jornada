@@ -6,6 +6,7 @@ ENV_FILE="$ROOT/.env"
 OUT_DIR="$ROOT/.local/linkage-validation"
 LABELS="$OUT_DIR/positive-labels.csv"
 AUDIT="$OUT_DIR/blocking-pass-audit.json"
+PROVENANCE="$OUT_DIR/run-provenance.json"
 FIXTURE="/workspace/database/Jornada_Dev_LinkageValidation.sql"
 mkdir -p "$OUT_DIR"
 
@@ -32,10 +33,46 @@ scalar() {
   sql_lines "$1" | tail -n 1 | xargs
 }
 
+validation_runtime_fingerprint() {
+  local repo_root
+  repo_root="$(cd "$ROOT/.." && pwd)"
+  local paths=(
+    'Solution/src/Jornada.Linkage.Runner'
+    'Solution/src/Jornada.Contracts'
+    'Solution/src/Jornada.Processor.Worker'
+    'Solution/src/Jornada.Linkage.Parameters.Worker'
+    'Solution/database/Jornada_Dev_LinkageValidation.sql'
+    'Solution/database/Jornada_Dev_SyntheticScale.sql'
+    'Solution/database/Jornada_Dev_SyntheticScale_Diversify.sql'
+  )
+
+  echo "# git status --porcelain -- ${paths[*]}" >&2
+  local dirty
+  dirty="$(cd "$repo_root" && git status --porcelain -- "${paths[@]}")"
+  [[ -z "$dirty" ]] || {
+    echo "ERRO: proveniência da validação exige runtime/fixture limpos. Alterações locais: $dirty" >&2
+    exit 9
+  }
+
+  local specs=()
+  local path
+  for path in "${paths[@]}"; do specs+=("HEAD:$path"); done
+  echo "# git rev-parse ${specs[*]}" >&2
+  local ids=()
+  mapfile -t ids < <(cd "$repo_root" && git rev-parse "${specs[@]}")
+  [[ "${#ids[@]}" -eq "${#paths[@]}" ]] || {
+    echo 'ERRO: não foi possível calcular fingerprint do runtime/fixture.' >&2
+    exit 9
+  }
+  local joined
+  printf -v joined '%s:' "${ids[@]}"
+  printf '%s' "${joined%:}"
+}
 complete_validation_run_id() {
   scalar "SELECT TOP(1) CONVERT(varchar(36),lr.linkage_run_id) FROM identidade.linkage_run lr CROSS APPLY (SELECT SUM(CASE WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$model_short-POS-%' THEN 1 ELSE 0 END) AS pos_count,SUM(CASE WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$model_short-NEG-%' THEN 1 ELSE 0 END) AS neg_count,SUM(CASE WHEN po.codigo_pessoa_origem LIKE N'SCALE-VAL-$model_short-CONFLICT-%' THEN 1 ELSE 0 END) AS conflict_count FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id WHERE r.linkage_run_id=lr.linkage_run_id) c WHERE lr.status='PUBLICADO' AND lr.tipo_run='ON_DEMAND' AND lr.modelo_id='$active_model_id' AND c.pos_count=40 AND c.neg_count=40 AND c.conflict_count=10 ORDER BY lr.publicado_em DESC,lr.iniciado_em DESC,lr.linkage_run_id DESC;"
 }
 
+runtime_fingerprint="$(validation_runtime_fingerprint)"
 active_model_id="$(scalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'')<>'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;")"
 [[ -n "$active_model_id" ]] || { echo "ERRO: nenhum modelo calibrado ATIVO. Execute scripts/local-cluster.sh calibrate." >&2; exit 3; }
 model_short="${active_model_id:0:8}"
@@ -51,15 +88,29 @@ echo "# docker compose --env-file $ENV_FILE exec -T -e SQLCMDPASSWORD=<redacted>
 # Reutiliza evidência completa já publicada para o mesmo modelo. Isso torna a validação idempotente:
 # observações resolvidas deixam de entrar no próximo ON_DEMAND e um segundo run isolado seria parcial.
 run_id="$(complete_validation_run_id)"
+created_run=0
 if [[ -n "$run_id" ]]; then
-  echo "Reutilizando run completo já publicado para este modelo: $run_id"
+  [[ -f "$PROVENANCE" ]] || {
+    echo "ERRO: run completo existente sem fingerprint verificável ($run_id). Recrie o ambiente com scripts/local-cluster.sh clean/up/calibrate e execute novamente a validação." >&2
+    exit 9
+  }
+  jq -e --arg run "$run_id" --arg model "$active_model_id" --arg fp "$runtime_fingerprint" '.runId==$run and .modelId==$model and .runtimeFingerprint==$fp' "$PROVENANCE" >/dev/null || {
+    echo 'ERRO: run completo existente foi produzido por runtime/fixture diferente. Recrie o ambiente com scripts/local-cluster.sh clean/up/calibrate e execute novamente a validação.' >&2
+    exit 9
+  }
+  echo "Reutilizando run completo com fingerprint de runtime verificado: $run_id"
 else
   echo '# bash scripts/local-cluster.sh linkage'
   (cd "$ROOT" && bash scripts/local-cluster.sh linkage)
   run_id="$(complete_validation_run_id)"
+  created_run=1
 fi
 [[ -n "$run_id" ]] || { echo 'ERRO: linkage completo de validação (40 positivos, 40 negativos, 10 conflitos) não foi publicado.' >&2; exit 4; }
+if [[ "$created_run" -eq 1 ]]; then
+  jq -n --arg runId "$run_id" --arg modelId "$active_model_id" --arg runtimeFingerprint "$runtime_fingerprint" '{runId:$runId,modelId:$modelId,runtimeFingerprint:$runtimeFingerprint}' > "$PROVENANCE"
+fi
 echo "Run de validação: $run_id"
+echo "Fingerprint runtime/fixture: $runtime_fingerprint"
 
 cat > "$LABELS" <<'CSV'
 pessoa_observacao_id,pessoa_uuid_verdade

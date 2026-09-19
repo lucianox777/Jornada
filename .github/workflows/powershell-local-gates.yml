@@ -20,6 +20,7 @@ on:
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-linkage-validation.ps1'
       - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
+      - 'Solution/scripts/local-linkage-triplet-collision-audit.ps1'
       - 'Solution/scripts/local-linkage-validation-flow.ps1'
       - 'Solution/scripts/local-linkage-validation-from-zero.ps1'
       - 'Solution/scripts/local-linkage-monte-carlo-validation.ps1'
@@ -48,6 +49,7 @@ on:
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-linkage-validation.ps1'
       - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
+      - 'Solution/scripts/local-linkage-triplet-collision-audit.ps1'
       - 'Solution/scripts/local-linkage-validation-flow.ps1'
       - 'Solution/scripts/local-linkage-validation-from-zero.ps1'
       - 'Solution/scripts/local-linkage-monte-carlo-validation.ps1'
@@ -98,6 +100,8 @@ jobs:
           if ($readiness -match 'Measure-Object\s+-Property') {
             throw 'local-linkage-evidence-readiness.ps1 deve acessar OrderedDictionary por chave no Windows PowerShell 5.1.'
           }
+          $triplet = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-triplet-collision-audit.ps1
+          $null = [scriptblock]::Create($triplet)
           Write-Host 'WINDOWS POWERSHELL 5.1 ORDEREDDICTIONARY/PARSE: OK'
 
   powershell-contract:
@@ -136,6 +140,7 @@ jobs:
             'scripts/local-linkage-evaluation-smoke.ps1',
             'scripts/local-linkage-validation.ps1',
             'scripts/local-linkage-evidence-readiness.ps1',
+            'scripts/local-linkage-triplet-collision-audit.ps1',
             'scripts/local-linkage-validation-flow.ps1',
             'scripts/local-linkage-validation-from-zero.ps1',
             'scripts/local-linkage-monte-carlo-validation.ps1',
@@ -245,6 +250,7 @@ jobs:
           $targets = @(
             'scripts/local-linkage-validation.ps1',
             'scripts/local-linkage-evidence-readiness.ps1',
+            'scripts/local-linkage-triplet-collision-audit.ps1',
             'scripts/local-linkage-validation-flow.ps1',
             'scripts/local-linkage-validation-from-zero.ps1',
             'scripts/local-linkage-monte-carlo-validation.ps1',
@@ -273,7 +279,14 @@ jobs:
           foreach ($required in @(
             'Write-CommandLine $LocalCluster',
             "Write-CommandLine 'docker'",
-            'SQLCMDPASSWORD=<redacted>'
+            'SQLCMDPASSWORD=<redacted>',
+            'LINKAGE INDEPENDENT VALIDATION DEV SAFETY GATES: OK',
+            'syntheticResolvedPpv = if ($null -eq $syntheticResolvedPpv)',
+            'plannedColliderAlignment',
+            'observedBestScoreStates',
+            'capabilityAssessment',
+            'runtimeFingerprint',
+            'zeroMatchedSupportStates'
           )) {
             if (-not $validation.Contains($required)) {
               throw "local-linkage-validation.ps1 perdeu contrato de command output: $required"
@@ -282,6 +295,24 @@ jobs:
           if ($validation -match 'Write-CommandLine[^\r\n]*\$password') {
             throw 'local-linkage-validation.ps1 não pode imprimir senha SQL.'
           }
+          if ($validation.Contains('LINKAGE INDEPENDENT VALIDATION DEV QUALITY GATES: OK')) {
+            throw 'local-linkage-validation.ps1 não pode chamar safety-only de quality gate.'
+          }
+
+          $triplet = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-triplet-collision-audit.ps1
+          foreach ($required in @(
+            'READ_ONLY_GOLD_ANCHORED_TRIPLET_COLLISION_AUDIT',
+            'exposesPii=$false',
+            "atributo=N'name_full'",
+            "atributo=N'mother_name_full'",
+            'municipalPrevalenceClaimAllowed=$false',
+            'LINKAGE GOLD TRIPLET COLLISION AUDIT: OK'
+          )) {
+            if (-not $triplet.Contains($required)) {
+              throw "local-linkage-triplet-collision-audit.ps1 perdeu contrato obrigatório: $required"
+            }
+          }
+
 
           $flow = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-validation-flow.ps1
           foreach ($required in @(
