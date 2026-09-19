@@ -653,7 +653,7 @@ public sealed class ProcessorRepositoryTests
                    vc.status,vc.metodo_resolucao,
                    (SELECT COUNT(*) FROM ingestao.item_processado ip
                      WHERE ip.lote_id=po.lote_id AND ip.classe_item='PESSOA'
-                       AND ip.codigo_origem=CONCAT('OBSERVACAO:',po.pessoa_observacao_id))
+                       AND ip.codigo_origem='DELIVERY-V4-NO-ID')
             FROM silver.pessoa_observacao po
             JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id
             WHERE po.lote_id=@lote AND po.source_transaction_id='TX-V4-NO-ID';
