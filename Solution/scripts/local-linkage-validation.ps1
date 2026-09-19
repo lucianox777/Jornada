@@ -900,6 +900,8 @@ $abbreviationTrainingSupport = [ordered]@{
         uReferenceDenominator = [long]$abbrevUNameDenom
         uReferenceSupport = [long]$abbrevUNameSupport
         uReferenceRate = [decimal]::Round($abbrevUNameRate,12)
+        mSupportObserved = $abbrevMNameSupport -gt 0
+        uReferenceSupportObserved = $abbrevUNameSupport -gt 0
         observedInBothSamples = $abbrevNameObservedBoth
     }
     motherName = [ordered]@{
@@ -909,7 +911,14 @@ $abbreviationTrainingSupport = [ordered]@{
         uReferenceDenominator = [long]$abbrevUMotherDenom
         uReferenceSupport = [long]$abbrevUMotherSupport
         uReferenceRate = [decimal]::Round($abbrevUMotherRate,12)
+        mSupportObserved = $abbrevMMotherSupport -gt 0
+        uReferenceSupportObserved = $abbrevUMotherSupport -gt 0
         observedInBothSamples = $abbrevMotherObservedBoth
+    }
+    capability = [ordered]@{
+        name = if ($abbrevMNameSupport -gt 0) { 'M_SUPPORT_OBSERVED_U_NOT_ESTIMATED_FOR_ABBREVIATION_CHANNEL' } else { 'M_SUPPORT_NOT_OBSERVED' }
+        motherName = if ($abbrevMMotherSupport -gt 0) { 'M_SUPPORT_OBSERVED_U_NOT_ESTIMATED_FOR_ABBREVIATION_CHANNEL' } else { 'M_SUPPORT_NOT_OBSERVED' }
+        isGate = $false
     }
     interpretation = 'O suporte m é observado em pares fonte-fonte ligados por CPF. O suporte u mostrado é somente referência Gold-Gold condicionada ao blocking; o u nominal operacional do nome continua vindo do IBGE Monte Carlo. Portanto estes números não estimam LLR de ABBREV_COMPATIBLE e não autorizam criar/promover um novo estado.'
 }
