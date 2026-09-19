@@ -61,6 +61,8 @@ WHERE OBJECT_ID(v.objeto, N'TR') IS NULL;
 
 IF OBJECT_ID(N'ref.sp_publicar_frequencia_nome_versao',N'P') IS NULL
     INSERT @missing(item) VALUES(N'PROC:ref.sp_publicar_frequencia_nome_versao');
+IF OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage',N'P') IS NULL
+    INSERT @missing(item) VALUES(N'PROC:identidade.sp_publicar_resolucao_progressiva_linkage');
 
 DECLARE @required_columns TABLE(tabela SYSNAME NOT NULL,coluna SYSNAME NOT NULL,PRIMARY KEY(tabela,coluna));
 INSERT @required_columns(tabela,coluna) VALUES
@@ -68,6 +70,16 @@ INSERT @required_columns(tabela,coluna) VALUES
  (N'identidade.linkage_run',N'frequencia_nome_versao_id'),
  (N'identidade.linkage_run',N'frequencia_nome_versao_codigo'),
  (N'identidade.linkage_run',N'frequencia_nome_conteudo_sha256'),
+ (N'identidade.linkage_resultado',N'resultado_publicacao'),
+ (N'identidade.linkage_resultado',N'pessoa_uuid_publicado'),
+ (N'identidade.linkage_resultado',N'status_publicacao'),
+ (N'identidade.linkage_resultado',N'motivo_publicacao'),
+ (N'identidade.linkage_resultado',N'pessoa_origem_id_publicado'),
+ (N'identidade.linkage_resultado',N'progressiva_versao'),
+ (N'identidade.linkage_resultado',N'politica_publicacao_versao'),
+ (N'identidade.linkage_resultado',N'universo_referencia'),
+ (N'identidade.linkage_resultado',N'publicado_em'),
+ (N'identidade.pessoa_origem_progressiva_evento',N'linkage_run_id'),
  (N'gold.pessoa',N'nome_publicacao_normalizado'),
  (N'gold.pessoa',N'nome_publicacao_metodo_versao'),
  (N'gold.pessoa',N'nome_publicacao_normalizacao_versao'),
@@ -115,6 +127,10 @@ IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_
     INSERT @missing(item) VALUES(N'CHECK:identidade.linkage_resultado.ck_linkage_resultado_scores');
 IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'identidade.linkage_resultado') AND name=N'ck_linkage_resultado_candidatos_distintos')
     INSERT @missing(item) VALUES(N'CHECK:identidade.linkage_resultado.ck_linkage_resultado_candidatos_distintos');
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'identidade.linkage_resultado') AND name=N'ck_linkage_resultado_publicacao')
+    INSERT @missing(item) VALUES(N'CHECK:identidade.linkage_resultado.ck_linkage_resultado_publicacao');
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'identidade.pessoa_origem_progressiva_evento') AND name=N'UX_progressiva_evento_origem_linkage_run')
+    INSERT @missing(item) VALUES(N'INDEX:identidade.pessoa_origem_progressiva_evento.UX_progressiva_evento_origem_linkage_run');
 IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'gold.pessoa') AND name=N'ck_gold_pessoa_nome_publicacao_completo')
     INSERT @missing(item) VALUES(N'CHECK:gold.pessoa.ck_gold_pessoa_nome_publicacao_completo');
 
