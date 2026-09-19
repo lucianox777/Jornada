@@ -155,6 +155,8 @@ A mesma validação também calcula um **contrafactual read-only de política**:
 
 Além disso, `dualThresholdMarginFrontier` testa a alternativa mais restrita de **manter o guard como referência, mas perguntar se uma margem de log-odds maior permitiria liberar com segurança apenas parte dos casos em que os dois candidatos estão acima de `T_LINKAGE`**. O diagnóstico percorre os cortes de margem observados no próprio corpus e registra quantos positivos corretos e falsos vínculos seriam liberados em cada ponto. Sobreposição das margens verdadeiras com as margens dos impostores significa que a margem, sozinha, não é evidência discriminante suficiente. O cálculo também é read-only e não altera a política.
 
+O bloco `currentEvidenceIdentifiability` fecha a pergunta seguinte: existem positivos e negativos que apresentam a mesma assinatura `EXACT/EXACT/EXACT` nos três campos atualmente usados pelo score (`NOME`, `NOME_MAE`, `DATA_NASCIMENTO`)? No cenário sintético `HARD_HOMONYM`, a validação comprova diretamente a igualdade desses três campos entre a observação negativa e seu melhor candidato. Se a mesma assinatura também aparece nos positivos `EXACT`, o relatório marca `observationalOverlapDetected=true`. Nessa situação, nenhuma regra determinística baseada somente nesses três campos consegue separar corretamente todos esses exemplos; a saída técnica é manter abstenção/conflito nesses casos ou acrescentar evidência independente. O diagnóstico não escolhe qual novo atributo deve existir e não altera a política.
+
 ### 10. Rodar o smoke de escala, quando necessário
 
 ```powershell
