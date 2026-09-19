@@ -359,23 +359,25 @@ internal static class TransportabilityMetrics
     {
         var cpfName = Distribution(cpfAnchored.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)), smoothingAlpha);
         var noCpfName = Distribution(noCpfLabeled.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)), smoothingAlpha);
+        var cpfMotherPairs = cpfAnchored
+            .Where(p => !string.IsNullOrWhiteSpace(p.LeftMotherName) && !string.IsNullOrWhiteSpace(p.RightMotherName))
+            .ToArray();
+        var noCpfMotherPairs = noCpfLabeled
+            .Where(p => !string.IsNullOrWhiteSpace(p.LeftMotherName) && !string.IsNullOrWhiteSpace(p.RightMotherName))
+            .ToArray();
         var cpfMother = Distribution(
-            cpfAnchored
-                .Where(p => !string.IsNullOrWhiteSpace(p.LeftMotherName) && !string.IsNullOrWhiteSpace(p.RightMotherName))
-                .Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)),
+            cpfMotherPairs.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)),
             smoothingAlpha);
         var noCpfMother = Distribution(
-            noCpfLabeled
-                .Where(p => !string.IsNullOrWhiteSpace(p.LeftMotherName) && !string.IsNullOrWhiteSpace(p.RightMotherName))
-                .Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)),
+            noCpfMotherPairs.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)),
             smoothingAlpha);
         var cpfBirthExact = ExactBirthRate(cpfAnchored, smoothingAlpha);
         var noCpfBirthExact = ExactBirthRate(noCpfLabeled, smoothingAlpha);
         return new
         {
             estimator = new { family = "match-conditional m", smoothing = "Dirichlet/Laplace", smoothingAlpha },
-            cpfAnchored = new { sampleSize = cpfAnchored.Count, nome = cpfName, nomeMae = cpfMother, dataNascimentoExact = cpfBirthExact },
-            noCpfLabeled = new { sampleSize = noCpfLabeled.Count, nome = noCpfName, nomeMae = noCpfMother, dataNascimentoExact = noCpfBirthExact },
+            cpfAnchored = new { sampleSize = cpfAnchored.Count, nomeMaeSampleSize = cpfMotherPairs.Length, nome = cpfName, nomeMae = cpfMother, dataNascimentoExact = cpfBirthExact },
+            noCpfLabeled = new { sampleSize = noCpfLabeled.Count, nomeMaeSampleSize = noCpfMotherPairs.Length, nome = noCpfName, nomeMae = noCpfMother, dataNascimentoExact = noCpfBirthExact },
             distance = new
             {
                 nomeTotalVariation = TotalVariation(cpfName, noCpfName),
