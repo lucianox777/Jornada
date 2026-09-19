@@ -155,7 +155,7 @@ $maxPerTriplet=[long]$p[12]
 $projectionCoverageComplete=($covered -eq $eligible -and $missingName -eq 0 -and $missingMother -eq 0 -and $ambiguousName -eq 0 -and $ambiguousMother -eq 0)
 $personCollisionRate=if($covered -eq 0){$null}else{[decimal]$personsInCollisions/[decimal]$covered}
 $tripletCollisionRate=if($distinctTriplets -eq 0){$null}else{[decimal]$collidingTriplets/[decimal]$distinctTriplets}
-$allPairs=([decimal]$covered*([decimal]$covered-1m))/2m
+$allPairs=([decimal]$covered*([decimal]$covered-[decimal]1))/[decimal]2
 $randomPairCollisionProbability=if($allPairs -le 0){$null}else{$collidingPairs/$allPairs}
 
 $syntheticAnchored=[long](Get-SqlScalar @"
@@ -227,8 +227,8 @@ Write-Host '=== COLISÃO DA TRIPLA NA GOLD ANCORADA POR CPF (READ-ONLY) ==='
 Write-Host "Modelo/projeção: v$modelVersion / $activeModelId / $projectionSchema"
 Write-Host "Gold ancorada=$anchored; tripla completa=$eligible; coberta_projeção=$covered; cobertura_completa=$projectionCoverageComplete"
 Write-Host "Triplas distintas=$distinctTriplets; triplas_colidentes=$collidingTriplets; pessoas_em_colisão=$personsInCollisions; pares_CPF_colidentes=$collidingPairs; máximo_por_tripla=$maxPerTriplet"
-$personRateText=if($null -eq $personCollisionRate){'N/A'}else{"$([decimal]::Round($personCollisionRate*100m,8))%"}
-$pairRateText=if($null -eq $randomPairCollisionProbability){'N/A'}else{"$([decimal]::Round($randomPairCollisionProbability*100m,12))%"}
+$personRateText=if($null -eq $personCollisionRate){'N/A'}else{"$([decimal]::Round($personCollisionRate*[decimal]100,8))%"}
+$pairRateText=if($null -eq $randomPairCollisionProbability){'N/A'}else{"$([decimal]::Round($randomPairCollisionProbability*[decimal]100,12))%"}
 Write-Host "Taxa de pessoas em tripla colidente=$personRateText; probabilidade de colisão entre dois CPFs aleatórios=$pairRateText"
 Write-Host "Dataset hint=$datasetHint; isto não é automaticamente uma estimativa municipal."
 Write-Host "Relatório agregado sem PII: $ReportPath"
