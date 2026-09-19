@@ -41,6 +41,8 @@ Por isso:
 - uma `NOVA_IDENTIDADE` publicada ganha blocking ainda na transação de publicação, ficando visível ao run seguinte;
 - ausência de nome no scorer é evidência indisponível/neutra enquanto não existir estado `NOME_MISSING` calibrado explicitamente;
 - ausência de data no blocking legado impede a execução daquele blocking; não cria inferência negativa sobre a existência de candidatos.
+- população canônica e elegibilidade de estimação são conceitos distintos: estatísticas de população contam apenas `REFERENCIA`, inclusive referências parciais; um estimador/calibrador que exige nome e nascimento usa somente referências em que esses sinais estão observados. `nomeMae` continua podendo estar ausente e sua ausência não é convertida em discordância.
+- avaliação independente e auditoria de passes usam o mesmo universo `REFERENCIA` do runtime, para que métricas offline não sejam calculadas sobre cascas progressivas que nunca poderiam ser candidatas em produção.
 
 ## 4. Contratos de fonte
 
