@@ -167,6 +167,35 @@ public sealed class ProbabilisticLinkagePolicyTests
     }
 
     [Test]
+    public void Frozen_ranking_replay_uses_the_same_runtime_decision_policy()
+    {
+        var parameters = SemanticBirthParameters(includeLegacyFlags: false);
+        parameters[LinkageParameterCatalog.PriorMatchProbability] = .25m;
+        parameters[LinkageParameterCatalog.Threshold] = .30m;
+        parameters[LinkageParameterCatalog.DualThresholdConflictGuard] = 1m;
+        var model = LinkageModelPolicy.Create(
+            ModelId,
+            6,
+            LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion,
+            parameters);
+        var observation = Observation();
+        var candidates = new[]
+        {
+            new LinkageCandidate(CandidateA, observation.NomeCompleto, Birth, observation.NomeMae),
+            new LinkageCandidate(CandidateB, observation.NomeCompleto, Birth, "Pessoa sem relação")
+        };
+
+        var direct = ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
+        var frozenRanking = ProbabilisticLinkageDecisions.Rank(model, observation, candidates);
+        var replay = ProbabilisticLinkageDecisions.ResolveRanked(
+            model,
+            frozenRanking,
+            "SEM_CANDIDATO_NO_RULESET_BLOCKING");
+
+        Assert.That(replay, Is.EqualTo(direct));
+    }
+
+    [Test]
     public void Changing_only_global_prior_preserves_ranking_and_log_odds_margin()
     {
         var activeParameters = SemanticBirthParameters(includeLegacyFlags: false);
