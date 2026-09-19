@@ -26,6 +26,7 @@ on:
       - 'Solution/scripts/coordination-lock-probe.py'
       - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/scale-observability-evidence-gate.py'
+      - 'Solution/scripts/linkage-decision-quality-gate.py'
       - '.github/workflows/scale-observability-contract.yml'
 
 permissions:
