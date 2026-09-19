@@ -127,10 +127,25 @@ internal static class ProbabilisticLinkageDecisions
     {
         if (!string.IsNullOrWhiteSpace(observation.Cpf)) throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
         var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(model.AlgorithmVersion);
-        var scored = Rank(model, observation, candidates);
+        var noCandidateReason = decisionEvidence
+            ? "SEM_CANDIDATO_NO_RULESET_BLOCKING"
+            : LinkageModelPolicy.SupportsBirthComponentScoring(model)
+                ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_COMPONENTE"
+                : "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO";
+        return ResolveRanked(model, Rank(model, observation, candidates), noCandidateReason);
+    }
+
+    internal static ProbabilisticLinkageDecision ResolveRanked(
+        LinkageModel model,
+        IReadOnlyList<CandidateScore> scored,
+        string noCandidateReason)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(noCandidateReason);
+        var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(model.AlgorithmVersion);
         if (scored.Count == 0)
-            return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, null, 0m, null, null, null, model.ModelId,
-                decisionEvidence ? "SEM_CANDIDATO_NO_RULESET_BLOCKING" : LinkageModelPolicy.SupportsBirthComponentScoring(model) ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_COMPONENTE" : "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO");
+            return new ProbabilisticLinkageDecision(
+                ResolutionStatus.NAO_RESOLVIDO, null, null, 0m, null, null, null,
+                model.ModelId, noCandidateReason);
 
         var best = scored[0];
         var second = scored.Count > 1 ? scored[1] : null;
