@@ -48,9 +48,9 @@ Documentação histórica não deve ser usada para inferir arquitetura corrente 
 
 ## 7. Pendências que bloqueiam o corte da v5.00-rc.1
 
-1. concluir e integrar a extração do runtime PostgreSQL e confirmar CI completo no HEAD exato;
-2. alinhar os documentos correntes e a numeração das ADRs ao estado SQL Server-only;
-3. fechar a lacuna de orquestração ponta a ponta do ADR de calibração no caminho SQL Server, ou registrar explicitamente o recorte que ficará pós-RC sem alegar implementação inexistente;
+1. manter os documentos correntes e a numeração das ADRs alinhados ao estado SQL Server-only e ao namespace de Pessoa por Base de Origem;
+2. fechar a publicação ponta a ponta do Linkage no ledger de identidade progressiva, separando score bruto de decisão publicada e preservando `initial_uuid` como proveniência/continuidade, nunca como feature;
+3. fechar a lacuna de orquestração ponta a ponta do calibrador evolutivo no caminho SQL Server (candidate/challenger, avaliação independente e promoção fail-closed), sem promover automaticamente evidência probabilística a rótulo de treino;
 4. manter verde o conjunto canônico de build, unitários, integração SQL, DDL/upgrade, E2E, segurança, harness e validação independente;
 5. atualizar a proveniência da candidata para o commit imutável escolhido para a RC;
 6. preservar como pendentes, sem fabricar aprovação, os gates externos/institucionais aplicáveis, inclusive validação estatística representativa do Linkage.
