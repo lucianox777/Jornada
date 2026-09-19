@@ -14,6 +14,10 @@ table Linkage
 
 	measure 'Conflitos' = DIVIDE(CALCULATE(COUNTROWS(Linkage),Linkage[status]="CONFLITO"),COUNTROWS(Linkage))
 		formatString: 0.0%
+	measure 'CPF com problema %' = DIVIDE(SUM(Linkage[cpf_problema]),COUNTROWS(Linkage))
+		formatString: 0.0%
+	measure 'CPFs com problema - Linkage' = SUM(Linkage[cpf_problema])
+		formatString: #,##0
 
 
 	measure 'Sem candidato no bloco' = DIVIDE(SUM(Linkage[sem_candidato_no_bloco]),COUNTROWS(Linkage))
@@ -117,6 +121,10 @@ table Linkage
 		dataType: string
 		summarizeBy: none
 		sourceColumn: sistema_origem
+	column base_pessoa_origem
+		dataType: string
+		summarizeBy: none
+		sourceColumn: base_pessoa_origem
 
 
 	column sem_candidato_no_bloco
@@ -138,6 +146,34 @@ table Linkage
 		dataType: string
 		summarizeBy: none
 		sourceColumn: cpf_ausente_motivo
+	column cpf_classificacao
+		dataType: string
+		summarizeBy: none
+		sourceColumn: cpf_classificacao
+	column cpf_problema
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: cpf_problema
+	column cpf_motivo_qualidade
+		dataType: string
+		summarizeBy: none
+		sourceColumn: cpf_motivo_qualidade
+	column cpf_estado_identificador
+		dataType: string
+		summarizeBy: none
+		sourceColumn: cpf_estado_identificador
+	column cpf_estado_motivo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: cpf_estado_motivo
+	column divergencia_identidade_aberta
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: divergencia_identidade_aberta
+	column divergencia_identidade_motivo
+		dataType: string
+		summarizeBy: none
+		sourceColumn: divergencia_identidade_motivo
 
 	column nascimento_0101
 		dataType: int64
