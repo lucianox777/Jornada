@@ -215,7 +215,7 @@ public sealed class PersonV4IdentitySqlServerTests
     {
         var repositoryRoot = FindRepositoryRoot();
         var database = Path.Combine(repositoryRoot, "Solution", "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(database, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, database);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(database, "Jornada_Seed_Dev.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(database, "migrations", "20260913_Base_Pessoa_Origem.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(database, "migrations", "20260913_Pessoa_Identificadores_Multiplos.sql"));
