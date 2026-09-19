@@ -80,7 +80,8 @@ public sealed record IngestionPackageManifest(
     IntegrationNature? Natureza,
     string? CodigoTipo,
     int? TipoVersao,
-    DateTimeOffset DataReferencia);
+    DateTimeOffset DataReferencia,
+    string? CodigoBasePessoaOrigem = null);
 
 public sealed record IngestionReceipt(
     Guid EntregaId,
