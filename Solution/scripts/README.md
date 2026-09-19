@@ -132,6 +132,7 @@ A mesma sequência, expandida, é:
 .\scripts\local-cluster.ps1 -Action linkage-diagnose
 .\scripts\local-linkage-validation.ps1
 .\scripts\local-linkage-evidence-readiness.ps1
+.\scripts\local-linkage-triplet-collision-audit.ps1
 ```
 
 A calibração nominal usa a referência IBGE internalizada por Monte Carlo: `NOME` combina prenomes nacionais `TODOS` com sobrenomes nacionais; `NOME_MAE` combina prenomes nacionais `FEMININO` com sobrenomes nacionais. A massa `MISSING` da mãe e as evidências de nascimento continuam estimadas no universo condicionado ao blocking.
@@ -152,6 +153,18 @@ Ele preserva um JSON por seed e grava `.local\calibrador-ibge-u\multiseed\summar
 
 `local-ibge-u-bootstrap.ps1` é **read-only** e reproduz separadamente as distribuições Monte Carlo de pessoa e mãe para comparação com o modelo ATIVO; não cria, valida ou ativa modelo. `local-linkage-validation.ps1` usa corpus independente DEV com positivos, impostores e probes de conflito. Nesta fase pré-homologação, não há comparação de regressão com modelo anterior; o harness reprova se produzir falso vínculo resolvido.
 
+O fechamento do corpus independente é deliberadamente um **safety gate**, não um gate de capacidade. Zero falso vínculo é condição para passar; sensibilidade permanece métrica diagnóstica e pode ser zero sem que o safety gate seja reprovado. Portanto, `LINKAGE INDEPENDENT VALIDATION DEV SAFETY GATES: OK` significa somente que as invariantes conservadoras foram preservadas naquele corpus. Um futuro gate de capacidade precisa de controles positivos desenhados para medir resolução útil e não deve receber um piso de sensibilidade arbitrário sobre o corpus adversarial atual.
+
+Quando nenhuma decisão é resolvida, PPV é matematicamente indefinido. O relatório grava `syntheticResolvedPpv=null` e o console mostra `N/A`; nunca use `0%` para representar `0/0`.
+
+O diagnóstico dos negativos separa agora o **colisor planejado pelo fixture** do **melhor candidato realmente observado**. `plannedColliderEvidenceProfiles` descreve apenas o par que o gerador construiu; `plannedColliderAlignment` informa quantas vezes esse UUID foi de fato o melhor candidato. Assim, um `NAME_COLLISION` planejado em `EXACT/LOW/EXACT` não é usado para explicar um score maior obtido contra outra Pessoa da Gold.
+
+Runs completos só podem ser reutilizados quando `modelo_id` **e** o fingerprint do runtime/fixture corrente coincidirem com `.local\linkage-validation\run-provenance.json`. Run antigo sem essa proveniência falha fechado; gere evidência nova com `local-linkage-validation-from-zero.ps1`. Isso impede avaliar um resultado persistido produzido por código anterior apenas porque o modelo continuou com o mesmo UUID.
+
+O relatório também explicita a proveniência do `PRIOR_MATCH_PROBABILITY`. Hoje o estimador usa `clamp(DISTINCT_BIRTH_DATE / POPULATION_SIZE, 0.000001, PRIOR_BLOCK_MAX)`; isto é uma **heurística de referência**, não a frequência empírica de match condicionada ao blocking. Se `clampedAtUpperBound=true`, o prior publicado está no teto da regra e essa saturação deve ser analisada antes de interpretar ou alterar `T_LINKAGE`.
+
+Estados nominais com `matchedSupport=0` aparecem em `zeroMatchedSupportStates`. Seu `m` é sustentado por suavização e, quando aplicável, pela restrição de ordem, não por exemplos positivos observados. Assim, desempenho de abreviações nesses estados não deve ser generalizado para dados reais sem uma amostra `m` representativa.
+
 A mesma validação também calcula um **contrafactual read-only de política**: reaplica os rankings já produzidos como se apenas `SCORING_DUAL_THRESHOLD_CONFLICT_V1` fosse removido, mantendo `T_LINKAGE` e `CONFLICT_MARGIN_LOG_ODDS`. O bloco `counterfactualNoDualThresholdGuard` do `validation-report.json` mostra, para positivos e negativos, quantos casos seriam resolvidos, continuariam em conflito ou permaneceriam não resolvidos. Esse cálculo não recalibra o modelo, não altera parâmetros, não publica vínculos e não é autorização para mudar a política.
 
 Além disso, `dualThresholdMarginFrontier` testa a alternativa mais restrita de **manter o guard como referência, mas perguntar se uma margem de log-odds maior permitiria liberar com segurança apenas parte dos casos em que os dois candidatos estão acima de `T_LINKAGE`**. O diagnóstico percorre os cortes de margem observados no próprio corpus e registra quantos positivos corretos e falsos vínculos seriam liberados em cada ponto. Sobreposição das margens verdadeiras com as margens dos impostores significa que a margem, sozinha, não é evidência discriminante suficiente. O cálculo também é read-only e não altera a política.
@@ -163,6 +176,16 @@ Depois desse gate, `local-linkage-evidence-readiness.ps1` inventaria evidência 
 
 A leitura principal é a cobertura em `POS_EXACT` e `NEG_HARD_HOMONYM`. Se uma evidência adicional não estiver presente/comparável nos dois grupos, o corpus DEV atual **não mede seu ganho discriminativo**; não se deve preencher essa lacuna com peso arbitrário, threshold novo ou hipótese sobre a população municipal. O próximo experimento somente deve calibrar `m/u` dessa evidência depois de existir cobertura representativa e regra de governança correspondente.
 
+Para medir a pergunta de prevalência sem expor PII, use:
+
+```powershell
+.\scripts\local-linkage-triplet-collision-audit.ps1
+```
+
+A auditoria conta, na Gold ancorada por CPF, quantas Pessoas distintas compartilham a tripla `NOME_NORMALIZADO + NOME_MAE_NORMALIZADO + DATA_NASCIMENTO`. Os nomes normalizados vêm das chaves correntes `name_full` e `mother_name_full` da mesma projeção de blocking do modelo; o script exige cobertura de projeção coerente e grava apenas agregados, nunca nomes, CPFs, UUIDs ou datas individuais. O relatório fica em `.local\linkage-triplet-collision-audit\triplet-collision-audit.json`.
+
+**Não interprete automaticamente essa taxa como municipal.** Em DEV/CI a Gold é sintética e o relatório marca o contexto do dataset. Uma estimativa de prevalência do município exige executar a mesma auditoria read-only sobre uma Gold ancorada representativa e governada. A medida serve para quantificar a classe de colisão; por si só não autoriza relaxar a guarda de dois candidatos acima de `T_LINKAGE`.
+
 ### 10. Rodar o smoke de escala, quando necessário
 
 ```powershell
@@ -171,13 +194,11 @@ A leitura principal é a cobertura em `POS_EXACT` e `NEG_HARD_HOMONYM`. Se uma e
 
 O harness de escala também recria a base com massa própria. Portanto é um teste from-zero/destrutivo, não parte do fechamento padrão preservador. O perfil `smoke` valida com custo menor que `medium` ou `million`.
 
-### 11. Restaurar o banco canônico
+### 11. Escolher o fechamento depois de ensaio destrutivo
 
-```powershell
-.\scripts\local-db.ps1 -Action reset
-```
+O harness de escala usa dados próprios e pode destruir a referência IBGE local. **Não execute `local-db.ps1 -Action reset` imediatamente antes do fechamento preservador**, porque esse reset também remove a referência que `local-test-all.ps1` espera reutilizar.
 
-O ensaio de escala usa dados próprios. O reset antes do fechamento deixa o ambiente novamente em estado canônico conhecido.
+Se a referência IBGE ainda estiver materializada e o ambiente não tiver sido recriado pelo harness, siga para o fechamento preservador da etapa 12. Se você acabou de executar um fluxo destrutivo/scale e quer provar reconstrução completa, use diretamente `local-test-from-zero.ps1 -Suite full`, que rematerializa a referência de forma explícita.
 
 ### 12. Fechar com a suíte completa preservando a referência IBGE
 
