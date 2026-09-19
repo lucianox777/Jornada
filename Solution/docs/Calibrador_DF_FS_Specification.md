@@ -107,7 +107,16 @@ A probabilidade de coincidência exata também é calculada analiticamente a par
 
 O relatório deve preservar pelo menos: versão/SHA da referência IBGE, versão do método, hipótese de composição, canal de observação, seed, número de pares, suportes por nível, erro-padrão Monte Carlo e, quando existir, comparação lado a lado com `U_NOME_*` do modelo ATIVO.
 
-Esse `u` é **populacional não condicionado ao blocking**. O `U_NOME_*` do modelo SQL Server corrente é estimado dentro do universo de candidatos do ruleset. A diferença entre ambos é evidência para análise metodológica, não autorização para copiar um sobre o outro. Promoção continua exigindo avaliação independente e os gates da #31.
+Esse `u` é **populacional não condicionado ao blocking**. O recorte condicionado ao ruleset permanece disponível como evidência diagnóstica separada; diferenças entre os dois universos devem ser explicitadas e não misturadas silenciosamente. Promoção continua exigindo avaliação independente e os gates da #31.
+
+### 5.3. Abreviação compatível como evidência ainda não promovida
+
+`PTBR_POSITIONAL_INITIAL_COMPATIBLE_V1` é, nesta etapa, somente uma característica diagnóstica. O Parameters Worker mede seu suporte em duas amostras já existentes: `m` usa pares fonte-fonte inter-Gestores ligados deterministicamente por CPF; a referência `u` observada usa pares Gold-Gold que sobreviveram ao ruleset. O modelo persiste contagens, denominadores e taxas em `DIAG_ABBREV_*`, mas não cria `M_ABBREV_COMPATIBLE`, `U_ABBREV_COMPATIBLE` nem contribuição de LLR.
+
+Essa assimetria é intencional e impede uma promoção prematura. Uma abreviação é um fenômeno do processo de observação/registro, não apenas da distribuição populacional de nomes. O Monte Carlo IBGE corrente parte de valores publicados sem canal de erro administrativo; portanto ele não fornece, sozinho, a probabilidade `u` de uma observação abreviada ser compatível por acaso com o nome completo de outra pessoa. A amostra Gold-Gold condicionada ao blocking serve como referência de suporte, mas não é semanticamente equivalente a esse `u` operacional.
+
+Consequentemente, suporte `m` positivo e separação no fixture adversarial são necessários, mas insuficientes para criar um novo estado probabilístico. A promoção exige um estimador `u` versionado que modele a observação abreviada de um lado e a população de candidatos do outro, sustentado por dados representativos ou por um canal de erro explicitamente estimado — nunca por uma taxa arbitrária.
+
 ## 6. Thresholds e seleção
 
 Thresholds são produtos da calibração, não constantes escolhidas por intuição.
