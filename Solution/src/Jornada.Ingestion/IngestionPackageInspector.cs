@@ -116,6 +116,13 @@ public static partial class IngestionPackageInspector
         if (manifest.PessoaSchemaVersao < 1) throw new InvalidDataException("pessoaSchemaVersao deve ser >= 1.");
         if (string.IsNullOrWhiteSpace(manifest.CodigoSistemaOrigem) || !SistemaOrigemCodeRegex().IsMatch(manifest.CodigoSistemaOrigem))
             throw new InvalidDataException("codigoSistemaOrigem é obrigatório e deve conter 1 a 80 caracteres A-Z/0-9/_/-.");
+        if (manifest.CodigoBasePessoaOrigem is not null)
+        {
+            if (manifest.PessoaSchemaVersao < 4)
+                throw new InvalidDataException("codigoBasePessoaOrigem só é permitido com pessoaSchemaVersao >= 4.");
+            if (!PersonBaseCodeRegex().IsMatch(manifest.CodigoBasePessoaOrigem))
+                throw new InvalidDataException("codigoBasePessoaOrigem deve conter 1 a 120 caracteres A-Z/0-9/_/-.");
+        }
         if (validatePayloadPresence && pessoasEntry.Length == 0) throw new InvalidDataException("pessoas.jsonl não pode estar vazio.");
 
         var factualFields = new object?[] { manifest.Natureza, manifest.CodigoTipo, manifest.TipoVersao };
@@ -181,6 +188,8 @@ public static partial class IngestionPackageInspector
     private static partial Regex TipoCodeRegex();
     [GeneratedRegex("^[A-Z0-9_-]{1,80}$", RegexOptions.CultureInvariant)]
     private static partial Regex SistemaOrigemCodeRegex();
+    [GeneratedRegex("^[A-Z0-9_-]{1,120}$", RegexOptions.CultureInvariant)]
+    private static partial Regex PersonBaseCodeRegex();
     [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex ShaRegex();
 }
