@@ -27,6 +27,28 @@ BEGIN
 END;
 GO
 
+IF EXISTS(
+    SELECT 1
+    FROM sys.key_constraints
+    WHERE parent_object_id=OBJECT_ID('silver.pessoa_observacao')
+      AND name='uq_pessoa_observacao_versao')
+BEGIN
+    ALTER TABLE silver.pessoa_observacao DROP CONSTRAINT uq_pessoa_observacao_versao;
+END;
+GO
+
+IF NOT EXISTS(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id=OBJECT_ID('silver.pessoa_observacao')
+      AND name='uq_pessoa_observacao_versao')
+BEGIN
+    CREATE UNIQUE INDEX uq_pessoa_observacao_versao
+      ON silver.pessoa_observacao(pessoa_origem_id,versao_interna)
+      WHERE pessoa_origem_id IS NOT NULL;
+END;
+GO
+
 IF OBJECT_ID('silver.pessoa_observacao','U') IS NOT NULL
    AND NOT EXISTS(
        SELECT 1
