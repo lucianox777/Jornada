@@ -203,10 +203,10 @@ internal sealed record IdentityPair(
     Guid? TruthPersonUuid,
     string LeftName,
     DateOnly LeftBirthDate,
-    string LeftMotherName,
+    string? LeftMotherName,
     string RightName,
     DateOnly RightBirthDate,
-    string RightMotherName);
+    string? RightMotherName);
 
 internal sealed class LinkageEvaluation(SqlConnection connection, int commandTimeoutSeconds)
 {
@@ -222,7 +222,12 @@ internal sealed class LinkageEvaluation(SqlConnection connection, int commandTim
                 FROM silver.pessoa_observacao po
                 JOIN gold.pessoa gp ON gp.pessoa_uuid=@truth_uuid
                 WHERE po.pessoa_observacao_id=@observation_id
-                  AND po.cpf IS NULL;
+                  AND po.cpf IS NULL
+                  AND gp.estado_identidade=N'REFERENCIA'
+                  AND po.nome_completo IS NOT NULL
+                  AND po.data_nascimento IS NOT NULL
+                  AND gp.nome_completo IS NOT NULL
+                  AND gp.data_nascimento IS NOT NULL;
                 """, connection) { CommandTimeout = commandTimeoutSeconds };
             command.Parameters.Add("@observation_id", SqlDbType.BigInt).Value = label.ObservationId;
             command.Parameters.Add("@truth_uuid", SqlDbType.UniqueIdentifier).Value = label.TruthPersonUuid;
@@ -231,8 +236,8 @@ internal sealed class LinkageEvaluation(SqlConnection connection, int commandTim
             result.Add(new IdentityPair(
                 reader.GetInt64(0),
                 reader.GetGuid(4),
-                reader.GetString(1), DateOnly.FromDateTime(reader.GetDateTime(2)), reader.GetString(3),
-                reader.GetString(5), DateOnly.FromDateTime(reader.GetDateTime(6)), reader.GetString(7)));
+                reader.GetString(1), DateOnly.FromDateTime(reader.GetDateTime(2)), reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.GetString(5), DateOnly.FromDateTime(reader.GetDateTime(6)), reader.IsDBNull(7) ? null : reader.GetString(7)));
         }
         return result;
     }
@@ -244,6 +249,7 @@ internal sealed class LinkageEvaluation(SqlConnection connection, int commandTim
             WITH gold_sample AS (
                 SELECT TOP (@pool_size) pessoa_uuid
                 FROM gold.pessoa
+                WHERE estado_identidade=N'REFERENCIA'
                 ORDER BY pessoa_uuid
             ), obs_por_gestor AS (
                 SELECT vf.pessoa_uuid,po.gestor_id,po.pessoa_observacao_id,
@@ -255,6 +261,8 @@ internal sealed class LinkageEvaluation(SqlConnection connection, int commandTim
                      AND vf.ativo=1 AND vf.status='RESOLVIDO' AND vf.metodo_resolucao='CPF_DETERMINISTICO'
                 JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vf.pessoa_observacao_id
                 WHERE po.cpf IS NOT NULL
+                  AND po.nome_completo IS NOT NULL
+                  AND po.data_nascimento IS NOT NULL
             ), fontes_independentes AS (
                 SELECT opg.*,
                        ROW_NUMBER() OVER(PARTITION BY opg.pessoa_uuid
@@ -280,8 +288,8 @@ internal sealed class LinkageEvaluation(SqlConnection connection, int commandTim
         {
             result.Add(new IdentityPair(
                 null, null,
-                reader.GetString(0), DateOnly.FromDateTime(reader.GetDateTime(1)), reader.GetString(2),
-                reader.GetString(3), DateOnly.FromDateTime(reader.GetDateTime(4)), reader.GetString(5)));
+                reader.GetString(0), DateOnly.FromDateTime(reader.GetDateTime(1)), reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.GetString(3), DateOnly.FromDateTime(reader.GetDateTime(4)), reader.IsDBNull(5) ? null : reader.GetString(5)));
         }
         return result;
     }
@@ -294,8 +302,11 @@ internal sealed class LinkageEvaluation(SqlConnection connection, int commandTim
             await using var command = new SqlCommand(
                 """
                 SELECT
-                    (SELECT COUNT_BIG(*) FROM gold.pessoa WHERE data_nascimento=@birth_date) exact_candidates,
-                    (SELECT COUNT_BIG(*) FROM gold.pessoa WHERE data_nascimento BETWEEN DATEADD(DAY,-@window,@birth_date) AND DATEADD(DAY,@window,@birth_date)) window_candidates;
+                    (SELECT COUNT_BIG(*) FROM gold.pessoa
+                      WHERE estado_identidade=N'REFERENCIA' AND data_nascimento=@birth_date) exact_candidates,
+                    (SELECT COUNT_BIG(*) FROM gold.pessoa
+                      WHERE estado_identidade=N'REFERENCIA'
+                        AND data_nascimento BETWEEN DATEADD(DAY,-@window,@birth_date) AND DATEADD(DAY,@window,@birth_date)) window_candidates;
                 """, connection) { CommandTimeout = commandTimeoutSeconds };
             command.Parameters.Add("@birth_date", SqlDbType.Date).Value = pair.LeftBirthDate.ToDateTime(TimeOnly.MinValue);
             command.Parameters.Add("@window", SqlDbType.Int).Value = windowDays;
@@ -348,8 +359,16 @@ internal static class TransportabilityMetrics
     {
         var cpfName = Distribution(cpfAnchored.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)), smoothingAlpha);
         var noCpfName = Distribution(noCpfLabeled.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName)), smoothingAlpha);
-        var cpfMother = Distribution(cpfAnchored.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
-        var noCpfMother = Distribution(noCpfLabeled.Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)), smoothingAlpha);
+        var cpfMother = Distribution(
+            cpfAnchored
+                .Where(p => !string.IsNullOrWhiteSpace(p.LeftMotherName) && !string.IsNullOrWhiteSpace(p.RightMotherName))
+                .Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)),
+            smoothingAlpha);
+        var noCpfMother = Distribution(
+            noCpfLabeled
+                .Where(p => !string.IsNullOrWhiteSpace(p.LeftMotherName) && !string.IsNullOrWhiteSpace(p.RightMotherName))
+                .Select(p => IdentityComparison.CompareName(p.LeftMotherName, p.RightMotherName)),
+            smoothingAlpha);
         var cpfBirthExact = ExactBirthRate(cpfAnchored, smoothingAlpha);
         var noCpfBirthExact = ExactBirthRate(noCpfLabeled, smoothingAlpha);
         return new
