@@ -38,4 +38,5 @@
 :r database/migrations/20260916_Linkage_U_Support_Reachability.sql
 :r database/migrations/20260917_Linkage_Llr_Monotonicity.sql
 :r database/migrations/20260919_Linkage_Publicacao_Progressiva.sql
+:r database/migrations/20260919_Gold_Pessoa_Progressiva.sql
 :r database/migrations/20260910_Schema_Consolidation_370.sql
