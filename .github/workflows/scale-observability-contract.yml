@@ -12,6 +12,7 @@ on:
       - 'Solution/scripts/coordination-lock-probe.py'
       - 'Solution/scripts/blocking-pass-fanout-gate.py'
       - 'Solution/scripts/scale-observability-evidence-gate.py'
+      - 'Solution/scripts/linkage-decision-quality-gate.py'
       - '.github/workflows/scale-observability-contract.yml'
   push:
     branches: [ master ]
@@ -40,9 +41,10 @@ jobs:
       - name: Validate scale harness contract
         run: |
           set -euo pipefail
-          python3 -m py_compile Solution/scripts/coordination-lock-probe.py Solution/scripts/blocking-pass-fanout-gate.py Solution/scripts/scale-observability-evidence-gate.py
+          python3 -m py_compile Solution/scripts/coordination-lock-probe.py Solution/scripts/blocking-pass-fanout-gate.py Solution/scripts/scale-observability-evidence-gate.py Solution/scripts/linkage-decision-quality-gate.py
           python3 Solution/scripts/blocking-pass-fanout-gate.py --self-test
           python3 Solution/scripts/scale-observability-evidence-gate.py --self-test
+          python3 Solution/scripts/linkage-decision-quality-gate.py --self-test
           for script in Solution/scripts/local-scale.sh Solution/scripts/local-scale.ps1; do
             grep -F 'blockingPressure' "$script" >/dev/null
             grep -F 'blockingPassPressure' "$script" >/dev/null
@@ -54,6 +56,7 @@ jobs:
             grep -F 'coordinationProbe' "$script" >/dev/null
             grep -F 'coordination-lock-probe.py' "$script" >/dev/null
             grep -F 'scale-observability-evidence-gate.py' "$script" >/dev/null
+            grep -F 'linkage-decision-quality-gate.py' "$script" >/dev/null
             grep -F 'REBUILD_LOCAL_BLOCKING' "$script" >/dev/null
             grep -F 'Jornada.Processor.Worker' "$script" >/dev/null
             grep -F "codigo_pessoa_origem LIKE N'SCALE-%'" "$script" >/dev/null
@@ -67,6 +70,8 @@ jobs:
           grep -F 'contentionConfirmed' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
           grep -F 'lock_result != 1' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
           grep -F 'falsePositives' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
+          grep -F 'conflictsTruthFirstWithoutTie' Solution/scripts/linkage-decision-quality-gate.py >/dev/null
+          grep -F 'zeroFpUpper95PctRuleOfThree' Solution/scripts/linkage-decision-quality-gate.py >/dev/null
           grep -F 'REQUIRED_DIVERSE_ATTRIBUTES' Solution/scripts/scale-observability-evidence-gate.py >/dev/null
           grep -F 'DEFAULT_MAX_FRACTION = 0.25' Solution/scripts/blocking-pass-fanout-gate.py >/dev/null
           grep -F 'DEFAULT_P95_ABSOLUTE = 1000' Solution/scripts/blocking-pass-fanout-gate.py >/dev/null
