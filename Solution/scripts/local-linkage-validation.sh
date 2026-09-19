@@ -81,6 +81,23 @@ model_version="$(scalar "SELECT versao FROM identidade.modelo_linkage WHERE mode
 algorithm_version="$(scalar "SELECT algoritmo_versao FROM identidade.modelo_linkage WHERE modelo_id='$active_model_id';")"
 echo "Validação independente: modelo v$model_version / $active_model_id / $algorithm_version"
 
+candidate_prior="$(scalar "SELECT CONCAT(
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_CANDIDATE_PAIR_PRIOR_V1')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_CANDIDATE_PRIOR_MATCH_PROBABILITY')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='PRIOR_MATCH_PROBABILITY')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_CANDIDATE_PRIOR_TRUTH_PAIRS')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_CANDIDATE_PRIOR_FALSE_PAIRS')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_CANDIDATE_PRIOR_TOTAL_PAIRS')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_CANDIDATE_PRIOR_CANDIDATE_RECALL')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_CANDIDATE_PRIOR_DELTA_LOG_ODDS_VS_ACTIVE')),'NULL'),'|',
+  COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_CANDIDATE_PRIOR_ACTIVE_SCORE_CHANGED')),'NULL'))")"
+IFS='|' read -r candidate_prior_enabled candidate_prior_probability active_prior candidate_truth_pairs candidate_false_pairs candidate_total_pairs candidate_recall candidate_delta_log_odds candidate_score_changed <<< "$candidate_prior"
+[[ "$candidate_prior_enabled" != "NULL" && "$candidate_prior_probability" != "NULL" && "$candidate_total_pairs" != "NULL" ]] || {
+  echo 'ERRO: diagnóstico persistido do prior candidato-par ausente. Recalibre o modelo com o runtime atual.' >&2
+  exit 9
+}
+echo "Prior candidato-par (diagnóstico): p=$candidate_prior_probability ativo=$active_prior pares=$candidate_truth_pairs+$candidate_false_pairs=$candidate_total_pairs recall=$candidate_recall delta_log_odds=$candidate_delta_log_odds score_alterado=$candidate_score_changed"
+
 abbrev_training="$(scalar "SELECT CONCAT(
   COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_ABBREV_COMPATIBLE_V1')),'NULL'),'|',
   COALESCE(CONVERT(varchar(40),(SELECT valor FROM identidade.parametro_linkage WHERE modelo_id='$active_model_id' AND nome='DIAG_ABBREV_M_NOME_DENOM')),'NULL'),'|',
