@@ -24,7 +24,7 @@ public sealed class ProgressiveOriginSqlTests
         await using var connection = new SqlConnection(cs);
         await connection.OpenAsync();
         var dir = Path.Combine(AppContext.BaseDirectory, "database");
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(dir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, dir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(dir, "Jornada_Seed_Dev.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(dir, "Jornada_Identidade_Progressiva.sql"));
         var serving = Path.Combine(dir, "migrations", "20260908_Identidade_Progressiva_Serving.sql");
