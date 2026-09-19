@@ -447,7 +447,8 @@ public sealed class LinkageParametersWorker(
                    APPROX_COUNT_DISTINCT(g.data_nascimento) AS distinct_birth_date,
                    MAX(g.atualizado_em) AS max_updated_at
             FROM gold.pessoa g
-            WHERE NOT EXISTS (
+            WHERE g.estado_identidade=N'REFERENCIA'
+              AND NOT EXISTS (
                 SELECT 1
                 FROM identidade.vinculo_fonte vf
                 JOIN silver.pessoa_observacao po
@@ -471,7 +472,8 @@ public sealed class LinkageParametersWorker(
             WITH gold_sample AS (
                 SELECT TOP (@pool_size) g.pessoa_uuid
                 FROM gold.pessoa g
-                WHERE NOT EXISTS (
+                WHERE g.estado_identidade=N'REFERENCIA'
+                  AND NOT EXISTS (
                     SELECT 1
                     FROM identidade.vinculo_fonte vf_val
                     JOIN silver.pessoa_observacao po_val
@@ -487,6 +489,8 @@ public sealed class LinkageParametersWorker(
                 JOIN identidade.vinculo_fonte vf ON vf.pessoa_uuid=gs.pessoa_uuid AND vf.ativo=1 AND vf.status='RESOLVIDO' AND vf.metodo_resolucao='CPF_DETERMINISTICO'
                 JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vf.pessoa_observacao_id
                 WHERE po.cpf IS NOT NULL
+                  AND po.nome_completo IS NOT NULL
+                  AND po.data_nascimento IS NOT NULL
                   AND po.codigo_pessoa_origem NOT LIKE N'SCALE-VAL-%'
             ), fontes_independentes AS (
                 SELECT opg.pessoa_uuid,opg.gestor_id,g.codigo AS gestor_codigo,opg.pessoa_observacao_id,opg.nome_completo,opg.data_nascimento,opg.nome_mae,
@@ -515,7 +519,10 @@ public sealed class LinkageParametersWorker(
             WITH gold_sample AS (
                 SELECT TOP (@pool_size) g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
                 FROM gold.pessoa g
-                WHERE NOT EXISTS (
+                WHERE g.estado_identidade=N'REFERENCIA'
+                  AND g.nome_completo IS NOT NULL
+                  AND g.data_nascimento IS NOT NULL
+                  AND NOT EXISTS (
                     SELECT 1
                     FROM identidade.vinculo_fonte vf_val
                     JOIN silver.pessoa_observacao po_val
@@ -558,7 +565,15 @@ public sealed class LinkageParametersWorker(
         var result = new List<IdentityTrainingPair>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
-            result.Add(new IdentityTrainingPair(reader.GetString(0), DateOnly.FromDateTime(reader.GetDateTime(1)), reader.GetString(2), reader.GetString(3), DateOnly.FromDateTime(reader.GetDateTime(4)), reader.GetString(5), reader.FieldCount > 6 && !reader.IsDBNull(6) ? reader.GetString(6) : null, reader.FieldCount > 7 && !reader.IsDBNull(7) ? reader.GetString(7) : null));
+            result.Add(new IdentityTrainingPair(
+                reader.GetString(0),
+                DateOnly.FromDateTime(reader.GetDateTime(1)),
+                reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.GetString(3),
+                DateOnly.FromDateTime(reader.GetDateTime(4)),
+                reader.IsDBNull(5) ? null : reader.GetString(5),
+                reader.FieldCount > 6 && !reader.IsDBNull(6) ? reader.GetString(6) : null,
+                reader.FieldCount > 7 && !reader.IsDBNull(7) ? reader.GetString(7) : null));
         return result;
     }
 
