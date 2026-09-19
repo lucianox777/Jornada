@@ -279,7 +279,12 @@ jobs:
           foreach ($required in @(
             'Write-CommandLine $LocalCluster',
             "Write-CommandLine 'docker'",
-            'SQLCMDPASSWORD=<redacted>'
+            'SQLCMDPASSWORD=<redacted>',
+            'LINKAGE INDEPENDENT VALIDATION DEV SAFETY GATES: OK',
+            'syntheticResolvedPpv = if ($null -eq $syntheticResolvedPpv)',
+            'plannedColliderAlignment',
+            'runtimeFingerprint',
+            'zeroMatchedSupportStates'
           )) {
             if (-not $validation.Contains($required)) {
               throw "local-linkage-validation.ps1 perdeu contrato de command output: $required"
@@ -288,6 +293,24 @@ jobs:
           if ($validation -match 'Write-CommandLine[^\r\n]*\$password') {
             throw 'local-linkage-validation.ps1 não pode imprimir senha SQL.'
           }
+          if ($validation.Contains('LINKAGE INDEPENDENT VALIDATION DEV QUALITY GATES: OK')) {
+            throw 'local-linkage-validation.ps1 não pode chamar safety-only de quality gate.'
+          }
+
+          $triplet = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-triplet-collision-audit.ps1
+          foreach ($required in @(
+            'READ_ONLY_GOLD_ANCHORED_TRIPLET_COLLISION_AUDIT',
+            'exposesPii=$false',
+            "atributo=N'name_full'",
+            "atributo=N'mother_name_full'",
+            'municipalPrevalenceClaimAllowed=$false',
+            'LINKAGE GOLD TRIPLET COLLISION AUDIT: OK'
+          )) {
+            if (-not $triplet.Contains($required)) {
+              throw "local-linkage-triplet-collision-audit.ps1 perdeu contrato obrigatório: $required"
+            }
+          }
+
 
           $flow = Get-Content -Raw -Encoding UTF8 scripts/local-linkage-validation-flow.ps1
           foreach ($required in @(
