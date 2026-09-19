@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Operational.Sql;
@@ -42,7 +43,9 @@ internal static class NameAbbreviationAuditCommand
                 WHERE lr.linkage_run_id=@run_id;
                 """;
             AddParameter(modelCommand, "@run_id", DbType.Guid, runId);
-            algorithmVersion = Convert.ToString(await modelCommand.ExecuteScalarAsync(ct))
+            algorithmVersion = Convert.ToString(
+                await modelCommand.ExecuteScalarAsync(ct),
+                CultureInfo.InvariantCulture)
                 ?? throw new InvalidOperationException($"Run {runId} não encontrado.");
         }
 
