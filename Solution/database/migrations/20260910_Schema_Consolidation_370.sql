@@ -55,7 +55,9 @@ FROM (VALUES
  (N'gold.tr_pessoa_nome_publicacao'),
  (N'identidade.tr_linkage_run_congela_frequencia_nome'),
  (N'identidade.tr_linkage_run_frequencia_nome_immutavel'),
- (N'identidade.tr_modelo_linkage_promotion_contract')
+ (N'identidade.tr_modelo_linkage_promotion_contract'),
+ (N'identidade.tr_linkage_resultado_publicacao_imutavel'),
+ (N'identidade.tr_linkage_resultado_bloqueia_delete')
 ) v(objeto)
 WHERE OBJECT_ID(v.objeto, N'TR') IS NULL;
 
