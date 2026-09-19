@@ -353,9 +353,10 @@ Uma origem sem CPF pode ser ligada probabilisticamente a uma âncora CPF já exi
 
 Os limiares e critérios são parâmetros versionados sujeitos à D12.
 
-**RN-CT-12 — Chave do registro: obrigatória, única e verificada continuamente.** `codigoRegistroOrigem` identifica um fato no sistema da fonte.
+**RN-CT-12 — Chave do registro: obrigatoriedade contratual e verificação contínua.** `codigoRegistroOrigem`, quando previsto pelo Tipo, identifica persistentemente um fato no sistema da fonte.
 
-- **Obrigatória e única no namespace:** uma chave identifica um único fato durante toda a vida desse fato e não deve ser reciclada.
+- **Obrigatoriedade definida pelo contrato:** cada versão de Tipo de Benefício/Serviço declara em seu schema factual se `codigoRegistroOrigem` é obrigatório. O Processor não cria uma exigência global além do schema aprovado.
+- **Quando informado/exigido, é único no namespace:** a chave identifica um único fato durante toda a vida desse fato e não deve ser reciclada.
 - **Responsabilidade do Gestor:** aplica-se a mesma responsabilidade operacional da RN-CT-09.
 - **Duplicação:** o mesmo fato enviado sob duas chaves distintas gera alerta de possível duplicação; nenhum fato é removido automaticamente.
 - **Reaproveitamento:** uma chave existente usada para outro fato não pode transformar o novo conteúdo em retificação silenciosa. Uma alteração de Pessoa ligada ao fato, Tipo/Natureza ou marco inicial do fato é sinal de reaproveitamento. A nova observação vai para **conflito de retificação**, a versão anterior não é encerrada/substituída automaticamente, as evidências de ambas são preservadas e o Gestor recebe alerta.
