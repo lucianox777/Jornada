@@ -121,6 +121,15 @@ echo "# docker compose --env-file $ENV_FILE exec -T -e SQLCMDPASSWORD=<redacted>
 (cd "$ROOT" && docker compose --env-file "$ENV_FILE" exec -T -e "SQLCMDPASSWORD=$SQL_PASSWORD" sqlserver \
   /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d "$DB" -i "$FIXTURE")
 
+# O fixture DEV entra direto na Silver e deliberadamente bypassa o Processor.
+# Portanto assegura o ledger progressivo antes de testar publicação fail-closed do runtime.
+echo "# materializar initial_uuid das origens SCALE-VAL via backfill canônico"
+(cd "$ROOT" && docker compose --env-file "$ENV_FILE" exec -T -e "SQLCMDPASSWORD=$SQL_PASSWORD" sqlserver \
+  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d "$DB" -v PAGE_SIZE=1000 \
+  -i /workspace/scripts/local-progressive-identity-backfill.sql)
+missing_progressive="$(scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao po JOIN silver.pessoa_origem o ON o.pessoa_origem_id=po.pessoa_origem_id LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE po.codigo_pessoa_origem LIKE N'SCALE-VAL-%' AND p.pessoa_origem_id IS NULL;")"
+[[ "$missing_progressive" == "0" ]] || { echo "ERRO: fixture SCALE-VAL deixou $missing_progressive origens sem initial_uuid." >&2; exit 9; }
+
 # Reutiliza evidência completa já publicada para o mesmo modelo. Isso torna a validação idempotente:
 # observações resolvidas deixam de entrar no próximo ON_DEMAND e um segundo run isolado seria parcial.
 run_id="$(complete_validation_run_id)"
