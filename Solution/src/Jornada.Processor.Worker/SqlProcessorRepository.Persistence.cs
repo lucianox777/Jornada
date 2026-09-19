@@ -544,23 +544,31 @@ internal sealed partial class SqlProcessorRepository
     private static async Task<ProcessedPerson> LoadProcessedPersonAsync(
         SqlConnection connection, SqlTransaction tx, long observationId, CancellationToken ct)
     {
-        long pessoaOrigemId; long sistemaOrigemId; string codigo; string? cpf; string? cpfMotivo; Guid? uuid=null; string status="NAO_RESOLVIDO";
+        long? pessoaOrigemId; long sistemaOrigemId; string? codigo; string? cpf; string? cpfMotivo; Guid? uuid=null; string status="NAO_RESOLVIDO";
         await using (var command = connection.CreateCommand())
         {
             command.Transaction = tx;
             command.CommandText = """
-                SELECT po.pessoa_origem_id,pori.sistema_origem_id,po.codigo_pessoa_origem,po.cpf,po.cpf_ausente_motivo,vc.pessoa_uuid,COALESCE(vc.status,'NAO_RESOLVIDO')
+                SELECT po.pessoa_origem_id,COALESCE(pori.sistema_origem_id,e.sistema_origem_id),
+                       po.codigo_pessoa_origem,po.cpf,po.cpf_ausente_motivo,
+                       vc.pessoa_uuid,COALESCE(vc.status,'NAO_RESOLVIDO')
                 FROM silver.pessoa_observacao po
-                JOIN silver.pessoa_origem pori ON pori.pessoa_origem_id=po.pessoa_origem_id
+                JOIN ingestao.lote l ON l.lote_id=po.lote_id
+                JOIN ingestao.entrega e ON e.entrega_id=l.entrega_id
+                LEFT JOIN silver.pessoa_origem pori ON pori.pessoa_origem_id=po.pessoa_origem_id
                 LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id
                 WHERE po.pessoa_observacao_id=@obs;
                 """;
             command.Parameters.AddWithValue("@obs", observationId);
             await using var reader=await command.ExecuteReaderAsync(ct);
             if(!await reader.ReadAsync(ct)) throw new InvalidDataException($"Pessoa observação {observationId} inexistente.");
-            pessoaOrigemId=reader.GetInt64(0); sistemaOrigemId=reader.GetInt64(1); codigo=reader.GetString(2);
-            cpf=reader.IsDBNull(3)?null:reader.GetString(3); cpfMotivo=reader.IsDBNull(4)?null:reader.GetString(4);
-            if(!reader.IsDBNull(5)) uuid=reader.GetGuid(5); status=reader.GetString(6);
+            pessoaOrigemId=reader.IsDBNull(0)?null:reader.GetInt64(0);
+            sistemaOrigemId=reader.GetInt64(1);
+            codigo=reader.IsDBNull(2)?null:reader.GetString(2);
+            cpf=reader.IsDBNull(3)?null:reader.GetString(3);
+            cpfMotivo=reader.IsDBNull(4)?null:reader.GetString(4);
+            if(!reader.IsDBNull(5)) uuid=reader.GetGuid(5);
+            status=reader.GetString(6);
         }
         var geography = await SelectTerritorialReferenceAsync(connection, tx, observationId, ct);
         var assignment = status == "RESOLVIDO" && uuid.HasValue ? "ATRIBUIDA" : status == "CONFLITO" ? "CONFLITO_IDENTIDADE" : "PENDENTE_IDENTIDADE";
