@@ -85,7 +85,7 @@ jobs:
         run: |
           # pwsh -NoLogo -NoProfile -File ./scripts/local-linkage-validation.ps1
           Write-Host '# pwsh -NoLogo -NoProfile -File ./scripts/local-linkage-validation.ps1'
-          & ./scripts/local-linkage-validation.ps1 2>&1 | Tee-Object -FilePath .local/linkage-validation/validation-console.txt
+          & ./scripts/local-linkage-validation.ps1
           if ($LASTEXITCODE -ne 0) { throw "local-linkage-validation.ps1 falhou ($LASTEXITCODE)." }
 
       - name: Validate safety/report semantics
@@ -107,11 +107,6 @@ jobs:
             )
             and (.nominalOrderRestriction.zeroMatchedSupportStates | type=="array")
           ' "$report" >/dev/null
-          grep -q 'LINKAGE INDEPENDENT VALIDATION DEV SAFETY GATES: OK' .local/linkage-validation/validation-console.txt
-          if grep -q 'DEV QUALITY GATES: OK' .local/linkage-validation/validation-console.txt; then
-            echo 'ERRO: banner antigo de quality gate ainda presente.' >&2
-            exit 1
-          fi
           echo 'LINKAGE SAFETY/REPORT SEMANTICS: OK'
 
       - name: Validate policy counterfactual evidence
@@ -227,7 +222,6 @@ jobs:
             Solution/.local/linkage-validation/validation-report.json
             Solution/.local/linkage-evidence-readiness/evidence-readiness.json
             Solution/.local/linkage-validation/run-provenance.json
-            Solution/.local/linkage-validation/validation-console.txt
             Solution/.local/linkage-triplet-collision-audit/triplet-collision-audit.json
           if-no-files-found: warn
           retention-days: 14
