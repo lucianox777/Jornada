@@ -32,6 +32,7 @@ public sealed class BlockingProjectionSqlServerTests
             System.Globalization.CultureInfo.InvariantCulture);
         var person = new ParsedPerson(
             "BLOCKING-SQLSERVER-001",
+            "BLOCKING-SQLSERVER-001",
             new string('a', 64),
             "TX-BLOCKING-SQLSERVER-001",
             cpf,
