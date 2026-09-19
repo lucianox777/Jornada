@@ -84,7 +84,7 @@ O valor original nunca é alterado pela normalização de Linkage. Qualidade é 
 
 **A ausência, indisponibilidade ou má qualidade de qualquer campo — inclusive nome da mãe — nunca elimina a observação recebida.** Ela reduz ou neutraliza a evidência disponível conforme política versionada, mas não autoriza descarte do fato, preenchimento sintético ou invenção de valor. Valores ausentes/impossíveis/sentinelas são neutros no score salvo política calibrada específica. Contradições permanecem preservadas e não são corrigidas silenciosamente.
 
-Esta regra arquitetural não altera, por si só, a obrigatoriedade dos contratos de entrada vigentes: eventual mudança de `nomeMae` de obrigatório para opcional é decisão funcional/normativa separada e deve ser tratada em change-set próprio.
+Esta regra arquitetural não altera a obrigatoriedade declarada por cada contrato de entrada: nos schemas v4 correntes, `nomeCompleto` e `dataNascimento` continuam obrigatórios onde já o eram e `nomeMae` é opcional. O Processor não replica essas obrigatoriedades depois da validação do JSON Schema; contratos futuros podem admitir outras combinações sem transformar requisito de fonte em condição universal de existência da Pessoa.
 
 Nome e nome da mãe usam normalização versionada. A normalização pode remover diacríticos, pontuação irrelevante, espaços redundantes e partículas nominais isoladas para comparação, preservando o original.
 
