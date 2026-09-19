@@ -158,7 +158,8 @@ BEGIN
          @modelo_versao INT,
          @run_status NVARCHAR(30),
          @run_avaliados BIGINT,
-         @run_elegiveis BIGINT;
+         @run_elegiveis BIGINT,
+         @run_itens BIGINT;
 
  SELECT @pessoa_origem_id=po.pessoa_origem_id,
         @resultado=r.resultado_publicacao,
@@ -180,9 +181,18 @@ BEGIN
  WHERE r.linkage_run_id=@linkage_run_id
    AND r.pessoa_observacao_id=@pessoa_observacao_id;
 
+ SELECT @run_itens=COUNT_BIG(*)
+ FROM identidade.linkage_run_item WITH(HOLDLOCK)
+ WHERE linkage_run_id=@linkage_run_id;
+
  IF @resultado IS NULL THROW 51802,'Resultado de publicação do Linkage ausente.',1;
  IF @run_status<>N'EXECUTANDO' THROW 51803,'Evento progressivo só pode ser produzido antes da transição do run para PUBLICADO.',1;
- IF @run_avaliados<>@run_elegiveis THROW 51818,'Run incompleto não pode publicar resolução progressiva.',1;
+ IF @run_avaliados<>@run_elegiveis OR @run_itens<>@run_elegiveis
+    THROW 51818,'Run incompleto/materialização divergente não pode publicar resolução progressiva.',1;
+ IF NOT EXISTS(
+   SELECT 1 FROM identidade.linkage_run_item WITH(HOLDLOCK)
+   WHERE linkage_run_id=@linkage_run_id AND pessoa_observacao_id=@pessoa_observacao_id)
+    THROW 51820,'Observação não pertence ao universo materializado do run.',1;
  IF @pessoa_origem_id IS NULL THROW 51804,'Observação sem origem persistente não possui ledger progressivo.',1;
  IF @politica IS NULL OR LTRIM(RTRIM(@politica))=N'' THROW 51805,'Política de publicação ausente.',1;
  IF EXISTS(
