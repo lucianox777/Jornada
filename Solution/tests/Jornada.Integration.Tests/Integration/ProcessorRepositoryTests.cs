@@ -673,6 +673,84 @@ public sealed class ProcessorRepositoryTests
     }
 
     [Test]
+    public async Task V4_fact_links_to_originless_person_by_delivery_id()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+        await using (var setup = new SqlConnection(connectionString))
+        {
+            await setup.OpenAsync();
+            await using var command = setup.CreateCommand();
+            command.CommandText = """
+                DECLARE @lote UNIQUEIDENTIFIER=(
+                    SELECT TOP(1) l.lote_id
+                    FROM ingestao.lote l
+                    JOIN ingestao.entrega e ON e.entrega_id=l.entrega_id
+                    WHERE e.natureza='BENEFICIO'
+                    ORDER BY l.criado_em,l.lote_id);
+                UPDATE ingestao.lote SET status='PENDENTE',erro_codigo=NULL,lease_id=NULL,lease_owner=NULL,
+                    lease_adquirido_em=NULL,heartbeat_em=NULL,lease_expira_em=NULL,proxima_tentativa_em=NULL,
+                    poison_em=NULL,atualizado_em=SYSUTCDATETIME()
+                WHERE lote_id=@lote;
+                UPDATE e SET status='RECEBIDA',ultima_atualizacao=SYSDATETIMEOFFSET()
+                FROM ingestao.entrega e JOIN ingestao.lote l ON l.entrega_id=e.entrega_id
+                WHERE l.lote_id=@lote;
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var repository = CreateRepository(connectionString);
+        var batch = await repository.ReserveNextAsync(CancellationToken.None);
+        Assert.That(batch, Is.Not.Null);
+        Assert.That(batch!.Natureza, Is.EqualTo(IntegrationNature.BENEFICIO));
+
+        const string deliveryPersonId = "DELIVERY-V4-FACT-NO-SOURCE";
+        var person = new ParsedPerson(
+            deliveryPersonId, null, new string('6',64), "TX-V4-FACT-NO-SOURCE", null, "SEM_CPF",
+            "Pessoa V4 Fato Sem Codigo Local", new DateOnly(1994,6,18), "Mae V4 Fato Sem Codigo Local",
+            [], [], Array.Empty<ParsedPersonIdentifier>());
+        var fact = new ParsedFact(
+            deliveryPersonId, "REG-V4-FACT-NO-SOURCE", RegistroOperacao.INCLUSAO, new string('5',64),
+            DateOnly.FromDateTime(DateTime.UtcNow.Date), null, null, null, null, null,
+            "VIGENTE", null, null, 15m, null, null);
+        var manifest = new IngestionPackageManifest(
+            2, 4, batch.CodigoSistemaOrigem, batch.Natureza, batch.CodigoTipo, batch.TipoVersao, batch.DataReferencia);
+
+        await repository.PersistValidatedAsync(
+            batch, new ParsedPackage(manifest, [person], [fact]), CancellationToken.None);
+
+        await using var verify = new SqlConnection(connectionString);
+        await verify.OpenAsync();
+        await using var query = verify.CreateCommand();
+        query.CommandText = """
+            SELECT po.pessoa_origem_id,po.codigo_pessoa_origem,
+                   ro.pessoa_observacao_id,
+                   b.pessoa_origem_id,b.codigo_pessoa_origem,b.estado_atribuicao_identidade,
+                   ri.pessoa_origem_id,ri.codigo_pessoa_origem,ri.estado_atribuicao_identidade
+            FROM silver.pessoa_observacao po
+            JOIN silver.registro_observacao ro ON ro.pessoa_observacao_id=po.pessoa_observacao_id
+            JOIN gold.beneficio_concedido b ON b.registro_observacao_id=ro.registro_observacao_id
+            JOIN serving.registro_integrado ri ON ri.registro_observacao_id=ro.registro_observacao_id
+            WHERE po.lote_id=@lote AND ro.codigo_registro_origem='REG-V4-FACT-NO-SOURCE';
+            """;
+        query.Parameters.AddWithValue("@lote", batch.LoteId);
+        await using var reader = await query.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.IsDBNull(0), Is.True, "Pessoa sem código local não cria pessoa_origem artificial.");
+            Assert.That(reader.IsDBNull(1), Is.True);
+            Assert.That(reader.GetInt64(2), Is.GreaterThan(0), "O vínculo obrigatório do fato é pessoa_observacao_id.");
+            Assert.That(reader.IsDBNull(3), Is.True);
+            Assert.That(reader.IsDBNull(4), Is.True);
+            Assert.That(reader.GetString(5), Is.EqualTo("PENDENTE_IDENTIDADE"));
+            Assert.That(reader.IsDBNull(6), Is.True);
+            Assert.That(reader.IsDBNull(7), Is.True);
+            Assert.That(reader.GetString(8), Is.EqualTo("PENDENTE_IDENTIDADE"));
+        });
+    }
+
+    [Test]
     public async Task V4_runtime_resolves_authorized_shared_base_and_persists_multiple_identifiers()
     {
         var connectionString = RequireIntegrationConnection();
