@@ -106,6 +106,22 @@ jobs:
           ' "$report" >/dev/null
           echo 'LINKAGE DUAL-THRESHOLD MARGIN FRONTIER EVIDENCE: OK'
 
+      - name: Validate current-evidence identifiability boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          report='.local/linkage-validation/validation-report.json'
+          jq -e '
+            .currentEvidenceIdentifiability.purpose == "READ_ONLY_CURRENT_EVIDENCE_IDENTIFIABILITY"
+            and .currentEvidenceIdentifiability.changesPolicy == false
+            and .currentEvidenceIdentifiability.observationalOverlapDetected == true
+            and .currentEvidenceIdentifiability.positiveExact.allCurrentEvidenceExactToBestCandidate > 0
+            and .currentEvidenceIdentifiability.negativeHardHomonym.allCurrentEvidenceExactToBestCandidate > 0
+            and .currentEvidenceIdentifiability.sharedEvidenceState == "EXACT/EXACT/EXACT"
+            and (.currentEvidenceIdentifiability.evidenceFields | sort) == (["NOME","NOME_MAE","DATA_NASCIMENTO"] | sort)
+          ' "$report" >/dev/null
+          echo 'LINKAGE CURRENT-EVIDENCE IDENTIFIABILITY BOUNDARY: OK'
+
       - name: Preserve validation evidence
         if: always()
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
