@@ -2582,21 +2582,25 @@ FROM serving.registro_integrado ri JOIN silver.registro_observacao ro ON ro.regi
 JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=ro.pessoa_observacao_id JOIN silver.pessoa_origem pori ON pori.pessoa_origem_id=po.pessoa_origem_id
 WHERE ri.pessoa_origem_id IS NULL;
 GO
--- A atribuição canônica é projeção mutável; a declaração de origem permanece obrigatória e imutável por versão factual.
+-- A atribuição canônica é projeção mutável. A proveniência local da Pessoa é opcional
+-- no contrato v4; somente sistema_origem_id e o estado analítico permanecem obrigatórios.
 ALTER TABLE gold.beneficio_concedido ALTER COLUMN pessoa_uuid UNIQUEIDENTIFIER NULL;
 ALTER TABLE gold.servico_prestado ALTER COLUMN pessoa_uuid UNIQUEIDENTIFIER NULL;
 ALTER TABLE serving.registro_integrado ALTER COLUMN pessoa_uuid UNIQUEIDENTIFIER NULL;
-ALTER TABLE gold.beneficio_concedido ALTER COLUMN pessoa_origem_id BIGINT NOT NULL;
+IF COL_LENGTH('silver.pessoa_observacao','id_pessoa_entrega') IS NULL
+BEGIN
+ ALTER TABLE gold.beneficio_concedido ALTER COLUMN pessoa_origem_id BIGINT NOT NULL;
+ ALTER TABLE gold.beneficio_concedido ALTER COLUMN codigo_pessoa_origem NVARCHAR(255) NOT NULL;
+ ALTER TABLE gold.servico_prestado ALTER COLUMN pessoa_origem_id BIGINT NOT NULL;
+ ALTER TABLE gold.servico_prestado ALTER COLUMN codigo_pessoa_origem NVARCHAR(255) NOT NULL;
+ ALTER TABLE serving.registro_integrado ALTER COLUMN pessoa_origem_id BIGINT NOT NULL;
+ ALTER TABLE serving.registro_integrado ALTER COLUMN codigo_pessoa_origem NVARCHAR(255) NOT NULL;
+END;
 ALTER TABLE gold.beneficio_concedido ALTER COLUMN sistema_origem_id BIGINT NOT NULL;
-ALTER TABLE gold.beneficio_concedido ALTER COLUMN codigo_pessoa_origem NVARCHAR(255) NOT NULL;
 ALTER TABLE gold.beneficio_concedido ALTER COLUMN estado_atribuicao_identidade NVARCHAR(30) NOT NULL;
-ALTER TABLE gold.servico_prestado ALTER COLUMN pessoa_origem_id BIGINT NOT NULL;
 ALTER TABLE gold.servico_prestado ALTER COLUMN sistema_origem_id BIGINT NOT NULL;
-ALTER TABLE gold.servico_prestado ALTER COLUMN codigo_pessoa_origem NVARCHAR(255) NOT NULL;
 ALTER TABLE gold.servico_prestado ALTER COLUMN estado_atribuicao_identidade NVARCHAR(30) NOT NULL;
-ALTER TABLE serving.registro_integrado ALTER COLUMN pessoa_origem_id BIGINT NOT NULL;
 ALTER TABLE serving.registro_integrado ALTER COLUMN sistema_origem_id BIGINT NOT NULL;
-ALTER TABLE serving.registro_integrado ALTER COLUMN codigo_pessoa_origem NVARCHAR(255) NOT NULL;
 ALTER TABLE serving.registro_integrado ALTER COLUMN estado_atribuicao_identidade NVARCHAR(30) NOT NULL;
 GO
 IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID('gold.beneficio_concedido') AND name='fk_beneficio_pessoa_origem')
