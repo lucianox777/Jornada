@@ -166,9 +166,24 @@ public static class LinkageCalibrationAuditRoundTrip
         if (document.InterchangeContract.ComparisonStateMapping.Complete)
             throw new InvalidDataException("O contrato corrente não possui mapeamento completo dos estados semânticos.");
 
+        if (document.InterchangeContract.ComparisonStateMapping.UnmappedOrNonBijectiveStates is null)
+            throw new InvalidDataException("Lista de estados não bijetivos ausente.");
+
         if (!document.InterchangeContract.ComparisonStateMapping.UnmappedOrNonBijectiveStates
                 .SequenceEqual(LinkageCalibrationAuditExchangePolicy.UnmappedOrNonBijectiveComparisonStates, StringComparer.Ordinal))
             throw new InvalidDataException("Estados não bijetivos do intercâmbio divergem do contrato corrente.");
+
+        if (!string.Equals(
+                document.InterchangeContract.ComparisonStateMapping.Rule,
+                LinkageCalibrationAuditExchangePolicy.ComparisonStateMappingRule,
+                StringComparison.Ordinal))
+            throw new InvalidDataException("Regra de mapeamento semântico diverge do contrato corrente.");
+
+        if (document.Blocking.RuleSets is null
+            || document.Blocking.Passes is null
+            || document.TermFrequency.ReferenceCoverage is null
+            || document.TermFrequency.ConformanceVectors is null)
+            throw new InvalidDataException("Coleções estruturais obrigatórias ausentes.");
 
         if (document.TermFrequency.RuntimeEnabled)
             throw new InvalidDataException("O artefato de auditoria não pode declarar term frequency habilitada no runtime.");
