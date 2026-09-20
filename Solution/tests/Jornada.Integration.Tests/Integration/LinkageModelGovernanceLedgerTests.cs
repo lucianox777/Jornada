@@ -65,6 +65,12 @@ public sealed class LinkageModelGovernanceLedgerTests
         {
             conference.CommandText = """
                 DECLARE @e UNIQUEIDENTIFIER;
+                DECLARE @request_sha256 BINARY(32)=HASHBYTES(
+                    'SHA2_256',
+                    CONCAT(N'monitor-request-',CONVERT(NVARCHAR(36),@id)));
+                DECLARE @report_sha256 BINARY(32)=HASHBYTES(
+                    'SHA2_256',
+                    CONCAT(N'monitor-report-',CONVERT(NVARCHAR(36),@id)));
                 EXEC auditoria.sp_registrar_conferencia_linkage
                     @modelo_id=@id,
                     @modelo_versao=@versao,
@@ -81,8 +87,8 @@ public sealed class LinkageModelGovernanceLedgerTests
                     @spearman=1,
                     @motivo=NULL,
                     @validacao_estatistica=N'NOT_ASSESSED_ISSUE_31',
-                    @request_sha256=HASHBYTES('SHA2_256',CONCAT(N'monitor-request-',CONVERT(NVARCHAR(36),@id))),
-                    @report_sha256=HASHBYTES('SHA2_256',CONCAT(N'monitor-report-',CONVERT(NVARCHAR(36),@id))),
+                    @request_sha256=@request_sha256,
+                    @report_sha256=@report_sha256,
                     @evidencia_id=@e OUTPUT;
                 """;
             conference.Parameters.AddWithValue("@id", modelId);
