@@ -141,6 +141,7 @@ public sealed class LinkageModelGovernanceLedgerTests
             Assert.That(monitor.LinkageConferenceGovernance.CandidatesEvaluated, Is.EqualTo(208));
             Assert.That(monitor.LinkageConferenceGovernance.SameFinalDecision, Is.True);
             Assert.That(monitor.LinkageConferenceGovernance.SameTop1, Is.True);
+            Assert.That(monitor.LinkageConferenceGovernance.SnapshotCurrent, Is.True);
             Assert.That(monitor.LinkageConferenceGovernance.StatisticalValidation,
                 Is.EqualTo("PENDENTE_ISSUE_31"));
             Assert.That(monitor.LinkageConferenceGovernance.RoundTripMethod,
