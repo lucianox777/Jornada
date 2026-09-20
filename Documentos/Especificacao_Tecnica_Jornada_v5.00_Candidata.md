@@ -1,11 +1,13 @@
-# Especificação Técnica Jornada do Cidadão — Candidata de Consolidação
+# Especificação Técnica Jornada do Cidadão — Candidata v5.00
 
-**Status:** CANDIDATA — NÃO PUBLICADA  
+**Status:** CANDIDATA TÉCNICA — NÃO PUBLICADA  
+**Identificador técnico citável:** `v5.00-candidata`  
+**Versão normativa:** nenhuma; `candidate_specification_normative_version=null` até publicação formal  
 **Baseline histórica publicada:** `Especificacao_Tecnica_Jornada_v3.62`  
 **Base técnica de consolidação:** `master` corrente; o SHA exato somente é fixado no corte formal da candidata  
 **SolutionSchema técnico corrente:** `3.70`  
 **Issue de consolidação:** #141  
-**Regra de versão:** este documento não recebe número normativo enquanto não houver corte/publicação formal.
+**Regra de versão:** `v5.00-candidata` identifica este baseline técnico para citação e rastreabilidade, sem convertê-lo em versão normativa publicada. A versão normativa continua inexistente até aprovação e publicação formal.
 
 ## 1. Finalidade e regra de precedência
 

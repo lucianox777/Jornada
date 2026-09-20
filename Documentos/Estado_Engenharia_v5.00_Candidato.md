@@ -63,6 +63,8 @@ Documentação histórica não deve ser usada para inferir arquitetura corrente 
 
 O corte da RC é um **checkpoint técnico imutável**, não homologação populacional, não ativação probabilística e não release de Produção.
 
+Os assets anexados ao pre-release não são imutáveis por si: a reexecução pode substituí-los com `--clobber`. O commit/tag identifica o checkpoint; para os bytes atestados, a referência de integridade é a attestation Sigstore e seus subject digests. As Actions que participam desse caminho ficam congeladas até o corte da RC, evitando trocar a cadeia de evidência antes de exercitá-la.
+
 O conteúdo candidato usa `technical_rc.status=CHECKPOINT_CONTENT` e `schema_provenance.status=BOUND_FOR_TECHNICAL_RC`; esses estados descrevem o conteúdo do commit, não fingem que a tag já foi criada. Tags `v*-rc.*` seguem o caminho `rc-evidence`; somente tags `jornada-solution-v*` seguem `release-promotion` e `RELEASE_INFO.txt`.
 
 Antes do corte técnico devem estar satisfeitas estas condições:

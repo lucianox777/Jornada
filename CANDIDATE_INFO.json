@@ -32,16 +32,21 @@
       "assembly_version": "5.0.0.0",
       "file_version": "5.0.0.0",
       "source_revision_binding": "DOTNET_SOURCE_REVISION_ID",
-      "cut_rule": "This commit content is eligible to become the immutable technical RC only after engineering CI for the exact commit is green. The external act of creating the tag/pre-release does not rewrite RELEASE_INFO.txt, does not publish a normative release and does not close external gates."
+      "cut_rule": "This commit content is eligible to become the immutable technical RC only after engineering CI for the exact commit is green. The external act of creating the tag/pre-release does not rewrite RELEASE_INFO.txt, does not publish a normative release and does not close external gates.",
+      "actions_freeze_until_cut": true,
+      "release_assets_mutability": "REPLACEABLE_BY_RERUN_WITH_CLOBBER",
+      "digest_authority": "SIGSTORE_ATTESTATION_SUBJECT_DIGESTS"
     },
     "published_specification": "Documentos/Especificacao_Tecnica_Jornada_v3.62.pdf",
     "published_specification_version": "v3.62",
-    "candidate_specification": "Documentos/Especificacao_Tecnica_Jornada_Candidata.md",
+    "candidate_specification": "Documentos/Especificacao_Tecnica_Jornada_v5.00_Candidata.md",
     "candidate_specification_normative_version": null,
     "requirements_index": "Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.md",
     "physical_model": "Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.md",
     "canonical_ddl": "Solution/database/Jornada_Fase1_v3.70.sql",
-    "production_relational_target": "MICROSOFT_SQL_SERVER"
+    "production_relational_target": "MICROSOFT_SQL_SERVER",
+    "candidate_specification_identifier": "v5.00-candidata",
+    "candidate_specification_status": "TECHNICAL_CANDIDATE_NOT_PUBLISHED"
   },
   "external_gates": [
     "HML_REPRESENTATIVE_VOLUMETRY",

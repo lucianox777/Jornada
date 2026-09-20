@@ -10,8 +10,10 @@ public sealed class CandidateSpecificationCurrencyTests
     public void Candidate_manifest_keeps_current_external_gates_and_sql_server_production_target()
     {
         var root = FindRepositoryRoot();
-        var specificationPath = Path.Combine(root, "Documentos", "Especificacao_Tecnica_Jornada_Candidata.md");
         var manifestPath = Path.Combine(root, "CANDIDATE_INFO.json");
+        using var candidateManifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
+        var specificationRelative = candidateManifest.RootElement.GetProperty("candidate").GetProperty("candidate_specification").GetString()!;
+        var specificationPath = Path.Combine(root, specificationRelative.Replace('/', Path.DirectorySeparatorChar));
         var readmePath = Path.Combine(root, "Solution", "README.md");
         var fabricCompatibilityPath = Path.Combine(root, "Solution", "docs", "Fabric_SQL_Compatibility.md");
 
@@ -34,6 +36,7 @@ public sealed class CandidateSpecificationCurrencyTests
         Assert.Multiple(() =>
         {
             Assert.That(specification, Does.Contain("o SHA exato somente é fixado no corte formal da candidata"));
+            Assert.That(specification, Does.Contain("Identificador técnico citável:** `v5.00-candidata`"));
             Assert.That(specification, Does.Not.Match(@"Base técnica de consolidação:\*\* `master` em `[0-9a-f]{40}`"));
             Assert.That(specification, Does.Contain("O contrato cadastral `Pessoa v3` admite `nomeMae` ausente"));
             Assert.That(specification, Does.Contain("Grupo de Trabalho do Programa Reencontro (GTPR)"));

@@ -48,6 +48,15 @@ Fluxo:
 5. exigir `jornada-ci` verde na própria tag, inclusive `bronze-restore-drill`, `scale-harness` e `rc-evidence`;
 6. verificar que o GitHub pre-release foi criado e contém todos os assets de evidência.
 
+### Integridade dos assets da RC
+
+Os anexos de um GitHub pre-release técnico **não são tratados como imutáveis**: o workflow corrente usa `gh release upload --clobber`, portanto uma reexecução autorizada pode substituir bytes associados ao mesmo nome de asset.
+
+A identidade imutável do checkpoint continua sendo o commit/tag. Para conteúdo anexado, a autoridade criptográfica de digest é a **attestation Sigstore** emitida para os subjects da execução; auditoria deve validar a attestation e os subject digests em vez de inferir imutabilidade a partir do nome do asset no release.
+
+Até o corte de `v5.00-rc.1`, upgrades das Actions que participam do caminho de evidência permanecem congelados e devem ser mergeados somente depois do checkpoint técnico, salvo correção de segurança explicitamente justificada que obrigue novo ensaio do caminho de RC.
+
+
 ## Verificação da tag
 
 Em Bash:

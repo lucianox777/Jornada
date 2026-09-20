@@ -14,7 +14,9 @@ public sealed class TerritorialSemanticsDocumentationTests
         var territorializationPath = Path.Combine(root, "Solution", "docs", "Territorializacao_Fase1.md");
         var docsIndexPath = Path.Combine(root, "Solution", "docs", "README.md");
         var requirementsPath = Path.Combine(root, "Documentos", "Requisitos", "01_Requisitos_de_Negocio_Jornada_v1.1.md");
-        var candidateSpecificationPath = Path.Combine(root, "Documentos", "Especificacao_Tecnica_Jornada_Candidata.md");
+        using var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "CANDIDATE_INFO.json")));
+        var candidateRelative = manifest.RootElement.GetProperty("candidate").GetProperty("candidate_specification").GetString()!;
+        var candidateSpecificationPath = Path.Combine(root, candidateRelative.Replace('/', Path.DirectorySeparatorChar));
         var ddlPath = Path.Combine(root, "Solution", "database", "Jornada_Fase1.sql");
         var seedPath = Path.Combine(root, "Solution", "database", "Jornada_Seed_Dev.sql");
 
