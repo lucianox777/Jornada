@@ -23,7 +23,7 @@ public sealed class GovernedImplementationConferenceCommandTests
 
         var ex = Assert.ThrowsAsync<ConferencePreconditionException>(async () =>
             await GovernedImplementationConferenceCommand.ExecuteAsync(
-                "Server=invalid.invalid;Database=NeverOpen;User Id=x;Password=y;TrustServerCertificate=True",
+                "Server=invalid.invalid;Database=NeverOpen;Encrypt=True",
                 Guid.NewGuid(),
                 tolerance,
                 5,
