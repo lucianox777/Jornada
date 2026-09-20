@@ -113,6 +113,75 @@ public sealed class IndependentImplementationConferenceParityTests
     }
 
     [Test]
+    public void Frozen_execution_with_incomplete_model_is_not_executed_instead_of_throwing()
+    {
+        var parameters = Parameters();
+        parameters.Remove("U_NOME_EXACT");
+        var model = LinkageModelPolicy.Create(
+            ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion,
+            Parameters());
+
+        var candidate = CanonicalCandidate(
+            Guid.Parse("11111111-1111-4111-8111-111111111111"),
+            NameComparisonState.EXACT,
+            NameComparisonState.EXACT,
+            Parameters());
+
+        var valid = RequestFromRuntime(model, [candidate], Parameters(), TestTolerance);
+        var report = IndependentImplementationConference.Evaluate(
+            valid with { Parameters = parameters });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(report.Status, Is.EqualTo(ImplementationConferenceStatus.NAO_EXECUTADA));
+            Assert.That(report.Reason, Is.EqualTo("MODEL_OR_VECTOR_CONTRACT_INVALID"));
+        });
+    }
+
+    [Test]
+    public void Final_decision_divergence_fails_even_when_all_pair_llrs_match()
+    {
+        var parameters = Parameters();
+        var model = LinkageModelPolicy.Create(
+            ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters);
+
+        var candidates = new[]
+        {
+            CanonicalCandidate(
+                Guid.Parse("11111111-1111-4111-8111-111111111111"),
+                NameComparisonState.EXACT,
+                NameComparisonState.EXACT,
+                parameters),
+            CanonicalCandidate(
+                Guid.Parse("22222222-2222-4222-8222-222222222222"),
+                NameComparisonState.LOW,
+                NameComparisonState.LOW,
+                parameters)
+        };
+
+        var request = RequestFromRuntime(model, candidates, parameters, TestTolerance);
+        var alteredDecision = request.CanonicalDecision with
+        {
+            Status = ResolutionStatus.CONFLITO,
+            ResolvedCandidateId = null,
+            Reason = "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE"
+        };
+
+        var report = IndependentImplementationConference.Evaluate(
+            request with { CanonicalDecision = alteredDecision });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(report.Status, Is.EqualTo(ImplementationConferenceStatus.DIVERGENTE));
+            Assert.That(report.Reason, Is.EqualTo("FINAL_DECISION_DIVERGENCE"));
+            Assert.That(report.MaxObservedPairLlrDifference, Is.LessThanOrEqualTo(
+                TestTolerance.MaxAbsolutePairLlrDifference));
+            Assert.That(report.SameTop1, Is.True);
+            Assert.That(report.SameFinalDecision, Is.False);
+        });
+    }
+
+    [Test]
     public void Pair_llr_divergence_fails_even_when_top1_and_final_decision_still_match()
     {
         var parameters = Parameters();
