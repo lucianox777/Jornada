@@ -164,8 +164,12 @@ public sealed class LinkageParametersWorker(
                 if (statistics.PopulationSize <= 0)
                     throw new InvalidOperationException("Gold Pessoas vazia. A primeira ingestão cadastral elegível deve formar o baseline da Gold antes da geração de parâmetros.");
 
-                matchedPairs = await ReadDeterministicMatchedPairsAsync(connection, sampleSize, samplePoolSize, workCt);
-                unmatchedCandidatePairs = await ReadGoldUnmatchedPairsAsync(connection, normalizationVersion, sampleSize, samplePoolSize, workCt);
+                matchedPairs = await ReadDeterministicMatchedPairsAsync(
+                    connection, sampleSize, samplePoolSize,
+                    decisionCalibrationSeed, decisionValidationBasisPoints, decisionTestBasisPoints, workCt);
+                unmatchedCandidatePairs = await ReadGoldUnmatchedPairsAsync(
+                    connection, normalizationVersion, sampleSize, samplePoolSize,
+                    decisionCalibrationSeed, decisionValidationBasisPoints, decisionTestBasisPoints, workCt);
 
                 if (matchedPairs.Count < minimumIndependentMatchedPairs)
                     throw new InvalidOperationException($"Amostra m independente insuficiente: {matchedPairs.Count} pares inter-Gestores; mínimo={minimumIndependentMatchedPairs}. O modelo permanece sem publicação até existir evidência independente suficiente.");
@@ -193,7 +197,9 @@ public sealed class LinkageParametersWorker(
                 workCt);
 
             var unmatchedSample = await BlockingConditionedUnmatchedPairReader.ReadAsync(
-                connection, normalizationVersion, blocking.Passes, sampleSize, samplePoolSize, readCommandTimeoutSeconds, workCt);
+                connection, normalizationVersion, blocking.Passes, sampleSize, samplePoolSize,
+                decisionCalibrationSeed, decisionValidationBasisPoints, decisionTestBasisPoints,
+                readCommandTimeoutSeconds, workCt);
             var unmatchedPairs = unmatchedSample.Pairs;
             if (unmatchedPairs.Count == 0)
                 throw new InvalidOperationException("Amostra u vazia no universo do ruleset vencedor. O modelo permanece sem publicação.");
@@ -504,7 +510,14 @@ public sealed class LinkageParametersWorker(
             Convert.ToInt64(reader.GetValue(4), CultureInfo.InvariantCulture), reader.IsDBNull(5) ? null : reader.GetFieldValue<DateTimeOffset>(5));
     }
 
-    private async Task<IReadOnlyList<IdentityTrainingPair>> ReadDeterministicMatchedPairsAsync(SqlConnection connection, int sampleSize, int samplePoolSize, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<IdentityTrainingPair>> ReadDeterministicMatchedPairsAsync(
+        SqlConnection connection,
+        int sampleSize,
+        int samplePoolSize,
+        int decisionCalibrationSeed,
+        int validationBasisPoints,
+        int testBasisPoints,
+        CancellationToken cancellationToken)
     {
         var command = new SqlCommand(
             """
@@ -512,6 +525,7 @@ public sealed class LinkageParametersWorker(
                 SELECT TOP (@pool_size) g.pessoa_uuid
                 FROM gold.pessoa g
                 WHERE g.estado_identidade=N'REFERENCIA'
+                  AND CONVERT(int,SUBSTRING(HASHBYTES('SHA2_256',CONVERT(varchar(100),CONCAT(@decision_seed,':',LOWER(CONVERT(varchar(36),g.pessoa_uuid))))),1,3)) % 10000 < @train_cut
                   AND NOT EXISTS (
                     SELECT 1
                     FROM identidade.vinculo_fonte vf_val
@@ -545,10 +559,20 @@ public sealed class LinkageParametersWorker(
         { CommandTimeout = Math.Max(30, configuration.GetValue("LinkageParameters:ReadCommandTimeoutSeconds", 900)) };
         command.Parameters.Add("@sample_size", SqlDbType.Int).Value = sampleSize;
         command.Parameters.Add("@pool_size", SqlDbType.Int).Value = samplePoolSize;
+        command.Parameters.Add("@decision_seed", SqlDbType.Int).Value = decisionCalibrationSeed;
+        command.Parameters.Add("@train_cut", SqlDbType.Int).Value = 10_000 - validationBasisPoints - testBasisPoints;
         return await ReadTrainingPairsAsync(command, cancellationToken);
     }
 
-    private async Task<IReadOnlyList<IdentityTrainingPair>> ReadGoldUnmatchedPairsAsync(SqlConnection connection, string normalizationVersion, int sampleSize, int samplePoolSize, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<IdentityTrainingPair>> ReadGoldUnmatchedPairsAsync(
+        SqlConnection connection,
+        string normalizationVersion,
+        int sampleSize,
+        int samplePoolSize,
+        int decisionCalibrationSeed,
+        int validationBasisPoints,
+        int testBasisPoints,
+        CancellationToken cancellationToken)
     {
         var projection = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
         var features = BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates;
@@ -559,6 +583,7 @@ public sealed class LinkageParametersWorker(
                 SELECT TOP (@pool_size) g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
                 FROM gold.pessoa g
                 WHERE g.estado_identidade=N'REFERENCIA'
+                  AND CONVERT(int,SUBSTRING(HASHBYTES('SHA2_256',CONVERT(varchar(100),CONCAT(@decision_seed,':',LOWER(CONVERT(varchar(36),g.pessoa_uuid))))),1,3)) % 10000 < @train_cut
                   AND g.nome_completo IS NOT NULL
                   AND g.data_nascimento IS NOT NULL
                   AND NOT EXISTS (
@@ -595,6 +620,8 @@ public sealed class LinkageParametersWorker(
         command.Parameters.Add("@normalizacao", SqlDbType.NVarChar, 80).Value = normalizationVersion;
         command.Parameters.Add("@projection_schema", SqlDbType.NVarChar, 120).Value = projection.SchemaVersion;
         command.Parameters.Add("@projection_fingerprint", SqlDbType.Char, 64).Value = projection.Fingerprint;
+        command.Parameters.Add("@decision_seed", SqlDbType.Int).Value = decisionCalibrationSeed;
+        command.Parameters.Add("@train_cut", SqlDbType.Int).Value = 10_000 - validationBasisPoints - testBasisPoints;
         for (var index = 0; index < features.Count; index++) command.Parameters.Add(featureParameters[index], SqlDbType.NVarChar, 80).Value = features[index];
         return await ReadTrainingPairsAsync(command, cancellationToken);
     }
