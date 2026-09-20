@@ -135,6 +135,21 @@ jobs:
             if ($output -notmatch '--enviar-todos' -or $output -notmatch '--resultado') { throw "$arg não exibiu help completo" }
           }
 
+      - name: Prove governed linkage conference tool in bundle
+        shell: pwsh
+        run: |
+          $root = "$PWD\.local\windows-production-bundle"
+          $exe = Join-Path $root 'tools\Jornada.Linkage.Conference\Jornada.Linkage.Conference.exe'
+          $tolerance = Join-Path $root 'config\linkage\implementation-conference-tolerance.json'
+          if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw 'Jornada.Linkage.Conference ausente no bundle.' }
+          if (-not (Test-Path -LiteralPath $tolerance -PathType Leaf)) { throw 'Configuração governada da conferência ausente no bundle.' }
+          $help = & $exe --help | Out-String
+          if ($LASTEXITCODE -ne 0) { throw "Jornada.Linkage.Conference --help retornou $LASTEXITCODE" }
+          if ($help -notmatch '--model-id' -or $help -notmatch '--tolerance-config') { throw 'Help do comando de conferência incompleto.' }
+          $cfg = Get-Content -Raw -Encoding UTF8 $tolerance | ConvertFrom-Json
+          if ($cfg.status -ne 'UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION') { throw 'Bundle alterou indevidamente o status da tolerância.' }
+          if ($cfg.toleranceVersion -ne 'UNFROZEN' -or $null -ne $cfg.maxAbsolutePairLlrDifference) { throw 'Bundle inventou tolerância de conferência.' }
+
       - name: Validate installer against generated production bundle
         shell: pwsh
         run: |
