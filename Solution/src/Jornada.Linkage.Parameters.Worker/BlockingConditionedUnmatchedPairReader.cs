@@ -1,5 +1,4 @@
 using System.Data;
-using System.Text.Json;
 using Jornada.Contracts;
 using Microsoft.Data.SqlClient;
 
@@ -49,6 +48,13 @@ public static class BlockingConditionedUnmatchedPairReader
         if (allFields.Any(field => !allowed.Contains(field)))
             throw new InvalidOperationException("Ruleset contém feature fora do catálogo canônico do calibrador.");
 
+        var stableFields = allFields
+            .Where(field => BlockingFeatureTemporalCatalog.Get(field) == BlockingFeatureTemporalSemantics.StableIdentityDatum)
+            .ToArray();
+        var versionedFields = allFields
+            .Where(field => BlockingFeatureTemporalCatalog.Get(field) == BlockingFeatureTemporalSemantics.VersionedAlias)
+            .ToArray();
+
         var projection = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
         var ctes = new List<string>();
         var pairSources = new List<string>();
@@ -67,6 +73,34 @@ public static class BlockingConditionedUnmatchedPairReader
             allFieldParameters.Add(parameterName);
             command.Parameters.Add(parameterName, SqlDbType.NVarChar, 80).Value = allFields[index];
         }
+
+        var stableFieldParameters = new List<string>();
+        for (var index = 0; index < stableFields.Length; index++)
+        {
+            var parameterName = $"@stable_field_{index}";
+            stableFieldParameters.Add(parameterName);
+            command.Parameters.Add(parameterName, SqlDbType.NVarChar, 80).Value = stableFields[index];
+        }
+
+        var versionedFieldParameters = new List<string>();
+        for (var index = 0; index < versionedFields.Length; index++)
+        {
+            var parameterName = $"@versioned_field_{index}";
+            versionedFieldParameters.Add(parameterName);
+            command.Parameters.Add(parameterName, SqlDbType.NVarChar, 80).Value = versionedFields[index];
+        }
+
+        var temporalSemanticsPredicate = string.Join(
+            " OR ",
+            new[]
+            {
+                stableFieldParameters.Count == 0
+                    ? null
+                    : $"(k.atributo IN ({string.Join(",", stableFieldParameters)}) AND k.semantica_temporal=N'STABLE_IDENTITY_DATUM' AND k.vigencia_fim IS NULL)",
+                versionedFieldParameters.Count == 0
+                    ? null
+                    : $"(k.atributo IN ({string.Join(",", versionedFieldParameters)}) AND k.semantica_temporal=N'VERSIONED_ALIAS')"
+            }.Where(static clause => clause is not null));
 
         for (var passIndex = 0; passIndex < canonicalPasses.Length; passIndex++)
         {
@@ -153,7 +187,7 @@ WITH gold_sample AS (
       AND k.projection_schema_version=@projection_schema
       AND k.projection_fingerprint_sha256=@projection_fingerprint
       AND k.atributo IN ({string.Join(",", allFieldParameters)})
-      AND (k.semantica_temporal<>'STABLE_IDENTITY_DATUM' OR k.vigencia_fim IS NULL)
+      AND ({temporalSemanticsPredicate})
 ),
 {string.Join(",\n", ctes)},
 candidate_pairs AS (
@@ -174,23 +208,7 @@ SELECT
     CASE WHEN p.sample_rank<=@sample_size THEN b.nome_completo END AS b_nome,
     b.data_nascimento AS b_nascimento,
     CASE WHEN p.sample_rank<=@sample_size THEN b.nome_mae END AS b_mae,
-    p.sample_rank,
-    CASE WHEN p.sample_rank<=@sample_size THEN (
-        SELECT ga.atributo_codigo AS [attribute],ga.valor AS [value]
-        FROM gold.pessoa_atributo ga
-        WHERE ga.pessoa_uuid=p.a_uuid
-          AND ga.vigencia_fim IS NULL
-        ORDER BY ga.atributo_codigo,ga.atributo_instancia_chave,ga.pessoa_atributo_id
-        FOR JSON PATH
-    ) END AS a_resolution_values_json,
-    CASE WHEN p.sample_rank<=@sample_size THEN (
-        SELECT gb.atributo_codigo AS [attribute],gb.valor AS [value]
-        FROM gold.pessoa_atributo gb
-        WHERE gb.pessoa_uuid=p.b_uuid
-          AND gb.vigencia_fim IS NULL
-        ORDER BY gb.atributo_codigo,gb.atributo_instancia_chave,gb.pessoa_atributo_id
-        FOR JSON PATH
-    ) END AS b_resolution_values_json
+    p.sample_rank
 FROM ordered_pairs p
 JOIN gold_sample a ON a.pessoa_uuid=p.a_uuid
 JOIN gold_sample b ON b.pessoa_uuid=p.b_uuid
@@ -218,30 +236,17 @@ ORDER BY p.sample_rank;
                 reader.IsDBNull(2) ? null : reader.GetString(2),
                 reader.GetString(3),
                 rightBirth,
-                reader.IsDBNull(5) ? null : reader.GetString(5),
-                LeftResolutionValues: ParseResolutionValues(reader.IsDBNull(7) ? "[]" : reader.GetString(7)),
-                RightResolutionValues: ParseResolutionValues(reader.IsDBNull(8) ? "[]" : reader.GetString(8))));
+                reader.IsDBNull(5) ? null : reader.GetString(5)));
         }
 
-        var verified = BlockingConditionedTrainingPairFilter.Retain(result, canonicalPasses);
-        if (verified.Count != result.Count)
-            throw new InvalidOperationException($"Invariante violada: {result.Count - verified.Count} pares u amostrados não sobreviveram ao ruleset consultado.");
+        // candidate_pairs é construído exclusivamente dos CTEs de cada passe sobre
+        // blocking_chave com a mesma semântica temporal do Runner. Reprojetar a Gold
+        // corrente aqui seria incorreto: VERSIONED_ALIAS preserva valores históricos
+        // deliberadamente recuperáveis, enquanto gold.pessoa expõe apenas o estado atual.
+        if (candidatePoolSize < result.Count)
+            throw new InvalidOperationException(
+                "Invariante violada: amostra u excedeu o pool candidato materializado.");
 
         return new BlockingConditionedUnmatchedPairSample(result, support, candidatePoolSize);
-    }
-
-    private static IReadOnlyList<ResolutionSourceValue> ParseResolutionValues(string json)
-    {
-        using var document = JsonDocument.Parse(json);
-        var values = new List<ResolutionSourceValue>();
-        foreach (var item in document.RootElement.EnumerateArray())
-        {
-            var attribute = item.GetProperty("attribute").GetString();
-            var value = item.GetProperty("value").GetString();
-            if (string.IsNullOrWhiteSpace(attribute) || value is null)
-                throw new InvalidOperationException("Atributo Gold vigente inválido durante a verificação do ruleset.");
-            values.Add(new ResolutionSourceValue(attribute, value));
-        }
-        return values;
     }
 }
