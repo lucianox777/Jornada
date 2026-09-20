@@ -29,41 +29,47 @@ A candidata v5.00 adota **Microsoft SQL Server como único runtime relacional su
 
 O inventário é derivado automaticamente por `Solution/scripts/schema-inventory.py` e publicado como evidência pelo workflow `jornada-schema-inventory`.
 
-O último inventário automatizado predecessor, executado em 12/09/2026 no SHA `a25488b043888ee2aeb5b292e2b638bd9491ec35` (run `34722803666`), media 69 tabelas. A candidata corrente acrescenta exatamente uma tabela estrutural pelo manifesto canônico, `auditoria.decisao_identidade_evento`, para autoria transacional dos atos governados.
-
-O inventário versionado corrente é, portanto:
+A execução do PR #377, run `35533662679`, mediu o schema candidato com o ledger canônico incluído:
 
 - tabelas no `Jornada_Fase1.sql` legado: **53**;
 - tabelas próprias do núcleo `Jornada_Identidade_Progressiva.sql`: **2**;
-- tabelas adicionais distintas materializadas pelo manifesto de migrações: **15**;
-- total distinto do schema operacional consolidado: **70 tabelas**;
-- tabelas do schema atual que não pertencem ao baseline legado de 53: **17**.
+- tabelas distintas introduzidas pelos scripts de migração: **23**;
+- total distinto do schema operacional consolidado: **78 tabelas**;
+- tabelas do schema atual que não pertencem ao baseline legado de 53: **25**.
 
-O workflow de consolidação executa o DDL completo e o fingerprint estrutural; um novo run de `schema-inventory` substitui a referência histórica acima quando o inventário documental for republicado.
+Essa medição substitui as contagens históricas 53, 64, 66, 69 e a estimativa intermediária 70. O inventário corrente é uma propriedade derivada do manifesto/código e deve ser regenerado quando houver mudança estrutural.
 
 ## 4. Tabelas fora do baseline legado
 
-As 17 tabelas adicionais são:
+As 25 tabelas fora do baseline legado são:
 
-1. `identidade.blocking_chave`
-2. `identidade.composicao_aplicacao`
-3. `identidade.composicao_historico_aplicado`
-4. `identidade.composicao_plano`
-5. `identidade.composicao_publicacao`
-6. `identidade.composicao_recomposicao_plano`
-7. `identidade.composicao_uuid_reserva`
-8. `identidade.cpf_ancora`
-9. `identidade.linkage_ruleset`
-10. `identidade.linkage_ruleset_passe`
-11. `identidade.linkage_ruleset_passe_campo`
-12. `identidade.pessoa_origem_progressiva`
-13. `identidade.pessoa_origem_progressiva_evento`
-14. `ref.frequencia_nome`
-15. `ref.frequencia_nome_cobertura`
-16. `ref.frequencia_nome_versao`
-17. `auditoria.decisao_identidade_evento`
+1. `auditoria.decisao_identidade_evento`
+2. `controle.runtime_componente`
+3. `identidade.blocking_chave`
+4. `identidade.composicao_aplicacao`
+5. `identidade.composicao_historico_aplicado`
+6. `identidade.composicao_plano`
+7. `identidade.composicao_publicacao`
+8. `identidade.composicao_recomposicao_plano`
+9. `identidade.composicao_uuid_reserva`
+10. `identidade.cpf_ancora`
+11. `identidade.linkage_quality_estimate`
+12. `identidade.linkage_ruleset`
+13. `identidade.linkage_ruleset_passe`
+14. `identidade.linkage_ruleset_passe_campo`
+15. `identidade.pessoa_origem_progressiva`
+16. `identidade.pessoa_origem_progressiva_evento`
+17. `jornada.schema_migration`
+18. `ref.base_pessoa_origem`
+19. `ref.frequencia_nome`
+20. `ref.frequencia_nome_cobertura`
+21. `ref.frequencia_nome_versao`
+22. `ref.sistema_origem_base_pessoa`
+23. `ref.tipo_identificador_pessoa`
+24. `silver.pessoa_identificador_observacao`
+25. `silver.pessoa_origem_sistema`
 
-## 5. Inventário completo - 70 tabelas
+## 5. Inventário completo - 78 tabelas
 
 ### auditoria
 - `auditoria.decisao_identidade_evento`
@@ -80,6 +86,7 @@ As 17 tabelas adicionais são:
 - `controle.entrega_retencao_ciclo`
 - `controle.modo_carga_inicial`
 - `controle.restricao_projecao_jornada_versao`
+- `controle.runtime_componente`
 
 ### gold
 - `gold.beneficio_concedido`
@@ -104,6 +111,7 @@ As 17 tabelas adicionais são:
 - `identidade.frequencia_linkage`
 - `identidade.identity_map`
 - `identidade.identity_map_estado_evento`
+- `identidade.linkage_quality_estimate`
 - `identidade.linkage_resultado`
 - `identidade.linkage_ruleset`
 - `identidade.linkage_ruleset_passe`
@@ -123,6 +131,9 @@ As 17 tabelas adicionais são:
 - `ingestao.item_processado_resumo`
 - `ingestao.lote`
 
+### jornada
+- `jornada.schema_migration`
+
 ### qualidade
 - `qualidade.avaliacao_possibilidade`
 - `qualidade.divergencia_gestor`
@@ -132,6 +143,7 @@ As 17 tabelas adicionais são:
 
 ### ref
 - `ref.atributo_transversal`
+- `ref.base_pessoa_origem`
 - `ref.distrito`
 - `ref.frequencia_nome`
 - `ref.frequencia_nome_cobertura`
@@ -139,7 +151,9 @@ As 17 tabelas adicionais são:
 - `ref.gestor`
 - `ref.gestor_pessoa_versao`
 - `ref.sistema_origem`
+- `ref.sistema_origem_base_pessoa`
 - `ref.subprefeitura`
+- `ref.tipo_identificador_pessoa`
 - `ref.tipo_registro`
 - `ref.tipo_registro_versao`
 
@@ -149,8 +163,10 @@ As 17 tabelas adicionais são:
 ### silver
 - `silver.pessoa_atributo_observacao`
 - `silver.pessoa_campo_verificacao_observacao`
+- `silver.pessoa_identificador_observacao`
 - `silver.pessoa_observacao`
 - `silver.pessoa_origem`
+- `silver.pessoa_origem_sistema`
 - `silver.referencia_territorial_observacao`
 - `silver.registro_observacao`
 - `silver.registro_origem`
