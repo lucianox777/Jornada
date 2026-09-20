@@ -178,7 +178,7 @@ Não existe ainda uma política de expiração temporal da evidência de confer�
 
 Para o modelo ATIVO, o monitor lê os parâmetros `BLOCKING_PASS_U_XX_*` e o ruleset fixado no modelo. Para cada passe exibe:
 
-- identificador/ordem do passe;
+- identificador/ordem do passe (exibição 1-based; `passe_ordem=0` corresponde a `BLOCKING_PASS_U_01_*`);
 - tamanho da amostra u condicionada;
 - suporte de nome da mãe presente;
 - mínimo por passe persistido em `NOMINAL_U_MIN_CONDITIONED_PAIRS_PER_PASS`;
