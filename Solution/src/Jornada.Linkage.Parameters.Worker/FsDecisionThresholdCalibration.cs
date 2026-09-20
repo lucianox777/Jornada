@@ -30,7 +30,8 @@ public sealed record FsDecisionCalibrationScenario(
 public sealed record FsDecisionThresholdCandidate(
     string CandidateId,
     decimal Threshold,
-    decimal ConflictMarginLogOdds);
+    decimal ConflictMarginLogOdds,
+    decimal DualThresholdConflictFloor);
 
 public sealed record FsDecisionThresholdFrozenEvaluation(
     FsDecisionThresholdCandidate Candidate,
@@ -56,7 +57,7 @@ public sealed record FsDecisionThresholdCalibrationResult(
 }
 
 /// <summary>
-/// Calibração operacional dos dois parâmetros de decisão do FS V6.
+/// Calibração operacional dos parâmetros de decisão do FS V6.
 ///
 /// A grade é derivada somente de fronteiras observadas em VALIDATION. TEST nunca gera
 /// threshold, margem, fronteira ou desempate. O calibrador preserva a fronteira de Pareto
@@ -78,7 +79,8 @@ public static class FsDecisionThresholdCalibrator
         int validationBasisPoints,
         int testBasisPoints,
         int maxThresholdValues = 48,
-        int maxMarginValues = 48)
+        int maxMarginValues = 48,
+        int maxConflictFloorValues = 64)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(algorithmVersion);
         ArgumentNullException.ThrowIfNull(baseParameters);
@@ -90,6 +92,7 @@ public static class FsDecisionThresholdCalibrator
             throw new ArgumentException("VALIDATION + TEST deve deixar uma partição TRAIN não vazia.");
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxThresholdValues);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxMarginValues);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConflictFloorValues);
 
         var validation = scenarios
             .Where(static x => x.Partition == FsDecisionCalibrationPartition.Validation)
@@ -131,9 +134,10 @@ public static class FsDecisionThresholdCalibrator
         foreach (var threshold in thresholdValues)
         foreach (var margin in marginValues)
             candidates.Add(new FsDecisionThresholdCandidate(
-                CandidateId(threshold, margin),
+                CandidateId(threshold, margin, threshold),
                 threshold,
-                margin));
+                margin,
+                threshold));
 
         var validationEvaluations = candidates
             .Select(candidate => Evaluate(algorithmVersion, baseParameters, candidate, validation))
@@ -161,7 +165,7 @@ public static class FsDecisionThresholdCalibrator
 
         // Restrição de promoção pré-HML já documentada: nenhum falso vínculo resolvido
         // no corpus de segurança. Isto não é peso relativo FP/FN do Pareto.
-        var selected = frozen
+        var provisionalSelected = frozen
             .Where(static x => x.Validation.FalsePositive == 0)
             .OrderBy(static x => x.Validation.FalseNegative)
             .ThenBy(static x => x.Validation.Inconclusive)
@@ -169,6 +173,47 @@ public static class FsDecisionThresholdCalibrator
             .ThenByDescending(static x => x.Candidate.ConflictMarginLogOdds)
             .ThenBy(static x => x.Candidate.CandidateId, StringComparer.Ordinal)
             .FirstOrDefault();
+
+        FsDecisionThresholdFrozenEvaluation? selected = null;
+        if (provisionalSelected is not null)
+        {
+            // T_LINKAGE não pode ser reutilizado como piso da guarda de ambiguidade:
+            // aumentar T pode fazer o segundo candidato cair abaixo do corte e transformar
+            // um CONFLITO em RESOLVIDO. Depois de selecionar T/margem por Pareto, calibramos
+            // um piso independente usando somente VALIDATION. Entre pisos que produzem
+            // exatamente a mesma matriz de decisão observada, escolhemos o menor (mais
+            // conservador fora dos pontos observados). TEST continua sem retroalimentação.
+            var floorVariants = ConflictFloorValues(
+                    validation,
+                    provisionalSelected.Candidate.Threshold,
+                    maxConflictFloorValues)
+                .Select(floor => new FsDecisionThresholdCandidate(
+                    CandidateId(
+                        provisionalSelected.Candidate.Threshold,
+                        provisionalSelected.Candidate.ConflictMarginLogOdds,
+                        floor),
+                    provisionalSelected.Candidate.Threshold,
+                    provisionalSelected.Candidate.ConflictMarginLogOdds,
+                    floor))
+                .Select(candidate => new
+                {
+                    Candidate = candidate,
+                    Validation = Evaluate(algorithmVersion, baseParameters, candidate, validation)
+                })
+                .Where(x => SameDecisionMatrix(x.Validation, provisionalSelected.Validation))
+                .OrderBy(static x => x.Candidate.DualThresholdConflictFloor)
+                .ThenBy(static x => x.Candidate.CandidateId, StringComparer.Ordinal)
+                .ToArray();
+
+            var canonical = floorVariants.FirstOrDefault()
+                ?? throw new InvalidOperationException(
+                    "Nenhum piso de conflito reproduziu a decisão VALIDATION selecionada.");
+
+            selected = new FsDecisionThresholdFrozenEvaluation(
+                canonical.Candidate,
+                canonical.Validation,
+                Evaluate(algorithmVersion, baseParameters, canonical.Candidate, test));
+        }
 
         return new FsDecisionThresholdCalibrationResult(
             Version,
@@ -206,7 +251,11 @@ public static class FsDecisionThresholdCalibrator
             // dentro de seu domínio histórico; o valor efetivo fica em LOG_ODDS.
             [LinkageParameterCatalog.ConflictMargin] = Math.Clamp(selected.Candidate.ConflictMarginLogOdds, 0.000001m, 0.999999m),
             [LinkageParameterCatalog.LogOddsConflictMargin] = selected.Candidate.ConflictMarginLogOdds,
+            [LinkageParameterCatalog.DualThresholdConflictGuard] = 1m,
+            [LinkageParameterCatalog.DualThresholdConflictFloorV2] = 1m,
+            [LinkageParameterCatalog.DualThresholdConflictFloor] = selected.Candidate.DualThresholdConflictFloor,
             ["FS_DECISION_THRESHOLD_PARETO_V1"] = 1m,
+            ["FS_DECISION_CALIBRATION_CONFLICT_FLOOR_CANONICALIZATION_V1"] = 1m,
             ["FS_DECISION_CALIBRATION_SEED"] = result.Seed,
             ["FS_DECISION_CALIBRATION_VALIDATION_BP"] = result.ValidationBasisPoints,
             ["FS_DECISION_CALIBRATION_TEST_BP"] = result.TestBasisPoints,
@@ -269,7 +318,10 @@ public static class FsDecisionThresholdCalibrator
         {
             [LinkageParameterCatalog.Threshold] = candidate.Threshold,
             [LinkageParameterCatalog.ConflictMargin] = Math.Clamp(candidate.ConflictMarginLogOdds, 0.000001m, 0.999999m),
-            [LinkageParameterCatalog.LogOddsConflictMargin] = candidate.ConflictMarginLogOdds
+            [LinkageParameterCatalog.LogOddsConflictMargin] = candidate.ConflictMarginLogOdds,
+            [LinkageParameterCatalog.DualThresholdConflictGuard] = 1m,
+            [LinkageParameterCatalog.DualThresholdConflictFloorV2] = 1m,
+            [LinkageParameterCatalog.DualThresholdConflictFloor] = candidate.DualThresholdConflictFloor
         };
         var model = LinkageModelPolicy.Create(
             Guid.Empty,
@@ -383,10 +435,39 @@ public static class FsDecisionThresholdCalibrator
         return selected.ToArray();
     }
 
-    private static string CandidateId(decimal threshold, decimal margin)
+    private static IReadOnlyList<decimal> ConflictFloorValues(
+        IReadOnlyList<FsDecisionCalibrationScenario> validation,
+        decimal linkThreshold,
+        int maxValues)
+    {
+        var values = new SortedSet<decimal> { 0m, linkThreshold };
+        foreach (var score in validation
+                     .Where(static x => x.RankedCandidates.Count > 1)
+                     .Select(static x => x.RankedCandidates[1].Posterior)
+                     .Where(score => score <= linkThreshold))
+        {
+            values.Add(score);
+            var justAbove = Math.Min(linkThreshold, score + 0.00000001m);
+            values.Add(justAbove);
+        }
+
+        return Thin(values.ToArray(), maxValues);
+    }
+
+    private static bool SameDecisionMatrix(
+        CalibrationEvaluation left,
+        CalibrationEvaluation right) =>
+        left.TruePositive == right.TruePositive &&
+        left.TrueNegative == right.TrueNegative &&
+        left.FalsePositive == right.FalsePositive &&
+        left.FalseNegative == right.FalseNegative &&
+        left.Inconclusive == right.Inconclusive &&
+        left.Total == right.Total;
+
+    private static string CandidateId(decimal threshold, decimal margin, decimal conflictFloor)
     {
         var canonical =
-            $"{Version}\nT={threshold.ToString("G29", CultureInfo.InvariantCulture)}\nM={margin.ToString("G29", CultureInfo.InvariantCulture)}\n";
+            $"{Version}\nT={threshold.ToString("G29", CultureInfo.InvariantCulture)}\nM={margin.ToString("G29", CultureInfo.InvariantCulture)}\nF={conflictFloor.ToString("G29", CultureInfo.InvariantCulture)}\n";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)))
             .ToLowerInvariant();
     }
