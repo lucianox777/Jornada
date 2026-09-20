@@ -51,7 +51,7 @@ O gate `jornada-schema-consolidation-370` deve provar, de forma executável, que
 - o manifesto de migrações no checkpoint possui o hash declarado;
 - `ddl_evidence_run_id` é um run bem-sucedido do workflow de consolidação cujo `head_sha` é o `source_commit`.
 
-O **HEAD exato da RC** continua sendo identificado e testado separadamente pelo CI de engenharia e pelo `.NET SourceRevisionId`. Após o corte da RC, mudança estrutural exige novo checkpoint de RC.
+O **HEAD exato da RC** continua sendo identificado e testado separadamente pelo CI de engenharia e pelo `.NET SourceRevisionId`. O caminho `rc-evidence` recalcula o fingerprint estrutural em SQL Server na própria tag e publica essa prova como asset durável do pre-release, sem depender da retenção futura do run histórico de DDL. Após o corte da RC, mudança estrutural exige novo checkpoint de RC.
 
 ## 6. Documentação e UML
 
@@ -63,12 +63,15 @@ Documentação histórica não deve ser usada para inferir arquitetura corrente 
 
 O corte da RC é um **checkpoint técnico imutável**, não homologação populacional, não ativação probabilística e não release de Produção.
 
+O conteúdo candidato usa `technical_rc.status=CHECKPOINT_CONTENT` e `schema_provenance.status=BOUND_FOR_TECHNICAL_RC`; esses estados descrevem o conteúdo do commit, não fingem que a tag já foi criada. Tags `v*-rc.*` seguem o caminho `rc-evidence`; somente tags `jornada-solution-v*` seguem `release-promotion` e `RELEASE_INFO.txt`.
+
 Antes do corte técnico devem estar satisfeitas estas condições:
 
 1. o conjunto canônico de build, unitários, integração SQL, DDL/upgrade, E2E, segurança e harness deve estar verde no **HEAD exato** escolhido para a RC;
 2. o gate executável de proveniência do schema deve comprovar a tupla registrada em `CANDIDATE_INFO.json`;
 3. não pode haver defeito funcional ou estrutural conhecido que torne o checkpoint tecnicamente inconsistente;
-4. os gates externos devem permanecer explicitamente pendentes, sem fabricar aprovação.
+4. os gates externos devem permanecer explicitamente pendentes, sem fabricar aprovação;
+5. o CI da própria tag deve concluir `bronze-restore-drill`, `scale-harness` e `rc-evidence`, que publica o GitHub pre-release com evidência estrutural, bundle de fonte e attestation.
 
 A validação estatística representativa do Linkage (#31) e a volumetria/decisão institucional de HML (#93) **não bloqueiam o checkpoint técnico da RC**. Elas continuam bloqueando, conforme o caso, homologação estatística, ativação/publicação probabilística, decisão institucional e promoção efetiva para Produção.
 
