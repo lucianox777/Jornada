@@ -160,7 +160,7 @@ A promoção de um modelo vale para execuções futuras. Runs e vínculos histó
 
 O bloco de governança do Linkage apresenta evidências com semânticas separadas:
 
-- **Conferência de implementação**: última linha persistida em `auditoria.linkage_conferencia_evidencia` para o `modelo_id` ATIVO. O painel mostra status, método, versão da tolerância, instante, quantidade agregada de candidatos sintéticos e os diagnósticos `sameFinalDecision`/`sameTop1`. O valor numérico da tolerância, threshold e margem não são expostos.
+- **Conferência de implementação**: última linha persistida em `auditoria.linkage_conferencia_evidencia` para o `modelo_id` ATIVO. O painel mostra status, método, versão da tolerância, instante, quantidade agregada de candidatos sintéticos e os diagnósticos `sameFinalDecision`/`sameTop1`. O fingerprint do snapshot decisório é recalculado e comparado com o registrado na evidência; o painel mostra `ATUAL` ou `OBSOLETA`. O valor numérico da tolerância, threshold e margem não são expostos.
 - **Round-trip do formato**: contrato `JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1`, executado obrigatoriamente quando ocorre o export de auditoria. Como o resultado desse round-trip não é persistido por modelo, o monitor exibe `OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO`; isso não deve ser lido como evidência `CONFORME`.
 - **Validação estatística representativa**: permanece `PENDENTE_ISSUE_31` até a avaliação externa/representativa correspondente.
 
@@ -170,3 +170,5 @@ Se o modelo ATIVO não possuir evidência de conferência persistida, o estado m
 ### Identidade do modelo por execução
 
 Cada execução de Linkage exibe seu próprio `modelo_id` e `modelo_versao` vindos de `identidade.linkage_run`. O painel não atribui a runs históricos o modelo que estiver ATIVO no momento da consulta.
+
+Não existe ainda uma política de expiração temporal da evidência de conferência; por isso o monitor não inventa um SLA de frescor por idade. A validade exibida nesta etapa é estrutural, baseada no fingerprint do snapshot do modelo.
