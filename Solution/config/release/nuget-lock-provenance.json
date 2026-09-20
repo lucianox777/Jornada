@@ -230,12 +230,12 @@
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
     "sourceCommit": "f8598761a12b9f793c206f1dc43b18770b3829a1",
-    "githubRunId": "35536533461",
+    "githubRunId": "35536820795",
     "sdk": "8.0.424",
-    "reason": "PR #382 adiciona referência direta de Jornada.Integration.Tests a Jornada.Linkage.Evaluation para provar o exportador tipado em SQL Server; o SDK 8.0.424 no run 35536533461 produziu o patch exato de 8 linhas no lock de integração.",
+    "reason": "PR #382 adiciona referência direta de Jornada.Integration.Tests a Jornada.Linkage.Evaluation para provar o exportador tipado em SQL Server. O SDK 8.0.424 gerou o patch do lock no run 35536533461; o run 35536820795 confirmou 20 locks e todos os hashes individuais, calculando o combinedSha256 candidato corrente.",
     "lockCount": 20,
     "changedLockCount": 15,
-    "combinedSha256": "7c6629a345d0f491ef12366d72e0c2a3cddd6bccfdc6470b33e24f8ad2763724",
+    "combinedSha256": "1739a0dfc62fa8aa05010cdcf8ad9f708cb53512510fd2a0ebbf43b0913e885e",
     "overrides": [
       {
         "path": "src/Jornada.Api/packages.lock.json",
