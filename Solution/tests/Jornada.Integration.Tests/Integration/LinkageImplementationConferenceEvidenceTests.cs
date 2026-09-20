@@ -46,6 +46,10 @@ public sealed class LinkageImplementationConferenceEvidenceTests
             connection, modelId, version, "CONFORME", 2, 0.0000005m, true, null, 1);
         Assert.That(firstConforme, Is.Not.EqualTo(Guid.Empty));
 
+        var repeatedConforme = await RegisterAsync(
+            connection, modelId, version, "CONFORME", 2, 0.0000005m, true, null, 1);
+        Assert.That(repeatedConforme, Is.EqualTo(firstConforme));
+
         await AssertGateAsync(connection, modelId);
 
         await RegisterAsync(
