@@ -276,7 +276,8 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             CROSS JOIN min_support ms
             LEFT JOIN identidade.parametro_linkage p
               ON p.modelo_id=@active_model_id
-             AND p.nome LIKE N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_%'
+             AND LEFT(p.nome,LEN(N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_'))=
+                 N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_'
             GROUP BY rp.passe_ordem,rp.passe_id,ms.minimo
             ORDER BY rp.passe_ordem;
 
