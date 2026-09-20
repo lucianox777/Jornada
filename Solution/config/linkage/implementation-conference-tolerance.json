@@ -15,5 +15,6 @@
     "MAX_ABSOLUTE_LOG_ODDS_DIFFERENCE"
   ],
   "statisticalValidation": "SEPARATE_ISSUE_31",
-  "note": "Nenhum valor de tolerância foi definido. Deve ser congelado e versionado antes da primeira execução governada; é proibido inferi-lo a partir do primeiro resultado."
+  "note": "Nenhum valor de tolerância foi definido. Deve ser congelado e versionado antes da primeira execução governada; é proibido inferi-lo a partir do primeiro resultado.",
+  "toleranceVersion": "UNFROZEN"
 }
