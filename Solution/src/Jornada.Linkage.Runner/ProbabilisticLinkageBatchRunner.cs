@@ -646,6 +646,12 @@ public sealed class ProbabilisticLinkageBatchRunner(
             THROW 51821, 'Origem persistente ficou sem versão progressiva na publicação.', 1;
         """;
 
+    internal static string ProbabilisticConflictReviewQueueSql() =>
+        """
+        EXEC qualidade.sp_registrar_conflitos_linkage_publicados
+             @linkage_run_id=@run_id;
+        """;
+
     private async Task PersistBatchAsync(
         Guid runId,
         ProbabilisticLinkageModelRef model,
@@ -739,6 +745,8 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 {PublicationIntegrityGuardSql()}
 
                 {ProgressivePublicationSql()}
+
+                {ProbabilisticConflictReviewQueueSql()}
 
                 UPDATE identidade.linkage_run
                 SET status='PUBLICADO', finalizado_em=@fim, publicado_em=@fim

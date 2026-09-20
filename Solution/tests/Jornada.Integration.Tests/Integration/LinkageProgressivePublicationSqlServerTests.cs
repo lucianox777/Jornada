@@ -136,6 +136,114 @@ public sealed class LinkageProgressivePublicationSqlServerTests
     }
 
     [Test]
+    public async Task Probabilistic_conflict_enters_single_governed_queue_with_auditable_result_context()
+    {
+        var cs = RequireIntegrationConnection();
+        await using var connection = new SqlConnection(cs);
+        await connection.OpenAsync();
+
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
+
+        var source = await ReadProvisionalSourceAsync(connection);
+        var model = await ReadModelAsync(connection);
+        var runId = Guid.NewGuid();
+        Guid candidate;
+        await using (var candidateCommand = connection.CreateCommand())
+        {
+            candidateCommand.CommandText = "SELECT TOP(1) pessoa_uuid FROM identidade.pessoa WHERE pessoa_uuid<>@initial ORDER BY pessoa_uuid;";
+            candidateCommand.Parameters.AddWithValue("@initial", source.InitialUuid);
+            candidate = (Guid)(await candidateCommand.ExecuteScalarAsync()
+                ?? throw new InvalidOperationException("Fixture sem candidato alternativo."));
+        }
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
+        try
+        {
+            await InsertRunAsync(connection, tx, runId, model.ModelId, model.Version, source.ObservationId,
+                rawResolved: false, noCandidate: false, rawConflict: true);
+
+            long resultId;
+            await using (var result = connection.CreateCommand())
+            {
+                result.Transaction = tx;
+                result.CommandText = """
+                    INSERT identidade.linkage_resultado(
+                        linkage_run_id,modelo_id,modelo_versao,pessoa_observacao_id,
+                        pessoa_uuid_resolvido,melhor_candidato_uuid,score_melhor,
+                        segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em,
+                        resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,
+                        pessoa_origem_id_publicado,politica_publicacao_versao,universo_referencia,publicado_em)
+                    OUTPUT INSERTED.linkage_resultado_id
+                    VALUES(
+                        @run,@model,@version,@obs,
+                        NULL,@candidate,0.83000000,NULL,NULL,0.01000000,
+                        N'CONFLITO',N'MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE',SYSUTCDATETIME(),
+                        N'INDEFINIDA',NULL,N'CONFLITO',N'MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE',
+                        @source,N'LINKAGE_PROGRESSIVE_PUBLICATION_V1',N'RUN_COMPLETO_TESTE',SYSUTCDATETIME());
+                    """;
+                result.Parameters.AddWithValue("@run", runId);
+                result.Parameters.AddWithValue("@model", model.ModelId);
+                result.Parameters.AddWithValue("@version", model.Version);
+                result.Parameters.AddWithValue("@obs", source.ObservationId);
+                result.Parameters.AddWithValue("@candidate", candidate);
+                result.Parameters.AddWithValue("@source", source.SourceId);
+                resultId = Convert.ToInt64(await result.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                await using var queue = connection.CreateCommand();
+                queue.Transaction = tx;
+                queue.CommandText = "EXEC qualidade.sp_registrar_conflitos_linkage_publicados @linkage_run_id=@run_id;";
+                queue.Parameters.AddWithValue("@run_id", runId);
+                await queue.ExecuteNonQueryAsync();
+            }
+
+            await using var verify = connection.CreateCommand();
+            verify.Transaction = tx;
+            verify.CommandText = """
+                SELECT
+                    (SELECT COUNT(*) FROM qualidade.divergencia_gestor
+                      WHERE pessoa_observacao_id=@obs
+                        AND status=N'ABERTA'
+                        AND tipo=N'DIVERGENCIA_IDENTIDADE'
+                        AND linkage_resultado_id IS NOT NULL) fila,
+                    d.linkage_resultado_id,
+                    c.linkage_run_id,c.modelo_id,c.modelo_versao,
+                    c.melhor_candidato_uuid,c.score_melhor,c.margem,c.raw_status,c.raw_motivo
+                FROM qualidade.divergencia_gestor d
+                JOIN qualidade.v_divergencia_linkage_contexto c
+                  ON c.divergencia_id=d.divergencia_id
+                WHERE d.pessoa_observacao_id=@obs
+                  AND d.status=N'ABERTA'
+                  AND d.linkage_resultado_id IS NOT NULL;
+                """;
+            verify.Parameters.AddWithValue("@obs", source.ObservationId);
+            await using var reader = await verify.ExecuteReaderAsync();
+            Assert.That(await reader.ReadAsync(), Is.True);
+            Assert.Multiple(() =>
+            {
+                Assert.That(reader.GetInt32(0), Is.EqualTo(1), "Replay do mesmo conflito não pode duplicar a fila.");
+                Assert.That(reader.GetInt64(1), Is.EqualTo(resultId));
+                Assert.That(reader.GetGuid(2), Is.EqualTo(runId));
+                Assert.That(reader.GetGuid(3), Is.EqualTo(model.ModelId));
+                Assert.That(reader.GetInt32(4), Is.EqualTo(model.Version));
+                Assert.That(reader.GetGuid(5), Is.EqualTo(candidate));
+                Assert.That(reader.GetDecimal(6), Is.EqualTo(0.83000000m));
+                Assert.That(reader.GetDecimal(7), Is.EqualTo(0.01000000m));
+                Assert.That(reader.GetString(8), Is.EqualTo("CONFLITO"));
+                Assert.That(reader.GetString(9), Is.EqualTo("MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE"));
+            });
+        }
+        finally
+        {
+            await tx.RollbackAsync();
+        }
+    }
+
+    [Test]
     public async Task Partial_provisional_shell_is_visible_in_gold_but_only_reference_receives_available_blocking_keys()
     {
         var cs = RequireIntegrationConnection();
@@ -354,7 +462,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
 
     private static async Task InsertRunAsync(
         SqlConnection connection, SqlTransaction tx, Guid runId, Guid modelId, int modelVersion,
-        long observationId, bool rawResolved, bool noCandidate)
+        long observationId, bool rawResolved, bool noCandidate, bool rawConflict = false)
     {
         await using var command = connection.CreateCommand();
         command.Transaction = tx;
@@ -376,7 +484,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                    avaliados=1,
                    resolvidos=@resolved,
                    nao_resolvidos=@unresolved,
-                   conflitos=0,
+                   conflitos=@conflicts,
                    sem_candidato_no_bloco=@no_candidate
              WHERE linkage_run_id=@run;
 
@@ -388,7 +496,8 @@ public sealed class LinkageProgressivePublicationSqlServerTests
         command.Parameters.AddWithValue("@version", modelVersion);
         command.Parameters.AddWithValue("@obs", observationId);
         command.Parameters.AddWithValue("@resolved", rawResolved ? 1 : 0);
-        command.Parameters.AddWithValue("@unresolved", rawResolved ? 0 : 1);
+        command.Parameters.AddWithValue("@unresolved", rawResolved || rawConflict ? 0 : 1);
+        command.Parameters.AddWithValue("@conflicts", rawConflict ? 1 : 0);
         command.Parameters.AddWithValue("@no_candidate", noCandidate ? 1 : 0);
         await command.ExecuteNonQueryAsync();
     }
