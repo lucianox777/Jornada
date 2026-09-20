@@ -38,7 +38,15 @@ Isso fecha a lacuna de `T_LINKAGE`/margem fixos. O antigo estágio DF/Splink foi
 
 A pendência estatística corrente é transportabilidade de `m/u`, representatividade da coorte rotulada, convergência do `u` para o universo candidato real e avaliação de evidências adicionais. A validação estatística representativa permanece gate externo. Corpus sintético, Monte Carlo e validação adversarial DEV são evidência de engenharia, não homologação populacional.
 
-## 4.1. Autoria dos atos governados de identidade
+## 4.1. Auditoria/intercâmbio do modelo de Linkage
+
+A retirada do antigo estágio DF/Splink não elimina a auditabilidade externa. `Jornada.Linkage.Evaluation --export-calibration` exporta somente modelos `ATIVO` ou `VALIDADO` em um documento C# tipado, sem criar run, sem alterar status e sem gravar identidade/Gold.
+
+O formato separa a semântica do **u empírico**, condicionado à união deduplicada dos candidatos de blocking, da fonte nominal de `u` para nome/nome da mãe. Esta última é derivada dos parâmetros persistidos e pode ser `BLOCKING_CONDITIONED` ou `IBGE_BOOTSTRAP` enquanto a convergência condicionada não for suficiente. O documento não declara equivalência por definição ao `u` de pares aleatórios de outra ferramenta. Estados semânticos de nascimento sem mapeamento 1:1 também permanecem explícitos.
+
+Cada exportação executa obrigatoriamente `JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1`: serializa, reimporta fail-closed e compara campo a campo antes de escrever o arquivo. Membros desconhecidos são recusados para impedir perda silenciosa no round-trip. Essa evidência demonstra fidelidade do **formato Jornada**, não compatibilidade Splink completa, não paridade de uma segunda implementação do scorer e não substitui a validação representativa #31.
+
+## 4.2. Autoria dos atos governados de identidade
 
 `controle.api_evento` permanece telemetria/auditoria HTTP e não é usado como fonte canônica de autoria de correções de identidade. A candidata materializa `auditoria.decisao_identidade_evento`: ledger append-only que registra a credencial `GESTOR` autenticada, o Gestor, um `operacao_id` gerado pelo SQL Server, o objeto governado, ato/justificativa e `correlation_id` apenas como contexto.
 
