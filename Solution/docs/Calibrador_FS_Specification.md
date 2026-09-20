@@ -56,6 +56,8 @@ Enquanto qualquer requisito de suficiência não for atendido, o campo correspon
 
 `SPLINK_TERM_FREQUENCY_V1` é preservado apenas como matemática reutilizável. Ele **não é um estágio DF** e não está habilitado automaticamente no score corrente.
 
+O executável `Jornada.Linkage.Evaluation --export-calibration` expõe parâmetros, proveniência e vetores sintéticos da matemática TF em JSON, somente leitura. Essa superfície existe para conferência externa e **não participa do score**.
+
 Se TF vier a entrar no FS, deve:
 
 - ser calibrada dentro do mesmo universo candidato;
