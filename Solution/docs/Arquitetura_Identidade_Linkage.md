@@ -76,7 +76,9 @@ O núcleo probabilístico canônico é explicável e baseado em Fellegi–Sunter
 
 Cada feature habilitada possui identificação, origem, semântica, normalizador/comparador versionados, estados de qualidade, política de ausência, parâmetros `m/u`, proveniência e evidência de validação. O modelo publicado congela features, versões, parâmetros, regras de dependência e ruleset de blocking.
 
-Evidências candidatas incluem nome, nome da mãe, nascimento e seus componentes, documentos conforme política, telefone, e-mail, identificadores estáveis de origem, endereço/referência territorial e vínculos familiares quando governança e calibração demonstrarem utilidade. Atributos correlacionados não devem ter pesos somados como se fossem independentes sem validação do efeito conjunto.
+Evidências candidatas incluem nome, nome da mãe, nascimento e seus componentes, documentos conforme política, telefone, e-mail, identificadores estáveis de origem e vínculos familiares quando governança e calibração demonstrarem utilidade. Endereço e referência territorial são semanticamente conhecidos, mas permanecem **inelegíveis no modelo corrente**: valores institucionais ou compartilhados têm alta frequência e não podem produzir evidência positiva por simples concordância. Qualquer uso futuro exige versão de modelo própria, limite de bloco e ajuste explícito por frequência; `ENDERECO_CASA_ABRIGO_SIGILOSA` permanece fail-closed para resolução de identidade.
+
+`nome_referencia` pertence ao serving, não ao conjunto de evidências. Nome civil, nome social e variantes históricas permanecem observações independentes para blocking/calibração conforme contrato homologado; trocar silenciosamente o nome técnico do candidato pela referência de apresentação é proibido. A evolução do scorer para comparar conjuntos de variantes deve ocorrer em nova versão calibrada do modelo, sem reutilizar a regra de serving como peso estatístico. Atributos correlacionados não devem ter pesos somados como se fossem independentes sem validação do efeito conjunto.
 
 ## 6. Qualidade e normalização
 
