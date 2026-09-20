@@ -4,14 +4,15 @@ namespace Jornada.Linkage.Evaluation;
 
 /// <summary>
 /// Conferência independente da implementação operacional a partir de estados de comparação
-/// já formados. Este componente deliberadamente NÃO deriva estados de nome/data e NÃO
-/// depende de Jornada.Linkage.Runner nem Jornada.Linkage.Core.
+/// já formados. Este componente deliberadamente NÃO deriva estados de nome/data nem o
+/// flag DemographicExactCollisionRisk usado pelo guard correspondente; esses inputs
+/// chegam pré-computados. Também NÃO depende de Jornada.Linkage.Runner nem Jornada.Linkage.Core.
 /// </summary>
 public static class IndependentImplementationConference
 {
     public const string MethodVersion = "JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1";
     public const string Scope =
-        "SCORER_POLICY_ONLY_STATES_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE";
+        "SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE";
 
     public static ImplementationConferenceReport Evaluate(ImplementationConferenceRequest request)
     {
@@ -120,13 +121,13 @@ public static class IndependentImplementationConference
             return NotExecuted(request, "CANONICAL_DECISION_OUTSIDE_CANDIDATE_UNIVERSE");
 
         var sameDecision = Equivalent(request.CanonicalDecision, independentDecision);
-        var maxLlrDifference = ranked.Count == 0
+        var maxLlrDifference = ranked.Length == 0
             ? 0m
             : ranked.Max(static x => x.AbsoluteLlrDifference);
-        var maxLogOddsDifference = ranked.Count == 0
+        var maxLogOddsDifference = ranked.Length == 0
             ? 0m
             : ranked.Max(static x => x.AbsoluteLogOddsDifference);
-        var top1Same = ranked.Count == 0
+        var top1Same = ranked.Length == 0
             ? request.CanonicalDecision.BestCandidateId is null
             : ranked[0].CandidateId == request.Candidates.Single(x => x.CanonicalRank == 1).CandidateId;
         var spearman = Spearman(ranked);
@@ -160,7 +161,7 @@ public static class IndependentImplementationConference
         ImplementationConferenceRequest request,
         IReadOnlyList<ImplementationConferenceCandidateResult> ranked)
     {
-        if (ranked.Count == 0)
+        if (ranked.Length == 0)
             return new(
                 ResolutionStatus.NAO_RESOLVIDO,
                 null,
