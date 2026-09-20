@@ -38,6 +38,18 @@ public sealed class ResolutionProjectionModelCatalogTests
     }
 
     [Test]
+    public void PresentationReferenceName_IsNotAResolutionAttribute()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(PersonResolutionContractCatalog.TryGet("nome_referencia", out _), Is.False);
+            Assert.That(
+                BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan.BlockingCandidateFeatures,
+                Does.Not.Contain("nome_referencia"));
+        });
+    }
+
+    [Test]
     public void Build_PersonNameRequiresExplicitEligibility()
     {
         var denied = ResolutionProjectionPlanner.Build(
