@@ -7,16 +7,22 @@ namespace Jornada.Contracts;
 /// </summary>
 public static class LinkageCalibrationAuditExchangePolicy
 {
+    public const int SchemaVersion = 1;
+    public const string Nature = "LINKAGE_CALIBRATION_AUDIT_EXPORT";
+    public const string Purpose = "EXTERNAL_REPRODUCIBILITY_READ_ONLY";
     public const string UProbabilitySemantics = "CONDITIONED_ON_DEDUPLICATED_BLOCKING_CANDIDATE_UNION";
+    public const string ComparisonStateMappingRule =
+        "Do not collapse semantic states silently; an external adapter must declare an explicit mapping.";
 
     public static IReadOnlyList<string> UnmappedOrNonBijectiveComparisonStates { get; } =
-    [
-        "DAY_MONTH_SWAP",
-        "CENTURY_SHIFT",
-        "ONE_DIGIT_ERROR",
-        "TWO_DIGIT_ERROR",
-        "PARTIAL_COMPONENT_AGREEMENT"
-    ];
+        Array.AsReadOnly(
+        [
+            "DAY_MONTH_SWAP",
+            "CENTURY_SHIFT",
+            "ONE_DIGIT_ERROR",
+            "TWO_DIGIT_ERROR",
+            "PARTIAL_COMPONENT_AGREEMENT"
+        ]);
 
     public static bool IsExportableModelStatus(string? status) =>
         string.Equals(status, "ATIVO", StringComparison.Ordinal)
