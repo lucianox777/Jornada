@@ -12,6 +12,6 @@ Somente decisões presentes em `identidade.composicao_publicacao` com `state='PU
 
 A projeção é read-only, não altera `pessoa_origem_progressiva`, âncoras CPF, `vinculo_fonte`, Gold, Serving factual ou Possibilidades e não ativa Linkage probabilístico. A issue #31 continua sendo o gate estatístico e institucional para qualquer ativação probabilística real.
 
-## Paridade
+## Runtime corrente
 
-Há implementação equivalente em SQL Server e PostgreSQL. O conteúdo de `members_json` é convertido para UUID de forma fail-closed: histórico persistido incompatível torna a leitura inválida em vez de produzir um sucessor parcial ou silenciosamente descartado.
+A implementação corrente usa SQL Server. O conteúdo de `members_json` é convertido para UUID de forma fail-closed: histórico persistido incompatível torna a leitura inválida em vez de produzir um sucessor parcial ou silenciosamente descartado.
