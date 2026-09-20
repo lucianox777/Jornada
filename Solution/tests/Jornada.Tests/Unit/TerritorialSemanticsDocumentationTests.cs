@@ -73,7 +73,7 @@ public sealed class TerritorialSemanticsDocumentationTests
             Assert.That(candidateSpecification, Does.Contain("SEM_ENDERECO_FIXO_DECLARADO"));
             Assert.That(candidateSpecification, Does.Contain("schemas v1–v4 não devem ser alterados in-place"));
             Assert.That(candidateSpecification, Does.Contain("Decreto Municipal nº 58.228"));
-            Assert.That(candidateSpecification, Does.Contain("nome_referencia").And.Contain("não participa de blocking"));
+            Assert.That(candidateSpecification, Does.Contain("nome_referencia").And.Contain("**não** participa de blocking"));
             Assert.That(candidateSpecification, Does.Not.Contain("endereço residencial é atributo cadastral que descreve endereço de residência"));
 
             Assert.That(ddl, Does.Contain("A camada territorial usa exclusivamente o snapshot de REFERENCIA_TERRITORIAL selecionado"));
