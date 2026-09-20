@@ -646,6 +646,61 @@ public sealed class ProbabilisticLinkageBatchRunner(
             THROW 51821, 'Origem persistente ficou sem versão progressiva na publicação.', 1;
         """;
 
+    internal static string ProbabilisticConflictReviewQueueSql() =>
+        """
+        DECLARE @conflitos_linkage TABLE(
+            pessoa_observacao_id BIGINT NOT NULL PRIMARY KEY,
+            linkage_resultado_id BIGINT NOT NULL,
+            gestor_id BIGINT NOT NULL,
+            codigo_pessoa_origem NVARCHAR(255) NULL,
+            motivo NVARCHAR(120) NOT NULL,
+            correlation_id UNIQUEIDENTIFIER NULL
+        );
+
+        INSERT @conflitos_linkage(
+            pessoa_observacao_id,linkage_resultado_id,gestor_id,
+            codigo_pessoa_origem,motivo,correlation_id)
+        SELECT r.pessoa_observacao_id,r.linkage_resultado_id,po.gestor_id,
+               po.codigo_pessoa_origem,
+               LEFT(COALESCE(NULLIF(r.motivo_publicacao,N''),NULLIF(r.motivo,N''),N'LINKAGE_AMBIGUO'),120),
+               lr.correlation_id
+        FROM identidade.linkage_resultado r WITH(HOLDLOCK)
+        JOIN silver.pessoa_observacao po WITH(HOLDLOCK)
+          ON po.pessoa_observacao_id=r.pessoa_observacao_id
+        JOIN identidade.linkage_run lr WITH(HOLDLOCK)
+          ON lr.linkage_run_id=r.linkage_run_id
+        WHERE r.linkage_run_id=@run_id
+          AND r.status=N'CONFLITO'
+          AND r.status_publicacao=N'CONFLITO'
+          AND COALESCE(r.motivo_publicacao,N'') NOT LIKE N'PRECEDENCIA[_]%';
+
+        UPDATE d
+           SET linkage_resultado_id=c.linkage_resultado_id,
+               motivo=c.motivo,
+               codigo_pessoa_origem=COALESCE(d.codigo_pessoa_origem,c.codigo_pessoa_origem),
+               correlation_id=COALESCE(d.correlation_id,c.correlation_id)
+        FROM qualidade.divergencia_gestor d WITH(UPDLOCK,HOLDLOCK)
+        JOIN @conflitos_linkage c
+          ON c.pessoa_observacao_id=d.pessoa_observacao_id
+        WHERE d.status=N'ABERTA'
+          AND d.tipo=N'DIVERGENCIA_IDENTIDADE'
+          AND d.linkage_resultado_id IS NOT NULL;
+
+        INSERT qualidade.divergencia_gestor(
+            gestor_id,tipo,motivo,pessoa_observacao_id,codigo_pessoa_origem,
+            status,correlation_id,linkage_resultado_id)
+        SELECT c.gestor_id,N'DIVERGENCIA_IDENTIDADE',c.motivo,c.pessoa_observacao_id,
+               c.codigo_pessoa_origem,N'ABERTA',c.correlation_id,c.linkage_resultado_id
+        FROM @conflitos_linkage c
+        WHERE NOT EXISTS(
+            SELECT 1
+            FROM qualidade.divergencia_gestor d WITH(UPDLOCK,HOLDLOCK)
+            WHERE d.pessoa_observacao_id=c.pessoa_observacao_id
+              AND d.status=N'ABERTA'
+              AND d.tipo=N'DIVERGENCIA_IDENTIDADE'
+              AND d.linkage_resultado_id IS NOT NULL);
+        """;
+
     private async Task PersistBatchAsync(
         Guid runId,
         ProbabilisticLinkageModelRef model,
@@ -739,6 +794,8 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 {PublicationIntegrityGuardSql()}
 
                 {ProgressivePublicationSql()}
+
+                {ProbabilisticConflictReviewQueueSql()}
 
                 UPDATE identidade.linkage_run
                 SET status='PUBLICADO', finalizado_em=@fim, publicado_em=@fim
