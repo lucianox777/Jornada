@@ -30,6 +30,8 @@ public sealed class OperationalMonitorModelGovernanceContractTests
             Assert.That(service, Does.Contain("JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1"));
             Assert.That(service, Does.Contain("NOMINAL_U_NOME_SOURCE_BLOCKING_CONDITIONED"));
             Assert.That(service, Does.Contain("frequencia_nome_versao_id"));
+            Assert.That(service, Does.Contain("SELECT TOP(5) linkage_run_id,modelo_id,tipo_run,status,modelo_versao"));
+            Assert.That(html, Does.Contain("shortId(x.modelId)"));
         });
     }
 
