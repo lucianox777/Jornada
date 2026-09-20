@@ -93,7 +93,7 @@ Esta regra não altera:
 
 ## Invariantes de implementação
 
-SQL Server e PostgreSQL devem provar os mesmos invariantes:
+A implementação SQL Server deve provar os seguintes invariantes:
 
 1. um CPF possui uma única âncora permanente;
 2. a consistência nunca muda o UUID ancorado;
