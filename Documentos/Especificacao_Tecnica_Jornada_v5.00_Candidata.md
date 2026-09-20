@@ -55,6 +55,12 @@ No Município de São Paulo, essa regra encontra base específica no **Decreto M
 
 A correção de identidade é governada e auditável; a plataforma não deve inferir titularidade institucionalmente controversa nem apagar a trilha histórica de agrupamentos, separações ou fusões.
 
+### 3.2 Autoria canônica das decisões governadas
+
+Atos governados que alteram ou encerram uma decisão de identidade devem possuir um evento append-only em `auditoria.decisao_identidade_evento`, persistido na mesma transação da mutação. A autoria é a credencial institucional `GESTOR` autenticada e vinculada ao Gestor responsável; cada ato recebe `operacao_id` gerado pelo SQL Server. `correlation_id` serve somente para correlação técnica da requisição e não substitui a identidade do decisor.
+
+`controle.api_evento` continua sendo trilha de acesso/telemetria HTTP. O CPF opcional de agente declarado pela origem e armazenado apenas como HMAC não é prova de autenticação individual e, portanto, não é usado como autoria canônica do ato de identidade. Se o ledger não puder ser persistido, a decisão governada deve falhar atomicamente.
+
 ## 4. Âncora CPF → UUID e ausência de CPF
 
 Quando um CPF válido e governado está disponível, a resolução determinística CPF→UUID é a âncora de maior autoridade do vínculo. Conflitos de consistência não devem ser silenciados por regras probabilísticas.
