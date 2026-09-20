@@ -26,6 +26,28 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
     }
 
     [Test]
+    public void Published_conflicts_are_routed_only_after_publication_to_the_governed_queue()
+    {
+        var sql = ProbabilisticLinkageBatchRunner.ConflictReviewQueueSql();
+        var migration = File.ReadAllText(Path.Combine(FindSolutionRoot(), "database", "migrations",
+            "20260920_Linkage_Conflict_Review_Queue.sql"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sql, Does.Contain("qualidade.sp_sincronizar_divergencias_linkage"));
+            Assert.That(sql, Does.Contain("@linkage_run_id=@run_id"));
+            Assert.That(migration, Does.Contain("status=N'PUBLICADO'"));
+            Assert.That(migration, Does.Contain("r.status_publicacao=N'CONFLITO'"));
+            Assert.That(migration, Does.Contain("d.correlation_id=@linkage_run_id"));
+            Assert.That(migration, Does.Contain("qualidade.v_divergencia_linkage_contexto"));
+            Assert.That(migration, Does.Contain("r.score_melhor"));
+            Assert.That(migration, Does.Contain("r.segundo_candidato_uuid"));
+            Assert.That(migration, Does.Contain("r.margem"));
+            Assert.That(migration, Does.Not.Contain("status_publicacao IN(N'CONFLITO',N'NAO_RESOLVIDO')"));
+        });
+    }
+
+    [Test]
     public void Migration_requires_complete_run_and_never_uses_initial_uuid_as_similarity_evidence()
     {
         var migration = File.ReadAllText(Path.Combine(FindSolutionRoot(), "database", "migrations",
