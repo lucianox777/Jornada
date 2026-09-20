@@ -414,6 +414,11 @@ public sealed class ProbabilisticLinkageBatchRunner(
             THROW 51110, 'Resultado fora do universo materializado do linkage_run; publicação recusada.', 1;
         """;
 
+    internal static string ConflictReviewQueueSql() =>
+        """
+        EXEC qualidade.sp_sincronizar_divergencias_linkage @linkage_run_id=@run_id;
+        """;
+
     internal static string ProgressivePublicationSql() =>
         """
         DECLARE @politica_publicacao NVARCHAR(120)=N'LINKAGE_PROGRESSIVE_PUBLICATION_V1';
@@ -743,6 +748,8 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 UPDATE identidade.linkage_run
                 SET status='PUBLICADO', finalizado_em=@fim, publicado_em=@fim
                 WHERE linkage_run_id=@run_id;
+
+                {ConflictReviewQueueSql()}
 
                 -- A view corrente só passa a enxergar o run após PUBLICADO.
                 -- Recompomos referência publicada e initial_uuid na mesma transação.
