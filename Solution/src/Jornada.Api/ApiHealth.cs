@@ -52,6 +52,7 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
                     AND OBJECT_ID(N'auditoria.modelo_linkage_estado_evento',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.tr_modelo_linkage_estado_evento',N'TR') IS NOT NULL
                     AND OBJECT_ID(N'auditoria.linkage_conferencia_evidencia',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'auditoria.sp_calcular_fingerprint_modelo_linkage',N'P') IS NOT NULL
                     AND OBJECT_ID(N'auditoria.sp_registrar_conferencia_linkage',N'P') IS NOT NULL
                     AND OBJECT_ID(N'auditoria.sp_assert_conferencia_linkage_conforme',N'P') IS NOT NULL
                     AND OBJECT_ID(N'identidade.blocking_chave',N'U') IS NOT NULL
