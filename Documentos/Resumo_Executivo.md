@@ -1,6 +1,6 @@
 # Jornada do Cidadão — Resumo Executivo
 
-**Data:** 12/09/2026  
+**Data:** 20/09/2026  
 **Estado:** CANDIDATO TÉCNICO À CONSOLIDAÇÃO v5.00 — release/tag ainda não cortada  
 **Base normativa vigente da release selada:** v3.64  
 **Solution Engenharia selada:** v4.05  
@@ -25,7 +25,9 @@ A fonte Markdown do modelo físico já descreve a projeção semântica de nome 
 
 A consolidação 3.70 alinha readiness, gates, compatibilidade, observabilidade e caminho de upgrade ao schema corrente; preserva o upgrade fail-closed e a reentrada; e mantém Microsoft SQL Server como tecnologia relacional normativa.
 
-A referência populacional de nomes é mantida internamente de forma versionada para permitir proveniência e replay. Modelos/execuções preservam a versão utilizada; `gold.pessoa` mantém apenas a chave semântica estável necessária para a consulta, e não uma frequência populacional única dependente do estado corrente da referência. Isso não implica, por si só, adoção de qualquer fórmula de raridade ou mudança metodológica no scoring.
+A referência populacional de nomes é mantida internamente de forma versionada para permitir proveniência e replay. Modelos/execuções preservam a versão utilizada; `gold.pessoa` mantém apenas a chave semântica estável necessária para a consulta, e não uma frequência populacional única dependente do estado corrente da referência. O Linkage operacional usa um único Fellegi–Sunter: o estágio DF autônomo foi retirado, `T_LINKAGE`/margem são calibrados com separação TRAIN/VALIDATION/TEST, e o alvo de `u` nominal converge do bootstrap IBGE para o universo condicionado ao blocking quando há suporte suficiente.
+
+A identidade de Pessoa é progressiva: `initial_uuid` é linhagem e nunca feature estatística; `codigoPessoaOrigem` permanece opcional; `gold.pessoa` distingue `PROVISORIA`, `REFERENCIA` e `INDEFINIDA` sem exigir CPF como condição de existência. A publicação do Linkage separa resultado bruto de decisão operacional. Conflitos probabilísticos publicados entram na fila institucional única de divergências e preservam, por FK ao `linkage_resultado`, a proveniência de modelo, run, candidatos, scores e margem sem correção automática.
 
 Os requisitos consolidados v1.1 registram explicitamente que seu estado de incorporação é candidato técnico à Solution Engenharia v5.00. Essa documentação não antecipa aprovação institucional, implantação em HML/Produção, RIPD, calibração de Linkage nem qualquer decisão dependente de dados reais ou governança.
 
