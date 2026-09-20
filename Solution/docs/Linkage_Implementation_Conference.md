@@ -81,11 +81,11 @@ A evidência persistente por modelo é materializada em `auditoria.linkage_confe
 
 O schema contém:
 
-- `auditoria.sp_registrar_conferencia_linkage`, que aceita somente modelo `RASCUNHO` e persiste evidência agregada append-only;
-- `auditoria.sp_assert_conferencia_linkage_conforme`, que procura a evidência mais recente para o mesmo `modelo_id`, método e versão de tolerância e falha fechado se ela não estiver `CONFORME`;
+- `auditoria.sp_calcular_fingerprint_modelo_linkage`, que produz fingerprint SHA-256 canônico do snapshot decisório persistido (metadados estáveis, parâmetros, estatísticas e ruleset/passes/campos);\n- `auditoria.sp_registrar_conferencia_linkage`, que aceita somente modelo `RASCUNHO`, calcula esse fingerprint no ato do registro e persiste evidência agregada append-only;
+- `auditoria.sp_assert_conferencia_linkage_conforme`, que procura a evidência mais recente para o mesmo `modelo_id`, método e versão de tolerância, exige `CONFORME` e recomputa o fingerprint do snapshot; qualquer mutação posterior torna a evidência obsoleta e bloqueia o assert;
 - `auditoria.v_linkage_conferencia_evidencia`, superfície read-only de auditoria.
 
-Uma execução `DIVERGENTE` ou `NAO_EXECUTADA` posterior invalida, para efeito do assert, um `CONFORME` anterior até que nova conferência `CONFORME` seja registrada. O histórico não é atualizado nem apagado.
+Uma execução `DIVERGENTE` ou `NAO_EXECUTADA` posterior invalida, para efeito do assert, um `CONFORME` anterior até que nova conferência `CONFORME` seja registrada. O histórico não é atualizado nem apagado. A coluna `validacao_estatistica` é restrita a `NOT_ASSESSED_ISSUE_31`, impedindo que esta conferência seja usada para declarar a validação estatística representativa.
 
 O **wiring em `VALIDATE/ACTIVATE` ainda não está ativo**. Enquanto `implementation-conference-tolerance.json` permanecer `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`, o fluxo operacional existente não chama a procedure de assert e nenhuma aprovação é inferida. A ligação efetiva seguirá a sequência:
 
