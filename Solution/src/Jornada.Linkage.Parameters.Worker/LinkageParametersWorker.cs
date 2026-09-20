@@ -777,6 +777,9 @@ public sealed class LinkageParametersWorker(
                    AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_DUAL_THRESHOLD_CONFLICT_FLOOR_V2' AND valor>=1)
                     THROW 51024, 'Modelo SQL Server V6 sem guarda de ambiguidade desacoplada de T_LINKAGE.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_NON_UNIQUE_DEMOGRAPHIC_EXACT_GUARD_V1' AND valor>=1)
+                    THROW 51026, 'Modelo SQL Server V6 sem guarda contra unicidade presumida de nome+nascimento exatos.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
                    AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='DUAL_THRESHOLD_CONFLICT_FLOOR' AND valor>=0 AND valor<=1)
                     THROW 51025, 'Modelo SQL Server V6 sem piso calibrado válido para segundo candidato.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
