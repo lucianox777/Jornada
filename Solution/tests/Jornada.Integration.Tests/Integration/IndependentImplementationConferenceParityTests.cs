@@ -73,7 +73,7 @@ public sealed class IndependentImplementationConferenceParityTests
             Assert.That(report.SpearmanRankCorrelation, Is.EqualTo(1m));
             Assert.That(report.MaxObservedPairLlrDifference, Is.LessThanOrEqualTo(TestTolerance.MaxAbsolutePairLlrDifference));
             Assert.That(report.Scope, Is.EqualTo(
-                "SCORER_POLICY_ONLY_STATES_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE"));
+                "SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE"));
         });
     }
 
