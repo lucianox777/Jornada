@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -211,6 +210,8 @@ public static class FsDecisionThresholdCalibrator
             ["FS_DECISION_CALIBRATION_SEED"] = result.Seed,
             ["FS_DECISION_CALIBRATION_VALIDATION_BP"] = result.ValidationBasisPoints,
             ["FS_DECISION_CALIBRATION_TEST_BP"] = result.TestBasisPoints,
+            ["FS_DECISION_CALIBRATION_TRAIN_BP"] = 10_000 - result.ValidationBasisPoints - result.TestBasisPoints,
+            ["FS_DECISION_CALIBRATION_BASE_PERSON_SPLIT_V1"] = 1m,
             ["FS_DECISION_CALIBRATION_CANDIDATES"] = result.Candidates.Count,
             ["FS_DECISION_CALIBRATION_FRONTIER"] = result.FrozenFrontier.Count,
             ["FS_DECISION_CALIBRATION_VALIDATION_POSITIVE"] = result.ValidationPositiveScenarios,
@@ -245,7 +246,11 @@ public static class FsDecisionThresholdCalibrator
         var material = Encoding.UTF8.GetBytes(
             string.Create(CultureInfo.InvariantCulture, $"{seed}:{basePersonUuid:D}"));
         var hash = SHA256.HashData(material);
-        var bucket = (int)(BinaryPrimitives.ReadUInt32BigEndian(hash.AsSpan(0, 4)) % 10_000u);
+        // SQL Server usa os mesmos três primeiros bytes como inteiro positivo
+        // (HASHBYTES sobre ASCII/UTF-8 equivalente para seed:GUID) para manter o split
+        // idêntico antes da geração de pares.
+        var bucketValue = (hash[0] << 16) | (hash[1] << 8) | hash[2];
+        var bucket = bucketValue % 10_000;
         var trainCut = 10_000 - validationBasisPoints - testBasisPoints;
         if (bucket < trainCut)
             return FsDecisionCalibrationPartition.Train;
@@ -473,7 +478,7 @@ public static class BlockingDecisionThresholdCalibrationReader
             )
             SELECT
                 o.observation_id,o.truth_uuid,o.nome,o.nascimento,o.nome_mae,
-                c.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
+                g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
             FROM #candidate_prior_observations o
             LEFT JOIN candidate_union c ON c.observation_id=o.observation_id
             LEFT JOIN gold.pessoa g
