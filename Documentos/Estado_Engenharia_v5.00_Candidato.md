@@ -49,9 +49,9 @@ O gate `jornada-schema-consolidation-370` deve provar, de forma executável, que
 - o fingerprint estrutural calculado no SQL Server coincide com `structural_fingerprint_sha256`;
 - `source_commit` é ancestral do HEAD exercitado;
 - o manifesto de migrações no checkpoint possui o hash declarado;
-- `ddl_evidence_run_id` é um run bem-sucedido do workflow de consolidação cujo `head_sha` é o `source_commit`.
+- o próprio workflow de consolidação corrente prova instalação limpa, upgrade, bundle achatado e equivalência estrutural contra o fingerprint declarado; não existe dependência circular de um run histórico por ID.
 
-O **HEAD exato da RC** continua sendo identificado e testado separadamente pelo CI de engenharia e pelo `.NET SourceRevisionId`. O caminho `rc-evidence` recalcula o fingerprint estrutural em SQL Server na própria tag e publica essa prova como asset durável do pre-release, sem depender da retenção futura do run histórico de DDL. Após o corte da RC, mudança estrutural exige novo checkpoint de RC.
+O **HEAD exato da RC** continua sendo identificado e testado separadamente pelo CI de engenharia e pelo `.NET SourceRevisionId`. O caminho `rc-evidence` recalcula o fingerprint estrutural em SQL Server na própria tag e publica essa prova como asset durável do pre-release. A evidência autoritativa é produzida no commit/tag exercitado, não herdada de um run histórico. Após o corte da RC, mudança estrutural exige novo checkpoint de RC.
 
 ## 6. Documentação e UML
 
