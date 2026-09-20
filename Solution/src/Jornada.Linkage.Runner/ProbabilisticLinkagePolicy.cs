@@ -34,6 +34,15 @@ internal static class LinkageModelPolicy
             if (missingDecision.Length > 0) throw new InvalidOperationException($"Modelo de decisão/evidência incompleto. Parâmetros ausentes: {string.Join(", ", missingDecision)}");
             if (parameters[LinkageParameterCatalog.DecisionEvidenceScoring] < 1m)
                 throw new InvalidOperationException($"Modelo de decisão/evidência incompleto. {LinkageParameterCatalog.DecisionEvidenceScoring} deve estar habilitado.");
+
+            var floorV2 = parameters.TryGetValue(LinkageParameterCatalog.DualThresholdConflictFloorV2, out var floorFlag) && floorFlag >= 1m;
+            if (floorV2)
+            {
+                if (!parameters.TryGetValue(LinkageParameterCatalog.DualThresholdConflictFloor, out var floor))
+                    throw new InvalidOperationException($"Modelo com {LinkageParameterCatalog.DualThresholdConflictFloorV2} sem {LinkageParameterCatalog.DualThresholdConflictFloor}.");
+                if (floor is < 0m or > 1m)
+                    throw new InvalidOperationException($"{LinkageParameterCatalog.DualThresholdConflictFloor} deve estar em [0,1].");
+            }
         }
 
         if (string.Equals(algorithm, LinkageParameterCatalog.NominalGuardDecisionEvidenceAlgorithmVersion, StringComparison.Ordinal))
@@ -173,13 +182,21 @@ internal static class ProbabilisticLinkageDecisions
         var dualThresholdGuard = model.Parameters.TryGetValue(
             LinkageParameterCatalog.DualThresholdConflictGuard,
             out var dualThresholdFlag) && dualThresholdFlag >= 1m;
-        if (dualThresholdGuard && second is not null && second.Score >= model.Threshold)
+        var independentConflictFloor = model.Parameters.TryGetValue(
+            LinkageParameterCatalog.DualThresholdConflictFloorV2,
+            out var floorV2Flag) && floorV2Flag >= 1m;
+        var secondCandidateConflictFloor = independentConflictFloor
+            ? model.Parameters[LinkageParameterCatalog.DualThresholdConflictFloor]
+            : model.Threshold;
+        if (dualThresholdGuard && second is not null && second.Score >= secondCandidateConflictFloor)
             return new ProbabilisticLinkageDecision(
                 ResolutionStatus.CONFLITO, null,
                 best.PessoaUuid, best.Score,
                 second.PessoaUuid, second.Score,
                 margin, model.ModelId,
-                "DOIS_CANDIDATOS_ACIMA_T_LINKAGE");
+                independentConflictFloor
+                    ? "SEGUNDO_CANDIDATO_ACIMA_PISO_CONFLITO"
+                    : "DOIS_CANDIDATOS_ACIMA_T_LINKAGE");
 
         if (second is not null && margin!.Value < model.ConflictMargin)
             return new ProbabilisticLinkageDecision(ResolutionStatus.CONFLITO, null, best.PessoaUuid, best.Score, second.PessoaUuid, second.Score, margin, model.ModelId, "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE");
