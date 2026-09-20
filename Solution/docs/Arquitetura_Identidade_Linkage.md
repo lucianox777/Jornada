@@ -110,6 +110,10 @@ O otimizador seleciona regras por critérios objetivos e reproduzíveis, preserv
 
 O Calibrador estima parâmetros e regras a partir de corpus controlado e publica pacote/ruleset imutável versionado. O Avaliador consome exatamente essa versão; não mistura regras ou parâmetros de versões diferentes. Replay com mesmas entradas, snapshots e versão deve ser reproduzível.
 
+O resolvedor estatístico operacional é um único **Fellegi–Sunter**. O estágio DF nominal anteriormente estudado não integra a arquitetura corrente. Term frequency pode ser reutilizada como evidência dentro do próprio FS somente após calibração, sem criar um segundo decisor ou contornar guards.
+
+Para `u`, o alvo operacional é a distribuição entre **não-matches que sobrevivem ao ruleset de blocking efetivo**, e não a população incondicional. Como o scorer corrente recebe a união deduplicada dos passes, o modelo usa `u` condicionado a essa união. O Calibrador mede suporte por passe e só abandona o bootstrap nominal IBGE quando a união e todos os passes satisfazem critérios explícitos de suficiência; até lá o IBGE permanece fallback versionado.
+
 Etapas independentes do Calibrador/Avaliador podem usar paralelismo quando medição demonstrar ganho sem alterar determinismo, semântica ou segurança.
 
 Dados oficiais agregados do IBGE podem enriquecer atributos semanticamente compatíveis, especialmente estatísticas de nomes, inclusive recortes Brasil/UF/Município quando aplicáveis. IBGE é evidência estatística contextual, nunca verdade individual. A ausência de fonte IBGE compatível não exclui um atributo da calibração.
