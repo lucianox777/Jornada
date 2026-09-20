@@ -29,9 +29,9 @@ public sealed class CalibrationAuditExporter(SqlConnection connection, int comma
             cancellationToken);
 
         return new LinkageCalibrationAuditDocument(
-            SchemaVersion: 1,
-            Nature: "LINKAGE_CALIBRATION_AUDIT_EXPORT",
-            Purpose: "EXTERNAL_REPRODUCIBILITY_READ_ONLY",
+            SchemaVersion: LinkageCalibrationAuditExchangePolicy.SchemaVersion,
+            Nature: LinkageCalibrationAuditExchangePolicy.Nature,
+            Purpose: LinkageCalibrationAuditExchangePolicy.Purpose,
             GeneratedAtUtc: DateTimeOffset.UtcNow,
             Safeguards:
             [
@@ -52,7 +52,7 @@ public sealed class CalibrationAuditExporter(SqlConnection connection, int comma
                     Complete: false,
                     UnmappedOrNonBijectiveStates:
                         LinkageCalibrationAuditExchangePolicy.UnmappedOrNonBijectiveComparisonStates,
-                    Rule: "Do not collapse semantic states silently; an external adapter must declare an explicit mapping.")),
+                    Rule: LinkageCalibrationAuditExchangePolicy.ComparisonStateMappingRule)),
             Blocking: new LinkageCalibrationAuditBlocking(rulesets, passes),
             TermFrequency: new LinkageCalibrationAuditTermFrequency(
                 RuntimeEnabled: false,
