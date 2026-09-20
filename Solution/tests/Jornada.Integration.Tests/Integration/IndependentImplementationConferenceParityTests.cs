@@ -223,6 +223,38 @@ public sealed class IndependentImplementationConferenceParityTests
     }
 
     [Test]
+    public void Incomplete_evidence_vector_is_not_executed_even_when_omitted_llr_would_be_neutral()
+    {
+        var parameters = Parameters();
+        var model = LinkageModelPolicy.Create(
+            ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters);
+
+        var candidate = CanonicalCandidate(
+            Guid.Parse("11111111-1111-4111-8111-111111111111"),
+            NameComparisonState.EXACT,
+            NameComparisonState.EXACT,
+            parameters);
+        var request = RequestFromRuntime(model, [candidate], parameters, TestTolerance);
+        var incomplete = request.Candidates.ToArray();
+        incomplete[0] = incomplete[0] with
+        {
+            Evidence = incomplete[0].Evidence
+                .Where(x => !string.Equals(
+                    x.Evidence, "NASCIMENTO_SEMANTICO", StringComparison.Ordinal))
+                .ToArray()
+        };
+
+        var report = IndependentImplementationConference.Evaluate(
+            request with { Candidates = incomplete });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(report.Status, Is.EqualTo(ImplementationConferenceStatus.NAO_EXECUTADA));
+            Assert.That(report.Reason, Is.EqualTo("INVALID_EVIDENCE_VECTOR_SHAPE"));
+        });
+    }
+
+    [Test]
     public void Governed_tolerance_configuration_remains_unfrozen_without_numeric_default()
     {
         var root = FindRepositoryRoot();
@@ -248,12 +280,21 @@ public sealed class IndependentImplementationConferenceParityTests
     }
 
     [Test]
-    public void Conference_source_does_not_reuse_runtime_scorer_policy_or_comparators()
+    public void Conference_source_and_project_do_not_reuse_runtime_scorer_policy_or_comparators()
     {
         var root = FindRepositoryRoot();
         var source = File.ReadAllText(Path.Combine(
             root, "Solution", "src", "Jornada.Linkage.Evaluation",
             "IndependentImplementationConference.cs"));
+        var evaluationProject = File.ReadAllText(Path.Combine(
+            root, "Solution", "src", "Jornada.Linkage.Evaluation",
+            "Jornada.Linkage.Evaluation.csproj"));
+        var runnerProject = File.ReadAllText(Path.Combine(
+            root, "Solution", "src", "Jornada.Linkage.Runner",
+            "Jornada.Linkage.Runner.csproj"));
+        var workerProject = File.ReadAllText(Path.Combine(
+            root, "Solution", "src", "Jornada.Linkage.Parameters.Worker",
+            "Jornada.Linkage.Parameters.Worker.csproj"));
 
         Assert.Multiple(() =>
         {
@@ -262,7 +303,11 @@ public sealed class IndependentImplementationConferenceParityTests
             Assert.That(source, Does.Not.Contain("IdentityComparison"));
             Assert.That(source, Does.Not.Contain("BirthDateSemanticEvidence.Classify"));
             Assert.That(source, Does.Contain(
-                "SCORER_POLICY_ONLY_STATES_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE"));
+                "SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE"));
+            Assert.That(evaluationProject, Does.Not.Contain("Jornada.Linkage.Core"));
+            Assert.That(evaluationProject, Does.Not.Contain("Jornada.Linkage.Runner"));
+            Assert.That(runnerProject, Does.Not.Contain("Jornada.Linkage.Evaluation"));
+            Assert.That(workerProject, Does.Not.Contain("Jornada.Linkage.Evaluation"));
         });
     }
 
