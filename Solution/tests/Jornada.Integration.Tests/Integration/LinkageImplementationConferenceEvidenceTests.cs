@@ -61,6 +61,20 @@ public sealed class LinkageImplementationConferenceEvidenceTests
 
         await AssertGateAsync(connection, modelId);
 
+        await using (var mutate = connection.CreateCommand())
+        {
+            mutate.CommandText = """
+                INSERT identidade.parametro_linkage(modelo_id,nome,valor)
+                VALUES(@id,N'TEST_POST_CONFERENCE_MUTATION',1);
+                """;
+            mutate.Parameters.AddWithValue("@id", modelId);
+            await mutate.ExecuteNonQueryAsync();
+        }
+
+        var stale = Assert.ThrowsAsync<SqlException>(async () =>
+            await AssertGateAsync(connection, modelId));
+        Assert.That(stale!.Number, Is.EqualTo(51989));
+
         await using (var immutable = connection.CreateCommand())
         {
             immutable.CommandText = """
