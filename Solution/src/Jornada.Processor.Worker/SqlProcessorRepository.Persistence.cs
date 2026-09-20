@@ -359,40 +359,82 @@ internal sealed partial class SqlProcessorRepository
         var source = await EnsureRecordOriginAsync(connection, tx, batch, fact.CodigoRegistroOrigem, ct);
         var latest = await GetLatestRecordVersionAsync(connection, tx, source.RegistroOrigemId, ct);
 
-        if (latest is null)
+        FactVersionGovernanceDecision governance;
+        var proposedGovernance = new FactVersionGovernanceSnapshot(
+            batch.Natureza!.Value,
+            batch.TipoRegistroId!.Value,
+            person.PessoaUuid,
+            person.PessoaOrigemId,
+            fact.DataInicioConcessao,
+            fact.DataHoraServico);
+        if (latest is not null)
         {
-            if (fact.Operacao != RegistroOperacao.INCLUSAO)
-                throw new InvalidDataException($"Primeiro envio de {fact.CodigoRegistroOrigem} deve usar operacao=INCLUSAO.");
+            governance = FactVersionGovernance.Evaluate(
+                new FactVersionGovernanceSnapshot(
+                    latest.Natureza,
+                    latest.TipoRegistroId,
+                    latest.PessoaUuid,
+                    latest.PessoaOrigemId,
+                    latest.DataInicioConcessao,
+                    latest.DataHoraServico),
+                proposedGovernance);
+        }
+        else if (source.Existed)
+        {
+            governance = FactVersionGovernance.Evaluate(
+                new FactVersionGovernanceSnapshot(
+                    source.Natureza,
+                    source.TipoRegistroId,
+                    null,
+                    null,
+                    null,
+                    null),
+                proposedGovernance);
         }
         else
         {
-            var sameContent = string.Equals(latest.ConteudoHash, fact.ConteudoHash, StringComparison.Ordinal);
-            if (sameContent && latest.Operacao == fact.Operacao)
-            {
-                await TouchRecordOriginAsync(connection, tx, source.RegistroOrigemId, batch.DataReferencia, ct);
-                await RecordProcessedItemAsync(connection, tx, batch, "REGISTRO", null, source.RegistroOrigemId,
-                    fact.CodigoRegistroOrigem, "RETRANSMITIDO", latest.VersaoInterna, fact.ConteudoHash, ct);
-                // v3.45: o fato válido já materializa na primeira passagem, mesmo sem UUID.
-                // Retransmissão idempotente não cria nova versão nem reescreve o sujeito declarado histórico.
-                return;
-            }
+            governance = new FactVersionGovernanceDecision(Array.Empty<string>());
+        }
 
-            if (latest.Operacao == RegistroOperacao.EXCLUSAO)
+        // RN-CT-12: uma chave reaproveitada com outra identidade factual precisa ser
+        // preservada como evidência antes de qualquer rejeição de semântica da operação.
+        // Somente versões sem conflito seguem o fluxo normal INCLUSAO/ALTERACAO/RETIFICACAO.
+        if (!governance.HasRetificationConflict)
+        {
+            if (latest is null)
             {
                 if (fact.Operacao != RegistroOperacao.INCLUSAO)
-                    throw new InvalidDataException($"Registro {fact.CodigoRegistroOrigem} está excluído; somente INCLUSAO pode reabri-lo.");
+                    throw new InvalidDataException($"Primeiro envio de {fact.CodigoRegistroOrigem} deve usar operacao=INCLUSAO.");
             }
             else
             {
-                if (fact.Operacao == RegistroOperacao.INCLUSAO)
-                    throw new InvalidDataException($"Registro {fact.CodigoRegistroOrigem} já existe; use ALTERACAO, RETIFICACAO ou EXCLUSAO.");
-                if (sameContent && fact.Operacao != RegistroOperacao.EXCLUSAO)
-                    throw new InvalidDataException($"Registro {fact.CodigoRegistroOrigem} não mudou de conteúdo; {fact.Operacao} sem alteração de valores não cria nova versão.");
+                var sameContent = string.Equals(latest.ConteudoHash, fact.ConteudoHash, StringComparison.Ordinal);
+                if (sameContent && latest.Operacao == fact.Operacao)
+                {
+                    await TouchRecordOriginAsync(connection, tx, source.RegistroOrigemId, batch.DataReferencia, ct);
+                    await RecordProcessedItemAsync(connection, tx, batch, "REGISTRO", null, source.RegistroOrigemId,
+                        fact.CodigoRegistroOrigem, "RETRANSMITIDO", latest.VersaoInterna, fact.ConteudoHash, ct);
+                    return;
+                }
+
+                if (latest.Operacao == RegistroOperacao.EXCLUSAO)
+                {
+                    if (fact.Operacao != RegistroOperacao.INCLUSAO)
+                        throw new InvalidDataException($"Registro {fact.CodigoRegistroOrigem} está excluído; somente INCLUSAO pode reabri-lo.");
+                }
+                else
+                {
+                    if (fact.Operacao == RegistroOperacao.INCLUSAO)
+                        throw new InvalidDataException($"Registro {fact.CodigoRegistroOrigem} já existe; use ALTERACAO, RETIFICACAO ou EXCLUSAO.");
+                    if (sameContent && fact.Operacao != RegistroOperacao.EXCLUSAO)
+                        throw new InvalidDataException($"Registro {fact.CodigoRegistroOrigem} não mudou de conteúdo; {fact.Operacao} sem alteração de valores não cria nova versão.");
+                }
             }
         }
 
         var internalVersion = (latest?.VersaoInterna ?? 0) + 1;
-        var processingResult = latest is null ? "INCLUIDO"
+        var processingResult = governance.HasRetificationConflict ? "VERSIONADO"
+            : latest is null ? "INCLUIDO"
             : latest.Operacao == RegistroOperacao.EXCLUSAO && fact.Operacao == RegistroOperacao.INCLUSAO ? "REABERTO"
             : fact.Operacao == RegistroOperacao.EXCLUSAO ? "EXCLUIDO"
             : "VERSIONADO";
@@ -437,6 +479,19 @@ internal sealed partial class SqlProcessorRepository
             recordObservationId = Convert.ToInt64(await insert.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
         }
 
+        if (governance.HasRetificationConflict)
+        {
+            await RecordFactDivergenceAsync(
+                connection, tx, batch.GestorId, recordObservationId,
+                FactVersionGovernance.ConflictType, governance.CanonicalReason, ct);
+            await TouchRecordOriginAsync(connection, tx, source.RegistroOrigemId, batch.DataReferencia, ct);
+            await RecordProcessedItemAsync(connection, tx, batch, "REGISTRO", null, source.RegistroOrigemId,
+                fact.CodigoRegistroOrigem, "VERSIONADO", internalVersion, fact.ConteudoHash, ct);
+            // A observação conflitante fica em Silver. A versão VIGENTE anterior em
+            // Gold/Serving permanece intocada até novo envio corrigido/desfecho governado.
+            return;
+        }
+
         if (fact.Operacao == RegistroOperacao.EXCLUSAO)
         {
             await MarkFactExcludedAsync(connection, tx, source.RegistroOrigemId, batch.Natureza!.Value, ct);
@@ -466,8 +521,18 @@ internal sealed partial class SqlProcessorRepository
         await RecordProcessedItemAsync(connection, tx, batch, "REGISTRO", null, source.RegistroOrigemId,
             fact.CodigoRegistroOrigem, processingResult, internalVersion, fact.ConteudoHash, ct);
 
-        // v3.45: ocorrência factual e atribuição canônica são dimensões independentes.
-        // Todo fato válido declarado pela finalística materializa; PessoaUuid pode ser NULL.
+        if (await HasExactFactDuplicateAsync(
+                connection, tx, batch, person, source.RegistroOrigemId, fact, ct))
+        {
+            await RecordFactDivergenceAsync(
+                connection, tx, batch.GestorId, recordObservationId,
+                FactVersionGovernance.DuplicateAlertType,
+                FactVersionGovernance.DuplicateExactReason,
+                ct);
+        }
+
+        // Ocorrência factual e atribuição canônica são dimensões independentes.
+        // Alerta de duplicação é não destrutivo; apenas conflito de retificação bloqueia publicação.
         if (batch.Natureza == IntegrationNature.BENEFICIO)
             await MaterializeBenefitGrantedAsync(connection, tx, batch, person, source.RegistroOrigemId, internalVersion, recordObservationId, fact, evaluation, ct);
         else
