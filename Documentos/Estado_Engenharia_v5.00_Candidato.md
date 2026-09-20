@@ -38,6 +38,12 @@ Isso fecha a lacuna de `T_LINKAGE`/margem fixos. O antigo estágio DF/Splink foi
 
 A pendência estatística corrente é transportabilidade de `m/u`, representatividade da coorte rotulada, convergência do `u` para o universo candidato real e avaliação de evidências adicionais. A validação estatística representativa permanece gate externo. Corpus sintético, Monte Carlo e validação adversarial DEV são evidência de engenharia, não homologação populacional.
 
+## 4.1. Autoria dos atos governados de identidade
+
+`controle.api_evento` permanece telemetria/auditoria HTTP e não é usado como fonte canônica de autoria de correções de identidade. A candidata materializa `auditoria.decisao_identidade_evento`: ledger append-only que registra a credencial `GESTOR` autenticada, o Gestor, um `operacao_id` gerado pelo SQL Server, o objeto governado, ato/justificativa e `correlation_id` apenas como contexto.
+
+A gravação ocorre dentro da mesma transação da correção, abertura/aplicação de caso ou desfecho de divergência. Falha do ledger provoca rollback da mutação; o teste de integração injeta essa falha explicitamente. O CPF opcional declarado pelo agente na borda HTTP não é tratado como autoria institucional.
+
 ## 5. Proveniência de schema
 
 A fonte canônica permanece `Solution/database/Jornada_Fase1_v3.70.sql`, com migrações versionadas e fingerprint estrutural controlado em `CANDIDATE_INFO.json`.
