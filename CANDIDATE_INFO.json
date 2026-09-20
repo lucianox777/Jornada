@@ -36,12 +36,14 @@
     },
     "published_specification": "Documentos/Especificacao_Tecnica_Jornada_v3.62.pdf",
     "published_specification_version": "v3.62",
-    "candidate_specification": "Documentos/Especificacao_Tecnica_Jornada_Candidata.md",
+    "candidate_specification": "Documentos/Especificacao_Tecnica_Jornada_v5.00_Candidata.md",
     "candidate_specification_normative_version": null,
     "requirements_index": "Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.md",
     "physical_model": "Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.md",
     "canonical_ddl": "Solution/database/Jornada_Fase1_v3.70.sql",
-    "production_relational_target": "MICROSOFT_SQL_SERVER"
+    "production_relational_target": "MICROSOFT_SQL_SERVER",
+    "candidate_specification_identifier": "v5.00-candidata",
+    "candidate_specification_status": "TECHNICAL_CANDIDATE_NOT_PUBLISHED"
   },
   "external_gates": [
     "HML_REPRESENTATIVE_VOLUMETRY",
