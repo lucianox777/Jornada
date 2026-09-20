@@ -127,6 +127,8 @@ INTEGRATION_TEST_CSPROJ = ROOT / "tests" / "Jornada.Integration.Tests" / "Jornad
 NUGET_LOCK_PROVENANCE = ROOT / "config" / "release" / "nuget-lock-provenance.json"
 NUGET_LOCK_PROVENANCE_GATE = ROOT / "scripts" / "nuget-lock-provenance-gate.py"
 TEST_RUNBOOK = ROOT / "docs" / "Runbook_Testes_Tecnicos.md"
+HML_VOLUMETRY_RUNBOOK = ROOT / "docs" / "Runbook_HML_Volumetria.md"
+HML_SCALE_EVIDENCE_RUNNER = ROOT / "src" / "Jornada.Ensaio" / "HmlScaleEvidenceRunner.cs"
 OPENAPI_RUNTIME_TESTS = ROOT / "tests" / "Jornada.Tests" / "Unit" / "OpenApiRuntimeConformanceTests.cs"
 JSON_SCHEMA_META_GATE = ROOT / "scripts" / "json-schema-meta-gate.py"
 ARCHITECTURE_GATE = ROOT / "scripts" / "architecture-dependency-gate.py"
@@ -985,6 +987,15 @@ def main() -> None:
 
     require(SQL_PERFORMANCE_SQL.read_text(encoding="utf-8"), ["sys.database_query_store_options", "sys.dm_os_wait_stats", "Number of Deadlocks/sec", "FOR JSON PATH, WITHOUT_ARRAY_WRAPPER"], "coletor SQL HML sem PII")
     require(API_PROJECTION_HARNESS.read_text(encoding="utf-8"), ["SIZES=(1,10,100,1000)", "JORNADA_HML_ACCESS_KEY", "UUIDs, payloads e respostas não são persistidos"], "harness API de projeção")
+    require(HML_SCALE_EVIDENCE_RUNNER.read_text(encoding="utf-8"), [
+        "HML_SCALE_EVIDENCE", "AllowNonProductionWrites", "GENERATE_DRAFT", "VALIDATE",
+        "--mode MODEL_VALIDATION", "--publish false", "CONCLUIDO_SEM_PUBLICACAO",
+        "activeModelBefore", "activeModelAfter", "SHA256.HashData"
+    ], "harness HML de escala sem publicação")
+    require(HML_VOLUMETRY_RUNBOOK.read_text(encoding="utf-8"), [
+        "não executa reset, seed", "AllowNonProductionWrites", "performance-evidence-gate.py",
+        "sql-performance-evidence-gate.py", "api-projection-evidence-gate.py", "hml-readiness-gate.sh"
+    ], "runbook de volumetria HML")
 
     require(BRONZE_RESTORE_EVIDENCE_GATE.read_text(encoding="utf-8"), [
         "missingObjectDetected", "corruptObjectDetected", "finalVerifyPassed", "BRONZE RESTORE EVIDENCE GATE: OK"
