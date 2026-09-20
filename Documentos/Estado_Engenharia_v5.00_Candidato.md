@@ -56,7 +56,9 @@ Nenhuma tolerância governada foi inventada. `config/linkage/implementation-conf
 
 A conferência de implementação continua distinta da validação estatística representativa #31. A candidata agora materializa `auditoria.linkage_conferencia_evidencia`, append-only, e as procedures de fingerprint/registro/assert do gate. A evidência é agregada por modelo/método/tolerância, sem PII ou score par-a-par. No registro, o SQL calcula um fingerprint SHA-256 do snapshot decisório do modelo; no assert, ele é recomputado. Assim, qualquer mutação posterior de parâmetros/estatísticas/ruleset invalida a evidência. O assert sempre considera a evidência mais recente e falha se ela não estiver `CONFORME`. `validacao_estatistica` permanece forçada a `NOT_ASSESSED_ISSUE_31`.
 
-O wiring do assert em `VALIDATE/ACTIVATE` permanece deliberadamente **inativo** enquanto `implementation-conference-tolerance.json` estiver `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`. Portanto esta fatia prepara o contrato persistente e o gate fail-closed, mas não altera ainda a promoção operacional nem fabrica tolerância.
+A candidata agora também contém o orquestrador `Jornada.Linkage.Conference`. Ele é projeto separado, referencia Core + Evaluation apenas para conferência e não é dependência de Runner/Parameters Worker. Em transação `SERIALIZABLE`, ele locka o fingerprint do modelo, executa um corpus determinístico sem PII de 7 cenários/208 candidatos, compara scorer/policy canônico × independente e registra somente a evidência agregada. Request/report hashes incorporam o fingerprint do snapshot; rerun idêntico é idempotente.
+
+O wiring do assert em `VALIDATE/ACTIVATE` permanece deliberadamente **inativo** enquanto `implementation-conference-tolerance.json` estiver `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`. A configuração explicita `toleranceVersion=UNFROZEN` e valor nulo. Portanto o comando está implementado, mas uma execução governada real e a promoção condicionada continuam bloqueadas até o congelamento/versionamento explícito da tolerância.
 
 ## 4.3. Autoria dos atos governados de identidade
 
