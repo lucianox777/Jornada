@@ -29,50 +29,52 @@ A candidata v5.00 adota **Microsoft SQL Server como único runtime relacional su
 
 O inventário é derivado automaticamente por `Solution/scripts/schema-inventory.py` e publicado como evidência pelo workflow `jornada-schema-inventory`.
 
-A execução do PR #377, run `35533662679`, mediu o schema candidato com o ledger canônico incluído:
+A execução do PR #377, run `35533662679`, mediu 78 tabelas antes da trilha de promoção. A candidata corrente acrescenta exatamente `auditoria.modelo_linkage_estado_evento`; o workflow `jornada-schema-inventory` desta alteração deve confirmar o total derivado:
 
 - tabelas no `Jornada_Fase1.sql` legado: **53**;
 - tabelas próprias do núcleo `Jornada_Identidade_Progressiva.sql`: **2**;
-- tabelas distintas introduzidas pelos scripts de migração: **23**;
-- total distinto do schema operacional consolidado: **78 tabelas**;
-- tabelas do schema atual que não pertencem ao baseline legado de 53: **25**.
+- tabelas distintas introduzidas pelos scripts de migração: **24**;
+- total distinto do schema operacional consolidado: **79 tabelas**;
+- tabelas do schema atual que não pertencem ao baseline legado de 53: **26**.
 
 Essa medição substitui as contagens históricas 53, 64, 66, 69 e a estimativa intermediária 70. O inventário corrente é uma propriedade derivada do manifesto/código e deve ser regenerado quando houver mudança estrutural.
 
 ## 4. Tabelas fora do baseline legado
 
-As 25 tabelas fora do baseline legado são:
+As 26 tabelas fora do baseline legado são:
 
 1. `auditoria.decisao_identidade_evento`
-2. `controle.runtime_componente`
-3. `identidade.blocking_chave`
-4. `identidade.composicao_aplicacao`
-5. `identidade.composicao_historico_aplicado`
-6. `identidade.composicao_plano`
-7. `identidade.composicao_publicacao`
-8. `identidade.composicao_recomposicao_plano`
-9. `identidade.composicao_uuid_reserva`
-10. `identidade.cpf_ancora`
-11. `identidade.linkage_quality_estimate`
-12. `identidade.linkage_ruleset`
-13. `identidade.linkage_ruleset_passe`
-14. `identidade.linkage_ruleset_passe_campo`
-15. `identidade.pessoa_origem_progressiva`
-16. `identidade.pessoa_origem_progressiva_evento`
-17. `jornada.schema_migration`
-18. `ref.base_pessoa_origem`
-19. `ref.frequencia_nome`
-20. `ref.frequencia_nome_cobertura`
-21. `ref.frequencia_nome_versao`
-22. `ref.sistema_origem_base_pessoa`
-23. `ref.tipo_identificador_pessoa`
-24. `silver.pessoa_identificador_observacao`
-25. `silver.pessoa_origem_sistema`
+2. `auditoria.modelo_linkage_estado_evento`
+3. `controle.runtime_componente`
+4. `identidade.blocking_chave`
+5. `identidade.composicao_aplicacao`
+6. `identidade.composicao_historico_aplicado`
+7. `identidade.composicao_plano`
+8. `identidade.composicao_publicacao`
+9. `identidade.composicao_recomposicao_plano`
+10. `identidade.composicao_uuid_reserva`
+11. `identidade.cpf_ancora`
+12. `identidade.linkage_quality_estimate`
+13. `identidade.linkage_ruleset`
+14. `identidade.linkage_ruleset_passe`
+15. `identidade.linkage_ruleset_passe_campo`
+16. `identidade.pessoa_origem_progressiva`
+17. `identidade.pessoa_origem_progressiva_evento`
+18. `jornada.schema_migration`
+19. `ref.base_pessoa_origem`
+20. `ref.frequencia_nome`
+21. `ref.frequencia_nome_cobertura`
+22. `ref.frequencia_nome_versao`
+23. `ref.sistema_origem_base_pessoa`
+24. `ref.tipo_identificador_pessoa`
+25. `silver.pessoa_identificador_observacao`
+26. `silver.pessoa_origem_sistema`
 
-## 5. Inventário completo - 78 tabelas
+## 5. Inventário completo - 79 tabelas
 
 ### auditoria
 - `auditoria.decisao_identidade_evento`
+- `auditoria.modelo_linkage_estado_evento`
 
 ### bronze
 - `bronze.entrega_arquivo`
