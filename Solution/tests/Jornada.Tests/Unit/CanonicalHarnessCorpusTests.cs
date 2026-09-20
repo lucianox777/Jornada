@@ -30,7 +30,7 @@ public sealed class CanonicalHarnessCorpusTests
     }
 
     [Test]
-    public void CiHarnessMustReconcileNoCandidateCounterAndEnforceBlockingRecallFloor()
+    public void CiHarnessMustReconcileNoCandidateCounterWithoutDuplicatingLabeledBlockingRecallGate()
     {
         var root = FindRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
@@ -43,8 +43,9 @@ public sealed class CanonicalHarnessCorpusTests
             Assert.That(workflow, Does.Contain("REPORTED_NO_CANDIDATE"));
             Assert.That(workflow, Does.Contain("ACTUAL_NO_CANDIDATE"));
             Assert.That(workflow, Does.Contain("TOTAL_SYNTHETIC_RESULTS"));
-            Assert.That(workflow, Does.Contain("BLOCKING_RECALL_PPM"));
-            Assert.That(workflow, Does.Contain("test \"$BLOCKING_RECALL_PPM\" -ge 950000"));
+            Assert.That(workflow, Does.Not.Contain("BLOCKING_RECALL_PPM"),
+                "SCALE-PEND é smoke operacional não rotulado; recall pertence ao ruleset calibrado e à validação independente.");
+            Assert.That(workflow, Does.Not.Contain("test \"$BLOCKING_RECALL_PPM\" -ge 950000"));
             Assert.That(workflow, Does.Not.Contain("UNEXPECTED_NO_CANDIDATE"));
             Assert.That(workflow, Does.Not.Contain("n%10<>0"));
         });
