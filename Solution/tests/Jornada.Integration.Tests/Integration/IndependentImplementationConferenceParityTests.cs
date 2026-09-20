@@ -12,8 +12,9 @@ public sealed class IndependentImplementationConferenceParityTests
     private static readonly DateOnly Birth = new(1990, 1, 2);
 
     // Somente fixture de teste. Não é tolerância de governança e nunca é persistida.
+    private const decimal TestToleranceValue = 0.000001m;
     private static readonly ImplementationConferenceToleranceContract TestTolerance =
-        new("TEST_ONLY_NOT_GOVERNANCE", "FROZEN", 0.000001m);
+        new("TEST_ONLY_NOT_GOVERNANCE", "FROZEN", TestToleranceValue);
 
     [Test]
     public void Unfrozen_tolerance_is_not_executed_and_never_invents_a_default()
@@ -71,7 +72,7 @@ public sealed class IndependentImplementationConferenceParityTests
             Assert.That(report.SameFinalDecision, Is.True);
             Assert.That(report.SameTop1, Is.True);
             Assert.That(report.SpearmanRankCorrelation, Is.EqualTo(1m));
-            Assert.That(report.MaxObservedPairLlrDifference, Is.LessThanOrEqualTo(TestTolerance.MaxAbsolutePairLlrDifference));
+            Assert.That(report.MaxObservedPairLlrDifference, Is.LessThanOrEqualTo(TestToleranceValue));
             Assert.That(report.Scope, Is.EqualTo(
                 "SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE"));
         });
@@ -175,7 +176,7 @@ public sealed class IndependentImplementationConferenceParityTests
             Assert.That(report.Status, Is.EqualTo(ImplementationConferenceStatus.DIVERGENTE));
             Assert.That(report.Reason, Is.EqualTo("FINAL_DECISION_DIVERGENCE"));
             Assert.That(report.MaxObservedPairLlrDifference, Is.LessThanOrEqualTo(
-                TestTolerance.MaxAbsolutePairLlrDifference));
+                TestToleranceValue));
             Assert.That(report.SameTop1, Is.True);
             Assert.That(report.SameFinalDecision, Is.False);
         });
