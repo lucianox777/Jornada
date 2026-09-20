@@ -293,7 +293,7 @@ jobs:
           grep -q "po_val.codigo_pessoa_origem LIKE N'SCALE-VAL-%'" src/Jornada.Linkage.Parameters.Worker/LinkageParametersWorker.cs
           grep -q "po_val.codigo_pessoa_origem LIKE N'SCALE-VAL-%'" src/Jornada.Linkage.Parameters.Worker/BlockingConditionedUnmatchedPairReader.cs
           echo '# generate read-only candidate draft after SCALE-VAL injection (active model remains unchanged)'
-          docker compose --env-file .env exec -T jornada-node2 env             LinkageParameters__Operation=GENERATE_DRAFT             LinkageParameters__RunOnce=true             LinkageParameters__IbgeNominalU__PairCount=100000             LinkageParameters__IbgeNominalU__Seed=20260917             dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
+          docker compose --env-file .env exec -T jornada-node2 env             LinkageParameters__Operation=GENERATE_DRAFT             LinkageParameters__RunOnce=true             LinkageParameters__MinimumIndependentMatchedPairs=2500             LinkageParameters__IbgeNominalU__PairCount=100000             LinkageParameters__IbgeNominalU__Seed=20260917             dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
           SQL_PASSWORD="$(awk -F= '$1=="JORNADA_SQL_SA_PASSWORD"{sub(/^[^=]*=/,""); print; exit}' .env)"
           test -n "$SQL_PASSWORD"
           stats="$(docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$SQL_PASSWORD" sqlserver             /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -s '|'             -Q "SET NOCOUNT ON;
