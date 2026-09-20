@@ -18,9 +18,11 @@ Desde `FS_DECISION_THRESHOLD_PARETO_V1`, o caminho SQL Server também deixa de a
 
 Os parâmetros incorporados ao fingerprint são arredondados para a mesma escala `DECIMAL(30,12)` usada na persistência SQL Server, permitindo reconstrução canônica pelo `LinkageRuleSetReader`.
 
+O u nominal corrente converge para a união deduplicada dos pares que sobrevivem ao ruleset, porque o scorer é pass-agnostic depois da geração de candidatos. O Worker também mede suporte nominal separadamente por passe. IBGE permanece bootstrap/fallback apenas enquanto a união ou algum passe não atingir os mínimos explícitos de suficiência; a fonte aplicada e os denominadores ficam persistidos no modelo.
+
 ## Fail-closed de promoção
 
-Para modelos produzidos pelo método `M_INTERGESTOR_U_BIRTH_BLOCKING_IBGE_NAMES_MC_V4`, `VALIDATE` e `ACTIVATE` exigem um `identidade.linkage_ruleset` com ao menos um passe e campos completos. Ausência ou incompletude do ruleset impede a promoção. `GENERATE_DRAFT` também recusa amostra u vazia.
+Para modelos produzidos pelo método `M_INTERGESTOR_U_BLOCKING_CONDITIONED_IBGE_BOOTSTRAP_V5`, `VALIDATE` e `ACTIVATE` exigem um `identidade.linkage_ruleset` com ao menos um passe e campos completos. Ausência ou incompletude do ruleset impede a promoção. `GENERATE_DRAFT` também recusa amostra u vazia.
 
 A implementação não altera a precedência determinística CPF→UUID, não reativa PostgreSQL como banco operacional, não ativa modelos automaticamente e não introduz thresholds institucionais novos.
 
