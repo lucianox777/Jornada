@@ -14,6 +14,10 @@ public sealed class HmlScaleEvidenceContractTests
             root, "Solution", "src", "Jornada.Ensaio", "Program.cs"));
         var settings = File.ReadAllText(Path.Combine(
             root, "Solution", "src", "Jornada.Ensaio", "appsettings.json"));
+        var canonicalDdl = File.ReadAllText(Path.Combine(
+            root, "Solution", "database", "Jornada_Fase1.sql"));
+        var runbook = File.ReadAllText(Path.Combine(
+            root, "Solution", "docs", "Runbook_HML_Volumetria.md"));
 
         Assert.Multiple(() =>
         {
@@ -21,6 +25,9 @@ public sealed class HmlScaleEvidenceContractTests
             Assert.That(source, Does.Contain("AllowNonProductionWrites"));
             Assert.That(source, Does.Contain("EnvironmentProfile=HML"));
             Assert.That(source, Does.Contain("BaselineSha"));
+            Assert.That(source, Does.Contain("Jornada.EnvironmentProfile"));
+            Assert.That(source, Does.Contain("databaseEnvironmentProfile"));
+            Assert.That(source, Does.Contain("marcador residente Jornada.EnvironmentProfile=HML"));
             Assert.That(source, Does.Contain("Jornada.SolutionSchema=3.70"));
             Assert.That(source, Does.Contain("conteudo_sha256"));
             Assert.That(source, Does.Contain("GENERATE_DRAFT"));
@@ -41,6 +48,10 @@ public sealed class HmlScaleEvidenceContractTests
             Assert.That(source, Does.Not.Contain("Jornada_Dev_SyntheticScale"));
             Assert.That(source, Does.Not.Contain("local-db"));
             Assert.That(settings, Does.Contain("\"AllowNonProductionWrites\": false"));
+            Assert.That(runbook, Does.Contain("sp_addextendedproperty"));
+            Assert.That(runbook, Does.Contain("Jornada.EnvironmentProfile"));
+            Assert.That(canonicalDdl, Does.Not.Contain("Jornada.EnvironmentProfile"),
+                "O marcador HML deve ser provisionado por ambiente, nunca embutido no DDL canônico.");
         });
     }
 
