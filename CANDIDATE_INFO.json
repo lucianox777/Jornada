@@ -14,12 +14,12 @@
     "solution_schema": "v3.70",
     "schema_provenance": {
       "status": "BOUND_FOR_TECHNICAL_RC",
-      "source_commit": "814006cf76446afaeae89aca9b94cbf4c88c205c",
+      "source_commit": "a9539d686999ca6e357a651947274260288dc529",
       "canonical_ddl": "Solution/database/Jornada_Fase1_v3.70.sql",
-      "structural_fingerprint_sha256": "ddc2bcaf673d7c3c63188a1c2c9a77f3cf44bb1cd51f4634e9e2fae87b6ba40f",
+      "structural_fingerprint_sha256": "5093f4155a187d05b0c0a2153d755b0e5f701cd7108586d13f0d2c4e2214ef46",
       "structural_fingerprint_method": "SHA256_SORTED_METADATA_LINES_FROM_Jornada_Dev_DdlFingerprint.sql",
       "migration_manifest": "Solution/database/migrations/manifest.txt",
-      "migration_manifest_sha256": "a534eda527b342f179d9d648c5fcdf0652967db63c89e0fc1a14fb368773eae4",
+      "migration_manifest_sha256": "fdc2919ab4515dbef01e394058440b9bb08bb8539e26a10307e070ae123baa09",
       "migration_manifest_hash_method": "SHA256_UTF8_LF",
       "rc_rule": "source_commit identifies an ancestor structural checkpoint whose manifest and structural fingerprint are equivalent to this technical RC content. The schema-consolidation workflow proves the executable DDL on the current commit; the v5.00-rc.1 path recomputes the same evidence on the exact tag. A later structural change requires a new RC checkpoint.",
       "evidence_model": "CURRENT_CI_PLUS_EXACT_RC_RECOMPUTATION"
