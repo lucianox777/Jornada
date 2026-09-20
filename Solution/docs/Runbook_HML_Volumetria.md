@@ -16,6 +16,7 @@ A coleta é separada em quatro superfícies:
 Antes da coleta:
 
 - ambiente identificado como HML, nunca Produção;
+- banco marcado pelo provisionamento com `Jornada.EnvironmentProfile=HML`;
 - banco com `Jornada.SolutionSchema=3.70`;
 - exatamente uma referência nominal `ATIVA` com fingerprint;
 - massa de Pessoas/observações já carregada pelo procedimento institucional de HML;
@@ -25,6 +26,38 @@ Antes da coleta:
 - nenhum operador concorrente executando calibração.
 
 O harness de escala HML **não executa reset, seed, carga de corpus sintético, ACTIVATE nem publicação probabilística**. Ele cria somente um modelo `RASCUNHO -> VALIDADO` e um `linkage_run` de `MODEL_VALIDATION` com `publish=false`.
+
+
+### 1.1. Marcador residente do ambiente
+
+O runner **não cria nem altera** o marcador de ambiente. Ele deve ser definido pelo provisionamento de HML, fora do DDL canônico e preferencialmente com uma credencial administrativa diferente da credencial usada pelo ensaio.
+
+Execute uma vez no banco HML:
+
+```sql
+IF EXISTS (
+    SELECT 1
+    FROM sys.extended_properties
+    WHERE class=0 AND name=N'Jornada.EnvironmentProfile'
+)
+    EXEC sys.sp_updateextendedproperty
+        @name=N'Jornada.EnvironmentProfile',
+        @value=N'HML';
+ELSE
+    EXEC sys.sp_addextendedproperty
+        @name=N'Jornada.EnvironmentProfile',
+        @value=N'HML';
+```
+
+Valide antes da coleta:
+
+```sql
+SELECT CONVERT(nvarchar(32), value) AS environment_profile
+FROM sys.extended_properties
+WHERE class=0 AND name=N'Jornada.EnvironmentProfile';
+```
+
+O resultado deve ser exatamente `HML`. Ausência, valor diferente ou marcador de outro ambiente faz o `HML_SCALE_EVIDENCE` falhar fechado. O nome do banco continua sendo uma guarda adicional, não a fonte de verdade do ambiente.
 
 ## 2. Evidência Parameters/Runner
 
@@ -80,6 +113,7 @@ A execução falha se:
 - `AllowNonProductionWrites` não estiver `true`;
 - o SHA da build não tiver 40 caracteres hexadecimais;
 - o nome do banco indicar Produção (`prod`/`production`);
+- o banco não possuir exatamente `Jornada.EnvironmentProfile=HML`;
 - SolutionSchema não for 3.70;
 - a referência nominal ativa não possuir fingerprint;
 - houver mais de um novo modelo da janela de calibração;
