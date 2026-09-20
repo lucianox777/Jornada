@@ -32,6 +32,16 @@ Os estados de nome, nome da mãe e nascimento são entradas da conferência. O f
 
 Uma futura conferência de comparadores deverá partir de entradas brutas e implementar normalização/classificação de maneira independente. Até lá, comparadores permanecem explicitamente fora do escopo.
 
+## Contrato do vetor de evidência
+
+Para algoritmos `decision-evidence`, cada candidato deve carregar exatamente:
+
+- uma evidência `NOME`;
+- uma evidência `NOME_MAE`;
+- uma evidência de nascimento: `NASCIMENTO_SEMANTICO`, ou `NASCIMENTO/MISSING_NEUTRAL` quando a data não estiver disponível.
+
+Vetores incompletos, duplicados ou com shape incompatível retornam `NAO_EXECUTADA / INVALID_EVIDENCE_VECTOR_SHAPE`. Isso evita que uma extração defeituosa pareça conforme apenas porque a evidência omitida teria contribuição LLR nula.
+
 ## Gate primário
 
 A avaliação governada usa dois gates primários:
