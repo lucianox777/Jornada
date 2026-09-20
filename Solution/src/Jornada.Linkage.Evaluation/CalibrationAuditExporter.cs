@@ -16,9 +16,7 @@ internal sealed class CalibrationAuditExporter(SqlConnection connection, int com
         var modelId = (Guid)model["modelo_id"]!;
         var modelStatus = Convert.ToString(model["status"], System.Globalization.CultureInfo.InvariantCulture)
             ?? throw new InvalidOperationException("Modelo sem status persistido.");
-        if (modelStatus is not ("ATIVO" or "VALIDADO"))
-            throw new InvalidOperationException(
-                $"Exportação de auditoria aceita somente modelo ATIVO ou VALIDADO; modelo {modelId} está {modelStatus}.");
+        LinkageCalibrationAuditExchangePolicy.EnsureExportableModelStatus(modelId, modelStatus);
 
         var parameters = await QueryRowsAsync(
             "SELECT nome,valor FROM identidade.parametro_linkage WHERE modelo_id=@model_id ORDER BY nome;",
@@ -73,19 +71,12 @@ internal sealed class CalibrationAuditExporter(SqlConnection connection, int com
             interchangeContract = new
             {
                 statusAtExport = modelStatus,
-                uProbabilitySemantics = "CONDITIONED_ON_DEDUPLICATED_BLOCKING_CANDIDATE_UNION",
+                uProbabilitySemantics = LinkageCalibrationAuditExchangePolicy.UProbabilitySemantics,
                 splinkDefaultRandomPairUEquivalent = false,
                 comparisonStateMapping = new
                 {
                     complete = false,
-                    unmappedOrNonBijectiveStates = new[]
-                    {
-                        "DAY_MONTH_SWAP",
-                        "CENTURY_SHIFT",
-                        "ONE_DIGIT_ERROR",
-                        "TWO_DIGIT_ERROR",
-                        "PARTIAL_COMPONENT_AGREEMENT"
-                    },
+                    unmappedOrNonBijectiveStates = LinkageCalibrationAuditExchangePolicy.UnmappedOrNonBijectiveComparisonStates,
                     rule = "Do not collapse semantic states silently; an external adapter must declare an explicit mapping."
                 }
             },
