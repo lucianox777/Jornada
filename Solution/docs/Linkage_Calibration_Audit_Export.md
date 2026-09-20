@@ -58,8 +58,9 @@ Ele recupera a **auditabilidade dos parâmetros e da proveniência**, sem reintr
 
 O artefato declara explicitamente:
 
-- `uProbabilitySemantics=CONDITIONED_ON_DEDUPLICATED_BLOCKING_CANDIDATE_UNION`: o u operacional da Jornada é condicionado à união deduplicada dos candidatos do ruleset; não é semanticamente equivalente ao u de pares aleatórios que uma ferramenta externa possa assumir por padrão;
-- `splinkDefaultRandomPairUEquivalent=false`;
+- `uProbabilitySemantics=CONDITIONED_ON_DEDUPLICATED_BLOCKING_CANDIDATE_UNION`: descreve o **u empírico** medido no universo deduplicado de candidatos sobreviventes ao ruleset;
+- `nominalNameUSource` e `nominalMotherNameUSource`: registram separadamente a fonte nominal efetivamente aplicada, derivada dos parâmetros persistidos — `BLOCKING_CONDITIONED`, `IBGE_BOOTSTRAP` ou `NAO_DECLARADO`;
+- `splinkDefaultRandomPairUEquivalent=false`: o artefato não afirma equivalência ao u de pares aleatórios assumido por outra ferramenta;
 - `comparisonStateMapping.complete=false`, com os estados semânticos de nascimento que não devem ser colapsados silenciosamente.
 
 Essa declaração transforma o JSON em contrato de auditoria/intercâmbio da Jornada. Ela **não** reivindica compatibilidade Splink completa nem reproduz o EM de uma segunda implementação. Qualquer adapter externo precisa declarar mapeamento explícito para estados não bijetivos.
