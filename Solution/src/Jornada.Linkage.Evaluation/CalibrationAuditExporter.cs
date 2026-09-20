@@ -4,7 +4,7 @@ using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Evaluation;
 
-internal sealed class CalibrationAuditExporter(SqlConnection connection, int commandTimeoutSeconds)
+public sealed class CalibrationAuditExporter(SqlConnection connection, int commandTimeoutSeconds)
 {
     public async Task<LinkageCalibrationAuditDocument> ExportAsync(
         Guid? requestedModelId,
