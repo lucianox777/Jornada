@@ -52,6 +52,9 @@ public sealed class CandidateInfoTests
             Assert.That(technicalRc.GetProperty("assembly_version").GetString(), Is.EqualTo("5.0.0.0"));
             Assert.That(technicalRc.GetProperty("file_version").GetString(), Is.EqualTo("5.0.0.0"));
             Assert.That(technicalRc.GetProperty("source_revision_binding").GetString(), Is.EqualTo("DOTNET_SOURCE_REVISION_ID"));
+            Assert.That(technicalRc.GetProperty("actions_freeze_until_cut").GetBoolean(), Is.True);
+            Assert.That(technicalRc.GetProperty("release_assets_mutability").GetString(), Is.EqualTo("REPLACEABLE_BY_RERUN_WITH_CLOBBER"));
+            Assert.That(technicalRc.GetProperty("digest_authority").GetString(), Is.EqualTo("SIGSTORE_ATTESTATION_SUBJECT_DIGESTS"));
 
             Assert.That(releaseInfo, Does.Contain("solution_engenharia=v4.05"));
             Assert.That(releaseInfo, Does.Contain("schema_solution=v3.69"));
