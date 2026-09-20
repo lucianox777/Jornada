@@ -105,6 +105,7 @@ O JSON usa `LINKAGE_SCALE_EVIDENCE_V1` e preserva:
 - perfil HML;
 - tamanho da Gold de referência;
 - tamanho materializado do run;
+- tamanhos configurados de amostra/pool e tamanhos efetivamente observados pela calibração, sem tratá-los como a mesma métrica;
 - versão/id/algoritmo do modelo;
 - fingerprint do ruleset e da projeção;
 - duração de `GENERATE_DRAFT`;
