@@ -160,6 +160,7 @@ function Invoke-Calibration {
         'env',
         'LinkageParameters__Operation=GENERATE_DRAFT',
         'LinkageParameters__RunOnce=true',
+        ("LinkageParameters__MinimumIndependentMatchedPairs=" + $(if ($env:JORNADA_LINKAGE_MIN_MATCHED_PAIRS) { $env:JORNADA_LINKAGE_MIN_MATCHED_PAIRS } else { '2500' })),
         "LinkageParameters__IbgeNominalU__PairCount=$ibgeMcPairCount",
         "LinkageParameters__IbgeNominalU__Seed=$ibgeMcSeed",
         'dotnet',
