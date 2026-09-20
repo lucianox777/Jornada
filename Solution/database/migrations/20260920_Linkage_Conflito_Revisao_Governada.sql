@@ -71,7 +71,7 @@ BEGIN
    codigo_pessoa_origem,motivo,correlation_id)
  SELECT r.pessoa_observacao_id,r.linkage_resultado_id,po.gestor_id,
         po.codigo_pessoa_origem,
-        LEFT(COALESCE(NULLIF(r.motivo_publicacao,N''),NULLIF(r.motivo,N''),N'LINKAGE_AMBIGUO'),120),
+        LEFT(COALESCE(NULLIF(r.motivo,N''),NULLIF(r.motivo_publicacao,N''),N'LINKAGE_AMBIGUO'),120),
         lr.correlation_id
  FROM identidade.linkage_resultado r WITH(HOLDLOCK)
  JOIN silver.pessoa_observacao po WITH(HOLDLOCK)
