@@ -245,6 +245,37 @@ BEGIN
  IF @status=N'NAO_EXECUTADA' AND @motivo IS NULL
     THROW 51982,'Evidência NAO_EXECUTADA exige motivo.',1;
 
+ DECLARE @existente UNIQUEIDENTIFIER=NULL,
+         @existente_request_sha256 BINARY(32)=NULL,
+         @existente_modelo_versao INT=NULL,
+         @existente_metodo NVARCHAR(120)=NULL,
+         @existente_tolerancia NVARCHAR(120)=NULL,
+         @existente_status NVARCHAR(20)=NULL;
+
+ SELECT
+   @existente=evidencia_id,
+   @existente_request_sha256=request_sha256,
+   @existente_modelo_versao=modelo_versao,
+   @existente_metodo=metodo_versao,
+   @existente_tolerancia=tolerancia_versao,
+   @existente_status=status
+ FROM auditoria.linkage_conferencia_evidencia WITH(UPDLOCK,HOLDLOCK)
+ WHERE modelo_id=@modelo_id
+   AND report_sha256=@report_sha256;
+
+ IF @existente IS NOT NULL
+ BEGIN
+   IF @existente_request_sha256<>@request_sha256
+      OR @existente_modelo_versao<>@modelo_versao
+      OR @existente_metodo<>@metodo_versao
+      OR @existente_tolerancia<>@tolerancia_versao
+      OR @existente_status<>@status
+      THROW 51991,'Hash de relatório já registrado com conteúdo de conferência incompatível.',1;
+
+   SET @evidencia_id=@existente;
+   RETURN;
+ END;
+
  DECLARE @modelo_snapshot_sha256 BINARY(32);
  EXEC auditoria.sp_calcular_fingerprint_modelo_linkage
       @modelo_id=@modelo_id,
