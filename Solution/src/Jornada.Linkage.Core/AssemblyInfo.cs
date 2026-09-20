@@ -1,0 +1,5 @@
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("Jornada.Linkage.Runner")]
+[assembly: InternalsVisibleTo("Jornada.Linkage.Parameters.Worker")]
+[assembly: InternalsVisibleTo("Jornada.Tests")]
