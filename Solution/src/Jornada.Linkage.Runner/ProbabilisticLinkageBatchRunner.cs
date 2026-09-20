@@ -678,7 +678,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
            SET linkage_resultado_id=c.linkage_resultado_id,
                motivo=c.motivo,
                codigo_pessoa_origem=COALESCE(d.codigo_pessoa_origem,c.codigo_pessoa_origem),
-               correlation_id=COALESCE(d.correlation_id,c.correlation_id)
+               correlation_id=COALESCE(c.correlation_id,d.correlation_id)
         FROM qualidade.divergencia_gestor d WITH(UPDLOCK,HOLDLOCK)
         JOIN @conflitos_linkage c
           ON c.pessoa_observacao_id=d.pessoa_observacao_id
