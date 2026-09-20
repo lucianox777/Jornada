@@ -770,6 +770,14 @@
           "Jornada.Contracts": "[1.0.0, )"
         }
       },
+      "jornada.linkage.evaluation": {
+        "type": "Project",
+        "dependencies": {
+          "Jornada.Contracts": "[1.0.0, )",
+          "Jornada.Operational.Sql": "[1.0.0, )",
+          "Microsoft.Data.SqlClient": "[5.2.2, )"
+        }
+      },
       "jornada.linkage.parameters.worker": {
         "type": "Project",
         "dependencies": {
