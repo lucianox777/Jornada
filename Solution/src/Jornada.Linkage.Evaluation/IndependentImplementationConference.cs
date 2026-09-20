@@ -30,6 +30,15 @@ public static class IndependentImplementationConference
         if (request.ModelId == Guid.Empty || request.ModelVersion <= 0)
             return NotExecuted(request, "INVALID_MODEL_ID_OR_VERSION");
 
+        if (request.Candidates.Count == 0)
+            return NotExecuted(request, "EMPTY_CONFERENCE_SAMPLE");
+
+        if (request.Candidates.Any(static x =>
+                x.CandidateId == Guid.Empty
+                || x.Evidence is null
+                || x.CanonicalPosterior is < 0m or > 1m))
+            return NotExecuted(request, "INVALID_CANDIDATE_VECTOR");
+
         var candidateIds = request.Candidates.Select(static x => x.CandidateId).ToArray();
         if (candidateIds.Distinct().Count() != candidateIds.Length)
             return NotExecuted(request, "DUPLICATE_CANDIDATE_ID");
@@ -38,46 +47,57 @@ public static class IndependentImplementationConference
         if (!canonicalRanks.SequenceEqual(Enumerable.Range(1, request.Candidates.Count)))
             return NotExecuted(request, "INVALID_CANONICAL_RANKS");
 
-        var prior = Required(request.Parameters, LinkageParameterCatalog.PriorMatchProbability);
-        var priorLogOdds = Logit((double)prior);
         var rows = new List<ImplementationConferenceCandidateResult>(request.Candidates.Count);
-
-        foreach (var candidate in request.Candidates)
+        try
         {
-            double totalLlr = 0d;
-            foreach (var evidence in candidate.Evidence)
+            var prior = Required(request.Parameters, LinkageParameterCatalog.PriorMatchProbability);
+            var priorLogOdds = Logit((double)prior);
+
+            foreach (var candidate in request.Candidates)
             {
-                if (string.IsNullOrWhiteSpace(evidence.Evidence) || string.IsNullOrWhiteSpace(evidence.State))
-                    return NotExecuted(request, "EMPTY_EVIDENCE_OR_STATE");
+                double totalLlr = 0d;
+                foreach (var evidence in candidate.Evidence)
+                {
+                    if (string.IsNullOrWhiteSpace(evidence.Evidence) || string.IsNullOrWhiteSpace(evidence.State))
+                        return NotExecuted(request, "EMPTY_EVIDENCE_OR_STATE");
 
-                if (string.Equals(evidence.State, "MISSING_NEUTRAL", StringComparison.Ordinal))
-                    continue;
+                    if (string.Equals(evidence.State, "MISSING_NEUTRAL", StringComparison.Ordinal))
+                        continue;
 
-                var m = ClampProbability(Required(
-                    request.Parameters,
-                    $"M_{evidence.Evidence}_{evidence.State}"));
-                var u = ClampProbability(Required(
-                    request.Parameters,
-                    $"U_{evidence.Evidence}_{evidence.State}"));
-                totalLlr += Math.Log((double)m / (double)u);
+                    var m = ClampProbability(Required(
+                        request.Parameters,
+                        $"M_{evidence.Evidence}_{evidence.State}"));
+                    var u = ClampProbability(Required(
+                        request.Parameters,
+                        $"U_{evidence.Evidence}_{evidence.State}"));
+                    totalLlr += Math.Log((double)m / (double)u);
+                }
+
+                var logOddsRaw = priorLogOdds + totalLlr;
+                var posteriorRaw = 1d / (1d + Math.Exp(-Math.Clamp(logOddsRaw, -40d, 40d)));
+                var llr = (decimal)totalLlr;
+                var logOdds = Math.Round((decimal)logOddsRaw, 8, MidpointRounding.AwayFromZero);
+                var posterior = Math.Round((decimal)posteriorRaw, 8, MidpointRounding.AwayFromZero);
+
+                rows.Add(new ImplementationConferenceCandidateResult(
+                    candidate.CandidateId,
+                    candidate.CanonicalRank,
+                    llr,
+                    logOdds,
+                    posterior,
+                    Math.Abs(candidate.CanonicalLogLikelihoodRatio - llr),
+                    Math.Abs(candidate.CanonicalLogOdds - logOdds),
+                    Math.Abs(candidate.CanonicalPosterior - posterior),
+                    candidate.DemographicExactCollisionRisk));
             }
-
-            var logOddsRaw = priorLogOdds + totalLlr;
-            var posteriorRaw = 1d / (1d + Math.Exp(-Math.Clamp(logOddsRaw, -40d, 40d)));
-            var llr = (decimal)totalLlr;
-            var logOdds = Math.Round((decimal)logOddsRaw, 8, MidpointRounding.AwayFromZero);
-            var posterior = Math.Round((decimal)posteriorRaw, 8, MidpointRounding.AwayFromZero);
-
-            rows.Add(new ImplementationConferenceCandidateResult(
-                candidate.CandidateId,
-                candidate.CanonicalRank,
-                llr,
-                logOdds,
-                posterior,
-                Math.Abs(candidate.CanonicalLogLikelihoodRatio - llr),
-                Math.Abs(candidate.CanonicalLogOdds - logOdds),
-                Math.Abs(candidate.CanonicalPosterior - posterior),
-                candidate.DemographicExactCollisionRisk));
+        }
+        catch (InvalidDataException)
+        {
+            return NotExecuted(request, "MODEL_OR_VECTOR_CONTRACT_INVALID");
+        }
+        catch (OverflowException)
+        {
+            return NotExecuted(request, "NUMERIC_INPUT_OUT_OF_RANGE");
         }
 
         var ranked = rows
@@ -86,7 +106,19 @@ public static class IndependentImplementationConference
             .Select((x, i) => x with { IndependentRank = i + 1 })
             .ToArray();
 
-        var independentDecision = ResolveDecision(request, ranked);
+        ImplementationConferenceDecision independentDecision;
+        try
+        {
+            independentDecision = ResolveDecision(request, ranked);
+        }
+        catch (InvalidDataException)
+        {
+            return NotExecuted(request, "MODEL_OR_VECTOR_CONTRACT_INVALID");
+        }
+
+        if (!CanonicalDecisionReferencesCandidateUniverse(request.CanonicalDecision, candidateIds))
+            return NotExecuted(request, "CANONICAL_DECISION_OUTSIDE_CANDIDATE_UNIVERSE");
+
         var sameDecision = Equivalent(request.CanonicalDecision, independentDecision);
         var maxLlrDifference = ranked.Count == 0
             ? 0m
@@ -196,6 +228,16 @@ public static class IndependentImplementationConference
             best.CandidateId,
             second?.CandidateId,
             null);
+    }
+
+    private static bool CanonicalDecisionReferencesCandidateUniverse(
+        ImplementationConferenceDecision decision,
+        IReadOnlyCollection<Guid> candidateIds)
+    {
+        var known = candidateIds.ToHashSet();
+        return (decision.ResolvedCandidateId is null || known.Contains(decision.ResolvedCandidateId.Value))
+            && (decision.BestCandidateId is null || known.Contains(decision.BestCandidateId.Value))
+            && (decision.SecondCandidateId is null || known.Contains(decision.SecondCandidateId.Value));
     }
 
     private static bool Equivalent(
