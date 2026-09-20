@@ -14,6 +14,8 @@ public static class LinkageParameterCatalog
     public const string LogOddsConflictMargin = "CONFLICT_MARGIN_LOG_ODDS";
     public const string DecisionEvidenceScoring = "SCORING_DECISION_EVIDENCE_V6";
     public const string DualThresholdConflictGuard = "SCORING_DUAL_THRESHOLD_CONFLICT_V1";
+    public const string DualThresholdConflictFloorV2 = "SCORING_DUAL_THRESHOLD_CONFLICT_FLOOR_V2";
+    public const string DualThresholdConflictFloor = "DUAL_THRESHOLD_CONFLICT_FLOOR";
     public const string OrderedNameLlrMonotonicity = "MODEL_COHERENCE_ORDERED_NAME_LLR_V1";
     public const string NameComparisonPtBrContentTokenGuardV2 = "SCORING_NAME_PTBR_CONTENT_TOKEN_GUARD_V2";
     public const string AbbreviationCompatibilityDiagnosticV1 = "DIAG_ABBREV_COMPATIBLE_V1";
