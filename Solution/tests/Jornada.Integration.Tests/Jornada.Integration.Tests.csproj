@@ -13,6 +13,9 @@
     <ProjectReference Include="..\..\src\Jornada.Contracts\Jornada.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Jornada.Api\Jornada.Api.csproj" />
     <ProjectReference Include="..\..\src\Jornada.Processor.Worker\Jornada.Processor.Worker.csproj" />
+    <ProjectReference Include="..\..\src\Jornada.Ingestion\Jornada.Ingestion.csproj" />
+    <ProjectReference Include="..\..\src\Jornada.Linkage.Parameters.Worker\Jornada.Linkage.Parameters.Worker.csproj" />
+    <ProjectReference Include="..\..\src\Jornada.Linkage.Runner\Jornada.Linkage.Runner.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="NUnit" Version="4.2.2" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
