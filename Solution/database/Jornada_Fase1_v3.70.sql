@@ -45,4 +45,5 @@
 :r database/migrations/20260920_Identidade_Decisao_Ledger.sql
 :r database/migrations/20260920_Linkage_Model_Promotion_Ledger.sql
 :r database/migrations/20260920_Linkage_Implementation_Conference_Evidence.sql
+:r database/migrations/20260920_Linkage_Conference_Command_Governance.sql
 :r database/migrations/20260910_Schema_Consolidation_370.sql
