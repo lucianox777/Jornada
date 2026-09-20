@@ -971,6 +971,178 @@ public sealed class ProcessorRepositoryTests
             await repository.MarkRejectedAsync(oldBatch!, "STALE_WORKER", CancellationToken.None));
     }
 
+    [Test]
+    public async Task RnCt12_conflicting_retification_preserves_silver_and_keeps_previous_gold_current()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+        var repository = CreateRepository(connectionString);
+
+        await CreatePendingFactualBatchCloneAsync(connectionString, "RNCT12-FIRST");
+        var firstBatch = await repository.ReserveNextAsync(CancellationToken.None);
+        Assert.That(firstBatch, Is.Not.Null);
+        Assert.That(firstBatch!.Natureza, Is.EqualTo(IntegrationNature.BENEFICIO));
+
+        const string recordCode = "RNCT12-RET-001";
+        var firstPerson = new ParsedPerson(
+            "RNCT12-PERSON-A", "RNCT12-PERSON-A", new string('1', 64), "RNCT12-TX-A",
+            "52998224725", null, "Joao de Souza", new DateOnly(1977, 9, 22), "Maria de Souza",
+            [], []);
+        var firstFact = new ParsedFact(
+            "RNCT12-PERSON-A", recordCode, RegistroOperacao.INCLUSAO, new string('2', 64),
+            new DateOnly(2026, 1, 1), null, null, null, null, null,
+            "VIGENTE", null, null, 100m, null, null);
+        var firstManifest = new IngestionPackageManifest(
+            2, firstBatch.PessoaSchemaVersao, firstBatch.CodigoSistemaOrigem,
+            firstBatch.Natureza, firstBatch.CodigoTipo, firstBatch.TipoVersao, firstBatch.DataReferencia);
+        await repository.PersistValidatedAsync(
+            firstBatch, new ParsedPackage(firstManifest, [firstPerson], [firstFact]), CancellationToken.None);
+
+        await CreatePendingFactualBatchCloneAsync(connectionString, "RNCT12-SECOND");
+        var secondBatch = await repository.ReserveNextAsync(CancellationToken.None);
+        Assert.That(secondBatch, Is.Not.Null);
+
+        var secondPerson = new ParsedPerson(
+            "RNCT12-PERSON-B", "RNCT12-PERSON-B", new string('3', 64), "RNCT12-TX-B",
+            "16899535009", null, "Pessoa Diferente", new DateOnly(1989, 4, 13), "Mae Diferente",
+            [], []);
+        var secondFact = new ParsedFact(
+            "RNCT12-PERSON-B", recordCode, RegistroOperacao.RETIFICACAO, new string('4', 64),
+            new DateOnly(2026, 1, 1), null, null, null, null, null,
+            "VIGENTE", null, null, 120m, null, null);
+        var secondManifest = new IngestionPackageManifest(
+            2, secondBatch!.PessoaSchemaVersao, secondBatch.CodigoSistemaOrigem,
+            secondBatch.Natureza, secondBatch.CodigoTipo, secondBatch.TipoVersao, secondBatch.DataReferencia);
+        await repository.PersistValidatedAsync(
+            secondBatch, new ParsedPackage(secondManifest, [secondPerson], [secondFact]), CancellationToken.None);
+
+        await using var verify = new SqlConnection(connectionString);
+        await verify.OpenAsync();
+        await using var query = verify.CreateCommand();
+        query.CommandText = """
+            SELECT
+              (SELECT COUNT(*) FROM silver.registro_observacao WHERE codigo_registro_origem=@codigo),
+              (SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem=@codigo),
+              (SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem=@codigo AND status_analitico='VIGENTE' AND vigencia_versao_fim IS NULL),
+              (SELECT COUNT(*) FROM serving.registro_integrado WHERE codigo_registro_origem=@codigo AND status_analitico='VIGENTE' AND vigencia_versao_fim IS NULL),
+              (SELECT COUNT(*) FROM qualidade.divergencia_gestor d
+                 JOIN silver.registro_observacao ro ON ro.registro_observacao_id=d.registro_observacao_id
+                WHERE ro.codigo_registro_origem=@codigo AND ro.versao_interna=2
+                  AND d.tipo='CONFLITO_RETIFICACAO' AND d.status='ABERTA'
+                  AND d.motivo LIKE 'RN_CT_12:%PESSOA%'),
+              (SELECT COUNT(*) FROM gold.beneficio_concedido b
+                 JOIN silver.registro_observacao ro ON ro.registro_observacao_id=b.registro_observacao_id
+                WHERE ro.codigo_registro_origem=@codigo AND ro.versao_interna=2);
+            """;
+        query.Parameters.AddWithValue("@codigo", recordCode);
+        await using var reader = await query.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.GetInt32(0), Is.EqualTo(2), "As duas declarações devem permanecer em Silver.");
+            Assert.That(reader.GetInt32(1), Is.EqualTo(1), "A retificação conflitante não cria segunda versão Gold.");
+            Assert.That(reader.GetInt32(2), Is.EqualTo(1), "A versão anterior continua VIGENTE.");
+            Assert.That(reader.GetInt32(3), Is.EqualTo(1), "Serving mantém somente o fato corrente anterior.");
+            Assert.That(reader.GetInt32(4), Is.EqualTo(1), "O Gestor recebe divergência governada ligada à nova observação.");
+            Assert.That(reader.GetInt32(5), Is.Zero, "A observação conflitante não pode ser publicada como corrente.");
+        });
+    }
+
+    [Test]
+    public async Task RnCt12_distinct_codes_with_same_exact_fact_raise_non_destructive_duplicate_alert()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+        var repository = CreateRepository(connectionString);
+
+        await CreatePendingFactualBatchCloneAsync(connectionString, "RNCT12-DUP-A");
+        var firstBatch = await repository.ReserveNextAsync(CancellationToken.None);
+        Assert.That(firstBatch, Is.Not.Null);
+
+        var personA = new ParsedPerson(
+            "RNCT12-DUP-P-A", "RNCT12-DUP-P", new string('5', 64), "RNCT12-DUP-TX-A",
+            "16899535009", null, "Pessoa Duplicada", new DateOnly(1991, 4, 13), "Mae Duplicada",
+            [], []);
+        var factA = new ParsedFact(
+            "RNCT12-DUP-P-A", "RNCT12-DUP-001", RegistroOperacao.INCLUSAO, new string('6', 64),
+            new DateOnly(2026, 3, 1), null, null, null, null, null,
+            "VIGENTE", null, null, 250m, 1m, "UN");
+        var manifestA = new IngestionPackageManifest(
+            2, firstBatch!.PessoaSchemaVersao, firstBatch.CodigoSistemaOrigem,
+            firstBatch.Natureza, firstBatch.CodigoTipo, firstBatch.TipoVersao, firstBatch.DataReferencia);
+        await repository.PersistValidatedAsync(firstBatch, new ParsedPackage(manifestA, [personA], [factA]), CancellationToken.None);
+
+        await CreatePendingFactualBatchCloneAsync(connectionString, "RNCT12-DUP-B");
+        var secondBatch = await repository.ReserveNextAsync(CancellationToken.None);
+        Assert.That(secondBatch, Is.Not.Null);
+
+        var personB = personA with { IdPessoaEntrega = "RNCT12-DUP-P-B", SourceTransactionId = "RNCT12-DUP-TX-B" };
+        var factB = factA with
+        {
+            IdPessoaEntrega = "RNCT12-DUP-P-B",
+            CodigoRegistroOrigem = "RNCT12-DUP-002",
+            ConteudoHash = new string('7', 64)
+        };
+        var manifestB = new IngestionPackageManifest(
+            2, secondBatch!.PessoaSchemaVersao, secondBatch.CodigoSistemaOrigem,
+            secondBatch.Natureza, secondBatch.CodigoTipo, secondBatch.TipoVersao, secondBatch.DataReferencia);
+        await repository.PersistValidatedAsync(secondBatch, new ParsedPackage(manifestB, [personB], [factB]), CancellationToken.None);
+
+        await using var verify = new SqlConnection(connectionString);
+        await verify.OpenAsync();
+        await using var query = verify.CreateCommand();
+        query.CommandText = """
+            SELECT
+              (SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem IN('RNCT12-DUP-001','RNCT12-DUP-002') AND status_analitico='VIGENTE'),
+              (SELECT COUNT(*) FROM qualidade.divergencia_gestor d
+                 JOIN silver.registro_observacao ro ON ro.registro_observacao_id=d.registro_observacao_id
+                WHERE ro.codigo_registro_origem='RNCT12-DUP-002'
+                  AND d.tipo='POSSIVEL_DUPLICACAO_FATO'
+                  AND d.motivo='RN_CT_12_DUPLICIDADE_EXATA'
+                  AND d.status='ABERTA');
+            """;
+        await using var reader = await query.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.GetInt32(0), Is.EqualTo(2), "Alerta de duplicação nunca remove ou bloqueia automaticamente fatos distintos.");
+            Assert.That(reader.GetInt32(1), Is.EqualTo(1), "O segundo código deve abrir alerta exato para o Gestor.");
+        });
+    }
+
+    private static async Task CreatePendingFactualBatchCloneAsync(string connectionString, string idempotencyKey)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            DECLARE @template UNIQUEIDENTIFIER=(
+                SELECT TOP(1) e.entrega_id
+                FROM ingestao.entrega e
+                WHERE e.natureza='BENEFICIO'
+                ORDER BY e.recebido_em,e.entrega_id);
+            IF @template IS NULL THROW 51298,'Fixture sem Entrega factual BENEFICIO.',1;
+
+            DECLARE @entrega UNIQUEIDENTIFIER=NEWID();
+            INSERT ingestao.entrega(
+                entrega_id,gestor_id,sistema_origem_id,gestor_pessoa_versao_id,
+                natureza,tipo_registro_id,tipo_registro_versao_id,idempotency_key,
+                payload_sha256,bytes_recebidos,status,data_referencia,recebido_em,ultima_atualizacao)
+            SELECT @entrega,gestor_id,sistema_origem_id,gestor_pessoa_versao_id,
+                   natureza,tipo_registro_id,tipo_registro_versao_id,@idempotency,
+                   LOWER(CONVERT(varchar(64),HASHBYTES('SHA2_256',@idempotency),2)),
+                   1,'RECEBIDA',data_referencia,SYSDATETIMEOFFSET(),SYSDATETIMEOFFSET()
+            FROM ingestao.entrega
+            WHERE entrega_id=@template;
+
+            INSERT ingestao.lote(
+                lote_id,entrega_id,lote_seq,lote_total,qtd_pessoas,qtd_registros,status)
+            VALUES(NEWID(),@entrega,1,1,0,0,'PENDENTE');
+            """;
+        command.Parameters.AddWithValue("@idempotency", idempotencyKey + "-" + Guid.NewGuid().ToString("N"));
+        await command.ExecuteNonQueryAsync();
+    }
+
     private static async Task SetOneCadastralBatchPendingAsync(string connectionString)
     {
         await using var connection = new SqlConnection(connectionString);
