@@ -15,14 +15,14 @@ public static class LinkageCalibrationAuditExchangePolicy
         "Do not collapse semantic states silently; an external adapter must declare an explicit mapping.";
 
     public static IReadOnlyList<string> UnmappedOrNonBijectiveComparisonStates { get; } =
-        Array.AsReadOnly(
-        [
+        Array.AsReadOnly(new[]
+        {
             "DAY_MONTH_SWAP",
             "CENTURY_SHIFT",
             "ONE_DIGIT_ERROR",
             "TWO_DIGIT_ERROR",
             "PARTIAL_COMPONENT_AGREEMENT"
-        ]);
+        });
 
     public static bool IsExportableModelStatus(string? status) =>
         string.Equals(status, "ATIVO", StringComparison.Ordinal)
