@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
+    <ProjectReference Include="..\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj" />
+    <ProjectReference Include="..\Jornada.Linkage.Core\Jornada.Linkage.Core.csproj" />
+    <ProjectReference Include="..\Jornada.Linkage.Evaluation\Jornada.Linkage.Evaluation.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+  </ItemGroup>
+</Project>
