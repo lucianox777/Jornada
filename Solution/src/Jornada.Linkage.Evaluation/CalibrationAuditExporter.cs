@@ -23,21 +23,21 @@ internal sealed class CalibrationAuditExporter(SqlConnection connection, int com
         var rulesets = await QueryRowsAsync(
             """
             SELECT ruleset_id,ruleset_versao,algoritmo_versao,fingerprint_sha256,
-                   projection_schema_version,projection_fingerprint_sha256,criado_em
+                   ibge_source_versao,ibge_fingerprint_sha256,criado_em
             FROM identidade.linkage_ruleset
             WHERE modelo_id=@model_id
             ORDER BY criado_em,ruleset_id;
             """, modelId, cancellationToken);
         var passes = await QueryRowsAsync(
             """
-            SELECT p.ruleset_id,p.passe_ordem,p.passe_id,p.ativo,
-                   STRING_AGG(c.campo,',') WITHIN GROUP (ORDER BY c.campo_ordem) campos
+            SELECT p.ruleset_id,p.passe_ordem,p.passe_id,
+                   STRING_AGG(c.atributo,',') WITHIN GROUP (ORDER BY c.campo_ordem) atributos
             FROM identidade.linkage_ruleset r
             JOIN identidade.linkage_ruleset_passe p ON p.ruleset_id=r.ruleset_id
             LEFT JOIN identidade.linkage_ruleset_passe_campo c
               ON c.ruleset_id=p.ruleset_id AND c.passe_ordem=p.passe_ordem
             WHERE r.modelo_id=@model_id
-            GROUP BY p.ruleset_id,p.passe_ordem,p.passe_id,p.ativo
+            GROUP BY p.ruleset_id,p.passe_ordem,p.passe_id
             ORDER BY p.passe_ordem;
             """, modelId, cancellationToken);
 
