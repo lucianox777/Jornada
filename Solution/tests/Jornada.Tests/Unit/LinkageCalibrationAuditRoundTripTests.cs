@@ -1,0 +1,149 @@
+using System.Text.Json;
+using Jornada.Contracts;
+using NUnit.Framework;
+
+namespace Jornada.Tests.Unit;
+
+[TestFixture]
+public sealed class LinkageCalibrationAuditRoundTripTests
+{
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    [Test]
+    public void Typed_document_roundtrips_without_semantic_loss()
+    {
+        var expected = SampleDocument();
+        var json = JsonSerializer.Serialize(expected, JsonOptions);
+
+        var actual = LinkageCalibrationAuditRoundTrip.Import(json);
+
+        Assert.DoesNotThrow(() =>
+            LinkageCalibrationAuditRoundTrip.VerifyEquivalent(expected, actual));
+    }
+
+    [Test]
+    public void Roundtrip_reports_exact_parameter_path_on_divergence()
+    {
+        var expected = SampleDocument();
+        var changed = expected with
+        {
+            Parameters =
+            [
+                expected.Parameters[0] with { Value = expected.Parameters[0].Value + 0.01m }
+            ]
+        };
+
+        var ex = Assert.Throws<InvalidDataException>(() =>
+            LinkageCalibrationAuditRoundTrip.VerifyEquivalent(expected, changed));
+
+        Assert.That(ex!.Message, Does.Contain("parameters[0]"));
+    }
+
+    [Test]
+    public void Import_rejects_unpromoted_model_even_when_json_is_well_formed()
+    {
+        var draft = SampleDocument() with
+        {
+            Model = SampleDocument().Model with { Status = "RASCUNHO" },
+            InterchangeContract = SampleDocument().InterchangeContract with { StatusAtExport = "RASCUNHO" }
+        };
+        var json = JsonSerializer.Serialize(draft, JsonOptions);
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            LinkageCalibrationAuditRoundTrip.Import(json));
+
+        Assert.That(ex!.Message, Does.Contain("ATIVO ou VALIDADO"));
+    }
+
+    private static LinkageCalibrationAuditDocument SampleDocument()
+    {
+        var modelId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        var ruleSetId = Guid.Parse("22222222-2222-4222-8222-222222222222");
+        var generated = new DateTimeOffset(2026, 9, 20, 12, 0, 0, TimeSpan.Zero);
+
+        return new LinkageCalibrationAuditDocument(
+            SchemaVersion: 1,
+            Nature: "LINKAGE_CALIBRATION_AUDIT_EXPORT",
+            Purpose: "EXTERNAL_REPRODUCIBILITY_READ_ONLY",
+            GeneratedAtUtc: generated.AddMinutes(1),
+            Safeguards: ["read-only SELECTs only"],
+            Model: new LinkageCalibrationAuditModel(
+                ModelId: modelId,
+                Version: 8,
+                Status: "VALIDADO",
+                AlgorithmVersion: "FELLEGI_SUNTER_DECISION_EVIDENCE_V6",
+                NormalizationVersion: "IDENTITY_NORMALIZATION_V1",
+                DeduplicationMethod: "GOLD_PESSOA_UUID_PK",
+                BaseReference: "gold.pessoa",
+                SnapshotReference: "snapshot-8",
+                RecordsRead: 1000,
+                UniquePeople: 1000,
+                GeneratedAt: generated,
+                ActivatedAt: null,
+                SnapshotCapturedAt: new DateTime(2026, 9, 20, 12, 0, 0, DateTimeKind.Unspecified),
+                SampleMethod: "M_INTERGESTOR_U_BLOCKING_CONDITIONED_IBGE_BOOTSTRAP_V5",
+                SamplePoolSize: 5000,
+                SampleMSize: 800,
+                SampleUSize: 1200,
+                FailureSummary: null,
+                NameFrequencyVersionId: 4),
+            Parameters: [new("T_LINKAGE", 0.91m)],
+            Statistics: [new("POPULATION_SIZE", 1000m, "SQL_SERVER")],
+            InterchangeContract: new LinkageCalibrationAuditInterchangeContract(
+                StatusAtExport: "VALIDADO",
+                UProbabilitySemantics: LinkageCalibrationAuditExchangePolicy.UProbabilitySemantics,
+                SplinkDefaultRandomPairUEquivalent: false,
+                ComparisonStateMapping: new LinkageCalibrationAuditComparisonMapping(
+                    Complete: false,
+                    UnmappedOrNonBijectiveStates:
+                        LinkageCalibrationAuditExchangePolicy.UnmappedOrNonBijectiveComparisonStates.ToArray(),
+                    Rule: "Do not collapse semantic states silently; an external adapter must declare an explicit mapping.")),
+            Blocking: new LinkageCalibrationAuditBlocking(
+                RuleSets:
+                [
+                    new(
+                        RuleSetId: ruleSetId,
+                        RuleSetVersion: "RULESET_V1",
+                        AlgorithmVersion: "BLOCKING_RULESET_V1",
+                        FingerprintSha256: new string('a', 64),
+                        IbgeSourceVersion: "IBGE-2022",
+                        IbgeFingerprintSha256: new string('b', 64),
+                        CreatedAt: generated)
+                ],
+                Passes:
+                [
+                    new(
+                        RuleSetId: ruleSetId,
+                        Order: 0,
+                        PassId: "NOME_NASCIMENTO",
+                        Attributes: ["NOME", "DATA_NASCIMENTO"])
+                ]),
+            TermFrequency: new LinkageCalibrationAuditTermFrequency(
+                RuntimeEnabled: false,
+                AlgorithmVersion: SplinkCompatibleTermFrequency.AlgorithmVersion,
+                PersistedModelFrequencyRows: 0,
+                ReferenceSnapshot: new LinkageCalibrationAuditFrequencyReference(
+                    VersionId: 4,
+                    Code: "IBGE-2022",
+                    Source: "IBGE",
+                    Edition: "2022",
+                    ReferenceDate: new DateOnly(2022, 1, 1),
+                    PublishedAt: new DateOnly(2023, 1, 1),
+                    Status: "ATIVA",
+                    ContentSha256: new string('c', 64),
+                    CreatedAt: generated.AddYears(-1),
+                    ActivatedAt: generated.AddMonths(-1)),
+                ReferenceCoverage:
+                [
+                    new("NOME", "BRASIL", "TODOS", "TODOS", 100, 1_000_000m)
+                ],
+                ConformanceVectors:
+                [
+                    new("rare-rare", 0.001m, 0.001m, 0.05m, 1m, 0.000001m, 0.001m, 3.912023005428146)
+                ],
+                Interpretation: "TF não habilitada no runtime."));
+    }
+}
