@@ -36,6 +36,6 @@ A borda utiliza auditoria e limites da classe IDENTIDADE por credencial autentic
 
 ## Implantação e limites
 
-Instalar a persistência progressiva, concluir o cutover e instalar a projeção Serving antes de disponibilizar a rota. O contrato usa o provider SQL Server operacional atualmente configurado para a API; a view PostgreSQL permanece disponível para seu Serving, mas esta entrega não anuncia uma API PostgreSQL ainda não implementada. Em HML/Produção, a autenticação corporativa e a concessão institucional de scopes continuam deny-by-default até integração e autorização próprias. Chaves sintéticas são exclusivamente de Development.
+Instalar a persistência progressiva, concluir o cutover e instalar a projeção Serving antes de disponibilizar a rota. O contrato usa SQL Server, único runtime relacional operacional suportado pela candidata. Em HML/Produção, a autenticação corporativa e a concessão institucional de scopes continuam deny-by-default até integração e autorização próprias. Chaves sintéticas são exclusivamente de Development.
 
 A consulta não habilita o executor probabilístico. A issue #31 continua sendo o gate independente de validação estatística e aprovação institucional. Fusões, separações e aliases históricos exigem política e implementação próprias; nenhuma referência dividida pode ser redirecionada automaticamente para um sucessor arbitrário.
