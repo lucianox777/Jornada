@@ -33,7 +33,7 @@ A candidata v5.00 separa explicitamente **checkpoint técnico** de **release sel
 - tags `v*-rc.*` são checkpoints técnicos com `release_effect=NONE` e passam por `rc-evidence`; elas **não** reescrevem `RELEASE_INFO.txt`;
 - uma tag RC executa o CI completo de tag, incluindo restore drill e scale smoke;
 - `rc-evidence` valida o tag contra `CANDIDATE_INFO.json`, recompõe um bundle Git da fonte, recalcula o fingerprint estrutural em SQL Server na própria tag e gera `RC_EVIDENCE.json`;
-- o fingerprint executado na RC deve coincidir com `candidate.schema_provenance.structural_fingerprint_sha256`; essa prova fica anexada ao pre-release e não depende da retenção futura do run histórico declarado em `ddl_evidence_run_id`;
+- o fingerprint executado na RC deve coincidir com `candidate.schema_provenance.structural_fingerprint_sha256`; o workflow de consolidação prova o DDL no commit corrente e a RC recompõe a prova na tag exata, sem depender de um run histórico identificado por ID;
 - o job produz attestation Sigstore e publica/atualiza um **GitHub pre-release** preso à tag, com `RC_EVIDENCE.json`, bundle/proveniência da fonte, proveniência estrutural e fingerprint como assets duráveis;
 - o texto do pre-release deve declarar explicitamente que a RC não é homologação estatística, não autoriza Linkage probabilístico nem Produção e mantém #31/#93 e a decisão GTPR pendentes.
 
