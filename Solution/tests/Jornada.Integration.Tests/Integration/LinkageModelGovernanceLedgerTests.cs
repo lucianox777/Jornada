@@ -35,6 +35,35 @@ public sealed class LinkageModelGovernanceLedgerTests
             await insert.ExecuteNonQueryAsync();
         }
 
+        await using (var conference = connection.CreateCommand())
+        {
+            conference.CommandText = """
+                DECLARE @e UNIQUEIDENTIFIER;
+                EXEC auditoria.sp_registrar_conferencia_linkage
+                    @modelo_id=@id,
+                    @modelo_versao=@versao,
+                    @metodo_versao=N'JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1',
+                    @escopo=N'SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE',
+                    @tolerancia_versao=N'TEST_ONLY_FROZEN_MONITOR_V1',
+                    @max_llr_par_permitido=0.000001,
+                    @status=N'CONFORME',
+                    @candidatos_avaliados=208,
+                    @max_llr_par_observado=0.0000001,
+                    @max_log_odds_observado=0.0000001,
+                    @mesma_decisao_final=1,
+                    @mesmo_top1=1,
+                    @spearman=1,
+                    @motivo=NULL,
+                    @validacao_estatistica=N'NOT_ASSESSED_ISSUE_31',
+                    @request_sha256=HASHBYTES('SHA2_256',CONCAT(N'monitor-request-',CONVERT(NVARCHAR(36),@id))),
+                    @report_sha256=HASHBYTES('SHA2_256',CONCAT(N'monitor-report-',CONVERT(NVARCHAR(36),@id))),
+                    @evidencia_id=@e OUTPUT;
+                """;
+            conference.Parameters.AddWithValue("@id", modelId);
+            conference.Parameters.AddWithValue("@versao", version);
+            await conference.ExecuteNonQueryAsync();
+        }
+
         await using (var validate = connection.CreateCommand())
         {
             validate.CommandText = "UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@id;";
@@ -103,6 +132,21 @@ public sealed class LinkageModelGovernanceLedgerTests
             Assert.That(monitor.LinkageModelGovernance.ModelVersion, Is.EqualTo(version));
             Assert.That(monitor.LinkageModelGovernance.AlgorithmVersion, Is.EqualTo("TEST_GOVERNANCE_V1"));
             Assert.That(monitor.LinkageModelGovernance.StatisticalValidation, Is.EqualTo("PENDENTE_ISSUE_31"));
+            Assert.That(monitor.LinkageConferenceGovernance.Status, Is.EqualTo("CONFORME"));
+            Assert.That(monitor.LinkageConferenceGovernance.ModelVersion, Is.EqualTo(version));
+            Assert.That(monitor.LinkageConferenceGovernance.MethodVersion,
+                Is.EqualTo("JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1"));
+            Assert.That(monitor.LinkageConferenceGovernance.ToleranceVersion,
+                Is.EqualTo("TEST_ONLY_FROZEN_MONITOR_V1"));
+            Assert.That(monitor.LinkageConferenceGovernance.CandidatesEvaluated, Is.EqualTo(208));
+            Assert.That(monitor.LinkageConferenceGovernance.SameFinalDecision, Is.True);
+            Assert.That(monitor.LinkageConferenceGovernance.SameTop1, Is.True);
+            Assert.That(monitor.LinkageConferenceGovernance.StatisticalValidation,
+                Is.EqualTo("PENDENTE_ISSUE_31"));
+            Assert.That(monitor.LinkageConferenceGovernance.RoundTripMethod,
+                Is.EqualTo("JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1"));
+            Assert.That(monitor.LinkageConferenceGovernance.RoundTripStatus,
+                Is.EqualTo("OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO"));
             Assert.That(monitor.LinkageModelTransitions.Any(x =>
                 x.ModelId == modelId && x.Operation == "ACTIVATE" && x.NewStatus == "ATIVO"), Is.True);
         });
