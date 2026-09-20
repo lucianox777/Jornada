@@ -42,7 +42,9 @@ FROM (VALUES
  (N'serving.v_bi_qualidade_resolucao_calibrada'),
  (N'serving.v_bi_qualidade_resolucao_operacional_origem'),
  (N'serving.v_bi_qualidade_resolucao_operacional_estrato'),
- (N'serving.v_bi_completude_pessoa')
+ (N'serving.v_bi_completude_pessoa'),
+ (N'serving.v_pessoa_nome_referencia'),
+ (N'serving.v_pessoa')
 ) v(objeto)
 WHERE OBJECT_ID(v.objeto, N'V') IS NULL;
 
@@ -95,6 +97,31 @@ INSERT @missing(item)
 SELECT CONCAT(N'COLUMN:',tabela,N'.',coluna)
 FROM @required_columns
 WHERE COL_LENGTH(tabela,coluna) IS NULL;
+
+INSERT @missing(item)
+SELECT CONCAT(N'VIEW_COLUMN:',v.objeto,N'.',v.coluna)
+FROM (VALUES
+ (N'serving.v_pessoa',N'nome_referencia'),
+ (N'serving.v_pessoa',N'nome_referencia_tipo'),
+ (N'serving.v_pessoa',N'nome_referencia_fonte_tipo'),
+ (N'serving.v_pessoa',N'nome_referencia_fonte_observacao_id'),
+ (N'serving.v_pessoa',N'nome_referencia_fonte_gestor_id'),
+ (N'serving.v_pessoa',N'nome_referencia_source_record_id'),
+ (N'serving.v_pessoa',N'nome_referencia_em')
+) v(objeto,coluna)
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM sys.columns c
+    WHERE c.object_id=OBJECT_ID(v.objeto,N'V')
+      AND c.name=v.coluna
+);
+
+IF EXISTS(
+    SELECT 1
+    FROM sys.columns
+    WHERE object_id=OBJECT_ID(N'serving.v_pessoa',N'V')
+      AND name=N'nome_completo')
+    INSERT @missing(item) VALUES(N'VIEW_COLUMN_FORBIDDEN:serving.v_pessoa.nome_completo');
 
 -- O núcleo cadastral é progressivo. Obrigatoriedade pertence ao schema da fonte,
 -- não à representação canônica; Silver e Gold precisam aceitar ausência.
