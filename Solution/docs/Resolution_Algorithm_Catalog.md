@@ -67,7 +67,7 @@ CPF válido permanece fora do blocking probabilístico e segue a resolução det
 
 ## Materialização e fontes externas
 
-Uma projeção determinística que depende apenas da própria Pessoa pode ser `GeneratedColumn` quando portável entre SQL Server, PostgreSQL e Fabric, ou `ProcessorMaterialized` quando essa forma for mais adequada. Projeções multivaloradas usam estrutura auxiliar.
+Uma projeção determinística que depende apenas da própria Pessoa pode ser `GeneratedColumn` quando representável de forma estável no SQL Server, ou `ProcessorMaterialized` quando essa forma for mais adequada. Projeções multivaloradas usam estrutura auxiliar.
 
 Uma projeção que depende de tabela, arquivo ou fonte externa **não pode ser tratada como computed/generated column da linha atual**. Ela deve registrar o valor efetivamente produzido e a identidade imutável do snapshot de referência usado naquela execução. O valor materializado pode permanecer disponível mesmo depois de a fonte externa mudar.
 
