@@ -88,6 +88,21 @@ internal sealed record LinkageModelTransitionStatus(
     string ExecutorApplication,
     DateTimeOffset OccurredAt);
 
+internal sealed record LinkageConferenceGovernanceStatus(
+    string Status,
+    Guid? EvidenceId,
+    int? ModelVersion,
+    string? MethodVersion,
+    string? Scope,
+    string? ToleranceVersion,
+    int? CandidatesEvaluated,
+    bool? SameFinalDecision,
+    bool? SameTop1,
+    DateTimeOffset? OccurredAt,
+    string StatisticalValidation,
+    string RoundTripMethod,
+    string RoundTripStatus);
+
 internal sealed record ConfigurationBundleHealthStatus(
     string Status,
     string? ExpectedBundleVersion,
@@ -107,6 +122,7 @@ internal sealed record OperationalMonitorSnapshot(
     IReadOnlyList<RecentDeliveryStatus> RecentDeliveries,
     BronzeMaintenanceStatus? BronzeMaintenance,
     LinkageModelGovernanceStatus LinkageModelGovernance,
+    LinkageConferenceGovernanceStatus LinkageConferenceGovernance,
     IReadOnlyList<LinkageModelTransitionStatus> LinkageModelTransitions,
     IReadOnlyList<LinkageRunStatus> LinkageRuns);
 
@@ -151,6 +167,11 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             ORDER BY iniciado_em DESC,linkage_run_id DESC;
 
             DECLARE @active_model_count INT=(SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO');
+            DECLARE @active_model_id UNIQUEIDENTIFIER=(
+                SELECT TOP(1) modelo_id
+                FROM identidade.modelo_linkage
+                WHERE status=N'ATIVO'
+                ORDER BY versao DESC);
             SELECT
                 @active_model_count active_model_count,
                 m.modelo_id,m.versao,m.algoritmo_versao,m.normalizacao_versao,m.gerado_em,m.ativado_em,
@@ -170,8 +191,7 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             LEFT JOIN (
                 SELECT TOP(1) *
                 FROM identidade.modelo_linkage
-                WHERE status=N'ATIVO'
-                ORDER BY versao DESC
+                WHERE modelo_id=@active_model_id
             ) m ON 1=1
             LEFT JOIN ref.frequencia_nome_versao v
               ON v.frequencia_nome_versao_id=m.frequencia_nome_versao_id
@@ -190,6 +210,13 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
                 operacao_codigo,motivo,executor_aplicacao,ocorrido_em
             FROM auditoria.modelo_linkage_estado_evento
             ORDER BY modelo_linkage_estado_evento_id DESC;
+
+            SELECT TOP(1)
+                evidencia_id,modelo_versao,metodo_versao,escopo,tolerancia_versao,status,
+                candidatos_avaliados,mesma_decisao_final,mesmo_top1,validacao_estatistica,ocorrido_em
+            FROM auditoria.linkage_conferencia_evidencia
+            WHERE modelo_id=@active_model_id
+            ORDER BY linkage_conferencia_evidencia_id DESC;
 
             SELECT CONVERT(NVARCHAR(32),(
                 SELECT value
@@ -210,6 +237,11 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             "SEM_MODELO_ATIVO", 0, null, null, null, null, null, null, null, null,
             "NAO_DECLARADO", "NAO_DECLARADO", "PENDENTE_ISSUE_31");
         var modelTransitions = new List<LinkageModelTransitionStatus>();
+        LinkageConferenceGovernanceStatus conferenceGovernance = new(
+            "SEM_MODELO_ATIVO", null, null, null, null, null, null, null, null, null,
+            "PENDENTE_ISSUE_31",
+            "JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1",
+            "OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO");
         string? databaseSolutionSchema = null;
 
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -303,6 +335,31 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
         }
 
         await reader.NextResultAsync(ct);
+        if (await reader.ReadAsync(ct))
+        {
+            conferenceGovernance = new LinkageConferenceGovernanceStatus(
+                reader.GetString(5),
+                reader.GetGuid(0),
+                reader.GetInt32(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                reader.GetString(4),
+                reader.GetInt32(6),
+                reader.GetBoolean(7),
+                reader.GetBoolean(8),
+                ReadDateTimeOffset(reader, 10),
+                reader.GetString(9) == "NOT_ASSESSED_ISSUE_31"
+                    ? "PENDENTE_ISSUE_31"
+                    : reader.GetString(9),
+                "JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1",
+                "OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO");
+        }
+        else if (modelGovernance.ModelId is not null)
+        {
+            conferenceGovernance = conferenceGovernance with { Status = "SEM_EVIDENCIA_MODELO_ATIVO" };
+        }
+
+        await reader.NextResultAsync(ct);
         if (await reader.ReadAsync(ct) && !reader.IsDBNull(0))
             databaseSolutionSchema = reader.GetString(0);
 
@@ -326,6 +383,7 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             deliveries,
             bronze,
             modelGovernance,
+            conferenceGovernance,
             modelTransitions,
             linkageRuns);
     }
