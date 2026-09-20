@@ -45,7 +45,7 @@ A leitura autoritativa da composição usa um lock lógico por referência:
 
 Nesta fatia, o writer determinístico `publicar_referencia_progressiva_deterministica` passa a adquirir o mesmo lock antes de publicar uma referência. Isso impede que, durante o fechamento/revalidação de um componente, outra origem entre silenciosamente na referência afetada sem participar da serialização.
 
-SQL Server usa `sp_getapplock` com `LockOwner='Transaction'`; PostgreSQL usa `pg_advisory_xact_lock(hashtextextended(...))`.
+O SQL Server usa `sp_getapplock` com `LockOwner='Transaction'` para serializar a aplicação governada.
 
 ## Eventos progressivos produzidos
 
@@ -81,7 +81,7 @@ A etapa seguinte deve definir a invalidação/recomposição dos derivados e a f
 
 ## Provas exigidas em CI
 
-O workflow dedicado executa SQL Server e PostgreSQL reais e deve provar, no mínimo:
+A validação dedicada executa SQL Server 2022 real e deve provar, no mínimo:
 
 - instalação repetida das novas tabelas/guards;
 - aplicação de fusão preparada e revalidada;
