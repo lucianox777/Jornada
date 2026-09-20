@@ -29,19 +29,21 @@ A candidata v5.00 adota **Microsoft SQL Server como único runtime relacional su
 
 O inventário é derivado automaticamente por `Solution/scripts/schema-inventory.py` e publicado como evidência pelo workflow `jornada-schema-inventory`.
 
-Resultado medido em 12/09/2026 no `master`, SHA `a25488b043888ee2aeb5b292e2b638bd9491ec35`, workflow `jornada-schema-inventory` run `34722803666`:
+O último inventário automatizado predecessor, executado em 12/09/2026 no SHA `a25488b043888ee2aeb5b292e2b638bd9491ec35` (run `34722803666`), media 69 tabelas. A candidata corrente acrescenta exatamente uma tabela estrutural pelo manifesto canônico, `auditoria.decisao_identidade_evento`, para autoria transacional dos atos governados.
+
+O inventário versionado corrente é, portanto:
 
 - tabelas no `Jornada_Fase1.sql` legado: **53**;
 - tabelas próprias do núcleo `Jornada_Identidade_Progressiva.sql`: **2**;
-- tabelas distintas introduzidas pelos scripts de migração de schema: **14**;
-- total distinto do schema operacional consolidado: **69 tabelas**;
-- tabelas do schema atual que não pertencem ao baseline legado de 53: **16**.
+- tabelas adicionais distintas materializadas pelo manifesto de migrações: **15**;
+- total distinto do schema operacional consolidado: **70 tabelas**;
+- tabelas do schema atual que não pertencem ao baseline legado de 53: **17**.
 
-Portanto, a contagem histórica 53/53 não representa o schema corrente. As contagens intermediárias de 64 e 66 também ficaram superadas: o inventário automatizado atual mede 69 tabelas distintas.
+O workflow de consolidação executa o DDL completo e o fingerprint estrutural; um novo run de `schema-inventory` substitui a referência histórica acima quando o inventário documental for republicado.
 
 ## 4. Tabelas fora do baseline legado
 
-As 16 tabelas adicionais são:
+As 17 tabelas adicionais são:
 
 1. `identidade.blocking_chave`
 2. `identidade.composicao_aplicacao`
@@ -59,8 +61,12 @@ As 16 tabelas adicionais são:
 14. `ref.frequencia_nome`
 15. `ref.frequencia_nome_cobertura`
 16. `ref.frequencia_nome_versao`
+17. `auditoria.decisao_identidade_evento`
 
-## 5. Inventário completo - 69 tabelas
+## 5. Inventário completo - 70 tabelas
+
+### auditoria
+- `auditoria.decisao_identidade_evento`
 
 ### bronze
 - `bronze.entrega_arquivo`
@@ -174,7 +180,13 @@ A fila institucional continua materializada em `qualidade.divergencia_gestor`; n
 
 O índice filtrado `UX_divergencia_gestor_linkage_aberta` impede mais de uma divergência probabilística aberta para a mesma observação. A procedure `qualidade.sp_registrar_conflitos_linkage_publicados` opera dentro da transação de publicação do run e atualiza a proveniência em replay; conflitos cobertos por precedência determinística/governada não são duplicados. A view interna `qualidade.v_divergencia_linkage_contexto` reúne a fila e a evidência probabilística para auditoria restrita, sem alterar o contrato HTTP público.
 
-Essa evolução adiciona coluna, FK, índice, procedure e view, **sem acrescentar tabela**; portanto a contagem de tabelas do inventário permanece inalterada.
+A evolução de revisão governada de Linkage adiciona coluna, FK, índice, procedure e view sem acrescentar tabela. Separadamente, o ledger canônico de autoria dos atos governados acrescenta `auditoria.decisao_identidade_evento`, elevando o inventário corrente para 70 tabelas.
+
+## 6.2. Ledger canônico de decisão de identidade
+
+`auditoria.decisao_identidade_evento` é append-only e referencia a correção, o caso governado ou a divergência que materializou o ato. `operacao_id` é gerado pelo SQL Server; a autoria é a credencial `GESTOR` autenticada e validada contra o Gestor do objeto. `correlation_id` permanece contexto técnico, não identidade do decisor.
+
+A API grava o evento antes do commit da mesma transação. Falha no ledger reverte a mutação de identidade. `controle.api_evento` continua sendo telemetria/auditoria HTTP e não concorre como fonte de verdade da decisão governada.
 
 ## 7. Regras de evolução
 
