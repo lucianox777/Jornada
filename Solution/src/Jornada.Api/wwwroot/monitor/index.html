@@ -145,7 +145,7 @@
 
   function renderLinkage(items){
     if(!items?.length){ $('linkage').innerHTML='<div class="empty">Nenhuma execução de linkage registrada.</div>'; return; }
-    $('linkage').innerHTML=`<table><thead><tr><th>Início</th><th>Tipo</th><th>Status</th><th>Modelo</th><th>Avaliados</th><th>Resolvidos</th><th>Não resolvidos</th><th>Conflitos</th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(dt(x.startedAt))}</td><td>${esc(x.runType)}</td><td class="status">${esc(x.status)}</td><td>v${n(x.modelVersion)}</td><td>${n(x.evaluated)} / ${n(x.eligible)}</td><td>${n(x.resolved)}</td><td>${n(x.notResolved)}</td><td>${n(x.conflicts)}</td></tr>`).join('')}</tbody></table>`;
+    $('linkage').innerHTML=`<table><thead><tr><th>Início</th><th>Tipo</th><th>Status</th><th>Modelo</th><th>Avaliados</th><th>Resolvidos</th><th>Não resolvidos</th><th>Conflitos</th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(dt(x.startedAt))}</td><td>${esc(x.runType)}</td><td class="status">${esc(x.status)}</td><td><span class="mono">${esc(shortId(x.modelId))}</span> · v${n(x.modelVersion)}</td><td>${n(x.evaluated)} / ${n(x.eligible)}</td><td>${n(x.resolved)}</td><td>${n(x.notResolved)}</td><td>${n(x.conflicts)}</td></tr>`).join('')}</tbody></table>`;
   }
 
   async function load(){
