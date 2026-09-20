@@ -1,6 +1,6 @@
 # Estado de Engenharia — candidato Solution Engenharia v5.00
 
-**Data de consolidação:** 18/09/2026  
+**Data de consolidação:** 20/09/2026  
 **Status:** CANDIDATO TÉCNICO — RELEASE/TAG NÃO CORTADA  
 **SolutionSchema corrente:** `3.70`
 
@@ -42,7 +42,16 @@ A pendência estatística corrente é transportabilidade de `m/u`, representativ
 
 A fonte canônica permanece `Solution/database/Jornada_Fase1_v3.70.sql`, com migrações versionadas e fingerprint estrutural controlado em `CANDIDATE_INFO.json`.
 
-Antes do corte da RC, o tuple de proveniência deve corresponder ao HEAD exato escolhido e aos gates DDL executados para esse estado. Após o corte da RC, mudança estrutural exige novo checkpoint de RC.
+Antes do corte da RC, a tupla de proveniência deve apontar para um **checkpoint estrutural imutável e ancestral** do HEAD da RC. O `source_commit` não precisa ser o próprio HEAD da RC: ele representa o último estado do schema comprovadamente equivalente ao candidato corrente.
+
+O gate `jornada-schema-consolidation-370` deve provar, de forma executável, que:
+
+- o fingerprint estrutural calculado no SQL Server coincide com `structural_fingerprint_sha256`;
+- `source_commit` é ancestral do HEAD exercitado;
+- o manifesto de migrações no checkpoint possui o hash declarado;
+- `ddl_evidence_run_id` é um run bem-sucedido do workflow de consolidação cujo `head_sha` é o `source_commit`.
+
+O **HEAD exato da RC** continua sendo identificado e testado separadamente pelo CI de engenharia e pelo `.NET SourceRevisionId`. Após o corte da RC, mudança estrutural exige novo checkpoint de RC.
 
 ## 6. Documentação e UML
 
@@ -50,14 +59,22 @@ Os documentos destinados à entrega permanecem em DOCX/PDF, com UML incorporada 
 
 Documentação histórica não deve ser usada para inferir arquitetura corrente quando divergir deste estado candidato, da Especificação/Requisitos correntes ou de `CANDIDATE_INFO.json`.
 
-## 7. Pendências que bloqueiam o corte da v5.00-rc.1
+## 7. Condições para o corte técnico da v5.00-rc.1
 
-1. fechar o restante da validação estatística do calibrador SQL Server — candidate/challenger quando útil, avaliação representativa, governança do prior e suficiência do `u` condicionado ao blocking — sem reintroduzir estágio DF nem promover automaticamente evidência probabilística a rótulo de treino;
-2. manter verde o conjunto canônico de build, unitários, integração SQL, DDL/upgrade, E2E, segurança, harness e validação independente;
-3. atualizar a proveniência da candidata para o commit imutável escolhido para a RC;
-4. preservar como pendentes, sem fabricar aprovação, os gates externos/institucionais aplicáveis, inclusive validação estatística representativa do Linkage.
+O corte da RC é um **checkpoint técnico imutável**, não homologação populacional, não ativação probabilística e não release de Produção.
 
-Homologação Fabric não integra essa lista.
+Antes do corte técnico devem estar satisfeitas estas condições:
+
+1. o conjunto canônico de build, unitários, integração SQL, DDL/upgrade, E2E, segurança e harness deve estar verde no **HEAD exato** escolhido para a RC;
+2. o gate executável de proveniência do schema deve comprovar a tupla registrada em `CANDIDATE_INFO.json`;
+3. não pode haver defeito funcional ou estrutural conhecido que torne o checkpoint tecnicamente inconsistente;
+4. os gates externos devem permanecer explicitamente pendentes, sem fabricar aprovação.
+
+A validação estatística representativa do Linkage (#31) e a volumetria/decisão institucional de HML (#93) **não bloqueiam o checkpoint técnico da RC**. Elas continuam bloqueando, conforme o caso, homologação estatística, ativação/publicação probabilística, decisão institucional e promoção efetiva para Produção.
+
+A higiene física de branches (#79) também não altera o conteúdo técnico da RC.
+
+Homologação Fabric não integra essas condições.
 
 ## 8. O que este estado não autoriza
 
