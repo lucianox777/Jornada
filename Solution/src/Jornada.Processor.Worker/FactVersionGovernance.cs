@@ -1,3 +1,5 @@
+using Jornada.Contracts;
+
 namespace Jornada.Processor.Worker;
 
 internal sealed record FactVersionGovernanceSnapshot(
