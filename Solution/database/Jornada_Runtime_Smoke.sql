@@ -59,6 +59,7 @@ BEGIN TRY
     EXEC sys.sp_refreshsqlmodule N'identidade.sp_sincronizar_atribuicao_fatos';
     EXEC sys.sp_refreshsqlmodule N'auditoria.sp_registrar_decisao_identidade';
     EXEC sys.sp_refreshsqlmodule N'auditoria.v_modelo_linkage_estado_evento';
+    EXEC sys.sp_refreshsqlmodule N'auditoria.sp_calcular_fingerprint_modelo_linkage';
     EXEC sys.sp_refreshsqlmodule N'auditoria.sp_registrar_conferencia_linkage';
     EXEC sys.sp_refreshsqlmodule N'auditoria.sp_assert_conferencia_linkage_conforme';
     EXEC sys.sp_refreshsqlmodule N'auditoria.v_linkage_conferencia_evidencia';
@@ -78,6 +79,7 @@ BEGIN TRY
         THROW 51987,'Ledger canônico de transições do modelo de Linkage ausente/incompleto.',1;
 
     IF OBJECT_ID(N'auditoria.linkage_conferencia_evidencia',N'U') IS NULL
+       OR OBJECT_ID(N'auditoria.sp_calcular_fingerprint_modelo_linkage',N'P') IS NULL
        OR OBJECT_ID(N'auditoria.sp_registrar_conferencia_linkage',N'P') IS NULL
        OR OBJECT_ID(N'auditoria.sp_assert_conferencia_linkage_conforme',N'P') IS NULL
        OR OBJECT_ID(N'auditoria.tr_linkage_conferencia_evidencia_append_only',N'TR') IS NULL
