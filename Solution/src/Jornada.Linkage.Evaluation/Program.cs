@@ -25,10 +25,15 @@ if (options.ExportCalibrationPath is not null)
 {
     var exporter = new CalibrationAuditExporter(connection, options.CommandTimeoutSeconds);
     var audit = await exporter.ExportAsync(options.ModelId);
+    var json = JsonSerializer.Serialize(audit, EvaluationJson.Options);
+    var imported = LinkageCalibrationAuditRoundTrip.Import(json);
+    LinkageCalibrationAuditRoundTrip.VerifyEquivalent(audit, imported);
+
     var auditOutput = Path.GetFullPath(options.ExportCalibrationPath);
     Directory.CreateDirectory(Path.GetDirectoryName(auditOutput)!);
-    await File.WriteAllTextAsync(auditOutput, JsonSerializer.Serialize(audit, EvaluationJson.Options));
-    Console.WriteLine($"Exportação de auditoria de calibração gravada em {auditOutput}");
+    await File.WriteAllTextAsync(auditOutput, json);
+    Console.WriteLine(
+        $"Exportação de auditoria de calibração gravada em {auditOutput}; round-trip {LinkageCalibrationAuditRoundTrip.MethodVersion}=CONFORME.");
     return;
 }
 
@@ -85,7 +90,12 @@ Console.WriteLine($"Relatório de avaliação gravado em {output}");
 
 internal static class EvaluationJson
 {
-    public static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
+    public static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
 }
 
 internal sealed record EvaluationOptions(
@@ -170,7 +180,7 @@ internal sealed record EvaluationOptions(
 
         Modos mutuamente exclusivos:
           --labels <arquivo.csv>              avaliação rotulada; colunas pessoa_observacao_id,pessoa_uuid_verdade
-          --export-calibration <arquivo.json> exporta calibração/modelo somente leitura para auditoria externa
+          --export-calibration <arquivo.json> exporta calibração/modelo somente leitura e exige round-trip C# conforme
           --model-id <uuid>                   opcional no export; sem ele usa o modelo ATIVO
 
         Opções:
@@ -183,6 +193,7 @@ internal sealed record EvaluationOptions(
           --command-timeout-seconds <1..3600> padrão 900
 
         O executável faz apenas SELECT nas tabelas operacionais. O export de calibração não ativa TF nem publica modelo.
+        Antes de gravar o JSON, o exportador reimporta o documento em memória e compara modelo, parâmetros, estatísticas, blocking e proveniência campo a campo.
         V2 é evidência experimental e nunca é publicado.
         """;
 }
