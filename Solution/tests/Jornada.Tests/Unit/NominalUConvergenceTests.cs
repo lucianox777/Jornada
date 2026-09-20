@@ -31,8 +31,8 @@ public sealed class NominalUConvergenceTests
             Assert.That(result["IBGE_MC_NOMINAL_U_APPLIED_NOME"], Is.EqualTo(1m));
             Assert.That(result["IBGE_MC_NOMINAL_U_APPLIED_NOME_MAE"], Is.EqualTo(1m));
             Assert.That(result["U_NOME_EXACT"], Is.EqualTo(.10m));
-            Assert.That(result["U_NOME_MAE_EXACT"], Is.EqualTo(.09m),
-                "Missingness de mãe continua empírico: massa presente 0,9 × bootstrap EXACT 0,1.");
+            Assert.That(result["U_NOME_MAE_EXACT"], Is.EqualTo(.075m),
+                "Missingness de mãe continua empírico: 600/800=0,75 de massa presente × bootstrap EXACT 0,1.");
         });
     }
 
