@@ -46,7 +46,7 @@ A Silver distingue valores recebidos da fonte e projeções técnicas calculadas
 
 Uma derivação que depende de outra tabela, arquivo ou fonte externa não pode ser tratada como computed/generated column da linha corrente. O valor efetivamente calculado deve ser materializado com referência ao snapshot imutável consumido.
 
-Nenhuma decisão semântica ou estatística pode depender de funcionalidade exclusiva de SQL Server, PostgreSQL ou SQL Database in Microsoft Fabric.
+Nenhuma decisão semântica ou estatística pode depender de detalhe físico acidental do runtime ou da camada analítica. SQL Server é o runtime relacional corrente; SQL Database in Microsoft Fabric não substitui essa fonte de verdade operacional.
 
 ## Replay e fontes
 
@@ -66,7 +66,7 @@ Assim uma fonte externa como IBGE não é registrada apenas como `IBGE`: a calib
 
 Índices simples são a infraestrutura padrão das features promovidas. Índices compostos não participam da busca combinatória estatística: depois de escolhido o plano, o Calibrador pode medir os poucos passes finalistas e testar índice composto somente quando houver benefício operacional demonstrado.
 
-O comportamento lógico deve permanecer equivalente nos três providers de referência.
+O comportamento lógico deve permanecer equivalente entre os ambientes SQL Server suportados de desenvolvimento, CI, HML e Produção.
 
 ## Busca do ruleset
 
@@ -82,7 +82,7 @@ A auditoria sintética read-only também recusa o caso degenerado em que a médi
 
 ## Implementação operacional existente
 
-O Calibrador PostgreSQL mantém `m` como evidência independente inter-Gestores e forma `u` sob snapshot consistente. O blocking é calibrado contra os mesmos pares M/U usados na estimação do modelo.
+O Calibrador SQL Server mantém `m` como evidência independente inter-Gestores e forma `u` sob snapshot consistente. O blocking é calibrado contra os mesmos pares M/U usados na estimação do modelo.
 
 `Jornada.Linkage.Evaluation` aplica política versionada e deve registrar versão/fingerprint utilizados. Calibrador, avaliador, Processor e Runner não podem manter interpretações diferentes da mesma feature.
 
@@ -95,7 +95,7 @@ Permanecem como evolução posterior:
 - integração dos comparadores universais à avaliação/calibração de thresholds sobre candidatos;
 - novos algoritmos homologados de endereço e outras semânticas ainda não cobertas;
 - integração de frequências IBGE quando houver correspondência semântica e ganho comprovado;
-- migrations controladas/materializações equivalentes nos providers;
+- migrations controladas e materializações reproduzíveis no SQL Server;
 - benchmark de passes vencedores e índices compostos opcionais.
 
 ## Regressões obrigatórias
@@ -103,7 +103,7 @@ Permanecem como evolução posterior:
 Conforme RNF12 e RNF34-A/B:
 
 - unitárias: contratos imutáveis de algoritmo, geração/fingerprint de projeção, comparadores, replay/snapshots, lifecycle e fail-closed;
-- integração: caminhos reais de Calibrador e avaliador nos providers suportados;
+- integração: caminhos reais de Calibrador e avaliador no SQL Server suportado;
 - novos algoritmos: vetores positivos/negativos, colisões, estabilidade e regressão sobre corpus independente.
 
 Toda alteração futura deve atualizar código, testes, contratos de evidência e documentação no mesmo change-set.

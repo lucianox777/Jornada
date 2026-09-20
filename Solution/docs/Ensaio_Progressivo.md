@@ -24,4 +24,4 @@ A interpretação é deliberadamente conservadora: completude de dados não sign
 
 ## Testes
 
-Não é criada uma segunda suíte end-to-end exclusiva do executável. A lógica dos componentes continua coberta pelas suítes dos respectivos artefatos. O padrão geral de integração permanece SQL Server/LocalDB; testes PostgreSQL continuam específicos às implementações PostgreSQL. Para o ensaio, testes pequenos de plano/configuração e smoke de composição são suficientes enquanto não houver integração real de dados.
+Não é criada uma segunda suíte end-to-end exclusiva do executável. A lógica dos componentes continua coberta pelas suítes dos respectivos artefatos. O padrão geral de integração permanece SQL Server/LocalDB; não há provider ou suíte PostgreSQL no produto corrente. Para o ensaio, testes pequenos de plano/configuração e smoke de composição são suficientes enquanto não houver integração real de dados.

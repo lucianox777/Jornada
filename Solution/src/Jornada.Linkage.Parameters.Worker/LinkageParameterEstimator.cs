@@ -34,7 +34,7 @@ public static class LinkageParameterEstimator
         if (!Enum.IsDefined(birthScoringContract)) throw new ArgumentOutOfRangeException(nameof(birthScoringContract));
         if (!Enum.IsDefined(nameComparisonContract)) throw new ArgumentOutOfRangeException(nameof(nameComparisonContract));
         // V6 operacional exige o contrato semântico de nascimento. Chamadores legados
-        // (V3/V4, inclusive o piloto PostgreSQL) nunca recebem flags/estados V6 por acidente.
+        // (V3/V4) nunca recebem flags/estados V6 por acidente.
         decisionEvidenceV6 = decisionEvidenceV6 && birthScoringContract == BirthScoringContract.SemanticEvidenceV5;
 
         var matchedNameStates = matchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName, nameComparisonContract)).ToArray();

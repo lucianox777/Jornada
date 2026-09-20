@@ -27,9 +27,9 @@ A fronteira pode ser uma transação única ou protocolo versionado com staging 
 1. Inventariar os writers, leitores, chaves e dependências reais de Gold/Serving e os contratos de correção factual.
 2. Definir e testar o resolvedor histórico puro, incluindo fusão, separação, ambiguidade, indefinição e replay.
 3. Definir o plano determinístico de invalidação/recomposição e sua conservação de fatos, sem executar writes.
-4. Implementar a fronteira de publicação no provider escolhido, com rollback, concorrência, replay e isolamento de leitores.
+4. Implementar a fronteira de publicação no runtime SQL Server, com rollback, concorrência, replay e isolamento de leitores.
 5. Integrar APIs/BI versionadas e validar compatibilidade; somente depois conectar um executor automático governado.
 
 ## Gates
 
-Testes devem cobrir SQL Server e PostgreSQL quando houver persistência equivalente, dados existentes, reinstalação, concorrência, rollback, falha intermediária, replay, conservação de fatos e ausência de publicação parcial. Não utilizar CPF em claro em contratos ou telemetria. Não alterar modelo, parâmetros ou decisão probabilística nesta fatia. A aprovação técnica não constitui autorização de produção.
+Testes devem cobrir SQL Server com dados existentes, reinstalação, concorrência, rollback, falha intermediária, replay, conservação de fatos e ausência de publicação parcial. Não utilizar CPF em claro em contratos ou telemetria. Não alterar modelo, parâmetros ou decisão probabilística nesta fatia. A aprovação técnica não constitui autorização de produção.

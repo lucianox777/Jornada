@@ -46,7 +46,7 @@ Para reduzir deadlocks sem enfraquecer consistência, a ordem deve ser determin�
 4. referências canônicas afetadas em ordem estável;
 5. âncoras CPF por UUID, sem ordenar ou registrar CPF em telemetria.
 
-SQL Server e PostgreSQL podem usar mecanismos diferentes (`sp_getapplock`/row locks e advisory/row locks), mas o contrato observável deve ser equivalente.
+O SQL Server usa locks transacionais (`sp_getapplock`/row locks) e o contrato observável não pode depender de detalhes acidentais do mecanismo físico.
 
 ## Separação entre identidade, atribuição e fatos
 
@@ -62,7 +62,7 @@ Uma decisão preparada pode se tornar obsoleta por qualquer alteração de vers�
 
 ## Fronteira da próxima publicação
 
-Somente após a pré-aplicação ser provada em SQL Server e PostgreSQL será adicionada a unidade de publicação que, numa única transação ou protocolo versionado equivalente:
+Somente após a pré-aplicação ser provada em SQL Server será adicionada a unidade de publicação que, numa única transação versionada:
 
 - registra recibo de aplicação append-only;
 - grava histórico efetivado;
@@ -75,7 +75,7 @@ Nenhuma dessas ações é autorizada por este documento isoladamente.
 
 ## Evidência mínima desta fatia
 
-Antes de sair de draft, a implementação de pré-aplicação deve provar em bancos descartáveis, nos dois providers:
+Antes de sair de draft, a implementação de pré-aplicação deve provar em banco SQL Server descartável:
 
 - plano preparado válido é reconstruído de leitura autoritativa;
 - versão alterada após preparação é recusada;

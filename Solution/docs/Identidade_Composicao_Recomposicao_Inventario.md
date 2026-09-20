@@ -20,9 +20,9 @@ A base principal contém `identidade.sp_sincronizar_atribuicao_fatos`, cuja font
 
 Essas procedures já possuem gates de atomicidade/execução SQL, mas não constituem, por si só, uma fronteira versionada de publicação de uma decisão de composição. A composição nova não deve chamá-las até que o escopo factual afetado, a regra de autorização e a atomicidade com o recibo de publicação estejam definidos.
 
-### PostgreSQL
+### Runtime corrente
 
-O provider PostgreSQL possui persistência de `gold.beneficio_concedido`, `gold.servico_prestado` e Serving pelo caminho operacional, mas a superfície histórica de correção governada da base principal não deve ser presumida equivalente à de SQL Server. A próxima implementação persistente precisa provar paridade real ou declarar explicitamente uma fronteira por provider; não é permitido anunciar paridade apenas por existir tabela homóloga.
+A persistência operacional de `gold.beneficio_concedido`, `gold.servico_prestado` e Serving usa SQL Server. A fronteira de recomposição deve ser provada nesse runtime e não pode pressupor capacidades externas ao produto corrente.
 
 ## Leitores
 
@@ -46,7 +46,7 @@ Antes de qualquer writer de publicação, implementar um adapter de leitura do i
 
 1. confirme que `decision_id` possui recibo `APLICADA` íntegro;
 2. carregue todas as origens alteradas pelo plano aplicado;
-3. feche os fatos por `pessoa_origem_id`/`registro_observacao_id` nos dois providers onde a persistência for equivalente;
+3. feche os fatos por `pessoa_origem_id`/`registro_observacao_id` no SQL Server;
 4. compare o plano de impacto calculado com conteúdo persistido/versionado antes de escrever;
 5. rejeite mudança concorrente, escopo incompleto ou atribuição factual não autorizada.
 
