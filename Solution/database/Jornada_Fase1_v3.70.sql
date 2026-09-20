@@ -40,4 +40,5 @@
 :r database/migrations/20260919_Linkage_Publicacao_Progressiva.sql
 :r database/migrations/20260919_Gold_Pessoa_Progressiva.sql
 :r database/migrations/20260920_Linkage_Llr_Monotonicity_Tolerance.sql
+:r database/migrations/20260920_Linkage_Conflito_Revisao_Governada.sql
 :r database/migrations/20260910_Schema_Consolidation_370.sql
