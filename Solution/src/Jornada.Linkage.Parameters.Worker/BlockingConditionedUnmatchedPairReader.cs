@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using Jornada.Contracts;
 using Microsoft.Data.SqlClient;
 
@@ -173,7 +174,23 @@ SELECT
     CASE WHEN p.sample_rank<=@sample_size THEN b.nome_completo END AS b_nome,
     b.data_nascimento AS b_nascimento,
     CASE WHEN p.sample_rank<=@sample_size THEN b.nome_mae END AS b_mae,
-    p.sample_rank
+    p.sample_rank,
+    CASE WHEN p.sample_rank<=@sample_size THEN (
+        SELECT ga.atributo_codigo AS [attribute],ga.valor AS [value]
+        FROM gold.pessoa_atributo ga
+        WHERE ga.pessoa_uuid=p.a_uuid
+          AND ga.vigencia_fim IS NULL
+        ORDER BY ga.atributo_codigo,ga.atributo_instancia_chave,ga.pessoa_atributo_id
+        FOR JSON PATH
+    ) END AS a_resolution_values_json,
+    CASE WHEN p.sample_rank<=@sample_size THEN (
+        SELECT gb.atributo_codigo AS [attribute],gb.valor AS [value]
+        FROM gold.pessoa_atributo gb
+        WHERE gb.pessoa_uuid=p.b_uuid
+          AND gb.vigencia_fim IS NULL
+        ORDER BY gb.atributo_codigo,gb.atributo_instancia_chave,gb.pessoa_atributo_id
+        FOR JSON PATH
+    ) END AS b_resolution_values_json
 FROM ordered_pairs p
 JOIN gold_sample a ON a.pessoa_uuid=p.a_uuid
 JOIN gold_sample b ON b.pessoa_uuid=p.b_uuid
@@ -201,7 +218,9 @@ ORDER BY p.sample_rank;
                 reader.IsDBNull(2) ? null : reader.GetString(2),
                 reader.GetString(3),
                 rightBirth,
-                reader.IsDBNull(5) ? null : reader.GetString(5)));
+                reader.IsDBNull(5) ? null : reader.GetString(5),
+                LeftResolutionValues: ParseResolutionValues(reader.IsDBNull(7) ? "[]" : reader.GetString(7)),
+                RightResolutionValues: ParseResolutionValues(reader.IsDBNull(8) ? "[]" : reader.GetString(8))));
         }
 
         var verified = BlockingConditionedTrainingPairFilter.Retain(result, canonicalPasses);
@@ -209,5 +228,20 @@ ORDER BY p.sample_rank;
             throw new InvalidOperationException($"Invariante violada: {result.Count - verified.Count} pares u amostrados não sobreviveram ao ruleset consultado.");
 
         return new BlockingConditionedUnmatchedPairSample(result, support, candidatePoolSize);
+    }
+
+    private static IReadOnlyList<ResolutionSourceValue> ParseResolutionValues(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var values = new List<ResolutionSourceValue>();
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            var attribute = item.GetProperty("attribute").GetString();
+            var value = item.GetProperty("value").GetString();
+            if (string.IsNullOrWhiteSpace(attribute) || value is null)
+                throw new InvalidOperationException("Atributo Gold vigente inválido durante a verificação do ruleset.");
+            values.Add(new ResolutionSourceValue(attribute, value));
+        }
+        return values;
     }
 }
