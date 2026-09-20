@@ -1124,16 +1124,25 @@ public sealed class ProcessorRepositoryTests
             IF @template IS NULL THROW 51298,'Fixture sem Entrega factual BENEFICIO.',1;
 
             DECLARE @entrega UNIQUEIDENTIFIER=NEWID();
+            DECLARE @sha CHAR(64)=LOWER(CONVERT(varchar(64),HASHBYTES('SHA2_256',@idempotency),2));
             INSERT ingestao.entrega(
                 entrega_id,gestor_id,sistema_origem_id,gestor_pessoa_versao_id,
                 natureza,tipo_registro_id,tipo_registro_versao_id,idempotency_key,
                 payload_sha256,bytes_recebidos,status,data_referencia,recebido_em,ultima_atualizacao)
             SELECT @entrega,gestor_id,sistema_origem_id,gestor_pessoa_versao_id,
                    natureza,tipo_registro_id,tipo_registro_versao_id,@idempotency,
-                   LOWER(CONVERT(varchar(64),HASHBYTES('SHA2_256',@idempotency),2)),
-                   1,'RECEBIDA',data_referencia,SYSDATETIMEOFFSET(),SYSDATETIMEOFFSET()
+                   @sha,1,'RECEBIDA',data_referencia,
+                   TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00'),
+                   TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00')
             FROM ingestao.entrega
             WHERE entrega_id=@template;
+
+            INSERT bronze.entrega_arquivo(
+                entrega_id,nome_arquivo,content_type,objeto_chave,payload_sha256,tamanho_bytes,recebido_em)
+            VALUES(
+                @entrega,CONCAT('RNCT12_',@sha,'.zip'),'application/zip',
+                CONCAT('sha256/rn/ct/',@sha,'.zip'),@sha,1,
+                TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00'));
 
             INSERT ingestao.lote(
                 lote_id,entrega_id,lote_seq,lote_total,qtd_pessoas,qtd_registros,status)
