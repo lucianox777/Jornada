@@ -48,7 +48,7 @@ Cada exportação executa obrigatoriamente `JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_
 
 ## 4.2. Conferência independente de implementação
 
-A candidata contém a engine `JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1` em `Jornada.Linkage.Evaluation`, projeto separado que não referencia o Runner nem o Core operacional. A engine recebe estados comparativos já formados e recalcula de forma independente LLR, agregação, posterior, ranking, threshold, margem e guards até a decisão final.
+A candidata contém a engine `JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1` em `Jornada.Linkage.Evaluation`, projeto separado que não referencia o Runner nem o Core operacional. A engine recebe estados comparativos e o flag de risco demográfico já formados e recalcula de forma independente LLR, agregação, posterior, ranking, threshold, margem e aplicação dos guards até a decisão final. A formação dos estados e a derivação do flag de risco permanecem fora da afirmação de independência.
 
 A afirmação é deliberadamente limitada: comparadores de nome/data continuam **fora do escopo**, porque seus estados já chegam prontos à conferência. O gate primário exige LLR por par dentro de tolerância previamente congelada e decisão final exatamente equivalente; top-1, Spearman e diferença de log-odds são diagnósticos.
 
