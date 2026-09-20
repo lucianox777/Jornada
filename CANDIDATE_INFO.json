@@ -14,14 +14,14 @@
     "solution_schema": "v3.70",
     "schema_provenance": {
       "status": "MUTABLE_UNTIL_RC_CUT",
-      "source_commit": "3e830831c1bfe1444462e1515cfcc745f6379861",
+      "source_commit": "73814dcd0c4abc7819b6c595583965a5975cbf0e",
       "canonical_ddl": "Solution/database/Jornada_Fase1_v3.70.sql",
-      "structural_fingerprint_sha256": "4375ea6cb762d15727f358e5561d9415d4ed90d07528a1f4f84b3eabcba34eb5",
+      "structural_fingerprint_sha256": "c5d6fda80e8ef5ca4a087ef1e87066607fa5f31dbcb466ee4d62750155969d18",
       "structural_fingerprint_method": "SHA256_SORTED_METADATA_LINES_FROM_Jornada_Dev_DdlFingerprint.sql",
       "migration_manifest": "Solution/database/migrations/manifest.txt",
-      "migration_manifest_sha256": "25cde9e7023998ff8f090188313f68ffa8c21a23e220524ac879a8c404f17667",
+      "migration_manifest_sha256": "a4442c53f3c9213fd65d120560fdf99d34296a626fe5593303323799cbf9aa7d",
       "migration_manifest_hash_method": "SHA256_UTF8_LF",
-      "ddl_evidence_run_id": 35473135218,
+      "ddl_evidence_run_id": 35494426875,
       "rc_rule": "Before the technical RC is cut, source_commit and both hashes may move together. Once v5.00-rc.1 is cut, this provenance tuple is immutable; a structural change requires a new RC checkpoint."
     },
     "technical_rc": {
