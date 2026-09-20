@@ -44,7 +44,7 @@ public sealed class CandidateInfoTests
 
             Assert.That(technicalRc.GetProperty("identifier").GetString(), Is.EqualTo("v5.00-rc.1"));
             Assert.That(technicalRc.GetProperty("semver").GetString(), Is.EqualTo("5.0.0-rc.1"));
-            Assert.That(technicalRc.GetProperty("status").GetString(), Is.EqualTo("PREPARED_NOT_CUT"));
+            Assert.That(technicalRc.GetProperty("status").GetString(), Is.EqualTo("CHECKPOINT_CONTENT"));
             Assert.That(technicalRc.GetProperty("release_effect").GetString(), Is.EqualTo("NONE"));
             Assert.That(technicalRc.GetProperty("assembly_version").GetString(), Is.EqualTo("5.0.0.0"));
             Assert.That(technicalRc.GetProperty("file_version").GetString(), Is.EqualTo("5.0.0.0"));
@@ -76,7 +76,7 @@ public sealed class CandidateInfoTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(provenance.GetProperty("status").GetString(), Is.EqualTo("MUTABLE_UNTIL_RC_CUT"));
+            Assert.That(provenance.GetProperty("status").GetString(), Is.EqualTo("BOUND_FOR_TECHNICAL_RC"));
             Assert.That(provenance.GetProperty("canonical_ddl").GetString(), Is.EqualTo(candidateState.GetProperty("canonical_ddl").GetString()));
             Assert.That(provenance.GetProperty("migration_manifest_hash_method").GetString(), Is.EqualTo("SHA256_UTF8_LF"));
             Assert.That(recordedManifestHash, Is.EqualTo(manifestHash));
@@ -95,6 +95,7 @@ public sealed class CandidateInfoTests
             Assert.That(workflow, Does.Contain("structural_fingerprint_sha256"));
             Assert.That(workflow, Does.Contain("ddl_evidence_run_id"));
             Assert.That(workflow, Does.Contain("actions/runs/$ddl_run_id"));
+            Assert.That(workflow, Does.Contain("CANDIDATE_INFO.json"));
         });
     }
 
@@ -132,6 +133,34 @@ public sealed class CandidateInfoTests
             Assert.That(assembly.GetName().Version?.ToString(), Is.EqualTo(expectedAssemblyVersion));
             Assert.That(fileVersion, Is.EqualTo(expectedFileVersion));
             Assert.That(informationalVersion, Does.StartWith(expectedSemVer!));
+        });
+    }
+
+    [Test]
+    public void Technical_rc_tag_must_have_dedicated_non_normative_evidence_path()
+    {
+        var root = FindRepositoryRoot();
+        var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
+        var rcGate = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "technical-rc-gate.py"));
+        var rcEvidence = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "rc-evidence-gate.py"));
+        var rcBundle = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "build-rc-source-bundle.sh"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(workflow, Does.Contain("release-promotion:\n    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'jornada-solution-v')"));
+            Assert.That(workflow, Does.Contain("rc-evidence:"));
+            Assert.That(workflow, Does.Contain("contains(github.ref_name, '-rc.')"));
+            Assert.That(workflow, Does.Contain("contents: write"));
+            Assert.That(workflow, Does.Contain("gh release create"));
+            Assert.That(workflow, Does.Contain("--prerelease"));
+            Assert.That(workflow, Does.Contain("Jornada_Dev_DdlFingerprint.sql"));
+            Assert.That(workflow, Does.Contain("RC_SCHEMA_PROVENANCE.json"));
+            Assert.That(rcGate, Does.Contain("CHECKPOINT_CONTENT"));
+            Assert.That(rcGate, Does.Contain("release_effect"));
+            Assert.That(rcEvidence, Does.Contain("TECHNICAL_RC_EVIDENCE"));
+            Assert.That(rcEvidence, Does.Contain("LINKAGE_REPRESENTATIVE_STATISTICAL_VALIDATION"));
+            Assert.That(rcBundle, Does.Contain("RC_SOURCE_PROVENANCE.json"));
+            Assert.That(rcBundle, Does.Contain("git bundle verify"));
         });
     }
 

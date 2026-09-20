@@ -13,7 +13,7 @@
     "release_status": "NOT_RELEASED",
     "solution_schema": "v3.70",
     "schema_provenance": {
-      "status": "MUTABLE_UNTIL_RC_CUT",
+      "status": "BOUND_FOR_TECHNICAL_RC",
       "source_commit": "271d346ed77f88e1d19dabe20747b1a3c1b85726",
       "canonical_ddl": "Solution/database/Jornada_Fase1_v3.70.sql",
       "structural_fingerprint_sha256": "40f38b37439e9a84cbf02d28a812efd4a78b373a72f8f0ce697558296c6b70f6",
@@ -22,17 +22,17 @@
       "migration_manifest_sha256": "b9fac3f4fae54b837bcdeb0331d89c4063b08bc78f3d61db9dc9a9a35bb94761",
       "migration_manifest_hash_method": "SHA256_UTF8_LF",
       "ddl_evidence_run_id": 35496093689,
-      "rc_rule": "Before the technical RC is cut, source_commit identifies an ancestor schema checkpoint whose manifest and structural fingerprint are equivalent to the current candidate and whose ddl_evidence_run_id is successful evidence for that checkpoint. Once v5.00-rc.1 is cut, this provenance tuple is immutable; a structural change requires a new RC checkpoint."
+      "rc_rule": "source_commit identifies an ancestor schema checkpoint whose manifest and structural fingerprint are equivalent to this technical RC content. The v5.00-rc.1 tag makes this tuple immutable; a later structural change requires a new RC checkpoint."
     },
     "technical_rc": {
       "identifier": "v5.00-rc.1",
       "semver": "5.0.0-rc.1",
-      "status": "PREPARED_NOT_CUT",
+      "status": "CHECKPOINT_CONTENT",
       "release_effect": "NONE",
       "assembly_version": "5.0.0.0",
       "file_version": "5.0.0.0",
       "source_revision_binding": "DOTNET_SOURCE_REVISION_ID",
-      "cut_rule": "A technical RC is an immutable Git commit selected only after the engineering CI for that exact commit is green. Cutting a technical RC does not rewrite RELEASE_INFO.txt, does not publish a normative release and does not close external gates."
+      "cut_rule": "This commit content is eligible to become the immutable technical RC only after engineering CI for the exact commit is green. The external act of creating the tag/pre-release does not rewrite RELEASE_INFO.txt, does not publish a normative release and does not close external gates."
     },
     "published_specification": "Documentos/Especificacao_Tecnica_Jornada_v3.62.pdf",
     "published_specification_version": "v3.62",
@@ -51,8 +51,8 @@
   "notes": [
     "This manifest describes candidate state only and does not publish or seal a release.",
     "RELEASE_INFO.txt remains the authoritative metadata for the last sealed release.",
-    "The mutable candidate records the durable master commit and schema hashes that produced its current schema snapshot; .NET SourceRevisionId continues to identify each binary build.",
-    "The technical RC is prepared but not cut until CI is green for the exact immutable commit selected as the RC checkpoint.",
+    "The candidate binds an ancestor structural checkpoint and schema hashes; .NET SourceRevisionId continues to identify each binary build.",
+    "technical_rc.status describes intrinsic checkpoint content; the existence of the immutable tag/pre-release records the external cut event after exact-commit CI is green.",
     "Microsoft SQL Server is the operational relational target for Production; Fabric SQL evidence is historical compatibility evidence and is not a release gate for this candidate."
   ]
 }

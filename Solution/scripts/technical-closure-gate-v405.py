@@ -1067,6 +1067,22 @@ def main() -> None:
     release_evidence_gate = (ROOT / "scripts" / "release-evidence-gate.py").read_text(encoding="utf-8")
     release_evidence_policy = json.loads((ROOT / "config" / "release" / "release-evidence-policy.json").read_text(encoding="utf-8"))
     require(release_evidence_gate, ["RELEASE_EVIDENCE.json", "evidenceCombinedSha256", "releaseEvidenceEnvelopeSha256", "releaseInfoSha256", "policySha256", "artifactFileCount", "inventory_artifact", "RELEASE EVIDENCE GATE: OK"], "gate agregado de evidências")
+    technical_rc_gate = (ROOT / "scripts" / "technical-rc-gate.py").read_text(encoding="utf-8")
+    rc_bundle_builder = (ROOT / "scripts" / "build-rc-source-bundle.sh").read_text(encoding="utf-8")
+    rc_evidence_gate = (ROOT / "scripts" / "rc-evidence-gate.py").read_text(encoding="utf-8")
+    require(technical_rc_gate, [
+        "CHECKPOINT_CONTENT", "BOUND_FOR_TECHNICAL_RC", "release_effect", "NONE",
+        "refs/tags/{expected_tag}", "merge-base", "migration_manifest_sha256", "TECHNICAL RC GATE: OK"
+    ], "gate do checkpoint técnico")
+    require(rc_bundle_builder, [
+        "technical-rc-gate.py", "Jornada_RC_Source.bundle", "RC_SOURCE_PROVENANCE.json",
+        "TECHNICAL_RC_SOURCE_PROVENANCE", "git bundle verify"
+    ], "bundle de fonte da RC")
+    require(rc_evidence_gate, [
+        "TECHNICAL_RC_EVIDENCE", "RC_SCHEMA_PROVENANCE.json", "RC_SOURCE_PROVENANCE.json",
+        "HML_REPRESENTATIVE_VOLUMETRY", "LINKAGE_REPRESENTATIVE_STATISTICAL_VALIDATION",
+        "TECHNICAL RC EVIDENCE GATE: OK"
+    ], "envelope durável de evidência da RC")
     expected_artifacts = {"release-static-gates","nuget-lockfiles","unit-test-evidence","openapi-runtime-evidence","integration-test-evidence","fault-injection-evidence","sbom-cyclonedx","linkage-evaluation-smoke","ddl-upgrade-evidence","local-e2e-evidence","bronze-restore-drill","scale-harness-smoke","release-source-provenance","deterministic-build-evidence","security-analysis-evidence"}
     configured_artifacts = {x.get("name") for x in release_evidence_policy.get("requiredArtifacts", [])}
     if configured_artifacts != expected_artifacts:
@@ -1322,6 +1338,21 @@ def main() -> None:
     ], "runtime smoke SQL")
     ci = CI_WORKFLOW.read_text(encoding="utf-8")
     require(ci, ["Jornada_Runtime_Smoke.sql", "SQL runtime semantic smoke"], "CI runtime smoke")
+    require(ci, [
+        "rc-evidence:",
+        "startsWith(github.ref_name, 'jornada-solution-v')",
+        "contains(github.ref_name, '-rc.')",
+        "technical-rc-gate.py",
+        "build-rc-source-bundle.sh",
+        "rc-evidence-gate.py",
+        "Jornada_Dev_DdlFingerprint.sql",
+        "RC_SCHEMA_PROVENANCE.json",
+        "actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d",
+        "contents: write",
+        "gh release create",
+        "--prerelease",
+        "technical-rc-evidence",
+    ], "roteamento e evidência durável de RC técnico")
     require(ci, [
         "Generate and validate NuGet lock files on branches and PRs",
         "Require committed NuGet lock files on release tags",
