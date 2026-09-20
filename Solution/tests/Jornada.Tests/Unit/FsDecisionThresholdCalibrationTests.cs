@@ -36,6 +36,8 @@ public sealed class FsDecisionThresholdCalibrationTests
         {
             Assert.That(result.Selected, Is.Not.Null);
             Assert.That(result.Selected!.Candidate.Threshold, Is.EqualTo(.98m));
+            Assert.That(result.Selected.Candidate.DualThresholdConflictFloor, Is.EqualTo(.70000001m),
+                "O piso deve descer até imediatamente acima do segundo candidato positivo observado, sem alterar VALIDATION.");
             Assert.That(result.Selected.Validation.FalsePositive, Is.Zero);
             Assert.That(result.Selected.Validation.FalseNegative, Is.Zero);
             Assert.That(result.Selected.Test.FalsePositive, Is.Zero);
@@ -46,6 +48,8 @@ public sealed class FsDecisionThresholdCalibrationTests
         Assert.Multiple(() =>
         {
             Assert.That(promoted[LinkageParameterCatalog.Threshold], Is.EqualTo(.98m));
+            Assert.That(promoted[LinkageParameterCatalog.DualThresholdConflictFloorV2], Is.EqualTo(1m));
+            Assert.That(promoted[LinkageParameterCatalog.DualThresholdConflictFloor], Is.EqualTo(.70000001m));
             Assert.That(promoted["FS_DECISION_THRESHOLD_PARETO_V1"], Is.EqualTo(1m));
             Assert.That(promoted["FS_DECISION_CALIBRATION_VALIDATION_FP"], Is.Zero);
             Assert.That(promoted["FS_DECISION_CALIBRATION_TEST_FP"], Is.Zero);
