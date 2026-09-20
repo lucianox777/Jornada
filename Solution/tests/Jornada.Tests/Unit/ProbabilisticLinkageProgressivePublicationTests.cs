@@ -38,7 +38,8 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
             Assert.That(sql, Does.Contain("@linkage_run_id=@run_id"));
             Assert.That(migration, Does.Contain("status=N'PUBLICADO'"));
             Assert.That(migration, Does.Contain("r.status_publicacao=N'CONFLITO'"));
-            Assert.That(migration, Does.Contain("d.correlation_id=@linkage_run_id"));
+            Assert.That(migration, Does.Contain("d.linkage_run_id=@linkage_run_id"));
+            Assert.That(migration, Does.Contain("lr.correlation_id"));
             Assert.That(migration, Does.Contain("qualidade.v_divergencia_linkage_contexto"));
             Assert.That(migration, Does.Contain("r.score_melhor"));
             Assert.That(migration, Does.Contain("r.segundo_candidato_uuid"));
