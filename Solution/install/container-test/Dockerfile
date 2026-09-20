@@ -15,6 +15,7 @@ COPY src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csp
 COPY src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj src/Jornada.Linkage.Runner/packages.lock.json src/Jornada.Linkage.Runner/
 COPY src/Jornada.Bronze.Verify/Jornada.Bronze.Verify.csproj src/Jornada.Bronze.Verify/packages.lock.json src/Jornada.Bronze.Verify/
 COPY src/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.csproj src/Jornada.Linkage.Evaluation/packages.lock.json src/Jornada.Linkage.Evaluation/
+COPY src/Jornada.Linkage.Conference/Jornada.Linkage.Conference.csproj src/Jornada.Linkage.Conference/packages.lock.json src/Jornada.Linkage.Conference/
 COPY clients/Jornada.Integrador.CSharp/Jornada.Integrador.CSharp.csproj clients/Jornada.Integrador.CSharp/packages.lock.json clients/Jornada.Integrador.CSharp/
 
 # ProjectReferences transitivos dos artefatos publicados.
@@ -34,6 +35,7 @@ RUN dotnet restore src/Jornada.Api/Jornada.Api.csproj --locked-mode \
  && dotnet restore src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj --locked-mode \
  && dotnet restore src/Jornada.Bronze.Verify/Jornada.Bronze.Verify.csproj --locked-mode \
  && dotnet restore src/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.csproj --locked-mode \
+ && dotnet restore src/Jornada.Linkage.Conference/Jornada.Linkage.Conference.csproj --locked-mode \
  && dotnet restore clients/Jornada.Integrador.CSharp/Jornada.Integrador.CSharp.csproj --locked-mode
 
 COPY . .
@@ -47,6 +49,7 @@ RUN dotnet publish src/Jornada.Api/Jornada.Api.csproj -c Release --no-restore -o
  && dotnet publish src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj -c Release --no-restore -o /out/apps/Jornada.Linkage.Runner \
  && dotnet publish src/Jornada.Bronze.Verify/Jornada.Bronze.Verify.csproj -c Release --no-restore -o /out/tools/Jornada.Bronze.Verify \
  && dotnet publish src/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.csproj -c Release --no-restore -o /out/tools/Jornada.Linkage.Evaluation \
+ && dotnet publish src/Jornada.Linkage.Conference/Jornada.Linkage.Conference.csproj -c Release --no-restore -o /out/tools/Jornada.Linkage.Conference \
  && dotnet publish clients/Jornada.Integrador.CSharp/Jornada.Integrador.CSharp.csproj -c Release --no-restore -o /out/clients/Jornada.Integrador
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
