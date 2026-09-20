@@ -37,10 +37,22 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
         {
             command.CommandText = """
                 SELECT po.pessoa_observacao_id,vc.pessoa_uuid,g.codigo,po.codigo_pessoa_origem,
-                       po.nome_completo,po.data_nascimento,po.nome_mae,COALESCE(vc.status,'NAO_RESOLVIDO'),vc.motivo
+                       COALESCE(pr.nome_referencia,obs_ns.valor,po.nome_completo) AS nome_referencia,
+                       po.data_nascimento,po.nome_mae,COALESCE(vc.status,'NAO_RESOLVIDO'),vc.motivo
                 FROM silver.pessoa_observacao po
                 JOIN ref.gestor g ON g.gestor_id=po.gestor_id
                 LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+                LEFT JOIN serving.v_pessoa pr ON pr.pessoa_uuid=vc.pessoa_uuid
+                OUTER APPLY(
+                    SELECT TOP(1) pa.valor
+                    FROM silver.pessoa_atributo_observacao pa
+                    WHERE pa.pessoa_observacao_id=po.pessoa_observacao_id
+                      AND pa.atributo_codigo=N'NOME_SOCIAL'
+                      AND NULLIF(LTRIM(RTRIM(pa.valor)),N'') IS NOT NULL
+                    ORDER BY CASE WHEN pa.status_evidencia=N'COMPROVADO' THEN 0 ELSE 1 END,
+                             COALESCE(pa.referencia_evidencia,pa.verificado_em,pa.atualizado_em_origem) DESC,
+                             pa.pessoa_atributo_observacao_id DESC
+                ) obs_ns
                 WHERE po.cpf=@cpf
                 ORDER BY po.source_as_of DESC,po.pessoa_observacao_id DESC;
                 """;
