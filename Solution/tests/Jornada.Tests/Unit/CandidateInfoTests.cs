@@ -136,6 +136,34 @@ public sealed class CandidateInfoTests
         });
     }
 
+    [Test]
+    public void Technical_rc_tag_must_have_dedicated_non_normative_evidence_path()
+    {
+        var root = FindRepositoryRoot();
+        var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
+        var rcGate = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "technical-rc-gate.py"));
+        var rcEvidence = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "rc-evidence-gate.py"));
+        var rcBundle = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "build-rc-source-bundle.sh"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(workflow, Does.Contain("release-promotion:\n    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'jornada-solution-v')"));
+            Assert.That(workflow, Does.Contain("rc-evidence:"));
+            Assert.That(workflow, Does.Contain("contains(github.ref_name, '-rc.')"));
+            Assert.That(workflow, Does.Contain("contents: write"));
+            Assert.That(workflow, Does.Contain("gh release create"));
+            Assert.That(workflow, Does.Contain("--prerelease"));
+            Assert.That(workflow, Does.Contain("Jornada_Dev_DdlFingerprint.sql"));
+            Assert.That(workflow, Does.Contain("RC_SCHEMA_PROVENANCE.json"));
+            Assert.That(rcGate, Does.Contain("CHECKPOINT_CONTENT"));
+            Assert.That(rcGate, Does.Contain("release_effect"));
+            Assert.That(rcEvidence, Does.Contain("TECHNICAL_RC_EVIDENCE"));
+            Assert.That(rcEvidence, Does.Contain("LINKAGE_REPRESENTATIVE_STATISTICAL_VALIDATION"));
+            Assert.That(rcBundle, Does.Contain("RC_SOURCE_PROVENANCE.json"));
+            Assert.That(rcBundle, Does.Contain("git bundle verify"));
+        });
+    }
+
     private static string FindRepositoryRoot()
     {
         var current = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
