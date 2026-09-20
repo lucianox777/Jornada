@@ -187,6 +187,13 @@ public static class LinkageCalibrationAuditRoundTrip
 
         if (document.TermFrequency.RuntimeEnabled)
             throw new InvalidDataException("O artefato de auditoria não pode declarar term frequency habilitada no runtime.");
+        if (!string.Equals(
+                document.TermFrequency.AlgorithmVersion,
+                SplinkCompatibleTermFrequency.AlgorithmVersion,
+                StringComparison.Ordinal))
+            throw new InvalidDataException("Versão da matemática de term frequency diverge do contrato corrente.");
+        if (document.TermFrequency.PersistedModelFrequencyRows < 0)
+            throw new InvalidDataException("Quantidade de frequências persistidas não pode ser negativa.");
 
         if (document.Model.NameFrequencyVersionId is long pinnedReferenceId)
         {
