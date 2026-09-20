@@ -13,7 +13,7 @@ Estado: contrato, persistência, cutover transacional do UUID inicial, âncora C
 | `identidade.cpf_ancora` e writers SQL Server | Âncora CPF permanente integrada. CPF admitido recupera sempre o mesmo UUID e não pode ser transferido por composição probabilística. |
 | `IdentityComposition*` | Planejamento, ledger, leitura autoritativa, aplicação, recomposição e publicação atômica implementados, com replay, rollback e conservação da autoridade factual. |
 | `database/Jornada_Fase1.sql` | `identidade.vinculo_fonte.status='RESOLVIDO'` permanece: esse estado significa atribuição de uma observação e não deve ser confundido com `REFERENCIA`. |
-| Linkage Parameters/Calibration/Scoring | Resultado bruto e decisão operacional publicada são persistidos separadamente. `initial_uuid` não entra no score; pode ser promovido somente em `NOVA_IDENTIDADE` após run completo/materializado sem candidato. Issue #31 continua sendo o gate estatístico independente antes da ativação real. |
+| Linkage Parameters/Calibration/Scoring | Resultado bruto e decisão operacional publicada são persistidos separadamente. `initial_uuid` não entra no score; pode ser promovido somente em `NOVA_IDENTIDADE` após run completo/materializado sem candidato. Conflito probabilístico publicado entra de forma idempotente na fila institucional e mantém FK para o `linkage_resultado` auditável. Issue #31 continua sendo o gate estatístico independente antes da ativação real. |
 
 ## Superfícies externas e derivadas
 
@@ -37,7 +37,7 @@ Estado: contrato, persistência, cutover transacional do UUID inicial, âncora C
 
 **4 — âncora CPF universal: implementado.** `identidade.cpf_ancora` é fonte permanente para CPF admitido, com imutabilidade, concorrência, UUID órfão e correção governada sem transferência silenciosa de âncora.
 
-**5 — publicação de referência e composição reversível: implementado estruturalmente.** Ledger, leitura fechada, aplicação, recomposição, publicação atômica Gold/Serving e continuidade histórica publicada estão implementados no runtime SQL Server. O Linkage mantém resultado bruto e decisão publicada separados; associação exige destino canônico estabelecido e nova identidade exige busca completa sem candidato. Isso não autoriza ativação probabilística real.
+**5 — publicação de referência e composição reversível: implementado estruturalmente.** Ledger, leitura fechada, aplicação, recomposição, publicação atômica Gold/Serving e continuidade histórica publicada estão implementados no runtime SQL Server. O Linkage mantém resultado bruto e decisão publicada separados; associação exige destino canônico estabelecido, nova identidade exige busca completa sem candidato e conflito publicado é encaminhado à fila governada existente sem duplicar score/candidatos. Isso não autoriza ativação probabilística real.
 
 **6 — APIs e BI: implementado estruturalmente.** A API de origem progressiva, as projeções Serving e o modelo semântico BI expõem explicitamente identidade de origem, referência canônica, estado e métricas de contagem sem duplicar Pessoas. A continuidade histórica publicada é preservada sem eleger sucessor arbitrário.
 
@@ -57,4 +57,4 @@ Estado: contrato, persistência, cutover transacional do UUID inicial, âncora C
 - UUID histórico nunca é reciclado; separação não redireciona dados para sucessor arbitrário.
 - KPIs substantivos de população/atendimento continuam contando referências canônicas distintas; QC e BI de identidade/completude podem e devem expor `PROVISORIA` e `INDEFINIDA` separadamente, usando `initial_uuid` apenas como chave técnica da casca progressiva, nunca como pessoa canônica.
 - CI e testes não autorizam por si só ativação de modelo probabilístico.
-- Não há módulo de Regularização Cadastral nem decisão humana obrigatória caso a caso.
+- Não há módulo de Regularização Cadastral nem decisão humana obrigatória caso a caso no fluxo normal; conflitos publicados permanecem exceções governadas encaminhadas à fila institucional para desfecho finalístico.
