@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using Jornada.Contracts;
 using Jornada.Linkage.Conference;
 using Jornada.Linkage.Evaluation;
@@ -213,7 +214,7 @@ public sealed class GovernedImplementationConferenceCommandTests
         {
             exists.CommandText =
                 "SELECT COUNT(*) FROM ref.frequencia_nome_versao WHERE status='ATIVA';";
-            if (Convert.ToInt32(await exists.ExecuteScalarAsync()) > 0)
+            if (Convert.ToInt32(await exists.ExecuteScalarAsync(), CultureInfo.InvariantCulture) > 0)
                 return;
         }
 
