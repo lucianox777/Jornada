@@ -126,7 +126,9 @@ O BI deve distinguir identidade de origem de referência canônica e evitar dupl
 
 Dados sensíveis seguem minimização, finalidade e controles de acesso compatíveis com LGPD. A identidade técnica não amplia automaticamente o compartilhamento de dados. Correções cadastrais permanecem responsabilidade das áreas finalísticas; a Jornada preserva versões e evidências recebidas.
 
-Não existe módulo obrigatório de Regularização Cadastral nem decisão humana caso a caso como requisito do fluxo normal.
+Conflito probabilístico efetivamente **publicado** é exceção governada ao fluxo automático: o Runner registra/atualiza uma divergência institucional aberta em `qualidade.divergencia_gestor`, ligada por FK ao `identidade.linkage_resultado` que originou o conflito. A fila continua única; modelo, run, candidatos, scores e margem permanecem na evidência imutável de Linkage e podem ser auditados pela superfície interna `qualidade.v_divergencia_linkage_contexto`. Conflitos apenas calculados em validação não são enviados à fila, e precedência determinística/governada não é duplicada como conflito probabilístico.
+
+A fila não autoriza correção automática. O Gestor registra o desfecho e, quando houver mudança de identidade, usa o fluxo governado de casos/correção com ato e justificativa. Não existe módulo obrigatório de Regularização Cadastral nem decisão humana caso a caso como requisito do fluxo normal; revisão institucional é exigida somente nas exceções que permaneceram conflitantes após as guardas automáticas.
 
 ## 11. Gates de ativação
 
