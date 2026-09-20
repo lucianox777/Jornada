@@ -219,11 +219,6 @@ BEGIN
  IF DATALENGTH(@request_sha256)<>32 OR DATALENGTH(@report_sha256)<>32
     THROW 51977,'Hashes SHA-256 da conferência são obrigatórios.',1;
 
- DECLARE @source_revision NVARCHAR(80)=
-   LEFT(CONVERT(NVARCHAR(80),SESSION_CONTEXT(N'Jornada.SourceRevision')),80);
- IF NULLIF(LTRIM(RTRIM(@source_revision)),N'') IS NULL
-    THROW 51992,'Registro de conferência exige source_revision técnica explícita.',1;
-
  DECLARE @status_modelo NVARCHAR(20);
  SELECT @status_modelo=status
  FROM identidade.modelo_linkage WITH(HOLDLOCK)
@@ -255,43 +250,6 @@ BEGIN
       @modelo_id=@modelo_id,
       @fingerprint=@modelo_snapshot_sha256 OUTPUT;
 
- DECLARE @existente UNIQUEIDENTIFIER=NULL,
-         @existente_request_sha256 BINARY(32)=NULL,
-         @existente_modelo_snapshot_sha256 BINARY(32)=NULL,
-         @existente_source_revision NVARCHAR(80)=NULL,
-         @existente_modelo_versao INT=NULL,
-         @existente_metodo NVARCHAR(120)=NULL,
-         @existente_tolerancia NVARCHAR(120)=NULL,
-         @existente_status NVARCHAR(20)=NULL;
-
- SELECT
-   @existente=evidencia_id,
-   @existente_request_sha256=request_sha256,
-   @existente_modelo_snapshot_sha256=modelo_snapshot_sha256,
-   @existente_source_revision=source_revision,
-   @existente_modelo_versao=modelo_versao,
-   @existente_metodo=metodo_versao,
-   @existente_tolerancia=tolerancia_versao,
-   @existente_status=status
- FROM auditoria.linkage_conferencia_evidencia WITH(UPDLOCK,HOLDLOCK)
- WHERE modelo_id=@modelo_id
-   AND report_sha256=@report_sha256;
-
- IF @existente IS NOT NULL
- BEGIN
-   IF @existente_request_sha256<>@request_sha256
-      OR @existente_modelo_snapshot_sha256<>@modelo_snapshot_sha256
-      OR @existente_source_revision<>@source_revision
-      OR @existente_modelo_versao<>@modelo_versao
-      OR @existente_metodo<>@metodo_versao
-      OR @existente_tolerancia<>@tolerancia_versao
-      OR @existente_status<>@status
-      THROW 51991,'Hash de relatório já registrado com conteúdo/snapshot de conferência incompatível.',1;
-
-   SET @evidencia_id=@existente;
-   RETURN;
- END;
-
  SET @evidencia_id=NEWID();
 
  INSERT auditoria.linkage_conferencia_evidencia(
@@ -308,7 +266,7 @@ BEGIN
    LEFT(COALESCE(APP_NAME(),N'SQL'),128),
    LEFT(COALESCE(ORIGINAL_LOGIN(),SUSER_SNAME(),N'UNKNOWN'),256),
    LEFT(HOST_NAME(),128),
-   @source_revision);
+   LEFT(CONVERT(NVARCHAR(80),SESSION_CONTEXT(N'Jornada.SourceRevision')),80));
 END;
 GO
 
