@@ -28,6 +28,38 @@ public static class BlockingConditionedTrainingPairFilter
         return result;
     }
 
+    public static bool RetainsProjectedKeys(
+        IReadOnlyDictionary<string, IReadOnlySet<string>> leftKeys,
+        IReadOnlyDictionary<string, IReadOnlySet<string>> rightKeys,
+        IEnumerable<LinkageBlockingPass> passes)
+    {
+        ArgumentNullException.ThrowIfNull(leftKeys);
+        ArgumentNullException.ThrowIfNull(rightKeys);
+        ArgumentNullException.ThrowIfNull(passes);
+
+        foreach (var pass in passes)
+        {
+            var retained = true;
+            foreach (var field in pass.Fields)
+            {
+                if (!leftKeys.TryGetValue(field, out var leftValues) ||
+                    !rightKeys.TryGetValue(field, out var rightValues) ||
+                    leftValues.Count == 0 ||
+                    rightValues.Count == 0 ||
+                    !leftValues.Overlaps(rightValues))
+                {
+                    retained = false;
+                    break;
+                }
+            }
+
+            if (retained)
+                return true;
+        }
+
+        return false;
+    }
+
     public static bool Retains(
         BlockingFeatureObservation observation,
         IEnumerable<LinkageBlockingPass> passes)
