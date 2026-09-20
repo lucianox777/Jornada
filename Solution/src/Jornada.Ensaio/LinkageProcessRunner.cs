@@ -15,7 +15,7 @@ public sealed class LinkageProcessRunner(
     private static readonly string[] ForwardedSettings =
     [
         "AlgorithmVersion", "NormalizationVersion", "TrainingSampleSize", "TrainingSamplePoolSize",
-        "SmoothingAlpha", "TLinkage", "ConflictMargin", "ReadCommandTimeoutSeconds",
+        "SmoothingAlpha", "ReadCommandTimeoutSeconds",
         "MinimumIndependentMatchedPairs"
     ];
 
