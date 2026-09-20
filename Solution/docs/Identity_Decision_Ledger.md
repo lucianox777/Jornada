@@ -48,3 +48,8 @@ O ledger não duplica score, candidatos ou evidência probabilística. Esses dad
 - `DIVERGENCIA_DESFECHO`.
 
 Decisões automáticas de CPF/Linkage continuam auditadas por suas estruturas próprias (`identity_map_estado_evento`, `linkage_resultado`, composição e publicação). Este ledger fecha especificamente a autoria institucional dos atos governados.
+
+
+## Validação executável
+
+`IdentityDecisionLedgerTests` pertence ao projeto `Jornada.Integration.Tests` e executa no gate SQL obrigatório. A separação Unit/Integration impede que a prova transacional seja tratada como teste unitário ou dependa de SQL fora do assembly de integração.
