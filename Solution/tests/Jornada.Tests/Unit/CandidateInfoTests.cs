@@ -40,6 +40,9 @@ public sealed class CandidateInfoTests
             Assert.That(candidateState.GetProperty("target_solution_engineering").GetString(), Is.EqualTo("v5.00"));
             Assert.That(candidateState.GetProperty("release_status").GetString(), Is.EqualTo("NOT_RELEASED"));
             Assert.That(candidateState.GetProperty("solution_schema").GetString(), Is.EqualTo("v3.70"));
+            Assert.That(candidateState.GetProperty("candidate_specification").GetString(), Is.EqualTo("Documentos/Especificacao_Tecnica_Jornada_v5.00_Candidata.md"));
+            Assert.That(candidateState.GetProperty("candidate_specification_identifier").GetString(), Is.EqualTo("v5.00-candidata"));
+            Assert.That(candidateState.GetProperty("candidate_specification_status").GetString(), Is.EqualTo("TECHNICAL_CANDIDATE_NOT_PUBLISHED"));
             Assert.That(candidateState.GetProperty("candidate_specification_normative_version").ValueKind, Is.EqualTo(JsonValueKind.Null));
 
             Assert.That(technicalRc.GetProperty("identifier").GetString(), Is.EqualTo("v5.00-rc.1"));
