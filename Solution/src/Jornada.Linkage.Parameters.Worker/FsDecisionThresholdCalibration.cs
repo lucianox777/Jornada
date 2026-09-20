@@ -18,7 +18,8 @@ public enum FsDecisionCalibrationPartition
 public sealed record FsDecisionRankedCandidate(
     Guid PessoaUuid,
     decimal Posterior,
-    decimal LogOdds);
+    decimal LogOdds,
+    bool DemographicExactCollisionRisk = false);
 
 public sealed record FsDecisionCalibrationScenario(
     string ScenarioId,
@@ -333,7 +334,11 @@ public static class FsDecisionThresholdCalibrator
         foreach (var scenario in scenarios)
         {
             var ranking = scenario.RankedCandidates
-                .Select(static x => new CandidateScore(x.PessoaUuid, x.Posterior, x.LogOdds))
+                .Select(static x => new CandidateScore(
+                    x.PessoaUuid,
+                    x.Posterior,
+                    x.LogOdds,
+                    x.DemographicExactCollisionRisk))
                 .ToArray();
             var decision = ProbabilisticLinkageDecisions.ResolveRanked(
                 model,
@@ -626,7 +631,8 @@ public static class BlockingDecisionThresholdCalibrationReader
                 .Select(static x => new FsDecisionRankedCandidate(
                     x.PessoaUuid,
                     x.Score,
-                    x.LogOdds))
+                    x.LogOdds,
+                    x.DemographicExactCollisionRisk))
                 .ToArray();
 
             var prefix = $"{raw.ObservationId}:{raw.TruthUuid:D}";
