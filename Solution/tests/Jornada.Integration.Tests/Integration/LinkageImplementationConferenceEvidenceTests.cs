@@ -202,7 +202,9 @@ public sealed class LinkageImplementationConferenceEvidenceTests
         command.Parameters.AddWithValue("@max_log_odds_observado", maxObserved is null ? DBNull.Value : 0.0000005m);
         command.Parameters.AddWithValue("@mesma_decisao_final", sameDecision);
         command.Parameters.AddWithValue("@mesmo_top1", sameDecision);
-        command.Parameters.AddWithValue("@spearman", sameDecision && candidates > 0 ? 1m : DBNull.Value);
+        command.Parameters.AddWithValue(
+            "@spearman",
+            (object?)(sameDecision && candidates > 0 ? 1m : null) ?? DBNull.Value);
         command.Parameters.AddWithValue("@motivo", (object?)reason ?? DBNull.Value);
         command.Parameters.AddWithValue("@validacao_estatistica", "NOT_ASSESSED_ISSUE_31");
         command.Parameters.Add("@request_sha256", SqlDbType.Binary, 32).Value =
