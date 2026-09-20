@@ -126,11 +126,11 @@ public static class LinkageCalibrationAuditRoundTrip
         var document = JsonSerializer.Deserialize<LinkageCalibrationAuditDocument>(json, JsonOptions)
             ?? throw new InvalidDataException("Documento de auditoria de calibração vazio ou incompatível.");
 
-        if (document.SchemaVersion != 1)
+        if (document.SchemaVersion != LinkageCalibrationAuditExchangePolicy.SchemaVersion)
             throw new InvalidDataException($"schemaVersion de auditoria não suportada: {document.SchemaVersion}.");
-        if (!string.Equals(document.Nature, "LINKAGE_CALIBRATION_AUDIT_EXPORT", StringComparison.Ordinal))
+        if (!string.Equals(document.Nature, LinkageCalibrationAuditExchangePolicy.Nature, StringComparison.Ordinal))
             throw new InvalidDataException($"nature inesperada: {document.Nature}.");
-        if (!string.Equals(document.Purpose, "EXTERNAL_REPRODUCIBILITY_READ_ONLY", StringComparison.Ordinal))
+        if (!string.Equals(document.Purpose, LinkageCalibrationAuditExchangePolicy.Purpose, StringComparison.Ordinal))
             throw new InvalidDataException($"purpose inesperado: {document.Purpose}.");
 
         if (document.Model is null
