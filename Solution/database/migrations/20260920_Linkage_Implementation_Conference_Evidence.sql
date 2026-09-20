@@ -37,6 +37,7 @@ CREATE TABLE auditoria.linkage_conferencia_evidencia(
     spearman DECIMAL(18,12) NULL,
     motivo NVARCHAR(120) NULL,
     validacao_estatistica NVARCHAR(80) NOT NULL,
+    modelo_snapshot_sha256 BINARY(32) NOT NULL,
     request_sha256 BINARY(32) NOT NULL,
     report_sha256 BINARY(32) NOT NULL,
     executor_aplicacao NVARCHAR(128) NOT NULL,
@@ -86,6 +87,84 @@ IF NOT EXISTS(
       AND name=N'UX_linkage_conferencia_evidencia_report')
 CREATE UNIQUE INDEX UX_linkage_conferencia_evidencia_report
 ON auditoria.linkage_conferencia_evidencia(modelo_id,report_sha256);
+GO
+
+CREATE OR ALTER PROCEDURE auditoria.sp_calcular_fingerprint_modelo_linkage
+ @modelo_id UNIQUEIDENTIFIER,
+ @fingerprint BINARY(32) OUTPUT
+AS
+BEGIN
+ SET NOCOUNT ON;
+
+ DECLARE @modelo NVARCHAR(MAX),@parametros NVARCHAR(MAX),@estatisticas NVARCHAR(MAX),
+         @ruleset NVARCHAR(MAX),@passes NVARCHAR(MAX),@campos NVARCHAR(MAX);
+
+ SELECT @modelo=(
+   SELECT
+     CONVERT(VARCHAR(36),m.modelo_id) AS modelo_id,
+     m.versao,m.algoritmo_versao,m.normalizacao_versao,m.deduplicacao_metodo,
+     m.base_referencia,m.snapshot_referencia,m.registros_lidos,m.pessoas_unicas,
+     CONVERT(VARCHAR(33),m.gerado_em,127) AS gerado_em,
+     CONVERT(VARCHAR(33),m.snapshot_capturado_em,126) AS snapshot_capturado_em,
+     m.amostra_metodo,m.amostra_pool_tamanho,m.amostra_m_tamanho,m.amostra_u_tamanho,
+     CONVERT(VARCHAR(36),m.frequencia_nome_versao_id) AS frequencia_nome_versao_id
+   FROM identidade.modelo_linkage m
+   WHERE m.modelo_id=@modelo_id
+   FOR JSON PATH,WITHOUT_ARRAY_WRAPPER,INCLUDE_NULL_VALUES);
+
+ IF @modelo IS NULL
+    THROW 51988,'Modelo não encontrado para cálculo do fingerprint da conferência.',1;
+
+ SELECT @parametros=(
+   SELECT p.nome,CONVERT(VARCHAR(80),p.valor) AS valor
+   FROM identidade.parametro_linkage p
+   WHERE p.modelo_id=@modelo_id
+   ORDER BY p.nome
+   FOR JSON PATH,INCLUDE_NULL_VALUES);
+
+ SELECT @estatisticas=(
+   SELECT e.nome,CONVERT(VARCHAR(80),e.valor) AS valor,e.metodo
+   FROM identidade.estatistica_linkage e
+   WHERE e.modelo_id=@modelo_id
+   ORDER BY e.nome
+   FOR JSON PATH,INCLUDE_NULL_VALUES);
+
+ SELECT @ruleset=(
+   SELECT CONVERT(VARCHAR(36),r.ruleset_id) AS ruleset_id,
+          r.ruleset_versao,r.algoritmo_versao,r.fingerprint_sha256,
+          r.ibge_source_versao,r.ibge_fingerprint_sha256
+   FROM identidade.linkage_ruleset r
+   WHERE r.modelo_id=@modelo_id
+   ORDER BY r.ruleset_id
+   FOR JSON PATH,INCLUDE_NULL_VALUES);
+
+ SELECT @passes=(
+   SELECT CONVERT(VARCHAR(36),p.ruleset_id) AS ruleset_id,p.passe_ordem,p.passe_id
+   FROM identidade.linkage_ruleset_passe p
+   JOIN identidade.linkage_ruleset r ON r.ruleset_id=p.ruleset_id
+   WHERE r.modelo_id=@modelo_id
+   ORDER BY p.ruleset_id,p.passe_ordem
+   FOR JSON PATH,INCLUDE_NULL_VALUES);
+
+ SELECT @campos=(
+   SELECT CONVERT(VARCHAR(36),c.ruleset_id) AS ruleset_id,
+          c.passe_ordem,c.campo_ordem,c.atributo
+   FROM identidade.linkage_ruleset_passe_campo c
+   JOIN identidade.linkage_ruleset r ON r.ruleset_id=c.ruleset_id
+   WHERE r.modelo_id=@modelo_id
+   ORDER BY c.ruleset_id,c.passe_ordem,c.campo_ordem
+   FOR JSON PATH,INCLUDE_NULL_VALUES);
+
+ SET @fingerprint=HASHBYTES(
+   'SHA2_256',
+   CONVERT(VARBINARY(MAX),CONCAT(
+     N'MODEL=',COALESCE(@modelo,N'null'),
+     N'|PARAMETERS=',COALESCE(@parametros,N'[]'),
+     N'|STATISTICS=',COALESCE(@estatisticas,N'[]'),
+     N'|RULESET=',COALESCE(@ruleset,N'[]'),
+     N'|PASSES=',COALESCE(@passes,N'[]'),
+     N'|FIELDS=',COALESCE(@campos,N'[]'))));
+END;
 GO
 
 CREATE OR ALTER TRIGGER auditoria.tr_linkage_conferencia_evidencia_append_only
@@ -163,19 +242,24 @@ BEGIN
  IF @status=N'NAO_EXECUTADA' AND @motivo IS NULL
     THROW 51982,'Evidência NAO_EXECUTADA exige motivo.',1;
 
+ DECLARE @modelo_snapshot_sha256 BINARY(32);
+ EXEC auditoria.sp_calcular_fingerprint_modelo_linkage
+      @modelo_id=@modelo_id,
+      @fingerprint=@modelo_snapshot_sha256 OUTPUT;
+
  SET @evidencia_id=NEWID();
 
  INSERT auditoria.linkage_conferencia_evidencia(
    evidencia_id,modelo_id,modelo_versao,metodo_versao,escopo,
    tolerancia_versao,max_llr_par_permitido,status,candidatos_avaliados,
    max_llr_par_observado,max_log_odds_observado,mesma_decisao_final,mesmo_top1,
-   spearman,motivo,validacao_estatistica,request_sha256,report_sha256,
+   spearman,motivo,validacao_estatistica,modelo_snapshot_sha256,request_sha256,report_sha256,
    executor_aplicacao,executor_login,executor_host,source_revision)
  VALUES(
    @evidencia_id,@modelo_id,@modelo_versao,@metodo_versao,@escopo,
    @tolerancia_versao,@max_llr_par_permitido,@status,@candidatos_avaliados,
    @max_llr_par_observado,@max_log_odds_observado,@mesma_decisao_final,@mesmo_top1,
-   @spearman,@motivo,@validacao_estatistica,@request_sha256,@report_sha256,
+   @spearman,@motivo,@validacao_estatistica,@modelo_snapshot_sha256,@request_sha256,@report_sha256,
    LEFT(COALESCE(APP_NAME(),N'SQL'),128),
    LEFT(COALESCE(ORIGINAL_LOGIN(),SUSER_SNAME(),N'UNKNOWN'),256),
    LEFT(HOST_NAME(),128),
@@ -193,7 +277,8 @@ BEGIN
  SET NOCOUNT ON;
 
  DECLARE @evidencia_id BIGINT,@status NVARCHAR(20),@tol DECIMAL(28,16),
-         @same BIT,@max_obs DECIMAL(28,16),@modelo_versao INT;
+         @same BIT,@max_obs DECIMAL(28,16),@modelo_versao INT,
+         @snapshot_registrado BINARY(32),@snapshot_corrente BINARY(32);
 
  SELECT TOP(1)
    @evidencia_id=linkage_conferencia_evidencia_id,
@@ -201,7 +286,8 @@ BEGIN
    @tol=max_llr_par_permitido,
    @same=mesma_decisao_final,
    @max_obs=max_llr_par_observado,
-   @modelo_versao=modelo_versao
+   @modelo_versao=modelo_versao,
+   @snapshot_registrado=modelo_snapshot_sha256
  FROM auditoria.linkage_conferencia_evidencia WITH(HOLDLOCK)
  WHERE modelo_id=@modelo_id
    AND metodo_versao=@metodo_versao
@@ -221,6 +307,13 @@ BEGIN
       WHERE modelo_id=@modelo_id AND versao=@modelo_versao
         AND status IN(N'RASCUNHO',N'VALIDADO'))
     THROW 51987,'Evidência não corresponde ao estado promocional corrente do modelo.',1;
+
+ EXEC auditoria.sp_calcular_fingerprint_modelo_linkage
+      @modelo_id=@modelo_id,
+      @fingerprint=@snapshot_corrente OUTPUT;
+
+ IF @snapshot_corrente<>@snapshot_registrado
+    THROW 51989,'Snapshot decisório do modelo mudou após a conferência; evidência obsoleta.',1;
 END;
 GO
 
@@ -231,7 +324,7 @@ SELECT
   e.tolerancia_versao,e.max_llr_par_permitido,e.status,e.candidatos_avaliados,
   e.max_llr_par_observado,e.max_log_odds_observado,e.mesma_decisao_final,
   e.mesmo_top1,e.spearman,e.motivo,e.validacao_estatistica,
-  e.request_sha256,e.report_sha256,
+  e.modelo_snapshot_sha256,e.request_sha256,e.report_sha256,
   e.executor_aplicacao,e.executor_login,e.executor_host,e.source_revision,e.ocorrido_em
 FROM auditoria.linkage_conferencia_evidencia e;
 GO
