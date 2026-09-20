@@ -14,15 +14,15 @@
     "solution_schema": "v3.70",
     "schema_provenance": {
       "status": "MUTABLE_UNTIL_RC_CUT",
-      "source_commit": "3e830831c1bfe1444462e1515cfcc745f6379861",
+      "source_commit": "271d346ed77f88e1d19dabe20747b1a3c1b85726",
       "canonical_ddl": "Solution/database/Jornada_Fase1_v3.70.sql",
-      "structural_fingerprint_sha256": "4375ea6cb762d15727f358e5561d9415d4ed90d07528a1f4f84b3eabcba34eb5",
+      "structural_fingerprint_sha256": "40f38b37439e9a84cbf02d28a812efd4a78b373a72f8f0ce697558296c6b70f6",
       "structural_fingerprint_method": "SHA256_SORTED_METADATA_LINES_FROM_Jornada_Dev_DdlFingerprint.sql",
       "migration_manifest": "Solution/database/migrations/manifest.txt",
       "migration_manifest_sha256": "b9fac3f4fae54b837bcdeb0331d89c4063b08bc78f3d61db9dc9a9a35bb94761",
       "migration_manifest_hash_method": "SHA256_UTF8_LF",
-      "ddl_evidence_run_id": 35473135218,
-      "rc_rule": "Before the technical RC is cut, source_commit and both hashes may move together. Once v5.00-rc.1 is cut, this provenance tuple is immutable; a structural change requires a new RC checkpoint."
+      "ddl_evidence_run_id": 35496093689,
+      "rc_rule": "Before the technical RC is cut, source_commit identifies an ancestor schema checkpoint whose manifest and structural fingerprint are equivalent to the current candidate and whose ddl_evidence_run_id is successful evidence for that checkpoint. Once v5.00-rc.1 is cut, this provenance tuple is immutable; a structural change requires a new RC checkpoint."
     },
     "technical_rc": {
       "identifier": "v5.00-rc.1",

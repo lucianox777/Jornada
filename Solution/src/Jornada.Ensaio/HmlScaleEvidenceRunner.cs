@@ -68,6 +68,14 @@ public sealed class HmlScaleEvidenceRunner(
             || databaseName.Contains("production", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException($"HML_SCALE_EVIDENCE recusado para banco com nome de Produção: {databaseName}.");
 
+        var databaseEnvironmentProfile = await ScalarStringAsync(
+            preflightConnection,
+            "SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile'));",
+            cancellationToken);
+        if (!string.Equals(databaseEnvironmentProfile, "HML", StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                $"HML_SCALE_EVIDENCE exige marcador residente Jornada.EnvironmentProfile=HML; atual={databaseEnvironmentProfile ?? "(ausente)"}.");
+
         var solutionSchema = await ScalarStringAsync(
             preflightConnection,
             "SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'));",
@@ -147,6 +155,7 @@ public sealed class HmlScaleEvidenceRunner(
             gitCommitSha = gitCommitSha.ToLowerInvariant(),
             profile,
             environmentProfile = "HML",
+            databaseEnvironmentProfile,
             capturedAtUtc = DateTimeOffset.UtcNow,
             databaseName,
             goldPeople = evidence.GoldPeople,

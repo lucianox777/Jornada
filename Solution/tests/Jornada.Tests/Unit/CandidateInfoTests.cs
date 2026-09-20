@@ -84,6 +84,18 @@ public sealed class CandidateInfoTests
             Assert.That(sourceCommit, Does.Match("^[0-9a-f]{40}$"));
             Assert.That(provenance.GetProperty("ddl_evidence_run_id").GetInt64(), Is.GreaterThan(0));
         });
+
+        var workflow = File.ReadAllText(Path.Combine(
+            root, ".github", "workflows", "schema-consolidation-370.yml"));
+        Assert.Multiple(() =>
+        {
+            Assert.That(workflow, Does.Contain("CANDIDATE_INFO.json"));
+            Assert.That(workflow, Does.Contain("fetch-depth: 0"));
+            Assert.That(workflow, Does.Contain("git merge-base --is-ancestor"));
+            Assert.That(workflow, Does.Contain("structural_fingerprint_sha256"));
+            Assert.That(workflow, Does.Contain("ddl_evidence_run_id"));
+            Assert.That(workflow, Does.Contain("actions/runs/$ddl_run_id"));
+        });
     }
 
     [Test]
