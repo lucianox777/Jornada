@@ -104,7 +104,7 @@
     $('bronze').innerHTML=`<div class="metric-grid"><div class="metric"><b>${n(x.objectsExamined)}</b><span>objetos examinados</span></div><div class="metric"><b>${n(x.orphansRemoved)}</b><span>órfãos removidos</span></div><div class="metric"><b>${n(x.temporariesRemoved)}</b><span>temporários removidos</span></div><div class="metric"><b>${n(x.storageFailures)}</b><span>falhas de storage</span></div></div><p class="muted">Último ciclo: ${esc(dt(x.startedAt))} → ${esc(dt(x.finishedAt))} · locks não adquiridos: ${n(x.locksNotAcquired)}</p>`;
   }
 
-  function renderModelGovernance(model, conference, transitions){
+  function renderModelGovernance(model, conference, passSupport, transitions){
     if(!model){ $('modelGovernance').innerHTML='<div class="empty">Sem informação de governança do modelo.</div>'; return; }
     const status=model.status || 'SEM_MODELO_ATIVO';
     const modelLabel=model.modelVersion == null ? 'nenhum modelo ATIVO' : `v${n(model.modelVersion)} · ${esc(shortId(model.modelId))}`;
@@ -140,6 +140,8 @@
         <div class="bundle-cell"><span class="muted">Round-trip do formato</span><b class="mono">${esc(conference?.roundTripMethod || 'JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1')}</b><span class="muted">${esc(conference?.roundTripStatus || 'OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO')}</span></div>
       </div>
       <p class="muted">Conferência de implementação, round-trip de formato e validação estatística são evidências distintas. O round-trip é executado no export de auditoria e não é persistido como aprovação por modelo.</p>
+      <h3 style="font-size:13px;margin:14px 0 8px">Suporte condicionado por passe</h3>
+      ${passSupport?.length ? `<div class="scroll"><table><thead><tr><th>Passe</th><th>Amostra u</th><th>Nome da mãe presente</th><th>Mínimo por passe</th><th>Suficiência</th></tr></thead><tbody>${passSupport.map(x=>`<tr><td><span class="mono">${n(x.passOrder)} · ${esc(x.passId)}</span></td><td>${n(x.sampleSize)}</td><td>${n(x.motherNamePresentSupport)}</td><td>${n(x.minimumRequiredPerPass)}</td><td><span class="${x.nameSufficient&&x.motherNameSufficient?'ok':'bad'}">${x.nameSufficient&&x.motherNameSufficient?'NOME + MÃE OK':`${x.nameSufficient?'NOME OK':'NOME INSUF.'} / ${x.motherNameSufficient?'MÃE OK':'MÃE INSUF.'}`}</span></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Sem suporte por passe persistido para o modelo ATIVO.</div>'}
       ${transitionRows ? `<div class="scroll"><table><thead><tr><th>Transição</th><th>Modelo</th><th>Estado</th><th>Operação</th><th>Executor técnico</th></tr></thead><tbody>${transitionRows}</tbody></table></div>` : '<div class="empty">Nenhuma transição de modelo registrada.</div>'}
     `;
   }
@@ -159,7 +161,7 @@
       const data=await response.json(); const m=data.monitor;
       showError(''); setOverall(m.overallStatus); state.lastGenerated=new Date(m.generatedAt);
       $('login').classList.add('hidden'); $('dashboard').classList.remove('hidden');
-      renderNodes(m.components); renderReadiness(data.readiness); renderConfiguration(m.configurationHealth); renderQueue(m.queue); renderProcessing(m.processing); renderDeliveries(m.recentDeliveries); renderBronze(m.bronzeMaintenance); renderModelGovernance(m.linkageModelGovernance,m.linkageConferenceGovernance,m.linkageModelTransitions); renderLinkage(m.linkageRuns);
+      renderNodes(m.components); renderReadiness(data.readiness); renderConfiguration(m.configurationHealth); renderQueue(m.queue); renderProcessing(m.processing); renderDeliveries(m.recentDeliveries); renderBronze(m.bronzeMaintenance); renderModelGovernance(m.linkageModelGovernance,m.linkageConferenceGovernance,m.linkageBlockingPassSupport,m.linkageModelTransitions); renderLinkage(m.linkageRuns);
       $('updated').textContent='atualizado '+dt(m.generatedAt);
     }catch(error){ showError(error.message || 'Falha ao atualizar o monitor.'); setOverall('FALHA'); $('login').classList.remove('hidden'); }
   }
