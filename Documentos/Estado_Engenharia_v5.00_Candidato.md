@@ -46,7 +46,17 @@ O formato separa a semântica do **u empírico**, condicionado à união dedupli
 
 Cada exportação executa obrigatoriamente `JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1`: serializa, reimporta fail-closed e compara campo a campo antes de escrever o arquivo. Membros desconhecidos são recusados para impedir perda silenciosa no round-trip. Essa evidência demonstra fidelidade do **formato Jornada**, não compatibilidade Splink completa, não paridade de uma segunda implementação do scorer e não substitui a validação representativa #31.
 
-## 4.2. Autoria dos atos governados de identidade
+## 4.2. Conferência independente de implementação
+
+A candidata contém a engine `JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1` em `Jornada.Linkage.Evaluation`, projeto separado que não referencia o Runner nem o Core operacional. A engine recebe estados comparativos já formados e recalcula de forma independente LLR, agregação, posterior, ranking, threshold, margem e guards até a decisão final.
+
+A afirmação é deliberadamente limitada: comparadores de nome/data continuam **fora do escopo**, porque seus estados já chegam prontos à conferência. O gate primário exige LLR por par dentro de tolerância previamente congelada e decisão final exatamente equivalente; top-1, Spearman e diferença de log-odds são diagnósticos.
+
+Nenhuma tolerância governada foi inventada. `config/linkage/implementation-conference-tolerance.json` permanece `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION` com valor nulo. Nessa condição a engine retorna `NAO_EXECUTADA`, não `CONFORME`. Valores numéricos usados pelos testes são fixtures `TEST_ONLY_NOT_GOVERNANCE`.
+
+A conferência de implementação continua distinta da validação estatística representativa #31. A persistência agregada por modelo e o gate de promoção `GENERATE_DRAFT -> CONFERENCIA -> VALIDATE -> ACTIVATE` permanecem na etapa seguinte da issue #380; não há nesta fatia autorização para promover modelo com tolerância ainda não congelada.
+
+## 4.3. Autoria dos atos governados de identidade
 
 `controle.api_evento` permanece telemetria/auditoria HTTP e não é usado como fonte canônica de autoria de correções de identidade. A candidata materializa `auditoria.decisao_identidade_evento`: ledger append-only que registra a credencial `GESTOR` autenticada, o Gestor, um `operacao_id` gerado pelo SQL Server, o objeto governado, ato/justificativa e `correlation_id` apenas como contexto.
 
