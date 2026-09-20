@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Jornada.Contracts;
 using NUnit.Framework;
 
@@ -40,6 +41,80 @@ public sealed class LinkageCalibrationAuditRoundTripTests
             LinkageCalibrationAuditRoundTrip.VerifyEquivalent(expected, changed));
 
         Assert.That(ex!.Message, Does.Contain("parameters[0]"));
+    }
+
+    [Test]
+    public void Import_rejects_unknown_members_instead_of_silently_losing_them()
+    {
+        var json = JsonSerializer.Serialize(SampleDocument(), JsonOptions);
+        var root = JsonNode.Parse(json)!.AsObject();
+        root["cpf"] = "12345678901";
+
+        var ex = Assert.Throws<JsonException>(() =>
+            LinkageCalibrationAuditRoundTrip.Import(root.ToJsonString()));
+
+        Assert.That(ex!.Message, Does.Contain("cpf"));
+    }
+
+    [Test]
+    public void Import_rejects_status_or_semantic_contract_divergence()
+    {
+        var sample = SampleDocument();
+
+        var wrongStatus = sample with
+        {
+            InterchangeContract = sample.InterchangeContract with { StatusAtExport = "ATIVO" }
+        };
+        var statusEx = Assert.Throws<InvalidDataException>(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongStatus, JsonOptions)));
+
+        var wrongStates = sample with
+        {
+            InterchangeContract = sample.InterchangeContract with
+            {
+                ComparisonStateMapping = sample.InterchangeContract.ComparisonStateMapping with
+                {
+                    UnmappedOrNonBijectiveStates = ["DAY_MONTH_SWAP"]
+                }
+            }
+        };
+        var statesEx = Assert.Throws<InvalidDataException>(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongStates, JsonOptions)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(statusEx!.Message, Does.Contain("statusAtExport"));
+            Assert.That(statesEx!.Message, Does.Contain("Estados não bijetivos"));
+        });
+    }
+
+    [Test]
+    public void Import_rejects_runtime_tf_or_reference_provenance_divergence()
+    {
+        var sample = SampleDocument();
+
+        var runtimeTf = sample with
+        {
+            TermFrequency = sample.TermFrequency with { RuntimeEnabled = true }
+        };
+        var tfEx = Assert.Throws<InvalidDataException>(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(runtimeTf, JsonOptions)));
+
+        var wrongReference = sample with
+        {
+            TermFrequency = sample.TermFrequency with
+            {
+                ReferenceSnapshot = sample.TermFrequency.ReferenceSnapshot! with { VersionId = 999 }
+            }
+        };
+        var referenceEx = Assert.Throws<InvalidDataException>(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongReference, JsonOptions)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(tfEx!.Message, Does.Contain("term frequency habilitada"));
+            Assert.That(referenceEx!.Message, Does.Contain("versão fixada no modelo"));
+        });
     }
 
     [Test]
