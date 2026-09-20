@@ -13,6 +13,8 @@
 - `Calibrador_Plano_Blocking_Analise.md` - plano analítico, não homologado, para comparar features, passes e rulesets de blocking com replay, evidência e gates sem inventar parâmetros institucionais.
 - `Gold_Pessoa_Universo_CPF.md` - proposta revisão 6 para universo Gold ancorado em CPF, campos cadastrais anuláveis, nome civil/social, código estável por origem e decisões institucionais ainda pendentes; não substitui a Especificação Técnica publicada nem declara implementação concluída.
 - `Identity_Decision_Ledger.md` - fonte canônica append-only dos atos governados de identidade, com autoria por credencial autenticada, operação gerada pelo SQL Server e atomicidade com a mutação.
+- `Linkage_Calibration_Audit_Export.md` - exportação tipada/read-only do modelo e round-trip obrigatório do formato Jornada.
+- `Linkage_Implementation_Conference.md` - escopo e contrato da conferência independente de scorer/policy sobre estados pré-computados, com tolerância ainda deliberadamente não congelada.
 - `../tests/fixtures/ingestao/` - payloads de referência usados como fixtures dos testes automatizados.
 
 ## Hierarquia normativa publicada
