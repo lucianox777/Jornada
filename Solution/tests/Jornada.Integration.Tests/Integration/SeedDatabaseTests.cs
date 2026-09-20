@@ -252,15 +252,17 @@ WHERE c.credencial_id<>x.credencial_id;");
             long observationId;
             long gestorId;
             Guid pessoaUuid;
+            string civilName;
             await using (var ids = connection.CreateCommand())
             {
                 ids.Transaction = tx;
                 ids.CommandText = """
-                    SELECT TOP(1) po.pessoa_observacao_id,po.gestor_id,vc.pessoa_uuid
+                    SELECT TOP(1) po.pessoa_observacao_id,po.gestor_id,vc.pessoa_uuid,gp.nome_completo
                     FROM silver.pessoa_observacao po
                     JOIN identidade.v_vinculo_corrente vc
                       ON vc.pessoa_observacao_id=po.pessoa_observacao_id
                      AND vc.status='RESOLVIDO'
+                    JOIN gold.pessoa gp ON gp.pessoa_uuid=vc.pessoa_uuid
                     WHERE po.codigo_pessoa_origem='CRAS001'
                     ORDER BY po.pessoa_observacao_id DESC;
                     """;
@@ -269,6 +271,7 @@ WHERE c.credencial_id<>x.credencial_id;");
                 observationId = reader.GetInt64(0);
                 gestorId = reader.GetInt64(1);
                 pessoaUuid = reader.GetGuid(2);
+                civilName = reader.GetString(3);
             }
 
             await using (var insert = connection.CreateCommand())
@@ -308,8 +311,9 @@ WHERE c.credencial_id<>x.credencial_id;");
                 Assert.That(result.GetString(0), Is.EqualTo("Maria Referência"));
                 Assert.That(result.GetString(1), Is.EqualTo("NOME_SOCIAL"));
                 Assert.That(result.GetString(2), Is.EqualTo("SILVER_PESSOA_ATRIBUTO_OBSERVACAO"));
-                Assert.That(result.GetString(3), Is.EqualTo("Maria da Silva"),
+                Assert.That(result.GetString(3), Is.EqualTo(civilName),
                     "A referência de apresentação não deve sobrescrever o nome civil no núcleo Gold.");
+                Assert.That(result.GetString(3), Is.Not.EqualTo(result.GetString(0)));
                 Assert.That(result.GetInt32(4), Is.Zero,
                     "A superfície padrão não deve expor nome_completo civil como coluna paralela.");
             });
