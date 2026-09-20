@@ -59,6 +59,10 @@ BEGIN TRY
     EXEC sys.sp_refreshsqlmodule N'identidade.sp_sincronizar_atribuicao_fatos';
     EXEC sys.sp_refreshsqlmodule N'auditoria.sp_registrar_decisao_identidade';
     EXEC sys.sp_refreshsqlmodule N'auditoria.v_modelo_linkage_estado_evento';
+    EXEC sys.sp_refreshsqlmodule N'auditoria.sp_calcular_fingerprint_modelo_linkage';
+    EXEC sys.sp_refreshsqlmodule N'auditoria.sp_registrar_conferencia_linkage';
+    EXEC sys.sp_refreshsqlmodule N'auditoria.sp_assert_conferencia_linkage_conforme';
+    EXEC sys.sp_refreshsqlmodule N'auditoria.v_linkage_conferencia_evidencia';
     EXEC sys.sp_refreshsqlmodule N'ingestao.sp_recalcular_entrega';
     EXEC sys.sp_refreshsqlmodule N'ref.fn_telefone_br_canonico_v2';
     EXEC sys.sp_refreshsqlmodule N'ref.fn_email_canonico_v2';
@@ -73,6 +77,13 @@ BEGIN TRY
        OR OBJECT_ID(N'auditoria.tr_modelo_linkage_estado_evento_append_only',N'TR') IS NULL
        OR OBJECT_ID(N'identidade.tr_modelo_linkage_estado_evento',N'TR') IS NULL
         THROW 51987,'Ledger canônico de transições do modelo de Linkage ausente/incompleto.',1;
+
+    IF OBJECT_ID(N'auditoria.linkage_conferencia_evidencia',N'U') IS NULL
+       OR OBJECT_ID(N'auditoria.sp_calcular_fingerprint_modelo_linkage',N'P') IS NULL
+       OR OBJECT_ID(N'auditoria.sp_registrar_conferencia_linkage',N'P') IS NULL
+       OR OBJECT_ID(N'auditoria.sp_assert_conferencia_linkage_conforme',N'P') IS NULL
+       OR OBJECT_ID(N'auditoria.tr_linkage_conferencia_evidencia_append_only',N'TR') IS NULL
+        THROW 51985,'Contrato persistente da conferência independente de Linkage ausente/incompleto.',1;
 
     IF CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'))<>N'3.62'
        OR CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'))<>N'3.70'

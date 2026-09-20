@@ -75,12 +75,20 @@ Esses estados são independentes da validação estatística representativa. O r
 
 O contrato da conferência recebe identificadores opacos de candidatos, estados comparativos, parâmetros do modelo e resultados canônicos. Não necessita nome, CPF, data de nascimento textual ou outros dados pessoais.
 
-A evidência persistente por modelo será implementada em fatia posterior da issue #380 e deverá permanecer agregada, sem score par-a-par completo e sem PII.
+A evidência persistente por modelo é materializada em `auditoria.linkage_conferencia_evidencia` e permanece agregada, sem `candidate_id`, score par-a-par ou PII. O registro inclui hashes SHA-256 do request e do relatório, método/escopo, tolerância, contagens e diagnósticos agregados.
 
-## Próxima etapa
+## Persistência e gate de promoção
 
-Após a engine independente estar comprovada, a sequência restante é:
+O schema contém:
+
+- `auditoria.sp_calcular_fingerprint_modelo_linkage`, que produz fingerprint SHA-256 canônico do snapshot decisório persistido (metadados estáveis, parâmetros, estatísticas e ruleset/passes/campos);\n- `auditoria.sp_registrar_conferencia_linkage`, que aceita somente modelo `RASCUNHO`, calcula esse fingerprint no ato do registro e persiste evidência agregada append-only;
+- `auditoria.sp_assert_conferencia_linkage_conforme`, que procura a evidência mais recente para o mesmo `modelo_id`, método e versão de tolerância, exige `CONFORME` e recomputa o fingerprint do snapshot; qualquer mutação posterior torna a evidência obsoleta e bloqueia o assert;
+- `auditoria.v_linkage_conferencia_evidencia`, superfície read-only de auditoria.
+
+Uma execução `DIVERGENTE` ou `NAO_EXECUTADA` posterior invalida, para efeito do assert, um `CONFORME` anterior até que nova conferência `CONFORME` seja registrada. O histórico não é atualizado nem apagado. A coluna `validacao_estatistica` é restrita a `NOT_ASSESSED_ISSUE_31`, impedindo que esta conferência seja usada para declarar a validação estatística representativa.
+
+O **wiring em `VALIDATE/ACTIVATE` ainda não está ativo**. Enquanto `implementation-conference-tolerance.json` permanecer `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`, o fluxo operacional existente não chama a procedure de assert e nenhuma aprovação é inferida. A ligação efetiva seguirá a sequência:
 
 `GENERATE_DRAFT -> CONFERENCIA -> VALIDATE -> ACTIVATE`
 
-A próxima fatia deve criar a evidência agregada por `modelo_id`, hash/proveniência e o gate fail-closed de `VALIDATE/ACTIVATE` exigindo `CONFORME` da mesma versão. Isso não deve ser ativado antes de o contrato de tolerância deixar de estar `UNFROZEN`.
+somente depois de congelar/versionar a tolerância e implementar o comando governado que produz o request/relatório a partir do modelo real.

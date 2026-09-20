@@ -29,51 +29,53 @@ A candidata v5.00 adota **Microsoft SQL Server como único runtime relacional su
 
 O inventário é derivado automaticamente por `Solution/scripts/schema-inventory.py` e publicado como evidência pelo workflow `jornada-schema-inventory`.
 
-A execução do PR #377, run `35533662679`, mediu 78 tabelas antes da trilha de promoção. O PR #381, run `35535174659`, confirmou o schema candidato corrente com `auditoria.modelo_linkage_estado_evento` incluída:
+A execução do PR #377, run `35533662679`, mediu 78 tabelas antes da trilha de promoção; o PR #381, run `35535174659`, confirmou 79 com o ledger de transição. O PR #384, run `35540125752`, confirmou executavelmente o schema candidato corrente com a evidência agregada da conferência incluída:
 
 - tabelas no `Jornada_Fase1.sql` legado: **53**;
 - tabelas próprias do núcleo `Jornada_Identidade_Progressiva.sql`: **2**;
-- tabelas distintas introduzidas pelos scripts de migração: **24**;
-- total distinto do schema operacional consolidado: **79 tabelas**;
-- tabelas do schema atual que não pertencem ao baseline legado de 53: **26**.
+- tabelas distintas introduzidas pelos scripts de migração: **25**;
+- total distinto do schema operacional consolidado: **80 tabelas**;
+- tabelas do schema atual que não pertencem ao baseline legado de 53: **27**.
 
 Essa medição substitui as contagens históricas 53, 64, 66, 69 e a estimativa intermediária 70. O inventário corrente é uma propriedade derivada do manifesto/código e deve ser regenerado quando houver mudança estrutural.
 
 ## 4. Tabelas fora do baseline legado
 
-As 26 tabelas fora do baseline legado são:
+As 27 tabelas fora do baseline legado são:
 
 1. `auditoria.decisao_identidade_evento`
-2. `auditoria.modelo_linkage_estado_evento`
-3. `controle.runtime_componente`
-4. `identidade.blocking_chave`
-5. `identidade.composicao_aplicacao`
-6. `identidade.composicao_historico_aplicado`
-7. `identidade.composicao_plano`
-8. `identidade.composicao_publicacao`
-9. `identidade.composicao_recomposicao_plano`
-10. `identidade.composicao_uuid_reserva`
-11. `identidade.cpf_ancora`
-12. `identidade.linkage_quality_estimate`
-13. `identidade.linkage_ruleset`
-14. `identidade.linkage_ruleset_passe`
-15. `identidade.linkage_ruleset_passe_campo`
-16. `identidade.pessoa_origem_progressiva`
-17. `identidade.pessoa_origem_progressiva_evento`
-18. `jornada.schema_migration`
-19. `ref.base_pessoa_origem`
-20. `ref.frequencia_nome`
-21. `ref.frequencia_nome_cobertura`
-22. `ref.frequencia_nome_versao`
-23. `ref.sistema_origem_base_pessoa`
-24. `ref.tipo_identificador_pessoa`
-25. `silver.pessoa_identificador_observacao`
-26. `silver.pessoa_origem_sistema`
+2. `auditoria.linkage_conferencia_evidencia`
+3. `auditoria.modelo_linkage_estado_evento`
+4. `controle.runtime_componente`
+5. `identidade.blocking_chave`
+6. `identidade.composicao_aplicacao`
+7. `identidade.composicao_historico_aplicado`
+8. `identidade.composicao_plano`
+9. `identidade.composicao_publicacao`
+10. `identidade.composicao_recomposicao_plano`
+11. `identidade.composicao_uuid_reserva`
+12. `identidade.cpf_ancora`
+13. `identidade.linkage_quality_estimate`
+14. `identidade.linkage_ruleset`
+15. `identidade.linkage_ruleset_passe`
+16. `identidade.linkage_ruleset_passe_campo`
+17. `identidade.pessoa_origem_progressiva`
+18. `identidade.pessoa_origem_progressiva_evento`
+19. `jornada.schema_migration`
+20. `ref.base_pessoa_origem`
+21. `ref.frequencia_nome`
+22. `ref.frequencia_nome_cobertura`
+23. `ref.frequencia_nome_versao`
+24. `ref.sistema_origem_base_pessoa`
+25. `ref.tipo_identificador_pessoa`
+26. `silver.pessoa_identificador_observacao`
+27. `silver.pessoa_origem_sistema`
 
-## 5. Inventário completo - 79 tabelas
+## 5. Inventário completo - 80 tabelas
 
 ### auditoria
 - `auditoria.decisao_identidade_evento`
+- `auditoria.linkage_conferencia_evidencia`
 - `auditoria.modelo_linkage_estado_evento`
 
 ### bronze
@@ -198,13 +200,19 @@ A fila institucional continua materializada em `qualidade.divergencia_gestor`; n
 
 O índice filtrado `UX_divergencia_gestor_linkage_aberta` impede mais de uma divergência probabilística aberta para a mesma observação. A procedure `qualidade.sp_registrar_conflitos_linkage_publicados` opera dentro da transação de publicação do run e atualiza a proveniência em replay; conflitos cobertos por precedência determinística/governada não são duplicados. A view interna `qualidade.v_divergencia_linkage_contexto` reúne a fila e a evidência probabilística para auditoria restrita, sem alterar o contrato HTTP público.
 
-A evolução de revisão governada de Linkage adiciona coluna, FK, índice, procedure e view sem acrescentar tabela. Separadamente, o ledger canônico de autoria dos atos governados acrescenta `auditoria.decisao_identidade_evento`, elevando o inventário corrente para 70 tabelas.
+A evolução de revisão governada de Linkage adiciona coluna, FK, índice, procedure e view sem acrescentar tabela. Separadamente, os ledgers de autoria, transição de modelo e evidência agregada da conferência compõem o inventário físico corrente de 80 tabelas.
 
 ## 6.2. Ledger canônico de decisão de identidade
 
 `auditoria.decisao_identidade_evento` é append-only e referencia a correção, o caso governado ou a divergência que materializou o ato. `operacao_id` é gerado pelo SQL Server; a autoria é a credencial `GESTOR` autenticada e validada contra o Gestor do objeto. `correlation_id` permanece contexto técnico, não identidade do decisor.
 
 A API grava o evento antes do commit da mesma transação. Falha no ledger reverte a mutação de identidade. `controle.api_evento` continua sendo telemetria/auditoria HTTP e não concorre como fonte de verdade da decisão governada.
+
+## 6.3. Evidência agregada da conferência independente
+
+`auditoria.linkage_conferencia_evidencia` persiste apenas o resumo governado por modelo: método/escopo, versão e valor da tolerância congelada, status `CONFORME|DIVERGENTE|NAO_EXECUTADA`, contagem de candidatos, diferenças máximas agregadas, diagnósticos, hashes SHA-256 do request/relatório e executor técnico. Não persiste `candidate_id`, CPF, nome, data de nascimento, vetor de estados ou score par-a-par.
+
+A tabela é append-only. `auditoria.sp_assert_conferencia_linkage_conforme` avalia sempre a evidência **mais recente** para o mesmo modelo/método/tolerância. O contrato existe no schema, mas não é chamado por `VALIDATE` ou `ACTIVATE` enquanto `implementation-conference-tolerance.json` permanecer `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`.
 
 ## 7. Regras de evolução
 
