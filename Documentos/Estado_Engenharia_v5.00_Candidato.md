@@ -42,7 +42,7 @@ A pendência estatística corrente é transportabilidade de `m/u`, representativ
 
 A retirada do antigo estágio DF/Splink não elimina a auditabilidade externa. `Jornada.Linkage.Evaluation --export-calibration` exporta somente modelos `ATIVO` ou `VALIDADO` em um documento C# tipado, sem criar run, sem alterar status e sem gravar identidade/Gold.
 
-O formato declara que o `u` operacional é condicionado à união deduplicada dos candidatos de blocking, não equivalente por definição ao `u` de pares aleatórios de outra ferramenta. Estados semânticos de nascimento sem mapeamento 1:1 também permanecem explícitos.
+O formato separa a semântica do **u empírico**, condicionado à união deduplicada dos candidatos de blocking, da fonte nominal de `u` para nome/nome da mãe. Esta última é derivada dos parâmetros persistidos e pode ser `BLOCKING_CONDITIONED` ou `IBGE_BOOTSTRAP` enquanto a convergência condicionada não for suficiente. O documento não declara equivalência por definição ao `u` de pares aleatórios de outra ferramenta. Estados semânticos de nascimento sem mapeamento 1:1 também permanecem explícitos.
 
 Cada exportação executa obrigatoriamente `JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1`: serializa, reimporta fail-closed e compara campo a campo antes de escrever o arquivo. Membros desconhecidos são recusados para impedir perda silenciosa no round-trip. Essa evidência demonstra fidelidade do **formato Jornada**, não compatibilidade Splink completa, não paridade de uma segunda implementação do scorer e não substitui a validação representativa #31.
 
