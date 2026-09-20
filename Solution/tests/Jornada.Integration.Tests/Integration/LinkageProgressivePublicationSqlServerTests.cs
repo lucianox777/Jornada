@@ -220,15 +220,16 @@ public sealed class LinkageProgressivePublicationSqlServerTests
             await using var verify = connection.CreateCommand();
             verify.Transaction = tx;
             verify.CommandText = """
-                SELECT d.correlation_id,d.motivo,
+                SELECT d.linkage_run_id,d.correlation_id,lr.correlation_id,d.motivo,
                        c.linkage_run_id,c.modelo_id,c.score_melhor,c.melhor_candidato_uuid,c.margem,c.status_publicacao,
                        (SELECT COUNT(*) FROM qualidade.divergencia_gestor x
-                         WHERE x.pessoa_observacao_id=@obs AND x.correlation_id=@run),
+                         WHERE x.pessoa_observacao_id=@obs AND x.linkage_run_id=@run),
                        (SELECT COUNT(*) FROM identidade.caso_conflito_identidade ci
                          WHERE ci.correlation_id=@run)
                 FROM qualidade.divergencia_gestor d
+                JOIN identidade.linkage_run lr ON lr.linkage_run_id=d.linkage_run_id
                 JOIN qualidade.v_divergencia_linkage_contexto c ON c.divergencia_id=d.divergencia_id
-                WHERE d.pessoa_observacao_id=@obs AND d.correlation_id=@run;
+                WHERE d.pessoa_observacao_id=@obs AND d.linkage_run_id=@run;
                 """;
             verify.Parameters.AddWithValue("@obs", source.ObservationId);
             verify.Parameters.AddWithValue("@run", runId);
@@ -237,15 +238,16 @@ public sealed class LinkageProgressivePublicationSqlServerTests
             Assert.Multiple(() =>
             {
                 Assert.That(reader.GetGuid(0), Is.EqualTo(runId));
-                Assert.That(reader.GetString(1), Does.StartWith("LINKAGE_PROBABILISTICO:"));
-                Assert.That(reader.GetGuid(2), Is.EqualTo(runId));
-                Assert.That(reader.GetGuid(3), Is.EqualTo(model.ModelId));
-                Assert.That(reader.GetDecimal(4), Is.EqualTo(0.97000000m));
-                Assert.That(reader.GetGuid(5), Is.EqualTo(target));
-                Assert.That(reader.GetDecimal(6), Is.EqualTo(0.01000000m));
-                Assert.That(reader.GetString(7), Is.EqualTo("CONFLITO"));
-                Assert.That(reader.GetInt32(8), Is.EqualTo(1), "Replay da sincronização não pode duplicar a fila.");
-                Assert.That(reader.GetInt32(9), Is.Zero, "Fila de revisão não pode abrir correção governada automaticamente.");
+                Assert.That(reader.GetGuid(1), Is.EqualTo(reader.GetGuid(2)), "A divergência preserva a correlação original do run.");
+                Assert.That(reader.GetString(3), Does.StartWith("LINKAGE_PROBABILISTICO:"));
+                Assert.That(reader.GetGuid(4), Is.EqualTo(runId));
+                Assert.That(reader.GetGuid(5), Is.EqualTo(model.ModelId));
+                Assert.That(reader.GetDecimal(6), Is.EqualTo(0.97000000m));
+                Assert.That(reader.GetGuid(7), Is.EqualTo(target));
+                Assert.That(reader.GetDecimal(8), Is.EqualTo(0.01000000m));
+                Assert.That(reader.GetString(9), Is.EqualTo("CONFLITO"));
+                Assert.That(reader.GetInt32(10), Is.EqualTo(1), "Replay da sincronização não pode duplicar a fila.");
+                Assert.That(reader.GetInt32(11), Is.Zero, "Fila de revisão não pode abrir correção governada automaticamente.");
             });
         }
         finally
