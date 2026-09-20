@@ -105,6 +105,15 @@ internal sealed record LinkageConferenceGovernanceStatus(
     string RoundTripMethod,
     string RoundTripStatus);
 
+internal sealed record LinkageBlockingPassSupportStatus(
+    int PassOrder,
+    string PassId,
+    long SampleSize,
+    long MotherNamePresentSupport,
+    long MinimumRequiredPerPass,
+    bool NameSufficient,
+    bool MotherNameSufficient);
+
 internal sealed record ConfigurationBundleHealthStatus(
     string Status,
     string? ExpectedBundleVersion,
@@ -125,6 +134,7 @@ internal sealed record OperationalMonitorSnapshot(
     BronzeMaintenanceStatus? BronzeMaintenance,
     LinkageModelGovernanceStatus LinkageModelGovernance,
     LinkageConferenceGovernanceStatus LinkageConferenceGovernance,
+    IReadOnlyList<LinkageBlockingPassSupportStatus> LinkageBlockingPassSupport,
     IReadOnlyList<LinkageModelTransitionStatus> LinkageModelTransitions,
     IReadOnlyList<LinkageRunStatus> LinkageRuns);
 
@@ -227,6 +237,49 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             WHERE modelo_id=@active_model_id
             ORDER BY linkage_conferencia_evidencia_id DESC;
 
+            ;WITH active_ruleset AS (
+                SELECT TOP(1) ruleset_id
+                FROM identidade.linkage_ruleset
+                WHERE modelo_id=@active_model_id
+                ORDER BY ruleset_id
+            ),
+            min_support AS (
+                SELECT CONVERT(BIGINT,COALESCE(MAX(CASE
+                    WHEN nome=N'NOMINAL_U_MIN_CONDITIONED_PAIRS_PER_PASS' THEN valor END),0)) minimo
+                FROM identidade.parametro_linkage
+                WHERE modelo_id=@active_model_id
+            )
+            SELECT
+                rp.passe_ordem,
+                rp.passe_id,
+                CONVERT(BIGINT,COALESCE(MAX(CASE WHEN p.nome=
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_SAMPLE_SIZE'
+                    THEN p.valor END),0)) sample_size,
+                CONVERT(BIGINT,COALESCE(SUM(CASE WHEN p.nome IN(
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_EXACT',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_HIGH',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_MEDIUM',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_LOW')
+                    THEN p.valor ELSE 0 END),0)) mother_present_support,
+                ms.minimo,
+                CAST(CASE WHEN COALESCE(MAX(CASE WHEN p.nome=
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_SAMPLE_SIZE'
+                    THEN p.valor END),0)>=ms.minimo AND ms.minimo>0 THEN 1 ELSE 0 END AS BIT) name_sufficient,
+                CAST(CASE WHEN COALESCE(SUM(CASE WHEN p.nome IN(
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_EXACT',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_HIGH',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_MEDIUM',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_LOW')
+                    THEN p.valor ELSE 0 END),0)>=ms.minimo AND ms.minimo>0 THEN 1 ELSE 0 END AS BIT) mother_sufficient
+            FROM active_ruleset ar
+            JOIN identidade.linkage_ruleset_passe rp ON rp.ruleset_id=ar.ruleset_id
+            CROSS JOIN min_support ms
+            LEFT JOIN identidade.parametro_linkage p
+              ON p.modelo_id=@active_model_id
+             AND p.nome LIKE N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_%'
+            GROUP BY rp.passe_ordem,rp.passe_id,ms.minimo
+            ORDER BY rp.passe_ordem;
+
             SELECT CONVERT(NVARCHAR(32),(
                 SELECT value
                 FROM sys.extended_properties
@@ -246,6 +299,7 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             "SEM_MODELO_ATIVO", 0, null, null, null, null, null, null, null, null,
             "NAO_DECLARADO", "NAO_DECLARADO", "PENDENTE_ISSUE_31");
         var modelTransitions = new List<LinkageModelTransitionStatus>();
+        var blockingPassSupport = new List<LinkageBlockingPassSupportStatus>();
         LinkageConferenceGovernanceStatus conferenceGovernance = new(
             "SEM_MODELO_ATIVO", null, null, null, null, null, null, null, null, null, null,
             "PENDENTE_ISSUE_31",
@@ -370,6 +424,19 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
         }
 
         await reader.NextResultAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            blockingPassSupport.Add(new LinkageBlockingPassSupportStatus(
+                reader.GetInt32(0),
+                reader.GetString(1),
+                reader.GetInt64(2),
+                reader.GetInt64(3),
+                reader.GetInt64(4),
+                reader.GetBoolean(5),
+                reader.GetBoolean(6)));
+        }
+
+        await reader.NextResultAsync(ct);
         if (await reader.ReadAsync(ct) && !reader.IsDBNull(0))
             databaseSolutionSchema = reader.GetString(0);
 
@@ -394,6 +461,7 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             bronze,
             modelGovernance,
             conferenceGovernance,
+            blockingPassSupport,
             modelTransitions,
             linkageRuns);
     }
