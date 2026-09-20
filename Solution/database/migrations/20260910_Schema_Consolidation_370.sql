@@ -80,6 +80,8 @@ IF OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage',N'P') IS NU
     INSERT @missing(item) VALUES(N'PROC:identidade.sp_publicar_resolucao_progressiva_linkage');
 IF OBJECT_ID(N'auditoria.sp_registrar_decisao_identidade',N'P') IS NULL
     INSERT @missing(item) VALUES(N'PROC:auditoria.sp_registrar_decisao_identidade');
+IF OBJECT_ID(N'auditoria.sp_calcular_fingerprint_modelo_linkage',N'P') IS NULL
+    INSERT @missing(item) VALUES(N'PROC:auditoria.sp_calcular_fingerprint_modelo_linkage');
 IF OBJECT_ID(N'auditoria.sp_registrar_conferencia_linkage',N'P') IS NULL
     INSERT @missing(item) VALUES(N'PROC:auditoria.sp_registrar_conferencia_linkage');
 IF OBJECT_ID(N'auditoria.sp_assert_conferencia_linkage_conforme',N'P') IS NULL
