@@ -136,6 +136,125 @@ public sealed class LinkageProgressivePublicationSqlServerTests
     }
 
     [Test]
+    public async Task Published_conflict_is_idempotently_routed_to_governed_divergence_queue_with_context()
+    {
+        var cs = RequireIntegrationConnection();
+        await using var connection = new SqlConnection(cs);
+        await connection.OpenAsync();
+
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
+
+        var source = await ReadProvisionalSourceAsync(connection);
+        var model = await ReadModelAsync(connection);
+        Guid target;
+        await using (var candidate = connection.CreateCommand())
+        {
+            candidate.CommandText = "SELECT TOP(1) pessoa_uuid FROM identidade.pessoa WHERE pessoa_uuid<>@initial ORDER BY pessoa_uuid;";
+            candidate.Parameters.AddWithValue("@initial", source.InitialUuid);
+            target = (Guid)(await candidate.ExecuteScalarAsync()
+                ?? throw new InvalidOperationException("Fixture sem candidato distinto da origem provisória."));
+        }
+
+        var runId = Guid.NewGuid();
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
+        try
+        {
+            await using (var cleanup = connection.CreateCommand())
+            {
+                cleanup.Transaction = tx;
+                cleanup.CommandText = "DELETE FROM qualidade.divergencia_gestor WHERE pessoa_observacao_id=@obs;";
+                cleanup.Parameters.AddWithValue("@obs", source.ObservationId);
+                await cleanup.ExecuteNonQueryAsync();
+            }
+
+            await InsertRunAsync(connection, tx, runId, model.ModelId, model.Version, source.ObservationId,
+                rawResolved: false, noCandidate: false);
+
+            await using (var result = connection.CreateCommand())
+            {
+                result.Transaction = tx;
+                result.CommandText = """
+                    INSERT identidade.linkage_resultado(
+                        linkage_run_id,modelo_id,modelo_versao,pessoa_observacao_id,
+                        pessoa_uuid_resolvido,melhor_candidato_uuid,score_melhor,segundo_candidato_uuid,score_segundo,margem,
+                        status,motivo,calculado_em,
+                        resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,
+                        pessoa_origem_id_publicado,politica_publicacao_versao,universo_referencia,publicado_em)
+                    VALUES(
+                        @run,@model,@version,@obs,
+                        NULL,@target,0.97000000,NULL,NULL,0.01000000,
+                        N'CONFLITO',N'DOIS_CANDIDATOS_ACIMA_T_LINKAGE',SYSUTCDATETIME(),
+                        N'INDEFINIDA',NULL,N'CONFLITO',N'DOIS_CANDIDATOS_ACIMA_T_LINKAGE',
+                        @source,N'LINKAGE_PROGRESSIVE_PUBLICATION_V1',N'RUN_COMPLETO_TESTE',SYSUTCDATETIME());
+                    """;
+                result.Parameters.AddWithValue("@run", runId);
+                result.Parameters.AddWithValue("@model", model.ModelId);
+                result.Parameters.AddWithValue("@version", model.Version);
+                result.Parameters.AddWithValue("@obs", source.ObservationId);
+                result.Parameters.AddWithValue("@target", target);
+                result.Parameters.AddWithValue("@source", source.SourceId);
+                await result.ExecuteNonQueryAsync();
+            }
+
+            await using (var publish = connection.CreateCommand())
+            {
+                publish.Transaction = tx;
+                publish.CommandText = """
+                    UPDATE identidade.linkage_run
+                       SET status=N'PUBLICADO',
+                           conflitos=1,
+                           nao_resolvidos=0,
+                           finalizado_em=SYSUTCDATETIME(),
+                           publicado_em=SYSUTCDATETIME()
+                     WHERE linkage_run_id=@run;
+
+                    EXEC qualidade.sp_sincronizar_divergencias_linkage @linkage_run_id=@run;
+                    EXEC qualidade.sp_sincronizar_divergencias_linkage @linkage_run_id=@run;
+                    """;
+                publish.Parameters.AddWithValue("@run", runId);
+                await publish.ExecuteNonQueryAsync();
+            }
+
+            await using var verify = connection.CreateCommand();
+            verify.Transaction = tx;
+            verify.CommandText = """
+                SELECT d.correlation_id,d.motivo,
+                       c.linkage_run_id,c.modelo_id,c.score_melhor,c.melhor_candidato_uuid,c.margem,c.status_publicacao,
+                       (SELECT COUNT(*) FROM qualidade.divergencia_gestor x
+                         WHERE x.pessoa_observacao_id=@obs AND x.correlation_id=@run),
+                       (SELECT COUNT(*) FROM identidade.caso_conflito_identidade ci
+                         WHERE ci.correlation_id=@run)
+                FROM qualidade.divergencia_gestor d
+                JOIN qualidade.v_divergencia_linkage_contexto c ON c.divergencia_id=d.divergencia_id
+                WHERE d.pessoa_observacao_id=@obs AND d.correlation_id=@run;
+                """;
+            verify.Parameters.AddWithValue("@obs", source.ObservationId);
+            verify.Parameters.AddWithValue("@run", runId);
+            await using var reader = await verify.ExecuteReaderAsync();
+            Assert.That(await reader.ReadAsync(), Is.True);
+            Assert.Multiple(() =>
+            {
+                Assert.That(reader.GetGuid(0), Is.EqualTo(runId));
+                Assert.That(reader.GetString(1), Does.StartWith("LINKAGE_PROBABILISTICO:"));
+                Assert.That(reader.GetGuid(2), Is.EqualTo(runId));
+                Assert.That(reader.GetGuid(3), Is.EqualTo(model.ModelId));
+                Assert.That(reader.GetDecimal(4), Is.EqualTo(0.97000000m));
+                Assert.That(reader.GetGuid(5), Is.EqualTo(target));
+                Assert.That(reader.GetDecimal(6), Is.EqualTo(0.01000000m));
+                Assert.That(reader.GetString(7), Is.EqualTo("CONFLITO"));
+                Assert.That(reader.GetInt32(8), Is.EqualTo(1), "Replay da sincronização não pode duplicar a fila.");
+                Assert.That(reader.GetInt32(9), Is.Zero, "Fila de revisão não pode abrir correção governada automaticamente.");
+            });
+        }
+        finally
+        {
+            await tx.RollbackAsync();
+        }
+    }
+
+    [Test]
     public async Task Partial_provisional_shell_is_visible_in_gold_but_only_reference_receives_available_blocking_keys()
     {
         var cs = RequireIntegrationConnection();
