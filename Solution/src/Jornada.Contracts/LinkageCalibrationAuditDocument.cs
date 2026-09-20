@@ -67,6 +67,8 @@ public sealed record LinkageCalibrationAuditComparisonMapping(
 public sealed record LinkageCalibrationAuditInterchangeContract(
     string StatusAtExport,
     string UProbabilitySemantics,
+    string NominalNameUSource,
+    string NominalMotherNameUSource,
     bool SplinkDefaultRandomPairUEquivalent,
     LinkageCalibrationAuditComparisonMapping ComparisonStateMapping);
 
@@ -161,6 +163,21 @@ public static class LinkageCalibrationAuditRoundTrip
                 LinkageCalibrationAuditExchangePolicy.UProbabilitySemantics,
                 StringComparison.Ordinal))
             throw new InvalidDataException("uProbabilitySemantics diverge do contrato corrente.");
+        var expectedNameUSource = LinkageCalibrationAuditExchangePolicy.ResolveNominalUSource(
+            document.Parameters, motherName: false);
+        var expectedMotherUSource = LinkageCalibrationAuditExchangePolicy.ResolveNominalUSource(
+            document.Parameters, motherName: true);
+        if (!string.Equals(
+                document.InterchangeContract.NominalNameUSource,
+                expectedNameUSource,
+                StringComparison.Ordinal))
+            throw new InvalidDataException("Fonte nominal de u para nome diverge dos parâmetros persistidos.");
+        if (!string.Equals(
+                document.InterchangeContract.NominalMotherNameUSource,
+                expectedMotherUSource,
+                StringComparison.Ordinal))
+            throw new InvalidDataException("Fonte nominal de u para nome da mãe diverge dos parâmetros persistidos.");
+
         if (document.InterchangeContract.SplinkDefaultRandomPairUEquivalent)
             throw new InvalidDataException("O documento não pode declarar equivalência ao u aleatório padrão do Splink.");
         if (document.InterchangeContract.ComparisonStateMapping.Complete)
@@ -234,6 +251,12 @@ public static class LinkageCalibrationAuditRoundTrip
         Equal("interchangeContract.uProbabilitySemantics",
             expected.InterchangeContract.UProbabilitySemantics,
             actual.InterchangeContract.UProbabilitySemantics);
+        Equal("interchangeContract.nominalNameUSource",
+            expected.InterchangeContract.NominalNameUSource,
+            actual.InterchangeContract.NominalNameUSource);
+        Equal("interchangeContract.nominalMotherNameUSource",
+            expected.InterchangeContract.NominalMotherNameUSource,
+            actual.InterchangeContract.NominalMotherNameUSource);
         Equal("interchangeContract.splinkDefaultRandomPairUEquivalent",
             expected.InterchangeContract.SplinkDefaultRandomPairUEquivalent,
             actual.InterchangeContract.SplinkDefaultRandomPairUEquivalent);
