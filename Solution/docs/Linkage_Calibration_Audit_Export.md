@@ -63,3 +63,22 @@ O artefato declara explicitamente:
 - `comparisonStateMapping.complete=false`, com os estados semânticos de nascimento que não devem ser colapsados silenciosamente.
 
 Essa declaração transforma o JSON em contrato de auditoria/intercâmbio da Jornada. Ela **não** reivindica compatibilidade Splink completa nem reproduz o EM de uma segunda implementação. Qualquer adapter externo precisa declarar mapeamento explícito para estados não bijetivos.
+
+
+## Round-trip C# obrigatório
+
+A exportação é agora materializada como `LinkageCalibrationAuditDocument` tipado. Antes de gravar o JSON, o próprio executável:
+
+1. serializa o documento tipado;
+2. reimporta o JSON por `LinkageCalibrationAuditRoundTrip.Import`;
+3. valida invariantes do envelope e da proveniência;
+4. compara campo a campo o documento original e o reimportado;
+5. só grava o arquivo quando o round-trip está `CONFORME`.
+
+O método corrente é `JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1`.
+
+O importador é fail-closed: rejeita membros JSON desconhecidos, `schemaVersion/nature/purpose` divergentes, modelo fora de `ATIVO|VALIDADO`, diferença entre `statusAtExport` e o status do modelo, declaração de equivalência ao u aleatório padrão do Splink, mapeamento semântico indevidamente marcado como completo, lista de estados não bijetivos diferente do contrato, TF marcada como habilitada, proveniência nominal incompatível e passes associados a rulesets ausentes.
+
+Rejeitar membros desconhecidos é deliberado: o round-trip não pode parecer conforme descartando silenciosamente um campo que o C# não entende. Como consequência, dados pessoais ou qualquer extensão não versionada inserida no JSON não são absorvidos silenciosamente pelo contrato v1.
+
+Esse round-trip prova **fidelidade do formato de intercâmbio da Jornada**. Ele não mede paridade de scorer, não valida comparadores a partir de dados brutos, não estima qualidade estatística e não autoriza promoção do modelo.
