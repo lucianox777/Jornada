@@ -18,7 +18,7 @@ internal sealed record LinkageRuntimeSnapshot(LinkageModel Model, LinkageDynamic
     };
 }
 
-internal sealed record LinkageCandidate(Guid PessoaUuid, string NomeCompleto, DateOnly DataNascimento, string? NomeMae);
+internal sealed record LinkageCandidate(Guid PessoaUuid, string? NomeCompleto, DateOnly? DataNascimento, string? NomeMae);
 internal sealed record CandidateScore(Guid PessoaUuid, decimal Score, decimal LogOdds);
 
 internal static class LinkageModelPolicy
@@ -113,7 +113,7 @@ internal static class ProbabilisticLinkageDecisions
         return uniqueCandidates.Select(candidate =>
             {
                 var score = FellegiSunterScoring.Calculate(model.Parameters,
-                    IdentityComparison.CompareName(observation.NomeCompleto, candidate.NomeCompleto, nameComparisonContract),
+                    CompareOptionalName(observation.NomeCompleto, candidate.NomeCompleto),
                     CompareOptionalName(observation.NomeMae, candidate.NomeMae), uniqueCandidates.Count,
                     observation.DataNascimento, candidate.DataNascimento);
                 return new CandidateScore(candidate.PessoaUuid, score.Posterior, score.LogOdds);
@@ -127,17 +127,45 @@ internal static class ProbabilisticLinkageDecisions
     {
         if (!string.IsNullOrWhiteSpace(observation.Cpf)) throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
         var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(model.AlgorithmVersion);
-        var scored = Rank(model, observation, candidates);
+        var noCandidateReason = decisionEvidence
+            ? "SEM_CANDIDATO_NO_RULESET_BLOCKING"
+            : LinkageModelPolicy.SupportsBirthComponentScoring(model)
+                ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_COMPONENTE"
+                : "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO";
+        return ResolveRanked(model, Rank(model, observation, candidates), noCandidateReason);
+    }
+
+    internal static ProbabilisticLinkageDecision ResolveRanked(
+        LinkageModel model,
+        IReadOnlyList<CandidateScore> scored,
+        string noCandidateReason)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(noCandidateReason);
+        var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(model.AlgorithmVersion);
         if (scored.Count == 0)
-            return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, null, 0m, null, null, null, model.ModelId,
-                decisionEvidence ? "SEM_CANDIDATO_NO_RULESET_BLOCKING" : LinkageModelPolicy.SupportsBirthComponentScoring(model) ? "SEM_CANDIDATO_NOS_BLOCOS_NASCIMENTO_COMPONENTE" : "SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO");
+            return new ProbabilisticLinkageDecision(
+                ResolutionStatus.NAO_RESOLVIDO, null, null, 0m, null, null, null,
+                model.ModelId, noCandidateReason);
 
         var best = scored[0];
         var second = scored.Count > 1 ? scored[1] : null;
         if (second is not null && second.PessoaUuid == best.PessoaUuid)
             throw new InvalidOperationException("Ranking probabilístico inválido: melhor e segundo candidato possuem o mesmo UUID.");
         var secondScore = second?.Score;
-        decimal? margin = second is null ? null : decisionEvidence ? best.LogOdds - second.LogOdds : best.Score - second.Score;
+        decimal? margin = null;
+        if (second is not null)
+        {
+            if (decisionEvidence)
+            {
+                margin = best.LogOdds - second.LogOdds;
+            }
+            else
+            {
+                if (secondScore is null)
+                    throw new InvalidOperationException("Segundo candidato sem posterior no ranking congelado.");
+                margin = best.Score - secondScore.Value;
+            }
+        }
 
         if (best.Score < model.Threshold)
             return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId, "ABAIXO_T_LINKAGE");

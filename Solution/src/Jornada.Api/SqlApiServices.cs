@@ -434,7 +434,7 @@ internal sealed class SqlPersonProjectionService(
             command.CommandText = """
                 DECLARE @gestor_id BIGINT=(SELECT gestor_id FROM ref.gestor WHERE codigo=@gestor);
                 SELECT gp.pessoa_uuid,gp.cpf,gp.status_cpf,gp.nome_completo,gp.data_nascimento,gp.nome_mae,
-                       gp.fontes_distintas,gp.estado_concordancia,gp.atualizado_em,
+                       gp.fontes_distintas,gp.estado_concordancia,gp.estado_identidade,gp.completude_nucleo,gp.atualizado_em,
                        src.codigo_pessoa_origem,src.cpf_ausente_motivo
                 FROM OPENJSON(@ids) WITH (pessoa_uuid UNIQUEIDENTIFIER '$') j
                 JOIN serving.v_pessoa gp ON gp.pessoa_uuid=j.pessoa_uuid
@@ -456,14 +456,16 @@ internal sealed class SqlPersonProjectionService(
                     uuid,
                     reader.NullableString(1),
                     reader.GetString(2),
-                    reader.GetString(3),
-                    DateOnly.FromDateTime(reader.GetDateTime(4)),
+                    reader.NullableString(3),
+                    reader.IsDBNull(4) ? null : DateOnly.FromDateTime(reader.GetDateTime(4)),
                     reader.NullableString(5),
                     reader.GetInt32(6),
                     reader.GetString(7),
-                    reader.GetDateTimeOffset(8),
-                    reader.NullableString(9),
-                    reader.NullableString(10),
+                    reader.GetString(8),
+                    reader.GetString(9),
+                    reader.GetDateTimeOffset(10),
+                    reader.NullableString(11),
+                    reader.NullableString(12),
                     [],
                     []);
             }
@@ -535,7 +537,7 @@ internal sealed class SqlPersonProjectionService(
                 schema.Project(row),
                 schema.SchemaRef,
                 new PersonProjectionMetadata(row.FontesDistintas, row.EstadoConcordancia, row.AtualizadoEm,
-                    requestedUuid, requestedUuid != canonicalUuid)));
+                    requestedUuid, requestedUuid != canonicalUuid, row.EstadoIdentidade, row.CompletudeNucleo)));
         }
         return ordered;
     }
@@ -553,11 +555,13 @@ internal sealed class SqlPersonProjectionService(
         Guid PessoaUuid,
         string? Cpf,
         string StatusCpf,
-        string NomeCompleto,
-        DateOnly DataNascimento,
+        string? NomeCompleto,
+        DateOnly? DataNascimento,
         string? NomeMae,
         int FontesDistintas,
         string EstadoConcordancia,
+        string EstadoIdentidade,
+        string CompletudeNucleo,
         DateTimeOffset AtualizadoEm,
         string? CodigoPessoaOrigem,
         string? CpfAusenteMotivo,
@@ -627,7 +631,7 @@ internal sealed class SqlPersonProjectionService(
             Add("cpf", row.Cpf);
             Add("cpfAusenteMotivo", row.Cpf is null ? row.CpfAusenteMotivo ?? row.StatusCpf : null);
             Add("nomeCompleto", row.NomeCompleto);
-            Add("dataNascimento", row.DataNascimento.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+            Add("dataNascimento", row.DataNascimento?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
             Add("nomeMae", row.NomeMae);
             if (_properties.Contains("atributosTransversais"))
             {

@@ -22,7 +22,7 @@ public static class FellegiSunterScoring
 {
     public static decimal CalculatePosterior(
         IReadOnlyDictionary<string, decimal> parameters,
-        NameComparisonState nameState,
+        NameComparisonState? nameState,
         NameComparisonState? motherNameState,
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
@@ -31,7 +31,7 @@ public static class FellegiSunterScoring
 
     public static FellegiSunterScore Calculate(
         IReadOnlyDictionary<string, decimal> parameters,
-        NameComparisonState nameState,
+        NameComparisonState? nameState,
         NameComparisonState? motherNameState,
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
@@ -45,7 +45,7 @@ public static class FellegiSunterScoring
     /// </summary>
     public static FellegiSunterScoreBreakdown CalculateWithBreakdown(
         IReadOnlyDictionary<string, decimal> parameters,
-        NameComparisonState nameState,
+        NameComparisonState? nameState,
         NameComparisonState? motherNameState,
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
@@ -73,7 +73,17 @@ public static class FellegiSunterScoring
                 (decimal)value.LogLikelihoodRatio));
         }
 
-        Add("NOME", nameState.ToString(), RequiredLikelihoodRatio(parameters, "NOME", nameState.ToString()));
+        if (nameState is { } observedNameState)
+        {
+            Add("NOME", observedNameState.ToString(),
+                RequiredLikelihoodRatio(parameters, "NOME", observedNameState.ToString()));
+        }
+        else
+        {
+            // Não existe distribuição calibrada NOME_MISSING no modelo corrente.
+            // Até sua calibração explícita, ausência é evidência indisponível/neutra.
+            Add("NOME", "MISSING_NEUTRAL", (null, null, 0d));
+        }
 
         if (motherNameState is { } observedMotherNameState)
         {

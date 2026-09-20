@@ -67,7 +67,7 @@ public static class BlockingProjectionKeyProjector
     public static IReadOnlyList<BlockingProjectionKey> Project(
         string? fullName,
         string? motherName,
-        DateOnly birthDate)
+        DateOnly? birthDate)
     {
         var keys = new HashSet<BlockingProjectionKey>();
 
@@ -105,15 +105,18 @@ public static class BlockingProjectionKeyProjector
 
         AddPhoneticRepresentation(keys, motherName, BlockingFeatureNames.MotherFullNamePhoneticPtBr);
 
-        keys.Add(new BlockingProjectionKey(
-            BlockingFeatureNames.BirthDay,
-            birthDate.Day.ToString("D2", CultureInfo.InvariantCulture)));
-        keys.Add(new BlockingProjectionKey(
-            BlockingFeatureNames.BirthMonth,
-            birthDate.Month.ToString("D2", CultureInfo.InvariantCulture)));
-        keys.Add(new BlockingProjectionKey(
-            BlockingFeatureNames.BirthYear,
-            birthDate.Year.ToString("D4", CultureInfo.InvariantCulture)));
+        if (birthDate is { } observedBirthDate)
+        {
+            keys.Add(new BlockingProjectionKey(
+                BlockingFeatureNames.BirthDay,
+                observedBirthDate.Day.ToString("D2", CultureInfo.InvariantCulture)));
+            keys.Add(new BlockingProjectionKey(
+                BlockingFeatureNames.BirthMonth,
+                observedBirthDate.Month.ToString("D2", CultureInfo.InvariantCulture)));
+            keys.Add(new BlockingProjectionKey(
+                BlockingFeatureNames.BirthYear,
+                observedBirthDate.Year.ToString("D4", CultureInfo.InvariantCulture)));
+        }
 
         return keys
             .OrderBy(static key => key.Feature, StringComparer.Ordinal)

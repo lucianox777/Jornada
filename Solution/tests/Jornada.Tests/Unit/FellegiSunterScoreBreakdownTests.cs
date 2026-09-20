@@ -56,6 +56,29 @@ public sealed class FellegiSunterScoreBreakdownTests
     }
 
     [Test]
+    public void Breakdown_TreatsMissingMainNameAsNeutralUnavailableEvidence()
+    {
+        var parameters = new Dictionary<string, decimal>(StringComparer.Ordinal)
+        {
+            [LinkageParameterCatalog.PriorMatchProbability] = .01m
+        };
+
+        var breakdown = FellegiSunterScoring.CalculateWithBreakdown(
+            parameters,
+            nameState: null,
+            motherNameState: null);
+
+        var name = breakdown.Contributions.Single(c => c.Evidence == "NOME");
+        Assert.Multiple(() =>
+        {
+            Assert.That(name.State, Is.EqualTo("MISSING_NEUTRAL"));
+            Assert.That(name.MProbability, Is.Null);
+            Assert.That(name.UProbability, Is.Null);
+            Assert.That(name.LogLikelihoodRatio, Is.Zero);
+        });
+    }
+
+    [Test]
     public void Breakdown_MakesLegacyNeutralMissingEvidenceAndBlockPriorExplicit()
     {
         var parameters = new Dictionary<string, decimal>(StringComparer.Ordinal)

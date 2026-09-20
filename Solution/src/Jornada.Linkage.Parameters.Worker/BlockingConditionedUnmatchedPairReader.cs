@@ -48,6 +48,13 @@ public static class BlockingConditionedUnmatchedPairReader
         if (allFields.Any(field => !allowed.Contains(field)))
             throw new InvalidOperationException("Ruleset contém feature fora do catálogo canônico do calibrador.");
 
+        var stableFields = allFields
+            .Where(field => BlockingFeatureTemporalCatalog.Get(field) == BlockingFeatureTemporalSemantics.StableIdentityDatum)
+            .ToArray();
+        var versionedFields = allFields
+            .Where(field => BlockingFeatureTemporalCatalog.Get(field) == BlockingFeatureTemporalSemantics.VersionedAlias)
+            .ToArray();
+
         var projection = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
         var ctes = new List<string>();
         var pairSources = new List<string>();
@@ -66,6 +73,34 @@ public static class BlockingConditionedUnmatchedPairReader
             allFieldParameters.Add(parameterName);
             command.Parameters.Add(parameterName, SqlDbType.NVarChar, 80).Value = allFields[index];
         }
+
+        var stableFieldParameters = new List<string>();
+        for (var index = 0; index < stableFields.Length; index++)
+        {
+            var parameterName = $"@stable_field_{index}";
+            stableFieldParameters.Add(parameterName);
+            command.Parameters.Add(parameterName, SqlDbType.NVarChar, 80).Value = stableFields[index];
+        }
+
+        var versionedFieldParameters = new List<string>();
+        for (var index = 0; index < versionedFields.Length; index++)
+        {
+            var parameterName = $"@versioned_field_{index}";
+            versionedFieldParameters.Add(parameterName);
+            command.Parameters.Add(parameterName, SqlDbType.NVarChar, 80).Value = versionedFields[index];
+        }
+
+        var temporalSemanticsPredicate = string.Join(
+            " OR ",
+            new[]
+            {
+                stableFieldParameters.Count == 0
+                    ? null
+                    : $"(k.atributo IN ({string.Join(",", stableFieldParameters)}) AND k.semantica_temporal=N'STABLE_IDENTITY_DATUM' AND k.vigencia_fim IS NULL)",
+                versionedFieldParameters.Count == 0
+                    ? null
+                    : $"(k.atributo IN ({string.Join(",", versionedFieldParameters)}) AND k.semantica_temporal=N'VERSIONED_ALIAS')"
+            }.Where(static clause => clause is not null));
 
         for (var passIndex = 0; passIndex < canonicalPasses.Length; passIndex++)
         {
@@ -132,7 +167,10 @@ WITH gold_sample AS (
     SELECT TOP (@pool_size)
         g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
     FROM gold.pessoa g
-    WHERE NOT EXISTS (
+    WHERE g.estado_identidade=N'REFERENCIA'
+      AND g.nome_completo IS NOT NULL
+      AND g.data_nascimento IS NOT NULL
+      AND NOT EXISTS (
         SELECT 1
         FROM identidade.vinculo_fonte vf_val
         JOIN silver.pessoa_observacao po_val
@@ -149,7 +187,7 @@ WITH gold_sample AS (
       AND k.projection_schema_version=@projection_schema
       AND k.projection_fingerprint_sha256=@projection_fingerprint
       AND k.atributo IN ({string.Join(",", allFieldParameters)})
-      AND (k.semantica_temporal<>'STABLE_IDENTITY_DATUM' OR k.vigencia_fim IS NULL)
+      AND ({temporalSemanticsPredicate})
 ),
 {string.Join(",\n", ctes)},
 candidate_pairs AS (
@@ -201,9 +239,13 @@ ORDER BY p.sample_rank;
                 reader.IsDBNull(5) ? null : reader.GetString(5)));
         }
 
-        var verified = BlockingConditionedTrainingPairFilter.Retain(result, canonicalPasses);
-        if (verified.Count != result.Count)
-            throw new InvalidOperationException($"Invariante violada: {result.Count - verified.Count} pares u amostrados não sobreviveram ao ruleset consultado.");
+        // candidate_pairs é construído exclusivamente dos CTEs de cada passe sobre
+        // blocking_chave com a mesma semântica temporal do Runner. Reprojetar a Gold
+        // corrente aqui seria incorreto: VERSIONED_ALIAS preserva valores históricos
+        // deliberadamente recuperáveis, enquanto gold.pessoa expõe apenas o estado atual.
+        if (candidatePoolSize < result.Count)
+            throw new InvalidOperationException(
+                "Invariante violada: amostra u excedeu o pool candidato materializado.");
 
         return new BlockingConditionedUnmatchedPairSample(result, support, candidatePoolSize);
     }

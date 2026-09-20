@@ -324,8 +324,19 @@ IF NOT EXISTS(SELECT 1 FROM identidade.linkage_run WHERE linkage_run_id=@linkRun
 IF NOT EXISTS(SELECT 1 FROM identidade.linkage_run_item WHERE linkage_run_id=@linkRun)
  INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id) VALUES(@linkRun,@p5),(@linkRun,@p6);
 IF NOT EXISTS(SELECT 1 FROM identidade.linkage_resultado WHERE linkage_run_id=@linkRun)
- INSERT identidade.linkage_resultado(linkage_run_id,modelo_id,modelo_versao,pessoa_observacao_id,pessoa_uuid_resolvido,melhor_candidato_uuid,score_melhor,segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em) VALUES
- (@linkRun,@model,1,@p5,@u5,@u5,0.91,@u4,0.20,0.71,'RESOLVIDO',NULL,'2026-08-27T09:06:00-03:00'),(@linkRun,@model,1,@p6,NULL,@u3,0.70,@u2,0.69,0.01,'CONFLITO','MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE','2026-08-27T09:06:00-03:00');
+ INSERT identidade.linkage_resultado(
+   linkage_run_id,modelo_id,modelo_versao,pessoa_observacao_id,
+   pessoa_uuid_resolvido,melhor_candidato_uuid,score_melhor,segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em,
+   resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,pessoa_origem_id_publicado,
+   progressiva_versao,politica_publicacao_versao,universo_referencia,publicado_em) VALUES
+ (@linkRun,@model,1,@p5,@u5,@u5,0.91,@u4,0.20,0.71,'RESOLVIDO',NULL,'2026-08-27T09:06:00-03:00',
+  'ASSOCIACAO_EXISTENTE',@u5,'RESOLVIDO','SEED_DEV_PUBLICACAO_LEGADA',
+  (SELECT pessoa_origem_id FROM silver.pessoa_observacao WHERE pessoa_observacao_id=@p5),
+  NULL,'SEED_DEV_PUBLICATION_V1',N'SEED_DEV_LINKAGE_RUN','2026-08-27T09:06:00-03:00'),
+ (@linkRun,@model,1,@p6,NULL,@u3,0.70,@u2,0.69,0.01,'CONFLITO','MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE','2026-08-27T09:06:00-03:00',
+  'INDEFINIDA',NULL,'CONFLITO','MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE',
+  (SELECT pessoa_origem_id FROM silver.pessoa_observacao WHERE pessoa_observacao_id=@p6),
+  NULL,'SEED_DEV_PUBLICATION_V1',N'SEED_DEV_LINKAGE_RUN','2026-08-27T09:06:00-03:00');
 IF NOT EXISTS(SELECT 1 FROM gold.pessoa WHERE pessoa_uuid=@u5)
  INSERT gold.pessoa(pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,estado_concordancia,atualizado_em) VALUES(@u5,NULL,'EM_REGULARIZACAO',N'Carlos Santos','1990-01-15',N'Lucia Santos',1,'BASELINE_FALLBACK','2026-08-27T09:06:00-03:00');
 

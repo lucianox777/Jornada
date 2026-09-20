@@ -164,6 +164,19 @@ Write-Host "Validação independente: modelo v$modelVersion / $activeModelId / $
 
 Invoke-SqlFile $Fixture
 
+# O fixture DEV entra direto na Silver e deliberadamente bypassa o Processor.
+# Materializa o ledger progressivo antes de testar a publicação fail-closed do runtime.
+Push-Location $Root
+try {
+    Write-CommandLine 'docker' @('compose','--env-file',$EnvFile,'exec','-T','-e','SQLCMDPASSWORD=<redacted>','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-C','-b','-d',$db,'-v','PAGE_SIZE=1000','-i','/workspace/scripts/local-progressive-identity-backfill.sql')
+    & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd `
+        -S localhost -U sa -C -b -d $db -v PAGE_SIZE=1000 -i /workspace/scripts/local-progressive-identity-backfill.sql
+    if ($LASTEXITCODE -ne 0) { throw "backfill progressivo das fixtures falhou ($LASTEXITCODE)." }
+}
+finally { Pop-Location }
+$missingProgressive = [long](Get-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao po JOIN silver.pessoa_origem o ON o.pessoa_origem_id=po.pessoa_origem_id LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE po.codigo_pessoa_origem LIKE N'SCALE-VAL-%' AND p.pessoa_origem_id IS NULL;")
+if ($missingProgressive -ne 0) { throw "Fixture SCALE-VAL deixou $missingProgressive origens sem initial_uuid." }
+
 # Reutiliza evidência completa já publicada para o mesmo modelo. Isso torna a validação idempotente:
 # observações resolvidas deixam de entrar no próximo ON_DEMAND e um segundo run isolado seria parcial.
 $runId = Get-CompleteValidationRunId -ModelId $activeModelId -ModelShort $modelShort

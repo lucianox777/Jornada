@@ -55,6 +55,10 @@ public sealed class SqlGovernanceArtifactTests
     {
         var sql = LoadDdl();
         var block = LastProcedureBlock(sql, "identidade.sp_recompor_gold_pessoa");
+        var mergePosition = block.IndexOf("MERGE gold.pessoa WITH (HOLDLOCK)", StringComparison.Ordinal);
+        Assert.That(mergePosition, Is.GreaterThan(0));
+        var afterMerge = block[mergePosition..];
+
         Assert.Multiple(() =>
         {
             StringAssert.Contains("SET XACT_ABORT ON", block);
@@ -62,8 +66,8 @@ public sealed class SqlGovernanceArtifactTests
             StringAssert.Contains("DECLARE @src TABLE", block);
             StringAssert.Contains("INSERT @src", block);
             StringAssert.Contains("MERGE gold.pessoa WITH (HOLDLOCK)", block);
-            StringAssert.Contains("IF NOT EXISTS(SELECT 1 FROM @src)", block);
-            StringAssert.DoesNotContain("SELECT 1 FROM obs", block);
+            StringAssert.Contains("IF NOT EXISTS(SELECT 1 FROM @src)", afterMerge);
+            StringAssert.DoesNotContain("FROM obs", afterMerge);
         });
     }
 

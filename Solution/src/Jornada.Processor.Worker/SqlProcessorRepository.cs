@@ -290,8 +290,8 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
             if (await reader.ReadAsync(ct))
             {
                 return new IdentityCore(
-                    reader.GetString(0),
-                    DateOnly.FromDateTime(reader.GetDateTime(1)),
+                    reader.IsDBNull(0) ? null : reader.GetString(0),
+                    reader.IsDBNull(1) ? null : DateOnly.FromDateTime(reader.GetDateTime(1)),
                     reader.IsDBNull(2) ? null : reader.GetString(2));
             }
         }
@@ -311,8 +311,8 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
         await using var silverReader = await silver.ExecuteReaderAsync(ct);
         if (!await silverReader.ReadAsync(ct)) return null;
         return new IdentityCore(
-            silverReader.GetString(0),
-            DateOnly.FromDateTime(silverReader.GetDateTime(1)),
+            silverReader.IsDBNull(0) ? null : silverReader.GetString(0),
+            silverReader.IsDBNull(1) ? null : DateOnly.FromDateTime(silverReader.GetDateTime(1)),
             silverReader.IsDBNull(2) ? null : silverReader.GetString(2));
     }
 }

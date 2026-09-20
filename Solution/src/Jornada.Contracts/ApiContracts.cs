@@ -27,7 +27,7 @@ public sealed record IdentityResolutionResponse(
 public sealed record IdentityConflictDetailRequest(string Cpf);
 public sealed record IdentityConflictCoreDto(
     long PessoaObservacaoId, Guid? PessoaUuidAtual, string GestorCodigo, string CodigoPessoaOrigem,
-    string NomeCompleto, DateOnly DataNascimento, string NomeMae, string VinculoStatus, string? Motivo);
+    string? NomeCompleto, DateOnly? DataNascimento, string? NomeMae, string VinculoStatus, string? Motivo);
 public sealed record IdentityConflictDetailResponse(
     string CpfEstado, string? Motivo, Guid? PessoaUuidAnteriormenteAssociada, IReadOnlyList<IdentityConflictCoreDto> Nucleos);
 public sealed record IdentityCorrectionGroupRequest(
@@ -105,7 +105,9 @@ public sealed record PersonProjectionMetadata(
     string EstadoConcordancia,
     DateTimeOffset AtualizadoEm,
     Guid? PessoaUuidSolicitado = null,
-    bool RedirecionadoPorFusao = false);
+    bool RedirecionadoPorFusao = false,
+    string? EstadoIdentidade = null,
+    string? CompletudeNucleo = null);
 
 public sealed record PersonProjectionResponse(
     Guid PessoaUuid,

@@ -50,7 +50,10 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
             {
                 nuclei.Add(new IdentityConflictCoreDto(
                     reader.GetInt64(0), reader.IsDBNull(1) ? null : reader.GetGuid(1), reader.GetString(2), reader.GetString(3),
-                    reader.GetString(4), DateOnly.FromDateTime(reader.GetDateTime(5)), reader.GetString(6), reader.GetString(7),
+                    reader.IsDBNull(4) ? null : reader.GetString(4),
+                    reader.IsDBNull(5) ? null : DateOnly.FromDateTime(reader.GetDateTime(5)),
+                    reader.IsDBNull(6) ? null : reader.GetString(6),
+                    reader.GetString(7),
                     reader.IsDBNull(8) ? null : reader.GetString(8)));
             }
         }

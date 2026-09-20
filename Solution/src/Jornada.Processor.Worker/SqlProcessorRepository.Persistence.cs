@@ -76,8 +76,7 @@ internal sealed partial class SqlProcessorRepository
             await RecordProcessedItemAsync(
                 connection, tx, batch, "PESSOA", replayed.PessoaOrigemId, null, person.IdPessoaEntrega,
                 "RETRANSMITIDO", deliveryObservation.VersaoInterna, person.ConteudoHash, ct);
-            if (replayed.PessoaUuid is Guid replayedUuid)
-                await RefreshGoldPersonAsync(connection, tx, replayedUuid, ct);
+            await RefreshGoldRepresentationsAsync(connection, tx, replayed.PessoaOrigemId, replayed.PessoaUuid, ct);
             return replayed;
         }
 
@@ -97,13 +96,12 @@ internal sealed partial class SqlProcessorRepository
                 person.IdPessoaEntrega,
                 "RETRANSMITIDO", latest.VersaoInterna, person.ConteudoHash, ct);
             var retransmitted = await LoadProcessedPersonAsync(connection, tx, latest.ObservationId, ct);
-            if (retransmitted.PessoaUuid is Guid retransmittedUuid)
-                await RefreshGoldPersonAsync(connection, tx, retransmittedUuid, ct);
+            await RefreshGoldRepresentationsAsync(connection, tx, retransmitted.PessoaOrigemId, retransmitted.PessoaUuid, ct);
             return retransmitted;
         }
 
         var internalVersion = (latest?.VersaoInterna ?? 0) + 1;
-        var nomeCmp = IdentityComparison.NormalizeText(person.NomeCompleto) ?? person.NomeCompleto.ToUpperInvariant();
+        var nomeCmp = IdentityComparison.NormalizeText(person.NomeCompleto);
         var maeCmp = IdentityComparison.NormalizeText(person.NomeMae);
         long observationId;
         await using (var insert = connection.CreateCommand())
@@ -126,11 +124,11 @@ internal sealed partial class SqlProcessorRepository
             insert.Parameters.Add(new SqlParameter("@hash", SqlDbType.Char, 64) { Value = person.ConteudoHash });
             AddNullable(insert, "@cpf", SqlDbType.Char, 11, person.Cpf);
             AddNullable(insert, "@cpf_motivo", SqlDbType.NVarChar, 30, person.CpfAusenteMotivo);
-            insert.Parameters.Add(new SqlParameter("@nome", SqlDbType.NVarChar, 500) { Value = person.NomeCompleto });
-            insert.Parameters.Add(new SqlParameter("@nome_cmp", SqlDbType.NVarChar, 500) { Value = nomeCmp });
-            insert.Parameters.Add(new SqlParameter("@nascimento", SqlDbType.Date) { Value = person.DataNascimento.ToDateTime(TimeOnly.MinValue) });
-            insert.Parameters.Add(new SqlParameter("@mae", SqlDbType.NVarChar, 500) { Value = (object?)person.NomeMae ?? DBNull.Value });
-            insert.Parameters.Add(new SqlParameter("@mae_cmp", SqlDbType.NVarChar, 500) { Value = (object?)maeCmp ?? DBNull.Value });
+            AddNullable(insert, "@nome", SqlDbType.NVarChar, 500, person.NomeCompleto);
+            AddNullable(insert, "@nome_cmp", SqlDbType.NVarChar, 500, nomeCmp);
+            AddNullableDate(insert, "@nascimento", person.DataNascimento);
+            AddNullable(insert, "@mae", SqlDbType.NVarChar, 500, person.NomeMae);
+            AddNullable(insert, "@mae_cmp", SqlDbType.NVarChar, 500, maeCmp);
             insert.Parameters.AddWithValue("@source_as_of", batch.DataReferencia);
             observationId = Convert.ToInt64(await insert.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
         }
@@ -298,9 +296,9 @@ internal sealed partial class SqlProcessorRepository
 
         var selectedGeography = await SelectTerritorialReferenceAsync(connection, tx, observationId, ct);
 
+        await RefreshGoldRepresentationsAsync(connection, tx, pessoaOrigemId, uuid, ct);
         if (uuid.HasValue)
         {
-            await RefreshGoldPersonAsync(connection, tx, uuid.Value, ct);
             foreach (var attribute in attributes.Where(a => string.Equals(a.Value.StatusEvidencia, "COMPROVADO", StringComparison.OrdinalIgnoreCase)))
                 await PromoteAttributeAsync(connection, tx, batch.GestorId, uuid.Value, attribute, ct);
         }

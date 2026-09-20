@@ -2,7 +2,7 @@ using System.Data;
 using Jornada.Contracts;
 using Microsoft.Data.SqlClient;
 
-namespace Jornada.Processor.Worker;
+namespace Jornada.Operational.Sql;
 
 /// <summary>
 /// Reconstrói, dentro da transação do Processor, as chaves de blocking de uma Pessoa.
@@ -10,9 +10,9 @@ namespace Jornada.Processor.Worker;
 /// atributos transversais elegíveis usam a Gold versionada mais o vencedor COMPROVADO da Silver
 /// ainda não promovido. A operação é idempotente e nunca infere elegibilidade pelo nome do atributo.
 /// </summary>
-internal static class BlockingProjectionPersistence
+public static class BlockingProjectionPersistence
 {
-    internal static async Task RefreshSqlServerAsync(
+    public static async Task RefreshSqlServerAsync(
         SqlConnection connection,
         SqlTransaction tx,
         Guid pessoaUuid,
@@ -30,20 +30,22 @@ internal static class BlockingProjectionPersistence
     {
         string? currentName;
         string? currentMother;
-        DateOnly currentBirth;
+        DateOnly? currentBirth;
         DateTimeOffset currentAsOf;
 
         await using (var current = connection.CreateCommand())
         {
             current.Transaction = tx;
-            current.CommandText = "SELECT nome_completo,nome_mae,data_nascimento,atualizado_em FROM gold.pessoa WHERE pessoa_uuid=@uuid;";
+            current.CommandText = "SELECT nome_completo,nome_mae,data_nascimento,atualizado_em,estado_identidade FROM gold.pessoa WHERE pessoa_uuid=@uuid;";
             current.Parameters.AddWithValue("@uuid", pessoaUuid);
             await using var reader = await current.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct))
                 return BlockingProjectionSnapshot.Empty;
-            currentName = reader.GetString(0);
+            if (!string.Equals(reader.GetString(4), "REFERENCIA", StringComparison.Ordinal))
+                return BlockingProjectionSnapshot.Empty;
+            currentName = reader.IsDBNull(0) ? null : reader.GetString(0);
             currentMother = reader.IsDBNull(1) ? null : reader.GetString(1);
-            currentBirth = DateOnly.FromDateTime(reader.GetDateTime(2));
+            currentBirth = reader.IsDBNull(2) ? null : DateOnly.FromDateTime(reader.GetDateTime(2));
             currentAsOf = reader.GetDateTimeOffset(3);
         }
 
@@ -152,7 +154,7 @@ internal static class BlockingProjectionPersistence
     private static BlockingProjectionSnapshot BuildSnapshot(
         string? currentName,
         string? currentMother,
-        DateOnly currentBirth,
+        DateOnly? currentBirth,
         DateTimeOffset currentAsOf,
         IReadOnlyList<BlockingNameObservation> observations,
         IReadOnlyList<BlockingDynamicAttributeObservation> dynamicObservations)

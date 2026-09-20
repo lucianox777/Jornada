@@ -41,7 +41,8 @@ FROM (VALUES
  (N'serving.v_bi_qualidade_resolucao_operacional'),
  (N'serving.v_bi_qualidade_resolucao_calibrada'),
  (N'serving.v_bi_qualidade_resolucao_operacional_origem'),
- (N'serving.v_bi_qualidade_resolucao_operacional_estrato')
+ (N'serving.v_bi_qualidade_resolucao_operacional_estrato'),
+ (N'serving.v_bi_completude_pessoa')
 ) v(objeto)
 WHERE OBJECT_ID(v.objeto, N'V') IS NULL;
 
@@ -55,12 +56,16 @@ FROM (VALUES
  (N'gold.tr_pessoa_nome_publicacao'),
  (N'identidade.tr_linkage_run_congela_frequencia_nome'),
  (N'identidade.tr_linkage_run_frequencia_nome_immutavel'),
- (N'identidade.tr_modelo_linkage_promotion_contract')
+ (N'identidade.tr_modelo_linkage_promotion_contract'),
+ (N'identidade.tr_linkage_resultado_publicacao_imutavel'),
+ (N'identidade.tr_linkage_resultado_bloqueia_delete')
 ) v(objeto)
 WHERE OBJECT_ID(v.objeto, N'TR') IS NULL;
 
 IF OBJECT_ID(N'ref.sp_publicar_frequencia_nome_versao',N'P') IS NULL
     INSERT @missing(item) VALUES(N'PROC:ref.sp_publicar_frequencia_nome_versao');
+IF OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage',N'P') IS NULL
+    INSERT @missing(item) VALUES(N'PROC:identidade.sp_publicar_resolucao_progressiva_linkage');
 
 DECLARE @required_columns TABLE(tabela SYSNAME NOT NULL,coluna SYSNAME NOT NULL,PRIMARY KEY(tabela,coluna));
 INSERT @required_columns(tabela,coluna) VALUES
@@ -68,6 +73,18 @@ INSERT @required_columns(tabela,coluna) VALUES
  (N'identidade.linkage_run',N'frequencia_nome_versao_id'),
  (N'identidade.linkage_run',N'frequencia_nome_versao_codigo'),
  (N'identidade.linkage_run',N'frequencia_nome_conteudo_sha256'),
+ (N'identidade.linkage_resultado',N'resultado_publicacao'),
+ (N'identidade.linkage_resultado',N'pessoa_uuid_publicado'),
+ (N'identidade.linkage_resultado',N'status_publicacao'),
+ (N'identidade.linkage_resultado',N'motivo_publicacao'),
+ (N'identidade.linkage_resultado',N'pessoa_origem_id_publicado'),
+ (N'identidade.linkage_resultado',N'progressiva_versao'),
+ (N'identidade.linkage_resultado',N'politica_publicacao_versao'),
+ (N'identidade.linkage_resultado',N'universo_referencia'),
+ (N'identidade.linkage_resultado',N'publicado_em'),
+ (N'identidade.pessoa_origem_progressiva_evento',N'linkage_run_id'),
+ (N'gold.pessoa',N'estado_identidade'),
+ (N'gold.pessoa',N'completude_nucleo'),
  (N'gold.pessoa',N'nome_publicacao_normalizado'),
  (N'gold.pessoa',N'nome_publicacao_metodo_versao'),
  (N'gold.pessoa',N'nome_publicacao_normalizacao_versao'),
@@ -79,13 +96,18 @@ SELECT CONCAT(N'COLUMN:',tabela,N'.',coluna)
 FROM @required_columns
 WHERE COL_LENGTH(tabela,coluna) IS NULL;
 
--- Nome da mãe é opcional no contrato corrente. Presença sem nulabilidade continua
--- sendo schema incompatível, mesmo que o nome da coluna seja o esperado.
+-- O núcleo cadastral é progressivo. Obrigatoriedade pertence ao schema da fonte,
+-- não à representação canônica; Silver e Gold precisam aceitar ausência.
 INSERT @missing(item)
 SELECT CONCAT(N'NULLABILITY:',v.tabela,N'.',v.coluna)
 FROM (VALUES
+ (N'silver.pessoa_observacao',N'nome_completo'),
+ (N'silver.pessoa_observacao',N'nome_cmp'),
+ (N'silver.pessoa_observacao',N'data_nascimento'),
  (N'silver.pessoa_observacao',N'nome_mae'),
  (N'silver.pessoa_observacao',N'nome_mae_cmp'),
+ (N'gold.pessoa',N'nome_completo'),
+ (N'gold.pessoa',N'data_nascimento'),
  (N'gold.pessoa',N'nome_mae')
 ) v(tabela,coluna)
 WHERE NOT EXISTS(
@@ -115,8 +137,16 @@ IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_
     INSERT @missing(item) VALUES(N'CHECK:identidade.linkage_resultado.ck_linkage_resultado_scores');
 IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'identidade.linkage_resultado') AND name=N'ck_linkage_resultado_candidatos_distintos')
     INSERT @missing(item) VALUES(N'CHECK:identidade.linkage_resultado.ck_linkage_resultado_candidatos_distintos');
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'identidade.linkage_resultado') AND name=N'ck_linkage_resultado_publicacao')
+    INSERT @missing(item) VALUES(N'CHECK:identidade.linkage_resultado.ck_linkage_resultado_publicacao');
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'identidade.pessoa_origem_progressiva_evento') AND name=N'UX_progressiva_evento_origem_linkage_run')
+    INSERT @missing(item) VALUES(N'INDEX:identidade.pessoa_origem_progressiva_evento.UX_progressiva_evento_origem_linkage_run');
 IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'gold.pessoa') AND name=N'ck_gold_pessoa_nome_publicacao_completo')
     INSERT @missing(item) VALUES(N'CHECK:gold.pessoa.ck_gold_pessoa_nome_publicacao_completo');
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'gold.pessoa') AND name=N'ck_gold_pessoa_estado_identidade')
+    INSERT @missing(item) VALUES(N'CHECK:gold.pessoa.ck_gold_pessoa_estado_identidade');
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'gold.pessoa') AND name=N'ck_gold_pessoa_completude_nucleo')
+    INSERT @missing(item) VALUES(N'CHECK:gold.pessoa.ck_gold_pessoa_completude_nucleo');
 
 IF EXISTS(SELECT 1 FROM @missing)
 BEGIN

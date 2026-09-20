@@ -311,8 +311,8 @@ jobs:
                   ORDER BY versao DESC);
                 SELECT CONCAT(
                   (SELECT CONVERT(bigint,valor) FROM identidade.parametro_linkage WHERE modelo_id=@m AND nome='POPULATION_SIZE'),'|',
-                  (SELECT COUNT_BIG(*) FROM gold.pessoa),'|',
-                  (SELECT COUNT_BIG(*) FROM gold.pessoa g WHERE EXISTS(
+                  (SELECT COUNT_BIG(*) FROM gold.pessoa WHERE estado_identidade=N'REFERENCIA'),'|',
+                  (SELECT COUNT_BIG(*) FROM gold.pessoa g WHERE g.estado_identidade=N'REFERENCIA' AND EXISTS(
                      SELECT 1 FROM identidade.vinculo_fonte vf
                      JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vf.pessoa_observacao_id
                      WHERE vf.pessoa_uuid=g.pessoa_uuid AND po.codigo_pessoa_origem LIKE N'SCALE-VAL-%')),'|',
@@ -321,13 +321,13 @@ jobs:
                   (SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id=@a AND nome='DIAG_CANDIDATE_PRIOR_TOTAL_PAIRS'),'|',
                   (SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id=@m AND nome='DIAG_CANDIDATE_PRIOR_TOTAL_PAIRS'));
               " | tr -d '\r' | xargs)"
-          IFS='|' read -r calibrated_population total_gold validation_gold active_candidate_prior draft_candidate_prior active_candidate_pairs draft_candidate_pairs <<< "$stats"
+          IFS='|' read -r calibrated_population total_reference_gold validation_reference_gold active_candidate_prior draft_candidate_prior active_candidate_pairs draft_candidate_pairs <<< "$stats"
           test "$calibrated_population" = '5005'
-          test "$total_gold" = '5025'
-          test "$validation_gold" = '20'
+          test "$total_reference_gold" = '5025'
+          test "$validation_reference_gold" = '20'
           test "$active_candidate_prior" = "$draft_candidate_prior"
           test "$active_candidate_pairs" = "$draft_candidate_pairs"
-          echo "LINKAGE VALIDATION TRAINING ISOLATION: OK population=$calibrated_population total_gold=$total_gold validation_gold=$validation_gold candidate_prior=$draft_candidate_prior candidate_pairs=$draft_candidate_pairs"
+          echo "LINKAGE VALIDATION TRAINING ISOLATION: OK population=$calibrated_population total_reference_gold=$total_reference_gold validation_reference_gold=$validation_reference_gold candidate_prior=$draft_candidate_prior candidate_pairs=$draft_candidate_pairs"
 
       - name: Preserve validation evidence
         if: always()
