@@ -4,7 +4,7 @@ Status: implementado tecnicamente; ativação probabilística continua sujeita a
 
 ## Contexto
 
-O alvo relacional operacional de HML/Produção da Jornada é Microsoft SQL Server. O `Program.cs` do `Jornada.Linkage.Parameters.Worker` usa `LinkageParametersWorker` quando `Database:Provider` é SQL Server e usa `PostgreSqlLinkageParametersWorker` apenas quando o provider é PostgreSQL.
+O alvo relacional operacional de HML/Produção da Jornada é Microsoft SQL Server. O `Program.cs` do `Jornada.Linkage.Parameters.Worker` usa `LinkageParametersWorker` quando `Database:Provider` é SQL Server e; não existe caminho operacional PostgreSQL nesta candidata.
 
 ## Paridade implementada
 
@@ -20,7 +20,7 @@ Os parâmetros incorporados ao fingerprint são arredondados para a mesma escala
 
 ## Fail-closed de promoção
 
-Para modelos produzidos pelo método `M_INTERGESTOR_U_GOLD_SERIALIZED`, `VALIDATE` e `ACTIVATE` exigem um `identidade.linkage_ruleset` com ao menos um passe e campos completos. Ausência ou incompletude do ruleset impede a promoção. `GENERATE_DRAFT` também recusa amostra u vazia.
+Para modelos produzidos pelo método `M_INTERGESTOR_U_BIRTH_BLOCKING_IBGE_NAMES_MC_V4`, `VALIDATE` e `ACTIVATE` exigem um `identidade.linkage_ruleset` com ao menos um passe e campos completos. Ausência ou incompletude do ruleset impede a promoção. `GENERATE_DRAFT` também recusa amostra u vazia.
 
 A implementação não altera a precedência determinística CPF→UUID, não reativa PostgreSQL como banco operacional, não ativa modelos automaticamente e não introduz thresholds institucionais novos.
 
