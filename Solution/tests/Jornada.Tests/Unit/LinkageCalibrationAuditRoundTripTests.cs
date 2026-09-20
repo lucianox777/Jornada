@@ -29,13 +29,12 @@ public sealed class LinkageCalibrationAuditRoundTripTests
     public void Roundtrip_reports_exact_parameter_path_on_divergence()
     {
         var expected = SampleDocument();
-        var changed = expected with
+        var changedParameters = expected.Parameters.ToArray();
+        changedParameters[0] = changedParameters[0] with
         {
-            Parameters =
-            [
-                expected.Parameters[0] with { Value = expected.Parameters[0].Value + 0.01m }
-            ]
+            Value = changedParameters[0].Value + 0.01m
         };
+        var changed = expected with { Parameters = changedParameters };
 
         var ex = Assert.Throws<InvalidDataException>(() =>
             LinkageCalibrationAuditRoundTrip.VerifyEquivalent(expected, changed));
