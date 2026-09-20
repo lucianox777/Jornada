@@ -10,7 +10,7 @@ Este índice existe para evitar que snapshots históricos preservados no reposit
 - **Especificação Técnica publicada:** `Documentos/Especificacao_Tecnica_Jornada_v3.62.docx` e `.pdf`. Não existe `Especificacao_Tecnica_Jornada_v3.64.*` materializada nesta árvore.
 - **Especificação Técnica candidata:** `Documentos/Especificacao_Tecnica_Jornada_v5.00_Candidata.md`, identificador técnico citável `v5.00-candidata`, sem versão normativa e sem efeito de publicação/release até aprovação e corte formais. Consolida a v3.62 com o estado técnico comprovável do HEAD e mantém pendências institucionais como gates externos.
 - **Requisitos consolidados:** `Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1` é a porta de entrada institucional. Os documentos v1.0 permanecem históricos e não devem ser lidos cumulativamente com v1.1.
-- **Modelo físico corrente:** `Documentos/Anexo_Modelo_Fisico_Jornada_v1.40` em MD, DOCX e PDF, derivado de `Solution/database/Jornada_Fase1_v3.70.sql`. A fonte Markdown está sincronizada com o inventário automatizado atual de **69 tabelas**; DOCX/PDF permanecem artefatos derivados e devem ser regenerados antes de nova publicação de entrega.
+- **Modelo físico corrente:** `Documentos/Anexo_Modelo_Fisico_Jornada_v1.40` em MD, DOCX e PDF, derivado de `Solution/database/Jornada_Fase1_v3.70.sql`. A fonte Markdown está sincronizada com o inventário versionado corrente de **70 tabelas**; DOCX/PDF permanecem artefatos derivados e devem ser regenerados antes de nova publicação de entrega.
 
 ## Lacuna normativa v3.64 × Especificação v3.62
 
