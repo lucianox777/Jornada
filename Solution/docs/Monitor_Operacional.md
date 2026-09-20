@@ -154,3 +154,14 @@ A trilha de transição é append-only e registra executor **técnico** (aplica�
 Esta fatia deliberadamente **não expõe T_LINKAGE, margem ou outros parâmetros sensíveis no monitor**. A política de quem pode enxergar esses valores em HML/PRD depende das issues #378/#379. A promoção continua sem rota de mutação no `/monitor`.
 
 A promoção de um modelo vale para execuções futuras. Runs e vínculos históricos continuam associados ao modelo que efetivamente os decidiu e não são recalculados automaticamente.
+
+
+### Conferência, round-trip e validação estatística
+
+O bloco de governança do Linkage apresenta evidências com semânticas separadas:
+
+- **Conferência de implementação**: última linha persistida em `auditoria.linkage_conferencia_evidencia` para o `modelo_id` ATIVO. O painel mostra status, método, versão da tolerância, instante, quantidade agregada de candidatos sintéticos e os diagnósticos `sameFinalDecision`/`sameTop1`. O valor numérico da tolerância, threshold e margem não são expostos.
+- **Round-trip do formato**: contrato `JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1`, executado obrigatoriamente quando ocorre o export de auditoria. Como o resultado desse round-trip não é persistido por modelo, o monitor exibe `OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO`; isso não deve ser lido como evidência `CONFORME`.
+- **Validação estatística representativa**: permanece `PENDENTE_ISSUE_31` até a avaliação externa/representativa correspondente.
+
+Se o modelo ATIVO não possuir evidência de conferência persistida, o estado mostrado é `SEM_EVIDENCIA_MODELO_ATIVO`. O monitor é read-only: nenhuma dessas informações cria rota de ativação, validação ou promoção.
