@@ -51,6 +51,7 @@ internal sealed record BronzeMaintenanceStatus(
 
 internal sealed record LinkageRunStatus(
     Guid RunId,
+    Guid ModelId,
     string RunType,
     string Status,
     int ModelVersion,
@@ -162,7 +163,7 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             FROM controle.bronze_manutencao_ciclo
             ORDER BY finalizado_em DESC,ciclo_id DESC;
 
-            SELECT TOP(5) linkage_run_id,tipo_run,status,modelo_versao,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,iniciado_em,finalizado_em
+            SELECT TOP(5) linkage_run_id,modelo_id,tipo_run,status,modelo_versao,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,iniciado_em,finalizado_em
             FROM identidade.linkage_run
             ORDER BY iniciado_em DESC,linkage_run_id DESC;
 
@@ -294,8 +295,8 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
         while (await reader.ReadAsync(ct))
         {
             linkageRuns.Add(new LinkageRunStatus(
-                reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetInt32(3), reader.GetInt64(4), reader.GetInt64(5),
-                reader.GetInt64(6), reader.GetInt64(7), reader.GetInt64(8), ReadDateTimeOffset(reader, 9), ReadNullableDateTimeOffset(reader, 10)));
+                reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4), reader.GetInt64(5),
+                reader.GetInt64(6), reader.GetInt64(7), reader.GetInt64(8), reader.GetInt64(9), ReadDateTimeOffset(reader, 10), ReadNullableDateTimeOffset(reader, 11)));
         }
 
         await reader.NextResultAsync(ct);
