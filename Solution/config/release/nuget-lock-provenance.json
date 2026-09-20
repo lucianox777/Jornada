@@ -229,13 +229,13 @@
   "candidateGraph": {
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
-    "sourceCommit": "4bbf412ea4eb5e507daf40c01a294748e95c6a02",
-    "githubRunId": "35532098710",
+    "sourceCommit": "f8598761a12b9f793c206f1dc43b18770b3829a1",
+    "githubRunId": "35536533461",
     "sdk": "8.0.424",
-    "reason": "Separação física Unit/Integration: os testes SQL/linkage e ExternalRealData passam a pertencer ao projeto Jornada.Integration.Tests; lock force-evaluated pelo SDK 8.0.424 no run diagnóstico 35532098710.",
+    "reason": "PR #382 adiciona referência direta de Jornada.Integration.Tests a Jornada.Linkage.Evaluation para provar o exportador tipado em SQL Server; o SDK 8.0.424 no run 35536533461 produziu o patch exato de 8 linhas no lock de integração.",
     "lockCount": 20,
     "changedLockCount": 15,
-    "combinedSha256": "4501cd6b8ca9309bc888091bce6bdc217bf6defadbfa06c87147d3d9642bdfca",
+    "combinedSha256": "7c6629a345d0f491ef12366d72e0c2a3cddd6bccfdc6470b33e24f8ad2763724",
     "overrides": [
       {
         "path": "src/Jornada.Api/packages.lock.json",
@@ -291,7 +291,7 @@
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "9d719e1b1e239c86e3a7ee51194f78c45b3821c07d249bf20029a7599b962694"
+        "sha256": "5b57f3d77bb77631962f44264be7989975d63aba5eb55cb3425b380bbd25f8f5"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
