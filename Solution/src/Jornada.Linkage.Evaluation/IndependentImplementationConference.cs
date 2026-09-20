@@ -48,6 +48,12 @@ public static class IndependentImplementationConference
         if (!canonicalRanks.SequenceEqual(Enumerable.Range(1, request.Candidates.Count)))
             return NotExecuted(request, "INVALID_CANONICAL_RANKS");
 
+        foreach (var candidate in request.Candidates)
+        {
+            if (!HasValidDecisionEvidenceShape(candidate.Evidence))
+                return NotExecuted(request, "INVALID_EVIDENCE_VECTOR_SHAPE");
+        }
+
         var rows = new List<ImplementationConferenceCandidateResult>(request.Candidates.Count);
         try
         {
@@ -264,6 +270,27 @@ public static class IndependentImplementationConference
         }
 
         return 1m - (6m * sumSquared) / (n * (n * n - 1m));
+    }
+
+    private static bool HasValidDecisionEvidenceShape(
+        IReadOnlyList<ImplementationConferenceEvidence> evidence)
+    {
+        if (evidence.Count != 3)
+            return false;
+
+        if (evidence.Count(x => string.Equals(x.Evidence, "NOME", StringComparison.Ordinal)) != 1)
+            return false;
+        if (evidence.Count(x => string.Equals(x.Evidence, "NOME_MAE", StringComparison.Ordinal)) != 1)
+            return false;
+
+        var birth = evidence.Where(x =>
+            string.Equals(x.Evidence, "NASCIMENTO_SEMANTICO", StringComparison.Ordinal)
+            || string.Equals(x.Evidence, "NASCIMENTO", StringComparison.Ordinal)).ToArray();
+        if (birth.Length != 1)
+            return false;
+
+        return string.Equals(birth[0].Evidence, "NASCIMENTO_SEMANTICO", StringComparison.Ordinal)
+            || string.Equals(birth[0].State, "MISSING_NEUTRAL", StringComparison.Ordinal);
     }
 
     private static bool Enabled(IReadOnlyDictionary<string, decimal> parameters, string name) =>
