@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
 using Jornada.Linkage.Runner;
@@ -11,10 +10,6 @@ namespace Jornada.Tests.Integration;
 [NonParallelizable]
 public sealed class SqlServerLinkageRuleSetRoundTripTests
 {
-    private static readonly Regex GoLine = new(
-        @"^\s*GO\s*(?:--.*)?$",
-        RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-
     [Test]
     public async Task Model_and_dynamic_ruleset_round_trip_with_same_fingerprint()
     {
@@ -23,11 +18,9 @@ public sealed class SqlServerLinkageRuleSetRoundTripTests
         await connection.OpenAsync();
 
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
-        await ExecuteFileAsync(connection,
-            Path.Combine(databaseDir, "migrations", "20260910_Linkage_RuleSet_Passes.sql"));
-        await ExecuteFileAsync(connection,
-            Path.Combine(databaseDir, "migrations", "20260911_Linkage_Blocking_Projection_Contract.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
+        await EnsureActiveFrequencyReferenceAsync(connection);
 
         var modelId = Guid.NewGuid();
         const string algorithm = "TEST_SQLSERVER_DYNAMIC_BLOCKING_V1";
@@ -119,17 +112,64 @@ public sealed class SqlServerLinkageRuleSetRoundTripTests
             Is.EqualTo(1));
     }
 
-    private static async Task ExecuteFileAsync(SqlConnection connection, string path)
+    private static async Task EnsureActiveFrequencyReferenceAsync(SqlConnection connection)
     {
-        var script = await File.ReadAllTextAsync(path);
-        foreach (var batch in GoLine.Split(script))
+        await using (var exists = connection.CreateCommand())
         {
-            if (string.IsNullOrWhiteSpace(batch))
-                continue;
-            await using var command = connection.CreateCommand();
-            command.CommandText = batch;
-            command.CommandTimeout = 120;
-            await command.ExecuteNonQueryAsync();
+            exists.CommandText = "SELECT COUNT(*) FROM ref.frequencia_nome_versao WHERE status='ATIVA';";
+            if (Convert.ToInt32(await exists.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture) > 0)
+                return;
+        }
+
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync();
+        try
+        {
+            long versionId;
+            await using (var version = connection.CreateCommand())
+            {
+                version.Transaction = transaction;
+                version.CommandText = """
+                    INSERT ref.frequencia_nome_versao(codigo,fonte,edicao,data_referencia,status)
+                    OUTPUT INSERTED.frequencia_nome_versao_id
+                    VALUES(@codigo,N'CI',N'roundtrip','2022-01-01','CARREGANDO');
+                    """;
+                version.Parameters.AddWithValue("@codigo", $"CI-RULESET-{Guid.NewGuid():N}");
+                versionId = Convert.ToInt64(await version.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            await using (var rows = connection.CreateCommand())
+            {
+                rows.Transaction = transaction;
+                rows.CommandText = """
+                    INSERT ref.frequencia_nome(
+                      frequencia_nome_versao_id,tipo,valor,valor_normalizado,sexo,periodo_nascimento,
+                      escopo_geografico,uf_codigo,municipio_codigo,frequencia)
+                    VALUES
+                      (@id,'NOME',N'ANA',N'ANA','TODOS','TODOS','BRASIL','00','0000000',1),
+                      (@id,'SOBRENOME',N'SILVA',N'SILVA','TODOS','TODOS','BRASIL','00','0000000',1);
+                    """;
+                rows.Parameters.AddWithValue("@id", versionId);
+                await rows.ExecuteNonQueryAsync();
+            }
+
+            await using (var publish = connection.CreateCommand())
+            {
+                publish.Transaction = transaction;
+                publish.CommandType = System.Data.CommandType.StoredProcedure;
+                publish.CommandText = "ref.sp_publicar_frequencia_nome_versao";
+                publish.Parameters.AddWithValue("@frequencia_nome_versao_id", versionId);
+                publish.Parameters.Add("@conteudo_sha256", System.Data.SqlDbType.Binary, 32).Value =
+                    Enumerable.Repeat((byte)0x5A, 32).ToArray();
+                await publish.ExecuteNonQueryAsync();
+            }
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            if (transaction.Connection is not null)
+                await transaction.RollbackAsync();
+            throw;
         }
     }
 
