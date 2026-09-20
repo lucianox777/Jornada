@@ -44,7 +44,7 @@ public sealed class CandidateInfoTests
 
             Assert.That(technicalRc.GetProperty("identifier").GetString(), Is.EqualTo("v5.00-rc.1"));
             Assert.That(technicalRc.GetProperty("semver").GetString(), Is.EqualTo("5.0.0-rc.1"));
-            Assert.That(technicalRc.GetProperty("status").GetString(), Is.EqualTo("PREPARED_NOT_CUT"));
+            Assert.That(technicalRc.GetProperty("status").GetString(), Is.EqualTo("CHECKPOINT_CONTENT"));
             Assert.That(technicalRc.GetProperty("release_effect").GetString(), Is.EqualTo("NONE"));
             Assert.That(technicalRc.GetProperty("assembly_version").GetString(), Is.EqualTo("5.0.0.0"));
             Assert.That(technicalRc.GetProperty("file_version").GetString(), Is.EqualTo("5.0.0.0"));
@@ -76,7 +76,7 @@ public sealed class CandidateInfoTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(provenance.GetProperty("status").GetString(), Is.EqualTo("MUTABLE_UNTIL_RC_CUT"));
+            Assert.That(provenance.GetProperty("status").GetString(), Is.EqualTo("BOUND_FOR_TECHNICAL_RC"));
             Assert.That(provenance.GetProperty("canonical_ddl").GetString(), Is.EqualTo(candidateState.GetProperty("canonical_ddl").GetString()));
             Assert.That(provenance.GetProperty("migration_manifest_hash_method").GetString(), Is.EqualTo("SHA256_UTF8_LF"));
             Assert.That(recordedManifestHash, Is.EqualTo(manifestHash));
@@ -95,6 +95,7 @@ public sealed class CandidateInfoTests
             Assert.That(workflow, Does.Contain("structural_fingerprint_sha256"));
             Assert.That(workflow, Does.Contain("ddl_evidence_run_id"));
             Assert.That(workflow, Does.Contain("actions/runs/$ddl_run_id"));
+            Assert.That(workflow, Does.Contain("CANDIDATE_INFO.json"));
         });
     }
 
