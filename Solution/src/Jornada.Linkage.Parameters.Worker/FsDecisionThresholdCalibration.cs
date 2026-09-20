@@ -204,7 +204,7 @@ public static class FsDecisionThresholdCalibrator
             [LinkageParameterCatalog.Threshold] = selected.Candidate.Threshold,
             // V6 usa log-odds. CONFLICT_MARGIN é mantido apenas para o contrato legado/core,
             // dentro de seu domínio histórico; o valor efetivo fica em LOG_ODDS.
-            [LinkageParameterCatalog.ConflictMargin] = Math.Min(selected.Candidate.ConflictMarginLogOdds, 0.999999m),
+            [LinkageParameterCatalog.ConflictMargin] = Math.Clamp(selected.Candidate.ConflictMarginLogOdds, 0.000001m, 0.999999m),
             [LinkageParameterCatalog.LogOddsConflictMargin] = selected.Candidate.ConflictMarginLogOdds,
             ["FS_DECISION_THRESHOLD_PARETO_V1"] = 1m,
             ["FS_DECISION_CALIBRATION_SEED"] = result.Seed,
@@ -268,7 +268,7 @@ public static class FsDecisionThresholdCalibrator
         var parameters = new Dictionary<string, decimal>(baseParameters, StringComparer.Ordinal)
         {
             [LinkageParameterCatalog.Threshold] = candidate.Threshold,
-            [LinkageParameterCatalog.ConflictMargin] = Math.Min(candidate.ConflictMarginLogOdds, 0.999999m),
+            [LinkageParameterCatalog.ConflictMargin] = Math.Clamp(candidate.ConflictMarginLogOdds, 0.000001m, 0.999999m),
             [LinkageParameterCatalog.LogOddsConflictMargin] = candidate.ConflictMarginLogOdds
         };
         var model = LinkageModelPolicy.Create(
