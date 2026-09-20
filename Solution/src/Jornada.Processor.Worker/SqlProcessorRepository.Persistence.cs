@@ -359,40 +359,82 @@ internal sealed partial class SqlProcessorRepository
         var source = await EnsureRecordOriginAsync(connection, tx, batch, fact.CodigoRegistroOrigem, ct);
         var latest = await GetLatestRecordVersionAsync(connection, tx, source.RegistroOrigemId, ct);
 
-        if (latest is null)
+        FactVersionGovernanceDecision governance;
+        var proposedGovernance = new FactVersionGovernanceSnapshot(
+            batch.Natureza!.Value,
+            batch.TipoRegistroId!.Value,
+            person.PessoaUuid,
+            person.PessoaOrigemId,
+            fact.DataInicioConcessao,
+            fact.DataHoraServico);
+        if (latest is not null)
         {
-            if (fact.Operacao != RegistroOperacao.INCLUSAO)
-                throw new InvalidDataException($"Primeiro envio de {fact.CodigoRegistroOrigem} deve usar operacao=INCLUSAO.");
+            governance = FactVersionGovernance.Evaluate(
+                new FactVersionGovernanceSnapshot(
+                    latest.Natureza,
+                    latest.TipoRegistroId,
+                    latest.PessoaUuid,
+                    latest.PessoaOrigemId,
+                    latest.DataInicioConcessao,
+                    latest.DataHoraServico),
+                proposedGovernance);
+        }
+        else if (source.Existed)
+        {
+            governance = FactVersionGovernance.Evaluate(
+                new FactVersionGovernanceSnapshot(
+                    source.Natureza,
+                    source.TipoRegistroId,
+                    null,
+                    null,
+                    null,
+                    null),
+                proposedGovernance);
         }
         else
         {
-            var sameContent = string.Equals(latest.ConteudoHash, fact.ConteudoHash, StringComparison.Ordinal);
-            if (sameContent && latest.Operacao == fact.Operacao)
-            {
-                await TouchRecordOriginAsync(connection, tx, source.RegistroOrigemId, batch.DataReferencia, ct);
-                await RecordProcessedItemAsync(connection, tx, batch, "REGISTRO", null, source.RegistroOrigemId,
-                    fact.CodigoRegistroOrigem, "RETRANSMITIDO", latest.VersaoInterna, fact.ConteudoHash, ct);
-                // v3.45: o fato válido já materializa na primeira passagem, mesmo sem UUID.
-                // Retransmissão idempotente não cria nova versão nem reescreve o sujeito declarado histórico.
-                return;
-            }
+            governance = new FactVersionGovernanceDecision(Array.Empty<string>());
+        }
 
-            if (latest.Operacao == RegistroOperacao.EXCLUSAO)
+        // RN-CT-12: uma chave reaproveitada com outra identidade factual precisa ser
+        // preservada como evidência antes de qualquer rejeição de semântica da operação.
+        // Somente versões sem conflito seguem o fluxo normal INCLUSAO/ALTERACAO/RETIFICACAO.
+        if (!governance.HasRetificationConflict)
+        {
+            if (latest is null)
             {
                 if (fact.Operacao != RegistroOperacao.INCLUSAO)
-                    throw new InvalidDataException($"Registro {fact.CodigoRegistroOrigem} está excluído; somente INCLUSAO pode reabri-lo.");
+                    throw new InvalidDataException($"Primeiro envio de {fact.CodigoRegistroOrigem} deve usar operacao=INCLUSAO.");
             }
             else
             {
-                if (fact.Operacao == RegistroOperacao.INCLUSAO)
-                    throw new InvalidDataException($"Registro {fact.CodigoRegistroOrigem} já existe; use ALTERACAO, RETIFICACAO ou EXCLUSAO.");
-                if (sameContent && fact.Operacao != RegistroOperacao.EXCLUSAO)
-                    throw new InvalidDataException($"Registro {fact.CodigoRegistroOrigem} não mudou de conteúdo; {fact.Operacao} sem alteração de valores não cria nova versão.");
+                var sameContent = string.Equals(latest.ConteudoHash, fact.ConteudoHash, StringComparison.Ordinal);
+                if (sameContent && latest.Operacao == fact.Operacao)
+                {
+                    await TouchRecordOriginAsync(connection, tx, source.RegistroOrigemId, batch.DataReferencia, ct);
+                    await RecordProcessedItemAsync(connection, tx, batch, "REGISTRO", null, source.RegistroOrigemId,
+                        fact.CodigoRegistroOrigem, "RETRANSMITIDO", latest.VersaoInterna, fact.ConteudoHash, ct);
+                    return;
+                }
+
+                if (latest.Operacao == RegistroOperacao.EXCLUSAO)
+                {
+                    if (fact.Operacao != RegistroOperacao.INCLUSAO)
+                        throw new InvalidDataException($"Registro {fact.CodigoRegistroOrigem} está excluído; somente INCLUSAO pode reabri-lo.");
+                }
+                else
+                {
+                    if (fact.Operacao == RegistroOperacao.INCLUSAO)
+                        throw new InvalidDataException($"Registro {fact.CodigoRegistroOrigem} já existe; use ALTERACAO, RETIFICACAO ou EXCLUSAO.");
+                    if (sameContent && fact.Operacao != RegistroOperacao.EXCLUSAO)
+                        throw new InvalidDataException($"Registro {fact.CodigoRegistroOrigem} não mudou de conteúdo; {fact.Operacao} sem alteração de valores não cria nova versão.");
+                }
             }
         }
 
         var internalVersion = (latest?.VersaoInterna ?? 0) + 1;
-        var processingResult = latest is null ? "INCLUIDO"
+        var processingResult = governance.HasRetificationConflict ? "VERSIONADO"
+            : latest is null ? "INCLUIDO"
             : latest.Operacao == RegistroOperacao.EXCLUSAO && fact.Operacao == RegistroOperacao.INCLUSAO ? "REABERTO"
             : fact.Operacao == RegistroOperacao.EXCLUSAO ? "EXCLUIDO"
             : "VERSIONADO";
@@ -437,6 +479,19 @@ internal sealed partial class SqlProcessorRepository
             recordObservationId = Convert.ToInt64(await insert.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
         }
 
+        if (governance.HasRetificationConflict)
+        {
+            await RecordFactDivergenceAsync(
+                connection, tx, batch.GestorId, recordObservationId,
+                FactVersionGovernance.ConflictType, governance.CanonicalReason, ct);
+            await TouchRecordOriginAsync(connection, tx, source.RegistroOrigemId, batch.DataReferencia, ct);
+            await RecordProcessedItemAsync(connection, tx, batch, "REGISTRO", null, source.RegistroOrigemId,
+                fact.CodigoRegistroOrigem, "VERSIONADO", internalVersion, fact.ConteudoHash, ct);
+            // A observação conflitante fica em Silver. A versão VIGENTE anterior em
+            // Gold/Serving permanece intocada até novo envio corrigido/desfecho governado.
+            return;
+        }
+
         if (fact.Operacao == RegistroOperacao.EXCLUSAO)
         {
             await MarkFactExcludedAsync(connection, tx, source.RegistroOrigemId, batch.Natureza!.Value, ct);
@@ -466,8 +521,18 @@ internal sealed partial class SqlProcessorRepository
         await RecordProcessedItemAsync(connection, tx, batch, "REGISTRO", null, source.RegistroOrigemId,
             fact.CodigoRegistroOrigem, processingResult, internalVersion, fact.ConteudoHash, ct);
 
-        // v3.45: ocorrência factual e atribuição canônica são dimensões independentes.
-        // Todo fato válido declarado pela finalística materializa; PessoaUuid pode ser NULL.
+        if (await HasExactFactDuplicateAsync(
+                connection, tx, batch, person, source.RegistroOrigemId, fact, ct))
+        {
+            await RecordFactDivergenceAsync(
+                connection, tx, batch.GestorId, recordObservationId,
+                FactVersionGovernance.DuplicateAlertType,
+                FactVersionGovernance.DuplicateExactReason,
+                ct);
+        }
+
+        // Ocorrência factual e atribuição canônica são dimensões independentes.
+        // Alerta de duplicação é não destrutivo; apenas conflito de retificação bloqueia publicação.
         if (batch.Natureza == IntegrationNature.BENEFICIO)
             await MaterializeBenefitGrantedAsync(connection, tx, batch, person, source.RegistroOrigemId, internalVersion, recordObservationId, fact, evaluation, ct);
         else
@@ -492,6 +557,117 @@ internal sealed partial class SqlProcessorRepository
         command.Parameters.Add(new SqlParameter("@codigo",SqlDbType.NVarChar,255){Value=(object?)codigoPessoaOrigem ?? DBNull.Value});
         command.Parameters.Add(new SqlParameter("@motivo",SqlDbType.NVarChar,120){Value=motivo});
         await command.ExecuteNonQueryAsync(ct);
+    }
+
+    private static async Task RecordFactDivergenceAsync(
+        SqlConnection connection,
+        SqlTransaction tx,
+        long gestorId,
+        long registroObservacaoId,
+        string tipo,
+        string motivo,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = tx;
+        command.CommandText = """
+            IF NOT EXISTS(
+                SELECT 1
+                FROM qualidade.divergencia_gestor
+                WHERE gestor_id=@gestor
+                  AND registro_observacao_id=@registro
+                  AND tipo=@tipo
+                  AND motivo=@motivo
+                  AND status='ABERTA')
+            INSERT qualidade.divergencia_gestor(
+                gestor_id,tipo,motivo,registro_observacao_id,status)
+            VALUES(@gestor,@tipo,@motivo,@registro,'ABERTA');
+            """;
+        command.Parameters.AddWithValue("@gestor", gestorId);
+        command.Parameters.AddWithValue("@registro", registroObservacaoId);
+        command.Parameters.Add(new SqlParameter("@tipo", SqlDbType.NVarChar, 50) { Value = tipo });
+        command.Parameters.Add(new SqlParameter("@motivo", SqlDbType.NVarChar, 120) { Value = motivo });
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    private static async Task<bool> HasExactFactDuplicateAsync(
+        SqlConnection connection,
+        SqlTransaction tx,
+        ReservedBatch batch,
+        ProcessedPerson person,
+        long registroOrigemId,
+        ParsedFact fact,
+        CancellationToken ct)
+    {
+        // Sem identidade persistente comparável não há base para declarar possível duplicação.
+        if (person.PessoaUuid is null && person.PessoaOrigemId is null)
+            return false;
+
+        await using var command = connection.CreateCommand();
+        command.Transaction = tx;
+        var identityPredicate = """
+            (
+              (@uuid IS NOT NULL AND x.pessoa_uuid=@uuid)
+              OR
+              (@uuid IS NULL AND @pessoa_origem IS NOT NULL AND x.pessoa_origem_id=@pessoa_origem)
+            )
+            """;
+
+        if (batch.Natureza == IntegrationNature.BENEFICIO)
+        {
+            command.CommandText = $"""
+                SELECT CASE WHEN EXISTS(
+                    SELECT 1
+                    FROM gold.beneficio_concedido x
+                    WHERE x.registro_origem_id<>@registro_origem
+                      AND x.status_analitico='VIGENTE'
+                      AND x.gestor_id=@gestor
+                      AND x.tipo_registro_id=@tipo
+                      AND {identityPredicate}
+                      AND ((x.data_inicio_concessao=@data_inicio) OR (x.data_inicio_concessao IS NULL AND @data_inicio IS NULL))
+                      AND ((x.data_fim_concessao=@data_fim) OR (x.data_fim_concessao IS NULL AND @data_fim IS NULL))
+                      AND ((x.data_evento_concessao=@data_evento) OR (x.data_evento_concessao IS NULL AND @data_evento IS NULL))
+                      AND ((x.situacao_vigencia=@situacao_vigencia) OR (x.situacao_vigencia IS NULL AND @situacao_vigencia IS NULL))
+                      AND ((x.valor_concedido=@valor) OR (x.valor_concedido IS NULL AND @valor IS NULL))
+                      AND ((x.quantidade=@quantidade) OR (x.quantidade IS NULL AND @quantidade IS NULL))
+                      AND ((x.unidade=@unidade) OR (x.unidade IS NULL AND @unidade IS NULL))
+                ) THEN 1 ELSE 0 END;
+                """;
+            AddNullableDate(command, "@data_inicio", fact.DataInicioConcessao);
+            AddNullableDate(command, "@data_fim", fact.DataFimConcessao);
+            AddNullableDate(command, "@data_evento", fact.DataEventoConcessao);
+            AddNullable(command, "@situacao_vigencia", SqlDbType.NVarChar, 20, fact.SituacaoVigencia);
+            AddNullableDecimal(command, "@valor", SqlDbType.Decimal, 18, 2, fact.ValorConcedido);
+            AddNullableDecimal(command, "@quantidade", SqlDbType.Decimal, 18, 4, fact.Quantidade);
+            AddNullable(command, "@unidade", SqlDbType.NVarChar, 50, fact.Unidade);
+        }
+        else
+        {
+            command.CommandText = $"""
+                SELECT CASE WHEN EXISTS(
+                    SELECT 1
+                    FROM gold.servico_prestado x
+                    WHERE x.registro_origem_id<>@registro_origem
+                      AND x.status_analitico='VIGENTE'
+                      AND x.gestor_id=@gestor
+                      AND x.tipo_registro_id=@tipo
+                      AND {identityPredicate}
+                      AND ((x.data_hora_servico=@data_hora) OR (x.data_hora_servico IS NULL AND @data_hora IS NULL))
+                      AND ((x.unidade_servico=@unidade_servico) OR (x.unidade_servico IS NULL AND @unidade_servico IS NULL))
+                      AND ((x.situacao=@situacao) OR (x.situacao IS NULL AND @situacao IS NULL))
+                ) THEN 1 ELSE 0 END;
+                """;
+            AddNullableDto(command, "@data_hora", fact.DataHoraServico);
+            AddNullable(command, "@unidade_servico", SqlDbType.NVarChar, 200, fact.UnidadeServico);
+            AddNullable(command, "@situacao", SqlDbType.NVarChar, 80, fact.Situacao);
+        }
+
+        command.Parameters.AddWithValue("@registro_origem", registroOrigemId);
+        command.Parameters.AddWithValue("@gestor", batch.GestorId);
+        command.Parameters.AddWithValue("@tipo", batch.TipoRegistroId!.Value);
+        command.Parameters.Add(new SqlParameter("@uuid", SqlDbType.UniqueIdentifier) { Value = (object?)person.PessoaUuid ?? DBNull.Value });
+        command.Parameters.Add(new SqlParameter("@pessoa_origem", SqlDbType.BigInt) { Value = (object?)person.PessoaOrigemId ?? DBNull.Value });
+        return Convert.ToInt32(await command.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture) == 1;
     }
 
     private static async Task TouchPersonOriginAsync(SqlConnection connection, SqlTransaction tx, long pessoaOrigemId, DateTimeOffset dataReferencia, CancellationToken ct)
@@ -625,11 +801,9 @@ internal sealed partial class SqlProcessorRepository
             if (await reader.ReadAsync(ct))
             {
                 var id = reader.GetInt64(0);
-                var nature = reader.GetString(1);
+                var nature = Enum.Parse<IntegrationNature>(reader.GetString(1), ignoreCase: false);
                 var typeId = reader.GetInt64(2);
-                if (!string.Equals(nature, batch.Natureza!.Value.ToString(), StringComparison.Ordinal) || typeId != batch.TipoRegistroId!.Value)
-                    throw new InvalidDataException($"codigoRegistroOrigem {codigo} já pertence a outra Natureza/Tipo no sistema de origem.");
-                return new RecordSourceState(id);
+                return new RecordSourceState(id, nature, typeId, Existed: true);
             }
         }
 
@@ -643,7 +817,11 @@ internal sealed partial class SqlProcessorRepository
         insert.Parameters.Add(new SqlParameter("@codigo", SqlDbType.NVarChar, 255) { Value = codigo });
         insert.Parameters.Add(new SqlParameter("@natureza", SqlDbType.NVarChar, 30) { Value = batch.Natureza!.Value.ToString() });
         insert.Parameters.AddWithValue("@tipo", batch.TipoRegistroId!.Value);
-        return new RecordSourceState(Convert.ToInt64(await insert.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture));
+        return new RecordSourceState(
+            Convert.ToInt64(await insert.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture),
+            batch.Natureza!.Value,
+            batch.TipoRegistroId!.Value,
+            Existed: false);
     }
 
     private static async Task<int> GetMaterializationStateAsync(
@@ -663,19 +841,48 @@ internal sealed partial class SqlProcessorRepository
         await using var command = connection.CreateCommand();
         command.Transaction = tx;
         command.CommandText = """
-            SELECT TOP(1) registro_observacao_id,versao_interna,conteudo_hash,operacao
-            FROM silver.registro_observacao WITH (UPDLOCK,HOLDLOCK)
-            WHERE registro_origem_id=@origem
-            ORDER BY versao_interna DESC;
+            SELECT TOP(1)
+                ro.registro_observacao_id,ro.versao_interna,ro.conteudo_hash,ro.operacao,
+                ro.natureza,ro.tipo_registro_id,po.pessoa_origem_id,vc.pessoa_uuid,
+                ro.data_inicio_concessao,ro.data_hora_servico
+            FROM silver.registro_observacao ro WITH (UPDLOCK,HOLDLOCK)
+            JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=ro.pessoa_observacao_id
+            LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+            WHERE ro.registro_origem_id=@origem
+            ORDER BY ro.versao_interna DESC;
             """;
         command.Parameters.AddWithValue("@origem", registroOrigemId);
         await using var reader = await command.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct)
-            ? new RecordVersionState(reader.GetInt64(0), reader.GetInt32(1), reader.GetString(2), Enum.Parse<RegistroOperacao>(reader.GetString(3), false))
+            ? new RecordVersionState(
+                reader.GetInt64(0),
+                reader.GetInt32(1),
+                reader.GetString(2),
+                Enum.Parse<RegistroOperacao>(reader.GetString(3), false),
+                Enum.Parse<IntegrationNature>(reader.GetString(4), false),
+                reader.GetInt64(5),
+                reader.IsDBNull(6) ? null : reader.GetInt64(6),
+                reader.IsDBNull(7) ? null : reader.GetGuid(7),
+                reader.IsDBNull(8) ? null : DateOnly.FromDateTime(reader.GetDateTime(8)),
+                reader.IsDBNull(9) ? null : reader.GetDateTimeOffset(9))
             : null;
     }
 
     private sealed record PersonVersionState(long ObservationId, int VersaoInterna, string ConteudoHash);
-    private sealed record RecordSourceState(long RegistroOrigemId);
-    private sealed record RecordVersionState(long ObservationId, int VersaoInterna, string ConteudoHash, RegistroOperacao Operacao);
+    private sealed record RecordSourceState(
+        long RegistroOrigemId,
+        IntegrationNature Natureza,
+        long TipoRegistroId,
+        bool Existed);
+    private sealed record RecordVersionState(
+        long ObservationId,
+        int VersaoInterna,
+        string ConteudoHash,
+        RegistroOperacao Operacao,
+        IntegrationNature Natureza,
+        long TipoRegistroId,
+        long? PessoaOrigemId,
+        Guid? PessoaUuid,
+        DateOnly? DataInicioConcessao,
+        DateTimeOffset? DataHoraServico);
 }
