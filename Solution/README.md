@@ -10,7 +10,7 @@ Stack principal: **C# 12 / .NET 8**, **Microsoft SQL Server como tecnologia rela
 - O instalador canônico editável é `database/Jornada_Fase1_v3.70.sql`.
 - Para entrega a DBA/ferramenta de deploy, `scripts/materialize-sql-installer.py` gera um único `.sql` autocontido, sem diretivas `:r`, a partir da fonte canônica.
 - O upgrade real reaproveita o backfill paginado/reentrante implementado por `ProgressiveIdentityOriginStore.BackfillPageAsync`; não existe uma segunda implementação T-SQL concorrente para esse backfill.
-- O inventário automatizado do schema consolidado contém **69 tabelas**, das quais 16 ficam fora do baseline legado de 53.
+- O inventário versionado do schema consolidado contém **70 tabelas**, das quais 17 ficam fora do baseline legado de 53.
 - Microsoft SQL Server permanece a referência relacional normativa e o banco operacional de Produção. Compatibilidade histórica com SQL Database in Microsoft Fabric não cria dependência de implantação nem gate de promoção.
 
 ## Instalação e desenvolvimento local
