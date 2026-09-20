@@ -154,6 +154,31 @@ public sealed class IndependentImplementationConferenceParityTests
     }
 
     [Test]
+    public void Governed_tolerance_configuration_remains_unfrozen_without_numeric_default()
+    {
+        var root = FindRepositoryRoot();
+        var json = File.ReadAllText(Path.Combine(
+            root, "Solution", "config", "linkage",
+            "implementation-conference-tolerance.json"));
+
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        var config = document.RootElement;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                config.GetProperty("status").GetString(),
+                Is.EqualTo("UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION"));
+            Assert.That(
+                config.GetProperty("maxAbsolutePairLlrDifference").ValueKind,
+                Is.EqualTo(System.Text.Json.JsonValueKind.Null));
+            Assert.That(
+                config.GetProperty("methodVersion").GetString(),
+                Is.EqualTo(IndependentImplementationConference.MethodVersion));
+        });
+    }
+
+    [Test]
     public void Conference_source_does_not_reuse_runtime_scorer_policy_or_comparators()
     {
         var root = FindRepositoryRoot();
