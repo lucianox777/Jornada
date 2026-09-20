@@ -103,6 +103,24 @@ public sealed class LinkageCalibrationAuditRoundTripTests
     }
 
     [Test]
+    public void Import_rejects_nominal_u_source_that_disagrees_with_parameters()
+    {
+        var sample = SampleDocument();
+        var wrong = sample with
+        {
+            InterchangeContract = sample.InterchangeContract with
+            {
+                NominalNameUSource = LinkageCalibrationAuditExchangePolicy.NominalUSourceIbgeBootstrap
+            }
+        };
+
+        var ex = Assert.Throws<InvalidDataException>(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrong, JsonOptions)));
+
+        Assert.That(ex!.Message, Does.Contain("Fonte nominal de u para nome"));
+    }
+
+    [Test]
     public void Import_rejects_runtime_tf_or_reference_provenance_divergence()
     {
         var sample = SampleDocument();
@@ -162,9 +180,9 @@ public sealed class LinkageCalibrationAuditRoundTripTests
         var generated = new DateTimeOffset(2026, 9, 20, 12, 0, 0, TimeSpan.Zero);
 
         return new LinkageCalibrationAuditDocument(
-            SchemaVersion: 1,
-            Nature: "LINKAGE_CALIBRATION_AUDIT_EXPORT",
-            Purpose: "EXTERNAL_REPRODUCIBILITY_READ_ONLY",
+            SchemaVersion: LinkageCalibrationAuditExchangePolicy.SchemaVersion,
+            Nature: LinkageCalibrationAuditExchangePolicy.Nature,
+            Purpose: LinkageCalibrationAuditExchangePolicy.Purpose,
             GeneratedAtUtc: generated.AddMinutes(1),
             Safeguards: ["read-only SELECTs only"],
             Model: new LinkageCalibrationAuditModel(
@@ -187,17 +205,26 @@ public sealed class LinkageCalibrationAuditRoundTripTests
                 SampleUSize: 1200,
                 FailureSummary: null,
                 NameFrequencyVersionId: 4),
-            Parameters: [new("T_LINKAGE", 0.91m)],
+            Parameters:
+            [
+                new("T_LINKAGE", 0.91m),
+                new("NOMINAL_U_NOME_SOURCE_BLOCKING_CONDITIONED", 1m),
+                new("IBGE_MC_NOMINAL_U_APPLIED_NOME", 0m),
+                new("NOMINAL_U_NOME_MAE_SOURCE_BLOCKING_CONDITIONED", 0m),
+                new("IBGE_MC_NOMINAL_U_APPLIED_NOME_MAE", 1m)
+            ],
             Statistics: [new("POPULATION_SIZE", 1000m, "SQL_SERVER")],
             InterchangeContract: new LinkageCalibrationAuditInterchangeContract(
                 StatusAtExport: "VALIDADO",
                 UProbabilitySemantics: LinkageCalibrationAuditExchangePolicy.UProbabilitySemantics,
+                NominalNameUSource: LinkageCalibrationAuditExchangePolicy.NominalUSourceBlockingConditioned,
+                NominalMotherNameUSource: LinkageCalibrationAuditExchangePolicy.NominalUSourceIbgeBootstrap,
                 SplinkDefaultRandomPairUEquivalent: false,
                 ComparisonStateMapping: new LinkageCalibrationAuditComparisonMapping(
                     Complete: false,
                     UnmappedOrNonBijectiveStates:
                         LinkageCalibrationAuditExchangePolicy.UnmappedOrNonBijectiveComparisonStates.ToArray(),
-                    Rule: "Do not collapse semantic states silently; an external adapter must declare an explicit mapping.")),
+                    Rule: LinkageCalibrationAuditExchangePolicy.ComparisonStateMappingRule)),
             Blocking: new LinkageCalibrationAuditBlocking(
                 RuleSets:
                 [
