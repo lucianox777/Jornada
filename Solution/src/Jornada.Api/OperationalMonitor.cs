@@ -270,7 +270,7 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
         if (await reader.ReadAsync(ct))
         {
             var activeCount = reader.GetInt32(0);
-            var modelId = reader.IsDBNull(1) ? null : reader.GetGuid(1);
+            Guid? modelId = reader.IsDBNull(1) ? null : reader.GetGuid(1);
             modelGovernance = new LinkageModelGovernanceStatus(
                 activeCount == 1 ? "OK" : activeCount == 0 ? "SEM_MODELO_ATIVO" : "DIVERGENTE",
                 activeCount,
