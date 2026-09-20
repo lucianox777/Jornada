@@ -126,6 +126,8 @@ O BI deve distinguir identidade de origem de referência canônica e evitar dupl
 
 Dados sensíveis seguem minimização, finalidade e controles de acesso compatíveis com LGPD. A identidade técnica não amplia automaticamente o compartilhamento de dados. Correções cadastrais permanecem responsabilidade das áreas finalísticas; a Jornada preserva versões e evidências recebidas.
 
+Um conflito probabilístico só ingressa na fila institucional depois de um `linkage_run` efetivamente `PUBLICADO`. A fila reutiliza `qualidade.divergencia_gestor`; `correlation_id=linkage_run_id` liga o caso ao resultado, modelo, scores, margem e candidatos persistidos, sem transformar a indicação em correção automática. Reexecução da sincronização do mesmo run é idempotente e uma divergência aberta preexistente para a observação não é duplicada.
+
 Não existe módulo obrigatório de Regularização Cadastral nem decisão humana caso a caso como requisito do fluxo normal.
 
 ## 11. Gates de ativação
