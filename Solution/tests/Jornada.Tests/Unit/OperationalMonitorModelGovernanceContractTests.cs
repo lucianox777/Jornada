@@ -33,6 +33,8 @@ public sealed class OperationalMonitorModelGovernanceContractTests
             Assert.That(service, Does.Contain("snapshot_current"));
             Assert.That(service, Does.Contain("BLOCKING_PASS_U_"));
             Assert.That(service, Does.Contain("NOMINAL_U_MIN_CONDITIONED_PAIRS_PER_PASS"));
+            Assert.That(service, Does.Contain("rp.passe_ordem+1 passe_ordem_exibida"));
+            Assert.That(service, Does.Contain("CONVERT(NVARCHAR(10),rp.passe_ordem+1)"));
             Assert.That(service, Does.Contain("SEM_EVIDENCIA_MODELO_ATIVO"));
             Assert.That(service, Does.Contain("JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1"));
             Assert.That(service, Does.Contain("NOMINAL_U_NOME_SOURCE_BLOCKING_CONDITIONED"));
