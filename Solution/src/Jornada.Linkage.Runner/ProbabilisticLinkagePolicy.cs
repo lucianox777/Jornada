@@ -19,7 +19,7 @@ internal sealed record LinkageRuntimeSnapshot(LinkageModel Model, LinkageDynamic
 }
 
 internal sealed record LinkageCandidate(Guid PessoaUuid, string? NomeCompleto, DateOnly? DataNascimento, string? NomeMae);
-internal sealed record CandidateScore(Guid PessoaUuid, decimal Score, decimal LogOdds);
+internal sealed record CandidateScore(Guid PessoaUuid, decimal Score, decimal LogOdds, bool DemographicExactCollisionRisk = false);
 
 internal static class LinkageModelPolicy
 {
@@ -121,11 +121,25 @@ internal static class ProbabilisticLinkageDecisions
 
         return uniqueCandidates.Select(candidate =>
             {
-                var score = FellegiSunterScoring.Calculate(model.Parameters,
-                    CompareOptionalName(observation.NomeCompleto, candidate.NomeCompleto),
-                    CompareOptionalName(observation.NomeMae, candidate.NomeMae), uniqueCandidates.Count,
-                    observation.DataNascimento, candidate.DataNascimento);
-                return new CandidateScore(candidate.PessoaUuid, score.Posterior, score.LogOdds);
+                var nameState = CompareOptionalName(observation.NomeCompleto, candidate.NomeCompleto);
+                var motherNameState = CompareOptionalName(observation.NomeMae, candidate.NomeMae);
+                var score = FellegiSunterScoring.Calculate(
+                    model.Parameters,
+                    nameState,
+                    motherNameState,
+                    uniqueCandidates.Count,
+                    observation.DataNascimento,
+                    candidate.DataNascimento);
+                var demographicExactCollisionRisk =
+                    nameState == NameComparisonState.EXACT &&
+                    observation.DataNascimento is { } observedBirth &&
+                    candidate.DataNascimento is { } candidateBirth &&
+                    observedBirth == candidateBirth;
+                return new CandidateScore(
+                    candidate.PessoaUuid,
+                    score.Posterior,
+                    score.LogOdds,
+                    demographicExactCollisionRisk);
             })
             .OrderByDescending(x => decisionEvidence ? x.LogOdds : x.Score)
             .ThenBy(x => x.PessoaUuid)
@@ -178,6 +192,17 @@ internal static class ProbabilisticLinkageDecisions
 
         if (best.Score < model.Threshold)
             return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId, "ABAIXO_T_LINKAGE");
+
+        var nonUniqueDemographicExactGuard = model.Parameters.TryGetValue(
+            LinkageParameterCatalog.NonUniqueDemographicExactGuard,
+            out var demographicGuardFlag) && demographicGuardFlag >= 1m;
+        if (nonUniqueDemographicExactGuard && best.DemographicExactCollisionRisk)
+            return new ProbabilisticLinkageDecision(
+                ResolutionStatus.CONFLITO, null,
+                best.PessoaUuid, best.Score,
+                second?.PessoaUuid, secondScore,
+                margin, model.ModelId,
+                "NUCLEO_DEMOGRAFICO_EXATO_NAO_UNICO");
 
         var dualThresholdGuard = model.Parameters.TryGetValue(
             LinkageParameterCatalog.DualThresholdConflictGuard,
