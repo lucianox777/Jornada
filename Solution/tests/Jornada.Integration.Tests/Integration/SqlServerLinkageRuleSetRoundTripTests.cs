@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
 using Jornada.Linkage.Runner;
@@ -11,10 +10,6 @@ namespace Jornada.Tests.Integration;
 [NonParallelizable]
 public sealed class SqlServerLinkageRuleSetRoundTripTests
 {
-    private static readonly Regex GoLine = new(
-        @"^\s*GO\s*(?:--.*)?$",
-        RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-
     [Test]
     public async Task Model_and_dynamic_ruleset_round_trip_with_same_fingerprint()
     {
@@ -23,11 +18,8 @@ public sealed class SqlServerLinkageRuleSetRoundTripTests
         await connection.OpenAsync();
 
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-        await ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
-        await ExecuteFileAsync(connection,
-            Path.Combine(databaseDir, "migrations", "20260910_Linkage_RuleSet_Passes.sql"));
-        await ExecuteFileAsync(connection,
-            Path.Combine(databaseDir, "migrations", "20260911_Linkage_Blocking_Projection_Contract.sql"));
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
 
         var modelId = Guid.NewGuid();
         const string algorithm = "TEST_SQLSERVER_DYNAMIC_BLOCKING_V1";
@@ -117,20 +109,6 @@ public sealed class SqlServerLinkageRuleSetRoundTripTests
         Assert.That(
             Convert.ToInt32(await count.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture),
             Is.EqualTo(1));
-    }
-
-    private static async Task ExecuteFileAsync(SqlConnection connection, string path)
-    {
-        var script = await File.ReadAllTextAsync(path);
-        foreach (var batch in GoLine.Split(script))
-        {
-            if (string.IsNullOrWhiteSpace(batch))
-                continue;
-            await using var command = connection.CreateCommand();
-            command.CommandText = batch;
-            command.CommandTimeout = 120;
-            await command.ExecuteNonQueryAsync();
-        }
     }
 
     private static string RequireIntegrationConnection()
