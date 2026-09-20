@@ -81,7 +81,8 @@ A evidência persistente por modelo é materializada em `auditoria.linkage_confe
 
 O schema contém:
 
-- `auditoria.sp_calcular_fingerprint_modelo_linkage`, que produz fingerprint SHA-256 canônico do snapshot decisório persistido (metadados estáveis, parâmetros, estatísticas e ruleset/passes/campos);\n- `auditoria.sp_registrar_conferencia_linkage`, que aceita somente modelo `RASCUNHO`, calcula esse fingerprint no ato do registro e persiste evidência agregada append-only;
+- `auditoria.sp_calcular_fingerprint_modelo_linkage`, que produz fingerprint SHA-256 canônico do snapshot decisório persistido (metadados estáveis, parâmetros, estatísticas e ruleset/passes/campos);
+- `auditoria.sp_registrar_conferencia_linkage`, que aceita somente modelo `RASCUNHO`, calcula esse fingerprint no ato do registro e persiste evidência agregada append-only;
 - `auditoria.sp_assert_conferencia_linkage_conforme`, que procura a evidência mais recente para o mesmo `modelo_id`, método e versão de tolerância, exige `CONFORME` e recomputa o fingerprint do snapshot; qualquer mutação posterior torna a evidência obsoleta e bloqueia o assert;
 - `auditoria.v_linkage_conferencia_evidencia`, superfície read-only de auditoria.
 
@@ -91,4 +92,27 @@ O **wiring em `VALIDATE/ACTIVATE` ainda não está ativo**. Enquanto `implementa
 
 `GENERATE_DRAFT -> CONFERENCIA -> VALIDATE -> ACTIVATE`
 
-somente depois de congelar/versionar a tolerância e implementar o comando governado que produz o request/relatório a partir do modelo real.
+somente depois de congelar/versionar a tolerância.
+
+## Comando governado
+
+`Jornada.Linkage.Conference` é o orquestrador separado que pode enxergar simultaneamente o Core operacional e a Evaluation independente. Runner e Parameters Worker não dependem dele.
+
+O comando:
+
+1. exige `--model-id` apontando para modelo `RASCUNHO`;
+2. carrega `implementation-conference-tolerance.json` e **recusa abrir o banco** se a tolerância não estiver `FROZEN`;
+3. abre transação `SERIALIZABLE`;
+4. calcula/locka o fingerprint do snapshot decisório;
+5. carrega parâmetros do modelo e monta corpus determinístico sem PII;
+6. calcula o lado canônico com `Jornada.Linkage.Core`;
+7. executa `IndependentImplementationConference` sobre os mesmos vetores;
+8. agrega conservadoramente os resultados;
+9. recalcula o fingerprint antes do registro;
+10. persiste somente o resumo agregado e hashes SHA-256.
+
+O corpus corrente contém **7 cenários e 208 candidatos sintéticos**: matriz completa de estados de nome/nome da mãe/nascimento, casos forte/fraco, missing, empate, guard-input e forte-versus-fraco. Datas usadas para produzir estados semânticos são valores sintéticos fixos em memória; nenhum registro de cidadão é consultado para montar o corpus.
+
+O hash do request e do relatório inclui o fingerprint do snapshot do modelo. Rerun byte-a-byte idêntico é idempotente e retorna o mesmo `evidencia_id`; mesmo hash com request/snapshot incompatível é recusado fail-closed.
+
+A configuração governada continua com `toleranceVersion=UNFROZEN`, status `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION` e valor nulo. Portanto o comando existe, mas uma execução governada real continua bloqueada até o congelamento explícito da tolerância.
