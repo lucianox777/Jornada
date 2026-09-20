@@ -81,10 +81,24 @@ public sealed class LinkageCalibrationAuditRoundTripTests
         var statesEx = Assert.Throws<InvalidDataException>(() =>
             LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongStates, JsonOptions)));
 
+        var wrongRule = sample with
+        {
+            InterchangeContract = sample.InterchangeContract with
+            {
+                ComparisonStateMapping = sample.InterchangeContract.ComparisonStateMapping with
+                {
+                    Rule = "silently collapse states"
+                }
+            }
+        };
+        var ruleEx = Assert.Throws<InvalidDataException>(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongRule, JsonOptions)));
+
         Assert.Multiple(() =>
         {
             Assert.That(statusEx!.Message, Does.Contain("statusAtExport"));
             Assert.That(statesEx!.Message, Does.Contain("Estados não bijetivos"));
+            Assert.That(ruleEx!.Message, Does.Contain("Regra de mapeamento"));
         });
     }
 
@@ -100,6 +114,13 @@ public sealed class LinkageCalibrationAuditRoundTripTests
         var tfEx = Assert.Throws<InvalidDataException>(() =>
             LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(runtimeTf, JsonOptions)));
 
+        var wrongAlgorithm = sample with
+        {
+            TermFrequency = sample.TermFrequency with { AlgorithmVersion = "TF_UNKNOWN" }
+        };
+        var algorithmEx = Assert.Throws<InvalidDataException>(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongAlgorithm, JsonOptions)));
+
         var wrongReference = sample with
         {
             TermFrequency = sample.TermFrequency with
@@ -113,6 +134,7 @@ public sealed class LinkageCalibrationAuditRoundTripTests
         Assert.Multiple(() =>
         {
             Assert.That(tfEx!.Message, Does.Contain("term frequency habilitada"));
+            Assert.That(algorithmEx!.Message, Does.Contain("Versão da matemática"));
             Assert.That(referenceEx!.Message, Does.Contain("versão fixada no modelo"));
         });
     }
