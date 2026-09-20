@@ -29,38 +29,50 @@ A candidata v5.00 adota **Microsoft SQL Server como único runtime relacional su
 
 O inventário é derivado automaticamente por `Solution/scripts/schema-inventory.py` e publicado como evidência pelo workflow `jornada-schema-inventory`.
 
-Resultado medido em 12/09/2026 no `master`, SHA `a25488b043888ee2aeb5b292e2b638bd9491ec35`, workflow `jornada-schema-inventory` run `34722803666`:
+A execução do PR #377, run `35533662679`, mediu o schema candidato com o ledger canônico incluído:
 
 - tabelas no `Jornada_Fase1.sql` legado: **53**;
 - tabelas próprias do núcleo `Jornada_Identidade_Progressiva.sql`: **2**;
-- tabelas distintas introduzidas pelos scripts de migração de schema: **14**;
-- total distinto do schema operacional consolidado: **69 tabelas**;
-- tabelas do schema atual que não pertencem ao baseline legado de 53: **16**.
+- tabelas distintas introduzidas pelos scripts de migração: **23**;
+- total distinto do schema operacional consolidado: **78 tabelas**;
+- tabelas do schema atual que não pertencem ao baseline legado de 53: **25**.
 
-Portanto, a contagem histórica 53/53 não representa o schema corrente. As contagens intermediárias de 64 e 66 também ficaram superadas: o inventário automatizado atual mede 69 tabelas distintas.
+Essa medição substitui as contagens históricas 53, 64, 66, 69 e a estimativa intermediária 70. O inventário corrente é uma propriedade derivada do manifesto/código e deve ser regenerado quando houver mudança estrutural.
 
 ## 4. Tabelas fora do baseline legado
 
-As 16 tabelas adicionais são:
+As 25 tabelas fora do baseline legado são:
 
-1. `identidade.blocking_chave`
-2. `identidade.composicao_aplicacao`
-3. `identidade.composicao_historico_aplicado`
-4. `identidade.composicao_plano`
-5. `identidade.composicao_publicacao`
-6. `identidade.composicao_recomposicao_plano`
-7. `identidade.composicao_uuid_reserva`
-8. `identidade.cpf_ancora`
-9. `identidade.linkage_ruleset`
-10. `identidade.linkage_ruleset_passe`
-11. `identidade.linkage_ruleset_passe_campo`
-12. `identidade.pessoa_origem_progressiva`
-13. `identidade.pessoa_origem_progressiva_evento`
-14. `ref.frequencia_nome`
-15. `ref.frequencia_nome_cobertura`
-16. `ref.frequencia_nome_versao`
+1. `auditoria.decisao_identidade_evento`
+2. `controle.runtime_componente`
+3. `identidade.blocking_chave`
+4. `identidade.composicao_aplicacao`
+5. `identidade.composicao_historico_aplicado`
+6. `identidade.composicao_plano`
+7. `identidade.composicao_publicacao`
+8. `identidade.composicao_recomposicao_plano`
+9. `identidade.composicao_uuid_reserva`
+10. `identidade.cpf_ancora`
+11. `identidade.linkage_quality_estimate`
+12. `identidade.linkage_ruleset`
+13. `identidade.linkage_ruleset_passe`
+14. `identidade.linkage_ruleset_passe_campo`
+15. `identidade.pessoa_origem_progressiva`
+16. `identidade.pessoa_origem_progressiva_evento`
+17. `jornada.schema_migration`
+18. `ref.base_pessoa_origem`
+19. `ref.frequencia_nome`
+20. `ref.frequencia_nome_cobertura`
+21. `ref.frequencia_nome_versao`
+22. `ref.sistema_origem_base_pessoa`
+23. `ref.tipo_identificador_pessoa`
+24. `silver.pessoa_identificador_observacao`
+25. `silver.pessoa_origem_sistema`
 
-## 5. Inventário completo - 69 tabelas
+## 5. Inventário completo - 78 tabelas
+
+### auditoria
+- `auditoria.decisao_identidade_evento`
 
 ### bronze
 - `bronze.entrega_arquivo`
@@ -74,6 +86,7 @@ As 16 tabelas adicionais são:
 - `controle.entrega_retencao_ciclo`
 - `controle.modo_carga_inicial`
 - `controle.restricao_projecao_jornada_versao`
+- `controle.runtime_componente`
 
 ### gold
 - `gold.beneficio_concedido`
@@ -98,6 +111,7 @@ As 16 tabelas adicionais são:
 - `identidade.frequencia_linkage`
 - `identidade.identity_map`
 - `identidade.identity_map_estado_evento`
+- `identidade.linkage_quality_estimate`
 - `identidade.linkage_resultado`
 - `identidade.linkage_ruleset`
 - `identidade.linkage_ruleset_passe`
@@ -117,6 +131,9 @@ As 16 tabelas adicionais são:
 - `ingestao.item_processado_resumo`
 - `ingestao.lote`
 
+### jornada
+- `jornada.schema_migration`
+
 ### qualidade
 - `qualidade.avaliacao_possibilidade`
 - `qualidade.divergencia_gestor`
@@ -126,6 +143,7 @@ As 16 tabelas adicionais são:
 
 ### ref
 - `ref.atributo_transversal`
+- `ref.base_pessoa_origem`
 - `ref.distrito`
 - `ref.frequencia_nome`
 - `ref.frequencia_nome_cobertura`
@@ -133,7 +151,9 @@ As 16 tabelas adicionais são:
 - `ref.gestor`
 - `ref.gestor_pessoa_versao`
 - `ref.sistema_origem`
+- `ref.sistema_origem_base_pessoa`
 - `ref.subprefeitura`
+- `ref.tipo_identificador_pessoa`
 - `ref.tipo_registro`
 - `ref.tipo_registro_versao`
 
@@ -143,8 +163,10 @@ As 16 tabelas adicionais são:
 ### silver
 - `silver.pessoa_atributo_observacao`
 - `silver.pessoa_campo_verificacao_observacao`
+- `silver.pessoa_identificador_observacao`
 - `silver.pessoa_observacao`
 - `silver.pessoa_origem`
+- `silver.pessoa_origem_sistema`
 - `silver.referencia_territorial_observacao`
 - `silver.registro_observacao`
 - `silver.registro_origem`
@@ -174,7 +196,13 @@ A fila institucional continua materializada em `qualidade.divergencia_gestor`; n
 
 O índice filtrado `UX_divergencia_gestor_linkage_aberta` impede mais de uma divergência probabilística aberta para a mesma observação. A procedure `qualidade.sp_registrar_conflitos_linkage_publicados` opera dentro da transação de publicação do run e atualiza a proveniência em replay; conflitos cobertos por precedência determinística/governada não são duplicados. A view interna `qualidade.v_divergencia_linkage_contexto` reúne a fila e a evidência probabilística para auditoria restrita, sem alterar o contrato HTTP público.
 
-Essa evolução adiciona coluna, FK, índice, procedure e view, **sem acrescentar tabela**; portanto a contagem de tabelas do inventário permanece inalterada.
+A evolução de revisão governada de Linkage adiciona coluna, FK, índice, procedure e view sem acrescentar tabela. Separadamente, o ledger canônico de autoria dos atos governados acrescenta `auditoria.decisao_identidade_evento`, elevando o inventário corrente para 70 tabelas.
+
+## 6.2. Ledger canônico de decisão de identidade
+
+`auditoria.decisao_identidade_evento` é append-only e referencia a correção, o caso governado ou a divergência que materializou o ato. `operacao_id` é gerado pelo SQL Server; a autoria é a credencial `GESTOR` autenticada e validada contra o Gestor do objeto. `correlation_id` permanece contexto técnico, não identidade do decisor.
+
+A API grava o evento antes do commit da mesma transação. Falha no ledger reverte a mutação de identidade. `controle.api_evento` continua sendo telemetria/auditoria HTTP e não concorre como fonte de verdade da decisão governada.
 
 ## 7. Regras de evolução
 

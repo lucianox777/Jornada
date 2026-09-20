@@ -57,9 +57,15 @@ BEGIN TRY
     EXEC sys.sp_refreshsqlmodule N'identidade.sp_aplicar_caso_conflito_identidade';
     EXEC sys.sp_refreshsqlmodule N'identidade.sp_aplicar_correcao_identidade';
     EXEC sys.sp_refreshsqlmodule N'identidade.sp_sincronizar_atribuicao_fatos';
+    EXEC sys.sp_refreshsqlmodule N'auditoria.sp_registrar_decisao_identidade';
     EXEC sys.sp_refreshsqlmodule N'ingestao.sp_recalcular_entrega';
     EXEC sys.sp_refreshsqlmodule N'ref.fn_telefone_br_canonico_v2';
     EXEC sys.sp_refreshsqlmodule N'ref.fn_email_canonico_v2';
+
+    IF OBJECT_ID(N'auditoria.decisao_identidade_evento',N'U') IS NULL
+       OR OBJECT_ID(N'auditoria.sp_registrar_decisao_identidade',N'P') IS NULL
+       OR OBJECT_ID(N'auditoria.tr_decisao_identidade_evento_append_only',N'TR') IS NULL
+        THROW 51986,'Ledger canônico de decisões de identidade ausente/incompleto.',1;
 
     IF CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BaseNormativa'))<>N'3.62'
        OR CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema'))<>N'3.70'

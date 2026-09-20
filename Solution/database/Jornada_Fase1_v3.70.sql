@@ -42,4 +42,5 @@
 :r database/migrations/20260920_Linkage_Llr_Monotonicity_Tolerance.sql
 :r database/migrations/20260920_Linkage_Conflito_Revisao_Governada.sql
 :r database/migrations/20260920_Pessoa_Nome_Referencia_Serving.sql
+:r database/migrations/20260920_Identidade_Decisao_Ledger.sql
 :r database/migrations/20260910_Schema_Consolidation_370.sql

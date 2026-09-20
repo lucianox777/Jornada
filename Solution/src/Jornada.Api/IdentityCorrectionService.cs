@@ -110,10 +110,13 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
             var titular = command.Parameters.Add("@pessoa_uuid_titular", SqlDbType.UniqueIdentifier);
             titular.Direction = ParameterDirection.Output;
             await command.ExecuteNonQueryAsync(ct);
-            await tx.CommitAsync(ct);
 
             var correctionId = (Guid)correction.Value;
             var titularUuid = (Guid)titular.Value;
+            await RecordDecisionAsync(
+                connection, tx, context, "CORRECAO_CPF_APLICADA",
+                correctionId, null, null, correlationId, ct);
+            await tx.CommitAsync(ct);
             var destinations = await LoadDestinationsAsync(connection, correctionId, ct);
             return new IdentityCorrectionResponse(correctionId, titularUuid, destinations, "APLICADA");
         }
@@ -150,8 +153,12 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
             var output = command.Parameters.Add("@caso_id", SqlDbType.UniqueIdentifier);
             output.Direction = ParameterDirection.Output;
             await command.ExecuteNonQueryAsync(ct);
+            var caseId = (Guid)output.Value;
+            await RecordDecisionAsync(
+                connection, tx, context, "CASO_CONFLITO_ABERTO",
+                null, caseId, null, correlationId, ct);
             await tx.CommitAsync(ct);
-            return new IdentityGovernedCaseOpenResponse((Guid)output.Value, "ABERTO");
+            return new IdentityGovernedCaseOpenResponse(caseId, "ABERTO");
         }
         catch
         {
@@ -186,6 +193,9 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
             command.Parameters.Add(new SqlParameter("@grupos_json", SqlDbType.NVarChar, -1) { Value = json });
             command.Parameters.Add(new SqlParameter("@correlation_id", SqlDbType.UniqueIdentifier) { Value = (object?)correlationId ?? DBNull.Value });
             await command.ExecuteNonQueryAsync(ct);
+            await RecordDecisionAsync(
+                connection, tx, context, "CASO_CONFLITO_APLICADO",
+                null, caseId, null, correlationId, ct);
             await tx.CommitAsync(ct);
             return new IdentityGovernedCaseApplyResponse(caseId, "APLICADO");
         }
@@ -227,16 +237,61 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
         if (string.IsNullOrWhiteSpace(request.Desfecho))
             throw new ArgumentException("Desfecho é obrigatório.", nameof(request));
         await using var connection = await connections.OpenAsync(ct);
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = tx;
+            command.CommandType = CommandType.StoredProcedure;
+            command.CommandText = "qualidade.sp_registrar_desfecho_divergencia";
+            command.Parameters.Add(new SqlParameter("@gestor_codigo", SqlDbType.NVarChar, 30) { Value = context.GestorCodigo });
+            command.Parameters.AddWithValue("@divergencia_id", divergenceId);
+            command.Parameters.Add(new SqlParameter("@status", SqlDbType.NVarChar, 20) { Value = request.Status });
+            command.Parameters.Add(new SqlParameter("@desfecho", SqlDbType.NVarChar, 80) { Value = request.Desfecho });
+            command.Parameters.Add(new SqlParameter("@observacao", SqlDbType.NVarChar, 2000) { Value = (object?)request.Observacao ?? DBNull.Value });
+            command.Parameters.Add(new SqlParameter("@correlation_id", SqlDbType.UniqueIdentifier) { Value = (object?)correlationId ?? DBNull.Value });
+            await command.ExecuteNonQueryAsync(ct);
+            await RecordDecisionAsync(
+                connection, tx, context, "DIVERGENCIA_DESFECHO",
+                null, null, divergenceId, correlationId, ct);
+            await tx.CommitAsync(ct);
+        }
+        catch
+        {
+            if (tx.Connection is not null) await tx.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
+    private static async Task<Guid> RecordDecisionAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        AccessContext context,
+        string eventType,
+        Guid? correctionId,
+        Guid? caseId,
+        long? divergenceId,
+        Guid? correlationId,
+        CancellationToken ct)
+    {
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandType = CommandType.StoredProcedure;
-        command.CommandText = "qualidade.sp_registrar_desfecho_divergencia";
+        command.CommandText = "auditoria.sp_registrar_decisao_identidade";
+        command.Parameters.Add(new SqlParameter("@credencial_id", SqlDbType.UniqueIdentifier) { Value = context.CredentialId });
         command.Parameters.Add(new SqlParameter("@gestor_codigo", SqlDbType.NVarChar, 30) { Value = context.GestorCodigo });
-        command.Parameters.AddWithValue("@divergencia_id", divergenceId);
-        command.Parameters.Add(new SqlParameter("@status", SqlDbType.NVarChar, 20) { Value = request.Status });
-        command.Parameters.Add(new SqlParameter("@desfecho", SqlDbType.NVarChar, 80) { Value = request.Desfecho });
-        command.Parameters.Add(new SqlParameter("@observacao", SqlDbType.NVarChar, 2000) { Value = (object?)request.Observacao ?? DBNull.Value });
+        command.Parameters.Add(new SqlParameter("@evento_tipo", SqlDbType.NVarChar, 40) { Value = eventType });
+        command.Parameters.Add(new SqlParameter("@correcao_id", SqlDbType.UniqueIdentifier) { Value = (object?)correctionId ?? DBNull.Value });
+        command.Parameters.Add(new SqlParameter("@caso_id", SqlDbType.UniqueIdentifier) { Value = (object?)caseId ?? DBNull.Value });
+        command.Parameters.Add(new SqlParameter("@divergencia_id", SqlDbType.BigInt) { Value = (object?)divergenceId ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@correlation_id", SqlDbType.UniqueIdentifier) { Value = (object?)correlationId ?? DBNull.Value });
+        var operation = command.Parameters.Add("@operacao_id", SqlDbType.UniqueIdentifier);
+        operation.Direction = ParameterDirection.Output;
+
         await command.ExecuteNonQueryAsync(ct);
+        return operation.Value is Guid operationId && operationId != Guid.Empty
+            ? operationId
+            : throw new InvalidOperationException("Ledger de decisão não devolveu operacao_id válido.");
     }
 
     private static async Task<IReadOnlyDictionary<string, Guid>> LoadDestinationsAsync(SqlConnection connection, Guid correctionId, CancellationToken ct)

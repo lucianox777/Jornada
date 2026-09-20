@@ -62,6 +62,8 @@ X-Jornada-Agente-CPF: <CPF_DO_AGENTE>
 
 O header é opcional. Quando presente, a Jornada valida formato/dígitos verificadores, calcula `HMAC-SHA-256` com chave secreta da instalação e separação de domínio `JORNADA:AGENTE:v1:`, persiste somente `controle.api_evento.agente_cpf_hash BINARY(32)` + `agente_hash_versao` e descarta o CPF em claro. CPF inválido é rejeitado. A Jornada não verifica se o CPF informado corresponde ao usuário autenticado no sistema finalístico; a veracidade dessa associação permanece responsabilidade do Gestor. O segredo HMAC fica em secret store/configuração protegida, nunca no banco ou no código.
 
+Para atos governados de identidade, esse HMAC **não é autoria canônica**. Correções, abertura/aplicação de casos e desfechos de divergência gravam `auditoria.decisao_identidade_evento` na mesma transação da mutação. O ledger usa a `credencial_id` institucional autenticada, validada contra o Gestor; `operacao_id` é gerado pelo SQL Server e `correlation_id` permanece somente contexto de rastreamento.
+
 ## Fronteira municipal de Pessoa
 
 Consultas de Pessoa e Identidade não exigem `X-Jornada-Finalidade`. A Jornada autoriza pela credencial autenticada, scopes e recurso aplicável. GESTOR, BENEFICIO e SERVICO compartilham a Pessoa em âmbito municipal, sem prova de vínculo ou fato prévio; credenciais de Tipo continuam limitadas ao próprio código de recurso/schema.
