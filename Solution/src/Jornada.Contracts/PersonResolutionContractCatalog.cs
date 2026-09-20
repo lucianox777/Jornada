@@ -106,8 +106,10 @@ public static class PersonResolutionContractCatalog
                 BlockingFeatureNames.BirthYear
             }),
 
-        // Permanecem conhecidos semanticamente, porém inelegíveis. Em especial, casa-abrigo
-        // não pode surgir no linkage por convenção nominal, formato ou presença no payload.
+        // Permanecem conhecidos semanticamente, porém inelegíveis. Endereço/referência territorial
+        // pode ser compartilhado por muitas Pessoas e não vira chave nem evidência positiva apenas por existir.
+        // Qualquer uso futuro exige modelo versionado com limite de bloco e ajuste explícito de frequência.
+        // Casa-abrigo-sigilosa permanece fail-closed absoluto para resolução de identidade.
         new(ResidentialAddress, PersonResolutionSemantic.Address, null, false, false, null, Array.Empty<string>()),
         new(ConfidentialShelterAddress, PersonResolutionSemantic.Address, null, false, false, null, Array.Empty<string>()),
         new(TerritorialReference, PersonResolutionSemantic.Categorical, null, false, false, null, Array.Empty<string>()),

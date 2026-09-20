@@ -38,6 +38,18 @@ public sealed class ResolutionProjectionModelCatalogTests
     }
 
     [Test]
+    public void PresentationReferenceName_IsNotAResolutionAttribute()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(PersonResolutionContractCatalog.TryGet("nome_referencia", out _), Is.False);
+            Assert.That(
+                BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan.BlockingCandidateFeatures,
+                Does.Not.Contain("nome_referencia"));
+        });
+    }
+
+    [Test]
     public void Build_PersonNameRequiresExplicitEligibility()
     {
         var denied = ResolutionProjectionPlanner.Build(
@@ -123,6 +135,27 @@ public sealed class ResolutionProjectionModelCatalogTests
                 Is.EqualTo("EMAIL_CANONICO@V2"));
             Assert.That(calculated.All(static x => x.MultiValued), Is.True);
         });
+    }
+
+    [Test]
+    public void LocationReferenceAttributes_RemainIneligibleUntilFrequencyAwareModelIsVersioned()
+    {
+        var codes = new[]
+        {
+            PersonResolutionContractCatalog.ResidentialAddress,
+            PersonResolutionContractCatalog.ConfidentialShelterAddress,
+            PersonResolutionContractCatalog.TerritorialReference
+        };
+
+        foreach (var code in codes)
+        {
+            Assert.That(PersonResolutionContractCatalog.TryGet(code, out var field), Is.True, code);
+            Assert.Multiple(() =>
+            {
+                Assert.That(field.EligibleForResolution, Is.False, code);
+                Assert.That(field.BlockingFeatures, Is.Empty, code);
+            });
+        }
     }
 
     [Test]

@@ -56,6 +56,9 @@ public sealed class TerritorialSemanticsDocumentationTests
             Assert.That(territorialization, Does.Contain("não a redefine automaticamente como **endereço de residência**"));
             Assert.That(territorialization, Does.Contain("superfície canônica da visualização territorial"));
             Assert.That(territorialization, Does.Contain("não deve promover automaticamente qualquer endereço cadastral a território analítico"));
+            Assert.That(territorialization, Does.Contain("SEM_ENDERECO_FIXO_DECLARADO"));
+            Assert.That(territorialization, Does.Contain("**não** deve ser reinterpretado"));
+            Assert.That(territorialization, Does.Contain("nova versão contratual"));
 
             Assert.That(docsIndex, Does.Contain("A Referência Territorial permanece a superfície territorial única da visualização"));
             Assert.That(docsIndex, Does.Contain("atributo contratual de endereço residencial informado pela origem"));
@@ -67,6 +70,10 @@ public sealed class TerritorialSemanticsDocumentationTests
 
             Assert.That(candidateSpecification, Does.Contain("a Jornada não o redefine automaticamente como “endereço de residência”"));
             Assert.That(candidateSpecification, Does.Contain("referência territorial é informação temporal própria selecionada para territorialização"));
+            Assert.That(candidateSpecification, Does.Contain("SEM_ENDERECO_FIXO_DECLARADO"));
+            Assert.That(candidateSpecification, Does.Contain("schemas v1–v4 não devem ser alterados in-place"));
+            Assert.That(candidateSpecification, Does.Contain("Decreto Municipal nº 58.228"));
+            Assert.That(candidateSpecification, Does.Contain("nome_referencia").And.Contain("**não** participa de blocking"));
             Assert.That(candidateSpecification, Does.Not.Contain("endereço residencial é atributo cadastral que descreve endereço de residência"));
 
             Assert.That(ddl, Does.Contain("A camada territorial usa exclusivamente o snapshot de REFERENCIA_TERRITORIAL selecionado"));

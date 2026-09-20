@@ -82,7 +82,7 @@ public sealed class CandidateInfoTests
             Assert.That(recordedManifestHash, Is.EqualTo(manifestHash));
             Assert.That(structuralHash, Does.Match("^[0-9a-f]{64}$"));
             Assert.That(sourceCommit, Does.Match("^[0-9a-f]{40}$"));
-            Assert.That(provenance.GetProperty("ddl_evidence_run_id").GetInt64(), Is.GreaterThan(0));
+            Assert.That(provenance.GetProperty("evidence_model").GetString(), Is.EqualTo("CURRENT_CI_PLUS_EXACT_RC_RECOMPUTATION"));
         });
 
         var workflow = File.ReadAllText(Path.Combine(
@@ -93,8 +93,8 @@ public sealed class CandidateInfoTests
             Assert.That(workflow, Does.Contain("fetch-depth: 0"));
             Assert.That(workflow, Does.Contain("git merge-base --is-ancestor"));
             Assert.That(workflow, Does.Contain("structural_fingerprint_sha256"));
-            Assert.That(workflow, Does.Contain("ddl_evidence_run_id"));
-            Assert.That(workflow, Does.Contain("actions/runs/$ddl_run_id"));
+            Assert.That(workflow, Does.Contain("test \"$actual_fingerprint\" = \"$declared_fingerprint\""));
+            Assert.That(workflow, Does.Not.Contain("actions/runs/$ddl_run_id"));
             Assert.That(workflow, Does.Contain("CANDIDATE_INFO.json"));
         });
     }

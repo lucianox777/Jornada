@@ -131,18 +131,14 @@ jobs:
           diff -u .local/schema/fingerprints/JornadaSchema370.txt .local/schema/fingerprints/JornadaSchemaBundle.txt
           sha256sum .local/schema/fingerprints/*.txt
 
-      - name: Bind candidate provenance to executable DDL evidence
+      - name: Bind candidate provenance to executable DDL state
         working-directory: Solution
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           candidate='../CANDIDATE_INFO.json'
           source_commit=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["candidate"]["schema_provenance"]["source_commit"])' "$candidate")
           declared_fingerprint=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["candidate"]["schema_provenance"]["structural_fingerprint_sha256"])' "$candidate")
           declared_manifest=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["candidate"]["schema_provenance"]["migration_manifest_sha256"])' "$candidate")
-          ddl_run_id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["candidate"]["schema_provenance"]["ddl_evidence_run_id"])' "$candidate")
-
           actual_fingerprint=$(sha256sum .local/schema/fingerprints/JornadaSchema370.txt | awk '{print $1}')
           test "$actual_fingerprint" = "$declared_fingerprint"
 
@@ -159,24 +155,6 @@ jobs:
           )
           test "$source_manifest" = "$declared_manifest"
 
-          curl -fsSL \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$ddl_run_id" \
-            > /tmp/jornada-ddl-evidence-run.json
-          SOURCE_COMMIT="$source_commit" python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-          run = json.loads(Path("/tmp/jornada-ddl-evidence-run.json").read_text(encoding="utf-8"))
-          expected = os.environ["SOURCE_COMMIT"]
-          if run.get("head_sha") != expected:
-              raise SystemExit(f"DDL evidence head_sha mismatch: {run.get('head_sha')} != {expected}")
-          if run.get("conclusion") != "success":
-              raise SystemExit(f"DDL evidence run is not successful: {run.get('conclusion')}")
-          if run.get("name") != "jornada-schema-consolidation-370":
-              raise SystemExit(f"unexpected DDL evidence workflow: {run.get('name')}")
-          PY
 
       - name: Prove incomplete schema is not promoted
         working-directory: Solution

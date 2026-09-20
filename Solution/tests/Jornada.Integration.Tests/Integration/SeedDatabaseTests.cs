@@ -229,6 +229,102 @@ WHERE c.credencial_id<>x.credencial_id;");
     }
 
     [Test]
+    public async Task Serving_name_reference_prefers_declared_social_name_without_overwriting_civil_name()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("JORNADA_TEST_SQL_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connectionString))
+            Assert.Ignore("Defina JORNADA_TEST_SQL_CONNECTION para executar testes SQL Server.");
+
+        var csb = new SqlConnectionStringBuilder(connectionString);
+        var db = csb.InitialCatalog ?? string.Empty;
+        if (!db.Contains("test", StringComparison.OrdinalIgnoreCase) && !db.Contains("dev", StringComparison.OrdinalIgnoreCase) && !db.Contains("local", StringComparison.OrdinalIgnoreCase))
+            Assert.Fail("Por segurança, o banco de integração deve conter 'Test', 'Dev' ou 'Local' no nome.");
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync();
+
+        try
+        {
+            long observationId;
+            long gestorId;
+            Guid pessoaUuid;
+            string civilName;
+            await using (var ids = connection.CreateCommand())
+            {
+                ids.Transaction = tx;
+                ids.CommandText = """
+                    SELECT TOP(1) po.pessoa_observacao_id,po.gestor_id,vc.pessoa_uuid,gp.nome_completo
+                    FROM silver.pessoa_observacao po
+                    JOIN identidade.v_vinculo_corrente vc
+                      ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+                     AND vc.status='RESOLVIDO'
+                    JOIN gold.pessoa gp ON gp.pessoa_uuid=vc.pessoa_uuid
+                    WHERE po.codigo_pessoa_origem='CRAS001'
+                    ORDER BY po.pessoa_observacao_id DESC;
+                    """;
+                await using var reader = await ids.ExecuteReaderAsync();
+                Assert.That(await reader.ReadAsync(), Is.True, "Seed deve possuir CRAS001 resolvido.");
+                observationId = reader.GetInt64(0);
+                gestorId = reader.GetInt64(1);
+                pessoaUuid = reader.GetGuid(2);
+                civilName = reader.GetString(3);
+            }
+
+            await using (var insert = connection.CreateCommand())
+            {
+                insert.Transaction = tx;
+                insert.CommandText = """
+                    INSERT silver.pessoa_atributo_observacao(
+                        source_record_id,pessoa_observacao_id,fonte_gestor_id,atributo_codigo,
+                        atributo_instancia_chave,valor,status_evidencia,evidencia_tipo,
+                        referencia_evidencia,verificado_em,atualizado_em_origem,ingested_at)
+                    VALUES(
+                        N'TEST-NOME-SOCIAL',@obs,@gestor,N'NOME_SOCIAL',N'#',
+                        N'Maria Referência',N'DECLARADO',N'AUTODECLARACAO',
+                        NULL,NULL,'2026-09-20T12:00:00-03:00',SYSDATETIMEOFFSET());
+                    """;
+                insert.Parameters.AddWithValue("@obs", observationId);
+                insert.Parameters.AddWithValue("@gestor", gestorId);
+                await insert.ExecuteNonQueryAsync();
+            }
+
+            await using var query = connection.CreateCommand();
+            query.Transaction = tx;
+            query.CommandText = """
+                SELECT s.nome_referencia,s.nome_referencia_tipo,s.nome_referencia_fonte_tipo,
+                       g.nome_completo,
+                       (SELECT COUNT(*) FROM sys.columns
+                        WHERE object_id=OBJECT_ID(N'serving.v_pessoa') AND name=N'nome_completo') AS nome_civil_exposto
+                FROM serving.v_pessoa s
+                JOIN gold.pessoa g ON g.pessoa_uuid=s.pessoa_uuid
+                WHERE s.pessoa_uuid=@uuid;
+                """;
+            query.Parameters.AddWithValue("@uuid", pessoaUuid);
+            await using var result = await query.ExecuteReaderAsync();
+            Assert.That(await result.ReadAsync(), Is.True);
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.GetString(0), Is.EqualTo("Maria Referência"));
+                Assert.That(result.GetString(1), Is.EqualTo("NOME_SOCIAL"));
+                Assert.That(result.GetString(2), Is.EqualTo("SILVER_PESSOA_ATRIBUTO_OBSERVACAO"));
+                Assert.That(result.GetString(3), Is.EqualTo(civilName),
+                    "A referência de apresentação não deve sobrescrever o nome civil no núcleo Gold.");
+                Assert.That(result.GetString(3), Is.Not.EqualTo(result.GetString(0)));
+                Assert.That(result.GetInt32(4), Is.Zero,
+                    "A superfície padrão não deve expor nome_completo civil como coluna paralela.");
+            });
+        }
+        finally
+        {
+            await tx.RollbackAsync();
+        }
+    }
+
+    [Test]
     public async Task Territorial_reference_precedence_is_explicit_then_evidence_then_recency()
     {
         var connectionString = Environment.GetEnvironmentVariable("JORNADA_TEST_SQL_CONNECTION");

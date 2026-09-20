@@ -43,6 +43,14 @@ A persistência separa os conceitos:
 - identidade de origem: referência estável do registro recebido;
 - identidade canônica: vínculo eventualmente resolvido por CPF, linkage ou correção governada.
 
+### 3.1 Nome de referência e evidência nominal
+
+Nome de referência é regra de **apresentação**, não atributo canônico de identidade. Quando houver `NOME_SOCIAL` declarado ou comprovado entre as observações correntemente vinculadas à Pessoa, ele possui precedência de apresentação sobre o nome civil; o nome civil permanece preservado no núcleo interno e não deve ser exibido em paralelo por padrão. A seleção deve ser única, derivada, auditável, com proveniência e instante de referência, e reversível sem sobrescrever a evidência de origem.
+
+No Município de São Paulo, essa regra encontra base específica no **Decreto Municipal nº 58.228, de 16 de maio de 2018**, atualmente catalogado sem revogação expressa. O decreto estabelece a autodeclaração do nome social (art. 3º), restringe a identificação pelo registro civil aos sistemas internos de acesso restrito e aos casos absolutamente necessários (art. 4º, §§ 3º e 4º) e determina a incorporação do campo de nome social nos sistemas internos quando atualizados (art. 6º). Fonte oficial: `https://legislacao.prefeitura.sp.gov.br/decreto-58228-de-16-de-maio-de-2018/consolidado`.
+
+`nome_referencia` pertence a serving/atendimento e **não** participa de blocking, features, LLR, posterior, margem ou calibração. Nome civil, nome social e variantes históricas permanecem evidências nominais independentes conforme o contrato de resolução homologado. O scorer corrente não deve trocar o nome técnico do candidato pela referência de apresentação; eventual comparação de conjuntos de variantes exige nova versão calibrada do modelo.
+
 A correção de identidade é governada e auditável; a plataforma não deve inferir titularidade institucionalmente controversa nem apagar a trilha histórica de agrupamentos, separações ou fusões.
 
 ## 4. Âncora CPF → UUID e ausência de CPF
@@ -98,6 +106,12 @@ A Jornada distingue conceitos que não devem ser usados como sinônimos:
 - residência, endereço residencial, endereço de correspondência e outras referências mantêm semânticas próprias e não devem ser convertidos uns nos outros por convenção técnica.
 
 A superfície analítica territorial utiliza a Referência Territorial selecionada. Quando regra vigente permitir que `ENDERECO_RESIDENCIAL` participe como evidência candidata de uma referência de natureza `DOMICILIAR`, essa participação não altera a semântica do atributo de origem e a seleção permanece explícita e rastreável. A plataforma não deve escolher outro endereço institucional nem fabricar equivalência semântica apenas por conveniência técnica.
+
+`SEM_ENDERECO_APTO` qualifica a ausência de endereço apto à resolução geográfica naquele registro e não equivale a “sem endereço fixo declarado”. Ausência/`null` significa informação não fornecida ou não disponível. A declaração explícita de ausência de endereço fixo é informação própria e deve receber estado contratual distinto em nova versão de schema; os schemas v1–v4 não devem ser alterados in-place nem reinterpretados retroativamente.
+
+A próxima versão contratual de Referência Territorial deve admitir natureza tipada suficiente para distinguir, no mínimo, referência domiciliar, acolhimento institucional, institucional prisional, serviço de referência de atendimento e logradouro de pernoite, além do estado `SEM_ENDERECO_FIXO_DECLARADO`. Naturezas que revelem condição institucional sensível exigem restrição de projeção compatível; `ENDERECO_CASA_ABRIGO_SIGILOSA` nunca é projetado como referência territorial fina compartilhada.
+
+Endereço e Referência Territorial permanecem inelegíveis no modelo de resolução de identidade corrente. Concordância de endereço institucional compartilhado não constitui evidência positiva; eventual uso futuro requer ruleset/modelo versionado com limite de bloco e ajuste explícito de frequência. `ENDERECO_CASA_ABRIGO_SIGILOSA` permanece fail-closed para resolução de identidade.
 
 ## 10. Contratos HTTP e aceite OpenAPI
 

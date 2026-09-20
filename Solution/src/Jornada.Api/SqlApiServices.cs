@@ -433,7 +433,7 @@ internal sealed class SqlPersonProjectionService(
         {
             command.CommandText = """
                 DECLARE @gestor_id BIGINT=(SELECT gestor_id FROM ref.gestor WHERE codigo=@gestor);
-                SELECT gp.pessoa_uuid,gp.cpf,gp.status_cpf,gp.nome_completo,gp.data_nascimento,gp.nome_mae,
+                SELECT gp.pessoa_uuid,gp.cpf,gp.status_cpf,gp.nome_referencia,gp.data_nascimento,gp.nome_mae,
                        gp.fontes_distintas,gp.estado_concordancia,gp.estado_identidade,gp.completude_nucleo,gp.atualizado_em,
                        src.codigo_pessoa_origem,src.cpf_ausente_motivo
                 FROM OPENJSON(@ids) WITH (pessoa_uuid UNIQUEIDENTIFIER '$') j
@@ -555,7 +555,7 @@ internal sealed class SqlPersonProjectionService(
         Guid PessoaUuid,
         string? Cpf,
         string StatusCpf,
-        string? NomeCompleto,
+        string? NomeReferencia,
         DateOnly? DataNascimento,
         string? NomeMae,
         int FontesDistintas,
@@ -630,7 +630,9 @@ internal sealed class SqlPersonProjectionService(
             Add("codigoPessoaOrigem", row.CodigoPessoaOrigem);
             Add("cpf", row.Cpf);
             Add("cpfAusenteMotivo", row.Cpf is null ? row.CpfAusenteMotivo ?? row.StatusCpf : null);
-            Add("nomeCompleto", row.NomeCompleto);
+            // O contrato de resposta mantém o nome histórico do campo, mas o valor é a referência de apresentação.
+            // Nome civil permanece no núcleo interno e não volta à superfície padrão quando há nome social corrente.
+            Add("nomeCompleto", row.NomeReferencia);
             Add("dataNascimento", row.DataNascimento?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
             Add("nomeMae", row.NomeMae);
             if (_properties.Contains("atributosTransversais"))
