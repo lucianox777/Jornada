@@ -50,6 +50,7 @@ CREATE TABLE auditoria.linkage_conferencia_evidencia(
     CONSTRAINT ck_linkage_conferencia_contagens CHECK(candidatos_avaliados>=0),
     CONSTRAINT ck_linkage_conferencia_tolerancia CHECK(max_llr_par_permitido>=0),
     CONSTRAINT ck_linkage_conferencia_spearman CHECK(spearman IS NULL OR (spearman>=-1 AND spearman<=1)),
+    CONSTRAINT ck_linkage_conferencia_validacao_estatistica CHECK(validacao_estatistica=N'NOT_ASSESSED_ISSUE_31'),
     CONSTRAINT ck_linkage_conferencia_resultado CHECK(
       (status=N'CONFORME'
        AND candidatos_avaliados>0
@@ -213,6 +214,8 @@ BEGIN
     THROW 51975,'Status de conferência inválido.',1;
  IF @candidatos_avaliados<0
     THROW 51976,'Contagem de candidatos inválida.',1;
+ IF @validacao_estatistica<>N'NOT_ASSESSED_ISSUE_31'
+    THROW 51990,'Conferência de implementação não pode declarar validação estatística da issue #31.',1;
  IF DATALENGTH(@request_sha256)<>32 OR DATALENGTH(@report_sha256)<>32
     THROW 51977,'Hashes SHA-256 da conferência são obrigatórios.',1;
 
