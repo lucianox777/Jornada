@@ -92,6 +92,7 @@ internal static class GovernedImplementationConferenceCommand
                         model.ModelId,
                         model.Version,
                         model.AlgorithmVersion,
+                        Convert.ToHexString(snapshotBefore).ToLowerInvariant(),
                         tolerance,
                         scenarios),
                     HashJson));
@@ -104,6 +105,7 @@ internal static class GovernedImplementationConferenceCommand
                         model.ModelId,
                         model.Version,
                         model.AlgorithmVersion,
+                        Convert.ToHexString(snapshotBefore).ToLowerInvariant(),
                         tolerance.Version,
                         aggregate,
                         evaluated.Select(static x => new NamedReport(x.Name, x.Report)).ToArray()),
@@ -452,6 +454,7 @@ internal static class GovernedImplementationConferenceCommand
         Guid ModelId,
         int ModelVersion,
         string AlgorithmVersion,
+        string ModelSnapshotSha256,
         ImplementationConferenceToleranceContract Tolerance,
         IReadOnlyList<NamedConferenceRequest> Scenarios);
 
@@ -461,6 +464,7 @@ internal static class GovernedImplementationConferenceCommand
         Guid ModelId,
         int ModelVersion,
         string AlgorithmVersion,
+        string ModelSnapshotSha256,
         string ToleranceVersion,
         AggregateConferenceReport Aggregate,
         IReadOnlyList<NamedReport> Scenarios);
