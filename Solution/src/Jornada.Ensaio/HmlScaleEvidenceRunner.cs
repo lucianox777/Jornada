@@ -200,6 +200,10 @@ public sealed class HmlScaleEvidenceRunner(
                 $"hml-scale-{profile}-{DateTimeOffset.UtcNow:yyyyMMddTHHmmssZ}.json")
             : Path.GetFullPath(configuredOutput);
 
+        var outputDirectory = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrWhiteSpace(outputDirectory))
+            Directory.CreateDirectory(outputDirectory);
+
         var json = JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine;
         await File.WriteAllTextAsync(outputPath, json, new UTF8Encoding(false), cancellationToken);
 
@@ -412,7 +416,7 @@ public sealed class HmlScaleEvidenceRunner(
             reader.GetInt64(6),
             reader.GetInt64(7),
             reader.GetInt64(8),
-            reader.IsDBNull(9) ? null : reader.GetDateTimeOffset(9),
+            reader.IsDBNull(9) ? null : reader.GetFieldValue<DateTimeOffset>(9),
             reader.GetString(10),
             reader.IsDBNull(11) ? null : reader.GetString(11),
             reader.IsDBNull(12) ? null : reader.GetString(12),
