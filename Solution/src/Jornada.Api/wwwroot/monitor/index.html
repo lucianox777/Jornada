@@ -44,6 +44,7 @@
     <article class="card span12"><h2>Agora</h2><div id="processing" class="scroll"></div></article>
     <article class="card span8"><h2>Entregas recentes</h2><div id="deliveries" class="scroll"></div></article>
     <article class="card span4"><h2>Bronze · manutenção</h2><div id="bronze"></div></article>
+    <article class="card span12"><h2>Linkage · governança do modelo</h2><div id="modelGovernance"></div></article>
     <article class="card span12"><h2>Linkage · últimas execuções</h2><div id="linkage" class="scroll"></div></article>
   </section>
 </main>
@@ -103,6 +104,29 @@
     $('bronze').innerHTML=`<div class="metric-grid"><div class="metric"><b>${n(x.objectsExamined)}</b><span>objetos examinados</span></div><div class="metric"><b>${n(x.orphansRemoved)}</b><span>órfãos removidos</span></div><div class="metric"><b>${n(x.temporariesRemoved)}</b><span>temporários removidos</span></div><div class="metric"><b>${n(x.storageFailures)}</b><span>falhas de storage</span></div></div><p class="muted">Último ciclo: ${esc(dt(x.startedAt))} → ${esc(dt(x.finishedAt))} · locks não adquiridos: ${n(x.locksNotAcquired)}</p>`;
   }
 
+  function renderModelGovernance(model, transitions){
+    if(!model){ $('modelGovernance').innerHTML='<div class="empty">Sem informação de governança do modelo.</div>'; return; }
+    const status=model.status || 'SEM_MODELO_ATIVO';
+    const modelLabel=model.modelVersion == null ? 'nenhum modelo ATIVO' : `v${n(model.modelVersion)} · ${esc(shortId(model.modelId))}`;
+    const ref=model.frequencyReferenceCode
+      ? `${esc(model.frequencyReferenceCode)} · <span class="mono">${esc((model.frequencyReferenceSha256 || '').slice(0,16) || 'sem hash')}</span>`
+      : 'não fixada';
+    const transitionRows=(transitions||[]).map(x=>`<tr><td>${esc(dt(x.occurredAt))}</td><td>v${n(x.modelVersion)}</td><td>${esc(x.previousStatus || '—')} → <b>${esc(x.newStatus)}</b></td><td>${esc(x.operation)}</td><td>${esc(x.executorApplication || '—')}</td></tr>`).join('');
+    $('modelGovernance').innerHTML=`
+      <div class="bundle-head"><span class="badge ${esc(status)}">${esc(status)}</span><span class="muted">Validação estatística: ${esc(model.statisticalValidation || 'PENDENTE_ISSUE_31')}</span></div>
+      <div class="bundle-grid">
+        <div class="bundle-cell"><span class="muted">Modelo ativo</span><b class="mono">${modelLabel}</b></div>
+        <div class="bundle-cell"><span class="muted">Algoritmo</span><b class="mono">${esc(model.algorithmVersion || '—')}</b></div>
+        <div class="bundle-cell"><span class="muted">Normalização</span><b class="mono">${esc(model.normalizationVersion || '—')}</b></div>
+        <div class="bundle-cell"><span class="muted">Ativado em</span><b>${esc(dt(model.activatedAt))}</b></div>
+        <div class="bundle-cell"><span class="muted">Referência nominal fixada</span><b>${ref}</b></div>
+        <div class="bundle-cell"><span class="muted">u de nome / mãe</span><b>${esc(model.nominalUNameSource)} / ${esc(model.nominalUMotherSource)}</b></div>
+      </div>
+      <p class="muted">A promoção vale para execuções futuras; vínculos já publicados não são recalculados automaticamente. Threshold/margem não são expostos nesta superfície enquanto o acesso operacional definitivo estiver pendente.</p>
+      ${transitionRows ? `<div class="scroll"><table><thead><tr><th>Transição</th><th>Modelo</th><th>Estado</th><th>Operação</th><th>Executor técnico</th></tr></thead><tbody>${transitionRows}</tbody></table></div>` : '<div class="empty">Nenhuma transição de modelo registrada.</div>'}
+    `;
+  }
+
   function renderLinkage(items){
     if(!items?.length){ $('linkage').innerHTML='<div class="empty">Nenhuma execução de linkage registrada.</div>'; return; }
     $('linkage').innerHTML=`<table><thead><tr><th>Início</th><th>Tipo</th><th>Status</th><th>Modelo</th><th>Avaliados</th><th>Resolvidos</th><th>Não resolvidos</th><th>Conflitos</th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(dt(x.startedAt))}</td><td>${esc(x.runType)}</td><td class="status">${esc(x.status)}</td><td>v${n(x.modelVersion)}</td><td>${n(x.evaluated)} / ${n(x.eligible)}</td><td>${n(x.resolved)}</td><td>${n(x.notResolved)}</td><td>${n(x.conflicts)}</td></tr>`).join('')}</tbody></table>`;
@@ -118,7 +142,7 @@
       const data=await response.json(); const m=data.monitor;
       showError(''); setOverall(m.overallStatus); state.lastGenerated=new Date(m.generatedAt);
       $('login').classList.add('hidden'); $('dashboard').classList.remove('hidden');
-      renderNodes(m.components); renderReadiness(data.readiness); renderConfiguration(m.configurationHealth); renderQueue(m.queue); renderProcessing(m.processing); renderDeliveries(m.recentDeliveries); renderBronze(m.bronzeMaintenance); renderLinkage(m.linkageRuns);
+      renderNodes(m.components); renderReadiness(data.readiness); renderConfiguration(m.configurationHealth); renderQueue(m.queue); renderProcessing(m.processing); renderDeliveries(m.recentDeliveries); renderBronze(m.bronzeMaintenance); renderModelGovernance(m.linkageModelGovernance,m.linkageModelTransitions); renderLinkage(m.linkageRuns);
       $('updated').textContent='atualizado '+dt(m.generatedAt);
     }catch(error){ showError(error.message || 'Falha ao atualizar o monitor.'); setOverall('FALHA'); $('login').classList.remove('hidden'); }
   }
