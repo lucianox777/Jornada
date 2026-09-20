@@ -155,12 +155,14 @@ function Invoke-Calibration {
     Write-Host 'Referência IBGE canônica é materializada no bootstrap do ambiente; fallback de carga em banco criado fora do fluxo oficial permanece fail-closed; GENERATE_DRAFT usa Monte Carlo nominal para NOME/NOME_MAE e mantém nascimento condicionado ao blocking.' -ForegroundColor DarkYellow
     $ibgeMcPairCount = if ($env:JORNADA_LINKAGE_IBGE_MC_PAIR_COUNT) { [int]$env:JORNADA_LINKAGE_IBGE_MC_PAIR_COUNT } else { 1000000 }
     $ibgeMcSeed = if ($env:JORNADA_LINKAGE_IBGE_MC_SEED) { [int]$env:JORNADA_LINKAGE_IBGE_MC_SEED } else { 20260917 }
+    $minimumMatchedPairs = if ($env:JORNADA_LINKAGE_MIN_MATCHED_PAIRS) { [int]$env:JORNADA_LINKAGE_MIN_MATCHED_PAIRS } else { 2500 }
     Write-Host "IBGE Monte Carlo nominal: pares_por_campo=$ibgeMcPairCount seed_pessoa=$ibgeMcSeed seed_mae=$($ibgeMcSeed+1)."
+    Write-Host "Holdout de decisão ativo; mínimo m no harness DEV=$minimumMatchedPairs."
     Invoke-Node2 -Command @(
         'env',
         'LinkageParameters__Operation=GENERATE_DRAFT',
         'LinkageParameters__RunOnce=true',
-        ("LinkageParameters__MinimumIndependentMatchedPairs=" + $(if ($env:JORNADA_LINKAGE_MIN_MATCHED_PAIRS) { $env:JORNADA_LINKAGE_MIN_MATCHED_PAIRS } else { '2500' })),
+        "LinkageParameters__MinimumIndependentMatchedPairs=$minimumMatchedPairs",
         "LinkageParameters__IbgeNominalU__PairCount=$ibgeMcPairCount",
         "LinkageParameters__IbgeNominalU__Seed=$ibgeMcSeed",
         'dotnet',
