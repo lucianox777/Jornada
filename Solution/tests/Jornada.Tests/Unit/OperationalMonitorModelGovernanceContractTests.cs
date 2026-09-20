@@ -18,8 +18,16 @@ public sealed class OperationalMonitorModelGovernanceContractTests
             Assert.That(html, Does.Contain("Validação estatística"));
             Assert.That(html, Does.Contain("PENDENTE_ISSUE_31"));
             Assert.That(html, Does.Contain("Threshold/margem não são expostos"));
+            Assert.That(html, Does.Contain("Conferência de implementação"));
+            Assert.That(html, Does.Contain("Round-trip do formato"));
+            Assert.That(html, Does.Contain("JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1"));
+            Assert.That(html, Does.Contain("OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO"));
+            Assert.That(html, Does.Contain("Conferência de implementação, round-trip de formato e validação estatística são evidências distintas."));
             Assert.That(html, Does.Not.Contain("T_LINKAGE"));
             Assert.That(service, Does.Contain("auditoria.modelo_linkage_estado_evento"));
+            Assert.That(service, Does.Contain("auditoria.linkage_conferencia_evidencia"));
+            Assert.That(service, Does.Contain("SEM_EVIDENCIA_MODELO_ATIVO"));
+            Assert.That(service, Does.Contain("JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1"));
             Assert.That(service, Does.Contain("NOMINAL_U_NOME_SOURCE_BLOCKING_CONDITIONED"));
             Assert.That(service, Does.Contain("frequencia_nome_versao_id"));
         });
