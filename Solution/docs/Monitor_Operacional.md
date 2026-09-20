@@ -172,3 +172,16 @@ Se o modelo ATIVO não possuir evidência de conferência persistida, o estado m
 Cada execução de Linkage exibe seu próprio `modelo_id` e `modelo_versao` vindos de `identidade.linkage_run`. O painel não atribui a runs históricos o modelo que estiver ATIVO no momento da consulta.
 
 Não existe ainda uma política de expiração temporal da evidência de conferência; por isso o monitor não inventa um SLA de frescor por idade. A validade exibida nesta etapa é estrutural, baseada no fingerprint do snapshot do modelo.
+
+
+#### Suporte condicionado por passe
+
+Para o modelo ATIVO, o monitor lê os parâmetros `BLOCKING_PASS_U_XX_*` e o ruleset fixado no modelo. Para cada passe exibe:
+
+- identificador/ordem do passe;
+- tamanho da amostra u condicionada;
+- suporte de nome da mãe presente;
+- mínimo por passe persistido em `NOMINAL_U_MIN_CONDITIONED_PAIRS_PER_PASS`;
+- suficiência separada para nome e nome da mãe.
+
+Esses valores são suporte/proveniência do universo de blocking. Não são score, threshold ou margem e não autorizam promoção.
