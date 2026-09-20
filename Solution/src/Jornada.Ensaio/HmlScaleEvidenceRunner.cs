@@ -22,6 +22,7 @@ public sealed class HmlScaleEvidenceRunner(
     private const string CurrentSqlServerSampleMethod = "M_INTERGESTOR_U_BLOCKING_CONDITIONED_IBGE_BOOTSTRAP_V5";
     private static readonly Regex GitSha = new("^[0-9a-fA-F]{40}$", RegexOptions.CultureInvariant);
     private static readonly Regex SafeLabel = new("^[A-Za-z0-9._-]+$", RegexOptions.CultureInvariant);
+    private static readonly JsonSerializerOptions ReportJsonOptions = new() { WriteIndented = true };
 
     private static readonly string[] ForwardedSettings =
     [
@@ -204,7 +205,7 @@ public sealed class HmlScaleEvidenceRunner(
         if (!string.IsNullOrWhiteSpace(outputDirectory))
             Directory.CreateDirectory(outputDirectory);
 
-        var json = JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine;
+        var json = JsonSerializer.Serialize(report, ReportJsonOptions) + Environment.NewLine;
         await File.WriteAllTextAsync(outputPath, json, new UTF8Encoding(false), cancellationToken);
 
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant();
