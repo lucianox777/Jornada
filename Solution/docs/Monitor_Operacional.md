@@ -29,6 +29,7 @@ O snapshot reúne:
 - lotes em validação/processamento e o respectivo lease;
 - entregas recentes;
 - último ciclo de manutenção da Bronze;
+- governança read-only do modelo de Linkage ATIVO, incluindo identidade/versão, algoritmo/normalização, referência nominal fixada, fonte de u nominal e transições recentes;
 - últimas execuções de linkage e seus resultados agregados.
 
 O monitor lê as tabelas operacionais canônicas para fila, processamento, manutenção e linkage. A única persistência criada especificamente para o painel é `controle.runtime_componente`, usada para heartbeat dos processos residentes.
@@ -136,3 +137,20 @@ A Jornada pode usar readiness e seus próprios heartbeats para indicar que uma d
 A migração `database/migrations/20260914_Operational_Monitor.sql` é idempotente e faz parte do baseline candidato v3.70. A tabela armazena também `configuration_bundle_version` e `solution_schema_expected`.
 
 O bundle Windows contém `config/release/configuration-bundle.json` e `MANIFEST.sha256`. O primeiro fornece a identidade lógica usada em runtime; o segundo garante integridade de cada arquivo do payload durante a validação do bundle.
+
+
+## Governança do modelo de Linkage
+
+O bloco `Linkage · governança do modelo` é separado da lista de execuções. Ele mostra somente metadados que já são parte do contrato técnico do modelo e da sua proveniência:
+
+- `modelo_id`, versão, algoritmo, normalização e instante de ativação;
+- referência nominal **fixada no modelo**, nunca inferida da referência que estiver ATIVA no momento da consulta;
+- fonte de u nominal para nome/nome da mãe (`BLOCKING_CONDITIONED`, `IBGE_BOOTSTRAP` ou `NAO_DECLARADO`);
+- estado explícito da validação estatística representativa: `PENDENTE_ISSUE_31`;
+- últimas transições persistidas em `auditoria.modelo_linkage_estado_evento`.
+
+A trilha de transição é append-only e registra executor **técnico** (aplicação/login/host), estado anterior/novo e operação inferida. Ela não fabrica autoria humana/corporativa: essa identidade depende da integração PRODAM da issue #378.
+
+Esta fatia deliberadamente **não expõe T_LINKAGE, margem ou outros parâmetros sensíveis no monitor**. A política de quem pode enxergar esses valores em HML/PRD depende das issues #378/#379. A promoção continua sem rota de mutação no `/monitor`.
+
+A promoção de um modelo vale para execuções futuras. Runs e vínculos históricos continuam associados ao modelo que efetivamente os decidiu e não são recalculados automaticamente.

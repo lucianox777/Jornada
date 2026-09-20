@@ -62,6 +62,32 @@ internal sealed record LinkageRunStatus(
     DateTimeOffset StartedAt,
     DateTimeOffset? FinishedAt);
 
+internal sealed record LinkageModelGovernanceStatus(
+    string Status,
+    int ActiveModelCount,
+    Guid? ModelId,
+    int? ModelVersion,
+    string? AlgorithmVersion,
+    string? NormalizationVersion,
+    DateTimeOffset? GeneratedAt,
+    DateTimeOffset? ActivatedAt,
+    string? FrequencyReferenceCode,
+    string? FrequencyReferenceSha256,
+    string NominalUNameSource,
+    string NominalUMotherSource,
+    string StatisticalValidation);
+
+internal sealed record LinkageModelTransitionStatus(
+    long EventId,
+    Guid ModelId,
+    int ModelVersion,
+    string? PreviousStatus,
+    string NewStatus,
+    string Operation,
+    string? Reason,
+    string ExecutorApplication,
+    DateTimeOffset OccurredAt);
+
 internal sealed record ConfigurationBundleHealthStatus(
     string Status,
     string? ExpectedBundleVersion,
@@ -80,6 +106,8 @@ internal sealed record OperationalMonitorSnapshot(
     IReadOnlyList<ActiveProcessingStatus> Processing,
     IReadOnlyList<RecentDeliveryStatus> RecentDeliveries,
     BronzeMaintenanceStatus? BronzeMaintenance,
+    LinkageModelGovernanceStatus LinkageModelGovernance,
+    IReadOnlyList<LinkageModelTransitionStatus> LinkageModelTransitions,
     IReadOnlyList<LinkageRunStatus> LinkageRuns);
 
 internal sealed class OperationalMonitorService(IOperationalSqlAdapter connections)
@@ -122,6 +150,47 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             FROM identidade.linkage_run
             ORDER BY iniciado_em DESC,linkage_run_id DESC;
 
+            DECLARE @active_model_count INT=(SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO');
+            SELECT
+                @active_model_count active_model_count,
+                m.modelo_id,m.versao,m.algoritmo_versao,m.normalizacao_versao,m.gerado_em,m.ativado_em,
+                v.codigo,
+                CASE WHEN v.conteudo_sha256 IS NULL THEN NULL ELSE CONVERT(VARCHAR(64),v.conteudo_sha256,2) END referencia_sha256,
+                CASE
+                  WHEN p.nome_condicionado>=1 THEN N'BLOCKING_CONDITIONED'
+                  WHEN p.nome_ibge>=1 THEN N'IBGE_BOOTSTRAP'
+                  ELSE N'NAO_DECLARADO'
+                END nome_u_source,
+                CASE
+                  WHEN p.mae_condicionado>=1 THEN N'BLOCKING_CONDITIONED'
+                  WHEN p.mae_ibge>=1 THEN N'IBGE_BOOTSTRAP'
+                  ELSE N'NAO_DECLARADO'
+                END mae_u_source
+            FROM (SELECT @active_model_count active_model_count) c
+            LEFT JOIN (
+                SELECT TOP(1) *
+                FROM identidade.modelo_linkage
+                WHERE status=N'ATIVO'
+                ORDER BY versao DESC
+            ) m ON 1=1
+            LEFT JOIN ref.frequencia_nome_versao v
+              ON v.frequencia_nome_versao_id=m.frequencia_nome_versao_id
+            OUTER APPLY (
+                SELECT
+                  MAX(CASE WHEN nome=N'NOMINAL_U_NOME_SOURCE_BLOCKING_CONDITIONED' THEN valor END) nome_condicionado,
+                  MAX(CASE WHEN nome=N'IBGE_MC_NOMINAL_U_APPLIED_NOME' THEN valor END) nome_ibge,
+                  MAX(CASE WHEN nome=N'NOMINAL_U_NOME_MAE_SOURCE_BLOCKING_CONDITIONED' THEN valor END) mae_condicionado,
+                  MAX(CASE WHEN nome=N'IBGE_MC_NOMINAL_U_APPLIED_NOME_MAE' THEN valor END) mae_ibge
+                FROM identidade.parametro_linkage p0
+                WHERE p0.modelo_id=m.modelo_id
+            ) p;
+
+            SELECT TOP(10)
+                modelo_linkage_estado_evento_id,modelo_id,modelo_versao,status_anterior,status_novo,
+                operacao_codigo,motivo,executor_aplicacao,ocorrido_em
+            FROM auditoria.modelo_linkage_estado_evento
+            ORDER BY modelo_linkage_estado_evento_id DESC;
+
             SELECT CONVERT(NVARCHAR(32),(
                 SELECT value
                 FROM sys.extended_properties
@@ -137,6 +206,10 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
         var deliveries = new List<RecentDeliveryStatus>();
         BronzeMaintenanceStatus? bronze = null;
         var linkageRuns = new List<LinkageRunStatus>();
+        LinkageModelGovernanceStatus modelGovernance = new(
+            "SEM_MODELO_ATIVO", 0, null, null, null, null, null, null, null, null,
+            "NAO_DECLARADO", "NAO_DECLARADO", "PENDENTE_ISSUE_31");
+        var modelTransitions = new List<LinkageModelTransitionStatus>();
         string? databaseSolutionSchema = null;
 
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -194,6 +267,42 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
         }
 
         await reader.NextResultAsync(ct);
+        if (await reader.ReadAsync(ct))
+        {
+            var activeCount = reader.GetInt32(0);
+            Guid? modelId = reader.IsDBNull(1) ? null : reader.GetGuid(1);
+            modelGovernance = new LinkageModelGovernanceStatus(
+                activeCount == 1 ? "OK" : activeCount == 0 ? "SEM_MODELO_ATIVO" : "DIVERGENTE",
+                activeCount,
+                modelId,
+                reader.IsDBNull(2) ? null : reader.GetInt32(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.IsDBNull(4) ? null : reader.GetString(4),
+                ReadNullableDateTimeOffset(reader, 5),
+                ReadNullableDateTimeOffset(reader, 6),
+                reader.IsDBNull(7) ? null : reader.GetString(7),
+                reader.IsDBNull(8) ? null : reader.GetString(8),
+                reader.IsDBNull(9) ? "NAO_DECLARADO" : reader.GetString(9),
+                reader.IsDBNull(10) ? "NAO_DECLARADO" : reader.GetString(10),
+                "PENDENTE_ISSUE_31");
+        }
+
+        await reader.NextResultAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            modelTransitions.Add(new LinkageModelTransitionStatus(
+                reader.GetInt64(0),
+                reader.GetGuid(1),
+                reader.GetInt32(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.GetString(4),
+                reader.GetString(5),
+                reader.IsDBNull(6) ? null : reader.GetString(6),
+                reader.GetString(7),
+                ReadDateTimeOffset(reader, 8)));
+        }
+
+        await reader.NextResultAsync(ct);
         if (await reader.ReadAsync(ct) && !reader.IsDBNull(0))
             databaseSolutionSchema = reader.GetString(0);
 
@@ -216,6 +325,8 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             processing,
             deliveries,
             bronze,
+            modelGovernance,
+            modelTransitions,
             linkageRuns);
     }
 

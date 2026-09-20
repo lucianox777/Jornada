@@ -14,6 +14,10 @@ internal sealed class CalibrationAuditExporter(SqlConnection connection, int com
                 : $"Modelo de linkage {requestedModelId} não encontrado.");
 
         var modelId = (Guid)model["modelo_id"]!;
+        var modelStatus = Convert.ToString(model["status"], System.Globalization.CultureInfo.InvariantCulture)
+            ?? throw new InvalidOperationException("Modelo sem status persistido.");
+        LinkageCalibrationAuditExchangePolicy.EnsureExportableModelStatus(modelId, modelStatus);
+
         var parameters = await QueryRowsAsync(
             "SELECT nome,valor FROM identidade.parametro_linkage WHERE modelo_id=@model_id ORDER BY nome;",
             modelId, cancellationToken);
@@ -64,6 +68,18 @@ internal sealed class CalibrationAuditExporter(SqlConnection connection, int com
             model,
             parameters,
             statistics,
+            interchangeContract = new
+            {
+                statusAtExport = modelStatus,
+                uProbabilitySemantics = LinkageCalibrationAuditExchangePolicy.UProbabilitySemantics,
+                splinkDefaultRandomPairUEquivalent = false,
+                comparisonStateMapping = new
+                {
+                    complete = false,
+                    unmappedOrNonBijectiveStates = LinkageCalibrationAuditExchangePolicy.UnmappedOrNonBijectiveComparisonStates,
+                    rule = "Do not collapse semantic states silently; an external adapter must declare an explicit mapping."
+                }
+            },
             blocking = new { rulesets, passes },
             termFrequency = new
             {

@@ -32,3 +32,14 @@ Também foi identificado que u nominal incondicional — inclusive quando deriva
 - suporte por passe vira evidência persistida, sem persistir PII adicional;
 - TF continua disponível para futura integração ao FS, sujeita a calibração própria;
 - a ativação real continua bloqueada pela validação representativa da issue #31.
+
+
+## Emenda de interoperabilidade de auditoria — 2026-09-20
+
+A retirada do estágio DF/Splink não impede uma superfície read-only de intercâmbio. `Jornada.Linkage.Evaluation --export-calibration` pode exportar modelo `ATIVO` ou `VALIDADO`, parâmetros, ruleset, proveniência e vetores matemáticos para auditoria externa, desde que:
+
+- o exportador não participe da decisão operacional nem escreva modelo;
+- o artefato declare que o u da Jornada é condicionado ao blocking;
+- estados sem mapeamento 1:1 sejam declarados, não colapsados silenciosamente;
+- nenhuma alegação de qualidade estatística seja derivada do round-trip de formato;
+- a ativação probabilística continue sujeita à issue #31.
