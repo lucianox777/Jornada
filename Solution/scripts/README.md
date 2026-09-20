@@ -258,7 +258,6 @@ Para frentes técnicas com testes direcionados, mantenha também um script dedic
 | Testar segurança da carga IBGE | `local-test-ibge-reference-load-safety.ps1` | Prova que o loader humano exige autorização e não chama `reset`, `clean` ou `local-db.ps1` |
 | Testar o diagnóstico IBGE | `local-test-ibge-diagnostic.ps1` | Executa o diagnóstico read-only real e valida que aguarda SQL/banco ONLINE e não contém aspas SQL duplicadas |
 | Reativar referência IBGE já materializada | `local-repair-ibge-reference.ps1` | Somente quando a versão canônica está íntegra, publicada e inativa; altera apenas status/ativado_em, sem recarregar `ref.frequencia_nome`; se a versão canônica não existir, chama o diagnóstico e falha sem alterar dados |
-| Testar calibração DF/benchmark IBGE | `local-test-df-calibration.ps1` | Reutiliza e checa a referência IBGE existente por padrão; `-Quick` reduz o conjunto de testes e `-Offline` elimina a dependência do SQL local |
 | Validar upgrade de DDL | `local-ddl-upgrade.ps1` | Toda alteração de schema/migração que precise provar upgrade sem perda de invariantes |
 | Exercitar runtime SQL | `local-sql-runtime-smoke.ps1` | Mudanças em procedures, views, DDL e caminhos SQL que precisam de execução real |
 | Rodar carga/escala | `local-scale.ps1` | Avaliação de comportamento com volumes maiores; não é o teste rápido do dia a dia |
@@ -388,16 +387,6 @@ Se a imagem `jornada-node:test` já foi construída pelo mesmo SHA, `-NoBuild` e
 .\scripts\local-load-ibge-reference.ps1 -AllowLoad -NoBuild
 ```
 
-
-### `local-test-df-calibration.ps1`
-
-Teste dedicado da frente DF/benchmark. Por padrão começa pelo check read-only da referência já carregada e depois roda restore/build/testes direcionados:
-
-```powershell
-.\scripts\local-test-df-calibration.ps1 -Quick
-```
-
-Use `-Offline` somente quando quiser o teste puramente em memória, sem consultar o SQL local. Nenhum modo desse script carrega ou substitui a referência IBGE.
 
 ### `local-sql-runtime-smoke.ps1`
 

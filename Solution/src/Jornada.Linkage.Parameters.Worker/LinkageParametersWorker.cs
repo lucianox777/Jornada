@@ -32,7 +32,7 @@ public sealed class LinkageParametersWorker(
     private const string ValidateOperation = "VALIDATE";
     private const string ActivateOperation = "ACTIVATE";
     private const string CurrentAlgorithmVersion = LinkageParameterCatalog.SemanticBirthAlgorithmVersion;
-    private const string SqlServerSampleMethod = "M_INTERGESTOR_U_BIRTH_BLOCKING_IBGE_NAMES_MC_V4";
+    private const string SqlServerSampleMethod = "M_INTERGESTOR_U_BLOCKING_CONDITIONED_IBGE_BOOTSTRAP_V5";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -140,6 +140,14 @@ public sealed class LinkageParametersWorker(
             10_000,
             5_000_000);
         var ibgeNominalUSeed = configuration.GetValue("LinkageParameters:IbgeNominalU:Seed", 20260917);
+        var nominalUConvergenceOptions = new NominalUConvergenceOptions(
+            MinimumConditionedPairs: Math.Max(
+                100,
+                configuration.GetValue("LinkageParameters:NominalUConvergence:MinimumConditionedPairs", 5_000)),
+            MinimumConditionedPairsPerPass: Math.Max(
+                50,
+                configuration.GetValue("LinkageParameters:NominalUConvergence:MinimumConditionedPairsPerPass", 1_000)));
+        nominalUConvergenceOptions.Validate();
 
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
         var drainTimeoutSeconds = Math.Max(30, configuration.GetValue("PipelineCoordination:CurrentBatchDrainTimeoutSeconds", 900));
@@ -204,9 +212,11 @@ public sealed class LinkageParametersWorker(
             if (unmatchedPairs.Count == 0)
                 throw new InvalidOperationException("Amostra u vazia no universo do ruleset vencedor. O modelo permanece sem publicação.");
 
-            // Datas de nascimento e missingness continuam estimados no universo condicionado ao blocking.
-            // Para nome da pessoa e nome da mãe, u nominal vem da referência IBGE por Monte Carlo:
-            // pessoa = prenomes TODOS + sobrenomes TODOS; mãe = prenomes FEMININO + sobrenomes TODOS.
+            // O estimador base já mede u no universo deduplicado que sobrevive ao ruleset.
+            // IBGE permanece bootstrap externo para NOME/NOME_MAE enquanto a amostra
+            // candidato-condicionada (inclusive por passe) não atinge suficiência explícita.
+            // O scorer atual é pass-agnostic após a união, logo o u operacional convergente
+            // é o da união do ruleset; os u por passe são persistidos como suporte/diagnóstico.
             var ibgeReference = await IbgeNominalUReferenceReader.ReadActiveReferenceAsync(connection, workCt);
             var ibgePersonEntries = await IbgeNominalUReferenceReader.ReadBrazilPublishedMarginalsAsync(
                 connection, ibgeReference.Id, "TODOS", workCt);
@@ -219,7 +229,7 @@ public sealed class LinkageParametersWorker(
                 ibgeMotherEntries,
                 new IbgeNominalUBootstrapOptions(unchecked(ibgeNominalUSeed + 1), ibgeNominalUPairCount));
 
-            var modelParameters = ApplyIbgeNominalU(
+            var modelParameters = ApplyNominalUConvergence(
                 // T_LINKAGE e margem abaixo são apenas placeholders transitórios exigidos pelo
                 // objeto de parâmetros durante o score. Eles são obrigatoriamente substituídos
                 // pela calibração Pareto antes de qualquer persistência de RASCUNHO.
@@ -228,7 +238,9 @@ public sealed class LinkageParametersWorker(
                     smoothingAlpha, 0.5m, 0.000001m),
                 ibgeReference,
                 ibgePersonU,
-                ibgeMotherU);
+                ibgeMotherU,
+                unmatchedSample.PassNominalSupport,
+                nominalUConvergenceOptions);
             modelParameters = AbbreviationCompatibilityTrainingDiagnostics.Append(
                 modelParameters,
                 matchedPairs,
@@ -269,9 +281,11 @@ public sealed class LinkageParametersWorker(
                 persistedParameters, ruleSet, ibgeReference, workCt);
 
             logger.LogInformation(
-                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; abbrev_m_nome={AbbrevMName}; abbrev_u_ref_nome={AbbrevUName}; prior_ativo={ActivePrior}; prior_candidato_par={CandidatePairPrior}; prior_pares={CandidatePairs}; prior_recall={CandidateRecall}; T_calibrado={Threshold}; piso_segundo_candidato={ConflictFloor}; margem_logodds_calibrada={ConflictMargin}; pareto={ParetoCount}; val_fp={ValidationFp}; test_fp={TestFp}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
+                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; u_nome_blocking={UNameBlocking}; u_mae_blocking={UMotherBlocking}; abbrev_m_nome={AbbrevMName}; abbrev_u_ref_nome={AbbrevUName}; prior_ativo={ActivePrior}; prior_candidato_par={CandidatePairPrior}; prior_pares={CandidatePairs}; prior_recall={CandidateRecall}; T_calibrado={Threshold}; piso_segundo_candidato={ConflictFloor}; margem_logodds_calibrada={ConflictMargin}; pareto={ParetoCount}; val_fp={ValidationFp}; test_fp={TestFp}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
                 version, ruleSet.RuleSetVersion, statistics.PopulationSize, matchedPairs.Count, unmatchedCandidatePairs.Count,
                 unmatchedPairs.Count, unmatchedSample.CandidatePoolSize, ibgeNominalUPairCount, ibgeReference.Code,
+                persistedParameters["NOMINAL_U_NOME_SOURCE_BLOCKING_CONDITIONED"],
+                persistedParameters["NOMINAL_U_NOME_MAE_SOURCE_BLOCKING_CONDITIONED"],
                 persistedParameters["DIAG_ABBREV_M_NOME_SUPPORT"], persistedParameters["DIAG_ABBREV_U_NOME_SUPPORT"],
                 persistedParameters[LinkageParameterCatalog.PriorMatchProbability],
                 candidatePrior.MatchProbability,
@@ -297,67 +311,30 @@ public sealed class LinkageParametersWorker(
         }
     }
 
-    private static IReadOnlyDictionary<string, decimal> ApplyIbgeNominalU(
+    private static IReadOnlyDictionary<string, decimal> ApplyNominalUConvergence(
         IReadOnlyDictionary<string, decimal> estimatedParameters,
         IbgeNominalUReferenceInfo reference,
         IbgeNominalUBootstrapEstimate personName,
-        IbgeNominalUBootstrapEstimate motherName)
+        IbgeNominalUBootstrapEstimate motherName,
+        IReadOnlyList<BlockingPassNominalUSupport> passSupport,
+        NominalUConvergenceOptions options)
     {
-        var result = new Dictionary<string, decimal>(estimatedParameters, StringComparer.Ordinal);
+        var result = new Dictionary<string, decimal>(
+            NominalUConvergence.Apply(
+                estimatedParameters,
+                reference,
+                personName,
+                motherName,
+                passSupport,
+                options),
+            StringComparer.Ordinal);
 
-        foreach (var state in personName.States)
-        {
-            var suffix = state.State;
-            if (result.TryGetValue($"SUPPORT_U_NOME_{suffix}", out var blockingSupport))
-                result[$"BLOCKING_SUPPORT_U_NOME_{suffix}"] = blockingSupport;
-
-            result[$"U_NOME_{suffix}"] = state.Probability;
-            result[$"IBGE_MC_SUPPORT_U_NOME_{suffix}"] = state.Support;
-        }
-
-        var motherMissingProbability = result.TryGetValue("U_NOME_MAE_MISSING", out var missing)
-            ? missing
-            : 0m;
-        var motherPresentMass = 1m - motherMissingProbability;
-        if (motherPresentMass <= 0m)
-            throw new InvalidOperationException("Nome da mãe está ausente em 100% da amostra u condicionada; não há massa observável para calibração nominal IBGE.");
-
-        foreach (var state in motherName.States)
-        {
-            var suffix = state.State;
-            if (result.TryGetValue($"SUPPORT_U_NOME_MAE_{suffix}", out var blockingSupport))
-                result[$"BLOCKING_SUPPORT_U_NOME_MAE_{suffix}"] = blockingSupport;
-
-            result[$"U_NOME_MAE_{suffix}"] = motherPresentMass * state.Probability;
-            result[$"IBGE_MC_SUPPORT_U_NOME_MAE_{suffix}"] = state.Support;
-        }
-
-        result["IBGE_MC_NOMINAL_U_ENABLED"] = 1m;
-        result["IBGE_MC_NOMINAL_U_PAIR_COUNT"] = personName.PairCount;
-        result["IBGE_MC_NOMINAL_U_SEED_PERSON"] = personName.Seed;
-        result["IBGE_MC_NOMINAL_U_SEED_MOTHER"] = motherName.Seed;
-        result["IBGE_NAME_REFERENCE_ID"] = reference.Id;
-        result["IBGE_MC_PERSON_EXACT_ANALYTIC"] = personName.AnalyticExactSyntheticFullNameProbability;
-        result["IBGE_MC_MOTHER_EXACT_ANALYTIC"] = motherName.AnalyticExactSyntheticFullNameProbability;
-
-        foreach (var state in LinkageParameterCatalog.NameStates)
-        {
-            if (!result.TryGetValue($"IBGE_MC_SUPPORT_U_NOME_{state}", out var personSupport) || personSupport <= 0m)
-                throw new InvalidOperationException($"Monte Carlo IBGE sem suporte para U_NOME_{state}; aumente LinkageParameters:IbgeNominalU:PairCount.");
-
-            if (!result.TryGetValue($"IBGE_MC_SUPPORT_U_NOME_MAE_{state}", out var motherSupport) || motherSupport <= 0m)
-                throw new InvalidOperationException($"Monte Carlo IBGE sem suporte para U_NOME_MAE_{state}; aumente LinkageParameters:IbgeNominalU:PairCount.");
-        }
-
-        // m e u vêm de fontes diferentes (pares determinísticos e referência IBGE). A combinação
-        // irrestrita pode inverter estados ordenados por ruído amostral. Em vez de mascarar a
-        // inversão no gate, aplicamos a MLE com restrição de ordem sobre a razão m/u (PAVA).
-        // O ajuste preserva exatamente a massa m observada dos estados presentes e persiste a
-        // estimativa irrestrita para auditoria/replay da calibração.
+        // m e u podem vir de fontes diferentes durante bootstrap e também sofrem ruído
+        // amostral depois da convergência. A MLE ordenada impede que o LLR aumente quando
+        // a concordância nominal degrada, preservando a estimativa irrestrita para auditoria.
         ApplyOrderedNameLikelihoodRatioMle(result, "NOME");
         ApplyOrderedNameLikelihoodRatioMle(result, "NOME_MAE");
         result["ORDER_RESTRICTED_NAME_LLR_MLE_V1"] = 1m;
-
         return result;
     }
 
@@ -773,6 +750,9 @@ public sealed class LinkageParametersWorker(
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
                    AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='FS_DECISION_CALIBRATION_BASE_PERSON_SPLIT_V1' AND valor>=1)
                     THROW 51023, 'Modelo SQL Server V6 sem split por pessoa-base antes dos pares de treino.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='NOMINAL_U_CONVERGENCE_V1' AND valor>=1)
+                    THROW 51027, 'Modelo SQL Server V6 sem proveniência da convergência de u nominal condicionado ao blocking.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
                    AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_DUAL_THRESHOLD_CONFLICT_FLOOR_V2' AND valor>=1)
                     THROW 51024, 'Modelo SQL Server V6 sem guarda de ambiguidade desacoplada de T_LINKAGE.', 1;

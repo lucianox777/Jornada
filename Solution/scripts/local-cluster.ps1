@@ -152,11 +152,14 @@ function Invoke-Calibration {
     $beforeText = Get-SqlScalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;"
     $before = [int]$beforeText
     Write-Host "Calibração iniciando após modelo v$before."
-    Write-Host 'Referência IBGE canônica é materializada no bootstrap do ambiente; fallback de carga em banco criado fora do fluxo oficial permanece fail-closed; GENERATE_DRAFT usa Monte Carlo nominal para NOME/NOME_MAE e mantém nascimento condicionado ao blocking.' -ForegroundColor DarkYellow
+    Write-Host 'Referência IBGE canônica permanece bootstrap/fallback nominal; GENERATE_DRAFT converge para u medido entre candidatos do blocking quando união e passes têm suporte suficiente.' -ForegroundColor DarkYellow
     $ibgeMcPairCount = if ($env:JORNADA_LINKAGE_IBGE_MC_PAIR_COUNT) { [int]$env:JORNADA_LINKAGE_IBGE_MC_PAIR_COUNT } else { 1000000 }
     $ibgeMcSeed = if ($env:JORNADA_LINKAGE_IBGE_MC_SEED) { [int]$env:JORNADA_LINKAGE_IBGE_MC_SEED } else { 20260917 }
     $minimumMatchedPairs = if ($env:JORNADA_LINKAGE_MIN_MATCHED_PAIRS) { [int]$env:JORNADA_LINKAGE_MIN_MATCHED_PAIRS } else { 2500 }
-    Write-Host "IBGE Monte Carlo nominal: pares_por_campo=$ibgeMcPairCount seed_pessoa=$ibgeMcSeed seed_mae=$($ibgeMcSeed+1)."
+    $nominalUMinPairs = if ($env:JORNADA_LINKAGE_NOMINAL_U_MIN_PAIRS) { [int]$env:JORNADA_LINKAGE_NOMINAL_U_MIN_PAIRS } else { 5000 }
+    $nominalUMinPairsPerPass = if ($env:JORNADA_LINKAGE_NOMINAL_U_MIN_PAIRS_PER_PASS) { [int]$env:JORNADA_LINKAGE_NOMINAL_U_MIN_PAIRS_PER_PASS } else { 1000 }
+    Write-Host "IBGE Monte Carlo nominal bootstrap: pares_por_campo=$ibgeMcPairCount seed_pessoa=$ibgeMcSeed seed_mae=$($ibgeMcSeed+1)."
+    Write-Host "Convergência u nominal: mínimo união=$nominalUMinPairs; mínimo por passe=$nominalUMinPairsPerPass."
     Write-Host "Holdout de decisão ativo; mínimo m no harness DEV=$minimumMatchedPairs."
     Invoke-Node2 -Command @(
         'env',
@@ -165,6 +168,8 @@ function Invoke-Calibration {
         "LinkageParameters__MinimumIndependentMatchedPairs=$minimumMatchedPairs",
         "LinkageParameters__IbgeNominalU__PairCount=$ibgeMcPairCount",
         "LinkageParameters__IbgeNominalU__Seed=$ibgeMcSeed",
+        "LinkageParameters__NominalUConvergence__MinimumConditionedPairs=$nominalUMinPairs",
+        "LinkageParameters__NominalUConvergence__MinimumConditionedPairsPerPass=$nominalUMinPairsPerPass",
         'dotnet',
         '/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
     $count = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")
@@ -222,12 +227,12 @@ function Show-LinkageDiagnosis {
     Write-Host 'Em empate_log_odds_exato, UUID ordena apenas a representação determinística do empate; não constitui evidência de desempate.'
 
     Write-Host ''
-    Write-Host 'u nominal usado no scoring de nomes (Monte Carlo IBGE):'
-    Invoke-SqlReport "DECLARE @modelo_id uniqueidentifier=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId'); SELECT nome,valor FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND (nome IN('IBGE_MC_NOMINAL_U_ENABLED','IBGE_MC_NOMINAL_U_PAIR_COUNT','IBGE_MC_NOMINAL_U_SEED_PERSON','IBGE_MC_NOMINAL_U_SEED_MOTHER','IBGE_NAME_REFERENCE_ID','IBGE_MC_PERSON_EXACT_ANALYTIC','IBGE_MC_MOTHER_EXACT_ANALYTIC') OR nome LIKE 'U_NOME[_]%' OR nome LIKE 'U_NOME_MAE[_]%' OR nome LIKE 'IBGE_MC_SUPPORT_U_NOME[_]%' OR nome LIKE 'IBGE_MC_SUPPORT_U_NOME_MAE[_]%') ORDER BY nome;"
+    Write-Host 'u nominal e fonte aplicada (blocking condicionado ou bootstrap IBGE):'
+    Invoke-SqlReport "DECLARE @modelo_id uniqueidentifier=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId'); SELECT nome,valor FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND (nome IN('NOMINAL_U_CONVERGENCE_V1','NOMINAL_U_NOME_SOURCE_BLOCKING_CONDITIONED','NOMINAL_U_NOME_MAE_SOURCE_BLOCKING_CONDITIONED','NOMINAL_U_NOME_CONDITIONED_PAIR_COUNT','NOMINAL_U_NOME_MAE_PRESENT_CONDITIONED_PAIR_COUNT','NOMINAL_U_MIN_CONDITIONED_PAIRS','NOMINAL_U_MIN_CONDITIONED_PAIRS_PER_PASS','IBGE_MC_NOMINAL_U_BOOTSTRAP_AVAILABLE','IBGE_MC_NOMINAL_U_APPLIED_NOME','IBGE_MC_NOMINAL_U_APPLIED_NOME_MAE','IBGE_MC_NOMINAL_U_PAIR_COUNT','IBGE_MC_NOMINAL_U_SEED_PERSON','IBGE_MC_NOMINAL_U_SEED_MOTHER','IBGE_NAME_REFERENCE_ID','IBGE_MC_PERSON_EXACT_ANALYTIC','IBGE_MC_MOTHER_EXACT_ANALYTIC') OR nome LIKE 'U_NOME[_]%' OR nome LIKE 'U_NOME_MAE[_]%' OR nome LIKE 'IBGE_MC_SUPPORT_U_NOME[_]%' OR nome LIKE 'IBGE_MC_SUPPORT_U_NOME_MAE[_]%') ORDER BY nome;"
 
     Write-Host ''
-    Write-Host 'Suporte condicionado ao blocking preservado para diagnóstico e nascimento:'
-    Invoke-SqlReport "DECLARE @modelo_id uniqueidentifier=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId'); SELECT nome,valor AS suporte FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND (nome LIKE 'BLOCKING_SUPPORT_U_NOME[_]%' OR nome LIKE 'BLOCKING_SUPPORT_U_NOME_MAE[_]%' OR nome LIKE 'SUPPORT_U_NASCIMENTO_SEMANTICO[_]%' OR nome LIKE 'POOL_SUPPORT_U_NASCIMENTO_SEMANTICO[_]%') ORDER BY nome;"
+    Write-Host 'Suporte condicionado ao blocking (união e passes) e nascimento:'
+    Invoke-SqlReport "DECLARE @modelo_id uniqueidentifier=(SELECT modelo_id FROM identidade.linkage_run WHERE linkage_run_id='$runId'); SELECT nome,valor AS suporte FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND (nome LIKE 'BLOCKING_SUPPORT_U_NOME[_]%' OR nome LIKE 'BLOCKING_SUPPORT_U_NOME_MAE[_]%' OR nome LIKE 'BLOCKING_PASS_U[_]%' OR nome LIKE 'SUPPORT_U_NASCIMENTO_SEMANTICO[_]%' OR nome LIKE 'POOL_SUPPORT_U_NASCIMENTO_SEMANTICO[_]%') ORDER BY nome;"
 
     Write-Host ''
     Write-Host 'Composição atual do corpus Gold (explica SCALE versus seed/outros):'

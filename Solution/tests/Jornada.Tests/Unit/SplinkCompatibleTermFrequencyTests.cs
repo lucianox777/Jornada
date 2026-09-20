@@ -56,46 +56,6 @@ public sealed class SplinkCompatibleTermFrequencyTests
     }
 
     [Test]
-    public void NominalDf_PreservesSimilarityAndFrequencyAsSeparateEvidence()
-    {
-        var evidence = NominalDfEvidenceCalculator.Evaluate(
-            "SOUSA",
-            "SOUZA",
-            leftFrequency: 0.002m,
-            rightFrequency: 0.003m,
-            referenceUProbability: 0.01m);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(evidence.Similarity, Is.GreaterThan(0.8d));
-            Assert.That(evidence.EffectiveFrequency, Is.EqualTo(0.003m));
-            Assert.That(evidence.TermFrequencyLogAdjustment, Is.Not.Null);
-            Assert.That(evidence.SimilarityAlgorithmVersion, Is.EqualTo("JARO_WINKLER@V1"));
-            Assert.That(evidence.TermFrequencyAlgorithmVersion, Is.EqualTo("SPLINK_TERM_FREQUENCY_V1"));
-        });
-    }
-
-    [Test]
-    public void DfThresholdSearch_UsesObservedFrontiersInsteadOfInventedCompositeScore()
-    {
-        var observations = new[]
-        {
-            new DfCalibrationObservation(true, NominalDfEvidenceCalculator.Evaluate("SOUSA", "SOUZA", 0.002m, 0.003m, 0.01m)),
-            new DfCalibrationObservation(true, NominalDfEvidenceCalculator.Evaluate("MARINA", "MARINA", 0.001m, 0.001m, 0.01m)),
-            new DfCalibrationObservation(false, NominalDfEvidenceCalculator.Evaluate("MARIA", "MARINA", 0.08m, 0.001m, 0.10m))
-        };
-
-        var candidates = DfThresholdSearch.GenerateCandidates(observations);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(candidates, Is.Not.Empty);
-            Assert.That(candidates.All(x => observations.Any(o => Math.Abs(o.Evidence.Similarity - x.MinimumSimilarity) < 1e-12)), Is.True);
-            Assert.That(candidates.All(x => observations.Any(o => o.Evidence.TermFrequencyLogAdjustment.HasValue && Math.Abs(o.Evidence.TermFrequencyLogAdjustment.Value - x.MinimumTermFrequencyLogAdjustment) < 1e-12)), Is.True);
-        });
-    }
-
-    [Test]
     public void Pareto_DoesNotInventPreferenceBetweenFalsePositiveAndFalseNegative()
     {
         var a = new CalibrationEvaluation("A", 90, 90, 1, 8, 11, 200);

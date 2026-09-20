@@ -86,8 +86,17 @@ calibrate() {
   ensure_local_blocking_projection
   before="$(sql_scalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;")"
   echo "Calibração iniciando após modelo v$before."
-  echo 'Referência IBGE canônica é materializada no bootstrap do ambiente; GENERATE_DRAFT só usa o fallback de carga em banco criado fora do fluxo oficial.'
-  compose exec -T jornada-node2 env LinkageParameters__Operation=GENERATE_DRAFT LinkageParameters__RunOnce=true LinkageParameters__MinimumIndependentMatchedPairs="${JORNADA_LINKAGE_MIN_MATCHED_PAIRS:-2500}" dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
+  echo 'IBGE permanece bootstrap/fallback nominal; GENERATE_DRAFT converge para u nominal condicionado ao blocking quando união e todos os passes atingem suporte suficiente.'
+  local nominal_u_min_pairs="${JORNADA_LINKAGE_NOMINAL_U_MIN_PAIRS:-5000}"
+  local nominal_u_min_pairs_per_pass="${JORNADA_LINKAGE_NOMINAL_U_MIN_PAIRS_PER_PASS:-1000}"
+  echo "Convergência u nominal: mínimo união=$nominal_u_min_pairs; mínimo por passe=$nominal_u_min_pairs_per_pass."
+  compose exec -T jornada-node2 env \
+    LinkageParameters__Operation=GENERATE_DRAFT \
+    LinkageParameters__RunOnce=true \
+    LinkageParameters__MinimumIndependentMatchedPairs="${JORNADA_LINKAGE_MIN_MATCHED_PAIRS:-2500}" \
+    LinkageParameters__NominalUConvergence__MinimumConditionedPairs="$nominal_u_min_pairs" \
+    LinkageParameters__NominalUConvergence__MinimumConditionedPairsPerPass="$nominal_u_min_pairs_per_pass" \
+    dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
   count="$(sql_scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")"
   [[ "$count" == "1" ]] || { echo "Esperado exatamente um novo RASCUNHO; encontrados=$count" >&2; return 3; }
   version="$(sql_scalar "SELECT MAX(versao) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")"

@@ -31,8 +31,10 @@ public sealed class LocalClusterDiagnosisContractTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(script, Does.Contain("Referência IBGE canônica é materializada no bootstrap do ambiente"));
-            Assert.That(script, Does.Contain("fallback de carga em banco criado fora do fluxo oficial"));
+            Assert.That(script, Does.Contain("IBGE"));
+            Assert.That(script, Does.Contain("bootstrap/fallback"));
+            Assert.That(script, Does.Contain("u nominal"));
+            Assert.That(script, Does.Contain("blocking"));
             Assert.That(script, Does.Not.Contain("Se a referência IBGE ainda não estiver materializada"));
         });
     }

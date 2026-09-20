@@ -4,10 +4,17 @@ using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Parameters.Worker;
 
+public sealed record BlockingPassNominalUSupport(
+    string PassId,
+    long SampleSize,
+    IReadOnlyDictionary<string, long> NameStateSupport,
+    IReadOnlyDictionary<string, long> MotherNameStateSupport);
+
 public sealed record BlockingConditionedUnmatchedPairSample(
     IReadOnlyList<IdentityTrainingPair> Pairs,
     IReadOnlyDictionary<string, long> SemanticBirthPoolSupport,
-    long CandidatePoolSize);
+    long CandidatePoolSize,
+    IReadOnlyList<BlockingPassNominalUSupport> PassNominalSupport);
 
 /// <summary>
 /// Amostra não-vínculos diretamente do universo que sobreviveria ao ruleset vencedor.
@@ -164,10 +171,12 @@ public static class BlockingConditionedUnmatchedPairReader
     WHERE a.rn % 2=1 AND a.pessoa_uuid<>b.pessoa_uuid
 )
 """);
-            pairSources.Add($"SELECT a_uuid,b_uuid FROM {pairsCte}");
+            var passIdParameter = $"@pass_id_{passIndex}";
+            command.Parameters.Add(passIdParameter, SqlDbType.NVarChar, 80).Value = pass.PassId;
+            pairSources.Add($"SELECT {passIdParameter} AS pass_id,a_uuid,b_uuid FROM {pairsCte}");
         }
 
-        command.CommandText = $"""
+        var commonCtes = $"""
 WITH gold_sample AS (
     SELECT TOP (@pool_size)
         g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
@@ -196,11 +205,16 @@ WITH gold_sample AS (
       AND ({temporalSemanticsPredicate})
 ),
 {string.Join(",\n", ctes)},
+pass_candidate_pairs AS (
+    {string.Join("\n    UNION ALL\n    ", pairSources)}
+)
+""";
+
+        command.CommandText = $"""
+{commonCtes},
 candidate_pairs AS (
     SELECT DISTINCT a_uuid,b_uuid
-    FROM (
-        {string.Join("\n        UNION ALL\n        ", pairSources)}
-    ) p
+    FROM pass_candidate_pairs
 ), ordered_pairs AS (
     SELECT p.a_uuid,p.b_uuid,
            ROW_NUMBER() OVER (
@@ -219,6 +233,26 @@ FROM ordered_pairs p
 JOIN gold_sample a ON a.pessoa_uuid=p.a_uuid
 JOIN gold_sample b ON b.pessoa_uuid=p.b_uuid
 ORDER BY p.sample_rank;
+
+{commonCtes},
+pass_ordered_pairs AS (
+    SELECT p.pass_id,p.a_uuid,p.b_uuid,
+           ROW_NUMBER() OVER (
+             PARTITION BY p.pass_id
+             ORDER BY HASHBYTES('SHA2_256',CONCAT(CONVERT(nvarchar(36),p.a_uuid),':',CONVERT(nvarchar(36),p.b_uuid))),p.a_uuid,p.b_uuid) AS pass_sample_rank
+    FROM pass_candidate_pairs p
+)
+SELECT
+    p.pass_id,
+    a.nome_completo,
+    a.nome_mae,
+    b.nome_completo,
+    b.nome_mae
+FROM pass_ordered_pairs p
+JOIN gold_sample a ON a.pessoa_uuid=p.a_uuid
+JOIN gold_sample b ON b.pessoa_uuid=p.b_uuid
+WHERE p.pass_sample_rank<=@sample_size
+ORDER BY p.pass_id,p.pass_sample_rank;
 """;
 
         var result = new List<IdentityTrainingPair>();
@@ -245,6 +279,40 @@ ORDER BY p.sample_rank;
                 reader.IsDBNull(5) ? null : reader.GetString(5)));
         }
 
+        var passSupport = canonicalPasses.ToDictionary(
+            static pass => pass.PassId,
+            static pass => new PassSupportBuilder(
+                pass.PassId,
+                Enum.GetNames<NameComparisonState>().ToDictionary(static state => state, static _ => 0L, StringComparer.Ordinal),
+                LinkageParameterCatalog.MotherNameStates.ToDictionary(static state => state, static _ => 0L, StringComparer.Ordinal)),
+            StringComparer.Ordinal);
+
+        if (await reader.NextResultAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var passId = reader.GetString(0);
+                if (!passSupport.TryGetValue(passId, out var builder))
+                    throw new InvalidOperationException($"Passe inesperado na amostra u condicionada: {passId}.");
+
+                var nameState = IdentityComparison.CompareName(
+                    reader.GetString(1),
+                    reader.GetString(3),
+                    NameComparisonContract.WholeNameJaroWinklerV1).ToString();
+                builder.NameStateSupport[nameState]++;
+                builder.SampleSize++;
+
+                var motherState =
+                    reader.IsDBNull(2) || reader.IsDBNull(4)
+                        ? "MISSING"
+                        : IdentityComparison.CompareName(
+                            reader.GetString(2),
+                            reader.GetString(4),
+                            NameComparisonContract.WholeNameJaroWinklerV1).ToString();
+                builder.MotherNameStateSupport[motherState]++;
+            }
+        }
+
         // candidate_pairs é construído exclusivamente dos CTEs de cada passe sobre
         // blocking_chave com a mesma semântica temporal do Runner. Reprojetar a Gold
         // corrente aqui seria incorreto: VERSIONED_ALIAS preserva valores históricos
@@ -253,6 +321,28 @@ ORDER BY p.sample_rank;
             throw new InvalidOperationException(
                 "Invariante violada: amostra u excedeu o pool candidato materializado.");
 
-        return new BlockingConditionedUnmatchedPairSample(result, support, candidatePoolSize);
+        return new BlockingConditionedUnmatchedPairSample(
+            result,
+            support,
+            candidatePoolSize,
+            passSupport.Values
+                .OrderBy(static item => item.PassId, StringComparer.Ordinal)
+                .Select(static item => new BlockingPassNominalUSupport(
+                    item.PassId,
+                    item.SampleSize,
+                    new Dictionary<string, long>(item.NameStateSupport, StringComparer.Ordinal),
+                    new Dictionary<string, long>(item.MotherNameStateSupport, StringComparer.Ordinal)))
+                .ToArray());
+    }
+
+    private sealed class PassSupportBuilder(
+        string passId,
+        Dictionary<string, long> nameStateSupport,
+        Dictionary<string, long> motherNameStateSupport)
+    {
+        public string PassId { get; } = passId;
+        public long SampleSize { get; set; }
+        public Dictionary<string, long> NameStateSupport { get; } = nameStateSupport;
+        public Dictionary<string, long> MotherNameStateSupport { get; } = motherNameStateSupport;
     }
 }

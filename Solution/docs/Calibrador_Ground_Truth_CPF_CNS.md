@@ -1,6 +1,6 @@
 # Calibrador — ground truth CPF/CNS
 
-**Estado:** especificação normativa complementar ao `Calibrador_DF_FS_Specification.md`.
+**Estado:** especificação normativa complementar ao `Calibrador_FS_Specification.md`.
 
 ## 1. Objetivo
 

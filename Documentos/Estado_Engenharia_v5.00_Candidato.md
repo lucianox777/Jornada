@@ -34,7 +34,7 @@ A verdade de referência dessa etapa vem de observações ligadas deterministica
 
 A implementação operacional dessa etapa compartilha literalmente o scorer e a política de decisão com o Runner por `Jornada.Linkage.Core`, evitando uma segunda implementação da fronteira. O draft persiste proveniência, tamanhos das partições e FP/FN/inconclusivos de validação/teste, e `VALIDATE` falha fechado sem a marca da calibração ou com falso vínculo em `TEST`.
 
-Isso fecha a lacuna específica de `T_LINKAGE`/margem fixos. Não equivale à implementação integral de todo o ADR DF → FS nem à homologação estatística: prior, transportabilidade de `m/u`, representatividade da coorte com CPF, DF/Splink e evidências adicionais continuam sujeitos aos respectivos gates.
+Isso fecha a lacuna de `T_LINKAGE`/margem fixos. O antigo estágio DF/Splink foi retirado por não participar do runtime nem resolver os limites de identificabilidade observados. A pendência estatística corrente é transportabilidade de `m/u`, representatividade da coorte rotulada, convergência do `u` para o universo candidato real e avaliação de evidências adicionais.
 
 A validação estatística representativa permanece gate externo. Corpus sintético, Monte Carlo e validação adversarial DEV são evidência de engenharia, não homologação populacional.
 
@@ -54,7 +54,7 @@ Documentação histórica não deve ser usada para inferir arquitetura corrente 
 
 1. manter os documentos correntes e a numeração das ADRs alinhados ao estado SQL Server-only e ao namespace de Pessoa por Base de Origem;
 2. fechar a publicação ponta a ponta do Linkage no ledger de identidade progressiva, separando score bruto de decisão publicada e preservando `initial_uuid` como proveniência/continuidade, nunca como feature;
-3. fechar o restante da orquestração evolutiva do calibrador SQL Server — candidate/challenger, DF/Splink, avaliação representativa e governança do prior — mantendo a calibração operacional de threshold/margem já fail-closed e sem promover automaticamente evidência probabilística a rótulo de treino;
+3. fechar o restante da validação estatística do calibrador SQL Server — candidate/challenger quando útil, avaliação representativa, governança do prior e suficiência do `u` condicionado ao blocking — sem reintroduzir estágio DF nem promover automaticamente evidência probabilística a rótulo de treino;
 4. manter verde o conjunto canônico de build, unitários, integração SQL, DDL/upgrade, E2E, segurança, harness e validação independente;
 5. atualizar a proveniência da candidata para o commit imutável escolhido para a RC;
 6. preservar como pendentes, sem fabricar aprovação, os gates externos/institucionais aplicáveis, inclusive validação estatística representativa do Linkage.

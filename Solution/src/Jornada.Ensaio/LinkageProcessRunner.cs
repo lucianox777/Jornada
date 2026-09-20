@@ -12,7 +12,7 @@ public sealed class LinkageProcessRunner(
     Func<DbConnection> openConnection,
     ICollection<string> log)
 {
-    private const string CurrentSqlServerSampleMethod = "M_INTERGESTOR_U_BIRTH_BLOCKING_IBGE_NAMES_MC_V4";
+    private const string CurrentSqlServerSampleMethod = "M_INTERGESTOR_U_BLOCKING_CONDITIONED_IBGE_BOOTSTRAP_V5";
 
     private static readonly string[] ForwardedSettings =
     [
@@ -46,6 +46,13 @@ public sealed class LinkageProcessRunner(
             var value = configuration[$"LinkageParameters:DecisionCalibration:{key}"];
             if (!string.IsNullOrWhiteSpace(value))
                 startInfo.Environment[$"LinkageParameters__DecisionCalibration__{key}"] = value;
+        }
+
+        foreach (var key in new[] { "MinimumConditionedPairs", "MinimumConditionedPairsPerPass" })
+        {
+            var value = configuration[$"LinkageParameters:NominalUConvergence:{key}"];
+            if (!string.IsNullOrWhiteSpace(value))
+                startInfo.Environment[$"LinkageParameters__NominalUConvergence__{key}"] = value;
         }
 
         var exitCode = await ExecuteProcessAsync(startInfo, cancellationToken);

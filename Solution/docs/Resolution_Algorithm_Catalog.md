@@ -53,12 +53,11 @@ O catálogo também registra algoritmos que combinam saída de comparador com es
 
 | algoritmo@versão | finalidade | implementação |
 |---|---|---|
-| `SPLINK_TERM_FREQUENCY_V1` | ajuste de term frequency compatível com Splink; em fuzzy usa a maior frequência dos lados, aceita peso e piso de u | `Jornada.Contracts/SplinkCompatibleTermFrequency.cs` |
-| `NOMINAL_DF_SPLINK_COMPATIBLE_V1` | evidência DF: Jaro-Winkler + TF preservados separadamente para calibração | `Jornada.Linkage.Parameters.Worker/NominalDfEvidence.cs` |
+| `SPLINK_TERM_FREQUENCY_V1` | matemática de ajuste por term frequency reutilizável dentro do Fellegi–Sunter; em fuzzy usa a maior frequência dos lados, aceita peso e piso de u | `Jornada.Contracts/SplinkCompatibleTermFrequency.cs` |
 
-`SPLINK_TERM_FREQUENCY_V1` porta a matemática necessária para C#; Python/Splink permanece referência de paridade, não dependência de runtime. A base logarítmica local é natural para permanecer coerente com o scorer Fellegi-Sunter existente.
+`SPLINK_TERM_FREQUENCY_V1` permanece como capacidade matemática, não como estágio de decisão. Ele não está habilitado automaticamente no scorer operacional. Qualquer adoção futura precisa ser calibrada no universo candidato do blocking, com peso/piso versionados e sem contornar guards de conflito ou não-unicidade.
 
-`NOMINAL_DF_SPLINK_COMPATIBLE_V1` não define por convenção um score `distância × frequência`. Similaridade e contribuição TF permanecem dimensões observáveis separadas e o Calibrador aprende fronteiras sobre o corpus de validação. Na versão inicial o DF resolve somente `MATCH`; o restante faz fallback ao FS. A evidência DF não é somada ao score FS depois do fallback.
+O antigo resolvedor experimental `NOMINAL_DF_SPLINK_COMPATIBLE_V1` foi retirado antes de HML porque nunca integrou o runtime e criava uma segunda fronteira sem resolver os casos de identificabilidade observados.
 
 ## Relação com o Calibrador
 
