@@ -143,6 +143,23 @@ Para a configuração completa, o Calibrador registra TP, TN, FP, FN e inconclus
 
 Se dois candidatos trocam FP por FN, ambos permanecem na fronteira de Pareto. O Calibrador não inventa o custo institucional relativo desses erros.
 
+### 6.1. Threshold e margem da decisão FS operacional
+
+`FS_DECISION_THRESHOLD_PARETO_V1` aplica o mesmo princípio ao estágio Fellegi–Sunter V6. `T_LINKAGE` e `CONFLICT_MARGIN_LOG_ODDS` não são lidos como escolhas operacionais do `appsettings`; valores transitórios usados durante a construção de `m/u` são obrigatoriamente substituídos antes da persistência do RASCUNHO.
+
+A amostra de decisão usa observações cuja verdade foi estabelecida deterministicamente por CPF. O CPF serve somente como rótulo e é retirado da geração de candidatos e do score. A projeção e o ruleset vencedores são os mesmos do modelo em construção. Para cada pessoa-base elegível são materializados dois cenários na mesma partição:
+
+- `POS`: ranking completo, com a identidade verdadeira como referência esperada;
+- `NEG_LEAVE_TRUTH_OUT`: o mesmo ranking com a identidade verdadeira removida, simulando a situação em que os candidatos restantes são todos não-match sem criar nomes, datas ou pesos sintéticos.
+
+O split `TRAIN/VALIDATION/TEST` é determinístico por UUID da pessoa-base; cenários derivados da mesma pessoa nunca atravessam partições. `TRAIN` fica reservado ao ajuste dos componentes do modelo. A grade de decisão é construída exclusivamente a partir dos posteriores top-1 e das margens top-2 em log-odds observados em `VALIDATION`. Cada combinação é avaliada pela própria `ProbabilisticLinkageDecisions.ResolveRanked` compilada em `Jornada.Linkage.Core`, isto é, inclui exatamente threshold, dual-threshold guard, margem e desempates usados pelo Runner.
+
+A fronteira de Pareto continua definida por FP/FN, com inconclusão apenas como desempate quando FP e FN empatam. A política pré-HML já adotada de **zero falso vínculo resolvido** atua depois como restrição de segurança para elegibilidade à promoção; ela não transforma FP e FN em uma função de custo. Se nenhum ponto não dominado satisfizer esse gate, a geração falha fechada. Entre pontos que produzem os mesmos erros e a mesma inconclusão, o desempate determinístico prefere a representação mais conservadora (maior threshold e, depois, maior margem).
+
+A fronteira escolhida em `VALIDATION` é congelada antes de `TEST`. Alterar `TEST` não pode alterar `candidate_id`, threshold ou margem selecionados; `TEST` somente pode aceitar a evidência congelada ou bloquear a promoção. Qualquer falso vínculo resolvido em `TEST` faz `GENERATE_DRAFT` falhar antes da publicação do RASCUNHO.
+
+O uso de pessoas com CPF para ground truth não prova transportabilidade para o estrato sem CPF. Essa diferença de população é evidência a medir em HML e permanece um gate externo; a calibração operacional elimina parâmetros escolhidos por intuição, mas não converte corpus DEV ou coorte com CPF em estimativa municipal representativa.
+
 ## 7. Splink como implementação de referência
 
 Splink/Python é usado em desenvolvimento e validação para produzir vetores de referência. Produção continua C#/.NET.
@@ -163,7 +180,9 @@ A paridade exigida é semântica/numericamente tolerante, não bit a bit: mesmos
 - piorar o piso de TF não pode aumentar evidência de raridade;
 - `tf_adjustment_weight=0` neutraliza TF;
 - thresholds vêm exclusivamente de dados de validação; `TRAIN` e `TEST` não participam da seleção DF;
-- candidatos DF avaliados em `TEST` são exatamente a fronteira congelada em `VALIDATION`;
+- `T_LINKAGE` e margem FS operacionais vêm exclusivamente da grade observada em `VALIDATION`, nunca do `appsettings`;
+- cenários POS e NEG leave-truth-out da mesma pessoa-base permanecem na mesma partição;
+- candidatos DF e FS avaliados em `TEST` são exatamente fronteiras congeladas em `VALIDATION`;
 - `INCONCLUSIVO` é resultado válido;
 - novas evidências da Jornada podem permitir reavaliação posterior.
 
