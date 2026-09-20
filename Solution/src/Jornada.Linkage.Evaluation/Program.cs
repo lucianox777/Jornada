@@ -17,12 +17,23 @@ var connectionString = options.ConnectionString
     ?? Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
     ?? throw new InvalidOperationException("Informe --connection-string ou ConnectionStrings__Jornada.");
 
+var operationalSql = new OperationalSqlAdapter(connectionString);
+await using var connection = await operationalSql.OpenAsync();
+
+if (options.ExportCalibrationPath is not null)
+{
+    var exporter = new CalibrationAuditExporter(connection, options.CommandTimeoutSeconds);
+    var audit = await exporter.ExportAsync(options.ModelId);
+    var auditOutput = Path.GetFullPath(options.ExportCalibrationPath);
+    Directory.CreateDirectory(Path.GetDirectoryName(auditOutput)!);
+    await File.WriteAllTextAsync(auditOutput, JsonSerializer.Serialize(audit, EvaluationJson.Options));
+    Console.WriteLine($"Exportação de auditoria de calibração gravada em {auditOutput}");
+    return;
+}
+
 var labels = LabelCsv.Read(options.LabelsPath!);
 if (labels.Count == 0)
     throw new InvalidOperationException("A amostra rotulada está vazia.");
-
-var operationalSql = new OperationalSqlAdapter(connectionString);
-await using var connection = await operationalSql.OpenAsync();
 
 var evaluator = new LinkageEvaluation(connection, options.CommandTimeoutSeconds);
 var labeledPairs = await evaluator.LoadLabeledNoCpfPairsAsync(labels);
@@ -79,6 +90,8 @@ internal static class EvaluationJson
 internal sealed record EvaluationOptions(
     string? LabelsPath,
     string? OutputPath,
+    string? ExportCalibrationPath,
+    Guid? ModelId,
     string? ConnectionString,
     int BirthWindowDays,
     int MaxCpfAnchoredPairs,
@@ -93,7 +106,7 @@ internal sealed record EvaluationOptions(
         for (var i = 0; i < args.Length; i++)
         {
             var raw = args[i];
-            if (raw is "--help" or "-h") return new(null, null, null, 0, 0, 0, 0m, 0, true);
+            if (raw is "--help" or "-h") return new(null, null, null, null, null, 0, 0, 0, 0m, 0, true);
             if (!raw.StartsWith("--", StringComparison.Ordinal)) continue;
             raw = raw[2..];
             var eq = raw.IndexOf('=', StringComparison.Ordinal);
@@ -119,11 +132,28 @@ internal sealed record EvaluationOptions(
             return parsed;
         }
 
-        var labels = Get("labels") ?? throw new ArgumentException("--labels é obrigatório.");
+        var labels = Get("labels");
+        var exportCalibration = Get("export-calibration");
+        if ((labels is null) == (exportCalibration is null))
+            throw new ArgumentException("Informe exatamente um modo: --labels para avaliação ou --export-calibration para auditoria externa.");
+
+        Guid? modelId = null;
+        var modelIdRaw = Get("model-id");
+        if (modelIdRaw is not null)
+        {
+            if (!Guid.TryParse(modelIdRaw, out var parsedModelId))
+                throw new ArgumentException("--model-id deve ser um UUID válido.");
+            modelId = parsedModelId;
+        }
+        if (modelId is not null && exportCalibration is null)
+            throw new ArgumentException("--model-id só é aceito com --export-calibration.");
+
         var output = Get("output") ?? "linkage-evaluation-report.json";
         return new EvaluationOptions(
             labels,
             output,
+            exportCalibration,
+            modelId,
             Get("connection-string"),
             Int("birth-window-days", 7, 1, 31),
             Int("max-cpf-anchored-pairs", 50_000, 100, 1_000_000),
@@ -137,8 +167,13 @@ internal sealed record EvaluationOptions(
         """
         Jornada.Linkage.Evaluation — DEV/HML, somente leitura, sem publicação
 
-          --labels <arquivo.csv>              obrigatório; colunas pessoa_observacao_id,pessoa_uuid_verdade
-          --output <relatorio.json>           padrão linkage-evaluation-report.json
+        Modos mutuamente exclusivos:
+          --labels <arquivo.csv>              avaliação rotulada; colunas pessoa_observacao_id,pessoa_uuid_verdade
+          --export-calibration <arquivo.json> exporta calibração/modelo somente leitura para auditoria externa
+          --model-id <uuid>                   opcional no export; sem ele usa o modelo ATIVO
+
+        Opções:
+          --output <relatorio.json>           padrão linkage-evaluation-report.json (modo --labels)
           --connection-string <sql>           opcional; ou ConnectionStrings__Jornada
           --birth-window-days <1..31>         V2 candidato, padrão ±7 dias
           --max-cpf-anchored-pairs <N>        padrão 50000
@@ -146,7 +181,8 @@ internal sealed record EvaluationOptions(
           --smoothing-alpha <decimal>          padrão 0.5; mesmo default do Parameters Worker
           --command-timeout-seconds <1..3600> padrão 900
 
-        O executável faz apenas SELECT nas tabelas operacionais. V2 é evidência experimental e nunca é publicado.
+        O executável faz apenas SELECT nas tabelas operacionais. O export de calibração não ativa TF nem publica modelo.
+        V2 é evidência experimental e nunca é publicado.
         """;
 }
 
