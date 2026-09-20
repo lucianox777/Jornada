@@ -99,6 +99,7 @@ internal sealed record LinkageConferenceGovernanceStatus(
     int? CandidatesEvaluated,
     bool? SameFinalDecision,
     bool? SameTop1,
+    bool? SnapshotCurrent,
     DateTimeOffset? OccurredAt,
     string StatisticalValidation,
     string RoundTripMethod,
@@ -173,6 +174,11 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
                 FROM identidade.modelo_linkage
                 WHERE status=N'ATIVO'
                 ORDER BY versao DESC);
+            DECLARE @active_model_snapshot_sha256 BINARY(32)=NULL;
+            IF @active_model_id IS NOT NULL
+                EXEC auditoria.sp_calcular_fingerprint_modelo_linkage
+                    @modelo_id=@active_model_id,
+                    @fingerprint=@active_model_snapshot_sha256 OUTPUT;
             SELECT
                 @active_model_count active_model_count,
                 m.modelo_id,m.versao,m.algoritmo_versao,m.normalizacao_versao,m.gerado_em,m.ativado_em,
@@ -214,7 +220,9 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
 
             SELECT TOP(1)
                 evidencia_id,modelo_versao,metodo_versao,escopo,tolerancia_versao,status,
-                candidatos_avaliados,mesma_decisao_final,mesmo_top1,validacao_estatistica,ocorrido_em
+                candidatos_avaliados,mesma_decisao_final,mesmo_top1,
+                CASE WHEN modelo_snapshot_sha256=@active_model_snapshot_sha256 THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END snapshot_current,
+                validacao_estatistica,ocorrido_em
             FROM auditoria.linkage_conferencia_evidencia
             WHERE modelo_id=@active_model_id
             ORDER BY linkage_conferencia_evidencia_id DESC;
@@ -239,7 +247,7 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             "NAO_DECLARADO", "NAO_DECLARADO", "PENDENTE_ISSUE_31");
         var modelTransitions = new List<LinkageModelTransitionStatus>();
         LinkageConferenceGovernanceStatus conferenceGovernance = new(
-            "SEM_MODELO_ATIVO", null, null, null, null, null, null, null, null, null,
+            "SEM_MODELO_ATIVO", null, null, null, null, null, null, null, null, null, null,
             "PENDENTE_ISSUE_31",
             "JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1",
             "OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO");
@@ -348,10 +356,11 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
                 reader.GetInt32(6),
                 reader.GetBoolean(7),
                 reader.GetBoolean(8),
-                ReadDateTimeOffset(reader, 10),
-                reader.GetString(9) == "NOT_ASSESSED_ISSUE_31"
+                reader.GetBoolean(9),
+                ReadDateTimeOffset(reader, 11),
+                reader.GetString(10) == "NOT_ASSESSED_ISSUE_31"
                     ? "PENDENTE_ISSUE_31"
-                    : reader.GetString(9),
+                    : reader.GetString(10),
                 "JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1",
                 "OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO");
         }
