@@ -23,6 +23,7 @@ public sealed class OperationalMonitorModelGovernanceContractTests
             Assert.That(html, Does.Contain("JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1"));
             Assert.That(html, Does.Contain("OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO"));
             Assert.That(html, Does.Contain("Snapshot do modelo"));
+            Assert.That(html, Does.Contain("Suporte condicionado por passe"));
             Assert.That(html, Does.Contain("OBSOLETA"));
             Assert.That(html, Does.Contain("Conferência de implementação, round-trip de formato e validação estatística são evidências distintas."));
             Assert.That(html, Does.Not.Contain("T_LINKAGE"));
@@ -30,6 +31,8 @@ public sealed class OperationalMonitorModelGovernanceContractTests
             Assert.That(service, Does.Contain("auditoria.linkage_conferencia_evidencia"));
             Assert.That(service, Does.Contain("sp_calcular_fingerprint_modelo_linkage"));
             Assert.That(service, Does.Contain("snapshot_current"));
+            Assert.That(service, Does.Contain("BLOCKING_PASS_U_"));
+            Assert.That(service, Does.Contain("NOMINAL_U_MIN_CONDITIONED_PAIRS_PER_PASS"));
             Assert.That(service, Does.Contain("SEM_EVIDENCIA_MODELO_ATIVO"));
             Assert.That(service, Does.Contain("JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1"));
             Assert.That(service, Does.Contain("NOMINAL_U_NOME_SOURCE_BLOCKING_CONDITIONED"));
