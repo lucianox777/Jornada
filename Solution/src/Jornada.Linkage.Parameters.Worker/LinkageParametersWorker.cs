@@ -269,7 +269,7 @@ public sealed class LinkageParametersWorker(
                 persistedParameters, ruleSet, ibgeReference, workCt);
 
             logger.LogInformation(
-                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; abbrev_m_nome={AbbrevMName}; abbrev_u_ref_nome={AbbrevUName}; prior_ativo={ActivePrior}; prior_candidato_par={CandidatePairPrior}; prior_pares={CandidatePairs}; prior_recall={CandidateRecall}; T_calibrado={Threshold}; margem_logodds_calibrada={ConflictMargin}; pareto={ParetoCount}; val_fp={ValidationFp}; test_fp={TestFp}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
+                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; abbrev_m_nome={AbbrevMName}; abbrev_u_ref_nome={AbbrevUName}; prior_ativo={ActivePrior}; prior_candidato_par={CandidatePairPrior}; prior_pares={CandidatePairs}; prior_recall={CandidateRecall}; T_calibrado={Threshold}; piso_segundo_candidato={ConflictFloor}; margem_logodds_calibrada={ConflictMargin}; pareto={ParetoCount}; val_fp={ValidationFp}; test_fp={TestFp}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
                 version, ruleSet.RuleSetVersion, statistics.PopulationSize, matchedPairs.Count, unmatchedCandidatePairs.Count,
                 unmatchedPairs.Count, unmatchedSample.CandidatePoolSize, ibgeNominalUPairCount, ibgeReference.Code,
                 persistedParameters["DIAG_ABBREV_M_NOME_SUPPORT"], persistedParameters["DIAG_ABBREV_U_NOME_SUPPORT"],
@@ -278,6 +278,7 @@ public sealed class LinkageParametersWorker(
                 candidatePrior.TotalCandidatePairs,
                 candidatePrior.CandidateRecall,
                 persistedParameters[LinkageParameterCatalog.Threshold],
+                persistedParameters[LinkageParameterCatalog.DualThresholdConflictFloor],
                 persistedParameters[LinkageParameterCatalog.LogOddsConflictMargin],
                 persistedParameters["FS_DECISION_CALIBRATION_FRONTIER"],
                 persistedParameters["FS_DECISION_CALIBRATION_VALIDATION_FP"],
@@ -772,6 +773,12 @@ public sealed class LinkageParametersWorker(
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
                    AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='FS_DECISION_CALIBRATION_BASE_PERSON_SPLIT_V1' AND valor>=1)
                     THROW 51023, 'Modelo SQL Server V6 sem split por pessoa-base antes dos pares de treino.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_DUAL_THRESHOLD_CONFLICT_FLOOR_V2' AND valor>=1)
+                    THROW 51024, 'Modelo SQL Server V6 sem guarda de ambiguidade desacoplada de T_LINKAGE.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='DUAL_THRESHOLD_CONFLICT_FLOOR' AND valor>=0 AND valor<=1)
+                    THROW 51025, 'Modelo SQL Server V6 sem piso calibrado válido para segundo candidato.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
                    AND EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='FS_DECISION_CALIBRATION_TEST_FP' AND valor<>0)
                     THROW 51022, 'Modelo SQL Server V6 falhou no safety gate TEST da calibração de decisão.', 1;
