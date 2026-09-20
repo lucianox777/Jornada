@@ -26,7 +26,7 @@
 
 A consolidação não altera o conteúdo técnico essencial que motivou este adendo: CI obrigatório; documentação normativa em UML; paralelismo somente quando mensuravelmente vantajoso; uso de dados oficiais agregados do IBGE apenas quando semanticamente compatíveis; preservação da grafia/semântica oficial; detecção de snapshots redundantes por validadores e fingerprint; blocking dinâmico versionado e reproduzível; e projeção indexada reconstruível para geração de candidatos.
 
-**Microsoft SQL Server permanece a tecnologia relacional normativa da Jornada.** PostgreSQL pode existir como provider paralelo em escopos explicitamente suportados, sem substituir o baseline relacional normativo.
+**Microsoft SQL Server permanece a tecnologia relacional normativa e o único runtime relacional suportado pela candidata v5.00.** PostgreSQL foi extraído do produto corrente e não participa de runtime, calibração ou gates desta linha.
 
 ## UML vigente
 
