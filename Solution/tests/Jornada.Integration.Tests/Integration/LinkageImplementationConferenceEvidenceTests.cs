@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 using NUnit.Framework;
@@ -95,7 +96,7 @@ public sealed class LinkageImplementationConferenceEvidenceTests
                 WHERE modelo_id=@id;
                 """;
             count.Parameters.AddWithValue("@id", modelId);
-            Assert.That(Convert.ToInt32(await count.ExecuteScalarAsync()), Is.EqualTo(3));
+            Assert.That(Convert.ToInt32(await count.ExecuteScalarAsync(), CultureInfo.InvariantCulture), Is.EqualTo(3));
         }
     }
 
