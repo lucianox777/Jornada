@@ -49,8 +49,7 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
                     WHERE pa.pessoa_observacao_id=po.pessoa_observacao_id
                       AND pa.atributo_codigo=N'NOME_SOCIAL'
                       AND NULLIF(LTRIM(RTRIM(pa.valor)),N'') IS NOT NULL
-                    ORDER BY CASE WHEN pa.status_evidencia=N'COMPROVADO' THEN 0 ELSE 1 END,
-                             COALESCE(pa.referencia_evidencia,pa.verificado_em,pa.atualizado_em_origem) DESC,
+                    ORDER BY COALESCE(pa.referencia_evidencia,pa.verificado_em,pa.atualizado_em_origem,pa.ingested_at) DESC,
                              pa.pessoa_atributo_observacao_id DESC
                 ) obs_ns
                 WHERE po.cpf=@cpf
