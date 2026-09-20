@@ -7,6 +7,12 @@ namespace Jornada.Linkage.Conference;
 
 internal static class Program
 {
+    private static readonly JsonSerializerOptions SummaryJson = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
+
     public static async Task<int> Main(string[] args)
     {
         try
@@ -52,11 +58,7 @@ internal static class Program
                     reportSha256 = summary.ReportSha256,
                     statisticalValidation = "NOT_ASSESSED_ISSUE_31"
                 },
-                new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                    WriteIndented = true
-                }));
+                SummaryJson));
 
             return summary.Status switch
             {
