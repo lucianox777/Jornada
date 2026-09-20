@@ -97,6 +97,7 @@ public sealed class SeedDatabaseTests
         var correcaoIdentidade = await ScalarAsync(connection, "SELECT COUNT(*) FROM sys.objects WHERE object_id IN(OBJECT_ID('identidade.correcao_identidade'),OBJECT_ID('identidade.correcao_identidade_item'))");
         var casosGovernados = await ScalarAsync(connection, "SELECT COUNT(*) FROM sys.objects WHERE object_id IN(OBJECT_ID('identidade.caso_conflito_identidade'),OBJECT_ID('identidade.caso_conflito_identidade_item'),OBJECT_ID('identidade.sp_abrir_caso_conflito_identidade'),OBJECT_ID('identidade.sp_aplicar_caso_conflito_identidade'))");
         var divergenciasGestor = await ScalarAsync(connection, "SELECT COUNT(*) FROM sys.objects WHERE object_id IN(OBJECT_ID('qualidade.divergencia_gestor'),OBJECT_ID('qualidade.sp_registrar_desfecho_divergencia'),OBJECT_ID('qualidade.v_divergencia_gestor_aberta'))");
+        var linkageReviewQueue = await ScalarAsync(connection, "SELECT (SELECT COUNT(*) FROM sys.objects WHERE object_id IN(OBJECT_ID('qualidade.sp_sincronizar_divergencias_linkage'),OBJECT_ID('qualidade.v_divergencia_linkage_contexto'))) + (SELECT COUNT(*) FROM sys.columns WHERE object_id=OBJECT_ID('qualidade.divergencia_gestor') AND name='linkage_run_id') + (SELECT COUNT(*) FROM sys.indexes WHERE object_id=OBJECT_ID('qualidade.divergencia_gestor') AND name='IX_divergencia_gestor_linkage_run') + (SELECT COUNT(*) FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID('qualidade.divergencia_gestor') AND name='fk_divergencia_gestor_linkage_run')");
         var fatosComSujeitoDeclarado = await ScalarAsync(connection, "SELECT COUNT(*) FROM sys.columns WHERE object_id=OBJECT_ID('gold.beneficio_concedido') AND name IN('pessoa_origem_id','sistema_origem_id','codigo_pessoa_origem','cpf_declarado','estado_atribuicao_identidade')");
         var fatosPendentesPermitidos = await ScalarAsync(connection, "SELECT COUNT(*) FROM sys.columns WHERE object_id=OBJECT_ID('gold.beneficio_concedido') AND name='pessoa_uuid' AND is_nullable=1");
         var biFatosIdentidade = await ScalarAsync(connection, "SELECT COUNT(*) FROM sys.objects WHERE object_id=OBJECT_ID('serving.v_bi_fatos_identidade')");
@@ -207,6 +208,7 @@ WHERE c.credencial_id<>x.credencial_id;");
             Assert.That(correcaoIdentidade, Is.EqualTo(2));
             Assert.That(casosGovernados, Is.EqualTo(4), "v3.45 exige abertura e aplicação governada independentes de CPF.");
             Assert.That(divergenciasGestor, Is.EqualTo(3), "Retorno ativo de divergências deve estar materializado.");
+            Assert.That(linkageReviewQueue, Is.EqualTo(5), "Conflitos probabilísticos publicados devem possuir roteamento e contexto governados.");
             Assert.That(fatosComSujeitoDeclarado, Is.EqualTo(5), "Gold factual deve preservar sujeito declarado e estado de atribuição.");
             Assert.That(fatosPendentesPermitidos, Is.EqualTo(1), "pessoa_uuid é atribuição canônica anulável, não gate do fato.");
             Assert.That(biFatosIdentidade, Is.Zero, "v3.46 remove a segunda fonte de verdade agregada FatosIdentidade.");
