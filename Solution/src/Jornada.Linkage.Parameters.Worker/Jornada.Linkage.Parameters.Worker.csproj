@@ -3,11 +3,7 @@
     <ProjectReference Include="..\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj" />
     <ProjectReference Include="..\Jornada.Pipeline.Coordination\Jornada.Pipeline.Coordination.csproj" />
     <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
-    <!-- Compartilha literalmente o scorer e a política de decisão do runtime para impedir drift
-         entre a calibração de thresholds e o Runner. Extração para library própria pode ocorrer
-         depois; nesta versão não existe cópia reimplementada da regra de decisão. -->
-    <Compile Include="..\Jornada.Linkage.Runner\FellegiSunterScoring.cs" Link="SharedRuntime\FellegiSunterScoring.cs" />
-    <Compile Include="..\Jornada.Linkage.Runner\ProbabilisticLinkagePolicy.cs" Link="SharedRuntime\ProbabilisticLinkagePolicy.cs" />
+    <ProjectReference Include="..\Jornada.Linkage.Core\Jornada.Linkage.Core.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
   </ItemGroup>
