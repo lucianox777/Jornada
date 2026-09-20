@@ -165,3 +165,8 @@ O bloco de governança do Linkage apresenta evidências com semânticas separada
 - **Validação estatística representativa**: permanece `PENDENTE_ISSUE_31` até a avaliação externa/representativa correspondente.
 
 Se o modelo ATIVO não possuir evidência de conferência persistida, o estado mostrado é `SEM_EVIDENCIA_MODELO_ATIVO`. O monitor é read-only: nenhuma dessas informações cria rota de ativação, validação ou promoção.
+
+
+### Identidade do modelo por execução
+
+Cada execução de Linkage exibe seu próprio `modelo_id` e `modelo_versao` vindos de `identidade.linkage_run`. O painel não atribui a runs históricos o modelo que estiver ATIVO no momento da consulta.
