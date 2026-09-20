@@ -21,6 +21,7 @@ FROM (VALUES
  (N'identidade.composicao_historico_aplicado'),
  (N'identidade.composicao_recomposicao_plano'),
  (N'identidade.composicao_publicacao'),
+ (N'auditoria.decisao_identidade_evento'),
  (N'identidade.blocking_chave'),
  (N'identidade.linkage_ruleset'),
  (N'identidade.linkage_ruleset_passe'),
@@ -44,7 +45,8 @@ FROM (VALUES
  (N'serving.v_bi_qualidade_resolucao_operacional_estrato'),
  (N'serving.v_bi_completude_pessoa'),
  (N'serving.v_pessoa_nome_referencia'),
- (N'serving.v_pessoa')
+ (N'serving.v_pessoa'),
+ (N'auditoria.v_decisao_identidade_evento')
 ) v(objeto)
 WHERE OBJECT_ID(v.objeto, N'V') IS NULL;
 
@@ -60,7 +62,8 @@ FROM (VALUES
  (N'identidade.tr_linkage_run_frequencia_nome_immutavel'),
  (N'identidade.tr_modelo_linkage_promotion_contract'),
  (N'identidade.tr_linkage_resultado_publicacao_imutavel'),
- (N'identidade.tr_linkage_resultado_bloqueia_delete')
+ (N'identidade.tr_linkage_resultado_bloqueia_delete'),
+ (N'auditoria.tr_decisao_identidade_evento_append_only')
 ) v(objeto)
 WHERE OBJECT_ID(v.objeto, N'TR') IS NULL;
 
@@ -68,6 +71,8 @@ IF OBJECT_ID(N'ref.sp_publicar_frequencia_nome_versao',N'P') IS NULL
     INSERT @missing(item) VALUES(N'PROC:ref.sp_publicar_frequencia_nome_versao');
 IF OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage',N'P') IS NULL
     INSERT @missing(item) VALUES(N'PROC:identidade.sp_publicar_resolucao_progressiva_linkage');
+IF OBJECT_ID(N'auditoria.sp_registrar_decisao_identidade',N'P') IS NULL
+    INSERT @missing(item) VALUES(N'PROC:auditoria.sp_registrar_decisao_identidade');
 
 DECLARE @required_columns TABLE(tabela SYSNAME NOT NULL,coluna SYSNAME NOT NULL,PRIMARY KEY(tabela,coluna));
 INSERT @required_columns(tabela,coluna) VALUES
@@ -168,6 +173,8 @@ IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_
     INSERT @missing(item) VALUES(N'CHECK:identidade.linkage_resultado.ck_linkage_resultado_publicacao');
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'identidade.pessoa_origem_progressiva_evento') AND name=N'UX_progressiva_evento_origem_linkage_run')
     INSERT @missing(item) VALUES(N'INDEX:identidade.pessoa_origem_progressiva_evento.UX_progressiva_evento_origem_linkage_run');
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'auditoria.decisao_identidade_evento') AND name=N'UX_decisao_identidade_caso_evento')
+    INSERT @missing(item) VALUES(N'INDEX:auditoria.decisao_identidade_evento.UX_decisao_identidade_caso_evento');
 IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'gold.pessoa') AND name=N'ck_gold_pessoa_nome_publicacao_completo')
     INSERT @missing(item) VALUES(N'CHECK:gold.pessoa.ck_gold_pessoa_nome_publicacao_completo');
 IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'gold.pessoa') AND name=N'ck_gold_pessoa_estado_identidade')
