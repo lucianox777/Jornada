@@ -1,7 +1,6 @@
 using Microsoft.Data.SqlClient;
 using System.Data;
 using Jornada.Operational.Sql;
-using Jornada.Linkage.Runner;
 
 namespace Jornada.Tests.Integration;
 
@@ -197,7 +196,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
             {
                 await using var queue = connection.CreateCommand();
                 queue.Transaction = tx;
-                queue.CommandText = ProbabilisticLinkageBatchRunner.ProbabilisticConflictReviewQueueSql();
+                queue.CommandText = "EXEC qualidade.sp_registrar_conflitos_linkage_publicados @linkage_run_id=@run_id;";
                 queue.Parameters.AddWithValue("@run_id", runId);
                 await queue.ExecuteNonQueryAsync();
             }
