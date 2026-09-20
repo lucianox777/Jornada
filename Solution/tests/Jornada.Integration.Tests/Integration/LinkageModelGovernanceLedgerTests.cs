@@ -35,6 +35,32 @@ public sealed class LinkageModelGovernanceLedgerTests
             await insert.ExecuteNonQueryAsync();
         }
 
+        await using (var blockingSupport = connection.CreateCommand())
+        {
+            blockingSupport.CommandText = """
+                INSERT identidade.linkage_ruleset(
+                    ruleset_id,modelo_id,ruleset_versao,algoritmo_versao,fingerprint_sha256)
+                VALUES(
+                    @id,@id,N'TEST_RULESET_V1',N'TEST_GOVERNANCE_V1',
+                    REPLICATE('a',64));
+
+                INSERT identidade.linkage_ruleset_passe(
+                    ruleset_id,passe_ordem,passe_id)
+                VALUES(@id,0,N'P001');
+
+                INSERT identidade.parametro_linkage(modelo_id,nome,valor)
+                VALUES
+                    (@id,N'NOMINAL_U_MIN_CONDITIONED_PAIRS_PER_PASS',1000),
+                    (@id,N'BLOCKING_PASS_U_01_SAMPLE_SIZE',1500),
+                    (@id,N'BLOCKING_PASS_U_01_NOME_MAE_EXACT',400),
+                    (@id,N'BLOCKING_PASS_U_01_NOME_MAE_HIGH',300),
+                    (@id,N'BLOCKING_PASS_U_01_NOME_MAE_MEDIUM',200),
+                    (@id,N'BLOCKING_PASS_U_01_NOME_MAE_LOW',150);
+                """;
+            blockingSupport.Parameters.AddWithValue("@id", modelId);
+            await blockingSupport.ExecuteNonQueryAsync();
+        }
+
         await using (var conference = connection.CreateCommand())
         {
             conference.CommandText = """
@@ -148,6 +174,14 @@ public sealed class LinkageModelGovernanceLedgerTests
                 Is.EqualTo("JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1"));
             Assert.That(monitor.LinkageConferenceGovernance.RoundTripStatus,
                 Is.EqualTo("OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO"));
+            Assert.That(monitor.LinkageBlockingPassSupport, Has.Count.EqualTo(1));
+            Assert.That(monitor.LinkageBlockingPassSupport[0].PassOrder, Is.EqualTo(1));
+            Assert.That(monitor.LinkageBlockingPassSupport[0].PassId, Is.EqualTo("P001"));
+            Assert.That(monitor.LinkageBlockingPassSupport[0].SampleSize, Is.EqualTo(1500));
+            Assert.That(monitor.LinkageBlockingPassSupport[0].MotherNamePresentSupport, Is.EqualTo(1050));
+            Assert.That(monitor.LinkageBlockingPassSupport[0].MinimumRequiredPerPass, Is.EqualTo(1000));
+            Assert.That(monitor.LinkageBlockingPassSupport[0].NameSufficient, Is.True);
+            Assert.That(monitor.LinkageBlockingPassSupport[0].MotherNameSufficient, Is.True);
             Assert.That(monitor.LinkageModelTransitions.Any(x =>
                 x.ModelId == modelId && x.Operation == "ACTIVATE" && x.NewStatus == "ATIVO"), Is.True);
         });
