@@ -57,7 +57,7 @@ public sealed class SqlServerLinkageRuleSetRoundTripTests
                     @modelo,@versao,'GERANDO',@algoritmo,@normalizacao,
                     'GOLD_PESSOA_UUID_PK','gold.pessoa','ci-roundtrip',
                     2,2,SYSDATETIMEOFFSET(),NULL,SYSUTCDATETIME(),
-                    'M_INTERGESTOR_U_GOLD_SERIALIZED',2,1,1,NULL);
+                    'CI_RULESET_ROUNDTRIP_CURRENT',2,1,1,NULL);
                 """, connection, transaction))
             {
                 model.Parameters.AddWithValue("@modelo", modelId);
