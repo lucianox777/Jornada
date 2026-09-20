@@ -12,7 +12,7 @@
     h1{font-size:20px;margin:0}.sub{font-size:12px;color:#627083;margin-top:3px}
     main{max-width:1500px;margin:0 auto;padding:20px 24px 50px}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .badge{border-radius:999px;padding:7px 12px;font-weight:700;font-size:12px;letter-spacing:.04em;background:#e8edf2;color:#465568}
-    .NORMAL,.OK{background:#dff5e7;color:#146b36}.ATENCAO,.NAO_CONFIGURADO{background:#fff1cc;color:#7a5300}.FALHA,.DIVERGENTE{background:#ffe0df;color:#9b1c18}
+    .NORMAL,.OK,.CONFORME{background:#dff5e7;color:#146b36}.ATENCAO,.NAO_CONFIGURADO,.NAO_EXECUTADA,.SEM_EVIDENCIA_MODELO_ATIVO,.SEM_MODELO_ATIVO{background:#fff1cc;color:#7a5300}.FALHA,.DIVERGENTE{background:#ffe0df;color:#9b1c18}
     button{border:1px solid #ccd5df;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}button:hover{background:#f7f9fb}
     .login{background:#fff;border:1px solid #dfe5eb;border-radius:12px;padding:18px;margin-bottom:18px;display:flex;gap:12px;align-items:end;flex-wrap:wrap}
     .login label{display:grid;gap:5px;font-size:12px;color:#536174}.login input{border:1px solid #cbd5df;border-radius:8px;padding:9px 10px;min-width:240px}.login .key{min-width:380px;max-width:100%}
@@ -104,7 +104,7 @@
     $('bronze').innerHTML=`<div class="metric-grid"><div class="metric"><b>${n(x.objectsExamined)}</b><span>objetos examinados</span></div><div class="metric"><b>${n(x.orphansRemoved)}</b><span>órfãos removidos</span></div><div class="metric"><b>${n(x.temporariesRemoved)}</b><span>temporários removidos</span></div><div class="metric"><b>${n(x.storageFailures)}</b><span>falhas de storage</span></div></div><p class="muted">Último ciclo: ${esc(dt(x.startedAt))} → ${esc(dt(x.finishedAt))} · locks não adquiridos: ${n(x.locksNotAcquired)}</p>`;
   }
 
-  function renderModelGovernance(model, transitions){
+  function renderModelGovernance(model, conference, transitions){
     if(!model){ $('modelGovernance').innerHTML='<div class="empty">Sem informação de governança do modelo.</div>'; return; }
     const status=model.status || 'SEM_MODELO_ATIVO';
     const modelLabel=model.modelVersion == null ? 'nenhum modelo ATIVO' : `v${n(model.modelVersion)} · ${esc(shortId(model.modelId))}`;
@@ -112,6 +112,15 @@
       ? `${esc(model.frequencyReferenceCode)} · <span class="mono">${esc((model.frequencyReferenceSha256 || '').slice(0,16) || 'sem hash')}</span>`
       : 'não fixada';
     const transitionRows=(transitions||[]).map(x=>`<tr><td>${esc(dt(x.occurredAt))}</td><td>v${n(x.modelVersion)}</td><td>${esc(x.previousStatus || '—')} → <b>${esc(x.newStatus)}</b></td><td>${esc(x.operation)}</td><td>${esc(x.executorApplication || '—')}</td></tr>`).join('');
+    const conferenceStatus=conference?.status || (model.modelId ? 'SEM_EVIDENCIA_MODELO_ATIVO' : 'SEM_MODELO_ATIVO');
+    const conferenceDetail=conference?.evidenceId
+      ? `<div class="bundle-grid">
+          <div class="bundle-cell"><span class="muted">Conferência de implementação</span><b><span class="badge ${esc(conferenceStatus)}">${esc(conferenceStatus)}</span></b></div>
+          <div class="bundle-cell"><span class="muted">Método / tolerância</span><b class="mono">${esc(conference.methodVersion || '—')} · ${esc(conference.toleranceVersion || '—')}</b></div>
+          <div class="bundle-cell"><span class="muted">Última evidência</span><b>${esc(dt(conference.occurredAt))} · ${n(conference.candidatesEvaluated)} candidatos sintéticos</b></div>
+          <div class="bundle-cell"><span class="muted">Decisão final / top-1</span><b>${conference.sameFinalDecision?'igual':'divergente'} / ${conference.sameTop1?'igual':'divergente'}</b></div>
+        </div>`
+      : `<div class="bundle-head"><span class="badge ${esc(conferenceStatus)}">${esc(conferenceStatus)}</span><span class="muted">Nenhuma evidência persistida de conferência para o modelo ATIVO.</span></div>`;
     $('modelGovernance').innerHTML=`
       <div class="bundle-head"><span class="badge ${esc(status)}">${esc(status)}</span><span class="muted">Validação estatística: ${esc(model.statisticalValidation || 'PENDENTE_ISSUE_31')}</span></div>
       <div class="bundle-grid">
@@ -123,6 +132,13 @@
         <div class="bundle-cell"><span class="muted">u de nome / mãe</span><b>${esc(model.nominalUNameSource)} / ${esc(model.nominalUMotherSource)}</b></div>
       </div>
       <p class="muted">A promoção vale para execuções futuras; vínculos já publicados não são recalculados automaticamente. Threshold/margem não são expostos nesta superfície enquanto o acesso operacional definitivo estiver pendente.</p>
+      <h3 style="font-size:13px;margin:14px 0 8px">Conferência e evidências</h3>
+      ${conferenceDetail}
+      <div class="bundle-grid" style="margin-top:8px">
+        <div class="bundle-cell"><span class="muted">Validação estatística representativa</span><b>${esc(conference?.statisticalValidation || model.statisticalValidation || 'PENDENTE_ISSUE_31')}</b></div>
+        <div class="bundle-cell"><span class="muted">Round-trip do formato</span><b class="mono">${esc(conference?.roundTripMethod || 'JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1')}</b><span class="muted">${esc(conference?.roundTripStatus || 'OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO')}</span></div>
+      </div>
+      <p class="muted">Conferência de implementação, round-trip de formato e validação estatística são evidências distintas. O round-trip é executado no export de auditoria e não é persistido como aprovação por modelo.</p>
       ${transitionRows ? `<div class="scroll"><table><thead><tr><th>Transição</th><th>Modelo</th><th>Estado</th><th>Operação</th><th>Executor técnico</th></tr></thead><tbody>${transitionRows}</tbody></table></div>` : '<div class="empty">Nenhuma transição de modelo registrada.</div>'}
     `;
   }
@@ -142,7 +158,7 @@
       const data=await response.json(); const m=data.monitor;
       showError(''); setOverall(m.overallStatus); state.lastGenerated=new Date(m.generatedAt);
       $('login').classList.add('hidden'); $('dashboard').classList.remove('hidden');
-      renderNodes(m.components); renderReadiness(data.readiness); renderConfiguration(m.configurationHealth); renderQueue(m.queue); renderProcessing(m.processing); renderDeliveries(m.recentDeliveries); renderBronze(m.bronzeMaintenance); renderModelGovernance(m.linkageModelGovernance,m.linkageModelTransitions); renderLinkage(m.linkageRuns);
+      renderNodes(m.components); renderReadiness(data.readiness); renderConfiguration(m.configurationHealth); renderQueue(m.queue); renderProcessing(m.processing); renderDeliveries(m.recentDeliveries); renderBronze(m.bronzeMaintenance); renderModelGovernance(m.linkageModelGovernance,m.linkageConferenceGovernance,m.linkageModelTransitions); renderLinkage(m.linkageRuns);
       $('updated').textContent='atualizado '+dt(m.generatedAt);
     }catch(error){ showError(error.message || 'Falha ao atualizar o monitor.'); setOverall('FALHA'); $('login').classList.remove('hidden'); }
   }
