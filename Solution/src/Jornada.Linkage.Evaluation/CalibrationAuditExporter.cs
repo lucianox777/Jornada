@@ -47,6 +47,10 @@ public sealed class CalibrationAuditExporter(SqlConnection connection, int comma
             InterchangeContract: new LinkageCalibrationAuditInterchangeContract(
                 StatusAtExport: model.Status,
                 UProbabilitySemantics: LinkageCalibrationAuditExchangePolicy.UProbabilitySemantics,
+                NominalNameUSource: LinkageCalibrationAuditExchangePolicy.ResolveNominalUSource(
+                    parameters, motherName: false),
+                NominalMotherNameUSource: LinkageCalibrationAuditExchangePolicy.ResolveNominalUSource(
+                    parameters, motherName: true),
                 SplinkDefaultRandomPairUEquivalent: false,
                 ComparisonStateMapping: new LinkageCalibrationAuditComparisonMapping(
                     Complete: false,
