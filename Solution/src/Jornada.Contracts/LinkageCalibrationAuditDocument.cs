@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Jornada.Contracts;
 
@@ -115,7 +116,8 @@ public static class LinkageCalibrationAuditRoundTrip
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
     };
 
     public static LinkageCalibrationAuditDocument Import(string json)
@@ -131,9 +133,28 @@ public static class LinkageCalibrationAuditRoundTrip
         if (!string.Equals(document.Purpose, "EXTERNAL_REPRODUCIBILITY_READ_ONLY", StringComparison.Ordinal))
             throw new InvalidDataException($"purpose inesperado: {document.Purpose}.");
 
+        if (document.Model is null
+            || document.InterchangeContract is null
+            || document.InterchangeContract.ComparisonStateMapping is null
+            || document.Blocking is null
+            || document.TermFrequency is null
+            || document.Parameters is null
+            || document.Statistics is null
+            || document.Safeguards is null)
+            throw new InvalidDataException("Documento de auditoria incompleto.");
+
+        if (document.Model.ModelId == Guid.Empty || document.Model.Version <= 0)
+            throw new InvalidDataException("Identidade/versão do modelo de auditoria inválida.");
+
         LinkageCalibrationAuditExchangePolicy.EnsureExportableModelStatus(
             document.Model.ModelId,
             document.Model.Status);
+
+        if (!string.Equals(
+                document.InterchangeContract.StatusAtExport,
+                document.Model.Status,
+                StringComparison.Ordinal))
+            throw new InvalidDataException("statusAtExport diverge do status persistido do modelo.");
 
         if (!string.Equals(
                 document.InterchangeContract.UProbabilitySemantics,
@@ -144,6 +165,29 @@ public static class LinkageCalibrationAuditRoundTrip
             throw new InvalidDataException("O documento não pode declarar equivalência ao u aleatório padrão do Splink.");
         if (document.InterchangeContract.ComparisonStateMapping.Complete)
             throw new InvalidDataException("O contrato corrente não possui mapeamento completo dos estados semânticos.");
+
+        if (!document.InterchangeContract.ComparisonStateMapping.UnmappedOrNonBijectiveStates
+                .SequenceEqual(LinkageCalibrationAuditExchangePolicy.UnmappedOrNonBijectiveComparisonStates, StringComparer.Ordinal))
+            throw new InvalidDataException("Estados não bijetivos do intercâmbio divergem do contrato corrente.");
+
+        if (document.TermFrequency.RuntimeEnabled)
+            throw new InvalidDataException("O artefato de auditoria não pode declarar term frequency habilitada no runtime.");
+
+        if (document.Model.NameFrequencyVersionId is long pinnedReferenceId)
+        {
+            if (document.TermFrequency.ReferenceSnapshot is null)
+                throw new InvalidDataException("Modelo fixa referência nominal, mas o snapshot correspondente não foi exportado.");
+            if (document.TermFrequency.ReferenceSnapshot.VersionId != pinnedReferenceId)
+                throw new InvalidDataException("Snapshot nominal exportado diverge da versão fixada no modelo.");
+        }
+        else if (document.TermFrequency.ReferenceSnapshot is not null)
+        {
+            throw new InvalidDataException("Snapshot nominal exportado sem versão correspondente fixada no modelo.");
+        }
+
+        var ruleSetIds = document.Blocking.RuleSets.Select(x => x.RuleSetId).ToHashSet();
+        if (document.Blocking.Passes.Any(x => !ruleSetIds.Contains(x.RuleSetId)))
+            throw new InvalidDataException("Passe de blocking referencia ruleset ausente do documento.");
 
         return document;
     }
