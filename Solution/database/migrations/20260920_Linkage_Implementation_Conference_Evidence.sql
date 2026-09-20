@@ -155,7 +155,9 @@ BEGIN
 
  IF @status=N'DIVERGENTE'
     AND (@candidatos_avaliados<=0 OR @motivo IS NULL
-         OR NOT(@mesma_decisao_final=0 OR @max_llr_par_observado>@max_llr_par_permitido))
+         OR (@mesma_decisao_final<>0
+             AND (@max_llr_par_observado IS NULL
+                  OR @max_llr_par_observado<=@max_llr_par_permitido)))
     THROW 51981,'Evidência DIVERGENTE não demonstra divergência primária.',1;
 
  IF @status=N'NAO_EXECUTADA' AND @motivo IS NULL
