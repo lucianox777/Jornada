@@ -250,34 +250,34 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
                 WHERE modelo_id=@active_model_id
             )
             SELECT
-                rp.passe_ordem,
+                rp.passe_ordem+1 passe_ordem_exibida,
                 rp.passe_id,
                 CONVERT(BIGINT,COALESCE(MAX(CASE WHEN p.nome=
-                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_SAMPLE_SIZE'
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_SAMPLE_SIZE'
                     THEN p.valor END),0)) sample_size,
                 CONVERT(BIGINT,COALESCE(SUM(CASE WHEN p.nome IN(
-                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_EXACT',
-                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_HIGH',
-                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_MEDIUM',
-                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_LOW')
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_EXACT',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_HIGH',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_MEDIUM',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_LOW')
                     THEN p.valor ELSE 0 END),0)) mother_present_support,
                 ms.minimo,
                 CAST(CASE WHEN COALESCE(MAX(CASE WHEN p.nome=
-                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_SAMPLE_SIZE'
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_SAMPLE_SIZE'
                     THEN p.valor END),0)>=ms.minimo AND ms.minimo>0 THEN 1 ELSE 0 END AS BIT) name_sufficient,
                 CAST(CASE WHEN COALESCE(SUM(CASE WHEN p.nome IN(
-                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_EXACT',
-                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_HIGH',
-                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_MEDIUM',
-                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_NOME_MAE_LOW')
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_EXACT',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_HIGH',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_MEDIUM',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_LOW')
                     THEN p.valor ELSE 0 END),0)>=ms.minimo AND ms.minimo>0 THEN 1 ELSE 0 END AS BIT) mother_sufficient
             FROM active_ruleset ar
             JOIN identidade.linkage_ruleset_passe rp ON rp.ruleset_id=ar.ruleset_id
             CROSS JOIN min_support ms
             LEFT JOIN identidade.parametro_linkage p
               ON p.modelo_id=@active_model_id
-             AND LEFT(p.nome,LEN(N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_'))=
-                 N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem),2)+N'_'
+             AND LEFT(p.nome,LEN(N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_'))=
+                 N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_'
             GROUP BY rp.passe_ordem,rp.passe_id,ms.minimo
             ORDER BY rp.passe_ordem;
 
