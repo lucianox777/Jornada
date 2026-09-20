@@ -12,6 +12,7 @@
 - `Governanca_Finalidade_Acesso.md` - gate de decisão institucional que impede introduzir finalidade livre por requisição antes de deliberação normativa e registra o desenho preferencial caso a finalidade venha a ser exigida.
 - `Calibrador_Plano_Blocking_Analise.md` - plano analítico, não homologado, para comparar features, passes e rulesets de blocking com replay, evidência e gates sem inventar parâmetros institucionais.
 - `Gold_Pessoa_Universo_CPF.md` - proposta revisão 6 para universo Gold ancorado em CPF, campos cadastrais anuláveis, nome civil/social, código estável por origem e decisões institucionais ainda pendentes; não substitui a Especificação Técnica publicada nem declara implementação concluída.
+- `Identity_Decision_Ledger.md` - fonte canônica append-only dos atos governados de identidade, com autoria por credencial autenticada, operação gerada pelo SQL Server e atomicidade com a mutação.
 - `../tests/fixtures/ingestao/` - payloads de referência usados como fixtures dos testes automatizados.
 
 ## Hierarquia normativa publicada
