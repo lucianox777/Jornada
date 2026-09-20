@@ -167,7 +167,7 @@ public static class IndependentImplementationConference
         ImplementationConferenceRequest request,
         IReadOnlyList<ImplementationConferenceCandidateResult> ranked)
     {
-        if (ranked.Length == 0)
+        if (ranked.Count == 0)
             return new(
                 ResolutionStatus.NAO_RESOLVIDO,
                 null,
