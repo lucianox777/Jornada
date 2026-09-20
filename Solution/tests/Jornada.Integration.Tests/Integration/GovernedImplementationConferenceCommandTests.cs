@@ -234,7 +234,7 @@ public sealed class GovernedImplementationConferenceCommandTests
                 version.Parameters.AddWithValue(
                     "@codigo",
                     $"CI-CONFERENCE-{Guid.NewGuid():N}");
-                versionId = Convert.ToInt64(await version.ExecuteScalarAsync());
+                versionId = Convert.ToInt64(await version.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
             }
 
             await using (var rows = connection.CreateCommand())
