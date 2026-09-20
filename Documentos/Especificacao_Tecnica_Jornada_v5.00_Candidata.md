@@ -93,6 +93,15 @@ A promoção `RASCUNHO → VALIDADO → ATIVO` deve ser explícita. O schema adm
 
 A avaliação independente deve separar amostra de treino e avaliação quando aplicável, rejeitar rótulos inconclusivos em métricas que exijam verdade-terreno e não assumir que UUIDs diferentes representam necessariamente pessoas diferentes.
 
+A conferência independente de implementação é distinta da avaliação estatística representativa. A primeira versão governada, `JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1`, recebe estados comparativos e inputs de guard já pré-computados e recalcula independentemente LLR, agregação, posterior, ranking e política final; portanto não afirma independência dos comparadores de nome/data nem da derivação do flag de colisão demográfica.
+
+O schema persiste somente evidência agregada da conferência em `auditoria.linkage_conferencia_evidencia`, de forma append-only e sem PII, identificadores de candidatos ou scores par-a-par. Cada registro fica amarrado por SHA-256 ao snapshot decisório corrente do modelo; o assert de promoção recomputa esse fingerprint e rejeita evidência obsoleta se parâmetros, estatísticas ou ruleset forem alterados depois da conferência.
+
+O contrato de tolerância da conferência permanece `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION` e não possui valor numérico de produção. Enquanto esse estado persistir, o assert de conferência não integra `VALIDATE` nem `ACTIVATE`; portanto a existência da tabela/procedures não antecipa aprovação nem altera o fluxo operacional de promoção. A sequência `GENERATE_DRAFT → CONFERENCIA → VALIDATE → ACTIVATE` só poderá ser ativada após o congelamento/versionamento explícito da tolerância e a implementação do comando governado que produza o request/relatório do modelo real.
+
+A conferência de implementação também não pode declarar a validação estatística representativa: o campo persistido correspondente fica restrito a `NOT_ASSESSED_ISSUE_31`. A validação estatística continua sendo gate separado da issue #31.
+
+
 ## 8. Referências IBGE de nomes
 
 Frequências oficiais do IBGE podem ser usadas como evidência de blocking e calibração quando aplicável, sempre com proveniência e versão explícitas.
