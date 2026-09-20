@@ -335,10 +335,13 @@ internal static class PriorCounterfactualAuditCommand
                 $"Observação {row.ObservationId} possui segundo candidato sem margem persistida.");
 
         var bestLogOdds = priorDeltaLogOdds;
+        var demographicExactCollisionRisk = row.Scenario is
+            "EXACT" or "MOTHER_ABBREV" or "NAME_COLLISION" or "HARD_HOMONYM";
         var best = new CandidateScore(
             bestUuid,
             ShiftPosterior(row.PersistedBestScore, priorDeltaLogOdds),
-            bestLogOdds);
+            bestLogOdds,
+            demographicExactCollisionRisk);
 
         if (row.PersistedSecondCandidateUuid is not { } secondUuid)
             return new[] { best };

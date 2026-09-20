@@ -4,7 +4,7 @@ Status: implementado tecnicamente; ativação probabilística continua sujeita a
 
 ## Contexto
 
-O alvo relacional operacional de HML/Produção da Jornada é Microsoft SQL Server. O `Program.cs` do `Jornada.Linkage.Parameters.Worker` usa `LinkageParametersWorker` quando `Database:Provider` é SQL Server e usa `PostgreSqlLinkageParametersWorker` apenas quando o provider é PostgreSQL.
+O alvo relacional operacional de HML/Produção da Jornada é Microsoft SQL Server. O `Program.cs` do `Jornada.Linkage.Parameters.Worker` usa `LinkageParametersWorker` quando `Database:Provider` é SQL Server e; não existe caminho operacional PostgreSQL nesta candidata.
 
 ## Paridade implementada
 
@@ -14,11 +14,13 @@ Os limites da busca bounded continuam vindo de `BlockingRuleSetSearchConfigurati
 
 `LinkageRuleSetWriter.WriteAsync(...)` persiste o ruleset na mesma transação que grava os parâmetros e promove o modelo de `GERANDO` para `RASCUNHO`. Assim, falha na escrita/validação do ruleset reverte a publicação do draft; modelo e ruleset não podem ser publicados parcialmente.
 
+Desde `FS_DECISION_THRESHOLD_PARETO_V1`, o caminho SQL Server também deixa de aceitar `T_LINKAGE` e margem como constantes operacionais. O split determinístico por pessoa-base ocorre antes das amostras m/u e da busca do ruleset: apenas TRAIN alimenta estimação e blocking. Depois de congelados m/u + ruleset, observações CPF rotuladas das partições VALIDATION/TEST são reexecutadas com CPF oculto usando exatamente o scorer/policy compilado em `Jornada.Linkage.Core`. A grade de threshold/margem nasce somente de VALIDATION; TEST não retroalimenta a escolha e pode apenas bloquear promoção.
+
 Os parâmetros incorporados ao fingerprint são arredondados para a mesma escala `DECIMAL(30,12)` usada na persistência SQL Server, permitindo reconstrução canônica pelo `LinkageRuleSetReader`.
 
 ## Fail-closed de promoção
 
-Para modelos produzidos pelo método `M_INTERGESTOR_U_GOLD_SERIALIZED`, `VALIDATE` e `ACTIVATE` exigem um `identidade.linkage_ruleset` com ao menos um passe e campos completos. Ausência ou incompletude do ruleset impede a promoção. `GENERATE_DRAFT` também recusa amostra u vazia.
+Para modelos produzidos pelo método `M_INTERGESTOR_U_BIRTH_BLOCKING_IBGE_NAMES_MC_V4`, `VALIDATE` e `ACTIVATE` exigem um `identidade.linkage_ruleset` com ao menos um passe e campos completos. Ausência ou incompletude do ruleset impede a promoção. `GENERATE_DRAFT` também recusa amostra u vazia.
 
 A implementação não altera a precedência determinística CPF→UUID, não reativa PostgreSQL como banco operacional, não ativa modelos automaticamente e não introduz thresholds institucionais novos.
 

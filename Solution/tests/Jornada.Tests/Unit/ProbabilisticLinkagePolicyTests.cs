@@ -167,6 +167,44 @@ public sealed class ProbabilisticLinkagePolicyTests
     }
 
     [Test]
+    public void V6_calibrated_conflict_floor_remains_active_when_link_threshold_rises()
+    {
+        var parameters = SemanticBirthParameters(includeLegacyFlags: false);
+        parameters[LinkageParameterCatalog.Threshold] = .99m;
+        parameters[LinkageParameterCatalog.LogOddsConflictMargin] = .10m;
+        parameters[LinkageParameterCatalog.DualThresholdConflictGuard] = 1m;
+        parameters[LinkageParameterCatalog.DualThresholdConflictFloorV2] = 1m;
+        parameters[LinkageParameterCatalog.DualThresholdConflictFloor] = .95m;
+
+        var model = LinkageModelPolicy.Create(
+            ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters);
+        var ranking = new[]
+        {
+            new CandidateScore(CandidateA, .999m, 7m),
+            new CandidateScore(CandidateB, .96m, 3m)
+        };
+
+        var decision = ProbabilisticLinkageDecisions.ResolveRanked(
+            model, ranking, "SEM_CANDIDATO_TESTE");
+
+        var legacyParameters = new Dictionary<string, decimal>(parameters, StringComparer.Ordinal);
+        legacyParameters.Remove(LinkageParameterCatalog.DualThresholdConflictFloorV2);
+        legacyParameters.Remove(LinkageParameterCatalog.DualThresholdConflictFloor);
+        var legacy = LinkageModelPolicy.Create(
+            ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, legacyParameters);
+        var legacyDecision = ProbabilisticLinkageDecisions.ResolveRanked(
+            legacy, ranking, "SEM_CANDIDATO_TESTE");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(decision.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
+            Assert.That(decision.Motivo, Is.EqualTo("SEGUNDO_CANDIDATO_ACIMA_PISO_CONFLITO"));
+            Assert.That(legacyDecision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO),
+                "Sem o piso independente, elevar T enfraquece a guarda antiga quando o segundo candidato cai abaixo de T.");
+        });
+    }
+
+    [Test]
     public void Frozen_ranking_replay_uses_the_same_runtime_decision_policy()
     {
         var parameters = SemanticBirthParameters(includeLegacyFlags: false);

@@ -122,8 +122,17 @@ public sealed class LinkageParametersWorker(
         var samplePoolSize = Math.Max(sampleSize, configuration.GetValue("LinkageParameters:TrainingSamplePoolSize", 1_000_000));
         var minimumIndependentMatchedPairs = Math.Max(100, configuration.GetValue("LinkageParameters:MinimumIndependentMatchedPairs", 5_000));
         var smoothingAlpha = Math.Max(0.0001m, configuration.GetValue("LinkageParameters:SmoothingAlpha", 0.5m));
-        var threshold = Math.Clamp(configuration.GetValue("LinkageParameters:TLinkage", 0.95m), 0.5m, 0.999999m);
-        var conflictMargin = Math.Clamp(configuration.GetValue("LinkageParameters:ConflictMargin", 0.03m), 0.0001m, 0.5m);
+        var decisionCalibrationSeed = Math.Max(0, configuration.GetValue("LinkageParameters:DecisionCalibration:Seed", 20260919));
+        var decisionValidationBasisPoints = Math.Clamp(
+            configuration.GetValue("LinkageParameters:DecisionCalibration:ValidationBasisPoints", 2_000),
+            100,
+            4_900);
+        var decisionTestBasisPoints = Math.Clamp(
+            configuration.GetValue("LinkageParameters:DecisionCalibration:TestBasisPoints", 2_000),
+            100,
+            4_900);
+        if (decisionValidationBasisPoints + decisionTestBasisPoints >= 10_000)
+            throw new InvalidOperationException("DecisionCalibration VALIDATION + TEST deve deixar partição TRAIN não vazia.");
         var blockingSearchOptions = BlockingRuleSetSearchConfiguration.FromConfiguration(configuration);
         var readCommandTimeoutSeconds = Math.Max(30, configuration.GetValue("LinkageParameters:ReadCommandTimeoutSeconds", 900));
         var ibgeNominalUPairCount = Math.Clamp(
@@ -155,8 +164,12 @@ public sealed class LinkageParametersWorker(
                 if (statistics.PopulationSize <= 0)
                     throw new InvalidOperationException("Gold Pessoas vazia. A primeira ingestão cadastral elegível deve formar o baseline da Gold antes da geração de parâmetros.");
 
-                matchedPairs = await ReadDeterministicMatchedPairsAsync(connection, sampleSize, samplePoolSize, workCt);
-                unmatchedCandidatePairs = await ReadGoldUnmatchedPairsAsync(connection, normalizationVersion, sampleSize, samplePoolSize, workCt);
+                matchedPairs = await ReadDeterministicMatchedPairsAsync(
+                    connection, sampleSize, samplePoolSize,
+                    decisionCalibrationSeed, decisionValidationBasisPoints, decisionTestBasisPoints, workCt);
+                unmatchedCandidatePairs = await ReadGoldUnmatchedPairsAsync(
+                    connection, normalizationVersion, sampleSize, samplePoolSize,
+                    decisionCalibrationSeed, decisionValidationBasisPoints, decisionTestBasisPoints, workCt);
 
                 if (matchedPairs.Count < minimumIndependentMatchedPairs)
                     throw new InvalidOperationException($"Amostra m independente insuficiente: {matchedPairs.Count} pares inter-Gestores; mínimo={minimumIndependentMatchedPairs}. O modelo permanece sem publicação até existir evidência independente suficiente.");
@@ -184,7 +197,9 @@ public sealed class LinkageParametersWorker(
                 workCt);
 
             var unmatchedSample = await BlockingConditionedUnmatchedPairReader.ReadAsync(
-                connection, normalizationVersion, blocking.Passes, sampleSize, samplePoolSize, readCommandTimeoutSeconds, workCt);
+                connection, normalizationVersion, blocking.Passes, sampleSize, samplePoolSize,
+                decisionCalibrationSeed, decisionValidationBasisPoints, decisionTestBasisPoints,
+                readCommandTimeoutSeconds, workCt);
             var unmatchedPairs = unmatchedSample.Pairs;
             if (unmatchedPairs.Count == 0)
                 throw new InvalidOperationException("Amostra u vazia no universo do ruleset vencedor. O modelo permanece sem publicação.");
@@ -205,9 +220,12 @@ public sealed class LinkageParametersWorker(
                 new IbgeNominalUBootstrapOptions(unchecked(ibgeNominalUSeed + 1), ibgeNominalUPairCount));
 
             var modelParameters = ApplyIbgeNominalU(
+                // T_LINKAGE e margem abaixo são apenas placeholders transitórios exigidos pelo
+                // objeto de parâmetros durante o score. Eles são obrigatoriamente substituídos
+                // pela calibração Pareto antes de qualquer persistência de RASCUNHO.
                 LinkageParameterEstimator.Estimate(
                     matchedPairs, unmatchedPairs, statistics.PopulationSize, statistics.DistinctBirthDates,
-                    smoothingAlpha, threshold, conflictMargin),
+                    smoothingAlpha, 0.5m, 0.000001m),
                 ibgeReference,
                 ibgePersonU,
                 ibgeMotherU);
@@ -219,6 +237,28 @@ public sealed class LinkageParametersWorker(
                 modelParameters,
                 candidatePrior);
 
+            var decisionCalibrationScenarios = await BlockingDecisionThresholdCalibrationReader.ReadAsync(
+                connection,
+                normalizationVersion,
+                blocking.Passes,
+                algorithmVersion,
+                modelParameters,
+                decisionCalibrationSeed,
+                decisionValidationBasisPoints,
+                decisionTestBasisPoints,
+                readCommandTimeoutSeconds,
+                workCt);
+            var decisionCalibration = FsDecisionThresholdCalibrator.Calibrate(
+                algorithmVersion,
+                modelParameters,
+                decisionCalibrationScenarios,
+                decisionCalibrationSeed,
+                decisionValidationBasisPoints,
+                decisionTestBasisPoints);
+            modelParameters = FsDecisionThresholdCalibrator.ApplySelected(
+                modelParameters,
+                decisionCalibration);
+
             var persistedParameters = BuildPersistedParameters(
                 modelParameters, statistics, samplePoolSize, minimumIndependentMatchedPairs,
                 unmatchedCandidatePairs.Count, unmatchedSample.SemanticBirthPoolSupport, unmatchedSample.CandidatePoolSize);
@@ -229,7 +269,7 @@ public sealed class LinkageParametersWorker(
                 persistedParameters, ruleSet, ibgeReference, workCt);
 
             logger.LogInformation(
-                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; abbrev_m_nome={AbbrevMName}; abbrev_u_ref_nome={AbbrevUName}; prior_ativo={ActivePrior}; prior_candidato_par={CandidatePairPrior}; prior_pares={CandidatePairs}; prior_recall={CandidateRecall}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
+                "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; abbrev_m_nome={AbbrevMName}; abbrev_u_ref_nome={AbbrevUName}; prior_ativo={ActivePrior}; prior_candidato_par={CandidatePairPrior}; prior_pares={CandidatePairs}; prior_recall={CandidateRecall}; T_calibrado={Threshold}; piso_segundo_candidato={ConflictFloor}; margem_logodds_calibrada={ConflictMargin}; pareto={ParetoCount}; val_fp={ValidationFp}; test_fp={TestFp}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
                 version, ruleSet.RuleSetVersion, statistics.PopulationSize, matchedPairs.Count, unmatchedCandidatePairs.Count,
                 unmatchedPairs.Count, unmatchedSample.CandidatePoolSize, ibgeNominalUPairCount, ibgeReference.Code,
                 persistedParameters["DIAG_ABBREV_M_NOME_SUPPORT"], persistedParameters["DIAG_ABBREV_U_NOME_SUPPORT"],
@@ -237,6 +277,12 @@ public sealed class LinkageParametersWorker(
                 candidatePrior.MatchProbability,
                 candidatePrior.TotalCandidatePairs,
                 candidatePrior.CandidateRecall,
+                persistedParameters[LinkageParameterCatalog.Threshold],
+                persistedParameters[LinkageParameterCatalog.DualThresholdConflictFloor],
+                persistedParameters[LinkageParameterCatalog.LogOddsConflictMargin],
+                persistedParameters["FS_DECISION_CALIBRATION_FRONTIER"],
+                persistedParameters["FS_DECISION_CALIBRATION_VALIDATION_FP"],
+                persistedParameters["FS_DECISION_CALIBRATION_TEST_FP"],
                 corpusCapturedAtUtc, SqlServerSampleMethod, samplePoolSize);
         }
         catch (OperationCanceledException) when (pipelineLease.IsLost)
@@ -465,7 +511,14 @@ public sealed class LinkageParametersWorker(
             Convert.ToInt64(reader.GetValue(4), CultureInfo.InvariantCulture), reader.IsDBNull(5) ? null : reader.GetFieldValue<DateTimeOffset>(5));
     }
 
-    private async Task<IReadOnlyList<IdentityTrainingPair>> ReadDeterministicMatchedPairsAsync(SqlConnection connection, int sampleSize, int samplePoolSize, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<IdentityTrainingPair>> ReadDeterministicMatchedPairsAsync(
+        SqlConnection connection,
+        int sampleSize,
+        int samplePoolSize,
+        int decisionCalibrationSeed,
+        int validationBasisPoints,
+        int testBasisPoints,
+        CancellationToken cancellationToken)
     {
         var command = new SqlCommand(
             """
@@ -473,6 +526,7 @@ public sealed class LinkageParametersWorker(
                 SELECT TOP (@pool_size) g.pessoa_uuid
                 FROM gold.pessoa g
                 WHERE g.estado_identidade=N'REFERENCIA'
+                  AND CONVERT(int,SUBSTRING(HASHBYTES('SHA2_256',CONVERT(varchar(100),CONCAT(@decision_seed,':',LOWER(CONVERT(varchar(36),g.pessoa_uuid))))),1,3)) % 10000 < @train_cut
                   AND NOT EXISTS (
                     SELECT 1
                     FROM identidade.vinculo_fonte vf_val
@@ -506,10 +560,20 @@ public sealed class LinkageParametersWorker(
         { CommandTimeout = Math.Max(30, configuration.GetValue("LinkageParameters:ReadCommandTimeoutSeconds", 900)) };
         command.Parameters.Add("@sample_size", SqlDbType.Int).Value = sampleSize;
         command.Parameters.Add("@pool_size", SqlDbType.Int).Value = samplePoolSize;
+        command.Parameters.Add("@decision_seed", SqlDbType.Int).Value = decisionCalibrationSeed;
+        command.Parameters.Add("@train_cut", SqlDbType.Int).Value = 10_000 - validationBasisPoints - testBasisPoints;
         return await ReadTrainingPairsAsync(command, cancellationToken);
     }
 
-    private async Task<IReadOnlyList<IdentityTrainingPair>> ReadGoldUnmatchedPairsAsync(SqlConnection connection, string normalizationVersion, int sampleSize, int samplePoolSize, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<IdentityTrainingPair>> ReadGoldUnmatchedPairsAsync(
+        SqlConnection connection,
+        string normalizationVersion,
+        int sampleSize,
+        int samplePoolSize,
+        int decisionCalibrationSeed,
+        int validationBasisPoints,
+        int testBasisPoints,
+        CancellationToken cancellationToken)
     {
         var projection = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
         var features = BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates;
@@ -520,6 +584,7 @@ public sealed class LinkageParametersWorker(
                 SELECT TOP (@pool_size) g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
                 FROM gold.pessoa g
                 WHERE g.estado_identidade=N'REFERENCIA'
+                  AND CONVERT(int,SUBSTRING(HASHBYTES('SHA2_256',CONVERT(varchar(100),CONCAT(@decision_seed,':',LOWER(CONVERT(varchar(36),g.pessoa_uuid))))),1,3)) % 10000 < @train_cut
                   AND g.nome_completo IS NOT NULL
                   AND g.data_nascimento IS NOT NULL
                   AND NOT EXISTS (
@@ -556,6 +621,8 @@ public sealed class LinkageParametersWorker(
         command.Parameters.Add("@normalizacao", SqlDbType.NVarChar, 80).Value = normalizationVersion;
         command.Parameters.Add("@projection_schema", SqlDbType.NVarChar, 120).Value = projection.SchemaVersion;
         command.Parameters.Add("@projection_fingerprint", SqlDbType.Char, 64).Value = projection.Fingerprint;
+        command.Parameters.Add("@decision_seed", SqlDbType.Int).Value = decisionCalibrationSeed;
+        command.Parameters.Add("@train_cut", SqlDbType.Int).Value = 10_000 - validationBasisPoints - testBasisPoints;
         for (var index = 0; index < features.Count; index++) command.Parameters.Add(featureParameters[index], SqlDbType.NVarChar, 80).Value = features[index];
         return await ReadTrainingPairsAsync(command, cancellationToken);
     }
@@ -700,6 +767,24 @@ public sealed class LinkageParametersWorker(
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
                    AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='MODEL_COHERENCE_ORDERED_NAME_LLR_V1' AND valor>=1)
                     THROW 51019, 'Modelo SQL Server V6 sem proveniência do gate de monotonicidade nominal.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='FS_DECISION_THRESHOLD_PARETO_V1' AND valor>=1)
+                    THROW 51021, 'Modelo SQL Server V6 sem calibração operacional de T_LINKAGE/margem por Pareto.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='FS_DECISION_CALIBRATION_BASE_PERSON_SPLIT_V1' AND valor>=1)
+                    THROW 51023, 'Modelo SQL Server V6 sem split por pessoa-base antes dos pares de treino.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_DUAL_THRESHOLD_CONFLICT_FLOOR_V2' AND valor>=1)
+                    THROW 51024, 'Modelo SQL Server V6 sem guarda de ambiguidade desacoplada de T_LINKAGE.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_NON_UNIQUE_DEMOGRAPHIC_EXACT_GUARD_V1' AND valor>=1)
+                    THROW 51026, 'Modelo SQL Server V6 sem guarda contra unicidade presumida de nome+nascimento exatos.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='DUAL_THRESHOLD_CONFLICT_FLOOR' AND valor>=0 AND valor<=1)
+                    THROW 51025, 'Modelo SQL Server V6 sem piso calibrado válido para segundo candidato.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='FS_DECISION_CALIBRATION_TEST_FP' AND valor<>0)
+                    THROW 51022, 'Modelo SQL Server V6 falhou no safety gate TEST da calibração de decisão.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset r WHERE r.modelo_id=@modelo_id AND EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id) AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe_campo rc WHERE rc.ruleset_id=rp.ruleset_id AND rc.passe_ordem=rp.passe_ordem))) THROW 51013, 'Modelo SQL Server sem ruleset dinâmico completo.', 1;
                 UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@modelo_id;
                 """, connection, transaction);

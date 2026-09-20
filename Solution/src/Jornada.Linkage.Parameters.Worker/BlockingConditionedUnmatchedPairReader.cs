@@ -24,6 +24,9 @@ public static class BlockingConditionedUnmatchedPairReader
         IReadOnlyCollection<LinkageBlockingPass> passes,
         int sampleSize,
         int samplePoolSize,
+        int decisionCalibrationSeed,
+        int validationBasisPoints,
+        int testBasisPoints,
         int commandTimeoutSeconds,
         CancellationToken cancellationToken)
     {
@@ -65,6 +68,8 @@ public static class BlockingConditionedUnmatchedPairReader
         command.Parameters.Add("@normalizacao", SqlDbType.NVarChar, 80).Value = normalizationVersion;
         command.Parameters.Add("@projection_schema", SqlDbType.NVarChar, 120).Value = projection.SchemaVersion;
         command.Parameters.Add("@projection_fingerprint", SqlDbType.Char, 64).Value = projection.Fingerprint;
+        command.Parameters.Add("@decision_seed", SqlDbType.Int).Value = decisionCalibrationSeed;
+        command.Parameters.Add("@train_cut", SqlDbType.Int).Value = 10_000 - validationBasisPoints - testBasisPoints;
 
         var allFieldParameters = new List<string>();
         for (var index = 0; index < allFields.Length; index++)
@@ -168,6 +173,7 @@ WITH gold_sample AS (
         g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae
     FROM gold.pessoa g
     WHERE g.estado_identidade=N'REFERENCIA'
+      AND CONVERT(int,SUBSTRING(HASHBYTES('SHA2_256',CONVERT(varchar(100),CONCAT(@decision_seed,':',LOWER(CONVERT(varchar(36),g.pessoa_uuid))))),1,3)) % 10000 < @train_cut
       AND g.nome_completo IS NOT NULL
       AND g.data_nascimento IS NOT NULL
       AND NOT EXISTS (

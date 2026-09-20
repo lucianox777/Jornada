@@ -12,10 +12,12 @@ public sealed class LinkageProcessRunner(
     Func<DbConnection> openConnection,
     ICollection<string> log)
 {
+    private const string CurrentSqlServerSampleMethod = "M_INTERGESTOR_U_BIRTH_BLOCKING_IBGE_NAMES_MC_V4";
+
     private static readonly string[] ForwardedSettings =
     [
         "AlgorithmVersion", "NormalizationVersion", "TrainingSampleSize", "TrainingSamplePoolSize",
-        "SmoothingAlpha", "TLinkage", "ConflictMargin", "ReadCommandTimeoutSeconds",
+        "SmoothingAlpha", "ReadCommandTimeoutSeconds",
         "MinimumIndependentMatchedPairs"
     ];
 
@@ -37,6 +39,13 @@ public sealed class LinkageProcessRunner(
             var value = configuration[$"LinkageParameters:{key}"];
             if (!string.IsNullOrWhiteSpace(value))
                 startInfo.Environment[$"LinkageParameters__{key}"] = value;
+        }
+
+        foreach (var key in new[] { "Seed", "ValidationBasisPoints", "TestBasisPoints" })
+        {
+            var value = configuration[$"LinkageParameters:DecisionCalibration:{key}"];
+            if (!string.IsNullOrWhiteSpace(value))
+                startInfo.Environment[$"LinkageParameters__DecisionCalibration__{key}"] = value;
         }
 
         var exitCode = await ExecuteProcessAsync(startInfo, cancellationToken);
@@ -124,11 +133,15 @@ public sealed class LinkageProcessRunner(
         await using var connection = openConnection();
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status=@status AND amostra_metodo='M_INTERGESTOR_U_GOLD_SERIALIZED' ORDER BY gerado_em DESC,versao DESC;";
+        command.CommandText = "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status=@status AND amostra_metodo=@sample_method ORDER BY gerado_em DESC,versao DESC;";
         var parameter = command.CreateParameter();
         parameter.ParameterName = "@status";
         parameter.Value = status;
         command.Parameters.Add(parameter);
+        var sampleMethod = command.CreateParameter();
+        sampleMethod.ParameterName = "@sample_method";
+        sampleMethod.Value = CurrentSqlServerSampleMethod;
+        command.Parameters.Add(sampleMethod);
         var value = await command.ExecuteScalarAsync(cancellationToken);
         return value is null or DBNull ? null : Convert.ToInt32(value, CultureInfo.InvariantCulture);
     }

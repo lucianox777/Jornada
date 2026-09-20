@@ -10,6 +10,7 @@ COPY src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj src/Jornada.Resultad
 COPY src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj src/Jornada.Processor.Worker/packages.lock.json src/Jornada.Processor.Worker/
 COPY src/Jornada.Operations.Maintenance.Worker/Jornada.Operations.Maintenance.Worker.csproj src/Jornada.Operations.Maintenance.Worker/packages.lock.json src/Jornada.Operations.Maintenance.Worker/
 COPY src/Jornada.Bronze.Maintenance.Worker/Jornada.Bronze.Maintenance.Worker.csproj src/Jornada.Bronze.Maintenance.Worker/packages.lock.json src/Jornada.Bronze.Maintenance.Worker/
+COPY src/Jornada.Linkage.Core/Jornada.Linkage.Core.csproj src/Jornada.Linkage.Core/packages.lock.json src/Jornada.Linkage.Core/
 COPY src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj src/Jornada.Linkage.Parameters.Worker/packages.lock.json src/Jornada.Linkage.Parameters.Worker/
 COPY src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj src/Jornada.Linkage.Runner/packages.lock.json src/Jornada.Linkage.Runner/
 COPY src/Jornada.Bronze.Verify/Jornada.Bronze.Verify.csproj src/Jornada.Bronze.Verify/packages.lock.json src/Jornada.Bronze.Verify/
@@ -28,6 +29,7 @@ RUN dotnet restore src/Jornada.Api/Jornada.Api.csproj --locked-mode \
  && dotnet restore src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj --locked-mode \
  && dotnet restore src/Jornada.Operations.Maintenance.Worker/Jornada.Operations.Maintenance.Worker.csproj --locked-mode \
  && dotnet restore src/Jornada.Bronze.Maintenance.Worker/Jornada.Bronze.Maintenance.Worker.csproj --locked-mode \
+ && dotnet restore src/Jornada.Linkage.Core/Jornada.Linkage.Core.csproj --locked-mode \
  && dotnet restore src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj --locked-mode \
  && dotnet restore src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj --locked-mode \
  && dotnet restore src/Jornada.Bronze.Verify/Jornada.Bronze.Verify.csproj --locked-mode \

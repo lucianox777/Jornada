@@ -229,13 +229,13 @@
   "candidateGraph": {
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
-    "sourceCommit": "d42f71438e8abb6cd24d6aee8b03916d975a3dc4",
-    "githubRunId": "35366258560",
+    "sourceCommit": "2f7922ea2475187e8518a7eb8f994f877ae85544",
+    "githubRunId": "35486158762",
     "sdk": "8.0.424",
-    "reason": "Extração do runtime PostgreSQL/Npgsql da candidata v5.00; o histórico atestado v4.05 é preservado e somente os locks efetivamente alterados recebem override candidato.",
-    "lockCount": 19,
-    "changedLockCount": 14,
-    "combinedSha256": "0d5a8c729a231c13022d2a6724dbec3a8dba53346afe932e0b8685bb1244bf9f",
+    "reason": "Extração do runtime compartilhado de linkage para Jornada.Linkage.Core e calibração operacional FS de T_LINKAGE/margem; locks force-evaluated no SDK 8.0.424, preservando o atestado histórico v4.05.",
+    "lockCount": 20,
+    "changedLockCount": 15,
+    "combinedSha256": "fddb4d18af35d390fb25d2746d23f221e0539c3bbde7f0cfce46eb5486f7b10a",
     "overrides": [
       {
         "path": "src/Jornada.Api/packages.lock.json",
@@ -254,16 +254,20 @@
         "sha256": "6390dfb9d50e2fdb04d87e3217ba93ac3db1d3977328e9819f0d339d58023d72"
       },
       {
+        "path": "src/Jornada.Linkage.Core/packages.lock.json",
+        "sha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9"
+      },
+      {
         "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
         "sha256": "ecac8b942d58945defd1eef60c0909bc1c13e791274dcd3bbafcc43610cc607a"
       },
       {
         "path": "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
-        "sha256": "10cf5708437f1b2d0c19e3986713140f5fa8a2b9222983eb92bf239d256fb3ba"
+        "sha256": "1ad25dc21dd2faa0e50c140d3946da7815435f4816a01dd489452f6f0a578841"
       },
       {
         "path": "src/Jornada.Linkage.Runner/packages.lock.json",
-        "sha256": "10cf5708437f1b2d0c19e3986713140f5fa8a2b9222983eb92bf239d256fb3ba"
+        "sha256": "1ad25dc21dd2faa0e50c140d3946da7815435f4816a01dd489452f6f0a578841"
       },
       {
         "path": "src/Jornada.Operational.Sql/packages.lock.json",
@@ -291,7 +295,7 @@
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "0a5c499e4b7a9ca0be4b25b7b6c1df7cfd47746fe0de587bdfe452dd9dfb2b42"
+        "sha256": "616f9d6ddf3d7f1fa2288630fe64bd0e04f157519d253c4130f004d7bb9efa4b"
       }
     ]
   }

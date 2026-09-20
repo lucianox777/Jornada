@@ -19,7 +19,7 @@ internal sealed record LinkageRuntimeSnapshot(LinkageModel Model, LinkageDynamic
 }
 
 internal sealed record LinkageCandidate(Guid PessoaUuid, string? NomeCompleto, DateOnly? DataNascimento, string? NomeMae);
-internal sealed record CandidateScore(Guid PessoaUuid, decimal Score, decimal LogOdds);
+internal sealed record CandidateScore(Guid PessoaUuid, decimal Score, decimal LogOdds, bool DemographicExactCollisionRisk = false);
 
 internal static class LinkageModelPolicy
 {
@@ -34,6 +34,15 @@ internal static class LinkageModelPolicy
             if (missingDecision.Length > 0) throw new InvalidOperationException($"Modelo de decisão/evidência incompleto. Parâmetros ausentes: {string.Join(", ", missingDecision)}");
             if (parameters[LinkageParameterCatalog.DecisionEvidenceScoring] < 1m)
                 throw new InvalidOperationException($"Modelo de decisão/evidência incompleto. {LinkageParameterCatalog.DecisionEvidenceScoring} deve estar habilitado.");
+
+            var floorV2 = parameters.TryGetValue(LinkageParameterCatalog.DualThresholdConflictFloorV2, out var floorFlag) && floorFlag >= 1m;
+            if (floorV2)
+            {
+                if (!parameters.TryGetValue(LinkageParameterCatalog.DualThresholdConflictFloor, out var floor))
+                    throw new InvalidOperationException($"Modelo com {LinkageParameterCatalog.DualThresholdConflictFloorV2} sem {LinkageParameterCatalog.DualThresholdConflictFloor}.");
+                if (floor is < 0m or > 1m)
+                    throw new InvalidOperationException($"{LinkageParameterCatalog.DualThresholdConflictFloor} deve estar em [0,1].");
+            }
         }
 
         if (string.Equals(algorithm, LinkageParameterCatalog.NominalGuardDecisionEvidenceAlgorithmVersion, StringComparison.Ordinal))
@@ -112,11 +121,25 @@ internal static class ProbabilisticLinkageDecisions
 
         return uniqueCandidates.Select(candidate =>
             {
-                var score = FellegiSunterScoring.Calculate(model.Parameters,
-                    CompareOptionalName(observation.NomeCompleto, candidate.NomeCompleto),
-                    CompareOptionalName(observation.NomeMae, candidate.NomeMae), uniqueCandidates.Count,
-                    observation.DataNascimento, candidate.DataNascimento);
-                return new CandidateScore(candidate.PessoaUuid, score.Posterior, score.LogOdds);
+                var nameState = CompareOptionalName(observation.NomeCompleto, candidate.NomeCompleto);
+                var motherNameState = CompareOptionalName(observation.NomeMae, candidate.NomeMae);
+                var score = FellegiSunterScoring.Calculate(
+                    model.Parameters,
+                    nameState,
+                    motherNameState,
+                    uniqueCandidates.Count,
+                    observation.DataNascimento,
+                    candidate.DataNascimento);
+                var demographicExactCollisionRisk =
+                    nameState == NameComparisonState.EXACT &&
+                    observation.DataNascimento is { } observedBirth &&
+                    candidate.DataNascimento is { } candidateBirth &&
+                    observedBirth == candidateBirth;
+                return new CandidateScore(
+                    candidate.PessoaUuid,
+                    score.Posterior,
+                    score.LogOdds,
+                    demographicExactCollisionRisk);
             })
             .OrderByDescending(x => decisionEvidence ? x.LogOdds : x.Score)
             .ThenBy(x => x.PessoaUuid)
@@ -170,16 +193,35 @@ internal static class ProbabilisticLinkageDecisions
         if (best.Score < model.Threshold)
             return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId, "ABAIXO_T_LINKAGE");
 
+        var nonUniqueDemographicExactGuard = model.Parameters.TryGetValue(
+            LinkageParameterCatalog.NonUniqueDemographicExactGuard,
+            out var demographicGuardFlag) && demographicGuardFlag >= 1m;
+        if (nonUniqueDemographicExactGuard && best.DemographicExactCollisionRisk)
+            return new ProbabilisticLinkageDecision(
+                ResolutionStatus.CONFLITO, null,
+                best.PessoaUuid, best.Score,
+                second?.PessoaUuid, secondScore,
+                margin, model.ModelId,
+                "NUCLEO_DEMOGRAFICO_EXATO_NAO_UNICO");
+
         var dualThresholdGuard = model.Parameters.TryGetValue(
             LinkageParameterCatalog.DualThresholdConflictGuard,
             out var dualThresholdFlag) && dualThresholdFlag >= 1m;
-        if (dualThresholdGuard && second is not null && second.Score >= model.Threshold)
+        var independentConflictFloor = model.Parameters.TryGetValue(
+            LinkageParameterCatalog.DualThresholdConflictFloorV2,
+            out var floorV2Flag) && floorV2Flag >= 1m;
+        var secondCandidateConflictFloor = independentConflictFloor
+            ? model.Parameters[LinkageParameterCatalog.DualThresholdConflictFloor]
+            : model.Threshold;
+        if (dualThresholdGuard && second is not null && second.Score >= secondCandidateConflictFloor)
             return new ProbabilisticLinkageDecision(
                 ResolutionStatus.CONFLITO, null,
                 best.PessoaUuid, best.Score,
                 second.PessoaUuid, second.Score,
                 margin, model.ModelId,
-                "DOIS_CANDIDATOS_ACIMA_T_LINKAGE");
+                independentConflictFloor
+                    ? "SEGUNDO_CANDIDATO_ACIMA_PISO_CONFLITO"
+                    : "DOIS_CANDIDATOS_ACIMA_T_LINKAGE");
 
         if (second is not null && margin!.Value < model.ConflictMargin)
             return new ProbabilisticLinkageDecision(ResolutionStatus.CONFLITO, null, best.PessoaUuid, best.Score, second.PessoaUuid, second.Score, margin, model.ModelId, "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE");

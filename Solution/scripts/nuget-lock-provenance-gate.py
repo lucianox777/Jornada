@@ -26,8 +26,6 @@ def main():
 
     actual=sorted(p.relative_to(root).as_posix() for p in root.rglob('packages.lock.json') if '.local' not in p.parts and 'obj' not in p.parts and 'bin' not in p.parts)
     listed={r.get('path'):r for r in (data.get('locks') or []) if r.get('path')}
-    expected=sorted(set(listed)|set(POST_RELEASE_ALIASES))
-    if expected!=actual: fail(f'inventário diverge; atestado+aliases={expected} atual={actual}')
 
     candidate=data.get('candidateGraph') or {}
     overrides={}
@@ -46,6 +44,13 @@ def main():
             overrides[path]=digest
         if candidate.get('changedLockCount')!=len(overrides):
             fail('candidateGraph changedLockCount divergente')
+
+    # O atestado histórico permanece imutável. Projetos/locks introduzidos depois dele
+    # só entram no inventário corrente quando aparecem explicitamente como override da
+    # candidata, com SHA fixado e validação estrutural abaixo.
+    expected=sorted(set(listed)|set(POST_RELEASE_ALIASES)|set(overrides))
+    if expected!=actual:
+        fail(f'inventário diverge; atestado+aliases+candidata={expected} atual={actual}')
 
     current_hashes={}
     for rel in actual:

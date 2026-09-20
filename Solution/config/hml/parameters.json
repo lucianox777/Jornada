@@ -19,7 +19,7 @@
     {"id":"Processor.MaxProcessingAttempts","component":"Processor","technicalDefault":"5","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null},
     {"id":"Processor.RetryBaseSeconds","component":"Processor","technicalDefault":"10 s","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null},
     {"id":"Processor.RetryMaxSeconds","component":"Processor","technicalDefault":"300 s","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null},
-    {"id":"Linkage.Thresholds","component":"Linkage Runner","technicalDefault":"configuração/catálogo","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null},
+    {"id":"Linkage.Thresholds","component":"Linkage Runner","technicalDefault":"FS_DECISION_THRESHOLD_PARETO_V1; derivados de VALIDATION e congelados em TEST","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null},
     {"id":"ProbabilisticLinkage.CommandTimeoutSeconds","component":"Linkage Runner","technicalDefault":"900 s","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null},
     {"id":"ProbabilisticLinkage.FreezeUniverseCommandTimeoutSeconds","component":"Linkage Runner","technicalDefault":"900 s","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null},
     {"id":"LinkageParameters.SmoothingAlpha","component":"Parameters Worker","technicalDefault":"0.5","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null},

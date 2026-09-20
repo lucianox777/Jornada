@@ -16,6 +16,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Operations.Maintena
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Processor.Worker", "src\Jornada.Processor.Worker\Jornada.Processor.Worker.csproj", "{A4349090-1F51-5F36-A1F7-D116B0E16FB7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Linkage.Core", "src\Jornada.Linkage.Core\Jornada.Linkage.Core.csproj", "{7A4C9A0D-9F36-4A7E-93C6-2A1B77771E60}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Linkage.Parameters.Worker", "src\Jornada.Linkage.Parameters.Worker\Jornada.Linkage.Parameters.Worker.csproj", "{4D4C5EED-DF69-52FF-89D4-BB2BAAB53865}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Linkage.Runner", "src\Jornada.Linkage.Runner\Jornada.Linkage.Runner.csproj", "{3B976A47-C574-4E2A-9F13-0B3BF8001DB0}"
@@ -91,6 +93,10 @@ Global
 		{A4349090-1F51-5F36-A1F7-D116B0E16FB7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A4349090-1F51-5F36-A1F7-D116B0E16FB7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A4349090-1F51-5F36-A1F7-D116B0E16FB7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A4C9A0D-9F36-4A7E-93C6-2A1B77771E60}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A4C9A0D-9F36-4A7E-93C6-2A1B77771E60}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A4C9A0D-9F36-4A7E-93C6-2A1B77771E60}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A4C9A0D-9F36-4A7E-93C6-2A1B77771E60}.Release|Any CPU.Build.0 = Release|Any CPU
 		{4D4C5EED-DF69-52FF-89D4-BB2BAAB53865}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4D4C5EED-DF69-52FF-89D4-BB2BAAB53865}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4D4C5EED-DF69-52FF-89D4-BB2BAAB53865}.Release|Any CPU.ActiveCfg = Release|Any CPU

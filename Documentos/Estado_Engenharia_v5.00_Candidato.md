@@ -28,9 +28,13 @@ Nenhuma hospedagem Fabric autoriza DDL alternativo, branch funcional ou segunda 
 
 ## 4. Linkage e calibração
 
-O caminho operacional SQL Server usa `LinkageParametersWorker` e o modelo de decisão versionado da Jornada. A candidata já contém componentes normativos/experimentais do ADR do calibrador DF → Fellegi–Sunter — busca de thresholds, Pareto, intercâmbio Splink, planejamento de ground truth e política conservadora de agrupamento — porém **esses componentes ainda não formam um fluxo SQL Server ponta a ponta que produza e promova thresholds calibrados por Pareto**.
+O caminho operacional SQL Server usa `LinkageParametersWorker` e o modelo de decisão versionado da Jornada. `T_LINKAGE` e a margem efetiva V6 deixaram de ser entradas numéricas do `appsettings`: `FS_DECISION_THRESHOLD_PARETO_V1` deriva uma grade das fronteiras observadas em `VALIDATION`, avalia a regra exata do Runner, preserva a fronteira não dominada em FP/FN e reaplica os candidatos congelados em `TEST`. O mesmo indivíduo-base é mantido em uma única partição por split determinístico.
 
-Portanto, a existência dessas bibliotecas e de seus testes unitários não equivale a implementação operacional integral do ADR.
+A verdade de referência dessa etapa vem de observações ligadas deterministicamente por CPF, mas o CPF é ocultado da geração de candidatos e do score. Cada observação rotulada gera um cenário positivo e um cenário negativo `LEAVE_TRUTH_OUT`, no qual a identidade verdadeira é removida do ranking. A restrição pré-HML de zero falso vínculo pode bloquear a promoção de uma fronteira; ela é safety gate explícito, não peso inventado entre FP e FN. `TEST` pode reprovar o candidato congelado, nunca escolher outro threshold olhando o próprio teste.
+
+A implementação operacional dessa etapa compartilha literalmente o scorer e a política de decisão com o Runner por `Jornada.Linkage.Core`, evitando uma segunda implementação da fronteira. O draft persiste proveniência, tamanhos das partições e FP/FN/inconclusivos de validação/teste, e `VALIDATE` falha fechado sem a marca da calibração ou com falso vínculo em `TEST`.
+
+Isso fecha a lacuna específica de `T_LINKAGE`/margem fixos. Não equivale à implementação integral de todo o ADR DF → FS nem à homologação estatística: prior, transportabilidade de `m/u`, representatividade da coorte com CPF, DF/Splink e evidências adicionais continuam sujeitos aos respectivos gates.
 
 A validação estatística representativa permanece gate externo. Corpus sintético, Monte Carlo e validação adversarial DEV são evidência de engenharia, não homologação populacional.
 
@@ -50,7 +54,7 @@ Documentação histórica não deve ser usada para inferir arquitetura corrente 
 
 1. manter os documentos correntes e a numeração das ADRs alinhados ao estado SQL Server-only e ao namespace de Pessoa por Base de Origem;
 2. fechar a publicação ponta a ponta do Linkage no ledger de identidade progressiva, separando score bruto de decisão publicada e preservando `initial_uuid` como proveniência/continuidade, nunca como feature;
-3. fechar a lacuna de orquestração ponta a ponta do calibrador evolutivo no caminho SQL Server (candidate/challenger, avaliação independente e promoção fail-closed), sem promover automaticamente evidência probabilística a rótulo de treino;
+3. fechar o restante da orquestração evolutiva do calibrador SQL Server — candidate/challenger, DF/Splink, avaliação representativa e governança do prior — mantendo a calibração operacional de threshold/margem já fail-closed e sem promover automaticamente evidência probabilística a rótulo de treino;
 4. manter verde o conjunto canônico de build, unitários, integração SQL, DDL/upgrade, E2E, segurança, harness e validação independente;
 5. atualizar a proveniência da candidata para o commit imutável escolhido para a RC;
 6. preservar como pendentes, sem fabricar aprovação, os gates externos/institucionais aplicáveis, inclusive validação estatística representativa do Linkage.

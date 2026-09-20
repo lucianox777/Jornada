@@ -6,6 +6,7 @@ on:
       - Solution/scripts/tests/test_linkage_shared_policy_gate.py
       - Solution/src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs
       - Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkagePolicy.cs
+      - Solution/src/Jornada.Linkage.Core/**
       - .github/workflows/linkage-shared-policy-gate.yml
   pull_request:
     paths:
@@ -13,6 +14,7 @@ on:
       - Solution/scripts/tests/test_linkage_shared_policy_gate.py
       - Solution/src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs
       - Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkagePolicy.cs
+      - Solution/src/Jornada.Linkage.Core/**
       - .github/workflows/linkage-shared-policy-gate.yml
   workflow_dispatch:
 permissions:
