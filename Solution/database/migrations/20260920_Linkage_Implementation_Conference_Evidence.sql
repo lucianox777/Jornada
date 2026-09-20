@@ -60,7 +60,9 @@ CREATE TABLE auditoria.linkage_conferencia_evidencia(
       (status=N'DIVERGENTE'
        AND candidatos_avaliados>0
        AND motivo IS NOT NULL
-       AND (mesma_decisao_final=0 OR max_llr_par_observado>max_llr_par_permitido))
+       AND (mesma_decisao_final=0
+            OR (max_llr_par_observado IS NOT NULL
+                AND max_llr_par_observado>max_llr_par_permitido)))
       OR
       (status=N'NAO_EXECUTADA'
        AND motivo IS NOT NULL))
@@ -81,10 +83,9 @@ GO
 IF NOT EXISTS(
     SELECT 1 FROM sys.indexes
     WHERE object_id=OBJECT_ID(N'auditoria.linkage_conferencia_evidencia')
-      AND name=N'UX_linkage_conferencia_evidencia_conforme')
-CREATE UNIQUE INDEX UX_linkage_conferencia_evidencia_conforme
-ON auditoria.linkage_conferencia_evidencia(modelo_id,metodo_versao,tolerancia_versao)
-WHERE status=N'CONFORME';
+      AND name=N'UX_linkage_conferencia_evidencia_report')
+CREATE UNIQUE INDEX UX_linkage_conferencia_evidencia_report
+ON auditoria.linkage_conferencia_evidencia(modelo_id,report_sha256);
 GO
 
 CREATE OR ALTER TRIGGER auditoria.tr_linkage_conferencia_evidencia_append_only
