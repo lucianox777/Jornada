@@ -668,8 +668,202 @@ jobs:
         if: always()
         run: docker compose --env-file .env down -v || true
 
+  rc-evidence:
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && contains(github.ref_name, '-rc.')
+    needs: [dependency-lock, unit, deterministic-build, security-analysis, integration-sql, harness-smoke, ddl-upgrade, e2e, bronze-restore-drill, scale-harness]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      JORNADA_RC_SQL_PASSWORD: Jornada_${{ github.run_id }}_Rc9!
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: Jornada_${{ github.run_id }}_Rc9!
+        ports:
+          - 1433:1433
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Install sqlcmd
+        run: |
+          set -euo pipefail
+          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+          curl -sSL https://packages.microsoft.com/config/ubuntu/24.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list >/dev/null
+          sudo apt-get update -qq
+          sudo env ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mssql-tools18
+          echo '/opt/mssql-tools18/bin' >> "$GITHUB_PATH"
+      - name: Wait for SQL Server
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$JORNADA_RC_SQL_PASSWORD" -C -Q 'SELECT 1' >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Verify technical RC tag without promoting sealed release
+        run: >-
+          python3 Solution/scripts/technical-rc-gate.py
+          --repo .
+          --candidate-info CANDIDATE_INFO.json
+          --release-info RELEASE_INFO.txt
+          --expected-tag "${GITHUB_REF_NAME}"
+          --require-clean
+      - name: Download exact-run prerequisite evidence
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          pattern: '*'
+          path: Solution/.local/rc-evidence-input
+          merge-multiple: false
+      - name: Build technical RC source bundle
+        run: |
+          set -euo pipefail
+          Solution/scripts/build-rc-source-bundle.sh \
+            . \
+            Solution/.local/rc-source/Jornada_RC_Source.bundle \
+            Solution/.local/rc-source/RC_SOURCE_PROVENANCE.json \
+            CANDIDATE_INFO.json \
+            "$GITHUB_REF_NAME"
+          mkdir -p Solution/.local/rc-evidence-input/rc-source-provenance
+          cp Solution/.local/rc-source/Jornada_RC_Source.bundle Solution/.local/rc-evidence-input/rc-source-provenance/
+          cp Solution/.local/rc-source/RC_SOURCE_PROVENANCE.json Solution/.local/rc-evidence-input/rc-source-provenance/
+      - name: Recompute durable schema fingerprint on the RC tag
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          mkdir -p .local/rc-evidence-input/rc-structural-provenance
+          sqlcmd -S localhost -U sa -P "$JORNADA_RC_SQL_PASSWORD" -C -b -Q "CREATE DATABASE JornadaRcSchema;"
+          sqlcmd -S localhost -U sa -P "$JORNADA_RC_SQL_PASSWORD" -C -b -d JornadaRcSchema -i database/Jornada_Fase1_v3.70.sql
+          sqlcmd -S localhost -U sa -P "$JORNADA_RC_SQL_PASSWORD" -C -b -d JornadaRcSchema -W -h -1 -i database/Jornada_Dev_DdlFingerprint.sql \
+            | sed '/^[[:space:]]*$/d' > .local/rc-evidence-input/rc-structural-provenance/fingerprint.txt
+
+          declared_fingerprint=$(python3 -c 'import json; print(json.load(open("../CANDIDATE_INFO.json", encoding="utf-8"))["candidate"]["schema_provenance"]["structural_fingerprint_sha256"])')
+          declared_manifest=$(python3 -c 'import json; print(json.load(open("../CANDIDATE_INFO.json", encoding="utf-8"))["candidate"]["schema_provenance"]["migration_manifest_sha256"])')
+          actual_fingerprint=$(sha256sum .local/rc-evidence-input/rc-structural-provenance/fingerprint.txt | awk '{print $1}')
+          actual_manifest=$(python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          text=Path("database/migrations/manifest.txt").read_bytes().decode("utf-8-sig")
+          text=text.replace("\r\n","\n").replace("\r","\n")
+          print(hashlib.sha256(text.encode("utf-8")).hexdigest())
+          PY
+          )
+          test "$actual_fingerprint" = "$declared_fingerprint"
+          test "$actual_manifest" = "$declared_manifest"
+
+          ACTUAL_FP="$actual_fingerprint" DECLARED_FP="$declared_fingerprint" ACTUAL_MANIFEST="$actual_manifest" DECLARED_MANIFEST="$declared_manifest" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          candidate=json.loads(Path("../CANDIDATE_INFO.json").read_text(encoding="utf-8"))
+          provenance=candidate["candidate"]["schema_provenance"]
+          result={
+              "schemaVersion":1,
+              "status":"PASS",
+              "tag":os.environ["GITHUB_REF_NAME"],
+              "headSha":os.environ["GITHUB_SHA"],
+              "declaredFingerprintSha256":os.environ["DECLARED_FP"],
+              "actualFingerprintSha256":os.environ["ACTUAL_FP"],
+              "declaredManifestSha256":os.environ["DECLARED_MANIFEST"],
+              "actualManifestSha256":os.environ["ACTUAL_MANIFEST"],
+              "structuralCheckpointCommit":provenance["source_commit"],
+              "historicalDdlEvidenceRunId":provenance["ddl_evidence_run_id"],
+              "note":"Fresh RC-tag execution; validation does not depend on future retention of historical Actions runs."
+          }
+          out=Path(".local/rc-evidence-input/rc-structural-provenance/RC_SCHEMA_PROVENANCE.json")
+          out.write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          PY
+          cp ../CANDIDATE_INFO.json .local/rc-evidence-input/rc-structural-provenance/CANDIDATE_INFO.json
+      - name: Consolidate technical RC evidence
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          mkdir -p .local/rc-evidence
+          python3 scripts/rc-evidence-gate.py \
+            --input-root .local/rc-evidence-input \
+            --candidate-info ../CANDIDATE_INFO.json \
+            --output .local/rc-evidence/RC_EVIDENCE.json
+      - name: Attest RC evidence, source and schema provenance
+        id: attest-rc
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: |
+            Solution/.local/rc-evidence/RC_EVIDENCE.json
+            Solution/.local/rc-source/Jornada_RC_Source.bundle
+            Solution/.local/rc-source/RC_SOURCE_PROVENANCE.json
+            Solution/.local/rc-evidence-input/rc-structural-provenance/RC_SCHEMA_PROVENANCE.json
+            Solution/.local/rc-evidence-input/rc-structural-provenance/fingerprint.txt
+            Solution/.local/rc-evidence-input/sbom-cyclonedx/sbom.cdx.json
+      - name: Persist RC attestation and release notes
+        run: |
+          set -euo pipefail
+          cp "${{ steps.attest-rc.outputs.bundle-path }}" Solution/.local/rc-evidence/ATTESTATION.sigstore.json
+          actual_fingerprint=$(python3 -c 'import json; print(json.load(open("Solution/.local/rc-evidence-input/rc-structural-provenance/RC_SCHEMA_PROVENANCE.json", encoding="utf-8"))["actualFingerprintSha256"])')
+          cat > Solution/.local/rc-evidence/RC_NOTES.md <<EOF
+          # ${GITHUB_REF_NAME} — checkpoint técnico
+
+          Este pre-release é um **checkpoint técnico imutável** da candidata Solution Engenharia v5.00.
+
+          Ele **não é homologação estatística**, **não autoriza ativação/publicação probabilística** e **não autoriza Produção**. A última release normativa selada continua sendo a declarada em `RELEASE_INFO.txt`.
+
+          Gates externos que permanecem pendentes:
+          - #31 — validação estatística representativa do Linkage;
+          - #93 — volumetria HML e decisão institucional de acesso;
+          - decisão de finalidade/base legal GTPR declarada em `CANDIDATE_INFO.json`.
+
+          Evidência deste checkpoint:
+          - commit: `${GITHUB_SHA}`;
+          - fingerprint estrutural executado na própria tag: `$actual_fingerprint`;
+          - `RC_EVIDENCE.json`, bundle de fonte, proveniência de schema e attestation Sigstore anexados como assets.
+
+          `release_effect=NONE`: criar este pre-release não reescreve `RELEASE_INFO.txt`.
+          EOF
+      - name: Upload RC evidence as Actions backup
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: technical-rc-evidence
+          path: |
+            Solution/.local/rc-evidence
+            Solution/.local/rc-source
+            Solution/.local/rc-evidence-input/rc-structural-provenance
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 365
+      - name: Publish or refresh durable GitHub pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          title="Jornada ${GITHUB_REF_NAME} — technical checkpoint"
+          notes="Solution/.local/rc-evidence/RC_NOTES.md"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --prerelease --title "$title" --notes-file "$notes"
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --prerelease --title "$title" --notes-file "$notes"
+          fi
+          gh release upload "$GITHUB_REF_NAME" --clobber \
+            Solution/.local/rc-evidence/RC_EVIDENCE.json \
+            Solution/.local/rc-evidence/ATTESTATION.sigstore.json \
+            Solution/.local/rc-evidence/RC_NOTES.md \
+            Solution/.local/rc-source/Jornada_RC_Source.bundle \
+            Solution/.local/rc-source/RC_SOURCE_PROVENANCE.json \
+            Solution/.local/rc-evidence-input/rc-structural-provenance/RC_SCHEMA_PROVENANCE.json \
+            Solution/.local/rc-evidence-input/rc-structural-provenance/fingerprint.txt \
+            Solution/.local/rc-evidence-input/rc-structural-provenance/CANDIDATE_INFO.json
+      - name: Stop RC SQL Server
+        if: always()
+        run: docker ps -q --filter publish=1433 | xargs -r docker stop >/dev/null || true
+
   release-promotion:
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'jornada-solution-v')
     needs: [dependency-lock, unit, deterministic-build, security-analysis, integration-sql, harness-smoke, ddl-upgrade, e2e, bronze-restore-drill, scale-harness]
     runs-on: ubuntu-latest
     timeout-minutes: 15
