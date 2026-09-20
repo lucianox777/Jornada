@@ -751,6 +751,9 @@ public sealed class LinkageParametersWorker(
                    AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='FS_DECISION_CALIBRATION_BASE_PERSON_SPLIT_V1' AND valor>=1)
                     THROW 51023, 'Modelo SQL Server V6 sem split por pessoa-base antes dos pares de treino.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='NOMINAL_U_CONVERGENCE_V1' AND valor>=1)
+                    THROW 51027, 'Modelo SQL Server V6 sem proveniência da convergência de u nominal condicionado ao blocking.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
                    AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_DUAL_THRESHOLD_CONFLICT_FLOOR_V2' AND valor>=1)
                     THROW 51024, 'Modelo SQL Server V6 sem guarda de ambiguidade desacoplada de T_LINKAGE.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
