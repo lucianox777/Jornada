@@ -33,6 +33,9 @@ public sealed class HmlScaleEvidenceContractTests
             Assert.That(source, Does.Contain("activateModel = false"));
             Assert.That(source, Does.Contain("publishLinkage = false"));
             Assert.That(source, Does.Contain("SHA256.HashData"));
+            Assert.That(source, Does.Contain("configuredTrainingSampleSize"));
+            Assert.That(source, Does.Contain("calibrationObserved"));
+            Assert.That(source, Does.Contain("uSampleSize = model.USampleSize"));
             Assert.That(source, Does.Not.Contain("NewCalibrator(\"ACTIVATE\""));
             Assert.That(source, Does.Not.Contain("LOAD_NAME_FREQUENCY_SNAPSHOT"));
             Assert.That(source, Does.Not.Contain("Jornada_Dev_SyntheticScale"));
