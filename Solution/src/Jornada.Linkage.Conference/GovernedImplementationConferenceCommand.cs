@@ -34,6 +34,11 @@ internal static class GovernedImplementationConferenceCommand
         if (!tolerance.TryGetFrozen(out var frozenTolerance, out var toleranceReason))
             throw new ConferencePreconditionException(toleranceReason);
 
+        var effectiveSourceRevision = sourceRevision ?? ResolveSourceRevision();
+        if (string.IsNullOrWhiteSpace(effectiveSourceRevision))
+            throw new ConferencePreconditionException("SOURCE_REVISION_REQUIRED");
+        effectiveSourceRevision = Limit(effectiveSourceRevision, 80);
+
         var operationalSql = new OperationalSqlAdapter(connectionString);
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(
@@ -45,7 +50,7 @@ internal static class GovernedImplementationConferenceCommand
             await SetSourceRevisionAsync(
                 connection,
                 transaction,
-                sourceRevision ?? ResolveSourceRevision(),
+                effectiveSourceRevision,
                 commandTimeoutSeconds,
                 cancellationToken);
 
@@ -91,6 +96,7 @@ internal static class GovernedImplementationConferenceCommand
                         model.ModelId,
                         model.Version,
                         model.AlgorithmVersion,
+                        effectiveSourceRevision,
                         Convert.ToHexString(snapshotBefore).ToLowerInvariant(),
                         tolerance,
                         scenarios),
@@ -104,6 +110,7 @@ internal static class GovernedImplementationConferenceCommand
                         model.ModelId,
                         model.Version,
                         model.AlgorithmVersion,
+                        effectiveSourceRevision,
                         Convert.ToHexString(snapshotBefore).ToLowerInvariant(),
                         tolerance.Version,
                         aggregate,
@@ -453,6 +460,7 @@ internal static class GovernedImplementationConferenceCommand
         Guid ModelId,
         int ModelVersion,
         string AlgorithmVersion,
+        string SourceRevision,
         string ModelSnapshotSha256,
         ImplementationConferenceToleranceContract Tolerance,
         IReadOnlyList<NamedConferenceRequest> Scenarios);
@@ -463,6 +471,7 @@ internal static class GovernedImplementationConferenceCommand
         Guid ModelId,
         int ModelVersion,
         string AlgorithmVersion,
+        string SourceRevision,
         string ModelSnapshotSha256,
         string ToleranceVersion,
         AggregateConferenceReport Aggregate,
