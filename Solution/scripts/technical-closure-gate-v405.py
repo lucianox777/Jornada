@@ -1219,7 +1219,7 @@ def main() -> None:
     require(OPENAPI_RUNTIME_TESTS.read_text(encoding="utf-8"), ["WebApplicationFactory<ApiEntryPointMarker>"], "OpenAPI runtime entry point inequívoco")
     require((ROOT / "tests/Jornada.Tests/Unit/ApiHttpPipelineTests.cs").read_text(encoding="utf-8"), ["WebApplicationFactory<ApiEntryPointMarker>"], "API HTTP entry point inequívoco")
     require((ROOT / "src/Jornada.Linkage.Parameters.Worker/LinkageParametersWorker.cs").read_text(encoding="utf-8"), ["Value = matchedPairs.Count;"], "amostra m compilável")
-    # A margem passou para a política compartilhada SQL Server/PostgreSQL.
+    # A margem passou para a política compartilhada do runtime SQL Server.
     # Aceita o baseline legado ou a delegação explícita, sem enfraquecer a prova.
     sql_linkage = (ROOT / "src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs").read_text(encoding="utf-8")
     if "decimal? margin =" in sql_linkage:
