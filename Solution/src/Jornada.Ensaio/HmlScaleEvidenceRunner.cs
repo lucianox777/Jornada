@@ -51,6 +51,11 @@ public sealed class HmlScaleEvidenceRunner(
         var maxRecords = Positive("Ensaio:HmlScale:MaxRecords", 100_000);
         var batchSize = Positive("Ensaio:HmlScale:BatchSize", 10_000);
         var maxParallelism = Positive("Ensaio:HmlScale:MaxParallelism", 4);
+        var configuredTrainingSampleSize = Math.Max(
+            1_000, configuration.GetValue("LinkageParameters:TrainingSampleSize", 250_000));
+        var configuredTrainingPoolSize = Math.Max(
+            configuredTrainingSampleSize,
+            configuration.GetValue("LinkageParameters:TrainingSamplePoolSize", 1_000_000));
         var since = configuration["Ensaio:HmlScale:Since"]?.Trim();
         if (!string.IsNullOrWhiteSpace(since)
             && !DateTimeOffset.TryParse(since, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out _))
@@ -147,8 +152,14 @@ public sealed class HmlScaleEvidenceRunner(
             goldPeople = evidence.GoldPeople,
             pairedPeople = model.MatchedPairs,
             pendingWithoutCpf = evidence.Eligible,
-            trainingSampleSize = model.TrainingSampleSize,
-            trainingPoolSize = model.TrainingPoolSize,
+            trainingSampleSize = configuredTrainingSampleSize,
+            trainingPoolSize = configuredTrainingPoolSize,
+            calibrationObserved = new
+            {
+                matchedPairs = model.MatchedPairs,
+                poolSize = model.ObservedPoolSize,
+                uSampleSize = model.USampleSize
+            },
             modelVersion = model.Version,
             runtimeScope = new
             {
@@ -478,8 +489,8 @@ public sealed class HmlScaleEvidenceRunner(
         int Version,
         string Status,
         int MatchedPairs,
-        int TrainingPoolSize,
-        int TrainingSampleSize);
+        int ObservedPoolSize,
+        int USampleSize);
 
     private sealed record RunEvidence(
         string RunStatus,
