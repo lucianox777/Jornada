@@ -126,6 +126,27 @@ public sealed class ResolutionProjectionModelCatalogTests
     }
 
     [Test]
+    public void LocationReferenceAttributes_RemainIneligibleUntilFrequencyAwareModelIsVersioned()
+    {
+        var codes = new[]
+        {
+            PersonResolutionContractCatalog.ResidentialAddress,
+            PersonResolutionContractCatalog.ConfidentialShelterAddress,
+            PersonResolutionContractCatalog.TerritorialReference
+        };
+
+        foreach (var code in codes)
+        {
+            Assert.That(PersonResolutionContractCatalog.TryGet(code, out var field), Is.True, code);
+            Assert.Multiple(() =>
+            {
+                Assert.That(field.EligibleForResolution, Is.False, code);
+                Assert.That(field.BlockingFeatures, Is.Empty, code);
+            });
+        }
+    }
+
+    [Test]
     public void ConfidentialShelterAddress_IsExplicitlyIneligibleAndFailClosed()
     {
         Assert.That(PersonResolutionAttributeCatalog.TryGet(PersonResolutionAttributeCatalog.ConfidentialShelterAddress, out var field), Is.True);
