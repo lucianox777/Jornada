@@ -71,7 +71,9 @@ A cardinalidade de `POST /api/v1/pessoas/consulta` é propriedade do endpoint: d
 
 ## Pessoa
 
-A fronteira está formalizada em `serving.v_pessoa`. Na v3.45 ela contém `pessoa_uuid`, `cpf`, `status_cpf`, `nome_completo`, `data_nascimento`, `nome_mae`, `fontes_distintas`, `estado_concordancia` e `atualizado_em`. Esses campos constituem o núcleo comum e não são reduzidos por `restricao_projecao_jornada_versao`; atributos transversais, Registros e Possibilidades continuam sujeitos às exceções negativas. Alterar esse conjunto exige mudança explícita de especificação e da view.
+A fronteira está formalizada em `serving.v_pessoa`. O nome exposto nessa superfície é `nome_referencia`: quando existe `NOME_SOCIAL` declarado ou comprovado entre as observações correntemente vinculadas à Pessoa, ele tem precedência de apresentação; na ausência, a referência recai sobre o nome civil mantido no núcleo interno. A view também expõe tipo, proveniência e instante da seleção para que a referência seja auditável e reversível. `gold.pessoa.nome_completo` não é sobrescrito e deixa de ser coluna da superfície padrão.
+
+A API preserva por compatibilidade o campo JSON `nomeCompleto` dos schemas de Pessoa já versionados, mas o valor de saída é preenchido a partir de `nome_referencia`. Essa escolha é exclusivamente de apresentação/serving: `nome_referencia` não alimenta blocking, features, LLR, posterior, margem ou calibração. Atributos transversais, Registros e Possibilidades continuam sujeitos às exceções negativas de projeção.
 
 ## Auditoria e BI
 
@@ -86,7 +88,7 @@ O CPF é enviado no corpo, nunca na query string. A rota aceita qualquer credenc
 
 ### `POST /api/v1/identidade/conflitos/detalhe`
 
-Somente credencial institucional `GESTOR` com scope `jornada.identidade.conflitos.read`. Recebe CPF no corpo e devolve o estado global do identificador e os núcleos observados lado a lado (observação, Gestor, origem, nome, nascimento, nome da mãe e estado do vínculo). É uma superfície operacional restrita; não integra o Power BI padrão.
+Somente credencial institucional `GESTOR` com scope `jornada.identidade.conflitos.read`. Recebe CPF no corpo e devolve o estado global do identificador e os núcleos observados lado a lado (observação, Gestor, origem, nome de referência, nascimento, nome da mãe e estado do vínculo). Quando houver nome social disponível, o detalhe usa a referência de apresentação e não inclui o nome civil por padrão. É uma superfície operacional restrita; não integra o Power BI padrão.
 
 ### `POST /api/v1/identidade/correcoes`
 
