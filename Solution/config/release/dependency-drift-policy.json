@@ -11,7 +11,15 @@
       "from": "8.0.9",
       "to": null,
       "justification": "PostgreSQL deixou de ser runtime suportado da Jornada candidata v5.00; Npgsql e os caminhos paralelos de persistência/calibração foram extraídos do produto corrente."
+    },
+    {
+      "kind": "ADD",
+      "project": "Solution/src/Jornada.Linkage.Conference/Jornada.Linkage.Conference.csproj",
+      "package": "Microsoft.Data.SqlClient",
+      "from": null,
+      "to": "5.2.2",
+      "justification": "Novo orquestrador governado de conferência de Linkage precisa abrir transação SERIALIZABLE e chamar procedures de auditoria no SQL Server. Reutiliza exatamente Microsoft.Data.SqlClient 5.2.2 já congelado no grafo da solução; não introduz nova família nem upgrade."
     }
   ],
-  "note": "Microsoft SQL Server é o único runtime relacional suportado pela candidata v5.00. PostgreSQL pertence a uma linha/projeto separado e não participa dos gates de release deste repositório."
+  "note": "Microsoft SQL Server é o único runtime relacional suportado pela candidata v5.00. PostgreSQL pertence a uma linha/projeto separado e não participa dos gates de release deste repositório. A adição direta de Microsoft.Data.SqlClient 5.2.2 em Jornada.Linkage.Conference explicita a fronteira SQL do novo orquestrador governado sem alterar a versão já congelada."
 }
