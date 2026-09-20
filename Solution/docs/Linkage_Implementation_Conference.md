@@ -10,7 +10,7 @@ Método:
 
 Escopo declarado:
 
-`SCORER_POLICY_ONLY_STATES_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE`
+`SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE`
 
 Ela recalcula em implementação separada:
 
@@ -28,7 +28,7 @@ A implementação reside em `Jornada.Linkage.Evaluation`, projeto que não refer
 
 ## Limite da afirmação
 
-Os estados de nome, nome da mãe e nascimento são entradas da conferência. Portanto esta primeira versão **não detecta defeitos na formação desses estados** e não deve ser descrita como uma segunda implementação independente dos comparadores.
+Os estados de nome, nome da mãe e nascimento são entradas da conferência. O flag `DemographicExactCollisionRisk`, consumido pelo guard de núcleo demográfico exato não único, também chega pré-computado. Portanto esta primeira versão **não detecta defeitos na formação desses estados nem na derivação desse flag** e não deve ser descrita como uma segunda implementação independente dos comparadores/guard-input.
 
 Uma futura conferência de comparadores deverá partir de entradas brutas e implementar normalização/classificação de maneira independente. Até lá, comparadores permanecem explicitamente fora do escopo.
 
