@@ -43,6 +43,7 @@ $projects = [ordered]@{
 $tools = [ordered]@{
     'Jornada.Bronze.Verify' = 'src\Jornada.Bronze.Verify\Jornada.Bronze.Verify.csproj'
     'Jornada.Linkage.Evaluation' = 'src\Jornada.Linkage.Evaluation\Jornada.Linkage.Evaluation.csproj'
+    'Jornada.Linkage.Conference' = 'src\Jornada.Linkage.Conference\Jornada.Linkage.Conference.csproj'
 }
 
 Push-Location $solutionRoot
@@ -80,7 +81,7 @@ finally {
 $configDestination = Join-Path $output 'config'
 New-Item -ItemType Directory -Force -Path $configDestination | Out-Null
 Copy-Item -Recurse -Force -Path (Join-Path $solutionRoot 'config\contracts') -Destination $configDestination
-foreach ($folder in @('governance','hml','observability','operations','possibilities','release')) {
+foreach ($folder in @('governance','hml','linkage','observability','operations','possibilities','release')) {
     $source = Join-Path $solutionRoot ("config\$folder")
     if (Test-Path -LiteralPath $source) { Copy-Item -Recurse -Force -Path $source -Destination $configDestination }
 }

@@ -46,6 +46,10 @@ public sealed class LinkageImplementationConferenceEvidenceTests
             connection, modelId, version, "CONFORME", 2, 0.0000005m, true, null, 1);
         Assert.That(firstConforme, Is.Not.EqualTo(Guid.Empty));
 
+        var repeatedConforme = await RegisterAsync(
+            connection, modelId, version, "CONFORME", 2, 0.0000005m, true, null, 1);
+        Assert.That(repeatedConforme, Is.EqualTo(firstConforme));
+
         await AssertGateAsync(connection, modelId);
 
         await RegisterAsync(
@@ -180,6 +184,17 @@ public sealed class LinkageImplementationConferenceEvidenceTests
         string? reason,
         byte hashSeed)
     {
+        await using (var context = connection.CreateCommand())
+        {
+            context.CommandText = """
+                EXEC sys.sp_set_session_context
+                    @key=N'Jornada.SourceRevision',
+                    @value=N'integration-test',
+                    @read_only=0;
+                """;
+            await context.ExecuteNonQueryAsync();
+        }
+
         await using var command = connection.CreateCommand();
         command.CommandText = """
             DECLARE @e UNIQUEIDENTIFIER;

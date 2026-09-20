@@ -229,13 +229,13 @@
   "candidateGraph": {
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
-    "sourceCommit": "f8598761a12b9f793c206f1dc43b18770b3829a1",
-    "githubRunId": "35536820795",
+    "sourceCommit": "19ea8cf6d951d6531a57915b9e979605c07d6e46",
+    "githubRunId": "35542686558",
     "sdk": "8.0.424",
-    "reason": "PR #382 adiciona referência direta de Jornada.Integration.Tests a Jornada.Linkage.Evaluation para provar o exportador tipado em SQL Server. O SDK 8.0.424 gerou o patch do lock no run 35536533461; o run 35536820795 confirmou 20 locks e todos os hashes individuais, calculando o combinedSha256 candidato corrente.",
-    "lockCount": 20,
-    "changedLockCount": 15,
-    "combinedSha256": "1739a0dfc62fa8aa05010cdcf8ad9f708cb53512510fd2a0ebbf43b0913e885e",
+    "reason": "PR #385 adiciona o orquestrador Jornada.Linkage.Conference e sua referência pela suíte de integração. O SDK 8.0.424 confirmou force-evaluate sem diferenças semânticas após ajuste de serialização, com 21 locks e combinedSha256 corrente.",
+    "lockCount": 21,
+    "changedLockCount": 16,
+    "combinedSha256": "19c25885cfd9507023484be2a0dfd1a1ddd20455e25c5c735ae3da2764b24c8f",
     "overrides": [
       {
         "path": "src/Jornada.Api/packages.lock.json",
@@ -252,6 +252,10 @@
       {
         "path": "src/Jornada.Ensaio/packages.lock.json",
         "sha256": "6390dfb9d50e2fdb04d87e3217ba93ac3db1d3977328e9819f0d339d58023d72"
+      },
+      {
+        "path": "src/Jornada.Linkage.Conference/packages.lock.json",
+        "sha256": "490069f885619a48eb580698c6c6add5127c8550aa29ac47c2121873119e599e"
       },
       {
         "path": "src/Jornada.Linkage.Core/packages.lock.json",
@@ -291,7 +295,7 @@
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "5b57f3d77bb77631962f44264be7989975d63aba5eb55cb3425b380bbd25f8f5"
+        "sha256": "2f4017d2d28f6968d5c72c2c0caed36983a8fa08ba492f95ff46220a23d248fd"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
