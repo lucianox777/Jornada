@@ -778,8 +778,8 @@ jobs:
               "declaredManifestSha256":os.environ["DECLARED_MANIFEST"],
               "actualManifestSha256":os.environ["ACTUAL_MANIFEST"],
               "structuralCheckpointCommit":provenance["source_commit"],
-              "historicalDdlEvidenceRunId":provenance["ddl_evidence_run_id"],
-              "note":"Fresh RC-tag execution; validation does not depend on future retention of historical Actions runs."
+              "schemaEvidenceModel":provenance["evidence_model"],
+              "note":"Fresh RC-tag execution; validation is produced on the exercised commit/tag and does not depend on a historical Actions run id."
           }
           out=Path(".local/rc-evidence-input/rc-structural-provenance/RC_SCHEMA_PROVENANCE.json")
           out.write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
