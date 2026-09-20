@@ -49,6 +49,9 @@ BEGIN
  SET NOCOUNT ON;
  SET XACT_ABORT ON;
 
+ IF @@TRANCOUNT=0
+   THROW 51832,'Fila de revisão de Linkage exige a transação explícita de publicação.',1;
+
  IF NOT EXISTS(
    SELECT 1 FROM identidade.linkage_run WITH(HOLDLOCK)
    WHERE linkage_run_id=@linkage_run_id AND status=N'EXECUTANDO')
