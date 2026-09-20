@@ -277,6 +277,9 @@ public sealed class IndependentImplementationConferenceParityTests
             Assert.That(
                 config.GetProperty("methodVersion").GetString(),
                 Is.EqualTo(IndependentImplementationConference.MethodVersion));
+            Assert.That(
+                config.GetProperty("toleranceVersion").GetString(),
+                Is.EqualTo("UNFROZEN"));
         });
     }
 
