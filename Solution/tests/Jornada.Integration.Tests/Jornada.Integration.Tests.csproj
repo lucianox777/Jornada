@@ -2,6 +2,8 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- Massa real é uma suíte opcional explícita; o CI obrigatório de integração não a contabiliza como skip. -->
+    <VSTestTestCaseFilter>TestCategory!=ExternalRealData</VSTestTestCaseFilter>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj" />
