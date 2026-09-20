@@ -29,7 +29,7 @@ A candidata v5.00 adota **Microsoft SQL Server como único runtime relacional su
 
 O inventário é derivado automaticamente por `Solution/scripts/schema-inventory.py` e publicado como evidência pelo workflow `jornada-schema-inventory`.
 
-A execução do PR #377, run `35533662679`, mediu 78 tabelas antes da trilha de promoção. O PR #381, run `35535174659`, confirmou o schema candidato corrente com `auditoria.modelo_linkage_estado_evento` incluída:
+A execução do PR #377, run `35533662679`, mediu 78 tabelas antes da trilha de promoção; o PR #381, run `35535174659`, confirmou 79 com o ledger de transição. O PR #384, run `35540125752`, confirmou executavelmente o schema candidato corrente com a evidência agregada da conferência incluída:
 
 - tabelas no `Jornada_Fase1.sql` legado: **53**;
 - tabelas próprias do núcleo `Jornada_Identidade_Progressiva.sql`: **2**;
