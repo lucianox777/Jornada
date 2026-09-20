@@ -15,11 +15,9 @@ A categoria `Integration` foi separada fisicamente em `Jornada.Integration.Tests
 
 
 
-## Compatibilidade SQL Database in Microsoft Fabric — v4.00
+## Histórico de compatibilidade Fabric — fora dos gates correntes
 
-A suíte Integration aceita dois alvos explícitos via `JORNADA_TEST_SQL_TARGET`: `SQL_SERVER_2022` (padrão local/CI) e `FABRIC_SQL_DATABASE`. O alvo Fabric exige `JORNADA_TEST_SQL_USE_EXISTING_DATABASE=true` e um banco não produtivo pré-provisionado cujo nome contenha `Test`, `Dev` ou `Local`; a fixture não cria nem remove o item de banco no workspace.
-
-Use `scripts/fabric-sql-compatibility.ps1` ou `scripts/fabric-sql-compatibility.sh`, definindo `JORNADA_FABRIC_SQL_CONNECTION` com autenticação Microsoft Entra. O harness executa gates estáticos, restore `--locked-mode`, build Release e toda a suíte Integration com `--forbid-skipped`. A connection string não é persistida pelo script.
+Evidências anteriores de SQL Database in Microsoft Fabric pertencem ao histórico de compatibilidade da linha v4.00. A candidata v5.00 usa SQL Server 2022 como único runtime relacional de desenvolvimento/CI/HML/Produção; Fabric não é alvo da suíte Integration corrente nem gate de release. Lakehouse/SQL Analytics Endpoint permanecem na camada analítica conforme a arquitetura.
 
 
 ## Compatibilidade Testcontainers/Docker — v3.88
@@ -46,7 +44,7 @@ export JORNADA_TEST_SQL_CONNECTION='Server=...;Database=JornadaTest;...'
 dotnet test tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj
 ```
 
-Os testes de integração executam DDL + seed e agora cobrem também a trilha de auditoria por Pessoa/credencial/recurso e as transições principais do `SqlProcessorRepository`, incluindo publicação atômica de Pessoa/Fato/Serving/completude, e regras unitárias de QC do Processor.
+Os testes de integração executam DDL + seed e agora cobrem também a trilha de auditoria por Pessoa/credencial/recurso e as transições principais do `SqlProcessorRepository`, incluindo publicação atômica de Pessoa/Fato/Serving/completude, regras unitárias de QC do Processor e a fila governada de conflitos probabilísticos. `LinkageProgressivePublicationSqlServerTests` prova que um conflito publicado entra uma única vez em `qualidade.divergencia_gestor` e preserva, via `linkage_resultado_id`, run/modelo/candidato/score/margem sem referência direta do projeto Integration ao assembly do Runner.
 
 ## Processor SQL
 
