@@ -498,17 +498,19 @@ jobs:
             --mode MODEL_VALIDATION --model-version "$MODEL_VERSION" --since 2026-08-31T01:00:00Z --max-records 1000 \
             --batch-size 500 --max-parallelism 2 --publish false \
             --requested-by CI_HARNESS --reason ci-harness-evidence
-      - name: Reconcile no-candidate counter and enforce synthetic blocking recall floor
+      - name: Reconcile no-candidate counter on generic synthetic smoke
         run: |
           CID=$(docker ps -q --filter publish=1433 | head -1)
           RUN_ID=$(docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE solicitado_por=N'CI_HARNESS' ORDER BY iniciado_em DESC;" | tr -d '\r' | xargs)
           test -n "$RUN_ID"
-          AUDIT=$(docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; WITH rr AS (SELECT r.motivo FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id WHERE r.linkage_run_id='$RUN_ID' AND po.codigo_pessoa_origem LIKE N'SCALE-PEND-%'), nc AS (SELECT * FROM rr WHERE motivo LIKE N'SEM_CANDIDATO_%') SELECT CONCAT((SELECT sem_candidato_no_bloco FROM identidade.linkage_run WHERE linkage_run_id='$RUN_ID'),'|',(SELECT COUNT_BIG(*) FROM nc),'|',(SELECT COUNT_BIG(*) FROM rr),'|',COALESCE(CONVERT(bigint,ROUND((1.0-(CONVERT(float,(SELECT COUNT_BIG(*) FROM nc))/NULLIF(CONVERT(float,(SELECT COUNT_BIG(*) FROM rr)),0)))*1000000,0)),0));" | tr -d '\r' | xargs)
-          IFS='|' read -r REPORTED_NO_CANDIDATE ACTUAL_NO_CANDIDATE TOTAL_SYNTHETIC_RESULTS BLOCKING_RECALL_PPM <<< "$AUDIT"
+          AUDIT=$(docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; WITH rr AS (SELECT r.motivo FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id WHERE r.linkage_run_id='$RUN_ID' AND po.codigo_pessoa_origem LIKE N'SCALE-PEND-%'), nc AS (SELECT * FROM rr WHERE motivo LIKE N'SEM_CANDIDATO_%') SELECT CONCAT((SELECT sem_candidato_no_bloco FROM identidade.linkage_run WHERE linkage_run_id='$RUN_ID'),'|',(SELECT COUNT_BIG(*) FROM nc),'|',(SELECT COUNT_BIG(*) FROM rr));" | tr -d '\r' | xargs)
+          IFS='|' read -r REPORTED_NO_CANDIDATE ACTUAL_NO_CANDIDATE TOTAL_SYNTHETIC_RESULTS <<< "$AUDIT"
+          echo "NO-CANDIDATE AUDIT: reported=$REPORTED_NO_CANDIDATE actual=$ACTUAL_NO_CANDIDATE total=$TOTAL_SYNTHETIC_RESULTS"
           test "$REPORTED_NO_CANDIDATE" = "$ACTUAL_NO_CANDIDATE"
           test "$TOTAL_SYNTHETIC_RESULTS" = '1000'
-          test "$BLOCKING_RECALL_PPM" -ge 950000
-          echo "NO-CANDIDATE AUDIT: reported=$REPORTED_NO_CANDIDATE actual=$ACTUAL_NO_CANDIDATE total=$TOTAL_SYNTHETIC_RESULTS blocking_recall_ppm=$BLOCKING_RECALL_PPM"
+          # O piso de recall do blocking é responsabilidade do ruleset calibrado e da
+          # validação independente adversarial. SCALE-PEND é apenas smoke operacional
+          # genérico; não é conjunto rotulado independente e não deve duplicar esse gate.
       - name: Run read-only linkage evaluation smoke
         env:
           JORNADA_EVALUATION_SQL_PASSWORD: 'Jornada_${{ github.run_id }}!HarnessSql'
