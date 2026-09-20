@@ -54,7 +54,9 @@ A afirmação é deliberadamente limitada: comparadores de nome/data continuam *
 
 Nenhuma tolerância governada foi inventada. `config/linkage/implementation-conference-tolerance.json` permanece `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION` com valor nulo. Nessa condição a engine retorna `NAO_EXECUTADA`, não `CONFORME`. Valores numéricos usados pelos testes são fixtures `TEST_ONLY_NOT_GOVERNANCE`.
 
-A conferência de implementação continua distinta da validação estatística representativa #31. A persistência agregada por modelo e o gate de promoção `GENERATE_DRAFT -> CONFERENCIA -> VALIDATE -> ACTIVATE` permanecem na etapa seguinte da issue #380; não há nesta fatia autorização para promover modelo com tolerância ainda não congelada.
+A conferência de implementação continua distinta da validação estatística representativa #31. A candidata agora materializa `auditoria.linkage_conferencia_evidencia`, append-only, e as procedures de registro/assert do gate. A evidência é agregada por modelo/método/tolerância, sem PII ou score par-a-par. O assert sempre considera a evidência mais recente e falha se ela não estiver `CONFORME`.
+
+O wiring do assert em `VALIDATE/ACTIVATE` permanece deliberadamente **inativo** enquanto `implementation-conference-tolerance.json` estiver `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`. Portanto esta fatia prepara o contrato persistente e o gate fail-closed, mas não altera ainda a promoção operacional nem fabrica tolerância.
 
 ## 4.3. Autoria dos atos governados de identidade
 
