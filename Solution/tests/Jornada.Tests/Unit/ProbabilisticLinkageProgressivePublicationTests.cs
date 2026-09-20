@@ -38,6 +38,7 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
             Assert.That(sql, Does.Contain("@linkage_run_id=@run_id"));
 
             Assert.That(migration, Does.Contain("sp_registrar_conflitos_linkage_publicados"));
+            Assert.That(migration, Does.Contain("@@TRANCOUNT=0"));
             Assert.That(migration, Does.Contain("r.status=N'CONFLITO'"));
             Assert.That(migration, Does.Contain("r.status_publicacao=N'CONFLITO'"));
             Assert.That(migration, Does.Contain("NOT LIKE N'PRECEDENCIA[_]%'"));
