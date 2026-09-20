@@ -19,7 +19,11 @@ Para `ENDERECO_RESIDENCIAL` e `REFERENCIA_TERRITORIAL`, cada atributo deve decla
 - `SEM_ENDERECO_APTO`;
 - `NAO_RESOLVIDA_ORIGEM`.
 
-Nos três últimos estados, `geografia` deve ser `null`. Isso distingue ausência territorial legítima de falha de qualidade da origem.
+Nos três últimos estados, `geografia` deve ser `null`. `SEM_ENDERECO_APTO` qualifica que não há endereço apto à resolução geográfica naquele registro; **não** deve ser reinterpretado como declaração de que a Pessoa não possui endereço fixo. Nulo/ausente continua significando informação não fornecida.
+
+A distinção semântica entre “sem endereço fixo declarado” e “endereço desconhecido/não resolvido” exige nova versão contratual, porque os schemas v1–v4 vigentes congelam a enumeração acima e não podem ser alterados in-place. A próxima versão deve tipar explicitamente referências como domiciliar, acolhimento institucional, institucional prisional, serviço de referência de atendimento e logradouro de pernoite, além de representar `SEM_ENDERECO_FIXO_DECLARADO` como estado informativo próprio. Até essa versão existir, a Jornada não deve codificar essa declaração como string vazia, `null` ou `SEM_ENDERECO_APTO`.
+
+Endereços/referências territoriais correntes não são evidência positiva do linkage. Em especial, endereço institucional compartilhado não pode aproximar identidades por concordância; qualquer uso futuro exige blocking limitado e modelo com ajuste de frequência. `ENDERECO_CASA_ABRIGO_SIGILOSA` nunca participa da resolução de identidade nem da projeção territorial fina compartilhada.
 
 A Jornada valida códigos contra seus catálogos de Distrito/Subprefeitura e persiste a `referenciaMalha` enviada. `origem_geografia=ORIGEM` identifica o responsável pela resolução. O campo `resolvido_em` usa `manifest.dataReferencia` como marco do snapshot recebido.
 
