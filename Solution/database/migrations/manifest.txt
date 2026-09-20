@@ -38,4 +38,5 @@ migrations/20260917_Linkage_Llr_Monotonicity.sql
 migrations/20260919_Linkage_Publicacao_Progressiva.sql
 migrations/20260919_Gold_Pessoa_Progressiva.sql
 migrations/20260920_Linkage_Llr_Monotonicity_Tolerance.sql
+migrations/20260920_Linkage_Conflict_Review_Queue.sql
 migrations/20260910_Schema_Consolidation_370.sql
