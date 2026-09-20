@@ -38,6 +38,10 @@ public sealed class CalibrationAuditExporterSqlServerTests
             Assert.That(document.InterchangeContract.UProbabilitySemantics,
                 Is.EqualTo(LinkageCalibrationAuditExchangePolicy.UProbabilitySemantics));
             Assert.That(document.InterchangeContract.SplinkDefaultRandomPairUEquivalent, Is.False);
+            Assert.That(document.InterchangeContract.NominalNameUSource,
+                Is.EqualTo(LinkageCalibrationAuditExchangePolicy.ResolveNominalUSource(document.Parameters, false)));
+            Assert.That(document.InterchangeContract.NominalMotherNameUSource,
+                Is.EqualTo(LinkageCalibrationAuditExchangePolicy.ResolveNominalUSource(document.Parameters, true)));
             Assert.That(document.TermFrequency.RuntimeEnabled, Is.False);
         });
     }
