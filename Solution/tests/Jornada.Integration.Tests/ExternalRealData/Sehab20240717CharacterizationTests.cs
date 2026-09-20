@@ -8,7 +8,6 @@ namespace Jornada.Tests.ExternalRealData;
 
 [TestFixture]
 [Category("ExternalRealData")]
-[Category("Integration")]
 public sealed class Sehab20240717CharacterizationTests
 {
     private const string ZipEnvironmentVariable = "JORNADA_SEHAB_ASIS_ZIP";
