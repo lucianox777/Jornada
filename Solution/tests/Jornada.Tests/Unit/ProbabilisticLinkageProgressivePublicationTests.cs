@@ -34,13 +34,15 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(sql, Does.Contain("linkage_resultado_id"));
-            Assert.That(sql, Does.Contain("r.status=N'CONFLITO'"));
-            Assert.That(sql, Does.Contain("r.status_publicacao=N'CONFLITO'"));
-            Assert.That(sql, Does.Contain("NOT LIKE N'PRECEDENCIA[_]%'"));
-            Assert.That(sql, Does.Contain("d.linkage_resultado_id IS NOT NULL"));
-            Assert.That(sql, Does.Contain("NOT EXISTS"));
+            Assert.That(sql, Does.Contain("sp_registrar_conflitos_linkage_publicados"));
+            Assert.That(sql, Does.Contain("@linkage_run_id=@run_id"));
 
+            Assert.That(migration, Does.Contain("sp_registrar_conflitos_linkage_publicados"));
+            Assert.That(migration, Does.Contain("r.status=N'CONFLITO'"));
+            Assert.That(migration, Does.Contain("r.status_publicacao=N'CONFLITO'"));
+            Assert.That(migration, Does.Contain("NOT LIKE N'PRECEDENCIA[_]%'"));
+            Assert.That(migration, Does.Contain("d.linkage_resultado_id IS NOT NULL"));
+            Assert.That(migration, Does.Contain("NOT EXISTS"));
             Assert.That(migration, Does.Contain("fk_divergencia_gestor_linkage_resultado"));
             Assert.That(migration, Does.Contain("UX_divergencia_gestor_linkage_aberta"));
             Assert.That(migration, Does.Contain("v_divergencia_linkage_contexto"));
