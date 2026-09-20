@@ -8,6 +8,21 @@
 > **Leitura institucional.** Esta matriz v1.1 contém a rastreabilidade histórica e os aditivos vigentes em um único artefato. A matriz v1.0 permanece somente como histórico e não precisa ser consultada em conjunto. Referências `RNF01` a `RNF33` foram normalizadas para `RNF-001` a `RNF-033` sem alteração de significado.
 
 
+## 0. Convenções de identificador e evidência
+
+Os identificadores primários históricos permanecem imutáveis. Para interoperabilidade com ferramentas que exigem o padrão hífen-numérico, os quatro RNF aditivos possuem aliases técnicos equivalentes, sem criar novos requisitos:
+
+| Identificador primário | Alias técnico normalizado |
+|---|---|
+| `RNF34-A` | `RNF-034A` |
+| `RNF34-B` | `RNF-034B` |
+| `RNF34-C` | `RNF-034C` |
+| `RNF34-D` | `RNF-034D` |
+
+O identificador primário continua sendo o usado nos documentos v1.1 para preservar rastreabilidade já publicada. O alias serve apenas para busca, integração e normalização automática.
+
+A coluna **Evidência principal** identifica a família de cobertura. Ela não deve ser interpretada como prova caso-a-caso quando citar apenas uma classe, gate ou artefato agrupador. Reivindicações de aceite/release devem apontar, no relatório de evidência correspondente, para o caso de teste, execução ou artefato concreto que comprovou o requisito.
+
 > Esta matriz é o ponto único de rastreabilidade entre os quatro níveis de requisitos. As listas são intencionalmente de muitos-para-muitos; não significam que cada RT implemente isoladamente todo o RN.
 
 ## 1. Matriz por Requisito de Negócio
