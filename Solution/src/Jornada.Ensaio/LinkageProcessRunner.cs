@@ -39,6 +39,13 @@ public sealed class LinkageProcessRunner(
                 startInfo.Environment[$"LinkageParameters__{key}"] = value;
         }
 
+        foreach (var key in new[] { "Seed", "ValidationBasisPoints", "TestBasisPoints" })
+        {
+            var value = configuration[$"LinkageParameters:DecisionCalibration:{key}"];
+            if (!string.IsNullOrWhiteSpace(value))
+                startInfo.Environment[$"LinkageParameters__DecisionCalibration__{key}"] = value;
+        }
+
         var exitCode = await ExecuteProcessAsync(startInfo, cancellationToken);
         log.Add($"{stage.Codigo}: Linkage.Parameters.Worker GENERATE_DRAFT exit={exitCode}");
         if (exitCode != 0)
