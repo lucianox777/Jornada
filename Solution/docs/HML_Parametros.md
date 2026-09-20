@@ -64,6 +64,8 @@ Para cada parâmetro `APROVADO`, o gate exige `approvedValue`, `approvedAtUtc`, 
 
 A issue #31 possui ainda um contrato separado, `config/hml/linkage-statistical-readiness.json`. Ele existe porque o relatório legado `Jornada.Linkage.Evaluation` cobre blocking/transportabilidade, mas não equivale à avaliação independente, à ponderação/incerteza, à proveniência de seleção/não resposta, à dependência multievidência, à qualidade da verdade de referência nem à validação de escala exigidas para o fechamento estatístico. O contrato também nasce `PENDENTE` e seu gate não inventa thresholds: apenas exige que as evidências institucionais aplicáveis estejam declaradas, versionadas, fingerprintadas e formalmente atestadas.
 
+A coleta representativa de volumetria não deve usar o `local-scale` destrutivo sobre HML. O procedimento corrente está em `docs/Runbook_HML_Volumetria.md`: `Jornada.Ensaio` opera em `HML_SCALE_EVIDENCE`, cronometra `GENERATE_DRAFT` e `MODEL_VALIDATION` sobre a massa já carregada, exige confirmação explícita de ambiente não produtivo, não executa `ACTIVATE`, não publica Linkage e grava JSON + SHA-256 compatíveis com `performance-evidence-gate.py`.
+
 A passagem estrita pode ser executada com:
 
 ```bash

@@ -92,6 +92,8 @@ Depois execute `local-scale ... custom`.
 
 Os resultados locais não substituem a homologação com infraestrutura representativa da PRODAM. Servem para detectar regressões, validar índices/algoritmos e tornar o ensaio repetível.
 
+Para HML, **não use `local-scale`**, pois ele reseta e semeia o banco. A coleta representativa segura usa o modo `HML_SCALE_EVIDENCE` de `Jornada.Ensaio`, documentado em `docs/Runbook_HML_Volumetria.md`. Esse modo usa a massa já carregada, cria somente modelo `VALIDADO` + run `MODEL_VALIDATION/publish=false`, preserva o modelo `ATIVO` e grava artefato + SHA-256.
+
 ## 2. Fault injection do gate serial
 
 ```powershell

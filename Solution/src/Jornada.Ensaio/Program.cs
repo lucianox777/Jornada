@@ -18,18 +18,27 @@ if (adapter.Provider != OperationalDatabaseProviders.SqlServer)
 
 DbConnection OpenConnection() => adapter.CreateConnection();
 
-var log = new List<string>();
-var checkpointCollector = new CheckpointCollector(OpenConnection);
-var drainProbe = new SqlServerPipelineDrainProbe(OpenConnection);
-var linkageRunner = new LinkageProcessRunner(configuration, options, OpenConnection, log);
-var ingestionRunner = new IngestionStageRunner(options, drainProbe, log);
-var runner = new EnsaioRunner(options, checkpointCollector, linkageRunner, ingestionRunner, log);
-
 using var cancellation = new CancellationTokenSource();
 Console.CancelKeyPress += (_, eventArgs) =>
 {
     eventArgs.Cancel = true;
     cancellation.Cancel();
 };
+
+var mode = configuration["Ensaio:Mode"]?.Trim() ?? "FULL_REHEARSAL";
+if (string.Equals(mode, "HML_SCALE_EVIDENCE", StringComparison.OrdinalIgnoreCase))
+{
+    var evidenceRunner = new HmlScaleEvidenceRunner(configuration, options, OpenConnection);
+    return await evidenceRunner.RunAsync(cancellation.Token);
+}
+if (!string.Equals(mode, "FULL_REHEARSAL", StringComparison.OrdinalIgnoreCase))
+    throw new InvalidOperationException($"Ensaio:Mode inválido: {mode}. Use FULL_REHEARSAL ou HML_SCALE_EVIDENCE.");
+
+var log = new List<string>();
+var checkpointCollector = new CheckpointCollector(OpenConnection);
+var drainProbe = new SqlServerPipelineDrainProbe(OpenConnection);
+var linkageRunner = new LinkageProcessRunner(configuration, options, OpenConnection, log);
+var ingestionRunner = new IngestionStageRunner(options, drainProbe, log);
+var runner = new EnsaioRunner(options, checkpointCollector, linkageRunner, ingestionRunner, log);
 
 return await runner.RunAsync(cancellation.Token);
