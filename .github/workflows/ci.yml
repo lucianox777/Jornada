@@ -152,8 +152,11 @@ jobs:
         run: |
           python3 scripts/possibility-rules-gate.py config/possibilities/rule-catalog.json --root . --summary .local/possibility-rules-summary.json
           python3 scripts/possibility-rules-gate.py --self-test
-      - name: Self-test aggregate release evidence gate
-        run: python3 scripts/release-evidence-gate.py --self-test
+      - name: Self-test aggregate release and technical RC evidence gates
+        run: |
+          python3 scripts/release-evidence-gate.py --self-test
+          python3 -m py_compile scripts/technical-rc-gate.py scripts/rc-evidence-gate.py
+          python3 scripts/rc-evidence-gate.py --self-test
       - name: Self-test IBGE nominal u multi-seed diagnostic
         run: pwsh -NoLogo -NoProfile -File scripts/local-ibge-u-multiseed.ps1 -SelfTest
       - run: dotnet build Jornada.sln --configuration Release --no-restore
@@ -727,7 +730,7 @@ jobs:
       - name: Build technical RC source bundle
         run: |
           set -euo pipefail
-          Solution/scripts/build-rc-source-bundle.sh \
+          bash Solution/scripts/build-rc-source-bundle.sh \
             . \
             Solution/.local/rc-source/Jornada_RC_Source.bundle \
             Solution/.local/rc-source/RC_SOURCE_PROVENANCE.json \
