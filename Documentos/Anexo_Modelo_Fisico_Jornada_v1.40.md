@@ -168,6 +168,14 @@ A chave é produzida a partir da normalização canônica já persistida na Silv
 
 Também não há índice novo sobre `nome_publicacao_normalizado` apenas por sua existência: criação de índice deve ser sustentada por medição de cardinalidade/seletividade, custo de escrita e ganho nos consumidores reais de blocking/lookup.
 
+## 6.1. Proveniência da revisão governada de conflitos de Linkage
+
+A fila institucional continua materializada em `qualidade.divergencia_gestor`; não é criada uma segunda tabela de revisão. A coluna anulável `linkage_resultado_id` referencia `identidade.linkage_resultado` e é preenchida somente para divergências originadas de conflito probabilístico publicado. Assim, modelo, run, candidatos, scores e margem permanecem na evidência imutável de Linkage em vez de serem copiados para a fila.
+
+O índice filtrado `UX_divergencia_gestor_linkage_aberta` impede mais de uma divergência probabilística aberta para a mesma observação. A procedure `qualidade.sp_registrar_conflitos_linkage_publicados` opera dentro da transação de publicação do run e atualiza a proveniência em replay; conflitos cobertos por precedência determinística/governada não são duplicados. A view interna `qualidade.v_divergencia_linkage_contexto` reúne a fila e a evidência probabilística para auditoria restrita, sem alterar o contrato HTTP público.
+
+Essa evolução adiciona coluna, FK, índice, procedure e view, **sem acrescentar tabela**; portanto a contagem de tabelas do inventário permanece inalterada.
+
 ## 7. Regras de evolução
 
 1. Microsoft SQL Server permanece a tecnologia relacional normativa e o baseline independente de ambiente do contrato relacional.
