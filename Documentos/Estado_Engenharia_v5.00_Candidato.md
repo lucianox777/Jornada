@@ -120,3 +120,6 @@ Este documento não autoriza:
 - tratar evidência histórica Fabric como requisito ou homologação da candidata atual.
 
 O objetivo do fechamento é manter **uma arquitetura operacional, um contrato relacional e uma cadeia de evidência reproduzível**, sem segunda persistência concorrente.
+
+
+O monitor operacional agora apresenta, para o modelo ATIVO, a última evidência agregada da conferência quando existente, mantendo round-trip e validação estatística como evidências distintas.
