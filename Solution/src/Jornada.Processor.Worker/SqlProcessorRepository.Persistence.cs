@@ -123,7 +123,7 @@ internal sealed partial class SqlProcessorRepository
             insert.Parameters.AddWithValue("@versao", internalVersion);
             insert.Parameters.Add(new SqlParameter("@hash", SqlDbType.Char, 64) { Value = person.ConteudoHash });
             AddNullable(insert, "@cpf", SqlDbType.Char, 11, person.Cpf);
-            AddNullable(insert, "@cpf_motivo", SqlDbType.NVarChar, 30, person.CpfAusenteMotivo);
+            AddNullable(insert, "@cpf_motivo", SqlDbType.NVarChar, 50, person.CpfAusenteMotivo);
             AddNullable(insert, "@nome", SqlDbType.NVarChar, 500, person.NomeCompleto);
             AddNullable(insert, "@nome_cmp", SqlDbType.NVarChar, 500, nomeCmp);
             AddNullableDate(insert, "@nascimento", person.DataNascimento);
@@ -282,14 +282,18 @@ internal sealed partial class SqlProcessorRepository
             {
                 // ENDERECO_RESIDENCIAL é dado cadastral de residência. Quando usado como fallback, sua geografia
                 // é persistida somente no snapshot de Referência Territorial DOMICILIAR; não há tabela geográfica paralela.
-                await InsertTerritorialReferenceAsync(connection, tx, attributeObservationId, TerritorialReferenceNature.DOMICILIAR,
+                await InsertTerritorialReferenceAsync(connection, tx, attributeObservationId,
+                    TerritorialReferenceState.INFORMADA, TerritorialReferenceNature.DOMICILIAR,
                     "ENDERECO_RESIDENCIAL", subprefeituraId, distritoId, attribute.SituacaoGeografia, attribute.Geografia, batch.DataReferencia, ct);
             }
             else if (string.Equals(attribute.AtributoCodigo, "REFERENCIA_TERRITORIAL", StringComparison.OrdinalIgnoreCase))
             {
-                if (!attribute.NaturezaReferenciaTerritorial.HasValue)
-                    throw new InvalidDataException("REFERENCIA_TERRITORIAL sem natureza declarada pela fonte.");
-                await InsertTerritorialReferenceAsync(connection, tx, attributeObservationId, attribute.NaturezaReferenciaTerritorial.Value,
+                var state = attribute.EstadoReferenciaTerritorial ?? TerritorialReferenceState.INFORMADA;
+                if (state == TerritorialReferenceState.INFORMADA && !attribute.NaturezaReferenciaTerritorial.HasValue)
+                    throw new InvalidDataException("REFERENCIA_TERRITORIAL informada sem natureza declarada pela fonte.");
+                if (state == TerritorialReferenceState.SEM_ENDERECO_FIXO_DECLARADO && attribute.NaturezaReferenciaTerritorial.HasValue)
+                    throw new InvalidDataException("SEM_ENDERECO_FIXO_DECLARADO não admite natureza territorial.");
+                await InsertTerritorialReferenceAsync(connection, tx, attributeObservationId, state, attribute.NaturezaReferenciaTerritorial,
                     "REFERENCIA_TERRITORIAL", subprefeituraId, distritoId, attribute.SituacaoGeografia, attribute.Geografia, batch.DataReferencia, ct);
             }
         }
@@ -326,18 +330,19 @@ internal sealed partial class SqlProcessorRepository
     }
 
     private static async Task InsertTerritorialReferenceAsync(
-        SqlConnection connection, SqlTransaction tx, long attributeObservationId, TerritorialReferenceNature nature, string semanticSource,
+        SqlConnection connection, SqlTransaction tx, long attributeObservationId, TerritorialReferenceState state, TerritorialReferenceNature? nature, string semanticSource,
         long? subprefeituraId, long? distritoId, GeographicResolutionStatus? geographyStatus, ReferenceGeography? geography, DateTimeOffset dataReferencia, CancellationToken ct)
     {
         await using var command = connection.CreateCommand();
         command.Transaction = tx;
         command.CommandText = """
             INSERT silver.referencia_territorial_observacao(
-                pessoa_atributo_observacao_id,natureza_referencia,fonte_semantica,subprefeitura_id,distrito_id,situacao_geografia,origem_geografia,referencia_malha,resolvido_em)
-            VALUES(@atributo,@natureza,@fonte,@subprefeitura,@distrito,@situacao,@origem,@malha,@resolvido);
+                pessoa_atributo_observacao_id,estado_referencia,natureza_referencia,fonte_semantica,subprefeitura_id,distrito_id,situacao_geografia,origem_geografia,referencia_malha,resolvido_em)
+            VALUES(@atributo,@estado,@natureza,@fonte,@subprefeitura,@distrito,@situacao,@origem,@malha,@resolvido);
             """;
         command.Parameters.AddWithValue("@atributo", attributeObservationId);
-        command.Parameters.Add(new SqlParameter("@natureza", SqlDbType.NVarChar, 50) { Value = nature.ToString() });
+        command.Parameters.Add(new SqlParameter("@estado", SqlDbType.NVarChar, 40) { Value = state.ToString() });
+        command.Parameters.Add(new SqlParameter("@natureza", SqlDbType.NVarChar, 50) { Value = (object?)nature?.ToString() ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@fonte", SqlDbType.NVarChar, 30) { Value = semanticSource });
         command.Parameters.Add(new SqlParameter("@subprefeitura", SqlDbType.BigInt) { Value = (object?)subprefeituraId ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@distrito", SqlDbType.BigInt) { Value = (object?)distritoId ?? DBNull.Value });

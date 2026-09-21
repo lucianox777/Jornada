@@ -12,6 +12,7 @@
 - `Governanca_Finalidade_Acesso.md` - gate de decisão institucional que impede introduzir finalidade livre por requisição antes de deliberação normativa e registra o desenho preferencial caso a finalidade venha a ser exigida.
 - `Calibrador_Plano_Blocking_Analise.md` - plano analítico, não homologado, para comparar features, passes e rulesets de blocking com replay, evidência e gates sem inventar parâmetros institucionais.
 - `Gold_Pessoa_Universo_CPF.md` - proposta revisão 6 para universo Gold ancorado em CPF, campos cadastrais anuláveis, nome civil/social, código estável por origem e decisões institucionais ainda pendentes; não substitui a Especificação Técnica publicada nem declara implementação concluída.
+- `Pessoa_V5_Contrato_371.md` - contrato técnico em implementação no trem SolutionSchema 3.71: taxonomia de ausência de CPF, RG/CNH secundários e referência territorial tipada, com v5 ainda RASCUNHO e sem rebind antecipado do schema.
 - `Identity_Decision_Ledger.md` - fonte canônica append-only dos atos governados de identidade, com autoria por credencial autenticada, operação gerada pelo SQL Server e atomicidade com a mutação.
 - `Linkage_Calibration_Audit_Export.md` - exportação tipada/read-only do modelo e round-trip obrigatório do formato Jornada.
 - `Linkage_Implementation_Conference.md` - escopo e contrato da conferência independente de scorer/policy sobre estados pré-computados, com tolerância ainda deliberadamente não congelada.

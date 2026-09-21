@@ -86,8 +86,8 @@ internal static class PersonIdentifierParsing
             "NIS" => NormalizeDigits(value),
             "CNS" => NormalizeDigits(value),
             "UUID_JORNADA" => NormalizeUuid(value),
-            "RG" => NormalizeTextIdentifier(value),
-            "CNH" => NormalizeTextIdentifier(value),
+            "RG" => NormalizeDocumentIdentifier(value, "RG"),
+            "CNH" => NormalizeDocumentIdentifier(value, "CNH"),
             "CODIGO_BASE_ORIGEM" => value,
             "OUTRO" => value,
             _ => throw new InvalidDataException($"Tipo de identificador de Pessoa não suportado: {type}.")
@@ -216,8 +216,29 @@ internal static class PersonIdentifierParsing
         return parsed.ToString("D");
     }
 
-    private static string NormalizeTextIdentifier(string value)
-        => new(value.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+    private static string NormalizeDocumentIdentifier(string value, string type)
+    {
+        var buffer = new List<char>(value.Length);
+        foreach (var c in value)
+        {
+            if (char.IsLetterOrDigit(c))
+            {
+                buffer.Add(char.ToUpperInvariant(c));
+                continue;
+            }
+
+            if (c is ' ' or '\t' or '\r' or '\n' or '.' or '-' or '/' or '\\')
+                continue;
+
+            throw new InvalidDataException(
+                $"Identificador {type} contém caractere não permitido na normalização lexical.");
+        }
+
+        if (buffer.Count == 0)
+            throw new InvalidDataException($"Identificador {type} ficou vazio após normalização lexical.");
+
+        return new string(buffer.ToArray());
+    }
 
     private static string Required(JsonElement element, string property)
     {

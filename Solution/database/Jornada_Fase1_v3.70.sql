@@ -46,6 +46,7 @@
 :r database/migrations/20260921_Identidade_Decisao_Evidencia_Estruturada.sql
 :r database/migrations/20260921_Identidade_Confirmacao_Simplificada.sql
 :r database/migrations/20260921_Nis_Rg_Identificadores_Secundarios.sql
+:r database/migrations/20260921_Pessoa_V5_Contrato_371.sql
 :r database/migrations/20260920_Linkage_Model_Promotion_Ledger.sql
 :r database/migrations/20260920_Linkage_Implementation_Conference_Evidence.sql
 :r database/migrations/20260920_Linkage_Conference_Command_Governance.sql
