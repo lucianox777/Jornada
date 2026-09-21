@@ -98,10 +98,7 @@ public sealed class SyntheticCorpusFoundationTests
     {
         var root = FindRepositoryRoot();
         var sourceDir = Path.Combine(root, "Solution", "src", "Jornada.Linkage.SyntheticCorpus");
-        var source = string.Join(
-            "\
-",
-            Directory.EnumerateFiles(sourceDir, "*.cs").Select(File.ReadAllText));
+        var source = string.Join("\\n", Directory.EnumerateFiles(sourceDir, "*.cs").Select(File.ReadAllText));
         var workerProject = File.ReadAllText(Path.Combine(
             root,
             "Solution",
