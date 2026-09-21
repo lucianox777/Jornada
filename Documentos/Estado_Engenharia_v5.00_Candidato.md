@@ -1,7 +1,7 @@
 # Estado de Engenharia — candidato Solution Engenharia v5.00
 
 **Data de consolidação:** 20/09/2026  
-**Status:** CANDIDATO TÉCNICO — RELEASE/TAG NÃO CORTADA  
+**Status:** CANDIDATO TÉCNICO — RC `v5.00-rc.1` CORTADA; v5.00 FINAL/NORMATIVA NÃO PUBLICADA  
 **SolutionSchema corrente:** `3.70`
 
 A candidata passa a reconhecer NIS/PIS/PASEP/NIT como identificador secundário tipado `NIS`, com namespace de origem preservado, e explicita o mesmo papel secundário do RG. NIS recebe validação estrutural e proveniência `DECLARADO|COMPROVADO`, mas não constitui Pessoa, não cria `identity_map` e não resolve vínculo. Reutilização do mesmo NIS sob Pessoas distintas é exposta apenas como sinal de qualidade em `serving.v_bi_identificador_secundario_qualidade`/QC canônico, sem merge automático. CPF permanece a âncora externa principal. A política está congelada na ADR-006 e não promove NIS/RG ao score probabilístico.
@@ -10,7 +10,7 @@ A candidata passa a reconhecer NIS/PIS/PASEP/NIT como identificador secundário 
 
 A última release selada continua sendo a **Solution Engenharia v4.05**, com `schema_solution=v3.69` e tag `jornada-solution-v4.05`, conforme `RELEASE_INFO.txt`.
 
-Este documento descreve somente a candidata v5.00. O commit imutável da RC, quando existir, será registrado pelos metadados de candidato/release; este arquivo não congela antecipadamente um SHA mutável de `master`.
+Este documento descreve a candidata v5.00 em evolução pós-RC. O checkpoint técnico imutável `v5.00-rc.1` já foi cortado conforme `CANDIDATE_INFO.json` e as evidências de RC; ele tem `release_effect=NONE` e não equivale à publicação final/normativa v5.00. O `master` pode continuar evoluindo após esse checkpoint.
 
 ## 2. Runtime relacional da candidata
 
