@@ -114,7 +114,7 @@ public sealed class IdentityDecisionLedgerTests
     public void Document_evidence_without_document_type_is_rejected_before_mutation()
     {
         var service = new SqlIdentityCorrectionService(new OperationalSqlAdapter(
-            "Server=invalid;Database=invalid;User Id=invalid;Password=invalid;TrustServerCertificate=True;"));
+            "Server=localhost;Database=unused;Integrated Security=true;"));
         var context = new AccessContext(
             Guid.NewGuid(), AccessCredentialType.GESTOR, "SMADS", "SMADS", null, [], []);
 
