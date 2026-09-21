@@ -10,9 +10,8 @@ namespace Jornada.Linkage.Evaluation;
 /// </summary>
 public static class IndependentImplementationConference
 {
-    public const string MethodVersion = "JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1";
-    public const string Scope =
-        "SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE";
+    public const string MethodVersion = ImplementationConferenceGovernanceContract.MethodVersion;
+    public const string Scope = ImplementationConferenceGovernanceContract.Scope;
 
     public static ImplementationConferenceReport Evaluate(ImplementationConferenceRequest request)
     {
@@ -338,34 +337,6 @@ public enum ImplementationConferenceStatus
     NAO_EXECUTADA,
     CONFORME,
     DIVERGENTE
-}
-
-public sealed record ImplementationConferenceToleranceContract(
-    string Version,
-    string Status,
-    decimal? MaxAbsolutePairLlrDifference)
-{
-    public bool TryGetFrozen(out decimal tolerance, out string reason)
-    {
-        tolerance = default;
-        if (!string.Equals(Status, "FROZEN", StringComparison.Ordinal))
-        {
-            reason = "TOLERANCE_NOT_FROZEN";
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(Version)
-            || MaxAbsolutePairLlrDifference is null
-            || MaxAbsolutePairLlrDifference < 0m)
-        {
-            reason = "INVALID_FROZEN_TOLERANCE";
-            return false;
-        }
-
-        tolerance = MaxAbsolutePairLlrDifference.Value;
-        reason = string.Empty;
-        return true;
-    }
 }
 
 public sealed record ImplementationConferenceEvidence(string Evidence, string State);
