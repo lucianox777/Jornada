@@ -22,10 +22,10 @@ public sealed record SyntheticIngestionBridgeOptions(
 
     public void Validate()
     {
-        if (PessoaSchemaVersao < 4)
+        if (PessoaSchemaVersao != 4)
             throw new ArgumentOutOfRangeException(
                 nameof(PessoaSchemaVersao),
-                "A ponte sintética suporta contratos Pessoa v4+.");
+                "Nesta etapa a ponte materializa somente Pessoa v4, que é a versão ativa. Versões RASCUNHO não são ingeríveis.");
         if (DataReferencia == default)
             throw new ArgumentException("dataReferencia deve ser explícita.", nameof(DataReferencia));
         if (string.IsNullOrWhiteSpace(PseudonymizationKey)
