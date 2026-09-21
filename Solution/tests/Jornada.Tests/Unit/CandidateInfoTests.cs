@@ -52,9 +52,20 @@ public sealed class CandidateInfoTests
             Assert.That(technicalRc.GetProperty("assembly_version").GetString(), Is.EqualTo("5.0.0.0"));
             Assert.That(technicalRc.GetProperty("file_version").GetString(), Is.EqualTo("5.0.0.0"));
             Assert.That(technicalRc.GetProperty("source_revision_binding").GetString(), Is.EqualTo("DOTNET_SOURCE_REVISION_ID"));
+            Assert.That(technicalRc.GetProperty("cut_rule").GetString(), Does.Contain("workflow_dispatch rc_evidence_preflight=true"));
             Assert.That(technicalRc.GetProperty("actions_freeze_until_cut").GetBoolean(), Is.True);
             Assert.That(technicalRc.GetProperty("release_assets_mutability").GetString(), Is.EqualTo("REPLACEABLE_BY_RERUN_WITH_CLOBBER"));
             Assert.That(technicalRc.GetProperty("digest_authority").GetString(), Is.EqualTo("SIGSTORE_ATTESTATION_SUBJECT_DIGESTS"));
+
+            var preflight = technicalRc.GetProperty("preflight");
+            Assert.That(preflight.GetProperty("required").GetBoolean(), Is.True);
+            Assert.That(preflight.GetProperty("trigger").GetString(), Is.EqualTo("workflow_dispatch"));
+            Assert.That(preflight.GetProperty("input").GetString(), Is.EqualTo("rc_evidence_preflight"));
+            Assert.That(preflight.GetProperty("required_value").GetBoolean(), Is.True);
+            Assert.That(preflight.GetProperty("same_commit_required").GetBoolean(), Is.True);
+            Assert.That(preflight.GetProperty("required_job").GetString(), Is.EqualTo("rc-evidence"));
+            Assert.That(preflight.GetProperty("required_conclusion").GetString(), Is.EqualTo("success"));
+            Assert.That(preflight.GetProperty("remote_publish_allowed").GetBoolean(), Is.False);
 
             Assert.That(releaseInfo, Does.Contain("solution_engenharia=v4.05"));
             Assert.That(releaseInfo, Does.Contain("schema_solution=v3.69"));
@@ -159,6 +170,9 @@ public sealed class CandidateInfoTests
             Assert.That(workflow, Does.Contain("rc-evidence:"));
             Assert.That(workflow, Does.Contain("Resolve technical RC identity for tag or dispatch preflight"));
             Assert.That(workflow, Does.Contain("JORNADA_RC_MODE=preflight").Or.Contain("rc_mode=\"preflight\""));
+            Assert.That(workflow, Does.Contain("Require prior successful same-commit RC preflight before tag cut"));
+            Assert.That(workflow, Does.Contain("event=workflow_dispatch&status=success&head_sha=${GITHUB_SHA}"));
+            Assert.That(workflow, Does.Contain("j.get(\"name\")==\"rc-evidence\"").Or.Contain("j.get(\"name\") == \"rc-evidence\""));
             Assert.That(workflow, Does.Contain("rc-publish:"));
             Assert.That(workflow, Does.Contain("needs: rc-evidence"));
             Assert.That(workflow, Does.Contain("Verify declared release-asset mutability"));
@@ -169,12 +183,17 @@ public sealed class CandidateInfoTests
             Assert.That(workflow, Does.Contain("RC_SCHEMA_PROVENANCE.json"));
             Assert.That(rcGate, Does.Contain("CHECKPOINT_CONTENT"));
             Assert.That(rcGate, Does.Contain("release_effect"));
+            Assert.That(rcGate, Does.Contain("actions_freeze_until_cut"));
+            Assert.That(rcGate, Does.Contain("REPLACEABLE_BY_RERUN_WITH_CLOBBER"));
+            Assert.That(rcGate, Does.Contain("SIGSTORE_ATTESTATION_SUBJECT_DIGESTS"));
+            Assert.That(rcGate, Does.Contain("same_commit_required"));
             Assert.That(rcEvidence, Does.Contain("TECHNICAL_RC_EVIDENCE"));
             Assert.That(rcEvidence, Does.Contain("LINKAGE_REPRESENTATIVE_STATISTICAL_VALIDATION"));
             Assert.That(rcBundle, Does.Contain("RC_SOURCE_PROVENANCE.json"));
             Assert.That(rcBundle, Does.Contain("git bundle verify"));
             var rcEvidenceJob = workflow[workflow.IndexOf("  rc-evidence:", StringComparison.Ordinal)..workflow.IndexOf("  rc-publish:", StringComparison.Ordinal)];
             var rcPublishJob = workflow[workflow.IndexOf("  rc-publish:", StringComparison.Ordinal)..workflow.IndexOf("  release-promotion:", StringComparison.Ordinal)];
+            Assert.That(rcEvidenceJob, Does.Contain("actions: read"));
             Assert.That(rcEvidenceJob, Does.Contain("contents: read"));
             Assert.That(rcEvidenceJob, Does.Not.Contain("contents: write"));
             Assert.That(rcPublishJob, Does.Contain("contents: write"));
