@@ -1,0 +1,99 @@
+name: rc-cut-helper-v500-rc1
+
+on:
+  push:
+    branches:
+      - automation/rc-v500-rc1
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  dispatch-preflight-and-cut:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_SHA: a55ba7246e3456a18f4db9c4df4f0c81095b075f
+      RC_TAG: v5.00-rc.1
+      CI_WORKFLOW: ci.yml
+    steps:
+      - name: Verify immutable candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          master_sha=$(gh api "/repos/${GITHUB_REPOSITORY}/git/ref/heads/master" --jq '.object.sha')
+          test "$master_sha" = "$TARGET_SHA"
+          if tag_sha=$(gh api "/repos/${GITHUB_REPOSITORY}/git/ref/tags/${RC_TAG}" --jq '.object.sha' 2>/dev/null); then
+            test "$tag_sha" = "$TARGET_SHA"
+          fi
+
+      - name: Dispatch same-commit RC preflight
+        id: preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          gh workflow run "$CI_WORKFLOW" --repo "$GITHUB_REPOSITORY" --ref master \
+            -f scale_profile=smoke \
+            -f rc_evidence_preflight=true
+          run_id=""
+          for i in $(seq 1 60); do
+            run_id=$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/${CI_WORKFLOW}/runs?event=workflow_dispatch&head_sha=${TARGET_SHA}&per_page=20" \
+              --jq "[.workflow_runs[] | select(.created_at >= \"$marker\")] | sort_by(.created_at) | reverse | .[0].id // empty")
+            [[ -n "$run_id" ]] && break
+            sleep 2
+          done
+          test -n "$run_id"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status
+          ok=$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" \
+            --jq 'any(.jobs[]; .name=="rc-evidence" and .conclusion=="success")')
+          test "$ok" = "true"
+
+      - name: Create exact RC tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          master_sha=$(gh api "/repos/${GITHUB_REPOSITORY}/git/ref/heads/master" --jq '.object.sha')
+          test "$master_sha" = "$TARGET_SHA"
+          if tag_sha=$(gh api "/repos/${GITHUB_REPOSITORY}/git/ref/tags/${RC_TAG}" --jq '.object.sha' 2>/dev/null); then
+            test "$tag_sha" = "$TARGET_SHA"
+          else
+            gh api --method POST "/repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${RC_TAG}" \
+              -f sha="$TARGET_SHA" >/dev/null
+          fi
+
+      - name: Dispatch tag-ref technical RC publication
+        id: tagrun
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          gh workflow run "$CI_WORKFLOW" --repo "$GITHUB_REPOSITORY" --ref "$RC_TAG" \
+            -f scale_profile=smoke \
+            -f rc_evidence_preflight=false
+          run_id=""
+          for i in $(seq 1 60); do
+            run_id=$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/${CI_WORKFLOW}/runs?event=workflow_dispatch&head_sha=${TARGET_SHA}&per_page=30" \
+              --jq "[.workflow_runs[] | select(.created_at >= \"$marker\" and .head_branch == \"$RC_TAG\")] | sort_by(.created_at) | reverse | .[0].id // empty")
+            [[ -n "$run_id" ]] && break
+            sleep 2
+          done
+          test -n "$run_id"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status
+          jobs=$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")
+          printf '%s' "$jobs" | jq -e 'any(.jobs[]; .name=="rc-evidence" and .conclusion=="success")' >/dev/null
+          printf '%s' "$jobs" | jq -e 'any(.jobs[]; .name=="rc-publish" and .conclusion=="success")' >/dev/null
+
+      - name: Verify durable prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api "/repos/${GITHUB_REPOSITORY}/git/ref/tags/${RC_TAG}" --jq '.object.sha')" = "$TARGET_SHA"
+          gh release view "$RC_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isPrerelease,isDraft \
+            --jq 'select(.tagName=="v5.00-rc.1" and .isPrerelease==true and .isDraft==false)' >/dev/null
+          echo "RC CUT OK: ${RC_TAG} -> ${TARGET_SHA}"
