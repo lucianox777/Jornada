@@ -91,6 +91,7 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
         var runtimeCutover = Array.IndexOf(lines, "migrations/20260919_Pessoa_Origem_Runtime_V4_Cutover.sql");
         var progressivePublication = Array.IndexOf(lines, "migrations/20260919_Linkage_Publicacao_Progressiva.sql");
         var nisSecondaryIdentifiers = Array.IndexOf(lines, "migrations/20260921_Nis_Rg_Identificadores_Secundarios.sql");
+        var pessoaV5 = Array.IndexOf(lines, "migrations/20260921_Pessoa_V5_Contrato_371.sql");
 
         Assert.That(origin, Is.GreaterThanOrEqualTo(0));
         Assert.That(identifiers, Is.GreaterThan(origin));
@@ -99,6 +100,8 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
         Assert.That(runtimeCutover, Is.GreaterThan(deliveryPersonLink));
         Assert.That(progressivePublication, Is.GreaterThan(runtimeCutover));
         Assert.That(nisSecondaryIdentifiers, Is.GreaterThan(runtimeCutover));
+        Assert.That(pessoaV5, Is.GreaterThan(nisSecondaryIdentifiers));
+        Assert.That(pessoaV5, Is.LessThan(lines.Length - 1));
         Assert.That(lines[^1], Is.EqualTo("migrations/20260910_Schema_Consolidation_370.sql"));
     }
 
