@@ -226,3 +226,18 @@ JOIN ingestao.entrega e ON e.entrega_id=l.entrega_id
 JOIN ref.sistema_origem so ON so.sistema_origem_id=e.sistema_origem_id
 LEFT JOIN n ON n.pessoa_observacao_id=po.pessoa_observacao_id;
 GO
+
+CREATE OR ALTER VIEW serving.v_bi_qualidade_identidade_origem AS
+SELECT
+  l.*,
+  n.qtd_nis,
+  n.qtd_nis_validos_comprovados,
+  n.qtd_nis_invalidos,
+  n.qtd_nis_nao_validados,
+  n.qtd_nis_conflitantes,
+  n.nis_classificacao,
+  n.nis_problema
+FROM serving.v_bi_linkage l
+LEFT JOIN serving.v_bi_nis_qualidade n
+  ON n.pessoa_observacao_id=l.pessoa_observacao_id;
+GO
