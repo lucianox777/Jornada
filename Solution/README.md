@@ -13,6 +13,10 @@ Stack principal: **C# 12 / .NET 8**, **Microsoft SQL Server como tecnologia rela
 - O inventário automatizado do schema consolidado contém **80 tabelas**, das quais 27 ficam fora do baseline legado de 53.
 - Microsoft SQL Server permanece a referência relacional normativa e o banco operacional de Produção. Compatibilidade histórica com SQL Database in Microsoft Fabric não cria dependência de implantação nem gate de promoção.
 
+## Segurança
+
+O estado de segurança da candidata e o processo de reporte estão em [../SECURITY.md](../SECURITY.md). Fora de `Development`, a API permanece `DENY_BY_DEFAULT_PENDING_CORPORATE_IDENTITY` enquanto a integração de identidade corporativa/autenticação PRODAM e a separação ambiental da #378 não forem concluídas. CI verde, fixtures sintéticas e health checks locais não equivalem a autorização de HML/Produção.
+
 ## Instalação e desenvolvimento local
 
 Na raiz `Solution`, o caminho recomendado continua sendo Docker + SQL Server 2022 Developer:

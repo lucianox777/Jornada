@@ -11,7 +11,7 @@ A forma recomendada de executar a categoria `Integration` localmente é `scripts
 dotnet test tests/Jornada.Tests/Jornada.Tests.csproj
 ```
 
-A categoria `Integration` foi separada fisicamente em `Jornada.Integration.Tests`; `Jornada.Tests` contém a suíte unitária/runtime HTTP. Testes SQL usam `Assert.Ignore` somente quando `JORNADA_TEST_SQL_CONNECTION` não está definida. Fixtures determinísticas não podem usar `Assert.Ignore`. Em CI de release, Unit e Integration geram TRX e passam por `test-evidence-gate.py --forbid-skipped`, portanto qualquer teste esperado não executado bloqueia a promoção.
+A categoria `Integration` foi separada fisicamente em `Jornada.Integration.Tests`; `Jornada.Tests` contém a suíte unitária/runtime HTTP. `TestProjectBoundaryTests` bloqueia tanto categorias `Integration` no projeto Unit quanto `TestFixture` do projeto Integration sem classificação explícita `Integration` ou `ExternalRealData`; a massa real permanece fisicamente isolada em `ExternalRealData/` e o `.csproj` de Integration a exclui da execução padrão por `VSTestTestCaseFilter`. Testes SQL usam `Assert.Ignore` somente quando `JORNADA_TEST_SQL_CONNECTION` não está definida. Fixtures determinísticas não podem usar `Assert.Ignore`. Em CI de release, Unit e Integration geram TRX e passam por `test-evidence-gate.py --forbid-skipped`, portanto qualquer teste esperado não executado bloqueia a promoção.
 
 
 
@@ -48,7 +48,7 @@ Os testes de integração executam DDL + seed e agora cobrem também a trilha de
 
 ## Processor SQL
 
-Os testes `[Category("Integration")]` cobrem reserva/recovery/rejeição, publicação atômica, concorrência de dois workers reservando lotes distintos e rollback integral quando uma falha ocorre após persistência parcial dentro da transação. Eles continuam opt-in via `JORNADA_TEST_SQL_CONNECTION`.
+Os testes `[Category("Integration")]` cobrem reserva/recovery/rejeição, publicação atômica, concorrência de dois workers reservando lotes distintos e rollback integral quando uma falha ocorre após persistência parcial dentro da transação. `Pending_identity_does_not_block_valid_fact_materialization_or_infer_cpf_from_origin_code` torna explícito o invariante de que um fato válido chega a Gold mesmo com `pessoa_uuid=NULL` e `estado_atribuicao_identidade=PENDENTE_IDENTIDADE`. Eles continuam opt-in via `JORNADA_TEST_SQL_CONNECTION`.
 
 ## Segurança de borda e pipeline HTTP
 

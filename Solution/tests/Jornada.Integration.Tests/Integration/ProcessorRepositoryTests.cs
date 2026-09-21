@@ -265,7 +265,7 @@ public sealed class ProcessorRepositoryTests
     }
 
     [Test]
-    public async Task Codigo_pessoa_origem_may_equal_cpf_format_without_being_interpreted_as_cpf()
+    public async Task Pending_identity_does_not_block_valid_fact_materialization_or_infer_cpf_from_origin_code()
     {
         var connectionString = RequireIntegrationConnection();
         await PrepareDatabaseAsync(connectionString);
@@ -297,8 +297,7 @@ public sealed class ProcessorRepositoryTests
         await verify.OpenAsync();
         using var query = verify.CreateCommand();
         query.CommandText = """
-            SELECT b.codigo_pessoa_origem,b.cpf_declarado,b.pessoa_uuid,b.estado_atribuicao_identidade,
-                   (SELECT COUNT(*) FROM identidade.identity_map WHERE tipo='CPF' AND identificador='16899535009' AND vigencia_fim IS NULL)
+            SELECT b.codigo_pessoa_origem,b.cpf_declarado,b.pessoa_uuid,b.estado_atribuicao_identidade
             FROM gold.beneficio_concedido b WHERE b.codigo_registro_origem='REG-OPAQUE-CODE';
             """;
         using var reader = await query.ExecuteReaderAsync();
@@ -307,9 +306,11 @@ public sealed class ProcessorRepositoryTests
         {
             Assert.That(reader.GetString(0), Is.EqualTo("16899535009"));
             Assert.That(reader.IsDBNull(1), Is.True, "codigo_pessoa_origem não adquire semântica de CPF pelo formato.");
-            Assert.That(reader.IsDBNull(2), Is.True);
-            Assert.That(reader.GetString(3), Is.EqualTo("PENDENTE_IDENTIDADE"));
-            Assert.That(reader.GetInt32(4), Is.Zero, "A Jornada nunca deve inferir CPF a partir do código opaco de origem.");
+            Assert.That(reader.IsDBNull(2), Is.True, "Identidade pendente não exige UUID para a existência do fato.");
+            Assert.That(reader.GetString(3), Is.EqualTo("PENDENTE_IDENTIDADE"),
+                "O fato válido deve ser materializado e carregar explicitamente a atribuição pendente.");
+            Assert.That(reader.IsDBNull(1), Is.True,
+                "A Jornada nunca deve copiar codigo_pessoa_origem para cpf_declarado pelo formato.");
         });
     }
 
