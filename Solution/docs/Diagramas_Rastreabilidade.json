@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "status": "POST_RC_DOCUMENTATION_BASELINE",
+  "implementationBaseline": "08ca8fc0effbbeba6f8cdb8ba6a671329eb01b0a",
+  "automaticCiGate": false,
+  "automaticGateRationale": "Moratoria de gates sem risco observado; manifesto prepara checagem de atualidade sem alterar CI antes da RC.",
+  "diagrams": [
+    {
+      "id": "ARCH-INV-01",
+      "source": "Solution/docs/Invariantes_Arquitetura.md",
+      "kind": "flowchart",
+      "anchors": [
+        "Solution/src/Jornada.Api",
+        "Solution/src/Jornada.Processor.Worker",
+        "Solution/src/Jornada.Linkage.Runner",
+        "Solution/database/Jornada_Fase1_v3.70.sql"
+      ]
+    },
+    {
+      "id": "ER-ID-01",
+      "source": "Solution/docs/Invariantes_Arquitetura.md",
+      "kind": "ER",
+      "anchors": [
+        "Solution/database/Jornada_Identidade_Progressiva.sql",
+        "Solution/database/migrations/20260919_Linkage_Publicacao_Progressiva.sql",
+        "Solution/database/migrations/20260920_Identidade_Decisao_Ledger.sql"
+      ]
+    },
+    {
+      "id": "SQ-01",
+      "source": "Solution/docs/Sequencias_Identidade_Linkage.md",
+      "kind": "sequence",
+      "anchors": [
+        "Solution/src/Jornada.Api",
+        "Solution/src/Jornada.Processor.Worker"
+      ]
+    },
+    {
+      "id": "SQ-02",
+      "source": "Solution/docs/Sequencias_Identidade_Linkage.md",
+      "kind": "sequence",
+      "anchors": [
+        "Solution/database/migrations/20260907_Cpf_Ancora.sql",
+        "Solution/database/migrations/20260920_Linkage_Conflito_Revisao_Governada.sql"
+      ]
+    },
+    {
+      "id": "SQ-03",
+      "source": "Solution/docs/Sequencias_Identidade_Linkage.md",
+      "kind": "sequence",
+      "anchors": [
+        "Solution/src/Jornada.Linkage.Runner",
+        "Solution/database/migrations/20260919_Linkage_Publicacao_Progressiva.sql"
+      ]
+    },
+    {
+      "id": "SQ-04",
+      "source": "Solution/docs/Sequencias_Identidade_Linkage.md",
+      "kind": "sequence",
+      "anchors": [
+        "Solution/database/migrations/20260920_Identidade_Decisao_Ledger.sql"
+      ]
+    },
+    {
+      "id": "SQ-05",
+      "source": "Solution/docs/Sequencias_Identidade_Linkage.md",
+      "kind": "sequence",
+      "anchors": [
+        "Solution/database/migrations/20260921_Identidade_Confirmacao_Simplificada.sql"
+      ]
+    },
+    {
+      "id": "SQ-06",
+      "source": "Solution/docs/Sequencias_Identidade_Linkage.md",
+      "kind": "sequence",
+      "anchors": [
+        "Solution/database/migrations/20260920_Linkage_Conflito_Revisao_Governada.sql"
+      ],
+      "openIssue": 401
+    }
+  ]
+}

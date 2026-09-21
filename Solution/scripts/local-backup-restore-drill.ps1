@@ -16,6 +16,21 @@ function SqlCmd {
 }
 function Scalar([string]$Database,[string]$Query){ Push-Location $Root; try { $o=& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $Database -h -1 -W -Q "SET NOCOUNT ON; $Query"; if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou'}; return ($o|?{$_.Trim()}|Select-Object -Last 1).Trim() } finally { Pop-Location } }
 $sha=(Get-FileHash $Fixture -Algorithm SHA256).Hash.ToLowerInvariant(); $length=(Get-Item $Fixture).Length; $key="sha256/$($sha.Substring(0,2))/$($sha.Substring(2,2))/$sha.zip"; $dest=Join-Path (Join-Path $Root 'data/bronze') ($key -replace '/', [IO.Path]::DirectorySeparatorChar); New-Item -ItemType Directory -Force (Split-Path $dest)|Out-Null; Copy-Item $Fixture $dest -Force
+
+$seedObjects=@(
+    @{ Sha='8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2'; Bytes=[byte[]](0x50,0x4B,0x03,0x04) },
+    @{ Sha='08befc1b72bbe89348739d0d994b031aa28db85ffc817ab2a2598a0af3583084'; Bytes=[byte[]](0x50,0x4B,0x03,0x04,0x53,0x45,0x48,0x41,0x42) },
+    @{ Sha='52efeb293d001f170549c0bdf4196cf94af375858b96a98a0d486a2ae2f81923'; Bytes=[byte[]](0x50,0x4B,0x03,0x04,0x53,0x4D,0x41,0x44,0x53) }
+)
+foreach($seed in $seedObjects){
+    $seedSha=[string]$seed.Sha
+    $seedKey="sha256/$($seedSha.Substring(0,2))/$($seedSha.Substring(2,2))/$seedSha.zip"
+    $seedDest=Join-Path (Join-Path $Root 'data/bronze') ($seedKey -replace '/', [IO.Path]::DirectorySeparatorChar)
+    New-Item -ItemType Directory -Force (Split-Path $seedDest)|Out-Null
+    [IO.File]::WriteAllBytes($seedDest,[byte[]]$seed.Bytes)
+    $actual=(Get-FileHash $seedDest -Algorithm SHA256).Hash.ToLowerInvariant()
+    if($actual -ne $seedSha){throw "objeto Bronze canônico do seed com hash inesperado: $seedKey"}
+}
 SqlCmd -SqlCmdArgs @('-d',$db,'-v',"DRILL_SHA=$sha","DRILL_LENGTH=$length",'-i','/workspace/database/Jornada_Dev_BackupDrill.sql')
 Push-Location $Root; try{ if($env:JORNADA_LOCKED_RESTORE -eq 'true'){dotnet restore Jornada.sln --locked-mode}else{dotnet restore Jornada.sln}; if($LASTEXITCODE-ne 0){throw 'restore falhou'}; dotnet build src/Jornada.Bronze.Verify/Jornada.Bronze.Verify.csproj --configuration Release --no-restore; if($LASTEXITCODE-ne 0){throw 'build Bronze.Verify falhou'} }finally{Pop-Location}
 $env:ConnectionStrings__Jornada="Server=localhost,$port;Database=$db;User Id=sa;Password=$sqlPassword;TrustServerCertificate=true;Encrypt=false"; $env:BronzeStorage__RootPath=(Resolve-Path (Join-Path $Root 'data/bronze')).Path
