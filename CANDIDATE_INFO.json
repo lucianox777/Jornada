@@ -14,12 +14,12 @@
     "solution_schema": "v3.70",
     "schema_provenance": {
       "status": "BOUND_FOR_TECHNICAL_RC",
-      "source_commit": "873732e86cb5aaf596f70e9d16faace5f23ae635",
+      "source_commit": "2972bebffb5e115697632bce60e989e05c7afd36",
       "canonical_ddl": "Solution/database/Jornada_Fase1_v3.70.sql",
-      "structural_fingerprint_sha256": "ff6ca05b27852452627a932ce4af76575fb62331f6e7de4284e7d3bd57c3e9b4",
+      "structural_fingerprint_sha256": "8c60cbe1d98734372fa4a7ecff37e2a3b62b0a1d27db20cc4a89ec3e1b95428c",
       "structural_fingerprint_method": "SHA256_SORTED_METADATA_LINES_FROM_Jornada_Dev_DdlFingerprint.sql",
       "migration_manifest": "Solution/database/migrations/manifest.txt",
-      "migration_manifest_sha256": "b035f880e1a0e63761d036488827137faa6807ba999ca37003de554a8039a44c",
+      "migration_manifest_sha256": "dd5b2db071e1d56645ed2dd9a57bdc0fa20be5180b6e83664caa00fb7c778033",
       "migration_manifest_hash_method": "SHA256_UTF8_LF",
       "rc_rule": "source_commit identifies an ancestor structural checkpoint whose manifest and structural fingerprint are equivalent to this technical RC content. Structural checkpoint ancestry must be preserved by the merge strategy; rewriting the checkpoint commit invalidates provenance. The schema-consolidation workflow proves executable DDL on the current commit, and v5.00-rc.1 recomputes the same evidence on the exact tag.",
       "evidence_model": "CURRENT_CI_PLUS_EXACT_RC_RECOMPUTATION"

@@ -150,6 +150,49 @@ public sealed class PersonIdentifierParsingTests
         Assert.That(error!.Message, Does.Contain("exige codigoBasePessoaOrigem").IgnoreCase);
     }
 
+    [TestCase("NIS")]
+    [TestCase("PIS")]
+    [TestCase("PASEP")]
+    [TestCase("NIT")]
+    public void Normalizes_Nis_And_Preserves_Allowed_Source_Namespace(string ns)
+    {
+        var json = """
+            {
+              "identificadores":[
+                {"tipo":"NIS","namespace":"__NS__","valor":"120.00000.00-4","statusEvidencia":"COMPROVADO","verificadoEm":"2026-09-21T08:00:00-03:00"}
+              ]
+            }
+            """.Replace("__NS__", ns, StringComparison.Ordinal);
+        using var document = JsonDocument.Parse(json);
+
+        var identifier = PersonIdentifierParsing.Parse(document.RootElement, null, null, null).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(identifier.Tipo, Is.EqualTo("NIS"));
+            Assert.That(identifier.Namespace, Is.EqualTo(ns));
+            Assert.That(identifier.ValorNormalizado, Is.EqualTo("12000000004"));
+            Assert.That(identifier.StatusEvidencia, Is.EqualTo("COMPROVADO"));
+        });
+    }
+
+    [Test]
+    public void Rejects_Nis_With_Unsupported_Namespace()
+    {
+        using var document = JsonDocument.Parse("""
+            {
+              "identificadores":[
+                {"tipo":"NIS","namespace":"OUTRO","valor":"12000000004","statusEvidencia":"DECLARADO"}
+              ]
+            }
+            """);
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, null, null));
+
+        Assert.That(error!.Message, Does.Contain("namespace NIS, PIS, PASEP ou NIT"));
+    }
+
     [Test]
     public void Requires_Rg_Issuer_And_State()
     {

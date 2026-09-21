@@ -53,6 +53,7 @@
             "type": "string",
             "enum": [
               "CPF",
+              "NIS",
               "CNS",
               "RG",
               "CODIGO_BASE_ORIGEM",
@@ -124,6 +125,33 @@
               "properties": {
                 "namespace": {
                   "const": "BR"
+                },
+                "valor": {
+                  "pattern": "^[0-9]{11}$"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "tipo": {
+                  "const": "NIS"
+                }
+              },
+              "required": [
+                "tipo"
+              ]
+            },
+            "then": {
+              "properties": {
+                "namespace": {
+                  "enum": [
+                    "NIS",
+                    "PIS",
+                    "PASEP",
+                    "NIT"
+                  ]
                 },
                 "valor": {
                   "pattern": "^[0-9]{11}$"

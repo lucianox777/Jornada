@@ -321,6 +321,16 @@ A operação permite **separação** (grupo sem UUID de destino recebe novo UUID
 
 A API recebe o ZIP por streaming para arquivo temporário limitado a 250 MB, calcula SHA-256 durante a recepção e lê primeiro apenas `manifest.json`. A autorização genérica de ingestão ocorre antes do recebimento; a autorização do `codigoTipo` ocorre antes da validação pesada do conteúdo descompactado. Depois dessas validações, o payload é gravado idempotentemente no armazenamento Bronze definitivo, content-addressed pelo SHA-256, e somente então a API persiste no SQL a `objeto_chave` e os metadados da Entrega. Não há `VARBINARY(MAX)` para os bytes do ZIP.
 
+## NIS/CNIS e RG na Fase 1
+
+O contrato Pessoa v4 admite `tipo=NIS` com `namespace` `NIS`, `PIS`, `PASEP` ou `NIT`. O valor é normalizado para 11 dígitos e recebe validação estrutural local; `statusEvidencia` preserva separadamente se foi apenas `DECLARADO` ou `COMPROVADO`. RG continua tipado com emissor e UF.
+
+**NIS e RG são identificadores secundários, não âncoras de identidade.** Eles não criam `pessoa_uuid`, não criam `identity_map`, não resolvem vínculo automaticamente e não competem com CPF. Na ausência de CPF/UUID interno já governado, a presença isolada de NIS ou RG não tira a observação do fluxo de identidade pendente/linkage.
+
+A superfície `serving.v_bi_identificador_secundario_qualidade`, incorporada a `serving.v_bi_qualidade_identidade_origem`, expõe apenas classificações e contagens. Se o mesmo NIS aparecer em observações atualmente atribuídas a Pessoas distintas, isso é sinalizado como problema de qualidade, sem fusão, transferência ou escolha automática de UUID. O número em claro não é publicado nessas views.
+
+O endpoint `/api/v1/identidade/resolver` continua sendo a superfície explícita de consulta por CPF; esta mudança não cria endpoint público de busca por NIS ou RG.
+
 ## CPF na Fase 1
 
 CPF é chave operacional de resolução determinística e qualidade de identidade. A Fase 1 não aplica criptografia de coluna/tokenização na aplicação. O valor não integra views de BI, auditoria HTTP nem logs; somente flags agregáveis de presença/ausência podem ser expostas ao modelo semântico. Desde a v3.42, um CPF já associado a UUID só aceita novo vínculo de fonte após verificação conservadora de consistência do núcleo. Na v3.45 o conflito sobe também para `identidade.identity_map`: divergência forte gera `EM_CONFLITO`. A âncora permanente CPF→UUID continua imutável: `/identidade/resolver` devolve `CONFLITO / CPF_EM_CONFLITO_IDENTIDADE` preservando o UUID permanente, enquanto a atribuição factual permanece suspensa até correção governada. Se não houver mapa corrente, o endpoint ainda resolve pela âncora e sinaliza `CPF_ANCORA_SEM_MAPA_CORRENTE`. `CPF_COMPARTILHADO_SUSPEITO` e `CPF_NUCLEO_EXISTENTE_INDISPONIVEL` não são enviados ao linkage probabilístico. A reativação do CPF só ocorre por correção governada e auditável.

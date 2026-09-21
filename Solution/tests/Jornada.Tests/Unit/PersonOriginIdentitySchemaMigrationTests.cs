@@ -35,6 +35,24 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
     }
 
     [Test]
+    public void Nis_and_rg_are_secondary_identifiers_not_identity_anchors()
+    {
+        var sql = ReadMigration("20260921_Nis_Rg_Identificadores_Secundarios.sql");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sql, Does.Contain("NIS_BR_11_V1"));
+            Assert.That(sql, Does.Contain("N'NAO_AUTOMATICA',N'NAO_HIERARQUICO'"));
+            Assert.That(sql, Does.Contain("tipo_identificador_codigo=N'RG'"));
+            Assert.That(sql, Does.Contain("serving.v_bi_identificador_secundario_qualidade"));
+            Assert.That(sql, Does.Contain("NIS_ASSOCIADO_MULTIPLAS_PESSOAS"));
+            Assert.That(sql, Does.Not.Contain("NIS_DETERMINISTICO"));
+            Assert.That(sql, Does.Not.Contain("INSERT identidade.identity_map").IgnoreCase);
+            Assert.That(sql, Does.Not.Contain("CREATE UNIQUE INDEX UX_identidade_identity_map_nis").IgnoreCase);
+        });
+    }
+
+    [Test]
     public void Observation_without_identifier_is_allowed_without_synthetic_origin_key()
     {
         var sql = ReadMigration("20260913_Pessoa_Observacao_Sem_Identificador.sql");
@@ -72,6 +90,7 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
         var deliveryPersonLink = Array.IndexOf(lines, "migrations/20260919_Fato_Referencia_Pessoa_Entrega.sql");
         var runtimeCutover = Array.IndexOf(lines, "migrations/20260919_Pessoa_Origem_Runtime_V4_Cutover.sql");
         var progressivePublication = Array.IndexOf(lines, "migrations/20260919_Linkage_Publicacao_Progressiva.sql");
+        var nisSecondaryIdentifiers = Array.IndexOf(lines, "migrations/20260921_Nis_Rg_Identificadores_Secundarios.sql");
 
         Assert.That(origin, Is.GreaterThanOrEqualTo(0));
         Assert.That(identifiers, Is.GreaterThan(origin));
@@ -79,6 +98,7 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
         Assert.That(deliveryPersonLink, Is.GreaterThan(nullableObservation));
         Assert.That(runtimeCutover, Is.GreaterThan(deliveryPersonLink));
         Assert.That(progressivePublication, Is.GreaterThan(runtimeCutover));
+        Assert.That(nisSecondaryIdentifiers, Is.GreaterThan(runtimeCutover));
         Assert.That(lines[^1], Is.EqualTo("migrations/20260910_Schema_Consolidation_370.sql"));
     }
 

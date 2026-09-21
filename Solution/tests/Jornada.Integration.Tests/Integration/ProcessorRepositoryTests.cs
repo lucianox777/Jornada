@@ -1111,6 +1111,209 @@ public sealed class ProcessorRepositoryTests
         });
     }
 
+    [Test]
+    public async Task Declared_nis_without_cpf_is_secondary_and_does_not_resolve_identity()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+        var repository = CreateRepository(connectionString);
+        const string nis = "12000000004";
+
+        await CreatePendingFactualBatchCloneAsync(connectionString, "NIS-DECLARED-ONLY");
+        var batch = await repository.ReserveNextAsync(CancellationToken.None);
+        Assert.That(batch, Is.Not.Null);
+
+        var identifier = new ParsedPersonIdentifier(
+            "NIS", "NIS", nis, nis,
+            null, null, "DECLARADO", null, null, false);
+        var person = new ParsedPerson(
+            "NIS-DECLARED-P", "NIS-DECLARED-P", new string('5', 64), "TX-NIS-DECLARED",
+            null, "SEM_CPF", "Pessoa NIS Declarada", new DateOnly(1992, 3, 4), "Mae NIS Declarada",
+            [], [], [identifier]);
+        var manifest = new IngestionPackageManifest(
+            2, batch!.PessoaSchemaVersao, batch.CodigoSistemaOrigem,
+            batch.Natureza, batch.CodigoTipo, batch.TipoVersao, batch.DataReferencia);
+
+        await repository.PersistValidatedAsync(
+            batch, new ParsedPackage(manifest, [person], []), CancellationToken.None);
+
+        await using var verify = new SqlConnection(connectionString);
+        await verify.OpenAsync();
+        await using var query = verify.CreateCommand();
+        query.CommandText = """
+            SELECT
+              vf.status,vf.metodo_resolucao,vf.pessoa_uuid,
+              i.status_validacao,i.status_evidencia,
+              (SELECT COUNT(*) FROM identidade.identity_map
+                WHERE tipo='NIS' AND identificador=@nis AND vigencia_fim IS NULL),
+              q.nis_classificacao,q.nis_problema
+            FROM silver.pessoa_observacao po
+            JOIN identidade.v_vinculo_corrente vf ON vf.pessoa_observacao_id=po.pessoa_observacao_id
+            JOIN silver.pessoa_identificador_observacao i
+              ON i.pessoa_observacao_id=po.pessoa_observacao_id
+             AND i.tipo_identificador_codigo='NIS'
+            JOIN serving.v_bi_qualidade_identidade_origem q
+              ON q.pessoa_observacao_id=po.pessoa_observacao_id
+            WHERE po.id_pessoa_entrega='NIS-DECLARED-P';
+            """;
+        query.Parameters.AddWithValue("@nis", nis);
+        await using var reader = await query.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.GetString(0), Is.EqualTo("NAO_RESOLVIDO"));
+            Assert.That(reader.GetString(1), Is.EqualTo("PENDENTE_PROBABILISTICO"));
+            Assert.That(reader.IsDBNull(2), Is.True);
+            Assert.That(reader.GetString(3), Is.EqualTo("VALIDO"),
+                "Validade estrutural do NIS é metadado de qualidade, não decisão de identidade.");
+            Assert.That(reader.GetString(4), Is.EqualTo("DECLARADO"));
+            Assert.That(reader.GetInt32(5), Is.Zero, "NIS secundário não cria identity_map.");
+            Assert.That(reader.GetString(6), Is.EqualTo("NIS_VALIDO_DECLARADO"));
+            Assert.That(reader.GetInt32(7), Is.Zero);
+        });
+    }
+
+    [Test]
+    public async Task Proven_nis_without_cpf_remains_secondary_and_pending()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+        var repository = CreateRepository(connectionString);
+        const string nis = "27182818286";
+
+        await CreatePendingFactualBatchCloneAsync(connectionString, "NIS-PROVEN-ONLY");
+        var batch = await repository.ReserveNextAsync(CancellationToken.None);
+        Assert.That(batch, Is.Not.Null);
+
+        var identifier = new ParsedPersonIdentifier(
+            "NIS", "PIS", nis, nis,
+            null, null, "COMPROVADO", "CNIS",
+            new DateTimeOffset(2026, 9, 21, 8, 0, 0, TimeSpan.FromHours(-3)), false);
+        var person = new ParsedPerson(
+            "NIS-PROVEN-P", "NIS-PROVEN-P", new string('8', 64), "TX-NIS-PROVEN",
+            null, "SEM_CPF", "Pessoa NIS Comprovada", new DateOnly(1990, 2, 3), "Mae NIS Comprovada",
+            [], [], [identifier]);
+        var manifest = new IngestionPackageManifest(
+            2, batch!.PessoaSchemaVersao, batch.CodigoSistemaOrigem,
+            batch.Natureza, batch.CodigoTipo, batch.TipoVersao, batch.DataReferencia);
+
+        await repository.PersistValidatedAsync(
+            batch, new ParsedPackage(manifest, [person], []), CancellationToken.None);
+
+        await using var verify = new SqlConnection(connectionString);
+        await verify.OpenAsync();
+        await using var query = verify.CreateCommand();
+        query.CommandText = """
+            SELECT
+              vf.status,vf.metodo_resolucao,vf.pessoa_uuid,
+              i.status_validacao,i.status_evidencia,
+              (SELECT COUNT(*) FROM identidade.identity_map
+                WHERE tipo='NIS' AND identificador=@nis AND vigencia_fim IS NULL),
+              q.nis_classificacao,q.nis_problema
+            FROM silver.pessoa_observacao po
+            JOIN identidade.v_vinculo_corrente vf ON vf.pessoa_observacao_id=po.pessoa_observacao_id
+            JOIN silver.pessoa_identificador_observacao i
+              ON i.pessoa_observacao_id=po.pessoa_observacao_id
+             AND i.tipo_identificador_codigo='NIS'
+            JOIN serving.v_bi_qualidade_identidade_origem q
+              ON q.pessoa_observacao_id=po.pessoa_observacao_id
+            WHERE po.id_pessoa_entrega='NIS-PROVEN-P';
+            """;
+        query.Parameters.AddWithValue("@nis", nis);
+        await using var reader = await query.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.GetString(0), Is.EqualTo("NAO_RESOLVIDO"));
+            Assert.That(reader.GetString(1), Is.EqualTo("PENDENTE_PROBABILISTICO"));
+            Assert.That(reader.IsDBNull(2), Is.True,
+                "Nem NIS comprovado pode constituir Pessoa por si só.");
+            Assert.That(reader.GetString(3), Is.EqualTo("VALIDO"));
+            Assert.That(reader.GetString(4), Is.EqualTo("COMPROVADO"));
+            Assert.That(reader.GetInt32(5), Is.Zero);
+            Assert.That(reader.GetString(6), Is.EqualTo("NIS_COMPROVADO"));
+            Assert.That(reader.GetInt32(7), Is.Zero);
+        });
+    }
+
+    [Test]
+    public async Task Same_nis_on_two_cpf_people_is_quality_signal_not_merge_rule()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+        var repository = CreateRepository(connectionString);
+        const string nis = "12000000004";
+        var verifiedAt = new DateTimeOffset(2026, 9, 21, 8, 0, 0, TimeSpan.FromHours(-3));
+
+        async Task PersistAsync(
+            string suffix,
+            string cpf,
+            string nome,
+            DateOnly nascimento,
+            string mae,
+            string ns,
+            char hashChar)
+        {
+            await CreatePendingFactualBatchCloneAsync(connectionString, $"NIS-QC-{suffix}");
+            var batch = await repository.ReserveNextAsync(CancellationToken.None);
+            Assert.That(batch, Is.Not.Null);
+
+            var identifier = new ParsedPersonIdentifier(
+                "NIS", ns, nis, nis,
+                null, null, "COMPROVADO", "CNIS", verifiedAt, false);
+            var person = new ParsedPerson(
+                $"NIS-QC-{suffix}", $"NIS-QC-{suffix}", new string(hashChar, 64), $"TX-NIS-QC-{suffix}",
+                cpf, null, nome, nascimento, mae, [], [], [identifier]);
+            var manifest = new IngestionPackageManifest(
+                2, batch!.PessoaSchemaVersao, batch.CodigoSistemaOrigem,
+                batch.Natureza, batch.CodigoTipo, batch.TipoVersao, batch.DataReferencia);
+
+            await repository.PersistValidatedAsync(
+                batch, new ParsedPackage(manifest, [person], []), CancellationToken.None);
+        }
+
+        await PersistAsync(
+            "A", "11144477735", "Maria da Silva", new DateOnly(1982, 4, 10), "Ana de Souza", "NIS", '6');
+        await PersistAsync(
+            "B", "52998224725", "Joao de Souza", new DateOnly(1977, 9, 22), "Maria de Souza", "PIS", '7');
+
+        await using var verify = new SqlConnection(connectionString);
+        await verify.OpenAsync();
+        await using var query = verify.CreateCommand();
+        query.CommandText = """
+            SELECT
+              (SELECT COUNT(*)
+                 FROM silver.pessoa_observacao po
+                 JOIN identidade.v_vinculo_corrente vf ON vf.pessoa_observacao_id=po.pessoa_observacao_id
+                WHERE po.id_pessoa_entrega IN('NIS-QC-A','NIS-QC-B')
+                  AND vf.status='RESOLVIDO'
+                  AND vf.metodo_resolucao='CPF_DETERMINISTICO'),
+              (SELECT COUNT(DISTINCT vf.pessoa_uuid)
+                 FROM silver.pessoa_observacao po
+                 JOIN identidade.v_vinculo_corrente vf ON vf.pessoa_observacao_id=po.pessoa_observacao_id
+                WHERE po.id_pessoa_entrega IN('NIS-QC-A','NIS-QC-B')),
+              (SELECT COUNT(*) FROM identidade.identity_map
+                WHERE tipo='NIS' AND identificador=@nis AND vigencia_fim IS NULL),
+              (SELECT COUNT(*)
+                 FROM serving.v_bi_qualidade_identidade_origem q
+                 JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=q.pessoa_observacao_id
+                WHERE po.id_pessoa_entrega IN('NIS-QC-A','NIS-QC-B')
+                  AND q.nis_multiplas_pessoas=1
+                  AND q.nis_classificacao='NIS_ASSOCIADO_MULTIPLAS_PESSOAS'
+                  AND q.nis_problema=1);
+            """;
+        query.Parameters.AddWithValue("@nis", nis);
+        await using var reader = await query.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.GetInt32(0), Is.EqualTo(2), "CPF continua resolvendo as duas observações.");
+            Assert.That(reader.GetInt32(1), Is.EqualTo(2), "NIS compartilhado não funde Pessoas com CPFs distintos.");
+            Assert.That(reader.GetInt32(2), Is.Zero, "NIS secundário não possui mapa determinístico próprio.");
+            Assert.That(reader.GetInt32(3), Is.EqualTo(2), "QC/BI sinaliza o mesmo NIS sob Pessoas distintas sem expor o número.");
+        });
+    }
+
     private static async Task CreatePendingFactualBatchCloneAsync(string connectionString, string idempotencyKey)
     {
         await using var connection = new SqlConnection(connectionString);
@@ -1232,6 +1435,8 @@ public sealed class ProcessorRepositoryTests
             Path.Combine(databaseDir, "migrations", "20260913_Pessoa_Observacao_Sem_Identificador.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection,
             Path.Combine(databaseDir, "migrations", "20260919_Pessoa_Origem_Runtime_V4_Cutover.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260921_Nis_Rg_Identificadores_Secundarios.sql"));
         using var reset = connection.CreateCommand();
         reset.CommandText = """
             UPDATE ingestao.lote SET status='PROCESSADO',erro_codigo=NULL,lease_id=NULL,lease_owner=NULL,lease_adquirido_em=NULL,heartbeat_em=NULL,lease_expira_em=NULL,proxima_tentativa_em=NULL,poison_em=NULL,atualizado_em=SYSUTCDATETIME();
