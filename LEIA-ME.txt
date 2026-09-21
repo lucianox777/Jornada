@@ -1,10 +1,11 @@
 Jornada do Cidadão — especificação executável de referência
 
-STATUS: CANDIDATA TÉCNICA — RELEASE/TAG NÃO CORTADA
+STATUS: CANDIDATA TÉCNICA — RC TÉCNICA v5.00-rc.1 CORTADA; v5.00 FINAL/NORMATIVA NÃO PUBLICADA
 Identificador técnico citável da especificação candidata: v5.00-candidata
 Versão normativa publicada mais recente materializada no repositório: v3.62
 SolutionSchema técnico corrente: 3.70
 Última release selada: Solution Engenharia v4.05 / SolutionSchema 3.69
+Checkpoint técnico imutável: v5.00-rc.1 (`release_effect=NONE`)
 
 COMO LER O REPOSITÓRIO
 1. CANDIDATE_INFO.json — manifesto legível por máquina do estado candidato.

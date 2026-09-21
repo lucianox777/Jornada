@@ -1,6 +1,6 @@
 # Jornada — Solution de Referência (Fase 1) — consolidação candidata v5.00
 
-> **Base normativa corrente: 3.62; SolutionSchema corrente: 3.70.** A consolidação v5.00 ainda não foi cortada como release/tag. O estado desta branch é candidato técnico e permanece sujeito aos gates de CI e às aprovações institucionais explicitamente marcadas como pendentes.
+> **Base normativa corrente: 3.62; SolutionSchema corrente: 3.70.** A RC técnica `v5.00-rc.1` foi cortada como checkpoint imutável com `release_effect=NONE`; a v5.00 final/normativa continua não publicada. O estado desta branch permanece referência técnica em evolução pós-RC e sujeito aos gates de CI e às aprovações institucionais explicitamente marcadas como pendentes.
 
 Stack principal: **C# 12 / .NET 8**, **Microsoft SQL Server como tecnologia relacional normativa e banco relacional operacional de Produção**, Power BI Project (PBIP/TMDL/PBIR) para a camada analítica. SQL Server 2022 Developer/Testcontainers permanece o baseline obrigatório de desenvolvimento local, CI, DDL e validação independente de ambiente; isso não transforma a edição Developer em edição de Produção. **SQL Database in Microsoft Fabric não é alvo operacional de Produção nem gate de release da candidata v5.00.** Evidências e harnesses Fabric permanecem apenas como histórico/compatibilidade técnica. Lakehouse e SQL Analytics Endpoint permanecem no escopo analítico/compatibilidade e não substituem o banco relacional operacional.
 

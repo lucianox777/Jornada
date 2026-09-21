@@ -9,7 +9,7 @@ namespace Jornada.Tests.Integration;
 public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
 {
     [Test]
-    public async Task Incremental_includes_prior_probabilistic_conflict_after_candidate_universe_changes()
+    public async Task Incremental_marks_prior_probabilistic_conflict_eligible_after_candidate_universe_changes()
     {
         var connectionString = RequireIntegrationConnection();
         await using var connection = new SqlConnection(connectionString);
@@ -115,7 +115,7 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
             Assert.Multiple(() =>
             {
                 Assert.That(eligible, Is.EqualTo(1),
-                    "Mudança apenas no universo candidato deve recolocar conflito probabilístico no INCREMENTAL.");
+                    "Mudança apenas no universo candidato deve tornar o conflito probabilístico elegível no próximo INCREMENTAL; este teste não executa o run completo até a resolução.");
                 Assert.That(afterVersionCount, Is.EqualTo(beforeVersionCount),
                     "Reavaliação não pode depender de nova versão da observação antiga.");
             });

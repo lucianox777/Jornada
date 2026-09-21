@@ -1,7 +1,7 @@
 # Jornada do Cidadão — Resumo Executivo
 
 **Data:** 20/09/2026  
-**Estado:** CANDIDATO TÉCNICO À CONSOLIDAÇÃO v5.00 — release/tag ainda não cortada  
+**Estado:** CANDIDATO TÉCNICO À CONSOLIDAÇÃO v5.00 — RC técnica `v5.00-rc.1` cortada; v5.00 final/normativa não publicada  
 **Base normativa vigente da release selada:** v3.64  
 **Solution Engenharia selada:** v4.05  
 **SolutionSchema da release selada:** v3.69  
@@ -11,7 +11,7 @@
 
 `RELEASE_INFO.txt` continua sendo a fonte versionada da última release de engenharia selada: Base Normativa v3.64, Solution Engenharia v4.05, SolutionSchema v3.69 e tag `jornada-solution-v4.05`.
 
-Esta branch prepara a consolidação técnica para SolutionSchema v3.70, mas **não declara a existência da release/tag v5.00**. O corte futuro deve ocorrer de forma atômica pelos mecanismos de release existentes; até lá, 3.70 é estado técnico candidato, não uma release publicada.
+Esta branch prepara a consolidação técnica para SolutionSchema v3.70. O checkpoint técnico imutável `v5.00-rc.1` já existe e tem `release_effect=NONE`; ele **não é a release final/normativa v5.00** e não reescreve `RELEASE_INFO.txt`. A promoção final continua dependente dos mecanismos de release e dos gates institucionais aplicáveis; até lá, 3.70 permanece estado técnico candidato, não uma release normativa publicada.
 
 ## Baseline documental corrente
 
