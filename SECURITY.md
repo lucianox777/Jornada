@@ -33,7 +33,7 @@ Nunca inclua dados reais de cidadãos, tokens, access keys, certificados, senhas
 
 ## Controles automatizados já existentes
 
-O CI corrente executa análise estática/CodeQL, auditoria de vulnerabilidades NuGet e o `source-sanity-gate.py`, que bloqueia classes conhecidas de material sensível versionado, incluindo private keys/tokens, `.env`, senhas literais fora da allowlist e SQL com TLS enfraquecido fora dos cenários autorizados.
+O CI corrente executa Gitleaks versionado com checksum sobre a árvore corrente, análise estática/CodeQL, auditoria de vulnerabilidades NuGet e o `source-sanity-gate.py`, que bloqueia classes conhecidas de material sensível versionado, incluindo private keys/tokens, `.env`, senhas literais fora da allowlist e SQL com TLS enfraquecido fora dos cenários autorizados.
 
 A introdução de um scanner dedicado de histórico/segredos (por exemplo, Gitleaks) deve ocorrer **após o corte da RC atual**, porque as Actions estão congeladas até a tag técnica.
 
