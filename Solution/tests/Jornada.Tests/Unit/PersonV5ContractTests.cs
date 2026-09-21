@@ -143,6 +143,8 @@ public sealed class PersonV5ContractTests
         var reasons = properties.GetProperty("cpfAusenteMotivo").GetProperty("enum")
             .EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()).ToArray();
         var identifierRules = properties.GetProperty("identificadores").GetProperty("items").GetProperty("allOf");
+        var transversalProperties = properties.GetProperty("atributosTransversais")
+            .GetProperty("items").GetProperty("properties");
         var rgStillRequiresQualification = identifierRules.EnumerateArray().Any(rule =>
             rule.TryGetProperty("if", out var condition)
             && condition.GetProperty("properties").GetProperty("tipo").GetProperty("const").GetString() == "RG"
@@ -152,8 +154,35 @@ public sealed class PersonV5ContractTests
         Assert.Multiple(() =>
         {
             Assert.That(reasons, Does.Contain("SEM_CPF"));
-            Assert.That(properties.TryGetProperty("estadoReferenciaTerritorial", out _), Is.False);
+            Assert.That(transversalProperties.TryGetProperty("estadoReferenciaTerritorial", out _), Is.False);
             Assert.That(rgStillRequiresQualification, Is.True);
+        });
+    }
+
+    [Test]
+    public void Rg_and_cnh_normalization_rejects_unknown_punctuation_instead_of_silently_dropping_it()
+    {
+        using var rg = JsonDocument.Parse("""
+        {
+          "identificadores":[
+            {"tipo":"RG","namespace":"BR-SP","valor":"12@345","statusEvidencia":"DECLARADO"}
+          ]
+        }
+        """);
+        using var cnh = JsonDocument.Parse("""
+        {
+          "identificadores":[
+            {"tipo":"CNH","namespace":"BR","valor":"001#234","statusEvidencia":"DECLARADO"}
+          ]
+        }
+        """);
+
+        Assert.Multiple(() =>
+        {
+            Assert.Throws<InvalidDataException>(() =>
+                PersonIdentifierParsing.Parse(rg.RootElement, null, null, null));
+            Assert.Throws<InvalidDataException>(() =>
+                PersonIdentifierParsing.Parse(cnh.RootElement, null, null, null));
         });
     }
 
