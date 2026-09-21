@@ -156,13 +156,14 @@ public sealed class PersonIdentifierParsingTests
     [TestCase("NIT")]
     public void Normalizes_Nis_And_Preserves_Allowed_Source_Namespace(string ns)
     {
-        using var document = JsonDocument.Parse($"""
+        var json = """
             {
               "identificadores":[
-                {"tipo":"NIS","namespace":"{{ns}}","valor":"120.00000.00-4","statusEvidencia":"COMPROVADO","verificadoEm":"2026-09-21T08:00:00-03:00"}
+                {"tipo":"NIS","namespace":"__NS__","valor":"120.00000.00-4","statusEvidencia":"COMPROVADO","verificadoEm":"2026-09-21T08:00:00-03:00"}
               ]
             }
-            """);
+            """.Replace("__NS__", ns, StringComparison.Ordinal);
+        using var document = JsonDocument.Parse(json);
 
         var identifier = PersonIdentifierParsing.Parse(document.RootElement, null, null, null).Single();
 
