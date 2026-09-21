@@ -104,7 +104,7 @@ public sealed class PersonV5ContractSqlServerTests
                       WHERE pessoa_observacao_id=@obs
                         AND referencia_territorial_observacao_id IS NOT NULL),
                     (SELECT COUNT(*) FROM serving.v_bi_referencia_territorial_v5
-                      WHERE gestor=N'SEHAB' AND estado_referencia=N'INFORMADA' AND natureza_publicavel=N'RESTRITA'),
+                      WHERE gestor=N'SEHAB' AND natureza_publicavel=N'INSTITUCIONAL_PRISIONAL'),
                     (SELECT COUNT(*) FROM serving.v_bi_cpf_ausencia_taxonomia
                       WHERE gestor=N'SEHAB' AND pessoa_schema_versao=4
                         AND cpf_estado=N'LEGADO_SEM_CPF_NAO_DECOMPOSTO');
@@ -120,7 +120,7 @@ public sealed class PersonV5ContractSqlServerTests
                 Assert.That(reader.GetInt32(4), Is.Zero, "RG/CNH não podem criar identity_map automaticamente.");
                 Assert.That(reader.GetInt32(5), Is.EqualTo(1), "Sem endereço fixo é estado próprio, sem natureza/geografia fabricada.");
                 Assert.That(reader.GetInt32(6), Is.Zero, "Sem endereço fixo e prisão não aparecem como referência territorial compartilhada.");
-                Assert.That(reader.GetInt32(7), Is.GreaterThanOrEqualTo(1), "QC agregado deve ocultar a natureza prisional sob RESTRITA.");
+                Assert.That(reader.GetInt32(7), Is.Zero, "A projeção BI compartilhada não pode revelar nem contar a natureza prisional.");
                 Assert.That(reader.GetInt32(8), Is.GreaterThanOrEqualTo(1), "SEM_CPF v4 deve permanecer classificado como legado, sem decomposição inferida.");
             });
         }
