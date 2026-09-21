@@ -5,7 +5,7 @@ Este índice existe para evitar que snapshots históricos preservados no reposit
 ## Pontos de entrada correntes
 
 - **Release de engenharia efetivamente selada:** `RELEASE_INFO.txt` — Base Normativa v3.64, Solution Engenharia v4.05, SolutionSchema v3.69, tag `jornada-solution-v4.05`.
-- **Estado técnico candidato desta consolidação:** SolutionSchema v3.70. A release/tag v5.00 ainda não foi cortada. Para consumo automatizado, `CANDIDATE_INFO.json` registra esse estado candidato sem substituir `RELEASE_INFO.txt` nem declarar publicação.
+- **Estado técnico candidato desta consolidação:** SolutionSchema v3.70. O checkpoint técnico `v5.00-rc.1` foi cortado com `release_effect=NONE`; a release final/normativa v5.00 continua não publicada. Para consumo automatizado, `CANDIDATE_INFO.json` registra esse estado candidato sem substituir `RELEASE_INFO.txt` nem declarar publicação.
 - **Resumo executivo não versionado:** `Documentos/Resumo_Executivo.md`. Deve refletir a fronteira entre a última release selada e o estado técnico candidato.
 - **Especificação Técnica publicada:** `Documentos/Especificacao_Tecnica_Jornada_v3.62.docx` e `.pdf`. Não existe `Especificacao_Tecnica_Jornada_v3.64.*` materializada nesta árvore.
 - **Especificação Técnica candidata:** `Documentos/Especificacao_Tecnica_Jornada_v5.00_Candidata.md`, identificador técnico citável `v5.00-candidata`, sem versão normativa e sem efeito de publicação/release até aprovação e corte formais. Consolida a v3.62 com o estado técnico comprovável do HEAD e mantém pendências institucionais como gates externos.
