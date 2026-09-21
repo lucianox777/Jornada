@@ -13,6 +13,7 @@ Este arquivo liga invariantes arquiteturais a evidências executáveis existente
 | INV-LINK-002 | persistência `linkage_resultado` + publicação progressiva | Schema/procedure + integração separam score bruto e publicação. |
 | INV-LINK-003 | gates de proveniência/modelo + tests de Parameters Worker | Versão/fingerprint/ruleset congelados. |
 | INV-LINK-004 | testes de run incompleto/timeout/limite | Falha/incompletude não publica “nova identidade”. |
+| INV-LINK-005 | `IdentityGovernanceTests.cs`; `IdentityReplayInvariantTests.cs`; publicação progressiva | Correção governada/replay preservam observações e histórico; atribuição probabilística não destrói origem. |
 | INV-CONF-001 | migrations `20260920_Linkage_Implementation_Conference_Evidence.sql`, `...Conference_Command_Governance.sql`; CI de conferência | SQL fail-closed + processo independente. |
 | INV-LEDGER-001 | `IdentityDecisionLedgerTests.cs`; trigger `tr_decisao_identidade_evento_append_only` | Atomicidade + append-only. |
 | INV-MODEL-LEDGER-001 | migration `20260920_Linkage_Model_Promotion_Ledger.sql`; monitor tests | Trilha de promoção persistente e read-only no monitor. |
