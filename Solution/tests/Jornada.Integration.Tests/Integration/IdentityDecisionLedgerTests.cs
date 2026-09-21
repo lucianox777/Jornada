@@ -111,6 +111,27 @@ public sealed class IdentityDecisionLedgerTests
     }
 
     [Test]
+    public void Document_evidence_without_document_type_is_rejected_before_mutation()
+    {
+        var service = new SqlIdentityCorrectionService(new OperationalSqlAdapter(
+            "Server=invalid;Database=invalid;User Id=invalid;Password=invalid;TrustServerCertificate=True;"));
+        var context = new AccessContext(
+            Guid.NewGuid(), AccessCredentialType.GESTOR, "SMADS", "SMADS", null, [], []);
+
+        var ex = Assert.ThrowsAsync<ArgumentException>(async () =>
+            await service.OpenCaseAsync(
+                context,
+                new IdentityGovernedCaseOpenRequest(
+                    "OUTRO", [1], "TESTE",
+                    "Evidência documental sem tipo deve falhar antes de abrir conexão.",
+                    new IdentityDecisionEvidence("DOCUMENTO_VERIFICADO")),
+                Guid.NewGuid(),
+                CancellationToken.None));
+
+        Assert.That(ex!.Message, Does.Contain("documentoTipoCodigo"));
+    }
+
+    [Test]
     public async Task Ledger_failure_rolls_back_governed_identity_mutation()
     {
         var connectionString = RequireIntegrationConnection();
