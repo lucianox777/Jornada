@@ -5,6 +5,8 @@ using Microsoft.Data.SqlClient;
 
 namespace Jornada.Processor.Worker;
 
+internal sealed record NisBindingResult(Guid? PessoaUuid, bool Conflict, string? Motivo);
+
 internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connections) : IIdentityMapRepository
 {
     public async Task<InternalIdentityResolution> ResolveOrCreateByCpfAsync(
@@ -269,6 +271,235 @@ internal sealed class SqlIdentityMapRepository(IOperationalSqlAdapter connection
 
         // O conflito pertence ao identificador CPF. Não escolhemos uma observação como errada,
         // não anulamos pessoa_uuid de fatos já materializados e não retiramos a Pessoa da Gold.
+    }
+
+    internal static async Task<NisBindingResult?> ResolveOrBindByNisAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        IReadOnlyList<ParsedPersonIdentifier> identifiers,
+        Guid? preferredUuid,
+        long? gestorId,
+        string? sourceRecordId,
+        CancellationToken ct)
+    {
+        var values = identifiers
+            .Where(i => i.Tipo == "NIS"
+                && string.Equals(i.StatusEvidencia, "COMPROVADO", StringComparison.Ordinal))
+            .Select(i => NisRules.NormalizeAndValidate(i.ValorNormalizado))
+            .Where(v => v is not null)
+            .Select(v => v!)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(v => v, StringComparer.Ordinal)
+            .ToArray();
+
+        if (values.Length == 0)
+            return null;
+
+        var maps = new List<(string Nis, long MapId, Guid Uuid, string State, string? Reason)>();
+        foreach (var nis in values)
+        {
+            await using var find = connection.CreateCommand();
+            find.Transaction = transaction;
+            find.CommandText = """
+                SELECT TOP(1) identity_map_id,
+                       identidade.fn_pessoa_uuid_canonico(pessoa_uuid),
+                       estado,estado_motivo
+                FROM identidade.identity_map WITH(UPDLOCK,HOLDLOCK)
+                WHERE tipo='NIS' AND identificador=@nis AND vigencia_fim IS NULL
+                ORDER BY vigencia_inicio DESC,identity_map_id DESC;
+                """;
+            find.Parameters.Add(new SqlParameter("@nis", SqlDbType.Char, 11) { Value = nis });
+            await using var reader = await find.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                maps.Add((
+                    nis,
+                    reader.GetInt64(0),
+                    reader.GetGuid(1),
+                    reader.GetString(2),
+                    reader.IsDBNull(3) ? null : reader.GetString(3)));
+            }
+        }
+
+        if (preferredUuid.HasValue)
+        {
+            var preferredCanonical = await CanonicalUuidAsync(connection, transaction, preferredUuid.Value, ct);
+            if (!preferredCanonical.HasValue)
+                throw new InvalidOperationException("UUID prioritário de identidade não existe.");
+
+            var conflicting = maps
+                .Where(m => m.State == "EM_CONFLITO" || m.Uuid != preferredCanonical.Value)
+                .ToArray();
+
+            if (conflicting.Length > 0)
+            {
+                foreach (var map in conflicting.Where(m => m.State == "ATIVO"))
+                {
+                    await MarkNisIdentifierConflictAsync(
+                        connection, transaction, map.MapId,
+                        "NIS_CONTRADIZ_ANCORA_PRIORITARIA", ct);
+                }
+
+                return new NisBindingResult(
+                    preferredCanonical.Value,
+                    true,
+                    "NIS_CONTRADIZ_ANCORA_PRIORITARIA");
+            }
+
+            foreach (var nis in values.Where(v => maps.All(m => m.Nis != v)))
+            {
+                await InsertActiveNisMapAsync(
+                    connection, transaction, preferredCanonical.Value, nis,
+                    gestorId, sourceRecordId, "NIS_VINCULADO_ANCORA_PRIORITARIA", ct);
+            }
+
+            return new NisBindingResult(preferredCanonical.Value, false, null);
+        }
+
+        if (maps.Any(m => m.State == "EM_CONFLITO"))
+        {
+            return new NisBindingResult(
+                null,
+                true,
+                maps.First(m => m.State == "EM_CONFLITO").Reason ?? "NIS_EM_CONFLITO");
+        }
+
+        var mappedUuids = maps
+            .Select(m => m.Uuid)
+            .Distinct()
+            .ToArray();
+
+        if (mappedUuids.Length > 1)
+        {
+            foreach (var map in maps.Where(m => m.State == "ATIVO"))
+            {
+                await MarkNisIdentifierConflictAsync(
+                    connection, transaction, map.MapId,
+                    "NIS_MULTIPLOS_UUIDS_CONFLITANTES", ct);
+            }
+
+            return new NisBindingResult(null, true, "NIS_MULTIPLOS_UUIDS_CONFLITANTES");
+        }
+
+        Guid targetUuid;
+        if (mappedUuids.Length == 1)
+        {
+            targetUuid = mappedUuids[0];
+        }
+        else
+        {
+            targetUuid = Guid.NewGuid();
+            await using var insertPerson = connection.CreateCommand();
+            insertPerson.Transaction = transaction;
+            insertPerson.CommandText = "INSERT identidade.pessoa(pessoa_uuid,status) VALUES(@uuid,'ATIVO');";
+            insertPerson.Parameters.AddWithValue("@uuid", targetUuid);
+            await insertPerson.ExecuteNonQueryAsync(ct);
+        }
+
+        foreach (var nis in values.Where(v => maps.All(m => m.Nis != v)))
+        {
+            await InsertActiveNisMapAsync(
+                connection, transaction, targetUuid, nis,
+                gestorId, sourceRecordId,
+                mappedUuids.Length == 0 ? "NIS_MAP_CRIADO" : "NIS_ELO_ADICIONAL_COMPROVADO",
+                ct);
+        }
+
+        return new NisBindingResult(targetUuid, false, null);
+    }
+
+    private static async Task<Guid?> CanonicalUuidAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        Guid uuid,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT CASE
+                     WHEN EXISTS(SELECT 1 FROM identidade.pessoa WHERE pessoa_uuid=@uuid)
+                     THEN identidade.fn_pessoa_uuid_canonico(@uuid)
+                     ELSE NULL
+                   END;
+            """;
+        command.Parameters.AddWithValue("@uuid", uuid);
+        var value = await command.ExecuteScalarAsync(ct);
+        return value is null or DBNull ? null : (Guid)value;
+    }
+
+    private static async Task<long> InsertActiveNisMapAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        Guid uuid,
+        string nis,
+        long? gestorId,
+        string? sourceRecordId,
+        string reason,
+        CancellationToken ct)
+    {
+        long mapId;
+        await using (var insert = connection.CreateCommand())
+        {
+            insert.Transaction = transaction;
+            insert.CommandText = """
+                INSERT identidade.identity_map(
+                    pessoa_uuid,tipo,identificador,vigencia_inicio,gestor_origem_id,source_record_id,
+                    metodo_resolucao,estado,estado_motivo,estado_em)
+                OUTPUT INSERTED.identity_map_id
+                VALUES(@uuid,'NIS',@nis,SYSDATETIMEOFFSET(),@gestor,@source_record,
+                       'NIS_DETERMINISTICO','ATIVO',@motivo,SYSDATETIMEOFFSET());
+                """;
+            insert.Parameters.AddWithValue("@uuid", uuid);
+            insert.Parameters.Add(new SqlParameter("@nis", SqlDbType.Char, 11) { Value = nis });
+            insert.Parameters.Add(new SqlParameter("@gestor", SqlDbType.BigInt) { Value = (object?)gestorId ?? DBNull.Value });
+            insert.Parameters.Add(new SqlParameter("@source_record", SqlDbType.NVarChar, 255) { Value = (object?)sourceRecordId ?? DBNull.Value });
+            insert.Parameters.Add(new SqlParameter("@motivo", SqlDbType.NVarChar, 120) { Value = reason });
+            mapId = Convert.ToInt64(await insert.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        await using var history = connection.CreateCommand();
+        history.Transaction = transaction;
+        history.CommandText = """
+            INSERT identidade.identity_map_estado_evento(identity_map_id,estado_anterior,estado_novo,motivo)
+            VALUES(@id,NULL,'ATIVO',@motivo);
+            """;
+        history.Parameters.AddWithValue("@id", mapId);
+        history.Parameters.Add(new SqlParameter("@motivo", SqlDbType.NVarChar, 120) { Value = reason });
+        await history.ExecuteNonQueryAsync(ct);
+        return mapId;
+    }
+
+    private static async Task MarkNisIdentifierConflictAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        long identityMapId,
+        string reason,
+        CancellationToken ct)
+    {
+        await using var update = connection.CreateCommand();
+        update.Transaction = transaction;
+        update.CommandText = """
+            UPDATE identidade.identity_map
+               SET estado='EM_CONFLITO',estado_motivo=@motivo,estado_em=SYSDATETIMEOFFSET()
+             WHERE identity_map_id=@id AND estado='ATIVO' AND vigencia_fim IS NULL;
+            SELECT @@ROWCOUNT;
+            """;
+        update.Parameters.AddWithValue("@id", identityMapId);
+        update.Parameters.Add(new SqlParameter("@motivo", SqlDbType.NVarChar, 120) { Value = reason });
+        var changed = Convert.ToInt32(await update.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
+        if (changed == 0)
+            return;
+
+        await using var history = connection.CreateCommand();
+        history.Transaction = transaction;
+        history.CommandText = """
+            INSERT identidade.identity_map_estado_evento(identity_map_id,estado_anterior,estado_novo,motivo)
+            VALUES(@id,'ATIVO','EM_CONFLITO',@motivo);
+            """;
+        history.Parameters.AddWithValue("@id", identityMapId);
+        history.Parameters.Add(new SqlParameter("@motivo", SqlDbType.NVarChar, 120) { Value = reason });
+        await history.ExecuteNonQueryAsync(ct);
     }
 
     private static async Task<IdentityCore?> LoadExistingCoreAsync(
