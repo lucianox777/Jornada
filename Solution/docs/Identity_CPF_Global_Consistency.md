@@ -91,6 +91,12 @@ Esta regra não altera:
 - divergência entre `cpf_ancora` e `identity_map`: continua sendo falha de integridade, nunca resolvida por score de nome/data;
 - correções, separações e fusões governadas: continuam preservando histórico e não criam duas âncoras concorrentes para o mesmo CPF.
 
+## Relação com a âncora secundária NIS
+
+A introdução de NIS/CNIS não altera nenhum invariante desta política. CPF continua sendo a âncora externa principal e permanente. NIS comprovado pode resolver identidade apenas como rota secundária; se um NIS corrente apontar para UUID diferente daquele determinado por CPF válido, o CPF continua resolvendo e o NIS é marcado `EM_CONFLITO`, com divergência governada. Não há transferência de `cpf_ancora`, fallback probabilístico ou escolha silenciosa entre os dois identificadores.
+
+NIS não recebe a mesma imutabilidade vitalícia de `cpf_ancora`: o CNIS admite múltiplas inscrições/elos e situações que podem exigir correção governada. A regra detalhada está em `Documentos/ADR/ADR-006-nis-ancora-secundaria.md`.
+
 ## Invariantes de implementação
 
 A implementação SQL Server deve provar os seguintes invariantes:
