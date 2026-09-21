@@ -56,6 +56,11 @@ public sealed class ProbabilisticLinkageBatchRunner(
             var universe = await CreateRunAndMaterializeUniverseAsync(runId, model, request, started, workCt);
             eligible = universe.Eligible;
 
+            if (request.Mode == LinkageRunType.INCREMENTAL
+                && universe.FreshPending + universe.Reevaluated != universe.Eligible)
+                throw new InvalidOperationException(
+                    $"Métricas do universo incremental inconsistentes: elegíveis={universe.Eligible}, fresh={universe.FreshPending}, reavaliados={universe.Reevaluated}.");
+
             while (evaluated < eligible)
             {
                 workCt.ThrowIfCancellationRequested();
@@ -106,12 +111,18 @@ public sealed class ProbabilisticLinkageBatchRunner(
             var publishedAt = status == LinkageRunStatus.PUBLICADO ? finished : (DateTimeOffset?)null;
             logger.LogInformation(
                 "Linkage concluído. RunId={RunId}; ModeloId={ModelId}; ModeloVersao={ModelVersion}; Status={Status}; " +
-                "Avaliados={Evaluated}; Resolvidos={Resolved}; NaoResolvidos={Unresolved}; Conflitos={Conflicts}; SemCandidatoBloco={NoCandidate}",
-                runId, model.ModelId, model.Version, status, evaluated, resolved, unresolved, conflicts, noCandidateInBlock);
+                "Avaliados={Evaluated}; Resolvidos={Resolved}; NaoResolvidos={Unresolved}; Conflitos={Conflicts}; SemCandidatoBloco={NoCandidate}; " +
+                "FreshPending={FreshPending}; Reavaliados={Reevaluated}",
+                runId, model.ModelId, model.Version, status, evaluated, resolved, unresolved, conflicts, noCandidateInBlock,
+                universe.FreshPending, universe.Reevaluated);
 
             return new ProbabilisticLinkageRunSummary(
                 runId, model.ModelId, model.Version, status, eligible, evaluated,
-                resolved, unresolved, conflicts, noCandidateInBlock, started, finished, publishedAt);
+                resolved, unresolved, conflicts, noCandidateInBlock, started, finished, publishedAt)
+            {
+                FreshPending = universe.FreshPending,
+                Reavaliados = universe.Reevaluated
+            };
         }
         catch (OperationCanceledException) when (pipelineLease.IsLost)
         {
@@ -213,11 +224,26 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 ) x;
 
                 DECLARE @elegiveis BIGINT = (SELECT COUNT_BIG(*) FROM identidade.linkage_run_item WHERE linkage_run_id=@run_id);
+                DECLARE @reavaliados BIGINT=0;
+                DECLARE @fresh_pendentes BIGINT=0;
+
+                IF @tipo_run=N'INCREMENTAL'
+                BEGIN
+                    SELECT @reavaliados=COUNT_BIG(*)
+                    FROM identidade.linkage_run_item li
+                    JOIN identidade.v_vinculo_corrente vc
+                      ON vc.pessoa_observacao_id=li.pessoa_observacao_id
+                    WHERE li.linkage_run_id=@run_id
+                      AND vc.status IN(N'NAO_RESOLVIDO',N'CONFLITO');
+
+                    SET @fresh_pendentes=@elegiveis-@reavaliados;
+                END;
+
                 UPDATE identidade.linkage_run
                 SET status='EXECUTANDO', registros_elegiveis=@elegiveis
                 WHERE linkage_run_id=@run_id AND status='PREPARANDO';
 
-                SELECT @high_watermark,@elegiveis;
+                SELECT @high_watermark,@elegiveis,@fresh_pendentes,@reavaliados;
                 """,
                 connection, transaction)
             {
@@ -245,7 +271,11 @@ public sealed class ProbabilisticLinkageBatchRunner(
             await using var reader = await command.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct))
                 throw new InvalidOperationException("Falha ao materializar universo do linkage_run.");
-            var materialized = new MaterializedRunUniverse(reader.GetInt64(0), reader.GetInt64(1));
+            var materialized = new MaterializedRunUniverse(
+                reader.GetInt64(0),
+                reader.GetInt64(1),
+                reader.GetInt64(2),
+                reader.GetInt64(3));
             await reader.CloseAsync();
             await transaction.CommitAsync(ct);
             return materialized;
@@ -1001,7 +1031,11 @@ public sealed class ProbabilisticLinkageBatchRunner(
             }
         });
 
-    private sealed record MaterializedRunUniverse(long HighWatermarkObservationId, long Eligible);
+    private sealed record MaterializedRunUniverse(
+        long HighWatermarkObservationId,
+        long Eligible,
+        long FreshPending,
+        long Reevaluated);
 
     private sealed record PendingRow(long PessoaObservacaoId, IdentityObservation Observation);
     private sealed record ScoredRow(long PessoaObservacaoId, ProbabilisticLinkageDecision Decision);
