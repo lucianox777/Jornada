@@ -112,8 +112,10 @@ A ponte escreve:
 
 ### Gap representacional do contrato Pessoa
 
-Pessoa v4 (e o v5 atualmente em RASCUNHO) exige `dataNascimento`, enquanto o
-corpus V2 pode produzir `DATE_MISSING`. A ponte **não inventa data** para fazer a
+A ponte desta etapa materializa **somente Pessoa v4**, porque é a versão ativa
+ingerível; Pessoa v5 permanece RASCUNHO e não pode ser escolhida apenas por opção
+de CLI. Pessoa v4 (e o v5 atualmente em RASCUNHO) exige `dataNascimento`, enquanto
+o corpus V2 pode produzir `DATE_MISSING`. A ponte **não inventa data** para fazer a
 linha passar no contrato. Essas observações são registradas no sidecar com
 `EXCLUIDA_CONTRATO_ATIVO_DATA_NASCIMENTO_AUSENTE` e não entram nos ZIPs.
 
