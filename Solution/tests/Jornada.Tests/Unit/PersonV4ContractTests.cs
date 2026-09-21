@@ -47,6 +47,7 @@ public sealed class PersonV4ContractTests
         Assert.Multiple(() =>
         {
             Assert.That(allowedTypes, Does.Contain("CPF"));
+            Assert.That(allowedTypes, Does.Contain("NIS"));
             Assert.That(allowedTypes, Does.Contain("CNS"));
             Assert.That(allowedTypes, Does.Contain("RG"));
             Assert.That(allowedTypes, Does.Contain("CODIGO_BASE_ORIGEM"));
