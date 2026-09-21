@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Jornada.Contracts;
 using Jornada.Ingestion;
 
@@ -288,8 +287,7 @@ public static class SyntheticIngestionBridge
     private static JsonSerializerOptions CreateJsonOptions()
         => new()
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
     private sealed record SyntheticIngestionIdentifier(
