@@ -194,18 +194,111 @@ public sealed class PersonIdentifierParsingTests
     }
 
     [Test]
-    public void Requires_Rg_Issuer_And_State()
+    public void Allows_Rg_Number_Only_And_Preserves_Leading_Zeros()
     {
         using var document = JsonDocument.Parse("""
             {
               "identificadores":[
-                {"tipo":"RG","namespace":"TEST","valor":"RG-SYNTH","statusEvidencia":"DECLARADO"}
+                {"tipo":"RG","namespace":"BR-SP","valor":"001234567","statusEvidencia":"DECLARADO"}
               ]
             }
             """);
 
-        Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, null, null, null));
+        var identifier = PersonIdentifierParsing.Parse(document.RootElement, null, null, null).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(identifier.Tipo, Is.EqualTo("RG"));
+            Assert.That(identifier.ValorNormalizado, Is.EqualTo("001234567"));
+            Assert.That(identifier.Emissor, Is.Null);
+            Assert.That(identifier.UfEmissor, Is.Null);
+        });
+    }
+
+    [Test]
+    public void Allows_Rg_With_State_And_No_Issuer()
+    {
+        using var document = JsonDocument.Parse("""
+            {
+              "identificadores":[
+                {"tipo":"RG","namespace":"BR-SP","valor":"12.345.678-X","ufEmissor":"SP","statusEvidencia":"DECLARADO"}
+              ]
+            }
+            """);
+
+        var identifier = PersonIdentifierParsing.Parse(document.RootElement, null, null, null).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(identifier.ValorNormalizado, Is.EqualTo("12345678X"));
+            Assert.That(identifier.Emissor, Is.Null);
+            Assert.That(identifier.UfEmissor, Is.EqualTo("SP"));
+        });
+    }
+
+    [Test]
+    public void Allows_Rg_With_Issuer_And_No_State()
+    {
+        using var document = JsonDocument.Parse("""
+            {
+              "identificadores":[
+                {"tipo":"RG","namespace":"BR","valor":"12.345.678-9","emissor":"SSP","statusEvidencia":"DECLARADO"}
+              ]
+            }
+            """);
+
+        var identifier = PersonIdentifierParsing.Parse(document.RootElement, null, null, null).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(identifier.ValorNormalizado, Is.EqualTo("123456789"));
+            Assert.That(identifier.Emissor, Is.EqualTo("SSP"));
+            Assert.That(identifier.UfEmissor, Is.Null);
+        });
+    }
+
+    [Test]
+    public void Normalizes_Rg_Punctuation_And_Preserves_X()
+    {
+        using var document = JsonDocument.Parse("""
+            {
+              "identificadores":[
+                {"tipo":"RG","namespace":"BR-SP","valor":"00.123.456-X","emissor":"SSP","ufEmissor":"sp","statusEvidencia":"DECLARADO"}
+              ]
+            }
+            """);
+
+        var identifier = PersonIdentifierParsing.Parse(document.RootElement, null, null, null).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(identifier.ValorOriginal, Is.EqualTo("00.123.456-X"));
+            Assert.That(identifier.ValorNormalizado, Is.EqualTo("00123456X"));
+            Assert.That(identifier.UfEmissor, Is.EqualTo("SP"));
+        });
+    }
+
+    [Test]
+    public void Accepts_Cnh_As_Secondary_Identifier_Without_Structural_Validation()
+    {
+        using var document = JsonDocument.Parse("""
+            {
+              "identificadores":[
+                {"tipo":"CNH","namespace":"BR","valor":"001.234.567-89","statusEvidencia":"DECLARADO"}
+              ]
+            }
+            """);
+
+        var identifier = PersonIdentifierParsing.Parse(document.RootElement, null, null, null).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(identifier.Tipo, Is.EqualTo("CNH"));
+            Assert.That(identifier.Namespace, Is.EqualTo("BR"));
+            Assert.That(identifier.ValorOriginal, Is.EqualTo("001.234.567-89"));
+            Assert.That(identifier.ValorNormalizado, Is.EqualTo("00123456789"));
+            Assert.That(identifier.StatusEvidencia, Is.EqualTo("DECLARADO"));
+        });
     }
 
     [Test]
