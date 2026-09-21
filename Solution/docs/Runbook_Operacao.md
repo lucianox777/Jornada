@@ -41,7 +41,8 @@ O `Jornada.Operations.Maintenance.Worker` inclui, na v3.53, um **watchdog soment
 - `GENERATE_DRAFT` e Linkage Runner obtêm janela exclusiva do corpus. O Processor termina o lote corrente e não inicia outro enquanto a janela exclusiva estiver declarada.
 - O scheduler **não deve** executar `GENERATE_DRAFT` e Linkage Runner concorrentes entre si. A coordenação SQL falha fechado mesmo se houver disparo indevido, mas a política operacional deve evitar tentativas desnecessárias.
 - `VALIDATE` e `ACTIVATE` não exigem congelamento do corpus, mas exigem tolerância de conferência `FROZEN` e evidência mais recente `CONFORME` do mesmo modelo. A configuração oficial corrente está `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`, portanto a promoção permanece bloqueada até decisão explícita.
-- `FULL` e `REPLAY` são operações excepcionais e devem registrar `--requested-by`, `--reason` e, quando aplicável, `--correlation-id`.
+- `INCREMENTAL` cobre observações sem CPF ainda pendentes **e também reavalia `NAO_RESOLVIDO`/`CONFLITO` correntes**, porque o universo candidato pode mudar mesmo quando a observação não muda. Isso evita depender de uma nova versão da origem para descobrir evidência surgida do lado candidato.
+- `FULL` e `REPLAY` permanecem operações excepcionais e devem registrar `--requested-by`, `--reason` e, quando aplicável, `--correlation-id`. `REPLAY` não deve ser transformado em rotina apenas para compensar mudança do lado candidato.
 
 ## 4. Exemplos de comandos run-once
 

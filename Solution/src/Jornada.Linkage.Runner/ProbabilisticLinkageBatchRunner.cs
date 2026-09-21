@@ -348,7 +348,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
         return result;
     }
 
-    private static string EligibleFromWhereSql() =>
+    internal static string EligibleFromWhereSql() =>
         """
         FROM silver.pessoa_observacao po
         JOIN ref.gestor g ON g.gestor_id=po.gestor_id
@@ -362,7 +362,10 @@ public sealed class ProbabilisticLinkageBatchRunner(
           AND (
                 @mode IN('FULL','MODEL_VALIDATION')
                 OR (@mode='REPLAY' AND (vc.status IN('NAO_RESOLVIDO','CONFLITO') OR vc.metodo_resolucao='PENDENTE_PROBABILISTICO'))
-                OR (@mode='INCREMENTAL' AND (vc.pessoa_observacao_id IS NULL OR vc.metodo_resolucao='PENDENTE_PROBABILISTICO'))
+                OR (@mode='INCREMENTAL' AND (
+                    vc.pessoa_observacao_id IS NULL
+                    OR vc.status IN('NAO_RESOLVIDO','CONFLITO')
+                    OR vc.metodo_resolucao='PENDENTE_PROBABILISTICO'))
                 OR (@mode='ON_DEMAND' AND (
                     @pessoa_observacao_id IS NOT NULL
                     OR vc.pessoa_observacao_id IS NULL
