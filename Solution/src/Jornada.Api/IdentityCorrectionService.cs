@@ -304,7 +304,7 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
         Guid? correctionId,
         Guid? caseId,
         long? divergenceId,
-        string evidenceType,
+        string? evidenceType,
         string? documentTypeCode,
         Guid? correlationId,
         CancellationToken ct)
@@ -319,7 +319,7 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
         command.Parameters.Add(new SqlParameter("@correcao_id", SqlDbType.UniqueIdentifier) { Value = (object?)correctionId ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@caso_id", SqlDbType.UniqueIdentifier) { Value = (object?)caseId ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@divergencia_id", SqlDbType.BigInt) { Value = (object?)divergenceId ?? DBNull.Value });
-        command.Parameters.Add(new SqlParameter("@evidencia_tipo", SqlDbType.NVarChar, 60) { Value = evidenceType });
+        command.Parameters.Add(new SqlParameter("@evidencia_tipo", SqlDbType.NVarChar, 60) { Value = (object?)evidenceType ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@documento_tipo_codigo", SqlDbType.NVarChar, 80) { Value = (object?)documentTypeCode ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@correlation_id", SqlDbType.UniqueIdentifier) { Value = (object?)correlationId ?? DBNull.Value });
         var operation = command.Parameters.Add("@operacao_id", SqlDbType.UniqueIdentifier);
