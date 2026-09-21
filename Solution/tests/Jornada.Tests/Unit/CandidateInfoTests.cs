@@ -197,6 +197,8 @@ public sealed class CandidateInfoTests
             Assert.That(rcEvidenceJob, Does.Contain("contents: read"));
             Assert.That(rcEvidenceJob, Does.Not.Contain("contents: write"));
             Assert.That(rcPublishJob, Does.Contain("contents: write"));
+            Assert.That(rcPublishJob, Does.Contain("github.ref_name == 'v5.00-rc.1'"));
+            Assert.That(rcPublishJob, Does.Not.Contain("startsWith(github.ref_name, 'v')"));
             Assert.That(rcPublishJob, Does.Not.Contain("workflow_dispatch"));
         });
     }
