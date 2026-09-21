@@ -165,6 +165,12 @@ jobs:
       - name: Self-test IBGE nominal u multi-seed diagnostic
         run: pwsh -NoLogo -NoProfile -File scripts/local-ibge-u-multiseed.ps1 -SelfTest
       - run: dotnet build Jornada.sln --configuration Release --no-restore
+      - name: Prove Python-to-CSharp synthetic corpus rule equivalence
+        run: |
+          mkdir -p .local/test-evidence/unit
+          python3 scripts/synthetic-corpus-equivalence-gate.py \
+            --root . \
+            --summary .local/test-evidence/unit/synthetic-corpus-equivalence.json
       - name: Unit tests must execute without skips
         run: |
           mkdir -p .local/test-evidence/unit
