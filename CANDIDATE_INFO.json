@@ -14,14 +14,14 @@
     "solution_schema": "v3.70",
     "schema_provenance": {
       "status": "BOUND_FOR_TECHNICAL_RC",
-      "source_commit": "19ea8cf6d951d6531a57915b9e979605c07d6e46",
+      "source_commit": "f624e4f57cecb78065b47442da6cea000b323d27",
       "canonical_ddl": "Solution/database/Jornada_Fase1_v3.70.sql",
       "structural_fingerprint_sha256": "103c967ba794ea5bd55ccb701e244355defc2a5f94802bec6ed2029a75988b1a",
       "structural_fingerprint_method": "SHA256_SORTED_METADATA_LINES_FROM_Jornada_Dev_DdlFingerprint.sql",
       "migration_manifest": "Solution/database/migrations/manifest.txt",
-      "migration_manifest_sha256": "4c89a02d32a4f03c131c1997f7bd5c6e8d84d81664911f3d45e43ba26b598436",
+      "migration_manifest_sha256": "4174ea57ea0f30cd0f9418d20085bbd9d790bc3abf944f1001689fda7301eb35",
       "migration_manifest_hash_method": "SHA256_UTF8_LF",
-      "rc_rule": "source_commit identifies an ancestor structural checkpoint whose manifest and structural fingerprint are equivalent to this technical RC content. The schema-consolidation workflow proves the executable DDL on the current commit; the v5.00-rc.1 path recomputes the same evidence on the exact tag. A later structural change requires a new RC checkpoint.",
+      "rc_rule": "source_commit identifies an ancestor structural checkpoint whose migration manifest and structural schema state are equivalent to this technical RC content. The schema-consolidation workflow executes the canonical DDL on the current commit and must match the declared structural fingerprint; rc-evidence recomputes the same evidence on the exact RC tag. A later structural change requires a new RC checkpoint.",
       "evidence_model": "CURRENT_CI_PLUS_EXACT_RC_RECOMPUTATION"
     },
     "technical_rc": {
