@@ -12,7 +12,7 @@ Um achado deve ser classificado antes de qualquer exceção:
 1. segredo real ainda válido → revogar/rotacionar primeiro;
 2. segredo real histórico → tratar impacto/rotação e registrar decisão; não reescrever histórico automaticamente;
 3. credencial sintética/teste → preferir eliminar literal ou injetar por variável quando isso preservar reprodutibilidade;
-4. falso positivo comprovado → exceção estreita, direcionada à regra/caminho exatos, com justificativa versionada.
+4. falso positivo comprovado → exceção estreita, direcionada à regra/caminho exatos, com justificativa versionada. A primeira triagem CI classificou apenas `generic-api-key` sobre chaves sintéticas DEV; a exceção corrente é rule-specific e limitada a `test-access-keys.json`, `local-e2e.sh|ps1` e `Jornada.Cluster.Test.json`.
 
 Não criar baseline automaticamente a partir da primeira execução: isso converteria achados desconhecidos em dívida silenciosa.
 
