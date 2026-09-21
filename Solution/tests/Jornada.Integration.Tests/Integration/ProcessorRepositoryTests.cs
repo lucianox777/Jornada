@@ -265,7 +265,7 @@ public sealed class ProcessorRepositoryTests
     }
 
     [Test]
-    public async Task Codigo_pessoa_origem_may_equal_cpf_format_without_being_interpreted_as_cpf()
+    public async Task Pending_identity_does_not_block_valid_fact_materialization_or_infer_cpf_from_origin_code()
     {
         var connectionString = RequireIntegrationConnection();
         await PrepareDatabaseAsync(connectionString);
@@ -307,8 +307,9 @@ public sealed class ProcessorRepositoryTests
         {
             Assert.That(reader.GetString(0), Is.EqualTo("16899535009"));
             Assert.That(reader.IsDBNull(1), Is.True, "codigo_pessoa_origem não adquire semântica de CPF pelo formato.");
-            Assert.That(reader.IsDBNull(2), Is.True);
-            Assert.That(reader.GetString(3), Is.EqualTo("PENDENTE_IDENTIDADE"));
+            Assert.That(reader.IsDBNull(2), Is.True, "Identidade pendente não exige UUID para a existência do fato.");
+            Assert.That(reader.GetString(3), Is.EqualTo("PENDENTE_IDENTIDADE"),
+                "O fato válido deve ser materializado e carregar explicitamente a atribuição pendente.");
             Assert.That(reader.GetInt32(4), Is.Zero, "A Jornada nunca deve inferir CPF a partir do código opaco de origem.");
         });
     }
