@@ -74,7 +74,7 @@ if ([string]::IsNullOrWhiteSpace($modelId)) { throw "modelo_id ausente para v$ve
 
 $sourceRevision = "WINDOWS_MANUAL_" + [string]$config.configurationBundleVersion
 Write-Host "Linkage Conference: modelo v$version / $modelId"
-& $conferenceExecutable --model-id $modelId --connection-string $connectionString --tolerance-config $conferenceTolerance --source-revision $sourceRevision
+& $conferenceExecutable --model-id $modelId --tolerance-config $conferenceTolerance --source-revision $sourceRevision
 if ($LASTEXITCODE -ne 0) {
     throw "Linkage Conference bloqueou a promoção. ExitCode=$LASTEXITCODE. Verifique a tolerância governada e a evidência CONFORME."
 }
