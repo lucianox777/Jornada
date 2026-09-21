@@ -32,12 +32,18 @@ BEGIN
     IF @nis=REPLICATE(LEFT(@nis,1),11)
         RETURN 0;
 
-    DECLARE @weights TABLE(pos INT PRIMARY KEY,peso INT NOT NULL);
-    INSERT @weights(pos,peso) VALUES
-      (1,3),(2,2),(3,9),(4,8),(5,7),(6,6),(7,5),(8,4),(9,3),(10,2);
-
-    DECLARE @sum INT=0,@dv INT;
-    SELECT @sum=SUM(CONVERT(INT,SUBSTRING(@nis,pos,1))*peso) FROM @weights;
+    DECLARE @sum INT=
+        CONVERT(INT,SUBSTRING(@nis,1,1))*3+
+        CONVERT(INT,SUBSTRING(@nis,2,1))*2+
+        CONVERT(INT,SUBSTRING(@nis,3,1))*9+
+        CONVERT(INT,SUBSTRING(@nis,4,1))*8+
+        CONVERT(INT,SUBSTRING(@nis,5,1))*7+
+        CONVERT(INT,SUBSTRING(@nis,6,1))*6+
+        CONVERT(INT,SUBSTRING(@nis,7,1))*5+
+        CONVERT(INT,SUBSTRING(@nis,8,1))*4+
+        CONVERT(INT,SUBSTRING(@nis,9,1))*3+
+        CONVERT(INT,SUBSTRING(@nis,10,1))*2;
+    DECLARE @dv INT;
     SET @dv=11-(@sum%11);
     IF @dv IN(10,11) SET @dv=0;
 
