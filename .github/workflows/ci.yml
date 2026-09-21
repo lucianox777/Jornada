@@ -308,13 +308,17 @@ jobs:
           .local/tools/gitleaks/gitleaks version | tee .local/security/gitleaks-version.txt
       - name: Scan current tree with Gitleaks
         run: |
-          set -euo pipefail
-          ./scripts/security-secret-scan.sh --current-tree-only | tee .local/security/gitleaks-current-tree.txt
+          set -uo pipefail
+          set +e
+          ./scripts/security-secret-scan.sh --current-tree-only 2>&1 | tee .local/security/gitleaks-current-tree.txt
+          scan_rc=${PIPESTATUS[0]}
+          set -e
           if [[ -f .local/gitleaks/current-tree.json ]]; then
             cp .local/gitleaks/current-tree.json .local/security/gitleaks-current-tree.json
           else
             printf '[]\n' > .local/security/gitleaks-current-tree.json
           fi
+          exit "$scan_rc"
       - name: Audit NuGet vulnerabilities as structured evidence
         run: |
           dotnet list Jornada.sln package --vulnerable --include-transitive --format json > .local/security/nuget-vulnerabilities.json
