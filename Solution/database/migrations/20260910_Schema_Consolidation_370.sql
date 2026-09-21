@@ -115,7 +115,9 @@ INSERT @required_columns(tabela,coluna) VALUES
  (N'gold.pessoa',N'nome_publicacao_metodo_versao'),
  (N'gold.pessoa',N'nome_publicacao_normalizacao_versao'),
  (N'controle.runtime_componente',N'configuration_bundle_version'),
- (N'controle.runtime_componente',N'solution_schema_expected');
+ (N'controle.runtime_componente',N'solution_schema_expected'),
+ (N'auditoria.decisao_identidade_evento',N'evidencia_tipo'),
+ (N'auditoria.decisao_identidade_evento',N'documento_tipo_codigo');
 
 INSERT @missing(item)
 SELECT CONCAT(N'COLUMN:',tabela,N'.',coluna)
@@ -131,7 +133,10 @@ FROM (VALUES
  (N'serving.v_pessoa',N'nome_referencia_fonte_observacao_id'),
  (N'serving.v_pessoa',N'nome_referencia_fonte_gestor_id'),
  (N'serving.v_pessoa',N'nome_referencia_source_record_id'),
- (N'serving.v_pessoa',N'nome_referencia_em')
+ (N'serving.v_pessoa',N'nome_referencia_em'),
+ (N'auditoria.v_decisao_identidade_evento',N'evidencia_tipo'),
+ (N'auditoria.v_decisao_identidade_evento',N'documento_tipo_codigo'),
+ (N'auditoria.v_decisao_identidade_evento',N'elegivel_referencia_estrato_dificil')
 ) v(objeto,coluna)
 WHERE NOT EXISTS(
     SELECT 1
