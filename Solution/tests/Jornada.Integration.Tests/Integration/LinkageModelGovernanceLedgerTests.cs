@@ -64,6 +64,10 @@ public sealed class LinkageModelGovernanceLedgerTests
         await using (var conference = connection.CreateCommand())
         {
             conference.CommandText = """
+                EXEC sys.sp_set_session_context
+                    @key=N'Jornada.SourceRevision',
+                    @value=N'TEST_MONITOR_CONFERENCE_V1';
+
                 DECLARE @e UNIQUEIDENTIFIER;
                 DECLARE @request_sha256 BINARY(32)=HASHBYTES(
                     'SHA2_256',
