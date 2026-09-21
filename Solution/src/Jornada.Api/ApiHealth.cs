@@ -48,6 +48,8 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
                     AND OBJECT_ID(N'identidade.composicao_recomposicao_plano',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.composicao_publicacao',N'U') IS NOT NULL
                     AND OBJECT_ID(N'auditoria.decisao_identidade_evento',N'U') IS NOT NULL
+                    AND COL_LENGTH(N'auditoria.decisao_identidade_evento',N'evidencia_tipo') IS NOT NULL
+                    AND COL_LENGTH(N'auditoria.decisao_identidade_evento',N'documento_tipo_codigo') IS NOT NULL
                     AND OBJECT_ID(N'auditoria.sp_registrar_decisao_identidade',N'P') IS NOT NULL
                     AND OBJECT_ID(N'auditoria.modelo_linkage_estado_evento',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.tr_modelo_linkage_estado_evento',N'TR') IS NOT NULL
