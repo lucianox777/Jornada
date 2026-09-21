@@ -83,6 +83,7 @@ internal static class PersonIdentifierParsing
         var normalized = type switch
         {
             "CPF" => NormalizeDigits(value),
+            "NIS" => NormalizeDigits(value),
             "CNS" => NormalizeDigits(value),
             "UUID_JORNADA" => NormalizeUuid(value),
             "RG" => NormalizeTextIdentifier(value),
@@ -93,6 +94,8 @@ internal static class PersonIdentifierParsing
 
         if (type == "CPF" && !string.Equals(ns, "BR", StringComparison.Ordinal))
             throw new InvalidDataException("Identificador CPF exige namespace BR.");
+        if (type == "NIS" && ns is not ("NIS" or "PIS" or "PASEP" or "NIT"))
+            throw new InvalidDataException("Identificador NIS exige namespace NIS, PIS, PASEP ou NIT.");
         if (type == "CNS" && !string.Equals(ns, "BR", StringComparison.Ordinal))
             throw new InvalidDataException("Identificador CNS exige namespace BR.");
         if (type == "UUID_JORNADA" && !string.Equals(ns, "JORNADA", StringComparison.Ordinal))
