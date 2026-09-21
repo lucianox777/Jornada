@@ -1,3 +1,4 @@
+using Jornada.Tests.Integration;
 using Microsoft.Data.SqlClient;
 using NUnit.Framework;
 
