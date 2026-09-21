@@ -70,6 +70,8 @@ BEGIN TRY
     IF OBJECT_ID(N'auditoria.decisao_identidade_evento',N'U') IS NULL
        OR OBJECT_ID(N'auditoria.sp_registrar_decisao_identidade',N'P') IS NULL
        OR OBJECT_ID(N'auditoria.tr_decisao_identidade_evento_append_only',N'TR') IS NULL
+       OR COL_LENGTH(N'auditoria.decisao_identidade_evento',N'evidencia_tipo') IS NULL
+       OR COL_LENGTH(N'auditoria.decisao_identidade_evento',N'documento_tipo_codigo') IS NULL
         THROW 51986,'Ledger canônico de decisões de identidade ausente/incompleto.',1;
 
     IF OBJECT_ID(N'auditoria.modelo_linkage_estado_evento',N'U') IS NULL
