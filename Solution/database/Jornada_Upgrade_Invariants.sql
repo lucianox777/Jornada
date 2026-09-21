@@ -30,6 +30,7 @@ SELECT
   (SELECT COUNT_BIG(*) FROM identidade.pessoa WHERE pessoa_uuid_sucessor=pessoa_uuid) AS [violations.selfSuccessor],
   (SELECT COUNT_BIG(*) FROM gold.pessoa gp LEFT JOIN identidade.pessoa p ON p.pessoa_uuid=gp.pessoa_uuid WHERE p.pessoa_uuid IS NULL) AS [violations.goldPersonMissingIdentity],
   (SELECT COUNT_BIG(*) FROM (SELECT identificador FROM identidade.identity_map WHERE tipo='CPF' AND vigencia_fim IS NULL GROUP BY identificador HAVING COUNT_BIG(*)>1) d) AS [violations.activeCpfDuplicate],
+  (SELECT COUNT_BIG(*) FROM (SELECT identificador FROM identidade.identity_map WHERE tipo='NIS' AND vigencia_fim IS NULL GROUP BY identificador HAVING COUNT_BIG(*)>1) d) AS [violations.activeNisDuplicate],
   (SELECT COUNT_BIG(*) FROM (SELECT pessoa_observacao_id FROM identidade.vinculo_fonte WHERE ativo=1 GROUP BY pessoa_observacao_id HAVING COUNT_BIG(*)>1) d) AS [violations.multipleActiveVinculoPerObservation]
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
 SELECT @snapshot;
