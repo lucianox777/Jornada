@@ -151,12 +151,15 @@ public sealed class SyntheticIngestionBridgeTests
                 options,
                 new string('A', 64));
 
+            var leftManifestBytes = await File.ReadAllBytesAsync(left.ManifestPath);
+            var rightManifestBytes = await File.ReadAllBytesAsync(right.ManifestPath);
+            var leftTruthBytes = await File.ReadAllBytesAsync(left.TruthPath);
+            var rightTruthBytes = await File.ReadAllBytesAsync(right.TruthPath);
+
             Assert.Multiple(() =>
             {
-                Assert.That(await File.ReadAllBytesAsync(left.ManifestPath),
-                    Is.EqualTo(await File.ReadAllBytesAsync(right.ManifestPath)));
-                Assert.That(await File.ReadAllBytesAsync(left.TruthPath),
-                    Is.EqualTo(await File.ReadAllBytesAsync(right.TruthPath)));
+                Assert.That(leftManifestBytes, Is.EqualTo(rightManifestBytes));
+                Assert.That(leftTruthBytes, Is.EqualTo(rightTruthBytes));
                 Assert.That(left.ManifestSha256, Is.EqualTo(right.ManifestSha256));
                 Assert.That(left.TruthSha256, Is.EqualTo(right.TruthSha256));
             });
