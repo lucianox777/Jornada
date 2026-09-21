@@ -24,33 +24,50 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
         {
             long observationId;
             Guid candidateUuid;
+            string observationNameKey;
             await using (var fixture = connection.CreateCommand())
             {
                 fixture.Transaction = tx;
                 fixture.CommandText = """
-                    SELECT TOP(1) po.pessoa_observacao_id
-                    FROM silver.pessoa_observacao po
-                    JOIN identidade.v_vinculo_corrente vc
-                      ON vc.pessoa_observacao_id=po.pessoa_observacao_id
-                    WHERE po.cpf IS NULL
-                      AND vc.metodo_resolucao=N'LINKAGE_PROBABILISTICO'
-                      AND vc.status=N'CONFLITO'
-                    ORDER BY po.pessoa_observacao_id;
+                    DECLARE @obs BIGINT=(
+                        SELECT TOP(1) po.pessoa_observacao_id
+                        FROM silver.pessoa_observacao po
+                        JOIN identidade.v_vinculo_corrente vc
+                          ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+                        WHERE po.cpf IS NULL
+                          AND vc.metodo_resolucao=N'LINKAGE_PROBABILISTICO'
+                          AND vc.status=N'CONFLITO'
+                          AND po.nome_cmp IS NOT NULL
+                        ORDER BY po.pessoa_observacao_id);
 
-                    SELECT TOP(1) pessoa_uuid
-                    FROM gold.pessoa
-                    WHERE estado_identidade=N'REFERENCIA'
-                    ORDER BY pessoa_uuid;
+                    SELECT po.pessoa_observacao_id,po.nome_cmp
+                    FROM silver.pessoa_observacao po
+                    WHERE po.pessoa_observacao_id=@obs;
+
+                    SELECT TOP(1) g.pessoa_uuid
+                    FROM gold.pessoa g
+                    WHERE g.estado_identidade=N'REFERENCIA'
+                      AND NOT EXISTS(
+                          SELECT 1
+                          FROM identidade.blocking_chave b
+                          WHERE b.pessoa_uuid=g.pessoa_uuid
+                            AND b.atributo=N'name_full'
+                            AND b.valor_normalizado=(
+                                SELECT nome_cmp FROM silver.pessoa_observacao WHERE pessoa_observacao_id=@obs)
+                            AND b.vigencia_fim IS NULL)
+                    ORDER BY g.pessoa_uuid;
                     """;
                 await using var reader = await fixture.ExecuteReaderAsync();
                 Assert.That(await reader.ReadAsync(), Is.True, "Seed deve conter conflito probabilístico sem CPF.");
                 observationId = reader.GetInt64(0);
+                observationNameKey = reader.GetString(1);
                 Assert.That(await reader.NextResultAsync(), Is.True);
-                Assert.That(await reader.ReadAsync(), Is.True, "Seed deve conter candidato canônico.");
+                Assert.That(await reader.ReadAsync(), Is.True, "Seed deve conter referência ainda fora da chave de blocking da observação.");
                 candidateUuid = reader.GetGuid(0);
             }
 
-            // Simula somente a mudança causal do lado candidato: a observação antiga não é versionada.
+            // Simula somente a mudança causal do lado candidato: uma referência passa a compartilhar
+            // a chave name_full da observação antiga, sem reversionar essa observação.
             await using (var candidateSideChange = connection.CreateCommand())
             {
                 candidateSideChange.Transaction = tx;
@@ -64,21 +81,15 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
                     IF @normalizacao IS NULL
                         SELECT @normalizacao=N'JORNADA_IDENTITY_NORMALIZATION_V1';
 
-                    IF NOT EXISTS(
-                        SELECT 1 FROM identidade.blocking_chave
-                        WHERE pessoa_uuid=@uuid
-                          AND normalizacao_versao=@normalizacao
-                          AND atributo=N'name_full'
-                          AND valor_normalizado=N'CANDIDATE_SIDE_CHANGE_TEST'
-                          AND vigencia_fim IS NULL)
                     INSERT identidade.blocking_chave(
                         pessoa_uuid,normalizacao_versao,atributo,valor_normalizado,
                         semantica_temporal,vigencia_inicio,vigencia_fim)
                     VALUES(
-                        @uuid,@normalizacao,N'name_full',N'CANDIDATE_SIDE_CHANGE_TEST',
+                        @uuid,@normalizacao,N'name_full',@name_key,
                         N'VERSIONED_ALIAS',SYSUTCDATETIME(),NULL);
                     """;
                 candidateSideChange.Parameters.AddWithValue("@uuid", candidateUuid);
+                candidateSideChange.Parameters.Add(new SqlParameter("@name_key", SqlDbType.NVarChar, 500) { Value = observationNameKey });
                 await candidateSideChange.ExecuteNonQueryAsync();
             }
 
