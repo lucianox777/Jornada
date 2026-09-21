@@ -167,6 +167,8 @@ function Convert-TaskForNode($Task, $Config, $Node, [string]$RuntimeEnvironment)
     $environment['JORNADA_NODE_ID'] = [string]$Node.id
     $environment['JORNADA_CONFIGURATION_BUNDLE_VERSION'] = [string]$Config.configurationBundleVersion
     $environment['JORNADA_SOLUTION_SCHEMA_VERSION'] = [string]$Config.solutionSchema
+    $environment['LinkageParameters__ConferenceToleranceConfigPath'] =
+        Join-Path $InstallRoot 'config\linkage\implementation-conference-tolerance.json'
 
     return [ordered]@{
         name = [string]$Task.name
@@ -207,6 +209,7 @@ function New-ManualRuntime($Config, $Node, [string]$InstallRoot, [string]$Runtim
             linkageRunner = Join-Path $InstallRoot 'apps\Jornada.Linkage.Runner\Jornada.Linkage.Runner.exe'
             bronzeVerify = Join-Path $InstallRoot 'tools\Jornada.Bronze.Verify\Jornada.Bronze.Verify.exe'
             linkageEvaluation = Join-Path $InstallRoot 'tools\Jornada.Linkage.Evaluation\Jornada.Linkage.Evaluation.exe'
+            linkageConference = Join-Path $InstallRoot 'tools\Jornada.Linkage.Conference\Jornada.Linkage.Conference.exe'
             integrator = Join-Path $InstallRoot 'clients\Jornada.Integrador\Jornada.Integrador.CSharp.exe'
         }
     }
