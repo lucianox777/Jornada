@@ -100,8 +100,33 @@ calibrate() {
   count="$(sql_scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")"
   [[ "$count" == "1" ]] || { echo "Esperado exatamente um novo RASCUNHO; encontrados=$count" >&2; return 3; }
   version="$(sql_scalar "SELECT MAX(versao) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")"
-  compose exec -T jornada-node2 env LinkageParameters__Operation=VALIDATE LinkageParameters__TargetVersion="$version" LinkageParameters__RunOnce=true dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
-  compose exec -T jornada-node2 env LinkageParameters__Operation=ACTIVATE LinkageParameters__TargetVersion="$version" LinkageParameters__RunOnce=true dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
+  model_id="$(sql_scalar "SELECT CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE versao=$version;")"
+
+  local conference_host="$ROOT/.local/linkage-conference-tolerance.local.json"
+  local conference_container="/tmp/jornada-linkage-conference-tolerance.json"
+  mkdir -p "$ROOT/.local"
+  cat > "$conference_host" <<'JSON'
+{
+  "schemaVersion": 1,
+  "methodVersion": "JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1",
+  "status": "FROZEN",
+  "scope": "SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE",
+  "maxAbsolutePairLlrDifference": 0.000001,
+  "decisionEquivalence": "EXACT_FINAL_OPERATIONAL_DECISION",
+  "primaryGates": ["PAIR_LLR_WITHIN_FROZEN_TOLERANCE","EXACT_FINAL_OPERATIONAL_DECISION"],
+  "diagnosticsOnly": ["SPEARMAN_RANK_CORRELATION","SAME_TOP1","MAX_ABSOLUTE_LOG_ODDS_DIFFERENCE"],
+  "statisticalValidation": "SEPARATE_ISSUE_31",
+  "note": "TEST_ONLY local cluster fixture; never a production governance tolerance.",
+  "toleranceVersion": "TEST_ONLY_LOCAL_CLUSTER_V1"
+}
+JSON
+  compose cp "$conference_host" "jornada-node2:$conference_container"
+  compose exec -T jornada-node2 dotnet /opt/jornada/tools/Jornada.Linkage.Conference/Jornada.Linkage.Conference.dll \
+    --model-id "$model_id" \
+    --tolerance-config "$conference_container" \
+    --source-revision "LOCAL_CLUSTER_TEST"
+  compose exec -T jornada-node2 env LinkageParameters__ConferenceToleranceConfigPath="$conference_container" LinkageParameters__Operation=VALIDATE LinkageParameters__TargetVersion="$version" LinkageParameters__RunOnce=true dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
+  compose exec -T jornada-node2 env LinkageParameters__ConferenceToleranceConfigPath="$conference_container" LinkageParameters__Operation=ACTIVATE LinkageParameters__TargetVersion="$version" LinkageParameters__RunOnce=true dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
   active="$(sql_scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao=$version AND status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO';")"
   [[ "$active" == "1" ]] || { echo "Modelo v$version não ficou ATIVO como modelo calibrado." >&2; return 4; }
   model_id="$(sql_scalar "SELECT CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE versao=$version;")"
