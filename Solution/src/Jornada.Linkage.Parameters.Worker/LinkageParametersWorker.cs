@@ -33,6 +33,8 @@ public sealed class LinkageParametersWorker(
     private const string ActivateOperation = "ACTIVATE";
     private const string CurrentAlgorithmVersion = LinkageParameterCatalog.SemanticBirthAlgorithmVersion;
     private const string SqlServerSampleMethod = "M_INTERGESTOR_U_BLOCKING_CONDITIONED_IBGE_BOOTSTRAP_V5";
+    private static readonly string DefaultConferenceToleranceRelativePath =
+        Path.Combine("config", "linkage", "implementation-conference-tolerance.json");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -713,6 +715,7 @@ public sealed class LinkageParametersWorker(
 
     private async Task ValidateDraftAsync(int version, CancellationToken cancellationToken)
     {
+        var conferenceTolerance = LoadPromotionConferenceTolerance();
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         try
@@ -766,11 +769,17 @@ public sealed class LinkageParametersWorker(
                    AND EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='FS_DECISION_CALIBRATION_TEST_FP' AND valor<>0)
                     THROW 51022, 'Modelo SQL Server V6 falhou no safety gate TEST da calibração de decisão.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset r WHERE r.modelo_id=@modelo_id AND EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id) AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe_campo rc WHERE rc.ruleset_id=rp.ruleset_id AND rc.passe_ordem=rp.passe_ordem))) THROW 51013, 'Modelo SQL Server sem ruleset dinâmico completo.', 1;
+                EXEC auditoria.sp_assert_conferencia_linkage_conforme
+                    @modelo_id=@modelo_id,
+                    @metodo_versao=@conference_method_version,
+                    @tolerancia_versao=@conference_tolerance_version,
+                    @max_llr_par_permitido=@conference_max_llr;
                 UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@modelo_id;
                 """, connection, transaction);
             command.Parameters.Add("@versao", SqlDbType.Int).Value = version;
             command.Parameters.Add("@sqlserver_amostra_metodo", SqlDbType.NVarChar, 80).Value = SqlServerSampleMethod;
             command.Parameters.Add("@semantic_algorithm_version", SqlDbType.NVarChar, 80).Value = CurrentAlgorithmVersion;
+            AddConferenceGateParameters(command, conferenceTolerance);
             await command.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             logger.LogInformation("Modelo de linkage v{Version} validado explicitamente.", version);
@@ -780,6 +789,7 @@ public sealed class LinkageParametersWorker(
 
     private async Task ActivateValidatedAsync(int version, CancellationToken cancellationToken)
     {
+        var conferenceTolerance = LoadPromotionConferenceTolerance();
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         try
@@ -800,17 +810,73 @@ public sealed class LinkageParametersWorker(
                         WHERE NOT EXISTS (SELECT 1 FROM identidade.parametro_linkage p WHERE p.modelo_id=@modelo_id AND p.nome=req.nome)) THROW 51018, 'Modelo V5 validado sem distribuição semântica de nascimento completa.', 1;
                 END
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset r WHERE r.modelo_id=@modelo_id AND EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id) AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe_campo rc WHERE rc.ruleset_id=rp.ruleset_id AND rc.passe_ordem=rp.passe_ordem))) THROW 51014, 'Modelo SQL Server validado sem ruleset dinâmico completo.', 1;
+                EXEC auditoria.sp_assert_conferencia_linkage_conforme
+                    @modelo_id=@modelo_id,
+                    @metodo_versao=@conference_method_version,
+                    @tolerancia_versao=@conference_tolerance_version,
+                    @max_llr_par_permitido=@conference_max_llr;
                 UPDATE identidade.modelo_linkage SET status='INATIVO' WHERE status='ATIVO' AND modelo_id<>@modelo_id;
                 UPDATE identidade.modelo_linkage SET status='ATIVO',ativado_em=SYSDATETIMEOFFSET() WHERE modelo_id=@modelo_id;
                 """, connection, transaction);
             command.Parameters.Add("@versao", SqlDbType.Int).Value = version;
             command.Parameters.Add("@sqlserver_amostra_metodo", SqlDbType.NVarChar, 80).Value = SqlServerSampleMethod;
             command.Parameters.Add("@semantic_algorithm_version", SqlDbType.NVarChar, 80).Value = CurrentAlgorithmVersion;
+            AddConferenceGateParameters(command, conferenceTolerance);
             await command.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             logger.LogInformation("Modelo de linkage v{Version} ativado explicitamente; modelo anterior foi preservado como INATIVO.", version);
         }
         catch { await transaction.RollbackAsync(cancellationToken); throw; }
+    }
+
+    private ImplementationConferenceToleranceContract LoadPromotionConferenceTolerance()
+    {
+        var configured = configuration["LinkageParameters:ConferenceToleranceConfigPath"]?.Trim();
+        var currentDirectoryPath = Path.GetFullPath(DefaultConferenceToleranceRelativePath);
+        var applicationPath = Path.Combine(
+            AppContext.BaseDirectory,
+            DefaultConferenceToleranceRelativePath);
+
+        var path = !string.IsNullOrWhiteSpace(configured)
+            ? configured
+            : File.Exists(currentDirectoryPath)
+                ? currentDirectoryPath
+                : applicationPath;
+
+        var governed = ImplementationConferenceToleranceConfiguration.Load(path);
+        var tolerance = governed.ToContract();
+        if (!tolerance.TryGetFrozen(out _, out var reason))
+            throw new InvalidOperationException(
+                $"Promoção do modelo bloqueada pela conferência de implementação: {reason}. " +
+                "Congele/versione config/linkage/implementation-conference-tolerance.json " +
+                "e execute Jornada.Linkage.Conference antes de VALIDATE/ACTIVATE.");
+
+        return tolerance;
+    }
+
+    private static void AddConferenceGateParameters(
+        SqlCommand command,
+        ImplementationConferenceToleranceContract tolerance)
+    {
+        if (!tolerance.TryGetFrozen(out var maxLlr, out var reason))
+            throw new InvalidOperationException(
+                $"Tolerância da conferência não está congelada: {reason}.");
+
+        command.Parameters.Add(
+            "@conference_method_version",
+            SqlDbType.NVarChar,
+            120).Value = ImplementationConferenceGovernanceContract.MethodVersion;
+        command.Parameters.Add(
+            "@conference_tolerance_version",
+            SqlDbType.NVarChar,
+            120).Value = tolerance.Version;
+
+        var max = command.Parameters.Add(
+            "@conference_max_llr",
+            SqlDbType.Decimal);
+        max.Precision = 28;
+        max.Scale = 16;
+        max.Value = maxLlr;
     }
 
     private sealed record PopulationStatistics(long PopulationSize, long WithCpf, long DistinctFullNames, long DistinctMotherNames, long DistinctBirthDates, DateTimeOffset? MaxGoldUpdatedAt);

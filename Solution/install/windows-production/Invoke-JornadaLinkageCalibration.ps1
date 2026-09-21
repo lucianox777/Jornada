@@ -19,8 +19,12 @@ foreach ($property in $config.environment.PSObject.Properties) {
 
 $connectionString = [string]$config.environment.ConnectionStrings__Jornada
 $executable = [string]$config.executables.linkageParameters
+$conferenceExecutable = [string]$config.executables.linkageConference
+$conferenceTolerance = [string]$config.environment.LinkageParameters__ConferenceToleranceConfigPath
 if ([string]::IsNullOrWhiteSpace($connectionString)) { throw 'ConnectionStrings__Jornada ausente em manual-runtime.json.' }
 if (-not (Test-Path -LiteralPath $executable)) { throw "Linkage Parameters não encontrado: $executable" }
+if (-not (Test-Path -LiteralPath $conferenceExecutable)) { throw "Linkage Conference não encontrado: $conferenceExecutable" }
+if (-not (Test-Path -LiteralPath $conferenceTolerance)) { throw "Configuração de tolerância da conferência não encontrada: $conferenceTolerance" }
 
 function Invoke-Scalar([string]$Sql) {
     $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
@@ -65,6 +69,16 @@ if ($count -ne 1) {
     throw "Calibração esperava exatamente um novo RASCUNHO após v$before; encontrados=$count. Nenhum modelo será ativado automaticamente."
 }
 $version = [int](Invoke-Scalar "SELECT MAX(versao) FROM identidade.modelo_linkage WHERE versao > $before AND status='RASCUNHO';")
+$modelId = [string](Invoke-Scalar "SELECT CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE versao=$version;")
+if ([string]::IsNullOrWhiteSpace($modelId)) { throw "modelo_id ausente para v$version." }
+
+$sourceRevision = "WINDOWS_MANUAL_" + [string]$config.configurationBundleVersion
+Write-Host "Linkage Conference: modelo v$version / $modelId"
+& $conferenceExecutable --model-id $modelId --tolerance-config $conferenceTolerance --source-revision $sourceRevision
+if ($LASTEXITCODE -ne 0) {
+    throw "Linkage Conference bloqueou a promoção. ExitCode=$LASTEXITCODE. Verifique a tolerância governada e a evidência CONFORME."
+}
+
 Invoke-Parameters 'VALIDATE' $version
 Invoke-Parameters 'ACTIVATE' $version
 

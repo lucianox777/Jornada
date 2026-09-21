@@ -65,9 +65,40 @@ public sealed class LinkageProcessRunner(
     {
         var version = await LatestVersionAsync("RASCUNHO", cancellationToken)
             ?? throw new InvalidOperationException("Nenhum modelo RASCUNHO disponível para validação; o calibrador final pode ter falhado por insuficiência de evidência.");
+        var modelId = await ModelIdForVersionAsync(version, cancellationToken)
+            ?? throw new InvalidOperationException($"modelo_id ausente para RASCUNHO v{version}.");
+
+        var tolerancePath = Path.GetFullPath(
+            configuration["Ensaio:Conference:ToleranceConfigPath"]
+            ?? configuration["LinkageParameters:ConferenceToleranceConfigPath"]
+            ?? Path.Combine("config", "linkage", "implementation-conference-tolerance.json"));
+        var sourceRevision = configuration["Ensaio:Conference:SourceRevision"]
+            ?? Environment.GetEnvironmentVariable("GITHUB_SHA")
+            ?? "JORNADA_ENSAIO";
+
+        var conference = new ProcessStartInfo
+        {
+            FileName = configuration["Ensaio:Conference:FileName"] ?? "dotnet",
+            Arguments =
+                (configuration["Ensaio:Conference:Arguments"]
+                    ?? "run --project ../Jornada.Linkage.Conference/Jornada.Linkage.Conference.csproj --configuration Release --")
+                + $" --model-id {modelId:D} --tolerance-config \"{tolerancePath}\" --source-revision \"{sourceRevision}\"",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        AddDatabaseEnvironment(conference);
+        var conferenceExitCode = await ExecuteProcessAsync(conference, cancellationToken);
+        log.Add($"{stage.Codigo}: Jornada.Linkage.Conference v{version} exit={conferenceExitCode}");
+        if (conferenceExitCode != 0)
+            throw new InvalidOperationException(
+                $"CONFERENCIA v{version} terminou com exit code {conferenceExitCode}; promoção bloqueada.");
+
         var startInfo = NewCalibrator();
         startInfo.Environment["LinkageParameters__Operation"] = "VALIDATE";
         startInfo.Environment["LinkageParameters__TargetVersion"] = version.ToString(CultureInfo.InvariantCulture);
+        startInfo.Environment["LinkageParameters__ConferenceToleranceConfigPath"] = tolerancePath;
         startInfo.Environment["LinkageParameters__RunOnce"] = "true";
         var exitCode = await ExecuteProcessAsync(startInfo, cancellationToken);
         log.Add($"{stage.Codigo}: Linkage.Parameters.Worker VALIDATE v{version} exit={exitCode}");
@@ -133,6 +164,23 @@ public sealed class LinkageProcessRunner(
         var error = (await stderr).TrimEnd();
         if (!string.IsNullOrWhiteSpace(error)) Console.Error.WriteLine(error);
         return process.ExitCode;
+    }
+
+    private async Task<Guid?> ModelIdForVersionAsync(
+        int version,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = openConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT modelo_id FROM identidade.modelo_linkage WHERE versao=@versao;";
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "@versao";
+        parameter.Value = version;
+        command.Parameters.Add(parameter);
+        var value = await command.ExecuteScalarAsync(cancellationToken);
+        return value is null or DBNull ? null : (Guid)value;
     }
 
     private async Task<int?> LatestVersionAsync(string status, CancellationToken cancellationToken)

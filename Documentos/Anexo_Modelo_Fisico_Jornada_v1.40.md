@@ -212,7 +212,7 @@ A API grava o evento antes do commit da mesma transação. Falha no ledger rever
 
 `auditoria.linkage_conferencia_evidencia` persiste apenas o resumo governado por modelo: método/escopo, versão e valor da tolerância congelada, status `CONFORME|DIVERGENTE|NAO_EXECUTADA`, contagem de candidatos, diferenças máximas agregadas, diagnósticos, hashes SHA-256 do request/relatório e executor técnico. Não persiste `candidate_id`, CPF, nome, data de nascimento, vetor de estados ou score par-a-par.
 
-A tabela é append-only. `auditoria.sp_assert_conferencia_linkage_conforme` avalia sempre a evidência **mais recente** para o mesmo modelo/método/tolerância. O contrato existe no schema, mas não é chamado por `VALIDATE` ou `ACTIVATE` enquanto `implementation-conference-tolerance.json` permanecer `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`.
+A tabela é append-only. `auditoria.sp_assert_conferencia_linkage_conforme` avalia sempre a evidência **mais recente** para o mesmo modelo/método/tolerância. `VALIDATE` e `ACTIVATE` chamam esse assert usando o contrato de tolerância governado. Se `implementation-conference-tolerance.json` estiver `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`, o Parameters Worker bloqueia antes da promoção; se estiver `FROZEN`, exige evidência `CONFORME` do mesmo modelo e rejeita evidência ausente, divergente, não executada ou obsoleta.
 
 ## 7. Regras de evolução
 

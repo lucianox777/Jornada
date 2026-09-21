@@ -175,8 +175,33 @@ function Invoke-Calibration {
     $count = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")
     if ($count -ne 1) { throw "Esperado exatamente um novo RASCUNHO; encontrados=$count." }
     $version = [int](Get-SqlScalar "SELECT MAX(versao) FROM identidade.modelo_linkage WHERE versao>$before AND status='RASCUNHO';")
-    Invoke-Node2 -Command @('env','LinkageParameters__Operation=VALIDATE',"LinkageParameters__TargetVersion=$version",'LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
-    Invoke-Node2 -Command @('env','LinkageParameters__Operation=ACTIVATE',"LinkageParameters__TargetVersion=$version",'LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
+    $modelId = Get-SqlScalar "SELECT CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE versao=$version;"
+
+    $conferenceHost = Join-Path $Root '.local\linkage-conference-tolerance.local.json'
+    $conferenceContainer = '/tmp/jornada-linkage-conference-tolerance.json'
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $conferenceHost) | Out-Null
+    [ordered]@{
+        schemaVersion = 1
+        methodVersion = 'JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1'
+        status = 'FROZEN'
+        scope = 'SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE'
+        maxAbsolutePairLlrDifference = 0.000001
+        decisionEquivalence = 'EXACT_FINAL_OPERATIONAL_DECISION'
+        primaryGates = @('PAIR_LLR_WITHIN_FROZEN_TOLERANCE','EXACT_FINAL_OPERATIONAL_DECISION')
+        diagnosticsOnly = @('SPEARMAN_RANK_CORRELATION','SAME_TOP1','MAX_ABSOLUTE_LOG_ODDS_DIFFERENCE')
+        statisticalValidation = 'SEPARATE_ISSUE_31'
+        note = 'TEST_ONLY local cluster fixture; never a production governance tolerance.'
+        toleranceVersion = 'TEST_ONLY_LOCAL_CLUSTER_V1'
+    } | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 -Path $conferenceHost
+
+    Invoke-Compose -ComposeArgs @('cp',$conferenceHost,"jornada-node2:$conferenceContainer")
+    Invoke-Node2 -Command @(
+        'dotnet','/opt/jornada/tools/Jornada.Linkage.Conference/Jornada.Linkage.Conference.dll',
+        '--model-id',$modelId,
+        '--tolerance-config',$conferenceContainer,
+        '--source-revision','LOCAL_CLUSTER_TEST')
+    Invoke-Node2 -Command @('env',"LinkageParameters__ConferenceToleranceConfigPath=$conferenceContainer",'LinkageParameters__Operation=VALIDATE',"LinkageParameters__TargetVersion=$version",'LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
+    Invoke-Node2 -Command @('env',"LinkageParameters__ConferenceToleranceConfigPath=$conferenceContainer",'LinkageParameters__Operation=ACTIVATE',"LinkageParameters__TargetVersion=$version",'LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
     $active = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao=$version AND status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO';")
     if ($active -ne 1) { throw "Modelo v$version não ficou ATIVO como modelo calibrado." }
     $modelId = Get-SqlScalar "SELECT CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE versao=$version;"

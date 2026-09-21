@@ -131,6 +131,27 @@ try {
   $model=[int](Scalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='RASCUNHO' ORDER BY versao DESC;")
   $modelId=Scalar "SELECT CONVERT(nvarchar(36),modelo_id) FROM identidade.modelo_linkage WHERE versao=$model;"
   if($modelId -notmatch '^[0-9a-fA-F-]{36}$'){throw 'modelo_id inválido para evidência de escala.'}
+
+  $conferenceTolerance = Join-Path $Root '.local\linkage-conference-tolerance.scale.json'
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $conferenceTolerance) | Out-Null
+  [ordered]@{
+    schemaVersion = 1
+    methodVersion = 'JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1'
+    status = 'FROZEN'
+    scope = 'SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE'
+    maxAbsolutePairLlrDifference = 0.000001
+    decisionEquivalence = 'EXACT_FINAL_OPERATIONAL_DECISION'
+    primaryGates = @('PAIR_LLR_WITHIN_FROZEN_TOLERANCE','EXACT_FINAL_OPERATIONAL_DECISION')
+    diagnosticsOnly = @('SPEARMAN_RANK_CORRELATION','SAME_TOP1','MAX_ABSOLUTE_LOG_ODDS_DIFFERENCE')
+    statisticalValidation = 'SEPARATE_ISSUE_31'
+    note = 'TEST_ONLY local scale fixture; never a production governance tolerance.'
+    toleranceVersion = 'TEST_ONLY_LOCAL_SCALE_V1'
+  } | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 -Path $conferenceTolerance
+
+  dotnet run --project src/Jornada.Linkage.Conference --configuration Release --no-build -- --model-id $modelId --tolerance-config $conferenceTolerance --source-revision LOCAL_SCALE_TEST
+  if($LASTEXITCODE-ne 0){throw 'CONFERENCIA falhou'}
+
+  $env:LinkageParameters__ConferenceToleranceConfigPath=$conferenceTolerance
   $env:LinkageParameters__Operation='VALIDATE'; $env:LinkageParameters__TargetVersion="$model"; dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build; if($LASTEXITCODE-ne 0){throw 'VALIDATE falhou'}
   $env:LinkageParameters__Operation='ACTIVATE'; dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build; if($LASTEXITCODE-ne 0){throw 'ACTIVATE falhou'}
 

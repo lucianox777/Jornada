@@ -16,7 +16,7 @@ O `Jornada.Operations.Maintenance.Worker` inclui, na v3.53, um **watchdog soment
 | `Jornada.Processor.Worker` | serviço contínuo | manter disponibilidade; recuperação de lease é interna |
 | `Jornada.Operations.Maintenance.Worker` | serviço contínuo | manter disponibilidade; watchdog/retencões obedecem `Enabled` |
 | `Jornada.Bronze.Maintenance.Worker` | serviço contínuo/periódico | manter conforme política homologada |
-| `Jornada.Linkage.Parameters.Worker` | run-once ou periódico | disparar `GENERATE_DRAFT`, `VALIDATE` e `ACTIVATE` conforme rito aprovado |
+| `Jornada.Linkage.Parameters.Worker` | run-once ou periódico | `GENERATE_DRAFT`; `VALIDATE`/`ACTIVATE` somente após `Jornada.Linkage.Conference` `CONFORME` com tolerância governada congelada |
 | `Jornada.Linkage.Runner` | run-once | disparar `INCREMENTAL`, `REPLAY`, `FULL` ou `MODEL_VALIDATION` conforme procedimento |
 | `Jornada.Bronze.Verify` | run-once | executar após restore/drill ou verificação operacional programada |
 
@@ -30,16 +30,17 @@ O `Jornada.Operations.Maintenance.Worker` inclui, na v3.53, um **watchdog soment
 4. Acompanhar `serving.v_bi_carga_inicial`, backlog e throughput.
 5. Encerrar o modo somente após o critério operacional aprovado; **o watchdog não o encerra**.
 6. Executar `GENERATE_DRAFT` após existir corpus suficiente.
-7. Validar o modelo (`VALIDATE`) com evidência de HML.
-8. Ativar (`ACTIVATE`) somente a versão aprovada.
-9. Executar Linkage Runner incremental sobre observações elegíveis sem CPF.
+7. Executar `Jornada.Linkage.Conference` para o RASCUNHO usando a tolerância governada congelada; somente `CONFORME` libera a etapa seguinte.
+8. Validar o modelo (`VALIDATE`), que reaplica fail-closed o assert da mesma evidência/método/tolerância.
+9. Ativar (`ACTIVATE`) somente a versão aprovada.
+10. Executar Linkage Runner incremental sobre observações elegíveis sem CPF.
 
 ### 3.2 Operação normal
 
 - API e Processor podem permanecer contínuos.
 - `GENERATE_DRAFT` e Linkage Runner obtêm janela exclusiva do corpus. O Processor termina o lote corrente e não inicia outro enquanto a janela exclusiva estiver declarada.
 - O scheduler **não deve** executar `GENERATE_DRAFT` e Linkage Runner concorrentes entre si. A coordenação SQL falha fechado mesmo se houver disparo indevido, mas a política operacional deve evitar tentativas desnecessárias.
-- `VALIDATE` e `ACTIVATE` não exigem congelamento do corpus; ainda assim devem seguir o rito de promoção e auditoria.
+- `VALIDATE` e `ACTIVATE` não exigem congelamento do corpus, mas exigem tolerância de conferência `FROZEN` e evidência mais recente `CONFORME` do mesmo modelo. A configuração oficial corrente está `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`, portanto a promoção permanece bloqueada até decisão explícita.
 - `FULL` e `REPLAY` são operações excepcionais e devem registrar `--requested-by`, `--reason` e, quando aplicável, `--correlation-id`.
 
 ## 4. Exemplos de comandos run-once
@@ -57,7 +58,7 @@ dotnet Jornada.Linkage.Runner.dll --mode REPLAY --model-version 12 --gestor SMAD
 dotnet Jornada.Linkage.Runner.dll --mode MODEL_VALIDATION --model-version 13 --max-records 100000 --publish false --requested-by "HML"
 ```
 
-O Parameters Worker usa configuração (`LinkageParameters:Operation`) e, para `VALIDATE`/`ACTIVATE`, exige `LinkageParameters:TargetVersion`. Em HML/Produção esses valores devem ser injetados pelo mecanismo de configuração do ambiente, não alterados no código-fonte.
+O Parameters Worker usa configuração (`LinkageParameters:Operation`) e, para `VALIDATE`/`ACTIVATE`, exige `LinkageParameters:TargetVersion` e o contrato indicado por `LinkageParameters:ConferenceToleranceConfigPath`. Em HML/Produção, a sequência é `GENERATE_DRAFT → CONFERENCIA → VALIDATE → ACTIVATE`; o mesmo arquivo de tolerância usado pela conferência deve ser usado na promoção. O arquivo oficial corrente está UNFROZEN e bloqueia promoção por desenho.
 
 ## 5. Contrato mínimo do scheduler corporativo
 

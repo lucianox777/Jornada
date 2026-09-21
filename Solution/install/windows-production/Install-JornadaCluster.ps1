@@ -195,6 +195,8 @@ function New-ManualRuntime($Config, $Node, [string]$InstallRoot, [string]$Runtim
     $environment['JORNADA_NODE_ID'] = [string]$Node.id
     $environment['JORNADA_CONFIGURATION_BUNDLE_VERSION'] = [string]$Config.configurationBundleVersion
     $environment['JORNADA_SOLUTION_SCHEMA_VERSION'] = [string]$Config.solutionSchema
+    $environment['LinkageParameters__ConferenceToleranceConfigPath'] =
+        Join-Path $InstallRoot 'config\linkage\implementation-conference-tolerance.json'
 
     return [ordered]@{
         schemaVersion = 1
@@ -207,6 +209,7 @@ function New-ManualRuntime($Config, $Node, [string]$InstallRoot, [string]$Runtim
             linkageRunner = Join-Path $InstallRoot 'apps\Jornada.Linkage.Runner\Jornada.Linkage.Runner.exe'
             bronzeVerify = Join-Path $InstallRoot 'tools\Jornada.Bronze.Verify\Jornada.Bronze.Verify.exe'
             linkageEvaluation = Join-Path $InstallRoot 'tools\Jornada.Linkage.Evaluation\Jornada.Linkage.Evaluation.exe'
+            linkageConference = Join-Path $InstallRoot 'tools\Jornada.Linkage.Conference\Jornada.Linkage.Conference.exe'
             integrator = Join-Path $InstallRoot 'clients\Jornada.Integrador\Jornada.Integrador.CSharp.exe'
         }
     }
@@ -333,7 +336,7 @@ try {
         Write-Host "Linkage manual:   $(Join-Path $jobsDirectory 'Invoke-JornadaLinkageRun.ps1')"
         Write-Host "Bronze Verify:     $(Join-Path $installRoot 'tools\Jornada.Bronze.Verify\Jornada.Bronze.Verify.exe')"
         Write-Host "Linkage Evaluation:$(Join-Path $installRoot 'tools\Jornada.Linkage.Evaluation\Jornada.Linkage.Evaluation.exe')"
-        Write-Host 'Linkage Runner permanece bloqueado enquanto não houver exatamente um modelo ATIVO; o calibrador manual gera, valida e ativa a nova versão.'
+        Write-Host 'Linkage Runner permanece bloqueado enquanto não houver exatamente um modelo ATIVO; o calibrador manual executa GENERATE_DRAFT -> CONFERENCIA -> VALIDATE -> ACTIVATE e falha fechado se a tolerância governada não estiver congelada ou a evidência não estiver CONFORME.'
         Write-Host 'Bronze é compartilhada entre os nós; Staging e logs permanecem locais a esta VM.'
         Write-Host 'Monitor do nó: http://localhost:5080/monitor (visão lida do SQL compartilhado; após instalação do módulo de monitoramento).'
         Write-Host 'Balanceamento HTTP não é provisionado pela Jornada; o endpoint/VIP externo deve apontar para as VMs quando aplicável.'

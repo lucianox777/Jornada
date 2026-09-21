@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using Jornada.Contracts;
 using Jornada.Linkage.Evaluation;
 
 namespace Jornada.Linkage.Conference;
@@ -24,8 +24,11 @@ internal static class Program
                 return 0;
             }
 
-            var config = ConferenceToleranceConfiguration.Load(options.ToleranceConfigPath!);
-            var tolerance = config.ToFrozenContract();
+            var config = ImplementationConferenceToleranceConfiguration.Load(
+                options.ToleranceConfigPath!);
+            var tolerance = config.ToContract();
+            if (!tolerance.TryGetFrozen(out _, out var toleranceReason))
+                throw new ConferencePreconditionException(toleranceReason);
 
             var connectionString = options.ConnectionString
                 ?? Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
@@ -158,95 +161,3 @@ internal sealed record ConferenceOptions(
         """;
 }
 
-internal sealed record ConferenceToleranceConfiguration(
-    int SchemaVersion,
-    string MethodVersion,
-    string Status,
-    string Scope,
-    string ToleranceVersion,
-    decimal? MaxAbsolutePairLlrDifference,
-    string DecisionEquivalence,
-    IReadOnlyList<string> PrimaryGates,
-    IReadOnlyList<string> DiagnosticsOnly,
-    string StatisticalValidation,
-    string Note)
-{
-    private static readonly JsonSerializerOptions Options = new()
-    {
-        PropertyNameCaseInsensitive = false,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
-    };
-
-    internal static ConferenceToleranceConfiguration Load(string path)
-    {
-        var full = Path.GetFullPath(path);
-        if (!File.Exists(full))
-            throw new FileNotFoundException(
-                "Configuração de tolerância da conferência não encontrada.",
-                full);
-
-        var config = JsonSerializer.Deserialize<ConferenceToleranceConfiguration>(
-            File.ReadAllText(full),
-            Options)
-            ?? throw new InvalidDataException(
-                "Configuração de tolerância da conferência vazia.");
-
-        config.ValidateEnvelope();
-        return config;
-    }
-
-    internal ImplementationConferenceToleranceContract ToFrozenContract()
-    {
-        ValidateEnvelope();
-
-        if (!string.Equals(Status, "FROZEN", StringComparison.Ordinal))
-            throw new ConferencePreconditionException("TOLERANCE_NOT_FROZEN");
-
-        if (string.IsNullOrWhiteSpace(ToleranceVersion)
-            || string.Equals(ToleranceVersion, "UNFROZEN", StringComparison.Ordinal)
-            || MaxAbsolutePairLlrDifference is null
-            || MaxAbsolutePairLlrDifference < 0m)
-            throw new ConferencePreconditionException("INVALID_FROZEN_TOLERANCE");
-
-        return new ImplementationConferenceToleranceContract(
-            ToleranceVersion,
-            Status,
-            MaxAbsolutePairLlrDifference);
-    }
-
-    private void ValidateEnvelope()
-    {
-        if (SchemaVersion != 1)
-            throw new InvalidDataException("schemaVersion da tolerância não suportado.");
-        if (!string.Equals(
-                MethodVersion,
-                IndependentImplementationConference.MethodVersion,
-                StringComparison.Ordinal))
-            throw new InvalidDataException("methodVersion da tolerância diverge da engine.");
-        if (!string.Equals(
-                Scope,
-                IndependentImplementationConference.Scope,
-                StringComparison.Ordinal))
-            throw new InvalidDataException("scope da tolerância diverge da engine.");
-        if (!string.Equals(
-                DecisionEquivalence,
-                "EXACT_FINAL_OPERATIONAL_DECISION",
-                StringComparison.Ordinal))
-            throw new InvalidDataException("decisionEquivalence inválido.");
-        if (!PrimaryGates.SequenceEqual(
-                new[]
-                {
-                    "PAIR_LLR_WITHIN_FROZEN_TOLERANCE",
-                    "EXACT_FINAL_OPERATIONAL_DECISION"
-                },
-                StringComparer.Ordinal))
-            throw new InvalidDataException("primaryGates divergentes do contrato corrente.");
-        if (!string.Equals(
-                StatisticalValidation,
-                "SEPARATE_ISSUE_31",
-                StringComparison.Ordinal))
-            throw new InvalidDataException(
-                "A conferência não pode incorporar a validação estatística #31.");
-    }
-}

@@ -290,6 +290,9 @@ public sealed class IndependentImplementationConferenceParityTests
         var source = File.ReadAllText(Path.Combine(
             root, "Solution", "src", "Jornada.Linkage.Evaluation",
             "IndependentImplementationConference.cs"));
+        var governanceContract = File.ReadAllText(Path.Combine(
+            root, "Solution", "src", "Jornada.Contracts",
+            "ImplementationConferenceGovernanceContract.cs"));
         var evaluationProject = File.ReadAllText(Path.Combine(
             root, "Solution", "src", "Jornada.Linkage.Evaluation",
             "Jornada.Linkage.Evaluation.csproj"));
@@ -307,6 +310,8 @@ public sealed class IndependentImplementationConferenceParityTests
             Assert.That(source, Does.Not.Contain("IdentityComparison"));
             Assert.That(source, Does.Not.Contain("BirthDateSemanticEvidence.Classify"));
             Assert.That(source, Does.Contain(
+                "ImplementationConferenceGovernanceContract.Scope"));
+            Assert.That(governanceContract, Does.Contain(
                 "SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE"));
             Assert.That(evaluationProject, Does.Not.Contain("Jornada.Linkage.Core"));
             Assert.That(evaluationProject, Does.Not.Contain("Jornada.Linkage.Runner"));

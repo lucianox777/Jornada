@@ -24,7 +24,7 @@ Docker é opcional na produção Windows. O `docker-compose.yml` da Solution é 
 - `Install-JornadaCluster.ps1` — adapta o mesmo bundle a NODE1/NODE2 e aos caminhos compartilhados/locais;
 - `Build-WindowsProductionBundle.ps1` — publica executáveis, ferramentas, configuração e DDL;
 - `Invoke-JornadaComponent.ps1` — runner dos processos residentes registrados no Agendador;
-- `Invoke-JornadaLinkageCalibration.ps1` — calibração manual `GENERATE_DRAFT -> VALIDATE -> ACTIVATE`;
+- `Invoke-JornadaLinkageCalibration.ps1` — calibração manual `GENERATE_DRAFT -> CONFERENCIA -> VALIDATE -> ACTIVATE`, fail-closed na tolerância governada;
 - `Invoke-JornadaLinkageRun.ps1` — Linkage manual com preflight de modelo ativo;
 - `Jornada.Cluster.Production.example.json` — configuração cluster de produção sem segredo real;
 - `Jornada.Cluster.Test.json` — mesmo schema para o harness local.
@@ -43,6 +43,7 @@ O bundle contém:
 - Parameters Worker e Linkage Runner;
 - `Jornada.Bronze.Verify`;
 - `Jornada.Linkage.Evaluation`;
+- `Jornada.Linkage.Conference`;
 - Integrador C#;
 - contratos/configurações versionadas;
 - `config\release\configuration-bundle.json`;
@@ -108,7 +109,7 @@ Executar Linkage:
 
 O segundo comando recusa iniciar se o banco não tiver exatamente um modelo `ATIVO`. Isso complementa a própria proteção interna do Runner, que já exige modelo ativo.
 
-`Jornada.Linkage.Evaluation` é ferramenta DEV/HML somente-leitura; não é um daemon e não publica identidade.
+`Jornada.Linkage.Evaluation` é ferramenta DEV/HML somente-leitura; não é um daemon e não publica identidade. `Jornada.Linkage.Conference` é execução governada separada que compara Core × Evaluation e grava somente evidência agregada. O wrapper de calibração sempre a executa antes de `VALIDATE`; com a configuração oficial ainda `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`, a promoção termina bloqueada até o congelamento/versionamento explícito da tolerância.
 
 ## SQL Server
 
