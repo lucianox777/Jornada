@@ -336,7 +336,7 @@ try {
         Write-Host "Linkage manual:   $(Join-Path $jobsDirectory 'Invoke-JornadaLinkageRun.ps1')"
         Write-Host "Bronze Verify:     $(Join-Path $installRoot 'tools\Jornada.Bronze.Verify\Jornada.Bronze.Verify.exe')"
         Write-Host "Linkage Evaluation:$(Join-Path $installRoot 'tools\Jornada.Linkage.Evaluation\Jornada.Linkage.Evaluation.exe')"
-        Write-Host 'Linkage Runner permanece bloqueado enquanto não houver exatamente um modelo ATIVO; o calibrador manual gera, valida e ativa a nova versão.'
+        Write-Host 'Linkage Runner permanece bloqueado enquanto não houver exatamente um modelo ATIVO; o calibrador manual executa GENERATE_DRAFT -> CONFERENCIA -> VALIDATE -> ACTIVATE e falha fechado se a tolerância governada não estiver congelada ou a evidência não estiver CONFORME.'
         Write-Host 'Bronze é compartilhada entre os nós; Staging e logs permanecem locais a esta VM.'
         Write-Host 'Monitor do nó: http://localhost:5080/monitor (visão lida do SQL compartilhado; após instalação do módulo de monitoramento).'
         Write-Host 'Balanceamento HTTP não é provisionado pela Jornada; o endpoint/VIP externo deve apontar para as VMs quando aplicável.'
