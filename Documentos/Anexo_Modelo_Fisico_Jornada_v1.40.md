@@ -208,6 +208,8 @@ A evolução de revisão governada de Linkage adiciona coluna, FK, índice, proc
 
 A API grava o evento antes do commit da mesma transação. Falha no ledger reverte a mutação de identidade. `controle.api_evento` continua sendo telemetria/auditoria HTTP e não concorre como fonte de verdade da decisão governada.
 
+O ledger acrescenta `evidencia_tipo` e `documento_tipo_codigo`. Novos atos humanos aceitam apenas `DOCUMENTO_VERIFICADO` (documento obrigatório) ou `CONFIRMACAO_SEM_DOCUMENTO` (documento ausente); a aplicação de decisão previamente registrada usa `DECISAO_PREVIA_APLICADA`. O valor `LEGADO_NAO_CLASSIFICADO` é reservado ao backfill histórico. A view canônica deriva `elegivel_referencia_estrato_dificil` sem transformar essa classificação em autorização de calibração.
+
 ## 6.3. Evidência agregada da conferência independente
 
 `auditoria.linkage_conferencia_evidencia` persiste apenas o resumo governado por modelo: método/escopo, versão e valor da tolerância congelada, status `CONFORME|DIVERGENTE|NAO_EXECUTADA`, contagem de candidatos, diferenças máximas agregadas, diagnósticos, hashes SHA-256 do request/relatório e executor técnico. Não persiste `candidate_id`, CPF, nome, data de nascimento, vetor de estados ou score par-a-par.
