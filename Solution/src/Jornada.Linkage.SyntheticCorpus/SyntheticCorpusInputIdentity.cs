@@ -13,12 +13,9 @@ public static class SyntheticCorpusInputIdentity
         ArgumentNullException.ThrowIfNull(files);
 
         var builder = new StringBuilder();
-        builder.Append("generator=").Append(GeneratorVersion).Append('
-');
-        builder.Append("rng=").Append(Xoshiro256StarStar.AlgorithmVersion).Append('
-');
-        builder.Append("seed=").Append(seed.ToString(CultureInfo.InvariantCulture)).Append('
-');
+        builder.Append("generator=").Append(GeneratorVersion).Append('\n');
+        builder.Append("rng=").Append(Xoshiro256StarStar.AlgorithmVersion).Append('\n');
+        builder.Append("seed=").Append(seed.ToString(CultureInfo.InvariantCulture)).Append('\n');
 
         foreach (var file in files.OrderBy(x => x.Path, StringComparer.Ordinal))
         {
@@ -28,8 +25,7 @@ public static class SyntheticCorpusInputIdentity
                 .Append(file.Sha256.ToUpperInvariant()).Append('|')
                 .Append(file.CanonicalContentSha256.ToUpperInvariant()).Append('|')
                 .Append(file.RowCount.ToString(CultureInfo.InvariantCulture))
-                .Append('
-');
+                .Append('\n');
         }
 
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString()));
