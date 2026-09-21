@@ -874,13 +874,20 @@ jobs:
           set -euo pipefail
           cp "${{ steps.attest-rc.outputs.bundle-path }}" Solution/.local/rc-evidence/ATTESTATION.sigstore.json
           actual_fingerprint=$(python3 -c 'import json; print(json.load(open("Solution/.local/rc-evidence-input/rc-structural-provenance/RC_SCHEMA_PROVENANCE.json", encoding="utf-8"))["actualFingerprintSha256"])')
-          cat > Solution/.local/rc-evidence/RC_NOTES.md <<EOF
-          # ${JORNADA_RC_TAG} — evidência de checkpoint técnico
+          ACTUAL_FINGERPRINT="$actual_fingerprint" python3 - <<'PY'
+          import os
+          from pathlib import Path
 
-          Modo de execução: `${JORNADA_RC_MODE}`.
+          tag = os.environ["JORNADA_RC_TAG"]
+          mode = os.environ["JORNADA_RC_MODE"]
+          sha = os.environ["GITHUB_SHA"]
+          fingerprint = os.environ["ACTUAL_FINGERPRINT"]
+          text = f"""# {tag} — evidência de checkpoint técnico
+
+          Modo de execução: `{mode}`.
 
           Esta evidência corresponde ao conteúdo candidato ao checkpoint técnico da Solution Engenharia v5.00.
-          Em modo `preflight`, a tag `${JORNADA_RC_TAG}` é criada **somente no runner** para exercitar a mesma cadeia de validação; nenhuma tag remota ou GitHub Release é criada.
+          Em modo `preflight`, a tag `{tag}` é criada **somente no runner** para exercitar a mesma cadeia de validação; nenhuma tag remota ou GitHub Release é criada.
           Em modo `tag`, a tag identifica o checkpoint de fonte imutável.
 
           O checkpoint **não é homologação estatística**, **não autoriza ativação/publicação probabilística** e **não autoriza Produção**. A última release normativa selada continua sendo a declarada em `RELEASE_INFO.txt`.
@@ -893,14 +900,16 @@ jobs:
           - decisão de finalidade/base legal GTPR declarada em `CANDIDATE_INFO.json`.
 
           Evidência desta execução:
-          - commit: `${GITHUB_SHA}`;
-          - fingerprint estrutural recomputado nesta execução: `$actual_fingerprint`;
+          - commit: `{sha}`;
+          - fingerprint estrutural recomputado nesta execução: `{fingerprint}`;
           - `RC_EVIDENCE.json`, bundle de fonte, proveniência de schema e attestation Sigstore no artifact `technical-rc-evidence`.
 
           Mutabilidade: a **tag/fonte do checkpoint é imutável**; os assets do pre-release são `REPLACEABLE_BY_RERUN_WITH_CLOBBER`, conforme `CANDIDATE_INFO.json`. A autoridade de digest é `SIGSTORE_ATTESTATION_SUBJECT_DIGESTS`.
 
           `release_effect=NONE`: o checkpoint não reescreve `RELEASE_INFO.txt`.
-          EOF
+          """
+          Path("Solution/.local/rc-evidence/RC_NOTES.md").write_text(text, encoding="utf-8")
+          PY
       - name: Upload RC evidence as Actions backup
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
