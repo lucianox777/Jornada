@@ -267,27 +267,23 @@ GROUP BY
     CAST(CASE WHEN i.uf_emissor IS NULL THEN 0 ELSE 1 END AS bit);
 GO
 
-/* A natureza prisional não é nomeada na superfície compartilhada de QC. */
+/* A natureza prisional é omitida integralmente da superfície compartilhada.
+   Persistência Silver continua disponível somente a fluxos institucionais autorizados futuros. */
 CREATE OR ALTER VIEW serving.v_bi_referencia_territorial_v5 AS
 SELECT
     g.codigo gestor,
     rt.estado_referencia,
-    CASE
-      WHEN rt.natureza_referencia=N'INSTITUCIONAL_PRISIONAL' THEN N'RESTRITA'
-      ELSE COALESCE(rt.natureza_referencia,N'NAO_APLICAVEL')
-    END natureza_publicavel,
+    COALESCE(rt.natureza_referencia,N'NAO_APLICAVEL') natureza_publicavel,
     COUNT_BIG(*) observacoes
 FROM silver.referencia_territorial_observacao rt
 JOIN silver.pessoa_atributo_observacao pa
   ON pa.pessoa_atributo_observacao_id=rt.pessoa_atributo_observacao_id
 JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=pa.pessoa_observacao_id
 JOIN ref.gestor g ON g.gestor_id=po.gestor_id
+WHERE rt.natureza_referencia IS NULL
+   OR rt.natureza_referencia<>N'INSTITUCIONAL_PRISIONAL'
 GROUP BY
-    g.codigo,rt.estado_referencia,
-    CASE
-      WHEN rt.natureza_referencia=N'INSTITUCIONAL_PRISIONAL' THEN N'RESTRITA'
-      ELSE COALESCE(rt.natureza_referencia,N'NAO_APLICAVEL')
-    END;
+    g.codigo,rt.estado_referencia,COALESCE(rt.natureza_referencia,N'NAO_APLICAVEL');
 GO
 
 /* Catálogo contratual: v5 entra como RASCUNHO; esta migration não troca a versão ativa. */
