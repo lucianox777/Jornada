@@ -131,7 +131,6 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
     public async Task<IdentityGovernedCaseOpenResponse> OpenCaseAsync(
         AccessContext context, IdentityGovernedCaseOpenRequest request, Guid? correlationId, CancellationToken ct)
     {
-        var evidence = NormalizeDecisionEvidence(request.Evidencia);
         if (request.PessoaObservacaoIds.Count == 0)
             throw new ArgumentException("Informe ao menos uma observação.", nameof(request));
         var ids = request.PessoaObservacaoIds.Distinct().ToArray();
@@ -158,7 +157,7 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
             var caseId = (Guid)output.Value;
             await RecordDecisionAsync(
                 connection, tx, context, "CASO_CONFLITO_ABERTO",
-                null, caseId, null, evidence.Tipo, evidence.DocumentoTipoCodigo, correlationId, ct);
+                null, caseId, null, null, null, correlationId, ct);
             await tx.CommitAsync(ct);
             return new IdentityGovernedCaseOpenResponse(caseId, "ABERTO");
         }
@@ -172,6 +171,7 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
     public async Task<IdentityGovernedCaseApplyResponse> ApplyCaseAsync(
         AccessContext context, Guid caseId, IdentityGovernedCaseApplyRequest request, Guid? correlationId, CancellationToken ct)
     {
+        var evidence = NormalizeDecisionEvidence(request.Evidencia);
         if (request.Grupos.Count == 0 || request.Grupos.Any(g => g.PessoaObservacaoIds.Count == 0))
             throw new ArgumentException("Informe ao menos um grupo e uma observação por grupo.", nameof(request));
         if (request.Grupos.Select(g => g.GrupoCodigo).Distinct(StringComparer.Ordinal).Count() != request.Grupos.Count)
@@ -198,7 +198,7 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
             await RecordDecisionAsync(
                 connection, tx, context, "CASO_CONFLITO_APLICADO",
                 null, caseId, null,
-                "ATO_GOVERNADO_SEM_NOVA_EVIDENCIA", null, correlationId, ct);
+                evidence.Tipo, evidence.DocumentoTipoCodigo, correlationId, ct);
             await tx.CommitAsync(ct);
             return new IdentityGovernedCaseApplyResponse(caseId, "APLICADO");
         }
@@ -278,9 +278,8 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
             : evidence.DocumentoTipoCodigo.Trim().ToUpperInvariant();
 
         if (type is not ("DOCUMENTO_VERIFICADO"
-            or "CONFIRMACAO_INSTITUCIONAL_SEM_DOCUMENTO"
-            or "ATO_GOVERNADO_SEM_NOVA_EVIDENCIA"))
-            throw new ArgumentException("Tipo de evidência de decisão não suportado.");
+            or "CONFIRMACAO_INSTITUCIONAL_SEM_DOCUMENTO"))
+            throw new ArgumentException("Confirmação aceita somente DOCUMENTO_VERIFICADO ou CONFIRMACAO_INSTITUCIONAL_SEM_DOCUMENTO.");
 
         if (type == "DOCUMENTO_VERIFICADO")
         {
@@ -305,7 +304,7 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
         Guid? correctionId,
         Guid? caseId,
         long? divergenceId,
-        string evidenceType,
+        string? evidenceType,
         string? documentTypeCode,
         Guid? correlationId,
         CancellationToken ct)
@@ -320,7 +319,7 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
         command.Parameters.Add(new SqlParameter("@correcao_id", SqlDbType.UniqueIdentifier) { Value = (object?)correctionId ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@caso_id", SqlDbType.UniqueIdentifier) { Value = (object?)caseId ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@divergencia_id", SqlDbType.BigInt) { Value = (object?)divergenceId ?? DBNull.Value });
-        command.Parameters.Add(new SqlParameter("@evidencia_tipo", SqlDbType.NVarChar, 60) { Value = evidenceType });
+        command.Parameters.Add(new SqlParameter("@evidencia_tipo", SqlDbType.NVarChar, 60) { Value = (object?)evidenceType ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@documento_tipo_codigo", SqlDbType.NVarChar, 80) { Value = (object?)documentTypeCode ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@correlation_id", SqlDbType.UniqueIdentifier) { Value = (object?)correlationId ?? DBNull.Value });
         var operation = command.Parameters.Add("@operacao_id", SqlDbType.UniqueIdentifier);

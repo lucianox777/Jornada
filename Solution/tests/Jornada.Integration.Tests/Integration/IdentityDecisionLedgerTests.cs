@@ -29,8 +29,7 @@ public sealed class IdentityDecisionLedgerTests
             context,
             new IdentityGovernedCaseOpenRequest(
                 "OUTRO", [observationId], ato,
-                "Prova de autoria canônica e atomicidade do ledger de decisão.",
-                new IdentityDecisionEvidence("DOCUMENTO_VERIFICADO", "RG")),
+                "Prova de autoria canônica e atomicidade do ledger de decisão."),
             openCorrelation,
             CancellationToken.None);
 
@@ -38,7 +37,8 @@ public sealed class IdentityDecisionLedgerTests
             context,
             opened.CasoId,
             new IdentityGovernedCaseApplyRequest(
-                [new IdentityCorrectionGroupRequest("ORIGINAL", originalUuid, [observationId])]),
+                [new IdentityCorrectionGroupRequest("ORIGINAL", originalUuid, [observationId])],
+                new IdentityDecisionEvidence("DOCUMENTO_VERIFICADO", "RG")),
             applyCorrelation,
             CancellationToken.None);
 
@@ -58,7 +58,7 @@ public sealed class IdentityDecisionLedgerTests
             """;
         command.Parameters.AddWithValue("@case", opened.CasoId);
 
-        var rows = new List<(string Event, Guid Operation, Guid Credential, string PublicCode, Guid? Correlation, string? Act, string Result, string Gestor, string Evidence, string? Document)>();
+        var rows = new List<(string Event, Guid Operation, Guid Credential, string PublicCode, Guid? Correlation, string? Act, string Result, string Gestor, string? Evidence, string? Document)>();
         await using (var reader = await command.ExecuteReaderAsync())
         {
             while (await reader.ReadAsync())
@@ -72,7 +72,7 @@ public sealed class IdentityDecisionLedgerTests
                     reader.IsDBNull(5) ? null : reader.GetString(5),
                     reader.GetString(6),
                     reader.GetString(7),
-                    reader.GetString(8),
+                    reader.IsDBNull(8) ? null : reader.GetString(8),
                     reader.IsDBNull(9) ? null : reader.GetString(9)));
             }
         }
@@ -83,13 +83,13 @@ public sealed class IdentityDecisionLedgerTests
             Assert.That(rows[0].Event, Is.EqualTo("CASO_CONFLITO_ABERTO"));
             Assert.That(rows[0].Result, Is.EqualTo("ABERTO"));
             Assert.That(rows[0].Correlation, Is.EqualTo(openCorrelation));
-            Assert.That(rows[0].Evidence, Is.EqualTo("DOCUMENTO_VERIFICADO"));
-            Assert.That(rows[0].Document, Is.EqualTo("RG"));
+            Assert.That(rows[0].Evidence, Is.Null);
+            Assert.That(rows[0].Document, Is.Null);
             Assert.That(rows[1].Event, Is.EqualTo("CASO_CONFLITO_APLICADO"));
             Assert.That(rows[1].Result, Is.EqualTo("APLICADO"));
             Assert.That(rows[1].Correlation, Is.EqualTo(applyCorrelation));
-            Assert.That(rows[1].Evidence, Is.EqualTo("ATO_GOVERNADO_SEM_NOVA_EVIDENCIA"));
-            Assert.That(rows[1].Document, Is.Null);
+            Assert.That(rows[1].Evidence, Is.EqualTo("DOCUMENTO_VERIFICADO"));
+            Assert.That(rows[1].Document, Is.EqualTo("RG"));
             Assert.That(rows.All(r => r.Credential == credentialId), Is.True);
             Assert.That(rows.All(r => r.PublicCode == "SMADS" && r.Gestor == "SMADS"), Is.True);
             Assert.That(rows.All(r => r.Act == ato), Is.True);
@@ -111,7 +111,7 @@ public sealed class IdentityDecisionLedgerTests
     }
 
     [Test]
-    public void Document_evidence_without_document_type_is_rejected_before_mutation()
+    public void Document_confirmation_without_document_type_is_rejected_before_mutation()
     {
         var service = new SqlIdentityCorrectionService(new OperationalSqlAdapter(
             "Server=localhost;Database=unused;Integrated Security=true;"));
@@ -119,11 +119,11 @@ public sealed class IdentityDecisionLedgerTests
             Guid.NewGuid(), AccessCredentialType.GESTOR, "SMADS", "SMADS", null, [], []);
 
         var ex = Assert.ThrowsAsync<ArgumentException>(async () =>
-            await service.OpenCaseAsync(
+            await service.ApplyCaseAsync(
                 context,
-                new IdentityGovernedCaseOpenRequest(
-                    "OUTRO", [1], "TESTE",
-                    "Evidência documental sem tipo deve falhar antes de abrir conexão.",
+                Guid.NewGuid(),
+                new IdentityGovernedCaseApplyRequest(
+                    [new IdentityCorrectionGroupRequest("A", null, [1])],
                     new IdentityDecisionEvidence("DOCUMENTO_VERIFICADO")),
                 Guid.NewGuid(),
                 CancellationToken.None));
@@ -168,8 +168,7 @@ public sealed class IdentityDecisionLedgerTests
                     context,
                     new IdentityGovernedCaseOpenRequest(
                         "OUTRO", [observationId], ato,
-                        "A mutação deve ser revertida quando o ledger não puder ser persistido.",
-                        new IdentityDecisionEvidence("CONFIRMACAO_INSTITUCIONAL_SEM_DOCUMENTO")),
+                        "A mutação deve ser revertida quando o ledger não puder ser persistido."),
                     Guid.NewGuid(),
                     CancellationToken.None));
             Assert.That(ex!.Number, Is.EqualTo(51990));

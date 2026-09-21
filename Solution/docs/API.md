@@ -64,7 +64,7 @@ O header é opcional. Quando presente, a Jornada valida formato/dígitos verific
 
 Para atos governados de identidade, esse HMAC **não é autoria canônica**. Correções, abertura/aplicação de casos e desfechos de divergência gravam `auditoria.decisao_identidade_evento` na mesma transação da mutação. O ledger usa a `credencial_id` institucional autenticada, validada contra o Gestor; `operacao_id` é gerado pelo SQL Server e `correlation_id` permanece somente contexto de rastreamento.
 
-Novas decisões também informam `evidencia.tipo`. Os valores aceitos são `DOCUMENTO_VERIFICADO`, `CONFIRMACAO_INSTITUCIONAL_SEM_DOCUMENTO` e `ATO_GOVERNADO_SEM_NOVA_EVIDENCIA`. `DOCUMENTO_VERIFICADO` exige `evidencia.documentoTipoCodigo`; os demais tipos proíbem esse campo. A aplicação de caso previamente aberto usa automaticamente `ATO_GOVERNADO_SEM_NOVA_EVIDENCIA`.
+Quando um ato constitui confirmação humana, `evidencia.tipo` aceita somente `DOCUMENTO_VERIFICADO` ou `CONFIRMACAO_INSTITUCIONAL_SEM_DOCUMENTO`. `DOCUMENTO_VERIFICADO` exige `evidencia.documentoTipoCodigo`. Abertura de caso não é confirmação; a evidência é informada no ato decisório/aplicação.
 
 ## Fronteira municipal de Pessoa
 

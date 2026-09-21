@@ -61,7 +61,7 @@ Atos governados que alteram ou encerram uma decisão de identidade devem possuir
 
 `controle.api_evento` continua sendo trilha de acesso/telemetria HTTP. O CPF opcional de agente declarado pela origem e armazenado apenas como HMAC não é prova de autenticação individual e, portanto, não é usado como autoria canônica do ato de identidade. Se o ledger não puder ser persistido, a decisão governada deve falhar atomicamente.
 
-A natureza da evidência que fundamenta o ato deve ser estruturada. Novos atos distinguem `DOCUMENTO_VERIFICADO`, `CONFIRMACAO_INSTITUCIONAL_SEM_DOCUMENTO` e `ATO_GOVERNADO_SEM_NOVA_EVIDENCIA`; evidência documental exige tipo de documento estruturado. Texto livre (`ato_referencia`/`justificativa`) permanece contexto e não substitui essa classificação. Eventos anteriores à introdução da taxonomia permanecem identificados como legado não classificado, sem reinterpretação retroativa.
+Quando houver confirmação humana, ela deve ser estruturada em apenas duas formas: `DOCUMENTO_VERIFICADO` ou `CONFIRMACAO_INSTITUCIONAL_SEM_DOCUMENTO`; evidência documental exige tipo de documento estruturado. Eventos que não constituem confirmação usam `evidencia_tipo = NULL`, e `evento_tipo` expressa a natureza operacional do ato. Texto livre (`ato_referencia`/`justificativa`) permanece contexto e não substitui a classificação.
 
 ## 4. Âncora CPF → UUID e ausência de CPF
 

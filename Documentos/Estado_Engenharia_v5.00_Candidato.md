@@ -66,7 +66,7 @@ O wiring do assert em `VALIDATE/ACTIVATE` permanece deliberadamente **inativo** 
 
 A gravação ocorre dentro da mesma transação da correção, abertura/aplicação de caso ou desfecho de divergência. Falha do ledger provoca rollback da mutação; o teste de integração injeta essa falha explicitamente. O CPF opcional declarado pelo agente na borda HTTP não é tratado como autoria institucional.
 
-A evidência humana deixa de depender apenas de texto livre: novos eventos exigem `evidencia_tipo` estruturado e, quando `DOCUMENTO_VERIFICADO`, `documento_tipo_codigo`. `CONFIRMACAO_INSTITUCIONAL_SEM_DOCUMENTO` permanece distinguível para avaliação posterior, e a mera aplicação de caso já governado é registrada como `ATO_GOVERNADO_SEM_NOVA_EVIDENCIA`. Eventos históricos anteriores à mudança são marcados explicitamente como `LEGADO_NAO_CLASSIFICADO`.
+A confirmação humana deixa de depender apenas de texto livre e possui somente duas formas estruturadas: `DOCUMENTO_VERIFICADO` (com `documento_tipo_codigo`) ou `CONFIRMACAO_INSTITUCIONAL_SEM_DOCUMENTO`. Eventos que não constituem confirmação usam `evidencia_tipo = NULL`; abertura e aplicação continuam diferenciadas por `evento_tipo`.
 
 ## 5. Proveniência de schema
 

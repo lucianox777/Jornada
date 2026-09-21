@@ -44,6 +44,7 @@
 :r database/migrations/20260920_Pessoa_Nome_Referencia_Serving.sql
 :r database/migrations/20260920_Identidade_Decisao_Ledger.sql
 :r database/migrations/20260921_Identidade_Decisao_Evidencia_Estruturada.sql
+:r database/migrations/20260921_Identidade_Confirmacao_Simplificada.sql
 :r database/migrations/20260920_Linkage_Model_Promotion_Ledger.sql
 :r database/migrations/20260920_Linkage_Implementation_Conference_Evidence.sql
 :r database/migrations/20260920_Linkage_Conference_Command_Governance.sql

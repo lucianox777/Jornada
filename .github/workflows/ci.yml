@@ -949,7 +949,7 @@ jobs:
         run: docker ps -q --filter publish=1433 | xargs -r docker stop >/dev/null || true
 
   rc-publish:
-    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && contains(github.ref_name, '-rc.')
+    if: github.ref_type == 'tag' && github.ref_name == 'v5.00-rc.1'
     needs: rc-evidence
     runs-on: ubuntu-24.04
     timeout-minutes: 10

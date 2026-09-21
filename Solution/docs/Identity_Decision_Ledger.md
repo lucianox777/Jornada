@@ -16,7 +16,7 @@ Cada evento preserva:
 - `credencial_id` autenticada e existente em `controle.credencial_api`;
 - snapshot do tipo/código público da credencial e do Gestor responsável;
 - referência explícita à correção, caso governado ou divergência que produziu o ato;
-- `evidencia_tipo` estruturado (`DOCUMENTO_VERIFICADO`, `CONFIRMACAO_INSTITUCIONAL_SEM_DOCUMENTO` ou `ATO_GOVERNADO_SEM_NOVA_EVIDENCIA`);
+- `evidencia_tipo` estruturado somente quando há confirmação humana: `DOCUMENTO_VERIFICADO` ou `CONFIRMACAO_INSTITUCIONAL_SEM_DOCUMENTO`; eventos sem confirmação usam `NULL`;
 - `documento_tipo_codigo` obrigatório somente para evidência documental verificada;
 - ato/justificativa derivados do próprio registro governado, quando aplicável;
 - `correlation_id` somente como contexto observacional;
@@ -24,7 +24,7 @@ Cada evento preserva:
 
 Atos de identidade desta superfície exigem credencial `GESTOR`. O CPF opcional declarado em `X-Jornada-Agente-CPF` não é usado como autoria do ledger.
 
-Eventos anteriores à taxonomia estruturada são preservados como `LEGADO_NAO_CLASSIFICADO`, valor reservado à migração e proibido para novos atos. A aplicação de um caso já aberto registra `ATO_GOVERNADO_SEM_NOVA_EVIDENCIA`; isso impede que a execução operacional seja confundida com uma nova confirmação documental.
+Abertura de caso não é confirmação humana e registra `evidencia_tipo = NULL`. A confirmação é persistida no ato decisório/aplicação. Não há categoria de evidência para mera execução nem estado de migração na taxonomia corrente.
 
 ## Atomicidade
 
