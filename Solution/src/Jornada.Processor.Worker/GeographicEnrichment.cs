@@ -4,7 +4,17 @@ internal enum TerritorialReferenceNature
 {
     DOMICILIAR,
     ACOLHIMENTO_INSTITUCIONAL,
+    INSTITUCIONAL_PRISIONAL,
+    SERVICO_REFERENCIA,
+    PERNOITE,
+    // Legado v4: preservado somente para leitura/replay histórico.
     REFERENCIA_TERRITORIAL_DECLARADA
+}
+
+internal enum TerritorialReferenceState
+{
+    INFORMADA,
+    SEM_ENDERECO_FIXO_DECLARADO
 }
 
 internal enum GeographicResolutionStatus
@@ -32,8 +42,9 @@ internal sealed record ReferenceGeography(
 /// <summary>
 /// Fase 1: a territorialização é responsabilidade do Gestor. Não existe chamada online Pessoa-a-Pessoa
 /// para PRODAM no caminho normal da ingestão. ENDERECO_RESIDENCIAL e REFERENCIA_TERRITORIAL devem
-/// trazer situacaoGeografia explícita; quando RESOLVIDA, Distrito/Subprefeitura/referência da malha são
-/// obrigatórios. As demais situações qualificam a ausência sem inventar geografia.
+/// trazer situacaoGeografia explícita quando há referência informada; quando RESOLVIDA,
+/// Distrito/Subprefeitura/referência da malha são obrigatórios. Pessoa v5 também admite
+/// SEM_ENDERECO_FIXO_DECLARADO como estado declarativo próprio, sem inventar endereço/geografia.
 /// </summary>
 internal static class OriginTerritorialGeography
 {
