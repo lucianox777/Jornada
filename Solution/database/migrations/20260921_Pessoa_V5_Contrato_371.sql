@@ -106,6 +106,18 @@ ALTER TABLE silver.referencia_territorial_observacao ALTER COLUMN natureza_refer
 ALTER TABLE silver.referencia_territorial_observacao ALTER COLUMN situacao_geografia NVARCHAR(40) NULL;
 GO
 
+IF NOT EXISTS(
+    SELECT 1
+    FROM sys.default_constraints dc
+    JOIN sys.columns c
+      ON c.object_id=dc.parent_object_id
+     AND c.column_id=dc.parent_column_id
+    WHERE dc.parent_object_id=OBJECT_ID(N'silver.referencia_territorial_observacao')
+      AND c.name=N'estado_referencia')
+    ALTER TABLE silver.referencia_territorial_observacao
+      ADD CONSTRAINT DF_referencia_territorial_estado DEFAULT(N'INFORMADA') FOR estado_referencia;
+GO
+
 IF OBJECT_ID(N'silver.ck_referencia_territorial_estado',N'C') IS NOT NULL
     ALTER TABLE silver.referencia_territorial_observacao DROP CONSTRAINT ck_referencia_territorial_estado;
 GO
