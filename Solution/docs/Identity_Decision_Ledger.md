@@ -22,6 +22,18 @@ Cada evento preserva:
 
 Atos de identidade desta superfície exigem credencial `GESTOR`. O CPF opcional declarado em `X-Jornada-Agente-CPF` não é usado como autoria do ledger.
 
+## Evidência estruturada
+
+Além de ato e justificativa, novas decisões humanas registram `evidencia_tipo`:
+
+- `DOCUMENTO_VERIFICADO`: exige `documento_tipo_codigo` estruturado em A-Z/0-9/underscore;
+- `CONFIRMACAO_SEM_DOCUMENTO`: confirmação institucional sem documento apresentado, sem código documental;
+- `DECISAO_PREVIA_APLICADA`: usado exclusivamente quando um caso já decidido é aplicado e, portanto, não cria nova evidência humana.
+
+`LEGADO_NAO_CLASSIFICADO` existe apenas para os eventos anteriores à migração e é recusado pela procedure em novas gravações.
+
+A view `auditoria.v_decisao_identidade_evento` expõe `elegivel_referencia_estrato_dificil=1` apenas para `CONFIRMACAO_SEM_DOCUMENTO`. Essa flag permite medir separadamente o estrato que não possui documento apresentado, mas **não alimenta automaticamente calibração, ground truth ou promoção de modelo**.
+
 ## Atomicidade
 
 A API abre a transação de cada mutação governada, executa a procedure de domínio e chama `auditoria.sp_registrar_decisao_identidade` antes do commit.
