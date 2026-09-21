@@ -21,20 +21,49 @@ Ele complementa, mas não substitui, o benchmark nominal IBGE. O benchmark IBGE 
 
 ## Implementação
 
-O gerador está em `Solution/tools/calibrador/gen_corpus_v2.py`.
+As regras históricas de `Solution/tools/calibrador/gen_corpus_v2.py` foram portadas para
+`Solution/src/Jornada.Linkage.SyntheticCorpus`. O C# usa o PRNG versionado
+`XOSHIRO256SS_SPLITMIX64_V1`; portanto a equivalência com o Python é de **regra,
+distribuição e invariante**, não de sequência de draws para a mesma seed.
 
-A entrada nominal é `frequencia-brasil.ndjson.gz`, informada explicitamente via `--ibge-source`. Não há caminho absoluto de máquina embutido.
+O Python permanece temporariamente como referência executável para o gate
+`scripts/synthetic-corpus-equivalence-gate.py`. Esse gate gera dois corpora com a
+mesma fonte e os mesmos parâmetros e compara prevalências, retenções, partições,
+observações por pessoa, cenários CNS, pesos e `m_exact`. Quando a ponte e o
+avaliador estiverem integralmente no caminho C#, o Python poderá ser aposentado
+sem perder a especificação das regras.
 
-Exemplo:
+A entrada nominal C# é a projeção `BRASIL_TOTAL` declarada em
+`data/reference/ibge-nomes-2022/projection-manifest.json`; hashes físico e canônico
+são verificados antes da geração.
+
+Exemplo C#:
 
 ```bash
-python Solution/tools/calibrador/gen_corpus_v2.py \
-  --ibge-source Solution/data/reference/ibge-nomes-2022/projection/frequencia-brasil.ndjson.gz \
-  --out artifacts/corpus-v2 \
+dotnet run --project Solution/src/Jornada.Linkage.SyntheticCorpus --configuration Release -- \
+  generate \
+  --reference-root Solution/data/reference/ibge-nomes-2022 \
+  --out artifacts/corpus-v2-csharp \
   --people 50000 \
   --seed 42 \
   --error-profile correlated
 ```
+
+A referência Python equivalente continua disponível durante a transição:
+
+```bash
+python Solution/tools/calibrador/gen_corpus_v2.py \
+  --ibge-source Solution/data/reference/ibge-nomes-2022/projection/frequencia-brasil.ndjson.gz \
+  --out artifacts/corpus-v2-python \
+  --people 50000 \
+  --seed 42 \
+  --error-profile correlated
+```
+
+O C# materializa os mesmos três artefatos lógicos da V2 —
+`pessoas_verdade.csv`, `observacoes.csv` e `gabarito.json` — e acrescenta
+`generation-manifest.json` com versões do gerador/ruleset/PRNG, fingerprint das
+entradas e hashes dos artefatos gerados.
 
 ## Gabarito
 
@@ -69,13 +98,27 @@ Esses cenários existem para testar o filtro de elegibilidade de ground truth. N
 
 ## Testes
 
-`Solution/tools/calibrador/test_gen_corpus_v2.py` cobre:
+`Solution/tools/calibrador/test_gen_corpus_v2.py` continua cobrindo a referência
+Python. `SyntheticCorpusV2PortTests` congela as mesmas regras no C# e
+`synthetic-corpus-equivalence-gate.py` prova equivalência estatística entre as duas
+implementações.
+
+Cobertura mínima:
 
 - validade dos dígitos verificadores de CPF;
 - validade estrutural do CNS provisório;
 - quebra efetiva do CNS inválido;
+- corrupção de data sempre efetiva, inclusive com dia maior que 12;
 - exclusão de missing do denominador de `m`;
-- preservação da truth `base_person_id` sob cenários CNS.
+- preservação da truth `base_person_id` sob cenários CNS;
+- determinismo do C# para mesma seed/entradas;
+- materialização byte a byte estável;
+- equivalência estatística Python ↔ C#.
+
+A correção de data é intencional: a implementação Python anterior podia escolher
+`DATE_TRANSPOSE` para dia > 12 e devolver a data original. Python e C# agora
+preservam a intenção do parâmetro de corrupção: uma tentativa aceita de corrupção
+de data produz mudança efetiva.
 
 ## Limites
 

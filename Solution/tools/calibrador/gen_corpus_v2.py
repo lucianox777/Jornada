@@ -94,14 +94,37 @@ def corrupt_text(s, rng):
 
 
 def corrupt_date(d, rng):
-    op = rng.choice(["DATE_TRANSPOSE", "DATE_YEAR", "DATE_DAY", "DATE_HEAPING"])
-    try:
-        if op == "DATE_TRANSPOSE": return date(d.year, d.day, d.month), op
-        if op == "DATE_YEAR": return date(d.year + rng.choice([-10, -1, 1, 10]), d.month, d.day), op
-        if op == "DATE_DAY": return date(d.year, d.month, min(28, max(1, d.day + rng.choice([-1, 1])))), op
-        return date(d.year, d.month, rng.choice([1, 15])), op
-    except ValueError:
-        return d, None
+    # V2 corrigida: a tentativa de corrupção deve ser efetiva. A versão anterior
+    # podia sortear DATE_TRANSPOSE com day > 12 (ou ano inválido em 29/02) e
+    # devolver a data original, reduzindo a taxa observada abaixo da nominal.
+    ops = ["DATE_YEAR", "DATE_DAY", "DATE_HEAPING"]
+    if d.day <= 12 and d.day != d.month:
+        ops.append("DATE_TRANSPOSE")
+    op = rng.choice(ops)
+
+    if op == "DATE_TRANSPOSE":
+        return date(d.year, d.day, d.month), op
+
+    if op == "DATE_YEAR":
+        candidates = []
+        for delta in (-10, -1, 1, 10):
+            try:
+                candidates.append(date(d.year + delta, d.month, d.day))
+            except ValueError:
+                pass
+        return rng.choice(candidates), op
+
+    if op == "DATE_DAY":
+        candidates = sorted({
+            min(28, max(1, d.day - 1)),
+            min(28, max(1, d.day + 1)),
+        } - {d.day})
+        if not candidates:
+            candidates = [2 if d.day == 1 else d.day - 1]
+        return date(d.year, d.month, rng.choice(candidates)), op
+
+    candidates = [day for day in (1, 15) if day != d.day]
+    return date(d.year, d.month, rng.choice(candidates)), op
 
 
 PROFILES = {
@@ -180,6 +203,7 @@ def apply_cns_scenarios(people, rng, invalid_rate, reuse_rate, dob_conflict_rate
     used=set()
     for a in remaining:
         if len(used)//2 >= n_conf: break
+        if a["base_person_id"] in used: continue
         candidates=[b for b in remaining if b is not a and b["base_person_id"] not in used and abs((a["data_nascimento"]-b["data_nascimento"]).days)>=3650]
         if not candidates: continue
         b=rng.choice(candidates); b["cns"]=a["cns"]; a["cns_scenario"]=b["cns_scenario"]="DOB_CONFLICT_REUSE"; used|={a["base_person_id"],b["base_person_id"]}

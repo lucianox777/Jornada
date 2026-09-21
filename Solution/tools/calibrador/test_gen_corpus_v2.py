@@ -34,6 +34,14 @@ class CorpusV2Tests(unittest.TestCase):
         weighted = sum(int(x) * w for x, w in zip(invalid, range(15, 0, -1)))
         self.assertNotEqual(0, weighted % 11)
 
+    def test_date_corruption_is_effective_when_day_is_greater_than_twelve(self):
+        rng = random.Random(46)
+        source = date(1984, 7, 27)
+        for _ in range(1000):
+            changed, op = g.corrupt_date(source, rng)
+            self.assertIsNotNone(op)
+            self.assertNotEqual(source, changed)
+
     def test_empirical_m_excludes_missing_pairs(self):
         rows = [
             dict(base_person_id="P1", nome="A", nome_mae="M", data_nascimento=date(2000,1,1), evaluation_weight=1),
