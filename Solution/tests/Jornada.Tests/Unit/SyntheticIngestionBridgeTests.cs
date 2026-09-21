@@ -167,7 +167,7 @@ public sealed class SyntheticIngestionBridgeTests
             {
                 Assert.That(truthText, Does.Contain("P-TRUTH-001"));
                 Assert.That(manifestText, Does.Not.Contain("P-TRUTH-001"));
-                Assert.That(manifestText, Does.Contain(""allowedForScoring": false"));
+                Assert.That(manifestText, Does.Contain("\"allowedForScoring\": false"));
                 Assert.That(manifestText, Does.Contain(SyntheticIngestionBridge.MissingBirthDateReason));
             });
 
