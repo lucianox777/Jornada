@@ -116,6 +116,7 @@ public static class SyntheticIngestionBridge
             .ToDictionary(x => x.SyntheticGestor, StringComparer.Ordinal);
         var keyBytes = Encoding.UTF8.GetBytes(options.PseudonymizationKey);
         var keySha = Convert.ToHexString(SHA256.HashData(keyBytes)).ToLowerInvariant();
+        using var hmac = new HMACSHA256(keyBytes);
 
         var truth = new List<SyntheticIngestionTruthRow>(generation.Observations.Count);
         var accepted = new List<(SyntheticObservation Observation, SyntheticIngestionRoute Route, string OpaqueId)>();
@@ -147,7 +148,7 @@ public static class SyntheticIngestionBridge
                     $"Observação {observation.ObservationId} sem nome não é representável no contrato Pessoa ativo.");
 
             var opaque = ComputeOpaquePersonId(
-                keyBytes,
+                hmac,
                 generation.Options.Seed,
                 observation.ObservationId);
             if (!opaqueIds.Add(opaque))
@@ -275,12 +276,12 @@ public static class SyntheticIngestionBridge
     }
 
     private static string ComputeOpaquePersonId(
-        byte[] key,
+        HMACSHA256 hmac,
         ulong seed,
         string observationId)
     {
         var canonical = $"{BridgeVersion}|seed={seed}|observation={observationId}";
-        var digest = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(canonical));
+        var digest = hmac.ComputeHash(Encoding.UTF8.GetBytes(canonical));
         return "SYNTH-" + Convert.ToHexString(digest.AsSpan(0, 16));
     }
 
