@@ -31,6 +31,24 @@ public sealed class SecretScanningConfigurationTests
         Assert.That(ignore, Does.Match(new Regex(@"(?m)^\.local/\s*$")));
     }
 
+    [Test]
+    public void Security_ci_runs_checksum_pinned_gitleaks_on_current_tree()
+    {
+        var root = FindRepositoryRoot();
+        var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(workflow, Does.Contain("GITLEAKS_VERSION: '8.30.1'"));
+            Assert.That(workflow, Does.Contain("GITLEAKS_LINUX_X64_SHA256: '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'"));
+            Assert.That(workflow, Does.Contain("sha256sum --check --"));
+            Assert.That(workflow, Does.Contain("./scripts/security-secret-scan.sh --current-tree-only"));
+            Assert.That(workflow, Does.Not.Contain("gitleaks/gitleaks-action@"),
+                "O CI usa binário versionado+checksum em vez de uma Action adicional não necessária.");
+            Assert.That(workflow, Does.Not.Contain("gitleaks:latest"));
+        });
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
