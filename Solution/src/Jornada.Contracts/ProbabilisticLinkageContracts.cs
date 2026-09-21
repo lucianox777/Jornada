@@ -76,7 +76,21 @@ public sealed record ProbabilisticLinkageRunSummary(
     long SemCandidatoNoBloco,
     DateTimeOffset IniciadoEm,
     DateTimeOffset FinalizadoEm,
-    DateTimeOffset? PublicadoEm);
+    DateTimeOffset? PublicadoEm)
+{
+    /// <summary>
+    /// Em INCREMENTAL, observações que ainda não tinham resultado probabilístico terminal.
+    /// Zero nos demais modos.
+    /// </summary>
+    public long FreshPending { get; init; }
+
+    /// <summary>
+    /// Em INCREMENTAL, observações já publicadas como NAO_RESOLVIDO/CONFLITO
+    /// que retornaram ao universo porque o lado candidato pode ter mudado.
+    /// Zero nos demais modos.
+    /// </summary>
+    public long Reavaliados { get; init; }
+}
 
 public interface IProbabilisticLinkageBatchRunner
 {
