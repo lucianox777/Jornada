@@ -87,6 +87,7 @@ internal static class PersonIdentifierParsing
             "CNS" => NormalizeDigits(value),
             "UUID_JORNADA" => NormalizeUuid(value),
             "RG" => NormalizeTextIdentifier(value),
+            "CNH" => NormalizeTextIdentifier(value),
             "CODIGO_BASE_ORIGEM" => value,
             "OUTRO" => value,
             _ => throw new InvalidDataException($"Tipo de identificador de Pessoa não suportado: {type}.")
@@ -100,8 +101,6 @@ internal static class PersonIdentifierParsing
             throw new InvalidDataException("Identificador CNS exige namespace BR.");
         if (type == "UUID_JORNADA" && !string.Equals(ns, "JORNADA", StringComparison.Ordinal))
             throw new InvalidDataException("Identificador UUID_JORNADA exige namespace JORNADA.");
-        if (type == "RG" && (string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(issuerState)))
-            throw new InvalidDataException("Identificador RG exige emissor e UF do emissor.");
         if (evidenceStatus == "COMPROVADO" && !verifiedAt.HasValue)
             throw new InvalidDataException("Identificador COMPROVADO exige verificadoEm.");
 
