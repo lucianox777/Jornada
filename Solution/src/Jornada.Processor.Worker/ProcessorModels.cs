@@ -88,10 +88,10 @@ internal sealed record ParsedTransversalAttribute(
     DateTimeOffset? ReferenciaEvidencia,
     DateTimeOffset? VerificadoEm,
     DateTimeOffset? AtualizadoEmOrigem,
-    TerritorialReferenceState? EstadoReferenciaTerritorial,
     TerritorialReferenceNature? NaturezaReferenciaTerritorial,
     GeographicResolutionStatus? SituacaoGeografia,
-    ReferenceGeography? Geografia);
+    ReferenceGeography? Geografia,
+    TerritorialReferenceState? EstadoReferenciaTerritorial = null);
 
 internal sealed record ParsedFact(
     string IdPessoaEntrega,
@@ -348,10 +348,10 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
                         OptionalDateTimeOffset(attr, "referenciaEvidencia"),
                         OptionalDateTimeOffset(attr, "verificadoEm"),
                         OptionalDateTimeOffset(attr, "atualizadoEmOrigem"),
-                        referenceState,
                         referenceNature,
                         geographyStatus,
-                        geography));
+                        geography,
+                        referenceState));
                 }
             }
 
