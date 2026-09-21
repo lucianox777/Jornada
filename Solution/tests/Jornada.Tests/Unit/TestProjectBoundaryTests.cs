@@ -36,14 +36,14 @@ public sealed class TestProjectBoundaryTests
 
         var unclassified = testFixtures
             .Where(item =>
-                !item.Text.Contains("[Category(\"Integration\")]", StringComparison.Ordinal) &&
-                !item.Text.Contains("[Category(\"ExternalRealData\")]", StringComparison.Ordinal))
+                !item.Text.Contains("Category(\"Integration\")", StringComparison.Ordinal) &&
+                !item.Text.Contains("Category(\"ExternalRealData\")", StringComparison.Ordinal))
             .Select(item => Path.GetRelativePath(root, item.Path).Replace('\\', '/'))
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
 
         var externalOutsideDedicatedFolder = testFixtures
-            .Where(item => item.Text.Contains("[Category(\"ExternalRealData\")]", StringComparison.Ordinal))
+            .Where(item => item.Text.Contains("Category(\"ExternalRealData\")", StringComparison.Ordinal))
             .Where(item => !item.Path.Contains(
                 Path.DirectorySeparatorChar + "ExternalRealData" + Path.DirectorySeparatorChar,
                 StringComparison.OrdinalIgnoreCase))
