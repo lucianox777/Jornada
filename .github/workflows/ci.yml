@@ -14,6 +14,11 @@ on:
           - smoke
           - medium
           - million
+      rc_evidence_preflight:
+        description: 'Exercitar ponta a ponta a evidência de RC sem criar tag/release remota'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -705,12 +710,12 @@ jobs:
         run: docker compose --env-file .env down -v || true
 
   rc-evidence:
-    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && contains(github.ref_name, '-rc.')
+    if: (github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && contains(github.ref_name, '-rc.')) || (github.event_name == 'workflow_dispatch' && inputs.rc_evidence_preflight)
     needs: [dependency-lock, unit, deterministic-build, security-analysis, integration-sql, harness-smoke, ddl-upgrade, e2e, bronze-restore-drill, scale-harness]
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     permissions:
-      contents: write
+      contents: read
       id-token: write
       attestations: write
     env:
@@ -730,6 +735,31 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
+      - name: Resolve technical RC identity for tag or dispatch preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          declared_tag=$(python3 -c 'import json; print(json.load(open("CANDIDATE_INFO.json", encoding="utf-8"))["candidate"]["technical_rc"]["identifier"])')
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            test "$GITHUB_REF_NAME" = "$declared_tag"
+            rc_tag="$GITHUB_REF_NAME"
+            rc_mode="tag"
+          else
+            test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+            test "${{ inputs.rc_evidence_preflight }}" = "true"
+            rc_tag="$declared_tag"
+            rc_mode="preflight"
+            existing=$(git rev-parse --verify "refs/tags/${rc_tag}^{commit}" 2>/dev/null || true)
+            if [[ -n "$existing" && "$existing" != "$GITHUB_SHA" ]]; then
+              echo "RC preflight recusado: a tag local/remota $rc_tag já aponta para $existing, não para $GITHUB_SHA." >&2
+              exit 1
+            fi
+            if [[ -z "$existing" ]]; then
+              git tag "$rc_tag" "$GITHUB_SHA"
+            fi
+          fi
+          echo "JORNADA_RC_TAG=$rc_tag" >> "$GITHUB_ENV"
+          echo "JORNADA_RC_MODE=$rc_mode" >> "$GITHUB_ENV"
       - name: Install sqlcmd
         run: |
           set -euo pipefail
@@ -752,7 +782,7 @@ jobs:
           --repo .
           --candidate-info CANDIDATE_INFO.json
           --release-info RELEASE_INFO.txt
-          --expected-tag "${GITHUB_REF_NAME}"
+          --expected-tag "${JORNADA_RC_TAG}"
           --require-clean
       - name: Download exact-run prerequisite evidence
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
@@ -768,7 +798,7 @@ jobs:
             Solution/.local/rc-source/Jornada_RC_Source.bundle \
             Solution/.local/rc-source/RC_SOURCE_PROVENANCE.json \
             CANDIDATE_INFO.json \
-            "$GITHUB_REF_NAME"
+            "$JORNADA_RC_TAG"
           mkdir -p Solution/.local/rc-evidence-input/rc-source-provenance
           cp Solution/.local/rc-source/Jornada_RC_Source.bundle Solution/.local/rc-evidence-input/rc-source-provenance/
           cp Solution/.local/rc-source/RC_SOURCE_PROVENANCE.json Solution/.local/rc-evidence-input/rc-source-provenance/
@@ -804,7 +834,7 @@ jobs:
           result={
               "schemaVersion":1,
               "status":"PASS",
-              "tag":os.environ["GITHUB_REF_NAME"],
+              "tag":os.environ["JORNADA_RC_TAG"],
               "headSha":os.environ["GITHUB_SHA"],
               "declaredFingerprintSha256":os.environ["DECLARED_FP"],
               "actualFingerprintSha256":os.environ["ACTUAL_FP"],
@@ -812,7 +842,8 @@ jobs:
               "actualManifestSha256":os.environ["ACTUAL_MANIFEST"],
               "structuralCheckpointCommit":provenance["source_commit"],
               "schemaEvidenceModel":provenance["evidence_model"],
-              "note":"Fresh RC-tag execution; validation is produced on the exercised commit/tag and does not depend on a historical Actions run id."
+              "executionMode":os.environ["JORNADA_RC_MODE"],
+              "note":"Fresh technical-RC evidence execution on the exercised commit. In preflight mode the declared RC tag exists only in the runner; no remote tag or GitHub Release is created."
           }
           out=Path(".local/rc-evidence-input/rc-structural-provenance/RC_SCHEMA_PROVENANCE.json")
           out.write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
@@ -844,23 +875,31 @@ jobs:
           cp "${{ steps.attest-rc.outputs.bundle-path }}" Solution/.local/rc-evidence/ATTESTATION.sigstore.json
           actual_fingerprint=$(python3 -c 'import json; print(json.load(open("Solution/.local/rc-evidence-input/rc-structural-provenance/RC_SCHEMA_PROVENANCE.json", encoding="utf-8"))["actualFingerprintSha256"])')
           cat > Solution/.local/rc-evidence/RC_NOTES.md <<EOF
-          # ${GITHUB_REF_NAME} — checkpoint técnico
+          # ${JORNADA_RC_TAG} — evidência de checkpoint técnico
 
-          Este pre-release é um **checkpoint técnico imutável** da candidata Solution Engenharia v5.00.
+          Modo de execução: `${JORNADA_RC_MODE}`.
 
-          Ele **não é homologação estatística**, **não autoriza ativação/publicação probabilística** e **não autoriza Produção**. A última release normativa selada continua sendo a declarada em `RELEASE_INFO.txt`.
+          Esta evidência corresponde ao conteúdo candidato ao checkpoint técnico da Solution Engenharia v5.00.
+          Em modo `preflight`, a tag `${JORNADA_RC_TAG}` é criada **somente no runner** para exercitar a mesma cadeia de validação; nenhuma tag remota ou GitHub Release é criada.
+          Em modo `tag`, a tag identifica o checkpoint de fonte imutável.
+
+          O checkpoint **não é homologação estatística**, **não autoriza ativação/publicação probabilística** e **não autoriza Produção**. A última release normativa selada continua sendo a declarada em `RELEASE_INFO.txt`.
 
           Gates externos que permanecem pendentes:
           - #31 — validação estatística representativa do Linkage;
           - #93 — volumetria HML e decisão institucional de acesso;
+          - #378 — autenticação PRODAM e separação ambiental;
+          - #379 — mudanças de política que exigem decisão externa;
           - decisão de finalidade/base legal GTPR declarada em `CANDIDATE_INFO.json`.
 
-          Evidência deste checkpoint:
+          Evidência desta execução:
           - commit: `${GITHUB_SHA}`;
-          - fingerprint estrutural executado na própria tag: `$actual_fingerprint`;
-          - `RC_EVIDENCE.json`, bundle de fonte, proveniência de schema e attestation Sigstore anexados como assets.
+          - fingerprint estrutural recomputado nesta execução: `$actual_fingerprint`;
+          - `RC_EVIDENCE.json`, bundle de fonte, proveniência de schema e attestation Sigstore no artifact `technical-rc-evidence`.
 
-          `release_effect=NONE`: criar este pre-release não reescreve `RELEASE_INFO.txt`.
+          Mutabilidade: a **tag/fonte do checkpoint é imutável**; os assets do pre-release são `REPLACEABLE_BY_RERUN_WITH_CLOBBER`, conforme `CANDIDATE_INFO.json`. A autoridade de digest é `SIGSTORE_ATTESTATION_SUBJECT_DIGESTS`.
+
+          `release_effect=NONE`: o checkpoint não reescreve `RELEASE_INFO.txt`.
           EOF
       - name: Upload RC evidence as Actions backup
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -873,31 +912,52 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 365
+      - name: Stop RC SQL Server
+        if: always()
+        run: docker ps -q --filter publish=1433 | xargs -r docker stop >/dev/null || true
+
+  rc-publish:
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && contains(github.ref_name, '-rc.')
+    needs: rc-evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download attested technical RC evidence
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: technical-rc-evidence
+          path: Solution/.local/rc-publish
+      - name: Verify declared release-asset mutability
+        run: |
+          set -euo pipefail
+          candidate=Solution/.local/rc-publish/rc-evidence-input/rc-structural-provenance/CANDIDATE_INFO.json
+          test "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["candidate"]["technical_rc"]["release_assets_mutability"])' "$candidate")" = "REPLACEABLE_BY_RERUN_WITH_CLOBBER"
       - name: Publish or refresh durable GitHub pre-release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          root="Solution/.local/rc-publish"
           title="Jornada ${GITHUB_REF_NAME} — technical checkpoint"
-          notes="Solution/.local/rc-evidence/RC_NOTES.md"
+          notes="$root/rc-evidence/RC_NOTES.md"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release edit "$GITHUB_REF_NAME" --prerelease --title "$title" --notes-file "$notes"
           else
             gh release create "$GITHUB_REF_NAME" --verify-tag --prerelease --title "$title" --notes-file "$notes"
           fi
           gh release upload "$GITHUB_REF_NAME" --clobber \
-            Solution/.local/rc-evidence/RC_EVIDENCE.json \
-            Solution/.local/rc-evidence/ATTESTATION.sigstore.json \
-            Solution/.local/rc-evidence/RC_NOTES.md \
-            Solution/.local/rc-source/Jornada_RC_Source.bundle \
-            Solution/.local/rc-source/RC_SOURCE_PROVENANCE.json \
-            Solution/.local/rc-evidence-input/rc-structural-provenance/RC_SCHEMA_PROVENANCE.json \
-            Solution/.local/rc-evidence-input/rc-structural-provenance/fingerprint.txt \
-            Solution/.local/rc-evidence-input/rc-structural-provenance/CANDIDATE_INFO.json
-      - name: Stop RC SQL Server
-        if: always()
-        run: docker ps -q --filter publish=1433 | xargs -r docker stop >/dev/null || true
-
+            "$root/rc-evidence/RC_EVIDENCE.json" \
+            "$root/rc-evidence/ATTESTATION.sigstore.json" \
+            "$root/rc-evidence/RC_NOTES.md" \
+            "$root/rc-source/Jornada_RC_Source.bundle" \
+            "$root/rc-source/RC_SOURCE_PROVENANCE.json" \
+            "$root/rc-evidence-input/rc-structural-provenance/RC_SCHEMA_PROVENANCE.json" \
+            "$root/rc-evidence-input/rc-structural-provenance/fingerprint.txt" \
+            "$root/rc-evidence-input/rc-structural-provenance/CANDIDATE_INFO.json"
   release-promotion:
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'jornada-solution-v')
     needs: [dependency-lock, unit, deterministic-build, security-analysis, integration-sql, harness-smoke, ddl-upgrade, e2e, bronze-restore-drill, scale-harness]
