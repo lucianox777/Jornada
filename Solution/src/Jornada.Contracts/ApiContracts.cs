@@ -34,13 +34,15 @@ public sealed record IdentityCorrectionGroupRequest(
     string GrupoCodigo, Guid? PessoaUuidDestino, IReadOnlyList<long> PessoaObservacaoIds);
 public sealed record IdentityCorrectionRequest(
     string Cpf, string GrupoTitularCpf, IReadOnlyList<IdentityCorrectionGroupRequest> Grupos,
-    string AtoReferencia, string Justificativa);
+    string AtoReferencia, string Justificativa,
+    string EvidenciaTipo, string? DocumentoTipoCodigo = null);
 public sealed record IdentityCorrectionResponse(
     Guid CorrecaoId, Guid PessoaUuidTitular, IReadOnlyDictionary<string, Guid> GrupoPessoaUuids, string Status);
 
 // v3.44/v3.45 - caso governado geral, independente de CPF.
 public sealed record IdentityGovernedCaseOpenRequest(
-    string Motivo, IReadOnlyList<long> PessoaObservacaoIds, string AtoReferencia, string Justificativa);
+    string Motivo, IReadOnlyList<long> PessoaObservacaoIds, string AtoReferencia, string Justificativa,
+    string EvidenciaTipo, string? DocumentoTipoCodigo = null);
 public sealed record IdentityGovernedCaseOpenResponse(Guid CasoId, string Status);
 public sealed record IdentityGovernedCaseApplyRequest(
     IReadOnlyList<IdentityCorrectionGroupRequest> Grupos);
@@ -50,7 +52,9 @@ public sealed record IdentityGovernedCaseApplyResponse(Guid CasoId, string Statu
 public sealed record IdentityDivergenceDto(
     long DivergenciaId, string Tipo, string Motivo, long? PessoaObservacaoId, long? RegistroObservacaoId,
     string? CodigoPessoaOrigem, Guid? CorrelationId, DateTimeOffset AbertaEm);
-public sealed record IdentityDivergenceDispositionRequest(string Status, string Desfecho, string? Observacao = null);
+public sealed record IdentityDivergenceDispositionRequest(
+    string Status, string Desfecho, string EvidenciaTipo,
+    string? DocumentoTipoCodigo = null, string? Observacao = null);
 
 /// <summary>Credencial apresentada transitoriamente pela borda HTTP. AccessKey nunca é persistida nem logada.</summary>
 public sealed record PresentedAccessCredential(
