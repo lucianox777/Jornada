@@ -11,3 +11,18 @@ useDefault = true
 # a rule-targeted allowlist with an exact path/regex and a comment linking the
 # review decision. Never allowlist broad directories such as Solution/, tests/,
 # .github/ or Documentos/.
+
+# Reviewed false positives: deterministic/synthetic Development access keys.
+# This exception applies ONLY to the inherited generic-api-key rule; every other
+# Gitleaks rule still scans these files. The API rejects these credentials outside
+# Development, and broad directories remain forbidden from allowlisting.
+[[rules]]
+id = "generic-api-key"
+
+  [[rules.allowlists]]
+  description = "Synthetic Development access keys used by canonical local/E2E fixtures."
+  paths = [
+    '''^Solution/config/security/test-access-keys\.json$''',
+    '''^Solution/scripts/local-e2e\.(sh|ps1)$''',
+    '''^Solution/install/windows-production/Jornada\.Cluster\.Test\.json$'''
+  ]
