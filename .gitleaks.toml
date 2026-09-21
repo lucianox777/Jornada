@@ -1,0 +1,13 @@
+title = "Jornada secret scanning"
+
+# Keep Gitleaks' maintained rule set as the baseline. Repository-specific changes
+# must be additive and narrowly scoped; do not replace the default detector set.
+[extend]
+useDefault = true
+
+# Intentionally no global allowlist here.
+#
+# False positives must be reviewed first. If an exception is unavoidable, prefer
+# a rule-targeted allowlist with an exact path/regex and a comment linking the
+# review decision. Never allowlist broad directories such as Solution/, tests/,
+# .github/ or Documentos/.
