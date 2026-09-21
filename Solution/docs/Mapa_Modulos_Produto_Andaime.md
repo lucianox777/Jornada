@@ -37,6 +37,7 @@ Consequentemente, `Produto/runtime` abaixo significa **runtime da implementaçã
 | `Jornada.Ensaio` | Andaime/evidência | Orquestra ensaios técnicos; não substitui scheduler/runtime institucional. |
 | `Jornada.Linkage.Conference` | Andaime/evidência | Segundo scorer/policy independente para conferência; proibido como resolvedor operacional. |
 | `Jornada.Linkage.Evaluation` | Andaime/evidência | Export, avaliação e evidência estatística/técnica; não publica vínculo. |
+| `Jornada.Linkage.SyntheticCorpus` | Andaime/evidência DEV | Gera e identifica corpus sintético determinístico para recuperação de parâmetros; nunca é dependência do Parameters.Worker nem entra no publish de Produção. |
 
 ## Outras áreas
 

@@ -690,6 +690,9 @@
           "Microsoft.Extensions.Hosting": "[8.0.1, )"
         }
       },
+      "jornada.linkage.syntheticcorpus": {
+        "type": "Project"
+      },
       "jornada.operational.sql": {
         "type": "Project",
         "dependencies": {
