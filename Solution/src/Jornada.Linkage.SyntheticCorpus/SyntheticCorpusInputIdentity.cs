@@ -6,7 +6,7 @@ namespace Jornada.Linkage.SyntheticCorpus;
 
 public static class SyntheticCorpusInputIdentity
 {
-    public const string GeneratorVersion = "JORNADA_SYNTH_CORPUS_CSHARP_V1_FOUNDATION";
+    public const string GeneratorVersion = "JORNADA_SYNTH_CORPUS_CSHARP_V1";
 
     public static string ComputeFingerprint(ulong seed, IEnumerable<IbgeProjectionFile> files)
     {
