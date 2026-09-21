@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using Jornada.Contracts;
 using Jornada.Linkage.Evaluation;
 
 namespace Jornada.Linkage.Conference;
