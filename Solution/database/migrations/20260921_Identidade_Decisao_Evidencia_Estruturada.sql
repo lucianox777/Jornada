@@ -16,21 +16,19 @@ GO
 
 IF COL_LENGTH(N'auditoria.decisao_identidade_evento',N'evidencia_tipo') IS NULL
     ALTER TABLE auditoria.decisao_identidade_evento
-        ADD evidencia_tipo NVARCHAR(60) NULL;
+        ADD evidencia_tipo NVARCHAR(60) NOT NULL
+            CONSTRAINT DF_decisao_identidade_evidencia_tipo_migracao
+            DEFAULT(N'LEGADO_NAO_CLASSIFICADO') WITH VALUES;
+GO
+
+IF OBJECT_ID(N'auditoria.DF_decisao_identidade_evidencia_tipo_migracao',N'D') IS NOT NULL
+    ALTER TABLE auditoria.decisao_identidade_evento
+        DROP CONSTRAINT DF_decisao_identidade_evidencia_tipo_migracao;
 GO
 
 IF COL_LENGTH(N'auditoria.decisao_identidade_evento',N'documento_tipo_codigo') IS NULL
     ALTER TABLE auditoria.decisao_identidade_evento
         ADD documento_tipo_codigo NVARCHAR(80) NULL;
-GO
-
-UPDATE auditoria.decisao_identidade_evento
-SET evidencia_tipo=N'LEGADO_NAO_CLASSIFICADO'
-WHERE evidencia_tipo IS NULL;
-GO
-
-ALTER TABLE auditoria.decisao_identidade_evento
-    ALTER COLUMN evidencia_tipo NVARCHAR(60) NOT NULL;
 GO
 
 IF OBJECT_ID(N'auditoria.CK_decisao_identidade_evidencia_tipo',N'C') IS NOT NULL
