@@ -251,7 +251,7 @@ BEGIN
    WHERE vf.pessoa_observacao_id=@pessoa_observacao_id
      AND vf.ativo=1
      AND vf.metodo_resolucao IN(
-       N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
+       N'CPF_DETERMINISTICO',N'NIS_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
        N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO'))
    THROW 51819,'Vínculo determinístico/governado tem precedência sobre publicação probabilística.',1;
 
