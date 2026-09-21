@@ -143,7 +143,7 @@ public sealed class CandidateInfoTests
     }
 
     [Test]
-    public void Technical_rc_tag_must_have_dedicated_non_normative_evidence_path()
+    public void Technical_rc_must_have_dispatch_preflight_and_tag_only_publish_path()
     {
         var root = FindRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
@@ -154,9 +154,15 @@ public sealed class CandidateInfoTests
         Assert.Multiple(() =>
         {
             Assert.That(workflow, Does.Contain("release-promotion:\n    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'jornada-solution-v')"));
+            Assert.That(workflow, Does.Contain("rc_evidence_preflight:"));
+            Assert.That(workflow, Does.Contain("github.event_name == 'workflow_dispatch' && inputs.rc_evidence_preflight"));
             Assert.That(workflow, Does.Contain("rc-evidence:"));
-            Assert.That(workflow, Does.Contain("contains(github.ref_name, '-rc.')"));
-            Assert.That(workflow, Does.Contain("contents: write"));
+            Assert.That(workflow, Does.Contain("Resolve technical RC identity for tag or dispatch preflight"));
+            Assert.That(workflow, Does.Contain("JORNADA_RC_MODE=preflight").Or.Contain("rc_mode=\"preflight\""));
+            Assert.That(workflow, Does.Contain("rc-publish:"));
+            Assert.That(workflow, Does.Contain("needs: rc-evidence"));
+            Assert.That(workflow, Does.Contain("Verify declared release-asset mutability"));
+            Assert.That(workflow, Does.Contain("REPLACEABLE_BY_RERUN_WITH_CLOBBER"));
             Assert.That(workflow, Does.Contain("gh release create"));
             Assert.That(workflow, Does.Contain("--prerelease"));
             Assert.That(workflow, Does.Contain("Jornada_Dev_DdlFingerprint.sql"));
@@ -167,6 +173,12 @@ public sealed class CandidateInfoTests
             Assert.That(rcEvidence, Does.Contain("LINKAGE_REPRESENTATIVE_STATISTICAL_VALIDATION"));
             Assert.That(rcBundle, Does.Contain("RC_SOURCE_PROVENANCE.json"));
             Assert.That(rcBundle, Does.Contain("git bundle verify"));
+            var rcEvidenceJob = workflow[workflow.IndexOf("  rc-evidence:", StringComparison.Ordinal)..workflow.IndexOf("  rc-publish:", StringComparison.Ordinal)];
+            var rcPublishJob = workflow[workflow.IndexOf("  rc-publish:", StringComparison.Ordinal)..workflow.IndexOf("  release-promotion:", StringComparison.Ordinal)];
+            Assert.That(rcEvidenceJob, Does.Contain("contents: read"));
+            Assert.That(rcEvidenceJob, Does.Not.Contain("contents: write"));
+            Assert.That(rcPublishJob, Does.Contain("contents: write"));
+            Assert.That(rcPublishJob, Does.Not.Contain("workflow_dispatch"));
         });
     }
 
