@@ -3,7 +3,7 @@
   "status": "PENDENTE",
   "baseNormativa": "3.62",
   "solutionSchema": "3.70",
-  "note": "Inventário criptográfico dos schemas contratuais. APROVADO exige aprovação individual e evidência real; hashes não equivalem a assinatura institucional.",
+  "note": "Inventário criptográfico dos schemas contratuais. APROVADO exige aprovação individual e evidência real; hashes não equivalem a assinatura institucional. Pessoa v5 integra o trem estrutural 3.71 em andamento; o rebind de SolutionSchema permanece para o fechamento do trem.",
   "contracts": [
     {
       "path": "config/contracts/gestores/SEHAB/pessoa/v1/pessoa.json",
@@ -38,6 +38,12 @@
     {
       "path": "config/contracts/gestores/SEHAB/pessoa/v4/pessoa.schema.json",
       "sha256": "4441b5f43d1e25a672d52c31b5f85794123e0cca99044620c1c9616f9f5cad43",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SEHAB/pessoa/v5/pessoa.schema.json",
+      "sha256": "ebe9b8177ca35bec6feb8d746854448d697801faedcfe7dc8f112c42adfbba62",
       "status": "PENDENTE",
       "approval": null
     },
@@ -78,6 +84,12 @@
       "approval": null
     },
     {
+      "path": "config/contracts/gestores/SMADS/pessoa/v5/pessoa.schema.json",
+      "sha256": "75407173bcd0f9d6dfb2727bf6044fd7b232ab7d5eda3b34ada9473f17c98fce",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
       "path": "config/contracts/gestores/SMDET/pessoa/v1/pessoa.json",
       "sha256": "2f406c06eb2c11bbf6638295d0f40c9b30e70804003b2c59c6a807c9c8f6e906",
       "status": "PENDENTE",
@@ -114,6 +126,12 @@
       "approval": null
     },
     {
+      "path": "config/contracts/gestores/SMDET/pessoa/v5/pessoa.schema.json",
+      "sha256": "37c34aed6257e700158d11d196a848aa795f10986da5e19d8a4c422966d0361b",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
       "path": "config/contracts/gestores/SMS/pessoa/v1/pessoa.json",
       "sha256": "688cd802519bc5281e2c1350792bce4445a05b6d2c1776d1af9fe6eb6047ae8a",
       "status": "PENDENTE",
@@ -146,6 +164,12 @@
     {
       "path": "config/contracts/gestores/SMS/pessoa/v4/pessoa.schema.json",
       "sha256": "93fc2b62b56c0d817f36de77fe6f5953296404938e41e66f8c734b72bc585413",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SMS/pessoa/v5/pessoa.schema.json",
+      "sha256": "48c10c2b74543e27f12121b9a9b958b5ffd2aec2ea39641b2420103315d647f1",
       "status": "PENDENTE",
       "approval": null
     },
