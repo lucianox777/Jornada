@@ -97,6 +97,30 @@ MODEL_VERSION="$(scalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHE
 MODEL_ID="$(scalar "SELECT CONVERT(nvarchar(36),modelo_id) FROM identidade.modelo_linkage WHERE versao=$MODEL_VERSION;")"
 [[ "$MODEL_ID" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo "ERRO: modelo_id inválido para evidência de escala." >&2; exit 4; }
 
+TEST_CONFERENCE_TOLERANCE="$ROOT/.local/linkage-conference-tolerance.scale.json"
+mkdir -p "$ROOT/.local"
+cat > "$TEST_CONFERENCE_TOLERANCE" <<'JSON'
+{
+  "schemaVersion": 1,
+  "methodVersion": "JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1",
+  "status": "FROZEN",
+  "scope": "SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE",
+  "maxAbsolutePairLlrDifference": 0.000001,
+  "decisionEquivalence": "EXACT_FINAL_OPERATIONAL_DECISION",
+  "primaryGates": ["PAIR_LLR_WITHIN_FROZEN_TOLERANCE","EXACT_FINAL_OPERATIONAL_DECISION"],
+  "diagnosticsOnly": ["SPEARMAN_RANK_CORRELATION","SAME_TOP1","MAX_ABSOLUTE_LOG_ODDS_DIFFERENCE"],
+  "statisticalValidation": "SEPARATE_ISSUE_31",
+  "note": "TEST_ONLY local scale fixture; never a production governance tolerance.",
+  "toleranceVersion": "TEST_ONLY_LOCAL_SCALE_V1"
+}
+JSON
+
+dotnet run --project src/Jornada.Linkage.Conference --configuration Release --no-build -- \
+  --model-id "$MODEL_ID" \
+  --tolerance-config "$TEST_CONFERENCE_TOLERANCE" \
+  --source-revision "LOCAL_SCALE_TEST"
+
+export LinkageParameters__ConferenceToleranceConfigPath="$TEST_CONFERENCE_TOLERANCE"
 export LinkageParameters__Operation=VALIDATE
 export LinkageParameters__TargetVersion="$MODEL_VERSION"
 dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
