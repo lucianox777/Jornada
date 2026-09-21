@@ -83,6 +83,12 @@ public sealed class PersonV5ContractSqlServerTests
                 DECLARE @obs BIGINT=(SELECT pessoa_observacao_id FROM silver.pessoa_observacao WHERE id_pessoa_entrega=N'V5-CONTRACT-SQL');
 
                 SELECT
+                    (SELECT COUNT(*) FROM sys.columns c
+                      WHERE (c.object_id=OBJECT_ID(N'silver.pessoa_observacao') AND c.name=N'cpf_ausente_motivo' AND c.max_length=100)
+                         OR (c.object_id=OBJECT_ID(N'gold.beneficio_concedido') AND c.name=N'cpf_ausente_motivo' AND c.max_length=100)
+                         OR (c.object_id=OBJECT_ID(N'gold.servico_prestado') AND c.name=N'cpf_ausente_motivo' AND c.max_length=100)
+                         OR (c.object_id=OBJECT_ID(N'serving.registro_integrado') AND c.name=N'cpf_ausente_motivo' AND c.max_length=100)
+                         OR (c.object_id=OBJECT_ID(N'gold.pessoa') AND c.name=N'status_cpf' AND c.max_length=100)),
                     (SELECT COUNT(*) FROM ref.gestor_pessoa_versao WHERE versao=5 AND status=N'RASCUNHO'),
                     (SELECT COUNT(*) FROM ref.gestor_pessoa_versao WHERE versao=4 AND status=N'ATIVA'),
                     (SELECT COUNT(*) FROM silver.pessoa_identificador_observacao
@@ -113,15 +119,16 @@ public sealed class PersonV5ContractSqlServerTests
             Assert.That(await reader.ReadAsync(), Is.True);
             Assert.Multiple(() =>
             {
-                Assert.That(reader.GetInt32(0), Is.EqualTo(4), "Os quatro contratos Pessoa v5 devem existir somente como RASCUNHO.");
-                Assert.That(reader.GetInt32(1), Is.EqualTo(4), "Pessoa v4 continua ativa até a ativação coordenada do trem 3.71.");
-                Assert.That(reader.GetInt32(2), Is.EqualTo(1), "RG parcial deve persistir sem emissor/UF.");
-                Assert.That(reader.GetInt32(3), Is.EqualTo(1), "CNH deve persistir como identificador secundário.");
-                Assert.That(reader.GetInt32(4), Is.Zero, "RG/CNH não podem criar identity_map automaticamente.");
-                Assert.That(reader.GetInt32(5), Is.EqualTo(1), "Sem endereço fixo é estado próprio, sem natureza/geografia fabricada.");
-                Assert.That(reader.GetInt32(6), Is.Zero, "Sem endereço fixo e prisão não aparecem como referência territorial compartilhada.");
-                Assert.That(reader.GetInt32(7), Is.Zero, "A projeção BI compartilhada não pode revelar nem contar a natureza prisional.");
-                Assert.That(reader.GetInt32(8), Is.GreaterThanOrEqualTo(1), "SEM_CPF v4 deve permanecer classificado como legado, sem decomposição inferida.");
+                Assert.That(reader.GetInt32(0), Is.EqualTo(5), "Todos os campos que propagam a taxonomia CPF devem suportar NVARCHAR(50).");
+                Assert.That(reader.GetInt32(1), Is.EqualTo(4), "Os quatro contratos Pessoa v5 devem existir somente como RASCUNHO.");
+                Assert.That(reader.GetInt32(2), Is.EqualTo(4), "Pessoa v4 continua ativa até a ativação coordenada do trem 3.71.");
+                Assert.That(reader.GetInt32(3), Is.EqualTo(1), "RG parcial deve persistir sem emissor/UF.");
+                Assert.That(reader.GetInt32(4), Is.EqualTo(1), "CNH deve persistir como identificador secundário.");
+                Assert.That(reader.GetInt32(5), Is.Zero, "RG/CNH não podem criar identity_map automaticamente.");
+                Assert.That(reader.GetInt32(6), Is.EqualTo(1), "Sem endereço fixo é estado próprio, sem natureza/geografia fabricada.");
+                Assert.That(reader.GetInt32(7), Is.Zero, "Sem endereço fixo e prisão não aparecem como referência territorial compartilhada.");
+                Assert.That(reader.GetInt32(8), Is.Zero, "A projeção BI compartilhada não pode revelar nem contar a natureza prisional.");
+                Assert.That(reader.GetInt32(9), Is.GreaterThanOrEqualTo(1), "SEM_CPF v4 deve permanecer classificado como legado, sem decomposição inferida.");
             });
         }
         finally
