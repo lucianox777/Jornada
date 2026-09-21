@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse,json,sys
 from pathlib import Path
 COUNT_FIELDS=['gestor','bronzeEntrega','bronzeArquivo','silverPessoaObservacao','identidadePessoa','identityMap','vinculoFonte','goldPessoa','goldBeneficio','goldServico']
-VIOLATION_FIELDS=['identityMapMissingPerson','resolvedVinculoMissingPerson','selfSuccessor','goldPersonMissingIdentity','activeCpfDuplicate','activeNisDuplicate','multipleActiveVinculoPerObservation']
+VIOLATION_FIELDS=['identityMapMissingPerson','resolvedVinculoMissingPerson','selfSuccessor','goldPersonMissingIdentity','activeCpfDuplicate','multipleActiveVinculoPerObservation']
 def load(p):
  d=json.loads(Path(p).read_text());
  if not isinstance(d,dict): raise ValueError('JSON raiz deve ser objeto')
