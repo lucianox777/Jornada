@@ -24,11 +24,11 @@ function Invoke-GitleaksScan {
     & gitleaks @Arguments
     $exit = $LASTEXITCODE
     if ($exit -eq 0) {
-        Write-Host "$Label: OK"
+        Write-Host "${Label}: OK"
         return 0
     }
     if ($exit -eq 1) {
-        Write-Host "$Label: ACHADOS — consulte o relatório local redigido em Solution/.local/gitleaks." -ForegroundColor Yellow
+        Write-Host "${Label}: ACHADOS — consulte o relatório local redigido em Solution/.local/gitleaks." -ForegroundColor Yellow
         return 1
     }
     throw "gitleaks falhou em '$Label' com exit code $exit."
