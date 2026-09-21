@@ -185,6 +185,11 @@ internal sealed partial class SqlProcessorRepository
             var validationStatus = identifier.Tipo switch
             {
                 "CPF" => CpfRules.NormalizeAndValidate(identifier.ValorNormalizado) is null ? "INVALIDO" : "VALIDO",
+                "NIS" => NisRules.NormalizeAndValidate(identifier.ValorNormalizado) is null
+                    ? "INVALIDO"
+                    : string.Equals(identifier.StatusEvidencia, "COMPROVADO", StringComparison.Ordinal)
+                        ? "VALIDO"
+                        : "NAO_VALIDADO",
                 "CODIGO_BASE_ORIGEM" => string.Equals(origin?.BaseConfianca, "HOMOLOGADA_DETERMINISTICA", StringComparison.Ordinal)
                     ? "VALIDO" : "NAO_VALIDADO",
                 "UUID_JORNADA" => jornadaUuid?.Canonico is not null ? "VALIDO" : "INVALIDO",
