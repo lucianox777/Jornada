@@ -43,7 +43,7 @@ A persistência separa os conceitos:
 - `identidade.pessoa`: entidade de identidade e autoridade de vínculo;
 - `gold.pessoa`: projeção materializada para consumo analítico/serving;
 - identidade de origem: referência estável do registro recebido;
-- identidade canônica: vínculo eventualmente resolvido por CPF, NIS governado, linkage ou correção governada.
+- identidade canônica: vínculo eventualmente resolvido por CPF, retroalimentação interna governada, linkage ou correção governada.
 
 ### 3.1 Nome de referência e evidência nominal
 
@@ -67,7 +67,7 @@ Quando houver confirmação humana, ela deve ser estruturada em apenas duas form
 
 Quando um CPF válido e governado está disponível, a resolução determinística CPF→UUID é a âncora externa de maior autoridade do vínculo. Conflitos de consistência não devem ser silenciados por regras probabilísticas.
 
-NIS/PIS/PASEP/NIT usam um tipo canônico `NIS`, preservando a procedência no namespace. Um NIS só participa deterministicamente quando estruturalmente válido e `COMPROVADO`; `DECLARADO` é apenas evidência observada. NIS é âncora **secundária**: nunca substitui ou contradiz silenciosamente um CPF válido. Divergência CPF×NIS mantém a resolução CPF, marca o NIS corrente em conflito e abre divergência governada. A Pessoa pode possuir múltiplas inscrições sociais comprovadas, enquanto cada número social corrente aponta para no máximo uma Pessoa canônica. A decisão detalhada está na ADR-006.
+NIS/PIS/PASEP/NIT usam um tipo canônico `NIS`, preservando a procedência no namespace; RG permanece qualificado por emissor e UF. **NIS e RG são identificadores secundários, não âncoras.** A Jornada pode validar estrutura, preservar declaração/comprovação e detectar reutilização inconsistente, mas esses identificadores não constituem Pessoa, não criam `identity_map`, não selecionam UUID e não competem com CPF. Uma Pessoa pode manter múltiplos números sociais e documentos históricos. O mesmo NIS observado sob Pessoas distintas gera sinal de qualidade, nunca fusão automática. A decisão detalhada está na ADR-006.
 
 A ausência de CPF, entretanto, não impede a ingestão de um fato válido. O sistema deve preservar `cpf_declarado` quando informado, registrar o motivo de ausência quando aplicável e manter o estado da atribuição de identidade separado do fato finalístico.
 
