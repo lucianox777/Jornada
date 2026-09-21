@@ -197,6 +197,10 @@ public sealed class PersonV5ContractTests
         {
             Assert.That(sql, Does.Contain("SEM_DOCUMENTACAO_BASE_DECLARADA"));
             Assert.That(sql, Does.Contain("COM_DOCUMENTACAO_SEM_CPF_CONHECIDO"));
+            Assert.That(sql, Does.Contain("ALTER COLUMN cpf_ausente_motivo NVARCHAR(50) NULL"));
+            Assert.That(sql, Does.Contain("ALTER COLUMN status_cpf NVARCHAR(50) NOT NULL"));
+            Assert.That(sql, Does.Contain("cpf_ausente_motivo NVARCHAR(50) NULL"));
+            Assert.That(sql, Does.Contain("ELSE COALESCE(s.cpf_ausente_motivo,N'SEM_CPF')"));
             Assert.That(sql, Does.Contain("LEGADO_SEM_CPF_NAO_DECOMPOSTO"));
             Assert.That(sql, Does.Contain("tipo_identificador_codigo IN(N'NIS',N'RG',N'CNH')"));
             Assert.That(sql, Does.Contain("DROP CONSTRAINT ck_pessoa_identificador_rg"));
