@@ -101,8 +101,7 @@ public static class IbgeProjectionReader
         {
             cancellationToken.ThrowIfCancellationRequested();
             rows++;
-            canonicalHash.AppendData(Encoding.UTF8.GetBytes(line + "
-"));
+            canonicalHash.AppendData(Encoding.UTF8.GetBytes(line + "\n"));
 
             if (string.IsNullOrWhiteSpace(line))
                 throw new InvalidDataException($"Linha vazia em {file.Path}:{rows}.");
