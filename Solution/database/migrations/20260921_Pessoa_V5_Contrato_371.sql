@@ -22,6 +22,7 @@ IF OBJECT_ID(N'silver.pessoa_observacao',N'U') IS NULL
    OR OBJECT_ID(N'silver.pessoa_identificador_observacao',N'U') IS NULL
    OR OBJECT_ID(N'silver.referencia_territorial_observacao',N'U') IS NULL
    OR OBJECT_ID(N'ref.tipo_identificador_pessoa',N'U') IS NULL
+   OR OBJECT_ID(N'ref.gestor_pessoa_versao',N'U') IS NULL
     THROW 52010,'Pré-requisitos de Pessoa v5 não instalados.',1;
 GO
 
@@ -275,4 +276,41 @@ GROUP BY
       WHEN rt.natureza_referencia=N'INSTITUCIONAL_PRISIONAL' THEN N'RESTRITA'
       ELSE COALESCE(rt.natureza_referencia,N'NAO_APLICAVEL')
     END;
+GO
+
+/* Catálogo contratual: v5 entra como RASCUNHO; esta migration não troca a versão ativa. */
+IF EXISTS(
+    SELECT 1
+    FROM ref.gestor_pessoa_versao v
+    JOIN ref.gestor g ON g.gestor_id=v.gestor_id
+    WHERE v.versao=5
+      AND (
+        v.pessoa_schema_ref<>CONCAT(N'config/contracts/gestores/',g.codigo,N'/pessoa/v5/pessoa.schema.json')
+        OR v.pessoa_schema_sha256<>CASE g.codigo
+            WHEN N'SEHAB' THEN 0xEBE9B8177CA35BEC6FEB8D746854448D697801FAEDCFE7DC8F112C42ADFBBA62
+            WHEN N'SMADS' THEN 0x75407173BCD0F9D6DFB2727BF6044FD7B232AB7D5EDA3B34ADA9473F17C98FCE
+            WHEN N'SMDET' THEN 0x37C34AED6257E700158D11D196A848AA795F10986DA5E19D8A4C422966D0361B
+            WHEN N'SMS' THEN 0x48C10C2B74543E27F12121B9A9B958B5FFD2AEC2EA39641B2420103315D647F1
+          END
+      ))
+    THROW 52011,'Pessoa v5 já cadastrada com referência/hash divergente.',1;
+GO
+
+INSERT ref.gestor_pessoa_versao(
+    gestor_id,versao,vigencia_inicio,pessoa_schema_ref,pessoa_schema_sha256,status,ativado_em)
+SELECT
+    g.gestor_id,5,'2026-09-21',
+    CONCAT(N'config/contracts/gestores/',g.codigo,N'/pessoa/v5/pessoa.schema.json'),
+    CASE g.codigo
+      WHEN N'SEHAB' THEN 0xEBE9B8177CA35BEC6FEB8D746854448D697801FAEDCFE7DC8F112C42ADFBBA62
+      WHEN N'SMADS' THEN 0x75407173BCD0F9D6DFB2727BF6044FD7B232AB7D5EDA3B34ADA9473F17C98FCE
+      WHEN N'SMDET' THEN 0x37C34AED6257E700158D11D196A848AA795F10986DA5E19D8A4C422966D0361B
+      WHEN N'SMS' THEN 0x48C10C2B74543E27F12121B9A9B958B5FFD2AEC2EA39641B2420103315D647F1
+    END,
+    N'RASCUNHO',NULL
+FROM ref.gestor g
+WHERE g.codigo IN(N'SEHAB',N'SMADS',N'SMDET',N'SMS')
+  AND NOT EXISTS(
+      SELECT 1 FROM ref.gestor_pessoa_versao v
+      WHERE v.gestor_id=g.gestor_id AND v.versao=5);
 GO
