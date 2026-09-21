@@ -456,7 +456,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                                   WHERE vx.ativo=1 AND vx.status=N'RESOLVIDO'
                                     AND vx.pessoa_uuid=r.pessoa_uuid_resolvido
                                     AND vx.metodo_resolucao IN(
-                                      N'CPF_DETERMINISTICO',N'NIS_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',N'CORRECAO_GOVERNADA'))
+                                      N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',N'CORRECAO_GOVERNADA'))
                    ) THEN 1 ELSE 0 END AS destino_estabelecido
             FROM identidade.linkage_resultado r WITH(UPDLOCK,HOLDLOCK)
             JOIN silver.pessoa_observacao po WITH(HOLDLOCK)
@@ -469,7 +469,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 WHERE vf.pessoa_observacao_id=r.pessoa_observacao_id
                   AND vf.ativo=1
                   AND vf.metodo_resolucao IN(
-                    N'CPF_DETERMINISTICO',N'NIS_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
+                    N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
                     N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO')
                 ORDER BY vf.vinculo_id DESC
             ) protegido
@@ -569,7 +569,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                                WHERE vf.pessoa_observacao_id=r.pessoa_observacao_id
                                  AND vf.ativo=1
                                  AND vf.metodo_resolucao IN(
-                                   N'CPF_DETERMINISTICO',N'NIS_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
+                                   N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
                                    N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO')
                            ) THEN 1 ELSE 0 END AS protegido,
                            ROW_NUMBER() OVER(
@@ -638,7 +638,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                     ON vf.pessoa_observacao_id=r2.pessoa_observacao_id
                    AND vf.ativo=1
                    AND vf.metodo_resolucao IN(
-                     N'CPF_DETERMINISTICO',N'NIS_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
+                     N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
                      N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO')
                   WHERE r2.linkage_run_id=@run_id
                     AND po2.pessoa_origem_id=r.pessoa_origem_id_publicado)
