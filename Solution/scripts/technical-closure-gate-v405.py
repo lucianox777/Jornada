@@ -1169,11 +1169,19 @@ def main() -> None:
         "--deep", "--gc-plan", "bronze-deep-evidence-gate.py", "ORPHAN-DRY-RUN", "gcDryRunPlanPassed",
         "compose exec -T -u 0 sqlserver cat \"/var/opt/mssql/backup/$BACKUP_FILE\" > \"$EVID/$BACKUP_FILE\"",
         "SEED_CANONICAL_SHA=\"8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2\"",
+        "SEED_SEHAB_SHA=\"08befc1b72bbe89348739d0d994b031aa28db85ffc817ab2a2598a0af3583084\"",
+        "SEED_SMADS_SHA=\"52efeb293d001f170549c0bdf4196cf94af375858b96a98a0d486a2ae2f81923\"",
         "printf 'PK\\003\\004' > \"$SEED_CANONICAL_DEST\"",
+        "printf 'PK\\003\\004SEHAB' > \"$SEED_SEHAB_DEST\"",
+        "printf 'PK\\003\\004SMADS' > \"$SEED_SMADS_DEST\"",
         "--minimum-count 1 --deep --report"
     ], "restore Bronze profundo/dry-run")
     require(LOCAL_BACKUP_PS.read_text(encoding="utf-8"), [
-        "--deep", "--gc-plan", "bronze-deep-evidence-gate.py", "JORNADA-ORPHAN-DRY-RUN", "gcDryRunPlanPassed"
+        "--deep", "--gc-plan", "bronze-deep-evidence-gate.py", "JORNADA-ORPHAN-DRY-RUN", "gcDryRunPlanPassed",
+        "8dcc7e601606217f3b754766511182a916b17e9a26a94c9d887104eba92e9bb2",
+        "08befc1b72bbe89348739d0d994b031aa28db85ffc817ab2a2598a0af3583084",
+        "52efeb293d001f170549c0bdf4196cf94af375858b96a98a0d486a2ae2f81923",
+        "[IO.File]::WriteAllBytes"
     ], "restore Bronze profundo/dry-run ps1")
     require(HML_READINESS_GATE.read_text(encoding="utf-8"), ["hml-staleness-gate.py", "calibrationFreshness=PASS"], "readiness HML com expiração")
     require(HML_READINESS_GATE_PS.read_text(encoding="utf-8"), ["hml-staleness-gate.py", "calibrationFreshness=PASS"], "readiness HML ps1 com expiração")
