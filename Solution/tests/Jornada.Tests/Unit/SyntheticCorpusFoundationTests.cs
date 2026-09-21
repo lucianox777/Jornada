@@ -66,9 +66,7 @@ public sealed class SyntheticCorpusFoundationTests
             }
 
             var physical = Convert.ToHexString(await SHA256.HashDataAsync(File.OpenRead(path)));
-            var canonicalText = string.Join("
-", lines) + "
-";
+            var canonicalText = string.Join("\n", lines) + "\n";
             var canonical = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalText)));
             var meta = new IbgeProjectionFile(
                 "projection/fixture.ndjson.gz",
