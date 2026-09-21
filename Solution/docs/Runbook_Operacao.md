@@ -32,8 +32,8 @@ O `Jornada.Operations.Maintenance.Worker` inclui, na v3.53, um **watchdog soment
 6. Executar `GENERATE_DRAFT` após existir corpus suficiente.
 7. Executar `Jornada.Linkage.Conference` para o RASCUNHO usando a tolerância governada congelada; somente `CONFORME` libera a etapa seguinte.
 8. Validar o modelo (`VALIDATE`), que reaplica fail-closed o assert da mesma evidência/método/tolerância.
-8. Ativar (`ACTIVATE`) somente a versão aprovada.
-9. Executar Linkage Runner incremental sobre observações elegíveis sem CPF.
+9. Ativar (`ACTIVATE`) somente a versão aprovada.
+10. Executar Linkage Runner incremental sobre observações elegíveis sem CPF.
 
 ### 3.2 Operação normal
 
