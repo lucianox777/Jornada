@@ -65,6 +65,64 @@ O C# materializa os mesmos três artefatos lógicos da V2 —
 `generation-manifest.json` com versões do gerador/ruleset/PRNG, fingerprint das
 entradas e hashes dos artefatos gerados.
 
+
+## Ponte DEV para ingestão real
+
+O comando `generate-ingestion` gera o corpus C# e, na mesma execução, materializa
+pacotes de cadastro Pessoa no formato real de ingestão. A ponte reutiliza
+`Jornada.Ingestion.DeterministicIngestionZipWriter`; não implementa ZIP paralelo.
+
+Rotas default da massa DEV:
+
+| Gestor sintético | Gestor Jornada | sistema de origem |
+|---|---|---|
+| `G0` | `SEHAB` | `SEHAB` |
+| `G1` | `SMADS` | `ASSISTENCIA` |
+| `G2` | `SMDET` | `TRABALHO` |
+| `G3` | `SMS` | `SAUDE` |
+
+Exemplo:
+
+```bash
+export JORNADA_SYNTH_PSEUDONYMIZATION_KEY='<segredo DEV com pelo menos 16 bytes>'
+
+dotnet run --project Solution/src/Jornada.Linkage.SyntheticCorpus --configuration Release -- \
+  generate-ingestion \
+  --reference-root Solution/data/reference/ibge-nomes-2022 \
+  --out artifacts/synthetic-ingestion \
+  --people 50000 \
+  --seed 42 \
+  --error-profile correlated \
+  --pessoa-schema-versao 4 \
+  --data-referencia 2026-09-21T00:00:00-03:00
+```
+
+A chave HMAC é lida somente de variável de ambiente. O valor não é gravado; somente
+seu SHA-256 é registrado. `idPessoaEntrega` e `codigoPessoaOrigem` recebem um
+pseudônimo HMAC independente da truth. `base_person_id` e o
+`observacao_id` do corpus ficam apenas em `bridge-truth.jsonl`, que é sidecar de
+avaliação e **não pode ser disponibilizado ao scorer/Calibrador**.
+
+A ponte escreve:
+
+- `corpus/`: artefatos do gerador e gabarito;
+- `ingestion/ENTREGA_<GESTOR>_<SISTEMA>_v2_<sha>.zip`: pacotes reais de cadastro;
+- `ingestion/bridge-manifest.json`: rotas, hashes, contagens e política de exclusão;
+- `ingestion/bridge-truth.jsonl`: correspondência privada entre pseudônimo operacional e truth sintética.
+
+### Gap representacional do contrato Pessoa
+
+Pessoa v4 (e o v5 atualmente em RASCUNHO) exige `dataNascimento`, enquanto o
+corpus V2 pode produzir `DATE_MISSING`. A ponte **não inventa data** para fazer a
+linha passar no contrato. Essas observações são registradas no sidecar com
+`EXCLUIDA_CONTRATO_ATIVO_DATA_NASCIMENTO_AUSENTE` e não entram nos ZIPs.
+
+Consequência normativa: toda avaliação posterior sobre dados materializados deve
+usar o subconjunto `MATERIALIZADA` do sidecar e o
+`materializedEmpiricalMExact` do `bridge-manifest.json`. O gap entre corpus
+gerado e corpus representável é evidência do ensaio, não erro a ser escondido.
+
+
 ## Gabarito
 
 `gabarito.json` inclui:
