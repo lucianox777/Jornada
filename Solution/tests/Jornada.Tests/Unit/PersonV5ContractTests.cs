@@ -203,7 +203,8 @@ public sealed class PersonV5ContractTests
             Assert.That(sql, Does.Contain("estado_referencia"));
             Assert.That(sql, Does.Contain("SEM_ENDERECO_FIXO_DECLARADO"));
             Assert.That(sql, Does.Contain("rt.natureza_referencia<>N'INSTITUCIONAL_PRISIONAL'"));
-            Assert.That(sql, Does.Contain("THEN N'RESTRITA'"));
+            Assert.That(sql, Does.Contain("WHERE rt.natureza_referencia IS NULL"));
+            Assert.That(sql, Does.Not.Contain("THEN N'RESTRITA'"));
             Assert.That(sql, Does.Not.Contain("INSERT identidade.identity_map").IgnoreCase);
             Assert.That(sql, Does.Not.Contain("CNH_DETERMINIST").IgnoreCase);
         });
