@@ -715,6 +715,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     permissions:
+      actions: read
       contents: read
       id-token: write
       attestations: write
@@ -760,6 +761,28 @@ jobs:
           fi
           echo "JORNADA_RC_TAG=$rc_tag" >> "$GITHUB_ENV"
           echo "JORNADA_RC_MODE=$rc_mode" >> "$GITHUB_ENV"
+      - name: Require prior successful same-commit RC preflight before tag cut
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          runs_json=$(gh api "/repos/${GH_REPO}/actions/workflows/ci.yml/runs?event=workflow_dispatch&status=success&head_sha=${GITHUB_SHA}&per_page=100")
+          run_ids=$(printf '%s' "$runs_json" | python3 -c 'import json,sys; print(" ".join(str(x["id"]) for x in json.load(sys.stdin).get("workflow_runs", [])))')
+          test -n "$run_ids"
+
+          matched=""
+          for run_id in $run_ids; do
+            jobs_json=$(gh api "/repos/${GH_REPO}/actions/runs/${run_id}/jobs?per_page=100")
+            if printf '%s' "$jobs_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); raise SystemExit(0 if any(j.get("name")=="rc-evidence" and j.get("conclusion")=="success" for j in d.get("jobs", [])) else 1)'; then
+              matched="$run_id"
+              break
+            fi
+          done
+
+          test -n "$matched"
+          echo "Same-commit RC preflight verified: run_id=$matched head=${GITHUB_SHA}"
       - name: Install sqlcmd
         run: |
           set -euo pipefail

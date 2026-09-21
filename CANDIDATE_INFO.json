@@ -32,10 +32,20 @@
       "assembly_version": "5.0.0.0",
       "file_version": "5.0.0.0",
       "source_revision_binding": "DOTNET_SOURCE_REVISION_ID",
-      "cut_rule": "This commit content is eligible to become the immutable technical RC only after engineering CI for the exact commit is green. The external act of creating the tag/pre-release does not rewrite RELEASE_INFO.txt, does not publish a normative release and does not close external gates.",
+      "cut_rule": "This commit content is eligible to become the immutable technical RC only after engineering CI and an explicit workflow_dispatch rc_evidence_preflight=true have both completed successfully for the exact same commit. The external act of creating the tag/pre-release does not rewrite RELEASE_INFO.txt, does not publish a normative release and does not close external gates.",
       "actions_freeze_until_cut": true,
       "release_assets_mutability": "REPLACEABLE_BY_RERUN_WITH_CLOBBER",
-      "digest_authority": "SIGSTORE_ATTESTATION_SUBJECT_DIGESTS"
+      "digest_authority": "SIGSTORE_ATTESTATION_SUBJECT_DIGESTS",
+      "preflight": {
+        "required": true,
+        "trigger": "workflow_dispatch",
+        "input": "rc_evidence_preflight",
+        "required_value": true,
+        "same_commit_required": true,
+        "required_job": "rc-evidence",
+        "required_conclusion": "success",
+        "remote_publish_allowed": false
+      }
     },
     "published_specification": "Documentos/Especificacao_Tecnica_Jornada_v3.62.pdf",
     "published_specification_version": "v3.62",
@@ -57,7 +67,7 @@
     "This manifest describes candidate state only and does not publish or seal a release.",
     "RELEASE_INFO.txt remains the authoritative metadata for the last sealed release.",
     "The candidate binds an ancestor structural checkpoint and schema hashes; .NET SourceRevisionId continues to identify each binary build.",
-    "technical_rc.status describes intrinsic checkpoint content; the existence of the immutable tag/pre-release records the external cut event after exact-commit CI is green.",
+    "technical_rc.status describes intrinsic checkpoint content; the immutable tag/pre-release may only record the external cut event after exact-commit engineering CI and the explicit same-commit rc_evidence_preflight workflow_dispatch are green.",
     "Microsoft SQL Server is the operational relational target for Production; Fabric SQL evidence is historical compatibility evidence and is not a release gate for this candidate."
   ]
 }
