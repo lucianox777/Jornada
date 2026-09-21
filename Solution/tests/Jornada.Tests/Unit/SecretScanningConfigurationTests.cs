@@ -18,8 +18,17 @@ public sealed class SecretScanningConfigurationTests
             Assert.That(config, Does.Contain("[extend]"));
             Assert.That(config, Does.Match(new Regex(@"(?m)^useDefault\s*=\s*true\s*$")));
             Assert.That(config, Does.Not.Contain("[[allowlists]]"),
-                "A configuração inicial não deve silenciar achados por allowlist global.");
+                "A configuração não deve silenciar achados por allowlist global.");
             Assert.That(config, Does.Not.Contain("[allowlist]"));
+            Assert.That(config, Does.Contain("id = \"generic-api-key\""));
+            Assert.That(config, Does.Contain("[[rules.allowlists]]"));
+            Assert.That(config, Does.Contain(@"^Solution/config/security/test-access-keys\.json$"));
+            Assert.That(config, Does.Contain(@"^Solution/scripts/local-e2e\.(sh|ps1)$"));
+            Assert.That(config, Does.Contain(@"^Solution/install/windows-production/Jornada\.Cluster\.Test\.json$"));
+            Assert.That(config, Does.Not.Contain(@"Solution/.*"),
+                "Não permitir exceção ampla de diretório.");
+            Assert.That(config, Does.Not.Contain(@"tests/.*"),
+                "Não permitir exceção ampla de testes.");
         });
     }
 
