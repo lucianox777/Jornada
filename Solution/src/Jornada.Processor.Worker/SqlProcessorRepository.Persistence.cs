@@ -137,7 +137,6 @@ internal sealed partial class SqlProcessorRepository
         ResolutionStatus resolutionStatus;
         ResolutionMethod resolutionMethod;
         string? resolutionReason = null;
-        NisBindingResult? nisBinding = null;
         var jornadaUuid = await ResolveJornadaUuidAsync(connection, tx, identifiers, ct);
         var cpf = string.IsNullOrWhiteSpace(person.Cpf) ? null : CpfRules.NormalizeAndValidate(person.Cpf);
         if (!string.IsNullOrWhiteSpace(person.Cpf) && cpf is null)
@@ -156,13 +155,6 @@ internal sealed partial class SqlProcessorRepository
             resolutionStatus = identity.Status;
             resolutionMethod = identity.MetodoResolucao;
             resolutionReason = identity.Motivo;
-
-            if (uuid.HasValue)
-            {
-                nisBinding = await SqlIdentityMapRepository.ResolveOrBindByNisAsync(
-                    connection, tx, identifiers, uuid,
-                    batch.GestorId, person.CodigoPessoaOrigem, ct);
-            }
         }
         else if (jornadaUuid?.Canonico is Guid canonicalUuid)
         {
@@ -172,10 +164,6 @@ internal sealed partial class SqlProcessorRepository
             resolutionReason = jornadaUuid.Recebido == canonicalUuid
                 ? "UUID_JORNADA_CONFIRMADO"
                 : "UUID_JORNADA_REDIRECIONADO";
-
-            nisBinding = await SqlIdentityMapRepository.ResolveOrBindByNisAsync(
-                connection, tx, identifiers, uuid,
-                batch.GestorId, person.CodigoPessoaOrigem, ct);
         }
         else if (jornadaUuid is not null)
         {
@@ -185,25 +173,9 @@ internal sealed partial class SqlProcessorRepository
         }
         else
         {
-            nisBinding = await SqlIdentityMapRepository.ResolveOrBindByNisAsync(
-                connection, tx, identifiers, null,
-                batch.GestorId, person.CodigoPessoaOrigem, ct);
-
-            if (nisBinding is not null)
-            {
-                uuid = nisBinding.PessoaUuid;
-                resolutionStatus = nisBinding.Conflict
-                    ? ResolutionStatus.CONFLITO
-                    : ResolutionStatus.RESOLVIDO;
-                resolutionMethod = ResolutionMethod.NIS_DETERMINISTICO;
-                resolutionReason = nisBinding.Motivo;
-            }
-            else
-            {
-                resolutionStatus = ResolutionStatus.NAO_RESOLVIDO;
-                resolutionMethod = ResolutionMethod.PENDENTE_PROBABILISTICO;
-                resolutionReason = "AGUARDA_LINKAGE_SOB_DEMANDA";
-            }
+            resolutionStatus = ResolutionStatus.NAO_RESOLVIDO;
+            resolutionMethod = ResolutionMethod.PENDENTE_PROBABILISTICO;
+            resolutionReason = "AGUARDA_LINKAGE_SOB_DEMANDA";
         }
 
         await PersistPersonIdentifiersAsync(connection, tx, observationId, identifiers, origin, jornadaUuid, ct);
@@ -227,13 +199,6 @@ internal sealed partial class SqlProcessorRepository
 
         if (resolutionStatus == ResolutionStatus.CONFLITO)
             await RecordIdentityDivergenceAsync(connection, tx, batch.GestorId, observationId, person.CodigoPessoaOrigem, resolutionReason ?? "CONFLITO_IDENTIDADE", ct);
-
-        if (nisBinding?.Conflict == true && resolutionStatus != ResolutionStatus.CONFLITO)
-        {
-            await RecordIdentityDivergenceAsync(
-                connection, tx, batch.GestorId, observationId, person.CodigoPessoaOrigem,
-                nisBinding.Motivo ?? "NIS_CONFLITO_IDENTIDADE", ct);
-        }
 
         if (cpf is not null && uuid.HasValue && jornadaUuid is not null
             && (!jornadaUuid.Canonico.HasValue || jornadaUuid.Canonico.Value != uuid.Value))
