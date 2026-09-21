@@ -9,10 +9,11 @@ public sealed record IdentityResolutionAttributeValue(string AttributeCode, stri
 
 /// <summary>
 /// Observação mínima de identidade usada internamente pelo Processor.
-/// CPF válido é a rota determinística normal. Os demais atributos são usados para
-/// qualidade/corroboração, para sinalizar inconsistências globais do identificador quando
-/// o mesmo CPF aparece com núcleos fortemente incompatíveis e, quando o CPF estiver ausente
-/// em hipótese admitida, pelo fallback probabilístico. Nome da mãe é evidência opcional:
+/// CPF válido é a rota determinística externa principal. NIS comprovado e estruturalmente
+/// válido pode resolver como âncora secundária quando CPF não resolve e não existe UUID_JORNADA
+/// canônico prioritário. Demais atributos são usados para qualidade/corroboração e, quando as
+/// âncoras determinísticas não resolvem em hipótese admitida, pelo fallback probabilístico.
+/// Nome da mãe é evidência opcional:
 /// sua ausência não invalida a observação nem autoriza preenchimento sintético.
 /// </summary>
 public sealed record IdentityObservation(
