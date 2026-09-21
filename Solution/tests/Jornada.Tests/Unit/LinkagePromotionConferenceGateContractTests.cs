@@ -98,6 +98,7 @@ public sealed class LinkagePromotionConferenceGateContractTests
                 Is.GreaterThanOrEqualTo(0));
             Assert.That(windows.IndexOf("Invoke-Parameters 'VALIDATE'", StringComparison.Ordinal),
                 Is.GreaterThan(windows.IndexOf("Linkage Conference:", StringComparison.Ordinal)));
+            Assert.That(windows, Does.Not.Contain("--connection-string $connectionString"));
 
             Assert.That(local.IndexOf("/Jornada.Linkage.Conference/", StringComparison.Ordinal),
                 Is.GreaterThanOrEqualTo(0));
