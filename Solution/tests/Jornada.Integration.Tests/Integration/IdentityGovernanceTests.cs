@@ -139,9 +139,9 @@ public sealed class IdentityGovernanceTests
             {
                 addIdentifier.Transaction = tx;
                 addIdentifier.CommandText = """
-                    IF NOT EXISTS(SELECT 1 FROM identidade.identity_map WHERE tipo='NIS' AND identificador='12000000004' AND vigencia_fim IS NULL)
+                    IF NOT EXISTS(SELECT 1 FROM identidade.identity_map WHERE tipo='NIS' AND identificador='12345678901' AND vigencia_fim IS NULL)
                     INSERT identidade.identity_map(pessoa_uuid,tipo,identificador,vigencia_inicio,metodo_resolucao,estado,estado_motivo,estado_em)
-                    VALUES(@absorbed,'NIS','12000000004',SYSDATETIMEOFFSET(),'CORRECAO_GOVERNADA','ATIVO','TESTE_FUSAO',SYSDATETIMEOFFSET());
+                    VALUES(@absorbed,'NIS','12345678901',SYSDATETIMEOFFSET(),'CORRECAO_GOVERNADA','ATIVO','TESTE_FUSAO',SYSDATETIMEOFFSET());
                     """;
                 addIdentifier.Parameters.AddWithValue("@absorbed", absorbed);
                 await addIdentifier.ExecuteNonQueryAsync();
@@ -193,7 +193,7 @@ public sealed class IdentityGovernanceTests
                   (SELECT COUNT(*) FROM identidade.pessoa WHERE pessoa_uuid=@absorbed AND status='FUNDIDO' AND pessoa_uuid_sucessor=@canonical),
                   CASE WHEN identidade.fn_pessoa_uuid_canonico(@absorbed)=@canonical THEN 1 ELSE 0 END,
                   (SELECT COUNT(*) FROM identidade.v_vinculo_corrente WHERE pessoa_observacao_id IN (SELECT value FROM OPENJSON(@obs)) AND status='RESOLVIDO' AND pessoa_uuid=@canonical),
-                  (SELECT COUNT(*) FROM identidade.identity_map WHERE tipo='NIS' AND identificador='12000000004' AND pessoa_uuid=@canonical AND vigencia_fim IS NULL AND estado='ATIVO'),
+                  (SELECT COUNT(*) FROM identidade.identity_map WHERE tipo='NIS' AND identificador='12345678901' AND pessoa_uuid=@canonical AND vigencia_fim IS NULL AND estado='ATIVO'),
                   (SELECT COUNT(*) FROM identidade.identity_map WHERE pessoa_uuid=@absorbed AND vigencia_fim IS NULL),
                   (SELECT COUNT(*) FROM gold.pessoa WHERE pessoa_uuid=@absorbed),
                   (SELECT COUNT(*) FROM identidade.caso_conflito_identidade WHERE caso_id=@case AND status='APLICADO'),
