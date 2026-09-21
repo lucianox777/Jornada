@@ -51,6 +51,7 @@ internal sealed record BronzeMaintenanceStatus(
 
 internal sealed record LinkageRunStatus(
     Guid RunId,
+    Guid ModelId,
     string RunType,
     string Status,
     int ModelVersion,
@@ -88,6 +89,31 @@ internal sealed record LinkageModelTransitionStatus(
     string ExecutorApplication,
     DateTimeOffset OccurredAt);
 
+internal sealed record LinkageConferenceGovernanceStatus(
+    string Status,
+    Guid? EvidenceId,
+    int? ModelVersion,
+    string? MethodVersion,
+    string? Scope,
+    string? ToleranceVersion,
+    int? CandidatesEvaluated,
+    bool? SameFinalDecision,
+    bool? SameTop1,
+    bool? SnapshotCurrent,
+    DateTimeOffset? OccurredAt,
+    string StatisticalValidation,
+    string RoundTripMethod,
+    string RoundTripStatus);
+
+internal sealed record LinkageBlockingPassSupportStatus(
+    int PassOrder,
+    string PassId,
+    long SampleSize,
+    long MotherNamePresentSupport,
+    long MinimumRequiredPerPass,
+    bool NameSufficient,
+    bool MotherNameSufficient);
+
 internal sealed record ConfigurationBundleHealthStatus(
     string Status,
     string? ExpectedBundleVersion,
@@ -107,6 +133,8 @@ internal sealed record OperationalMonitorSnapshot(
     IReadOnlyList<RecentDeliveryStatus> RecentDeliveries,
     BronzeMaintenanceStatus? BronzeMaintenance,
     LinkageModelGovernanceStatus LinkageModelGovernance,
+    LinkageConferenceGovernanceStatus LinkageConferenceGovernance,
+    IReadOnlyList<LinkageBlockingPassSupportStatus> LinkageBlockingPassSupport,
     IReadOnlyList<LinkageModelTransitionStatus> LinkageModelTransitions,
     IReadOnlyList<LinkageRunStatus> LinkageRuns);
 
@@ -146,11 +174,21 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             FROM controle.bronze_manutencao_ciclo
             ORDER BY finalizado_em DESC,ciclo_id DESC;
 
-            SELECT TOP(5) linkage_run_id,tipo_run,status,modelo_versao,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,iniciado_em,finalizado_em
+            SELECT TOP(5) linkage_run_id,modelo_id,tipo_run,status,modelo_versao,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,iniciado_em,finalizado_em
             FROM identidade.linkage_run
             ORDER BY iniciado_em DESC,linkage_run_id DESC;
 
             DECLARE @active_model_count INT=(SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO');
+            DECLARE @active_model_id UNIQUEIDENTIFIER=(
+                SELECT TOP(1) modelo_id
+                FROM identidade.modelo_linkage
+                WHERE status=N'ATIVO'
+                ORDER BY versao DESC);
+            DECLARE @active_model_snapshot_sha256 BINARY(32)=NULL;
+            IF @active_model_id IS NOT NULL
+                EXEC auditoria.sp_calcular_fingerprint_modelo_linkage
+                    @modelo_id=@active_model_id,
+                    @fingerprint=@active_model_snapshot_sha256 OUTPUT;
             SELECT
                 @active_model_count active_model_count,
                 m.modelo_id,m.versao,m.algoritmo_versao,m.normalizacao_versao,m.gerado_em,m.ativado_em,
@@ -170,8 +208,7 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             LEFT JOIN (
                 SELECT TOP(1) *
                 FROM identidade.modelo_linkage
-                WHERE status=N'ATIVO'
-                ORDER BY versao DESC
+                WHERE modelo_id=@active_model_id
             ) m ON 1=1
             LEFT JOIN ref.frequencia_nome_versao v
               ON v.frequencia_nome_versao_id=m.frequencia_nome_versao_id
@@ -190,6 +227,59 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
                 operacao_codigo,motivo,executor_aplicacao,ocorrido_em
             FROM auditoria.modelo_linkage_estado_evento
             ORDER BY modelo_linkage_estado_evento_id DESC;
+
+            SELECT TOP(1)
+                evidencia_id,modelo_versao,metodo_versao,escopo,tolerancia_versao,status,
+                candidatos_avaliados,mesma_decisao_final,mesmo_top1,
+                CASE WHEN modelo_snapshot_sha256=@active_model_snapshot_sha256 THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END snapshot_current,
+                validacao_estatistica,ocorrido_em
+            FROM auditoria.linkage_conferencia_evidencia
+            WHERE modelo_id=@active_model_id
+            ORDER BY linkage_conferencia_evidencia_id DESC;
+
+            ;WITH active_ruleset AS (
+                SELECT TOP(1) ruleset_id
+                FROM identidade.linkage_ruleset
+                WHERE modelo_id=@active_model_id
+                ORDER BY ruleset_id
+            ),
+            min_support AS (
+                SELECT CONVERT(BIGINT,COALESCE(MAX(CASE
+                    WHEN nome=N'NOMINAL_U_MIN_CONDITIONED_PAIRS_PER_PASS' THEN valor END),0)) minimo
+                FROM identidade.parametro_linkage
+                WHERE modelo_id=@active_model_id
+            )
+            SELECT
+                rp.passe_ordem+1 passe_ordem_exibida,
+                rp.passe_id,
+                CONVERT(BIGINT,COALESCE(MAX(CASE WHEN p.nome=
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_SAMPLE_SIZE'
+                    THEN p.valor END),0)) sample_size,
+                CONVERT(BIGINT,COALESCE(SUM(CASE WHEN p.nome IN(
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_EXACT',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_HIGH',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_MEDIUM',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_LOW')
+                    THEN p.valor ELSE 0 END),0)) mother_present_support,
+                ms.minimo,
+                CAST(CASE WHEN COALESCE(MAX(CASE WHEN p.nome=
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_SAMPLE_SIZE'
+                    THEN p.valor END),0)>=ms.minimo AND ms.minimo>0 THEN 1 ELSE 0 END AS BIT) name_sufficient,
+                CAST(CASE WHEN COALESCE(SUM(CASE WHEN p.nome IN(
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_EXACT',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_HIGH',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_MEDIUM',
+                    N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_NOME_MAE_LOW')
+                    THEN p.valor ELSE 0 END),0)>=ms.minimo AND ms.minimo>0 THEN 1 ELSE 0 END AS BIT) mother_sufficient
+            FROM active_ruleset ar
+            JOIN identidade.linkage_ruleset_passe rp ON rp.ruleset_id=ar.ruleset_id
+            CROSS JOIN min_support ms
+            LEFT JOIN identidade.parametro_linkage p
+              ON p.modelo_id=@active_model_id
+             AND LEFT(p.nome,LEN(N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_'))=
+                 N'BLOCKING_PASS_U_'+RIGHT(N'00'+CONVERT(NVARCHAR(10),rp.passe_ordem+1),2)+N'_'
+            GROUP BY rp.passe_ordem,rp.passe_id,ms.minimo
+            ORDER BY rp.passe_ordem;
 
             SELECT CONVERT(NVARCHAR(32),(
                 SELECT value
@@ -210,6 +300,12 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             "SEM_MODELO_ATIVO", 0, null, null, null, null, null, null, null, null,
             "NAO_DECLARADO", "NAO_DECLARADO", "PENDENTE_ISSUE_31");
         var modelTransitions = new List<LinkageModelTransitionStatus>();
+        var blockingPassSupport = new List<LinkageBlockingPassSupportStatus>();
+        LinkageConferenceGovernanceStatus conferenceGovernance = new(
+            "SEM_MODELO_ATIVO", null, null, null, null, null, null, null, null, null, null,
+            "PENDENTE_ISSUE_31",
+            "JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1",
+            "OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO");
         string? databaseSolutionSchema = null;
 
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -262,8 +358,8 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
         while (await reader.ReadAsync(ct))
         {
             linkageRuns.Add(new LinkageRunStatus(
-                reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetInt32(3), reader.GetInt64(4), reader.GetInt64(5),
-                reader.GetInt64(6), reader.GetInt64(7), reader.GetInt64(8), ReadDateTimeOffset(reader, 9), ReadNullableDateTimeOffset(reader, 10)));
+                reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4), reader.GetInt64(5),
+                reader.GetInt64(6), reader.GetInt64(7), reader.GetInt64(8), reader.GetInt64(9), ReadDateTimeOffset(reader, 10), ReadNullableDateTimeOffset(reader, 11)));
         }
 
         await reader.NextResultAsync(ct);
@@ -303,6 +399,45 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
         }
 
         await reader.NextResultAsync(ct);
+        if (await reader.ReadAsync(ct))
+        {
+            conferenceGovernance = new LinkageConferenceGovernanceStatus(
+                reader.GetString(5),
+                reader.GetGuid(0),
+                reader.GetInt32(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                reader.GetString(4),
+                reader.GetInt32(6),
+                reader.GetBoolean(7),
+                reader.GetBoolean(8),
+                reader.GetBoolean(9),
+                ReadDateTimeOffset(reader, 11),
+                reader.GetString(10) == "NOT_ASSESSED_ISSUE_31"
+                    ? "PENDENTE_ISSUE_31"
+                    : reader.GetString(10),
+                "JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1",
+                "OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO");
+        }
+        else if (modelGovernance.ModelId is not null)
+        {
+            conferenceGovernance = conferenceGovernance with { Status = "SEM_EVIDENCIA_MODELO_ATIVO" };
+        }
+
+        await reader.NextResultAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            blockingPassSupport.Add(new LinkageBlockingPassSupportStatus(
+                reader.GetInt32(0),
+                reader.GetString(1),
+                reader.GetInt64(2),
+                reader.GetInt64(3),
+                reader.GetInt64(4),
+                reader.GetBoolean(5),
+                reader.GetBoolean(6)));
+        }
+
+        await reader.NextResultAsync(ct);
         if (await reader.ReadAsync(ct) && !reader.IsDBNull(0))
             databaseSolutionSchema = reader.GetString(0);
 
@@ -326,6 +461,8 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             deliveries,
             bronze,
             modelGovernance,
+            conferenceGovernance,
+            blockingPassSupport,
             modelTransitions,
             linkageRuns);
     }

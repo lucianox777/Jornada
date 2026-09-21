@@ -116,3 +116,14 @@ O corpus corrente contém **7 cenários e 208 candidatos sintéticos**: matriz c
 O hash do request e do relatório inclui o fingerprint do snapshot do modelo. Rerun byte-a-byte idêntico é idempotente e retorna o mesmo `evidencia_id`; mesmo hash com request/snapshot incompatível é recusado fail-closed.
 
 A configuração governada continua com `toleranceVersion=UNFROZEN`, status `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION` e valor nulo. Portanto o comando existe, mas uma execução governada real continua bloqueada até o congelamento explícito da tolerância.
+
+
+## Exposição no monitor operacional
+
+O `/monitor` exibe a última evidência agregada persistida para o modelo ATIVO, sem expor o valor numérico da tolerância, threshold ou margem. O painel mantém separadas três noções:
+
+- conferência de implementação: evidência persistida por modelo;
+- round-trip C# do formato: obrigatório no export, porém não persistido por modelo;
+- validação estatística representativa: `PENDENTE_ISSUE_31`.
+
+A ausência de evidência da conferência para o modelo ATIVO é exibida como `SEM_EVIDENCIA_MODELO_ATIVO`, e não como sucesso implícito.

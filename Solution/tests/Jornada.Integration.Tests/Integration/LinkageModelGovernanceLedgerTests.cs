@@ -35,6 +35,71 @@ public sealed class LinkageModelGovernanceLedgerTests
             await insert.ExecuteNonQueryAsync();
         }
 
+        await using (var blockingSupport = connection.CreateCommand())
+        {
+            blockingSupport.CommandText = """
+                INSERT identidade.linkage_ruleset(
+                    ruleset_id,modelo_id,ruleset_versao,algoritmo_versao,fingerprint_sha256)
+                VALUES(
+                    @id,@id,N'TEST_RULESET_V1',N'TEST_GOVERNANCE_V1',
+                    REPLICATE('a',64));
+
+                INSERT identidade.linkage_ruleset_passe(
+                    ruleset_id,passe_ordem,passe_id)
+                VALUES(@id,0,N'P001');
+
+                INSERT identidade.parametro_linkage(modelo_id,nome,valor)
+                VALUES
+                    (@id,N'NOMINAL_U_MIN_CONDITIONED_PAIRS_PER_PASS',1000),
+                    (@id,N'BLOCKING_PASS_U_01_SAMPLE_SIZE',1500),
+                    (@id,N'BLOCKING_PASS_U_01_NOME_MAE_EXACT',400),
+                    (@id,N'BLOCKING_PASS_U_01_NOME_MAE_HIGH',300),
+                    (@id,N'BLOCKING_PASS_U_01_NOME_MAE_MEDIUM',200),
+                    (@id,N'BLOCKING_PASS_U_01_NOME_MAE_LOW',150);
+                """;
+            blockingSupport.Parameters.AddWithValue("@id", modelId);
+            await blockingSupport.ExecuteNonQueryAsync();
+        }
+
+        await using (var conference = connection.CreateCommand())
+        {
+            conference.CommandText = """
+                EXEC sys.sp_set_session_context
+                    @key=N'Jornada.SourceRevision',
+                    @value=N'TEST_MONITOR_CONFERENCE_V1';
+
+                DECLARE @e UNIQUEIDENTIFIER;
+                DECLARE @request_sha256 BINARY(32)=HASHBYTES(
+                    'SHA2_256',
+                    CONCAT(N'monitor-request-',CONVERT(NVARCHAR(36),@id)));
+                DECLARE @report_sha256 BINARY(32)=HASHBYTES(
+                    'SHA2_256',
+                    CONCAT(N'monitor-report-',CONVERT(NVARCHAR(36),@id)));
+                EXEC auditoria.sp_registrar_conferencia_linkage
+                    @modelo_id=@id,
+                    @modelo_versao=@versao,
+                    @metodo_versao=N'JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1',
+                    @escopo=N'SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE',
+                    @tolerancia_versao=N'TEST_ONLY_FROZEN_MONITOR_V1',
+                    @max_llr_par_permitido=0.000001,
+                    @status=N'CONFORME',
+                    @candidatos_avaliados=208,
+                    @max_llr_par_observado=0.0000001,
+                    @max_log_odds_observado=0.0000001,
+                    @mesma_decisao_final=1,
+                    @mesmo_top1=1,
+                    @spearman=1,
+                    @motivo=NULL,
+                    @validacao_estatistica=N'NOT_ASSESSED_ISSUE_31',
+                    @request_sha256=@request_sha256,
+                    @report_sha256=@report_sha256,
+                    @evidencia_id=@e OUTPUT;
+                """;
+            conference.Parameters.AddWithValue("@id", modelId);
+            conference.Parameters.AddWithValue("@versao", version);
+            await conference.ExecuteNonQueryAsync();
+        }
+
         await using (var validate = connection.CreateCommand())
         {
             validate.CommandText = "UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@id;";
@@ -103,6 +168,30 @@ public sealed class LinkageModelGovernanceLedgerTests
             Assert.That(monitor.LinkageModelGovernance.ModelVersion, Is.EqualTo(version));
             Assert.That(monitor.LinkageModelGovernance.AlgorithmVersion, Is.EqualTo("TEST_GOVERNANCE_V1"));
             Assert.That(monitor.LinkageModelGovernance.StatisticalValidation, Is.EqualTo("PENDENTE_ISSUE_31"));
+            Assert.That(monitor.LinkageConferenceGovernance.Status, Is.EqualTo("CONFORME"));
+            Assert.That(monitor.LinkageConferenceGovernance.ModelVersion, Is.EqualTo(version));
+            Assert.That(monitor.LinkageConferenceGovernance.MethodVersion,
+                Is.EqualTo("JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1"));
+            Assert.That(monitor.LinkageConferenceGovernance.ToleranceVersion,
+                Is.EqualTo("TEST_ONLY_FROZEN_MONITOR_V1"));
+            Assert.That(monitor.LinkageConferenceGovernance.CandidatesEvaluated, Is.EqualTo(208));
+            Assert.That(monitor.LinkageConferenceGovernance.SameFinalDecision, Is.True);
+            Assert.That(monitor.LinkageConferenceGovernance.SameTop1, Is.True);
+            Assert.That(monitor.LinkageConferenceGovernance.SnapshotCurrent, Is.True);
+            Assert.That(monitor.LinkageConferenceGovernance.StatisticalValidation,
+                Is.EqualTo("PENDENTE_ISSUE_31"));
+            Assert.That(monitor.LinkageConferenceGovernance.RoundTripMethod,
+                Is.EqualTo("JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1"));
+            Assert.That(monitor.LinkageConferenceGovernance.RoundTripStatus,
+                Is.EqualTo("OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO"));
+            Assert.That(monitor.LinkageBlockingPassSupport, Has.Count.EqualTo(1));
+            Assert.That(monitor.LinkageBlockingPassSupport[0].PassOrder, Is.EqualTo(1));
+            Assert.That(monitor.LinkageBlockingPassSupport[0].PassId, Is.EqualTo("P001"));
+            Assert.That(monitor.LinkageBlockingPassSupport[0].SampleSize, Is.EqualTo(1500));
+            Assert.That(monitor.LinkageBlockingPassSupport[0].MotherNamePresentSupport, Is.EqualTo(1050));
+            Assert.That(monitor.LinkageBlockingPassSupport[0].MinimumRequiredPerPass, Is.EqualTo(1000));
+            Assert.That(monitor.LinkageBlockingPassSupport[0].NameSufficient, Is.True);
+            Assert.That(monitor.LinkageBlockingPassSupport[0].MotherNameSufficient, Is.True);
             Assert.That(monitor.LinkageModelTransitions.Any(x =>
                 x.ModelId == modelId && x.Operation == "ACTIVATE" && x.NewStatus == "ATIVO"), Is.True);
         });

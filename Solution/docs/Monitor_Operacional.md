@@ -154,3 +154,34 @@ A trilha de transição é append-only e registra executor **técnico** (aplica�
 Esta fatia deliberadamente **não expõe T_LINKAGE, margem ou outros parâmetros sensíveis no monitor**. A política de quem pode enxergar esses valores em HML/PRD depende das issues #378/#379. A promoção continua sem rota de mutação no `/monitor`.
 
 A promoção de um modelo vale para execuções futuras. Runs e vínculos históricos continuam associados ao modelo que efetivamente os decidiu e não são recalculados automaticamente.
+
+
+### Conferência, round-trip e validação estatística
+
+O bloco de governança do Linkage apresenta evidências com semânticas separadas:
+
+- **Conferência de implementação**: última linha persistida em `auditoria.linkage_conferencia_evidencia` para o `modelo_id` ATIVO. O painel mostra status, método, versão da tolerância, instante, quantidade agregada de candidatos sintéticos e os diagnósticos `sameFinalDecision`/`sameTop1`. O fingerprint do snapshot decisório é recalculado e comparado com o registrado na evidência; o painel mostra `ATUAL` ou `OBSOLETA`. O valor numérico da tolerância, threshold e margem não são expostos.
+- **Round-trip do formato**: contrato `JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1`, executado obrigatoriamente quando ocorre o export de auditoria. Como o resultado desse round-trip não é persistido por modelo, o monitor exibe `OBRIGATORIO_NO_EXPORT_NAO_PERSISTIDO`; isso não deve ser lido como evidência `CONFORME`.
+- **Validação estatística representativa**: permanece `PENDENTE_ISSUE_31` até a avaliação externa/representativa correspondente.
+
+Se o modelo ATIVO não possuir evidência de conferência persistida, o estado mostrado é `SEM_EVIDENCIA_MODELO_ATIVO`. O monitor é read-only: nenhuma dessas informações cria rota de ativação, validação ou promoção.
+
+
+### Identidade do modelo por execução
+
+Cada execução de Linkage exibe seu próprio `modelo_id` e `modelo_versao` vindos de `identidade.linkage_run`. O painel não atribui a runs históricos o modelo que estiver ATIVO no momento da consulta.
+
+Não existe ainda uma política de expiração temporal da evidência de conferência; por isso o monitor não inventa um SLA de frescor por idade. A validade exibida nesta etapa é estrutural, baseada no fingerprint do snapshot do modelo.
+
+
+#### Suporte condicionado por passe
+
+Para o modelo ATIVO, o monitor lê os parâmetros `BLOCKING_PASS_U_XX_*` e o ruleset fixado no modelo. Para cada passe exibe:
+
+- identificador/ordem do passe (exibição 1-based; `passe_ordem=0` corresponde a `BLOCKING_PASS_U_01_*`);
+- tamanho da amostra u condicionada;
+- suporte de nome da mãe presente;
+- mínimo por passe persistido em `NOMINAL_U_MIN_CONDITIONED_PAIRS_PER_PASS`;
+- suficiência separada para nome e nome da mãe.
+
+Esses valores são suporte/proveniência do universo de blocking. Não são score, threshold ou margem e não autorizam promoção.
