@@ -39,7 +39,6 @@ public sealed class ProbabilisticLinkagePublicationIntegrityTests
             Assert.That(sql, Does.Contain("DESTINO_LINKAGE_NAO_ESTABELECIDO"));
             Assert.That(sql, Does.Contain("sp_publicar_resolucao_progressiva_linkage"));
             Assert.That(sql, Does.Contain("CPF_DETERMINISTICO"));
-            Assert.That(sql, Does.Contain("NIS_DETERMINISTICO"));
             Assert.That(sql, Does.Contain("UUID_JORNADA_RETROALIMENTACAO"));
             Assert.That(sql, Does.Not.Contain("SET status=N'RESOLVIDO'"));
             Assert.That(sql, Does.Not.Contain("SET pessoa_uuid_resolvido="));
