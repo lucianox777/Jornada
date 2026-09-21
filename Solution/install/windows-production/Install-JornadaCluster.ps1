@@ -167,8 +167,6 @@ function Convert-TaskForNode($Task, $Config, $Node, [string]$RuntimeEnvironment)
     $environment['JORNADA_NODE_ID'] = [string]$Node.id
     $environment['JORNADA_CONFIGURATION_BUNDLE_VERSION'] = [string]$Config.configurationBundleVersion
     $environment['JORNADA_SOLUTION_SCHEMA_VERSION'] = [string]$Config.solutionSchema
-    $environment['LinkageParameters__ConferenceToleranceConfigPath'] =
-        Join-Path $InstallRoot 'config\linkage\implementation-conference-tolerance.json'
 
     return [ordered]@{
         name = [string]$Task.name
@@ -197,6 +195,8 @@ function New-ManualRuntime($Config, $Node, [string]$InstallRoot, [string]$Runtim
     $environment['JORNADA_NODE_ID'] = [string]$Node.id
     $environment['JORNADA_CONFIGURATION_BUNDLE_VERSION'] = [string]$Config.configurationBundleVersion
     $environment['JORNADA_SOLUTION_SCHEMA_VERSION'] = [string]$Config.solutionSchema
+    $environment['LinkageParameters__ConferenceToleranceConfigPath'] =
+        Join-Path $InstallRoot 'config\linkage\implementation-conference-tolerance.json'
 
     return [ordered]@{
         schemaVersion = 1
