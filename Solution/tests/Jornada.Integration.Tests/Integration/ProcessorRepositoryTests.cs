@@ -1112,6 +1112,67 @@ public sealed class ProcessorRepositoryTests
     }
 
     [Test]
+    public async Task Declared_nis_without_cpf_is_preserved_but_does_not_resolve_identity()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+        var repository = CreateRepository(connectionString);
+        const string nis = "12000000004";
+
+        await CreatePendingFactualBatchCloneAsync(connectionString, "NIS-DECLARED-ONLY");
+        var batch = await repository.ReserveNextAsync(CancellationToken.None);
+        Assert.That(batch, Is.Not.Null);
+
+        var identifier = new ParsedPersonIdentifier(
+            "NIS", "NIS", nis, nis,
+            null, null, "DECLARADO", null, null, false);
+        var person = new ParsedPerson(
+            "NIS-DECLARED-P", "NIS-DECLARED-P", new string('5', 64), "TX-NIS-DECLARED",
+            null, "SEM_CPF", "Pessoa NIS Declarada", new DateOnly(1992, 3, 4), "Mae NIS Declarada",
+            [], [], [identifier]);
+        var manifest = new IngestionPackageManifest(
+            2, batch!.PessoaSchemaVersao, batch.CodigoSistemaOrigem,
+            batch.Natureza, batch.CodigoTipo, batch.TipoVersao, batch.DataReferencia);
+
+        await repository.PersistValidatedAsync(
+            batch, new ParsedPackage(manifest, [person], []), CancellationToken.None);
+
+        await using var verify = new SqlConnection(connectionString);
+        await verify.OpenAsync();
+        await using var query = verify.CreateCommand();
+        query.CommandText = """
+            SELECT
+              vf.status,vf.metodo_resolucao,vf.pessoa_uuid,
+              i.status_validacao,
+              (SELECT COUNT(*) FROM identidade.identity_map
+                WHERE tipo='NIS' AND identificador=@nis AND vigencia_fim IS NULL),
+              q.nis_classificacao,q.nis_problema
+            FROM silver.pessoa_observacao po
+            JOIN identidade.v_vinculo_corrente vf ON vf.pessoa_observacao_id=po.pessoa_observacao_id
+            JOIN silver.pessoa_identificador_observacao i
+              ON i.pessoa_observacao_id=po.pessoa_observacao_id
+             AND i.tipo_identificador_codigo='NIS'
+            JOIN serving.v_bi_qualidade_identidade_origem q
+              ON q.pessoa_observacao_id=po.pessoa_observacao_id
+            WHERE po.id_pessoa_entrega='NIS-DECLARED-P';
+            """;
+        query.Parameters.AddWithValue("@nis", nis);
+        await using var reader = await query.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.GetString(0), Is.EqualTo("NAO_RESOLVIDO"));
+            Assert.That(reader.GetString(1), Is.EqualTo("PENDENTE_PROBABILISTICO"));
+            Assert.That(reader.IsDBNull(2), Is.True);
+            Assert.That(reader.GetString(3), Is.EqualTo("NAO_VALIDADO"),
+                "Formato válido sem evidência comprovada não autoriza resolução determinística.");
+            Assert.That(reader.GetInt32(4), Is.Zero, "NIS meramente declarado não cria identity_map.");
+            Assert.That(reader.GetString(5), Is.EqualTo("NIS_DECLARADO_NAO_COMPROVADO"));
+            Assert.That(reader.GetInt32(6), Is.Zero, "Ausência de comprovação não é, por si só, problema de qualidade.");
+        });
+    }
+
+    [Test]
     public async Task Proven_nis_without_cpf_resolves_and_reuses_secondary_anchor()
     {
         var connectionString = RequireIntegrationConnection();
@@ -1167,7 +1228,7 @@ public sealed class ProcessorRepositoryTests
                   AND i.tipo_identificador_codigo='NIS'
                   AND i.valor_normalizado=@nis
                   AND i.status_validacao='VALIDO'),
-              (SELECT COUNT(*) FROM serving.v_bi_nis_qualidade q
+              (SELECT COUNT(*) FROM serving.v_bi_qualidade_identidade_origem q
                  JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=q.pessoa_observacao_id
                 WHERE po.id_pessoa_entrega IN('NIS-P-A','NIS-P-B')
                   AND q.nis_classificacao='NIS_VALIDO_COMPROVADO'
@@ -1240,7 +1301,7 @@ public sealed class ProcessorRepositoryTests
                 WHERE d.pessoa_observacao_id=po.pessoa_observacao_id
                   AND d.status='ABERTA'
                   AND d.motivo='NIS_CONTRADIZ_ANCORA_PRIORITARIA'),
-              (SELECT TOP(1) nis_classificacao FROM serving.v_bi_nis_qualidade q
+              (SELECT TOP(1) nis_classificacao FROM serving.v_bi_qualidade_identidade_origem q
                 WHERE q.pessoa_observacao_id=po.pessoa_observacao_id)
             FROM silver.pessoa_observacao po
             JOIN identidade.v_vinculo_corrente vf ON vf.pessoa_observacao_id=po.pessoa_observacao_id
