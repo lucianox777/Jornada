@@ -123,7 +123,7 @@ internal sealed partial class SqlProcessorRepository
             insert.Parameters.AddWithValue("@versao", internalVersion);
             insert.Parameters.Add(new SqlParameter("@hash", SqlDbType.Char, 64) { Value = person.ConteudoHash });
             AddNullable(insert, "@cpf", SqlDbType.Char, 11, person.Cpf);
-            AddNullable(insert, "@cpf_motivo", SqlDbType.NVarChar, 30, person.CpfAusenteMotivo);
+            AddNullable(insert, "@cpf_motivo", SqlDbType.NVarChar, 50, person.CpfAusenteMotivo);
             AddNullable(insert, "@nome", SqlDbType.NVarChar, 500, person.NomeCompleto);
             AddNullable(insert, "@nome_cmp", SqlDbType.NVarChar, 500, nomeCmp);
             AddNullableDate(insert, "@nascimento", person.DataNascimento);
