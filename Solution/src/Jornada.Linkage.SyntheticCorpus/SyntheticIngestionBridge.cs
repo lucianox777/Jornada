@@ -27,6 +27,8 @@ public sealed record SyntheticIngestionBridgeOptions(
             throw new ArgumentOutOfRangeException(
                 nameof(PessoaSchemaVersao),
                 "A ponte sintética suporta contratos Pessoa v4+.");
+        if (DataReferencia == default)
+            throw new ArgumentException("dataReferencia deve ser explícita.", nameof(DataReferencia));
         if (string.IsNullOrWhiteSpace(PseudonymizationKey)
             || Encoding.UTF8.GetByteCount(PseudonymizationKey) < 16)
         {
@@ -165,7 +167,7 @@ public static class SyntheticIngestionBridge
                 .OrderBy(x => x.OpaqueId, StringComparer.Ordinal)
                 .ToArray();
 
-            var peopleBytes = BuildPeopleJsonl(payloadRows, options.PessoaSchemaVersao);
+            var peopleBytes = BuildPeopleJsonl(payloadRows);
             var manifest = new IngestionPackageManifest(
                 IngestionPackageInspector.CurrentFormatVersion,
                 options.PessoaSchemaVersao,
@@ -238,8 +240,7 @@ public static class SyntheticIngestionBridge
     }
 
     private static byte[] BuildPeopleJsonl(
-        IReadOnlyList<(SyntheticObservation Observation, SyntheticIngestionRoute Route, string OpaqueId)> rows,
-        int pessoaSchemaVersao)
+        IReadOnlyList<(SyntheticObservation Observation, SyntheticIngestionRoute Route, string OpaqueId)> rows)
     {
         using var stream = new MemoryStream();
         foreach (var row in rows)
