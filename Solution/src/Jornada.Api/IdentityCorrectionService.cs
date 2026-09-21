@@ -13,6 +13,8 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
     {
         var cpf = CpfRules.NormalizeAndValidate(request.Cpf)
             ?? throw new ArgumentException("CPF inválido.", nameof(request));
+        var decisionEvidence = NormalizeDecisionEvidence(
+            request.EvidenciaTipo, request.DocumentoTipoCodigo, nameof(request));
         await using var connection = await connections.OpenAsync(ct);
         Guid? prior = null;
         string state;
@@ -115,7 +117,7 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
             var titularUuid = (Guid)titular.Value;
             await RecordDecisionAsync(
                 connection, tx, context, "CORRECAO_CPF_APLICADA",
-                correctionId, null, null, correlationId, ct);
+                decisionEvidence, correctionId, null, null, correlationId, ct);
             await tx.CommitAsync(ct);
             var destinations = await LoadDestinationsAsync(connection, correctionId, ct);
             return new IdentityCorrectionResponse(correctionId, titularUuid, destinations, "APLICADA");
@@ -130,6 +132,8 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
     public async Task<IdentityGovernedCaseOpenResponse> OpenCaseAsync(
         AccessContext context, IdentityGovernedCaseOpenRequest request, Guid? correlationId, CancellationToken ct)
     {
+        var decisionEvidence = NormalizeDecisionEvidence(
+            request.EvidenciaTipo, request.DocumentoTipoCodigo, nameof(request));
         if (request.PessoaObservacaoIds.Count == 0)
             throw new ArgumentException("Informe ao menos uma observação.", nameof(request));
         var ids = request.PessoaObservacaoIds.Distinct().ToArray();
@@ -156,7 +160,7 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
             var caseId = (Guid)output.Value;
             await RecordDecisionAsync(
                 connection, tx, context, "CASO_CONFLITO_ABERTO",
-                null, caseId, null, correlationId, ct);
+                decisionEvidence, null, caseId, null, correlationId, ct);
             await tx.CommitAsync(ct);
             return new IdentityGovernedCaseOpenResponse(caseId, "ABERTO");
         }
@@ -195,6 +199,7 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
             await command.ExecuteNonQueryAsync(ct);
             await RecordDecisionAsync(
                 connection, tx, context, "CASO_CONFLITO_APLICADO",
+                new DecisionEvidence("DECISAO_PREVIA_APLICADA", null),
                 null, caseId, null, correlationId, ct);
             await tx.CommitAsync(ct);
             return new IdentityGovernedCaseApplyResponse(caseId, "APLICADO");
@@ -234,6 +239,8 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
     public async Task ResolveDivergenceAsync(
         AccessContext context, long divergenceId, IdentityDivergenceDispositionRequest request, Guid? correlationId, CancellationToken ct)
     {
+        var decisionEvidence = NormalizeDecisionEvidence(
+            request.EvidenciaTipo, request.DocumentoTipoCodigo, nameof(request));
         if (string.IsNullOrWhiteSpace(request.Desfecho))
             throw new ArgumentException("Desfecho é obrigatório.", nameof(request));
         await using var connection = await connections.OpenAsync(ct);
@@ -253,7 +260,7 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
             await command.ExecuteNonQueryAsync(ct);
             await RecordDecisionAsync(
                 connection, tx, context, "DIVERGENCIA_DESFECHO",
-                null, null, divergenceId, correlationId, ct);
+                decisionEvidence, null, null, divergenceId, correlationId, ct);
             await tx.CommitAsync(ct);
         }
         catch
@@ -263,11 +270,54 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
         }
     }
 
+    private sealed record DecisionEvidence(string Type, string? DocumentTypeCode);
+
+    private static DecisionEvidence NormalizeDecisionEvidence(
+        string? evidenceType,
+        string? documentTypeCode,
+        string parameterName)
+    {
+        var type = (evidenceType ?? string.Empty).Trim().ToUpperInvariant();
+        var document = string.IsNullOrWhiteSpace(documentTypeCode)
+            ? null
+            : documentTypeCode.Trim().ToUpperInvariant();
+
+        if (type is not ("DOCUMENTO_VERIFICADO" or "CONFIRMACAO_SEM_DOCUMENTO"))
+            throw new ArgumentException(
+                "EvidenciaTipo deve ser DOCUMENTO_VERIFICADO ou CONFIRMACAO_SEM_DOCUMENTO.",
+                parameterName);
+
+        if (type == "DOCUMENTO_VERIFICADO")
+        {
+            if (document is null)
+                throw new ArgumentException(
+                    "DOCUMENTO_VERIFICADO exige DocumentoTipoCodigo.",
+                    parameterName);
+            if (document.Length > 80
+                || document.Any(static ch =>
+                    !(ch is >= 'A' and <= 'Z')
+                    && !(ch is >= '0' and <= '9')
+                    && ch != '_'))
+                throw new ArgumentException(
+                    "DocumentoTipoCodigo deve usar somente A-Z, 0-9 e underscore.",
+                    parameterName);
+        }
+        else if (document is not null)
+        {
+            throw new ArgumentException(
+                "CONFIRMACAO_SEM_DOCUMENTO não admite DocumentoTipoCodigo.",
+                parameterName);
+        }
+
+        return new DecisionEvidence(type, document);
+    }
+
     private static async Task<Guid> RecordDecisionAsync(
         SqlConnection connection,
         SqlTransaction transaction,
         AccessContext context,
         string eventType,
+        DecisionEvidence evidence,
         Guid? correctionId,
         Guid? caseId,
         long? divergenceId,
@@ -281,6 +331,11 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
         command.Parameters.Add(new SqlParameter("@credencial_id", SqlDbType.UniqueIdentifier) { Value = context.CredentialId });
         command.Parameters.Add(new SqlParameter("@gestor_codigo", SqlDbType.NVarChar, 30) { Value = context.GestorCodigo });
         command.Parameters.Add(new SqlParameter("@evento_tipo", SqlDbType.NVarChar, 40) { Value = eventType });
+        command.Parameters.Add(new SqlParameter("@evidencia_tipo", SqlDbType.NVarChar, 40) { Value = evidence.Type });
+        command.Parameters.Add(new SqlParameter("@documento_tipo_codigo", SqlDbType.NVarChar, 80)
+        {
+            Value = (object?)evidence.DocumentTypeCode ?? DBNull.Value
+        });
         command.Parameters.Add(new SqlParameter("@correcao_id", SqlDbType.UniqueIdentifier) { Value = (object?)correctionId ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@caso_id", SqlDbType.UniqueIdentifier) { Value = (object?)caseId ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("@divergencia_id", SqlDbType.BigInt) { Value = (object?)divergenceId ?? DBNull.Value });
