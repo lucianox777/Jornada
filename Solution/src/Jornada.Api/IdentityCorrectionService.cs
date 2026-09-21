@@ -13,8 +13,6 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
     {
         var cpf = CpfRules.NormalizeAndValidate(request.Cpf)
             ?? throw new ArgumentException("CPF inválido.", nameof(request));
-        var decisionEvidence = NormalizeDecisionEvidence(
-            request.EvidenciaTipo, request.DocumentoTipoCodigo, nameof(request));
         await using var connection = await connections.OpenAsync(ct);
         Guid? prior = null;
         string state;
@@ -78,6 +76,8 @@ internal sealed class SqlIdentityCorrectionService(IOperationalSqlAdapter connec
     {
         var cpf = CpfRules.NormalizeAndValidate(request.Cpf)
             ?? throw new ArgumentException("CPF inválido.", nameof(request));
+        var decisionEvidence = NormalizeDecisionEvidence(
+            request.EvidenciaTipo, request.DocumentoTipoCodigo, nameof(request));
         if (request.Grupos.Count == 0 || request.Grupos.Any(g => g.PessoaObservacaoIds.Count == 0))
             throw new ArgumentException("Informe ao menos um grupo e uma observação por grupo.", nameof(request));
         if (request.Grupos.Select(g => g.GrupoCodigo).Distinct(StringComparer.Ordinal).Count() != request.Grupos.Count)
