@@ -23,6 +23,7 @@ Especificação Técnica vigente → requisitos normativos → arquitetura corre
 | INV-LINK-002 | Resultado bruto do scorer e decisão operacional publicada são camadas separadas e versionadas. | Linkage |
 | INV-LINK-003 | Modelo/ruleset/parâmetros são consumidos pela versão exata; não se mistura proveniência entre versões. | Linkage |
 | INV-LINK-004 | Execução incompleta, timeout ou universo truncado não equivale a “sem candidato”. | Linkage |
+| INV-LINK-005 | Vínculo probabilístico automático nunca apaga nem unifica definitivamente os registros de origem; a atribuição publicada permanece reversível por correção governada e preserva histórico. | Linkage/Identidade |
 | INV-CONF-001 | VALIDATE/ACTIVATE exigem conferência `CONFORME` da mesma `modelo_id` quando o contrato de tolerância estiver congelado. | Governança de modelo |
 | INV-LEDGER-001 | Ato governado de identidade e seu evento de auditoria são atômicos; ledger é append-only. | Governança |
 | INV-MODEL-LEDGER-001 | Mudança de estado do modelo possui trilha append-only própria; monitor não promove modelo. | Governança |
