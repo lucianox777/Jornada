@@ -2,8 +2,6 @@ using System.Globalization;
 using System.Text.Json;
 using Jornada.Linkage.SyntheticCorpus;
 
-var indentedJsonOptions = new JsonSerializerOptions { WriteIndented = true };
-
 if (args.Length == 0)
 {
     PrintUsage();
@@ -91,7 +89,7 @@ if (string.Equals(args[0], "generate", StringComparison.Ordinal))
         outputDirectory = Path.GetFullPath(output),
         outputs = materialized.OutputSha256,
         empiricalMExact = generation.EmpiricalMExact
-    }, indentedJsonOptions));
+    }, SyntheticCorpusCliJson.Indented));
     return 0;
 }
 
@@ -163,4 +161,10 @@ static void PrintUsage()
             [--cns-dob-conflict-rate <0..1>]
             [--gestores <N>]
         """);
+}
+
+
+internal static class SyntheticCorpusCliJson
+{
+    public static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
 }
