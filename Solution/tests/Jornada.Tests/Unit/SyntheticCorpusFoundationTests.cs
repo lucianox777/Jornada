@@ -114,6 +114,149 @@ public sealed class SyntheticCorpusFoundationTests
         });
     }
 
+    [Test]
+    public void Weighted_sampler_is_independent_of_input_order_for_same_seed()
+    {
+        var canonical = new[]
+        {
+            new WeightedValue<string>("A", "ANA", 1),
+            new WeightedValue<string>("B", "BEATRIZ", 3),
+            new WeightedValue<string>("C", "CARLA", 6)
+        };
+        var reordered = new[] { canonical[2], canonical[0], canonical[1] };
+
+        var left = new DeterministicWeightedSampler<string>(canonical);
+        var right = new DeterministicWeightedSampler<string>(reordered);
+        var leftRandom = new Xoshiro256StarStar(42);
+        var rightRandom = new Xoshiro256StarStar(42);
+
+        var leftSequence = Enumerable.Range(0, 512).Select(_ => left.Next(leftRandom)).ToArray();
+        var rightSequence = Enumerable.Range(0, 512).Select(_ => right.Next(rightRandom)).ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(left.TotalWeight, Is.EqualTo(10));
+            Assert.That(right.TotalWeight, Is.EqualTo(10));
+            Assert.That(leftSequence, Is.EqualTo(rightSequence));
+        });
+    }
+
+    [Test]
+    public void Weighted_sampler_tracks_declared_integer_distribution()
+    {
+        var sampler = new DeterministicWeightedSampler<string>(new[]
+        {
+            new WeightedValue<string>("A", "A", 1),
+            new WeightedValue<string>("B", "B", 3),
+            new WeightedValue<string>("C", "C", 6)
+        });
+        var random = new Xoshiro256StarStar(355);
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["A"] = 0,
+            ["B"] = 0,
+            ["C"] = 0
+        };
+
+        const int draws = 20_000;
+        for (var i = 0; i < draws; i++)
+            counts[sampler.Next(random)]++;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(counts["A"] / (double)draws, Is.InRange(0.08, 0.12));
+            Assert.That(counts["B"] / (double)draws, Is.InRange(0.28, 0.32));
+            Assert.That(counts["C"] / (double)draws, Is.InRange(0.58, 0.62));
+        });
+    }
+
+    [Test]
+    public void Weighted_sampler_rejects_zero_duplicate_key_and_overflow()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.Throws<ArgumentException>(() =>
+                new DeterministicWeightedSampler<string>(new[] { new WeightedValue<string>("A", "A", 0) }));
+            Assert.Throws<ArgumentException>(() =>
+                new DeterministicWeightedSampler<string>(new[]
+                {
+                    new WeightedValue<string>("A", "A", 1),
+                    new WeightedValue<string>("A", "B", 1)
+                }));
+            Assert.Throws<ArgumentException>(() =>
+                new DeterministicWeightedSampler<string>(new[]
+                {
+                    new WeightedValue<string>("A", "A", ulong.MaxValue),
+                    new WeightedValue<string>("B", "B", 1)
+                }));
+        });
+    }
+
+    [Test]
+    public void Sex_period_inspector_prefers_observed_joint_cells_when_present()
+    {
+        var rows = new[]
+        {
+            Row("NOME", "ANA", 100, "FEMININO", "1980-1989"),
+            Row("NOME", "JOAO", 90, "MASCULINO", "1980-1989"),
+            Row("NOME", "ANA", 200, "FEMININO", "TODOS"),
+            Row("NOME", "ANA", 150, "TODOS", "1980-1989")
+        };
+
+        var plan = SexPeriodCompositionInspector.Inspect(rows);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(plan.Kind, Is.EqualTo(SexPeriodCompositionKind.ObservedJoint));
+            Assert.That(plan.MethodVersion, Is.EqualTo(SexPeriodCompositionInspector.ObservedJointVersion));
+            Assert.That(plan.JointCellCount, Is.EqualTo(2));
+            Assert.That(plan.Declaration, Does.Contain("diretamente"));
+        });
+    }
+
+    [Test]
+    public void Sex_period_inspector_declares_independent_marginals_without_joint_cells()
+    {
+        var rows = new[]
+        {
+            Row("NOME", "ANA", 200, "FEMININO", "TODOS"),
+            Row("NOME", "JOAO", 190, "MASCULINO", "TODOS"),
+            Row("NOME", "ANA", 150, "TODOS", "1980-1989"),
+            Row("NOME", "ANA", 120, "TODOS", "1990-1999")
+        };
+
+        var plan = SexPeriodCompositionInspector.Inspect(rows);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(plan.Kind, Is.EqualTo(SexPeriodCompositionKind.IndependentMarginals));
+            Assert.That(plan.MethodVersion, Is.EqualTo(SexPeriodCompositionInspector.IndependentMarginalsVersion));
+            Assert.That(plan.JointCellCount, Is.Zero);
+            Assert.That(plan.SexMarginalCellCount, Is.EqualTo(2));
+            Assert.That(plan.PeriodMarginalCellCount, Is.EqualTo(2));
+            Assert.That(plan.Declaration, Does.Contain("não representa distribuição conjunta observada"));
+        });
+    }
+
+    [Test]
+    public void Sex_period_inspector_fails_closed_when_dimensions_are_incomplete()
+    {
+        var rows = new[]
+        {
+            Row("NOME", "ANA", 200, "FEMININO", "TODOS")
+        };
+
+        Assert.Throws<InvalidDataException>(() => SexPeriodCompositionInspector.Inspect(rows));
+    }
+
+    private static IbgeFrequencyRow Row(
+        string tipo,
+        string valor,
+        long frequencia,
+        string sexo,
+        string periodo)
+        => new(tipo, valor, frequencia, sexo, periodo, "BRASIL", "00", "0000000");
+
     private static IbgeProjectionFile FileMeta(string path, string kind, string shaByte, string canonicalByte, long rows)
         => new(
             path,
