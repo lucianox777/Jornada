@@ -2,6 +2,14 @@
 
 **Objetivo:** impedir que harnesses, ferramentas de conferência e utilitários de engenharia sejam confundidos com runtime do produto.
 
+## Natureza desta Solution
+
+A árvore `Solution/` é uma **implementação de referência funcional executável** da Jornada: congela contratos, invariantes, comportamento esperado, testes de aceite e decisões de arquitetura suficientes para validar a solução.
+
+Ela **não atribui ao repositório nem ao desenvolvimento de referência a responsabilidade pela operação produtiva municipal**. A engenharia de produção, implantação, operação, integração à infraestrutura corporativa e sustentação do sistema produtivo pertencem à **PRODAM**, conforme os instrumentos institucionais/contratuais aplicáveis. A SGM/SEPE mantém as decisões institucionais sobre a camada integrada; cada Gestor permanece responsável por seus sistemas e dados de origem.
+
+Consequentemente, `Produto/runtime` abaixo significa **runtime da implementação de referência**, não declaração de que o mesmo executável, topologia, segredo, scheduler ou mecanismo de autenticação deva ser levado sem adaptação para HML/PRD.
+
 ## Critério
 
 - **Produto/runtime:** participa da ingestão, processamento, identidade, Linkage operacional, serving/API ou operação necessária do sistema.
