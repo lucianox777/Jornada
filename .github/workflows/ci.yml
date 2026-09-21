@@ -489,6 +489,39 @@ jobs:
           CID=$(docker ps -q --filter publish=1433 | head -1)
           MODEL_VERSION=$(docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='RASCUNHO' ORDER BY versao DESC;" | tr -d '\r' | xargs)
           test -n "$MODEL_VERSION"
+          MODEL_ID=$(docker exec -i "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -P 'Jornada_${{ github.run_id }}!HarnessSql' -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; SELECT CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE versao=$MODEL_VERSION;" | tr -d '\r' | xargs)
+          test -n "$MODEL_ID"
+
+          TEST_CONFERENCE_TOLERANCE="$RUNNER_TEMP/jornada-conference-tolerance.json"
+          cat > "$TEST_CONFERENCE_TOLERANCE" <<'JSON'
+          {
+            "schemaVersion": 1,
+            "methodVersion": "JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1",
+            "status": "FROZEN",
+            "scope": "SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE",
+            "maxAbsolutePairLlrDifference": 0.000001,
+            "decisionEquivalence": "EXACT_FINAL_OPERATIONAL_DECISION",
+            "primaryGates": [
+              "PAIR_LLR_WITHIN_FROZEN_TOLERANCE",
+              "EXACT_FINAL_OPERATIONAL_DECISION"
+            ],
+            "diagnosticsOnly": [
+              "SPEARMAN_RANK_CORRELATION",
+              "SAME_TOP1",
+              "MAX_ABSOLUTE_LOG_ODDS_DIFFERENCE"
+            ],
+            "statisticalValidation": "SEPARATE_ISSUE_31",
+            "note": "TEST_ONLY CI fixture; never a production governance tolerance.",
+            "toleranceVersion": "TEST_ONLY_CI_${{ github.run_id }}"
+          }
+          JSON
+
+          dotnet run --project src/Jornada.Linkage.Conference --configuration Release --no-build -- \
+            --model-id "$MODEL_ID" \
+            --tolerance-config "$TEST_CONFERENCE_TOLERANCE" \
+            --source-revision "${GITHUB_SHA}"
+
+          export LinkageParameters__ConferenceToleranceConfigPath="$TEST_CONFERENCE_TOLERANCE"
           export LinkageParameters__TargetVersion="$MODEL_VERSION"
           export LinkageParameters__Operation=VALIDATE
           dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
