@@ -75,8 +75,10 @@ public sealed class SyntheticIngestionBridgeTests
         Assert.Multiple(() =>
         {
             Assert.That(
-                left.Packages.Select(x => (x.FileName, x.Sha256, x.Bytes)),
-                Is.EqualTo(right.Packages.Select(x => (x.FileName, x.Sha256, x.Bytes))));
+                left.Packages.Select(x => (x.FileName, x.Sha256, x.PeopleCount)),
+                Is.EqualTo(right.Packages.Select(x => (x.FileName, x.Sha256, x.PeopleCount))));
+            for (var i = 0; i < left.Packages.Count; i++)
+                Assert.That(left.Packages[i].Bytes, Is.EqualTo(right.Packages[i].Bytes), $"package={i}");
             Assert.That(
                 left.TruthRows.Select(x => x.OpaquePersonId),
                 Is.EqualTo(right.TruthRows.Select(x => x.OpaquePersonId)));
@@ -172,8 +174,28 @@ public sealed class SyntheticIngestionBridgeTests
     [Test]
     public void Unknown_synthetic_gestor_fails_closed()
     {
-        var generation = FixtureGeneration();
-        generation.Observations[0].Gestor = "G9";
+        var source = FixtureGeneration();
+        var first = source.Observations[0];
+        var unknown = new SyntheticObservation
+        {
+            ObservationId = first.ObservationId,
+            BasePersonId = first.BasePersonId,
+            Partition = first.Partition,
+            Gestor = "G9",
+            Name = first.Name,
+            MotherName = first.MotherName,
+            BirthDate = first.BirthDate,
+            Sex = first.Sex,
+            Cpf = first.Cpf,
+            Cns = first.Cns,
+            EvaluationWeight = first.EvaluationWeight,
+            Corruptions = first.Corruptions
+        };
+        var generation = new SyntheticCorpusGeneration(
+            source.People,
+            new[] { unknown }.Concat(source.Observations.Skip(1)).ToArray(),
+            source.EmpiricalMExact,
+            source.Options);
 
         var error = Assert.Throws<InvalidDataException>(() =>
             SyntheticIngestionBridge.Build(
