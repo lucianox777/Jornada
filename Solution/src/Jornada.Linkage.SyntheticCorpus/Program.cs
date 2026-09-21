@@ -82,7 +82,7 @@ if (string.Equals(args[0], "generate-ingestion", StringComparison.Ordinal))
     var dataReferencia = DateTimeOffset.Parse(
         GetRequired(values, "data-referencia"),
         CultureInfo.InvariantCulture,
-        DateTimeStyles.RoundtripKind);
+        DateTimeStyles.None);
     var keyEnvironment = Get(values, "pseudonymization-key-env")
         ?? "JORNADA_SYNTH_PSEUDONYMIZATION_KEY";
     var pseudonymizationKey = Environment.GetEnvironmentVariable(keyEnvironment);
