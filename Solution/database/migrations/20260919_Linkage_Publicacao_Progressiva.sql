@@ -301,7 +301,7 @@ BEGIN
       AND NOT EXISTS(
         SELECT 1 FROM identidade.vinculo_fonte WITH(HOLDLOCK)
         WHERE ativo=1 AND status=N'RESOLVIDO' AND pessoa_uuid=@canonical_uuid
-          AND metodo_resolucao IN(N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',N'CORRECAO_GOVERNADA'))
+          AND metodo_resolucao IN(N'CPF_DETERMINISTICO',N'NIS_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',N'CORRECAO_GOVERNADA'))
       THROW 51808,'Destino probabilístico não é referência canônica estabelecida.',1;
  END
  ELSE IF @resultado=N'NOVA_IDENTIDADE'
@@ -409,7 +409,7 @@ WITH probabilistico_publicado AS (
 )
 SELECT b.vinculo_id,b.pessoa_observacao_id,b.pessoa_uuid,b.metodo_resolucao,b.score,b.status,b.motivo,b.modelo_id,b.linkage_run_id,b.resolvido_em
 FROM base_ativa b
-WHERE b.metodo_resolucao IN(N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO')
+WHERE b.metodo_resolucao IN(N'CPF_DETERMINISTICO',N'NIS_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO')
    OR NOT EXISTS (SELECT 1 FROM prob_corrente p WHERE p.pessoa_observacao_id=b.pessoa_observacao_id)
 UNION ALL
 SELECT CAST(NULL AS BIGINT),p.pessoa_observacao_id,p.pessoa_uuid_resolvido,N'LINKAGE_PROBABILISTICO',
@@ -418,5 +418,5 @@ FROM prob_corrente p
 WHERE NOT EXISTS (
     SELECT 1 FROM base_ativa b
     WHERE b.pessoa_observacao_id=p.pessoa_observacao_id
-      AND b.metodo_resolucao IN(N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO'));
+      AND b.metodo_resolucao IN(N'CPF_DETERMINISTICO',N'NIS_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO'));
 GO
