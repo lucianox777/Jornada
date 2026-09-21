@@ -27,6 +27,7 @@ As operações abaixo ficam **instaladas na VM, mas não são agendadas**:
 - Linkage: `jobs\Invoke-JornadaLinkageRun.ps1`;
 - `tools\Jornada.Bronze.Verify\Jornada.Bronze.Verify.exe`;
 - `tools\Jornada.Linkage.Evaluation\Jornada.Linkage.Evaluation.exe` — somente DEV/HML;
+- `tools\Jornada.Linkage.Conference\Jornada.Linkage.Conference.exe` — conferência governada antes da promoção;
 - Integrador C# — cliente sob demanda.
 
 A convenção operacional é executar as rotinas manuais no NODE2, embora o mesmo bundle seja instalado nos dois nós. Os locks SQL continuam sendo a proteção de concorrência; a convenção de nó não substitui a coordenação no banco.
@@ -36,10 +37,10 @@ A convenção operacional é executar as rotinas manuais no NODE2, embora o mesm
 `Invoke-JornadaLinkageCalibration.ps1` executa, na mesma operação governada:
 
 ```text
-GENERATE_DRAFT → VALIDATE → ACTIVATE
+GENERATE_DRAFT → CONFERENCIA → VALIDATE → ACTIVATE
 ```
 
-O wrapper só termina com sucesso quando a nova versão fica `ATIVO`.
+O wrapper só termina com sucesso quando a nova versão fica `ATIVO`. `CONFERENCIA` usa `config\linkage\implementation-conference-tolerance.json`; enquanto o arquivo oficial estiver `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`, a rotina para fail-closed antes de `VALIDATE`. Quando congelado, `VALIDATE` e `ACTIVATE` reaplicam o assert SQL da mesma evidência/tolerância.
 
 `Invoke-JornadaLinkageRun.ps1` faz preflight no SQL e só inicia o Runner quando existe **exatamente um** `identidade.modelo_linkage` em `ATIVO`. O próprio runtime do Linkage já rejeita ausência de modelo ativo; o wrapper torna essa pré-condição explícita antes de iniciar a execução manual.
 
