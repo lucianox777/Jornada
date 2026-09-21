@@ -4,7 +4,7 @@
 **Status:** CANDIDATO TÉCNICO — RELEASE/TAG NÃO CORTADA  
 **SolutionSchema corrente:** `3.70`
 
-A candidata passa a reconhecer NIS/PIS/PASEP/NIT como uma única âncora social canônica `NIS`, com namespace de origem preservado. A resolução determinística exige validação estrutural + evidência `COMPROVADO`; CPF continua sendo a âncora externa principal. Conflito CPF×NIS não transfere Pessoa: mantém CPF, marca o NIS em `EM_CONFLITO`, abre divergência governada e expõe apenas classificação agregável em `serving.v_bi_nis_qualidade`. A política está congelada na ADR-006 e não promove NIS ao score probabilístico.
+A candidata passa a reconhecer NIS/PIS/PASEP/NIT como identificador secundário tipado `NIS`, com namespace de origem preservado, e explicita o mesmo papel secundário do RG. NIS recebe validação estrutural e proveniência `DECLARADO|COMPROVADO`, mas não constitui Pessoa, não cria `identity_map` e não resolve vínculo. Reutilização do mesmo NIS sob Pessoas distintas é exposta apenas como sinal de qualidade em `serving.v_bi_identificador_secundario_qualidade`/QC canônico, sem merge automático. CPF permanece a âncora externa principal. A política está congelada na ADR-006 e não promove NIS/RG ao score probabilístico.
 
 ## 1. Relação com a última release selada
 
