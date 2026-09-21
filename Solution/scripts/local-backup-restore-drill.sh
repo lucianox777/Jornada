@@ -20,8 +20,24 @@ SEED_CANONICAL_KEY="sha256/8d/cc/${SEED_CANONICAL_SHA}.zip"
 SEED_CANONICAL_DEST="$ROOT/data/bronze/$SEED_CANONICAL_KEY"
 mkdir -p "$(dirname "$SEED_CANONICAL_DEST")"
 printf 'PK\003\004' > "$SEED_CANONICAL_DEST"
-[[ "$(sha256sum "$SEED_CANONICAL_DEST" | awk '{print $1}')" == "$SEED_CANONICAL_SHA" ]] || { echo "ERRO: objeto Bronze canônico do seed com hash inesperado." >&2; exit 3; }
-[[ "$(wc -c < "$SEED_CANONICAL_DEST" | tr -d ' ')" == "4" ]] || { echo "ERRO: objeto Bronze canônico do seed deve ter 4 bytes." >&2; exit 3; }
+[[ "$(sha256sum "$SEED_CANONICAL_DEST" | awk '{print $1}')" == "$SEED_CANONICAL_SHA" ]] || { echo "ERRO: objeto Bronze canônico SMS do seed com hash inesperado." >&2; exit 3; }
+[[ "$(wc -c < "$SEED_CANONICAL_DEST" | tr -d ' ')" == "4" ]] || { echo "ERRO: objeto Bronze canônico SMS do seed deve ter 4 bytes." >&2; exit 3; }
+
+SEED_SEHAB_SHA="08befc1b72bbe89348739d0d994b031aa28db85ffc817ab2a2598a0af3583084"
+SEED_SEHAB_KEY="sha256/08/be/${SEED_SEHAB_SHA}.zip"
+SEED_SEHAB_DEST="$ROOT/data/bronze/$SEED_SEHAB_KEY"
+mkdir -p "$(dirname "$SEED_SEHAB_DEST")"
+printf 'PK\003\004SEHAB' > "$SEED_SEHAB_DEST"
+[[ "$(sha256sum "$SEED_SEHAB_DEST" | awk '{print $1}')" == "$SEED_SEHAB_SHA" ]] || { echo "ERRO: objeto Bronze canônico SEHAB do seed com hash inesperado." >&2; exit 3; }
+[[ "$(wc -c < "$SEED_SEHAB_DEST" | tr -d ' ')" == "9" ]] || { echo "ERRO: objeto Bronze canônico SEHAB do seed deve ter 9 bytes." >&2; exit 3; }
+
+SEED_SMADS_SHA="52efeb293d001f170549c0bdf4196cf94af375858b96a98a0d486a2ae2f81923"
+SEED_SMADS_KEY="sha256/52/ef/${SEED_SMADS_SHA}.zip"
+SEED_SMADS_DEST="$ROOT/data/bronze/$SEED_SMADS_KEY"
+mkdir -p "$(dirname "$SEED_SMADS_DEST")"
+printf 'PK\003\004SMADS' > "$SEED_SMADS_DEST"
+[[ "$(sha256sum "$SEED_SMADS_DEST" | awk '{print $1}')" == "$SEED_SMADS_SHA" ]] || { echo "ERRO: objeto Bronze canônico SMADS do seed com hash inesperado." >&2; exit 3; }
+[[ "$(wc -c < "$SEED_SMADS_DEST" | tr -d ' ')" == "9" ]] || { echo "ERRO: objeto Bronze canônico SMADS do seed deve ter 9 bytes." >&2; exit 3; }
 sqlcmd -d "$DB" -v DRILL_SHA="$SHA" DRILL_LENGTH="$LENGTH" -i /workspace/database/Jornada_Dev_BackupDrill.sql
 
 cd "$ROOT"
