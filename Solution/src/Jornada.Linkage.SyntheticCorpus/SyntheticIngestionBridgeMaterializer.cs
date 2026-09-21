@@ -15,6 +15,7 @@ public sealed record SyntheticIngestionBridgeMaterialization(
 public static class SyntheticIngestionBridgeMaterializer
 {
     private static readonly UTF8Encoding Utf8NoBom = new(false);
+    private static readonly byte[] NewLine = [(byte)'\n'];
     private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
     private static readonly JsonSerializerOptions CompactJson = new();
 
@@ -51,7 +52,7 @@ public static class SyntheticIngestionBridgeMaterializer
             foreach (var row in result.TruthRows)
             {
                 await JsonSerializer.SerializeAsync(truth, row, CompactJson, cancellationToken);
-                await truth.WriteAsync(new byte[] { (byte)'\n' }, cancellationToken);
+                await truth.WriteAsync(NewLine, cancellationToken);
             }
         }
 
