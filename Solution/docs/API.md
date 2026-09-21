@@ -321,13 +321,15 @@ A operação permite **separação** (grupo sem UUID de destino recebe novo UUID
 
 A API recebe o ZIP por streaming para arquivo temporário limitado a 250 MB, calcula SHA-256 durante a recepção e lê primeiro apenas `manifest.json`. A autorização genérica de ingestão ocorre antes do recebimento; a autorização do `codigoTipo` ocorre antes da validação pesada do conteúdo descompactado. Depois dessas validações, o payload é gravado idempotentemente no armazenamento Bronze definitivo, content-addressed pelo SHA-256, e somente então a API persiste no SQL a `objeto_chave` e os metadados da Entrega. Não há `VARBINARY(MAX)` para os bytes do ZIP.
 
-## NIS/CNIS na Fase 1
+## NIS/CNIS e RG na Fase 1
 
-O contrato Pessoa v4 admite `tipo=NIS` com `namespace` `NIS`, `PIS`, `PASEP` ou `NIT`. O valor é normalizado para 11 dígitos; namespace preserva procedência e não cria uma segunda identidade quando o número normalizado é o mesmo.
+O contrato Pessoa v4 admite `tipo=NIS` com `namespace` `NIS`, `PIS`, `PASEP` ou `NIT`. O valor é normalizado para 11 dígitos e recebe validação estrutural local; `statusEvidencia` preserva separadamente se foi apenas `DECLARADO` ou `COMPROVADO`. RG continua tipado com emissor e UF.
 
-A hierarquia de resolução permanece: `pessoa_uuid` como identidade canônica interna; **CPF como âncora determinística externa principal**; `UUID_JORNADA` como retroalimentação interna; NIS como âncora determinística externa secundária; Linkage como fallback complementar. NIS apenas `DECLARADO` é preservado, mas não resolve. A resolução por NIS exige validação estrutural local e `statusEvidencia=COMPROVADO` com `verificadoEm`.
+**NIS e RG são identificadores secundários, não âncoras de identidade.** Eles não criam `pessoa_uuid`, não criam `identity_map`, não resolvem vínculo automaticamente e não competem com CPF. Na ausência de CPF/UUID interno já governado, a presença isolada de NIS ou RG não tira a observação do fluxo de identidade pendente/linkage.
 
-Se um NIS comprovado conflitar com o UUID determinado por CPF válido, o vínculo CPF permanece; o NIS passa a `EM_CONFLITO` e a divergência segue para a fila governada. `serving.v_bi_nis_qualidade` expõe classificação e contagens, sem publicar o número. O endpoint `/api/v1/identidade/resolver` continua sendo a superfície explícita de consulta por CPF; esta mudança não cria endpoint público de busca por NIS.
+A superfície `serving.v_bi_identificador_secundario_qualidade`, incorporada a `serving.v_bi_qualidade_identidade_origem`, expõe apenas classificações e contagens. Se o mesmo NIS aparecer em observações atualmente atribuídas a Pessoas distintas, isso é sinalizado como problema de qualidade, sem fusão, transferência ou escolha automática de UUID. O número em claro não é publicado nessas views.
+
+O endpoint `/api/v1/identidade/resolver` continua sendo a superfície explícita de consulta por CPF; esta mudança não cria endpoint público de busca por NIS ou RG.
 
 ## CPF na Fase 1
 
