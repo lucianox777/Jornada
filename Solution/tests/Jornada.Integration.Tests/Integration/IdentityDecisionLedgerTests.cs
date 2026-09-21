@@ -29,7 +29,8 @@ public sealed class IdentityDecisionLedgerTests
             context,
             new IdentityGovernedCaseOpenRequest(
                 "OUTRO", [observationId], ato,
-                "Prova de autoria canônica e atomicidade do ledger de decisão."),
+                "Prova de autoria canônica e atomicidade do ledger de decisão.",
+                "CONFIRMACAO_SEM_DOCUMENTO"),
             openCorrelation,
             CancellationToken.None);
 
@@ -48,7 +49,9 @@ public sealed class IdentityDecisionLedgerTests
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT e.evento_tipo,e.operacao_id,e.credencial_id,e.codigo_publico,
-                   e.correlation_id,e.ato_referencia,e.resultado_codigo,g.codigo
+                   e.correlation_id,e.ato_referencia,e.resultado_codigo,g.codigo,
+                   e.evidencia_tipo,e.documento_tipo_codigo,
+                   CAST(CASE WHEN e.evidencia_tipo='CONFIRMACAO_SEM_DOCUMENTO' THEN 1 ELSE 0 END AS BIT)
             FROM auditoria.decisao_identidade_evento e
             JOIN ref.gestor g ON g.gestor_id=e.gestor_id
             WHERE e.caso_id=@case
@@ -56,7 +59,7 @@ public sealed class IdentityDecisionLedgerTests
             """;
         command.Parameters.AddWithValue("@case", opened.CasoId);
 
-        var rows = new List<(string Event, Guid Operation, Guid Credential, string PublicCode, Guid? Correlation, string? Act, string Result, string Gestor)>();
+        var rows = new List<(string Event, Guid Operation, Guid Credential, string PublicCode, Guid? Correlation, string? Act, string Result, string Gestor, string EvidenceType, string? DocumentType, bool HardStratumReference)>();
         await using (var reader = await command.ExecuteReaderAsync())
         {
             while (await reader.ReadAsync())
@@ -69,7 +72,10 @@ public sealed class IdentityDecisionLedgerTests
                     reader.IsDBNull(4) ? null : reader.GetGuid(4),
                     reader.IsDBNull(5) ? null : reader.GetString(5),
                     reader.GetString(6),
-                    reader.GetString(7)));
+                    reader.GetString(7),
+                    reader.GetString(8),
+                    reader.IsDBNull(9) ? null : reader.GetString(9),
+                    reader.GetBoolean(10)));
             }
         }
 
@@ -79,9 +85,15 @@ public sealed class IdentityDecisionLedgerTests
             Assert.That(rows[0].Event, Is.EqualTo("CASO_CONFLITO_ABERTO"));
             Assert.That(rows[0].Result, Is.EqualTo("ABERTO"));
             Assert.That(rows[0].Correlation, Is.EqualTo(openCorrelation));
+            Assert.That(rows[0].EvidenceType, Is.EqualTo("CONFIRMACAO_SEM_DOCUMENTO"));
+            Assert.That(rows[0].DocumentType, Is.Null);
+            Assert.That(rows[0].HardStratumReference, Is.True);
             Assert.That(rows[1].Event, Is.EqualTo("CASO_CONFLITO_APLICADO"));
             Assert.That(rows[1].Result, Is.EqualTo("APLICADO"));
             Assert.That(rows[1].Correlation, Is.EqualTo(applyCorrelation));
+            Assert.That(rows[1].EvidenceType, Is.EqualTo("DECISAO_PREVIA_APLICADA"));
+            Assert.That(rows[1].DocumentType, Is.Null);
+            Assert.That(rows[1].HardStratumReference, Is.False);
             Assert.That(rows.All(r => r.Credential == credentialId), Is.True);
             Assert.That(rows.All(r => r.PublicCode == "SMADS" && r.Gestor == "SMADS"), Is.True);
             Assert.That(rows.All(r => r.Act == ato), Is.True);
@@ -139,7 +151,8 @@ public sealed class IdentityDecisionLedgerTests
                     context,
                     new IdentityGovernedCaseOpenRequest(
                         "OUTRO", [observationId], ato,
-                        "A mutação deve ser revertida quando o ledger não puder ser persistido."),
+                        "A mutação deve ser revertida quando o ledger não puder ser persistido.",
+                        "DOCUMENTO_VERIFICADO", "CIN"),
                     Guid.NewGuid(),
                     CancellationToken.None));
             Assert.That(ex!.Number, Is.EqualTo(51990));
