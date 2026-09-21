@@ -43,6 +43,8 @@ public sealed class SecretScanningConfigurationTests
             Assert.That(workflow, Does.Contain("GITLEAKS_LINUX_X64_SHA256: '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'"));
             Assert.That(workflow, Does.Contain("sha256sum --check --"));
             Assert.That(workflow, Does.Contain("./scripts/security-secret-scan.sh --current-tree-only"));
+            Assert.That(workflow, Does.Contain(@"scan_rc=${PIPESTATUS[0]}"),
+                "Mesmo quando o scanner falha, o CI deve copiar o relatório redigido antes de propagar o exit code.");
             Assert.That(workflow, Does.Not.Contain("gitleaks/gitleaks-action@"),
                 "O CI usa binário versionado+checksum em vez de uma Action adicional não necessária.");
             Assert.That(workflow, Does.Not.Contain("gitleaks:latest"));
