@@ -13,7 +13,8 @@ COMO LER O REPOSITÓRIO
 4. Solution/database/Jornada_Fase1_v3.70.sql — DDL canônico executável.
 5. Solution/openapi/jornada-v1.openapi.json e Solution/config/contracts — contratos executáveis.
 6. Solution/tests + .github/workflows — evidências e gates que falsificam divergências entre norma e implementação.
-7. RELEASE_INFO.txt — somente a última release efetivamente selada.
+7. SECURITY.md — estado de segurança da candidata, reporte de vulnerabilidades e fronteiras HML/Produção.
+8. RELEASE_INFO.txt — somente a última release efetivamente selada.
 
 ARQUITETURA CORRENTE
 - Microsoft SQL Server é o runtime relacional operacional suportado pela candidata.
@@ -44,3 +45,6 @@ A candidata não fabrica aprovação para:
 - finalidade/base legal e demais deliberações institucionais declaradas em CANDIDATE_INFO.json.
 
 Um CI verde prova coerência de engenharia para o commit exercitado; não equivale a homologação populacional, autorização de Produção ou publicação normativa.
+
+SEGURANÇA
+O estado técnico e o canal de reporte estão em SECURITY.md. Fora de Development, a candidata permanece deny-by-default enquanto a autenticação corporativa PRODAM/separação ambiental (#378) não forem integradas; nenhuma chave sintética de teste autoriza HML/Produção.
