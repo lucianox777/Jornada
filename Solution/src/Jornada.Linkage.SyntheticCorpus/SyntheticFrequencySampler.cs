@@ -29,7 +29,6 @@ public sealed class SyntheticFrequencySampler
         var pairs = source
             .Where(x => !string.IsNullOrWhiteSpace(x.Value) && x.Frequency > 0)
             .OrderByDescending(x => x.Frequency)
-            .ThenBy(x => x.Value, StringComparer.Ordinal)
             .ToArray();
         if (pairs.Length == 0)
             throw new ArgumentException("Vocabulário vazio.", nameof(source));
