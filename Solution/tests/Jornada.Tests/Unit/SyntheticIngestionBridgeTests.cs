@@ -98,6 +98,21 @@ public sealed class SyntheticIngestionBridgeTests
     }
 
     [Test]
+    public void Bridge_rejects_non_active_Pessoa_schema_version()
+    {
+        var generation = FixtureGeneration();
+        var error = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            SyntheticIngestionBridge.Build(
+                generation,
+                new SyntheticIngestionBridgeOptions(
+                    5,
+                    ReferenceDate,
+                    "unit-test-pseudonymization-key-32-bytes")));
+
+        Assert.That(error!.Message, Does.Contain("somente Pessoa v4"));
+    }
+
+    [Test]
     public void Default_routes_target_the_seeded_Development_systems()
     {
         Assert.That(
