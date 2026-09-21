@@ -4,6 +4,8 @@
 **Status:** CANDIDATO TÉCNICO — RELEASE/TAG NÃO CORTADA  
 **SolutionSchema corrente:** `3.70`
 
+A candidata passa a reconhecer NIS/PIS/PASEP/NIT como uma única âncora social canônica `NIS`, com namespace de origem preservado. A resolução determinística exige validação estrutural + evidência `COMPROVADO`; CPF continua sendo a âncora externa principal. Conflito CPF×NIS não transfere Pessoa: mantém CPF, marca o NIS em `EM_CONFLITO`, abre divergência governada e expõe apenas classificação agregável em `serving.v_bi_nis_qualidade`. A política está congelada na ADR-006 e não promove NIS ao score probabilístico.
+
 ## 1. Relação com a última release selada
 
 A última release selada continua sendo a **Solution Engenharia v4.05**, com `schema_solution=v3.69` e tag `jornada-solution-v4.05`, conforme `RELEASE_INFO.txt`.
