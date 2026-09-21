@@ -75,6 +75,26 @@ def verify(
         fail("technical_rc.status deve ser CHECKPOINT_CONTENT")
     if technical_rc.get("release_effect") != "NONE":
         fail("RC técnico não pode ter efeito de release normativa")
+    if technical_rc.get("actions_freeze_until_cut") is not True:
+        fail("GitHub Actions devem permanecer congeladas até o corte do RC")
+    if technical_rc.get("release_assets_mutability") != "REPLACEABLE_BY_RERUN_WITH_CLOBBER":
+        fail("mutabilidade dos assets do pre-release diverge do contrato congelado")
+    if technical_rc.get("digest_authority") != "SIGSTORE_ATTESTATION_SUBJECT_DIGESTS":
+        fail("autoridade de digest do RC deve permanecer vinculada à attestation Sigstore")
+
+    preflight = technical_rc.get("preflight") or {}
+    expected_preflight = {
+        "required": True,
+        "trigger": "workflow_dispatch",
+        "input": "rc_evidence_preflight",
+        "required_value": True,
+        "same_commit_required": True,
+        "required_job": "rc-evidence",
+        "required_conclusion": "success",
+        "remote_publish_allowed": False,
+    }
+    if preflight != expected_preflight:
+        fail("contrato de preflight same-commit do RC diverge do congelado")
     if state.get("release_status") != "NOT_RELEASED":
         fail("candidata deve permanecer NOT_RELEASED no RC técnico")
     if provenance.get("status") != "BOUND_FOR_TECHNICAL_RC":
