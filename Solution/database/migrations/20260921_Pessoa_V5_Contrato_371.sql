@@ -31,6 +31,14 @@ GO
 IF OBJECT_ID(N'silver.ck_pessoa_cpf_motivo',N'C') IS NOT NULL
     ALTER TABLE silver.pessoa_observacao DROP CONSTRAINT ck_pessoa_cpf_motivo;
 GO
+ALTER TABLE silver.pessoa_observacao ALTER COLUMN cpf_ausente_motivo NVARCHAR(50) NULL;
+IF COL_LENGTH(N'gold.beneficio_concedido',N'cpf_ausente_motivo') IS NOT NULL
+    ALTER TABLE gold.beneficio_concedido ALTER COLUMN cpf_ausente_motivo NVARCHAR(50) NULL;
+IF COL_LENGTH(N'gold.servico_prestado',N'cpf_ausente_motivo') IS NOT NULL
+    ALTER TABLE gold.servico_prestado ALTER COLUMN cpf_ausente_motivo NVARCHAR(50) NULL;
+IF COL_LENGTH(N'serving.registro_integrado',N'cpf_ausente_motivo') IS NOT NULL
+    ALTER TABLE serving.registro_integrado ALTER COLUMN cpf_ausente_motivo NVARCHAR(50) NULL;
+GO
 ALTER TABLE silver.pessoa_observacao WITH CHECK
 ADD CONSTRAINT ck_pessoa_cpf_motivo CHECK(
     (cpf IS NULL AND cpf_ausente_motivo IN(
@@ -41,6 +49,242 @@ ADD CONSTRAINT ck_pessoa_cpf_motivo CHECK(
         N'COM_DOCUMENTACAO_SEM_CPF_CONHECIDO'))
     OR
     (cpf IS NOT NULL AND cpf_ausente_motivo IS NULL));
+GO
+
+/* Gold preserva a taxonomia explícita; não colapsa estados v5 em SEM_CPF. */
+IF OBJECT_ID(N'gold.ck_gold_pessoa_status_cpf',N'C') IS NOT NULL
+    ALTER TABLE gold.pessoa DROP CONSTRAINT ck_gold_pessoa_status_cpf;
+GO
+ALTER TABLE gold.pessoa ALTER COLUMN status_cpf NVARCHAR(50) NOT NULL;
+ALTER TABLE gold.pessoa WITH CHECK ADD CONSTRAINT ck_gold_pessoa_status_cpf CHECK(
+    (cpf IS NOT NULL AND status_cpf=N'PRESENTE')
+    OR
+    (cpf IS NULL AND status_cpf IN(
+        N'SEM_CPF',
+        N'EM_REGULARIZACAO',
+        N'NAO_INFORMADO_ORIGEM',
+        N'SEM_DOCUMENTACAO_BASE_DECLARADA',
+        N'COM_DOCUMENTACAO_SEM_CPF_CONHECIDO')));
+GO
+
+/* Recompõe Gold com a mesma taxonomia sem truncamento nem recodificação. */
+CREATE OR ALTER PROCEDURE identidade.sp_recompor_gold_pessoa @pessoa_uuid UNIQUEIDENTIFIER
+AS
+BEGIN
+ SET NOCOUNT ON;
+ SET XACT_ABORT ON;
+ DECLARE @jornada_own_tran BIT=CASE WHEN @@TRANCOUNT=0 THEN 1 ELSE 0 END;
+ IF @jornada_own_tran=1 BEGIN TRANSACTION;
+ BEGIN TRY
+   IF NOT EXISTS(SELECT 1 FROM identidade.pessoa WHERE pessoa_uuid=@pessoa_uuid AND status='ATIVO')
+   BEGIN
+     DELETE FROM gold.pessoa WHERE pessoa_uuid=@pessoa_uuid;
+     IF @jornada_own_tran=1 COMMIT TRANSACTION;
+     RETURN;
+   END;
+
+   DECLARE @src TABLE(
+     pessoa_uuid UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+     cpf CHAR(11) NULL,
+     nome_completo NVARCHAR(500) NULL,
+     data_nascimento DATE NULL,
+     nome_mae NVARCHAR(500) NULL,
+     fontes INT NOT NULL,
+     divergente BIT NOT NULL,
+     cpf_ausente_motivo NVARCHAR(50) NULL,
+     estado_identidade NVARCHAR(20) NOT NULL,
+     completude_nucleo NVARCHAR(20) NOT NULL
+   );
+
+   ;WITH obs_ids AS(
+      -- vínculo corrente resolvido
+      SELECT po.pessoa_observacao_id
+      FROM silver.pessoa_observacao po
+      JOIN identidade.v_vinculo_corrente vc
+        ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+      WHERE vc.pessoa_uuid=@pessoa_uuid AND vc.status='RESOLVIDO'
+
+      UNION
+
+      -- referência progressiva já publicada
+      SELECT po.pessoa_observacao_id
+      FROM silver.pessoa_observacao po
+      JOIN identidade.pessoa_origem_progressiva p
+        ON p.pessoa_origem_id=po.pessoa_origem_id
+      WHERE p.estado='REFERENCIA' AND p.canonical_uuid=@pessoa_uuid
+
+      UNION
+
+      -- casca progressiva própria; initial_uuid é linhagem, não evidência
+      SELECT po.pessoa_observacao_id
+      FROM silver.pessoa_observacao po
+      JOIN identidade.pessoa_origem_progressiva p
+        ON p.pessoa_origem_id=po.pessoa_origem_id
+      WHERE p.initial_uuid=@pessoa_uuid
+        AND p.estado IN('PROVISORIA','INDEFINIDA')
+   ),
+   obs AS(
+      SELECT po.*
+      FROM silver.pessoa_observacao po
+      JOIN obs_ids i ON i.pessoa_observacao_id=po.pessoa_observacao_id
+   ),
+   stats AS(
+      SELECT COUNT(DISTINCT gestor_id) fontes,
+             CASE
+               WHEN COUNT(DISTINCT nome_cmp)>1
+                 OR COUNT(DISTINCT CONVERT(char(10),data_nascimento,23))>1
+                 OR COUNT(DISTINCT nome_mae_cmp)>1
+               THEN CAST(1 AS bit)
+               ELSE CAST(0 AS bit)
+             END divergente
+      FROM obs
+   )
+   INSERT @src(
+     pessoa_uuid,cpf,nome_completo,data_nascimento,nome_mae,fontes,divergente,
+     cpf_ausente_motivo,estado_identidade,completude_nucleo)
+   SELECT @pessoa_uuid,
+          COALESCE(
+            (SELECT TOP(1) identificador
+             FROM identidade.identity_map
+             WHERE pessoa_uuid=@pessoa_uuid
+               AND tipo='CPF'
+               AND vigencia_fim IS NULL
+               AND estado='ATIVO'
+             ORDER BY vigencia_inicio DESC,identity_map_id DESC),
+            cpf_src.cpf),
+          nome_src.nome_completo,
+          nasc_src.data_nascimento,
+          mae_src.nome_mae,
+          st.fontes,
+          st.divergente,
+          cpf_ausencia.cpf_ausente_motivo,
+          CASE
+            WHEN EXISTS(
+              SELECT 1
+              FROM identidade.v_vinculo_corrente vc
+              WHERE vc.pessoa_uuid=@pessoa_uuid AND vc.status='RESOLVIDO')
+              OR EXISTS(
+                SELECT 1
+                FROM identidade.pessoa_origem_progressiva p
+                WHERE p.estado='REFERENCIA' AND p.canonical_uuid=@pessoa_uuid)
+              OR EXISTS(
+                SELECT 1
+                FROM identidade.cpf_ancora a
+                WHERE a.pessoa_uuid=@pessoa_uuid)
+              THEN 'REFERENCIA'
+            WHEN EXISTS(
+              SELECT 1
+              FROM identidade.pessoa_origem_progressiva p
+              WHERE p.initial_uuid=@pessoa_uuid AND p.estado='INDEFINIDA')
+              THEN 'INDEFINIDA'
+            ELSE 'PROVISORIA'
+          END,
+          CASE
+            WHEN nome_src.nome_completo IS NOT NULL
+             AND nasc_src.data_nascimento IS NOT NULL
+             AND mae_src.nome_mae IS NOT NULL
+              THEN 'COMPLETO'
+            ELSE 'PARCIAL'
+          END
+   FROM stats st
+   OUTER APPLY(
+      SELECT TOP(1) o.cpf
+      FROM obs o
+      LEFT JOIN silver.pessoa_campo_verificacao_observacao v
+        ON v.pessoa_observacao_id=o.pessoa_observacao_id
+       AND v.campo_codigo='CPF'
+      WHERE o.cpf IS NOT NULL
+      ORDER BY CASE WHEN v.pessoa_campo_verificacao_id IS NULL THEN 1 ELSE 0 END,
+               v.verificado_em DESC,o.source_as_of DESC,o.pessoa_observacao_id DESC
+   ) cpf_src
+   OUTER APPLY(
+      SELECT TOP(1) o.cpf_ausente_motivo
+      FROM obs o
+      WHERE o.cpf IS NULL
+        AND o.cpf_ausente_motivo IS NOT NULL
+      ORDER BY o.source_as_of DESC,o.pessoa_observacao_id DESC
+   ) cpf_ausencia
+   OUTER APPLY(
+      SELECT TOP(1) o.nome_completo
+      FROM obs o
+      LEFT JOIN silver.pessoa_campo_verificacao_observacao v
+        ON v.pessoa_observacao_id=o.pessoa_observacao_id
+       AND v.campo_codigo='NOME_COMPLETO'
+      WHERE o.nome_completo IS NOT NULL
+      ORDER BY CASE WHEN v.pessoa_campo_verificacao_id IS NULL THEN 1 ELSE 0 END,
+               v.verificado_em DESC,o.source_as_of DESC,o.pessoa_observacao_id DESC
+   ) nome_src
+   OUTER APPLY(
+      SELECT TOP(1) o.data_nascimento
+      FROM obs o
+      LEFT JOIN silver.pessoa_campo_verificacao_observacao v
+        ON v.pessoa_observacao_id=o.pessoa_observacao_id
+       AND v.campo_codigo='DATA_NASCIMENTO'
+      WHERE o.data_nascimento IS NOT NULL
+      ORDER BY CASE WHEN v.pessoa_campo_verificacao_id IS NULL THEN 1 ELSE 0 END,
+               v.verificado_em DESC,o.source_as_of DESC,o.pessoa_observacao_id DESC
+   ) nasc_src
+   OUTER APPLY(
+      SELECT TOP(1) o.nome_mae
+      FROM obs o
+      LEFT JOIN silver.pessoa_campo_verificacao_observacao v
+        ON v.pessoa_observacao_id=o.pessoa_observacao_id
+       AND v.campo_codigo='NOME_MAE'
+      WHERE o.nome_mae IS NOT NULL
+      ORDER BY CASE WHEN v.pessoa_campo_verificacao_id IS NULL THEN 1 ELSE 0 END,
+               v.verificado_em DESC,o.source_as_of DESC,o.pessoa_observacao_id DESC
+   ) mae_src
+   WHERE EXISTS(SELECT 1 FROM obs);
+
+   MERGE gold.pessoa WITH (HOLDLOCK) AS t
+   USING @src s ON t.pessoa_uuid=s.pessoa_uuid
+   WHEN MATCHED THEN UPDATE SET
+        cpf=s.cpf,
+        status_cpf=CASE
+          WHEN s.cpf IS NOT NULL THEN N'PRESENTE'
+          ELSE COALESCE(s.cpf_ausente_motivo,N'SEM_CPF')
+        END,
+        nome_completo=s.nome_completo,
+        data_nascimento=s.data_nascimento,
+        nome_mae=s.nome_mae,
+        fontes_distintas=s.fontes,
+        estado_concordancia=CASE
+          WHEN s.divergente=1 THEN 'DIVERGENTE'
+          WHEN s.fontes>1 THEN 'CORROBORADO'
+          ELSE 'BASELINE_FONTE_UNICA'
+        END,
+        estado_identidade=s.estado_identidade,
+        completude_nucleo=s.completude_nucleo,
+        atualizado_em=SYSDATETIMEOFFSET()
+   WHEN NOT MATCHED THEN INSERT(
+        pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,
+        fontes_distintas,estado_concordancia,estado_identidade,completude_nucleo,atualizado_em)
+        VALUES(
+          s.pessoa_uuid,s.cpf,
+          CASE
+          WHEN s.cpf IS NOT NULL THEN N'PRESENTE'
+          ELSE COALESCE(s.cpf_ausente_motivo,N'SEM_CPF')
+        END,
+          s.nome_completo,s.data_nascimento,s.nome_mae,s.fontes,
+          CASE
+            WHEN s.divergente=1 THEN 'DIVERGENTE'
+            WHEN s.fontes>1 THEN 'CORROBORADO'
+            ELSE 'BASELINE_FONTE_UNICA'
+          END,
+          s.estado_identidade,s.completude_nucleo,SYSDATETIMEOFFSET());
+
+   -- initial_uuid associado a outra referência deixa a Gold corrente,
+   -- mas permanece imutável no ledger/eventos.
+   IF NOT EXISTS(SELECT 1 FROM @src)
+     DELETE FROM gold.pessoa WHERE pessoa_uuid=@pessoa_uuid;
+
+   IF @jornada_own_tran=1 COMMIT TRANSACTION;
+ END TRY
+ BEGIN CATCH
+   IF @jornada_own_tran=1 AND XACT_STATE()<>0 ROLLBACK TRANSACTION;
+   THROW;
+ END CATCH
+END;
 GO
 
 /* #402 — RG parcial não exige emissor/UF. CNH é secundária e não hierárquica. */
