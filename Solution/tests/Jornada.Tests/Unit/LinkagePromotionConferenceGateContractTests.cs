@@ -58,7 +58,8 @@ public sealed class LinkagePromotionConferenceGateContractTests
             Assert.That(worker, Does.Contain("@conference_method_version"));
             Assert.That(worker, Does.Contain("@conference_tolerance_version"));
             Assert.That(worker, Does.Contain("@conference_max_llr"));
-            Assert.That(worker, Does.Contain("TOLERANCE_NOT_FROZEN"));
+            Assert.That(worker, Does.Contain("TryGetFrozen"));
+            Assert.That(worker, Does.Contain("Promoção do modelo bloqueada pela conferência de implementação"));
             Assert.That(project, Does.Not.Contain("Jornada.Linkage.Conference"));
             Assert.That(project, Does.Not.Contain("Jornada.Linkage.Evaluation"));
         });
