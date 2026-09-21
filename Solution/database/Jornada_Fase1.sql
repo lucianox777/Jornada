@@ -1231,8 +1231,8 @@ IF OBJECT_ID('identidade.identity_map','U') IS NULL CREATE TABLE identidade.iden
  CONSTRAINT ck_identity_map_vig CHECK(vigencia_fim IS NULL OR vigencia_fim>=vigencia_inicio),
  CONSTRAINT ck_identity_map_estado CHECK(estado IN('ATIVO','EM_CONFLITO','ENCERRADO')),
  CONSTRAINT ck_identity_map_estado_vig CHECK((vigencia_fim IS NULL AND estado IN('ATIVO','EM_CONFLITO')) OR (vigencia_fim IS NOT NULL AND estado='ENCERRADO')),
- CONSTRAINT ck_identity_map_metodo CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','NIS_DETERMINISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA')),
- CONSTRAINT ck_identity_map_modelo CHECK((metodo_resolucao IN('CPF_DETERMINISTICO','NIS_DETERMINISTICO','CORRECAO_GOVERNADA') AND score IS NULL AND modelo_id IS NULL) OR
+ CONSTRAINT ck_identity_map_metodo CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA')),
+ CONSTRAINT ck_identity_map_modelo CHECK((metodo_resolucao IN('CPF_DETERMINISTICO','CORRECAO_GOVERNADA') AND score IS NULL AND modelo_id IS NULL) OR
                                         (metodo_resolucao='LINKAGE_PROBABILISTICO' AND modelo_id IS NOT NULL)));
 GO
 -- v3.43: o conflito de CPF sobe da observação para o identificador. Um CPF EM_CONFLITO deixa de resolver para UUID.
@@ -1246,8 +1246,8 @@ IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID('
 IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID('identidade.identity_map') AND name='ck_identity_map_modelo') ALTER TABLE identidade.identity_map DROP CONSTRAINT ck_identity_map_modelo;
 ALTER TABLE identidade.identity_map WITH CHECK ADD CONSTRAINT ck_identity_map_estado CHECK(estado IN('ATIVO','EM_CONFLITO','ENCERRADO'));
 ALTER TABLE identidade.identity_map WITH CHECK ADD CONSTRAINT ck_identity_map_estado_vig CHECK((vigencia_fim IS NULL AND estado IN('ATIVO','EM_CONFLITO')) OR (vigencia_fim IS NOT NULL AND estado='ENCERRADO'));
-ALTER TABLE identidade.identity_map WITH CHECK ADD CONSTRAINT ck_identity_map_metodo CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','NIS_DETERMINISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA'));
-ALTER TABLE identidade.identity_map WITH CHECK ADD CONSTRAINT ck_identity_map_modelo CHECK((metodo_resolucao IN('CPF_DETERMINISTICO','NIS_DETERMINISTICO','CORRECAO_GOVERNADA') AND score IS NULL AND modelo_id IS NULL) OR (metodo_resolucao='LINKAGE_PROBABILISTICO' AND modelo_id IS NOT NULL));
+ALTER TABLE identidade.identity_map WITH CHECK ADD CONSTRAINT ck_identity_map_metodo CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA'));
+ALTER TABLE identidade.identity_map WITH CHECK ADD CONSTRAINT ck_identity_map_modelo CHECK((metodo_resolucao IN('CPF_DETERMINISTICO','CORRECAO_GOVERNADA') AND score IS NULL AND modelo_id IS NULL) OR (metodo_resolucao='LINKAGE_PROBABILISTICO' AND modelo_id IS NOT NULL));
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('identidade.identity_map') AND name='UX_identidade_identity_map_cpf_ativo')
  CREATE UNIQUE INDEX UX_identidade_identity_map_cpf_ativo ON identidade.identity_map(tipo,identificador) WHERE tipo='CPF' AND vigencia_fim IS NULL;
@@ -1273,10 +1273,9 @@ IF OBJECT_ID('identidade.vinculo_fonte','U') IS NULL CREATE TABLE identidade.vin
  linkage_run_id UNIQUEIDENTIFIER NULL, resolvido_em DATETIMEOFFSET(7) NULL, motivo NVARCHAR(120) NULL,
  CONSTRAINT ck_vinculo_status CHECK(status IN('RESOLVIDO','NAO_RESOLVIDO','CONFLITO')),
  CONSTRAINT ck_vinculo_status_uuid CHECK((status='RESOLVIDO' AND pessoa_uuid IS NOT NULL) OR (status IN('NAO_RESOLVIDO','CONFLITO') AND pessoa_uuid IS NULL)),
- CONSTRAINT ck_vinculo_metodo CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','NIS_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA')),
+ CONSTRAINT ck_vinculo_metodo CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA')),
  CONSTRAINT ck_vinculo_modelo CHECK(
     (metodo_resolucao='CPF_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
-    (metodo_resolucao='NIS_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='UUID_JORNADA_RETROALIMENTACAO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='PENDENTE_PROBABILISTICO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL) OR
     (metodo_resolucao='LINKAGE_PROBABILISTICO' AND score IS NOT NULL AND modelo_id IS NOT NULL) OR
@@ -1307,14 +1306,13 @@ GO
 -- v3.93: este bloco de compatibilidade pode ser reaplicado sobre banco já evoluído até v3.44+.
 -- Não pode rebaixar temporariamente o domínio e rejeitar linhas CONFLITO_GOVERNADO já válidas.
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_metodo
- CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','NIS_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
+ CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
 GO
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID('identidade.vinculo_fonte') AND name='ck_vinculo_modelo')
  ALTER TABLE identidade.vinculo_fonte DROP CONSTRAINT ck_vinculo_modelo;
 GO
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_modelo CHECK(
     (metodo_resolucao='CPF_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
-    (metodo_resolucao='NIS_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='UUID_JORNADA_RETROALIMENTACAO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='PENDENTE_PROBABILISTICO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL) OR
     (metodo_resolucao='LINKAGE_PROBABILISTICO' AND score IS NOT NULL AND modelo_id IS NOT NULL) OR
@@ -2542,10 +2540,9 @@ IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID('
 IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID('identidade.vinculo_fonte') AND name='ck_vinculo_modelo')
  ALTER TABLE identidade.vinculo_fonte DROP CONSTRAINT ck_vinculo_modelo;
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_metodo
- CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','NIS_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
+ CHECK(metodo_resolucao IN('CPF_DETERMINISTICO','UUID_JORNADA_RETROALIMENTACAO','PENDENTE_PROBABILISTICO','LINKAGE_PROBABILISTICO','CORRECAO_GOVERNADA','CONFLITO_GOVERNADO'));
 ALTER TABLE identidade.vinculo_fonte WITH CHECK ADD CONSTRAINT ck_vinculo_modelo CHECK(
     (metodo_resolucao='CPF_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
-    (metodo_resolucao='NIS_DETERMINISTICO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='UUID_JORNADA_RETROALIMENTACAO' AND score IS NULL AND modelo_id IS NULL) OR
     (metodo_resolucao='PENDENTE_PROBABILISTICO' AND score IS NULL AND modelo_id IS NULL AND pessoa_uuid IS NULL) OR
     (metodo_resolucao='LINKAGE_PROBABILISTICO' AND score IS NOT NULL AND modelo_id IS NOT NULL) OR
