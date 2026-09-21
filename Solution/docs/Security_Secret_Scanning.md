@@ -1,7 +1,7 @@
 # Varredura de segredos — preparação pós-RC
 
 **Issue:** #405  
-**Estado:** execução local preparada; integração ao CI deliberadamente adiada até depois de `v5.00-rc.1`.
+**Estado:** execução local + integração CI implementadas após `v5.00-rc.1`.
 
 ## Política
 
@@ -38,10 +38,16 @@ A execução completa faz duas provas:
 
 Os relatórios ficam em `Solution/.local/gitleaks/`, já coberto pelo `.gitignore`. Eles não devem ser commitados nem publicados como artifact sem revisão, porque a finalidade é triagem de segurança.
 
-## Integração futura ao CI
+## Integração ao CI
 
-Após o corte da RC, #405 pode adicionar um job de Gitleaks ao `security-analysis` ou workflow equivalente. A versão da ferramenta/Action deve ser pinada de forma consistente com a política de supply chain da Jornada.
+O job `security-analysis` instala **Gitleaks 8.30.1** a partir do release oficial e valida o SHA-256 do tarball Linux x64 antes de executar. Não usa tag `latest` nem adiciona uma Action de terceiros ao workflow.
 
-A integração futura deve escanear pelo menos a mudança/árvore corrente. A varredura histórica completa é uma ação de saneamento/revisão e não precisa ser repetida a cada commit se existir evidência inicial tratada e política para novos achados.
+Em todo CI, a prova obrigatória é:
+
+- `security-secret-scan.sh --current-tree-only`;
+- configuração `.gitleaks.toml` com as regras padrão mantidas pelo projeto;
+- saída/versionamento copiados para o artifact `security-analysis-evidence`.
+
+A varredura histórica completa continua disponível por `security-secret-scan.sh` sem `--current-tree-only`. Ela é uma ação de saneamento/revisão da #405 e **não é repetida em todo commit**, porque achados históricos exigem triagem explícita e não devem virar baseline/allowlist ou rewrite automático.
 
 O `source-sanity-gate.py` continua complementar: ele protege padrões específicos do projeto e não substitui um detector de segredos.
