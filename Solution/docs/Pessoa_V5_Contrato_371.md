@@ -87,7 +87,7 @@ A view compartilhada `silver.v_pessoa_referencia_territorial`:
 - não transforma `SEM_ENDERECO_FIXO_DECLARADO` em endereço;
 - não converte acolhimento, serviço de referência ou pernoite em `DOMICILIAR`.
 
-A view agregada `serving.v_bi_referencia_territorial_v5` substitui a natureza prisional por `RESTRITA`; não publica a natureza sensível para a superfície compartilhada.
+A view agregada `serving.v_bi_referencia_territorial_v5` omite integralmente linhas `INSTITUCIONAL_PRISIONAL`; a superfície compartilhada não publica nem contagem que revele essa natureza. A Silver preserva o dado para eventual fluxo institucional autorizado futuro.
 
 As regras existentes de casa-abrigo sigilosa permanecem intactas. Exposição institucional futura de informação prisional continua dependente das decisões externas de autorização/autenticação.
 
