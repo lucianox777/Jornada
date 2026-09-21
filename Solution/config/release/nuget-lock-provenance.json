@@ -229,13 +229,13 @@
   "candidateGraph": {
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
-    "sourceCommit": "19ea8cf6d951d6531a57915b9e979605c07d6e46",
-    "githubRunId": "35542686558",
+    "sourceCommit": "ecc307d0eda75dc735eb3009012a5ca63cd12167",
+    "githubRunId": "35631304865",
     "sdk": "8.0.424",
-    "reason": "PR #385 adiciona o orquestrador Jornada.Linkage.Conference e sua referência pela suíte de integração. O SDK 8.0.424 confirmou force-evaluate sem diferenças semânticas após ajuste de serialização, com 21 locks e combinedSha256 corrente.",
-    "lockCount": 21,
-    "changedLockCount": 16,
-    "combinedSha256": "19c25885cfd9507023484be2a0dfd1a1ddd20455e25c5c735ae3da2764b24c8f",
+    "reason": "PR #417 adiciona o andaime Jornada.Linkage.SyntheticCorpus e sua referência pela suíte Unit. O SDK 8.0.424 confirmou force-evaluate sem diff de lock; o grafo corrente possui 22 locks, incluindo o novo projeto sem pacotes externos.",
+    "lockCount": 22,
+    "changedLockCount": 17,
+    "combinedSha256": "935b077a25276c29e82cd5640912445dd81319f0a956c1aec784dddc81c5c6c2",
     "overrides": [
       {
         "path": "src/Jornada.Api/packages.lock.json",
@@ -274,6 +274,10 @@
         "sha256": "1ad25dc21dd2faa0e50c140d3946da7815435f4816a01dd489452f6f0a578841"
       },
       {
+        "path": "src/Jornada.Linkage.SyntheticCorpus/packages.lock.json",
+        "sha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c"
+      },
+      {
         "path": "src/Jornada.Operational.Sql/packages.lock.json",
         "sha256": "ff40971c9524193fddd81cc387a2349d30355dc25dc20728d15cdd360cc31c93"
       },
@@ -299,7 +303,7 @@
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "616f9d6ddf3d7f1fa2288630fe64bd0e04f157519d253c4130f004d7bb9efa4b"
+        "sha256": "a1536b4514909678941fba53d9df4bc623e5fc8d61f25e3586636841f4518d94"
       }
     ]
   }
