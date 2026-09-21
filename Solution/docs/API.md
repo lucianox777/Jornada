@@ -17,16 +17,16 @@ Todo Benefício Concedido ou Serviço Prestado validamente declarado pelo Gestor
 `pessoa_uuid` é atribuição canônica corrente, anulável e mutável. `estado_atribuicao_identidade` assume `ATRIBUIDA`, `PENDENTE_IDENTIDADE` ou `CONFLITO_IDENTIDADE`. Projeções individuais usam somente fatos `ATRIBUIDA`; agregados factuais contabilizam todos os fatos vigentes. Correção cadastral da Pessoa não reescreve retroativamente `cpf_declarado`; alterar o sujeito declarado de um fato exige nova versão factual/RETIFICACAO.
 
 ### POST /api/v1/identidade/casos
-Abre caso governado geral (`CPF_COMPARTILHADO`, `FUSAO_HISTORICA`, `LINKAGE_INCORRETO` ou `OUTRO`) para observações explicitamente indicadas pelo Gestor. A abertura suspende a atribuição canônica dessas observações/fatos sem excluir a ocorrência factual.
+Abre caso governado geral (`CPF_COMPARTILHADO`, `FUSAO_HISTORICA`, `LINKAGE_INCORRETO` ou `OUTRO`) para observações explicitamente indicadas pelo Gestor. A abertura suspende a atribuição canônica dessas observações/fatos sem excluir a ocorrência factual. A abertura também exige `evidenciaTipo`: `DOCUMENTO_VERIFICADO` com `documentoTipoCodigo`, ou `CONFIRMACAO_SEM_DOCUMENTO` sem documento.
 
 ### POST /api/v1/identidade/casos/{casoId}/aplicar
-Aplica a classificação exaustiva das observações do caso em grupos e UUIDs de destino. A decisão é declarada pela finalística; a Jornada executa a reassociação, recompõe a Pessoa Gold e invalida Possibilidades derivadas.
+Aplica a classificação exaustiva das observações do caso em grupos e UUIDs de destino. A decisão é declarada pela finalística; a Jornada executa a reassociação, recompõe a Pessoa Gold e invalida Possibilidades derivadas. O ledger registra essa etapa como `DECISAO_PREVIA_APLICADA`; o endpoint não aceita uma nova classificação documental porque a evidência pertence ao ato de abertura/decisão, não à execução posterior.
 
 ### GET /api/v1/divergencias?limit=
 Fila institucional de divergências **abertas** do Gestor, limitada a 1..500 itens (`limit` padrão 100). Na Fase 1, a tipologia produzida automaticamente pela Solution é `DIVERGENCIA_IDENTIDADE`. Conflitos probabilísticos publicados pelo Linkage entram nessa mesma fila de forma idempotente; internamente a linha mantém `linkage_resultado_id` para auditoria de modelo/run/candidatos/scores/margem, sem criar uma segunda fila. A resposta HTTP não devolve esse contexto interno, CPF, UUID nem conteúdo factual; entrega somente identificadores de observação/origem, tipologia, motivo, correlação e instante de abertura.
 
 ### POST /api/v1/divergencias/{divergenciaId}/desfecho
-Registra `RESOLVIDA` ou `DESCARTADA`, desfecho e observação. O Serviço de Divergências **notifica e registra desfecho; não corrige dados**. Correção cadastral e nova evidência voltam pela ingestão de nova observação de Pessoa; correção de fatos usa `ALTERACAO` ou `RETIFICACAO`; conflitos de identidade usam exclusivamente o fluxo governado próprio de identidade. A autenticação do agente permanece sob responsabilidade da finalística.
+Registra `RESOLVIDA` ou `DESCARTADA`, desfecho, observação e evidência estruturada. `evidenciaTipo` deve ser `DOCUMENTO_VERIFICADO` (com `documentoTipoCodigo`) ou `CONFIRMACAO_SEM_DOCUMENTO` (sem código documental). O Serviço de Divergências **notifica e registra desfecho; não corrige dados**. Correção cadastral e nova evidência voltam pela ingestão de nova observação de Pessoa; correção de fatos usa `ALTERACAO` ou `RETIFICACAO`; conflitos de identidade usam exclusivamente o fluxo governado próprio de identidade. A autenticação do agente permanece sob responsabilidade da finalística.
 
 ## Compartilhamento municipal e restrições de projeção (v3.45)
 
@@ -94,7 +94,7 @@ Somente credencial institucional `GESTOR` com scope `jornada.identidade.conflito
 
 ### `POST /api/v1/identidade/correcoes`
 
-Somente `GESTOR` com scope `jornada.identidade.corrigir`. O Gestor informa explicitamente o agrupamento das observações, qual grupo é o titular do CPF, UUID de destino opcional por grupo, `atoReferencia` e `justificativa`. A Jornada não decide documentalmente quem é o titular: executa a decisão institucional, preserva o histórico em `identidade.correcao_identidade`/`correcao_identidade_item`, encerra o mapa conflitado, cria o novo mapa ativo e altera somente a atribuição canônica dos fatos já materializados; não reabre lotes nem reescreve o sujeito declarado histórico.
+Somente `GESTOR` com scope `jornada.identidade.corrigir`. O Gestor informa explicitamente o agrupamento das observações, qual grupo é o titular do CPF, UUID de destino opcional por grupo, `atoReferencia`, `justificativa` e `evidenciaTipo`. `DOCUMENTO_VERIFICADO` exige `documentoTipoCodigo`; `CONFIRMACAO_SEM_DOCUMENTO` proíbe esse campo. A Jornada não decide documentalmente quem é o titular: executa a decisão institucional, preserva o histórico em `identidade.correcao_identidade`/`correcao_identidade_item`, encerra o mapa conflitado, cria o novo mapa ativo e altera somente a atribuição canônica dos fatos já materializados; não reabre lotes nem reescreve o sujeito declarado histórico.
 
 A operação permite **separação** (grupo sem UUID de destino recebe novo UUID), **reassociação** (grupo aponta para UUID existente) e **fusão governada** (grupos podem apontar para o mesmo UUID). Não existe CRUD administrativo genérico de UUID.
 
