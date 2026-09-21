@@ -154,7 +154,7 @@ internal sealed partial class SqlProcessorRepository
         command.Parameters.AddWithValue("@sistema_origem", person.SistemaOrigemId);
         AddNullable(command, "@codigo_pessoa", SqlDbType.NVarChar, 255, person.CodigoPessoaOrigem);
         AddNullable(command, "@cpf_declarado", SqlDbType.Char, 11, person.CpfDeclarado);
-        AddNullable(command, "@cpf_ausente", SqlDbType.NVarChar, 30, person.CpfAusenteMotivo);
+        AddNullable(command, "@cpf_ausente", SqlDbType.NVarChar, 50, person.CpfAusenteMotivo);
         command.Parameters.Add(new SqlParameter("@estado_atribuicao", SqlDbType.NVarChar, 30) { Value = person.EstadoAtribuicaoIdentidade });
         command.Parameters.AddWithValue("@gestor", batch.GestorId);
         command.Parameters.AddWithValue("@tipo", batch.TipoRegistroId!.Value);
