@@ -691,7 +691,11 @@
         }
       },
       "jornada.linkage.syntheticcorpus": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Jornada.Contracts": "[1.0.0, )",
+          "Jornada.Ingestion": "[1.0.0, )"
+        }
       },
       "jornada.operational.sql": {
         "type": "Project",
