@@ -41,11 +41,10 @@ public sealed record IdentityCorrectionResponse(
 
 // v3.44/v3.45 - caso governado geral, independente de CPF.
 public sealed record IdentityGovernedCaseOpenRequest(
-    string Motivo, IReadOnlyList<long> PessoaObservacaoIds, string AtoReferencia, string Justificativa,
-    IdentityDecisionEvidence Evidencia);
+    string Motivo, IReadOnlyList<long> PessoaObservacaoIds, string AtoReferencia, string Justificativa);
 public sealed record IdentityGovernedCaseOpenResponse(Guid CasoId, string Status);
 public sealed record IdentityGovernedCaseApplyRequest(
-    IReadOnlyList<IdentityCorrectionGroupRequest> Grupos);
+    IReadOnlyList<IdentityCorrectionGroupRequest> Grupos, IdentityDecisionEvidence Evidencia);
 public sealed record IdentityGovernedCaseApplyResponse(Guid CasoId, string Status);
 
 // Retorno ativo de divergências ao Gestor finalístico; não contém CPF nem conteúdo do fato.
