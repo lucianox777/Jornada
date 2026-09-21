@@ -43,7 +43,7 @@ A persistência separa os conceitos:
 - `identidade.pessoa`: entidade de identidade e autoridade de vínculo;
 - `gold.pessoa`: projeção materializada para consumo analítico/serving;
 - identidade de origem: referência estável do registro recebido;
-- identidade canônica: vínculo eventualmente resolvido por CPF, linkage ou correção governada.
+- identidade canônica: vínculo eventualmente resolvido por CPF, NIS governado, linkage ou correção governada.
 
 ### 3.1 Nome de referência e evidência nominal
 
@@ -65,7 +65,9 @@ Quando houver confirmação humana, ela deve ser estruturada em apenas duas form
 
 ## 4. Âncora CPF → UUID e ausência de CPF
 
-Quando um CPF válido e governado está disponível, a resolução determinística CPF→UUID é a âncora de maior autoridade do vínculo. Conflitos de consistência não devem ser silenciados por regras probabilísticas.
+Quando um CPF válido e governado está disponível, a resolução determinística CPF→UUID é a âncora externa de maior autoridade do vínculo. Conflitos de consistência não devem ser silenciados por regras probabilísticas.
+
+NIS/PIS/PASEP/NIT usam um tipo canônico `NIS`, preservando a procedência no namespace. Um NIS só participa deterministicamente quando estruturalmente válido e `COMPROVADO`; `DECLARADO` é apenas evidência observada. NIS é âncora **secundária**: nunca substitui ou contradiz silenciosamente um CPF válido. Divergência CPF×NIS mantém a resolução CPF, marca o NIS corrente em conflito e abre divergência governada. A Pessoa pode possuir múltiplas inscrições sociais comprovadas, enquanto cada número social corrente aponta para no máximo uma Pessoa canônica. A decisão detalhada está na ADR-006.
 
 A ausência de CPF, entretanto, não impede a ingestão de um fato válido. O sistema deve preservar `cpf_declarado` quando informado, registrar o motivo de ausência quando aplicável e manter o estado da atribuição de identidade separado do fato finalístico.
 
