@@ -196,25 +196,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
             var cpf = legacyCpf
                 ?? identifiers.FirstOrDefault(i => i.Tipo == "CPF")?.ValorNormalizado;
             var cpfAbsenceReason = OptionalString(json, "cpfAusenteMotivo");
-            if (batch.PessoaSchemaVersao >= 5)
-            {
-                var allowedCpfAbsenceReasons = new HashSet<string>(StringComparer.Ordinal)
-                {
-                    "NAO_INFORMADO_ORIGEM",
-                    "SEM_DOCUMENTACAO_BASE_DECLARADA",
-                    "COM_DOCUMENTACAO_SEM_CPF_CONHECIDO",
-                    "EM_REGULARIZACAO"
-                };
-                if (string.IsNullOrWhiteSpace(cpf))
-                {
-                    if (string.IsNullOrWhiteSpace(cpfAbsenceReason) || !allowedCpfAbsenceReasons.Contains(cpfAbsenceReason))
-                        throw new InvalidDataException("pessoas.jsonl: Pessoa v5 sem CPF exige cpfAusenteMotivo explícito da taxonomia v5.");
-                }
-                else if (!string.IsNullOrWhiteSpace(cpfAbsenceReason))
-                {
-                    throw new InvalidDataException("pessoas.jsonl: Pessoa v5 com CPF não pode declarar cpfAusenteMotivo.");
-                }
-            }
+            PersonV5ContractRules.ValidateCpfAbsence(batch.PessoaSchemaVersao, cpf, cpfAbsenceReason);
 
             var attributes = new List<ParsedTransversalAttribute>();
             if (json.TryGetProperty("atributosTransversais", out var attrs) && attrs.ValueKind == JsonValueKind.Array)
