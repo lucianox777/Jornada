@@ -154,10 +154,14 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                 $"manifest={manifest.MaterializedObservationCount}.");
         }
 
+        var requiredBlockingFields = model.Passes
+            .SelectMany(static pass => pass.Fields)
+            .ToHashSet(StringComparer.Ordinal);
         var projected = observations
-            .Select(static row => new ProjectedObservation(
+            .Select(row => new ProjectedObservation(
                 row,
                 BlockingProjectionKeyProjector.Project(row.Name, row.MotherName, row.BirthDate)
+                    .Where(key => requiredBlockingFields.Contains(key.Feature))
                     .GroupBy(static key => key.Feature, StringComparer.Ordinal)
                     .ToDictionary(
                         static group => group.Key,
