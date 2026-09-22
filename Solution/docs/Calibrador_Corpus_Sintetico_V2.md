@@ -164,6 +164,14 @@ do mesmo `.env` usado pelo Docker local, montam `ConnectionStrings__Jornada` em
 memória e chamam o modo `SYNTHETIC_CALIBRATION_DEV`. A chave HMAC permanece apenas
 na variável de ambiente e não é passada como argumento de processo.
 
+O default do ensaio é **100.000 pessoas-base**. Com a prevalência/retenção de CPF da
+V2 e 1..4 observações por pessoa, 20 mil pessoas não oferecem margem suficiente para
+o gate operacional de `MinimumIndependentMatchedPairs=5000`. O harness mantém o
+gate estatístico inalterado e aumenta apenas a massa. Como isso gera dezenas de
+milhares de pessoas por ZIP/Gestor, o Processor iniciado pelo ensaio recebe
+`MaxPessoasPorEntrega=100000` somente nesse processo DEV; esse limite técnico é
+registrado na evidência e não altera o estimador.
+
 O harness:
 
 1. restaura a Solution em `--locked-mode` e compila Release;
