@@ -44,6 +44,9 @@ CREATE TABLE auditoria.linkage_avaliacao_sintetica(
     bridge_manifest_sha256 BINARY(32) NOT NULL,
     observations_sha256 BINARY(32) NOT NULL,
     bridge_truth_sha256 BINARY(32) NOT NULL,
+    relatorio_schema_versao NVARCHAR(120) NOT NULL,
+    natureza NVARCHAR(80) NOT NULL,
+    finalidade NVARCHAR(120) NOT NULL,
     gerador_versao NVARCHAR(120) NOT NULL,
     gerador_seed DECIMAL(20,0) NOT NULL,
     avaliador_versao NVARCHAR(120) NOT NULL,
@@ -52,6 +55,10 @@ CREATE TABLE auditoria.linkage_avaliacao_sintetica(
     ruleset_versao NVARCHAR(120) NOT NULL,
     ruleset_fingerprint_sha256 BINARY(32) NOT NULL,
     u_semantica NVARCHAR(120) NOT NULL,
+    m_truth_universo NVARCHAR(220) NOT NULL,
+    u_truth_universo NVARCHAR(220) NOT NULL,
+    u_nome_fonte_nominal NVARCHAR(80) NOT NULL,
+    u_nome_mae_fonte_nominal NVARCHAR(80) NOT NULL,
     observacoes_materializadas BIGINT NOT NULL,
     observacoes_excluidas BIGINT NOT NULL,
     report_sha256 BINARY(32) NOT NULL,
@@ -66,6 +73,10 @@ CREATE TABLE auditoria.linkage_avaliacao_sintetica(
     CONSTRAINT ck_linkage_avaliacao_sintetica_seed CHECK(
         gerador_seed>=CONVERT(DECIMAL(20,0),0)
         AND gerador_seed<=CONVERT(DECIMAL(20,0),18446744073709551615)),
+    CONSTRAINT ck_linkage_avaliacao_sintetica_finalidade CHECK(
+        finalidade=N'ENGINEERING_EVIDENCE_ONLY_NOT_PROMOTABLE'),
+    CONSTRAINT ck_linkage_avaliacao_sintetica_natureza CHECK(
+        natureza=N'SYNTHETIC_PARAMETER_RECOVERY'),
     CONSTRAINT ck_linkage_avaliacao_sintetica_ambiente CHECK(ambiente_perfil=N'Development'),
     CONSTRAINT ck_linkage_avaliacao_sintetica_status CHECK(status=N'CONCLUIDA'),
     CONSTRAINT ck_linkage_avaliacao_sintetica_contagens CHECK(
@@ -166,6 +177,9 @@ CREATE OR ALTER PROCEDURE auditoria.sp_registrar_avaliacao_sintetica_linkage
  @bridge_manifest_sha256 BINARY(32),
  @observations_sha256 BINARY(32),
  @bridge_truth_sha256 BINARY(32),
+ @relatorio_schema_versao NVARCHAR(120),
+ @natureza NVARCHAR(80),
+ @finalidade NVARCHAR(120),
  @gerador_versao NVARCHAR(120),
  @gerador_seed DECIMAL(20,0),
  @avaliador_versao NVARCHAR(120),
@@ -174,6 +188,10 @@ CREATE OR ALTER PROCEDURE auditoria.sp_registrar_avaliacao_sintetica_linkage
  @ruleset_versao NVARCHAR(120),
  @ruleset_fingerprint_sha256 BINARY(32),
  @u_semantica NVARCHAR(120),
+ @m_truth_universo NVARCHAR(220),
+ @u_truth_universo NVARCHAR(220),
+ @u_nome_fonte_nominal NVARCHAR(80),
+ @u_nome_mae_fonte_nominal NVARCHAR(80),
  @observacoes_materializadas BIGINT,
  @observacoes_excluidas BIGINT,
  @report_sha256 BINARY(32),
@@ -193,6 +211,15 @@ BEGIN
     THROW 51914,'Banco não está marcado como Jornada.EnvironmentProfile=Development.',1;
  IF @status<>N'CONCLUIDA'
     THROW 51915,'Somente avaliação sintética CONCLUIDA pode ser persistida.',1;
+ IF @natureza<>N'SYNTHETIC_PARAMETER_RECOVERY'
+    OR @finalidade<>N'ENGINEERING_EVIDENCE_ONLY_NOT_PROMOTABLE'
+    OR NULLIF(LTRIM(RTRIM(@relatorio_schema_versao)),N'') IS NULL
+    THROW 51915,'Natureza/finalidade/schema da avaliação sintética são inválidos.',1;
+ IF NULLIF(LTRIM(RTRIM(@m_truth_universo)),N'') IS NULL
+    OR NULLIF(LTRIM(RTRIM(@u_truth_universo)),N'') IS NULL
+    OR NULLIF(LTRIM(RTRIM(@u_nome_fonte_nominal)),N'') IS NULL
+    OR NULLIF(LTRIM(RTRIM(@u_nome_mae_fonte_nominal)),N'') IS NULL
+    THROW 51915,'Semântica de m/u sintética incompleta.',1;
  IF @gerador_seed<CONVERT(DECIMAL(20,0),0)
     OR @gerador_seed>CONVERT(DECIMAL(20,0),18446744073709551615)
     THROW 51915,'Seed sintética fora do domínio UInt64.',1;
@@ -249,6 +276,9 @@ BEGIN
         AND e.bridge_manifest_sha256=@bridge_manifest_sha256
         AND e.observations_sha256=@observations_sha256
         AND e.bridge_truth_sha256=@bridge_truth_sha256
+        AND e.relatorio_schema_versao=@relatorio_schema_versao
+        AND e.natureza=@natureza
+        AND e.finalidade=@finalidade
         AND e.gerador_versao=@gerador_versao
         AND e.gerador_seed=@gerador_seed
         AND e.avaliador_versao=@avaliador_versao
@@ -257,6 +287,10 @@ BEGIN
         AND e.ruleset_versao=@ruleset_versao
         AND e.ruleset_fingerprint_sha256=@ruleset_fingerprint_sha256
         AND e.u_semantica=@u_semantica
+        AND e.m_truth_universo=@m_truth_universo
+        AND e.u_truth_universo=@u_truth_universo
+        AND e.u_nome_fonte_nominal=@u_nome_fonte_nominal
+        AND e.u_nome_mae_fonte_nominal=@u_nome_mae_fonte_nominal
         AND e.observacoes_materializadas=@observacoes_materializadas
         AND e.observacoes_excluidas=@observacoes_excluidas)
       THROW 51919,'Hash de relatório sintético já registrado com proveniência incompatível.',1;
@@ -272,17 +306,21 @@ BEGIN
    INSERT auditoria.linkage_avaliacao_sintetica(
       avaliacao_id,grupo_execucao_id,modelo_id,modelo_versao,modelo_snapshot_sha256,
       corpus_fingerprint_sha256,generation_manifest_sha256,bridge_manifest_sha256,
-      observations_sha256,bridge_truth_sha256,gerador_versao,gerador_seed,
-      avaliador_versao,ambiente_perfil,status,ruleset_versao,ruleset_fingerprint_sha256,
-      u_semantica,observacoes_materializadas,observacoes_excluidas,report_sha256,
+      observations_sha256,bridge_truth_sha256,relatorio_schema_versao,natureza,finalidade,
+      gerador_versao,gerador_seed,avaliador_versao,ambiente_perfil,status,
+      ruleset_versao,ruleset_fingerprint_sha256,u_semantica,m_truth_universo,u_truth_universo,
+      u_nome_fonte_nominal,u_nome_mae_fonte_nominal,
+      observacoes_materializadas,observacoes_excluidas,report_sha256,
       validacao_estatistica,promocao_autorizada,
       executor_aplicacao,executor_login,executor_host,source_revision)
    VALUES(
       @avaliacao_id,@grupo_execucao_id,@modelo_id,@modelo_versao,@modelo_snapshot_sha256,
       @corpus_fingerprint_sha256,@generation_manifest_sha256,@bridge_manifest_sha256,
-      @observations_sha256,@bridge_truth_sha256,@gerador_versao,@gerador_seed,
-      @avaliador_versao,@ambiente_perfil,@status,@ruleset_versao,@ruleset_fingerprint_sha256,
-      @u_semantica,@observacoes_materializadas,@observacoes_excluidas,@report_sha256,
+      @observations_sha256,@bridge_truth_sha256,@relatorio_schema_versao,@natureza,@finalidade,
+      @gerador_versao,@gerador_seed,@avaliador_versao,@ambiente_perfil,@status,
+      @ruleset_versao,@ruleset_fingerprint_sha256,@u_semantica,@m_truth_universo,@u_truth_universo,
+      @u_nome_fonte_nominal,@u_nome_mae_fonte_nominal,
+      @observacoes_materializadas,@observacoes_excluidas,@report_sha256,
       N'NOT_ASSESSED_ISSUE_31',0,
       LEFT(COALESCE(APP_NAME(),N'SQL'),128),
       LEFT(COALESCE(ORIGINAL_LOGIN(),SUSER_SNAME(),N'UNKNOWN'),256),
@@ -308,9 +346,10 @@ SELECT
     e.linkage_avaliacao_sintetica_id,e.avaliacao_id,e.grupo_execucao_id,
     e.modelo_id,e.modelo_versao,e.modelo_snapshot_sha256,
     e.corpus_fingerprint_sha256,e.generation_manifest_sha256,e.bridge_manifest_sha256,
-    e.observations_sha256,e.bridge_truth_sha256,e.gerador_versao,e.gerador_seed,
-    e.avaliador_versao,e.ambiente_perfil,e.status,e.ruleset_versao,
-    e.ruleset_fingerprint_sha256,e.u_semantica,e.observacoes_materializadas,
+    e.observations_sha256,e.bridge_truth_sha256,e.relatorio_schema_versao,e.natureza,e.finalidade,
+    e.gerador_versao,e.gerador_seed,e.avaliador_versao,e.ambiente_perfil,e.status,e.ruleset_versao,
+    e.ruleset_fingerprint_sha256,e.u_semantica,e.m_truth_universo,e.u_truth_universo,
+    e.u_nome_fonte_nominal,e.u_nome_mae_fonte_nominal,e.observacoes_materializadas,
     e.observacoes_excluidas,e.report_sha256,e.validacao_estatistica,
     e.promocao_autorizada,e.executor_aplicacao,e.executor_login,e.executor_host,
     e.source_revision,e.ocorrido_em
