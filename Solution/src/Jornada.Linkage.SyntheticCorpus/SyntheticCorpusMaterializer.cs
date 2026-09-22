@@ -89,6 +89,18 @@ public static class SyntheticCorpusMaterializer
             });
             manifestJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
         }
+        if (generation.Options.StratifiedErrors is { } stratumConfig)
+        {
+            var annotated = JsonNode.Parse(manifestJson)!.AsObject();
+            annotated["stratified_error_overlay"] = JsonSerializer.SerializeToNode(new
+            {
+                version = stratumConfig.Version,
+                config_sha256 = stratumConfig.ConfigSha256(),
+                source = "synthetic_additive_overlay_not_empirical",
+                stratum_basis = "observed_cpf_after_retention"
+            });
+            manifestJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
         await File.WriteAllTextAsync(manifestPath, manifestJson, Utf8NoBom, cancellationToken);
 
         return new SyntheticCorpusMaterializationResult(
@@ -247,7 +259,27 @@ public static class SyntheticCorpusMaterializer
                 .OrderBy(group => group.Key, StringComparer.Ordinal)
                 .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
             annotated["brazilian_name_errors_realized_label_counts"] = JsonSerializer.SerializeToNode(realized);
-            return JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+            truthJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
+        if (generation.Options.StratifiedErrors is { } stratumConfig)
+        {
+            // Só pós-RASCUNHO: segmentação observada e contagens, sem expor BasePersonId ao scoring.
+            var annotated = JsonNode.Parse(truthJson)!.AsObject();
+            annotated["stratified_error_overlay"] = JsonNode.Parse(stratumConfig.CanonicalJson());
+            annotated["stratified_error_overlay_sha256"] = stratumConfig.ConfigSha256();
+            annotated["stratified_error_rates_source"] = "synthetic_additive_overlay_not_empirical";
+            annotated["stratified_error_stratum_basis"] = "observed_cpf_after_retention";
+            var counts = generation.Observations
+                .SelectMany(o => o.Corruptions
+                    .Split('|', StringSplitOptions.RemoveEmptyEntries)
+                    .Where(label => label.Contains("_STRAT_", StringComparison.Ordinal))
+                    .Select(label => o.Gestor + "/" +
+                        (o.Cpf is null ? "WITHOUT_CPF" : "WITH_CPF") + "/" + label))
+                .GroupBy(label => label, StringComparer.Ordinal)
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+            annotated["stratified_error_realized_label_counts"] = JsonSerializer.SerializeToNode(counts);
+            truthJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
         }
         return truthJson;
     }
