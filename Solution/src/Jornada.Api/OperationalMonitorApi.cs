@@ -16,8 +16,11 @@ public static class OperationalMonitorApi
 
     public static IEndpointRouteBuilder MapOperationalMonitorApi(this IEndpointRouteBuilder app)
     {
+        var hostEnvironment = app.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
         var operationalSql = app.ServiceProvider.GetRequiredService<IOperationalSqlAdapter>();
-        var syntheticDevelopment = SyntheticOperationalMonitorGate.IsResidentDevelopment(operationalSql);
+        var syntheticDevelopment =
+            hostEnvironment.IsDevelopment()
+            && SyntheticOperationalMonitorGate.IsResidentDevelopment(operationalSql);
 
         app.MapGet(PageRoute, (IWebHostEnvironment environment, IConfiguration configuration) =>
         {
