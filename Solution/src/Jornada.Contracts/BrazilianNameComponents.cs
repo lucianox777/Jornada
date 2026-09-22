@@ -59,7 +59,19 @@ public static class BrazilianNameComponents
         // "JOAO FILHO" é ambíguo: não inferir agnome sem nome + sobrenome
         // anteriores. Para "JOAO SILVA FILHO", preservamos o sinal terminal.
         string? agnome = null;
-        if (end - start >= 3 && TerminalAgnomes.TryGetValue(lexical[^1], out var canonicalAgnome))
+        var precedingContentTokens = 0;
+        for (var i = start; i < end - 1; i++)
+        {
+            if (Particles.Contains(lexical[i]))
+                continue;
+            if (i > start && lexical[i - 1] == "DE" &&
+                lexical[i] is ("LA" or "LAS" or "LOS"))
+                continue;
+            precedingContentTokens++;
+        }
+
+        if (precedingContentTokens >= 2 &&
+            TerminalAgnomes.TryGetValue(lexical[^1], out var canonicalAgnome))
         {
             agnome = canonicalAgnome;
             end--;
