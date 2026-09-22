@@ -1,5 +1,5 @@
 ﻿param(
-    [int]$People = 20000,
+    [int]$People = 100000,
     [UInt64]$Seed = 42,
     [ValidateSet('clean','independent','correlated','field')]
     [string]$ErrorProfile = 'correlated',
