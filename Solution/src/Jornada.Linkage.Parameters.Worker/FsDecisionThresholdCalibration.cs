@@ -309,6 +309,19 @@ public static class FsDecisionThresholdCalibrator
         return FsDecisionCalibrationPartition.Test;
     }
 
+    public static CalibrationEvaluation EvaluateFrozen(
+        string algorithmVersion,
+        IReadOnlyDictionary<string, decimal> baseParameters,
+        FsDecisionThresholdCandidate candidate,
+        IReadOnlyList<FsDecisionCalibrationScenario> scenarios)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(algorithmVersion);
+        ArgumentNullException.ThrowIfNull(baseParameters);
+        ArgumentNullException.ThrowIfNull(candidate);
+        ArgumentNullException.ThrowIfNull(scenarios);
+        return Evaluate(algorithmVersion, baseParameters, candidate, scenarios);
+    }
+
     private static CalibrationEvaluation Evaluate(
         string algorithmVersion,
         IReadOnlyDictionary<string, decimal> baseParameters,
