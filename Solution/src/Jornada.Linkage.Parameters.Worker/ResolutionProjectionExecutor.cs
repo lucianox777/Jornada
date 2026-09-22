@@ -78,6 +78,7 @@ public static class ResolutionProjectionExecutor
             "PERSON_NAME_BASIC_PTBR@V1" => ProjectBasicName(value, output),
             "PERSON_NAME_COMPONENTS@V2" => ProjectNameComponents(value, output),
             "PERSON_NAME_METAPHONE_BR@V1" => ProjectPhonetic(value, output),
+            "PERSON_NAME_BRAZILIAN_COMPONENTS@V1" => ProjectBrazilianName(value, output),
             "DATE_COMPONENTS@V2" => ProjectDate(value, output),
             "TELEFONE_BR_CANONICO@V2" => output == "canonical"
                 ? One(ContactCanonicalization.NormalizeBrazilianPhoneV2(value))
@@ -119,6 +120,24 @@ public static class ResolutionProjectionExecutor
             "last" => One(tokens[^1]),
             "surnames" when tokens.Length > 1 => tokens.Skip(1).Distinct(StringComparer.Ordinal).ToArray(),
             "surnames" => Array.Empty<string>(),
+            _ => Array.Empty<string>()
+        };
+    }
+
+    private static IEnumerable<string> ProjectBrazilianName(string value, string output)
+    {
+        var projection = BrazilianNameComponents.Project(value);
+        if (projection is null)
+            return Array.Empty<string>();
+        return output switch
+        {
+            "full_with_agnome" => One(projection.NormalizedFull),
+            "last_content_surname" when projection.LastContentSurname is not null
+                => One(projection.LastContentSurname),
+            // Diagnósticos são consultados pela projeção tipada, não viram
+            // automaticamente chave operacional de blocking.
+            "agnome" when projection.Agnome is not null => One(projection.Agnome),
+            "title_prefix" when projection.TitlePrefix is not null => One(projection.TitlePrefix),
             _ => Array.Empty<string>()
         };
     }
