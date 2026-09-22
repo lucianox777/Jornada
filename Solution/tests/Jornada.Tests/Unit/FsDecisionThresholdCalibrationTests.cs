@@ -135,8 +135,7 @@ public sealed class FsDecisionThresholdCalibrationTests
         var unsafePositive = validation.Concat(new[]
         {
             Positive("t-pos", FsDecisionCalibrationPartition.Test, "00000000-0000-0000-0000-000000000033",
-                Candidate("00000000-0000-0000-0000-000000000039", .99m, 3m),
-                Candidate("00000000-0000-0000-0000-000000000033", .50m, .5m)),
+                Candidate("00000000-0000-0000-0000-000000000039", .99m, 3m)),
             Negative("t-neg", FsDecisionCalibrationPartition.Test, "00000000-0000-0000-0000-000000000034",
                 Candidate("00000000-0000-0000-0000-000000000039", .90m, 1m))
         }).ToArray();
