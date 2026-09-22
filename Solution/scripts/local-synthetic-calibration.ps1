@@ -1,6 +1,8 @@
 ﻿param(
     [int]$People = 200000,
     [UInt64]$Seed = 42,
+    [string]$ExpectedSeeds = '',
+    [string]$RunGroupId = '',
     [ValidateSet('clean','independent','correlated','field')]
     [string]$ErrorProfile = 'correlated',
     [string]$DataReferencia = '2026-09-21T00:00:00-03:00',
@@ -26,7 +28,7 @@ if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
     Copy-Item $Example $EnvFile
 }
 
-& (Join-Path $Root 'scripts/local-db.ps1') reset -NoSyntheticCorpus
+& (Join-Path $Root 'scripts/local-db.ps1') up -NoSyntheticCorpus
 if ($LASTEXITCODE -ne 0) { throw "local-db reset falhou ($LASTEXITCODE)." }
 
 $vars = @{}
@@ -43,12 +45,34 @@ $port = if ($vars['JORNADA_SQL_PORT']) { $vars['JORNADA_SQL_PORT'] } else { '143
 $db = if ($vars['JORNADA_SQL_DATABASE']) { $vars['JORNADA_SQL_DATABASE'] } else { 'JornadaLocal' }
 if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD não definido.' }
 
+Push-Location $Root
+try {
+    & docker compose --env-file $EnvFile exec -T -w /workspace -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -i scripts/local-synthetic-calibration-clean.sql
+    if ($LASTEXITCODE -ne 0) { throw "Limpeza sintética preservadora falhou ($LASTEXITCODE)." }
+}
+finally {
+    Pop-Location
+}
+
 $env:ConnectionStrings__Jornada = "Server=localhost,$port;Database=$db;User Id=sa;Password=$password;TrustServerCertificate=true;Encrypt=false"
 $env:Database__Provider = 'SqlServer'
 $env:Ensaio__Mode = 'SYNTHETIC_CALIBRATION_DEV'
 $env:Ensaio__Endpoints__IngestaoEntregas = "$($ApiBase.TrimEnd('/'))/api/v1/ingestao/entregas"
 $env:Ensaio__SyntheticCalibration__People = [string]$People
 $env:Ensaio__SyntheticCalibration__Seed = [string]$Seed
+if ([string]::IsNullOrWhiteSpace($ExpectedSeeds)) {
+    $env:Ensaio__SyntheticCalibration__ExpectedSeeds = [string]$Seed
+}
+else {
+    $env:Ensaio__SyntheticCalibration__ExpectedSeeds = $ExpectedSeeds
+}
+if ([string]::IsNullOrWhiteSpace($RunGroupId)) {
+    Remove-Item Env:Ensaio__SyntheticCalibration__RunGroupId -ErrorAction SilentlyContinue
+}
+else {
+    [void][Guid]::Parse($RunGroupId)
+    $env:Ensaio__SyntheticCalibration__RunGroupId = $RunGroupId
+}
 $env:Ensaio__SyntheticCalibration__ErrorProfile = $ErrorProfile
 $env:Ensaio__SyntheticCalibration__DataReferencia = $DataReferencia
 
