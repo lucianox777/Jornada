@@ -216,6 +216,18 @@ public sealed class SyntheticEvaluationEvidenceWriter(
             Add(table, "DECISION_ORACLE", "DELTA", "CONFLICT_MARGIN_LOG_ODDS_ABS", marginDelta, "RATIO");
         if (oracle.ConflictFloorAbsoluteDelta is { } floorDelta)
             Add(table, "DECISION_ORACLE", "DELTA", "CONFLICT_FLOOR_ABS", floorDelta, "PROBABILITY");
+
+        foreach (var slice in oracle.ModelQuality)
+        {
+            var dimension = slice.Partition + ":" + slice.Stratum;
+            Add(table, "DECISION_QUALITY", dimension, "TRUE_POSITIVE", slice.TruePositive, "COUNT");
+            Add(table, "DECISION_QUALITY", dimension, "FALSE_POSITIVE", slice.FalsePositive, "COUNT");
+            Add(table, "DECISION_QUALITY", dimension, "FALSE_NEGATIVE", slice.FalseNegative, "COUNT");
+            Add(table, "DECISION_QUALITY", dimension, "INCONCLUSIVE", slice.Inconclusive, "COUNT");
+            Add(table, "DECISION_QUALITY", dimension, "TOTAL", slice.Total, "COUNT");
+            Add(table, "DECISION_QUALITY", dimension, "PRECISION", slice.Precision, "RATIO");
+            Add(table, "DECISION_QUALITY", dimension, "RECALL", slice.Recall, "RATIO");
+        }
     }
 
     private static void AddObjective(
