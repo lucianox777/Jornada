@@ -474,3 +474,50 @@ Processor, Calibrador e Runner com checkpoints de recall/PPV por onda,
 incluindo mudanças no resultado de ligação e regravação só por alteração,
 continua como etapa independente da issue #416. Esse resultado não pode
 ser presumido pela mera geração dos ZIPs.
+
+## Ensaio operacional em ondas (DEV, #416)
+
+O modo `SYNTHETIC_WAVES_DEV` executa o novo fluxo em um banco SQL Server com marcador
+residente `Jornada.EnvironmentProfile=Development` e API exclusivamente loopback.
+O runner valida o manifesto agregado e o SHA-256 de cada manifesto/ZIP, entrega
+as ondas sequencialmente à API real, aguarda o Processor, lê checkpoints em Silver
+(identidades de origem novas, atualizações, CPFs recuperados e observações acumuladas),
+executa o Parameters.Worker real uma única vez depois da última onda e conclui
+`MODEL_VALIDATION --publish false` sobre o modelo `RASCUNHO`. Não ativa nem publica
+o modelo. Os identificadores de origem nos ZIPs são HMAC estáveis, sem
+`base_person_id` e sem gabarito.
+
+Linux/macOS, no diretório `Solution`, com chave HMAC apenas em variável ambiente:
+
+```bash
+export JORNADA_SYNTH_PSEUDONYMIZATION_KEY="<chave-local-de-ao-menos-16-bytes>"
+export JORNADA_SYNTH_PEOPLE=1000
+export JORNADA_SYNTH_WAVE_COUNT=3
+./scripts/local-synthetic-calibration.sh
+```
+
+Windows PowerShell, no diretório `Solution`, após configurar a mesma variável ambiente:
+
+```powershell
+./scripts/local-synthetic-calibration.ps1 -People 1000 -Waves 3
+```
+
+Taxas opt-in no script Bash:
+`JORNADA_SYNTH_WAVE_DELAYED_ARRIVAL_RATE`,
+`JORNADA_SYNTH_WAVE_CPF_REVEAL_RATE`,
+`JORNADA_SYNTH_WAVE_NAME_CORRECTION_RATE`,
+`JORNADA_SYNTH_WAVE_MOTHER_CORRECTION_RATE` e
+`JORNADA_SYNTH_WAVE_BIRTH_RECOVERY_RATE`.
+Os arquivos de cenário opcionais são
+`JORNADA_SYNTH_STRATIFIED_ERRORS_CONFIG` e
+`JORNADA_SYNTH_BRAZILIAN_NAME_ERRORS_CONFIG`.
+No PowerShell, use `-StratifiedErrorsConfig` e `-BrazilianNameErrorsConfig`.
+O cenário gera probabilidades hipotéticas, não estimativas populacionais.
+
+A evidência `synthetic-waves-dev.json` guarda os checkpoints e hashes sem
+gabarito individual. **Não mede recall/PPV por onda**: o avaliador temporal
+com gabarito separado, reavaliação real de candidatos entre ondas e verificação
+de persistência em Gold somente por mudança continuam pendentes. O sucesso dos
+gates gerais de CI não equivale à execução deste ensaio operacional; exige
+SQL Server DEV local, Docker, a referência nominal e a chave HMAC do operador.
+Não satisfaz a validação empírica #31.
