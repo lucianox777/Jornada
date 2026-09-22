@@ -15,7 +15,8 @@ public sealed record SyntheticEvaluationOptions(
     Guid ModelId,
     string GeneratedRoot,
     int MaxCandidatePairs,
-    int CommandTimeoutSeconds);
+    int CommandTimeoutSeconds,
+    IReadOnlyList<ulong>? ExpectedSeeds = null);
 
 public sealed record SyntheticEvaluationReport(
     string SchemaVersion,
@@ -32,6 +33,7 @@ public sealed record SyntheticEvaluationReport(
     SyntheticDistributionRecovery URecovery,
     SyntheticTransportability Transportability,
     SyntheticThresholdOracle DecisionOracle,
+    SyntheticMultiSeedContext MultiSeed,
     IReadOnlyList<string> Safeguards);
 
 public sealed record SyntheticEvaluationInput(
@@ -125,6 +127,10 @@ public sealed record SyntheticDecisionObjective(
     long Inconclusive,
     long Total);
 
+public sealed record SyntheticMultiSeedContext(
+    ulong CurrentSeed,
+    IReadOnlyList<ulong> ExpectedSeeds);
+
 public sealed record SyntheticThresholdOracle(
     string Status,
     string CalibrationPolicyVersion,
@@ -183,6 +189,15 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
 
         var manifest = await ReadManifestAsync(manifestPath, cancellationToken);
         var generationManifest = await ReadGenerationManifestAsync(generationManifestPath, cancellationToken);
+        var expectedSeeds = (options.ExpectedSeeds is { Count: > 0 }
+                ? options.ExpectedSeeds
+                : new[] { generationManifest.Seed })
+            .Distinct()
+            .Order()
+            .ToArray();
+        if (!expectedSeeds.Contains(generationManifest.Seed))
+            throw new InvalidDataException(
+                $"Seed atual {generationManifest.Seed} não pertence à lista multi-seed esperada.");
         if (!string.Equals(
                 generationManifest.InputFingerprintSha256,
                 manifest.CorpusInputFingerprintSha256,
@@ -338,6 +353,7 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                 noCpfPairs.Length == 0 ? ZeroDistance() : Distance(mRaw, noCpfRaw),
                 noCpfPairs.Length == 0 ? ZeroDistance() : Distance(mWeighted, noCpfWeighted)),
             EvaluateDecisionOracle(projected, candidate, model),
+            new SyntheticMultiSeedContext(generationManifest.Seed, expectedSeeds),
             [
                 "synthetic truth is read only after the requested model exists in RASCUNHO",
                 "base_person_id is used only inside this evaluator and is never emitted in the report",
@@ -345,6 +361,7 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                 "u truth is conditioned on the deduplicated candidate union in the materialized synthetic observation universe",
                 "candidate union is exact or evaluation fails when MaxCandidatePairs is exceeded; no silent sampling",
                 "decision oracle reuses FsDecisionThresholdCalibrator, FellegiSunterScoring and the frozen VALIDATION/TEST partitions; TEST never selects coordinates",
+                "multi-seed expected membership is explicit and persisted; dispersion is forbidden until every expected seed is present",
                 "the report does not validate or activate a model and cannot satisfy issue #31"
             ]);
     }
