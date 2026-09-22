@@ -1000,7 +1000,7 @@ public sealed class SyntheticCalibrationDevRunner(
             var runRoot = Path.GetFullPath(
                 configuration["Ensaio:SyntheticCalibration:OutputRoot"]
                 ?? Path.Combine(options.OutputDirectory, "synthetic-calibration"));
-            var people = configuration.GetValue("Ensaio:SyntheticCalibration:People", 100_000);
+            var people = configuration.GetValue("Ensaio:SyntheticCalibration:People", 200_000);
             if (people < 100)
                 throw new InvalidOperationException("Ensaio:SyntheticCalibration:People deve ser >= 100.");
 
