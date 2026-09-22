@@ -521,3 +521,51 @@ de persistência em Gold somente por mudança continuam pendentes. O sucesso dos
 gates gerais de CI não equivale à execução deste ensaio operacional; exige
 SQL Server DEV local, Docker, a referência nominal e a chave HMAC do operador.
 Não satisfaz a validação empírica #31.
+
+
+## Avaliador temporal em ondas (DEV, #416, fatia 2)
+
+O modo `SYNTHETIC_WAVES_DEV` congela `ingestion/wave-NN/operational-snapshot.json`
+**após** a confirmação de processamento de todos os ZIPs daquela onda, antes de
+enviar a próxima. Cada snapshot tem SHA-256 em arquivo adjacente e a impressão
+digital é incluída nos checkpoints do relatório operacional. O snapshot contém
+somente código operacional HMAC, Gestor, ID/versão da observação Silver,
+presença/ausência de CPF e situação/UUID do vínculo corrente. Não exporta CPF,
+CNS, nomes nem atributos de Pessoa.
+
+Depois de gerar o RASCUNHO e concluir `MODEL_VALIDATION --publish false`,
+o harness chama `Jornada.Linkage.Evaluation --synthetic-temporal-root`. O
+avaliador confere a cadeia de manifests e hashes dos sidecars de truth,
+recupera a última verdade materializada por origem estável sem confundir
+novas versões com novas pessoas e verifica a correspondência exata dos
+snapshots SQL. O relatório agregado `synthetic-temporal-evaluation.json`,
+com SHA-256 próprio, expõe por onda o universo e os denominadores verdadeiros
+de pares inter-Gestores, divididos em ambos com CPF, ambos sem CPF e mistos.
+Nenhum `base_person_id`, CPF ou pseudônimo operacional é incluído no relatório.
+O `synthetic-waves-dev.json` passou à versão
+`SYNTHETIC_WAVES_DEV_OPERATIONAL_V2` e inclui o SHA-256 desta avaliação.
+
+**Limite de evidência deliberado:** esta fatia ainda não executa
+`Jornada.Linkage.Runner` entre as ondas. A captura do vínculo corrente NÃO
+constitui resultado do Runner. Portanto `Precision`, `Recall`,
+`TruePositive`, `FalsePositive` e `FalseNegative` permanecem nulos no
+caminho operacional. O CLI rejeita snapshots que aleguem ter executado Runner
+até existir conferência SQL dos runs; os testes unitários exercitam apenas a
+aritmética contrafactual do avaliador com fixtures explícitas. Tampouco há
+nesta fatia prova de regravação Gold somente por mudança. O modelo continua
+`RASCUNHO`, sem promoção, e o benchmark sintético não substitui a
+validação empírica #31.
+
+Para execução em DEV preparado com três ondas, use os wrappers já existentes
+`local-synthetic-calibration.sh` (com `JORNADA_SYNTH_WAVE_COUNT=3`) ou
+`local-synthetic-calibration.ps1 -Waves 3`. O banco deve ter marcador
+residente `Jornada.EnvironmentProfile=Development`, estar limpo e o endpoint
+API precisa ser loopback. A CI compila/testa os contratos; não simula a
+execução integral local da infraestrutura do operador.
+
+Próximas fatias: (1) executar e conferir um run real por onda, sem publicar nem
+ativar modelo; (2) mapear resultados por origem para que recall/PPV se tornem
+mensuráveis, congelando os denominadores temporais; (3) provar por
+identificador de evento, versão e fingerprint que reprocessamento idêntico
+não gera novo vínculo nem reescreve Gold; (4) testar cenários multi-seed,
+falhas parciais e estratos de ausência de CPF.
