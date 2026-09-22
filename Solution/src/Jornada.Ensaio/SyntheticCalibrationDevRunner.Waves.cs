@@ -89,6 +89,7 @@ public sealed partial class SyntheticCalibrationDevRunner
         var seenSourceCpf = new Dictionary<string, bool>(StringComparer.Ordinal);
         var seenDeliveryIds = new HashSet<string>(StringComparer.Ordinal);
         var checkpoints = new List<SyntheticWaveOperationalCheckpoint>();
+        var waveModels = new List<SyntheticWaveModelRunEvidence>();
         string? corpusFingerprint = null;
 
         for (var wave = 0; wave < waveCount; wave++)
@@ -167,9 +168,21 @@ public sealed partial class SyntheticCalibrationDevRunner
                     $"origens novas={originDelta}/{newlySeen}; " +
                     $"observações novas={observationDelta}/{manifest.MaterializedObservationCount}.");
 
+            // Cada onda usa seu proprio RASCUNHO e um MODEL_VALIDATION real, sem
+            // publicar nem alterar a identidade corrente. O snapshot SQL e lacrado
+            // antes da carga seguinte; truth so sera aberta depois da ultima onda.
+            var beforeWaveModel = await ReadMaxModelVersionAsync(cancellationToken);
+            await EnsureNameFrequencySnapshotAsync(settings, cancellationToken);
+            await RunGenerateDraftAsync(settings, cancellationToken);
+            var waveModel = await ReadSingleNewDraftAsync(beforeWaveModel, cancellationToken);
+            var waveRun = await RunModelValidationAsync(
+                settings, waveModel, checked((int)after.SyntheticObservations), cancellationToken);
+            if (waveRun.Eligible != waveRun.Evaluated)
+                throw new InvalidOperationException("Run temporal nao processou todo o universo congelado.");
             var snapshotSha256 = await WriteWaveOperationalSnapshotAsync(
                 directory, wave + 1, after.SyntheticOrigins, after.SyntheticObservations,
-                seenSourceCpf, cancellationToken);
+                seenSourceCpf, waveModel, waveRun, cancellationToken);
+            waveModels.Add(new SyntheticWaveModelRunEvidence(wave + 1, waveModel, waveRun));
             checkpoints.Add(new SyntheticWaveOperationalCheckpoint(
                 wave + 1, manifest.DataReferencia, manifest.BridgeVersion,
                 manifest.SourceObservationCount, manifest.MaterializedObservationCount,
@@ -182,22 +195,17 @@ public sealed partial class SyntheticCalibrationDevRunner
                 $"CPF revelados={cpfRevealed}, observações acumuladas={after.SyntheticObservations}.");
         }
 
-        var beforeModel = await ReadMaxModelVersionAsync(cancellationToken);
-        await EnsureNameFrequencySnapshotAsync(settings, cancellationToken);
-        await RunGenerateDraftAsync(settings, cancellationToken);
-        var model = await ReadSingleNewDraftAsync(beforeModel, cancellationToken);
-        var validation = await RunModelValidationAsync(
-            settings, model, checked((int)previous.SyntheticObservations), cancellationToken);
-        var temporalEvaluationSha256 = await RunTemporalTruthEvaluationAsync(
+        var model = waveModels[^1].Model;
+        var validation = waveModels[^1].Run;
+        var temporalEvaluation = await RunTemporalTruthEvaluationAsync(
             settings, model.ModelId, checkpoints.Select(x => x.SnapshotSha256).ToArray(),
             cancellationToken);
 
-        // There is not yet a single truth/manifest pair spanning all wave sidecars.
-        // A per-wave PPV/recall report would be misleading until the evaluator
-        // supports a versioned temporal truth and frozen comparison windows.
+        // As medidas sao do ensaio shadow: Runner real nao publicado + identidade
+        // deterministica corrente em cada onda, nao recall de vinculos publicados.
         var report = new
         {
-            reportVersion = "SYNTHETIC_WAVES_DEV_OPERATIONAL_V2",
+            reportVersion = "SYNTHETIC_WAVES_DEV_OPERATIONAL_V3",
             environmentProfile = RequiredEnvironment,
             generatedAtUtc = DateTimeOffset.UtcNow,
             settings.Seed,
@@ -208,17 +216,19 @@ public sealed partial class SyntheticCalibrationDevRunner
             checkpoints,
             model,
             modelValidation = validation,
+            waveModels,
             temporalEvaluation = new
             {
                 fileName = "synthetic-temporal-evaluation.json",
-                sha256 = temporalEvaluationSha256,
-                status = "TRUTH_VERIFICADA_POS_RASCUNHO_SEM_RUN_TEMPORAL"
+                sha256 = temporalEvaluation.Sha256,
+                status = "SHADOW_RUNS_REAIS_VERIFICADOS_POS_RASCUNHO",
+                waves = temporalEvaluation.Waves
             },
             truthConsumedByIngestionOrCalibrator = false,
             truthConsumedByEvaluation = true,
             modelPromotionAttempted = false,
-            recallPerWave = (double?)null,
-            recallStatus = "NAO_MEDIDO_RUNNER_POR_ONDA_PENDENTE"
+            recallPerWave = temporalEvaluation.Waves.Select(x => new { x.Wave, x.Recall, x.Precision }),
+            recallStatus = "MEDIDO_SHADOW_SEM_PUBLICACAO"
         };
         var reportPath = Path.Combine(settings.RunDirectory, "synthetic-waves-dev.json");
         var json = JsonSerializer.Serialize(report, JsonWriteOptions) + "\n";
@@ -354,6 +364,9 @@ public sealed partial class SyntheticCalibrationDevRunner
     }
 
     private sealed record SyntheticOperationalSource(string Code, string DeliveryId, bool HasCpf);
+
+    private sealed record SyntheticWaveModelRunEvidence(
+        int Wave, SyntheticDraftModelEvidence Model, SyntheticModelValidationEvidence Run);
 
     private sealed record SyntheticWaveOperationalCheckpoint(
         int Wave, DateTimeOffset DataReferencia, string BridgeVersion,

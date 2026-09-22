@@ -32,6 +32,7 @@ public sealed class SyntheticTemporalTruthEvaluatorTests
                 Assert.That(report.Waves[1].CurrentObservations, Is.EqualTo(5));
                 Assert.That(report.Waves[1].TruePairs.MixedCpf, Is.EqualTo(1));
                 Assert.That(report.Waves[1].TruePairs.Total, Is.EqualTo(1));
+                Assert.That(report.Waves[1].MeasurementStatus, Is.EqualTo("MEDIDO_SHADOW_REAL_SEM_PUBLICACAO"));
                 Assert.That(report.Waves[1].TruePositive!.Total, Is.EqualTo(1));
                 Assert.That(report.Waves[1].FalsePositive!.Total, Is.EqualTo(2));
                 Assert.That(report.Waves[1].FalseNegative!.Total, Is.Zero);
@@ -146,10 +147,12 @@ public sealed class SyntheticTemporalTruthEvaluatorTests
                 "CURRENT_IDENTITY_NO_RUN", null, "NAO_EXECUTADO", before));
         var wave2 = WriteWave(ingestion, 2, [a2, c, d], after,
             new SyntheticTemporalTruthEvaluator.OperationalSnapshot(
-                "SYNTHETIC_WAVE_OPERATIONAL_SNAPSHOT_V1", 2, 4, 5,
-                completedRun ? "LINKAGE_RUN_RESULTADO" : "CURRENT_IDENTITY_NO_RUN",
+                completedRun ? "SYNTHETIC_WAVE_OPERATIONAL_SNAPSHOT_V2" : "SYNTHETIC_WAVE_OPERATIONAL_SNAPSHOT_V1", 2, 4, 5,
+                completedRun ? "DETERMINISTIC_PLUS_MODEL_VALIDATION_SHADOW" : "CURRENT_IDENTITY_NO_RUN",
                 completedRun ? Guid.NewGuid().ToString("D") : null,
-                completedRun ? "CONCLUIDO_SEM_PUBLICACAO" : "NAO_EXECUTADO", after));
+                completedRun ? "CONCLUIDO_SEM_PUBLICACAO" : "NAO_EXECUTADO", after,
+                completedRun ? Guid.NewGuid().ToString("D") : null,
+                completedRun ? 1 : null));
         WriteJson(Path.Combine(ingestion, "waves-manifest.json"), new
         {
             schemaVersion = 1,

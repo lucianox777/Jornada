@@ -25,12 +25,14 @@ public static class SyntheticTemporalTruthEvaluator
     public sealed record SourceSnapshot(
         string SourceCode, string GestorCodigo, long LatestObservationId,
         int Version, bool HasCpf, string? CurrentStatus, string? CurrentUuid,
-        string? CurrentMethod);
+        string? CurrentMethod, string? ProposedStatus = null,
+        string? ProposedUuid = null);
 
     public sealed record OperationalSnapshot(
         string SchemaVersion, int Wave, long SourceCount, long ObservationCount,
         string DecisionProvenance, string? LinkageRunId, string LinkageRunStatus,
-        SourceSnapshot[] Sources);
+        SourceSnapshot[] Sources,
+        string? LinkageModelId = null, int? LinkageModelVersion = null);
 
     public sealed record PairTotals(long BothCpf, long NeitherCpf, long MixedCpf)
     {
@@ -127,7 +129,7 @@ public static class SyntheticTemporalTruthEvaluator
             var snapshot = JsonSerializer.Deserialize<OperationalSnapshot>(
                 await File.ReadAllTextAsync(snapshotPath, cancellationToken), Json)
                 ?? throw new InvalidDataException("Snapshot SQL ausente.");
-            if (snapshot.SchemaVersion != "SYNTHETIC_WAVE_OPERATIONAL_SNAPSHOT_V1"
+            if (snapshot.SchemaVersion is not ("SYNTHETIC_WAVE_OPERATIONAL_SNAPSHOT_V1" or "SYNTHETIC_WAVE_OPERATIONAL_SNAPSHOT_V2")
                 || snapshot.Wave != number || snapshot.SourceCount != currentTruth.Count
                 || snapshot.ObservationCount != previousObservations + changedThisWave.Count
                 || snapshot.Sources.Length != currentTruth.Count)
@@ -145,13 +147,20 @@ public static class SyntheticTemporalTruthEvaluator
                     throw new InvalidDataException("Snapshot contém origem inesperada, repetida ou inválida.");
                 cumulative.Add(new CumulativeSource(source.SourceCode, source.GestorCodigo,
                     truth.BasePersonId, source.HasCpf,
-                    source.CurrentStatus == "RESOLVIDO" ? source.CurrentUuid : null));
+                    source.CurrentStatus == "RESOLVIDO" ? source.CurrentUuid
+                        : source.ProposedStatus == "RESOLVIDO" ? source.ProposedUuid : null));
             }
 
             var truePairs = AggregatePairs(cumulative.GroupBy(x => x.TruthId, StringComparer.Ordinal));
-            var measured = snapshot.DecisionProvenance == "LINKAGE_RUN_RESULTADO"
+            // Apenas o run real conferido pelo verificador SQL autoriza metrica shadow.
+            var measured = snapshot.SchemaVersion == "SYNTHETIC_WAVE_OPERATIONAL_SNAPSHOT_V2"
+                && snapshot.DecisionProvenance == "DETERMINISTIC_PLUS_MODEL_VALIDATION_SHADOW"
                 && Guid.TryParse(snapshot.LinkageRunId, out var runId) && runId != Guid.Empty
+                && Guid.TryParse(snapshot.LinkageModelId, out var modelId) && modelId != Guid.Empty
+                && snapshot.LinkageModelVersion is > 0
                 && snapshot.LinkageRunStatus == "CONCLUIDO_SEM_PUBLICACAO";
+            if (snapshot.SchemaVersion != "SYNTHETIC_WAVE_OPERATIONAL_SNAPSHOT_V1" && !measured)
+                throw new InvalidDataException("Snapshot afirma execucao sem proveniencia completa.");
             PairTotals? tp = null, fp = null, fn = null;
             decimal? precision = null, recall = null;
             if (measured)
@@ -167,7 +176,7 @@ public static class SyntheticTemporalTruthEvaluator
             }
             results.Add(new WaveMetric(number, manifestSha, truthSha, snapshotSha,
                 snapshot.SourceCount, snapshot.ObservationCount, truePairs,
-                measured ? "MEDIDO_RUN_TEMPORAL_VERIFICADO" : "NAO_MEDIDO_RUN_TEMPORAL_AUSENTE",
+                measured ? "MEDIDO_SHADOW_REAL_SEM_PUBLICACAO" : "NAO_MEDIDO_RUN_TEMPORAL_AUSENTE",
                 tp, fp, fn, precision, recall));
         }
         return new Report(Version, "ENGINEERING_EVIDENCE_ONLY_NOT_PROMOTABLE", seed,
@@ -175,7 +184,7 @@ public static class SyntheticTemporalTruthEvaluator
             false, false, [
                 "Gabarito lido exclusivamente pelo avaliador pos-RASCUNHO.",
                 "Snapshots SQL congelados no fim de cada onda, sem CPF nominal.",
-                "Recall/PPV nulos sem resultados comprovados de Runner por onda.",
+                "Recall/PPV shadow requerem runs reais comprovados no SQL; nao representam publicacao.",
                 "Avaliacao sintetica nao satisfaz a validacao empirica #31."
             ]);
     }

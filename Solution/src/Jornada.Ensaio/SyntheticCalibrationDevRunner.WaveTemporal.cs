@@ -7,7 +7,7 @@ namespace Jornada.Ensaio;
 
 public sealed partial class SyntheticCalibrationDevRunner
 {
-    private static async Task<string> RunTemporalTruthEvaluationAsync(
+    private static async Task<SyntheticTemporalEvaluationEvidence> RunTemporalTruthEvaluationAsync(
         SyntheticCalibrationSettings settings, Guid modelId, IReadOnlyList<string> expectedSnapshotHashes,
         CancellationToken cancellationToken)
     {
@@ -46,16 +46,28 @@ public sealed partial class SyntheticCalibrationDevRunner
             || doc.RootElement.GetProperty("truthConsumedByIngestionOrCalibrator").GetBoolean())
             throw new InvalidDataException("Relatório temporal incompleto ou sem garantias DEV.");
 
+        var metrics = new List<SyntheticTemporalWaveEvidence>();
         for (var index = 0; index < waves.GetArrayLength(); index++)
         {
-            var evidenceHash = waves[index].GetProperty("snapshotSha256").GetString();
-            if (!string.Equals(evidenceHash, expectedSnapshotHashes[index],
-                    StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("Snapshot SQL mudou após o checkpoint da onda.");
+            var entry = waves[index];
+            var hash = entry.GetProperty("snapshotSha256").GetString();
+            if (!string.Equals(hash, expectedSnapshotHashes[index], StringComparison.OrdinalIgnoreCase)
+                || entry.GetProperty("wave").GetInt32() != index + 1
+                || entry.GetProperty("measurementStatus").GetString() != "MEDIDO_SHADOW_REAL_SEM_PUBLICACAO")
+                throw new InvalidDataException("Evidencia temporal de onda nao comprovada.");
+            var precision = entry.GetProperty("precision");
+            var recall = entry.GetProperty("recall");
+            metrics.Add(new SyntheticTemporalWaveEvidence(index + 1,
+                precision.ValueKind == JsonValueKind.Null ? null : precision.GetDecimal(),
+                recall.ValueKind == JsonValueKind.Null ? null : recall.GetDecimal()));
         }
-
-        Console.WriteLine($"SYNTHETIC TEMPORAL: ondas={waves.GetArrayLength()}; " +
-            "recall/PPV permanecem NAO_MEDIDO sem runs efetivos do Runner entre ondas.");
-        return actual;
+        Console.WriteLine($"SYNTHETIC TEMPORAL: ondas={waves.GetArrayLength()}; medidas shadow sem publicacao.");
+        return new SyntheticTemporalEvaluationEvidence(actual, metrics);
     }
+
+    private sealed record SyntheticTemporalEvaluationEvidence(
+        string Sha256, IReadOnlyList<SyntheticTemporalWaveEvidence> Waves);
+
+    private sealed record SyntheticTemporalWaveEvidence(
+        int Wave, decimal? Precision, decimal? Recall);
 }

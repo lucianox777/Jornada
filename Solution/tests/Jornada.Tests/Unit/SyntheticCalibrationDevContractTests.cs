@@ -196,7 +196,7 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(runner, Does.Contain("ReadMaterializedCountsAsync"));
             Assert.That(runner, Does.Contain("RunGenerateDraftAsync"));
             Assert.That(runner, Does.Contain("RunModelValidationAsync"));
-            Assert.That(runner, Does.Contain("NAO_MEDIDO_RUNNER_POR_ONDA_PENDENTE"));
+            Assert.That(runner, Does.Contain("MEDIDO_SHADOW_SEM_PUBLICACAO"));
             Assert.That(runner, Does.Contain("WriteWaveOperationalSnapshotAsync"));
             Assert.That(runner, Does.Contain("RunTemporalTruthEvaluationAsync"));
             Assert.That(runner, Does.Contain("truthConsumedByEvaluation = true"));

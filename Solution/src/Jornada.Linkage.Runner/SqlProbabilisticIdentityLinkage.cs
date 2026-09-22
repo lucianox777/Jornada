@@ -59,7 +59,8 @@ public sealed record ProbabilisticPriorCounterfactualAudit(
 public sealed class SqlProbabilisticIdentityLinkage(
     IConfiguration configuration,
     IOperationalSqlAdapter operationalSql,
-    ILogger<SqlProbabilisticIdentityLinkage> logger) : IProbabilisticIdentityLinkage
+    ILogger<SqlProbabilisticIdentityLinkage> logger,
+    LinkageRunOptions? runOptions = null) : IProbabilisticIdentityLinkage
 {
     private readonly ConcurrentDictionary<Guid, LinkageRuntimeSnapshot> runtimeCache = new();
 
@@ -80,9 +81,20 @@ public sealed class SqlProbabilisticIdentityLinkage(
     {
         await using var connection = await operationalSql.OpenAsync(ct);
         var command = new SqlCommand(
-            "SELECT modelo_id FROM identidade.modelo_linkage WHERE versao=@versao AND status IN('VALIDADO','ATIVO','INATIVO')",
+            """
+            SELECT modelo_id FROM identidade.modelo_linkage
+            WHERE versao=@versao
+              AND (status IN('VALIDADO','ATIVO','INATIVO')
+                   OR (status='RASCUNHO' AND @permitir_rascunho_dev=1
+                       AND EXISTS(
+                           SELECT 1 FROM sys.extended_properties
+                           WHERE class=0 AND name=N'Jornada.EnvironmentProfile'
+                             AND CONVERT(nvarchar(32),value)=N'Development')));
+            """,
             connection);
         command.Parameters.Add("@versao", SqlDbType.Int).Value = version;
+        command.Parameters.Add("@permitir_rascunho_dev", SqlDbType.Bit).Value =
+            CanUseDraftForModelValidation(runOptions, version);
         var id = await command.ExecuteScalarAsync(ct);
         if (id is not Guid modelId)
             throw new InvalidOperationException($"Modelo probabilístico v{version} não encontrado ou ainda está em RASCUNHO.");
@@ -90,6 +102,12 @@ public sealed class SqlProbabilisticIdentityLinkage(
         var snapshot = await GetOrLoadRuntimeSnapshotAsync(modelId, ct);
         return snapshot.Reference;
     }
+
+    // The resident database marker, not the process environment, is the final gate.
+    // Nonpublishing MODEL_VALIDATION is the sole runner mode permitted to read a DEV draft.
+    internal static bool CanUseDraftForModelValidation(LinkageRunOptions? options, int version) =>
+        options is { Mode: LinkageRunType.MODEL_VALIDATION, Publish: false }
+        && options.ModelVersion == version;
 
     internal async Task<LinkageModel> GetModelForDiagnosticsAsync(Guid modelId, CancellationToken ct) =>
         (await GetOrLoadRuntimeSnapshotAsync(modelId, ct)).Model;
