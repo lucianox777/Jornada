@@ -89,6 +89,9 @@ public static class SyntheticTemporalTruthEvaluator
             var manifestSha = await Sha256Async(manifestPath, cancellationToken);
             var truthSha = await Sha256Async(truthPath, cancellationToken);
             var snapshotSha = await Sha256Async(snapshotPath, cancellationToken);
+            var snapshotSeal = (await File.ReadAllTextAsync(snapshotPath + ".sha256", cancellationToken))
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+            RequireHash(snapshotSeal, snapshotSha, "snapshot SQL", number);
             RequireHash(expected.GetProperty("manifestSha256").GetString(), manifestSha, "manifesto", number);
             RequireHash(expected.GetProperty("truthSha256").GetString(), truthSha, "truth", number);
 
