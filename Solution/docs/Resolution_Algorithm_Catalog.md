@@ -49,7 +49,7 @@ sobrenome derivado é chave de candidatos potencialmente ampla, não evidência
 de igualdade pessoal. Nenhuma destas novas features está ativada no
 Calibrador/Runner operacional, no schema físico de blocking ou na promoção.
 
-`PERSON_NAME_BASIC_PTBR@V1` separa deliberadamente`PERSON_NAME_BASIC_PTBR@V1` separa deliberadamente UPPER, remoção de diacríticos e remoção das partículas exatas `DA`, `DAS`, `DE`, `DO`, `DOS`. A separação existe para o Calibrador medir cada representação e suas combinações, sem pressupor que normalizar mais é sempre melhor.
+`PERSON_NAME_BASIC_PTBR@V1` separa deliberadamente UPPER, remoção de diacríticos e remoção das partículas exatas `DA`, `DAS`, `DE`, `DO`, `DOS`. A separação existe para o Calibrador medir cada representação e suas combinações, sem pressupor que normalizar mais é sempre melhor.
 
 `PERSON_NAME_METAPHONE_BR@V1` é uma projeção fonética materializável/indexável para nome brasileiro. A implementação C# da Jornada congela como referência o pacote público `metaphonebr` do Ipea, versão 0.0.5, commit upstream `17fdee95581442cdcc98fddc30aea3079caf27ae`, e possui vetores locais de conformidade. Uma mudança de regras fonéticas, de upstream ou de coluna exige nova versão do algoritmo local.
 
