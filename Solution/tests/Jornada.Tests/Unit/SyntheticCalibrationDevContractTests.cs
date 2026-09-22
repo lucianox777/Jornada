@@ -272,6 +272,27 @@ public sealed class SyntheticCalibrationDevContractTests
         });
     }
 
+    [Test]
+    public void Synthetic_delivery_terminal_failure_includes_stable_lote_error_code()
+    {
+        var root = FindRepositoryRoot();
+        var runner = File.ReadAllText(Path.Combine(
+            root, "Solution", "src", "Jornada.Ensaio",
+            "SyntheticCalibrationDevRunner.cs"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(runner, Does.Contain("ReadOptionalStringProperty(body, \"erro\")"),
+                "O ensaio deve aproveitar o erro_codigo já devolvido pela API.");
+            Assert.That(runner, Does.Contain("erro_codigo={errorCode}"),
+                "Rejeição/quarentena devem informar a classificação operacional no console.");
+            Assert.That(runner, Does.Contain("NAO_INFORMADO"),
+                "A ausência de erro deve ser explícita, sem quebrar o parsing.");
+            Assert.That(runner, Does.Contain("item.Value.ValueKind == JsonValueKind.String"),
+                "Erros nulos do endpoint de status não podem lançar outra exceção.");
+        });
+    }
+
     private static string FindRepositoryRoot()
     {
         var current = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
