@@ -53,6 +53,12 @@ public sealed record FsDecisionThresholdCalibrationResult(
 {
     public bool HasSelectedCandidate => Selected is not null;
     public bool TestSafetyPassed => Selected is { Test.FalsePositive: 0 };
+
+    // Diagnostics aggregate ONLY frozen TEST decisions. They never participate in
+    // threshold selection, Pareto ordering, conflict-floor calibration or promotion.
+    // Null means VALIDATION did not select a candidate, so TEST was not audited.
+    public long? TestWrongPersonFalsePositive { get; init; }
+    public long? TestLeaveTruthOutFalsePositive { get; init; }
 }
 
 /// <summary>
@@ -214,6 +220,31 @@ public static class FsDecisionThresholdCalibrator
                 Evaluate(algorithmVersion, baseParameters, canonical.Candidate, test));
         }
 
+        // The TEST split stays frozen and is used once for the safety gate. The
+        // partitioned counts explain *which kind* of false link failed the gate,
+        // without returning CPF, UUID, scenario IDs, names or TEST-derived thresholds.
+        long? wrongPersonFp = null;
+        long? leaveTruthOutFp = null;
+        if (selected is not null)
+        {
+            if (selected.Test.FalsePositive == 0)
+            {
+                wrongPersonFp = 0;
+                leaveTruthOutFp = 0;
+            }
+            else
+            {
+                wrongPersonFp = Evaluate(
+                    algorithmVersion, baseParameters, selected.Candidate,
+                    test.Where(static x => x.ExpectedResolvedUuid is not null).ToArray()).FalsePositive;
+                leaveTruthOutFp = Evaluate(
+                    algorithmVersion, baseParameters, selected.Candidate,
+                    test.Where(static x => x.ExpectedResolvedUuid is null).ToArray()).FalsePositive;
+                if (wrongPersonFp + leaveTruthOutFp != selected.Test.FalsePositive)
+                    throw new InvalidOperationException("Auditoria agregada do safety gate TEST diverge da matriz congelada.");
+            }
+        }
+
         return new FsDecisionThresholdCalibrationResult(
             Version,
             seed,
@@ -226,7 +257,11 @@ public static class FsDecisionThresholdCalibrator
             validation.Count(static x => x.ExpectedResolvedUuid is not null),
             validation.Count(static x => x.ExpectedResolvedUuid is null),
             test.Count(static x => x.ExpectedResolvedUuid is not null),
-            test.Count(static x => x.ExpectedResolvedUuid is null));
+            test.Count(static x => x.ExpectedResolvedUuid is null))
+        {
+            TestWrongPersonFalsePositive = wrongPersonFp,
+            TestLeaveTruthOutFalsePositive = leaveTruthOutFp
+        };
     }
 
     public static IReadOnlyDictionary<string, decimal> ApplySelected(
@@ -241,7 +276,16 @@ public static class FsDecisionThresholdCalibrator
                 "Calibração FS não encontrou candidato Pareto que satisfaça o safety gate de zero falso vínculo em VALIDATION.");
         if (selected.Test.FalsePositive != 0)
             throw new InvalidOperationException(
-                $"Candidato FS congelado falhou em TEST: falsePositive={selected.Test.FalsePositive}. Nenhum threshold foi promovido.");
+                $"Candidato FS congelado falhou em TEST: falsePositive={selected.Test.FalsePositive}; " +
+                $"fpPessoaErrada={result.TestWrongPersonFalsePositive}; " +
+                $"fpLeaveTruthOut={result.TestLeaveTruthOutFalsePositive}; " +
+                $"testPositivos={result.TestPositiveScenarios}; testNegativos={result.TestNegativeScenarios}; " +
+                $"validationFP={selected.Validation.FalsePositive}; validationFN={selected.Validation.FalseNegative}; " +
+                $"testFN={selected.Test.FalseNegative}; " +
+                $"threshold={selected.Candidate.Threshold.ToString("G29", CultureInfo.InvariantCulture)}; " +
+                $"margemLogOdds={selected.Candidate.ConflictMarginLogOdds.ToString("G29", CultureInfo.InvariantCulture)}; " +
+                $"pisoConflito={selected.Candidate.DualThresholdConflictFloor.ToString("G29", CultureInfo.InvariantCulture)}. " +
+                "Nenhum threshold foi promovido.");
 
         var output = new Dictionary<string, decimal>(parameters, StringComparer.Ordinal)
         {
