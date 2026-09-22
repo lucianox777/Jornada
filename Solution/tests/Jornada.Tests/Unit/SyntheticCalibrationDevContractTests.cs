@@ -204,12 +204,12 @@ public sealed class SyntheticCalibrationDevContractTests
         var root = FindRepositoryRoot();
         var shell = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "local-synthetic-calibration.sh"));
         var powershell = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "local-synthetic-calibration.ps1"));
-        var cleanup = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "local-synthetic-calibration-clean.sql"));
+        var cleanup = File.ReadAllText(Path.Combine(root, "Solution", "database", "Jornada_Dev_SyntheticCalibration_Cleanup.sql"));
 
         Assert.Multiple(() =>
         {
             Assert.That(shell, Does.Contain("up --no-synthetic-corpus"));
-            Assert.That(shell, Does.Contain("local-synthetic-calibration-clean.sql"));
+            Assert.That(shell, Does.Contain("Jornada_Dev_SyntheticCalibration_Cleanup.sql"));
             Assert.That(shell, Does.Contain("Ensaio__SyntheticCalibration__ExpectedSeeds"));
             Assert.That(shell, Does.Contain("Ensaio__SyntheticCalibration__RunGroupId"));
             Assert.That(shell, Does.Contain("JORNADA_SYNTH_PSEUDONYMIZATION_KEY"));
@@ -218,7 +218,7 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(shell, Does.Not.Contain("--pseudonymization-key "));
 
             Assert.That(powershell, Does.Contain("up -NoSyntheticCorpus"));
-            Assert.That(powershell, Does.Contain("local-synthetic-calibration-clean.sql"));
+            Assert.That(powershell, Does.Contain("Jornada_Dev_SyntheticCalibration_Cleanup.sql"));
             Assert.That(powershell, Does.Contain("Ensaio__SyntheticCalibration__ExpectedSeeds"));
             Assert.That(powershell, Does.Contain("Ensaio__SyntheticCalibration__RunGroupId"));
             Assert.That(powershell, Does.Contain("JORNADA_SYNTH_PSEUDONYMIZATION_KEY"));
