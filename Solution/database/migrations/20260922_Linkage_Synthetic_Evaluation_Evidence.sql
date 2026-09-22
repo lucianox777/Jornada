@@ -5,8 +5,8 @@ GO
 /*
   Evidência sintética do Calibrador (#416)
   -----------------------------------------
-  Persiste somente agregados produzidos DEPOIS do RASCUNHO. Truth linha a linha,
-  base_person_id, observation_id, CPF, CNS, nomes e datas não pertencem a este contrato.
+  Persiste somente agregados produzidos DEPOIS do RASCUNHO.
+  Identificadores de truth, atributos pessoais e linhas individuais não pertencem a este contrato.
 
   A presença desta evidência:
   - nunca valida nem ativa modelo;
