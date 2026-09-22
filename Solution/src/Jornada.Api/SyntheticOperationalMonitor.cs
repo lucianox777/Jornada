@@ -58,6 +58,7 @@ public sealed record SyntheticMonitorEvaluation(
     ulong Seed,
     string GeneratorVersion,
     string EvaluatorVersion,
+    string EnvironmentProfile,
     string RulesetVersion,
     string ModelSnapshotSha256,
     string CorpusFingerprintSha256,
@@ -111,7 +112,7 @@ public sealed class SyntheticOperationalMonitorService(IOperationalSqlAdapter op
             """
             SELECT TOP(1)
                 e.avaliacao_id,e.grupo_execucao_id,e.modelo_id,e.modelo_versao,m.status,
-                e.gerador_seed,e.gerador_versao,e.avaliador_versao,e.ruleset_versao,
+                e.gerador_seed,e.gerador_versao,e.avaliador_versao,e.ambiente_perfil,e.ruleset_versao,
                 e.modelo_snapshot_sha256,e.corpus_fingerprint_sha256,e.ruleset_fingerprint_sha256,
                 e.relatorio_gerado_em,e.ocorrido_em
             FROM auditoria.v_linkage_avaliacao_sintetica e
@@ -137,11 +138,12 @@ public sealed class SyntheticOperationalMonitorService(IOperationalSqlAdapter op
             reader.GetString(6),
             reader.GetString(7),
             reader.GetString(8),
-            Convert.ToHexString(reader.GetFieldValue<byte[]>(9)).ToLowerInvariant(),
+            reader.GetString(9),
             Convert.ToHexString(reader.GetFieldValue<byte[]>(10)).ToLowerInvariant(),
             Convert.ToHexString(reader.GetFieldValue<byte[]>(11)).ToLowerInvariant(),
-            reader.GetFieldValue<DateTimeOffset>(12),
-            reader.GetFieldValue<DateTimeOffset>(13));
+            Convert.ToHexString(reader.GetFieldValue<byte[]>(12)).ToLowerInvariant(),
+            reader.GetFieldValue<DateTimeOffset>(13),
+            reader.GetFieldValue<DateTimeOffset>(14));
     }
 
     private static async Task<IReadOnlyList<SyntheticMonitorMetric>> ReadMetricsAsync(
@@ -370,7 +372,7 @@ async function load(){
  document.getElementById('state').innerHTML='<b>'+esc(x.banner)+'</b> · grupo <span class="bad">'+esc(g?.status??'SEM_EVIDENCIA')+'</span>';
  if(!e){document.getElementById('latest').innerHTML='<div class="card">Nenhuma avaliação sintética persistida.</div>';return}
  document.getElementById('latest').innerHTML='<div class="card"><h2>Última avaliação</h2><div class="grid">'+
-   [['Seed',e.seed],['Modelo','v'+e.modelVersion+' · '+e.modelStatus],['Run group',e.runGroupId],['Gerador',e.generatorVersion],['Evaluator',e.evaluatorVersion],['Ruleset',e.rulesetVersion],['Corpus fingerprint',e.corpusFingerprintSha256],['Model snapshot',e.modelSnapshotSha256]]
+   [['Seed',e.seed],['Perfil residente',e.environmentProfile],['Modelo','v'+e.modelVersion+' · '+e.modelStatus],['Run group',e.runGroupId],['Gerador',e.generatorVersion],['Evaluator',e.evaluatorVersion],['Ruleset',e.rulesetVersion],['Corpus fingerprint',e.corpusFingerprintSha256],['Model snapshot',e.modelSnapshotSha256]]
    .map(([k,v])=>'<div><div class="k">'+esc(k)+'</div><div class="v">'+esc(v)+'</div></div>').join('')+'</div>'+
    '<p class="muted">Seeds esperadas: '+esc((g?.expectedSeeds||[]).join(', '))+' · concluídas: '+esc((g?.completedSeeds||[]).join(', '))+' · faltantes: '+esc((g?.missingSeeds||[]).join(', '))+'</p></div>';
  const focus=m.filter(z=>['DECISION_ORACLE','DECISION_QUALITY','BLOCKING','M_DISTANCE_REWEIGHTED','U_DISTANCE_REWEIGHTED'].includes(z.scope));
