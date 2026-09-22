@@ -163,7 +163,7 @@ $env:JORNADA_SYNTH_PSEUDONYMIZATION_KEY='<segredo DEV com pelo menos 16 bytes>'
 Os wrappers executam `local-db up --no-synthetic-corpus` e depois
 `database/Jornada_Dev_SyntheticCalibration_Cleanup.sql`. A limpeza é autorizada somente
 quando o marcador residente é `Development`: remove estado operacional dos schemas
-`ingestao`, `bronze`, `silver`, `gold`, `identidade` e `auditoria`, mas
+`ingestao`, `bronze`, `silver`, `gold`, `serving`, `identidade`, `qualidade` e `auditoria`, mas
 preserva as duas tabelas append-only da avaliação sintética, todo o schema `ref`,
 as extended properties, os catálogos estáticos de implementação de QC/possibilidade e o schema/migration ledger. Ela também falha fechado se
 uma tabela preservada mantiver FK habilitada para estado que seria apagado.
