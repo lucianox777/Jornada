@@ -560,25 +560,26 @@ public sealed class SyntheticCalibrationDevRunner(
         string project,
         bool isApi)
     {
+        string[] arguments = isApi
+            ?
+            [
+                "run",
+                "--project", project,
+                "--configuration", "Release",
+                "--no-build",
+                "--no-launch-profile"
+            ]
+            :
+            [
+                "run",
+                "--project", project,
+                "--configuration", "Release",
+                "--no-build"
+            ];
         var startInfo = NewProcessStartInfo(
             settings.SolutionRoot,
             "dotnet",
-            isApi
-                ?
-                [
-                    "run",
-                    "--project", project,
-                    "--configuration", "Release",
-                    "--no-build",
-                    "--no-launch-profile"
-                ]
-                :
-                [
-                    "run",
-                    "--project", project,
-                    "--configuration", "Release",
-                    "--no-build"
-                ],
+            arguments,
             RuntimeEnvironment(settings));
 
         if (isApi)
