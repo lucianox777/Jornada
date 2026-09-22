@@ -66,8 +66,33 @@ public sealed class IngestionStatusConcurrencyTests
 
         await using var writer = new SqlConnection(connectionString);
         await writer.OpenAsync();
-        await using var tx = (SqlTransaction)await writer.BeginTransactionAsync(IsolationLevel.Serializable);
 
+        // Reproduz a reserva REAL: o lease completo e o estado VALIDANDO ficam
+        // visíveis em uma transação curta, antes da persistência longa. A constraint
+        // ck_lote_lease proíbe PROCESSANDO sem lease; o seed deixa o lote PROCESSADO.
+        await using (var reserve = writer.CreateCommand())
+        {
+            reserve.CommandText = """
+                UPDATE ingestao.lote
+                   SET status='VALIDANDO',erro_codigo=NULL,
+                       lease_id=NEWID(),lease_owner='test:status-polling',
+                       lease_adquirido_em=SYSUTCDATETIME(),
+                       heartbeat_em=SYSUTCDATETIME(),
+                       lease_expira_em=DATEADD(MINUTE,10,SYSUTCDATETIME()),
+                       atualizado_em=SYSUTCDATETIME()
+                 WHERE lote_id=@lote_id;
+                IF @@ROWCOUNT<>1 THROW 51030,'Lote de teste não encontrado.',1;
+                UPDATE ingestao.entrega
+                   SET status='VALIDANDO',ultima_atualizacao=SYSUTCDATETIME()
+                 WHERE entrega_id=@entrega_id;
+                IF @@ROWCOUNT<>1 THROW 51031,'Entrega de teste não encontrada.',1;
+                """;
+            reserve.Parameters.AddWithValue("@lote_id", LoteId);
+            reserve.Parameters.AddWithValue("@entrega_id", EntregaId);
+            await reserve.ExecuteNonQueryAsync();
+        }
+
+        await using var tx = (SqlTransaction)await writer.BeginTransactionAsync(IsolationLevel.Serializable);
         await using (var processing = writer.CreateCommand())
         {
             processing.Transaction = tx;
@@ -91,7 +116,8 @@ public sealed class IngestionStatusConcurrencyTests
         Assert.Multiple(() =>
         {
             Assert.That(response, Is.Not.Null);
-            Assert.That(response!.Status, Is.EqualTo("PROCESSANDO"));
+            Assert.That(response!.Status, Is.EqualTo("VALIDANDO"),
+                "Enquanto a transação longa está aberta, somente o último estado confirmado da Entrega é visível.");
             Assert.That(response.Erro, Is.Null);
             Assert.That(sw.Elapsed, Is.LessThan(TimeSpan.FromSeconds(3)),
                 "Status não deve aguardar o lock da transação longa do Processor.");
