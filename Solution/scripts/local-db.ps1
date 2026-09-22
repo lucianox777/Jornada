@@ -247,6 +247,10 @@ function Bootstrap {
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260907_Cpf_Ancora.sql')
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260910_Schema_Consolidation_370.sql')
 
+    # Perfil residente é autoridade de ambiente para superfícies DEV. O DDL canônico
+    # permanece neutro; somente o provisionador local grava Development.
+    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-Q', "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile') EXEC sys.sp_updateextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development';")
+
     # O banco local canônico carrega o corpus de 5k por padrão. Harnesses que controlam
     # sua própria massa (por exemplo, escala) usam -NoSyntheticCorpus e carregam o corpus
     # explicitamente depois do reset, sem apagar ou duplicar dados SCALE.
