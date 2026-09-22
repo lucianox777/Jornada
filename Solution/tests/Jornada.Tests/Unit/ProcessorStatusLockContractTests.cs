@@ -43,6 +43,24 @@ public sealed class ProcessorStatusLockContractTests
         });
     }
 
+    [Test]
+    public void Watchdogs_use_the_live_lease_expiration_and_match_the_fencing_token()
+    {
+        var root = FindRepositoryRoot();
+        var watchdog = File.ReadAllText(Path.Combine(
+            root, "Solution", "src", "Jornada.Operations.Maintenance.Worker", "PipelineWatchdog.cs"));
+        var observability = File.ReadAllText(Path.Combine(
+            root, "Solution", "database", "Jornada_HML_Observabilidade.sql"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(watchdog, Does.Contain("COALESCE(h.lease_expira_em,l.lease_expira_em)"));
+            Assert.That(observability, Does.Contain("COALESCE(h.lease_expira_em,l.lease_expira_em)"));
+            Assert.That(watchdog, Does.Contain("h.lease_id=l.lease_id"));
+            Assert.That(observability, Does.Contain("h.lease_id=l.lease_id"));
+        });
+    }
+
     private static string FindRepositoryRoot()
     {
         var current = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
