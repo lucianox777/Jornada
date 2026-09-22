@@ -319,7 +319,8 @@ public sealed class SyntheticEvaluationSqlServerTests
                           + (SELECT COUNT_BIG(*) FROM qualidade.possibilidade_implementacao),
                       (SELECT COUNT_BIG(*) FROM qualidade.qc_registro_resultado)
                           + (SELECT COUNT_BIG(*) FROM qualidade.avaliacao_possibilidade)
-                          + (SELECT COUNT_BIG(*) FROM qualidade.divergencia_gestor);
+                          + (SELECT COUNT_BIG(*) FROM qualidade.divergencia_gestor),
+                      (SELECT COUNT_BIG(*) FROM serving.registro_integrado);
                     """;
                 retainedAfterCleanup.Parameters.AddWithValue("@evaluation_id", persisted.EvaluationId);
                 retainedAfterCleanup.Parameters.AddWithValue("@model_id", modelId);
@@ -340,6 +341,8 @@ public sealed class SyntheticEvaluationSqlServerTests
                         "Catálogos estáticos de QC/possibilidade não são dados de carga.");
                     Assert.That(reader.GetInt64(6), Is.Zero,
                         "Resultados de qualidade vinculados à massa anterior devem ser descartados.");
+                    Assert.That(reader.GetInt64(7), Is.Zero,
+                        "Serving deve ser limpo sem preservar dados de carga.");
                 });
             }
         }
