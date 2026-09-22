@@ -26,7 +26,7 @@ DB="${JORNADA_SQL_DATABASE:-JornadaLocal}"
   docker compose --env-file "$ENV_FILE" exec -T -w /workspace \
     -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I \
-    -d "$DB" -i scripts/local-synthetic-calibration-clean.sql
+    -d "$DB" -i database/Jornada_Dev_SyntheticCalibration_Cleanup.sql
 )
 
 export ConnectionStrings__Jornada="Server=localhost,$PORT;Database=$DB;User Id=sa;Password=$JORNADA_SQL_SA_PASSWORD;TrustServerCertificate=true;Encrypt=false"
