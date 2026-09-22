@@ -227,6 +227,8 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(powershell, Does.Not.Contain("--pseudonymization-key "));
 
             Assert.That(cleanup, Does.Contain("Jornada.EnvironmentProfile"));
+            Assert.That(cleanup, Does.Contain("ISNULL(CONVERT(NVARCHAR(32)"),
+                "A ausência do marcador deve negar a limpeza, não produzir SQL UNKNOWN.");
             Assert.That(cleanup, Does.Contain("Development"));
             Assert.That(cleanup, Does.Contain("ref.frequencia_nome_versao"));
             Assert.That(cleanup, Does.Contain("linkage_avaliacao_sintetica"));
