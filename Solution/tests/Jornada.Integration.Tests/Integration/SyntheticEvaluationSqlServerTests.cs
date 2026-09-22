@@ -94,6 +94,38 @@ public sealed class SyntheticEvaluationSqlServerTests
                 Assert.That(repeated.EvaluationId, Is.EqualTo(persisted.EvaluationId));
             });
 
+            var completedGroup = await new SyntheticEvaluationGroupReader(connection, 60)
+                .ReadAsync(runGroupId);
+            Assert.Multiple(() =>
+            {
+                Assert.That(completedGroup.Status, Is.EqualTo("CONCLUIDO"));
+                Assert.That(completedGroup.ExpectedSeeds, Is.EqualTo(new[] { 42UL }));
+                Assert.That(completedGroup.CompletedSeeds, Is.EqualTo(new[] { 42UL }));
+                Assert.That(completedGroup.MissingSeeds, Is.Empty);
+                Assert.That(completedGroup.Dispersion, Is.Not.Empty);
+            });
+
+            var incompleteGroupId = Guid.NewGuid();
+            var multiSeedReport = report with
+            {
+                MultiSeed = new SyntheticMultiSeedContext(42UL, new[] { 42UL, 43UL })
+            };
+            var multiSeedJson = JsonSerializer.Serialize(multiSeedReport, JsonOptions) + Environment.NewLine;
+            var multiSeedSha = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(multiSeedJson))).ToLowerInvariant();
+            await writer.PersistAsync(multiSeedReport, multiSeedSha, incompleteGroupId);
+            var incompleteGroup = await new SyntheticEvaluationGroupReader(connection, 60)
+                .ReadAsync(incompleteGroupId);
+            Assert.Multiple(() =>
+            {
+                Assert.That(incompleteGroup.Status, Is.EqualTo("INCOMPLETO"));
+                Assert.That(incompleteGroup.ExpectedSeeds, Is.EqualTo(new[] { 42UL, 43UL }));
+                Assert.That(incompleteGroup.CompletedSeeds, Is.EqualTo(new[] { 42UL }));
+                Assert.That(incompleteGroup.MissingSeeds, Is.EqualTo(new[] { 43UL }));
+                Assert.That(incompleteGroup.Dispersion, Is.Empty,
+                    "Grupo parcial não pode agregar subconjunto de seeds.");
+            });
+
             await using (var persistedCheck = connection.CreateCommand())
             {
                 persistedCheck.CommandText = """
