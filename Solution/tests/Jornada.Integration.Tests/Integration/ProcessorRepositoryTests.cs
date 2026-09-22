@@ -493,7 +493,7 @@ public sealed class ProcessorRepositoryTests
             Assert.That(reader.GetInt32(2), Is.Zero);
             Assert.That(reader.GetInt32(3), Is.Zero);
             Assert.That(reader.GetInt32(4), Is.Zero);
-            Assert.That(reader.GetString(5), Is.EqualTo("VALIDANDO"), "A reserva externa à transação permanece recuperável pelo stale recovery.");
+            Assert.That(reader.GetString(5), Is.EqualTo("PROCESSANDO"), "A transição curta já foi confirmada; o rollback da carga preserva o lease para retry/recovery sem publicar Silver/Gold.");
         });
     }
 
