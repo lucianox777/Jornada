@@ -23,6 +23,23 @@ public sealed class ProcessorStatusLockContractTests
             Assert.That(method, Does.Contain("UPDATE ingestao.lote SET status='PROCESSANDO'"));
             Assert.That(method, Does.Not.Contain("UPDATE ingestao.entrega"));
             Assert.That(api, Does.Contain("FROM ingestao.lote l WITH (READPAST)"));
+            Assert.That(method, Does.Contain("ingestao.lote_heartbeat"),
+                "PROCESSANDO exige lease renovado na linha independente.");
+            Assert.That(reservation, Does.Contain("UPDATE ingestao.lote_heartbeat"),
+                "O heartbeat não pode atualizar a linha com FKs longamente bloqueadas.");
+            Assert.That(reservation, Does.Contain("COALESCE(h.lease_expira_em,l.lease_expira_em)"),
+                "A recuperação deve usar o heartbeat vivo antes do snapshot inicial.");
+
+            var persistence = File.ReadAllText(Path.Combine(
+                root, "Solution", "src", "Jornada.Processor.Worker", "SqlProcessorRepository.Persistence.cs"));
+            var shortCommit = persistence.IndexOf("await transition.CommitAsync(ct)", StringComparison.Ordinal);
+            var longTransaction = persistence.IndexOf(
+                "connection.BeginTransactionAsync(IsolationLevel.Serializable, ct)", StringComparison.Ordinal);
+            Assert.That(shortCommit, Is.GreaterThan(0));
+            Assert.That(longTransaction, Is.GreaterThan(shortCommit),
+                "A transição do Lote deve terminar antes de abrir a transação de Silver/Gold.");
+            Assert.That(persistence, Does.Contain("DELETE FROM ingestao.lote_heartbeat"),
+                "Finalização e remoção do heartbeat devem estar no mesmo commit.");
         });
     }
 
