@@ -29,7 +29,8 @@ if (options.SyntheticEvaluateRoot is not null)
             options.ModelId!.Value,
             options.SyntheticEvaluateRoot,
             options.MaxCandidatePairs,
-            options.CommandTimeoutSeconds));
+            options.CommandTimeoutSeconds,
+            options.SyntheticExpectedSeeds));
 
     var syntheticOutput = Path.GetFullPath(options.OutputPath!);
     Directory.CreateDirectory(Path.GetDirectoryName(syntheticOutput)!);
@@ -140,6 +141,7 @@ internal sealed record EvaluationOptions(
     string? ExportCalibrationPath,
     string? SyntheticEvaluateRoot,
     Guid? SyntheticRunGroupId,
+    IReadOnlyList<ulong>? SyntheticExpectedSeeds,
     Guid? ModelId,
     string? ConnectionString,
     int BirthWindowDays,
@@ -156,7 +158,7 @@ internal sealed record EvaluationOptions(
         for (var i = 0; i < args.Length; i++)
         {
             var raw = args[i];
-            if (raw is "--help" or "-h") return new(null, null, null, null, null, null, null, 0, 0, 0, 0m, 0, 0, true);
+            if (raw is "--help" or "-h") return new(null, null, null, null, null, null, null, null, 0, 0, 0, 0m, 0, 0, true);
             if (!raw.StartsWith("--", StringComparison.Ordinal)) continue;
             raw = raw[2..];
             var eq = raw.IndexOf('=', StringComparison.Ordinal);
@@ -213,6 +215,24 @@ internal sealed record EvaluationOptions(
         if (syntheticRunGroupId is not null && syntheticEvaluate is null)
             throw new ArgumentException("--synthetic-run-group-id só é aceito com --synthetic-evaluate-root.");
 
+        IReadOnlyList<ulong>? syntheticExpectedSeeds = null;
+        var expectedSeedsRaw = Get("synthetic-expected-seeds");
+        if (expectedSeedsRaw is not null)
+        {
+            var parsedSeeds = new SortedSet<ulong>();
+            foreach (var token in expectedSeedsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (!ulong.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seed))
+                    throw new ArgumentException("--synthetic-expected-seeds deve conter uint64 separados por vírgula.");
+                parsedSeeds.Add(seed);
+            }
+            if (parsedSeeds.Count == 0)
+                throw new ArgumentException("--synthetic-expected-seeds não pode ser vazio.");
+            syntheticExpectedSeeds = parsedSeeds.ToArray();
+        }
+        if (syntheticExpectedSeeds is not null && syntheticEvaluate is null)
+            throw new ArgumentException("--synthetic-expected-seeds só é aceito com --synthetic-evaluate-root.");
+
         if (syntheticEvaluate is not null && modelId is null)
             throw new ArgumentException("--synthetic-evaluate-root exige --model-id do RASCUNHO.");
         if (modelId is not null && exportCalibration is null && syntheticEvaluate is null)
@@ -226,6 +246,7 @@ internal sealed record EvaluationOptions(
             exportCalibration,
             syntheticEvaluate,
             syntheticRunGroupId,
+            syntheticExpectedSeeds,
             modelId,
             Get("connection-string"),
             Int("birth-window-days", 7, 1, 31),
@@ -247,6 +268,7 @@ internal sealed record EvaluationOptions(
           --synthetic-evaluate-root <dir>     pós-RASCUNHO: lê corpus/ + ingestion/ e gera evidência sintética agregada
           --model-id <uuid>                   opcional no export; obrigatório na avaliação sintética
           --synthetic-run-group-id <uuid>      sintético: grupo da execução; opcional em execução unitária
+          --synthetic-expected-seeds <a,b,c>    sintético: conjunto explícito de seeds esperadas no grupo
 
         Opções:
           --output <relatorio.json>           padrão linkage-evaluation-report.json (modo --labels)
