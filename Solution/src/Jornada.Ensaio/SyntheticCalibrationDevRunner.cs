@@ -989,14 +989,22 @@ public sealed class SyntheticCalibrationDevRunner(
             var runRoot = Path.GetFullPath(
                 configuration["Ensaio:SyntheticCalibration:OutputRoot"]
                 ?? Path.Combine(options.OutputDirectory, "synthetic-calibration"));
-            var people = Math.Max(
-                100,
-                configuration.GetValue("Ensaio:SyntheticCalibration:People", 20_000));
+            var people = configuration.GetValue("Ensaio:SyntheticCalibration:People", 20_000);
+            if (people < 100)
+                throw new InvalidOperationException("Ensaio:SyntheticCalibration:People deve ser >= 100.");
+
             var seed = configuration.GetValue<ulong>("Ensaio:SyntheticCalibration:Seed", 42UL);
             var errorProfile = configuration["Ensaio:SyntheticCalibration:ErrorProfile"]?.Trim()
                                ?? "correlated";
-            var dataReferenciaRaw = configuration["Ensaio:SyntheticCalibration:DataReferencia"];
-            if (!DateTimeOffset.TryParse(
+            if (errorProfile is not ("clean" or "independent" or "correlated" or "field"))
+            {
+                throw new InvalidOperationException(
+                    $"Ensaio:SyntheticCalibration:ErrorProfile inválido: {errorProfile}.");
+            }
+
+            var dataReferenciaRaw = configuration["Ensaio:SyntheticCalibration:DataReferencia"]?.Trim();
+            if (!HasExplicitOffset(dataReferenciaRaw)
+                || !DateTimeOffset.TryParse(
                     dataReferenciaRaw,
                     CultureInfo.InvariantCulture,
                     DateTimeStyles.None,
@@ -1042,6 +1050,20 @@ public sealed class SyntheticCalibrationDevRunner(
                 TimeSpan.FromSeconds(Math.Max(
                     4,
                     configuration.GetValue("Ensaio:SyntheticCalibration:StatusPollSeconds", 4))));
+        }
+
+        private static bool HasExplicitOffset(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+            if (value.EndsWith("Z", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            var separator = value.LastIndexOf('T');
+            if (separator < 0)
+                return false;
+
+            return value.LastIndexOf('+') > separator || value.LastIndexOf('-') > separator;
         }
     }
 
