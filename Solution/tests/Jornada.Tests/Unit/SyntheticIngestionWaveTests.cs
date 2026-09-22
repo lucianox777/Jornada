@@ -9,7 +9,7 @@ namespace Jornada.Tests.Unit;
 public sealed class SyntheticIngestionWaveTests
 {
     private static readonly DateTimeOffset DayOne =
-        DateTimeOffset.Parse("2026-09-22T09:00:00-03:00");
+        DateTimeOffset.Parse("2026-09-22T09:00:00-03:00", System.Globalization.CultureInfo.InvariantCulture);
 
     [Test]
     public void Waves_reuse_source_code_but_rotate_delivery_ids_and_reveal_cpf()
