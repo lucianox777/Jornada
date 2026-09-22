@@ -4,7 +4,7 @@ namespace Jornada.Tests.Unit;
 public sealed class SyntheticCalibrationDevContractTests
 {
     [Test]
-    public void Synthetic_calibration_DEV_uses_real_runtime_and_never_consumes_truth_or_promotes()
+    public void Synthetic_calibration_DEV_keeps_truth_out_of_calibration_and_evaluates_only_post_draft()
     {
         var root = FindRepositoryRoot();
         var program = File.ReadAllText(Path.Combine(
@@ -25,6 +25,18 @@ public sealed class SyntheticCalibrationDevContractTests
             "src",
             "Jornada.Ensaio",
             "Jornada.Ensaio.csproj"));
+        var evaluator = File.ReadAllText(Path.Combine(
+            root,
+            "Solution",
+            "src",
+            "Jornada.Linkage.Evaluation",
+            "SyntheticEvaluationEngine.cs"));
+        var evaluatorProgram = File.ReadAllText(Path.Combine(
+            root,
+            "Solution",
+            "src",
+            "Jornada.Linkage.Evaluation",
+            "Program.cs"));
 
         Assert.Multiple(() =>
         {
@@ -38,7 +50,10 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(source, Does.Contain("X-Jornada-Access-Key"));
             Assert.That(source, Does.Contain("LOAD_NAME_FREQUENCY_SNAPSHOT"));
             Assert.That(source, Does.Contain("GENERATE_DRAFT"));
+            Assert.That(source, Does.Contain("--synthetic-evaluate-root"));
+            Assert.That(source, Does.Contain("Jornada.Linkage.Evaluation"));
             Assert.That(source, Does.Contain("SyntheticTruthConsumed: false"));
+            Assert.That(source, Does.Contain("PostDraftEvaluationTruthConsumed: true"));
             Assert.That(source, Does.Contain("ModelPromotionAttempted: false"));
             Assert.That(source, Does.Contain("SCALE-%"));
             Assert.That(source, Does.Not.Contain("bridge-truth.jsonl"));
@@ -47,6 +62,18 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(source, Does.Not.Contain("\"ACTIVATE\""));
             Assert.That(csproj, Does.Not.Contain("Jornada.Linkage.SyntheticCorpus"),
                 "O Ensaio deve executar o gerador como processo DEV separado, não acoplar seu assembly.");
+
+            Assert.That(evaluatorProgram, Does.Contain("--synthetic-evaluate-root"));
+            Assert.That(evaluatorProgram, Does.Contain("SyntheticEvaluationEngine"));
+            Assert.That(evaluator, Does.Contain("bridge-truth.jsonl"));
+            Assert.That(evaluator, Does.Contain("BasePersonId"));
+            Assert.That(evaluator, Does.Contain("BlockingProjectionKeyProjector"));
+            Assert.That(evaluator, Does.Contain("CONDITIONED_ON_DEDUPLICATED_BLOCKING_CANDIDATE_UNION")
+                .Or.Contain("LinkageCalibrationAuditExchangePolicy.UProbabilitySemantics"));
+            Assert.That(evaluator, Does.Contain("modelo RASCUNHO"));
+            Assert.That(evaluator, Does.Not.Contain("UPDATE identidade.modelo_linkage"));
+            Assert.That(evaluator, Does.Not.Contain("\"VALIDATE\""));
+            Assert.That(evaluator, Does.Not.Contain("\"ACTIVATE\""));
         });
     }
 
