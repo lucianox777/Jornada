@@ -18,7 +18,6 @@ FILHO/NETO/JUNIOR and diagnostic titles, is retained.
 The reference is version-locked for auditability. A subsequent upstream revision
 or local rule change requires a new local version and new conformance tests.
 
-# Third-party notices
 
 ## metaphonebr
 
