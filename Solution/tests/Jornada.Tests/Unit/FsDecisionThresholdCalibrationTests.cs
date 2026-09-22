@@ -42,6 +42,8 @@ public sealed class FsDecisionThresholdCalibrationTests
             Assert.That(result.Selected.Validation.FalseNegative, Is.Zero);
             Assert.That(result.Selected.Test.FalsePositive, Is.Zero);
             Assert.That(result.TestSafetyPassed, Is.True);
+            Assert.That(result.TestWrongPersonFalsePositive, Is.Zero);
+            Assert.That(result.TestLeaveTruthOutFalsePositive, Is.Zero);
         });
 
         var promoted = FsDecisionThresholdCalibrator.ApplySelected(Parameters(), result);
@@ -100,10 +102,68 @@ public sealed class FsDecisionThresholdCalibrationTests
                 "TEST não pode retroalimentar threshold/margem congelados em VALIDATION.");
             Assert.That(a.TestSafetyPassed, Is.True);
             Assert.That(b.TestSafetyPassed, Is.False);
-            Assert.That(
-                () => FsDecisionThresholdCalibrator.ApplySelected(Parameters(), b),
-                Throws.TypeOf<InvalidOperationException>());
+            Assert.That(b.TestWrongPersonFalsePositive, Is.Zero);
+            Assert.That(b.TestLeaveTruthOutFalsePositive, Is.EqualTo(1));
+            var failure = Assert.Throws<InvalidOperationException>(
+                () => FsDecisionThresholdCalibrator.ApplySelected(Parameters(), b));
+            Assert.That(failure!.Message, Does.Contain("falsePositive=1"));
+            Assert.That(failure.Message, Does.Contain("fpPessoaErrada=0"));
+            Assert.That(failure.Message, Does.Contain("fpLeaveTruthOut=1"));
+            Assert.That(failure.Message, Does.Contain("Nenhum threshold foi promovido."));
+            Assert.That(failure.Message.Length, Is.LessThanOrEqualTo(500),
+                "A evidência deve caber em identidade.modelo_linkage.falha_resumo.");
         });
+    }
+
+    [Test]
+    public void Failure_diagnostics_separate_wrong_person_from_leave_truth_out_without_retuning_on_TEST()
+    {
+        var validation = new[]
+        {
+            Positive("v-pos", FsDecisionCalibrationPartition.Validation, "00000000-0000-0000-0000-000000000031",
+                Candidate("00000000-0000-0000-0000-000000000031", .98m, 3m)),
+            Negative("v-neg", FsDecisionCalibrationPartition.Validation, "00000000-0000-0000-0000-000000000032",
+                Candidate("00000000-0000-0000-0000-000000000039", .94m, 2m))
+        };
+        var safe = validation.Concat(new[]
+        {
+            Positive("t-pos", FsDecisionCalibrationPartition.Test, "00000000-0000-0000-0000-000000000033",
+                Candidate("00000000-0000-0000-0000-000000000033", .99m, 3m)),
+            Negative("t-neg", FsDecisionCalibrationPartition.Test, "00000000-0000-0000-0000-000000000034",
+                Candidate("00000000-0000-0000-0000-000000000039", .90m, 1m))
+        }).ToArray();
+        var unsafePositive = validation.Concat(new[]
+        {
+            Positive("t-pos", FsDecisionCalibrationPartition.Test, "00000000-0000-0000-0000-000000000033",
+                Candidate("00000000-0000-0000-0000-000000000039", .99m, 3m),
+                Candidate("00000000-0000-0000-0000-000000000033", .50m, .5m)),
+            Negative("t-neg", FsDecisionCalibrationPartition.Test, "00000000-0000-0000-0000-000000000034",
+                Candidate("00000000-0000-0000-0000-000000000039", .90m, 1m))
+        }).ToArray();
+
+        var normal = FsDecisionThresholdCalibrator.Calibrate(
+            LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion,
+            Parameters(), safe, 20260919, 2000, 2000);
+        var unsafeResult = FsDecisionThresholdCalibrator.Calibrate(
+            LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion,
+            Parameters(), unsafePositive, 20260919, 2000, 2000);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(unsafeResult.Selected, Is.Not.Null);
+            Assert.That(unsafeResult.Selected!.Candidate.CandidateId,
+                Is.EqualTo(normal.Selected!.Candidate.CandidateId),
+                "A auditoria de TEST não deve influenciar a seleção feita com VALIDATION.");
+            Assert.That(unsafeResult.TestWrongPersonFalsePositive, Is.EqualTo(1));
+            Assert.That(unsafeResult.TestLeaveTruthOutFalsePositive, Is.Zero);
+            Assert.That(unsafeResult.Selected.Test.FalsePositive, Is.EqualTo(1));
+            Assert.That(unsafeResult.TestSafetyPassed, Is.False);
+        });
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => FsDecisionThresholdCalibrator.ApplySelected(Parameters(), unsafeResult));
+        Assert.That(exception!.Message, Does.Contain("fpPessoaErrada=1"));
+        Assert.That(exception.Message, Does.Contain("fpLeaveTruthOut=0"));
+        Assert.That(exception.Message.Length, Is.LessThanOrEqualTo(500));
     }
 
     [Test]
