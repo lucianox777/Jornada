@@ -605,7 +605,7 @@ public sealed class ProcessorRepositoryTests
             UPDATE ingestao.lote SET lease_expira_em=DATEADD(SECOND,-1,SYSUTCDATETIME())
             WHERE lote_id=@id;
             """;
-        command.Parameters.AddWithValue("@id", batch.LoteId);
+        command.Parameters.AddWithValue("@id", batch!.LoteId);
         Assert.That(await command.ExecuteNonQueryAsync(), Is.EqualTo(1));
         Assert.That(await repository.RecoverExpiredLeasesAsync(5, CancellationToken.None), Is.Zero,
             "Recuperação deve consultar a linha de heartbeat independente, não o snapshot inicial do Lote.");
