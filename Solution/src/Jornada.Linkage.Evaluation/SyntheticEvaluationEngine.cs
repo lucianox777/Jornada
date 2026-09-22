@@ -938,7 +938,7 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
         return new SyntheticThresholdOracle(
             "EVALUATED",
             FsDecisionThresholdCalibrator.Version,
-            scenarios.Count,
+            scenarios.Length,
             validation.Length,
             test.Length,
             threshold,
