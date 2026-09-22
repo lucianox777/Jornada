@@ -47,7 +47,7 @@ if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD n√
 
 Push-Location $Root
 try {
-    & docker compose --env-file $EnvFile exec -T -w /workspace -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -i scripts/local-synthetic-calibration-clean.sql
+    & docker compose --env-file $EnvFile exec -T -w /workspace -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -i database/Jornada_Dev_SyntheticCalibration_Cleanup.sql
     if ($LASTEXITCODE -ne 0) { throw "Limpeza sint√©tica preservadora falhou ($LASTEXITCODE)." }
 }
 finally {
