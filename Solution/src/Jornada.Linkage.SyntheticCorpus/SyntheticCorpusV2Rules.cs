@@ -21,7 +21,7 @@ public sealed record SyntheticDateCorruption(DateOnly Value, string? Operation);
 public static class SyntheticCorpusV2Rules
 {
     public const string RulesetVersion = "JORNADA_SYNTH_CORPUS_V2_RULES_CSHARP_V1";
-    public const string DateCorruptionVersion = "EFFECTIVE_DATE_CORRUPTION_V1";
+    public const string DateCorruptionVersion = "EFFECTIVE_DATE_CORRUPTION_V2";
 
     public static readonly IReadOnlyList<string> SurnameParticles =
         new[] { "da", "de", "do", "dos", "das" };
@@ -232,6 +232,24 @@ public static class SyntheticCorpusV2Rules
             catch (ArgumentOutOfRangeException)
             {
                 // Ex.: 29/02 em ano não bissexto. Apenas candidatos efetivos participam.
+            }
+        }
+
+        // Em 29/02 os deslocamentos padrão (-10, -1, +1, +10) podem ser todos
+        // inválidos. Preserve a distribuição original quando houver candidatos;
+        // somente nesse caso-limite, tente os anos bissextos mais próximos.
+        if (candidates.Count == 0 && value.Month == 2 && value.Day == 29)
+        {
+            foreach (var delta in new[] { -4, 4 })
+            {
+                try
+                {
+                    candidates.Add(new DateOnly(value.Year + delta, value.Month, value.Day));
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    // Ex.: 2100 não é bissexto; respeite também os limites de DateOnly.
+                }
             }
         }
 

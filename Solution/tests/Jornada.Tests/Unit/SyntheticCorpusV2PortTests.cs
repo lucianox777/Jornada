@@ -75,6 +75,39 @@ public sealed class SyntheticCorpusV2PortTests
         }
     }
 
+    [TestCase(4)]
+    [TestCase(1936)]
+    [TestCase(2000)]
+    [TestCase(2020)]
+    [TestCase(2096)]
+    [TestCase(9996)]
+    public void February_29_year_corruption_uses_effective_leap_year_fallback(int year)
+    {
+        var source = new DateOnly(year, 2, 29);
+        var random = new Xoshiro256StarStar(44);
+        var yearCorruptionObserved = false;
+
+        for (var n = 0; n < 1024; n++)
+        {
+            var corrupted = SyntheticCorpusV2Rules.CorruptDate(source, random);
+            Assert.That(corrupted.Value, Is.Not.EqualTo(source));
+            Assert.That(corrupted.Operation, Is.Not.Null);
+            if (corrupted.Operation != "DATE_YEAR")
+                continue;
+
+            yearCorruptionObserved = true;
+            Assert.Multiple(() =>
+            {
+                Assert.That(corrupted.Value.Year, Is.AnyOf(year - 4, year + 4));
+                Assert.That(corrupted.Value.Month, Is.EqualTo(2));
+                Assert.That(corrupted.Value.Day, Is.EqualTo(29));
+            });
+        }
+
+        Assert.That(yearCorruptionObserved, Is.True,
+            "A regressão deve exercitar explicitamente a operação DATE_YEAR.");
+    }
+
     [Test]
     public void Empirical_m_matches_python_v2_missing_denominator_rule()
     {
