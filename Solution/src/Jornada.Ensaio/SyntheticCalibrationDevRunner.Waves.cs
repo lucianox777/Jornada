@@ -188,13 +188,15 @@ public sealed partial class SyntheticCalibrationDevRunner
         var model = await ReadSingleNewDraftAsync(beforeModel, cancellationToken);
         var validation = await RunModelValidationAsync(
             settings, model, checked((int)previous.SyntheticObservations), cancellationToken);
+        var temporalEvaluationSha256 = await RunTemporalTruthEvaluationAsync(
+            settings, model.ModelId, waveCount, cancellationToken);
 
         // There is not yet a single truth/manifest pair spanning all wave sidecars.
         // A per-wave PPV/recall report would be misleading until the evaluator
         // supports a versioned temporal truth and frozen comparison windows.
         var report = new
         {
-            reportVersion = "SYNTHETIC_WAVES_DEV_OPERATIONAL_V1",
+            reportVersion = "SYNTHETIC_WAVES_DEV_OPERATIONAL_V2",
             environmentProfile = RequiredEnvironment,
             generatedAtUtc = DateTimeOffset.UtcNow,
             settings.Seed,
@@ -205,11 +207,17 @@ public sealed partial class SyntheticCalibrationDevRunner
             checkpoints,
             model,
             modelValidation = validation,
+            temporalEvaluation = new
+            {
+                fileName = "synthetic-temporal-evaluation.json",
+                sha256 = temporalEvaluationSha256,
+                status = "TRUTH_VERIFICADA_POS_RASCUNHO_SEM_RUN_TEMPORAL"
+            },
             truthConsumedByIngestionOrCalibrator = false,
-            truthConsumedByEvaluation = false,
+            truthConsumedByEvaluation = true,
             modelPromotionAttempted = false,
             recallPerWave = (double?)null,
-            recallStatus = "NAO_MEDIDO_AVALIADOR_TEMPORAL_PENDENTE"
+            recallStatus = "NAO_MEDIDO_RUNNER_POR_ONDA_PENDENTE"
         };
         var reportPath = Path.Combine(settings.RunDirectory, "synthetic-waves-dev.json");
         var json = JsonSerializer.Serialize(report, JsonWriteOptions) + "\n";
