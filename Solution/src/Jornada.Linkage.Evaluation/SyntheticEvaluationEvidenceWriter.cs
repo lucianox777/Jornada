@@ -165,6 +165,16 @@ public sealed class SyntheticEvaluationEvidenceWriter(
         AddDistance(table, "TRANSPORTABILITY_REWEIGHTED", report.Transportability.ReweightedDistance);
 
         AddDecisionOracle(table, report.DecisionOracle);
+        foreach (var seed in report.MultiSeed.ExpectedSeeds)
+        {
+            Add(
+                table,
+                "MULTI_SEED_EXPECTED",
+                seed.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "EXPECTED",
+                1m,
+                "COUNT");
+        }
 
         return table;
     }
