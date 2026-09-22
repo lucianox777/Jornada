@@ -164,13 +164,19 @@ do mesmo `.env` usado pelo Docker local, montam `ConnectionStrings__Jornada` em
 memória e chamam o modo `SYNTHETIC_CALIBRATION_DEV`. A chave HMAC permanece apenas
 na variável de ambiente e não é passada como argumento de processo.
 
-O default do ensaio é **100.000 pessoas-base**. Com a prevalência/retenção de CPF da
-V2 e 1..4 observações por pessoa, 20 mil pessoas não oferecem margem suficiente para
-o gate operacional de `MinimumIndependentMatchedPairs=5000`. O harness mantém o
-gate estatístico inalterado e aumenta apenas a massa. Como isso gera dezenas de
-milhares de pessoas por ZIP/Gestor, o Processor iniciado pelo ensaio recebe
-`MaxPessoasPorEntrega=100000` somente nesse processo DEV; esse limite técnico é
-registrado na evidência e não altera o estimador.
+O default do ensaio é **200.000 pessoas-base**. O Calibrador aplica o mínimo
+`MinimumIndependentMatchedPairs=5000` depois do split determinístico TRAIN
+(default 60%) e escolhe no máximo um par de fontes por pessoa. Com prevalência-base
+de CPF ~22%, retenção por observação ~55%, perfil `correlated` e exclusão das linhas
+`DATE_MISSING` pelo contrato Pessoa v4, 100 mil pessoas produziriam apenas cerca de
+3,25 mil pares TRAIN em expectativa. Com 200 mil, a expectativa sobe para cerca de
+6,5 mil, preservando margem sem reduzir o gate estatístico.
+
+A massa de 200 mil gera aproximadamente 96 mil linhas por ZIP/Gestor no caso mais
+denso (`clean`), ainda abaixo de `MaxPessoasPorEntrega=100000`. O Processor iniciado
+pelo ensaio recebe esse limite de 100 mil somente nesse processo DEV; o harness
+também rejeita qualquer pacote que o ultrapasse. Esse limite técnico é registrado na
+evidência e não altera o estimador.
 
 O harness:
 
