@@ -256,7 +256,7 @@ public sealed class SyntheticEvaluationSqlServerTests
             await using (var referenceBefore = connection.CreateCommand())
             {
                 referenceBefore.CommandText = "SELECT COUNT_BIG(*) FROM ref.frequencia_nome;";
-                referenceRowsBefore = Convert.ToInt64(await referenceBefore.ExecuteScalarAsync());
+                referenceRowsBefore = Convert.ToInt64(await referenceBefore.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
             }
 
             var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
