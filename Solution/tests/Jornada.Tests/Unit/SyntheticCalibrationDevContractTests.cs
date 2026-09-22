@@ -49,6 +49,12 @@ public sealed class SyntheticCalibrationDevContractTests
             "database",
             "migrations",
             "20260922_Linkage_Synthetic_Evaluation_Evidence.sql"));
+        var retentionSql = File.ReadAllText(Path.Combine(
+            root,
+            "Solution",
+            "database",
+            "migrations",
+            "20260922_Linkage_Synthetic_Evaluation_Retention.sql"));
         var promotionSql = File.ReadAllText(Path.Combine(
             root,
             "Solution",
@@ -91,6 +97,7 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(source, Does.Contain("X-Jornada-Gestor"));
             Assert.That(source, Does.Contain("X-Jornada-Access-Key"));
             Assert.That(source, Does.Contain("LOAD_NAME_FREQUENCY_SNAPSHOT"));
+            Assert.That(source, Does.Contain("Referência nominal IBGE ATIVA preservada; recarga omitida."));
             Assert.That(source, Does.Contain("GENERATE_DRAFT"));
             Assert.That(source, Does.Contain("--synthetic-evaluate-root"));
             Assert.That(source, Does.Contain("--synthetic-run-group-id"));
@@ -157,6 +164,11 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(syntheticMonitor, Does.Contain("SINTÉTICO — NÃO PROMOVÍVEL"));
             Assert.That(syntheticMonitor, Does.Contain("Jornada.EnvironmentProfile"));
             Assert.That(syntheticMonitor, Does.Contain("RequiredProfile = \"Development\""));
+            Assert.That(syntheticMonitor, Does.Not.Contain("JOIN identidade.modelo_linkage"),
+                "O Monitor deve continuar lendo evidência depois que o RASCUNHO for limpo.");
+            Assert.That(retentionSql, Does.Contain("DROP CONSTRAINT"));
+            Assert.That(retentionSql, Does.Contain("sys.foreign_keys"));
+            Assert.That(retentionSql, Does.Contain("modelo_snapshot_sha256"));
             Assert.That(operationalMonitor, Does.Contain("hostEnvironment.IsDevelopment()"));
             Assert.That(operationalMonitor, Does.Contain("SyntheticOperationalMonitorGate.IsResidentDevelopment"));
             Assert.That(operationalMonitor, Does.Contain("if (syntheticDevelopment)"));
@@ -187,25 +199,39 @@ public sealed class SyntheticCalibrationDevContractTests
     }
 
     [Test]
-    public void Local_synthetic_calibration_wrappers_reset_without_SCALE_and_keep_HMAC_out_of_arguments()
+    public void Local_synthetic_calibration_wrappers_preserve_reference_and_ledger_without_SCALE_and_keep_HMAC_out_of_arguments()
     {
         var root = FindRepositoryRoot();
         var shell = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "local-synthetic-calibration.sh"));
         var powershell = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "local-synthetic-calibration.ps1"));
+        var cleanup = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "local-synthetic-calibration-clean.sql"));
 
         Assert.Multiple(() =>
         {
-            Assert.That(shell, Does.Contain("reset --no-synthetic-corpus"));
+            Assert.That(shell, Does.Contain("up --no-synthetic-corpus"));
+            Assert.That(shell, Does.Contain("local-synthetic-calibration-clean.sql"));
+            Assert.That(shell, Does.Contain("Ensaio__SyntheticCalibration__ExpectedSeeds"));
+            Assert.That(shell, Does.Contain("Ensaio__SyntheticCalibration__RunGroupId"));
             Assert.That(shell, Does.Contain("JORNADA_SYNTH_PSEUDONYMIZATION_KEY"));
             Assert.That(shell, Does.Contain("SYNTHETIC_CALIBRATION_DEV"));
             Assert.That(shell, Does.Contain("ConnectionStrings__Jornada"));
             Assert.That(shell, Does.Not.Contain("--pseudonymization-key "));
 
-            Assert.That(powershell, Does.Contain("reset -NoSyntheticCorpus"));
+            Assert.That(powershell, Does.Contain("up -NoSyntheticCorpus"));
+            Assert.That(powershell, Does.Contain("local-synthetic-calibration-clean.sql"));
+            Assert.That(powershell, Does.Contain("Ensaio__SyntheticCalibration__ExpectedSeeds"));
+            Assert.That(powershell, Does.Contain("Ensaio__SyntheticCalibration__RunGroupId"));
             Assert.That(powershell, Does.Contain("JORNADA_SYNTH_PSEUDONYMIZATION_KEY"));
             Assert.That(powershell, Does.Contain("SYNTHETIC_CALIBRATION_DEV"));
             Assert.That(powershell, Does.Contain("ConnectionStrings__Jornada"));
             Assert.That(powershell, Does.Not.Contain("--pseudonymization-key "));
+
+            Assert.That(cleanup, Does.Contain("Jornada.EnvironmentProfile"));
+            Assert.That(cleanup, Does.Contain("Development"));
+            Assert.That(cleanup, Does.Contain("ref.frequencia_nome_versao"));
+            Assert.That(cleanup, Does.Contain("linkage_avaliacao_sintetica"));
+            Assert.That(cleanup, Does.Contain("s.name IN(N'ingestao',N'bronze',N'silver',N'gold',N'identidade',N'auditoria')"));
+            Assert.That(cleanup, Does.Contain("child_table.object_id IS NULL"));
         });
     }
 
