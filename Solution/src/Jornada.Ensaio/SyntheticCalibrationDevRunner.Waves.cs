@@ -211,8 +211,8 @@ public sealed partial class SyntheticCalibrationDevRunner
         var reportPath = Path.Combine(settings.RunDirectory, "synthetic-waves-dev.json");
         var json = JsonSerializer.Serialize(report, JsonWriteOptions) + "\n";
         await File.WriteAllTextAsync(reportPath, json, new UTF8Encoding(false), cancellationToken);
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json)));
-        await File.WriteAllTextAsync(reportPath + ".sha256", hash + "  synthetic-waves-dev.json\n",
+        var reportHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json)));
+        await File.WriteAllTextAsync(reportPath + ".sha256", reportHash + "  synthetic-waves-dev.json\n",
             new UTF8Encoding(false), cancellationToken);
         Console.WriteLine($"SYNTHETIC WAVES DEV: OK report={reportPath}");
         return 0;
