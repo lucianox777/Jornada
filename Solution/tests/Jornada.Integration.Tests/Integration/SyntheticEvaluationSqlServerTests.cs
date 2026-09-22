@@ -219,7 +219,7 @@ public sealed class SyntheticEvaluationSqlServerTests
                       AND c.name=N'modelo_id';
                     """;
                 Assert.That(
-                    Convert.ToInt32(await retainedEvidence.ExecuteScalarAsync()),
+                    Convert.ToInt32(await retainedEvidence.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture),
                     Is.Zero,
                     "A evidência sintética persistida deve sobreviver à remoção posterior do modelo avaliado.");
             }
