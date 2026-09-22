@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Jornada.Contracts;
 using Microsoft.Data.SqlClient;
 
@@ -18,6 +19,8 @@ public sealed record SyntheticEvaluationReport(
     string SchemaVersion,
     string Nature,
     string Purpose,
+    string EvaluatorVersion,
+    string EnvironmentProfile,
     DateTimeOffset GeneratedAtUtc,
     SyntheticEvaluationInput Input,
     SyntheticEvaluationModel Model,
@@ -30,6 +33,8 @@ public sealed record SyntheticEvaluationReport(
 
 public sealed record SyntheticEvaluationInput(
     string GeneratedRoot,
+    ulong GeneratorSeed,
+    string GenerationManifestSha256,
     string ObservationsSha256,
     string BridgeTruthSha256,
     string BridgeManifestSha256,
@@ -53,6 +58,7 @@ public sealed record SyntheticEvaluationModel(
     int? USampleSize,
     string RuleSetVersion,
     string RuleSetFingerprintSha256,
+    string ModelSnapshotSha256,
     string UProbabilitySemantics,
     string NominalNameUSource,
     string NominalMotherNameUSource);
@@ -113,6 +119,8 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
     public const string SchemaVersion = "JORNADA_SYNTHETIC_EVALUATION_V1";
     public const string Nature = "SYNTHETIC_PARAMETER_RECOVERY";
     public const string Purpose = "ENGINEERING_EVIDENCE_ONLY_NOT_PROMOTABLE";
+    public const string EvaluatorVersion = "JORNADA_SYNTHETIC_EVALUATOR_V1";
+    public const string RequiredEnvironmentProfile = "Development";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -131,19 +139,38 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
 
         var root = Path.GetFullPath(options.GeneratedRoot);
         var observationsPath = Path.Combine(root, "corpus", "observacoes.csv");
+        var generationManifestPath = Path.Combine(root, "corpus", "generation-manifest.json");
         var truthPath = Path.Combine(root, "ingestion", "bridge-truth.jsonl");
         var manifestPath = Path.Combine(root, "ingestion", "bridge-manifest.json");
-        foreach (var path in new[] { observationsPath, truthPath, manifestPath })
+        foreach (var path in new[] { observationsPath, generationManifestPath, truthPath, manifestPath })
         {
             if (!File.Exists(path))
                 throw new FileNotFoundException("Artefato sintético obrigatório ausente.", path);
         }
 
         var manifest = await ReadManifestAsync(manifestPath, cancellationToken);
+        var generationManifest = await ReadGenerationManifestAsync(generationManifestPath, cancellationToken);
+        if (!string.Equals(
+                generationManifest.InputFingerprintSha256,
+                manifest.CorpusInputFingerprintSha256,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(generationManifest.GeneratorVersion, manifest.GeneratorVersion, StringComparison.Ordinal)
+            || !string.Equals(generationManifest.RulesetVersion, manifest.RulesetVersion, StringComparison.Ordinal)
+            || !string.Equals(generationManifest.RngVersion, manifest.RngVersion, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "generation-manifest e bridge-manifest divergem na proveniência do corpus sintético.");
+        }
+
         var model = await LoadModelAsync(options.ModelId, cancellationToken);
-        if (!string.Equals(model.Status, "RASCUNHO", StringComparison.Ordinal))
+        var environmentProfile = await ReadEnvironmentProfileAsync(cancellationToken);
+        if (!string.Equals(environmentProfile, RequiredEnvironmentProfile, StringComparison.Ordinal))
+        {
             throw new InvalidOperationException(
-                $"SYNTHETIC_EVALUATE aceita somente modelo RASCUNHO; modelo {model.ModelId} está {model.Status}.");
+                $"SYNTHETIC_EVALUATE exige Jornada.EnvironmentProfile={RequiredEnvironmentProfile}; " +
+                $"atual={environmentProfile ?? "(ausente)"}.");
+        }
+        var modelSnapshotSha256 = await ReadModelSnapshotSha256Async(model.ModelId, cancellationToken);
 
         var materialized = await ReadMaterializedTruthAsync(truthPath, cancellationToken);
         var observations = ReadObservations(observationsPath, materialized);
@@ -207,9 +234,13 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
             SchemaVersion,
             Nature,
             Purpose,
+            EvaluatorVersion,
+            environmentProfile!,
             DateTimeOffset.UtcNow,
             new SyntheticEvaluationInput(
                 root,
+                generationManifest.Seed,
+                await HashFileAsync(generationManifestPath, cancellationToken),
                 await HashFileAsync(observationsPath, cancellationToken),
                 await HashFileAsync(truthPath, cancellationToken),
                 await HashFileAsync(manifestPath, cancellationToken),
@@ -232,6 +263,7 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                 model.USampleSize,
                 model.RuleSetVersion,
                 model.RuleSetFingerprintSha256,
+                modelSnapshotSha256,
                 LinkageCalibrationAuditExchangePolicy.UProbabilitySemantics,
                 LinkageCalibrationAuditExchangePolicy.ResolveNominalUSource(
                     model.Parameters.Select(static x => new LinkageCalibrationAuditParameter(x.Key, x.Value)).ToArray(),
@@ -280,6 +312,45 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                 "candidate union is exact or evaluation fails when MaxCandidatePairs is exceeded; no silent sampling",
                 "the report does not validate or activate a model and cannot satisfy issue #31"
             ]);
+    }
+
+    private async Task<string?> ReadEnvironmentProfileAsync(CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(
+            """
+            SELECT CONVERT(nvarchar(32),(
+                SELECT value
+                FROM sys.extended_properties
+                WHERE class=0 AND name=N'Jornada.EnvironmentProfile'));
+            """,
+            connection)
+        {
+            CommandTimeout = commandTimeoutSeconds
+        };
+        return (await command.ExecuteScalarAsync(cancellationToken)) as string;
+    }
+
+    private async Task<string> ReadModelSnapshotSha256Async(
+        Guid modelId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(
+            """
+            DECLARE @fingerprint BINARY(32);
+            EXEC auditoria.sp_calcular_fingerprint_modelo_linkage
+                @modelo_id=@model_id,
+                @fingerprint=@fingerprint OUTPUT;
+            SELECT @fingerprint;
+            """,
+            connection)
+        {
+            CommandTimeout = commandTimeoutSeconds
+        };
+        command.Parameters.Add("@model_id", System.Data.SqlDbType.UniqueIdentifier).Value = modelId;
+        var value = await command.ExecuteScalarAsync(cancellationToken);
+        if (value is not byte[] bytes || bytes.Length != 32)
+            throw new InvalidDataException("Fingerprint canônico do modelo não retornou SHA-256 válido.");
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
     private async Task<SyntheticModelSnapshot> LoadModelAsync(Guid modelId, CancellationToken cancellationToken)
@@ -863,6 +934,18 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
         return result;
     }
 
+    private static async Task<SyntheticGenerationManifest> ReadGenerationManifestAsync(
+        string path,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = File.OpenRead(path);
+        return await JsonSerializer.DeserializeAsync<SyntheticGenerationManifest>(
+                   stream,
+                   JsonOptions,
+                   cancellationToken)
+               ?? throw new InvalidDataException("generation-manifest.json inválido.");
+    }
+
     private static async Task<SyntheticBridgeManifest> ReadManifestAsync(
         string path,
         CancellationToken cancellationToken)
@@ -946,6 +1029,13 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
         string Version,
         string Fingerprint,
         IReadOnlyList<LinkageBlockingPass> Passes);
+
+    private sealed record SyntheticGenerationManifest(
+        [property: JsonPropertyName("generator_version")] string GeneratorVersion,
+        [property: JsonPropertyName("ruleset_version")] string RulesetVersion,
+        [property: JsonPropertyName("rng_version")] string RngVersion,
+        [property: JsonPropertyName("seed")] ulong Seed,
+        [property: JsonPropertyName("input_fingerprint_sha256")] string InputFingerprintSha256);
 
     private sealed record SyntheticBridgeManifest(
         string BridgeVersion,
