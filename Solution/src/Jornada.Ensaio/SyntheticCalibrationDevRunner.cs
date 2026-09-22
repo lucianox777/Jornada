@@ -84,7 +84,7 @@ public sealed class SyntheticCalibrationDevRunner(
             "ingestion",
             "bridge-manifest.json");
         var manifest = await ReadBridgeManifestAsync(bridgeManifestPath, cancellationToken);
-        ValidateBridgeManifest(manifest);
+        ValidateBridgeManifest(manifest, settings);
 
         var credentials = await ReadDevelopmentCredentialsAsync(
             settings.DevelopmentKeysPath,
@@ -165,6 +165,10 @@ public sealed class SyntheticCalibrationDevRunner(
             settings.Seed,
             settings.People,
             settings.ErrorProfile,
+            manifest.BridgeVersion,
+            manifest.GeneratorVersion,
+            manifest.RulesetVersion,
+            manifest.RngVersion,
             manifest.CorpusInputFingerprintSha256,
             manifest.PseudonymizationKeySha256,
             manifest.SourceObservationCount,
@@ -299,12 +303,40 @@ public sealed class SyntheticCalibrationDevRunner(
             ["restore", "Jornada.sln", "--locked-mode"],
             environment: null,
             cancellationToken);
-        await RunProcessAsync(
-            settings.SolutionRoot,
-            "dotnet",
-            ["build", "Jornada.sln", "--configuration", "Release", "--no-restore"],
-            environment: null,
-            cancellationToken);
+
+        var projects = new[]
+        {
+            Path.Combine(
+                settings.SolutionRoot,
+                "src",
+                "Jornada.Linkage.SyntheticCorpus",
+                "Jornada.Linkage.SyntheticCorpus.csproj"),
+            Path.Combine(
+                settings.SolutionRoot,
+                "src",
+                "Jornada.Api",
+                "Jornada.Api.csproj"),
+            Path.Combine(
+                settings.SolutionRoot,
+                "src",
+                "Jornada.Processor.Worker",
+                "Jornada.Processor.Worker.csproj"),
+            Path.Combine(
+                settings.SolutionRoot,
+                "src",
+                "Jornada.Linkage.Parameters.Worker",
+                "Jornada.Linkage.Parameters.Worker.csproj")
+        };
+
+        foreach (var project in projects)
+        {
+            await RunProcessAsync(
+                settings.SolutionRoot,
+                "dotnet",
+                ["build", project, "--configuration", "Release", "--no-restore"],
+                environment: null,
+                cancellationToken);
+        }
     }
 
     private static async Task GeneratePackagesAsync(
@@ -362,8 +394,28 @@ public sealed class SyntheticCalibrationDevRunner(
                ?? throw new InvalidDataException("bridge-manifest.json inválido.");
     }
 
-    private static void ValidateBridgeManifest(SyntheticBridgeManifest manifest)
+    private static void ValidateBridgeManifest(
+        SyntheticBridgeManifest manifest,
+        SyntheticCalibrationSettings settings)
     {
+        if (string.IsNullOrWhiteSpace(manifest.BridgeVersion)
+            || string.IsNullOrWhiteSpace(manifest.GeneratorVersion)
+            || string.IsNullOrWhiteSpace(manifest.RulesetVersion)
+            || string.IsNullOrWhiteSpace(manifest.RngVersion)
+            || !IsSha256(manifest.CorpusInputFingerprintSha256)
+            || !IsSha256(manifest.PseudonymizationKeySha256))
+        {
+            throw new InvalidDataException("Proveniência incompleta no bridge-manifest.");
+        }
+
+        if (manifest.PessoaSchemaVersao != 4)
+            throw new InvalidDataException(
+                $"bridge-manifest deve materializar Pessoa v4; atual={manifest.PessoaSchemaVersao}.");
+        if (manifest.DataReferencia != settings.DataReferencia)
+            throw new InvalidDataException(
+                $"dataReferencia do bridge diverge da configuração: manifest={manifest.DataReferencia:O}, " +
+                $"config={settings.DataReferencia:O}.");
+
         if (manifest.MaterializedObservationCount <= 0
             || manifest.SourceObservationCount < manifest.MaterializedObservationCount
             || manifest.ExcludedObservationCount
@@ -372,14 +424,57 @@ public sealed class SyntheticCalibrationDevRunner(
             throw new InvalidDataException("Contagens inconsistentes no bridge-manifest.");
         }
 
-        if (manifest.Packages.Length != 4)
+        if (manifest.Packages is null || manifest.Packages.Length != 4)
             throw new InvalidDataException(
-                $"O ensaio DEV exige exatamente quatro pacotes/rotas; encontrados={manifest.Packages.Length}.");
+                $"O ensaio DEV exige exatamente quatro pacotes/rotas; encontrados={manifest.Packages?.Length ?? 0}.");
 
-        var expected = new HashSet<string>(["SEHAB", "SMADS", "SMDET", "SMS"], StringComparer.Ordinal);
-        var actual = manifest.Packages.Select(x => x.GestorCodigo).ToHashSet(StringComparer.Ordinal);
-        if (!actual.SetEquals(expected))
-            throw new InvalidDataException("bridge-manifest não contém exatamente SEHAB/SMADS/SMDET/SMS.");
+        var expectedRoutes = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["SEHAB"] = "SEHAB",
+            ["SMADS"] = "ASSISTENCIA",
+            ["SMDET"] = "TRABALHO",
+            ["SMS"] = "SAUDE"
+        };
+        foreach (var package in manifest.Packages)
+        {
+            if (!expectedRoutes.TryGetValue(package.GestorCodigo, out var expectedSystem)
+                || !string.Equals(package.CodigoSistemaOrigem, expectedSystem, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    $"Rota inesperada no bridge-manifest: {package.GestorCodigo}/{package.CodigoSistemaOrigem}.");
+            }
+
+            if (package.PeopleCount <= 0 || !IsSha256(package.Sha256))
+                throw new InvalidDataException($"Pacote inválido no bridge-manifest: {package.FileName}.");
+        }
+
+        if (manifest.Packages.Select(x => x.GestorCodigo).Distinct(StringComparer.Ordinal).Count() != 4)
+            throw new InvalidDataException("bridge-manifest contém Gestor duplicado.");
+
+        var packagePeople = manifest.Packages.Sum(x => x.PeopleCount);
+        if (packagePeople != manifest.MaterializedObservationCount)
+        {
+            throw new InvalidDataException(
+                $"Soma PeopleCount dos pacotes ({packagePeople}) diverge de " +
+                $"materializedObservationCount ({manifest.MaterializedObservationCount}).");
+        }
+    }
+
+    private static bool IsSha256(string? value)
+    {
+        if (value is null || value.Length != 64)
+            return false;
+
+        foreach (var character in value)
+        {
+            var hex = character is >= '0' and <= '9'
+                or >= 'a' and <= 'f'
+                or >= 'A' and <= 'F';
+            if (!hex)
+                return false;
+        }
+
+        return true;
     }
 
     private static async Task<IReadOnlyDictionary<string, string>> ReadDevelopmentCredentialsAsync(
@@ -951,9 +1046,15 @@ public sealed class SyntheticCalibrationDevRunner(
     }
 
     private sealed record SyntheticBridgeManifest(
+        string BridgeVersion,
+        string GeneratorVersion,
+        string RulesetVersion,
+        string RngVersion,
         int SourceObservationCount,
         int MaterializedObservationCount,
         int ExcludedObservationCount,
+        int PessoaSchemaVersao,
+        DateTimeOffset DataReferencia,
         string CorpusInputFingerprintSha256,
         string PseudonymizationKeySha256,
         SyntheticBridgePackage[] Packages);
@@ -1016,6 +1117,10 @@ public sealed class SyntheticCalibrationDevRunner(
         ulong Seed,
         int People,
         string ErrorProfile,
+        string BridgeVersion,
+        string GeneratorVersion,
+        string RulesetVersion,
+        string RngVersion,
         string CorpusInputFingerprintSha256,
         string PseudonymizationKeySha256,
         int SourceObservationCount,
