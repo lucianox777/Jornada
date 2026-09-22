@@ -123,6 +123,10 @@ bootstrap() {
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260907_Cpf_Ancora.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260910_Schema_Consolidation_370.sql
 
+  # Perfil residente é autoridade de ambiente para superfícies DEV. O DDL canônico
+  # permanece neutro; somente o provisionador local grava Development.
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -Q "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile') EXEC sys.sp_updateextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development';"
+
   # Por padrão o ambiente local carrega o corpus canônico de 5k. Harnesses que são
   # donos da própria massa usam --no-synthetic-corpus e a carregam depois do reset.
   if [[ "$NO_SYNTHETIC" != "--no-synthetic-corpus" ]]; then
