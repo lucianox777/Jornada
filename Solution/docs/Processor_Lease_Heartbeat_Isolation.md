@@ -47,3 +47,11 @@ DEV Windows/Linux, que usam o baseline v3.70, aplicam a migração idempotente
 `20260922_Processor_Lease_Heartbeat_Isolation.sql`. Não houve publicação
 de modelo de Linkage nem validação em HML/produção. A evidência local
 completa das três ondas permanece pendente da próxima execução.
+
+## Observabilidade
+
+O watchdog do pipeline e a consulta operacional HML calculam vencimento e
+idade do lease com `COALESCE(h.lease_expira_em,l.lease_expira_em)` e junção
+também pelo `lease_id`. Isso evita alertas falsos quando o snapshot inicial
+do Lote já venceu, mas a linha independente foi renovada. Instalações antigas
+sem linha de heartbeat correspondente usam o snapshot somente como fallback.
