@@ -61,6 +61,13 @@ public sealed class SyntheticCalibrationDevRunner(
                 "Use um banco DEV limpo para não misturar execuções.");
         }
 
+        if (baseline.ScaleOrigins != 0)
+        {
+            throw new InvalidOperationException(
+                $"SYNTHETIC_CALIBRATION_DEV recusa o corpus SCALE canônico; origens SCALE-*={baseline.ScaleOrigins}. " +
+                "Recrie o banco local com local-db reset --no-synthetic-corpus antes do ensaio.");
+        }
+
         if (baseline.DraftModels != 0)
             throw new InvalidOperationException(
                 $"SYNTHETIC_CALIBRATION_DEV exige zero modelo RASCUNHO prévio; encontrados={baseline.DraftModels}.");
@@ -243,6 +250,10 @@ public sealed class SyntheticCalibrationDevRunner(
             WHERE p.codigo_pessoa_origem LIKE N'SYNTH-%';
             """,
             cancellationToken);
+        var scaleOrigins = await ScalarInt64Async(
+            connection,
+            "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';",
+            cancellationToken);
         var draftModels = await ScalarInt64Async(
             connection,
             "SELECT COUNT_BIG(*) FROM identidade.modelo_linkage WHERE status=N'RASCUNHO';",
@@ -252,6 +263,7 @@ public sealed class SyntheticCalibrationDevRunner(
             totalObservations,
             syntheticOrigins,
             syntheticObservations,
+            scaleOrigins,
             draftModels);
     }
 
@@ -976,6 +988,7 @@ public sealed class SyntheticCalibrationDevRunner(
         long TotalObservations,
         long SyntheticOrigins,
         long SyntheticObservations,
+        long ScaleOrigins,
         long DraftModels);
 
     private sealed record SyntheticMaterializedCounts(
