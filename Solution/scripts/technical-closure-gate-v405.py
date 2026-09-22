@@ -130,6 +130,8 @@ TEST_RUNBOOK = ROOT / "docs" / "Runbook_Testes_Tecnicos.md"
 HML_VOLUMETRY_RUNBOOK = ROOT / "docs" / "Runbook_HML_Volumetria.md"
 HML_SCALE_EVIDENCE_RUNNER = ROOT / "src" / "Jornada.Ensaio" / "HmlScaleEvidenceRunner.cs"
 SYNTHETIC_CALIBRATION_DEV_RUNNER = ROOT / "src" / "Jornada.Ensaio" / "SyntheticCalibrationDevRunner.cs"
+SYNTHETIC_EVALUATION_ENGINE = ROOT / "src" / "Jornada.Linkage.Evaluation" / "SyntheticEvaluationEngine.cs"
+SYNTHETIC_EVALUATION_PROGRAM = ROOT / "src" / "Jornada.Linkage.Evaluation" / "Program.cs"
 OPENAPI_RUNTIME_TESTS = ROOT / "tests" / "Jornada.Tests" / "Unit" / "OpenApiRuntimeConformanceTests.cs"
 JSON_SCHEMA_META_GATE = ROOT / "scripts" / "json-schema-meta-gate.py"
 ARCHITECTURE_GATE = ROOT / "scripts" / "architecture-dependency-gate.py"
@@ -1035,15 +1037,40 @@ def main() -> None:
         "GENERATE_DRAFT",
         "Jornada.Api",
         "Jornada.Processor.Worker",
+        "Jornada.Linkage.Evaluation",
+        "--synthetic-evaluate-root",
         "X-Jornada-Gestor",
         "X-Jornada-Access-Key",
         "SyntheticTruthConsumed: false",
+        "PostDraftEvaluationTruthConsumed: true",
         "ModelPromotionAttempted: false",
         "SCALE-%",
     ], "harness DEV de recuperação de parâmetros")
     for forbidden in ("bridge-truth.jsonl", "BasePersonId", "\"VALIDATE\"", "\"ACTIVATE\""):
         if forbidden in synthetic_dev:
             fail(f"harness DEV sintético contém caminho proibido: {forbidden}")
+
+    synthetic_eval = SYNTHETIC_EVALUATION_ENGINE.read_text(encoding="utf-8")
+    synthetic_eval_program = SYNTHETIC_EVALUATION_PROGRAM.read_text(encoding="utf-8")
+    require(synthetic_eval, [
+        "JORNADA_SYNTHETIC_EVALUATION_V1",
+        "ENGINEERING_EVIDENCE_ONLY_NOT_PROMOTABLE",
+        "bridge-truth.jsonl",
+        "BasePersonId",
+        "BlockingProjectionKeyProjector",
+        "LinkageCalibrationAuditExchangePolicy.UProbabilitySemantics",
+        "MaxCandidatePairs",
+        "modelo RASCUNHO",
+        "MATERIALIZED_DEDUPLICATED_BLOCKING_CANDIDATE_UNION_NON_MATCH_PAIRS",
+    ], "avaliador sintético pós-RASCUNHO")
+    require(synthetic_eval_program, [
+        "--synthetic-evaluate-root",
+        "SyntheticEvaluationEngine",
+        "--max-candidate-pairs",
+    ], "CLI do avaliador sintético")
+    for forbidden in ("UPDATE identidade.modelo_linkage", "\"VALIDATE\"", "\"ACTIVATE\""):
+        if forbidden in synthetic_eval:
+            fail(f"avaliador sintético contém caminho de promoção/mutação proibido: {forbidden}")
 
     require(BRONZE_RESTORE_EVIDENCE_GATE.read_text(encoding="utf-8"), [
         "missingObjectDetected", "corruptObjectDetected", "finalVerifyPassed", "BRONZE RESTORE EVIDENCE GATE: OK"
