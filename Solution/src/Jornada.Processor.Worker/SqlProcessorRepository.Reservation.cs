@@ -18,7 +18,7 @@ internal sealed partial class SqlProcessorRepository
             command.Transaction = tx;
             command.CommandText = """
                 DECLARE @agora DATETIMEOFFSET(7)=SYSUTCDATETIME();
-                DECLARE @afetados TABLE(entrega_id UNIQUEIDENTIFIER);
+                DECLARE @afetados TABLE(entrega_id UNIQUEIDENTIFIER,lote_id UNIQUEIDENTIFIER,lease_id UNIQUEIDENTIFIER);
 
                 UPDATE l
                    SET status=CASE WHEN l.tentativa_count>=@max_attempts THEN 'POISON' ELSE 'PENDENTE' END,
@@ -28,11 +28,16 @@ internal sealed partial class SqlProcessorRepository
                        proxima_tentativa_em=CASE WHEN l.tentativa_count>=@max_attempts THEN NULL ELSE @agora END,
                        poison_em=CASE WHEN l.tentativa_count>=@max_attempts THEN COALESCE(l.poison_em,@agora) ELSE l.poison_em END,
                        atualizado_em=@agora
-                OUTPUT INSERTED.entrega_id INTO @afetados(entrega_id)
+                OUTPUT INSERTED.entrega_id,INSERTED.lote_id,DELETED.lease_id
+                  INTO @afetados(entrega_id,lote_id,lease_id)
                 FROM ingestao.lote l WITH (UPDLOCK,READPAST,ROWLOCK)
+                LEFT JOIN ingestao.lote_heartbeat h
+                  ON h.lote_id=l.lote_id AND h.lease_id=l.lease_id
                 WHERE l.status IN('VALIDANDO','PROCESSANDO')
-                  AND l.lease_expira_em IS NOT NULL
-                  AND l.lease_expira_em < @agora;
+                  AND COALESCE(h.lease_expira_em,l.lease_expira_em)<@agora;
+
+                DELETE h FROM ingestao.lote_heartbeat h
+                JOIN @afetados a ON a.lote_id=h.lote_id AND a.lease_id=h.lease_id;
 
                 DECLARE @entrega UNIQUEIDENTIFIER;
                 DECLARE c CURSOR LOCAL FAST_FORWARD FOR SELECT DISTINCT entrega_id FROM @afetados;
@@ -97,6 +102,19 @@ internal sealed partial class SqlProcessorRepository
                     OUTPUT INSERTED.lote_id,INSERTED.entrega_id,INSERTED.tentativa_count
                       INTO @reservado(lote_id,entrega_id,tentativa_count)
                     FROM ingestao.lote l JOIN candidato c ON c.lote_id=l.lote_id;
+
+                    UPDATE h SET lease_id=@lease_id,lease_owner=@lease_owner,
+                        heartbeat_em=@agora,lease_expira_em=DATEADD(SECOND,@lease_seconds,@agora)
+                    FROM ingestao.lote_heartbeat h
+                    JOIN @reservado r ON r.lote_id=h.lote_id;
+
+                    INSERT ingestao.lote_heartbeat(lote_id,lease_id,lease_owner,heartbeat_em,lease_expira_em)
+                    SELECT r.lote_id,@lease_id,@lease_owner,@agora,DATEADD(SECOND,@lease_seconds,@agora)
+                    FROM @reservado r
+                    WHERE NOT EXISTS(
+                        SELECT 1 FROM ingestao.lote_heartbeat h WITH(UPDLOCK,HOLDLOCK)
+                        WHERE h.lote_id=r.lote_id
+                    );
 
                     UPDATE e SET status='VALIDANDO',ultima_atualizacao=@agora
                     FROM ingestao.entrega e JOIN @reservado r ON r.entrega_id=e.entrega_id;
@@ -177,10 +195,11 @@ internal sealed partial class SqlProcessorRepository
         await using var command = connection.CreateCommand();
         command.CommandText = """
             DECLARE @agora DATETIMEOFFSET(7)=SYSUTCDATETIME();
-            UPDATE ingestao.lote
-               SET heartbeat_em=@agora,lease_expira_em=DATEADD(SECOND,@lease_seconds,@agora),atualizado_em=@agora
+            -- Apenas a linha independente: inserções Silver mantêm locks de FK no Lote.
+            UPDATE ingestao.lote_heartbeat
+               SET heartbeat_em=@agora,lease_expira_em=DATEADD(SECOND,@lease_seconds,@agora)
              WHERE lote_id=@lote_id AND lease_id=@lease_id AND lease_owner=@lease_owner
-               AND status IN('VALIDANDO','PROCESSANDO') AND lease_expira_em>=@agora;
+               AND lease_expira_em>=@agora;
             SELECT @@ROWCOUNT;
             """;
         command.Parameters.AddWithValue("@lease_seconds", Math.Max(30, (int)Math.Ceiling(leaseDuration.TotalSeconds)));
@@ -218,6 +237,7 @@ internal sealed partial class SqlProcessorRepository
                    atualizado_em=@agora
              WHERE lote_id=@lote_id AND lease_id=@lease_id AND lease_owner=@lease_owner;
             IF @@ROWCOUNT<>1 THROW 51020,'Lease perdido ao reagendar lote.',1;
+             DELETE FROM ingestao.lote_heartbeat WHERE lote_id=@lote_id AND lease_id=@lease_id;
             EXEC ingestao.sp_recalcular_entrega @entrega_id=@entrega_id;
             """;
             command.Parameters.Add(new SqlParameter("@status", SqlDbType.NVarChar, 40) { Value = poison ? "POISON" : "PENDENTE" });
@@ -251,6 +271,7 @@ internal sealed partial class SqlProcessorRepository
                SET status=@status,erro_codigo=@erro,lease_id=NULL,lease_owner=NULL,lease_adquirido_em=NULL,lease_expira_em=NULL,heartbeat_em=NULL,atualizado_em=SYSUTCDATETIME()
              WHERE lote_id=@lote_id AND lease_id=@lease_id AND lease_owner=@lease_owner;
             IF @@ROWCOUNT<>1 THROW 51021,'Lease perdido ao finalizar lote com falha.',1;
+             DELETE FROM ingestao.lote_heartbeat WHERE lote_id=@lote_id AND lease_id=@lease_id;
             EXEC ingestao.sp_recalcular_entrega @entrega_id=@entrega_id;
             """;
             command.Parameters.Add(new SqlParameter("@status", SqlDbType.NVarChar, 40) { Value = status });
@@ -278,7 +299,12 @@ internal sealed partial class SqlProcessorRepository
         // por ingestao.sp_recalcular_entrega no fechamento da transação.
         command.CommandText = """
             UPDATE ingestao.lote SET status='PROCESSANDO',atualizado_em=SYSUTCDATETIME()
-             WHERE lote_id=@lote_id AND status='VALIDANDO' AND lease_id=@lease_id AND lease_owner=@lease_owner AND lease_expira_em>=SYSUTCDATETIME();
+             WHERE lote_id=@lote_id AND status='VALIDANDO' AND lease_id=@lease_id AND lease_owner=@lease_owner
+               AND EXISTS(
+                  SELECT 1 FROM ingestao.lote_heartbeat h
+                  WHERE h.lote_id=@lote_id AND h.lease_id=@lease_id AND h.lease_owner=@lease_owner
+                    AND h.lease_expira_em>=SYSUTCDATETIME()
+               );
             IF @@ROWCOUNT<>1 THROW 51000,'Lote não está reservado em VALIDANDO ou lease expirou.',1;
             """;
         AddLeaseParameters(command, batch);

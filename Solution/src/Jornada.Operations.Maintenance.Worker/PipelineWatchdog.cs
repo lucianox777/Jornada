@@ -219,8 +219,14 @@ public sealed class PipelineWatchdogWorker(
                 (SELECT MIN(iniciado_em) FROM identidade.linkage_run WHERE status IN('PREPARANDO','EXECUTANDO')) AS linkage_run_mais_antigo,
                 (SELECT COUNT_BIG(*) FROM identidade.modelo_linkage WHERE status='GERANDO') AS modelos_gerando,
                 (SELECT MIN(gerado_em) FROM identidade.modelo_linkage WHERE status='GERANDO') AS modelo_gerando_mais_antigo,
-                (SELECT COUNT_BIG(*) FROM ingestao.lote WHERE status IN('VALIDANDO','PROCESSANDO') AND lease_expira_em<@agora) AS leases_expirados,
-                (SELECT MIN(lease_expira_em) FROM ingestao.lote WHERE status IN('VALIDANDO','PROCESSANDO') AND lease_expira_em<@agora) AS lease_expirado_mais_antigo,
+                (SELECT COUNT_BIG(*) FROM ingestao.lote l
+                    LEFT JOIN ingestao.lote_heartbeat h ON h.lote_id=l.lote_id AND h.lease_id=l.lease_id
+                    WHERE l.status IN('VALIDANDO','PROCESSANDO')
+                      AND COALESCE(h.lease_expira_em,l.lease_expira_em)<@agora) AS leases_expirados,
+                (SELECT MIN(COALESCE(h.lease_expira_em,l.lease_expira_em)) FROM ingestao.lote l
+                    LEFT JOIN ingestao.lote_heartbeat h ON h.lote_id=l.lote_id AND h.lease_id=l.lease_id
+                    WHERE l.status IN('VALIDANDO','PROCESSANDO')
+                      AND COALESCE(h.lease_expira_em,l.lease_expira_em)<@agora) AS lease_expirado_mais_antigo,
                 (SELECT COUNT_BIG(*) FROM ingestao.lote WHERE status='PENDENTE') AS lotes_pendentes,
                 (SELECT MIN(criado_em) FROM ingestao.lote WHERE status='PENDENTE') AS lote_pendente_mais_antigo,
                 CAST(COALESCE((SELECT TOP(1) ativo FROM controle.modo_carga_inicial WHERE estado_id=1),0) AS bit) AS carga_inicial_ativa,

@@ -41,7 +41,7 @@ public sealed class ProcessorRepositoryTests
             Assert.That(Convert.ToString(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture), Is.EqualTo("VALIDANDO"));
 
             command.Parameters.Clear();
-            command.CommandText = "UPDATE ingestao.lote SET lease_expira_em=DATEADD(MINUTE,-1,SYSUTCDATETIME()) WHERE lote_id=@id;";
+            command.CommandText = "UPDATE ingestao.lote_heartbeat SET lease_expira_em=DATEADD(MINUTE,-1,SYSUTCDATETIME()) WHERE lote_id=@id;";
             command.Parameters.AddWithValue("@id", reserved.LoteId);
             await command.ExecuteNonQueryAsync();
         }
@@ -493,7 +493,7 @@ public sealed class ProcessorRepositoryTests
             Assert.That(reader.GetInt32(2), Is.Zero);
             Assert.That(reader.GetInt32(3), Is.Zero);
             Assert.That(reader.GetInt32(4), Is.Zero);
-            Assert.That(reader.GetString(5), Is.EqualTo("VALIDANDO"), "A reserva externa à transação permanece recuperável pelo stale recovery.");
+            Assert.That(reader.GetString(5), Is.EqualTo("PROCESSANDO"), "A transição curta já foi confirmada; o rollback da carga preserva o lease para retry/recovery sem publicar Silver/Gold.");
         });
     }
 
@@ -512,7 +512,7 @@ public sealed class ProcessorRepositoryTests
         {
             await connection.OpenAsync();
             using var query = connection.CreateCommand();
-            query.CommandText = "SELECT lease_expira_em FROM ingestao.lote WHERE lote_id=@id;";
+            query.CommandText = "SELECT lease_expira_em FROM ingestao.lote_heartbeat WHERE lote_id=@id;";
             query.Parameters.AddWithValue("@id", batch!.LoteId);
             before = (DateTimeOffset)(await query.ExecuteScalarAsync())!;
         }
@@ -523,12 +523,92 @@ public sealed class ProcessorRepositoryTests
         await using var verify = new SqlConnection(connectionString);
         await verify.OpenAsync();
         using var command = verify.CreateCommand();
-        command.CommandText = "SELECT lease_expira_em,heartbeat_em FROM ingestao.lote WHERE lote_id=@id;";
+        command.CommandText = "SELECT lease_expira_em,heartbeat_em FROM ingestao.lote_heartbeat WHERE lote_id=@id;";
         command.Parameters.AddWithValue("@id", batch!.LoteId);
         using var reader = await command.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
         Assert.That(reader.GetDateTimeOffset(0), Is.GreaterThan(before));
         Assert.That(reader.IsDBNull(1), Is.False);
+    }
+
+    [Test]
+    public async Task Heartbeat_renews_during_serializable_transaction_with_real_lote_foreign_key()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+        await SetOnePendingAsync(connectionString);
+        var repository = CreateRepository(connectionString);
+        var batch = await repository.ReserveNextAsync("worker-long-fk", TimeSpan.FromSeconds(60), CancellationToken.None);
+        Assert.That(batch, Is.Not.Null);
+
+        await using var writer = new SqlConnection(connectionString);
+        await writer.OpenAsync();
+        // Simula a transição curta já confirmada antes da gravação Silver.
+        await using (var processing = writer.CreateCommand())
+        {
+            processing.CommandText = """
+                UPDATE ingestao.lote SET status='PROCESSANDO',atualizado_em=SYSUTCDATETIME()
+                 WHERE lote_id=@id AND lease_id=@lease_id;
+                """;
+            processing.Parameters.AddWithValue("@id", batch!.LoteId);
+            processing.Parameters.AddWithValue("@lease_id", batch.LeaseId);
+            Assert.That(await processing.ExecuteNonQueryAsync(), Is.EqualTo(1));
+        }
+
+        await using var tx = (SqlTransaction)await writer.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        await using (var child = writer.CreateCommand())
+        {
+            child.Transaction = tx;
+            child.CommandText = """
+                INSERT ingestao.item_processado(
+                    lote_id,classe_item,codigo_origem,resultado,versao_interna,conteudo_hash,data_referencia)
+                VALUES(@id,'PESSOA','TEST-HEARTBEAT-FK','INCLUIDO',1,@hash,@ref);
+                """;
+            child.Parameters.AddWithValue("@id", batch!.LoteId);
+            child.Parameters.AddWithValue("@hash", new string('a', 64));
+            child.Parameters.AddWithValue("@ref", batch.DataReferencia);
+            Assert.That(await child.ExecuteNonQueryAsync(), Is.EqualTo(1));
+        }
+
+        // O INSERT mantém uma FK real ao Lote durante a transação aberta.
+        // O heartbeat usa OUTRA conexão e somente a tabela independente.
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var renewed = await repository.HeartbeatAsync(batch!, TimeSpan.FromMinutes(3), cts.Token);
+        sw.Stop();
+        Assert.Multiple(() =>
+        {
+            Assert.That(renewed, Is.True);
+            Assert.That(sw.Elapsed, Is.LessThan(TimeSpan.FromSeconds(8)),
+                "Heartbeat não deve aguardar locks da transação Serializable sobre o Lote.");
+        });
+
+        await tx.RollbackAsync();
+        Assert.That(await repository.RecoverExpiredLeasesAsync(5, CancellationToken.None), Is.Zero);
+    }
+
+    [Test]
+    public async Task Recovery_uses_live_renewal_even_after_initial_lote_expiration()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+        await SetOnePendingAsync(connectionString);
+        var repository = CreateRepository(connectionString);
+        var batch = await repository.ReserveNextAsync("worker-renewed", TimeSpan.FromSeconds(30), CancellationToken.None);
+        Assert.That(batch, Is.Not.Null);
+        Assert.That(await repository.HeartbeatAsync(batch!, TimeSpan.FromMinutes(3), CancellationToken.None), Is.True);
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE ingestao.lote SET lease_expira_em=DATEADD(SECOND,-1,SYSUTCDATETIME())
+            WHERE lote_id=@id;
+            """;
+        command.Parameters.AddWithValue("@id", batch!.LoteId);
+        Assert.That(await command.ExecuteNonQueryAsync(), Is.EqualTo(1));
+        Assert.That(await repository.RecoverExpiredLeasesAsync(5, CancellationToken.None), Is.Zero,
+            "Recuperação deve consultar a linha de heartbeat independente, não o snapshot inicial do Lote.");
     }
 
     [Test]
@@ -959,7 +1039,7 @@ public sealed class ProcessorRepositoryTests
         {
             await connection.OpenAsync();
             using var expire = connection.CreateCommand();
-            expire.CommandText = "UPDATE ingestao.lote SET lease_expira_em=DATEADD(SECOND,-1,SYSUTCDATETIME()) WHERE lote_id=@id;";
+            expire.CommandText = "UPDATE ingestao.lote_heartbeat SET lease_expira_em=DATEADD(SECOND,-1,SYSUTCDATETIME()) WHERE lote_id=@id;";
             expire.Parameters.AddWithValue("@id", oldBatch!.LoteId);
             await expire.ExecuteNonQueryAsync();
         }
