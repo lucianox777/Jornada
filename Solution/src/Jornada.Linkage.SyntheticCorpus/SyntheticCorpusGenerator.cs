@@ -35,7 +35,8 @@ public sealed class SyntheticCorpusGenerator
                 $"P{i:D7}",
                 random,
                 options.CpfBasePrevalence,
-                options.CnsBasePrevalence);
+                options.CnsBasePrevalence,
+                options.BrazilianNameErrors?.AgnomeBasePrevalence ?? 0);
 
             var split = random.NextUnitInterval();
             person.Partition = split < .6 ? "TRAIN" : split < .8 ? "VALIDATION" : "TEST";
@@ -73,7 +74,8 @@ public sealed class SyntheticCorpusGenerator
                     gestor,
                     sequence,
                     options.CpfObservationRetention,
-                    options.CnsObservationRetention));
+                    options.CnsObservationRetention,
+                    options.BrazilianNameErrors));
             }
         }
 
@@ -88,7 +90,8 @@ public sealed class SyntheticCorpusGenerator
         string basePersonId,
         Xoshiro256StarStar random,
         double cpfPrevalence,
-        double cnsPrevalence)
+        double cnsPrevalence,
+        double agnomePrevalence = 0)
     {
         var surnameCount = SyntheticCorpusV2Rules.WeightedChoice(
             random,
@@ -137,11 +140,15 @@ public sealed class SyntheticCorpusGenerator
         foreach (var correction in correctionComponents)
             evaluationWeight *= correction;
 
+        var fullName = first + " " + string.Join(" ", surnameComponents);
+        if (agnomePrevalence > 0)
+            fullName = SyntheticBrazilianNameErrors.AppendTrueAgnome(fullName, random, agnomePrevalence) ?? fullName;
+
         return new SyntheticPerson
         {
             BasePersonId = basePersonId,
             Partition = string.Empty,
-            Name = first + " " + string.Join(" ", surnameComponents),
+            Name = fullName,
             MotherName = mother,
             BirthDate = birthDate,
             Sex = SyntheticCorpusV2Rules.Choose(random, new[] { "M", "F" }),
@@ -162,7 +169,8 @@ public sealed class SyntheticCorpusGenerator
         string gestor,
         int sequence,
         double cpfRetention,
-        double cnsRetention)
+        double cnsRetention,
+        SyntheticBrazilianNameErrorConfig? brazilianNameErrors = null)
     {
         var observation = new SyntheticObservation
         {
@@ -234,6 +242,8 @@ public sealed class SyntheticCorpusGenerator
             observation.Cns = null;
 
         observation.Corruptions = string.Join("|", labels);
+        if (brazilianNameErrors is not null)
+            SyntheticBrazilianNameErrors.Apply(observation, random, brazilianNameErrors);
         return observation;
     }
 
