@@ -40,16 +40,37 @@ public sealed partial class SyntheticCalibrationDevRunner
 
         var ingestionRoot = Path.Combine(settings.GeneratedDirectory, "ingestion");
         var waveManifestPath = Path.Combine(ingestionRoot, "waves-manifest.json");
-        await using (var waveStream = File.OpenRead(waveManifestPath))
-        {
-            using var document = await JsonDocument.ParseAsync(waveStream, cancellationToken: cancellationToken);
-            if (document.RootElement.GetProperty("waveCount").GetInt32() != waveCount)
-                throw new InvalidDataException("Manifesto de ondas diverge do WaveCount solicitado.");
-        }
-
         var key = Environment.GetEnvironmentVariable(settings.PseudonymizationKeyEnvironment)!;
         var expectedKeyHash = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(key)));
+        var expectedManifestHashes = new List<string>(waveCount);
+        await using (var waveStream = File.OpenRead(waveManifestPath))
+        {
+            using var document = await JsonDocument.ParseAsync(
+                waveStream, cancellationToken: cancellationToken);
+            var root = document.RootElement;
+            if (root.GetProperty("schemaVersion").GetInt32() != 1
+                || root.GetProperty("scenarioVersion").GetString() !=
+                    "SYNTHETIC_INGESTION_WAVES_V1"
+                || root.GetProperty("bridgeVersion").GetString() !=
+                    "SYNTHETIC_INGESTION_BRIDGE_WAVES_V1"
+                || root.GetProperty("seed").GetUInt64() != settings.Seed
+                || !string.Equals(root.GetProperty("pseudonymizationKeySha256").GetString(),
+                    expectedKeyHash, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Proveniência inválida no waves-manifest.");
+
+            var waves = root.GetProperty("waves");
+            if (waves.ValueKind != JsonValueKind.Array || waves.GetArrayLength() != waveCount)
+                throw new InvalidDataException("Manifesto de ondas diverge do WaveCount solicitado.");
+            for (var index = 0; index < waveCount; index++)
+            {
+                var item = waves[index];
+                var hash = item.GetProperty("manifestSha256").GetString();
+                if (item.GetProperty("wave").GetInt32() != index + 1 || !IsSha256(hash))
+                    throw new InvalidDataException("Ordem ou hash inválido no manifesto de ondas.");
+                expectedManifestHashes.Add(hash!);
+            }
+        }
         var credentials = await ReadDevelopmentCredentialsAsync(
             settings.DevelopmentKeysPath, new[] { "SEHAB", "SMADS", "SMDET", "SMS" },
             cancellationToken);
@@ -75,6 +96,15 @@ public sealed partial class SyntheticCalibrationDevRunner
             var directory = Path.Combine(ingestionRoot,
                 "wave-" + (wave + 1).ToString("D2", CultureInfo.InvariantCulture));
             var manifestPath = Path.Combine(directory, "bridge-manifest.json");
+            await using (var manifestStream = File.OpenRead(manifestPath))
+            {
+                var hash = Convert.ToHexString(
+                    await SHA256.HashDataAsync(manifestStream, cancellationToken));
+                if (!string.Equals(hash, expectedManifestHashes[wave],
+                        StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException(
+                        $"Hash do manifesto da onda {wave + 1} diverge do waves-manifest.");
+            }
             var manifest = await ReadBridgeManifestAsync(manifestPath, cancellationToken);
             ValidateWaveManifest(manifest, settings, wave, corpusFingerprint, expectedKeyHash);
             corpusFingerprint ??= manifest.CorpusInputFingerprintSha256;
