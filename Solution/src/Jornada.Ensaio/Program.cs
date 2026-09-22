@@ -31,8 +31,16 @@ if (string.Equals(mode, "HML_SCALE_EVIDENCE", StringComparison.OrdinalIgnoreCase
     var evidenceRunner = new HmlScaleEvidenceRunner(configuration, options, OpenConnection);
     return await evidenceRunner.RunAsync(cancellation.Token);
 }
+if (string.Equals(mode, SyntheticCalibrationDevRunner.Mode, StringComparison.OrdinalIgnoreCase))
+{
+    var syntheticRunner = new SyntheticCalibrationDevRunner(configuration, options, OpenConnection);
+    return await syntheticRunner.RunAsync(cancellation.Token);
+}
 if (!string.Equals(mode, "FULL_REHEARSAL", StringComparison.OrdinalIgnoreCase))
-    throw new InvalidOperationException($"Ensaio:Mode inválido: {mode}. Use FULL_REHEARSAL ou HML_SCALE_EVIDENCE.");
+{
+    throw new InvalidOperationException(
+        $"Ensaio:Mode inválido: {mode}. Use FULL_REHEARSAL, HML_SCALE_EVIDENCE ou {SyntheticCalibrationDevRunner.Mode}.");
+}
 
 var log = new List<string>();
 var checkpointCollector = new CheckpointCollector(OpenConnection);
