@@ -166,7 +166,7 @@ public sealed class SyntheticTemporalTruthEvaluatorTests
         SyntheticTemporalTruthEvaluator.SourceSnapshot[] sources,
         SyntheticTemporalTruthEvaluator.OperationalSnapshot snapshot)
     {
-        var dir = Path.Combine(ingestion, "wave-" + wave.ToString("D2"));
+        var dir = Path.Combine(ingestion, "wave-" + wave.ToString("D2", System.Globalization.CultureInfo.InvariantCulture));
         Directory.CreateDirectory(dir);
         var truthPath = Path.Combine(dir, "bridge-truth.jsonl");
         File.WriteAllLines(truthPath, truth.Select(row => JsonSerializer.Serialize(row)));

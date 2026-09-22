@@ -72,7 +72,8 @@
       "Jornada.Linkage.Parameters.Worker",
       "Jornada.Processor.Worker",
       "Jornada.Linkage.Runner",
-      "Jornada.Linkage.SyntheticCorpus"
+      "Jornada.Linkage.SyntheticCorpus",
+      "Jornada.Linkage.Evaluation"
     ],
     "Jornada.Integration.Tests": [
       "Jornada.Operational.Sql",

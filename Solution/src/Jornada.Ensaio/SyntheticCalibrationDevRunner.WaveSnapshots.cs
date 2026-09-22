@@ -1,4 +1,3 @@
-using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -7,6 +6,12 @@ namespace Jornada.Ensaio;
 
 public sealed partial class SyntheticCalibrationDevRunner
 {
+    private static readonly JsonSerializerOptions WaveSnapshotJsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     /// <summary>
     /// Congela o estado operacional de cada onda antes da onda seguinte. Não abre
     /// sidecar de truth nem exporta CPF, nome, CNS ou atributos pessoais.
@@ -79,7 +84,7 @@ public sealed partial class SyntheticCalibrationDevRunner
                          64 * 1024, useAsync: true))
         {
             await JsonSerializer.SerializeAsync(stream, payload,
-                new JsonSerializerOptions(JsonWriteOptions) { PropertyNamingPolicy = JsonNamingPolicy.CamelCase },
+                WaveSnapshotJsonOptions,
                 cancellationToken);
         }
         await using var hashStream = File.OpenRead(path);
