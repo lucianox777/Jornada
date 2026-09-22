@@ -372,7 +372,7 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                 "blocking uses persisted model passes and the shared BlockingProjectionKeyProjector",
                 "u truth is conditioned on the deduplicated candidate union in the materialized synthetic observation universe",
                 "candidate union is exact or evaluation fails when MaxCandidatePairs is exceeded; no silent sampling",
-                "decision oracle reuses FsDecisionThresholdCalibrator, FellegiSunterScoring and the frozen VALIDATION/TEST partitions; TEST never selects coordinates",
+                "decision oracle reuses FsDecisionThresholdCalibrator.Partition, the persisted calibration seed/basis points, FellegiSunterScoring and the frozen VALIDATION/TEST policy; TEST never selects coordinates",
                 "multi-seed expected membership is explicit and persisted; dispersion is forbidden until every expected seed is present",
                 "the report does not validate or activate a model and cannot satisfy issue #31"
             ]);
@@ -785,16 +785,20 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
         }
 
         var nameContract = LinkageParameterCatalog.NameComparisonContractForAlgorithm(model.AlgorithmVersion);
+        var seed = DecimalToInt(model.Parameters["FS_DECISION_CALIBRATION_SEED"]);
+        var validationBp = DecimalToInt(model.Parameters["FS_DECISION_CALIBRATION_VALIDATION_BP"]);
+        var testBp = DecimalToInt(model.Parameters["FS_DECISION_CALIBRATION_TEST_BP"]);
         var envelopes = new List<SyntheticScenarioEnvelope>();
         for (var index = 0; index < observations.Count; index++)
         {
             var observed = observations[index].Observation;
-            FsDecisionCalibrationPartition partition;
-            if (string.Equals(observed.Partition, "VALIDATION", StringComparison.OrdinalIgnoreCase))
-                partition = FsDecisionCalibrationPartition.Validation;
-            else if (string.Equals(observed.Partition, "TEST", StringComparison.OrdinalIgnoreCase))
-                partition = FsDecisionCalibrationPartition.Test;
-            else
+            var truthUuid = personIds[observed.BasePersonId];
+            var partition = FsDecisionThresholdCalibrator.Partition(
+                truthUuid,
+                seed,
+                validationBp,
+                testBp);
+            if (partition == FsDecisionCalibrationPartition.Train)
                 continue;
 
             var candidateRows = neighbours[index]
@@ -827,7 +831,6 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                 .ThenBy(static x => x.PessoaUuid)
                 .ToArray();
 
-            var truthUuid = personIds[observed.BasePersonId];
             var prefix = observed.ObservationId + ":" + observed.BasePersonId;
             var stratum = ObservationStratum(observed);
             envelopes.Add(new SyntheticScenarioEnvelope(
@@ -865,9 +868,6 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                 test.Length);
         }
 
-        var seed = DecimalToInt(model.Parameters["FS_DECISION_CALIBRATION_SEED"]);
-        var validationBp = DecimalToInt(model.Parameters["FS_DECISION_CALIBRATION_VALIDATION_BP"]);
-        var testBp = DecimalToInt(model.Parameters["FS_DECISION_CALIBRATION_TEST_BP"]);
         FsDecisionThresholdCalibrationResult oracle;
         try
         {
