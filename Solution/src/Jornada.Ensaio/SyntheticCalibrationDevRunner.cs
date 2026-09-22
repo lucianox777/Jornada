@@ -345,7 +345,12 @@ public sealed class SyntheticCalibrationDevRunner(
                 settings.SolutionRoot,
                 "src",
                 "Jornada.Linkage.Evaluation",
-                "Jornada.Linkage.Evaluation.csproj")
+                "Jornada.Linkage.Evaluation.csproj"),
+            Path.Combine(
+                settings.SolutionRoot,
+                "src",
+                "Jornada.Linkage.Runner",
+                "Jornada.Linkage.Runner.csproj")
         };
 
         foreach (var project in projects)
@@ -1250,6 +1255,21 @@ public sealed class SyntheticCalibrationDevRunner(
         long? RecordsRead,
         long? UniquePeople);
 
+    private sealed record SyntheticModelValidationEvidence(
+        Guid RunId,
+        Guid CorrelationId,
+        Guid ModelId,
+        int ModelVersion,
+        string RunType,
+        string Status,
+        long Eligible,
+        long Evaluated,
+        long Resolved,
+        long Unresolved,
+        long Conflicts,
+        long NoCandidateInBlock,
+        bool Published);
+
     private sealed record SyntheticEvaluationEvidence(
         string Path,
         string Sha256,
@@ -1279,6 +1299,7 @@ public sealed class SyntheticCalibrationDevRunner(
         SyntheticMaterializedCounts Materialized,
         IReadOnlyList<SyntheticDeliveryEvidence> Deliveries,
         SyntheticDraftModelEvidence Model,
+        SyntheticModelValidationEvidence ModelValidation,
         SyntheticEvaluationEvidence SyntheticEvaluation,
         bool SyntheticTruthConsumed,
         bool PostDraftEvaluationTruthConsumed,
