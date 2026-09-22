@@ -78,7 +78,9 @@ public sealed partial class SyntheticCalibrationDevRunner
                          path, FileMode.CreateNew, FileAccess.Write, FileShare.None,
                          64 * 1024, useAsync: true))
         {
-            await JsonSerializer.SerializeAsync(stream, payload, JsonWriteOptions, cancellationToken);
+            await JsonSerializer.SerializeAsync(stream, payload,
+                new JsonSerializerOptions(JsonWriteOptions) { PropertyNamingPolicy = JsonNamingPolicy.CamelCase },
+                cancellationToken);
         }
         await using var hashStream = File.OpenRead(path);
         var sha = Convert.ToHexString(await SHA256.HashDataAsync(hashStream, cancellationToken));
