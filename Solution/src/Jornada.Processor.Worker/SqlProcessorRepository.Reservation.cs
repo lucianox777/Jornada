@@ -271,14 +271,17 @@ internal sealed partial class SqlProcessorRepository
     {
         await using var command = connection.CreateCommand();
         command.Transaction = tx;
+        // A persistência de cargas grandes mantém esta transação aberta por bastante tempo.
+        // A Entrega já foi publicada como VALIDANDO por ReserveNextAsync em transação curta.
+        // Atualizá-la aqui manteria um X lock em ingestao.entrega durante toda a persistência
+        // e bloquearia o endpoint de status. O estado agregado/terminal volta a ser publicado
+        // por ingestao.sp_recalcular_entrega no fechamento da transação.
         command.CommandText = """
             UPDATE ingestao.lote SET status='PROCESSANDO',atualizado_em=SYSUTCDATETIME()
              WHERE lote_id=@lote_id AND status='VALIDANDO' AND lease_id=@lease_id AND lease_owner=@lease_owner AND lease_expira_em>=SYSUTCDATETIME();
             IF @@ROWCOUNT<>1 THROW 51000,'Lote não está reservado em VALIDANDO ou lease expirou.',1;
-            UPDATE ingestao.entrega SET status='PROCESSANDO',ultima_atualizacao=SYSUTCDATETIME() WHERE entrega_id=@entrega_id;
             """;
         AddLeaseParameters(command, batch);
-        command.Parameters.AddWithValue("@entrega_id", batch.EntregaId);
         await command.ExecuteNonQueryAsync(ct);
     }
 
