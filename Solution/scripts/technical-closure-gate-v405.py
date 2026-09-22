@@ -132,6 +132,10 @@ HML_SCALE_EVIDENCE_RUNNER = ROOT / "src" / "Jornada.Ensaio" / "HmlScaleEvidenceR
 SYNTHETIC_CALIBRATION_DEV_RUNNER = ROOT / "src" / "Jornada.Ensaio" / "SyntheticCalibrationDevRunner.cs"
 SYNTHETIC_EVALUATION_ENGINE = ROOT / "src" / "Jornada.Linkage.Evaluation" / "SyntheticEvaluationEngine.cs"
 SYNTHETIC_EVALUATION_PROGRAM = ROOT / "src" / "Jornada.Linkage.Evaluation" / "Program.cs"
+SYNTHETIC_EVALUATION_WRITER = ROOT / "src" / "Jornada.Linkage.Evaluation" / "SyntheticEvaluationEvidenceWriter.cs"
+SYNTHETIC_EVALUATION_SQL = ROOT / "database" / "migrations" / "20260922_Linkage_Synthetic_Evaluation_Evidence.sql"
+LINKAGE_PROMOTION_SQL = ROOT / "database" / "migrations" / "20260915_Linkage_Model_Promotion_Contract.sql"
+LINKAGE_CONFERENCE_GOVERNANCE_SQL = ROOT / "database" / "migrations" / "20260920_Linkage_Conference_Command_Governance.sql"
 OPENAPI_RUNTIME_TESTS = ROOT / "tests" / "Jornada.Tests" / "Unit" / "OpenApiRuntimeConformanceTests.cs"
 JSON_SCHEMA_META_GATE = ROOT / "scripts" / "json-schema-meta-gate.py"
 ARCHITECTURE_GATE = ROOT / "scripts" / "architecture-dependency-gate.py"
@@ -1039,6 +1043,8 @@ def main() -> None:
         "Jornada.Processor.Worker",
         "Jornada.Linkage.Evaluation",
         "--synthetic-evaluate-root",
+        "--synthetic-run-group-id",
+        "AppendOnlyPersisted: true",
         "X-Jornada-Gestor",
         "X-Jornada-Access-Key",
         "SyntheticTruthConsumed: false",
@@ -1062,15 +1068,52 @@ def main() -> None:
         "MaxCandidatePairs",
         "modelo RASCUNHO",
         "MATERIALIZED_DEDUPLICATED_BLOCKING_CANDIDATE_UNION_NON_MATCH_PAIRS",
+        "Jornada.EnvironmentProfile",
+        "RequiredEnvironmentProfile = \"Development\"",
+        "generation-manifest.json",
+        "sp_calcular_fingerprint_modelo_linkage",
     ], "avaliador sintético pós-RASCUNHO")
     require(synthetic_eval_program, [
         "--synthetic-evaluate-root",
+        "--synthetic-run-group-id",
         "SyntheticEvaluationEngine",
+        "SyntheticEvaluationEvidenceWriter",
         "--max-candidate-pairs",
     ], "CLI do avaliador sintético")
     for forbidden in ("UPDATE identidade.modelo_linkage", "\"VALIDATE\"", "\"ACTIVATE\""):
         if forbidden in synthetic_eval:
             fail(f"avaliador sintético contém caminho de promoção/mutação proibido: {forbidden}")
+
+    synthetic_writer = SYNTHETIC_EVALUATION_WRITER.read_text(encoding="utf-8")
+    synthetic_sql = SYNTHETIC_EVALUATION_SQL.read_text(encoding="utf-8")
+    require(synthetic_writer, [
+        "SyntheticEvaluationEvidenceWriter",
+        "sp_registrar_avaliacao_sintetica_linkage",
+        "linkage_avaliacao_sintetica_metrica_tvp",
+        "NOT_ASSESSED_ISSUE_31",
+    ], "writer da evidência sintética agregada")
+    require(synthetic_sql, [
+        "auditoria.linkage_avaliacao_sintetica",
+        "auditoria.linkage_avaliacao_sintetica_metrica",
+        "auditoria.sp_registrar_avaliacao_sintetica_linkage",
+        "auditoria.linkage_avaliacao_sintetica_metrica_tvp",
+        "ENGINEERING_EVIDENCE_ONLY_NOT_PROMOTABLE",
+        "NOT_ASSESSED_ISSUE_31",
+        "promocao_autorizada",
+        "Jornada.EnvironmentProfile",
+        "Development",
+        "sp_calcular_fingerprint_modelo_linkage",
+        "append-only",
+    ], "ledger append-only da avaliação sintética")
+    for forbidden in ("base_person_id", "observation_id", "data_nascimento", "nome_completo", "cpf ", "cns "):
+        if forbidden in synthetic_sql.lower():
+            fail(f"ledger sintético contém campo de truth/PII proibido: {forbidden}")
+    for path, label in [
+        (LINKAGE_PROMOTION_SQL, "contrato de promoção"),
+        (LINKAGE_CONFERENCE_GOVERNANCE_SQL, "governança de conferência"),
+    ]:
+        if "linkage_avaliacao_sintetica" in path.read_text(encoding="utf-8"):
+            fail(f"{label} passou a depender indevidamente da evidência sintética")
 
     require(BRONZE_RESTORE_EVIDENCE_GATE.read_text(encoding="utf-8"), [
         "missingObjectDetected", "corruptObjectDetected", "finalVerifyPassed", "BRONZE RESTORE EVIDENCE GATE: OK"
