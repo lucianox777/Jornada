@@ -137,6 +137,8 @@ ANALYZER_CLEANLINESS_GATE = ROOT / "scripts" / "analyzer-cleanliness-gate.py"
 ARCHITECTURE_POLICY = ROOT / "config" / "release" / "architecture-dependencies.json"
 LOCAL_DB_PS = ROOT / "scripts" / "local-db.ps1"
 LOCAL_DB_SH = ROOT / "scripts" / "local-db.sh"
+LOCAL_SYNTHETIC_CALIBRATION_SH = ROOT / "scripts" / "local-synthetic-calibration.sh"
+LOCAL_SYNTHETIC_CALIBRATION_PS = ROOT / "scripts" / "local-synthetic-calibration.ps1"
 LOCAL_CLEAN_PS = ROOT / "scripts" / "local-clean.ps1"
 LOCAL_VALIDATE_RELEASE_PS = ROOT / "scripts" / "local-validate-release.ps1"
 OPERATIONAL_SQL_ADAPTER = ROOT / "src" / "Jornada.Operational.Sql" / "OperationalSqlAdapter.cs"
@@ -535,6 +537,21 @@ def main() -> None:
             "sp_addextendedproperty",
             "Development",
         ], f"marcador residente Development em {label}")
+
+    synthetic_local_sh = LOCAL_SYNTHETIC_CALIBRATION_SH.read_text(encoding="utf-8")
+    synthetic_local_ps = LOCAL_SYNTHETIC_CALIBRATION_PS.read_text(encoding="utf-8-sig")
+    require(synthetic_local_sh, [
+        "reset --no-synthetic-corpus",
+        "JORNADA_SYNTH_PSEUDONYMIZATION_KEY",
+        "SYNTHETIC_CALIBRATION_DEV",
+        "ConnectionStrings__Jornada",
+    ], "wrapper shell do ensaio sintético")
+    require(synthetic_local_ps, [
+        "reset -NoSyntheticCorpus",
+        "JORNADA_SYNTH_PSEUDONYMIZATION_KEY",
+        "SYNTHETIC_CALIBRATION_DEV",
+        "ConnectionStrings__Jornada",
+    ], "wrapper PowerShell do ensaio sintético")
 
     integration_setup = (ROOT / "tests" / "Jornada.Integration.Tests" / "Integration" / "Infrastructure" / "SqlServerIntegrationSetUp.cs").read_text(encoding="utf-8")
     require(integration_setup, [
