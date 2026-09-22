@@ -1090,7 +1090,6 @@ def main() -> None:
         "SyntheticEvaluationEvidenceWriter",
         "sp_registrar_avaliacao_sintetica_linkage",
         "linkage_avaliacao_sintetica_metrica_tvp",
-        "NOT_ASSESSED_ISSUE_31",
     ], "writer da evidência sintética agregada")
     require(synthetic_sql, [
         "auditoria.linkage_avaliacao_sintetica",
