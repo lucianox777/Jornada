@@ -203,6 +203,49 @@ public sealed class ResolutionProjectionModelCatalogTests
     }
 
     [Test]
+    public void ExperimentalNomesbrPlan_IsExplicitAndDoesNotChangeFrozenPhysicalV2()
+    {
+        var source = new[]
+        {
+            new ResolutionSourceField("apelido_social", ResolutionAttributeSemantic.PersonName,
+                EligibleForResolution: true)
+        };
+        var baseline = ResolutionProjectionPlanner.Build(source, "TEST_V1");
+        var experimental = ResolutionProjectionPlanner.BuildExperimental(source, "TEST_NOMESBR_V1");
+        var replay = ResolutionProjectionPlanner.BuildExperimental(source, "TEST_NOMESBR_V1");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(baseline.Features.Select(static f => f.Feature),
+                Does.Not.Contain("apelido_social__last_content_surname"));
+            Assert.That(experimental.BlockingCandidateFeatures,
+                Does.Contain("apelido_social__full_with_agnome"));
+            Assert.That(experimental.BlockingCandidateFeatures,
+                Does.Contain("apelido_social__last_content_surname"));
+            Assert.That(experimental.BlockingCandidateFeatures,
+                Does.Not.Contain("apelido_social__agnome"));
+            Assert.That(experimental.BlockingCandidateFeatures,
+                Does.Not.Contain("apelido_social__title_prefix"));
+            Assert.That(experimental.Features.Single(f => f.Feature == "apelido_social__agnome")
+                .CandidateForBlocking, Is.False);
+            Assert.That(experimental.CatalogVersion,
+                Is.EqualTo(HomologatedResolutionAlgorithmCatalog.ExperimentalCatalogVersion));
+            Assert.That(experimental.Fingerprint, Is.EqualTo(replay.Fingerprint));
+            Assert.That(experimental.Fingerprint, Is.Not.EqualTo(baseline.Fingerprint));
+            Assert.That(HomologatedResolutionAlgorithmCatalog.All.Select(static a => a.QualifiedAlgorithm),
+                Does.Not.Contain("PERSON_NAME_BRAZILIAN_COMPONENTS@V1"));
+            Assert.That(HomologatedResolutionAlgorithmCatalog.Experimental.Select(static a => a.QualifiedAlgorithm),
+                Does.Contain("PERSON_NAME_BRAZILIAN_COMPONENTS@V1"));
+            Assert.That(BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan.Fingerprint,
+                Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256));
+        });
+
+        Assert.Throws<InvalidOperationException>(() =>
+            ResolutionProjectionPlanner.BuildExperimental(source,
+                PersonResolutionProjectionContract.SchemaVersion));
+    }
+
+    [Test]
     public void Build_IsDeterministicAndFingerprintIncludesEligibility()
     {
         var fields = new[]

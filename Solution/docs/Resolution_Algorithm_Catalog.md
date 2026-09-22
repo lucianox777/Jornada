@@ -19,6 +19,36 @@ Tudo que não veio da origem é calculado. Portanto `first`, `surnames`, `last`,
 | `TELEFONE_BR_CANONICO@V2` | Phone | `canonical` |
 | `EMAIL_CANONICO@V2` | Email | `canonical` |
 
+### Projeção experimental nomesbr (opt-in)
+
+`PERSON_NAME_BRAZILIAN_COMPONENTS@V1` é registrado somente em
+`HomologatedResolutionAlgorithmCatalog.Experimental`. É necessário invocar
+explicitamente `ResolutionProjectionPlanner.BuildExperimental` com uma
+**nova versão de schema**; usar `PERSON_RESOLUTION_PROJECTION_V2` é recusado.
+O catálogo físico `RESOLUTION_ALGORITHM_CATALOG_V3` e seu fingerprint
+`PERSON_RESOLUTION_PROJECTION_V2` permanecem inalterados.
+
+O port C# conservador congela o catálogo de partículas, agnomes e títulos
+do `nomesbr`/Ipea 0.1.1, commit
+`3b4a9eb10d994d70af3cc95d6c342e6038d2b573` (MIT).
+As colunas experimentais são:
+
+| coluna | finalidade | blocking experimental |
+|---|---|---|
+| `full_with_agnome` | nome integral normalizado sem excluir sufixo/título | candidato |
+| `last_content_surname` | último sobrenome sem partículas/agnome terminal | candidato, jamais decisor isolado |
+| `agnome` | diagnóstico de sufixo terminal conservador | não |
+| `title_prefix` | diagnóstico de título/patente | não |
+
+`BrazilianNameComponents.Project` também sinaliza partícula duplicada.
+A regra exige ao menos dois tokens de conteúdo anteriores para classificar
+o sufixo como agnome; `JOAO FILHO` permanece ambíguo.
+`JOAO SILVA` e `JOAO SILVA FILHO` podem compartilhar
+`last_content_surname`, mas **nunca o nome integral da projeção**. O
+sobrenome derivado é chave de candidatos potencialmente ampla, não evidência
+de igualdade pessoal. Nenhuma destas novas features está ativada no
+Calibrador/Runner operacional, no schema físico de blocking ou na promoção.
+
 `PERSON_NAME_BASIC_PTBR@V1` separa deliberadamente UPPER, remoção de diacríticos e remoção das partículas exatas `DA`, `DAS`, `DE`, `DO`, `DOS`. A separação existe para o Calibrador medir cada representação e suas combinações, sem pressupor que normalizar mais é sempre melhor.
 
 `PERSON_NAME_METAPHONE_BR@V1` é uma projeção fonética materializável/indexável para nome brasileiro. A implementação C# da Jornada congela como referência o pacote público `metaphonebr` do Ipea, versão 0.0.5, commit upstream `17fdee95581442cdcc98fddc30aea3079caf27ae`, e possui vetores locais de conformidade. Uma mudança de regras fonéticas, de upstream ou de coluna exige nova versão do algoritmo local.

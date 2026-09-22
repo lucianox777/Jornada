@@ -41,11 +41,14 @@ public sealed record HomologatedResolutionAlgorithm(
 public static class HomologatedResolutionAlgorithmCatalog
 {
     public const string CatalogVersion = "RESOLUTION_ALGORITHM_CATALOG_V3";
+    public const string ExperimentalCatalogVersion = "RESOLUTION_ALGORITHM_CATALOG_V3_NOMESBR_EXPERIMENTAL_V1";
 
     public const string PersonNameBasicPtBrAlgorithm = "PERSON_NAME_BASIC_PTBR";
     public const string PersonNameBasicPtBrVersion = "V1";
     public const string PersonNameComponentsAlgorithm = "PERSON_NAME_COMPONENTS";
     public const string PersonNameComponentsVersion = "V2";
+    public const string PersonNameBrazilianComponentsAlgorithm = "PERSON_NAME_BRAZILIAN_COMPONENTS";
+    public const string PersonNameBrazilianComponentsVersion = "V1";
     public const string PersonNameMetaphoneBrAlgorithm = "PERSON_NAME_METAPHONE_BR";
     public const string PersonNameMetaphoneBrVersion = "V1";
     public const string DateComponentsAlgorithm = "DATE_COMPONENTS";
@@ -186,12 +189,40 @@ public static class HomologatedResolutionAlgorithmCatalog
             })
     };
 
+    // Experimental opt-in: NEVER enumerate these in All. The frozen physical
+    // PERSON_RESOLUTION_PROJECTION_V2 and existing models must retain their fingerprint.
+    private static readonly HomologatedResolutionAlgorithm[] ExperimentalAlgorithms =
+    {
+        new(
+            PersonNameBrazilianComponentsAlgorithm,
+            PersonNameBrazilianComponentsVersion,
+            ResolutionAttributeSemantic.PersonName,
+            new ResolutionAlgorithmOutputColumn[]
+            {
+                new("full_with_agnome", "full_with_agnome", ResolutionMaterializationKind.ProcessorMaterialized),
+                new("last_content_surname", "last_content_surname", ResolutionMaterializationKind.ProcessorMaterialized),
+                new("agnome", "agnome", ResolutionMaterializationKind.ProcessorMaterialized, CandidateForBlocking: false),
+                new("title_prefix", "title_prefix", ResolutionMaterializationKind.ProcessorMaterialized, CandidateForBlocking: false)
+            },
+            new[]
+            {
+                "Solution/src/Jornada.Contracts/BrazilianNameComponents.cs#PERSON_NAME_BRAZILIAN_COMPONENTS_V1",
+                "upstream:ipeadata-lab/nomesbr@3b4a9eb10d994d70af3cc95d6c342e6038d2b573"
+            },
+            new[]
+            {
+                "Solution/tests/Jornada.Tests/BrazilianNameComponentsTests.cs",
+                "Solution/tests/Jornada.Tests/ResolutionProjectionModelCatalogTests.cs"
+            })
+    };
+
     static HomologatedResolutionAlgorithmCatalog()
     {
-        Validate(Algorithms);
+        Validate(Algorithms.Concat(ExperimentalAlgorithms));
     }
 
     public static IReadOnlyList<HomologatedResolutionAlgorithm> All => Algorithms;
+    public static IReadOnlyList<HomologatedResolutionAlgorithm> Experimental => ExperimentalAlgorithms;
 
     public static IReadOnlyList<HomologatedResolutionAlgorithm> ForSemantic(ResolutionAttributeSemantic semantic) =>
         Algorithms
