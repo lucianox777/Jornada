@@ -13,7 +13,8 @@ public sealed record SyntheticCorpusOptions(
     double CnsInvalidRate = .01,
     double CnsReuseRate = .01,
     double CnsDobConflictRate = .01,
-    int Gestores = 4)
+    int Gestores = 4,
+    SyntheticBrazilianNameErrorConfig? BrazilianNameErrors = null)
 {
     public void Validate()
     {
@@ -34,6 +35,7 @@ public sealed record SyntheticCorpusOptions(
         ValidateProbability(CnsDobConflictRate, nameof(CnsDobConflictRate));
         if (Gestores <= 0)
             throw new ArgumentOutOfRangeException(nameof(Gestores));
+        BrazilianNameErrors?.Validate(Gestores);
     }
 
     private static void ValidateProbability(double value, string name)
