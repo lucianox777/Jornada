@@ -244,13 +244,12 @@ BEGIN
          OR unidade NOT IN(N'COUNT',N'RATIO',N'PROBABILITY',N'TOTAL_VARIATION'))
     THROW 51916,'Avaliação sintética contém métrica agregada inválida.',1;
 
- SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
  BEGIN TRANSACTION;
  BEGIN TRY
 
  DECLARE @status_modelo NVARCHAR(20);
  SELECT @status_modelo=status
- FROM identidade.modelo_linkage WITH(HOLDLOCK)
+ FROM identidade.modelo_linkage WITH(UPDLOCK,HOLDLOCK)
  WHERE modelo_id=@modelo_id AND versao=@modelo_versao;
 
  IF @status_modelo IS NULL
@@ -267,7 +266,7 @@ BEGIN
 
  DECLARE @existente UNIQUEIDENTIFIER;
  SELECT @existente=avaliacao_id
- FROM auditoria.linkage_avaliacao_sintetica WITH(HOLDLOCK)
+ FROM auditoria.linkage_avaliacao_sintetica WITH(UPDLOCK,HOLDLOCK)
  WHERE modelo_id=@modelo_id AND report_sha256=@report_sha256;
 
  IF @existente IS NOT NULL
@@ -303,6 +302,20 @@ BEGIN
         AND e.observacoes_materializadas=@observacoes_materializadas
         AND e.observacoes_excluidas=@observacoes_excluidas)
       THROW 51919,'Hash de relatório sintético já registrado com proveniência incompatível.',1;
+
+   IF EXISTS(
+      SELECT escopo,dimensao,metrica,valor,unidade FROM @metricas
+      EXCEPT
+      SELECT escopo,dimensao,metrica,valor,unidade
+      FROM auditoria.linkage_avaliacao_sintetica_metrica
+      WHERE avaliacao_id=@existente)
+      OR EXISTS(
+      SELECT escopo,dimensao,metrica,valor,unidade
+      FROM auditoria.linkage_avaliacao_sintetica_metrica
+      WHERE avaliacao_id=@existente
+      EXCEPT
+      SELECT escopo,dimensao,metrica,valor,unidade FROM @metricas)
+      THROW 51919,'Hash de relatório sintético já registrado com métricas incompatíveis.',1;
 
    SET @avaliacao_id=@existente;
    COMMIT TRANSACTION;
