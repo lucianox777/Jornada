@@ -313,7 +313,7 @@ public sealed class IndependentImplementationConferenceParityTests
                 "ImplementationConferenceGovernanceContract.Scope"));
             Assert.That(governanceContract, Does.Contain(
                 "SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE"));
-            Assert.That(evaluationProject, Does.Not.Contain("Jornada.Linkage.Core"));
+            Assert.That(evaluationProject, Does.Contain("Jornada.Linkage.Core"),\n                "O evaluator sintético compartilha a política de calibração com o Worker; a conferência deve permanecer independente.");\n            Assert.That(source, Does.Not.Contain("FsDecisionThresholdCalibrator"));
             Assert.That(evaluationProject, Does.Not.Contain("Jornada.Linkage.Runner"));
             Assert.That(runnerProject, Does.Not.Contain("Jornada.Linkage.Evaluation"));
             Assert.That(workerProject, Does.Not.Contain("Jornada.Linkage.Evaluation"));
