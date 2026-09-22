@@ -204,6 +204,26 @@ public sealed class SyntheticEvaluationSqlServerTests
                 });
             }
 
+            await using (var retainedEvidence = connection.CreateCommand())
+            {
+                retainedEvidence.CommandText = """
+                    SELECT COUNT(*)
+                    FROM sys.foreign_keys fk
+                    JOIN sys.foreign_key_columns fkc
+                      ON fkc.constraint_object_id=fk.object_id
+                    JOIN sys.columns c
+                      ON c.object_id=fkc.parent_object_id
+                     AND c.column_id=fkc.parent_column_id
+                    WHERE fk.parent_object_id=OBJECT_ID(N'auditoria.linkage_avaliacao_sintetica')
+                      AND fk.referenced_object_id=OBJECT_ID(N'identidade.modelo_linkage')
+                      AND c.name=N'modelo_id';
+                    """;
+                Assert.That(
+                    Convert.ToInt32(await retainedEvidence.ExecuteScalarAsync()),
+                    Is.Zero,
+                    "A evidência sintética persistida deve sobreviver à remoção posterior do modelo avaliado.");
+            }
+
             await using (var environment = connection.CreateCommand())
             {
                 environment.CommandText = """
