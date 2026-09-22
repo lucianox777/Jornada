@@ -67,7 +67,7 @@ public sealed class SyntheticCorpusGenerator
             for (var sequence = 0; sequence < count; sequence++)
             {
                 var gestor = $"G{selected[sequence % selected.Count]}";
-                observations.Add(Observe(
+                var observation = Observe(
                     person,
                     random,
                     profile,
@@ -75,7 +75,10 @@ public sealed class SyntheticCorpusGenerator
                     sequence,
                     options.CpfObservationRetention,
                     options.CnsObservationRetention,
-                    options.BrazilianNameErrors));
+                    options.BrazilianNameErrors);
+                if (options.StratifiedErrors is { } strata)
+                    SyntheticStratifiedErrorOverlay.Apply(observation, random, strata);
+                observations.Add(observation);
             }
         }
 
