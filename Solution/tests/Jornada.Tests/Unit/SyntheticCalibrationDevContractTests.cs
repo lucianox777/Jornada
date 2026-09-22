@@ -61,6 +61,24 @@ public sealed class SyntheticCalibrationDevContractTests
             "database",
             "migrations",
             "20260920_Linkage_Conference_Command_Governance.sql"));
+        var syntheticMonitor = File.ReadAllText(Path.Combine(
+            root,
+            "Solution",
+            "src",
+            "Jornada.Api",
+            "SyntheticOperationalMonitor.cs"));
+        var operationalMonitor = File.ReadAllText(Path.Combine(
+            root,
+            "Solution",
+            "src",
+            "Jornada.Api",
+            "OperationalMonitorApi.cs"));
+        var groupReader = File.ReadAllText(Path.Combine(
+            root,
+            "Solution",
+            "src",
+            "Jornada.Linkage.Evaluation",
+            "SyntheticEvaluationGroupReader.cs"));
 
         Assert.Multiple(() =>
         {
@@ -76,6 +94,10 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(source, Does.Contain("GENERATE_DRAFT"));
             Assert.That(source, Does.Contain("--synthetic-evaluate-root"));
             Assert.That(source, Does.Contain("--synthetic-run-group-id"));
+            Assert.That(source, Does.Contain("--synthetic-expected-seeds"));
+            Assert.That(source, Does.Contain("--mode", "MODEL_VALIDATION""));
+            Assert.That(source, Does.Contain("--publish", "false""));
+            Assert.That(source, Does.Contain("CONCLUIDO_SEM_PUBLICACAO"));
             Assert.That(source, Does.Contain("AppendOnlyPersisted: true"));
             Assert.That(source, Does.Contain("Jornada.Linkage.Evaluation"));
             Assert.That(source, Does.Contain("SyntheticTruthConsumed: false"));
@@ -91,6 +113,8 @@ public sealed class SyntheticCalibrationDevContractTests
 
             Assert.That(evaluatorProgram, Does.Contain("--synthetic-evaluate-root"));
             Assert.That(evaluatorProgram, Does.Contain("--synthetic-run-group-id"));
+            Assert.That(evaluatorProgram, Does.Contain("--synthetic-expected-seeds"));
+            Assert.That(evaluatorProgram, Does.Contain("SyntheticEvaluationGroupReader"));
             Assert.That(evaluatorProgram, Does.Contain("SyntheticEvaluationEngine"));
             Assert.That(evaluatorProgram, Does.Contain("SyntheticEvaluationEvidenceWriter"));
             Assert.That(evaluator, Does.Contain("bridge-truth.jsonl"));
@@ -102,6 +126,11 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(evaluator, Does.Contain("Jornada.EnvironmentProfile"));
             Assert.That(evaluator, Does.Contain("generation-manifest.json"));
             Assert.That(evaluator, Does.Contain("sp_calcular_fingerprint_modelo_linkage"));
+            Assert.That(evaluator, Does.Contain("FsDecisionThresholdCalibrator.Calibrate"));
+            Assert.That(evaluator, Does.Contain("FsDecisionThresholdCalibrator.Partition"));
+            Assert.That(evaluator, Does.Contain("FS_DECISION_CALIBRATION_SEED"));
+            Assert.That(evaluator, Does.Contain("CPF_PRESENT"));
+            Assert.That(evaluator, Does.Contain("CPF_ABSENT"));
             Assert.That(evaluator, Does.Not.Contain("UPDATE identidade.modelo_linkage"));
             Assert.That(evaluator, Does.Not.Contain("\"VALIDATE\""));
             Assert.That(evaluator, Does.Not.Contain("\"ACTIVATE\""));
@@ -119,6 +148,18 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(evidenceSql, Does.Not.Contain("data_nascimento"));
             Assert.That(promotionSql, Does.Not.Contain("linkage_avaliacao_sintetica"));
             Assert.That(conferenceGovernanceSql, Does.Not.Contain("linkage_avaliacao_sintetica"));
+
+            Assert.That(groupReader, Does.Contain(""CONCLUIDO""));
+            Assert.That(groupReader, Does.Contain(""INCOMPLETO""));
+            Assert.That(groupReader, Does.Contain(""INCONSISTENTE""));
+            Assert.That(groupReader, Does.Contain("ReadDispersionAsync"));
+            Assert.That(groupReader, Does.Contain("complete"));
+            Assert.That(syntheticMonitor, Does.Contain("SINTÉTICO — NÃO PROMOVÍVEL"));
+            Assert.That(syntheticMonitor, Does.Contain("Jornada.EnvironmentProfile"));
+            Assert.That(syntheticMonitor, Does.Contain("RequiredProfile = "Development""));
+            Assert.That(operationalMonitor, Does.Contain("hostEnvironment.IsDevelopment()"));
+            Assert.That(operationalMonitor, Does.Contain("SyntheticOperationalMonitorGate.IsResidentDevelopment"));
+            Assert.That(operationalMonitor, Does.Contain("if (syntheticDevelopment)"));
         });
     }
 
