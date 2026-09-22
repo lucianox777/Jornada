@@ -21,6 +21,7 @@ public sealed partial class SyntheticCalibrationDevRunner
         var settings = SyntheticCalibrationSettings.FromConfiguration(
             configuration, options, FindSolutionRoot());
         await AssertDevelopmentEnvironmentAsync(settings, cancellationToken);
+        await AssertNoExternalProcessorAsync(cancellationToken);
 
         var baseline = await ReadBaselineAsync(cancellationToken);
         if (baseline.SyntheticOrigins != 0 || baseline.SyntheticObservations != 0
@@ -74,6 +75,8 @@ public sealed partial class SyntheticCalibrationDevRunner
         var credentials = await ReadDevelopmentCredentialsAsync(
             settings.DevelopmentKeysPath, new[] { "SEHAB", "SMADS", "SMDET", "SMS" },
             cancellationToken);
+        // Um Processor externo pode ter sido ligado durante a geração das ondas.
+        await AssertNoExternalProcessorAsync(cancellationToken);
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
         await using var api = StartRuntimeProcess(
             settings, "Jornada.Api",

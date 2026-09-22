@@ -51,6 +51,11 @@ if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD n�
 
 Push-Location $Root
 try {
+    # Fail-closed antes de apagar dados operacionais: NODE1/NODE2 podem
+    # consumir a entrega sem acesso à Bronze temporária do ensaio.
+    & docker compose --env-file $EnvFile exec -T -w /workspace -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -i database/Jornada_Dev_SyntheticCalibration_ExclusivePreflight.sql
+    if ($LASTEXITCODE -ne 0) { throw "Preflight recusou o banco DEV compartilhado; nenhum dado foi limpo ($LASTEXITCODE)." }
+
     & docker compose --env-file $EnvFile exec -T -w /workspace -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -i database/Jornada_Dev_SyntheticCalibration_Cleanup.sql
     if ($LASTEXITCODE -ne 0) { throw "Limpeza sintética preservadora falhou ($LASTEXITCODE)." }
 }

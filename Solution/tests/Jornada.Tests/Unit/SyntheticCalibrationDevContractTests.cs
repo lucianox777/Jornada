@@ -272,6 +272,73 @@ public sealed class SyntheticCalibrationDevContractTests
         });
     }
 
+    [Test]
+    public void Synthetic_delivery_terminal_failure_includes_stable_lote_error_code()
+    {
+        var root = FindRepositoryRoot();
+        var runner = File.ReadAllText(Path.Combine(
+            root, "Solution", "src", "Jornada.Ensaio",
+            "SyntheticCalibrationDevRunner.cs"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(runner, Does.Contain("ReadOptionalStringProperty(body, \"erro\")"),
+                "O ensaio deve aproveitar o erro_codigo já devolvido pela API.");
+            Assert.That(runner, Does.Contain("erro_codigo={errorCode}"),
+                "Rejeição/quarentena devem informar a classificação operacional no console.");
+            Assert.That(runner, Does.Contain("NAO_INFORMADO"),
+                "A ausência de erro deve ser explícita, sem quebrar o parsing.");
+            Assert.That(runner, Does.Contain("item.Value.ValueKind == JsonValueKind.String"),
+                "Erros nulos do endpoint de status não podem lançar outra exceção.");
+        });
+    }
+
+    [Test]
+    public void Synthetic_DEV_refuses_other_online_processors_before_destructive_cleanup_and_before_start()
+    {
+        var root = FindRepositoryRoot();
+        var sql = File.ReadAllText(Path.Combine(
+            root, "Solution", "database",
+            "Jornada_Dev_SyntheticCalibration_ExclusivePreflight.sql"));
+        var powershell = File.ReadAllText(Path.Combine(
+            root, "Solution", "scripts", "local-synthetic-calibration.ps1"));
+        var shell = File.ReadAllText(Path.Combine(
+            root, "Solution", "scripts", "local-synthetic-calibration.sh"));
+        var runner = File.ReadAllText(Path.Combine(
+            root, "Solution", "src", "Jornada.Ensaio",
+            "SyntheticCalibrationDevRunner.cs"));
+        var waves = File.ReadAllText(Path.Combine(
+            root, "Solution", "src", "Jornada.Ensaio",
+            "SyntheticCalibrationDevRunner.Waves.cs"));
+
+        const string guard = "Jornada_Dev_SyntheticCalibration_ExclusivePreflight.sql";
+        const string cleanup = "Jornada_Dev_SyntheticCalibration_Cleanup.sql";
+        const string runtimeGuard = "await AssertNoExternalProcessorAsync(cancellationToken)";
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sql, Does.Contain("Jornada.EnvironmentProfile"));
+            Assert.That(sql, Does.Contain("Development"));
+            Assert.That(sql, Does.Contain("controle.runtime_componente"));
+            Assert.That(sql, Does.Contain("componente=N'Processor'"));
+            Assert.That(sql, Does.Contain("status=N'RUNNING'"));
+            Assert.That(sql, Does.Contain("DATEADD(SECOND,-35,SYSUTCDATETIME())"));
+            Assert.That(sql, Does.Contain("THROW 51842"));
+            Assert.That(powershell.IndexOf(guard, StringComparison.Ordinal),
+                Is.GreaterThan(0).And.LessThan(
+                    powershell.IndexOf(cleanup, StringComparison.Ordinal)));
+            Assert.That(shell.IndexOf(guard, StringComparison.Ordinal),
+                Is.GreaterThan(0).And.LessThan(
+                    shell.IndexOf(cleanup, StringComparison.Ordinal)));
+            Assert.That(runner, Does.Contain("private async Task AssertNoExternalProcessorAsync"));
+            Assert.That(runner.Split(runtimeGuard).Length, Is.EqualTo(3),
+                "Carga única deve checar antes da geração e antes de iniciar seus processos.");
+            Assert.That(waves.Split(runtimeGuard).Length, Is.EqualTo(3),
+                "Cargas em ondas também precisam das duas verificações.");
+            Assert.That(runner, Does.Contain("RuntimeBronzeDirectory"));
+        });
+    }
+
     private static string FindRepositoryRoot()
     {
         var current = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
