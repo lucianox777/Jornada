@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\Jornada.Linkage.Runner\FellegiSunterScoring.cs" Link="Runtime\FellegiSunterScoring.cs" />
