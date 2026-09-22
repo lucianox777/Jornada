@@ -319,6 +319,12 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
             uSize = reader.IsDBNull(7) ? null : reader.GetInt32(7);
         }
 
+        if (!string.Equals(status, "RASCUNHO", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"SYNTHETIC_EVALUATE aceita somente modelo RASCUNHO; modelo {id} está {status}.");
+        }
+
         var parameters = await LoadParametersAsync(modelId, cancellationToken);
         var ruleSet = await LoadRuleSetAsync(modelId, cancellationToken);
         return new SyntheticModelSnapshot(
