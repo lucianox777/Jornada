@@ -164,6 +164,7 @@ public sealed class SyntheticCalibrationDevRunner(
             DateTimeOffset.UtcNow,
             settings.Seed,
             settings.People,
+            settings.ProcessorMaxPeoplePerDelivery,
             settings.ErrorProfile,
             manifest.BridgeVersion,
             manifest.GeneratorVersion,
@@ -446,6 +447,12 @@ public sealed class SyntheticCalibrationDevRunner(
 
             if (package.PeopleCount <= 0 || !IsSha256(package.Sha256))
                 throw new InvalidDataException($"Pacote inválido no bridge-manifest: {package.FileName}.");
+            if (package.PeopleCount > settings.ProcessorMaxPeoplePerDelivery)
+            {
+                throw new InvalidDataException(
+                    $"Pacote {package.FileName} contém {package.PeopleCount} Pessoas, acima do limite DEV " +
+                    $"Processor:MaxPessoasPorEntrega={settings.ProcessorMaxPeoplePerDelivery}.");
+            }
         }
 
         if (manifest.Packages.Select(x => x.GestorCodigo).Distinct(StringComparer.Ordinal).Count() != 4)
@@ -590,7 +597,9 @@ public sealed class SyntheticCalibrationDevRunner(
             ["BronzeStorage__Provider"] = "FileSystem",
             ["BronzeStorage__RootPath"] = settings.RuntimeBronzeDirectory,
             ["IngestionStaging__RootPath"] = settings.RuntimeStagingDirectory,
-            ["Processor__PollingMilliseconds"] = "100"
+            ["Processor__PollingMilliseconds"] = "100",
+            ["Processor__MaxPessoasPorEntrega"] =
+                settings.ProcessorMaxPeoplePerDelivery.ToString(CultureInfo.InvariantCulture)
         };
 
     private static async Task WaitForApiReadyAsync(
@@ -973,6 +982,7 @@ public sealed class SyntheticCalibrationDevRunner(
         string DevelopmentKeysPath,
         string PseudonymizationKeyEnvironment,
         int People,
+        int ProcessorMaxPeoplePerDelivery,
         ulong Seed,
         string ErrorProfile,
         DateTimeOffset DataReferencia,
@@ -989,9 +999,18 @@ public sealed class SyntheticCalibrationDevRunner(
             var runRoot = Path.GetFullPath(
                 configuration["Ensaio:SyntheticCalibration:OutputRoot"]
                 ?? Path.Combine(options.OutputDirectory, "synthetic-calibration"));
-            var people = configuration.GetValue("Ensaio:SyntheticCalibration:People", 20_000);
+            var people = configuration.GetValue("Ensaio:SyntheticCalibration:People", 100_000);
             if (people < 100)
                 throw new InvalidOperationException("Ensaio:SyntheticCalibration:People deve ser >= 100.");
+
+            var processorMaxPeople = configuration.GetValue(
+                "Ensaio:SyntheticCalibration:ProcessorMaxPeoplePerDelivery",
+                100_000);
+            if (processorMaxPeople < 10_000)
+            {
+                throw new InvalidOperationException(
+                    "Ensaio:SyntheticCalibration:ProcessorMaxPeoplePerDelivery deve ser >= 10000.");
+            }
 
             var seed = configuration.GetValue<ulong>("Ensaio:SyntheticCalibration:Seed", 42UL);
             var errorProfile = configuration["Ensaio:SyntheticCalibration:ErrorProfile"]?.Trim()
@@ -1038,6 +1057,7 @@ public sealed class SyntheticCalibrationDevRunner(
                 configuration["Ensaio:SyntheticCalibration:PseudonymizationKeyEnvironment"]?.Trim()
                     ?? DefaultKeyEnvironment,
                 people,
+                processorMaxPeople,
                 seed,
                 errorProfile,
                 dataReferencia,
@@ -1138,6 +1158,7 @@ public sealed class SyntheticCalibrationDevRunner(
         DateTimeOffset GeneratedAtUtc,
         ulong Seed,
         int People,
+        int ProcessorMaxPeoplePerDelivery,
         string ErrorProfile,
         string BridgeVersion,
         string GeneratorVersion,
