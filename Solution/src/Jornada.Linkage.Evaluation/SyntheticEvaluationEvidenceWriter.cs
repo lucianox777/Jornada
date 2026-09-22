@@ -58,6 +58,7 @@ public sealed class SyntheticEvaluationEvidenceWriter(
                 @avaliador_versao=@avaliador_versao,
                 @ambiente_perfil=@ambiente_perfil,
                 @status=N'CONCLUIDA',
+                @relatorio_gerado_em=@relatorio_gerado_em,
                 @ruleset_versao=@ruleset_versao,
                 @ruleset_fingerprint_sha256=@ruleset_fingerprint_sha256,
                 @u_semantica=@u_semantica,
@@ -96,6 +97,7 @@ public sealed class SyntheticEvaluationEvidenceWriter(
         seed.Value = (decimal)report.Input.GeneratorSeed;
         command.Parameters.Add("@avaliador_versao", SqlDbType.NVarChar, 120).Value = report.EvaluatorVersion;
         command.Parameters.Add("@ambiente_perfil", SqlDbType.NVarChar, 32).Value = report.EnvironmentProfile;
+        command.Parameters.Add("@relatorio_gerado_em", SqlDbType.DateTimeOffset).Value = report.GeneratedAtUtc;
         command.Parameters.Add("@ruleset_versao", SqlDbType.NVarChar, 120).Value = report.Model.RuleSetVersion;
         AddHash(command, "@ruleset_fingerprint_sha256", report.Model.RuleSetFingerprintSha256);
         command.Parameters.Add("@u_semantica", SqlDbType.NVarChar, 120).Value = report.Model.UProbabilitySemantics;
