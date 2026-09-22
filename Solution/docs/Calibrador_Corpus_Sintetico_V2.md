@@ -125,6 +125,68 @@ usar o subconjunto `MATERIALIZADA` do sidecar e o
 gerado e corpus representável é evidência do ensaio, não erro a ser escondido.
 
 
+## Harness DEV do Calibrador real
+
+O modo `SYNTHETIC_CALIBRATION_DEV` de `Jornada.Ensaio` executa a etapa seguinte
+do ensaio sem acoplar o Parameters.Worker ao gerador. O projeto `Jornada.Ensaio`
+**não referencia** `Jornada.Linkage.SyntheticCorpus`; ele inicia o gerador como
+processo DEV separado e depois usa somente os pacotes operacionais e o
+`bridge-manifest.json`.
+
+Pré-condições fail-closed:
+
+- o banco precisa possuir a extended property residente
+  `Jornada.EnvironmentProfile=Development`;
+- `Jornada.SolutionSchema` precisa ser `3.70`;
+- o endpoint de ingestão precisa ser loopback;
+- não pode existir origem/observação `SYNTH-*` de execução anterior;
+- não pode existir corpus `SCALE-*` pré-carregado;
+- não pode existir modelo `RASCUNHO` anterior.
+
+`local-db.sh` e `local-db.ps1` agora provisionam explicitamente o marcador
+`Development`. O DDL canônico continua neutro. Para o ensaio de recuperação,
+recrie o banco sem o corpus de escala:
+
+```bash
+./scripts/local-db.sh reset --no-synthetic-corpus
+export JORNADA_SYNTH_PSEUDONYMIZATION_KEY='<segredo DEV com pelo menos 16 bytes>'
+
+dotnet run --project src/Jornada.Ensaio --configuration Release -- \
+  --Ensaio:Mode=SYNTHETIC_CALIBRATION_DEV
+```
+
+No Windows, o reset equivalente é
+`./scripts/local-db.ps1 reset -NoSyntheticCorpus`.
+
+O harness:
+
+1. restaura a Solution em `--locked-mode` e compila Release;
+2. executa `generate-ingestion`;
+3. valida hashes dos quatro ZIPs sem ler a truth;
+4. carrega as credenciais GESTOR sintéticas de
+   `config/security/test-access-keys.json`, aceitas somente em Development;
+5. sobe `Jornada.Api` e `Jornada.Processor.Worker` reais;
+6. envia cada pacote por `POST /api/v1/ingestao/entregas` e aguarda
+   `PROCESSADA`;
+7. confere que o total de origens/observações `SYNTH-*` na Silver coincide com
+   o total materializado do bridge;
+8. executa o Parameters.Worker real em `LOAD_NAME_FREQUENCY_SNAPSHOT` e depois
+   `GENERATE_DRAFT`;
+9. exige exatamente um modelo novo e exige que ele permaneça `RASCUNHO`.
+
+O relatório `synthetic-calibration-dev.json` contém apenas evidência agregada:
+baseline do banco, fingerprints, hashes de pacotes, Entregas processadas, contagens
+materializadas e metadados do RASCUNHO. O runner não abre
+`bridge-truth.jsonl`, não conhece `base_person_id`, não chama `VALIDATE` nem
+`ACTIVATE`, e registra explicitamente `syntheticTruthConsumed=false` e
+`modelPromotionAttempted=false`.
+
+O pequeno seed DEV canônico ainda existe mesmo com `--no-synthetic-corpus`.
+Por isso o relatório preserva `baseline.totalObservations`; a etapa
+`SYNTHETIC_EVALUATE` deve tratá-lo como proveniência e poderá rejeitar uma
+execução cujo baseline não satisfaça a política científica congelada, em vez de
+apagar silenciosamente dados do ambiente.
+
 ## Gabarito
 
 `gabarito.json` inclui:
