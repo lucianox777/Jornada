@@ -781,6 +781,110 @@ public sealed class SyntheticCalibrationDevRunner(
         await RunParametersWorkerAsync(settings, env, cancellationToken);
     }
 
+    private async Task<SyntheticModelValidationEvidence> RunModelValidationAsync(
+        SyntheticCalibrationSettings settings,
+        SyntheticDraftModelEvidence model,
+        int materializedObservationCount,
+        CancellationToken cancellationToken)
+    {
+        var project = Path.Combine(
+            settings.SolutionRoot,
+            "src",
+            "Jornada.Linkage.Runner",
+            "Jornada.Linkage.Runner.csproj");
+        var correlationId = Guid.NewGuid();
+        var environment = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["ConnectionStrings__Jornada"] = settings.ConnectionString,
+            ["Database__Provider"] = "SqlServer",
+            ["DOTNET_ENVIRONMENT"] = RequiredEnvironment
+        };
+
+        await RunProcessAsync(
+            settings.SolutionRoot,
+            "dotnet",
+            [
+                "run",
+                "--project", project,
+                "--configuration", "Release",
+                "--no-build",
+                "--",
+                "--mode", "MODEL_VALIDATION",
+                "--model-version", model.Version.ToString(CultureInfo.InvariantCulture),
+                "--max-records", Math.Max(1, materializedObservationCount).ToString(CultureInfo.InvariantCulture),
+                "--batch-size", "10000",
+                "--max-parallelism", "1",
+                "--publish", "false",
+                "--requested-by", "SYNTHETIC_CALIBRATION_DEV",
+                "--reason", "issue-416-final-model-validation",
+                "--correlation-id", correlationId.ToString("D")
+            ],
+            environment,
+            cancellationToken);
+
+        await using var connection = openConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT linkage_run_id,modelo_id,modelo_versao,tipo_run,status,
+                   registros_elegiveis,avaliados,resolvidos,nao_resolvidos,
+                   conflitos,sem_candidato_no_bloco,publicado_em
+            FROM identidade.linkage_run
+            WHERE correlation_id=@correlation_id;
+            """;
+        AddParameter(command, "@correlation_id", correlationId);
+
+        SyntheticModelValidationEvidence evidence;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            if (!await reader.ReadAsync(cancellationToken))
+                throw new InvalidOperationException(
+                    $"MODEL_VALIDATION não registrou linkage_run para correlationId={correlationId:D}.");
+
+            evidence = new SyntheticModelValidationEvidence(
+                reader.GetGuid(0),
+                correlationId,
+                reader.GetGuid(1),
+                reader.GetInt32(2),
+                reader.GetString(3),
+                reader.GetString(4),
+                reader.GetInt64(5),
+                reader.GetInt64(6),
+                reader.GetInt64(7),
+                reader.GetInt64(8),
+                reader.GetInt64(9),
+                reader.GetInt64(10),
+                !reader.IsDBNull(11));
+
+            if (await reader.ReadAsync(cancellationToken))
+                throw new InvalidOperationException(
+                    $"MODEL_VALIDATION registrou mais de um linkage_run para correlationId={correlationId:D}.");
+        }
+
+        if (evidence.ModelId != model.ModelId || evidence.ModelVersion != model.Version)
+            throw new InvalidOperationException("MODEL_VALIDATION não usou o RASCUNHO recém-calibrado.");
+        if (!string.Equals(evidence.RunType, "MODEL_VALIDATION", StringComparison.Ordinal)
+            || !string.Equals(evidence.Status, "CONCLUIDO_SEM_PUBLICACAO", StringComparison.Ordinal)
+            || evidence.Published)
+        {
+            throw new InvalidOperationException(
+                $"MODEL_VALIDATION deve concluir sem publicação; tipo={evidence.RunType}; " +
+                $"status={evidence.Status}; published={evidence.Published}.");
+        }
+
+        await using var state = connection.CreateCommand();
+        state.CommandText = "SELECT status FROM identidade.modelo_linkage WHERE modelo_id=@modelo_id;";
+        AddParameter(state, "@modelo_id", model.ModelId);
+        var modelStatus = Convert.ToString(
+            await state.ExecuteScalarAsync(cancellationToken),
+            CultureInfo.InvariantCulture);
+        if (!string.Equals(modelStatus, "RASCUNHO", StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                $"MODEL_VALIDATION alterou o estado do modelo; esperado=RASCUNHO atual={modelStatus ?? "(ausente)"}.");
+
+        return evidence;
+    }
+
     private static async Task<SyntheticEvaluationEvidence> RunSyntheticEvaluationAsync(
         SyntheticCalibrationSettings settings,
         Guid modelId,
