@@ -23,29 +23,29 @@ await using var connection = await operationalSql.OpenAsync();
 
 if (options.SyntheticEvaluateRoot is not null)
 {
-    var evaluator = new SyntheticEvaluationEngine(connection, options.CommandTimeoutSeconds);
-    var report = await evaluator.EvaluateAsync(
+    var syntheticEvaluator = new SyntheticEvaluationEngine(connection, options.CommandTimeoutSeconds);
+    var syntheticReport = await syntheticEvaluator.EvaluateAsync(
         new SyntheticEvaluationOptions(
             options.ModelId!.Value,
             options.SyntheticEvaluateRoot,
             options.MaxCandidatePairs,
             options.CommandTimeoutSeconds));
 
-    var output = Path.GetFullPath(options.OutputPath!);
-    Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-    var json = JsonSerializer.Serialize(report, EvaluationJson.Options) + Environment.NewLine;
-    await File.WriteAllTextAsync(output, json, new System.Text.UTF8Encoding(false));
+    var syntheticOutput = Path.GetFullPath(options.OutputPath!);
+    Directory.CreateDirectory(Path.GetDirectoryName(syntheticOutput)!);
+    var json = JsonSerializer.Serialize(syntheticReport, EvaluationJson.Options) + Environment.NewLine;
+    await File.WriteAllTextAsync(syntheticOutput, json, new System.Text.UTF8Encoding(false));
     var sha = Convert.ToHexString(
         System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(json)))
         .ToLowerInvariant();
     await File.WriteAllTextAsync(
-        output + ".sha256",
-        sha + "  " + Path.GetFileName(output) + Environment.NewLine,
+        syntheticOutput + ".sha256",
+        sha + "  " + Path.GetFileName(syntheticOutput) + Environment.NewLine,
         new System.Text.UTF8Encoding(false));
     Console.WriteLine(
-        $"Avaliação sintética gravada em {output}; modelo={report.Model.ModelId}; " +
-        $"mPairs={report.MRecovery.PairCount}; uPairs={report.URecovery.PairCount}; " +
-        $"blockingRecall={report.Blocking.TrueMatchRecall.ToString(CultureInfo.InvariantCulture)}.");
+        $"Avaliação sintética gravada em {syntheticOutput}; modelo={syntheticReport.Model.ModelId}; " +
+        $"mPairs={syntheticReport.MRecovery.PairCount}; uPairs={syntheticReport.URecovery.PairCount}; " +
+        $"blockingRecall={syntheticReport.Blocking.TrueMatchRecall.ToString(CultureInfo.InvariantCulture)}.");
     return;
 }
 
