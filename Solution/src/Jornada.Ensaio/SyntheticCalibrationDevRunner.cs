@@ -726,7 +726,12 @@ public sealed partial class SyntheticCalibrationDevRunner(
             if (string.Equals(status, "REJEITADA", StringComparison.Ordinal)
                 || string.Equals(status, "QUARENTENA", StringComparison.Ordinal))
             {
-                throw new InvalidOperationException($"Entrega {deliveryId:D} terminou em {status}.");
+                // A API já devolve o erro_codigo do Lote. Preservá-lo na mensagem
+                // evita repetir uma geração sintética cara só para descobrir o
+                // motivo de uma entrega terminal (sem incluir credenciais ou payload).
+                var errorCode = ReadOptionalStringProperty(body, "erro") ?? "NAO_INFORMADO";
+                throw new InvalidOperationException(
+                    $"Entrega {deliveryId:D} ({gestor}) terminou em {status}; erro_codigo={errorCode}.");
             }
 
             await Task.Delay(settings.StatusPollInterval, cancellationToken);
@@ -1135,6 +1140,21 @@ public sealed partial class SyntheticCalibrationDevRunner(
         }
 
         throw new InvalidDataException($"Campo {property} ausente.");
+    }
+
+    private static string? ReadOptionalStringProperty(string json, string property)
+    {
+        using var document = JsonDocument.Parse(json);
+        foreach (var item in document.RootElement.EnumerateObject())
+        {
+            if (!string.Equals(item.Name, property, StringComparison.OrdinalIgnoreCase))
+                continue;
+            return item.Value.ValueKind == JsonValueKind.String
+                ? item.Value.GetString()
+                : null;
+        }
+
+        return null;
     }
 
     private static async Task<string?> ScalarStringAsync(
