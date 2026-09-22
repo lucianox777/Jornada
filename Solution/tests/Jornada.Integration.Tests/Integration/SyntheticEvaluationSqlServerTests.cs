@@ -251,6 +251,50 @@ public sealed class SyntheticEvaluationSqlServerTests
                     """;
                 await restoreEnvironment.ExecuteNonQueryAsync();
             }
+
+            long referenceRowsBefore;
+            await using (var referenceBefore = connection.CreateCommand())
+            {
+                referenceBefore.CommandText = "SELECT COUNT_BIG(*) FROM ref.frequencia_nome;";
+                referenceRowsBefore = Convert.ToInt64(await referenceBefore.ExecuteScalarAsync());
+            }
+
+            var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+            await SqlBatchRunner.ExecuteFileAsync(
+                connection,
+                Path.Combine(databaseDir, "Jornada_Dev_SyntheticCalibration_Cleanup.sql"));
+
+            await using (var retainedAfterCleanup = connection.CreateCommand())
+            {
+                retainedAfterCleanup.CommandText = """
+                    SELECT
+                      (SELECT COUNT_BIG(*) FROM auditoria.linkage_avaliacao_sintetica
+                       WHERE avaliacao_id=@evaluation_id),
+                      (SELECT COUNT_BIG(*) FROM auditoria.linkage_avaliacao_sintetica_metrica
+                       WHERE avaliacao_id=@evaluation_id),
+                      (SELECT COUNT_BIG(*) FROM identidade.modelo_linkage
+                       WHERE modelo_id=@model_id),
+                      (SELECT COUNT_BIG(*) FROM ref.frequencia_nome),
+                      CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties
+                                          WHERE class=0 AND name=N'Jornada.EnvironmentProfile'));
+                    """;
+                retainedAfterCleanup.Parameters.AddWithValue("@evaluation_id", persisted.EvaluationId);
+                retainedAfterCleanup.Parameters.AddWithValue("@model_id", modelId);
+                await using var reader = await retainedAfterCleanup.ExecuteReaderAsync();
+                Assert.That(await reader.ReadAsync(), Is.True);
+                Assert.Multiple(() =>
+                {
+                    Assert.That(reader.GetInt64(0), Is.EqualTo(1),
+                        "Cabeçalho sintético deve sobreviver à limpeza DEV.");
+                    Assert.That(reader.GetInt64(1), Is.GreaterThan(0),
+                        "Métricas sintéticas devem sobreviver à limpeza DEV.");
+                    Assert.That(reader.GetInt64(2), Is.Zero,
+                        "O RASCUNHO avaliado deve ser descartável depois da persistência.");
+                    Assert.That(reader.GetInt64(3), Is.EqualTo(referenceRowsBefore),
+                        "A referência nominal deve ser preservada integralmente.");
+                    Assert.That(reader.GetString(4), Is.EqualTo("Development"));
+                });
+            }
         }
         finally
         {
