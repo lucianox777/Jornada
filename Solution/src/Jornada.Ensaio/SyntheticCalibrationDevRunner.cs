@@ -208,7 +208,7 @@ public sealed class SyntheticCalibrationDevRunner(
         Console.WriteLine(
             $"modelo=v{model.Version} status={model.Status}; modelValidation={modelValidation.Status}; " +
             $"materializadas={manifest.MaterializedObservationCount}; excluídas={manifest.ExcludedObservationCount}; " +
-            $"calibrationTruthConsumed=false; "
+            $"calibrationTruthConsumed=false; " +
             $"postDraftTruthConsumed=true; promotionAttempted=false");
         return 0;
     }
