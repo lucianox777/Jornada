@@ -5,5 +5,7 @@
   <ItemGroup>
     <Compile Include="..\Jornada.Linkage.Runner\FellegiSunterScoring.cs" Link="Runtime\FellegiSunterScoring.cs" />
     <Compile Include="..\Jornada.Linkage.Runner\ProbabilisticLinkagePolicy.cs" Link="Runtime\ProbabilisticLinkagePolicy.cs" />
+    <Compile Include="..\Jornada.Linkage.Parameters.Worker\CalibrationCandidatePareto.cs" Link="Calibration\CalibrationCandidatePareto.cs" />
+    <Compile Include="..\Jornada.Linkage.Parameters.Worker\FsDecisionThresholdCalibration.cs" Link="Calibration\FsDecisionThresholdCalibration.cs" />
   </ItemGroup>
 </Project>
