@@ -229,13 +229,13 @@
   "candidateGraph": {
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
-    "sourceCommit": "ecc307d0eda75dc735eb3009012a5ca63cd12167",
-    "githubRunId": "35631304865",
+    "sourceCommit": "e0f86ac483696d3b236f0c11c72cfd6fd97f9fd3",
+    "githubRunId": "35664936764",
     "sdk": "8.0.424",
-    "reason": "PR #417 adiciona o andaime Jornada.Linkage.SyntheticCorpus e sua referência pela suíte Unit. O SDK 8.0.424 confirmou force-evaluate sem diff de lock; o grafo corrente possui 22 locks, incluindo o novo projeto sem pacotes externos.",
+    "reason": "PR #429 adiciona à ferramenta DEV SyntheticCorpus dependências somente de projeto para Contracts + Ingestion, reutilizando o writer canônico. O diagnóstico SDK 8.0.424 force-evaluate alterou exatamente dois locks; esses bytes foram incorporados e o CI subsequente deve provar no-diff + locked-mode.",
     "lockCount": 22,
     "changedLockCount": 17,
-    "combinedSha256": "935b077a25276c29e82cd5640912445dd81319f0a956c1aec784dddc81c5c6c2",
+    "combinedSha256": "e1fe3a8a6fd080e2ec61d9400ce4a441c0a97192469c4cc8ec6eb555a84614f1",
     "overrides": [
       {
         "path": "src/Jornada.Api/packages.lock.json",
@@ -275,7 +275,7 @@
       },
       {
         "path": "src/Jornada.Linkage.SyntheticCorpus/packages.lock.json",
-        "sha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c"
+        "sha256": "37f341c42329dd0e4831ffcd31ca02a879685566b19e94b23464ebf38d129388"
       },
       {
         "path": "src/Jornada.Operational.Sql/packages.lock.json",
@@ -303,7 +303,7 @@
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "a1536b4514909678941fba53d9df4bc623e5fc8d61f25e3586636841f4518d94"
+        "sha256": "31c9df737c0cc4194a47d29a82eaaceed61c1d5373db2e809b0ded143828585f"
       }
     ]
   }

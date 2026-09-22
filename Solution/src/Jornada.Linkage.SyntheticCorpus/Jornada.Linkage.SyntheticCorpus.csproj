@@ -3,6 +3,10 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
+    <ProjectReference Include="..\Jornada.Ingestion\Jornada.Ingestion.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="..\..\data\reference\ibge-nomes-2022\**\*"
           Link="data\reference\ibge-nomes-2022\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest"

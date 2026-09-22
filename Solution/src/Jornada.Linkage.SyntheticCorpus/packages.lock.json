@@ -1,6 +1,16 @@
 {
   "version": 1,
   "dependencies": {
-    "net8.0": {}
+    "net8.0": {
+      "jornada.contracts": {
+        "type": "Project"
+      },
+      "jornada.ingestion": {
+        "type": "Project",
+        "dependencies": {
+          "Jornada.Contracts": "[1.0.0, )"
+        }
+      }
+    }
   }
 }
