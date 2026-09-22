@@ -11,7 +11,8 @@ public static class SyntheticCorpusInputIdentity
     public static string ComputeFingerprint(
         ulong seed,
         IEnumerable<IbgeProjectionFile> files,
-        SyntheticBrazilianNameErrorConfig? brazilianNameErrors = null)
+        SyntheticBrazilianNameErrorConfig? brazilianNameErrors = null,
+        SyntheticStratifiedErrorConfig? stratifiedErrors = null)
     {
         ArgumentNullException.ThrowIfNull(files);
 
@@ -25,6 +26,14 @@ public static class SyntheticCorpusInputIdentity
                 .Append(brazilianNameErrors.Version).Append('\n');
             builder.Append("brazilian_name_errors_config_sha256=")
                 .Append(brazilianNameErrors.ConfigSha256()).Append('\n');
+        }
+
+        if (stratifiedErrors is not null)
+        {
+            builder.Append("stratified_errors_version=")
+                .Append(stratifiedErrors.Version).Append('\n');
+            builder.Append("stratified_errors_config_sha256=")
+                .Append(stratifiedErrors.ConfigSha256()).Append('\n');
         }
 
         foreach (var file in files.OrderBy(x => x.Path, StringComparer.Ordinal))
