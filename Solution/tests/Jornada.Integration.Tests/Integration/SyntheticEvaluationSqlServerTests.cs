@@ -142,6 +142,63 @@ public sealed class SyntheticEvaluationSqlServerTests
                 var error = Assert.ThrowsAsync<SqlException>(async () => await immutableMetric.ExecuteNonQueryAsync());
                 Assert.That(error!.Number, Is.EqualTo(51912));
             }
+
+            await using (var schema = connection.CreateCommand())
+            {
+                schema.CommandText = """
+                    SELECT LOWER(c.name)
+                    FROM sys.columns c
+                    WHERE c.object_id IN(
+                        OBJECT_ID(N'auditoria.linkage_avaliacao_sintetica'),
+                        OBJECT_ID(N'auditoria.linkage_avaliacao_sintetica_metrica'));
+                    """;
+                var columns = new List<string>();
+                await using var reader = await schema.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                    columns.Add(reader.GetString(0));
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(columns, Does.Contain("modelo_id"));
+                    Assert.That(columns, Does.Contain("report_sha256"));
+                    Assert.That(columns, Does.Contain("valor"));
+                    Assert.That(columns, Does.Not.Contain("base_person_id"));
+                    Assert.That(columns, Does.Not.Contain("observation_id"));
+                    Assert.That(columns, Does.Not.Contain("cpf"));
+                    Assert.That(columns, Does.Not.Contain("cns"));
+                    Assert.That(columns, Does.Not.Contain("nome"));
+                    Assert.That(columns, Does.Not.Contain("data_nascimento"));
+                    Assert.That(columns, Does.Not.Contain("score_par"));
+                });
+            }
+
+            await using (var environment = connection.CreateCommand())
+            {
+                environment.CommandText = """
+                    EXEC sys.sp_updateextendedproperty
+                        @name=N'Jornada.EnvironmentProfile',
+                        @value=N'HML';
+                    """;
+                await environment.ExecuteNonQueryAsync();
+            }
+
+            try
+            {
+                var secondReportSha = new string('f', 64);
+                var environmentError = Assert.ThrowsAsync<SqlException>(async () =>
+                    await writer.PersistAsync(report, secondReportSha, Guid.NewGuid()));
+                Assert.That(environmentError!.Number, Is.EqualTo(51914));
+            }
+            finally
+            {
+                await using var restoreEnvironment = connection.CreateCommand();
+                restoreEnvironment.CommandText = """
+                    EXEC sys.sp_updateextendedproperty
+                        @name=N'Jornada.EnvironmentProfile',
+                        @value=N'Development';
+                    """;
+                await restoreEnvironment.ExecuteNonQueryAsync();
+            }
         }
         finally
         {
