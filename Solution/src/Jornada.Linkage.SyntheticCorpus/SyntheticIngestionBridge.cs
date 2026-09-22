@@ -15,7 +15,9 @@ public sealed record SyntheticIngestionBridgeOptions(
     int PessoaSchemaVersao,
     DateTimeOffset DataReferencia,
     string PseudonymizationKey,
-    IReadOnlyList<SyntheticIngestionRoute>? Routes = null)
+    IReadOnlyList<SyntheticIngestionRoute>? Routes = null,
+    bool StableSourceIdentity = false,
+    int? WaveNumber = null)
 {
     public IReadOnlyList<SyntheticIngestionRoute> EffectiveRoutes =>
         Routes ?? SyntheticIngestionBridge.DefaultRoutes;
@@ -35,6 +37,11 @@ public sealed record SyntheticIngestionBridgeOptions(
                 "A chave de pseudonimização deve possuir ao menos 16 bytes UTF-8.",
                 nameof(PseudonymizationKey));
         }
+
+        if (StableSourceIdentity && (WaveNumber is null or < 0))
+            throw new ArgumentException("Modo em ondas exige WaveNumber >= 0.", nameof(WaveNumber));
+        if (!StableSourceIdentity && WaveNumber is not null)
+            throw new ArgumentException("WaveNumber só é permitido no modo em ondas.", nameof(WaveNumber));
 
         if (EffectiveRoutes.Count == 0)
             throw new ArgumentException("Ao menos uma rota sintética é obrigatória.", nameof(Routes));
@@ -92,6 +99,7 @@ public sealed record SyntheticIngestionBridgeResult(
 public static class SyntheticIngestionBridge
 {
     public const string BridgeVersion = "SYNTHETIC_INGESTION_BRIDGE_V1";
+    public const string WaveBridgeVersion = "SYNTHETIC_INGESTION_BRIDGE_WAVES_V1";
     public const string MissingBirthDateReason = "EXCLUIDA_CONTRATO_ATIVO_DATA_NASCIMENTO_AUSENTE";
 
     public static readonly IReadOnlyList<SyntheticIngestionRoute> DefaultRoutes =
@@ -119,7 +127,7 @@ public static class SyntheticIngestionBridge
         using var hmac = new HMACSHA256(keyBytes);
 
         var truth = new List<SyntheticIngestionTruthRow>(generation.Observations.Count);
-        var accepted = new List<(SyntheticObservation Observation, SyntheticIngestionRoute Route, string OpaqueId)>();
+        var accepted = new List<(SyntheticObservation Observation, SyntheticIngestionRoute Route, string OpaqueId, string DeliveryId)>();
         var opaqueIds = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var observation in generation.Observations)
@@ -147,14 +155,17 @@ public static class SyntheticIngestionBridge
                 throw new InvalidDataException(
                     $"Observação {observation.ObservationId} sem nome não é representável no contrato Pessoa ativo.");
 
-            var opaque = ComputeOpaquePersonId(
-                hmac,
-                generation.Options.Seed,
-                observation.ObservationId);
+            var opaque = options.StableSourceIdentity
+                ? ComputeStableSourceId(hmac, generation.Options.Seed, route, observation.BasePersonId)
+                : ComputeOpaquePersonId(hmac, generation.Options.Seed, observation.ObservationId);
+            // Duas versões do mesmo registro-fonte nunca podem estar no mesmo ZIP.
             if (!opaqueIds.Add(opaque))
-                throw new InvalidDataException($"Colisão de pseudônimo operacional: {opaque}.");
-
-            accepted.Add((observation, route, opaque));
+                throw new InvalidDataException($"Identificador-fonte repetido na mesma onda: {opaque}.");
+            var deliveryId = options.StableSourceIdentity
+                ? ComputeWaveDeliveryId(hmac, generation.Options.Seed,
+                    observation.ObservationId, options.WaveNumber!.Value)
+                : opaque;
+            accepted.Add((observation, route, opaque, deliveryId));
         }
 
         var packages = new List<SyntheticIngestionPackage>();
@@ -236,11 +247,11 @@ public static class SyntheticIngestionBridge
             materializedObservations.Length,
             generation.Observations.Count - materializedObservations.Length,
             keySha,
-            BridgeVersion);
+            options.StableSourceIdentity ? WaveBridgeVersion : BridgeVersion);
     }
 
     private static byte[] BuildPeopleJsonl(
-        IReadOnlyList<(SyntheticObservation Observation, SyntheticIngestionRoute Route, string OpaqueId)> rows)
+        IReadOnlyList<(SyntheticObservation Observation, SyntheticIngestionRoute Route, string OpaqueId, string DeliveryId)> rows)
     {
         using var stream = new MemoryStream();
         foreach (var row in rows)
@@ -257,7 +268,7 @@ public static class SyntheticIngestionBridge
                 };
 
             var person = new SyntheticIngestionPerson(
-                row.OpaqueId,
+                row.DeliveryId,
                 row.OpaqueId,
                 row.Observation.Cpf,
                 row.Observation.Cpf is null ? "NAO_INFORMADO_ORIGEM" : null,
@@ -283,6 +294,23 @@ public static class SyntheticIngestionBridge
         var canonical = $"{BridgeVersion}|seed={seed}|observation={observationId}";
         var digest = hmac.ComputeHash(Encoding.UTF8.GetBytes(canonical));
         return "SYNTH-" + Convert.ToHexString(digest.AsSpan(0, 16));
+    }
+
+    private static string ComputeStableSourceId(
+        HMACSHA256 hmac, ulong seed, SyntheticIngestionRoute route, string basePersonId)
+    {
+        var canonical = $"{WaveBridgeVersion}|seed={seed}|gestor={route.GestorCodigo}"
+            + $"|sistema={route.CodigoSistemaOrigem}|person={basePersonId}";
+        return "SYNTH-" + Convert.ToHexString(
+            hmac.ComputeHash(Encoding.UTF8.GetBytes(canonical)).AsSpan(0, 16));
+    }
+
+    private static string ComputeWaveDeliveryId(
+        HMACSHA256 hmac, ulong seed, string observationId, int waveNumber)
+    {
+        var canonical = $"{WaveBridgeVersion}|seed={seed}|wave={waveNumber}|observation={observationId}";
+        return "SYNTH-DEL-" + Convert.ToHexString(
+            hmac.ComputeHash(Encoding.UTF8.GetBytes(canonical)).AsSpan(0, 16));
     }
 
     private static JsonSerializerOptions CreateJsonOptions()
