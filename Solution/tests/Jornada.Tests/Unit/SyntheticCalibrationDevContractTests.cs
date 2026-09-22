@@ -73,6 +73,29 @@ public sealed class SyntheticCalibrationDevContractTests
             "O perfil deve continuar sendo provisionado pelo ambiente, não pelo DDL canônico.");
     }
 
+    [Test]
+    public void Local_synthetic_calibration_wrappers_reset_without_SCALE_and_keep_HMAC_out_of_arguments()
+    {
+        var root = FindRepositoryRoot();
+        var shell = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "local-synthetic-calibration.sh"));
+        var powershell = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "local-synthetic-calibration.ps1"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(shell, Does.Contain("reset --no-synthetic-corpus"));
+            Assert.That(shell, Does.Contain("JORNADA_SYNTH_PSEUDONYMIZATION_KEY"));
+            Assert.That(shell, Does.Contain("SYNTHETIC_CALIBRATION_DEV"));
+            Assert.That(shell, Does.Contain("ConnectionStrings__Jornada"));
+            Assert.That(shell, Does.Not.Contain("--pseudonymization-key "));
+
+            Assert.That(powershell, Does.Contain("reset -NoSyntheticCorpus"));
+            Assert.That(powershell, Does.Contain("JORNADA_SYNTH_PSEUDONYMIZATION_KEY"));
+            Assert.That(powershell, Does.Contain("SYNTHETIC_CALIBRATION_DEV"));
+            Assert.That(powershell, Does.Contain("ConnectionStrings__Jornada"));
+            Assert.That(powershell, Does.Not.Contain("--pseudonymization-key "));
+        });
+    }
+
     private static string FindRepositoryRoot()
     {
         var current = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
