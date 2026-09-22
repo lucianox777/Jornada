@@ -21,6 +21,40 @@ var connectionString = options.ConnectionString
 var operationalSql = new OperationalSqlAdapter(connectionString);
 await using var connection = await operationalSql.OpenAsync();
 
+if (options.SyntheticTemporalEvaluateRoot is not null)
+{
+    // O avaliador isolado só pode abrir truth depois que o modelo real for RASCUNHO
+    // e o marcador residente no SQL comprovar Development.
+    await using (var profile = new SqlCommand(
+        "SELECT CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile'));",
+        connection))
+    {
+        if (!string.Equals(await profile.ExecuteScalarAsync() as string, "Development", StringComparison.Ordinal))
+            throw new InvalidOperationException("Avaliador temporal exige Jornada.EnvironmentProfile=Development.");
+    }
+    await using (var draft = new SqlCommand(
+        "SELECT status FROM identidade.modelo_linkage WHERE modelo_id=@modelo_id;", connection))
+    {
+        draft.Parameters.Add("@modelo_id", SqlDbType.UniqueIdentifier).Value = options.ModelId!.Value;
+        if (!string.Equals(await draft.ExecuteScalarAsync() as string, "RASCUNHO", StringComparison.Ordinal))
+            throw new InvalidOperationException("Avaliador temporal só aceita modelo RASCUNHO.");
+    }
+    var temporal = await SyntheticTemporalTruthEvaluator.EvaluateAsync(options.SyntheticTemporalEvaluateRoot);
+    var outputPath = Path.GetFullPath(options.OutputPath!);
+    Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+    var content = JsonSerializer.Serialize(temporal, EvaluationJson.Options) + Environment.NewLine;
+    await File.WriteAllTextAsync(outputPath, content, new System.Text.UTF8Encoding(false));
+    var fingerprint = Convert.ToHexString(
+        System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(content)));
+    await File.WriteAllTextAsync(outputPath + ".sha256",
+        fingerprint + "  " + Path.GetFileName(outputPath) + Environment.NewLine,
+        new System.Text.UTF8Encoding(false));
+    Console.WriteLine($"Avaliação temporal gerada; ondas={temporal.Waves.Count}; " +
+        $"medidas={temporal.Waves.Count(x => x.MeasurementStatus == "MEDIDO_RUN_TEMPORAL_VERIFICADO")}; " +
+        $"sem_run={temporal.Waves.Count(x => x.MeasurementStatus != "MEDIDO_RUN_TEMPORAL_VERIFICADO")}.");
+    return;
+}
+
 if (options.SyntheticEvaluateRoot is not null)
 {
     var syntheticEvaluator = new SyntheticEvaluationEngine(connection, options.CommandTimeoutSeconds);
@@ -155,6 +189,7 @@ internal sealed record EvaluationOptions(
     string? OutputPath,
     string? ExportCalibrationPath,
     string? SyntheticEvaluateRoot,
+    string? SyntheticTemporalEvaluateRoot,
     Guid? SyntheticRunGroupId,
     IReadOnlyList<ulong>? SyntheticExpectedSeeds,
     Guid? ModelId,
@@ -173,7 +208,7 @@ internal sealed record EvaluationOptions(
         for (var i = 0; i < args.Length; i++)
         {
             var raw = args[i];
-            if (raw is "--help" or "-h") return new(null, null, null, null, null, null, null, null, 0, 0, 0, 0m, 0, 0, true);
+            if (raw is "--help" or "-h") return new(null, null, null, null, null, null, null, null, null, 0, 0, 0, 0m, 0, 0, true);
             if (!raw.StartsWith("--", StringComparison.Ordinal)) continue;
             raw = raw[2..];
             var eq = raw.IndexOf('=', StringComparison.Ordinal);
@@ -202,11 +237,13 @@ internal sealed record EvaluationOptions(
         var labels = Get("labels");
         var exportCalibration = Get("export-calibration");
         var syntheticEvaluate = Get("synthetic-evaluate-root");
-        var selectedModes = new[] { labels, exportCalibration, syntheticEvaluate }.Count(static value => value is not null);
+        var syntheticTemporal = Get("synthetic-temporal-root");
+        var selectedModes = new[] { labels, exportCalibration, syntheticEvaluate, syntheticTemporal }
+            .Count(static value => value is not null);
         if (selectedModes != 1)
         {
             throw new ArgumentException(
-                "Informe exatamente um modo: --labels, --export-calibration ou --synthetic-evaluate-root.");
+                "Informe exatamente um modo: --labels, --export-calibration, --synthetic-evaluate-root ou --synthetic-temporal-root.");
         }
 
         Guid? modelId = null;
@@ -248,18 +285,20 @@ internal sealed record EvaluationOptions(
         if (syntheticExpectedSeeds is not null && syntheticEvaluate is null)
             throw new ArgumentException("--synthetic-expected-seeds só é aceito com --synthetic-evaluate-root.");
 
-        if (syntheticEvaluate is not null && modelId is null)
+        if ((syntheticEvaluate is not null || syntheticTemporal is not null) && modelId is null)
             throw new ArgumentException("--synthetic-evaluate-root exige --model-id do RASCUNHO.");
-        if (modelId is not null && exportCalibration is null && syntheticEvaluate is null)
+        if (modelId is not null && exportCalibration is null && syntheticEvaluate is null && syntheticTemporal is null)
             throw new ArgumentException("--model-id só é aceito com --export-calibration ou --synthetic-evaluate-root.");
 
         var output = Get("output")
-            ?? (syntheticEvaluate is null ? "linkage-evaluation-report.json" : "synthetic-evaluation.json");
+            ?? (syntheticTemporal is not null ? "synthetic-temporal-evaluation.json"
+                : syntheticEvaluate is null ? "linkage-evaluation-report.json" : "synthetic-evaluation.json");
         return new EvaluationOptions(
             labels,
             output,
             exportCalibration,
             syntheticEvaluate,
+            syntheticTemporal,
             syntheticRunGroupId,
             syntheticExpectedSeeds,
             modelId,
@@ -281,7 +320,8 @@ internal sealed record EvaluationOptions(
           --labels <arquivo.csv>              avaliação rotulada; colunas pessoa_observacao_id,pessoa_uuid_verdade
           --export-calibration <arquivo.json> exporta calibração/modelo somente leitura e exige round-trip C# conforme
           --synthetic-evaluate-root <dir>     pós-RASCUNHO: lê corpus/ + ingestion/ e gera evidência sintética agregada
-          --model-id <uuid>                   opcional no export; obrigatório na avaliação sintética
+          --synthetic-temporal-root <dir>     pós-RASCUNHO: valida snapshots SQL e truth versionada das ondas
+          --model-id <uuid>                   opcional no export; obrigatório nas avaliações sintéticas
           --synthetic-run-group-id <uuid>      sintético: grupo da execução; opcional em execução unitária
           --synthetic-expected-seeds <a,b,c>    sintético: conjunto explícito de seeds esperadas no grupo
 
