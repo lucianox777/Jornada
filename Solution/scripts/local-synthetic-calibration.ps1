@@ -6,7 +6,11 @@
     [ValidateSet('clean','independent','correlated','field')]
     [string]$ErrorProfile = 'correlated',
     [string]$DataReferencia = '2026-09-21T00:00:00-03:00',
-    [string]$ApiBase = 'http://127.0.0.1:5098'
+    [string]$ApiBase = 'http://127.0.0.1:5098',
+    [ValidateRange(0,12)]
+    [int]$Waves = 0,
+    [string]$StratifiedErrorsConfig = '',
+    [string]$BrazilianNameErrorsConfig = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,6 +61,20 @@ finally {
 $env:ConnectionStrings__Jornada = "Server=localhost,$port;Database=$db;User Id=sa;Password=$password;TrustServerCertificate=true;Encrypt=false"
 $env:Database__Provider = 'SqlServer'
 $env:Ensaio__Mode = 'SYNTHETIC_CALIBRATION_DEV'
+if ($Waves -eq 1) { throw 'Waves deve ser 0 (carga única) ou entre 2 e 12.' }
+if ($Waves -ge 2) {
+    $env:Ensaio__Mode = 'SYNTHETIC_WAVES_DEV'
+    $env:Ensaio__SyntheticCalibration__WaveCount = [string]$Waves
+}
+else {
+    Remove-Item Env:Ensaio__SyntheticCalibration__WaveCount -ErrorAction SilentlyContinue
+}
+if (-not [string]::IsNullOrWhiteSpace($StratifiedErrorsConfig)) {
+    $env:Ensaio__SyntheticCalibration__StratifiedErrorsConfig = [IO.Path]::GetFullPath($StratifiedErrorsConfig)
+}
+if (-not [string]::IsNullOrWhiteSpace($BrazilianNameErrorsConfig)) {
+    $env:Ensaio__SyntheticCalibration__BrazilianNameErrorsConfig = [IO.Path]::GetFullPath($BrazilianNameErrorsConfig)
+}
 $env:Ensaio__Endpoints__IngestaoEntregas = "$($ApiBase.TrimEnd('/'))/api/v1/ingestao/entregas"
 $env:Ensaio__SyntheticCalibration__People = [string]$People
 $env:Ensaio__SyntheticCalibration__Seed = [string]$Seed
