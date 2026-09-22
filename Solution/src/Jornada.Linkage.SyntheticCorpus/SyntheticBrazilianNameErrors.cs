@@ -183,13 +183,14 @@ public static class SyntheticBrazilianNameErrors
         {
             var positions = Enumerable.Range(1, Math.Max(0, value.Length - 2))
                 .Where(i => char.IsLetter(value[i])).ToArray();
-            return positions.Length == 0 ? value
-                : value.Insert(positions[random.NextInt32(positions.Length)], value[positions[random.NextInt32(positions.Length)]].ToString());
+            if (positions.Length == 0) return value;
+            var index = positions[random.NextInt32(positions.Length)];
+            return value.Insert(index, value[index].ToString());
         });
         Try(rates.DuplicateParticle, "DUPLICATE_PARTICLE", value =>
         {
             var words = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            var eligible = Enumerable.Range(1, words.Length).Where(i => Particles.Contains(words[i])).ToArray();
+            var eligible = Enumerable.Range(1, Math.Max(0, words.Length - 1)).Where(i => Particles.Contains(words[i])).ToArray();
             if (eligible.Length == 0) return value;
             var index = eligible[random.NextInt32(eligible.Length)];
             return string.Join(" ", words.Take(index + 1).Concat(new[] { words[index] }).Concat(words.Skip(index + 1)));
