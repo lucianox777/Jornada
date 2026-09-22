@@ -21,6 +21,34 @@ var connectionString = options.ConnectionString
 var operationalSql = new OperationalSqlAdapter(connectionString);
 await using var connection = await operationalSql.OpenAsync();
 
+if (options.SyntheticEvaluateRoot is not null)
+{
+    var evaluator = new SyntheticEvaluationEngine(connection, options.CommandTimeoutSeconds);
+    var report = await evaluator.EvaluateAsync(
+        new SyntheticEvaluationOptions(
+            options.ModelId!.Value,
+            options.SyntheticEvaluateRoot,
+            options.MaxCandidatePairs,
+            options.CommandTimeoutSeconds));
+
+    var output = Path.GetFullPath(options.OutputPath!);
+    Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+    var json = JsonSerializer.Serialize(report, EvaluationJson.Options) + Environment.NewLine;
+    await File.WriteAllTextAsync(output, json, new System.Text.UTF8Encoding(false));
+    var sha = Convert.ToHexString(
+        System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(json)))
+        .ToLowerInvariant();
+    await File.WriteAllTextAsync(
+        output + ".sha256",
+        sha + "  " + Path.GetFileName(output) + Environment.NewLine,
+        new System.Text.UTF8Encoding(false));
+    Console.WriteLine(
+        $"Avaliação sintética gravada em {output}; modelo={report.Model.ModelId}; " +
+        $"mPairs={report.MRecovery.PairCount}; uPairs={report.URecovery.PairCount}; " +
+        $"blockingRecall={report.Blocking.TrueMatchRecall.ToString(CultureInfo.InvariantCulture)}.");
+    return;
+}
+
 if (options.ExportCalibrationPath is not null)
 {
     var exporter = new CalibrationAuditExporter(connection, options.CommandTimeoutSeconds);
@@ -102,12 +130,14 @@ internal sealed record EvaluationOptions(
     string? LabelsPath,
     string? OutputPath,
     string? ExportCalibrationPath,
+    string? SyntheticEvaluateRoot,
     Guid? ModelId,
     string? ConnectionString,
     int BirthWindowDays,
     int MaxCpfAnchoredPairs,
     int SamplePoolSize,
     decimal SmoothingAlpha,
+    int MaxCandidatePairs,
     int CommandTimeoutSeconds,
     bool Help)
 {
@@ -117,7 +147,7 @@ internal sealed record EvaluationOptions(
         for (var i = 0; i < args.Length; i++)
         {
             var raw = args[i];
-            if (raw is "--help" or "-h") return new(null, null, null, null, null, 0, 0, 0, 0m, 0, true);
+            if (raw is "--help" or "-h") return new(null, null, null, null, null, null, 0, 0, 0, 0m, 0, 0, true);
             if (!raw.StartsWith("--", StringComparison.Ordinal)) continue;
             raw = raw[2..];
             var eq = raw.IndexOf('=', StringComparison.Ordinal);
@@ -145,8 +175,13 @@ internal sealed record EvaluationOptions(
 
         var labels = Get("labels");
         var exportCalibration = Get("export-calibration");
-        if ((labels is null) == (exportCalibration is null))
-            throw new ArgumentException("Informe exatamente um modo: --labels para avaliação ou --export-calibration para auditoria externa.");
+        var syntheticEvaluate = Get("synthetic-evaluate-root");
+        var selectedModes = new[] { labels, exportCalibration, syntheticEvaluate }.Count(static value => value is not null);
+        if (selectedModes != 1)
+        {
+            throw new ArgumentException(
+                "Informe exatamente um modo: --labels, --export-calibration ou --synthetic-evaluate-root.");
+        }
 
         Guid? modelId = null;
         var modelIdRaw = Get("model-id");
@@ -156,20 +191,26 @@ internal sealed record EvaluationOptions(
                 throw new ArgumentException("--model-id deve ser um UUID válido.");
             modelId = parsedModelId;
         }
-        if (modelId is not null && exportCalibration is null)
-            throw new ArgumentException("--model-id só é aceito com --export-calibration.");
 
-        var output = Get("output") ?? "linkage-evaluation-report.json";
+        if (syntheticEvaluate is not null && modelId is null)
+            throw new ArgumentException("--synthetic-evaluate-root exige --model-id do RASCUNHO.");
+        if (modelId is not null && exportCalibration is null && syntheticEvaluate is null)
+            throw new ArgumentException("--model-id só é aceito com --export-calibration ou --synthetic-evaluate-root.");
+
+        var output = Get("output")
+            ?? (syntheticEvaluate is null ? "linkage-evaluation-report.json" : "synthetic-evaluation.json");
         return new EvaluationOptions(
             labels,
             output,
             exportCalibration,
+            syntheticEvaluate,
             modelId,
             Get("connection-string"),
             Int("birth-window-days", 7, 1, 31),
             Int("max-cpf-anchored-pairs", 50_000, 100, 1_000_000),
             Int("sample-pool-size", 500_000, 1_000, 5_000_000),
             Decimal("smoothing-alpha", 0.5m, 0.0001m, 100m),
+            Int("max-candidate-pairs", 10_000_000, 1_000, 50_000_000),
             Int("command-timeout-seconds", 900, 1, 3600),
             false);
     }
@@ -181,7 +222,8 @@ internal sealed record EvaluationOptions(
         Modos mutuamente exclusivos:
           --labels <arquivo.csv>              avaliação rotulada; colunas pessoa_observacao_id,pessoa_uuid_verdade
           --export-calibration <arquivo.json> exporta calibração/modelo somente leitura e exige round-trip C# conforme
-          --model-id <uuid>                   opcional no export; sem ele usa o modelo ATIVO
+          --synthetic-evaluate-root <dir>     pós-RASCUNHO: lê corpus/ + ingestion/ e gera evidência sintética agregada
+          --model-id <uuid>                   opcional no export; obrigatório na avaliação sintética
 
         Opções:
           --output <relatorio.json>           padrão linkage-evaluation-report.json (modo --labels)
@@ -190,9 +232,11 @@ internal sealed record EvaluationOptions(
           --max-cpf-anchored-pairs <N>        padrão 50000
           --sample-pool-size <N>              padrão 500000
           --smoothing-alpha <decimal>          padrão 0.5; mesmo default do Parameters Worker
+          --max-candidate-pairs <N>            sintético: teto exato da união candidata; padrão 10000000
           --command-timeout-seconds <1..3600> padrão 900
 
         O executável faz apenas SELECT nas tabelas operacionais. O export de calibração não ativa TF nem publica modelo.
+        SYNTHETIC_EVALUATE aceita somente RASCUNHO, lê truth apenas depois da calibração e nunca executa VALIDATE/ACTIVATE.
         Antes de gravar o JSON, o exportador reimporta o documento em memória e compara modelo, parâmetros, estatísticas, blocking e proveniência campo a campo.
         V2 é evidência experimental e nunca é publicado.
         """;
