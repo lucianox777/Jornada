@@ -177,7 +177,10 @@ public sealed class SyntheticTemporalTruthEvaluatorTests
             corpusInputFingerprintSha256 = Fingerprint,
             materializedObservationCount = truth.Length
         });
-        WriteJson(Path.Combine(dir, "operational-snapshot.json"), snapshot);
+        var snapshotPath = Path.Combine(dir, "operational-snapshot.json");
+        WriteJson(snapshotPath, snapshot);
+        File.WriteAllText(snapshotPath + ".sha256",
+            Sha(snapshotPath) + "  operational-snapshot.json\n");
         return new
         {
             wave,
