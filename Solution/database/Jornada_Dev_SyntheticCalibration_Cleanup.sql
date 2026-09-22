@@ -15,9 +15,9 @@ SET XACT_ABORT ON;
   que seria apagado.
 */
 
-IF CONVERT(NVARCHAR(32),(
+IF ISNULL(CONVERT(NVARCHAR(32),(
        SELECT value FROM sys.extended_properties
-       WHERE class=0 AND name=N'Jornada.EnvironmentProfile'))<>N'Development'
+       WHERE class=0 AND name=N'Jornada.EnvironmentProfile')),N'')<>N'Development'
     THROW 51930,'Limpeza sintética só é permitida com Jornada.EnvironmentProfile=Development.',1;
 
 IF OBJECT_ID(N'auditoria.linkage_avaliacao_sintetica',N'U') IS NULL
@@ -172,9 +172,9 @@ BEGIN TRY
        OR (SELECT COUNT_BIG(*) FROM ref.frequencia_nome)<>@ref_linhas_before
         THROW 51934,'Limpeza alterou a referência nominal preservada.',1;
 
-    IF CONVERT(NVARCHAR(32),(
+    IF ISNULL(CONVERT(NVARCHAR(32),(
            SELECT value FROM sys.extended_properties
-           WHERE class=0 AND name=N'Jornada.EnvironmentProfile'))<>N'Development'
+           WHERE class=0 AND name=N'Jornada.EnvironmentProfile')),N'')<>N'Development'
         THROW 51935,'Limpeza alterou o marcador residente de Development.',1;
 
     COMMIT TRANSACTION;
