@@ -252,6 +252,36 @@ public sealed class SyntheticEvaluationSqlServerTests
                 await restoreEnvironment.ExecuteNonQueryAsync();
             }
 
+            var cleanupPath = Path.Combine(
+                AppContext.BaseDirectory, "database",
+                "Jornada_Dev_SyntheticCalibration_Cleanup.sql");
+            await using (var removeEnvironmentMarker = connection.CreateCommand())
+            {
+                removeEnvironmentMarker.CommandText = """
+                    EXEC sys.sp_dropextendedproperty
+                        @name=N'Jornada.EnvironmentProfile';
+                    """;
+                await removeEnvironmentMarker.ExecuteNonQueryAsync();
+            }
+
+            try
+            {
+                var missingMarker = Assert.ThrowsAsync<SqlException>(async () =>
+                    await SqlBatchRunner.ExecuteFileAsync(connection, cleanupPath));
+                Assert.That(missingMarker!.Number, Is.EqualTo(51930),
+                    "Sem marcador residente a limpeza deve falhar antes de qualquer DELETE.");
+            }
+            finally
+            {
+                await using var restoreEnvironmentMarker = connection.CreateCommand();
+                restoreEnvironmentMarker.CommandText = """
+                    EXEC sys.sp_addextendedproperty
+                        @name=N'Jornada.EnvironmentProfile',
+                        @value=N'Development';
+                    """;
+                await restoreEnvironmentMarker.ExecuteNonQueryAsync();
+            }
+
             long referenceRowsBefore;
             await using (var referenceBefore = connection.CreateCommand())
             {
@@ -270,10 +300,7 @@ public sealed class SyntheticEvaluationSqlServerTests
                 staticQualityCatalogRowsBefore = (long)(await staticQualityCatalogBefore.ExecuteScalarAsync())!;
             }
 
-            var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
-            await SqlBatchRunner.ExecuteFileAsync(
-                connection,
-                Path.Combine(databaseDir, "Jornada_Dev_SyntheticCalibration_Cleanup.sql"));
+            await SqlBatchRunner.ExecuteFileAsync(connection, cleanupPath);
 
             await using (var retainedAfterCleanup = connection.CreateCommand())
             {
