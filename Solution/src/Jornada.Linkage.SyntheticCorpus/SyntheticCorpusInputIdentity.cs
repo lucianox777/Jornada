@@ -8,7 +8,11 @@ public static class SyntheticCorpusInputIdentity
 {
     public const string GeneratorVersion = "JORNADA_SYNTH_CORPUS_CSHARP_V1";
 
-    public static string ComputeFingerprint(ulong seed, IEnumerable<IbgeProjectionFile> files)
+    public static string ComputeFingerprint(
+        ulong seed,
+        IEnumerable<IbgeProjectionFile> files,
+        SyntheticBrazilianNameErrorConfig? brazilianNameErrors = null,
+        SyntheticStratifiedErrorConfig? stratifiedErrors = null)
     {
         ArgumentNullException.ThrowIfNull(files);
 
@@ -16,6 +20,21 @@ public static class SyntheticCorpusInputIdentity
         builder.Append("generator=").Append(GeneratorVersion).Append('\n');
         builder.Append("rng=").Append(Xoshiro256StarStar.AlgorithmVersion).Append('\n');
         builder.Append("seed=").Append(seed.ToString(CultureInfo.InvariantCulture)).Append('\n');
+        if (brazilianNameErrors is not null)
+        {
+            builder.Append("brazilian_name_errors_version=")
+                .Append(brazilianNameErrors.Version).Append('\n');
+            builder.Append("brazilian_name_errors_config_sha256=")
+                .Append(brazilianNameErrors.ConfigSha256()).Append('\n');
+        }
+
+        if (stratifiedErrors is not null)
+        {
+            builder.Append("stratified_errors_version=")
+                .Append(stratifiedErrors.Version).Append('\n');
+            builder.Append("stratified_errors_config_sha256=")
+                .Append(stratifiedErrors.ConfigSha256()).Append('\n');
+        }
 
         foreach (var file in files.OrderBy(x => x.Path, StringComparer.Ordinal))
         {

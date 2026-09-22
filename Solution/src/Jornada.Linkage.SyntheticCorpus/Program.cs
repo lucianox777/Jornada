@@ -185,7 +185,13 @@ static SyntheticCorpusOptions ParseCorpusOptions(IReadOnlyDictionary<string, str
         CnsInvalidRate: GetDouble(values, "cns-invalid-rate", .01),
         CnsReuseRate: GetDouble(values, "cns-reuse-rate", .01),
         CnsDobConflictRate: GetDouble(values, "cns-dob-conflict-rate", .01),
-        Gestores: GetInt(values, "gestores", 4));
+        Gestores: GetInt(values, "gestores", 4),
+        BrazilianNameErrors: Get(values, "brazilian-name-errors-config") is { } configPath
+            ? SyntheticBrazilianNameErrorConfig.ReadFile(configPath)
+            : null,
+        StratifiedErrors: Get(values, "stratified-errors-config") is { } strataPath
+            ? SyntheticStratifiedErrorConfig.ReadFile(strataPath)
+            : null);
     options.Validate();
     return options;
 }
@@ -195,7 +201,8 @@ static async Task<(SyntheticCorpusGeneration Generation, SyntheticCorpusNominalS
     SyntheticCorpusOptions options)
 {
     var manifest = await IbgeProjectionReader.ReadManifestAsync(referenceRoot);
-    var inputFingerprint = SyntheticCorpusInputIdentity.ComputeFingerprint(options.Seed, manifest.Files);
+    var inputFingerprint = SyntheticCorpusInputIdentity.ComputeFingerprint(
+        options.Seed, manifest.Files, options.BrazilianNameErrors, options.StratifiedErrors);
     var nominal = await SyntheticCorpusSourceLoader.LoadBrasilTotalAsync(referenceRoot, options);
     var generation = new SyntheticCorpusGenerator(nominal.FirstNames, nominal.Surnames).Generate(options);
     return (generation, nominal, inputFingerprint);
@@ -244,6 +251,8 @@ static void PrintUsage()
             [--cns-reuse-rate <0..1>]
             [--cns-dob-conflict-rate <0..1>]
             [--gestores <N>]
+            [--brazilian-name-errors-config <arquivo.json> (experimental, sem taxas presumidas)]
+            [--stratified-errors-config <arquivo.json> (overlay experimental por CPF observado/Gestor)]
 
           Jornada.Linkage.SyntheticCorpus generate-ingestion
             --data-referencia <ISO-8601 com offset>

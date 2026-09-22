@@ -389,3 +389,73 @@ de data produz mudança efetiva.
 ## Limites
 
 O corpus é sintético e não prova representatividade da população sem CPF. Ele valida corretude e invariantes do mecanismo. Representatividade e suficiência para Produção continuam dependentes de evidência observada e diagnóstico versionado do Calibrador.
+
+
+## Experimentos opt-in: nomes brasileiros e erro por estrato de CPF
+
+Os dois mecanismos seguintes são **andaime DEV**. O V2, o PRNG e o gate
+Python↔C# continuam iguais quando os novos flags não são informados.
+
+`--brazilian-name-errors-config <arquivo.json>` ativa o catálogo
+`SYNTHETIC_BRAZILIAN_NAME_ERRORS_V1`, derivado das *classes* de erro do
+`nomesbr`/Ipea 0.1.1 (MIT), sem executar R e sem copiar limpeza destrutiva.
+Há operadores para duplicação de letra/partícula, apóstrofo, título prefixal,
+marcador administrativo e abreviação/omissão de agnome na **observação**.
+O nome verdadeiro conserva FILHO/JUNIOR/NETO. O parâmetro
+`agnomeBasePrevalence` é sintético; **não há frequência de agnomes IBGE
+inferida**. As taxas default são zero: é obrigatório escolher o cenário.
+
+`--stratified-errors-config <arquivo.json>` ativa
+`SYNTHETIC_CPF_STRATIFIED_ERROR_OVERLAY_V1`. É um **overlay aditivo**:
+probabilidades de nome, mãe, data, ausência de mãe e de data são
+aplicadas *depois* do perfil V2, da retenção de CPF e dos operadores
+nominais brasileiros. Assim o estrato é o **CPF efetivamente observado**,
+não a presença do documento na pessoa verdadeira. Um estrato pode receber
+mais erros mesmo quando o perfil V2 foi o mesmo nos dois grupos.
+
+Exemplo de arquivo experimental para estratos (taxas de exemplo
+hipotéticas, **não** prevalências observadas de São Paulo):
+
+```json
+{
+  "version": "SYNTHETIC_CPF_STRATIFIED_ERROR_OVERLAY_V1",
+  "default": {},
+  "byCpfStratum": {
+    "WITHOUT_CPF": {
+      "nameCorruption": 0.30,
+      "motherCorruption": 0.25,
+      "missingMother": 0.55,
+      "missingDate": 0.02
+    },
+    "WITH_CPF": {}
+  },
+  "byGestor": {
+    "G2": {"nameCorruption": 0.10}
+  },
+  "byGestorAndCpfStratum": {
+    "G2/WITHOUT_CPF": {
+      "nameCorruption": 0.35,
+      "motherCorruption": 0.25,
+      "missingMother": 0.60
+    }
+  }
+}
+```
+
+As taxas de `byGestorAndCpfStratum` substituem integralmente as de
+`byGestor`, que substituem as de `byCpfStratum`, depois `default`.
+Zero explícito em um override significa zero, **não** herdar. Os códigos
+sintéticos são `G0...`, e os estratos aceitos são
+`WITH_CPF`/`WITHOUT_CPF`. Configuração inválida bloqueia a geração.
+
+Para cada configuração, `generation-manifest.json` registra versão e
+SHA-256 canônico do JSON de taxas; `gabarito.json` registra taxas,
+quantidades realizadas por Gestor/estrato/operação e fonte
+`synthetic_additive_overlay_not_empirical`. Os artefatos permanecem
+**truth-only**. O fingerprint das entradas inclui o hash das novas
+configurações somente no modo opt-in; a referência V2 original não muda.
+
+O caminho atual `generate-ingestion` ainda produz **uma carga**. As
+múltiplas ondas devem manter `codigoPessoaOrigem` estável na Secretaria,
+persistir coortes de CPF inicial e medir mudanças/recall após *cada* carga
+no pipeline real. Não interpretar o presente overlay como prova do ciclo.

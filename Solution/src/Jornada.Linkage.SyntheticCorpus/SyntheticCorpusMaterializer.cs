@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Jornada.Linkage.SyntheticCorpus;
 
@@ -77,6 +78,29 @@ public static class SyntheticCorpusMaterializer
         var manifestJson = JsonSerializer.Serialize(
             manifest,
             IndentedJsonOptions) + "\n";
+        if (generation.Options.BrazilianNameErrors is { } experimental)
+        {
+            var annotated = JsonNode.Parse(manifestJson)!.AsObject();
+            annotated["brazilian_name_errors"] = JsonSerializer.SerializeToNode(new
+            {
+                version = experimental.Version,
+                config_sha256 = experimental.ConfigSha256(),
+                source = "synthetic_configured_rates_not_empirical"
+            });
+            manifestJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
+        if (generation.Options.StratifiedErrors is { } stratumConfig)
+        {
+            var annotated = JsonNode.Parse(manifestJson)!.AsObject();
+            annotated["stratified_error_overlay"] = JsonSerializer.SerializeToNode(new
+            {
+                version = stratumConfig.Version,
+                config_sha256 = stratumConfig.ConfigSha256(),
+                source = "synthetic_additive_overlay_not_empirical",
+                stratum_basis = "observed_cpf_after_retention"
+            });
+            manifestJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
         await File.WriteAllTextAsync(manifestPath, manifestJson, Utf8NoBom, cancellationToken);
 
         return new SyntheticCorpusMaterializationResult(
@@ -213,9 +237,51 @@ public static class SyntheticCorpusMaterializer
             }
         };
 
-        return JsonSerializer.Serialize(
+        var truthJson = JsonSerializer.Serialize(
             truth,
             IndentedJsonOptions) + "\n";
+        if (generation.Options.BrazilianNameErrors is { } experimental)
+        {
+            // Somente no gabarito, inacessível ao calibrador antes do RASCUNHO.
+            var annotated = JsonNode.Parse(truthJson)!.AsObject();
+            annotated["brazilian_name_errors"] = JsonNode.Parse(experimental.CanonicalJson());
+            annotated["brazilian_name_errors_config_sha256"] = experimental.ConfigSha256();
+            annotated["brazilian_name_errors_rates_source"] = "synthetic_configured_rates_not_empirical";
+            annotated["brazilian_name_errors_cpf_stratum"] = "observed_cpf_after_retention";
+            var realized = generation.Observations
+                .SelectMany(observation => observation.Corruptions
+                    .Split('|', StringSplitOptions.RemoveEmptyEntries)
+                    .Where(label => label.StartsWith("NOME_BR_", StringComparison.Ordinal)
+                        || label.StartsWith("MAE_BR_", StringComparison.Ordinal))
+                    .Select(label => observation.Gestor + "/" +
+                        (observation.Cpf is null ? "WITHOUT_CPF" : "WITH_CPF") + "/" + label))
+                .GroupBy(label => label, StringComparer.Ordinal)
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+            annotated["brazilian_name_errors_realized_label_counts"] = JsonSerializer.SerializeToNode(realized);
+            truthJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
+        if (generation.Options.StratifiedErrors is { } stratumConfig)
+        {
+            // Só pós-RASCUNHO: segmentação observada e contagens, sem expor BasePersonId ao scoring.
+            var annotated = JsonNode.Parse(truthJson)!.AsObject();
+            annotated["stratified_error_overlay"] = JsonNode.Parse(stratumConfig.CanonicalJson());
+            annotated["stratified_error_overlay_sha256"] = stratumConfig.ConfigSha256();
+            annotated["stratified_error_rates_source"] = "synthetic_additive_overlay_not_empirical";
+            annotated["stratified_error_stratum_basis"] = "observed_cpf_after_retention";
+            var counts = generation.Observations
+                .SelectMany(o => o.Corruptions
+                    .Split('|', StringSplitOptions.RemoveEmptyEntries)
+                    .Where(label => label.Contains("_STRAT_", StringComparison.Ordinal))
+                    .Select(label => o.Gestor + "/" +
+                        (o.Cpf is null ? "WITHOUT_CPF" : "WITH_CPF") + "/" + label))
+                .GroupBy(label => label, StringComparer.Ordinal)
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+            annotated["stratified_error_realized_label_counts"] = JsonSerializer.SerializeToNode(counts);
+            truthJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
+        return truthJson;
     }
 
     private static void AppendCsvRow(StringBuilder builder, params string?[] fields)
