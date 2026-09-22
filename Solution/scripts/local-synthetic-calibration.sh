@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="${JORNADA_LOCAL_ENV_FILE:-$ROOT/.env}"
+ENV_FILE="$ROOT/.env"
 EXAMPLE="$ROOT/.env.example"
 API_BASE="${JORNADA_SYNTH_API_URL:-http://127.0.0.1:5098}"
 
