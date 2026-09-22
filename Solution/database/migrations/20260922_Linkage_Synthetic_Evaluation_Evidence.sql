@@ -240,6 +240,10 @@ BEGIN
          OR unidade NOT IN(N'COUNT',N'RATIO',N'PROBABILITY',N'TOTAL_VARIATION'))
     THROW 51916,'Avaliação sintética contém métrica agregada inválida.',1;
 
+ SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+ BEGIN TRANSACTION;
+ BEGIN TRY
+
  DECLARE @status_modelo NVARCHAR(20);
  SELECT @status_modelo=status
  FROM identidade.modelo_linkage WITH(HOLDLOCK)
@@ -296,11 +300,10 @@ BEGIN
       THROW 51919,'Hash de relatório sintético já registrado com proveniência incompatível.',1;
 
    SET @avaliacao_id=@existente;
+   COMMIT TRANSACTION;
    RETURN;
  END;
 
- BEGIN TRANSACTION;
- BEGIN TRY
    SET @avaliacao_id=NEWID();
 
    INSERT auditoria.linkage_avaliacao_sintetica(
