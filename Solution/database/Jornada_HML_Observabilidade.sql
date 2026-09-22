@@ -65,11 +65,16 @@ WHERE status='GERANDO'
 ORDER BY gerado_em;
 
 -- Leases de Processor vencidos. A recuperação é responsabilidade do próprio Processor; o watchdog só alerta.
-SELECT lote_id,entrega_id,status,lease_owner,lease_adquirido_em,heartbeat_em,lease_expira_em,
-       DATEDIFF(MINUTE,lease_expira_em,@watchdog_agora) minutos_desde_expiracao,tentativa_count,recuperacao_count
-FROM ingestao.lote
-WHERE status IN('VALIDANDO','PROCESSANDO') AND lease_expira_em<@watchdog_agora
-ORDER BY lease_expira_em;
+SELECT l.lote_id,l.entrega_id,l.status,l.lease_owner,l.lease_adquirido_em,
+       COALESCE(h.heartbeat_em,l.heartbeat_em) AS heartbeat_em,
+       COALESCE(h.lease_expira_em,l.lease_expira_em) AS lease_expira_em,
+       DATEDIFF(MINUTE,COALESCE(h.lease_expira_em,l.lease_expira_em),@watchdog_agora) AS minutos_desde_expiracao,
+       l.tentativa_count,l.recuperacao_count
+FROM ingestao.lote l
+LEFT JOIN ingestao.lote_heartbeat h ON h.lote_id=l.lote_id AND h.lease_id=l.lease_id
+WHERE l.status IN('VALIDANDO','PROCESSANDO')
+  AND COALESCE(h.lease_expira_em,l.lease_expira_em)<@watchdog_agora
+ORDER BY COALESCE(h.lease_expira_em,l.lease_expira_em);
 
 -- Backlog e idade do lote PENDENTE mais antigo.
 SELECT COUNT_BIG(*) lotes_pendentes,MIN(criado_em) lote_pendente_mais_antigo,
