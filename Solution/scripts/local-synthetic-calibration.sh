@@ -10,7 +10,7 @@ API_BASE="${JORNADA_SYNTH_API_URL:-http://127.0.0.1:5098}"
 
 [[ -f "$ENV_FILE" ]] || cp "$EXAMPLE" "$ENV_FILE"
 
-"$ROOT/scripts/local-db.sh" reset --no-synthetic-corpus
+"$ROOT/scripts/local-db.sh" up --no-synthetic-corpus
 
 # shellcheck disable=SC1090
 set -a
@@ -20,6 +20,14 @@ set +a
 : "${JORNADA_SQL_SA_PASSWORD:?JORNADA_SQL_SA_PASSWORD não definido}"
 PORT="${JORNADA_SQL_PORT:-14333}"
 DB="${JORNADA_SQL_DATABASE:-JornadaLocal}"
+
+(
+  cd "$ROOT"
+  docker compose --env-file "$ENV_FILE" exec -T -w /workspace \
+    -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
+    /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I \
+    -d "$DB" -i scripts/local-synthetic-calibration-clean.sql
+)
 
 export ConnectionStrings__Jornada="Server=localhost,$PORT;Database=$DB;User Id=sa;Password=$JORNADA_SQL_SA_PASSWORD;TrustServerCertificate=true;Encrypt=false"
 export Database__Provider=SqlServer
@@ -31,6 +39,12 @@ if [[ -n "${JORNADA_SYNTH_PEOPLE:-}" ]]; then
 fi
 if [[ -n "${JORNADA_SYNTH_SEED:-}" ]]; then
   export Ensaio__SyntheticCalibration__Seed="$JORNADA_SYNTH_SEED"
+fi
+export Ensaio__SyntheticCalibration__ExpectedSeeds="${JORNADA_SYNTH_EXPECTED_SEEDS:-${JORNADA_SYNTH_SEED:-42}}"
+if [[ -n "${JORNADA_SYNTH_RUN_GROUP_ID:-}" ]]; then
+  export Ensaio__SyntheticCalibration__RunGroupId="$JORNADA_SYNTH_RUN_GROUP_ID"
+else
+  unset Ensaio__SyntheticCalibration__RunGroupId || true
 fi
 if [[ -n "${JORNADA_SYNTH_ERROR_PROFILE:-}" ]]; then
   export Ensaio__SyntheticCalibration__ErrorProfile="$JORNADA_SYNTH_ERROR_PROFILE"
