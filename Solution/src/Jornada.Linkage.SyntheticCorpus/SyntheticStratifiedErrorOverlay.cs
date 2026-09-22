@@ -33,6 +33,7 @@ public sealed record SyntheticStratifiedErrorRates
 public sealed record SyntheticStratifiedErrorConfig
 {
     public const string ExperimentVersion = "SYNTHETIC_CPF_STRATIFIED_ERROR_OVERLAY_V1";
+    private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
     public string Version { get; init; } = ExperimentVersion;
     public SyntheticStratifiedErrorRates Default { get; init; } = new();
     public Dictionary<string, SyntheticStratifiedErrorRates> ByGestor { get; init; } = new(StringComparer.Ordinal);
@@ -41,7 +42,7 @@ public sealed record SyntheticStratifiedErrorConfig
 
     public void Validate(int gestores)
     {
-        if (Version != ExperimentVersion) throw new ArgumentException("Versão de overlay desconhecida.", nameof(Version));
+        if (Version != ExperimentVersion) throw new ArgumentException("Versão de overlay desconhecida.");
         ArgumentNullException.ThrowIfNull(Default);
         ArgumentNullException.ThrowIfNull(ByGestor);
         ArgumentNullException.ThrowIfNull(ByCpfStratum);
@@ -82,7 +83,7 @@ public sealed record SyntheticStratifiedErrorConfig
 
     public static SyntheticStratifiedErrorConfig ReadFile(string path)
         => JsonSerializer.Deserialize<SyntheticStratifiedErrorConfig>(
-            File.ReadAllText(path), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+            File.ReadAllText(path), ReadOptions)
             ?? throw new InvalidDataException("Configuração de estratos vazia.");
 
     private static void CheckGestor(string key, int gestores)
