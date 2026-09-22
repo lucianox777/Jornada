@@ -111,12 +111,11 @@ public sealed class SyntheticOperationalMonitorService(IOperationalSqlAdapter op
         await using var command = new SqlCommand(
             """
             SELECT TOP(1)
-                e.avaliacao_id,e.grupo_execucao_id,e.modelo_id,e.modelo_versao,m.status,
+                e.avaliacao_id,e.grupo_execucao_id,e.modelo_id,e.modelo_versao,N'RASCUNHO' AS modelo_status_na_avaliacao,
                 e.gerador_seed,e.gerador_versao,e.avaliador_versao,e.ambiente_perfil,e.ruleset_versao,
                 e.modelo_snapshot_sha256,e.corpus_fingerprint_sha256,e.ruleset_fingerprint_sha256,
                 e.relatorio_gerado_em,e.ocorrido_em
             FROM auditoria.v_linkage_avaliacao_sintetica e
-            JOIN identidade.modelo_linkage m ON m.modelo_id=e.modelo_id
             ORDER BY e.linkage_avaliacao_sintetica_id DESC;
             """,
             connection);
