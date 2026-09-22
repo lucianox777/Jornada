@@ -5,6 +5,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Jornada.Contracts;
+using Jornada.Linkage.Parameters.Worker;
+using Jornada.Linkage.Runner;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Evaluation;
@@ -13,7 +15,8 @@ public sealed record SyntheticEvaluationOptions(
     Guid ModelId,
     string GeneratedRoot,
     int MaxCandidatePairs,
-    int CommandTimeoutSeconds);
+    int CommandTimeoutSeconds,
+    IReadOnlyList<ulong>? ExpectedSeeds = null);
 
 public sealed record SyntheticEvaluationReport(
     string SchemaVersion,
@@ -29,6 +32,8 @@ public sealed record SyntheticEvaluationReport(
     SyntheticDistributionRecovery MRecovery,
     SyntheticDistributionRecovery URecovery,
     SyntheticTransportability Transportability,
+    SyntheticThresholdOracle DecisionOracle,
+    SyntheticMultiSeedContext MultiSeed,
     IReadOnlyList<string> Safeguards);
 
 public sealed record SyntheticEvaluationInput(
@@ -114,6 +119,52 @@ public sealed record SyntheticTransportability(
     SyntheticDistributionDistance RawDistance,
     SyntheticDistributionDistance ReweightedDistance);
 
+public sealed record SyntheticDecisionObjective(
+    long TruePositive,
+    long TrueNegative,
+    long FalsePositive,
+    long FalseNegative,
+    long Inconclusive,
+    long Total);
+
+public sealed record SyntheticMultiSeedContext(
+    ulong CurrentSeed,
+    IReadOnlyList<ulong> ExpectedSeeds);
+
+public sealed record SyntheticDecisionQualitySlice(
+    string Partition,
+    string Stratum,
+    long TruePositive,
+    long FalsePositive,
+    long FalseNegative,
+    long Inconclusive,
+    long Total,
+    decimal Precision,
+    decimal Recall);
+
+public sealed record SyntheticThresholdOracle(
+    string Status,
+    string CalibrationPolicyVersion,
+    int ScenarioCount,
+    int ValidationScenarioCount,
+    int TestScenarioCount,
+    decimal? ModelThreshold,
+    decimal? ModelConflictMarginLogOdds,
+    decimal? ModelConflictFloor,
+    decimal? OracleThreshold,
+    decimal? OracleConflictMarginLogOdds,
+    decimal? OracleConflictFloor,
+    SyntheticDecisionObjective? ModelValidation,
+    SyntheticDecisionObjective? ModelTest,
+    SyntheticDecisionObjective? OracleValidation,
+    SyntheticDecisionObjective? OracleTest,
+    decimal? ValidationFrontierL1Distance,
+    bool CoordinatesComparable,
+    decimal? ThresholdAbsoluteDelta,
+    decimal? ConflictMarginAbsoluteDelta,
+    decimal? ConflictFloorAbsoluteDelta,
+    IReadOnlyList<SyntheticDecisionQualitySlice> ModelQuality);
+
 public sealed class SyntheticEvaluationEngine(SqlConnection connection, int commandTimeoutSeconds)
 {
     public const string SchemaVersion = "JORNADA_SYNTHETIC_EVALUATION_V1";
@@ -150,6 +201,15 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
 
         var manifest = await ReadManifestAsync(manifestPath, cancellationToken);
         var generationManifest = await ReadGenerationManifestAsync(generationManifestPath, cancellationToken);
+        var expectedSeeds = (options.ExpectedSeeds is { Count: > 0 }
+                ? options.ExpectedSeeds
+                : new[] { generationManifest.Seed })
+            .Distinct()
+            .Order()
+            .ToArray();
+        if (!expectedSeeds.Contains(generationManifest.Seed))
+            throw new InvalidDataException(
+                $"Seed atual {generationManifest.Seed} não pertence à lista multi-seed esperada.");
         if (!string.Equals(
                 generationManifest.InputFingerprintSha256,
                 manifest.CorpusInputFingerprintSha256,
@@ -304,12 +364,16 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                 noCpfPairs.LongLength,
                 noCpfPairs.Length == 0 ? ZeroDistance() : Distance(mRaw, noCpfRaw),
                 noCpfPairs.Length == 0 ? ZeroDistance() : Distance(mWeighted, noCpfWeighted)),
+            EvaluateDecisionOracle(projected, candidate, model),
+            new SyntheticMultiSeedContext(generationManifest.Seed, expectedSeeds),
             [
                 "synthetic truth is read only after the requested model exists in RASCUNHO",
                 "base_person_id is used only inside this evaluator and is never emitted in the report",
                 "blocking uses persisted model passes and the shared BlockingProjectionKeyProjector",
                 "u truth is conditioned on the deduplicated candidate union in the materialized synthetic observation universe",
                 "candidate union is exact or evaluation fails when MaxCandidatePairs is exceeded; no silent sampling",
+                "decision oracle reuses FsDecisionThresholdCalibrator.Partition, the persisted calibration seed/basis points, FellegiSunterScoring and the frozen VALIDATION/TEST policy; TEST never selects coordinates",
+                "multi-seed expected membership is explicit and persisted; dispersion is forbidden until every expected seed is present",
                 "the report does not validate or activate a model and cannot satisfy issue #31"
             ]);
     }
@@ -595,6 +659,10 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
         return new SyntheticCandidateEvaluation(
             union.Count,
             trueRetained,
+            union.Select(Unpack)
+                .OrderBy(static pair => pair.Left)
+                .ThenBy(static pair => pair.Right)
+                .ToArray(),
             nonMatches,
             passReports);
     }
@@ -669,6 +737,388 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
     }
 
     private static long Choose2(long n) => checked(n * (n - 1) / 2);
+
+    private static SyntheticThresholdOracle EvaluateDecisionOracle(
+        IReadOnlyList<ProjectedObservation> observations,
+        SyntheticCandidateEvaluation candidate,
+        SyntheticModelSnapshot model)
+    {
+        if (!LinkageParameterCatalog.UsesDecisionEvidence(model.AlgorithmVersion))
+            return DecisionOracleNotEvaluable("NOT_EVALUABLE_ALGORITHM", model);
+
+        var required = LinkageParameterCatalog.CoreScoringRequired
+            .Concat(LinkageParameterCatalog.DecisionEvidenceRequired)
+            .Append(LinkageParameterCatalog.DualThresholdConflictFloor)
+            .Append("FS_DECISION_CALIBRATION_SEED")
+            .Append("FS_DECISION_CALIBRATION_VALIDATION_BP")
+            .Append("FS_DECISION_CALIBRATION_TEST_BP")
+            .Distinct(StringComparer.Ordinal)
+            .Where(name => !model.Parameters.ContainsKey(name))
+            .ToArray();
+        if (required.Length > 0)
+            return DecisionOracleNotEvaluable("NOT_EVALUABLE_MISSING_CALIBRATION_CONTRACT", model);
+
+        var representatives = observations
+            .GroupBy(static x => x.Observation.BasePersonId, StringComparer.Ordinal)
+            .ToDictionary(
+                static group => group.Key,
+                static group => group
+                    .OrderByDescending(static x => x.Observation.Cpf is not null)
+                    .ThenBy(static x => x.Observation.Gestor, StringComparer.Ordinal)
+                    .ThenBy(static x => x.Observation.ObservationId, StringComparer.Ordinal)
+                    .First().Observation,
+                StringComparer.Ordinal);
+        var personIds = representatives.Keys.ToDictionary(
+            static id => id,
+            DeterministicSyntheticPersonGuid,
+            StringComparer.Ordinal);
+
+        var neighbours = Enumerable.Range(0, observations.Count)
+            .Select(static _ => new HashSet<string>(StringComparer.Ordinal))
+            .ToArray();
+        foreach (var pair in candidate.UnionPairs)
+        {
+            var leftPerson = observations[pair.Left].Observation.BasePersonId;
+            var rightPerson = observations[pair.Right].Observation.BasePersonId;
+            neighbours[pair.Left].Add(rightPerson);
+            neighbours[pair.Right].Add(leftPerson);
+        }
+
+        var nameContract = LinkageParameterCatalog.NameComparisonContractForAlgorithm(model.AlgorithmVersion);
+        var seed = DecimalToInt(model.Parameters["FS_DECISION_CALIBRATION_SEED"]);
+        var validationBp = DecimalToInt(model.Parameters["FS_DECISION_CALIBRATION_VALIDATION_BP"]);
+        var testBp = DecimalToInt(model.Parameters["FS_DECISION_CALIBRATION_TEST_BP"]);
+        var envelopes = new List<SyntheticScenarioEnvelope>();
+        for (var index = 0; index < observations.Count; index++)
+        {
+            var observed = observations[index].Observation;
+            var truthUuid = personIds[observed.BasePersonId];
+            var partition = FsDecisionThresholdCalibrator.Partition(
+                truthUuid,
+                seed,
+                validationBp,
+                testBp);
+            if (partition == FsDecisionCalibrationPartition.Train)
+                continue;
+
+            var candidateRows = neighbours[index]
+                .Select(id => representatives[id])
+                .OrderBy(static x => x.BasePersonId, StringComparer.Ordinal)
+                .ToArray();
+            var uniqueCandidateCount = candidateRows.Length;
+            var ranking = candidateRows
+                .Select(row =>
+                {
+                    var nameState = OptionalNameState(observed.Name, row.Name, nameContract);
+                    var motherState = OptionalNameState(observed.MotherName, row.MotherName, nameContract);
+                    var score = FellegiSunterScoring.Calculate(
+                        model.Parameters,
+                        nameState,
+                        motherState,
+                        Math.Max(1, uniqueCandidateCount),
+                        observed.BirthDate,
+                        row.BirthDate);
+                    var collision =
+                        nameState == NameComparisonState.EXACT &&
+                        observed.BirthDate == row.BirthDate;
+                    return new FsDecisionRankedCandidate(
+                        personIds[row.BasePersonId],
+                        score.Posterior,
+                        score.LogOdds,
+                        collision);
+                })
+                .OrderByDescending(static x => x.LogOdds)
+                .ThenBy(static x => x.PessoaUuid)
+                .ToArray();
+
+            var prefix = observed.ObservationId + ":" + observed.BasePersonId;
+            var stratum = ObservationStratum(observed);
+            envelopes.Add(new SyntheticScenarioEnvelope(
+                new FsDecisionCalibrationScenario(
+                    prefix + ":POS",
+                    truthUuid,
+                    truthUuid,
+                    partition,
+                    ranking),
+                stratum));
+            envelopes.Add(new SyntheticScenarioEnvelope(
+                new FsDecisionCalibrationScenario(
+                    prefix + ":NEG_LEAVE_TRUTH_OUT",
+                    truthUuid,
+                    null,
+                    partition,
+                    ranking.Where(x => x.PessoaUuid != truthUuid).ToArray()),
+                stratum));
+        }
+
+        var scenarios = envelopes.Select(static x => x.Scenario).ToArray();
+        var validation = scenarios
+            .Where(static x => x.Partition == FsDecisionCalibrationPartition.Validation)
+            .ToArray();
+        var test = scenarios
+            .Where(static x => x.Partition == FsDecisionCalibrationPartition.Test)
+            .ToArray();
+        if (validation.Length == 0 || test.Length == 0)
+        {
+            return DecisionOracleNotEvaluable(
+                "NOT_EVALUABLE_PARTITION_SUPPORT",
+                model,
+                scenarios.Length,
+                validation.Length,
+                test.Length);
+        }
+
+        FsDecisionThresholdCalibrationResult oracle;
+        try
+        {
+            oracle = FsDecisionThresholdCalibrator.Calibrate(
+                model.AlgorithmVersion,
+                model.Parameters,
+                scenarios,
+                seed,
+                validationBp,
+                testBp);
+        }
+        catch (InvalidOperationException)
+        {
+            return DecisionOracleNotEvaluable(
+                "NOT_EVALUABLE_ORACLE_SUPPORT",
+                model,
+                scenarios.Length,
+                validation.Length,
+                test.Length);
+        }
+
+        var threshold = model.Parameters[LinkageParameterCatalog.Threshold];
+        var margin = model.Parameters[LinkageParameterCatalog.LogOddsConflictMargin];
+        var floor = model.Parameters[LinkageParameterCatalog.DualThresholdConflictFloor];
+        var frozenModel = new FsDecisionThresholdCandidate(
+            "PERSISTED_MODEL",
+            threshold,
+            margin,
+            floor);
+        var modelValidation = FsDecisionThresholdCalibrator.EvaluateFrozen(
+            model.AlgorithmVersion,
+            model.Parameters,
+            frozenModel,
+            validation);
+        var modelTest = FsDecisionThresholdCalibrator.EvaluateFrozen(
+            model.AlgorithmVersion,
+            model.Parameters,
+            frozenModel,
+            test);
+
+        if (oracle.Selected is null)
+        {
+            return new SyntheticThresholdOracle(
+                "NO_SAFE_ORACLE_CANDIDATE",
+                FsDecisionThresholdCalibrator.Version,
+                scenarios.Length,
+                validation.Length,
+                test.Length,
+                threshold,
+                margin,
+                floor,
+                null,
+                null,
+                null,
+                Objective(modelValidation),
+                Objective(modelTest),
+                null,
+                null,
+                FrontierDistance(modelValidation, oracle.FrozenFrontier),
+                false,
+                null,
+                null,
+                null,
+                DecisionQuality(model, frozenModel, envelopes));
+        }
+
+        var selected = oracle.Selected;
+        return new SyntheticThresholdOracle(
+            "EVALUATED",
+            FsDecisionThresholdCalibrator.Version,
+            scenarios.Length,
+            validation.Length,
+            test.Length,
+            threshold,
+            margin,
+            floor,
+            selected.Candidate.Threshold,
+            selected.Candidate.ConflictMarginLogOdds,
+            selected.Candidate.DualThresholdConflictFloor,
+            Objective(modelValidation),
+            Objective(modelTest),
+            Objective(selected.Validation),
+            Objective(selected.Test),
+            FrontierDistance(modelValidation, oracle.FrozenFrontier),
+            true,
+            Math.Abs(threshold - selected.Candidate.Threshold),
+            Math.Abs(margin - selected.Candidate.ConflictMarginLogOdds),
+            Math.Abs(floor - selected.Candidate.DualThresholdConflictFloor),
+            DecisionQuality(model, frozenModel, envelopes));
+    }
+
+    private static SyntheticThresholdOracle DecisionOracleNotEvaluable(
+        string status,
+        SyntheticModelSnapshot model,
+        int scenarioCount = 0,
+        int validationCount = 0,
+        int testCount = 0)
+    {
+        model.Parameters.TryGetValue(LinkageParameterCatalog.Threshold, out var threshold);
+        var hasThreshold = model.Parameters.ContainsKey(LinkageParameterCatalog.Threshold);
+        model.Parameters.TryGetValue(LinkageParameterCatalog.LogOddsConflictMargin, out var margin);
+        var hasMargin = model.Parameters.ContainsKey(LinkageParameterCatalog.LogOddsConflictMargin);
+        model.Parameters.TryGetValue(LinkageParameterCatalog.DualThresholdConflictFloor, out var floor);
+        var hasFloor = model.Parameters.ContainsKey(LinkageParameterCatalog.DualThresholdConflictFloor);
+        return new SyntheticThresholdOracle(
+            status,
+            FsDecisionThresholdCalibrator.Version,
+            scenarioCount,
+            validationCount,
+            testCount,
+            hasThreshold ? threshold : null,
+            hasMargin ? margin : null,
+            hasFloor ? floor : null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            null,
+            null,
+            null,
+            Array.Empty<SyntheticDecisionQualitySlice>());
+    }
+
+    private static IReadOnlyList<SyntheticDecisionQualitySlice> DecisionQuality(
+        SyntheticModelSnapshot model,
+        FsDecisionThresholdCandidate candidate,
+        IReadOnlyList<SyntheticScenarioEnvelope> envelopes)
+    {
+        var result = new List<SyntheticDecisionQualitySlice>();
+        foreach (var partition in new[]
+                 {
+                     FsDecisionCalibrationPartition.Validation,
+                     FsDecisionCalibrationPartition.Test
+                 })
+        {
+            var partitionRows = envelopes
+                .Where(item => item.Scenario.Partition == partition)
+                .ToArray();
+            if (partitionRows.Length == 0)
+                continue;
+
+            AddSlice(partition.ToString().ToUpperInvariant(), "ALL", partitionRows);
+            foreach (var stratum in partitionRows
+                         .Select(static item => item.Stratum)
+                         .Distinct(StringComparer.Ordinal)
+                         .OrderBy(static value => value, StringComparer.Ordinal))
+            {
+                AddSlice(
+                    partition.ToString().ToUpperInvariant(),
+                    stratum,
+                    partitionRows.Where(item => string.Equals(item.Stratum, stratum, StringComparison.Ordinal)).ToArray());
+            }
+
+            var cpfPresent = partitionRows
+                .Where(static item => item.Stratum.StartsWith("CPF_PRESENT_", StringComparison.Ordinal))
+                .ToArray();
+            if (cpfPresent.Length > 0)
+                AddSlice(partition.ToString().ToUpperInvariant(), "CPF_PRESENT", cpfPresent);
+
+            var cpfAbsent = partitionRows
+                .Where(static item => item.Stratum.StartsWith("CPF_ABSENT_", StringComparison.Ordinal))
+                .ToArray();
+            if (cpfAbsent.Length > 0)
+                AddSlice(partition.ToString().ToUpperInvariant(), "CPF_ABSENT", cpfAbsent);
+        }
+
+        return result;
+
+        void AddSlice(
+            string partitionName,
+            string stratum,
+            IReadOnlyList<SyntheticScenarioEnvelope> rows)
+        {
+            var evaluation = FsDecisionThresholdCalibrator.EvaluateFrozen(
+                model.AlgorithmVersion,
+                model.Parameters,
+                candidate,
+                rows.Select(static item => item.Scenario).ToArray());
+            var precisionDenominator = evaluation.TruePositive + evaluation.FalsePositive;
+            var recallDenominator = evaluation.TruePositive + evaluation.FalseNegative;
+            result.Add(new SyntheticDecisionQualitySlice(
+                partitionName,
+                stratum,
+                evaluation.TruePositive,
+                evaluation.FalsePositive,
+                evaluation.FalseNegative,
+                evaluation.Inconclusive,
+                evaluation.Total,
+                precisionDenominator == 0
+                    ? 0m
+                    : (decimal)evaluation.TruePositive / precisionDenominator,
+                recallDenominator == 0
+                    ? 0m
+                    : (decimal)evaluation.TruePositive / recallDenominator));
+        }
+    }
+
+    private static string ObservationStratum(SyntheticTruthObservation observation)
+        => (observation.Cpf is not null, observation.Cns is not null) switch
+        {
+            (true, true) => "CPF_PRESENT_CNS_PRESENT",
+            (true, false) => "CPF_PRESENT_CNS_ABSENT",
+            (false, true) => "CPF_ABSENT_CNS_PRESENT",
+            _ => "CPF_ABSENT_CNS_ABSENT"
+        };
+
+    private static int DecimalToInt(decimal value)
+    {
+        if (value != decimal.Truncate(value) || value < int.MinValue || value > int.MaxValue)
+            throw new InvalidDataException("Parâmetro inteiro da calibração de decisão é inválido.");
+        return decimal.ToInt32(value);
+    }
+
+    private static NameComparisonState? OptionalNameState(
+        string? left,
+        string? right,
+        NameComparisonContract contract)
+        => IdentityComparison.NormalizeText(left) is null || IdentityComparison.NormalizeText(right) is null
+            ? null
+            : IdentityComparison.CompareName(left, right, contract);
+
+    private static Guid DeterministicSyntheticPersonGuid(string basePersonId)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(
+            "JORNADA_SYNTHETIC_ORACLE_PERSON_V1|" + basePersonId));
+        return new Guid(hash.AsSpan(0, 16));
+    }
+
+    private static SyntheticDecisionObjective Objective(CalibrationEvaluation value)
+        => new(
+            value.TruePositive,
+            value.TrueNegative,
+            value.FalsePositive,
+            value.FalseNegative,
+            value.Inconclusive,
+            value.Total);
+
+    private static decimal FrontierDistance(
+        CalibrationEvaluation model,
+        IReadOnlyList<FsDecisionThresholdFrozenEvaluation> frontier)
+        => frontier.Count == 0
+            ? 0m
+            : frontier.Min(item =>
+                Math.Abs((decimal)model.FalsePositive - item.Validation.FalsePositive) +
+                Math.Abs((decimal)model.FalseNegative - item.Validation.FalseNegative) +
+                Math.Abs((decimal)model.Inconclusive - item.Validation.Inconclusive));
 
     private static SyntheticComparisonDistribution Distribution(
         IReadOnlyList<ProjectedObservation> observations,
@@ -1070,9 +1520,14 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
 
     private readonly record struct PairIndex(int Left, int Right);
 
+    private sealed record SyntheticScenarioEnvelope(
+        FsDecisionCalibrationScenario Scenario,
+        string Stratum);
+
     private sealed record SyntheticCandidateEvaluation(
         long UnionPairCount,
         long TruePairsRetained,
+        IReadOnlyList<PairIndex> UnionPairs,
         IReadOnlyList<PairIndex> NonMatchPairs,
         IReadOnlyList<SyntheticBlockingPassEvaluation> Passes);
 }

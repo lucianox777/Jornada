@@ -144,8 +144,9 @@ Pré-condições fail-closed:
 - não pode existir modelo `RASCUNHO` anterior.
 
 `local-db.sh` e `local-db.ps1` agora provisionam explicitamente o marcador
-`Development`. O DDL canônico continua neutro. Para o ensaio de recuperação,
-recrie o banco sem o corpus de escala:
+`Development`. O DDL canônico continua neutro. Para o ensaio de recuperação, use o wrapper
+dedicado; ele atualiza o schema sem destruir o banco e executa uma limpeza DEV
+preservadora antes da rodada:
 
 ```bash
 export JORNADA_SYNTH_PSEUDONYMIZATION_KEY='<segredo DEV com pelo menos 16 bytes>'
@@ -159,10 +160,20 @@ $env:JORNADA_SYNTH_PSEUDONYMIZATION_KEY='<segredo DEV com pelo menos 16 bytes>'
 ./scripts/local-synthetic-calibration.ps1
 ```
 
-Os wrappers executam `local-db reset --no-synthetic-corpus`, leem porta/banco/senha
-do mesmo `.env` usado pelo Docker local, montam `ConnectionStrings__Jornada` em
-memória e chamam o modo `SYNTHETIC_CALIBRATION_DEV`. A chave HMAC permanece apenas
-na variável de ambiente e não é passada como argumento de processo.
+Os wrappers executam `local-db up --no-synthetic-corpus` e depois
+`database/Jornada_Dev_SyntheticCalibration_Cleanup.sql`. A limpeza é autorizada somente
+quando o marcador residente é `Development`: remove estado operacional dos schemas
+`ingestao`, `bronze`, `silver`, `gold`, `serving`, `identidade`, `qualidade` e `auditoria`, mas
+preserva as duas tabelas append-only da avaliação sintética, todo o schema `ref`,
+as extended properties, os catálogos estáticos de implementação de QC/possibilidade e o schema/migration ledger. Ela também falha fechado se
+uma tabela preservada mantiver FK habilitada para estado que seria apagado.
+
+Depois disso os wrappers leem porta/banco/senha do mesmo `.env` usado pelo Docker
+local, montam `ConnectionStrings__Jornada` em memória e chamam
+`SYNTHETIC_CALIBRATION_DEV`. A chave HMAC permanece apenas na variável de ambiente
+e não é passada como argumento de processo. `ExpectedSeeds` e `RunGroupId`
+podem ser fixados entre invocações para formar um grupo multi-seed sem perder as
+rodadas já persistidas.
 
 O default do ensaio é **200.000 pessoas-base**. O Calibrador aplica o mínimo
 `MinimumIndependentMatchedPairs=5000` depois do split determinístico TRAIN
@@ -190,9 +201,14 @@ O harness:
    `PROCESSADA`;
 7. confere que o total de origens/observações `SYNTH-*` na Silver coincide com
    o total materializado do bridge;
-8. executa o Parameters.Worker real em `LOAD_NAME_FREQUENCY_SNAPSHOT` e depois
-   `GENERATE_DRAFT`;
-9. exige exatamente um modelo novo e exige que ele permaneça `RASCUNHO`.
+8. reutiliza a referência nominal IBGE `ATIVA` já preservada; somente quando ela
+   não existe executa o Parameters.Worker em `LOAD_NAME_FREQUENCY_SNAPSHOT`;
+9. executa `GENERATE_DRAFT` pelo Parameters.Worker real e exige exatamente um novo
+   modelo ainda em `RASCUNHO`;
+10. executa o Runner real em `MODEL_VALIDATION` com `publish=false` e exige
+    `CONCLUIDO_SEM_PUBLICACAO`;
+11. executa `SYNTHETIC_EVALUATE`, grava JSON/SHA-256 e persiste apenas os agregados
+    append-only.
 
 O relatório `synthetic-calibration-dev.json` contém apenas evidência agregada:
 baseline do banco, fingerprints, hashes de pacotes, Entregas processadas, contagens
@@ -201,11 +217,12 @@ materializadas e metadados do RASCUNHO. O runner não abre
 `ACTIVATE`, e registra explicitamente `syntheticTruthConsumed=false` e
 `modelPromotionAttempted=false`.
 
-O pequeno seed DEV canônico ainda existe mesmo com `--no-synthetic-corpus`.
-Por isso o relatório preserva `baseline.totalObservations`; a etapa
-`SYNTHETIC_EVALUATE` deve tratá-lo como proveniência e poderá rejeitar uma
-execução cujo baseline não satisfaça a política científica congelada, em vez de
-apagar silenciosamente dados do ambiente.
+A limpeza preservadora ocorre antes das pré-condições do harness e remove o seed
+operacional DEV, massas `SCALE-*`, rodadas anteriores e modelos descartáveis.
+Assim o universo candidato da rodada contém somente a massa que o ensaio acabou de
+materializar. `baseline.totalObservations` continua registrado e deve ser zero
+nesse caminho. A referência IBGE não participa dessa limpeza e pode ser reutilizada
+entre rodadas.
 
 ## SYNTHETIC_EVALUATE pós-RASCUNHO
 
@@ -289,18 +306,30 @@ truth, atributo pessoal ou score par-a-par. O contrato força
 `validacao_estatistica=NOT_ASSESSED_ISSUE_31` e
 `promocao_autorizada=0`.
 
-Cada execução recebe também um `run_group_id`. Na execução unitária ele identifica
-o próprio ensaio; a próxima etapa multi-seed reutilizará o mesmo identificador em
-todas as seeds do grupo, sem precisar alterar o formato da evidência por execução.
+Cada execução recebe também um `run_group_id` e a lista explícita de seeds
+esperadas. Cada seed persiste uma avaliação independente. O grupo só publica
+dispersão quando todas as seeds esperadas aparecem exatamente uma vez; grupo parcial
+fica `INCOMPLETO` e grupo de proveniência divergente fica `INCONSISTENTE`.
+
+A integridade com o modelo é verificada no instante da gravação: o SQL exige o
+modelo em `RASCUNHO`, recalcula seu fingerprint canônico e compara com
+`modelo_snapshot_sha256`. Depois desse commit, `modelo_id` é identificador
+histórico, não FK viva. A migração
+`20260922_Linkage_Synthetic_Evaluation_Retention.sql` remove essa dependência para
+que a evidência continue consultável depois da limpeza do RASCUNHO; versão,
+fingerprint do modelo, ruleset e fingerprints permanecem autocontidos no ledger.
+
+O oracle de decisão usa a política compartilhada do Calibrador, seleciona em
+`VALIDATION`, congela o candidato e usa `TEST` somente para avaliação/gate.
+O Monitor sintético DEV lê diretamente o ledger retido, mostra a faixa
+`SINTÉTICO — NÃO PROMOVÍVEL`, a última avaliação, o estado do grupo e a dispersão
+multi-seed. A rota e o bloco HTML só são mapeados/renderizados quando o host está em
+Development e o banco comprova o marcador residente `Development`; o Monitor não
+faz JOIN com o RASCUNHO já descartável.
 
 As procedures de promoção e a governança da conferência independente não consultam
 essas tabelas. Portanto a existência da evidência sintética não satisfaz #31, não
 substitui conferência e não autoriza `VALIDATE`/`ACTIVATE`.
-
-Ainda faltam nesta linha da #416 o oracle sintético de threshold/margem, o ensaio
-multi-seed e o Monitor DEV server-gated. Esses passos devem consumir o contrato
-agregado já persistido; nenhum deles deve reabrir a truth dentro do
-Parameters.Worker.
 
 ## Gabarito
 

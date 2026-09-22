@@ -94,6 +94,38 @@ public sealed class SyntheticEvaluationSqlServerTests
                 Assert.That(repeated.EvaluationId, Is.EqualTo(persisted.EvaluationId));
             });
 
+            var completedGroup = await new SyntheticEvaluationGroupReader(connection, 60)
+                .ReadAsync(runGroupId);
+            Assert.Multiple(() =>
+            {
+                Assert.That(completedGroup.Status, Is.EqualTo("CONCLUIDO"));
+                Assert.That(completedGroup.ExpectedSeeds, Is.EqualTo(new[] { 42UL }));
+                Assert.That(completedGroup.CompletedSeeds, Is.EqualTo(new[] { 42UL }));
+                Assert.That(completedGroup.MissingSeeds, Is.Empty);
+                Assert.That(completedGroup.Dispersion, Is.Not.Empty);
+            });
+
+            var incompleteGroupId = Guid.NewGuid();
+            var multiSeedReport = report with
+            {
+                MultiSeed = new SyntheticMultiSeedContext(42UL, new[] { 42UL, 43UL })
+            };
+            var multiSeedJson = JsonSerializer.Serialize(multiSeedReport, JsonOptions) + Environment.NewLine;
+            var multiSeedSha = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(multiSeedJson))).ToLowerInvariant();
+            await writer.PersistAsync(multiSeedReport, multiSeedSha, incompleteGroupId);
+            var incompleteGroup = await new SyntheticEvaluationGroupReader(connection, 60)
+                .ReadAsync(incompleteGroupId);
+            Assert.Multiple(() =>
+            {
+                Assert.That(incompleteGroup.Status, Is.EqualTo("INCOMPLETO"));
+                Assert.That(incompleteGroup.ExpectedSeeds, Is.EqualTo(new[] { 42UL, 43UL }));
+                Assert.That(incompleteGroup.CompletedSeeds, Is.EqualTo(new[] { 42UL }));
+                Assert.That(incompleteGroup.MissingSeeds, Is.EqualTo(new[] { 43UL }));
+                Assert.That(incompleteGroup.Dispersion, Is.Empty,
+                    "Grupo parcial não pode agregar subconjunto de seeds.");
+            });
+
             await using (var persistedCheck = connection.CreateCommand())
             {
                 persistedCheck.CommandText = """
@@ -172,6 +204,26 @@ public sealed class SyntheticEvaluationSqlServerTests
                 });
             }
 
+            await using (var retainedEvidence = connection.CreateCommand())
+            {
+                retainedEvidence.CommandText = """
+                    SELECT COUNT(*)
+                    FROM sys.foreign_keys fk
+                    JOIN sys.foreign_key_columns fkc
+                      ON fkc.constraint_object_id=fk.object_id
+                    JOIN sys.columns c
+                      ON c.object_id=fkc.parent_object_id
+                     AND c.column_id=fkc.parent_column_id
+                    WHERE fk.parent_object_id=OBJECT_ID(N'auditoria.linkage_avaliacao_sintetica')
+                      AND fk.referenced_object_id=OBJECT_ID(N'identidade.modelo_linkage')
+                      AND c.name=N'modelo_id';
+                    """;
+                Assert.That(
+                    Convert.ToInt32(await retainedEvidence.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture),
+                    Is.Zero,
+                    "A evidência sintética persistida deve sobreviver à remoção posterior do modelo avaliado.");
+            }
+
             await using (var environment = connection.CreateCommand())
             {
                 environment.CommandText = """
@@ -198,6 +250,100 @@ public sealed class SyntheticEvaluationSqlServerTests
                         @value=N'Development';
                     """;
                 await restoreEnvironment.ExecuteNonQueryAsync();
+            }
+
+            var cleanupPath = Path.Combine(
+                AppContext.BaseDirectory, "database",
+                "Jornada_Dev_SyntheticCalibration_Cleanup.sql");
+            await using (var removeEnvironmentMarker = connection.CreateCommand())
+            {
+                removeEnvironmentMarker.CommandText = """
+                    EXEC sys.sp_dropextendedproperty
+                        @name=N'Jornada.EnvironmentProfile';
+                    """;
+                await removeEnvironmentMarker.ExecuteNonQueryAsync();
+            }
+
+            try
+            {
+                var missingMarker = Assert.ThrowsAsync<SqlException>(async () =>
+                    await SqlBatchRunner.ExecuteFileAsync(connection, cleanupPath));
+                Assert.That(missingMarker!.Number, Is.EqualTo(51930),
+                    "Sem marcador residente a limpeza deve falhar antes de qualquer DELETE.");
+            }
+            finally
+            {
+                await using var restoreEnvironmentMarker = connection.CreateCommand();
+                restoreEnvironmentMarker.CommandText = """
+                    EXEC sys.sp_addextendedproperty
+                        @name=N'Jornada.EnvironmentProfile',
+                        @value=N'Development';
+                    """;
+                await restoreEnvironmentMarker.ExecuteNonQueryAsync();
+            }
+
+            long referenceRowsBefore;
+            await using (var referenceBefore = connection.CreateCommand())
+            {
+                referenceBefore.CommandText = "SELECT COUNT_BIG(*) FROM ref.frequencia_nome;";
+                referenceRowsBefore = Convert.ToInt64(await referenceBefore.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            long staticQualityCatalogRowsBefore;
+            await using (var staticQualityCatalogBefore = connection.CreateCommand())
+            {
+                staticQualityCatalogBefore.CommandText = """
+                    SELECT
+                      (SELECT COUNT_BIG(*) FROM qualidade.qc_registro_implementacao)
+                      + (SELECT COUNT_BIG(*) FROM qualidade.possibilidade_implementacao);
+                    """;
+                staticQualityCatalogRowsBefore = (long)(await staticQualityCatalogBefore.ExecuteScalarAsync())!;
+            }
+
+            await SqlBatchRunner.ExecuteFileAsync(connection, cleanupPath);
+
+            await using (var retainedAfterCleanup = connection.CreateCommand())
+            {
+                retainedAfterCleanup.CommandText = """
+                    SELECT
+                      (SELECT COUNT_BIG(*) FROM auditoria.linkage_avaliacao_sintetica
+                       WHERE avaliacao_id=@evaluation_id),
+                      (SELECT COUNT_BIG(*) FROM auditoria.linkage_avaliacao_sintetica_metrica
+                       WHERE avaliacao_id=@evaluation_id),
+                      (SELECT COUNT_BIG(*) FROM identidade.modelo_linkage
+                       WHERE modelo_id=@model_id),
+                      (SELECT COUNT_BIG(*) FROM ref.frequencia_nome),
+                      CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties
+                                          WHERE class=0 AND name=N'Jornada.EnvironmentProfile')),
+                      (SELECT COUNT_BIG(*) FROM qualidade.qc_registro_implementacao)
+                          + (SELECT COUNT_BIG(*) FROM qualidade.possibilidade_implementacao),
+                      (SELECT COUNT_BIG(*) FROM qualidade.qc_registro_resultado)
+                          + (SELECT COUNT_BIG(*) FROM qualidade.avaliacao_possibilidade)
+                          + (SELECT COUNT_BIG(*) FROM qualidade.divergencia_gestor),
+                      (SELECT COUNT_BIG(*) FROM serving.registro_integrado);
+                    """;
+                retainedAfterCleanup.Parameters.AddWithValue("@evaluation_id", persisted.EvaluationId);
+                retainedAfterCleanup.Parameters.AddWithValue("@model_id", modelId);
+                await using var reader = await retainedAfterCleanup.ExecuteReaderAsync();
+                Assert.That(await reader.ReadAsync(), Is.True);
+                Assert.Multiple(() =>
+                {
+                    Assert.That(reader.GetInt64(0), Is.EqualTo(1),
+                        "Cabeçalho sintético deve sobreviver à limpeza DEV.");
+                    Assert.That(reader.GetInt64(1), Is.GreaterThan(0),
+                        "Métricas sintéticas devem sobreviver à limpeza DEV.");
+                    Assert.That(reader.GetInt64(2), Is.Zero,
+                        "O RASCUNHO avaliado deve ser descartável depois da persistência.");
+                    Assert.That(reader.GetInt64(3), Is.EqualTo(referenceRowsBefore),
+                        "A referência nominal deve ser preservada integralmente.");
+                    Assert.That(reader.GetString(4), Is.EqualTo("Development"));
+                    Assert.That(reader.GetInt64(5), Is.EqualTo(staticQualityCatalogRowsBefore),
+                        "Catálogos estáticos de QC/possibilidade não são dados de carga.");
+                    Assert.That(reader.GetInt64(6), Is.Zero,
+                        "Resultados de qualidade vinculados à massa anterior devem ser descartados.");
+                    Assert.That(reader.GetInt64(7), Is.Zero,
+                        "Serving deve ser limpo sem preservar dados de carga.");
+                });
             }
         }
         finally

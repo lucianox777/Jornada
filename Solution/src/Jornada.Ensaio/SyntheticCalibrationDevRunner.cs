@@ -154,9 +154,14 @@ public sealed class SyntheticCalibrationDevRunner(
         }
 
         var versionBefore = await ReadMaxModelVersionAsync(cancellationToken);
-        await RunNameFrequencySnapshotLoaderAsync(settings, cancellationToken);
+        await EnsureNameFrequencySnapshotAsync(settings, cancellationToken);
         await RunGenerateDraftAsync(settings, cancellationToken);
         var model = await ReadSingleNewDraftAsync(versionBefore, cancellationToken);
+        var modelValidation = await RunModelValidationAsync(
+            settings,
+            model,
+            manifest.MaterializedObservationCount,
+            cancellationToken);
         var syntheticEvaluation = await RunSyntheticEvaluationAsync(
             settings,
             model.ModelId,
@@ -183,6 +188,7 @@ public sealed class SyntheticCalibrationDevRunner(
             materialized,
             deliveries,
             model,
+            modelValidation,
             syntheticEvaluation,
             SyntheticTruthConsumed: false,
             PostDraftEvaluationTruthConsumed: true,
@@ -200,8 +206,9 @@ public sealed class SyntheticCalibrationDevRunner(
 
         Console.WriteLine($"SYNTHETIC CALIBRATION DEV: OK report={reportPath}");
         Console.WriteLine(
-            $"modelo=v{model.Version} status={model.Status}; materializadas={manifest.MaterializedObservationCount}; " +
-            $"excluídas={manifest.ExcludedObservationCount}; calibrationTruthConsumed=false; " +
+            $"modelo=v{model.Version} status={model.Status}; modelValidation={modelValidation.Status}; " +
+            $"materializadas={manifest.MaterializedObservationCount}; excluídas={manifest.ExcludedObservationCount}; " +
+            $"calibrationTruthConsumed=false; " +
             $"postDraftTruthConsumed=true; promotionAttempted=false");
         return 0;
     }
@@ -338,7 +345,12 @@ public sealed class SyntheticCalibrationDevRunner(
                 settings.SolutionRoot,
                 "src",
                 "Jornada.Linkage.Evaluation",
-                "Jornada.Linkage.Evaluation.csproj")
+                "Jornada.Linkage.Evaluation.csproj"),
+            Path.Combine(
+                settings.SolutionRoot,
+                "src",
+                "Jornada.Linkage.Runner",
+                "Jornada.Linkage.Runner.csproj")
         };
 
         foreach (var project in projects)
@@ -723,6 +735,35 @@ public sealed class SyntheticCalibrationDevRunner(
         throw new TimeoutException($"Timeout aguardando Entrega {deliveryId:D}.");
     }
 
+    private async Task EnsureNameFrequencySnapshotAsync(
+        SyntheticCalibrationSettings settings,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = openConnection();
+        await connection.OpenAsync(cancellationToken);
+        var activeRows = await ScalarInt64Async(
+            connection,
+            """
+            SELECT COUNT_BIG(*)
+            FROM ref.frequencia_nome_versao v
+            WHERE v.status=N'ATIVA'
+              AND v.conteudo_sha256 IS NOT NULL
+              AND EXISTS(
+                  SELECT 1
+                  FROM ref.frequencia_nome f
+                  WHERE f.frequencia_nome_versao_id=v.frequencia_nome_versao_id);
+            """,
+            cancellationToken);
+
+        if (activeRows > 0)
+        {
+            Console.WriteLine("Referência nominal IBGE ATIVA preservada; recarga omitida.");
+            return;
+        }
+
+        await RunNameFrequencySnapshotLoaderAsync(settings, cancellationToken);
+    }
+
     private static async Task RunNameFrequencySnapshotLoaderAsync(
         SyntheticCalibrationSettings settings,
         CancellationToken cancellationToken)
@@ -769,6 +810,110 @@ public sealed class SyntheticCalibrationDevRunner(
         await RunParametersWorkerAsync(settings, env, cancellationToken);
     }
 
+    private async Task<SyntheticModelValidationEvidence> RunModelValidationAsync(
+        SyntheticCalibrationSettings settings,
+        SyntheticDraftModelEvidence model,
+        int materializedObservationCount,
+        CancellationToken cancellationToken)
+    {
+        var project = Path.Combine(
+            settings.SolutionRoot,
+            "src",
+            "Jornada.Linkage.Runner",
+            "Jornada.Linkage.Runner.csproj");
+        var correlationId = Guid.NewGuid();
+        var environment = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["ConnectionStrings__Jornada"] = settings.ConnectionString,
+            ["Database__Provider"] = "SqlServer",
+            ["DOTNET_ENVIRONMENT"] = RequiredEnvironment
+        };
+
+        await RunProcessAsync(
+            settings.SolutionRoot,
+            "dotnet",
+            [
+                "run",
+                "--project", project,
+                "--configuration", "Release",
+                "--no-build",
+                "--",
+                "--mode", "MODEL_VALIDATION",
+                "--model-version", model.Version.ToString(CultureInfo.InvariantCulture),
+                "--max-records", Math.Max(1, materializedObservationCount).ToString(CultureInfo.InvariantCulture),
+                "--batch-size", "10000",
+                "--max-parallelism", "1",
+                "--publish", "false",
+                "--requested-by", "SYNTHETIC_CALIBRATION_DEV",
+                "--reason", "issue-416-final-model-validation",
+                "--correlation-id", correlationId.ToString("D")
+            ],
+            environment,
+            cancellationToken);
+
+        await using var connection = openConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT linkage_run_id,modelo_id,modelo_versao,tipo_run,status,
+                   registros_elegiveis,avaliados,resolvidos,nao_resolvidos,
+                   conflitos,sem_candidato_no_bloco,publicado_em
+            FROM identidade.linkage_run
+            WHERE correlation_id=@correlation_id;
+            """;
+        AddParameter(command, "@correlation_id", correlationId);
+
+        SyntheticModelValidationEvidence evidence;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            if (!await reader.ReadAsync(cancellationToken))
+                throw new InvalidOperationException(
+                    $"MODEL_VALIDATION não registrou linkage_run para correlationId={correlationId:D}.");
+
+            evidence = new SyntheticModelValidationEvidence(
+                reader.GetGuid(0),
+                correlationId,
+                reader.GetGuid(1),
+                reader.GetInt32(2),
+                reader.GetString(3),
+                reader.GetString(4),
+                reader.GetInt64(5),
+                reader.GetInt64(6),
+                reader.GetInt64(7),
+                reader.GetInt64(8),
+                reader.GetInt64(9),
+                reader.GetInt64(10),
+                !reader.IsDBNull(11));
+
+            if (await reader.ReadAsync(cancellationToken))
+                throw new InvalidOperationException(
+                    $"MODEL_VALIDATION registrou mais de um linkage_run para correlationId={correlationId:D}.");
+        }
+
+        if (evidence.ModelId != model.ModelId || evidence.ModelVersion != model.Version)
+            throw new InvalidOperationException("MODEL_VALIDATION não usou o RASCUNHO recém-calibrado.");
+        if (!string.Equals(evidence.RunType, "MODEL_VALIDATION", StringComparison.Ordinal)
+            || !string.Equals(evidence.Status, "CONCLUIDO_SEM_PUBLICACAO", StringComparison.Ordinal)
+            || evidence.Published)
+        {
+            throw new InvalidOperationException(
+                $"MODEL_VALIDATION deve concluir sem publicação; tipo={evidence.RunType}; " +
+                $"status={evidence.Status}; published={evidence.Published}.");
+        }
+
+        await using var state = connection.CreateCommand();
+        state.CommandText = "SELECT status FROM identidade.modelo_linkage WHERE modelo_id=@modelo_id;";
+        AddParameter(state, "@modelo_id", model.ModelId);
+        var modelStatus = Convert.ToString(
+            await state.ExecuteScalarAsync(cancellationToken),
+            CultureInfo.InvariantCulture);
+        if (!string.Equals(modelStatus, "RASCUNHO", StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                $"MODEL_VALIDATION alterou o estado do modelo; esperado=RASCUNHO atual={modelStatus ?? "(ausente)"}.");
+
+        return evidence;
+    }
+
     private static async Task<SyntheticEvaluationEvidence> RunSyntheticEvaluationAsync(
         SyntheticCalibrationSettings settings,
         Guid modelId,
@@ -780,7 +925,7 @@ public sealed class SyntheticCalibrationDevRunner(
             "Jornada.Linkage.Evaluation",
             "Jornada.Linkage.Evaluation.csproj");
         var output = Path.Combine(settings.RunDirectory, "synthetic-evaluation.json");
-        var runGroupId = Guid.NewGuid();
+        var runGroupId = settings.RunGroupId ?? Guid.NewGuid();
         var environment = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["ConnectionStrings__Jornada"] = settings.ConnectionString,
@@ -800,6 +945,9 @@ public sealed class SyntheticCalibrationDevRunner(
                 "--synthetic-evaluate-root", settings.GeneratedDirectory,
                 "--model-id", modelId.ToString("D"),
                 "--synthetic-run-group-id", runGroupId.ToString("D"),
+                "--synthetic-expected-seeds", string.Join(
+                    ",",
+                    settings.ExpectedSeeds.Select(seed => seed.ToString(CultureInfo.InvariantCulture))),
                 "--output", output,
                 "--max-candidate-pairs", settings.MaxCandidatePairs.ToString(CultureInfo.InvariantCulture),
                 "--command-timeout-seconds", settings.EvaluationCommandTimeoutSeconds.ToString(CultureInfo.InvariantCulture)
@@ -1055,6 +1203,8 @@ public sealed class SyntheticCalibrationDevRunner(
         int MaxCandidatePairs,
         int EvaluationCommandTimeoutSeconds,
         ulong Seed,
+        IReadOnlyList<ulong> ExpectedSeeds,
+        Guid? RunGroupId,
         string ErrorProfile,
         DateTimeOffset DataReferencia,
         TimeSpan ApiStartupTimeout,
@@ -1102,6 +1252,35 @@ public sealed class SyntheticCalibrationDevRunner(
             }
 
             var seed = configuration.GetValue<ulong>("Ensaio:SyntheticCalibration:Seed", 42UL);
+            var expectedSeedsRaw = configuration["Ensaio:SyntheticCalibration:ExpectedSeeds"]?.Trim();
+            var expectedSeeds = string.IsNullOrWhiteSpace(expectedSeedsRaw)
+                ? new[] { seed }
+                : expectedSeedsRaw
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(token => ulong.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+                        ? parsed
+                        : throw new InvalidOperationException(
+                            $"Ensaio:SyntheticCalibration:ExpectedSeeds contém seed inválida: {token}."))
+                    .Distinct()
+                    .Order()
+                    .ToArray();
+            if (!expectedSeeds.Contains(seed))
+                throw new InvalidOperationException(
+                    $"A seed corrente {seed} deve pertencer a Ensaio:SyntheticCalibration:ExpectedSeeds.");
+
+            Guid? runGroupId = null;
+            var runGroupRaw = configuration["Ensaio:SyntheticCalibration:RunGroupId"]?.Trim();
+            if (!string.IsNullOrWhiteSpace(runGroupRaw))
+            {
+                if (!Guid.TryParse(runGroupRaw, out var parsedGroup) || parsedGroup == Guid.Empty)
+                    throw new InvalidOperationException(
+                        "Ensaio:SyntheticCalibration:RunGroupId deve ser UUID não vazio.");
+                runGroupId = parsedGroup;
+            }
+            if (expectedSeeds.Length > 1 && runGroupId is null)
+                throw new InvalidOperationException(
+                    "Execução multi-seed exige RunGroupId explícito e estável entre as avaliações independentes.");
+
             var errorProfile = configuration["Ensaio:SyntheticCalibration:ErrorProfile"]?.Trim()
                                ?? "correlated";
             if (errorProfile is not ("clean" or "independent" or "correlated" or "field"))
@@ -1150,6 +1329,8 @@ public sealed class SyntheticCalibrationDevRunner(
                 maxCandidatePairs,
                 evaluationCommandTimeoutSeconds,
                 seed,
+                expectedSeeds,
+                runGroupId,
                 errorProfile,
                 dataReferencia,
                 TimeSpan.FromSeconds(Math.Max(
@@ -1243,6 +1424,21 @@ public sealed class SyntheticCalibrationDevRunner(
         long? RecordsRead,
         long? UniquePeople);
 
+    private sealed record SyntheticModelValidationEvidence(
+        Guid RunId,
+        Guid CorrelationId,
+        Guid ModelId,
+        int ModelVersion,
+        string RunType,
+        string Status,
+        long Eligible,
+        long Evaluated,
+        long Resolved,
+        long Unresolved,
+        long Conflicts,
+        long NoCandidateInBlock,
+        bool Published);
+
     private sealed record SyntheticEvaluationEvidence(
         string Path,
         string Sha256,
@@ -1272,6 +1468,7 @@ public sealed class SyntheticCalibrationDevRunner(
         SyntheticMaterializedCounts Materialized,
         IReadOnlyList<SyntheticDeliveryEvidence> Deliveries,
         SyntheticDraftModelEvidence Model,
+        SyntheticModelValidationEvidence ModelValidation,
         SyntheticEvaluationEvidence SyntheticEvaluation,
         bool SyntheticTruthConsumed,
         bool PostDraftEvaluationTruthConsumed,

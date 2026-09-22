@@ -35,6 +35,7 @@
     <None Include="..\..\database\Jornada_Fase1.sql" Link="database\Jornada_Fase1.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\database\Jornada_Seed_Dev.sql" Link="database\Jornada_Seed_Dev.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\database\Jornada_Identidade_Progressiva.sql" Link="database\Jornada_Identidade_Progressiva.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\database\Jornada_Dev_SyntheticCalibration_Cleanup.sql" Link="database\Jornada_Dev_SyntheticCalibration_Cleanup.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\database\migrations\*.sql" Link="database\migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\database\migrations\manifest.txt" Link="database\migrations\manifest.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\config\contracts\**\*.json" Link="config\contracts\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />

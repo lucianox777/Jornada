@@ -8,6 +8,10 @@
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Remove="CalibrationCandidatePareto.cs" />
+    <Compile Remove="FsDecisionThresholdCalibration.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="..\..\data\reference\ibge-nomes-2022\**\*"
           Link="data\reference\ibge-nomes-2022\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest"

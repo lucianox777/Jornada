@@ -229,13 +229,13 @@
   "candidateGraph": {
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
-    "sourceCommit": "e0f86ac483696d3b236f0c11c72cfd6fd97f9fd3",
-    "githubRunId": "35664936764",
+    "sourceCommit": "397a07c3892bed25a4019c41eb541b44daeb5eba",
+    "githubRunId": "35682617704",
     "sdk": "8.0.424",
-    "reason": "PR #429 adiciona à ferramenta DEV SyntheticCorpus dependências somente de projeto para Contracts + Ingestion, reutilizando o writer canônico. O diagnóstico SDK 8.0.424 force-evaluate alterou exatamente dois locks; esses bytes foram incorporados e o CI subsequente deve provar no-diff + locked-mode.",
+    "reason": "PR #433 compartilha a política de calibração de decisão com o evaluator via Jornada.Linkage.Core. O diagnóstico SDK 8.0.424 force-evaluate do run 35682617704 alterou exatamente os metadados ProjectReference de Evaluation e seus consumidores Conference/Integration; nenhum pacote externo mudou.",
     "lockCount": 22,
     "changedLockCount": 17,
-    "combinedSha256": "e1fe3a8a6fd080e2ec61d9400ce4a441c0a97192469c4cc8ec6eb555a84614f1",
+    "combinedSha256": "6cd765049185e60ba97605ec13ac77c628bf44946e817eddc05bed78f1e3dd10",
     "overrides": [
       {
         "path": "src/Jornada.Api/packages.lock.json",
@@ -255,7 +255,7 @@
       },
       {
         "path": "src/Jornada.Linkage.Conference/packages.lock.json",
-        "sha256": "490069f885619a48eb580698c6c6add5127c8550aa29ac47c2121873119e599e"
+        "sha256": "73890091892b0d5e2304597f746b50591749a904fc6cb4f2094185d5d38e9de9"
       },
       {
         "path": "src/Jornada.Linkage.Core/packages.lock.json",
@@ -263,7 +263,7 @@
       },
       {
         "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
-        "sha256": "ecac8b942d58945defd1eef60c0909bc1c13e791274dcd3bbafcc43610cc607a"
+        "sha256": "ccee100eb66c7be9edc81169896be7ed41a86f2b27eb5fd4147f2482d951df40"
       },
       {
         "path": "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
@@ -299,7 +299,7 @@
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "2f4017d2d28f6968d5c72c2c0caed36983a8fa08ba492f95ff46220a23d248fd"
+        "sha256": "fa96b1ab18ff5fb4afc90fa6ba760c81cac79aef1c767f94fe2ae324fb1a8d88"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",

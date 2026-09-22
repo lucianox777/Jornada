@@ -164,7 +164,85 @@ public sealed class SyntheticEvaluationEvidenceWriter(
         AddDistance(table, "TRANSPORTABILITY_RAW", report.Transportability.RawDistance);
         AddDistance(table, "TRANSPORTABILITY_REWEIGHTED", report.Transportability.ReweightedDistance);
 
+        AddDecisionOracle(table, report.DecisionOracle);
+        foreach (var seed in report.MultiSeed.ExpectedSeeds)
+        {
+            Add(
+                table,
+                "MULTI_SEED_EXPECTED",
+                seed.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "EXPECTED",
+                1m,
+                "COUNT");
+        }
+
         return table;
+    }
+
+    private static void AddDecisionOracle(
+        DataTable table,
+        SyntheticThresholdOracle oracle)
+    {
+        Add(table, "DECISION_ORACLE", null, "EVALUABLE",
+            string.Equals(oracle.Status, "EVALUATED", StringComparison.Ordinal) ? 1m : 0m, "COUNT");
+        Add(table, "DECISION_ORACLE", null, "SCENARIOS", oracle.ScenarioCount, "COUNT");
+        Add(table, "DECISION_ORACLE", "VALIDATION", "SCENARIOS", oracle.ValidationScenarioCount, "COUNT");
+        Add(table, "DECISION_ORACLE", "TEST", "SCENARIOS", oracle.TestScenarioCount, "COUNT");
+
+        if (oracle.ModelThreshold is { } modelThreshold)
+            Add(table, "DECISION_ORACLE", "MODEL", "THRESHOLD", modelThreshold, "PROBABILITY");
+        if (oracle.ModelConflictMarginLogOdds is { } modelMargin)
+            Add(table, "DECISION_ORACLE", "MODEL", "CONFLICT_MARGIN_LOG_ODDS", modelMargin, "RATIO");
+        if (oracle.ModelConflictFloor is { } modelFloor)
+            Add(table, "DECISION_ORACLE", "MODEL", "CONFLICT_FLOOR", modelFloor, "PROBABILITY");
+
+        if (oracle.OracleThreshold is { } oracleThreshold)
+            Add(table, "DECISION_ORACLE", "ORACLE", "THRESHOLD", oracleThreshold, "PROBABILITY");
+        if (oracle.OracleConflictMarginLogOdds is { } oracleMargin)
+            Add(table, "DECISION_ORACLE", "ORACLE", "CONFLICT_MARGIN_LOG_ODDS", oracleMargin, "RATIO");
+        if (oracle.OracleConflictFloor is { } oracleFloor)
+            Add(table, "DECISION_ORACLE", "ORACLE", "CONFLICT_FLOOR", oracleFloor, "PROBABILITY");
+
+        AddObjective(table, "MODEL_VALIDATION", oracle.ModelValidation);
+        AddObjective(table, "MODEL_TEST", oracle.ModelTest);
+        AddObjective(table, "ORACLE_VALIDATION", oracle.OracleValidation);
+        AddObjective(table, "ORACLE_TEST", oracle.OracleTest);
+
+        if (oracle.ValidationFrontierL1Distance is { } frontierDistance)
+            Add(table, "DECISION_ORACLE", "VALIDATION", "FRONTIER_L1_DISTANCE", frontierDistance, "COUNT");
+        if (oracle.ThresholdAbsoluteDelta is { } thresholdDelta)
+            Add(table, "DECISION_ORACLE", "DELTA", "THRESHOLD_ABS", thresholdDelta, "PROBABILITY");
+        if (oracle.ConflictMarginAbsoluteDelta is { } marginDelta)
+            Add(table, "DECISION_ORACLE", "DELTA", "CONFLICT_MARGIN_LOG_ODDS_ABS", marginDelta, "RATIO");
+        if (oracle.ConflictFloorAbsoluteDelta is { } floorDelta)
+            Add(table, "DECISION_ORACLE", "DELTA", "CONFLICT_FLOOR_ABS", floorDelta, "PROBABILITY");
+
+        foreach (var slice in oracle.ModelQuality)
+        {
+            var dimension = slice.Partition + ":" + slice.Stratum;
+            Add(table, "DECISION_QUALITY", dimension, "TRUE_POSITIVE", slice.TruePositive, "COUNT");
+            Add(table, "DECISION_QUALITY", dimension, "FALSE_POSITIVE", slice.FalsePositive, "COUNT");
+            Add(table, "DECISION_QUALITY", dimension, "FALSE_NEGATIVE", slice.FalseNegative, "COUNT");
+            Add(table, "DECISION_QUALITY", dimension, "INCONCLUSIVE", slice.Inconclusive, "COUNT");
+            Add(table, "DECISION_QUALITY", dimension, "TOTAL", slice.Total, "COUNT");
+            Add(table, "DECISION_QUALITY", dimension, "PRECISION", slice.Precision, "RATIO");
+            Add(table, "DECISION_QUALITY", dimension, "RECALL", slice.Recall, "RATIO");
+        }
+    }
+
+    private static void AddObjective(
+        DataTable table,
+        string dimension,
+        SyntheticDecisionObjective? objective)
+    {
+        if (objective is null)
+            return;
+        Add(table, "DECISION_OBJECTIVE", dimension, "TRUE_POSITIVE", objective.TruePositive, "COUNT");
+        Add(table, "DECISION_OBJECTIVE", dimension, "TRUE_NEGATIVE", objective.TrueNegative, "COUNT");
+        Add(table, "DECISION_OBJECTIVE", dimension, "FALSE_POSITIVE", objective.FalsePositive, "COUNT");
+        Add(table, "DECISION_OBJECTIVE", dimension, "FALSE_NEGATIVE", objective.FalseNegative, "COUNT");
+        Add(table, "DECISION_OBJECTIVE", dimension, "INCONCLUSIVE", objective.Inconclusive, "COUNT");
+        Add(table, "DECISION_OBJECTIVE", dimension, "TOTAL", objective.Total, "COUNT");
     }
 
     private static void AddRecovery(

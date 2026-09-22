@@ -168,6 +168,27 @@ public sealed class OpenApiRuntimeConformanceTests : IDisposable
     }
 
     [Test]
+    public async Task Synthetic_monitor_is_absent_without_resident_development_marker()
+    {
+        if (externalBlackBox)
+            Assert.Ignore("A prova de ausência server-gated pertence ao host interno de antirregressão.");
+
+        Assert.That(client, Is.Not.Null);
+        using var page = await client!.GetAsync("/monitor/synthetic");
+        using var api = await client.GetAsync("/api/v1/monitor/synthetic");
+        using var normal = await client.GetAsync("/monitor");
+        var normalHtml = await normal.Content.ReadAsStringAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(page.StatusCode, Is.EqualTo(System.Net.HttpStatusCode.NotFound));
+            Assert.That(api.StatusCode, Is.EqualTo(System.Net.HttpStatusCode.NotFound));
+            Assert.That(normalHtml, Does.Not.Contain("synthetic-monitor-dev"));
+            Assert.That(normalHtml, Does.Not.Contain("SINTÉTICO — NÃO PROMOVÍVEL"));
+        });
+    }
+
+    [Test]
     public void Acceptance_mode_is_explicitly_black_box_when_external_base_url_is_set()
     {
         var configured = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("JORNADA_ACCEPTANCE_BASE_URL"));

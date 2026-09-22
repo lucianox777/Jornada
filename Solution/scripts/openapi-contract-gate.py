@@ -51,15 +51,31 @@ def module_operations(program: Path, name: str) -> tuple[set[tuple[str, str]], l
     if name == "mapoperationalmonitorapi":
         page_route = re.search(r'public\s+const\s+string\s+PageRoute\s*=\s*"([^"]+)"', text)
         status_route = re.search(r'public\s+const\s+string\s+StatusRoute\s*=\s*"([^"]+)"', text)
+        synthetic_page = re.search(r'public\s+const\s+string\s+SyntheticPageRoute\s*=\s*"([^"]+)"', text)
+        synthetic_status = re.search(r'public\s+const\s+string\s+SyntheticStatusRoute\s*=\s*"([^"]+)"', text)
         definition = re.search(r'public\s+static\s+IEndpointRouteBuilder\s+MapOperationalMonitorApi\s*\(\s*this\s+IEndpointRouteBuilder\s+app\s*\)', text)
-        if (not definition or not page_route or not status_route or calls != ["mapget", "mapget"]
+        synthetic_gate = (
+            'SyntheticOperationalMonitorGate.IsResidentDevelopment' in text
+            and re.search(r'if\s*\(syntheticDevelopment\)\s*\{', text)
+            and 'app.MapGet(SyntheticPageRoute' in text
+            and 'app.MapGet(SyntheticStatusRoute' in text
+        )
+        if (not definition or not page_route or not status_route
+                or not synthetic_page or not synthetic_status
+                or calls != ["mapget", "mapget", "mapget", "mapget"]
+                or not synthetic_gate
                 or not re.search(r'app\s*\.\s*MapGet\s*\(\s*PageRoute\s*,', text)
                 or not re.search(r'app\s*\.\s*MapGet\s*\(\s*StatusRoute\s*,', text)):
             errors.append("módulo de monitor contém mapeamento ausente, ambíguo ou não inventariado")
             return set(), errors
-        if not status_route.group(1).startswith("/api/v1/") or not page_route.group(1).startswith("/"):
+        if (not status_route.group(1).startswith("/api/v1/")
+                or not page_route.group(1).startswith("/")
+                or not synthetic_status.group(1).startswith("/api/v1/")
+                or not synthetic_page.group(1).startswith("/")):
             errors.append("rotas do monitor fora dos namespaces esperados")
             return set(), errors
+        # As duas rotas sintéticas são deliberadamente excluídas do OpenAPI público:
+        # só são mapeadas quando o marcador residente SQL prova Development.
         return {
             ("get", normalize_path(page_route.group(1))),
             ("get", normalize_path(status_route.group(1))),
