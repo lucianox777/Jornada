@@ -58,6 +58,32 @@ public sealed class ResolutionProjectionExecutorTests
     }
 
     [Test]
+    public void Project_ExperimentalNameKeepsFullAgnomeAndExposesOnlyEligibleBlockingKeys()
+    {
+        var plan = ResolutionProjectionPlanner.BuildExperimental(
+            new[]
+            {
+                new ResolutionSourceField("nome", ResolutionAttributeSemantic.PersonName,
+                    EligibleForResolution: true)
+            }, "EXPERIMENTAL_NAME_V1");
+
+        var result = ResolutionProjectionExecutor.Project(plan,
+            new[] { new ResolutionSourceValue("nome", "João da Silva Filho") });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Does.Contain(
+                new Jornada.Contracts.BlockingProjectionKey("nome__full_with_agnome", "JOAO DA SILVA FILHO")));
+            Assert.That(result, Does.Contain(
+                new Jornada.Contracts.BlockingProjectionKey("nome__last_content_surname", "SILVA")));
+            Assert.That(result.Any(static key => key.Feature is "nome__agnome" or "nome__title_prefix"),
+                Is.False);
+            Assert.That(result, Does.Contain(
+                new Jornada.Contracts.BlockingProjectionKey("nome__normalized", "JOAO DA SILVA FILHO")));
+        });
+    }
+
+    [Test]
     public void Project_InvalidLegacyContactValueFailsClosedForThatValue()
     {
         var result = ResolutionProjectionExecutor.Project(
