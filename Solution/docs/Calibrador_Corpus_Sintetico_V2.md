@@ -239,9 +239,11 @@ silenciosa de truth.
 
 O relatório `synthetic-evaluation.json` inclui:
 
-- SHA-256 de `observacoes.csv`, `bridge-truth.jsonl` e
-  `bridge-manifest.json`;
-- identidade/versão/status do RASCUNHO e fingerprint do ruleset;
+- seed do gerador e SHA-256 de `generation-manifest.json`, `observacoes.csv`,
+  `bridge-truth.jsonl` e `bridge-manifest.json`;
+- perfil residente `Jornada.EnvironmentProfile`;
+- identidade/versão/status do RASCUNHO, fingerprint canônico do snapshot decisório
+  do modelo e fingerprint do ruleset;
 - estratos observacionais mutuamente exclusivos
   `CPF_PRESENT_CNS_PRESENT`, `CPF_PRESENT_CNS_ABSENT`,
   `CPF_ABSENT_CNS_PRESENT` e `CPF_ABSENT_CNS_ABSENT`;
@@ -261,9 +263,44 @@ A semântica publicada de `u` permanece
 `CONDITIONED_ON_DEDUPLICATED_BLOCKING_CANDIDATE_UNION`. O avaliador não
 reinterpreta `u` como par aleatório populacional.
 
-Nesta fatia ainda não há oracle de threshold/margem, persistência SQL da avaliação,
-multi-seed nem Monitor DEV. Esses passos consomem o contrato agregado já produzido
-aqui; nenhum deles deve reabrir a truth dentro do Parameters.Worker.
+## Persistência append-only da avaliação
+
+Depois que `synthetic-evaluation.json` e seu SHA-256 são materializados, o mesmo
+processo de avaliação registra a evidência agregada no SQL. O registro só é aceito
+quando:
+
+- o modelo ainda está em `RASCUNHO`;
+- o marcador residente é exatamente
+  `Jornada.EnvironmentProfile=Development`;
+- o fingerprint canônico do modelo, recalculado pelo SQL, é idêntico ao fingerprint
+  observado pelo avaliador antes de abrir a truth;
+- o relatório declara natureza
+  `SYNTHETIC_PARAMETER_RECOVERY` e finalidade
+  `ENGINEERING_EVIDENCE_ONLY_NOT_PROMOTABLE`.
+
+O cabeçalho fica em `auditoria.linkage_avaliacao_sintetica` e as métricas
+numéricas tipadas em `auditoria.linkage_avaliacao_sintetica_metrica`.
+Cabeçalho e métricas são gravados na mesma transação e protegidos por triggers
+append-only. O SHA-256 do relatório torna a repetição idempotente para o mesmo
+modelo e a mesma proveniência.
+
+A persistência guarda somente agregados. Não há linha de pessoa, identificador de
+truth, atributo pessoal ou score par-a-par. O contrato força
+`validacao_estatistica=NOT_ASSESSED_ISSUE_31` e
+`promocao_autorizada=0`.
+
+Cada execução recebe também um `run_group_id`. Na execução unitária ele identifica
+o próprio ensaio; a próxima etapa multi-seed reutilizará o mesmo identificador em
+todas as seeds do grupo, sem precisar alterar o formato da evidência por execução.
+
+As procedures de promoção e a governança da conferência independente não consultam
+essas tabelas. Portanto a existência da evidência sintética não satisfaz #31, não
+substitui conferência e não autoriza `VALIDATE`/`ACTIVATE`.
+
+Ainda faltam nesta linha da #416 o oracle sintético de threshold/margem, o ensaio
+multi-seed e o Monitor DEV server-gated. Esses passos devem consumir o contrato
+agregado já persistido; nenhum deles deve reabrir a truth dentro do
+Parameters.Worker.
 
 ## Gabarito
 

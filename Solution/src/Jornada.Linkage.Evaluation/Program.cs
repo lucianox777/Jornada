@@ -42,8 +42,16 @@ if (options.SyntheticEvaluateRoot is not null)
         syntheticOutput + ".sha256",
         sha + "  " + Path.GetFileName(syntheticOutput) + Environment.NewLine,
         new System.Text.UTF8Encoding(false));
+
+    var runGroupId = options.SyntheticRunGroupId ?? Guid.NewGuid();
+    var evidenceWriter = new SyntheticEvaluationEvidenceWriter(connection, options.CommandTimeoutSeconds);
+    var persisted = await evidenceWriter.PersistAsync(
+        syntheticReport,
+        sha,
+        runGroupId);
     Console.WriteLine(
         $"Avaliação sintética gravada em {syntheticOutput}; modelo={syntheticReport.Model.ModelId}; " +
+        $"avaliacaoId={persisted.EvaluationId}; runGroupId={persisted.RunGroupId}; " +
         $"mPairs={syntheticReport.MRecovery.PairCount}; uPairs={syntheticReport.URecovery.PairCount}; " +
         $"blockingRecall={syntheticReport.Blocking.TrueMatchRecall.ToString(CultureInfo.InvariantCulture)}.");
     return;
@@ -131,6 +139,7 @@ internal sealed record EvaluationOptions(
     string? OutputPath,
     string? ExportCalibrationPath,
     string? SyntheticEvaluateRoot,
+    Guid? SyntheticRunGroupId,
     Guid? ModelId,
     string? ConnectionString,
     int BirthWindowDays,
@@ -147,7 +156,7 @@ internal sealed record EvaluationOptions(
         for (var i = 0; i < args.Length; i++)
         {
             var raw = args[i];
-            if (raw is "--help" or "-h") return new(null, null, null, null, null, null, 0, 0, 0, 0m, 0, 0, true);
+            if (raw is "--help" or "-h") return new(null, null, null, null, null, null, null, 0, 0, 0, 0m, 0, 0, true);
             if (!raw.StartsWith("--", StringComparison.Ordinal)) continue;
             raw = raw[2..];
             var eq = raw.IndexOf('=', StringComparison.Ordinal);
@@ -192,6 +201,18 @@ internal sealed record EvaluationOptions(
             modelId = parsedModelId;
         }
 
+        Guid? syntheticRunGroupId = null;
+        var syntheticRunGroupRaw = Get("synthetic-run-group-id");
+        if (syntheticRunGroupRaw is not null)
+        {
+            if (!Guid.TryParse(syntheticRunGroupRaw, out var parsedRunGroupId)
+                || parsedRunGroupId == Guid.Empty)
+                throw new ArgumentException("--synthetic-run-group-id deve ser um UUID não vazio.");
+            syntheticRunGroupId = parsedRunGroupId;
+        }
+        if (syntheticRunGroupId is not null && syntheticEvaluate is null)
+            throw new ArgumentException("--synthetic-run-group-id só é aceito com --synthetic-evaluate-root.");
+
         if (syntheticEvaluate is not null && modelId is null)
             throw new ArgumentException("--synthetic-evaluate-root exige --model-id do RASCUNHO.");
         if (modelId is not null && exportCalibration is null && syntheticEvaluate is null)
@@ -204,6 +225,7 @@ internal sealed record EvaluationOptions(
             output,
             exportCalibration,
             syntheticEvaluate,
+            syntheticRunGroupId,
             modelId,
             Get("connection-string"),
             Int("birth-window-days", 7, 1, 31),
@@ -217,13 +239,14 @@ internal sealed record EvaluationOptions(
 
     public static string Usage =>
         """
-        Jornada.Linkage.Evaluation — DEV/HML, somente leitura, sem publicação
+        Jornada.Linkage.Evaluation — avaliação técnica sem publicação de identidade
 
         Modos mutuamente exclusivos:
           --labels <arquivo.csv>              avaliação rotulada; colunas pessoa_observacao_id,pessoa_uuid_verdade
           --export-calibration <arquivo.json> exporta calibração/modelo somente leitura e exige round-trip C# conforme
           --synthetic-evaluate-root <dir>     pós-RASCUNHO: lê corpus/ + ingestion/ e gera evidência sintética agregada
           --model-id <uuid>                   opcional no export; obrigatório na avaliação sintética
+          --synthetic-run-group-id <uuid>      sintético: grupo da execução; opcional em execução unitária
 
         Opções:
           --output <relatorio.json>           padrão linkage-evaluation-report.json (modo --labels)
@@ -235,8 +258,9 @@ internal sealed record EvaluationOptions(
           --max-candidate-pairs <N>            sintético: teto exato da união candidata; padrão 10000000
           --command-timeout-seconds <1..3600> padrão 900
 
-        O executável faz apenas SELECT nas tabelas operacionais. O export de calibração não ativa TF nem publica modelo.
-        SYNTHETIC_EVALUATE aceita somente RASCUNHO, lê truth apenas depois da calibração e nunca executa VALIDATE/ACTIVATE.
+        Avaliação rotulada e export de calibração fazem apenas leitura operacional.
+        SYNTHETIC_EVALUATE aceita somente RASCUNHO em Development, lê truth apenas depois da calibração,
+        persiste somente evidência agregada append-only e nunca executa VALIDATE/ACTIVATE.
         Antes de gravar o JSON, o exportador reimporta o documento em memória e compara modelo, parâmetros, estatísticas, blocking e proveniência campo a campo.
         V2 é evidência experimental e nunca é publicado.
         """;

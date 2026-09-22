@@ -1,4 +1,6 @@
 using System.Data;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Linkage.Evaluation;
@@ -69,8 +71,134 @@ public sealed class SyntheticEvaluationSqlServerTests
                 Assert.That(json, Does.Not.Contain("P-TRUE-1"));
                 Assert.That(json, Does.Not.Contain("P-TRUE-2"));
                 Assert.That(json, Does.Not.Contain("OBS-1"));
+                Assert.That(report.EvaluatorVersion, Is.EqualTo(SyntheticEvaluationEngine.EvaluatorVersion));
+                Assert.That(report.EnvironmentProfile, Is.EqualTo("Development"));
+                Assert.That(report.Input.GeneratorSeed, Is.EqualTo(42UL));
+                Assert.That(report.Input.GenerationManifestSha256, Has.Length.EqualTo(64));
+                Assert.That(report.Model.ModelSnapshotSha256, Has.Length.EqualTo(64));
                 Assert.That(json, Does.Not.Contain("OBS-2"));
             });
+
+            var reportJson = JsonSerializer.Serialize(report, JsonOptions) + Environment.NewLine;
+            var reportSha = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(reportJson))).ToLowerInvariant();
+            var runGroupId = Guid.NewGuid();
+            var writer = new SyntheticEvaluationEvidenceWriter(connection, 60);
+            var persisted = await writer.PersistAsync(report, reportSha, runGroupId);
+            var repeated = await writer.PersistAsync(report, reportSha, runGroupId);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(persisted.EvaluationId, Is.Not.EqualTo(Guid.Empty));
+                Assert.That(persisted.RunGroupId, Is.EqualTo(runGroupId));
+                Assert.That(repeated.EvaluationId, Is.EqualTo(persisted.EvaluationId));
+            });
+
+            await using (var persistedCheck = connection.CreateCommand())
+            {
+                persistedCheck.CommandText = """
+                    SELECT e.ambiente_perfil,e.status,e.gerador_seed,e.validacao_estatistica,
+                           e.promocao_autorizada,COUNT(m.linkage_avaliacao_sintetica_metrica_id)
+                    FROM auditoria.linkage_avaliacao_sintetica e
+                    JOIN auditoria.linkage_avaliacao_sintetica_metrica m
+                      ON m.avaliacao_id=e.avaliacao_id
+                    WHERE e.avaliacao_id=@evaluation_id
+                    GROUP BY e.ambiente_perfil,e.status,e.gerador_seed,
+                             e.validacao_estatistica,e.promocao_autorizada;
+                    """;
+                persistedCheck.Parameters.AddWithValue("@evaluation_id", persisted.EvaluationId);
+                await using var reader = await persistedCheck.ExecuteReaderAsync();
+                Assert.That(await reader.ReadAsync(), Is.True);
+                Assert.Multiple(() =>
+                {
+                    Assert.That(reader.GetString(0), Is.EqualTo("Development"));
+                    Assert.That(reader.GetString(1), Is.EqualTo("CONCLUIDA"));
+                    Assert.That(reader.GetDecimal(2), Is.EqualTo(42m));
+                    Assert.That(reader.GetString(3), Is.EqualTo("NOT_ASSESSED_ISSUE_31"));
+                    Assert.That(reader.GetBoolean(4), Is.False);
+                    Assert.That(reader.GetInt32(5), Is.GreaterThan(40));
+                });
+            }
+
+            await using (var immutable = connection.CreateCommand())
+            {
+                immutable.CommandText = """
+                    UPDATE auditoria.linkage_avaliacao_sintetica
+                    SET status=N'CONCLUIDA'
+                    WHERE avaliacao_id=@evaluation_id;
+                    """;
+                immutable.Parameters.AddWithValue("@evaluation_id", persisted.EvaluationId);
+                var error = Assert.ThrowsAsync<SqlException>(async () => await immutable.ExecuteNonQueryAsync());
+                Assert.That(error!.Number, Is.EqualTo(51911));
+            }
+
+            await using (var immutableMetric = connection.CreateCommand())
+            {
+                immutableMetric.CommandText = """
+                    DELETE FROM auditoria.linkage_avaliacao_sintetica_metrica
+                    WHERE avaliacao_id=@evaluation_id;
+                    """;
+                immutableMetric.Parameters.AddWithValue("@evaluation_id", persisted.EvaluationId);
+                var error = Assert.ThrowsAsync<SqlException>(async () => await immutableMetric.ExecuteNonQueryAsync());
+                Assert.That(error!.Number, Is.EqualTo(51912));
+            }
+
+            await using (var schema = connection.CreateCommand())
+            {
+                schema.CommandText = """
+                    SELECT LOWER(c.name)
+                    FROM sys.columns c
+                    WHERE c.object_id IN(
+                        OBJECT_ID(N'auditoria.linkage_avaliacao_sintetica'),
+                        OBJECT_ID(N'auditoria.linkage_avaliacao_sintetica_metrica'));
+                    """;
+                var columns = new List<string>();
+                await using var reader = await schema.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                    columns.Add(reader.GetString(0));
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(columns, Does.Contain("modelo_id"));
+                    Assert.That(columns, Does.Contain("report_sha256"));
+                    Assert.That(columns, Does.Contain("valor"));
+                    Assert.That(columns, Does.Not.Contain("base_person_id"));
+                    Assert.That(columns, Does.Not.Contain("observation_id"));
+                    Assert.That(columns, Does.Not.Contain("cpf"));
+                    Assert.That(columns, Does.Not.Contain("cns"));
+                    Assert.That(columns, Does.Not.Contain("nome"));
+                    Assert.That(columns, Does.Not.Contain("data_nascimento"));
+                    Assert.That(columns, Does.Not.Contain("score_par"));
+                });
+            }
+
+            await using (var environment = connection.CreateCommand())
+            {
+                environment.CommandText = """
+                    EXEC sys.sp_updateextendedproperty
+                        @name=N'Jornada.EnvironmentProfile',
+                        @value=N'HML';
+                    """;
+                await environment.ExecuteNonQueryAsync();
+            }
+
+            try
+            {
+                var secondReportSha = new string('f', 64);
+                var environmentError = Assert.ThrowsAsync<SqlException>(async () =>
+                    await writer.PersistAsync(report, secondReportSha, Guid.NewGuid()));
+                Assert.That(environmentError!.Number, Is.EqualTo(51914));
+            }
+            finally
+            {
+                await using var restoreEnvironment = connection.CreateCommand();
+                restoreEnvironment.CommandText = """
+                    EXEC sys.sp_updateextendedproperty
+                        @name=N'Jornada.EnvironmentProfile',
+                        @value=N'Development';
+                    """;
+                await restoreEnvironment.ExecuteNonQueryAsync();
+            }
         }
         finally
         {
@@ -123,6 +251,20 @@ public sealed class SyntheticEvaluationSqlServerTests
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
         await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
+        await using var environment = connection.CreateCommand();
+        environment.CommandText = """
+            IF EXISTS(
+                SELECT 1 FROM sys.extended_properties
+                WHERE class=0 AND name=N'Jornada.EnvironmentProfile')
+                EXEC sys.sp_updateextendedproperty
+                    @name=N'Jornada.EnvironmentProfile',
+                    @value=N'Development';
+            ELSE
+                EXEC sys.sp_addextendedproperty
+                    @name=N'Jornada.EnvironmentProfile',
+                    @value=N'Development';
+            """;
+        await environment.ExecuteNonQueryAsync();
     }
 
     private static async Task<int> NextModelVersionAsync(SqlConnection connection)
@@ -228,6 +370,19 @@ public sealed class SyntheticEvaluationSqlServerTests
         var ingestion = Path.Combine(root, "ingestion");
         Directory.CreateDirectory(corpus);
         Directory.CreateDirectory(ingestion);
+
+        var generationManifest = new
+        {
+            schema_version = 1,
+            generator_version = "JORNADA_SYNTH_CORPUS_CSHARP_V1",
+            ruleset_version = "JORNADA_SYNTH_CORPUS_V2_RULES_CSHARP_V1",
+            rng_version = "XOSHIRO256SS_SPLITMIX64_V1",
+            seed = 42UL,
+            input_fingerprint_sha256 = new string('b', 64)
+        };
+        File.WriteAllText(
+            Path.Combine(corpus, "generation-manifest.json"),
+            JsonSerializer.Serialize(generationManifest, JsonOptions));
 
         File.WriteAllText(
             Path.Combine(corpus, "observacoes.csv"),

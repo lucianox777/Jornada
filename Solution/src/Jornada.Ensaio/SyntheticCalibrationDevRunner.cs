@@ -163,7 +163,7 @@ public sealed class SyntheticCalibrationDevRunner(
             cancellationToken);
 
         var report = new SyntheticCalibrationDevEvidence(
-            "SYNTHETIC_CALIBRATION_DEV_V2",
+            "SYNTHETIC_CALIBRATION_DEV_V3",
             RequiredEnvironment,
             DateTimeOffset.UtcNow,
             settings.Seed,
@@ -780,6 +780,7 @@ public sealed class SyntheticCalibrationDevRunner(
             "Jornada.Linkage.Evaluation",
             "Jornada.Linkage.Evaluation.csproj");
         var output = Path.Combine(settings.RunDirectory, "synthetic-evaluation.json");
+        var runGroupId = Guid.NewGuid();
         var environment = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["ConnectionStrings__Jornada"] = settings.ConnectionString,
@@ -798,6 +799,7 @@ public sealed class SyntheticCalibrationDevRunner(
                 "--",
                 "--synthetic-evaluate-root", settings.GeneratedDirectory,
                 "--model-id", modelId.ToString("D"),
+                "--synthetic-run-group-id", runGroupId.ToString("D"),
                 "--output", output,
                 "--max-candidate-pairs", settings.MaxCandidatePairs.ToString(CultureInfo.InvariantCulture),
                 "--command-timeout-seconds", settings.EvaluationCommandTimeoutSeconds.ToString(CultureInfo.InvariantCulture)
@@ -817,6 +819,8 @@ public sealed class SyntheticCalibrationDevRunner(
         return new SyntheticEvaluationEvidence(
             Path.GetFullPath(output),
             hash.ToLowerInvariant(),
+            runGroupId,
+            AppendOnlyPersisted: true,
             settings.MaxCandidatePairs,
             settings.EvaluationCommandTimeoutSeconds);
     }
@@ -1242,6 +1246,8 @@ public sealed class SyntheticCalibrationDevRunner(
     private sealed record SyntheticEvaluationEvidence(
         string Path,
         string Sha256,
+        Guid RunGroupId,
+        bool AppendOnlyPersisted,
         int MaxCandidatePairs,
         int CommandTimeoutSeconds);
 

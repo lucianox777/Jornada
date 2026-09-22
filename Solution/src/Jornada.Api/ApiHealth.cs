@@ -55,6 +55,12 @@ internal sealed class SqlSchemaReadinessProbe(IOperationalSqlAdapter connections
                     AND OBJECT_ID(N'auditoria.sp_calcular_fingerprint_modelo_linkage',N'P') IS NOT NULL
                     AND OBJECT_ID(N'auditoria.sp_registrar_conferencia_linkage',N'P') IS NOT NULL
                     AND OBJECT_ID(N'auditoria.sp_assert_conferencia_linkage_conforme',N'P') IS NOT NULL
+                    AND OBJECT_ID(N'auditoria.linkage_avaliacao_sintetica',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'auditoria.linkage_avaliacao_sintetica_metrica',N'U') IS NOT NULL
+                    AND OBJECT_ID(N'auditoria.sp_registrar_avaliacao_sintetica_linkage',N'P') IS NOT NULL
+                    AND OBJECT_ID(N'auditoria.tr_linkage_avaliacao_sintetica_append_only',N'TR') IS NOT NULL
+                    AND OBJECT_ID(N'auditoria.tr_linkage_avaliacao_sintetica_metrica_append_only',N'TR') IS NOT NULL
+                    AND TYPE_ID(N'auditoria.linkage_avaliacao_sintetica_metrica_tvp') IS NOT NULL
                     AND OBJECT_ID(N'identidade.blocking_chave',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.linkage_ruleset',N'U') IS NOT NULL
                     AND OBJECT_ID(N'identidade.linkage_ruleset_passe',N'U') IS NOT NULL

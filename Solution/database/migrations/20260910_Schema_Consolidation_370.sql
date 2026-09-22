@@ -24,6 +24,8 @@ FROM (VALUES
  (N'auditoria.decisao_identidade_evento'),
  (N'auditoria.modelo_linkage_estado_evento'),
  (N'auditoria.linkage_conferencia_evidencia'),
+ (N'auditoria.linkage_avaliacao_sintetica'),
+ (N'auditoria.linkage_avaliacao_sintetica_metrica'),
  (N'identidade.blocking_chave'),
  (N'identidade.linkage_ruleset'),
  (N'identidade.linkage_ruleset_passe'),
@@ -50,7 +52,9 @@ FROM (VALUES
  (N'serving.v_pessoa'),
  (N'auditoria.v_decisao_identidade_evento'),
  (N'auditoria.v_modelo_linkage_estado_evento'),
- (N'auditoria.v_linkage_conferencia_evidencia')
+ (N'auditoria.v_linkage_conferencia_evidencia'),
+ (N'auditoria.v_linkage_avaliacao_sintetica'),
+ (N'auditoria.v_linkage_avaliacao_sintetica_metrica')
 ) v(objeto)
 WHERE OBJECT_ID(v.objeto, N'V') IS NULL;
 
@@ -70,6 +74,8 @@ FROM (VALUES
  (N'auditoria.tr_decisao_identidade_evento_append_only'),
  (N'auditoria.tr_modelo_linkage_estado_evento_append_only'),
  (N'auditoria.tr_linkage_conferencia_evidencia_append_only'),
+ (N'auditoria.tr_linkage_avaliacao_sintetica_append_only'),
+ (N'auditoria.tr_linkage_avaliacao_sintetica_metrica_append_only'),
  (N'identidade.tr_modelo_linkage_estado_evento')
 ) v(objeto)
 WHERE OBJECT_ID(v.objeto, N'TR') IS NULL;
@@ -86,12 +92,22 @@ IF OBJECT_ID(N'auditoria.sp_registrar_conferencia_linkage',N'P') IS NULL
     INSERT @missing(item) VALUES(N'PROC:auditoria.sp_registrar_conferencia_linkage');
 IF OBJECT_ID(N'auditoria.sp_assert_conferencia_linkage_conforme',N'P') IS NULL
     INSERT @missing(item) VALUES(N'PROC:auditoria.sp_assert_conferencia_linkage_conforme');
+IF OBJECT_ID(N'auditoria.sp_registrar_avaliacao_sintetica_linkage',N'P') IS NULL
+    INSERT @missing(item) VALUES(N'PROC:auditoria.sp_registrar_avaliacao_sintetica_linkage');
+IF TYPE_ID(N'auditoria.linkage_avaliacao_sintetica_metrica_tvp') IS NULL
+    INSERT @missing(item) VALUES(N'TYPE:auditoria.linkage_avaliacao_sintetica_metrica_tvp');
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'auditoria.modelo_linkage_estado_evento') AND name=N'IX_modelo_linkage_estado_evento_modelo')
     INSERT @missing(item) VALUES(N'INDEX:auditoria.modelo_linkage_estado_evento.IX_modelo_linkage_estado_evento_modelo');
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'auditoria.linkage_conferencia_evidencia') AND name=N'IX_linkage_conferencia_evidencia_modelo')
     INSERT @missing(item) VALUES(N'INDEX:auditoria.linkage_conferencia_evidencia.IX_linkage_conferencia_evidencia_modelo');
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'auditoria.linkage_conferencia_evidencia') AND name=N'UX_linkage_conferencia_evidencia_report')
     INSERT @missing(item) VALUES(N'INDEX:auditoria.linkage_conferencia_evidencia.UX_linkage_conferencia_evidencia_report');
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'auditoria.linkage_avaliacao_sintetica') AND name=N'IX_linkage_avaliacao_sintetica_modelo')
+    INSERT @missing(item) VALUES(N'INDEX:auditoria.linkage_avaliacao_sintetica.IX_linkage_avaliacao_sintetica_modelo');
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'auditoria.linkage_avaliacao_sintetica') AND name=N'UX_linkage_avaliacao_sintetica_report')
+    INSERT @missing(item) VALUES(N'INDEX:auditoria.linkage_avaliacao_sintetica.UX_linkage_avaliacao_sintetica_report');
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'auditoria.linkage_avaliacao_sintetica_metrica') AND name=N'UX_linkage_avaliacao_sintetica_metrica_chave')
+    INSERT @missing(item) VALUES(N'INDEX:auditoria.linkage_avaliacao_sintetica_metrica.UX_linkage_avaliacao_sintetica_metrica_chave');
 
 DECLARE @required_columns TABLE(tabela SYSNAME NOT NULL,coluna SYSNAME NOT NULL,PRIMARY KEY(tabela,coluna));
 INSERT @required_columns(tabela,coluna) VALUES
