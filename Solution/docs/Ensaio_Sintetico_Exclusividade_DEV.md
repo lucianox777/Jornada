@@ -13,7 +13,7 @@ necessário para determinar qual processo realmente a reservou.
 
 **Preferível: banco DEV separado para o ensaio.** O provisionador local
 PowerShell respeita `JORNADA_LOCAL_ENV_FILE` e
-`JORNADA_SQL_DATABASE`. Faça uma cópia local privada de `.env`, defina
+`JORNADA_SQL_DATABASE`. Faça uma cópia privada de `.env` chamada `.env.synthetic.local` (ignoradа pelo Git), defina
 nela `JORNADA_SQL_DATABASE=JornadaSyntheticDev` (mantendo a mesma porta
 e a senha do contêiner SQL já existente), e aponte
 `JORNADA_LOCAL_ENV_FILE` para essa cópia antes de executar
