@@ -9,7 +9,7 @@ SET XACT_ABORT ON;
     - auditoria.linkage_avaliacao_sintetica + métricas;
     - schema/migration ledger e definição física.
 
-  Remove somente estado operacional materializado nos schemas abaixo.
+  Remove somente estado operacional materializado nos schemas abaixo, incluindo\n  indicadores de qualidade associados a Pessoa.
   Fail-closed se uma tabela preservada ainda possuir FK habilitada para estado
   que seria apagado.
 */
@@ -37,7 +37,7 @@ INSERT @mutable(object_id,full_name)
 SELECT t.object_id,QUOTENAME(s.name)+N'.'+QUOTENAME(t.name)
 FROM sys.tables t
 JOIN sys.schemas s ON s.schema_id=t.schema_id
-WHERE s.name IN(N'ingestao',N'bronze',N'silver',N'gold',N'identidade',N'auditoria')
+WHERE s.name IN(N'ingestao',N'bronze',N'silver',N'gold',N'identidade',N'qualidade',N'auditoria')
   AND NOT(
       s.name=N'auditoria'
       AND t.name IN(N'linkage_avaliacao_sintetica',N'linkage_avaliacao_sintetica_metrica'));
