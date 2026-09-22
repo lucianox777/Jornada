@@ -56,11 +56,14 @@ public sealed class BrazilianNameComponentsTests
     {
         var ambiguous = BrazilianNameComponents.Project("João Filho")!;
         var oneToken = BrazilianNameComponents.Project("Neto")!;
+        var onlyOneContentBeforeSuffix = BrazilianNameComponents.Project("João de Filho")!;
         Assert.Multiple(() =>
         {
             Assert.That(ambiguous.Agnome, Is.Null);
             Assert.That(ambiguous.LastContentSurname, Is.EqualTo("FILHO"));
             Assert.That(oneToken.Agnome, Is.Null);
+            Assert.That(onlyOneContentBeforeSuffix.Agnome, Is.Null);
+            Assert.That(onlyOneContentBeforeSuffix.NormalizedFull, Is.EqualTo("JOAO DE FILHO"));
             Assert.That(oneToken.LastContentSurname, Is.Null);
             Assert.That(BrazilianNameComponents.Project(null), Is.Null);
             Assert.That(BrazilianNameComponents.Project("   "), Is.Null);
