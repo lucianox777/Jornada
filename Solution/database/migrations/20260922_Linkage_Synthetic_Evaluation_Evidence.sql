@@ -52,6 +52,7 @@ CREATE TABLE auditoria.linkage_avaliacao_sintetica(
     avaliador_versao NVARCHAR(120) NOT NULL,
     ambiente_perfil NVARCHAR(32) NOT NULL,
     status NVARCHAR(20) NOT NULL,
+    relatorio_gerado_em DATETIMEOFFSET(7) NOT NULL,
     ruleset_versao NVARCHAR(120) NOT NULL,
     ruleset_fingerprint_sha256 BINARY(32) NOT NULL,
     u_semantica NVARCHAR(120) NOT NULL,
@@ -185,6 +186,7 @@ CREATE OR ALTER PROCEDURE auditoria.sp_registrar_avaliacao_sintetica_linkage
  @avaliador_versao NVARCHAR(120),
  @ambiente_perfil NVARCHAR(32),
  @status NVARCHAR(20),
+ @relatorio_gerado_em DATETIMEOFFSET(7),
  @ruleset_versao NVARCHAR(120),
  @ruleset_fingerprint_sha256 BINARY(32),
  @u_semantica NVARCHAR(120),
@@ -211,6 +213,8 @@ BEGIN
     THROW 51914,'Banco não está marcado como Jornada.EnvironmentProfile=Development.',1;
  IF @status<>N'CONCLUIDA'
     THROW 51915,'Somente avaliação sintética CONCLUIDA pode ser persistida.',1;
+ IF @relatorio_gerado_em IS NULL
+    THROW 51915,'Instante de geração do relatório sintético é obrigatório.',1;
  IF @natureza<>N'SYNTHETIC_PARAMETER_RECOVERY'
     OR @finalidade<>N'ENGINEERING_EVIDENCE_ONLY_NOT_PROMOTABLE'
     OR NULLIF(LTRIM(RTRIM(@relatorio_schema_versao)),N'') IS NULL
@@ -288,6 +292,7 @@ BEGIN
         AND e.avaliador_versao=@avaliador_versao
         AND e.ambiente_perfil=@ambiente_perfil
         AND e.status=@status
+        AND e.relatorio_gerado_em=@relatorio_gerado_em
         AND e.ruleset_versao=@ruleset_versao
         AND e.ruleset_fingerprint_sha256=@ruleset_fingerprint_sha256
         AND e.u_semantica=@u_semantica
@@ -310,7 +315,7 @@ BEGIN
       avaliacao_id,grupo_execucao_id,modelo_id,modelo_versao,modelo_snapshot_sha256,
       corpus_fingerprint_sha256,generation_manifest_sha256,bridge_manifest_sha256,
       observations_sha256,bridge_truth_sha256,relatorio_schema_versao,natureza,finalidade,
-      gerador_versao,gerador_seed,avaliador_versao,ambiente_perfil,status,
+      gerador_versao,gerador_seed,avaliador_versao,ambiente_perfil,status,relatorio_gerado_em,
       ruleset_versao,ruleset_fingerprint_sha256,u_semantica,m_truth_universo,u_truth_universo,
       u_nome_fonte_nominal,u_nome_mae_fonte_nominal,
       observacoes_materializadas,observacoes_excluidas,report_sha256,
@@ -320,7 +325,7 @@ BEGIN
       @avaliacao_id,@grupo_execucao_id,@modelo_id,@modelo_versao,@modelo_snapshot_sha256,
       @corpus_fingerprint_sha256,@generation_manifest_sha256,@bridge_manifest_sha256,
       @observations_sha256,@bridge_truth_sha256,@relatorio_schema_versao,@natureza,@finalidade,
-      @gerador_versao,@gerador_seed,@avaliador_versao,@ambiente_perfil,@status,
+      @gerador_versao,@gerador_seed,@avaliador_versao,@ambiente_perfil,@status,@relatorio_gerado_em,
       @ruleset_versao,@ruleset_fingerprint_sha256,@u_semantica,@m_truth_universo,@u_truth_universo,
       @u_nome_fonte_nominal,@u_nome_mae_fonte_nominal,
       @observacoes_materializadas,@observacoes_excluidas,@report_sha256,
@@ -350,7 +355,7 @@ SELECT
     e.modelo_id,e.modelo_versao,e.modelo_snapshot_sha256,
     e.corpus_fingerprint_sha256,e.generation_manifest_sha256,e.bridge_manifest_sha256,
     e.observations_sha256,e.bridge_truth_sha256,e.relatorio_schema_versao,e.natureza,e.finalidade,
-    e.gerador_versao,e.gerador_seed,e.avaliador_versao,e.ambiente_perfil,e.status,e.ruleset_versao,
+    e.gerador_versao,e.gerador_seed,e.avaliador_versao,e.ambiente_perfil,e.status,e.relatorio_gerado_em,e.ruleset_versao,
     e.ruleset_fingerprint_sha256,e.u_semantica,e.m_truth_universo,e.u_truth_universo,
     e.u_nome_fonte_nominal,e.u_nome_mae_fonte_nominal,e.observacoes_materializadas,
     e.observacoes_excluidas,e.report_sha256,e.validacao_estatistica,
