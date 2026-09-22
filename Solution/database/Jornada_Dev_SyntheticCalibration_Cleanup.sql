@@ -7,7 +7,8 @@ SET XACT_ABORT ON;
     - todo o schema ref (incluindo frequências IBGE ativas);
     - Jornada.EnvironmentProfile e demais extended properties;
     - auditoria.linkage_avaliacao_sintetica + métricas;
-    - schema/migration ledger e definição física.
+    - schema/migration ledger e definição física;
+    - catálogos estáticos de implementação QC/possibilidade (não são dados de carga).
 
   Remove somente estado operacional materializado nos schemas abaixo, incluindo\n  indicadores de qualidade associados a Pessoa.
   Fail-closed se uma tabela preservada ainda possuir FK habilitada para estado
@@ -40,7 +41,10 @@ JOIN sys.schemas s ON s.schema_id=t.schema_id
 WHERE s.name IN(N'ingestao',N'bronze',N'silver',N'gold',N'identidade',N'qualidade',N'auditoria')
   AND NOT(
       s.name=N'auditoria'
-      AND t.name IN(N'linkage_avaliacao_sintetica',N'linkage_avaliacao_sintetica_metrica'));
+      AND t.name IN(N'linkage_avaliacao_sintetica',N'linkage_avaliacao_sintetica_metrica'))
+  AND NOT(
+      s.name=N'qualidade'
+      AND t.name IN(N'qc_registro_implementacao',N'possibilidade_implementacao'));
 
 IF EXISTS(
     SELECT 1
