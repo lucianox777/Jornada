@@ -157,6 +157,11 @@ public sealed class SyntheticCalibrationDevRunner(
         await RunNameFrequencySnapshotLoaderAsync(settings, cancellationToken);
         await RunGenerateDraftAsync(settings, cancellationToken);
         var model = await ReadSingleNewDraftAsync(versionBefore, cancellationToken);
+        var modelValidation = await RunModelValidationAsync(
+            settings,
+            model,
+            manifest.MaterializedObservationCount,
+            cancellationToken);
         var syntheticEvaluation = await RunSyntheticEvaluationAsync(
             settings,
             model.ModelId,
@@ -183,6 +188,7 @@ public sealed class SyntheticCalibrationDevRunner(
             materialized,
             deliveries,
             model,
+            modelValidation,
             syntheticEvaluation,
             SyntheticTruthConsumed: false,
             PostDraftEvaluationTruthConsumed: true,
@@ -200,8 +206,9 @@ public sealed class SyntheticCalibrationDevRunner(
 
         Console.WriteLine($"SYNTHETIC CALIBRATION DEV: OK report={reportPath}");
         Console.WriteLine(
-            $"modelo=v{model.Version} status={model.Status}; materializadas={manifest.MaterializedObservationCount}; " +
-            $"excluídas={manifest.ExcludedObservationCount}; calibrationTruthConsumed=false; " +
+            $"modelo=v{model.Version} status={model.Status}; modelValidation={modelValidation.Status}; " +
+            $"materializadas={manifest.MaterializedObservationCount}; excluídas={manifest.ExcludedObservationCount}; " +
+            $"calibrationTruthConsumed=false; "
             $"postDraftTruthConsumed=true; promotionAttempted=false");
         return 0;
     }
