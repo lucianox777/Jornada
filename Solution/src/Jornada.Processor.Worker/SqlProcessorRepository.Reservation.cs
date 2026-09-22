@@ -237,6 +237,7 @@ internal sealed partial class SqlProcessorRepository
                    atualizado_em=@agora
              WHERE lote_id=@lote_id AND lease_id=@lease_id AND lease_owner=@lease_owner;
             IF @@ROWCOUNT<>1 THROW 51020,'Lease perdido ao reagendar lote.',1;
+             DELETE FROM ingestao.lote_heartbeat WHERE lote_id=@lote_id AND lease_id=@lease_id;
             EXEC ingestao.sp_recalcular_entrega @entrega_id=@entrega_id;
             """;
             command.Parameters.Add(new SqlParameter("@status", SqlDbType.NVarChar, 40) { Value = poison ? "POISON" : "PENDENTE" });
@@ -270,6 +271,7 @@ internal sealed partial class SqlProcessorRepository
                SET status=@status,erro_codigo=@erro,lease_id=NULL,lease_owner=NULL,lease_adquirido_em=NULL,lease_expira_em=NULL,heartbeat_em=NULL,atualizado_em=SYSUTCDATETIME()
              WHERE lote_id=@lote_id AND lease_id=@lease_id AND lease_owner=@lease_owner;
             IF @@ROWCOUNT<>1 THROW 51021,'Lease perdido ao finalizar lote com falha.',1;
+             DELETE FROM ingestao.lote_heartbeat WHERE lote_id=@lote_id AND lease_id=@lease_id;
             EXEC ingestao.sp_recalcular_entrega @entrega_id=@entrega_id;
             """;
             command.Parameters.Add(new SqlParameter("@status", SqlDbType.NVarChar, 40) { Value = status });
@@ -297,7 +299,12 @@ internal sealed partial class SqlProcessorRepository
         // por ingestao.sp_recalcular_entrega no fechamento da transação.
         command.CommandText = """
             UPDATE ingestao.lote SET status='PROCESSANDO',atualizado_em=SYSUTCDATETIME()
-             WHERE lote_id=@lote_id AND status='VALIDANDO' AND lease_id=@lease_id AND lease_owner=@lease_owner AND lease_expira_em>=SYSUTCDATETIME();
+             WHERE lote_id=@lote_id AND status='VALIDANDO' AND lease_id=@lease_id AND lease_owner=@lease_owner
+               AND EXISTS(
+                  SELECT 1 FROM ingestao.lote_heartbeat h
+                  WHERE h.lote_id=@lote_id AND h.lease_id=@lease_id AND h.lease_owner=@lease_owner
+                    AND h.lease_expira_em>=SYSUTCDATETIME()
+               );
             IF @@ROWCOUNT<>1 THROW 51000,'Lote não está reservado em VALIDANDO ou lease expirou.',1;
             """;
         AddLeaseParameters(command, batch);
