@@ -167,12 +167,15 @@ public sealed partial class SyntheticCalibrationDevRunner
                     $"origens novas={originDelta}/{newlySeen}; " +
                     $"observações novas={observationDelta}/{manifest.MaterializedObservationCount}.");
 
+            var snapshotSha256 = await WriteWaveOperationalSnapshotAsync(
+                directory, wave + 1, after.SyntheticOrigins, after.SyntheticObservations,
+                seenSourceCpf, cancellationToken);
             checkpoints.Add(new SyntheticWaveOperationalCheckpoint(
                 wave + 1, manifest.DataReferencia, manifest.BridgeVersion,
                 manifest.SourceObservationCount, manifest.MaterializedObservationCount,
                 manifest.ExcludedObservationCount, newlySeen, updated, cpfRevealed,
                 after.SyntheticOrigins, after.SyntheticObservations,
-                deliveries));
+                snapshotSha256, deliveries));
             previous = after;
             Console.WriteLine(
                 $"WAVE {wave + 1}/{waveCount}: origens novas={newlySeen}, atualizações={updated}, " +
@@ -348,5 +351,5 @@ public sealed partial class SyntheticCalibrationDevRunner
         int SourceObservations, int MaterializedObservations, int ExcludedObservations,
         int NewSources, int UpdatedSources, int CpfRevealed,
         long TotalSources, long TotalObservations,
-        IReadOnlyList<SyntheticDeliveryEvidence> Deliveries);
+        string SnapshotSha256, IReadOnlyList<SyntheticDeliveryEvidence> Deliveries);
 }
