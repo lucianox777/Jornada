@@ -189,7 +189,8 @@ public sealed partial class SyntheticCalibrationDevRunner
         var validation = await RunModelValidationAsync(
             settings, model, checked((int)previous.SyntheticObservations), cancellationToken);
         var temporalEvaluationSha256 = await RunTemporalTruthEvaluationAsync(
-            settings, model.ModelId, waveCount, cancellationToken);
+            settings, model.ModelId, checkpoints.Select(x => x.SnapshotSha256).ToArray(),
+            cancellationToken);
 
         // There is not yet a single truth/manifest pair spanning all wave sidecars.
         // A per-wave PPV/recall report would be misleading until the evaluator
