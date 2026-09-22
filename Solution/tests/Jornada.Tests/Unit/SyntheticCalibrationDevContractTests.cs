@@ -232,7 +232,7 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(cleanup, Does.Contain("Development"));
             Assert.That(cleanup, Does.Contain("ref.frequencia_nome_versao"));
             Assert.That(cleanup, Does.Contain("linkage_avaliacao_sintetica"));
-            Assert.That(cleanup, Does.Contain("s.name IN(N'ingestao',N'bronze',N'silver',N'gold',N'identidade',N'qualidade',N'auditoria')"));
+            Assert.That(cleanup, Does.Contain("s.name IN(N'ingestao',N'bronze',N'silver',N'gold',N'serving',N'identidade',N'qualidade',N'auditoria')"));
             Assert.That(cleanup, Does.Contain("child_table.object_id IS NULL"));
             Assert.That(cleanup, Does.Contain("qc_registro_implementacao"));
             Assert.That(cleanup, Does.Contain("possibilidade_implementacao"));
