@@ -896,7 +896,7 @@ public sealed class SyntheticCalibrationDevRunner(
             "Jornada.Linkage.Evaluation",
             "Jornada.Linkage.Evaluation.csproj");
         var output = Path.Combine(settings.RunDirectory, "synthetic-evaluation.json");
-        var runGroupId = Guid.NewGuid();
+        var runGroupId = settings.RunGroupId ?? Guid.NewGuid();
         var environment = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["ConnectionStrings__Jornada"] = settings.ConnectionString,
@@ -916,6 +916,9 @@ public sealed class SyntheticCalibrationDevRunner(
                 "--synthetic-evaluate-root", settings.GeneratedDirectory,
                 "--model-id", modelId.ToString("D"),
                 "--synthetic-run-group-id", runGroupId.ToString("D"),
+                "--synthetic-expected-seeds", string.Join(
+                    ",",
+                    settings.ExpectedSeeds.Select(seed => seed.ToString(CultureInfo.InvariantCulture))),
                 "--output", output,
                 "--max-candidate-pairs", settings.MaxCandidatePairs.ToString(CultureInfo.InvariantCulture),
                 "--command-timeout-seconds", settings.EvaluationCommandTimeoutSeconds.ToString(CultureInfo.InvariantCulture)
@@ -1171,6 +1174,8 @@ public sealed class SyntheticCalibrationDevRunner(
         int MaxCandidatePairs,
         int EvaluationCommandTimeoutSeconds,
         ulong Seed,
+        IReadOnlyList<ulong> ExpectedSeeds,
+        Guid? RunGroupId,
         string ErrorProfile,
         DateTimeOffset DataReferencia,
         TimeSpan ApiStartupTimeout,
@@ -1218,6 +1223,35 @@ public sealed class SyntheticCalibrationDevRunner(
             }
 
             var seed = configuration.GetValue<ulong>("Ensaio:SyntheticCalibration:Seed", 42UL);
+            var expectedSeedsRaw = configuration["Ensaio:SyntheticCalibration:ExpectedSeeds"]?.Trim();
+            var expectedSeeds = string.IsNullOrWhiteSpace(expectedSeedsRaw)
+                ? new[] { seed }
+                : expectedSeedsRaw
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(token => ulong.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+                        ? parsed
+                        : throw new InvalidOperationException(
+                            $"Ensaio:SyntheticCalibration:ExpectedSeeds contém seed inválida: {token}."))
+                    .Distinct()
+                    .Order()
+                    .ToArray();
+            if (!expectedSeeds.Contains(seed))
+                throw new InvalidOperationException(
+                    $"A seed corrente {seed} deve pertencer a Ensaio:SyntheticCalibration:ExpectedSeeds.");
+
+            Guid? runGroupId = null;
+            var runGroupRaw = configuration["Ensaio:SyntheticCalibration:RunGroupId"]?.Trim();
+            if (!string.IsNullOrWhiteSpace(runGroupRaw))
+            {
+                if (!Guid.TryParse(runGroupRaw, out var parsedGroup) || parsedGroup == Guid.Empty)
+                    throw new InvalidOperationException(
+                        "Ensaio:SyntheticCalibration:RunGroupId deve ser UUID não vazio.");
+                runGroupId = parsedGroup;
+            }
+            if (expectedSeeds.Length > 1 && runGroupId is null)
+                throw new InvalidOperationException(
+                    "Execução multi-seed exige RunGroupId explícito e estável entre as avaliações independentes.");
+
             var errorProfile = configuration["Ensaio:SyntheticCalibration:ErrorProfile"]?.Trim()
                                ?? "correlated";
             if (errorProfile is not ("clean" or "independent" or "correlated" or "field"))
@@ -1266,6 +1300,8 @@ public sealed class SyntheticCalibrationDevRunner(
                 maxCandidatePairs,
                 evaluationCommandTimeoutSeconds,
                 seed,
+                expectedSeeds,
+                runGroupId,
                 errorProfile,
                 dataReferencia,
                 TimeSpan.FromSeconds(Math.Max(
