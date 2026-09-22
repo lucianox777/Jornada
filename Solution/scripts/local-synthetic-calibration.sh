@@ -32,6 +32,16 @@ DB="${JORNADA_SQL_DATABASE:-JornadaLocal}"
 export ConnectionStrings__Jornada="Server=localhost,$PORT;Database=$DB;User Id=sa;Password=$JORNADA_SQL_SA_PASSWORD;TrustServerCertificate=true;Encrypt=false"
 export Database__Provider=SqlServer
 export Ensaio__Mode=SYNTHETIC_CALIBRATION_DEV
+if [[ -n "${JORNADA_SYNTH_WAVE_COUNT:-}" ]]; then
+  export Ensaio__Mode=SYNTHETIC_WAVES_DEV
+  export Ensaio__SyntheticCalibration__WaveCount="$JORNADA_SYNTH_WAVE_COUNT"
+fi
+if [[ -n "${JORNADA_SYNTH_STRATIFIED_ERRORS_CONFIG:-}" ]]; then
+  export Ensaio__SyntheticCalibration__StratifiedErrorsConfig="$JORNADA_SYNTH_STRATIFIED_ERRORS_CONFIG"
+fi
+if [[ -n "${JORNADA_SYNTH_BRAZILIAN_NAME_ERRORS_CONFIG:-}" ]]; then
+  export Ensaio__SyntheticCalibration__BrazilianNameErrorsConfig="$JORNADA_SYNTH_BRAZILIAN_NAME_ERRORS_CONFIG"
+fi
 export Ensaio__Endpoints__IngestaoEntregas="$API_BASE/api/v1/ingestao/entregas"
 
 if [[ -n "${JORNADA_SYNTH_PEOPLE:-}" ]]; then
@@ -51,6 +61,22 @@ if [[ -n "${JORNADA_SYNTH_ERROR_PROFILE:-}" ]]; then
 fi
 if [[ -n "${JORNADA_SYNTH_DATA_REFERENCIA:-}" ]]; then
   export Ensaio__SyntheticCalibration__DataReferencia="$JORNADA_SYNTH_DATA_REFERENCIA"
+fi
+
+if [[ -n "${JORNADA_SYNTH_WAVE_DELAYED_ARRIVAL_RATE:-}" ]]; then
+  export Ensaio__SyntheticCalibration__WaveDelayedArrivalRate="$JORNADA_SYNTH_WAVE_DELAYED_ARRIVAL_RATE"
+fi
+if [[ -n "${JORNADA_SYNTH_WAVE_CPF_REVEAL_RATE:-}" ]]; then
+  export Ensaio__SyntheticCalibration__WaveCpfRevealRate="$JORNADA_SYNTH_WAVE_CPF_REVEAL_RATE"
+fi
+if [[ -n "${JORNADA_SYNTH_WAVE_NAME_CORRECTION_RATE:-}" ]]; then
+  export Ensaio__SyntheticCalibration__WaveNameCorrectionRate="$JORNADA_SYNTH_WAVE_NAME_CORRECTION_RATE"
+fi
+if [[ -n "${JORNADA_SYNTH_WAVE_MOTHER_CORRECTION_RATE:-}" ]]; then
+  export Ensaio__SyntheticCalibration__WaveMotherCorrectionRate="$JORNADA_SYNTH_WAVE_MOTHER_CORRECTION_RATE"
+fi
+if [[ -n "${JORNADA_SYNTH_WAVE_BIRTH_RECOVERY_RATE:-}" ]]; then
+  export Ensaio__SyntheticCalibration__WaveBirthRecoveryRate="$JORNADA_SYNTH_WAVE_BIRTH_RECOVERY_RATE"
 fi
 
 cd "$ROOT"

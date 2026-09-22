@@ -91,6 +91,56 @@ public sealed class SyntheticIngestionWaveTests
     }
 
     [Test]
+    public async Task Per_wave_materialization_writes_separate_verifiable_manifests_and_truth()
+    {
+        var waves = SyntheticIngestionWavePlanner.Plan(Fixture(),
+            new SyntheticWaveScenario(WaveCount: 2, DelayedArrivalProbability: 0,
+                CpfRevealProbability: 1, NameCorrectionProbability: 1,
+                MotherCorrectionProbability: 1, BirthDateRecoveryProbability: 1));
+        var root = Path.Combine(Path.GetTempPath(), "jornada-wave-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            for (var i = 0; i < waves.Count; i++)
+            {
+                var wave = waves[i];
+                var result = Build(wave);
+                var dir = Path.Combine(root, "wave-" + (i + 1).ToString("D2",
+                    System.Globalization.CultureInfo.InvariantCulture));
+                var options = new SyntheticIngestionBridgeOptions(4, DayOne.AddDays(i),
+                    "unit-test-pseudonymization-key-32-bytes",
+                    StableSourceIdentity: true, WaveNumber: i);
+                var materialized = await SyntheticIngestionBridgeMaterializer.WriteAsync(
+                    dir, result, options, new string('A', 64));
+                using var manifest = JsonDocument.Parse(
+                    await File.ReadAllTextAsync(materialized.ManifestPath));
+                Assert.Multiple(() =>
+                {
+                    Assert.That(manifest.RootElement.GetProperty("bridgeVersion").GetString(),
+                        Is.EqualTo(SyntheticIngestionBridge.WaveBridgeVersion));
+                    Assert.That(manifest.RootElement.GetProperty("materializedObservationCount").GetInt32(),
+                        Is.EqualTo(result.MaterializedObservationCount));
+                    Assert.That(manifest.RootElement.GetProperty("truthSidecar")
+                        .GetProperty("allowedForScoring").GetBoolean(), Is.False);
+                    Assert.That(materialized.ManifestSha256.ToUpperInvariant(),
+                        Is.EqualTo(Convert.ToHexString(
+                            System.Security.Cryptography.SHA256.HashData(
+                                File.ReadAllBytes(materialized.ManifestPath)))));
+                });
+                foreach (var package in materialized.PackagePaths)
+                {
+                    using var archive = ZipFile.OpenRead(package);
+                    Assert.That(archive.Entries.Select(x => x.FullName),
+                        Is.EquivalentTo(new[] { "manifest.json", "pessoas.jsonl", "registros.jsonl" }));
+                }
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
     public void Same_source_twice_in_one_wave_fails_closed()
     {
         var source = Fixture();

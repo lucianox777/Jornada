@@ -176,6 +176,35 @@ public sealed class SyntheticCalibrationDevContractTests
     }
 
     [Test]
+    public void Synthetic_wave_runner_requires_resident_Development_and_checks_aggregate_manifest_shape()
+    {
+        var root = FindRepositoryRoot();
+        var program = File.ReadAllText(Path.Combine(root,
+            "Solution", "src", "Jornada.Ensaio", "Program.cs"));
+        var runner = File.ReadAllText(Path.Combine(root,
+            "Solution", "src", "Jornada.Ensaio", "SyntheticCalibrationDevRunner.Waves.cs"));
+        var generator = File.ReadAllText(Path.Combine(root,
+            "Solution", "src", "Jornada.Linkage.SyntheticCorpus", "Program.cs"));
+        Assert.Multiple(() =>
+        {
+            Assert.That(program, Does.Contain("SyntheticCalibrationDevRunner.WaveMode"));
+            Assert.That(runner, Does.Contain("AssertDevelopmentEnvironmentAsync"));
+            Assert.That(runner, Does.Contain("GetProperty(\"waves\")"));
+            Assert.That(runner, Does.Contain("GetProperty(\"manifestSha256\")"));
+            Assert.That(runner, Does.Contain("Hash do manifesto da onda"));
+            Assert.That(runner, Does.Contain("ReadOperationalSources"));
+            Assert.That(runner, Does.Contain("ReadMaterializedCountsAsync"));
+            Assert.That(runner, Does.Contain("RunGenerateDraftAsync"));
+            Assert.That(runner, Does.Contain("RunModelValidationAsync"));
+            Assert.That(runner, Does.Contain("NAO_MEDIDO_AVALIADOR_TEMPORAL_PENDENTE"));
+            Assert.That(runner, Does.Not.Contain("bridge-truth.jsonl"));
+            Assert.That(runner, Does.Not.Contain("BasePersonId"));
+            Assert.That(generator, Does.Contain("waves = reports"));
+            Assert.That(generator, Does.Contain("manifestSha256 = materializedWave.ManifestSha256"));
+        });
+    }
+
+    [Test]
     public void Local_database_provisioners_set_resident_Development_marker_outside_canonical_DDL()
     {
         var root = FindRepositoryRoot();

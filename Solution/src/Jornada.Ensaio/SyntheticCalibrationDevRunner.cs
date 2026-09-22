@@ -14,7 +14,7 @@ namespace Jornada.Ensaio;
 /// envia os pacotes pela API real, aguarda o Processor e executa o Parameters.Worker real.
 /// Nunca lê a truth linha a linha e nunca valida/ativa o modelo criado.
 /// </summary>
-public sealed class SyntheticCalibrationDevRunner(
+public sealed partial class SyntheticCalibrationDevRunner(
     IConfiguration configuration,
     EnsaioRuntimeOptions options,
     Func<DbConnection> openConnection)

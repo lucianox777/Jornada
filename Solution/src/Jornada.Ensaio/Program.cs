@@ -36,10 +36,15 @@ if (string.Equals(mode, SyntheticCalibrationDevRunner.Mode, StringComparison.Ord
     var syntheticRunner = new SyntheticCalibrationDevRunner(configuration, options, OpenConnection);
     return await syntheticRunner.RunAsync(cancellation.Token);
 }
+if (string.Equals(mode, SyntheticCalibrationDevRunner.WaveMode, StringComparison.OrdinalIgnoreCase))
+{
+    var syntheticRunner = new SyntheticCalibrationDevRunner(configuration, options, OpenConnection);
+    return await syntheticRunner.RunWavesAsync(cancellation.Token);
+}
 if (!string.Equals(mode, "FULL_REHEARSAL", StringComparison.OrdinalIgnoreCase))
 {
     throw new InvalidOperationException(
-        $"Ensaio:Mode inválido: {mode}. Use FULL_REHEARSAL, HML_SCALE_EVIDENCE ou {SyntheticCalibrationDevRunner.Mode}.");
+        $"Ensaio:Mode inválido: {mode}. Use FULL_REHEARSAL, HML_SCALE_EVIDENCE ou {SyntheticCalibrationDevRunner.Mode} ou {SyntheticCalibrationDevRunner.WaveMode}.");
 }
 
 var log = new List<string>();
