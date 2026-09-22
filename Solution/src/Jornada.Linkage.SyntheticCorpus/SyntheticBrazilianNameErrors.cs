@@ -42,6 +42,7 @@ public sealed record SyntheticBrazilianNameErrorRates
 public sealed record SyntheticBrazilianNameErrorConfig
 {
     public const string ExperimentVersion = "SYNTHETIC_BRAZILIAN_NAME_ERRORS_V1";
+    private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
 
     public string Version { get; init; } = ExperimentVersion;
     public double AgnomeBasePrevalence { get; init; }
@@ -53,9 +54,9 @@ public sealed record SyntheticBrazilianNameErrorConfig
     public void Validate(int gestores)
     {
         if (Version != ExperimentVersion)
-            throw new ArgumentException("Versão experimental de taxonomia não reconhecida.", nameof(Version));
+            throw new ArgumentException("Versão experimental de taxonomia não reconhecida.");
         if (!double.IsFinite(AgnomeBasePrevalence) || AgnomeBasePrevalence < 0 || AgnomeBasePrevalence > 1)
-            throw new ArgumentOutOfRangeException(nameof(AgnomeBasePrevalence));
+            throw new ArgumentException("AgnomeBasePrevalence deve estar entre 0 e 1.");
         ArgumentNullException.ThrowIfNull(Default);
         ArgumentNullException.ThrowIfNull(ByGestor);
         ArgumentNullException.ThrowIfNull(ByCpfStratum);
@@ -135,7 +136,7 @@ public sealed record SyntheticBrazilianNameErrorConfig
     {
         var config = JsonSerializer.Deserialize<SyntheticBrazilianNameErrorConfig>(
             File.ReadAllText(path),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            ReadOptions);
         return config ?? throw new InvalidDataException("Configuração de erros brasileiros vazia.");
     }
 }
