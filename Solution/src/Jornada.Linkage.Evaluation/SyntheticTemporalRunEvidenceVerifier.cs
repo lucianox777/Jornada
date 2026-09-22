@@ -66,12 +66,19 @@ public static class SyntheticTemporalRunEvidenceVerifier
                     throw new InvalidDataException("Run SQL duplicado.");
             }
 
+            var sourceCodes = snapshot.Sources.Select(s => s.SourceCode).ToHashSet(StringComparer.Ordinal);
+            if (sourceCodes.Count != snapshot.Sources.Length)
+                throw new InvalidDataException("Snapshot duplica fonte operacional.");
+            var highWatermark = snapshot.Sources.Max(s => s.LatestObservationId);
             var results = new Dictionary<long, (string Status, string? Uuid)>();
             await using (var cmd = new SqlCommand(
                 """
                 SELECT i.pessoa_observacao_id,r.status,
-                       CONVERT(nvarchar(36),r.pessoa_uuid_resolvido)
+                       CONVERT(nvarchar(36),r.pessoa_uuid_resolvido),
+                       p.codigo_pessoa_origem,po.cpf,r.modelo_id,r.modelo_versao
                 FROM identidade.linkage_run_item i
+                JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=i.pessoa_observacao_id
+                JOIN silver.pessoa_origem p ON p.pessoa_origem_id=po.pessoa_origem_id
                 LEFT JOIN identidade.linkage_resultado r
                   ON r.linkage_run_id=i.linkage_run_id
                  AND r.pessoa_observacao_id=i.pessoa_observacao_id
@@ -82,7 +89,12 @@ public static class SyntheticTemporalRunEvidenceVerifier
                 await using var reader = await cmd.ExecuteReaderAsync(ct);
                 while (await reader.ReadAsync(ct))
                 {
-                    if (reader.IsDBNull(1)
+                    if (reader.IsDBNull(1) || reader.IsDBNull(5) || reader.IsDBNull(6)
+                        || reader.GetGuid(5) != modelId
+                        || reader.GetInt32(6) != snapshot.LinkageModelVersion
+                        || !reader.GetString(3).StartsWith("SYNTH-", StringComparison.Ordinal)
+                        || !sourceCodes.Contains(reader.GetString(3))
+                        || !reader.IsDBNull(4) || reader.GetInt64(0) > highWatermark
                         || !results.TryAdd(reader.GetInt64(0),
                             (reader.GetString(1),
                              reader.IsDBNull(2) ? null : reader.GetString(2))))

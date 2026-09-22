@@ -129,7 +129,7 @@ public static class SyntheticTemporalTruthEvaluator
             var snapshot = JsonSerializer.Deserialize<OperationalSnapshot>(
                 await File.ReadAllTextAsync(snapshotPath, cancellationToken), Json)
                 ?? throw new InvalidDataException("Snapshot SQL ausente.");
-            if (snapshot.SchemaVersion != "SYNTHETIC_WAVE_OPERATIONAL_SNAPSHOT_V1"
+            if (snapshot.SchemaVersion is not ("SYNTHETIC_WAVE_OPERATIONAL_SNAPSHOT_V1" or "SYNTHETIC_WAVE_OPERATIONAL_SNAPSHOT_V2")
                 || snapshot.Wave != number || snapshot.SourceCount != currentTruth.Count
                 || snapshot.ObservationCount != previousObservations + changedThisWave.Count
                 || snapshot.Sources.Length != currentTruth.Count)
