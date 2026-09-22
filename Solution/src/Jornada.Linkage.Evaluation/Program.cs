@@ -50,9 +50,24 @@ if (options.SyntheticEvaluateRoot is not null)
         syntheticReport,
         sha,
         runGroupId);
+
+    var groupReader = new SyntheticEvaluationGroupReader(connection, options.CommandTimeoutSeconds);
+    var group = await groupReader.ReadAsync(runGroupId);
+    var groupPath = syntheticOutput + ".group.json";
+    var groupJson = JsonSerializer.Serialize(group, EvaluationJson.Options) + Environment.NewLine;
+    await File.WriteAllTextAsync(groupPath, groupJson, new System.Text.UTF8Encoding(false));
+    var groupSha = Convert.ToHexString(
+        System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(groupJson)))
+        .ToLowerInvariant();
+    await File.WriteAllTextAsync(
+        groupPath + ".sha256",
+        groupSha + "  " + Path.GetFileName(groupPath) + Environment.NewLine,
+        new System.Text.UTF8Encoding(false));
+
     Console.WriteLine(
         $"Avaliação sintética gravada em {syntheticOutput}; modelo={syntheticReport.Model.ModelId}; " +
         $"avaliacaoId={persisted.EvaluationId}; runGroupId={persisted.RunGroupId}; " +
+        $"groupStatus={group.Status}; completedSeeds={group.CompletedSeeds.Count}/{group.ExpectedSeeds.Count}; " +
         $"mPairs={syntheticReport.MRecovery.PairCount}; uPairs={syntheticReport.URecovery.PairCount}; " +
         $"blockingRecall={syntheticReport.Blocking.TrueMatchRecall.ToString(CultureInfo.InvariantCulture)}.");
     return;
