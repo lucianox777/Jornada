@@ -129,12 +129,14 @@ NUGET_LOCK_PROVENANCE_GATE = ROOT / "scripts" / "nuget-lock-provenance-gate.py"
 TEST_RUNBOOK = ROOT / "docs" / "Runbook_Testes_Tecnicos.md"
 HML_VOLUMETRY_RUNBOOK = ROOT / "docs" / "Runbook_HML_Volumetria.md"
 HML_SCALE_EVIDENCE_RUNNER = ROOT / "src" / "Jornada.Ensaio" / "HmlScaleEvidenceRunner.cs"
+SYNTHETIC_CALIBRATION_DEV_RUNNER = ROOT / "src" / "Jornada.Ensaio" / "SyntheticCalibrationDevRunner.cs"
 OPENAPI_RUNTIME_TESTS = ROOT / "tests" / "Jornada.Tests" / "Unit" / "OpenApiRuntimeConformanceTests.cs"
 JSON_SCHEMA_META_GATE = ROOT / "scripts" / "json-schema-meta-gate.py"
 ARCHITECTURE_GATE = ROOT / "scripts" / "architecture-dependency-gate.py"
 ANALYZER_CLEANLINESS_GATE = ROOT / "scripts" / "analyzer-cleanliness-gate.py"
 ARCHITECTURE_POLICY = ROOT / "config" / "release" / "architecture-dependencies.json"
 LOCAL_DB_PS = ROOT / "scripts" / "local-db.ps1"
+LOCAL_DB_SH = ROOT / "scripts" / "local-db.sh"
 LOCAL_CLEAN_PS = ROOT / "scripts" / "local-clean.ps1"
 LOCAL_VALIDATE_RELEASE_PS = ROOT / "scripts" / "local-validate-release.ps1"
 OPERATIONAL_SQL_ADAPTER = ROOT / "src" / "Jornada.Operational.Sql" / "OperationalSqlAdapter.cs"
@@ -525,6 +527,14 @@ def main() -> None:
     ], "hardening local-db v3.88")
     if "{{.Name}}|{{.State}}|{{.Health}}" in local_db:
         fail("local-db voltou ao template Go customizado incompatível de docker compose ps")
+    local_db_sh = LOCAL_DB_SH.read_text(encoding="utf-8")
+    for script_text, label in ((local_db, "local-db.ps1"), (local_db_sh, "local-db.sh")):
+        require(script_text, [
+            "Jornada.EnvironmentProfile",
+            "sp_updateextendedproperty",
+            "sp_addextendedproperty",
+            "Development",
+        ], f"marcador residente Development em {label}")
 
     integration_setup = (ROOT / "tests" / "Jornada.Integration.Tests" / "Integration" / "Infrastructure" / "SqlServerIntegrationSetUp.cs").read_text(encoding="utf-8")
     require(integration_setup, [
@@ -998,6 +1008,25 @@ def main() -> None:
         "sp_addextendedproperty", "performance-evidence-gate.py",
         "sql-performance-evidence-gate.py", "api-projection-evidence-gate.py", "hml-readiness-gate.sh"
     ], "runbook de volumetria HML")
+
+    synthetic_dev = SYNTHETIC_CALIBRATION_DEV_RUNNER.read_text(encoding="utf-8")
+    require(synthetic_dev, [
+        "SYNTHETIC_CALIBRATION_DEV",
+        "Jornada.EnvironmentProfile",
+        "RequiredEnvironment = \"Development\"",
+        "LOAD_NAME_FREQUENCY_SNAPSHOT",
+        "GENERATE_DRAFT",
+        "Jornada.Api",
+        "Jornada.Processor.Worker",
+        "X-Jornada-Gestor",
+        "X-Jornada-Access-Key",
+        "SyntheticTruthConsumed: false",
+        "ModelPromotionAttempted: false",
+        "SCALE-%",
+    ], "harness DEV de recuperação de parâmetros")
+    for forbidden in ("bridge-truth.jsonl", "BasePersonId", "\"VALIDATE\"", "\"ACTIVATE\""):
+        if forbidden in synthetic_dev:
+            fail(f"harness DEV sintético contém caminho proibido: {forbidden}")
 
     require(BRONZE_RESTORE_EVIDENCE_GATE.read_text(encoding="utf-8"), [
         "missingObjectDetected", "corruptObjectDetected", "finalVerifyPassed", "BRONZE RESTORE EVIDENCE GATE: OK"
