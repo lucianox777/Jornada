@@ -259,6 +259,17 @@ public sealed class SyntheticEvaluationSqlServerTests
                 referenceRowsBefore = Convert.ToInt64(await referenceBefore.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
             }
 
+            long staticQualityCatalogRowsBefore;
+            await using (var staticQualityCatalogBefore = connection.CreateCommand())
+            {
+                staticQualityCatalogBefore.CommandText = """
+                    SELECT
+                      (SELECT COUNT_BIG(*) FROM qualidade.qc_registro_implementacao)
+                      + (SELECT COUNT_BIG(*) FROM qualidade.possibilidade_implementacao);
+                    """;
+                staticQualityCatalogRowsBefore = (long)(await staticQualityCatalogBefore.ExecuteScalarAsync())!;
+            }
+
             var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
             await SqlBatchRunner.ExecuteFileAsync(
                 connection,
@@ -276,7 +287,12 @@ public sealed class SyntheticEvaluationSqlServerTests
                        WHERE modelo_id=@model_id),
                       (SELECT COUNT_BIG(*) FROM ref.frequencia_nome),
                       CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties
-                                          WHERE class=0 AND name=N'Jornada.EnvironmentProfile'));
+                                          WHERE class=0 AND name=N'Jornada.EnvironmentProfile')),
+                      (SELECT COUNT_BIG(*) FROM qualidade.qc_registro_implementacao)
+                          + (SELECT COUNT_BIG(*) FROM qualidade.possibilidade_implementacao),
+                      (SELECT COUNT_BIG(*) FROM qualidade.qc_registro_resultado)
+                          + (SELECT COUNT_BIG(*) FROM qualidade.avaliacao_possibilidade)
+                          + (SELECT COUNT_BIG(*) FROM qualidade.divergencia_gestor);
                     """;
                 retainedAfterCleanup.Parameters.AddWithValue("@evaluation_id", persisted.EvaluationId);
                 retainedAfterCleanup.Parameters.AddWithValue("@model_id", modelId);
@@ -293,6 +309,10 @@ public sealed class SyntheticEvaluationSqlServerTests
                     Assert.That(reader.GetInt64(3), Is.EqualTo(referenceRowsBefore),
                         "A referência nominal deve ser preservada integralmente.");
                     Assert.That(reader.GetString(4), Is.EqualTo("Development"));
+                    Assert.That(reader.GetInt64(5), Is.EqualTo(staticQualityCatalogRowsBefore),
+                        "Catálogos estáticos de QC/possibilidade não são dados de carga.");
+                    Assert.That(reader.GetInt64(6), Is.Zero,
+                        "Resultados de qualidade vinculados à massa anterior devem ser descartados.");
                 });
             }
         }
