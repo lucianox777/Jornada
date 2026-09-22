@@ -148,15 +148,21 @@ Pré-condições fail-closed:
 recrie o banco sem o corpus de escala:
 
 ```bash
-./scripts/local-db.sh reset --no-synthetic-corpus
 export JORNADA_SYNTH_PSEUDONYMIZATION_KEY='<segredo DEV com pelo menos 16 bytes>'
-
-dotnet run --project src/Jornada.Ensaio --configuration Release -- \
-  --Ensaio:Mode=SYNTHETIC_CALIBRATION_DEV
+./scripts/local-synthetic-calibration.sh
 ```
 
-No Windows, o reset equivalente é
-`./scripts/local-db.ps1 reset -NoSyntheticCorpus`.
+No Windows:
+
+```powershell
+$env:JORNADA_SYNTH_PSEUDONYMIZATION_KEY='<segredo DEV com pelo menos 16 bytes>'
+./scripts/local-synthetic-calibration.ps1
+```
+
+Os wrappers executam `local-db reset --no-synthetic-corpus`, leem porta/banco/senha
+do mesmo `.env` usado pelo Docker local, montam `ConnectionStrings__Jornada` em
+memória e chamam o modo `SYNTHETIC_CALIBRATION_DEV`. A chave HMAC permanece apenas
+na variável de ambiente e não é passada como argumento de processo.
 
 O harness:
 
