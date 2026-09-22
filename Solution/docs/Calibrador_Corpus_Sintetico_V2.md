@@ -207,6 +207,64 @@ Por isso o relatório preserva `baseline.totalObservations`; a etapa
 execução cujo baseline não satisfaça a política científica congelada, em vez de
 apagar silenciosamente dados do ambiente.
 
+## SYNTHETIC_EVALUATE pós-RASCUNHO
+
+Depois que o Parameters.Worker publica exatamente um novo modelo em
+`RASCUNHO`, o modo DEV chama `Jornada.Linkage.Evaluation` com
+`--synthetic-evaluate-root`. Só nesse ponto a truth é lida.
+
+A separação é deliberada:
+
+- o gerador produz truth e pacotes;
+- API/Processor materializam os pacotes sem truth;
+- Parameters.Worker gera o RASCUNHO sem saber que a massa é sintética;
+- somente o avaliador pós-RASCUNHO abre `bridge-truth.jsonl` e
+  `corpus/observacoes.csv`;
+- o relatório agregado não contém `base_person_id`, `observation_id`, CPF,
+  CNS, nome ou qualquer linha de truth.
+
+A avaliação V1 usa o próprio ruleset persistido no RASCUNHO e o
+`BlockingProjectionKeyProjector` compartilhado com o runtime. Para cada passe,
+reconstrói as assinaturas canônicas das observações materializadas, faz AND entre
+os campos do passe e OR entre passes e deduplica a união de pares.
+
+O universo V1 é explicitamente:
+**observações sintéticas materializadas**. Ele não é apresentado como população
+real nem como substituto da validação #31.
+
+A união candidata é exata. O parâmetro
+`Ensaio:SyntheticCalibration:MaxCandidatePairs` (default 10.000.000) é um teto
+de segurança: se a união excedê-lo, a avaliação falha. Não existe amostragem
+silenciosa de truth.
+
+O relatório `synthetic-evaluation.json` inclui:
+
+- SHA-256 de `observacoes.csv`, `bridge-truth.jsonl` e
+  `bridge-manifest.json`;
+- identidade/versão/status do RASCUNHO e fingerprint do ruleset;
+- estratos observacionais mutuamente exclusivos
+  `CPF_PRESENT_CNS_PRESENT`, `CPF_PRESENT_CNS_ABSENT`,
+  `CPF_ABSENT_CNS_PRESENT` e `CPF_ABSENT_CNS_ABSENT`;
+- recall verdadeiro do blocking na união e por passe;
+- retenção de não-match e redução do universo candidato;
+- `m_truth_cpf_labeled`: pares verdadeiros interfonte com o mesmo CPF não nulo;
+- `m_truth_no_cpf_target`: pares verdadeiros interfonte com ambos os CPFs
+  ausentes, usados para medir o gap de transportabilidade;
+- `u_truth_candidate_union`: não-vínculos na união candidata deduplicada;
+- distribuições de nome, nome da mãe (incluindo `MISSING`) e nascimento
+  semântico;
+- versões bruta e reponderada da truth;
+- distância de variação total entre modelo e truth e entre o estrato CPF e o alvo
+  sem CPF.
+
+A semântica publicada de `u` permanece
+`CONDITIONED_ON_DEDUPLICATED_BLOCKING_CANDIDATE_UNION`. O avaliador não
+reinterpreta `u` como par aleatório populacional.
+
+Nesta fatia ainda não há oracle de threshold/margem, persistência SQL da avaliação,
+multi-seed nem Monitor DEV. Esses passos consomem o contrato agregado já produzido
+aqui; nenhum deles deve reabrir a truth dentro do Parameters.Worker.
+
 ## Gabarito
 
 `gabarito.json` inclui:
