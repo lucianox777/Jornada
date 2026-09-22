@@ -8,7 +8,7 @@ namespace Jornada.Ensaio;
 public sealed partial class SyntheticCalibrationDevRunner
 {
     private static async Task<string> RunTemporalTruthEvaluationAsync(
-        SyntheticCalibrationSettings settings, Guid modelId, int expectedWaves,
+        SyntheticCalibrationSettings settings, Guid modelId, IReadOnlyList<string> expectedSnapshotHashes,
         CancellationToken cancellationToken)
     {
         var output = Path.Combine(settings.RunDirectory, "synthetic-temporal-evaluation.json");
@@ -41,10 +41,18 @@ public sealed partial class SyntheticCalibrationDevRunner
 
         using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(output, cancellationToken));
         var waves = doc.RootElement.GetProperty("waves");
-        if (waves.GetArrayLength() != expectedWaves
+        if (waves.GetArrayLength() != expectedSnapshotHashes.Count
             || doc.RootElement.GetProperty("modelPromotionAttempted").GetBoolean()
             || doc.RootElement.GetProperty("truthConsumedByIngestionOrCalibrator").GetBoolean())
             throw new InvalidDataException("Relatório temporal incompleto ou sem garantias DEV.");
+
+        for (var index = 0; index < waves.GetArrayLength(); index++)
+        {
+            var evidenceHash = waves[index].GetProperty("snapshotSha256").GetString();
+            if (!string.Equals(evidenceHash, expectedSnapshotHashes[index],
+                    StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Snapshot SQL mudou após o checkpoint da onda.");
+        }
 
         Console.WriteLine($"SYNTHETIC TEMPORAL: ondas={waves.GetArrayLength()}; " +
             "recall/PPV permanecem NAO_MEDIDO sem runs efetivos do Runner entre ondas.");
