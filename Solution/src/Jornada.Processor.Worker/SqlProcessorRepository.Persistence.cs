@@ -9,10 +9,28 @@ internal sealed partial class SqlProcessorRepository
     public async Task PersistValidatedAsync(ReservedBatch batch, ParsedPackage package, CancellationToken ct)
     {
         await using var connection = await connections.OpenAsync(ct);
+
+        // PROCESSANDO é publicado ANTES da transação longa. Silver/item_processado
+        // referenciam Lote por FK e podem manter shared locks até o commit; o heartbeat
+        // é persistido na tabela independente ingestao.lote_heartbeat.
+        await using (var transition = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct))
+        {
+            try
+            {
+                await SetProcessingAsync(connection, transition, batch, ct);
+                await transition.CommitAsync(ct);
+            }
+            catch
+            {
+                if (transition.Connection is not null)
+                    await transition.RollbackAsync(CancellationToken.None);
+                throw;
+            }
+        }
+
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         try
         {
-            await SetProcessingAsync(connection, tx, batch, ct);
             var peopleByDeliveryId = new Dictionary<string, ProcessedPerson>(StringComparer.Ordinal);
 
             foreach (var person in package.Pessoas)
@@ -36,8 +54,14 @@ internal sealed partial class SqlProcessorRepository
                        SET qtd_pessoas=@qtd_pessoas,qtd_registros=@qtd_registros,status='PROCESSADO',erro_codigo=NULL,
                            lease_id=NULL,lease_owner=NULL,lease_adquirido_em=NULL,lease_expira_em=NULL,heartbeat_em=NULL,
                            proxima_tentativa_em=NULL,atualizado_em=SYSUTCDATETIME()
-                     WHERE lote_id=@lote_id AND lease_id=@lease_id AND lease_owner=@lease_owner;
+                     WHERE lote_id=@lote_id AND lease_id=@lease_id AND lease_owner=@lease_owner
+                       AND EXISTS(
+                          SELECT 1 FROM ingestao.lote_heartbeat h
+                          WHERE h.lote_id=@lote_id AND h.lease_id=@lease_id
+                            AND h.lease_owner=@lease_owner AND h.lease_expira_em>=SYSUTCDATETIME()
+                       );
                     IF @@ROWCOUNT<>1 THROW 51022,'Lease perdido antes da publicação final do lote.',1;
+                    DELETE FROM ingestao.lote_heartbeat WHERE lote_id=@lote_id AND lease_id=@lease_id;
                     EXEC ingestao.sp_recalcular_entrega @entrega_id=@entrega_id;
                     """;
                 finish.Parameters.AddWithValue("@qtd_pessoas", package.Pessoas.Count);
