@@ -455,7 +455,22 @@ quantidades realizadas por Gestor/estrato/operação e fonte
 **truth-only**. O fingerprint das entradas inclui o hash das novas
 configurações somente no modo opt-in; a referência V2 original não muda.
 
-O caminho atual `generate-ingestion` ainda produz **uma carga**. As
-múltiplas ondas devem manter `codigoPessoaOrigem` estável na Secretaria,
-persistir coortes de CPF inicial e medir mudanças/recall após *cada* carga
-no pipeline real. Não interpretar o presente overlay como prova do ciclo.
+O comando legado `generate-ingestion` continua produzindo **uma carga** e
+preserva o contrato byte a byte anterior. O novo `generate-ingestion-waves`
+é opt-in e usa `SYNTHETIC_INGESTION_WAVES_V1`: agenda entradas tardias,
+repetições somente quando os atributos mudam e recuperação de CPF, nome,
+mãe e data em ondas sucessivas. Na ponte de ondas, o
+`codigoPessoaOrigem` é estável por pessoa verdadeira + Gestor + sistema de
+origem + seed + chave HMAC; `idPessoaEntrega` varia por entrega. Cada onda
+gera ZIPs reais de Pessoa v4, `bridge-manifest.json` e
+`bridge-truth.jsonl` isolado dos ZIPs. Um `waves-manifest.json` agrega
+contagens de coortes iniciais, novos/atualizados, revelação de CPF,
+recuperação de nascimento e hashes de proveniência.
+
+O cenário usa probabilidades **hipotéticas** que não representam a
+população real. Ele testa determinismo, não-colisão e evolução temporal
+na superfície de geração. A execução operacional consecutiva da API,
+Processor, Calibrador e Runner com checkpoints de recall/PPV por onda,
+incluindo mudanças no resultado de ligação e regravação só por alteração,
+continua como etapa independente da issue #416. Esse resultado não pode
+ser presumido pela mera geração dos ZIPs.
