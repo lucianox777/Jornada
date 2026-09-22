@@ -229,13 +229,13 @@
   "candidateGraph": {
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
-    "sourceCommit": "397a07c3892bed25a4019c41eb541b44daeb5eba",
-    "githubRunId": "35682617704",
+    "sourceCommit": "4687a5d31d870ead4044f7435eba601407e18f87",
+    "githubRunId": "35755475367",
     "sdk": "8.0.424",
-    "reason": "PR #433 compartilha a política de calibração de decisão com o evaluator via Jornada.Linkage.Core. O diagnóstico SDK 8.0.424 force-evaluate do run 35682617704 alterou exatamente os metadados ProjectReference de Evaluation e seus consumidores Conference/Integration; nenhum pacote externo mudou.",
+    "reason": "PR #433 compartilha a política de calibração de decisão com o evaluator via Jornada.Linkage.Core. O diagnóstico SDK 8.0.424 force-evaluate do run 35682617704 alterou exatamente os metadados ProjectReference de Evaluation e seus consumidores Conference/Integration; nenhum pacote externo mudou. PR #439 inclui agora referência direta ao evaluator no projeto de testes unitários; o SDK alterou somente o bloco ProjectReference do lock de Jornada.Tests, conforme dependency-lock run 35755475367.",
     "lockCount": 22,
     "changedLockCount": 17,
-    "combinedSha256": "6cd765049185e60ba97605ec13ac77c628bf44946e817eddc05bed78f1e3dd10",
+    "combinedSha256": "c28955ce4218d0d9b8d852507381b215cdde90489734df9b07c0b9aebde9f0e1",
     "overrides": [
       {
         "path": "src/Jornada.Api/packages.lock.json",
@@ -303,7 +303,7 @@
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "31c9df737c0cc4194a47d29a82eaaceed61c1d5373db2e809b0ded143828585f"
+        "sha256": "eb0982f9d6c1fd550a78741ecdb031f264f1bdaaebaeb452bab227306a52c843"
       }
     ]
   }

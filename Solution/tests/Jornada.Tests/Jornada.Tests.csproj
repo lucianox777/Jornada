@@ -16,6 +16,7 @@
     <ProjectReference Include="..\..\src\Jornada.Linkage.SyntheticCorpus\Jornada.Linkage.SyntheticCorpus.csproj" />
     <ProjectReference Include="..\..\src\Jornada.Processor.Worker\Jornada.Processor.Worker.csproj" />
     <ProjectReference Include="..\..\src\Jornada.Linkage.Runner\Jornada.Linkage.Runner.csproj" />
+    <ProjectReference Include="..\..\src\Jornada.Linkage.Evaluation\Jornada.Linkage.Evaluation.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="NUnit" Version="4.2.2" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
