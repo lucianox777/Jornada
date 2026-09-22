@@ -154,7 +154,7 @@ public sealed class SyntheticCalibrationDevRunner(
         }
 
         var versionBefore = await ReadMaxModelVersionAsync(cancellationToken);
-        await RunNameFrequencySnapshotLoaderAsync(settings, cancellationToken);
+        await EnsureNameFrequencySnapshotAsync(settings, cancellationToken);
         await RunGenerateDraftAsync(settings, cancellationToken);
         var model = await ReadSingleNewDraftAsync(versionBefore, cancellationToken);
         var modelValidation = await RunModelValidationAsync(
@@ -733,6 +733,35 @@ public sealed class SyntheticCalibrationDevRunner(
         }
 
         throw new TimeoutException($"Timeout aguardando Entrega {deliveryId:D}.");
+    }
+
+    private async Task EnsureNameFrequencySnapshotAsync(
+        SyntheticCalibrationSettings settings,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = openConnection();
+        await connection.OpenAsync(cancellationToken);
+        var activeRows = await ScalarInt64Async(
+            connection,
+            """
+            SELECT COUNT_BIG(*)
+            FROM ref.frequencia_nome_versao v
+            WHERE v.status=N'ATIVA'
+              AND v.conteudo_sha256 IS NOT NULL
+              AND EXISTS(
+                  SELECT 1
+                  FROM ref.frequencia_nome f
+                  WHERE f.frequencia_nome_versao_id=v.frequencia_nome_versao_id);
+            """,
+            cancellationToken);
+
+        if (activeRows > 0)
+        {
+            Console.WriteLine("Referência nominal IBGE ATIVA preservada; recarga omitida.");
+            return;
+        }
+
+        await RunNameFrequencySnapshotLoaderAsync(settings, cancellationToken);
     }
 
     private static async Task RunNameFrequencySnapshotLoaderAsync(
