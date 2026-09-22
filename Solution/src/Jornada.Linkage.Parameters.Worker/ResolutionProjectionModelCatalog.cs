@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Jornada.Contracts;
 
 namespace Jornada.Linkage.Parameters.Worker;
 
@@ -108,6 +109,7 @@ public sealed record ResolutionProjectionPlan(
 public static class HomologatedResolutionModelCatalog
 {
     public const string CatalogVersion = HomologatedResolutionAlgorithmCatalog.CatalogVersion;
+    public const string ExperimentalCatalogVersion = HomologatedResolutionAlgorithmCatalog.ExperimentalCatalogVersion;
 
     private static readonly IReadOnlyDictionary<ResolutionAttributeSemantic, HomologatedResolutionModel> Models =
         HomologatedResolutionAlgorithmCatalog.All
@@ -134,6 +136,31 @@ public static class HomologatedResolutionModelCatalog
 
     public static bool TryGet(ResolutionAttributeSemantic semantic, out HomologatedResolutionModel model) =>
         Models.TryGetValue(semantic, out model!);
+
+    public static bool TryGetExperimental(ResolutionAttributeSemantic semantic, out HomologatedResolutionModel model)
+    {
+        if (!TryGet(semantic, out var baseline))
+        {
+            model = null!;
+            return false;
+        }
+
+        var additions = HomologatedResolutionAlgorithmCatalog.Experimental
+            .Where(algorithm => algorithm.Semantic == semantic)
+            .OrderBy(static algorithm => algorithm.QualifiedAlgorithm, StringComparer.Ordinal)
+            .SelectMany(static algorithm => algorithm.OutputColumns.Select(column =>
+                new HomologatedResolutionTransformation(
+                    algorithm.Algorithm, algorithm.AlgorithmVersion,
+                    column.CanonicalOutputSuffix, column.Materialization,
+                    column.MultiValued, column.CandidateForBlocking)));
+
+        model = new HomologatedResolutionModel(
+            baseline.Model,
+            ExperimentalCatalogVersion,
+            semantic,
+            baseline.Transformations.Concat(additions).ToArray());
+        return true;
+    }
 }
 
 /// <summary>
@@ -148,11 +175,31 @@ public static class ResolutionProjectionPlanner
 
     public static ResolutionProjectionPlan Build(
         IEnumerable<ResolutionSourceField> attributes,
-        string schemaVersion)
+        string schemaVersion) => BuildCore(attributes, schemaVersion, includeExperimental: false);
+
+    /// <summary>
+    /// Apenas experimentação explícita. Nunca modifica o fingerprint físico V2
+    /// nem habilita novas chaves no runtime operacional por efeito colateral.
+    /// </summary>
+    public static ResolutionProjectionPlan BuildExperimental(
+        IEnumerable<ResolutionSourceField> attributes,
+        string schemaVersion) => BuildCore(attributes, schemaVersion, includeExperimental: true);
+
+    private static ResolutionProjectionPlan BuildCore(
+        IEnumerable<ResolutionSourceField> attributes,
+        string schemaVersion,
+        bool includeExperimental)
     {
         ArgumentNullException.ThrowIfNull(attributes);
         if (string.IsNullOrWhiteSpace(schemaVersion))
             throw new ArgumentException("A versão do esquema é obrigatória.", nameof(schemaVersion));
+        if (includeExperimental && string.Equals(schemaVersion.Trim(),
+                PersonResolutionProjectionContract.SchemaVersion, StringComparison.Ordinal))
+            throw new InvalidOperationException("Projeção experimental exige schema distinto do contrato físico V2.");
+
+        var catalogVersion = includeExperimental
+            ? HomologatedResolutionModelCatalog.ExperimentalCatalogVersion
+            : HomologatedResolutionModelCatalog.CatalogVersion;
 
         var sources = attributes
             .Select(static attribute => attribute ?? throw new ArgumentException("Atributo nulo não é permitido."))
@@ -182,7 +229,11 @@ public static class ResolutionProjectionPlanner
             // Fail-closed: conhecer a semântica ou possuir algoritmo homologado não basta.
             if (!source.EligibleForResolution)
                 continue;
-            if (!HomologatedResolutionModelCatalog.TryGet(source.Semantic, out var model))
+            HomologatedResolutionModel model;
+            var found = includeExperimental
+                ? HomologatedResolutionModelCatalog.TryGetExperimental(source.Semantic, out model)
+                : HomologatedResolutionModelCatalog.TryGet(source.Semantic, out model);
+            if (!found)
                 continue;
 
             foreach (var transformation in model.Transformations)
@@ -210,10 +261,10 @@ public static class ResolutionProjectionPlanner
 
         return new ResolutionProjectionPlan(
             schemaVersion.Trim(),
-            HomologatedResolutionModelCatalog.CatalogVersion,
+            catalogVersion,
             sources,
             ordered,
-            Fingerprint(schemaVersion.Trim(), sources, ordered));
+            Fingerprint(schemaVersion.Trim(), catalogVersion, sources, ordered));
     }
 
     private static string ResolveFeatureName(
@@ -276,6 +327,7 @@ public static class ResolutionProjectionPlanner
 
     private static string Fingerprint(
         string schemaVersion,
+        string catalogVersion,
         IReadOnlyList<ResolutionSourceField> sources,
         IReadOnlyList<ResolutionProjectedFeature> features)
     {
@@ -283,7 +335,7 @@ public static class ResolutionProjectionPlanner
         // Windows. Nunca use AppendLine/Environment.NewLine nesta serialização canônica.
         var canonical = new StringBuilder()
             .Append(PlannerVersion).Append('|')
-            .Append(HomologatedResolutionModelCatalog.CatalogVersion).Append('|')
+            .Append(catalogVersion).Append('|')
             .Append(schemaVersion).Append('\n');
 
         foreach (var source in sources)
