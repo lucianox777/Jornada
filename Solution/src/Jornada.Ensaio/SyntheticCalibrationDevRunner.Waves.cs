@@ -218,7 +218,7 @@ public sealed partial class SyntheticCalibrationDevRunner
         return 0;
     }
 
-    private static async Task GenerateWavePackagesAsync(
+    private async Task GenerateWavePackagesAsync(
         SyntheticCalibrationSettings settings, int count, CancellationToken cancellationToken)
     {
         var key = Environment.GetEnvironmentVariable(settings.PseudonymizationKeyEnvironment);
@@ -226,19 +226,55 @@ public sealed partial class SyntheticCalibrationDevRunner
             throw new InvalidOperationException("Chave de pseudonimização DEV ausente ou curta.");
         var project = Path.Combine(settings.SolutionRoot, "src", "Jornada.Linkage.SyntheticCorpus",
             "Jornada.Linkage.SyntheticCorpus.csproj");
+        var arguments = new List<string>
+        {
+            "run", "--project", project, "--configuration", "Release", "--no-build", "--",
+            "generate-ingestion-waves",
+            "--reference-root", settings.ReferenceRoot,
+            "--out", settings.GeneratedDirectory,
+            "--people", settings.People.ToString(CultureInfo.InvariantCulture),
+            "--seed", settings.Seed.ToString(CultureInfo.InvariantCulture),
+            "--error-profile", settings.ErrorProfile,
+            "--gestores", "4", "--pessoa-schema-versao", "4",
+            "--data-referencia", settings.DataReferencia.ToString("O", CultureInfo.InvariantCulture),
+            "--wave-count", count.ToString(CultureInfo.InvariantCulture),
+            "--pseudonymization-key-env", settings.PseudonymizationKeyEnvironment
+        };
+        foreach (var (setting, argument) in new[]
+        {
+            ("WaveDelayedArrivalRate", "--wave-delayed-arrival-rate"),
+            ("WaveCpfRevealRate", "--wave-cpf-reveal-rate"),
+            ("WaveNameCorrectionRate", "--wave-name-correction-rate"),
+            ("WaveMotherCorrectionRate", "--wave-mother-correction-rate"),
+            ("WaveBirthRecoveryRate", "--wave-birth-recovery-rate")
+        })
+        {
+            var value = configuration["Ensaio:SyntheticCalibration:" + setting];
+            if (string.IsNullOrWhiteSpace(value)) continue;
+            if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var rate)
+                || !double.IsFinite(rate) || rate is < 0 or > 1)
+                throw new InvalidOperationException(setting + " exige taxa entre zero e um.");
+            arguments.Add(argument);
+            arguments.Add(rate.ToString("R", CultureInfo.InvariantCulture));
+        }
+
+        foreach (var (setting, argument) in new[]
+        {
+            ("StratifiedErrorsConfig", "--stratified-errors-config"),
+            ("BrazilianNameErrorsConfig", "--brazilian-name-errors-config")
+        })
+        {
+            var value = configuration["Ensaio:SyntheticCalibration:" + setting];
+            if (string.IsNullOrWhiteSpace(value)) continue;
+            var fullPath = Path.GetFullPath(value, settings.SolutionRoot);
+            if (!File.Exists(fullPath))
+                throw new FileNotFoundException("Configuração DEV sintética não localizada.", fullPath);
+            arguments.Add(argument);
+            arguments.Add(fullPath);
+        }
+
         await RunProcessAsync(settings.SolutionRoot, "dotnet",
-            ["run", "--project", project, "--configuration", "Release", "--no-build", "--",
-                "generate-ingestion-waves",
-                "--reference-root", settings.ReferenceRoot,
-                "--out", settings.GeneratedDirectory,
-                "--people", settings.People.ToString(CultureInfo.InvariantCulture),
-                "--seed", settings.Seed.ToString(CultureInfo.InvariantCulture),
-                "--error-profile", settings.ErrorProfile,
-                "--gestores", "4", "--pessoa-schema-versao", "4",
-                "--data-referencia", settings.DataReferencia.ToString("O", CultureInfo.InvariantCulture),
-                "--wave-count", count.ToString(CultureInfo.InvariantCulture),
-                "--pseudonymization-key-env", settings.PseudonymizationKeyEnvironment],
-            environment: null, cancellationToken);
+            arguments, environment: null, cancellationToken);
     }
 
     private static void ValidateWaveManifest(
