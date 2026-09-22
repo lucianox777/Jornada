@@ -95,8 +95,8 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(source, Does.Contain("--synthetic-evaluate-root"));
             Assert.That(source, Does.Contain("--synthetic-run-group-id"));
             Assert.That(source, Does.Contain("--synthetic-expected-seeds"));
-            Assert.That(source, Does.Contain("--mode", "MODEL_VALIDATION""));
-            Assert.That(source, Does.Contain("--publish", "false""));
+            Assert.That(source, Does.Contain("\"--mode\", \"MODEL_VALIDATION\""));
+            Assert.That(source, Does.Contain("\"--publish\", \"false\""));
             Assert.That(source, Does.Contain("CONCLUIDO_SEM_PUBLICACAO"));
             Assert.That(source, Does.Contain("AppendOnlyPersisted: true"));
             Assert.That(source, Does.Contain("Jornada.Linkage.Evaluation"));
@@ -149,14 +149,14 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(promotionSql, Does.Not.Contain("linkage_avaliacao_sintetica"));
             Assert.That(conferenceGovernanceSql, Does.Not.Contain("linkage_avaliacao_sintetica"));
 
-            Assert.That(groupReader, Does.Contain(""CONCLUIDO""));
-            Assert.That(groupReader, Does.Contain(""INCOMPLETO""));
-            Assert.That(groupReader, Does.Contain(""INCONSISTENTE""));
+            Assert.That(groupReader, Does.Contain("\"CONCLUIDO\""));
+            Assert.That(groupReader, Does.Contain("\"INCOMPLETO\""));
+            Assert.That(groupReader, Does.Contain("\"INCONSISTENTE\""));
             Assert.That(groupReader, Does.Contain("ReadDispersionAsync"));
             Assert.That(groupReader, Does.Contain("complete"));
             Assert.That(syntheticMonitor, Does.Contain("SINTÉTICO — NÃO PROMOVÍVEL"));
             Assert.That(syntheticMonitor, Does.Contain("Jornada.EnvironmentProfile"));
-            Assert.That(syntheticMonitor, Does.Contain("RequiredProfile = "Development""));
+            Assert.That(syntheticMonitor, Does.Contain("RequiredProfile = \"Development\""));
             Assert.That(operationalMonitor, Does.Contain("hostEnvironment.IsDevelopment()"));
             Assert.That(operationalMonitor, Does.Contain("SyntheticOperationalMonitorGate.IsResidentDevelopment"));
             Assert.That(operationalMonitor, Does.Contain("if (syntheticDevelopment)"));
