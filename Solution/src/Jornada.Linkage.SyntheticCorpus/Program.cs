@@ -153,21 +153,15 @@ if (string.Equals(args[0], "generate-ingestion", StringComparison.Ordinal)
         Directory.CreateDirectory(ingestionDirectory);
         var wavesManifest = Path.Combine(ingestionDirectory, "waves-manifest.json");
         await File.WriteAllTextAsync(wavesManifest,
-            JsonSerializer.Serialize(new
-            {
-                schemaVersion = 1,
-                scenarioVersion = SyntheticIngestionWavePlanner.ScenarioVersion,
-                bridgeVersion = SyntheticIngestionBridge.WaveBridgeVersion,
+            SyntheticWaveManifestSerializer.Serialize(
                 options.Seed,
-                corpusInputFingerprintSha256 = loaded.InputFingerprint,
-                pseudonymizationKeySha256 = Convert.ToHexString(
-                    System.Security.Cryptography.SHA256.HashData(
-                        System.Text.Encoding.UTF8.GetBytes(pseudonymizationKey))),
-                baselineSourcesWithCpf = initialSources.Count(x => x.Cpf is not null),
-                baselineSourcesWithoutCpf = initialSources.Count(x => x.Cpf is null),
+                loaded.InputFingerprint,
+                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(pseudonymizationKey))),
+                initialSources.Count(x => x.Cpf is not null),
+                initialSources.Count(x => x.Cpf is null),
                 scenario,
-                waves = reports
-            }, SyntheticCorpusCliJson.Indented) + "\n");
+                reports));
         Console.WriteLine(JsonSerializer.Serialize(new
         {
             outputDirectory = Path.GetFullPath(output),
