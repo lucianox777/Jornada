@@ -72,7 +72,8 @@ if (string.Equals(args[0], "generate", StringComparison.Ordinal))
     return 0;
 }
 
-if (string.Equals(args[0], "generate-ingestion", StringComparison.Ordinal))
+if (string.Equals(args[0], "generate-ingestion", StringComparison.Ordinal)
+    || string.Equals(args[0], "generate-ingestion-waves", StringComparison.Ordinal))
 {
     var values = ParseNamedArguments(args.Skip(1).ToArray());
     var referenceRoot = ResolveReferenceRoot(values);
@@ -103,6 +104,80 @@ if (string.Equals(args[0], "generate-ingestion", StringComparison.Ordinal))
         GetInt(values, "pessoa-schema-versao", 4),
         dataReferencia,
         pseudonymizationKey);
+    if (string.Equals(args[0], "generate-ingestion-waves", StringComparison.Ordinal))
+    {
+        var scenario = new SyntheticWaveScenario(
+            WaveCount: GetInt(values, "wave-count", 3),
+            DelayedArrivalProbability: GetDouble(values, "wave-delayed-arrival-rate", .25),
+            CpfRevealProbability: GetDouble(values, "wave-cpf-reveal-rate", .75),
+            NameCorrectionProbability: GetDouble(values, "wave-name-correction-rate", .35),
+            MotherCorrectionProbability: GetDouble(values, "wave-mother-correction-rate", .35),
+            BirthDateRecoveryProbability: GetDouble(values, "wave-birth-recovery-rate", .70));
+        var waves = SyntheticIngestionWavePlanner.Plan(loaded.Generation, scenario);
+        var reports = new List<object>();
+        var initialSources = loaded.Generation.Observations
+            .GroupBy(x => (x.BasePersonId, x.Gestor))
+            .Select(x => x.OrderBy(y => y.ObservationId, StringComparer.Ordinal).First())
+            .ToArray();
+
+        foreach (var wave in waves)
+        {
+            var currentOptions = bridgeOptions with
+            {
+                StableSourceIdentity = true,
+                WaveNumber = wave.WaveNumber,
+                DataReferencia = dataReferencia.AddDays(wave.WaveNumber)
+            };
+            var current = SyntheticIngestionBridge.Build(wave.Generation, currentOptions);
+            var directory = Path.Combine(
+                ingestionDirectory, "wave-" + (wave.WaveNumber + 1).ToString("D2", CultureInfo.InvariantCulture));
+            var materializedWave = await SyntheticIngestionBridgeMaterializer.WriteAsync(
+                directory, current, currentOptions, loaded.InputFingerprint);
+            reports.Add(new
+            {
+                wave = wave.WaveNumber + 1,
+                currentOptions.DataReferencia,
+                wave.NewSourceCount,
+                wave.UpdatedSourceCount,
+                wave.CpfRevealedCount,
+                wave.BirthDateRecoveredCount,
+                current.SourceObservationCount,
+                current.MaterializedObservationCount,
+                current.ExcludedObservationCount,
+                manifestSha256 = materializedWave.ManifestSha256,
+                truthSha256 = materializedWave.TruthSha256,
+                packages = current.Packages.Select(x => new { x.GestorCodigo, x.FileName, x.Sha256, x.PeopleCount })
+            });
+        }
+
+        Directory.CreateDirectory(ingestionDirectory);
+        var wavesManifest = Path.Combine(ingestionDirectory, "waves-manifest.json");
+        await File.WriteAllTextAsync(wavesManifest,
+            JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                scenarioVersion = SyntheticIngestionWavePlanner.ScenarioVersion,
+                bridgeVersion = SyntheticIngestionBridge.WaveBridgeVersion,
+                options.Seed,
+                corpusInputFingerprintSha256 = loaded.InputFingerprint,
+                pseudonymizationKeySha256 = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(
+                        System.Text.Encoding.UTF8.GetBytes(pseudonymizationKey))),
+                baselineSourcesWithCpf = initialSources.Count(x => x.Cpf is not null),
+                baselineSourcesWithoutCpf = initialSources.Count(x => x.Cpf is null),
+                scenario,
+                waves = reports
+            }, SyntheticCorpusCliJson.Indented) + "\n");
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            outputDirectory = Path.GetFullPath(output),
+            wavesManifest,
+            waveCount = waves.Count,
+            waves = reports
+        }, SyntheticCorpusCliJson.Indented));
+        return 0;
+    }
+
     var bridge = SyntheticIngestionBridge.Build(loaded.Generation, bridgeOptions);
     var bridgeMaterialized = await SyntheticIngestionBridgeMaterializer.WriteAsync(
         ingestionDirectory,
@@ -254,6 +329,19 @@ static void PrintUsage()
             [--brazilian-name-errors-config <arquivo.json> (experimental, sem taxas presumidas)]
             [--stratified-errors-config <arquivo.json> (overlay experimental por CPF observado/Gestor)]
 
+          Jornada.Linkage.SyntheticCorpus generate-ingestion-waves
+            --data-referencia <ISO-8601 com offset>
+            [--wave-count <2..12>]
+            [--wave-delayed-arrival-rate <0..1>]
+            [--wave-cpf-reveal-rate <0..1>]
+            [--wave-name-correction-rate <0..1>]
+            [--wave-mother-correction-rate <0..1>]
+            [--wave-birth-recovery-rate <0..1>]
+            [--pseudonymization-key-env <ENV_NAME>]
+            [--reference-root <dir>]
+            [--out <dir>]
+            [demais parâmetros de generate]
+
           Jornada.Linkage.SyntheticCorpus generate-ingestion
             --data-referencia <ISO-8601 com offset>
             [--pseudonymization-key-env <ENV_NAME>]
@@ -262,7 +350,7 @@ static void PrintUsage()
             [--out <dir>]
             [demais parâmetros de generate]
 
-        generate-ingestion lê a chave HMAC somente da variável de ambiente
+        Ambos os modos de ingestão leem a chave HMAC somente da variável de ambiente
         (default JORNADA_SYNTH_PSEUDONYMIZATION_KEY) e nunca a grava nos artefatos.
         """);
 }
