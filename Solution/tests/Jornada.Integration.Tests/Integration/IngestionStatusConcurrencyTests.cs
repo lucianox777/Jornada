@@ -59,6 +59,48 @@ public sealed class IngestionStatusConcurrencyTests
     }
 
     [Test]
+    public async Task Status_polling_stays_available_while_processor_holds_long_lote_transaction()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareAsync(connectionString);
+
+        await using var writer = new SqlConnection(connectionString);
+        await writer.OpenAsync();
+        await using var tx = (SqlTransaction)await writer.BeginTransactionAsync(IsolationLevel.Serializable);
+
+        await using (var processing = writer.CreateCommand())
+        {
+            processing.Transaction = tx;
+            processing.CommandText = """
+                UPDATE ingestao.lote
+                   SET status='PROCESSANDO',atualizado_em=SYSDATETIMEOFFSET()
+                 WHERE lote_id=@lote_id;
+                """;
+            processing.Parameters.AddWithValue("@lote_id", LoteId);
+            Assert.That(await processing.ExecuteNonQueryAsync(), Is.EqualTo(1));
+        }
+
+        var service = new SqlIngestionService(new OperationalSqlAdapter(connectionString), null!);
+        var context = new AccessContext(Guid.Empty, AccessCredentialType.GESTOR, "SEHAB", "SEHAB", null, [], []);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var response = await service.GetStatusAsync(context, EntregaId, cts.Token);
+        sw.Stop();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response, Is.Not.Null);
+            Assert.That(response!.Status, Is.EqualTo("PROCESSANDO"));
+            Assert.That(response.Erro, Is.Null);
+            Assert.That(sw.Elapsed, Is.LessThan(TimeSpan.FromSeconds(3)),
+                "Status não deve aguardar o lock da transação longa do Processor.");
+        });
+
+        await tx.RollbackAsync();
+    }
+
+    [Test]
     public async Task Query_split_preserves_latest_lote_error()
     {
         var connectionString = RequireIntegrationConnection();

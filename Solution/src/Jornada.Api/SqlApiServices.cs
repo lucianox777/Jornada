@@ -307,7 +307,7 @@ internal sealed class SqlIngestionService(IOperationalSqlAdapter connections, IB
         {
             errorCommand.CommandText = """
                 SELECT TOP(1) l.erro_codigo
-                FROM ingestao.lote l
+                FROM ingestao.lote l WITH (READPAST)
                 WHERE l.entrega_id=@entrega_id AND l.erro_codigo IS NOT NULL
                 ORDER BY l.atualizado_em DESC,l.lote_seq DESC;
                 """;
