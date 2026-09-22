@@ -51,6 +51,7 @@ public sealed partial class SyntheticCalibrationDevRunner(
         var solutionRoot = FindSolutionRoot();
         var settings = SyntheticCalibrationSettings.FromConfiguration(configuration, options, solutionRoot);
         await AssertDevelopmentEnvironmentAsync(settings, cancellationToken);
+        await AssertNoExternalProcessorAsync(cancellationToken);
 
         var baseline = await ReadBaselineAsync(cancellationToken);
         if (baseline.SyntheticOrigins != 0 || baseline.SyntheticObservations != 0)
@@ -91,6 +92,8 @@ public sealed partial class SyntheticCalibrationDevRunner(
             manifest.Packages.Select(x => x.GestorCodigo).Distinct(StringComparer.Ordinal),
             cancellationToken);
         await ValidatePackageHashesAsync(settings, manifest, cancellationToken);
+        // Repete após a geração (potencialmente demorada), antes de iniciar a API.
+        await AssertNoExternalProcessorAsync(cancellationToken);
 
         using var http = new HttpClient
         {
@@ -576,6 +579,39 @@ public sealed partial class SyntheticCalibrationDevRunner(
         if (!File.Exists(path))
             throw new FileNotFoundException($"Pacote declarado no manifesto não existe: {fileName}.", path);
         return path;
+    }
+
+    // Só o Processor iniciado pelo próprio Ensaio pode consumir os ZIPs gerados
+    // em RuntimeBronzeDirectory. Processors de NODE1/NODE2 no mesmo SQL podem
+    // reservar a entrega sem acesso a esses arquivos e produzir QUARENTENA.
+    // Este preflight é proteção adicional; a execução robusta usa banco DEV isolado.
+    private async Task AssertNoExternalProcessorAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = openConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandTimeout = 10;
+        command.CommandText = """
+            SELECT TOP(10) node_id,machine_name
+            FROM controle.runtime_componente
+            WHERE componente=N'Processor'
+              AND status=N'RUNNING'
+              AND heartbeat_em>=DATEADD(SECOND,-35,SYSUTCDATETIME())
+            ORDER BY node_id;
+            """;
+        var external = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            external.Add($"{reader.GetString(0)} ({reader.GetString(1)})");
+
+        if (external.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Ensaio sintético DEV interrompido: Processors externos compartilham este banco: " +
+                string.Join(", ", external) +
+                ". Seus nós podem reservar ZIPs Bronze que só existem na pasta local do ensaio. " +
+                "Use um banco DEV isolado ou pare os Processors externos antes de limpar o banco.");
+        }
     }
 
     private static ChildProcess StartRuntimeProcess(
