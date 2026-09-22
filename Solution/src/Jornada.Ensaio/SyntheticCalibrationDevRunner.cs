@@ -157,9 +157,13 @@ public sealed class SyntheticCalibrationDevRunner(
         await RunNameFrequencySnapshotLoaderAsync(settings, cancellationToken);
         await RunGenerateDraftAsync(settings, cancellationToken);
         var model = await ReadSingleNewDraftAsync(versionBefore, cancellationToken);
+        var syntheticEvaluation = await RunSyntheticEvaluationAsync(
+            settings,
+            model.ModelId,
+            cancellationToken);
 
         var report = new SyntheticCalibrationDevEvidence(
-            "SYNTHETIC_CALIBRATION_DEV_V1",
+            "SYNTHETIC_CALIBRATION_DEV_V2",
             RequiredEnvironment,
             DateTimeOffset.UtcNow,
             settings.Seed,
@@ -179,7 +183,9 @@ public sealed class SyntheticCalibrationDevRunner(
             materialized,
             deliveries,
             model,
+            syntheticEvaluation,
             SyntheticTruthConsumed: false,
+            PostDraftEvaluationTruthConsumed: true,
             ModelPromotionAttempted: false);
 
         var reportPath = Path.Combine(settings.RunDirectory, "synthetic-calibration-dev.json");
@@ -195,7 +201,8 @@ public sealed class SyntheticCalibrationDevRunner(
         Console.WriteLine($"SYNTHETIC CALIBRATION DEV: OK report={reportPath}");
         Console.WriteLine(
             $"modelo=v{model.Version} status={model.Status}; materializadas={manifest.MaterializedObservationCount}; " +
-            $"excluídas={manifest.ExcludedObservationCount}; truthConsumed=false; promotionAttempted=false");
+            $"excluídas={manifest.ExcludedObservationCount}; calibrationTruthConsumed=false; " +
+            $"postDraftTruthConsumed=true; promotionAttempted=false");
         return 0;
     }
 
@@ -326,7 +333,12 @@ public sealed class SyntheticCalibrationDevRunner(
                 settings.SolutionRoot,
                 "src",
                 "Jornada.Linkage.Parameters.Worker",
-                "Jornada.Linkage.Parameters.Worker.csproj")
+                "Jornada.Linkage.Parameters.Worker.csproj"),
+            Path.Combine(
+                settings.SolutionRoot,
+                "src",
+                "Jornada.Linkage.Evaluation",
+                "Jornada.Linkage.Evaluation.csproj")
         };
 
         foreach (var project in projects)
@@ -757,6 +769,58 @@ public sealed class SyntheticCalibrationDevRunner(
         await RunParametersWorkerAsync(settings, env, cancellationToken);
     }
 
+    private static async Task<SyntheticEvaluationEvidence> RunSyntheticEvaluationAsync(
+        SyntheticCalibrationSettings settings,
+        Guid modelId,
+        CancellationToken cancellationToken)
+    {
+        var project = Path.Combine(
+            settings.SolutionRoot,
+            "src",
+            "Jornada.Linkage.Evaluation",
+            "Jornada.Linkage.Evaluation.csproj");
+        var output = Path.Combine(settings.RunDirectory, "synthetic-evaluation.json");
+        var environment = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["ConnectionStrings__Jornada"] = settings.ConnectionString,
+            ["Database__Provider"] = "SqlServer",
+            ["DOTNET_ENVIRONMENT"] = RequiredEnvironment
+        };
+
+        await RunProcessAsync(
+            settings.SolutionRoot,
+            "dotnet",
+            [
+                "run",
+                "--project", project,
+                "--configuration", "Release",
+                "--no-build",
+                "--",
+                "--synthetic-evaluate-root", settings.GeneratedDirectory,
+                "--model-id", modelId.ToString("D"),
+                "--output", output,
+                "--max-candidate-pairs", settings.MaxCandidatePairs.ToString(CultureInfo.InvariantCulture),
+                "--command-timeout-seconds", settings.EvaluationCommandTimeoutSeconds.ToString(CultureInfo.InvariantCulture)
+            ],
+            environment,
+            cancellationToken);
+
+        var hashPath = output + ".sha256";
+        if (!File.Exists(output) || !File.Exists(hashPath))
+            throw new InvalidOperationException("SYNTHETIC_EVALUATE não materializou relatório + SHA-256.");
+
+        var hashLine = (await File.ReadAllTextAsync(hashPath, cancellationToken)).Trim();
+        var hash = hashLine.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        if (hash is null || !IsSha256(hash))
+            throw new InvalidDataException("SHA-256 da avaliação sintética inválido.");
+
+        return new SyntheticEvaluationEvidence(
+            Path.GetFullPath(output),
+            hash.ToLowerInvariant(),
+            settings.MaxCandidatePairs,
+            settings.EvaluationCommandTimeoutSeconds);
+    }
+
     private static Dictionary<string, string> ParameterWorkerEnvironment(SyntheticCalibrationSettings settings)
         => new(StringComparer.Ordinal)
         {
@@ -984,6 +1048,8 @@ public sealed class SyntheticCalibrationDevRunner(
         string PseudonymizationKeyEnvironment,
         int People,
         int ProcessorMaxPeoplePerDelivery,
+        int MaxCandidatePairs,
+        int EvaluationCommandTimeoutSeconds,
         ulong Seed,
         string ErrorProfile,
         DateTimeOffset DataReferencia,
@@ -1011,6 +1077,24 @@ public sealed class SyntheticCalibrationDevRunner(
             {
                 throw new InvalidOperationException(
                     "Ensaio:SyntheticCalibration:ProcessorMaxPeoplePerDelivery deve ser >= 10000.");
+            }
+
+            var maxCandidatePairs = configuration.GetValue(
+                "Ensaio:SyntheticCalibration:MaxCandidatePairs",
+                10_000_000);
+            if (maxCandidatePairs < 1_000 || maxCandidatePairs > 50_000_000)
+            {
+                throw new InvalidOperationException(
+                    "Ensaio:SyntheticCalibration:MaxCandidatePairs deve estar entre 1000 e 50000000.");
+            }
+
+            var evaluationCommandTimeoutSeconds = configuration.GetValue(
+                "Ensaio:SyntheticCalibration:EvaluationCommandTimeoutSeconds",
+                900);
+            if (evaluationCommandTimeoutSeconds < 1 || evaluationCommandTimeoutSeconds > 3600)
+            {
+                throw new InvalidOperationException(
+                    "Ensaio:SyntheticCalibration:EvaluationCommandTimeoutSeconds deve estar entre 1 e 3600.");
             }
 
             var seed = configuration.GetValue<ulong>("Ensaio:SyntheticCalibration:Seed", 42UL);
@@ -1059,6 +1143,8 @@ public sealed class SyntheticCalibrationDevRunner(
                     ?? DefaultKeyEnvironment,
                 people,
                 processorMaxPeople,
+                maxCandidatePairs,
+                evaluationCommandTimeoutSeconds,
                 seed,
                 errorProfile,
                 dataReferencia,
@@ -1153,6 +1239,12 @@ public sealed class SyntheticCalibrationDevRunner(
         long? RecordsRead,
         long? UniquePeople);
 
+    private sealed record SyntheticEvaluationEvidence(
+        string Path,
+        string Sha256,
+        int MaxCandidatePairs,
+        int CommandTimeoutSeconds);
+
     private sealed record SyntheticCalibrationDevEvidence(
         string ReportVersion,
         string EnvironmentProfile,
@@ -1174,7 +1266,9 @@ public sealed class SyntheticCalibrationDevRunner(
         SyntheticMaterializedCounts Materialized,
         IReadOnlyList<SyntheticDeliveryEvidence> Deliveries,
         SyntheticDraftModelEvidence Model,
+        SyntheticEvaluationEvidence SyntheticEvaluation,
         bool SyntheticTruthConsumed,
+        bool PostDraftEvaluationTruthConsumed,
         bool ModelPromotionAttempted);
 
     private sealed class ChildProcess : IAsyncDisposable
