@@ -202,6 +202,7 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(runner, Does.Contain("truthConsumedByEvaluation = true"));
             Assert.That(runner, Does.Not.Contain("bridge-truth.jsonl"));
             Assert.That(runner, Does.Not.Contain("BasePersonId"));
+            Assert.That(generator, Does.Contain("SyntheticWaveManifestSerializer.Serialize("));
             Assert.That(generator, Does.Contain("waves = reports"));
             Assert.That(generator, Does.Contain("manifestSha256 = materializedWave.ManifestSha256"));
         });

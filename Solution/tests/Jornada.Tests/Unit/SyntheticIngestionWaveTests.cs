@@ -12,6 +12,64 @@ public sealed class SyntheticIngestionWaveTests
         DateTimeOffset.Parse("2026-09-22T09:00:00-03:00", System.Globalization.CultureInfo.InvariantCulture);
 
     [Test]
+    public void Aggregate_waves_manifest_uses_case_sensitive_camel_case_for_runner_and_evaluator()
+    {
+        var scenario = new SyntheticWaveScenario(WaveCount: 2);
+        var reports = new object[]
+        {
+            new
+            {
+                wave = 1, DataReferencia = DayOne, NewSourceCount = 3,
+                SourceObservationCount = 3, MaterializedObservationCount = 2,
+                manifestSha256 = new string('A', 64), truthSha256 = new string('B', 64),
+                packages = new[] { new { GestorCodigo = "SEHAB", PeopleCount = 2 } }
+            },
+            new
+            {
+                wave = 2, DataReferencia = DayOne.AddDays(1), NewSourceCount = 0,
+                SourceObservationCount = 2, MaterializedObservationCount = 2,
+                manifestSha256 = new string('C', 64), truthSha256 = new string('D', 64),
+                packages = new[] { new { GestorCodigo = "SEHAB", PeopleCount = 2 } }
+            }
+        };
+
+        var serialized = SyntheticWaveManifestSerializer.Serialize(
+            42, new string('E', 64), new string('F', 64), 1, 2, scenario, reports);
+        using var document = JsonDocument.Parse(serialized);
+        var root = document.RootElement;
+        var first = root.GetProperty("waves")[0];
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(root.GetProperty("schemaVersion").GetInt32(), Is.EqualTo(1));
+            Assert.That(root.GetProperty("scenarioVersion").GetString(),
+                Is.EqualTo(SyntheticIngestionWavePlanner.ScenarioVersion));
+            Assert.That(root.GetProperty("bridgeVersion").GetString(),
+                Is.EqualTo(SyntheticIngestionBridge.WaveBridgeVersion));
+            Assert.That(root.GetProperty("seed").GetUInt64(), Is.EqualTo(42UL));
+            Assert.That(root.TryGetProperty("Seed", out _), Is.False);
+            Assert.That(root.GetProperty("scenario").GetProperty("waveCount").GetInt32(), Is.EqualTo(2));
+            Assert.That(first.GetProperty("wave").GetInt32(), Is.EqualTo(1));
+            Assert.That(first.GetProperty("dataReferencia").GetDateTimeOffset(), Is.EqualTo(DayOne));
+            Assert.That(first.GetProperty("materializedObservationCount").GetInt32(), Is.EqualTo(2));
+            Assert.That(first.GetProperty("sourceObservationCount").GetInt32(), Is.EqualTo(3));
+            Assert.That(first.GetProperty("manifestSha256").GetString(), Is.EqualTo(new string('A', 64)));
+            Assert.That(first.GetProperty("truthSha256").GetString(), Is.EqualTo(new string('B', 64)));
+            Assert.That(first.GetProperty("packages")[0].GetProperty("gestorCodigo").GetString(),
+                Is.EqualTo("SEHAB"));
+            Assert.That(first.TryGetProperty("MaterializedObservationCount", out _), Is.False);
+        });
+    }
+
+    [Test]
+    public void Aggregate_waves_manifest_rejects_mismatched_wave_count()
+    {
+        Assert.Throws<ArgumentException>(() => SyntheticWaveManifestSerializer.Serialize(
+            42, new string('E', 64), new string('F', 64), 0, 0,
+            new SyntheticWaveScenario(WaveCount: 3), new object[] { new { wave = 1 } }));
+    }
+
+    [Test]
     public void Waves_reuse_source_code_but_rotate_delivery_ids_and_reveal_cpf()
     {
         var source = Fixture();
