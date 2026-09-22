@@ -873,7 +873,7 @@ public sealed class SyntheticCalibrationDevRunner(
 
         if (process.ExitCode != 0)
             throw new InvalidOperationException(
-                $"{fileName} terminou com exit code {process.ExitCode}: {string.Join(' ', arguments)}");
+                $"{fileName} terminou com exit code {process.ExitCode}: {string.Join(" ", arguments)}");
     }
 
     private static ProcessStartInfo NewProcessStartInfo(
@@ -1191,13 +1191,17 @@ public sealed class SyntheticCalibrationDevRunner(
         public static ChildProcess Start(string label, ProcessStartInfo startInfo)
         {
             var process = new Process { StartInfo = startInfo };
-            if (!process.Start())
+            try
+            {
+                if (!process.Start())
+                    throw new InvalidOperationException($"Não foi possível iniciar {label}.");
+                return new ChildProcess(label, process);
+            }
+            catch
             {
                 process.Dispose();
-                throw new InvalidOperationException($"Não foi possível iniciar {label}.");
+                throw;
             }
-
-            return new ChildProcess(label, process);
         }
 
         public void ThrowIfExited()
@@ -1208,13 +1212,18 @@ public sealed class SyntheticCalibrationDevRunner(
 
         public async ValueTask DisposeAsync()
         {
-            if (!process.HasExited)
+            try
             {
-                process.Kill(entireProcessTree: true);
-                await process.WaitForExitAsync();
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync();
+                }
             }
-
-            process.Dispose();
+            finally
+            {
+                process.Dispose();
+            }
         }
     }
 }
