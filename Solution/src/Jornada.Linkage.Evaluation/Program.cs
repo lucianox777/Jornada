@@ -39,6 +39,25 @@ if (options.SyntheticTemporalEvaluateRoot is not null)
         if (!string.Equals(await draft.ExecuteScalarAsync() as string, "RASCUNHO", StringComparison.Ordinal))
             throw new InvalidOperationException("Avaliador temporal só aceita modelo RASCUNHO.");
     }
+    // A etapa atual só congela Silver/identidade corrente: nunca aceitar um
+    // snapshot alterado que se declare resultado comprovado do Runner.
+    var ingestion = Path.Combine(Path.GetFullPath(options.SyntheticTemporalEvaluateRoot), "ingestion");
+    using (var manifest = JsonDocument.Parse(
+        await File.ReadAllTextAsync(Path.Combine(ingestion, "waves-manifest.json"))))
+    {
+        var waveCount = manifest.RootElement.GetProperty("waves").GetArrayLength();
+        for (var wave = 1; wave <= waveCount; wave++)
+        {
+            var snapshotPath = Path.Combine(ingestion, "wave-" + wave.ToString("D2", CultureInfo.InvariantCulture),
+                "operational-snapshot.json");
+            using var snapshot = JsonDocument.Parse(await File.ReadAllTextAsync(snapshotPath));
+            var root = snapshot.RootElement;
+            if (root.GetProperty("decisionProvenance").GetString() != "CURRENT_IDENTITY_NO_RUN"
+                || root.GetProperty("linkageRunStatus").GetString() != "NAO_EXECUTADO"
+                || root.GetProperty("linkageRunId").ValueKind != JsonValueKind.Null)
+                throw new InvalidDataException("Runner temporal por onda ainda não está integrado: não aceitar métricas declaradas.");
+        }
+    }
     var temporal = await SyntheticTemporalTruthEvaluator.EvaluateAsync(options.SyntheticTemporalEvaluateRoot);
     var outputPath = Path.GetFullPath(options.OutputPath!);
     Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
