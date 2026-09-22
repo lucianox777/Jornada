@@ -165,7 +165,7 @@ Os wrappers executam `local-db up --no-synthetic-corpus` e depois
 quando o marcador residente é `Development`: remove estado operacional dos schemas
 `ingestao`, `bronze`, `silver`, `gold`, `identidade` e `auditoria`, mas
 preserva as duas tabelas append-only da avaliação sintética, todo o schema `ref`,
-as extended properties e o schema/migration ledger. Ela também falha fechado se
+as extended properties, os catálogos estáticos de implementação de QC/possibilidade e o schema/migration ledger. Ela também falha fechado se
 uma tabela preservada mantiver FK habilitada para estado que seria apagado.
 
 Depois disso os wrappers leem porta/banco/senha do mesmo `.env` usado pelo Docker
