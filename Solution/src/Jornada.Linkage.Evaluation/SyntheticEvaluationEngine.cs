@@ -860,7 +860,7 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
             return DecisionOracleNotEvaluable(
                 "NOT_EVALUABLE_PARTITION_SUPPORT",
                 model,
-                scenarios.Count,
+                scenarios.Length,
                 validation.Length,
                 test.Length);
         }
@@ -884,7 +884,7 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
             return DecisionOracleNotEvaluable(
                 "NOT_EVALUABLE_ORACLE_SUPPORT",
                 model,
-                scenarios.Count,
+                scenarios.Length,
                 validation.Length,
                 test.Length);
         }
@@ -913,7 +913,7 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
             return new SyntheticThresholdOracle(
                 "NO_SAFE_ORACLE_CANDIDATE",
                 FsDecisionThresholdCalibrator.Version,
-                scenarios.Count,
+                scenarios.Length,
                 validation.Length,
                 test.Length,
                 threshold,
@@ -1025,6 +1025,18 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                     stratum,
                     partitionRows.Where(item => string.Equals(item.Stratum, stratum, StringComparison.Ordinal)).ToArray());
             }
+
+            var cpfPresent = partitionRows
+                .Where(static item => item.Stratum.StartsWith("CPF_PRESENT_", StringComparison.Ordinal))
+                .ToArray();
+            if (cpfPresent.Length > 0)
+                AddSlice(partition.ToString().ToUpperInvariant(), "CPF_PRESENT", cpfPresent);
+
+            var cpfAbsent = partitionRows
+                .Where(static item => item.Stratum.StartsWith("CPF_ABSENT_", StringComparison.Ordinal))
+                .ToArray();
+            if (cpfAbsent.Length > 0)
+                AddSlice(partition.ToString().ToUpperInvariant(), "CPF_ABSENT", cpfAbsent);
         }
 
         return result;
