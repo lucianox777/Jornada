@@ -90,6 +90,6 @@ if dotnet run --project src/Jornada.Ensaio --configuration Release; then
 else
   ensaio_exit=$?
   # Diagnóstico somente-leitura; preservar o código da falha original.
-  "$ROOT/scripts/local-synthetic-diagnostics.sh" "$DB" || echo 'Diagnostico SQL indisponivel.' >&2
+  bash "$ROOT/scripts/local-synthetic-diagnostics.sh" "$DB" || echo 'Diagnostico SQL indisponivel.' >&2
   exit "$ensaio_exit"
 fi
