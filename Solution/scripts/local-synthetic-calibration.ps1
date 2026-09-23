@@ -102,7 +102,14 @@ $env:Ensaio__SyntheticCalibration__DataReferencia = $DataReferencia
 Push-Location $Root
 try {
     & dotnet run --project src/Jornada.Ensaio --configuration Release
-    if ($LASTEXITCODE -ne 0) { throw "Jornada.Ensaio falhou ($LASTEXITCODE)." }
+    if ($LASTEXITCODE -ne 0) {
+        $ensaioExitCode = $LASTEXITCODE
+        # O teste TEST e os limiares congelados NÃO são recalibrados aqui.
+        # O diagnóstico SQL é leitura agregada e deve ocorrer ANTES de outra limpeza DEV.
+        try { & (Join-Path $Root 'scripts/local-synthetic-diagnostics.ps1') -EnvFile $EnvFile -DatabaseName $db }
+        catch { Write-Warning "Diagnóstico SQL indisponível: $($_.Exception.Message)" }
+        throw "Jornada.Ensaio falhou ($ensaioExitCode); diagnóstico agregado acima, se disponível."
+    }
 }
 finally {
     Pop-Location
