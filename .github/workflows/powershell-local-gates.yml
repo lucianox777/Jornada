@@ -19,6 +19,7 @@ on:
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-cluster-readiness.ps1'
+      - 'Solution/scripts/local-test-cluster-readiness-mock.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-linkage-validation.ps1'
       - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
@@ -50,6 +51,7 @@ on:
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-cluster-readiness.ps1'
+      - 'Solution/scripts/local-test-cluster-readiness-mock.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-linkage-validation.ps1'
       - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
@@ -108,6 +110,10 @@ jobs:
           $null = [scriptblock]::Create($triplet)
           Write-Host 'WINDOWS POWERSHELL 5.1 ORDEREDDICTIONARY/PARSE: OK'
 
+      - name: Exercise cluster readiness without native sh quoting on Windows PowerShell 5.1
+        shell: powershell
+        run: ./scripts/local-test-cluster-readiness-mock.ps1
+
   powershell-contract:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -143,6 +149,7 @@ jobs:
             'scripts/local-test-round.ps1',
             'scripts/local-cluster.ps1',
             'scripts/local-cluster-readiness.ps1',
+            'scripts/local-test-cluster-readiness-mock.ps1',
             'scripts/local-linkage-evaluation-smoke.ps1',
             'scripts/local-linkage-validation.ps1',
             'scripts/local-linkage-evidence-readiness.ps1',

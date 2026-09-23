@@ -18,8 +18,16 @@ public sealed class OriginalClusterReadinessContractTests
             Assert.That(script, Does.Contain("heartbeat_em>=DATEADD(SECOND,-35"));
             Assert.That(script, Does.Contain("jornada-node1"));
             Assert.That(script, Does.Contain("jornada-node2"));
-            Assert.That(script, Does.Contain("/data/bronze/$1"));
+            Assert.That(script, Does.Contain("docker inspect"),
+                "Deve conferir a configuração efetiva dos contêineres, não interpretar sh case pelo Windows PowerShell.");
+            Assert.That(script, Does.Contain("ConnectionStrings__Jornada="));
+            Assert.That(script, Does.Contain("JORNADA_SQL_CONNECTION_STRING="));
+            Assert.That(script, Does.Contain("docker cp"),
+                "O marcador compartilhado deve atravessar NODE1 e NODE2 sem sh -c.");
+            Assert.That(script, Does.Contain("/data/bronze/$marker"));
             Assert.That(script, Does.Contain("rm -f"));
+            Assert.That(script, Does.Not.Contain("\u0027sh\u0027,\u0027-c\u0027"), "A invocação antiga sh/c não pode retornar; comentários explicativos são permitidos.");
+            Assert.That(script, Does.Not.Contain("Invoke-Compose @("));
             Assert.That(script, Does.Not.Contain("Jornada_Dev_SyntheticCalibration_Cleanup.sql"));
             Assert.That(script, Does.Not.Contain("local-synthetic-calibration.ps1"));
             Assert.That(script, Does.Not.Contain("DROP DATABASE"));
