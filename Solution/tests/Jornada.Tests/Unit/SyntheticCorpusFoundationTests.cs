@@ -65,7 +65,11 @@ public sealed class SyntheticCorpusFoundationTests
                     await writer.WriteLineAsync(line);
             }
 
-            var physical = Convert.ToHexString(await SHA256.HashDataAsync(File.OpenRead(path)));
+            string physical;
+            await using (var physicalStream = File.OpenRead(path))
+            {
+                physical = Convert.ToHexString(await SHA256.HashDataAsync(physicalStream));
+            }
             var canonicalText = string.Join("\n", lines) + "\n";
             var canonical = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalText)));
             var meta = new IbgeProjectionFile(
