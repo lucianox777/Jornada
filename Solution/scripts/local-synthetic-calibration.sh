@@ -85,4 +85,11 @@ if [[ -n "${JORNADA_SYNTH_WAVE_BIRTH_RECOVERY_RATE:-}" ]]; then
 fi
 
 cd "$ROOT"
-dotnet run --project src/Jornada.Ensaio --configuration Release
+if dotnet run --project src/Jornada.Ensaio --configuration Release; then
+  exit 0
+else
+  ensaio_exit=$?
+  # Diagnóstico somente-leitura; preservar o código da falha original.
+  "$ROOT/scripts/local-synthetic-diagnostics.sh" "$DB" || echo 'Diagnostico SQL indisponivel.' >&2
+  exit "$ensaio_exit"
+fi
