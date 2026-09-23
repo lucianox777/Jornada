@@ -45,13 +45,14 @@ function docker {
             default { throw 'Inspect de contêiner desconhecido.' }
         }
         $connection = "Server=sqlserver,1433;Database=$db;User Id=sa;Password=mock"
-        return (@(@{
+        # Docker inspect retorna um array JSON mesmo para um único contêiner.
+        return (ConvertTo-Json -InputObject @(@{
             State = @{ Running = $true }
             Config = @{ Env = @(
                 "ConnectionStrings__Jornada=$connection",
                 "JORNADA_SQL_CONNECTION_STRING=$connection"
             ) }
-        }) | ConvertTo-Json -Depth 5 -Compress)
+        }) -Depth 5 -Compress)
     }
 
     if ($argv[0] -eq 'cp') {
