@@ -225,7 +225,11 @@ try {
     $id2 = (Read-Json $post2).entregaId; if ($id2 -eq $id1) { throw 'Nova Idempotency-Key não criou nova Entrega lógica.' }
     Wait-Processed $id2 (Join-Path $Out 'status2.json')
     $retrans = [int](Scalar "SELECT COUNT(*) FROM ingestao.item_processado ip JOIN ingestao.lote l ON l.lote_id=ip.lote_id WHERE l.entrega_id='$id2' AND ip.resultado='RETRANSMITIDO';")
-    if ($retrans -lt 2) { throw "Retransmissão não foi reconhecida; itens=$retrans." }
+    $factRetrans = [int](Scalar "SELECT COUNT(*) FROM ingestao.item_processado ip JOIN ingestao.lote l ON l.lote_id=ip.lote_id WHERE l.entrega_id='$id2' AND ip.classe_item='REGISTRO' AND ip.codigo_origem='E2E-AA01-2026-000001' AND ip.resultado='RETRANSMITIDO';")
+    if ($factRetrans -ne 1) { throw "Fato com chave persistente não foi reconhecido como retransmissão; fatos=$factRetrans; itens_retransmitidos=$retrans." }
+    # A Pessoa do fixture não possui codigoPessoaOrigem. idPessoaEntrega é local à remessa:
+    # uma segunda Entrega cria outra observação ancorada pelo mesmo CPF, não uma
+    # retransmissão da origem. Somente o REGISTRO tem código de origem persistente.
     if ((Scalar "SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem='E2E-AA01-2026-000001' AND status_analitico='VIGENTE';") -ne '1') { throw 'Retransmissão duplicou a versão Gold vigente.' }
 
     [ordered]@{

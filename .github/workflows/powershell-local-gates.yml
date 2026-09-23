@@ -179,6 +179,35 @@ jobs:
         shell: pwsh
         run: ./scripts/local-test-ibge-reference-load-safety.ps1
 
+      - name: Validate E2E retransmission fixture parity on PowerShell and Bash
+        shell: pwsh
+        run: |
+          $ps = Get-Content -Raw -Encoding UTF8 scripts/local-e2e.ps1
+          $sh = Get-Content -Raw -Encoding UTF8 scripts/local-e2e.sh
+          $person = Get-Content -Encoding UTF8 tests/fixtures/ingestao/AA01_v2/pessoas.jsonl | Select-Object -First 1 | ConvertFrom-Json
+          $fact = Get-Content -Encoding UTF8 tests/fixtures/ingestao/AA01_v2/registros.jsonl | Select-Object -First 1 | ConvertFrom-Json
+          if (-not [string]::IsNullOrWhiteSpace($person.codigoPessoaOrigem)) {
+            throw 'A fixture mudou: reavaliar o contrato de retransmissão com código persistente de Pessoa.'
+          }
+          if ($fact.codigoRegistroOrigem -ne 'E2E-AA01-2026-000001') {
+            throw 'A fixture factual mudou: reavaliar o código persistente esperado.'
+          }
+          foreach ($script in @($ps, $sh)) {
+            foreach ($fragment in @(
+              "ip.classe_item='REGISTRO'",
+              "ip.codigo_origem='E2E-AA01-2026-000001'",
+              "ip.resultado='RETRANSMITIDO'"
+            )) {
+              if (-not $script.Contains($fragment)) {
+                throw "Um dos E2Es perdeu a checagem específica do fato retransmitido: $fragment"
+              }
+            }
+          }
+          if ($ps -notmatch '\$factRetrans\s+-ne\s+1' -or $ps -match '\$retrans\s+-lt\s+2') {
+            throw 'O E2E PowerShell deve exigir exatamente um REGISTRO retransmitido, sem pressupor Pessoa com origem persistente.'
+          }
+          Write-Host 'E2E RETRANSMISSION FIXTURE PARITY: OK'
+
       - name: Validate blocking pass fan-out gate self-test
         shell: bash
         run: python3 scripts/blocking-pass-fanout-gate.py --self-test
