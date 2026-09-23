@@ -1,0 +1,126 @@
+﻿# Regressão executável sob Windows PowerShell 5.1, sem Docker nem SQL reais.
+$ErrorActionPreference = 'Stop'
+$Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$envFile = Join-Path $Root '.env.example'
+$script:sharedMarker = Join-Path ([IO.Path]::GetTempPath()) ('jornada-nas-mock-' + [Guid]::NewGuid().ToString('N'))
+$script:node2Database = 'JornadaLocal'
+$script:sqlProbes = 0
+$script:nasWrites = 0
+$script:nasReads = 0
+
+# Prevalece sobre o executável nativo somente neste processo de teste.
+function docker {
+    $argv = @($args)
+    $global:LASTEXITCODE = 0
+    if ($argv.Count -lt 2) { throw 'Mock Docker recebeu argumentos insuficientes.' }
+
+    if ($argv[0] -eq 'compose') {
+        if ($argv -contains 'ps') {
+            switch ($argv[-1]) {
+                'jornada-node1' { return 'mock-node1' }
+                'jornada-node2' { return 'mock-node2' }
+                default { throw 'Compose service desconhecido.' }
+            }
+        }
+        if ($argv -contains 'exec') {
+            if ($argv -notcontains 'sqlserver' -or $argv -notcontains '-Q') {
+                throw 'Preflight SQL não passou pelo SQL Server esperado.'
+            }
+            $sql = [string]$argv[-1]
+            if (-not $sql.Contains('Jornada.EnvironmentProfile') -or
+                -not $sql.Contains('configuration_bundle_version') -or
+                -not $sql.Contains('SELECT COUNT_BIG(*)')) {
+                throw 'Preflight SQL perdeu checagens somente leitura.'
+            }
+            $script:sqlProbes++
+            return 'SQL DEV mock: OK'
+        }
+        throw 'Compose recebeu operação não permitida pelo preflight.'
+    }
+
+    if ($argv[0] -eq 'inspect') {
+        $db = switch ($argv[1]) {
+            'mock-node1' { 'JornadaLocal' }
+            'mock-node2' { $script:node2Database }
+            default { throw 'Inspect de contêiner desconhecido.' }
+        }
+        $connection = "Server=sqlserver,1433;Database=$db;User Id=sa;Password=mock"
+        return (@(@{
+            State = @{ Running = $true }
+            Config = @{ Env = @(
+                "ConnectionStrings__Jornada=$connection",
+                "JORNADA_SQL_CONNECTION_STRING=$connection"
+            ) }
+        }) | ConvertTo-Json -Depth 5 -Compress)
+    }
+
+    if ($argv[0] -eq 'cp') {
+        if ($argv.Count -ne 3) { throw 'docker cp exige origem e destino.' }
+        $source = [string]$argv[1]
+        $target = [string]$argv[2]
+        $remotePattern = '^mock-node[12]:/data/bronze/\.jornada-readiness-[a-f0-9]{32}$'
+        if ($source -match $remotePattern) {
+            if (-not (Test-Path -LiteralPath $script:sharedMarker -PathType Leaf)) {
+                throw 'NODE remoto tentou ler marcador ausente.'
+            }
+            Copy-Item -LiteralPath $script:sharedMarker -Destination $target -Force
+            $script:nasReads++
+            return
+        }
+        if ($target -match $remotePattern) {
+            Copy-Item -LiteralPath $source -Destination $script:sharedMarker -Force
+            $script:nasWrites++
+            return
+        }
+        throw 'docker cp tentou acessar caminho fora do marcador NAS.'
+    }
+
+    if ($argv[0] -eq 'exec') {
+        if ($argv.Count -ne 5 -or $argv[1] -notin @('mock-node1','mock-node2') -or
+            $argv[2] -ne 'rm' -or $argv[3] -ne '-f' -or
+            $argv[4] -notmatch '^/data/bronze/\.jornada-readiness-[a-f0-9]{32}$') {
+            throw 'Cleanup do marcador fora do caminho temporário.'
+        }
+        Remove-Item -LiteralPath $script:sharedMarker -Force -ErrorAction SilentlyContinue
+        return
+    }
+
+    throw 'Comando Docker inesperado no preflight mock.'
+}
+
+function Invoke-WebRequest {
+    param([switch]$UseBasicParsing,[string]$Uri,[int]$TimeoutSec)
+    if ($Uri -notin @('http://127.0.0.1:5080/health/ready',
+                     'http://127.0.0.1:5180/health/ready')) {
+        throw "Endpoint inesperado no mock: $Uri"
+    }
+    return [pscustomobject]@{ StatusCode = 200 }
+}
+
+try {
+    & (Join-Path $Root 'scripts/local-cluster-readiness.ps1') -DatabaseName JornadaLocal -EnvFile $envFile
+    if ($script:sqlProbes -ne 1 -or $script:nasWrites -ne 2 -or $script:nasReads -ne 2) {
+        throw "Preflight completo incompleto: SQL=$script:sqlProbes NASW=$script:nasWrites NASR=$script:nasReads"
+    }
+    if (Test-Path -LiteralPath $script:sharedMarker) {
+        throw 'O preflight deixou o marcador NAS sem cleanup.'
+    }
+
+    # NODE2 aponta para outro banco: rejeitar ANTES de consultar SQL ou escrever NAS.
+    $script:node2Database = 'OutroBanco'
+    $blocked = $false
+    try {
+        & (Join-Path $Root 'scripts/local-cluster-readiness.ps1') -DatabaseName JornadaLocal -EnvFile $envFile
+    }
+    catch {
+        if ($_.Exception.Message -notmatch 'jornada-node2 não está conectado ao banco original') { throw }
+        $blocked = $true
+    }
+    if (-not $blocked -or $script:sqlProbes -ne 1 -or $script:nasWrites -ne 2) {
+        throw 'Divergência de banco não interrompeu o preflight antes dos efeitos.'
+    }
+    Write-Host 'WINDOWS POWERSHELL 5.1 CLUSTER READINESS MOCK: OK'
+}
+finally {
+    Remove-Item -LiteralPath $script:sharedMarker -Force -ErrorAction SilentlyContinue
+}
