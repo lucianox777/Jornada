@@ -18,6 +18,7 @@ on:
       - 'Solution/scripts/local-test-test-all-safety.ps1'
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
+      - 'Solution/scripts/local-cluster-readiness.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-linkage-validation.ps1'
       - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
@@ -48,6 +49,7 @@ on:
       - 'Solution/scripts/local-test-test-all-safety.ps1'
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
+      - 'Solution/scripts/local-cluster-readiness.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
       - 'Solution/scripts/local-linkage-validation.ps1'
       - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
@@ -140,6 +142,7 @@ jobs:
             'scripts/local-test-test-all-safety.ps1',
             'scripts/local-test-round.ps1',
             'scripts/local-cluster.ps1',
+            'scripts/local-cluster-readiness.ps1',
             'scripts/local-linkage-evaluation-smoke.ps1',
             'scripts/local-linkage-validation.ps1',
             'scripts/local-linkage-evidence-readiness.ps1',
