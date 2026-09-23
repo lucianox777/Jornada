@@ -56,3 +56,41 @@ de configuração, não uma explicação automática da quarentena.
 
 **Limite:** os testes de contrato/CI não provam a execução local das três
 ondas, e o modelo criado continua RASCUNHO, sem ativação ou promoção.
+
+
+## Próximo bloqueio após isolar a Bronze: safety gate TEST
+
+Depois de isolar o banco DEV, a carga avançou até o Parameters.Worker.
+O candidato FS foi escolhido exclusivamente com VALIDATION, mas o
+conjunto TEST congelado registrou 3 falsos vínculos. O Worker recusou
+corretamente a publicação do RASCUNHO; **não** devemos ajustar o
+threshold ou repetir o mesmo TEST até passar. O PR #446 passou a
+persistir classes e denominadores agregados desse resultado em
+`identidade.modelo_linkage.falha_resumo`, sem identificadores pessoais.
+
+O novo `scripts/local-synthetic-diagnostics.ps1` consulta somente
+o banco DEV configurado em `.env.synthetic.local`. Executá-lo **antes**
+de limpar o banco preserva a evidência agregada: referências IBGE
+disponíveis, últimos modelos FALHOU com razões do TEST e estados/erros
+dos lotes. Os wrappers PowerShell/Bash também tentam exibir esse
+diagnóstico automaticamente quando o Ensaio termina com erro. No
+PowerShell, na pasta `Solution`, use uma única linha:
+
+```powershell
+.\scripts\local-synthetic-diagnostics.ps1 -EnvFile .\.env.synthetic.local
+```
+
+A investigação seguinte deve partir dessas contagens, confrontar
+VALIDATION versus TEST e só propor uma mudança de algoritmo/regra a
+partir de hipóteses e dados de treino independentes. Uma nova rodada
+confirmatória exige novos seeds e TEST ainda não inspecionado. Este
+diagnóstico não altera o safety gate de zero FP nem ativa modelo.
+
+**Banco original:** o `JornadaLocal` com NODE1/NODE2 serve para
+ensaios posteriores de integração de cluster com Bronze compartilhada.
+Executar diretamente nele o wrapper de ondas atual apagaria estado
+operacional e permitiria a outro Processor reservar um ZIP guardado
+somente no computador local. Para comparar referência e schema do
+banco original, o caminho seguro é trabalhar em uma cópia DEV ou
+reproduzir o snapshot de referência no banco isolado. Mesmo em bancos
+distintos, a instância SQL e seu I/O continuam compartilhados.
