@@ -26,7 +26,7 @@ public sealed class OriginalClusterReadinessContractTests
                 "O marcador compartilhado deve atravessar NODE1 e NODE2 sem sh -c.");
             Assert.That(script, Does.Contain("/data/bronze/$marker"));
             Assert.That(script, Does.Contain("rm -f"));
-            Assert.That(script, Does.Not.Contain("sh -c"));
+            Assert.That(script, Does.Not.Contain("\u0027sh\u0027,\u0027-c\u0027"), "A invocação antiga sh/c não pode retornar; comentários explicativos são permitidos.");
             Assert.That(script, Does.Not.Contain("Invoke-Compose @("));
             Assert.That(script, Does.Not.Contain("Jornada_Dev_SyntheticCalibration_Cleanup.sql"));
             Assert.That(script, Does.Not.Contain("local-synthetic-calibration.ps1"));
