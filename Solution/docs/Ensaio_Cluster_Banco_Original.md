@@ -39,3 +39,7 @@ quarentena histórica. Um FAIL de infraestrutura não mede linkage.
 O comando `local-cluster.ps1 calibrate` não faz parte do ensaio:
 ele pode VALIDAR/ATIVAR modelo, enquanto a avaliação sintética deve
 permanecer RASCUNHO com MODEL_VALIDATION sem publicação.
+
+## Compatibilidade PowerShell 5.1
+
+O preflight agora inspeciona as conexões efetivas dos dois contêineres com `docker inspect` e verifica o compartilhamento NAS bidirecional com `docker cp`, sem comandos `sh -c` passados pelo Windows. Os testes de regressão executam um Docker simulado no Windows PowerShell 5.1; a prova com contêineres reais continua sendo o comando local acima. Não há alteração SQL nem execução de cargas sintéticas neste preflight.
