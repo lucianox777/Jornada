@@ -134,7 +134,8 @@ WHERE estado_armazenamento=N'DISPONIVEL';
 finally {
     foreach ($node in @('jornada-node1','jornada-node2')) {
         if ($containers.ContainsKey($node)) {
-            & docker exec $containers[$node] rm -f "/data/bronze/$marker" *> $null
+            $targetId = [string]$containers[$node]
+            & docker exec $targetId rm -f "/data/bronze/$marker" *> $null
         }
     }
     if (Test-Path -LiteralPath $tempRoot) {
