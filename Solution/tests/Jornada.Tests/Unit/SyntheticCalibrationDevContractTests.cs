@@ -339,6 +339,40 @@ public sealed class SyntheticCalibrationDevContractTests
         });
     }
 
+    [Test]
+    public void Failed_synthetic_calibration_diagnostics_are_read_only_and_run_before_next_cleanup()
+    {
+        var root = FindRepositoryRoot();
+        var sql = File.ReadAllText(Path.Combine(
+            root, "Solution", "database", "Jornada_Dev_SyntheticCalibration_Diagnostics.sql"));
+        var powershell = File.ReadAllText(Path.Combine(
+            root, "Solution", "scripts", "local-synthetic-calibration.ps1"));
+        var shell = File.ReadAllText(Path.Combine(
+            root, "Solution", "scripts", "local-synthetic-calibration.sh"));
+        var diagnostics = File.ReadAllText(Path.Combine(
+            root, "Solution", "scripts", "local-synthetic-diagnostics.ps1"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sql, Does.Contain("Jornada.EnvironmentProfile"));
+            Assert.That(sql, Does.Contain("Development"));
+            Assert.That(sql, Does.Contain("falha_resumo"));
+            Assert.That(sql, Does.Contain("status=N'FALHOU'"));
+            Assert.That(sql, Does.Contain("ref.frequencia_nome"));
+            Assert.That(sql, Does.Contain("GROUP BY erro_codigo"));
+            Assert.That(System.Text.RegularExpressions.Regex.IsMatch(sql,
+                @"\b(INSERT|UPDATE|DELETE|TRUNCATE|DROP|MERGE)\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase), Is.False,
+                "O relatório deve usar somente SELECT, sem mutar dados ou thresholds.");
+            Assert.That(powershell, Does.Contain("local-synthetic-diagnostics.ps1"));
+            Assert.That(powershell, Does.Contain("$ensaioExitCode = $LASTEXITCODE"));
+            Assert.That(shell, Does.Contain("local-synthetic-diagnostics.sh"));
+            Assert.That(shell, Does.Contain("exit \"$ensaio_exit\""));
+            Assert.That(diagnostics, Does.Contain("-d $db"));
+            Assert.That(diagnostics, Does.Not.Contain("Jornada_Dev_SyntheticCalibration_Cleanup.sql"));
+        });
+    }
+
     private static string FindRepositoryRoot()
     {
         var current = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
