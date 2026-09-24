@@ -32,6 +32,10 @@ on:
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
       - 'Solution/scripts/local-db.ps1'
+      - 'Solution/scripts/local-synthetic-calibration.ps1'
+      - 'Solution/scripts/local-test-synthetic-isolation-safety.ps1'
+      - 'Solution/scripts/local-linkage-operational-metrics.ps1'
+      - 'Solution/database/Jornada_Dev_LinkageOperationalMetrics.sql'
       - '.github/workflows/powershell-local-gates.yml'
   pull_request:
     paths:
@@ -64,6 +68,10 @@ on:
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
       - 'Solution/scripts/local-db.ps1'
+      - 'Solution/scripts/local-synthetic-calibration.ps1'
+      - 'Solution/scripts/local-test-synthetic-isolation-safety.ps1'
+      - 'Solution/scripts/local-linkage-operational-metrics.ps1'
+      - 'Solution/database/Jornada_Dev_LinkageOperationalMetrics.sql'
       - '.github/workflows/powershell-local-gates.yml'
   workflow_dispatch:
 
@@ -160,7 +168,10 @@ jobs:
             'scripts/local-ibge-u-bootstrap.ps1',
             'scripts/local-scale.ps1',
             'scripts/local-sql-runtime-smoke.ps1',
-            'scripts/local-db.ps1'
+            'scripts/local-db.ps1',
+            'scripts/local-synthetic-calibration.ps1',
+            'scripts/local-test-synthetic-isolation-safety.ps1',
+            'scripts/local-linkage-operational-metrics.ps1'
           )
           foreach ($file in $files) {
             $bytes = [System.IO.File]::ReadAllBytes($file)
@@ -178,6 +189,10 @@ jobs:
       - name: Validate IBGE reference load safety
         shell: pwsh
         run: ./scripts/local-test-ibge-reference-load-safety.ps1
+
+      - name: Fail closed before synthetic test touches shared database
+        shell: pwsh
+        run: ./scripts/local-test-synthetic-isolation-safety.ps1
 
       - name: Validate E2E retransmission fixture parity on PowerShell and Bash
         shell: pwsh
@@ -550,6 +565,10 @@ jobs:
       - name: Execute SQL runtime smoke through PowerShell on schema 3.70
         shell: pwsh
         run: ./scripts/local-sql-runtime-smoke.ps1
+
+      - name: Validate read-only aggregated Linkage operational metrics
+        shell: pwsh
+        run: ./scripts/local-linkage-operational-metrics.ps1 -DatabaseName JornadaLocal
 
       - name: Cleanup
         if: always()
