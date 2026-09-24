@@ -51,3 +51,25 @@ Em todo CI, a prova obrigatória é:
 A varredura histórica completa continua disponível por `security-secret-scan.sh` sem `--current-tree-only`. Ela é uma ação de saneamento/revisão da #405 e **não é repetida em todo commit**, porque achados históricos exigem triagem explícita e não devem virar baseline/allowlist ou rewrite automático.
 
 O `source-sanity-gate.py` continua complementar: ele protege padrões específicos do projeto e não substitui um detector de segredos.
+
+## Auditoria histórica completa controlada (#405)
+
+O workflow `.github/workflows/secret-history-audit.yml` pode ser executado
+manualmente em **Actions > jornada-secret-history-audit > Run workflow**. Ele
+utiliza `actions/checkout` com `fetch-depth: 0` e a versão/checksum fixos do
+Gitleaks para percorrer a árvore e todos os refs Git alcançáveis. Também é
+exercitado automaticamente na PR que altera o próprio workflow; não acrescenta
+uma varredura pesada a cada CI normal.
+
+O artifact `gitleaks-history-audit-summary` contém **somente contagens por regra
+ e caminho** da árvore atual e do histórico. Não publica `Match`, `Secret`,
+logs brutos nem os relatórios JSON originais. Achados no histórico resultam em
+advertência para triagem, **não** em baseline, exceção automática ou aprovação
+de segurança; erro de ferramenta/relatório encerra o job com falha. Os arquivos
+brutos redigidos ficam temporariamente no runner e não são incluídos no artifact.
+Para triagem detalhada, execute a varredura local no clone completo com acesso
+controlado aos relatórios em `Solution/.local/gitleaks/`.
+
+A primeira execução do workflow deve ter seus agregados registrados na issue
+#405. Concluir a issue exige classificar achados históricos, eliminar os
+literais executáveis desnecessários e tratar seletivamente fixtures de CPF.
