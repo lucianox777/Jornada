@@ -19,7 +19,7 @@ try {
     if (-not $refused) { throw 'A guarda deixou o ensaio atingir local-db no banco original.' }
     $source = Get-Content -LiteralPath $script -Raw -Encoding UTF8
     $guard = $source.IndexOf('Ensaio sintetico recusado')
-    $up = $source.IndexOf("& (Join-Path $Root 'scripts/local-db.ps1') up")
+    $up = $source.IndexOf('& (Join-Path $Root ''scripts/local-db.ps1'') up')
     if ($guard -lt 0 -or $up -lt 0 -or $guard -gt $up) {
         throw 'A guarda deve executar ANTES de local-db up.'
     }
