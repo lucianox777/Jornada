@@ -60,6 +60,23 @@ public sealed class SecretScanningConfigurationTests
         });
     }
 
+    [Test]
+    public void Local_compose_requires_explicit_sql_password_without_hardcoded_fallback()
+    {
+        var root = FindRepositoryRoot();
+        var compose = File.ReadAllText(Path.Combine(root, "Solution", "docker-compose.yml"));
+        const string required = "${JORNADA_SQL_SA_PASSWORD:?Set JORNADA_SQL_SA_PASSWORD in the local .env file}";
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(Regex.Matches(compose, Regex.Escape(required)).Count, Is.EqualTo(4),
+                "SQL Server, both node connections and reference bootstrap must use explicit secret injection.");
+            Assert.That(compose, Does.Not.Contain("${JORNADA_SQL_SA_PASSWORD:-"),
+                "An absent password must never fall back to the published example credential.");
+            Assert.That(compose, Does.Not.Contain("Jornada_Local_2026!ChangeMe"));
+        });
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
