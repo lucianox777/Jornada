@@ -298,6 +298,8 @@ jobs:
           mkdir -p .local/security
           python3 scripts/source-sanity-gate.py | tee .local/security/source-sanity.txt
           python3 scripts/workflow-action-pin-gate.py | tee .local/security/action-pins.txt
+      - name: Test Gitleaks scanner failure paths
+        run: bash scripts/test-security-secret-scan.sh
       - name: Install pinned Gitleaks
         env:
           GITLEAKS_VERSION: '8.30.1'
