@@ -220,7 +220,7 @@ public sealed class IndependentResolutionWeightProvenanceTests
             CapturedAt);
         var rules = LinkageDynamicRuleSet.Create(
             "rules-v1",
-            "calibrator-v1",
+            LinkageParameterCatalog.LegacySemanticBirthAlgorithmVersion,
             new[] { BlockingCandidateFeatureCatalog.FirstName },
             new[] { new KeyValuePair<string, decimal>("threshold", 0.95m) });
         return IndependentRuleSetEvaluationManifestCatalog.Bind(evaluation, rules);
