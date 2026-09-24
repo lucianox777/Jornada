@@ -24,7 +24,7 @@ $db = if (-not [string]::IsNullOrWhiteSpace($DatabaseName)) {
 if ($db -notmatch '^[A-Za-z][A-Za-z0-9_]{0,100}$') { throw 'Nome de banco invalido.' }
 $password = $values['JORNADA_SQL_SA_PASSWORD']
 if ([string]::IsNullOrWhiteSpace($password)) { throw 'Senha SQL nao configurada.' }
-Write-Host "Metricas agregadas de Linkage em $db: somente SELECT, sem limpeza/publicacao."
+Write-Host "Metricas agregadas de Linkage em ${db}: somente SELECT, sem limpeza/publicacao."
 Push-Location $root
 try {
     & docker compose --env-file $EnvFile exec -T -w /workspace -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -w 340 -i database/Jornada_Dev_LinkageOperationalMetrics.sql
