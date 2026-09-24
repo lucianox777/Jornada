@@ -252,7 +252,7 @@ public sealed class IndependentResolutionEvaluationTests
     private static IndependentResolutionCandidate Candidate(string candidate, decimal score) =>
         new(Hash(candidate), score);
 
-    private static IndependentRuleSetEvaluationManifest Manifest(long candidatePairs, long referenceLinks, string algorithm = "calibrator-v1")
+    private static IndependentRuleSetEvaluationManifest Manifest(long candidatePairs, long referenceLinks, string algorithm = LinkageParameterCatalog.LegacySemanticBirthAlgorithmVersion)
     {
         var evaluation = IndependentEvaluationManifestCatalog.Create(
             "eval-v1",
