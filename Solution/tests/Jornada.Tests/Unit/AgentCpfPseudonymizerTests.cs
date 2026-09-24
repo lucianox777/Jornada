@@ -17,9 +17,11 @@ public sealed class AgentCpfPseudonymizerTests
             ["AgentAudit:KeyVersion"] = "7"
         }).Build();
         var sut = new AgentCpfPseudonymizer(config, new FakeEnvironment(), Path.GetTempPath());
-        var a = sut.ComputeHash("52998224725");
-        var b = sut.ComputeHash("52998224725");
-        var c = sut.ComputeHash("11144477735");
+        var cpf = DeterministicCpfFixture.Valid(10);
+        var otherCpf = DeterministicCpfFixture.Valid(11);
+        var a = sut.ComputeHash(cpf);
+        var b = sut.ComputeHash(cpf);
+        var c = sut.ComputeHash(otherCpf);
         Assert.Multiple(() =>
         {
             Assert.That(a, Has.Length.EqualTo(32));
