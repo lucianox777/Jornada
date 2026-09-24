@@ -56,7 +56,7 @@ jobs:
           dotnet restore Jornada.sln --locked-mode
           find . -name packages.lock.json -not -path './.local/*' -print0 | sort -z | tar --null -T - -czf .local/nuget-lock/packages-locks.tar.gz
       - name: Upload NuGet lock evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: nuget-lockfiles
           path: |
@@ -188,7 +188,7 @@ jobs:
             --summary .local/test-evidence/unit/coverage-summary.json
       - name: Upload unit test evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: unit-test-evidence
           path: Solution/.local/test-evidence/unit
@@ -205,7 +205,7 @@ jobs:
             --forbid-skipped --minimum-tests 19 --summary .local/test-evidence/openapi-runtime/summary.json
       - name: Upload OpenAPI runtime evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: openapi-runtime-evidence
           path: Solution/.local/test-evidence/openapi-runtime
@@ -225,7 +225,7 @@ jobs:
           python3 scripts/generate-sbom.py --input .local/sbom/dotnet-packages.json --output .local/sbom/sbom.cdx.json
           python3 -m json.tool .local/sbom/sbom.cdx.json >/dev/null
       - name: Upload CycloneDX SBOM
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sbom-cyclonedx
           path: Solution/.local/sbom/sbom.cdx.json
@@ -258,7 +258,7 @@ jobs:
       - name: Prove deterministic double build
         run: ./scripts/deterministic-build-gate.sh . .local/deterministic-build
       - name: Upload deterministic build evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: deterministic-build-evidence
           path: Solution/.local/deterministic-build
@@ -349,7 +349,7 @@ jobs:
           python3 scripts/sarif-security-gate.py --self-test
       - name: Upload security analysis evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: security-analysis-evidence
           path: Solution/.local/security
@@ -419,7 +419,7 @@ jobs:
             --forbid-skipped --minimum-tests 1 --summary .local/test-evidence/integration/summary.json
       - name: Upload integration test evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: integration-test-evidence
           path: Solution/.local/test-evidence/integration
@@ -436,7 +436,7 @@ jobs:
             --forbid-skipped --minimum-tests 2 --summary .local/fault-injection/summary.json
       - name: Upload fault-injection evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: fault-injection-evidence
           path: Solution/.local/fault-injection
@@ -595,7 +595,7 @@ jobs:
         run: ./scripts/linkage-evaluation-smoke.sh
       - name: Upload linkage evaluation smoke evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: linkage-evaluation-smoke
           path: Solution/.local/linkage-evaluation-smoke
@@ -620,7 +620,7 @@ jobs:
         run: ./scripts/local-ddl-upgrade.sh
       - name: Upload DDL upgrade evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ddl-upgrade-evidence
           path: Solution/.local/ddl-upgrade
@@ -657,7 +657,7 @@ jobs:
         run: ./scripts/local-e2e.sh
       - name: Upload E2E evidence and logs
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: local-e2e-evidence
           path: Solution/.local/e2e
@@ -695,7 +695,7 @@ jobs:
         run: ./scripts/local-backup-restore-drill.sh
       - name: Upload restore evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bronze-restore-drill
           path: Solution/.local/backup-drill
@@ -734,7 +734,7 @@ jobs:
         run: ./scripts/local-scale.sh "${SCALE_PROFILE:-smoke}"
       - name: Upload scale evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: scale-harness-${{ github.ref_type == 'tag' && 'smoke' || inputs.scale_profile }}
           path: Solution/.local/performance
@@ -970,7 +970,7 @@ jobs:
           Path("Solution/.local/rc-evidence/RC_NOTES.md").write_text(text, encoding="utf-8")
           PY
       - name: Upload RC evidence as Actions backup
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: technical-rc-evidence
           path: |
@@ -1126,7 +1126,7 @@ jobs:
       - name: Persist Sigstore attestation bundle as release evidence
         run: cp "${{ steps.attest-release.outputs.bundle-path }}" Solution/.local/release-evidence/ATTESTATION.sigstore.json
       - name: Upload consolidated release evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-evidence
           path: Solution/.local/release-evidence
@@ -1134,7 +1134,7 @@ jobs:
           include-hidden-files: true
           retention-days: 365
       - name: Upload release source provenance
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-source-provenance
           path: |
