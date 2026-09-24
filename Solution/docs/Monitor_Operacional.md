@@ -88,6 +88,16 @@ Assim, na instalação de dois nós o painel apresenta `NODE1` e `NODE2` sem dep
 
 A publicação é **best-effort**. Falha no mecanismo de monitoramento nunca deve derrubar API, Processor ou Maintenance.
 
+### Heartbeat dos lotes em processamento
+
+O painel de lotes ativos consulta `ingestao.lote_heartbeat` pelo `lote_id`,
+`lease_id` e `lease_owner` correntes. O valor exibido é o heartbeat renovado
+nessa linha, não o snapshot de reserva em `ingestao.lote`. Quando não há
+linha correspondente (lease legado), o painel recorre ao snapshot inicial.
+Uma linha de heartbeat pertencente a um lease antigo jamais é atribuída ao
+lease atual. O monitor continua somente leitura e não controla a recuperação
+de leases; watchdog e Processor seguem responsáveis por ela.
+
 ## Execuções únicas
 
 Calibrador, Linkage Runner, Bronze Verify e Linkage Evaluation não são processos residentes do monitor.
