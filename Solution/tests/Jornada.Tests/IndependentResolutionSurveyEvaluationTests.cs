@@ -160,6 +160,113 @@ public sealed class IndependentResolutionSurveyEvaluationTests
         });
     }
 
+    [Test]
+    public void Evaluate_Rejects_V6_V7_and_unknown_replay_instead_of_silent_posterior_metrics()
+    {
+        foreach (var algorithm in new[]
+        {
+            LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion,
+            LinkageParameterCatalog.NominalGuardDecisionEvidenceAlgorithmVersion,
+            "FELLEGI_SUNTER_FUTURE_V8"
+        })
+        {
+            var manifest = Manifest(7, 3, algorithm);
+            Assert.That(() => IndependentResolutionSurveyEvaluator.Evaluate(
+                manifest, SurveyRows(), 0.95m, 0.03m),
+                Throws.TypeOf<InvalidOperationException>().With.Message.Contains("EvaluateRecorded"),
+                algorithm);
+        }
+    }
+
+    [Test]
+    public void EvaluateRecorded_Uses_final_decisions_and_survey_weights_with_cluster_uncertainty()
+    {
+        var manifest = Manifest(7, 3, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion);
+        var rows = SurveyRows();
+        var outcomes = RecordedOutcomes();
+        var runId = Guid.Parse("00000000-0000-0000-0000-000000000046");
+        IndependentResolutionSurveyEvaluationReport Run(
+            IReadOnlyList<IndependentResolutionSurveyObservation> sample,
+            IReadOnlyList<IndependentRecordedOutcome> decisions) =>
+            IndependentResolutionSurveyEvaluator.EvaluateRecorded(
+                manifest, sample, decisions, runId, manifest.Evaluation.ModelVersion,
+                manifest.RuleSetFingerprintSha256, 0.95m, 4m, true);
+
+        var report = Run(rows, outcomes);
+        var reordered = Run(rows.Reverse().Select(row => row with
+        {
+            Observation = row.Observation with { Candidates = row.Observation.Candidates.Reverse().ToArray() }
+        }).ToArray(), outcomes.Reverse().ToArray());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(report.Version, Is.EqualTo(IndependentResolutionSurveyEvaluator.RecordedVersion));
+            Assert.That(report.Overall.ObservationWeight, Is.EqualTo(10m));
+            Assert.That(report.Overall.ReferenceWeight, Is.EqualTo(7m));
+            Assert.That(report.Overall.ResolvedWeight, Is.EqualTo(5m));
+            Assert.That(report.Overall.ConflictWeight, Is.EqualTo(1m));
+            Assert.That(report.Overall.UnresolvedWeight, Is.EqualTo(4m));
+            Assert.That(report.Overall.TrueLinkWeight, Is.EqualTo(2m));
+            Assert.That(report.Overall.FalseLinkWeight, Is.EqualTo(3m));
+            Assert.That(report.Overall.MissedLinkWeight, Is.EqualTo(5m));
+            Assert.That(report.Overall.RecoveredReferenceWeight, Is.EqualTo(3m));
+            Assert.That(report.Overall.Recall, Is.EqualTo(2m / 7m));
+            Assert.That(report.Overall.Precision, Is.EqualTo(2m / 5m));
+            Assert.That(report.Overall.FalseLinkRate, Is.EqualTo(3m / 5m));
+            Assert.That(report.Overall.CandidateRecoveryRate, Is.EqualTo(3m / 7m));
+            Assert.That(report.OverallUncertainty, Has.Count.EqualTo(7));
+            Assert.That(report.FingerprintSha256, Is.EqualTo(reordered.FingerprintSha256));
+            Assert.That(report.SamplingDesignFingerprintSha256, Is.EqualTo(reordered.SamplingDesignFingerprintSha256));
+            Assert.That(report.BaseEvaluationFingerprintSha256, Is.EqualTo(reordered.BaseEvaluationFingerprintSha256));
+        });
+    }
+
+    [Test]
+    public void EvaluateRecorded_Fails_closed_for_incomplete_candidates_missing_decisions_and_invalid_design()
+    {
+        var manifest = Manifest(7, 3, LinkageParameterCatalog.NominalGuardDecisionEvidenceAlgorithmVersion);
+        var rows = SurveyRows();
+        var decisions = RecordedOutcomes();
+        var runId = Guid.Parse("00000000-0000-0000-0000-000000000047");
+        IndependentResolutionSurveyEvaluationReport Run(
+            IReadOnlyList<IndependentResolutionSurveyObservation> sample,
+            IReadOnlyList<IndependentRecordedOutcome> actual,
+            bool complete = true,
+            Guid? run = null) =>
+            IndependentResolutionSurveyEvaluator.EvaluateRecorded(
+                manifest, sample, actual, run ?? runId,
+                manifest.Evaluation.ModelVersion, manifest.RuleSetFingerprintSha256,
+                0.95m, 4m, complete);
+        var invalid = rows.ToArray();
+        invalid[0] = invalid[0] with { DesignWeight = 0m };
+        var twoGroups = rows.Select(row => row with
+        {
+            IndependenceGroupFingerprintSha256 = row.DesignWeight <= 2m ? Hash("a") : Hash("b")
+        }).ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(() => Run(rows, decisions, complete: false), Throws.TypeOf<InvalidOperationException>());
+            Assert.That(() => Run(rows, decisions.Take(3).ToArray()), Throws.TypeOf<InvalidOperationException>());
+            Assert.That(() => Run(rows, new[] { decisions[0], decisions[0], decisions[2], decisions[3] }),
+                Throws.TypeOf<InvalidOperationException>());
+            Assert.That(() => Run(rows, decisions, run: Guid.Empty), Throws.TypeOf<ArgumentException>());
+            Assert.That(() => Run(invalid, decisions), Throws.TypeOf<InvalidOperationException>());
+            Assert.That(() => Run(twoGroups, decisions), Throws.TypeOf<InvalidOperationException>());
+            Assert.That(() => Run(rows, decisions.Select((o, i) => i == 0
+                ? o with { BestCandidateFingerprintSha256 = Hash("z") } : o).ToArray()),
+                Throws.TypeOf<InvalidOperationException>());
+        });
+    }
+
+    private static IndependentRecordedOutcome[] RecordedOutcomes() =>
+    [
+        new(Hash("1"), "RESOLVIDO", Hash("a"), Hash("a")),
+        new(Hash("2"), "CONFLITO", Hash("d"), null, "SECOND_CANDIDATE_GUARD"),
+        new(Hash("3"), "RESOLVIDO", Hash("e"), Hash("e")),
+        new(Hash("4"), "NAO_RESOLVIDO", Hash("8"), null, "ABAIXO_T_LINKAGE")
+    ];
+
     private static IndependentResolutionSurveyObservation[] SurveyRows() =>
     [
         Survey(Observation("1", "a", new[] { Candidate("a", 0.98m), Candidate("b", 0.10m) }), 2m, "a"),
@@ -187,7 +294,9 @@ public sealed class IndependentResolutionSurveyEvaluationTests
     private static IndependentResolutionCandidate Candidate(string candidate, decimal score) =>
         new(Hash(candidate), score);
 
-    private static IndependentRuleSetEvaluationManifest Manifest(long candidatePairs, long referenceLinks)
+    private static IndependentRuleSetEvaluationManifest Manifest(
+        long candidatePairs, long referenceLinks,
+        string algorithm = LinkageParameterCatalog.LegacySemanticBirthAlgorithmVersion)
     {
         var evaluation = IndependentEvaluationManifestCatalog.Create(
             "eval-v1",
@@ -200,7 +309,7 @@ public sealed class IndependentResolutionSurveyEvaluationTests
             CapturedAt);
         var rules = LinkageDynamicRuleSet.Create(
             "rules-v1",
-            LinkageParameterCatalog.LegacySemanticBirthAlgorithmVersion,
+            algorithm,
             new[] { BlockingCandidateFeatureCatalog.FirstName },
             new[] { new KeyValuePair<string, decimal>("threshold", 0.95m) });
         return IndependentRuleSetEvaluationManifestCatalog.Bind(evaluation, rules);
