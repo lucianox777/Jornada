@@ -10,7 +10,8 @@
     [ValidateRange(0,12)]
     [int]$Waves = 0,
     [string]$StratifiedErrorsConfig = '',
-    [string]$BrazilianNameErrorsConfig = ''
+    [string]$BrazilianNameErrorsConfig = '',
+    [switch]$AllowSharedDatabase
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,9 +33,6 @@ if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
     Copy-Item $Example $EnvFile
 }
 
-& (Join-Path $Root 'scripts/local-db.ps1') up -NoSyntheticCorpus
-if ($LASTEXITCODE -ne 0) { throw "local-db reset falhou ($LASTEXITCODE)." }
-
 $vars = @{}
 Get-Content $EnvFile | ForEach-Object {
     $line = $_.Trim()
@@ -48,6 +46,27 @@ $password = $vars['JORNADA_SQL_SA_PASSWORD']
 $port = if ($vars['JORNADA_SQL_PORT']) { $vars['JORNADA_SQL_PORT'] } else { '14333' }
 $db = if ($vars['JORNADA_SQL_DATABASE']) { $vars['JORNADA_SQL_DATABASE'] } else { 'JornadaLocal' }
 if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD não definido.' }
+
+# A Bronze deste ensaio e temporaria e nao e compartilhada com NODE1/NODE2.
+# A guarda deve preceder local-db up e qualquer limpeza, inclusive em DEV.
+$canonical = Join-Path $Root '.env'
+$originalDb = 'JornadaLocal'
+if (Test-Path -LiteralPath $canonical -PathType Leaf) {
+    foreach ($line in Get-Content -LiteralPath $canonical) {
+        if ($line -match '^\s*JORNADA_SQL_DATABASE\s*=\s*(\S+)') {
+            $originalDb = $matches[1].Trim().Trim('"')
+        }
+    }
+}
+if ([string]::Equals($db, $originalDb, [StringComparison]::OrdinalIgnoreCase) -and -not $AllowSharedDatabase) {
+    throw "Ensaio sintetico recusado: $db e o banco original. Use .env.synthetic.local com JORNADA_SQL_DATABASE=JornadaSyntheticDev e JORNADA_LOCAL_ENV_FILE apontando para essa copia. -AllowSharedDatabase e excepcional."
+}
+if ($AllowSharedDatabase) {
+    Write-Warning 'Banco original explicitamente autorizado; a guarda SQL de exclusividade continua obrigatoria.'
+}
+
+& (Join-Path $Root 'scripts/local-db.ps1') up -NoSyntheticCorpus -DatabaseName $db
+if ($LASTEXITCODE -ne 0) { throw "local-db up falhou ($LASTEXITCODE)." }
 
 Push-Location $Root
 try {
