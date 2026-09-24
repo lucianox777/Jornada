@@ -144,6 +144,92 @@ public sealed class IndependentResolutionEvaluationTests
         });
     }
 
+    [Test]
+    public void Evaluate_V6PosteriorReplayIsRejectedBeforePublishingMisleadingMetrics()
+    {
+        var manifest = Manifest(2, 1, "FELLEGI_SUNTER_DECISION_EVIDENCE_V6");
+        var observations = new[]
+        {
+            Observation("1", "a", new[] { Candidate("a", 0.99999992m), Candidate("b", 0.99935817m) })
+        };
+        Assert.That(() => IndependentResolutionEvaluator.Evaluate(manifest, observations, 0.99967823m, 0.03m),
+            Throws.TypeOf<InvalidOperationException>().With.Message.Contains("EvaluateRecorded"));
+    }
+
+    [Test]
+    public void EvaluateRecorded_RespectsRuntimeDemographicGuardAndLogOddsMargin()
+    {
+        var manifest = Manifest(3, 1, "FELLEGI_SUNTER_DECISION_EVIDENCE_V6");
+        var rows = new[]
+        {
+            Observation("1", "a", new[] { Candidate("a", 0.99999992m), Candidate("b", 0.99935817m) }, "A"),
+            Observation("2", null, new[] { Candidate("c", 0.99m) }, "B")
+        };
+        var outcomes = new[]
+        {
+            new IndependentRecordedOutcome(Hash("1"), "CONFLITO", Hash("a"), null,
+                "NUCLEO_DEMOGRAFICO_EXATO_NAO_UNICO"),
+            new IndependentRecordedOutcome(Hash("2"), "NAO_RESOLVIDO", Hash("c"), null, "ABAIXO_T_LINKAGE")
+        };
+        var runId = Guid.Parse("00000000-0000-0000-0000-000000000031");
+        var a = IndependentResolutionEvaluator.EvaluateRecorded(manifest, rows, outcomes, runId,
+            manifest.Evaluation.ModelVersion, manifest.RuleSetFingerprintSha256,
+            0.99967823m, 3.99997580m, completeCandidateUniverse: true);
+        var b = IndependentResolutionEvaluator.EvaluateRecorded(manifest, rows.Reverse().ToArray(),
+            outcomes.Reverse().ToArray(), runId, manifest.Evaluation.ModelVersion,
+            manifest.RuleSetFingerprintSha256, 0.99967823m, 3.99997580m, true);
+        Assert.Multiple(() =>
+        {
+            Assert.That(a.Version, Is.EqualTo(IndependentResolutionEvaluator.RecordedVersion));
+            Assert.That(a.Overall.Conflicts, Is.EqualTo(1));
+            Assert.That(a.Overall.Unresolved, Is.EqualTo(1));
+            Assert.That(a.Overall.Resolved, Is.Zero);
+            Assert.That(a.Overall.RecoveredReferenceCandidates, Is.EqualTo(1));
+            Assert.That(a.Overall.Recall, Is.Zero);
+            Assert.That(a.ConflictMargin, Is.EqualTo(3.99997580m));
+            Assert.That(a.FingerprintSha256, Is.EqualTo(b.FingerprintSha256));
+        });
+    }
+
+    [Test]
+    public void EvaluateRecorded_CountsFalseLinksAndRequiresCompleteIndependentEvidence()
+    {
+        var manifest = Manifest(2, 1, "FELLEGI_SUNTER_DECISION_EVIDENCE_V6");
+        var rows = new[]
+        {
+            Observation("1", "a", new[] { Candidate("b", 0.99m) }),
+            Observation("2", null, new[] { Candidate("c", 0.40m) })
+        };
+        var outcomes = new[]
+        {
+            new IndependentRecordedOutcome(Hash("1"), "RESOLVIDO", Hash("b"), Hash("b")),
+            new IndependentRecordedOutcome(Hash("2"), "NAO_RESOLVIDO", Hash("c"), null)
+        };
+        var runId = Guid.Parse("00000000-0000-0000-0000-000000000032");
+        IndependentResolutionEvaluationReport Run(IReadOnlyList<IndependentRecordedOutcome> actual, bool complete = true) =>
+            IndependentResolutionEvaluator.EvaluateRecorded(manifest, rows, actual, runId,
+                manifest.Evaluation.ModelVersion, manifest.RuleSetFingerprintSha256, 0.95m, 4m, complete);
+
+        var report = Run(outcomes);
+        Assert.Multiple(() =>
+        {
+            Assert.That(report.Overall.FalseLinks, Is.EqualTo(1));
+            Assert.That(report.Overall.TrueNonLinks, Is.EqualTo(1));
+            Assert.That(report.Overall.FalseLinkRate, Is.EqualTo(1m));
+            Assert.That(report.Overall.FalsePositiveRate, Is.EqualTo(0.5m));
+            Assert.That(() => Run(outcomes, false), Throws.TypeOf<InvalidOperationException>());
+            Assert.That(() => Run(new[] { outcomes[0], outcomes[0] }),
+                Throws.TypeOf<InvalidOperationException>());
+            Assert.That(() => Run(new[] { outcomes[0] with { Status = "CONFLITO" }, outcomes[1] }),
+                Throws.TypeOf<InvalidOperationException>());
+            Assert.That(() => Run(new[] { outcomes[0] with { BestCandidateFingerprintSha256 = Hash("a") }, outcomes[1] }),
+                Throws.TypeOf<InvalidOperationException>());
+            Assert.That(() => IndependentResolutionEvaluator.EvaluateRecorded(manifest, rows, outcomes, runId,
+                "incorrect", manifest.RuleSetFingerprintSha256, 0.95m, 4m, true),
+                Throws.TypeOf<InvalidOperationException>());
+        });
+    }
+
     private static IndependentResolutionObservation[] RepresentativeObservations() =>
     [
         Observation("1", "a", new[] { Candidate("a", 0.98m), Candidate("b", 0.10m) }, "A"),
@@ -166,7 +252,7 @@ public sealed class IndependentResolutionEvaluationTests
     private static IndependentResolutionCandidate Candidate(string candidate, decimal score) =>
         new(Hash(candidate), score);
 
-    private static IndependentRuleSetEvaluationManifest Manifest(long candidatePairs, long referenceLinks)
+    private static IndependentRuleSetEvaluationManifest Manifest(long candidatePairs, long referenceLinks, string algorithm = "calibrator-v1")
     {
         var evaluation = IndependentEvaluationManifestCatalog.Create(
             "eval-v1",
@@ -179,7 +265,7 @@ public sealed class IndependentResolutionEvaluationTests
             CapturedAt);
         var rules = LinkageDynamicRuleSet.Create(
             "rules-v1",
-            "calibrator-v1",
+            algorithm,
             new[] { BlockingCandidateFeatureCatalog.FirstName },
             new[] { new KeyValuePair<string, decimal>("threshold", 0.95m) });
         return IndependentRuleSetEvaluationManifestCatalog.Bind(evaluation, rules);

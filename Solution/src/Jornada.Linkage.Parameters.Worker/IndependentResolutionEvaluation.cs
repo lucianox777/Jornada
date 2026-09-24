@@ -13,6 +13,17 @@ public sealed record IndependentResolutionObservation(
     IReadOnlyList<IndependentResolutionCandidate> Candidates,
     IReadOnlyDictionary<string, string>? Subgroups = null);
 
+/// <summary>
+/// Resultado FINAL do Runner, incluindo guards que nao podem ser inferidos
+/// apenas a partir dos posteriors. Fingerprints, nunca UUID ou PII.
+/// </summary>
+public sealed record IndependentRecordedOutcome(
+    string ObservationFingerprintSha256,
+    string Status,
+    string? BestCandidateFingerprintSha256,
+    string? ResolvedCandidateFingerprintSha256,
+    string? ReasonCode = null);
+
 public sealed record IndependentResolutionSliceMetrics(
     int Observations,
     int ReferenceLinks,
@@ -74,6 +85,10 @@ public static class IndependentResolutionEvaluator
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentNullException.ThrowIfNull(observations);
+        if (string.Equals(manifest.AlgorithmVersion, "FELLEGI_SUNTER_DECISION_EVIDENCE_V6", StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "O replay por diferenca de posterior nao reproduz a margem log-odds e os guards V6. " +
+                "Use EvaluateRecorded com decisoes finais conferidas do Runner.");
 
         if (threshold is <= 0m or > 1m)
             throw new ArgumentOutOfRangeException(nameof(threshold), "Threshold must be in (0, 1].");
@@ -103,6 +118,131 @@ public static class IndependentResolutionEvaluator
             Array.AsReadOnly(subgroups),
             Array.AsReadOnly(calibration),
             fingerprint);
+    }
+
+    public const string RecordedVersion = "LINKAGE_INDEPENDENT_RECORDED_RUNTIME_EVALUATION_V1";
+
+    /// <summary>
+    /// Avalia as decisoes finais congeladas do Runner (inclusive homonimos,
+    /// segundo candidato e margem em log-odds). Nao redecide nem publica.
+    /// O exportador HML deve atestar que os candidatos sao a uniao integral
+    /// do ruleset e que TEST/verdade nao participaram da calibracao.
+    /// </summary>
+    public static IndependentResolutionEvaluationReport EvaluateRecorded(
+        IndependentRuleSetEvaluationManifest manifest,
+        IReadOnlyList<IndependentResolutionObservation> observations,
+        IReadOnlyList<IndependentRecordedOutcome> outcomes,
+        Guid runId,
+        string recordedModelVersion,
+        string recordedRuleSetFingerprintSha256,
+        decimal threshold,
+        decimal conflictMargin,
+        bool completeCandidateUniverse)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        ArgumentNullException.ThrowIfNull(observations);
+        ArgumentNullException.ThrowIfNull(outcomes);
+        if (!completeCandidateUniverse)
+            throw new InvalidOperationException("A lista completa de candidatos e obrigatoria para medir candidate recall.");
+        if (runId == Guid.Empty)
+            throw new ArgumentException("RunId final e obrigatorio.", nameof(runId));
+        if (!string.Equals(recordedModelVersion, manifest.Evaluation.ModelVersion, StringComparison.Ordinal))
+            throw new InvalidOperationException("A versao do modelo do run diverge do manifesto.");
+        if (!string.Equals(Sha256(recordedRuleSetFingerprintSha256, nameof(recordedRuleSetFingerprintSha256)),
+            manifest.RuleSetFingerprintSha256, StringComparison.Ordinal))
+            throw new InvalidOperationException("O fingerprint do ruleset do run diverge do manifesto.");
+        if (threshold is <= 0m or > 1m || conflictMargin is < 0m or > 1000m)
+            throw new ArgumentOutOfRangeException(nameof(threshold), "Threshold/margem do run fora do dominio.");
+
+        var normalized = NormalizeAndValidate(manifest, observations);
+        if (outcomes.Count != normalized.Length)
+            throw new InvalidOperationException("Toda observacao deve ter exatamente uma decisao final do run.");
+        var byObservation = new Dictionary<string, IndependentRecordedOutcome>(StringComparer.Ordinal);
+        foreach (var result in outcomes)
+        {
+            if (result is null)
+                throw new InvalidOperationException("Resultado final ausente.");
+            var observationId = Sha256(result.ObservationFingerprintSha256, nameof(result.ObservationFingerprintSha256));
+            if (!byObservation.TryAdd(observationId, result))
+                throw new InvalidOperationException("Resultado final duplicado para uma observacao.");
+        }
+
+        var evaluated = new List<EvaluatedObservation>(normalized.Length);
+        var canonical = new StringBuilder()
+            .Append(RecordedVersion).Append('\n')
+            .Append(runId.ToString("D")).Append('\n')
+            .Append(manifest.FingerprintSha256).Append('\n');
+        foreach (var row in normalized)
+        {
+            if (!byObservation.TryGetValue(row.ObservationFingerprintSha256, out var result))
+                throw new InvalidOperationException("O run nao cobre uma observacao do manifesto.");
+
+            var state = result.Status switch
+            {
+                "RESOLVIDO" => ResolutionState.Resolved,
+                "CONFLITO" => ResolutionState.Conflict,
+                "NAO_RESOLVIDO" => ResolutionState.Unresolved,
+                _ => throw new InvalidOperationException("Status final do Runner desconhecido.")
+            };
+            var bestId = result.BestCandidateFingerprintSha256 is null
+                ? null : Sha256(result.BestCandidateFingerprintSha256, nameof(result.BestCandidateFingerprintSha256));
+            var resolvedId = result.ResolvedCandidateFingerprintSha256 is null
+                ? null : Sha256(result.ResolvedCandidateFingerprintSha256, nameof(result.ResolvedCandidateFingerprintSha256));
+            if ((row.Candidates.Length == 0) != (bestId is null))
+                throw new InvalidOperationException("Best candidate nao corresponde ao conjunto candidato.");
+            if (bestId is not null &&
+                !row.Candidates.Any(c => c.FingerprintSha256 == bestId && c.Score == row.Candidates[0].Score))
+                throw new InvalidOperationException("Best candidate nao tem o score maximo da uniao.");
+            if (state == ResolutionState.Resolved)
+            {
+                if (resolvedId is null || resolvedId != bestId)
+                    throw new InvalidOperationException("RESOLVIDO precisa apontar ao melhor candidato registrado.");
+            }
+            else if (resolvedId is not null)
+            {
+                throw new InvalidOperationException("Conflito/nao resolvido nao pode carregar UUID resolvido.");
+            }
+
+            var reordered = bestId is null ? row.Candidates : row.Candidates
+                .OrderByDescending(c => c.Score)
+                .ThenByDescending(c => c.FingerprintSha256 == bestId)
+                .ThenBy(c => c.FingerprintSha256, StringComparer.Ordinal)
+                .ToArray();
+            var observed = row with { Candidates = reordered };
+            var truth = observed.ReferenceCandidateFingerprintSha256;
+            var trueLink = truth is not null && resolvedId == truth;
+            var falseLink = resolvedId is not null && resolvedId != truth;
+            var top = reordered.FirstOrDefault();
+            var brier = top is null ? (decimal?)null
+                : (top.Score - (truth is not null && top.FingerprintSha256 == truth ? 1m : 0m))
+                  * (top.Score - (truth is not null && top.FingerprintSha256 == truth ? 1m : 0m));
+
+            evaluated.Add(new EvaluatedObservation(observed, state, resolvedId,
+                trueLink, falseLink, truth is not null && !trueLink,
+                truth is null && resolvedId is null,
+                truth is not null && reordered.Any(c => c.FingerprintSha256 == truth),
+                top?.Score, brier));
+            var reason = result.ReasonCode is null ? "-" : RequiredCode(result.ReasonCode, nameof(result.ReasonCode));
+            canonical.Append(row.ObservationFingerprintSha256).Append(':')
+                .Append(result.Status).Append(':')
+                .Append(bestId ?? "-").Append(':')
+                .Append(resolvedId ?? "-").Append(':')
+                .Append(reason).Append('\n');
+        }
+        var overall = Metrics(evaluated);
+        var subgroups = BuildSubgroups(evaluated);
+        var calibration = BuildCalibration(evaluated);
+        var baseFingerprint = Fingerprint(manifest, threshold, conflictMargin, overall, subgroups, calibration);
+        canonical.Append(threshold.ToString("G29", System.Globalization.CultureInfo.InvariantCulture)).Append('\n')
+            .Append(conflictMargin.ToString("G29", System.Globalization.CultureInfo.InvariantCulture)).Append('\n')
+            .Append(baseFingerprint).Append('\n');
+        var fingerprint = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString()))).ToLowerInvariant();
+        return new IndependentResolutionEvaluationReport(
+            RecordedVersion,manifest.Evaluation.FingerprintSha256,
+            manifest.RuleSetVersion,manifest.RuleSetFingerprintSha256,
+            threshold,conflictMargin,overall,Array.AsReadOnly(subgroups),
+            Array.AsReadOnly(calibration),fingerprint);
     }
 
     private static NormalizedObservation[] NormalizeAndValidate(
