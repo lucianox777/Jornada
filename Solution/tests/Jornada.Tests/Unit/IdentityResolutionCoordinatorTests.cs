@@ -40,7 +40,7 @@ public sealed class IdentityResolutionCoordinatorTests
         var sut = new IdentityResolutionCoordinator(map);
 
         var result = await sut.ResolveAsync(
-            new IdentityObservation("52998224725", null, "Pedro Santos", new DateOnly(2017, 8, 21), "Maria da Silva"),
+            new IdentityObservation(DeterministicCpfFixture.Valid(37), null, "Pedro Santos", new DateOnly(2017, 8, 21), "Maria da Silva"),
             CancellationToken.None);
 
         Assert.Multiple(() =>
