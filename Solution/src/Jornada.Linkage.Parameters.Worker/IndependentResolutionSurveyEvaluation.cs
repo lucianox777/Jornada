@@ -82,6 +82,7 @@ public sealed record IndependentResolutionSurveyEvaluationReport(
 public static class IndependentResolutionSurveyEvaluator
 {
     public const string Version = "LINKAGE_INDEPENDENT_RESOLUTION_SURVEY_V1";
+    public const string RecordedVersion = "LINKAGE_INDEPENDENT_RECORDED_RUNTIME_SURVEY_V1";
     public const string UncertaintyMethod = "DELETE_ONE_CLUSTER_JACKKNIFE_NORMAL95_V1";
     private const decimal Normal95 = 1.959963984540054m;
 
@@ -109,7 +110,60 @@ public static class IndependentResolutionSurveyEvaluator
             threshold,
             conflictMargin);
 
-        var evaluated = NormalizeAndEvaluate(surveyObservations, threshold, conflictMargin);
+        return BuildReport(baseReport, surveyObservations, threshold, conflictMargin, Version);
+    }
+
+    /// <summary>
+    /// Estima métricas de desenho amostral a partir das decisões finais congeladas
+    /// do mesmo run V6/V7. A guarda descritiva verifica manifesto, união de
+    /// candidatos, versão, ruleset e cobertura de todas as observações.
+    /// Nunca reconstrói a decisão por diferença de posteriores.
+    /// </summary>
+    public static IndependentResolutionSurveyEvaluationReport EvaluateRecorded(
+        IndependentRuleSetEvaluationManifest manifest,
+        IReadOnlyList<IndependentResolutionSurveyObservation> surveyObservations,
+        IReadOnlyList<IndependentRecordedOutcome> outcomes,
+        Guid runId,
+        string recordedModelVersion,
+        string recordedRuleSetFingerprintSha256,
+        decimal threshold,
+        decimal conflictMargin,
+        bool completeCandidateUniverse)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        ArgumentNullException.ThrowIfNull(surveyObservations);
+        ArgumentNullException.ThrowIfNull(outcomes);
+        if (surveyObservations.Count == 0)
+            throw new ArgumentException("At least one survey observation is required.", nameof(surveyObservations));
+
+        var rawObservations = surveyObservations
+            .Select(static row => row?.Observation
+                ?? throw new InvalidOperationException("Survey observation cannot be null."))
+            .ToArray();
+
+        var baseReport = IndependentResolutionEvaluator.EvaluateRecorded(
+            manifest, rawObservations, outcomes, runId, recordedModelVersion,
+            recordedRuleSetFingerprintSha256, threshold, conflictMargin,
+            completeCandidateUniverse);
+
+        var recorded = outcomes.ToDictionary(
+            static outcome => Sha256(outcome.ObservationFingerprintSha256,
+                nameof(outcome.ObservationFingerprintSha256)),
+            StringComparer.Ordinal);
+        return BuildReport(baseReport, surveyObservations, threshold,
+            conflictMargin, RecordedVersion, recorded);
+    }
+
+    private static IndependentResolutionSurveyEvaluationReport BuildReport(
+        IndependentResolutionEvaluationReport baseReport,
+        IReadOnlyList<IndependentResolutionSurveyObservation> surveyObservations,
+        decimal threshold,
+        decimal conflictMargin,
+        string reportVersion,
+        IReadOnlyDictionary<string, IndependentRecordedOutcome>? recordedOutcomes = null)
+    {
+        var evaluated = NormalizeAndEvaluate(surveyObservations, threshold,
+            conflictMargin, recordedOutcomes);
         var groups = evaluated.Select(static row => row.GroupFingerprintSha256)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(static value => value, StringComparer.Ordinal)
@@ -124,6 +178,7 @@ public static class IndependentResolutionSurveyEvaluator
         var calibration = BuildCalibration(evaluated);
         var designFingerprint = SamplingDesignFingerprint(evaluated);
         var fingerprint = Fingerprint(
+            reportVersion,
             baseReport,
             designFingerprint,
             overall,
@@ -132,11 +187,11 @@ public static class IndependentResolutionSurveyEvaluator
             calibration);
 
         return new IndependentResolutionSurveyEvaluationReport(
-            Version,
+            reportVersion,
             baseReport.FingerprintSha256,
-            manifest.Evaluation.FingerprintSha256,
-            manifest.RuleSetVersion,
-            manifest.RuleSetFingerprintSha256,
+            baseReport.EvaluationManifestFingerprintSha256,
+            baseReport.RuleSetVersion,
+            baseReport.RuleSetFingerprintSha256,
             designFingerprint,
             threshold,
             conflictMargin,
@@ -150,7 +205,8 @@ public static class IndependentResolutionSurveyEvaluator
     private static SurveyEvaluatedObservation[] NormalizeAndEvaluate(
         IReadOnlyList<IndependentResolutionSurveyObservation> rows,
         decimal threshold,
-        decimal conflictMargin)
+        decimal conflictMargin,
+        IReadOnlyDictionary<string, IndependentRecordedOutcome>? recordedOutcomes = null)
     {
         var result = new List<SurveyEvaluatedObservation>(rows.Count);
         foreach (var row in rows)
@@ -168,11 +224,20 @@ public static class IndependentResolutionSurveyEvaluator
                 ? null
                 : Sha256(row.Observation.ReferenceCandidateFingerprintSha256, nameof(row.Observation.ReferenceCandidateFingerprintSha256));
 
+            IndependentRecordedOutcome? recorded = null;
+            if (recordedOutcomes is not null &&
+                !recordedOutcomes.TryGetValue(observationFingerprint, out recorded))
+                throw new InvalidOperationException("Decisão final ausente para observação amostral.");
+            var recordedBest = recorded?.BestCandidateFingerprintSha256 is null
+                ? null : Sha256(recorded.BestCandidateFingerprintSha256,
+                    nameof(recorded.BestCandidateFingerprintSha256));
             var candidates = row.Observation.Candidates
                 .Select(candidate => new SurveyCandidate(
                     Sha256(candidate.CandidateFingerprintSha256, nameof(candidate.CandidateFingerprintSha256)),
                     candidate.Score))
                 .OrderByDescending(static candidate => candidate.Score)
+                .ThenByDescending(candidate => recordedBest is not null &&
+                    candidate.FingerprintSha256 == recordedBest)
                 .ThenBy(static candidate => candidate.FingerprintSha256, StringComparer.Ordinal)
                 .ToArray();
 
@@ -180,7 +245,20 @@ public static class IndependentResolutionSurveyEvaluator
             var second = candidates.Length > 1 ? candidates[1] : null;
             string? resolved = null;
             var state = SurveyResolutionState.Unresolved;
-            if (best is not null && best.Score >= threshold)
+            if (recorded is not null)
+            {
+                state = recorded.Status switch
+                {
+                    "RESOLVIDO" => SurveyResolutionState.Resolved,
+                    "CONFLITO" => SurveyResolutionState.Conflict,
+                    "NAO_RESOLVIDO" => SurveyResolutionState.Unresolved,
+                    _ => throw new InvalidOperationException("Status final desconhecido.")
+                };
+                resolved = recorded.ResolvedCandidateFingerprintSha256 is null
+                    ? null : Sha256(recorded.ResolvedCandidateFingerprintSha256,
+                        nameof(recorded.ResolvedCandidateFingerprintSha256));
+            }
+            else if (best is not null && best.Score >= threshold)
             {
                 if (second is not null && best.Score - second.Score < conflictMargin)
                     state = SurveyResolutionState.Conflict;
@@ -395,6 +473,7 @@ public static class IndependentResolutionSurveyEvaluator
     }
 
     private static string Fingerprint(
+        string reportVersion,
         IndependentResolutionEvaluationReport baseReport,
         string designFingerprint,
         IndependentResolutionWeightedSliceMetrics overall,
@@ -403,7 +482,7 @@ public static class IndependentResolutionSurveyEvaluator
         IReadOnlyList<IndependentResolutionWeightedCalibrationBin> calibration)
     {
         var canonical = new StringBuilder()
-            .Append(Version).Append('\n')
+            .Append(reportVersion).Append('\n')
             .Append(UncertaintyMethod).Append('\n')
             .Append(baseReport.FingerprintSha256).Append('\n')
             .Append(designFingerprint).Append('\n');

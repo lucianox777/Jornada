@@ -157,6 +157,26 @@ public sealed class IndependentResolutionEvaluationTests
     }
 
     [Test]
+    public void Evaluate_Rejects_future_and_V7_algorithms_by_default()
+    {
+        var observations = new[]
+        {
+            Observation("1", "a", new[] { Candidate("a", 0.98m) })
+        };
+        foreach (var algorithm in new[]
+        {
+            LinkageParameterCatalog.NominalGuardDecisionEvidenceAlgorithmVersion,
+            "FELLEGI_SUNTER_FUTURE_V8"
+        })
+        {
+            var manifest = Manifest(1, 1, algorithm);
+            Assert.That(() => IndependentResolutionEvaluator.Evaluate(manifest, observations, 0.95m, 0.03m),
+                Throws.TypeOf<InvalidOperationException>().With.Message.Contains("EvaluateRecorded"),
+                algorithm);
+        }
+    }
+
+    [Test]
     public void EvaluateRecorded_RespectsRuntimeDemographicGuardAndLogOddsMargin()
     {
         var manifest = Manifest(3, 1, "FELLEGI_SUNTER_DECISION_EVIDENCE_V6");
@@ -252,7 +272,7 @@ public sealed class IndependentResolutionEvaluationTests
     private static IndependentResolutionCandidate Candidate(string candidate, decimal score) =>
         new(Hash(candidate), score);
 
-    private static IndependentRuleSetEvaluationManifest Manifest(long candidatePairs, long referenceLinks, string algorithm = "calibrator-v1")
+    private static IndependentRuleSetEvaluationManifest Manifest(long candidatePairs, long referenceLinks, string algorithm = LinkageParameterCatalog.LegacySemanticBirthAlgorithmVersion)
     {
         var evaluation = IndependentEvaluationManifestCatalog.Create(
             "eval-v1",

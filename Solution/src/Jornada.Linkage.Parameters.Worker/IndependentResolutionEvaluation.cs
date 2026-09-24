@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Jornada.Contracts;
 
 namespace Jornada.Linkage.Parameters.Worker;
 
@@ -85,10 +86,14 @@ public static class IndependentResolutionEvaluator
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentNullException.ThrowIfNull(observations);
-        if (string.Equals(manifest.AlgorithmVersion, "FELLEGI_SUNTER_DECISION_EVIDENCE_V6", StringComparison.Ordinal))
+        // Somente algoritmos cuja regra de decisao realmente usa margem em
+        // posterior podem ser simulados. Versoes novas falham fechadas.
+        if (!string.Equals(manifest.AlgorithmVersion,
+                LinkageParameterCatalog.LegacySemanticBirthAlgorithmVersion, StringComparison.Ordinal))
             throw new InvalidOperationException(
-                "O replay por diferenca de posterior nao reproduz a margem log-odds e os guards V6. " +
-                "Use EvaluateRecorded com decisoes finais conferidas do Runner.");
+                "Replay por posterior autorizado somente para a versao legada V5. " +
+                "Para V6/V7 ou versoes desconhecidas, use EvaluateRecorded " +
+                "com decisoes finais conferidas do Runner.");
 
         if (threshold is <= 0m or > 1m)
             throw new ArgumentOutOfRangeException(nameof(threshold), "Threshold must be in (0, 1].");

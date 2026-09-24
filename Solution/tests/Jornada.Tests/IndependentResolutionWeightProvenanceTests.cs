@@ -138,6 +138,51 @@ public sealed class IndependentResolutionWeightProvenanceTests
             Throws.TypeOf<InvalidOperationException>());
     }
 
+    [Test]
+    public void EvaluateRecorded_Preserves_governed_weight_provenance_and_runtime_decisions()
+    {
+        var manifest = Manifest(7, 3, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion);
+        var governed = GovernedRows();
+        var outcomes = new IndependentRecordedOutcome[]
+        {
+            new(Hash("1"), "RESOLVIDO", Hash("a"), Hash("a")),
+            new(Hash("2"), "CONFLITO", Hash("d"), null),
+            new(Hash("3"), "RESOLVIDO", Hash("e"), Hash("e")),
+            new(Hash("4"), "NAO_RESOLVIDO", Hash("8"), null)
+        };
+        var runId = Guid.Parse("00000000-0000-0000-0000-000000000048");
+        IndependentResolutionGovernedSurveyEvaluationReport Run(
+            IReadOnlyList<GovernedIndependentResolutionSurveyObservation> rows) =>
+            IndependentResolutionGovernedSurveyEvaluator.EvaluateRecorded(
+                manifest, rows, outcomes, runId, manifest.Evaluation.ModelVersion,
+                manifest.RuleSetFingerprintSha256, 0.95m, 4m,
+                completeCandidateUniverse: true);
+
+        var report = Run(governed);
+        var reversed = Run(governed.Reverse().ToArray());
+        var invalidWeight = governed.ToArray();
+        invalidWeight[0] = invalidWeight[0] with
+        {
+            WeightProvenance = invalidWeight[0].WeightProvenance with { FinalWeight = 99m }
+        };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(report.Version, Is.EqualTo(IndependentResolutionGovernedSurveyEvaluator.RecordedVersion));
+            Assert.That(report.Survey.Version, Is.EqualTo(IndependentResolutionSurveyEvaluator.RecordedVersion));
+            Assert.That(report.Observations, Is.EqualTo(4));
+            Assert.That(report.Survey.Overall.TrueLinkWeight, Is.EqualTo(2m));
+            Assert.That(report.Survey.Overall.FalseLinkWeight, Is.EqualTo(3m));
+            Assert.That(report.Survey.Overall.ConflictWeight, Is.EqualTo(1m));
+            Assert.That(report.Survey.OverallUncertainty, Is.Not.Empty);
+            Assert.That(report.SelectionAdjustmentsApplied, Is.EqualTo(1));
+            Assert.That(report.NonResponseAdjustmentsApplied, Is.EqualTo(1));
+            Assert.That(report.CalibrationAdjustmentsApplied, Is.EqualTo(1));
+            Assert.That(report.FingerprintSha256, Is.EqualTo(reversed.FingerprintSha256));
+            Assert.That(() => Run(invalidWeight), Throws.TypeOf<InvalidOperationException>());
+        });
+    }
+
     private static GovernedIndependentResolutionSurveyObservation[] GovernedRows()
     {
         var survey = SurveyRows();
@@ -207,7 +252,9 @@ public sealed class IndependentResolutionWeightProvenanceTests
     private static IndependentResolutionCandidate Candidate(string candidate, decimal score) =>
         new(Hash(candidate), score);
 
-    private static IndependentRuleSetEvaluationManifest Manifest(long candidatePairs, long referenceLinks)
+    private static IndependentRuleSetEvaluationManifest Manifest(
+        long candidatePairs, long referenceLinks,
+        string algorithm = LinkageParameterCatalog.LegacySemanticBirthAlgorithmVersion)
     {
         var evaluation = IndependentEvaluationManifestCatalog.Create(
             "eval-v1",
@@ -220,7 +267,7 @@ public sealed class IndependentResolutionWeightProvenanceTests
             CapturedAt);
         var rules = LinkageDynamicRuleSet.Create(
             "rules-v1",
-            "calibrator-v1",
+            algorithm,
             new[] { BlockingCandidateFeatureCatalog.FirstName },
             new[] { new KeyValuePair<string, decimal>("threshold", 0.95m) });
         return IndependentRuleSetEvaluationManifestCatalog.Bind(evaluation, rules);

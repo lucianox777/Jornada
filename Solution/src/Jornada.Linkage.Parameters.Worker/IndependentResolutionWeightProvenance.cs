@@ -65,6 +65,8 @@ public static class IndependentResolutionGovernedSurveyEvaluator
 {
     public const string Version = "LINKAGE_INDEPENDENT_RESOLUTION_GOVERNED_SURVEY_V1";
 
+    public const string RecordedVersion = "LINKAGE_INDEPENDENT_RECORDED_RUNTIME_GOVERNED_SURVEY_V1";
+
     public static IndependentResolutionGovernedSurveyEvaluationReport Evaluate(
         IndependentRuleSetEvaluationManifest manifest,
         IReadOnlyList<GovernedIndependentResolutionSurveyObservation> observations,
@@ -72,35 +74,69 @@ public static class IndependentResolutionGovernedSurveyEvaluator
         decimal conflictMargin)
     {
         ArgumentNullException.ThrowIfNull(manifest);
+        var normalized = ValidateRows(observations);
+        var survey = IndependentResolutionSurveyEvaluator.Evaluate(
+            manifest,
+            normalized.Select(static row => row.SurveyObservation).ToArray(),
+            threshold, conflictMargin);
+        return BuildReport(normalized, survey, Version);
+    }
+
+    /// <summary>
+    /// Peso institucional atestado + decisão final congelada do Runner.
+    /// Conserva os gates de proveniência e o jackknife por conglomerado.
+    /// </summary>
+    public static IndependentResolutionGovernedSurveyEvaluationReport EvaluateRecorded(
+        IndependentRuleSetEvaluationManifest manifest,
+        IReadOnlyList<GovernedIndependentResolutionSurveyObservation> observations,
+        IReadOnlyList<IndependentRecordedOutcome> outcomes,
+        Guid runId,
+        string recordedModelVersion,
+        string recordedRuleSetFingerprintSha256,
+        decimal threshold,
+        decimal conflictMargin,
+        bool completeCandidateUniverse)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        var normalized = ValidateRows(observations);
+        var survey = IndependentResolutionSurveyEvaluator.EvaluateRecorded(
+            manifest,
+            normalized.Select(static row => row.SurveyObservation).ToArray(),
+            outcomes, runId, recordedModelVersion, recordedRuleSetFingerprintSha256,
+            threshold, conflictMargin, completeCandidateUniverse);
+        return BuildReport(normalized, survey, RecordedVersion);
+    }
+
+    private static NormalizedRow[] ValidateRows(
+        IReadOnlyList<GovernedIndependentResolutionSurveyObservation> observations)
+    {
         ArgumentNullException.ThrowIfNull(observations);
         if (observations.Count == 0)
             throw new ArgumentException("At least one governed survey observation is required.", nameof(observations));
-
         var normalized = observations
             .Select(NormalizeAndValidate)
             .OrderBy(static row => row.ObservationFingerprintSha256, StringComparer.Ordinal)
             .ToArray();
-
-        var methods = normalized
-            .Select(static row => row.MethodVersion)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        if (methods.Length != 1)
+        if (normalized.Select(static row => row.MethodVersion)
+            .Distinct(StringComparer.Ordinal).Count() != 1)
             throw new InvalidOperationException("A governed evaluation must use one weighting method version.");
+        return normalized;
+    }
 
-        var survey = IndependentResolutionSurveyEvaluator.Evaluate(
-            manifest,
-            normalized.Select(static row => row.SurveyObservation).ToArray(),
-            threshold,
-            conflictMargin);
-
+    private static IndependentResolutionGovernedSurveyEvaluationReport BuildReport(
+        NormalizedRow[] normalized,
+        IndependentResolutionSurveyEvaluationReport survey,
+        string reportVersion)
+    {
+        var methodVersion = normalized[0].MethodVersion;
         var provenanceFingerprint = ProvenanceFingerprint(normalized);
         var selectionApplied = CountApplied(normalized, IndependentResolutionWeightAdjustmentKind.Selection);
         var nonResponseApplied = CountApplied(normalized, IndependentResolutionWeightAdjustmentKind.NonResponse);
         var calibrationApplied = CountApplied(normalized, IndependentResolutionWeightAdjustmentKind.Calibration);
         var fingerprint = ReportFingerprint(
+            reportVersion,
             survey.FingerprintSha256,
-            methods[0],
+            methodVersion,
             provenanceFingerprint,
             normalized.Length,
             selectionApplied,
@@ -108,9 +144,9 @@ public static class IndependentResolutionGovernedSurveyEvaluator
             calibrationApplied);
 
         return new IndependentResolutionGovernedSurveyEvaluationReport(
-            Version,
+            reportVersion,
             survey.FingerprintSha256,
-            methods[0],
+            methodVersion,
             provenanceFingerprint,
             normalized.Length,
             selectionApplied,
@@ -230,6 +266,7 @@ public static class IndependentResolutionGovernedSurveyEvaluator
     }
 
     private static string ReportFingerprint(
+        string reportVersion,
         string surveyFingerprint,
         string methodVersion,
         string provenanceFingerprint,
@@ -239,7 +276,7 @@ public static class IndependentResolutionGovernedSurveyEvaluator
         int calibrationApplied)
     {
         var builder = new StringBuilder();
-        Append(builder, Version);
+        Append(builder, reportVersion);
         Append(builder, surveyFingerprint);
         Append(builder, methodVersion);
         Append(builder, provenanceFingerprint);
