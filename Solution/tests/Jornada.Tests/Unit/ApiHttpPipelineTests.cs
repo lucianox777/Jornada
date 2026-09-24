@@ -49,7 +49,7 @@ public sealed class ApiHttpPipelineTests
             });
             using var client = factory.CreateClient();
             using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/identidade/resolver")
-            { Content = JsonContent.Create(new { cpf = "52998224725" }) };
+            { Content = JsonContent.Create(new { cpf = DeterministicCpfFixture.Valid(24) }) };
             request.Headers.TryAddWithoutValidation("X-Jornada-Gestor", "SMADS");
             request.Headers.TryAddWithoutValidation("X-Jornada-Access-Key", "nao-deve-ser-aceita");
             var response = await client.SendAsync(request);
