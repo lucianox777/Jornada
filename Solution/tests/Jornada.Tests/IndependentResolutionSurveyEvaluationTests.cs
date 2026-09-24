@@ -214,7 +214,10 @@ public sealed class IndependentResolutionSurveyEvaluationTests
             Assert.That(report.Overall.Precision, Is.EqualTo(2m / 5m));
             Assert.That(report.Overall.FalseLinkRate, Is.EqualTo(3m / 5m));
             Assert.That(report.Overall.CandidateRecoveryRate, Is.EqualTo(3m / 7m));
-            Assert.That(report.OverallUncertainty, Has.Count.EqualTo(7));
+            // A réplica sem o único falso vínculo não identifica FPR (0/0).
+            Assert.That(report.OverallUncertainty, Has.Count.EqualTo(6));
+            Assert.That(report.OverallUncertainty.Select(x => x.Metric), Does.Contain("RECALL"));
+            Assert.That(report.OverallUncertainty.Select(x => x.Metric), Does.Not.Contain("FALSE_POSITIVE_RATE"));
             Assert.That(report.FingerprintSha256, Is.EqualTo(reordered.FingerprintSha256));
             Assert.That(report.SamplingDesignFingerprintSha256, Is.EqualTo(reordered.SamplingDesignFingerprintSha256));
             Assert.That(report.BaseEvaluationFingerprintSha256, Is.EqualTo(reordered.BaseEvaluationFingerprintSha256));
@@ -254,7 +257,7 @@ public sealed class IndependentResolutionSurveyEvaluationTests
             Assert.That(() => Run(invalid, decisions), Throws.TypeOf<InvalidOperationException>());
             Assert.That(() => Run(twoGroups, decisions), Throws.TypeOf<InvalidOperationException>());
             Assert.That(() => Run(rows, decisions.Select((o, i) => i == 0
-                ? o with { BestCandidateFingerprintSha256 = Hash("z") } : o).ToArray()),
+                ? o with { BestCandidateFingerprintSha256 = Hash("9") } : o).ToArray()),
                 Throws.TypeOf<InvalidOperationException>());
         });
     }
