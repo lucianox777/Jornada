@@ -158,10 +158,17 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             GROUP BY status
             ORDER BY status;
 
-            SELECT TOP(20) lote_id,entrega_id,lote_seq,lote_total,qtd_pessoas,qtd_registros,status,lease_owner,lease_adquirido_em,heartbeat_em
-            FROM ingestao.lote
-            WHERE status IN(N'VALIDANDO',N'PROCESSANDO')
-            ORDER BY lease_adquirido_em,lote_id;
+            -- O heartbeat vivo fica separado do Lote para nao disputar locks com
+            -- a transacao Serializable do Processor. O Lote guarda apenas o snapshot
+            -- inicial e serve de fallback para leases antigos sem linha correspondente.
+            SELECT TOP(20) l.lote_id,l.entrega_id,l.lote_seq,l.lote_total,l.qtd_pessoas,l.qtd_registros,
+                   l.status,l.lease_owner,l.lease_adquirido_em,
+                   COALESCE(h.heartbeat_em,l.heartbeat_em) AS heartbeat_em
+            FROM ingestao.lote l
+            LEFT JOIN ingestao.lote_heartbeat h
+              ON h.lote_id=l.lote_id AND h.lease_id=l.lease_id AND h.lease_owner=l.lease_owner
+            WHERE l.status IN(N'VALIDANDO',N'PROCESSANDO')
+            ORDER BY l.lease_adquirido_em,l.lote_id;
 
             SELECT TOP(20) e.entrega_id,e.status,g.codigo,so.codigo,b.nome_arquivo,e.recebido_em,e.ultima_atualizacao
             FROM ingestao.entrega e
