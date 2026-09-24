@@ -96,6 +96,15 @@ jobs:
         env:
           JORNADA_SQL_SA_PASSWORD: 'Jornada_Compose_Validation_2026!Sql'
         run: docker compose -f docker-compose.yml config >/dev/null
+      - name: Reject missing SQL password before creating local containers
+        run: |
+          set -euo pipefail
+          empty_env="$(mktemp)"
+          trap 'rm -f "$empty_env"' EXIT
+          if env -u JORNADA_SQL_SA_PASSWORD docker compose --env-file "$empty_env" -f docker-compose.yml config > /dev/null 2>&1; then
+            echo "Compose accepted an empty environment without SQL password." >&2
+            exit 1
+          fi
       - run: git -C .. diff --check
       - name: Gate OpenAPI x Minimal API
         run: python3 scripts/openapi-contract-gate.py
