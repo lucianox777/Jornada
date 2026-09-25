@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import time
 import uuid
@@ -30,12 +31,13 @@ def sqlcmd(root: Path, database: str, password: str, query: str) -> subprocess.C
     return subprocess.run(
         [
             "docker", "compose", "--env-file", str(root / ".env"),
-            "exec", "-T", "-e", f"SQLCMDPASSWORD={password}",
+            "exec", "-T", "-e", "SQLCMDPASSWORD",
             "sqlserver", "/opt/mssql-tools18/bin/sqlcmd",
             "-S", "localhost", "-U", "sa", "-C", "-b",
             "-d", database, "-W", "-h", "-1", "-Q", query,
         ],
         cwd=root,
+        env={**os.environ, "SQLCMDPASSWORD": password},
         text=True,
         capture_output=True,
         check=False,
@@ -80,12 +82,15 @@ def probe(root: Path, database: str, password: str, resource: str, delay_ms: int
     signal_table = f"##JornadaScaleLockProbe_{uuid.uuid4().hex}"
     command = [
         "docker", "compose", "--env-file", str(root / ".env"),
-        "exec", "-T", "-e", f"SQLCMDPASSWORD={password}",
+        "exec", "-T", "-e", "SQLCMDPASSWORD",
         "sqlserver", "/opt/mssql-tools18/bin/sqlcmd",
         "-S", "localhost", "-U", "sa", "-C", "-b",
         "-d", database, "-Q", holder_query(resource, signal_table, delay_ms),
     ]
-    holder = subprocess.Popen(command, cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    holder = subprocess.Popen(
+        command, cwd=root, env={**os.environ, "SQLCMDPASSWORD": password},
+        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
     try:
         deadline = time.monotonic() + 10.0
         while True:
