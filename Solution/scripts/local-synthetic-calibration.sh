@@ -27,12 +27,12 @@ DB="${JORNADA_SQL_DATABASE:-JornadaLocal}"
 (
   cd "$ROOT"
   # Interrompe ANTES da limpeza se outros nós processam este mesmo banco.
-  docker compose --env-file "$ENV_FILE" exec -T -w /workspace \
-    -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
+  SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker compose --env-file "$ENV_FILE" exec -T -w /workspace \
+    -e SQLCMDPASSWORD sqlserver \
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I \
     -d "$DB" -i database/Jornada_Dev_SyntheticCalibration_ExclusivePreflight.sql
-  docker compose --env-file "$ENV_FILE" exec -T -w /workspace \
-    -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
+  SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker compose --env-file "$ENV_FILE" exec -T -w /workspace \
+    -e SQLCMDPASSWORD sqlserver \
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I \
     -d "$DB" -i database/Jornada_Dev_SyntheticCalibration_Cleanup.sql
 )
