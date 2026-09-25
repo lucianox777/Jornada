@@ -81,3 +81,9 @@ literais executáveis desnecessários e tratar seletivamente fixtures de CPF.
 `local-check-ibge-reference.ps1`, `local-diagnose-ibge-reference.ps1` e `local-repair-ibge-reference.ps1` passam `SQLCMDPASSWORD` ao `docker compose exec` **somente pelo nome** (`-e SQLCMDPASSWORD`), herdado do ambiente temporário. Cada função SQL restaura a variável original em `finally`, inclusive em erro. O mock `local-test-ibge-sqlcmd-secret-transport.ps1` exercita as rotinas reais extraídas via AST no PowerShell 5.1 e no PowerShell 7, sem Docker/SQL. O reparo permanece operação explícita, com as pré-condições de integridade já existentes; esta mudança não ativa nem recarrega a referência.
 
 **Limite:** outros entrypoints DEV/Bash ainda estão em inventário na issue #405; a conclusão desta fatia não equivale a afirmar que todo o fluxo local está livre de segredos em argumentos de processos.
+
+## Transporte de segredo no provisionamento SQL local (#405)
+
+`local-db.ps1` passou a encaminhar a senha nas duas funções SQL via variável temporária `SQLCMDPASSWORD` e `docker compose exec -e SQLCMDPASSWORD`. Cada função restaura o ambiente original em `finally`, mesmo quando o Docker falha. `local-db.sh` passa o mesmo valor por uma atribuição de ambiente restrita à chamada `compose`, mantendo a interface `up/reset/backfill/down/clean/status` inalterada. O mock PowerShell `local-test-db-sqlcmd-secret-transport.ps1` extrai e exerce as duas funções reais sem executar o entrypoint. O teste Bash `test-local-db-secret-transport.sh` executa uma cópia temporária de `local-db.sh` exclusivamente em `up --no-synthetic-corpus` contra Docker simulado, com credencial sintética, incluindo a falha induzida. Nenhum desses testes executa limpeza de bancos reais, nem altera a referência IBGE.
+
+O escopo da issue #405 continua aberto para outros entrypoints legados e eventual rotação de credenciais existentes; não considerar o teste dos wrappers como prova de saneamento de todo o ambiente.
