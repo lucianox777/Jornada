@@ -61,6 +61,7 @@ jobs:
         shell: bash
         run: |
           bash -n scripts/local-linkage-validation.sh
+          python3 scripts/test-linkage-workflow-secret-transport.py
           pwsh -NoLogo -NoProfile -Command '$ErrorActionPreference="Stop"; $bytes=[IO.File]::ReadAllBytes("scripts/local-linkage-validation.ps1"); if($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF){ throw "UTF-8 BOM ausente" }; $null=[scriptblock]::Create((Get-Content -Raw -Encoding UTF8 "scripts/local-linkage-validation.ps1")); Write-Host "LINKAGE VALIDATION POWERSHELL PARSE: OK"'
           pwsh -NoLogo -NoProfile -Command '$ErrorActionPreference="Stop"; $bytes=[IO.File]::ReadAllBytes("scripts/local-linkage-evidence-readiness.ps1"); if($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF){ throw "UTF-8 BOM ausente" }; $null=[scriptblock]::Create((Get-Content -Raw -Encoding UTF8 "scripts/local-linkage-evidence-readiness.ps1")); Write-Host "LINKAGE EVIDENCE READINESS POWERSHELL PARSE: OK"'
           pwsh -NoLogo -NoProfile -Command '$ErrorActionPreference="Stop"; $bytes=[IO.File]::ReadAllBytes("scripts/local-linkage-triplet-collision-audit.ps1"); if($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF){ throw "UTF-8 BOM ausente" }; $null=[scriptblock]::Create((Get-Content -Raw -Encoding UTF8 "scripts/local-linkage-triplet-collision-audit.ps1")); Write-Host "LINKAGE TRIPLET COLLISION POWERSHELL PARSE: OK"'
@@ -74,7 +75,7 @@ jobs:
         run: |
           SQL_PASSWORD="$(awk -F= '$1=="JORNADA_SQL_SA_PASSWORD"{sub(/^[^=]*=/,""); print; exit}' .env)"
           test -n "$SQL_PASSWORD"
-          validation_count="$(docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$SQL_PASSWORD" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -d JornadaLocal -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM silver.pessoa_observacao WHERE codigo_pessoa_origem LIKE 'SCALE-VAL-%';" | tr -d '\r' | xargs)"
+          validation_count="$(SQLCMDPASSWORD="$SQL_PASSWORD" docker compose --env-file .env exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -d JornadaLocal -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM silver.pessoa_observacao WHERE codigo_pessoa_origem LIKE 'SCALE-VAL-%';" | tr -d '\r' | xargs)"
           test "$validation_count" = '0'
           bash scripts/local-cluster.sh calibrate
           echo 'CALIBRATION PRECEDES VALIDATION CORPUS: OK'
@@ -282,7 +283,7 @@ jobs:
           docker compose --env-file .env exec -T jornada-node2 env             LinkageParameters__Operation=GENERATE_DRAFT             LinkageParameters__RunOnce=true             LinkageParameters__MinimumIndependentMatchedPairs=2500             LinkageParameters__IbgeNominalU__PairCount=100000             LinkageParameters__IbgeNominalU__Seed=20260917             dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
           SQL_PASSWORD="$(awk -F= '$1=="JORNADA_SQL_SA_PASSWORD"{sub(/^[^=]*=/,""); print; exit}' .env)"
           test -n "$SQL_PASSWORD"
-          stats="$(docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$SQL_PASSWORD" sqlserver             /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -s '|'             -Q "SET NOCOUNT ON;
+          stats="$(SQLCMDPASSWORD="$SQL_PASSWORD" docker compose --env-file .env exec -T -e SQLCMDPASSWORD sqlserver             /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -s '|'             -Q "SET NOCOUNT ON;
                 DECLARE @m uniqueidentifier=(
                   SELECT TOP(1) modelo_id
                   FROM identidade.modelo_linkage
