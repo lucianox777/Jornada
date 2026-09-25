@@ -173,12 +173,21 @@ try {
         throw "Timeout aguardando Entrega $id."
     }
     function Sql([string]$query) {
+        $previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
         Push-Location $Root
         try {
-            $lines = & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -W -h -1 -Q "SET NOCOUNT ON; $query"
+            $env:SQLCMDPASSWORD = $password
+            $lines = & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -W -h -1 -Q "SET NOCOUNT ON; $query"
             if ($LASTEXITCODE -ne 0) { throw 'sqlcmd falhou.' }
             return @($lines | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-        } finally { Pop-Location }
+        } finally {
+            if ($null -eq $previousSqlcmdPassword) {
+                Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+            } else {
+                $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+            }
+            Pop-Location
+        }
     }
     function Scalar([string]$query) { $lines = @(Sql $query); if ($lines.Count -eq 0) { return '' }; return $lines[-1].Replace(' ','') }
 

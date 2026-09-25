@@ -29,6 +29,7 @@ if ($bundle -notmatch '^[A-Za-z0-9._-]+$' -or $schema -notmatch '^[A-Za-z0-9._-]
 # Em Windows PowerShell 5.1, argumentos entre aspas dentro de sh -c podem
 # perder aspas ao atravessar a CLI nativa. Use docker inspect/cp/exec diretamente:
 # nenhum shell remoto interpreta ;, $, redirecionamento nem caminho de volume.
+$previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
 Push-Location $Root
 $marker = '.jornada-readiness-' + [Guid]::NewGuid().ToString('N')
 $nonce = [Guid]::NewGuid().ToString('N')
@@ -97,7 +98,8 @@ SELECT status,COUNT_BIG(*) quantidade FROM ingestao.lote GROUP BY status ORDER B
 SELECT COUNT_BIG(*) objetos_bronze_disponiveis FROM bronze.entrega_arquivo
 WHERE estado_armazenamento=N'DISPONIVEL';
 "@
-    & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $DatabaseName -w 220 -Q $sql
+    $env:SQLCMDPASSWORD = $password
+    & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $DatabaseName -w 220 -Q $sql
     if ($LASTEXITCODE -ne 0) { throw 'Preflight SQL do cluster reprovado.' }
 
     foreach ($url in @('http://127.0.0.1:5080/health/ready','http://127.0.0.1:5180/health/ready')) {
@@ -140,6 +142,11 @@ finally {
     }
     if (Test-Path -LiteralPath $tempRoot) {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if ($null -eq $previousSqlcmdPassword) {
+        Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+    } else {
+        $env:SQLCMDPASSWORD = $previousSqlcmdPassword
     }
     Pop-Location
 }

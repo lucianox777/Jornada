@@ -2,6 +2,11 @@
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $envFile = Join-Path $Root '.env.example'
+$global:JornadaReadinessMockExpectedSqlPassword = @(
+    Get-Content -LiteralPath $envFile | Where-Object { $_ -match '^JORNADA_SQL_SA_PASSWORD=' }
+)[0].Split('=', 2)[1].Trim('"')
+$previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
+$env:SQLCMDPASSWORD = 'PARENT_SCOPE_SENTINEL'
 $global:JornadaReadinessMockSharedMarker = Join-Path ([IO.Path]::GetTempPath()) ('jornada-nas-mock-' + [Guid]::NewGuid().ToString('N'))
 $global:JornadaReadinessMockNode2Database = 'JornadaLocal'
 $global:JornadaReadinessMockSqlProbes = 0
@@ -23,6 +28,18 @@ function docker {
             }
         }
         if ($argv -contains 'exec') {
+            $environmentIndex = [array]::IndexOf($argv, '-e')
+            if ($environmentIndex -lt 0 -or $argv[$environmentIndex + 1] -cne 'SQLCMDPASSWORD') {
+                throw 'Senha SQL deve ser herdada por nome, nunca incluída em argv do Docker.'
+            }
+            foreach ($arg in $argv) {
+                if (([string]$arg).Contains($global:JornadaReadinessMockExpectedSqlPassword)) {
+                    throw 'Senha SQL encontrada em argv do Docker.'
+                }
+            }
+            if ($env:SQLCMDPASSWORD -cne $global:JornadaReadinessMockExpectedSqlPassword) {
+                throw 'Senha SQL não chegou ao Docker por variável de ambiente.'
+            }
             if ($argv -notcontains 'sqlserver' -or $argv -notcontains '-Q') {
                 throw 'Preflight SQL não passou pelo SQL Server esperado.'
             }
@@ -106,6 +123,9 @@ try {
     if (Test-Path -LiteralPath $global:JornadaReadinessMockSharedMarker) {
         throw 'O preflight deixou o marcador NAS sem cleanup.'
     }
+    if ($env:SQLCMDPASSWORD -cne 'PARENT_SCOPE_SENTINEL') {
+        throw 'O preflight não restaurou SQLCMDPASSWORD após sucesso.'
+    }
 
     # NODE2 aponta para outro banco: rejeitar ANTES de consultar SQL ou escrever NAS.
     $global:JornadaReadinessMockNode2Database = 'OutroBanco'
@@ -120,8 +140,17 @@ try {
     if (-not $blocked -or $global:JornadaReadinessMockSqlProbes -ne 1 -or $global:JornadaReadinessMockNasWrites -ne 2) {
         throw 'Divergência de banco não interrompeu o preflight antes dos efeitos.'
     }
+    if ($env:SQLCMDPASSWORD -cne 'PARENT_SCOPE_SENTINEL') {
+        throw 'O preflight não preservou SQLCMDPASSWORD após falha antecipada.'
+    }
     Write-Host 'WINDOWS POWERSHELL 5.1 CLUSTER READINESS MOCK: OK'
 }
 finally {
     Remove-Item -LiteralPath $global:JornadaReadinessMockSharedMarker -Force -ErrorAction SilentlyContinue
+    if ($null -eq $previousSqlcmdPassword) {
+        Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+    } else {
+        $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+    }
+    Remove-Variable JornadaReadinessMockExpectedSqlPassword -Scope Global -ErrorAction SilentlyContinue
 }
