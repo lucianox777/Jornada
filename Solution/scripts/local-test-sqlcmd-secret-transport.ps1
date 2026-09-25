@@ -74,6 +74,13 @@ try {
     if ($env:SQLCMDPASSWORD -cne 'PARENT_SCOPE_SENTINEL') {
         throw 'SQLCMDPASSWORD leaked to the parent after a failure.'
     }
+    # The real E2E requires API/SQL; check the wrapper without starting processes.
+    $e2eSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'local-e2e.ps1') -Raw -Encoding UTF8
+    if ($e2eSource.Contains('-e "SQLCMDPASSWORD=$') -or
+        -not $e2eSource.Contains('-e SQLCMDPASSWORD') -or
+        -not $e2eSource.Contains('$previousSqlcmdPassword')) {
+        throw 'O E2E não pode expor SQLCMDPASSWORD em argumentos do Docker e deve restaurá-la.'
+    }
     Write-Host 'SQLCMD SECRET TRANSPORT/RESTORE MOCK: OK'
 }
 finally {
