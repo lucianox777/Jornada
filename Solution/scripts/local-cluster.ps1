@@ -15,8 +15,9 @@ $ClusterConfig = Join-Path $Root 'install\windows-production\Jornada.Cluster.Tes
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw 'Docker não encontrado no PATH.' }
 if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
     if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile" }
-    Copy-Item -LiteralPath $Example -Destination $EnvFile
-    Write-Host 'Criado .env local com as credenciais sintéticas padrão de teste.'
+    if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw 'Python 3 é necessário para gerar a credencial local.' }
+    & python (Join-Path $PSScriptRoot 'local_env_bootstrap.py') --check-docker-volume
+    if ($LASTEXITCODE -ne 0) { throw 'Bootstrap seguro do .env falhou; banco original preservado.' }
 }
 
 function Format-CommandArgument {

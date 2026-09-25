@@ -4,7 +4,9 @@ $DefaultEnvFile = Join-Path $Root '.env'
 $EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { $DefaultEnvFile } else { [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE) }
 if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
     if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile" }
-    Copy-Item (Join-Path $Root '.env.example') $EnvFile
+    if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw 'Python 3 é necessário para gerar a credencial local.' }
+    & python (Join-Path $PSScriptRoot 'local_env_bootstrap.py') --check-docker-volume
+    if ($LASTEXITCODE -ne 0) { throw 'Bootstrap seguro do .env falhou.' }
 }
 
 $vars = @{}

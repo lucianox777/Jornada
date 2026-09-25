@@ -11,8 +11,8 @@ need() { command -v "$1" >/dev/null 2>&1 || { echo "ERRO: comando '$1' não enco
 need docker
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  cp "$EXAMPLE" "$ENV_FILE"
-  echo "Criado .env local a partir de .env.example. Revise a senha antes de uso compartilhado." >&2
+  need python3
+  python3 "$ROOT/scripts/local_env_bootstrap.py" --check-docker-volume
 fi
 
 # shellcheck disable=SC1090

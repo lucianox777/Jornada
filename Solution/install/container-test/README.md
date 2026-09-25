@@ -48,7 +48,7 @@ Endpoints padrão:
 - SQL Server: `localhost:14333`
 - NAS SMB: `localhost:1445`, share `bronze`
 
-As credenciais SQL são sintéticas e vêm de `.env.example`. Esses valores não são válidos para HML/Produção.
+No primeiro bootstrap DEV, os scripts criam `.env` com credencial SQL aleatória própria, usando `.env.example` somente como modelo de variáveis. O exemplo contém uma senha pública ilustrativa; não a use em DEV compartilhado, HML ou Produção. Um `.env` existente não é modificado automaticamente.
 
 ## Persistência e NAS
 

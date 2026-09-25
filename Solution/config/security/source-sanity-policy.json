@@ -28,6 +28,8 @@
     ".github/workflows/identity-progressive-persistence.yml",
     ".github/workflows/identity-operational-cutover.yml",
     "Solution/.env.example",
+    "Solution/scripts/local_env_bootstrap.py",
+    "Solution/scripts/test_local_env_bootstrap.py",
     "Solution/scripts/local-*.sh",
     "Solution/scripts/local-*.ps1",
     "Solution/docs/Runbook_Desenvolvimento_Local.md",

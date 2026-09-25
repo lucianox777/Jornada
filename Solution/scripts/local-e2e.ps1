@@ -17,7 +17,8 @@ foreach ($cmd in @('docker','dotnet','curl.exe','python')) {
 }
 if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
     if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile" }
-    Copy-Item $Example $EnvFile
+    & python (Join-Path $PSScriptRoot 'local_env_bootstrap.py') --check-docker-volume
+    if ($LASTEXITCODE -ne 0) { throw 'Bootstrap seguro do .env falhou.' }
 }
 $vars = @{}
 Get-Content $EnvFile | ForEach-Object {

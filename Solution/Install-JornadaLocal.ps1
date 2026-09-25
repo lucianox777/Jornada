@@ -117,8 +117,8 @@ Invoke-Step 'Verificando .NET SDK' {
 Invoke-Step 'Preparando configuração local' {
     if (-not (Test-Path -LiteralPath $EnvFile)) {
         if (-not (Test-Path -LiteralPath $EnvExample)) { throw ".env.example não encontrado: $EnvExample" }
-        Copy-Item -LiteralPath $EnvExample -Destination $EnvFile
-        Write-Host '      .env criado a partir de .env.example.'
+        Assert-Command 'python' 'Python 3'
+        Invoke-Native 'python' @((Join-Path $Root 'scripts/local_env_bootstrap.py'),'--check-docker-volume')
     }
     Invoke-Compose @('config','--quiet')
 }

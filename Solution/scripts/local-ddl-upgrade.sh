@@ -23,7 +23,9 @@ else
   exit 2
 fi
 
-[[ -f "$ENV_FILE" ]] || cp "$EXAMPLE" "$ENV_FILE"
+if [[ ! -f "$ENV_FILE" ]]; then
+  "${PYTHON[@]}" "$ROOT/scripts/local_env_bootstrap.py" --check-docker-volume
+fi
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
 : "${JORNADA_SQL_SA_PASSWORD:?JORNADA_SQL_SA_PASSWORD não definido}"

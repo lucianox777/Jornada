@@ -8,7 +8,10 @@ API_BASE="${JORNADA_SYNTH_API_URL:-http://127.0.0.1:5098}"
 
 : "${JORNADA_SYNTH_PSEUDONYMIZATION_KEY:?Defina JORNADA_SYNTH_PSEUDONYMIZATION_KEY com ao menos 16 bytes}"
 
-[[ -f "$ENV_FILE" ]] || cp "$EXAMPLE" "$ENV_FILE"
+if [[ ! -f "$ENV_FILE" ]]; then
+  command -v python3 >/dev/null 2>&1 || { echo "ERRO: Python 3 necessário para criar .env." >&2; exit 2; }
+  python3 "$ROOT/scripts/local_env_bootstrap.py" --check-docker-volume
+fi
 
 "$ROOT/scripts/local-db.sh" up --no-synthetic-corpus
 

@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - 'Solution/scripts/local-db.*'
+      - 'Solution/scripts/local_env_bootstrap.py'
+      - 'Solution/scripts/test_local_env_bootstrap.py'
       - 'Solution/scripts/local-progressive-identity-backfill.sql'
       - 'Solution/database/Jornada_Identidade_Progressiva.sql'
       - 'Solution/database/migrations/20260908_Identidade_Progressiva_Processor.sql'
@@ -11,6 +13,8 @@ on:
   pull_request:
     paths:
       - 'Solution/scripts/local-db.*'
+      - 'Solution/scripts/local_env_bootstrap.py'
+      - 'Solution/scripts/test_local_env_bootstrap.py'
       - 'Solution/scripts/local-progressive-identity-backfill.sql'
       - 'Solution/database/Jornada_Identidade_Progressiva.sql'
       - 'Solution/database/migrations/20260908_Identidade_Progressiva_Processor.sql'
@@ -38,6 +42,9 @@ jobs:
           bash -n scripts/local-db.sh
           cp .env.example .env
           docker compose --env-file .env config --quiet
+          rm .env
+          # O 'up' seguinte deve gerar senha independente da credencial pública.
+          python3 scripts/test_local_env_bootstrap.py -v
 
       - name: Parse PowerShell local DB entrypoint
         shell: pwsh
@@ -52,6 +59,14 @@ jobs:
         shell: bash
         run: |
           bash scripts/local-db.sh up
+          python3 - <<'PY'
+          from pathlib import Path
+          from importlib.machinery import SourceFileLoader
+          example = Path('.env.example').read_text(encoding='utf-8')
+          generated = Path('.env').read_text(encoding='utf-8')
+          assert generated != example, 'O bootstrap reutilizou a credencial publicada.'
+          assert 'JORNADA_SQL_SA_PASSWORD=' in generated
+          PY
           bash scripts/local-db.sh up
           echo 'LOCAL DB REPEATED UP / PROGRESSIVE BACKFILL: OK'
 

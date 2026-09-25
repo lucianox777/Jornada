@@ -2,7 +2,10 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="$ROOT/.env"
-[[ -f "$ENV_FILE" ]] || cp "$ROOT/.env.example" "$ENV_FILE"
+if [[ ! -f "$ENV_FILE" ]]; then
+  command -v python3 >/dev/null 2>&1 || { echo "ERRO: Python 3 necessário para criar .env." >&2; exit 2; }
+  python3 "$ROOT/scripts/local_env_bootstrap.py" --check-docker-volume
+fi
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
 : "${JORNADA_SQL_SA_PASSWORD:?JORNADA_SQL_SA_PASSWORD não definido}"
