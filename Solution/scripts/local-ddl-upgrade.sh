@@ -39,7 +39,7 @@ SQL_PORT="${JORNADA_SQL_PORT:-14333}"
 mkdir -p "$ROOT/.local/ddl-upgrade"
 
 compose(){ (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
-sqlcmd(){ compose exec -T -w /workspace -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I "$@"; }
+sqlcmd(){ SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" compose exec -T -w /workspace -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I "$@"; }
 wait_healthy(){ for _ in $(seq 1 60); do [[ "$(docker inspect -f '{{.State.Health.Status}}' jornada-sqlserver-local 2>/dev/null || true)" == healthy ]] && return 0; sleep 2; done; echo "ERRO: SQL Server não ficou healthy." >&2; exit 3; }
 fingerprint(){
   local tag="$1"

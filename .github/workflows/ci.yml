@@ -304,6 +304,8 @@ jobs:
           dotnet restore tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj --locked-mode
       - name: Test Bash SQL entrypoints keep local passwords out of argv
         run: bash scripts/test-local-sql-entrypoint-secret-transport.sh
+      - name: Test SQL upgrade and synthetic preflight credential transport in Bash
+        run: bash scripts/test-local-ddl-synthetic-secret-transport.sh
       - name: Gate source sanity and workflow action pins
         run: |
           mkdir -p .local/security
