@@ -7,7 +7,10 @@ EXAMPLE="$ROOT/.env.example"
 CONFIG="$ROOT/install/windows-production/Jornada.Cluster.Test.json"
 
 command -v docker >/dev/null 2>&1 || { echo "Docker não encontrado no PATH." >&2; exit 2; }
-[[ -f "$ENV_FILE" ]] || cp "$EXAMPLE" "$ENV_FILE"
+if [[ ! -f "$ENV_FILE" ]]; then
+  command -v python3 >/dev/null 2>&1 || { echo "ERRO: Python 3 necessário para criar .env." >&2; exit 2; }
+  python3 "$ROOT/scripts/local_env_bootstrap.py" --check-docker-volume
+fi
 
 compose() { (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
 env_value() { local name="$1"; sed -nE "s/^${name}=(.*)$/\1/p" "$ENV_FILE" | tail -n1; }
