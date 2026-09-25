@@ -36,6 +36,8 @@ on:
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/local-test-scale-sqlcmd-secret-transport.ps1'
       - 'Solution/scripts/local-backup-restore-drill.ps1'
+      - 'Solution/scripts/local-validate-release.ps1'
+      - 'Solution/scripts/local-test-release-sql-probe-secret-transport.ps1'
       - 'Solution/scripts/local-test-backup-sqlcmd-secret-transport.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
       - 'Solution/scripts/local-db.ps1'
@@ -83,6 +85,8 @@ on:
       - 'Solution/scripts/local-scale.ps1'
       - 'Solution/scripts/local-test-scale-sqlcmd-secret-transport.ps1'
       - 'Solution/scripts/local-backup-restore-drill.ps1'
+      - 'Solution/scripts/local-validate-release.ps1'
+      - 'Solution/scripts/local-test-release-sql-probe-secret-transport.ps1'
       - 'Solution/scripts/local-test-backup-sqlcmd-secret-transport.ps1'
       - 'Solution/scripts/local-sql-runtime-smoke.ps1'
       - 'Solution/scripts/local-db.ps1'
@@ -172,6 +176,10 @@ jobs:
         shell: powershell
         run: ./scripts/local-test-linkage-validation-secret-transport.ps1
 
+      - name: Verify release SQL probe secret transport on Windows PowerShell 5.1
+        shell: powershell
+        run: ./scripts/local-test-release-sql-probe-secret-transport.ps1
+
   powershell-contract:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -223,6 +231,8 @@ jobs:
             'scripts/local-scale.ps1',
             'scripts/local-test-scale-sqlcmd-secret-transport.ps1',
             'scripts/local-backup-restore-drill.ps1',
+            'scripts/local-validate-release.ps1',
+            'scripts/local-test-release-sql-probe-secret-transport.ps1',
             'scripts/local-test-backup-sqlcmd-secret-transport.ps1',
             'scripts/local-sql-runtime-smoke.ps1',
             'scripts/local-db.ps1',
@@ -286,6 +296,10 @@ jobs:
       - name: Mock independent validation SQL password inheritance and restoration
         shell: pwsh
         run: ./scripts/local-test-linkage-validation-secret-transport.ps1
+
+      - name: Mock release SQL probe argv and caller environment
+        shell: pwsh
+        run: ./scripts/local-test-release-sql-probe-secret-transport.ps1
 
       - name: Validate E2E retransmission fixture parity on PowerShell and Bash
         shell: pwsh
