@@ -38,6 +38,8 @@ scan() {
 }
 
 cd "$repo_root" || exit 70
+# Old reports cannot count as evidence for a new scanner invocation.
+rm -f -- "$out_dir/current-tree.json" "$out_dir/git-history.json"
 gitleaks version || exit 127
 
 tree_rc=0
@@ -45,6 +47,10 @@ scan "Árvore corrente" dir \
   --config "$config" --redact=100 --report-format json \
   --report-path "$out_dir/current-tree.json" . || tree_rc=$?
 if [[ $tree_rc -gt 1 ]]; then exit "$tree_rc"; fi
+if [[ ! -f "$out_dir/current-tree.json" ]]; then
+  echo "Gitleaks did not produce a current-tree report; aborting without claiming zero findings." >&2
+  exit 70
+fi
 
 history_rc=0
 if [[ $current_tree_only -eq 0 ]]; then
@@ -52,6 +58,10 @@ if [[ $current_tree_only -eq 0 ]]; then
     --config "$config" --redact=100 --report-format json \
     --report-path "$out_dir/git-history.json" --log-opts="--all" . || history_rc=$?
   if [[ $history_rc -gt 1 ]]; then exit "$history_rc"; fi
+  if [[ ! -f "$out_dir/git-history.json" ]]; then
+    echo "Gitleaks did not produce a history report; aborting without claiming zero findings." >&2
+    exit 70
+  fi
 fi
 
 if [[ $tree_rc -eq 1 || $history_rc -eq 1 ]]; then
