@@ -75,3 +75,9 @@ controlado aos relatórios em `Solution/.local/gitleaks/`.
 A primeira execução do workflow deve ter seus agregados registrados na issue
 #405. Concluir a issue exige classificar achados históricos, eliminar os
 literais executáveis desnecessários e tratar seletivamente fixtures de CPF.
+
+## Transporte das credenciais em scripts IBGE DEV (#405)
+
+`local-check-ibge-reference.ps1`, `local-diagnose-ibge-reference.ps1` e `local-repair-ibge-reference.ps1` passam `SQLCMDPASSWORD` ao `docker compose exec` **somente pelo nome** (`-e SQLCMDPASSWORD`), herdado do ambiente temporário. Cada função SQL restaura a variável original em `finally`, inclusive em erro. O mock `local-test-ibge-sqlcmd-secret-transport.ps1` exercita as rotinas reais extraídas via AST no PowerShell 5.1 e no PowerShell 7, sem Docker/SQL. O reparo permanece operação explícita, com as pré-condições de integridade já existentes; esta mudança não ativa nem recarrega a referência.
+
+**Limite:** outros entrypoints DEV/Bash ainda estão em inventário na issue #405; a conclusão desta fatia não equivale a afirmar que todo o fluxo local está livre de segredos em argumentos de processos.
