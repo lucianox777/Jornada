@@ -317,6 +317,8 @@ jobs:
         run: python3 scripts/test_coordination_lock_secret_transport.py -v
       - name: Test Bash local-db SQL credentials without a Docker service
         run: bash scripts/test-local-db-secret-transport.sh
+      - name: Verify Bash scale SQL secret transport without a database reset
+        run: bash scripts/test-local-scale-sqlcmd-secret-transport.sh
       - name: Test Gitleaks audit report completeness and redaction
         run: python3 scripts/gitleaks-history-audit-summary.py --self-test
       - name: Test Gitleaks scanner failure paths

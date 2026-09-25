@@ -58,30 +58,63 @@ $conn="Server=localhost,$port;Database=$db;User Id=sa;Password=$sqlPassword;Trus
 
 function SqlCmd {
     param([Parameter(Mandatory=$true)][string[]]$SqlCmdArgs)
+    $previousSqlcmdPassword=[Environment]::GetEnvironmentVariable('SQLCMDPASSWORD','Process')
     Push-Location $Root
     try {
-        & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b @SqlCmdArgs
+        $env:SQLCMDPASSWORD=$sqlPassword
+        & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b @SqlCmdArgs
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
     }
-    finally { Pop-Location }
+    finally {
+        try { Pop-Location }
+        finally {
+            if($null -eq $previousSqlcmdPassword){
+                Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+            } else {
+                $env:SQLCMDPASSWORD=$previousSqlcmdPassword
+            }
+        }
+    }
 }
 function Scalar([string]$Query){
+    $previousSqlcmdPassword=[Environment]::GetEnvironmentVariable('SQLCMDPASSWORD','Process')
     Push-Location $Root
     try {
-        $o = (& docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
+        $env:SQLCMDPASSWORD=$sqlPassword
+        $o = (& docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -y 0 -w 65535 -Q "SET NOCOUNT ON; $Query")
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
         return ($o | ? { $_.Trim() } | Select-Object -Last 1).Trim()
     }
-    finally { Pop-Location }
+    finally {
+        try { Pop-Location }
+        finally {
+            if($null -eq $previousSqlcmdPassword){
+                Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+            } else {
+                $env:SQLCMDPASSWORD=$previousSqlcmdPassword
+            }
+        }
+    }
 }
 function QueryLines([string]$Query){
+    $previousSqlcmdPassword=[Environment]::GetEnvironmentVariable('SQLCMDPASSWORD','Process')
     Push-Location $Root
     try {
-        $o = @(& docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -W -h -1 -w 65535 -Q "SET NOCOUNT ON; $Query")
+        $env:SQLCMDPASSWORD=$sqlPassword
+        $o = @(& docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -W -h -1 -w 65535 -Q "SET NOCOUNT ON; $Query")
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou.'}
         return @($o | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     }
-    finally { Pop-Location }
+    finally {
+        try { Pop-Location }
+        finally {
+            if($null -eq $previousSqlcmdPassword){
+                Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+            } else {
+                $env:SQLCMDPASSWORD=$previousSqlcmdPassword
+            }
+        }
+    }
 }
 
 $previousDotnetEnvironment=$env:DOTNET_ENVIRONMENT
