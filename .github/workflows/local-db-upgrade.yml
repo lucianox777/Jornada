@@ -59,6 +59,14 @@ jobs:
         shell: bash
         run: |
           bash scripts/local-db.sh up
+          python3 - <<'PY'
+          from pathlib import Path
+          from importlib.machinery import SourceFileLoader
+          example = Path('.env.example').read_text(encoding='utf-8')
+          generated = Path('.env').read_text(encoding='utf-8')
+          assert generated != example, 'O bootstrap reutilizou a credencial publicada.'
+          assert 'JORNADA_SQL_SA_PASSWORD=' in generated
+          PY
           bash scripts/local-db.sh up
           echo 'LOCAL DB REPEATED UP / PROGRESSIVE BACKFILL: OK'
 
