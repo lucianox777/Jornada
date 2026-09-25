@@ -38,7 +38,7 @@ PORT="${JORNADA_SQL_PORT:-14333}"; DB="${JORNADA_SQL_DATABASE:-JornadaLocal}"
 CONN="Server=localhost,$PORT;Database=$DB;User Id=sa;Password=${JORNADA_SQL_SA_PASSWORD};TrustServerCertificate=true;Encrypt=false"
 compose() { (cd "$ROOT" && docker compose --env-file "$ROOT/.env" "$@"); }
 sqlcmd() {
-  compose exec -T -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
+  SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" compose exec -T -e SQLCMDPASSWORD sqlserver \
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b "$@"
 }
 scalar() { sqlcmd -d "$DB" -y 0 -w 65535 -Q "SET NOCOUNT ON; $1" | tr -d '\r' | sed '/^[[:space:]]*$/d' | tail -1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
