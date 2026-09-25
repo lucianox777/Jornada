@@ -105,6 +105,9 @@ try {
     if ($global:IbgeMockCalls -ne 16) {
         throw "Expected 16 mock SQL commands, got $global:IbgeMockCalls."
     }
+    # The last synthetic failure leaves LASTEXITCODE=23 even though all assertions passed.
+    # Reset only on success; exceptions above still fail the job.
+    $global:LASTEXITCODE = 0
     Write-Host 'IBGE SQLCMD PASSWORD TRANSPORT/RESTORE MOCK: OK'
 }
 finally {
