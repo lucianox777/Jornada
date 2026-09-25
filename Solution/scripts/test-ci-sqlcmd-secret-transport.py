@@ -77,7 +77,10 @@ def self_test(source: str) -> None:
             "SQLCMDPASSWORD=$MSSQL_SA_PASSWORD " + SQLCMD,
             SQLCMD + ' -P "$MSSQL_SA_PASSWORD"',
         ),
-        ("JORNADA_SQL_SA_PASSWORD: ", "JORNADA_WRONG_SQL_ENV: "),
+        (
+            "JORNADA_SQL_SA_PASSWORD: 'Jornada_" + RUN_ID + "!Sql'",
+            "JORNADA_WRONG_SQL_ENV: 'Jornada_" + RUN_ID + "!Sql'",
+        ),
     )
     for original, replacement in mutants:
         changed = source.replace(original, replacement, 1)
