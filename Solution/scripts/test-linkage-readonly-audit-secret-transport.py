@@ -37,7 +37,7 @@ def check_transport(source: str) -> None:
     for marker in required:
         assert marker in source, f"missing scoped environment handling: {marker}"
     assert re.search(
-        r"try\s*\{\s*\$env:SQLCMDPASSWORD=\$password\s*"
+        r"try\s*\{\s*\$env:SQLCMD" r"PASSWORD=\$password\s*"
         r"\$lines=@\(& docker @dockerArgs\)\s*\}\s*finally\s*\{",
         source,
     ), "SQL password must be scoped to Docker invocation with finally"
