@@ -40,8 +40,16 @@ function Get-SqlLines([string]$Query) {
     try {
         $safeArgs=@('compose','--env-file',$EnvFile,'exec','-T','-e','SQLCMDPASSWORD=<redacted>','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-C','-b','-d',$db,'-W','-h','-1','-s','|','-Q',"SET NOCOUNT ON; $Query")
         Write-CommandLine 'docker' $safeArgs
-        $dockerArgs=@('compose','--env-file',$EnvFile,'exec','-T','-e',"SQLCMDPASSWORD=$password",'sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-C','-b','-d',$db,'-W','-h','-1','-s','|','-Q',"SET NOCOUNT ON; $Query")
-        $lines=@(& docker @dockerArgs)
+        $dockerArgs=@('compose','--env-file',$EnvFile,'exec','-T','-e','SQLCMDPASSWORD','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-C','-b','-d',$db,'-W','-h','-1','-s','|','-Q',"SET NOCOUNT ON; $Query")
+        $previousPassword=$env:SQLCMDPASSWORD
+        try {
+            $env:SQLCMDPASSWORD=$password
+            $lines=@(& docker @dockerArgs)
+        }
+        finally {
+            if ($null -eq $previousPassword) { Remove-Item Env:SQLCMDPASSWORD -ErrorAction SilentlyContinue }
+            else { $env:SQLCMDPASSWORD=$previousPassword }
+        }
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd -Q falhou ($LASTEXITCODE)." }
         return @($lines | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -notmatch '^\([0-9]+ rows? affected\)$' })
     }

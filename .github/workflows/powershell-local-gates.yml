@@ -144,6 +144,10 @@ jobs:
           $null = [scriptblock]::Create($triplet)
           Write-Host 'WINDOWS POWERSHELL 5.1 ORDEREDDICTIONARY/PARSE: OK'
 
+      - name: Guard read-only linkage audit SQL secret transport
+        shell: pwsh
+        run: python scripts/test-linkage-readonly-audit-secret-transport.py
+
       - name: Exercise cluster readiness without native sh quoting on Windows PowerShell 5.1
         shell: powershell
         run: ./scripts/local-test-cluster-readiness-mock.ps1
