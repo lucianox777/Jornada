@@ -319,6 +319,8 @@ jobs:
         run: bash scripts/test-local-db-secret-transport.sh
       - name: Verify Bash scale SQL secret transport without a database reset
         run: bash scripts/test-local-scale-sqlcmd-secret-transport.sh
+      - name: Verify Bash backup SQL credential transport without restoring volumes
+        run: bash scripts/test-local-backup-sqlcmd-secret-transport.sh
       - name: Test Gitleaks audit report completeness and redaction
         run: python3 scripts/gitleaks-history-audit-summary.py --self-test
       - name: Test Gitleaks scanner failure paths
