@@ -321,6 +321,8 @@ jobs:
         run: bash scripts/test-local-scale-sqlcmd-secret-transport.sh
       - name: Verify Bash backup SQL credential transport without restoring volumes
         run: bash scripts/test-local-backup-sqlcmd-secret-transport.sh
+      - name: Mock linkage validation flow and read-only evaluation SQL secret transport
+        run: bash scripts/test-linkage-flow-evaluation-secret-transport.sh
       - name: Test Gitleaks audit report completeness and redaction
         run: python3 scripts/gitleaks-history-audit-summary.py --self-test
       - name: Test Gitleaks scanner failure paths

@@ -36,12 +36,23 @@ function Get-SqlScalar {
 
     $password = Get-SqlPassword
     Write-Host "# docker compose --env-file $EnvFile exec -T -e 'SQLCMDPASSWORD=<redacted>' sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -Q '<query>'"
-    $output = & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -Q $Query
-    if ($LASTEXITCODE -ne 0) {
-        throw "sqlcmd falhou ($LASTEXITCODE)."
-    }
+    $previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
+    try {
+        $env:SQLCMDPASSWORD = $password
+        $output = & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -Q $Query
+        if ($LASTEXITCODE -ne 0) {
+            throw "sqlcmd falhou ($LASTEXITCODE)."
+        }
 
-    return (($output | Where-Object { $_ -and $_ -notmatch '^[- ]+$' } | Select-Object -Last 1).Trim())
+        return (($output | Where-Object { $_ -and $_ -notmatch '^[- ]+$' } | Select-Object -Last 1).Trim())
+    }
+    finally {
+        if ($null -eq $previousSqlcmdPassword) {
+            Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+        } else {
+            $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+        }
+    }
 }
 
 Write-Host "# Set-Location '$Root'"

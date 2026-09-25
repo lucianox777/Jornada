@@ -27,7 +27,7 @@ fi
 sql_scalar() {
   local query="$1"
   echo "# docker compose --env-file $ENV_FILE exec -T -e SQLCMDPASSWORD=<redacted> sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -Q '<query>'" >&2
-  docker compose --env-file "$ENV_FILE" exec -T -e "SQLCMDPASSWORD=$SQL_PASSWORD" sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  SQLCMDPASSWORD="$SQL_PASSWORD" docker compose --env-file "$ENV_FILE" exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd \
     -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -Q "$query" \
     | tr -d '\r' \
     | awk 'NF { last=$0 } END { gsub(/^[ \t]+|[ \t]+$/, "", last); print last }'
