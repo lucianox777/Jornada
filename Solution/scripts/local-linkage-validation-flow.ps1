@@ -36,12 +36,48 @@ function Get-SqlScalar {
 
     $password = Get-SqlPassword
     Write-Host "# docker compose --env-file $EnvFile exec -T -e 'SQLCMDPASSWORD=<redacted>' sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -Q '<query>'"
-    $output = & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -Q $Query
-    if ($LASTEXITCODE -ne 0) {
-        throw "sqlcmd falhou ($LASTEXITCODE)."
+    $previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
+    try {
+        $env:SQLCMDPASSWORD = $password
+        $output = & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d JornadaLocal -W -h -1 -Q $Query
+        if ($LASTEXITCODE -ne 0) {
+            throw "sqlcmd falhou ($LASTEXITCODE)."
+        }
+
+        return (($output | Where-Object { $_ -and $_ -notmatch '^[- ]+
+}
+
+Write-Host "# Set-Location '$Root'"
+Set-Location -LiteralPath $Root
+
+Write-Host '# .\scripts\local-cluster.ps1 -Action up'
+Invoke-Checked -Label '.\scripts\local-cluster.ps1 -Action up' -Command { & $Cluster -Action up }
+
+$activeModel = Get-SqlScalar "SET NOCOUNT ON; SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'')<>'SEED_DEV_FIXO_NAO_TREINADO';"
+
+if ([int]$activeModel -eq 0) {
+    $validationRows = Get-SqlScalar "SET NOCOUNT ON; SELECT COUNT(*) FROM silver.pessoa_observacao WHERE codigo_pessoa_origem LIKE 'SCALE-VAL-%';"
+    if ([int]$validationRows -ne 0) {
+        throw 'Há corpus SCALE-VAL persistido, mas não existe modelo calibrado ATIVO. Não é seguro recalibrar sobre o corpus de validação. Use um ambiente limpo ou restaure o modelo esperado.'
     }
 
-    return (($output | Where-Object { $_ -and $_ -notmatch '^[- ]+$' } | Select-Object -Last 1).Trim())
+    Write-Host '# .\scripts\local-cluster.ps1 -Action calibrate'
+    Invoke-Checked -Label '.\scripts\local-cluster.ps1 -Action calibrate' -Command { & $Cluster -Action calibrate }
+} else {
+    Write-Host 'Modelo calibrado ATIVO já existe; preservando-o para manter a validação independente.'
+}
+
+Write-Host '# .\scripts\local-linkage-validation.ps1'
+Invoke-Checked -Label '.\scripts\local-linkage-validation.ps1' -Command { & $Validation }
+ } | Select-Object -Last 1).Trim())
+    }
+    finally {
+        if ($null -eq $previousSqlcmdPassword) {
+            Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+        } else {
+            $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+        }
+    }
 }
 
 Write-Host "# Set-Location '$Root'"

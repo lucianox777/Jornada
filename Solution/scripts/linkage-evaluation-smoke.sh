@@ -67,7 +67,7 @@ rm -f \
   "$OUT/after.txt"
 
 sqlcmd(){
-  docker exec -i -e "SQLCMDPASSWORD=$SQL_PASSWORD" "$CID" \
+  SQLCMDPASSWORD="$SQL_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" \
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d "$DB" -W -h -1 "$@"
 }
 scalar(){ sqlcmd -Q "SET NOCOUNT ON; $1" | tr -d '\r' | sed '/^[[:space:]]*$/d' | tail -1 | xargs; }
