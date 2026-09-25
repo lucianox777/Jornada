@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$NoStart
 )
 
@@ -50,14 +50,21 @@ function Invoke-Compose {
 
 function Test-SqlReady {
     $previousErrorActionPreference = $ErrorActionPreference
+    $previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
     Push-Location $Root
     try {
+        $env:SQLCMDPASSWORD = $password
         $ErrorActionPreference = 'Continue'
-        & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d master -Q 'SET NOCOUNT ON; SELECT 1;' *> $null
+        & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d master -Q 'SET NOCOUNT ON; SELECT 1;' *> $null
         return $LASTEXITCODE -eq 0
     }
     finally {
         $ErrorActionPreference = $previousErrorActionPreference
+        if ($null -eq $previousSqlcmdPassword) {
+            Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+        } else {
+            $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+        }
         Pop-Location
     }
 }
@@ -77,15 +84,24 @@ function Invoke-SqlScalar {
     )
     $displayQuery = ($Query -replace '\s+', ' ').Trim()
     Write-Host "# sqlcmd -d $Database -Q `"$displayQuery`""
+    $previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
     Push-Location $Root
     try {
-        $raw = @(& docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $Database -W -h -1 -Q "SET NOCOUNT ON; $Query")
+        $env:SQLCMDPASSWORD = $password
+        $raw = @(& docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $Database -W -h -1 -Q "SET NOCOUNT ON; $Query")
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd falhou ($LASTEXITCODE)." }
         $value = @($raw | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ } | Select-Object -Last 1)
         if ($value.Count -eq 0) { throw 'Consulta SQL nao retornou valor.' }
         return [string]$value[0]
     }
-    finally { Pop-Location }
+    finally {
+        if ($null -eq $previousSqlcmdPassword) {
+            Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+        } else {
+            $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+        }
+        Pop-Location
+    }
 }
 
 function Invoke-SqlNonQuery {
@@ -94,12 +110,21 @@ function Invoke-SqlNonQuery {
         [Parameter(Mandatory = $true)][string]$Query
     )
     Write-Host "# sqlcmd -d $Database -Q <reativacao transacional da referencia IBGE>"
+    $previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
     Push-Location $Root
     try {
-        & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $Database -Q $Query
+        $env:SQLCMDPASSWORD = $password
+        & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $Database -Q $Query
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd falhou ($LASTEXITCODE)." }
     }
-    finally { Pop-Location }
+    finally {
+        if ($null -eq $previousSqlcmdPassword) {
+            Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+        } else {
+            $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+        }
+        Pop-Location
+    }
 }
 
 if (-not $NoStart) {
