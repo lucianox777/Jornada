@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$EnvFile = '',
     [string]$DatabaseName = ''
@@ -25,11 +25,18 @@ if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD n�
 $db = if ($DatabaseName) { $DatabaseName } elseif ($vars['JORNADA_SQL_DATABASE']) { $vars['JORNADA_SQL_DATABASE'] } else { 'JornadaLocal' }
 if ($db -notmatch '^[A-Za-z0-9_]+$') { throw 'Nome de banco inválido.' }
 Write-Host "Lendo diagnóstico agregado do banco $db (somente SELECT, sem limpeza)."
+$previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
 Push-Location $Root
 try {
-    & docker compose --env-file $EnvFile exec -T -w /workspace -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -w 900 -i database/Jornada_Dev_SyntheticCalibration_Diagnostics.sql
+    $env:SQLCMDPASSWORD = $password
+    & docker compose --env-file $EnvFile exec -T -w /workspace -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -w 900 -i database/Jornada_Dev_SyntheticCalibration_Diagnostics.sql
     if ($LASTEXITCODE -ne 0) { throw "Consulta de diagnóstico falhou ($LASTEXITCODE)." }
 }
 finally {
+    if ($null -eq $previousSqlcmdPassword) {
+        Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+    } else {
+        $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+    }
     Pop-Location
 }

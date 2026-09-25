@@ -533,3 +533,6 @@ Dependendo do script, podem ser necessários PowerShell, Docker/Docker Compose, 
 ---
 
 Ao adicionar um novo script a este diretório, atualize este README indicando **finalidade**, **quando usar**, **como executar** e se ele é de **uso humano**, **agregador** ou **interno ao CI**.
+### Credenciais nos diagnósticos SQL de DEV
+
+`local-linkage-operational-metrics.ps1`, `local-synthetic-diagnostics.ps1` e `local-sql-runtime-smoke.ps1` recebem `SQLCMDPASSWORD` por variável de ambiente do processo filho, repassada ao contêiner por `docker compose exec -e SQLCMDPASSWORD`. A senha não é concatenada à linha de comando do Docker, e qualquer valor anterior de `SQLCMDPASSWORD` é restaurado inclusive quando a consulta falha. O mock `local-test-sqlcmd-secret-transport.ps1` valida esse contrato sem iniciar Docker ou conectar ao SQL Server. Este endurecimento é parcial da #405; outros caminhos legados e a decisão institucional HML/PRD permanecem separados.
