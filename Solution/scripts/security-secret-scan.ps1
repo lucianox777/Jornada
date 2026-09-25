@@ -18,11 +18,15 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 function Invoke-GitleaksScan {
     param(
         [Parameter(Mandatory=$true)][string[]]$Arguments,
-        [Parameter(Mandatory=$true)][string]$Label
+        [Parameter(Mandatory=$true)][string]$Label,
+        [Parameter(Mandatory=$true)][string]$ReportPath
     )
 
     & gitleaks @Arguments
     $exit = $LASTEXITCODE
+    if (($exit -eq 0 -or $exit -eq 1) -and -not (Test-Path -LiteralPath $ReportPath -PathType Leaf)) {
+        throw "Gitleaks não produziu o relatório de $Label; não é possível afirmar ausência de achados."
+    }
     if ($exit -eq 0) {
         Write-Host "${Label}: OK"
         return 0
@@ -39,7 +43,10 @@ try {
     & gitleaks version
 
     $treeReport = Join-Path $outDir 'current-tree.json'
-    $treeExit = Invoke-GitleaksScan -Label 'Árvore corrente' -Arguments @(
+    $historyReport = Join-Path $outDir 'git-history.json'
+    # Remove previous evidence so an old empty report never masks scanner failure.
+    Remove-Item -LiteralPath $treeReport, $historyReport -Force -ErrorAction SilentlyContinue
+    $treeExit = Invoke-GitleaksScan -Label 'Árvore corrente' -ReportPath $treeReport -Arguments @(
         'dir',
         '--config', $config,
         '--redact=100',
@@ -50,8 +57,7 @@ try {
 
     $historyExit = 0
     if (-not $CurrentTreeOnly) {
-        $historyReport = Join-Path $outDir 'git-history.json'
-        $historyExit = Invoke-GitleaksScan -Label 'Histórico Git completo' -Arguments @(
+        $historyExit = Invoke-GitleaksScan -Label 'Histórico Git completo' -ReportPath $historyReport -Arguments @(
             'git',
             '--config', $config,
             '--redact=100',

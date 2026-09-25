@@ -32,6 +32,8 @@ Bash:
 
 Para apenas a árvore corrente, use `-CurrentTreeOnly` no PowerShell ou `--current-tree-only` no Bash.
 
+Relatórios anteriores são descartados antes de cada varredura. A ausência de qualquer relatório requerido — mesmo quando o scanner retorna sucesso, ou quando a outra etapa tem achados — é erro operacional, nunca zero ocorrências. O CI executa autotestes dessas falhas e da não exposição de `Secret`/`Match`.
+
 A execução completa faz duas provas:
 - `gitleaks dir`: conteúdo presente na árvore;
 - `gitleaks git --log-opts=--all`: histórico Git alcançável.

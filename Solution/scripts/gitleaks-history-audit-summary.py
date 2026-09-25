@@ -9,7 +9,7 @@ import tempfile
 
 def aggregate(path: Path) -> dict:
     if not path.is_file():
-        return {"findings": 0, "byRuleAndFile": []}
+        raise ValueError(f"Required Gitleaks report missing: {path}")
     rows = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(rows, list):
         raise ValueError(f"Expected a Gitleaks JSON findings list: {path}")
@@ -81,6 +81,16 @@ def self_test() -> None:
             pass
         else:
             raise AssertionError("Missing evidence must fail closed")
+        for missing_current, missing_history, scan_rc in (
+            (root / "missing", history, 0),
+            (current, root / "missing", 1),
+        ):
+            try:
+                build_summary(missing_current, missing_history, scan_rc)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("Every required report must exist, including when the other scan found secrets")
         assert build_summary(history, history, 0)["gitHistory"]["findings"] == 0
     print("PASS: aggregate audit summary self-test (no raw secret disclosure)")
 
