@@ -99,7 +99,7 @@ wait_processed(){
   echo "ERRO: timeout aguardando Entrega $id; último status=$status" >&2; return 1
 }
 compose_sql(){
-  (cd "$ROOT" && docker compose --env-file "$ENV_FILE" exec -T -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
+  (cd "$ROOT" && SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker compose --env-file "$ENV_FILE" exec -T -e SQLCMDPASSWORD sqlserver \
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d "$DB" -W -h -1 -Q "$1") | tr -d '\r' | sed '/^[[:space:]]*$/d'
 }
 scalar(){ compose_sql "SET NOCOUNT ON; $1" | tail -1 | tr -d '[:space:]'; }
