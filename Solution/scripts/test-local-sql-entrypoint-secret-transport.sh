@@ -30,7 +30,7 @@ printf 'exec\n' >> "$MOCK_LOG"
 [[ "$MOCK_FAIL" == 0 ]] || exit 29
 MOCK_DOCKER
 chmod 0755 "$FIXTURE/bin/docker"
-export PATH="$FIXTURE/bin:$PATH" SQLCMDPASSWORD=PARENT_SCOPE_SENTINEL MOCK_FAIL=0
+export PATH="$FIXTURE/bin:$PATH" SQLCMDPASSWORD='PARENT_SCOPE_SENTINEL' MOCK_FAIL=0
 export JORNADA_LOCAL_ENV_FILE="$FIXTURE/.env"
 bash "$FIXTURE/scripts/local-sql-runtime-smoke.sh" > "$FIXTURE/smoke.out" 2>&1
 [[ "$(wc -l < "$MOCK_LOG")" -eq 3 ]] || { echo 'Smoke must issue exactly 3 SQL commands.' >&2; exit 1; }
