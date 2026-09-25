@@ -329,6 +329,8 @@ jobs:
         run: bash scripts/test-local-e2e-secret-transport.sh
       - name: Verify SQL credentials never enter CI Docker argv
         run: python3 scripts/test-ci-sqlcmd-secret-transport.py
+      - name: Verify RC SQL commands use temporary environment credentials
+        run: python3 scripts/test-rc-sqlcmd-secret-transport.py
       - name: Test Gitleaks audit report completeness and redaction
         run: python3 scripts/gitleaks-history-audit-summary.py --self-test
       - name: Test Gitleaks scanner failure paths
@@ -868,7 +870,7 @@ jobs:
         run: |
           set -euo pipefail
           for i in $(seq 1 60); do
-            /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$JORNADA_RC_SQL_PASSWORD" -C -Q 'SELECT 1' >/dev/null 2>&1 && exit 0
+            SQLCMDPASSWORD="$JORNADA_RC_SQL_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -Q 'SELECT 1' >/dev/null 2>&1 && exit 0
             sleep 2
           done
           exit 1
@@ -903,9 +905,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .local/rc-evidence-input/rc-structural-provenance
-          sqlcmd -S localhost -U sa -P "$JORNADA_RC_SQL_PASSWORD" -C -b -Q "CREATE DATABASE JornadaRcSchema;"
-          sqlcmd -S localhost -U sa -P "$JORNADA_RC_SQL_PASSWORD" -C -b -d JornadaRcSchema -i database/Jornada_Fase1_v3.70.sql
-          sqlcmd -S localhost -U sa -P "$JORNADA_RC_SQL_PASSWORD" -C -b -d JornadaRcSchema -W -h -1 -i database/Jornada_Dev_DdlFingerprint.sql \
+          SQLCMDPASSWORD="$JORNADA_RC_SQL_PASSWORD" sqlcmd -S localhost -U sa -C -b -Q "CREATE DATABASE JornadaRcSchema;"
+          SQLCMDPASSWORD="$JORNADA_RC_SQL_PASSWORD" sqlcmd -S localhost -U sa -C -b -d JornadaRcSchema -i database/Jornada_Fase1_v3.70.sql
+          SQLCMDPASSWORD="$JORNADA_RC_SQL_PASSWORD" sqlcmd -S localhost -U sa -C -b -d JornadaRcSchema -W -h -1 -i database/Jornada_Dev_DdlFingerprint.sql \
             | sed '/^[[:space:]]*$/d' > .local/rc-evidence-input/rc-structural-provenance/fingerprint.txt
 
           declared_fingerprint=$(python3 -c 'import json; print(json.load(open("../CANDIDATE_INFO.json", encoding="utf-8"))["candidate"]["schema_provenance"]["structural_fingerprint_sha256"])')
