@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - 'Solution/scripts/local-db.*'
+      - 'Solution/scripts/local_env_bootstrap.py'
+      - 'Solution/scripts/test_local_env_bootstrap.py'
       - 'Solution/scripts/local-progressive-identity-backfill.sql'
       - 'Solution/database/Jornada_Identidade_Progressiva.sql'
       - 'Solution/database/migrations/20260908_Identidade_Progressiva_Processor.sql'
@@ -11,6 +13,8 @@ on:
   pull_request:
     paths:
       - 'Solution/scripts/local-db.*'
+      - 'Solution/scripts/local_env_bootstrap.py'
+      - 'Solution/scripts/test_local_env_bootstrap.py'
       - 'Solution/scripts/local-progressive-identity-backfill.sql'
       - 'Solution/database/Jornada_Identidade_Progressiva.sql'
       - 'Solution/database/migrations/20260908_Identidade_Progressiva_Processor.sql'
