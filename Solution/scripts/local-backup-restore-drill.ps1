@@ -1,4 +1,4 @@
-$ErrorActionPreference='Stop'
+﻿$ErrorActionPreference='Stop'
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path; $DrillId='35500000-0000-4000-8000-00000000b001'; $Fixture=Join-Path $Root 'tests/fixtures/bronze/restore-drill.zip'
 if(-not(Test-Path $Fixture)){throw "Fixture Bronze não encontrado: $Fixture"}
 & (Join-Path $PSScriptRoot 'local-db.ps1') -Action up
@@ -7,14 +7,44 @@ $sqlPassword=$vars['JORNADA_SQL_SA_PASSWORD']; $port=if($vars['JORNADA_SQL_PORT'
 New-Item -ItemType Directory -Force (Join-Path $Root '.local/sql-backup'),(Join-Path $Root '.local/backup-drill'),(Join-Path $Root 'data/bronze')|Out-Null
 function SqlCmd {
     param([Parameter(Mandatory=$true)][string[]]$SqlCmdArgs)
+    $previousSqlcmdPassword=[Environment]::GetEnvironmentVariable('SQLCMDPASSWORD','Process')
     Push-Location $Root
     try {
-        & docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b @SqlCmdArgs
+        $env:SQLCMDPASSWORD=$sqlPassword
+        & docker compose --env-file .env exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b @SqlCmdArgs
         if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou'}
     }
-    finally { Pop-Location }
+    finally {
+        try { Pop-Location }
+        finally {
+            if($null -eq $previousSqlcmdPassword){
+                Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+            } else {
+                $env:SQLCMDPASSWORD=$previousSqlcmdPassword
+            }
+        }
+    }
 }
-function Scalar([string]$Database,[string]$Query){ Push-Location $Root; try { $o=& docker compose --env-file .env exec -T -e "SQLCMDPASSWORD=$sqlPassword" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $Database -h -1 -W -Q "SET NOCOUNT ON; $Query"; if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou'}; return ($o|?{$_.Trim()}|Select-Object -Last 1).Trim() } finally { Pop-Location } }
+function Scalar([string]$Database,[string]$Query) {
+    $previousSqlcmdPassword=[Environment]::GetEnvironmentVariable('SQLCMDPASSWORD','Process')
+    Push-Location $Root
+    try {
+        $env:SQLCMDPASSWORD=$sqlPassword
+        $o=& docker compose --env-file .env exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $Database -h -1 -W -Q "SET NOCOUNT ON; $Query"
+        if($LASTEXITCODE -ne 0){throw 'sqlcmd falhou'}
+        return ($o|?{$_.Trim()}|Select-Object -Last 1).Trim()
+    }
+    finally {
+        try { Pop-Location }
+        finally {
+            if($null -eq $previousSqlcmdPassword){
+                Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+            } else {
+                $env:SQLCMDPASSWORD=$previousSqlcmdPassword
+            }
+        }
+    }
+}
 $sha=(Get-FileHash $Fixture -Algorithm SHA256).Hash.ToLowerInvariant(); $length=(Get-Item $Fixture).Length; $key="sha256/$($sha.Substring(0,2))/$($sha.Substring(2,2))/$sha.zip"; $dest=Join-Path (Join-Path $Root 'data/bronze') ($key -replace '/', [IO.Path]::DirectorySeparatorChar); New-Item -ItemType Directory -Force (Split-Path $dest)|Out-Null; Copy-Item $Fixture $dest -Force
 
 $seedObjects=@(

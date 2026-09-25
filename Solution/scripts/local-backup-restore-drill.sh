@@ -11,7 +11,7 @@ DB="${JORNADA_SQL_DATABASE:-JornadaLocal}"; PORT="${JORNADA_SQL_PORT:-14333}"; R
 mkdir -p "$ROOT/.local/sql-backup" "$ROOT/.local/backup-drill" "$ROOT/data/bronze"
 chmod 0777 "$ROOT/.local/sql-backup"
 compose() { (cd "$ROOT" && docker compose --env-file "$ROOT/.env" "$@"); }
-sqlcmd() { compose exec -T -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b "$@"; }
+sqlcmd() { SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" compose exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b "$@"; }
 scalar() { sqlcmd -d "$1" -h -1 -W -Q "SET NOCOUNT ON; $2" | tr -d '\r' | sed '/^[[:space:]]*$/d' | tail -1; }
 SHA="$(sha256sum "$FIXTURE" | awk '{print $1}')"; LENGTH="$(wc -c < "$FIXTURE" | tr -d ' ')"
 KEY="sha256/${SHA:0:2}/${SHA:2:2}/${SHA}.zip"; DEST="$ROOT/data/bronze/$KEY"; mkdir -p "$(dirname "$DEST")"; cp "$FIXTURE" "$DEST"
