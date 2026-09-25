@@ -74,27 +74,9 @@ try {
     if ($env:SQLCMDPASSWORD -cne 'PARENT_SCOPE_SENTINEL') {
         throw 'SQLCMDPASSWORD leaked to the parent after a failure.'
     }
-    # E2E starts real processes; retain a static guard in this no-Docker regression.
+    # The real E2E requires API/SQL; check the wrapper without starting processes.
     $e2eSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'local-e2e.ps1') -Raw -Encoding UTF8
-    if ($e2eSource.Contains('-e "SQLCMDPASSWORD=
-}
-finally {
-    $global:MockDockerShouldFail = $false
-    Remove-Item -LiteralPath $tempEnv -ErrorAction SilentlyContinue
-    if ($null -eq $previousEnvFile) {
-        Remove-Item Env:\JORNADA_LOCAL_ENV_FILE -ErrorAction SilentlyContinue
-    } else {
-        $env:JORNADA_LOCAL_ENV_FILE = $previousEnvFile
-    }
-    if ($null -eq $previousSqlcmdPassword) {
-        Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
-    } else {
-        $env:SQLCMDPASSWORD = $previousSqlcmdPassword
-    }
-    Remove-Item Function:\docker -ErrorAction SilentlyContinue
-    Remove-Variable MockPassword, MockDockerCalls, MockDockerShouldFail -Scope Global -ErrorAction SilentlyContinue
-}
-) -or
+    if ($e2eSource.Contains('-e "SQLCMDPASSWORD=$') -or
         -not $e2eSource.Contains('-e SQLCMDPASSWORD') -or
         -not $e2eSource.Contains('$previousSqlcmdPassword')) {
         throw 'O E2E não pode expor SQLCMDPASSWORD em argumentos do Docker e deve restaurá-la.'
