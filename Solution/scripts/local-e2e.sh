@@ -8,7 +8,9 @@ OUT="$ROOT/.local/e2e"
 
 need(){ command -v "$1" >/dev/null 2>&1 || { echo "ERRO: comando '$1' não encontrado." >&2; exit 2; }; }
 for x in docker dotnet curl python3; do need "$x"; done
-[[ -f "$ENV_FILE" ]] || cp "$EXAMPLE" "$ENV_FILE"
+if [[ ! -f "$ENV_FILE" ]]; then
+  python3 "$ROOT/scripts/local_env_bootstrap.py" --check-docker-volume
+fi
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
 : "${JORNADA_SQL_SA_PASSWORD:?JORNADA_SQL_SA_PASSWORD não definido}"
