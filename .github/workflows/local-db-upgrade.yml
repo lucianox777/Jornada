@@ -42,6 +42,9 @@ jobs:
           bash -n scripts/local-db.sh
           cp .env.example .env
           docker compose --env-file .env config --quiet
+          rm .env
+          # O 'up' seguinte deve gerar senha independente da credencial pública.
+          python3 scripts/test_local_env_bootstrap.py -v
 
       - name: Parse PowerShell local DB entrypoint
         shell: pwsh
