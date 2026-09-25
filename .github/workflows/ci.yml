@@ -325,6 +325,8 @@ jobs:
         run: bash scripts/test-linkage-flow-evaluation-secret-transport.sh
       - name: Mock independent linkage validation SQL secret transport
         run: bash scripts/test-linkage-validation-secret-transport.sh
+      - name: Mock E2E SQL password transport without resetting DEV database
+        run: bash scripts/test-local-e2e-secret-transport.sh
       - name: Test Gitleaks audit report completeness and redaction
         run: python3 scripts/gitleaks-history-audit-summary.py --self-test
       - name: Test Gitleaks scanner failure paths
