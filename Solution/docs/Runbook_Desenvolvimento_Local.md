@@ -19,17 +19,28 @@ Docker reproduz somente a dependência SQL necessária aos testes/integracão. A
 No diretório `Solution`:
 
 ```powershell
-Copy-Item .env.example .env
-# edite a senha local, se desejado
 .\scripts\local-db.ps1 -Action up
 ```
 
 ou:
 
 ```bash
-cp .env.example .env
 ./scripts/local-db.sh up
 ```
+
+Na primeira execução, os entrypoints DEV usam Python 3 para gerar um `.env`
+local com senha SQL aleatória única (sem exibi-la nos logs). Um `.env`
+preexistente nunca é sobrescrito, para preservar a credencial do volume atual.
+Se o volume `jornada_sql_data` já existe mas o `.env` foi perdido, o bootstrap
+falha antes do Docker Compose: **recupere o `.env` original**, não gere outra
+senha e não remova o volume para contornar o erro. No Linux/POSIX, o arquivo
+novo é criado com permissão `0600`; no Windows, aplicam-se as ACLs herdadas.
+
+`.env.example` ainda é apenas um exemplo público e não deve ser copiado como
+credencial para um DEV compartilhado. Se você já usa a senha publicada do
+exemplo, os scripts preservam seu `.env` existente e a troca precisa ser
+planejada junto ao SQL Server; editar o arquivo isoladamente não altera a
+senha de um banco já inicializado.
 
 O padrão expõe SQL Server em `localhost:14333`, cria `JornadaLocal` e aplica, nessa ordem:
 
