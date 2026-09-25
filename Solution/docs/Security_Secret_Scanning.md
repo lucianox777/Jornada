@@ -111,3 +111,7 @@ O escopo da issue #405 continua aberto para outros entrypoints legados e eventua
 ## Transporte de senha na validação independente do linkage (#405)
 
 `local-linkage-validation.ps1` agora usa somente `-e SQLCMDPASSWORD` nas rotinas `Invoke-SqlFile` e `Get-SqlLines`; cada função encaminha a senha pelo ambiente temporário e restaura o valor anterior em `finally` mesmo após exceções. O backfill da fixture usa o mesmo `Invoke-SqlFile` com `PAGE_SIZE=1000`. `local-linkage-validation.sh` centraliza as três operações SQL em `sqlcmd()`, também passando apenas o nome da variável. Os testes `local-test-linkage-validation-secret-transport.ps1` (funções reais via AST no Windows 5.1 e pwsh) e `test-linkage-validation-secret-transport.sh` (funções Bash reais) usam apenas Docker simulado. Não injetam dados, executam Runner ou alteram o banco `JornadaLocal`; não comprovam calibração ou precisão estatística.
+
+## Senha SQL no E2E local (#405)
+
+`local-e2e.sh` mantém seu reset intencional **somente quando o entrypoint real é executado**. `compose_sql()` agora injeta `SQLCMDPASSWORD` apenas no ambiente filho de `docker compose exec`, com `-e SQLCMDPASSWORD` sem valor em argv. O teste `test-local-e2e-secret-transport.sh` extrai e invoca `compose_sql`/`scalar` reais contra Docker simulado, validando resultado, falha não zero, preservação do ambiente do chamador e ausência da senha em argumentos/logs. O mock não invoca o entrypoint nem executa reset no `JornadaLocal`; o E2E real roda no CI com banco isolado.
