@@ -58,27 +58,49 @@ if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD au
 $db = Get-EnvValue 'JORNADA_SQL_DATABASE'
 if ([string]::IsNullOrWhiteSpace($db)) { $db = 'JornadaLocal' }
 
-function Invoke-SqlFile([string]$ContainerPath) {
+function Invoke-SqlFile([string]$ContainerPath, [string[]]$SqlCmdArgs = @()) {
+    $previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
     Push-Location $Root
     try {
-        Write-CommandLine 'docker' @('compose','--env-file',$EnvFile,'exec','-T','-e','SQLCMDPASSWORD=<redacted>','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-C','-b','-d',$db,'-i',$ContainerPath)
-        & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd `
-            -S localhost -U sa -C -b -d $db -i $ContainerPath
+        $env:SQLCMDPASSWORD = $password
+        Write-CommandLine 'docker' (@('compose','--env-file',$EnvFile,'exec','-T','-e','SQLCMDPASSWORD=<redacted>','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-C','-b','-d',$db) + $SqlCmdArgs + @('-i',$ContainerPath))
+        & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd `
+            -S localhost -U sa -C -b -d $db @SqlCmdArgs -i $ContainerPath
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd -i falhou ($LASTEXITCODE)." }
     }
-    finally { Pop-Location }
+    finally {
+        try { Pop-Location }
+        finally {
+            if ($null -eq $previousSqlcmdPassword) {
+                Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+            } else {
+                $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+            }
+        }
+    }
 }
 
 function Get-SqlLines([string]$Query) {
+    $previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
     Push-Location $Root
     try {
+        $env:SQLCMDPASSWORD = $password
         Write-CommandLine 'docker' @('compose','--env-file',$EnvFile,'exec','-T','-e','SQLCMDPASSWORD=<redacted>','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-C','-b','-d',$db,'-W','-h','-1','-s','|','-Q',"SET NOCOUNT ON; $Query")
-        $lines = @(& docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd `
+        $lines = @(& docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd `
             -S localhost -U sa -C -b -d $db -W -h -1 -s '|' -Q "SET NOCOUNT ON; $Query")
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd -Q falhou ($LASTEXITCODE)." }
         return @($lines | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -notmatch '^\([0-9]+ rows? affected\)$' })
     }
-    finally { Pop-Location }
+    finally {
+        try { Pop-Location }
+        finally {
+            if ($null -eq $previousSqlcmdPassword) {
+                Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+            } else {
+                $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+            }
+        }
+    }
 }
 
 function Get-SqlScalar([string]$Query) {
@@ -166,14 +188,12 @@ Invoke-SqlFile $Fixture
 
 # O fixture DEV entra direto na Silver e deliberadamente bypassa o Processor.
 # Materializa o ledger progressivo antes de testar a publicação fail-closed do runtime.
-Push-Location $Root
 try {
-    Write-CommandLine 'docker' @('compose','--env-file',$EnvFile,'exec','-T','-e','SQLCMDPASSWORD=<redacted>','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-C','-b','-d',$db,'-v','PAGE_SIZE=1000','-i','/workspace/scripts/local-progressive-identity-backfill.sql')
-    & docker compose --env-file $EnvFile exec -T -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd `
-        -S localhost -U sa -C -b -d $db -v PAGE_SIZE=1000 -i /workspace/scripts/local-progressive-identity-backfill.sql
-    if ($LASTEXITCODE -ne 0) { throw "backfill progressivo das fixtures falhou ($LASTEXITCODE)." }
+    Invoke-SqlFile -ContainerPath '/workspace/scripts/local-progressive-identity-backfill.sql' -SqlCmdArgs @('-v','PAGE_SIZE=1000')
 }
-finally { Pop-Location }
+catch {
+    throw "backfill progressivo das fixtures falhou: $($_.Exception.Message)"
+}
 $missingProgressive = [long](Get-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao po JOIN silver.pessoa_origem o ON o.pessoa_origem_id=po.pessoa_origem_id LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE po.codigo_pessoa_origem LIKE N'SCALE-VAL-%' AND p.pessoa_origem_id IS NULL;")
 if ($missingProgressive -ne 0) { throw "Fixture SCALE-VAL deixou $missingProgressive origens sem initial_uuid." }
 
