@@ -66,8 +66,9 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
                 candidateUuid = reader.GetGuid(0);
             }
 
-            // Simula somente a mudança causal do lado candidato: uma referência passa a compartilhar
-            // a chave name_full da observação antiga, sem reversionar essa observação.
+            // Este teste congela apenas a elegibilidade SQL do INCREMENTAL após mudança do lado candidato.
+            // Ele não executa um segundo RunAsync nem prova resolução ponta a ponta.
+            // A referência passa a compartilhar a chave name_full da observação antiga sem reversioná-la.
             await using (var candidateSideChange = connection.CreateCommand())
             {
                 candidateSideChange.Transaction = tx;
