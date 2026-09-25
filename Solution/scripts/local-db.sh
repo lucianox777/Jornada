@@ -29,7 +29,7 @@ compose() { (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
 sqlcmd() {
   # O baseline v3.70 usa diretivas :r relativas ao diretório /workspace.
   # Fixar o working directory evita que sqlcmd resolva includes a partir de /.
-  compose exec -T -w /workspace -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
+  SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" compose exec -T -w /workspace -e SQLCMDPASSWORD sqlserver \
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I "$@"
 }
 sql_scalar() {

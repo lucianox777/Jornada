@@ -121,24 +121,43 @@ function Invoke-Compose {
 }
 function Invoke-SqlCmd {
     param([Parameter(Mandatory=$true)][string[]]$SqlCmdArgs)
+    $previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
     Push-Location $Root
     try {
+        $env:SQLCMDPASSWORD = $password
         # O baseline v3.70 usa diretivas :r relativas ao diretório /workspace.
-        & docker compose --env-file $EnvFile exec -T -w /workspace -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I @SqlCmdArgs
+        & docker compose --env-file $EnvFile exec -T -w /workspace -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I @SqlCmdArgs
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd falhou ($LASTEXITCODE)." }
-    } finally { Pop-Location }
+    }
+    finally {
+        if ($null -eq $previousSqlcmdPassword) {
+            Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+        } else {
+            $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+        }
+        Pop-Location
+    }
 }
 function Invoke-SqlScalar {
     param([Parameter(Mandatory=$true)][string]$Query)
+    $previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
     Push-Location $Root
     try {
-        $raw = @(& docker compose --env-file $EnvFile exec -T -w /workspace -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -W -h -1 -Q "SET NOCOUNT ON; $Query")
+        $env:SQLCMDPASSWORD = $password
+        $raw = @(& docker compose --env-file $EnvFile exec -T -w /workspace -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -W -h -1 -Q "SET NOCOUNT ON; $Query")
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd scalar falhou ($LASTEXITCODE)." }
         $value = @($raw | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ } | Select-Object -Last 1)
         if ($value.Count -eq 0) { throw 'Consulta scalar não retornou valor.' }
         return [string]$value[0]
     }
-    finally { Pop-Location }
+    finally {
+        if ($null -eq $previousSqlcmdPassword) {
+            Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+        } else {
+            $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+        }
+        Pop-Location
+    }
 }
 function Wait-Healthy {
     Push-Location $Root

@@ -311,6 +311,8 @@ jobs:
         run: python3 scripts/test_local_env_bootstrap.py -v
       - name: Test SQL credentials stay out of process argv in coordination probe
         run: python3 scripts/test_coordination_lock_secret_transport.py -v
+      - name: Test Bash local-db SQL credentials without a Docker service
+        run: bash scripts/test-local-db-secret-transport.sh
       - name: Test Gitleaks audit report completeness and redaction
         run: python3 scripts/gitleaks-history-audit-summary.py --self-test
       - name: Test Gitleaks scanner failure paths
