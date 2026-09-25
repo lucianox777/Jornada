@@ -15,6 +15,8 @@ on:
       - 'Solution/scripts/local-cluster.*'
       - 'Solution/scripts/local-clean-test.ps1'
       - 'Solution/scripts/local-db.*'
+      - 'Solution/scripts/local_env_bootstrap.py'
+      - 'Solution/scripts/test_local_env_bootstrap.py'
       - 'Solution/src/Jornada.Processor.Worker/**'
       - 'Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs'
       - 'Solution/docs/uml/Jornada_Implantacao.puml'
@@ -33,6 +35,8 @@ on:
       - 'Solution/scripts/local-cluster.*'
       - 'Solution/scripts/local-clean-test.ps1'
       - 'Solution/scripts/local-db.*'
+      - 'Solution/scripts/local_env_bootstrap.py'
+      - 'Solution/scripts/test_local_env_bootstrap.py'
       - 'Solution/src/Jornada.Processor.Worker/**'
       - 'Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs'
       - 'Solution/docs/uml/Jornada_Implantacao.puml'
@@ -93,6 +97,8 @@ jobs:
           bash -n scripts/local-db.sh
           cp .env.example .env
           docker compose --env-file .env config --quiet
+          rm .env
+          # O start real deve exercer o bootstrap de segredo único sem valor público.
 
       - name: Validate UTF-8 BOM and parse PowerShell local entrypoints
         shell: pwsh
