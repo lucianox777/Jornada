@@ -44,32 +44,7 @@ function Get-SqlScalar {
             throw "sqlcmd falhou ($LASTEXITCODE)."
         }
 
-        return (($output | Where-Object { $_ -and $_ -notmatch '^[- ]+
-}
-
-Write-Host "# Set-Location '$Root'"
-Set-Location -LiteralPath $Root
-
-Write-Host '# .\scripts\local-cluster.ps1 -Action up'
-Invoke-Checked -Label '.\scripts\local-cluster.ps1 -Action up' -Command { & $Cluster -Action up }
-
-$activeModel = Get-SqlScalar "SET NOCOUNT ON; SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'')<>'SEED_DEV_FIXO_NAO_TREINADO';"
-
-if ([int]$activeModel -eq 0) {
-    $validationRows = Get-SqlScalar "SET NOCOUNT ON; SELECT COUNT(*) FROM silver.pessoa_observacao WHERE codigo_pessoa_origem LIKE 'SCALE-VAL-%';"
-    if ([int]$validationRows -ne 0) {
-        throw 'Há corpus SCALE-VAL persistido, mas não existe modelo calibrado ATIVO. Não é seguro recalibrar sobre o corpus de validação. Use um ambiente limpo ou restaure o modelo esperado.'
-    }
-
-    Write-Host '# .\scripts\local-cluster.ps1 -Action calibrate'
-    Invoke-Checked -Label '.\scripts\local-cluster.ps1 -Action calibrate' -Command { & $Cluster -Action calibrate }
-} else {
-    Write-Host 'Modelo calibrado ATIVO já existe; preservando-o para manter a validação independente.'
-}
-
-Write-Host '# .\scripts\local-linkage-validation.ps1'
-Invoke-Checked -Label '.\scripts\local-linkage-validation.ps1' -Command { & $Validation }
- } | Select-Object -Last 1).Trim())
+        return (($output | Where-Object { $_ -and $_ -notmatch '^[- ]+$' } | Select-Object -Last 1).Trim())
     }
     finally {
         if ($null -eq $previousSqlcmdPassword) {
