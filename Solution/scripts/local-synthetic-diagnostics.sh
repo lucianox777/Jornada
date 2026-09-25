@@ -10,8 +10,8 @@ DB="${1:-${JORNADA_SQL_DATABASE:-JornadaLocal}}"
 echo "Lendo diagnostico agregado do banco $DB (somente SELECT, sem limpeza)."
 (
   cd "$ROOT"
-  docker compose --env-file "$ENV_FILE" exec -T -w /workspace \
-    -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver \
+  SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker compose --env-file "$ENV_FILE" exec -T -w /workspace \
+    -e SQLCMDPASSWORD sqlserver \
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d "$DB" -w 900 \
     -i database/Jornada_Dev_SyntheticCalibration_Diagnostics.sql
 )

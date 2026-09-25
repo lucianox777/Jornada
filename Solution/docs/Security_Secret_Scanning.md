@@ -3,6 +3,10 @@
 **Issue:** #405  
 **Estado:** execução local + integração CI implementadas após `v5.00-rc.1`.
 
+## Wrappers Bash do smoke SQL e diagnóstico sintético DEV (#405)
+
+`local-sql-runtime-smoke.sh` e `local-synthetic-diagnostics.sh` agora repassam `SQLCMDPASSWORD` ao Docker **somente pelo nome** (`-e SQLCMDPASSWORD`). O valor fica no ambiente do processo filho durante a chamada, não em seus argumentos. O teste `test-local-sql-entrypoint-secret-transport.sh` executa os scripts originais em cópias temporárias com Docker simulado, cobrindo sucesso e falha sem tocar em SQL real. O smoke **não é read-only** quando executado de verdade: aplica DDL, seed e validação. O diagnóstico, ao contrário, é somente leitura. A mudança não autoriza executar o smoke no banco compartilhado sem o fluxo DEV previsto.
+
 ## Política
 
 A varredura usa as regras padrão mantidas pelo Gitleaks por meio de `[extend] useDefault = true`. A configuração do repositório não começa com allowlist global.

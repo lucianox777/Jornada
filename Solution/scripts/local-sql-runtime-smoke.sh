@@ -12,7 +12,7 @@ set -a; source "$ENV_FILE"; set +a
 DB="${JORNADA_SQL_DATABASE:-JornadaLocal}"
 [[ "$DB" =~ ^[A-Za-z0-9_]+$ ]] || { echo "ERRO: nome de banco inválido." >&2; exit 2; }
 compose(){ (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
-sqlcmd(){ compose exec -T -e "SQLCMDPASSWORD=$JORNADA_SQL_SA_PASSWORD" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b "$@"; }
+sqlcmd(){ SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" compose exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b "$@"; }
 # O banco local já deve estar disponível; local-test chama local-db.sh antes deste gate.
 sqlcmd -d "$DB" -i /workspace/database/Jornada_Fase1.sql
 sqlcmd -d "$DB" -i /workspace/database/Jornada_Seed_Dev.sql
