@@ -173,16 +173,20 @@ function Test-SqlServerImageRuntime {
 
     $probeName = 'jornada-sql-integrity-probe'
     $password = 'Jd!' + [Guid]::NewGuid().ToString('N') + '9aA'
+    $previousProbeSaPassword = [Environment]::GetEnvironmentVariable('MSSQL_SA_PASSWORD', 'Process')
+    $previousProbeSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
     Remove-SqlProbeContainer -Name $probeName
 
     try {
+        $env:MSSQL_SA_PASSWORD = $password
+        $env:SQLCMDPASSWORD = $password
         $previousErrorActionPreference = $ErrorActionPreference
         try {
             $ErrorActionPreference = 'Continue'
             $containerId = (& docker run -d --name $probeName `
                 -e 'ACCEPT_EULA=Y' `
                 -e 'MSSQL_PID=Developer' `
-                -e "MSSQL_SA_PASSWORD=$password" `
+                -e MSSQL_SA_PASSWORD `
                 $Image 2>&1 | Out-String).Trim()
             $runExitCode = $LASTEXITCODE
         }
@@ -200,7 +204,7 @@ function Test-SqlServerImageRuntime {
             try {
                 $ErrorActionPreference = 'Continue'
                 & docker exec `
-                    -e "SQLCMDPASSWORD=$password" `
+                    -e SQLCMDPASSWORD `
                     $probeName `
                     /opt/mssql-tools18/bin/sqlcmd `
                     -S localhost -U sa -C -b `
@@ -214,7 +218,7 @@ function Test-SqlServerImageRuntime {
 
             if ($probeExitCode -eq 0) {
                 $version = (& docker exec `
-                    -e "SQLCMDPASSWORD=$password" `
+                    -e SQLCMDPASSWORD `
                     $probeName `
                     /opt/mssql-tools18/bin/sqlcmd `
                     -S localhost -U sa -C -b -h -1 -W `
@@ -238,7 +242,23 @@ function Test-SqlServerImageRuntime {
         return $false
     }
     finally {
-        Remove-SqlProbeContainer -Name $probeName
+        try {
+            Remove-SqlProbeContainer -Name $probeName
+        }
+        finally {
+            if ($null -eq $previousProbeSaPassword) {
+                Remove-Item Env:\MSSQL_SA_PASSWORD -ErrorAction SilentlyContinue
+            }
+            else {
+                $env:MSSQL_SA_PASSWORD = $previousProbeSaPassword
+            }
+            if ($null -eq $previousProbeSqlcmdPassword) {
+                Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+            }
+            else {
+                $env:SQLCMDPASSWORD = $previousProbeSqlcmdPassword
+            }
+        }
     }
 }
 
