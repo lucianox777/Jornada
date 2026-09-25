@@ -42,7 +42,7 @@ docker() {
       printf 'FLOW\n' >> "$MOCK_LOG"
       ;;
     exec)
-      [[ "$2" == -i && "$4" == "$CID" ]] || return 55
+      [[ "$2" == -i && "$3" == -e && "$4" == SQLCMDPASSWORD && "$5" == "$CID" ]] || return 55
       printf 'EVALUATION\n' >> "$MOCK_LOG"
       ;;
     *) return 56 ;;
