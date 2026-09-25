@@ -71,18 +71,27 @@ if ($AllowSharedDatabase) {
 & (Join-Path $Root 'scripts/local-db.ps1') up -NoSyntheticCorpus -DatabaseName $db
 if ($LASTEXITCODE -ne 0) { throw "local-db up falhou ($LASTEXITCODE)." }
 
+$previousSqlcmdPassword = [Environment]::GetEnvironmentVariable('SQLCMDPASSWORD', 'Process')
 Push-Location $Root
 try {
+    $env:SQLCMDPASSWORD = $password
     # Fail-closed antes de apagar dados operacionais: NODE1/NODE2 podem
     # consumir a entrega sem acesso à Bronze temporária do ensaio.
-    & docker compose --env-file $EnvFile exec -T -w /workspace -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -i database/Jornada_Dev_SyntheticCalibration_ExclusivePreflight.sql
+    & docker compose --env-file $EnvFile exec -T -w /workspace -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -i database/Jornada_Dev_SyntheticCalibration_ExclusivePreflight.sql
     if ($LASTEXITCODE -ne 0) { throw "Preflight recusou o banco DEV compartilhado; nenhum dado foi limpo ($LASTEXITCODE)." }
 
-    & docker compose --env-file $EnvFile exec -T -w /workspace -e "SQLCMDPASSWORD=$password" sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -i database/Jornada_Dev_SyntheticCalibration_Cleanup.sql
+    & docker compose --env-file $EnvFile exec -T -w /workspace -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -i database/Jornada_Dev_SyntheticCalibration_Cleanup.sql
     if ($LASTEXITCODE -ne 0) { throw "Limpeza sintética preservadora falhou ($LASTEXITCODE)." }
 }
 finally {
-    Pop-Location
+    try { Pop-Location }
+    finally {
+        if ($null -eq $previousSqlcmdPassword) {
+            Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+        } else {
+            $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+        }
+    }
 }
 
 $env:ConnectionStrings__Jornada = "Server=localhost,$port;Database=$db;User Id=sa;Password=$password;TrustServerCertificate=true;Encrypt=false"
