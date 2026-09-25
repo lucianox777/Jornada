@@ -83,8 +83,9 @@ function Ensure-DockerEngine {
 Ensure-DockerEngine
 if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
     if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile" }
-    Copy-Item $Example $EnvFile
-    Write-Warning 'Criado .env local a partir de .env.example. Revise a senha antes de uso compartilhado.'
+    if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw 'Python 3 é necessário para gerar a credencial local.' }
+    & python (Join-Path $PSScriptRoot 'local_env_bootstrap.py') --check-docker-volume
+    if ($LASTEXITCODE -ne 0) { throw 'Bootstrap seguro do .env falhou; banco original preservado.' }
 }
 
 $vars = @{}
