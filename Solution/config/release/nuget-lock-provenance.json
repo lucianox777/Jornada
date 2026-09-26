@@ -229,13 +229,13 @@
   "candidateGraph": {
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
-    "sourceCommit": "1ea2db1f049be8abf9650961c439f2a93ada3d5f",
+    "sourceCommit": "bcc94f548dc4cf778411452ff858c76980979ed8",
     "githubRunId": "35755475367",
     "sdk": "8.0.424",
-    "reason": "PR #433 compartilha a política de calibração de decisão com o evaluator via Jornada.Linkage.Core. O diagnóstico SDK 8.0.424 force-evaluate do run 35682617704 alterou exatamente os metadados ProjectReference de Evaluation e seus consumidores Conference/Integration; nenhum pacote externo mudou. PR #439 inclui agora referência direta ao evaluator no projeto de testes unitários; o SDK alterou somente o bloco ProjectReference do lock de Jornada.Tests, conforme dependency-lock run 35755475367. DT-04 inclui o projeto Jornada.Access.Security, os ProjectReference da Jornada.Api/Resultado.Api e os locks dos dois projetos de testes; o SDK 8.0.424 comprovou equivalência de grafo (ajuste apenas da quebra de linha do novo lock).",
+    "reason": "PR #433 compartilha a política de calibração de decisão com o evaluator via Jornada.Linkage.Core. O diagnóstico SDK 8.0.424 force-evaluate do run 35682617704 alterou exatamente os metadados ProjectReference de Evaluation e seus consumidores Conference/Integration; nenhum pacote externo mudou. PR #439 inclui agora referência direta ao evaluator no projeto de testes unitários; o SDK alterou somente o bloco ProjectReference do lock de Jornada.Tests, conforme dependency-lock run 35755475367. DT-04 inclui o projeto Jornada.Access.Security, os ProjectReference da Jornada.Api/Resultado.Api e os locks dos dois projetos de testes; o SDK 8.0.424 comprovou equivalência de grafo (ajuste apenas da quebra de linha do novo lock). Com Resultado.Api incluída na Solution, o SDK removeu as abstrações Microsoft.Extensions já satisfeitas pelo framework ASP.NET compartilhado do projeto novo; lock corrigido conforme diff do CI.",
     "lockCount": 23,
     "changedLockCount": 18,
-    "combinedSha256": "74f671546b399549f32f82f63fc3b5ebbfa43f192889a4039954e9278f783d57",
+    "combinedSha256": "675eb5bf92ebd279fbb433d5a2675300e811c01303b3ccb65ef1018547129342",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -299,7 +299,7 @@
       },
       {
         "path": "src/Jornada.Resultado.Api/packages.lock.json",
-        "sha256": "03da8cf240383bfbca73da3c82d3eb5dbc3c7f850b83b5e0955f3dd28cfdec37"
+        "sha256": "7f8e85db8cde11711505c7a2555ab76250f93d0fe1b73a1c8e54e7d1ef7c151d"
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
