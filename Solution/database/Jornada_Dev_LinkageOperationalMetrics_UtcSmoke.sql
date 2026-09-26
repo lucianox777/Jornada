@@ -13,7 +13,7 @@ INSERT @cases(origem,data_utc_esperada,semana_utc_esperada) VALUES
  ('2026-09-28T00:15:00+02:00','20260927','20260921'), -- Segunda local, domingo UTC.
  ('2026-09-21T00:30:00+02:00','20260920','20260914'), -- Virada anterior.
  ('2026-09-21T00:30:00-03:00','20260921','20260921'), -- Segunda em ambos.
- ('2026-09-28T03:30:00+00:00','20260928','20260928'); -- Mesmo instante da primeira.
+ ('2026-09-28T02:30:00+00:00','20260928','20260928'); -- Mesmo instante da primeira.
 
 IF EXISTS (
  SELECT 1 FROM @cases c
