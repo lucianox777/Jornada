@@ -10,7 +10,7 @@ Este arquivo é um ponto de retomada, **não** auditoria do HEAD ou evidência d
 
 A documentação descreve SQL Server, Processor, Runner em lote, motor C# de linkage, Gold e ledger. A aderência integral da procedure Gold à hierarquia de quatro níveis por atributo precisa ser verificada no código. `codigoPessoaOrigem` permanece opcional. A busca síncrona `Patient/$match` para o balcão **não está comprovada como implementada**; o requisito é até cinco candidatos internamente priorizados, mostrados sem ranking ou score e com “Nenhum destes”.
 
-**Fases aprovadas:** DEV → **Ensaio único** → HML → Produção. O Ensaio é técnico e operacional, já com todas as funcionalidades, contratos, autenticação, auditoria e observabilidade de HML. A diferença planejada para HML é a massa anonimizada enviada pelas Secretarias. Ver [contrato](Ensaio_Unico_Paridade_HML.md).
+**Fases aprovadas:** DEV → **Ensaio único** → HML → Produção. O Ensaio é técnico e operacional, já com todas as funcionalidades, contratos, autenticação, auditoria e observabilidade de HML. A diferença planejada para HML é a massa de testes preparada pelas Secretarias, preservando as características relevantes das bases reais. Ver [contrato](Ensaio_Unico_Paridade_HML.md).
 
 ## Pendências de engenharia
 
