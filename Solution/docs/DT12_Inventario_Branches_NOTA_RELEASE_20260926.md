@@ -12,7 +12,7 @@
 - Branches: **429** (paginação 100+100+100+100+29); **15** head branches de PR aberto no mesmo repositório, mais `master`; **19** branches classificadas com bloqueio explícito na fotografia.
 - Branches nominalmente ligadas a RC/release/segurança/auditoria e que exigem checagem extra: **86**. **Todas as outras branches também estão em revisão**, nunca aprovadas automaticamente para remoção.
 - Arquivos `NOTA_*` na raiz: **37**; arquivos `RELEASE*`: **24** (inclui `RELEASE_INFO.txt`); total: **61** preservados.
-- Planilhas de conferência: [branches com SHA, flag de proteção, PR e classe de retenção](DT12_Branches_20260926.csv) e [arquivos NOTA/RELEASE com Git blob SHA](DT12_Root_NOTA_RELEASE_20260926.csv).
+- Planilhas de conferência: [branches, flags de proteção, PR e classe de retenção](DT12_Branches_20260926.csv), [SHA-1 dos respectivos heads, vinculados por `index`](DT12_Branch_Heads_20260926.csv) e [arquivos NOTA/RELEASE com Git blob SHA](DT12_Root_NOTA_RELEASE_20260926.csv).
 
 ### Distribuição por família
 
