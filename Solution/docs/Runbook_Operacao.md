@@ -120,7 +120,13 @@ Os fontes `bi/Jornada.pbip`, `bi/Jornada.Report/` (PBIR) e `bi/Jornada.SemanticM
 
 Validação estrutural de JSON/TMDL em CI não substitui abrir e salvar o projeto no Power BI Desktop. A publicação no Power BI Service/Gateway, credenciais, refresh e homologação visual pertencem ao ambiente corporativo.
 
-## 9. Evidências mínimas de HML
+## 9. Ensaio anterior à HML
+
+A próxima etapa é o **Ensaio intersecretarial** com dados preparados e fornecidos pelas Secretarias nos contratos vigentes; a responsabilidade pela anonimização ou geração sintética derivada de bases reais é de cada Secretaria. O Ensaio deve usar os mesmos componentes, configuração funcional, contratos, integração de autenticação, autorização, scheduler, gates e procedimentos de HML; a única diferença funcional planejada são os dados. Credenciais e endpoints próprios de cada ambiente não autorizam controles diferentes. O roteiro e os critérios de paridade estão em `Ensaio_Secretarias_Paridade_HML.md`.
+
+As evidências do Ensaio devem ser reaproveitáveis como procedimento, mas não substituem medição ou avaliação estatística quando a massa de HML for diferente. Se a identidade corporativa permanecer pendente, não declarar Ensaio equivalente a HML com credenciais sintéticas de Development.
+
+## 10. Evidências mínimas de HML
 
 Antes de Produção, registrar:
 
@@ -134,7 +140,7 @@ Antes de Produção, registrar:
 - configuração final do scheduler corporativo, com evidência de jobs, cadências, retries e logs.
 
 
-## 10. Separação entre desenvolvimento local e scheduler corporativo
+## 11. Separação entre desenvolvimento local e scheduler corporativo
 
 O `docker-compose.yml` existe somente para desenvolvimento/teste local e sobe SQL Server Developer. Ele **não** implementa scheduler e não representa topologia de HML/Produção. A política desta página continua válida: jobs run-once são acionados pelo scheduler corporativo homologado na PRODAM. Para o ambiente local, consulte `Runbook_Desenvolvimento_Local.md`.
 
