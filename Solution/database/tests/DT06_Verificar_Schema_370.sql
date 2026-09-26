@@ -8,7 +8,7 @@ IF EXISTS(SELECT 1 FROM jornada.schema_migration WHERE LEN(sha256)<>64 OR sha256
     THROW 51368, 'DT06: checksum inválido.', 1;
 IF COALESCE(CONVERT(nvarchar(32),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.SolutionSchema')),N'') <> N'3.70'
     THROW 51369, 'DT06: schema esperado 3.70 não confirmado.', 1;
-IF OBJECT_ID(N'gold.pessoa',N'U') IS NULL OR OBJECT_ID(N'identidade.identity_map',N'U') IS NULL OR OBJECT_ID(N'bronze.entrega',N'U') IS NULL
+IF OBJECT_ID(N'gold.pessoa',N'U') IS NULL OR OBJECT_ID(N'identidade.identity_map',N'U') IS NULL OR OBJECT_ID(N'bronze.entrega_arquivo',N'U') IS NULL
     THROW 51370, 'DT06: objetos estruturais obrigatórios ausentes.', 1;
 SELECT N'DT06_VERIFY_OK' AS resultado, (SELECT COUNT(*) FROM jornada.schema_migration) AS migrations;
 GO
