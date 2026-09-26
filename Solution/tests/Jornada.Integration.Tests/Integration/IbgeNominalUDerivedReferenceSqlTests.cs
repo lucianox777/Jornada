@@ -12,12 +12,12 @@ public sealed class IbgeNominalUDerivedReferenceSqlTests
         var connectionString = Environment.GetEnvironmentVariable("JORNADA_TEST_SQL_CONNECTION");
         if (string.IsNullOrWhiteSpace(connectionString))
             Assert.Ignore("Defina JORNADA_TEST_SQL_CONNECTION para executar o teste SQL Server.");
-        var database = new SqlConnectionStringBuilder(connectionString).InitialCatalog ?? string.Empty;
+        var database = new SqlConnectionStringBuilder(connectionString!).InitialCatalog ?? string.Empty;
         if (!new[] { "test", "dev", "local" }
             .Any(x => database.Contains(x, StringComparison.OrdinalIgnoreCase)))
             Assert.Fail("Teste de mutação somente em banco Test/Dev/Local.");
 
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new SqlConnection(connectionString!);
         await connection.OpenAsync();
         var dbDir = Path.Combine(AppContext.BaseDirectory, "database");
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(dbDir, "Jornada_Fase1.sql"));
