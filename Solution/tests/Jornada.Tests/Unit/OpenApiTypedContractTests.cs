@@ -68,7 +68,7 @@ public sealed class OpenApiTypedContractTests
         foreach (var (path, method, operation) in operations)
         {
             var successes = operation.GetProperty("responses").EnumerateObject()
-                .Where(response => response.Name.StartsWith("2", StringComparison.Ordinal))
+                .Where(response => response.Name.StartsWith('2'))
                 .ToArray();
             Assert.That(successes, Has.Length.EqualTo(1), method.ToUpperInvariant() + " " + path);
             foreach (var response in successes)
