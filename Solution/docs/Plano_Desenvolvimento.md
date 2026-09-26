@@ -2,7 +2,7 @@
 
 **Status:** plano, não relatório de conclusão. Validar a situação de cada frente no código, PRs e Actions antes de afirmar que foi entregue.
 
-1. Motor operacional único C# com comparadores, blocking, scoring, parâmetros e testes de paridade inspirados nas capacidades relevantes do Splink.
+1. Motor operacional único C# com comparadores, blocking, scoring, parâmetros e testes de paridade inspirados nas capacidades relevantes do Splink. **Priorizar regressões adversariais de falso vínculo** (impostores, parentes/gêmeos, quase-duplicatas e conflitos) antes de ampliar o realismo demográfico; revisar e executar a branch `test/linkage-twin-like-adversarial` contra o HEAD antes de qualquer merge. Preservar o gerador demográfico para a avaliação de representatividade (#31), sem descartar correções necessárias. Ver [núcleo — testes adversariais](Nucleo_Linkage_Identidade_Progressiva.md#testes-adversariais-e-limites-da-evidência).
 2. Reprocessamento por mudanças da origem **e** de referências candidatas, preservando auditoria e ledger; para o critério de persistência por mudança semântica, ver [DT-05](Dividas_Tecnicas.md#ordem-proposta-e-critérios-de-aceite).
 3. Gold: conferir/implementar hierarquia por atributo — documento apresentado mais recente, documento anterior, autodeclaração mais recente, autodeclaração anterior; preservar divergências.
 4. Conferência governada `VALIDATE`/`ACTIVATE`: executar [DT-01 e DT-09](Dividas_Tecnicas.md#ordem-proposta-e-critérios-de-aceite) como entregas técnicas relacionadas, mas distintas (definição independente da tolerância e integração dos gates); não ajustar parâmetros para passar na conferência.
