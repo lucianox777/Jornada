@@ -28,6 +28,11 @@ public sealed class ProbabilisticLinkageBatchRunner(
         CancellationToken ct)
     {
         ValidateRequest(request);
+        // A publicação exige a migration SQL de lote. Falhar antes de adquirir a janela
+        // exclusiva do corpus evita avaliar milhares de observações sem poder publicar.
+        if (request.Publish)
+            await EnsureBatchPublicationProcedureAvailableAsync(ct);
+
         var drainTimeoutSeconds = Math.Max(30,
             configuration.GetValue("PipelineCoordination:CurrentBatchDrainTimeoutSeconds", 900));
         await using var pipelineLease = await pipelineCoordinator.AcquireExclusiveJobAsync(
@@ -142,6 +147,20 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 ex.Message.Length <= 200 ? ex.Message : ex.Message[..200], CancellationToken.None);
             throw;
         }
+    }
+
+    private async Task EnsureBatchPublicationProcedureAvailableAsync(CancellationToken ct)
+    {
+        await using var connection = await operationalSql.OpenAsync(ct);
+        await using var command = new SqlCommand(
+            "SELECT CASE WHEN OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote', N'P') IS NULL THEN 0 ELSE 1 END;",
+            connection);
+        var available = Convert.ToInt32(
+            await command.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
+        if (available != 1)
+            throw new InvalidOperationException(
+                "DT-10: identidade.sp_publicar_resolucao_progressiva_linkage_lote ausente. " +
+                "Aplicar a migration SQL canônica antes de executar linkage com publicação.");
     }
 
     private async Task<IReadOnlyList<ScoredRow>> ScoreBatchAsync(
