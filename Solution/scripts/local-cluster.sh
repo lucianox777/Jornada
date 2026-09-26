@@ -93,8 +93,18 @@ calibrate() {
   local nominal_u_min_pairs="${JORNADA_LINKAGE_NOMINAL_U_MIN_PAIRS:-5000}"
   local nominal_u_min_pairs_per_pass="${JORNADA_LINKAGE_NOMINAL_U_MIN_PAIRS_PER_PASS:-1000}"
   echo "Convergência u nominal: mínimo união=$nominal_u_min_pairs; mínimo por passe=$nominal_u_min_pairs_per_pass."
+  local ibge_pairs="${JORNADA_LINKAGE_IBGE_MC_PAIR_COUNT:-1000000}"
+  local ibge_seed="${JORNADA_LINKAGE_IBGE_MC_SEED:-20260917}"
+  compose exec -T jornada-node2 env \
+    LinkageParameters__Operation=ENSURE_IBGE_NOMINAL_U_REFERENCE \
+    LinkageParameters__RunOnce=true \
+    LinkageParameters__IbgeNominalU__PairCount="$ibge_pairs" \
+    LinkageParameters__IbgeNominalU__Seed="$ibge_seed" \
+    dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
   compose exec -T jornada-node2 env \
     LinkageParameters__Operation=GENERATE_DRAFT \
+    LinkageParameters__IbgeNominalU__PairCount="$ibge_pairs" \
+    LinkageParameters__IbgeNominalU__Seed="$ibge_seed" \
     LinkageParameters__RunOnce=true \
     LinkageParameters__MinimumIndependentMatchedPairs="${JORNADA_LINKAGE_MIN_MATCHED_PAIRS:-2500}" \
     LinkageParameters__NominalUConvergence__MinimumConditionedPairs="$nominal_u_min_pairs" \

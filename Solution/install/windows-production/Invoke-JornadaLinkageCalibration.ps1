@@ -60,6 +60,9 @@ function Invoke-Parameters([string]$Operation, [Nullable[int]]$TargetVersion = $
 Invoke-Parameters 'ENSURE_NAME_FREQUENCY_SNAPSHOT'
 $activeReference = [int](Invoke-Scalar "SELECT COUNT(*) FROM ref.frequencia_nome_versao WHERE status='ATIVA' AND conteudo_sha256 IS NOT NULL;")
 if ($activeReference -ne 1) { throw "Calibração exige exatamente uma referência de frequências ATIVA; encontradas=$activeReference." }
+# Cache nominal em ref: no primeiro preparo materializa o Monte Carlo versionado;
+# nas proximas calibracoes apenas verifica a chave e reutiliza os estados.
+Invoke-Parameters 'ENSURE_IBGE_NOMINAL_U_REFERENCE'
 
 $before = [int](Invoke-Scalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;")
 Invoke-Parameters 'GENERATE_DRAFT'

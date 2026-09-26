@@ -12,7 +12,7 @@
     h1{font-size:20px;margin:0}.sub{font-size:12px;color:#627083;margin-top:3px}
     main{max-width:1500px;margin:0 auto;padding:20px 24px 50px}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .badge{border-radius:999px;padding:7px 12px;font-weight:700;font-size:12px;letter-spacing:.04em;background:#e8edf2;color:#465568}
-    .NORMAL,.OK,.CONFORME,.ATUAL,.PRONTA{background:#dff5e7;color:#146b36}.ATENCAO,.NAO_CONFIGURADO,.NAO_EXECUTADA,.SEM_EVIDENCIA_MODELO_ATIVO,.SEM_MODELO_ATIVO,.AUSENTE,.INCOMPLETA{background:#fff1cc;color:#7a5300}.FALHA,.DIVERGENTE,.OBSOLETA{background:#ffe0df;color:#9b1c18}
+    .NORMAL,.OK,.CONFORME,.ATUAL,.PRONTA,.DERIVADOS_DISPONIVEIS{background:#dff5e7;color:#146b36}.ATENCAO,.NAO_CONFIGURADO,.NAO_EXECUTADA,.SEM_EVIDENCIA_MODELO_ATIVO,.SEM_MODELO_ATIVO,.AUSENTE,.INCOMPLETA{background:#fff1cc;color:#7a5300}.FALHA,.DIVERGENTE,.OBSOLETA{background:#ffe0df;color:#9b1c18}
     button{border:1px solid #ccd5df;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}button:hover{background:#f7f9fb}
     .login{background:#fff;border:1px solid #dfe5eb;border-radius:12px;padding:18px;margin-bottom:18px;display:flex;gap:12px;align-items:end;flex-wrap:wrap}
     .login label{display:grid;gap:5px;font-size:12px;color:#536174}.login input{border:1px solid #cbd5df;border-radius:8px;padding:9px 10px;min-width:240px}.login .key{min-width:380px;max-width:100%}
@@ -118,7 +118,10 @@
     const refRows='<div class="bundle-grid">'+
       cell('Versão IBGE ATIVA',reference?.referenceCode||'nenhuma')+
       cell('SHA-256 do conteúdo',reference?.contentSha256?reference.contentSha256.slice(0,24)+'…':'—')+
-      cell('Referências ATIVAS',fmt(reference?.activeVersions))+'</div>';
+      cell('Referências ATIVAS',fmt(reference?.activeVersions))+
+      cell('Bootstrap nominal derivado de ref',reference?.derivedNominalUStatus||'AUSENTE')+
+      cell('Derivados: nome / mãe',fmt(reference?.derivedPersonVersions)+' / '+fmt(reference?.derivedMotherVersions))+
+      cell('Método do derivado',reference?.latestDerivedMethod||'—')+'</div>';
     if(!c?.modelId){
       out.innerHTML=refHead+refRows+'<p class="muted">Nenhum modelo gerado. A referência é independente do estado do Calibrador e deve ser preparada antes da primeira Entrega.</p>';
       return;

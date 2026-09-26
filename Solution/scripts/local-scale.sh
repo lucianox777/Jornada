@@ -68,6 +68,9 @@ dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Relea
 ACTIVE_NAME_REFERENCE="$(scalar "SELECT TOP(1) codigo FROM ref.frequencia_nome_versao WHERE status=N'ATIVA';")"
 [[ "$ACTIVE_NAME_REFERENCE" == "CENSO2022_NOMES_BRASIL_V1" ]] || { echo "ERRO: referência IBGE ATIVA inesperada após carga: $ACTIVE_NAME_REFERENCE" >&2; exit 4; }
 echo "Referência de frequências ativa: $ACTIVE_NAME_REFERENCE"
+# Pré-carga: bootstrap nominal versionado, idempotente; GENERATE_DRAFT só lê ref.
+export LinkageParameters__Operation=ENSURE_IBGE_NOMINAL_U_REFERENCE
+dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
 
 sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_PAIRED="$PAIRED" SCALE_PENDING="$PENDING" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" SCALE_BIRTH_SHIFT_MODULO="$BIRTH_SHIFT_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale.sql
 sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql
@@ -247,6 +250,14 @@ BLOCKING_PRESSURE_JSON="$(scalar "DECLARE @ruleset uniqueidentifier=(SELECT rule
 COORDINATION_PROBE_JSON="$(python3 "$ROOT/scripts/coordination-lock-probe.py" --root "$ROOT" --database "$DB" --delay-ms "$LOCK_HOLDER_DELAY_MS")"
 [[ -n "$COORDINATION_PROBE_JSON" ]] || { echo "ERRO: probe sincronizado de coordenação ausente." >&2; exit 6; }
 
+# Orçamento sintetico derivado do snapshot TEST do modelo; nao reutilizar
+# a amostra TEST como SCALE nem presumir validade populacional.
+SCALE_FP_BUDGET_BP="$(scalar "SELECT CONVERT(int,valor) FROM identidade.parametro_linkage WHERE modelo_id='$MODEL_ID' AND nome='FS_DECISION_CALIBRATION_MAX_FP_TEST_BP';")"
+[[ "$SCALE_FP_BUDGET_BP" =~ ^[0-9]+$ ]] && (( SCALE_FP_BUDGET_BP <= 10000 )) || {
+  echo "ERRO: budget FP congelado ausente/invalido no modelo SCALE" >&2
+  exit 5
+}
+
 GIT_COMMIT_SHA="$(git -C "$ROOT" rev-parse HEAD | tr '[:upper:]' '[:lower:]' | tr -d '\r\n')"
 [[ "$GIT_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "ERRO: SHA Git inválido para evidência de escala." >&2; exit 5; }
 
@@ -271,6 +282,8 @@ cat > "$OUT" <<JSON
   "blockingPressure": $BLOCKING_PRESSURE_JSON,
   "blockingPassPressure": $BLOCKING_PASS_PRESSURE_JSON,
   "blockingAuditSampleSize": $BLOCKING_AUDIT_LABEL_COUNT,
+  "scaleFpBudgetBasisPoints": $SCALE_FP_BUDGET_BP,
+  "scaleFpBudgetSource": "MODEL_TEST_BP_SYNTHETIC_SCALE_MONITOR",
   "decisionQuality": $DECISION_QUALITY_JSON,
   "coordinationProbe": $COORDINATION_PROBE_JSON,
   "runner": {

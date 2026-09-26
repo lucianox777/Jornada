@@ -140,6 +140,10 @@ try {
   $activeNameReference=Scalar "SELECT TOP(1) codigo FROM ref.frequencia_nome_versao WHERE status=N'ATIVA';"
   if($activeNameReference -ne 'CENSO2022_NOMES_BRASIL_V1'){throw "Referência IBGE ATIVA inesperada após carga: $activeNameReference"}
   Write-Host "Referência de frequências ativa: $activeNameReference"
+  # Derived reference is provisioned once, before the synthetic load.
+  $env:LinkageParameters__Operation='ENSURE_IBGE_NOMINAL_U_REFERENCE'
+  dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
+  if($LASTEXITCODE-ne 0){throw 'ENSURE_IBGE_NOMINAL_U_REFERENCE falhou'}
 
   SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
   SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql')
@@ -297,6 +301,13 @@ SELECT (
 $decisionQualityJson=Scalar $decisionQualityQuery
 if([string]::IsNullOrWhiteSpace($decisionQualityJson)){throw 'qualidade contra ground truth SCALE ausente.'}
 $decisionQuality=$decisionQualityJson | ConvertFrom-Json
+# Limite de FP SCALE: orçamento congelado, NÃO reotimizar sobre este corpus.
+$scaleFpBudgetText=Scalar "SELECT CONVERT(int,valor) FROM identidade.parametro_linkage WHERE modelo_id='$modelId' AND nome='FS_DECISION_CALIBRATION_MAX_FP_TEST_BP';"
+$scaleFpBudgetBp=0
+$scaleFpParsed=[int]::TryParse([string]$scaleFpBudgetText,[ref]$scaleFpBudgetBp)
+if(-not $scaleFpParsed -or $scaleFpBudgetBp -lt 0 -or $scaleFpBudgetBp -gt 10000){
+  throw 'budget FP congelado ausente/invalido no modelo SCALE'
+}
 $blockingPressureJson=Scalar "DECLARE @ruleset uniqueidentifier=(SELECT ruleset_id FROM identidade.linkage_ruleset WHERE modelo_id='$modelId'); SELECT (SELECT (SELECT COUNT(*) FROM identidade.linkage_ruleset_passe WHERE ruleset_id=@ruleset) AS ruleSetPassCount, (SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE vigencia_fim IS NULL) AS blockingRows, (SELECT COUNT_BIG(*) FROM (SELECT atributo,valor_normalizado FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) d) AS distinctKeys, (SELECT ISNULL(MAX(people_per_key),0) FROM (SELECT COUNT_BIG(DISTINCT pessoa_uuid) people_per_key FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) q) AS maxPeoplePerKey, JSON_QUERY((SELECT a.atributo AS attribute, COUNT_BIG(*) AS rows, COUNT_BIG(DISTINCT a.valor_normalizado) AS distinctValues, (SELECT ISNULL(MAX(people_per_value),0) FROM (SELECT COUNT_BIG(DISTINCT b.pessoa_uuid) people_per_value FROM identidade.blocking_chave b WHERE b.vigencia_fim IS NULL AND b.atributo=a.atributo GROUP BY b.valor_normalizado) z) AS maxPeoplePerValue FROM identidade.blocking_chave a WHERE a.vigencia_fim IS NULL GROUP BY a.atributo FOR JSON PATH)) AS attributes FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);"
 if([string]::IsNullOrWhiteSpace($blockingPressureJson)){throw 'métricas de pressão de blocking ausentes.'}
 $blockingPressure=$blockingPressureJson | ConvertFrom-Json
@@ -313,7 +324,7 @@ $gitCommitSha=((& git -C $Root rev-parse HEAD) | Select-Object -Last 1).Trim().T
 if($LASTEXITCODE -ne 0 -or $gitCommitSha -notmatch '^[0-9a-f]{40}$'){throw 'SHA Git inválido para evidência de escala.'}
 $out=Join-Path $outDir ("scale-{0}-{1}.json" -f $Profile,(Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ'))
 $report=[ordered]@{
-  reportVersion='LINKAGE_SCALE_EVIDENCE_V1';gitCommitSha=$gitCommitSha;profile=$Profile;seed=$seed;collisionModulo=$collisionModulo;birthShiftModulo=$birthShiftModulo;goldPeople=$people;pairedPeople=$paired;pendingWithoutCpf=$pending;trainingSampleSize=$sample;trainingPoolSize=$pool;modelVersion=$model;runtimeScope=$runtimeScope;parametersGenerateMilliseconds=$paramMs;runnerMilliseconds=$runnerMs;blockingPressure=$blockingPressure;blockingPassPressure=$blockingPassPressure;blockingAuditSampleSize=$blockingAuditLabelCount;decisionQuality=$decisionQuality;
+  reportVersion='LINKAGE_SCALE_EVIDENCE_V1';gitCommitSha=$gitCommitSha;profile=$Profile;seed=$seed;collisionModulo=$collisionModulo;birthShiftModulo=$birthShiftModulo;goldPeople=$people;pairedPeople=$paired;pendingWithoutCpf=$pending;trainingSampleSize=$sample;trainingPoolSize=$pool;modelVersion=$model;runtimeScope=$runtimeScope;parametersGenerateMilliseconds=$paramMs;runnerMilliseconds=$runnerMs;blockingPressure=$blockingPressure;blockingPassPressure=$blockingPassPressure;blockingAuditSampleSize=$blockingAuditLabelCount;scaleFpBudgetBasisPoints=$scaleFpBudgetBp;scaleFpBudgetSource='MODEL_TEST_BP_SYNTHETIC_SCALE_MONITOR';decisionQuality=$decisionQuality;
   coordinationProbe=$coordinationProbe;
   runner=[ordered]@{status=$row[0];eligible=[int64]$row[1];evaluated=[int64]$row[2];resolved=[int64]$row[3];unresolved=[int64]$row[4];conflicts=[int64]$row[5];noCandidateInBirthDateBlock=[int64]$row[6]};correlationId="$corr";generatedAtUtc=(Get-Date).ToUniversalTime().ToString('o')
 } | ConvertTo-Json -Depth 12

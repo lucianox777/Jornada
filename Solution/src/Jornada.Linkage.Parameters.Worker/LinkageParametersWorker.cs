@@ -227,16 +227,14 @@ public sealed class LinkageParametersWorker(
             // O scorer atual é pass-agnostic após a união, logo o u operacional convergente
             // é o da união do ruleset; os u por passe são persistidos como suporte/diagnóstico.
             var ibgeReference = await IbgeNominalUReferenceReader.ReadActiveReferenceAsync(connection, workCt);
-            var ibgePersonEntries = await IbgeNominalUReferenceReader.ReadBrazilPublishedMarginalsAsync(
-                connection, ibgeReference.Id, "TODOS", workCt);
-            var ibgeMotherEntries = await IbgeNominalUReferenceReader.ReadBrazilPublishedMarginalsAsync(
-                connection, ibgeReference.Id, "FEMININO", workCt);
-            var ibgePersonU = IbgeNominalUBootstrapEstimator.Estimate(
-                ibgePersonEntries,
-                new IbgeNominalUBootstrapOptions(ibgeNominalUSeed, ibgeNominalUPairCount));
-            var ibgeMotherU = IbgeNominalUBootstrapEstimator.Estimate(
-                ibgeMotherEntries,
-                new IbgeNominalUBootstrapOptions(unchecked(ibgeNominalUSeed + 1), ibgeNominalUPairCount));
+            var ibgePersonRef = await IbgeNominalUReferenceStore.RequireAsync(
+                connection, ibgeReference, "TODOS",
+                new IbgeNominalUBootstrapOptions(ibgeNominalUSeed, ibgeNominalUPairCount), workCt);
+            var ibgeMotherRef = await IbgeNominalUReferenceStore.RequireAsync(
+                connection, ibgeReference, "FEMININO",
+                new IbgeNominalUBootstrapOptions(unchecked(ibgeNominalUSeed + 1), ibgeNominalUPairCount), workCt);
+            var ibgePersonU = ibgePersonRef.Estimate;
+            var ibgeMotherU = ibgeMotherRef.Estimate;
 
             var modelParameters = ApplyNominalUConvergence(
                 // T_LINKAGE e margem abaixo são apenas placeholders transitórios exigidos pelo
@@ -250,6 +248,13 @@ public sealed class LinkageParametersWorker(
                 ibgeMotherU,
                 unmatchedSample.PassNominalSupport,
                 nominalUConvergenceOptions);
+            modelParameters = new Dictionary<string, decimal>(
+                modelParameters, StringComparer.Ordinal)
+            {
+                ["IBGE_U_REFCACHE_V1"] = 1m,
+                ["IBGE_U_REFCACHE_PERSON_ID"] = ibgePersonRef.Id,
+                ["IBGE_U_REFCACHE_MOTHER_ID"] = ibgeMotherRef.Id
+            };
             modelParameters = AbbreviationCompatibilityTrainingDiagnostics.Append(
                 modelParameters,
                 matchedPairs,

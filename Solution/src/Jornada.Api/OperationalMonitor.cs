@@ -138,7 +138,11 @@ internal sealed record IbgeReferenceReadiness(
     string Status,
     int ActiveVersions,
     string? ReferenceCode,
-    string? ContentSha256);
+    string? ContentSha256,
+    string DerivedNominalUStatus,
+    long DerivedPersonVersions,
+    long DerivedMotherVersions,
+    string? LatestDerivedMethod);
 
 internal sealed record LinkageBlockingPassSupportStatus(
     int PassOrder,
@@ -341,6 +345,18 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             WHERE v.status=N'ATIVA'
             ORDER BY v.frequencia_nome_versao_id DESC;
 
+            -- Quantidade de derivados nominais u prontos ligados ao conteudo IBGE
+            -- ativo. Chave exata de seed/pairCount continua sendo gate do Worker.
+            SELECT
+                COUNT_BIG(DISTINCT CASE WHEN u.recorte_prenome=N'TODOS' THEN u.ibge_u_referencia_id END) nomes,
+                COUNT_BIG(DISTINCT CASE WHEN u.recorte_prenome=N'FEMININO' THEN u.ibge_u_referencia_id END) maes,
+                MAX(u.metodo_versao) metodo
+            FROM ref.ibge_u_referencia u
+            JOIN ref.frequencia_nome_versao v
+              ON v.frequencia_nome_versao_id=u.frequencia_nome_versao_id
+            WHERE u.status=N'PRONTA' AND v.status=N'ATIVA'
+              AND u.conteudo_origem_sha256=v.conteudo_sha256;
+
             -- Ultimo modelo gerado, inclusive RASCUNHO/FALHOU, sem confundi-lo com ATIVO.
             SELECT m.modelo_id,m.versao,m.status,m.gerado_em,refv.codigo,
                    p.validation_bp,p.test_bp,p.validation_limit,p.test_limit,
@@ -395,7 +411,7 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             "NAO_DECLARADO", "NAO_DECLARADO", "PENDENTE_ISSUE_31");
         var modelTransitions = new List<LinkageModelTransitionStatus>();
         var blockingPassSupport = new List<LinkageBlockingPassSupportStatus>();
-        var ibgeReference = new IbgeReferenceReadiness("AUSENTE", 0, null, null);
+        var ibgeReference = new IbgeReferenceReadiness("AUSENTE", 0, null, null, "AUSENTE", 0, 0, null);
         var calibration = new LinkageCalibrationSummary(
             "SEM_MODELO", null, null, null, null, null,
             null, null, null, null, null, null, null, null,
@@ -550,12 +566,32 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
                 reader.GetInt32(2) == 1));
         ibgeReference = activeReferences.Count switch
         {
-            0 => new("AUSENTE", 0, null, null),
+            0 => new("AUSENTE", 0, null, null, "AUSENTE", 0, 0, null),
             1 when activeReferences[0].HasRows && activeReferences[0].Sha is not null
-                => new("PRONTA", 1, activeReferences[0].Code, activeReferences[0].Sha),
-            1 => new("INCOMPLETA", 1, activeReferences[0].Code, activeReferences[0].Sha),
-            _ => new("DIVERGENTE", activeReferences.Count, null, null)
+                => new("PRONTA", 1, activeReferences[0].Code, activeReferences[0].Sha,
+                    "AUSENTE", 0, 0, null),
+            1 => new("INCOMPLETA", 1, activeReferences[0].Code, activeReferences[0].Sha,
+                "AUSENTE", 0, 0, null),
+            _ => new("DIVERGENTE", activeReferences.Count, null, null,
+                "INDETERMINADO", 0, 0, null)
         };
+
+        await reader.NextResultAsync(ct);
+        if (await reader.ReadAsync(ct))
+        {
+            var personCount = reader.GetInt64(0);
+            var motherCount = reader.GetInt64(1);
+            var status = personCount > 0 && motherCount > 0
+                ? "DERIVADOS_DISPONIVEIS"
+                : personCount > 0 || motherCount > 0 ? "INCOMPLETA" : "AUSENTE";
+            ibgeReference = ibgeReference with
+            {
+                DerivedNominalUStatus = status,
+                DerivedPersonVersions = personCount,
+                DerivedMotherVersions = motherCount,
+                LatestDerivedMethod = reader.IsDBNull(2) ? null : reader.GetString(2)
+            };
+        }
 
         await reader.NextResultAsync(ct);
         if (await reader.ReadAsync(ct))

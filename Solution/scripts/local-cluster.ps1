@@ -180,6 +180,14 @@ function Invoke-Calibration {
     Write-Host "Holdout de decisão ativo; mínimo m no harness DEV=$minimumMatchedPairs."
     Invoke-Node2 -Command @(
         'env',
+        'LinkageParameters__Operation=ENSURE_IBGE_NOMINAL_U_REFERENCE',
+        'LinkageParameters__RunOnce=true',
+        "LinkageParameters__IbgeNominalU__PairCount=$ibgeMcPairCount",
+        "LinkageParameters__IbgeNominalU__Seed=$ibgeMcSeed",
+        'dotnet',
+        '/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
+    Invoke-Node2 -Command @(
+        'env',
         'LinkageParameters__Operation=GENERATE_DRAFT',
         'LinkageParameters__RunOnce=true',
         "LinkageParameters__MinimumIndependentMatchedPairs=$minimumMatchedPairs",

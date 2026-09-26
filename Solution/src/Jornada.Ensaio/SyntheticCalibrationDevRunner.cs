@@ -801,12 +801,29 @@ public sealed partial class SyntheticCalibrationDevRunner(
             cancellationToken);
 
         if (activeRows > 0)
-        {
             Console.WriteLine("Referência nominal IBGE ATIVA preservada; recarga omitida.");
-            return;
-        }
+        else
+            await RunNameFrequencySnapshotLoaderAsync(settings, cancellationToken);
 
-        await RunNameFrequencySnapshotLoaderAsync(settings, cancellationToken);
+        // O derivado de u nominal e materializado em ref e compartilhado entre
+        // as ondas/modelos antes da primeira Entrega. Cache hit nao recalcula MC.
+        await RunIbgeNominalUReferenceEnsureAsync(settings, cancellationToken);
+    }
+
+    private async Task RunIbgeNominalUReferenceEnsureAsync(
+        SyntheticCalibrationSettings settings,
+        CancellationToken cancellationToken)
+    {
+        var env = ParameterWorkerEnvironment(settings);
+        env["LinkageParameters__Operation"] = "ENSURE_IBGE_NOMINAL_U_REFERENCE";
+        env["LinkageParameters__RunOnce"] = "true";
+        foreach (var key in new[] { "Seed", "PairCount" })
+        {
+            var value = configuration[$"LinkageParameters:IbgeNominalU:{key}"];
+            if (!string.IsNullOrWhiteSpace(value))
+                env[$"LinkageParameters__IbgeNominalU__{key}"] = value;
+        }
+        await RunParametersWorkerAsync(settings, env, cancellationToken);
     }
 
     private static async Task RunNameFrequencySnapshotLoaderAsync(
