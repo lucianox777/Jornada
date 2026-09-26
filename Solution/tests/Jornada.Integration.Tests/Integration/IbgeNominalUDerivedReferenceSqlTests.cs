@@ -50,7 +50,7 @@ public sealed class IbgeNominalUDerivedReferenceSqlTests
             """, connection);
         create.Parameters.Add("@code", SqlDbType.NVarChar, 80).Value = "TEST_U_" + marker;
         create.Parameters.Add("@sha", SqlDbType.Binary, 32).Value = sourceHash;
-        var id = Convert.ToInt64(await create.ExecuteScalarAsync());
+        var id = Convert.ToInt64(await create.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
 
         await using (var incomplete = new SqlCommand(
             """
@@ -126,7 +126,7 @@ public sealed class IbgeNominalUDerivedReferenceSqlTests
         {
             verify.Parameters.Add("@id", SqlDbType.BigInt).Value = id;
             verify.Parameters.Add("@hash", SqlDbType.Binary, 32).Value = resultHash;
-            Assert.That(Convert.ToInt32(await verify.ExecuteScalarAsync()), Is.EqualTo(1));
+            Assert.That(Convert.ToInt32(await verify.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture), Is.EqualTo(1));
         }
     }
 }
