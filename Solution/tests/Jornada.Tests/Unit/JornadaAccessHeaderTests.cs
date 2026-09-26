@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace Jornada.Tests.Unit;
 
@@ -81,5 +82,33 @@ public sealed class JornadaAccessHeaderTests
         Assert.That(await Allowed(AccessCredentialType.BENEFICIO, "jornada.pessoas.read", ["jornada.pessoas.read"]), Is.True);
         Assert.That(await Allowed(AccessCredentialType.SERVICO, "jornada.identidade.resolve", ["jornada.identidade.resolve"]), Is.True);
         Assert.That(await Allowed(AccessCredentialType.GESTOR, "jornada.pessoas.read", []), Is.False);
+    }
+
+    [Test]
+    public async Task Configured_policies_match_every_matrix_scope_and_type()
+    {
+        var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "config", "security", "authorization-matrix.json");
+        using var matrix = JsonDocument.Parse(File.ReadAllText(path));
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddJornadaAccessSecurity();
+        using var provider = services.BuildServiceProvider();
+        var policyProvider = provider.GetRequiredService<IAuthorizationPolicyProvider>();
+
+        foreach (var route in matrix.RootElement.GetProperty("routes").EnumerateArray())
+        {
+            var permission = route.GetProperty("permission").GetString()!;
+            var policy = await policyProvider.GetPolicyAsync(permission);
+            Assert.That(policy, Is.Not.Null, "Policy ausente para " + permission);
+            Assert.That(policy!.AuthenticationSchemes, Does.Contain(JornadaAccessSecurity.Scheme));
+            var scope = policy.Requirements.OfType<JornadaScopeRequirement>().Single();
+            var allowType = route.GetProperty("allowedCredentialTypes").EnumerateArray()
+                .Any(v => v.GetString() is "BENEFICIO" or "SERVICO");
+            Assert.Multiple(() =>
+            {
+                Assert.That(scope.Permission, Is.EqualTo(permission));
+                Assert.That(scope.AllowType, Is.EqualTo(allowType), "Tipo divergente da matriz em " + permission);
+            });
+        }
     }
 }
