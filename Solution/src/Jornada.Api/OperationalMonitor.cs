@@ -1,3 +1,4 @@
+using Jornada.Contracts;
 using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
@@ -103,7 +104,19 @@ internal sealed record LinkageConferenceGovernanceStatus(
     DateTimeOffset? OccurredAt,
     string StatisticalValidation,
     string RoundTripMethod,
-    string RoundTripStatus);
+    string RoundTripStatus)
+{
+    // Diagnóstico externo não-governado: jamais substituir Status/EvidenceId
+    // da conferência persistida do scorer nem o RoundTripStatus.
+    public string SplinkMethod { get; init; } = SplinkIbgeReplayContract.MethodVersion;
+    public string SplinkStatus { get; init; } = "SEM_EVIDENCIA_EXTERNA";
+    public string? SplinkResultStatus { get; init; }
+    public string? SplinkReferenceSha256 { get; init; }
+    public string? SplinkEvidenceSha256 { get; init; }
+    public int? SplinkPairsEvaluated { get; init; }
+    public int? SplinkPairwiseDisagreements { get; init; }
+    public DateTimeOffset? SplinkEvidenceFileUpdatedAt { get; init; }
+}
 
 // Valores agregados por modelo; nao expoe scores, thresholds ou pessoa.
 internal sealed record LinkageCalibrationSummary(
@@ -611,6 +624,12 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
                 Dec(19), Dec(20), Dec(21), Dec(22), Dec(23), Dec(24));
         }
 
+        // Somente perfil ASP.NET Development e fonte IBGE ATIVA congruente.
+        // Ler os dois arquivos brutos e REVALIDAR a evidência por par para
+        // impedir que um JSON de resumo isolado falsifique "conformidade".
+        conferenceGovernance = AttachExternalSplinkDiagnostic(
+            conferenceGovernance, ibgeReference);
+
         var configurationHealth = EvaluateConfigurationHealth(components, databaseSolutionSchema);
         var onlineCount = components.Count(x => x.Online);
         var overall = components.Count == 0 || onlineCount == 0
@@ -637,6 +656,55 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             linkageRuns,
             calibration,
             ibgeReference);
+    }
+
+    private static LinkageConferenceGovernanceStatus AttachExternalSplinkDiagnostic(
+        LinkageConferenceGovernanceStatus current,
+        IbgeReferenceReadiness ibge)
+    {
+        var inputPath = Environment.GetEnvironmentVariable("JORNADA_SPLINK_IBGE_INPUT_PATH");
+        var resultPath = Environment.GetEnvironmentVariable("JORNADA_SPLINK_IBGE_RESULT_PATH");
+        if (!string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+                "Development", StringComparison.Ordinal) ||
+            string.IsNullOrWhiteSpace(inputPath) ||
+            string.IsNullOrWhiteSpace(resultPath))
+            return current;
+
+        if (ibge.Status != "PRONTA" || string.IsNullOrWhiteSpace(ibge.ContentSha256))
+            return current with { SplinkStatus = "REFERENCIA_IBGE_NAO_PRONTA" };
+
+        try
+        {
+            var inputFile = new FileInfo(inputPath);
+            var resultFile = new FileInfo(resultPath);
+            // Não materializar grandes corpora no processo API a cada snapshot.
+            if (!inputFile.Exists || !resultFile.Exists ||
+                inputFile.Length > 16_000_000 || resultFile.Length > 10_000_000)
+                return current with { SplinkStatus = "ARTEFATOS_AUSENTES_OU_GRANDES" };
+            var input = File.ReadAllText(inputFile.FullName);
+            var external = File.ReadAllText(resultFile.FullName);
+            var doc = SplinkIbgeReplayContract.ParseInput(input);
+            if (!string.Equals(doc.ReferenceContentSha256, ibge.ContentSha256,
+                    StringComparison.OrdinalIgnoreCase))
+                return current with { SplinkStatus = "REFERENCIA_EXTERNA_DIVERGENTE" };
+            var report = SplinkIbgeReplayContract.Diagnose(input, external);
+            return current with
+            {
+                SplinkStatus = "DIAGNOSTICO_EXTERNO_NAO_GOVERNADO",
+                SplinkResultStatus = report.Status,
+                SplinkReferenceSha256 = report.ReferenceContentSha256,
+                SplinkEvidenceSha256 = report.ExternalOutputSha256,
+                SplinkPairsEvaluated = report.PairCount,
+                SplinkPairwiseDisagreements = report.PairwiseDisagreements,
+                SplinkEvidenceFileUpdatedAt = new DateTimeOffset(
+                    resultFile.LastWriteTimeUtc, TimeSpan.Zero)
+            };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or System.Text.Json.JsonException or InvalidDataException or ArgumentException)
+        {
+            return current with { SplinkStatus = "ARTEFATOS_EXTERNOS_INVALIDOS" };
+        }
     }
 
     public static bool IsSchemaUnavailable(SqlException ex) => ex.Number is 207 or 208;
