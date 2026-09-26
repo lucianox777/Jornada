@@ -18,7 +18,8 @@ P_FLAG = re.compile(r"(?:^|[\s,])['\"]?-P(?:['\"])?(?=[\s,]|$)")
 DOCKER_ASSIGNMENT = re.compile(
     r"(?i)\bexec\b.{0,250}?"
     r"(?:\s-e\s+|['\"]-e['\"]\s*,\s*)"
-    r"['\"]?SQLCMDPASSWORD\s*="
+    r"['\"]?SQLCMDPASSWORD\s*=",
+    re.DOTALL,
 )
 
 
@@ -58,7 +59,19 @@ def problems(path: str, source: str) -> list[str]:
                 first = line.rstrip()
                 if P_FLAG.search(line) or first.endswith(("\\", "`")):
                     errors.append(f"{path}:{index + 1}: sqlcmd accepts -P in process argv")
-        if DOCKER_ASSIGNMENT.search(line):
+        # Join only an executable continuation or a PowerShell argument array;
+        # unrelated commands must not combine into a false positive.
+        docker_window = line
+        if "exec" in line:
+            continued = line.rstrip().endswith(("\\", "`"))
+            array_open = "@(" in line and line.count("(") > line.count(")")
+            for next_line in lines[index + 1:index + 6]:
+                if not (continued or array_open):
+                    break
+                docker_window += "\n" + next_line
+                continued = next_line.rstrip().endswith(("\\", "`"))
+                array_open = array_open and docker_window.count("(") > docker_window.count(")")
+        if DOCKER_ASSIGNMENT.search(docker_window):
             errors.append(f"{path}:{index + 1}: Docker receives SQLCMDPASSWORD=<value> in argv")
     return sorted(set(errors))
 
@@ -99,6 +112,27 @@ def self_test() -> None:
         "'sqlserver','/opt/mssql-tools18/bin/sqlcmd')"
     )
     assert problems("Solution/scripts/probe.ps1", bad_array)
+    bad_split_shell = (
+        'docker compose exec -T \\\n'
+        '  -e "SQLCMDPASSWORD=$secret" sqlserver /opt/mssql-tools18/bin/sqlcmd'
+    )
+    assert problems("Solution/scripts/probe.sh", bad_split_shell)
+    bad_split_array = (
+        "@('compose','exec',\n"
+        "'-T','-e',\n"
+        "'SQLCMDPASSWORD=$password','sqlserver')"
+    )
+    assert problems("Solution/scripts/probe.ps1", bad_split_array)
+    safe_split_shell = (
+        'SQLCMDPASSWORD="$secret" docker compose exec -T \\\n'
+        '  -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd'
+    )
+    assert not problems("Solution/scripts/probe.sh", safe_split_shell)
+    separate_commands = (
+        'docker compose exec -T -e SAFE=1 sqlserver /opt/mssql-tools18/bin/sqlcmd\n'
+        'echo "SQLCMDPASSWORD=$secret"'
+    )
+    assert not problems("Solution/scripts/probe.sh", separate_commands)
     assert eligible(".github/workflows/ci.yml")
     assert not eligible("Solution/scripts/test-secret-transport.sh")
 
