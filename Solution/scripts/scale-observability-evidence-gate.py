@@ -169,6 +169,16 @@ def validate(data: dict) -> list[str]:
         if runner_evaluated != runner_resolved + runner_unresolved + runner_conflicts:
             errors.append("runner: evaluated deve fechar resolved + unresolved + conflicts")
 
+    # Orçamento predeclarado persistido no modelo. No SCALE, e' limite de
+    # evidencia sintetica externa, NAO gate TEST de promocao nem FPR populacional.
+    scale_fp_bp = _nonnegative_int(
+        data.get("scaleFpBudgetBasisPoints"), "scaleFpBudgetBasisPoints", errors
+    )
+    if scale_fp_bp > 10000:
+        errors.append("scaleFpBudgetBasisPoints deve ser <= 10000")
+    if data.get("scaleFpBudgetSource") != "MODEL_TEST_BP_SYNTHETIC_SCALE_MONITOR":
+        errors.append("scaleFpBudgetSource deve identificar orçamento congelado do modelo")
+
     quality = data.get("decisionQuality")
     if not isinstance(quality, dict):
         errors.append("decisionQuality ausente ou inválido")
@@ -214,8 +224,15 @@ def validate(data: dict) -> list[str]:
             errors.append("decisionQuality.totalScale deve coincidir com pendingWithoutCpf")
         if resolved != correct + false_positives:
             errors.append("decisionQuality.resolved deve fechar resolvedCorrect + falsePositives")
-        if false_positives != 0:
-            errors.append("decisionQuality.falsePositives deve ser zero no ensaio sintético conservador")
+        # Nao retornar ao gate absoluto de zero FP: verificar o limite discreto
+        # correspondente ao orçamento do modelo, informando FP e recall observados.
+        allowed_fp = (total * scale_fp_bp + 9999) // 10000 if scale_fp_bp else 0
+        if false_positives > allowed_fp:
+            errors.append(
+                f"decisionQuality.falsePositives={false_positives} excede o "
+                f"teto sintetico discreto={allowed_fp} para "
+                f"n={total}, budget={scale_fp_bp} bp"
+            )
         if runner_evaluated != total:
             errors.append("runner.evaluated deve coincidir com decisionQuality.totalScale")
         if runner_resolved != resolved:
@@ -291,6 +308,8 @@ def _valid_fixture() -> dict:
     return {
         "goldPeople": 100,
         "pendingWithoutCpf": 20,
+        "scaleFpBudgetBasisPoints": 100,
+        "scaleFpBudgetSource": "MODEL_TEST_BP_SYNTHETIC_SCALE_MONITOR",
         "runtimeScope": {"blocking": {"mode": "RULESET"}},
         "blockingPressure": {
             "ruleSetPassCount": 2,
@@ -410,12 +429,23 @@ def self_test() -> int:
     if not validate(bad):
         raise RuntimeError("self-test: ruleset sem passe deveria ser rejeitado")
 
-    bad = copy.deepcopy(valid)
-    bad["decisionQuality"]["resolvedCorrect"] = 14
-    bad["decisionQuality"]["falsePositives"] = 1
-    bad["decisionQuality"]["ppvPct"] = 93.3333
-    if not validate(bad):
-        raise RuntimeError("self-test: falso positivo sintético deveria ser rejeitado")
+    # 20 observacoes a 100 bp admitem 1 FP pelo teto discreto ceil(0,2).
+    within_budget = copy.deepcopy(valid)
+    within_budget["decisionQuality"]["resolvedCorrect"] = 14
+    within_budget["decisionQuality"]["falsePositives"] = 1
+    within_budget["decisionQuality"]["ppvPct"] = 93.3333
+    if validate(within_budget):
+        raise RuntimeError("self-test: 1 FP dentro do budget deveria ser aceito")
+    above_budget = copy.deepcopy(within_budget)
+    above_budget["decisionQuality"]["resolvedCorrect"] = 13
+    above_budget["decisionQuality"]["falsePositives"] = 2
+    above_budget["decisionQuality"]["ppvPct"] = 86.6667
+    if not any("teto sintetico" in x for x in validate(above_budget)):
+        raise RuntimeError("self-test: 2 FP excedendo o teto devem ser rejeitados")
+    zero_budget = copy.deepcopy(within_budget)
+    zero_budget["scaleFpBudgetBasisPoints"] = 0
+    if not any("teto sintetico" in x for x in validate(zero_budget)):
+        raise RuntimeError("self-test: 0 bp deve manter limite zero")
 
     bad = copy.deepcopy(valid)
     bad["decisionQuality"]["unresolvedTruthOutsideTop2"] = 0
@@ -458,7 +488,14 @@ def main() -> int:
         for error in errors:
             print(f"ERRO: {error}")
         return 2
-    print("SCALE OBSERVABILITY EVIDENCE GATE: OK")
+    q = data["decisionQuality"]
+    budget = data["scaleFpBudgetBasisPoints"]
+    print(
+        "SCALE OBSERVABILITY EVIDENCE GATE: OK "
+        f"(fp={q['falsePositives']}/{q['totalScale']}; budget={budget} bp; "
+        f"resolvedCorrect={q['resolvedCorrect']}; "
+        f"recall={q['sensitivityPct']}%; conflicts={q['conflicts']})"
+    )
     return 0
 
 
