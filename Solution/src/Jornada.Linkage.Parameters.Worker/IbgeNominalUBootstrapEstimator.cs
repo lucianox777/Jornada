@@ -14,6 +14,8 @@ public sealed record IbgeNominalUBootstrapOptions(
     public const string ObservationChannelVersion = "CLEAN_PUBLISHED_REFERENCE_NO_ERROR_CHANNEL_V1";
 }
 
+public sealed record IbgeNominalUReplayPair(int Index, string LeftName, string RightName, string CSharpState);
+
 public sealed record IbgeNominalUStateEstimate(
     string State,
     long Support,
@@ -68,14 +70,8 @@ public static class IbgeNominalUBootstrapEstimator
         var counts = States.ToDictionary(static state => state, static _ => 0L);
         for (var pairIndex = 0; pairIndex < options.PairCount; pairIndex++)
         {
-            var left = string.Concat(
-                firstNames.Sample(options.Seed, pairIndex, "L_FIRST"),
-                " ",
-                surnames.Sample(options.Seed, pairIndex, "L_SURNAME"));
-            var right = string.Concat(
-                firstNames.Sample(options.Seed, pairIndex, "R_FIRST"),
-                " ",
-                surnames.Sample(options.Seed, pairIndex, "R_SURNAME"));
+            var left = FullName(firstNames, surnames, options.Seed, pairIndex, "L");
+            var right = FullName(firstNames, surnames, options.Seed, pairIndex, "R");
 
             counts[IdentityComparison.CompareName(left, right, nameComparisonContract)]++;
         }
@@ -113,6 +109,45 @@ public static class IbgeNominalUBootstrapEstimator
             exactFirstName * exactSurname,
             stateEstimates);
     }
+
+    /// <summary>
+    /// Replay de um subconjunto limitado do MESMO Monte Carlo que Estimate() usa.
+    /// Retorna exclusivamente nomes sintéticos amostrados das marginais publicadas
+    /// (nunca lê Silver/Gold), com índice, seed e estado canônico para conferência externa.
+    /// Não pretende provar representatividade do IBGE nem validade populacional.
+    /// </summary>
+    public static IReadOnlyList<IbgeNominalUReplayPair> ReplayPairs(
+        IEnumerable<IbgeTypedNameFrequencyEntry> entries,
+        IbgeNominalUBootstrapOptions options,
+        NameComparisonContract nameComparisonContract = NameComparisonContract.WholeNameJaroWinklerV1)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        ArgumentNullException.ThrowIfNull(options);
+        if (options.PairCount < 1 || options.PairCount > 100_000)
+            throw new ArgumentOutOfRangeException(nameof(options),
+                "Replay externo aceita entre 1 e 100000 pares publicados sintéticos.");
+        if (!Enum.IsDefined(nameComparisonContract))
+            throw new ArgumentOutOfRangeException(nameof(nameComparisonContract));
+
+        var materialized = entries.ToArray();
+        var firstNames = BuildSampler(materialized, IbgeNameStatisticKind.FirstName);
+        var surnames = BuildSampler(materialized, IbgeNameStatisticKind.Surname);
+        var replay = new List<IbgeNominalUReplayPair>(options.PairCount);
+        for (var index = 0; index < options.PairCount; index++)
+        {
+            var left = FullName(firstNames, surnames, options.Seed, index, "L");
+            var right = FullName(firstNames, surnames, options.Seed, index, "R");
+            replay.Add(new(index, left, right,
+                IdentityComparison.CompareName(left, right, nameComparisonContract).ToString()));
+        }
+
+        return replay;
+    }
+
+    private static string FullName(WeightedSampler firstNames, WeightedSampler surnames,
+        int seed, int index, string side) =>
+        string.Concat(firstNames.Sample(seed, index, side + "_FIRST"), " ",
+            surnames.Sample(seed, index, side + "_SURNAME"));
 
     private static WeightedSampler BuildSampler(
         IEnumerable<IbgeTypedNameFrequencyEntry> entries,
