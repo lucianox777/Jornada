@@ -175,7 +175,7 @@ e não é passada como argumento de processo. `ExpectedSeeds` e `RunGroupId`
 podem ser fixados entre invocações para formar um grupo multi-seed sem perder as
 rodadas já persistidas.
 
-O default do ensaio é **200.000 pessoas-base**. O Calibrador aplica o mínimo
+O default de iteração DEV permanece **200.000 pessoas-base**; o perfil proposto de 1.500.000 é hipótese de escala, não configuração comprovadamente executável. Ver [decisões revisadas](Decisoes_Linkage_Calibracao_IBGE_20260926.md): o número de prenomes distintos deve ser medido na projeção IBGE, não inferido de `N/ln(M)`; o avaliador usa união exata de candidatos, abortando ao exceder `MaxCandidatePairs`, e o ZIP por Gestor pode ultrapassar o limite por Entrega antes da adequação de chunking. **Não executar 1,5M como simples troca de People.**\n\nO default do ensaio anterior foi **200.000 pessoas-base**. O Calibrador aplica o mínimo
 `MinimumIndependentMatchedPairs=5000` depois do split determinístico TRAIN
 (default 60%) e escolhe no máximo um par de fontes por pessoa. Com prevalência-base
 de CPF ~22%, retenção por observação ~55%, perfil `correlated` e exclusão das linhas
