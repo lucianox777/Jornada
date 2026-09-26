@@ -28,6 +28,11 @@ public sealed class ProbabilisticLinkageBatchRunner(
         CancellationToken ct)
     {
         ValidateRequest(request);
+        // A publicação exige a migration SQL de lote. Falhar antes de adquirir a janela
+        // exclusiva do corpus evita avaliar milhares de observações sem poder publicar.
+        if (request.Publish)
+            await EnsureBatchPublicationProcedureAvailableAsync(ct);
+
         var drainTimeoutSeconds = Math.Max(30,
             configuration.GetValue("PipelineCoordination:CurrentBatchDrainTimeoutSeconds", 900));
         await using var pipelineLease = await pipelineCoordinator.AcquireExclusiveJobAsync(
@@ -142,6 +147,20 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 ex.Message.Length <= 200 ? ex.Message : ex.Message[..200], CancellationToken.None);
             throw;
         }
+    }
+
+    private async Task EnsureBatchPublicationProcedureAvailableAsync(CancellationToken ct)
+    {
+        await using var connection = await operationalSql.OpenAsync(ct);
+        await using var command = new SqlCommand(
+            "SELECT CASE WHEN OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote', N'P') IS NULL THEN 0 ELSE 1 END;",
+            connection);
+        var available = Convert.ToInt32(
+            await command.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
+        if (available != 1)
+            throw new InvalidOperationException(
+                "DT-10: identidade.sp_publicar_resolucao_progressiva_linkage_lote ausente. " +
+                "Aplicar a migration SQL canônica antes de executar linkage com publicação.");
     }
 
     private async Task<IReadOnlyList<ScoredRow>> ScoreBatchAsync(
@@ -591,74 +610,13 @@ public sealed class ProbabilisticLinkageBatchRunner(
                    OR motivo_publicacao IS NULL OR politica_publicacao_versao IS NULL OR publicado_em IS NULL))
             THROW 51820, 'Decisão operacional incompleta; publicação do linkage recusada.', 1;
 
-        DECLARE @progressiva_origem BIGINT,@progressiva_obs BIGINT,@progressiva_versao BIGINT;
-        DECLARE progressiva_linkage CURSOR LOCAL FAST_FORWARD FOR
-            SELECT y.pessoa_origem_id,y.pessoa_observacao_id
-            FROM (
-                SELECT x.*,
-                       MAX(x.protegido) OVER(PARTITION BY x.pessoa_origem_id) AS origem_protegida
-                FROM (
-                    SELECT po.pessoa_origem_id,r.pessoa_observacao_id,
-                           CASE WHEN EXISTS(
-                               SELECT 1 FROM identidade.vinculo_fonte vf WITH(HOLDLOCK)
-                               WHERE vf.pessoa_observacao_id=r.pessoa_observacao_id
-                                 AND vf.ativo=1
-                                 AND vf.metodo_resolucao IN(
-                                   N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',
-                                   N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO')
-                           ) THEN 1 ELSE 0 END AS protegido,
-                           ROW_NUMBER() OVER(
-                             PARTITION BY po.pessoa_origem_id
-                             ORDER BY po.versao_interna DESC,r.pessoa_observacao_id DESC) rn
-                    FROM identidade.linkage_resultado r WITH(HOLDLOCK)
-                    JOIN silver.pessoa_observacao po WITH(HOLDLOCK)
-                      ON po.pessoa_observacao_id=r.pessoa_observacao_id
-                    WHERE r.linkage_run_id=@run_id
-                      AND po.pessoa_origem_id IS NOT NULL
-                ) x
-            ) y
-            WHERE y.rn=1 AND y.origem_protegida=0
-            ORDER BY y.pessoa_origem_id;
-
-        OPEN progressiva_linkage;
-        FETCH NEXT FROM progressiva_linkage INTO @progressiva_origem,@progressiva_obs;
-        WHILE @@FETCH_STATUS=0
-        BEGIN
-            SET @progressiva_versao=NULL;
-            EXEC identidade.sp_publicar_resolucao_progressiva_linkage
-                 @linkage_run_id=@run_id,
-                 @pessoa_observacao_id=@progressiva_obs,
-                 @versao_resultado=@progressiva_versao OUTPUT;
-
-            UPDATE rr
-               SET progressiva_versao=@progressiva_versao,
-                   resultado_publicacao=CASE
-                     WHEN rr.pessoa_observacao_id=@progressiva_obs THEN rr.resultado_publicacao
-                     WHEN p.estado=N'REFERENCIA' THEN N'ASSOCIACAO_EXISTENTE'
-                     ELSE N'INDEFINIDA' END,
-                   pessoa_uuid_publicado=CASE
-                     WHEN rr.pessoa_observacao_id=@progressiva_obs THEN rr.pessoa_uuid_publicado
-                     WHEN p.estado=N'REFERENCIA' THEN p.canonical_uuid
-                     ELSE NULL END,
-                   status_publicacao=CASE
-                     WHEN rr.pessoa_observacao_id=@progressiva_obs THEN rr.status_publicacao
-                     WHEN p.estado=N'REFERENCIA' THEN N'RESOLVIDO'
-                     WHEN rr.status=N'CONFLITO' THEN N'CONFLITO'
-                     ELSE N'NAO_RESOLVIDO' END,
-                   motivo_publicacao=CASE
-                     WHEN rr.pessoa_observacao_id=@progressiva_obs THEN rr.motivo_publicacao
-                     WHEN p.estado=N'REFERENCIA' THEN N'REFERENCIA_PROGRESSIVA_PROPAGADA_NA_ORIGEM'
-                     ELSE N'INDEFINICAO_PROGRESSIVA_PROPAGADA_NA_ORIGEM' END
-            FROM identidade.linkage_resultado rr
-            JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=rr.pessoa_observacao_id
-            JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=po.pessoa_origem_id
-            WHERE rr.linkage_run_id=@run_id
-              AND po.pessoa_origem_id=@progressiva_origem;
-
-            FETCH NEXT FROM progressiva_linkage INTO @progressiva_origem,@progressiva_obs;
-        END;
-        CLOSE progressiva_linkage;
-        DEALLOCATE progressiva_linkage;
+        -- DT-10: a rotina SQL canônica executa a publicação e a propagação em lote,
+        -- na MESMA transação Serializable do cabeçalho. Ela deve aplicar a precedência
+        -- determinística/governada à origem inteira e preservar as invariantes do ledger.
+        -- Não usar INSERT...EXEC aqui: sp_assegurar_origem_progressiva já utiliza
+        -- INSERT...EXEC internamente, e SQL Server proíbe aninhamento.
+        EXEC identidade.sp_publicar_resolucao_progressiva_linkage_lote
+             @linkage_run_id=@run_id;
 
         IF EXISTS(
             SELECT 1 FROM identidade.linkage_resultado r

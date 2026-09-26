@@ -84,6 +84,8 @@ IF OBJECT_ID(N'ref.sp_publicar_frequencia_nome_versao',N'P') IS NULL
     INSERT @missing(item) VALUES(N'PROC:ref.sp_publicar_frequencia_nome_versao');
 IF OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage',N'P') IS NULL
     INSERT @missing(item) VALUES(N'PROC:identidade.sp_publicar_resolucao_progressiva_linkage');
+IF OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote',N'P') IS NULL
+    INSERT @missing(item) VALUES(N'PROC:identidade.sp_publicar_resolucao_progressiva_linkage_lote');
 IF OBJECT_ID(N'auditoria.sp_registrar_decisao_identidade',N'P') IS NULL
     INSERT @missing(item) VALUES(N'PROC:auditoria.sp_registrar_decisao_identidade');
 IF OBJECT_ID(N'auditoria.sp_calcular_fingerprint_modelo_linkage',N'P') IS NULL

@@ -130,8 +130,10 @@ jobs:
         run: |
           python3 scripts/sql-performance-evidence-gate.py --self-test
           python3 scripts/api-projection-evidence-gate.py --self-test
-      - name: Gate authorization matrix
-        run: python3 scripts/authorization-matrix-gate.py
+      - name: Gate authorization matrix and negative mutations
+        run: |
+          python3 scripts/authorization-matrix-gate.py
+          python3 scripts/authorization-matrix-gate.py --self-test
       - name: Gate security/data-minimization surface
         run: python3 scripts/security-surface-gate.py
       - name: Gate explicit version compatibility matrix

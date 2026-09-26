@@ -1,4 +1,5 @@
 using Jornada.Contracts;
+using Jornada.Linkage.Runner;
 using System.Text.Json;
 using Jornada.Access.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -164,6 +165,24 @@ public sealed class ProgressiveIdentityTests
         Assert.That(properties.GetProperty("versao").GetProperty("format").GetString(), Is.EqualTo("int64"));
         Assert.That(properties.GetProperty("estado").GetProperty("enum").EnumerateArray()
             .Select(value => value.GetString()), Is.EquivalentTo(new[] { "PROVISORIA", "REFERENCIA", "INDEFINIDA" }));
+    }
+
+    [Test]
+    public void Progressive_publication_invokes_one_batch_contract_inside_the_run_transaction()
+    {
+        // O algoritmo de transições continua no SQL governado; o runner só o invoca.
+        var sql = ProbabilisticLinkageBatchRunner.ProgressivePublicationSql();
+        const string batchCall = "EXEC identidade.sp_publicar_resolucao_progressiva_linkage_lote";
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sql.Split(batchCall, StringSplitOptions.None), Has.Length.EqualTo(2),
+                "Uma execução do run deve acionar somente uma chamada de lote.");
+            Assert.That(sql, Does.Contain("@linkage_run_id=@run_id"));
+            Assert.That(sql, Does.Not.Contain("progressiva_linkage CURSOR"));
+            Assert.That(sql, Does.Contain("progressiva_versao IS NULL"),
+                "Origem não protegida sem versão nunca pode ser publicada.");
+        });
     }
 
     private static ProgressiveIdentityDecision Decision(ProgressiveIdentitySnapshot state,

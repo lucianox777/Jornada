@@ -19,9 +19,41 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
             Assert.That(sql, Does.Contain("NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA"));
             Assert.That(sql, Does.Contain("DESTINO_LINKAGE_NAO_ESTABELECIDO"));
             Assert.That(sql, Does.Contain("Origem persistente sem initial_uuid"));
-            Assert.That(sql, Does.Contain("sp_publicar_resolucao_progressiva_linkage"));
-            Assert.That(sql, Does.Contain("origem_protegida=0"));
-            Assert.That(sql, Does.Contain("progressiva_versao IS NULL"));
+            Assert.That(sql, Does.Contain("EXEC identidade.sp_publicar_resolucao_progressiva_linkage_lote"));
+            Assert.That(sql, Does.Contain("@linkage_run_id=@run_id"));
+            Assert.That(sql, Does.Contain("progressiva_versao IS NULL"),
+                "Nenhuma origem persistente não protegida pode ficar sem versão.");
+            Assert.That(sql, Does.Not.Contain("DECLARE progressiva_linkage CURSOR"),
+                "Um cursor por origem não é uma implementação set-based.");
+            Assert.That(sql, Does.Not.Contain("EXEC identidade.sp_publicar_resolucao_progressiva_linkage\n"),
+                "Não contornar o contrato de lote chamando a procedure escalar por linha.");
+        });
+    }
+
+    [Test]
+    public void Missing_batch_procedure_is_detected_before_exclusive_corpus_lock()
+    {
+        // A ausência da migration de DT-10 deve abortar rapidamente e sem criar
+        // run parcial; execução sem publicação não precisa dessa procedure.
+        var runner = File.ReadAllText(Path.Combine(FindSolutionRoot(), "src",
+            "Jornada.Linkage.Runner", "ProbabilisticLinkageBatchRunner.cs"));
+        var validate = runner.IndexOf("ValidateRequest(request);", StringComparison.Ordinal);
+        var conditional = runner.IndexOf("if (request.Publish)", validate, StringComparison.Ordinal);
+        var preflight = runner.IndexOf(
+            "await EnsureBatchPublicationProcedureAvailableAsync(ct);", conditional,
+            StringComparison.Ordinal);
+        var lease = runner.IndexOf("await pipelineCoordinator.AcquireExclusiveJobAsync(",
+            preflight, StringComparison.Ordinal);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(validate, Is.GreaterThanOrEqualTo(0));
+            Assert.That(conditional, Is.GreaterThan(validate));
+            Assert.That(preflight, Is.GreaterThan(conditional));
+            Assert.That(lease, Is.GreaterThan(preflight),
+                "Não adquirir a janela exclusiva nem materializar run sem API de publicação.");
+            Assert.That(runner, Does.Contain(
+                "OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote', N'P')"));
         });
     }
 
