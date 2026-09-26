@@ -135,6 +135,13 @@ public sealed class LinkageParametersWorker(
             4_900);
         if (decisionValidationBasisPoints + decisionTestBasisPoints >= 10_000)
             throw new InvalidOperationException("DecisionCalibration VALIDATION + TEST deve deixar partição TRAIN não vazia.");
+        // Configuração prévia do orçamento: não ajustar a partir da observação de TEST.
+        var maxFpValidationBp = configuration.GetValue(
+            "LinkageParameters:DecisionCalibrationMaxFpValidationBasisPoints", 100);
+        var maxFpTestBp = configuration.GetValue(
+            "LinkageParameters:DecisionCalibrationMaxFpTestBasisPoints", 100);
+        if (maxFpValidationBp is < 0 or > 10_000 || maxFpTestBp is < 0 or > 10_000)
+            throw new InvalidOperationException("Limites FS de FP precisam estar entre 0 e 10000 bp.");
         var blockingSearchOptions = BlockingRuleSetSearchConfiguration.FromConfiguration(configuration);
         var readCommandTimeoutSeconds = Math.Max(30, configuration.GetValue("LinkageParameters:ReadCommandTimeoutSeconds", 900));
         var ibgeNominalUPairCount = Math.Clamp(
@@ -268,10 +275,13 @@ public sealed class LinkageParametersWorker(
                 decisionCalibrationScenarios,
                 decisionCalibrationSeed,
                 decisionValidationBasisPoints,
-                decisionTestBasisPoints);
+                decisionTestBasisPoints,
+                maxFpValidationBasisPoints: maxFpValidationBp,
+                maxFpTestBasisPoints: maxFpTestBp);
             modelParameters = FsDecisionThresholdCalibrator.ApplySelected(
                 modelParameters,
-                decisionCalibration);
+                decisionCalibration,
+                maxFpTest: decisionCalibration.MaxFpTestAbsolute);
 
             var persistedParameters = BuildPersistedParameters(
                 modelParameters, statistics, samplePoolSize, minimumIndependentMatchedPairs,
@@ -721,7 +731,7 @@ public sealed class LinkageParametersWorker(
         try
         {
             var command = new SqlCommand(
-                """
+                $"""
                 DECLARE @modelo_id UNIQUEIDENTIFIER; DECLARE @status NVARCHAR(20); DECLARE @registros BIGINT; DECLARE @pessoas BIGINT; DECLARE @amostra_metodo NVARCHAR(80); DECLARE @algoritmo_versao NVARCHAR(80);
                 SELECT @modelo_id=modelo_id,@status=status,@registros=registros_lidos,@pessoas=pessoas_unicas,@amostra_metodo=amostra_metodo,@algoritmo_versao=algoritmo_versao FROM identidade.modelo_linkage WITH (UPDLOCK,HOLDLOCK) WHERE versao=@versao;
                 IF @modelo_id IS NULL THROW 51001, 'Modelo de linkage não encontrado.', 1;
@@ -765,10 +775,8 @@ public sealed class LinkageParametersWorker(
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
                    AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='DUAL_THRESHOLD_CONFLICT_FLOOR' AND valor>=0 AND valor<=1)
                     THROW 51025, 'Modelo SQL Server V6 sem piso calibrado válido para segundo candidato.', 1;
-                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
-                   AND EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='FS_DECISION_CALIBRATION_TEST_FP' AND valor<>0)
-                    THROW 51022, 'Modelo SQL Server V6 falhou no safety gate TEST da calibração de decisão.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset r WHERE r.modelo_id=@modelo_id AND EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id) AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe_campo rc WHERE rc.ruleset_id=rp.ruleset_id AND rc.passe_ordem=rp.passe_ordem))) THROW 51013, 'Modelo SQL Server sem ruleset dinâmico completo.', 1;
+                {DecisionCalibrationRateGateSql}
                 EXEC auditoria.sp_assert_conferencia_linkage_conforme
                     @modelo_id=@modelo_id,
                     @metodo_versao=@conference_method_version,
@@ -795,7 +803,7 @@ public sealed class LinkageParametersWorker(
         try
         {
             var command = new SqlCommand(
-                """
+                $"""
                 DECLARE @lock_result INT; EXEC @lock_result=sys.sp_getapplock @Resource='Jornada.Linkage.Parameters.Activation',@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=60000;
                 IF @lock_result<0 THROW 51006, 'Não foi possível obter lock para ativação do modelo.', 1;
                 DECLARE @modelo_id UNIQUEIDENTIFIER; DECLARE @status NVARCHAR(20); DECLARE @amostra_metodo NVARCHAR(80); DECLARE @algoritmo_versao NVARCHAR(80);
@@ -810,6 +818,7 @@ public sealed class LinkageParametersWorker(
                         WHERE NOT EXISTS (SELECT 1 FROM identidade.parametro_linkage p WHERE p.modelo_id=@modelo_id AND p.nome=req.nome)) THROW 51018, 'Modelo V5 validado sem distribuição semântica de nascimento completa.', 1;
                 END
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset r WHERE r.modelo_id=@modelo_id AND EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id) AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe_campo rc WHERE rc.ruleset_id=rp.ruleset_id AND rc.passe_ordem=rp.passe_ordem))) THROW 51014, 'Modelo SQL Server validado sem ruleset dinâmico completo.', 1;
+                {DecisionCalibrationRateGateSql}
                 EXEC auditoria.sp_assert_conferencia_linkage_conforme
                     @modelo_id=@modelo_id,
                     @metodo_versao=@conference_method_version,
@@ -828,6 +837,48 @@ public sealed class LinkageParametersWorker(
         }
         catch { await transaction.RollbackAsync(cancellationToken); throw; }
     }
+
+
+    // Reaplicado nos dois gates de promoção. Limite congelado no modelo é
+    // verificado contra a mesma amostra e não pode ser inflado no banco.
+    private const string DecisionCalibrationRateGateSql = """
+        IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+        BEGIN
+            DECLARE @vb DECIMAL(30,12),@tb DECIMAL(30,12),
+                    @vl DECIMAL(30,12),@tl DECIMAL(30,12),
+                    @vf DECIMAL(30,12),@tf DECIMAL(30,12),
+                    @vn DECIMAL(30,12),@tn DECIMAL(30,12),
+                    @vp DECIMAL(30,12),@tp DECIMAL(30,12),
+                    @vneg DECIMAL(30,12),@tneg DECIMAL(30,12);
+            SELECT
+                @vb=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_MAX_FP_VALIDATION_BP' THEN valor END),
+                @tb=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_MAX_FP_TEST_BP' THEN valor END),
+                @vl=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_VALIDATION_FP_LIMIT' THEN valor END),
+                @tl=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_TEST_FP_LIMIT' THEN valor END),
+                @vf=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_VALIDATION_FP' THEN valor END),
+                @tf=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_TEST_FP' THEN valor END),
+                @vn=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_VALIDATION_DENOMINATOR' THEN valor END),
+                @tn=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_TEST_DENOMINATOR' THEN valor END),
+                @vp=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_VALIDATION_POSITIVE' THEN valor END),
+                @tp=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_TEST_POSITIVE' THEN valor END),
+                @vneg=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_VALIDATION_NEGATIVE' THEN valor END),
+                @tneg=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_TEST_NEGATIVE' THEN valor END)
+            FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id;
+            IF @vb IS NULL OR @tb IS NULL OR @vl IS NULL OR @tl IS NULL
+                OR @vf IS NULL OR @tf IS NULL OR @vn IS NULL OR @tn IS NULL
+                OR @vp IS NULL OR @tp IS NULL OR @vneg IS NULL OR @tneg IS NULL
+                THROW 51028, 'Calibração FS sem evidência completa do orçamento FP.', 1;
+            IF @vb NOT BETWEEN 0 AND 10000 OR @tb NOT BETWEEN 0 AND 10000
+                OR @vb<>FLOOR(@vb) OR @tb<>FLOOR(@tb)
+                OR @vp<=0 OR @tp<=0 OR @vneg<=0 OR @tneg<=0
+                OR @vn<>@vp+@vneg OR @tn<>@tp+@tneg
+                OR @vl<>CEILING(@vn*@vb/10000.0)
+                OR @tl<>CEILING(@tn*@tb/10000.0)
+                THROW 51029, 'Orçamento FP inconsistente com as partições congeladas.', 1;
+            IF @vf<0 OR @tf<0 OR @vf>@vl OR @tf>@tl
+                THROW 51022, 'Calibração FS excedeu o limite de FP de VALIDATION/TEST.', 1;
+        END;
+        """;
 
     private ImplementationConferenceToleranceContract LoadPromotionConferenceTolerance()
     {
