@@ -240,7 +240,9 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 END;
 
                 UPDATE identidade.linkage_run
-                SET status='EXECUTANDO', registros_elegiveis=@elegiveis
+                SET status='EXECUTANDO', registros_elegiveis=@elegiveis,
+                    fresh_pending=CASE WHEN @tipo_run=N'INCREMENTAL' THEN @fresh_pendentes ELSE NULL END,
+                    reavaliados=CASE WHEN @tipo_run=N'INCREMENTAL' THEN @reavaliados ELSE NULL END
                 WHERE linkage_run_id=@run_id AND status='PREPARANDO';
 
                 SELECT @high_watermark,@elegiveis,@fresh_pendentes,@reavaliados;

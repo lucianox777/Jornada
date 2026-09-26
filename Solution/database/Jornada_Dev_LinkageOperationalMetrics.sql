@@ -15,7 +15,8 @@ WHERE metodo_resolucao IN (N'PENDENTE_PROBABILISTICO',N'LINKAGE_PROBABILISTICO')
 GROUP BY metodo_resolucao,status ORDER BY metodo_resolucao,status;
 ;WITH recent AS (
  SELECT TOP (25) linkage_run_id,tipo_run,status,modelo_versao,iniciado_em,
-  finalizado_em,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos
+  finalizado_em,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,
+  fresh_pending,reavaliados
  FROM identidade.linkage_run ORDER BY iniciado_em DESC,linkage_run_id DESC
 )
 SELECT CONVERT(varchar(36),r.linkage_run_id) AS run_id,
@@ -23,8 +24,10 @@ SELECT CONVERT(varchar(36),r.linkage_run_id) AS run_id,
  DATEDIFF_BIG(MILLISECOND,r.iniciado_em,r.finalizado_em) AS duracao_ms,
  r.registros_elegiveis,r.avaliados,r.resolvidos,r.nao_resolvidos,r.conflitos,
  ISNULL(l.gravadas,CONVERT(bigint,0)) AS linhas_gravadas,
- CAST(NULL AS bigint) AS fresh_pending_exato_nao_persistido,
- CAST(NULL AS bigint) AS reavaliados_exato_nao_persistido
+ r.fresh_pending AS fresh_pending_exato,
+ r.reavaliados AS reavaliados_exato,
+ CAST(100.0*r.reavaliados/NULLIF(r.registros_elegiveis,0) AS DECIMAL(9,2))
+   AS percentual_reavaliados_elegiveis
 FROM recent r
 OUTER APPLY (
  SELECT COUNT_BIG(*) AS gravadas
