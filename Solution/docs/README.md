@@ -1,5 +1,6 @@
 # Documentação técnica complementar — estado corrente
 
+- `Estudo_Comparativo_Linkage_Identidade_Progressiva.md` - revisão documental de Splink, Senzing, Dedupe e AWS, separando scoring e manutenção incremental da identidade.
 - `Nucleo_Linkage_Identidade_Progressiva.md` - prioridade de engenharia: motor único C# inspirado no Splink, IBGE como bootstrap, reprocessamento por mudança e dependências, gravação por transição e atendimento como etapa final.
 - `Ensaio_Secretarias_Paridade_HML.md` - próxima etapa: Ensaio com dados fornecidos/preparados pelas Secretarias sob contrato, paridade funcional e operacional com HML; apenas a massa de dados deve mudar.
 - `API.md` - contrato funcional resumido da API vigente.
