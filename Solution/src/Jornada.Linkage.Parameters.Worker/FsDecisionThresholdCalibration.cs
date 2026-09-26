@@ -374,8 +374,7 @@ public static class FsDecisionThresholdCalibrator
     /// </summary>
     public static long FalsePositiveBudget(int labeledScenarios, int maxFpBasisPoints)
     {
-        if (labeledScenarios <= 0)
-            throw new ArgumentOutOfRangeException(nameof(labeledScenarios));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(labeledScenarios);
         if (maxFpBasisPoints is < 0 or > 10_000)
             throw new ArgumentOutOfRangeException(nameof(maxFpBasisPoints));
         return ((long)labeledScenarios * maxFpBasisPoints + 9_999L) / 10_000L;
