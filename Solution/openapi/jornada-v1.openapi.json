@@ -1449,135 +1449,6 @@
           }
         }
       },
-      "PresentedAccessCredential": {
-        "type": "object",
-        "required": [
-          "type",
-          "publicCode",
-          "accessKey"
-        ],
-        "properties": {
-          "type": {
-            "type": "integer",
-            "format": "int32",
-            "enum": [
-              0,
-              1,
-              2
-            ],
-            "description": "Enum .NET serializado numericamente nesta superfície: 0=GESTOR, 1=BENEFICIO, 2=SERVICO"
-          },
-          "publicCode": {
-            "type": "string"
-          },
-          "accessKey": {
-            "type": "string"
-          }
-        }
-      },
-      "AccessContext": {
-        "type": "object",
-        "required": [
-          "credentialId",
-          "credentialType",
-          "publicCode",
-          "gestorCodigo",
-          "tipoCodigo",
-          "scopes",
-          "authorizedResourceCodes"
-        ],
-        "properties": {
-          "credentialId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "credentialType": {
-            "type": "integer",
-            "format": "int32",
-            "enum": [
-              0,
-              1,
-              2
-            ],
-            "description": "Enum .NET serializado numericamente nesta superfície: 0=GESTOR, 1=BENEFICIO, 2=SERVICO"
-          },
-          "publicCode": {
-            "type": "string"
-          },
-          "gestorCodigo": {
-            "type": "string"
-          },
-          "tipoCodigo": {
-            "type": "string",
-            "nullable": true
-          },
-          "scopes": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "authorizedResourceCodes": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "IngestionPackageManifest": {
-        "type": "object",
-        "required": [
-          "formatoVersao",
-          "pessoaSchemaVersao",
-          "codigoSistemaOrigem",
-          "natureza",
-          "codigoTipo",
-          "tipoVersao",
-          "dataReferencia",
-          "codigoBasePessoaOrigem"
-        ],
-        "properties": {
-          "formatoVersao": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "pessoaSchemaVersao": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "codigoSistemaOrigem": {
-            "type": "string"
-          },
-          "natureza": {
-            "type": "integer",
-            "format": "int32",
-            "enum": [
-              0,
-              1
-            ],
-            "description": "Enum .NET serializado numericamente nesta superfície: 0=BENEFICIO, 1=SERVICO",
-            "nullable": true
-          },
-          "codigoTipo": {
-            "type": "string",
-            "nullable": true
-          },
-          "tipoVersao": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "dataReferencia": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "codigoBasePessoaOrigem": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
       "IngestionReceipt": {
         "type": "object",
         "required": [
@@ -2485,6 +2356,40 @@
           },
           "roundTripStatus": {
             "type": "string"
+          },
+          "splinkMethod": {
+            "type": "string",
+            "description": "Identificador do diagnóstico externo, não substitui a conferência governada."
+          },
+          "splinkStatus": {
+            "type": "string"
+          },
+          "splinkResultStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "splinkReferenceSha256": {
+            "type": "string",
+            "nullable": true
+          },
+          "splinkEvidenceSha256": {
+            "type": "string",
+            "nullable": true
+          },
+          "splinkPairsEvaluated": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "splinkPairwiseDisagreements": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "splinkEvidenceFileUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           }
         }
       },
@@ -2851,29 +2756,6 @@
           }
         }
       },
-      "ApiOperationalPaths": {
-        "type": "object",
-        "required": [
-          "bronzeRootPath",
-          "stagingRootPath",
-          "bronzeConfigurationValid",
-          "stagingConfigurationValid"
-        ],
-        "properties": {
-          "bronzeRootPath": {
-            "type": "string"
-          },
-          "stagingRootPath": {
-            "type": "string"
-          },
-          "bronzeConfigurationValid": {
-            "type": "boolean"
-          },
-          "stagingConfigurationValid": {
-            "type": "boolean"
-          }
-        }
-      },
       "ApiReadinessCheck": {
         "type": "object",
         "required": [
@@ -2891,24 +2773,6 @@
           "code": {
             "type": "string",
             "nullable": true
-          }
-        }
-      },
-      "ApiReadinessResult": {
-        "type": "object",
-        "required": [
-          "ready",
-          "checks"
-        ],
-        "properties": {
-          "ready": {
-            "type": "boolean"
-          },
-          "checks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ApiReadinessCheck"
-            }
           }
         }
       },
@@ -3021,17 +2885,6 @@
             "items": {
               "$ref": "#/components/schemas/PossibilidadeCompativelDto"
             }
-          }
-        }
-      },
-      "ApiError": {
-        "type": "object",
-        "required": [
-          "erro"
-        ],
-        "properties": {
-          "erro": {
-            "type": "string"
           }
         }
       },
