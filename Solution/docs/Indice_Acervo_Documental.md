@@ -8,6 +8,7 @@
 | O que existe e falta? | [Estado atual](Estado_Atual_Projeto.md) **e código/Actions** | PRs e issues |
 | Quais decisões de produto? | [Diretrizes consolidadas](Diretrizes_Identidade_Progressiva_Apoio_Decisao.md) | [Núcleo](Nucleo_Linkage_Identidade_Progressiva.md), [Gold](Gold_Pessoa_Universo_CPF.md) |
 | O que desenvolver? | [Plano de desenvolvimento](Plano_Desenvolvimento.md) — prioridades e dependências | [Dívidas técnicas](Dividas_Tecnicas.md) — critérios verificáveis; issues/PRs — execução e evidências |
+| Como separar as ferramentas das Secretarias? | [Ensaio único — ferramentas de apoio](Ensaio_Unico_Paridade_HML.md#ferramentas-de-apoio-às-secretarias--requisito-de-entrada) | [Plano](Plano_Desenvolvimento.md) — gate antes do Ensaio; inventário de código e dados da SEHAB ainda necessário |
 | Como executar Ensaio e HML? | [Ensaio único](Ensaio_Unico_Paridade_HML.md), [testes](Testes_Operacao_Indice.md) | `Ensaio_Progressivo.md`, `Ensaio_Secretarias_Paridade_HML.md`, runbooks |
 | Quais normas institucionais? | `../../Documentos/README.md` | Especificação v3.62 publicada, v5.00 candidata e requisitos v1.1 |
 
