@@ -52,7 +52,7 @@ def problems(path: str, source: str) -> list[str]:
                 if P_FLAG.search(line) or first.endswith(("\\", "`")):
                     errors.append(f"{path}:{index + 1}: sqlcmd accepts -P in process argv")
         if DOCKER_ASSIGNMENT.search(line):
-            errors.append(f"{path}:{index + 1}: Docker receives SQLCMDPASSWORD=value in argv")
+            errors.append(f"{path}:{index + 1}: Docker receives SQLCMDPASSWORD=<value> in argv")
     return sorted(set(errors))
 
 
