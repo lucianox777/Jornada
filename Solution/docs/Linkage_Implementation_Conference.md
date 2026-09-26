@@ -88,11 +88,13 @@ O schema contém:
 
 Uma execução `DIVERGENTE` ou `NAO_EXECUTADA` posterior invalida, para efeito do assert, um `CONFORME` anterior até que nova conferência `CONFORME` seja registrada. O histórico não é atualizado nem apagado. A coluna `validacao_estatistica` é restrita a `NOT_ASSESSED_ISSUE_31`, impedindo que esta conferência seja usada para declarar a validação estatística representativa.
 
-O **wiring em `VALIDATE/ACTIVATE` ainda não está ativo**. Enquanto `implementation-conference-tolerance.json` permanecer `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`, o fluxo operacional existente não chama a procedure de assert e nenhuma aprovação é inferida. A ligação efetiva seguirá a sequência:
+O **wiring em `VALIDATE` e `ACTIVATE` já está implementado** no `Jornada.Linkage.Parameters.Worker`: ambas carregam o mesmo contrato versionado de tolerância, abrem transação `SERIALIZABLE` e chamam `auditoria.sp_assert_conferencia_linkage_conforme` para a própria `modelo_id` antes de alterar o status. O assert SQL exige a evidência **mais recente** `CONFORME` para o método/versão de tolerância e um fingerprint que ainda corresponda ao snapshot decisório.
+
+Enquanto `implementation-conference-tolerance.json` estiver `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`, ambas as operações falham **antes de abrir o banco**. O comando governado de conferência também falha fechado; nenhuma evidência ou promoção operacional é presumida. O fluxo disponível após congelamento independente e conferência conforme é:
 
 `GENERATE_DRAFT -> CONFERENCIA -> VALIDATE -> ACTIVATE`
 
-somente depois de congelar/versionar a tolerância.
+A integração dos gates está pronta; **a tolerância governada ainda não foi definida** (DT-01), portanto a execução real dessa promoção continua bloqueada. O código não usa tolerâncias das fixtures como default.
 
 ## Comando governado
 
