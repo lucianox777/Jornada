@@ -6,6 +6,7 @@
     <ProjectReference Include="..\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj" />
     <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
     <ProjectReference Include="..\Jornada.Linkage.Core\Jornada.Linkage.Core.csproj" />
+    <ProjectReference Include="..\Jornada.Linkage.Parameters.Worker\Jornada.Linkage.Parameters.Worker.csproj" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
   </ItemGroup>
 </Project>
