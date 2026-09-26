@@ -144,7 +144,7 @@ public static class SplinkIbgeReplayContract
             !string.Equals(external.ReferenceContentSha256, source.ReferenceContentSha256,
                 StringComparison.OrdinalIgnoreCase) ||
             external.ComparisonVersion != source.ComparisonVersion ||
-            string.IsNullOrWhiteSpace(external.SplinkVersion) ||
+            external.SplinkVersion != "4.0.17" ||
             external.Seed != source.Seed || external.PairCount != source.PairCount ||
             external.Pairs is null || external.Pairs.Count != source.PairCount)
             throw new InvalidDataException("Evidência externa incompatível com o replay IBGE exato.");
@@ -159,10 +159,10 @@ public static class SplinkIbgeReplayContract
         {
             if (pair.PairIndex < 0 || pair.PairIndex >= source.PairCount ||
                 seen[pair.PairIndex] ||
-                !remote.ContainsKey(pair.SplinkState))
+                !remote.TryGetValue(pair.SplinkState, out var previousCount))
                 throw new InvalidDataException("Estado Splink duplicado, desconhecido ou fora do replay.");
             seen[pair.PairIndex] = true;
-            remote[pair.SplinkState]++;
+            remote[pair.SplinkState] = previousCount + 1;
             if (!string.Equals(
                     source.Pairs[pair.PairIndex].CSharpState, pair.SplinkState,
                     StringComparison.Ordinal))
