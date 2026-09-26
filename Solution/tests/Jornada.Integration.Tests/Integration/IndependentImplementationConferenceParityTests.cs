@@ -256,7 +256,7 @@ public sealed class IndependentImplementationConferenceParityTests
     }
 
     [Test]
-    public void Governed_tolerance_configuration_remains_unfrozen_without_numeric_default()
+    public void Governed_tolerance_configuration_is_frozen_before_engineering_conference()
     {
         var root = FindRepositoryRoot();
         var json = File.ReadAllText(Path.Combine(
@@ -270,16 +270,68 @@ public sealed class IndependentImplementationConferenceParityTests
         {
             Assert.That(
                 config.GetProperty("status").GetString(),
-                Is.EqualTo("UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION"));
+                Is.EqualTo("FROZEN"));
             Assert.That(
-                config.GetProperty("maxAbsolutePairLlrDifference").ValueKind,
-                Is.EqualTo(System.Text.Json.JsonValueKind.Null));
+                config.GetProperty("maxAbsolutePairLlrDifference").GetDecimal(),
+                Is.EqualTo(.01m));
             Assert.That(
                 config.GetProperty("methodVersion").GetString(),
                 Is.EqualTo(IndependentImplementationConference.MethodVersion));
             Assert.That(
                 config.GetProperty("toleranceVersion").GetString(),
-                Is.EqualTo("UNFROZEN"));
+                Is.EqualTo("V1_2026-09-26"));
+        });
+    }
+
+    [Test]
+    public void Frozen_engineering_tolerance_rejects_llr_mutations_and_preserves_exact_decision_gate()
+    {
+        var path = Path.Combine(FindRepositoryRoot(), "Solution", "config", "linkage",
+            "implementation-conference-tolerance.json");
+        var governed = ImplementationConferenceToleranceConfiguration.Load(path).ToContract();
+        var parameters = Parameters();
+        var model = LinkageModelPolicy.Create(
+            ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters);
+        var candidates = new[]
+        {
+            CanonicalCandidate(
+                Guid.Parse("11111111-1111-4111-8111-111111111111"),
+                NameComparisonState.EXACT, NameComparisonState.EXACT, parameters),
+            CanonicalCandidate(
+                Guid.Parse("22222222-2222-4222-8222-222222222222"),
+                NameComparisonState.LOW, NameComparisonState.LOW, parameters)
+        };
+        var request = RequestFromRuntime(model, candidates, parameters, governed);
+        var nominal = IndependentImplementationConference.Evaluate(request);
+        Assert.That(nominal.Status, Is.EqualTo(ImplementationConferenceStatus.CONFORME),
+            "A tolerância versionada deve aceitar o controle independente sem desvio artificial.");
+
+        var altered = request.Candidates.ToArray();
+        altered[1] = altered[1] with
+        {
+            CanonicalLogLikelihoodRatio = altered[1].CanonicalLogLikelihoodRatio + .0101m
+        };
+        var divergent = IndependentImplementationConference.Evaluate(
+            request with { Candidates = altered });
+        Assert.Multiple(() =>
+        {
+            Assert.That(divergent.Status, Is.EqualTo(ImplementationConferenceStatus.DIVERGENTE));
+            Assert.That(divergent.Reason, Is.EqualTo("PAIR_LLR_DIVERGENCE"));
+            Assert.That(divergent.SameFinalDecision, Is.True);
+        });
+
+        var wrong = request.CanonicalDecision with
+        {
+            Status = ResolutionStatus.CONFLITO,
+            ResolvedCandidateId = null,
+            Reason = "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE"
+        };
+        var decision = IndependentImplementationConference.Evaluate(
+            request with { CanonicalDecision = wrong });
+        Assert.Multiple(() =>
+        {
+            Assert.That(decision.Status, Is.EqualTo(ImplementationConferenceStatus.DIVERGENTE));
+            Assert.That(decision.Reason, Is.EqualTo("FINAL_DECISION_DIVERGENCE"));
         });
     }
 
