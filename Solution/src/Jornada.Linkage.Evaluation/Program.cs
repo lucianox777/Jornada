@@ -7,6 +7,50 @@ using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
 const string Purpose = "DEV_HML_ONLY_NO_PUBLICATION";
+
+// ÚNICA via de entrada para Splink externo: fixture literal compilada, sem SQL,
+// credencial ou argumento de arquivo de origem. Nada invoca Python neste processo.
+if (args.Length == 2 && args[0] == "--export-splink-synthetic")
+{
+    var package = SplinkSyntheticConformanceExchange.CreateFixture();
+    var json = SplinkSyntheticConformanceExchange.SerializeFixture(package);
+    var outputFile = Path.GetFullPath(args[1]);
+    Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+    await File.WriteAllTextAsync(outputFile, json, new System.Text.UTF8Encoding(false));
+    var inputSha = Convert.ToHexString(
+        System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(json)))
+        .ToLowerInvariant();
+    await File.WriteAllTextAsync(
+        outputFile + ".sha256",
+        inputSha + "  " + Path.GetFileName(outputFile) + Environment.NewLine,
+        new System.Text.UTF8Encoding(false));
+    Console.WriteLine("Fixture exclusivamente sintetica exportada; SHA256=" + inputSha +
+        "; contrato=" + SplinkSyntheticConformanceExchange.InputSchema +
+        "; nao enviar dados reais; diagnostico externo sem efeito na promocao.");
+    return;
+}
+if (args.Length == 4 && args[0] == "--check-splink-estimates")
+{
+    var input = SplinkSyntheticConformanceExchange.ReadFixture(
+        await File.ReadAllTextAsync(Path.GetFullPath(args[1])));
+    var externalJson = await File.ReadAllTextAsync(Path.GetFullPath(args[2]));
+    var report = SplinkSyntheticConformanceExchange.Diagnose(input, externalJson);
+    var target = Path.GetFullPath(args[3]);
+    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+    var reportJson = SplinkSyntheticConformanceExchange.SerializeDiagnostic(report);
+    await File.WriteAllTextAsync(target, reportJson, new System.Text.UTF8Encoding(false));
+    Console.WriteLine("Conferencia Splink externa: " + report.Status +
+        "; TVD m=" + report.MTotalVariation.ToString(CultureInfo.InvariantCulture) +
+        "; TVD u=" + report.UTotalVariation.ToString(CultureInfo.InvariantCulture) +
+        ". Nenhuma evidencia governada foi registrada.");
+    return;
+}
+if (args.Any(x => x is "--export-splink-synthetic" or "--check-splink-estimates"))
+    throw new ArgumentException(
+        "Comando Splink sintetico: --export-splink-synthetic <saida.json> OU " +
+        "--check-splink-estimates <entrada.json> <estimativas.json> <relatorio.json>. " +
+        "Nao sao aceitos argumentos SQL ou arquivos de dados reais.");
+
 var options = EvaluationOptions.Parse(args);
 if (options.Help)
 {
@@ -321,7 +365,12 @@ internal sealed record EvaluationOptions(
         """
         Jornada.Linkage.Evaluation — avaliação técnica sem publicação de identidade
 
-        Modos mutuamente exclusivos:
+        Modos Splink externos sem SQL (fixture literal compilada, somente diagnostico):
+          --export-splink-synthetic <arquivo.json>                      gera fixture sintética V1 + SHA256
+          --check-splink-estimates <entrada.json> <estimativas.json> <relatorio.json>
+                                                                      verifica contrato, origem e TVD/LLR
+
+        Modos operacionais mutuamente exclusivos:
           --labels <arquivo.csv>              avaliação rotulada; colunas pessoa_observacao_id,pessoa_uuid_verdade
           --export-calibration <arquivo.json> exporta calibração/modelo somente leitura e exige round-trip C# conforme
           --synthetic-evaluate-root <dir>     pós-RASCUNHO: lê corpus/ + ingestion/ e gera evidência sintética agregada
