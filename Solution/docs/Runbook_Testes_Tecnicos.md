@@ -1,5 +1,9 @@
 # Jornada - testes técnicos reproduzíveis — base normativa v3.62 / engenharia v3.72
 
+## Próxima etapa: Ensaio intersecretarial
+
+Antes de HML haverá um **Ensaio** com massas fornecidas pelas Secretarias conforme contratos estabelecidos. A preparação, anonimização e/ou síntese derivada das bases reais cabe às Secretarias. Ensaio e HML devem usar os mesmos binários, DDL, contratos, segurança, integração corporativa, procedimentos e gates; a única diferença funcional planejada é a massa de dados. Não confundir este Ensaio com os harnesses destrutivos locais abaixo. O roteiro, a matriz de paridade, os critérios de saída e as limitações estatísticas estão em `Ensaio_Secretarias_Paridade_HML.md`. A infraestrutura física e os segredos podem ter valores próprios de cada ambiente, preservando os mesmos controles.
+
 ## Escopo
 
 Este runbook cobre instrumentos de engenharia reproduzíveis. Os quatro instrumentos originais da v3.55 permanecem; a engenharia v3.60 acrescenta gates de contrato/DDL/E2E e avaliação metodológica DEV/HML:
