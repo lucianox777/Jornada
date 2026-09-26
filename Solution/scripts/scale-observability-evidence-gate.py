@@ -434,12 +434,14 @@ def self_test() -> int:
     within_budget["decisionQuality"]["resolvedCorrect"] = 14
     within_budget["decisionQuality"]["falsePositives"] = 1
     within_budget["decisionQuality"]["ppvPct"] = 93.3333
+    within_budget["decisionQuality"]["sensitivityPct"] = 70.0
     if validate(within_budget):
         raise RuntimeError("self-test: 1 FP dentro do budget deveria ser aceito")
     above_budget = copy.deepcopy(within_budget)
     above_budget["decisionQuality"]["resolvedCorrect"] = 13
     above_budget["decisionQuality"]["falsePositives"] = 2
     above_budget["decisionQuality"]["ppvPct"] = 86.6667
+    above_budget["decisionQuality"]["sensitivityPct"] = 65.0
     if not any("teto sintetico" in x for x in validate(above_budget)):
         raise RuntimeError("self-test: 2 FP excedendo o teto devem ser rejeitados")
     zero_budget = copy.deepcopy(within_budget)
