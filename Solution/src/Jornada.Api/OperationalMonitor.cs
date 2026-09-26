@@ -400,7 +400,7 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             "SEM_MODELO", null, null, null, null, null,
             null, null, null, null, null, null, null, null,
             null, null, null, null, null, null, null, null,
-            null, null, null, null, null);
+            null, null, null, null);
         LinkageConferenceGovernanceStatus conferenceGovernance = new(
             "SEM_MODELO_ATIVO", null, null, null, null, null, null, null, null, null, null,
             "PENDENTE_ISSUE_31",
