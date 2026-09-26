@@ -172,12 +172,21 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
                     UPDATE identidade.linkage_run
                     SET tipo_run=N'INCREMENTAL',fresh_pending=1,reavaliados=1
                     WHERE linkage_run_id=@run_id;
+                    """;
+                valid.Parameters.AddWithValue("@run_id", runId);
+                Assert.That(await valid.ExecuteNonQueryAsync(), Is.EqualTo(1));
+            }
+
+            await using (var check = connection.CreateCommand())
+            {
+                check.Transaction = tx;
+                check.CommandText = """
                     SELECT fresh_pending,reavaliados,
                       CAST(100.0*reavaliados/NULLIF(registros_elegiveis,0) AS DECIMAL(9,2))
                     FROM identidade.linkage_run WHERE linkage_run_id=@run_id;
                     """;
-                valid.Parameters.AddWithValue("@run_id", runId);
-                await using var reader = await valid.ExecuteReaderAsync();
+                check.Parameters.AddWithValue("@run_id", runId);
+                await using var reader = await check.ExecuteReaderAsync();
                 Assert.That(await reader.ReadAsync(), Is.True);
                 Assert.Multiple(() =>
                 {
