@@ -15,7 +15,8 @@ WHERE metodo_resolucao IN (N'PENDENTE_PROBABILISTICO',N'LINKAGE_PROBABILISTICO')
 GROUP BY metodo_resolucao,status ORDER BY metodo_resolucao,status;
 ;WITH recent AS (
  SELECT TOP (25) linkage_run_id,tipo_run,status,modelo_versao,iniciado_em,
-  finalizado_em,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos
+  finalizado_em,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,
+  fresh_pending,reavaliados
  FROM identidade.linkage_run ORDER BY iniciado_em DESC,linkage_run_id DESC
 )
 SELECT CONVERT(varchar(36),r.linkage_run_id) AS run_id,
