@@ -49,7 +49,10 @@ O atendimento mantém, por enquanto, a confirmação governada existente. Na fut
 
 **Referências para a justificativa cognitiva:** Cowan, N. (2001), “The magical number 4 in short-term memory: a reconsideration of mental storage capacity”, *Behavioral and Brain Sciences*, 24(1), 87–114, https://doi.org/10.1017/S0140525X01003922; Scheibehenne, B., Greifeneder, R. & Todd, P. M. (2010), “Can There Ever Be Too Many Options? A Meta-Analytic Review of Choice Overload”, *Journal of Consumer Research*, 37(3), 409–425, https://doi.org/10.1086/651235.
 
-## 6. Ensaio e evidência
+## 6. Ensaio único e evidência
+
+**Decisão de fase de 26/09/2026:** há um único Ensaio, técnico e operacional, não dois ensaios sequenciais. Todos os contratos e funcionalidades previstos para HML — inclusive a busca síncrona semicega de até cinco candidatos, segurança, auditoria e observabilidade — devem estar implementados antes do início do Ensaio. Ensaio e HML utilizam o mesmo produto e contratos; a diferença planejada na passagem para HML é a massa anonimizada enviada pelas Secretarias. A eficácia da anonimização e a adequação estatística da massa devem ser verificadas. O detalhamento e os critérios de saída estão em [Ensaio_Unico_Paridade_HML.md](Ensaio_Unico_Paridade_HML.md).
+
 
 DEV → Ensaio com uma ou várias Secretarias → HML → Produção. Ensaio e HML devem manter paridade funcional e operacional, com diferenças planejadas apenas nas massas de dados e nos valores ambientais próprios. Cada Secretaria prepara e fornece os dados conforme seu contrato e governança, inclusive massas sintéticas derivadas de bases reais quando autorizadas; não presumir anonimato por serem sintéticas.
 
