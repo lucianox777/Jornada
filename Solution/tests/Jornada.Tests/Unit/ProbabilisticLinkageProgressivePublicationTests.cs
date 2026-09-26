@@ -31,6 +31,33 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
     }
 
     [Test]
+    public void Missing_batch_procedure_is_detected_before_exclusive_corpus_lock()
+    {
+        // A ausência da migration de DT-10 deve abortar rapidamente e sem criar
+        // run parcial; execução sem publicação não precisa dessa procedure.
+        var runner = File.ReadAllText(Path.Combine(FindSolutionRoot(), "src",
+            "Jornada.Linkage.Runner", "ProbabilisticLinkageBatchRunner.cs"));
+        var validate = runner.IndexOf("ValidateRequest(request);", StringComparison.Ordinal);
+        var conditional = runner.IndexOf("if (request.Publish)", validate, StringComparison.Ordinal);
+        var preflight = runner.IndexOf(
+            "await EnsureBatchPublicationProcedureAvailableAsync(ct);", conditional,
+            StringComparison.Ordinal);
+        var lease = runner.IndexOf("await pipelineCoordinator.AcquireExclusiveJobAsync(",
+            preflight, StringComparison.Ordinal);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(validate, Is.GreaterThanOrEqualTo(0));
+            Assert.That(conditional, Is.GreaterThan(validate));
+            Assert.That(preflight, Is.GreaterThan(conditional));
+            Assert.That(lease, Is.GreaterThan(preflight),
+                "Não adquirir a janela exclusiva nem materializar run sem API de publicação.");
+            Assert.That(runner, Does.Contain(
+                "OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote', N'P')"));
+        });
+    }
+
+    [Test]
     public void Governed_review_queue_keeps_linkage_result_as_single_source_of_provenance()
     {
         var sql = ProbabilisticLinkageBatchRunner.ProbabilisticConflictReviewQueueSql();
