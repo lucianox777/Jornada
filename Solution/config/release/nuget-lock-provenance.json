@@ -229,17 +229,21 @@
   "candidateGraph": {
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
-    "sourceCommit": "4687a5d31d870ead4044f7435eba601407e18f87",
+    "sourceCommit": "1ea2db1f049be8abf9650961c439f2a93ada3d5f",
     "githubRunId": "35755475367",
     "sdk": "8.0.424",
-    "reason": "PR #433 compartilha a política de calibração de decisão com o evaluator via Jornada.Linkage.Core. O diagnóstico SDK 8.0.424 force-evaluate do run 35682617704 alterou exatamente os metadados ProjectReference de Evaluation e seus consumidores Conference/Integration; nenhum pacote externo mudou. PR #439 inclui agora referência direta ao evaluator no projeto de testes unitários; o SDK alterou somente o bloco ProjectReference do lock de Jornada.Tests, conforme dependency-lock run 35755475367.",
-    "lockCount": 22,
-    "changedLockCount": 17,
-    "combinedSha256": "c28955ce4218d0d9b8d852507381b215cdde90489734df9b07c0b9aebde9f0e1",
+    "reason": "PR #433 compartilha a política de calibração de decisão com o evaluator via Jornada.Linkage.Core. O diagnóstico SDK 8.0.424 force-evaluate do run 35682617704 alterou exatamente os metadados ProjectReference de Evaluation e seus consumidores Conference/Integration; nenhum pacote externo mudou. PR #439 inclui agora referência direta ao evaluator no projeto de testes unitários; o SDK alterou somente o bloco ProjectReference do lock de Jornada.Tests, conforme dependency-lock run 35755475367. DT-04 inclui o projeto Jornada.Access.Security, os ProjectReference da Jornada.Api/Resultado.Api e os locks dos dois projetos de testes; o SDK 8.0.424 comprovou equivalência de grafo (ajuste apenas da quebra de linha do novo lock).",
+    "lockCount": 23,
+    "changedLockCount": 18,
+    "combinedSha256": "74f671546b399549f32f82f63fc3b5ebbfa43f192889a4039954e9278f783d57",
     "overrides": [
       {
+        "path": "src/Jornada.Access.Security/packages.lock.json",
+        "sha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9"
+      },
+      {
         "path": "src/Jornada.Api/packages.lock.json",
-        "sha256": "873c99b6d697fe5d2fa67cbbc1b0dd708cdd0017c97713dd92a8cfcb006a985f"
+        "sha256": "1a6607d2ad982f8f680e35f334d58b439597ab461770a1e19b69e6f1ead5e1e7"
       },
       {
         "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
@@ -295,15 +299,15 @@
       },
       {
         "path": "src/Jornada.Resultado.Api/packages.lock.json",
-        "sha256": "eb85a353f31d391aa25bbd02cba1896d8eb06039488321d8e75e7689942c485f"
+        "sha256": "03da8cf240383bfbca73da3c82d3eb5dbc3c7f850b83b5e0955f3dd28cfdec37"
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "fa96b1ab18ff5fb4afc90fa6ba760c81cac79aef1c767f94fe2ae324fb1a8d88"
+        "sha256": "f0ce9eb11aa9da641c6b76e5deaefb3a28884f2152d92dd3cd7567053e197d8d"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "eb0982f9d6c1fd550a78741ecdb031f264f1bdaaebaeb452bab227306a52c843"
+        "sha256": "a8de7ecf7ea5afbc8c8021b12789cf6c8d6efea256339b368889017e71275acc"
       }
     ]
   }
