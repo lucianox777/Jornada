@@ -4,13 +4,15 @@ set -euo pipefail
 ACTION="${1:-up}"
 NO_SYNTHETIC="${2:-}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT/.env"
+ENV_FILE="${JORNADA_LOCAL_ENV_FILE:-$ROOT/.env}"
+DATABASE_OVERRIDE="${JORNADA_SQL_DATABASE_OVERRIDE:-}"
 EXAMPLE="$ROOT/.env.example"
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "ERRO: comando '$1' não encontrado." >&2; exit 2; }; }
 need docker
 
 if [[ ! -f "$ENV_FILE" ]]; then
+  [[ -z "${JORNADA_LOCAL_ENV_FILE:-}" ]] || { echo "ERRO: JORNADA_LOCAL_ENV_FILE explícito não existe." >&2; exit 2; }
   need python3
   python3 "$ROOT/scripts/local_env_bootstrap.py" --check-docker-volume
 fi
@@ -19,7 +21,7 @@ fi
 set -a; source "$ENV_FILE"; set +a
 : "${JORNADA_SQL_SA_PASSWORD:?JORNADA_SQL_SA_PASSWORD não definido}"
 JORNADA_SQL_PORT="${JORNADA_SQL_PORT:-14333}"
-JORNADA_SQL_DATABASE="${JORNADA_SQL_DATABASE:-JornadaLocal}"
+JORNADA_SQL_DATABASE="${DATABASE_OVERRIDE:-${JORNADA_SQL_DATABASE:-JornadaLocal}}"
 mkdir -p "$ROOT/.local/sql-backup"
 chmod 0777 "$ROOT/.local/sql-backup"
 [[ "$JORNADA_SQL_DATABASE" =~ ^[A-Za-z0-9_]+$ ]] || { echo "ERRO: JORNADA_SQL_DATABASE inválido." >&2; exit 2; }

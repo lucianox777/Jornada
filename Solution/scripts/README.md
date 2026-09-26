@@ -1,5 +1,7 @@
 # Scripts da Solution
 
+**Runner consolidado DT-11:** [jornada-runner.py — roteamento, autorização de reset e isolamento dos três bancos](README_DT11_Runner.md).
+
 Este diretório reúne scripts de **operação local**, **validação/CI**, **testes de integração e resiliência**, **migração/release** e **ferramentas auxiliares** da Jornada.
 
 O objetivo deste README é responder duas perguntas antes de executar qualquer arquivo daqui:
@@ -93,7 +95,7 @@ Valida o caminho de upgrade a partir do baseline suportado e os invariantes de d
 .\scripts\local-e2e.ps1
 ```
 
-Exercita o caminho HTTP → Bronze → Silver → Gold → Serving → HTTP, mas atualmente faz `local-db reset`. Por isso não pertence ao fechamento padrão que preserva a referência IBGE; ele é exercitado pelo fluxo `local-test-from-zero.ps1`.
+Exercita HTTP → Bronze → Silver → Gold → Serving → HTTP. O script PowerShell usa por padrão **JornadaE2E** e reseta somente esse banco; o Bash agora usa o mesmo isolamento. Pelo runner DT-11, executar `--profile e2e --allow-reset e2e`. Não pertence ao fechamento preservador por ser destrutivo **dentro do perfil E2E**; não reseta JornadaLocal nem remove sua referência IBGE.
 
 ### 8. Rodar fault injection
 

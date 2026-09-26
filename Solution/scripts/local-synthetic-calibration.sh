@@ -2,18 +2,21 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT/.env"
+ENV_FILE="${JORNADA_LOCAL_ENV_FILE:-$ROOT/.env}"
+DB="JornadaSyntheticDev"
+[[ -z "${JORNADA_SQL_DATABASE_OVERRIDE:-}" || "$JORNADA_SQL_DATABASE_OVERRIDE" == "$DB" ]] || { echo "ERRO: calibração sintética só usa JornadaSyntheticDev." >&2; exit 2; }
 EXAMPLE="$ROOT/.env.example"
 API_BASE="${JORNADA_SYNTH_API_URL:-http://127.0.0.1:5098}"
 
 : "${JORNADA_SYNTH_PSEUDONYMIZATION_KEY:?Defina JORNADA_SYNTH_PSEUDONYMIZATION_KEY com ao menos 16 bytes}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
+  [[ -z "${JORNADA_LOCAL_ENV_FILE:-}" ]] || { echo "ERRO: arquivo de ambiente explícito não existe." >&2; exit 2; }
   command -v python3 >/dev/null 2>&1 || { echo "ERRO: Python 3 necessário para criar .env." >&2; exit 2; }
   python3 "$ROOT/scripts/local_env_bootstrap.py" --check-docker-volume
 fi
 
-"$ROOT/scripts/local-db.sh" up --no-synthetic-corpus
+JORNADA_SQL_DATABASE_OVERRIDE="$DB" "$ROOT/scripts/local-db.sh" up --no-synthetic-corpus
 
 # shellcheck disable=SC1090
 set -a
@@ -22,7 +25,7 @@ set +a
 
 : "${JORNADA_SQL_SA_PASSWORD:?JORNADA_SQL_SA_PASSWORD não definido}"
 PORT="${JORNADA_SQL_PORT:-14333}"
-DB="${JORNADA_SQL_DATABASE:-JornadaLocal}"
+DB="JornadaSyntheticDev"
 
 (
   cd "$ROOT"
