@@ -77,6 +77,8 @@ public sealed class ProgressiveOriginApiTests
 
     [TestCase("missing", HttpStatusCode.Unauthorized)]
     [TestCase("type", HttpStatusCode.Forbidden)]
+    [TestCase("wrong_key", HttpStatusCode.Unauthorized)]
+    [TestCase("ambiguous", HttpStatusCode.BadRequest)]
     [TestCase("wrong_scope", HttpStatusCode.Forbidden)]
     [TestCase("wrong_owner", HttpStatusCode.NotFound)]
     [TestCase("unknown", HttpStatusCode.NotFound)]
@@ -86,6 +88,7 @@ public sealed class ProgressiveOriginApiTests
     {
         var root = Path.Combine(Path.GetTempPath(), "jornada-origin-api-" + Guid.NewGuid().ToString("N"));
         var service = new FakeOriginService();
+        var audit = new InMemoryApiAuditSink();
         try
         {
             await using var factory = new WebApplicationFactory<ApiEntryPointMarker>().WithWebHostBuilder(builder =>
@@ -104,7 +107,7 @@ public sealed class ProgressiveOriginApiTests
                     services.AddSingleton<IPolicyEngine>(new FakePolicy());
                     services.RemoveAll<IProgressiveOriginQueryService>();
                     services.AddSingleton<IProgressiveOriginQueryService>(service);
-                    services.AddSingleton<IApiAuditSink, InMemoryApiAuditSink>();
+                    services.AddSingleton<IApiAuditSink>(audit);
                     services.AddSingleton<ISqlReadinessProbe>(new InMemorySqlReadinessProbe(ready: false));
                 });
             });
@@ -120,9 +123,13 @@ public sealed class ProgressiveOriginApiTests
             {
                 request.Headers.TryAddWithoutValidation(scenario == "type" ? "X-Jornada-Beneficio" : "X-Jornada-Gestor", scenario == "type" ? "AR01" : "SMADS");
                 request.Headers.TryAddWithoutValidation("X-Jornada-Access-Key", scenario);
+                if (scenario == "ambiguous")
+                    request.Headers.TryAddWithoutValidation("X-Jornada-Beneficio", "AR01");
             }
             var response = await client.SendAsync(request);
             Assert.That(response.StatusCode, Is.EqualTo(expected));
+            Assert.That(audit.Events.Any(evt => evt.Path == ProgressiveOriginApi.Route && evt.StatusCode == (int)expected), Is.True,
+                "Auditoria HTTP deve conservar o status de autenticação/autorização.");
             Assert.That(service.Calls, Is.EqualTo(scenario is "wrong_owner" or "unknown" or "allowed" ? 1 : 0));
             if (scenario == "allowed")
             {
@@ -151,6 +158,7 @@ public sealed class ProgressiveOriginApiTests
     {
         public Task<AccessContext?> ResolveAsync(PresentedAccessCredential credential, CancellationToken ct)
         {
+            if (credential.AccessKey == "wrong_key") return Task.FromResult<AccessContext?>(null);
             var scopes = credential.AccessKey == "wrong_scope" ? Array.Empty<string>() : new[] { ProgressiveOriginApi.Permission };
             var owner = credential.AccessKey == "wrong_owner" ? "SEHAB" : "SMADS";
             return Task.FromResult<AccessContext?>(new AccessContext(Guid.NewGuid(), credential.Type, credential.PublicCode, owner, null, scopes, []));
