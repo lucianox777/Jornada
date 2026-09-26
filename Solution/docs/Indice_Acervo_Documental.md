@@ -7,7 +7,7 @@
 | O que foi publicado? | `../../RELEASE_INFO.txt` e `../../Documentos/README.md` | Estados de engenharia e evidências históricas |
 | O que existe e falta? | [Estado atual](Estado_Atual_Projeto.md) **e código/Actions** | PRs e issues |
 | Quais decisões de produto? | [Diretrizes consolidadas](Diretrizes_Identidade_Progressiva_Apoio_Decisao.md) | [Núcleo](Nucleo_Linkage_Identidade_Progressiva.md), [Gold](Gold_Pessoa_Universo_CPF.md) |
-| O que desenvolver? | [Plano](Plano_Desenvolvimento.md) | Issues abertas e documentos técnicos específicos |
+| O que desenvolver? | [Plano de desenvolvimento](Plano_Desenvolvimento.md) — prioridades e dependências | [Dívidas técnicas](Dividas_Tecnicas.md) — critérios verificáveis; issues/PRs — execução e evidências |
 | Como executar Ensaio e HML? | [Ensaio único](Ensaio_Unico_Paridade_HML.md), [testes](Testes_Operacao_Indice.md) | `Ensaio_Progressivo.md`, `Ensaio_Secretarias_Paridade_HML.md`, runbooks |
 | Quais normas institucionais? | `../../Documentos/README.md` | Especificação v3.62 publicada, v5.00 candidata e requisitos v1.1 |
 
@@ -19,4 +19,4 @@
 - **Operação, HML, segurança e release:** `Runbook_*.md`, `HML_*.md`, `Governanca_*.md`, `Release_Evidence.md`.
 - **Norma e histórico institucional:** `../../Documentos/README.md`, `../../Documentos/Requisitos/`, `../../Documentos/Estado_Engenharia_v*.md`.
 
-**Regra de manutenção:** decisão nova nas Diretrizes; estado comprovado no Estado atual; tarefa no Plano; procedimentos nos runbooks; evidências junto à execução. Não duplicar decisões em cada documento técnico. **Existe um único Ensaio**, técnico e operacional, completo antes de HML; HML muda a massa para a preparada pelas Secretarias, preservando características reais relevantes, não os contratos. Não tratar `Ensaio_Progressivo.md` nem `Ensaio_Secretarias_Paridade_HML.md` como fases separadas.
+**Regra de manutenção:** decisão nova nas Diretrizes; estado comprovado no Estado atual; prioridade e dependência no Plano; critério técnico na tabela de Dívidas, com ID estável; execução nas issues/PRs; procedimentos nos runbooks; evidências junto à execução. Não duplicar decisões em cada documento técnico. **Existe um único Ensaio**, técnico e operacional, completo antes de HML; HML muda a massa para a preparada pelas Secretarias, preservando características reais relevantes, não os contratos. Não tratar `Ensaio_Progressivo.md` nem `Ensaio_Secretarias_Paridade_HML.md` como fases separadas.
