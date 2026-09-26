@@ -304,7 +304,8 @@ $decisionQuality=$decisionQualityJson | ConvertFrom-Json
 # Limite de FP SCALE: orçamento congelado, NÃO reotimizar sobre este corpus.
 $scaleFpBudgetText=Scalar "SELECT CONVERT(int,valor) FROM identidade.parametro_linkage WHERE modelo_id='$modelId' AND nome='FS_DECISION_CALIBRATION_MAX_FP_TEST_BP';"
 $scaleFpBudgetBp=0
-if(-not [int]::TryParse([string]$scaleFpBudgetText,[ref]$scaleFpBudgetBp) -or $scaleFpBudgetBp -lt 0 -or $scaleFpBudgetBp -gt 10000){
+$scaleFpParsed=[int]::TryParse([string]$scaleFpBudgetText,[ref]$scaleFpBudgetBp)
+if(-not $scaleFpParsed -or $scaleFpBudgetBp -lt 0 -or $scaleFpBudgetBp -gt 10000){
   throw 'budget FP congelado ausente/invalido no modelo SCALE'
 }
 $blockingPressureJson=Scalar "DECLARE @ruleset uniqueidentifier=(SELECT ruleset_id FROM identidade.linkage_ruleset WHERE modelo_id='$modelId'); SELECT (SELECT (SELECT COUNT(*) FROM identidade.linkage_ruleset_passe WHERE ruleset_id=@ruleset) AS ruleSetPassCount, (SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE vigencia_fim IS NULL) AS blockingRows, (SELECT COUNT_BIG(*) FROM (SELECT atributo,valor_normalizado FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) d) AS distinctKeys, (SELECT ISNULL(MAX(people_per_key),0) FROM (SELECT COUNT_BIG(DISTINCT pessoa_uuid) people_per_key FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) q) AS maxPeoplePerKey, JSON_QUERY((SELECT a.atributo AS attribute, COUNT_BIG(*) AS rows, COUNT_BIG(DISTINCT a.valor_normalizado) AS distinctValues, (SELECT ISNULL(MAX(people_per_value),0) FROM (SELECT COUNT_BIG(DISTINCT b.pessoa_uuid) people_per_value FROM identidade.blocking_chave b WHERE b.vigencia_fim IS NULL AND b.atributo=a.atributo GROUP BY b.valor_normalizado) z) AS maxPeoplePerValue FROM identidade.blocking_chave a WHERE a.vigencia_fim IS NULL GROUP BY a.atributo FOR JSON PATH)) AS attributes FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);"
