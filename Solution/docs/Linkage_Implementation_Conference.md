@@ -57,6 +57,28 @@ O arquivo `config/linkage/implementation-conference-tolerance.json` contém a to
 
 A decisão final deve permanecer **exatamente igual** independentemente da tolerância de LLR. Um desvio de LLR >0,01 ou qualquer mudança de decisão produz `DIVERGENTE`. O contrato não permite inferir nem relaxar a tolerância a partir de um primeiro resultado. Evidências `NAO_EXECUTADA` ainda podem decorrer de outras pré-condições (vetor inválido, modelo incompleto). Valores `TEST_ONLY_NOT_GOVERNANCE` em fixtures não substituem o arquivo versionado.
 
+## Caracterização de fronteira DT-01 — conjunto artesanal, 26/09/2026
+
+**Resultado limitado: CONFORME** para os nove cenários dirigidos (onze pontuações de candidatos) e ensaio suplementar legado de cinco termos, conforme [PR #514](https://github.com/lucianox777/Jornada/pull/514) e [execução CI #36268242478](https://github.com/lucianox777/Jornada/actions/runs/36268242478). Esse resultado significa exclusivamente que o scorer operacional, alimentado por `decimal` e com cálculo intermediário em `double`, concordou com o avaliador C# float64 independente no LLR e na **decisão final integral** dos cenários escolhidos; não é prova para todos os valores possíveis.
+
+O conjunto foi escolhido **manualmente por construção algébrica**, não extraído de corpus sintético, amostra aleatória nem `IbgeNominalUBootstrapEstimator.ReplayPairs`. Reutiliza do PR #507 a disciplina de replay por índice/mesmo par e o diagnóstico de discordâncias, enquanto a comparação real de scorer/política usa `ImplementationConferenceRequest` e `IndependentImplementationConference`. O contrato `SplinkIbgeReplayContract` descreve estados de nomes do bootstrap IBGE, **não** pesos m/u ou decisões; preenchê-lo artificialmente com pares adversariais declarados como IBGE falsearia sua proveniência. Nenhum `.py`/Splink foi adicionado à árvore.
+
+| Índice | Condição provocada | Decisão operacional e independente |
+|---|---|---|
+| 0 | Prior 0,81818170; ligeiramente abaixo de `T_LINKAGE=0,90` | `NAO_RESOLVIDO` |
+| 1 | Prior 0,8181818181818182; posterior arredondado exatamente a 0,90000000 | `RESOLVIDO` |
+| 2 | Prior 0,81818195; ligeiramente acima do limiar | `RESOLVIDO` |
+| 3 | Dois candidatos acima do limiar; dual-threshold ativo | `CONFLITO` |
+| 4 | Segundo abaixo do limiar, mas margem em log-odds menor que 0,05 | `CONFLITO` |
+| 5 | `U_NOME_EXACT=10^-9` cancelado por `M_NOME_MAE_LOW=10^-9`; prior 8/9 | `RESOLVIDO` |
+| 6 | Prior extremo `10^-7` contra razão nominal `9×10^7` | `RESOLVIDO` |
+| 7 | Guard demográfico com flag de colisão exata pré-computado | `CONFLITO` |
+| 8 | Prior 0,9999999, três termos LLR maiores que 20 e posterior saturado | `RESOLVIDO` |
+
+O ensaio legado separado acumula cinco evidências (`NOME`, `NOME_MAE`, `NASC_DIA`, `NASC_MES`, `NASC_ANO`), com prior `10^-7` e posterior junto ao limiar. O gate V1 governado só aceita três evidências da política decision-evidence; não se declara conferência governada V1 para o legado.
+
+**Gates mantidos:** configuração `FROZEN`, `V1_2026-09-26`, 0,01 (sem aumento), diferença absoluta de LLR de **cada** candidato dentro do teto e equivalência exata de status, candidato resolvido, melhor/segundo e motivo. O teste compara ainda o valor arredondado em oito casas próximo ao limiar. A hipótese de erro <0,001 em **corpus abrangente** permanece não demonstrada: nove casos dirigidos não determinam um limite global de erro. Os comparadores, a formação dos guard-inputs, um modelo RASCUNHO real em DEV, Splink 4.0.17 externo (#506) e representatividade estatística (#31) continuam fora desta evidência; o status de validação estatística permanece `NOT_ASSESSED_ISSUE_31`.
+
 ## Estados de saída
 
 - `CONFORME`: todo LLR por par está dentro da tolerância congelada e a decisão final é exatamente a mesma;
@@ -132,6 +154,6 @@ A tolerância congelada `0,01` e o gate `JORNADA_IMPLEMENTATION_CONFERENCE_STATE
 
 ## Decisão consolidada sobre Splink real e bootstrap IBGE
 
-Conforme a [decisão normativa §2.1](Decisoes_Linkage_Calibracao_IBGE_20260926.md#21-conferência-externa-jornada--splink--decisão-consolidada-de-26092026), o estudo externo visa **conferir os mesmos pares e estados sorteados pelo Monte Carlo IBGE**, com C# e Splink real, e não repetir amostragem aleatória diferente nem promover u incondicional a u condicionado. O modo externo existente de nove pessoas testa só formato. A futura execução/replay verificará comparador, contagens e probabilidades e o monitor deve expor somente resultado validado separado de `RoundTripStatus` e da conferência governada. A ADR-007 anterior é apenas registro histórico. Runner externo, evidência e caracterização independente seguem pendentes em #506/DT-01; não alterar o gate `VALIDATE/ACTIVATE`.
+Conforme a [decisão normativa §2.1](Decisoes_Linkage_Calibracao_IBGE_20260926.md#21-conferência-externa-jornada--splink--decisão-consolidada-de-26092026), o estudo externo visa **conferir os mesmos pares e estados sorteados pelo Monte Carlo IBGE**, com C# e Splink real, e não repetir amostragem aleatória diferente nem promover u incondicional a u condicionado. O modo externo existente de nove pessoas testa só formato. A futura execução/replay verificará comparador, contagens e probabilidades e o monitor deve expor somente resultado validado separado de `RoundTripStatus` e da conferência governada. A ADR-007 anterior é apenas registro histórico. Runner Splink real e evidência externa continuam pendentes em #506; a caracterização independente **dirigida da fronteira** de DT-01 está encerrada com o PR #514, sem alterar o gate `VALIDATE/ACTIVATE` nem declarar representatividade #31.
 
 **Implementação adicional do PR #507:** `IbgeNominalUBootstrapEstimator.ReplayPairs`, extensão `CalibrationAuditExporter.ExportIbgeSyntheticReplayAsync`, contratos versionados por pares e importação offline estão disponíveis como **infraestrutura C#**. O `/monitor` ganhou campo Splink específico, inicialmente `SEM_EVIDENCIA_EXTERNA`; em DEV, só lê arquivos brutos de replay/resposta que possam ser revalidados contra a referência pública ATIVA. Falta executar/validar o runner Splink real e capturar evidência independente na issue #506. A fixture de nove pessoas continua insuficiente para a conferência do Censo.
