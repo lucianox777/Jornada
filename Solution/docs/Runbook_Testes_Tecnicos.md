@@ -2,7 +2,7 @@
 
 ## Próxima etapa: Ensaio intersecretarial
 
-Antes de HML haverá um **Ensaio** com massas fornecidas pelas Secretarias conforme contratos estabelecidos. A preparação, anonimização e/ou síntese derivada das bases reais cabe às Secretarias. Ensaio e HML devem usar os mesmos binários, DDL, contratos, segurança, integração corporativa, procedimentos e gates; a única diferença funcional planejada é a massa de dados. Não confundir este Ensaio com os harnesses destrutivos locais abaixo. O roteiro, a matriz de paridade, os critérios de saída e as limitações estatísticas estão em `Ensaio_Secretarias_Paridade_HML.md`. A infraestrutura física e os segredos podem ter valores próprios de cada ambiente, preservando os mesmos controles.
+Antes de HML haverá um **Ensaio** com massas fornecidas por uma ou várias Secretarias participantes, conforme seus contratos estabelecidos, admitindo adesão e cargas em ondas. A preparação, anonimização e/ou síntese derivada das bases reais cabe às Secretarias. Ensaio e HML devem usar os mesmos binários, DDL, contratos, segurança, integração corporativa, procedimentos e gates; a única diferença funcional planejada é a massa de dados. Não confundir este Ensaio com os harnesses destrutivos locais abaixo. O roteiro, a matriz de paridade, os critérios de saída e a metodologia para tratar o Ensaio como evidência estatística potencialmente forte, condicionada à qualidade e cobertura dos dados, estão em `Ensaio_Secretarias_Paridade_HML.md`. A infraestrutura física e os segredos podem ter valores próprios de cada ambiente, preservando os mesmos controles.
 
 ## Escopo
 
