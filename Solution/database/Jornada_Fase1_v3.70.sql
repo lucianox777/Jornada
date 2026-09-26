@@ -54,4 +54,5 @@
 :r database/migrations/20260922_Linkage_Synthetic_Evaluation_Retention.sql
 :r database/migrations/20260922_Processor_Lease_Heartbeat_Isolation.sql
 :r database/migrations/20260926_Linkage_Run_Incremental_Metrics_371.sql
+:r database/migrations/20260926_Ibge_Nominal_U_Derived_371.sql
 :r database/migrations/20260910_Schema_Consolidation_370.sql
