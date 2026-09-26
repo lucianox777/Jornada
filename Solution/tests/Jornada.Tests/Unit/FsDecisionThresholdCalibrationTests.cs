@@ -166,6 +166,163 @@ public sealed class FsDecisionThresholdCalibrationTests
     }
 
     [Test]
+    public void Positive_fp_budget_selects_lower_fn_on_validation_and_test_does_not_retune()
+    {
+        // O negativo mais pontuado que o positivo força a fronteira FP/FN:
+        // zero FP deixa o positivo sem vínculo; aceitar um FP recupera o vínculo.
+        var validation = new[]
+        {
+            Positive("v-pos", FsDecisionCalibrationPartition.Validation,
+                "00000000-0000-0000-0000-000000000061",
+                Candidate("00000000-0000-0000-0000-000000000061", .98m, 3m)),
+            Negative("v-neg", FsDecisionCalibrationPartition.Validation,
+                "00000000-0000-0000-0000-000000000062",
+                Candidate("00000000-0000-0000-0000-000000000069", .995m, 4m))
+        };
+        var testWithFp = new[]
+        {
+            Positive("t-pos", FsDecisionCalibrationPartition.Test,
+                "00000000-0000-0000-0000-000000000063",
+                Candidate("00000000-0000-0000-0000-000000000063", .99m, 3.2m)),
+            Negative("t-neg", FsDecisionCalibrationPartition.Test,
+                "00000000-0000-0000-0000-000000000064",
+                Candidate("00000000-0000-0000-0000-000000000069", .999m, 5m))
+        };
+        var testWithoutFp = new[]
+        {
+            testWithFp[0],
+            Negative("t-neg", FsDecisionCalibrationPartition.Test,
+                "00000000-0000-0000-0000-000000000064",
+                Candidate("00000000-0000-0000-0000-000000000069", .50m, .1m))
+        };
+        FsDecisionThresholdCalibrationResult Run(
+            IReadOnlyList<FsDecisionCalibrationScenario> test, int validationBp = 100) =>
+            FsDecisionThresholdCalibrator.Calibrate(
+                LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion,
+                Parameters(), validation.Concat(test).ToArray(),
+                20260926, 2000, 2000,
+                maxFpValidationBasisPoints: validationBp,
+                maxFpTestBasisPoints: 100);
+
+        var withFp = Run(testWithFp);
+        var withoutFp = Run(testWithoutFp);
+        Assert.Multiple(() =>
+        {
+            Assert.That(withFp.Selected, Is.Not.Null);
+            Assert.That(withFp.MaxFpValidationAbsolute, Is.EqualTo(1));
+            Assert.That(withFp.MaxFpTestAbsolute, Is.EqualTo(1));
+            Assert.That(withFp.Selected!.Validation.FalsePositive, Is.EqualTo(1));
+            Assert.That(withFp.Selected.Validation.FalseNegative, Is.Zero);
+            Assert.That(withFp.Selected.Test.FalsePositive, Is.EqualTo(1));
+            Assert.That(withFp.TestLeaveTruthOutFalsePositive, Is.EqualTo(1));
+            Assert.That(withFp.TestSafetyPassed, Is.True);
+            Assert.That(withFp.Selected.Candidate.CandidateId,
+                Is.EqualTo(withoutFp.Selected!.Candidate.CandidateId),
+                "TEST não escolhe o threshold após validar a fronteira.");
+        });
+
+        var strict = Run(testWithFp, validationBp: 0);
+        Assert.That(strict.Selected, Is.Not.Null);
+        Assert.That(strict.Selected!.Validation.FalsePositive, Is.Zero);
+        Assert.That(strict.Selected.Validation.FalseNegative, Is.EqualTo(1));
+        var originalCall = Assert.Throws<InvalidOperationException>(
+            () => FsDecisionThresholdCalibrator.ApplySelected(Parameters(), withFp));
+        Assert.That(originalCall!.Message, Does.Contain("Limite TEST divergente"));
+        var applied = FsDecisionThresholdCalibrator.ApplySelected(
+            Parameters(), withFp, maxFpTest: withFp.MaxFpTestAbsolute);
+        Assert.Multiple(() =>
+        {
+            Assert.That(applied["FS_DECISION_CALIBRATION_MAX_FP_VALIDATION_BP"], Is.EqualTo(100m));
+            Assert.That(applied["FS_DECISION_CALIBRATION_MAX_FP_TEST_BP"], Is.EqualTo(100m));
+            Assert.That(applied["FS_DECISION_CALIBRATION_VALIDATION_FP_LIMIT"], Is.EqualTo(1m));
+            Assert.That(applied["FS_DECISION_CALIBRATION_TEST_FP_LIMIT"], Is.EqualTo(1m));
+            Assert.That(applied["FS_DECISION_CALIBRATION_TEST_FP_LEAVE_TRUTH_OUT"], Is.EqualTo(1m));
+            Assert.That(applied["FS_DECISION_CALIBRATION_TEST_FP_EFFECTIVE_CAP_BP"], Is.EqualTo(10000m),
+                "Amostra pequena: arredondamento por positivo pode permitir 100% da unidade discreta.");
+        });
+    }
+
+    [Test]
+    public void Fp_budget_uses_positive_scenarios_without_dilution_by_leave_truth_out()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(FsDecisionThresholdCalibrator.FalsePositiveBudget(2, 100), Is.EqualTo(1));
+            Assert.That(FsDecisionThresholdCalibrator.FalsePositiveBudget(200, 100), Is.EqualTo(2));
+            Assert.That(FsDecisionThresholdCalibrator.FalsePositiveBudget(299, 100), Is.EqualTo(3));
+            Assert.That(FsDecisionThresholdCalibrator.FalsePositiveBudget(299, 0), Is.Zero);
+            Assert.That(FsDecisionThresholdCalibrator.FalsePositiveBudget(300, 100), Is.EqualTo(3),
+                "Trezentos positivos permitem três FP; negativos LTO não entram no denominador.");
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => FsDecisionThresholdCalibrator.FalsePositiveBudget(0, 100));
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => FsDecisionThresholdCalibrator.FalsePositiveBudget(10, 10001));
+        });
+    }
+
+    [Test]
+    public void Three_false_links_among_300_positive_truths_are_accepted_without_sacrificing_recall()
+    {
+        // Cada partição contém 300 positivos + três LTO que provocam um FP;
+        // denominar pelo total de 303 (e não pelos 300 positivos) mudaria a
+        // política declarada, mesmo quando o valor de FP observado coincidisse.
+        static FsDecisionCalibrationScenario[] Cases(
+            FsDecisionCalibrationPartition partition, int offset, string label)
+        {
+            var positive = Enumerable.Range(1, 300).Select(i =>
+            {
+                var uuid = Guid.Parse($"00000000-0000-0000-0000-{offset + i:D12}");
+                return new FsDecisionCalibrationScenario(
+                    $"{label}-p-{i:D4}", uuid, uuid, partition,
+                    new[] { new FsDecisionRankedCandidate(
+                        uuid, partition == FsDecisionCalibrationPartition.Test ? .99m : .98m, 3m) });
+            });
+            var negative = Enumerable.Range(1, 3).Select(i =>
+            {
+                var uuid = Guid.Parse($"00000000-0000-0000-0000-{offset + 500 + i:D12}");
+                return new FsDecisionCalibrationScenario(
+                    $"{label}-lto-{i:D4}", uuid, null, partition,
+                    new[] { new FsDecisionRankedCandidate(
+                        Guid.Parse("00000000-0000-0000-0000-999999999999"), .995m, 4m) });
+            });
+            return positive.Concat(negative).ToArray();
+        }
+
+        var scenarios = Cases(FsDecisionCalibrationPartition.Validation, 0, "v")
+            .Concat(Cases(FsDecisionCalibrationPartition.Test, 1000, "t"))
+            .ToArray();
+        var calibrated = FsDecisionThresholdCalibrator.Calibrate(
+            LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion,
+            Parameters(), scenarios, 20260926, 2000, 2000,
+            maxFpValidationBasisPoints: 100, maxFpTestBasisPoints: 100);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(calibrated.ValidationPositiveScenarios, Is.EqualTo(300));
+            Assert.That(calibrated.ValidationNegativeScenarios, Is.EqualTo(3));
+            Assert.That(calibrated.MaxFpValidationAbsolute, Is.EqualTo(3));
+            Assert.That(calibrated.MaxFpTestAbsolute, Is.EqualTo(3));
+            Assert.That(calibrated.Selected!.Validation.FalsePositive, Is.EqualTo(3));
+            Assert.That(calibrated.Selected.Validation.FalseNegative, Is.Zero);
+            Assert.That(calibrated.Selected.Test.FalsePositive, Is.EqualTo(3));
+            Assert.That(calibrated.TestSafetyPassed, Is.True);
+        });
+        var output = FsDecisionThresholdCalibrator.ApplySelected(
+            Parameters(), calibrated, calibrated.MaxFpTestAbsolute);
+        Assert.Multiple(() =>
+        {
+            Assert.That(output["FS_DECISION_CALIBRATION_VALIDATION_DENOMINATOR"],
+                Is.EqualTo(300m));
+            Assert.That(output["FS_DECISION_CALIBRATION_VALIDATION_TOTAL_SCENARIOS"],
+                Is.EqualTo(303m));
+            Assert.That(output["FS_DECISION_CALIBRATION_VALIDATION_FP_OBSERVED_BP"],
+                Is.EqualTo(100m));
+            Assert.That(output["FS_DECISION_CALIBRATION_TEST_FP_LEAVE_TRUTH_OUT"],
+                Is.EqualTo(3m));
+        });
+    }
+
+    [Test]
     public void Partition_IsDeterministicAndKeepsOneBasePersonInOnePartition()
     {
         var uuid = Guid.Parse("10000000-0000-4000-8000-000000000001");

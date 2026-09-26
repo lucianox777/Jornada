@@ -52,7 +52,13 @@ public sealed record FsDecisionThresholdCalibrationResult(
     int TestNegativeScenarios)
 {
     public bool HasSelectedCandidate => Selected is not null;
-    public bool TestSafetyPassed => Selected is { Test.FalsePositive: 0 };
+    // Limite discreto congelado na calibração; default 0 preserva o safety gate legado.
+    public int MaxFpValidationBasisPoints { get; init; }
+    public int MaxFpTestBasisPoints { get; init; }
+    public long MaxFpValidationAbsolute { get; init; }
+    public long MaxFpTestAbsolute { get; init; }
+    public bool TestSafetyPassed => Selected is not null
+        && Selected.Test.FalsePositive <= MaxFpTestAbsolute;
 
     // Diagnostics aggregate ONLY frozen TEST decisions. They never participate in
     // threshold selection, Pareto ordering, conflict-floor calibration or promotion.
@@ -67,9 +73,12 @@ public sealed record FsDecisionThresholdCalibrationResult(
 /// A grade é derivada somente de fronteiras observadas em VALIDATION. TEST nunca gera
 /// threshold, margem, fronteira ou desempate. O calibrador preserva a fronteira de Pareto
 /// FP/FN e não cria custo relativo entre esses erros. A seleção operacional pré-HML aplica
-/// uma restrição já existente no projeto: falso vínculo resolvido precisa ser zero no
-/// corpus de validação. Entre candidatos com os mesmos erros e a mesma inconclusão, o
-/// desempate apenas escolhe a representação mais conservadora da mesma decisão observada.
+/// limite de falso vínculo calibrado de forma explícita, sem usar TEST para escolher.
+/// Entre candidatos dentro do orçamento de VALIDATION, minimiza FN e inconclusivos.
+/// A contagem permitida usa teto discreto sobre cenários POSITIVOS, conforme
+/// orçamento por pessoa rotulada. O numerador FP inclui pessoa errada em positivos
+/// e vínculo indevido em negativos leave-truth-out; essa medida NÃO é a FPR clássica.
+/// O teto pode exceder a taxa nominal em partições pequenas; persistimos a taxa efetiva.
 /// </summary>
 public static class FsDecisionThresholdCalibrator
 {
@@ -85,7 +94,9 @@ public static class FsDecisionThresholdCalibrator
         int testBasisPoints,
         int maxThresholdValues = 48,
         int maxMarginValues = 48,
-        int maxConflictFloorValues = 64)
+        int maxConflictFloorValues = 64,
+        int maxFpValidationBasisPoints = 0,
+        int maxFpTestBasisPoints = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(algorithmVersion);
         ArgumentNullException.ThrowIfNull(baseParameters);
@@ -98,6 +109,10 @@ public static class FsDecisionThresholdCalibrator
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxThresholdValues);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxMarginValues);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConflictFloorValues);
+        if (maxFpValidationBasisPoints is < 0 or > 10_000)
+            throw new ArgumentOutOfRangeException(nameof(maxFpValidationBasisPoints));
+        if (maxFpTestBasisPoints is < 0 or > 10_000)
+            throw new ArgumentOutOfRangeException(nameof(maxFpTestBasisPoints));
 
         var validation = scenarios
             .Where(static x => x.Partition == FsDecisionCalibrationPartition.Validation)
@@ -110,6 +125,12 @@ public static class FsDecisionThresholdCalibrator
 
         EnsureBothScenarioClasses(validation, "VALIDATION");
         EnsureBothScenarioClasses(test, "TEST");
+        // Limite de FP por base rotulada positiva, contando no numerador também
+        // os vínculos indevidos dos cenários negativos leave-truth-out.
+        var maxFpValidation = FalsePositiveBudget(
+            validation.Count(static x => x.ExpectedResolvedUuid is not null), maxFpValidationBasisPoints);
+        var maxFpTest = FalsePositiveBudget(
+            test.Count(static x => x.ExpectedResolvedUuid is not null), maxFpTestBasisPoints);
 
         var thresholdValues = Thin(
             BoundaryValues(
@@ -168,10 +189,10 @@ public static class FsDecisionThresholdCalibrator
             .ThenBy(static x => x.Candidate.CandidateId, StringComparer.Ordinal)
             .ToArray();
 
-        // Restrição de promoção pré-HML já documentada: nenhum falso vínculo resolvido
-        // no corpus de segurança. Isto não é peso relativo FP/FN do Pareto.
+        // A restrição é fixada antes de avaliar TEST; o Pareto continua minimizando
+        // FN entre os candidatos admissíveis, sem buscar zero FP artificialmente.
         var provisionalSelected = frozen
-            .Where(static x => x.Validation.FalsePositive == 0)
+            .Where(x => x.Validation.FalsePositive <= maxFpValidation)
             .OrderBy(static x => x.Validation.FalseNegative)
             .ThenBy(static x => x.Validation.Inconclusive)
             .ThenByDescending(static x => x.Candidate.Threshold)
@@ -260,23 +281,34 @@ public static class FsDecisionThresholdCalibrator
             test.Count(static x => x.ExpectedResolvedUuid is null))
         {
             TestWrongPersonFalsePositive = wrongPersonFp,
-            TestLeaveTruthOutFalsePositive = leaveTruthOutFp
+            TestLeaveTruthOutFalsePositive = leaveTruthOutFp,
+            MaxFpValidationBasisPoints = maxFpValidationBasisPoints,
+            MaxFpTestBasisPoints = maxFpTestBasisPoints,
+            MaxFpValidationAbsolute = maxFpValidation,
+            MaxFpTestAbsolute = maxFpTest
         };
     }
 
     public static IReadOnlyDictionary<string, decimal> ApplySelected(
         IReadOnlyDictionary<string, decimal> parameters,
-        FsDecisionThresholdCalibrationResult result)
+        FsDecisionThresholdCalibrationResult result,
+        long maxFpTest = 0)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(result);
 
         var selected = result.Selected
             ?? throw new InvalidOperationException(
-                "Calibração FS não encontrou candidato Pareto que satisfaça o safety gate de zero falso vínculo em VALIDATION.");
-        if (selected.Test.FalsePositive != 0)
+                $"Calibração FS sem candidato Pareto dentro do limite VALIDATION: " +
+                $"maxFp={result.MaxFpValidationAbsolute}; bp={result.MaxFpValidationBasisPoints}; " +
+                $"positivos={result.ValidationPositiveScenarios}; negativos={result.ValidationNegativeScenarios}.");
+        if (maxFpTest < 0 || maxFpTest != result.MaxFpTestAbsolute)
+            throw new InvalidOperationException(
+                "Limite TEST divergente do orçamento congelado no resultado da calibração.");
+        if (selected.Test.FalsePositive > maxFpTest)
             throw new InvalidOperationException(
                 $"Candidato FS congelado falhou em TEST: falsePositive={selected.Test.FalsePositive}; " +
+                $"limitePermitido={maxFpTest}; " +
                 $"fpPessoaErrada={result.TestWrongPersonFalsePositive}; " +
                 $"fpLeaveTruthOut={result.TestLeaveTruthOutFalsePositive}; " +
                 $"testPositivos={result.TestPositiveScenarios}; testNegativos={result.TestNegativeScenarios}; " +
@@ -316,11 +348,45 @@ public static class FsDecisionThresholdCalibrator
             ["FS_DECISION_CALIBRATION_TEST_FP"] = selected.Test.FalsePositive,
             ["FS_DECISION_CALIBRATION_TEST_FN"] = selected.Test.FalseNegative,
             ["FS_DECISION_CALIBRATION_TEST_INCONCLUSIVE"] = selected.Test.Inconclusive,
-            ["FS_DECISION_CALIBRATION_ZERO_FP_PROMOTION_GATE"] = 1m,
+            ["FS_DECISION_CALIBRATION_RATE_GATE_V1"] = 1m,
+            ["FS_DECISION_CALIBRATION_MAX_FP_VALIDATION_BP"] = result.MaxFpValidationBasisPoints,
+            ["FS_DECISION_CALIBRATION_MAX_FP_TEST_BP"] = result.MaxFpTestBasisPoints,
+            ["FS_DECISION_CALIBRATION_VALIDATION_FP_LIMIT"] = result.MaxFpValidationAbsolute,
+            ["FS_DECISION_CALIBRATION_TEST_FP_LIMIT"] = result.MaxFpTestAbsolute,
+            ["FS_DECISION_CALIBRATION_VALIDATION_DENOMINATOR"] = result.ValidationPositiveScenarios,
+            ["FS_DECISION_CALIBRATION_TEST_DENOMINATOR"] = result.TestPositiveScenarios,
+            ["FS_DECISION_CALIBRATION_VALIDATION_TOTAL_SCENARIOS"] = result.ValidationPositiveScenarios + result.ValidationNegativeScenarios,
+            ["FS_DECISION_CALIBRATION_TEST_TOTAL_SCENARIOS"] = result.TestPositiveScenarios + result.TestNegativeScenarios,
+            ["FS_DECISION_CALIBRATION_VALIDATION_FP_OBSERVED_BP"] =
+                10_000m * selected.Validation.FalsePositive / result.ValidationPositiveScenarios,
+            ["FS_DECISION_CALIBRATION_TEST_FP_OBSERVED_BP"] =
+                10_000m * selected.Test.FalsePositive / result.TestPositiveScenarios,
+            ["FS_DECISION_CALIBRATION_VALIDATION_FP_EFFECTIVE_CAP_BP"] =
+                10_000m * result.MaxFpValidationAbsolute / result.ValidationPositiveScenarios,
+            ["FS_DECISION_CALIBRATION_TEST_FP_EFFECTIVE_CAP_BP"] =
+                10_000m * result.MaxFpTestAbsolute / result.TestPositiveScenarios,
+            ["FS_DECISION_CALIBRATION_VALIDATION_FP_ALL_SCENARIOS_BP"] =
+                10_000m * selected.Validation.FalsePositive / (result.ValidationPositiveScenarios + result.ValidationNegativeScenarios),
+            ["FS_DECISION_CALIBRATION_TEST_FP_ALL_SCENARIOS_BP"] =
+                10_000m * selected.Test.FalsePositive / (result.TestPositiveScenarios + result.TestNegativeScenarios),
+            ["FS_DECISION_CALIBRATION_TEST_FP_WRONG_PERSON"] = result.TestWrongPersonFalsePositive ?? 0L,
+            ["FS_DECISION_CALIBRATION_TEST_FP_LEAVE_TRUTH_OUT"] = result.TestLeaveTruthOutFalsePositive ?? 0L,
             ["FS_DECISION_CALIBRATION_LEAVE_TRUTH_OUT_V1"] = 1m
         };
 
         return output;
+    }
+
+    /// <summary>
+    /// Arredondamento discreto por positivo. Em partições pequenas a proporção
+    /// efetiva pode superar os basis points nominais; ambas são auditadas.
+    /// </summary>
+    public static long FalsePositiveBudget(int positiveScenarios, int maxFpBasisPoints)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(positiveScenarios);
+        if (maxFpBasisPoints is < 0 or > 10_000)
+            throw new ArgumentOutOfRangeException(nameof(maxFpBasisPoints));
+        return ((long)positiveScenarios * maxFpBasisPoints + 9_999L) / 10_000L;
     }
 
     public static FsDecisionCalibrationPartition Partition(

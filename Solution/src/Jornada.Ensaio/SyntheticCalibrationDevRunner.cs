@@ -43,7 +43,9 @@ public sealed partial class SyntheticCalibrationDevRunner(
         "TrainingSamplePoolSize",
         "SmoothingAlpha",
         "ReadCommandTimeoutSeconds",
-        "MinimumIndependentMatchedPairs"
+        "MinimumIndependentMatchedPairs",
+        "DecisionCalibrationMaxFpValidationBasisPoints",
+        "DecisionCalibrationMaxFpTestBasisPoints"
     ];
 
     public async Task<int> RunAsync(CancellationToken cancellationToken)
@@ -78,6 +80,9 @@ public sealed partial class SyntheticCalibrationDevRunner(
         Directory.CreateDirectory(settings.RuntimeStagingDirectory);
 
         await RestoreAndBuildAsync(settings, cancellationToken);
+        // Referência externa precisa existir ANTES da primeira Entrega, não
+        // ser produzida como efeito colateral de GENERATE_DRAFT ou do boot.
+        await EnsureNameFrequencySnapshotAsync(settings, cancellationToken);
         await GeneratePackagesAsync(settings, cancellationToken);
 
         var bridgeManifestPath = Path.Combine(
@@ -157,7 +162,6 @@ public sealed partial class SyntheticCalibrationDevRunner(
         }
 
         var versionBefore = await ReadMaxModelVersionAsync(cancellationToken);
-        await EnsureNameFrequencySnapshotAsync(settings, cancellationToken);
         await RunGenerateDraftAsync(settings, cancellationToken);
         var model = await ReadSingleNewDraftAsync(versionBefore, cancellationToken);
         var modelValidation = await RunModelValidationAsync(

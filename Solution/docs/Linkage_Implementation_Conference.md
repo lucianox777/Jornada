@@ -53,15 +53,9 @@ A avaliação governada usa dois gates primários:
 
 ## Tolerância
 
-O arquivo `config/linkage/implementation-conference-tolerance.json` está deliberadamente em:
+O arquivo `config/linkage/implementation-conference-tolerance.json` contém a tolerância **técnica de engenharia V1_2026-09-26**, congelada antes da execução governada: `status=FROZEN`, `maxAbsolutePairLlrDifference=0.01`, método `JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1`. Este valor foi proposto como teto de engenharia **ex ante** para a conferência independente de scorer/policy C# `decimal` × C# `float64` (não é medição de Python/Splink, que não é o motor de conferência atual). A hipótese de erro de arredondamento <0,001 ainda demanda caracterização numérica independente em corpus abrangente; o teto 0,01 **não** demonstra suficiência estatística nem equivalência de comparadores.
 
-`UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`
-
-e mantém `maxAbsolutePairLlrDifference=null`.
-
-Não existe default de produção. A engine retorna `NAO_EXECUTADA / TOLERANCE_NOT_FROZEN` quando o contrato não está congelado. O valor deverá ser definido e versionado **antes da primeira execução governada**, sem ser inferido a partir do primeiro resultado.
-
-Os valores numéricos usados em testes automatizados são fixtures marcadas `TEST_ONLY_NOT_GOVERNANCE` e não constituem tolerância institucional/técnica do modelo.
+A decisão final deve permanecer **exatamente igual** independentemente da tolerância de LLR. Um desvio de LLR >0,01 ou qualquer mudança de decisão produz `DIVERGENTE`. O contrato não permite inferir nem relaxar a tolerância a partir de um primeiro resultado. Evidências `NAO_EXECUTADA` ainda podem decorrer de outras pré-condições (vetor inválido, modelo incompleto). Valores `TEST_ONLY_NOT_GOVERNANCE` em fixtures não substituem o arquivo versionado.
 
 ## Estados de saída
 
@@ -90,11 +84,11 @@ Uma execução `DIVERGENTE` ou `NAO_EXECUTADA` posterior invalida, para efeito d
 
 O **wiring em `VALIDATE` e `ACTIVATE` já está implementado** no `Jornada.Linkage.Parameters.Worker`: ambas carregam o mesmo contrato versionado de tolerância, abrem transação `SERIALIZABLE` e chamam `auditoria.sp_assert_conferencia_linkage_conforme` para a própria `modelo_id` antes de alterar o status. O assert SQL exige a evidência **mais recente** `CONFORME` para o método/versão de tolerância e um fingerprint que ainda corresponda ao snapshot decisório.
 
-Enquanto `implementation-conference-tolerance.json` estiver `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`, ambas as operações falham **antes de abrir o banco**. O comando governado de conferência também falha fechado; nenhuma evidência ou promoção operacional é presumida. O fluxo disponível após congelamento independente e conferência conforme é:
+Com a configuração de engenharia congelada, `VALIDATE` e `ACTIVATE` superam apenas a pré-condição de **tolerância definida**. A promoção continua exigindo a execução governada prévia da conferência, evidência mais recente `CONFORME` no mesmo método/versão/fingerprint, e a validação dos budgets FP persistidos. A regra exata continua:
 
 `GENERATE_DRAFT -> CONFERENCIA -> VALIDATE -> ACTIVATE`
 
-A integração dos gates está pronta; **a tolerância governada ainda não foi definida** (DT-01), portanto a execução real dessa promoção continua bloqueada. O código não usa tolerâncias das fixtures como default.
+Não há conferência governada executada nem promoção demonstrada apenas pela alteração deste arquivo. As suites de CI verificam o contrato e fixtures; DEV deve produzir evidência independente por modelo. A validação estatística representativa (#31) continua separada.
 
 ## Comando governado
 
@@ -117,7 +111,7 @@ O corpus corrente contém **7 cenários e 208 candidatos sintéticos**: matriz c
 
 O hash do request e do relatório inclui o fingerprint do snapshot do modelo. Rerun byte-a-byte idêntico é idempotente e retorna o mesmo `evidencia_id`; mesmo hash com request/snapshot incompatível é recusado fail-closed.
 
-A configuração governada continua com `toleranceVersion=UNFROZEN`, status `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION` e valor nulo. Portanto o comando existe, mas uma execução governada real continua bloqueada até o congelamento explícito da tolerância.
+O arquivo corrente tem `toleranceVersion=V1_2026-09-26`, `status=FROZEN` e `maxAbsolutePairLlrDifference=0.01`. O comando pode executar uma conferência governada quando houver modelo `RASCUNHO` e SQL operacional disponível; seu resultado, `CONFORME` ou `DIVERGENTE`, não deve ser presumido antes da execução.
 
 
 ## Exposição no monitor operacional

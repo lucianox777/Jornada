@@ -40,7 +40,7 @@ A convenção operacional é executar as rotinas manuais no NODE2, embora o mesm
 GENERATE_DRAFT → CONFERENCIA → VALIDATE → ACTIVATE
 ```
 
-O wrapper só termina com sucesso quando a nova versão fica `ATIVO`. `CONFERENCIA` usa `config\linkage\implementation-conference-tolerance.json`; enquanto o arquivo oficial estiver `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`, a rotina para fail-closed antes de `VALIDATE`. Quando congelado, `VALIDATE` e `ACTIVATE` reaplicam o assert SQL da mesma evidência/tolerância.
+O wrapper só termina com sucesso quando a nova versão fica `ATIVO`. `CONFERENCIA` usa `config\linkage\implementation-conference-tolerance.json`; com o arquivo técnico `FROZEN` em `V1_2026-09-26`, a rotina ainda falha fechado sem evidência de conferência `CONFORME`. `VALIDATE` e `ACTIVATE` reaplicam o mesmo assert SQL de conferência e a verificação compartilhada do orçamento FP.
 
 `Invoke-JornadaLinkageRun.ps1` faz preflight no SQL e só inicia o Runner quando existe **exatamente um** `identidade.modelo_linkage` em `ATIVO`. O próprio runtime do Linkage já rejeita ausência de modelo ativo; o wrapper torna essa pré-condição explícita antes de iniciar a execução manual.
 

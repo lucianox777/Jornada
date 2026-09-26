@@ -58,13 +58,11 @@ de configuração, não uma explicação automática da quarentena.
 ondas, e o modelo criado continua RASCUNHO, sem ativação ou promoção.
 
 
-## Próximo bloqueio após isolar a Bronze: safety gate TEST
+## Histórico do gate TEST e critério de retomada
 
 Depois de isolar o banco DEV, a carga avançou até o Parameters.Worker.
 O candidato FS foi escolhido exclusivamente com VALIDATION, mas o
-conjunto TEST congelado registrou 3 falsos vínculos. O Worker recusou
-corretamente a publicação do RASCUNHO; **não** devemos ajustar o
-threshold ou repetir o mesmo TEST até passar. O PR #446 passou a
+conjunto TEST congelado registrou 3 falsos vínculos. Na ocasião, o Worker recusou a publicação do RASCUNHO sob o gate legado de zero FP. O novo orçamento FP de engenharia (100 bp por default no Worker) não prova retroativamente que esses três FP atendem ao limite: é necessário conferir os denominadores de VALIDATION/TEST e os FP por classe, assim como FN e recall. O threshold não pode ser ajustado olhando o mesmo TEST conhecido. O PR #446 passou a
 persistir classes e denominadores agregados desse resultado em
 `identidade.modelo_linkage.falha_resumo`, sem identificadores pessoais.
 
@@ -83,8 +81,7 @@ PowerShell, na pasta `Solution`, use uma única linha:
 A investigação seguinte deve partir dessas contagens, confrontar
 VALIDATION versus TEST e só propor uma mudança de algoritmo/regra a
 partir de hipóteses e dados de treino independentes. Uma nova rodada
-confirmatória exige novos seeds e TEST ainda não inspecionado. Este
-diagnóstico não altera o safety gate de zero FP nem ativa modelo.
+confirmatória exige novos seeds e TEST ainda não inspecionado. O diagnóstico não altera o TEST histórico nem ativa modelo. A execução confirmatória exige novo TEST, medidas por estrato e conferência governada com a tolerância técnica previamente declarada.
 
 **Banco original:** o `JornadaLocal` com NODE1/NODE2 serve para
 ensaios posteriores de integração de cluster com Bronze compartilhada.

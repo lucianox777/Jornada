@@ -12,7 +12,7 @@
     h1{font-size:20px;margin:0}.sub{font-size:12px;color:#627083;margin-top:3px}
     main{max-width:1500px;margin:0 auto;padding:20px 24px 50px}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .badge{border-radius:999px;padding:7px 12px;font-weight:700;font-size:12px;letter-spacing:.04em;background:#e8edf2;color:#465568}
-    .NORMAL,.OK,.CONFORME,.ATUAL{background:#dff5e7;color:#146b36}.ATENCAO,.NAO_CONFIGURADO,.NAO_EXECUTADA,.SEM_EVIDENCIA_MODELO_ATIVO,.SEM_MODELO_ATIVO{background:#fff1cc;color:#7a5300}.FALHA,.DIVERGENTE,.OBSOLETA{background:#ffe0df;color:#9b1c18}
+    .NORMAL,.OK,.CONFORME,.ATUAL,.PRONTA{background:#dff5e7;color:#146b36}.ATENCAO,.NAO_CONFIGURADO,.NAO_EXECUTADA,.SEM_EVIDENCIA_MODELO_ATIVO,.SEM_MODELO_ATIVO,.AUSENTE,.INCOMPLETA{background:#fff1cc;color:#7a5300}.FALHA,.DIVERGENTE,.OBSOLETA{background:#ffe0df;color:#9b1c18}
     button{border:1px solid #ccd5df;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}button:hover{background:#f7f9fb}
     .login{background:#fff;border:1px solid #dfe5eb;border-radius:12px;padding:18px;margin-bottom:18px;display:flex;gap:12px;align-items:end;flex-wrap:wrap}
     .login label{display:grid;gap:5px;font-size:12px;color:#536174}.login input{border:1px solid #cbd5df;border-radius:8px;padding:9px 10px;min-width:240px}.login .key{min-width:380px;max-width:100%}
@@ -44,6 +44,7 @@
     <article class="card span12"><h2>Agora</h2><div id="processing" class="scroll"></div></article>
     <article class="card span8"><h2>Entregas recentes</h2><div id="deliveries" class="scroll"></div></article>
     <article class="card span4"><h2>Bronze · manutenção</h2><div id="bronze"></div></article>
+    <article class="card span12"><h2>Linkage · Calibrador e referência IBGE</h2><div id="calibration"></div></article>
     <article class="card span12"><h2>Linkage · governança do modelo</h2><div id="modelGovernance"></div></article>
     <article class="card span12"><h2>Linkage · últimas execuções</h2><div id="linkage" class="scroll"></div></article>
   </section>
@@ -104,6 +105,47 @@
     $('bronze').innerHTML=`<div class="metric-grid"><div class="metric"><b>${n(x.objectsExamined)}</b><span>objetos examinados</span></div><div class="metric"><b>${n(x.orphansRemoved)}</b><span>órfãos removidos</span></div><div class="metric"><b>${n(x.temporariesRemoved)}</b><span>temporários removidos</span></div><div class="metric"><b>${n(x.storageFailures)}</b><span>falhas de storage</span></div></div><p class="muted">Último ciclo: ${esc(dt(x.startedAt))} → ${esc(dt(x.finishedAt))} · locks não adquiridos: ${n(x.locksNotAcquired)}</p>`;
   }
 
+  function renderCalibration(c, reference){
+    const out=$('calibration');
+    const cell=(label,value)=>'<div class="bundle-cell"><span class="muted">'+esc(label)+'</span><b>'+esc(value)+'</b></div>';
+    const fmt=value=>value==null?'—':n(value);
+    const bp=value=>value==null?'—':n(value)+' bp';
+    const pct=(numerator,denominator)=>denominator>0&&numerator!=null
+      ?(100*Number(numerator)/Number(denominator)).toLocaleString('pt-BR',{maximumFractionDigits:3})+'%'
+      :'—';
+    const refStatus=reference?.status||'AUSENTE';
+    const refHead='<div class="bundle-head"><b>Referência IBGE</b><span class="badge '+esc(refStatus)+'">'+esc(refStatus)+'</span></div>';
+    const refRows='<div class="bundle-grid">'+
+      cell('Versão IBGE ATIVA',reference?.referenceCode||'nenhuma')+
+      cell('SHA-256 do conteúdo',reference?.contentSha256?reference.contentSha256.slice(0,24)+'…':'—')+
+      cell('Referências ATIVAS',fmt(reference?.activeVersions))+'</div>';
+    if(!c?.modelId){
+      out.innerHTML=refHead+refRows+'<p class="muted">Nenhum modelo gerado. A referência é independente do estado do Calibrador e deve ser preparada antes da primeira Entrega.</p>';
+      return;
+    }
+    const nominal=c.validationFpBasisPoints==null?'NÃO_DECLARADO':'CONFIGURADO';
+    out.innerHTML=refHead+refRows+
+      '<h3 style="font-size:13px;margin:16px 0 8px">Última calibração (não necessariamente o modelo ATIVO)</h3>'+
+      '<div class="bundle-head"><span class="badge '+esc(c.modelStatus||'NAO_CONFIGURADO')+'">'+esc(c.modelStatus||'—')+'</span>'+
+      '<span class="muted">v'+fmt(c.modelVersion)+' · '+esc(dt(c.generatedAt))+' · '+esc(shortId(c.modelId))+'</span></div>'+
+      '<div class="bundle-grid">'+
+        cell('Referência fixada no modelo',c.fixedReferenceCode||'—')+
+        cell('Budget FP VALIDATION (nominal/efetivo)',bp(c.validationFpBasisPoints)+' / '+bp(c.validationEffectiveCapBp))+
+        cell('Budget FP TEST (nominal/efetivo)',bp(c.testFpBasisPoints)+' / '+bp(c.testEffectiveCapBp))+
+        cell('FP VALIDATION / teto',fmt(c.validationFalsePositive)+' / '+fmt(c.validationFpLimit))+
+        cell('FP TEST / teto',fmt(c.testFalsePositive)+' / '+fmt(c.testFpLimit))+
+        cell('FP por positivo rotulado VALIDATION',pct(c.validationFalsePositive,c.validationPositive))+
+        cell('FP por positivo rotulado TEST',pct(c.testFalsePositive,c.testPositive))+
+        cell('FP em TEST: pessoa errada / leave-truth-out',fmt(c.testWrongPersonFp)+' / '+fmt(c.testLeaveTruthOutFp))+
+        cell('FN VALIDATION / TEST',fmt(c.validationFalseNegative)+' / '+fmt(c.testFalseNegative))+
+        cell('Inconclusivos VALIDATION / TEST',fmt(c.validationInconclusive)+' / '+fmt(c.testInconclusive))+
+        cell('Cenários positivos VALIDATION / TEST',fmt(c.validationPositive)+' / '+fmt(c.testPositive))+
+        cell('Negativos leave-truth-out VALIDATION / TEST',fmt(c.validationNegative)+' / '+fmt(c.testNegative))+
+        cell('Amostra m / amostra u',fmt(c.matchedPairSample)+' / '+fmt(c.candidateUnionUSample))+
+      '</div>'+
+      '<p class="muted">Orçamento FP calculado sobre positivos, mas também conta associações indevidas leave-truth-out. Não é FPR clássica nem validação populacional. Valores ausentes em modelos legados/FALHOU não são interpretados como zero. Estado: '+esc(nominal)+'. O Monitor é somente leitura e não aciona calibração.</p>';
+  }
+
   function renderModelGovernance(model, conference, passSupport, transitions){
     if(!model){ $('modelGovernance').innerHTML='<div class="empty">Sem informação de governança do modelo.</div>'; return; }
     const status=model.status || 'SEM_MODELO_ATIVO';
@@ -161,7 +203,7 @@
       const data=await response.json(); const m=data.monitor;
       showError(''); setOverall(m.overallStatus); state.lastGenerated=new Date(m.generatedAt);
       $('login').classList.add('hidden'); $('dashboard').classList.remove('hidden');
-      renderNodes(m.components); renderReadiness(data.readiness); renderConfiguration(m.configurationHealth); renderQueue(m.queue); renderProcessing(m.processing); renderDeliveries(m.recentDeliveries); renderBronze(m.bronzeMaintenance); renderModelGovernance(m.linkageModelGovernance,m.linkageConferenceGovernance,m.linkageBlockingPassSupport,m.linkageModelTransitions); renderLinkage(m.linkageRuns);
+      renderNodes(m.components); renderReadiness(data.readiness); renderConfiguration(m.configurationHealth); renderQueue(m.queue); renderProcessing(m.processing); renderDeliveries(m.recentDeliveries); renderBronze(m.bronzeMaintenance); renderCalibration(m.linkageCalibration,m.ibgeReference); renderModelGovernance(m.linkageModelGovernance,m.linkageConferenceGovernance,m.linkageBlockingPassSupport,m.linkageModelTransitions); renderLinkage(m.linkageRuns);
       $('updated').textContent='atualizado '+dt(m.generatedAt);
     }catch(error){ showError(error.message || 'Falha ao atualizar o monitor.'); setOverall('FALHA'); $('login').classList.remove('hidden'); }
   }

@@ -98,6 +98,13 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(source, Does.Contain("X-Jornada-Access-Key"));
             Assert.That(source, Does.Contain("LOAD_NAME_FREQUENCY_SNAPSHOT"));
             Assert.That(source, Does.Contain("Referência nominal IBGE ATIVA preservada; recarga omitida."));
+            Assert.That(source.IndexOf("await EnsureNameFrequencySnapshotAsync(settings, cancellationToken);",
+                StringComparison.Ordinal), Is.LessThan(
+                source.IndexOf("await GeneratePackagesAsync(settings, cancellationToken);",
+                    StringComparison.Ordinal)),
+                "Primeira carga IBGE deve ocorrer antes da primeira entrega.");
+            Assert.That(source, Does.Contain("DecisionCalibrationMaxFpValidationBasisPoints"));
+            Assert.That(source, Does.Contain("DecisionCalibrationMaxFpTestBasisPoints"));
             Assert.That(source, Does.Contain("GENERATE_DRAFT"));
             Assert.That(source, Does.Contain("--synthetic-evaluate-root"));
             Assert.That(source, Does.Contain("--synthetic-run-group-id"));
@@ -136,6 +143,9 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(evaluator, Does.Contain("FsDecisionThresholdCalibrator.Calibrate"));
             Assert.That(evaluator, Does.Contain("FsDecisionThresholdCalibrator.Partition"));
             Assert.That(evaluator, Does.Contain("FS_DECISION_CALIBRATION_SEED"));
+            Assert.That(evaluator, Does.Contain("FS_DECISION_CALIBRATION_MAX_FP_VALIDATION_BP"));
+            Assert.That(evaluator, Does.Contain("FS_DECISION_CALIBRATION_MAX_FP_TEST_BP"),
+                "O oracle deve reproduzir o budget congelado e nunca voltar a zero por omissão.");
             Assert.That(evaluator, Does.Contain("CPF_PRESENT"));
             Assert.That(evaluator, Does.Contain("CPF_ABSENT"));
             Assert.That(evaluator, Does.Not.Contain("UPDATE identidade.modelo_linkage"));
@@ -195,6 +205,10 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(runner, Does.Contain("ReadOperationalSources"));
             Assert.That(runner, Does.Contain("ReadMaterializedCountsAsync"));
             Assert.That(runner, Does.Contain("RunGenerateDraftAsync"));
+            Assert.That(runner.IndexOf("await EnsureNameFrequencySnapshotAsync(settings, cancellationToken);",
+                StringComparison.Ordinal), Is.LessThan(
+                runner.IndexOf("await GenerateWavePackagesAsync(settings, waveCount, cancellationToken);",
+                    StringComparison.Ordinal)));
             Assert.That(runner, Does.Contain("RunModelValidationAsync"));
             Assert.That(runner, Does.Contain("MEDIDO_SHADOW_SEM_PUBLICACAO"));
             Assert.That(runner, Does.Contain("WriteWaveOperationalSnapshotAsync"));

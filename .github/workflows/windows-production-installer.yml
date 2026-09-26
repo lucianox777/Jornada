@@ -147,8 +147,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Jornada.Linkage.Conference --help retornou $LASTEXITCODE" }
           if ($help -notmatch '--model-id' -or $help -notmatch '--tolerance-config') { throw 'Help do comando de conferência incompleto.' }
           $cfg = Get-Content -Raw -Encoding UTF8 $tolerance | ConvertFrom-Json
-          if ($cfg.status -ne 'UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION') { throw 'Bundle alterou indevidamente o status da tolerância.' }
-          if ($cfg.toleranceVersion -ne 'UNFROZEN' -or $null -ne $cfg.maxAbsolutePairLlrDifference) { throw 'Bundle inventou tolerância de conferência.' }
+          if ($cfg.status -ne 'FROZEN') { throw 'Bundle não contém a tolerância governada congelada.' }
+          if ($cfg.toleranceVersion -ne 'V1_2026-09-26' -or [decimal]$cfg.maxAbsolutePairLlrDifference -ne [decimal]0.01) { throw 'Bundle divergiu da versão ou valor governado da tolerância.' }
+          if ($cfg.decisionEquivalence -ne 'EXACT_FINAL_OPERATIONAL_DECISION') { throw 'Bundle perdeu equivalência exata da decisão.' }
 
       - name: Validate installer against generated production bundle
         shell: pwsh

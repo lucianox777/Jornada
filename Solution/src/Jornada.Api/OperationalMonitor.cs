@@ -105,6 +105,41 @@ internal sealed record LinkageConferenceGovernanceStatus(
     string RoundTripMethod,
     string RoundTripStatus);
 
+// Valores agregados por modelo; nao expoe scores, thresholds ou pessoa.
+internal sealed record LinkageCalibrationSummary(
+    string Status,
+    Guid? ModelId,
+    int? ModelVersion,
+    string? ModelStatus,
+    DateTimeOffset? GeneratedAt,
+    string? FixedReferenceCode,
+    int? ValidationFpBasisPoints,
+    int? TestFpBasisPoints,
+    decimal? ValidationFpLimit,
+    decimal? TestFpLimit,
+    decimal? ValidationPositive,
+    decimal? ValidationNegative,
+    decimal? TestPositive,
+    decimal? TestNegative,
+    decimal? ValidationFalsePositive,
+    decimal? TestFalsePositive,
+    decimal? ValidationFalseNegative,
+    decimal? TestFalseNegative,
+    decimal? ValidationInconclusive,
+    decimal? TestInconclusive,
+    decimal? TestWrongPersonFp,
+    decimal? TestLeaveTruthOutFp,
+    decimal? MatchedPairSample,
+    decimal? CandidateUnionUSample,
+    decimal? ValidationEffectiveCapBp,
+    decimal? TestEffectiveCapBp);
+
+internal sealed record IbgeReferenceReadiness(
+    string Status,
+    int ActiveVersions,
+    string? ReferenceCode,
+    string? ContentSha256);
+
 internal sealed record LinkageBlockingPassSupportStatus(
     int PassOrder,
     string PassId,
@@ -136,7 +171,9 @@ internal sealed record OperationalMonitorSnapshot(
     LinkageConferenceGovernanceStatus LinkageConferenceGovernance,
     IReadOnlyList<LinkageBlockingPassSupportStatus> LinkageBlockingPassSupport,
     IReadOnlyList<LinkageModelTransitionStatus> LinkageModelTransitions,
-    IReadOnlyList<LinkageRunStatus> LinkageRuns);
+    IReadOnlyList<LinkageRunStatus> LinkageRuns,
+    LinkageCalibrationSummary LinkageCalibration,
+    IbgeReferenceReadiness IbgeReference);
 
 internal sealed class OperationalMonitorService(IOperationalSqlAdapter connections)
 {
@@ -292,6 +329,56 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
                 SELECT value
                 FROM sys.extended_properties
                 WHERE class=0 AND name=N'Jornada.SolutionSchema'));
+
+            -- Referencia pronta independe de modelo ATIVO: necessaria antes da primeira entrega.
+            SELECT v.codigo,
+                   CASE WHEN v.conteudo_sha256 IS NULL THEN NULL
+                        ELSE CONVERT(VARCHAR(64),v.conteudo_sha256,2) END conteudo_sha256,
+                   CASE WHEN EXISTS(SELECT 1 FROM ref.frequencia_nome f
+                                    WHERE f.frequencia_nome_versao_id=v.frequencia_nome_versao_id)
+                        THEN 1 ELSE 0 END tem_linhas
+            FROM ref.frequencia_nome_versao v
+            WHERE v.status=N'ATIVA'
+            ORDER BY v.frequencia_nome_versao_id DESC;
+
+            -- Ultimo modelo gerado, inclusive RASCUNHO/FALHOU, sem confundi-lo com ATIVO.
+            SELECT m.modelo_id,m.versao,m.status,m.gerado_em,refv.codigo,
+                   p.validation_bp,p.test_bp,p.validation_limit,p.test_limit,
+                   p.validation_positive,p.validation_negative,p.test_positive,p.test_negative,
+                   p.validation_fp,p.test_fp,p.validation_fn,p.test_fn,
+                   p.validation_inconclusive,p.test_inconclusive,
+                   p.test_wrong_person_fp,p.test_leave_truth_out_fp,
+                   p.m_sample,p.u_sample,p.validation_effective_cap_bp,p.test_effective_cap_bp
+            FROM (
+                SELECT TOP(1) modelo_id,versao,status,gerado_em,frequencia_nome_versao_id
+                FROM identidade.modelo_linkage ORDER BY versao DESC
+            ) m
+            LEFT JOIN ref.frequencia_nome_versao refv
+                   ON refv.frequencia_nome_versao_id=m.frequencia_nome_versao_id
+            OUTER APPLY (
+                SELECT
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_MAX_FP_VALIDATION_BP' THEN valor END) validation_bp,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_MAX_FP_TEST_BP' THEN valor END) test_bp,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_VALIDATION_FP_LIMIT' THEN valor END) validation_limit,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_FP_LIMIT' THEN valor END) test_limit,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_VALIDATION_POSITIVE' THEN valor END) validation_positive,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_VALIDATION_NEGATIVE' THEN valor END) validation_negative,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_POSITIVE' THEN valor END) test_positive,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_NEGATIVE' THEN valor END) test_negative,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_VALIDATION_FP' THEN valor END) validation_fp,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_FP' THEN valor END) test_fp,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_VALIDATION_FN' THEN valor END) validation_fn,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_FN' THEN valor END) test_fn,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_VALIDATION_INCONCLUSIVE' THEN valor END) validation_inconclusive,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_INCONCLUSIVE' THEN valor END) test_inconclusive,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_FP_WRONG_PERSON' THEN valor END) test_wrong_person_fp,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_FP_LEAVE_TRUTH_OUT' THEN valor END) test_leave_truth_out_fp,
+                    MAX(CASE WHEN nome=N'M_SAMPLE_SIZE' THEN valor END) m_sample,
+                    MAX(CASE WHEN nome=N'U_SAMPLE_SIZE' THEN valor END) u_sample,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_VALIDATION_FP_EFFECTIVE_CAP_BP' THEN valor END) validation_effective_cap_bp,
+                    MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_FP_EFFECTIVE_CAP_BP' THEN valor END) test_effective_cap_bp
+                FROM identidade.parametro_linkage WHERE modelo_id=m.modelo_id
+            ) p;
             """, connection)
         {
             CommandTimeout = 5
@@ -308,6 +395,12 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             "NAO_DECLARADO", "NAO_DECLARADO", "PENDENTE_ISSUE_31");
         var modelTransitions = new List<LinkageModelTransitionStatus>();
         var blockingPassSupport = new List<LinkageBlockingPassSupportStatus>();
+        var ibgeReference = new IbgeReferenceReadiness("AUSENTE", 0, null, null);
+        var calibration = new LinkageCalibrationSummary(
+            "SEM_MODELO", null, null, null, null, null,
+            null, null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null,
+            null, null, null, null);
         LinkageConferenceGovernanceStatus conferenceGovernance = new(
             "SEM_MODELO_ATIVO", null, null, null, null, null, null, null, null, null, null,
             "PENDENTE_ISSUE_31",
@@ -448,6 +541,40 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
         if (await reader.ReadAsync(ct) && !reader.IsDBNull(0))
             databaseSolutionSchema = reader.GetString(0);
 
+        await reader.NextResultAsync(ct);
+        var activeReferences = new List<(string Code, string? Sha, bool HasRows)>();
+        while (await reader.ReadAsync(ct))
+            activeReferences.Add((
+                reader.GetString(0),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                reader.GetInt32(2) == 1));
+        ibgeReference = activeReferences.Count switch
+        {
+            0 => new("AUSENTE", 0, null, null),
+            1 when activeReferences[0].HasRows && activeReferences[0].Sha is not null
+                => new("PRONTA", 1, activeReferences[0].Code, activeReferences[0].Sha),
+            1 => new("INCOMPLETA", 1, activeReferences[0].Code, activeReferences[0].Sha),
+            _ => new("DIVERGENTE", activeReferences.Count, null, null)
+        };
+
+        await reader.NextResultAsync(ct);
+        if (await reader.ReadAsync(ct))
+        {
+            decimal? Dec(int index) => reader.IsDBNull(index) ? null : reader.GetDecimal(index);
+            calibration = new LinkageCalibrationSummary(
+                "MODELO_ENCONTRADO",
+                reader.GetGuid(0),
+                reader.GetInt32(1),
+                reader.GetString(2),
+                ReadNullableDateTimeOffset(reader, 3),
+                reader.IsDBNull(4) ? null : reader.GetString(4),
+                Dec(5) is { } vb ? checked((int)vb) : null,
+                Dec(6) is { } tb ? checked((int)tb) : null,
+                Dec(7), Dec(8), Dec(9), Dec(10), Dec(11), Dec(12),
+                Dec(13), Dec(14), Dec(15), Dec(16), Dec(17), Dec(18),
+                Dec(19), Dec(20), Dec(21), Dec(22), Dec(23), Dec(24));
+        }
+
         var configurationHealth = EvaluateConfigurationHealth(components, databaseSolutionSchema);
         var onlineCount = components.Count(x => x.Online);
         var overall = components.Count == 0 || onlineCount == 0
@@ -471,7 +598,9 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             conferenceGovernance,
             blockingPassSupport,
             modelTransitions,
-            linkageRuns);
+            linkageRuns,
+            calibration,
+            ibgeReference);
     }
 
     public static bool IsSchemaUnavailable(SqlException ex) => ex.Number is 207 or 208;
