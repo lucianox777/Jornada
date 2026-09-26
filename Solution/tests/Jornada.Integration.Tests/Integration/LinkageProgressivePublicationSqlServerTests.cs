@@ -376,6 +376,139 @@ public sealed class LinkageProgressivePublicationSqlServerTests
     }
 
     [Test]
+    public async Task Batch_skips_the_whole_source_when_its_observation_has_deterministic_precedence()
+    {
+        var cs = RequireIntegrationConnection();
+        await using var connection = new SqlConnection(cs);
+        await connection.OpenAsync();
+
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
+
+        long observationId;
+        long sourceId;
+        Guid deterministicUuid;
+        await using (var fixture = connection.CreateCommand())
+        {
+            fixture.CommandText = """
+                SELECT TOP(1) po.pessoa_observacao_id,po.pessoa_origem_id,vf.pessoa_uuid
+                FROM silver.pessoa_observacao po
+                JOIN identidade.vinculo_fonte vf ON vf.pessoa_observacao_id=po.pessoa_observacao_id
+                WHERE po.pessoa_origem_id IS NOT NULL
+                  AND vf.ativo=1 AND vf.pessoa_uuid IS NOT NULL
+                  AND vf.metodo_resolucao=N'CPF_DETERMINISTICO'
+                ORDER BY po.pessoa_observacao_id;
+                """;
+            await using var reader = await fixture.ExecuteReaderAsync();
+            Assert.That(await reader.ReadAsync(), Is.True,
+                "Fixture deve conter observação com CPF determinístico ativo.");
+            observationId = reader.GetInt64(0);
+            sourceId = reader.GetInt64(1);
+            deterministicUuid = reader.GetGuid(2);
+        }
+
+        var model = await ReadModelAsync(connection);
+        var runId = Guid.NewGuid();
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
+        try
+        {
+            long versionBefore;
+            await using (var ensure = connection.CreateCommand())
+            {
+                ensure.Transaction = tx;
+                ensure.CommandText = """
+                    DECLARE @ensured TABLE(
+                      initial_uuid UNIQUEIDENTIFIER NOT NULL,
+                      legacy_pessoa_uuid UNIQUEIDENTIFIER NULL,
+                      estado VARCHAR(20) NOT NULL,
+                      versao BIGINT NOT NULL);
+                    INSERT @ensured
+                    EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source;
+                    SELECT TOP(1) versao FROM @ensured;
+                    """;
+                ensure.Parameters.AddWithValue("@source", sourceId);
+                versionBefore = Convert.ToInt64(
+                    await ensure.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            await InsertRunAsync(connection, tx, runId, model.ModelId, model.Version,
+                observationId, rawResolved: true, noCandidate: false);
+            await using (var insert = connection.CreateCommand())
+            {
+                insert.Transaction = tx;
+                insert.CommandText = """
+                    INSERT identidade.linkage_resultado(
+                        linkage_run_id,modelo_id,modelo_versao,pessoa_observacao_id,
+                        pessoa_uuid_resolvido,melhor_candidato_uuid,score_melhor,
+                        segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em,
+                        resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,
+                        pessoa_origem_id_publicado,politica_publicacao_versao,universo_referencia,publicado_em)
+                    VALUES(
+                        @run,@model,@version,@obs,
+                        @target,@target,0.97000000,NULL,NULL,NULL,
+                        N'RESOLVIDO',NULL,SYSUTCDATETIME(),
+                        N'ASSOCIACAO_EXISTENTE',@target,N'RESOLVIDO',N'CANDIDATO_ESTABELECIDO',
+                        @source,N'LINKAGE_PROGRESSIVE_PUBLICATION_V1',N'RUN_COMPLETO_TESTE',SYSUTCDATETIME());
+                    """;
+                insert.Parameters.AddWithValue("@run", runId);
+                insert.Parameters.AddWithValue("@model", model.ModelId);
+                insert.Parameters.AddWithValue("@version", model.Version);
+                insert.Parameters.AddWithValue("@obs", observationId);
+                insert.Parameters.AddWithValue("@target", deterministicUuid);
+                insert.Parameters.AddWithValue("@source", sourceId);
+                await insert.ExecuteNonQueryAsync();
+            }
+
+            await using (var batch = connection.CreateCommand())
+            {
+                batch.Transaction = tx;
+                batch.CommandText = """
+                    EXEC identidade.sp_publicar_resolucao_progressiva_linkage_lote
+                         @linkage_run_id=@run;
+                    """;
+                batch.Parameters.AddWithValue("@run", runId);
+                await batch.ExecuteNonQueryAsync();
+            }
+
+            await using var verify = connection.CreateCommand();
+            verify.Transaction = tx;
+            verify.CommandText = """
+                SELECT p.versao,r.progressiva_versao,
+                       r.status,r.pessoa_uuid_resolvido,
+                       (SELECT COUNT_BIG(*) FROM identidade.pessoa_origem_progressiva_evento e
+                         WHERE e.pessoa_origem_id=@source AND e.linkage_run_id=@run)
+                FROM identidade.pessoa_origem_progressiva p
+                JOIN identidade.linkage_resultado r
+                  ON r.linkage_run_id=@run AND r.pessoa_observacao_id=@obs
+                WHERE p.pessoa_origem_id=@source;
+                """;
+            verify.Parameters.AddWithValue("@run", runId);
+            verify.Parameters.AddWithValue("@obs", observationId);
+            verify.Parameters.AddWithValue("@source", sourceId);
+            await using var verifyReader = await verify.ExecuteReaderAsync();
+            Assert.That(await verifyReader.ReadAsync(), Is.True);
+            Assert.Multiple(() =>
+            {
+                Assert.That(verifyReader.GetInt64(0), Is.EqualTo(versionBefore),
+                    "O Linkage não pode avançar identidade protegida por CPF.");
+                Assert.That(verifyReader.IsDBNull(1), Is.True,
+                    "Origem protegida não precisa de progressiva_versao deste run.");
+                Assert.That(verifyReader.GetString(2), Is.EqualTo("RESOLVIDO"),
+                    "Resultado bruto continua auditável sem virar autoridade.");
+                Assert.That(verifyReader.GetGuid(3), Is.EqualTo(deterministicUuid));
+                Assert.That(verifyReader.GetInt64(4), Is.Zero,
+                    "O lote não pode criar evento probabilístico em origem determinística.");
+            });
+        }
+        finally
+        {
+            await tx.RollbackAsync();
+        }
+    }
+
+    [Test]
     public async Task Partial_provisional_shell_is_visible_in_gold_but_only_reference_receives_available_blocking_keys()
     {
         var cs = RequireIntegrationConnection();
