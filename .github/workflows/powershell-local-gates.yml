@@ -51,6 +51,7 @@ on:
       - 'Solution/scripts/local-synthetic-diagnostics.ps1'
       - 'Solution/scripts/local-test-sqlcmd-secret-transport.ps1'
       - 'Solution/database/Jornada_Dev_LinkageOperationalMetrics.sql'
+      - 'Solution/database/Jornada_Dev_LinkageOperationalMetrics_UtcSmoke.sql'
       - '.github/workflows/powershell-local-gates.yml'
   pull_request:
     paths:
@@ -102,6 +103,7 @@ on:
       - 'Solution/scripts/local-synthetic-diagnostics.ps1'
       - 'Solution/scripts/local-test-sqlcmd-secret-transport.ps1'
       - 'Solution/database/Jornada_Dev_LinkageOperationalMetrics.sql'
+      - 'Solution/database/Jornada_Dev_LinkageOperationalMetrics_UtcSmoke.sql'
       - '.github/workflows/powershell-local-gates.yml'
   workflow_dispatch:
 
@@ -693,7 +695,7 @@ jobs:
 
       - name: Validate read-only aggregated Linkage operational metrics
         shell: pwsh
-        run: ./scripts/local-linkage-operational-metrics.ps1 -DatabaseName JornadaLocal
+        run: ./scripts/local-linkage-operational-metrics.ps1 -DatabaseName JornadaLocal -ValidateUtcBoundary
 
       - name: Cleanup
         if: always()

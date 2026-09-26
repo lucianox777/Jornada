@@ -42,6 +42,18 @@ absoluta e variação percentual **somente entre semanas contíguas**.
 Se houve semana sem registros, a comparação fica NULL, não é confundida
 com crescimento zero. A semana corrente é parcial: para comparações
 de taxa com períodos completos, excluí-la da interpretação.
+As datas diária e semanal são calculadas convertendo `calculado_em`
+(`DATETIMEOFFSET`) para UTC **antes** de extrair o dia. Isso evita que
+registros próximos da meia-noite em fusos diferentes sejam atribuídos a
+semanas distintas. Para exercitar a prova com instantes equivalentes e
+viradas domingo/segunda, use o autoteste somente leitura:
+
+```powershell
+.\scripts\local-linkage-operational-metrics.ps1 -DatabaseName JornadaLocal -ValidateUtcBoundary
+```
+
+O workflow `jornada-powershell-local-gates` executa essa prova em
+SQL Server descartável, sem criar dados de teste nas tabelas operacionais.
 
 Os contadores exatos `FreshPending` e `Reavaliados` são calculados pelo
 Runner mas NÃO são persistidos em `linkage_run` no schema 3.70.

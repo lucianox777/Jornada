@@ -30,18 +30,27 @@ OUTER APPLY (
  SELECT COUNT_BIG(*) AS gravadas
  FROM identidade.linkage_resultado lr WHERE lr.linkage_run_id=r.linkage_run_id
 ) l ORDER BY r.iniciado_em DESC,r.linkage_run_id DESC;
-SELECT CONVERT(date,calculado_em) AS data_utc,COUNT_BIG(*) AS linhas_gravadas
-FROM identidade.linkage_resultado
-GROUP BY CONVERT(date,calculado_em) ORDER BY data_utc DESC;
+-- calculado_em e DATETIMEOFFSET: converta o instante para UTC ANTES de extrair
+-- a data, para que viradas de meia-noite em offsets distintos caiam no mesmo dia.
+;WITH utc_dates AS (
+ SELECT CONVERT(date,SWITCHOFFSET(calculado_em,'+00:00')) AS data_utc
+ FROM identidade.linkage_resultado
+)
+SELECT data_utc,COUNT_BIG(*) AS linhas_gravadas
+FROM utc_dates
+GROUP BY data_utc ORDER BY data_utc DESC;
 -- Semanas UTC iniciadas na segunda-feira, independentes de DATEFIRST/idioma.
 -- Comparar somente semanas contiguas; lacunas nao representam crescimento zero.
-;WITH weekly AS (
- SELECT DATEADD(DAY,-(DATEDIFF(DAY,CONVERT(date,'19000101',112),
-   CONVERT(date,calculado_em))%7),CONVERT(date,calculado_em)) AS semana_inicio_utc,
-   COUNT_BIG(*) AS linhas_gravadas
+;WITH utc_dates AS (
+ SELECT CONVERT(date,SWITCHOFFSET(calculado_em,'+00:00')) AS data_utc
  FROM identidade.linkage_resultado
+), weekly AS (
+ SELECT DATEADD(DAY,-(DATEDIFF(DAY,CONVERT(date,'19000101',112),
+   data_utc)%7),data_utc) AS semana_inicio_utc,
+   COUNT_BIG(*) AS linhas_gravadas
+ FROM utc_dates
  GROUP BY DATEADD(DAY,-(DATEDIFF(DAY,CONVERT(date,'19000101',112),
-   CONVERT(date,calculado_em))%7),CONVERT(date,calculado_em))
+   data_utc)%7),data_utc)
 ), compared AS (
  SELECT semana_inicio_utc,linhas_gravadas,
   LAG(semana_inicio_utc) OVER (ORDER BY semana_inicio_utc) AS semana_anterior_utc,

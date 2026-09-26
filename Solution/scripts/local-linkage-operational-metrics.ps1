@@ -1,5 +1,5 @@
 ﻿[CmdletBinding()]
-param([string]$EnvFile = '', [string]$DatabaseName = '')
+param([string]$EnvFile = '', [string]$DatabaseName = '', [switch]$ValidateUtcBoundary)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -31,6 +31,10 @@ try {
     $env:SQLCMDPASSWORD = $password
     & docker compose --env-file $EnvFile exec -T -w /workspace -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -w 340 -i database/Jornada_Dev_LinkageOperationalMetrics.sql
     if ($LASTEXITCODE -ne 0) { throw "Consulta agregada falhou ($LASTEXITCODE)." }
+    if ($ValidateUtcBoundary) {
+        & docker compose --env-file $EnvFile exec -T -w /workspace -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -i database/Jornada_Dev_LinkageOperationalMetrics_UtcSmoke.sql
+        if ($LASTEXITCODE -ne 0) { throw "Autoteste UTC de metricas falhou ($LASTEXITCODE)." }
+    }
 }
 finally {
     if ($null -eq $previousSqlcmdPassword) {
