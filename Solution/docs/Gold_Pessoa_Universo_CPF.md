@@ -2,6 +2,8 @@
 
 **Status:** implementado no ciclo de identidade progressiva / PR #354.
 
+**Interpretação normativa:** a Gold é a **melhor representação disponível e revisável**, não um registro perfeito, uma certificação de identidade civil ou uma decisão sobre elegibilidade a benefícios. `REFERENCIA` é um estado operacional de representação canônica, não uma declaração de certeza. O linkage informa a decisão finalística, que cabe à Secretaria responsável. Documento apresentado, ainda que válido segundo sua espécie, é evidência com proveniência e data: seus atributos não são automaticamente os mais recentes nem infalíveis. Preservar divergências e histórico; conferir normas de validade conforme o tipo documental, sem generalizar prazo único.
+
 A existência da representação canônica não depende de um núcleo cadastral completo. A Jornada separa quatro dimensões: **linhagem/existência**, **resolução da identidade**, **completude da representação** e **qualidade/concordância**.
 
 ## 1. Regras normativas
@@ -28,7 +30,7 @@ A procedure considera:
 2. observações cuja origem progressiva já referencia o UUID canônico;
 3. para uma casca `PROVISORIA` ou `INDEFINIDA`, observações da própria origem cujo `initial_uuid` é o UUID materializado.
 
-CPF, nome, nascimento e nome da mãe são selecionados independentemente. Conferência documental tem precedência, seguida de recência. A ausência de uma evidência não bloqueia a seleção dos demais campos.
+CPF, nome, nascimento e nome da mãe são selecionados independentemente. Na implementação atual, conferência documental tem precedência, seguida de recência. Essa precedência é regra operacional de composição, **não garantia de verdade ou atualidade do atributo**; revisar a regra quando a modelagem de evidências permitir distinguir validade documental, data do fato, data de emissão e correções posteriores. A ausência de uma evidência não bloqueia a seleção dos demais campos.
 
 ## 3. Identidade parcial e Linkage
 
@@ -83,4 +85,4 @@ Consumidores podem impor requisitos próprios. Uma tela de atendimento, por exem
 4. Completude não altera, por si só, o estado de resolução.
 5. Identidade não referencial não participa do corpus probabilístico.
 6. Regras de obrigatoriedade pertencem ao contrato versionado da fonte.
-7. A Gold representa o melhor conhecimento atual e pode evoluir ou ser corrigida sem perder a história de identidade.
+7. A Gold representa o melhor conhecimento disponível e pode evoluir ou ser corrigida sem perder a história de identidade; não promete perfeição, certeza civil ou decisão sobre benefícios.
