@@ -1,3 +1,4 @@
+using Jornada.Access.Security;
 using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 using System.Net.Http.Headers;
@@ -31,6 +32,8 @@ else
 {
     builder.Services.AddSingleton<IAccessContextResolver, CorporateIdentityPendingAccessContextResolver>();
 }
+builder.Services.AddJornadaAccessSecurity();
+builder.Services.AddSingleton<IJornadaAccessVerifier, JornadaApiAccessVerifier>();
 
 // Implementações SQL reais das superfícies que não dependem de infraestrutura corporativa externa.
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
@@ -134,6 +137,8 @@ app.Use(async (http, next) =>
 });
 
 app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
 
 static object LivePayload(IHostEnvironment env) => new
 {
@@ -157,14 +162,12 @@ app.MapGet("/health/ready", async (ApiReadinessProbe probe, CancellationToken ct
 app.MapPost("/api/v1/identidade/resolver", async (
     HttpRequest http,
     IdentityResolutionRequest request,
-    IAccessContextResolver access,
+    
     IPolicyEngine policy,
     IIdentityResolutionService service,
     CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: true, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     if (!await policy.IsAllowedAsync(context, "jornada.identidade.resolve", null, null, ct)) return Results.Forbid();
 
     var result = await service.ResolveAsync(context, request, ct);
@@ -176,7 +179,7 @@ app.MapPost("/api/v1/identidade/resolver", async (
             return Results.Ok(new IdentityResolutionResponse(ResolutionStatus.NAO_RESOLVIDO, null, null, "NAO_LOCALIZADO_OU_NAO_AUTORIZADO"));
     }
     return Results.Ok(result);
-}).RequireRateLimiting("identity");
+}).RequireRateLimiting("identity").RequireAuthorization("jornada.identidade.resolve");
 
 // Consulta de origem: contrato distinto, somente Gestor proprietário e escopo específico.
 app.MapProgressiveOriginApi();
@@ -186,15 +189,13 @@ app.MapProgressiveOriginApi();
 // O cliente não informa entregaId/loteSeq/loteTotal; lotes são internos.
 app.MapPost("/api/v1/ingestao/entregas", async (
     HttpRequest http,
-    IAccessContextResolver access,
+    
     IPolicyEngine policy,
     IIngestionService service,
     IngestionStagingStore staging,
     CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: false, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
 
     var idempotencyKey = http.Headers["Idempotency-Key"].ToString();
     if (string.IsNullOrWhiteSpace(idempotencyKey)) return Results.BadRequest(new { erro = "Idempotency-Key obrigatório." });
@@ -276,33 +277,29 @@ app.MapPost("/api/v1/ingestao/entregas", async (
     {
         staging.TryDelete(temp.Path);
     }
-}).RequireRateLimiting("ingestion");
+}).RequireRateLimiting("ingestion").RequireAuthorization("jornada.ingestao.write");
 
 app.MapGet("/api/v1/ingestao/entregas/{entregaId:guid}", async (
     HttpRequest http,
     Guid entregaId,
-    IAccessContextResolver access,
+    
     IPolicyEngine policy,
     IIngestionService service,
     CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: false, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     if (!await policy.IsAllowedAsync(context, "jornada.ingestao.status", null, null, ct)) return Results.Forbid();
     var result = await service.GetStatusAsync(context, entregaId, ct);
     return result is null ? Results.NotFound() : Results.Ok(result);
-}).RequireRateLimiting("standard");
+}).RequireRateLimiting("standard").RequireAuthorization("jornada.ingestao.status");
 
 
 // Correção governada de identidade: somente GESTOR institucional. A Jornada não autentica o agente humano da finalística.
 app.MapPost("/api/v1/identidade/conflitos/detalhe", async (
-    HttpRequest http, IdentityConflictDetailRequest request, IAccessContextResolver access, IPolicyEngine policy,
+    HttpRequest http, IdentityConflictDetailRequest request,  IPolicyEngine policy,
     IIdentityCorrectionService service, CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: false, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     if (!await policy.IsAllowedAsync(context, "jornada.identidade.conflitos.read", null, null, ct)) return Results.Forbid();
     try
     {
@@ -311,15 +308,13 @@ app.MapPost("/api/v1/identidade/conflitos/detalhe", async (
         return result is null ? Results.NotFound() : Results.Ok(result);
     }
     catch (ArgumentException ex) { return Results.BadRequest(new { erro = ex.Message }); }
-}).RequireRateLimiting("identity");
+}).RequireRateLimiting("identity").RequireAuthorization("jornada.identidade.conflitos.read");
 
 app.MapPost("/api/v1/identidade/correcoes", async (
-    HttpRequest http, IdentityCorrectionRequest request, IAccessContextResolver access, IPolicyEngine policy,
+    HttpRequest http, IdentityCorrectionRequest request,  IPolicyEngine policy,
     IIdentityCorrectionService service, CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: false, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     if (!await policy.IsAllowedAsync(context, "jornada.identidade.corrigir", null, null, ct)) return Results.Forbid();
     var correlation = http.HttpContext.Items.TryGetValue(ApiContextItems.CorrelationId, out var value) && value is Guid id ? id : (Guid?)null;
     try
@@ -330,77 +325,67 @@ app.MapPost("/api/v1/identidade/correcoes", async (
     }
     catch (ArgumentException ex) { return Results.BadRequest(new { erro = ex.Message }); }
     catch (SqlException ex) when (ex.Number is >= 51076 and <= 51085) { return Results.Conflict(new { erro = ex.Message }); }
-}).RequireRateLimiting("identity");
+}).RequireRateLimiting("identity").RequireAuthorization("jornada.identidade.corrigir");
 
 // v3.44/v3.45: abertura manual/governada de conflito independente de CPF.
 app.MapPost("/api/v1/identidade/casos", async (
-    HttpRequest http, IdentityGovernedCaseOpenRequest request, IAccessContextResolver access, IPolicyEngine policy,
+    HttpRequest http, IdentityGovernedCaseOpenRequest request,  IPolicyEngine policy,
     IIdentityCorrectionService service, CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: false, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     if (!await policy.IsAllowedAsync(context, "jornada.identidade.corrigir", null, null, ct)) return Results.Forbid();
     var correlation = http.HttpContext.Items.TryGetValue(ApiContextItems.CorrelationId, out var value) && value is Guid id ? id : (Guid?)null;
     try { return Results.Ok(await service.OpenCaseAsync(context, request, correlation, ct)); }
     catch (ArgumentException ex) { return Results.BadRequest(new { erro = ex.Message }); }
     catch (SqlException ex) when (ex.Number is >= 51100 and <= 51109) { return Results.Conflict(new { erro = ex.Message }); }
-}).RequireRateLimiting("identity");
+}).RequireRateLimiting("identity").RequireAuthorization("jornada.identidade.corrigir");
 
 app.MapPost("/api/v1/identidade/casos/{casoId:guid}/aplicar", async (
-    HttpRequest http, Guid casoId, IdentityGovernedCaseApplyRequest request, IAccessContextResolver access, IPolicyEngine policy,
+    HttpRequest http, Guid casoId, IdentityGovernedCaseApplyRequest request,  IPolicyEngine policy,
     IIdentityCorrectionService service, CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: false, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     if (!await policy.IsAllowedAsync(context, "jornada.identidade.corrigir", null, null, ct)) return Results.Forbid();
     var correlation = http.HttpContext.Items.TryGetValue(ApiContextItems.CorrelationId, out var value) && value is Guid id ? id : (Guid?)null;
     try { return Results.Ok(await service.ApplyCaseAsync(context, casoId, request, correlation, ct)); }
     catch (ArgumentException ex) { return Results.BadRequest(new { erro = ex.Message }); }
     catch (SqlException ex) when (ex.Number is >= 51110 and <= 51119) { return Results.Conflict(new { erro = ex.Message }); }
-}).RequireRateLimiting("identity");
+}).RequireRateLimiting("identity").RequireAuthorization("jornada.identidade.corrigir");
 
 // Retorno ativo de divergências: a Jornada entrega o indício; o Gestor finalístico registra o desfecho.
 app.MapGet("/api/v1/divergencias", async (
-    HttpRequest http, int? limit, IAccessContextResolver access, IPolicyEngine policy,
+    HttpRequest http, int? limit,  IPolicyEngine policy,
     IIdentityCorrectionService service, CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: false, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     if (!await policy.IsAllowedAsync(context, "jornada.identidade.conflitos.read", null, null, ct)) return Results.Forbid();
     return Results.Ok(await service.ListDivergencesAsync(context, limit ?? 100, ct));
-}).RequireRateLimiting("identity");
+}).RequireRateLimiting("identity").RequireAuthorization("jornada.identidade.conflitos.read");
 
 app.MapPost("/api/v1/divergencias/{divergenciaId:long}/desfecho", async (
-    HttpRequest http, long divergenciaId, IdentityDivergenceDispositionRequest request, IAccessContextResolver access, IPolicyEngine policy,
+    HttpRequest http, long divergenciaId, IdentityDivergenceDispositionRequest request,  IPolicyEngine policy,
     IIdentityCorrectionService service, CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: false, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     if (!await policy.IsAllowedAsync(context, "jornada.identidade.corrigir", null, null, ct)) return Results.Forbid();
     var correlation = http.HttpContext.Items.TryGetValue(ApiContextItems.CorrelationId, out var value) && value is Guid id ? id : (Guid?)null;
     try { await service.ResolveDivergenceAsync(context, divergenciaId, request, correlation, ct); return Results.NoContent(); }
     catch (ArgumentException ex) { return Results.BadRequest(new { erro = ex.Message }); }
     catch (SqlException ex) when (ex.Number is >= 51120 and <= 51129) { return Results.Conflict(new { erro = ex.Message }); }
-}).RequireRateLimiting("identity");
+}).RequireRateLimiting("identity").RequireAuthorization("jornada.identidade.corrigir");
 
 // Pessoa: única família que admite credencial GESTOR, BENEFICIO ou SERVICO.
 app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}", async (
     HttpRequest http,
     Guid pessoaUuid,
-    IAccessContextResolver access,
+    
     IPolicyEngine policy,
     IContractResolver contracts,
     IPersonCanonicalResolver canonicalResolver,
     IPersonProjectionService service,
     CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: true, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     ApiAuditContext.SetResourceCode(http.HttpContext, context.TipoCodigo);
     var canonicalUuid = await canonicalResolver.ResolveAsync(pessoaUuid, ct);
     if (!canonicalUuid.HasValue) return Results.NotFound();
@@ -411,21 +396,19 @@ app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}", async (
     _ = await contracts.ResolvePersonSchemaAsync(context, ct); // selection is part of authorization, not a caller parameter.
     var result = await service.GetAsync(context, pessoaUuid, ct); // preserva no metadata o UUID originalmente solicitado.
     return result is null ? Results.NotFound() : Results.Ok(result);
-}).RequireRateLimiting("person-query");
+}).RequireRateLimiting("person-query").RequireAuthorization("jornada.pessoas.read");
 
 app.MapPost("/api/v1/pessoas/consulta", async (
     HttpRequest http,
     PersonBatchQueryRequest request,
-    IAccessContextResolver access,
+    
     IPolicyEngine policy,
     IContractResolver contracts,
     IPersonCanonicalResolver canonicalResolver,
     IPersonProjectionService service,
     CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: true, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     ApiAuditContext.SetResourceCode(http.HttpContext, context.TipoCodigo);
     if (request.PessoaUuids.Count is < 1 or > 1000) return Results.BadRequest(new { erro = "Informe de 1 a 1000 UUIDs." });
     if (request.PessoaUuids.Distinct().Count() != request.PessoaUuids.Count) return Results.BadRequest(new { erro = "UUIDs duplicados não são permitidos." });
@@ -438,16 +421,14 @@ app.MapPost("/api/v1/pessoas/consulta", async (
 
     _ = await contracts.ResolvePersonSchemaAsync(context, ct);
     return Results.Ok(await service.GetManyAsync(context, request.PessoaUuids, ct));
-}).RequireRateLimiting("person-query");
+}).RequireRateLimiting("person-query").RequireAuthorization("jornada.pessoas.read");
 
 // Registros = Histórico da Jornada (Gold Benefícios + Gold Serviços). Contexto padrão é Gestor.
 app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}/registros", async (
     HttpRequest http, Guid pessoaUuid, string? natureza, string? codigo, DateOnly? desde, DateOnly? ate,
-    IAccessContextResolver access, IPolicyEngine policy, IPersonCanonicalResolver canonicalResolver, IRegistrosQueryService service, CancellationToken ct) =>
+     IPolicyEngine policy, IPersonCanonicalResolver canonicalResolver, IRegistrosQueryService service, CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: false, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     var filterError = ValidateQueryFilters(natureza, codigo, desde, ate);
     if (filterError is not null) return filterError;
     ApiAuditContext.SetResourceCode(http.HttpContext, codigo);
@@ -457,15 +438,13 @@ app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}/registros", async (
     if (!await policy.IsAllowedAsync(context, "jornada.registros.read", codigo, null, ct)) return Results.Forbid();
     if (!await policy.IsAllowedAsync(context, "jornada.registros.read", codigo, canonicalUuid.Value, ct)) return Results.NotFound();
     return Results.Ok(await service.GetRegistrosAsync(context, canonicalUuid.Value, natureza, codigo, desde, ate, ct));
-}).RequireRateLimiting("person-query");
+}).RequireRateLimiting("person-query").RequireAuthorization("jornada.registros.read");
 
 app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}/beneficios-concedidos", async (
     HttpRequest http, Guid pessoaUuid, string? codigo, DateOnly? desde, DateOnly? ate,
-    IAccessContextResolver access, IPolicyEngine policy, IPersonCanonicalResolver canonicalResolver, IRegistrosQueryService service, CancellationToken ct) =>
+     IPolicyEngine policy, IPersonCanonicalResolver canonicalResolver, IRegistrosQueryService service, CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: false, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     var filterError = ValidateQueryFilters("BENEFICIO", codigo, desde, ate);
     if (filterError is not null) return filterError;
     ApiAuditContext.SetResourceCode(http.HttpContext, codigo);
@@ -475,15 +454,13 @@ app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}/beneficios-concedidos", async (
     if (!await policy.IsAllowedAsync(context, "jornada.registros.read", codigo, null, ct)) return Results.Forbid();
     if (!await policy.IsAllowedAsync(context, "jornada.registros.read", codigo, canonicalUuid.Value, ct)) return Results.NotFound();
     return Results.Ok(await service.GetBeneficiosConcedidosAsync(context, canonicalUuid.Value, codigo, desde, ate, ct));
-}).RequireRateLimiting("person-query");
+}).RequireRateLimiting("person-query").RequireAuthorization("jornada.registros.read");
 
 app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}/servicos-prestados", async (
     HttpRequest http, Guid pessoaUuid, string? codigo, DateOnly? desde, DateOnly? ate,
-    IAccessContextResolver access, IPolicyEngine policy, IPersonCanonicalResolver canonicalResolver, IRegistrosQueryService service, CancellationToken ct) =>
+     IPolicyEngine policy, IPersonCanonicalResolver canonicalResolver, IRegistrosQueryService service, CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: false, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     var filterError = ValidateQueryFilters("SERVICO", codigo, desde, ate);
     if (filterError is not null) return filterError;
     ApiAuditContext.SetResourceCode(http.HttpContext, codigo);
@@ -493,15 +470,13 @@ app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}/servicos-prestados", async (
     if (!await policy.IsAllowedAsync(context, "jornada.registros.read", codigo, null, ct)) return Results.Forbid();
     if (!await policy.IsAllowedAsync(context, "jornada.registros.read", codigo, canonicalUuid.Value, ct)) return Results.NotFound();
     return Results.Ok(await service.GetServicosPrestadosAsync(context, canonicalUuid.Value, codigo, desde, ate, ct));
-}).RequireRateLimiting("person-query");
+}).RequireRateLimiting("person-query").RequireAuthorization("jornada.registros.read");
 
 app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}/possibilidades", async (
     HttpRequest http, Guid pessoaUuid, string? natureza, string? codigo,
-    IAccessContextResolver access, IPolicyEngine policy, IPersonCanonicalResolver canonicalResolver, IPossibilidadesQueryService service, CancellationToken ct) =>
+     IPolicyEngine policy, IPersonCanonicalResolver canonicalResolver, IPossibilidadesQueryService service, CancellationToken ct) =>
 {
-    var auth = await AuthenticateAsync(http, access, allowTypeCredentials: false, ct);
-    if (auth.Error is not null) return auth.Error;
-    var context = auth.Context!;
+    var context = http.HttpContext.RequireJornadaAccessContext();
     var filterError = ValidateQueryFilters(natureza, codigo, null, null);
     if (filterError is not null) return filterError;
     ApiAuditContext.SetResourceCode(http.HttpContext, codigo);
@@ -518,50 +493,10 @@ app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}/possibilidades", async (
         sujeitoAnaliseDoGestorResponsavel = true,
         itens = await service.GetCompativeisAsync(context, canonicalUuid.Value, natureza, codigo, ct)
     });
-}).RequireRateLimiting("person-query");
+}).RequireRateLimiting("person-query").RequireAuthorization("jornada.possibilidades.read");
 
 app.Run();
 
-
-static async Task<AuthAttempt> AuthenticateAsync(
-    HttpRequest http,
-    IAccessContextResolver resolver,
-    bool allowTypeCredentials,
-    CancellationToken ct)
-{
-    var accessKey = http.Headers["X-Jornada-Access-Key"].ToString();
-    if (string.IsNullOrWhiteSpace(accessKey)) return new(null, Results.Unauthorized());
-
-    var gestor = http.Headers["X-Jornada-Gestor"].ToString();
-    var beneficio = http.Headers["X-Jornada-Beneficio"].ToString();
-    var servico = http.Headers["X-Jornada-Servico"].ToString();
-
-    var supplied = new[] { gestor, beneficio, servico }.Count(x => !string.IsNullOrWhiteSpace(x));
-    if (supplied != 1) return new(null, Results.BadRequest(new { erro = "Informe exatamente um código de credencial." }));
-
-    PresentedAccessCredential credential;
-    if (!string.IsNullOrWhiteSpace(beneficio))
-    {
-        if (!allowTypeCredentials) return new(null, Results.Forbid());
-        credential = new PresentedAccessCredential(AccessCredentialType.BENEFICIO, beneficio, accessKey);
-    }
-    else if (!string.IsNullOrWhiteSpace(servico))
-    {
-        if (!allowTypeCredentials) return new(null, Results.Forbid());
-        credential = new PresentedAccessCredential(AccessCredentialType.SERVICO, servico, accessKey);
-    }
-    else
-    {
-        credential = new PresentedAccessCredential(AccessCredentialType.GESTOR, gestor, accessKey);
-    }
-
-    var context = await resolver.ResolveAsync(credential, ct);
-    if (context is null) return new(null, Results.Unauthorized());
-    var credentialLimiter = http.HttpContext.RequestServices.GetRequiredService<AuthenticatedRateLimitGuard>();
-    if (!credentialLimiter.TryAcquire(context, http)) return new(null, Results.StatusCode(StatusCodes.Status429TooManyRequests));
-    http.HttpContext.Items[ApiContextItems.AccessContext] = context;
-    return new(context, null);
-}
 
 static IResult? ValidateQueryFilters(string? natureza, string? codigo, DateOnly? desde, DateOnly? ate)
 {
@@ -580,7 +515,6 @@ static IResult? ValidateQueryFilters(string? natureza, string? codigo, DateOnly?
     return null;
 }
 
-file sealed record AuthAttempt(AccessContext? Context, IResult? Error);
 file sealed class CorporateIdentityPendingAccessContextResolver : IAccessContextResolver
 {
     public Task<AccessContext?> ResolveAsync(PresentedAccessCredential credential, CancellationToken ct) =>
