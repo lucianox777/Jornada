@@ -160,6 +160,8 @@ public sealed class ProgressiveIdentityTests
         Assert.That(properties.TryGetProperty("cpf", out _), Is.False);
         Assert.That(properties.GetProperty("initialUuid").GetProperty("format").GetString(), Is.EqualTo("uuid"));
         Assert.That(properties.GetProperty("canonicalUuid").GetProperty("nullable").GetBoolean(), Is.True);
+        Assert.That(properties.GetProperty("ultimaResolucaoEm").GetProperty("nullable").GetBoolean(), Is.True);
+        Assert.That(properties.GetProperty("versao").GetProperty("format").GetString(), Is.EqualTo("int64"));
         Assert.That(properties.GetProperty("estado").GetProperty("enum").EnumerateArray()
             .Select(value => value.GetString()), Is.EquivalentTo(new[] { "PROVISORIA", "REFERENCIA", "INDEFINIDA" }));
     }
