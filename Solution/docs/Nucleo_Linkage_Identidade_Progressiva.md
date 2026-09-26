@@ -6,7 +6,7 @@
 
 Reutilizar SQL Server, candidate generation/blocking, parâmetros versionados, gates, Runner, Processor, ledger e Gold existentes. Traduzir para C# as capacidades úteis do Splink (comparadores, estimação, decomposição dos pesos e frequência de valores) sem introduzir outro motor operacional ou segundo caminho de decisão. Preservar resultados numéricos de referência em testes de paridade e conferir a implementação antes de promover modelos. O EM pode ser instrumento diagnóstico independente, não promoção automática.
 
-A referência IBGE já integrada permanece como bootstrap das frequências de nomes; avaliar, no Ensaio, diferenças de distribuição por coorte, Secretaria e população. CIDACS-RL é referência metodológica/benchmark brasileiro, **não substituição automática da base de frequências do IBGE**. Não assumir a priori que registros com CPF tenham melhor ou pior qualidade que registros sem CPF: medir qualidade, ausência e erros em ambos os estratos e por Secretaria. Ausência de CPF é condição de resolução, não proxy universal de qualidade cadastral.
+A referência IBGE já integrada permanece como bootstrap das frequências de nomes; CIDACS-RL é referência metodológica/benchmark brasileiro, **não substituição automática da base de frequências do IBGE**. O motor é agnóstico à maturidade cadastral da Secretaria e aos atributos não identitários: não pressupõe qualidade superior ou inferior em registros com ou sem CPF, nem usa presença/ausência de CPF como proxy de qualidade. A qualidade dos dados de identidade é variável e não mensurável a priori; o processamento deve ser robusto aos estados de evidência efetivamente observados, dentro dos contratos versionados. Não criar programa de teste de hipóteses sobre qualidade por Secretaria, coorte ou estrato de CPF.
 
 ## 2. Sinais de identidade e documentos
 
@@ -39,7 +39,7 @@ Preservar o fluxo atual de confirmação governada por enquanto. Uma busca opcio
 1. Documentar invariantes, gatilhos e fronteiras de persistência; criar testes de regressão de reprocessamento por mudanças e dependências.
 2. Implementar e testar o motor único C# e sua explicabilidade, com IBGE como bootstrap e calibração sobre evidência apropriada.
 3. Implementar a fila de invalidação e gravação de transições somente quando houver mudança semântica, preservando auditoria.
-4. Executar Ensaio com uma ou várias Secretarias, por contrato/onda/estrato, medindo precisão, recall, erros, cobertura de blocking, tempos e crescimento de escrita conforme a qualidade da verdade de referência.
+4. Executar Ensaio com uma ou várias Secretarias e cargas em ondas, verificando invariantes de identidade, precisão e recall quando existir verdade de referência adequada, cobertura de blocking, tempos e crescimento de escrita. Não presumir nem testar como premissa diferenças de qualidade por Secretaria ou presença de CPF; registrar limitações observadas da massa sem inferir maturidade institucional.
 5. Tipar a API de identidade e preparar busca opcional de candidatos para o balcão, sem bloquear as entregas anteriores.
 6. BI e transparência ampliada ficam posteriores ao núcleo, exceto métricas mínimas indispensáveis para verificar o Ensaio.
 
