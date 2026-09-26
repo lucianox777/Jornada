@@ -1,0 +1,3 @@
+# Ensaio único — paridade com HML
+
+A Jornada possui um único Ensaio, técnico e operacional. Sequência: DEV → Ensaio → HML → Produção. Antes do Ensaio, todos os contratos, funcionalidades, APIs, segurança, auditoria e observabilidade previstos para HML devem estar implementados. A única diferença planejada na passagem para HML é a massa anonimizada enviada pelas Secretarias. O Ensaio testa o produto completo, inclusive ondas de identidade, reprocessamento, Gold, segurança, falhas, carga e busca semicega de até cinco candidatos com “Nenhum destes”. A anonimização e a adequação estatística da massa precisam ser verificadas. Esta decisão documental não comprova implementação ou testes executados.
