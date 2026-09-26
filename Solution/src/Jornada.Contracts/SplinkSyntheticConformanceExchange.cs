@@ -36,7 +36,8 @@ public sealed record SplinkExternalLevelEstimate(
     string Feature,
     string Level,
     decimal MProbability,
-    decimal UProbability);
+    decimal UProbability,
+    string? SqlCondition = null);
 
 public sealed record SplinkExternalEstimates(
     string SchemaVersion,
