@@ -339,37 +339,3 @@ try {
   & $Python3.Exe @($Python3.Prefix) 'scripts/linkage-decision-quality-gate.py' $out; if($LASTEXITCODE-ne 0){throw 'evidência diagnóstica de decisão do linkage inválida'}
 } finally { Pop-Location }
 Write-Host "Scale harness concluído: $out"; Get-Content $out
-){throw 'budget FP congelado ausente no modelo SCALE'}
-$scaleFpBudgetBp=[int]$scaleFpBudgetText
-if($scaleFpBudgetBp -gt 10000){throw 'budget FP congelado inválido no modelo SCALE'}
-$blockingPressureJson=Scalar "DECLARE @ruleset uniqueidentifier=(SELECT ruleset_id FROM identidade.linkage_ruleset WHERE modelo_id='$modelId'); SELECT (SELECT (SELECT COUNT(*) FROM identidade.linkage_ruleset_passe WHERE ruleset_id=@ruleset) AS ruleSetPassCount, (SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE vigencia_fim IS NULL) AS blockingRows, (SELECT COUNT_BIG(*) FROM (SELECT atributo,valor_normalizado FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) d) AS distinctKeys, (SELECT ISNULL(MAX(people_per_key),0) FROM (SELECT COUNT_BIG(DISTINCT pessoa_uuid) people_per_key FROM identidade.blocking_chave WHERE vigencia_fim IS NULL GROUP BY atributo,valor_normalizado) q) AS maxPeoplePerKey, JSON_QUERY((SELECT a.atributo AS attribute, COUNT_BIG(*) AS rows, COUNT_BIG(DISTINCT a.valor_normalizado) AS distinctValues, (SELECT ISNULL(MAX(people_per_value),0) FROM (SELECT COUNT_BIG(DISTINCT b.pessoa_uuid) people_per_value FROM identidade.blocking_chave b WHERE b.vigencia_fim IS NULL AND b.atributo=a.atributo GROUP BY b.valor_normalizado) z) AS maxPeoplePerValue FROM identidade.blocking_chave a WHERE a.vigencia_fim IS NULL GROUP BY a.atributo FOR JSON PATH)) AS attributes FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);"
-if([string]::IsNullOrWhiteSpace($blockingPressureJson)){throw 'métricas de pressão de blocking ausentes.'}
-$blockingPressure=$blockingPressureJson | ConvertFrom-Json
-
-Push-Location $Root
-try {
-  $coordinationArgs = @($Python3.Prefix) + @('scripts/coordination-lock-probe.py', '--root', $Root, '--database', $db, '--delay-ms', "$lockHolderDelayMs")
-  $coordinationProbeJson = (& $Python3.Exe @coordinationArgs | Select-Object -Last 1)
-  if($LASTEXITCODE-ne 0 -or [string]::IsNullOrWhiteSpace($coordinationProbeJson)){throw 'probe sincronizado de coordenação falhou'}
-  $coordinationProbe=$coordinationProbeJson | ConvertFrom-Json
-} finally { Pop-Location }
-
-$gitCommitSha=((& git -C $Root rev-parse HEAD) | Select-Object -Last 1).Trim().ToLowerInvariant()
-if($LASTEXITCODE -ne 0 -or $gitCommitSha -notmatch '^[0-9a-f]{40}$'){throw 'SHA Git inválido para evidência de escala.'}
-$out=Join-Path $outDir ("scale-{0}-{1}.json" -f $Profile,(Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ'))
-$report=[ordered]@{
-  reportVersion='LINKAGE_SCALE_EVIDENCE_V1';gitCommitSha=$gitCommitSha;profile=$Profile;seed=$seed;collisionModulo=$collisionModulo;birthShiftModulo=$birthShiftModulo;goldPeople=$people;pairedPeople=$paired;pendingWithoutCpf=$pending;trainingSampleSize=$sample;trainingPoolSize=$pool;modelVersion=$model;runtimeScope=$runtimeScope;parametersGenerateMilliseconds=$paramMs;runnerMilliseconds=$runnerMs;blockingPressure=$blockingPressure;blockingPassPressure=$blockingPassPressure;blockingAuditSampleSize=$blockingAuditLabelCount;decisionQuality=$decisionQuality;
-  coordinationProbe=$coordinationProbe;
-  runner=[ordered]@{status=$row[0];eligible=[int64]$row[1];evaluated=[int64]$row[2];resolved=[int64]$row[3];unresolved=[int64]$row[4];conflicts=[int64]$row[5];noCandidateInBirthDateBlock=[int64]$row[6]};correlationId="$corr";generatedAtUtc=(Get-Date).ToUniversalTime().ToString('o')
-} | ConvertTo-Json -Depth 12
-[IO.File]::WriteAllText($out, $report + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
-$latest=Join-Path $outDir ("scale-{0}-latest.json" -f $Profile); Copy-Item $out $latest -Force
-Push-Location $Root
-try {
-  $performanceArgs = @($Python3.Prefix) + @('scripts/performance-evidence-gate.py', $out, '--minimum-eligible', '1', '--baseline', 'config/hml/performance-baseline.json', '--summary', (Join-Path $outDir ("scale-{0}-validation.json" -f $Profile)))
-  & $Python3.Exe @performanceArgs; if($LASTEXITCODE-ne 0){throw 'evidência de escala inválida'}
-  $observabilityArgs = @($Python3.Prefix) + @('scripts/scale-observability-evidence-gate.py', $out)
-  & $Python3.Exe @observabilityArgs; if($LASTEXITCODE-ne 0){throw 'evidência de observabilidade/qualidade de escala inválida'}
-  & $Python3.Exe @($Python3.Prefix) 'scripts/linkage-decision-quality-gate.py' $out; if($LASTEXITCODE-ne 0){throw 'evidência diagnóstica de decisão do linkage inválida'}
-} finally { Pop-Location }
-Write-Host "Scale harness concluído: $out"; Get-Content $out
