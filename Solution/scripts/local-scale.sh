@@ -68,6 +68,9 @@ dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Relea
 ACTIVE_NAME_REFERENCE="$(scalar "SELECT TOP(1) codigo FROM ref.frequencia_nome_versao WHERE status=N'ATIVA';")"
 [[ "$ACTIVE_NAME_REFERENCE" == "CENSO2022_NOMES_BRASIL_V1" ]] || { echo "ERRO: referência IBGE ATIVA inesperada após carga: $ACTIVE_NAME_REFERENCE" >&2; exit 4; }
 echo "Referência de frequências ativa: $ACTIVE_NAME_REFERENCE"
+# Pré-carga: bootstrap nominal versionado, idempotente; GENERATE_DRAFT só lê ref.
+export LinkageParameters__Operation=ENSURE_IBGE_NOMINAL_U_REFERENCE
+dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
 
 sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_PAIRED="$PAIRED" SCALE_PENDING="$PENDING" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" SCALE_BIRTH_SHIFT_MODULO="$BIRTH_SHIFT_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale.sql
 sqlcmd -d "$DB" -v SCALE_PEOPLE="$PEOPLE" SCALE_SEED="$SEED" SCALE_COLLISION_MODULO="$COLLISION_MODULO" -i /workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql
