@@ -15,6 +15,17 @@ public sealed class OperationalMonitorModelGovernanceContractTests
         Assert.Multiple(() =>
         {
             Assert.That(html, Does.Contain("Linkage · governança do modelo"));
+            Assert.That(html, Does.Contain("Linkage · Calibrador e referência IBGE"));
+            Assert.That(html, Does.Contain("renderCalibration"));
+            Assert.That(html, Does.Contain("validationFpBasisPoints"));
+            Assert.That(html, Does.Contain("validationEffectiveCapBp"));
+            Assert.That(html, Does.Contain("testWrongPersonFp"));
+            Assert.That(html, Does.Contain("testLeaveTruthOutFp"));
+            Assert.That(service, Does.Contain("FS_DECISION_CALIBRATION_VALIDATION_FP_LIMIT"));
+            Assert.That(service, Does.Contain("FS_DECISION_CALIBRATION_TEST_FP_EFFECTIVE_CAP_BP"));
+            Assert.That(service, Does.Contain("ref.frequencia_nome_versao"));
+            Assert.That(service, Does.Contain("LinkageCalibrationSummary"));
+            Assert.That(service, Does.Contain("IbgeReferenceReadiness"));
             Assert.That(html, Does.Contain("Validação estatística"));
             Assert.That(html, Does.Contain("PENDENTE_ISSUE_31"));
             Assert.That(html, Does.Contain("Threshold/margem não são expostos"));
