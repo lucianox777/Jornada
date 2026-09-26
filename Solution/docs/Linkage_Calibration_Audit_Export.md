@@ -83,3 +83,7 @@ O importador é fail-closed: rejeita membros JSON desconhecidos, `schemaVersion/
 Rejeitar membros desconhecidos é deliberado: o round-trip não pode parecer conforme descartando silenciosamente um campo que o C# não entende. Como consequência, dados pessoais ou qualquer extensão não versionada inserida no JSON não são absorvidos silenciosamente pelo contrato v1.
 
 Esse round-trip prova **fidelidade do formato de intercâmbio da Jornada**. Ele não mede paridade de scorer, não valida comparadores a partir de dados brutos, não estima qualidade estatística e não autoriza promoção do modelo.
+
+## Exportação de fixture sintética separada — ADR-007
+
+O modo de auditoria de modelo acima **não é** o formato do runner Splink e pode conter metadados de modelos ATIVO/VALIDADO. Não o enviar a repositório externo. O [novo modo offline](Linkage_Splink_External_Runbook.md) em `Jornada.Linkage.Evaluation --export-splink-synthetic` gera **somente fixture literal compilada** (nove pessoas sintéticas), sob `JORNADA_SPLINK_EXCHANGE_V1`, e `--check-splink-estimates` valida a saída `JORNADA_SPLINK_ESTIMATES_V1` de forma somente diagnóstica. Nenhuma opção aceita SQL ou registros arbitrários. O estudo externo não substitui o round-trip do formato de auditoria nem a conferência governada decimal×float64. [ADR-007](../../Documentos/ADR/ADR-007-conferencia-externa-splink-sem-python-operacional.md).
