@@ -1,5 +1,7 @@
 # Documentação técnica complementar — estado corrente
 
+**Diretriz consolidada:** `Diretrizes_Identidade_Progressiva_Apoio_Decisao.md` reúne a finalidade de apoio à decisão, melhor representação disponível, hierarquia de evidências, motor C# inspirado no Splink, reprocessamento por mudanças e Ensaio. É o ponto de entrada para decisões de produto; os demais documentos detalham implementação e operação.
+
 - `Estudo_Comparativo_Linkage_Identidade_Progressiva.md` - revisão documental de Splink, Senzing, Dedupe e AWS, separando scoring e manutenção incremental da identidade.
 - `Nucleo_Linkage_Identidade_Progressiva.md` - prioridade de engenharia: motor único C# inspirado no Splink, IBGE como bootstrap, reprocessamento por mudança e dependências, gravação por transição e atendimento como etapa final.
 - `Ensaio_Secretarias_Paridade_HML.md` - próxima etapa: Ensaio com dados fornecidos/preparados pelas Secretarias sob contrato, paridade funcional e operacional com HML; apenas a massa de dados deve mudar.
