@@ -54,3 +54,4 @@ migrations/20260922_Processor_Lease_Heartbeat_Isolation.sql
 migrations/20260926_Linkage_Run_Incremental_Metrics_371.sql
 migrations/20260926_Ibge_Nominal_U_Derived_371.sql
 migrations/20260910_Schema_Consolidation_370.sql
+migrations/20260926_Linkage_Publicacao_Progressiva_Lote.sql
