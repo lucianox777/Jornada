@@ -1,7 +1,7 @@
 # Dívidas técnicas — Jornada do Cidadão
 
 **Revisão:** 2026-09-26 · **Natureza:** backlog técnico candidato, não normativo · **Base:** master `7d03e1bc040dd76d9c848a7267fdf84c1048c9d8` e avaliação das 12 ações propostas.  
-**Regra de leitura:** este documento complementa as issues abertas; não substitui `Documentos/Anexo_Pendencias_Desenvolvimento_Jornada_v1.47` (snapshot histórico), não declara conclusão de tarefas nem aprovação institucional. Quantidades da proposta inicial são inventário a reconfirmar no HEAD antes de executar.
+**Regra de leitura:** o [Plano de desenvolvimento](Plano_Desenvolvimento.md) é a referência de prioridades e dependências; esta tabela detalha critérios técnicos de aceite, sem criar uma segunda sequência de execução. DT-01 e DT-09 detalham o item 4 do plano; DT-05 detalha a persistência por mudança semântica do item 2. São entregas técnicas distintas, embora agrupáveis na fase de integridade operacional. O documento complementa as issues abertas; não substitui `Documentos/Anexo_Pendencias_Desenvolvimento_Jornada_v1.47` (snapshot histórico), não declara conclusão de tarefas nem aprovação institucional. Quantidades da proposta inicial são inventário a reconfirmar no HEAD antes de executar. O commit documental `43ca8b09` não constitui revalidação de contagens nem prova de ausência de implementação prévia.
 
 ## Ordem proposta e critérios de aceite
 
