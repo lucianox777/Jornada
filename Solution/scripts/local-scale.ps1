@@ -140,6 +140,10 @@ try {
   $activeNameReference=Scalar "SELECT TOP(1) codigo FROM ref.frequencia_nome_versao WHERE status=N'ATIVA';"
   if($activeNameReference -ne 'CENSO2022_NOMES_BRASIL_V1'){throw "Referência IBGE ATIVA inesperada após carga: $activeNameReference"}
   Write-Host "Referência de frequências ativa: $activeNameReference"
+  # Derived reference is provisioned once, before the synthetic load.
+  $env:LinkageParameters__Operation='ENSURE_IBGE_NOMINAL_U_REFERENCE'
+  dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
+  if($LASTEXITCODE-ne 0){throw 'ENSURE_IBGE_NOMINAL_U_REFERENCE falhou'}
 
   SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_PAIRED=$paired","SCALE_PENDING=$pending","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo","SCALE_BIRTH_SHIFT_MODULO=$birthShiftModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale.sql')
   SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PEOPLE=$people","SCALE_SEED=$seed","SCALE_COLLISION_MODULO=$collisionModulo",'-i','/workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql')
