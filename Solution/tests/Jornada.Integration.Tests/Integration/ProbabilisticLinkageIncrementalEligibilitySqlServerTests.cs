@@ -205,7 +205,7 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
                     """;
                 invalidSum.Parameters.AddWithValue("@run_id", runId);
                 Assert.ThrowsAsync<SqlException>(
-                    async () => await invalidSum.ExecuteNonQueryAsync(),
+                    async () => { await invalidSum.ExecuteNonQueryAsync(); },
                     "Contadores nao podem exceder o universo materializado.");
             }
 
@@ -218,7 +218,7 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
                     """;
                 invalidMode.Parameters.AddWithValue("@run_id", runId);
                 Assert.ThrowsAsync<SqlException>(
-                    async () => await invalidMode.ExecuteNonQueryAsync(),
+                    async () => { await invalidMode.ExecuteNonQueryAsync(); },
                     "Outros modos nao podem expor contagens falsamente exatas.");
             }
         }
