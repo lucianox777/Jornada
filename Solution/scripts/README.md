@@ -1,5 +1,7 @@
 # Scripts da Solution
 
+**Runner consolidado DT-11:** [jornada-runner.py — roteamento, autorização de reset e isolamento dos três bancos](README_DT11_Runner.md).
+
 Este diretório reúne scripts de **operação local**, **validação/CI**, **testes de integração e resiliência**, **migração/release** e **ferramentas auxiliares** da Jornada.
 
 O objetivo deste README é responder duas perguntas antes de executar qualquer arquivo daqui:
