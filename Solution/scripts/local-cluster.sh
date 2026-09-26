@@ -18,14 +18,14 @@ sql_scalar() {
   local query="$1" password
   password="$(env_value JORNADA_SQL_SA_PASSWORD)"
   [[ -n "$password" ]] || { echo "JORNADA_SQL_SA_PASSWORD ausente do .env" >&2; return 2; }
-  compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$password" -C -d JornadaLocal -W -h -1 -b -Q "SET NOCOUNT ON; $query" \
+  SQLCMDPASSWORD="$password" compose exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -d JornadaLocal -W -h -1 -b -Q "SET NOCOUNT ON; $query" \
     | awk 'NF{last=$0} END{gsub(/^[[:space:]]+|[[:space:]]+$/, "", last); print last}'
 }
 sql_report() {
   local query="$1" password
   password="$(env_value JORNADA_SQL_SA_PASSWORD)"
   [[ -n "$password" ]] || { echo "JORNADA_SQL_SA_PASSWORD ausente do .env" >&2; return 2; }
-  compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$password" -C -d JornadaLocal -W -s '|' -b -Q "SET NOCOUNT ON; $query"
+  SQLCMDPASSWORD="$password" compose exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -d JornadaLocal -W -s '|' -b -Q "SET NOCOUNT ON; $query"
 }
 
 wait_node() {

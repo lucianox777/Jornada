@@ -20,6 +20,8 @@ on:
       - 'Solution/scripts/local-test-test-all-safety.ps1'
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
+      - 'Solution/scripts/local-cluster.sh'
+      - 'Solution/scripts/test-cluster-sqlcmd-secret-transport.py'
       - 'Solution/scripts/local-cluster-readiness.ps1'
       - 'Solution/scripts/local-test-cluster-readiness-mock.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
@@ -69,6 +71,8 @@ on:
       - 'Solution/scripts/local-test-test-all-safety.ps1'
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
+      - 'Solution/scripts/local-cluster.sh'
+      - 'Solution/scripts/test-cluster-sqlcmd-secret-transport.py'
       - 'Solution/scripts/local-cluster-readiness.ps1'
       - 'Solution/scripts/local-test-cluster-readiness-mock.ps1'
       - 'Solution/scripts/local-linkage-evaluation-smoke.ps1'
@@ -148,6 +152,10 @@ jobs:
         shell: pwsh
         run: python scripts/test-linkage-readonly-audit-secret-transport.py
 
+      - name: Guard cluster SQL credential transport on both platforms
+        shell: pwsh
+        run: python scripts/test-cluster-sqlcmd-secret-transport.py
+
       - name: Exercise cluster readiness without native sh quoting on Windows PowerShell 5.1
         shell: powershell
         run: ./scripts/local-test-cluster-readiness-mock.ps1
@@ -198,6 +206,12 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '8.0.424'
+
+      - name: Guard Bash cluster syntax and credential transport
+        shell: bash
+        run: |
+          bash -n scripts/local-cluster.sh
+          python scripts/test-cluster-sqlcmd-secret-transport.py
 
       - name: Validate UTF-8 BOM and PowerShell syntax
         shell: pwsh
@@ -434,7 +448,7 @@ jobs:
           foreach ($required in @(
             'function Write-CommandLine',
             "Write-CommandLine 'docker'",
-            "'-P','<redacted>'",
+            "'-e','SQLCMDPASSWORD'",
             "Write-CommandLine `$LocalDb"
           )) {
             if (-not $content.Contains($required)) {
