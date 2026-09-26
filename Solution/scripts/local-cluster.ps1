@@ -61,9 +61,17 @@ function Get-SqlScalar([string]$Query) {
     if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD ausente do .env.' }
     Push-Location $Root
     try {
-        Write-CommandLine 'docker' @('compose','--env-file',$EnvFile,'exec','-T','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-P','<redacted>','-C','-d','JornadaLocal','-W','-h','-1','-b','-Q',"SET NOCOUNT ON; $Query")
-        $lines = @(& docker compose --env-file $EnvFile exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd `
-            -S localhost -U sa -P $password -C -d JornadaLocal -W -h -1 -b -Q "SET NOCOUNT ON; $Query")
+        Write-CommandLine 'docker' @('compose','--env-file',$EnvFile,'exec','-T','-e','SQLCMDPASSWORD','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-C','-d','JornadaLocal','-W','-h','-1','-b','-Q',"SET NOCOUNT ON; $Query")
+        $previousPassword = $env:SQLCMDPASSWORD
+        try {
+            $env:SQLCMDPASSWORD = $password
+            $lines = @(& docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd `
+            -S localhost -U sa -C -d JornadaLocal -W -h -1 -b -Q "SET NOCOUNT ON; $Query")
+        }
+        finally {
+            if ($null -eq $previousPassword) { Remove-Item Env:SQLCMDPASSWORD -ErrorAction SilentlyContinue }
+            else { $env:SQLCMDPASSWORD = $previousPassword }
+        }
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd falhou ($LASTEXITCODE)." }
         $value = @($lines | ForEach-Object { $_.Trim() } | Where-Object { $_ }) | Select-Object -Last 1
         if ($null -eq $value) { return '' }
@@ -77,9 +85,17 @@ function Invoke-SqlReport([string]$Query) {
     if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD ausente do .env.' }
     Push-Location $Root
     try {
-        Write-CommandLine 'docker' @('compose','--env-file',$EnvFile,'exec','-T','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-P','<redacted>','-C','-d','JornadaLocal','-W','-s','|','-b','-Q',"SET NOCOUNT ON; $Query")
-        & docker compose --env-file $EnvFile exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd `
-            -S localhost -U sa -P $password -C -d JornadaLocal -W -s '|' -b -Q "SET NOCOUNT ON; $Query"
+        Write-CommandLine 'docker' @('compose','--env-file',$EnvFile,'exec','-T','-e','SQLCMDPASSWORD','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-C','-d','JornadaLocal','-W','-s','|','-b','-Q',"SET NOCOUNT ON; $Query")
+        $previousPassword = $env:SQLCMDPASSWORD
+        try {
+            $env:SQLCMDPASSWORD = $password
+            & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd `
+            -S localhost -U sa -C -d JornadaLocal -W -s '|' -b -Q "SET NOCOUNT ON; $Query"
+        }
+        finally {
+            if ($null -eq $previousPassword) { Remove-Item Env:SQLCMDPASSWORD -ErrorAction SilentlyContinue }
+            else { $env:SQLCMDPASSWORD = $previousPassword }
+        }
         if ($LASTEXITCODE -ne 0) { throw "sqlcmd falhou ($LASTEXITCODE)." }
     }
     finally { Pop-Location }
