@@ -51,7 +51,7 @@ Para valores não publicados/suprimidos, usar um estado distinto `NOME_NAO_OBSER
 
 ### 4.3 Separação entre probabilidades
 
-O `u` municipal IBGE é referência nominal **não condicionada**. O `u` operacional **condicionado à união de candidatos do blocking** e o `m` oriundo de pares rotulados reais continuam estimativas próprias de cada modelo; o recorte de SP **não** recalibra `m`, não altera sozinho threshold nem interfere em `MaxCandidatePairs=10.000.000` do Avaliador. Preservar suporte por passe e replay. Validação representativa (#31) e decisão institucional HML/Produção permanecem separadas. Consultar [especificação operacional municipal](Linkage_Bootstrap_U_Municipio_SP_20260926.md), [ADR-002](../../Documentos/ADR/ADR-002-calibrador-fs-u-condicionado.md) e [ADR-003](../../Documentos/ADR/ADR-003-corpus_sintetico_nomes_frequencia_ibge.md).
+O `u` municipal IBGE é referência nominal **não condicionada**. O `u` operacional **condicionado à união de candidatos do blocking** e o `m` oriundo de pares rotulados reais continuam estimativas próprias de cada modelo; o recorte de SP **não** recalibra `m`, não altera sozinho threshold nem interfere em `MaxCandidatePairs=10.000.000` do Avaliador. Preservar suporte por passe e replay. Validação representativa (#31) e decisão institucional HML/Produção permanecem separadas. Consultar [especificação operacional municipal](Linkage_Bootstrap_U_Municipio_SP_20260926.md), [ADR-002](../../Documentos/ADR/ADR-002-calibrador-fs-u-condicionado.md) e [ADR-003](../../Documentos/ADR/ADR-003-corpus-sintetico-nomes-frequencia-ibge.md).
 
 ## 5. Monitor e execução
 
