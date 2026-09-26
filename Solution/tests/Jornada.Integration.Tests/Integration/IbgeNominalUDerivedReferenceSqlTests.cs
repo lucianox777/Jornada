@@ -106,13 +106,24 @@ public sealed class IbgeNominalUDerivedReferenceSqlTests
             Assert.That(ex!.Number, Is.EqualTo(52082));
         }
         await using (var immutableParent = new SqlCommand(
-            "DELETE ref.ibge_u_referencia WHERE ibge_u_referencia_id=@id;",
+            "UPDATE ref.ibge_u_referencia SET seed=seed+1 WHERE ibge_u_referencia_id=@id;",
             connection))
         {
             immutableParent.Parameters.Add("@id", SqlDbType.BigInt).Value = id;
             var ex = Assert.ThrowsAsync<SqlException>(
                 async () => await immutableParent.ExecuteNonQueryAsync());
-            Assert.That(ex!.Number, Is.EqualTo(52083));
+            Assert.That(ex!.Number, Is.EqualTo(52083),
+                "O trigger deve recusar qualquer mudança do registro publicado.");
+        }
+        await using (var parentDeletion = new SqlCommand(
+            "DELETE ref.ibge_u_referencia WHERE ibge_u_referencia_id=@id;",
+            connection))
+        {
+            parentDeletion.Parameters.Add("@id", SqlDbType.BigInt).Value = id;
+            var ex = Assert.ThrowsAsync<SqlException>(
+                async () => await parentDeletion.ExecuteNonQueryAsync());
+            Assert.That(ex!.Number, Is.EqualTo(547),
+                "A FK dos quatro estados pode rejeitar DELETE antes de executar o trigger imutável.");
         }
 
         await using (var verify = new SqlCommand(
