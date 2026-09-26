@@ -546,6 +546,9 @@ jobs:
             dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
           ACTIVE_NAME_REFERENCE=$(SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; SELECT TOP(1) codigo FROM ref.frequencia_nome_versao WHERE status=N'ATIVA';" | tr -d '\r' | xargs)
           test "$ACTIVE_NAME_REFERENCE" = 'CENSO2022_NOMES_BRASIL_V1'
+          # Derivado versionado deve existir antes de gerar o corpus e o modelo.
+          DOTNET_ENVIRONMENT=Development LinkageParameters__Operation=ENSURE_IBGE_NOMINAL_U_REFERENCE \
+            dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
           # 4.000 pares preservam cerca de 2.400 pessoas-base TRAIN sob holdout 60/20/20,
           # permitindo amostra m=2.000 sem reutilizar VALIDATION/TEST. O gate de recall
           # continua 0,95 e não é relaxado para acomodar a calibração.
