@@ -1,0 +1,3 @@
+# DT-06 — disparo de prova SQL já existente
+
+Este arquivo documental, deliberadamente fora do manifesto operacional, aciona no PR o workflow `jornada-schema-consolidation-370` pelo filtro `Solution/database/migrations/**` sem alterar o manifesto, a proveniência da RC, o wrapper canônico ou uma migration já aplicada. O workflow exercita SQL Server real (instalação do wrapper e sua reaplicação, base 3.69 + upgrade repetido, base 3.65 + ledger e reexecução, checksum adulterado). O teste dedicado de **histórico parcialmente aplicado**, de execução isolada e explícita, está em [baseline DT-06](../baselines/DT06_Migration_Baseline.md).
