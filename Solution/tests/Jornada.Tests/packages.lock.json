@@ -630,9 +630,16 @@
         "resolved": "4.5.4",
         "contentHash": "zteT+G8xuGu6mS+mzDzYXbzS7rd3K6Fjb9RiZlYlJPam2/hU7JCBZBVEcywNuR+oZ1ncTvc/cq0faRr3P01OVg=="
       },
+      "jornada.access.security": {
+        "type": "Project",
+        "dependencies": {
+          "Jornada.Contracts": "[1.0.0, )"
+        }
+      },
       "jornada.api": {
         "type": "Project",
         "dependencies": {
+          "Jornada.Access.Security": "[1.0.0, )",
           "Jornada.Bronze.Storage": "[1.0.0, )",
           "Jornada.Contracts": "[1.0.0, )",
           "Jornada.Ingestion": "[1.0.0, )",

@@ -19,6 +19,7 @@ COPY src/Jornada.Linkage.Conference/Jornada.Linkage.Conference.csproj src/Jornad
 COPY clients/Jornada.Integrador.CSharp/Jornada.Integrador.CSharp.csproj clients/Jornada.Integrador.CSharp/packages.lock.json clients/Jornada.Integrador.CSharp/
 
 # ProjectReferences transitivos dos artefatos publicados.
+COPY src/Jornada.Access.Security/Jornada.Access.Security.csproj src/Jornada.Access.Security/packages.lock.json src/Jornada.Access.Security/
 COPY src/Jornada.Contracts/Jornada.Contracts.csproj src/Jornada.Contracts/packages.lock.json src/Jornada.Contracts/
 COPY src/Jornada.Operational.Sql/Jornada.Operational.Sql.csproj src/Jornada.Operational.Sql/packages.lock.json src/Jornada.Operational.Sql/
 COPY src/Jornada.Pipeline.Coordination/Jornada.Pipeline.Coordination.csproj src/Jornada.Pipeline.Coordination/packages.lock.json src/Jornada.Pipeline.Coordination/

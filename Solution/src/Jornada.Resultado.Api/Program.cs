@@ -1,3 +1,5 @@
+using Jornada.Access.Security;
+using Jornada.Contracts;
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
@@ -18,8 +20,12 @@ builder.Services.AddSingleton(new ResultadoDatabaseDialect(operationalDatabase.P
 builder.Services.AddSingleton(new ResultadoOptions(jornadaApiBaseUrl));
 builder.Services.AddSingleton<ResultadoRepository>();
 builder.Services.AddHttpClient();
+builder.Services.AddJornadaAccessSecurity();
+builder.Services.AddSingleton<IJornadaAccessVerifier, ResultadoAccessVerifier>();
 
 var app = builder.Build();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new
 {
     status = "ok",
@@ -31,33 +37,12 @@ app.MapGet("/api/v1/ingestao/resultados/{nomeArquivo}", async (
     HttpRequest http,
     string nomeArquivo,
     ResultadoRepository repository,
-    ResultadoOptions options,
-    IHttpClientFactory httpClientFactory,
     CancellationToken ct) =>
 {
-    var gestor = http.Headers["X-Jornada-Gestor"].ToString().Trim();
-    var accessKey = http.Headers["X-Jornada-Access-Key"].ToString();
-    if (string.IsNullOrWhiteSpace(gestor) || string.IsNullOrWhiteSpace(accessKey))
-        return Results.Unauthorized();
-
-    string parsedFileName;
-    try { parsedFileName = ResultadoNomeArquivo.Parse(nomeArquivo); }
-    catch (ArgumentException ex) { return Results.BadRequest(new { erro = ex.Message }); }
-
-    var candidate = await repository.FindLatestAsync(gestor, parsedFileName, ct);
-    if (candidate is null) return Results.NotFound();
-
-    using var authRequest = new HttpRequestMessage(
-        HttpMethod.Get,
-        ResultadoUrl.Combine(options.JornadaApiBaseUrl, $"api/v1/ingestao/entregas/{candidate.EntregaId}"));
-    authRequest.Headers.TryAddWithoutValidation("X-Jornada-Gestor", gestor);
-    authRequest.Headers.TryAddWithoutValidation("X-Jornada-Access-Key", accessKey);
-    using var authResponse = await httpClientFactory.CreateClient().SendAsync(authRequest, HttpCompletionOption.ResponseHeadersRead, ct);
-    if (authResponse.StatusCode != HttpStatusCode.OK)
-        return Results.StatusCode((int)authResponse.StatusCode);
-
-    return Results.Ok(await repository.GetDetailAsync(candidate, parsedFileName, ct));
-});
+    var parsed = (string)http.HttpContext.Items[ResultadoAccessVerifier.FileNameItem]!;
+    var candidate = (ResultadoCandidate)http.HttpContext.Items[ResultadoAccessVerifier.CandidateItem]!;
+    return Results.Ok(await repository.GetDetailAsync(candidate, parsed, ct));
+}).RequireAuthorization("jornada.ingestao.status");
 
 if (operationalSql is not null)
 {
@@ -70,6 +55,54 @@ if (operationalSql is not null)
 }
 
 app.Run();
+
+
+/// <summary>
+/// A validação da chave e do escopo permanece delegada ao GET protegido na Jornada.Api.
+/// A Entrega já autorizada é cacheada exclusivamente no contexto desta requisição.
+/// </summary>
+internal sealed class ResultadoAccessVerifier(
+    ResultadoRepository repository, ResultadoOptions options, IHttpClientFactory httpClientFactory)
+    : IJornadaAccessVerifier
+{
+    public const string CandidateItem = "Jornada.Resultado.Candidate";
+    public const string FileNameItem = "Jornada.Resultado.FileName";
+
+    public async Task<JornadaAccessVerification> VerifyAsync(
+        HttpContext http, PresentedAccessCredential credential, CancellationToken ct)
+    {
+        if (credential.Type != AccessCredentialType.GESTOR)
+            return JornadaAccessVerification.Rejected(StatusCodes.Status403Forbidden);
+
+        string parsed;
+        try { parsed = ResultadoNomeArquivo.Parse(http.Request.RouteValues["nomeArquivo"]?.ToString() ?? ""); }
+        catch (ArgumentException ex)
+        {
+            return JornadaAccessVerification.Rejected(StatusCodes.Status400BadRequest, ex.Message);
+        }
+
+        var candidate = await repository.FindLatestAsync(credential.PublicCode.Trim(), parsed, ct);
+        if (candidate is null)
+            return JornadaAccessVerification.Rejected(StatusCodes.Status404NotFound);
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            ResultadoUrl.Combine(options.JornadaApiBaseUrl, $"api/v1/ingestao/entregas/{candidate.EntregaId}"));
+        request.Headers.TryAddWithoutValidation("X-Jornada-Gestor", credential.PublicCode.Trim());
+        request.Headers.TryAddWithoutValidation("X-Jornada-Access-Key", credential.AccessKey);
+        using var response = await httpClientFactory.CreateClient()
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (response.StatusCode != HttpStatusCode.OK)
+            return JornadaAccessVerification.Rejected((int)response.StatusCode);
+
+        http.Items[CandidateItem] = candidate;
+        http.Items[FileNameItem] = parsed;
+        // A autoridade continua na Jornada.Api: este contexto não autentica serviços SQL.
+        return JornadaAccessVerification.Accepted(new AccessContext(
+            Guid.Empty, AccessCredentialType.GESTOR, credential.PublicCode.Trim(),
+            credential.PublicCode.Trim(), null, ["jornada.ingestao.status"], []));
+    }
+}
 
 internal sealed record ResultadoOptions(string JornadaApiBaseUrl);
 internal sealed record ResultadoCandidate(Guid EntregaId, long EntregasEncontradas);

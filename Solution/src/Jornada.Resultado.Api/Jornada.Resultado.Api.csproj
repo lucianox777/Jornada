@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <ItemGroup>
+    <ProjectReference Include="..\Jornada.Access.Security\Jornada.Access.Security.csproj" />
     <ProjectReference Include="..\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj" />
   </ItemGroup>
 </Project>

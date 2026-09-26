@@ -1,4 +1,9 @@
 using Jornada.Contracts;
+using Jornada.Access.Security;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using System.Security.Claims;
 
 namespace Jornada.Tests.Unit;
 
@@ -143,4 +148,37 @@ public sealed class ProgressiveIdentityTests
         new(Guid.NewGuid(), state.InitialUuid, state.Version, outcome, target, true,
             "evidence:synthetic", "POLICY_TEST_V1", Created.AddMinutes(state.Version + 1),
             "SYNTHETIC_MODEL_V1", "frame:synthetic");
+}
+
+[TestFixture, Category("Unit")]
+public sealed class ProgressiveOriginAccessBoundaryTests
+{
+    [Test]
+    public async Task Progressive_origin_requires_verified_gestor_context_not_just_a_scope_claim()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddJornadaAccessSecurity();
+        using var provider = services.BuildServiceProvider();
+        var authorize = provider.GetRequiredService<IAuthorizationService>();
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString("N"))],
+            JornadaAccessSecurity.Scheme));
+        var http = new DefaultHttpContext { RequestServices = provider };
+        const string permission = "jornada.identidade.origem.read";
+
+        // Um principal autenticado sem contexto verificado não pode consultar a origem.
+        Assert.That((await authorize.AuthorizeAsync(principal, http, permission)).Succeeded, Is.False);
+
+        // Nem mesmo um scope acidentalmente concedido pode habilitar credenciais de tipo.
+        http.Items[JornadaAccessSecurity.AccessContextItem] = new AccessContext(
+            Guid.NewGuid(), AccessCredentialType.BENEFICIO, "AR01", "SMADS", "AR01",
+            [permission], ["AR01"]);
+        Assert.That((await authorize.AuthorizeAsync(principal, http, permission)).Succeeded, Is.False);
+
+        http.Items[JornadaAccessSecurity.AccessContextItem] = new AccessContext(
+            Guid.NewGuid(), AccessCredentialType.GESTOR, "SMADS", "SMADS", null,
+            [permission], []);
+        Assert.That((await authorize.AuthorizeAsync(principal, http, permission)).Succeeded, Is.True);
+    }
 }

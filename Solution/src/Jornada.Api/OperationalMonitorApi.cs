@@ -1,3 +1,4 @@
+using Jornada.Access.Security;
 using System.Text;
 using System.Text.Json;
 using Jornada.Contracts;
@@ -72,14 +73,14 @@ public static class OperationalMonitorApi
 
         app.MapGet(StatusRoute, async (
             HttpRequest http,
-            IAccessContextResolver access,
+            
             IPolicyEngine policy,
             IOperationalSqlAdapter operationalSql,
             ApiReadinessProbe readiness,
             CancellationToken ct) =>
         {
-            var authError = await AuthorizeMonitorAsync(http, access, policy, ct);
-            if (authError is not null) return authError;
+            var context = http.HttpContext.RequireJornadaAccessContext();
+            if (!await policy.IsAllowedAsync(context, Permission, null, null, ct)) return Results.Forbid();
 
             try
             {
@@ -103,7 +104,7 @@ public static class OperationalMonitorApi
                     erro = "A migração do monitor operacional ainda não foi aplicada."
                 }, statusCode: StatusCodes.Status503ServiceUnavailable);
             }
-        }).RequireRateLimiting("standard");
+        }).RequireRateLimiting("standard").RequireAuthorization(Permission);
 
         if (syntheticDevelopment)
         {
@@ -115,13 +116,13 @@ public static class OperationalMonitorApi
 
             app.MapGet(SyntheticStatusRoute, async (
                 HttpRequest http,
-                IAccessContextResolver access,
+                
                 IPolicyEngine policy,
                 IOperationalSqlAdapter operationalSql,
                 CancellationToken ct) =>
             {
-                var authError = await AuthorizeMonitorAsync(http, access, policy, ct);
-                if (authError is not null) return authError;
+                var context = http.HttpContext.RequireJornadaAccessContext();
+            if (!await policy.IsAllowedAsync(context, Permission, null, null, ct)) return Results.Forbid();
 
                 try
                 {
@@ -136,40 +137,10 @@ public static class OperationalMonitorApi
                         erro = "O ledger de avaliação sintética ainda não foi instalado."
                     }, statusCode: StatusCodes.Status503ServiceUnavailable);
                 }
-            }).RequireRateLimiting("standard");
+            }).RequireRateLimiting("standard").RequireAuthorization(Permission);
         }
 
         return app;
     }
 
-    private static async Task<IResult?> AuthorizeMonitorAsync(
-        HttpRequest http,
-        IAccessContextResolver access,
-        IPolicyEngine policy,
-        CancellationToken ct)
-    {
-        var key = http.Headers["X-Jornada-Access-Key"].ToString();
-        if (string.IsNullOrWhiteSpace(key)) return Results.Unauthorized();
-
-        var gestor = http.Headers["X-Jornada-Gestor"].ToString();
-        if (string.IsNullOrWhiteSpace(gestor)
-            || !string.IsNullOrWhiteSpace(http.Headers["X-Jornada-Beneficio"].ToString())
-            || !string.IsNullOrWhiteSpace(http.Headers["X-Jornada-Servico"].ToString()))
-            return Results.StatusCode(StatusCodes.Status403Forbidden);
-
-        var context = await access.ResolveAsync(
-            new PresentedAccessCredential(AccessCredentialType.GESTOR, gestor, key), ct);
-        if (context is null) return Results.Unauthorized();
-
-        var limiter = http.HttpContext.RequestServices.GetRequiredService<AuthenticatedRateLimitGuard>();
-        if (!limiter.TryAcquire(context, http))
-            return Results.StatusCode(StatusCodes.Status429TooManyRequests);
-
-        http.HttpContext.Items[ApiContextItems.AccessContext] = context;
-        if (context.CredentialType != AccessCredentialType.GESTOR
-            || !await policy.IsAllowedAsync(context, Permission, null, null, ct))
-            return Results.StatusCode(StatusCodes.Status403Forbidden);
-
-        return null;
-    }
 }

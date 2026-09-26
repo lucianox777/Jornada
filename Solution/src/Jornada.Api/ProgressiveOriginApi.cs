@@ -1,3 +1,4 @@
+using Jornada.Access.Security;
 using System.Data;
 using Jornada.Contracts;
 using Jornada.Operational.Sql;
@@ -73,27 +74,14 @@ public static class ProgressiveOriginApi
     {
         app.MapPost(Route, async (
             HttpRequest http, ProgressiveOriginQueryRequest request,
-            IAccessContextResolver access, IPolicyEngine policy,
+            IPolicyEngine policy,
             IProgressiveOriginQueryService service, CancellationToken ct) =>
         {
             // Mesma autenticação, contexto de auditoria e limite autenticado da API.
             // Esta família aceita exclusivamente GESTOR, mesmo se um scope for concedido a um Tipo por erro.
-            var key = http.Headers["X-Jornada-Access-Key"].ToString();
-            if (string.IsNullOrWhiteSpace(key)) return Results.Unauthorized();
-            var gestor = http.Headers["X-Jornada-Gestor"].ToString();
-            if (string.IsNullOrWhiteSpace(gestor) ||
-                !string.IsNullOrWhiteSpace(http.Headers["X-Jornada-Beneficio"].ToString()) ||
-                !string.IsNullOrWhiteSpace(http.Headers["X-Jornada-Servico"].ToString()))
-                return Results.StatusCode(StatusCodes.Status403Forbidden);
-            var context = await access.ResolveAsync(
-                new PresentedAccessCredential(AccessCredentialType.GESTOR, gestor, key), ct);
-            if (context is null) return Results.Unauthorized();
-            var limiter = http.HttpContext.RequestServices.GetRequiredService<AuthenticatedRateLimitGuard>();
-            if (!limiter.TryAcquire(context, http)) return Results.StatusCode(StatusCodes.Status429TooManyRequests);
-            http.HttpContext.Items[ApiContextItems.AccessContext] = context;
-            if (context.CredentialType != AccessCredentialType.GESTOR ||
-                !await policy.IsAllowedAsync(context, Permission, null, null, ct))
-                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            var context = http.HttpContext.RequireJornadaAccessContext();
+            if (!await policy.IsAllowedAsync(context, Permission, null, null, ct))
+                return Results.Forbid();
             // O código interno nunca é colocado na URL, em erros ou no resourceCode da auditoria.
             if (!TryValidateRequest(request))
                 return Results.BadRequest(new { erro = "Códigos de origem inválidos." });
@@ -112,7 +100,7 @@ public static class ProgressiveOriginApi
                 return Results.Json(new { codigo = "IDENTIDADE_PROGRESSIVA_INDISPONIVEL" },
                     statusCode: StatusCodes.Status503ServiceUnavailable);
             }
-        }).RequireRateLimiting("identity");
+        }).RequireRateLimiting("identity").RequireAuthorization(Permission);
 
         // O monitor é uma segunda superfície somente-leitura, registrada aqui para manter o
         // bootstrap do host Minimal API estável enquanto a fase candidata ainda está pré-implantação.

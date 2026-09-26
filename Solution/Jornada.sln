@@ -30,7 +30,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Linkage.Conference"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Ingestion", "src\Jornada.Ingestion\Jornada.Ingestion.csproj", "{30BFF242-7086-4B5C-94EF-D5153C4DE093}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Access.Security", "src\Jornada.Access.Security\Jornada.Access.Security.csproj", "{F50B36D9-FC9C-4CB4-AB37-8CB17B52E21A}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Api", "src\Jornada.Api\Jornada.Api.csproj", "{987A6D7E-6FCD-5137-8CB2-D7AF55BABE72}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Resultado.Api", "src\Jornada.Resultado.Api\Jornada.Resultado.Api.csproj", "{B0FA6A42-AD6B-4574-93E2-A5749708FC0B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jornada.Bronze.Verify", "src\Jornada.Bronze.Verify\Jornada.Bronze.Verify.csproj", "{D6494A35-1C31-43F6-8A92-0BA6D2F34600}"
 EndProject
@@ -125,6 +129,15 @@ Global
 		{30BFF242-7086-4B5C-94EF-D5153C4DE093}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{30BFF242-7086-4B5C-94EF-D5153C4DE093}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{30BFF242-7086-4B5C-94EF-D5153C4DE093}.Release|Any CPU.Build.0 = Release|Any CPU
+
+		{F50B36D9-FC9C-4CB4-AB37-8CB17B52E21A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F50B36D9-FC9C-4CB4-AB37-8CB17B52E21A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F50B36D9-FC9C-4CB4-AB37-8CB17B52E21A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F50B36D9-FC9C-4CB4-AB37-8CB17B52E21A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B0FA6A42-AD6B-4574-93E2-A5749708FC0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B0FA6A42-AD6B-4574-93E2-A5749708FC0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B0FA6A42-AD6B-4574-93E2-A5749708FC0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B0FA6A42-AD6B-4574-93E2-A5749708FC0B}.Release|Any CPU.Build.0 = Release|Any CPU
 		{987A6D7E-6FCD-5137-8CB2-D7AF55BABE72}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{987A6D7E-6FCD-5137-8CB2-D7AF55BABE72}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{987A6D7E-6FCD-5137-8CB2-D7AF55BABE72}.Release|Any CPU.ActiveCfg = Release|Any CPU
