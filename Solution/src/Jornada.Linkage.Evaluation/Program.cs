@@ -34,14 +34,14 @@ if (args.Length == 4 && args[0] == "--check-splink-estimates")
     var input = SplinkSyntheticConformanceExchange.ReadFixture(
         await File.ReadAllTextAsync(Path.GetFullPath(args[1])));
     var externalJson = await File.ReadAllTextAsync(Path.GetFullPath(args[2]));
-    var report = SplinkSyntheticConformanceExchange.Diagnose(input, externalJson);
+    var externalDiagnostic = SplinkSyntheticConformanceExchange.Diagnose(input, externalJson);
     var target = Path.GetFullPath(args[3]);
     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-    var reportJson = SplinkSyntheticConformanceExchange.SerializeDiagnostic(report);
-    await File.WriteAllTextAsync(target, reportJson, new System.Text.UTF8Encoding(false));
-    Console.WriteLine("Conferencia Splink externa: " + report.Status +
-        "; TVD m=" + report.MTotalVariation.ToString(CultureInfo.InvariantCulture) +
-        "; TVD u=" + report.UTotalVariation.ToString(CultureInfo.InvariantCulture) +
+    var externalDiagnosticJson = SplinkSyntheticConformanceExchange.SerializeDiagnostic(externalDiagnostic);
+    await File.WriteAllTextAsync(target, externalDiagnosticJson, new System.Text.UTF8Encoding(false));
+    Console.WriteLine("Conferencia Splink externa: " + externalDiagnostic.Status +
+        "; TVD m=" + externalDiagnostic.MTotalVariation.ToString(CultureInfo.InvariantCulture) +
+        "; TVD u=" + externalDiagnostic.UTotalVariation.ToString(CultureInfo.InvariantCulture) +
         ". Nenhuma evidencia governada foi registrada.");
     return;
 }
