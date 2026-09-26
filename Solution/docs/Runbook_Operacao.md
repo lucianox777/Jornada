@@ -1,5 +1,7 @@
 # Jornada - Runbook operacional da Fase 1 (v3.55)
 
+**Interpretação operacional do núcleo:** a Jornada é apoio à decisão e mantém a melhor representação disponível, não uma identidade civil certificada. Mudanças de evidência de identidade, de referências candidatas ou de modelo podem demandar reavaliação; novas entregas idempotentes ou mudanças só de atributos não identitários não devem forçar novo scoring. Quando a representação semântica não mudar, evitar nova versão operacional da decisão, mantendo a trilha de execução e o ledger de atos aplicáveis. A hierarquia pretendida da Gold é documentação mais recentemente apresentada, documentação anterior, autodeclaração mais recente e autodeclaração anterior, por atributo. **Estas são diretrizes a conferir/implementar no código atual, não procedimentos já homologados.** Ver `Diretrizes_Identidade_Progressiva_Apoio_Decisao.md`.
+
 ## 1. Princípio de operação
 
 A Solution **não contém scheduler próprio**. O agendamento, a recorrência e o encadeamento de jobs devem ser configurados no mecanismo corporativo homologado pela PRODAM (SQL Server Agent, Control-M, Kubernetes CronJob/Job ou equivalente aprovado no ambiente).
