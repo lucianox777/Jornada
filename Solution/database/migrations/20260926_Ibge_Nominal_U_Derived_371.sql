@@ -27,6 +27,8 @@ BEGIN
    pares INT NOT NULL,
    vocabulario_prenomes INT NOT NULL,
    vocabulario_sobrenomes INT NOT NULL,
+   ocorrencias_prenomes BIGINT NOT NULL,
+   ocorrencias_sobrenomes BIGINT NOT NULL,
    colisoes_prenome DECIMAL(30,12) NOT NULL,
    colisoes_sobrenome DECIMAL(30,12) NOT NULL,
    colisoes_nome_completo DECIMAL(30,12) NOT NULL,
@@ -37,7 +39,7 @@ BEGIN
      CONSTRAINT df_ibge_u_criado DEFAULT(SYSDATETIMEOFFSET()),
    publicado_em DATETIMEOFFSET(7) NULL,
    CONSTRAINT ck_ibge_u_recorte CHECK(recorte_prenome IN(N'TODOS',N'FEMININO')),
-   CONSTRAINT ck_ibge_u_pares CHECK(pares>0 AND vocabulario_prenomes>0 AND vocabulario_sobrenomes>0),
+   CONSTRAINT ck_ibge_u_pares CHECK(pares>0 AND vocabulario_prenomes>0 AND vocabulario_sobrenomes>0 AND ocorrencias_prenomes>0 AND ocorrencias_sobrenomes>0),
    CONSTRAINT ck_ibge_u_analiticas CHECK(
      colisoes_prenome BETWEEN 0 AND 1 AND colisoes_sobrenome BETWEEN 0 AND 1
      AND colisoes_nome_completo BETWEEN 0 AND 1),
@@ -110,6 +112,8 @@ BEGIN
      OR i.seed<>d.seed OR i.pares<>d.pares
      OR i.vocabulario_prenomes<>d.vocabulario_prenomes
      OR i.vocabulario_sobrenomes<>d.vocabulario_sobrenomes
+     OR i.ocorrencias_prenomes<>d.ocorrencias_prenomes
+     OR i.ocorrencias_sobrenomes<>d.ocorrencias_sobrenomes
      OR i.colisoes_prenome<>d.colisoes_prenome
      OR i.colisoes_sobrenome<>d.colisoes_sobrenome
      OR i.colisoes_nome_completo<>d.colisoes_nome_completo
@@ -142,6 +146,7 @@ SELECT u.ibge_u_referencia_id,u.frequencia_nome_versao_id,
        u.metodo_versao,u.construcao_versao,u.canal_versao,
        u.comparador_versao,u.recorte_prenome,u.seed,u.pares,
        u.vocabulario_prenomes,u.vocabulario_sobrenomes,
+       u.ocorrencias_prenomes,u.ocorrencias_sobrenomes,
        u.colisoes_prenome,u.colisoes_sobrenome,u.colisoes_nome_completo,
        u.resultado_sha256,u.publicado_em
 FROM ref.ibge_u_referencia u
