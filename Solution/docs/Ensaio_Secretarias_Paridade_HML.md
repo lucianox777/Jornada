@@ -1,5 +1,7 @@
 # Ensaio com dados fornecidos pelas Secretarias — contrato de paridade com HML
 
+> **Regra consolidada (26/09/2026):** este roteiro é complemento de [Ensaio_Unico_Paridade_HML.md](Ensaio_Unico_Paridade_HML.md), que prevalece para a sequência de fases. Não há Ensaio Técnico separado de Ensaio com Secretarias. O Ensaio único começa com todos os contratos e funcionalidades previstos para HML concluídos. Na passagem para HML, a diferença planejada é a massa anonimizada enviada pelas Secretarias; diferenças de segredos/capacidade não alteram regras ou contratos. Interpretar eventuais trechos antigos deste documento à luz dessa decisão.
+
 **Estado:** diretriz de planejamento para a próxima etapa, ainda não declaração de prontidão operacional.  
 **Sequência:** DEV → **Ensaio com Secretarias participantes** → HML → Produção. O Ensaio pode envolver uma ou várias Secretarias, com adesão e cargas em ondas, sem pressupor participação de todas.  
 **Princípio:** Ensaio e HML diferem **somente pela massa de dados**. A mesma versão da aplicação, artefatos de implantação, DDL, contratos de integração, regras de identidade, autenticação/autorização, configuração funcional, observabilidade e procedimentos devem ser exercitados. Se algum componente não estiver disponível, a divergência deve ser registrada e resolvida; não se declara paridade fictícia.
