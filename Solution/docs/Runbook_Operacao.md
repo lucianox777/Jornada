@@ -1,5 +1,7 @@
 # Jornada - Runbook operacional da Fase 1 (v3.55)
 
+**Interpretação operacional do núcleo:** a Jornada é apoio à decisão e mantém a melhor representação disponível, não uma identidade civil certificada. Mudanças de evidência de identidade, de referências candidatas ou de modelo podem demandar reavaliação; novas entregas idempotentes ou mudanças só de atributos não identitários não devem forçar novo scoring. Quando a representação semântica não mudar, evitar nova versão operacional da decisão, mantendo a trilha de execução e o ledger de atos aplicáveis. A hierarquia pretendida da Gold é documentação mais recentemente apresentada, documentação anterior, autodeclaração mais recente e autodeclaração anterior, por atributo. **Estas são diretrizes a conferir/implementar no código atual, não procedimentos já homologados.** Ver `Diretrizes_Identidade_Progressiva_Apoio_Decisao.md`.
+
 ## 1. Princípio de operação
 
 A Solution **não contém scheduler próprio**. O agendamento, a recorrência e o encadeamento de jobs devem ser configurados no mecanismo corporativo homologado pela PRODAM (SQL Server Agent, Control-M, Kubernetes CronJob/Job ou equivalente aprovado no ambiente).
@@ -120,7 +122,13 @@ Os fontes `bi/Jornada.pbip`, `bi/Jornada.Report/` (PBIR) e `bi/Jornada.SemanticM
 
 Validação estrutural de JSON/TMDL em CI não substitui abrir e salvar o projeto no Power BI Desktop. A publicação no Power BI Service/Gateway, credenciais, refresh e homologação visual pertencem ao ambiente corporativo.
 
-## 9. Evidências mínimas de HML
+## 9. Ensaio anterior à HML
+
+A próxima etapa é o **Ensaio com uma ou várias Secretarias participantes**, possivelmente em ondas, com dados preparados e fornecidos por elas nos respectivos contratos vigentes; a responsabilidade pela anonimização ou geração sintética derivada de bases reais é de cada Secretaria. O Ensaio deve usar os mesmos componentes, configuração funcional, contratos, integração de autenticação, autorização, scheduler, gates e procedimentos de HML; a única diferença funcional planejada são os dados. Credenciais e endpoints próprios de cada ambiente não autorizam controles diferentes. O roteiro e os critérios de paridade estão em `Ensaio_Secretarias_Paridade_HML.md`.
+
+As evidências do Ensaio devem ser preservadas e avaliadas por Secretaria, contrato, estrato e onda. Podem constituir evidência forte de operação, desempenho e qualidade estatística do linkage, inclusive para a #31, quando a fidelidade dos dados, a verdade de referência, a amostragem e a incerteza sustentarem as conclusões. A mudança de massa em HML exige análise de transportabilidade e eventual medição complementar, não repetição automática de estudos válidos. Se a identidade corporativa permanecer pendente, não declarar Ensaio equivalente a HML com credenciais sintéticas de Development.
+
+## 10. Evidências mínimas de HML
 
 Antes de Produção, registrar:
 
@@ -134,7 +142,7 @@ Antes de Produção, registrar:
 - configuração final do scheduler corporativo, com evidência de jobs, cadências, retries e logs.
 
 
-## 10. Separação entre desenvolvimento local e scheduler corporativo
+## 11. Separação entre desenvolvimento local e scheduler corporativo
 
 O `docker-compose.yml` existe somente para desenvolvimento/teste local e sobe SQL Server Developer. Ele **não** implementa scheduler e não representa topologia de HML/Produção. A política desta página continua válida: jobs run-once são acionados pelo scheduler corporativo homologado na PRODAM. Para o ambiente local, consulte `Runbook_Desenvolvimento_Local.md`.
 

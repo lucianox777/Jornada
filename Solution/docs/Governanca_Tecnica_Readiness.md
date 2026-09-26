@@ -16,6 +16,10 @@ A Solution distribui contratos machine-readable para itens que dependem de decis
 
 Nenhum valor é inferido. `governance-readiness-gate.py --require-approved` falha enquanto a política não estiver aprovada.
 
+## Finalidade e representação progressiva
+
+A Jornada oferece a melhor representação estatística e incremental disponível para apoiar decisões das Secretarias; não certifica identidade civil nem concede ou nega benefícios automaticamente. `REFERENCIA` é estado operacional, não certeza. A Gold compõe atributos conforme hierarquia de evidências: documentação apresentada mais recentemente, documentação anterior, autodeclaração mais recente e autodeclaração anterior, preservando proveniência, conflitos e datas distintas. A precedência é regra de composição, não atestado de exatidão; a implementação integral dessa ordem ainda requer conferência do esquema e da procedure. O reprocessamento deve ocorrer por alterações em sinais de identidade **ou** no conjunto de candidatos afetados; a persistência operacional deve versionar mudanças semânticas da melhor representação, sem eliminar o ledger. Ver `Diretrizes_Identidade_Progressiva_Apoio_Decisao.md`.
+
 ## Identidades que permanecem sem resolução
 
 `config/governance/identity-pending-lifecycle.json` obriga a tratar explicitamente `PENDENTE_PROBABILISTICO`, `NAO_RESOLVIDO` e `CONFLITO`. O contrato não executa alteração automática (`autoMutate=false`): busca ativa, revisão ou encerramento permanecem decisões institucionais.
@@ -45,6 +49,10 @@ Para os relatórios implementados nas fatias técnicas da #31, o gate fixa somen
 A evidência `LINKAGE_SCALE_EVIDENCE_V1` preserva o SHA Git do código exercitado e o `runtimeScope` já congelado pelo próprio `linkage_run`, incluindo identidade do modelo e, quando o blocking usa `RULESET`, versão/fingerprint do ruleset e versão/fingerprint da projeção física. Isso torna a medição auditável sem transformar o harness sintético em prova de representatividade e sem criar um threshold de capacidade.
 
 `NAO_APLICAVEL` só é aceito nos pontos em que a metodologia institucional pode legitimamente não exigir aquele mecanismo e sempre exige justificativa mais evidência. Mesmo quando o contrato chega a `APROVADO`, `productionActivationAuthorized` permanece obrigatoriamente `false`: a aprovação desse arquivo significa apenas que o conjunto de evidências da #31 foi formalmente atestado para HML, não autorização automática de Produção.
+
+## Ensaio com Secretarias anterior à HML
+
+A próxima etapa é um Ensaio com dados fornecidos por **uma ou várias Secretarias participantes**, com adesão e cargas possivelmente em ondas, dentro dos respectivos contratos vigentes. Cada Secretaria prepara e responde pela anonimização ou geração de massa sintética derivada de sua base, inclusive pela classificação e autorização de fornecimento. A Jornada deve validar os contratos e proteger a massa recebida; não presume anonimato pelo rótulo 'sintético'. A única diferença funcional planejada entre Ensaio e HML são os dados: mesmos binários, DDL, contratos, integração corporativa, policies, gates e procedimentos. O Ensaio pode gerar **evidência forte para a #31** quando os dados fornecidos preservarem as características relevantes das populações cobertas e houver verdade de referência independente, amostragem e avaliação de incerteza adequadas. A evidência deve preservar proveniência por Secretaria, contrato e onda e pode instruir o gate estatístico vigente sem repetição automática em HML. Não pressupor diferenças de qualidade por CPF ou maturidade cadastral da Secretaria; a variabilidade efetiva dos dados é desconhecida a priori e não deve virar hipótese obrigatória do Ensaio. Não se presume representatividade fora do universo demonstrado nem se contornam gates de HML. Ver `Ensaio_Secretarias_Paridade_HML.md` para matriz, roteiro e critérios de saída.
 
 ## Readiness HML
 

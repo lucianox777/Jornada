@@ -2,6 +2,8 @@
 
 **Status:** implementado no ciclo de identidade progressiva / PR #354.
 
+**Interpretação normativa:** a Gold é a **melhor representação disponível e revisável**, não um registro perfeito, uma certificação de identidade civil ou uma decisão sobre elegibilidade a benefícios. `REFERENCIA` é um estado operacional de representação canônica, não uma declaração de certeza. O linkage informa a decisão finalística, que cabe à Secretaria responsável. Documento apresentado, ainda que válido segundo sua espécie, é evidência com proveniência e data: seus atributos não são automaticamente os mais recentes nem infalíveis. Preservar divergências e histórico; conferir normas de validade conforme o tipo documental, sem generalizar prazo único.
+
 A existência da representação canônica não depende de um núcleo cadastral completo. A Jornada separa quatro dimensões: **linhagem/existência**, **resolução da identidade**, **completude da representação** e **qualidade/concordância**.
 
 ## 1. Regras normativas
@@ -28,7 +30,7 @@ A procedure considera:
 2. observações cuja origem progressiva já referencia o UUID canônico;
 3. para uma casca `PROVISORIA` ou `INDEFINIDA`, observações da própria origem cujo `initial_uuid` é o UUID materializado.
 
-CPF, nome, nascimento e nome da mãe são selecionados independentemente. Conferência documental tem precedência, seguida de recência. A ausência de uma evidência não bloqueia a seleção dos demais campos.
+CPF, nome, nascimento e nome da mãe são selecionados independentemente. **Hierarquia normativa pretendida por atributo:** (1) informação de documentação apresentada mais recentemente; (2) informação de documentação apresentada anteriormente; (3) autodeclaração mais recente; (4) autodeclaração mais antiga. A data de apresentação da evidência determina a recência **dentro de cada classe**; preservar separadamente data de emissão, data do fato e validade do documento quando disponíveis. A hierarquia é prioridade de composição, não escala de certeza ou garantia de que o atributo esteja correto ou atualizado. Evidências conflitantes permanecem no histórico e devem ser sinalizadas, sem descarte silencioso; campo ausente não substitui evidência presente. A Secretaria finalística avalia os documentos e decide sobre o serviço. **Situação de implementação:** a procedure atual prioriza conferência documental seguida de recência; verificar e ajustar a distinção entre documentação apresentada e autodeclaração, e a data efetivamente usada para ordenação, antes de declarar a nova hierarquia integralmente implementada.
 
 ## 3. Identidade parcial e Linkage
 
@@ -83,4 +85,4 @@ Consumidores podem impor requisitos próprios. Uma tela de atendimento, por exem
 4. Completude não altera, por si só, o estado de resolução.
 5. Identidade não referencial não participa do corpus probabilístico.
 6. Regras de obrigatoriedade pertencem ao contrato versionado da fonte.
-7. A Gold representa o melhor conhecimento atual e pode evoluir ou ser corrigida sem perder a história de identidade.
+7. A Gold representa o melhor conhecimento disponível e pode evoluir ou ser corrigida sem perder a história de identidade; não promete perfeição, certeza civil ou decisão sobre benefícios.

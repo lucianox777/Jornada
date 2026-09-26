@@ -1,5 +1,13 @@
 # Jornada - testes técnicos reproduzíveis — base normativa v3.62 / engenharia v3.72
 
+## Critérios do núcleo: melhor representação, não perfeição
+
+O Ensaio e as regressões verificam a evolução da **melhor representação estatística disponível** para apoiar decisões das Secretarias, sem exigir certeza de vínculo ou simular concessão/negativa de benefícios. Incluir ondas com origem inalterada afetada por nova referência, CPF tardio, mudança documental, autodeclaração posterior, conflitos e retransmissão. Verificar a hierarquia documental/autodeclaratória por atributo, preservação das divergências, reavaliação seletiva e ausência de nova transição operacional quando a representação semântica permanecer igual. A mudança relevante pode ocorrer em confiança, alternativas ou conflitos mesmo sem alteração de UUID. Não pressupor qualidade diferente por presença de CPF ou maturidade da Secretaria. **São critérios de aceitação propostos; não declarar testes executados nem funcionalidades implementadas por esta alteração documental.** Ver `Diretrizes_Identidade_Progressiva_Apoio_Decisao.md`.
+
+## Próxima etapa: Ensaio intersecretarial
+
+Antes de HML haverá um **Ensaio** com massas fornecidas por uma ou várias Secretarias participantes, conforme seus contratos estabelecidos, admitindo adesão e cargas em ondas. A preparação, anonimização e/ou síntese derivada das bases reais cabe às Secretarias. Ensaio e HML devem usar os mesmos binários, DDL, contratos, segurança, integração corporativa, procedimentos e gates; a única diferença funcional planejada é a massa de dados. Não confundir este Ensaio com os harnesses destrutivos locais abaixo. O roteiro, a matriz de paridade, os critérios de saída e a metodologia para tratar o Ensaio como evidência estatística potencialmente forte, condicionada à qualidade e cobertura dos dados, estão em `Ensaio_Secretarias_Paridade_HML.md`. A infraestrutura física e os segredos podem ter valores próprios de cada ambiente, preservando os mesmos controles.
+
 ## Escopo
 
 Este runbook cobre instrumentos de engenharia reproduzíveis. Os quatro instrumentos originais da v3.55 permanecem; a engenharia v3.60 acrescenta gates de contrato/DDL/E2E e avaliação metodológica DEV/HML:
