@@ -877,7 +877,13 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                 scenarios,
                 seed,
                 validationBp,
-                testBp);
+                testBp,
+                maxFpValidationBasisPoints: model.Parameters.TryGetValue(
+                    "FS_DECISION_CALIBRATION_MAX_FP_VALIDATION_BP", out var valFpBp)
+                    ? DecimalToInt(valFpBp) : 0,
+                maxFpTestBasisPoints: model.Parameters.TryGetValue(
+                    "FS_DECISION_CALIBRATION_MAX_FP_TEST_BP", out var testFpBp)
+                    ? DecimalToInt(testFpBp) : 0);
         }
         catch (InvalidOperationException)
         {
