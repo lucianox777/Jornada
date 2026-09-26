@@ -136,6 +136,138 @@ public sealed class LinkageProgressivePublicationSqlServerTests
     }
 
     [Test]
+    public async Task Batch_api_matches_scalar_baseline_is_idempotent_and_preserves_raw_score()
+    {
+        // Caracterização DT-10: a routine set-based ainda deve existir nas migrations
+        // canônicas. Enquanto faltar, o teste falha explicitamente (não é Skip).
+        var cs = RequireIntegrationConnection();
+        await using var connection = new SqlConnection(cs);
+        await connection.OpenAsync();
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
+
+        var source = await ReadProvisionalSourceAsync(connection);
+        var model = await ReadModelAsync(connection);
+        var runId = Guid.NewGuid();
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
+        try
+        {
+            await InsertRunAsync(connection, tx, runId, model.ModelId, model.Version,
+                source.ObservationId, rawResolved: false, noCandidate: true);
+
+            await using (var insert = connection.CreateCommand())
+            {
+                insert.Transaction = tx;
+                insert.CommandText = """
+                    INSERT identidade.linkage_resultado(
+                        linkage_run_id,modelo_id,modelo_versao,pessoa_observacao_id,
+                        pessoa_uuid_resolvido,melhor_candidato_uuid,score_melhor,
+                        segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em,
+                        resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,
+                        pessoa_origem_id_publicado,politica_publicacao_versao,universo_referencia,publicado_em)
+                    VALUES(
+                        @run,@model,@version,@obs,
+                        NULL,NULL,0,NULL,NULL,NULL,
+                        N'NAO_RESOLVIDO',N'SEM_CANDIDATO_NO_RULESET_BLOCKING',SYSUTCDATETIME(),
+                        N'NOVA_IDENTIDADE',@initial,N'RESOLVIDO',N'NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA',
+                        @source,N'LINKAGE_PROGRESSIVE_PUBLICATION_V1',N'RUN_COMPLETO_TESTE',SYSUTCDATETIME());
+                    """;
+                insert.Parameters.AddWithValue("@run", runId);
+                insert.Parameters.AddWithValue("@model", model.ModelId);
+                insert.Parameters.AddWithValue("@version", model.Version);
+                insert.Parameters.AddWithValue("@obs", source.ObservationId);
+                insert.Parameters.AddWithValue("@source", source.SourceId);
+                insert.Parameters.AddWithValue("@initial", source.InitialUuid);
+                await insert.ExecuteNonQueryAsync();
+            }
+
+            // Comparar o mesmo snapshot e o mesmo run em cada caminho, sem misturar
+            // o evento do escalar na expectativa de um único evento do lote.
+            tx.Save("before_scalar");
+            long expectedVersion;
+            await using (var scalar = connection.CreateCommand())
+            {
+                scalar.Transaction = tx;
+                scalar.CommandText = """
+                    DECLARE @v BIGINT;
+                    EXEC identidade.sp_publicar_resolucao_progressiva_linkage
+                         @linkage_run_id=@run,
+                         @pessoa_observacao_id=@obs,
+                         @versao_resultado=@v OUTPUT;
+                    SELECT @v;
+                    """;
+                scalar.Parameters.AddWithValue("@run", runId);
+                scalar.Parameters.AddWithValue("@obs", source.ObservationId);
+                expectedVersion = Convert.ToInt64(
+                    await scalar.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
+            }
+            tx.Rollback("before_scalar");
+
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                await using var batch = connection.CreateCommand();
+                batch.Transaction = tx;
+                batch.CommandText = """
+                    EXEC identidade.sp_publicar_resolucao_progressiva_linkage_lote
+                         @linkage_run_id=@run;
+                    """;
+                batch.Parameters.AddWithValue("@run", runId);
+                await batch.ExecuteNonQueryAsync();
+            }
+
+            await using var verify = connection.CreateCommand();
+            verify.Transaction = tx;
+            verify.CommandText = """
+                SELECT p.initial_uuid,p.canonical_uuid,p.estado,p.versao,
+                       r.status,r.pessoa_uuid_resolvido,r.motivo,
+                       r.resultado_publicacao,r.pessoa_uuid_publicado,r.status_publicacao,
+                       r.progressiva_versao,
+                       (SELECT COUNT_BIG(*)
+                          FROM identidade.pessoa_origem_progressiva_evento e
+                         WHERE e.pessoa_origem_id=@source AND e.linkage_run_id=@run),
+                       (SELECT TOP(1) e.resultado
+                          FROM identidade.pessoa_origem_progressiva_evento e
+                         WHERE e.pessoa_origem_id=@source AND e.linkage_run_id=@run)
+                FROM identidade.pessoa_origem_progressiva p
+                JOIN identidade.linkage_resultado r
+                  ON r.linkage_run_id=@run AND r.pessoa_observacao_id=@obs
+                WHERE p.pessoa_origem_id=@source;
+                """;
+            verify.Parameters.AddWithValue("@source", source.SourceId);
+            verify.Parameters.AddWithValue("@run", runId);
+            verify.Parameters.AddWithValue("@obs", source.ObservationId);
+            await using var reader = await verify.ExecuteReaderAsync();
+            Assert.That(await reader.ReadAsync(), Is.True);
+            Assert.Multiple(() =>
+            {
+                Assert.That(reader.GetGuid(0), Is.EqualTo(source.InitialUuid));
+                Assert.That(reader.GetGuid(1), Is.EqualTo(source.InitialUuid));
+                Assert.That(reader.GetString(2), Is.EqualTo("REFERENCIA"));
+                Assert.That(reader.GetInt64(3), Is.EqualTo(expectedVersion),
+                    "Lote e escalar devem avançar a mesma versão.");
+                Assert.That(reader.GetString(4), Is.EqualTo("NAO_RESOLVIDO"),
+                    "O resultado bruto não pode ser sobrescrito.");
+                Assert.That(reader.IsDBNull(5), Is.True);
+                Assert.That(reader.GetString(6), Is.EqualTo("SEM_CANDIDATO_NO_RULESET_BLOCKING"));
+                Assert.That(reader.GetString(7), Is.EqualTo("NOVA_IDENTIDADE"));
+                Assert.That(reader.GetGuid(8), Is.EqualTo(source.InitialUuid));
+                Assert.That(reader.GetString(9), Is.EqualTo("RESOLVIDO"));
+                Assert.That(reader.GetInt64(10), Is.EqualTo(expectedVersion),
+                    "O lote deve propagar progressiva_versao ao resultado do run.");
+                Assert.That(reader.GetInt64(11), Is.EqualTo(1),
+                    "Replay idêntico não cria segundo evento.");
+                Assert.That(reader.GetString(12), Is.EqualTo("NOVA_IDENTIDADE"));
+            });
+        }
+        finally
+        {
+            await tx.RollbackAsync();
+        }
+    }
+
+    [Test]
     public async Task Probabilistic_conflict_enters_single_governed_queue_with_auditable_result_context()
     {
         var cs = RequireIntegrationConnection();
