@@ -4,6 +4,8 @@
 **Sequência:** DEV → **Ensaio com Secretarias participantes** → HML → Produção. O Ensaio pode envolver uma ou várias Secretarias, com adesão e cargas em ondas, sem pressupor participação de todas.  
 **Princípio:** Ensaio e HML diferem **somente pela massa de dados**. A mesma versão da aplicação, artefatos de implantação, DDL, contratos de integração, regras de identidade, autenticação/autorização, configuração funcional, observabilidade e procedimentos devem ser exercitados. Se algum componente não estiver disponível, a divergência deve ser registrada e resolvida; não se declara paridade fictícia.
 
+**Premissa de produto:** a Jornada produz a melhor representação estatística e incremental disponível da identidade para **apoiar**, não substituir, decisões finalísticas das Secretarias. O Ensaio verifica comportamento, explicabilidade, atualização e limites da representação, não exige certeza de vínculo nem avalia concessão de benefícios. A Gold usa hierarquia de evidências por atributo: documentação apresentada mais recentemente, documentação anterior, autodeclaração mais recente e autodeclaração anterior. Ver `Diretrizes_Identidade_Progressiva_Apoio_Decisao.md`; a aderência exata da procedure atual ainda precisa ser verificada.
+
 ## 1. Origem, preparação e responsabilidade pelos dados
 
 Cada Secretaria participante fornece os dados de seu próprio sistema **dentro dos contratos de integração estabelecidos**. A responsabilidade por selecionar, preparar, anonimizar e/ou gerar dados sintéticos derivados de sua base é da Secretaria fornecedora, com sua governança e autorizações aplicáveis. A estratégia provável é gerar massas sintéticas a partir de características das bases reais, mas não se presume que esse método já esteja aprovado ou executado.
