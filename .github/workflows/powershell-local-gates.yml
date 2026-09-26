@@ -448,7 +448,7 @@ jobs:
           foreach ($required in @(
             'function Write-CommandLine',
             "Write-CommandLine 'docker'",
-            "'-P','<redacted>'",
+            "'-e','SQLCMDPASSWORD'",
             "Write-CommandLine `$LocalDb"
           )) {
             if (-not $content.Contains($required)) {
