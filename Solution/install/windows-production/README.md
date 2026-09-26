@@ -109,7 +109,7 @@ Executar Linkage:
 
 O segundo comando recusa iniciar se o banco não tiver exatamente um modelo `ATIVO`. Isso complementa a própria proteção interna do Runner, que já exige modelo ativo.
 
-`Jornada.Linkage.Evaluation` é ferramenta DEV/HML somente-leitura; não é um daemon e não publica identidade. `Jornada.Linkage.Conference` é execução governada separada que compara Core × Evaluation e grava somente evidência agregada. O wrapper de calibração sempre a executa antes de `VALIDATE`; com a configuração oficial ainda `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`, a promoção termina bloqueada até o congelamento/versionamento explícito da tolerância.
+`Jornada.Linkage.Evaluation` é ferramenta DEV/HML somente-leitura; não é um daemon e não publica identidade. `Jornada.Linkage.Conference` é execução governada separada que compara Core × Evaluation e grava somente evidência agregada. O wrapper de calibração sempre a executa antes de `VALIDATE`; com a configuração técnica `FROZEN` em `V1_2026-09-26` (LLR 0,01), a promoção exige conferência efetiva `CONFORME`, fingerprint inalterado e budgets FP persistidos dentro dos limites. O congelamento do número não autoriza HML/Produção por si só.
 
 ## SQL Server
 
