@@ -27,3 +27,15 @@
 Antes de qualquer upgrade real, executar backup completo com `CHECKSUM` para destino seguro e `RESTORE VERIFYONLY ... WITH CHECKSUM`; preferir ensaio de restauração integral em outro banco. Preservar localização e digest do backup sob controle de acesso. Rollback de DDL/dados não é `down` automático nem `DELETE` do ledger: suspender escritores e consumers, restaurar **em banco distinto** o backup validado, conferir invariantes e só promover sob procedimento de DBA. Recuperar mudanças ocorridas após o backup requer PITR/reconciliação institucional. Nunca executar `DROP DATABASE` implícito ou reset de `JornadaLocal`, `JornadaE2E` ou `JornadaSyntheticDev`.
 
 **Validação:** o CI existente já cobre instalação do wrapper e upgrade do snapshot v3.65 com runner aplicado duas vezes. Os novos arquivos DT-06 ainda exigem execução SQL específica em clone; CI verde por si só não equivale a evidência de sua execução nem a backup restaurado.
+
+## Ensaio adicional de histórico PARCIAL efetivamente aplicado (opt-in)
+
+O script [test-history-upgrade.sh](test-history-upgrade.sh) cria **somente** um banco de teste ainda inexistente, com prefixo `JornadaDT06_`, instala o snapshot 3.65, registra uma sentinela e aplica as três primeiras migrations com SHA de arquivo no ledger. Em seguida roda o executor de upgrade sobre essas três entradas preexistentes (sem reaplicá-las), completa as restantes e repete o executor sobre o histórico já consolidado. Exige contagens do ledger e preservação da sentinela. Não faz `DROP`, não recria banco preexistente nem altera dados dos três perfis operacionais.
+
+```bash
+export JORNADA_DT06_TEST_DATABASE=JornadaDT06_Historico01
+export JORNADA_DT06_CONFIRM_CREATE=YES
+bash database/baselines/test-history-upgrade.sh
+```
+
+A suíte SQL do workflow de consolidação é disparada neste PR por `database/migrations/DT06_BASELINE_README.md`. Ela valida a migração e o replay em SQL Server real; o novo smoke de histórico parcial continua uma operação explícita e não deve ser declarado executado sem o resultado do ensaio.
