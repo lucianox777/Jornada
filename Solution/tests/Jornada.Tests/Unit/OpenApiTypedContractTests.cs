@@ -177,8 +177,8 @@ public sealed class OpenApiTypedContractTests
         {
             Assert.That(type, Is.EqualTo("array"), location);
             var item = clrType.GetGenericArguments()[0];
-            Assert.That(schema.GetProperty("items").GetProperty("$ref").GetString(),
-                Is.EqualTo("#/components/schemas/" + item.Name), location);
+            // Arrays may contain public DTOs *or* primitives (Guid, long, etc.).
+            AssertPropertyType(item, schema.GetProperty("items"), location + "[]", false);
         }
         else if (clrType.IsGenericType && clrType.GetGenericTypeDefinition() == typeof(IReadOnlyDictionary<,>))
             Assert.That(type, Is.EqualTo("object"), location);
