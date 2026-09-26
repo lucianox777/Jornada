@@ -1,5 +1,8 @@
 # DT-12 — inventário remoto para aprovação, sem exclusões
 
+
+**Proteção da evidência contra falso positivo do Gitleaks:** os SHA-1 completos dos heads foram separados do CSV com nomes de branches. `DT12_Branches_20260926.csv` contém `index` estável, nome e flags; `DT12_Branch_Heads_20260926.csv` contém `index` e `head_sha`. Reconstituir por `index`, nunca por ordem implícita. Essa separação preserva todos os 429 SHAs sem colocar um hash com aparência de token na mesma linha de uma branch cujo nome contém `secret`/`password`/`key`; nenhuma exceção de Gitleaks foi criada. Recoletar ambos os arquivos antes de qualquer decisão destrutiva.
+
 **Coleta em 26/09/2026:** 5 páginas de 100/100/100/100/29 branches de `lucianox777/Jornada`. `master` observada em `975911d0ce6f1678cfc42241e99cdc6c6362aaba`; árvore dos arquivos raiz em `975911d0ce6f1678cfc42241e99cdc6c6362aaba`; branch deste relatório partiu de `3f583901df9b784c852c04135555647d3dc2c1bf`. Como outras sessões fazem push/merge em paralelo, são **snapshots de leitura**, não transação GitHub atômica. Recoletar e comparar SHA antes de qualquer decisão destrutiva. PRs abertos abaixo foram capturados **antes da criação desta própria PR**.
 
 **Escopo: somente inventário e proposta de critérios para aprovação. Nenhum `git push --delete`, DELETE na API, exclusão, movimentação ou renomeação de branch ou arquivo foi executado.**
