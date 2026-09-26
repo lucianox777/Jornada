@@ -157,6 +157,7 @@ jobs:
       - name: Gate source sanity and pinned workflow actions
         run: |
           python3 scripts/source-sanity-gate.py
+          python3 scripts/sql-argv-safety-gate.py
           python3 scripts/workflow-action-pin-gate.py
       - name: Gate observability/SLO contract
         run: python3 scripts/observability-contract-gate.py
