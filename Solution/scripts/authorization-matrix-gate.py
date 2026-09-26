@@ -115,8 +115,8 @@ def validate(data: dict, sources: dict[str, str]) -> int:
     ):
         require(token in verifier, "validador real de credencial ausente: " + token)
     require("builder.Environment.IsDevelopment()" in program
-            and "CorporateIdentityPendingAccessContextResolver" in program
-            and "DenyByDefaultPolicyEngine" in program,
+            and "builder.Services.AddSingleton<IAccessContextResolver, CorporateIdentityPendingAccessContextResolver>();" in program
+            and "builder.Services.AddSingleton<IPolicyEngine, DenyByDefaultPolicyEngine>();" in program,
             "HML/produção deixou de ser deny-by-default")
 
     permission_block = re.search(
@@ -216,7 +216,9 @@ def self_test(matrix: dict, sources: dict[str, str]) -> None:
          "false && accessContext.CredentialType != AccessCredentialType.GESTOR"),
         ("propriedade do sistema removida", "origin",
          "p.sistema_origem_codigo COLLATE Latin1_General_100_BIN2=@sistema", "1=1"),
-        ("fallback não-dev aberto", "program", "DenyByDefaultPolicyEngine", "AllowAllPolicyEngine"),
+        ("fallback não-dev aberto", "program",
+         "builder.Services.AddSingleton<IPolicyEngine, DenyByDefaultPolicyEngine>();",
+         "builder.Services.AddSingleton<IPolicyEngine, AllowAllPolicyEngine>();"),
     ]
     for name, file, before, after in scenarios:
         require(before in sources[file], "autoteste não encontrou alvo: " + name)
