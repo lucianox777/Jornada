@@ -73,6 +73,7 @@ O harness executa na sequência:
 reset local
 -> seed sintético
 -> GENERATE_DRAFT
+-> CONFERENCIA (tolerância de fixture TEST_ONLY_NOT_GOVERNANCE no harness)
 -> VALIDATE
 -> ACTIVATE
 -> Runner MODEL_VALIDATION (publish=false)
