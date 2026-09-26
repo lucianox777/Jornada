@@ -162,18 +162,18 @@ public sealed record JornadaScopeRequirement(string Permission, bool AllowType) 
 public sealed class JornadaScopeAuthorizationHandler : AuthorizationHandler<JornadaScopeRequirement>
 {
     protected override Task HandleRequirementAsync(
-        AuthorizationHandlerContext authorization, JornadaScopeRequirement requirement)
+        AuthorizationHandlerContext context, JornadaScopeRequirement requirement)
     {
-        if (authorization.Resource is not HttpContext http
+        if (context.Resource is not HttpContext http
             || !http.Items.TryGetValue(JornadaAccessSecurity.AccessContextItem, out var raw)
-            || raw is not AccessContext context)
+            || raw is not AccessContext accessContext)
             return Task.CompletedTask;
 
-        if ((!requirement.AllowType && context.CredentialType != AccessCredentialType.GESTOR)
-            || !context.Scopes.Contains(requirement.Permission, StringComparer.OrdinalIgnoreCase))
+        if ((!requirement.AllowType && accessContext.CredentialType != AccessCredentialType.GESTOR)
+            || !accessContext.Scopes.Contains(requirement.Permission, StringComparer.OrdinalIgnoreCase))
             return Task.CompletedTask;
 
-        authorization.Succeed(requirement);
+        context.Succeed(requirement);
         return Task.CompletedTask;
     }
 }
