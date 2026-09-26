@@ -1,9 +1,11 @@
 # ADR-007 — Conferência externa Jornada × Splink por arquivos, sem acoplamento ao runtime
 
-- **Status:** Aceita para a fronteira de arquitetura e para a fixture sintética inicial; execução independente externa e paridade empírica **pendentes**
+- **Status:** **SUPERADA como documento normativo** pela [decisão consolidada de conferência externa](../../Solution/docs/Decisoes_Linkage_Calibracao_IBGE_20260926.md#21-conferência-externa-jornada--splink--decisão-consolidada-de-26092026); preservada somente para histórico e rastreabilidade
 - **Data:** 2026-09-26
 - **Escopo:** DT-01, Plano item 1, comparação externa **diagnóstica** do motor C#
 - **Relacionados:** [ADR-002](ADR-002-calibrador-fs-u-condicionado.md), [conferência governada](../../Solution/docs/Linkage_Implementation_Conference.md), [exportação de auditoria já existente](../../Solution/docs/Linkage_Calibration_Audit_Export.md), [DT-01](../../Solution/docs/Dividas_Tecnicas.md)
+
+**Atenção:** decisões operacionais atuais, fonte do bootstrap IBGE, escopo do replay e critérios de evidência constam unicamente da seção 2.1 da Decisão consolidada. A fixture de nove pessoas desta ADR histórica é smoke de contrato e **não** valida o cálculo do bootstrap do Censo; não usar este texto histórico como autorização para duplicar exportador nem considerar comparações não executadas como prova.
 
 ## Contexto e correções do inventário
 
