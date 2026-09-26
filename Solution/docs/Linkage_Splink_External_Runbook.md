@@ -1,6 +1,8 @@
 # Conferência nominal externa Jornada × Splink — runbook offline
 
-**Estado em 26/09/2026:** contrato/fixture C# implementados; **nenhum runner externo executado nesta integração**. Arquitetura aprovada em [ADR-007](../../Documentos/ADR/ADR-007-conferencia-externa-splink-sem-python-operacional.md). Não equivale a homologação estatística [#31](https://github.com/lucianox777/Jornada/issues/31), não substitui a conferência governada e não altera modelos.
+**Estado em 26/09/2026:** contrato/fixture C# implementados; **nenhum runner externo executado nesta integração**. Norma vigente: [decisão consolidada §2.1](Decisoes_Linkage_Calibracao_IBGE_20260926.md#21-conferência-externa-jornada--splink--decisão-consolidada-de-26092026); a ADR-007 é registro histórico. Não equivale a homologação estatística [#31](https://github.com/lucianox777/Jornada/issues/31), não substitui a conferência governada e não altera modelos.
+
+**Importante:** o exemplo de nove pessoas abaixo é smoke do intercâmbio **e não compara o bootstrap IBGE**. O próximo experimento deve exportar os mesmos pares sorteados pelo estimador C# sobre o snapshot público validado, checar os níveis via Splink real e comparar suporte/probabilidade de cada estado. Instalar/rodar o Splink **fora da árvore da Jornada**; não simular conclusão dessa prova com o modo V1 abaixo. Acompanhamento [#506](https://github.com/lucianox777/Jornada/issues/506).
 
 ## O que este V1 realmente permite
 
