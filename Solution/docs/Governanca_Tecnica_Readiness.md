@@ -16,6 +16,10 @@ A Solution distribui contratos machine-readable para itens que dependem de decis
 
 Nenhum valor é inferido. `governance-readiness-gate.py --require-approved` falha enquanto a política não estiver aprovada.
 
+## Finalidade e representação progressiva
+
+A Jornada oferece a melhor representação estatística e incremental disponível para apoiar decisões das Secretarias; não certifica identidade civil nem concede ou nega benefícios automaticamente. `REFERENCIA` é estado operacional, não certeza. A Gold compõe atributos conforme hierarquia de evidências: documentação apresentada mais recentemente, documentação anterior, autodeclaração mais recente e autodeclaração anterior, preservando proveniência, conflitos e datas distintas. A precedência é regra de composição, não atestado de exatidão; a implementação integral dessa ordem ainda requer conferência do esquema e da procedure. O reprocessamento deve ocorrer por alterações em sinais de identidade **ou** no conjunto de candidatos afetados; a persistência operacional deve versionar mudanças semânticas da melhor representação, sem eliminar o ledger. Ver `Diretrizes_Identidade_Progressiva_Apoio_Decisao.md`.
+
 ## Identidades que permanecem sem resolução
 
 `config/governance/identity-pending-lifecycle.json` obriga a tratar explicitamente `PENDENTE_PROBABILISTICO`, `NAO_RESOLVIDO` e `CONFLITO`. O contrato não executa alteração automática (`autoMutate=false`): busca ativa, revisão ou encerramento permanecem decisões institucionais.
