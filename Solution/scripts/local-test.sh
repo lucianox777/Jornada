@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_FILE="${JORNADA_LOCAL_ENV_FILE:-$ROOT/.env}"
 "$ROOT/scripts/local-db.sh" up
 # shellcheck disable=SC1091
-set -a; source "$ROOT/.env"; set +a
+set -a; source "$ENV_FILE"; set +a
+JORNADA_SQL_DATABASE="${JORNADA_SQL_DATABASE_OVERRIDE:-${JORNADA_SQL_DATABASE:-JornadaLocal}}"
 export JORNADA_TEST_SQL_CONNECTION="Server=localhost,${JORNADA_SQL_PORT:-14333};Database=${JORNADA_SQL_DATABASE:-JornadaLocal};User Id=sa;Password=${JORNADA_SQL_SA_PASSWORD};TrustServerCertificate=true;Encrypt=false"
 cd "$ROOT"
 command -v python3 >/dev/null 2>&1 || { echo "ERRO: python3 é necessário para o gate OpenAPI." >&2; exit 2; }

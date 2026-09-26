@@ -66,3 +66,9 @@ if grep -Fq "$MOCK_EXPECTED_PASSWORD" "$FIXTURE/failure.out"; then
   exit 1
 fi
 echo 'LOCAL-DB BASH SQLCMD SECRET TRANSPORT MOCK: OK'
+
+# O CI já executa este mock sem banco real: acoplar o gate puro do runner
+# mantém o escopo DT-11 inteiramente em Solution/scripts e testa os três perfis.
+command -v python3 >/dev/null 2>&1 || { echo 'Python 3 necessário para testar o runner DT-11.' >&2; exit 2; }
+python3 -m unittest discover -s "$ROOT/scripts/tests" -p test_jornada_runner.py -v
+echo 'DT-11 UNIFIED RUNNER UNIT TESTS: OK'
