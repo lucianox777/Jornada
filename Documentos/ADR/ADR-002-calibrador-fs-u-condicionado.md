@@ -43,3 +43,7 @@ A retirada do estágio DF/Splink não impede uma superfície read-only de interc
 - estados sem mapeamento 1:1 sejam declarados, não colapsados silenciosamente;
 - nenhuma alegação de qualidade estatística seja derivada do round-trip de formato;
 - a ativação probabilística continue sujeita à issue #31.
+
+## Esclarecimento posterior — ADR-007 (26/09/2026)
+
+O uso de bootstrap IBGE antes de suporte suficiente do u condicionado é **transição metodológica declarada**, não licença para fallback geográfico por nome. A [decisão de escopo por atributo](../../Solution/docs/Decisoes_Linkage_Calibracao_IBGE_20260926.md) fixa mãe no nacional V1 e pessoa municipal SP apenas em V2 candidata, sem preencher lacunas de SP por UF/Brasil. A [ADR-007](ADR-007-conferencia-externa-splink-sem-python-operacional.md) apenas isola o runner de diagnóstico: sua comparação nominal V1 de u aleatório entre pessoas distintas não valida nem substitui o u condicionado à união deduplicada dos candidatos desta ADR.
