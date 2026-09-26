@@ -55,12 +55,25 @@ viradas domingo/segunda, use o autoteste somente leitura:
 O workflow `jornada-powershell-local-gates` executa essa prova em
 SQL Server descartável, sem criar dados de teste nas tabelas operacionais.
 
-Os contadores exatos `FreshPending` e `Reavaliados` são calculados pelo
-Runner mas NÃO são persistidos em `linkage_run` no schema 3.70.
-Consequentemente, as respectivas colunas do relatório são NULL. Não
-confundir primeira avaliação encontrada no histórico com o estado da
-reserva original. Persistência exata requer migração versionada no trem
-3.71; #424 permanece parcialmente aberta.
+A migração aditiva `20260926_Linkage_Run_Incremental_Metrics_371.sql`
+persiste `fresh_pending` e `reavaliados` como `BIGINT NULL` em
+`identidade.linkage_run`. Para runs **INCREMENTAL novos**, o Runner grava
+ambos na mesma transação curta que congela `linkage_run_item` e
+`registros_elegiveis`. O banco exige valores não negativos,
+`fresh_pending + reavaliados = registros_elegiveis` e impede
+contadores preenchidos em outros modos. O relatório exibe as contagens
+exatas e `100 * reavaliados / elegiveis`; sem elegíveis, a proporção
+fica `NULL` (não há denominador).
+
+**Runs históricos e modos FULL/REPLAY/ON_DEMAND/MODEL_VALIDATION ficam
+`NULL` nos dois contadores.** Não inferir o estado da reserva histórica
+por consultas atuais ou pela primeira avaliação. Essa etapa do trem 3.71
+é aditiva e não muda sozinha o marcador `Jornada.SolutionSchema=3.70`;
+o rebind final permanece condicionado à coordenação de #411.
+
+As contagens permitem acompanhar a participação do estoque reavaliado,
+mas não autorizam automaticamente uma fila causal de Fase 2 nem política
+de retenção; essa decisão depende de medidas DEV/HML e da governança.
 
 Ambos os diagnósticos são engenharia DEV; nenhum substitui o corpus real
 independente e a homologação estatística da issue #31.
