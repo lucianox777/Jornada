@@ -127,6 +127,98 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
         }
     }
 
+    [Test]
+    public async Task Incremental_universe_metrics_are_exact_nullable_for_legacy_and_constraint_enforced()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        var databaseDir = Path.Combine(FindRepositoryRoot(), "Solution", "database");
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
+
+        // O seed historico nao tem contadores da reserva. Nunca inferi-los
+        // retrospectivamente a partir de vinculos que podem ter mudado.
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync();
+        try
+        {
+            Guid runId;
+            await using (var read = connection.CreateCommand())
+            {
+                read.Transaction = tx;
+                read.CommandText = """
+                    SELECT TOP (1) linkage_run_id,fresh_pending,reavaliados
+                    FROM identidade.linkage_run
+                    WHERE tipo_run=N'ON_DEMAND' AND registros_elegiveis=2
+                    ORDER BY iniciado_em DESC;
+                    """;
+                await using var reader = await read.ExecuteReaderAsync();
+                Assert.That(await reader.ReadAsync(), Is.True, "Seed exige um run historico.");
+                runId = reader.GetGuid(0);
+                Assert.Multiple(() =>
+                {
+                    Assert.That(reader.IsDBNull(1), Is.True, "Nao fabricar FreshPending legado.");
+                    Assert.That(reader.IsDBNull(2), Is.True, "Nao fabricar Reavaliados legado.");
+                });
+            }
+
+            // O Runner calcula ambas as contagens da lista congelada e as
+            // grava na MESMA transacao que define elegiveis e EXECUTANDO.
+            await using (var valid = connection.CreateCommand())
+            {
+                valid.Transaction = tx;
+                valid.CommandText = """
+                    UPDATE identidade.linkage_run
+                    SET tipo_run=N'INCREMENTAL',fresh_pending=1,reavaliados=1
+                    WHERE linkage_run_id=@run_id;
+                    SELECT fresh_pending,reavaliados,
+                      CAST(100.0*reavaliados/NULLIF(registros_elegiveis,0) AS DECIMAL(9,2))
+                    FROM identidade.linkage_run WHERE linkage_run_id=@run_id;
+                    """;
+                valid.Parameters.AddWithValue("@run_id", runId);
+                await using var reader = await valid.ExecuteReaderAsync();
+                Assert.That(await reader.ReadAsync(), Is.True);
+                Assert.Multiple(() =>
+                {
+                    Assert.That(reader.GetInt64(0), Is.EqualTo(1));
+                    Assert.That(reader.GetInt64(1), Is.EqualTo(1));
+                    Assert.That(reader.GetDecimal(2), Is.EqualTo(50m));
+                });
+            }
+
+            await using (var invalidSum = connection.CreateCommand())
+            {
+                invalidSum.Transaction = tx;
+                invalidSum.CommandText = """
+                    UPDATE identidade.linkage_run
+                    SET reavaliados=2 WHERE linkage_run_id=@run_id;
+                    """;
+                invalidSum.Parameters.AddWithValue("@run_id", runId);
+                Assert.ThrowsAsync<SqlException>(
+                    async () => await invalidSum.ExecuteNonQueryAsync(),
+                    "Contadores nao podem exceder o universo materializado.");
+            }
+
+            await using (var invalidMode = connection.CreateCommand())
+            {
+                invalidMode.Transaction = tx;
+                invalidMode.CommandText = """
+                    UPDATE identidade.linkage_run
+                    SET tipo_run=N'ON_DEMAND' WHERE linkage_run_id=@run_id;
+                    """;
+                invalidMode.Parameters.AddWithValue("@run_id", runId);
+                Assert.ThrowsAsync<SqlException>(
+                    async () => await invalidMode.ExecuteNonQueryAsync(),
+                    "Outros modos nao podem expor contagens falsamente exatas.");
+            }
+        }
+        finally
+        {
+            await tx.RollbackAsync();
+        }
+    }
+
     private static async Task<long> CountObservationVersionsAsync(
         SqlConnection connection,
         SqlTransaction tx,
