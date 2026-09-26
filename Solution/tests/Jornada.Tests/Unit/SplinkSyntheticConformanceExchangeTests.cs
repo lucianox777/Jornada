@@ -68,7 +68,7 @@ public sealed class SplinkSyntheticConformanceExchangeTests
                     StringComparison.Ordinal), source),
                 Throws.TypeOf<InvalidDataException>());
             Assert.That(() => SplinkSyntheticConformanceExchange.ReadExternal(
-                valid.Replace("[0.92,0.8]", "[0.90,0.8]", StringComparison.Ordinal), source),
+                valid.Replace("0.92", "0.90", StringComparison.Ordinal), source),
                 Throws.TypeOf<InvalidDataException>());
             Assert.That(() => SplinkSyntheticConformanceExchange.ReadExternal(
                 valid.Replace("\"source_schema_version\":", "\"unrecognized_person\":1,\"source_schema_version\":",
