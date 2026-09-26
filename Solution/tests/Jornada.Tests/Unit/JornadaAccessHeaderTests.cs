@@ -1,6 +1,9 @@
 using Jornada.Access.Security;
 using Jornada.Contracts;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.DependencyInjection;
+using System.Security.Claims;
 
 namespace Jornada.Tests.Unit;
 
@@ -49,5 +52,34 @@ public sealed class JornadaAccessHeaderTests
             Assert.That(parsed.Credential?.Type, Is.EqualTo(expected));
             Assert.That(parsed.Credential?.PublicCode, Is.EqualTo("AR01"));
         });
+    }
+
+    [Test]
+    public async Task Scope_policies_enforce_credential_type_and_scopes_independently_of_endpoint_code()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddJornadaAccessSecurity();
+        using var provider = services.BuildServiceProvider();
+        var authorization = provider.GetRequiredService<IAuthorizationService>();
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString("N"))],
+            JornadaAccessSecurity.Scheme));
+
+        async Task<bool> Allowed(AccessCredentialType type, string policy, string[] scopes)
+        {
+            var http = new DefaultHttpContext();
+            http.Items[JornadaAccessSecurity.AccessContextItem] = new AccessContext(
+                Guid.NewGuid(), type, "AR01", "SMADS",
+                type == AccessCredentialType.GESTOR ? null : "AR01", scopes, ["AR01"]);
+            return (await authorization.AuthorizeAsync(principal, http, policy)).Succeeded;
+        }
+
+        Assert.That(await Allowed(AccessCredentialType.GESTOR, "jornada.monitor.read", ["jornada.monitor.read"]), Is.True);
+        Assert.That(await Allowed(AccessCredentialType.BENEFICIO, "jornada.monitor.read", ["jornada.monitor.read"]), Is.False,
+            "Credencial de tipo nunca recebe escopo de Gestor, mesmo se configurado por engano.");
+        Assert.That(await Allowed(AccessCredentialType.BENEFICIO, "jornada.pessoas.read", ["jornada.pessoas.read"]), Is.True);
+        Assert.That(await Allowed(AccessCredentialType.SERVICO, "jornada.identidade.resolve", ["jornada.identidade.resolve"]), Is.True);
+        Assert.That(await Allowed(AccessCredentialType.GESTOR, "jornada.pessoas.read", []), Is.False);
     }
 }
