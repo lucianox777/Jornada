@@ -1,5 +1,7 @@
 # Diretrizes consolidadas — identidade progressiva e apoio à decisão
 
+**Limite funcional do RN (linha 23):** [Requisitos de Negócio Jornada v1.1](../../Documentos/Requisitos/01_Requisitos_de_Negocio_Jornada_v1.1.md) — “a Jornada referencia, integra e informa; não concede benefício nem altera automaticamente o sistema finalístico”. Identidade e linkage são insumos revisáveis para decisão da Secretaria, sem escrita automática de concessão/negação no sistema finalístico.
+
 **Data:** 26/09/2026. **Status:** diretriz de produto e arquitetura; distingue regras já existentes de alterações propostas. **Prioridade:** motor de linkage C# e identidade progressiva. Este documento consolida decisões de produto discutidas no ciclo de documentação do PR #492; não constitui evidência de implementação, build ou homologação.
 
 ## 1. Finalidade: melhor representação disponível

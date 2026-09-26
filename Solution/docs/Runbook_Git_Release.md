@@ -35,7 +35,7 @@ A candidata v5.00 separa explicitamente **checkpoint técnico** de **release sel
 - `rc-evidence` valida o tag contra `CANDIDATE_INFO.json`, recompõe um bundle Git da fonte, recalcula o fingerprint estrutural em SQL Server na própria tag e gera `RC_EVIDENCE.json`;
 - o fingerprint executado na RC deve coincidir com `candidate.schema_provenance.structural_fingerprint_sha256`; o workflow de consolidação prova o DDL no commit corrente e a RC recompõe a prova na tag exata, sem depender de um run histórico identificado por ID;
 - o job produz attestation Sigstore e publica/atualiza um **GitHub pre-release** preso à tag, com `RC_EVIDENCE.json`, bundle/proveniência da fonte, proveniência estrutural e fingerprint como assets duráveis;
-- o texto do pre-release deve declarar explicitamente que a RC não é homologação estatística, não autoriza Linkage probabilístico nem Produção e mantém #31/#93 e a decisão institucional de finalidade/base legal pendentes (a chave histórica `GTPR_PURPOSE_LEGAL_BASIS_DECISION` não é denominação oficial da instância competente).
+- o texto do pre-release deve declarar explicitamente que a RC não é homologação estatística, não autoriza Linkage probabilístico nem Produção e mantém #31/#93 e a decisão institucional de finalidade/base legal pendentes (interlocução: **Coordenação do Programa Reencontro (SEPE)**; a chave de máquina legada `GTPR_PURPOSE_LEGAL_BASIS_DECISION` não designa oficialmente uma instância aprovadora).
 
 `technical_rc.status=CHECKPOINT_CONTENT` e `schema_provenance.status=BOUND_FOR_TECHNICAL_RC` descrevem propriedades intrínsecas do conteúdo commitado. A existência da tag/pre-release é o registro do ato externo de corte; o commit não tenta declarar antecipadamente que a tag já existe.
 
@@ -54,7 +54,7 @@ Os anexos de um GitHub pre-release técnico **não são tratados como imutáveis
 
 A identidade imutável do checkpoint continua sendo o commit/tag. Para conteúdo anexado, a autoridade criptográfica de digest é a **attestation Sigstore** emitida para os subjects da execução; auditoria deve validar a attestation e os subject digests em vez de inferir imutabilidade a partir do nome do asset no release.
 
-Até o corte de `v5.00-rc.1`, upgrades das Actions que participam do caminho de evidência permanecem congelados e devem ser mergeados somente depois do checkpoint técnico, salvo correção de segurança explicitamente justificada que obrigue novo ensaio do caminho de RC.
+O checkpoint `v5.00-rc.1` já foi cortado. O congelamento preventivo de upgrades das Actions aplicava-se **até esse corte**, não indefinidamente depois dele. Quaisquer upgrades posteriores que alterem o caminho da evidência exigem testes no SHA correspondente e nova evidência ao promover outro checkpoint/tag.
 
 
 ## Verificação da tag
