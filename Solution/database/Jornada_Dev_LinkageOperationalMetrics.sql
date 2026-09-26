@@ -33,6 +33,31 @@ OUTER APPLY (
 SELECT CONVERT(date,calculado_em) AS data_utc,COUNT_BIG(*) AS linhas_gravadas
 FROM identidade.linkage_resultado
 GROUP BY CONVERT(date,calculado_em) ORDER BY data_utc DESC;
+-- Semanas UTC iniciadas na segunda-feira, independentes de DATEFIRST/idioma.
+-- Comparar somente semanas contiguas; lacunas nao representam crescimento zero.
+;WITH weekly AS (
+ SELECT DATEADD(DAY,-(DATEDIFF(DAY,CONVERT(date,'19000101',112),
+   CONVERT(date,calculado_em))%7),CONVERT(date,calculado_em)) AS semana_inicio_utc,
+   COUNT_BIG(*) AS linhas_gravadas
+ FROM identidade.linkage_resultado
+ GROUP BY DATEADD(DAY,-(DATEDIFF(DAY,CONVERT(date,'19000101',112),
+   CONVERT(date,calculado_em))%7),CONVERT(date,calculado_em))
+), compared AS (
+ SELECT semana_inicio_utc,linhas_gravadas,
+  LAG(semana_inicio_utc) OVER (ORDER BY semana_inicio_utc) AS semana_anterior_utc,
+  LAG(linhas_gravadas) OVER (ORDER BY semana_inicio_utc) AS linhas_semana_anterior
+ FROM weekly
+)
+SELECT TOP (16) semana_inicio_utc,linhas_gravadas,
+ CASE WHEN DATEDIFF(DAY,semana_anterior_utc,semana_inicio_utc)=7
+   THEN linhas_semana_anterior ELSE NULL END AS linhas_semana_anterior_contigua,
+ CASE WHEN DATEDIFF(DAY,semana_anterior_utc,semana_inicio_utc)=7
+   THEN linhas_gravadas-linhas_semana_anterior ELSE NULL END AS diferenca_vs_semana_anterior,
+ CASE WHEN DATEDIFF(DAY,semana_anterior_utc,semana_inicio_utc)=7
+   AND linhas_semana_anterior>0
+   THEN CAST(100.0*(linhas_gravadas-linhas_semana_anterior)
+     /linhas_semana_anterior AS decimal(18,2)) ELSE NULL END AS variacao_percentual_contigua
+FROM compared ORDER BY semana_inicio_utc DESC;
 ;WITH counts AS (
  SELECT pessoa_observacao_id,COUNT_BIG(*) AS avaliacoes
  FROM identidade.linkage_resultado GROUP BY pessoa_observacao_id
