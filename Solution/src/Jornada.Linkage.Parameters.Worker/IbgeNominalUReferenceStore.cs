@@ -265,7 +265,7 @@ public static class IbgeNominalUReferenceStore
         }.Concat(estimate.States.OrderBy(x => x.State, StringComparer.Ordinal)
             .Select(x => string.Join("|",
                 x.State, x.Support.ToString(CultureInfo.InvariantCulture),
-                Num(x.Probability), Num(x.StandardError)))) + "\n";
+                Num(x.Probability), Num(x.StandardError))))) + "\n";
         return SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
     }
 
