@@ -8,6 +8,61 @@ using Microsoft.Data.SqlClient;
 
 const string Purpose = "DEV_HML_ONLY_NO_PUBLICATION";
 
+// Conferência de cálculo do IBGE sobre OS MESMOS PARES, sem dados reais:
+// o exportador existente é reutilizado, mas só no banco JornadaSyntheticDev.
+if (args.Length == 8 && args[0] == "--export-splink-ibge-replay" &&
+    args[2] == "--seed" && args[4] == "--pairs" && args[6] == "--first-name-sex")
+{
+    if (!int.TryParse(args[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var replaySeed) ||
+        !int.TryParse(args[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out var replayPairCount) ||
+        replayPairCount is < 1 or > 100_000 ||
+        args[7] is not ("TODOS" or "FEMININO"))
+        throw new ArgumentException(
+            "Replay exige --seed int --pairs 1..100000 --first-name-sex TODOS|FEMININO.");
+    var replayConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+        ?? throw new InvalidOperationException(
+            "Defina ConnectionStrings__Jornada APENAS para o banco isolado JornadaSyntheticDev.");
+    var replayAdapter = new OperationalSqlAdapter(replayConnectionString);
+    await using var replayConnection = await replayAdapter.OpenAsync();
+    var exporter = new CalibrationAuditExporter(replayConnection, commandTimeoutSeconds: 900);
+    var replayDocument = await exporter.ExportIbgeSyntheticReplayAsync(
+        replaySeed, replayPairCount, args[7]);
+    var replayJson = SplinkIbgeReplayContract.SerializeInput(replayDocument);
+    var replayPath = Path.GetFullPath(args[1]);
+    Directory.CreateDirectory(Path.GetDirectoryName(replayPath)!);
+    await File.WriteAllTextAsync(replayPath, replayJson, new System.Text.UTF8Encoding(false));
+    await File.WriteAllTextAsync(replayPath + ".sha256",
+        SplinkIbgeReplayContract.Sha(replayJson) + "  " + Path.GetFileName(replayPath) +
+        Environment.NewLine, new System.Text.UTF8Encoding(false));
+    Console.WriteLine("Replay sintético IBGE gerado do JornadaSyntheticDev: " +
+        replayDocument.PairCount + " pares, código=" + replayDocument.ReferenceCode +
+        ", SHA=" + replayDocument.ReferenceContentSha256 +
+        ". Não contém dados de cidadãos.");
+    return;
+}
+if (args.Length == 4 && args[0] == "--check-splink-ibge-replay")
+{
+    var inputJson = await File.ReadAllTextAsync(Path.GetFullPath(args[1]));
+    var externalJson = await File.ReadAllTextAsync(Path.GetFullPath(args[2]));
+    var diagnostic = SplinkIbgeReplayContract.Diagnose(inputJson, externalJson);
+    var resultPath = Path.GetFullPath(args[3]);
+    Directory.CreateDirectory(Path.GetDirectoryName(resultPath)!);
+    await File.WriteAllTextAsync(resultPath,
+        SplinkIbgeReplayContract.SerializeDiagnostic(diagnostic),
+        new System.Text.UTF8Encoding(false));
+    Console.WriteLine("Conferência real Splink×C# IBGE: " + diagnostic.Status +
+        "; pares=" + diagnostic.PairCount +
+        "; discordâncias=" + diagnostic.PairwiseDisagreements +
+        "; TVD=" + diagnostic.TotalVariation.ToString(CultureInfo.InvariantCulture) +
+        ". Somente diagnóstico: não altera modelo nem confere #31.");
+    return;
+}
+if (args.Any(x => x is "--export-splink-ibge-replay" or "--check-splink-ibge-replay"))
+    throw new ArgumentException(
+        "--export-splink-ibge-replay <saida> --seed <int> --pairs <1..100000> " +
+        "--first-name-sex <TODOS|FEMININO> OU " +
+        "--check-splink-ibge-replay <input> <external> <report>.");
+
 // ÚNICA via de entrada para Splink externo: fixture literal compilada, sem SQL,
 // credencial ou argumento de arquivo de origem. Nada invoca Python neste processo.
 if (args.Length == 2 && args[0] == "--export-splink-synthetic")
@@ -364,6 +419,12 @@ internal sealed record EvaluationOptions(
     public static string Usage =>
         """
         Jornada.Linkage.Evaluation — avaliação técnica sem publicação de identidade
+
+        Conferência Splink IBGE via os MESMOS pares determinísticos (somente Development):
+          --export-splink-ibge-replay <saida.json> --seed <int> --pairs <1..100000> --first-name-sex <TODOS|FEMININO>
+                requer ConnectionStrings__Jornada para banco isolado JornadaSyntheticDev
+          --check-splink-ibge-replay <entrada.json> <resposta.json> <relatorio.json>
+                offline, valida cada estado e fonte; sem conexão SQL
 
         Modos Splink externos sem SQL (fixture literal compilada, somente diagnostico):
           --export-splink-synthetic <arquivo.json>                      gera fixture sintética V1 + SHA256

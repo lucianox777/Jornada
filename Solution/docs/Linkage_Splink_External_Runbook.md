@@ -1,6 +1,49 @@
 # Conferência nominal externa Jornada × Splink — runbook offline
 
-**Estado em 26/09/2026:** contrato/fixture C# implementados; **nenhum runner externo executado nesta integração**. Arquitetura aprovada em [ADR-007](../../Documentos/ADR/ADR-007-conferencia-externa-splink-sem-python-operacional.md). Não equivale a homologação estatística [#31](https://github.com/lucianox777/Jornada/issues/31), não substitui a conferência governada e não altera modelos.
+**Estado em 26/09/2026:** contrato/fixture C# implementados; **nenhum runner externo executado nesta integração**. Norma vigente: [decisão consolidada §2.1](Decisoes_Linkage_Calibracao_IBGE_20260926.md#21-conferência-externa-jornada--splink--decisão-consolidada-de-26092026); a ADR-007 é registro histórico. Não equivale a homologação estatística [#31](https://github.com/lucianox777/Jornada/issues/31), não substitui a conferência governada e não altera modelos.
+
+**Importante:** o exemplo de nove pessoas abaixo é smoke do intercâmbio **e não compara o bootstrap IBGE**. O próximo experimento deve exportar os mesmos pares sorteados pelo estimador C# sobre o snapshot público validado, checar os níveis via Splink real e comparar suporte/probabilidade de cada estado. Instalar/rodar o Splink **fora da árvore da Jornada**; não simular conclusão dessa prova com o modo V1 abaixo. Acompanhamento [#506](https://github.com/lucianox777/Jornada/issues/506).
+
+## Replay do Censo IBGE — alvo principal de conformidade (novo contrato)
+
+O modo acima de **nove pessoas fictícias continua smoke de intercâmbio**. A conferência efetiva deve partir das **marginais públicas já internalizadas** na referência `CENSO2022_NOMES_BRASIL_V1`, no banco isolado **`JornadaSyntheticDev`** com extended property `Jornada.EnvironmentProfile=Development`; o exportador só consulta `ref`, nunca `silver`, `gold` ou cadastro. Faltar fonte, banco DEV, versão/hash da referência ou marginais exigidas aborta antes de criar pacote.
+
+Na raiz `Solution`, após instalar a referência no `JornadaSyntheticDev`:
+
+```bash
+# Nunca usar conexão de HML/Produção ou banco de cidadão. Usar conexão local isolada.
+export ConnectionStrings__Jornada='<CONEXAO_AO_JornadaSyntheticDev>'
+dotnet run --project src/Jornada.Linkage.Evaluation -- \
+  --export-splink-ibge-replay ./evidence/ibge-u-todos.json \
+  --seed 20260917 --pairs 10000 --first-name-sex TODOS
+dotnet run --project src/Jornada.Linkage.Evaluation -- \
+  --export-splink-ibge-replay ./evidence/ibge-u-feminino.json \
+  --seed 20260918 --pairs 10000 --first-name-sex FEMININO
+unset ConnectionStrings__Jornada
+```
+
+O JSON `JORNADA_SPLINK_IBGE_U_REPLAY_V1` contém **os mesmos quatro sorteios hash/slot/seed por par que o método C# usa** e o estado `EXACT/HIGH/MEDIUM/LOW` já classificado. O exportador exige que a contagem de cada estado coincida com uma nova execução do `Estimate()` C# sobre o mesmo recorte/seed/quantidade. Inclui código e SHA-256 do snapshot, versão do bootstrap e comparador, marginais `TODOS`/`FEMININO`, `PairCount` e massa analítica de colisão. O envelope novo **não substitui** `JORNADA_SPLINK_EXCHANGE_V1`/`JORNADA_SPLINK_ESTIMATES_V1` do smoke histórico.
+
+No repositório **externo** `jornada-splink-conformance`, instalado **num diretório descartável fora do checkout da Jornada** e com Splink pinado `4.0.17` inicialmente, o runner de replay deve importar `JORNADA_SPLINK_IBGE_U_REPLAY_V1`, verificar metadata e SHA256, usar `splink.comparison_library.JaroWinklerAtThresholds("nome", [0.92, 0.80])` no backend DuckDB sobre exatamente os pares `pair_index` recebidos, sem reamostrar, sem treinar `m/u` e sem depender do estado C# para classificá-los. Retornar os `pair_index` e estados Splink em `JORNADA_SPLINK_IBGE_U_REPLAY_RESULT_V1`, com SHA de entrada e versão efetiva do Splink. A primeira execução pode ser manual local, sem Action, e deve salvar log, versão instalada e hashes antes de apagar o venv. O runner novo não foi executado com Splink nesta PR; não confundir fixture/contrato C# com evidência externa real.
+
+Depois da execução externa, no checkout da Jornada:
+
+```bash
+dotnet run --project src/Jornada.Linkage.Evaluation -- \
+  --check-splink-ibge-replay ./evidence/ibge-u-todos.json \
+  ./evidence/ibge-u-todos-splink.json ./evidence/ibge-u-todos-diagnostico.json
+```
+
+A verificação recusa retorno incompleto, duplicado, com versão/hash/seed/comparador divergente e reporta **cada estado, quantidade, TVD e discordâncias por par**, sempre `*DIAGNOSTICO*`. A probabilidade `u` desse relatório é **incondicional** aos passes de blocking; não converte massa m/u do Splink em modelo operacional. Para comparar LLR, é preciso garantir o mesmo `m` fixado e o `u` correspondente, em um experimento separado; não aplicar arbitrariamente o teto governado 0,01 ao Monte Carlo.
+
+Para exibir evidência local sem modificá-la na interface, em **API Development** configure somente os caminhos absolutos dos **dois arquivos brutos**:
+
+```bash
+export JORNADA_SPLINK_IBGE_INPUT_PATH=/caminho/ibge-u-todos.json
+export JORNADA_SPLINK_IBGE_RESULT_PATH=/caminho/ibge-u-todos-splink.json
+```
+
+O `LinkageConferenceGovernanceStatus` do monitor reabre ambos, recalcula a evidência par a par e exige hash igual à referência IBGE ATIVA. Arquivos grandes demais (>16 MB entrada, >10 MB saída), ausentes, de outro snapshot ou malformados são explicitamente rejeitados. Sem esses caminhos, permanece **`SEM_EVIDENCIA_EXTERNA`**. O resultado é apenas diagnóstico read-only; evidência de modelo `CONFORME`, round-trip e status populacional #31 continuam separados. Não copiar os arquivos de pesquisa nem o venv para o bundle operacional.
 
 ## O que este V1 realmente permite
 

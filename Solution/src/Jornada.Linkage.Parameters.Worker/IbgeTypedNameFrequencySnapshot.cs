@@ -10,11 +10,6 @@ public enum IbgeGeographicScope
     Municipality
 }
 
-public sealed record IbgeTypedNameFrequencyEntry(
-    IbgeNameStatisticKind StatisticKind,
-    string Name,
-    long Occurrences);
-
 public sealed record IbgeTypedNameFrequencySnapshot(
     string Source,
     string SourceVersion,

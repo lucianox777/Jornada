@@ -1,11 +1,5 @@
 namespace Jornada.Linkage.Parameters.Worker;
 
-public enum IbgeNameStatisticKind
-{
-    FirstName,
-    Surname
-}
-
 public sealed record IbgeCalibrationAttributeMapping(
     string Feature,
     string Source,

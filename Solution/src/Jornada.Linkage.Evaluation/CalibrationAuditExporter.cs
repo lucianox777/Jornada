@@ -1,3 +1,4 @@
+using Jornada.Linkage.Parameters.Worker;
 using System.Data;
 using Jornada.Contracts;
 using Microsoft.Data.SqlClient;
@@ -6,6 +7,68 @@ namespace Jornada.Linkage.Evaluation;
 
 public sealed class CalibrationAuditExporter(SqlConnection connection, int commandTimeoutSeconds)
 {
+    /// <summary>
+    /// Extensão de referência pública do exportador EXISTENTE. Não lê Gold,
+    /// Silver nem tabela de observações. O banco deve ser o Development
+    /// JornadaSyntheticDev e a referência ativa deve ser o snapshot IBGE esperado.
+    /// A saída é replay sintético, NÃO documento de auditoria de modelo real.
+    /// </summary>
+    public async Task<SplinkIbgeReplayDocument> ExportIbgeSyntheticReplayAsync(
+        int seed, int pairCount, string firstNameSex, CancellationToken ct = default)
+    {
+        if (firstNameSex is not ("TODOS" or "FEMININO"))
+            throw new ArgumentOutOfRangeException(nameof(firstNameSex));
+        if (pairCount is < 1 or > 100_000)
+            throw new ArgumentOutOfRangeException(nameof(pairCount));
+
+        await using (var profile = new SqlCommand(
+            """
+            SELECT DB_NAME(),
+                   CONVERT(nvarchar(32),
+                     (SELECT value FROM sys.extended_properties
+                      WHERE class=0 AND name=N'Jornada.EnvironmentProfile'));
+            """, connection) { CommandTimeout = commandTimeoutSeconds })
+        await using (var reader = await profile.ExecuteReaderAsync(ct))
+        {
+            if (!await reader.ReadAsync(ct) ||
+                !string.Equals(reader.GetString(0), "JornadaSyntheticDev", StringComparison.Ordinal) ||
+                reader.IsDBNull(1) ||
+                !string.Equals(reader.GetString(1), "Development", StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "Replay Splink exige banco JornadaSyntheticDev e Jornada.EnvironmentProfile=Development.");
+        }
+
+        var reference = await IbgeNominalUReferenceReader.ReadActiveReferenceAsync(connection, ct);
+        if (reference.Code != "CENSO2022_NOMES_BRASIL_V1" ||
+            reference.ContentSha256.Length != 64)
+            throw new InvalidDataException("Replay exige snapshot público IBGE CENSO2022_NOMES_BRASIL_V1.");
+        var published = await IbgeNominalUReferenceReader.ReadBrazilPublishedMarginalsAsync(
+            connection, reference.Id, firstNameSex, ct);
+        var opts = new IbgeNominalUBootstrapOptions(seed, pairCount);
+        var replay = IbgeNominalUBootstrapEstimator.ReplayPairs(published, opts);
+        var estimate = IbgeNominalUBootstrapEstimator.Estimate(published, opts);
+        if (estimate.States.Any(state =>
+                replay.Count(pair => pair.CSharpState == state.State) != state.Support))
+            throw new InvalidDataException(
+                "Replay divergiu dos suportes do estimador IBGE: exportação recusada.");
+
+        var document = new SplinkIbgeReplayDocument(
+            SplinkIbgeReplayContract.InputSchema,
+            reference.Code, reference.ContentSha256,
+            firstNameSex, "TODOS",
+            estimate.MethodVersion, estimate.JointConstructionVersion,
+            estimate.ObservationChannelVersion,
+            SplinkIbgeReplayContract.ComparisonV1,
+            seed, pairCount,
+            estimate.FirstNamePublishedOccurrences,
+            estimate.SurnamePublishedOccurrences,
+            estimate.AnalyticExactSyntheticFullNameProbability,
+            replay.Select(x => new SplinkIbgeReplayPair(
+                x.Index, x.LeftName, x.RightName, x.CSharpState)).ToArray());
+        SplinkIbgeReplayContract.ValidateInput(document);
+        return document;
+    }
+
     public async Task<LinkageCalibrationAuditDocument> ExportAsync(
         Guid? requestedModelId,
         CancellationToken cancellationToken = default)
