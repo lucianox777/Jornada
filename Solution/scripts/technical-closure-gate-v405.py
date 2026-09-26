@@ -1380,7 +1380,7 @@ def main() -> None:
         require(sql_linkage, [
             "return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);",
         ], "delegação da decisão probabilística SQL Server")
-        shared_policy_path = ROOT / "src/Jornada.Linkage.Runner/ProbabilisticLinkagePolicy.cs"
+        shared_policy_path = ROOT / "src/Jornada.Linkage.Core/ProbabilisticLinkagePolicy.cs"
         if not shared_policy_path.is_file():
             fail("política compartilhada de Linkage ausente")
         shared_policy = shared_policy_path.read_text(encoding="utf-8")
