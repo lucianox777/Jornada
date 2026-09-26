@@ -36,7 +36,7 @@ public sealed class OperationalMonitorModelGovernanceContractTests
             Assert.That(html, Does.Contain("Snapshot do modelo"));
             Assert.That(html, Does.Contain("Suporte condicionado por passe"));
             Assert.That(html, Does.Contain("OBSOLETA"));
-            Assert.That(html, Does.Contain("Conferência de implementação, round-trip de formato e validação estatística são evidências distintas."));
+            Assert.That(html, Does.Contain("Conferência governada, round-trip, diagnóstico Splink IBGE e validação estatística são evidências distintas."));
             Assert.That(html, Does.Not.Contain("T_LINKAGE"));
             Assert.That(service, Does.Contain("auditoria.modelo_linkage_estado_evento"));
             Assert.That(service, Does.Contain("auditoria.linkage_conferencia_evidencia"));
