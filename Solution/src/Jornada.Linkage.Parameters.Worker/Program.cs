@@ -63,6 +63,31 @@ else
         return;
     }
 
+    // Derivado IBGE nominal versionado. Explicitamente requerido na preparacao
+    // do ambiente; nao e tarefa residente, nem reexecuta MC em cache hit.
+    if (operation == IbgeNominalUReferenceStore.EnsureOperation)
+    {
+        await using var referenceConnection =
+            await operationalSql.OpenAsync(CancellationToken.None);
+        var reference = await IbgeNominalUReferenceReader.ReadActiveReferenceAsync(
+            referenceConnection, CancellationToken.None);
+        var seed = builder.Configuration.GetValue("LinkageParameters:IbgeNominalU:Seed", 20260917);
+        var pairs = Math.Clamp(
+            builder.Configuration.GetValue("LinkageParameters:IbgeNominalU:PairCount", 1_000_000),
+            10_000, 5_000_000);
+        var person = await IbgeNominalUReferenceStore.EnsureAsync(
+            referenceConnection, reference, "TODOS",
+            new IbgeNominalUBootstrapOptions(seed, pairs), CancellationToken.None);
+        var mother = await IbgeNominalUReferenceStore.EnsureAsync(
+            referenceConnection, reference, "FEMININO",
+            new IbgeNominalUBootstrapOptions(unchecked(seed + 1), pairs), CancellationToken.None);
+        Console.WriteLine(
+            $"Referencias u nominais prontas: origem={reference.Code}; " +
+            $"NOME={person.Id}/{person.ResultSha256}; " +
+            $"NOME_MAE={mother.Id}/{mother.ResultSha256}; seed={seed}; pares={pairs}.");
+        return;
+    }
+
     // A geração de modelo congela a referência ATIVA de frequências. O bootstrap normal
     // do ambiente já materializa o Censo 2022; este fallback permanece fail-safe para
     // execuções diretas do calibrador contra um banco criado fora dos entrypoints oficiais.
