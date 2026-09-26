@@ -69,6 +69,16 @@ def self_test() -> None:
         'sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C'
     )
     assert not problems("Solution/scripts/probe.sh", safe)
+    redacted_echo = (
+        'echo "# docker compose exec -e SQLCMDPASSWORD=<redacted> '
+        'sqlserver /opt/mssql-tools18/bin/sqlcmd"'
+    )
+    assert not problems("Solution/scripts/probe.sh", redacted_echo)
+    deceptive = (
+        'docker compose exec -e SQLCMDPASSWORD=$secret '
+        'sqlserver /opt/mssql-tools18/bin/sqlcmd # <redacted>'
+    )
+    assert problems("Solution/scripts/probe.sh", deceptive)
     bad_shell = (
         'docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \\\n'
         '  -S localhost -U sa -P "$secret" -C'
