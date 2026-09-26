@@ -123,3 +123,9 @@ O `/monitor` exibe a última evidência agregada persistida para o modelo ATIVO,
 - validação estatística representativa: `PENDENTE_ISSUE_31`.
 
 A ausência de evidência da conferência para o modelo ATIVO é exibida como `SEM_EVIDENCIA_MODELO_ATIVO`, e não como sucesso implícito.
+
+## Estudo externo Splink — ADR-007, suplementar e não governado
+
+A [ADR-007](../../Documentos/ADR/ADR-007-conferencia-externa-splink-sem-python-operacional.md) aprova uma fronteira **offline e sintética** com Splink em repositório independente. O primeiro intercâmbio V1 usa fixture literal `NOME` (nove indivíduos, dezoito registros), não acessa SQL e não contém dados de cidadão. O C# calcula m suavizado por labels e u **incondicional** exato por pares distintos; compara TVD e LLR por nível com as estimativas m/u externas (u externo estimado por amostragem). Diferença entre estimadores não é, por si, falha de scorer; comparadores V2, nome da mãe, nascimento e u condicionado por blocking não são cobertos. Executar Splink externamente ainda é pendência, não evidência já produzida.
+
+A tolerância congelada `0,01` e o gate `JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1` continuam exclusivos da conferência governada C# decimal × C# float64 existente. **Nunca** importar resultado Splink como `CONFORME` persistido, promover modelo ou substituir a validação representativa #31. Ver [runbook offline](Linkage_Splink_External_Runbook.md).
