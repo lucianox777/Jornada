@@ -16,7 +16,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 GATE = ROOT / "scripts" / "technical-closure-gate-v405.py"
 SQL_REL = "src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs"
-POLICY_REL = "src/Jornada.Linkage.Runner/ProbabilisticLinkagePolicy.cs"
+POLICY_REL = "src/Jornada.Linkage.Core/ProbabilisticLinkagePolicy.cs"
 DELEGATE = "return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);"
 INVARIANTS = (
     "internal static class ProbabilisticLinkageDecisions",

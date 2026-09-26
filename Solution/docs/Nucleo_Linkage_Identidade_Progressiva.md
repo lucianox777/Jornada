@@ -1,5 +1,7 @@
 # Núcleo prioritário — Linkage C# e identidade progressiva
 
+**Limite funcional do RN (linha 23):** [Requisitos de Negócio Jornada v1.1](../../Documentos/Requisitos/01_Requisitos_de_Negocio_Jornada_v1.1.md) — “a Jornada referencia, integra e informa; não concede benefício nem altera automaticamente o sistema finalístico”. Identidade e linkage são insumos revisáveis para decisão da Secretaria, sem escrita automática de concessão/negação no sistema finalístico.
+
 > **Fronteira de entrega (26/09/2026):** a busca síncrona semicega de até cinco candidatos e todos os contratos previstos para HML devem estar implementados **antes do Ensaio único**. Este documento contém a ordem histórica de engenharia; não interpretar a expressão “etapa final” como permissão para entregar funcionalidades somente em HML. Ver [Ensaio único](Ensaio_Unico_Paridade_HML.md) e [Plano consolidado](Plano_Desenvolvimento.md).
 
 **Estado:** direção de arquitetura e implementação proposta; não declarar como já implementados os mecanismos novos descritos aqui. **Prioridade:** núcleo de linkage e identidade progressiva antes de BI e melhorias opcionais do atendimento. Ensaio com uma ou várias Secretarias deve produzir evidência forte quando os dados e a verdade de referência sustentarem as conclusões.

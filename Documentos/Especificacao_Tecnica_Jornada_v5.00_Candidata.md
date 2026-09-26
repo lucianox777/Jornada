@@ -152,7 +152,7 @@ A falta de integração institucional não deve ser mascarada por configuração
 
 ## 12. Finalidade de acesso
 
-A decisão sobre finalidade, necessidade e base legal do compartilhamento é gate institucional, não detalhe a ser inventado pela engenharia. A estrutura formal do Programa Reencontro prevista nos arts. 7º–9º do Decreto municipal nº 62.149/2023 é o **Núcleo Gestor do Programa Reencontro**, coordenado por **SGM/SEPE**, e apoiado por Núcleo Técnico. O Decreto não basta, isoladamente, para declarar quem aprova a finalidade/base legal do compartilhamento da Jornada: identificar formalmente a instância institucional competente e sua deliberação antes de alterar políticas de acesso.
+A decisão sobre finalidade, necessidade e base legal do compartilhamento é gate institucional, não detalhe a ser inventado pela engenharia. Para encaminhamento administrativo, utilizar **Coordenação do Programa Reencontro (SEPE)**, sem confundir a interlocução com a competência jurídica de aprovação de políticas de compartilhamento. A estrutura formal do Programa Reencontro prevista nos arts. 7º–9º do Decreto municipal nº 62.149/2023 é o **Núcleo Gestor do Programa Reencontro**, coordenado por **SGM/SEPE**, e apoiado por Núcleo Técnico. O Decreto não basta, isoladamente, para declarar quem aprova a finalidade/base legal do compartilhamento da Jornada: identificar formalmente a instância institucional competente e sua deliberação antes de alterar políticas de acesso.
 
 O contrato corrente autoriza por credencial autenticada, scopes e recurso aplicável. Não existe `X-Jornada-Finalidade` livre, catálogo escolhido pelo consumidor ou allowlist de finalidade enviada arbitrariamente em cada requisição.
 
@@ -166,7 +166,7 @@ Benefícios e serviços são modelados por fatos e atributos extensíveis, evita
 
 ## 14. Modelo físico e rastreabilidade
 
-O modelo físico corrente é derivado do DDL canônico do SolutionSchema 3.70 e deve permanecer sincronizado por processo reprodutível. Contagens históricas de tabelas pertencem aos seus snapshots e não podem ser usadas para invalidar o inventário corrente sem considerar a versão correspondente.
+O modelo físico corrente deriva do **instalador executável canônico** `Solution/database/Jornada_Fase1_v3.70.sql` (wrapper SQLCMD gerado de `database/migrations/manifest.txt`). Esse wrapper inclui `Solution/database/Jornada_Fase1.sql`, que é a base DDL editável, seguida da identidade progressiva e das migrações manifestadas: executar o arquivo base isoladamente **não equivale** à instalação/atualização completa. O manifesto é a autoridade para ordem e fechamento de `Jornada.SolutionSchema` (atualmente 3.70; migrações 3.71 permanecem aditivas até o rebind correspondente). O modelo e os diagramas devem permanecer sincronizados por processo reprodutível. Contagens históricas de tabelas pertencem aos seus snapshots e não podem ser usadas para invalidar o inventário corrente sem considerar a versão correspondente.
 
 Mudanças materiais desta candidata devem ser rastreáveis, conforme aplicável, à família de Requisitos v1.1, ADRs, DDL/migrações, contratos OpenAPI/JSON, testes e documentação operacional.
 
@@ -183,7 +183,7 @@ Essa regra técnica não decide como cada sistema de origem deve governar ou qua
 Permanecem explicitamente externas ao fechamento técnico desta candidata:
 
 1. **Volumetria HML representativa:** ainda é necessária evidência legítima de capacidade e comportamento sob blocking multi-passe, concorrência e regiões/trechos serializados relevantes. Testes locais ou amostras pequenas não autorizam declarar capacidade de produção.
-2. **Finalidade/base legal (chave técnica histórica `GTPR_PURPOSE_LEGAL_BASIS_DECISION`):** a decisão da instância institucional competente, a confirmar com SGM/SEPE, permanece pendente e não deve ser substituída por cabeçalho livre ou convenção local.
+2. **Finalidade/base legal (articulação pela Coordenação do Programa Reencontro (SEPE); chave de máquina histórica `GTPR_PURPOSE_LEGAL_BASIS_DECISION`):** a decisão da instância institucional competente, a confirmar com SGM/SEPE, permanece pendente e não deve ser substituída por cabeçalho livre ou convenção local.
 3. **Validação estatística representativa do linkage:** métricas de corpus sintético, smoke tests e validações locais protegem a engenharia, mas não substituem avaliação representativa necessária para concluir desempenho estatístico no universo operacional.
 
 A homologação Fabric deixa de integrar esta lista porque SQL Database in Microsoft Fabric não é alvo operacional de Produção da candidata v5.00. A validação operacional deve ocorrer sobre o ambiente Microsoft SQL Server efetivamente previsto para HML/Produção.
@@ -205,7 +205,7 @@ A revisão desta candidata deve considerar, entre outros, os seguintes artefatos
 
 - `Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.md` e família v1.1;
 - `Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.md`;
-- `Solution/database/Jornada_Fase1.sql` e migrações aplicáveis;
+- `Solution/database/Jornada_Fase1_v3.70.sql` (instalador SQLCMD canônico gerado do manifesto), incluindo `Jornada_Fase1.sql` e as migrações aplicáveis;
 - `Solution/docs/Arquitetura_Identidade_Linkage.md`;
 - `Solution/docs/Identidade_Progressiva_*.md`;
 - `Solution/docs/Aceite_OpenAPI_BlackBox.md` e contratos em `Solution/openapi/`;

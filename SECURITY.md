@@ -35,7 +35,7 @@ Nunca inclua dados reais de cidadãos, tokens, access keys, certificados, senhas
 
 O CI corrente executa Gitleaks versionado com checksum sobre a árvore corrente, análise estática/CodeQL, auditoria de vulnerabilidades NuGet e o `source-sanity-gate.py`, que bloqueia classes conhecidas de material sensível versionado, incluindo private keys/tokens, `.env`, senhas literais fora da allowlist e SQL com TLS enfraquecido fora dos cenários autorizados.
 
-A introdução de um scanner dedicado de histórico/segredos (por exemplo, Gitleaks) deve ocorrer **após o corte da RC atual**, porque as Actions estão congeladas até a tag técnica.
+**Após o corte de `v5.00-rc.1`:** Gitleaks já está integrado ao CI para varredura obrigatória da árvore corrente (`security-secret-scan.sh --current-tree-only`). A **auditoria completa do histórico alcançável** usa o workflow manual `jornada-secret-history-audit` (`workflow_dispatch`, checkout `fetch-depth: 0`); não é gate executado em cada commit. Publicar apenas contagens agregadas e redigidas; achados requerem triagem humana na issue #405, sem baseline automático, reescrita de histórico ou homologação implícita. Detalhes operacionais: [Security_Secret_Scanning.md](Solution/docs/Security_Secret_Scanning.md).
 
 ## Incidente ou exposição de dados
 
