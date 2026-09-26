@@ -36,6 +36,12 @@ Consulta somente SELECT em Development/HML, sem reset, limpeza ou publicação.
 Mostra estoque corrente por status, últimos 25 runs (separando PUBLICADO e
 MODEL_VALIDATION), duração, linhas gravadas por run, crescimento diário,
 distribuição de avaliações por observação e espaço utilizado pela tabela.
+A série adicional mostra as 16 semanas UTC mais recentes com dados,
+iniciadas na segunda-feira (independentemente de `DATEFIRST`), diferença
+absoluta e variação percentual **somente entre semanas contíguas**.
+Se houve semana sem registros, a comparação fica NULL, não é confundida
+com crescimento zero. A semana corrente é parcial: para comparações
+de taxa com períodos completos, excluí-la da interpretação.
 
 Os contadores exatos `FreshPending` e `Reavaliados` são calculados pelo
 Runner mas NÃO são persistidos em `linkage_run` no schema 3.70.
