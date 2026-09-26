@@ -46,6 +46,10 @@ A evidência `LINKAGE_SCALE_EVIDENCE_V1` preserva o SHA Git do código exercitad
 
 `NAO_APLICAVEL` só é aceito nos pontos em que a metodologia institucional pode legitimamente não exigir aquele mecanismo e sempre exige justificativa mais evidência. Mesmo quando o contrato chega a `APROVADO`, `productionActivationAuthorized` permanece obrigatoriamente `false`: a aprovação desse arquivo significa apenas que o conjunto de evidências da #31 foi formalmente atestado para HML, não autorização automática de Produção.
 
+## Ensaio com Secretarias anterior à HML
+
+A próxima etapa é um Ensaio com dados fornecidos pelas Secretarias dentro dos contratos vigentes. Cada Secretaria prepara e responde pela anonimização ou geração de massa sintética derivada de sua base, inclusive pela classificação e autorização de fornecimento. A Jornada deve validar os contratos e proteger a massa recebida; não presume anonimato pelo rótulo 'sintético'. A única diferença funcional planejada entre Ensaio e HML são os dados: mesmos binários, DDL, contratos, integração corporativa, policies, gates e procedimentos. O Ensaio não autoriza resolver pendências de HML por bypass, nem transforma dados sintéticos em validação representativa da #31. Ver `Ensaio_Secretarias_Paridade_HML.md` para matriz, roteiro e critérios de saída.
+
 ## Readiness HML
 
 `hml-readiness-gate.sh/.ps1` agora exige, em conjunto:
