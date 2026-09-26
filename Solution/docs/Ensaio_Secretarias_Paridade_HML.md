@@ -8,6 +8,8 @@
 
 **Premissa de produto:** a Jornada produz a melhor representação estatística e incremental disponível da identidade para **apoiar**, não substituir, decisões finalísticas das Secretarias. O Ensaio verifica comportamento, explicabilidade, atualização e limites da representação, não exige certeza de vínculo nem avalia concessão de benefícios. A Gold usa hierarquia de evidências por atributo: documentação apresentada mais recentemente, documentação anterior, autodeclaração mais recente e autodeclaração anterior. Ver `Diretrizes_Identidade_Progressiva_Apoio_Decisao.md`; a aderência exata da procedure atual ainda precisa ser verificada.
 
+**Pré-requisito do Ensaio:** a [Solução de Apoio às Secretarias](Ensaio_Unico_Paridade_HML.md#ferramentas-de-apoio-às-secretarias--requisito-de-entrada) deverá estar separada da Jornada, com preparador, transmissor e contratos compatíveis; os recursos específicos da SEHAB deverão estar migrados e testados antes do início do Ensaio. Isso não obriga as Secretarias a usar os executáveis quando já possuírem integração própria conforme os mesmos contratos.
+
 ## 1. Origem, preparação e responsabilidade pelos dados
 
 Cada Secretaria participante fornece os dados de seu próprio sistema **dentro dos contratos de integração estabelecidos**. A responsabilidade por selecionar, preparar e disponibilizar massa que preserve as características relevantes da base real é da Secretaria fornecedora, segundo metodologia definida por ela e com sua governança e autorizações aplicáveis. Anonimização, pseudonimização ou síntese são possibilidades, não métodos impostos pela Jornada; sua adequação e os riscos residuais devem ser avaliados conforme o caso.
@@ -44,7 +46,7 @@ Paridade não significa copiar credenciais, identificadores de recursos, endere�
 
 1. **Acordos e inventário:** confirmar contratos vigentes, uma ou várias Secretarias participantes, responsáveis, autorizações, cronogramas e catálogo de cargas; admitir adesões e ondas posteriores. Não pressupor aprovação de documento institucional pendente.
 2. **Prontidão técnica comum:** executar build, testes, implantação, migração DDL, integração de identidade corporativa, readiness HTTP, scheduler, Bronze e observabilidade. Defeitos encontrados aqui também bloqueiam a alegação de prontidão para HML.
-3. **Recebimento controlado:** validar schema, versão, ZIP, integridade, segurança, volumes, campos obrigatórios/opcionais, classificação e proveniência; rejeitar payloads incompatíveis sem correção silenciosa.
+3. **Recebimento controlado:** executar também o caminho preparador → ZIP → transmissor → endpoint com massa autorizada da SEHAB e de outras fontes participantes, além do caminho de integração própria; validar schema, versão, ZIP, integridade, segurança, volumes, campos obrigatórios/opcionais, classificação e proveniência; rejeitar payloads incompatíveis sem correção silenciosa.
 4. **Cargas em ondas:** executar pelo menos três ondas com melhoria posterior de atributos e CPF tardio; medir retransmissão, idempotência, reavaliação de pendentes, conflitos, homônimos, mudança de decisão e crescimento de `linkage_resultado`.
 5. **Produto consumível:** testar operações e **payloads** da API/OpenAPI com consumidores das Secretarias; conferir autorização, respostas negativas, paginação/lotes, rastreabilidade, top-5 quando implementado e resolução governada quando disponível.
 6. **Operação:** medir throughput, P95/P99, backlog, locks, publicação, restore SQL/Bronze, falhas controladas e recuperação com infraestrutura representativa.
