@@ -37,6 +37,9 @@ public sealed partial class SyntheticCalibrationDevRunner
         Directory.CreateDirectory(settings.RuntimeBronzeDirectory);
         Directory.CreateDirectory(settings.RuntimeStagingDirectory);
         await RestoreAndBuildAsync(settings, cancellationToken);
+        // A mesma referência IBGE é compartilhada entre as ondas e não pode
+        // depender do primeiro lote já ter sido ingerido.
+        await EnsureNameFrequencySnapshotAsync(settings, cancellationToken);
         await GenerateWavePackagesAsync(settings, waveCount, cancellationToken);
 
         var ingestionRoot = Path.Combine(settings.GeneratedDirectory, "ingestion");
@@ -175,7 +178,7 @@ public sealed partial class SyntheticCalibrationDevRunner
             // publicar nem alterar a identidade corrente. O snapshot SQL e lacrado
             // antes da carga seguinte; truth so sera aberta depois da ultima onda.
             var beforeWaveModel = await ReadMaxModelVersionAsync(cancellationToken);
-            await EnsureNameFrequencySnapshotAsync(settings, cancellationToken);
+            // A referência permanece ATIVA; nenhuma recarga por onda.
             await RunGenerateDraftAsync(settings, cancellationToken);
             var waveModel = await ReadSingleNewDraftAsync(beforeWaveModel, cancellationToken);
             var waveRun = await RunModelValidationAsync(
