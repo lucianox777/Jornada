@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "methodVersion": "JORNADA_IMPLEMENTATION_CONFERENCE_STATE_VECTOR_V1",
-  "status": "UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION",
+  "status": "FROZEN",
   "scope": "SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE",
-  "maxAbsolutePairLlrDifference": null,
+  "maxAbsolutePairLlrDifference": 0.01,
   "decisionEquivalence": "EXACT_FINAL_OPERATIONAL_DECISION",
   "primaryGates": [
     "PAIR_LLR_WITHIN_FROZEN_TOLERANCE",
@@ -15,6 +15,6 @@
     "MAX_ABSOLUTE_LOG_ODDS_DIFFERENCE"
   ],
   "statisticalValidation": "SEPARATE_ISSUE_31",
-  "note": "Nenhum valor de tolerância foi definido. Deve ser congelado e versionado antes da primeira execução governada; é proibido inferi-lo a partir do primeiro resultado.",
-  "toleranceVersion": "UNFROZEN"
+  "note": "Limite de engenharia definido ex ante para a conferencia C# decimal vs implementacao independente C# float64; NAO e derivado de medicao Python/Splink nem garante equivalencia de comparadores. O gate de decisao operacional EXATA permanece obrigatorio. Validar abrangencia numerica com novos casos independentes antes de alegar suficiencia estatistica ou HML/PRD; nunca aumentar o valor para obter CONFORME.",
+  "toleranceVersion": "V1_2026-09-26"
 }
