@@ -102,7 +102,7 @@ de leases; watchdog e Processor seguem responsáveis por ela.
 
 Calibrador, Linkage Runner, Bronze Verify e Linkage Evaluation não são processos residentes do monitor.
 
-O estado de Linkage é lido de `identidade.linkage_run`. Na implantação cluster, Calibrador e Runner ficam instalados na VM como scripts/ferramentas manuais, sem scheduler automático. O wrapper de Linkage exige exatamente um modelo `ATIVO`, e o wrapper de calibração executa `GENERATE_DRAFT -> VALIDATE -> ACTIVATE` antes de liberar o Runner.
+O estado de Linkage é lido de `identidade.linkage_run`. Na implantação cluster, Calibrador e Runner ficam instalados na VM como scripts/ferramentas manuais, sem scheduler automático. O wrapper de Linkage exige exatamente um modelo `ATIVO`, e o wrapper de calibração executa `GENERATE_DRAFT -> CONFERENCIA -> VALIDATE -> ACTIVATE` antes de liberar o Runner. A configuração governada continua `UNFROZEN`, portanto a conferência e a promoção falham fechado até o congelamento da tolerância.
 
 ## Onde o monitor fica
 

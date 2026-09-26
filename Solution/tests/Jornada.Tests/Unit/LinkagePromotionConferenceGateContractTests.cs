@@ -66,6 +66,53 @@ public sealed class LinkagePromotionConferenceGateContractTests
     }
 
     [Test]
+    public void Validate_and_activate_share_the_same_governed_parameters_and_sql_assertion()
+    {
+        var root = FindRepositoryRoot();
+        var worker = File.ReadAllText(Path.Combine(
+            root, "Solution", "src", "Jornada.Linkage.Parameters.Worker",
+            "LinkageParametersWorker.cs"));
+
+        const string validateMarker = "private async Task ValidateDraftAsync(";
+        const string activateMarker = "private async Task ActivateValidatedAsync(";
+        const string loaderMarker = "private ImplementationConferenceToleranceContract LoadPromotionConferenceTolerance(";
+        var validateStart = worker.IndexOf(validateMarker, StringComparison.Ordinal);
+        var activateStart = worker.IndexOf(activateMarker, StringComparison.Ordinal);
+        var loaderStart = worker.IndexOf(loaderMarker, StringComparison.Ordinal);
+        Assert.Multiple(() =>
+        {
+            Assert.That(validateStart, Is.GreaterThanOrEqualTo(0));
+            Assert.That(activateStart, Is.GreaterThan(validateStart));
+            Assert.That(loaderStart, Is.GreaterThan(activateStart));
+        });
+        if (validateStart < 0 || activateStart <= validateStart || loaderStart <= activateStart)
+            return;
+
+        var validate = worker[validateStart..activateStart];
+        var activate = worker[activateStart..loaderStart];
+        foreach (var section in new[] { validate, activate })
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(section, Does.Contain("LoadPromotionConferenceTolerance();"));
+                Assert.That(section, Does.Contain("BeginTransactionAsync(IsolationLevel.Serializable"));
+                Assert.That(section, Does.Contain("EXEC auditoria.sp_assert_conferencia_linkage_conforme"));
+                Assert.That(section, Does.Contain("@modelo_id=@modelo_id"));
+                Assert.That(section, Does.Contain("@metodo_versao=@conference_method_version"));
+                Assert.That(section, Does.Contain("@tolerancia_versao=@conference_tolerance_version"));
+                Assert.That(section, Does.Contain("@max_llr_par_permitido=@conference_max_llr"));
+                Assert.That(section, Does.Contain("AddConferenceGateParameters(command, conferenceTolerance);"));
+                Assert.That(section.IndexOf("EXEC auditoria.sp_assert_conferencia_linkage_conforme",
+                    StringComparison.Ordinal),
+                    Is.LessThan(section.IndexOf("UPDATE identidade.modelo_linkage SET status=",
+                        StringComparison.Ordinal)));
+            });
+        }
+        Assert.That(worker.Split("LoadPromotionConferenceTolerance();", StringSplitOptions.None).Length - 1,
+            Is.EqualTo(2), "Somente os dois gates de promoção devem carregar o contrato governado.");
+    }
+
+    [Test]
     public void Operational_calibration_paths_do_not_skip_conference()
     {
         var root = FindRepositoryRoot();

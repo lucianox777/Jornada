@@ -60,7 +60,7 @@ A conferência de implementação continua distinta da validação estatística 
 
 A candidata agora também contém o orquestrador `Jornada.Linkage.Conference`. Ele é projeto separado, referencia Core + Evaluation apenas para conferência e não é dependência de Runner/Parameters Worker. Em transação `SERIALIZABLE`, ele locka o fingerprint do modelo, executa um corpus determinístico sem PII de 7 cenários/208 candidatos, compara scorer/policy canônico × independente e registra somente a evidência agregada. Request/report hashes incorporam o fingerprint do snapshot; rerun idêntico é idempotente.
 
-O wiring do assert em `VALIDATE/ACTIVATE` permanece deliberadamente **inativo** enquanto `implementation-conference-tolerance.json` estiver `UNFROZEN_REQUIRED_BEFORE_FIRST_EXECUTION`. A configuração explicita `toleranceVersion=UNFROZEN` e valor nulo. Portanto o comando está implementado, mas uma execução governada real e a promoção condicionada continuam bloqueadas até o congelamento/versionamento explícito da tolerância.
+O wiring do assert em `VALIDATE` e `ACTIVATE` **já está implementado**: ambas as operações compartilham `LoadPromotionConferenceTolerance`/`AddConferenceGateParameters` e verificam a evidência governada mais recente/fingerprint por `auditoria.sp_assert_conferencia_linkage_conforme` na própria transação `SERIALIZABLE`. A configuração oficial continua com `toleranceVersion=UNFROZEN` e valor nulo; por isso as operações falham fechado **antes de abrir o banco** e não ocorre promoção governada real até o congelamento técnico/versionamento prévio da tolerância (DT-01). Essa integração não substitui a validação estatística representativa #31.
 
 ## 4.3. Autoria dos atos governados de identidade
 
