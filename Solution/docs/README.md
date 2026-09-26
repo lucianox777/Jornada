@@ -1,5 +1,6 @@
 # Documentação técnica complementar — estado corrente
 
+- `Ensaio_Secretarias_Paridade_HML.md` - próxima etapa: Ensaio com dados fornecidos/preparados pelas Secretarias sob contrato, paridade funcional e operacional com HML; apenas a massa de dados deve mudar.
 - `API.md` - contrato funcional resumido da API vigente.
 - `Bronze_Operacao.md` - runbook da Bronze externa: integridade, GC, locks por objeto, backup/restore e ZIP determinístico.
 - `Runbook_Operacao.md` - ordem operacional, contrato do scheduler corporativo, watchdog observacional e gate de Power BI Desktop.
