@@ -2,6 +2,8 @@
 
 **Leia primeiro:** [Estado atual](Estado_Atual_Projeto.md), [Diretrizes consolidadas](Diretrizes_Identidade_Progressiva_Apoio_Decisao.md), [Plano](Plano_Desenvolvimento.md), [Ensaio único e paridade HML](Ensaio_Unico_Paridade_HML.md), [Testes e operação](Testes_Operacao_Indice.md), [Índice do acervo](Indice_Acervo_Documental.md). **Fases:** DEV → Ensaio único → HML → Produção. Todos os contratos previstos para HML devem estar prontos antes do Ensaio; HML usa massa de testes preparada pelas Secretarias, preservando as características relevantes das bases reais. Para retomar o projeto, consulte o Estado atual e só então o documento do domínio e o código/Actions relevantes.
 
+**Separação obrigatória antes do Ensaio:** criar Solução de Apoio às Secretarias com preparador de arquivos para ZIP Jornada, transmissor existente e contratos versionados sincronizados com a Jornada; migrar para ela os recursos específicos da SEHAB e retirar as dependências correspondentes da solução principal. Ver [Ensaio único — ferramentas de apoio](Ensaio_Unico_Paridade_HML.md#ferramentas-de-apoio-às-secretarias--requisito-de-entrada) e [Plano](Plano_Desenvolvimento.md). Trata-se de requisito planejado, ainda não entrega comprovada.
+
 **Diretriz consolidada:** `Diretrizes_Identidade_Progressiva_Apoio_Decisao.md` reúne a finalidade de apoio à decisão, melhor representação disponível, hierarquia de evidências, motor C# inspirado no Splink, reprocessamento por mudanças e Ensaio. É o ponto de entrada para decisões de produto; os demais documentos detalham implementação e operação.
 
 - `Estudo_Comparativo_Linkage_Identidade_Progressiva.md` - revisão documental de Splink, Senzing, Dedupe e AWS, separando scoring e manutenção incremental da identidade.
