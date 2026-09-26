@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT/.env"
+ENV_FILE="${JORNADA_LOCAL_ENV_FILE:-$ROOT/.env}"
 EXAMPLE="$ROOT/.env.example"
 API_URL="${JORNADA_E2E_API_URL:-http://127.0.0.1:5088}"
 OUT="$ROOT/.local/e2e"
@@ -9,15 +9,17 @@ OUT="$ROOT/.local/e2e"
 need(){ command -v "$1" >/dev/null 2>&1 || { echo "ERRO: comando '$1' não encontrado." >&2; exit 2; }; }
 for x in docker dotnet curl python3; do need "$x"; done
 if [[ ! -f "$ENV_FILE" ]]; then
+  [[ -z "${JORNADA_LOCAL_ENV_FILE:-}" ]] || { echo "ERRO: arquivo de ambiente explícito não existe." >&2; exit 2; }
   python3 "$ROOT/scripts/local_env_bootstrap.py" --check-docker-volume
 fi
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
 : "${JORNADA_SQL_SA_PASSWORD:?JORNADA_SQL_SA_PASSWORD não definido}"
-PORT="${JORNADA_SQL_PORT:-14333}"; DB="${JORNADA_SQL_DATABASE:-JornadaLocal}"
+PORT="${JORNADA_SQL_PORT:-14333}"; DB="JornadaE2E"
+[[ -z "${JORNADA_SQL_DATABASE_OVERRIDE:-}" || "$JORNADA_SQL_DATABASE_OVERRIDE" == "$DB" ]] || { echo "ERRO: E2E só pode resetar JornadaE2E; perfil incompatível." >&2; exit 2; }
 mkdir -p "$OUT"; rm -rf "$OUT/bronze" "$OUT/staging" "$OUT/packages"; mkdir -p "$OUT/bronze" "$OUT/staging" "$OUT/packages"
 
-"$ROOT/scripts/local-db.sh" reset >/dev/null
+JORNADA_SQL_DATABASE_OVERRIDE="$DB" "$ROOT/scripts/local-db.sh" reset >/dev/null
 CONN="Server=localhost,$PORT;Database=$DB;User Id=sa;Password=$JORNADA_SQL_SA_PASSWORD;TrustServerCertificate=true;Encrypt=false"
 export ConnectionStrings__Jornada="$CONN"
 export ASPNETCORE_ENVIRONMENT=Development
