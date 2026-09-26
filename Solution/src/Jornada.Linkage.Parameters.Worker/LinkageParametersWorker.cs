@@ -848,6 +848,7 @@ public sealed class LinkageParametersWorker(
                     @vl DECIMAL(30,12),@tl DECIMAL(30,12),
                     @vf DECIMAL(30,12),@tf DECIMAL(30,12),
                     @vn DECIMAL(30,12),@tn DECIMAL(30,12),
+                    @vt DECIMAL(30,12),@tt DECIMAL(30,12),
                     @vp DECIMAL(30,12),@tp DECIMAL(30,12),
                     @vneg DECIMAL(30,12),@tneg DECIMAL(30,12);
             SELECT
@@ -859,6 +860,8 @@ public sealed class LinkageParametersWorker(
                 @tf=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_TEST_FP' THEN valor END),
                 @vn=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_VALIDATION_DENOMINATOR' THEN valor END),
                 @tn=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_TEST_DENOMINATOR' THEN valor END),
+                @vt=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_VALIDATION_TOTAL_SCENARIOS' THEN valor END),
+                @tt=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_TEST_TOTAL_SCENARIOS' THEN valor END),
                 @vp=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_VALIDATION_POSITIVE' THEN valor END),
                 @tp=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_TEST_POSITIVE' THEN valor END),
                 @vneg=MAX(CASE WHEN nome='FS_DECISION_CALIBRATION_VALIDATION_NEGATIVE' THEN valor END),
@@ -866,12 +869,14 @@ public sealed class LinkageParametersWorker(
             FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id;
             IF @vb IS NULL OR @tb IS NULL OR @vl IS NULL OR @tl IS NULL
                 OR @vf IS NULL OR @tf IS NULL OR @vn IS NULL OR @tn IS NULL
+                OR @vt IS NULL OR @tt IS NULL
                 OR @vp IS NULL OR @tp IS NULL OR @vneg IS NULL OR @tneg IS NULL
                 THROW 51028, 'Calibração FS sem evidência completa do orçamento FP.', 1;
             IF @vb NOT BETWEEN 0 AND 10000 OR @tb NOT BETWEEN 0 AND 10000
                 OR @vb<>FLOOR(@vb) OR @tb<>FLOOR(@tb)
                 OR @vp<=0 OR @tp<=0 OR @vneg<=0 OR @tneg<=0
-                OR @vn<>@vp+@vneg OR @tn<>@tp+@tneg
+                OR @vn<>@vp OR @tn<>@tp
+                OR @vt<>@vp+@vneg OR @tt<>@tp+@tneg
                 OR @vl<>CEILING(@vn*@vb/10000.0)
                 OR @tl<>CEILING(@tn*@tb/10000.0)
                 THROW 51029, 'Orçamento FP inconsistente com as partições congeladas.', 1;
