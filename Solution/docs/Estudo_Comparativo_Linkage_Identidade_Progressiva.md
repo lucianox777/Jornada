@@ -2,6 +2,10 @@
 
 **Data:** 2026-09-26. **Natureza:** revisão documental de capacidades publicadas; não é benchmark executado, homologação de produto ou declaração de superioridade estatística. **Escopo:** identificação progressiva com novas fontes, correções, CPF tardio, decisões versionadas e reavaliação seletiva.
 
+## Premissa da comparação
+
+O objetivo da Jornada é manter a **melhor representação estatística disponível** da identidade, com incerteza explícita e revisão incremental, não alcançar certeza de vínculo nem decidir concessão de benefícios. Estados canônicos são hipóteses operacionais governadas; a responsabilidade pela decisão finalística e pela avaliação documental é da Secretaria competente. Comparar os sistemas também quanto à preservação de alternativas, incerteza, reversibilidade e explicabilidade, não somente à produção de clusters definitivos.
+
 ## Separar as duas camadas
 
 1. **Scoring e recuperação de candidatos:** comparadores de identidade, bloqueio, probabilidades e explicação por campo. Splink é referência técnica para a tradução das capacidades Fellegi–Sunter para o motor C# único da Jornada, reutilizando a infraestrutura existente.
@@ -21,7 +25,7 @@
 ## Implicações de arquitetura
 
 - Manter o motor operacional C# único com regras inspiradas no Splink, parâmetros e gates versionados e IBGE como bootstrap de frequências. CIDACS-RL continua referência metodológica para nomes brasileiros, não substituição da referência IBGE nem motor obrigatório.
-- **Não adotar clustering transitivo ingênuo:** dois vínculos par-a-par acima do corte não bastam para autorizar uma fusão se houver conflito de CPF, homonímia ou restrição institucional. Identidade canônica e decisão de publicação permanecem governadas.
+- **Não adotar clustering transitivo ingênuo:** dois vínculos par-a-par acima do corte não bastam para autorizar uma fusão se houver conflito de CPF, homonímia ou restrição institucional. A representação canônica e a publicação de hipóteses permanecem governadas, sem transformar limiar estatístico em certeza civil.
 - Manter hash semântico dos sinais **de identidade** aprovados; mudanças em benefícios, serviços ou atributos não identitários não disparam linkage. CPF presente/ausente não é proxy de qualidade; não presumir maturidade de fonte.
 - Ao mudar uma observação ou uma referência, reavaliar o registro alterado **e** os pendentes potencialmente afetados nos blocos antigos e novos. Ao mudar modelo/guards/blocking, enfileirar reavaliação explicitamente versionada. Deduplicar trabalho.
 - Distinguir **run realizado**, **decisão calculada** e **transição persistida**. Se decisão semântica não mudar, preservar o vínculo corrente sem duplicar a versão operacional; manter trilha de execução e auditoria. Se mudar, persistir transição e recompor Gold afetada com controles transacionais.
