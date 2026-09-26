@@ -1,4 +1,5 @@
 using Jornada.Contracts;
+using System.Text.Json;
 using Jornada.Access.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -141,6 +142,28 @@ public sealed class ProgressiveIdentityTests
         Assert.That(Enum.GetNames<ProgressiveIdentityStatus>(), Is.EquivalentTo(new[] { "PROVISORIA", "REFERENCIA", "INDEFINIDA" }));
         Assert.That(Enum.GetNames<ProgressiveResolutionOutcome>(), Is.EquivalentTo(new[] { "NOVA_IDENTIDADE", "ASSOCIACAO_EXISTENTE", "INDEFINIDA" }));
         Assert.That(ProgressiveIdentityLifecycle.Version, Is.EqualTo("PROGRESSIVE_IDENTITY_V1"));
+    }
+
+    [Test]
+    public void Progressive_reference_OpenApi_remains_typed_without_exposing_CPF()
+    {
+        var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "openapi", "jornada-v1.openapi.json");
+        using var contract = JsonDocument.Parse(File.ReadAllText(path));
+        var response = contract.RootElement.GetProperty("paths")
+            .GetProperty("/api/v1/identidade/origens/consulta").GetProperty("post")
+            .GetProperty("responses").GetProperty("200")
+            .GetProperty("content").GetProperty("application/json")
+            .GetProperty("schema").GetProperty("$ref").GetString();
+        Assert.That(response, Is.EqualTo("#/components/schemas/ProgressiveOriginQueryResponse"));
+        var properties = contract.RootElement.GetProperty("components").GetProperty("schemas")
+            .GetProperty("ProgressiveOriginQueryResponse").GetProperty("properties");
+        Assert.That(properties.TryGetProperty("cpf", out _), Is.False);
+        Assert.That(properties.GetProperty("initialUuid").GetProperty("format").GetString(), Is.EqualTo("uuid"));
+        Assert.That(properties.GetProperty("canonicalUuid").GetProperty("nullable").GetBoolean(), Is.True);
+        Assert.That(properties.GetProperty("ultimaResolucaoEm").GetProperty("nullable").GetBoolean(), Is.True);
+        Assert.That(properties.GetProperty("versao").GetProperty("format").GetString(), Is.EqualTo("int64"));
+        Assert.That(properties.GetProperty("estado").GetProperty("enum").EnumerateArray()
+            .Select(value => value.GetString()), Is.EquivalentTo(new[] { "PROVISORIA", "REFERENCIA", "INDEFINIDA" }));
     }
 
     private static ProgressiveIdentityDecision Decision(ProgressiveIdentitySnapshot state,

@@ -1,56 +1,2919 @@
 {
   "openapi": "3.0.3",
-  "info": {"title":"Jornada do Cidadão API v1","version":"1.0.0","description":"Contrato de superfície HTTP da Fase 1. O gate automatizado exige correspondência exata entre método/rota e o host Minimal API, incluindo módulos registrados explicitamente."},
+  "info": {
+    "title": "Jornada do Cidadão API v1",
+    "version": "1.0.0",
+    "description": "Contrato de superfície HTTP da Fase 1. O gate automatizado exige correspondência exata entre método/rota e o host Minimal API, incluindo módulos registrados explicitamente. As respostas bem-sucedidas são tipadas conforme DTOs C# existentes e as projeções de monitor; a projeção pessoa.dados segue o schemaRef autorizado, não um formato global único. A publicação 202 da Entrega e o desfecho 204 são os estados HTTP reais."
+  },
   "paths": {
-    "/health": {"get":{"operationId":"jornada_get_01","summary":"Compatibilidade de liveness","responses":{"200":{"description":"Processo vivo"}}}},
-    "/health/live": {"get":{"operationId":"jornada_get_02","summary":"Liveness da API","responses":{"200":{"description":"Processo vivo"}}}},
-    "/health/ready": {"get":{"operationId":"jornada_get_03","summary":"Readiness de SQL/Bronze/staging","responses":{"200":{"description":"SQL, Bronze e staging prontos"},"503":{"description":"Uma ou mais dependências essenciais não estão prontas"}}}},
-    "/monitor": {"get":{"operationId":"jornada_get_20","summary":"Página do monitor operacional","responses":{"200":{"description":"Interface web do monitor","content":{"text/html":{"schema":{"type":"string"}}}},"404":{"description":"Artefato web do monitor não encontrado"}}}},
-    "/api/v1/monitor/status": {"get":{"operationId":"jornada_get_21","summary":"Snapshot operacional do cluster","description":"Somente leitura. Exige credencial GESTOR com scope jornada.monitor.read.","security":[{"JornadaAccessKey":[],"JornadaGestor":[]}],"responses":{"200":{"description":"Estado dos nós, dependências, filas, processamento, manutenção e linkage"},"401":{"description":"Credencial ausente ou inválida"},"403":{"description":"Tipo de credencial ou scope não autorizado"},"429":{"description":"Rate limit excedido"},"503":{"description":"Schema do monitor ainda não aplicado"}}}},
-    "/api/v1/identidade/resolver": {"post":{"operationId":"jornada_post_04","summary":"Resolve CPF para UUID existente","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"}}}},
-    "/api/v1/ingestao/entregas": {"post":{"operationId":"jornada_post_05","summary":"Recebe Entrega ZIP","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"},"202":{"description":"Entrega aceita ou replay idempotente da mesma Entrega"},"413":{"description":"ZIP excede 250 MiB compactados"},"409":{"description":"Idempotency-Key já usada para conteúdo diferente"},"503":{"description":"Staging/Bronze temporariamente indisponível"}},"requestBody":{"required":true,"content":{"application/zip":{"schema":{"type":"string","format":"binary"}}}}}},
-    "/api/v1/ingestao/entregas/{entregaId}": {"get":{"operationId":"jornada_get_06","summary":"Consulta status da Entrega","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"},"404":{"description":"Entrega não encontrada"}},"parameters":[{"name":"entregaId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}]}},
-    "/api/v1/identidade/conflitos/detalhe": {"post":{"operationId":"jornada_post_07","summary":"Consulta detalhe de conflito","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"}}}},
-    "/api/v1/identidade/correcoes": {"post":{"operationId":"jornada_post_08","summary":"Registra correção governada","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"}}}},
-    "/api/v1/identidade/casos": {"post":{"operationId":"jornada_post_09","summary":"Registra caso de identidade","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"}}}},
-    "/api/v1/identidade/casos/{casoId}/aplicar": {"post":{"operationId":"jornada_post_10","summary":"Aplica caso governado","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"}},"parameters":[{"name":"casoId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}]}},
-    "/api/v1/divergencias": {"get":{"operationId":"jornada_get_11","summary":"Lista divergências","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"}}}},
-    "/api/v1/divergencias/{divergenciaId}/desfecho": {"post":{"operationId":"jornada_post_12","summary":"Registra desfecho de divergência","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"}},"parameters":[{"name":"divergenciaId","in":"path","required":true,"schema":{"type":"integer","format":"int64"}}]}},
-    "/api/v1/pessoas/{pessoaUuid}": {"get":{"operationId":"jornada_get_13","summary":"Consulta projeção da Pessoa","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"}},"parameters":[{"name":"pessoaUuid","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}]}},
-    "/api/v1/pessoas/consulta": {"post":{"operationId":"jornada_post_14","summary":"Consulta lote de Pessoas","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"}}}},
-    "/api/v1/pessoas/{pessoaUuid}/registros": {"get":{"operationId":"jornada_get_15","summary":"Consulta Registros da Pessoa","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"}},"parameters":[{"name":"pessoaUuid","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}]}},
-    "/api/v1/pessoas/{pessoaUuid}/beneficios-concedidos": {"get":{"operationId":"jornada_get_16","summary":"Consulta Benefícios Concedidos","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"}},"parameters":[{"name":"pessoaUuid","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}]}},
-    "/api/v1/pessoas/{pessoaUuid}/servicos-prestados": {"get":{"operationId":"jornada_get_17","summary":"Consulta Serviços Prestados","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"}},"parameters":[{"name":"pessoaUuid","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}]}},
-    "/api/v1/pessoas/{pessoaUuid}/possibilidades": {"get":{"operationId":"jornada_get_18","summary":"Consulta Possibilidades","responses":{"200":{"description":"Resposta processada"},"400":{"description":"Requisição inválida"},"401":{"description":"Não autenticado"},"403":{"description":"Não autorizado"},"429":{"description":"Rate limit excedido"},"500":{"description":"Falha interna"}},"parameters":[{"name":"pessoaUuid","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}]}},
+    "/health": {
+      "get": {
+        "operationId": "jornada_get_01",
+        "summary": "Compatibilidade de liveness",
+        "responses": {
+          "200": {
+            "description": "Processo vivo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "operationId": "jornada_get_02",
+        "summary": "Liveness da API",
+        "responses": {
+          "200": {
+            "description": "Processo vivo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "jornada_get_03",
+        "summary": "Readiness de SQL/Bronze/staging",
+        "responses": {
+          "200": {
+            "description": "SQL, Bronze e staging prontos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessStatus"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Uma ou mais dependências essenciais não estão prontas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/monitor": {
+      "get": {
+        "operationId": "jornada_get_20",
+        "summary": "Página do monitor operacional",
+        "responses": {
+          "200": {
+            "description": "Interface web do monitor",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Artefato web do monitor não encontrado"
+          }
+        }
+      }
+    },
+    "/api/v1/monitor/status": {
+      "get": {
+        "operationId": "jornada_get_21",
+        "summary": "Snapshot operacional do cluster",
+        "description": "Somente leitura. Exige credencial GESTOR com scope jornada.monitor.read.",
+        "security": [
+          {
+            "JornadaAccessKey": [],
+            "JornadaGestor": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado dos nós, dependências, filas, processamento, manutenção e linkage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationalMonitorStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credencial ausente ou inválida"
+          },
+          "403": {
+            "description": "Tipo de credencial ou scope não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "503": {
+            "description": "Schema do monitor ainda não aplicado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationalMonitorUnavailable"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identidade/resolver": {
+      "post": {
+        "operationId": "jornada_post_04",
+        "summary": "Resolve CPF para UUID existente",
+        "responses": {
+          "200": {
+            "description": "Resposta tipada conforme contrato do runtime.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityResolutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityResolutionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ingestao/entregas": {
+      "post": {
+        "operationId": "jornada_post_05",
+        "summary": "Recebe Entrega ZIP",
+        "responses": {
+          "202": {
+            "description": "Entrega aceita ou replay idempotente da mesma Entrega",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "409": {
+            "description": "Idempotency-Key já usada para conteúdo diferente"
+          },
+          "413": {
+            "description": "ZIP excede 250 MiB compactados"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          },
+          "503": {
+            "description": "Staging/Bronze temporariamente indisponível"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/zip": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ingestao/entregas/{entregaId}": {
+      "get": {
+        "operationId": "jornada_get_06",
+        "summary": "Consulta status da Entrega",
+        "responses": {
+          "200": {
+            "description": "Resposta tipada conforme contrato do runtime.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Entrega não encontrada"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "entregaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/identidade/conflitos/detalhe": {
+      "post": {
+        "operationId": "jornada_post_07",
+        "summary": "Consulta detalhe de conflito",
+        "responses": {
+          "200": {
+            "description": "Resposta tipada conforme contrato do runtime.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityConflictDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Entidade inexistente ou indisponível para este contexto de acesso."
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityConflictDetailRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identidade/correcoes": {
+      "post": {
+        "operationId": "jornada_post_08",
+        "summary": "Registra correção governada",
+        "responses": {
+          "200": {
+            "description": "Resposta tipada conforme contrato do runtime.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityCorrectionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "409": {
+            "description": "Conflito de concorrência, integridade ou decisão governada."
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityCorrectionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identidade/casos": {
+      "post": {
+        "operationId": "jornada_post_09",
+        "summary": "Registra caso de identidade",
+        "responses": {
+          "200": {
+            "description": "Resposta tipada conforme contrato do runtime.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityGovernedCaseOpenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "409": {
+            "description": "Conflito de concorrência, integridade ou decisão governada."
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityGovernedCaseOpenRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identidade/casos/{casoId}/aplicar": {
+      "post": {
+        "operationId": "jornada_post_10",
+        "summary": "Aplica caso governado",
+        "responses": {
+          "200": {
+            "description": "Resposta tipada conforme contrato do runtime.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityGovernedCaseApplyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "409": {
+            "description": "Conflito de concorrência, integridade ou decisão governada."
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "casoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityGovernedCaseApplyRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/divergencias": {
+      "get": {
+        "operationId": "jornada_get_11",
+        "summary": "Lista divergências",
+        "responses": {
+          "200": {
+            "description": "Resposta tipada conforme contrato do runtime.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IdentityDivergenceDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        }
+      }
+    },
+    "/api/v1/divergencias/{divergenciaId}/desfecho": {
+      "post": {
+        "operationId": "jornada_post_12",
+        "summary": "Registra desfecho de divergência",
+        "responses": {
+          "204": {
+            "description": "Desfecho registrado; resposta intencionalmente sem corpo."
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "409": {
+            "description": "Conflito de concorrência, integridade ou decisão governada."
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "divergenciaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityDivergenceDispositionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pessoas/{pessoaUuid}": {
+      "get": {
+        "operationId": "jornada_get_13",
+        "summary": "Consulta projeção da Pessoa",
+        "responses": {
+          "200": {
+            "description": "Resposta tipada conforme contrato do runtime.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonProjectionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Entidade inexistente ou indisponível para este contexto de acesso."
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "pessoaUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/pessoas/consulta": {
+      "post": {
+        "operationId": "jornada_post_14",
+        "summary": "Consulta lote de Pessoas",
+        "responses": {
+          "200": {
+            "description": "Resposta tipada conforme contrato do runtime.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PersonProjectionResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Entidade inexistente ou indisponível para este contexto de acesso."
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonBatchQueryRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pessoas/{pessoaUuid}/registros": {
+      "get": {
+        "operationId": "jornada_get_15",
+        "summary": "Consulta Registros da Pessoa",
+        "responses": {
+          "200": {
+            "description": "Resposta tipada conforme contrato do runtime.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RegistroJornadaDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Entidade inexistente ou indisponível para este contexto de acesso."
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "pessoaUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/pessoas/{pessoaUuid}/beneficios-concedidos": {
+      "get": {
+        "operationId": "jornada_get_16",
+        "summary": "Consulta Benefícios Concedidos",
+        "responses": {
+          "200": {
+            "description": "Resposta tipada conforme contrato do runtime.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BeneficioConcedidoPessoaDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Entidade inexistente ou indisponível para este contexto de acesso."
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "pessoaUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/pessoas/{pessoaUuid}/servicos-prestados": {
+      "get": {
+        "operationId": "jornada_get_17",
+        "summary": "Consulta Serviços Prestados",
+        "responses": {
+          "200": {
+            "description": "Resposta tipada conforme contrato do runtime.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ServicoPrestadoPessoaDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Entidade inexistente ou indisponível para este contexto de acesso."
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "pessoaUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/pessoas/{pessoaUuid}/possibilidades": {
+      "get": {
+        "operationId": "jornada_get_18",
+        "summary": "Consulta Possibilidades",
+        "responses": {
+          "200": {
+            "description": "Resposta tipada conforme contrato do runtime.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PossibilidadesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "404": {
+            "description": "Entidade inexistente ou indisponível para este contexto de acesso."
+          },
+          "429": {
+            "description": "Rate limit excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        },
+        "parameters": [
+          {
+            "name": "pessoaUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/identidade/origens/consulta": {
       "post": {
-        "operationId":"consultarIdentidadeProgressivaOrigem",
-        "summary":"Consultar a referência progressiva de uma identidade de origem",
-        "description":"Somente leitura. Exige credencial GESTOR, scope jornada.identidade.origem.read e propriedade do sistema de origem. Não cria nem altera UUIDs.",
-        "security":[{"JornadaAccessKey":[],"JornadaGestor":[]}],
-        "requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ProgressiveOriginQueryRequest"}}}},
+        "operationId": "consultarIdentidadeProgressivaOrigem",
+        "summary": "Consultar a referência progressiva de uma identidade de origem",
+        "description": "Somente leitura. Exige credencial GESTOR, scope jornada.identidade.origem.read e propriedade do sistema de origem. Não cria nem altera UUIDs.",
+        "security": [
+          {
+            "JornadaAccessKey": [],
+            "JornadaGestor": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressiveOriginQueryRequest"
+              }
+            }
+          }
+        },
         "responses": {
-          "200":{"description":"Referência corrente no escopo do Gestor.","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ProgressiveOriginQueryResponse"}}}},
-          "400":{"description":"Corpo ou códigos inválidos."},"401":{"description":"Credencial ausente ou inválida."},
-          "403":{"description":"Tipo de credencial ou scope não autorizado."},
-          "404":{"description":"Não localizado no escopo do Gestor; não distingue inexistência de falta de propriedade."},
-          "429":{"description":"Limite de requisições excedido."},"500":{"description":"Falha interna sem divulgação de dados de origem."},
-          "503":{"description":"Schema ou view de identidade progressiva indisponível.","content":{"application/json":{"schema":{"type":"object","properties":{"codigo":{"type":"string","enum":["IDENTIDADE_PROGRESSIVA_INDISPONIVEL"]}}}}}}
+          "200": {
+            "description": "Referência corrente no escopo do Gestor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressiveOriginQueryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo ou códigos inválidos."
+          },
+          "401": {
+            "description": "Credencial ausente ou inválida."
+          },
+          "403": {
+            "description": "Tipo de credencial ou scope não autorizado."
+          },
+          "404": {
+            "description": "Não localizado no escopo do Gestor; não distingue inexistência de falta de propriedade."
+          },
+          "429": {
+            "description": "Limite de requisições excedido."
+          },
+          "500": {
+            "description": "Falha interna sem divulgação de dados de origem."
+          },
+          "503": {
+            "description": "Schema ou view de identidade progressiva indisponível.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "codigo": {
+                      "type": "string",
+                      "enum": [
+                        "IDENTIDADE_PROGRESSIVA_INDISPONIVEL"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }
   },
   "components": {
     "securitySchemes": {
-      "JornadaAccessKey":{"type":"apiKey","in":"header","name":"X-Jornada-Access-Key"},
-      "JornadaGestor":{"type":"apiKey","in":"header","name":"X-Jornada-Gestor"},
-      "JornadaBeneficio":{"type":"apiKey","in":"header","name":"X-Jornada-Beneficio"},
-      "JornadaServico":{"type":"apiKey","in":"header","name":"X-Jornada-Servico"}
+      "JornadaAccessKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Jornada-Access-Key"
+      },
+      "JornadaGestor": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Jornada-Gestor"
+      },
+      "JornadaBeneficio": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Jornada-Beneficio"
+      },
+      "JornadaServico": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Jornada-Servico"
+      }
     },
     "schemas": {
-      "ProgressiveOriginQueryRequest":{"type":"object","required":["codigoSistemaOrigem","codigoPessoaOrigem"],"additionalProperties":false,"properties":{"codigoSistemaOrigem":{"type":"string","minLength":1,"maxLength":80,"description":"Namespace técnico de origem, não o nome de exibição."},"codigoPessoaOrigem":{"type":"string","minLength":1,"maxLength":255,"description":"Chave interna da pessoa no sistema de origem; não é CPF."}}},
-      "ProgressiveOriginQueryResponse":{"type":"object","required":["codigoSistemaOrigem","codigoPessoaOrigem","initialUuid","canonicalUuid","estado","versao","criadoEm","atualizadoEm","ultimaResolucaoEm"],"properties":{"codigoSistemaOrigem":{"type":"string"},"codigoPessoaOrigem":{"type":"string"},"initialUuid":{"type":"string","format":"uuid","description":"UUID inicial imutável da identidade de origem."},"canonicalUuid":{"type":"string","format":"uuid","nullable":true,"description":"Referência canônica publicada somente com estado REFERENCIA."},"estado":{"type":"string","enum":["PROVISORIA","REFERENCIA","INDEFINIDA"]},"versao":{"type":"integer","format":"int64","minimum":0},"criadoEm":{"type":"string","format":"date-time"},"atualizadoEm":{"type":"string","format":"date-time"},"ultimaResolucaoEm":{"type":"string","format":"date-time","nullable":true}}}
+      "ProgressiveOriginQueryRequest": {
+        "type": "object",
+        "required": [
+          "codigoSistemaOrigem",
+          "codigoPessoaOrigem"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "codigoSistemaOrigem": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Namespace técnico de origem, não o nome de exibição."
+          },
+          "codigoPessoaOrigem": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Chave interna da pessoa no sistema de origem; não é CPF."
+          }
+        }
+      },
+      "ProgressiveOriginQueryResponse": {
+        "type": "object",
+        "required": [
+          "codigoSistemaOrigem",
+          "codigoPessoaOrigem",
+          "initialUuid",
+          "canonicalUuid",
+          "estado",
+          "versao",
+          "criadoEm",
+          "atualizadoEm",
+          "ultimaResolucaoEm"
+        ],
+        "properties": {
+          "codigoSistemaOrigem": {
+            "type": "string"
+          },
+          "codigoPessoaOrigem": {
+            "type": "string"
+          },
+          "initialUuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID inicial imutável da identidade de origem."
+          },
+          "canonicalUuid": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Referência canônica publicada somente com estado REFERENCIA."
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PROVISORIA",
+              "REFERENCIA",
+              "INDEFINIDA"
+            ]
+          },
+          "versao": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "criadoEm": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "atualizadoEm": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ultimaResolucaoEm": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "IdentityResolutionRequest": {
+        "type": "object",
+        "required": [
+          "cpf",
+          "nomeCompleto",
+          "dataNascimento",
+          "nomeMae",
+          "cpfAusenteMotivo"
+        ],
+        "properties": {
+          "cpf": {
+            "type": "string",
+            "nullable": true
+          },
+          "nomeCompleto": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataNascimento": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "nomeMae": {
+            "type": "string",
+            "nullable": true
+          },
+          "cpfAusenteMotivo": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "IdentityResolutionResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "pessoaUuid",
+          "metodoResolucao",
+          "motivo"
+        ],
+        "properties": {
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              0,
+              1,
+              2
+            ],
+            "description": "Enum .NET serializado numericamente nesta superfície: 0=RESOLVIDO, 1=NAO_RESOLVIDO, 2=CONFLITO"
+          },
+          "pessoaUuid": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "metodoResolucao": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "description": "Enum .NET serializado numericamente nesta superfície: 0=CPF_DETERMINISTICO, 1=UUID_JORNADA_RETROALIMENTACAO, 2=PENDENTE_PROBABILISTICO, 3=LINKAGE_PROBABILISTICO, 4=CORRECAO_GOVERNADA",
+            "nullable": true
+          },
+          "motivo": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "IdentityConflictDetailRequest": {
+        "type": "object",
+        "required": [
+          "cpf"
+        ],
+        "properties": {
+          "cpf": {
+            "type": "string"
+          }
+        }
+      },
+      "IdentityConflictCoreDto": {
+        "type": "object",
+        "required": [
+          "pessoaObservacaoId",
+          "pessoaUuidAtual",
+          "gestorCodigo",
+          "codigoPessoaOrigem",
+          "nomeCompleto",
+          "dataNascimento",
+          "nomeMae",
+          "vinculoStatus",
+          "motivo"
+        ],
+        "properties": {
+          "pessoaObservacaoId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pessoaUuidAtual": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "gestorCodigo": {
+            "type": "string"
+          },
+          "codigoPessoaOrigem": {
+            "type": "string"
+          },
+          "nomeCompleto": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataNascimento": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "nomeMae": {
+            "type": "string",
+            "nullable": true
+          },
+          "vinculoStatus": {
+            "type": "string"
+          },
+          "motivo": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "IdentityConflictDetailResponse": {
+        "type": "object",
+        "required": [
+          "cpfEstado",
+          "motivo",
+          "pessoaUuidAnteriormenteAssociada",
+          "nucleos"
+        ],
+        "properties": {
+          "cpfEstado": {
+            "type": "string"
+          },
+          "motivo": {
+            "type": "string",
+            "nullable": true
+          },
+          "pessoaUuidAnteriormenteAssociada": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "nucleos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentityConflictCoreDto"
+            }
+          }
+        }
+      },
+      "IdentityCorrectionGroupRequest": {
+        "type": "object",
+        "required": [
+          "grupoCodigo",
+          "pessoaUuidDestino",
+          "pessoaObservacaoIds"
+        ],
+        "properties": {
+          "grupoCodigo": {
+            "type": "string"
+          },
+          "pessoaUuidDestino": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "pessoaObservacaoIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "IdentityDecisionEvidence": {
+        "type": "object",
+        "required": [
+          "tipo",
+          "documentoTipoCodigo"
+        ],
+        "properties": {
+          "tipo": {
+            "type": "string"
+          },
+          "documentoTipoCodigo": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "IdentityCorrectionRequest": {
+        "type": "object",
+        "required": [
+          "cpf",
+          "grupoTitularCpf",
+          "grupos",
+          "atoReferencia",
+          "justificativa",
+          "evidencia"
+        ],
+        "properties": {
+          "cpf": {
+            "type": "string"
+          },
+          "grupoTitularCpf": {
+            "type": "string"
+          },
+          "grupos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentityCorrectionGroupRequest"
+            }
+          },
+          "atoReferencia": {
+            "type": "string"
+          },
+          "justificativa": {
+            "type": "string"
+          },
+          "evidencia": {
+            "$ref": "#/components/schemas/IdentityDecisionEvidence"
+          }
+        }
+      },
+      "IdentityCorrectionResponse": {
+        "type": "object",
+        "required": [
+          "correcaoId",
+          "pessoaUuidTitular",
+          "grupoPessoaUuids",
+          "status"
+        ],
+        "properties": {
+          "correcaoId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "pessoaUuidTitular": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "grupoPessoaUuids": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "IdentityGovernedCaseOpenRequest": {
+        "type": "object",
+        "required": [
+          "motivo",
+          "pessoaObservacaoIds",
+          "atoReferencia",
+          "justificativa"
+        ],
+        "properties": {
+          "motivo": {
+            "type": "string"
+          },
+          "pessoaObservacaoIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "atoReferencia": {
+            "type": "string"
+          },
+          "justificativa": {
+            "type": "string"
+          }
+        }
+      },
+      "IdentityGovernedCaseOpenResponse": {
+        "type": "object",
+        "required": [
+          "casoId",
+          "status"
+        ],
+        "properties": {
+          "casoId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "IdentityGovernedCaseApplyRequest": {
+        "type": "object",
+        "required": [
+          "grupos",
+          "evidencia"
+        ],
+        "properties": {
+          "grupos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentityCorrectionGroupRequest"
+            }
+          },
+          "evidencia": {
+            "$ref": "#/components/schemas/IdentityDecisionEvidence"
+          }
+        }
+      },
+      "IdentityGovernedCaseApplyResponse": {
+        "type": "object",
+        "required": [
+          "casoId",
+          "status"
+        ],
+        "properties": {
+          "casoId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "IdentityDivergenceDto": {
+        "type": "object",
+        "required": [
+          "divergenciaId",
+          "tipo",
+          "motivo",
+          "pessoaObservacaoId",
+          "registroObservacaoId",
+          "codigoPessoaOrigem",
+          "correlationId",
+          "abertaEm"
+        ],
+        "properties": {
+          "divergenciaId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tipo": {
+            "type": "string"
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "pessoaObservacaoId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "registroObservacaoId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "codigoPessoaOrigem": {
+            "type": "string",
+            "nullable": true
+          },
+          "correlationId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "abertaEm": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "IdentityDivergenceDispositionRequest": {
+        "type": "object",
+        "required": [
+          "status",
+          "desfecho",
+          "evidencia",
+          "observacao"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "desfecho": {
+            "type": "string"
+          },
+          "evidencia": {
+            "$ref": "#/components/schemas/IdentityDecisionEvidence"
+          },
+          "observacao": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "IngestionReceipt": {
+        "type": "object",
+        "required": [
+          "entregaId",
+          "status",
+          "payloadSha256",
+          "bytesRecebidos",
+          "recebidoEm"
+        ],
+        "properties": {
+          "entregaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "payloadSha256": {
+            "type": "string"
+          },
+          "bytesRecebidos": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recebidoEm": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "IngestionStatusResponse": {
+        "type": "object",
+        "required": [
+          "entregaId",
+          "status",
+          "recebidoEm",
+          "ultimaAtualizacao",
+          "erro"
+        ],
+        "properties": {
+          "entregaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "recebidoEm": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ultimaAtualizacao": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "erro": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PersonBatchQueryRequest": {
+        "type": "object",
+        "required": [
+          "pessoaUuids"
+        ],
+        "properties": {
+          "pessoaUuids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "PersonProjectionMetadata": {
+        "type": "object",
+        "required": [
+          "fontesDistintas",
+          "estadoConcordancia",
+          "atualizadoEm",
+          "pessoaUuidSolicitado",
+          "redirecionadoPorFusao",
+          "estadoIdentidade",
+          "completudeNucleo"
+        ],
+        "properties": {
+          "fontesDistintas": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "estadoConcordancia": {
+            "type": "string"
+          },
+          "atualizadoEm": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pessoaUuidSolicitado": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "redirecionadoPorFusao": {
+            "type": "boolean"
+          },
+          "estadoIdentidade": {
+            "type": "string",
+            "nullable": true
+          },
+          "completudeNucleo": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PersonProjectionResponse": {
+        "type": "object",
+        "required": [
+          "pessoaUuid",
+          "dados",
+          "schemaRef",
+          "metadados"
+        ],
+        "properties": {
+          "pessoaUuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dados": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Projeção variável; estrutura definida pelo schemaRef selecionado pela credencial."
+          },
+          "schemaRef": {
+            "type": "string"
+          },
+          "metadados": {
+            "$ref": "#/components/schemas/PersonProjectionMetadata"
+          }
+        }
+      },
+      "RegistroJornadaDto": {
+        "type": "object",
+        "required": [
+          "registroId",
+          "pessoaUuid",
+          "natureza",
+          "codigo",
+          "nome",
+          "gestor",
+          "dataReferencia",
+          "ocorridoEm",
+          "situacao"
+        ],
+        "properties": {
+          "registroId": {
+            "type": "string"
+          },
+          "pessoaUuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "natureza": {
+            "type": "string"
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "nome": {
+            "type": "string"
+          },
+          "gestor": {
+            "type": "string"
+          },
+          "dataReferencia": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ocorridoEm": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "situacao": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "BeneficioConcedidoPessoaDto": {
+        "type": "object",
+        "required": [
+          "beneficioConcedidoId",
+          "pessoaUuid",
+          "gestor",
+          "codigoBeneficio",
+          "nomeBeneficio",
+          "versaoTipo",
+          "versaoInternaRegistro",
+          "operacao",
+          "statusAnalitico",
+          "codigoRegistroOrigem",
+          "tipoMedida",
+          "dataInicioConcessao",
+          "dataFimConcessao",
+          "dataEventoConcessao",
+          "situacaoVigencia",
+          "situacaoVigenciaDesde",
+          "motivoEncerramento",
+          "valorConcedido",
+          "quantidade",
+          "unidadeMedida",
+          "dataReferencia",
+          "qcResultado",
+          "qcEspecificoImplementado"
+        ],
+        "properties": {
+          "beneficioConcedidoId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pessoaUuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "gestor": {
+            "type": "string"
+          },
+          "codigoBeneficio": {
+            "type": "string"
+          },
+          "nomeBeneficio": {
+            "type": "string"
+          },
+          "versaoTipo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "versaoInternaRegistro": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "operacao": {
+            "type": "string"
+          },
+          "statusAnalitico": {
+            "type": "string"
+          },
+          "codigoRegistroOrigem": {
+            "type": "string"
+          },
+          "tipoMedida": {
+            "type": "string"
+          },
+          "dataInicioConcessao": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "dataFimConcessao": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "dataEventoConcessao": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "situacaoVigencia": {
+            "type": "string"
+          },
+          "situacaoVigenciaDesde": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "motivoEncerramento": {
+            "type": "string",
+            "nullable": true
+          },
+          "valorConcedido": {
+            "type": "number",
+            "nullable": true
+          },
+          "quantidade": {
+            "type": "number",
+            "nullable": true
+          },
+          "unidadeMedida": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataReferencia": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "qcResultado": {
+            "type": "string",
+            "nullable": true
+          },
+          "qcEspecificoImplementado": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ServicoPrestadoPessoaDto": {
+        "type": "object",
+        "required": [
+          "servicoPrestadoId",
+          "pessoaUuid",
+          "gestor",
+          "codigoServico",
+          "nomeServico",
+          "versaoTipo",
+          "versaoInternaRegistro",
+          "operacao",
+          "statusAnalitico",
+          "codigoRegistroOrigem",
+          "dataHoraServico",
+          "unidadeServico",
+          "situacao",
+          "dataReferencia"
+        ],
+        "properties": {
+          "servicoPrestadoId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pessoaUuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "gestor": {
+            "type": "string"
+          },
+          "codigoServico": {
+            "type": "string"
+          },
+          "nomeServico": {
+            "type": "string"
+          },
+          "versaoTipo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "versaoInternaRegistro": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "operacao": {
+            "type": "string"
+          },
+          "statusAnalitico": {
+            "type": "string"
+          },
+          "codigoRegistroOrigem": {
+            "type": "string"
+          },
+          "dataHoraServico": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unidadeServico": {
+            "type": "string",
+            "nullable": true
+          },
+          "situacao": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataReferencia": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PossibilidadeCompativelDto": {
+        "type": "object",
+        "required": [
+          "pessoaUuid",
+          "natureza",
+          "codigo",
+          "nome",
+          "gestor",
+          "regraVersao",
+          "avaliadoEm",
+          "validadeAte",
+          "motivo",
+          "sujeitoAnaliseGestor"
+        ],
+        "properties": {
+          "pessoaUuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "natureza": {
+            "type": "string"
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "nome": {
+            "type": "string"
+          },
+          "gestor": {
+            "type": "string"
+          },
+          "regraVersao": {
+            "type": "string"
+          },
+          "avaliadoEm": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "validadeAte": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "sujeitoAnaliseGestor": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RuntimeComponentStatus": {
+        "type": "object",
+        "required": [
+          "nodeId",
+          "component",
+          "machineName",
+          "status",
+          "online",
+          "heartbeatAgeSeconds",
+          "startedAt",
+          "heartbeatAt",
+          "stoppedAt",
+          "version",
+          "configurationBundleVersion",
+          "solutionSchemaExpected"
+        ],
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "component": {
+            "type": "string"
+          },
+          "machineName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "online": {
+            "type": "boolean"
+          },
+          "heartbeatAgeSeconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "heartbeatAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "stoppedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
+          },
+          "configurationBundleVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "solutionSchemaExpected": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "QueueStatus": {
+        "type": "object",
+        "required": [
+          "status",
+          "count"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ActiveProcessingStatus": {
+        "type": "object",
+        "required": [
+          "lotId",
+          "deliveryId",
+          "lotSequence",
+          "lotTotal",
+          "people",
+          "records",
+          "status",
+          "leaseOwner",
+          "leaseAcquiredAt",
+          "heartbeatAt"
+        ],
+        "properties": {
+          "lotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deliveryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lotSequence": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lotTotal": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "people": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "records": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          },
+          "leaseOwner": {
+            "type": "string",
+            "nullable": true
+          },
+          "leaseAcquiredAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "heartbeatAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "RecentDeliveryStatus": {
+        "type": "object",
+        "required": [
+          "deliveryId",
+          "status",
+          "manager",
+          "sourceSystem",
+          "fileName",
+          "receivedAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "deliveryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "manager": {
+            "type": "string"
+          },
+          "sourceSystem": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "BronzeMaintenanceStatus": {
+        "type": "object",
+        "required": [
+          "startedAt",
+          "finishedAt",
+          "objectsExamined",
+          "orphansRemoved",
+          "temporariesRemoved",
+          "locksNotAcquired",
+          "storageFailures"
+        ],
+        "properties": {
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "objectsExamined": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "orphansRemoved": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "temporariesRemoved": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "locksNotAcquired": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "storageFailures": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "LinkageRunStatus": {
+        "type": "object",
+        "required": [
+          "runId",
+          "modelId",
+          "runType",
+          "status",
+          "modelVersion",
+          "eligible",
+          "evaluated",
+          "resolved",
+          "notResolved",
+          "conflicts",
+          "startedAt",
+          "finishedAt"
+        ],
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "modelId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "modelVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "eligible": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "evaluated": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "resolved": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "notResolved": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "conflicts": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "LinkageModelGovernanceStatus": {
+        "type": "object",
+        "required": [
+          "status",
+          "activeModelCount",
+          "modelId",
+          "modelVersion",
+          "algorithmVersion",
+          "normalizationVersion",
+          "generatedAt",
+          "activatedAt",
+          "frequencyReferenceCode",
+          "frequencyReferenceSha256",
+          "nominalUNameSource",
+          "nominalUMotherSource",
+          "statisticalValidation"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "activeModelCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "modelId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "modelVersion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "algorithmVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "normalizationVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "activatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "frequencyReferenceCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "frequencyReferenceSha256": {
+            "type": "string",
+            "nullable": true
+          },
+          "nominalUNameSource": {
+            "type": "string"
+          },
+          "nominalUMotherSource": {
+            "type": "string"
+          },
+          "statisticalValidation": {
+            "type": "string"
+          }
+        }
+      },
+      "LinkageModelTransitionStatus": {
+        "type": "object",
+        "required": [
+          "eventId",
+          "modelId",
+          "modelVersion",
+          "previousStatus",
+          "newStatus",
+          "operation",
+          "reason",
+          "executorApplication",
+          "occurredAt"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "modelId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "modelVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "previousStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "newStatus": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "executorApplication": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LinkageConferenceGovernanceStatus": {
+        "type": "object",
+        "required": [
+          "status",
+          "evidenceId",
+          "modelVersion",
+          "methodVersion",
+          "scope",
+          "toleranceVersion",
+          "candidatesEvaluated",
+          "sameFinalDecision",
+          "sameTop1",
+          "snapshotCurrent",
+          "occurredAt",
+          "statisticalValidation",
+          "roundTripMethod",
+          "roundTripStatus"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "evidenceId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "modelVersion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "methodVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "scope": {
+            "type": "string",
+            "nullable": true
+          },
+          "toleranceVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "candidatesEvaluated": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sameFinalDecision": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "sameTop1": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "snapshotCurrent": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "statisticalValidation": {
+            "type": "string"
+          },
+          "roundTripMethod": {
+            "type": "string"
+          },
+          "roundTripStatus": {
+            "type": "string"
+          },
+          "splinkMethod": {
+            "type": "string",
+            "description": "Identificador do diagnóstico externo, não substitui a conferência governada."
+          },
+          "splinkStatus": {
+            "type": "string"
+          },
+          "splinkResultStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "splinkReferenceSha256": {
+            "type": "string",
+            "nullable": true
+          },
+          "splinkEvidenceSha256": {
+            "type": "string",
+            "nullable": true
+          },
+          "splinkPairsEvaluated": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "splinkPairwiseDisagreements": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "splinkEvidenceFileUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "LinkageCalibrationSummary": {
+        "type": "object",
+        "required": [
+          "status",
+          "modelId",
+          "modelVersion",
+          "modelStatus",
+          "generatedAt",
+          "fixedReferenceCode",
+          "validationFpBasisPoints",
+          "testFpBasisPoints",
+          "validationFpLimit",
+          "testFpLimit",
+          "validationPositive",
+          "validationNegative",
+          "testPositive",
+          "testNegative",
+          "validationFalsePositive",
+          "testFalsePositive",
+          "validationFalseNegative",
+          "testFalseNegative",
+          "validationInconclusive",
+          "testInconclusive",
+          "testWrongPersonFp",
+          "testLeaveTruthOutFp",
+          "matchedPairSample",
+          "candidateUnionUSample",
+          "validationEffectiveCapBp",
+          "testEffectiveCapBp"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "modelId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "modelVersion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "modelStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "fixedReferenceCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "validationFpBasisPoints": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "testFpBasisPoints": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "validationFpLimit": {
+            "type": "number",
+            "nullable": true
+          },
+          "testFpLimit": {
+            "type": "number",
+            "nullable": true
+          },
+          "validationPositive": {
+            "type": "number",
+            "nullable": true
+          },
+          "validationNegative": {
+            "type": "number",
+            "nullable": true
+          },
+          "testPositive": {
+            "type": "number",
+            "nullable": true
+          },
+          "testNegative": {
+            "type": "number",
+            "nullable": true
+          },
+          "validationFalsePositive": {
+            "type": "number",
+            "nullable": true
+          },
+          "testFalsePositive": {
+            "type": "number",
+            "nullable": true
+          },
+          "validationFalseNegative": {
+            "type": "number",
+            "nullable": true
+          },
+          "testFalseNegative": {
+            "type": "number",
+            "nullable": true
+          },
+          "validationInconclusive": {
+            "type": "number",
+            "nullable": true
+          },
+          "testInconclusive": {
+            "type": "number",
+            "nullable": true
+          },
+          "testWrongPersonFp": {
+            "type": "number",
+            "nullable": true
+          },
+          "testLeaveTruthOutFp": {
+            "type": "number",
+            "nullable": true
+          },
+          "matchedPairSample": {
+            "type": "number",
+            "nullable": true
+          },
+          "candidateUnionUSample": {
+            "type": "number",
+            "nullable": true
+          },
+          "validationEffectiveCapBp": {
+            "type": "number",
+            "nullable": true
+          },
+          "testEffectiveCapBp": {
+            "type": "number",
+            "nullable": true
+          }
+        }
+      },
+      "IbgeReferenceReadiness": {
+        "type": "object",
+        "required": [
+          "status",
+          "activeVersions",
+          "referenceCode",
+          "contentSha256",
+          "derivedNominalUStatus",
+          "derivedPersonVersions",
+          "derivedMotherVersions",
+          "latestDerivedMethod"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "activeVersions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "referenceCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "contentSha256": {
+            "type": "string",
+            "nullable": true
+          },
+          "derivedNominalUStatus": {
+            "type": "string"
+          },
+          "derivedPersonVersions": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "derivedMotherVersions": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "latestDerivedMethod": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "LinkageBlockingPassSupportStatus": {
+        "type": "object",
+        "required": [
+          "passOrder",
+          "passId",
+          "sampleSize",
+          "motherNamePresentSupport",
+          "minimumRequiredPerPass",
+          "nameSufficient",
+          "motherNameSufficient"
+        ],
+        "properties": {
+          "passOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "passId": {
+            "type": "string"
+          },
+          "sampleSize": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "motherNamePresentSupport": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "minimumRequiredPerPass": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nameSufficient": {
+            "type": "boolean"
+          },
+          "motherNameSufficient": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ConfigurationBundleHealthStatus": {
+        "type": "object",
+        "required": [
+          "status",
+          "expectedBundleVersion",
+          "expectedSolutionSchema",
+          "databaseSolutionSchema",
+          "onlineBundleVersions",
+          "onlineExpectedSchemas",
+          "detail"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "expectedBundleVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "expectedSolutionSchema": {
+            "type": "string",
+            "nullable": true
+          },
+          "databaseSolutionSchema": {
+            "type": "string",
+            "nullable": true
+          },
+          "onlineBundleVersions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "onlineExpectedSchemas": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "OperationalMonitorSnapshot": {
+        "type": "object",
+        "required": [
+          "generatedAt",
+          "overallStatus",
+          "configurationHealth",
+          "components",
+          "queue",
+          "processing",
+          "recentDeliveries",
+          "bronzeMaintenance",
+          "linkageModelGovernance",
+          "linkageConferenceGovernance",
+          "linkageBlockingPassSupport",
+          "linkageModelTransitions",
+          "linkageRuns",
+          "linkageCalibration",
+          "ibgeReference"
+        ],
+        "properties": {
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "overallStatus": {
+            "type": "string"
+          },
+          "configurationHealth": {
+            "$ref": "#/components/schemas/ConfigurationBundleHealthStatus"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuntimeComponentStatus"
+            }
+          },
+          "queue": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QueueStatus"
+            }
+          },
+          "processing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveProcessingStatus"
+            }
+          },
+          "recentDeliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentDeliveryStatus"
+            }
+          },
+          "bronzeMaintenance": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BronzeMaintenanceStatus"
+              }
+            ],
+            "nullable": true
+          },
+          "linkageModelGovernance": {
+            "$ref": "#/components/schemas/LinkageModelGovernanceStatus"
+          },
+          "linkageConferenceGovernance": {
+            "$ref": "#/components/schemas/LinkageConferenceGovernanceStatus"
+          },
+          "linkageBlockingPassSupport": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkageBlockingPassSupportStatus"
+            }
+          },
+          "linkageModelTransitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkageModelTransitionStatus"
+            }
+          },
+          "linkageRuns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkageRunStatus"
+            }
+          },
+          "linkageCalibration": {
+            "$ref": "#/components/schemas/LinkageCalibrationSummary"
+          },
+          "ibgeReference": {
+            "$ref": "#/components/schemas/IbgeReferenceReadiness"
+          }
+        }
+      },
+      "ApiReadinessCheck": {
+        "type": "object",
+        "required": [
+          "name",
+          "ready",
+          "code"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "HealthStatus": {
+        "type": "object",
+        "required": [
+          "status",
+          "utc",
+          "securityMode"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ]
+          },
+          "utc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "securityMode": {
+            "type": "string"
+          }
+        }
+      },
+      "ReadinessStatus": {
+        "type": "object",
+        "required": [
+          "status",
+          "utc",
+          "checks"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "not_ready"
+            ]
+          },
+          "utc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiReadinessCheck"
+            }
+          }
+        }
+      },
+      "OperationalMonitorStatus": {
+        "type": "object",
+        "required": [
+          "monitor",
+          "readiness"
+        ],
+        "properties": {
+          "monitor": {
+            "$ref": "#/components/schemas/OperationalMonitorSnapshot"
+          },
+          "readiness": {
+            "type": "object",
+            "required": [
+              "ready",
+              "checks"
+            ],
+            "properties": {
+              "ready": {
+                "type": "boolean"
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ApiReadinessCheck"
+                }
+              }
+            }
+          }
+        }
+      },
+      "PossibilidadesResponse": {
+        "type": "object",
+        "required": [
+          "pessoaUuid",
+          "pessoaUuidSolicitado",
+          "redirecionadoPorFusao",
+          "sujeitoAnaliseDoGestorResponsavel",
+          "itens"
+        ],
+        "properties": {
+          "pessoaUuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "pessoaUuidSolicitado": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "redirecionadoPorFusao": {
+            "type": "boolean"
+          },
+          "sujeitoAnaliseDoGestorResponsavel": {
+            "type": "boolean"
+          },
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PossibilidadeCompativelDto"
+            }
+          }
+        }
+      },
+      "OperationalMonitorUnavailable": {
+        "type": "object",
+        "required": [
+          "codigo",
+          "erro"
+        ],
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "enum": [
+              "MONITOR_SCHEMA_INDISPONIVEL"
+            ]
+          },
+          "erro": {
+            "type": "string"
+          }
+        }
+      }
     }
   },
-  "x-jornada-contract-gate":{"scope":"method+normalized-path","source":"src/Jornada.Api/Program.cs","registeredModules":["src/Jornada.Api/ProgressiveOriginApi.cs","src/Jornada.Api/OperationalMonitorApi.cs"]}
+  "x-jornada-contract-gate": {
+    "scope": "method+normalized-path",
+    "source": "src/Jornada.Api/Program.cs",
+    "registeredModules": [
+      "src/Jornada.Api/ProgressiveOriginApi.cs",
+      "src/Jornada.Api/OperationalMonitorApi.cs"
+    ]
+  }
 }
