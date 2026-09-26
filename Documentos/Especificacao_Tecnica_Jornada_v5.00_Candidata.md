@@ -152,11 +152,11 @@ A falta de integração institucional não deve ser mascarada por configuração
 
 ## 12. Finalidade de acesso
 
-A decisão sobre finalidade, necessidade e base legal do compartilhamento é gate institucional, não detalhe a ser inventado pela engenharia. No âmbito deste projeto, a instância responsável por essa deliberação é o **Grupo de Trabalho do Programa Reencontro (GTPR)**.
+A decisão sobre finalidade, necessidade e base legal do compartilhamento é gate institucional, não detalhe a ser inventado pela engenharia. A estrutura formal do Programa Reencontro prevista nos arts. 7º–9º do Decreto municipal nº 62.149/2023 é o **Núcleo Gestor do Programa Reencontro**, coordenado por **SGM/SEPE**, e apoiado por Núcleo Técnico. O Decreto não basta, isoladamente, para declarar quem aprova a finalidade/base legal do compartilhamento da Jornada: identificar formalmente a instância institucional competente e sua deliberação antes de alterar políticas de acesso.
 
 O contrato corrente autoriza por credencial autenticada, scopes e recurso aplicável. Não existe `X-Jornada-Finalidade` livre, catálogo escolhido pelo consumidor ou allowlist de finalidade enviada arbitrariamente em cada requisição.
 
-Se o **GTPR** exigir finalidade adicional, a solução deve ser incorporada por decisão formal e preferencialmente vinculada à credencial/contrato de projeção autorizado e à auditoria, evitando uma string livre declarada pelo consumidor sem governança.
+Se a **instância institucional competente, após confirmação com SGM/SEPE**, exigir finalidade adicional, a solução deve ser incorporada por decisão formal e preferencialmente vinculada à credencial/contrato de projeção autorizado e à auditoria, evitando uma string livre declarada pelo consumidor sem governança.
 
 ## 13. Escopo da Fase 1
 
@@ -183,7 +183,7 @@ Essa regra técnica não decide como cada sistema de origem deve governar ou qua
 Permanecem explicitamente externas ao fechamento técnico desta candidata:
 
 1. **Volumetria HML representativa:** ainda é necessária evidência legítima de capacidade e comportamento sob blocking multi-passe, concorrência e regiões/trechos serializados relevantes. Testes locais ou amostras pequenas não autorizam declarar capacidade de produção.
-2. **GTPR/finalidade:** a decisão institucional do Grupo de Trabalho do Programa Reencontro sobre finalidade, necessidade e base legal permanece pendente e não deve ser substituída por cabeçalho livre ou convenção local.
+2. **Finalidade/base legal (chave técnica histórica `GTPR_PURPOSE_LEGAL_BASIS_DECISION`):** a decisão da instância institucional competente, a confirmar com SGM/SEPE, permanece pendente e não deve ser substituída por cabeçalho livre ou convenção local.
 3. **Validação estatística representativa do linkage:** métricas de corpus sintético, smoke tests e validações locais protegem a engenharia, mas não substituem avaliação representativa necessária para concluir desempenho estatístico no universo operacional.
 
 A homologação Fabric deixa de integrar esta lista porque SQL Database in Microsoft Fabric não é alvo operacional de Produção da candidata v5.00. A validação operacional deve ocorrer sobre o ambiente Microsoft SQL Server efetivamente previsto para HML/Produção.

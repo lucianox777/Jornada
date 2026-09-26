@@ -39,7 +39,7 @@ public sealed class CandidateSpecificationCurrencyTests
             Assert.That(specification, Does.Contain("Identificador técnico citável:** `v5.00-candidata`"));
             Assert.That(specification, Does.Not.Match(@"Base técnica de consolidação:\*\* `master` em `[0-9a-f]{40}`"));
             Assert.That(specification, Does.Contain("O contrato cadastral `Pessoa v3` admite `nomeMae` ausente"));
-            Assert.That(specification, Does.Contain("Grupo de Trabalho do Programa Reencontro (GTPR)"));
+            Assert.That(specification, Does.Contain("Núcleo Gestor do Programa Reencontro"));
 
             Assert.That(productionTarget, Is.EqualTo("MICROSOFT_SQL_SERVER"));
             Assert.That(readme, Does.Contain("Microsoft SQL Server como tecnologia relacional normativa e banco relacional operacional de Produção"));
@@ -49,6 +49,7 @@ public sealed class CandidateSpecificationCurrencyTests
             Assert.That(externalGates, Does.Not.Contain("NOMEMAE_TRANSITION"));
             Assert.That(externalGates, Does.Contain("HML_REPRESENTATIVE_VOLUMETRY"));
             Assert.That(externalGates, Does.Contain("GTPR_PURPOSE_LEGAL_BASIS_DECISION"));
+            Assert.That(specification, Does.Not.Contain("Grupo de Trabalho do Programa Reencontro"));
             Assert.That(externalGates, Does.Not.Contain("CCGD_PURPOSE_LEGAL_BASIS_DECISION"));
             Assert.That(externalGates, Does.Not.Contain("FABRIC_SQL_DATABASE_EXACT_HEAD_HOMOLOGATION"));
             Assert.That(externalGates, Does.Contain("LINKAGE_REPRESENTATIVE_STATISTICAL_VALIDATION"));
