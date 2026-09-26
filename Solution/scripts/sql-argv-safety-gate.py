@@ -38,6 +38,13 @@ def problems(path: str, source: str) -> list[str]:
         stripped = line.lstrip()
         if stripped.startswith(("#", "//")):
             continue
+        # Redacted examples are intentionally logged, not executed. Do not
+        # exempt a real docker invocation merely because it mentions redaction.
+        if "<redacted>" in line and (
+            stripped.startswith(("echo ", "Write-Host ", "Write-CommandLine "))
+            or re.match(r"\$safeArgs\s*=", stripped)
+        ):
+            continue
         # Look only at invocation windows, including backslash/backtick continuations.
         window = "\n".join(lines[index:index + 4])
         if SQLCMD.search(line):
