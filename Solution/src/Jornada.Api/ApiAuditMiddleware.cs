@@ -70,9 +70,9 @@ internal sealed class ApiAuditMiddleware(RequestDelegate next, ILogger<ApiAuditM
             var telemetryEndpoint = http.GetEndpoint() as RouteEndpoint;
             var telemetryRoute = telemetryEndpoint?.RoutePattern.RawText ?? http.Request.Path.Value ?? "/";
             JornadaTelemetry.RecordApiRequest(sw.Elapsed.TotalMilliseconds, telemetryRoute, http.Request.Method, http.Response.StatusCode);
-            if (http.Items.TryGetValue(ApiContextItems.AuditAlreadyPersisted, out var persisted)
-                && persisted is true)
-                return;
+            if (!(http.Items.TryGetValue(ApiContextItems.AuditAlreadyPersisted, out var persisted)
+                && persisted is true))
+            {
             try
             {
                 var auditSw = Stopwatch.StartNew();
@@ -87,6 +87,7 @@ internal sealed class ApiAuditMiddleware(RequestDelegate next, ILogger<ApiAuditM
             {
                 // Auditoria não pode derrubar uma resposta já produzida. Não registrar headers, body, CPF nem access key.
                 logger.LogWarning(ex, "Falha ao persistir evento de auditoria da API. CorrelationId={CorrelationId}", correlationId);
+            }
             }
         }
     }
