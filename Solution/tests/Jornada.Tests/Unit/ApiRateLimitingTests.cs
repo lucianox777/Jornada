@@ -36,6 +36,8 @@ public sealed class ApiRateLimitingTests
         var identity = Context("10.20.30.40", "SMADS");
         identity.Request.Path = "/api/v1/identidade/resolver";
         var identityBucket = AuthenticatedRateLimitGuard.ResolveBucket(identity.Request, options);
+        identity.Request.Path = "/api/v1/identidade/candidatos";
+        var candidatesBucket = AuthenticatedRateLimitGuard.ResolveBucket(identity.Request, options);
 
         Assert.Multiple(() =>
         {
@@ -43,6 +45,8 @@ public sealed class ApiRateLimitingTests
             Assert.That(personBucket.Limit, Is.EqualTo(options.StandardPermitLimit));
             Assert.That(identityBucket.Bucket, Is.EqualTo("IDENTIDADE"));
             Assert.That(identityBucket.Limit, Is.EqualTo(options.IdentityPermitLimit));
+            Assert.That(candidatesBucket.Bucket, Is.EqualTo("IDENTIDADE"));
+            Assert.That(candidatesBucket.Limit, Is.EqualTo(options.IdentityPermitLimit));
         });
     }
 
