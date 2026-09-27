@@ -52,3 +52,5 @@ A V1 nacional com `NOME/FEMININO` e `SOBRENOME/TODOS` para `nome_mae` é **escol
 
 
 **Próximo gate operacional DT-05:** `scripts/dt05-runner-e2e.ps1` executa o Runner real contra banco DEV isolado já preparado e verifica run PUBLICADO e resultados brutos; execução local e CPF tardio real ainda pendentes.
+
+**Gate incremental pós-#534:** `scripts/local-e2e.ps1 -VerifyLinkageRunner` executa o Runner real após as entregas HTTP/Processor no banco isolado `JornadaE2E`, verificando run PUBLICADO e resultado bruto. Opt-in; exige modelo ATIVO e carga inicial desativada. CI/execução SQL deste novo estágio ainda a comprovar; não simula nem declara CPF tardio real.
