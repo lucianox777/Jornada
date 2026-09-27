@@ -132,6 +132,29 @@ public sealed class SemiblindIdentitySearchTests
     }
 
     [Test]
+    public async Task Concrete_municipal_policy_exposes_same_candidate_to_two_authorized_resources()
+    {
+        var candidate = Candidate(1);
+        var permission = "jornada.identidade.busca.read";
+        var policy = new MunicipalAccessPolicyEngine();
+        var service = new SemiblindIdentitySearchService(new FakeRetriever(candidate), policy);
+        var request = new SemiblindIdentitySearchRequest("Pessoa", null, null);
+        var first = new AccessContext(Guid.NewGuid(), AccessCredentialType.BENEFICIO,
+            "AA01", "SEHAB", "AA01", [permission], ["AA01"]);
+        var second = new AccessContext(Guid.NewGuid(), AccessCredentialType.BENEFICIO,
+            "BB02", "SMADS", "BB02", [permission], ["BB02"]);
+
+        var firstResult = await service.SearchAsync(first, request, Guid.NewGuid(), CancellationToken.None);
+        var secondResult = await service.SearchAsync(second, request, Guid.NewGuid(), CancellationToken.None);
+
+        Assert.That(firstResult.Candidatos, Has.Count.EqualTo(1));
+        Assert.That(secondResult.Candidatos, Has.Count.EqualTo(1));
+        Assert.That(firstResult.Candidatos[0].Nome, Is.EqualTo(candidate.Nome));
+        Assert.That(secondResult.Candidatos[0].Nome, Is.EqualTo(candidate.Nome));
+        Assert.That(firstResult.Candidatos[0].OpcaoId, Is.Not.EqualTo(secondResult.Candidatos[0].OpcaoId));
+    }
+
+    [Test]
     public void Empty_name_is_rejected()
     {
         var service = new SemiblindIdentitySearchService(new FakeRetriever(), new FakePolicy());
