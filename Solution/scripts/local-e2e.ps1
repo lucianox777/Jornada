@@ -1,5 +1,6 @@
 ﻿param(
-    [switch]$AllowSharedDatabaseReset
+    [switch]$AllowSharedDatabaseReset,
+    [switch]$VerifyLinkagePublication
 )
 
 $ErrorActionPreference = 'Stop'
@@ -241,6 +242,29 @@ try {
     # uma segunda Entrega cria outra observação ancorada pelo mesmo CPF, não uma
     # retransmissão da origem. Somente o REGISTRO tem código de origem persistente.
     if ((Scalar "SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem='E2E-AA01-2026-000001' AND status_analitico='VIGENTE';") -ne '1') { throw 'Retransmissão duplicou a versão Gold vigente.' }
+
+    # Optional DT-05 gate: exercise the real run-once linkage executable on
+    # the isolated E2E corpus; no synthetic linkage_resultado inserts.
+    if ($VerifyLinkagePublication) {
+        if ((Scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO';") -lt 1) {
+            throw 'DT-05: nenhum modelo ATIVO; não é possível testar a publicação real.'
+        }
+        if ((Scalar "SELECT ativo FROM controle.modo_carga_inicial WHERE estado_id=1;") -ne '0') {
+            throw 'DT-05: carga inicial ainda ativa; Runner recusaria execução.'
+        }
+        $beforeRuns = [int](Scalar "SELECT COUNT(*) FROM identidade.linkage_run WHERE solicitado_por=N'DT05_LOCAL_E2E';")
+        & dotnet run --no-build --configuration Release --project (Join-Path $Root 'src/Jornada.Linkage.Runner') -- --mode ON_DEMAND --max-records 100 --requested-by DT05_LOCAL_E2E --reason DT05_E2E_PUBLICATION --publish true
+        if ($LASTEXITCODE -ne 0) { throw 'DT-05: Runner real falhou.' }
+        $afterRuns = [int](Scalar "SELECT COUNT(*) FROM identidade.linkage_run WHERE solicitado_por=N'DT05_LOCAL_E2E';")
+        if ($afterRuns -ne ($beforeRuns + 1)) { throw 'DT-05: Runner não persistiu exatamente uma execução.' }
+        $completed = [int](Scalar "SELECT COUNT(*) FROM identidade.linkage_run WHERE solicitado_por=N'DT05_LOCAL_E2E' AND status=N'CONCLUIDO';")
+        if ($completed -lt 1) { throw 'DT-05: execução não foi concluída.' }
+        # An unchanged publication legitimately has no new ledger event. Preserve
+        # the raw count as evidence; the late-CPF transition remains a separate gate.
+        $rawResults = [int](Scalar "SELECT COUNT(*) FROM identidade.linkage_resultado r JOIN identidade.linkage_run lr ON lr.linkage_run_id=r.linkage_run_id WHERE lr.solicitado_por=N'DT05_LOCAL_E2E';")
+        if ($rawResults -lt 1) { throw 'DT-05: Runner não preservou resultados brutos.' }
+        Write-Host "DT-05 Runner real: OK; resultados brutos=$rawResults; pendente: CPF tardio."
+    }
 
     [ordered]@{
         status='OK'; generatedAtUtc=[DateTimeOffset]::UtcNow.ToString('O'); firstEntregaId=$id1; retransmissionEntregaId=$id2
