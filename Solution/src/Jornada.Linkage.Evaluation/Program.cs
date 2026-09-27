@@ -195,6 +195,53 @@ if (args.Any(x => x is "--export-splink-synthetic" or "--check-splink-estimates"
         "--check-splink-estimates <entrada.json> <estimativas.json> <relatorio.json>. " +
         "Nao sao aceitos argumentos SQL ou arquivos de dados reais.");
 
+// DT-15: paired read-only synthetic ACTIVE × DRAFT replay of the SAME
+// dataset with the shared C# scorer and frozen FS model coordinates.
+// No evidence is imported into the production model, ledger or Gold.
+if ((args.Length is 5 or 7) && args[0] == "--dt15-compare-synthetic")
+{
+    if (!Guid.TryParse(args[1], out var activeId) || activeId == Guid.Empty
+        || !Guid.TryParse(args[2], out var draftId) || draftId == Guid.Empty
+        || activeId == draftId)
+        throw new ArgumentException("Exigir GUIDs distintos de modelo ATIVO e RASCUNHO.");
+
+    var maxPairs = 250_000;
+    if (args.Length == 7 &&
+        (args[5] != "--max-candidate-pairs" ||
+         !int.TryParse(args[6], NumberStyles.Integer, CultureInfo.InvariantCulture,
+             out maxPairs) || maxPairs is < 1_000 or > 1_000_000))
+        throw new ArgumentException("Use --max-candidate-pairs 1000..1000000.");
+
+    var dt15ConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+        ?? throw new InvalidOperationException(
+            "DT-15 requer ConnectionStrings__Jornada apontando para SQL Development isolado.");
+    await using var sql = await new OperationalSqlAdapter(dt15ConnectionString).OpenAsync();
+    var dossier = await Dt15SyntheticPairCommand.ExecuteAsync(
+        sql, activeId, draftId, args[3], maxPairs, 900);
+    var path = Path.GetFullPath(args[4]);
+    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+    var json = JsonSerializer.Serialize(dossier, EvaluationJson.Options) + Environment.NewLine;
+    var content = System.Text.Encoding.UTF8.GetBytes(json);
+    // Immutable per invocation; do not overwrite evidence silently.
+    await using (var dt15Output = new FileStream(path, FileMode.CreateNew, FileAccess.Write,
+        FileShare.None))
+        await dt15Output.WriteAsync(content);
+    var sha = Convert.ToHexString(
+        System.Security.Cryptography.SHA256.HashData(content)).ToLowerInvariant();
+    await File.WriteAllTextAsync(path + ".sha256",
+        sha + "  " + Path.GetFileName(path) + Environment.NewLine,
+        new System.Text.UTF8Encoding(false));
+    Console.WriteLine("DT-15 synthetic ACTIVE × DRAFT FS comparison: " + dossier.Status
+        + "; output=" + path + "; SHA256=" + sha
+        + "; engineering evidence only; never promotes or approves models.");
+    return;
+}
+if (args.Contains("--dt15-compare-synthetic"))
+    throw new ArgumentException(
+        "--dt15-compare-synthetic <active-model-guid> <draft-model-guid> " +
+        "<generated-corpus-root> <output.json> [--max-candidate-pairs 1000..1000000]. " +
+        "ConnectionStrings__Jornada must point to an isolated Development SQL database.");
+
 var options = EvaluationOptions.Parse(args);
 if (options.Help)
 {

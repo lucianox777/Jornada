@@ -16,7 +16,8 @@ public sealed record SyntheticEvaluationOptions(
     string GeneratedRoot,
     int MaxCandidatePairs,
     int CommandTimeoutSeconds,
-    IReadOnlyList<ulong>? ExpectedSeeds = null);
+    IReadOnlyList<ulong>? ExpectedSeeds = null,
+    bool AllowActiveForDt15Pair = false);
 
 public sealed record SyntheticEvaluationReport(
     string SchemaVersion,
@@ -234,7 +235,7 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                 "generation-manifest e bridge-manifest divergem na proveniência do corpus sintético.");
         }
 
-        var model = await LoadModelAsync(options.ModelId, cancellationToken);
+        var model = await LoadModelAsync(options.ModelId, options.AllowActiveForDt15Pair, cancellationToken);
         var environmentProfile = await ReadEnvironmentProfileAsync(cancellationToken);
         if (!string.Equals(environmentProfile, RequiredEnvironmentProfile, StringComparison.Ordinal))
         {
@@ -452,7 +453,7 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
-    private async Task<SyntheticModelSnapshot> LoadModelAsync(Guid modelId, CancellationToken cancellationToken)
+    private async Task<SyntheticModelSnapshot> LoadModelAsync(Guid modelId, bool allowActiveForDt15Pair, CancellationToken cancellationToken)
     {
         await using var command = new SqlCommand(
             """
@@ -489,10 +490,11 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
             uSize = reader.IsDBNull(7) ? null : reader.GetInt32(7);
         }
 
-        if (!string.Equals(status, "RASCUNHO", StringComparison.Ordinal))
+        if (!string.Equals(status, "RASCUNHO", StringComparison.Ordinal)
+            && !(allowActiveForDt15Pair && string.Equals(status, "ATIVO", StringComparison.Ordinal)))
         {
             throw new InvalidOperationException(
-                $"SYNTHETIC_EVALUATE aceita somente modelo RASCUNHO; modelo {id} está {status}.");
+                $"SYNTHETIC_EVALUATE aceita somente modelo RASCUNHO; ATIVO é permitido apenas no replay DT-15 explicitamente habilitado. Modelo {id}: {status}.");
         }
 
         var parameters = await LoadParametersAsync(modelId, cancellationToken);
