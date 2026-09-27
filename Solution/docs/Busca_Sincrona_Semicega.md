@@ -37,3 +37,7 @@ O teste `All_candidates_denied_returns_no_personal_data` cobre a resposta vazia 
 ### Reconciliação com master (27/09/2026)
 
 A comparação GitHub registrou divergência de 47 commits novos em `master` contra 36 commits da branch no momento da consulta. O único caminho de arquivo modificado em ambas as pontas na comparação foi `Solution/config/release/nuget-lock-provenance.json`. Não resolver por `ours`/`theirs`: incorporar as alterações do master, regenerar os locks com SDK 8.0.424, recomputar os hashes do grafo e executar os gates de proveniência. O estado `mergeable=false` não deve ser atribuído exclusivamente a esse arquivo sem a tentativa de integração. Não há execução de Actions localizada para o HEAD recente. O teste `Policy_failure_never_returns_candidate_data` acrescenta cobertura para exceção da política; sua execução ainda não está confirmada.
+
+### Indisponibilidade do modelo ativo
+
+A rota captura `InvalidOperationException` do serviço (inclusive ausência de modelo probabilístico ATIVO) e retorna HTTP 503 sem detalhes internos. O teste HTTP `model_unavailable` verifica que a resposta não contém dados de candidatos nem a mensagem de erro do modelo. A captura não substitui telemetria operacional de indisponibilidade; os testes ainda precisam passar no CI do HEAD.
