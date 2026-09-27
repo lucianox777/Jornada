@@ -76,9 +76,22 @@ public sealed class SplinkIbgeBootstrapReplayTests
             Assert.That(identical.PairwiseDisagreements, Is.Zero);
             Assert.That(identical.TotalVariation, Is.Zero);
             Assert.That(identical.PairCount, Is.EqualTo(32));
+            Assert.That(identical.Transitions, Has.Count.EqualTo(16));
+            Assert.That(identical.Transitions.Sum(x => x.Support), Is.EqualTo(32));
+            Assert.That(identical.Transitions
+                .Where(x => x.CSharpState != x.SplinkState)
+                .Sum(x => x.Support), Is.Zero);
             Assert.That(divergent.Status, Is.EqualTo("ESTADOS_DIVERGENTES_DIAGNOSTICO"));
             Assert.That(divergent.PairwiseDisagreements, Is.EqualTo(1));
             Assert.That(divergent.TotalVariation, Is.GreaterThan(0m));
+            Assert.That(divergent.Transitions, Has.Count.EqualTo(16));
+            Assert.That(divergent.Transitions.Sum(x => x.Support), Is.EqualTo(32));
+            Assert.That(divergent.Transitions.Single(x =>
+                    x.CSharpState == source.Pairs[0].CSharpState && x.SplinkState == forced).Support,
+                Is.EqualTo(1));
+            Assert.That(divergent.Transitions
+                .Where(x => x.CSharpState != x.SplinkState)
+                .Sum(x => x.Support), Is.EqualTo(divergent.PairwiseDisagreements));
         });
     }
 

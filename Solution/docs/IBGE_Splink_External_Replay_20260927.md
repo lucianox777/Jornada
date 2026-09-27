@@ -14,6 +14,8 @@ A referência IBGE foi verificada como `ATIVA`; a operação `ENSURE_IBGE_NOMINA
 
 Ambos retornaram `ESTADOS_DIVERGENTES_DIAGNOSTICO`. Não somar TVDs de recortes distintos como se fossem uma distribuição única.
 
+A regressão congelada das 53 divergências permite decompor a direção das mudanças de estado observadas: **21 LOW→MEDIUM, 31 MEDIUM→LOW e 1 MEDIUM→HIGH**. O diagnóstico C# passa a emitir também uma matriz completa 4×4 `transitions` (incluindo células zero), cuja soma deve ser igual a `pair_count` e cuja soma fora da diagonal deve ser igual a `pairwise_disagreements`. A matriz é descritiva: não escolhe qual implementação está correta nem altera thresholds, comparador ou probabilidades `m/u`.
+
 ## Proveniência verificável
 
 | Artefato | SHA-256 |
@@ -48,6 +50,7 @@ Com os replays e resultados **exatos** documentados acima, espera-se 20 linhas n
 ## Estado dos trabalhos (#506)
 
 - **Concluído:** #545, documentação dos 20.000 pares e hashes; #546, 53 fixtures de regressão; #547, testes das fronteiras Jaro-Winkler; #550, exportador CSV com validação estrita.
+- **Concluído nesta continuidade:** diagnóstico com matriz 4×4 C#→Splink, preservando contagem total e divergências fora da diagonal; sem alteração do comparador V1.
 - **Concluído:** runner Splink 4.0.17 publicado e testado em repositório [externo dedicado](https://github.com/lucianox777/jornada-splink-conformance), sem dependência Python na Jornada (PR externo #1, CI aprovada).
 - **Pendente:** obter estimação independente de `u` por estado e recorte e confrontá-la com o bootstrap C#; investigar divergências remanescentes antes de qualquer nova versão do comparador.
 

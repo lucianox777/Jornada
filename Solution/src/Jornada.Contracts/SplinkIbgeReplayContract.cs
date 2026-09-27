@@ -44,6 +44,11 @@ public sealed record SplinkIbgeReplayStateSummary(string State, long CSharpSuppo
     long SplinkSupport, decimal CSharpProbability, decimal SplinkProbability,
     decimal AbsoluteProbabilityDifference);
 
+public sealed record SplinkIbgeReplayTransitionSummary(
+    string CSharpState,
+    string SplinkState,
+    long Support);
+
 public sealed record SplinkIbgeReplayDiagnostic(
     string SchemaVersion,
     string MethodVersion,
@@ -60,6 +65,7 @@ public sealed record SplinkIbgeReplayDiagnostic(
     decimal TotalVariation,
     decimal MaximumAbsoluteProbabilityDifference,
     IReadOnlyList<SplinkIbgeReplayStateSummary> States,
+    IReadOnlyList<SplinkIbgeReplayTransitionSummary> Transitions,
     string Limitation);
 
 /// <summary>
@@ -152,6 +158,12 @@ public static class SplinkIbgeReplayContract
         var local = States.ToDictionary(state => state, _ => 0L, StringComparer.Ordinal);
         var remote = States.ToDictionary(state => state, _ => 0L, StringComparer.Ordinal);
         var disagreements = 0;
+        var transitions = States
+            .SelectMany(csharpState => States.Select(splinkState =>
+                new { CSharpState = csharpState, SplinkState = splinkState }))
+            .ToDictionary(
+                key => (key.CSharpState, key.SplinkState),
+                _ => 0L);
         var seen = new bool[source.PairCount];
         foreach (var pair in source.Pairs)
             local[pair.CSharpState]++;
@@ -163,9 +175,9 @@ public static class SplinkIbgeReplayContract
                 throw new InvalidDataException("Estado Splink duplicado, desconhecido ou fora do replay.");
             seen[pair.PairIndex] = true;
             remote[pair.SplinkState] = previousCount + 1;
-            if (!string.Equals(
-                    source.Pairs[pair.PairIndex].CSharpState, pair.SplinkState,
-                    StringComparison.Ordinal))
+            var csharpState = source.Pairs[pair.PairIndex].CSharpState;
+            transitions[(csharpState, pair.SplinkState)]++;
+            if (!string.Equals(csharpState, pair.SplinkState, StringComparison.Ordinal))
                 disagreements++;
         }
         if (seen.Any(found => !found))
@@ -179,13 +191,24 @@ public static class SplinkIbgeReplayContract
                 localProbability, remoteProbability,
                 Math.Abs(localProbability - remoteProbability));
         }).ToArray();
+        var transitionSummaries = States
+            .SelectMany(csharpState => States.Select(splinkState =>
+                new SplinkIbgeReplayTransitionSummary(
+                    csharpState, splinkState, transitions[(csharpState, splinkState)])))
+            .ToArray();
+        if (transitionSummaries.Sum(x => x.Support) != source.PairCount ||
+            transitionSummaries
+                .Where(x => !string.Equals(x.CSharpState, x.SplinkState, StringComparison.Ordinal))
+                .Sum(x => x.Support) != disagreements)
+            throw new InvalidDataException("Matriz de transições inconsistente com o replay.");
+
         return new(
             ReportSchema, MethodVersion,
             disagreements == 0 ? "ESTADOS_IDENTICOS_DIAGNOSTICO" : "ESTADOS_DIVERGENTES_DIAGNOSTICO",
             source.ComparisonVersion, source.ReferenceCode, source.ReferenceContentSha256,
             inputSha, Sha(resultJson), external.SplinkVersion, source.Seed, source.PairCount,
             disagreements, summaries.Sum(x => x.AbsoluteProbabilityDifference) / 2m,
-            summaries.Max(x => x.AbsoluteProbabilityDifference), summaries,
+            summaries.Max(x => x.AbsoluteProbabilityDifference), summaries, transitionSummaries,
             "Só compara estados C# vs Splink nos mesmos pares sintéticos IBGE. " +
             "Não valida método de bootstrap, canal de erros, u condicionado, scorer m/u ou população #31.");
     }
