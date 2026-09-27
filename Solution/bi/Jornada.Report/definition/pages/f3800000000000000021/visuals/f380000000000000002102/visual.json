@@ -23,11 +23,11 @@
                       "Entity": "CargaInicial"
                     }
                   },
-                  "Property": "Pessoas por Hora Ativa"
+                  "Property": "Pessoas por Hora"
                 }
               },
-              "queryRef": "CargaInicial.Pessoas por Hora Ativa",
-              "nativeQueryRef": "Pessoas por Hora Ativa"
+              "queryRef": "CargaInicial.Pessoas por Hora",
+              "nativeQueryRef": "Pessoas por Hora"
             }
           ]
         }
@@ -47,7 +47,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'Pessoas/hora ativa'"
+                  "Value": "'Pessoas/hora'"
                 }
               }
             }

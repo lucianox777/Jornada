@@ -23,11 +23,11 @@
                       "Entity": "CargaInicial"
                     }
                   },
-                  "Property": "Pessoas Processadas Carga Inicial"
+                  "Property": "Pessoas Processadas"
                 }
               },
-              "queryRef": "CargaInicial.Pessoas Processadas Carga Inicial",
-              "nativeQueryRef": "Pessoas Processadas Carga Inicial"
+              "queryRef": "CargaInicial.Pessoas Processadas",
+              "nativeQueryRef": "Pessoas Processadas"
             }
           ]
         }

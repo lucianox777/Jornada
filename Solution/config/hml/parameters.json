@@ -34,8 +34,7 @@
     {"id":"PipelineWatchdog.LinkageRunMaxMinutes","component":"Operations Maintenance","technicalDefault":"120 min","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null},
     {"id":"PipelineWatchdog.ModelGenerationMaxMinutes","component":"Operations Maintenance","technicalDefault":"120 min","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null},
     {"id":"PipelineWatchdog.ExpiredLeaseGraceMinutes","component":"Operations Maintenance","technicalDefault":"5 min","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null},
-    {"id":"PipelineWatchdog.PendingBacklogMaxAgeMinutes","component":"Operations Maintenance","technicalDefault":"60 min","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null},
-    {"id":"PipelineWatchdog.InitialLoadMaxHours","component":"Operations Maintenance","technicalDefault":"24 h","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null}
+    {"id":"PipelineWatchdog.PendingBacklogMaxAgeMinutes","component":"Operations Maintenance","technicalDefault":"60 min","status":"CALIBRAR","approvedValue":null,"evidence":null,"approvedAtUtc":null,"approvedBy":null}
   ],
   "approvalContext": null
 }

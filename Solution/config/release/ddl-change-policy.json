@@ -18,6 +18,11 @@
       "sha256": "7447816f2dc642110d64c3d93ab712a86fc11a6922554f3541df28b253fe9240",
       "justification": "ck_gold_pessoa_concordancia não é removida semanticamente. A linha do predecessor termina a CREATE TABLE; no DDL corrente a mesma constraint permanece com o mesmo nome e predicado, mas passa a ser seguida pelas novas constraints de estado_identidade e completude_nucleo.",
       "migrationEvidence": "database/Jornada_Fase1.sql mantém ck_gold_pessoa_concordancia com o mesmo predicado, e migrations/20260919_Gold_Pessoa_Progressiva.sql adiciona somente os contratos ortogonais de estado/completude. O gate de equivalência do schema 3.70 passou nos caminhos fresh/reentry/upgrade."
+    },
+    {
+      "sha256": "65dddc2b1a0033435c3a4e82200941b7d768c905ada290887da48d5e862f48d7",
+      "justification": "DT-13 elimina exclusivamente a tabela de flag operacional controle.modo_carga_inicial, sem dados de identidade ou negócio. A geração de rascunho e o Runner permanecem governados pelos locks SQL de coordenação, e o watchdog e BI passam a usar somente fontes persistentes de backlog e vazão.",
+      "migrationEvidence": "database/migrations/20260927_Remove_Modo_Carga_Inicial.sql executa DROP VIEW IF EXISTS e DROP TABLE IF EXISTS. O manifesto e o instalador versionado incorporam a migration; a pipeline sqlserver-consolidated-install comprova fresh install, upgrade 3.69->3.70, reentrada e equivalência de fingerprint. A aprovação depende do CI da própria revisão."
     }
   ],
   "note": "v4.05 governa as exceções destrutivas explicitamente evidenciadas: migração V1→V2 de chaves de atributo e a evolução progressiva de gold.pessoa, sem descarte de tabela/coluna e com constraints finais validadas pelo schema 3.70."

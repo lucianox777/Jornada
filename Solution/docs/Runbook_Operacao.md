@@ -26,16 +26,13 @@ O `Jornada.Operations.Maintenance.Worker` inclui, na v3.53, um **watchdog soment
 
 ### 3.1 Carga inicial
 
-1. Ativar `controle.modo_carga_inicial` pelo procedimento administrativo/SQL aprovado.
-2. Manter API e Processor operando normalmente para formar a primeira Gold elegível.
-3. Não executar `GENERATE_DRAFT` nem Linkage Runner enquanto o modo estiver ativo. O Parameters Worker e o Runner já falham/saem de forma segura conforme sua regra de carga inicial.
-4. Acompanhar `serving.v_bi_carga_inicial`, backlog e throughput.
-5. Encerrar o modo somente após o critério operacional aprovado; **o watchdog não o encerra**.
-6. Executar `GENERATE_DRAFT` após existir corpus suficiente.
-7. Executar `Jornada.Linkage.Conference` para o RASCUNHO usando a tolerância governada congelada; somente `CONFORME` libera a etapa seguinte.
-8. Validar o modelo (`VALIDATE`), que reaplica fail-closed o assert da mesma evidência/método/tolerância.
-9. Ativar (`ACTIVATE`) somente a versão aprovada.
-10. Executar Linkage Runner incremental sobre observações elegíveis sem CPF.
+1. Manter API e Processor operando normalmente para formar a primeira Gold elegível.
+2. Acompanhar o backlog e o throughput por meio das métricas de ingestão e dos lotes pendentes.
+3. Executar `GENERATE_DRAFT` após existir corpus suficiente. O Parameters Worker obtém janela exclusiva do corpus pela coordenação SQL.
+4. Executar `Jornada.Linkage.Conference` para o RASCUNHO usando a tolerância governada congelada; somente `CONFORME` libera a etapa seguinte.
+5. Validar o modelo (`VALIDATE`), que reaplica fail-closed o assert da mesma evidência/método/tolerância.
+6. Ativar (`ACTIVATE`) somente a versão aprovada.
+7. Executar Linkage Runner incremental sobre observações elegíveis sem CPF, respeitando sua janela exclusiva de coordenação SQL.
 
 ### 3.2 Operação normal
 
@@ -90,8 +87,7 @@ Configuração em `Jornada.Operations.Maintenance.Worker/appsettings.json`:
   "LinkageRunMaxMinutes": 120,
   "ModelGenerationMaxMinutes": 120,
   "ExpiredLeaseGraceMinutes": 5,
-  "PendingBacklogMaxAgeMinutes": 60,
-  "InitialLoadMaxHours": 24
+  "PendingBacklogMaxAgeMinutes": 60
 }
 ```
 
@@ -103,7 +99,6 @@ Códigos de alerta estruturado:
 - `LINKAGE_MODEL_GENERATION_STALE` - modelo em `GERANDO` além do limite;
 - `PROCESSOR_LEASE_EXPIRED` - lote `VALIDANDO/PROCESSANDO` com lease expirado além da tolerância;
 - `PROCESSOR_BACKLOG_OLD` - lote `PENDENTE` mais antigo acima da idade configurada;
-- `INITIAL_LOAD_MODE_STALE` - modo de carga inicial ativo além do limite.
 
 O watchdog **não tenta detectar “application lock órfão”**. Locks `Session` são liberados pelo SQL Server quando a sessão física termina; se a sessão continuar viva, o lock tem proprietário. O watchdog observa os estados de negócio/execução persistidos.
 

@@ -16,8 +16,7 @@ public sealed class PipelineWatchdogTests
             LinkageRunMaxMinutes = 60,
             ModelGenerationMaxMinutes = 90,
             ExpiredLeaseGraceMinutes = 5,
-            PendingBacklogMaxAgeMinutes = 30,
-            InitialLoadMaxHours = 12
+            PendingBacklogMaxAgeMinutes = 30
         };
         var snapshot = new PipelineWatchdogSnapshot(
             Now,
@@ -28,9 +27,7 @@ public sealed class PipelineWatchdogTests
             ExpiredActiveLeases: 2,
             OldestExpiredLeaseAt: Now.AddMinutes(-6),
             PendingLots: 10,
-            OldestPendingLotCreatedAt: Now.AddMinutes(-31),
-            InitialLoadActive: true,
-            InitialLoadActivatedAt: Now.AddHours(-13));
+            OldestPendingLotCreatedAt: Now.AddMinutes(-31));
 
         var findings = PipelineWatchdogEvaluator.Evaluate(snapshot, options);
 
@@ -40,7 +37,6 @@ public sealed class PipelineWatchdogTests
             Assert.That(findings.Any(f => f.Code == "LINKAGE_MODEL_GENERATION_STALE"), Is.False);
             Assert.That(findings.Any(f => f.Code == "PROCESSOR_LEASE_EXPIRED"), Is.True);
             Assert.That(findings.Any(f => f.Code == "PROCESSOR_BACKLOG_OLD"), Is.True);
-            Assert.That(findings.Any(f => f.Code == "INITIAL_LOAD_MODE_STALE"), Is.True);
         });
     }
 
@@ -57,9 +53,7 @@ public sealed class PipelineWatchdogTests
             ExpiredActiveLeases: 0,
             OldestExpiredLeaseAt: null,
             PendingLots: 2,
-            OldestPendingLotCreatedAt: Now.AddMinutes(-10),
-            InitialLoadActive: false,
-            InitialLoadActivatedAt: null);
+            OldestPendingLotCreatedAt: Now.AddMinutes(-10));
 
         Assert.That(PipelineWatchdogEvaluator.Evaluate(snapshot, options), Is.Empty);
     }
@@ -76,9 +70,7 @@ public sealed class PipelineWatchdogTests
             ExpiredActiveLeases: 0,
             OldestExpiredLeaseAt: null,
             PendingLots: 0,
-            OldestPendingLotCreatedAt: null,
-            InitialLoadActive: false,
-            InitialLoadActivatedAt: null);
+            OldestPendingLotCreatedAt: null);
 
         var findings = PipelineWatchdogEvaluator.Evaluate(snapshot, new PipelineWatchdogOptions());
         Assert.That(findings.Any(f => f.Code.Contains("LOCK", StringComparison.OrdinalIgnoreCase)), Is.False);

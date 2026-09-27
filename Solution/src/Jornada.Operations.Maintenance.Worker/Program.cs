@@ -22,7 +22,6 @@ builder.Services.AddOptions<PipelineWatchdogOptions>()
     .Validate(o => o.ModelGenerationMaxMinutes > 0, "PipelineWatchdog:ModelGenerationMaxMinutes deve ser > 0.")
     .Validate(o => o.ExpiredLeaseGraceMinutes >= 0, "PipelineWatchdog:ExpiredLeaseGraceMinutes deve ser >= 0.")
     .Validate(o => o.PendingBacklogMaxAgeMinutes > 0, "PipelineWatchdog:PendingBacklogMaxAgeMinutes deve ser > 0.")
-    .Validate(o => o.InitialLoadMaxHours > 0, "PipelineWatchdog:InitialLoadMaxHours deve ser > 0.")
     .ValidateOnStart();
 
 builder.Services.AddOptions<DeliveryBronzeRetentionOptions>()
