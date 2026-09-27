@@ -198,7 +198,7 @@ if (args.Any(x => x is "--export-splink-synthetic" or "--check-splink-estimates"
 // DT-15: paired read-only synthetic ACTIVE × DRAFT replay of the SAME
 // dataset with the shared C# scorer and frozen FS model coordinates.
 // No evidence is imported into the production model, ledger or Gold.
-if (args.Length is 5 or 7 && args[0] == "--dt15-compare-synthetic")
+if ((args.Length is 5 or 7) && args[0] == "--dt15-compare-synthetic")
 {
     if (!Guid.TryParse(args[1], out var activeId) || activeId == Guid.Empty
         || !Guid.TryParse(args[2], out var draftId) || draftId == Guid.Empty
