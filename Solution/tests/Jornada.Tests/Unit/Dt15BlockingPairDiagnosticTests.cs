@@ -26,6 +26,7 @@ public sealed class Dt15BlockingPairDiagnosticTests
         Assert.Multiple(() =>
         {
             Assert.That(result.Status, Is.EqualTo(Dt15BlockingPairDiagnostic.Comparable));
+            Assert.That(result.StatusCode, Is.EqualTo(1));
             Assert.That(result.MatchedPairWeight, Is.EqualTo(3m));
             Assert.That(result.NonMatchedPairWeight, Is.EqualTo(4m));
             Assert.That(result.Active!.TrueMatchRecall, Is.EqualTo(1d / 3d).Within(0.000001));
