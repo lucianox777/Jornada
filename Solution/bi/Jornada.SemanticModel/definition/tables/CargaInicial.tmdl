@@ -1,13 +1,10 @@
 table CargaInicial
 
-	measure 'Pessoas Processadas Carga Inicial' = SUM(CargaInicial[pessoas_processadas])
+	measure 'Pessoas Processadas' = SUM(CargaInicial[pessoas_processadas])
 		formatString: #,##0
 
-	measure 'Pessoas por Hora Ativa' = MAX(CargaInicial[pessoas_por_hora_ativa])
+	measure 'Pessoas por Hora' = MAX(CargaInicial[pessoas_por_hora])
 		formatString: #,##0.00
-
-	measure 'Modo Carga Inicial Ativo' = MAXX(CargaInicial, IF(CargaInicial[modo_carga_inicial],1,0))
-		formatString: 0
 
 	column hora_utc
 		dataType: dateTime
@@ -19,21 +16,16 @@ table CargaInicial
 		summarizeBy: sum
 		sourceColumn: pessoas_processadas
 
-	column modo_carga_inicial
-		dataType: boolean
-		summarizeBy: none
-		sourceColumn: modo_carga_inicial
-
-	column pessoas_por_hora_ativa
+	column pessoas_por_hora
 		dataType: decimal
 		summarizeBy: none
-		sourceColumn: pessoas_por_hora_ativa
+		sourceColumn: pessoas_por_hora
 
 	partition CargaInicial = m
 		mode: import
 		source =
 			let
 				Source = Sql.Database(SqlServer, SqlDatabase),
-				Data = Source{[Schema="serving", Item="v_bi_carga_inicial"]}[Data]
+				Data = Source{[Schema="serving", Item="v_bi_processamento_hora"]}[Data]
 			in
 				Data

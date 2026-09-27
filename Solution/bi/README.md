@@ -99,12 +99,12 @@ As views trabalham somente com a versão factual `VIGENTE` e expõem flags aditi
 `serving.v_bi_qualidade_identidade_origem` / tabela `QualidadeIdentidadeOrigem` sustentam **Qualidade de Identidade por Origem**. O painel expõe cobertura de CPF apenas como flag agregada, cobertura UUID, conflitos, `SEM_CANDIDATO_NO_BLOCO_DATA_NASCIMENTO`, concentração de nascimento em 01/01 e cobertura geográfica. O valor do CPF não é exposto.
 
 
-## Territorialização, carga inicial e manutenção da Bronze — v3.38
+## Territorialização, vazão horária e manutenção da Bronze — v3.38 (atualização DT-13)
 
 A v3.38 adiciona superfícies executáveis no projeto PBIP, além das views SQL:
 
 - tabela `Territorializacao` + página **Territorialização**, baseadas em `serving.v_bi_territorializacao`;
-- tabela `CargaInicial` + página **Carga Inicial**, baseadas em `serving.v_bi_carga_inicial`;
+- tabela semântica legada `CargaInicial` + página **Vazão de Processamento**, baseadas em `serving.v_bi_processamento_hora`, sem flag operacional;
 - tabela `ManutencaoBronze` + página **Manutenção da Bronze**, baseadas em `serving.v_bi_manutencao_bronze`.
 
 Na Fase 1 a geografia analítica é responsabilidade da origem/Gestor: `situacaoGeografia` é explícita e `RESOLVIDA` exige Distrito, Subprefeitura e `referenciaMalha`. O BI deve acompanhar cobertura por Gestor, situação e versão/referência de malha, sem depender de chamadas geográficas online no Processor.

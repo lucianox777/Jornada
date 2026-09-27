@@ -6,7 +6,7 @@
 - `ingestao.sp_consolidar_expurgar_item_processado`;
 - `Jornada.Operations.Maintenance.Worker`, **desabilitado por padrão** (`ItemProcessedRetention:Enabled=false`).
 
-A janela `DetailRetentionDays` só pode ser habilitada após decisão de governança. Na distribuição, `Enabled=false` e `DetailRetentionDays=0`; habilitar sem informar explicitamente valor positivo faz o Worker falhar no startup (fail-safe). A consolidação preserva as métricas históricas consumidas por `serving.v_bi_qualidade_envios` e `serving.v_bi_carga_inicial`; Silver/Gold não são afetadas. A última confirmação/retransmissão por identidade de origem não deve ser eliminada da trilha granular enquanto for a confirmação mais recente disponível.
+A janela `DetailRetentionDays` só pode ser habilitada após decisão de governança. Na distribuição, `Enabled=false` e `DetailRetentionDays=0`; habilitar sem informar explicitamente valor positivo faz o Worker falhar no startup (fail-safe). A consolidação preserva as métricas históricas consumidas por `serving.v_bi_qualidade_envios` e `serving.v_bi_processamento_hora`; Silver/Gold não são afetadas. A última confirmação/retransmissão por identidade de origem não deve ser eliminada da trilha granular enquanto for a confirmação mais recente disponível.
 
 Antes de Produção, HML deve medir crescimento por dia, tempo do procedimento, impacto em log/locks e necessidade real de particionamento por `processado_em`.
 
