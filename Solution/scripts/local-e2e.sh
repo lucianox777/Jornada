@@ -156,6 +156,70 @@ expected_sehab_person_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),gpv.pesso
 echo "E2E GESTOR PERSON CONTRACT DIGEST: SEHAB schema=$active_sehab_person_schema_ref source=$actual_sehab_person_hash catalog=$expected_sehab_person_hash"
 [[ -n "$expected_sehab_person_hash" && "$actual_sehab_person_hash" == "$expected_sehab_person_hash" ]] || { echo 'ERRO: digest cadastral SEHAB diverge entre arquivo e catálogo antes do Processor.' >&2; exit 12; }
 
+
+# Negativas Gate 6: nenhuma requisição recusada cria Entrega ou arquivo Staging.
+benefit_access_key="$(python3 - "$ROOT/config/security/test-access-keys.json" <<'PY'
+import json,sys
+entries=json.load(open(sys.argv[1],encoding='utf-8'))['credentials']
+matches=[c for c in entries if c.get('type')=='BENEFICIO' and c.get('gestorCodigo')=='SEHAB' and c.get('tipoCodigo')=='AA01']
+assert len(matches)==1 and 'jornada.ingestao.write' not in matches[0].get('scopes',[])
+print(matches[0]['accessKey'])
+PY
+)"
+read -r corr_missing corr_scope corr_checksum < <(python3 - <<'PY'
+import uuid
+print(' '.join(str(uuid.uuid4()) for _ in range(3)))
+PY
+)
+missing_code="$(curl -sS -o "$OUT/negative-missing-auth.json" -w '%{http_code}' -X POST "$API_URL/api/v1/ingestao/entregas" \
+ -H "X-Correlation-Id: $corr_missing" -H 'Idempotency-Key: gate06-deny-missing' \
+ -H 'Content-Type: application/zip' -H "Content-Disposition: attachment; filename=$filename" \
+ --data-binary "@$package")"
+[[ "$missing_code" == 401 ]] || { echo "ERRO: ingestão sem credencial devolveu $missing_code, esperado 401." >&2; exit 22; }
+scope_code="$(curl -sS -o "$OUT/negative-no-write-scope.json" -w '%{http_code}' -X POST "$API_URL/api/v1/ingestao/entregas" \
+ -H "X-Correlation-Id: $corr_scope" -H 'X-Jornada-Beneficio: AA01' \
+ -H "X-Jornada-Access-Key: $benefit_access_key" -H 'Idempotency-Key: gate06-deny-scope' \
+ -H 'Content-Type: application/zip' -H "Content-Disposition: attachment; filename=$filename" \
+ --data-binary "@$package")"
+[[ "$scope_code" == 403 ]] || { echo "ERRO: credencial sem ingestao.write devolveu $scope_code, esperado 403." >&2; exit 22; }
+bad_sha="$(printf '%064d' 0)"
+bad_filename="ENTREGA_SEHAB_SEHAB_v2_"$bad_sha".zip"
+checksum_code="$(curl -sS -o "$OUT/negative-invalid-hash.json" -w '%{http_code}' -X POST "$API_URL/api/v1/ingestao/entregas" \
+ -H "X-Correlation-Id: $corr_checksum" -H 'X-Jornada-Gestor: SEHAB' \
+ -H "X-Jornada-Access-Key: $access_key" -H 'Idempotency-Key: gate06-deny-checksum' \
+ -H 'Content-Type: application/zip' -H "Content-Disposition: attachment; filename=$bad_filename" \
+ --data-binary "@$package")"
+[[ "$checksum_code" == 400 ]] || { echo "ERRO: SHA-256 nominal adulterado devolveu $checksum_code, esperado 400." >&2; exit 22; }
+
+# Auditoria central, sem copiar access keys aos artefatos.
+for row in "$corr_missing:401:missing" "$corr_scope:403:scope" "$corr_checksum:400:checksum"; do
+ IFS=: read -r correlation status case_name <<< "$row"
+ count="$(scalar "SELECT COUNT(*) FROM controle.api_evento WHERE correlation_id='$correlation' AND rota='/api/v1/ingestao/entregas' AND metodo='POST' AND status_http=$status;")"
+ [[ "$count" == 1 ]] || { echo "ERRO: auditoria $case_name não possui 1 evento ($count)." >&2; exit 23; }
+done
+[[ "$(scalar "SELECT COUNT(*) FROM ingestao.entrega WHERE idempotency_key LIKE 'gate06-deny-%';")" == 0 ]] || {
+ echo 'ERRO: POST recusado criou Entrega.' >&2; exit 23;
+}
+[[ "$(find "$OUT/staging" -type f | wc -l | tr -d '[:space:]')" == 0 ]] || {
+ echo 'ERRO: POST recusado deixou Staging residual.' >&2; exit 23;
+}
+for denied in "$OUT/negative-missing-auth.json" "$OUT/negative-no-write-scope.json" "$OUT/negative-invalid-hash.json"; do
+ if grep -Eqi '70819234532|Maria da Silva|Ana de Souza' "$denied"; then
+  echo 'ERRO: rejeição expôs dados pessoais do fixture sintético.' >&2; exit 23;
+ fi
+done
+python3 - "$OUT/negative-security-evidence.json" "$corr_missing" "$corr_scope" "$corr_checksum" <<'PY'
+import json,sys
+with open(sys.argv[1],'w',encoding='utf-8') as output:
+  json.dump({'status':'PASS','testData':'SYNTHETIC','createdDeliveries':0,
+             'stagingResidualFiles':0,'controls':[
+               {'case':case,'httpStatus':status,'auditEvents':1,'correlationId':correlation}
+               for case,status,correlation in zip(
+                 ['missing_access_key','credential_without_ingestion_scope','invalid_filename_sha256'],
+                 [401,403,400],sys.argv[2:])]},output,ensure_ascii=False,indent=2)
+PY
+echo 'GATE06 NEGATIVE HTTP/AUDIT: PASS (401, 403, 400; no delivery or staging residue).'
+
 post_delivery 'local-e2e-001' "$OUT/post1.json" "$OUT/post1.code"
 [[ "$(cat "$OUT/post1.code")" == 202 ]] || { echo "ERRO: POST inicial não retornou 202" >&2; cat "$OUT/post1.json" >&2; exit 4; }
 id1="$(json_get "$OUT/post1.json" entregaId)"
