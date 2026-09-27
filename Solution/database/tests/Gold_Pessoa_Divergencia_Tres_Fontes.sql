@@ -1,4 +1,4 @@
--- Teste SQL Server autossuficiente: três gestores e três nomes discordantes.
+-- Teste SQL Server autossuficiente: três gestores e três valores discordantes para cada atributo nuclear.
 -- Usa um lote já existente apenas como FK; todas as alterações são revertidas.
 -- Executar somente em banco descartável com schema/seed de integração.
 SET NOCOUNT ON;
@@ -41,7 +41,9 @@ BEGIN TRY
       NULL,'SEM_CPF',
       CASE @n WHEN 1 THEN N'ANA SILVA' WHEN 2 THEN N'ANA SOUZA' ELSE N'ANA COSTA' END,
       CASE @n WHEN 1 THEN N'ANA SILVA' WHEN 2 THEN N'ANA SOUZA' ELSE N'ANA COSTA' END,
-      '1990-01-01',N'MARIA SILVA',N'MARIA SILVA',
+      CASE @n WHEN 1 THEN '1990-01-01' WHEN 2 THEN '1991-02-02' ELSE '1992-03-03' END,
+      CASE @n WHEN 1 THEN N'MARIA SILVA' WHEN 2 THEN N'MARIA SOUZA' ELSE N'MARIA COSTA' END,
+      CASE @n WHEN 1 THEN N'MARIA SILVA' WHEN 2 THEN N'MARIA SOUZA' ELSE N'MARIA COSTA' END,
       DATEADD(DAY,-@n,SYSDATETIMEOFFSET()));
    SELECT @id=pessoa_observacao_id FROM @inserted;
    INSERT @obs(n,pessoa_observacao_id) VALUES(@n,@id);
@@ -65,25 +67,36 @@ BEGIN TRY
      FROM @obs o JOIN silver.pessoa_observacao po
        ON po.pessoa_observacao_id=o.pessoa_observacao_id)<>3
     THROW 51002,'Os tres valores originais nao estao consultaveis.',1;
+ IF (SELECT COUNT(DISTINCT po.data_nascimento)
+     FROM @obs o JOIN silver.pessoa_observacao po
+       ON po.pessoa_observacao_id=o.pessoa_observacao_id)<>3
+    THROW 51007,'Tres datas de nascimento originais nao estao consultaveis.',1;
+ IF (SELECT COUNT(DISTINCT po.nome_mae_cmp)
+     FROM @obs o JOIN silver.pessoa_observacao po
+       ON po.pessoa_observacao_id=o.pessoa_observacao_id)<>3
+    THROW 51008,'Tres nomes de mae originais nao estao consultaveis.',1;
  IF (SELECT COUNT(DISTINCT po.gestor_id)
      FROM @obs o JOIN silver.pessoa_observacao po
        ON po.pessoa_observacao_id=o.pessoa_observacao_id)<>3
     THROW 51003,'Proveniencia dos tres gestores nao preservada.',1;
  -- Sem documento verificado, vence a observacao mais recente (n=1).
  IF NOT EXISTS(SELECT 1 FROM gold.pessoa
-    WHERE pessoa_uuid=@uuid AND nome_completo=N'ANA SILVA')
+    WHERE pessoa_uuid=@uuid AND nome_completo=N'ANA SILVA'
+      AND data_nascimento='1990-01-01' AND nome_mae=N'MARIA SILVA')
     THROW 51004,'Vencedor da hierarquia foi alterado.',1;
  EXEC identidade.sp_recompor_gold_pessoa @uuid;
  IF (SELECT COUNT(*) FROM @obs o JOIN silver.pessoa_observacao po
      ON po.pessoa_observacao_id=o.pessoa_observacao_id)<>3
     THROW 51005,'Recomposicao repetida perdeu observacoes.',1;
  SELECT o.n,po.pessoa_observacao_id,po.gestor_id,po.nome_completo,
-        gp.nome_completo AS valor_gold,gp.estado_concordancia
+        po.data_nascimento,po.nome_mae,
+        gp.nome_completo AS valor_gold,gp.data_nascimento AS nascimento_gold,
+        gp.nome_mae AS mae_gold,gp.estado_concordancia
  FROM @obs o JOIN silver.pessoa_observacao po
    ON po.pessoa_observacao_id=o.pessoa_observacao_id
  JOIN gold.pessoa gp ON gp.pessoa_uuid=@uuid ORDER BY o.n;
  ROLLBACK TRANSACTION;
- PRINT 'PASS: tres fontes discordantes, proveniencia e vencedor preservados.';
+ PRINT 'PASS: tres fontes discordantes em nome, nascimento e mae; proveniencia e vencedores preservados.';
 END TRY
 BEGIN CATCH
  IF XACT_STATE()<>0 ROLLBACK TRANSACTION;
