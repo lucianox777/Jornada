@@ -114,3 +114,6 @@ A regressão de publicação passa a criar, em transação isolada, um run real 
 ## Integração opcional do Runner ao E2E de ingestão
 
 `pwsh ./scripts/local-e2e.ps1 -VerifyLinkageRunner` mantém o banco isolado padrão `JornadaE2E`, executa duas entregas reais via API/Processor e depois chama o Runner real com marcador único. Exige modelo ATIVO e carga inicial desativada, verifica run `PUBLICADO` e ao menos um `linkage_resultado` bruto. Recusa `-AllowSharedDatabaseReset` combinado com o novo gate. Não há alteração da fixture para CPF tardio neste PR: o ensaio de múltiplas ondas com nova observação Silver, mudança de CPF e verificação de ledger continua pendente. O estágio opt-in só está comprovado quando efetivamente executado com SQL Server, não apenas quando o CI padrão passa.
+
+
+**Correção de segurança e evidência do gate local (pós-#535):** `-VerifyLinkageRunner` combinado com `-AllowSharedDatabaseReset` agora falha no preflight, antes do reset. A evidência `.local/e2e/evidence.json` inclui `linkageRunner` (marcador do run, contagem de runs PUBLICADO e de resultados brutos) quando o estágio é solicitado; caso contrário, `null`. A execução opt-in com SQL Server e o ensaio de CPF tardio real permanecem pendentes de comprovação.
