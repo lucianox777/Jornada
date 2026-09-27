@@ -741,6 +741,11 @@ public sealed class ProbabilisticLinkageBatchRunner(
 
                 {ProbabilisticConflictReviewQueueSql()}
 
+                -- DT-05: registrar apenas transições semânticas na mesma transação
+                -- SERIALIZABLE e sob o lock exclusivo de publicação. A avaliação
+                -- completa permanece em linkage_resultado para auditoria por run.
+                EXEC identidade.sp_registrar_transicoes_linkage_run @linkage_run_id=@run_id;
+
                 UPDATE identidade.linkage_run
                 SET status='PUBLICADO', finalizado_em=@fim, publicado_em=@fim
                 WHERE linkage_run_id=@run_id;
