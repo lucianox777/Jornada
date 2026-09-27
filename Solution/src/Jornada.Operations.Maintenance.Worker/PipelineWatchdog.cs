@@ -164,7 +164,7 @@ public sealed class PipelineWatchdogWorker(
                 snapshot.PendingLots,
                 snapshot.ActiveLinkageRuns,
                 snapshot.GeneratingModels,
-                snapshot.ExpiredActiveLeases
+                snapshot.ExpiredActiveLeases);
         }
 
         return findings;
