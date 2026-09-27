@@ -67,7 +67,14 @@ done
 
 package="$(python3 "$ROOT/scripts/build-ingestion-fixture.py" --fixture "$ROOT/tests/fixtures/ingestao/AA01_v2" --gestor SEHAB --output-dir "$OUT/packages")"
 filename="$(basename "$package")"
-access_key='KcUBZuLvRCu0lKN6xmXdjGKhPTgluG1Wu0sFB36lvTY'
+access_key="$(python3 - "$ROOT/config/security/test-access-keys.json" SEHAB <<'PY'
+import json,sys
+entries=json.load(open(sys.argv[1],encoding='utf-8'))['credentials']
+match=[x for x in entries if x.get('type')=='GESTOR' and x.get('gestorCodigo')==sys.argv[2]]
+assert len(match)==1
+print(match[0]['accessKey'])
+PY
+)"
 
 post_delivery(){
   local idem="$1" body="$2" code_file="$3"
@@ -87,13 +94,13 @@ else: raise SystemExit(f'campo {sys.argv[2]} ausente em {sys.argv[1]}')
 PY
 }
 wait_processed(){
-  local id="$1" out="$2" status='' code=''
+  local id="$1" out="$2" gestor="${3:-SEHAB}" key="${4:-$access_key}" status='' code=''
   # A rota de status pertence ao bucket autenticado INGESTAO (20 req/min por default).
   # Polling de 1s fazia o próprio E2E esgotar o contrato de rate limit. Quatro segundos
   # mantêm o harness abaixo do teto e 429 transitório é tratado como backpressure normal.
   local poll_seconds="${JORNADA_E2E_STATUS_POLL_SECONDS:-4}"
   for _ in $(seq 1 120); do
-    code="$(curl -sS -o "$out" -w '%{http_code}' "$API_URL/api/v1/ingestao/entregas/$id" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $access_key" || true)"
+    code="$(curl -sS -o "$out" -w '%{http_code}' "$API_URL/api/v1/ingestao/entregas/$id" -H "X-Jornada-Gestor: $gestor" -H "X-Jornada-Access-Key: $key" || true)"
     if [[ "$code" == 429 ]]; then
       sleep "$poll_seconds"
       continue
@@ -265,5 +272,70 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps(evidence,ensure_ascii=False,inde
 PY
 rm -f -- "$support_config"
 cat "$OUT/support-e2e-evidence.json"
+
+# Gate 6: regressão HTTP/SQL isolada dos demais Gestores, com contratos v4
+# canônicos preservados no receptor e chaves exclusivamente DEV.
+for gestor in SMADS SMDET SMS; do
+  case "$gestor" in
+    SMADS) fixture="CRA1_v2"; expected_registros=1 ;;
+    SMDET) fixture="CADASTRO_SMDET_v2"; expected_registros=0 ;;
+    SMS) fixture="CADASTRO_SMS_v2"; expected_registros=0 ;;
+  esac
+  root_fixture="$ROOT/tests/fixtures/ingestao/$fixture"
+  test -d "$root_fixture" || { echo "ERRO: fixture DEV ausente $fixture" >&2; exit 22; }
+  manager_package="$(python3 "$ROOT/scripts/build-ingestion-fixture.py" \
+    --fixture "$root_fixture" --gestor "$gestor" --output-dir "$OUT/packages")"
+  manager_name="$(basename "$manager_package")"
+  manager_sha="$(sha256sum "$manager_package" | awk '{print $1}')"
+  manager_key="$(python3 - "$ROOT/config/security/test-access-keys.json" "$gestor" <<'PY'
+import json,sys
+entries=json.load(open(sys.argv[1],encoding='utf-8'))['credentials']
+match=[x for x in entries if x.get('type')=='GESTOR' and x.get('gestorCodigo')==sys.argv[2]]
+assert len(match)==1
+print(match[0]['accessKey'])
+PY
+)"
+  manager_response="$OUT/other-$gestor-receipt.json"
+  manager_http="$(curl -sS -o "$manager_response" -w '%{http_code}' \
+    -X POST "$API_URL/api/v1/ingestao/entregas" \
+    -H "X-Jornada-Gestor: $gestor" -H "X-Jornada-Access-Key: $manager_key" \
+    -H "Idempotency-Key: gate06-$gestor-$manager_sha" \
+    -H 'Content-Type: application/zip' \
+    -H "Content-Disposition: attachment; filename=$manager_name" \
+    --data-binary "@$manager_package")"
+  [[ "$manager_http" == 202 ]] || {
+    echo "ERRO: $gestor recebimento HTTP=$manager_http" >&2
+    cat "$manager_response" >&2; exit 23
+  }
+  manager_id="$(json_get "$manager_response" entregaId)"
+  wait_processed "$manager_id" "$OUT/other-$gestor-status.json" "$gestor" "$manager_key"
+  manager_bronze="$(scalar "SELECT COUNT(*) FROM bronze.entrega_arquivo WHERE entrega_id='$manager_id';")"
+  manager_silver="$(scalar "SELECT COUNT(*) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$manager_id';")"
+  manager_registros="$(scalar "SELECT COUNT(*) FROM silver.registro_observacao ro JOIN ingestao.lote l ON l.lote_id=ro.lote_id WHERE l.entrega_id='$manager_id';")"
+  [[ "$manager_bronze" == 1 && "$manager_silver" == 1 && "$manager_registros" == "$expected_registros" ]] || {
+    echo "ERRO: $gestor Bronze=$manager_bronze Silver=$manager_silver Registros=$manager_registros" >&2
+    exit 24
+  }
+  # Confirma o hash exato do schema v4 carregado para cada gestor na configuração canônica.
+  manager_schema="$ROOT/config/contracts/gestores/$gestor/pessoa/v4/pessoa.schema.json"
+  manager_source_hash="$(sha256sum "$manager_schema" | awk '{print $1}')"
+  manager_db_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),gpv.pessoa_schema_sha256,2)) FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='$gestor' AND gpv.versao=4;")"
+  [[ "$manager_source_hash" == "$manager_db_hash" ]] || {
+    echo "ERRO: $gestor schema v4 divergiu do catálogo" >&2; exit 25;
+  }
+  python3 - "$OUT/other-contracts-e2e-evidence.json" "$gestor" "$manager_sha" "$manager_id" "$manager_bronze" "$manager_silver" "$manager_registros" "$manager_source_hash" <<'PY'
+import datetime,json,pathlib,sys
+path=pathlib.Path(sys.argv[1])
+data=json.loads(path.read_text()) if path.exists() else {"status":"PASS","testData":"SYNTHETIC","results":[]}
+data["results"].append({"gestor":sys.argv[2],"zipSha256":sys.argv[3],
+                        "receiptEntregaId":sys.argv[4],"finalStatus":"PROCESSADA",
+                        "bronzeFiles":int(sys.argv[5]),"silverObservations":int(sys.argv[6]),
+                        "silverRecords":int(sys.argv[7]),"personSchemaV4Sha256":sys.argv[8],
+                        "verifiedAtUtc":datetime.datetime.now(datetime.timezone.utc).isoformat()})
+path.write_text(json.dumps(data,indent=2)+"\n")
+PY
+  unset manager_key
+done
+cat "$OUT/other-contracts-e2e-evidence.json"
 
 echo 'LOCAL E2E: OK'
