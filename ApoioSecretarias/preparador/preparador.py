@@ -7,6 +7,8 @@ import tempfile
 import zipfile
 from datetime import datetime
 from pathlib import Path
+from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema.exceptions import ValidationError
 from csv_to_json import convert
 
 MAX_MANIFEST_BYTES = 64 * 1024
@@ -88,16 +90,89 @@ def _validate_manifest(manifest, mapping, records):
             raise ValueError("tipoVersao deve ser inteiro positivo")
 
 
+
+# Esta lista é um inventário técnico derivado, não uma aprovação institucional.
+FACTUAL_INDEX = Path(__file__).resolve().parents[1] / "config/governance/factual-schema-sources.json"
+
+
+def _strict_record_pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"registros.jsonl: chave duplicada: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value):
+    raise ValueError(f"registros.jsonl: constante JSON inválida: {value}")
+
+
+def _validate_factual_records(records, people, manifest, schema_path):
+    """Fail-closed, com contrato factual versionado e hash fixado fora do ZIP."""
+    if not records:
+        return
+    if schema_path is None:
+        raise ValueError("registros.jsonl exige --registro-schema e contrato factual versionado")
+    if any(manifest.get(key) is None for key in ("natureza", "codigoTipo", "tipoVersao")):
+        raise ValueError("registros.jsonl exige natureza, codigoTipo e tipoVersao")
+    try:
+        index = json.loads(FACTUAL_INDEX.read_text(encoding="utf-8"))
+        contracts = index["contracts"]
+        matches = [entry for entry in contracts if
+                   entry["natureza"] == manifest["natureza"] and
+                   entry["codigoTipo"] == manifest["codigoTipo"] and
+                   entry["tipoVersao"] == manifest["tipoVersao"]]
+        if len(matches) != 1:
+            raise ValueError("contrato factual não reconhecido na versão declarada")
+        entry = matches[0]
+        approved_path = (FACTUAL_INDEX.parents[2] / entry["path"]).resolve()
+        if Path(schema_path).resolve() != approved_path:
+            raise ValueError("registro-schema fora do contrato versionado fixado")
+        raw_schema = approved_path.read_bytes()
+        digest = hashlib.sha256(raw_schema).hexdigest()
+        if digest != entry["sha256"]:
+            raise ValueError("SHA-256 do contrato factual diverge do inventário")
+        schema = json.loads(raw_schema.decode("utf-8"), object_pairs_hook=_strict_record_pairs,
+                            parse_constant=_reject_json_constant)
+        Draft202012Validator.check_schema(schema)
+        validator = Draft202012Validator(schema, format_checker=FormatChecker())
+    except (OSError, UnicodeError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("contrato factual indisponível ou inventário inválido") from exc
+
+    people_ids = {json.loads(line)["idPessoaEntrega"] for line in people.decode("utf-8").splitlines()}
+    try:
+        lines = records.decode("utf-8-sig").splitlines()
+    except UnicodeError as exc:
+        raise ValueError("registros.jsonl não é UTF-8") from exc
+    for line_number, line in enumerate(lines, 1):
+        if not line.strip():
+            raise ValueError(f"registros.jsonl linha {line_number}: linha vazia")
+        try:
+            record = json.loads(line, object_pairs_hook=_strict_record_pairs,
+                                parse_constant=_reject_json_constant)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"registros.jsonl linha {line_number}: JSON inválido") from exc
+        if not isinstance(record, dict):
+            raise ValueError(f"registros.jsonl linha {line_number}: objeto JSON obrigatório")
+        try:
+            validator.validate(record)
+        except ValidationError as exc:
+            # Não ecoar o conteúdo da linha, CPF ou outros atributos ao CLI.
+            raise ValueError(f"registros.jsonl linha {line_number}: contrato factual inválido") from exc
+        if record["idPessoaEntrega"] not in people_ids:
+            raise ValueError(f"registros.jsonl linha {line_number}: idPessoaEntrega sem pessoa na entrega")
+
+
+
 def preparar(args):
     manifest = _read_manifest(args.manifest)
     people, mapping = convert(args.csv, args.mapeamento, args.schema)
     records = b"" if not args.registros else Path(args.registros).read_bytes()
     if len(records) > 100 * 1024 * 1024:
         raise ValueError("registros.jsonl maior que 100 MiB")
-    for line in records.decode("utf-8-sig").splitlines():
-        if line.strip() and not isinstance(json.loads(line), dict):
-            raise ValueError("Registro não é objeto JSON")
     _validate_manifest(manifest, mapping, records)
+    _validate_factual_records(records, people, manifest, getattr(args, "registro_schema", None))
     gestor, origin = mapping["gestor"], manifest["codigoSistemaOrigem"]
     entries = {
         "manifest.json": (json.dumps(manifest, separators=(",", ":"), ensure_ascii=False) + "\n").encode(),
@@ -132,6 +207,7 @@ if __name__ == "__main__":
     for field in ("csv", "mapeamento", "manifest", "schema", "saida"):
         parser.add_argument("--" + field, required=True)
     parser.add_argument("--registros")
+    parser.add_argument("--registro-schema", help="Schema factual versionado da Solução de Apoio; obrigatório para registros não vazios.")
     args = parser.parse_args()
     try:
         print(preparar(args))
