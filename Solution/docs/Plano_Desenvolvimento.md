@@ -6,6 +6,8 @@
 
 **Execução em paralelo, sem vencedor antecipado:** evoluir blocking dinâmico e combinado simultaneamente, comparar D, C e D∪C no mesmo corpus/versão/estratos e medir recall exclusivo, sobreposição, candidatos, custo e latência. O Ensaio fornece evidência, mas não impede pesquisa/implementação antecipada do combinado. Uma futura desativação, inclusive parcial, somente será decidida por avaliação independente e regressão de recall, reestimativa de `u` condicionado, paridade entre consumidores e rollback; não há obrigação de manter passes comprovadamente redundantes.
 
+**Instrumentação do item 1 — primeira entrega experimental:** o [diagnóstico D/C/D∪C](Linkage_Blocking_Parallel_Diagnostic.md) está implementado no Avaliador sintético de Development, com mesmas observações/denominadores, persistência agregada e testes. A entrega é observacional; não mede ainda latência SQL real, não promove o combinado ao Runner em lote nem valida superioridade de método. Seus resultados devem orientar as próximas iterações paralelas e o Ensaio, sem atrasar a Trilha 4.
+
 **Status:** plano, não relatório de conclusão. Validar a situação de cada frente no código, PRs e Actions antes de afirmar que foi entregue.
 
 **Limite do produto — RN de negócio, linha 23:** [01_Requisitos_de_Negocio_Jornada_v1.1.md](../../Documentos/Requisitos/01_Requisitos_de_Negocio_Jornada_v1.1.md): a Jornada “não concede benefício nem altera automaticamente o sistema finalístico”. As frentes de linkage, busca e suporte às Secretarias não modificam essa fronteira.
