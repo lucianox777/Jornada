@@ -94,3 +94,8 @@ O contrato exato dos 12 campos, ordem, conversão SQL, sentinela de nulos, exclu
 ## Regressão adicional — alteração exclusivamente numérica
 
 O teste SQL de ondas foi ampliado com uma quarta execução: após a transição semântica da terceira onda, somente `score_melhor` muda, preservando todos os 12 campos da assinatura V1. A expectativa é **nenhuma transição adicional**, mesmo após retry duplo, com os quatro resultados brutos preservados. Esse teste não comprova ingestão real de CPF nem replay histórico; seu resultado depende da execução do CI do PR correspondente.
+
+
+## Regressão de guardas da publicação — PR posterior ao #528
+
+O teste de integração `Dt05PublicationGuardsSqlServerTests` exercita a procedure real sem transação (erro SQL `51940`) e com run inexistente dentro de transação `SERIALIZABLE` (erro `51941`). Não gera resultados operacionais; a transação de teste é revertida. A regressão exige SQL Server e `JORNADA_TEST_SQL_CONNECTION`; sua execução no CI deve ser verificada antes do merge. Esta guarda não substitui o ensaio Bronze → Silver → Runner de CPF tardio nem o replay histórico do Marco B.
