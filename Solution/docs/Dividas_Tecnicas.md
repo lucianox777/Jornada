@@ -54,3 +54,6 @@ A V1 nacional com `NOME/FEMININO` e `SOBRENOME/TODOS` para `nome_mae` é **escol
 **Próximo gate operacional DT-05:** `scripts/dt05-runner-e2e.ps1` executa o Runner real contra banco DEV isolado já preparado e verifica run PUBLICADO e resultados brutos; execução local e CPF tardio real ainda pendentes.
 
 **Gate incremental pós-#534:** `scripts/local-e2e.ps1 -VerifyLinkageRunner` executa o Runner real após as entregas HTTP/Processor no banco isolado `JornadaE2E`, verificando run PUBLICADO e resultado bruto. Opt-in; exige modelo ATIVO e carga inicial desativada. CI/execução SQL deste novo estágio ainda a comprovar; não simula nem declara CPF tardio real.
+
+
+**Correção de segurança e evidência do gate local (pós-#535):** `-VerifyLinkageRunner` combinado com `-AllowSharedDatabaseReset` agora falha no preflight, antes do reset. A evidência `.local/e2e/evidence.json` inclui `linkageRunner` (marcador do run, contagem de runs PUBLICADO e de resultados brutos) quando o estágio é solicitado; caso contrário, `null`. A execução opt-in com SQL Server e o ensaio de CPF tardio real permanecem pendentes de comprovação.
