@@ -72,8 +72,8 @@ def verify(root, manifest, visited=None):
 def create(root, refs_file, manifest_path, run_id, versions, parent_manifest=None):
     root = Path(root).resolve()
     refs = json.loads(Path(refs_file).read_text(encoding="utf-8"))
-    if not isinstance(refs, list) or not refs:
-        raise ValueError("nonempty Bronze references required")
+    if not isinstance(refs, list) or (not refs and not parent_manifest):
+        raise ValueError("nonempty Bronze references or parent manifest required")
     unique = {}
     for ref in refs:
         item = check_object(root, ref)
