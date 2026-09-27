@@ -78,8 +78,13 @@ public static class Dt15SyntheticPairedComparison
             || a.ModelValidation.Total != a.ValidationScenarioCount
             || d.ModelValidation.Total != d.ValidationScenarioCount
             || a.ModelTest.Total != a.TestScenarioCount || d.ModelTest.Total != d.TestScenarioCount
-            || !EqualTruthDenominators(a.ModelValidation, d.ModelValidation)
-            || !EqualTruthDenominators(a.ModelTest, d.ModelTest))
+            // Positive truth support stays constant: a false resolution can
+            // increment FP *and* FN for a positive scenario. TN+FP is NOT
+            // a stable negative denominator under this scorer contract.
+            || a.ModelValidation.TruePositive + a.ModelValidation.FalseNegative !=
+               d.ModelValidation.TruePositive + d.ModelValidation.FalseNegative
+            || a.ModelTest.TruePositive + a.ModelTest.FalseNegative !=
+               d.ModelTest.TruePositive + d.ModelTest.FalseNegative)
             return Failed(NotComparable, "Cenários, partições ou denominadores FS diferentes.");
 
         var aSlices = active.QualitySlices.ToDictionary(
@@ -148,11 +153,6 @@ public static class Dt15SyntheticPairedComparison
             d.FalsePositive - a.FalsePositive,
             d.FalseNegative - a.FalseNegative,
             d.Inconclusive - a.Inconclusive);
-
-    private static bool EqualTruthDenominators(
-        SyntheticDecisionObjective a, SyntheticDecisionObjective b) =>
-        a.TruePositive + a.FalseNegative == b.TruePositive + b.FalseNegative
-        && a.TrueNegative + a.FalsePositive == b.TrueNegative + b.FalsePositive;
 
     private static bool ValidSha(string? hash) =>
         hash is { Length: 64 } && hash.All(static ch =>
