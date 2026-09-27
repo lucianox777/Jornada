@@ -16,6 +16,7 @@ public static class IbgeIndependentUConference
     private static readonly int[] CSharpSeeds = [20261011, 20261012, 20261013];
     private static readonly int[] SplinkSeeds = [20261001, 20261002, 20261003];
     private const decimal Tolerance = 0.000000001m;
+    private static readonly JsonSerializerOptions OutputJson = new() { WriteIndented = true };
 
     private sealed record Run(int Seed, int PairCount, IReadOnlyDictionary<string, long> Support);
 
@@ -117,7 +118,7 @@ public static class IbgeIndependentUConference
                 "Not pairwise agreement, independent population validation, or a VALIDATE/ACTIVATE gate."
             }
         };
-        return JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }) + "\n";
+        return JsonSerializer.Serialize(report, OutputJson) + "\n";
     }
 
     private static Run[] ReadRuns(JsonElement document, bool external, int[] requiredSeeds,
