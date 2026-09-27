@@ -1,6 +1,6 @@
 # DT-05 — snapshots incrementais de replay do Linkage no NAS
 
-**Estado:** arquitetura aprovada como direção; implementação incremental em andamento. Não declarar DT-05 concluída até integrar Runner, publicação, SQL, testes e medição.
+**Estado:** fundação Parquet e ledger semântico V1 implementados na branch do PR #520; Runner invoca a procedure do ledger dentro da transação de publicação. **Não concluir nem mesclar** até aplicar a migration antes do deploy do Runner, integrar export consistente/manifesto ao SQL e validar regressão e replay ponta a ponta.
 
 ## Decisão
 
@@ -34,4 +34,8 @@ Medir em `JornadaSyntheticDev` snapshot inicial, bytes de partições alteradas 
 
 ## Migração segura
 
-Fase A: captura e replay dos insumos, com `linkage_resultado` atual preservado. Fase B: ledger semântico e seus testes. Fase C: migrar consumidores SQL/C#/BI e gate de completude antes de considerar redução de persistência bruta. Não eliminar resultados por run antecipadamente. Rollback da fase A: desabilitar captura por configuração e manter o contrato SQL atual; manifestos já publicados permanecem imutáveis.
+Fase A: captura e replay dos insumos, com `linkage_resultado` atual preservado. Fase B: ledger semântico V1 (`20260927_Linkage_Transicao_Semantica_DT05.sql`) e chamada transacional no Runner introduzidos; testes SQL de três ondas e revisão da assinatura ainda obrigatórios. Fase C: migrar consumidores SQL/C#/BI e gate de completude antes de considerar redução de persistência bruta. Não eliminar resultados por run antecipadamente. Rollback da fase A: desabilitar captura por configuração e manter o contrato SQL atual; manifestos já publicados permanecem imutáveis.
+
+## Estado do PR #520 e dependências de implantação
+
+A procedure `identidade.sp_registrar_transicoes_linkage_run` deve ser instalada **antes** da versão do Runner que a chama; ausência provoca rollback da publicação. O ledger é separado do ledger institucional `auditoria.decisao_identidade_evento`, que não deve ser duplicado. A assinatura V1 cobre campos discretos e versões disponíveis no resultado publicado; revisão da evidência relevante (incluindo score e universo) depende de definição e ensaio antes do aceite. A captura Parquet existente ainda opera por export NDJSON congelado: a integração automática com a janela exclusiva do corpus e a referência SQL ao manifesto estão pendentes. Não habilitar produção apenas com este PR.
