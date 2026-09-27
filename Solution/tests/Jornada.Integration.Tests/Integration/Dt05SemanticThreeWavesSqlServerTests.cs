@@ -124,7 +124,7 @@ public sealed class Dt05SemanticThreeWavesSqlServerTests
                 Assert.That(await reader.ReadAsync(), Is.True);
                 Assert.That(reader.GetInt64(0), Is.EqualTo(wave >= 2 ? 2 : 1),
                     $"Wave {wave + 1} must not duplicate unchanged semantic signatures.");
-                Assert.That(reader.GetInt32(1), Is.EqualTo(wave == 2 ? 2 : 1));
+                Assert.That(reader.GetInt32(1), Is.EqualTo(wave >= 2 ? 2 : 1));
             }
 
             await using var final = connection.CreateCommand();
