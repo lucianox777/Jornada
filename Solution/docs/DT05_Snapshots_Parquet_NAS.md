@@ -89,3 +89,8 @@ O teste `Dt05SemanticThreeWavesSqlServerTests` cria três runs isolados em trans
 ## Contrato normativo da assinatura V1
 
 O contrato exato dos 12 campos, ordem, conversão SQL, sentinela de nulos, exclusões e idempotência está em [DT05_Assinatura_Semantica_V1.md](DT05_Assinatura_Semantica_V1.md). Um teste unitário verifica a correspondência da implementação SQL com esse contrato para evitar mudanças silenciosas. O PR #524 já passou a regressão SQL de três ondas; **não** prova ingestão de CPF tardio real. A assinatura V1 não inclui CPF bruto: a chegada de CPF só gera transição se alterar algum campo de publicação assinado. O replay histórico completo permanece um aceite independente.
+
+
+## Regressão adicional — alteração exclusivamente numérica
+
+O teste SQL de ondas foi ampliado com uma quarta execução: após a transição semântica da terceira onda, somente `score_melhor` muda, preservando todos os 12 campos da assinatura V1. A expectativa é **nenhuma transição adicional**, mesmo após retry duplo, com os quatro resultados brutos preservados. Esse teste não comprova ingestão real de CPF nem replay histórico; seu resultado depende da execução do CI do PR correspondente.
