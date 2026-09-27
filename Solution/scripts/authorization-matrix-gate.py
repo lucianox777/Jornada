@@ -18,6 +18,7 @@ PATHS = {
     "program": ROOT / "src/Jornada.Api/Program.cs",
     "origin": ROOT / "src/Jornada.Api/ProgressiveOriginApi.cs",
     "monitor": ROOT / "src/Jornada.Api/OperationalMonitorApi.cs",
+    "governance": ROOT / "src/Jornada.Api/ModelGovernanceReadOnlyApi.cs",
     "security": ROOT / "src/Jornada.Access.Security/JornadaAccessSecurity.cs",
     "verifier": ROOT / "src/Jornada.Api/JornadaApiAccessVerifier.cs",
 }
@@ -68,8 +69,8 @@ def validate(data: dict, sources: dict[str, str]) -> int:
     expected = {(r["method"].upper(), r["path"]): r for r in routes}
     require(len(expected) == len(routes), "rota duplicada na matriz")
 
-    program, origin, monitor, security, verifier = (
-        sources[name] for name in ("program", "origin", "monitor", "security", "verifier"))
+    program, origin, monitor, security, verifier, governance = (
+        sources[name] for name in ("program", "origin", "monitor", "security", "verifier", "governance"))
     for token in (
         "builder.Services.AddJornadaAccessSecurity()",
         "AddSingleton<IJornadaAccessVerifier, JornadaApiAccessVerifier>()",
@@ -151,10 +152,17 @@ def validate(data: dict, sources: dict[str, str]) -> int:
             "módulo progressivo não registrado no host")
     require("app.MapOperationalMonitorApi();" in origin,
             "módulo monitor não registrado na árvore da API progressiva")
+    require("app.MapModelGovernanceReadOnlyApi();" in program,
+            "página master DEV não registrada separadamente do Monitor")
+    require("if (!environment.IsDevelopment())" in governance
+            and "return app; // HML/Production" in governance
+            and "context.PublicCode, \"MASTER_DEV\"" in governance,
+            "governança de modelo exposta fora de Development ou sem master DEV exclusivo")
 
     modules = (
         (origin, "Route", "POST", "jornada.identidade.origem.read", "MapPost"),
         (monitor, "StatusRoute", "GET", "jornada.monitor.read", "MapGet"),
+        (governance, "DataRoute", "GET", "jornada.modelos.governanca.read", "MapGet"),
     )
     for module, const, method, expected_permission, mapping in modules:
         route = re.search(r'public const string ' + const + r'\s*=\s*"([^"]+)"', module)
@@ -180,6 +188,12 @@ def validate(data: dict, sources: dict[str, str]) -> int:
             and monitor.count(".RequireRateLimiting(\"standard\")") >= 2,
             "monitor sintético deve herdar autenticação/limites e ser somente DEV")
 
+    for route in routes:
+        if route.get("permission") == "jornada.modelos.governanca.read":
+            require(route.get("developmentOnly") is True
+                    and route.get("mutationsAllowed") is False
+                    and route.get("allowedCredentialTypes") == ["GESTOR"],
+                    "governança master deve ser GET exclusivo DEV sem mutações")
     require(set(actual) == set(expected),
             "rotas divergentes: faltando=" + str(sorted(set(expected) - set(actual)))
             + " extras=" + str(sorted(set(actual) - set(expected))))

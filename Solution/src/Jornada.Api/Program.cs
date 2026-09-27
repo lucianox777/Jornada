@@ -243,6 +243,10 @@ app.MapPost("/api/v1/identidade/candidatos", async (
 // Consulta de origem: contrato distinto, somente Gestor proprietário e escopo específico.
 app.MapProgressiveOriginApi();
 
+// ProgressiveOriginApi already maps the existing Monitor. The DEV-only master
+// presentation is registered separately and never inherits monitor scopes.
+app.MapModelGovernanceReadOnlyApi();
+
 // Uma única Entrega externa por ZIP, sempre com manifest.json + pessoas.jsonl + registros.jsonl.
 // registros.jsonl pode estar vazio; o contexto factual é opcional nesse caso. O nome do ZIP contém seu SHA-256.
 // O cliente não informa entregaId/loteSeq/loteTotal; lotes são internos.

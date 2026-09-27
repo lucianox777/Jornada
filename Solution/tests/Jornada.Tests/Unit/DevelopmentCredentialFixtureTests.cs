@@ -15,7 +15,8 @@ public sealed class DevelopmentCredentialFixtureTests
         ["SMDET"] = Guid.Parse("11111111-1111-4111-8111-111111111116"),
         ["AR01"] = Guid.Parse("11111111-1111-4111-8111-111111111117"),
         ["POT1"] = Guid.Parse("11111111-1111-4111-8111-111111111118"),
-        ["CPO1"] = Guid.Parse("11111111-1111-4111-8111-111111111119")
+        ["CPO1"] = Guid.Parse("11111111-1111-4111-8111-111111111119"),
+        ["MASTER_DEV"] = Guid.Parse("11111111-1111-4111-8111-111111111120")
     };
 
     [Test]

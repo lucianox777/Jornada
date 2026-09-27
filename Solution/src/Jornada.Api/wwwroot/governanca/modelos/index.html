@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Jornada · Governança de modelos — DEV</title>
+<style>
+  :root { color-scheme: light; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: #183144; background: #f1f5f8; line-height: 1.55; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; }
+  header { padding: 24px max(22px, calc((100vw - 1180px)/2)); background: #13364b; color: white; }
+  header small { color: #b7d9e6; font-weight: 650; letter-spacing: .09em; }
+  h1 { margin: 4px 0 6px; font-size: clamp(1.35rem, 4vw, 2.1rem); }
+  header p { margin: 0; max-width: 790px; color: #e4f0f5; }
+  main { max-width: 1220px; margin: 0 auto; padding: 20px; }
+  .notice { padding: 13px 16px; background: #fffae9; border-left: 4px solid #d49a1d;
+    border-radius: 5px; margin-bottom: 20px; }
+  .notice strong { display: block; }
+  .card { background: #fff; border: 1px solid #d6e1e9; border-radius: 10px;
+    padding: 22px; box-shadow: 0 2px 9px rgba(13,49,70,.04); }
+  .muted { color: #536b78; }
+  .auth { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
+  label { display: flex; flex-direction: column; font-weight: 650; gap: 5px; min-width: 235px; flex: 1; }
+  input { font: inherit; border: 1px solid #94aab9; border-radius: 6px; padding: 10px; }
+  button { background: #075d75; border: 0; border-radius: 6px; color: white;
+    cursor: pointer; font: inherit; padding: 11px 16px; }
+  button:hover { background: #06475c; } button:disabled { background: #8396a3; cursor: not-allowed; }
+  .stack { display: grid; gap: 18px; }
+  h2 { font-size: 1.2rem; margin: 0 0 12px; } h3 { font-size: 1rem; margin: 12px 0 6px; }
+  .columns { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 18px; }
+  .model-status { display: inline-block; border-radius: 30px; background: #e0eef4;
+    color: #174b64; font-size: .78rem; font-weight: 700; padding: 3px 10px; }
+  .model-status.draft { background: #fbefd4; color: #74510d; }
+  .identity { font-size: 1.3rem; font-weight: 750; margin: 7px 0; }
+  .technical { overflow-wrap: anywhere; font-family: ui-monospace, monospace; font-size: .8rem; }
+  ul { padding-left: 19px; margin: 10px 0; } li { margin: 6px 0; }
+  .table-wrap { overflow-x: auto; } table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 10px 11px; text-align: left; border-bottom: 1px solid #e2eaef; vertical-align: top; }
+  th { color: #40596a; background: #f6f9fb; font-size: .9rem; }
+  .state { font-weight: 800; color: #735008; }
+  .empty { padding: 12px; color: #536b78; background: #f5f8fa; border-radius: 6px; }
+  .secondary { background: #f8fafc; }
+  #message { margin: 10px 0; min-height: 1.5rem; }
+  .error { color: #962d31; font-weight: 700; }
+  .small { font-size: .85rem; }
+  details summary { cursor: pointer; font-weight: 700; }
+  footer { padding: 25px; text-align: center; color: #536b78; font-size: .83rem; }
+  @media (max-width: 780px) { .columns { grid-template-columns: 1fr; } th,td { padding: 9px 7px; } }
+</style>
+</head>
+<body>
+<header>
+  <small>JORNADA DO CIDADÃO · DT-15 · DEVELOPMENT</small>
+  <h1>Governança de modelos</h1>
+  <p>Comparação do modelo atual com o RASCUNHO proposto. Histórico resumido é contexto; a decisão humana será habilitada apenas após a integração corporativa.</p>
+</header>
+<main class="stack">
+  <aside class="notice" role="status">
+    <strong>Prévia somente leitura · Não constitui dossiê de aprovação</strong>
+    O diagnóstico disponível compara apenas o blocking na mesma amostra de treinamento. Não contém replay Fellegi–Sunter, decisões finais, métricas de produção, identidade corporativa ou parecer master.
+  </aside>
+  <section class="card" aria-labelledby="access-heading">
+    <h2 id="access-heading">Acesso de desenvolvimento separado do Monitor</h2>
+    <form id="access" class="auth">
+      <label>Código sintético master <input id="gestor" value="MASTER_DEV" readonly autocomplete="off"></label>
+      <label>Chave DEV master <input id="key" type="password" required autocomplete="off" placeholder="Chave do arquivo local de testes"></label>
+      <button type="submit">Consultar modelos</button>
+      <button type="button" id="refresh" disabled>Atualizar comparação</button>
+    </form>
+    <p id="message" class="muted" role="status" aria-live="polite">Nenhuma consulta feita. Credenciais não são gravadas no navegador.</p>
+  </section>
+  <div id="dashboard" class="stack" hidden>
+    <section class="columns" aria-label="Modelos atual e proposto">
+      <article class="card" id="active"><h2>Modelo ATIVO</h2><p class="empty">Dados ainda não carregados.</p></article>
+      <article class="card" id="draft"><h2>Modelo proposto (RASCUNHO)</h2><p class="empty">Dados ainda não carregados.</p></article>
+    </section>
+    <section class="card" id="comparison" aria-labelledby="comparison-heading">
+      <h2 id="comparison-heading">Comparação pareada · somente blocking no treino</h2>
+      <p class="empty">Dados ainda não carregados.</p>
+    </section>
+    <section class="card secondary">
+      <h2>Decisão do operador master</h2>
+      <p>As ações de manter o modelo, solicitar nova calibração, VALIDATE e ACTIVATE não estão disponíveis nesta prévia. Nenhuma consulta altera o modelo ATIVO ou o RASCUNHO.</p>
+      <p class="muted small">Dependências: dossiê FS contrafactual completo, identidade corporativa individual, permissões independentes, parecer append-only e gates transacionais nos caminhos diretos do Worker.</p>
+    </section>
+    <section class="card secondary" aria-labelledby="history-heading">
+      <details>
+        <summary id="history-heading">Histórico resumido de transições (contexto)</summary>
+        <p class="muted small">Transições anteriores à DT-15 não possuem comparativo pareado retrospectivo. Motivos livres, atores e dados pessoais não são exibidos.</p>
+        <div class="table-wrap"><table><thead><tr><th>Versão</th><th>Operação</th><th>Novo estado</th><th>Data</th></tr></thead><tbody id="history"></tbody></table></div>
+      </details>
+    </section>
+  </div>
+</main>
+<footer>Jornada do Cidadão · Governança técnica somente leitura em Development · DT-15</footer>
+<script>
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  let accessKey = null; // memory only; never persist in sessionStorage/localStorage.
+  const setText = (el, value) => { el.textContent = value === null || value === undefined ? '—' : String(value); };
+  const append = (el, tag, value, cls) => {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    setText(node, value);
+    el.appendChild(node);
+    return node;
+  };
+  const percent = value => value === null || value === undefined ? 'Não disponível'
+    : (Number(value) * 100).toLocaleString('pt-BR', {maximumFractionDigits: 3}) + '%';
+  const delta = value => value === null || value === undefined ? 'Não disponível'
+    : (Number(value) >= 0 ? '+' : '') +
+      (Number(value) * 100).toLocaleString('pt-BR', {maximumFractionDigits: 3}) + ' pp';
+  const asDate = raw => {
+    if (!raw) return '—';
+    const date = new Date(raw);
+    return Number.isNaN(date.getTime()) ? String(raw)
+      : date.toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'});
+  };
+  function showModel(node, model, kind) {
+    node.replaceChildren();
+    append(node, 'h2', kind === 'active' ? 'Modelo ATIVO' : 'Modelo proposto (RASCUNHO)');
+    if (!model) { append(node, 'p', 'Nenhum modelo neste estado.', 'empty'); return; }
+    append(node, 'span', model.status, 'model-status ' + (kind === 'draft' ? 'draft' : ''));
+    append(node, 'div', 'Versão ' + model.version, 'identity');
+    append(node, 'p', (kind === 'active' ? 'Ativado em: ' + asDate(model.activatedAt)
+      : 'Gerado em: ' + asDate(model.generatedAt)), 'muted');
+    append(node, 'h3', 'Passes publicados/sugeridos');
+    if (!Array.isArray(model.passes) || !model.passes.length)
+      append(node, 'p', 'Ruleset não disponível; não presumir equivalência.', 'empty');
+    else {
+      const list = node.appendChild(document.createElement('ul'));
+      for (const pass of model.passes)
+        append(list, 'li', pass.passId + ': ' + pass.fields.join(' + '));
+    }
+    append(node, 'h3', 'Identidade técnica');
+    append(node, 'p', 'Modelo: ' + model.modelId, 'technical muted');
+    append(node, 'p', 'Ruleset: ' + (model.ruleSetFingerprint || 'Não disponível'), 'technical muted');
+    append(node, 'p', 'Projeção: ' + (model.projectionFingerprint || 'Não disponível'), 'technical muted');
+  }
+  function showComparison(data) {
+    const node = byId('comparison');
+    node.replaceChildren();
+    append(node, 'h2', 'Comparação pareada · somente blocking no treino');
+    if (!data) { append(node, 'p', 'Nenhum RASCUNHO selecionado.', 'empty'); return; }
+    append(node, 'p', data.status, 'state');
+    append(node, 'p', data.explanation, 'muted');
+    if (data.matchedPairWeight === null || data.nonMatchedPairWeight === null) return;
+    append(node, 'p', 'Mesmos denominadores rotulados: ' + data.matchedPairWeight +
+      ' pares verdadeiros ponderados; ' + data.nonMatchedPairWeight +
+      ' não-vínculos ponderados.', 'small');
+    const wrap = node.appendChild(document.createElement('div'));
+    wrap.className = 'table-wrap';
+    const table = wrap.appendChild(document.createElement('table'));
+    const head = table.appendChild(document.createElement('thead'));
+    const row = head.appendChild(document.createElement('tr'));
+    ['Indicador','ATIVO no mesmo treino','RASCUNHO no mesmo treino','Diferença'].forEach(x=>append(row,'th',x));
+    const body = table.appendChild(document.createElement('tbody'));
+    const addRow = (name,a,b,c) => {
+      const tr = body.appendChild(document.createElement('tr'));
+      [name,a,b,c].forEach(v => append(tr,'td',v));
+    };
+    addRow('Recall de candidatos',percent(data.activeRecall),percent(data.draftRecall),
+      delta(data.delta && data.delta.recall));
+    addRow('Redução de não-vínculos',percent(data.activeReduction),percent(data.draftReduction),
+      delta(data.delta && data.delta.reduction));
+    append(node, 'p', 'Este painel não mede resultados finais do FS, FP/FN, latência nem comparabilidade populacional.', 'muted small');
+  }
+  function showHistory(rows) {
+    const node = byId('history'); node.replaceChildren();
+    for (const event of rows || []) {
+      const tr = node.appendChild(document.createElement('tr'));
+      [event.modelVersion,event.operation,event.newStatus,asDate(event.at)]
+        .forEach(v => append(tr,'td',v));
+    }
+    if (!rows || !rows.length) {
+      const tr = node.appendChild(document.createElement('tr'));
+      const td = append(tr,'td','Nenhum evento disponível.');
+      td.colSpan = 4;
+    }
+  }
+  async function load() {
+    if (!accessKey) return;
+    byId('refresh').disabled = true;
+    setText(byId('message'), 'Consultando visão restrita...');
+    byId('message').className = 'muted';
+    try {
+      const response = await fetch('/api/v1/governanca/modelos/visao', {
+        method:'GET',cache:'no-store',
+        headers: {'X-Jornada-Gestor':'MASTER_DEV','X-Jornada-Access-Key':accessKey}
+      });
+      if (!response.ok) {
+        if (response.status === 401) throw Error('Credencial DEV master inválida (401).');
+        if (response.status === 403) throw Error('Sem permissão master de leitura (403).');
+        throw Error('Consulta indisponível. HTTP ' + response.status + '.');
+      }
+      const data = await response.json();
+      showModel(byId('active'),data.active,'active');
+      showModel(byId('draft'),data.draft,'draft');
+      showComparison(data.comparison);
+      showHistory(data.recentHistory);
+      byId('dashboard').hidden = false;
+      setText(byId('message'),'Visão carregada. As decisões e a ativação permanecem indisponíveis.');
+    } catch (error) {
+      byId('dashboard').hidden = true;
+      setText(byId('message'),error.message || 'Falha na consulta.');
+      byId('message').className = 'error';
+    } finally { byId('refresh').disabled = false; }
+  }
+  byId('access').addEventListener('submit', e => {
+    e.preventDefault();
+    accessKey = byId('key').value;
+    byId('key').value = '';
+    load();
+  });
+  byId('refresh').addEventListener('click',load);
+})();
+</script>
+</body>
+</html>

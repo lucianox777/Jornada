@@ -16,6 +16,7 @@ HTTP_METHODS = {"get", "post", "put", "delete", "patch", "options", "head", "tra
 REGISTERED_MODULES = {
     "mapprogressiveoriginapi": "ProgressiveOriginApi.cs",
     "mapoperationalmonitorapi": "OperationalMonitorApi.cs",
+    "mapmodelgovernancereadonlyapi": "ModelGovernanceReadOnlyApi.cs",
 }
 
 
@@ -80,6 +81,28 @@ def module_operations(program: Path, name: str) -> tuple[set[tuple[str, str]], l
             ("get", normalize_path(page_route.group(1))),
             ("get", normalize_path(status_route.group(1))),
         }, errors
+
+    if name == "mapmodelgovernancereadonlyapi":
+        # DT-15: master preview is strictly Development-only and has NO routes
+        # in the public OpenAPI. Treat its explicit registration as inventoried,
+        # but fail if its DEV guard, read-only property or authentication vanish.
+        page = re.search(r'public\s+const\s+string\s+PageRoute\s*=\s*"([^"]+)"', text)
+        data = re.search(r'public\s+const\s+string\s+DataRoute\s*=\s*"([^"]+)"', text)
+        permission = re.search(r'public\s+const\s+string\s+Permission\s*=\s*"([^"]+)"', text)
+        guard = ('if (!environment.IsDevelopment())' in text
+                 and 'return app; // HML/Production' in text)
+        if (not page or not data or not permission or not guard
+            or page.group(1) != "/governanca/modelos"
+            or data.group(1) != "/api/v1/governanca/modelos/visao"
+            or permission.group(1) != "jornada.modelos.governanca.read"
+            or calls != ["mapget", "mapget"]
+            or 'app.MapGet(PageRoute' not in text
+            or 'app.MapGet(DataRoute, async' not in text
+            or '.RequireAuthorization(Permission)' not in text
+            or '.RequireRateLimiting("standard")' not in text
+            or 'context.PublicCode, "MASTER_DEV"' not in text):
+            errors.append("módulo master DEV contém rota pública, mutação ou gate de acesso inválido")
+        return set(), errors
 
     return set(), [f"módulo sem verificador: {filename}"]
 

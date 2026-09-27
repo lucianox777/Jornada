@@ -28,6 +28,7 @@ public static class JornadaAccessSecurity
         ("jornada.ingestao.write", false),
         ("jornada.ingestao.status", false),
         ("jornada.monitor.read", false),
+        ("jornada.modelos.governanca.read", false),
         ("jornada.pessoas.read", true),
         ("jornada.registros.read", false),
         ("jornada.possibilidades.read", false)
