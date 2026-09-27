@@ -328,26 +328,11 @@ internal static class BlockingPassAuditCommand
         return new LookupMeasurement(count, truthInside, stopwatch.ElapsedMilliseconds);
     }
 
-    /// <summary>
-    /// Both sources are counted in ONE SQL statement, eliminating overlap drift
-    /// between multiple database snapshots. Only aggregate counts leave SQL.
-    /// </summary>
-    private static async Task<TaggedParallelLookupMeasurement> MeasureTaggedParallelLookupAsync(
-        DbConnection connection,
-        IReadOnlyList<BlockingCandidatePassLookup> dynamicPasses,
-        IReadOnlyList<BlockingCandidatePassLookup> combinedPasses,
-        LinkageDynamicRuleSet ruleSet,
-        Guid truthPersonUuid,
-        int commandTimeoutSeconds,
-        CancellationToken ct)
+    /// <summary>SQL text shared by the read-only audit and integration tests.</summary>
+    internal static string BuildTaggedAuditSql(string taggedQuery)
     {
-        await using var command = connection.CreateCommand();
-        command.CommandTimeout = commandTimeoutSeconds;
-        var taggedQuery = BlockingProjectionCandidateQueryBuilder.BuildTaggedCandidateUuidQuery(
-            command, dynamicPasses, combinedPasses,
-            ruleSet.ProjectionSchemaVersion, ruleSet.ProjectionFingerprintSha256);
-        AddParameter(command, "@truth_uuid", DbType.Guid, truthPersonUuid);
-        command.CommandText = $"""
+        ArgumentException.ThrowIfNullOrWhiteSpace(taggedQuery);
+        return $"""
             WITH tagged_uuid AS (
                 {taggedQuery}
             ), effective_tagged AS (
@@ -368,6 +353,28 @@ internal static class BlockingPassAuditCommand
                    COALESCE(MAX(CASE WHEN pessoa_uuid=@truth_uuid AND in_combined=1 THEN 1 ELSE 0 END),0)
               FROM effective_tagged;
             """;
+    }
+
+    /// <summary>
+    /// Both sources are counted in ONE SQL statement, eliminating overlap drift
+    /// between multiple database snapshots. Only aggregate counts leave SQL.
+    /// </summary>
+    private static async Task<TaggedParallelLookupMeasurement> MeasureTaggedParallelLookupAsync(
+        DbConnection connection,
+        IReadOnlyList<BlockingCandidatePassLookup> dynamicPasses,
+        IReadOnlyList<BlockingCandidatePassLookup> combinedPasses,
+        LinkageDynamicRuleSet ruleSet,
+        Guid truthPersonUuid,
+        int commandTimeoutSeconds,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandTimeout = commandTimeoutSeconds;
+        var taggedQuery = BlockingProjectionCandidateQueryBuilder.BuildTaggedCandidateUuidQuery(
+            command, dynamicPasses, combinedPasses,
+            ruleSet.ProjectionSchemaVersion, ruleSet.ProjectionFingerprintSha256);
+        AddParameter(command, "@truth_uuid", DbType.Guid, truthPersonUuid);
+        command.CommandText = BuildTaggedAuditSql(taggedQuery);
 
         var stopwatch = Stopwatch.StartNew();
         await using var reader = await command.ExecuteReaderAsync(ct);
