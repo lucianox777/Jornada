@@ -8,6 +8,34 @@ using Microsoft.Data.SqlClient;
 
 const string Purpose = "DEV_HML_ONLY_NO_PUBLICATION";
 
+// Export only public IBGE national marginals for independent synthetic external estimation.
+if (args.Length == 4 && args[0] == "--export-ibge-public-marginals" &&
+    args[2] == "--first-name-sex")
+{
+    if (args[3] is not ("TODOS" or "FEMININO"))
+        throw new ArgumentException("Use --first-name-sex TODOS|FEMININO.");
+    var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+        ?? throw new InvalidOperationException(
+            "Define ConnectionStrings__Jornada only for isolated JornadaSyntheticDev.");
+    var adapter = new OperationalSqlAdapter(connectionString);
+    await using var db = await adapter.OpenAsync();
+    var exporter = new CalibrationAuditExporter(db, commandTimeoutSeconds: 900);
+    var json = await exporter.ExportIbgePublicMarginalsAsync(args[3]);
+    var output = Path.GetFullPath(args[1]);
+    Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+    await File.WriteAllTextAsync(output, json, new System.Text.UTF8Encoding(false));
+    await File.WriteAllTextAsync(output + ".sha256",
+        SplinkIbgeReplayContract.Sha(json) + "  " + Path.GetFileName(output) +
+        Environment.NewLine, new System.Text.UTF8Encoding(false));
+    Console.WriteLine("Public IBGE marginal export completed; sex=" + args[3] +
+        "; SHA=" + SplinkIbgeReplayContract.Sha(json) +
+        ". No citizen data or model changes.");
+    return;
+}
+if (args.Contains("--export-ibge-public-marginals"))
+    throw new ArgumentException(
+        "--export-ibge-public-marginals <output.json> --first-name-sex <TODOS|FEMININO>.");
+
 // Conferência de cálculo do IBGE sobre OS MESMOS PARES, sem dados reais:
 // o exportador existente é reutilizado, mas só no banco JornadaSyntheticDev.
 if (args.Length == 8 && args[0] == "--export-splink-ibge-replay" &&
