@@ -17,7 +17,6 @@ public sealed record PipelineWatchdogOptions
     public int ModelGenerationMaxMinutes { get; init; } = 120;
     public int ExpiredLeaseGraceMinutes { get; init; } = 5;
     public int PendingBacklogMaxAgeMinutes { get; init; } = 60;
-    public int InitialLoadMaxHours { get; init; } = 24;
 }
 
 public sealed record PipelineWatchdogSnapshot(
@@ -29,9 +28,7 @@ public sealed record PipelineWatchdogSnapshot(
     long ExpiredActiveLeases,
     DateTimeOffset? OldestExpiredLeaseAt,
     long PendingLots,
-    DateTimeOffset? OldestPendingLotCreatedAt,
-    bool InitialLoadActive,
-    DateTimeOffset? InitialLoadActivatedAt);
+    DateTimeOffset? OldestPendingLotCreatedAt);
 
 public sealed record PipelineWatchdogFinding(
     string Code,
@@ -82,19 +79,6 @@ public static class PipelineWatchdogEvaluator
             TimeSpan.FromMinutes(options.PendingBacklogMaxAgeMinutes),
             "PROCESSOR_BACKLOG_OLD",
             "O lote PENDENTE mais antigo excede a idade operacional configurada.");
-
-        if (snapshot.InitialLoadActive && snapshot.InitialLoadActivatedAt is { } initialLoadAt)
-        {
-            var age = snapshot.ObservedAt - initialLoadAt;
-            if (age > TimeSpan.FromHours(options.InitialLoadMaxHours))
-            {
-                findings.Add(new PipelineWatchdogFinding(
-                    "INITIAL_LOAD_MODE_STALE",
-                    1,
-                    Math.Max(0, age.TotalMinutes),
-                    "controle.modo_carga_inicial permanece ativo além do limite operacional."));
-            }
-        }
 
         return findings;
     }
@@ -175,13 +159,12 @@ public sealed class PipelineWatchdogWorker(
         if (findings.Count == 0)
         {
             logger.LogDebug(
-                "PIPELINE_WATCHDOG_OK ObservedAt={ObservedAt:O}; PendingLots={PendingLots}; ActiveLinkageRuns={ActiveLinkageRuns}; GeneratingModels={GeneratingModels}; ExpiredActiveLeases={ExpiredActiveLeases}; InitialLoadActive={InitialLoadActive}.",
+                "PIPELINE_WATCHDOG_OK ObservedAt={ObservedAt:O}; PendingLots={PendingLots}; ActiveLinkageRuns={ActiveLinkageRuns}; GeneratingModels={GeneratingModels}; ExpiredActiveLeases={ExpiredActiveLeases}.",
                 snapshot.ObservedAt,
                 snapshot.PendingLots,
                 snapshot.ActiveLinkageRuns,
                 snapshot.GeneratingModels,
-                snapshot.ExpiredActiveLeases,
-                snapshot.InitialLoadActive);
+                snapshot.ExpiredActiveLeases
         }
 
         return findings;
@@ -228,9 +211,7 @@ public sealed class PipelineWatchdogWorker(
                     WHERE l.status IN('VALIDANDO','PROCESSANDO')
                       AND COALESCE(h.lease_expira_em,l.lease_expira_em)<@agora) AS lease_expirado_mais_antigo,
                 (SELECT COUNT_BIG(*) FROM ingestao.lote WHERE status='PENDENTE') AS lotes_pendentes,
-                (SELECT MIN(criado_em) FROM ingestao.lote WHERE status='PENDENTE') AS lote_pendente_mais_antigo,
-                CAST(COALESCE((SELECT TOP(1) ativo FROM controle.modo_carga_inicial WHERE estado_id=1),0) AS bit) AS carga_inicial_ativa,
-                (SELECT TOP(1) ativado_em FROM controle.modo_carga_inicial WHERE estado_id=1) AS carga_inicial_ativada_em;
+                (SELECT MIN(criado_em) FROM ingestao.lote WHERE status='PENDENTE') AS lote_pendente_mais_antigo;
             """;
 
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -246,9 +227,7 @@ public sealed class PipelineWatchdogWorker(
             reader.GetInt64(5),
             GetNullableDateTimeOffset(reader, 6),
             reader.GetInt64(7),
-            GetNullableDateTimeOffset(reader, 8),
-            reader.GetBoolean(9),
-            GetNullableDateTimeOffset(reader, 10));
+            GetNullableDateTimeOffset(reader, 8));
     }
 
     private static DateTimeOffset? GetNullableDateTimeOffset(SqlDataReader reader, int ordinal) =>
