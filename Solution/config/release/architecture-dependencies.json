@@ -14,10 +14,11 @@
     ],
     "Jornada.Api": [
       "Jornada.Access.Security",
-      "Jornada.Operational.Sql",
       "Jornada.Bronze.Storage",
       "Jornada.Contracts",
-      "Jornada.Ingestion"
+      "Jornada.Ingestion",
+      "Jornada.Linkage.Runner",
+      "Jornada.Operational.Sql"
     ],
     "Jornada.Bronze.Verify": [
       "Jornada.Operational.Sql",
