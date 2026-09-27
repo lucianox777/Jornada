@@ -142,7 +142,7 @@ def verify(root, manifest_path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", required=True, help="NAS root; must already have service ACLs")
+    parser.add_argument("--root", help="snapshot root; defaults to BronzeStorage__RootPath/linkage-snapshots/v1")
     commands = parser.add_subparsers(dest="command", required=True)
     capture_cmd = commands.add_parser("capture")
     capture_cmd.add_argument("--input", required=True, help="frozen NDJSON export sorted by observation_key")
