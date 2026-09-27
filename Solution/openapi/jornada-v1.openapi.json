@@ -922,6 +922,49 @@
           }
         }
       }
+    },
+    "/api/v1/identidade/busca": {
+      "post": {
+        "operationId": "jornada_post_busca_semicega",
+        "summary": "Busca síncrona semicega de até cinco candidatos, sem score e sem publicação de vínculo",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SemiblindIdentitySearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Candidatos em ordem neutra, inclusive lista vazia",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemiblindIdentitySearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Limite excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2903,6 +2946,87 @@
           },
           "erro": {
             "type": "string"
+          }
+        }
+      },
+      "SemiblindIdentitySearchRequest": {
+        "type": "object",
+        "required": [
+          "nome",
+          "dataNascimento",
+          "nomeMae"
+        ],
+        "properties": {
+          "nome": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1
+          },
+          "dataNascimento": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "nomeMae": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          }
+        }
+      },
+      "SemiblindIdentityCandidate": {
+        "type": "object",
+        "required": [
+          "opcaoId",
+          "nome",
+          "dataNascimento",
+          "nomeMae"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "opcaoId": {
+            "type": "string",
+            "description": "Identificador de opção da consulta; não autoriza vinculação"
+          },
+          "nome": {
+            "type": "string"
+          },
+          "dataNascimento": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "nomeMae": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SemiblindIdentitySearchResponse": {
+        "type": "object",
+        "required": [
+          "consultaId",
+          "candidatos",
+          "nenhumDestesDisponivel"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "consultaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "candidatos": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "$ref": "#/components/schemas/SemiblindIdentityCandidate"
+            }
+          },
+          "nenhumDestesDisponivel": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
           }
         }
       }
