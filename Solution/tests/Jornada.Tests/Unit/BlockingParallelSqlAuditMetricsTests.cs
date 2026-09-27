@@ -74,6 +74,24 @@ public sealed class BlockingParallelSqlAuditMetricsTests
     }
 
     [Test]
+    public void OptionalSqlAuditFlag_RequiresExplicitBooleanAndDefaultsOff()
+    {
+        var option = BlockingPassAuditCommand.CompareCombinedOption;
+        Assert.Multiple(() =>
+        {
+            Assert.That(BlockingPassAuditCommand.ReadOptionalBooleanOption([], option), Is.False);
+            Assert.That(BlockingPassAuditCommand.ReadOptionalBooleanOption([option, "true"], option), Is.True);
+            Assert.That(BlockingPassAuditCommand.ReadOptionalBooleanOption([option + "=true"], option), Is.True);
+            Assert.That(BlockingPassAuditCommand.ReadOptionalBooleanOption([option, "false"], option), Is.False);
+            Assert.That(BlockingPassAuditCommand.ReadOptionalBooleanOption([option + "=false"], option), Is.False);
+        });
+        Assert.That(() => BlockingPassAuditCommand.ReadOptionalBooleanOption([option], option),
+            Throws.TypeOf<ArgumentException>());
+        Assert.That(() => BlockingPassAuditCommand.ReadOptionalBooleanOption([option + "=maybe"], option),
+            Throws.TypeOf<ArgumentException>());
+    }
+
+    [Test]
     public void Summarize_ZeroEvidenceIsExplicit()
     {
         var report = BlockingParallelSqlAuditMetrics.Summarize(Array.Empty<BlockingParallelSqlAuditRow>());
