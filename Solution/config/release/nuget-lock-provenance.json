@@ -231,16 +231,28 @@
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
     "sdk": "8.0.424",
     "lockCount": 23,
-    "changedLockCount": 4,
-    "combinedSha256": "b1df1a418eff5a118baea13dc4c823fac12c67b932c390fedc4a877a36ff10b6",
+    "changedLockCount": 7,
+    "combinedSha256": "77ca6ccbc8b077f4557ca95532080bf1544bbc279402577d90342480c48ea65d",
     "overrides": [
+      {
+        "path": "src/Jornada.Access.Security/packages.lock.json",
+        "sha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9"
+      },
       {
         "path": "src/Jornada.Linkage.Conference/packages.lock.json",
         "sha256": "cdd6b2d6d6603b4523879949fd6aee786de042ce020471c885fec389d22bd7b9"
       },
       {
+        "path": "src/Jornada.Linkage.Core/packages.lock.json",
+        "sha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9"
+      },
+      {
         "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
         "sha256": "71419f3ef20c41a46e460807152e89f840d43389de4e554cd2db2438b2e55e3d"
+      },
+      {
+        "path": "src/Jornada.Linkage.SyntheticCorpus/packages.lock.json",
+        "sha256": "37f341c42329dd0e4831ffcd31ca02a879685566b19e94b23464ebf38d129388"
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
