@@ -190,6 +190,42 @@ public static class SplinkIbgeReplayContract
             "Não valida método de bootstrap, canal de erros, u condicionado, scorer m/u ou população #31.");
     }
 
+    /// <summary>
+    /// Exports only discordant pairs from the same validated replay and external result.
+    /// Pair index, synthetic names and both states are preserved in input order.
+    /// No database access, calibration import or model mutation.
+    /// </summary>
+    public static string ExportDisagreementsCsv(string inputJson, string resultJson)
+    {
+        // Diagnose first: refuse mismatched hashes, versions, duplicate/missing pairs,
+        // invalid states and malformed inputs before exposing any rows.
+        var diagnostic = Diagnose(inputJson, resultJson);
+        var source = ParseInput(inputJson);
+        var external = JsonSerializer.Deserialize<SplinkIbgeReplayExternalResult>(resultJson, JsonOptions)!;
+        var byIndex = external.Pairs.ToDictionary(pair => pair.PairIndex, pair => pair.SplinkState);
+        var output = new StringBuilder();
+        output.AppendLine("recorte,pair_index,left_name,right_name,c_sharp_state,splink_state");
+        var count = 0;
+        foreach (var pair in source.Pairs)
+        {
+            var splink = byIndex[pair.PairIndex];
+            if (pair.CSharpState == splink) continue;
+            output.Append(EscapeCsv(source.FirstNameSex)).Append(',')
+                .Append(pair.PairIndex).Append(',')
+                .Append(EscapeCsv(pair.LeftName)).Append(',')
+                .Append(EscapeCsv(pair.RightName)).Append(',')
+                .Append(EscapeCsv(pair.CSharpState)).Append(',')
+                .Append(EscapeCsv(splink)).AppendLine();
+            count++;
+        }
+        if (count != diagnostic.PairwiseDisagreements)
+            throw new InvalidDataException("Contagem de divergências inconsistente.");
+        return output.ToString();
+    }
+
+    private static string EscapeCsv(string value) =>
+        "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+
     public static string SerializeDiagnostic(SplinkIbgeReplayDiagnostic value) =>
         JsonSerializer.Serialize(value, JsonOptions) + "\n";
 
