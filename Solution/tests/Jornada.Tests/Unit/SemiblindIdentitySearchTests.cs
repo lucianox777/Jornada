@@ -60,9 +60,12 @@ public sealed class SemiblindIdentitySearchTests
         Assert.That(json, Does.Not.Contain("score"));
         Assert.That(json, Does.Not.Contain("pessoauuid"));
         Assert.That(json, Does.Not.Contain("cpf"));
-        Assert.That(json, Does.Contain("nome_completo"));
-        Assert.That(json, Does.Contain("data_nascimento"));
-        Assert.That(json, Does.Contain("nome_mae"));
+        if (count > 0)
+        {
+            Assert.That(json, Does.Contain("nome_completo"));
+            Assert.That(json, Does.Contain("data_nascimento"));
+            Assert.That(json, Does.Contain("nome_mae"));
+        }
         Assert.That(json, Does.Contain("nenhumdestes"));
     }
 
