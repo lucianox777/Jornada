@@ -21,6 +21,36 @@ public static class BlockingProjectionCandidateQueryBuilder
         string? projectionSchemaVersion = null,
         string? projectionFingerprintSha256 = null,
         int maxParameters = DefaultMaxParameters)
+        => BuildCandidateUuidQueryCore(command, passes, projectionSchemaVersion,
+            projectionFingerprintSha256, maxParameters, dynamicPassCount: null);
+
+    /// <summary>
+    /// Read-only audit: preserve D/C provenance for exact overlap counting in a single
+    /// SQL statement. Reuses every filtering, projection and parameter-limit contract
+    /// of BuildCandidateUuidQuery; never changes the Runner's production SQL.
+    /// </summary>
+    public static string BuildTaggedCandidateUuidQuery(
+        DbCommand command,
+        IReadOnlyList<BlockingCandidatePassLookup> dynamicPasses,
+        IReadOnlyList<BlockingCandidatePassLookup> combinedPasses,
+        string? projectionSchemaVersion = null,
+        string? projectionFingerprintSha256 = null,
+        int maxParameters = DefaultMaxParameters)
+    {
+        ArgumentNullException.ThrowIfNull(dynamicPasses);
+        ArgumentNullException.ThrowIfNull(combinedPasses);
+        var all = dynamicPasses.Concat(combinedPasses).ToArray();
+        return BuildCandidateUuidQueryCore(command, all, projectionSchemaVersion,
+            projectionFingerprintSha256, maxParameters, dynamicPasses.Count);
+    }
+
+    private static string BuildCandidateUuidQueryCore(
+        DbCommand command,
+        IReadOnlyList<BlockingCandidatePassLookup> passes,
+        string? projectionSchemaVersion,
+        string? projectionFingerprintSha256,
+        int maxParameters,
+        int? dynamicPassCount)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(passes);
@@ -28,7 +58,10 @@ public static class BlockingProjectionCandidateQueryBuilder
         PersonResolutionProjectionContract.ValidateSupported(projectionSchemaVersion, projectionFingerprintSha256);
 
         if (passes.Count == 0)
-            return "SELECT pessoa_uuid FROM identidade.blocking_chave WHERE 1=0";
+            return dynamicPassCount is null
+                ? "SELECT pessoa_uuid FROM identidade.blocking_chave WHERE 1=0"
+                : "SELECT pessoa_uuid, CAST(0 AS int) AS in_dynamic, " +
+                  "CAST(0 AS int) AS in_combined FROM identidade.blocking_chave WHERE 1=0";
 
         var projectionBound = projectionSchemaVersion is not null;
         var requiredParameters = 1 + (projectionBound ? 2 : 0) + passes.Sum(static pass =>
@@ -88,13 +121,21 @@ public static class BlockingProjectionCandidateQueryBuilder
                     $"AND valor_normalizado IN ({string.Join(",", valueParameters)}){currentOnly}");
             }
 
-            passQueries.Add(
-                $"SELECT pessoa_uuid FROM ({string.Join(" INTERSECT ", clauseQueries)}) AS pass_{passIndex}");
+            var passSource = $"({string.Join(" INTERSECT ", clauseQueries)}) AS pass_{passIndex}";
+            passQueries.Add(dynamicPassCount is null
+                ? $"SELECT pessoa_uuid FROM {passSource}"
+                : $"SELECT pessoa_uuid, " +
+                  $"CAST({(passIndex < dynamicPassCount.Value ? 1 : 0)} AS int) AS in_dynamic, " +
+                  $"CAST({(passIndex >= dynamicPassCount.Value ? 1 : 0)} AS int) AS in_combined " +
+                  $"FROM {passSource}");
         }
 
         return passQueries.Count == 0
-            ? "SELECT pessoa_uuid FROM identidade.blocking_chave WHERE 1=0"
-            : string.Join(" UNION ", passQueries);
+            ? dynamicPassCount is null
+                ? "SELECT pessoa_uuid FROM identidade.blocking_chave WHERE 1=0"
+                : "SELECT pessoa_uuid, CAST(0 AS int) AS in_dynamic, " +
+                  "CAST(0 AS int) AS in_combined FROM identidade.blocking_chave WHERE 1=0"
+            : string.Join(dynamicPassCount is null ? " UNION " : " UNION ALL ", passQueries);
     }
 
     private static void Add(DbCommand command, string name, DbType type, object value, int size)
