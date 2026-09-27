@@ -164,6 +164,35 @@ public sealed class SyntheticEvaluationEvidenceWriter(
             }
         }
 
+        if (report.ParallelBlocking is { } parallel)
+        {
+            Add(table, "PARALLEL_BLOCKING", null, "ELIGIBLE_PAIRS", parallel.EligiblePairCount, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "ELIGIBLE_TRUE_PAIRS", parallel.EligibleTruePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "COMBINED_ELIGIBLE_TRUE_PAIRS",
+                parallel.CombinedEligibleTruePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "D_CANDIDATE_PAIRS", parallel.DynamicCandidatePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "C_CANDIDATE_PAIRS", parallel.CombinedCandidatePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "UNION_CANDIDATE_PAIRS", parallel.UnionCandidatePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "SHARED_CANDIDATE_PAIRS", parallel.SharedCandidatePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "D_ONLY_CANDIDATE_PAIRS", parallel.DynamicOnlyCandidatePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "C_ONLY_CANDIDATE_PAIRS", parallel.CombinedOnlyCandidatePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "D_TRUE_PAIRS", parallel.DynamicTruePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "C_TRUE_PAIRS", parallel.CombinedTruePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "UNION_TRUE_PAIRS", parallel.UnionTruePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "SHARED_TRUE_PAIRS", parallel.SharedTruePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "D_ONLY_TRUE_PAIRS", parallel.DynamicOnlyTruePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "C_ONLY_TRUE_PAIRS", parallel.CombinedOnlyTruePairs, "COUNT");
+            Add(table, "PARALLEL_BLOCKING", null, "D_RECALL", parallel.DynamicRecall, "RATIO");
+            Add(table, "PARALLEL_BLOCKING", null, "C_RECALL", parallel.CombinedRecall, "RATIO");
+            Add(table, "PARALLEL_BLOCKING", null, "C_CONDITIONAL_RECALL",
+                parallel.CombinedConditionalRecall, "RATIO");
+            Add(table, "PARALLEL_BLOCKING", null, "UNION_RECALL", parallel.UnionRecall, "RATIO");
+            Add(table, "PARALLEL_BLOCKING", null, "D_REDUCTION_RATIO", parallel.DynamicReductionRatio, "RATIO");
+            Add(table, "PARALLEL_BLOCKING", null, "C_REDUCTION_RATIO", parallel.CombinedReductionRatio, "RATIO");
+            Add(table, "PARALLEL_BLOCKING", null, "UNION_REDUCTION_RATIO",
+                parallel.UnionReductionRatio, "RATIO");
+        }
+
         foreach (var pass in report.Blocking.Passes)
         {
             Add(table, "BLOCKING_PASS", pass.PassId, "CANDIDATE_PAIRS", pass.CandidatePairs, "COUNT");

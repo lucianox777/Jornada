@@ -196,6 +196,8 @@ A matriz de comparação **não tem vencedor prefixado**. Reportar `TrueMatchRec
 
 **Possibilidade de abandono:** se C não acrescentar recall a D, ou D não acrescentar recall a C, a manutenção do mecanismo redundante poderá ser questionada **somente depois de teste de não inferioridade de recall pré-declarado, estratos difíceis, custo observado, revisão do `u` condicionado à política resultante, replay, rollback e gates institucionais**. A conclusão pode ser manter D∪C, promover só subconjunto de passes de cada um ou desativar um conjunto; ela **não** é pressuposta hoje. Guardar o código/teste necessário para reexecutar modelos históricos antes de qualquer retirada física.
 
+**Parcela de instrumentação implementada:** o [diagnóstico paralelo read-only](Linkage_Blocking_Parallel_Diagnostic.md) adiciona D, C e D∪C, verdadeiros exclusivos, sobreposição, recalls e reduction ratios ao Avaliador sintético e ao ledger append-only. A comparação é feita **somente** no mesmo universo materializado sem CPF/entre Gestores. Continuam faltando cobertura real representativa, latência SQL em escala, custos por onda, estratos sem data excluídos pelo contrato atual e decisão de promoção. O experimento não transforma C em ruleset publicado.
+
 ### 10.1. Critérios adicionais de execução
 
 1. Estudar a **presença** do sobrenome em qualquer posição com marginais oficiais, preservando as diferenças entre token técnico, último token e sobrenome semanticamente estruturado.

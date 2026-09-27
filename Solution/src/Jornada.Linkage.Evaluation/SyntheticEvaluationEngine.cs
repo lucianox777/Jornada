@@ -35,7 +35,8 @@ public sealed record SyntheticEvaluationReport(
     SyntheticThresholdOracle DecisionOracle,
     SyntheticMultiSeedContext MultiSeed,
     IReadOnlyList<string> Safeguards,
-    SyntheticCombinedBlockingEvaluation? CombinedBlocking = null);
+    SyntheticCombinedBlockingEvaluation? CombinedBlocking = null,
+    SyntheticParallelBlockingEvaluation? ParallelBlocking = null);
 
 public sealed record SyntheticEvaluationInput(
     string GeneratedRoot,
@@ -178,10 +179,10 @@ public sealed record SyntheticThresholdOracle(
 
 public sealed class SyntheticEvaluationEngine(SqlConnection connection, int commandTimeoutSeconds)
 {
-    public const string SchemaVersion = "JORNADA_SYNTHETIC_EVALUATION_V1";
+    public const string SchemaVersion = "JORNADA_SYNTHETIC_EVALUATION_V2";
     public const string Nature = "SYNTHETIC_PARAMETER_RECOVERY";
     public const string Purpose = "ENGINEERING_EVIDENCE_ONLY_NOT_PROMOTABLE";
-    public const string EvaluatorVersion = "JORNADA_SYNTHETIC_EVALUATOR_V1";
+    public const string EvaluatorVersion = "JORNADA_SYNTHETIC_EVALUATOR_V2";
     public const string RequiredEnvironmentProfile = "Development";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -273,6 +274,24 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
         var truePairs = BuildTrueInterSourcePairs(projected);
         var candidate = BuildCandidateUnion(projected, model.Passes, truePairs, options.MaxCandidatePairs);
         var combined = EvaluateCombinedBlocking(observations, options.MaxCandidatePairs);
+        // Compare D/C/D∪C on exactly the same no-CPF, inter-Gestor materialized
+        // pair universe. The active D ruleset is NOT changed by this experiment.
+        var dynamicNoCpfInterGestor = candidate.UnionPairs
+            .Where(pair => observations[pair.Left].Cpf is null
+                && observations[pair.Right].Cpf is null
+                && !string.Equals(observations[pair.Left].Gestor,
+                    observations[pair.Right].Gestor, StringComparison.Ordinal))
+            .Select(static pair => Pack(pair.Left, pair.Right))
+            .ToHashSet();
+        var truthNoCpfInterGestor = truePairs
+            .Where(pair => observations[pair.Left].Cpf is null
+                && observations[pair.Right].Cpf is null)
+            .Select(static pair => Pack(pair.Left, pair.Right))
+            .ToHashSet();
+        var parallel = BlockingParallelCandidateDiagnostic.Analyze(
+            dynamicNoCpfInterGestor, combined.CandidatePairs, truthNoCpfInterGestor,
+            combined.EligiblePairCount, combined.CombinedEligibleTruePairs,
+            options.MaxCandidatePairs);
 
         var nameContract = LinkageParameterCatalog.NameComparisonContractForAlgorithm(model.AlgorithmVersion);
         var cpfLabeledPairs = truePairs
@@ -387,9 +406,11 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                 "decision oracle reuses FsDecisionThresholdCalibrator.Partition, the persisted calibration seed/basis points, FellegiSunterScoring and the frozen VALIDATION/TEST policy; TEST never selects coordinates",
                 "multi-seed expected membership is explicit and persisted; dispersion is forbidden until every expected seed is present",
                 "the report does not validate or activate a model and cannot satisfy issue #31",
-                "combined blocking is a synthetic comparator, not the active model ruleset"
+                "combined blocking is a synthetic comparator, not the active model ruleset",
+                "D/C/union parallel metrics share the no-CPF inter-Gestor materialized pair universe; they do not measure SQL latency, activate C or validate population recall"
             ],
-            combined);
+            combined.Summary,
+            parallel);
     }
 
     private async Task<string?> ReadEnvironmentProfileAsync(CancellationToken cancellationToken)
@@ -588,7 +609,8 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
         return new SyntheticRuleSetSnapshot(version, fingerprint, passes);
     }
 
-    private static SyntheticCombinedBlockingEvaluation EvaluateCombinedBlocking(
+    private static (SyntheticCombinedBlockingEvaluation Summary, HashSet<ulong> CandidatePairs,
+        long EligiblePairCount, long CombinedEligibleTruePairs) EvaluateCombinedBlocking(
         IReadOnlyList<SyntheticTruthObservation> observations, int maxCandidatePairs)
     {
         var projected = observations.Select(o => BlockingProjectionKeyProjector
@@ -602,7 +624,8 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
             : Array.Empty<BlockingCandidatePassLookup>()).ToArray();
         var passPairs = new Dictionary<string, HashSet<ulong>>(StringComparer.Ordinal);
         var union = new HashSet<ulong>();
-        long eligible = 0, exact = 0, retained = 0;
+        long eligible = 0, exact = 0, retained = 0, eligiblePairCount = 0;
+        long combinedEligibleTruePairs = 0;
         for (var i = 0; i < observations.Count; i++)
         for (var j = i + 1; j < observations.Count; j++)
         {
@@ -610,8 +633,14 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
             var right = observations[j];
             if (left.Gestor == right.Gestor || left.Cpf is not null || right.Cpf is not null)
                 continue;
+            eligiblePairCount++;
             var truth = left.BasePersonId == right.BasePersonId;
-            if (truth) eligible++;
+            if (truth)
+            {
+                eligible++;
+                if (plans[i].Count > 0 && plans[j].Count > 0)
+                    combinedEligibleTruePairs++;
+            }
             var matched = new HashSet<string>(StringComparer.Ordinal);
             foreach (var (source, target) in new[] { (i, j), (j, i) })
             foreach (var pass in plans[source])
@@ -645,9 +674,10 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                     observations[Unpack(key).Right].BasePersonId),
                 Rate(p.Value.LongCount(key => observations[Unpack(key).Left].BasePersonId ==
                     observations[Unpack(key).Right].BasePersonId), eligible))).ToArray();
-        return new SyntheticCombinedBlockingEvaluation(
+        var summary = new SyntheticCombinedBlockingEvaluation(
             CombinedIdentityCandidatePlanner.MethodVersion, eligible, exact, retained,
             Rate(exact, eligible), Rate(retained, eligible), union.Count, passReports);
+        return (summary, union, eligiblePairCount, combinedEligibleTruePairs);
     }
 
     private static SyntheticCandidateEvaluation BuildCandidateUnion(

@@ -271,6 +271,8 @@ O prior demográfico estima `P(data_real | coorte/território/corte)`; o modelo 
 
 A infraestrutura corrente usa `identidade.blocking_chave` vertical e consultas `INTERSECT/UNION` sobre índices reutilizados. Uma projeção horizontal composta nome+mãe+data é **otimização física candidata**: requer contrato versionado de sincronização com aliases/Gold, medição de manutenção/inserts, latência P50/P95/P99 e prova de equivalência lógica. O objetivo de consulta quase imediata é hipótese de desempenho a demonstrar, **não SLA nem justificativa para sacrificar recall**.
 
+**Implementação adicional de diagnóstico sintético (sem ativação):** a [comparação paralela executável D/C/D∪C](Linkage_Blocking_Parallel_Diagnostic.md) agora usa o **mesmo universo sem CPF e entre Gestores**, mensura verdadeiros exclusivos e compartilhados, recall geral e recall condicional à elegibilidade de C e persiste somente agregados no ledger de avaliação. Esta evidência técnica complementa o PR #566 e **não** representa benchmark operacional SQL, aceitação da issue #31 ou alteração do ruleset em produção.
+
 ## 6. Estado real da implementação e fronteiras de ativação
 
 | Componente | Estado constatado na base de 27/09/2026 | Pendência |
