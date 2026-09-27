@@ -28,6 +28,8 @@ public sealed class Dt05BronzePinContractTests
             Assert.That(retention, Does.Contain("liveReferences += reader.GetInt64(0)"));
             Assert.That(migration, Does.Contain("Jornada.Bronze.Object."));
             Assert.That(migration, Does.Contain("sp_fixar_bronze_para_linkage"));
+            Assert.That(migration, Does.Contain("PRIMARY KEY(linkage_run_id,payload_sha256)"));
+            Assert.That(migration, Does.Contain("IX_linkage_bronze_pin_objeto ON identidade.linkage_bronze_pin(payload_sha256)"));
             Assert.That(migration, Does.Contain("estado_armazenamento=N'DISPONIVEL'"));
         });
     }
