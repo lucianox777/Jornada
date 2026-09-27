@@ -216,3 +216,19 @@ O IBGE de nomes por década **não é** histograma completo de nascimentos do mu
 
 **Fronteira de implantação:** calibrar ordem e composição **em snapshot congelado**, não gerar plano independente por solicitação. O produto operacional mantém `u` condicionado ao universo que **realmente passou** pelos passes da união e `m` baseado em pares verdadeiros rotulados; fontes censitárias são bootstrap e diagnósticos, não autorização de vínculo.
 
+### 10.3. Critério de aceite do índice estatístico multivariado (contrato do núcleo)
+
+**Contrato de decisão:** [seção 5.3 da decisão canônica](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md#53-contrato-de-seleção-de-passes-custo-e-exaustividade). A prioridade não é provar 1/599 milhões: é **recuperar o vínculo verdadeiro sob orçamento operacional governado**, mesmo no cenário de nomes comuns, com as menores cardinalidades possíveis e sem falsa declaração de pessoa nova depois de busca incompleta.
+
+| Estrato de avaliação | Entradas e fonte estatística | Evidências a publicar |
+|---|---|---|
+| Prenome/sobrenome da pessoa | SP 3550308, Censo 2022, V2 **candidata**; sobrenomes por presença em qualquer posição, último token como proxy com validação | Frequências divulgadas e suprimidas, versões, cardinalidades por passe/união, cobertura na Gold |
+| Prenome/sobrenome da mãe | Brasil: prenome `FEMININO` e sobrenome `TODOS`, V1 técnica vigente | Cobertura da mãe, ausência por fonte, correlação familiar com sobrenome civil, impacto de coortes |
+| Distribuição demográfica de nascimento | IBGE **população por idade e sexo**, recorte municipal e data de referência **separados** da estatística de nomes por década | Massa/coorte, extrapolação datada e estratos fora do Censo 2022; não usar últimas décadas como limite rígido |
+| Distribuição de erros de nascimento | Par verdadeiro rotulado por Gestor/Sistema/Base, sem e com mãe/CPF; perfis sintéticos apenas como sensibilidade | Exato, dia/mês invertido válido, ano adjacente, troca de dígitos, valores convencionais e ausentes; ganho marginal |
+| Grafias publicadas e vizinhanças | Contagens censitárias **distintas** de `SOUZA` e `SOUSA`; fonética, ortografia e aliases são relações calculadas/versionadas | Recuperação dos dois nomes sem fundir contagens públicas; custo de expansão e FN por estrato |
+| Plano físico | Índice vertical `identidade.blocking_chave` com `INTERSECT/UNION` **versus** projeção horizontal composta candidata | Planos SQL Server, CPU/I/O, P50/P95/P99, custo de manutenção, equivalência da união e retries |
+
+Para uma mesma observação, os passes elegíveis **não** podem ser encerrados após o primeiro candidato nem descartados por ranking interno sem estado de execução **incompleta**. `NOVA_IDENTIDADE` só é admissível quando a política versionada concluiu o universo completo. O scorer C# FS e as guardas de conflito continuam únicos e separados da previsão de seletividade. A documentação de testes deve congelar corpus, data civil do run, fontes por atributo, fingerprints e limites observados.
+
+
