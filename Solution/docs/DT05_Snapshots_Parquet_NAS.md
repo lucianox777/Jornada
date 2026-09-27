@@ -99,3 +99,8 @@ O teste SQL de ondas foi ampliado com uma quarta execução: após a transição
 ## Regressão de guardas da publicação — PR posterior ao #528
 
 O teste de integração `Dt05PublicationGuardsSqlServerTests` exercita a procedure real sem transação (erro SQL `51940`) e com run inexistente dentro de transação `SERIALIZABLE` (erro `51941`). Não gera resultados operacionais; a transação de teste é revertida. A regressão exige SQL Server e `JORNADA_TEST_SQL_CONNECTION`; sua execução no CI deve ser verificada antes do merge. Esta guarda não substitui o ensaio Bronze → Silver → Runner de CPF tardio nem o replay histórico do Marco B.
+
+
+## Guarda adicional — run existente em PREPARANDO
+
+A regressão de publicação passa a criar, em transação isolada, um run real em `PREPARANDO` e exigir erro `51941` da procedure de ledger, além dos cenários sem transação e run inexistente já integrados no PR #529. Isso distingue a validação de estado de uma mera validação de existência. O teste depende de SQL Server configurado no CI; não substitui o ensaio de CPF tardio real ou o replay NAS.
