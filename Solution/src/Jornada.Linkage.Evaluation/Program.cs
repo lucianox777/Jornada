@@ -8,6 +8,29 @@ using Microsoft.Data.SqlClient;
 
 const string Purpose = "DEV_HML_ONLY_NO_PUBLICATION";
 
+// Offline reference for independent comparison: accepts ONLY exported public IBGE marginals.
+if (args.Length == 5 && args[0] == "--estimate-ibge-public-marginals" &&
+    args[3] == "--pairs")
+{
+    if (!int.TryParse(args[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out var offlinePairs) ||
+        offlinePairs is < 1 or > 100_000)
+        throw new ArgumentException("Use --pairs 1..100000.");
+    var source = Path.GetFullPath(args[1]);
+    var target = Path.GetFullPath(args[2]);
+    var marginalJson = await File.ReadAllTextAsync(source);
+    var offlineReport = IbgeOfflineUReference.Estimate(marginalJson, offlinePairs);
+    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+    await File.WriteAllTextAsync(target, offlineReport, new System.Text.UTF8Encoding(false));
+    await File.WriteAllTextAsync(target + ".sha256",
+        SplinkIbgeReplayContract.Sha(offlineReport) + "  " + Path.GetFileName(target) +
+        Environment.NewLine, new System.Text.UTF8Encoding(false));
+    Console.WriteLine("Offline C# public IBGE u reference written. No SQL, citizen data or model changes.");
+    return;
+}
+if (args.Contains("--estimate-ibge-public-marginals"))
+    throw new ArgumentException(
+        "--estimate-ibge-public-marginals <public-marginals.json> <report.json> --pairs <1..100000>.");
+
 // Export only public IBGE national marginals for independent synthetic external estimation.
 if (args.Length == 4 && args[0] == "--export-ibge-public-marginals" &&
     args[2] == "--first-name-sex")

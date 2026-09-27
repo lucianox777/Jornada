@@ -13,3 +13,17 @@ dotnet run --project .\src\Jornada.Linkage.Evaluation -c Release -- --export-ibg
 Cada saída JSON segue `JORNADA_IBGE_PUBLIC_MARGINALS_V1`, com código e hash da referência, recorte, `first_names` e `surnames` normalizados, agregados e ordenados. Um sidecar `.sha256` registra o SHA físico do JSON. Conferir que o hash de conteúdo da referência corresponde ao manifesto IBGE aprovado antes de entregar o arquivo ao runner externo; o exportador valida formato e identidade lógica, mas não reconstitui sozinho o manifesto original. Não versionar os JSONs completos de evidência no Git.
 
 No repositório independente [jornada-splink-conformance](https://github.com/lucianox777/jornada-splink-conformance), executar `independent_u.py` separadamente para TODOS e FEMININO, preservando JSONs de entrada, sidecars e relatórios. A execução externa usa sorteio independente do C#, três seeds predefinidas e Splink real. O presente PR entrega **o intercâmbio público**; não executa o SQL local nem comprova a equivalência estatística. Ainda são necessárias a execução sobre marginais públicas efetivamente exportadas e a comparação quantitativa pré-registrada com o bootstrap C#, sob [issue #506](https://github.com/lucianox777/Jornada/issues/506).
+
+
+## Referência C# offline para comparação quantitativa
+
+Depois da exportação pública, gerar a referência C# **sem acesso ao SQL** e sem depender do runner Splink:
+
+```powershell
+dotnet run --project .\src\Jornada.Linkage.Evaluation -c Release -- --estimate-ibge-public-marginals .\evidence\ibge-splink\public-marginals-todos.json .\evidence\ibge-splink\csharp-u-todos.json --pairs 10000
+dotnet run --project .\src\Jornada.Linkage.Evaluation -c Release -- --estimate-ibge-public-marginals .\evidence\ibge-splink\public-marginals-feminino.json .\evidence\ibge-splink\csharp-u-feminino.json --pairs 10000
+```
+
+O relatório `JORNADA_IBGE_CSHARP_OFFLINE_U_V1` registra SHA físico da entrada, SHA de conteúdo da referência, recorte, versões do método e do comparador, probabilidade analítica de colisão e suportes/probabilidades/erros-padrão por estado. Seeds C# fixas **20261011, 20261012, 20261013**, distintas das seeds Python **20261001, 20261002, 20261003**. Cada saída recebe sidecar SHA-256. Os arquivos de teste com ANA/MARIA/SILVA/SANTOS são **fictícios** e não constituem evidência IBGE real.
+
+O teste quantitativo da #506 exige, para **cada recorte**, os mesmos arquivos públicos de entrada (comparar `marginals_sha256`), estimativas externas do Splink e relatórios C#; comparar separadamente EXACT/HIGH/MEDIUM/LOW, intervalos e diferenças de classificador. Uma divergência C# V1 × Splink nas fronteiras não deve ser confundida com erro da distribuição amostral. Este comando **não** realiza comparação automática, não consulta dados de cidadãos e não certifica representatividade #31.
