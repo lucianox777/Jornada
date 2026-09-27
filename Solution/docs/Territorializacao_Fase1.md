@@ -29,11 +29,6 @@ A Jornada valida códigos contra seus catálogos de Distrito/Subprefeitura e per
 
 ## Carga inicial massiva
 
-A primeira carga pode ser executada em `controle.modo_carga_inicial`. Enquanto esse modo estiver ativo, `Linkage.Runner` e `Linkage.Parameters.Worker` no modo `GENERATE_DRAFT` recusam execução; o Processor drena a fila e `serving.v_bi_carga_inicial` mede Pessoas processadas por hora.
+A primeira carga utiliza a API e o Processor contínuos, com acompanhamento do backlog e da vazão horária em `serving.v_bi_vazao_ingestao`. Após o corpus ter volume suficiente, o agendador corporativo deve aguardar os jobs conflitantes antes de iniciar `GENERATE_DRAFT` ou Runner; ambos permanecem sujeitos à coordenação SQL.
 
 A aceitação de Produção depende de ensaio HML com volumetria representativa. Se a projeção para a carga integral for institucionalmente inadequada, deve-se desenhar um modo bulk específico; não se deve introduzir chamadas geográficas online no Processor para resolver capacidade.
-
-
-## Modo de carga inicial
-
-`controle.modo_carga_inicial` é **não preemptivo**: impede o início de novos `GENERATE_DRAFT`/Runner, mas não cancela um job analítico que já tenha começado. A sequência operacional é aguardar jobs existentes, ativar o modo, drenar/medir a carga e só então desativá-lo.
