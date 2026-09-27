@@ -13,7 +13,7 @@ Sem nascimento, o blocking legado retorna lista vazia. Rulesets dinâmicos só e
 1. Executar build e testes unitários no Actions; não presumir aprovação.
 2. Testar 401 e 403 na pipeline HTTP real; testar ausência de nascimento nos dois contratos de blocking.
 3. Verificar integração SQL com 0/1/5 candidatos e modelo ATIVO, inclusive limite de fan-out.
-4. Auditoria: o middleware existente registra rota, credencial e correlationId, mas atualmente captura e apenas loga falhas de persistência. Antes de liberar a busca, definir e testar fail-closed para auditoria obrigatória da consulta, inclusive em falha SQL, sem duplicar eventos.
+4. Auditoria: a busca agora persiste o evento antes de devolver candidatos e responde 503 se falhar; o middleware evita duplicação quando a gravação antecipada foi bem-sucedida. Testar HTTP com sink falhando, persistência única e comportamento de cancelamento; os demais endpoints mantêm a política anterior.
 5. Validar a especificação OpenAPI com os gates DT-03 e compatibilidade do contrato.
 6. Definir protocolo governado de confirmação separado; o opcaoId desta fase é exclusivamente identificador de interface. Não persistir nem expor UUID na resposta.
 7. Revisar a autorização por domínio institucional: a política atual valida escopo e código de recurso, mas a elegibilidade dos candidatos por instituição deve ser confirmada antes da exposição em produção.
