@@ -15,6 +15,43 @@ public sealed class Dt05SemanticTransitionContractTests
     }
 
     [Test]
+    public void V1_signature_field_order_and_documentation_are_frozen()
+    {
+        var root = Root();
+        var sql = File.ReadAllText(Path.Combine(root, "database", "migrations", "20260927_Linkage_Transicao_Semantica_DT05.sql"));
+        var contract = File.ReadAllText(Path.Combine(root, "docs", "DT05_Assinatura_Semantica_V1.md"));
+        var signatureStart = sql.IndexOf("N'DT05_V1|'", StringComparison.Ordinal);
+        var signatureEnd = sql.IndexOf("))) AS assinatura", signatureStart, StringComparison.Ordinal);
+        Assert.That(signatureStart, Is.GreaterThan(0));
+        Assert.That(signatureEnd, Is.GreaterThan(signatureStart));
+        var signature = sql[signatureStart..signatureEnd];
+        var fields = new[]
+        {
+            "r.modelo_id", "r.modelo_versao", "r.status", "r.motivo",
+            "r.resultado_publicacao", "r.pessoa_uuid_publicado", "r.status_publicacao",
+            "r.motivo_publicacao", "r.melhor_candidato_uuid", "r.segundo_candidato_uuid",
+            "r.politica_publicacao_versao", "r.pessoa_origem_id_publicado"
+        };
+        var previous = -1;
+        foreach (var field in fields)
+        {
+            var index = signature.IndexOf(field, StringComparison.Ordinal);
+            Assert.That(index, Is.GreaterThan(previous), $"DT-05 V1 signature field missing or reordered: {field}");
+            previous = index;
+            Assert.That(contract, Does.Contain(`{field[2..]}`),
+                $"V1 normative contract must list {field}");
+        }
+        Assert.Multiple(() =>
+        {
+            Assert.That(signature, Does.Contain("COALESCE("));
+            Assert.That(signature, Does.Contain("N'<NULL>'"));
+            Assert.That(signature, Does.Not.Contain("r.linkage_run_id"));
+            Assert.That(signature, Does.Not.Contain("r.score_melhor"));
+            Assert.That(sql, Does.Contain("anterior.assinatura_sha256<>s.assinatura"));
+        });
+    }
+
+    [Test]
     public void Ledger_is_additive_and_registered_inside_publication_transaction()
     {
         var root = Root();
