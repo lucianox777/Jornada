@@ -22,6 +22,7 @@ public sealed class SemiblindIdentityHttpTests
     [TestCase("allowed", HttpStatusCode.OK)]
     [TestCase("audit_failure", HttpStatusCode.ServiceUnavailable)]
     [TestCase("model_unavailable", HttpStatusCode.ServiceUnavailable)]
+    [TestCase("disabled", HttpStatusCode.ServiceUnavailable)]
     public async Task Route_enforces_access_and_pre_response_audit(string scenario, HttpStatusCode expected)
     {
         var root = Path.Combine(Path.GetTempPath(), "jornada-semiblind-" + Guid.NewGuid().ToString("N"));
@@ -46,6 +47,9 @@ public sealed class SemiblindIdentityHttpTests
                     services.AddSingleton<IPolicyEngine>(new FakePolicy());
                     services.RemoveAll<ISemiblindIdentitySearchService>();
                     services.AddSingleton<ISemiblindIdentitySearchService>(service);
+                    services.RemoveAll<ISemiblindSearchActivationGate>();
+                    services.AddSingleton<ISemiblindSearchActivationGate>(
+                        new FakeActivationGate(scenario != "disabled"));
                     services.RemoveAll<IApiAuditSink>();
                     services.AddSingleton<IApiAuditSink>(audit);
                     services.AddSingleton<ISqlReadinessProbe>(new InMemorySqlReadinessProbe(false));
@@ -66,7 +70,7 @@ public sealed class SemiblindIdentityHttpTests
             using var response = await client.SendAsync(request);
             Assert.That(response.StatusCode, Is.EqualTo(expected));
             Assert.That(service.Calls, Is.EqualTo(scenario is "allowed" or "audit_failure" or "model_unavailable" ? 1 : 0));
-            if (scenario is "missing" or "wrong_scope" or "allowed" or "model_unavailable")
+            if (scenario is "missing" or "wrong_scope" or "allowed" or "model_unavailable" or "disabled")
                 Assert.That(audit.Successful, Is.EqualTo(1),
                     "Cada consulta inclusive recusada deve produzir uma única auditoria.");
             if (scenario == "allowed")
@@ -86,6 +90,12 @@ public sealed class SemiblindIdentityHttpTests
                 Assert.That(body, Does.Not.Contain("Pessoa restrita"));
                 Assert.That(body, Does.Not.Contain("modelo probabilístico"));
             }
+            if (scenario == "disabled")
+            {
+                Assert.That(service.Calls, Is.Zero);
+                var body = await response.Content.ReadAsStringAsync();
+                Assert.That(body, Does.Not.Contain("Pessoa restrita"));
+            }
             if (scenario == "audit_failure")
             {
                 var body = await response.Content.ReadAsStringAsync();
@@ -97,6 +107,31 @@ public sealed class SemiblindIdentityHttpTests
         {
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Test]
+    public void Activation_policy_is_always_synthetic_and_never_hml_or_real_development()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
+                "Development", true, "JornadaSyntheticDev", "Development"), Is.True);
+            Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
+                "Development", false, "JornadaSyntheticDev", "Development"), Is.False);
+            Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
+                "Development", true, "JornadaDev", "Development"), Is.False);
+            Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
+                "Development", true, "JornadaSyntheticDev", null), Is.False);
+            Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
+                "Production", true, "JornadaSyntheticDev", "Development"), Is.False);
+            Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
+                "HML", true, "JornadaSyntheticDev", "Development"), Is.False);
+        });
+    }
+
+    private sealed class FakeActivationGate(bool enabled) : ISemiblindSearchActivationGate
+    {
+        public Task<bool> IsEnabledAsync(CancellationToken ct) => Task.FromResult(enabled);
     }
 
     private sealed class FakeResolver : IAccessContextResolver
