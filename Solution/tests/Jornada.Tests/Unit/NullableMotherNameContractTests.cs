@@ -6,7 +6,7 @@ namespace Jornada.Tests.Unit;
 [TestFixture, Category("Unit")]
 public sealed class NullableMotherNameContractTests
 {
-    private static readonly string[] Managers = ["SMADS", "SEHAB", "SMS", "SMDET"];
+    private static readonly string[] Managers = ["SMADS", "SMS", "SMDET"];
 
     [Test]
     public void Pessoa_v3_must_make_nomeMae_optional_without_rewriting_v2()

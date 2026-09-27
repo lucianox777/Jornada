@@ -121,7 +121,7 @@ public sealed class PersonV5ContractSqlServerTests
             Assert.Multiple(() =>
             {
                 Assert.That(reader.GetInt32(0), Is.EqualTo(5), "Todos os campos que propagam a taxonomia CPF devem suportar NVARCHAR(50).");
-                Assert.That(reader.GetInt32(1), Is.EqualTo(4), "Os quatro contratos Pessoa v5 devem existir somente como RASCUNHO.");
+                Assert.That(reader.GetInt32(1), Is.EqualTo(3), "Somente SMADS, SMDET e SMS v5 são registrados pela migração principal; o contrato SEHAB v5 é externo à Solução de Apoio.");
                 Assert.That(reader.GetInt32(2), Is.EqualTo(4), "Pessoa v4 continua ativa até a ativação coordenada do trem 3.71.");
                 Assert.That(reader.GetInt32(3), Is.EqualTo(1), "RG parcial deve persistir sem emissor/UF.");
                 Assert.That(reader.GetInt32(4), Is.EqualTo(1), "CNH deve persistir como identificador secundário.");

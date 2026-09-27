@@ -12,7 +12,7 @@ O caminho de produção é nativo no Windows:
 - Bronze em NAS compartilhado e Staging/logs locais por VM;
 - cinco processos residentes iniciados em background no boot;
 - ferramentas de execução única instaladas na VM, **sem agendamento automático**;
-- `Jornada.Integrador.CSharp.exe` como cliente sob demanda.
+- O transmissor/cliente reside exclusivamente na Solução de Apoio às Secretarias, distribuída à parte.
 
 A implantação cluster canônica usa dois nós simétricos. Veja `CLUSTER.md` e `Jornada.Cluster.Production.example.json`.
 
@@ -44,7 +44,7 @@ O bundle contém:
 - `Jornada.Bronze.Verify`;
 - `Jornada.Linkage.Evaluation`;
 - `Jornada.Linkage.Conference`;
-- Integrador C#;
+- Transmissor C# excluído do bundle principal (Solução de Apoio às Secretarias separada);
 - contratos/configurações versionadas;
 - `config\release\configuration-bundle.json`;
 - DDL canônico;

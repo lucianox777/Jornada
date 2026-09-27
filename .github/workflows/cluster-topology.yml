@@ -71,7 +71,8 @@ jobs:
               if isinstance(value, dict): return {key: shape(item) for key, item in value.items()}
               if isinstance(value, list): return [shape(value[0])] if value else []
               return type(value).__name__
-          if shape(test) != shape(prod): raise SystemExit("Configurações Test e Production não possuem o mesmo schema estrutural.")
+          if "integrator" in prod or "integrator" in test: raise SystemExit("Nenhum perfil do cluster pode instalar o transmissor externo.")
+          if shape(test) != shape(prod): raise SystemExit("Configurações Test e Production não possuem o mesmo schema estrutural operacional.")
           if test["environment"] != "Test" or prod["environment"] != "Production": raise SystemExit("environment incorreto nos perfis canônicos.")
           if len(test["nodes"]) != 2 or len(prod["nodes"]) != 2: raise SystemExit("Topologia canônica deve conter NODE1 e NODE2.")
           if test["storage"]["bronzeRoot"] != "/data/bronze": raise SystemExit("Bronze Test deve usar /data/bronze.")
@@ -117,16 +118,19 @@ jobs:
         shell: bash
         run: bash scripts/local-cluster.sh up
 
-      - name: Prove local monitor opens authenticated dashboard without manual key
+      - name: Prove local monitor serves login and accepts synthetic authorized access
         shell: bash
         run: |
           monitor_html="$(curl --fail --silent --show-error http://127.0.0.1:5080/monitor)"
-          grep -F 'const gestor = "SEHAB";' <<<"$monitor_html" >/dev/null
-          grep -F "sessionStorage.setItem('jornada.monitor.key', accessKey);" <<<"$monitor_html" >/dev/null
-          gestor="$(jq -er '.integrator.gestor' install/windows-production/Jornada.Cluster.Test.json)"
-          access_key="$(jq -er '.integrator.accessKey' install/windows-production/Jornada.Cluster.Test.json)"
+          grep -F 'id="gestor"' <<<"$monitor_html" >/dev/null
+          grep -F "sessionStorage.setItem('jornada.monitor.key',key);" <<<"$monitor_html" >/dev/null
+          # A credencial de monitoramento DEV pertence ao catálogo de segurança sintética;
+          # não à configuração de instalador do transmissor externo.
+          creds='[.credentials[] | select(.type=="GESTOR" and (.scopes | index("jornada.monitor.read")))] | .[0]'
+          gestor="$(jq -er "$creds | .gestorCodigo" config/security/test-access-keys.json)"
+          access_key="$(jq -er "$creds | .accessKey" config/security/test-access-keys.json)"
           curl --fail --silent --show-error http://127.0.0.1:5080/api/v1/monitor/status -H "X-Jornada-Gestor: $gestor" -H "X-Jornada-Access-Key: $access_key" | jq -e '.monitor and .readiness' >/dev/null
-          echo 'LOCAL MONITOR AUTO-CONNECT: OK'
+          echo 'LOCAL MONITOR LOGIN / SYNTHETIC AUTHORIZED ACCESS: OK'
 
       - name: Prove one-shot binaries are installed but not resident
         shell: bash
@@ -136,15 +140,14 @@ jobs:
             test -f /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll &&
             test -f /opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll &&
             test -f /opt/jornada/tools/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.dll &&
-            test -f /opt/jornada/clients/Jornada.Integrador/Jornada.Integrador.CSharp.dll &&
+            test ! -e /opt/jornada/clients/Jornada.Integrador/Jornada.Integrador.CSharp.dll &&
             test -n "$ConnectionStrings__Jornada"
           '
           docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll --help >/dev/null
           docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/tools/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.dll --help >/dev/null
-          docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/clients/Jornada.Integrador/Jornada.Integrador.CSharp.dll --help >/dev/null
-          running=$(docker compose --env-file .env exec -T jornada-node2 sh -lc "ps -ef | grep -E 'Jornada.Linkage.(Parameters.Worker|Runner)|Jornada.Bronze.Verify|Jornada.Linkage.Evaluation|Jornada.Integrador.CSharp' | grep -v grep || true")
+          running=$(docker compose --env-file .env exec -T jornada-node2 sh -lc "ps -ef | grep -E 'Jornada.Linkage.(Parameters.Worker|Runner)|Jornada.Bronze.Verify|Jornada.Linkage.Evaluation' | grep -v grep || true")
           test -z "$running"
-          echo 'ONE-SHOT TOOLS PRESENT, CONFIGURED, INVOCABLE AND NOT RESIDENT: OK'
+          echo 'ONE-SHOT TOOLS PRESENT, SUPPORT TRANSMITTER EXCLUDED, NOT RESIDENT: OK'
 
       - name: Prove Linkage is blocked before Calibrator
         shell: bash
@@ -167,8 +170,10 @@ jobs:
       - name: Prove synthetic Linkage reaches candidates and resolves matches
         shell: bash
         run: |
-          gestor="$(jq -er '.integrator.gestor' install/windows-production/Jornada.Cluster.Test.json)"
-          access_key="$(jq -er '.integrator.accessKey' install/windows-production/Jornada.Cluster.Test.json)"
+          # Chave DEV de monitoramento, não configuração da solução externa.
+          creds='[.credentials[] | select(.type=="GESTOR" and (.scopes | index("jornada.monitor.read")))] | .[0]'
+          gestor="$(jq -er "$creds | .gestorCodigo" config/security/test-access-keys.json)"
+          access_key="$(jq -er "$creds | .accessKey" config/security/test-access-keys.json)"
           snapshot="$(curl --fail --silent --show-error http://127.0.0.1:5080/api/v1/monitor/status -H "X-Jornada-Gestor: $gestor" -H "X-Jornada-Access-Key: $access_key")"
           evaluated="$(jq -er '.monitor.linkageRuns[0].evaluated' <<<"$snapshot")"
           resolved="$(jq -er '.monitor.linkageRuns[0].resolved' <<<"$snapshot")"

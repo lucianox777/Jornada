@@ -24,14 +24,6 @@
   },
   "locks": [
     {
-      "path": "clients/Jornada.Integrador.CSharp/packages.lock.json",
-      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
-      "sha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
-      "note": "Projeto sem PackageReference externo; lock estrutural net8.0 validado e compilado em workflow próprio.",
-      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
-    },
-    {
       "path": "src/Jornada.Api/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
       "sourceSha256": "a4d99399da601091935a6224e0300d107a66ebab0f7d634636bda73a01ff9b2f",
@@ -144,14 +136,6 @@
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
-      "path": "tests/Jornada.Integrador.Tests/packages.lock.json",
-      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "f2ac93068120ecfb9e2a30b3c7b8f5ab7a104d3ddbd0a40cf1365cc095a29208",
-      "sha256": "f2ac93068120ecfb9e2a30b3c7b8f5ab7a104d3ddbd0a40cf1365cc095a29208",
-      "note": "Harness C# do integrador sem PackageReference externo; referencia o projeto Jornada.Integrador.CSharp e é validado em --locked-mode.",
-      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
-    },
-    {
       "path": "tests/Jornada.Integration.Tests/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
       "sourceSha256": "3091caab2bb973443ad89a79579255a43d68e59a73deddbf432af18b2b9f16d8",
@@ -176,7 +160,7 @@
     "dotnet restore Jornada.sln --locked-mode",
     "dotnet build Jornada.sln -c Release --no-restore",
     "executar Unit + Integration da v4.05 após o locked restore",
-    "executar workflow jornada-integrador para Jornada.Resultado.Api e cliente C#",
+    "executar workflow apoio-secretarias para Jornada.Resultado.Api e cliente C#",
     "executar scripts/fabric-sql-compatibility.ps1 ou .sh quando houver ambiente Fabric e for necessária nova homologação",
     "release tag promotion must fail if force-evaluate changes or locked restore rejects the committed graph"
   ],
@@ -232,10 +216,10 @@
     "sourceCommit": "bcc94f548dc4cf778411452ff858c76980979ed8",
     "githubRunId": "35755475367",
     "sdk": "8.0.424",
-    "reason": "PR #433 compartilha a política de calibração de decisão com o evaluator via Jornada.Linkage.Core. O diagnóstico SDK 8.0.424 force-evaluate do run 35682617704 alterou exatamente os metadados ProjectReference de Evaluation e seus consumidores Conference/Integration; nenhum pacote externo mudou. PR #439 inclui agora referência direta ao evaluator no projeto de testes unitários; o SDK alterou somente o bloco ProjectReference do lock de Jornada.Tests, conforme dependency-lock run 35755475367. DT-04 inclui o projeto Jornada.Access.Security, os ProjectReference da Jornada.Api/Resultado.Api e os locks dos dois projetos de testes; o SDK 8.0.424 comprovou equivalência de grafo (ajuste apenas da quebra de linha do novo lock). Com Resultado.Api incluída na Solution, o SDK removeu as abstrações Microsoft.Extensions já satisfeitas pelo framework ASP.NET compartilhado do projeto novo; lock corrigido conforme diff do CI. PR #532: grafo atualizado pelo CI dependency-lock; hashes de três locks alterados.",
-    "lockCount": 23,
+    "reason": "PR #433 compartilha a política de calibração de decisão com o evaluator via Jornada.Linkage.Core. O diagnóstico SDK 8.0.424 force-evaluate do run 35682617704 alterou exatamente os metadados ProjectReference de Evaluation e seus consumidores Conference/Integration; nenhum pacote externo mudou. PR #439 inclui agora referência direta ao evaluator no projeto de testes unitários; o SDK alterou somente o bloco ProjectReference do lock de Jornada.Tests, conforme dependency-lock run 35755475367. DT-04 inclui o projeto Jornada.Access.Security, os ProjectReference da Jornada.Api/Resultado.Api e os locks dos dois projetos de testes; o SDK 8.0.424 comprovou equivalência de grafo (ajuste apenas da quebra de linha do novo lock). Com Resultado.Api incluída na Solution, o SDK removeu as abstrações Microsoft.Extensions já satisfeitas pelo framework ASP.NET compartilhado do projeto novo; lock corrigido conforme diff do CI. PR #532: grafo atualizado pelo CI dependency-lock; hashes de três locks alterados. Gate 6 exclui os dois projetos da Solução de Apoio do inventário principal sem alterar hashes dos outros projetos.",
+    "lockCount": 21,
     "changedLockCount": 18,
-    "combinedSha256": "5e00cb33bcf191c3742613a92c94e58e27df0ae4dcf2ed90c5262fc3af52d3a5",
+    "combinedSha256": "e863dde07c68712310990266838d94520ca45b619273112b2cda5651fbfeb7c9",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",

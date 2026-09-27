@@ -30,13 +30,25 @@ export BronzeStorage__RootPath="$OUT/bronze"
 export IngestionStaging__RootPath="$OUT/staging"
 export Processor__PollingMilliseconds=100
 
-api_pid=''; worker_pid=''
+api_pid=''; worker_pid=''; staged_sehab=''
 cleanup(){
+  # A configuração efetiva, mesmo DEV, não deve ser publicada no artefato E2E.
+  [[ -z "${support_config:-}" ]] || rm -f -- "$support_config"
+  [[ -z "$staged_sehab" ]] || rm -rf -- "$staged_sehab"
   [[ -z "$worker_pid" ]] || kill "$worker_pid" 2>/dev/null || true
   [[ -z "$api_pid" ]] || kill "$api_pid" 2>/dev/null || true
   wait "$worker_pid" 2>/dev/null || true; wait "$api_pid" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
+
+# DEV sintético: o receptor lê contratos da fonte separada sem versionar cópias
+# específicas da Secretaria dentro da solução principal.
+support_contracts="$ROOT/../ApoioSecretarias/config/contracts/gestores/SEHAB"
+sehab_contracts="$ROOT/config/contracts/gestores/SEHAB"
+[[ -d "$support_contracts" ]] || { echo 'ERRO: contratos externos de teste não disponíveis.' >&2; exit 12; }
+[[ ! -e "$sehab_contracts" ]] || { echo 'ERRO: contrato SEHAB já presente na solução principal; não sobrescrever.' >&2; exit 12; }
+cp -R -- "$support_contracts" "$sehab_contracts"
+staged_sehab="$sehab_contracts"
 
 # Compila uma vez para que API e Worker não disputem restore/build em paralelo.
 # Em CI, os packages.lock.json vêm do job dependency-lock e o restore deve ser estritamente bloqueado.
@@ -57,7 +69,14 @@ done
 
 package="$(python3 "$ROOT/scripts/build-ingestion-fixture.py" --fixture "$ROOT/tests/fixtures/ingestao/AA01_v2" --gestor SEHAB --output-dir "$OUT/packages")"
 filename="$(basename "$package")"
-access_key='KcUBZuLvRCu0lKN6xmXdjGKhPTgluG1Wu0sFB36lvTY'
+access_key="$(python3 - "$ROOT/config/security/test-access-keys.json" SEHAB <<'PY'
+import json,sys
+entries=json.load(open(sys.argv[1],encoding='utf-8'))['credentials']
+match=[x for x in entries if x.get('type')=='GESTOR' and x.get('gestorCodigo')==sys.argv[2]]
+assert len(match)==1
+print(match[0]['accessKey'])
+PY
+)"
 
 post_delivery(){
   local idem="$1" body="$2" code_file="$3"
@@ -77,13 +96,13 @@ else: raise SystemExit(f'campo {sys.argv[2]} ausente em {sys.argv[1]}')
 PY
 }
 wait_processed(){
-  local id="$1" out="$2" status='' code=''
+  local id="$1" out="$2" gestor="${3:-SEHAB}" key="${4:-$access_key}" status='' code=''
   # A rota de status pertence ao bucket autenticado INGESTAO (20 req/min por default).
   # Polling de 1s fazia o próprio E2E esgotar o contrato de rate limit. Quatro segundos
   # mantêm o harness abaixo do teto e 429 transitório é tratado como backpressure normal.
   local poll_seconds="${JORNADA_E2E_STATUS_POLL_SECONDS:-4}"
   for _ in $(seq 1 120); do
-    code="$(curl -sS -o "$out" -w '%{http_code}' "$API_URL/api/v1/ingestao/entregas/$id" -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $access_key" || true)"
+    code="$(curl -sS -o "$out" -w '%{http_code}' "$API_URL/api/v1/ingestao/entregas/$id" -H "X-Jornada-Gestor: $gestor" -H "X-Jornada-Access-Key: $key" || true)"
     if [[ "$code" == 429 ]]; then
       sleep "$poll_seconds"
       continue
@@ -105,6 +124,23 @@ compose_sql(){
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d "$DB" -W -h -1 -Q "$1") | tr -d '\r' | sed '/^[[:space:]]*$/d'
 }
 scalar(){ compose_sql "SET NOCOUNT ON; $1" | tail -1 | tr -d '[:space:]'; }
+# Importa o contrato SEHAB v5 RASCUNHO fornecido exclusivamente pela solução
+# independente no banco JornadaE2E. Nunca altera o banco DEV compartilhado.
+support_registry="$ROOT/../ApoioSecretarias/database/migrations/Registrar_SEHAB_Pessoa_v5.sql"
+[[ -f "$support_registry" ]] || { echo 'ERRO: script externo SEHAB v5 ausente.' >&2; exit 12; }
+if ! (cd "$ROOT" && SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker compose --env-file "$ENV_FILE" exec -T -e SQLCMDPASSWORD sqlserver \
+  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d "$DB" -Q "$(cat "$support_registry")") > "$OUT/support-v5-registration.log" 2>&1; then
+  echo 'ERRO: cadastro externo SEHAB v5 falhou; saída do SQLCMD:' >&2
+  tail -100 "$OUT/support-v5-registration.log" >&2 || true
+  exit 12
+fi
+expected_support_v5="$(sha256sum "$support_contracts/pessoa/v5/pessoa.schema.json" | awk '{print $1}')"
+actual_support_v5="$(scalar "SELECT LOWER(CONVERT(varchar(64),gpv.pessoa_schema_sha256,2)) FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='SEHAB' AND gpv.versao=5 AND gpv.status='RASCUNHO';")"
+[[ -n "$actual_support_v5" && "$expected_support_v5" == "$actual_support_v5" ]] || {
+  echo 'ERRO: cadastro externo SEHAB v5 diverge do schema de apoio.' >&2; exit 12;
+}
+echo "GATE06 EXTERNAL V5 CONTRACT: support=$expected_support_v5 catalog=$actual_support_v5"
+
 actual_aa01_hash="$(sha256sum "$ROOT/config/contracts/registros/AA01/v1/registro.schema.json" | awk '{print $1}')"
 expected_aa01_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),trv.schema_registro_sha256,2)) FROM ref.tipo_registro tr JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_id=tr.tipo_registro_id WHERE tr.codigo='AA01' AND trv.status='ATIVA';")"
 echo "E2E CONTRACT DIGEST: AA01 source=$actual_aa01_hash catalog=$expected_aa01_hash"
@@ -176,4 +212,149 @@ json.dump({
 },open(sys.argv[1],'w',encoding='utf-8'),ensure_ascii=False,indent=2)
 PY
 cat "$OUT/evidence.json"
+
+# Gate 6: pacote PREPARADO pela Solução de Apoio, ENVIADO pelo transmissor C#,
+# RECEBIDO no HTTP e PROCESSADO pelo mesmo receptor/Processor local.
+support="$ROOT/../ApoioSecretarias"
+test -f "$support/preparador/preparador.py"
+support_dir="$OUT/packages/apoio"
+mkdir -p "$support_dir"
+support_zip="$(python3 "$support/preparador/preparador.py" \
+  --csv "$support/preparador/fixtures/SEHAB/pessoas.csv" \
+  --mapeamento "$support/preparador/mapeamentos/sehab.synthetic.v4.example.json" \
+  --manifest "$support/preparador/fixtures/SEHAB/manifest.v4.json" \
+  --schema "$support/config/contracts/gestores/SEHAB/pessoa/v4/pessoa.schema.json" \
+  --saida "$support_dir")"
+test -f "$support_zip"
+support_sha="$(sha256sum "$support_zip" | awk '{print $1}')"
+support_config="$OUT/apoio-integrador.config.json"
+python3 - "$support_config" "$API_URL" "$access_key" <<'PY'
+import json, os, sys
+config = {
+  "gestor": "SEHAB",
+  "accessKey": sys.argv[3],
+  "endpoints": {
+    "envio": sys.argv[2] + "/api/v1/ingestao/entregas",
+    "resultado": sys.argv[2] + "/api/v1/ingestao/resultados/{nomeArquivo}"
+  },
+  "polling": {"intervalSeconds": 4, "timeoutSeconds": 120},
+  "diretorioSaida": "resultados"
+}
+with open(sys.argv[1], "w", encoding="utf-8") as dest:
+    os.chmod(sys.argv[1], 0o600)
+    json.dump(config, dest)
+PY
+(cd "$support" && dotnet restore SolucaoApoioSecretarias.sln --locked-mode \
+ && dotnet build SolucaoApoioSecretarias.sln -c Release --no-restore \
+ && dotnet run --project clients/Jornada.Integrador.CSharp -c Release \
+      --no-build --no-restore -- --enviar "$support_zip" \
+      --config "$support_config") >"$OUT/support-transmission.log" 2>&1 || {
+    echo "ERRO: transmissor SEHAB da Solução de Apoio falhou." >&2
+    tail -80 "$OUT/support-transmission.log" >&2
+    exit 20
+  }
+grep -F "SHA-256: $support_sha" "$OUT/support-transmission.log" >/dev/null || {
+  echo "ERRO: SHA do pacote preparado difere do transmitido." >&2; exit 20;
+}
+python3 - "$OUT/support-transmission.log" "$OUT/support-receipt.json" <<'PY'
+import json, pathlib, sys
+raw = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+start = raw.find("{")
+if start < 0: raise SystemExit("Transmissor não registrou recibo HTTP JSON")
+data, _ = json.JSONDecoder().raw_decode(raw[start:])
+ident = data.get("entregaId") or data.get("EntregaId")
+if not ident or not isinstance(ident, str):
+    raise SystemExit("Recibo HTTP não contém entregaId")
+pathlib.Path(sys.argv[2]).write_text(json.dumps({"entregaId": ident}, indent=2)+"\n", encoding="utf-8")
+PY
+support_id="$(json_get "$OUT/support-receipt.json" entregaId)"
+wait_processed "$support_id" "$OUT/support-status.json"
+support_bronze="$(scalar "SELECT COUNT(*) FROM bronze.entrega_arquivo WHERE entrega_id='$support_id';")"
+support_silver="$(scalar "SELECT COUNT(*) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$support_id';")"
+[[ "$support_bronze" == 1 && "$support_silver" == 2 ]] || {
+  echo "ERRO: Solução de Apoio não materializou Bronze(1) e Silver(2): bronze=$support_bronze silver=$support_silver" >&2
+  exit 21
+}
+support_linked="$(scalar "SELECT COUNT(*) FROM identidade.vinculo_fonte v JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=v.pessoa_observacao_id JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$support_id' AND v.pessoa_uuid IS NOT NULL;")"
+[[ "$support_linked" -ge 1 ]] || {
+  echo "ERRO: a remessa SEHAB não gerou nenhuma vinculação à identidade progressiva." >&2; exit 21;
+}
+python3 - "$OUT/support-e2e-evidence.json" "$support_sha" "$support_id" "$support_bronze" "$support_silver" "$support_linked" <<'PY'
+import datetime, json, pathlib, sys
+evidence={"status":"PASS", "generatedAtUtc":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+          "preparator":"ApoioSecretarias/preparador", "transmitter":"ApoioSecretarias/clients/Jornada.Integrador.CSharp",
+          "gestor":"SEHAB", "testData":"SYNTHETIC", "schemaVersion":4, "zipSha256":sys.argv[2],
+          "receiptEntregaId":sys.argv[3], "finalStatus":"PROCESSADA",
+          "bronzeFiles":int(sys.argv[4]), "silverObservations":int(sys.argv[5]),
+          "progressiveIdentityLinks":int(sys.argv[6])}
+pathlib.Path(sys.argv[1]).write_text(json.dumps(evidence,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+PY
+rm -f -- "$support_config"
+cat "$OUT/support-e2e-evidence.json"
+
+# Gate 6: regressão HTTP/SQL isolada dos demais Gestores, com contratos v4
+# canônicos preservados no receptor e chaves exclusivamente DEV.
+for gestor in SMADS SMDET SMS; do
+  case "$gestor" in
+    SMADS) fixture="CRA1_v2"; expected_registros=1 ;;
+    SMDET) fixture="CADASTRO_SMDET_v2"; expected_registros=0 ;;
+    SMS) fixture="CADASTRO_SMS_v2"; expected_registros=0 ;;
+  esac
+  root_fixture="$ROOT/tests/fixtures/ingestao/$fixture"
+  test -d "$root_fixture" || { echo "ERRO: fixture DEV ausente $fixture" >&2; exit 22; }
+  manager_package="$(python3 "$ROOT/scripts/build-ingestion-fixture.py" \
+    --fixture "$root_fixture" --gestor "$gestor" --output-dir "$OUT/packages")"
+  manager_name="$(basename "$manager_package")"
+  manager_sha="$(sha256sum "$manager_package" | awk '{print $1}')"
+  manager_key="$(python3 - "$ROOT/config/security/test-access-keys.json" "$gestor" <<'PY'
+import json,sys
+entries=json.load(open(sys.argv[1],encoding='utf-8'))['credentials']
+match=[x for x in entries if x.get('type')=='GESTOR' and x.get('gestorCodigo')==sys.argv[2]]
+assert len(match)==1
+print(match[0]['accessKey'])
+PY
+)"
+  manager_response="$OUT/other-$gestor-receipt.json"
+  manager_http="$(curl -sS -o "$manager_response" -w '%{http_code}' \
+    -X POST "$API_URL/api/v1/ingestao/entregas" \
+    -H "X-Jornada-Gestor: $gestor" -H "X-Jornada-Access-Key: $manager_key" \
+    -H "Idempotency-Key: gate06-$gestor-$manager_sha" \
+    -H 'Content-Type: application/zip' \
+    -H "Content-Disposition: attachment; filename=$manager_name" \
+    --data-binary "@$manager_package")"
+  [[ "$manager_http" == 202 ]] || {
+    echo "ERRO: $gestor recebimento HTTP=$manager_http" >&2
+    cat "$manager_response" >&2; exit 23
+  }
+  manager_id="$(json_get "$manager_response" entregaId)"
+  wait_processed "$manager_id" "$OUT/other-$gestor-status.json" "$gestor" "$manager_key"
+  manager_bronze="$(scalar "SELECT COUNT(*) FROM bronze.entrega_arquivo WHERE entrega_id='$manager_id';")"
+  manager_silver="$(scalar "SELECT COUNT(*) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$manager_id';")"
+  manager_registros="$(scalar "SELECT COUNT(*) FROM silver.registro_observacao ro JOIN ingestao.lote l ON l.lote_id=ro.lote_id WHERE l.entrega_id='$manager_id';")"
+  [[ "$manager_bronze" == 1 && "$manager_silver" == 1 && "$manager_registros" == "$expected_registros" ]] || {
+    echo "ERRO: $gestor Bronze=$manager_bronze Silver=$manager_silver Registros=$manager_registros" >&2
+    exit 24
+  }
+  # Confirma o hash exato do schema v4 carregado para cada gestor na configuração canônica.
+  manager_schema="$ROOT/config/contracts/gestores/$gestor/pessoa/v4/pessoa.schema.json"
+  manager_source_hash="$(sha256sum "$manager_schema" | awk '{print $1}')"
+  manager_db_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),gpv.pessoa_schema_sha256,2)) FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='$gestor' AND gpv.versao=4;")"
+  [[ "$manager_source_hash" == "$manager_db_hash" ]] || {
+    echo "ERRO: $gestor schema v4 divergiu do catálogo" >&2; exit 25;
+  }
+  python3 - "$OUT/other-contracts-e2e-evidence.json" "$gestor" "$manager_sha" "$manager_id" "$manager_bronze" "$manager_silver" "$manager_registros" "$manager_source_hash" <<'PY'
+import datetime,json,pathlib,sys
+path=pathlib.Path(sys.argv[1])
+data=json.loads(path.read_text()) if path.exists() else {"status":"PASS","testData":"SYNTHETIC","results":[]}
+data["results"].append({"gestor":sys.argv[2],"zipSha256":sys.argv[3],
+                        "receiptEntregaId":sys.argv[4],"finalStatus":"PROCESSADA",
+                        "bronzeFiles":int(sys.argv[5]),"silverObservations":int(sys.argv[6]),
+                        "silverRecords":int(sys.argv[7]),"personSchemaV4Sha256":sys.argv[8],
+                        "verifiedAtUtc":datetime.datetime.now(datetime.timezone.utc).isoformat()})
+path.write_text(json.dumps(data,indent=2)+"\n")
+PY
+  unset manager_key
+done
+cat "$OUT/other-contracts-e2e-evidence.json"
+
 echo 'LOCAL E2E: OK'

@@ -121,12 +121,8 @@ function Assert-ClusterConfig($Config, [string]$RequestedNodeId) {
         }
     }
 
-    $integrator = Require-Property $Config 'integrator'
-    if ([bool]$integrator.enabled) {
-        $accessKey = [string]$integrator.accessKey
-        if ([string]::IsNullOrWhiteSpace($accessKey) -or $accessKey -eq 'CHANGE_ME') {
-            throw 'integrator.accessKey deve ser configurada quando o Integrador estiver habilitado.'
-        }
+    if ($null -ne $Config.PSObject.Properties['integrator'] -and [bool]$Config.integrator.enabled) {
+        throw 'O transmissor pertence à Solução de Apoio às Secretarias e deve ser instalado separadamente.'
     }
 
     return $selected
@@ -210,7 +206,6 @@ function New-ManualRuntime($Config, $Node, [string]$InstallRoot, [string]$Runtim
             bronzeVerify = Join-Path $InstallRoot 'tools\Jornada.Bronze.Verify\Jornada.Bronze.Verify.exe'
             linkageEvaluation = Join-Path $InstallRoot 'tools\Jornada.Linkage.Evaluation\Jornada.Linkage.Evaluation.exe'
             linkageConference = Join-Path $InstallRoot 'tools\Jornada.Linkage.Conference\Jornada.Linkage.Conference.exe'
-            integrator = Join-Path $InstallRoot 'clients\Jornada.Integrador\Jornada.Integrador.CSharp.exe'
         }
     }
 }
@@ -263,7 +258,6 @@ $hostConfig = [ordered]@{
     sql = $config.sql
     http = $config.http
     runtime = $config.runtime
-    integrator = $config.integrator
     taskAccount = $config.taskAccount
     tasks = $tasks
 }

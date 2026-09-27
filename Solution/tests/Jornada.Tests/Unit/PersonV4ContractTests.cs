@@ -7,7 +7,7 @@ namespace Jornada.Tests.Unit;
 [Category("Unit")]
 public sealed class PersonV4ContractTests
 {
-    private static readonly string[] Gestores = ["SEHAB", "SMADS", "SMDET", "SMS"];
+    private static readonly string[] Gestores = ["SMADS", "SMDET", "SMS"];
 
     [TestCaseSource(nameof(Gestores))]
     public void V4_Requires_Demographic_Core_But_Not_Identifier(string gestor)
