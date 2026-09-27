@@ -4,7 +4,7 @@
 
 ## Decisão
 
-Armazenar no volume NAS arquivos **Parquet comprimidos com ZSTD**, imutáveis, endereçados pelo SHA-256 dos bytes. Cada execução do Linkage referencia um manifesto imutável com o conjunto exato de partições e versões dos insumos. Reutilizar partições não alteradas (copy-on-write lógico), sem duplicar um snapshot integral por execução. O manifesto não deve conter CPF, nomes nem atributos pessoais em texto aberto.
+Como desenho-alvo, referenciar os ZIPs Bronze já imutáveis e armazenar em **Parquet comprimido com ZSTD somente os deltas históricos não reconstituíveis**, endereçados pelo SHA-256 dos bytes. Cada execução do Linkage referencia um manifesto imutável com o conjunto exato de partições e versões dos insumos. Reutilizar partições não alteradas (copy-on-write lógico), sem duplicar um snapshot integral por execução. O manifesto não deve conter CPF, nomes nem atributos pessoais em texto aberto.
 
 **Reutilizar o NAS já empregado pela camada Bronze**, configurado por `BronzeStorage:RootPath` e provider `FileSystem`. Reservar o prefixo `linkage-snapshots/v1/` **fora** do prefixo de objetos ZIP `sha256/ab/cd/<hash>.zip`; o worker de retenção Bronze não pode varrer esse prefixo. O NAS é armazenamento de replay, **não** banco de decisão nem backup único. Usar permissões de serviço mínimas, criptografia do volume, cópia independente conforme política de continuidade, verificação periódica de hash, controle de espaço e retenção governada (#379). Não versionar Parquets com dados pessoais no Git. A raiz padrão é `BronzeStorage:RootPath/linkage-snapshots/v1` no **mesmo volume já montado**. Aceitar `JORNADA_LINKAGE_SNAPSHOT_ROOT` somente como override explícito quando a implantação exigir. Não duplicar configuração de mount, não colocar Parquet no namespace de ZIP Bronze nem conceder ao worker de expurgo Bronze permissão de exclusão sobre snapshots.
 
@@ -39,3 +39,13 @@ Fase A: captura e replay dos insumos, com `linkage_resultado` atual preservado. 
 ## Estado do PR #520 e dependências de implantação
 
 A procedure `identidade.sp_registrar_transicoes_linkage_run` deve ser instalada **antes** da versão do Runner que a chama; ausência provoca rollback da publicação. O ledger é separado do ledger institucional `auditoria.decisao_identidade_evento`, que não deve ser duplicado. A assinatura V1 cobre campos discretos e versões disponíveis no resultado publicado; revisão da evidência relevante (incluindo score e universo) depende de definição e ensaio antes do aceite. A captura Parquet existente ainda opera por export NDJSON congelado: a integração automática com a janela exclusiva do corpus e a referência SQL ao manifesto estão pendentes. Não habilitar produção apenas com este PR.
+
+## Revisão: snapshots referenciais à Bronze (proposta otimizada)
+
+A Bronze já preserva ZIPs imutáveis content-addressed e o teste Bronze_Replay_Invariant demonstra reconstrução de projeções factuais, desde que contratos/configurações versionados e ledger canônico de identidade sejam preservados. **Não duplicar esses ZIPs em Parquet.** Para cada run, guardar manifesto com referências às entregas e seus SHA-256, versões de parser/normalização, modelo/scorer/ruleset, política de publicação, corte do universo e hash do estado de governança. O manifesto não inclui PII em texto aberto.
+
+Persistir Parquet/ZSTD apenas para **estado complementar não reconstituível** da Bronze: projeções históricas afetadas por correções, mapeamento exato de observações/candidatos se não determinístico e evidências de governança relevantes. Reutilizar partições complementares inalteradas por hash. Não persistir novamente scores reproduzíveis nem cópias integrais de Silver/Gold.
+
+**Bloqueio de retenção obrigatório antes de ativar:** o mantenedor Bronze ainda não considera referências DT-05. Integrar o manifesto à proteção SQL/lock Jornada.Bronze.Object.<sha256>, impedindo expurgo de ZIP necessário ao replay. Não confundir chave SQL preservada com bytes ainda disponíveis. Medir o custo marginal de retenção dos ZIPs, além dos bytes de Parquet; caso contrário, a economia será superestimada.
+
+**Limite:** Bronze + parser histórico reconstrói projeções factuais, mas não por si só a decisão histórica: preservar universo efetivo de candidatos, versão executável do scorer e ledger de identidade/governança. O utilitário Parquet atualmente no PR #520 captura export integral e ainda **não implementa** o manifesto referencial nem o gate de retenção. A revisão é uma alteração do desenho-alvo, não declaração de funcionalidade pronta.
