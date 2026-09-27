@@ -30,7 +30,7 @@ O `Jornada.Operations.Maintenance.Worker` inclui, na v3.53, um **watchdog soment
 2. Acompanhar o backlog e o throughput por meio das métricas de ingestão e dos lotes pendentes.
 3. Executar `GENERATE_DRAFT` após existir corpus suficiente. O Parameters Worker obtém janela exclusiva do corpus pela coordenação SQL.
 4. O operador revisa o resultado do `GENERATE_DRAFT`, incluindo os diagnósticos, thresholds e budgets aplicáveis, e registra sua decisão de prosseguir ou corrigir o rascunho.
-5. Validar o modelo (`VALIDATE`) após a revisão do operador, respeitando os gates efetivamente implementados descritos abaixo.
+5. Validar o modelo (`VALIDATE`) após a revisão do operador, respeitando os gates efetivamente implementados descritos abaixo. **Direção DT-15, ainda não implementada:** a revisão principal ocorrerá em [página master independente do Monitor](DT15_Governanca_Decisao_Modelo.md), com dossiê pareado ATIVO × RASCUNHO no mesmo corpus, diferenças de decisões e justificativa vinculada ao fingerprint; histórico agregado é apenas contexto.
 6. Ativar (`ACTIVATE`) somente a versão aprovada.
 7. Executar Linkage Runner incremental sobre observações elegíveis sem CPF, respeitando sua janela exclusiva de coordenação SQL.
 
