@@ -34,6 +34,12 @@ public sealed class SemiblindIdentityHttpTests
             await using var factory = new WebApplicationFactory<ApiEntryPointMarker>().WithWebHostBuilder(builder =>
             {
                 builder.UseEnvironment(scenario == "production_enabled" ? "Production" : "Development");
+                // No teste Production, UseSetting prevalece sobre o appsettings.json
+                // (o RootPath de produção é /var/lib/jornada, inacessível no runner CI).
+                builder.UseSetting("BronzeStorage:RootPath", Path.Combine(root, "bronze"));
+                builder.UseSetting("IngestionStaging:RootPath", Path.Combine(root, "staging"));
+                builder.UseSetting("SemiblindIdentitySearch:Enabled",
+                    scenario == "feature_disabled" ? "false" : "true");
                 builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
                     new Dictionary<string, string?>
                     {
