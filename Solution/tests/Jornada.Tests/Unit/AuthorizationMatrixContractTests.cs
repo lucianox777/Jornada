@@ -39,6 +39,7 @@ public sealed class AuthorizationMatrixContractTests
         Assert.That(typeRoutes, Is.EquivalentTo(new[]
         {
             "/api/v1/identidade/resolver",
+            "/api/v1/identidade/busca",
             "/api/v1/pessoas/{pessoaUuid}",
             "/api/v1/pessoas/consulta"
         }));
