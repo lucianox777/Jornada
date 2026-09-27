@@ -93,6 +93,34 @@ FEMININO|MARIA CRUZ|MARIA PIMENTEL|MEDIUM|LOW
     }
 
     [Test]
+    public void ExperimentalV3_Explains31ObservedStates_AndLeaves22Unexplained()
+    {
+        var rows = Observed.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(line => line.Split('|')).ToArray();
+        var matchesSplink = 0;
+        var changedFromV1 = 0;
+        foreach (var row in rows)
+        {
+            var v1 = IdentityComparison.CompareName(row[1], row[2],
+                NameComparisonContract.WholeNameJaroWinklerV1).ToString();
+            var v3 = IdentityComparison.CompareName(row[1], row[2],
+                NameComparisonContract.WholeNameJaroWinklerPrefixGatedV3).ToString();
+            if (v3 == row[4]) matchesSplink++;
+            if (v3 != v1) changedFromV1++;
+        }
+
+        // Diagnostic only: the historical Splink observations are NOT a general
+        // assertion of equivalence and do not authorize operational activation.
+        Assert.Multiple(() =>
+        {
+            Assert.That(rows, Has.Length.EqualTo(53));
+            Assert.That(matchesSplink, Is.EqualTo(31));
+            Assert.That(changedFromV1, Is.EqualTo(31));
+            Assert.That(rows.Length - matchesSplink, Is.EqualTo(22));
+        });
+    }
+
+    [Test]
     public void LegacyAlias_RemainsEquivalentToExplicitV1_ForObservedCases()
     {
         foreach (var line in Observed.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
