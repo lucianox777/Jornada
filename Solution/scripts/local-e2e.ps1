@@ -31,6 +31,7 @@ Get-Content $EnvFile | ForEach-Object {
 $password = $vars['JORNADA_SQL_SA_PASSWORD']; if ([string]::IsNullOrWhiteSpace($password)) { throw 'JORNADA_SQL_SA_PASSWORD não definido.' }
 $port = if ($vars['JORNADA_SQL_PORT']) { $vars['JORNADA_SQL_PORT'] } else { '14333' }
 $sharedDb = if ($vars['JORNADA_SQL_DATABASE']) { $vars['JORNADA_SQL_DATABASE'] } else { 'JornadaLocal' }
+if ($VerifyLinkageRunner -and $AllowSharedDatabaseReset) { throw 'VerifyLinkageRunner exige banco isolado.' }
 $usesIsolatedDatabase = -not $AllowSharedDatabaseReset
 $db = if ($usesIsolatedDatabase) { 'JornadaE2E' } else { $sharedDb }
 
@@ -243,6 +244,7 @@ try {
     # retransmissão da origem. Somente o REGISTRO tem código de origem persistente.
     if ((Scalar "SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem='E2E-AA01-2026-000001' AND status_analitico='VIGENTE';") -ne '1') { throw 'Retransmissão duplicou a versão Gold vigente.' }
 
+    $runnerEvidence = $null
     if ($VerifyLinkageRunner) {
         # Run against the isolated database already populated by the real API
         # and Processor. Never activate this stage for the shared reset mode.
@@ -263,13 +265,14 @@ try {
         if ($runs -ne 1) { throw "DT-05: esperado um run PUBLICADO, encontrado $runs." }
         $raw = [int](Scalar "SELECT COUNT(*) FROM identidade.linkage_resultado r JOIN identidade.linkage_run l ON l.linkage_run_id=r.linkage_run_id WHERE l.solicitado_por=N'DT05_LOCAL_E2E' AND l.motivo=N'$marker';")
         if ($raw -lt 1) { throw 'DT-05: Runner não preservou resultados brutos.' }
+        $runnerEvidence = [ordered]@{ runMarker=$marker; publishedRuns=$runs; rawResults=$raw }
         Write-Host "DT-05: Runner real publicou $raw resultados brutos no banco isolado."
     }
 
     [ordered]@{
         status='OK'; generatedAtUtc=[DateTimeOffset]::UtcNow.ToString('O'); firstEntregaId=$id1; retransmissionEntregaId=$id2
         pessoaUuid=$pessoaUuid; idempotencyKeyReplaySameEntrega=$true; retransmittedItems=$retrans
-        layers=@('HTTP','Bronze','Processor','Silver','Gold','Serving','HTTP-return')
+        layers=@('HTTP','Bronze','Processor','Silver','Gold','Serving','HTTP-return'); linkageRunner=$runnerEvidence
     } | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 (Join-Path $Out 'evidence.json')
     Get-Content (Join-Path $Out 'evidence.json'); Write-Host 'LOCAL E2E: OK'
 }
