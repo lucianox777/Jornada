@@ -4,6 +4,8 @@
 
 **Decisão arquitetural permanente para orientar os itens 1, 2, 5 e 7:** [Blocking complementar com referência IBGE — 27/09/2026](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md). As capacidades de nome completo, dinâmico e combinado compõem **a mesma união deduplicada**, avaliada por um único motor C# FS. A divulgação censitária de sobrenomes em qualquer posição **favorece o índice por presença**, sem transformar a marginal em probabilidade exata de último token. A implementação progressiva/experimental, o reprocessamento por chaves antigas/novas e o gate de ativação permanecem distinguíveis da decisão de arquitetura.
 
+**Execução em paralelo, sem vencedor antecipado:** evoluir blocking dinâmico e combinado simultaneamente, comparar D, C e D∪C no mesmo corpus/versão/estratos e medir recall exclusivo, sobreposição, candidatos, custo e latência. O Ensaio fornece evidência, mas não impede pesquisa/implementação antecipada do combinado. Uma futura desativação, inclusive parcial, somente será decidida por avaliação independente e regressão de recall, reestimativa de `u` condicionado, paridade entre consumidores e rollback; não há obrigação de manter passes comprovadamente redundantes.
+
 **Status:** plano, não relatório de conclusão. Validar a situação de cada frente no código, PRs e Actions antes de afirmar que foi entregue.
 
 **Limite do produto — RN de negócio, linha 23:** [01_Requisitos_de_Negocio_Jornada_v1.1.md](../../Documentos/Requisitos/01_Requisitos_de_Negocio_Jornada_v1.1.md): a Jornada “não concede benefício nem altera automaticamente o sistema finalístico”. As frentes de linkage, busca e suporte às Secretarias não modificam essa fronteira.
