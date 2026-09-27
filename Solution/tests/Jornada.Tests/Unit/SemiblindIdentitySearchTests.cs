@@ -112,7 +112,7 @@ public sealed class SemiblindIdentitySearchTests
     }
 
     [Test]
-    public void Overlong_name_is_rejected_before_candidate_retrieval()
+    public void Overlong_name_is_rejected()
     {
         var service = new SemiblindIdentitySearchService(new FakeRetriever(), new FakePolicy());
         Assert.ThrowsAsync<ArgumentException>(async () =>
@@ -122,7 +122,7 @@ public sealed class SemiblindIdentitySearchTests
     }
 
     [Test]
-    public void Overlong_mother_name_is_rejected_before_candidate_retrieval()
+    public void Overlong_mother_name_is_rejected()
     {
         var service = new SemiblindIdentitySearchService(new FakeRetriever(), new FakePolicy());
         Assert.ThrowsAsync<ArgumentException>(async () =>
