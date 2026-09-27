@@ -59,4 +59,5 @@
 :r database/migrations/20260927_Linkage_Transicao_Semantica_DT05.sql
 :r database/migrations/20260927_Linkage_Bronze_Pins_DT05.sql
 :r database/migrations/20260927_Linkage_Bronze_Captura_DT05.sql
+:r database/migrations/20260927_Remove_Modo_Carga_Inicial.sql
 :r database/migrations/20260910_Schema_Consolidation_370.sql
