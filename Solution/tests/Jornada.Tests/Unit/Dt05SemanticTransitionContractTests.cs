@@ -1,0 +1,40 @@
+using Jornada.Linkage.Runner;
+
+namespace Jornada.Tests.Unit;
+
+[TestFixture]
+[Category("Unit")]
+public sealed class Dt05SemanticTransitionContractTests
+{
+    private static string Root()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "database", "migrations")))
+            dir = dir.Parent;
+        return dir?.FullName ?? throw new DirectoryNotFoundException("Solution root");
+    }
+
+    [Test]
+    public void Ledger_is_additive_and_registered_inside_publication_transaction()
+    {
+        var root = Root();
+        var runner = File.ReadAllText(Path.Combine(root, "src", "Jornada.Linkage.Runner", "ProbabilisticLinkageBatchRunner.cs"));
+        var migration = File.ReadAllText(Path.Combine(root, "database", "migrations", "20260927_Linkage_Transicao_Semantica_DT05.sql"));
+        var publish = runner.IndexOf("private async Task<LinkageRunStatus> PublishAsync(", StringComparison.Ordinal);
+        var progressive = runner.IndexOf("{ProgressivePublicationSql()}", publish, StringComparison.Ordinal);
+        var ledger = runner.IndexOf("EXEC identidade.sp_registrar_transicoes_linkage_run", progressive, StringComparison.Ordinal);
+        var published = runner.IndexOf("SET status='PUBLICADO'", ledger, StringComparison.Ordinal);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(progressive, Is.GreaterThan(publish));
+            Assert.That(ledger, Is.GreaterThan(progressive));
+            Assert.That(published, Is.GreaterThan(ledger));
+            Assert.That(migration, Does.Contain("CREATE OR ALTER PROCEDURE identidade.sp_registrar_transicoes_linkage_run"));
+            Assert.That(migration, Does.Contain("OUTER APPLY"));
+            Assert.That(migration, Does.Contain("anterior.assinatura_sha256<>s.assinatura"));
+            Assert.That(migration, Does.Contain("UQ_linkage_transicao_resultado"));
+            Assert.That(migration, Does.Not.Contain("DELETE FROM identidade.linkage_resultado"));
+        });
+    }
+}
