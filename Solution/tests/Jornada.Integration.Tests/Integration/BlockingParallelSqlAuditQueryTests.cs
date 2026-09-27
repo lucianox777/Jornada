@@ -1,5 +1,6 @@
 using Jornada.Contracts;
 using Jornada.Linkage.Runner;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 using NUnit.Framework;
 
@@ -12,6 +13,26 @@ namespace Jornada.Tests.Integration;
 [TestFixture, Category("Integration"), NonParallelizable]
 public sealed class BlockingParallelSqlAuditQueryTests
 {
+    [OneTimeSetUp]
+    public async Task InstallRequiredProjectionSchemaAsync()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("JORNADA_TEST_SQL_CONNECTION")
+            ?? throw new InvalidOperationException("JORNADA_TEST_SQL_CONNECTION não configurada.");
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        // The CI integration database starts without optional linkage migrations.
+        // Set up ONLY this isolated test fixture; the audit implementation stays read-only.
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
+        await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260910_Linkage_Blocking_Chave.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260910_Linkage_RuleSet_Passes.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection,
+            Path.Combine(databaseDir, "migrations", "20260911_Linkage_Blocking_Projection_Contract.sql"));
+    }
+
     [TestCase(false)]
     [TestCase(true)]
     public async Task TaggedQuery_ExecutesWithEmptyAndCombinedPassesWithoutExposingCandidateIds(
