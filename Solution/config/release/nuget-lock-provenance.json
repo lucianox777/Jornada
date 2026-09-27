@@ -230,7 +230,7 @@
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
     "sdk": "8.0.424",
-    "lockCount": 20,
+    "lockCount": 23,
     "changedLockCount": 4,
     "combinedSha256": "b1df1a418eff5a118baea13dc4c823fac12c67b932c390fedc4a877a36ff10b6",
     "overrides": [
