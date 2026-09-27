@@ -1,130 +1,50 @@
-# Integrador padrão da Jornada — envio e resultado por arquivo
+# Integração externa — envelope, transmissor e serviço de resultado
 
-## Objetivo
+A Jornada receptora mantém a API e o contrato canônico. O preparador, o transmissor C# e os contratos específicos migrados da SEHAB estão na solução **independente** `ApoioSecretarias/SolucaoApoioSecretarias.sln`, no mesmo repositório Git. O produto `Solution/Jornada.sln` não compila nem distribui o transmissor; um eventual repositório Git remoto separado é uma etapa distinta da separação de solução.
 
-A integração padrão do Gestor possui duas operações de linha de comando equivalentes em C# e Python:
+## Preparação e envio
 
-```text
---enviar <arquivo.zip>
---resultado <identificador>
+O preparador recebe um CSV da fonte, mapeamento **explícito e versionado**, manifesto, schema Pessoa e, opcionalmente, `registros.jsonl` já normalizado. Valida SHA-256 do schema, JSON Schema, versão, CPF/ausência declarada e gera um ZIP determinístico contendo exatamente `manifest.json`, `pessoas.jsonl` e `registros.jsonl`. O ZIP é nomeado `ENTREGA_<GESTOR>_<SISTEMA>_v<FORMATO>_<sha256>.zip`. Mapeamento e autorização de **dados reais** são responsabilidade da origem; o exemplo versionado é exclusivamente sintético.
+
+A partir de `ApoioSecretarias/`:
+
+```bash
+python -m pip install -r preparador/requirements.txt
+python preparador/preparador.py --csv <pessoas.csv> --mapeamento <mapa.json> --manifest <manifest.json> --schema <pessoa.schema.json> --saida <diretorio>
+dotnet restore SolucaoApoioSecretarias.sln --locked-mode
+dotnet build SolucaoApoioSecretarias.sln -c Release --no-restore
+dotnet run --project clients/Jornada.Integrador.CSharp -- --enviar <entrega.zip> --config <integrador.config.json>
 ```
 
-`--resultado` recebe **um único identificador obrigatório**. São aceitos:
+`--enviar-todos` envia os ZIPs da pasta do executável e arquiva cada arquivo confirmado em `Enviados/`. A transmissão usa `POST /api/v1/ingestao/entregas`, cabeçalhos `X-Jornada-Gestor` e `X-Jornada-Access-Key`, `Idempotency-Key: sha256:<sha256>` e o nome canônico. A API retorna recibo antes do processamento assíncrono. O mesmo ZIP é transmitido sem reescrever seus bytes.
 
-- SHA-256 hexadecimal do ZIP enviado;
-- nome exato do ZIP enviado à API;
-- caminho de um ZIP local, caso em que o cliente calcula o SHA-256 e consulta por ele.
-
-Não é necessário informar `entregaId` ao operador.
-
-## Arquivo de configuração
-
-As duas implementações usam o mesmo formato `integrador.config.json`:
+Configuração externa exemplificativa, **não versionar com a chave verdadeira**:
 
 ```json
 {
-  "gestor": "SEHAB",
-  "accessKey": "SEGREDO_FORNECIDO_PELA_JORNADA",
+  "gestor": "GESTOR_EXEMPLO",
+  "accessKey": "SEGREDO_DO_AMBIENTE",
   "endpoints": {
-    "envio": "https://jornada.../api/v1/ingestao/entregas",
-    "resultado": "https://jornada-resultado.../api/v1/ingestao/resultados/{identificador}"
+    "envio": "https://jornada-api.exemplo/api/v1/ingestao/entregas",
+    "resultado": "https://jornada-resultado.exemplo/api/v1/ingestao/resultados/{nomeArquivo}"
   },
-  "polling": {
-    "intervalSeconds": 5,
-    "timeoutSeconds": 3600
-  },
+  "polling": {"intervalSeconds": 5, "timeoutSeconds": 3600},
   "diretorioSaida": "resultados"
 }
 ```
 
-A chave de acesso fica no arquivo de configuração, como solicitado para o executável padrão, e **o arquivo real não deve ser versionado**. O repositório contém apenas `integrador.config.example.json` com placeholder.
+O arquivo efetivo requer ACL/permissões do sistema operacional restritas à conta do integrador. Credenciais sintéticas de DEV não podem ser distribuídas como credenciais HML/Produção.
 
-O arquivo deve receber ACL/permissões de sistema operacional restritas à conta que executa a integração.
+## Acompanhamento e resultado
 
-## Envio
-
-### C#
-
-```powershell
-dotnet run --project clients/Jornada.Integrador.CSharp -- --enviar C:\cargas\ENTREGA.zip --config C:\Jornada\integrador.config.json
+```bash
+dotnet run --project clients/Jornada.Integrador.CSharp -- --resultado <nome-exato-do-zip.zip> --config <integrador.config.json> --saida <resultado.json>
 ```
 
-### Python
+**A CLI C# aceita somente o nome exato do ZIP**, não caminho local nem SHA-256 nesse comando. A rota do serviço `GET /api/v1/ingestao/resultados/{identificador}` admite nome do ZIP ou SHA-256 no servidor. O cliente consulta até `PROCESSADA`, `REJEITADA` ou `QUARENTENA` e salva o resultado. Não confundir recibo HTTP com processamento concluído.
 
-```powershell
-python clients/python/jornada_integrador.py --enviar C:\cargas\ENTREGA.zip --config C:\Jornada\integrador.config.json
-```
+O serviço `Solution/src/Jornada.Resultado.Api` valida `X-Jornada-Gestor` e `X-Jornada-Access-Key` na API principal, sem cadastrar outra credencial. O retorno inclui dados de rastreabilidade da entrega, lotes e tentativas, contagens e erros de ingestão, e separa itens ainda disponíveis de itens consolidados pela política de retenção. Não devolve CPF nem conteúdo cadastral. Após expurgo, os totais permanecem disponíveis via `ingestao.item_processado_resumo`, com aviso quando não existe mais detalhe integral item a item.
 
-O programa:
+## Fonte contratual e testes
 
-1. calcula o SHA-256 dos bytes do ZIP;
-2. lê `manifest.json`;
-3. monta o nome canônico `ENTREGA_<GESTOR>_<SISTEMA>_v<FORMATO>_<sha256>.zip`;
-4. envia o mesmo ZIP, sem alterar seus bytes;
-5. usa `Idempotency-Key: sha256:<sha256>`;
-6. apresenta o recibo retornado pela Jornada.
-
-`<SISTEMA>` é o `codigoSistemaOrigem` técnico do manifesto e deve obedecer ao contrato canônico `A-Z/0-9/_/-`. O nome de exibição do sistema é metadado separado; por exemplo, a SEHAB usa código técnico `SEHAB` e pode exibir o sistema como `HabitaSampa`.
-
-O CSV da origem nunca é enviado por este programa. O executável recebe o ZIP **já convertido para o envelope JSON padrão da Jornada**.
-
-## Consulta do resultado final
-
-Exemplos equivalentes:
-
-```powershell
-Jornada.Integrador --resultado 305d577839dacf7e3cf09046cfa9b4b58c9793a5b862b896e971578326fbd548
-Jornada.Integrador --resultado ENTREGA_SEHAB_SEHAB_v2_305d...zip
-Jornada.Integrador --resultado C:\cargas\ENTREGA_SEHAB_SEHAB_v2_305d...zip
-```
-
-O cliente consulta o endpoint de resultado até o processamento chegar a `PROCESSADA`, `REJEITADA` ou `QUARENTENA`. Quando finalizado, grava `resultado_<identificador>.json`.
-
-## Serviço de resultado
-
-Projeto:
-
-```text
-src/Jornada.Resultado.Api
-```
-
-Endpoint:
-
-```text
-GET /api/v1/ingestao/resultados/{identificador}
-```
-
-O endpoint aceita o SHA-256 ou o nome exato do ZIP. O serviço não cria um segundo cadastro de credenciais: ele encaminha `X-Jornada-Gestor` e `X-Jornada-Access-Key` para a API principal para validar a autorização da Entrega antes de retornar o detalhamento.
-
-O resultado contém:
-
-- Entrega localizada e quantidade de Entregas encontradas para os mesmos bytes/nome;
-- SHA-256 e nome canônico;
-- Gestor, sistema de origem, schema de Pessoa, Natureza, Tipo e versão;
-- status e timestamps da Entrega;
-- todos os lotes técnicos, tentativas, recuperações e códigos de erro;
-- contagens por `PESSOA`/`REGISTRO` e resultado (`INCLUIDO`, `VERSIONADO`, `RETRANSMITIDO`, `EXCLUIDO`, `REABERTO`);
-- quantidade ainda disponível na trilha granular;
-- quantidade já consolidada pela política de retenção;
-- indicador explícito de existência ou não de detalhe item a item integral.
-
-A resposta não expõe CPF nem conteúdo cadastral/factual.
-
-## Retenção
-
-`ingestao.item_processado` pode ser consolidada conforme política de retenção. Quando isso ocorrer, o endpoint soma a trilha granular ainda existente com `ingestao.item_processado_resumo` e informa que o detalhe histórico item a item deixou de ser integral. O resultado agregado não finge possuir dados que já foram expurgados.
-
-## Configuração do serviço de resultado
-
-O serviço necessita:
-
-```json
-{
-  "ConnectionStrings": {
-    "Jornada": "..."
-  },
-  "JornadaApiBaseUrl": "https://jornada-api-interna..."
-}
-```
-
-`JornadaApiBaseUrl` é usado exclusivamente para a validação da mesma credencial de integração na API principal.
+Os arquivos do Gestor fornecidos pela Solução de Apoio têm SHA-256 fixados em seu inventário externo. A Jornada receptora conserva **o catálogo de contratos aprovado** e seu próprio processamento genérico; a cópia de schemas no diretório temporário do E2E isolado **não** é implantação real. O teste `Solution/scripts/local-e2e.sh` exercita preparação → envio C# → HTTP → Bronze → Processor → Silver/identidade e regressão de SMADS, SMDET e SMS; sua conclusão deve ser comprovada por Action verde no SHA exato e artefato de evidência. Ver [gate pré-Ensaio](Gate_06_Segregacao_SEHAB_Evidencias.md) e [plano](Plano_Desenvolvimento.md).

@@ -4,6 +4,14 @@
  armazenamento acordado com a Jornada receptora. Este registro cria RASCUNHO;
  não ativa o contrato nem concede aprovação de governança.
 */
+-- SQLCMD não herda as opções de sessão exigidas por índices filtrados/computados.
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET ARITHABORT ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET NUMERIC_ROUNDABORT OFF;
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
 IF NOT EXISTS (SELECT 1 FROM ref.gestor WHERE codigo=N'SEHAB')

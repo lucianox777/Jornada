@@ -32,6 +32,8 @@ export Processor__PollingMilliseconds=100
 
 api_pid=''; worker_pid=''; staged_sehab=''
 cleanup(){
+  # A configuração efetiva, mesmo DEV, não deve ser publicada no artefato E2E.
+  [[ -z "${support_config:-}" ]] || rm -f -- "$support_config"
   [[ -z "$staged_sehab" ]] || rm -rf -- "$staged_sehab"
   [[ -z "$worker_pid" ]] || kill "$worker_pid" 2>/dev/null || true
   [[ -z "$api_pid" ]] || kill "$api_pid" 2>/dev/null || true
@@ -126,8 +128,12 @@ scalar(){ compose_sql "SET NOCOUNT ON; $1" | tail -1 | tr -d '[:space:]'; }
 # independente no banco JornadaE2E. Nunca altera o banco DEV compartilhado.
 support_registry="$ROOT/../ApoioSecretarias/database/migrations/Registrar_SEHAB_Pessoa_v5.sql"
 [[ -f "$support_registry" ]] || { echo 'ERRO: script externo SEHAB v5 ausente.' >&2; exit 12; }
-(cd "$ROOT" && SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker compose --env-file "$ENV_FILE" exec -T -e SQLCMDPASSWORD sqlserver \
-  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d "$DB" -Q "$(cat "$support_registry")") > "$OUT/support-v5-registration.log"
+if ! (cd "$ROOT" && SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker compose --env-file "$ENV_FILE" exec -T -e SQLCMDPASSWORD sqlserver \
+  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d "$DB" -Q "$(cat "$support_registry")") > "$OUT/support-v5-registration.log" 2>&1; then
+  echo 'ERRO: cadastro externo SEHAB v5 falhou; saída do SQLCMD:' >&2
+  tail -100 "$OUT/support-v5-registration.log" >&2 || true
+  exit 12
+fi
 expected_support_v5="$(sha256sum "$support_contracts/pessoa/v5/pessoa.schema.json" | awk '{print $1}')"
 actual_support_v5="$(scalar "SELECT LOWER(CONVERT(varchar(64),gpv.pessoa_schema_sha256,2)) FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='SEHAB' AND gpv.versao=5 AND gpv.status='RASCUNHO';")"
 [[ -n "$actual_support_v5" && "$expected_support_v5" == "$actual_support_v5" ]] || {
