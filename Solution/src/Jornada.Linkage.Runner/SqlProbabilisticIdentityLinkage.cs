@@ -137,14 +137,14 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
     /// <summary>Consulta síncrona sem publicação; usa exatamente o snapshot, blocking e ranking do Runner.</summary>
     public async Task<IReadOnlyList<SemiblindInternalCandidate>> RetrieveAsync(
-        SemiblindIdentitySearchRequest request, CancellationToken ct)
+        SemiblindIdentitySearchRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.Nome))
             throw new ArgumentException("Nome obrigatório.", nameof(request));
 
-        var active = await GetActiveModelAsync(ct);
-        var snapshot = await GetOrLoadRuntimeSnapshotAsync(active.ModelId, ct);
+        var active = await GetActiveModelAsync(cancellationToken);
+        var snapshot = await GetOrLoadRuntimeSnapshotAsync(active.ModelId, cancellationToken);
         var observation = new IdentityObservation(null, null, request.Nome.Trim(),
             request.DataNascimento, request.NomeMae?.Trim());
 
@@ -155,7 +155,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
         if (snapshot.RuleSet is null && observation.DataNascimento is null)
             return Array.Empty<SemiblindInternalCandidate>();
 
-        var candidates = await LoadCandidatesAsync(observation, snapshot, ct);
+        var candidates = await LoadCandidatesAsync(observation, snapshot, cancellationToken);
         var ranked = ProbabilisticLinkageDecisions.Rank(snapshot.Model, observation, candidates);
         var byId = candidates.ToDictionary(candidate => candidate.PessoaUuid);
         // O limite é aplicado APÓS o ranking interno; a apresentação neutra é feita na API.
