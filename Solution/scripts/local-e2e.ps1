@@ -1,5 +1,6 @@
 ﻿param(
-    [switch]$AllowSharedDatabaseReset
+    [switch]$AllowSharedDatabaseReset,
+    [switch]$VerifyLinkageRunner
 )
 
 $ErrorActionPreference = 'Stop'
@@ -241,6 +242,29 @@ try {
     # uma segunda Entrega cria outra observação ancorada pelo mesmo CPF, não uma
     # retransmissão da origem. Somente o REGISTRO tem código de origem persistente.
     if ((Scalar "SELECT COUNT(*) FROM gold.beneficio_concedido WHERE codigo_registro_origem='E2E-AA01-2026-000001' AND status_analitico='VIGENTE';") -ne '1') { throw 'Retransmissão duplicou a versão Gold vigente.' }
+
+    if ($VerifyLinkageRunner) {
+        # Run against the isolated database already populated by the real API
+        # and Processor. Never activate this stage for the shared reset mode.
+        if (-not $usesIsolatedDatabase) { throw 'DT-05 Runner exige banco E2E isolado.' }
+        if ((Scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO';") -lt 1) {
+            throw 'DT-05: nenhum modelo ATIVO para executar o Runner.'
+        }
+        if ((Scalar "SELECT ativo FROM controle.modo_carga_inicial WHERE estado_id=1;") -ne '0') {
+            throw 'DT-05: carga inicial ativa; Runner não deve publicar.'
+        }
+        $marker = [Guid]::NewGuid().ToString('N')
+        Push-Location $Root
+        try {
+            dotnet run --no-build --configuration Release --project src/Jornada.Linkage.Runner -- --mode ON_DEMAND --max-records 100 --requested-by DT05_LOCAL_E2E --reason $marker --publish true
+            if ($LASTEXITCODE -ne 0) { throw 'DT-05: Runner real falhou.' }
+        } finally { Pop-Location }
+        $runs = [int](Scalar "SELECT COUNT(*) FROM identidade.linkage_run WHERE solicitado_por=N'DT05_LOCAL_E2E' AND motivo=N'$marker' AND status=N'PUBLICADO';")
+        if ($runs -ne 1) { throw "DT-05: esperado um run PUBLICADO, encontrado $runs." }
+        $raw = [int](Scalar "SELECT COUNT(*) FROM identidade.linkage_resultado r JOIN identidade.linkage_run l ON l.linkage_run_id=r.linkage_run_id WHERE l.solicitado_por=N'DT05_LOCAL_E2E' AND l.motivo=N'$marker';")
+        if ($raw -lt 1) { throw 'DT-05: Runner não preservou resultados brutos.' }
+        Write-Host "DT-05: Runner real publicou $raw resultados brutos no banco isolado."
+    }
 
     [ordered]@{
         status='OK'; generatedAtUtc=[DateTimeOffset]::UtcNow.ToString('O'); firstEntregaId=$id1; retransmissionEntregaId=$id2
