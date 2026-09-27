@@ -18,11 +18,11 @@ if (args.Length == 5 && args[0] == "--estimate-ibge-public-marginals" &&
     var source = Path.GetFullPath(args[1]);
     var target = Path.GetFullPath(args[2]);
     var marginalJson = await File.ReadAllTextAsync(source);
-    var report = IbgeOfflineUReference.Estimate(marginalJson, offlinePairs);
+    var offlineReport = IbgeOfflineUReference.Estimate(marginalJson, offlinePairs);
     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-    await File.WriteAllTextAsync(target, report, new System.Text.UTF8Encoding(false));
+    await File.WriteAllTextAsync(target, offlineReport, new System.Text.UTF8Encoding(false));
     await File.WriteAllTextAsync(target + ".sha256",
-        SplinkIbgeReplayContract.Sha(report) + "  " + Path.GetFileName(target) +
+        SplinkIbgeReplayContract.Sha(offlineReport) + "  " + Path.GetFileName(target) +
         Environment.NewLine, new System.Text.UTF8Encoding(false));
     Console.WriteLine("Offline C# public IBGE u reference written. No SQL, citizen data or model changes.");
     return;
