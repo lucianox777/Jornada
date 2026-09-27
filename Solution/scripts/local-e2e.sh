@@ -177,7 +177,7 @@ missing_code="$(curl -sS -o "$OUT/negative-missing-auth.json" -w '%{http_code}' 
  --data-binary "@$package")"
 [[ "$missing_code" == 401 ]] || { echo "ERRO: ingestão sem credencial devolveu $missing_code, esperado 401." >&2; exit 22; }
 scope_code="$(curl -sS -o "$OUT/negative-no-write-scope.json" -w '%{http_code}' -X POST "$API_URL/api/v1/ingestao/entregas" \
- -H "X-Correlation-Id: $corr_scope" -H 'X-Jornada-Gestor: SEHAB' \
+ -H "X-Correlation-Id: $corr_scope" -H 'X-Jornada-Beneficio: AA01' \
  -H "X-Jornada-Access-Key: $benefit_access_key" -H 'Idempotency-Key: gate06-deny-scope' \
  -H 'Content-Type: application/zip' -H "Content-Disposition: attachment; filename=$filename" \
  --data-binary "@$package")"
