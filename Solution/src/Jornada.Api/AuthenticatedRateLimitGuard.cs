@@ -29,7 +29,8 @@ internal sealed class AuthenticatedRateLimitGuard(ApiRateLimitOptions options) :
         var path = request.Path.Value ?? string.Empty;
         if (path.StartsWith("/api/v1/ingestao", StringComparison.OrdinalIgnoreCase))
             return ("INGESTAO", options.IngestionPermitLimit);
-        if (path.Equals("/api/v1/identidade/resolver", StringComparison.OrdinalIgnoreCase))
+        if (path.Equals("/api/v1/identidade/resolver", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/api/v1/identidade/candidatos", StringComparison.OrdinalIgnoreCase))
             return ("IDENTIDADE", options.IdentityPermitLimit);
         if (path.StartsWith("/api/v1/pessoas", StringComparison.OrdinalIgnoreCase))
             return ("PESSOA", options.StandardPermitLimit);
