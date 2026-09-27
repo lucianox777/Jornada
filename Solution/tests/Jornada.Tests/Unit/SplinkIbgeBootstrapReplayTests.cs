@@ -111,6 +111,123 @@ public sealed class SplinkIbgeBootstrapReplayTests
     }
 
     [Test]
+    public void DiagnoseV2_TransitionMatrixIncludesEveryCellAndPreservesMarginals()
+    {
+        var source = CreateReplay(128);
+        var input = SplinkIbgeReplayContract.SerializeInput(source);
+        var unchanged = SplinkIbgeReplayContract.Diagnose(input, ExternalJson(source, input));
+        var states = new[] { "EXACT", "HIGH", "MEDIUM", "LOW" };
+        var expectedOrder = states.SelectMany(from => states.Select(to => (from, to))).ToArray();
+        var actualOrder = unchanged.Transitions
+            .Select(cell => (cell.CSharpState, cell.SplinkState)).ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(SplinkIbgeReplayContract.LegacyReportSchema,
+                Is.EqualTo("JORNADA_SPLINK_IBGE_U_REPLAY_DIAGNOSTIC_V1"));
+            Assert.That(unchanged.SchemaVersion, Is.EqualTo(
+                "JORNADA_SPLINK_IBGE_U_REPLAY_DIAGNOSTIC_V2"));
+            Assert.That(unchanged.Transitions, Has.Count.EqualTo(16));
+            Assert.That(actualOrder, Is.EqualTo(expectedOrder));
+            Assert.That(unchanged.Transitions.Sum(cell => cell.Support), Is.EqualTo(128));
+            Assert.That(unchanged.Transitions.Where(cell =>
+                cell.CSharpState != cell.SplinkState).Sum(cell => cell.Support), Is.Zero);
+            Assert.That(unchanged.Transitions.Count(cell => cell.Support == 0),
+                Is.GreaterThanOrEqualTo(12));
+            foreach (var state in unchanged.States)
+            {
+                Assert.That(unchanged.Transitions.Where(cell => cell.CSharpState == state.State)
+                    .Sum(cell => cell.Support), Is.EqualTo(state.CSharpSupport));
+                Assert.That(unchanged.Transitions.Where(cell => cell.SplinkState == state.State)
+                    .Sum(cell => cell.Support), Is.EqualTo(state.SplinkSupport));
+            }
+        });
+
+        using var document = JsonDocument.Parse(
+            SplinkIbgeReplayContract.SerializeDiagnostic(unchanged));
+        var root = document.RootElement;
+        Assert.Multiple(() =>
+        {
+            Assert.That(root.GetProperty("schema_version").GetString(),
+                Is.EqualTo(SplinkIbgeReplayContract.ReportSchema));
+            Assert.That(root.GetProperty("transitions").GetArrayLength(), Is.EqualTo(16));
+            Assert.That(root.GetProperty("transitions")[0]
+                .GetProperty("c_sharp_state").GetString(), Is.EqualTo("EXACT"));
+            Assert.That(root.GetProperty("transitions")[0]
+                .GetProperty("splink_state").GetString(), Is.EqualTo("EXACT"));
+        });
+    }
+
+    [Test]
+    public void DiagnoseV2_OppositePairChangesRemainVisibleWhenAggregateTvdIsZero()
+    {
+        var source = CreateReplay(512);
+        var input = SplinkIbgeReplayContract.SerializeInput(source);
+        var selected = source.Pairs.GroupBy(pair => pair.CSharpState)
+            .Take(2).Select(group => group.First()).ToArray();
+        Assert.That(selected, Has.Length.EqualTo(2),
+            "Fixture precisa de dois estados C# distintos para testar cancelamento de TVD.");
+
+        var original = JsonSerializer.Deserialize<SplinkIbgeReplayExternalResult>(
+            ExternalJson(source, input), SplinkIbgeReplayContract.JsonOptions)!;
+        var swapped = original with
+        {
+            // Ordem arbitrária na resposta do runner deve manter a mesma matriz.
+            Pairs = original.Pairs.Select(pair => pair.PairIndex switch
+            {
+                var index when index == selected[0].PairIndex =>
+                    pair with { SplinkState = selected[1].CSharpState },
+                var index when index == selected[1].PairIndex =>
+                    pair with { SplinkState = selected[0].CSharpState },
+                _ => pair
+            }).Reverse().ToArray()
+        };
+        var resultJson = JsonSerializer.Serialize(swapped,
+            SplinkIbgeReplayContract.JsonOptions) + "\n";
+        var report = SplinkIbgeReplayContract.Diagnose(input, resultJson);
+        var forward = report.Transitions.Single(cell =>
+            cell.CSharpState == selected[0].CSharpState &&
+            cell.SplinkState == selected[1].CSharpState);
+        var reverse = report.Transitions.Single(cell =>
+            cell.CSharpState == selected[1].CSharpState &&
+            cell.SplinkState == selected[0].CSharpState);
+        Assert.Multiple(() =>
+        {
+            Assert.That(report.PairwiseDisagreements, Is.EqualTo(2));
+            Assert.That(report.TotalVariation, Is.Zero,
+                "Movimentos recíprocos cancelam marginais, mas não divergências por par.");
+            Assert.That(report.Status, Is.EqualTo("ESTADOS_DIVERGENTES_DIAGNOSTICO"));
+            Assert.That(forward.Support, Is.EqualTo(1));
+            Assert.That(reverse.Support, Is.EqualTo(1));
+            Assert.That(report.Transitions.Where(cell =>
+                cell.CSharpState != cell.SplinkState).Sum(cell => cell.Support),
+                Is.EqualTo(report.PairwiseDisagreements));
+            Assert.That(report.Transitions.Sum(cell => cell.Support), Is.EqualTo(512));
+        });
+
+        // Rejeitar pares repetidos/estados inválidos antes de emitir matriz parcial.
+        var repeated = swapped with
+        {
+            Pairs = swapped.Pairs.Select((pair, i) =>
+                i == 0 ? pair with { PairIndex = swapped.Pairs[1].PairIndex } : pair).ToArray()
+        };
+        var unknown = swapped with
+        {
+            Pairs = swapped.Pairs.Select((pair, i) =>
+                i == 0 ? pair with { SplinkState = "UNKNOWN" } : pair).ToArray()
+        };
+        Assert.Multiple(() =>
+        {
+            Assert.That(() => SplinkIbgeReplayContract.Diagnose(input,
+                JsonSerializer.Serialize(repeated, SplinkIbgeReplayContract.JsonOptions)),
+                Throws.TypeOf<InvalidDataException>());
+            Assert.That(() => SplinkIbgeReplayContract.Diagnose(input,
+                JsonSerializer.Serialize(unknown, SplinkIbgeReplayContract.JsonOptions)),
+                Throws.TypeOf<InvalidDataException>());
+        });
+    }
+
+    [Test]
     public void ExportDisagreementsCsv_OnlyEmitsValidatedMismatchesInInputOrder()
     {
         var source = CreateReplay(32);
