@@ -122,6 +122,19 @@ compose_sql(){
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d "$DB" -W -h -1 -Q "$1") | tr -d '\r' | sed '/^[[:space:]]*$/d'
 }
 scalar(){ compose_sql "SET NOCOUNT ON; $1" | tail -1 | tr -d '[:space:]'; }
+# Importa o contrato SEHAB v5 RASCUNHO fornecido exclusivamente pela solução
+# independente no banco JornadaE2E. Nunca altera o banco DEV compartilhado.
+support_registry="$ROOT/../ApoioSecretarias/database/migrations/Registrar_SEHAB_Pessoa_v5.sql"
+[[ -f "$support_registry" ]] || { echo 'ERRO: script externo SEHAB v5 ausente.' >&2; exit 12; }
+(cd "$ROOT" && SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker compose --env-file "$ENV_FILE" exec -T -e SQLCMDPASSWORD sqlserver \
+  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d "$DB" -Q "$(cat "$support_registry")") > "$OUT/support-v5-registration.log"
+expected_support_v5="$(sha256sum "$support_contracts/pessoa/v5/pessoa.schema.json" | awk '{print $1}')"
+actual_support_v5="$(scalar "SELECT LOWER(CONVERT(varchar(64),gpv.pessoa_schema_sha256,2)) FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='SEHAB' AND gpv.versao=5 AND gpv.status='RASCUNHO';")"
+[[ -n "$actual_support_v5" && "$expected_support_v5" == "$actual_support_v5" ]] || {
+  echo 'ERRO: cadastro externo SEHAB v5 diverge do schema de apoio.' >&2; exit 12;
+}
+echo "GATE06 EXTERNAL V5 CONTRACT: support=$expected_support_v5 catalog=$actual_support_v5"
+
 actual_aa01_hash="$(sha256sum "$ROOT/config/contracts/registros/AA01/v1/registro.schema.json" | awk '{print $1}')"
 expected_aa01_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),trv.schema_registro_sha256,2)) FROM ref.tipo_registro tr JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_id=tr.tipo_registro_id WHERE tr.codigo='AA01' AND trv.status='ATIVA';")"
 echo "E2E CONTRACT DIGEST: AA01 source=$actual_aa01_hash catalog=$expected_aa01_hash"
