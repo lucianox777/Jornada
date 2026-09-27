@@ -53,7 +53,7 @@ def verify(root, manifest):
     return len(refs)
 
 
-def create(root, refs_file, manifest_path, run_id, versions):
+def create(root, refs_file, manifest_path, run_id, versions, parent_manifest=None):
     root = Path(root).resolve()
     refs = json.loads(Path(refs_file).read_text(encoding="utf-8"))
     if not isinstance(refs, list) or not refs:
@@ -64,6 +64,18 @@ def create(root, refs_file, manifest_path, run_id, versions):
         previous = unique.setdefault(item["objeto_chave"], item)
         if previous != item:
             raise ValueError("conflicting Bronze reference")
+    parent = None
+    if parent_manifest:
+        parent_path = Path(parent_manifest).resolve()
+        verify(root, parent_path)
+        parent_data = json.loads(parent_path.read_text(encoding="utf-8"))
+        old = {item["objeto_chave"]: item for item in parent_data["bronze_objects"]}
+        for key, item in unique.items():
+            if key in old and old[key] != item:
+                raise ValueError("append-only Bronze object changed")
+        unique = {key: item for key, item in unique.items() if key not in old}
+        parent = {"run_id": parent_data["run_id"],
+                  "manifest_sha256": hashlib.sha256(parent_path.read_bytes()).hexdigest()}
     ordered = sorted(unique.values(), key=lambda item: item["objeto_chave"])
     required = {"scorer_version", "ruleset_version", "model_version", "input_snapshot_id"}
     if not isinstance(versions, dict) or not required.issubset(versions) or any(not versions[k] for k in required):
@@ -72,7 +84,7 @@ def create(root, refs_file, manifest_path, run_id, versions):
         "schema_version": 1, "run_id": run_id, "versions": versions,
         "bronze_objects": ordered,
         "bronze_set_sha256": hashlib.sha256(canonical(ordered)).hexdigest(),
-        "pin_contract": "identidade.sp_fixar_bronze_para_linkage/v1"
+        "pin_contract": "identidade.sp_fixar_bronze_para_linkage/v1", "parent": parent
     }
     dest = Path(manifest_path).resolve()
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -99,12 +111,13 @@ def main():
     build.add_argument("--refs-json", required=True)
     build.add_argument("--manifest", required=True)
     build.add_argument("--run-id", required=True)
+    build.add_argument("--parent-manifest")
     build.add_argument("--versions-json", required=True)
     check = commands.add_parser("verify")
     check.add_argument("--manifest", required=True)
     args = parser.parse_args()
     if args.command == "create":
-        count = create(args.bronze_root, args.refs_json, args.manifest, args.run_id, json.loads(args.versions_json))
+        count = create(args.bronze_root, args.refs_json, args.manifest, args.run_id, json.loads(args.versions_json), args.parent_manifest)
     else:
         count = verify(args.bronze_root, args.manifest)
     print(json.dumps({"verified_bronze_objects": count}))
