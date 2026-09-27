@@ -93,6 +93,7 @@ public sealed class OpenApiRuntimeConformanceTests : IDisposable
         new(HttpMethod.Get, "/monitor", "/monitor", "get", null),
         new(HttpMethod.Get, "/api/v1/monitor/status", "/api/v1/monitor/status", "get", null),
         new(HttpMethod.Post, "/api/v1/identidade/resolver", "/api/v1/identidade/resolver", "post", Json("{\"cpf\":\"52998224725\"}")),
+        new(HttpMethod.Post, "/api/v1/identidade/busca", "/api/v1/identidade/busca", "post", Json("{\"nome\":\"Pessoa Teste\"}")),
         new(HttpMethod.Post, "/api/v1/ingestao/entregas", "/api/v1/ingestao/entregas", "post", ZipProbe()),
         new(HttpMethod.Get, "/api/v1/ingestao/entregas/11111111-1111-1111-1111-111111111111", "/api/v1/ingestao/entregas/{entregaId}", "get", null),
         new(HttpMethod.Post, "/api/v1/identidade/conflitos/detalhe", "/api/v1/identidade/conflitos/detalhe", "post", Json("{\"cpf\":\"52998224725\"}")),
