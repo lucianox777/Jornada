@@ -22,7 +22,8 @@ public sealed class SemiblindIdentityHttpTests
     [TestCase("allowed", HttpStatusCode.OK)]
     [TestCase("audit_failure", HttpStatusCode.ServiceUnavailable)]
     [TestCase("model_unavailable", HttpStatusCode.ServiceUnavailable)]
-    [TestCase("disabled", HttpStatusCode.ServiceUnavailable)]
+    [TestCase("feature_disabled", HttpStatusCode.ServiceUnavailable)]
+    [TestCase("production_enabled", HttpStatusCode.ServiceUnavailable)]
     public async Task Route_enforces_access_and_pre_response_audit(string scenario, HttpStatusCode expected)
     {
         var root = Path.Combine(Path.GetTempPath(), "jornada-semiblind-" + Guid.NewGuid().ToString("N"));
@@ -32,12 +33,19 @@ public sealed class SemiblindIdentityHttpTests
         {
             await using var factory = new WebApplicationFactory<ApiEntryPointMarker>().WithWebHostBuilder(builder =>
             {
-                builder.UseEnvironment("Development");
+                builder.UseEnvironment(scenario == "production_enabled" ? "Production" : "Development");
+                // No teste Production, UseSetting prevalece sobre o appsettings.json
+                // (o RootPath de produção é /var/lib/jornada, inacessível no runner CI).
+                builder.UseSetting("BronzeStorage:RootPath", Path.Combine(root, "bronze"));
+                builder.UseSetting("IngestionStaging:RootPath", Path.Combine(root, "staging"));
+                builder.UseSetting("SemiblindIdentitySearch:Enabled",
+                    scenario == "feature_disabled" ? "false" : "true");
                 builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
                     new Dictionary<string, string?>
                     {
                         ["BronzeStorage:RootPath"] = Path.Combine(root, "bronze"),
-                        ["IngestionStaging:RootPath"] = Path.Combine(root, "staging")
+                        ["IngestionStaging:RootPath"] = Path.Combine(root, "staging"),
+                        ["SemiblindIdentitySearch:Enabled"] = scenario == "feature_disabled" ? "false" : "true"
                     }));
                 builder.ConfigureTestServices(services =>
                 {
@@ -47,9 +55,12 @@ public sealed class SemiblindIdentityHttpTests
                     services.AddSingleton<IPolicyEngine>(new FakePolicy());
                     services.RemoveAll<ISemiblindIdentitySearchService>();
                     services.AddSingleton<ISemiblindIdentitySearchService>(service);
+                    // Serviço simulado mantém os testes HTTP independentes do SQL de DEV.
+                    // O teste do gate concreto abaixo cobre ambiente, flag, banco e marcador.
                     services.RemoveAll<ISemiblindSearchActivationGate>();
                     services.AddSingleton<ISemiblindSearchActivationGate>(
-                        new FakeActivationGate(scenario != "disabled"));
+                        new FakeActivationGate(scenario != "feature_disabled"
+                            && scenario != "production_enabled"));
                     services.RemoveAll<IApiAuditSink>();
                     services.AddSingleton<IApiAuditSink>(audit);
                     services.AddSingleton<ISqlReadinessProbe>(new InMemorySqlReadinessProbe(false));
@@ -70,7 +81,15 @@ public sealed class SemiblindIdentityHttpTests
             using var response = await client.SendAsync(request);
             Assert.That(response.StatusCode, Is.EqualTo(expected));
             Assert.That(service.Calls, Is.EqualTo(scenario is "allowed" or "audit_failure" or "model_unavailable" ? 1 : 0));
-            if (scenario is "missing" or "wrong_scope" or "allowed" or "model_unavailable" or "disabled")
+            if (scenario is "feature_disabled" or "production_enabled")
+            {
+                var deniedBody = await response.Content.ReadAsStringAsync();
+                Assert.That(deniedBody, Does.Not.Contain("Pessoa restrita"),
+                    "Não divulgar PII quando o endpoint está desabilitado.");
+                Assert.That(audit.Successful, Is.EqualTo(1),
+                    "Até consultas desabilitadas devem ser auditadas.");
+            }
+            if (scenario is "missing" or "wrong_scope" or "allowed" or "model_unavailable")
                 Assert.That(audit.Successful, Is.EqualTo(1),
                     "Cada consulta inclusive recusada deve produzir uma única auditoria.");
             if (scenario == "allowed")
@@ -90,12 +109,6 @@ public sealed class SemiblindIdentityHttpTests
                 Assert.That(body, Does.Not.Contain("Pessoa restrita"));
                 Assert.That(body, Does.Not.Contain("modelo probabilístico"));
             }
-            if (scenario == "disabled")
-            {
-                Assert.That(service.Calls, Is.Zero);
-                var body = await response.Content.ReadAsStringAsync();
-                Assert.That(body, Does.Not.Contain("Pessoa restrita"));
-            }
             if (scenario == "audit_failure")
             {
                 var body = await response.Content.ReadAsStringAsync();
@@ -109,24 +122,18 @@ public sealed class SemiblindIdentityHttpTests
         }
     }
 
-    [Test]
-    public void Activation_policy_is_always_synthetic_and_never_hml_or_real_development()
+    [TestCase("Development", true, "JornadaSyntheticDev", "Development", true)]
+    [TestCase("Development", false, "JornadaSyntheticDev", "Development", false)]
+    [TestCase("Development", true, "JornadaDev", "Development", false)]
+    [TestCase("Development", true, "JornadaSyntheticDev", null, false)]
+    [TestCase("Development", true, "JornadaSyntheticDev", "Production", false)]
+    [TestCase("Production", true, "JornadaSyntheticDev", "Development", false)]
+    [TestCase("HML", true, "JornadaSyntheticDev", "Development", false)]
+    public void Activation_gate_requires_synthetic_database_and_resident_profile(
+        string environment, bool enabled, string database, string? profile, bool expected)
     {
-        Assert.Multiple(() =>
-        {
-            Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
-                "Development", true, "JornadaSyntheticDev", "Development"), Is.True);
-            Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
-                "Development", false, "JornadaSyntheticDev", "Development"), Is.False);
-            Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
-                "Development", true, "JornadaDev", "Development"), Is.False);
-            Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
-                "Development", true, "JornadaSyntheticDev", null), Is.False);
-            Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
-                "Production", true, "JornadaSyntheticDev", "Development"), Is.False);
-            Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
-                "HML", true, "JornadaSyntheticDev", "Development"), Is.False);
-        });
+        Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
+            environment, enabled, database, profile), Is.EqualTo(expected));
     }
 
     private sealed class FakeActivationGate(bool enabled) : ISemiblindSearchActivationGate

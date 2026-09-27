@@ -200,7 +200,8 @@ app.MapPost("/api/v1/identidade/candidatos", async (
     ApiAuditContext.SetResourceCode(http.HttpContext, context.TipoCodigo);
     if (!await policy.IsAllowedAsync(context, "jornada.identidade.busca.read", context.TipoCodigo, null, ct))
         return Results.Forbid();
-    // Até decisão institucional #539, nenhuma configuração habilita a busca sobre dados reais.
+    // Issue #539: a flag de Development não basta; verificar nome e perfil residente
+    // do banco isolado JornadaSyntheticDev ANTES de recuperar qualquer candidato.
     if (!await activation.IsEnabledAsync(ct))
         return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
     var correlation = http.HttpContext.Items.TryGetValue(ApiContextItems.CorrelationId, out var value)

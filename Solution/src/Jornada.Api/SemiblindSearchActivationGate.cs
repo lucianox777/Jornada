@@ -20,7 +20,7 @@ internal sealed class SqlSyntheticDevelopmentSemiblindSearchActivationGate(
     IOperationalSqlAdapter sql) : ISemiblindSearchActivationGate
 {
     internal const string SyntheticDatabase = "JornadaSyntheticDev";
-    internal const string EnabledSetting = "SemiblindIdentitySearch:EnableSyntheticDevelopment";
+    internal const string EnabledSetting = "SemiblindIdentitySearch:Enabled";
 
     public async Task<bool> IsEnabledAsync(CancellationToken ct)
     {
