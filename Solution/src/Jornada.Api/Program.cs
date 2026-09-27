@@ -92,6 +92,7 @@ builder.Services.AddSingleton<IIdentityResolutionService, SqlIdentityResolutionS
 builder.Services.AddSingleton<SqlProbabilisticIdentityLinkage>();
 builder.Services.AddSingleton<ISemiblindCandidateRetriever>(sp => sp.GetRequiredService<SqlProbabilisticIdentityLinkage>());
 builder.Services.AddSingleton<ISemiblindIdentitySearchService, SemiblindIdentitySearchService>();
+builder.Services.AddSingleton<ISemiblindSearchActivationGate, SqlSyntheticDevelopmentSemiblindSearchActivationGate>();
 builder.Services.AddSingleton<IIdentityCorrectionService, SqlIdentityCorrectionService>();
 builder.Services.AddSingleton<IIngestionService, SqlIngestionService>();
 builder.Services.AddSingleton<IPersonProjectionService, SqlPersonProjectionService>();
@@ -191,6 +192,7 @@ app.MapPost("/api/v1/identidade/candidatos", async (
     SemiblindIdentitySearchRequest request,
     IPolicyEngine policy,
     ISemiblindIdentitySearchService service,
+    ISemiblindSearchActivationGate activation,
     IApiAuditSink auditSink,
     CancellationToken ct) =>
 {
@@ -198,6 +200,9 @@ app.MapPost("/api/v1/identidade/candidatos", async (
     ApiAuditContext.SetResourceCode(http.HttpContext, context.TipoCodigo);
     if (!await policy.IsAllowedAsync(context, "jornada.identidade.busca.read", context.TipoCodigo, null, ct))
         return Results.Forbid();
+    // Até decisão institucional #539, nenhuma configuração habilita a busca sobre dados reais.
+    if (!await activation.IsEnabledAsync(ct))
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
     var correlation = http.HttpContext.Items.TryGetValue(ApiContextItems.CorrelationId, out var value)
         && value is Guid id ? id : Guid.NewGuid();
     try
