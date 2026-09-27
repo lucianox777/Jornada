@@ -7,6 +7,37 @@ namespace Jornada.Linkage.Evaluation;
 
 public sealed class CalibrationAuditExporter(SqlConnection connection, int commandTimeoutSeconds)
 {
+    /// <summary>Read-only public marginal export from isolated Development SQL only.</summary>
+    public async Task<string> ExportIbgePublicMarginalsAsync(
+        string firstNameSex, CancellationToken ct = default)
+    {
+        if (firstNameSex is not ("TODOS" or "FEMININO"))
+            throw new ArgumentOutOfRangeException(nameof(firstNameSex));
+        await using (var profile = new SqlCommand(
+            """
+            SELECT DB_NAME(),
+                   CONVERT(nvarchar(32),
+                     (SELECT value FROM sys.extended_properties
+                      WHERE class=0 AND name=N'Jornada.EnvironmentProfile'));
+            """, connection) { CommandTimeout = commandTimeoutSeconds })
+        await using (var reader = await profile.ExecuteReaderAsync(ct))
+        {
+            if (!await reader.ReadAsync(ct) ||
+                !string.Equals(reader.GetString(0), "JornadaSyntheticDev", StringComparison.Ordinal) ||
+                reader.IsDBNull(1) ||
+                !string.Equals(reader.GetString(1), "Development", StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "Public marginal export requires JornadaSyntheticDev and Development.");
+        }
+        var reference = await IbgeNominalUReferenceReader.ReadActiveReferenceAsync(connection, ct);
+        if (reference.Code != IbgePublicMarginalsExchange.Reference)
+            throw new InvalidDataException("Unexpected active IBGE public reference.");
+        var rows = await IbgeNominalUReferenceReader.ReadBrazilPublishedMarginalsAsync(
+            connection, reference.Id, firstNameSex, ct);
+        return IbgePublicMarginalsExchange.Serialize(
+            reference.Code, reference.ContentSha256, firstNameSex, rows);
+    }
+
     /// <summary>
     /// Extensão de referência pública do exportador EXISTENTE. Não lê Gold,
     /// Silver nem tabela de observações. O banco deve ser o Development
