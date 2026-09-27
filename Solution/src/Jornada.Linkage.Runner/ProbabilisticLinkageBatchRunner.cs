@@ -153,13 +153,13 @@ public sealed class ProbabilisticLinkageBatchRunner(
     {
         await using var connection = await operationalSql.OpenAsync(ct);
         await using var command = new SqlCommand(
-            "SELECT CASE WHEN OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote', N'P') IS NULL THEN 0 ELSE 1 END;",
+            "SELECT CASE WHEN OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote', N'P') IS NULL OR OBJECT_ID(N'identidade.sp_registrar_transicoes_linkage_run', N'P') IS NULL THEN 0 ELSE 1 END;",
             connection);
         var available = Convert.ToInt32(
             await command.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
         if (available != 1)
             throw new InvalidOperationException(
-                "DT-10: identidade.sp_publicar_resolucao_progressiva_linkage_lote ausente. " +
+                "DT-10/DT-05: procedure de publicação progressiva ou de transições semânticas ausente. " +
                 "Aplicar a migration SQL canônica antes de executar linkage com publicação.");
     }
 
