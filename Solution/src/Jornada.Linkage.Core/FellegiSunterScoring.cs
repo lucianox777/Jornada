@@ -85,12 +85,16 @@ public static class FellegiSunterScoring
     {
         var result = Evaluate(ToDoubleParameters(parameters), nameState, motherNameState,
             blockCandidateCount, leftBirthDate, rightBirthDate, captureBreakdown: true);
+        // O breakdown expõe as probabilidades persistidas em precisão decimal exata;
+        // só o cálculo matemático percorre o snapshot convertido para double.
         var contributions = result.Contributions!
-            .Select(static item => new FellegiSunterEvidenceContribution(
+            .Select(item => new FellegiSunterEvidenceContribution(
                 item.Evidence,
                 item.State,
-                item.M is { } m ? (decimal)m : null,
-                item.U is { } u ? (decimal)u : null,
+                item.M is null ? null : Math.Clamp(
+                    parameters[$"M_{item.Evidence}_{item.State}"], 0.000000001m, 0.999999999m),
+                item.U is null ? null : Math.Clamp(
+                    parameters[$"U_{item.Evidence}_{item.State}"], 0.000000001m, 0.999999999m),
                 (decimal)item.LogLikelihoodRatio))
             .ToArray();
         return new FellegiSunterScoreBreakdown(

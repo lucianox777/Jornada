@@ -6,7 +6,7 @@ O scorer operacional Fellegi–Sunter passa a usar `double` (float64) para prior
 
 ## Compatibilidade e limite do escopo
 
-O schema SQL Server, as probabilidades persistidas, o contrato público `FellegiSunterScore`, os objetos `CandidateScore`, a política decisória e os contratos de auditoria **continuam decimais**. Essa decisão evita migração simultânea de schema, API e modelo histórico. A saída `ToContractScore` faz cast de `double` para `decimal` e arredonda a oito casas, `AwayFromZero`, como no contrato anterior. `CalculateWithBreakdown` usa o mesmo núcleo `double` e materializa os valores `decimal` exclusivamente para diagnóstico. A calibração estatística, a geração de m/u e a conferência Splink não foram alteradas.
+O schema SQL Server, as probabilidades persistidas, o contrato público `FellegiSunterScore`, os objetos `CandidateScore`, a política decisória e os contratos de auditoria **continuam decimais**. Essa decisão evita migração simultânea de schema, API e modelo histórico. A saída `ToContractScore` faz cast de `double` para `decimal` e arredonda a oito casas, `AwayFromZero`, como no contrato anterior. `CalculateWithBreakdown` usa o mesmo núcleo `double` e materializa os valores `decimal` exclusivamente para diagnóstico. Os metadados m/u do breakdown preservam **os valores decimais originais exatos** do modelo, sem round-trip numérico pelo `double`. A calibração estatística, a geração de m/u e a conferência Splink não foram alteradas.
 
 ## Potencial de diferenças e gates
 
