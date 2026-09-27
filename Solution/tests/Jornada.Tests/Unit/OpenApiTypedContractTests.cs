@@ -19,6 +19,7 @@ public sealed class OpenApiTypedContractTests
         ("/health/ready", "get", "200", "ReadinessStatus", false),
         ("/api/v1/monitor/status", "get", "200", "OperationalMonitorStatus", false),
         ("/api/v1/identidade/resolver", "post", "200", "IdentityResolutionResponse", false),
+        ("/api/v1/identidade/candidatos", "post", "200", "IdentityCandidateSearchResponse", false),
         ("/api/v1/ingestao/entregas", "post", "202", "IngestionReceipt", false),
         ("/api/v1/ingestao/entregas/{entregaId}", "get", "200", "IngestionStatusResponse", false),
         ("/api/v1/identidade/conflitos/detalhe", "post", "200", "IdentityConflictDetailResponse", false),
@@ -56,7 +57,7 @@ public sealed class OpenApiTypedContractTests
     }
 
     [Test]
-    public void All_21_operations_publish_a_typed_success_or_no_content()
+    public void All_22_operations_publish_a_typed_success_or_no_content()
     {
         using var document = ReadContract();
         var operations = document.RootElement.GetProperty("paths").EnumerateObject()
@@ -64,7 +65,7 @@ public sealed class OpenApiTypedContractTests
                 .Where(method => method.Name is "get" or "post" or "put" or "delete" or "patch")
                 .Select(method => (Path: path.Name, Method: method.Name, Value: method.Value)))
             .ToArray();
-        Assert.That(operations, Has.Length.EqualTo(21));
+        Assert.That(operations, Has.Length.EqualTo(22));
         foreach (var (path, method, operation) in operations)
         {
             var successes = operation.GetProperty("responses").EnumerateObject()
@@ -96,6 +97,8 @@ public sealed class OpenApiTypedContractTests
         Type[] types =
         [
             typeof(IdentityResolutionRequest), typeof(IdentityResolutionResponse),
+            typeof(IdentityCandidateSearchRequest), typeof(IdentityCandidateDto),
+            typeof(IdentityCandidateSearchResponse),
             typeof(IdentityConflictDetailRequest), typeof(IdentityConflictCoreDto),
             typeof(IdentityConflictDetailResponse), typeof(IdentityCorrectionGroupRequest),
             typeof(IdentityDecisionEvidence), typeof(IdentityCorrectionRequest),
