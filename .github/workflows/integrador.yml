@@ -5,11 +5,25 @@ on:
     paths:
       - 'ApoioSecretarias/**'
       - 'Solution/config/governance/schema-approvals.json'
+      - 'Solution/config/contracts/**'
+      - 'Solution/config/gestores/**'
+      - 'Solution/Jornada.sln'
+      - 'Solution/src/**/*.csproj'
+      - 'Solution/tests/Jornada.Integrador.Tests/**'
+      - 'Solution/database/migrations/20260921_Pessoa_V5_Contrato_371.sql'
+      - 'Solution/install/windows-production/**'
       - '.github/workflows/integrador.yml'
   pull_request:
     paths:
       - 'ApoioSecretarias/**'
       - 'Solution/config/governance/schema-approvals.json'
+      - 'Solution/config/contracts/**'
+      - 'Solution/config/gestores/**'
+      - 'Solution/Jornada.sln'
+      - 'Solution/src/**/*.csproj'
+      - 'Solution/tests/Jornada.Integrador.Tests/**'
+      - 'Solution/database/migrations/20260921_Pessoa_V5_Contrato_371.sql'
+      - 'Solution/install/windows-production/**'
       - '.github/workflows/integrador.yml'
   workflow_dispatch:
 
@@ -35,6 +49,10 @@ jobs:
           python-version: '3.11'
       - name: Preparador dependencies
         run: python -m pip install -r preparador/requirements.txt
+      - name: Reject SEHAB dependencies reintroduced in principal product
+        run: python scripts/check-segregation.py
+      - name: Negative tests for segregation boundary
+        run: python -m unittest discover -s scripts/tests -v
       - name: Verify migrated schema hashes
         run: python scripts/verify-contracts.py
       - name: Regression of retained SMADS, SMDET and SMS contracts
