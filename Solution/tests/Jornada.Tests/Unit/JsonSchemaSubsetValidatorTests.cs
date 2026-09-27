@@ -128,11 +128,11 @@ public sealed class JsonSchemaSubsetValidatorTests
         string? schema = null;
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, "config", "contracts", "gestores", "SEHAB", "pessoa", "v2", "pessoa.schema.json");
+            var candidate = Path.Combine(dir.FullName, "config", "contracts", "gestores", "SMADS", "pessoa", "v2", "pessoa.schema.json");
             if (File.Exists(candidate)) { schema = candidate; break; }
             dir = dir.Parent;
         }
-        Assert.That(schema, Is.Not.Null, "Contrato Pessoa v2 da SEHAB deve integrar a fixture de testes.");
+        Assert.That(schema, Is.Not.Null, "Contrato Pessoa v2 da SMADS deve integrar a fixture de testes.");
         var validator = JsonSchemaSubsetValidator.Load(schema!);
         const string valid = """
         {

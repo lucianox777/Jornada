@@ -137,7 +137,7 @@ public sealed class PersonV5ContractTests
     {
         var root = FindRepositoryRoot();
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(
-            root, "Solution", "config", "contracts", "gestores", "SEHAB", "pessoa", "v4", "pessoa.schema.json")));
+            root, "Solution", "config", "contracts", "gestores", "SMADS", "pessoa", "v4", "pessoa.schema.json")));
 
         var properties = document.RootElement.GetProperty("properties");
         var reasons = properties.GetProperty("cpfAusenteMotivo").GetProperty("enum")
@@ -221,7 +221,7 @@ public sealed class PersonV5ContractTests
         using var governance = JsonDocument.Parse(File.ReadAllText(Path.Combine(
             root, "Solution", "config", "governance", "schema-approvals.json")));
 
-        foreach (var gestor in new[] { "SEHAB", "SMADS", "SMDET", "SMS" })
+        foreach (var gestor in new[] { "SMADS", "SMDET", "SMS" })
         {
             var relative = $"config/contracts/gestores/{gestor}/pessoa/v5/pessoa.schema.json";
             var expected = governance.RootElement.GetProperty("contracts").EnumerateArray()
@@ -238,7 +238,7 @@ public sealed class PersonV5ContractTests
     {
         var path = Path.Combine(
             AppContext.BaseDirectory,
-            "config", "contracts", "gestores", "SEHAB", "pessoa", "v5", "pessoa.schema.json");
+            "config", "contracts", "gestores", "SMADS", "pessoa", "v5", "pessoa.schema.json");
         Assert.That(File.Exists(path), Is.True, "Contrato Pessoa v5 deve ser copiado para a fixture de testes.");
         return JsonSchemaSubsetValidator.Load(path);
     }
