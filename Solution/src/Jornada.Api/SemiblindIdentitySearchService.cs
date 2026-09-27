@@ -6,7 +6,7 @@ namespace Jornada.Api;
 /// <summary>
 /// Limite de exposição: UUIDs e métricas permanecem internos; opções não autorizam vínculo.
 /// </summary>
-public sealed class SemiblindIdentitySearchService(ISemiblindCandidateRetriever retriever)
+public sealed class SemiblindIdentitySearchService(ISemiblindCandidateRetriever retriever, IPolicyEngine policy)
     : ISemiblindIdentitySearchService
 {
     public async Task<SemiblindIdentitySearchResponse> SearchAsync(
@@ -22,8 +22,17 @@ public sealed class SemiblindIdentitySearchService(ISemiblindCandidateRetriever 
             throw new ArgumentException("Nome obrigatório e campos nominais limitados a 200 caracteres.");
 
         var retrieved = await retriever.RetrieveAsync(request, cancellationToken);
+        // Autorização por pessoa ocorre ANTES de projetar qualquer atributo identificador.
+        var authorized = new List<SemiblindInternalCandidate>();
+        foreach (var candidate in retrieved)
+        {
+            if (await policy.IsAllowedAsync(context, "jornada.identidade.busca.read",
+                context.TipoCodigo, candidate.PessoaUuid, cancellationToken))
+                authorized.Add(candidate);
+            if (authorized.Count == 5) break;
+        }
         // Ordenação neutra criptograficamente aleatória; não retornar índice de ranking.
-        var options = retrieved.Take(5).Select(candidate => new SemiblindIdentityCandidate(
+        var options = authorized.Select(candidate => new SemiblindIdentityCandidate(
             Convert.ToHexString(RandomNumberGenerator.GetBytes(16)),
             candidate.Nome ?? string.Empty,
             candidate.DataNascimento,
