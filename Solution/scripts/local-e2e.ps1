@@ -191,8 +191,8 @@ try {
         Push-Location $Root
         try {
             $env:SQLCMDPASSWORD = $password
-            $lines = & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -W -h -1 -Q "SET NOCOUNT ON; $query"
-            if ($LASTEXITCODE -ne 0) { throw 'sqlcmd falhou.' }
+            $lines = & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -W -h -1 -Q "SET NOCOUNT ON; $query"
+            if ($LASTEXITCODE -ne 0) { throw "sqlcmd falhou (exit=$LASTEXITCODE): $(($lines | ForEach-Object { [string]$_ }) -join [Environment]::NewLine)" }
             return @($lines | ForEach-Object { $_.Trim() } | Where-Object { $_ })
         } finally {
             if ($null -eq $previousSqlcmdPassword) {
