@@ -10,11 +10,10 @@ public sealed record SemiblindIdentitySearchRequest(
     string? NomeMae);
 
 /// <summary>
-/// Token opaco de curta duração, sem UUID, CPF ou evidência estatística.
-/// A validade do token deve ser conferida pelo serviço antes de qualquer confirmação.
+/// Identificador opaco apenas para seleção na interface; não autoriza confirmação.
 /// </summary>
 public sealed record SemiblindIdentityCandidate(
-    string TokenConfirmacao,
+    string OpcaoId,
     string Nome,
     DateOnly? DataNascimento,
     string? NomeMae);
@@ -35,4 +34,13 @@ public interface ISemiblindIdentitySearchService
         SemiblindIdentitySearchRequest request,
         Guid correlationId,
         CancellationToken cancellationToken);
+}
+
+/// <summary>Projeção interna de candidatos; jamais serializar diretamente para o atendente.</summary>
+public sealed record SemiblindInternalCandidate(Guid PessoaUuid, string? Nome, DateOnly? DataNascimento, string? NomeMae);
+
+public interface ISemiblindCandidateRetriever
+{
+    Task<IReadOnlyList<SemiblindInternalCandidate>> RetrieveAsync(
+        SemiblindIdentitySearchRequest request, CancellationToken cancellationToken);
 }
