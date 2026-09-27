@@ -166,45 +166,6 @@ public static class IdentityCandidateSearchApi
     public const string Route = "/api/v1/identidade/candidatos";
     public const string Permission = "jornada.identidade.candidatos.read";
 
-    public static IEndpointRouteBuilder MapIdentityCandidateSearchApi(this IEndpointRouteBuilder app)
-    {
-        app.MapPost(Route, async (
-            HttpRequest http,
-            IdentityCandidateSearchRequest request,
-            IPolicyEngine policy,
-            IIdentityCandidateSearchService service,
-            CancellationToken ct) =>
-        {
-            var access = http.HttpContext.RequireJornadaAccessContext();
-            if (!await policy.IsAllowedAsync(access, Permission, null, null, ct))
-                return Results.Forbid();
-            if (!TryValidateRequest(request))
-                return Results.BadRequest(new { erro = "Dados de busca inválidos." });
-            try
-            {
-                var result = await service.SearchAsync(access, request, ct);
-                if (result.Candidatos.Count > SemiblindCandidateSelector.MaximumVisibleCandidates
-                    || result.NenhumDestes != (result.Candidatos.Count == 0)
-                    || result.Candidatos.Any(static c => c.PessoaUuid == Guid.Empty))
-                    throw new CandidateSearchUnavailableException("RESPOSTA_CANDIDATOS_INVALIDA");
-                ApiAuditContext.SetPersons(http.HttpContext, result.Candidatos.Select(static c => c.PessoaUuid));
-                return Results.Ok(result);
-            }
-            catch (CandidateSearchUnavailableException)
-            {
-                return Results.Json(new { codigo = "BUSCA_CANDIDATOS_INDISPONIVEL" },
-                    statusCode: StatusCodes.Status503ServiceUnavailable);
-            }
-            catch (SqlException)
-            {
-                // Nunca devolver SQL, parâmetros, CPF ou atributos de pessoas em erros.
-                return Results.Json(new { codigo = "BUSCA_CANDIDATOS_INDISPONIVEL" },
-                    statusCode: StatusCodes.Status503ServiceUnavailable);
-            }
-        }).RequireRateLimiting("identity").RequireAuthorization(Permission);
-        return app;
-    }
-
     public static bool TryValidateRequest(IdentityCandidateSearchRequest? request) =>
         request is not null
         && !string.IsNullOrWhiteSpace(request.NomeCompleto)
