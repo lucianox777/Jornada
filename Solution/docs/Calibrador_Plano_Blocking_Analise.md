@@ -196,3 +196,23 @@ Seu papel é reduzir a próxima decisão a proposições mensuráveis e auditáv
 4. Relatar as maiores caudas de blocos, planos SQL Server, redução, deduplicação, ganho marginal, P50/P95/P99 e falha explícita por limites; testar índices compostos apenas para passes finalistas.
 5. Verificar em múltiplas ondas as chaves antigas/novas, referências alteradas e observações anteriormente resolvidas, mantendo DT-05 e filas de reprocessamento governadas.
 6. Distinguir claramente **modelo ilustrativo 599 milhões**, auditoria agregada da tripla em Gold, teste sintético IBGE e validação independente representativa.
+
+### 10.2. Dois modelos para nascimento e otimização por seletividade conjunta
+
+**Decisão:** a arquitetura tem **uma estratégia estatística multivariada de recuperação, com passes complementares**. A comparação de regras isoladas serve ao diagnóstico, não define motores rivais. Priorizar as combinações que têm menor cardinalidade observada ou estimada com confiança, **sem desistir** de passes complementares elegíveis quando o primeiro já encontrou candidatos. A avaliação deve relatar separadamente **custo da busca** e **vínculos verdadeiros recuperados**, inclusive casos em que nenhuma expansão alcança o par correto.
+
+Estimativas de custo **não** podem confundir:
+1. a **distribuição demográfica de nascimento real** — coortes e idades da população municipal por fonte compatível, com nomes/sobrenomes do município SP em V2 candidata e nomes maternos do Brasil conforme V1 vigente;
+2. a **distribuição de erro no nascimento observado**, condicionada a Gestor/Sistema/Base, qualidade, preenchimento convencional, ausência de CPF/mãe e ondas de atualização da origem.
+
+O IBGE de nomes por década **não é** histograma completo de nascimentos do município em 2026, nem contém a distribuição conjunta pessoa+mãe+nascimento. Para coortes, utilizar separadamente o [Censo 2022, população por idade e sexo](https://www.ibge.gov.br/estatisticas/sociais/populacao/22827-censo-demografico-2022.html?edicao=38166&t=resultados), com referência **01/08/2022**, versionamento e população-alvo declarada; simular ou observar nascimentos pós-Censo sem atribuir-lhes frequência zero. A mãe não tem sua idade conhecida só por existir `nome_mae`. Datas futuras são inválidas como nascimento à data civil congelada do run; `29/02` só em ano bissexto. Não usar as décadas extremas do produto de nomes como restrição etária de elegibilidade.
+
+**Matriz mínima do ensaio:**
+- casos de estresse `MARIA SILVA / mãe MARIA SILVA` e `JOSÉ DA SILVA / mãe MARIA DA SILVA`, outros prenomes/sobrenomes frequentes por recorte, cauda, agnomes, ordem e presença intermediária do sobrenome;
+- exato, inversão válida/inválida dia/mês, `±1` ano com verificação de `29/02`, troca de dígitos, erros concomitantes nome+mãe+nascimento, datas convencionais `01/01`, dias `1/10/15`, ausência de data/mãe e registros pós-2022;
+- estimar/medir `P(data_real | coorte)` separadamente de `P(data_observada | data_real, origem)`, preservando o denominador, incerteza e estratos; **nunca** transformá-las em segundo scorer não governado;
+- testar interseção **EAV atual** sobre `identidade.blocking_chave` versus **tupla materializada horizontal** e índice composto para os poucos passes finalistas; um índice B-tree não cruza atributos armazenados em linhas separadas;
+- publicar por passe e pela união: cardinalidade P50/P95/P99, custo, taxa de candidatos exclusivos, ganho incremental de recall, comparação ao ruleset atual, grandeza física dos índices, replay e comportamentos fail-closed para timeout/truncamento.
+
+**Fronteira de implantação:** calibrar ordem e composição **em snapshot congelado**, não gerar plano independente por solicitação. O produto operacional mantém `u` condicionado ao universo que **realmente passou** pelos passes da união e `m` baseado em pares verdadeiros rotulados; fontes censitárias são bootstrap e diagnósticos, não autorização de vínculo.
+
