@@ -1,4 +1,5 @@
 """Negative regressions for the Gate 6 source boundary (no database/network)."""
+import hashlib
 import importlib.util
 import json
 import tempfile
@@ -29,6 +30,17 @@ class SegregationTests(unittest.TestCase):
                        for path in sorted(guard.EXPECTED_SUPPORT)]}))
         self.write("Solution/database/migrations/20260921_Pessoa_V5_Contrato_371.sql",
                    "INSERT INTO ref.gestor_pessoa_versao VALUES (N'SMADS');\n")
+        schema = '{"type":"object"}\n'
+        digest = hashlib.sha256(schema.encode("utf-8")).hexdigest()
+        self.write("Solution/config/contracts/registros/AA01/v1/registro.schema.json", schema)
+        self.write("ApoioSecretarias/config/contracts/registros/AA01/v1/registro.schema.json", schema)
+        self.write("ApoioSecretarias/config/governance/factual-schema-sources.json",
+                   json.dumps({"contracts": [{
+                       "natureza": "BENEFICIO", "codigoTipo": "AA01", "tipoVersao": 1,
+                       "path": "config/contracts/registros/AA01/v1/registro.schema.json",
+                       "canonicalSource": "Solution/config/contracts/registros/AA01/v1/registro.schema.json",
+                       "sha256": digest}]}))
+
 
     def write(self, name: str, content: str):
         path = self.root / name
@@ -83,6 +95,17 @@ class SegregationTests(unittest.TestCase):
                    'Include="../../../ApoioSecretarias/config/contracts/gestores/SEHAB/v5.json" />'
                    '</ItemGroup></Project>')
         self.assertEqual([], guard.audit(self.root))
+
+
+    def test_factual_schema_drift_in_support_is_rejected(self):
+        self.write("ApoioSecretarias/config/contracts/registros/AA01/v1/registro.schema.json",
+                   '{"type":"array"}\n')
+        self.assert_rejects("Schema factual divergente")
+
+    def test_canonical_factual_schema_drift_is_rejected(self):
+        self.write("Solution/config/contracts/registros/AA01/v1/registro.schema.json",
+                   '{"type":"array"}\n')
+        self.assert_rejects("Schema factual divergente")
 
 
 if __name__ == "__main__":
