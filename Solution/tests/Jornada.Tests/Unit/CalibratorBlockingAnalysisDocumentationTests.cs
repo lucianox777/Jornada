@@ -37,7 +37,7 @@ public sealed class CalibratorBlockingAnalysisDocumentationTests
             Assert.That(plan, Does.Contain("P22 — fronteira estruturada e índice por presença"));
             Assert.That(plan, Does.Contain("limitação semântica deliberada / gate de fonte estruturada"));
             Assert.That(plan, Does.Contain("não materializar **sobrenome semanticamente estruturado**"));
-            Assert.That(plan, Does.Contain("referência auxiliar"));
+            Assert.That(plan, Does.Contain("referência marginal útil"));
             Assert.That(plan, Does.Contain("não podem receber diretamente"));
             Assert.That(plan, Does.Contain("**complementares**"));
             Assert.That(decision, Does.Contain("5.2. Planejador estatístico multivariado"));
