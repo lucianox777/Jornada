@@ -271,9 +271,8 @@ try {
         if ((Scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO';") -lt 1) {
             throw 'DT-05: nenhum modelo ATIVO para executar o Runner.'
         }
-        if ((Scalar "SELECT ativo FROM controle.modo_carga_inicial WHERE estado_id=1;") -ne '0') {
-            throw 'DT-05: carga inicial ativa; Runner não deve publicar.'
-        }
+        # O modo_carga_inicial foi removido pela migration de 27/09.
+        # Preservar o banco isolado, modelo ATIVO e a coordenação do Runner.
         $marker = [Guid]::NewGuid().ToString('N')
         Push-Location $Root
         try {
