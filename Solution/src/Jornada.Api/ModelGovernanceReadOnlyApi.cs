@@ -39,10 +39,10 @@ public static class ModelGovernanceReadOnlyApi
             IOperationalSqlAdapter sql,
             CancellationToken ct) =>
         {
-            var access = http.RequireJornadaAccessContext();
-            if (access.CredentialType != AccessCredentialType.GESTOR
-                || !string.Equals(access.PublicCode, "MASTER_DEV", StringComparison.Ordinal)
-                || !await policy.IsAllowedAsync(access, Permission, null, null, ct))
+            var context = http.RequireJornadaAccessContext();
+            if (context.CredentialType != AccessCredentialType.GESTOR
+                || !string.Equals(context.PublicCode, "MASTER_DEV", StringComparison.Ordinal)
+                || !await policy.IsAllowedAsync(context, Permission, null, null, ct))
                 return Results.Forbid();
 
             http.Response.Headers.CacheControl = "no-store";
