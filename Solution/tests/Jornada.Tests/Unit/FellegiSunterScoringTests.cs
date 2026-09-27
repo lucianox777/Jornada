@@ -39,6 +39,73 @@ public sealed class FellegiSunterScoringTests
     private static readonly IReadOnlyDictionary<string, decimal> ParametersV5 = SemanticBirthParameters(includeLegacyFlags: false);
 
     [Test]
+    public void Double_kernel_matches_decimal_contract_boundary_for_v5_birth_cases()
+    {
+        var numeric = FellegiSunterScoring.ToDoubleParameters(ParametersV5);
+        var born = new DateOnly(1975, 6, 7);
+        var cases = new[]
+        {
+            born, new DateOnly(1975, 7, 6),
+            new DateOnly(1975, 6, 8), new DateOnly(1984, 9, 21)
+        };
+        foreach (var candidateDate in cases)
+        {
+            var raw = FellegiSunterScoring.CalculateRaw(
+                numeric, NameComparisonState.HIGH, NameComparisonState.HIGH,
+                100, born, candidateDate);
+            var published = FellegiSunterScoring.Calculate(
+                ParametersV5, NameComparisonState.HIGH, NameComparisonState.HIGH,
+                100, born, candidateDate);
+            Assert.Multiple(() =>
+            {
+                Assert.That(double.IsFinite(raw.Posterior), Is.True);
+                Assert.That(double.IsFinite(raw.LogOdds), Is.True);
+                Assert.That(published,
+                    Is.EqualTo(FellegiSunterScoring.ToContractScore(raw)));
+                Assert.That(published.Posterior, Is.InRange(0m, 1m));
+            });
+        }
+    }
+
+    [Test]
+    public void Double_kernel_rounds_only_at_contract_boundary()
+    {
+        var raw = new FellegiSunterRawScore(0.899999995d, 0.123456785d);
+        var published = FellegiSunterScoring.ToContractScore(raw);
+        Assert.Multiple(() =>
+        {
+            Assert.That(published.Posterior,
+                Is.EqualTo(Math.Round((decimal)raw.Posterior, 8, MidpointRounding.AwayFromZero)));
+            Assert.That(published.LogOdds,
+                Is.EqualTo(Math.Round((decimal)raw.LogOdds, 8, MidpointRounding.AwayFromZero)));
+            Assert.That(() => FellegiSunterScoring.ToContractScore(
+                    new FellegiSunterRawScore(double.NaN, 0d)),
+                Throws.InvalidOperationException);
+        });
+    }
+
+    [Test]
+    public void Double_kernel_preserves_v6_model_prior_with_missing_mother()
+    {
+        var parameters = new Dictionary<string, decimal>(ParametersV5)
+        {
+            [LinkageParameterCatalog.DecisionEvidenceScoring] = 1m,
+            ["M_NOME_MAE_MISSING"] = .20m,
+            ["U_NOME_MAE_MISSING"] = .40m
+        };
+        var rawParameters = FellegiSunterScoring.ToDoubleParameters(parameters);
+        var born = new DateOnly(1980, 5, 6);
+        var raw = FellegiSunterScoring.CalculateRaw(
+            rawParameters, NameComparisonState.EXACT, null,
+            blockCandidateCount: 999, born, born);
+        var published = FellegiSunterScoring.Calculate(
+            parameters, NameComparisonState.EXACT, null,
+            blockCandidateCount: 999, born, born);
+        Assert.That(FellegiSunterScoring.ToContractScore(raw), Is.EqualTo(published));
+        Assert.That(raw.LogOdds, Is.GreaterThan(0d));
+    }
+
+    [Test]
     public void Exact_name_and_mother_name_produce_high_posterior()
     {
         var score = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.EXACT, NameComparisonState.EXACT);
