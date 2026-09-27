@@ -2,12 +2,6 @@ using Jornada.Contracts;
 
 namespace Jornada.Linkage.Runner;
 
-public sealed record BlockingCandidateClause(string Feature, IReadOnlyList<string> Values);
-
-public sealed record BlockingCandidatePassLookup(
-    string PassId,
-    IReadOnlyList<BlockingCandidateClause> Clauses);
-
 /// <summary>
 /// Traduz o ruleset publicado em lookups indexáveis sobre identidade.blocking_chave.
 /// Não executa score nem decide identidade. OR é aplicado entre valores do mesmo atributo;
