@@ -14,18 +14,18 @@ if (args.Length == 4 && args[0] == "--export-ibge-public-marginals" &&
 {
     if (args[3] is not ("TODOS" or "FEMININO"))
         throw new ArgumentException("Use --first-name-sex TODOS|FEMININO.");
-    var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+    var marginalConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
         ?? throw new InvalidOperationException(
             "Define ConnectionStrings__Jornada only for isolated JornadaSyntheticDev.");
-    var adapter = new OperationalSqlAdapter(connectionString);
+    var adapter = new OperationalSqlAdapter(marginalConnectionString);
     await using var db = await adapter.OpenAsync();
     var exporter = new CalibrationAuditExporter(db, commandTimeoutSeconds: 900);
     var json = await exporter.ExportIbgePublicMarginalsAsync(args[3]);
-    var output = Path.GetFullPath(args[1]);
-    Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-    await File.WriteAllTextAsync(output, json, new System.Text.UTF8Encoding(false));
-    await File.WriteAllTextAsync(output + ".sha256",
-        SplinkIbgeReplayContract.Sha(json) + "  " + Path.GetFileName(output) +
+    var marginalOutput = Path.GetFullPath(args[1]);
+    Directory.CreateDirectory(Path.GetDirectoryName(marginalOutput)!);
+    await File.WriteAllTextAsync(marginalOutput, json, new System.Text.UTF8Encoding(false));
+    await File.WriteAllTextAsync(marginalOutput + ".sha256",
+        SplinkIbgeReplayContract.Sha(json) + "  " + Path.GetFileName(marginalOutput) +
         Environment.NewLine, new System.Text.UTF8Encoding(false));
     Console.WriteLine("Public IBGE marginal export completed; sex=" + args[3] +
         "; SHA=" + SplinkIbgeReplayContract.Sha(json) +
