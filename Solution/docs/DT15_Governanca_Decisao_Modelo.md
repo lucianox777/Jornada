@@ -2,7 +2,7 @@
 
 **Decisão de produto/arquitetura (27/09/2026):** o objeto principal da decisão é a comparação **atual × proposto** nas mesmas condições de avaliação, não uma classificação histórica de modelos. O histórico agregado continua disponível como contexto. O **Monitor Operacional** e a **página restrita de governança para o operador master** são superfícies distintas, com permissões, responsabilidades e efeitos diferentes.
 
-**Estado deste documento:** especificação e critérios de aceite; **página master, dossiê pareado e gates de aprovação humana ainda não implementados**; a existência de um modelo RASCUNHO, dos diagnósticos do Calibrador, dos runs e do ledger **não** comprova que o dossiê pareado, a página de decisão, a autorização corporativa nem os gates de aprovação humana estejam implementados. Vinculado ao [Plano de desenvolvimento](Plano_Desenvolvimento.md), detalhado em [Dívidas técnicas](Dividas_Tecnicas.md) e distinto de DT-14, DT-09, DT-05 e Trilha 4.
+**Estado deste documento:** implementação **parcial de segurança e comparação de blocking na amostra de treino**. O wrapper Windows agora encerra em RASCUNHO depois da conferência, sem promoção automática; o Worker compara os passes D do ATIVO-base e RASCUNHO sobre as **mesmas observações rotuladas de treino** e persiste métricas agregadas em `identidade.estatistica_linkage`, com versão do ATIVO e identidade do ATIVO-base no campo `metodo`. **Página master, dossiê pareado completo de decisões FS, autorização corporativa e gates de aprovação humana ainda não implementados.** Isso não equivale a benchmark populacional, execução contrafactual FS nem autorização de promoção. Vinculado ao [Plano de desenvolvimento](Plano_Desenvolvimento.md), detalhado em [Dívidas técnicas](Dividas_Tecnicas.md) e distinto de DT-14, DT-09, DT-05 e Trilha 4.
 
 ## 1. Duas superfícies sem confusão de responsabilidade
 
@@ -50,7 +50,7 @@ Ações planejadas na página restrita, **não** no monitor:
 
 Separar **aprovação humana** de **VALIDATE técnico**: mesmo que todos os gates numéricos sejam `CONFORME`, o Parameters Worker não deve presumir consentimento. Vincular autorização explícita ao hash em `VALIDATE` **e** `ACTIVATE`, inclusive quando o comando é chamado fora da UI; não aceitar a página como proteção apenas visual.
 
-**Lacuna existente que impede declarar DT-15 concluída:** `install/windows-production/Invoke-JornadaLinkageCalibration.ps1` já executa `GENERATE_DRAFT → CONFERENCIA → VALIDATE → ACTIVATE` em um só disparo manual. Antes da ativação da página master, dividir o procedimento ou exigir decisão explícita verificável na infraestrutura de governança; atualizar o wrapper e os caminhos diretos do Worker para não contornar a aprovação humana. Não confundir disparo manual do script com revisão do RASCUNHO.
+**Proteção parcial implementada, ainda sem aceite completo:** `install/windows-production/Invoke-JornadaLinkageCalibration.ps1` agora executa somente `GENERATE_DRAFT → CONFERENCIA`, verifica se o ATIVO-base não mudou e termina com RASCUNHO preparado. Não executa `VALIDATE`/`ACTIVATE`. **Os caminhos diretos do Parameters Worker e as automações antigas ainda não exigem um parecer humano persistido e verificável**: proteger ambos os gates no SQL/Worker é condição para a futura página master não ser apenas barreira visual. Não confundir a conferência técnica, o script iniciado manualmente ou o diagnóstico do treino com aprovação do operador master.
 
 ## 5. Fronteira com entregas existentes e aceite
 
