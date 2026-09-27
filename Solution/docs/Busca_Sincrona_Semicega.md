@@ -45,3 +45,7 @@ A rota captura `InvalidOperationException` do serviço (inclusive ausência de m
 ### Teste da política concreta de desenvolvimento
 
 `AccessPolicyTests.Semiblind_search_current_policy_is_municipal_not_person_scoped` caracteriza a implementação real: Gestor com escopo consulta qualquer UUID; credencial BENEFICIO com escopo consulta qualquer UUID dentro do código de recurso autorizado, mas é negada para outro recurso. Isso registra o comportamento **atual**, não o homologa como regra de compartilhamento de dados da busca. O gate de liberação exige decisão expressa sobre os atributos de identidade visíveis por instituição e teste de integração correspondente. Não interpretar o teste de caracterização como prova de segregação por Pessoa.
+
+### Validação de tamanho dos campos
+
+Foram adicionados testes unitários para rejeitar `Nome` e `NomeMae` com 201 caracteres, conforme limite de 200 caracteres do serviço. Os testes exercitam o contrato do serviço e ainda dependem de execução do CI no HEAD. A integração da branch com `master` e a validação da política de visibilidade institucional permanecem bloqueios de merge.
