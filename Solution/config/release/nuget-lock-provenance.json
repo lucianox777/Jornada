@@ -231,12 +231,16 @@
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
     "sdk": "8.0.424",
     "lockCount": 23,
-    "changedLockCount": 7,
-    "combinedSha256": "77ca6ccbc8b077f4557ca95532080bf1544bbc279402577d90342480c48ea65d",
+    "changedLockCount": 8,
+    "combinedSha256": "b4cd0d50cd4234489829c92e687799cb16ae4f37a5e94caa01845deac9926304",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
         "sha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9"
+      },
+      {
+        "path": "src/Jornada.Api/packages.lock.json",
+        "sha256": "1a6607d2ad982f8f680e35f334d58b439597ab461770a1e19b69e6f1ead5e1e7"
       },
       {
         "path": "src/Jornada.Linkage.Conference/packages.lock.json",
