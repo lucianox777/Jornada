@@ -8,6 +8,27 @@ using Microsoft.Data.SqlClient;
 
 const string Purpose = "DEV_HML_ONLY_NO_PUBLICATION";
 
+// Strict offline comparison of two independently sampled reports over the SAME public marginals.
+if (args.Length == 5 && args[0] == "--compare-ibge-independent-u")
+{
+    var source = await File.ReadAllTextAsync(Path.GetFullPath(args[1]));
+    var csharp = await File.ReadAllTextAsync(Path.GetFullPath(args[2]));
+    var splink = await File.ReadAllTextAsync(Path.GetFullPath(args[3]));
+    var comparison = IbgeIndependentUConference.Compare(source, csharp, splink);
+    var destination = Path.GetFullPath(args[4]);
+    Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+    await File.WriteAllTextAsync(destination, comparison, new System.Text.UTF8Encoding(false));
+    await File.WriteAllTextAsync(destination + ".sha256",
+        SplinkIbgeReplayContract.Sha(comparison) + "  " + Path.GetFileName(destination) +
+        Environment.NewLine, new System.Text.UTF8Encoding(false));
+    Console.WriteLine("Independent public-marginal u comparison saved; diagnostic only, no SQL or model changes.");
+    return;
+}
+if (args.Contains("--compare-ibge-independent-u"))
+    throw new ArgumentException(
+        "--compare-ibge-independent-u <public-marginals.json> <csharp-u.json> " +
+        "<splink-independent-u-report.json> <comparison.json>.");
+
 // Offline reference for independent comparison: accepts ONLY exported public IBGE marginals.
 if (args.Length == 5 && args[0] == "--estimate-ibge-public-marginals" &&
     args[3] == "--pairs")
