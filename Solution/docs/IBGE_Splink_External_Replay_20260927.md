@@ -35,4 +35,19 @@ As 53 divergências não são falhas do verificador: ele as identifica. O compar
 $d=Join-Path $HOME 'jornada-splink-runner-external\results'; $e=Join-Path (Get-Location) 'evidence\ibge-splink'; foreach ($tipo in @('todos','feminino')) { dotnet run --project .\src\Jornada.Linkage.Evaluation -c Release -- --check-splink-ibge-replay (Join-Path $e "ibge-u-$tipo.json") (Join-Path $d "ibge-u-$tipo.splink-result.json") (Join-Path $d "ibge-u-$tipo.diagnostic.json"); if ($LASTEXITCODE -ne 0) {throw "Falha: $tipo"} }
 ```
 
-**Próximas verificações (#506):** fixar fixtures das 53 divergências; isolar diferenças de Jaro-Winkler e normalização; publicar o runner externo; comparar probabilidades `u` por estado e recorte de forma independente. Não tratar este PR documental como encerramento da issue.
+## Exportação auditável das divergências (PowerShell, pasta Solution)
+
+Após o merge de #550, a CLI C# também exporta apenas os pares discordantes em CSV. O comando valida o replay completo e a resposta externa (SHA de origem, versão, todos os índices e estados) **antes** de gravar. O arquivo `.sha256` acompanha o CSV para preservar sua integridade. A operação é offline: não exige conexão SQL, não escreve no modelo e não invoca Python.
+
+```powershell
+$d=Join-Path $HOME 'jornada-splink-runner-external\results'; $e=Join-Path (Get-Location) 'evidence\ibge-splink'; foreach ($tipo in @('todos','feminino')) { dotnet run --project .\src\Jornada.Linkage.Evaluation -c Release -- --export-splink-ibge-disagreements (Join-Path $e "ibge-u-$tipo.json") (Join-Path $d "ibge-u-$tipo.splink-result.json") (Join-Path $d "ibge-u-$tipo.divergencias.csv"); if ($LASTEXITCODE -ne 0) {throw "Falha: $tipo"} }; Get-ChildItem $d -Filter '*.divergencias.csv' | ForEach-Object { $n=(Import-Csv $_.FullName | Measure-Object).Count; Write-Host "$($_.Name): $n divergências"; Get-FileHash $_.FullName -Algorithm SHA256 }
+```
+
+Com os replays e resultados **exatos** documentados acima, espera-se 20 linhas no CSV TODOS e 33 no FEMININO, além do cabeçalho. Divergência de contagem exige investigação; não corrigir CSV manualmente. Conservar os JSON originais e os `.sha256` junto dos CSVs. Não incluir o pacote de evidência volumoso na árvore da Jornada.
+
+## Estado dos trabalhos (#506)
+
+- **Concluído:** #545, documentação dos 20.000 pares e hashes; #546, 53 fixtures de regressão; #547, testes das fronteiras Jaro-Winkler; #550, exportador CSV com validação estrita.
+- **Pendente:** publicar e versionar o runner Splink em repositório externo dedicado; obter estimação independente de `u` por estado e recorte e confrontá-la com o bootstrap C#; investigar divergências remanescentes antes de qualquer nova versão do comparador.
+
+Os avisos de `m/u` não treinados e prior padrão do Splink permanecem uma limitação da conferência de estados; **não** constituem validação de calibração. A #506 permanece aberta até a evidência independente exigida.
