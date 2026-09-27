@@ -922,6 +922,64 @@
           }
         }
       }
+    },
+    "/api/v1/identidade/candidatos": {
+      "post": {
+        "operationId": "jornada_post_identidade_candidatos",
+        "summary": "Busca síncrona semicega de até cinco candidatos à confirmação humana",
+        "description": "Somente leitura; modelo ativo, ruleset dinâmico e ranking FS compartilhado. No máximo cinco candidatos selecionados internamente pelo motor e apresentados em ordem neutra por UUID, sem score/LLR/posterior/CPF. A UI deve sempre oferecer a ação Nenhum destes. Sem criação de linkage_run ou decisão automática.",
+        "security": [
+          {
+            "JornadaAccessKey": [],
+            "JornadaGestor": []
+          },
+          {
+            "JornadaAccessKey": [],
+            "JornadaBeneficio": []
+          },
+          {
+            "JornadaAccessKey": [],
+            "JornadaServico": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityCandidateSearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Até cinco candidatos sem ranking visível. nenhumDestes=true somente quando a lista está vazia.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityCandidateSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Busca inválida; campos desconhecidos, inclusive CPF, são rejeitados."
+          },
+          "401": {
+            "description": "Credencial ausente ou inválida."
+          },
+          "403": {
+            "description": "Credencial sem escopo de busca de candidatos."
+          },
+          "429": {
+            "description": "Rate limit de identidade excedido."
+          },
+          "503": {
+            "description": "Modelo, ruleset, blocking ou banco indisponível; a busca falha fechada."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2903,6 +2961,85 @@
           },
           "erro": {
             "type": "string"
+          }
+        }
+      },
+      "IdentityCandidateSearchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "nomeCompleto",
+          "dataNascimento",
+          "nomeMae"
+        ],
+        "properties": {
+          "nomeCompleto": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 2,
+            "maxLength": 255,
+            "description": "Nome completo informado pelo atendente; obrigatório em conteúdo."
+          },
+          "dataNascimento": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Opcional; sem nascimento, o ruleset dinâmico continua elegível."
+          },
+          "nomeMae": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          }
+        }
+      },
+      "IdentityCandidateDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pessoaUuid",
+          "nome_completo",
+          "data_nascimento",
+          "nome_mae"
+        ],
+        "properties": {
+          "pessoaUuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nome_completo": {
+            "type": "string",
+            "nullable": true
+          },
+          "data_nascimento": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "nome_mae": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "IdentityCandidateSearchResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidatos",
+          "nenhumDestes"
+        ],
+        "properties": {
+          "candidatos": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "$ref": "#/components/schemas/IdentityCandidateDto"
+            }
+          },
+          "nenhumDestes": {
+            "type": "boolean",
+            "description": "true apenas quando não há candidatos recuperados; a opção de interface Nenhum destes está disponível mesmo com candidatos."
           }
         }
       }
