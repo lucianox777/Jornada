@@ -79,7 +79,7 @@ public sealed class FellegiSunterTopFiveSyntheticTests
         {
             Assert.That(ranked, Has.Count.EqualTo(7));
             Assert.That(topFive, Has.Length.EqualTo(5));
-            Assert.That(topFive.Distinct(), Has.Count.EqualTo(5));
+            Assert.That(topFive.Distinct().Count(), Is.EqualTo(5));
             Assert.That(topFive, Does.Contain(truth), "A verdade presente deve ser recuperada entre os cinco nesta fixture.");
             Assert.That(absentTopFive, Does.Not.Contain(truth));
             Assert.That(decision.PessoaUuidResolvido is null || candidates.Any(x => x.PessoaUuid == decision.PessoaUuidResolvido));
