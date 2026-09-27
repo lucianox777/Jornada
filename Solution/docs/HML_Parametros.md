@@ -33,7 +33,6 @@ Esta matriz centraliza valores que **não devem ser promovidos a Produção por 
 | `PipelineWatchdog.ModelGenerationMaxMinutes` | Operations Maintenance | 120 min | P99 homologado de GENERATE_DRAFT + margem | Dados + Operação | CALIBRAR |
 | `PipelineWatchdog.ExpiredLeaseGraceMinutes` | Operations Maintenance | 5 min | janela de recuperação do Processor e atraso de observação | Plataforma | CALIBRAR |
 | `PipelineWatchdog.PendingBacklogMaxAgeMinutes` | Operations Maintenance | 60 min | SLA operacional de processamento/backlog | Operação | CALIBRAR |
-| `PipelineWatchdog.InitialLoadMaxHours` | Operations Maintenance | 24 h | duração prevista do procedimento de carga inicial | Operação + Projeto | CALIBRAR |
 
 ## Gate
 
