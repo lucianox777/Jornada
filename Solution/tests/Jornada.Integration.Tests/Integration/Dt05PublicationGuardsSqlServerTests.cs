@@ -34,6 +34,47 @@ public sealed class Dt05PublicationGuardsSqlServerTests
             Assert.That(exception!.Number, Is.EqualTo(51940));
         }
 
+        // An existing PREPARANDO run must also be rejected; an unknown run alone
+        // would not detect a regression that accepts every persisted run.
+        await using (var preparingTx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable))
+        {
+            try
+            {
+                await using var setup = connection.CreateCommand();
+                setup.Transaction = preparingTx;
+                setup.CommandText = """
+                    DECLARE @model UNIQUEIDENTIFIER, @version INT;
+                    SELECT TOP(1) @model=modelo_id,@version=versao
+                    FROM identidade.modelo_linkage ORDER BY versao DESC;
+                    INSERT identidade.linkage_run(
+                      linkage_run_id,modelo_id,modelo_versao,tipo_run,status,
+                      limite_solicitado,escopo_json,batch_size,max_parallelism,
+                      registros_elegiveis,avaliados,resolvidos,nao_resolvidos,
+                      conflitos,sem_candidato_no_bloco,solicitado_por,motivo,
+                      correlation_id,iniciado_em)
+                    VALUES(@run,@model,@version,N'ON_DEMAND',N'PREPARANDO',
+                      1,N'{"test":"dt05-preparing-guard"}',1,1,
+                      0,0,0,0,0,0,N'CI',N'DT05 PREPARANDO guard',NEWID(),SYSUTCDATETIME());
+                    """;
+                var runId = Guid.NewGuid();
+                setup.Parameters.AddWithValue("@run", runId);
+                await setup.ExecuteNonQueryAsync();
+
+                await using var rejected = connection.CreateCommand();
+                rejected.Transaction = preparingTx;
+                rejected.CommandText = "EXEC identidade.sp_registrar_transicoes_linkage_run @run;";
+                rejected.Parameters.AddWithValue("@run", runId);
+                var exception = Assert.ThrowsAsync<SqlException>(
+                    async () => await rejected.ExecuteNonQueryAsync());
+                Assert.That(exception!.Number, Is.EqualTo(51941));
+            }
+            finally
+            {
+                if (preparingTx.Connection is not null)
+                    await preparingTx.RollbackAsync();
+            }
+        }
+
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
         try
         {
