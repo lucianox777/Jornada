@@ -10,12 +10,12 @@ Sem nascimento, o blocking legado retorna lista vazia. Rulesets dinâmicos só e
 
 ## Pendências para retirar o rascunho
 
-1. Executar build e testes unitários no Actions; não presumir aprovação.
+1. Reexecutar CI após registrar dependência API → Runner na política arquitetural e excluir appsettings/lock do Runner da publicação da API; validar Windows bundle, build e testes. O dependency-lock e o gate de política compartilhada passaram na rodada anterior.
 2. Testes HTTP in-memory adicionados para 401/403, 200 com uma única auditoria e 503 sem divulgação quando o sink falha; executar no CI. Testar ausência de nascimento nos dois contratos de blocking.
 3. Verificar integração SQL com 0/1/5 candidatos e modelo ATIVO, inclusive limite de fan-out.
 4. Auditoria: a busca persiste o evento antes de devolver candidatos e responde 503 se falhar; o middleware evita duplicação quando a gravação antecipada foi bem-sucedida. Testes HTTP in-memory foram adicionados para falha do sink e persistência única; ainda precisam passar no CI e de validação SQL. Os demais endpoints mantêm a política anterior.
 5. Validar a especificação OpenAPI com os gates DT-03 e compatibilidade do contrato.
 6. Definir protocolo governado de confirmação separado; o opcaoId desta fase é exclusivamente identificador de interface. Não persistir nem expor UUID na resposta.
-7. Revisar a autorização por domínio institucional: a política atual valida escopo e código de recurso, mas a elegibilidade dos candidatos por instituição deve ser confirmada antes da exposição em produção.
+7. Bloqueio de liberação: revisar a autorização por domínio institucional. A política atual valida escopo e código de recurso, mas a elegibilidade dos candidatos por instituição deve ser confirmada antes da exposição em produção. Não promover para HML/Produção sem essa prova.
 
 Arquivos protegidos na solicitação não foram alterados.
