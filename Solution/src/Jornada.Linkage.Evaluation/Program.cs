@@ -212,10 +212,10 @@ if ((args.Length is 5 or 7) && args[0] == "--dt15-compare-synthetic")
              out maxPairs) || maxPairs is < 1_000 or > 1_000_000))
         throw new ArgumentException("Use --max-candidate-pairs 1000..1000000.");
 
-    var connection = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+    var dt15ConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
         ?? throw new InvalidOperationException(
             "DT-15 requer ConnectionStrings__Jornada apontando para SQL Development isolado.");
-    await using var sql = await new OperationalSqlAdapter(connection).OpenAsync();
+    await using var sql = await new OperationalSqlAdapter(dt15ConnectionString).OpenAsync();
     var dossier = await Dt15SyntheticPairCommand.ExecuteAsync(
         sql, activeId, draftId, args[3], maxPairs, 900);
     var path = Path.GetFullPath(args[4]);
@@ -223,9 +223,9 @@ if ((args.Length is 5 or 7) && args[0] == "--dt15-compare-synthetic")
     var json = JsonSerializer.Serialize(dossier, EvaluationJson.Options) + Environment.NewLine;
     var content = System.Text.Encoding.UTF8.GetBytes(json);
     // Immutable per invocation; do not overwrite evidence silently.
-    await using (var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write,
+    await using (var dt15Output = new FileStream(path, FileMode.CreateNew, FileAccess.Write,
         FileShare.None))
-        await output.WriteAsync(content);
+        await dt15Output.WriteAsync(content);
     var sha = Convert.ToHexString(
         System.Security.Cryptography.SHA256.HashData(content)).ToLowerInvariant();
     await File.WriteAllTextAsync(path + ".sha256",
