@@ -29,3 +29,7 @@ O CI anterior confirmou o gate NuGet e a política compartilhada; a arquitetura 
 ### Alcance real da autorização por Pessoa
 
 A chamada por `PessoaUuid` foi adicionada antes da projeção, com teste de política negando candidato. **A implementação `MunicipalAccessPolicyEngine` atual não discrimina por `PessoaUuid`**: aplica escopo e propriedade de recurso e considera a identidade Pessoa compartilhada no município. Assim, o teste de política simulada demonstra que o serviço respeita uma negativa, mas **não comprova restrição setorial em DEV**. Antes de permitir esta rota com dados pessoais reais, decidir explicitamente se nome/data/nome da mãe integram a identidade municipal compartilhável e comprovar a base de autorização; caso contrário, implementar filtro efetivo por pessoa/setor antes da resposta. A ausência de política corporativa mantém HML/Produção em deny-by-default.
+
+### Teste de negativa integral
+
+O teste `All_candidates_denied_returns_no_personal_data` cobre a resposta vazia quando a política rejeita todos os candidatos retornados pelo retriever. É um teste com política simulada, não substitui a prova de restrição efetiva da política municipal com dados de órgãos distintos. A promoção permanece bloqueada até a execução dos testes no HEAD do PR e a decisão documentada sobre visibilidade institucional.
