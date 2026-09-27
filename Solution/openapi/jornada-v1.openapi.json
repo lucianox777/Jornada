@@ -962,6 +962,9 @@
           },
           "500": {
             "description": "Falha interna"
+          },
+          "503": {
+            "description": "Modelo ativo ou auditoria indisponível; nenhum candidato é divulgado"
           }
         }
       }
