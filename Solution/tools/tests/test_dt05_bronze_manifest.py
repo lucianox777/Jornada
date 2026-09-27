@@ -56,6 +56,10 @@ class BronzeManifestTests(unittest.TestCase):
             self.assertEqual(mod.create(root, refs, second, "second", versions, first), 2)
             self.assertEqual(len(json.loads(second.read_text())["bronze_objects"]), 1)
             self.assertEqual(mod.verify(root, second), 2)
+            third = manifests / "third.json"
+            refs.write_text("[]")
+            self.assertEqual(mod.create(root, refs, third, "third", versions, second), 2)
+            self.assertEqual(json.loads(third.read_text())["bronze_objects"], [])
             first.write_text(first.read_text() + " ")
             with self.assertRaises(ValueError):
                 mod.verify(root, second)
