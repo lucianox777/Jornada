@@ -232,7 +232,7 @@
     "sdk": "8.0.424",
     "lockCount": 23,
     "changedLockCount": 18,
-    "combinedSha256": "e0398001159c4699c129ab0ec7fccc9fa9050c8c9811a61e0098ef714da88910",
+    "combinedSha256": "ed7d876c9b67a2eb3640a115f8f59f7378f14dba9662ce4bbcea3abeba9b75fa",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -264,7 +264,7 @@
       },
       {
         "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
-        "sha256": "71419f3ef20c41a46e460807152e89f840d43389de4e554cd2db2438b2e55e3d"
+        "sha256": "4b182099b4f4b5b773ad8cf8579c6883b67deac952d23252be38b0bf985233c5"
       },
       {
         "path": "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
