@@ -2,7 +2,7 @@
 
 **Decisão de produto/arquitetura (27/09/2026):** o objeto principal da decisão é a comparação **atual × proposto** nas mesmas condições de avaliação, não uma classificação histórica de modelos. O histórico agregado continua disponível como contexto. O **Monitor Operacional** e a **página restrita de governança para o operador master** são superfícies distintas, com permissões, responsabilidades e efeitos diferentes.
 
-**Estado deste documento:** especificação e critérios de aceite; a existência de um modelo RASCUNHO, dos diagnósticos do Calibrador, dos runs e do ledger **não** comprova que o dossiê pareado, a página de decisão, a autorização corporativa nem os gates de aprovação humana estejam implementados. Vinculado ao [Plano de desenvolvimento](Plano_Desenvolvimento.md), detalhado em [Dívidas técnicas](Dividas_Tecnicas.md) e distinto de DT-14, DT-09, DT-05 e Trilha 4.
+**Estado deste documento:** especificação e critérios de aceite; **página master, dossiê pareado e gates de aprovação humana ainda não implementados**; a existência de um modelo RASCUNHO, dos diagnósticos do Calibrador, dos runs e do ledger **não** comprova que o dossiê pareado, a página de decisão, a autorização corporativa nem os gates de aprovação humana estejam implementados. Vinculado ao [Plano de desenvolvimento](Plano_Desenvolvimento.md), detalhado em [Dívidas técnicas](Dividas_Tecnicas.md) e distinto de DT-14, DT-09, DT-05 e Trilha 4.
 
 ## 1. Duas superfícies sem confusão de responsabilidade
 
