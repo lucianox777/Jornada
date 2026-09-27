@@ -22,6 +22,16 @@ public sealed class SemiblindIdentitySearchTests
             IReadOnlyCollection<Guid> pessoaUuids, CancellationToken ct) => Task.FromResult(false);
     }
 
+    private sealed class FailingPolicy : IPolicyEngine
+    {
+        public Task<bool> IsAllowedAsync(AccessContext context, string permission, string? resourceCode,
+            Guid? pessoaUuid, CancellationToken ct) =>
+            throw new InvalidOperationException("Falha sintética na autorização");
+        public Task<bool> ArePersonsAllowedAsync(AccessContext context, string permission, string? resourceCode,
+            IReadOnlyCollection<Guid> pessoaUuids, CancellationToken ct) =>
+            throw new InvalidOperationException("Falha sintética na autorização");
+    }
+
     private static AccessContext Context() => new(
         Guid.NewGuid(), AccessCredentialType.GESTOR, "SMADS", "SMADS", null,
         ["jornada.identidade.busca.read"], []);
@@ -88,6 +98,17 @@ public sealed class SemiblindIdentitySearchTests
             new SemiblindIdentitySearchRequest("Pessoa", null, null),
             Guid.NewGuid(), CancellationToken.None);
         Assert.That(response.Candidatos, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void Policy_failure_never_returns_candidate_data()
+    {
+        var service = new SemiblindIdentitySearchService(
+            new FakeRetriever(Candidate(1)), new FailingPolicy());
+        Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await service.SearchAsync(Context(),
+                new SemiblindIdentitySearchRequest("Pessoa", null, null),
+                Guid.NewGuid(), CancellationToken.None));
     }
 
     [Test]
