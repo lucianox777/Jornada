@@ -1,5 +1,7 @@
 # Linkage — Política de Blocking e Resolução de Identidade no Brasil
 
+**Decisão arquitetural complementar e fonte canônica para índices de nome/IBGE:** [Blocking complementar com referência IBGE — 27/09/2026](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md). Nome completo, dinâmico e combinado são capacidades **complementares** do mesmo universo de candidatos; CPF confiável mantém sua rota determinística independente. Esta política não constitui autorização de ativação do protótipo combinado no Runner.
+
 **Versão:** 1.0  
 **Data:** 10/09/2026  
 **Escopo:** Jornada do Cidadão — resolução de identidade e geração de candidatos
@@ -54,15 +56,15 @@ O Calibrador pode concluir que determinadas chaves isoladas — por exemplo part
 
 ## Uso do IBGE
 
-Estatísticas oficiais de nomes só podem enriquecer componentes semanticamente compatíveis:
+Estatísticas oficiais de nomes só podem fornecer **frequências diretamente atribuídas** a componentes semanticamente compatíveis. Para **planejamento de índices por presença**, a marginal IBGE de sobrenomes em qualquer posição também pode ser usada como referência **auxiliar**, com proveniência e validação explícita no corpus; não é frequência direta de último token:
 
 - primeiro nome da pessoa e primeiro nome da mãe podem usar estatística oficial de primeiro nome;
-- as features internas derivadas por tokenização (`name_surnames`, `name_last`, `mother_name_surnames`, `mother_name_last`) **não** recebem estatística oficial de sobrenome;
+- as features internas derivadas por tokenização (`name_surnames`, `name_last`, `mother_name_surnames`, `mother_name_last`) **não** recebem a marginal oficial como se fosse a frequência observada exata da feature; podem usá-la **como referência auxiliar para desenho do índice por presença e análise de sensibilidade**;
 - nome completo e nome completo da mãe não recebem frequência IBGE direta quando a fonte oficial não fornece essa mesma semântica;
 - a classe estatística oficial de sobrenome permanece disponível na referência tipada para um futuro atributo cuja origem preserve uma fronteira estruturada e semanticamente compatível;
 - data de nascimento e outros atributos só recebem enriquecimento externo quando houver fonte oficial explicitamente compatível.
 
-A frequência IBGE é contexto estatístico agregado. Não substitui dados da Jornada, não decide identidade individual e não transforma localidade estatística em prova de residência. O uso da estatística `Surname` sobre tokens derivados de `nome_completo` é proibido porque a Jornada não preserva a fronteira original entre nome/nome composto e sobrenomes.
+A frequência IBGE é contexto estatístico agregado. Não substitui dados da Jornada, não decide identidade individual e não transforma localidade estatística em prova de residência. **A coleta de todos os sobrenomes, com último sobrenome como alternativa, e a publicação sem importar a posição são vantagens para o índice invertido por presença**: a mesma chave pode recuperar sobrenomes intermediários e finais. A proibição restante é **atribuir diretamente** `Surname` à frequência posicional de `name_last` ou presumir que toda tokenização de `nome_completo` identifica sobrenomes estruturados. O uso **auxiliar** da marginal por presença no blocking é permitido, sob ensaio/versionamento e correspondência semântica declarada.
 
 ## Projeção física
 

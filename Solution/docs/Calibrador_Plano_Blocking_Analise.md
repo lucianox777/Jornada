@@ -1,5 +1,7 @@
 # Calibrador — plano de análise de blocking
 
+**Contrato arquitetural superior:** [Decisão de blocking COMPLEMENTAR com referência IBGE — 27/09/2026](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md). Os passes por nome completo, dinâmico e combinado são capacidades complementares sobre **projeções compartilhadas**, não candidatos a sistemas mutuamente exclusivos. A promoção operacional dos novos passes permanece condicionada à avaliação de recall, seletividade e custo da **união deduplicada**. Este plano especifica **como medir** a decisão, não se ela deve existir.
+
 **Estado:** análise técnica e proposições. Este documento não homologa política de blocking, thresholds, pesos, prior, regras de promoção nem ativação probabilística.
 
 ## 1. Objetivo
@@ -113,17 +115,17 @@ No estado corrente, somente:
 - `name_first` pode consultar estatística oficial de `FirstName`;
 - `mother_name_first` pode consultar estatística oficial de `FirstName`.
 
-`name_surnames`, `name_last`, `mother_name_surnames` e `mother_name_last` continuam disponíveis como heurísticas internas derivadas de tokenização e podem ser medidas com evidência da própria Jornada. Elas **não podem receber frequência oficial de `Surname` do IBGE**.
+`name_surnames`, `name_last`, `mother_name_surnames` e `mother_name_last` continuam disponíveis como heurísticas internas derivadas de tokenização. Elas **não podem receber diretamente a frequência oficial de `Surname` do IBGE como se esta fosse a frequência observada da própria feature ou do último token**. Contudo, a estatística oficial de sobrenomes **em qualquer posição** é referência marginal útil para construir/planejar o **índice por presença de sobrenome**, selecionar casos de estresse, estimar cenários de seletividade e comparar com as frequências reais das projeções no corpus; essa utilização auxiliar é expressamente permitida pela decisão canônica.
 
-### P22 — sobrenome não materializado
+### P22 — fronteira estruturada e índice por presença
 
-A ausência de sobrenome materializado não deve ser classificada, por si só, como dívida técnica.
+A ausência de **sobrenome semanticamente estruturado** não deve ser classificada, por si só, como dívida técnica. **O índice por presença de sobrenomes publicados é uma decisão positiva de arquitetura:** a coleta do IBGE orientou registrar todos os sobrenomes e, em último caso, o último; a publicação contabiliza a ocorrência independentemente da posição. Essa semântica oferece uma base relevante para recuperar nomes que compartilhem tokens de sobrenome em diferentes posições. A falta de fronteira estruturada em `nome_completo` não deve eliminar essa capacidade; exige identificá-la como projeção **calculada**, distinta do campo censitário.
 
 `nome_completo` não preserva uma fronteira estruturada confiável entre nome/nome composto e sobrenomes. Derivar “sobrenome” como todos os tokens após o primeiro, ou “último sobrenome” como último token, criaria uma semântica que a fonte original não forneceu e que não é equivalente à semântica publicada pelo IBGE.
 
 Portanto, a posição técnica corrente é deliberadamente conservadora:
 
-- não materializar sobrenome por inferência a partir de `nome_completo`;
+- não materializar **sobrenome semanticamente estruturado** por inferência a partir de `nome_completo`; é permitido materializar **projeções técnicas de tokens por presença e último token**, identificadas como heurísticas calculadas;
 - manter heurísticas de tokens apenas como features internas explicitamente identificadas como calculadas;
 - permitir materialização semântica de sobrenome no futuro somente quando uma fonte fornecer fronteira estruturada confiável e contrato compatível;
 - somente então avaliar eventual associação com estatística oficial `Surname` do IBGE.
@@ -176,12 +178,65 @@ Seu papel é reduzir a próxima decisão a proposições mensuráveis e auditáv
 
 ## 10. Experimento de blocking combinado (PR #526)
 
-**Hipótese:** a interseção de nome completo, nome completo materno e data exata é altamente seletiva no universo municipal; a união com inversão válida de dia/mês, ano adjacente válido e variantes fonéticas pode recuperar vínculos com erros comuns sem ampliar excessivamente o universo candidato. Esta é uma hipótese a validar, não resultado medido.
+**Arquitetura decidida; eficácia quantitativa em avaliação:** a interseção de nome completo, nome completo materno e data exata é o núcleo combinado seletivo, mesmo no cenário de estresse `MARIA SILVA` + mãe `MARIA SILVA`; a união com inversão válida de dia/mês, ano adjacente válido, fonética e futuras vizinhanças censitárias recupera erros sem abandonar a seletividade da interseção. Os três mecanismos são **complementares**; somente recall, cardinalidade, custo e taxas de erro no universo de São Paulo são hipóteses a medir.
 
-**Implementado na branch do PR:** `CombinedIdentityCandidatePlanner` gera passes `combined-exact`, `combined-day-month-transpose` (quando válido), `combined-neighbor-year`, `combined-name-phonetic` e `combined-mother-phonetic`. Os passes reutilizam o SQL parametrizado de `BlockingProjectionCandidateQueryBuilder` (INTERSECT por atributo, UNION entre passes). Há testes unitários de geração e validade de datas. O protótipo ainda não foi conectado ao Runner ou ao Calibrador e não possui benchmark nem ingestão IBGE.
+**Implementado no PR #526, integrado ao `master`:** `CombinedIdentityCandidatePlanner` gera cinco passes `combined-exact`, `combined-day-month-transpose` (válido), `combined-neighbor-year`, `combined-name-phonetic` e `combined-mother-phonetic`. Todos reutilizam o SQL parametrizado de `BlockingProjectionCandidateQueryBuilder` (`INTERSECT` por atributo, `UNION` entre passes). Há testes unitários, além do teste sintético reproduzível que lê a **projeção pública IBGE 2022** com hash verificado (120 pessoas, seed 526). O combinado já é adicional na **busca semicega** quando elegível, mas ainda não foi promovido ao **Runner em lote** nem integrado como política selecionável no Calibrador; o teste não constitui benchmark municipal representativo.
 
-**Fonte estatística:** o Censo é levantamento populacional e suas frequências divulgadas podem servir de referência agregada para nomes por coorte e localidade. A divulgação pública não contém o cruzamento individual de nome completo, nome materno e data exata. Não multiplicar frequências marginais como se a independência familiar, geográfica e geracional estivesse demonstrada. Grafias diferentes divulgadas podem ser variantes legítimas, não erros comprovados. Preservar snapshot/fingerprint e correspondência semântica das estatísticas utilizadas; respeitar P22 sobre sobrenomes inferidos.
+**Fonte estatística:** o Censo é levantamento populacional e suas frequências divulgadas podem servir de referência agregada para nomes por coorte e localidade. A contagem de sobrenomes **em qualquer posição favorece o blocking por presença**; a falta de uma fronteira estruturada na Jornada impede apenas o tratamento de tokens calculados como sobrenomes oficialmente identificados e o uso direto da frequência oficial como probabilidade posicional. A divulgação pública não contém o cruzamento individual de nome completo, nome materno e data exata. Não multiplicar marginais como se independência familiar, geográfica e geracional estivesse demonstrada. Grafias diferentes divulgadas podem ser variantes legítimas, não erros comprovados. Preservar snapshot/fingerprint e contrato semântico; consultar P22 e a decisão canônica.
 
-**Plano de comparação:** medir, sobre corpus representativo com verdade de referência, recall@candidatos e recall da união, colisões casuais observadas, distribuição de candidatos inclusive piores caudas, erro de data e de nome simultâneo, registros sem atributos, ganho marginal por passe, tempo P50/P95/P99 e custo físico dos índices. Comparar com o ruleset dinâmico atual e avaliar Full-Text/Jaro apenas como alternativas mensuráveis. Nenhum valor ilustrativo de 1 em 599 milhões ou de 0,019 colisões esperadas deve ser tratado como resultado empírico, threshold ou SLA.
+**Plano de comparação:** medir, sobre corpus representativo com verdade de referência, recall@candidatos e recall da união, colisões casuais observadas, distribuição de candidatos inclusive piores caudas, erro de data e de nome simultâneo, registros sem atributos, ganho marginal por passe, tempo P50/P95/P99 e custo físico dos índices. Comparar com o ruleset dinâmico atual e avaliar Full-Text/Jaro apenas como alternativas mensuráveis. O cenário histórico ilustrativo de **1 em 599 milhões** corresponde a uma combinação específica e implica **0,019 outras pessoas esperadas** entre 11,5 milhões se a probabilidade hipotética se aplicar; não é uma medição do total de colisões, threshold ou SLA. Reproduzir as entradas/fórmulas quando disponíveis e comparar cenários com dependência mãe/filho, além do dado censitário marginal.
 
-**Decisão de arquitetura:** preservar o mecanismo dinâmico como capacidade de calibração e fallback até avaliação independente. Uma eventual simplificação futura exige evidência de cobertura, desempenho, reversibilidade e governança. Nenhuma ativação probabilística, fusão de UUID ou publicação Gold decorre deste protótipo.
+**Decisão de arquitetura:** **desenvolver em paralelo** nome completo (como passes), dinâmico e combinado, sobre as mesmas projeções e o mesmo scorer, sem supor que uma capacidade substitui a outra ou que o combinado precisa aguardar o Ensaio para ser pesquisado. A política ativa pode habilitar ou desabilitar passes conforme atributos disponíveis e **ganho comprovado**; o dinâmico não é mero fallback descartável e o combinado não precisa ser promovido compulsoriamente. A **união de candidatos deduplicada é o objeto de calibração** quando os dois forem publicados. Uma capacidade comprovadamente redundante pode ser desativada por decisão formal e reversível, com regressões de recall e de custo, sem exigir retenção eterna de módulos. Nenhuma ativação probabilística, fusão de UUID ou publicação Gold decorre do protótipo.
+
+### 10.0. Benchmark paralelo e critérios objetivos de manutenção
+
+**Desenho fixado pela [decisão canônica, §2.0](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md#20-evolução-paralela-observação-comparativa-e-eventual-desativação):** comparar D (dinâmico), C (combinado) e D∪C (união) sobre **mesmo snapshot, corpus, rotulação, coortes, orçamento, versão dos atributos e data de corte**. A investigação e o desenvolvimento seguem **em paralelo**; o Ensaio é fonte de evidência, não veto ao protótipo combinado. Separar **pesquisa/desenvolvimento**, **publicação de passes no modelo** e **ativação em dados reais**.
+
+A matriz de comparação **não tem vencedor prefixado**. Reportar `TrueMatchRecall`, verdadeiros exclusivos por mecanismo, ganho de D∪C, candidatos distintos e sobrepostos, `ReductionRatio`, cobertura de mãe/nascimento, erros simultâneos, homônimos, CPF ausente, coortes e Gestor/Sistema; P50/P95/P99 e pior bloco; CPU/I/O, índice e custo por par verdadeiro adicional. Incluir cenários **sem atributos para C**, sem removê-los do denominador geral; mostrar métricas condicionais de elegibilidade e totais. Medir desempenho do **FS final** para identificar se candidatos adicionais de fato alteram acerto, abstenção ou falsos vínculos, sem tratar falso candidato recuperado como falso vínculo.
+
+**Possibilidade de abandono:** se C não acrescentar recall a D, ou D não acrescentar recall a C, a manutenção do mecanismo redundante poderá ser questionada **somente depois de teste de não inferioridade de recall pré-declarado, estratos difíceis, custo observado, revisão do `u` condicionado à política resultante, replay, rollback e gates institucionais**. A conclusão pode ser manter D∪C, promover só subconjunto de passes de cada um ou desativar um conjunto; ela **não** é pressuposta hoje. Guardar o código/teste necessário para reexecutar modelos históricos antes de qualquer retirada física.
+
+### 10.1. Critérios adicionais de execução
+
+1. Estudar a **presença** do sobrenome em qualquer posição com marginais oficiais, preservando as diferenças entre token técnico, último token e sobrenome semanticamente estruturado.
+2. Construir versão experimental de catálogo de grafias públicas do IBGE (forma, frequência, recorte, fonte/hash), mais vizinhanças **calculadas** por ortografia/fonética; não rotular variantes legítimas como erros.
+3. Medir a recuperação de pares verdadeiros por cada capacidade e pela **união sem parada antecipada**, inclusive ausência da mãe, erros simultâneos e todos os estados semânticos V5 de nascimento.
+4. Relatar as maiores caudas de blocos, planos SQL Server, redução, deduplicação, ganho marginal, P50/P95/P99 e falha explícita por limites; testar índices compostos apenas para passes finalistas.
+5. Verificar em múltiplas ondas as chaves antigas/novas, referências alteradas e observações anteriormente resolvidas, mantendo DT-05 e filas de reprocessamento governadas.
+6. Distinguir claramente **modelo ilustrativo 599 milhões**, auditoria agregada da tripla em Gold, teste sintético IBGE e validação independente representativa.
+
+### 10.2. Dois modelos para nascimento e otimização por seletividade conjunta
+
+**Decisão:** a arquitetura tem **uma estratégia estatística multivariada de recuperação, com passes complementares**. A comparação de regras isoladas serve ao diagnóstico, não define motores rivais. Priorizar as combinações que têm menor cardinalidade observada ou estimada com confiança, **sem desistir** de passes complementares elegíveis quando o primeiro já encontrou candidatos. A avaliação deve relatar separadamente **custo da busca** e **vínculos verdadeiros recuperados**, inclusive casos em que nenhuma expansão alcança o par correto.
+
+Estimativas de custo **não** podem confundir:
+1. a **distribuição demográfica de nascimento real** — coortes e idades da população municipal por fonte compatível, com nomes/sobrenomes do município SP em V2 candidata e nomes maternos do Brasil conforme V1 vigente;
+2. a **distribuição de erro no nascimento observado**, condicionada a Gestor/Sistema/Base, qualidade, preenchimento convencional, ausência de CPF/mãe e ondas de atualização da origem.
+
+O IBGE de nomes por década **não é** histograma completo de nascimentos do município em 2026, nem contém a distribuição conjunta pessoa+mãe+nascimento. Para coortes, utilizar separadamente o [Censo 2022, população por idade e sexo](https://www.ibge.gov.br/estatisticas/sociais/populacao/22827-censo-demografico-2022.html?edicao=38166&t=resultados), com referência **01/08/2022**, versionamento e população-alvo declarada; simular ou observar nascimentos pós-Censo sem atribuir-lhes frequência zero. A mãe não tem sua idade conhecida só por existir `nome_mae`. Datas futuras são inconsistência objetiva em relação à **data civil congelada do run**; `29/02` é **registrado pelo cartório** quando o nascimento ocorreu nessa data em ano bissexto, mas `29/02` em ano comum não é data civil possível (Lei 6.015/1973, art. 54). Para índice de pessoas presumivelmente vivas, idade máxima verificada e datada da população brasileira é **sinal de plausibilidade** recalibrável; não é proibição legal, filtro rígido nem limite de retenção de registros históricos de pessoas já falecidas. Não usar as décadas extremas do produto de nomes como restrição etária de elegibilidade. Ver seção 5.1.1 da [decisão canônica](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md#511-critérios-versionados-de-plausibilidade-da-idade).
+
+**Matriz mínima do ensaio:**
+- casos de estresse `MARIA SILVA / mãe MARIA SILVA` e `JOSÉ DA SILVA / mãe MARIA DA SILVA`, outros prenomes/sobrenomes frequentes por recorte, cauda, agnomes, ordem e presença intermediária do sobrenome;
+- exato, inversão válida/inválida dia/mês, `±1` ano com verificação de `29/02`, troca de dígitos, erros concomitantes nome+mãe+nascimento, datas convencionais `01/01`, dias `1/10/15`, ausência de data/mãe e registros pós-2022;
+- estimar/medir `P(data_real | coorte)` separadamente de `P(data_observada | data_real, origem)`, preservando o denominador, incerteza e estratos; **nunca** transformá-las em segundo scorer não governado;
+- testar interseção **EAV atual** sobre `identidade.blocking_chave` versus **tupla materializada horizontal** e índice composto para os poucos passes finalistas; um índice B-tree não cruza atributos armazenados em linhas separadas;
+- publicar por passe e pela união: cardinalidade P50/P95/P99, custo, taxa de candidatos exclusivos, ganho incremental de recall, comparação ao ruleset atual, grandeza física dos índices, replay e comportamentos fail-closed para timeout/truncamento.
+
+**Fronteira de implantação:** calibrar ordem e composição **em snapshot congelado**, não gerar plano independente por solicitação. O produto operacional mantém `u` condicionado ao universo que **realmente passou** pelos passes da união e `m` baseado em pares verdadeiros rotulados; fontes censitárias são bootstrap e diagnósticos, não autorização de vínculo.
+
+### 10.3. Critério de aceite do índice estatístico multivariado (contrato do núcleo)
+
+**Contrato de decisão:** [seção 5.3 da decisão canônica](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md#53-contrato-de-seleção-de-passes-custo-e-exaustividade). A prioridade não é provar 1/599 milhões: é **recuperar o vínculo verdadeiro sob orçamento operacional governado**, mesmo no cenário de nomes comuns, com as menores cardinalidades possíveis e sem falsa declaração de pessoa nova depois de busca incompleta.
+
+| Estrato de avaliação | Entradas e fonte estatística | Evidências a publicar |
+|---|---|---|
+| Prenome/sobrenome da pessoa | SP 3550308, Censo 2022, V2 **candidata**; sobrenomes por presença em qualquer posição, último token como proxy com validação | Frequências divulgadas e suprimidas, versões, cardinalidades por passe/união, cobertura na Gold |
+| Prenome/sobrenome da mãe | Brasil: prenome `FEMININO` e sobrenome `TODOS`, V1 técnica vigente | Cobertura da mãe, ausência por fonte, correlação familiar com sobrenome civil, impacto de coortes |
+| Distribuição demográfica de nascimento | IBGE **população por idade e sexo**, recorte municipal e data de referência **separados** da estatística de nomes por década | Massa/coorte, extrapolação datada e estratos fora do Censo 2022; não usar últimas décadas como limite rígido |
+| Distribuição de erros de nascimento | Par verdadeiro rotulado por Gestor/Sistema/Base, sem e com mãe/CPF; perfis sintéticos apenas como sensibilidade | Exato, dia/mês invertido válido, ano adjacente, troca de dígitos, valores convencionais e ausentes; ganho marginal |
+| Grafias publicadas e vizinhanças | Contagens censitárias **distintas** de `SOUZA` e `SOUSA`; fonética, ortografia e aliases são relações calculadas/versionadas | Recuperação dos dois nomes sem fundir contagens públicas; custo de expansão e FN por estrato |
+| Plano físico | Índice vertical `identidade.blocking_chave` com `INTERSECT/UNION` **versus** projeção horizontal composta candidata | Planos SQL Server, CPU/I/O, P50/P95/P99, custo de manutenção, equivalência da união e retries |
+
+Para uma mesma observação, os passes elegíveis **não** podem ser encerrados após o primeiro candidato nem descartados por ranking interno sem estado de execução **incompleta**. `NOVA_IDENTIDADE` só é admissível quando a política versionada concluiu o universo completo. O scorer C# FS e as guardas de conflito continuam únicos e separados da previsão de seletividade. A documentação de testes deve congelar corpus, data civil do run, fontes por atributo, fingerprints e limites observados.
+
+
