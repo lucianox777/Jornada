@@ -112,8 +112,30 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'dotnet build falhou.' }
 } finally { Pop-Location }
 
-$api = $null; $worker = $null
+$api = $null; $worker = $null; $stagedSehab = $null
 try {
+    # Apenas E2E DEV: o contrato SEHAB foi separado da solução principal e
+    # continua referenciado pelo catálogo do seed sintético. Disponibilizar os
+    # arquivos originais temporariamente, verificar seus hashes e removê-los.
+    # Isso NÃO os devolve ao build/deploy da Jornada.
+    $supportContracts = [IO.Path]::GetFullPath(
+        (Join-Path (Join-Path $Root '..') 'ApoioSecretarias/config/contracts/gestores/SEHAB'))
+    $targetContracts = Join-Path $Root 'config/contracts/gestores/SEHAB'
+    if (-not (Test-Path -LiteralPath $supportContracts -PathType Container)) {
+        throw "E2E: contratos externos SEHAB não encontrados na Solução de Apoio: $supportContracts"
+    }
+    if (Test-Path -LiteralPath $targetContracts) {
+        throw 'E2E: contrato SEHAB já presente na solução principal; staging não sobrescreve arquivos existentes.'
+    }
+    $stagedSehab = $targetContracts
+    Copy-Item -LiteralPath $supportContracts -Destination $targetContracts -Recurse
+    foreach ($relative in @('pessoa/v4/pessoa.schema.json', 'pessoa/v5/pessoa.schema.json')) {
+        $sourceHash = (Get-FileHash -LiteralPath (Join-Path $supportContracts $relative) -Algorithm SHA256).Hash
+        $stagedHash = (Get-FileHash -LiteralPath (Join-Path $targetContracts $relative) -Algorithm SHA256).Hash
+        if ($sourceHash -ne $stagedHash) {
+            throw "E2E: contrato SEHAB externo divergiu do staging temporário: $relative"
+        }
+    }
     $apiLog = Join-Path $Out 'api.log'
     $apiErrLog = Join-Path $Out 'api.err.log'
     $processorLog = Join-Path $Out 'processor.log'
@@ -297,4 +319,7 @@ try {
 finally {
     if ($worker -and -not $worker.HasExited) { Stop-Process -Id $worker.Id -Force -ErrorAction SilentlyContinue }
     if ($api -and -not $api.HasExited) { Stop-Process -Id $api.Id -Force -ErrorAction SilentlyContinue }
+    if ($stagedSehab -and (Test-Path -LiteralPath $stagedSehab)) {
+        Remove-Item -LiteralPath $stagedSehab -Recurse -Force
+    }
 }
