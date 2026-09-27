@@ -18,6 +18,8 @@ public sealed class FellegiSunterTopFiveSyntheticTests
         var p = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
         {
             [LinkageParameterCatalog.PriorMatchProbability] = .001m,
+            [LinkageParameterCatalog.PriorBlockMin] = .000001m,
+            [LinkageParameterCatalog.PriorBlockMax] = .25m,
             [LinkageParameterCatalog.Threshold] = .90m,
             [LinkageParameterCatalog.ConflictMargin] = .03m,
             [LinkageParameterCatalog.DecisionEvidenceScoring] = 1m,
