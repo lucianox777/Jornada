@@ -7,9 +7,9 @@ if (-not $Dt05CpfLate -or -not $VerifyLinkageRunner -or $db -ne 'JornadaSyntheti
 if ([int](Scalar "SELECT COUNT_BIG(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO';") -ne 1) {
     throw 'DT-05: esperado exatamente um modelo ATIVO no corpus DEV.'
 }
-if ((Scalar "SELECT ativo FROM controle.modo_carga_inicial WHERE estado_id=1;") -ne '0') {
-    throw 'DT-05: carga inicial ativa. Não executar o Runner.'
-}
+# A tabela controle.modo_carga_inicial foi removida pela migration de 27/09.
+# O E2E usa JornadaSyntheticDev isolado, exige exatamente um modelo ATIVO
+# e o Runner aplica a coordenação atual do pipeline antes de publicar.
 
 # Duas referências DEV deliberadamente indistinguíveis forçam CONFLITO na
 # observação sem CPF. A referência principal já existe no Jornada_Seed_Dev.

@@ -4,6 +4,8 @@
 
 O Monitor Operacional responde **o que a Jornada está fazendo agora** e se os nós pertencem à mesma implantação técnica. Ele é uma superfície somente-leitura da aplicação e não substitui o monitoramento de infraestrutura da PRODAM.
 
+**Fronteira com a [DT-15](DT15_Governanca_Decisao_Modelo.md):** o monitor continua read-only e exibe somente o modelo ATIVO, sinais agregados de um RASCUNHO/comparativo e alertas. A decisão **ATIVO × RASCUNHO** será apresentada em **página independente e restrita ao operador master** (`/governanca/modelos`, rota **proposta, ainda não implementada**), com histórico compacto secundário, justificativa, evidência vinculada e ações autorizadas. Não ampliar o alcance de `jornada.monitor.read` para ler parâmetros sensíveis ou executar `VALIDATE`/`ACTIVATE`. Link de navegação, quando implementado, aparece somente ao perfil autorizado.
+
 A interface é servida pela própria `Jornada.Api` em:
 
 ```text

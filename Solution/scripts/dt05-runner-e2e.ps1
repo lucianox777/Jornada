@@ -13,7 +13,8 @@ function Scalar([string]$sql) {
     return (@($value | ForEach-Object { $_.Trim() } | Where-Object { $_ })[-1]).Trim()
 }
 if ((Scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO';") -lt 1) { throw 'Modelo ATIVO ausente.' }
-if ((Scalar "SELECT ativo FROM controle.modo_carga_inicial WHERE estado_id=1;") -ne '0') { throw 'Carga inicial ativa.' }
+# A antiga tabela controle.modo_carga_inicial foi removida; a segurança
+# depende do modelo ATIVO e da coordenação do Runner (não de tabela legada).
 $marker=[Guid]::NewGuid().ToString('N')
 $env:ConnectionStrings__Jornada=$ConnectionString
 Push-Location $root
