@@ -1,6 +1,6 @@
 # Gate 6 — segregação do integrador e contratos da SEHAB
 
-**Data:** 27/09/2026. **Resultado técnico:** SEGREGAÇÃO E E2E SINTÉTICO CONCLUÍDOS. **Integração técnica:** PR #541 já mesclado ao `master` (`90d24f97cebeeaff8f297237ca0df493e0949d2b`); seis workflows verdes no HEAD `84e69eb`, incluindo 131/131 testes SQL e 2/2 de injeção de falha. **Não equivale a aprovação HML, homologação do mapeamento real da Secretaria nem liberação automática do Ensaio.**
+**Data:** 27/09/2026. **Resultado técnico:** SEGREGAÇÃO E E2E SINTÉTICO CONCLUÍDOS; [PR #541](https://github.com/lucianox777/Jornada/pull/541) mergeado (`90d24f9`) com os seis workflows pós-merge verdes. **Não equivale a aprovação HML, homologação do mapeamento real da Secretaria nem liberação automática do Ensaio.**
 
 ## Inventário e fronteira
 
@@ -29,7 +29,11 @@ A remessa SEHAB registrou **um vínculo de identidade progressiva**, com ZIP SHA
 
 As referências de execução, registro de versão v5, inventário e configuração de produção foram removidas da solução principal. Rótulos `SEHAB` permanecem em `Jornada_Seed_Dev.sql`, testes, fixtures, avaliação sintética e scripts de DEV (não representam dependência operacional). O único literal em `Jornada.Api/*` é `placeholder="SEHAB"` no campo visual do monitor: não define credencial, autorização, schema, encaminhamento ou seleção de Gestor. Esse arquivo é protegido pela solicitação; nenhuma alteração foi realizada nele. Documentos históricos AS-IS não são incluídos na distribuição externa.
 
-A primeira rodada da suíte geral obteve 130/131 testes SQL com uma falha `Contrato referenciado pelo banco não encontrado` no replay Bronze: um teste ainda não importava o contrato externo no diretório de saída. O [commit `839119706ccbda69e54dad8a049560e32dc2c082`](https://github.com/lucianox777/Jornada/commit/839119706ccbda69e54dad8a049560e32dc2c082) corrige **somente a fixture** `Solution/tests/Jornada.Integration.Tests.csproj`, fazendo link de leitura do contrato do suporte ao output de teste, sem copiá-lo ao código-fonte principal. O `jornada-ci` no HEAD `84e69eb` comprovou a correção: 131/131 testes SQL, 2/2 testes de injeção de falha e todos os demais gates passaram, antes do merge técnico.
+A primeira rodada da suíte geral obteve 130/131 testes SQL com uma falha `Contrato referenciado pelo banco não encontrado` no replay Bronze: um teste ainda não importava o contrato externo no diretório de saída. O [commit `839119706ccbda69e54dad8a049560e32dc2c082`](https://github.com/lucianox777/Jornada/commit/839119706ccbda69e54dad8a049560e32dc2c082) corrige **somente a fixture** `Solution/tests/Jornada.Integration.Tests.csproj`, fazendo link de leitura do contrato do suporte ao output de teste, sem copiá-lo ao código-fonte principal. A [revisão final do PR #541](https://github.com/lucianox777/Jornada/actions/runs/36303728023) passou 131/131 testes SQL e 2/2 testes de fault injection; o [CI pós-merge em `master`](https://github.com/lucianox777/Jornada/actions/runs/36304149541) e os outros cinco workflows do mesmo SHA concluíram com sucesso. Tentativas anteriores canceladas não contam como aceite.
+
+## Guarda contra regressão da separação
+
+O gate estático `ApoioSecretarias/scripts/check-segregation.py` executa no workflow `apoio-secretarias`, inclusive quando a PR altera projetos C#, contratos, migração v5 ou distribuição da solução principal. Verifica a titularidade dos oito contratos externos, a ausência do integrador e de referências ao suporte no projeto de produção, e o registro SEHAB v5 exclusivamente no apoio. Testes negativos criam reintroduções deliberadas em árvore temporária para exigir falha; a leitura externa de schema em `Solution/tests` é exceção intencional, sem retorno à distribuição. Este guard é **regressão estática**, não substitui E2E SQL/HTTP nem aprovação HML.
 
 ## Limites e próximos gates distintos
 
