@@ -115,3 +115,17 @@ A sequência normativa está em `docs/uml/Linkage_Dynamic_Blocking_Sequence.puml
 ## Limite de governança
 
 Blocking dinâmico tecnicamente correto não equivale a homologação estatística. A issue #31 continua aberta até existir corpus representativo/atestado, avaliação independente e aprovação institucional explícita. Nenhum resultado desta implementação autoriza criação/fusão automática de UUID ou publicação probabilística em Gold/Serving.
+
+## Explicação operacional: três rotas e o papel do blocking dinâmico
+
+**Rota determinística (CPF válido/confiável):** consulta o identificador forte e resolve a identidade conforme as regras próprias de qualidade e conflito. Não é um terceiro *blocking probabilístico*: é uma rota distinta, anterior à recuperação probabilística de candidatos.
+
+**Blocking dinâmico (vigente):** para observações sem identificador forte confiável, aplica um **ruleset versionado e configurável** sobre chaves/projeções calculadas disponíveis. Uma regra pode combinar nome normalizado e nascimento; outra, nome da mãe e nascimento; outra, fonética e ano de nascimento — exemplos ilustrativos, não afirmação de que essas três regras estejam todas habilitadas no ambiente. Apenas regras cujos atributos estejam disponíveis e cuja política permita a execução participam da consulta. O conjunto de candidatos é a união deduplicada dos passes aplicáveis. A política deve manter fingerprint, evidência da versão, limites de volume e rastreabilidade da regra que recuperou cada candidato. “Dinâmico” significa seleção/execução conforme política e atributos disponíveis; **não** significa inventar regras autonomamente a cada busca.
+
+**Blocking combinado (protótipo de avaliação do PR #526):** experimenta passes compostos específicos, inclusive variações de data e fonética, para medir recall, seletividade e contribuição marginal. Não está automaticamente ativado no Runner nem substitui o ruleset dinâmico; seus passes poderão ser incorporados à política versionada apenas após testes e decisão explícita de promoção.
+
+**Nome completo:** o valor original permanece preservado e pode contribuir para a comparação probabilística (*scoring*) após recuperar candidatos. Igualdade exata do nome completo **não é requisito universal** de blocking; abreviações, partículas, sobrenomes intermediários e erros de grafia não devem excluir, por si, candidatos alcançáveis por outros passes. `last_name_token` é o último token lexical do nome completo normalizado (ex.: `JOSÉ CARLOS DA SILVA` → `SILVA`), como definição operacional interna, com tratamento testado de partículas, hífens e dados incompletos.
+
+**Limite estatístico do IBGE:** o Censo 2022 publicou frequências de sobrenomes individuais sem preservar a posição. Sua orientação de coleta previa todos os sobrenomes preferencialmente e apenas o último quando necessário. Portanto, frequência publicada de `SILVA` não equivale à frequência de `last_name_token = SILVA`. Usar as frequências como referência marginal auxiliar, nunca como estimativa posicional exata de `u` sem validação. Fonte: IBGE, Nota Técnica 01/2025, *Nomes no Brasil*, https://biblioteca.ibge.gov.br/visualizacao/livros/liv102228.pdf .
+
+**Separação obrigatória:** recuperar candidatos não equivale a vincular identidades. O scoring probabilístico avalia os candidatos recuperados e a política de decisão/publicação aplica seus limiares e salvaguardas; nenhuma regra de blocking, isoladamente, autoriza fusão ou criação automática de UUID.
