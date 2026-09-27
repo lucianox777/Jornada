@@ -147,6 +147,32 @@ internal sealed record LinkageCalibrationSummary(
     decimal? ValidationEffectiveCapBp,
     decimal? TestEffectiveCapBp);
 
+// Série agregada limitada: nenhum nome, data nominativa, score, threshold ou par rotulado.
+internal sealed record LinkageCalibrationHistoryItem(
+    Guid ModelId,
+    int Version,
+    string ModelStatus,
+    DateTimeOffset? GeneratedAt,
+    DateTimeOffset? ActivatedAt,
+    string? ReferenceCode,
+    string? ReferenceSha256,
+    decimal? ValidationPositive,
+    decimal? ValidationFalsePositive,
+    decimal? ValidationFalseNegative,
+    decimal? TestPositive,
+    decimal? TestFalsePositive,
+    decimal? TestFalseNegative,
+    decimal? TestInconclusive,
+    decimal? MatchedPairSample,
+    decimal? CandidateUnionUSample,
+    int? ValidationFpBasisPoints,
+    int? TestFpBasisPoints,
+    string EvaluatorEvidenceStatus,
+    string? EvaluatorEnvironment,
+    string? EvaluatorStatisticalValidation,
+    DateTimeOffset? EvaluatorAt,
+    string? EvaluatorCorpusSha256);
+
 internal sealed record IbgeReferenceReadiness(
     string Status,
     int ActiveVersions,
@@ -190,7 +216,10 @@ internal sealed record OperationalMonitorSnapshot(
     IReadOnlyList<LinkageModelTransitionStatus> LinkageModelTransitions,
     IReadOnlyList<LinkageRunStatus> LinkageRuns,
     LinkageCalibrationSummary LinkageCalibration,
-    IbgeReferenceReadiness IbgeReference);
+    IbgeReferenceReadiness IbgeReference)
+{
+    public IReadOnlyList<LinkageCalibrationHistoryItem> CalibrationHistory { get; init; } = [];
+}
 
 internal sealed class OperationalMonitorService(IOperationalSqlAdapter connections)
 {
@@ -408,6 +437,46 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
                     MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_FP_EFFECTIVE_CAP_BP' THEN valor END) test_effective_cap_bp
                 FROM identidade.parametro_linkage WHERE modelo_id=m.modelo_id
             ) p;
+
+            -- Histórico para o monitor de calibração: no máximo 20 bundles/modelos.
+            -- É read-only, sem limiar/score individual. Evidência sintética não promove.
+            SELECT m.modelo_id,m.versao,m.status,m.gerado_em,m.ativado_em,
+                   v.codigo,CASE WHEN v.conteudo_sha256 IS NULL THEN NULL
+                     ELSE CONVERT(VARCHAR(64),v.conteudo_sha256,2) END,
+                   p.val_pos,p.val_fp,p.val_fn,p.test_pos,p.test_fp,
+                   p.test_fn,p.test_inconclusive,p.m_sample,p.u_sample,
+                   p.val_budget,p.test_budget,
+                   CASE WHEN e.avaliacao_id IS NULL THEN N'SEM_AVALIACAO_PERSISTIDA'
+                        ELSE N'SINTETICA_NAO_PROMOVIVEL' END evidencia_status,
+                   e.ambiente_perfil,e.validacao_estatistica,e.ocorrido_em,
+                   CASE WHEN e.corpus_fingerprint_sha256 IS NULL THEN NULL
+                        ELSE CONVERT(VARCHAR(64),e.corpus_fingerprint_sha256,2) END corpus_sha
+              FROM (SELECT TOP(20) * FROM identidade.modelo_linkage ORDER BY versao DESC) m
+              LEFT JOIN ref.frequencia_nome_versao v
+                ON v.frequencia_nome_versao_id=m.frequencia_nome_versao_id
+              OUTER APPLY (
+                SELECT MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_VALIDATION_POSITIVE' THEN valor END) val_pos,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_VALIDATION_FP' THEN valor END) val_fp,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_VALIDATION_FN' THEN valor END) val_fn,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_POSITIVE' THEN valor END) test_pos,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_FP' THEN valor END) test_fp,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_FN' THEN valor END) test_fn,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_INCONCLUSIVE' THEN valor END) test_inconclusive,
+                       MAX(CASE WHEN nome=N'M_SAMPLE_SIZE' THEN valor END) m_sample,
+                       MAX(CASE WHEN nome=N'U_SAMPLE_SIZE' THEN valor END) u_sample,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_MAX_FP_VALIDATION_BP' THEN valor END) val_budget,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_MAX_FP_TEST_BP' THEN valor END) test_budget
+                  FROM identidade.parametro_linkage
+                 WHERE modelo_id=m.modelo_id
+              ) p
+              OUTER APPLY (
+                SELECT TOP(1) avaliacao_id,ambiente_perfil,validacao_estatistica,
+                              ocorrido_em,corpus_fingerprint_sha256
+                  FROM auditoria.linkage_avaliacao_sintetica
+                 WHERE modelo_id=m.modelo_id
+                 ORDER BY linkage_avaliacao_sintetica_id DESC
+              ) e
+             ORDER BY m.versao DESC;
             """, connection)
         {
             CommandTimeout = 5
@@ -425,6 +494,7 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
         var modelTransitions = new List<LinkageModelTransitionStatus>();
         var blockingPassSupport = new List<LinkageBlockingPassSupportStatus>();
         var ibgeReference = new IbgeReferenceReadiness("AUSENTE", 0, null, null, "AUSENTE", 0, 0, null);
+        var calibrationHistory = new List<LinkageCalibrationHistoryItem>(20);
         var calibration = new LinkageCalibrationSummary(
             "SEM_MODELO", null, null, null, null, null,
             null, null, null, null, null, null, null, null,
@@ -624,6 +694,30 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
                 Dec(19), Dec(20), Dec(21), Dec(22), Dec(23), Dec(24));
         }
 
+        if (await reader.NextResultAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                decimal? D(int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetDecimal(ordinal);
+                calibrationHistory.Add(new LinkageCalibrationHistoryItem(
+                    reader.GetGuid(0),
+                    reader.GetInt32(1),
+                    reader.GetString(2),
+                    ReadNullableDateTimeOffset(reader, 3),
+                    ReadNullableDateTimeOffset(reader, 4),
+                    reader.IsDBNull(5) ? null : reader.GetString(5),
+                    reader.IsDBNull(6) ? null : reader.GetString(6),
+                    D(7), D(8), D(9), D(10), D(11), D(12), D(13), D(14), D(15),
+                    D(16) is { } vb ? checked((int)vb) : null,
+                    D(17) is { } tb ? checked((int)tb) : null,
+                    reader.GetString(18),
+                    reader.IsDBNull(19) ? null : reader.GetString(19),
+                    reader.IsDBNull(20) ? null : reader.GetString(20),
+                    ReadNullableDateTimeOffset(reader, 21),
+                    reader.IsDBNull(22) ? null : reader.GetString(22)));
+            }
+        }
+
         // Somente perfil ASP.NET Development e fonte IBGE ATIVA congruente.
         // Ler os dois arquivos brutos e REVALIDAR a evidência por par para
         // impedir que um JSON de resumo isolado falsifique "conformidade".
@@ -655,7 +749,10 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
             modelTransitions,
             linkageRuns,
             calibration,
-            ibgeReference);
+            ibgeReference)
+        {
+            CalibrationHistory = calibrationHistory
+        };
     }
 
     private static LinkageConferenceGovernanceStatus AttachExternalSplinkDiagnostic(
