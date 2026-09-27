@@ -189,6 +189,8 @@ app.MapPost("/api/v1/identidade/resolver", async (
 app.MapPost("/api/v1/identidade/candidatos", async (
     HttpRequest http,
     SemiblindIdentitySearchRequest request,
+    IHostEnvironment environment,
+    IConfiguration configuration,
     IPolicyEngine policy,
     ISemiblindIdentitySearchService service,
     IApiAuditSink auditSink,
@@ -198,6 +200,10 @@ app.MapPost("/api/v1/identidade/candidatos", async (
     ApiAuditContext.SetResourceCode(http.HttpContext, context.TipoCodigo);
     if (!await policy.IsAllowedAsync(context, "jornada.identidade.busca.read", context.TipoCodigo, null, ct))
         return Results.Forbid();
+    // Issue #539: o compartilhamento de atributos ainda requer decisão institucional.
+    // O merge entrega apenas o código; a rota exige opt-in e ambiente Development.
+    if (!environment.IsDevelopment() || !configuration.GetValue<bool>("SemiblindIdentitySearch:Enabled"))
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
     var correlation = http.HttpContext.Items.TryGetValue(ApiContextItems.CorrelationId, out var value)
         && value is Guid id ? id : Guid.NewGuid();
     try
