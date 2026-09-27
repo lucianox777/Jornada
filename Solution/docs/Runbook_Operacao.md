@@ -18,7 +18,7 @@ O `Jornada.Operations.Maintenance.Worker` inclui, na v3.53, um **watchdog soment
 | `Jornada.Processor.Worker` | serviço contínuo | manter disponibilidade; recuperação de lease é interna |
 | `Jornada.Operations.Maintenance.Worker` | serviço contínuo | manter disponibilidade; watchdog/retencões obedecem `Enabled` |
 | `Jornada.Bronze.Maintenance.Worker` | serviço contínuo/periódico | manter conforme política homologada |
-| `Jornada.Linkage.Parameters.Worker` | run-once ou periódico | `GENERATE_DRAFT`; `VALIDATE`/`ACTIVATE` somente após `Jornada.Linkage.Conference` `CONFORME` com tolerância governada congelada |
+| `Jornada.Linkage.Parameters.Worker` | run-once ou periódico | Fluxo normal de calibração: `GENERATE_DRAFT` → revisão do operador → `VALIDATE` → `ACTIVATE`; a conferência independente é acionada pelos eventos da seção 3.3, ressalvado o gate de promoção ainda implementado |
 | `Jornada.Linkage.Runner` | run-once | disparar `INCREMENTAL`, `REPLAY`, `FULL` ou `MODEL_VALIDATION` conforme procedimento |
 | `Jornada.Bronze.Verify` | run-once | executar após restore/drill ou verificação operacional programada |
 
@@ -29,8 +29,8 @@ O `Jornada.Operations.Maintenance.Worker` inclui, na v3.53, um **watchdog soment
 1. Manter API e Processor operando normalmente para formar a primeira Gold elegível.
 2. Acompanhar o backlog e o throughput por meio das métricas de ingestão e dos lotes pendentes.
 3. Executar `GENERATE_DRAFT` após existir corpus suficiente. O Parameters Worker obtém janela exclusiva do corpus pela coordenação SQL.
-4. Executar `Jornada.Linkage.Conference` para o RASCUNHO usando a tolerância governada congelada; somente `CONFORME` libera a etapa seguinte.
-5. Validar o modelo (`VALIDATE`), que reaplica fail-closed o assert da mesma evidência/método/tolerância.
+4. O operador revisa o resultado do `GENERATE_DRAFT`, incluindo os diagnósticos, thresholds e budgets aplicáveis, e registra sua decisão de prosseguir ou corrigir o rascunho.
+5. Validar o modelo (`VALIDATE`) após a revisão do operador, respeitando os gates efetivamente implementados descritos abaixo.
 6. Ativar (`ACTIVATE`) somente a versão aprovada.
 7. Executar Linkage Runner incremental sobre observações elegíveis sem CPF, respeitando sua janela exclusiva de coordenação SQL.
 
@@ -39,9 +39,20 @@ O `Jornada.Operations.Maintenance.Worker` inclui, na v3.53, um **watchdog soment
 - API e Processor podem permanecer contínuos.
 - `GENERATE_DRAFT` e Linkage Runner obtêm janela exclusiva do corpus. O Processor termina o lote corrente e não inicia outro enquanto a janela exclusiva estiver declarada.
 - O scheduler **não deve** executar `GENERATE_DRAFT` e Linkage Runner concorrentes entre si. A coordenação SQL falha fechado mesmo se houver disparo indevido, mas a política operacional deve evitar tentativas desnecessárias.
-- `VALIDATE` e `ACTIVATE` não exigem congelamento do corpus, mas exigem tolerância de conferência `FROZEN` e evidência mais recente `CONFORME` do mesmo modelo. A configuração técnica corrente está `FROZEN` em `V1_2026-09-26` (LLR 0,01); a promoção permanece bloqueada sem conferência governada `CONFORME` sobre o mesmo snapshot e sem orçamento FP validado. Isso não certifica representatividade (#31).
+- O procedimento operacional **pretendido** para cada calibração sem gatilhos de reconferência é `GENERATE_DRAFT` → operador revisa o resultado → `VALIDATE` → `ACTIVATE`. A conferência decimal × float64 não é uma etapa recorrente desse procedimento.
+- **Limitação da implementação atual (DT-14 apenas documental):** `VALIDATE` e `ACTIVATE` ainda não exigem congelamento do corpus, mas **exigem** tolerância `FROZEN` e evidência governada mais recente `CONFORME` **do mesmo modelo e fingerprint**. A configuração técnica corrente é `V1_2026-09-26` (LLR 0,01). Sem essa evidência e sem orçamento FP validado, a promoção é bloqueada. A evidência artesanal do PR #514 não substitui a evidência persistida por modelo; não contornar o gate. A remoção da exigência *por rascunho*, necessária para tornar o novo fluxo operacional inteiramente executável sem conferência, requer alteração posterior de código fora do escopo de DT-14. Nenhuma dessas verificações certifica representatividade (#31).
 - `INCREMENTAL` cobre observações sem CPF ainda pendentes **e também reavalia `NAO_RESOLVIDO`/`CONFLITO` correntes**, porque o universo candidato pode mudar mesmo quando a observação não muda. Isso evita depender de uma nova versão da origem para descobrir evidência surgida do lado candidato.
 - `FULL` e `REPLAY` permanecem operações excepcionais e devem registrar `--requested-by`, `--reason` e, quando aplicável, `--correlation-id`. `REPLAY` não deve ser transformado em rotina apenas para compensar mudança do lado candidato.
+
+### 3.3 Quando executar `Jornada.Linkage.Conference`
+
+A ferramenta **standalone continua disponível**; DT-14 retira a conferência C# `decimal` × C# `float64` do **ciclo normal de calibração**, não remove a ferramenta nem desativa os gates atualmente implementados. Executar uma nova conferência da implementação quando ocorrer qualquer um dos eventos abaixo:
+
+1. Qualquer alteração em `FellegiSunterScoring.cs` **ou nos comparadores**. A conferência corrente recebe estados de comparação pré-computados e **não** valida a formação desses estados; mudanças nos comparadores exigem também evidências/testes próprios do comparador.
+2. Migração da versão do runtime **.NET**, inclusive **DT-02 (migração para .NET 10)**, a próxima execução obrigatória.
+3. Um **threshold mudar de faixa significativa** entre modelos consecutivos, conforme a política de decisão vigente; registrar no processo de revisão qual faixa e qual mudança motivaram a reconferência, sem inventar um limite numérico novo.
+
+A evidência `CONFORME` dirigida do [PR #514](https://github.com/lucianox777/Jornada/pull/514) (casos artesanais de fronteira) continua válida **somente em seu escopo** enquanto scorer, thresholds e runtime permanecerem inalterados. Não é necessário repetir esses testes a cada `GENERATE_DRAFT`; também não constituem conferência de comparadores, evidência SQL para um novo modelo nem validação estatística representativa (#31). Ver `Linkage_Implementation_Conference.md`.
 
 ## 4. Exemplos de comandos run-once
 
@@ -58,7 +69,7 @@ dotnet Jornada.Linkage.Runner.dll --mode REPLAY --model-version 12 --gestor SMAD
 dotnet Jornada.Linkage.Runner.dll --mode MODEL_VALIDATION --model-version 13 --max-records 100000 --publish false --requested-by "HML"
 ```
 
-O Parameters Worker usa configuração (`LinkageParameters:Operation`) e, para `VALIDATE`/`ACTIVATE`, exige `LinkageParameters:TargetVersion` e o contrato indicado por `LinkageParameters:ConferenceToleranceConfigPath`. Em HML/Produção, a sequência é `GENERATE_DRAFT → CONFERENCIA → VALIDATE → ACTIVATE`; o mesmo arquivo de tolerância usado pela conferência deve ser usado na promoção. O arquivo oficial corrente está UNFROZEN e bloqueia promoção por desenho.
+O Parameters Worker usa configuração (`LinkageParameters:Operation`) e, para `VALIDATE`/`ACTIVATE`, exige `LinkageParameters:TargetVersion` e o contrato indicado por `LinkageParameters:ConferenceToleranceConfigPath`. O **fluxo normal de referência** é `GENERATE_DRAFT` → operador revisa o resultado → `VALIDATE` → `ACTIVATE`; `Jornada.Linkage.Conference` é executada nos casos da seção 3.3, não a cada geração de rascunho. **A implementação atual ainda contém o assert de conferência `CONFORME` vinculada ao snapshot de cada modelo**, de modo que a execução efetiva permanece bloqueada se essa evidência faltar. O contrato corrente de tolerância está `FROZEN` (`V1_2026-09-26`); seu congelamento, isoladamente, não libera promoção.
 
 ## 5. Contrato mínimo do scheduler corporativo
 
