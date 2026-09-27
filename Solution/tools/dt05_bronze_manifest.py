@@ -42,15 +42,31 @@ def check_object(bronze_root, entry):
     return {"objeto_chave": key, "payload_sha256": sha, "bytes": size}
 
 
-def verify(root, manifest):
+def verify(root, manifest, visited=None):
     root = Path(root).resolve()
-    data = json.loads(Path(manifest).read_text(encoding="utf-8"))
+    manifest = Path(manifest).resolve()
+    if not manifest.is_relative_to(root):
+        raise ValueError("manifest outside Bronze root")
+    visited = set() if visited is None else visited
+    if manifest in visited:
+        raise ValueError("cyclic manifest ancestry")
+    visited.add(manifest)
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    parent = data.get("parent")
+    inherited_count = 0
+    if parent:
+        ancestor = (root / parent["path"]).resolve()
+        if not ancestor.is_relative_to(root):
+            raise ValueError("parent escapes Bronze root")
+        if hashlib.sha256(ancestor.read_bytes()).hexdigest() != parent["manifest_sha256"]:
+            raise ValueError("parent manifest hash mismatch")
+        inherited_count = verify(root, ancestor, visited)
     refs = data["bronze_objects"]
     if data["bronze_set_sha256"] != hashlib.sha256(canonical(refs)).hexdigest():
         raise ValueError("manifest reference hash mismatch")
     for item in refs:
         check_object(root, item)
-    return len(refs)
+    return len(refs) + inherited_count
 
 
 def create(root, refs_file, manifest_path, run_id, versions, parent_manifest=None):
@@ -74,7 +90,10 @@ def create(root, refs_file, manifest_path, run_id, versions, parent_manifest=Non
             if key in old and old[key] != item:
                 raise ValueError("append-only Bronze object changed")
         unique = {key: item for key, item in unique.items() if key not in old}
-        parent = {"run_id": parent_data["run_id"],
+        if not parent_path.is_relative_to(root):
+            raise ValueError("parent manifest outside Bronze root")
+        parent = {"path": parent_path.relative_to(root).as_posix(),
+                  "run_id": parent_data["run_id"],
                   "manifest_sha256": hashlib.sha256(parent_path.read_bytes()).hexdigest()}
     ordered = sorted(unique.values(), key=lambda item: item["objeto_chave"])
     required = {"scorer_version", "ruleset_version", "model_version", "input_snapshot_id"}
