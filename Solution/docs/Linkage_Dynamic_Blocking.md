@@ -1,5 +1,7 @@
 # Linkage - blocking dinâmico compartilhado
 
+**Decisão arquitetural canônica:** [Blocking complementar com referência IBGE, 27/09/2026](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md). **Nome completo, dinâmico e combinado são três capacidades COMPLEMENTARES de um único sistema de recuperação**, unidas e deduplicadas antes do único scorer C# Fellegi–Sunter. CPF confiável é rota determinística separada. A decisão de arquitetura está fixada; a promoção de novos passes e os parâmetros de desempenho dependem dos gates documentados. Este documento descreve o mecanismo compartilhado e não cria um terceiro executor para nome completo.
+
 ## Regra normativa corrente
 
 Calibrador e avaliador devem construir o universo de candidatos dinamicamente e consumir **a mesma política versionada**, sem manter regras paralelas. A política deve ser reproduzível, possuir fingerprint e registrar versões de projeções, comparadores e fontes consumidas.
@@ -116,7 +118,9 @@ A sequência normativa está em `docs/uml/Linkage_Dynamic_Blocking_Sequence.puml
 
 Blocking dinâmico tecnicamente correto não equivale a homologação estatística. A issue #31 continua aberta até existir corpus representativo/atestado, avaliação independente e aprovação institucional explícita. Nenhum resultado desta implementação autoriza criação/fusão automática de UUID ou publicação probabilística em Gold/Serving.
 
-## Explicação operacional: três rotas e o papel do blocking dinâmico
+## Explicação operacional: três capacidades complementares; CPF em rota separada
+
+**Composição lógica obrigatória:** interseção de atributos em cada passe, união entre valores alternativos de uma feature, união deduplicada dos passes de nome completo, dinâmico e combinado. A busca de nome completo é uma capacidade de passes compartilhados, não um terceiro motor. A execução integral da união no Runner é **alvo arquitetural ainda sujeito a promoção**: o batch corrente permanece no dinâmico; a busca semicega usa a união dinâmico+combinado quando elegível e está desabilitada para dados reais até o gate institucional.
 
 **Rota determinística (CPF válido/confiável):** consulta o identificador forte e resolve a identidade conforme as regras próprias de qualidade e conflito. Não é um terceiro *blocking probabilístico*: é uma rota distinta, anterior à recuperação probabilística de candidatos.
 
@@ -124,13 +128,15 @@ Blocking dinâmico tecnicamente correto não equivale a homologação estatísti
 
 **Blocking combinado (protótipo de avaliação do PR #526):** experimenta passes compostos específicos, inclusive variações de data e fonética, para medir recall, seletividade e contribuição marginal. Não está automaticamente ativado no Runner nem substitui o ruleset dinâmico; seus passes poderão ser incorporados à política versionada apenas após testes e decisão explícita de promoção.
 
-**Nome completo:** o valor original permanece preservado e pode contribuir para a comparação probabilística (*scoring*) após recuperar candidatos. Igualdade exata do nome completo **não é requisito universal** de blocking; abreviações, partículas, sobrenomes intermediários e erros de grafia não devem excluir, por si, candidatos alcançáveis por outros passes. `last_name_token` é o último token lexical do nome completo normalizado (ex.: `JOSÉ CARLOS DA SILVA` → `SILVA`), como definição operacional interna, com tratamento testado de partículas, hífens e dados incompletos.
+**Nome completo (capacidade complementar):** o valor original permanece preservado e pode contribuir para a comparação probabilística (*scoring*) após recuperar candidatos. Igualdade exata do nome completo **não é requisito universal** de blocking; abreviações, partículas, sobrenomes intermediários e erros de grafia não devem excluir, por si, candidatos alcançáveis por outros passes. `last_name_token` é o último token lexical do nome completo normalizado (ex.: `JOSÉ CARLOS DA SILVA` → `SILVA`), como definição operacional interna, com tratamento testado de partículas, hífens e dados incompletos.
 
 **Limite estatístico do IBGE:** o Censo 2022 publicou frequências de sobrenomes individuais sem preservar a posição. Sua orientação de coleta previa todos os sobrenomes preferencialmente e apenas o último quando necessário. Portanto, frequência publicada de `SILVA` não equivale à frequência de `last_name_token = SILVA`. Usar as frequências como referência marginal auxiliar, nunca como estimativa posicional exata de `u` sem validação. Fonte: IBGE, Nota Técnica 01/2025, *Nomes no Brasil*, https://biblioteca.ibge.gov.br/visualizacao/livros/liv102228.pdf .
 
 **Separação obrigatória:** recuperar candidatos não equivale a vincular identidades. O scoring probabilístico avalia os candidatos recuperados e a política de decisão/publicação aplica seus limiares e salvaguardas; nenhuma regra de blocking, isoladamente, autoriza fusão ou criação automática de UUID.
 
 ## P22 — último sobrenome e frequências do IBGE (decisão de modelagem)
+
+**Questão arquitetural resolvida para blocking por presença:** o pedido censitário de todos os sobrenomes, com registro do último quando não for possível captar todos, e a divulgação independente de posição **favorecem o índice invertido por presença do token/sobrenome**. Frequências oficiais de ocorrência em qualquer posição podem orientar seletividade, priorização e ensaios desse índice; não exigimos descobrir o último sobrenome para formar a chave. A restrição semântica restante refere-se somente a transformar a frequência oficial em probabilidade exata da heurística interna `last_name_token` ou de nome completo não estruturado. A aferição quantitativa é feita pelo Calibrador no corpus. Consultar a [decisão canônica](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md#3-por-que-o-ibge-melhora-a-construção-do-índice).
 
 Na Jornada, `last_name_token` é **o último token lexical do nome completo normalizado**; por exemplo, `MARIA APARECIDA DE SOUZA SILVA` produz `SILVA`. O nome completo original deve ser preservado. Tratar partículas (`DE`, `DA`, `DO`, `DOS`, `DAS`), espaços, hífens, nomes monônimos e dados incompletos em testes explícitos; não inferir parentesco nem identidade pelo token isolado. Esta é uma **definição operacional interna**, não a definição estatística da variável divulgada pelo IBGE.
 
