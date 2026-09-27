@@ -8,6 +8,7 @@ public static class IbgePublicMarginalsExchange
 {
     public const string Schema = "JORNADA_IBGE_PUBLIC_MARGINALS_V1";
     public const string Reference = "CENSO2022_NOMES_BRASIL_V1";
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public static string Serialize(string referenceCode, string referenceSha256,
         string firstNameSex, IEnumerable<IbgeTypedNameFrequencyEntry> entries)
@@ -43,6 +44,6 @@ public static class IbgePublicMarginalsExchange
             first_names = first,
             surnames
         };
-        return JsonSerializer.Serialize(document, new JsonSerializerOptions { WriteIndented = true }) + "\n";
+        return JsonSerializer.Serialize(document, JsonOptions) + "\n";
     }
 }
