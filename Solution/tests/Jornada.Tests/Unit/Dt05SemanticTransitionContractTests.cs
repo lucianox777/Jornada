@@ -38,7 +38,7 @@ public sealed class Dt05SemanticTransitionContractTests
             var index = signature.IndexOf(field, StringComparison.Ordinal);
             Assert.That(index, Is.GreaterThan(previous), $"DT-05 V1 signature field missing or reordered: {field}");
             previous = index;
-            Assert.That(contract, Does.Contain(`{field[2..]}`),
+            Assert.That(contract, Does.Contain($"`{field[2..]}`"),
                 $"V1 normative contract must list {field}");
         }
         Assert.Multiple(() =>
