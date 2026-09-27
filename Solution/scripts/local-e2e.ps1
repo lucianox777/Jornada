@@ -1,6 +1,8 @@
 ﻿param(
     [switch]$AllowSharedDatabaseReset,
-    [switch]$VerifyLinkageRunner
+    [switch]$VerifyLinkageRunner,
+    [switch]$Dt05CpfLate,
+    [switch]$AllowSyntheticReset
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,8 +34,18 @@ $password = $vars['JORNADA_SQL_SA_PASSWORD']; if ([string]::IsNullOrWhiteSpace($
 $port = if ($vars['JORNADA_SQL_PORT']) { $vars['JORNADA_SQL_PORT'] } else { '14333' }
 $sharedDb = if ($vars['JORNADA_SQL_DATABASE']) { $vars['JORNADA_SQL_DATABASE'] } else { 'JornadaLocal' }
 if ($VerifyLinkageRunner -and $AllowSharedDatabaseReset) { throw 'VerifyLinkageRunner exige banco isolado.' }
+if ($Dt05CpfLate -and (-not $VerifyLinkageRunner -or -not $AllowSyntheticReset)) {
+    throw 'DT-05 requer -VerifyLinkageRunner e -AllowSyntheticReset explícitos.'
+}
+if ($AllowSyntheticReset -and -not $Dt05CpfLate) { throw '-AllowSyntheticReset só é válido para -Dt05CpfLate.' }
+if ($Dt05CpfLate -and $vars['JORNADA_SQL_DATABASE'] -ne 'JornadaSyntheticDev') {
+    throw 'DT-05 exige arquivo .env sintético isolado com JORNADA_SQL_DATABASE=JornadaSyntheticDev.'
+}
+if ($Dt05CpfLate -and $env:JORNADA_SQL_DATABASE_OVERRIDE -and $env:JORNADA_SQL_DATABASE_OVERRIDE -ne 'JornadaSyntheticDev') {
+    throw 'DT-05 recusou JORNADA_SQL_DATABASE_OVERRIDE fora de JornadaSyntheticDev.'
+}
 $usesIsolatedDatabase = -not $AllowSharedDatabaseReset
-$db = if ($usesIsolatedDatabase) { 'JornadaE2E' } else { $sharedDb }
+$db = if ($Dt05CpfLate) { 'JornadaSyntheticDev' } elseif ($usesIsolatedDatabase) { 'JornadaE2E' } else { $sharedDb }
 
 New-Item -ItemType Directory -Force $Out | Out-Null
 foreach ($name in @('bronze','staging','packages')) {
@@ -192,6 +204,13 @@ try {
         }
     }
     function Scalar([string]$query) { $lines = @(Sql $query); if ($lines.Count -eq 0) { return '' }; return $lines[-1].Replace(' ','') }
+
+    if ($Dt05CpfLate) {
+        # Reaproveita Docker/SQL, build, API, Processor e helpers HTTP/SQL deste E2E.
+        # A execução especializada usa exclusivamente JornadaSyntheticDev; o finally encerra os processos.
+        . (Join-Path $PSScriptRoot 'dt05-cpf-late-wave.ps1')
+        return
+    }
 
     $post1 = Join-Path $Out 'post1.json'; $post1Code = Join-Path $Out 'post1.code'
     Post-Delivery 'local-e2e-001' $post1 $post1Code
