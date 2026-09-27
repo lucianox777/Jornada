@@ -34,8 +34,7 @@ internal static class BlockingPassAuditCommand
         IOperationalSqlAdapter operationalSql,
         CancellationToken ct)
     {
-        var compareCombined = args.Any(static arg =>
-            arg.Equals(CompareCombinedOption, StringComparison.OrdinalIgnoreCase));
+        var compareCombined = ReadOptionalBooleanOption(args, CompareCombinedOption);
         var labelsPath = ReadRequiredOption(args, LabelsOption);
         var outputPath = Path.GetFullPath(ReadRequiredOption(args, OutputOption));
         var labels = ReadLabels(labelsPath);
@@ -455,6 +454,32 @@ internal static class BlockingPassAuditCommand
         parameter.DbType = type;
         parameter.Value = value;
         command.Parameters.Add(parameter);
+    }
+
+    /// <summary>
+    /// Requires an explicit true/false value so Host configuration parsing receives a
+    /// valid key-value pair. A bare flag or malformed value must not silently enable
+    /// expensive optional SQL queries.
+    /// </summary>
+    internal static bool ReadOptionalBooleanOption(string[] args, string option)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+        for (var i = 0; i < args.Length; i++)
+        {
+            var raw = args[i];
+            if (raw.StartsWith(option + "=", StringComparison.OrdinalIgnoreCase))
+            {
+                var value = raw[(option.Length + 1)..];
+                if (bool.TryParse(value, out var enabled)) return enabled;
+                throw new ArgumentException($"{option} exige true ou false explícito.");
+            }
+            if (!raw.Equals(option, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (i + 1 < args.Length && bool.TryParse(args[i + 1], out var next))
+                return next;
+            throw new ArgumentException($"{option} exige true ou false explícito.");
+        }
+        return false;
     }
 
     private static string ReadRequiredOption(string[] args, string option)
