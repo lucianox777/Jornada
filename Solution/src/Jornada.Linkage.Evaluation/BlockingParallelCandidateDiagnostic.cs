@@ -26,7 +26,7 @@ public static class BlockingParallelCandidateDiagnostic
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCandidatePairs);
 
         var truth = eligibleTruePairs.ToHashSet();
-        var dynamic = dynamicCandidatePairs.ToHashSet();
+        var dynamicPairs = dynamicCandidatePairs.ToHashSet();
         var combined = combinedCandidatePairs.ToHashSet();
         if (truth.Count != eligibleTruePairs.Count
             || combinedEligibleTruePairs > truth.Count
@@ -36,7 +36,7 @@ public static class BlockingParallelCandidateDiagnostic
                 "Denominadores de verdade elegível inconsistentes no benchmark paralelo.");
         }
 
-        var union = new HashSet<ulong>(dynamic);
+        var union = new HashSet<ulong>(dynamicPairs);
         union.UnionWith(combined);
         if (union.Count > maxCandidatePairs)
             throw new InvalidOperationException(
@@ -47,10 +47,10 @@ public static class BlockingParallelCandidateDiagnostic
             throw new InvalidDataException(
                 "Pares candidatos fora do universo no-CPF/inter-Gestor do benchmark.");
 
-        var shared = dynamic.Count + (long)combined.Count - union.Count;
-        var dynamicOnly = dynamic.Count - shared;
+        var shared = dynamicPairs.Count + (long)combined.Count - union.Count;
+        var dynamicOnly = dynamicPairs.Count - shared;
         var combinedOnly = combined.Count - shared;
-        var dynamicTrue = dynamic.LongCount(truth.Contains);
+        var dynamicTrue = dynamicPairs.LongCount(truth.Contains);
         var combinedTrue = combined.LongCount(truth.Contains);
         var unionTrue = union.LongCount(truth.Contains);
         var sharedTrue = dynamicTrue + combinedTrue - unionTrue;
@@ -65,7 +65,7 @@ public static class BlockingParallelCandidateDiagnostic
         return new SyntheticParallelBlockingEvaluation(
             MethodVersion, Universe,
             eligiblePairCount, truth.Count, combinedEligibleTruePairs,
-            dynamic.Count, combined.Count, union.Count,
+            dynamicPairs.Count, combined.Count, union.Count,
             shared, dynamicOnly, combinedOnly,
             dynamicTrue, combinedTrue, unionTrue,
             sharedTrue, dynamicOnlyTrue, combinedOnlyTrue,
@@ -73,7 +73,7 @@ public static class BlockingParallelCandidateDiagnostic
             Rate(combinedTrue, truth.Count),
             Rate(combinedTrue, combinedEligibleTruePairs),
             Rate(unionTrue, truth.Count),
-            Reduction(dynamic.Count, dynamicTrue, possibleNonMatches),
+            Reduction(dynamicPairs.Count, dynamicTrue, possibleNonMatches),
             Reduction(combined.Count, combinedTrue, possibleNonMatches),
             Reduction(union.Count, unionTrue, possibleNonMatches));
     }
