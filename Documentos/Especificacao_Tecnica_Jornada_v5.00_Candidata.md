@@ -83,6 +83,8 @@ A camada analítica deve conseguir distinguir, de forma explícita, fatos com id
 
 O linkage probabilístico é complementar às âncoras determinísticas e opera de forma versionada, reproduzível e conservadora.
 
+**Decisão de arquitetura do núcleo:** [blocking complementar com referência IBGE — 27/09/2026](../Solution/docs/Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md). Nome completo, dinâmico e combinado são **capacidades complementares de geração de candidatos**, apoiadas nas mesmas projeções e em uma união deduplicada que precede o único scorer C# Fellegi–Sunter. O combinado V1 do PR #526 está implementado como protótipo e integrado à busca semicega elegível, mas sua ativação no Runner em lote e a homologação estatística permanecem gates separados. CPF confiável segue pela rota determinística.
+
 O blocking corrente é multi-passe. Para nascimento, a política V2 considera cinco passes: nascimento exato; mês/ano com inicial aplicável; dia/ano com inicial aplicável; transposição válida de dia/mês; e mesmo dia/mês com tolerância configurada de ano. Ausência de uma evidência desabilita apenas o passe dependente dela e não autoriza fabricar dados.
 
 Comparadores fuzzy atuam sobre o universo candidato; não devem ser confundidos com colunas físicas artificiais de similaridade. O plano de blocking, seus diagnósticos e seus parâmetros precisam permanecer versionados.
@@ -112,7 +114,7 @@ Frequências oficiais do IBGE podem ser usadas como evidência de blocking e cal
 
 A referência oficial de nomes deve possuir snapshot local imutável, representação operacional determinística, manifesto/fingerprint verificável e vínculo ao run/modelo que a consumiu. Replay deve utilizar a referência efetivamente congelada para aquela execução, não a referência corrente por conveniência.
 
-A semântica publicada do IBGE deve ser preservada. Da coluna `nome_completo`, somente o primeiro nome pode ser derivado com semântica equivalente à publicação oficial; sobrenomes não devem ser inferidos por heurística a partir do nome completo. Quando atributos de sobrenome forem utilizados, sua origem deve respeitar a semântica da fonte correspondente.
+A semântica publicada do IBGE deve ser preservada. Da coluna `nome_completo`, somente o primeiro nome pode ser derivado com semântica **diretamente equivalente** à estatística oficial de primeiro nome; tokens posteriores não podem ser declarados **sobrenomes estruturados** por mera heurística. **A marginal publicada de sobrenomes, independente da posição, é uma vantagem para planejar e avaliar o índice invertido por presença:** ela pode ser usada como referência auxiliar de seletividade para tokens técnicos, sem ser convertida diretamente em frequência observada de último token ou nome completo. Quando atributos de sobrenome forem utilizados como evidência estatística direta, sua origem deve respeitar a semântica da fonte correspondente. Consultar a [decisão complementar canônica](../Solution/docs/Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md#3-por-que-o-ibge-melhora-a-construção-do-índice).
 
 A ausência de frequência na referência não equivale a frequência observada igual a zero. Ausência, supressão/cobertura insuficiente e zero observado são estados semanticamente distintos e não podem ser colapsados em um mesmo valor técnico.
 
