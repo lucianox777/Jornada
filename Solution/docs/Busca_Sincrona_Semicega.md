@@ -25,3 +25,7 @@ Arquivos protegidos na solicitação não foram alterados.
 O serviço agora chama `IPolicyEngine.IsAllowedAsync` com `PessoaUuid` de cada candidato antes de projetar nome, nascimento e nome da mãe. Um teste unitário verifica que um candidato negado não aparece na resposta. Isso não comprova, por si só, que a implementação concreta da política restringe corretamente a visibilidade institucional: a validação SQL/HTTP com dados de dois órgãos continua bloqueante para a promoção. A seleção por `OpcaoId` ainda não possui protocolo governado de confirmação.
 
 O CI anterior confirmou o gate NuGet e a política compartilhada; a arquitetura e a publicação Windows exigiram correções posteriores, ainda sem execução completa confirmada no último HEAD.
+
+### Alcance real da autorização por Pessoa
+
+A chamada por `PessoaUuid` foi adicionada antes da projeção, com teste de política negando candidato. **A implementação `MunicipalAccessPolicyEngine` atual não discrimina por `PessoaUuid`**: aplica escopo e propriedade de recurso e considera a identidade Pessoa compartilhada no município. Assim, o teste de política simulada demonstra que o serviço respeita uma negativa, mas **não comprova restrição setorial em DEV**. Antes de permitir esta rota com dados pessoais reais, decidir explicitamente se nome/data/nome da mãe integram a identidade municipal compartilhável e comprovar a base de autorização; caso contrário, implementar filtro efetivo por pessoa/setor antes da resposta. A ausência de política corporativa mantém HML/Produção em deny-by-default.
