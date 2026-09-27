@@ -49,3 +49,7 @@ A rota captura `InvalidOperationException` do serviço (inclusive ausência de m
 ### Validação de tamanho dos campos
 
 Foram adicionados testes unitários para rejeitar `Nome` e `NomeMae` com 201 caracteres, conforme limite de 200 caracteres do serviço. Os testes exercitam o contrato do serviço e ainda dependem de execução do CI no HEAD. A integração da branch com `master` e a validação da política de visibilidade institucional permanecem bloqueios de merge.
+
+### Caracterização de exposição entre instituições
+
+O teste `Concrete_municipal_policy_exposes_same_candidate_to_two_authorized_resources` exercita o serviço com `MunicipalAccessPolicyEngine` real e dois contextos BENEFICIO, um SEHAB/AA01 e outro SMADS/BB02. A implementação atual retorna os mesmos atributos de candidato para ambos quando têm escopo e recurso autorizados, gerando `OpcaoId` distinto por consulta. O teste caracteriza um risco de exposição transversal, **não é aceite da regra de negócio nem prova de conformidade**. Antes de habilitar com dados reais, decidir se os atributos nominais da busca podem ser compartilhados entre esses órgãos e implementar a restrição de projeção, caso necessária. Não fazer merge apenas por esse teste passar.
