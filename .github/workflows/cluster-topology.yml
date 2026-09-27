@@ -170,8 +170,10 @@ jobs:
       - name: Prove synthetic Linkage reaches candidates and resolves matches
         shell: bash
         run: |
-          gestor="$(jq -er '.integrator.gestor' install/windows-production/Jornada.Cluster.Test.json)"
-          access_key="$(jq -er '.integrator.accessKey' install/windows-production/Jornada.Cluster.Test.json)"
+          # Chave DEV de monitoramento, não configuração da solução externa.
+          creds='[.credentials[] | select(.type=="GESTOR" and (.scopes | index("jornada.monitor.read")))] | .[0]'
+          gestor="$(jq -er "$creds | .gestorCodigo" config/security/test-access-keys.json)"
+          access_key="$(jq -er "$creds | .accessKey" config/security/test-access-keys.json)"
           snapshot="$(curl --fail --silent --show-error http://127.0.0.1:5080/api/v1/monitor/status -H "X-Jornada-Gestor: $gestor" -H "X-Jornada-Access-Key: $access_key")"
           evaluated="$(jq -er '.monitor.linkageRuns[0].evaluated' <<<"$snapshot")"
           resolved="$(jq -er '.monitor.linkageRuns[0].resolved' <<<"$snapshot")"
