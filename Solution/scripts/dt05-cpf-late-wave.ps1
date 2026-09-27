@@ -85,7 +85,7 @@ function Invoke-Dt05Runner([int]$wave, [long]$observationId) {
     $reason = "$marker-W$wave"
     Push-Location $Root
     try {
-        dotnet run --no-build --configuration Release --project src/Jornada.Linkage.Runner -- --mode ON_DEMAND --pessoa-observacao-id $observationId --max-records 1 --requested-by DT05_CPF_LATE_E2E --reason $reason --publish true
+        dotnet run --no-build --configuration Release --project src/Jornada.Linkage.Runner -- --mode ON_DEMAND --pessoa-observacao-id $observationId --max-records 1 --requested-by DT05_CPF_LATE_E2E --reason $reason --publish true | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "DT-05: Runner real falhou na onda $wave." }
     } finally { Pop-Location }
     $runId = Scalar "SELECT CONVERT(VARCHAR(36),linkage_run_id) FROM identidade.linkage_run WHERE solicitado_por=N'DT05_CPF_LATE_E2E' AND motivo=N'$reason' AND status=N'PUBLICADO';"
@@ -121,6 +121,10 @@ if ([int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_transicao_semantic
 $wave2 = Invoke-Dt05Runner 2 $observationId
 $raw2 = Scalar "SELECT CONCAT(status,N'|',resultado_publicacao,N'|',status_publicacao) FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave2.resultId);"
 if ($raw2 -ne $raw1) { throw "DT-05: ondas 1 e 2 divergiram antes da chegada do CPF: $raw1 / $raw2." }
+# Exigir igualdade dos DOZE campos da assinatura V1, não só dos três estados.
+$signatureFields = 'modelo_id,modelo_versao,status,motivo,resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,melhor_candidato_uuid,segundo_candidato_uuid,politica_publicacao_versao,pessoa_origem_id_publicado'
+$semanticDifference = [int](Scalar "SELECT COUNT_BIG(*) FROM (SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave1.resultId) EXCEPT SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave2.resultId)) AS diferencas;")
+if ($semanticDifference -ne 0) { throw 'DT-05: os doze campos da assinatura V1 mudaram indevidamente na onda 2.' }
 if ([int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_transicao_semantica WHERE pessoa_observacao_id=$observationId;") -ne 1) {
     throw 'DT-05: a onda 2 gerou transição apesar da assinatura idêntica.'
 }
