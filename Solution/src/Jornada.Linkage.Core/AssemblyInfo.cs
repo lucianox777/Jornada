@@ -5,3 +5,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("Jornada.Tests")]
 [assembly: InternalsVisibleTo("Jornada.Integration.Tests")]
 [assembly: InternalsVisibleTo("Jornada.Linkage.Conference")]
+[assembly: InternalsVisibleTo("Jornada.Linkage.Evaluation")]
