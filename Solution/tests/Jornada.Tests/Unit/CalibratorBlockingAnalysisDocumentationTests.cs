@@ -44,9 +44,9 @@ public sealed class CalibratorBlockingAnalysisDocumentationTests
             Assert.That(decision, Does.Contain("Distribuição demográfica da população"));
             Assert.That(decision, Does.Contain("Distribuição condicional de erros"));
             Assert.That(decision, Does.Contain("interseção de índices simples EAV"));
-            Assert.That(decision, Does.Contain("SOUZA` **não** substitui automaticamente `SOUSA"));
+            Assert.That(decision, Does.Contain("`SOUSA` **não** substitui automaticamente `SOUZA`"));
             Assert.That(decision, Does.Contain("5.3. Contrato de seleção de passes"));
-            Assert.That(decision, Does.Contain("sem falsa declaração de pessoa nova") || decision.Contains("não pode retornar `NOVA_IDENTIDADE`"));
+            Assert.That(decision, Does.Contain("não pode retornar `NOVA_IDENTIDADE`"));
             Assert.That(plan, Does.Contain("10.3. Critério de aceite do índice estatístico multivariado"));
             Assert.That(plan, Does.Contain("fonética, ortografia e aliases"));
             Assert.That(decision, Does.Contain("29 de fevereiro é registrável em cartório"));
