@@ -157,7 +157,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
         var candidates = await LoadCandidatesAsync(observation, snapshot, cancellationToken);
         var ranked = ProbabilisticLinkageDecisions.Rank(snapshot.Model, observation, candidates);
-        var byId = candidates.ToDictionary(candidate => candidate.PessoaUuid);
+        var byId = candidates.GroupBy(candidate => candidate.PessoaUuid)
+            .ToDictionary(group => group.Key, group => group.First());
         // O limite é aplicado APÓS o ranking interno; a apresentação neutra é feita na API.
         return ranked.Take(5).Select(score => byId[score.PessoaUuid])
             .Select(candidate => new SemiblindInternalCandidate(
