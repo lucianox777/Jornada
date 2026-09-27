@@ -52,6 +52,10 @@ public sealed class ModelGovernanceReadOnlyTests
         var incomplete = Measurements(ActiveId.ToString("N"));
         incomplete.Remove("DT15_BLOCKING_ACTIVE_RECALL");
         var incompleteResult = ModelGovernanceReadOnlyService.EvaluateEvidence(incomplete, Active());
+        var missingDenominator = Measurements(ActiveId.ToString("N"));
+        missingDenominator.Remove("DT15_BLOCKING_PAIR_M_WEIGHT");
+        var missingDenominatorResult = ModelGovernanceReadOnlyService.EvaluateEvidence(
+            missingDenominator, Active());
         Assert.Multiple(() =>
         {
             Assert.That(missingActive.Status, Is.EqualTo("NAO_COMPARAVEL"));
@@ -60,6 +64,8 @@ public sealed class ModelGovernanceReadOnlyTests
             Assert.That(missingActive.Delta, Is.Null);
             Assert.That(incompleteResult.Status, Is.EqualTo("INCOMPLETO"));
             Assert.That(incompleteResult.Delta, Is.Null);
+            Assert.That(missingDenominatorResult.Status, Is.EqualTo("INCOMPLETO"));
+            Assert.That(missingDenominatorResult.Delta, Is.Null);
             Assert.That(ModelGovernanceReadOnlyService.EvaluateEvidence(
                 new Dictionary<string, (decimal, string)>(), Active()).Status,
                 Is.EqualTo("AGUARDA_EVIDENCIA"));
