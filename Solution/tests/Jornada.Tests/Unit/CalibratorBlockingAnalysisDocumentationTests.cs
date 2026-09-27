@@ -11,15 +11,19 @@ public sealed class CalibratorBlockingAnalysisDocumentationTests
         var root = FindRepositoryRoot();
         var planPath = Path.Combine(root, "Solution", "docs", "Calibrador_Plano_Blocking_Analise.md");
         var readmePath = Path.Combine(root, "Solution", "docs", "README.md");
+        var decisionPath = Path.Combine(root, "Solution", "docs",
+            "Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md");
 
         Assert.Multiple(() =>
         {
             Assert.That(File.Exists(planPath), Is.True, "Plano analítico do Calibrador ausente.");
             Assert.That(File.Exists(readmePath), Is.True, "Índice de documentação técnica ausente.");
+            Assert.That(File.Exists(decisionPath), Is.True, "Decisão canônica de blocking complementar ausente.");
         });
 
         var plan = File.ReadAllText(planPath);
         var readme = File.ReadAllText(readmePath);
+        var decision = File.ReadAllText(decisionPath);
 
         Assert.Multiple(() =>
         {
@@ -30,10 +34,17 @@ public sealed class CalibratorBlockingAnalysisDocumentationTests
             Assert.That(plan, Does.Contain("TrueMatchRecall"));
             Assert.That(plan, Does.Contain("ReductionRatio"));
             Assert.That(plan, Does.Contain("contribuição marginal"));
-            Assert.That(plan, Does.Contain("P22 — sobrenome não materializado"));
+            Assert.That(plan, Does.Contain("P22 — fronteira estruturada e índice por presença"));
             Assert.That(plan, Does.Contain("limitação semântica deliberada / gate de fonte estruturada"));
-            Assert.That(plan, Does.Contain("não materializar sobrenome por inferência a partir de `nome_completo`"));
-            Assert.That(plan, Does.Contain("não podem receber frequência oficial de `Surname` do IBGE"));
+            Assert.That(plan, Does.Contain("não materializar **sobrenome semanticamente estruturado**"));
+            Assert.That(plan, Does.Contain("referência auxiliar"));
+            Assert.That(plan, Does.Contain("não podem receber diretamente"));
+            Assert.That(plan, Does.Contain("**complementares**"));
+            Assert.That(decision, Does.Contain("5.2. Planejador estatístico multivariado"));
+            Assert.That(decision, Does.Contain("Distribuição demográfica da população"));
+            Assert.That(decision, Does.Contain("Distribuição condicional de erros"));
+            Assert.That(decision, Does.Contain("interseção de índices simples EAV"));
+            Assert.That(decision, Does.Contain("29 de fevereiro só existe em ano bissexto"));
             Assert.That(plan, Does.Contain("não propõe valores numéricos"));
             Assert.That(plan, Does.Contain("qualquer promoção continua fail-closed"));
         });
