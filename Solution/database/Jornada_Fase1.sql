@@ -2190,6 +2190,26 @@ GO
 CREATE OR ALTER VIEW serving.v_bi_manutencao_bronze AS SELECT ciclo_id,iniciado_em,finalizado_em,DATEDIFF(SECOND,iniciado_em,finalizado_em) duracao_segundos,bucket_inicial,after_inicial,bucket_proximo,after_proximo,objetos_examinados,orfaos_removidos,temporarios_removidos,locks_nao_adquiridos,falhas_storage,orfao_mais_antigo_em FROM controle.bronze_manutencao_ciclo;
 GO
 
+CREATE OR ALTER VIEW serving.v_bi_vazao_ingestao AS
+WITH serie AS (
+  SELECT DATEADD(HOUR,DATEDIFF(HOUR,CONVERT(datetime2(0),'20000101'),CONVERT(datetime2(0),SWITCHOFFSET(ip.processado_em,'+00:00'))),CONVERT(datetime2(0),'20000101')) hora_utc,
+         SUM(CASE WHEN ip.classe_item='PESSOA' THEN CAST(1 AS BIGINT) ELSE 0 END) pessoas
+  FROM ingestao.item_processado ip
+  WHERE ip.consolidado_em IS NULL
+  GROUP BY DATEADD(HOUR,DATEDIFF(HOUR,CONVERT(datetime2(0),'20000101'),CONVERT(datetime2(0),SWITCHOFFSET(ip.processado_em,'+00:00'))),CONVERT(datetime2(0),'20000101'))
+  UNION ALL
+  SELECT processado_hora_utc,SUM(CASE WHEN classe_item='PESSOA' THEN quantidade ELSE 0 END)
+  FROM ingestao.item_processado_resumo
+  GROUP BY processado_hora_utc
+), agg AS (
+  SELECT hora_utc,SUM(pessoas) pessoas_processadas
+  FROM serie GROUP BY hora_utc
+)
+SELECT a.hora_utc,a.pessoas_processadas,
+       CAST(a.pessoas_processadas AS DECIMAL(18,2)) pessoas_por_hora
+FROM agg a;
+GO
+
 CREATE OR ALTER VIEW serving.v_bi_linkage AS
 SELECT po.pessoa_observacao_id,g.codigo gestor,so.codigo sistema_origem,po.source_as_of,vc.status,vc.metodo_resolucao,
        CASE WHEN vc.metodo_resolucao='LINKAGE_PROBABILISTICO' THEN vc.score END score,
