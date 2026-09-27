@@ -32,7 +32,7 @@ public sealed class Dt05SemanticTransitionContractTests
             Assert.That(published, Is.GreaterThan(ledger));
             Assert.That(migration, Does.Contain("CREATE OR ALTER PROCEDURE identidade.sp_registrar_transicoes_linkage_run"));
             Assert.That(migration, Does.Contain("OUTER APPLY"));
-            Assert.That(migration, Does.Contain("assinatura_anterior_sha256<>s.assinatura"));
+            Assert.That(migration, Does.Contain("anterior.assinatura_sha256<>s.assinatura"));
             Assert.That(migration, Does.Contain("UQ_linkage_transicao_resultado"));
             Assert.That(migration, Does.Not.Contain("DELETE FROM identidade.linkage_resultado"));
         });
