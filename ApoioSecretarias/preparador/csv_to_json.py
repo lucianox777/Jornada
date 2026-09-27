@@ -43,8 +43,12 @@ def convert(csv_file, mapping_file, schema_file):
                 person["cpf"] = re.sub(r"[.\- ]", "", person["cpf"])
                 if not re.fullmatch(r"\d{11}", person["cpf"]) or person.get("cpfAusenteMotivo"):
                     raise ValueError(f"Linha {number}: CPF ou motivo contraditório")
-            elif not person.get("cpfAusenteMotivo"):
-                raise ValueError(f"Linha {number}: falta motivo de ausência de CPF declarado")
+            else:
+                # O contrato Pessoa v4 distingue CPF explicitamente nulo de atributo ausente.
+                # Nunca inferir o motivo: o CSV deve declará-lo na coluna mapeada.
+                person["cpf"] = None
+                if not person.get("cpfAusenteMotivo"):
+                    raise ValueError(f"Linha {number}: falta motivo de ausência de CPF declarado")
             validator.validate(person)
             output.append(json.dumps(person, ensure_ascii=False, separators=(",", ":")))
     if not output:
