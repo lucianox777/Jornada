@@ -100,7 +100,7 @@ internal sealed class BronzeMaintenanceRepository(IOperationalSqlAdapter operati
         try
         {
             await using var command = connection.CreateCommand();
-            command.CommandText = "SELECT COUNT_BIG(*) FROM bronze.entrega_arquivo WHERE payload_sha256=@sha AND objeto_chave=@chave AND estado_armazenamento='DISPONIVEL';";
+            command.CommandText = "SELECT COUNT_BIG(*) FROM bronze.entrega_arquivo WHERE payload_sha256=@sha AND objeto_chave=@chave AND estado_armazenamento='DISPONIVEL';\n            SELECT COUNT_BIG(*) FROM identidade.linkage_bronze_pin WHERE payload_sha256=@sha AND objeto_chave=@chave;";
             command.Parameters.Add(new SqlParameter("@sha", SqlDbType.Char, 64) { Value = hash });
             command.Parameters.Add(new SqlParameter("@chave", SqlDbType.NVarChar, 1024) { Value = candidate.ObjectKey });
             var references = Convert.ToInt64(await command.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
