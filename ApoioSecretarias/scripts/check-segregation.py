@@ -6,6 +6,7 @@ DEV synthetic fixtures and historical documents are not production dependencies.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -86,6 +87,25 @@ def audit(root: Path) -> list[str]:
     support_paths = {entry["path"] for entry in support}
     if support_paths != EXPECTED_SUPPORT or len(support) != len(EXPECTED_SUPPORT):
         errors.append("Inventário do apoio perdeu a titularidade exata dos 7 contratos Pessoa e AA01")
+
+    # Contrato factual de apoio é cópia derivada byte a byte do schema canônico.
+    # O hash pinado não representa aprovação; detectar drift em ambos os lados.
+    index_path = root / "ApoioSecretarias/config/governance/factual-schema-sources.json"
+    try:
+        derived = json.loads(index_path.read_text(encoding="utf-8"))
+        entries = derived["contracts"]
+        if len(entries) != 1 or any(entry.get(k) != v for k, v in
+            {"natureza": "BENEFICIO", "codigoTipo": "AA01", "tipoVersao": 1}.items()
+            for entry in entries):
+            errors.append("Inventário factual do apoio tem tipo/versão inesperado")
+        for entry in entries:
+            expected = entry["sha256"]
+            for rel in ("ApoioSecretarias/" + entry["path"], entry["canonicalSource"]):
+                actual = hashlib.sha256((root / rel).read_bytes()).hexdigest()
+                if actual != expected:
+                    errors.append(f"Schema factual divergente: {rel}")
+    except (OSError, KeyError, ValueError, TypeError) as exc:
+        errors.append(f"Contrato factual de apoio indisponível/inválido: {exc}")
 
     source_projects = list((root / "Solution/src").rglob("*.csproj"))
     if not source_projects:

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "note": "Derivado da fonte canônica da Jornada; não é homologação nem aprovação institucional.",
+  "contracts": [
+    {
+      "natureza": "BENEFICIO",
+      "codigoTipo": "AA01",
+      "tipoVersao": 1,
+      "path": "config/contracts/registros/AA01/v1/registro.schema.json",
+      "canonicalSource": "Solution/config/contracts/registros/AA01/v1/registro.schema.json",
+      "sha256": "8fa7723753cb083a8be6dc1bf083f24dac41dddd55e731be00f113b4313e616d",
+      "status": "DERIVADO_SEM_APROVACAO"
+    }
+  ]
+}

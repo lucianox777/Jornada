@@ -131,5 +131,62 @@ class ManifestPreflightTests(unittest.TestCase):
         self.rejects("UTF-8")
 
 
+    def test_factual_records_preflight_and_hash_binding(self):
+        self.manifest()
+        self.args.registro_schema = ROOT / "config/contracts/registros/AA01/v1/registro.schema.json"
+        facts = self.work / "registros.jsonl"
+        valid = {"idPessoaEntrega": "P-001", "codigoRegistroOrigem": "SYN-AA01-001",
+                 "operacao": "INCLUSAO", "dataInicioConcessao": "2026-09-01",
+                 "situacaoVigencia": "VIGENTE", "valorConcedido": 12.5}
+        self.args.registros = facts
+
+        def write(*rows):
+            facts.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n"
+                                     for row in rows), encoding="utf-8")
+        write(valid)
+        built = preparar(self.args)
+        with zipfile.ZipFile(built) as archive:
+            self.assertEqual(json.loads(archive.read("registros.jsonl").splitlines()[0]), valid)
+
+        self.output = self.work / "rejected"
+        self.args.saida = self.output
+        self.args.registro_schema = None
+        self.rejects("--registro-schema")
+        self.args.registro_schema = ROOT / "config/contracts/registros/AA01/v1/registro.schema.json"
+
+        for row, expected in (
+            ({**valid, "valorConcedido": "R$ 12"}, "contrato factual"),
+            ({**valid, "codigoTipo": "OUTRO"}, "contrato factual"),
+            ({**valid, "idPessoaEntrega": "INEXISTENTE"}, "sem pessoa"),
+            ({**valid, "dataInicioConcessao": "2026-02-30"}, "contrato factual"),
+        ):
+            with self.subTest(row=row):
+                write(row)
+                self.rejects(expected)
+
+        self.manifest(tipoVersao=2)
+        write(valid)
+        self.rejects("contrato factual não reconhecido")
+        self.manifest()
+        self.args.registro_schema = self.work / "schema-adulterado.json"
+        self.args.registro_schema.write_bytes(
+            (ROOT / "config/contracts/registros/AA01/v1/registro.schema.json").read_bytes() + b" ")
+        self.rejects("fora do contrato versionado")
+        self.args.registro_schema = ROOT / "config/contracts/registros/AA01/v1/registro.schema.json"
+        facts.write_text('{"idPessoaEntrega":"P-001","idPessoaEntrega":"P-002"}\n', encoding="utf-8")
+        self.rejects("chave duplicada")
+        facts.write_text('{"idPessoaEntrega":"P-001","valorConcedido":NaN}\n', encoding="utf-8")
+        self.rejects("constante JSON inválida")
+        facts.write_bytes(b"\xff")
+        self.rejects("não é UTF-8")
+
+    def test_empty_facts_preserve_person_only_mode(self):
+        self.manifest()
+        self.args.registros = self.work / "empty.jsonl"
+        self.args.registros.write_bytes(b"")
+        self.args.registro_schema = None
+        self.assertTrue(preparar(self.args).is_file())
+
+
 if __name__ == "__main__":
     unittest.main()

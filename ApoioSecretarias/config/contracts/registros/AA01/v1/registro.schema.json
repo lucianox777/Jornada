@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "idPessoaEntrega",
+    "codigoRegistroOrigem",
+    "operacao",
+    "dataInicioConcessao",
+    "situacaoVigencia",
+    "valorConcedido"
+  ],
+  "properties": {
+    "codigoRegistroOrigem": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "operacao": {
+      "type": "string",
+      "enum": [
+        "INCLUSAO",
+        "ALTERACAO",
+        "RETIFICACAO",
+        "EXCLUSAO"
+      ]
+    },
+    "dataInicioConcessao": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "dataFimConcessao": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "dataEventoConcessao": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "situacaoVigencia": {
+      "type": "string",
+      "enum": [
+        "VIGENTE",
+        "SUSPENSA",
+        "ENCERRADA"
+      ]
+    },
+    "situacaoVigenciaDesde": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "motivoEncerramento": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "TERMINO_REGULAR",
+        "CANCELAMENTO",
+        "CESSACAO",
+        null
+      ]
+    },
+    "valorConcedido": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "idPessoaEntrega": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "Referência obrigatória à idPessoaEntrega de uma linha de pessoas.jsonl na mesma Entrega."
+    }
+  },
+  "$id": "https://jornada.pmspsp.local/contracts/registros/AA01/v1/registro.schema.json",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "situacaoVigencia": {
+            "const": "ENCERRADA"
+          }
+        },
+        "required": [
+          "situacaoVigencia"
+        ]
+      },
+      "then": {
+        "required": [
+          "motivoEncerramento"
+        ],
+        "properties": {
+          "motivoEncerramento": {
+            "type": "string",
+            "enum": [
+              "TERMINO_REGULAR",
+              "CANCELAMENTO",
+              "CESSACAO"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "motivoEncerramento": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}
