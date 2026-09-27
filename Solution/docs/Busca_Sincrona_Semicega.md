@@ -53,3 +53,7 @@ Foram adicionados testes unitários para rejeitar `Nome` e `NomeMae` com 201 car
 ### Caracterização de exposição entre instituições
 
 O teste `Concrete_municipal_policy_exposes_same_candidate_to_two_authorized_resources` exercita o serviço com `MunicipalAccessPolicyEngine` real e dois contextos BENEFICIO, um SEHAB/AA01 e outro SMADS/BB02. A implementação atual retorna os mesmos atributos de candidato para ambos quando têm escopo e recurso autorizados, gerando `OpcaoId` distinto por consulta. O teste caracteriza um risco de exposição transversal, **não é aceite da regra de negócio nem prova de conformidade**. Antes de habilitar com dados reais, decidir se os atributos nominais da busca podem ser compartilhados entre esses órgãos e implementar a restrição de projeção, caso necessária. Não fazer merge apenas por esse teste passar.
+
+### Deduplicação defensiva das opções
+
+O serviço mantém um conjunto de `PessoaUuid` já vistos e ignora observações repetidas da mesma pessoa antes da autorização e projeção. O teste `Duplicate_person_is_returned_only_once` caracteriza o limite mesmo quando o retriever devolve duplicatas. A deduplicação não substitui a seleção governada nem a política de visibilidade institucional; execução do teste no CI ainda pendente.
