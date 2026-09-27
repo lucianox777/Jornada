@@ -195,6 +195,19 @@ public sealed class LinkageModelGovernanceLedgerTests
             Assert.That(monitor.LinkageModelTransitions.Any(x =>
                 x.ModelId == modelId && x.Operation == "ACTIVATE" && x.NewStatus == "ATIVO"), Is.True);
         });
+
+        var masterPreview = await new ModelGovernanceReadOnlyService(
+            new OperationalSqlAdapter(connectionString)).GetAsync(CancellationToken.None);
+        Assert.Multiple(() =>
+        {
+            Assert.That(masterPreview.MethodVersion, Is.EqualTo("DT15_MASTER_READONLY_DEV_V1"));
+            Assert.That(masterPreview.Actions, Does.Contain("NAO_HABILITADAS"));
+            Assert.That(masterPreview.Active!.ModelId, Is.EqualTo(modelId));
+            Assert.That(masterPreview.Active.Version, Is.EqualTo(version));
+            Assert.That(masterPreview.Active.Passes.Select(p => p.PassId), Does.Contain("P001"));
+            Assert.That(masterPreview.RecentHistory.Any(x =>
+                x.ModelVersion == version && x.Operation == "ACTIVATE"), Is.True);
+        });
     }
 
     private static async Task PrepareAsync(string connectionString)
