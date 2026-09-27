@@ -84,6 +84,8 @@ public sealed class DeliveryBronzeRetentionWorker(
             WHERE b.estado_armazenamento IN('DISPONIVEL','EXPURGO_PENDENTE')
               AND e.status IN('PROCESSADA','REJEITADA')
               AND e.recebido_em<@cutoff
+              AND NOT EXISTS (SELECT 1 FROM identidade.linkage_bronze_pin p
+                              WHERE p.payload_sha256=b.payload_sha256 AND p.objeto_chave=b.objeto_chave)
             ORDER BY e.recebido_em,b.entrega_id;
             """;
         command.Parameters.AddWithValue("@max", maxRows);
@@ -119,7 +121,9 @@ public sealed class DeliveryBronzeRetentionWorker(
                     WHERE b.entrega_id=@entrega
                       AND b.estado_armazenamento IN('DISPONIVEL','EXPURGO_PENDENTE')
                       AND e.status IN('PROCESSADA','REJEITADA')
-                      AND e.recebido_em<@cutoff;
+                      AND e.recebido_em<@cutoff
+                      AND NOT EXISTS (SELECT 1 FROM identidade.linkage_bronze_pin p WITH(HOLDLOCK)
+                                      WHERE p.payload_sha256=b.payload_sha256 AND p.objeto_chave=b.objeto_chave);
                     SELECT @@ROWCOUNT;
                     """;
                 mark.Parameters.AddWithValue("@entrega", candidate.EntregaId);
@@ -132,10 +136,17 @@ public sealed class DeliveryBronzeRetentionWorker(
             long liveReferences;
             await using (var count = connection.CreateCommand())
             {
-                count.CommandText = "SELECT COUNT_BIG(*) FROM bronze.entrega_arquivo WHERE payload_sha256=@sha AND objeto_chave=@chave AND estado_armazenamento='DISPONIVEL';";
+                count.CommandText = "SELECT COUNT_BIG(*) FROM bronze.entrega_arquivo WHERE payload_sha256=@sha AND objeto_chave=@chave AND estado_armazenamento='DISPONIVEL';
+                    SELECT COUNT_BIG(*) FROM identidade.linkage_bronze_pin WHERE payload_sha256=@sha AND objeto_chave=@chave;";
                 count.Parameters.Add(new SqlParameter("@sha", SqlDbType.Char, 64) { Value = candidate.Sha256 });
                 count.Parameters.Add(new SqlParameter("@chave", SqlDbType.NVarChar, 1024) { Value = candidate.ObjectKey });
-                liveReferences = Convert.ToInt64(await count.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
+                await using var reader = await count.ExecuteReaderAsync(ct);
+                if (!await reader.ReadAsync(ct)) throw new InvalidOperationException("Contagem Bronze ausente.");
+                liveReferences = reader.GetInt64(0);
+                if (!await reader.NextResultAsync(ct) || !await reader.ReadAsync(ct))
+                    throw new InvalidOperationException("Contagem de pins DT-05 ausente.");
+                liveReferences += reader.GetInt64(0);
+                await reader.CloseAsync();
             }
 
             var objectDeleted = false;
