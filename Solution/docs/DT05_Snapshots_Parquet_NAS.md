@@ -104,3 +104,8 @@ O teste de integração `Dt05PublicationGuardsSqlServerTests` exercita a procedu
 ## Guarda adicional — run existente em PREPARANDO
 
 A regressão de publicação passa a criar, em transação isolada, um run real em `PREPARANDO` e exigir erro `51941` da procedure de ledger, além dos cenários sem transação e run inexistente já integrados no PR #529. Isso distingue a validação de estado de uma mera validação de existência. O teste depende de SQL Server configurado no CI; não substitui o ensaio de CPF tardio real ou o replay NAS.
+
+
+## Gate operacional incremental — Runner real
+
+`scripts/dt05-runner-e2e.ps1` é um smoke gate independente para um banco DEV isolado já preparado com modelo ATIVO, carga inicial desativada, Silver e referências disponíveis. Requer `ConnectionString`, `SqlcmdServer`, `SqlcmdDatabase`, `SqlcmdUser`, `SQLCMDPASSWORD` no ambiente e `sqlcmd` no PATH. Executa `Jornada.Linkage.Runner --mode ON_DEMAND --publish true`, identifica o run por marcador único e exige `PUBLICADO` e resultados brutos. Não redefine nem apaga o banco; **não é** ensaio de CPF tardio, ledger de múltiplas ondas ou replay NAS. CI sem SQL Server não comprova sua execução.
