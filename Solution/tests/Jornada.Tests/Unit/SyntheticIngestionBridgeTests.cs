@@ -290,7 +290,7 @@ public sealed class SyntheticIngestionBridgeTests
         var root = FindRepositoryRoot();
         var schema = Path.Combine(
             root,
-            "Solution",
+            gestor == "SEHAB" ? "ApoioSecretarias" : "Solution",
             "config",
             "contracts",
             "gestores",
