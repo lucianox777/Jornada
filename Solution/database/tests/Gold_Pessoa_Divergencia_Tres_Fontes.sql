@@ -4,21 +4,31 @@
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 DECLARE @uuid UNIQUEIDENTIFIER=NEWID(), @lote UNIQUEIDENTIFIER;
-DECLARE @gestores TABLE (n INT PRIMARY KEY, gestor_id BIGINT NOT NULL);
-INSERT @gestores(n,gestor_id)
-SELECT ROW_NUMBER() OVER(ORDER BY gestor_id),gestor_id
-FROM (SELECT TOP(3) gestor_id FROM ref.gestor ORDER BY gestor_id) g;
+DECLARE @gestores TABLE (n INT PRIMARY KEY, gestor_id BIGINT NOT NULL, sistema_origem_id BIGINT NOT NULL, base_pessoa_origem_id BIGINT NOT NULL);
+INSERT @gestores(n,gestor_id,sistema_origem_id,base_pessoa_origem_id)
+SELECT ROW_NUMBER() OVER(ORDER BY gestor_id),gestor_id,sistema_origem_id,base_pessoa_origem_id
+FROM (SELECT TOP(3) s.gestor_id,MIN(s.sistema_origem_id) AS sistema_origem_id,MIN(o.base_pessoa_origem_id) AS base_pessoa_origem_id
+      FROM ref.sistema_origem s
+      JOIN silver.pessoa_origem o ON o.sistema_origem_id=s.sistema_origem_id
+      WHERE o.base_pessoa_origem_id IS NOT NULL
+      GROUP BY s.gestor_id
+      ORDER BY s.gestor_id) g;
 SELECT TOP(1) @lote=lote_id FROM ingestao.lote ORDER BY criado_em;
 IF (SELECT COUNT(*) FROM @gestores)<>3 OR @lote IS NULL
- THROW 51000,'Fixture exige tres gestores e um lote no banco descartavel.',1;
+ THROW 51000,'Fixture exige tres origens de gestores distintos e um lote no banco descartavel.',1;
 DECLARE @obs TABLE(n INT PRIMARY KEY, pessoa_observacao_id BIGINT NOT NULL);
 BEGIN TRY
  BEGIN TRANSACTION;
  INSERT identidade.pessoa(pessoa_uuid,status) VALUES(@uuid,'ATIVO');
- DECLARE @n INT=1,@gestor BIGINT,@id BIGINT;
+ DECLARE @n INT=1,@gestor BIGINT,@id BIGINT,@sistema BIGINT,@base BIGINT,@origem BIGINT;
+ DECLARE @code NVARCHAR(255);
  WHILE @n<=3
  BEGIN
-   SELECT @gestor=gestor_id FROM @gestores WHERE n=@n;
+   SELECT @gestor=gestor_id,@sistema=sistema_origem_id,@base=base_pessoa_origem_id FROM @gestores WHERE n=@n;
+   SET @code=CONCAT(N'GOLD-DIVERGENCIA-',CONVERT(NVARCHAR(36),@uuid),N'-',@n);
+   INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id)
+   VALUES(@sistema,@code,@base);
+   SET @origem=CONVERT(BIGINT,SCOPE_IDENTITY());
    DECLARE @inserted TABLE (pessoa_observacao_id BIGINT);
    DELETE FROM @inserted;
    INSERT silver.pessoa_observacao(
@@ -26,7 +36,7 @@ BEGIN TRY
       versao_interna,conteudo_hash,cpf,cpf_ausente_motivo,
       nome_completo,nome_cmp,data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
    OUTPUT INSERTED.pessoa_observacao_id INTO @inserted
-   VALUES(NULL,@lote,@gestor,NULL,1,REPLICATE(CONVERT(VARCHAR(1),@n),64),
+   VALUES(@origem,@lote,@gestor,@code,1,REPLICATE(CONVERT(VARCHAR(1),@n),64),
       NULL,'SEM_CPF',
       CASE @n WHEN 1 THEN N'ANA SILVA' WHEN 2 THEN N'ANA SOUZA' ELSE N'ANA COSTA' END,
       CASE @n WHEN 1 THEN N'ANA SILVA' WHEN 2 THEN N'ANA SOUZA' ELSE N'ANA COSTA' END,
