@@ -48,6 +48,9 @@ if (args.Length == 4 && args[0] == "--export-splink-ibge-disagreements")
     var outputPath = Path.GetFullPath(args[3]);
     Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
     await File.WriteAllTextAsync(outputPath, csv, new System.Text.UTF8Encoding(false));
+    await File.WriteAllTextAsync(outputPath + ".sha256",
+        SplinkIbgeReplayContract.Sha(csv) + "  " + Path.GetFileName(outputPath) +
+        Environment.NewLine, new System.Text.UTF8Encoding(false));
     Console.WriteLine("Divergências sintéticas IBGE × Splink exportadas: " +
         (csv.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length - 1) +
         ". Diagnóstico apenas; não altera o modelo.");
