@@ -247,7 +247,7 @@ public static class FellegiSunterScoring
     private static double Get(IReadOnlyDictionary<string, double> parameters, string name) =>
         parameters.TryGetValue(name, out var value) ? value : throw new InvalidOperationException($"Parâmetro de linkage ausente: {name}");
 
-    private static double ClampProbability(decimal value) => Math.Clamp(value, 0.000000001d, 0.999999999d);
+    private static double ClampProbability(double value) => Math.Clamp(value, 0.000000001d, 0.999999999d);
 
     private static double Logit(double probability)
     {
