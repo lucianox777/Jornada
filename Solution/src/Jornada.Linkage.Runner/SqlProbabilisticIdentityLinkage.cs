@@ -60,7 +60,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
     IConfiguration configuration,
     IOperationalSqlAdapter operationalSql,
     ILogger<SqlProbabilisticIdentityLinkage> logger,
-    LinkageRunOptions? runOptions = null) : IProbabilisticIdentityLinkage
+    LinkageRunOptions? runOptions = null) : IProbabilisticIdentityLinkage, ISemiblindCandidateRetriever
 {
     private readonly ConcurrentDictionary<Guid, LinkageRuntimeSnapshot> runtimeCache = new();
 
@@ -133,6 +133,37 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
         var candidates = await LoadCandidatesAsync(observation, snapshot, ct);
         return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
+    }
+
+    /// <summary>Consulta síncrona sem publicação; usa exatamente o snapshot, blocking e ranking do Runner.</summary>
+    public async Task<IReadOnlyList<SemiblindInternalCandidate>> RetrieveAsync(
+        SemiblindIdentitySearchRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (string.IsNullOrWhiteSpace(request.Nome))
+            throw new ArgumentException("Nome obrigatório.", nameof(request));
+
+        var active = await GetActiveModelAsync(ct);
+        var snapshot = await GetOrLoadRuntimeSnapshotAsync(active.ModelId, ct);
+        var observation = new IdentityObservation(null, null, request.Nome.Trim(),
+            request.DataNascimento, request.NomeMae?.Trim());
+
+        // Ausência de nascimento só permite busca se o ruleset ativo oferecer passe elegível.
+        if (snapshot.RuleSet is { } rules
+            && BlockingRuleSetCandidatePlanner.Plan(rules, observation).Count == 0)
+            return Array.Empty<SemiblindInternalCandidate>();
+        if (snapshot.RuleSet is null && observation.DataNascimento is null)
+            return Array.Empty<SemiblindInternalCandidate>();
+
+        var candidates = await LoadCandidatesAsync(observation, snapshot, ct);
+        var ranked = ProbabilisticLinkageDecisions.Rank(snapshot.Model, observation, candidates);
+        var byId = candidates.ToDictionary(candidate => candidate.PessoaUuid);
+        // O limite é aplicado APÓS o ranking interno; a apresentação neutra é feita na API.
+        return ranked.Take(5).Select(score => byId[score.PessoaUuid])
+            .Select(candidate => new SemiblindInternalCandidate(
+                candidate.PessoaUuid, candidate.NomeCompleto,
+                candidate.DataNascimento, candidate.NomeMae))
+            .ToArray();
     }
 
     private static ProbabilisticLinkageDecision InsufficientEvidence(Guid modelId) =>
