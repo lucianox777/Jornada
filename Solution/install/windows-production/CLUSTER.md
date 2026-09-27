@@ -34,13 +34,13 @@ A convenção operacional é executar as rotinas manuais no NODE2, embora o mesm
 
 ### Ordem Calibrador → Linkage
 
-`Invoke-JornadaLinkageCalibration.ps1` executa, na mesma operação governada:
+`Invoke-JornadaLinkageCalibration.ps1` executa somente a fase de preparo:
 
 ```text
-GENERATE_DRAFT → CONFERENCIA → VALIDATE → ACTIVATE
+GENERATE_DRAFT → CONFERENCIA → RASCUNHO (sem promoção)
 ```
 
-O wrapper só termina com sucesso quando a nova versão fica `ATIVO`. `CONFERENCIA` usa `config\linkage\implementation-conference-tolerance.json`; com o arquivo técnico `FROZEN` em `V1_2026-09-26`, a rotina ainda falha fechado sem evidência de conferência `CONFORME`. `VALIDATE` e `ACTIVATE` reaplicam o mesmo assert SQL de conferência e a verificação compartilhada do orçamento FP.
+O wrapper termina com sucesso **somente com o RASCUNHO conferido e o ATIVO-base inalterado**, sem chamar `VALIDATE` nem `ACTIVATE`. `CONFERENCIA` usa `config\linkage\implementation-conference-tolerance.json` (`FROZEN`, `V1_2026-09-26`). Os dois comandos de promoção ainda aplicam o assert SQL de conferência e orçamento FP, mas as invocações diretas do Worker **ainda não têm o gate de aprovação individual DT-15**; não tratá-los como fluxo master homologado. A [DT-15](../../docs/DT15_Governanca_Decisao_Modelo.md) prevê a página separada, o dossiê pareado completo e o ledger decisório.
 
 `Invoke-JornadaLinkageRun.ps1` faz preflight no SQL e só inicia o Runner quando existe **exatamente um** `identidade.modelo_linkage` em `ATIVO`. O próprio runtime do Linkage já rejeita ausência de modelo ativo; o wrapper torna essa pré-condição explícita antes de iniciar a execução manual.
 

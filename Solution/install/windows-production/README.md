@@ -24,7 +24,7 @@ Docker é opcional na produção Windows. O `docker-compose.yml` da Solution é 
 - `Install-JornadaCluster.ps1` — adapta o mesmo bundle a NODE1/NODE2 e aos caminhos compartilhados/locais;
 - `Build-WindowsProductionBundle.ps1` — publica executáveis, ferramentas, configuração e DDL;
 - `Invoke-JornadaComponent.ps1` — runner dos processos residentes registrados no Agendador;
-- `Invoke-JornadaLinkageCalibration.ps1` — calibração manual `GENERATE_DRAFT -> CONFERENCIA -> VALIDATE -> ACTIVATE`, fail-closed na tolerância governada;
+- `Invoke-JornadaLinkageCalibration.ps1` — geração manual segura `GENERATE_DRAFT -> CONFERENCIA -> RASCUNHO`; **não** valida nem ativa automaticamente (DT-15), preservando o modelo ATIVO-base;
 - `Invoke-JornadaLinkageRun.ps1` — Linkage manual com preflight de modelo ativo;
 - `Jornada.Cluster.Production.example.json` — configuração cluster de produção sem segredo real;
 - `Jornada.Cluster.Test.json` — mesmo schema para o harness local.
@@ -94,7 +94,7 @@ C:\Program Files\Jornada\tools\Jornada.Linkage.Evaluation\Jornada.Linkage.Evalua
 
 A convenção operacional é executar no NODE2, mas o bundle é igual nos dois nós.
 
-Calibrar/promover modelo:
+Gerar RASCUNHO e registrar conferência técnica (sem promover modelo):
 
 ```powershell
 cd 'C:\Program Files\Jornada'
@@ -109,7 +109,7 @@ Executar Linkage:
 
 O segundo comando recusa iniciar se o banco não tiver exatamente um modelo `ATIVO`. Isso complementa a própria proteção interna do Runner, que já exige modelo ativo.
 
-`Jornada.Linkage.Evaluation` é ferramenta DEV/HML somente-leitura; não é um daemon e não publica identidade. `Jornada.Linkage.Conference` é execução governada separada que compara Core × Evaluation e grava somente evidência agregada. O wrapper de calibração sempre a executa antes de `VALIDATE`; com a configuração técnica `FROZEN` em `V1_2026-09-26` (LLR 0,01), a promoção exige conferência efetiva `CONFORME`, fingerprint inalterado e budgets FP persistidos dentro dos limites. O congelamento do número não autoriza HML/Produção por si só.
+`Jornada.Linkage.Evaluation` é ferramenta DEV/HML somente-leitura; não é um daemon e não publica identidade. `Jornada.Linkage.Conference` é execução governada separada que compara Core × Evaluation e grava somente evidência agregada. O wrapper de calibração a executa **depois de `GENERATE_DRAFT` e antes de encerrar no RASCUNHO**, sem invocar `VALIDATE` ou `ACTIVATE`. Com a configuração técnica `FROZEN` em `V1_2026-09-26` (LLR 0,01), os comandos de promoção ainda exigem conferência efetiva `CONFORME`, fingerprint inalterado e budgets FP persistidos dentro dos limites. **Aprovação humana vinculada, dossiê FS completo e página master da DT-15 continuam pendentes**; as invocações diretas do Worker ainda precisam de gate próprio. O congelamento do número não autoriza HML/Produção por si só.
 
 ## SQL Server
 

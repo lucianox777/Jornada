@@ -64,6 +64,17 @@ if ($activeReference -ne 1) { throw "Calibração exige exatamente uma referênc
 # nas proximas calibracoes apenas verifica a chave e reutiliza os estados.
 Invoke-Parameters 'ENSURE_IBGE_NOMINAL_U_REFERENCE'
 
+# DT-15: a geração não autoriza promoção. Congelar a identidade do ATIVO-base
+# para avisar ao operador quando outra calibração/promocao alterar a base.
+$activeBeforeCount = [int](Invoke-Scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status='ATIVO';")
+if ($activeBeforeCount -gt 1) { throw "DT-15: múltiplos modelos ATIVOS antes da geração; revisão interrompida." }
+$activeBeforeId = if ($activeBeforeCount -eq 1) {
+    [string](Invoke-Scalar "SELECT CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status='ATIVO';")
+} else { '' }
+$activeBeforeVersion = if ($activeBeforeCount -eq 1) {
+    [string](Invoke-Scalar "SELECT CONVERT(varchar(20),versao) FROM identidade.modelo_linkage WHERE status='ATIVO';")
+} else { 'SEM_ATIVO' }
+
 $before = [int](Invoke-Scalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;")
 Invoke-Parameters 'GENERATE_DRAFT'
 
@@ -82,10 +93,21 @@ if ($LASTEXITCODE -ne 0) {
     throw "Linkage Conference bloqueou a promoção. ExitCode=$LASTEXITCODE. Verifique a tolerância governada e a evidência CONFORME."
 }
 
-Invoke-Parameters 'VALIDATE' $version
-Invoke-Parameters 'ACTIVATE' $version
-
-$active = [int](Invoke-Scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao=$version AND status='ATIVO';")
-if ($active -ne 1) { throw "Modelo v$version não ficou ATIVO ao fim da calibração." }
-
-Write-Host "CALIBRAÇÃO CONCLUÍDA: modelo v$version ATIVO. O Linkage Runner está liberado."
+# A conferência técnica é evidência do modelo, NÃO a decisão do operador master.
+# Nenhuma opção deste wrapper executa VALIDATE ou ACTIVATE até que os gates
+# verificáveis de aprovação humana, o dossiê pareado e a página master existam.
+$activeAfterCount = [int](Invoke-Scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status='ATIVO';")
+$activeAfterId = if ($activeAfterCount -eq 1) {
+    [string](Invoke-Scalar "SELECT CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status='ATIVO';")
+} else { '' }
+if ($activeAfterCount -ne $activeBeforeCount -or $activeAfterId -ne $activeBeforeId) {
+    throw "DT-15: o modelo ATIVO mudou durante a geração/conferência. RASCUNHO v$version preservado; revisão da base obrigatória."
+}
+if ([int](Invoke-Scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE modelo_id='$modelId' AND status='RASCUNHO';") -ne 1) {
+    throw "DT-15: RASCUNHO v$version mudou de estado durante a conferência; nenhuma promoção será realizada pelo wrapper."
+}
+Write-Host "DT-15: modelo RASCUNHO v$version / $modelId preparado e conferido."
+Write-Host "Modelo ATIVO-base: v$activeBeforeVersion / $(if ($activeBeforeId) { $activeBeforeId } else { 'SEM_ATIVO' })."
+Write-Host "VALIDATE e ACTIVATE NÃO foram executados; o ATIVO permanece inalterado."
+Write-Host "Próxima etapa: obter comparação pareada e decisão verificável do operador master (DT-15)."
+Write-Host "A aprovação institucional e os gates do Parameters Worker também devem proteger invocações diretas."

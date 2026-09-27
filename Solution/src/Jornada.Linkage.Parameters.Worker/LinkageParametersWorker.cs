@@ -190,6 +190,21 @@ public sealed class LinkageParametersWorker(
             var blockingObservations = BlockingFeatureObservationFactory.Create(matchedPairs, unmatchedCandidatePairs);
             var blocking = BlockingRuleSetSearch.SearchBest(blockingObservations, BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates, blockingSearchOptions);
 
+            // DT-15 etapa 1: comparação parcial sobre o MESMO conjunto de treino.
+            // Não é dossiê completo, validação estatística nem autorização de promoção.
+            var activeBlocking = await Dt15ActiveBlockingReader.ReadAsync(connection, workCt);
+            var dt15Comparison = Dt15BlockingPairDiagnostic.Compare(
+                blockingObservations, blocking.Passes, activeBlocking,
+                algorithmVersion, normalizationVersion);
+            logger.LogInformation(
+                "DT-15 blocking pareado de treino: estado={Status}; ATIVO-base=v{BaseVersion}; " +
+                "recall_ativo={ActiveRecall}; recall_rascunho={DraftRecall}; " +
+                "reducao_ativo={ActiveReduction}; reducao_rascunho={DraftReduction}. " +
+                "Sem replay FS, custos SQL ou autorização de promoção.",
+                dt15Comparison.Status, dt15Comparison.ActiveModelVersion,
+                dt15Comparison.Active?.TrueMatchRecall, dt15Comparison.Draft.TrueMatchRecall,
+                dt15Comparison.Active?.ReductionRatio, dt15Comparison.Draft.ReductionRatio);
+
             // O prior operacional V6 é um escalar global. Antes de substituí-lo, medimos diretamente
             // P(match | par candidato) usando observações resolvidas por CPF como rótulo, mas removendo
             // CPF da geração de candidatos e aplicando o mesmo ruleset vencedor/projeção do Runner.
@@ -284,7 +299,7 @@ public sealed class LinkageParametersWorker(
             var ruleSet = LinkageDynamicRuleSet.CreateWithPasses($"MODEL_{version}_BLOCKING_V1", algorithmVersion, blocking.Passes, persistedParameters);
             await PublishDraftModelAsync(
                 connection, modelId, corpusCapturedAtUtc, statistics, matchedPairs, unmatchedPairs.Count,
-                persistedParameters, ruleSet, ibgeReference, workCt);
+                persistedParameters, ruleSet, ibgeReference, dt15Comparison, workCt);
 
             logger.LogInformation(
                 "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; u_nome_blocking={UNameBlocking}; u_mae_blocking={UMotherBlocking}; abbrev_m_nome={AbbrevMName}; abbrev_u_ref_nome={AbbrevUName}; prior_ativo={ActivePrior}; prior_candidato_par={CandidatePairPrior}; prior_pares={CandidatePairs}; prior_recall={CandidateRecall}; T_calibrado={Threshold}; piso_segundo_candidato={ConflictFloor}; margem_logodds_calibrada={ConflictMargin}; pareto={ParetoCount}; val_fp={ValidationFp}; test_fp={TestFp}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
@@ -637,11 +652,31 @@ public sealed class LinkageParametersWorker(
         IReadOnlyDictionary<string, decimal> parameters,
         LinkageDynamicRuleSet ruleSet,
         IbgeNominalUReferenceInfo ibgeReference,
+        Dt15BlockingPairDiagnosticResult dt15Comparison,
         CancellationToken cancellationToken)
     {
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
         try
         {
+            // A base ATIVA não pode mudar entre a comparação e a publicação
+            // do RASCUNHO. O lock cobre inclusive a ausência de ATIVO inicial.
+            await using (var guard = new SqlCommand("""
+                SELECT modelo_id
+                  FROM identidade.modelo_linkage WITH (UPDLOCK,HOLDLOCK)
+                 WHERE status=N'ATIVO';
+                """, connection, transaction))
+            await using (var reader = await guard.ExecuteReaderAsync(cancellationToken))
+            {
+                Guid? currentActive = null;
+                if (await reader.ReadAsync(cancellationToken))
+                    currentActive = reader.GetGuid(0);
+                if (await reader.ReadAsync(cancellationToken)
+                    || currentActive != dt15Comparison.ActiveModelId)
+                    throw new InvalidOperationException(
+                        "DT-15: modelo ATIVO mudou durante a comparação; " +
+                        "RASCUNHO não será publicado com base histórica incorreta.");
+            }
+
             foreach (var (name, value) in parameters)
             {
                 var command = new SqlCommand("INSERT identidade.parametro_linkage(modelo_id,nome,valor) VALUES(@modelo_id,@nome,@valor);", connection, transaction);
@@ -667,6 +702,46 @@ public sealed class LinkageParametersWorker(
                 var valueParameter = command.Parameters.Add("@valor", SqlDbType.Decimal); valueParameter.Precision = 30; valueParameter.Scale = 6; valueParameter.Value = row.Value;
                 command.Parameters.Add("@metodo", SqlDbType.NVarChar, 80).Value = row.Method;
                 await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            // Estatísticas agregadas de comparação PARCIAL. O método inclui o
+            // identificador do ATIVO-base (não é identidade de cidadão).
+            // Incomparável != delta zero: não persistir métricas de baseline
+            // nem diferenças se o ruleset anterior não for elegível.
+            var dt15Method = Dt15BlockingPairDiagnostic.MethodVersion + ":" +
+                (dt15Comparison.ActiveModelId?.ToString("N") ?? "SEM_ATIVO");
+            var dt15Rows = new List<(string Name, decimal Value)>
+            {
+                ("DT15_BLOCKING_PAIR_COMPARABLE", dt15Comparison.IsComparable ? 1m : 0m),
+                ("DT15_BLOCKING_PAIR_STATUS_CODE", dt15Comparison.StatusCode),
+                ("DT15_BLOCKING_PAIR_M_WEIGHT", dt15Comparison.MatchedPairWeight),
+                ("DT15_BLOCKING_PAIR_U_WEIGHT", dt15Comparison.NonMatchedPairWeight),
+                ("DT15_BLOCKING_DRAFT_RECALL", Convert.ToDecimal(dt15Comparison.Draft.TrueMatchRecall)),
+                ("DT15_BLOCKING_DRAFT_REDUCTION", Convert.ToDecimal(dt15Comparison.Draft.ReductionRatio)),
+                ("DT15_BLOCKING_DRAFT_M_COVERAGE", Convert.ToDecimal(dt15Comparison.Draft.CompleteMatchCoverage))
+            };
+            if (dt15Comparison.ActiveModelVersion is int activeVersion)
+                dt15Rows.Add(("DT15_BLOCKING_BASE_VERSION", activeVersion));
+            if (dt15Comparison.Active is { } activeDiagnostic)
+            {
+                dt15Rows.Add(("DT15_BLOCKING_ACTIVE_RECALL", Convert.ToDecimal(activeDiagnostic.TrueMatchRecall)));
+                dt15Rows.Add(("DT15_BLOCKING_ACTIVE_REDUCTION", Convert.ToDecimal(activeDiagnostic.ReductionRatio)));
+                dt15Rows.Add(("DT15_BLOCKING_RECALL_DELTA", Convert.ToDecimal(dt15Comparison.RecallDelta!.Value)));
+                dt15Rows.Add(("DT15_BLOCKING_REDUCTION_DELTA", Convert.ToDecimal(dt15Comparison.ReductionDelta!.Value)));
+                dt15Rows.Add(("DT15_BLOCKING_ACTIVE_M_COVERAGE", Convert.ToDecimal(activeDiagnostic.CompleteMatchCoverage)));
+            }
+            foreach (var (name, value) in dt15Rows)
+            {
+                await using var evidence = new SqlCommand("""
+                    INSERT identidade.estatistica_linkage(modelo_id,nome,valor,metodo)
+                    VALUES(@model_id,@name,@value,@method);
+                    """, connection, transaction);
+                evidence.Parameters.Add("@model_id", SqlDbType.UniqueIdentifier).Value = modelId;
+                evidence.Parameters.Add("@name", SqlDbType.NVarChar, 100).Value = name;
+                var metric = evidence.Parameters.Add("@value", SqlDbType.Decimal);
+                metric.Precision = 30; metric.Scale = 6; metric.Value = Math.Round(value, 6);
+                evidence.Parameters.Add("@method", SqlDbType.NVarChar, 80).Value = dt15Method;
+                await evidence.ExecuteNonQueryAsync(cancellationToken);
             }
 
             var gestorPairDistribution = matchedPairs.Where(p => !string.IsNullOrWhiteSpace(p.LeftSourceCode) && !string.IsNullOrWhiteSpace(p.RightSourceCode))
