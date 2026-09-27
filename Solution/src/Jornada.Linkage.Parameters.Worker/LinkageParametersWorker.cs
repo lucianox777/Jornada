@@ -80,10 +80,7 @@ public sealed class LinkageParametersWorker(
         {
             try
             {
-                if (await IsInitialLoadModeActiveAsync(stoppingToken))
-                    logger.LogWarning("GENERATE_DRAFT não executado porque controle.modo_carga_inicial está ativo.");
-                else
-                    await GenerateDraftFromGoldAsync(stoppingToken);
+                await GenerateDraftFromGoldAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -103,14 +100,6 @@ public sealed class LinkageParametersWorker(
 
             await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), stoppingToken);
         }
-    }
-
-    private async Task<bool> IsInitialLoadModeActiveAsync(CancellationToken ct)
-    {
-        await using var connection = await operationalSql.OpenAsync(ct);
-        await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT ativo FROM controle.modo_carga_inicial WHERE estado_id=1;";
-        return Convert.ToBoolean(await command.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
     }
 
     private async Task GenerateDraftFromGoldAsync(CancellationToken cancellationToken)
