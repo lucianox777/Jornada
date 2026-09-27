@@ -4,6 +4,8 @@
 - **Data:** 2026-09-12
 - **Escopo:** identidade, linkage probabilístico, Calibrador, modelo físico e replay
 
+**Esclarecimento complementar de 27/09/2026 (decisão posterior, sem revogar a semântica oficial):** [Blocking complementar com referência IBGE](../../Solution/docs/Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md) fixa nome completo, dinâmico e combinado como capacidades do mesmo núcleo. A proibição abaixo é de **reconstruir sobrenomes civilmente estruturados e probabilidades posicionais diretamente** a partir de `nome_completo`, não de calcular **tokens técnicos de presença/último token**, empregar a marginal censitária de sobrenomes em qualquer posição **como referência auxiliar de seletividade** nem criar passes fonéticos/ortográficos versionados para ampliar recuperação. A coleta preferencial de todos os sobrenomes, com último sobrenome como fallback, torna ambas as classes de passe pertinentes para ensaio; sua frequência e recall continuam sujeitos a medição no corpus. Não alterar o bootstrap nominal `u` de forma implícita por essa interpretação.
+
 ## Contexto
 
 A Jornada usa informação populacional sobre frequência de nomes e sobrenomes como evidência auxiliar no linkage probabilístico. A fonte de referência é o produto **Censo Demográfico 2022 — Nomes no Brasil**.
