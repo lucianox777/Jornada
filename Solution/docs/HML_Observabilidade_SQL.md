@@ -9,7 +9,7 @@ Monitorar durante cargas representativas:
 - Query Store das consultas de reserva, idempotência, persistência, linkage e BI;
 - tamanho e crescimento de `ingestao.item_processado`;
 - estatísticas e page density/fragmentação dos índices críticos;
-- Pessoas/hora durante `modo_carga_inicial`;
+- Pessoas processadas por hora em `serving.v_bi_processamento_hora`;
 - backlog de lotes e idade do lote pendente mais antigo.
 
 Não há requisito de `REBUILD/REORGANIZE` diário. Manutenção de índice e atualização de estatísticas devem ser guiadas pelo workload medido.
@@ -28,4 +28,4 @@ O script `database/Jornada_HML_Observabilidade.sql` contém consultas somente-le
 
 ## Watchdog operacional v3.53
 
-`Jornada.Operations.Maintenance.Worker` pode habilitar `PipelineWatchdog`. Ele somente observa e emite logs estruturados; não altera banco nem agenda jobs. `database/Jornada_HML_Observabilidade.sql` contém consultas equivalentes para confirmar `linkage_run`/`modelo_linkage` estagnados, leases de lote vencidos, backlog PENDENTE e duração de `modo_carga_inicial`. Os limiares distribuídos são defaults técnicos e devem ser calibrados via `docs/HML_Parametros.md`.
+`Jornada.Operations.Maintenance.Worker` pode habilitar `PipelineWatchdog`. Ele somente observa e emite logs estruturados; não altera banco nem agenda jobs. `database/Jornada_HML_Observabilidade.sql` contém consultas equivalentes para confirmar `linkage_run`/`modelo_linkage` estagnados, leases de lote vencidos, backlog PENDENTE e vazão horária de processamento. Os limiares distribuídos são defaults técnicos e devem ser calibrados via `docs/HML_Parametros.md`.

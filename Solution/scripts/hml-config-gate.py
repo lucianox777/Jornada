@@ -45,7 +45,6 @@ REQUIRED_PARAMETER_IDS = {
     "PipelineWatchdog.ModelGenerationMaxMinutes",
     "PipelineWatchdog.ExpiredLeaseGraceMinutes",
     "PipelineWatchdog.PendingBacklogMaxAgeMinutes",
-    "PipelineWatchdog.InitialLoadMaxHours",
 }
 
 
