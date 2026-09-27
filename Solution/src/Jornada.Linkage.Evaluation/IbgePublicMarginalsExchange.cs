@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Jornada.Contracts;
+using Jornada.Linkage.Parameters.Worker;
 
 namespace Jornada.Linkage.Evaluation;
 
