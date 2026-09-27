@@ -494,7 +494,7 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
             && !(allowActiveForDt15Pair && string.Equals(status, "ATIVO", StringComparison.Ordinal)))
         {
             throw new InvalidOperationException(
-                $"SYNTHETIC_EVALUATE aceita somente RASCUNHO; ATIVO é permitido apenas no replay DT-15 explicitamente habilitado. Modelo {id}: {status}.");
+                $"SYNTHETIC_EVALUATE aceita somente modelo RASCUNHO; ATIVO é permitido apenas no replay DT-15 explicitamente habilitado. Modelo {id}: {status}.");
         }
 
         var parameters = await LoadParametersAsync(modelId, cancellationToken);
