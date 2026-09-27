@@ -57,6 +57,10 @@ BEGIN TRY
     WHERE pessoa_uuid=@uuid AND estado_concordancia='DIVERGENTE'
       AND fontes_distintas=3)
     THROW 51001,'Gold nao sinalizou divergencia de tres fontes.',1;
+ IF (SELECT COUNT(*) FROM @obs o
+     JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id
+     WHERE vc.pessoa_uuid=@uuid AND vc.status='RESOLVIDO')<>3
+    THROW 51006,'Tres observacoes nao integram o universo corrente da recomposicao.',1;
  IF (SELECT COUNT(DISTINCT po.nome_cmp)
      FROM @obs o JOIN silver.pessoa_observacao po
        ON po.pessoa_observacao_id=o.pessoa_observacao_id)<>3
