@@ -31,6 +31,16 @@ class Tests(unittest.TestCase):
             self.assertEqual(len(z.read("pessoas.jsonl").splitlines()), 2)
             self.assertEqual(z.read("registros.jsonl"), b"")
 
+    def test_v4_synthetic_fixture_for_dev_receiver(self):
+        self.args.mapeamento = ROOT / "preparador/mapeamentos/sehab.synthetic.v4.example.json"
+        self.args.manifest = ROOT / "preparador/fixtures/SEHAB/manifest.v4.json"
+        self.args.schema = ROOT / "config/contracts/gestores/SEHAB/pessoa/v4/pessoa.schema.json"
+        archive = preparar(self.args)
+        with zipfile.ZipFile(archive) as z:
+            people = z.read("pessoas.jsonl").splitlines()
+            self.assertEqual(len(people), 2)
+            self.assertIn(b'"pessoaSchemaVersao":4', z.read("manifest.json"))
+
     def test_no_inferred_missing_cpf_reason(self):
         source = self.dest / "missing.csv"
         source.write_text("id;codigo;nome;nascimento;cpf;cpf_ausente_motivo;mae\n"

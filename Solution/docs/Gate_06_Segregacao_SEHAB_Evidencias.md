@@ -4,9 +4,9 @@
 
 ## Migração técnica verificada pelo diff
 
-- Migrados byte a byte: 5 arquivos de `Solution/clients/Jornada.Integrador.CSharp`, 3 arquivos dos testes do transmissor, 7 contratos Pessoa v1–v5 e 1 configuração exemplo SEHAB. Total: 16 movimentações. Destino: `ApoioSecretarias/`.
+- Migrados byte a byte: 5 arquivos de `Solution/clients/Jornada.Integrador.CSharp`, 3 arquivos dos testes do transmissor, 7 contratos Pessoa v1–v5, 1 metadado específico AA01 e 1 configuração exemplo SEHAB. Total: 17 movimentações. Destino: `ApoioSecretarias/`.
 - Criada solução `ApoioSecretarias/SolucaoApoioSecretarias.sln`; `Solution/Jornada.sln` já não tinha o projeto do integrador. `global.json` e `Directory.Build.props` copiados para garantir compilação independente. O suporte ainda reside no **mesmo repositório Git** e não constitui outro repositório remoto.
-- Os sete SHA-256 de contratos originais foram preservados em `ApoioSecretarias/config/governance/schema-approvals.SEHAB.json`; o inventário principal agora contém somente os 39 contratos restantes, incluindo SMADS/SMDET/SMS. Nenhuma aprovação institucional foi criada.
+- Os oito SHA-256 de contratos e metadados específicos originais foram preservados em `ApoioSecretarias/config/governance/schema-approvals.SEHAB.json`; o inventário principal agora contém somente os 38 contratos restantes, incluindo SMADS/SMDET/SMS. Nenhuma aprovação institucional foi criada.
 - Criado preparador CSV → JSONL → ZIP determinístico, de campos estritamente mapeados, com validação de schema/versão/hash, sem inferir motivo de ausência de CPF. O exemplo CSV e o mapeamento são somente **sintéticos**. Ainda falta mapeamento validado para fonte real e normalizador de registros para fontes SEHAB.
 - O workflow `apoio-secretarias` verifica integridade, testes do preparador, build C# e regressão do transmissor. Não equivale à transmissão/recebimento/processamento real.
 
@@ -15,7 +15,7 @@
 - `Solution/database/Jornada_Seed_Dev.sql`, scripts de escala/local E2E, chaves de teste e suas fixtures: uso sintético DEV; manter rótulos de gestor quando necessário aos testes, mas garantir que o contrato receptor seja disponibilizado externamente.
 - `Solution/database/migrations/20260921_Pessoa_V5_Contrato_371.sql`: histórico de registro de versões e hashes da SEHAB. Exige decisão de implantação/fornecimento externo do schema e auditoria de migração para não alterar histórico.
 - `Solution/src/Jornada.Ensaio/EnsaioPlan.cs`: plano do Ensaio ainda vinculado à SEHAB e requer parametrização anterior ao Ensaio.
-- `Solution/config/contracts/registros/AA01/v1/registro.json`: associação específica ao gestor; avaliar transferência/parametrização sem perder registro do catálogo receptor.
+- `Solution/config/contracts/registros/AA01/v1/registro.json`: metadado específico transferido para ApoioSecretarias; o contrato genérico `registro.schema.json` permanece no catálogo receptor.
 - `Solution/src/Jornada.Api/wwwroot/monitor/index.html` contém ocorrência de SEHAB, mas `Jornada.Api/*` está **expressamente fora do escopo autorizado de alterações**. Não certificar ausência universal de hardcodes sem resolução dessa restrição.
 - `Documentos/Testes/SEHAB`: histórico de caracterização AS-IS, não arquivo de origem para distribuir; não copiar massa real a outro repositório sem autorização e classificação. Documentos históricos que mencionam SEHAB não são dependências executáveis, mas exemplos operacionais devem apontar para a nova solução.
 

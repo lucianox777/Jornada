@@ -186,4 +186,84 @@ json.dump({
 },open(sys.argv[1],'w',encoding='utf-8'),ensure_ascii=False,indent=2)
 PY
 cat "$OUT/evidence.json"
+
+# Gate 6: pacote PREPARADO pela Solução de Apoio, ENVIADO pelo transmissor C#,
+# RECEBIDO no HTTP e PROCESSADO pelo mesmo receptor/Processor local.
+support="$ROOT/../ApoioSecretarias"
+test -f "$support/preparador/preparador.py"
+support_dir="$OUT/packages/apoio"
+mkdir -p "$support_dir"
+support_zip="$(python3 "$support/preparador/preparador.py" \
+  --csv "$support/preparador/fixtures/SEHAB/pessoas.csv" \
+  --mapeamento "$support/preparador/mapeamentos/sehab.synthetic.v4.example.json" \
+  --manifest "$support/preparador/fixtures/SEHAB/manifest.v4.json" \
+  --schema "$support/config/contracts/gestores/SEHAB/pessoa/v4/pessoa.schema.json" \
+  --saida "$support_dir")"
+test -f "$support_zip"
+support_sha="$(sha256sum "$support_zip" | awk '{print $1}')"
+support_config="$OUT/apoio-integrador.config.json"
+python3 - "$support_config" "$API_URL" "$access_key" <<'PY'
+import json, os, sys
+config = {
+  "gestor": "SEHAB",
+  "accessKey": sys.argv[3],
+  "endpoints": {
+    "envio": sys.argv[2] + "/api/v1/ingestao/entregas",
+    "resultado": sys.argv[2] + "/api/v1/ingestao/resultados/{nomeArquivo}"
+  },
+  "polling": {"intervalSeconds": 4, "timeoutSeconds": 120},
+  "diretorioSaida": "resultados"
+}
+with open(sys.argv[1], "w", encoding="utf-8") as dest:
+    os.chmod(sys.argv[1], 0o600)
+    json.dump(config, dest)
+PY
+(cd "$support" && dotnet restore SolucaoApoioSecretarias.sln --locked-mode \
+ && dotnet build SolucaoApoioSecretarias.sln -c Release --no-restore \
+ && dotnet run --project clients/Jornada.Integrador.CSharp -c Release \
+      --no-build --no-restore -- --enviar "$support_zip" \
+      --config "$support_config") >"$OUT/support-transmission.log" 2>&1 || {
+    echo "ERRO: transmissor SEHAB da Solução de Apoio falhou." >&2
+    tail -80 "$OUT/support-transmission.log" >&2
+    exit 20
+  }
+grep -F "SHA-256: $support_sha" "$OUT/support-transmission.log" >/dev/null || {
+  echo "ERRO: SHA do pacote preparado difere do transmitido." >&2; exit 20;
+}
+python3 - "$OUT/support-transmission.log" "$OUT/support-receipt.json" <<'PY'
+import json, pathlib, sys
+raw = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+start = raw.find("{")
+if start < 0: raise SystemExit("Transmissor não registrou recibo HTTP JSON")
+data, _ = json.JSONDecoder().raw_decode(raw[start:])
+ident = data.get("entregaId") or data.get("EntregaId")
+if not ident or not isinstance(ident, str):
+    raise SystemExit("Recibo HTTP não contém entregaId")
+pathlib.Path(sys.argv[2]).write_text(json.dumps({"entregaId": ident}, indent=2)+"\n", encoding="utf-8")
+PY
+support_id="$(json_get "$OUT/support-receipt.json" entregaId)"
+wait_processed "$support_id" "$OUT/support-status.json"
+support_bronze="$(scalar "SELECT COUNT(*) FROM bronze.entrega_arquivo WHERE entrega_id='$support_id';")"
+support_silver="$(scalar "SELECT COUNT(*) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$support_id';")"
+[[ "$support_bronze" == 1 && "$support_silver" == 2 ]] || {
+  echo "ERRO: Solução de Apoio não materializou Bronze(1) e Silver(2): bronze=$support_bronze silver=$support_silver" >&2
+  exit 21
+}
+support_linked="$(scalar "SELECT COUNT(*) FROM identidade.vinculo_fonte v JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=v.pessoa_observacao_id JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$support_id' AND v.pessoa_uuid IS NOT NULL;")"
+[[ "$support_linked" -ge 1 ]] || {
+  echo "ERRO: a remessa SEHAB não gerou nenhuma vinculação à identidade progressiva." >&2; exit 21;
+}
+python3 - "$OUT/support-e2e-evidence.json" "$support_sha" "$support_id" "$support_bronze" "$support_silver" "$support_linked" <<'PY'
+import datetime, json, pathlib, sys
+evidence={"status":"PASS", "generatedAtUtc":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+          "preparator":"ApoioSecretarias/preparador", "transmitter":"ApoioSecretarias/clients/Jornada.Integrador.CSharp",
+          "gestor":"SEHAB", "testData":"SYNTHETIC", "schemaVersion":4, "zipSha256":sys.argv[2],
+          "receiptEntregaId":sys.argv[3], "finalStatus":"PROCESSADA",
+          "bronzeFiles":int(sys.argv[4]), "silverObservations":int(sys.argv[5]),
+          "progressiveIdentityLinks":int(sys.argv[6])}
+pathlib.Path(sys.argv[1]).write_text(json.dumps(evidence,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+PY
+rm -f -- "$support_config"
+cat "$OUT/support-e2e-evidence.json"
+
 echo 'LOCAL E2E: OK'

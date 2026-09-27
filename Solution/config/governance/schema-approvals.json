@@ -138,12 +138,6 @@
       "approval": null
     },
     {
-      "path": "config/contracts/registros/AA01/v1/registro.json",
-      "sha256": "568f297059bd5e7b51b751a4d3e9aba969c3c0ddd563b2986ba08bd37db431b6",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
       "path": "config/contracts/registros/AA01/v1/registro.schema.json",
       "sha256": "8fa7723753cb083a8be6dc1bf083f24dac41dddd55e731be00f113b4313e616d",
       "status": "PENDENTE",

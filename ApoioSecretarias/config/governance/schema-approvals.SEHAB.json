@@ -45,6 +45,12 @@
       "sha256": "ca606bd59ba75301741579445e95e9c7c7357d95293b327354e69340bc639844",
       "status": "PENDENTE",
       "approval": null
+    },
+    {
+      "path": "config/contracts/registros/AA01/v1/registro.json",
+      "sha256": "568f297059bd5e7b51b751a4d3e9aba969c3c0ddd563b2986ba08bd37db431b6",
+      "status": "PENDENTE",
+      "approval": null
     }
   ]
 }

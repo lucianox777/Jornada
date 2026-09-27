@@ -28,6 +28,6 @@ Copie `config/gestores/SEHAB/integrador.config.example.json` para arquivo não v
 
 ## Fonte contratual e fronteira de execução
 
-Os sete contratos foram transferidos com bytes idênticos e hashes originais em `config/governance/schema-approvals.SEHAB.json`, ainda PENDENTES de aprovação institucional. A Jornada receptora precisa carregar ou disponibilizar contratos compatíveis para aceitar os ZIPs: retirá-los do código-fonte principal não equivale a desregistrar um contrato ativo do banco.
+Os sete contratos Pessoa e o metadado AA01 foram transferidos com bytes idênticos e hashes originais em `config/governance/schema-approvals.SEHAB.json`, ainda PENDENTES de aprovação institucional. A Jornada receptora precisa carregar ou disponibilizar contratos compatíveis para aceitar os ZIPs: retirá-los do código-fonte principal não equivale a desregistrar um contrato ativo do banco.
 
 Este diretório constitui uma solução independente no mesmo repositório; a criação de **outro repositório Git** permanece pendente. Preparo sintético e testes de código NÃO demonstram recebimento e processamento em SQL/HTTP. A comprovação operacional e regressões obrigatórias estão no item 6 do plano principal.
