@@ -173,3 +173,15 @@ Até esse ponto existir, a política corrente permanece inalterada e qualquer pr
 Este plano não cria, funde nem publica UUID; não altera Gold/Serving; não modifica CPF determinístico; não ativa modelo probabilístico; não substitui aprovação institucional; e não transforma corpus sintético ou estatística externa em verdade individual.
 
 Seu papel é reduzir a próxima decisão a proposições mensuráveis e auditáveis, sem antecipar uma política que ainda depende de evidência representativa.
+
+## 10. Experimento de blocking combinado (PR #526)
+
+**Hipótese:** a interseção de nome completo, nome completo materno e data exata é altamente seletiva no universo municipal; a união com inversão válida de dia/mês, ano adjacente válido e variantes fonéticas pode recuperar vínculos com erros comuns sem ampliar excessivamente o universo candidato. Esta é uma hipótese a validar, não resultado medido.
+
+**Implementado na branch do PR:** `CombinedIdentityCandidatePlanner` gera passes `combined-exact`, `combined-day-month-transpose` (quando válido), `combined-neighbor-year`, `combined-name-phonetic` e `combined-mother-phonetic`. Os passes reutilizam o SQL parametrizado de `BlockingProjectionCandidateQueryBuilder` (INTERSECT por atributo, UNION entre passes). Há testes unitários de geração e validade de datas. O protótipo ainda não foi conectado ao Runner ou ao Calibrador e não possui benchmark nem ingestão IBGE.
+
+**Fonte estatística:** o Censo é levantamento populacional e suas frequências divulgadas podem servir de referência agregada para nomes por coorte e localidade. A divulgação pública não contém o cruzamento individual de nome completo, nome materno e data exata. Não multiplicar frequências marginais como se a independência familiar, geográfica e geracional estivesse demonstrada. Grafias diferentes divulgadas podem ser variantes legítimas, não erros comprovados. Preservar snapshot/fingerprint e correspondência semântica das estatísticas utilizadas; respeitar P22 sobre sobrenomes inferidos.
+
+**Plano de comparação:** medir, sobre corpus representativo com verdade de referência, recall@candidatos e recall da união, colisões casuais observadas, distribuição de candidatos inclusive piores caudas, erro de data e de nome simultâneo, registros sem atributos, ganho marginal por passe, tempo P50/P95/P99 e custo físico dos índices. Comparar com o ruleset dinâmico atual e avaliar Full-Text/Jaro apenas como alternativas mensuráveis. Nenhum valor ilustrativo de 1 em 599 milhões ou de 0,019 colisões esperadas deve ser tratado como resultado empírico, threshold ou SLA.
+
+**Decisão de arquitetura:** preservar o mecanismo dinâmico como capacidade de calibração e fallback até avaliação independente. Uma eventual simplificação futura exige evidência de cobertura, desempenho, reversibilidade e governança. Nenhuma ativação probabilística, fusão de UUID ou publicação Gold decorre deste protótipo.
