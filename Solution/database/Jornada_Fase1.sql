@@ -874,10 +874,6 @@ IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_
 GO
 
 -- Identidade estável da Pessoa no sistema de origem. A chave externa é obrigatória e não é o UUID municipal.
--- Modo de carga inicial compartilhado. Quando ativo, o Processor continua drenando a fila; Runner e GENERATE_DRAFT recusam execução.
-IF OBJECT_ID('controle.modo_carga_inicial','U') IS NULL CREATE TABLE controle.modo_carga_inicial(estado_id TINYINT NOT NULL PRIMARY KEY CHECK(estado_id=1),ativo BIT NOT NULL DEFAULT(0),ativado_em DATETIMEOFFSET(7) NULL,desativado_em DATETIMEOFFSET(7) NULL,alterado_por NVARCHAR(200) NULL,observacao NVARCHAR(1000) NULL,atualizado_em DATETIMEOFFSET(7) NOT NULL DEFAULT(SYSDATETIMEOFFSET()));
-IF NOT EXISTS(SELECT 1 FROM controle.modo_carga_inicial WHERE estado_id=1) INSERT controle.modo_carga_inicial(estado_id,ativo) VALUES(1,0);
-GO
 
 IF OBJECT_ID('silver.pessoa_origem','U') IS NULL CREATE TABLE silver.pessoa_origem(
  pessoa_origem_id BIGINT IDENTITY PRIMARY KEY,
@@ -2193,11 +2189,11 @@ GROUP BY g.codigo,po.source_as_of,pg.natureza_referencia,COALESCE(pg.situacao_ge
 GO
 CREATE OR ALTER VIEW serving.v_bi_manutencao_bronze AS SELECT ciclo_id,iniciado_em,finalizado_em,DATEDIFF(SECOND,iniciado_em,finalizado_em) duracao_segundos,bucket_inicial,after_inicial,bucket_proximo,after_proximo,objetos_examinados,orfaos_removidos,temporarios_removidos,locks_nao_adquiridos,falhas_storage,orfao_mais_antigo_em FROM controle.bronze_manutencao_ciclo;
 GO
-CREATE OR ALTER VIEW serving.v_bi_carga_inicial AS
+CREATE OR ALTER VIEW serving.v_bi_processamento_hora AS
 WITH serie AS (
  SELECT DATEADD(HOUR,DATEDIFF(HOUR,CONVERT(datetime2(0),'20000101'),CONVERT(datetime2(0),SWITCHOFFSET(ip.processado_em,'+00:00'))),CONVERT(datetime2(0),'20000101')) hora_utc,SUM(CASE WHEN ip.classe_item='PESSOA' THEN CAST(1 AS BIGINT) ELSE 0 END) pessoas FROM ingestao.item_processado ip WHERE ip.consolidado_em IS NULL GROUP BY DATEADD(HOUR,DATEDIFF(HOUR,CONVERT(datetime2(0),'20000101'),CONVERT(datetime2(0),SWITCHOFFSET(ip.processado_em,'+00:00'))),CONVERT(datetime2(0),'20000101'))
  UNION ALL SELECT processado_hora_utc,SUM(CASE WHEN classe_item='PESSOA' THEN quantidade ELSE 0 END) FROM ingestao.item_processado_resumo GROUP BY processado_hora_utc), agg AS (SELECT hora_utc,SUM(pessoas) pessoas_processadas FROM serie GROUP BY hora_utc)
-SELECT a.hora_utc,a.pessoas_processadas,m.ativo modo_carga_inicial,CAST(a.pessoas_processadas AS DECIMAL(18,2)) pessoas_por_hora_ativa FROM agg a CROSS JOIN controle.modo_carga_inicial m WHERE m.estado_id=1;
+SELECT a.hora_utc,a.pessoas_processadas,CAST(a.pessoas_processadas AS DECIMAL(18,2)) pessoas_por_hora FROM agg a;
 GO
 
 CREATE OR ALTER VIEW serving.v_bi_linkage AS
