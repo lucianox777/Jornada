@@ -136,8 +136,10 @@ public sealed class DeliveryBronzeRetentionWorker(
             long liveReferences;
             await using (var count = connection.CreateCommand())
             {
-                count.CommandText = "SELECT COUNT_BIG(*) FROM bronze.entrega_arquivo WHERE payload_sha256=@sha AND objeto_chave=@chave AND estado_armazenamento='DISPONIVEL';
-                    SELECT COUNT_BIG(*) FROM identidade.linkage_bronze_pin WHERE payload_sha256=@sha AND objeto_chave=@chave;";
+                count.CommandText = """
+                    SELECT COUNT_BIG(*) FROM bronze.entrega_arquivo WHERE payload_sha256=@sha AND objeto_chave=@chave AND estado_armazenamento='DISPONIVEL';
+                    SELECT COUNT_BIG(*) FROM identidade.linkage_bronze_pin WHERE payload_sha256=@sha AND objeto_chave=@chave;
+                    """;
                 count.Parameters.Add(new SqlParameter("@sha", SqlDbType.Char, 64) { Value = candidate.Sha256 });
                 count.Parameters.Add(new SqlParameter("@chave", SqlDbType.NVarChar, 1024) { Value = candidate.ObjectKey });
                 await using var reader = await count.ExecuteReaderAsync(ct);
