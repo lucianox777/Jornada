@@ -10,14 +10,14 @@ BEGIN
    objeto_chave NVARCHAR(1024) NOT NULL,
    payload_sha256 CHAR(64) NOT NULL,
    registrado_em DATETIMEOFFSET(7) NOT NULL DEFAULT SYSUTCDATETIME(),
-   CONSTRAINT PK_linkage_bronze_pin PRIMARY KEY(linkage_run_id,objeto_chave),
+   CONSTRAINT PK_linkage_bronze_pin PRIMARY KEY(linkage_run_id,payload_sha256),
    CONSTRAINT CK_linkage_bronze_pin_sha CHECK(
      LEN(payload_sha256)=64 AND payload_sha256 NOT LIKE '%[^0-9a-fA-F]%')
  );
 END;
 GO
 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'identidade.linkage_bronze_pin') AND name=N'IX_linkage_bronze_pin_objeto')
- CREATE INDEX IX_linkage_bronze_pin_objeto ON identidade.linkage_bronze_pin(payload_sha256,objeto_chave);
+ CREATE INDEX IX_linkage_bronze_pin_objeto ON identidade.linkage_bronze_pin(payload_sha256);
 GO
 CREATE OR ALTER PROCEDURE identidade.sp_fixar_bronze_para_linkage
  @linkage_run_id UNIQUEIDENTIFIER,
