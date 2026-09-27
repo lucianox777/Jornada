@@ -78,6 +78,7 @@ if (args.Any(a => a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a.Eq
     Console.WriteLine("Auditoria DEV/HML read-only de blocking por passe:");
     Console.WriteLine("  --blocking-pass-audit-labels <arquivo.csv>");
     Console.WriteLine("  --blocking-pass-audit-output <arquivo.json>");
+    Console.WriteLine("  [--blocking-pass-audit-compare-combined true]  # D, C e D∪C; SQL real, somente leitura");
     return;
 }
 
