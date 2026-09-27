@@ -24,8 +24,11 @@ public sealed class SemiblindIdentitySearchService(ISemiblindCandidateRetriever 
         var retrieved = await retriever.RetrieveAsync(request, cancellationToken);
         // Autorização por pessoa ocorre ANTES de projetar qualquer atributo identificador.
         var authorized = new List<SemiblindInternalCandidate>();
+        var seenPersons = new HashSet<Guid>();
         foreach (var candidate in retrieved)
         {
+            // Uma Pessoa não pode ocupar duas opções, mesmo que o retriever retorne múltiplas observações.
+            if (!seenPersons.Add(candidate.PessoaUuid)) continue;
             if (await policy.IsAllowedAsync(context, "jornada.identidade.busca.read",
                 context.TipoCodigo, candidate.PessoaUuid, cancellationToken))
                 authorized.Add(candidate);
