@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics;
 using System.Data.Common;
 using System.Globalization;
 using System.Text;
@@ -19,6 +20,7 @@ internal static class BlockingPassAuditCommand
 {
     internal const string LabelsOption = "--blocking-pass-audit-labels";
     internal const string OutputOption = "--blocking-pass-audit-output";
+    internal const string CompareCombinedOption = "--blocking-pass-audit-compare-combined";
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     internal static bool IsRequested(string[] args) =>
@@ -32,6 +34,8 @@ internal static class BlockingPassAuditCommand
         IOperationalSqlAdapter operationalSql,
         CancellationToken ct)
     {
+        var compareCombined = args.Any(static arg =>
+            arg.Equals(CompareCombinedOption, StringComparison.OrdinalIgnoreCase));
         var labelsPath = ReadRequiredOption(args, LabelsOption);
         var outputPath = Path.GetFullPath(ReadRequiredOption(args, OutputOption));
         var labels = ReadLabels(labelsPath);
@@ -67,6 +71,7 @@ internal static class BlockingPassAuditCommand
                 observation,
                 label,
                 timeout,
+                compareCombined,
                 ct));
         }
 
@@ -119,6 +124,11 @@ internal static class BlockingPassAuditCommand
         if (overlapCandidatePairs < 0)
             throw new InvalidOperationException("Contabilidade de fan-out por passe ficou menor que a união efetiva de candidatos.");
 
+        var parallelComparison = compareCombined
+            ? BlockingParallelSqlAuditMetrics.Summarize(observations.Select(static row => row.Parallel
+                ?? throw new InvalidDataException("Medição D/C/união ausente em observação.")).ToArray())
+            : null;
+
         var report = new
         {
             generatedAtUtc = DateTimeOffset.UtcNow,
@@ -158,6 +168,33 @@ internal static class BlockingPassAuditCommand
                 maxUnionCandidateCount = unionCounts.Length == 0 ? 0L : unionCounts[^1]
             },
             passes,
+            parallelComparison = parallelComparison is null ? null : new
+            {
+                methodVersion = parallelComparison.MethodVersion,
+                sampleSize = parallelComparison.SampleSize,
+                combinedEligibleObservations = parallelComparison.CombinedEligibleObservations,
+                dynamicCandidatePairs = parallelComparison.DynamicCandidatePairs,
+                combinedCandidatePairs = parallelComparison.CombinedCandidatePairs,
+                unionCandidatePairs = parallelComparison.UnionCandidatePairs,
+                sharedCandidatePairs = parallelComparison.SharedCandidatePairs,
+                dynamicTruthRecovered = parallelComparison.DynamicTruthRecovered,
+                combinedTruthRecovered = parallelComparison.CombinedTruthRecovered,
+                unionTruthRecovered = parallelComparison.UnionTruthRecovered,
+                sharedTruthRecovered = parallelComparison.SharedTruthRecovered,
+                dynamicOnlyTruthRecovered = parallelComparison.DynamicOnlyTruthRecovered,
+                combinedOnlyTruthRecovered = parallelComparison.CombinedOnlyTruthRecovered,
+                dynamicRecallPct = parallelComparison.DynamicRecallPct,
+                combinedRecallPct = parallelComparison.CombinedRecallPct,
+                combinedConditionalRecallPct = parallelComparison.CombinedConditionalRecallPct,
+                unionRecallPct = parallelComparison.UnionRecallPct,
+                dynamicLatencyP95Ms = parallelComparison.DynamicLatencyP95Ms,
+                combinedLatencyP95Ms = parallelComparison.CombinedLatencyP95Ms,
+                taggedUnionLatencyP95Ms = parallelComparison.TaggedUnionLatencyP95Ms,
+                dynamicLatencyMaxMs = parallelComparison.DynamicLatencyMaxMs,
+                combinedLatencyMaxMs = parallelComparison.CombinedLatencyMaxMs,
+                taggedUnionLatencyMaxMs = parallelComparison.TaggedUnionLatencyMaxMs,
+                latencyMeasurement = "D and C each measured independently; tagged union includes provenance counting"
+            },
             interpretation = new
             {
                 passSemantics = "Cada passe é planejado pelo mesmo código do Runner; valores do mesmo atributo usam OR e atributos do passe usam AND.",
@@ -182,6 +219,7 @@ internal static class BlockingPassAuditCommand
         IdentityObservation observation,
         BlockingPassLabel label,
         int commandTimeoutSeconds,
+        bool compareCombined,
         CancellationToken ct)
     {
         var planned = BlockingRuleSetCandidatePlanner.Plan(ruleSet, observation);
@@ -215,11 +253,40 @@ internal static class BlockingPassAuditCommand
             passRows.Add(new PassAuditRow(pass.PassId, Planned: true, measured.CandidateCount, measured.TruthInside));
         }
 
+        BlockingParallelSqlAuditRow? parallelRow = null;
+        if (compareCombined)
+        {
+            var combined = CombinedIdentityCandidatePlanner.Plan(observation);
+            var combinedMeasurement = combined.Count == 0
+                ? new LookupMeasurement(0, false, 0)
+                : await MeasureLookupAsync(connection, combined, ruleSet,
+                    label.TruthPersonUuid, commandTimeoutSeconds, ct);
+            // One SQL statement produces exact overlapping UUID cardinalities on one
+            // statement snapshot; the separate D/C calls measure their actual latencies.
+            var tagged = await MeasureTaggedParallelLookupAsync(connection, planned, combined,
+                ruleSet, label.TruthPersonUuid, commandTimeoutSeconds, ct);
+            if (tagged.DynamicCandidateCount != union.CandidateCount
+                || tagged.TruthInDynamic != union.TruthInside
+                || tagged.CombinedCandidateCount != combinedMeasurement.CandidateCount
+                || tagged.TruthInCombined != combinedMeasurement.TruthInside)
+                throw new InvalidOperationException(
+                    "Projeção/Gold mudaram durante a auditoria D/C: medições isoladas " +
+                    "e snapshot SQL único divergem; nenhuma evidência será emitida.");
+            parallelRow = new BlockingParallelSqlAuditRow(
+                combined.Count > 0,
+                tagged.DynamicCandidateCount, tagged.CombinedCandidateCount,
+                tagged.UnionCandidateCount, tagged.SharedCandidateCount,
+                tagged.TruthInDynamic, tagged.TruthInCombined,
+                union.ElapsedMilliseconds, combinedMeasurement.ElapsedMilliseconds,
+                tagged.ElapsedMilliseconds);
+        }
+
         return new ObservationPassAudit(
             label.ObservationId,
             union.CandidateCount,
             union.TruthInside,
-            passRows);
+            passRows,
+            parallelRow);
     }
 
     private static async Task<LookupMeasurement> MeasureLookupAsync(
@@ -252,12 +319,72 @@ internal static class BlockingPassAuditCommand
               FROM effective_candidate;
             """;
 
+        var stopwatch = Stopwatch.StartNew();
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
             throw new InvalidOperationException("Consulta de auditoria de blocking não retornou contagem.");
         var count = Convert.ToInt64(reader.GetValue(0), CultureInfo.InvariantCulture);
         var truthInside = Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture) == 1;
-        return new LookupMeasurement(count, truthInside);
+        stopwatch.Stop();
+        return new LookupMeasurement(count, truthInside, stopwatch.ElapsedMilliseconds);
+    }
+
+    /// <summary>
+    /// Both sources are counted in ONE SQL statement, eliminating overlap drift
+    /// between multiple database snapshots. Only aggregate counts leave SQL.
+    /// </summary>
+    private static async Task<TaggedParallelLookupMeasurement> MeasureTaggedParallelLookupAsync(
+        DbConnection connection,
+        IReadOnlyList<BlockingCandidatePassLookup> dynamicPasses,
+        IReadOnlyList<BlockingCandidatePassLookup> combinedPasses,
+        LinkageDynamicRuleSet ruleSet,
+        Guid truthPersonUuid,
+        int commandTimeoutSeconds,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandTimeout = commandTimeoutSeconds;
+        var taggedQuery = BlockingProjectionCandidateQueryBuilder.BuildTaggedCandidateUuidQuery(
+            command, dynamicPasses, combinedPasses,
+            ruleSet.ProjectionSchemaVersion, ruleSet.ProjectionFingerprintSha256);
+        AddParameter(command, "@truth_uuid", DbType.Guid, truthPersonUuid);
+        command.CommandText = $"""
+            WITH tagged_uuid AS (
+                {taggedQuery}
+            ), effective_tagged AS (
+                SELECT g.pessoa_uuid,
+                       MAX(t.in_dynamic) AS in_dynamic,
+                       MAX(t.in_combined) AS in_combined
+                  FROM tagged_uuid t
+                  JOIN gold.pessoa g ON g.pessoa_uuid=t.pessoa_uuid
+                 WHERE g.estado_identidade=N'REFERENCIA'
+                 GROUP BY g.pessoa_uuid
+            )
+            SELECT COUNT_BIG(1),
+                   COALESCE(SUM(CAST(in_dynamic AS bigint)),0),
+                   COALESCE(SUM(CAST(in_combined AS bigint)),0),
+                   COALESCE(SUM(CASE WHEN in_dynamic=1 AND in_combined=1
+                                     THEN CAST(1 AS bigint) ELSE CAST(0 AS bigint) END),0),
+                   COALESCE(MAX(CASE WHEN pessoa_uuid=@truth_uuid AND in_dynamic=1 THEN 1 ELSE 0 END),0),
+                   COALESCE(MAX(CASE WHEN pessoa_uuid=@truth_uuid AND in_combined=1 THEN 1 ELSE 0 END),0)
+              FROM effective_tagged;
+            """;
+
+        var stopwatch = Stopwatch.StartNew();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            throw new InvalidOperationException("Comparação SQL D/C não retornou contagens.");
+        var count = Convert.ToInt64(reader.GetValue(0), CultureInfo.InvariantCulture);
+        var dynamicCount = Convert.ToInt64(reader.GetValue(1), CultureInfo.InvariantCulture);
+        var combinedCount = Convert.ToInt64(reader.GetValue(2), CultureInfo.InvariantCulture);
+        var sharedCount = Convert.ToInt64(reader.GetValue(3), CultureInfo.InvariantCulture);
+        var truthInDynamic = Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture) == 1;
+        var truthInCombined = Convert.ToInt32(reader.GetValue(5), CultureInfo.InvariantCulture) == 1;
+        stopwatch.Stop();
+        if (count != dynamicCount + combinedCount - sharedCount)
+            throw new InvalidDataException("Contagem SQL D/C/união violou inclusão-exclusão.");
+        return new TaggedParallelLookupMeasurement(count, dynamicCount, combinedCount, sharedCount,
+            truthInDynamic, truthInCombined, stopwatch.ElapsedMilliseconds);
     }
 
     private static async Task<IdentityObservation> LoadObservationAsync(
@@ -422,11 +549,20 @@ internal static class BlockingPassAuditCommand
     }
 
     private sealed record BlockingPassLabel(long ObservationId, Guid TruthPersonUuid);
-    private sealed record LookupMeasurement(long CandidateCount, bool TruthInside);
+    private sealed record LookupMeasurement(long CandidateCount, bool TruthInside, long ElapsedMilliseconds);
+    private sealed record TaggedParallelLookupMeasurement(
+        long UnionCandidateCount,
+        long DynamicCandidateCount,
+        long CombinedCandidateCount,
+        long SharedCandidateCount,
+        bool TruthInDynamic,
+        bool TruthInCombined,
+        long ElapsedMilliseconds);
     private sealed record PassAuditRow(string PassId, bool Planned, long CandidateCount, bool TruthInsidePass);
     private sealed record ObservationPassAudit(
         long ObservationId,
         long UnionCandidateCount,
         bool TruthInsideUnion,
-        IReadOnlyList<PassAuditRow> Passes);
+        IReadOnlyList<PassAuditRow> Passes,
+        BlockingParallelSqlAuditRow? Parallel);
 }
