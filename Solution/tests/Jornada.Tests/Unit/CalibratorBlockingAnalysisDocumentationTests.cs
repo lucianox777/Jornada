@@ -44,7 +44,10 @@ public sealed class CalibratorBlockingAnalysisDocumentationTests
             Assert.That(decision, Does.Contain("Distribuição demográfica da população"));
             Assert.That(decision, Does.Contain("Distribuição condicional de erros"));
             Assert.That(decision, Does.Contain("interseção de índices simples EAV"));
-            Assert.That(decision, Does.Contain("29 de fevereiro só existe em ano bissexto"));
+            Assert.That(decision, Does.Contain("29 de fevereiro é registrável em cartório"));
+            Assert.That(decision, Does.Contain("Janela etária da população viva"));
+            Assert.That(decision, Does.Contain("data_civil_de_referencia_do_run"));
+            Assert.That(decision, Does.Contain("históricos e pessoas falecidas"));
             Assert.That(plan, Does.Contain("não propõe valores numéricos"));
             Assert.That(plan, Does.Contain("qualquer promoção continua fail-closed"));
         });
