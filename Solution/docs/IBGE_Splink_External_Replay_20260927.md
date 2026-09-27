@@ -23,7 +23,7 @@ Ambos retornaram `ESTADOS_DIVERGENTES_DIAGNOSTICO`. Não somar TVDs de recortes 
 | `ibge-u-todos.splink-result.json` (execução validada no Windows) | `f850a00e886933b1b19d8f889d24811804c8ea14c66310c3135d7c5bf8b4b9b6` |
 | `ibge-u-feminino.splink-result.json` (execução validada no Windows) | `e0f02d2dd9787f0e70bc4d4fb7298f0908555a1cde2c783f04bf4665ce886827` |
 
-A evidência integral (dois replays, dois resultados Splink e dois diagnósticos C#) foi preservada fora do repositório; não inserir os dados volumosos nem o ambiente Python na árvore da Jornada. O runner externo ainda requer publicação e versionamento em repositório dedicado.
+A evidência integral (dois replays, dois resultados Splink e dois diagnósticos C#) foi preservada fora do repositório; não inserir os dados volumosos nem o ambiente Python na árvore da Jornada. O runner externo foi publicado e versionado em [`lucianox777/jornada-splink-conformance`](https://github.com/lucianox777/jornada-splink-conformance) (PR externo [#1](https://github.com/lucianox777/jornada-splink-conformance/pull/1), merge `47beff376d5e440a6a1a09649d798c5ee9fc07dc`, CI `runner-ci` aprovada). Ele mantém Splink 4.0.17/DuckDB 1.2.2/Pandas 2.3.2 e seus testes no próprio repositório; nada é incorporado ao build ou deploy da Jornada.
 
 ## Interpretação e limites
 
@@ -48,6 +48,7 @@ Com os replays e resultados **exatos** documentados acima, espera-se 20 linhas n
 ## Estado dos trabalhos (#506)
 
 - **Concluído:** #545, documentação dos 20.000 pares e hashes; #546, 53 fixtures de regressão; #547, testes das fronteiras Jaro-Winkler; #550, exportador CSV com validação estrita.
-- **Pendente:** publicar e versionar o runner Splink em repositório externo dedicado; obter estimação independente de `u` por estado e recorte e confrontá-la com o bootstrap C#; investigar divergências remanescentes antes de qualquer nova versão do comparador.
+- **Concluído:** runner Splink 4.0.17 publicado e testado em repositório [externo dedicado](https://github.com/lucianox777/jornada-splink-conformance), sem dependência Python na Jornada (PR externo #1, CI aprovada).
+- **Pendente:** obter estimação independente de `u` por estado e recorte e confrontá-la com o bootstrap C#; investigar divergências remanescentes antes de qualquer nova versão do comparador.
 
 Os avisos de `m/u` não treinados e prior padrão do Splink permanecem uma limitação da conferência de estados; **não** constituem validação de calibração. A #506 permanece aberta até a evidência independente exigida.
