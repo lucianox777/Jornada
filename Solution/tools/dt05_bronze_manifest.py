@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""DT-05 referential manifest: reuse immutable Bronze ZIPs; never copy payloads.
+
+The caller must register SQL pins with sp_fixar_bronze_para_linkage before
+publishing this manifest. This offline utility verifies bytes, not SQL pins.
+"""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import tempfile
+
+SHA = re.compile(r"^[0-9a-f]{64}$")
+KEY = re.compile(r"^sha256/([0-9a-f]{2})/([0-9a-f]{2})/([0-9a-f]{64})\.zip$")
+
+
+def canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
+def check_object(bronze_root, entry):
+    key = entry["objeto_chave"]
+    sha = entry["payload_sha256"].lower()
+    match = KEY.fullmatch(key)
+    if not SHA.fullmatch(sha) or not match or match[1:3] != (sha[:2], sha[2:4]) or match[3] != sha:
+        raise ValueError("invalid content-addressed Bronze key")
+    path = (bronze_root / key).resolve()
+    if not path.is_relative_to(bronze_root.resolve()):
+        raise ValueError("Bronze path escapes root")
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+            size += len(chunk)
+    if digest.hexdigest() != sha:
+        raise ValueError("Bronze object hash mismatch")
+    if "bytes" in entry and entry["bytes"] != size:
+        raise ValueError("Bronze object length mismatch")
+    return {"objeto_chave": key, "payload_sha256": sha, "bytes": size}
+
+
+def verify(root, manifest):
+    root = Path(root).resolve()
+    data = json.loads(Path(manifest).read_text(encoding="utf-8"))
+    refs = data["bronze_objects"]
+    if data["bronze_set_sha256"] != hashlib.sha256(canonical(refs)).hexdigest():
+        raise ValueError("manifest reference hash mismatch")
+    for item in refs:
+        check_object(root, item)
+    return len(refs)
+
+
+def create(root, refs_file, manifest_path, run_id, versions):
+    root = Path(root).resolve()
+    refs = json.loads(Path(refs_file).read_text(encoding="utf-8"))
+    if not isinstance(refs, list) or not refs:
+        raise ValueError("nonempty Bronze references required")
+    unique = {}
+    for ref in refs:
+        item = check_object(root, ref)
+        previous = unique.setdefault(item["objeto_chave"], item)
+        if previous != item:
+            raise ValueError("conflicting Bronze reference")
+    ordered = sorted(unique.values(), key=lambda item: item["objeto_chave"])
+    required = {"scorer_version", "ruleset_version", "model_version", "input_snapshot_id"}
+    if not isinstance(versions, dict) or not required.issubset(versions) or any(not versions[k] for k in required):
+        raise ValueError("missing exact historical versions")
+    data = {
+        "schema_version": 1, "run_id": run_id, "versions": versions,
+        "bronze_objects": ordered,
+        "bronze_set_sha256": hashlib.sha256(canonical(ordered)).hexdigest(),
+        "pin_contract": "identidade.sp_fixar_bronze_para_linkage/v1"
+    }
+    dest = Path(manifest_path).resolve()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists():
+        raise FileExistsError("immutable manifest already exists")
+    with tempfile.NamedTemporaryFile(dir=dest.parent, prefix=".dt05-", delete=False) as out:
+        tmp = Path(out.name)
+        out.write(canonical(data))
+        out.flush()
+        os.fsync(out.fileno())
+    try:
+        # Link is create-only: os.replace would silently overwrite an immutable manifest.
+        os.link(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)
+    return verify(root, dest)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--bronze-root", required=True)
+    commands = parser.add_subparsers(dest="command", required=True)
+    build = commands.add_parser("create")
+    build.add_argument("--refs-json", required=True)
+    build.add_argument("--manifest", required=True)
+    build.add_argument("--run-id", required=True)
+    build.add_argument("--versions-json", required=True)
+    check = commands.add_parser("verify")
+    check.add_argument("--manifest", required=True)
+    args = parser.parse_args()
+    if args.command == "create":
+        count = create(args.bronze_root, args.refs_json, args.manifest, args.run_id, json.loads(args.versions_json))
+    else:
+        count = verify(args.bronze_root, args.manifest)
+    print(json.dumps({"verified_bronze_objects": count}))
+
+
+if __name__ == "__main__":
+    main()
