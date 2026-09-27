@@ -70,6 +70,12 @@ A visão SQL consulta o único ATIVO, o último RASCUNHO, seus passes publicados
 
 A **hierarquia visual** mostra primeiro ATIVO × RASCUNHO, depois as duas medidas de blocking sobre a mesma massa e o estado de comparabilidade; o histórico é uma seção expansível, não a medida principal. O painel de decisão explica que não há botões habilitados: faltam dossiê FS completo, ledger decisório individual, identidade institucional e gates em SQL/Worker. O Monitor público permanece read-only e **não herda a permissão master**. A página é um produto demonstrável para DEV, não uma homologação institucional.
 
+### 4.3. Etapa implementada — replay FS agregado pareado, sintético e não promovível
+
+O executável C# `Jornada.Linkage.Evaluation` oferece o comando `--dt15-compare-synthetic` para reexecutar **ATIVO × RASCUNHO sobre os mesmos arquivos sintéticos congelados**. Reutiliza o scorer C# e a política FS persistida de cada modelo, apresenta deltas de blocking e resultados agregados TP/TN/FP/FN/inconclusivos de VALIDATION e TEST, inclusive estratos; exige mesmo seed/basis-points, hashes, suporte, partições e marcador residente Development, e revalida os fingerprints de ambos os modelos antes e depois do replay. Exporta relatório externo novo acompanhado de `.sha256`, sem gravar no banco.
+
+**Esse comparativo não é o dossiê decisório completo.** Ainda faltam matriz restrita de mudanças por observação (RESOLVIDO→CONFLITO etc.), custos/latência SQL em condições pareadas, universo municipal rotulado, integração do artefato na página master e parecer individual transacional para `VALIDATE`/`ACTIVATE`. Incomparabilidade ou falta de dados produzem estado explícito **sem delta**. Operação, contrato e limitações: [Replay FS pareado sintético](DT15_Replay_FS_Pareado_Sintetico.md).
+
 ## 5. Fronteira com entregas existentes e aceite
 
 - **DT-14:** determina *quando* repetir conferência independente scorer/comparadores/runtime. **DT-15:** mostra *o que mudou* entre modelos e registra decisão de promoção. Não reexecutar conferência decimal×float64 por causa de um novo dossiê se não houver gatilho; preservar o gate implementado por modelo.
