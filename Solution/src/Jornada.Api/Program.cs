@@ -221,6 +221,11 @@ app.MapPost("/api/v1/identidade/busca", async (
     {
         return Results.BadRequest(new { erro = "Parâmetros de identidade inválidos." });
     }
+    catch (InvalidOperationException)
+    {
+        // Modelo ativo ausente ou dependência operacional indisponível: não expor detalhes internos.
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
 }).RequireRateLimiting("identity")
   .RequireAuthorization("jornada.identidade.busca.read")
   .Produces<SemiblindIdentitySearchResponse>(StatusCodes.Status200OK)
