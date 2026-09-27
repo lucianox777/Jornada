@@ -60,7 +60,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
     IConfiguration configuration,
     IOperationalSqlAdapter operationalSql,
     ILogger<SqlProbabilisticIdentityLinkage> logger,
-    LinkageRunOptions? runOptions = null) : IProbabilisticIdentityLinkage
+    LinkageRunOptions? runOptions = null) : IProbabilisticIdentityLinkage, ISemiblindCandidateRetriever
 {
     private readonly ConcurrentDictionary<Guid, LinkageRuntimeSnapshot> runtimeCache = new();
 
@@ -133,6 +133,45 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
         var candidates = await LoadCandidatesAsync(observation, snapshot, ct);
         return ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
+    }
+
+    /// <summary>Consulta síncrona sem publicação; usa exatamente o snapshot, blocking e ranking do Runner.</summary>
+    public async Task<IReadOnlyList<SemiblindInternalCandidate>> RetrieveAsync(
+        SemiblindIdentitySearchRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (string.IsNullOrWhiteSpace(request.Nome))
+            throw new ArgumentException("Nome obrigatório.", nameof(request));
+
+        var active = await GetActiveModelAsync(cancellationToken);
+        var snapshot = await GetOrLoadRuntimeSnapshotAsync(active.ModelId, cancellationToken);
+        var observation = new IdentityObservation(null, null, request.Nome.Trim(),
+            request.DataNascimento, request.NomeMae?.Trim());
+
+        // Sem nascimento usar somente os passes dinâmicos elegíveis. O combinado é adicional
+        // quando nascimento e nome materno estão disponíveis, sem alterar o linkage em lote.
+        var passes = snapshot.RuleSet is { } rules
+            ? SemiblindCandidatePassPlanner.Plan(rules, observation)
+            : Array.Empty<BlockingCandidatePassLookup>();
+        if (snapshot.RuleSet is not null && passes.Count == 0)
+            return Array.Empty<SemiblindInternalCandidate>();
+        if (snapshot.RuleSet is null && observation.DataNascimento is null)
+            return Array.Empty<SemiblindInternalCandidate>();
+
+        var maxSynchronousCandidates = Math.Clamp(
+            configuration.GetValue("SemiblindIdentitySearch:MaxCandidatesPerQuery", 10000), 5, 100000);
+        var candidates = await LoadCandidatesAsync(observation, snapshot, cancellationToken,
+            passes, maxSynchronousCandidates);
+        var ranked = ProbabilisticLinkageDecisions.Rank(snapshot.Model, observation, candidates);
+        var byId = candidates.GroupBy(candidate => candidate.PessoaUuid)
+            .ToDictionary(group => group.Key, group => group.First());
+        // O limite é aplicado APÓS o ranking interno; a apresentação neutra é feita na API.
+        // Reservar opções internas para repor posições negadas pela autorização por Pessoa.
+        return ranked.Take(50).Select(score => byId[score.PessoaUuid])
+            .Select(candidate => new SemiblindInternalCandidate(
+                candidate.PessoaUuid, candidate.NomeCompleto,
+                candidate.DataNascimento, candidate.NomeMae))
+            .ToArray();
     }
 
     private static ProbabilisticLinkageDecision InsufficientEvidence(Guid modelId) =>
@@ -429,12 +468,16 @@ public sealed class SqlProbabilisticIdentityLinkage(
     private async Task<IReadOnlyList<LinkageCandidate>> LoadCandidatesAsync(
         IdentityObservation observation,
         LinkageRuntimeSnapshot snapshot,
-        CancellationToken ct)
+        CancellationToken ct,
+        IReadOnlyList<BlockingCandidatePassLookup>? searchPasses = null,
+        int? maxCandidatesOverride = null)
     {
         var model = snapshot.Model;
         var maxCandidates = Math.Clamp(
             configuration.GetValue("ProbabilisticLinkage:MaxCandidatesPerBlock", 100000),
             1000, 1000000);
+        if (maxCandidatesOverride is { } synchronousLimit)
+            maxCandidates = Math.Min(maxCandidates, synchronousLimit);
         var commandTimeoutSeconds = Math.Max(
             1,
             configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900));
@@ -454,7 +497,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
                 observation,
                 maxCandidates,
                 commandTimeoutSeconds,
-                ct);
+                ct,
+                searchPasses);
         }
 
         if (observation.DataNascimento is null)

@@ -922,6 +922,52 @@
           }
         }
       }
+    },
+    "/api/v1/identidade/candidatos": {
+      "post": {
+        "operationId": "jornada_post_candidatos_semicegos",
+        "summary": "Busca síncrona semicega de até cinco candidatos, sem score e sem publicação de vínculo",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SemiblindIdentitySearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Candidatos em ordem neutra, inclusive lista vazia",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemiblindIdentitySearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Não autorizado"
+          },
+          "429": {
+            "description": "Limite excedido"
+          },
+          "500": {
+            "description": "Falha interna"
+          },
+          "503": {
+            "description": "Modelo ativo ou auditoria indisponível; nenhum candidato é divulgado"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2903,6 +2949,84 @@
           },
           "erro": {
             "type": "string"
+          }
+        }
+      },
+      "SemiblindIdentitySearchRequest": {
+        "type": "object",
+        "required": [
+          "nome_completo"
+        ],
+        "properties": {
+          "nome_completo": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1
+          },
+          "data_nascimento": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "nome_mae": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          }
+        },
+        "additionalProperties": false
+      },
+      "SemiblindIdentityCandidate": {
+        "type": "object",
+        "required": [
+          "opcaoId",
+          "nome_completo",
+          "data_nascimento",
+          "nome_mae"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "opcaoId": {
+            "type": "string",
+            "description": "Identificador de opção da consulta; não autoriza vinculação"
+          },
+          "nome_completo": {
+            "type": "string"
+          },
+          "data_nascimento": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "nome_mae": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SemiblindIdentitySearchResponse": {
+        "type": "object",
+        "required": [
+          "consultaId",
+          "candidatos",
+          "nenhumDestes"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "consultaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "candidatos": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "$ref": "#/components/schemas/SemiblindIdentityCandidate"
+            }
+          },
+          "nenhumDestes": {
+            "type": "boolean",
+            "description": "Disponibilidade da opção Nenhum destes, inclusive quando candidatos=[]"
           }
         }
       }

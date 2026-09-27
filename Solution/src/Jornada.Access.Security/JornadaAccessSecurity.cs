@@ -21,6 +21,7 @@ public static class JornadaAccessSecurity
     private static readonly (string Permission, bool AllowType)[] Permissions =
     [
         ("jornada.identidade.resolve", true),
+        ("jornada.identidade.busca.read", true),
         ("jornada.identidade.origem.read", false),
         ("jornada.identidade.conflitos.read", false),
         ("jornada.identidade.corrigir", false),

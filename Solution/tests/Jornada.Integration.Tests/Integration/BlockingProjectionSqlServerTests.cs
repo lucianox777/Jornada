@@ -1,5 +1,6 @@
 using Jornada.Contracts;
 using Jornada.Operational.Sql;
+using Jornada.Linkage.Runner;
 using Jornada.Processor.Worker;
 using Microsoft.Data.SqlClient;
 
@@ -104,6 +105,34 @@ public sealed class BlockingProjectionSqlServerTests
         command.Parameters.AddWithValue("@projection_fingerprint", PersonResolutionProjectionContract.FingerprintSha256);
         var count = Convert.ToInt32(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
         Assert.That(count, Is.EqualTo(14));
+
+        // SQL real: sem nascimento, CombinedIdentityCandidatePlanner não pode atuar.
+        // Um passe dinâmico nominal elegível ainda deve devolver a referência da Gold.
+        var ruleset = LinkageDynamicRuleSet.CreateWithPasses(
+            "INTEGRATION-SEMIBLIND-NO-BIRTH", "INTEGRATION-TEST",
+            [LinkageBlockingPass.Create("full-name", [BlockingFeatureNames.FullName])],
+            Array.Empty<KeyValuePair<string, decimal>>()) with
+        {
+            ProjectionSchemaVersion = PersonResolutionProjectionContract.SchemaVersion,
+            ProjectionFingerprintSha256 = PersonResolutionProjectionContract.FingerprintSha256
+        };
+        var observation = new IdentityObservation(
+            null, "NAO_INFORMADO", "María Silva Teste", null, "Ana Souza Teste");
+        var passes = SemiblindCandidatePassPlanner.Plan(ruleset, observation);
+        Assert.That(passes.Select(p => p.PassId), Is.EqualTo(new[] { "full-name" }));
+
+        var found = await BlockingProjectionCandidateLoader.LoadAsync(
+            connection, ruleset, observation, maxCandidates: 20, commandTimeoutSeconds: 60,
+            ct: CancellationToken.None, searchPasses: passes);
+        Assert.That(found.Select(candidate => candidate.NomeCompleto),
+            Does.Contain("María Silva Teste"));
+
+        var missing = new IdentityObservation(
+            null, "NAO_INFORMADO", "Pessoa Inexistente No Corpus", null, null);
+        var noMatches = await BlockingProjectionCandidateLoader.LoadAsync(
+            connection, ruleset, missing, maxCandidates: 20, commandTimeoutSeconds: 60,
+            ct: CancellationToken.None, searchPasses: SemiblindCandidatePassPlanner.Plan(ruleset, missing));
+        Assert.That(noMatches, Is.Empty);
     }
 
     private static string RequireIntegrationConnection()

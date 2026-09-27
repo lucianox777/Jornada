@@ -82,6 +82,8 @@ public sealed class JornadaAccessHeaderTests
         Assert.That(await Allowed(AccessCredentialType.BENEFICIO, "jornada.pessoas.read", ["jornada.pessoas.read"]), Is.True);
         Assert.That(await Allowed(AccessCredentialType.SERVICO, "jornada.identidade.resolve", ["jornada.identidade.resolve"]), Is.True);
         Assert.That(await Allowed(AccessCredentialType.GESTOR, "jornada.pessoas.read", []), Is.False);
+        Assert.That(await Allowed(AccessCredentialType.GESTOR, "jornada.identidade.busca.read", ["jornada.identidade.busca.read"]), Is.True);
+        Assert.That(await Allowed(AccessCredentialType.SERVICO, "jornada.identidade.busca.read", []), Is.False);
     }
 
     [Test]
