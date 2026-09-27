@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using Jornada.Contracts;
 using Jornada.Bronze.Storage;
 using Jornada.Ingestion;
+using Jornada.Linkage.Runner;
 using Jornada.Api;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
@@ -88,6 +89,9 @@ else
     builder.Services.AddSingleton<IPolicyEngine, DenyByDefaultPolicyEngine>();
 }
 builder.Services.AddSingleton<IIdentityResolutionService, SqlIdentityResolutionService>();
+builder.Services.AddSingleton<SqlProbabilisticIdentityLinkage>();
+builder.Services.AddSingleton<ISemiblindCandidateRetriever>(sp => sp.GetRequiredService<SqlProbabilisticIdentityLinkage>());
+builder.Services.AddSingleton<ISemiblindIdentitySearchService, SemiblindIdentitySearchService>();
 builder.Services.AddSingleton<IIdentityCorrectionService, SqlIdentityCorrectionService>();
 builder.Services.AddSingleton<IIngestionService, SqlIngestionService>();
 builder.Services.AddSingleton<IPersonProjectionService, SqlPersonProjectionService>();
@@ -180,6 +184,35 @@ app.MapPost("/api/v1/identidade/resolver", async (
     }
     return Results.Ok(result);
 }).RequireRateLimiting("identity").RequireAuthorization("jornada.identidade.resolve");
+
+// Busca semicega: nenhum UUID, CPF ou score é exposto ao atendente.
+app.MapPost("/api/v1/identidade/busca", async (
+    HttpRequest http,
+    SemiblindIdentitySearchRequest request,
+    IPolicyEngine policy,
+    ISemiblindIdentitySearchService service,
+    CancellationToken ct) =>
+{
+    var context = http.HttpContext.RequireJornadaAccessContext();
+    ApiAuditContext.SetResourceCode(http.HttpContext, context.TipoCodigo);
+    if (!await policy.IsAllowedAsync(context, "jornada.identidade.busca.read", context.TipoCodigo, null, ct))
+        return Results.Forbid();
+    var correlation = http.HttpContext.Items.TryGetValue(ApiContextItems.CorrelationId, out var value)
+        && value is Guid id ? id : Guid.NewGuid();
+    try
+    {
+        return Results.Ok(await service.SearchAsync(context, request, correlation, ct));
+    }
+    catch (ArgumentException)
+    {
+        return Results.BadRequest(new { erro = "Parâmetros de identidade inválidos." });
+    }
+}).RequireRateLimiting("identity")
+  .RequireAuthorization("jornada.identidade.busca.read")
+  .Produces<SemiblindIdentitySearchResponse>(StatusCodes.Status200OK)
+  .Produces(StatusCodes.Status400BadRequest)
+  .Produces(StatusCodes.Status401Unauthorized)
+  .Produces(StatusCodes.Status403Forbidden);
 
 // Consulta de origem: contrato distinto, somente Gestor proprietário e escopo específico.
 app.MapProgressiveOriginApi();
