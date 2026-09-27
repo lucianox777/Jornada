@@ -38,17 +38,6 @@
       "Processor__PollingMilliseconds": "1000"
     }
   },
-  "integrator": {
-    "enabled": false,
-    "gestor": "SEHAB",
-    "accessKey": "CHANGE_ME",
-    "endpoints": {
-      "envio": "https://jornada.prefeitura.gov.br/api/v1/ingestao/entregas",
-      "resultado": "https://jornada.prefeitura.gov.br/api/v1/ingestao/resultados/{nomeArquivo}"
-    },
-    "polling": {"intervalSeconds": 5,"timeoutSeconds": 3600},
-    "diretorioSaida": "resultados"
-  },
   "taskAccount": {"user":"SYSTEM","passwordEnvironmentVariable":""},
   "tasks": [
     {"name":"Jornada-Api","enabled":true,"component":"Api","trigger":{"type":"AtStartup"},"arguments":[],"environment":{}},

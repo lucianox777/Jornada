@@ -1,5 +1,10 @@
 internal static class Program
 {
+    private static readonly string[] ParseResultArgs = ["--resultado", "ENTREGA_SEHAB_SEHAB_v2_exemplo.zip", "--config", "config.json", "--saida", "resultado.json"];
+    private static readonly string[] ParseBatchArgs = ["--enviar-todos", "--config", "config-lote.json"];
+    private static readonly string[] InvalidBatchArgs = ["--enviar-todos", "--saida", "x.json"];
+    private static readonly string[] ExpectedZipNames = ["a.zip", "b.ZIP"];
+
     public static async Task<int> Main()
     {
         var failures = new List<string>();
@@ -32,30 +37,17 @@ internal static class Program
         var legacyConfig = CreateConfig("https://resultado.example/api/v1/ingestao/resultados/{identificador}");
         Check(failures, "rejects legacy identifier placeholder", ThrowsInvalidData(() => JornadaIntegrator.ValidateConfig(legacyConfig)));
 
-        var parsed = JornadaIntegrator.ParseArgs(new[]
-        {
-            "--resultado",
-            "ENTREGA_SEHAB_SEHAB_v2_exemplo.zip",
-            "--config",
-            "config.json",
-            "--saida",
-            "resultado.json"
-        });
+        var parsed = JornadaIntegrator.ParseArgs(ParseResultArgs);
         Check(failures, "parses result command", parsed.Mode == "--resultado");
         Check(failures, "parses ZIP filename", parsed.Value == "ENTREGA_SEHAB_SEHAB_v2_exemplo.zip");
         Check(failures, "parses config path", parsed.ConfigPath == "config.json");
         Check(failures, "parses output path", parsed.OutputPath == "resultado.json");
 
-        var parsedBatch = JornadaIntegrator.ParseArgs(new[]
-        {
-            "--enviar-todos",
-            "--config",
-            "config-lote.json"
-        });
+        var parsedBatch = JornadaIntegrator.ParseArgs(ParseBatchArgs);
         Check(failures, "parses batch command", parsedBatch.Mode == "--enviar-todos");
         Check(failures, "batch command has no positional value", parsedBatch.Value == string.Empty);
         Check(failures, "parses batch config path", parsedBatch.ConfigPath == "config-lote.json");
-        Check(failures, "rejects --saida in batch mode", ThrowsArgument(() => JornadaIntegrator.ParseArgs(new[] { "--enviar-todos", "--saida", "x.json" })));
+        Check(failures, "rejects --saida in batch mode", ThrowsArgument(() => JornadaIntegrator.ParseArgs(InvalidBatchArgs)));
 
         await TestBatchEnumerationAndMoveAsync(failures);
         await TestBatchKeepsFailedZipAsync(failures);
@@ -88,7 +80,7 @@ internal static class Program
             var enumerated = JornadaIntegrator.EnumerateZipFilesForBatch(root)
                 .Select(Path.GetFileName)
                 .ToArray();
-            Check(failures, "enumerates only top-level ZIPs case-insensitively", enumerated.SequenceEqual(new[] { "a.zip", "b.ZIP" }));
+            Check(failures, "enumerates only top-level ZIPs case-insensitively", enumerated.SequenceEqual(ExpectedZipNames));
 
             var sent = new List<string>();
             var result = await JornadaIntegrator.SendAllFromDirectoryAsync(
@@ -100,7 +92,7 @@ internal static class Program
                 });
 
             Check(failures, "batch reports two successful sends", result == new BatchSendResult(2, 0));
-            Check(failures, "batch invokes sender for every ZIP", sent.SequenceEqual(new[] { "a.zip", "b.ZIP" }));
+            Check(failures, "batch invokes sender for every ZIP", sent.SequenceEqual(ExpectedZipNames));
             Check(failures, "moves first successful ZIP to Enviados", File.Exists(Path.Combine(root, "Enviados", "a.zip")) && !File.Exists(zipA));
             Check(failures, "moves second successful ZIP to Enviados", File.Exists(Path.Combine(root, "Enviados", "b.ZIP")) && !File.Exists(zipB));
             Check(failures, "does not reprocess ZIP already in Enviados", File.Exists(Path.Combine(root, "Enviados", "antigo.zip")) && !sent.Contains("antigo.zip"));

@@ -66,13 +66,6 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "publish falhou: $($entry.Value)" }
     }
 
-    $clientProject = 'clients\Jornada.Integrador.CSharp\Jornada.Integrador.CSharp.csproj'
-    $clientDestination = Join-Path $output 'clients\Jornada.Integrador'
-    New-Item -ItemType Directory -Force -Path $clientDestination | Out-Null
-    dotnet restore $clientProject --locked-mode
-    if ($LASTEXITCODE -ne 0) { throw 'restore falhou: Jornada.Integrador.CSharp' }
-    dotnet publish $clientProject -c $Configuration --no-restore -o $clientDestination
-    if ($LASTEXITCODE -ne 0) { throw 'publish falhou: Jornada.Integrador.CSharp' }
 }
 finally {
     Pop-Location

@@ -4,8 +4,6 @@ on:
   push:
     paths:
       - 'Solution/install/windows-production/**'
-      - 'Solution/clients/Jornada.Integrador.CSharp/**'
-      - 'Solution/tests/Jornada.Integrador.Tests/**'
       - 'Solution/src/Jornada.Api/**'
       - 'Solution/src/Jornada.Resultado.Api/**'
       - 'Solution/src/Jornada.Processor.Worker/**'
@@ -24,8 +22,6 @@ on:
   pull_request:
     paths:
       - 'Solution/install/windows-production/**'
-      - 'Solution/clients/Jornada.Integrador.CSharp/**'
-      - 'Solution/tests/Jornada.Integrador.Tests/**'
       - 'Solution/src/Jornada.Api/**'
       - 'Solution/src/Jornada.Resultado.Api/**'
       - 'Solution/src/Jornada.Processor.Worker/**'
@@ -81,16 +77,6 @@ jobs:
           python scripts/schema-manifest.py --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Restore and run C# integrator contract tests
-        shell: pwsh
-        run: |
-          dotnet restore tests/Jornada.Integrador.Tests/Jornada.Integrador.Tests.csproj --locked-mode
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet build tests/Jornada.Integrador.Tests/Jornada.Integrador.Tests.csproj -c Release --no-restore
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet run --project tests/Jornada.Integrador.Tests/Jornada.Integrador.Tests.csproj -c Release --no-build --no-restore
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
       - name: Build Windows production bundle
         shell: pwsh
         run: |
@@ -125,16 +111,6 @@ jobs:
           }
           Write-Host 'Schema canônico do bundle: OK'
 
-      - name: Prove CLI help aliases from published executable
-        shell: pwsh
-        run: |
-          $exe = "$PWD\.local\windows-production-bundle\clients\Jornada.Integrador\Jornada.Integrador.CSharp.exe"
-          foreach ($arg in @('/help','--help','-h')) {
-            $output = & $exe $arg | Out-String
-            if ($LASTEXITCODE -ne 0) { throw "$arg retornou $LASTEXITCODE" }
-            if ($output -notmatch '--enviar-todos' -or $output -notmatch '--resultado') { throw "$arg não exibiu help completo" }
-          }
-
       - name: Prove governed linkage conference tool in bundle
         shell: pwsh
         run: |
@@ -160,7 +136,6 @@ jobs:
           $config.sql.mode = 'External'
           $config.sql.connectionString = 'Server=localhost;Database=Jornada;Integrated Security=true;Encrypt=true;TrustServerCertificate=false'
           $config.sql.initializeDatabase = $false
-          $config.integrator.enabled = $false
           foreach ($task in $config.tasks) { $task.enabled = $false }
           $ciConfig = "$PWD\.local\Jornada.Production.ci.json"
           $config | ConvertTo-Json -Depth 30 | Set-Content -Encoding UTF8 $ciConfig
@@ -184,7 +159,7 @@ jobs:
             -NodeId NODE1 `
             -ValidateOnly
 
-      - name: Reject placeholder Integrator access key
+      - name: Reject integrator installation in principal bundle
         shell: pwsh
         run: |
           $config = Get-Content -Raw install/windows-production/Jornada.Production.example.json | ConvertFrom-Json
@@ -193,8 +168,7 @@ jobs:
           $config.sql.mode = 'External'
           $config.sql.connectionString = 'Server=localhost;Database=Jornada;Integrated Security=true;Encrypt=true;TrustServerCertificate=false'
           $config.sql.initializeDatabase = $false
-          $config.integrator.enabled = $true
-          $config.integrator.accessKey = 'CHANGE_ME'
+          $config | Add-Member -NotePropertyName integrator -NotePropertyValue @{ enabled = $true } -Force
           foreach ($task in $config.tasks) { $task.enabled = $false }
           $negativeConfig = "$PWD\.local\Jornada.Production.invalid-key.json"
           $config | ConvertTo-Json -Depth 30 | Set-Content -Encoding UTF8 $negativeConfig
@@ -203,11 +177,11 @@ jobs:
               -ConfigPath $negativeConfig `
               -PayloadRoot "$PWD\.local\windows-production-bundle" `
               -ValidateOnly
-            throw 'O instalador aceitou accessKey placeholder.'
+            throw 'O instalador aceitou o transmissor na solução principal.'
           }
           catch {
-            if ($_.Exception.Message -eq 'O instalador aceitou accessKey placeholder.') { throw }
-            Write-Host 'Placeholder de accessKey rejeitado: OK'
+            if ($_.Exception.Message -eq 'O instalador aceitou o transmissor na solução principal.') { throw }
+            Write-Host 'Integrador externo obrigatório: OK'
           }
 
       - name: Verify production bundle manifest

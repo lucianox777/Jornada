@@ -55,7 +55,6 @@ function Get-ComponentPath([string]$Component) {
         'BronzeMaintenance' { 'apps\Jornada.Bronze.Maintenance.Worker\Jornada.Bronze.Maintenance.Worker.exe'; break }
         'LinkageParameters' { 'apps\Jornada.Linkage.Parameters.Worker\Jornada.Linkage.Parameters.Worker.exe'; break }
         'LinkageRunner' { 'apps\Jornada.Linkage.Runner\Jornada.Linkage.Runner.exe'; break }
-        'Integrator' { 'clients\Jornada.Integrador\Jornada.Integrador.CSharp.exe'; break }
         default { throw "Componente desconhecido: $Component" }
     }
 }
@@ -113,15 +112,8 @@ function Assert-Config($Config, [string]$ResolvedPayloadRoot) {
         if ([string]$trigger.type -eq 'Weekly' -and (-not $trigger.days -or @($trigger.days).Count -eq 0)) { throw "Tarefa semanal sem dias: $taskName." }
     }
 
-    $integrator = Require-Property $Config 'integrator'
-    if ([bool]$integrator.enabled) {
-        $accessKeyValue = [string]$integrator.accessKey
-        if ([string]::IsNullOrWhiteSpace([string]$integrator.gestor)) { throw 'integrator.gestor é obrigatório.' }
-        if ([string]::IsNullOrWhiteSpace($accessKeyValue) -or [string]::Equals($accessKeyValue, 'CHANGE_ME', [StringComparison]::Ordinal)) {
-            throw 'integrator.accessKey deve ser configurada quando o Integrador estiver habilitado.'
-        }
-        if ([string]::IsNullOrWhiteSpace([string]$integrator.endpoints.envio) -or [string]::IsNullOrWhiteSpace([string]$integrator.endpoints.resultado)) { throw 'Endpoints do Integrador são obrigatórios.' }
-        if (-not ([string]$integrator.endpoints.resultado).Contains('{nomeArquivo}')) { throw 'integrator.endpoints.resultado deve conter {nomeArquivo}.' }
+    if ($null -ne $Config.PSObject.Properties['integrator'] -and [bool]$Config.integrator.enabled) {
+        throw 'O transmissor pertence à Solução de Apoio às Secretarias e não pode ser instalado junto com a Jornada principal.'
     }
 
     $required = @(
@@ -132,7 +124,6 @@ function Assert-Config($Config, [string]$ResolvedPayloadRoot) {
         'apps\Jornada.Bronze.Maintenance.Worker\Jornada.Bronze.Maintenance.Worker.exe',
         'apps\Jornada.Linkage.Parameters.Worker\Jornada.Linkage.Parameters.Worker.exe',
         'apps\Jornada.Linkage.Runner\Jornada.Linkage.Runner.exe',
-        'clients\Jornada.Integrador\Jornada.Integrador.CSharp.exe',
         'database\Jornada_Fase1.sql',
         'config\contracts',
         'install\windows-production\Invoke-JornadaComponent.ps1'
@@ -245,7 +236,7 @@ function Initialize-Database($SqlConfig, [string]$DdlPath) {
 
 function Install-Payload([string]$Payload, [string]$InstallRoot) {
     New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
-    foreach ($folder in @('apps','clients','config','database')) {
+    foreach ($folder in @('apps','config','database')) {
         $source = Join-Path $Payload $folder
         $destination = Join-Path $InstallRoot $folder
         if (Test-Path -LiteralPath $destination) { Remove-Item -Recurse -Force $destination }
@@ -372,20 +363,9 @@ foreach ($path in @($dataRoot,(Join-Path $dataRoot 'bronze'),(Join-Path $dataRoo
 Install-Payload $payloadFull $installRoot
 Initialize-Database $config.sql (Join-Path $installRoot 'database\Jornada_Fase1.sql')
 
-if ([bool]$config.integrator.enabled) {
-    Write-Json (Join-Path $installRoot 'clients\Jornada.Integrador\integrador.config.json') ([ordered]@{
-        gestor = [string]$config.integrator.gestor
-        accessKey = [string]$config.integrator.accessKey
-        endpoints = [ordered]@{ envio = [string]$config.integrator.endpoints.envio; resultado = [string]$config.integrator.endpoints.resultado }
-        polling = [ordered]@{ intervalSeconds = [int]$config.integrator.polling.intervalSeconds; timeoutSeconds = [int]$config.integrator.polling.timeoutSeconds }
-        diretorioSaida = [string]$config.integrator.diretorioSaida
-    })
-}
-
 $globalEnvironment = Get-GlobalEnvironment $config $installRoot $dataRoot
 foreach ($task in @($config.tasks)) { Register-JornadaTask $task $config $installRoot $dataRoot $globalEnvironment }
 Set-RestrictedAcl (Join-Path $installRoot 'config') ([string]$config.taskAccount.user)
-if ([bool]$config.integrator.enabled) { Set-RestrictedAcl (Join-Path $installRoot 'clients\Jornada.Integrador') ([string]$config.taskAccount.user) }
 
 Write-Host 'Instalação concluída.'
 Write-Warning 'Jornada.Api permanece deny-by-default em Production enquanto o adaptador de identidade corporativa/secret store não estiver implementado e homologado.'

@@ -24,14 +24,6 @@
   },
   "locks": [
     {
-      "path": "clients/Jornada.Integrador.CSharp/packages.lock.json",
-      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
-      "sha256": "22308ad23ccd417b5d96020fb92e203b85fad8c3788b3feadb2ca403d8ad596c",
-      "note": "Projeto sem PackageReference externo; lock estrutural net8.0 validado e compilado em workflow próprio.",
-      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
-    },
-    {
       "path": "src/Jornada.Api/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
       "sourceSha256": "a4d99399da601091935a6224e0300d107a66ebab0f7d634636bda73a01ff9b2f",
@@ -144,14 +136,6 @@
       "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
     },
     {
-      "path": "tests/Jornada.Integrador.Tests/packages.lock.json",
-      "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
-      "sourceSha256": "f2ac93068120ecfb9e2a30b3c7b8f5ab7a104d3ddbd0a40cf1365cc095a29208",
-      "sha256": "f2ac93068120ecfb9e2a30b3c7b8f5ab7a104d3ddbd0a40cf1365cc095a29208",
-      "note": "Harness C# do integrador sem PackageReference externo; referencia o projeto Jornada.Integrador.CSharp e é validado em --locked-mode.",
-      "verificationStatus": "CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405"
-    },
-    {
       "path": "tests/Jornada.Integration.Tests/packages.lock.json",
       "origin": "REGENERATED_OR_VERIFIED_V405_SDK_8_0_424",
       "sourceSha256": "3091caab2bb973443ad89a79579255a43d68e59a73deddbf432af18b2b9f16d8",
@@ -176,7 +160,7 @@
     "dotnet restore Jornada.sln --locked-mode",
     "dotnet build Jornada.sln -c Release --no-restore",
     "executar Unit + Integration da v4.05 após o locked restore",
-    "executar workflow jornada-integrador para Jornada.Resultado.Api e cliente C#",
+    "executar workflow apoio-secretarias separadamente para o transmissor C#",
     "executar scripts/fabric-sql-compatibility.ps1 ou .sh quando houver ambiente Fabric e for necessária nova homologação",
     "release tag promotion must fail if force-evaluate changes or locked restore rejects the committed graph"
   ],
@@ -230,9 +214,9 @@
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
     "sdk": "8.0.424",
-    "lockCount": 23,
+    "lockCount": 21,
     "changedLockCount": 18,
-    "combinedSha256": "675eb5bf92ebd279fbb433d5a2675300e811c01303b3ccb65ef1018547129342",
+    "combinedSha256": "a4eb9e8ee7da45d8d8245b5935d9e6bb45b93dc59c5250c0bd1bbdad6b2d9232",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
