@@ -184,7 +184,42 @@ app.MapPost("/api/v1/identidade/resolver", async (
 
 // Consulta de origem: contrato distinto, somente Gestor proprietário e escopo específico.
 app.MapProgressiveOriginApi();
-app.MapIdentityCandidateSearchApi();
+// Busca ad hoc semicega, sem resolução nem lançamento de linkage_run.
+// Mapeamento literal conserva os gates existentes de OpenAPI/autorização sem alterar scripts.
+app.MapPost("/api/v1/identidade/candidatos", async (
+    HttpRequest http,
+    IdentityCandidateSearchRequest request,
+    IPolicyEngine policy,
+    IIdentityCandidateSearchService service,
+    CancellationToken ct) =>
+{
+    var context = http.HttpContext.RequireJornadaAccessContext();
+    if (!await policy.IsAllowedAsync(context, "jornada.identidade.candidatos.read", null, null, ct))
+        return Results.Forbid();
+    if (!IdentityCandidateSearchApi.TryValidateRequest(request))
+        return Results.BadRequest(new { erro = "Dados de busca inválidos." });
+
+    try
+    {
+        var result = await service.SearchAsync(context, request, ct);
+        if (result.Candidatos.Count > 5
+            || result.NenhumDestes != (result.Candidatos.Count == 0)
+            || result.Candidatos.Any(static c => c.PessoaUuid == Guid.Empty))
+            throw new CandidateSearchUnavailableException("RESPOSTA_CANDIDATOS_INVALIDA");
+        ApiAuditContext.SetPersons(http.HttpContext, result.Candidatos.Select(static c => c.PessoaUuid));
+        return Results.Ok(result);
+    }
+    catch (CandidateSearchUnavailableException)
+    {
+        return Results.Json(new { codigo = "BUSCA_CANDIDATOS_INDISPONIVEL" },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+    catch (SqlException)
+    {
+        return Results.Json(new { codigo = "BUSCA_CANDIDATOS_INDISPONIVEL" },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+}).RequireRateLimiting("identity").RequireAuthorization("jornada.identidade.candidatos.read");
 
 // Uma única Entrega externa por ZIP, sempre com manifest.json + pessoas.jsonl + registros.jsonl.
 // registros.jsonl pode estar vazio; o contexto factual é opcional nesse caso. O nome do ZIP contém seu SHA-256.
