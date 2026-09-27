@@ -6,7 +6,7 @@
 
 Armazenar no volume NAS arquivos **Parquet comprimidos com ZSTD**, imutáveis, endereçados pelo SHA-256 dos bytes. Cada execução do Linkage referencia um manifesto imutável com o conjunto exato de partições e versões dos insumos. Reutilizar partições não alteradas (copy-on-write lógico), sem duplicar um snapshot integral por execução. O manifesto não deve conter CPF, nomes nem atributos pessoais em texto aberto.
 
-O NAS é armazenamento de replay, **não** banco de decisão nem backup único. Usar permissões de serviço mínimas, criptografia do volume, cópia independente conforme política de continuidade, verificação periódica de hash, controle de espaço e retenção governada (#379). Não versionar Parquets com dados pessoais no Git. O caminho raiz é configuração externa (por exemplo, `JORNADA_LINKAGE_SNAPSHOT_ROOT`); jamais fixar uma montagem NAS no código.
+**Reutilizar o NAS já empregado pela camada Bronze**, configurado por `BronzeStorage:RootPath` e provider `FileSystem`. Reservar o prefixo `linkage-snapshots/v1/` **fora** do prefixo de objetos ZIP `sha256/ab/cd/<hash>.zip`; o worker de retenção Bronze não pode varrer esse prefixo. O NAS é armazenamento de replay, **não** banco de decisão nem backup único. Usar permissões de serviço mínimas, criptografia do volume, cópia independente conforme política de continuidade, verificação periódica de hash, controle de espaço e retenção governada (#379). Não versionar Parquets com dados pessoais no Git. A raiz padrão é `BronzeStorage:RootPath/linkage-snapshots/v1` no **mesmo volume já montado**. Aceitar `JORNADA_LINKAGE_SNAPSHOT_ROOT` somente como override explícito quando a implantação exigir. Não duplicar configuração de mount, não colocar Parquet no namespace de ZIP Bronze nem conceder ao worker de expurgo Bronze permissão de exclusão sobre snapshots.
 
 ## Fronteira transacional
 
@@ -30,7 +30,7 @@ Medir em `JornadaSyntheticDev` snapshot inicial, bytes de partições alteradas 
 
 ## Implantação NAS
 
-Montar volume em cada nó autorizado com caminho configurável e permissões restritas ao serviço. Exigir renomeação atômica dentro do mesmo mount, espaço livre monitorado e proteção contra alterações após publicação. Se NAS indisponível, suspender captura/publicação dependente de snapshot e emitir diagnóstico; não fazer fallback silencioso para disco efêmero. Backup externo e retenção dependem de decisão institucional (#379).
+**Reutilizar o mount NAS existente da Bronze** em cada nó autorizado, com subdiretório e ACL próprios para snapshots. Validar que a raiz de snapshots não coincide com a raiz da Bronze nem com o prefixo dos ZIPs; o processo de expurgo Bronze não deve atravessá-la. Exigir renomeação atômica dentro do mesmo mount, espaço livre monitorado e proteção contra alterações após publicação. Se NAS indisponível, suspender captura/publicação dependente de snapshot e emitir diagnóstico; não fazer fallback silencioso para disco efêmero. Backup externo e retenção dependem de decisão institucional (#379).
 
 ## Migração segura
 
