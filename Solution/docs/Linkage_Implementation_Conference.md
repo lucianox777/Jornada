@@ -79,6 +79,16 @@ O ensaio legado separado acumula cinco evidências (`NOME`, `NOME_MAE`, `NASC_DI
 
 **Gates mantidos:** configuração `FROZEN`, `V1_2026-09-26`, 0,01 (sem aumento), diferença absoluta de LLR de **cada** candidato dentro do teto e equivalência exata de status, candidato resolvido, melhor/segundo e motivo. O teste compara ainda o valor arredondado em oito casas próximo ao limiar. A hipótese de erro <0,001 em **corpus abrangente** permanece não demonstrada: nove casos dirigidos não determinam um limite global de erro. Os comparadores, a formação dos guard-inputs, um modelo RASCUNHO real em DEV, Splink 4.0.17 externo (#506) e representatividade estatística (#31) continuam fora desta evidência; o status de validação estatística permanece `NOT_ASSESSED_ISSUE_31`.
 
+## Quando reconferir a implementação (DT-14)
+
+A evidência atual do [PR #514](https://github.com/lucianox777/Jornada/pull/514), com status **`CONFORME` nos casos artesanais de fronteira**, permanece válida **para esse conjunto e para esse escopo** enquanto **scorer, thresholds e runtime** não mudarem. Ela é uma caracterização dirigida, não uma prova universal de equivalência numérica, uma conferência independente dos comparadores, a evidência SQL governada de cada modelo ou validação estatística representativa (#31).
+
+**Não é necessário reexecutar essa conferência a cada `GENERATE_DRAFT`.** O procedimento normal pretendido passa a ser `GENERATE_DRAFT` → operador revisa o resultado → `VALIDATE` → `ACTIVATE`. Reexecutar a ferramenta standalone `Jornada.Linkage.Conference`, que **continua disponível**, quando houver alteração de `FellegiSunterScoring.cs` ou dos comparadores, migração de versão do .NET, ou mudança de faixa significativa de thresholds entre modelos consecutivos. Como a implementação independente V1 usa estados pré-computados, uma mudança nos comparadores exige testes/evidência específica adicional: `CONFORME` em V1 não atesta a correção dos comparadores.
+
+**Próxima execução obrigatória: DT-02 (migração para .NET 10).** Preservar o registro do runtime, da versão do scorer e dos thresholds ao comparar a nova execução com a evidência do PR #514.
+
+**Distinção entre procedimento e código atual:** DT-14 modifica apenas a documentação. O gate existente em `VALIDATE`/`ACTIVATE` ainda exige evidência governada `CONFORME` mais recente para o **mesmo modelo, método, versão de tolerância e fingerprint**. Assim, a validade da caracterização artesanal do PR #514 **não** autoriza promover um novo rascunho sem sua própria evidência persistida. Tornar o fluxo operacional independente de conferência por rascunho requer mudança de código em tarefa separada; até lá, respeitar o bloqueio fail-closed, sem inferir que a mudança documental o retirou.
+
 ## Estados de saída
 
 - `CONFORME`: todo LLR por par está dentro da tolerância congelada e a decisão final é exatamente a mesma;
@@ -106,11 +116,7 @@ Uma execução `DIVERGENTE` ou `NAO_EXECUTADA` posterior invalida, para efeito d
 
 O **wiring em `VALIDATE` e `ACTIVATE` já está implementado** no `Jornada.Linkage.Parameters.Worker`: ambas carregam o mesmo contrato versionado de tolerância, abrem transação `SERIALIZABLE` e chamam `auditoria.sp_assert_conferencia_linkage_conforme` para a própria `modelo_id` antes de alterar o status. O assert SQL exige a evidência **mais recente** `CONFORME` para o método/versão de tolerância e um fingerprint que ainda corresponda ao snapshot decisório.
 
-Com a configuração de engenharia congelada, `VALIDATE` e `ACTIVATE` superam apenas a pré-condição de **tolerância definida**. A promoção continua exigindo a execução governada prévia da conferência, evidência mais recente `CONFORME` no mesmo método/versão/fingerprint, e a validação dos budgets FP persistidos. A regra exata continua:
-
-`GENERATE_DRAFT -> CONFERENCIA -> VALIDATE -> ACTIVATE`
-
-Não há conferência governada executada nem promoção demonstrada apenas pela alteração deste arquivo. As suites de CI verificam o contrato e fixtures; DEV deve produzir evidência independente por modelo. A validação estatística representativa (#31) continua separada.
+Com a configuração de engenharia congelada, `VALIDATE` e `ACTIVATE` superam apenas a pré-condição de **tolerância definida**. A promoção continua exigindo a execução governada prévia da conferência, evidência mais recente `CONFORME` no mesmo método/versão/fingerprint, e a validação dos budgets FP persistidos. A regra **implementada hoje** continua exigindo conferência governada por modelo antes da promoção, embora o **procedimento normal pretendido por DT-14** seja `GENERATE_DRAFT` → revisão do operador → `VALIDATE` → `ACTIVATE`, com reconferência independente apenas nos eventos descritos acima. Nenhuma alteração de gate ou promoção é demonstrada apenas por esta documentação. As suítes de CI verificam contrato e fixtures; enquanto o gate atual persistir, DEV deve produzir evidência independente por modelo. A validação estatística representativa (#31) continua separada.
 
 ## Comando governado
 
