@@ -80,6 +80,17 @@ public sealed class SemiblindIdentitySearchTests
     }
 
     [Test]
+    public async Task Missing_birth_date_is_accepted_by_search_contract()
+    {
+        var service = new SemiblindIdentitySearchService(
+            new FakeRetriever(Candidate(1)), new FakePolicy());
+        var response = await service.SearchAsync(Context(),
+            new SemiblindIdentitySearchRequest("Pessoa", null, null),
+            Guid.NewGuid(), CancellationToken.None);
+        Assert.That(response.Candidatos, Has.Count.EqualTo(1));
+    }
+
+    [Test]
     public void Empty_name_is_rejected()
     {
         var service = new SemiblindIdentitySearchService(new FakeRetriever(), new FakePolicy());
