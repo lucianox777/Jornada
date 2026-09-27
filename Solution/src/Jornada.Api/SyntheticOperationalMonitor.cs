@@ -374,7 +374,7 @@ async function load(){
    [['Seed',e.seed],['Perfil residente',e.environmentProfile],['Modelo','v'+e.modelVersion+' · '+e.modelStatus],['Run group',e.runGroupId],['Gerador',e.generatorVersion],['Evaluator',e.evaluatorVersion],['Ruleset',e.rulesetVersion],['Corpus fingerprint',e.corpusFingerprintSha256],['Model snapshot',e.modelSnapshotSha256]]
    .map(([k,v])=>'<div><div class="k">'+esc(k)+'</div><div class="v">'+esc(v)+'</div></div>').join('')+'</div>'+
    '<p class="muted">Seeds esperadas: '+esc((g?.expectedSeeds||[]).join(', '))+' · concluídas: '+esc((g?.completedSeeds||[]).join(', '))+' · faltantes: '+esc((g?.missingSeeds||[]).join(', '))+'</p></div>';
- const focus=m.filter(z=>['DECISION_ORACLE','DECISION_QUALITY','BLOCKING','M_DISTANCE_REWEIGHTED','U_DISTANCE_REWEIGHTED'].includes(z.scope));
+ const focus=m.filter(z=>['DECISION_ORACLE','DECISION_QUALITY','BLOCKING','COMBINED_BLOCKING','COMBINED_BLOCKING_PASS','M_DISTANCE_REWEIGHTED','U_DISTANCE_REWEIGHTED'].includes(z.scope));
  document.getElementById('quality').innerHTML='<div class="card"><h2>Oracle, blocking e qualidade</h2><table><thead><tr><th>Escopo</th><th>Dimensão</th><th>Métrica</th><th>Valor</th></tr></thead><tbody>'+
    focus.map(z=>'<tr><td>'+esc(z.scope)+'</td><td>'+esc(z.dimension||'—')+'</td><td>'+esc(z.metric)+'</td><td>'+fmt(z.value)+' '+esc(z.unit)+'</td></tr>').join('')+'</tbody></table></div>';
  const d=g?.dispersion||[];

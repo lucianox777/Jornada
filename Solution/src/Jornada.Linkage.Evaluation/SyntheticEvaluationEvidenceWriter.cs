@@ -148,6 +148,22 @@ public sealed class SyntheticEvaluationEvidenceWriter(
         Add(table, "BLOCKING", null, "NON_MATCH_RETENTION", report.Blocking.NonMatchRetention, "RATIO");
         Add(table, "BLOCKING", null, "REDUCTION_RATIO", report.Blocking.ReductionRatio, "RATIO");
 
+        if (report.CombinedBlocking is { } combined)
+        {
+            Add(table, "COMBINED_BLOCKING", null, "ELIGIBLE_TRUE_PAIRS", combined.EligibleTruePairs, "COUNT");
+            Add(table, "COMBINED_BLOCKING", null, "EXACT_TRUE_PAIRS", combined.ExactTruePairs, "COUNT");
+            Add(table, "COMBINED_BLOCKING", null, "UNION_TRUE_PAIRS", combined.UnionTruePairs, "COUNT");
+            Add(table, "COMBINED_BLOCKING", null, "EXACT_RECALL", combined.ExactRecall, "RATIO");
+            Add(table, "COMBINED_BLOCKING", null, "UNION_RECALL", combined.UnionRecall, "RATIO");
+            Add(table, "COMBINED_BLOCKING", null, "CANDIDATE_UNION_PAIRS", combined.CandidateUnionPairs, "COUNT");
+            foreach (var pass in combined.Passes)
+            {
+                Add(table, "COMBINED_BLOCKING_PASS", pass.PassId, "CANDIDATE_PAIRS", pass.CandidatePairs, "COUNT");
+                Add(table, "COMBINED_BLOCKING_PASS", pass.PassId, "TRUE_PAIRS_RETAINED", pass.TruePairsRetained, "COUNT");
+                Add(table, "COMBINED_BLOCKING_PASS", pass.PassId, "TRUE_MATCH_RECALL", pass.TrueMatchRecall, "RATIO");
+            }
+        }
+
         foreach (var pass in report.Blocking.Passes)
         {
             Add(table, "BLOCKING_PASS", pass.PassId, "CANDIDATE_PAIRS", pass.CandidatePairs, "COUNT");
