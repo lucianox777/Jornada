@@ -51,7 +51,7 @@ public static class IbgeOfflineUReference
                 var name = item.GetProperty("name").GetString();
                 var count = item.GetProperty("occurrences").GetInt64();
                 if (string.IsNullOrWhiteSpace(name) || name != name.Trim() ||
-                    name != name.ToUpperInvariant() || !seen.Add(name) || count <= 0)
+                    !string.Equals(name, name.ToUpperInvariant(), StringComparison.Ordinal) || !seen.Add(name) || count <= 0)
                     throw new InvalidDataException("Invalid public marginal row.");
                 rows.Add(new(kind, name, count));
             }
