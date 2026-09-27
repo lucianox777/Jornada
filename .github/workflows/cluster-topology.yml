@@ -71,10 +71,8 @@ jobs:
               if isinstance(value, dict): return {key: shape(item) for key, item in value.items()}
               if isinstance(value, list): return [shape(value[0])] if value else []
               return type(value).__name__
-          # O bloco de credenciais do gestor sintético existe somente no perfil DEV.
-          if "integrator" in prod or test.get("integrator", {}).get("enabled") is not False: raise SystemExit("Transmissor não pode integrar o perfil Production; credencial Test deve estar desabilitada.")
-          test_core = {k: v for k, v in test.items() if k != "integrator"}
-          if shape(test_core) != shape(prod): raise SystemExit("Configurações Test e Production não possuem o mesmo schema estrutural operacional.")
+          if "integrator" in prod or "integrator" in test: raise SystemExit("Nenhum perfil do cluster pode instalar o transmissor externo.")
+          if shape(test) != shape(prod): raise SystemExit("Configurações Test e Production não possuem o mesmo schema estrutural operacional.")
           if test["environment"] != "Test" or prod["environment"] != "Production": raise SystemExit("environment incorreto nos perfis canônicos.")
           if len(test["nodes"]) != 2 or len(prod["nodes"]) != 2: raise SystemExit("Topologia canônica deve conter NODE1 e NODE2.")
           if test["storage"]["bronzeRoot"] != "/data/bronze": raise SystemExit("Bronze Test deve usar /data/bronze.")
@@ -126,8 +124,11 @@ jobs:
           monitor_html="$(curl --fail --silent --show-error http://127.0.0.1:5080/monitor)"
           grep -F 'const gestor = "SEHAB";' <<<"$monitor_html" >/dev/null
           grep -F "sessionStorage.setItem('jornada.monitor.key', accessKey);" <<<"$monitor_html" >/dev/null
-          gestor="$(jq -er '.integrator.gestor' install/windows-production/Jornada.Cluster.Test.json)"
-          access_key="$(jq -er '.integrator.accessKey' install/windows-production/Jornada.Cluster.Test.json)"
+          # A credencial de monitoramento DEV pertence ao catálogo de segurança sintética;
+          # não à configuração de instalador do transmissor externo.
+          creds='[.credentials[] | select(.type=="GESTOR" and (.scopes | index("jornada.monitor.read")))] | .[0]'
+          gestor="$(jq -er "$creds | .gestorCodigo" config/security/test-access-keys.json)"
+          access_key="$(jq -er "$creds | .accessKey" config/security/test-access-keys.json)"
           curl --fail --silent --show-error http://127.0.0.1:5080/api/v1/monitor/status -H "X-Jornada-Gestor: $gestor" -H "X-Jornada-Access-Key: $access_key" | jq -e '.monitor and .readiness' >/dev/null
           echo 'LOCAL MONITOR AUTO-CONNECT: OK'
 
