@@ -9,6 +9,7 @@
   },
   "permissions": [
     { "permission": "jornada.identidade.resolve", "gestor": true, "beneficio": true, "servico": true },
+    { "permission": "jornada.identidade.busca.read", "gestor": true, "beneficio": true, "servico": true },
     { "permission": "jornada.identidade.origem.read", "gestor": true, "beneficio": false, "servico": false, "sourceSystemOwnershipAlways": true },
     { "permission": "jornada.ingestao.write", "gestor": true, "beneficio": true, "servico": true, "resourceOwnershipAlways": true },
     { "permission": "jornada.ingestao.status", "gestor": true, "beneficio": true, "servico": true, "resourceOwnershipAlways": true },
@@ -21,6 +22,7 @@
   ],
   "routes": [
     { "method": "POST", "path": "/api/v1/identidade/resolver", "permission": "jornada.identidade.resolve", "allowedCredentialTypes": ["GESTOR", "BENEFICIO", "SERVICO"] },
+    { "method": "POST", "path": "/api/v1/identidade/busca", "permission": "jornada.identidade.busca.read", "allowedCredentialTypes": ["GESTOR", "BENEFICIO", "SERVICO"] },
     { "method": "POST", "path": "/api/v1/identidade/origens/consulta", "permission": "jornada.identidade.origem.read", "allowedCredentialTypes": ["GESTOR"], "sourceSystemOwnershipAlways": true },
     { "method": "POST", "path": "/api/v1/ingestao/entregas", "permission": "jornada.ingestao.write", "allowedCredentialTypes": ["GESTOR"] },
     { "method": "GET", "path": "/api/v1/ingestao/entregas/{entregaId}", "permission": "jornada.ingestao.status", "allowedCredentialTypes": ["GESTOR"] },
