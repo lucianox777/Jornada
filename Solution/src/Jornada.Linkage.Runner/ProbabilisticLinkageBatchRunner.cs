@@ -60,6 +60,11 @@ public sealed class ProbabilisticLinkageBatchRunner(
         {
             var universe = await CreateRunAndMaterializeUniverseAsync(runId, model, request, started, workCt);
             eligible = universe.Eligible;
+            // DT-05: pin the entire visible candidate corpus, not only selected run items.
+            // This is opt-in until the immutable NAS manifest and replay verification are gated.
+            if (configuration.GetValue("LinkageReplay:CaptureBronzeSources", false))
+                await CaptureBronzeSourcesAsync(runId, workCt);
+
 
             if (request.Mode == LinkageRunType.INCREMENTAL
                 && universe.FreshPending + universe.Reevaluated != universe.Eligible)
@@ -147,6 +152,21 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 ex.Message.Length <= 200 ? ex.Message : ex.Message[..200], CancellationToken.None);
             throw;
         }
+    }
+
+    private async Task CaptureBronzeSourcesAsync(Guid runId, CancellationToken ct)
+    {
+        await using var connection = await operationalSql.OpenAsync(ct);
+        await using var command = new SqlCommand(
+            "EXEC identidade.sp_capturar_fontes_bronze_linkage @linkage_run_id;",
+            connection)
+        {
+            CommandTimeout = Math.Max(30, configuration.GetValue(
+                "LinkageReplay:CaptureCommandTimeoutSeconds", 3600))
+        };
+        command.Parameters.Add("@linkage_run_id", SqlDbType.UniqueIdentifier).Value = runId;
+        await command.ExecuteNonQueryAsync(ct);
+        logger.LogInformation("DT-05 Bronze source pins captured for run {RunId}.", runId);
     }
 
     private async Task EnsureBatchPublicationProcedureAvailableAsync(CancellationToken ct)
