@@ -104,7 +104,7 @@ As views trabalham somente com a versão factual `VIGENTE` e expõem flags aditi
 A v3.38 adiciona superfícies executáveis no projeto PBIP, além das views SQL:
 
 - tabela `Territorializacao` + página **Territorialização**, baseadas em `serving.v_bi_territorializacao`;
-- tabela semântica legada `CargaInicial` + página **Vazão de Processamento**, baseadas em `serving.v_bi_processamento_hora`, sem flag operacional;
+- tabela semântica `CargaInicial` + página **Carga Inicial** (nome histórico preservado para compatibilidade), agora baseadas em `serving.v_bi_processamento_hora` e apresentando vazão horária geral, sem flag operacional;
 - tabela `ManutencaoBronze` + página **Manutenção da Bronze**, baseadas em `serving.v_bi_manutencao_bronze`.
 
 Na Fase 1 a geografia analítica é responsabilidade da origem/Gestor: `situacaoGeografia` é explícita e `RESOLVIDA` exige Distrito, Subprefeitura e `referenciaMalha`. O BI deve acompanhar cobertura por Gestor, situação e versão/referência de malha, sem depender de chamadas geográficas online no Processor.
