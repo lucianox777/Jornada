@@ -232,7 +232,7 @@
     "sdk": "8.0.424",
     "lockCount": 23,
     "changedLockCount": 18,
-    "combinedSha256": "ed7d876c9b67a2eb3640a115f8f59f7378f14dba9662ce4bbcea3abeba9b75fa",
+    "combinedSha256": "2c175570087e0da5635aa3e453b472637c407b52a2c1bfe5893603496aebdb01",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -256,7 +256,7 @@
       },
       {
         "path": "src/Jornada.Linkage.Conference/packages.lock.json",
-        "sha256": "cdd6b2d6d6603b4523879949fd6aee786de042ce020471c885fec389d22bd7b9"
+        "sha256": "9ea121755b22252983d0efe87c6c184431f901d7a17a209b684a870896416ee4"
       },
       {
         "path": "src/Jornada.Linkage.Core/packages.lock.json",
@@ -264,7 +264,7 @@
       },
       {
         "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
-        "sha256": "4b182099b4f4b5b773ad8cf8579c6883b67deac952d23252be38b0bf985233c5"
+        "sha256": "f5d13fb4f7090f7529c9eb0cd3f8331e5e28a2ad0889432ecd8670c7f8a5c8d8"
       },
       {
         "path": "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
@@ -300,11 +300,11 @@
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "342b516f31d90bfa525f3f199bb03c1c68b2196d87cacca03939700f9e2192a5"
+        "sha256": "621d85b971d6f9580acee4f4bb669955e4d6ca55ad062e7fec11c4a01578ad38"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "ce2336cc82b9e8a2f3a532316239654d1e080ef0d1600410504f1dc479296ef6"
+        "sha256": "07a6d3c7bb0c444e48f37c5e983c3a230375b92dfd2b21faf321326f8f49e6b0"
       }
     ]
   }
