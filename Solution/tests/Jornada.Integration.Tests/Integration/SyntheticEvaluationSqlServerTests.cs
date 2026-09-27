@@ -57,6 +57,19 @@ public sealed class SyntheticEvaluationSqlServerTests
                 Assert.That(report.Blocking.PossibleNonMatchPairs, Is.EqualTo(4));
                 Assert.That(report.Blocking.CandidateUnionPairs, Is.EqualTo(6));
                 Assert.That(report.Blocking.CandidateUnionNonMatchPairs, Is.EqualTo(4));
+                Assert.That(report.ParallelBlocking, Is.Not.Null);
+                Assert.That(report.ParallelBlocking!.Universe, Is.EqualTo(
+                    BlockingParallelCandidateDiagnostic.Universe));
+                Assert.That(report.ParallelBlocking.EligibleTruePairs, Is.EqualTo(1),
+                    "O único par verdadeiro sem CPF entre Gestores é o caso CARLOS.");
+                Assert.That(report.ParallelBlocking.CombinedEligibleTruePairs, Is.EqualTo(1));
+                Assert.That(report.ParallelBlocking.UnionTruePairs, Is.EqualTo(1));
+                Assert.That(report.ParallelBlocking.DynamicTruePairs, Is.EqualTo(1));
+                Assert.That(report.ParallelBlocking.CombinedTruePairs, Is.EqualTo(1));
+                Assert.That(report.ParallelBlocking.SharedTruePairs, Is.EqualTo(1));
+                Assert.That(report.ParallelBlocking.UnionRecall, Is.EqualTo(1m));
+                Assert.That(report.ParallelBlocking.DynamicOnlyTruePairs, Is.Zero);
+                Assert.That(report.ParallelBlocking.CombinedOnlyTruePairs, Is.Zero);
                 Assert.That(report.Blocking.NonMatchRetention, Is.EqualTo(1m));
                 Assert.That(report.MRecovery.PairCount, Is.EqualTo(1));
                 Assert.That(report.MRecovery.TruthRaw.Name["EXACT"], Is.EqualTo(1m));
@@ -149,6 +162,30 @@ public sealed class SyntheticEvaluationSqlServerTests
                     Assert.That(reader.GetString(3), Is.EqualTo("NOT_ASSESSED_ISSUE_31"));
                     Assert.That(reader.GetBoolean(4), Is.False);
                     Assert.That(reader.GetInt32(5), Is.GreaterThan(40));
+                    Assert.That(report.ParallelBlocking, Is.Not.Null);
+                });
+            }
+
+            // Metrics in the append-only ledger match the read-only D/C/union report.
+            await using (var parallelMetrics = connection.CreateCommand())
+            {
+                parallelMetrics.CommandText = """
+                    SELECT metrica,valor
+                    FROM auditoria.linkage_avaliacao_sintetica_metrica
+                    WHERE avaliacao_id=@evaluation_id AND escopo=N'PARALLEL_BLOCKING';
+                    """;
+                parallelMetrics.Parameters.AddWithValue("@evaluation_id", persisted.EvaluationId);
+                var saved = new Dictionary<string, decimal>(StringComparer.Ordinal);
+                await using var reader = await parallelMetrics.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                    saved.Add(reader.GetString(0), reader.GetDecimal(1));
+                Assert.Multiple(() =>
+                {
+                    Assert.That(saved, Has.Count.GreaterThan(15));
+                    Assert.That(saved["ELIGIBLE_TRUE_PAIRS"], Is.EqualTo(1m));
+                    Assert.That(saved["UNION_TRUE_PAIRS"], Is.EqualTo(1m));
+                    Assert.That(saved["D_ONLY_TRUE_PAIRS"], Is.Zero);
+                    Assert.That(saved["C_ONLY_TRUE_PAIRS"], Is.Zero);
                 });
             }
 
