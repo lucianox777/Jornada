@@ -85,7 +85,18 @@ def create(root, refs_file, manifest_path, run_id, versions, parent_manifest=Non
         parent_path = Path(parent_manifest).resolve()
         verify(root, parent_path)
         parent_data = json.loads(parent_path.read_text(encoding="utf-8"))
-        old = {item["objeto_chave"]: item for item in parent_data["bronze_objects"]}
+        old = {}
+        ancestor_data = parent_data
+        while True:
+            for item in ancestor_data["bronze_objects"]:
+                existing = old.setdefault(item["objeto_chave"], item)
+                if existing != item:
+                    raise ValueError("conflicting inherited Bronze reference")
+            ancestor_parent = ancestor_data.get("parent")
+            if not ancestor_parent:
+                break
+            ancestor_path = (root / ancestor_parent["path"]).resolve()
+            ancestor_data = json.loads(ancestor_path.read_text(encoding="utf-8"))
         for key, item in unique.items():
             if key in old and old[key] != item:
                 raise ValueError("append-only Bronze object changed")
