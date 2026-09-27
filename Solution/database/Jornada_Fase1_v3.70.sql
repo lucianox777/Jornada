@@ -56,4 +56,6 @@
 :r database/migrations/20260926_Linkage_Run_Incremental_Metrics_371.sql
 :r database/migrations/20260926_Ibge_Nominal_U_Derived_371.sql
 :r database/migrations/20260926_Linkage_Publicacao_Progressiva_Lote.sql
+:r database/migrations/20260927_Linkage_Transicao_Semantica_DT05.sql
+:r database/migrations/20260927_Linkage_Bronze_Pins_DT05.sql
 :r database/migrations/20260910_Schema_Consolidation_370.sql
