@@ -49,7 +49,7 @@ if (args.Length == 4 && args[0] == "--export-splink-ibge-disagreements")
     Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
     await File.WriteAllTextAsync(outputPath, csv, new System.Text.UTF8Encoding(false));
     Console.WriteLine("Divergências sintéticas IBGE × Splink exportadas: " +
-        (csv.Split('\\n', StringSplitOptions.RemoveEmptyEntries).Length - 1) +
+        (csv.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length - 1) +
         ". Diagnóstico apenas; não altera o modelo.");
     return;
 }
