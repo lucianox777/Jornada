@@ -109,3 +109,8 @@ A regressão de publicação passa a criar, em transação isolada, um run real 
 ## Gate operacional incremental — Runner real
 
 `scripts/dt05-runner-e2e.ps1` é um smoke gate independente para um banco DEV isolado já preparado com modelo ATIVO, carga inicial desativada, Silver e referências disponíveis. Requer `ConnectionString`, `SqlcmdServer`, `SqlcmdDatabase`, `SqlcmdUser`, `SQLCMDPASSWORD` no ambiente e `sqlcmd` no PATH. Executa `Jornada.Linkage.Runner --mode ON_DEMAND --publish true`, identifica o run por marcador único e exige `PUBLICADO` e resultados brutos. Não redefine nem apaga o banco; **não é** ensaio de CPF tardio, ledger de múltiplas ondas ou replay NAS. CI sem SQL Server não comprova sua execução.
+
+
+## Integração opcional do Runner ao E2E de ingestão
+
+`pwsh ./scripts/local-e2e.ps1 -VerifyLinkageRunner` mantém o banco isolado padrão `JornadaE2E`, executa duas entregas reais via API/Processor e depois chama o Runner real com marcador único. Exige modelo ATIVO e carga inicial desativada, verifica run `PUBLICADO` e ao menos um `linkage_resultado` bruto. Recusa `-AllowSharedDatabaseReset` combinado com o novo gate. Não há alteração da fixture para CPF tardio neste PR: o ensaio de múltiplas ondas com nova observação Silver, mudança de CPF e verificação de ledger continua pendente. O estágio opt-in só está comprovado quando efetivamente executado com SQL Server, não apenas quando o CI padrão passa.
