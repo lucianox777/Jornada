@@ -42,6 +42,26 @@ public sealed class AccessPolicyTests
     }
 
     [Test]
+    public async Task Semiblind_search_current_policy_is_municipal_not_person_scoped()
+    {
+        var policy = new MunicipalAccessPolicyEngine();
+        var permission = "jornada.identidade.busca.read";
+        var gestor = GestorContext([permission]);
+        // Contrato vigente: o UUID não altera a autorização do Gestor municipal.
+        Assert.That(await policy.IsAllowedAsync(gestor, permission, null,
+            Guid.NewGuid(), CancellationToken.None), Is.True);
+
+        var beneficio = new AccessContext(Guid.NewGuid(), AccessCredentialType.BENEFICIO,
+            "AA01", "SEHAB", "AA01", [permission], ["AA01"]);
+        Assert.That(await policy.IsAllowedAsync(beneficio, permission, "AA01",
+            Guid.NewGuid(), CancellationToken.None), Is.True);
+        Assert.That(await policy.IsAllowedAsync(beneficio, permission, "OUTRO",
+            Guid.NewGuid(), CancellationToken.None), Is.False);
+        Assert.That(await policy.IsAllowedAsync(beneficio, permission, "AA01",
+            null, CancellationToken.None), Is.True);
+    }
+
+    [Test]
     public async Task Missing_scope_still_denies_access()
     {
         var policy = new MunicipalAccessPolicyEngine();

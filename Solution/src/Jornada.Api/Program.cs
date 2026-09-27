@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using Jornada.Contracts;
 using Jornada.Bronze.Storage;
 using Jornada.Ingestion;
+using Jornada.Linkage.Runner;
 using Jornada.Api;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
@@ -88,6 +89,9 @@ else
     builder.Services.AddSingleton<IPolicyEngine, DenyByDefaultPolicyEngine>();
 }
 builder.Services.AddSingleton<IIdentityResolutionService, SqlIdentityResolutionService>();
+builder.Services.AddSingleton<SqlProbabilisticIdentityLinkage>();
+builder.Services.AddSingleton<ISemiblindCandidateRetriever>(sp => sp.GetRequiredService<SqlProbabilisticIdentityLinkage>());
+builder.Services.AddSingleton<ISemiblindIdentitySearchService, SemiblindIdentitySearchService>();
 builder.Services.AddSingleton<IIdentityCorrectionService, SqlIdentityCorrectionService>();
 builder.Services.AddSingleton<IIngestionService, SqlIngestionService>();
 builder.Services.AddSingleton<IPersonProjectionService, SqlPersonProjectionService>();
@@ -180,6 +184,55 @@ app.MapPost("/api/v1/identidade/resolver", async (
     }
     return Results.Ok(result);
 }).RequireRateLimiting("identity").RequireAuthorization("jornada.identidade.resolve");
+
+// Busca síncrona semicega: sem linkage_run, UUID, CPF ou score no payload.
+app.MapPost("/api/v1/identidade/candidatos", async (
+    HttpRequest http,
+    SemiblindIdentitySearchRequest request,
+    IPolicyEngine policy,
+    ISemiblindIdentitySearchService service,
+    IApiAuditSink auditSink,
+    CancellationToken ct) =>
+{
+    var context = http.HttpContext.RequireJornadaAccessContext();
+    ApiAuditContext.SetResourceCode(http.HttpContext, context.TipoCodigo);
+    if (!await policy.IsAllowedAsync(context, "jornada.identidade.busca.read", context.TipoCodigo, null, ct))
+        return Results.Forbid();
+    var correlation = http.HttpContext.Items.TryGetValue(ApiContextItems.CorrelationId, out var value)
+        && value is Guid id ? id : Guid.NewGuid();
+    try
+    {
+        var result = await service.SearchAsync(context, request, correlation, ct);
+        // Fail closed: persistir a consulta antes de disponibilizar qualquer candidato.
+        // O middleware não grava um segundo evento após persistência bem-sucedida.
+        http.HttpContext.Response.StatusCode = StatusCodes.Status200OK;
+        try
+        {
+            await auditSink.PersistAsync(http.HttpContext, correlation, 0, CancellationToken.None);
+            http.HttpContext.Items[ApiContextItems.AuditAlreadyPersisted] = true;
+        }
+        catch
+        {
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+        return Results.Ok(result);
+    }
+    catch (ArgumentException)
+    {
+        return Results.BadRequest(new { erro = "Parâmetros de identidade inválidos." });
+    }
+    catch (InvalidOperationException)
+    {
+        // Modelo ativo ausente ou dependência operacional indisponível: não expor detalhes internos.
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+}).RequireRateLimiting("identity")
+  .RequireAuthorization("jornada.identidade.busca.read")
+  .Produces<SemiblindIdentitySearchResponse>(StatusCodes.Status200OK)
+  .Produces(StatusCodes.Status400BadRequest)
+  .Produces(StatusCodes.Status401Unauthorized)
+  .Produces(StatusCodes.Status403Forbidden)
+  .Produces(StatusCodes.Status503ServiceUnavailable);
 
 // Consulta de origem: contrato distinto, somente Gestor proprietário e escopo específico.
 app.MapProgressiveOriginApi();

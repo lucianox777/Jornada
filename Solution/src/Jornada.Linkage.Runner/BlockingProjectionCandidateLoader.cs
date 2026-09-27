@@ -19,7 +19,8 @@ internal static class BlockingProjectionCandidateLoader
         IdentityObservation observation,
         int maxCandidates,
         int commandTimeoutSeconds,
-        CancellationToken ct)
+        CancellationToken ct,
+        IReadOnlyList<BlockingCandidatePassLookup>? searchPasses = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(ruleSet);
@@ -27,7 +28,7 @@ internal static class BlockingProjectionCandidateLoader
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCandidates);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(commandTimeoutSeconds);
 
-        var passes = BlockingRuleSetCandidatePlanner.Plan(ruleSet, observation);
+        var passes = searchPasses ?? BlockingRuleSetCandidatePlanner.Plan(ruleSet, observation);
         if (passes.Count == 0)
             return Array.Empty<LinkageCandidate>();
 
