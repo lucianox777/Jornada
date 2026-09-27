@@ -24,8 +24,18 @@ As primeiras tentativas no [run `36302214518`](https://github.com/lucianox777/Jo
 ## Resíduos e decisões pendentes
 
 - `Solution/database/Jornada_Seed_Dev.sql`, fixtures, scripts locais/escala e fontes de diagnóstico com `SCALE-SEHAB`: exceção **sintética DEV**, não dependência do contrato externo na solução principal. O inventário contratual, a migração v5 e as configurações operacionais Production não contêm inscrição da SEHAB.
-- `Solution/src/Jornada.Api/wwwroot/monitor/index.html` ainda apresenta `SEHAB` como placeholder visual, mas `Jornada.Api/*` está explicitamente **protegido** nesta intervenção; não afirmar eliminação universal de hardcode sem essa ressalva. Documentos AS-IS em `Documentos/Testes/SEHAB` são históricos e não integram a distribuição de suporte.
+- O monitor genérico da API não exibe mais `SEHAB` como placeholder: o campo apresenta `Código do gestor`; isso não altera handler, política nem APIs. A alteração remove o único hardcode visual pendente identificado fora de fixtures/scripts de desenvolvimento. Documentos AS-IS em `Documentos/Testes/SEHAB` são históricos e não integram a distribuição de suporte.
 - O preparador da SEHAB contém **mapeamento CSV sintético**; faltam homologação de layout real, normalização dos registros efetivos e autorização de uso/distribuição da base real. Nenhum dado pessoal real foi migrado.
 - Para encerrar o gate: obter CI/SQL/HTTP/cluster verdes no **SHA exato**, anexar JSON de evidência de todas as quatro cadeias, verificar rejeição/reatentativa/idempotência/autorização e os controles HML do Plano; decidir a criação de repositório Git separado se requerida pelo modelo de distribuição. A edição da documentação não substitui prova.
 
 **Regra de aceite:** o item 6 de `Plano_Desenvolvimento.md` permanece **não concluído** até que todas as provas exigidas existam. Um workflow estático verde ou documentação de passos não autoriza iniciar o Ensaio.
+
+## Evidências E2E confirmadas e fechamento de regressão SQL
+
+A [rodada 36302605573](https://github.com/lucianox777/Jornada/actions/runs/36302605573) produziu evidência real de E2E sintético na infraestrutura CI: o preparador da Solução de Apoio gerou o ZIP SEHAB v4, o transmissor C# enviou o pacote, o receptor respondeu com recibo e a entrega alcançou `PROCESSADA`. O verificador registrou 1 objeto Bronze, 2 observações Silver, 1 vínculo progressivo e hash do ZIP; a retransmissão não duplicou a concessão Gold vigente.
+
+Na mesma rodada foram verificados os gestores SMADS, SMDET e SMS, também com recibos, hashes v4, 1 objeto Bronze cada e status `PROCESSADA`; os detalhes ficam no artefato `local-e2e-evidence` (42 arquivos) do run. Assim, a falha anterior do cadastro externo com SQLCMD/`QUOTED_IDENTIFIER` foi efetivamente superada em E2E, e não apenas descrita.
+
+Essa rodada teve 130 testes SQL de integração aprovados, mas 1 falhou porque o replay histórico SEHAB não encontrava o schema de Pessoa depois da migração. A correção no commit [`8391197`](https://github.com/lucianox777/Jornada/commit/839119706ccbda69e54dad8a049560e32dc2c082) inclui o schema externo SEHAB **somente como fixture de build do projeto de testes**, sem recolocá-lo nos contratos distribuídos pela solução principal. O novo CI do HEAD deve comprovar essa correção antes do merge técnico.
+
+Esta evidência **não** equivale a homologação dos layouts reais da origem, autorização de HML, criação de outro repositório remoto ou liberação para o Ensaio. O item 6 permanece EM VALIDAÇÃO até os controles e aprovações institucionais descritos no Plano.
