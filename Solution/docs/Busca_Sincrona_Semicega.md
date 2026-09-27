@@ -2,11 +2,11 @@
 
 ## Contrato e fronteiras
 
-`POST /api/v1/identidade/busca` recebe nome, nascimento opcional e nome da mãe opcional. Requer o escopo `jornada.identidade.busca.read`, com autenticação compartilhada DT-04 e política institucional. HML/Produção permanecem deny-by-default até a identidade corporativa.
+`POST /api/v1/identidade/candidatos` recebe `nome_completo` (obrigatório), `data_nascimento` e `nome_mae` (ambos opcionais). A resposta tipada contém `candidatos[]` com `opcaoId`, `nome_completo`, `data_nascimento` e `nome_mae`; o booleano `nenhumDestes` está sempre presente e true inclusive para lista vazia. Requer o escopo `jornada.identidade.busca.read`, com autenticação compartilhada DT-04 e política institucional. HML/Produção permanecem deny-by-default até a identidade corporativa.
 
-A consulta utiliza o modelo ATIVO, o snapshot de ruleset, o loader de blocking e o ranking Fellegi–Sunter do Runner. Seleciona internamente até cinco candidatos, randomiza a ordem de apresentação com gerador criptográfico e retorna somente nome, nascimento, nome da mãe e identificador aleatório de opção. O identificador de opção NÃO é um token de confirmação e não pode ser usado para constituir ou publicar vínculos. A opção «Nenhum destes» é sempre válida, inclusive com lista vazia.
+A consulta utiliza o modelo ATIVO, o snapshot de ruleset, o loader de blocking e o ranking Fellegi–Sunter do Runner. Com nascimento e mãe, acrescenta os passes do `CombinedIdentityCandidatePlanner` aos passes dinâmicos publicados; sem nascimento executa apenas os passes dinâmicos elegíveis. O guard rail da busca síncrona é `SemiblindIdentitySearch:MaxCandidatesPerQuery` (padrão 10000), com recusa em excesso sem truncamento. Até 50 candidatos internos pontuados alimentam a autorização, até preencher cinco opções autorizadas. Seleciona internamente até cinco candidatos, randomiza a ordem de apresentação com gerador criptográfico e retorna somente nome, nascimento, nome da mãe e identificador aleatório de opção. O identificador de opção NÃO é um token de confirmação e não pode ser usado para constituir ou publicar vínculos. A opção «Nenhum destes» é sempre válida, inclusive com lista vazia.
 
-Sem nascimento, o blocking legado retorna lista vazia. Rulesets dinâmicos só executam quando existe passe elegível para a observação. O endpoint não inventa data, não degrada para varredura irrestrita e não altera o scorer.
+Sem nascimento, o blocking legado retorna lista vazia. Rulesets dinâmicos só executam quando existe passe elegível para a observação. O endpoint não inventa data, não degrada para varredura irrestrita, não cria `linkage_run` e não altera o scorer.
 
 ## Pendências para retirar o rascunho
 

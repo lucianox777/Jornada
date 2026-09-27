@@ -19,7 +19,7 @@ public sealed class OpenApiTypedContractTests
         ("/health/ready", "get", "200", "ReadinessStatus", false),
         ("/api/v1/monitor/status", "get", "200", "OperationalMonitorStatus", false),
         ("/api/v1/identidade/resolver", "post", "200", "IdentityResolutionResponse", false),
-        ("/api/v1/identidade/busca", "post", "200", "SemiblindIdentitySearchResponse", false),
+        ("/api/v1/identidade/candidatos", "post", "200", "SemiblindIdentitySearchResponse", false),
         ("/api/v1/ingestao/entregas", "post", "202", "IngestionReceipt", false),
         ("/api/v1/ingestao/entregas/{entregaId}", "get", "200", "IngestionStatusResponse", false),
         ("/api/v1/identidade/conflitos/detalhe", "post", "200", "IdentityConflictDetailResponse", false),
@@ -130,8 +130,11 @@ public sealed class OpenApiTypedContractTests
             JsonNamingPolicy.CamelCase.ConvertName(x.Name)).ToArray();
         Assert.That(properties.EnumerateObject().Select(x => x.Name), Is.EquivalentTo(names),
             dto.Name + ": missing or orphaned published property");
-        Assert.That(required, Is.EquivalentTo(names),
-            dto.Name + ": runtime serializes all positional record properties including null");
+        var expectedRequired = dto == typeof(SemiblindIdentitySearchRequest)
+            ? new[] { "nome_completo" }
+            : names;
+        Assert.That(required, Is.EquivalentTo(expectedRequired),
+            dto.Name + ": required keys diverge from the contract");
         foreach (var property in actual)
         {
             var jsonName = property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ??

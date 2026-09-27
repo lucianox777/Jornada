@@ -15,7 +15,7 @@ namespace Jornada.Tests.Unit;
 [Category("Unit")]
 public sealed class SemiblindIdentityHttpTests
 {
-    private const string Route = "/api/v1/identidade/busca";
+    private const string Route = "/api/v1/identidade/candidatos";
 
     [TestCase("missing", HttpStatusCode.Unauthorized)]
     [TestCase("wrong_scope", HttpStatusCode.Forbidden)]
@@ -66,13 +66,19 @@ public sealed class SemiblindIdentityHttpTests
             using var response = await client.SendAsync(request);
             Assert.That(response.StatusCode, Is.EqualTo(expected));
             Assert.That(service.Calls, Is.EqualTo(scenario is "allowed" or "audit_failure" or "model_unavailable" ? 1 : 0));
+            if (scenario is "missing" or "wrong_scope" or "allowed" or "model_unavailable")
+                Assert.That(audit.Successful, Is.EqualTo(1),
+                    "Cada consulta inclusive recusada deve produzir uma única auditoria.");
             if (scenario == "allowed")
             {
                 Assert.That(audit.Successful, Is.EqualTo(1), "A busca autorizada gera exatamente um evento.");
                 var body = await response.Content.ReadAsStringAsync();
-                Assert.That(body, Does.Contain("nenhumDestesDisponivel"));
+                Assert.That(body, Does.Contain("nenhumDestes"));
                 Assert.That(body, Does.Not.Contain("pessoaUuid"));
                 Assert.That(body, Does.Not.Contain("score"));
+                Assert.That(body, Does.Contain("nome_completo"));
+                Assert.That(body, Does.Contain("data_nascimento"));
+                Assert.That(body, Does.Contain("nome_mae"));
             }
             if (scenario == "model_unavailable")
             {

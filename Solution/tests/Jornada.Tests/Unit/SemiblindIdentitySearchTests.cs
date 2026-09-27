@@ -52,7 +52,7 @@ public sealed class SemiblindIdentitySearchTests
             Guid.NewGuid(), CancellationToken.None);
 
         Assert.That(response.Candidatos, Has.Count.EqualTo(Math.Min(5, count)));
-        Assert.That(response.NenhumDestesDisponivel, Is.True);
+        Assert.That(response.NenhumDestes, Is.True);
         Assert.That(response.Candidatos.Select(x => x.OpcaoId).Distinct().Count(),
             Is.EqualTo(response.Candidatos.Count));
         var json = System.Text.Json.JsonSerializer.Serialize(response).ToLowerInvariant();
@@ -60,6 +60,33 @@ public sealed class SemiblindIdentitySearchTests
         Assert.That(json, Does.Not.Contain("score"));
         Assert.That(json, Does.Not.Contain("pessoauuid"));
         Assert.That(json, Does.Not.Contain("cpf"));
+        Assert.That(json, Does.Contain("nome_completo"));
+        Assert.That(json, Does.Contain("data_nascimento"));
+        Assert.That(json, Does.Contain("nome_mae"));
+        Assert.That(json, Does.Contain("nenhumdestes"));
+    }
+
+    [Test]
+    public async Task Five_authorized_candidates_are_filled_after_first_five_are_denied()
+    {
+        var candidates = Enumerable.Range(0, 10).Select(Candidate).ToArray();
+        var policy = new FirstFiveDeniedPolicy(candidates.Take(5).Select(x => x.PessoaUuid).ToHashSet());
+        var service = new SemiblindIdentitySearchService(new FakeRetriever(candidates), policy);
+        var result = await service.SearchAsync(Context(),
+            new SemiblindIdentitySearchRequest("Pessoa", null, null),
+            Guid.NewGuid(), CancellationToken.None);
+        Assert.That(result.Candidatos, Has.Count.EqualTo(5));
+        Assert.That(result.Candidatos.Select(x => x.Nome),
+            Is.EquivalentTo(candidates.Skip(5).Select(x => x.Nome)));
+    }
+
+    private sealed class FirstFiveDeniedPolicy(HashSet<Guid> denied) : IPolicyEngine
+    {
+        public Task<bool> IsAllowedAsync(AccessContext context, string permission, string? resourceCode,
+            Guid? pessoaUuid, CancellationToken ct) => Task.FromResult(
+            pessoaUuid is Guid id && !denied.Contains(id));
+        public Task<bool> ArePersonsAllowedAsync(AccessContext context, string permission, string? resourceCode,
+            IReadOnlyCollection<Guid> pessoaUuids, CancellationToken ct) => Task.FromResult(false);
     }
 
     [Test]
@@ -102,7 +129,7 @@ public sealed class SemiblindIdentitySearchTests
             new SemiblindIdentitySearchRequest("Pessoa", new DateOnly(1980, 1, 1), null),
             Guid.NewGuid(), CancellationToken.None);
         Assert.That(response.Candidatos, Is.Empty);
-        Assert.That(response.NenhumDestesDisponivel, Is.True);
+        Assert.That(response.NenhumDestes, Is.True);
     }
 
     [Test]

@@ -2955,9 +2955,7 @@
       "SemiblindIdentitySearchRequest": {
         "type": "object",
         "required": [
-          "nome_completo",
-          "data_nascimento",
-          "nome_mae"
+          "nome_completo"
         ],
         "properties": {
           "nome_completo": {
