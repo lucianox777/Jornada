@@ -1,5 +1,8 @@
 # Busca síncrona semicega — PR #532
 
+> **Gate de ativação (issue #539):** a rota `POST /api/v1/identidade/candidatos` está integrada ao `master` como código, mas exige `SemiblindIdentitySearch:Enabled=true` **e** `ASPNETCORE_ENVIRONMENT=Development`. O valor versionado é `false`; HML/Produção retornam HTTP 503 mesmo que alguém configure `Enabled=true`. Ativar somente para ensaios com dados sintéticos em Development, sem acessar dados reais até a deliberação de finalidade/visibilidade institucional por atributo e a prova SQL/HTTP entre dois órgãos descritas na [issue #539](https://github.com/lucianox777/Jornada/issues/539). Nenhum token de opção serve como confirmação de identidade.
+
+
 ## Contrato e fronteiras
 
 `POST /api/v1/identidade/candidatos` recebe `nome_completo` (obrigatório), `data_nascimento` e `nome_mae` (ambos opcionais). A resposta tipada contém `candidatos[]` com `opcaoId`, `nome_completo`, `data_nascimento` e `nome_mae`; o booleano `nenhumDestes` está sempre presente e true inclusive para lista vazia. Requer o escopo `jornada.identidade.busca.read`, com autenticação compartilhada DT-04 e política institucional. HML/Produção permanecem deny-by-default até a identidade corporativa.
