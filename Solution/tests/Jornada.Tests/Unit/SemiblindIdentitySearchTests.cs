@@ -67,6 +67,19 @@ public sealed class SemiblindIdentitySearchTests
     }
 
     [Test]
+    public async Task All_candidates_denied_returns_no_personal_data()
+    {
+        var denied = Candidate(1);
+        var service = new SemiblindIdentitySearchService(
+            new FakeRetriever(denied), new FakePolicy(denied.PessoaUuid));
+        var response = await service.SearchAsync(Context(),
+            new SemiblindIdentitySearchRequest("Pessoa", new DateOnly(1980, 1, 1), null),
+            Guid.NewGuid(), CancellationToken.None);
+        Assert.That(response.Candidatos, Is.Empty);
+        Assert.That(response.NenhumDestesDisponivel, Is.True);
+    }
+
+    [Test]
     public void Empty_name_is_rejected()
     {
         var service = new SemiblindIdentitySearchService(new FakeRetriever(), new FakePolicy());
