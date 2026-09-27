@@ -185,8 +185,8 @@ app.MapPost("/api/v1/identidade/resolver", async (
     return Results.Ok(result);
 }).RequireRateLimiting("identity").RequireAuthorization("jornada.identidade.resolve");
 
-// Busca semicega: nenhum UUID, CPF ou score é exposto ao atendente.
-app.MapPost("/api/v1/identidade/busca", async (
+// Busca síncrona semicega: sem linkage_run, UUID, CPF ou score no payload.
+app.MapPost("/api/v1/identidade/candidatos", async (
     HttpRequest http,
     SemiblindIdentitySearchRequest request,
     IPolicyEngine policy,

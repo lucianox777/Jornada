@@ -923,9 +923,9 @@
         }
       }
     },
-    "/api/v1/identidade/busca": {
+    "/api/v1/identidade/candidatos": {
       "post": {
-        "operationId": "jornada_post_busca_semicega",
+        "operationId": "jornada_post_candidatos_semicegos",
         "summary": "Busca síncrona semicega de até cinco candidatos, sem score e sem publicação de vínculo",
         "requestBody": {
           "required": true,
@@ -2955,35 +2955,36 @@
       "SemiblindIdentitySearchRequest": {
         "type": "object",
         "required": [
-          "nome",
-          "dataNascimento",
-          "nomeMae"
+          "nome_completo",
+          "data_nascimento",
+          "nome_mae"
         ],
         "properties": {
-          "nome": {
+          "nome_completo": {
             "type": "string",
             "maxLength": 200,
             "minLength": 1
           },
-          "dataNascimento": {
+          "data_nascimento": {
             "type": "string",
             "format": "date",
             "nullable": true
           },
-          "nomeMae": {
+          "nome_mae": {
             "type": "string",
             "nullable": true,
             "maxLength": 200
           }
-        }
+        },
+        "additionalProperties": false
       },
       "SemiblindIdentityCandidate": {
         "type": "object",
         "required": [
           "opcaoId",
-          "nome",
-          "dataNascimento",
-          "nomeMae"
+          "nome_completo",
+          "data_nascimento",
+          "nome_mae"
         ],
         "additionalProperties": false,
         "properties": {
@@ -2991,15 +2992,15 @@
             "type": "string",
             "description": "Identificador de opção da consulta; não autoriza vinculação"
           },
-          "nome": {
+          "nome_completo": {
             "type": "string"
           },
-          "dataNascimento": {
+          "data_nascimento": {
             "type": "string",
             "format": "date",
             "nullable": true
           },
-          "nomeMae": {
+          "nome_mae": {
             "type": "string",
             "nullable": true
           }
@@ -3010,7 +3011,7 @@
         "required": [
           "consultaId",
           "candidatos",
-          "nenhumDestesDisponivel"
+          "nenhumDestes"
         ],
         "additionalProperties": false,
         "properties": {
@@ -3025,11 +3026,9 @@
               "$ref": "#/components/schemas/SemiblindIdentityCandidate"
             }
           },
-          "nenhumDestesDisponivel": {
+          "nenhumDestes": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "description": "Disponibilidade da opção Nenhum destes, inclusive quando candidatos=[]"
           }
         }
       }

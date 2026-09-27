@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Jornada.Contracts;
 
 /// <summary>
@@ -5,27 +7,27 @@ namespace Jornada.Contracts;
 /// A ausência de nascimento não deve ser interpretada como data aproximada.
 /// </summary>
 public sealed record SemiblindIdentitySearchRequest(
-    string Nome,
-    DateOnly? DataNascimento,
-    string? NomeMae);
+    [property: JsonPropertyName("nome_completo")] string Nome,
+    [property: JsonPropertyName("data_nascimento")] DateOnly? DataNascimento,
+    [property: JsonPropertyName("nome_mae")] string? NomeMae);
 
 /// <summary>
 /// Identificador opaco apenas para seleção na interface; não autoriza confirmação.
 /// </summary>
 public sealed record SemiblindIdentityCandidate(
     string OpcaoId,
-    string Nome,
-    DateOnly? DataNascimento,
-    string? NomeMae);
+    [property: JsonPropertyName("nome_completo")] string Nome,
+    [property: JsonPropertyName("data_nascimento")] DateOnly? DataNascimento,
+    [property: JsonPropertyName("nome_mae")] string? NomeMae);
 
 /// <summary>
 /// Contrato externo deliberadamente sem score, LLR, posterior ou posição.
-/// NenhumDestesDisponivel permanece true inclusive quando Candidatos está vazio.
+/// NenhumDestes permanece true inclusive quando Candidatos está vazio.
 /// </summary>
 public sealed record SemiblindIdentitySearchResponse(
     Guid ConsultaId,
     IReadOnlyList<SemiblindIdentityCandidate> Candidatos,
-    bool NenhumDestesDisponivel = true);
+    [property: JsonPropertyName("nenhumDestes")] bool NenhumDestes = true);
 
 public interface ISemiblindIdentitySearchService
 {

@@ -148,19 +148,26 @@ public sealed class SqlProbabilisticIdentityLinkage(
         var observation = new IdentityObservation(null, null, request.Nome.Trim(),
             request.DataNascimento, request.NomeMae?.Trim());
 
-        // Ausência de nascimento só permite busca se o ruleset ativo oferecer passe elegível.
-        if (snapshot.RuleSet is { } rules
-            && BlockingRuleSetCandidatePlanner.Plan(rules, observation).Count == 0)
+        // Sem nascimento usar somente os passes dinâmicos elegíveis. O combinado é adicional
+        // quando nascimento e nome materno estão disponíveis, sem alterar o linkage em lote.
+        var passes = snapshot.RuleSet is { } rules
+            ? SemiblindCandidatePassPlanner.Plan(rules, observation)
+            : Array.Empty<BlockingCandidatePassLookup>();
+        if (snapshot.RuleSet is not null && passes.Count == 0)
             return Array.Empty<SemiblindInternalCandidate>();
         if (snapshot.RuleSet is null && observation.DataNascimento is null)
             return Array.Empty<SemiblindInternalCandidate>();
 
-        var candidates = await LoadCandidatesAsync(observation, snapshot, cancellationToken);
+        var maxSynchronousCandidates = Math.Clamp(
+            configuration.GetValue("SemiblindIdentitySearch:MaxCandidatesPerQuery", 10000), 5, 100000);
+        var candidates = await LoadCandidatesAsync(observation, snapshot, cancellationToken,
+            passes, maxSynchronousCandidates);
         var ranked = ProbabilisticLinkageDecisions.Rank(snapshot.Model, observation, candidates);
         var byId = candidates.GroupBy(candidate => candidate.PessoaUuid)
             .ToDictionary(group => group.Key, group => group.First());
         // O limite é aplicado APÓS o ranking interno; a apresentação neutra é feita na API.
-        return ranked.Take(5).Select(score => byId[score.PessoaUuid])
+        // Reservar opções internas para repor posições negadas pela autorização por Pessoa.
+        return ranked.Take(50).Select(score => byId[score.PessoaUuid])
             .Select(candidate => new SemiblindInternalCandidate(
                 candidate.PessoaUuid, candidate.NomeCompleto,
                 candidate.DataNascimento, candidate.NomeMae))
@@ -461,12 +468,16 @@ public sealed class SqlProbabilisticIdentityLinkage(
     private async Task<IReadOnlyList<LinkageCandidate>> LoadCandidatesAsync(
         IdentityObservation observation,
         LinkageRuntimeSnapshot snapshot,
-        CancellationToken ct)
+        CancellationToken ct,
+        IReadOnlyList<BlockingCandidatePassLookup>? searchPasses = null,
+        int? maxCandidatesOverride = null)
     {
         var model = snapshot.Model;
         var maxCandidates = Math.Clamp(
             configuration.GetValue("ProbabilisticLinkage:MaxCandidatesPerBlock", 100000),
             1000, 1000000);
+        if (maxCandidatesOverride is { } synchronousLimit)
+            maxCandidates = Math.Min(maxCandidates, synchronousLimit);
         var commandTimeoutSeconds = Math.Max(
             1,
             configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900));
@@ -486,7 +497,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
                 observation,
                 maxCandidates,
                 commandTimeoutSeconds,
-                ct);
+                ct,
+                searchPasses);
         }
 
         if (observation.DataNascimento is null)
