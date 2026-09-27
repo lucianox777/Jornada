@@ -8,4 +8,11 @@
     <ProjectReference Include="..\Jornada.Ingestion\Jornada.Ingestion.csproj" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
   </ItemGroup>
+  <!-- A API reutiliza o assembly do Runner, não seus arquivos de configuração/lock. -->
+  <Target Name="ExcludeReferencedRunnerPublishContent" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+        Condition="$([System.String]::Copy('%(ResolvedFileToPublish.FullPath)').Contains('Jornada.Linkage.Runner')) And ('%(ResolvedFileToPublish.RelativePath)' == 'appsettings.json' Or '%(ResolvedFileToPublish.RelativePath)' == 'packages.lock.json')" />
+    </ItemGroup>
+  </Target>
 </Project>
