@@ -44,10 +44,9 @@ public sealed record SplinkIbgeReplayStateSummary(string State, long CSharpSuppo
     long SplinkSupport, decimal CSharpProbability, decimal SplinkProbability,
     decimal AbsoluteProbabilityDifference);
 
-public sealed record SplinkIbgeReplayTransitionSummary(
-    string CSharpState,
-    string SplinkState,
-    long Support);
+/// <summary>Uma célula da matriz completa 4×4, incluindo diagonal e zeros.</summary>
+public sealed record SplinkIbgeReplayStateTransition(
+    string CSharpState, string SplinkState, long Support);
 
 public sealed record SplinkIbgeReplayDiagnostic(
     string SchemaVersion,
@@ -65,7 +64,7 @@ public sealed record SplinkIbgeReplayDiagnostic(
     decimal TotalVariation,
     decimal MaximumAbsoluteProbabilityDifference,
     IReadOnlyList<SplinkIbgeReplayStateSummary> States,
-    IReadOnlyList<SplinkIbgeReplayTransitionSummary> Transitions,
+    IReadOnlyList<SplinkIbgeReplayStateTransition> Transitions,
     string Limitation);
 
 /// <summary>
@@ -77,7 +76,8 @@ public static class SplinkIbgeReplayContract
 {
     public const string InputSchema = "JORNADA_SPLINK_IBGE_U_REPLAY_V1";
     public const string ExternalSchema = "JORNADA_SPLINK_IBGE_U_REPLAY_RESULT_V1";
-    public const string ReportSchema = "JORNADA_SPLINK_IBGE_U_REPLAY_DIAGNOSTIC_V1";
+    public const string LegacyReportSchema = "JORNADA_SPLINK_IBGE_U_REPLAY_DIAGNOSTIC_V1";
+    public const string ReportSchema = "JORNADA_SPLINK_IBGE_U_REPLAY_DIAGNOSTIC_V2";
     public const string ComparisonV1 = IdentityComparison.NameComparisonVersionV1;
     public const string MethodVersion = "IBGE_SAME_PAIR_SPLINK_CONFORMANCE_V1";
     private static readonly string[] States = ["EXACT", "HIGH", "MEDIUM", "LOW"];
@@ -158,12 +158,9 @@ public static class SplinkIbgeReplayContract
         var local = States.ToDictionary(state => state, _ => 0L, StringComparer.Ordinal);
         var remote = States.ToDictionary(state => state, _ => 0L, StringComparer.Ordinal);
         var disagreements = 0;
-        var transitions = States
-            .SelectMany(csharpState => States.Select(splinkState =>
-                new { CSharpState = csharpState, SplinkState = splinkState }))
-            .ToDictionary(
-                key => (key.CSharpState, key.SplinkState),
-                _ => 0L);
+        // Matriz completa: origem C# nas linhas, estado Splink nas colunas.
+        // Inclui concordâncias diagonais e células zero para marginais auditáveis.
+        var matrix = new long[States.Length, States.Length];
         var seen = new bool[source.PairCount];
         foreach (var pair in source.Pairs)
             local[pair.CSharpState]++;
@@ -175,9 +172,11 @@ public static class SplinkIbgeReplayContract
                 throw new InvalidDataException("Estado Splink duplicado, desconhecido ou fora do replay.");
             seen[pair.PairIndex] = true;
             remote[pair.SplinkState] = previousCount + 1;
-            var csharpState = source.Pairs[pair.PairIndex].CSharpState;
-            transitions[(csharpState, pair.SplinkState)]++;
-            if (!string.Equals(csharpState, pair.SplinkState, StringComparison.Ordinal))
+            var cSharpState = source.Pairs[pair.PairIndex].CSharpState;
+            var from = Array.IndexOf(States, cSharpState);
+            var to = Array.IndexOf(States, pair.SplinkState);
+            matrix[from, to]++;
+            if (from != to)
                 disagreements++;
         }
         if (seen.Any(found => !found))
@@ -191,16 +190,18 @@ public static class SplinkIbgeReplayContract
                 localProbability, remoteProbability,
                 Math.Abs(localProbability - remoteProbability));
         }).ToArray();
-        var transitionSummaries = States
-            .SelectMany(csharpState => States.Select(splinkState =>
-                new SplinkIbgeReplayTransitionSummary(
-                    csharpState, splinkState, transitions[(csharpState, splinkState)])))
+        var transitions = Enumerable.Range(0, States.Length)
+            .SelectMany(from => Enumerable.Range(0, States.Length)
+                .Select(to => new SplinkIbgeReplayStateTransition(
+                    States[from], States[to], matrix[from, to])))
             .ToArray();
-        if (transitionSummaries.Sum(x => x.Support) != source.PairCount ||
-            transitionSummaries
-                .Where(x => !string.Equals(x.CSharpState, x.SplinkState, StringComparison.Ordinal))
-                .Sum(x => x.Support) != disagreements)
-            throw new InvalidDataException("Matriz de transições inconsistente com o replay.");
+        if (transitions.Sum(cell => cell.Support) != source.PairCount ||
+            transitions.Where(cell => cell.CSharpState != cell.SplinkState)
+                .Sum(cell => cell.Support) != disagreements ||
+            States.Any(state =>
+                transitions.Where(cell => cell.CSharpState == state).Sum(cell => cell.Support) != local[state] ||
+                transitions.Where(cell => cell.SplinkState == state).Sum(cell => cell.Support) != remote[state]))
+            throw new InvalidDataException("Matriz de transições inconsistente com os pares validados.");
 
         return new(
             ReportSchema, MethodVersion,
@@ -208,7 +209,7 @@ public static class SplinkIbgeReplayContract
             source.ComparisonVersion, source.ReferenceCode, source.ReferenceContentSha256,
             inputSha, Sha(resultJson), external.SplinkVersion, source.Seed, source.PairCount,
             disagreements, summaries.Sum(x => x.AbsoluteProbabilityDifference) / 2m,
-            summaries.Max(x => x.AbsoluteProbabilityDifference), summaries, transitionSummaries,
+            summaries.Max(x => x.AbsoluteProbabilityDifference), summaries, transitions,
             "Só compara estados C# vs Splink nos mesmos pares sintéticos IBGE. " +
             "Não valida método de bootstrap, canal de erros, u condicionado, scorer m/u ou população #31.");
     }
