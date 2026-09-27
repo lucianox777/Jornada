@@ -21,10 +21,11 @@ public sealed class SemiblindIdentityHttpTests
     [TestCase("wrong_scope", HttpStatusCode.Forbidden)]
     [TestCase("allowed", HttpStatusCode.OK)]
     [TestCase("audit_failure", HttpStatusCode.ServiceUnavailable)]
+    [TestCase("model_unavailable", HttpStatusCode.ServiceUnavailable)]
     public async Task Route_enforces_access_and_pre_response_audit(string scenario, HttpStatusCode expected)
     {
         var root = Path.Combine(Path.GetTempPath(), "jornada-semiblind-" + Guid.NewGuid().ToString("N"));
-        var service = new FakeService();
+        var service = new FakeService(scenario == "model_unavailable");
         var audit = new TestAuditSink(scenario == "audit_failure");
         try
         {
@@ -64,7 +65,7 @@ public sealed class SemiblindIdentityHttpTests
 
             using var response = await client.SendAsync(request);
             Assert.That(response.StatusCode, Is.EqualTo(expected));
-            Assert.That(service.Calls, Is.EqualTo(scenario is "allowed" or "audit_failure" ? 1 : 0));
+            Assert.That(service.Calls, Is.EqualTo(scenario is "allowed" or "audit_failure" or "model_unavailable" ? 1 : 0));
             if (scenario == "allowed")
             {
                 Assert.That(audit.Successful, Is.EqualTo(1), "A busca autorizada gera exatamente um evento.");
@@ -72,6 +73,12 @@ public sealed class SemiblindIdentityHttpTests
                 Assert.That(body, Does.Contain("nenhumDestesDisponivel"));
                 Assert.That(body, Does.Not.Contain("pessoaUuid"));
                 Assert.That(body, Does.Not.Contain("score"));
+            }
+            if (scenario == "model_unavailable")
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                Assert.That(body, Does.Not.Contain("Pessoa restrita"));
+                Assert.That(body, Does.Not.Contain("modelo probabilístico"));
             }
             if (scenario == "audit_failure")
             {
@@ -103,13 +110,14 @@ public sealed class SemiblindIdentityHttpTests
             IReadOnlyCollection<Guid> pessoaUuids, CancellationToken ct) => Task.FromResult(false);
     }
 
-    private sealed class FakeService : ISemiblindIdentitySearchService
+    private sealed class FakeService(bool unavailable) : ISemiblindIdentitySearchService
     {
         public int Calls { get; private set; }
         public Task<SemiblindIdentitySearchResponse> SearchAsync(AccessContext context,
             SemiblindIdentitySearchRequest request, Guid correlationId, CancellationToken cancellationToken)
         {
             Calls++;
+            if (unavailable) throw new InvalidOperationException("Não existe modelo probabilístico ATIVO.");
             return Task.FromResult(new SemiblindIdentitySearchResponse(correlationId,
                 [new SemiblindIdentityCandidate("opcao-teste", "Pessoa restrita", new DateOnly(1980, 1, 1), null)]));
         }
