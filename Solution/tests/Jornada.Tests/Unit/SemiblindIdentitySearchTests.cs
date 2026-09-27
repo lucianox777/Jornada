@@ -112,6 +112,26 @@ public sealed class SemiblindIdentitySearchTests
     }
 
     [Test]
+    public void Overlong_name_is_rejected_before_candidate_retrieval()
+    {
+        var service = new SemiblindIdentitySearchService(new FakeRetriever(), new FakePolicy());
+        Assert.ThrowsAsync<ArgumentException>(async () =>
+            await service.SearchAsync(Context(),
+                new SemiblindIdentitySearchRequest(new string('A', 201), null, null),
+                Guid.NewGuid(), CancellationToken.None));
+    }
+
+    [Test]
+    public void Overlong_mother_name_is_rejected_before_candidate_retrieval()
+    {
+        var service = new SemiblindIdentitySearchService(new FakeRetriever(), new FakePolicy());
+        Assert.ThrowsAsync<ArgumentException>(async () =>
+            await service.SearchAsync(Context(),
+                new SemiblindIdentitySearchRequest("Pessoa", null, new string('A', 201)),
+                Guid.NewGuid(), CancellationToken.None));
+    }
+
+    [Test]
     public void Empty_name_is_rejected()
     {
         var service = new SemiblindIdentitySearchService(new FakeRetriever(), new FakePolicy());
