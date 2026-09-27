@@ -63,6 +63,22 @@ public sealed class SemiblindIdentitySearchTests
     }
 
     [Test]
+    public async Task Duplicate_person_is_returned_only_once()
+    {
+        var repeated = Candidate(1);
+        var other = Candidate(2);
+        var service = new SemiblindIdentitySearchService(
+            new FakeRetriever(repeated, repeated, other), new FakePolicy());
+        var response = await service.SearchAsync(Context(),
+            new SemiblindIdentitySearchRequest("Pessoa", null, null),
+            Guid.NewGuid(), CancellationToken.None);
+
+        Assert.That(response.Candidatos, Has.Count.EqualTo(2));
+        Assert.That(response.Candidatos.Select(candidate => candidate.Nome),
+            Is.EquivalentTo(new[] { repeated.Nome, other.Nome }));
+    }
+
+    [Test]
     public async Task Denied_candidate_is_not_returned()
     {
         var denied = Candidate(1);
