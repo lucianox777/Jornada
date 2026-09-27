@@ -66,9 +66,10 @@ public sealed class Dt05SemanticThreeWavesSqlServerTests
                       pessoa_observacao_id_high_watermark,registros_elegiveis,avaliados,resolvidos,
                       nao_resolvidos,conflitos,sem_candidato_no_bloco,solicitado_por,motivo,
                       correlation_id,iniciado_em)
-                    VALUES(@run,@model,@version,N'ON_DEMAND',N'EXECUTANDO',
+                    VALUES(@run,@model,@version,N'ON_DEMAND',N'PREPARANDO',
                       @obs,1,N'{"test":"dt05-three-waves"}',1,1,
                       @obs,1,1,0,1,0,1,N'CI',N'DT05 three waves',NEWID(),SYSUTCDATETIME());
+                    UPDATE identidade.linkage_run SET status=N'EXECUTANDO' WHERE linkage_run_id=@run;
                     INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)
                     VALUES(@run,@obs);
                     INSERT identidade.linkage_resultado(
