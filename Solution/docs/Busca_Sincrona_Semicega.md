@@ -19,3 +19,9 @@ Sem nascimento, o blocking legado retorna lista vazia. Rulesets dinâmicos só e
 7. Bloqueio de liberação: revisar a autorização por domínio institucional. A política atual valida escopo e código de recurso, mas a elegibilidade dos candidatos por instituição deve ser confirmada antes da exposição em produção. Não promover para HML/Produção sem essa prova.
 
 Arquivos protegidos na solicitação não foram alterados.
+
+## Verificação adicional — autorização por candidato
+
+O serviço agora chama `IPolicyEngine.IsAllowedAsync` com `PessoaUuid` de cada candidato antes de projetar nome, nascimento e nome da mãe. Um teste unitário verifica que um candidato negado não aparece na resposta. Isso não comprova, por si só, que a implementação concreta da política restringe corretamente a visibilidade institucional: a validação SQL/HTTP com dados de dois órgãos continua bloqueante para a promoção. A seleção por `OpcaoId` ainda não possui protocolo governado de confirmação.
+
+O CI anterior confirmou o gate NuGet e a política compartilhada; a arquitetura e a publicação Windows exigiram correções posteriores, ainda sem execução completa confirmada no último HEAD.
