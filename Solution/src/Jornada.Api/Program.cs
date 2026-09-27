@@ -191,6 +191,7 @@ app.MapPost("/api/v1/identidade/busca", async (
     SemiblindIdentitySearchRequest request,
     IPolicyEngine policy,
     ISemiblindIdentitySearchService service,
+    IApiAuditSink auditSink,
     CancellationToken ct) =>
 {
     var context = http.HttpContext.RequireJornadaAccessContext();
@@ -201,7 +202,20 @@ app.MapPost("/api/v1/identidade/busca", async (
         && value is Guid id ? id : Guid.NewGuid();
     try
     {
-        return Results.Ok(await service.SearchAsync(context, request, correlation, ct));
+        var result = await service.SearchAsync(context, request, correlation, ct);
+        // Fail closed: persistir a consulta antes de disponibilizar qualquer candidato.
+        // O middleware não grava um segundo evento após persistência bem-sucedida.
+        http.HttpContext.Response.StatusCode = StatusCodes.Status200OK;
+        try
+        {
+            await auditSink.PersistAsync(http.HttpContext, correlation, 0, CancellationToken.None);
+            http.HttpContext.Items[ApiContextItems.AuditAlreadyPersisted] = true;
+        }
+        catch
+        {
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+        return Results.Ok(result);
     }
     catch (ArgumentException)
     {
@@ -212,7 +226,8 @@ app.MapPost("/api/v1/identidade/busca", async (
   .Produces<SemiblindIdentitySearchResponse>(StatusCodes.Status200OK)
   .Produces(StatusCodes.Status400BadRequest)
   .Produces(StatusCodes.Status401Unauthorized)
-  .Produces(StatusCodes.Status403Forbidden);
+  .Produces(StatusCodes.Status403Forbidden)
+  .Produces(StatusCodes.Status503ServiceUnavailable);
 
 // Consulta de origem: contrato distinto, somente Gestor proprietário e escopo específico.
 app.MapProgressiveOriginApi();
