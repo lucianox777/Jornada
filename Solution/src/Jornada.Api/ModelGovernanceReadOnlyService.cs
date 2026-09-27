@@ -169,7 +169,7 @@ internal sealed class ModelGovernanceReadOnlyService(IOperationalSqlAdapter sql)
         var u = Metric("DT15_BLOCKING_PAIR_U_WEIGHT");
         var draftRecall = Metric("DT15_BLOCKING_DRAFT_RECALL");
         var draftReduction = Metric("DT15_BLOCKING_DRAFT_REDUCTION");
-        if (statusCode is null || comparable is null || m <= 0m || u <= 0m
+        if (statusCode is null || comparable is null || m is null || m <= 0m || u is null || u <= 0m
             || draftRecall is null || draftReduction is null)
             return new("INCOMPLETO", null, null, null, null, null, null, null,
                 "Faltam denominadores ou métricas mínimas do diagnóstico.");
