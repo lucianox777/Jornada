@@ -5,6 +5,8 @@
 
 Este documento incorpora as decisões anteriormente distribuídas entre documentos ADR de identidade progressiva, âncora CPF, cutover do Processor, composição reversível e Linkage multievidência/Fellegi–Sunter.
 
+**Subdocumento canônico desta arquitetura, parte do núcleo de identidade:** [Decisão arquitetural — blocking complementar com referência IBGE (27/09/2026)](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md). Ela fixa **nome completo + dinâmico + combinado como capacidades COMPLEMENTARES** sobre as mesmas projeções e um único scorer FS; distingue decisão de arquitetura de implementação/ativação. [Blocking Dinâmico](Linkage_Dynamic_Blocking.md), [Plano de Análise](Calibrador_Plano_Blocking_Analise.md) e [Política Brasil](Linkage_Politica_Blocking_Identidade_Brasil_v1.0.md) detalham o contrato sem substituí-lo. Qualquer divergência exige alteração formal conjunta.
+
 ## 0. Hierarquia normativa e tecnologia relacional
 
 A hierarquia de precedência da Jornada é única: **Especificação Técnica vigente → requisitos normativos e documentos de arquitetura corrente subordinados → implementação**. O código validado na `master` é realização e evidência de conformidade; não cria norma por si mesmo. Divergência entre implementação e norma deve ser tratada como defeito ou resultar em alteração formal prévia da documentação normativa aplicável.
@@ -90,7 +92,7 @@ Esta regra arquitetural não altera a obrigatoriedade declarada por cada contrat
 
 Nome e nome da mãe usam normalização versionada. A normalização pode remover diacríticos, pontuação irrelevante, espaços redundantes e partículas nominais isoladas para comparação, preservando o original.
 
-A data de nascimento é preservada integralmente e pode ser decomposta para Linkage em `NASC_DIA`, `NASC_MES` e `NASC_ANO`, cada componente com estados e parâmetros próprios. Componentes inválidos não podem transformar data ruim em evidência positiva.
+A data de nascimento é preservada integralmente e pode ser decomposta **como chaves de blocking** em `NASC_DIA`, `NASC_MES` e `NASC_ANO`. No scoring semântico V5, as combinações civilmente válidas dessas diferenças compõem **uma única evidência** `NASCIMENTO_SEMANTICO` com sete estados; não somar dia, mês e ano como três confirmações independentes quando V5 estiver ativo. Componentes inválidos não podem transformar data ruim em evidência positiva. O fato de V5 reconhecer uma diferença não garante que um passe do blocking encontre o par.
 
 ## 7. Rotas determinísticas e origem
 
@@ -100,9 +102,9 @@ CPF válido, confiável e não conflitado é rota determinística prioritária. 
 
 ## 8. Blocking e geração de candidatos
 
-Blocking reduz o universo de candidatos; nunca decide identidade. O runtime usa regras dinâmicas imutáveis e versionadas produzidas pelo Calibrador e consumidas exatamente pelo Avaliador/Runner correspondente.
+Blocking reduz o universo de candidatos; nunca decide identidade. **Três capacidades são complementares: passes de nome completo, passes dinâmicos e passes combinados.** Suas cláusulas são intersectadas dentro de um passe; seus resultados são **unidos e deduplicados** antes do scorer C# FS. As capacidades utilizam projeções compartilhadas e uma política versionada, sem três motores paralelos. **Estado atual:** o Runner em lote utiliza o ruleset dinâmico imutável; o combinado V1 do PR #526 é protótipo aditivo já usado na busca semicega elegível, mas sua integração ao lote e ao Calibrador exige promoção formal. A documentação da decisão canônica especifica os gates técnicos, estatísticos e institucionais.
 
-A projeção `identidade.blocking_chave` é derivada, reconstruível e indexada; não é fonte de verdade. Passes combinam campos conforme a álgebra versionada e podem usar componentes de nome, nome da mãe e nascimento, inclusive aliases históricos de nome quando aprovados. Data de nascimento corrigida não gera automaticamente alias histórico equivalente.
+A projeção `identidade.blocking_chave` é derivada, reconstruível e indexada; não é fonte de verdade. Passes combinam campos conforme a álgebra versionada e podem usar componentes de nome, nome da mãe e nascimento, inclusive aliases históricos de nome quando aprovados. **A estatística de sobrenomes publicados pelo IBGE em qualquer posição é uma referência auxiliar válida para desenhar e testar o índice por presença de sobrenome**; ela não é a frequência observada do último token em um nome completo não estruturado. O caso de estresse `MARIA SILVA` + mãe `MARIA SILVA` + data exige medir seletividade/recall mesmo com nomes muito frequentes. Data de nascimento corrigida não gera automaticamente alias histórico equivalente.
 
 Nenhum bloco pode ser truncado silenciosamente. Limite excedido exige estratégia alternativa ou falha operacional explícita. Soundex não integra o score e somente poderia ser usado futuramente como chave adicional de blocking se experimento demonstrar ganho.
 
