@@ -14,6 +14,14 @@ public sealed class SemiblindIdentitySearchTests
             Task.FromResult<IReadOnlyList<SemiblindInternalCandidate>>(candidates);
     }
 
+    private sealed class FakePolicy : IPolicyEngine
+    {
+        public Task<bool> IsAllowedAsync(AccessContext context, string permission, string? resourceCode,
+            Guid? pessoaUuid, CancellationToken ct) => Task.FromResult(true);
+        public Task<bool> ArePersonsAllowedAsync(AccessContext context, string permission, string? resourceCode,
+            IReadOnlyCollection<Guid> pessoaUuids, CancellationToken ct) => Task.FromResult(false);
+    }
+
     private static AccessContext Context() => new(
         Guid.NewGuid(), AccessCredentialType.GESTOR, "SMADS", "SMADS", null,
         ["jornada.identidade.busca.read"], []);
@@ -28,7 +36,7 @@ public sealed class SemiblindIdentitySearchTests
     public async Task Search_exposes_at_most_five_minimized_candidates(int count)
     {
         var service = new SemiblindIdentitySearchService(
-            new FakeRetriever(Enumerable.Range(0, count).Select(Candidate).ToArray()));
+            new FakeRetriever(Enumerable.Range(0, count).Select(Candidate).ToArray()), new FakePolicy());
         var response = await service.SearchAsync(Context(),
             new SemiblindIdentitySearchRequest("Pessoa", new DateOnly(1980, 1, 1), null),
             Guid.NewGuid(), CancellationToken.None);
@@ -47,7 +55,7 @@ public sealed class SemiblindIdentitySearchTests
     [Test]
     public void Empty_name_is_rejected()
     {
-        var service = new SemiblindIdentitySearchService(new FakeRetriever());
+        var service = new SemiblindIdentitySearchService(new FakeRetriever(), new FakePolicy());
         Assert.ThrowsAsync<ArgumentException>(async () =>
             await service.SearchAsync(Context(),
                 new SemiblindIdentitySearchRequest(" ", null, null),
