@@ -95,6 +95,7 @@ builder.Services.AddSingleton<IPersonCanonicalResolver, SqlPersonCanonicalResolv
 builder.Services.AddSingleton<IRegistrosQueryService, SqlRegistrosQueryService>();
 builder.Services.AddSingleton<IPossibilidadesQueryService, SqlPossibilidadesQueryService>();
 builder.Services.AddSingleton<IProgressiveOriginQueryService, SqlProgressiveOriginQueryService>();
+builder.Services.AddSingleton<IIdentityCandidateSearchService, SqlIdentityCandidateSearchService>();
 var apiRateLimitOptions = builder.Configuration.GetSection(ApiRateLimitOptions.SectionName).Get<ApiRateLimitOptions>() ?? new ApiRateLimitOptions();
 apiRateLimitOptions.Validate();
 builder.Services.AddSingleton(apiRateLimitOptions);
@@ -183,6 +184,7 @@ app.MapPost("/api/v1/identidade/resolver", async (
 
 // Consulta de origem: contrato distinto, somente Gestor proprietário e escopo específico.
 app.MapProgressiveOriginApi();
+app.MapIdentityCandidateSearchApi();
 
 // Uma única Entrega externa por ZIP, sempre com manifest.json + pessoas.jsonl + registros.jsonl.
 // registros.jsonl pode estar vazio; o contexto factual é opcional nesse caso. O nome do ZIP contém seu SHA-256.
