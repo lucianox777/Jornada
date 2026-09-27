@@ -19,7 +19,7 @@ $referenceUuid = (Scalar "SELECT CONVERT(VARCHAR(36),pessoa_uuid) FROM identidad
 if (-not $referenceUuid) { throw 'DT-05: âncora sintética do seed não encontrada.' }
 Sql @'
 DECLARE @clone UNIQUEIDENTIFIER=NEWID();
-INSERT identidade.pessoa(pessoa_uuid,estado) VALUES(@clone,N'ATIVO');
+INSERT identidade.pessoa(pessoa_uuid,status) VALUES(@clone,N'ATIVO');
 INSERT gold.pessoa(
  pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,
  fontes_distintas,estado_concordancia,atualizado_em,estado_identidade)
