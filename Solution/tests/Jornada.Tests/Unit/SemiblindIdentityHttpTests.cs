@@ -55,6 +55,12 @@ public sealed class SemiblindIdentityHttpTests
                     services.AddSingleton<IPolicyEngine>(new FakePolicy());
                     services.RemoveAll<ISemiblindIdentitySearchService>();
                     services.AddSingleton<ISemiblindIdentitySearchService>(service);
+                    // Serviço simulado mantém os testes HTTP independentes do SQL de DEV.
+                    // O teste do gate concreto abaixo cobre ambiente, flag, banco e marcador.
+                    services.RemoveAll<ISemiblindSearchActivationGate>();
+                    services.AddSingleton<ISemiblindSearchActivationGate>(
+                        new FakeActivationGate(scenario != "feature_disabled"
+                            && scenario != "production_enabled"));
                     services.RemoveAll<IApiAuditSink>();
                     services.AddSingleton<IApiAuditSink>(audit);
                     services.AddSingleton<ISqlReadinessProbe>(new InMemorySqlReadinessProbe(false));
@@ -114,6 +120,25 @@ public sealed class SemiblindIdentityHttpTests
         {
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
+    }
+
+    [TestCase("Development", true, "JornadaSyntheticDev", "Development", true)]
+    [TestCase("Development", false, "JornadaSyntheticDev", "Development", false)]
+    [TestCase("Development", true, "JornadaDev", "Development", false)]
+    [TestCase("Development", true, "JornadaSyntheticDev", null, false)]
+    [TestCase("Development", true, "JornadaSyntheticDev", "Production", false)]
+    [TestCase("Production", true, "JornadaSyntheticDev", "Development", false)]
+    [TestCase("HML", true, "JornadaSyntheticDev", "Development", false)]
+    public void Activation_gate_requires_synthetic_database_and_resident_profile(
+        string environment, bool enabled, string database, string? profile, bool expected)
+    {
+        Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
+            environment, enabled, database, profile), Is.EqualTo(expected));
+    }
+
+    private sealed class FakeActivationGate(bool enabled) : ISemiblindSearchActivationGate
+    {
+        public Task<bool> IsEnabledAsync(CancellationToken ct) => Task.FromResult(enabled);
     }
 
     private sealed class FakeResolver : IAccessContextResolver

@@ -60,3 +60,11 @@ O teste `Concrete_municipal_policy_exposes_same_candidate_to_two_authorized_reso
 ### Deduplicação defensiva das opções
 
 O serviço mantém um conjunto de `PessoaUuid` já vistos e ignora observações repetidas da mesma pessoa antes da autorização e projeção. O teste `Duplicate_person_is_returned_only_once` caracteriza o limite mesmo quando o retriever devolve duplicatas. A deduplicação não substitui a seleção governada nem a política de visibilidade institucional; execução do teste no CI ainda pendente.
+
+## Complemento de proteção: gate estrito de banco sintético (PR #543)
+
+O PR #532 está integrado ao master e o PR #544 acrescentou a configuração `SemiblindIdentitySearch:Enabled=false` por padrão, com bloqueio de HML/Produção. O PR #543 **preserva exatamente essa configuração**, sem criar uma flag paralela, e reforça a checagem de ativação. Mesmo com `Enabled=true`, o endpoint só executa em `Development` quando sua **própria conexão SQL** aponta para o banco `JornadaSyntheticDev`, cujo marcador residente `Jornada.EnvironmentProfile` precisa ser `Development`. O gate é registrado na DI e consultado após autenticação/autorização DT-04, mas antes da recuperação probabilística, e falha fechado (HTTP 503) sem dados de candidatos se as condições não forem comprovadas. O middleware continua auditando as consultas recusadas. O nome e o marcador do banco são controles complementares, não autorização para misturar cidadãos reais com o corpus sintético.
+
+O procedimento de DEV sintético deve inicializar `JornadaSyntheticDev` pelo `scripts/local-db.ps1` ou `scripts/local-db.sh`, que grava o marcador residente. A verificação automatizada cobre flag desligada, banco de DEV comum, marcador ausente/incorreto e HML/Produção com a flag ligada. Os testes HTTP in-memory usam um gate simulado e validam autorização, auditoria e ausência de PII quando a busca é recusada; a política concreta do gate requer consulta SQL ao próprio banco.
+
+O CI do PR #543 anterior à reconciliação concluiu com sucesso, incluindo integração SQL e instalador Windows. A reconciliação com o PR #544 exige nova execução para este HEAD. A issue #539 permanece aberta como bloqueio de ativação com dados reais; #378 mantém a dependência da identidade corporativa.

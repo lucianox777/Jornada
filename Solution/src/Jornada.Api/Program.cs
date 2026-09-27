@@ -92,6 +92,7 @@ builder.Services.AddSingleton<IIdentityResolutionService, SqlIdentityResolutionS
 builder.Services.AddSingleton<SqlProbabilisticIdentityLinkage>();
 builder.Services.AddSingleton<ISemiblindCandidateRetriever>(sp => sp.GetRequiredService<SqlProbabilisticIdentityLinkage>());
 builder.Services.AddSingleton<ISemiblindIdentitySearchService, SemiblindIdentitySearchService>();
+builder.Services.AddSingleton<ISemiblindSearchActivationGate, SqlSyntheticDevelopmentSemiblindSearchActivationGate>();
 builder.Services.AddSingleton<IIdentityCorrectionService, SqlIdentityCorrectionService>();
 builder.Services.AddSingleton<IIngestionService, SqlIngestionService>();
 builder.Services.AddSingleton<IPersonProjectionService, SqlPersonProjectionService>();
@@ -189,10 +190,9 @@ app.MapPost("/api/v1/identidade/resolver", async (
 app.MapPost("/api/v1/identidade/candidatos", async (
     HttpRequest http,
     SemiblindIdentitySearchRequest request,
-    IHostEnvironment environment,
-    IConfiguration configuration,
     IPolicyEngine policy,
     ISemiblindIdentitySearchService service,
+    ISemiblindSearchActivationGate activation,
     IApiAuditSink auditSink,
     CancellationToken ct) =>
 {
@@ -200,9 +200,9 @@ app.MapPost("/api/v1/identidade/candidatos", async (
     ApiAuditContext.SetResourceCode(http.HttpContext, context.TipoCodigo);
     if (!await policy.IsAllowedAsync(context, "jornada.identidade.busca.read", context.TipoCodigo, null, ct))
         return Results.Forbid();
-    // Issue #539: o compartilhamento de atributos ainda requer decisão institucional.
-    // O merge entrega apenas o código; a rota exige opt-in e ambiente Development.
-    if (!environment.IsDevelopment() || !configuration.GetValue<bool>("SemiblindIdentitySearch:Enabled"))
+    // Issue #539: a flag de Development não basta; verificar nome e perfil residente
+    // do banco isolado JornadaSyntheticDev ANTES de recuperar qualquer candidato.
+    if (!await activation.IsEnabledAsync(ct))
         return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
     var correlation = http.HttpContext.Items.TryGetValue(ApiContextItems.CorrelationId, out var value)
         && value is Guid id ? id : Guid.NewGuid();
