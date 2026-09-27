@@ -81,3 +81,7 @@ SELECT COUNT_BIG(*) lotes_pendentes,MIN(criado_em) lote_pendente_mais_antigo,
 FROM ingestao.lote
 WHERE status='PENDENTE';
 
+-- DT-13: vazão horária geral, independentemente de modo especial de carga.
+SELECT TOP(24) hora_utc,pessoas_processadas,pessoas_por_hora
+FROM serving.v_bi_vazao_ingestao
+ORDER BY hora_utc DESC;
