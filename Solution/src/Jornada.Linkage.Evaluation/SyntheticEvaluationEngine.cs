@@ -864,6 +864,8 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
         var seed = DecimalToInt(model.Parameters["FS_DECISION_CALIBRATION_SEED"]);
         var validationBp = DecimalToInt(model.Parameters["FS_DECISION_CALIBRATION_VALIDATION_BP"]);
         var testBp = DecimalToInt(model.Parameters["FS_DECISION_CALIBRATION_TEST_BP"]);
+        // Mesma conversão única do runtime; evita montar um dicionário por par sintético.
+        var numericParameters = FellegiSunterScoring.ToDoubleParameters(model.Parameters);
         var envelopes = new List<SyntheticScenarioEnvelope>();
         for (var index = 0; index < observations.Count; index++)
         {
@@ -887,13 +889,14 @@ public sealed class SyntheticEvaluationEngine(SqlConnection connection, int comm
                 {
                     var nameState = OptionalNameState(observed.Name, row.Name, nameContract);
                     var motherState = OptionalNameState(observed.MotherName, row.MotherName, nameContract);
-                    var score = FellegiSunterScoring.Calculate(
-                        model.Parameters,
+                    var rawScore = FellegiSunterScoring.CalculateRaw(
+                        numericParameters,
                         nameState,
                         motherState,
                         Math.Max(1, uniqueCandidateCount),
                         observed.BirthDate,
                         row.BirthDate);
+                    var score = FellegiSunterScoring.ToContractScore(rawScore);
                     var collision =
                         nameState == NameComparisonState.EXACT &&
                         observed.BirthDate == row.BirthDate;

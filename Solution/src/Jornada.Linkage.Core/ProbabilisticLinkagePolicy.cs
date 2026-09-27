@@ -5,6 +5,10 @@ namespace Jornada.Linkage.Runner;
 internal sealed record LinkageModel(Guid ModelId, int Version, string AlgorithmVersion,
     IReadOnlyDictionary<string, decimal> Parameters, decimal Threshold, decimal ConflictMargin)
 {
+    // Snapshot de cálculo: conversão única dos parâmetros persistidos.
+    internal IReadOnlyDictionary<string, double> NumericParameters { get; } =
+        FellegiSunterScoring.ToDoubleParameters(Parameters);
+
     internal ProbabilisticLinkageModelRef Reference => new(ModelId, Version, AlgorithmVersion, Threshold, ConflictMargin);
 }
 
@@ -123,13 +127,14 @@ internal static class ProbabilisticLinkageDecisions
             {
                 var nameState = CompareOptionalName(observation.NomeCompleto, candidate.NomeCompleto);
                 var motherNameState = CompareOptionalName(observation.NomeMae, candidate.NomeMae);
-                var score = FellegiSunterScoring.Calculate(
-                    model.Parameters,
+                var rawScore = FellegiSunterScoring.CalculateRaw(
+                    model.NumericParameters,
                     nameState,
                     motherNameState,
                     uniqueCandidates.Count,
                     observation.DataNascimento,
                     candidate.DataNascimento);
+                var score = FellegiSunterScoring.ToContractScore(rawScore);
                 var demographicExactCollisionRisk =
                     nameState == NameComparisonState.EXACT &&
                     observation.DataNascimento is { } observedBirth &&

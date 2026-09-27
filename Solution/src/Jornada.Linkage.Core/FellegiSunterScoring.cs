@@ -4,6 +4,9 @@ namespace Jornada.Linkage.Runner;
 
 public readonly record struct FellegiSunterScore(decimal Posterior, decimal LogOdds);
 
+// Somente a fronteira contratual usa decimal; a matemática usa float64.
+internal readonly record struct FellegiSunterRawScore(double Posterior, double LogOdds);
+
 public sealed record FellegiSunterEvidenceContribution(
     string Evidence,
     string State,
@@ -36,12 +39,41 @@ public static class FellegiSunterScoring
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
         DateOnly? rightBirthDate = null) =>
-        CalculateWithBreakdown(parameters, nameState, motherNameState, blockCandidateCount, leftBirthDate, rightBirthDate).Score;
+        ToContractScore(CalculateRaw(ToDoubleParameters(parameters), nameState, motherNameState,
+            blockCandidateCount, leftBirthDate, rightBirthDate));
+
+    // Materializa o snapshot numérico uma única vez na carga do modelo.
+    internal static IReadOnlyDictionary<string, double> ToDoubleParameters(
+        IReadOnlyDictionary<string, decimal> parameters)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return parameters.ToDictionary(static item => item.Key,
+            static item => (double)item.Value, StringComparer.Ordinal);
+    }
+
+    // Mantém a semântica legada do arredondamento exclusivamente na fronteira SQL/contrato.
+    internal static FellegiSunterScore ToContractScore(FellegiSunterRawScore raw)
+    {
+        if (!double.IsFinite(raw.Posterior) || !double.IsFinite(raw.LogOdds))
+            throw new InvalidOperationException("Score probabilístico não finito.");
+        return new FellegiSunterScore(
+            Math.Round((decimal)raw.Posterior, 8, MidpointRounding.AwayFromZero),
+            Math.Round((decimal)raw.LogOdds, 8, MidpointRounding.AwayFromZero));
+    }
+
+    // Hot path: não materializa breakdown nem faz cast decimal de cada contribuição.
+    internal static FellegiSunterRawScore CalculateRaw(
+        IReadOnlyDictionary<string, double> parameters,
+        NameComparisonState? nameState,
+        NameComparisonState? motherNameState,
+        int? blockCandidateCount = null,
+        DateOnly? leftBirthDate = null,
+        DateOnly? rightBirthDate = null) =>
+        Evaluate(parameters, nameState, motherNameState, blockCandidateCount,
+            leftBirthDate, rightBirthDate, captureBreakdown: false).Score;
 
     /// <summary>
-    /// Calcula exatamente o mesmo score usado pelo runtime e expõe, sem alterar a decisão,
-    /// a contribuição aditiva em log-odds de cada evidência. O breakdown é diagnóstico:
-    /// nenhum valor é persistido nem reutilizado como nova evidência pelo scorer.
+    /// Mesmo núcleo double do runtime; as conversões para decimal são apenas diagnósticas.
     /// </summary>
     public static FellegiSunterScoreBreakdown CalculateWithBreakdown(
         IReadOnlyDictionary<string, decimal> parameters,
@@ -51,26 +83,67 @@ public static class FellegiSunterScoring
         DateOnly? leftBirthDate = null,
         DateOnly? rightBirthDate = null)
     {
+        var result = Evaluate(ToDoubleParameters(parameters), nameState, motherNameState,
+            blockCandidateCount, leftBirthDate, rightBirthDate, captureBreakdown: true);
+        // O breakdown expõe as probabilidades persistidas em precisão decimal exata;
+        // só o cálculo matemático percorre o snapshot convertido para double.
+        var contributions = result.Contributions!
+            .Select(item => new FellegiSunterEvidenceContribution(
+                item.Evidence,
+                item.State,
+                item.M is null ? null : Math.Clamp(
+                    parameters[$"M_{item.Evidence}_{item.State}"], 0.000000001m, 0.999999999m),
+                item.U is null ? null : Math.Clamp(
+                    parameters[$"U_{item.Evidence}_{item.State}"], 0.000000001m, 0.999999999m),
+                (decimal)item.LogLikelihoodRatio))
+            .ToArray();
+        return new FellegiSunterScoreBreakdown(
+            ToContractScore(result.Score),
+            result.UsesBlockPrior ? "BLOCK_CANDIDATE_COUNT" : "MODEL_PRIOR",
+            (decimal)result.Prior,
+            (decimal)result.PriorLogOdds,
+            contributions);
+    }
+
+    private readonly record struct RawContribution(
+        string Evidence, string State, double? M, double? U, double LogLikelihoodRatio);
+
+    private readonly record struct RawEvaluation(
+        FellegiSunterRawScore Score,
+        bool UsesBlockPrior,
+        double Prior,
+        double PriorLogOdds,
+        List<RawContribution>? Contributions);
+
+    private static RawEvaluation Evaluate(
+        IReadOnlyDictionary<string, double> parameters,
+        NameComparisonState? nameState,
+        NameComparisonState? motherNameState,
+        int? blockCandidateCount,
+        DateOnly? leftBirthDate,
+        DateOnly? rightBirthDate,
+        bool captureBreakdown)
+    {
         ArgumentNullException.ThrowIfNull(parameters);
 
-        var decisionV6 = parameters.TryGetValue(LinkageParameterCatalog.DecisionEvidenceScoring, out var decisionFlag) && decisionFlag >= 1m;
+        var decisionV6 = parameters.TryGetValue(LinkageParameterCatalog.DecisionEvidenceScoring, out var decisionFlag) && decisionFlag >= 1d;
         var usesBlockPrior = !decisionV6 && blockCandidateCount is > 0;
         var prior = usesBlockPrior
             ? CalculateBlockPrior(parameters, blockCandidateCount!.Value)
             : Get(parameters, LinkageParameterCatalog.PriorMatchProbability);
-        var priorLogOdds = Logit((double)prior);
+        var priorLogOdds = Logit(prior);
         var logOdds = priorLogOdds;
-        var contributions = new List<FellegiSunterEvidenceContribution>(6);
+        var contributions = captureBreakdown ? new List<RawContribution>(6) : null;
 
-        void Add(string evidence, string state, (decimal? M, decimal? U, double LogLikelihoodRatio) value)
+        void Add(string evidence, string state, (double? M, double? U, double LogLikelihoodRatio) value)
         {
             logOdds += value.LogLikelihoodRatio;
-            contributions.Add(new FellegiSunterEvidenceContribution(
+            contributions?.Add(new RawContribution(
                 evidence,
                 state,
                 value.M,
                 value.U,
-                (decimal)value.LogLikelihoodRatio));
+                value.LogLikelihoodRatio));
         }
 
         if (nameState is { } observedNameState)
@@ -101,20 +174,20 @@ public static class FellegiSunterScoring
 
         if (leftBirthDate is { } left && rightBirthDate is { } right)
         {
-            if (parameters.TryGetValue(LinkageParameterCatalog.BirthSemanticEvidenceScoring, out var semanticBirth) && semanticBirth >= 1m)
+            if (parameters.TryGetValue(LinkageParameterCatalog.BirthSemanticEvidenceScoring, out var semanticBirth) && semanticBirth >= 1d)
             {
                 var state = BirthDateSemanticEvidence.Classify(left, right);
                 Add("NASCIMENTO_SEMANTICO", state,
                     RequiredLikelihoodRatio(parameters, "NASCIMENTO_SEMANTICO", state));
             }
-            else if (parameters.TryGetValue(LinkageParameterCatalog.BirthJointEvidenceScoring, out var jointBirth) && jointBirth >= 1m)
+            else if (parameters.TryGetValue(LinkageParameterCatalog.BirthJointEvidenceScoring, out var jointBirth) && jointBirth >= 1d)
             {
                 var mask = (left.Day == right.Day ? 1 : 0) | (left.Month == right.Month ? 2 : 0) | (left.Year == right.Year ? 4 : 0);
                 var state = LinkageParameterCatalog.BirthJointStates[mask];
                 Add("NASCIMENTO_CONJUNTO", state,
                     RequiredLikelihoodRatio(parameters, "NASCIMENTO_CONJUNTO", state));
             }
-            else if (parameters.TryGetValue(LinkageParameterCatalog.BirthSingleEvidenceScoring, out var singleBirth) && singleBirth >= 1m)
+            else if (parameters.TryGetValue(LinkageParameterCatalog.BirthSingleEvidenceScoring, out var singleBirth) && singleBirth >= 1d)
             {
                 var state = left == right ? "EXACT" : "DIFF";
                 Add("DATA_NASCIMENTO", state, OptionalLikelihoodRatio(parameters, "DATA_NASCIMENTO", state));
@@ -132,16 +205,9 @@ public static class FellegiSunterScoring
         }
 
         var posterior = 1d / (1d + Math.Exp(-Math.Clamp(logOdds, -40d, 40d)));
-        var score = new FellegiSunterScore(
-            Math.Round((decimal)posterior, 8, MidpointRounding.AwayFromZero),
-            Math.Round((decimal)logOdds, 8, MidpointRounding.AwayFromZero));
+        var score = new FellegiSunterRawScore(posterior, logOdds);
 
-        return new FellegiSunterScoreBreakdown(
-            score,
-            usesBlockPrior ? "BLOCK_CANDIDATE_COUNT" : "MODEL_PRIOR",
-            prior,
-            (decimal)priorLogOdds,
-            contributions);
+        return new RawEvaluation(score, usesBlockPrior, prior, priorLogOdds, contributions);
 
         void AddBinary(string attribute, bool exact)
         {
@@ -150,26 +216,26 @@ public static class FellegiSunterScoring
         }
     }
 
-    private static decimal CalculateBlockPrior(IReadOnlyDictionary<string, decimal> parameters, int candidateCount)
+    private static double CalculateBlockPrior(IReadOnlyDictionary<string, double> parameters, int candidateCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(candidateCount);
-        var min = parameters.TryGetValue(LinkageParameterCatalog.PriorBlockMin, out var pmin) ? pmin : 0.000001m;
-        var max = parameters.TryGetValue(LinkageParameterCatalog.PriorBlockMax, out var pmax) ? pmax : 0.25m;
-        return Math.Clamp(1m / candidateCount, min, max);
+        var min = parameters.TryGetValue(LinkageParameterCatalog.PriorBlockMin, out var pmin) ? pmin : 0.000001d;
+        var max = parameters.TryGetValue(LinkageParameterCatalog.PriorBlockMax, out var pmax) ? pmax : 0.25d;
+        return Math.Clamp(1d / candidateCount, min, max);
     }
 
-    private static (decimal? M, decimal? U, double LogLikelihoodRatio) RequiredLikelihoodRatio(
-        IReadOnlyDictionary<string, decimal> parameters,
+    private static (double? M, double? U, double LogLikelihoodRatio) RequiredLikelihoodRatio(
+        IReadOnlyDictionary<string, double> parameters,
         string attribute,
         string suffix)
     {
         var m = ClampProbability(Get(parameters, $"M_{attribute}_{suffix}"));
         var u = ClampProbability(Get(parameters, $"U_{attribute}_{suffix}"));
-        return (m, u, Math.Log((double)m / (double)u));
+        return (m, u, Math.Log(m / u));
     }
 
-    private static (decimal? M, decimal? U, double LogLikelihoodRatio) OptionalLikelihoodRatio(
-        IReadOnlyDictionary<string, decimal> parameters,
+    private static (double? M, double? U, double LogLikelihoodRatio) OptionalLikelihoodRatio(
+        IReadOnlyDictionary<string, double> parameters,
         string attribute,
         string suffix)
     {
@@ -179,13 +245,13 @@ public static class FellegiSunterScoring
 
         var m = ClampProbability(rawM);
         var u = ClampProbability(rawU);
-        return (m, u, Math.Log((double)m / (double)u));
+        return (m, u, Math.Log(m / u));
     }
 
-    private static decimal Get(IReadOnlyDictionary<string, decimal> parameters, string name) =>
+    private static double Get(IReadOnlyDictionary<string, double> parameters, string name) =>
         parameters.TryGetValue(name, out var value) ? value : throw new InvalidOperationException($"Parâmetro de linkage ausente: {name}");
 
-    private static decimal ClampProbability(decimal value) => Math.Clamp(value, 0.000000001m, 0.999999999m);
+    private static double ClampProbability(double value) => Math.Clamp(value, 0.000000001d, 0.999999999d);
 
     private static double Logit(double probability)
     {

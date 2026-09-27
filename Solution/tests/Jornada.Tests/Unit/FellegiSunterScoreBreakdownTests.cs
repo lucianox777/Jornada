@@ -8,6 +8,30 @@ namespace Jornada.Tests.Unit;
 public sealed class FellegiSunterScoreBreakdownTests
 {
     [Test]
+    public void Breakdown_PreservesOriginalDecimalParameterPrecision()
+    {
+        const decimal preciseM = 0.1234567890123456789012345m;
+        const decimal preciseU = 0.3333333333333333333333333m;
+        var parameters = new Dictionary<string, decimal>
+        {
+            [LinkageParameterCatalog.PriorMatchProbability] = .01m,
+            ["M_NOME_EXACT"] = preciseM,
+            ["U_NOME_EXACT"] = preciseU
+        };
+        var breakdown = FellegiSunterScoring.CalculateWithBreakdown(
+            parameters, NameComparisonState.EXACT, null);
+        var name = breakdown.Contributions.Single(x => x.Evidence == "NOME");
+        Assert.Multiple(() =>
+        {
+            Assert.That(name.MProbability, Is.EqualTo(preciseM));
+            Assert.That(name.UProbability, Is.EqualTo(preciseU));
+            Assert.That(breakdown.Score,
+                Is.EqualTo(FellegiSunterScoring.Calculate(
+                    parameters, NameComparisonState.EXACT, null)));
+        });
+    }
+
+    [Test]
     public void Breakdown_ReconstructsRuntimeLogOddsAndExposesV6EvidenceStates()
     {
         var parameters = new Dictionary<string, decimal>(StringComparer.Ordinal)
