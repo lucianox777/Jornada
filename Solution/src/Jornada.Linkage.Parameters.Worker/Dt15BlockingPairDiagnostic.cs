@@ -83,6 +83,19 @@ public sealed record Dt15BlockingPairDiagnosticResult(
     BlockingRuleSetDiagnosticResult? Active,
     BlockingRuleSetDiagnosticResult Draft)
 {
+    // Stable numerical code for identidade.estatistica_linkage (which stores numeric values).
+    // A 0/1 comparable flag alone must not hide WHY evidence is unavailable.
+    public int StatusCode => Status switch
+    {
+        Dt15BlockingPairDiagnostic.Comparable => 1,
+        Dt15BlockingPairDiagnostic.NoActiveModel => 2,
+        Dt15BlockingPairDiagnostic.NoActiveRuleSet => 3,
+        Dt15BlockingPairDiagnostic.IncompatibleVersion => 4,
+        Dt15BlockingPairDiagnostic.IncompatibleProjection => 5,
+        Dt15BlockingPairDiagnostic.IncompatibleFeatures => 6,
+        _ => throw new InvalidDataException("Estado desconhecido do diagnóstico DT-15.")
+    };
+
     public bool IsComparable => Status == Dt15BlockingPairDiagnostic.Comparable;
     public double? RecallDelta => Active is null ? null : Draft.TrueMatchRecall - Active.TrueMatchRecall;
     public double? ReductionDelta => Active is null ? null : Draft.ReductionRatio - Active.ReductionRatio;
