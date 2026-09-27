@@ -110,6 +110,40 @@ public sealed class SplinkIbgeBootstrapReplayTests
         });
     }
 
+    [Test]
+    public void ExportDisagreementsCsv_OnlyEmitsValidatedMismatchesInInputOrder()
+    {
+        var source = CreateReplay(32);
+        var input = SplinkIbgeReplayContract.SerializeInput(source);
+        var changed = source.Pairs[3].CSharpState == "LOW" ? "EXACT" : "LOW";
+        var external = ExternalJson(source, input, 3, changed);
+        var csv = SplinkIbgeReplayContract.ExportDisagreementsCsv(input, external);
+        var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Multiple(() =>
+        {
+            Assert.That(lines, Has.Length.EqualTo(2));
+            Assert.That(lines[0], Is.EqualTo(
+                "recorte,pair_index,left_name,right_name,c_sharp_state,splink_state"));
+            Assert.That(lines[1], Does.StartWith("\"TODOS\",3,"));
+            Assert.That(lines[1], Does.EndWith($",\"{changed}\""));
+            Assert.That(SplinkIbgeReplayContract.ExportDisagreementsCsv(
+                input, ExternalJson(source, input)).Split('\n',
+                    StringSplitOptions.RemoveEmptyEntries), Has.Length.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void ExportDisagreementsCsv_RejectsInvalidExternalHashBeforeWritingRows()
+    {
+        var source = CreateReplay(10);
+        var input = SplinkIbgeReplayContract.SerializeInput(source);
+        var external = ExternalJson(source, input);
+        Assert.That(() => SplinkIbgeReplayContract.ExportDisagreementsCsv(
+            input, external.Replace(SplinkIbgeReplayContract.Sha(input),
+                new string('0', 64), StringComparison.Ordinal)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
     private static SplinkIbgeReplayDocument CreateReplay(int count)
     {
         var options = new IbgeNominalUBootstrapOptions(20260926, count);

@@ -40,6 +40,19 @@ if (args.Length == 8 && args[0] == "--export-splink-ibge-replay" &&
         ". Não contém dados de cidadãos.");
     return;
 }
+if (args.Length == 4 && args[0] == "--export-splink-ibge-disagreements")
+{
+    var inputJson = await File.ReadAllTextAsync(Path.GetFullPath(args[1]));
+    var externalJson = await File.ReadAllTextAsync(Path.GetFullPath(args[2]));
+    var csv = SplinkIbgeReplayContract.ExportDisagreementsCsv(inputJson, externalJson);
+    var outputPath = Path.GetFullPath(args[3]);
+    Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+    await File.WriteAllTextAsync(outputPath, csv, new System.Text.UTF8Encoding(false));
+    Console.WriteLine("Divergências sintéticas IBGE × Splink exportadas: " +
+        (csv.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length - 1) +
+        ". Diagnóstico apenas; não altera o modelo.");
+    return;
+}
 if (args.Length == 4 && args[0] == "--check-splink-ibge-replay")
 {
     var inputJson = await File.ReadAllTextAsync(Path.GetFullPath(args[1]));
@@ -57,11 +70,12 @@ if (args.Length == 4 && args[0] == "--check-splink-ibge-replay")
         ". Somente diagnóstico: não altera modelo nem confere #31.");
     return;
 }
-if (args.Any(x => x is "--export-splink-ibge-replay" or "--check-splink-ibge-replay"))
+if (args.Any(x => x is "--export-splink-ibge-replay" or "--check-splink-ibge-replay" or "--export-splink-ibge-disagreements"))
     throw new ArgumentException(
         "--export-splink-ibge-replay <saida> --seed <int> --pairs <1..100000> " +
         "--first-name-sex <TODOS|FEMININO> OU " +
-        "--check-splink-ibge-replay <input> <external> <report>.");
+        "--check-splink-ibge-replay <input> <external> <report> OU " +
+        "--export-splink-ibge-disagreements <input> <external> <saida.csv>.");
 
 // ÚNICA via de entrada para Splink externo: fixture literal compilada, sem SQL,
 // credencial ou argumento de arquivo de origem. Nada invoca Python neste processo.
