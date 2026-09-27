@@ -85,12 +85,17 @@ public sealed class ConservativeLinkageCounterSyntheticTests
         var counterRecovered = positives.Count(p =>
             !IsAutomatic(p.Left, p.Right) && IsCounterCandidate(p.Left, p.Right));
         var unresolved = population - autoTrue - counterRecovered;
+        var precision = (double)autoTrue / (autoTrue + autoFalse);
+        var recall = (double)autoTrue / population;
+        var falsePositiveRate = (double)autoFalse / population;
 
         TestContext.Progress.WriteLine(
             $"SYNTHETIC ONLY; positive={population}; negative={population}; " +
             $"auto_tp={autoTrue}; auto_fp={autoFalse}; " +
             $"counter_recovered_from_auto_fn={counterRecovered}; " +
-            $"unresolved_positives={unresolved}");
+            $"unresolved_positives={unresolved}; " +
+            $"nominal_precision={precision:F6}; nominal_recall={recall:F6}; " +
+            $"nominal_fpr={falsePositiveRate:F6}; distinct_base_names={names.Distinct().Count()}");
 
         Assert.Multiple(() =>
         {
@@ -98,6 +103,10 @@ public sealed class ConservativeLinkageCounterSyntheticTests
             Assert.That(negatives, Has.Length.EqualTo(population));
             Assert.That(autoTrue + counterRecovered + unresolved, Is.EqualTo(population));
             Assert.That(autoFalse, Is.LessThan(population));
+            Assert.That(names.Distinct().Count(), Is.EqualTo(Given.Length * Family.Length),
+                "O corpus repete combinações nominais: não tratar linhas como pessoas independentes.");
+            Assert.That(precision, Is.InRange(0d, 1d));
+            Assert.That(recall, Is.InRange(0d, 1d));
             Assert.That(counterRecovered, Is.GreaterThan(0),
                 "A recuperação para o balcão deve resgatar alguns pares não automáticos.");
         });
