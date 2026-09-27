@@ -41,3 +41,7 @@ A comparação GitHub registrou divergência de 47 commits novos em `master` con
 ### Indisponibilidade do modelo ativo
 
 A rota captura `InvalidOperationException` do serviço (inclusive ausência de modelo probabilístico ATIVO) e retorna HTTP 503 sem detalhes internos. O teste HTTP `model_unavailable` verifica que a resposta não contém dados de candidatos nem a mensagem de erro do modelo. A captura não substitui telemetria operacional de indisponibilidade; os testes ainda precisam passar no CI do HEAD.
+
+### Teste da política concreta de desenvolvimento
+
+`AccessPolicyTests.Semiblind_search_current_policy_is_municipal_not_person_scoped` caracteriza a implementação real: Gestor com escopo consulta qualquer UUID; credencial BENEFICIO com escopo consulta qualquer UUID dentro do código de recurso autorizado, mas é negada para outro recurso. Isso registra o comportamento **atual**, não o homologa como regra de compartilhamento de dados da busca. O gate de liberação exige decisão expressa sobre os atributos de identidade visíveis por instituição e teste de integração correspondente. Não interpretar o teste de caracterização como prova de segregação por Pessoa.
