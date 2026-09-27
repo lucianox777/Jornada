@@ -713,6 +713,7 @@ public sealed class LinkageParametersWorker(
             var dt15Rows = new List<(string Name, decimal Value)>
             {
                 ("DT15_BLOCKING_PAIR_COMPARABLE", dt15Comparison.IsComparable ? 1m : 0m),
+                ("DT15_BLOCKING_PAIR_STATUS_CODE", dt15Comparison.StatusCode),
                 ("DT15_BLOCKING_PAIR_M_WEIGHT", dt15Comparison.MatchedPairWeight),
                 ("DT15_BLOCKING_PAIR_U_WEIGHT", dt15Comparison.NonMatchedPairWeight),
                 ("DT15_BLOCKING_DRAFT_RECALL", Convert.ToDecimal(dt15Comparison.Draft.TrueMatchRecall)),
