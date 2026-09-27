@@ -9,7 +9,6 @@ public sealed record Checkpoint(string Etapa,string Descricao,DateTimeOffset Cap
 public sealed class CheckpointCollector(Func<DbConnection> abrirConexao)
 {
     private static readonly (string Chave,string Descricao,string Sql)[] Consultas=[
-        ("modo_carga_inicial","Modo de carga inicial","SELECT TOP 1 CAST(ativo AS INT) AS ativo, ativado_em FROM controle.modo_carga_inicial ORDER BY ativado_em DESC"),
         ("volumes","Volume por camada","SELECT 'silver.pessoa_origem' camada,COUNT(*) n FROM silver.pessoa_origem UNION ALL SELECT 'silver.pessoa_observacao',COUNT(*) FROM silver.pessoa_observacao UNION ALL SELECT 'identidade.pessoa',COUNT(*) FROM identidade.pessoa UNION ALL SELECT 'gold.pessoa',COUNT(*) FROM gold.pessoa UNION ALL SELECT 'gold.beneficio_concedido',COUNT(*) FROM gold.beneficio_concedido UNION ALL SELECT 'gold.servico_prestado',COUNT(*) FROM gold.servico_prestado"),
         ("entregas","Entregas por Gestor","SELECT g.codigo gestor,COUNT(*) entregas,MAX(e.recebido_em) ultima FROM ingestao.entrega e LEFT JOIN ref.gestor g ON g.gestor_id=e.gestor_id GROUP BY g.codigo ORDER BY COUNT(*) DESC"),
         ("itens_processados","Itens processados por status","SELECT status,COUNT(*) n FROM ingestao.item_processado GROUP BY status ORDER BY COUNT(*) DESC"),
