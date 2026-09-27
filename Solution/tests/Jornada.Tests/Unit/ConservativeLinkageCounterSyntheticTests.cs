@@ -35,7 +35,7 @@ public sealed class ConservativeLinkageCounterSyntheticTests
         var tokens = value.Split(' ');
         var token = index % 2;
         var original = tokens[token];
-        tokens[token] = index % 4 switch
+        tokens[token] = (index % 4) switch
         {
             0 => original.Length > 3 ? original[..^1] : original + "A",
             1 => original + original[^1],
