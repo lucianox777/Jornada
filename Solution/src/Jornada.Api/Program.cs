@@ -243,9 +243,8 @@ app.MapPost("/api/v1/identidade/candidatos", async (
 // Consulta de origem: contrato distinto, somente Gestor proprietário e escopo específico.
 app.MapProgressiveOriginApi();
 
-// Monitor operacional e governança de modelos têm superfícies e scopes diferentes.
-// A página master é apenas um preview READ-ONLY em Development; HML/PROD permanecem deny-by-default.
-app.MapOperationalMonitorApi();
+// ProgressiveOriginApi already maps the existing Monitor. The DEV-only master
+// presentation is registered separately and never inherits monitor scopes.
 app.MapModelGovernanceReadOnlyApi();
 
 // Uma única Entrega externa por ZIP, sempre com manifest.json + pessoas.jsonl + registros.jsonl.
