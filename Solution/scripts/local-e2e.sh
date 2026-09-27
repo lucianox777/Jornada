@@ -30,13 +30,23 @@ export BronzeStorage__RootPath="$OUT/bronze"
 export IngestionStaging__RootPath="$OUT/staging"
 export Processor__PollingMilliseconds=100
 
-api_pid=''; worker_pid=''
+api_pid=''; worker_pid=''; staged_sehab=''
 cleanup(){
+  [[ -z "$staged_sehab" ]] || rm -rf -- "$staged_sehab"
   [[ -z "$worker_pid" ]] || kill "$worker_pid" 2>/dev/null || true
   [[ -z "$api_pid" ]] || kill "$api_pid" 2>/dev/null || true
   wait "$worker_pid" 2>/dev/null || true; wait "$api_pid" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
+
+# DEV sintético: o receptor lê contratos da fonte separada sem versionar cópias
+# específicas da Secretaria dentro da solução principal.
+support_contracts="$ROOT/../ApoioSecretarias/config/contracts/gestores/SEHAB"
+sehab_contracts="$ROOT/config/contracts/gestores/SEHAB"
+[[ -d "$support_contracts" ]] || { echo 'ERRO: contratos externos de teste não disponíveis.' >&2; exit 12; }
+[[ ! -e "$sehab_contracts" ]] || { echo 'ERRO: contrato SEHAB já presente na solução principal; não sobrescrever.' >&2; exit 12; }
+cp -R -- "$support_contracts" "$sehab_contracts"
+staged_sehab="$sehab_contracts"
 
 # Compila uma vez para que API e Worker não disputem restore/build em paralelo.
 # Em CI, os packages.lock.json vêm do job dependency-lock e o restore deve ser estritamente bloqueado.
