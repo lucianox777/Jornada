@@ -7,12 +7,13 @@ DECLARE @uuid UNIQUEIDENTIFIER=NEWID(), @lote UNIQUEIDENTIFIER;
 DECLARE @gestores TABLE (n INT PRIMARY KEY, gestor_id BIGINT NOT NULL, sistema_origem_id BIGINT NOT NULL, base_pessoa_origem_id BIGINT NOT NULL);
 INSERT @gestores(n,gestor_id,sistema_origem_id,base_pessoa_origem_id)
 SELECT ROW_NUMBER() OVER(ORDER BY gestor_id),gestor_id,sistema_origem_id,base_pessoa_origem_id
-FROM (SELECT TOP(3) s.gestor_id,MIN(s.sistema_origem_id) AS sistema_origem_id,MIN(o.base_pessoa_origem_id) AS base_pessoa_origem_id
-      FROM ref.sistema_origem s
-      JOIN silver.pessoa_origem o ON o.sistema_origem_id=s.sistema_origem_id
-      WHERE o.base_pessoa_origem_id IS NOT NULL
-      GROUP BY s.gestor_id
-      ORDER BY s.gestor_id) g;
+FROM (SELECT TOP(3) gestor_id,sistema_origem_id,base_pessoa_origem_id
+      FROM (SELECT s.gestor_id,s.sistema_origem_id,o.base_pessoa_origem_id,
+                   ROW_NUMBER() OVER(PARTITION BY s.gestor_id ORDER BY s.sistema_origem_id,o.pessoa_origem_id) AS rn
+            FROM ref.sistema_origem s
+            JOIN silver.pessoa_origem o ON o.sistema_origem_id=s.sistema_origem_id
+            WHERE o.base_pessoa_origem_id IS NOT NULL) ranked
+      WHERE rn=1 ORDER BY gestor_id) g;
 SELECT TOP(1) @lote=lote_id FROM ingestao.lote ORDER BY criado_em;
 IF (SELECT COUNT(*) FROM @gestores)<>3 OR @lote IS NULL
  THROW 51000,'Fixture exige tres origens de gestores distintos e um lote no banco descartavel.',1;
