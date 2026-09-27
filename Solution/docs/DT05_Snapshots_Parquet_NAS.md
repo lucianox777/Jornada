@@ -84,3 +84,8 @@ A migração `20260927_Linkage_Bronze_Captura_DT05.sql` introduz `identidade.sp_
 ## Ensaio SQL do critério estreito — três ondas (PR de regressão pós-#523)
 
 O teste `Dt05SemanticThreeWavesSqlServerTests` cria três runs isolados em transação SERIALIZABLE e executa duas vezes por run a procedure real de ledger. Compara a cadeia de assinaturas: primeira onda `INICIAL`, segunda onda com evidência idêntica sem novo evento, terceira onda com marcador `CPF_TARDIO_EVIDENCIA_CONFIRMADA` e `ALTERACAO_SEMANTICA`; confere o SHA anterior e preservação dos três `linkage_resultado` brutos. **Limitação expressa:** a terceira onda simula a mudança de evidência de CPF no resultado de publicação; ainda não cria uma nova observação Silver pela ingestão real, não roda o scorer nem prova CPF tardio ponta a ponta. Não confundir teste do ledger com aceite final do critério estreito. A assinatura V1 deve ser congelada em contrato normativo antes de declarar o marco A encerrado. Este PR não ativa `LinkageReplay:CaptureBronzeSources`.
+
+
+## Contrato normativo da assinatura V1
+
+O contrato exato dos 12 campos, ordem, conversão SQL, sentinela de nulos, exclusões e idempotência está em [DT05_Assinatura_Semantica_V1.md](DT05_Assinatura_Semantica_V1.md). Um teste unitário verifica a correspondência da implementação SQL com esse contrato para evitar mudanças silenciosas. O PR #524 já passou a regressão SQL de três ondas; **não** prova ingestão de CPF tardio real. A assinatura V1 não inclui CPF bruto: a chegada de CPF só gera transição se alterar algum campo de publicação assinado. O replay histórico completo permanece um aceite independente.
