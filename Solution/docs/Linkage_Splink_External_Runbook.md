@@ -1,8 +1,10 @@
 # Conferência nominal externa Jornada × Splink — runbook offline
 
-**Estado em 26/09/2026:** contrato/fixture C# implementados; **nenhum runner externo executado nesta integração**. Norma vigente: [decisão consolidada §2.1](Decisoes_Linkage_Calibracao_IBGE_20260926.md#21-conferência-externa-jornada--splink--decisão-consolidada-de-26092026); a ADR-007 é registro histórico. Não equivale a homologação estatística [#31](https://github.com/lucianox777/Jornada/issues/31), não substitui a conferência governada e não altera modelos.
+**Estado histórico em 26/09/2026:** contrato/fixture C# implementados; nenhum runner externo havia sido executado naquela integração. Norma vigente: [decisão consolidada §2.1](Decisoes_Linkage_Calibracao_IBGE_20260926.md#21-conferência-externa-jornada--splink--decisão-consolidada-de-26092026); a ADR-007 é registro histórico. Não equivale a homologação estatística [#31](https://github.com/lucianox777/Jornada/issues/31), não substitui a conferência governada e não altera modelos.
 
 **Importante:** o exemplo de nove pessoas abaixo é smoke do intercâmbio **e não compara o bootstrap IBGE**. O próximo experimento deve exportar os mesmos pares sorteados pelo estimador C# sobre o snapshot público validado, checar os níveis via Splink real e comparar suporte/probabilidade de cada estado. Instalar/rodar o Splink **fora da árvore da Jornada**; não simular conclusão dessa prova com o modo V1 abaixo. Acompanhamento [#506](https://github.com/lucianox777/Jornada/issues/506).
+
+> **Atualização de 27/09/2026:** os 20.000 pares IBGE foram classificados pelo runner externo Splink 4.0.17 e conferidos pelo verificador C# (20 divergências TODOS, 33 FEMININO). O runner também foi publicado no repositório externo independente. A [evidência original](IBGE_Splink_External_Replay_20260927.md) preserva hashes e limitações; o [diagnóstico V2](IBGE_Splink_Transition_Diagnostic.md) acrescenta a matriz 4×4 de transições, **sem alterar** os replays históricos. A estimativa u independente e representatividade #31 continuam pendentes. O restante deste runbook registra o procedimento e as precauções originais, inclusive seu estado histórico.
 
 ## Replay do Censo IBGE — alvo principal de conformidade (novo contrato)
 
