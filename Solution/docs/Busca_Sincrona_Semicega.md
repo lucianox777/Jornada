@@ -33,3 +33,7 @@ A chamada por `PessoaUuid` foi adicionada antes da projeção, com teste de pol�
 ### Teste de negativa integral
 
 O teste `All_candidates_denied_returns_no_personal_data` cobre a resposta vazia quando a política rejeita todos os candidatos retornados pelo retriever. É um teste com política simulada, não substitui a prova de restrição efetiva da política municipal com dados de órgãos distintos. A promoção permanece bloqueada até a execução dos testes no HEAD do PR e a decisão documentada sobre visibilidade institucional.
+
+### Reconciliação com master (27/09/2026)
+
+A comparação GitHub registrou divergência de 47 commits novos em `master` contra 36 commits da branch no momento da consulta. O único caminho de arquivo modificado em ambas as pontas na comparação foi `Solution/config/release/nuget-lock-provenance.json`. Não resolver por `ours`/`theirs`: incorporar as alterações do master, regenerar os locks com SDK 8.0.424, recomputar os hashes do grafo e executar os gates de proveniência. O estado `mergeable=false` não deve ser atribuído exclusivamente a esse arquivo sem a tentativa de integração. Não há execução de Actions localizada para o HEAD recente. O teste `Policy_failure_never_returns_candidate_data` acrescenta cobertura para exceção da política; sua execução ainda não está confirmada.
