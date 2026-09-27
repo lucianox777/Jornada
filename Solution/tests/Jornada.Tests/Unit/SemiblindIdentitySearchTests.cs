@@ -14,10 +14,10 @@ public sealed class SemiblindIdentitySearchTests
             Task.FromResult<IReadOnlyList<SemiblindInternalCandidate>>(candidates);
     }
 
-    private sealed class FakePolicy : IPolicyEngine
+    private sealed class FakePolicy(Guid? denied = null) : IPolicyEngine
     {
         public Task<bool> IsAllowedAsync(AccessContext context, string permission, string? resourceCode,
-            Guid? pessoaUuid, CancellationToken ct) => Task.FromResult(true);
+            Guid? pessoaUuid, CancellationToken ct) => Task.FromResult(pessoaUuid != denied);
         public Task<bool> ArePersonsAllowedAsync(AccessContext context, string permission, string? resourceCode,
             IReadOnlyCollection<Guid> pessoaUuids, CancellationToken ct) => Task.FromResult(false);
     }
@@ -50,6 +50,20 @@ public sealed class SemiblindIdentitySearchTests
         Assert.That(json, Does.Not.Contain("score"));
         Assert.That(json, Does.Not.Contain("pessoauuid"));
         Assert.That(json, Does.Not.Contain("cpf"));
+    }
+
+    [Test]
+    public async Task Denied_candidate_is_not_returned()
+    {
+        var denied = Candidate(1);
+        var allowed = Candidate(2);
+        var service = new SemiblindIdentitySearchService(
+            new FakeRetriever(denied, allowed), new FakePolicy(denied.PessoaUuid));
+        var response = await service.SearchAsync(Context(),
+            new SemiblindIdentitySearchRequest("Pessoa", new DateOnly(1980, 1, 1), null),
+            Guid.NewGuid(), CancellationToken.None);
+        Assert.That(response.Candidatos, Has.Count.EqualTo(1));
+        Assert.That(response.Candidatos[0].Nome, Is.EqualTo(allowed.Nome));
     }
 
     [Test]
