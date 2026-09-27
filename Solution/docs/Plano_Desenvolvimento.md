@@ -2,6 +2,8 @@
 
 **Contrato de decisões revisto:** [FS, corpus sintético e referência IBGE](Decisoes_Linkage_Calibracao_IBGE_20260926.md) — consultar antes de alterar parâmetros, aumentar a massa ou iniciar o Ensaio. A [decisão de escopo por atributo](Linkage_Bootstrap_U_Municipio_SP_20260926.md) fixa `nome_mae` no nacional V1 (`NOME/FEMININO` + sobrenome nacional `TODOS`) e mantém a V2 municipal 3550308 como candidata **somente para nome/sobrenome da pessoa**, sem fallback por nome. Medir 100% da referência e do corpus antes de ativar a V2.
 
+**Decisão arquitetural permanente para orientar os itens 1, 2, 5 e 7:** [Blocking complementar com referência IBGE — 27/09/2026](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md). As capacidades de nome completo, dinâmico e combinado compõem **a mesma união deduplicada**, avaliada por um único motor C# FS. A divulgação censitária de sobrenomes em qualquer posição **favorece o índice por presença**, sem transformar a marginal em probabilidade exata de último token. A implementação progressiva/experimental, o reprocessamento por chaves antigas/novas e o gate de ativação permanecem distinguíveis da decisão de arquitetura.
+
 **Status:** plano, não relatório de conclusão. Validar a situação de cada frente no código, PRs e Actions antes de afirmar que foi entregue.
 
 **Limite do produto — RN de negócio, linha 23:** [01_Requisitos_de_Negocio_Jornada_v1.1.md](../../Documentos/Requisitos/01_Requisitos_de_Negocio_Jornada_v1.1.md): a Jornada “não concede benefício nem altera automaticamente o sistema finalístico”. As frentes de linkage, busca e suporte às Secretarias não modificam essa fronteira.
