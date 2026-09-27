@@ -57,3 +57,13 @@ O teste `Concrete_municipal_policy_exposes_same_candidate_to_two_authorized_reso
 ### Deduplicação defensiva das opções
 
 O serviço mantém um conjunto de `PessoaUuid` já vistos e ignora observações repetidas da mesma pessoa antes da autorização e projeção. O teste `Duplicate_person_is_returned_only_once` caracteriza o limite mesmo quando o retriever devolve duplicatas. A deduplicação não substitui a seleção governada nem a política de visibilidade institucional; execução do teste no CI ainda pendente.
+
+## Gate de ativação explícito após CI verde (27/09/2026)
+
+Os quatro workflows de Actions para o commit `d489e456b4ad5ad8e284b6aa8173fb713eb5d7a0` concluíram **success**: `jornada-ci`, `jornada-linkage-shared-policy-gate`, `jornada-windows-production-installer` e `jornada-linkage-independent-validation`. Isso valida a implementação antes do gate adicional abaixo, mas não autoriza exposição institucional de candidatos reais.
+
+O endpoint passa a consultar `ISemiblindSearchActivationGate` **depois** de autenticação/autorização e **antes** de recuperar qualquer candidato. A configuração `SemiblindIdentitySearch:EnableSyntheticDevelopment` é `false` por padrão. Quando `false`, uma credencial válida e escopada recebe `503` sem busca, e o middleware central registra a consulta recusada. Mesmo com a flag `true`, a implementação concreta permite **exclusivamente** `IHostEnvironment=Development`, conexão real com banco denominado `JornadaSyntheticDev` e marcador residente SQL `Jornada.EnvironmentProfile=Development`. A ausência de marcador, outro nome de banco, SQL indisponível ou qualquer ambiente HML/Produção negam a ativação. A flag, portanto, **não é uma autorização de uso de dados reais**.
+
+A nova cobertura em memória prova flag desligada, banco DEV não sintético, marcador ausente, produção/HML e uma requisição desabilitada retornando 503 com auditoria, sem invocar o serviço. Em integração, a consulta pública fica condicionada ao gate; testes diretos do motor e do loader continuam independentes da exposição HTTP. O contrato OpenAPI mantém 503 declarado.
+
+**Estado de governança:** #539 permanece aberto para definir a visibilidade de cada atributo por instituição/papel, aplicar restrições efetivas e provar a negativa sem vazamento; #378 continua indispensável para autenticação corporativa. O código poderá ser mesclado como funcionalidade **desligada para dados reais**, mas não será liberado em HML/Produção até outro PR implementar e comprovar as condições de ambos os tickets. Se a política vigente vier a admitir os três campos como identidade municipal transversal, essa decisão deve ser documentada e coberta por testes SQL/HTTP antes de abrir o gate; não presumir a aprovação pelo status dos Actions.
