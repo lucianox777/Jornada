@@ -6,7 +6,7 @@ namespace Jornada.Api;
 /// <summary>
 /// Limite de exposição: UUIDs e métricas permanecem internos; opções não autorizam vínculo.
 /// </summary>
-internal sealed class SemiblindIdentitySearchService(ISemiblindCandidateRetriever retriever)
+public sealed class SemiblindIdentitySearchService(ISemiblindCandidateRetriever retriever)
     : ISemiblindIdentitySearchService
 {
     public async Task<SemiblindIdentitySearchResponse> SearchAsync(
