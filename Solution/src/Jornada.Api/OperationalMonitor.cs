@@ -171,7 +171,9 @@ internal sealed record LinkageCalibrationHistoryItem(
     string? EvaluatorEnvironment,
     string? EvaluatorStatisticalValidation,
     DateTimeOffset? EvaluatorAt,
-    string? EvaluatorCorpusSha256);
+    string? EvaluatorCorpusSha256,
+    string? AlgorithmVersion,
+    string? NormalizationVersion);
 
 internal sealed record IbgeReferenceReadiness(
     string Status,
@@ -450,7 +452,8 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
                         ELSE N'SINTETICA_NAO_PROMOVIVEL' END evidencia_status,
                    e.ambiente_perfil,e.validacao_estatistica,e.ocorrido_em,
                    CASE WHEN e.corpus_fingerprint_sha256 IS NULL THEN NULL
-                        ELSE CONVERT(VARCHAR(64),e.corpus_fingerprint_sha256,2) END corpus_sha
+                        ELSE CONVERT(VARCHAR(64),e.corpus_fingerprint_sha256,2) END corpus_sha,
+                   m.algoritmo_versao,m.normalizacao_versao
               FROM (SELECT TOP(20) * FROM identidade.modelo_linkage ORDER BY versao DESC) m
               LEFT JOIN ref.frequencia_nome_versao v
                 ON v.frequencia_nome_versao_id=m.frequencia_nome_versao_id
@@ -714,7 +717,9 @@ internal sealed class OperationalMonitorService(IOperationalSqlAdapter connectio
                     reader.IsDBNull(19) ? null : reader.GetString(19),
                     reader.IsDBNull(20) ? null : reader.GetString(20),
                     ReadNullableDateTimeOffset(reader, 21),
-                    reader.IsDBNull(22) ? null : reader.GetString(22)));
+                    reader.IsDBNull(22) ? null : reader.GetString(22),
+                    reader.IsDBNull(23) ? null : reader.GetString(23),
+                    reader.IsDBNull(24) ? null : reader.GetString(24)));
             }
         }
 
