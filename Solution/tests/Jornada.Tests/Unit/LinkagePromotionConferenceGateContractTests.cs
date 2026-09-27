@@ -148,8 +148,13 @@ public sealed class LinkagePromotionConferenceGateContractTests
 
             Assert.That(windows.IndexOf("Linkage Conference:", StringComparison.Ordinal),
                 Is.GreaterThanOrEqualTo(0));
-            Assert.That(windows.IndexOf("Invoke-Parameters 'VALIDATE'", StringComparison.Ordinal),
-                Is.GreaterThan(windows.IndexOf("Linkage Conference:", StringComparison.Ordinal)));
+            // DT-15: Windows generation still records the technical conference,
+            // but that evidence cannot authorize automatic model promotion.
+            Assert.That(windows, Does.Contain("Invoke-Parameters 'GENERATE_DRAFT'"));
+            Assert.That(windows, Does.Not.Contain("Invoke-Parameters 'VALIDATE'"));
+            Assert.That(windows, Does.Not.Contain("Invoke-Parameters 'ACTIVATE'"));
+            Assert.That(windows, Does.Contain("DT-15: modelo RASCUNHO"));
+            Assert.That(windows, Does.Contain("activeAfterId -ne $activeBeforeId"));
             Assert.That(windows, Does.Not.Contain("--connection-string $connectionString"));
 
             Assert.That(local.IndexOf("/Jornada.Linkage.Conference/", StringComparison.Ordinal),
