@@ -33,8 +33,7 @@ JOIN sys.indexes i ON i.object_id=ips.object_id AND i.index_id=ips.index_id
 WHERE ips.page_count>=1000
 ORDER BY ips.page_count DESC;
 
--- Carga inicial / backlog.
-SELECT * FROM serving.v_bi_carga_inicial ORDER BY hora_utc DESC;
+-- Backlog.
 SELECT status,COUNT_BIG(*) lotes,MIN(criado_em) lote_mais_antigo
 FROM ingestao.lote GROUP BY status ORDER BY status;
 
@@ -82,8 +81,3 @@ SELECT COUNT_BIG(*) lotes_pendentes,MIN(criado_em) lote_pendente_mais_antigo,
 FROM ingestao.lote
 WHERE status='PENDENTE';
 
--- Modo de carga inicial: duração é observada, nunca encerrada automaticamente pelo watchdog.
-SELECT ativo,ativado_em,desativado_em,alterado_por,observacao,atualizado_em,
-       CASE WHEN ativo=1 AND ativado_em IS NOT NULL THEN DATEDIFF(MINUTE,ativado_em,@watchdog_agora) END ativo_ha_minutos
-FROM controle.modo_carga_inicial
-WHERE estado_id=1;
