@@ -118,19 +118,19 @@ jobs:
         shell: bash
         run: bash scripts/local-cluster.sh up
 
-      - name: Prove local monitor opens authenticated dashboard without manual key
+      - name: Prove local monitor serves login and accepts synthetic authorized access
         shell: bash
         run: |
           monitor_html="$(curl --fail --silent --show-error http://127.0.0.1:5080/monitor)"
-          grep -F 'const gestor = "SEHAB";' <<<"$monitor_html" >/dev/null
-          grep -F "sessionStorage.setItem('jornada.monitor.key', accessKey);" <<<"$monitor_html" >/dev/null
+          grep -F 'id="gestor"' <<<"$monitor_html" >/dev/null
+          grep -F "sessionStorage.setItem('jornada.monitor.key',key);" <<<"$monitor_html" >/dev/null
           # A credencial de monitoramento DEV pertence ao catálogo de segurança sintética;
           # não à configuração de instalador do transmissor externo.
           creds='[.credentials[] | select(.type=="GESTOR" and (.scopes | index("jornada.monitor.read")))] | .[0]'
           gestor="$(jq -er "$creds | .gestorCodigo" config/security/test-access-keys.json)"
           access_key="$(jq -er "$creds | .accessKey" config/security/test-access-keys.json)"
           curl --fail --silent --show-error http://127.0.0.1:5080/api/v1/monitor/status -H "X-Jornada-Gestor: $gestor" -H "X-Jornada-Access-Key: $access_key" | jq -e '.monitor and .readiness' >/dev/null
-          echo 'LOCAL MONITOR AUTO-CONNECT: OK'
+          echo 'LOCAL MONITOR LOGIN / SYNTHETIC AUTHORIZED ACCESS: OK'
 
       - name: Prove one-shot binaries are installed but not resident
         shell: bash
