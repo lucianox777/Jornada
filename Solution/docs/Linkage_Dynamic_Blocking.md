@@ -115,3 +115,15 @@ A sequência normativa está em `docs/uml/Linkage_Dynamic_Blocking_Sequence.puml
 ## Limite de governança
 
 Blocking dinâmico tecnicamente correto não equivale a homologação estatística. A issue #31 continua aberta até existir corpus representativo/atestado, avaliação independente e aprovação institucional explícita. Nenhum resultado desta implementação autoriza criação/fusão automática de UUID ou publicação probabilística em Gold/Serving.
+
+## Protótipo aditivo: blocking combinado de três atributos (PR #526)
+
+**Estado:** implementação preparatória em branch; não integrada ao Runner operacional, não homologada e não substitui o ruleset dinâmico publicado.
+
+`CombinedIdentityCandidatePlanner` (`COMBINED_IDENTITY_CANDIDATES_V1`) prepara passes indexáveis sobre nome completo normalizado, nome completo da mãe e componentes da data de nascimento. O passe exato intersecta os cinco componentes; outros passes incluem inversão válida de dia/mês, ano adjacente válido, fonética PT-BR do nome ou da mãe. Os passes são unidos e deduplicados pelo construtor parametrizado existente sobre `identidade.blocking_chave`. O protótipo não executa Full-Text, não calcula Jaro no SQL e não utiliza frequências do IBGE em tempo de consulta. Não há integração operacional automática do protótipo com o Runner.
+
+A inversão só é gerada se resultar em data válida e distinta; 29 de fevereiro não produz anos adjacentes inválidos. Observações sem os dois nomes ou sem nascimento não geram passes nesta estratégia e devem permanecer elegíveis aos mecanismos complementares. CPF segue a rota determinística. A recuperação de candidatos não autoriza associação, criação ou fusão de identidade.
+
+**Evolução proposta:** medir seletividade de combinações com frequências agregadas e versionadas do Censo, respeitando a distinção entre primeiro nome publicado, sobrenomes publicados separadamente e tokens inferidos internamente. Frequências marginais não demonstram independência entre nome, mãe, sobrenomes e nascimento. A estimativa ilustrativa de 1 em aproximadamente 599 milhões não é uma medição do corpus municipal nem uma garantia de bloco inferior a um candidato. O Censo não fornece diretamente a frequência conjunta dos três atributos nem taxas de erro de digitação de data.
+
+Antes de promover o protótipo: integrar como alternativa versionada à avaliação do Calibrador e à execução do Runner; comparar união de passes com o ruleset atual sobre vínculos verdadeiros e não-vínculos representativos; medir recall, candidatos por observação, contribuição marginal, caudas, erros simultâneos, P95/P99 e planos de execução SQL Server. Testar índices compostos apenas quando os passes finalistas justificarem. A remoção do blocking dinâmico não está aprovada; ele permanece disponível para medir alternativas e recuperar casos que o conjunto combinado não cobre.
