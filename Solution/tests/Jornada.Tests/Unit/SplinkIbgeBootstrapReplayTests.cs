@@ -118,7 +118,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var changed = source.Pairs[3].CSharpState == "LOW" ? "EXACT" : "LOW";
         var external = ExternalJson(source, input, 3, changed);
         var csv = SplinkIbgeReplayContract.ExportDisagreementsCsv(input, external);
-        var lines = csv.Split('\\n', StringSplitOptions.RemoveEmptyEntries);
+        var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         Assert.Multiple(() =>
         {
             Assert.That(lines, Has.Length.EqualTo(2));
@@ -127,7 +127,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
             Assert.That(lines[1], Does.StartWith("\"TODOS\",3,"));
             Assert.That(lines[1], Does.EndWith($",\"{changed}\""));
             Assert.That(SplinkIbgeReplayContract.ExportDisagreementsCsv(
-                input, ExternalJson(source, input)).Split('\\n',
+                input, ExternalJson(source, input)).Split('\n',
                     StringSplitOptions.RemoveEmptyEntries), Has.Length.EqualTo(1));
         });
     }
