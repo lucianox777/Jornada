@@ -52,6 +52,22 @@ public sealed class LinkageParametersBootstrapProgressTests
     }
 
     [Test]
+    public void DraftBootstrap_DoesNotAcceptActiveReferenceWithMissingMarginals()
+    {
+        var program = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "Solution", "src",
+            "Jornada.Linkage.Parameters.Worker", "Program.cs"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(program, Does.Contain("DATALENGTH(v.conteudo_sha256)=32"));
+            Assert.That(program, Does.Contain("n.tipo='NOME'"));
+            Assert.That(program, Does.Contain("s.tipo='SOBRENOME'"));
+            Assert.That(program, Does.Contain("HasActiveNameFrequencyReferenceAsync"));
+        });
+    }
+
+    [Test]
     public void CanonicalIbgeReference_IsPreloadedAsEnvironmentBootstrap()
     {
         var root = FindRepositoryRoot();
