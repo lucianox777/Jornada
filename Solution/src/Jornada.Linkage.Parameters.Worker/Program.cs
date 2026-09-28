@@ -88,35 +88,11 @@ else
         return;
     }
 
-    // A geração de modelo congela a referência ATIVA de frequências. O bootstrap normal
-    // do ambiente já materializa o Censo 2022; este fallback permanece fail-safe para
-    // execuções diretas do calibrador contra um banco criado fora dos entrypoints oficiais.
+    // A referência IBGE é pré-condição carregada explicitamente na preparação.
+    // GENERATE_DRAFT faz somente a verificação leve; nunca carrega ou reativa.
     if (operation == "GENERATE_DRAFT" && !await HasActiveNameFrequencyReferenceAsync(operationalSql))
-    {
-        var canonicalState = await NameFrequencyReferenceState.EnsureCanonicalActiveAsync(
-            operationalSql,
-            CanonicalNameFrequencyReferenceCode,
-            CancellationToken.None);
-
-        if (canonicalState == CanonicalNameFrequencyReferenceState.Reactivated)
-            Console.WriteLine($"Referencia IBGE canonica {CanonicalNameFrequencyReferenceCode} reativada sem recarga antes de GENERATE_DRAFT.");
-
-        if (canonicalState == CanonicalNameFrequencyReferenceState.MissingOrLoading)
-        {
-            Console.WriteLine("Referencia de frequencias ausente; carregando snapshot local canonico antes de GENERATE_DRAFT.");
-            Console.WriteLine("A carga canonica contem milhoes de linhas e pode levar alguns minutos. O processo imprimira um heartbeat a cada 15 segundos.");
-            var bootstrapBuilder = Host.CreateApplicationBuilder(args);
-            bootstrapBuilder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
-            bootstrapBuilder.Services.AddHostedService<NameFrequencySnapshotLoader>();
-            await RunHostWithHeartbeatAsync(
-                bootstrapBuilder.Build(),
-                "Carga da referencia de frequencias",
-                TimeSpan.FromSeconds(15));
-        }
-
-        if (Environment.ExitCode != 0 || !await HasActiveNameFrequencyReferenceAsync(operationalSql))
-            throw new InvalidOperationException("GENERATE_DRAFT exige uma referencia de frequencias ATIVA; carga/reativacao da referencia canonica nao foi concluida.");
-    }
+        throw new InvalidOperationException(
+            "GENERATE_DRAFT exige referência IBGE ATIVA carregada por ENSURE_NAME_FREQUENCY_SNAPSHOT explícito.");
 
     builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
 
