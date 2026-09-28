@@ -58,6 +58,23 @@ internal static class NameFrequencyReferenceState
 
             if (status == "ATIVA")
             {
+                // Status e hash preenchido nao bastam: a referencia pode estar
+                // fisicamente incompleta apos restauracao ou corrupcao do banco.
+                await using var check = new SqlCommand(
+                    """
+                    SELECT
+                        COUNT_BIG(CASE WHEN tipo='NOME' THEN 1 END),
+                        COUNT_BIG(CASE WHEN tipo='SOBRENOME' THEN 1 END)
+                    FROM ref.frequencia_nome
+                    WHERE frequencia_nome_versao_id=@id;
+                    """, connection, transaction);
+                check.Parameters.Add("@id", SqlDbType.BigInt).Value = versionId.Value;
+                await using var rows = await check.ExecuteReaderAsync(cancellationToken);
+                if (!await rows.ReadAsync(cancellationToken)
+                    || rows.GetInt64(0) == 0 || rows.GetInt64(1) == 0)
+                    throw new InvalidDataException(
+                        $"Referencia IBGE {referenceCode} ATIVA sem NOME ou SOBRENOME; readiness negada.");
+                await rows.DisposeAsync();
                 await transaction.CommitAsync(cancellationToken);
                 return CanonicalNameFrequencyReferenceState.AlreadyActive;
             }
