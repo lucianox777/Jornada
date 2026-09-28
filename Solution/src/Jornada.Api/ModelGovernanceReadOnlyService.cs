@@ -30,6 +30,8 @@ internal sealed class ModelGovernanceReadOnlyService(IOperationalSqlAdapter sql)
         var evidence = draft is null ? null
             : EvaluateEvidence(await ReadDraftStatisticsAsync(connection, draft.ModelId, ct), active);
         var history = await ReadRecentHistoryAsync(connection, ct);
+        // A consulta restrita ocorre apenas na página DEV de governança, nunca no refresh do Monitor.
+        var calibrationHistory = await ReadCalibrationHistoryAsync(connection, ct);
 
         // Fail closed if another calibration/promotion changes either side while
         // the independent SQL reads above were being executed.
@@ -56,7 +58,8 @@ internal sealed class ModelGovernanceReadOnlyService(IOperationalSqlAdapter sql)
             "NAO_HABILITADAS_SEM_IDP_LEDGER_DOSSIE_COMPLETO",
             active, draft, evidence, history,
             "As métricas disponíveis comparam apenas passes de blocking sobre o treino rotulado. " +
-            "Não incluem replay de Fellegi-Sunter, custos SQL pareados nem aprovação humana.");
+            "Não incluem replay de Fellegi-Sunter, custos SQL pareados nem aprovação humana.")
+        { CalibrationHistory = calibrationHistory };
     }
 
     private static async Task<List<GovernanceModel>> ReadModelsAsync(
@@ -201,6 +204,74 @@ internal sealed class ModelGovernanceReadOnlyService(IOperationalSqlAdapter sql)
             "Evidência parcial sobre o mesmo treino; não constitui dossiê FS nem autorização.");
     }
 
+
+    /// <summary>
+    /// Histórico agregado, limitado aos 20 modelos mais recentes, sob permissão master DEV.
+    /// Não é consultado pelo Monitor Operacional nem constitui comparação pareada.
+    /// </summary>
+    private static async Task<IReadOnlyList<GovernanceCalibrationHistoryItem>> ReadCalibrationHistoryAsync(
+        SqlConnection connection, CancellationToken ct)
+    {
+        await using var command = new SqlCommand("""
+            SELECT m.modelo_id,m.versao,m.status,m.gerado_em,m.ativado_em,
+                   v.codigo,CASE WHEN v.conteudo_sha256 IS NULL THEN NULL
+                     ELSE CONVERT(VARCHAR(64),v.conteudo_sha256,2) END,
+                   p.val_pos,p.val_fp,p.val_fn,p.test_pos,p.test_fp,
+                   p.test_fn,p.test_inconclusive,p.m_sample,p.u_sample,
+                   p.val_budget,p.test_budget,
+                   CASE WHEN e.avaliacao_id IS NULL THEN N'SEM_AVALIACAO_PERSISTIDA'
+                        ELSE N'SINTETICA_NAO_PROMOVIVEL' END evidencia_status,
+                   e.ambiente_perfil,e.validacao_estatistica,e.ocorrido_em,
+                   CASE WHEN e.corpus_fingerprint_sha256 IS NULL THEN NULL
+                        ELSE CONVERT(VARCHAR(64),e.corpus_fingerprint_sha256,2) END corpus_sha,
+                   m.algoritmo_versao,m.normalizacao_versao
+              FROM (SELECT TOP(20) * FROM identidade.modelo_linkage ORDER BY versao DESC) m
+              LEFT JOIN ref.frequencia_nome_versao v
+                ON v.frequencia_nome_versao_id=m.frequencia_nome_versao_id
+              OUTER APPLY (
+                SELECT MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_VALIDATION_POSITIVE' THEN valor END) val_pos,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_VALIDATION_FP' THEN valor END) val_fp,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_VALIDATION_FN' THEN valor END) val_fn,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_POSITIVE' THEN valor END) test_pos,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_FP' THEN valor END) test_fp,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_FN' THEN valor END) test_fn,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_TEST_INCONCLUSIVE' THEN valor END) test_inconclusive,
+                       MAX(CASE WHEN nome=N'M_SAMPLE_SIZE' THEN valor END) m_sample,
+                       MAX(CASE WHEN nome=N'U_SAMPLE_SIZE' THEN valor END) u_sample,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_MAX_FP_VALIDATION_BP' THEN valor END) val_budget,
+                       MAX(CASE WHEN nome=N'FS_DECISION_CALIBRATION_MAX_FP_TEST_BP' THEN valor END) test_budget
+                  FROM identidade.parametro_linkage
+                 WHERE modelo_id=m.modelo_id
+              ) p
+              OUTER APPLY (
+                SELECT TOP(1) avaliacao_id,ambiente_perfil,validacao_estatistica,
+                              ocorrido_em,corpus_fingerprint_sha256
+                  FROM auditoria.linkage_avaliacao_sintetica
+                 WHERE modelo_id=m.modelo_id
+                 ORDER BY linkage_avaliacao_sintetica_id DESC
+              ) e
+             ORDER BY m.versao DESC;
+            """, connection) { CommandTimeout = 10 };
+        var output = new List<GovernanceCalibrationHistoryItem>(20);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            decimal? Dec(int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetDecimal(ordinal);
+            string? Str(int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal).Trim();
+            string? Date(int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetValue(ordinal).ToString();
+            output.Add(new GovernanceCalibrationHistoryItem(
+                reader.GetGuid(0), reader.GetInt32(1), reader.GetString(2).Trim(),
+                Date(3), Date(4), Str(5), Str(6),
+                Dec(7), Dec(8), Dec(9), Dec(10), Dec(11), Dec(12), Dec(13),
+                Dec(14), Dec(15),
+                Dec(16) is { } validationBudget ? checked((int)validationBudget) : null,
+                Dec(17) is { } testBudget ? checked((int)testBudget) : null,
+                reader.GetString(18).Trim(), Str(19), Str(20), Date(21),
+                Str(22), Str(23), Str(24)));
+        }
+        return output;
+    }
+
     private static async Task<IReadOnlyList<GovernanceEvent>> ReadRecentHistoryAsync(
         SqlConnection connection, CancellationToken ct)
     {
@@ -222,7 +293,25 @@ internal sealed record ModelGovernanceView(
     string MethodVersion, string AccessMode, string Actions,
     GovernanceModel? Active, GovernanceModel? Draft,
     GovernanceBlockingEvidence? Comparison,
-    IReadOnlyList<GovernanceEvent> RecentHistory, string Limitation);
+    IReadOnlyList<GovernanceEvent> RecentHistory, string Limitation)
+{
+    public IReadOnlyList<GovernanceCalibrationHistoryItem> CalibrationHistory { get; init; } = [];
+}
+
+// Sem nomes, CPF, limiares, pares rotulados nem comparações entre corpora diferentes.
+internal sealed record GovernanceCalibrationHistoryItem(
+    Guid ModelId, int Version, string ModelStatus,
+    string? GeneratedAt, string? ActivatedAt,
+    string? ReferenceCode, string? ReferenceSha256,
+    decimal? ValidationPositive, decimal? ValidationFalsePositive,
+    decimal? ValidationFalseNegative, decimal? TestPositive,
+    decimal? TestFalsePositive, decimal? TestFalseNegative,
+    decimal? TestInconclusive, decimal? MatchedPairSample,
+    decimal? CandidateUnionUSample, int? ValidationFpBasisPoints,
+    int? TestFpBasisPoints, string EvaluatorEvidenceStatus,
+    string? EvaluatorEnvironment, string? EvaluatorStatisticalValidation,
+    string? EvaluatorAt, string? EvaluatorCorpusSha256,
+    string? AlgorithmVersion, string? NormalizationVersion);
 internal sealed record GovernanceModel(
     Guid ModelId, int Version, string Status, string? GeneratedAt,
     string? ActivatedAt, string? RuleSetVersion,
