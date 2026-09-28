@@ -23,8 +23,28 @@ public sealed class LinkageParametersBootstrapProgressTests
             Assert.That(program, Does.Contain("TimeSpan.FromSeconds(15)"));
             Assert.That(program, Does.Contain("processo ativo, aguarde"));
             Assert.That(program, Does.Contain("milhoes de linhas e pode levar alguns minutos"));
-            Assert.That(program, Does.Contain("bootstrapBuilder.Build(),"));
+            Assert.That(program, Does.Contain("ensureBuilder.Build(),"));
             Assert.That(program, Does.Contain("operation == NameFrequencySnapshotLoader.Operation"));
+        });
+    }
+
+    [Test]
+    public void GenerateDraft_FailsClosedWithoutExplicitIbgeLoad()
+    {
+        var program = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Solution", "src",
+            "Jornada.Linkage.Parameters.Worker", "Program.cs"));
+        var draftStart = program.IndexOf("if (operation == \\"GENERATE_DRAFT\\"", StringComparison.Ordinal);
+        var draftEnd = program.IndexOf("builder.Services.AddSingleton<IOperationalSqlAdapter>", draftStart, StringComparison.Ordinal);
+        Assert.That(draftStart, Is.GreaterThanOrEqualTo(0));
+        Assert.That(draftEnd, Is.GreaterThan(draftStart));
+        var draft = program[draftStart..draftEnd];
+        Assert.Multiple(() =>
+        {
+            Assert.That(draft, Does.Contain("HasActiveNameFrequencyReferenceAsync"));
+            Assert.That(draft, Does.Contain("throw new InvalidOperationException"));
+            Assert.That(draft, Does.Contain("ENSURE_NAME_FREQUENCY_SNAPSHOT explícito"));
+            Assert.That(draft, Does.Not.Contain("EnsureCanonicalActiveAsync"));
+            Assert.That(draft, Does.Not.Contain("NameFrequencySnapshotLoader"));
         });
     }
 
