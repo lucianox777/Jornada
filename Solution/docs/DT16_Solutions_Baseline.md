@@ -15,3 +15,7 @@ A configuração interina preserva **um único workflow `jornada-ci` e todos os 
 **Não houve divisão de jobs, remoção de teste, migração física nem mudança dos gates de release.** Um teste contratual versionado (`CiTriggerPolicyTests`) protege o escopo de eventos. Esta otimização reduz disparos redundantes, mas não comprova redução de duração ou consumo sem comparar Actions reais. Os jobs e a `Jornada.sln` continuam monolíticos até decisão futura da DT-16 (#576).
 
 Rollback: reverter a alteração restrita de `on.push` e retirar este contrato; nenhum artefato runtime ou banco foi alterado.
+
+## Escopo da rodada de 28/09/2026
+
+Por decisão de execução, a especialização/divisão da CI e a retirada de `Jornada.sln` **não integram esta rodada**. Permanecem o único workflow `jornada-ci`, seus oito gates por PR e a correção de disparo duplicado do PR #585. É permitido desenvolver/testar mudanças em fatias pequenas localmente; o merge depende dos oito gates completos no HEAD exato, sem reiniciar Actions em andamento por timeout de consulta. A DT-10 deverá ser tratada por último, após os demais PRs autorizados. Nenhuma conclusão de CI sintética autoriza promoção de modelo, HML ou Produção.
