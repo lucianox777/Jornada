@@ -67,8 +67,8 @@ public sealed class Dt17RegressionMatrixContractTests
         Assert.Multiple(() =>
         {
             Assert.That(matrix, Does.Contain("Nunca resetar `JornadaLocal`"));
-            Assert.That(matrix, Does.Contain("DT-10 permanece penúltima"));
-            Assert.That(matrix, Does.Contain("último"));
+            Assert.That(matrix, Does.Contain("DT-10 permanece última"));
+            Assert.That(matrix, Does.Contain("A separação da CI está excluída"));
             Assert.That(matrix, Does.Contain("não** aceite integral"));
         });
     }
