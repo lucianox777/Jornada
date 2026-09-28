@@ -92,6 +92,16 @@
         <div class="table-wrap"><table><thead><tr><th>Versão</th><th>Operação</th><th>Novo estado</th><th>Data</th></tr></thead><tbody id="history"></tbody></table></div>
       </details>
     </section>
+    <section class="card secondary" aria-labelledby="calibration-history-heading">
+      <details>
+        <summary id="calibration-history-heading">Histórico agregado de calibração (até 20 modelos)</summary>
+        <p class="muted small">As métricas de versões, referências, corpora ou partições diferentes não formam deltas pareados. Ausência de evidência não é valor zero. Esta tabela é somente leitura e não autoriza VALIDATE/ACTIVATE.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Versão / estado</th><th>Gerado / referência</th><th>VALIDATION FP/FN (positivos)</th><th>TEST FP/FN (positivos)</th><th>Amostra m/u</th><th>Evidência</th></tr></thead>
+          <tbody id="calibrationHistory"></tbody>
+        </table></div>
+      </details>
+    </section>
   </div>
 </main>
 <footer>Jornada do Cidadão · Governança técnica somente leitura em Development · DT-15</footer>
@@ -181,6 +191,26 @@
       td.colSpan = 4;
     }
   }
+  function showCalibrationHistory(rows) {
+    const node = byId('calibrationHistory'); node.replaceChildren();
+    for (const item of (rows || [])) {
+      const tr = node.appendChild(document.createElement('tr'));
+      const n = x => x === null || x === undefined ? 'Sem evidência' : String(x);
+      const metrics = (fp,fn,positive) => 'FP: ' + n(fp) + ' / FN: ' + n(fn) + ' / positivos: ' + n(positive);
+      [
+        'v' + item.version + ' · ' + item.modelStatus,
+        asDate(item.generatedAt) + ' · ' + n(item.referenceCode),
+        metrics(item.validationFalsePositive,item.validationFalseNegative,item.validationPositive),
+        metrics(item.testFalsePositive,item.testFalseNegative,item.testPositive),
+        'm: ' + n(item.matchedPairSample) + ' / u: ' + n(item.candidateUnionUSample),
+        n(item.evaluatorEvidenceStatus) + ' · ' + n(item.evaluatorEnvironment)
+      ].forEach(value => append(tr,'td',value));
+    }
+    if (!rows || !rows.length) {
+      const tr = node.appendChild(document.createElement('tr'));
+      const td = append(tr,'td','Nenhum modelo disponível.'); td.colSpan = 6;
+    }
+  }
   async function load() {
     if (!accessKey) return;
     byId('refresh').disabled = true;
@@ -201,6 +231,7 @@
       showModel(byId('draft'),data.draft,'draft');
       showComparison(data.comparison);
       showHistory(data.recentHistory);
+      showCalibrationHistory(data.calibrationHistory);
       byId('dashboard').hidden = false;
       setText(byId('message'),'Visão carregada. As decisões e a ativação permanecem indisponíveis.');
     } catch (error) {
