@@ -8,7 +8,7 @@ Fora de `Development`, a aplicação permanece **deny-by-default** enquanto a id
 
 ## Versões suportadas para correção
 
-Enquanto a v5.00 não for cortada, correções de segurança devem ser aplicadas ao `master` candidato. A última release selada continua sendo a indicada por `RELEASE_INFO.txt`.
+Enquanto a **v5.00 final** não for publicada, correções de segurança da candidata devem ser aplicadas ao `master`. O checkpoint técnico imutável `v5.00-rc.1` tem `release_effect=NONE`: **não** é publicação normativa nem substitui a última release selada de engenharia v4.05 registrada em `RELEASE_INFO.txt`. A referência técnica corrente do schema 3.70 está em `CANDIDATE_INFO.json` e no instalador SQLCMD canônico; o schema da última release selada permanece 3.69.
 
 Após cada release, este arquivo deve ser atualizado para declarar explicitamente quais linhas recebem correções de segurança.
 
