@@ -89,7 +89,7 @@ calibrate() {
   ensure_local_blocking_projection
   before="$(sql_scalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;")"
   echo "Calibração iniciando após modelo v$before."
-  echo 'IBGE permanece bootstrap/fallback nominal; GENERATE_DRAFT converge para u nominal condicionado ao blocking quando união e todos os passes atingem suporte suficiente.'
+  echo 'IBGE ativo e previamente validado é bootstrap nominal obrigatório, sem fonte substituta; GENERATE_DRAFT converge para u nominal condicionado ao blocking quando união e todos os passes atingem suporte suficiente.'
   local nominal_u_min_pairs="${JORNADA_LINKAGE_NOMINAL_U_MIN_PAIRS:-5000}"
   local nominal_u_min_pairs_per_pass="${JORNADA_LINKAGE_NOMINAL_U_MIN_PAIRS_PER_PASS:-1000}"
   echo "Convergência u nominal: mínimo união=$nominal_u_min_pairs; mínimo por passe=$nominal_u_min_pairs_per_pass."
