@@ -207,6 +207,11 @@ public sealed class LinkageModelGovernanceLedgerTests
             Assert.That(masterPreview.Active.Passes.Select(p => p.PassId), Does.Contain("P001"));
             Assert.That(masterPreview.RecentHistory.Any(x =>
                 x.ModelVersion == version && x.Operation == "ACTIVATE"), Is.True);
+            Assert.That(masterPreview.CalibrationHistory.Count, Is.LessThanOrEqualTo(20));
+            Assert.That(masterPreview.CalibrationHistory.All(x => x.EvaluatorEvidenceStatus is
+                "SEM_AVALIACAO_PERSISTIDA" or "SINTETICA_NAO_PROMOVIVEL"), Is.True);
+            Assert.That(typeof(OperationalMonitorSnapshot).GetProperty("CalibrationHistory"), Is.Null,
+                "Histórico restrito não pode migrar para o refresh do Monitor Operacional.");
         });
     }
 
