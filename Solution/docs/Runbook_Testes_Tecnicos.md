@@ -221,7 +221,9 @@ Ele gera os rótulos sintéticos a partir da relação determinística da massa 
 
 ## 8. CI
 
-O workflow Git executa os jobs permanentes `dependency-lock`, `unit`, `integration-sql`, `harness-smoke`, `ddl-upgrade` e `e2e`. Em tags de release (ou execução manual) também executa `bronze-restore-drill` e `scale-harness`; a promoção da tag depende deles.
+O workflow único `.github/workflows/ci.yml` exige **oito gates em cada PR**: `dependency-lock`, `ddl-upgrade`, `unit`, `deterministic-build`, `security-analysis`, `integration-sql`, `harness-smoke` e `e2e`. Antes de qualquer merge, conferir os oito em `success` para o **HEAD exato**, a base atualizada e a ausência de conflitos. Jobs condicionais, como `bronze-restore-drill`, `scale-harness`, `rc-evidence`, `rc-publish` e `release-promotion`, podem ficar `skipped` em PRs comuns; sua não execução não é prova de aceite de release. Em tag/dispatch, aplicar também os gates específicos previstos pelo workflow.
+
+Em DEV local, durante a edição, é suficiente executar primeiro os testes específicos dos arquivos alterados e expandir para integração SQL/E2E quando o comportamento tocar essas fronteiras. **A validação integral do PR continua obrigatória no CI existente**, sem duplicar jobs ativos. A suíte padrão preserva `JornadaLocal` e a referência IBGE; harnesses destrutivos exigem alvo isolado e autorização explícita. Uma Action verde sintética não autoriza Ensaio institucional, HML, Produção nem ativação de modelos.
 
 - `harness-smoke` aplica DDL/seed, gera corpus sintético pequeno, cria/valida/ativa um modelo, executa `MODEL_VALIDATION` sem publicação e roda `scripts/linkage-evaluation-smoke.sh` com 100 rótulos sintéticos. O smoke do Evaluation exige `purpose=DEV_HML_ONLY_NO_PUBLICATION`, métricas V1/V2 e de transportabilidade e fingerprint idêntico de `identidade.linkage_run`, `identidade.vinculo_fonte` e `gold.pessoa` antes/depois.
 - `ddl-upgrade` executa `scripts/local-ddl-upgrade.sh` e publica `.local/ddl-upgrade/` como artifact do workflow.
