@@ -1,6 +1,6 @@
 # DT-05 — snapshots incrementais de replay do Linkage no NAS
 
-**Estado:** fundação Parquet e ledger semântico V1 implementados na branch do PR #520; Runner invoca a procedure do ledger dentro da transação de publicação. **Não concluir nem mesclar** até aplicar a migration antes do deploy do Runner, integrar export consistente/manifesto ao SQL e validar regressão e replay ponta a ponta.
+**Estado reconciliado em 28/09/2026:** PRs #520/#521/#522 já integrados; assinatura V1 e ledger append-only operacionais no Runner, com guardas 51940/51941, incluindo rejeição de run existente em PREPARANDO. O **aceite estreito** foi concluído no [PR #540](https://github.com/lucianox777/Jornada/pull/540): E2E HTTP/Processor/Runner com três ondas e CPF tardio real em `JornadaSyntheticDev`, [CI #36301124197](https://github.com/lucianox777/Jornada/actions/runs/36301124197). A [última regressão SQL disponível #36348920753](https://github.com/lucianox777/Jornada/actions/runs/36348920753) permanece verde. **DT-05 global ainda PARCIAL:** não habilitar replay histórico automático sem manifesto NAS imutável vinculado ao SQL, versões executáveis e universo de candidatos congelados, testes de reconstrução/concorrência/GC e medição de custos. Os trechos cronológicos abaixo preservam o histórico da implementação, não bloqueiam retroativamente os PRs já mesclados.
 
 ## Decisão
 
@@ -36,7 +36,7 @@ Medir em `JornadaSyntheticDev` snapshot inicial, bytes de partições alteradas 
 
 Fase A: captura e replay dos insumos, com `linkage_resultado` atual preservado. Fase B: ledger semântico V1 (`20260927_Linkage_Transicao_Semantica_DT05.sql`) e chamada transacional no Runner introduzidos; testes SQL de três ondas e revisão da assinatura ainda obrigatórios. Fase C: migrar consumidores SQL/C#/BI e gate de completude antes de considerar redução de persistência bruta. Não eliminar resultados por run antecipadamente. Rollback da fase A: desabilitar captura por configuração e manter o contrato SQL atual; manifestos já publicados permanecem imutáveis.
 
-## Estado do PR #520 e dependências de implantação
+## Histórico do PR #520 e dependências de implantação (PRs iniciais já integrados)
 
 A procedure `identidade.sp_registrar_transicoes_linkage_run` deve ser instalada **antes** da versão do Runner que a chama; ausência provoca rollback da publicação. O ledger é separado do ledger institucional `auditoria.decisao_identidade_evento`, que não deve ser duplicado. A assinatura V1 cobre campos discretos e versões disponíveis no resultado publicado; revisão da evidência relevante (incluindo score e universo) depende de definição e ensaio antes do aceite. A captura Parquet existente ainda opera por export NDJSON congelado: a integração automática com a janela exclusiva do corpus e a referência SQL ao manifesto estão pendentes. Não habilitar produção apenas com este PR.
 
@@ -54,7 +54,7 @@ Persistir Parquet/ZSTD apenas para **estado complementar não reconstituível** 
 
 Adotar snapshots referenciais à Bronze e aceitar replay histórico mais lento. Não construir cache permanente de projeções nem duplicar ZIPs Bronze em Parquet para acelerar operação excepcional. Manter apenas Parquets complementares para estado não reconstituível. O Linkage cotidiano continua sobre projeções operacionais; replay sob demanda pode reler/descomprimir ZIPs e reexecutar transformações históricas. A aceitação de latência não dispensa integridade, versões executáveis, universo de candidatos, ledger de identidade/governança e proteção contra expurgo dos ZIPs referenciados. Não habilitar modo referencial antes de validar retenção no GC Bronze. Medir bytes complementares e tempo de replay em DEV.
 
-## Implementação referencial na branch — 26/09/2026
+## Implementação referencial, já integrada — 26/09/2026
 
 Incluídos `dt05_bronze_manifest.py` (manifesto create-only, sem copiar ZIP, verificação SHA-256 em streaming), `20260927_Linkage_Bronze_Pins_DT05.sql` (pins por run e procedure de fixação com o mesmo applock Bronze) e proteção nos dois caminhos de remoção física: GC de órfãos e retenção de Entregas. A retenção não seleciona entregas com pins; revalida sob lock antes de expirar. O GC verifica pins sob lock antes de remover objeto. **Aplicar a migration de pins antes de implantar ambos os workers alterados**; sem tabela a consulta falha e a remoção é bloqueada.
 
@@ -72,9 +72,11 @@ A migração `20260927_Linkage_Bronze_Captura_DT05.sql` introduz `identidade.sp_
 
 ## Status reconciliado após merge do PR #522 (`de851c44`)
 
+**Atualização em 28/09:** o Marco A definido abaixo **já foi concluído** pelo E2E do PR #540; suas exigências abaixo são o contrato histórico, não tarefas ainda por realizar. O Marco B permanece pendente integralmente. A regressão PREPARANDO encontra-se no teste SQL atual `Dt05PublicationGuardsSqlServerTests` e foi exercitada pela CI do PR #568.
+
 **Entrega confirmada:** Runner invoca a captura SQL de proveniência Bronze antes da pontuação, sob lease exclusivo do corpus, para **todas** as observações Silver visíveis até o high watermark (inclusive fontes de candidatos não reavaliados). A procedure deduplica por SHA-256, exige fonte disponível e usa `sp_fixar_bronze_para_linkage`; a proteção contra remoção física já existe nos dois workers. O ledger semântico V1 é registrado na transação de publicação e `linkage_resultado` permanece preservado. O utilitário NAS cria/verifica manifestos referenciais append-only offline. O CI do PR #522 concluiu com seis workflows verdes, mas esses workflows **não são** evidência do ensaio histórico completo. A opção `LinkageReplay:CaptureBronzeSources` permanece `false` por padrão.
 
-**Marco A — critério estreito, prioridade imediata:** congelar campos e equivalência da assinatura semântica V1; executar ensaio SQL de três ondas e CPF tardio com referências novas, transição inicial/alteração/ausência de alteração, reexecução idempotente e preservação de resultado bruto. Documentar entradas, transições esperadas, evidência observada e decisão de aceite. Não condicionar esse aceite à construção de Parquet ou replay histórico amplo.
+**Marco A — critério estreito, CONCLUÍDO e mantido como contrato de regressão:** congelar campos e equivalência da assinatura semântica V1; executar ensaio SQL de três ondas e CPF tardio com referências novas, transição inicial/alteração/ausência de alteração, reexecução idempotente e preservação de resultado bruto. Documentar entradas, transições esperadas, evidência observada e decisão de aceite. Não condicionar esse aceite à construção de Parquet ou replay histórico amplo.
 
 **Marco B — replay histórico completo, escopo ampliado e aceite independente:** vincular transacionalmente ao `linkage_run_id` o manifesto NAS imutável e seu SHA-256, capturar versões executáveis de parser/normalização/scorer/ruleset, universo efetivo de candidatos e estado de governança/intervenções; verificar cadeia e bytes Bronze, concorrência GC/retenção, falhas e recuperação, replay determinístico e custo/latência em DEV. Nenhum gate do Marco B está implicitamente aprovado pela captura SQL do PR #522. O cache permanente permanece fora do desenho-alvo, dado o replay raro.
 
@@ -88,7 +90,7 @@ O teste `Dt05SemanticThreeWavesSqlServerTests` cria três runs isolados em trans
 
 ## Contrato normativo da assinatura V1
 
-O contrato exato dos 12 campos, ordem, conversão SQL, sentinela de nulos, exclusões e idempotência está em [DT05_Assinatura_Semantica_V1.md](DT05_Assinatura_Semantica_V1.md). Um teste unitário verifica a correspondência da implementação SQL com esse contrato para evitar mudanças silenciosas. O PR #524 já passou a regressão SQL de três ondas; **não** prova ingestão de CPF tardio real. A assinatura V1 não inclui CPF bruto: a chegada de CPF só gera transição se alterar algum campo de publicação assinado. O replay histórico completo permanece um aceite independente.
+O contrato exato dos 12 campos, ordem, conversão SQL, sentinela de nulos, exclusões e idempotência está em [DT05_Assinatura_Semantica_V1.md](DT05_Assinatura_Semantica_V1.md). Um teste unitário verifica a correspondência da implementação SQL com esse contrato para evitar mudanças silenciosas. O PR #524 passou a regressão SQL de três ondas, que isoladamente não provava ingestão de CPF tardio real; **essa prova adicional foi produzida no E2E do PR #540**. A assinatura V1 não inclui CPF bruto: a chegada de CPF só gera transição se alterar algum campo de publicação assinado. O replay histórico completo permanece um aceite independente.
 
 
 ## Regressão adicional — alteração exclusivamente numérica
@@ -103,7 +105,7 @@ O teste de integração `Dt05PublicationGuardsSqlServerTests` exercita a procedu
 
 ## Guarda adicional — run existente em PREPARANDO
 
-A regressão de publicação passa a criar, em transação isolada, um run real em `PREPARANDO` e exigir erro `51941` da procedure de ledger, além dos cenários sem transação e run inexistente já integrados no PR #529. Isso distingue a validação de estado de uma mera validação de existência. O teste depende de SQL Server configurado no CI; não substitui o ensaio de CPF tardio real ou o replay NAS.
+A regressão de publicação passa a criar, em transação isolada, um run real em `PREPARANDO` e exigir erro `51941` da procedure de ledger, além dos cenários sem transação e run inexistente já integrados no PR #529. Isso distingue a validação de estado de uma mera validação de existência. O teste depende de SQL Server configurado no CI, passou na última regressão e não substitui o ensaio de CPF tardio real (já comprovado no PR #540) nem o replay NAS (ainda pendente).
 
 
 ## Gate operacional incremental — Runner real
@@ -116,4 +118,4 @@ A regressão de publicação passa a criar, em transação isolada, um run real 
 `pwsh ./scripts/local-e2e.ps1 -VerifyLinkageRunner` mantém o banco isolado padrão `JornadaE2E`, executa duas entregas reais via API/Processor e depois chama o Runner real com marcador único. Exige modelo ATIVO e carga inicial desativada, verifica run `PUBLICADO` e ao menos um `linkage_resultado` bruto. Recusa `-AllowSharedDatabaseReset` combinado com o novo gate. Não há alteração da fixture para CPF tardio neste PR: o ensaio de múltiplas ondas com nova observação Silver, mudança de CPF e verificação de ledger continua pendente. O estágio opt-in só está comprovado quando efetivamente executado com SQL Server, não apenas quando o CI padrão passa.
 
 
-**Correção de segurança e evidência do gate local (pós-#535):** `-VerifyLinkageRunner` combinado com `-AllowSharedDatabaseReset` agora falha no preflight, antes do reset. A evidência `.local/e2e/evidence.json` inclui `linkageRunner` (marcador do run, contagem de runs PUBLICADO e de resultados brutos) quando o estágio é solicitado; caso contrário, `null`. A execução opt-in com SQL Server e o ensaio de CPF tardio real permanecem pendentes de comprovação.
+**Correção de segurança e evidência do gate local (pós-#535):** `-VerifyLinkageRunner` combinado com `-AllowSharedDatabaseReset` agora falha no preflight, antes do reset. A evidência `.local/e2e/evidence.json` inclui `linkageRunner` (marcador do run, contagem de runs PUBLICADO e de resultados brutos) quando o estágio é solicitado; caso contrário, `null`. A execução opt-in com SQL Server e o ensaio de CPF tardio real tiveram comprovação no PR #540; os testes de replay histórico NAS seguem pendentes de comprovação.
