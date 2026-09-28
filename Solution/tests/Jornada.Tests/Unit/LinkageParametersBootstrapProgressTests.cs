@@ -33,7 +33,7 @@ public sealed class LinkageParametersBootstrapProgressTests
     {
         var program = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Solution", "src",
             "Jornada.Linkage.Parameters.Worker", "Program.cs"));
-        var draftStart = program.IndexOf("if (operation == \\"GENERATE_DRAFT\\"", StringComparison.Ordinal);
+        var draftStart = program.IndexOf("if (operation == \"GENERATE_DRAFT\"", StringComparison.Ordinal);
         var draftEnd = program.IndexOf("builder.Services.AddSingleton<IOperationalSqlAdapter>", draftStart, StringComparison.Ordinal);
         Assert.That(draftStart, Is.GreaterThanOrEqualTo(0));
         Assert.That(draftEnd, Is.GreaterThan(draftStart));
