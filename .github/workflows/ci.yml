@@ -1017,7 +1017,7 @@ jobs:
           - #93 — volumetria HML e decisão institucional de acesso;
           - #378 — autenticação PRODAM e separação ambiental;
           - #379 — mudanças de política que exigem decisão externa;
-          - decisão de finalidade/base legal GTPR declarada em `CANDIDATE_INFO.json`.
+          - decisão institucional de finalidade/base legal da Jornada PENDENTE; encaminhamento ao Núcleo Gestor do Programa Reencontro, via coordenação SGM/SEPE (Decreto nº 62.149/2023, arts. 7º–10; portaria específica da Jornada ainda não publicada; chave técnica legada `GTPR_PURPOSE_LEGAL_BASIS_DECISION` em `CANDIDATE_INFO.json`).
 
           Evidência desta execução:
           - commit: `{sha}`;
