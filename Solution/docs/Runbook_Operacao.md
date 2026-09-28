@@ -158,3 +158,8 @@ O `docker-compose.yml` existe somente para desenvolvimento/teste local e sobe SQ
 ## Ensaios antes de HML
 
 Os ensaios locais de escala, perda de coordenação e restore estão em `Runbook_Testes_Tecnicos.md`. Eles devem ser usados como regressão técnica antes de promover mudanças no pipeline, mas não substituem testes de capacidade, backup/DR e scheduler no ambiente corporativo.
+
+
+## Novos modelos V8 — ausência neutra (28/09/2026)
+
+Novos RASCUNHOS usam `FELLEGI_SUNTER_DECISION_EVIDENCE_NEUTRAL_MISSING_V8`. Nome, nome da mãe e nascimento ausentes são indisponíveis (LLR zero); a ausência materna permanece auditável nos suportes `SUPPORT_M_NOME_MAE_MISSING` e `SUPPORT_U_NOME_MAE_MISSING`, sem probabilidades m/u na V8. A V6 ATIVA não é alterada. Aplicar `20260928_Linkage_Neutral_Missing_V8.sql` antes de gerar ou promover V8. Como o scorer mudou, reexecutar a conferência governada para o novo modelo e manter VALIDATE/ACTIVATE fail-closed. Plano de comparação por estrato: `Linkage_Ausencia_Neutra_V8.md`.

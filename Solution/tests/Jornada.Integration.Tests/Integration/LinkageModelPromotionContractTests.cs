@@ -42,6 +42,8 @@ public sealed class LinkageModelPromotionContractTests
             Assert.That(triggerDefinition, Is.Not.Null.And.Not.Empty);
             Assert.That(triggerDefinition, Does.Contain("FELLEGI_SUNTER_SEMANTIC_BIRTH_V5"));
             Assert.That(triggerDefinition, Does.Contain("FELLEGI_SUNTER_DECISION_EVIDENCE_V6"));
+            Assert.That(triggerDefinition, Does.Contain(LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion));
+            Assert.That(triggerDefinition, Does.Contain(LinkageParameterCatalog.NeutralMissingEvidenceScoring));
             Assert.That(triggerDefinition, Does.Contain("SCORING_BIRTH_SEMANTIC_EVIDENCE_V5"));
             Assert.That(triggerDefinition, Does.Contain("SCORING_DECISION_EVIDENCE_V6"));
             Assert.That(triggerDefinition, Does.Contain("CONFLICT_MARGIN_LOG_ODDS"));
@@ -58,6 +60,7 @@ public sealed class LinkageModelPromotionContractTests
             Assert.That(functionDefinition, Does.Contain("OTHER_DISAGREEMENT"));
             Assert.That(monotonicityTriggerDefinition, Is.Not.Null.And.Not.Empty);
             Assert.That(monotonicityTriggerDefinition, Does.Contain(LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion));
+            Assert.That(monotonicityTriggerDefinition, Does.Contain(LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion));
             Assert.That(monotonicityTriggerDefinition, Does.Contain("EXACT"));
             Assert.That(monotonicityTriggerDefinition, Does.Contain("HIGH"));
             Assert.That(monotonicityTriggerDefinition, Does.Contain("MEDIUM"));
@@ -289,6 +292,95 @@ public sealed class LinkageModelPromotionContractTests
         Assert.DoesNotThrowAsync(async () => await command.ExecuteNonQueryAsync());
     }
 
+    [Test]
+    public async Task V8_promotion_requires_neutral_marker_and_rejects_missing_probabilities()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        await ApplyContractAsync(connection);
+
+        const string sql = """
+            DECLARE @model UNIQUEIDENTIFIER=NEWID();
+            DECLARE @version INT=(SELECT ISNULL(MAX(versao),0)+800 FROM identidade.modelo_linkage);
+            INSERT identidade.modelo_linkage(
+                modelo_id,versao,status,algoritmo_versao,normalizacao_versao,
+                deduplicacao_metodo,base_referencia,registros_lidos,pessoas_unicas,
+                gerado_em,amostra_metodo,amostra_pool_tamanho,amostra_m_tamanho,amostra_u_tamanho)
+            VALUES(@model,@version,'RASCUNHO',
+                'FELLEGI_SUNTER_DECISION_EVIDENCE_NEUTRAL_MISSING_V8',
+                'IDENTITY_NORMALIZATION_V1','TEST','TEST',1,1,
+                SYSDATETIMEOFFSET(),'TEST',1,1,1);
+
+            DECLARE @states TABLE(estado NVARCHAR(80) NOT NULL PRIMARY KEY);
+            INSERT @states VALUES
+                (N'EXACT'),(N'DAY_MONTH_SWAP'),(N'CENTURY_SHIFT'),
+                (N'ONE_DIGIT_ERROR'),(N'TWO_DIGIT_ERROR'),
+                (N'PARTIAL_COMPONENT_AGREEMENT'),(N'OTHER_DISAGREEMENT');
+            INSERT identidade.parametro_linkage(modelo_id,nome,valor)
+            SELECT @model,N'M_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857) FROM @states
+            UNION ALL
+            SELECT @model,N'U_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0.142857) FROM @states
+            UNION ALL
+            SELECT @model,N'SUPPORT_U_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),1) FROM @states
+            UNION ALL
+            SELECT @model,N'POOL_SUPPORT_U_NASCIMENTO_SEMANTICO_'+estado,CONVERT(DECIMAL(30,12),0) FROM @states;
+
+            INSERT identidade.parametro_linkage(modelo_id,nome,valor)
+            VALUES
+                (@model,N'SCORING_BIRTH_SEMANTIC_EVIDENCE_V5',1),
+                (@model,N'SCORING_DECISION_EVIDENCE_V6',1),
+                (@model,N'CONFLICT_MARGIN_LOG_ODDS',0.03),
+                (@model,N'SUPPORT_M_NOME_MAE_MISSING',1),
+                (@model,N'SUPPORT_U_NOME_MAE_MISSING',1),
+                (@model,N'M_NOME_EXACT',0.70),
+                (@model,N'M_NOME_HIGH',0.20),
+                (@model,N'M_NOME_MEDIUM',0.08),
+                (@model,N'M_NOME_LOW',0.02),
+                (@model,N'U_NOME_EXACT',0.01),
+                (@model,N'U_NOME_HIGH',0.04),
+                (@model,N'U_NOME_MEDIUM',0.15),
+                (@model,N'U_NOME_LOW',0.80),
+                (@model,N'M_NOME_MAE_EXACT',0.70),
+                (@model,N'M_NOME_MAE_HIGH',0.20),
+                (@model,N'M_NOME_MAE_MEDIUM',0.08),
+                (@model,N'M_NOME_MAE_LOW',0.02),
+                (@model,N'U_NOME_MAE_EXACT',0.01),
+                (@model,N'U_NOME_MAE_HIGH',0.04),
+                (@model,N'U_NOME_MAE_MEDIUM',0.15),
+                (@model,N'U_NOME_MAE_LOW',0.80);
+
+            DECLARE @rejected BIT=0;
+            BEGIN TRY
+                UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@model;
+            END TRY
+            BEGIN CATCH
+                IF ERROR_NUMBER()=51035 SET @rejected=1; ELSE THROW;
+            END CATCH;
+            IF @rejected=0 THROW 51994,'V8 sem proveniência neutra deveria ser recusada.',1;
+
+            INSERT identidade.parametro_linkage(modelo_id,nome,valor)
+            VALUES(@model,N'SCORING_MISSING_EVIDENCE_NEUTRAL_V1',1),
+                  (@model,N'M_NOME_MAE_MISSING',0.2);
+            SET @rejected=0;
+            BEGIN TRY
+                UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@model;
+            END TRY
+            BEGIN CATCH
+                IF ERROR_NUMBER()=51035 SET @rejected=1; ELSE THROW;
+            END CATCH;
+            IF @rejected=0 THROW 51995,'V8 com probabilidade MISSING deveria ser recusada.',1;
+
+            DELETE identidade.parametro_linkage
+            WHERE modelo_id=@model AND nome=N'M_NOME_MAE_MISSING';
+            UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@model;
+            IF (SELECT status FROM identidade.modelo_linkage WHERE modelo_id=@model)<>'VALIDADO'
+                THROW 51996,'V8 válida não foi promovida.',1;
+            """;
+        await using var command = new SqlCommand(sql, connection) { CommandTimeout = 60 };
+        Assert.DoesNotThrowAsync(async () => await command.ExecuteNonQueryAsync());
+    }
+
     private static async Task ApplyContractAsync(SqlConnection connection)
     {
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
@@ -297,6 +389,8 @@ public sealed class LinkageModelPromotionContractTests
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260915_Linkage_Model_Promotion_Contract.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260916_Linkage_U_Support_Reachability.sql"));
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260917_Linkage_Llr_Monotonicity.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260920_Linkage_Llr_Monotonicity_Tolerance.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260928_Linkage_Neutral_Missing_V8.sql"));
     }
 
     private static string RequireIntegrationConnection()
