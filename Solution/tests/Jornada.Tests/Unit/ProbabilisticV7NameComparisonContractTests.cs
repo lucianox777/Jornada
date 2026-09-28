@@ -65,7 +65,7 @@ public sealed class ProbabilisticV7NameComparisonContractTests
     }
 
     [Test]
-    public void Operational_default_algorithm_remains_v6_and_maps_to_legacy_name_contract()
+    public void V6_alias_remains_stable_for_replay_and_maps_to_legacy_name_contract()
     {
         Assert.Multiple(() =>
         {

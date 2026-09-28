@@ -34,10 +34,21 @@ internal static class LinkageModelPolicy
         var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(algorithm);
         if (decisionEvidence)
         {
-            var missingDecision = LinkageParameterCatalog.DecisionEvidenceRequired.Where(x => !parameters.ContainsKey(x)).ToArray();
+            var neutralMissing = string.Equals(algorithm, LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion, StringComparison.Ordinal);
+            var required = neutralMissing ? LinkageParameterCatalog.NeutralMissingDecisionEvidenceRequired : LinkageParameterCatalog.DecisionEvidenceRequired;
+            var missingDecision = required.Where(x => !parameters.ContainsKey(x)).ToArray();
             if (missingDecision.Length > 0) throw new InvalidOperationException($"Modelo de decisão/evidência incompleto. Parâmetros ausentes: {string.Join(", ", missingDecision)}");
             if (parameters[LinkageParameterCatalog.DecisionEvidenceScoring] < 1m)
                 throw new InvalidOperationException($"Modelo de decisão/evidência incompleto. {LinkageParameterCatalog.DecisionEvidenceScoring} deve estar habilitado.");
+            if (neutralMissing)
+            {
+                if (parameters[LinkageParameterCatalog.NeutralMissingEvidenceScoring] < 1m)
+                    throw new InvalidOperationException($"V8 exige {LinkageParameterCatalog.NeutralMissingEvidenceScoring} habilitado.");
+                if (parameters.ContainsKey("M_NOME_MAE_MISSING") || parameters.ContainsKey("U_NOME_MAE_MISSING"))
+                    throw new InvalidOperationException("V8 não admite probabilidades M/U para ausência; somente SUPPORT_*_MISSING diagnóstico.");
+            }
+            else if (parameters.TryGetValue(LinkageParameterCatalog.NeutralMissingEvidenceScoring, out var neutralFlag) && neutralFlag >= 1m)
+                throw new InvalidOperationException("Modelos V6/V7 não admitem o contrato de ausência neutra V8.");
 
             var floorV2 = parameters.TryGetValue(LinkageParameterCatalog.DualThresholdConflictFloorV2, out var floorFlag) && floorFlag >= 1m;
             if (floorV2)

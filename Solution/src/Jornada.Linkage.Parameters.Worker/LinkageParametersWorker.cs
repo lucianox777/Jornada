@@ -31,7 +31,7 @@ public sealed class LinkageParametersWorker(
     private const string DraftOperation = "GENERATE_DRAFT";
     private const string ValidateOperation = "VALIDATE";
     private const string ActivateOperation = "ACTIVATE";
-    private const string CurrentAlgorithmVersion = LinkageParameterCatalog.SemanticBirthAlgorithmVersion;
+    private const string CurrentAlgorithmVersion = LinkageParameterCatalog.OperationalDecisionEvidenceAlgorithmVersion;
     private const string SqlServerSampleMethod = "M_INTERGESTOR_U_BLOCKING_CONDITIONED_IBGE_BOOTSTRAP_V5";
     private static readonly string DefaultConferenceToleranceRelativePath =
         Path.Combine("config", "linkage", "implementation-conference-tolerance.json");
@@ -246,7 +246,8 @@ public sealed class LinkageParametersWorker(
                 // pela calibração Pareto antes de qualquer persistência de RASCUNHO.
                 LinkageParameterEstimator.Estimate(
                     matchedPairs, unmatchedPairs, statistics.PopulationSize, statistics.DistinctBirthDates,
-                    smoothingAlpha, 0.5m, 0.000001m),
+                    smoothingAlpha, 0.5m, 0.000001m,
+                    neutralMissingEvidenceV8: true),
                 ibgeReference,
                 ibgePersonU,
                 ibgeMotherU,

@@ -3,6 +3,9 @@ namespace Jornada.Contracts;
 public static class LinkageParameterCatalog
 {
     public const string DecisionEvidenceAlgorithmVersion = "FELLEGI_SUNTER_DECISION_EVIDENCE_V6";
+    // V8 se aplica a novos modelos; V6/V7 continuam reproduzíveis.
+    public const string NeutralMissingDecisionEvidenceAlgorithmVersion = "FELLEGI_SUNTER_DECISION_EVIDENCE_NEUTRAL_MISSING_V8";
+    public const string OperationalDecisionEvidenceAlgorithmVersion = NeutralMissingDecisionEvidenceAlgorithmVersion;
     public const string NominalGuardDecisionEvidenceAlgorithmVersion = "FELLEGI_SUNTER_DECISION_EVIDENCE_NOMINAL_V2_V7";
     public const string SemanticBirthAlgorithmVersion = DecisionEvidenceAlgorithmVersion;
     public const string LegacySemanticBirthAlgorithmVersion = "FELLEGI_SUNTER_SEMANTIC_BIRTH_V5";
@@ -13,6 +16,7 @@ public static class LinkageParameterCatalog
     public const string ConflictMargin = "CONFLICT_MARGIN";
     public const string LogOddsConflictMargin = "CONFLICT_MARGIN_LOG_ODDS";
     public const string DecisionEvidenceScoring = "SCORING_DECISION_EVIDENCE_V6";
+    public const string NeutralMissingEvidenceScoring = "SCORING_MISSING_EVIDENCE_NEUTRAL_V1";
     public const string DualThresholdConflictGuard = "SCORING_DUAL_THRESHOLD_CONFLICT_V1";
     public const string DualThresholdConflictFloorV2 = "SCORING_DUAL_THRESHOLD_CONFLICT_FLOOR_V2";
     public const string DualThresholdConflictFloor = "DUAL_THRESHOLD_CONFLICT_FLOOR";
@@ -36,6 +40,7 @@ public static class LinkageParameterCatalog
     public static IReadOnlyList<string> BirthSemanticStates => BirthDateSemanticEvidence.States;
     public static readonly IReadOnlyList<string> CoreScoringRequired = [PriorMatchProbability, PriorBlockMin, PriorBlockMax, Threshold, ConflictMargin, .. Distribution("M_NOME"), .. Distribution("U_NOME"), .. Distribution("M_NOME_MAE"), .. Distribution("U_NOME_MAE")];
     public static readonly IReadOnlyList<string> DecisionEvidenceRequired = [DecisionEvidenceScoring, LogOddsConflictMargin, Name("M_NOME_MAE", "MISSING"), Name("U_NOME_MAE", "MISSING")];
+    public static readonly IReadOnlyList<string> NeutralMissingDecisionEvidenceRequired = [DecisionEvidenceScoring, LogOddsConflictMargin, NeutralMissingEvidenceScoring];
     public static readonly IReadOnlyList<string> NominalGuardV7Required = [NameComparisonPtBrContentTokenGuardV2];
     public static readonly IReadOnlyList<string> BirthSemanticEvidenceRequired = [.. SemanticBirthDistribution("M_NASCIMENTO_SEMANTICO"), .. SemanticBirthDistribution("U_NASCIMENTO_SEMANTICO")];
     public static readonly IReadOnlyList<string> BirthSemanticCalibrationValidationRequired = [BirthSemanticEvidenceScoring, .. BirthSemanticEvidenceRequired];
@@ -45,7 +50,8 @@ public static class LinkageParameterCatalog
     public static readonly IReadOnlyList<string> CalibrationValidationRequired = [.. CoreScoringRequired, MatchedSampleSize, UnmatchedSampleSize, PopulationSize, DistinctBirthDate];
     public static bool UsesDecisionEvidence(string algorithmVersion) =>
         string.Equals(algorithmVersion, DecisionEvidenceAlgorithmVersion, StringComparison.Ordinal) ||
-        string.Equals(algorithmVersion, NominalGuardDecisionEvidenceAlgorithmVersion, StringComparison.Ordinal);
+        string.Equals(algorithmVersion, NominalGuardDecisionEvidenceAlgorithmVersion, StringComparison.Ordinal) ||
+        string.Equals(algorithmVersion, NeutralMissingDecisionEvidenceAlgorithmVersion, StringComparison.Ordinal);
 
     public static bool RequiresSemanticBirthEvidence(string algorithmVersion) =>
         string.Equals(algorithmVersion, LegacySemanticBirthAlgorithmVersion, StringComparison.Ordinal) ||

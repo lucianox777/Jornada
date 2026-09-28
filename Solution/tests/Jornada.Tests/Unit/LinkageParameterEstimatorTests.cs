@@ -191,6 +191,50 @@ public sealed class LinkageParameterEstimatorTests
         });
     }
 
+    [Test]
+    public void V8_estimator_conditions_mother_distributions_on_present_pairs_and_retains_missing_support()
+    {
+        var matched = new[]
+        {
+            new IdentityTrainingPair("Maria Silva", new DateOnly(1980, 1, 1), "Ana Silva",
+                "Maria Silva", new DateOnly(1980, 1, 1), "Ana Silva"),
+            new IdentityTrainingPair("Joao Souza", new DateOnly(1970, 2, 2), null,
+                "Joao Souza", new DateOnly(1970, 2, 2), "Rita Souza")
+        };
+        var unmatched = new[]
+        {
+            new IdentityTrainingPair("Maria Silva", new DateOnly(1980, 1, 1), "Ana Silva",
+                "Carlos Pereira", new DateOnly(1981, 1, 1), "Lucia Pereira"),
+            new IdentityTrainingPair("Joao Souza", new DateOnly(1970, 2, 2), null,
+                "Mariana Lima", new DateOnly(1970, 3, 2), null)
+        };
+        var p = LinkageParameterEstimator.Estimate(
+            matched, unmatched, 1000, 100, .5m, .95m, .03m,
+            neutralMissingEvidenceV8: true);
+        Assert.Multiple(() =>
+        {
+            Assert.That(p[LinkageParameterCatalog.NeutralMissingEvidenceScoring], Is.EqualTo(1m));
+            Assert.That(p.ContainsKey("M_NOME_MAE_MISSING"), Is.False);
+            Assert.That(p.ContainsKey("U_NOME_MAE_MISSING"), Is.False);
+            Assert.That(p["SUPPORT_M_NOME_MAE_MISSING"], Is.EqualTo(1m));
+            Assert.That(p["SUPPORT_U_NOME_MAE_MISSING"], Is.EqualTo(1m));
+            Assert.That(LinkageParameterCatalog.NameStates.Sum(x => p["M_NOME_MAE_" + x]),
+                Is.EqualTo(1m).Within(.00000001m));
+            Assert.That(LinkageParameterCatalog.NameStates.Sum(x => p["U_NOME_MAE_" + x]),
+                Is.EqualTo(1m).Within(.00000001m));
+        });
+    }
+
+    [Test]
+    public void V8_rejects_non_semantic_training_contract()
+    {
+        var (matched, unmatched) = TrainingPairs();
+        Assert.That(() => LinkageParameterEstimator.Estimate(
+            matched, unmatched, 1000, 100, .5m, .95m, .03m,
+            BirthScoringContract.JointEvidenceV4,
+            neutralMissingEvidenceV8: true), Throws.InvalidOperationException);
+    }
+
     private static (IdentityTrainingPair[] Matched, IdentityTrainingPair[] Unmatched) TrainingPairs()
     {
         var matched = new[]

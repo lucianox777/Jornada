@@ -103,6 +103,29 @@ public sealed class FellegiSunterScoreBreakdownTests
     }
 
     [Test]
+    public void Breakdown_V8_all_absent_fields_are_neutral_and_present_mother_is_scored()
+    {
+        var parameters = new Dictionary<string, decimal>(StringComparer.Ordinal)
+        {
+            [LinkageParameterCatalog.PriorMatchProbability] = .10m,
+            [LinkageParameterCatalog.DecisionEvidenceScoring] = 1m,
+            [LinkageParameterCatalog.NeutralMissingEvidenceScoring] = 1m,
+            ["M_NOME_MAE_EXACT"] = .80m,
+            ["U_NOME_MAE_EXACT"] = .10m
+        };
+        var missing = FellegiSunterScoring.CalculateWithBreakdown(parameters, null, null);
+        var observed = FellegiSunterScoring.CalculateWithBreakdown(parameters, null, NameComparisonState.EXACT);
+        Assert.Multiple(() =>
+        {
+            Assert.That(missing.Score.Posterior, Is.EqualTo(.10m).Within(.00000001m));
+            Assert.That(missing.Contributions.Select(x => x.State), Is.All.EqualTo("MISSING_NEUTRAL"));
+            Assert.That(missing.Contributions.Select(x => x.LogLikelihoodRatio), Is.All.EqualTo(0m));
+            Assert.That(observed.Contributions.Single(x => x.Evidence == "NOME_MAE").State, Is.EqualTo("EXACT"));
+            Assert.That(observed.Score.Posterior, Is.GreaterThan(missing.Score.Posterior));
+        });
+    }
+
+    [Test]
     public void Breakdown_MakesLegacyNeutralMissingEvidenceAndBlockPriorExplicit()
     {
         var parameters = new Dictionary<string, decimal>(StringComparer.Ordinal)

@@ -127,6 +127,7 @@ public static class FellegiSunterScoring
         ArgumentNullException.ThrowIfNull(parameters);
 
         var decisionV6 = parameters.TryGetValue(LinkageParameterCatalog.DecisionEvidenceScoring, out var decisionFlag) && decisionFlag >= 1d;
+        var neutralMissing = parameters.TryGetValue(LinkageParameterCatalog.NeutralMissingEvidenceScoring, out var neutralFlag) && neutralFlag >= 1d;
         var usesBlockPrior = !decisionV6 && blockCandidateCount is > 0;
         var prior = usesBlockPrior
             ? CalculateBlockPrior(parameters, blockCandidateCount!.Value)
@@ -163,8 +164,9 @@ public static class FellegiSunterScoring
             Add("NOME_MAE", observedMotherNameState.ToString(),
                 RequiredLikelihoodRatio(parameters, "NOME_MAE", observedMotherNameState.ToString()));
         }
-        else if (decisionV6)
+        else if (decisionV6 && !neutralMissing)
         {
+            // Replay histórico V6/V7: ausência da mãe é estado calibrado.
             Add("NOME_MAE", "MISSING", RequiredLikelihoodRatio(parameters, "NOME_MAE", "MISSING"));
         }
         else
