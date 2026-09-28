@@ -30,6 +30,7 @@ public sealed class Dt17RegressionMatrixContractTests
         ("Solution/tests/Jornada.Integration.Tests/Integration/Dt05SemanticThreeWavesSqlServerTests.cs", "Four_waves_ignore_unchanged_and_score_only_retries_without_losing_raw_results"),
         ("Solution/tests/Jornada.Integration.Tests/Integration/Dt05PublicationGuardsSqlServerTests.cs", "Ledger_requires_transaction_and_executing_run_without_side_effects"),
         ("Solution/tests/Jornada.Integration.Tests/Integration/BlockingParallelSqlAuditQueryTests.cs", "TaggedQuery_ExecutesWithEmptyAndCombinedPassesWithoutExposingCandidateIds"),
+        ("Solution/tests/Jornada.Integration.Tests/Integration/BlockingParallelSqlAuditQueryTests.cs", "MariaTrio_TaggedOperationalSqlCountsDynamicCombinedSharedAndMissingMother"),
         ("Solution/scripts/dt05-cpf-late-wave.ps1", "DT05_CPF_LATE_REAL_RUNNER_E2E")
     ];
 
