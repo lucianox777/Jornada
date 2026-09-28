@@ -106,6 +106,36 @@ public sealed class FellegiSunterScoringTests
     }
 
     [Test]
+    public void V8_all_three_missing_attributes_are_neutral_and_v6_replay_is_unchanged()
+    {
+        var parameters = new Dictionary<string, decimal>(ParametersV5)
+        {
+            [LinkageParameterCatalog.DecisionEvidenceScoring] = 1m,
+            [LinkageParameterCatalog.NeutralMissingEvidenceScoring] = 1m,
+            ["M_NOME_MAE_MISSING"] = .20m,
+            ["U_NOME_MAE_MISSING"] = .40m
+        };
+        // O scorer não deve usar probabilidades legadas quando V8 habilita ausência neutra.
+        var neutral = FellegiSunterScoring.CalculateWithBreakdown(parameters, null, null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(neutral.Score.Posterior, Is.EqualTo(.01m).Within(.00000001m));
+            Assert.That(neutral.Contributions.Count, Is.EqualTo(3));
+            foreach (var contribution in neutral.Contributions)
+            {
+                Assert.That(contribution.State, Is.EqualTo("MISSING_NEUTRAL"));
+                Assert.That(contribution.LogLikelihoodRatio, Is.Zero);
+                Assert.That(contribution.MProbability, Is.Null);
+                Assert.That(contribution.UProbability, Is.Null);
+            }
+        });
+        parameters.Remove(LinkageParameterCatalog.NeutralMissingEvidenceScoring);
+        var legacy = FellegiSunterScoring.CalculateWithBreakdown(parameters, null, null);
+        Assert.That(legacy.Contributions.Single(x => x.Evidence == "NOME_MAE").State, Is.EqualTo("MISSING"));
+        Assert.That(legacy.Score.Posterior, Is.LessThan(neutral.Score.Posterior));
+    }
+
+    [Test]
     public void Exact_name_and_mother_name_produce_high_posterior()
     {
         var score = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.EXACT, NameComparisonState.EXACT);

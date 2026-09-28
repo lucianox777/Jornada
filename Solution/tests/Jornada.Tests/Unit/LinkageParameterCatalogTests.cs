@@ -49,7 +49,7 @@ public sealed class LinkageParameterCatalogTests
                 .GetProperty("AlgorithmVersion")
                 .GetString();
 
-            Assert.That(configured, Is.EqualTo(LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion),
+            Assert.That(configured, Is.EqualTo(LinkageParameterCatalog.OperationalDecisionEvidenceAlgorithmVersion),
                 $"{path} deve acompanhar a proveniência canônica do calibrador.");
         }
     }

@@ -8,9 +8,9 @@ public enum BirthScoringContract { SingleEvidenceV3, JointEvidenceV4, SemanticEv
 
 /// <summary>
 /// Estima m/u com suavização. O contrato de nascimento e o contrato de decisão são
-/// independentes: V6 torna ausência de nome da mãe um estado MISSING explícito e usa
-/// margem em log-odds; modelos legados continuam condicionando NOME_MAE aos pares em
-/// que o atributo existe nos dois lados, sem receber flags V6 por acidente.
+/// independentes: V6/V7 usam MISSING materno explícito; V8 usa ausência neutra,
+/// estima m/u maternos apenas entre pares completos e preserva SUPPORT_*_MISSING.
+/// Modelos legados mantêm o replay original.
 /// </summary>
 public static class LinkageParameterEstimator
 {
@@ -26,7 +26,8 @@ public static class LinkageParameterEstimator
         decimal conflictMargin,
         BirthScoringContract birthScoringContract = BirthScoringContract.SemanticEvidenceV5,
         bool decisionEvidenceV6 = true,
-        NameComparisonContract nameComparisonContract = NameComparisonContract.WholeNameJaroWinklerV1)
+        NameComparisonContract nameComparisonContract = NameComparisonContract.WholeNameJaroWinklerV1,
+        bool neutralMissingEvidenceV8 = false)
     {
         if (matchedPairs.Count == 0) throw new InvalidOperationException("Não há pares determinísticos suficientes para estimar probabilidades m.");
         if (unmatchedPairs.Count == 0) throw new InvalidOperationException("Não há pares não-match suficientes para estimar probabilidades u.");
@@ -36,6 +37,8 @@ public static class LinkageParameterEstimator
         // V6 operacional exige o contrato semântico de nascimento. Chamadores legados
         // (V3/V4) nunca recebem flags/estados V6 por acidente.
         decisionEvidenceV6 = decisionEvidenceV6 && birthScoringContract == BirthScoringContract.SemanticEvidenceV5;
+        if (neutralMissingEvidenceV8 && !decisionEvidenceV6)
+            throw new InvalidOperationException("Ausência neutra V8 exige decisão V6 e nascimento semântico V5.");
 
         var matchedNameStates = matchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName, nameComparisonContract)).ToArray();
         var unmatchedNameStates = unmatchedPairs.Select(p => IdentityComparison.CompareName(p.LeftName, p.RightName, nameComparisonContract)).ToArray();
@@ -70,6 +73,8 @@ public static class LinkageParameterEstimator
         {
             result[LinkageParameterCatalog.LogOddsConflictMargin] = conflictMargin;
             result[LinkageParameterCatalog.DecisionEvidenceScoring] = 1m;
+            if (neutralMissingEvidenceV8)
+                result[LinkageParameterCatalog.NeutralMissingEvidenceScoring] = 1m;
             result[LinkageParameterCatalog.DualThresholdConflictGuard] = 1m;
             result[LinkageParameterCatalog.NonUniqueDemographicExactGuard] = 1m;
             result[LinkageParameterCatalog.OrderedNameLlrMonotonicity] = 1m;
@@ -80,7 +85,17 @@ public static class LinkageParameterEstimator
         AddNameSupport(result, "SUPPORT_M_NOME", matchedNameStates);
         AddNameSupport(result, "SUPPORT_U_NOME", unmatchedNameStates);
 
-        if (decisionEvidenceV6)
+        if (neutralMissingEvidenceV8)
+        {
+            // Apenas pares com os dois nomes maternos presentes entram na distribuição.
+            var matchedMother = PresentMotherNameComparisons(matchedPairs, nameComparisonContract).ToArray();
+            var unmatchedMother = PresentMotherNameComparisons(unmatchedPairs, nameComparisonContract).ToArray();
+            AddDistribution(result, "M_NOME_MAE", matchedMother, smoothingAlpha);
+            AddDistribution(result, "U_NOME_MAE", unmatchedMother, smoothingAlpha);
+            AddMotherSupportV6(result, "SUPPORT_M_NOME_MAE", matchedPairs, nameComparisonContract);
+            AddMotherSupportV6(result, "SUPPORT_U_NOME_MAE", unmatchedPairs, nameComparisonContract);
+        }
+        else if (decisionEvidenceV6)
         {
             AddMotherDistributionV6(result, "M_NOME_MAE", matchedPairs, smoothingAlpha, nameComparisonContract);
             AddMotherDistributionV6(result, "U_NOME_MAE", unmatchedPairs, smoothingAlpha, nameComparisonContract);
