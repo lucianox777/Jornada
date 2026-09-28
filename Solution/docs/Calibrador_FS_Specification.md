@@ -40,7 +40,11 @@ O Runner atual une/deduplica os passes e depois pontua sem transportar o passe d
 
 ### Bootstrap e convergência
 
-O IBGE permanece referência externa versionada de bootstrap/fallback para NOME e NOME_MAE.
+O IBGE é referência externa versionada de **bootstrap** para NOME e NOME_MAE. Seu snapshot é carregado explicitamente uma vez na preparação do ambiente, validado integralmente na carga e preservado para os modelos que o utilizaram. Não há recarga periódica automática nem revalidação integral em cada calibração.
+
+Antes de `GENERATE_DRAFT`, a verificação normal é leve: confirmar a existência de uma referência ativa previamente validada. Se ela estiver ausente, a geração falha de forma explícita (*fail-closed*), sem carregamento implícito ou fonte substituta. A integridade completa e o novo fingerprint são verificados somente na carga inicial ou em uma atualização explícita do snapshot. Uma alteração detectada na referência exige conferência de versão e hash antes de sua utilização.
+
+Cada modelo registra o identificador, a versão e o fingerprint do snapshot efetivamente utilizado. Snapshots anteriores são imutáveis e retidos para replay e auditoria, inclusive após a convergência para `u` empírico; uma nova referência ativa não modifica retroativamente modelos antigos. A referência IBGE não é verdade de identidade individual.
 
 A troca para u candidato-condicionado acontece por suficiência observável, nunca por data:
 
