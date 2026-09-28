@@ -45,6 +45,28 @@ public sealed class ProbabilisticV8NeutralMissingContractTests
         Assert.That(decision.MelhorScore, Is.EqualTo(expected.Posterior));
     }
 
+    [Test]
+    public void V8_maternal_absence_is_neutral_for_unilateral_and_bilateral_missingness()
+    {
+        var p = Parameters();
+        var model = LinkageModelPolicy.Create(ModelId, 8,
+            LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion, p);
+        var birth = new DateOnly(1980, 5, 6);
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", birth, null);
+        var unilateral = new LinkageCandidate(Guid.NewGuid(), "MARIA SILVA", birth, "ANA SILVA");
+        var bilateral = new LinkageCandidate(Guid.NewGuid(), "MARIA SILVA", birth, null);
+        var expected = FellegiSunterScoring.Calculate(p, NameComparisonState.EXACT, null, 1, birth, birth);
+
+        var oneSided = ProbabilisticLinkageDecisions.Resolve(model, observation, [unilateral]);
+        var bothMissing = ProbabilisticLinkageDecisions.Resolve(model, observation, [bilateral]);
+        Assert.Multiple(() =>
+        {
+            Assert.That(oneSided.MelhorScore, Is.EqualTo(expected.Posterior));
+            Assert.That(bothMissing.MelhorScore, Is.EqualTo(expected.Posterior));
+            Assert.That(bothMissing.MelhorScore, Is.EqualTo(oneSided.MelhorScore));
+        });
+    }
+
     private static Dictionary<string, decimal> Parameters()
     {
         var p = new Dictionary<string, decimal>(StringComparer.Ordinal)
