@@ -37,7 +37,7 @@ public sealed class TechnicalDebtEvidenceDocumentationTests
             Assert.That(debts, Does.Contain("DT-04 |"));
             Assert.That(debts, Does.Contain("ACEITE TÉCNICO v1 CONCLUÍDO"));
             Assert.That(debts, Does.Contain("ACEITE TÉCNICO DEV CONCLUÍDO"));
-            Assert.That(debts, Does.Contain("DT-05 global"));
+            Assert.That(debts, Does.Contain("DT-05 concluiu seu aceite estreito"));
             Assert.That(debts, Does.Contain("DT-16 |"));
             Assert.That(state, Does.Contain("v5.00-rc.1"));
             Assert.That(state, Does.Contain("POST /api/v1/identidade/candidatos"));
