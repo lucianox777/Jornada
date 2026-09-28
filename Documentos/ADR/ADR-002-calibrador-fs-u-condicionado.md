@@ -18,7 +18,7 @@ Também foi identificado que u nominal incondicional — inclusive quando deriva
 4. O alvo de u é o universo efetivo de candidatos do blocking.
 5. Como o scorer atual é pass-agnostic após a união, o u operacional é estimado sobre a união deduplicada dos passes.
 6. O Calibrador mede suporte nominal por passe e exige suficiência por passe antes de abandonar o bootstrap.
-7. IBGE permanece bootstrap/fallback versionado para u nominal enquanto o corpus candidato-condicionado não tiver suporte suficiente.
+7. A referência IBGE ativa, previamente carregada e validada, é o bootstrap versionado obrigatório para u nominal enquanto o corpus candidato-condicionado não tiver suporte suficiente. Não existe fallback: sem referência ativa, GENERATE_DRAFT falha explicitamente, sem carregamento implícito nem fonte substituta. A convergência empírica é transição governada do mesmo caminho de calibração, nunca recuperação de falha.
 8. A troca de bootstrap para estimativa empírica ocorre por critérios explícitos de suficiência, não por calendário.
 9. TRAIN/VALIDATION/TEST permanecem separados; TEST nunca retroalimenta seleção.
 10. Threshold e margem são produtos da calibração; não entradas fixas operacionais.

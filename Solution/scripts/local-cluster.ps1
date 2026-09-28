@@ -169,7 +169,7 @@ function Invoke-Calibration {
     $beforeText = Get-SqlScalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;"
     $before = [int]$beforeText
     Write-Host "Calibração iniciando após modelo v$before."
-    Write-Host 'Referência IBGE canônica permanece bootstrap/fallback nominal; GENERATE_DRAFT converge para u medido entre candidatos do blocking quando união e passes têm suporte suficiente.' -ForegroundColor DarkYellow
+    Write-Host 'Referência IBGE ativa e previamente validada é bootstrap nominal obrigatório, sem fonte substituta; GENERATE_DRAFT converge para u medido entre candidatos do blocking quando união e passes têm suporte suficiente.' -ForegroundColor DarkYellow
     $ibgeMcPairCount = if ($env:JORNADA_LINKAGE_IBGE_MC_PAIR_COUNT) { [int]$env:JORNADA_LINKAGE_IBGE_MC_PAIR_COUNT } else { 1000000 }
     $ibgeMcSeed = if ($env:JORNADA_LINKAGE_IBGE_MC_SEED) { [int]$env:JORNADA_LINKAGE_IBGE_MC_SEED } else { 20260917 }
     $minimumMatchedPairs = if ($env:JORNADA_LINKAGE_MIN_MATCHED_PAIRS) { [int]$env:JORNADA_LINKAGE_MIN_MATCHED_PAIRS } else { 2500 }

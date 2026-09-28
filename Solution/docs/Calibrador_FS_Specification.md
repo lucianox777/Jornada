@@ -54,7 +54,7 @@ A troca para u candidato-condicionado acontece por suficiência observável, nun
 - os limites são configuração explícita e persistida no modelo;
 - a proveniência IBGE continua registrada mesmo quando o bootstrap deixa de ser aplicado.
 
-Enquanto qualquer requisito de suficiência não for atendido, o campo correspondente continua usando o bootstrap IBGE. Quando atendido, o valor empírico estimado no universo do blocking substitui o bootstrap.
+Enquanto qualquer requisito de suficiência não for atendido, o campo correspondente continua usando o bootstrap IBGE previamente carregado e validado. Quando atendido, o valor empírico estimado no universo do blocking substitui o bootstrap mediante critério medido e persistido, fonte, denominadores e proveniência explícitos. Trata-se de estados sucessivos de um único caminho governado de calibração, nunca de rota alternativa acionada por falha. Sem referência IBGE ativa, a geração de rascunho falha mesmo que exista estimativa empírica anterior; não há fallback. A exigência atual de suficiência da união e de todos os passes permanece até avaliação específica no Ensaio.
 
 ## 5. Term frequency
 
