@@ -176,6 +176,13 @@ jobs:
           python3 scripts/rc-evidence-gate.py --self-test
       - name: Self-test IBGE nominal u multi-seed diagnostic
         run: pwsh -NoLogo -NoProfile -File scripts/local-ibge-u-multiseed.ps1 -SelfTest
+      - name: DT-16 exclusive solution coverage
+        run: python3 scripts/dt16-solutions-gate.py
+      - name: Build five DT-16 specialized solutions
+        run: |
+          for solution in Jornada.Core.sln Jornada.Runtime.sln Jornada.Linkage.sln Jornada.Dev.sln Jornada.Tests.sln; do
+            dotnet build "$solution" --configuration Release --no-restore
+          done
       - run: dotnet build Jornada.sln --configuration Release --no-restore
       - name: Prove Python-to-CSharp synthetic corpus rule equivalence
         run: |
