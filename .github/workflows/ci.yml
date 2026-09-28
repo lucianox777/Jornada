@@ -2,6 +2,10 @@ name: jornada-ci
 
 on:
   push:
+    branches:
+      - master
+    tags:
+      - '**'
   pull_request:
   workflow_dispatch:
     inputs:
