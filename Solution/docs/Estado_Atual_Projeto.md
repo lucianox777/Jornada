@@ -1,17 +1,24 @@
-# Estado atual — fotografia documental de 26/09/2026
+# Estado atual — conferência técnica documental de 28/09/2026
 
-Este arquivo é um ponto de retomada, **não** auditoria do HEAD ou evidência de testes. Para estado atual de implementação conferir código, PRs, Actions e issues.
+**Escopo:** fotografia de implementação sobre a candidata técnica `master`, conferida com código, PRs e [CI verde do PR #568](https://github.com/lucianox777/Jornada/actions/runs/36348920753). Este arquivo não substitui consulta ao HEAD, aos gates institucionais nem ao [Plano de Desenvolvimento](Plano_Desenvolvimento.md).
 
 ## Publicação e candidato
 
-`../../RELEASE_INFO.txt` declara a última release selada de engenharia v4.05, Base Normativa declarada v3.64 e SolutionSchema 3.69. A última Especificação Técnica materializada na árvore é v3.62 (DOCX/PDF). A v5.00 é candidata, sem efeito de publicação. Ver `../../Documentos/README.md`.
+`RELEASE_INFO.txt` continua sendo a autoridade para a **última release selada de engenharia v4.05 (SolutionSchema 3.69)**. `LEIA-ME.txt` declara **candidata técnica v5.00**, RC `v5.00-rc.1` cortada com efeito de release `NONE`, e **SolutionSchema técnico 3.70**. A Especificação Técnica v5.00 permanece **candidata**, não publicação normativa final; a versão materializada histórica permanece referenciada em `Documentos/README.md`.
 
-## Estado técnico e decisões
+## Estado técnico comprovado e limites
 
-A documentação descreve SQL Server, Processor, Runner em lote, motor C# de linkage, Gold e ledger. A aderência integral da procedure Gold à hierarquia de quatro níveis por atributo precisa ser verificada no código. `codigoPessoaOrigem` permanece opcional. A busca síncrona `Patient/$match` para o balcão **não está comprovada como implementada**; o requisito é até cinco candidatos internamente priorizados, mostrados sem ranking ou score e com “Nenhum destes”.
+- **DT-04:** `Jornada.Access.Security` centraliza `X-Jornada-Access-Key`, `AuthenticationHandler`, scopes/policies nas duas APIs; [PR #510](https://github.com/lucianox777/Jornada/pull/510). Os gates de matriz e testes HTTP cobrem negações. **HML/Produção permanecem deny-by-default** até IdP corporativo e aceite da issue #378.
+- **DT-03:** OpenAPI v1 contém **21 operações com contratos tipados** para sucesso/erro e regressão DTO/HTTP; [PR #517](https://github.com/lucianox777/Jornada/pull/517).
+- **Busca síncrona:** `POST /api/v1/identidade/candidatos` está implementado em `Jornada.Api`, com scope dedicado, auditoria anterior à resposta, até cinco candidatos sem score, sem CPF/UUID visível e com `nenhumDestes`. **Restrito a Development e gate de modelo/feature elegível**; não equivale a endpoint FHIR `Patient/$match` publicado ou ativação institucional HML.
+- **DT-05:** ledger semântico append-only, assinatura V1, guardas de transação/run `EXECUTANDO` e E2E de **três ondas e CPF tardio real em massa sintética** [PR #540](https://github.com/lucianox777/Jornada/pull/540) implementados. **Ainda faltam** manifesto NAS automaticamente vinculado, replay histórico determinístico, ensaios de concorrência/retenção e medição de custo.
+- **DT-10:** Runner utiliza `identidade.sp_publicar_resolucao_progressiva_linkage_lote`; o cursor por origem foi retirado e há equivalência escalar/idempotência/precedência exercitadas em SQL. **O aceite integral ainda exige** concorrência adversarial, rollback sob falha e comparação física de plano/volumetria.
+- **Blocking D/C/D∪C:** [PR #567](https://github.com/lucianox777/Jornada/pull/567) integrou diagnóstico sintético no mesmo universo; [PR #568](https://github.com/lucianox777/Jornada/pull/568) acrescentou auditoria SQL opcional somente leitura com contagens compartilhadas e latências observadas. **Não** publica passes C no Runner nem homologa equivalência populacional.
 
-**Fases aprovadas:** DEV → **Ensaio único** → HML → Produção. O Ensaio é técnico e operacional, já com todas as funcionalidades, contratos, autenticação, auditoria e observabilidade de HML. A diferença planejada para HML é a massa de testes preparada pelas Secretarias, preservando as características relevantes das bases reais. Ver [contrato](Ensaio_Unico_Paridade_HML.md).
+`codigoPessoaOrigem` permanece **opcional**. A aderência integral da Gold à hierarquia de quatro níveis por atributo, a reavaliação de referências candidatas, o dossiê decisório DT-15 e a validade estatística independente #31 continuam a exigir conferência/implementação específicas. A Gold é representação revisável, não certificação civil.
 
-## Pendências de engenharia
+**Fases aprovadas:** DEV → Ensaio único → HML → Produção. O Ensaio técnico exige massa sintética, funcionalidades, contratos e controles já prontos; HML requer massa das Secretarias, condições institucionais e segurança homologadas. CI verde, massa sintética e página master somente leitura em DEV não autorizam HML/Produção.
 
-Motor C# compartilhado, invalidação por mudanças de origem e do lado candidato, persistência por mudança semântica, hierarquia Gold por atributo, tolerância versionada VALIDATE/ACTIVATE, busca síncrona tipada e segura, evidência estatística da issue #31, .NET 10, baseline SQL para novas instalações, drift documental e avaliação da publicação set-based. **Decisão documental não significa implementação concluída.**
+## Próximos gates
+
+Seguir [prioridades e dependências](Plano_Desenvolvimento.md), [inventário DT com critérios verificáveis](Dividas_Tecnicas.md), [contrato de Ensaio](Ensaio_Unico_Paridade_HML.md) e [governança de decisão do modelo](DT15_Governanca_Decisao_Modelo.md). DT-01/09 exigem evidência CONFORME por modelo para promoção; DT-14 esclareceu o runbook, **sem retirar o gate de código**. DT-02 (.NET 10), DT-05 replay NAS, DT-07 auditoria integral de drift e DT-15 HML/Produção continuam abertos; DT-16 (issue #576) foi proposta como reorganização pós-Ensaio e não bloqueia a entrega atual.
