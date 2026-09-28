@@ -13,6 +13,7 @@ public static class IdentityComparison
     public const string NormalizationVersion = "IDENTITY_NORMALIZATION_V1";
     public const string NameComparisonVersionV1 = "WHOLE_NAME_JARO_WINKLER_V1";
     public const string NameComparisonVersionV2 = "PTBR_CONTENT_TOKEN_GUARD_JARO_WINKLER_V2";
+    public const string NameComparisonVersionV3 = "WHOLE_NAME_JARO_WINKLER_PREFIX_GATED_V3";
     public const string AbbreviationCompatibilityVersionV1 = "PTBR_POSITIONAL_INITIAL_COMPATIBLE_V1";
 
     public static string? NormalizeText(string? value)
@@ -73,6 +74,7 @@ public static class IdentityComparison
         {
             NameComparisonContract.WholeNameJaroWinklerV1 => CompareNameV1(left, right),
             NameComparisonContract.PtBrContentTokenGuardV2 => CompareNameV2(left, right),
+            NameComparisonContract.WholeNameJaroWinklerPrefixGatedV3 => CompareNameV3(left, right),
             _ => throw new ArgumentOutOfRangeException(nameof(contract), contract, "Contrato nominal desconhecido.")
         };
 
@@ -118,6 +120,20 @@ public static class IdentityComparison
         }
 
         return ClassifySimilarity(similarity);
+    }
+
+    /// <summary>
+    /// Contrato experimental: mantém a comparação nominal completa da V1, mas só
+    /// aplica o bônus Winkler quando Jaro > 0,7. Não substitui V1/V2 nem
+    /// afirma paridade integral com Splink/DuckDB.
+    /// </summary>
+    public static NameComparisonState CompareNameV3(string? left, string? right)
+    {
+        var a = NormalizeText(left);
+        var b = NormalizeText(right);
+        if (a is null || b is null) return NameComparisonState.LOW;
+        if (string.Equals(a, b, StringComparison.Ordinal)) return NameComparisonState.EXACT;
+        return ClassifySimilarity(JaroWinklerPrefixGated(a, b));
     }
 
     private static string[] ContentTokens(string normalized) =>
@@ -201,7 +217,11 @@ public static class IdentityComparison
         return NameComparisonState.LOW;
     }
 
-    public static double JaroWinkler(string left, string right)
+    public static double JaroWinkler(string left, string right) => JaroWinklerCore(left, right, false);
+
+    public static double JaroWinklerPrefixGated(string left, string right) => JaroWinklerCore(left, right, true);
+
+    private static double JaroWinklerCore(string left, string right, bool gatePrefix)
     {
         if (left == right) return 1d;
         if (left.Length == 0 || right.Length == 0) return 0d;
@@ -247,14 +267,17 @@ public static class IdentityComparison
         var maxPrefix = Math.Min(4, Math.Min(left.Length, right.Length));
         while (prefix < maxPrefix && left[prefix] == right[prefix]) prefix++;
 
-        return jaro + prefix * 0.1d * (1d - jaro);
+        return gatePrefix && jaro <= 0.7d
+            ? jaro
+            : jaro + prefix * 0.1d * (1d - jaro);
     }
 }
 
 public enum NameComparisonContract
 {
     WholeNameJaroWinklerV1,
-    PtBrContentTokenGuardV2
+    PtBrContentTokenGuardV2,
+    WholeNameJaroWinklerPrefixGatedV3
 }
 
 public enum NameComparisonState
