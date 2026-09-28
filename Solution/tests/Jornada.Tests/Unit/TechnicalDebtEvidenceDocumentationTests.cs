@@ -39,10 +39,15 @@ public sealed class TechnicalDebtEvidenceDocumentationTests
             Assert.That(debts, Does.Contain("ACEITE TÉCNICO DEV CONCLUÍDO"));
             Assert.That(debts, Does.Contain("DT-05 concluiu seu aceite estreito"));
             Assert.That(debts, Does.Contain("DT-16 |"));
+            Assert.That(debts, Does.Contain("| DT-13 | Entrega técnica concluída | Remover"));
+            Assert.That(debts, Does.Contain("| DT-17 | Transversal | Matriz obrigatória"));
+            Assert.That(debts, Does.Contain("PR #580"));
+            Assert.That(debts, Does.Not.Contain("\\n| DT-"));
             Assert.That(state, Does.Contain("v5.00-rc.1"));
             Assert.That(state, Does.Contain("POST /api/v1/identidade/candidatos"));
             Assert.That(state, Does.Contain("deny-by-default"));
             Assert.That(plan, Does.Contain("implementação técnica DEV entregue"));
+            Assert.That(plan, Does.Contain("matriz de regressão DT-17"));
             Assert.That(dt05, Does.Contain("aceite estreito"));
             Assert.That(dt05, Does.Contain("Marco B permanece pendente"));
             Assert.That(auth, Does.Contain("class JornadaAccessAuthenticationHandler"));
