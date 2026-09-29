@@ -9,7 +9,7 @@
 ## Estado técnico comprovado e limites
 
 - **DT-04:** `Jornada.Access.Security` centraliza `X-Jornada-Access-Key`, `AuthenticationHandler`, scopes/policies nas duas APIs; [PR #510](https://github.com/lucianox777/Jornada/pull/510). Os gates de matriz e testes HTTP cobrem negações. **HML/Produção permanecem deny-by-default** até IdP corporativo e aceite da issue #378.
-- **DT-03:** OpenAPI v1 contém **21 operações com contratos tipados** para sucesso/erro e regressão DTO/HTTP; [PR #517](https://github.com/lucianox777/Jornada/pull/517).
+- **DT-03:** OpenAPI v1 contém **22 operações com contratos tipados** para sucesso/erro e regressão DTO/HTTP; [PR #517](https://github.com/lucianox777/Jornada/pull/517).
 - **Busca síncrona:** `POST /api/v1/identidade/candidatos` está implementado em `Jornada.Api`, com scope dedicado, auditoria anterior à resposta, até cinco candidatos sem score, sem CPF/UUID visível e com `nenhumDestes`. **Restrito a Development e gate de modelo/feature elegível**; não equivale a endpoint FHIR `Patient/$match` publicado ou ativação institucional HML.
 - **DT-05:** ledger semântico append-only, assinatura V1, guardas de transação/run `EXECUTANDO` e E2E de **três ondas e CPF tardio real em massa sintética** [PR #540](https://github.com/lucianox777/Jornada/pull/540) implementados. **Ainda faltam** manifesto NAS automaticamente vinculado, replay histórico determinístico, ensaios de concorrência/retenção e medição de custo.
 - **DT-10:** Runner utiliza `identidade.sp_publicar_resolucao_progressiva_linkage_lote`; o cursor por origem foi retirado e há equivalência escalar/idempotência/precedência exercitadas em SQL. **O aceite integral ainda exige** concorrência adversarial, rollback sob falha e comparação física de plano/volumetria.

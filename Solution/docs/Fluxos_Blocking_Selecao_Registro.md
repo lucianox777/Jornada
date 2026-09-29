@@ -133,4 +133,4 @@ flowchart TD
     J --> G
 ```
 
-**Elegibilidade com NULL:** um passe que exige mãe não é executado quando mãe está ausente; outro passe elegível continua. Sem atributos suficientes para qualquer passe, registrar `SEM_EVIDENCIA_PARA_BUSCA`/pendência governada, sem inventar CPF, nome, data ou vínculo. Índices SQL de busca devem tratar NULL sem equipará-lo a uma chave compartilhada entre pessoas; o contrato controla a entrada, enquanto o motor controla a suficiência de evidência para cada operação.
+**Elegibilidade com NULL:** um passe que exige mãe não é executado quando mãe está ausente; outro passe elegível continua. Sem atributos suficientes para qualquer passe, registrar `EVIDENCIA_INSUFICIENTE_PARA_BLOCKING`/pendência governada, sem inventar CPF, nome, data ou vínculo. Índices SQL de busca devem tratar NULL sem equipará-lo a uma chave compartilhada entre pessoas; o contrato controla a entrada, enquanto o motor controla a suficiência de evidência para cada operação.
