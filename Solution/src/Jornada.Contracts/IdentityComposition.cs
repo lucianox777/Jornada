@@ -48,7 +48,7 @@ public sealed record HistoricalReferenceResolution(
 /// <summary>Planejador puro. Não reserva UUID, persiste, autoriza, executa score ou altera fatos.</summary>
 public static class IdentityCompositionPlanner
 {
-    public const string Version = "IDENTITY_COMPOSITION_PLAN_V1";
+    public const string Version = "IDENTITY_COMPOSITION_PLAN_V2";
 
     public static IdentityCompositionPlan Prepare(IdentityCompositionReadSet readSet, IdentityCompositionDecision decision)
     {
@@ -127,6 +127,48 @@ public static class IdentityCompositionPlanner
         foreach (var member in after.Values)
             if (member.CpfAnchorUuid is { } anchor && member.CanonicalUuid != anchor)
                 throw new InvalidOperationException("Origem com âncora admitida deve preservar sua referência CPF.");
+
+        // DC-ID-02: numa divisão efetivamente decidida em dois ou mais destinos
+        // canônicos, o UUID do agregado anterior não é prêmio por continuidade.
+        // Sem âncora CPF ele vira referência histórica; initial_uuid isolado também
+        // não prova propriedade do novo destino. Reservas novas e referências já
+        // correntes continuam admissíveis. Origem INDEFINIDA permanece permitida.
+        if (decision.Operation == IdentityCompositionOperation.SEPARACAO)
+        {
+            foreach (var beforeGroup in currentGroups.Where(g => affected.Contains(g.Key)))
+            {
+                var resultingReferences = beforeGroup.Value
+                    .Select(m => after[m.InitialUuid].CanonicalUuid)
+                    .Where(id => id is not null)
+                    .Select(id => id!.Value)
+                    .Distinct()
+                    .ToArray();
+                if (resultingReferences.Length < 2)
+                    continue;
+
+                var previousReference = beforeGroup.Key;
+                var previousReferenceHasCpfAnchor = beforeGroup.Value
+                    .Any(m => m.CpfAnchorUuid == previousReference);
+                if (!previousReferenceHasCpfAnchor && resultingReferences.Contains(previousReference))
+                    throw new InvalidOperationException(
+                        "Divisão sem âncora CPF não pode atribuir o UUID canônico anterior a uma das novas pessoas.");
+
+                foreach (var member in beforeGroup.Value)
+                {
+                    var target = after[member.InitialUuid].CanonicalUuid;
+                    if (target is null)
+                        continue;
+                    var targetUuid = target.Value;
+                    var isBareInitialUuid = initialOwners.ContainsKey(targetUuid)
+                        && !currentGroups.ContainsKey(targetUuid)
+                        && !reserved.Contains(targetUuid)
+                        && !beforeGroup.Value.Any(m => m.CpfAnchorUuid == targetUuid);
+                    if (isBareInitialUuid)
+                        throw new InvalidOperationException(
+                            "Divisão não pode promover initial_uuid a canonical_uuid sem reserva, referência corrente ou âncora admitida.");
+                }
+            }
+        }
 
         var changes = assignments.Values.OrderBy(a => a.InitialUuid).Select(a =>
         {
