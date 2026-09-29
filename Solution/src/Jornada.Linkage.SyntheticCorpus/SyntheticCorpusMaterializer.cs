@@ -67,6 +67,9 @@ public static class SyntheticCorpusMaterializer
             rng_version = Xoshiro256StarStar.AlgorithmVersion,
             frequency_sampler_version = SyntheticFrequencySampler.MethodVersion,
             date_corruption_version = SyntheticCorpusV2Rules.DateCorruptionVersion,
+            population_profile = source.Demographic is null
+                ? "LEGACY_ENGINEERING_FIXTURE"
+                : "DEMOGRAPHIC_PRIMARY_V1",
             seed = generation.Options.Seed,
             input_fingerprint_sha256 = inputFingerprintSha256.ToUpperInvariant(),
             reference_code = source.ReferenceCode,
@@ -215,6 +218,9 @@ public static class SyntheticCorpusMaterializer
             generator_version = SyntheticCorpusInputIdentity.GeneratorVersion,
             ruleset_version = SyntheticCorpusV2Rules.RulesetVersion,
             rng_version = Xoshiro256StarStar.AlgorithmVersion,
+            population_profile = source.Demographic is null
+                ? "LEGACY_ENGINEERING_FIXTURE"
+                : "DEMOGRAPHIC_PRIMARY_V1",
             seed = generation.Options.Seed,
             people = generation.People.Count,
             observations = generation.Observations.Count,
