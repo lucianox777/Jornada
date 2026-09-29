@@ -49,6 +49,12 @@ public sealed class GoldenReferenceVectorVerifierTests
             Assert.That(report.BirthVectors, Is.EqualTo(7));
             Assert.That(report.PolicyVectors, Is.GreaterThanOrEqualTo(6));
             Assert.That(report.GuardVectors, Is.GreaterThanOrEqualTo(5));
+            Assert.That(report.NumericDiagnostics, Has.Count.EqualTo(18));
+            Assert.That(report.Runtime, Does.Contain(".NET"));
+            Assert.That(report.NumericDiagnostics.All(
+                item => item.AbsolutePairLlrDifference <= 0.000000000001m
+                    && item.AbsoluteLogOddsDifference == 0m
+                    && item.AbsolutePosteriorDifference == 0m), Is.True);
             Assert.That(report.VectorsSha256, Has.Length.EqualTo(64));
             Assert.That(report.Status,
                 Is.EqualTo("TECHNICAL_VECTORS_PASSED_NOT_SQL_EVIDENCE"));
