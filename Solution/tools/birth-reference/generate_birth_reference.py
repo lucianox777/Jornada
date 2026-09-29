@@ -43,7 +43,19 @@ def read_sidra(path:Path):
     for a,b,v,label in rows:
         if b is None or all(i in covered for i in range(a,b+1)): continue
         out.append((a,b,v,label)); covered.update(range(a,b+1))
-    return sorted(out)
+    out=sorted(out)
+    # Fail closed: every age 0..99 must be represented exactly once after
+    # applying simple-age precedence/range fallback, and the open 100+ group
+    # must be present. Missing interior ages would silently bias the corpus.
+    covered=set()
+    for a,b,_,_ in out:
+        for age in range(a,b+1):
+            if age in covered: raise ValueError(f'SIDRA: idade {age} coberta mais de uma vez')
+            covered.add(age)
+    missing=[age for age in range(100) if age not in covered]
+    if missing: raise ValueError(f'SIDRA: idades ausentes: {missing}')
+    if 100 not in covered: raise ValueError('SIDRA: categoria 100 anos ou mais ausente')
+    return out
 
 def apportion(total:int,n:int):
     q,r=divmod(total,n)
@@ -61,6 +73,12 @@ def census_daily(groups):
     return d,total
 
 def read_sinasc(paths):
+    """Read SINASC rows and fail closed unless residence is explicitly MSP.
+
+    Raw/open-data files are accepted only when a residence-municipality field
+    proves that every counted row belongs to municipality 3550308. An input
+    that merely happens to contain births occurring in Sao Paulo is rejected.
+    """
     d=defaultdict(int)
     for path in paths:
         with path.open(encoding='utf-8-sig',newline='') as f:
@@ -68,7 +86,15 @@ def read_sinasc(paths):
             fields={x.lower():x for x in (r.fieldnames or [])}
             key=next((fields[k] for k in ('dtnasc','data_nascimento','data nascimento') if k in fields),None)
             if not key: raise ValueError(f'{path}: coluna de data de nascimento não encontrada')
+            residence_key=next((fields[k] for k in (
+                'codmunres','codmunresidencia','municipio residencia',
+                'município residência','municipio_residencia') if k in fields),None)
+            if not residence_key:
+                raise ValueError(f'{path}: geografia de residência ausente; esperado município 3550308')
             for x in r:
+                residence=re.sub(r'\\D','',x[residence_key])
+                if residence != '3550308':
+                    raise ValueError(f'{path}: registro fora da residência 3550308: {x[residence_key]!r}')
                 s=x[key].strip()
                 parsed=None
                 for fmt in ('%d%m%Y','%d/%m/%Y','%Y-%m-%d'):
