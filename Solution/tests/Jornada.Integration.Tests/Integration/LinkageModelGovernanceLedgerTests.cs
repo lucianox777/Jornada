@@ -208,6 +208,18 @@ public sealed class LinkageModelGovernanceLedgerTests
             Assert.That(masterPreview.RecentHistory.Any(x =>
                 x.ModelVersion == version && x.Operation == "ACTIVATE"), Is.True);
             Assert.That(masterPreview.CalibrationHistory.Count, Is.LessThanOrEqualTo(20));
+            var bundle = masterPreview.BundleProvenance.Single(x => x.ModelId == modelId);
+            Assert.That(bundle.ModelStatus, Is.EqualTo("ATIVO"));
+            Assert.That(bundle.ParameterRowCount, Is.EqualTo(6));
+            Assert.That(bundle.ParameterCoverage, Is.EqualTo("PARAMETROS_PRESENTES_SEM_HASH_GLOBAL"));
+            Assert.That(bundle.RulesetVersion, Is.EqualTo("TEST_RULESET_V1"));
+            Assert.That(bundle.RulesetFingerprint, Is.EqualTo(new string('a', 64)));
+            Assert.That(bundle.CoverageStatus, Is.EqualTo("PROVENIENCIA_PARCIAL"));
+            Assert.That(bundle.GlobalFingerprintStatus, Is.EqualTo(
+                GovernanceBundleProvenanceReader.MissingGlobalFingerprint));
+            Assert.That(bundle.ReferenceAssociationStatus,
+                Is.EqualTo("REFERENCIA_NAO_COMPROVADA_NAO_INFERIR_ORIGEM_MU"));
+
             Assert.That(masterPreview.CalibrationHistory.All(x => x.EvaluatorEvidenceStatus is
                 "SEM_AVALIACAO_PERSISTIDA" or "SINTETICA_NAO_PROMOVIVEL"), Is.True);
             Assert.That(typeof(OperationalMonitorSnapshot).GetProperty("CalibrationHistory"), Is.Null,
