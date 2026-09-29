@@ -173,6 +173,71 @@ public sealed class NameFrequencyReferenceSqlServerTests
                 () => Jornada.Linkage.Parameters.Worker.ActiveNameFrequencyReferenceQuery.HasActiveAsync(adapter)));
     }
 
+
+    [Test]
+    public async Task Publication_rejects_missing_name_or_surname_and_null_hash()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260912_Frequencia_Nomes_Referencia.sql"));
+
+        foreach (var missingType in new[] { "NOME", "SOBRENOME" })
+        {
+            var id = await CreateVersionWithMinimumReferenceAsync(
+                connection, $"TEST-MISSING-{missingType}-{Guid.NewGuid():N}", 1000, 400);
+            await using (var remove = connection.CreateCommand())
+            {
+                remove.CommandText = "DELETE FROM ref.frequencia_nome WHERE frequencia_nome_versao_id=@id AND tipo=@tipo;";
+                remove.Parameters.AddWithValue("@id", id);
+                remove.Parameters.AddWithValue("@tipo", missingType);
+                await remove.ExecuteNonQueryAsync();
+            }
+            var error = Assert.ThrowsAsync<SqlException>(async () => await PublishAsync(connection, id, 0x42));
+            Assert.That(error!.Number, Is.EqualTo(missingType == "NOME" ? 51637 : 51638));
+        }
+
+        var nullHashId = await CreateVersionWithMinimumReferenceAsync(
+            connection, $"TEST-NULL-HASH-{Guid.NewGuid():N}", 1000, 400);
+        await using var publish = connection.CreateCommand();
+        publish.CommandText = "EXEC ref.sp_publicar_frequencia_nome_versao @id, @sha;";
+        publish.Parameters.AddWithValue("@id", nullHashId);
+        publish.Parameters.Add("@sha", System.Data.SqlDbType.Binary, 32).Value = DBNull.Value;
+        var nullHash = Assert.ThrowsAsync<SqlException>(async () => await publish.ExecuteNonQueryAsync());
+        Assert.That(nullHash!.Number, Is.EqualTo(51633));
+    }
+
+    [Test]
+    public async Task Active_reference_unique_index_rejects_a_second_active_version()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260912_Frequencia_Nomes_Referencia.sql"));
+
+        var firstId = await CreateVersionWithMinimumReferenceAsync(
+            connection, $"TEST-UNIQUE-A-{Guid.NewGuid():N}", 1000, 400);
+        await PublishAsync(connection, firstId, 0x42);
+        var secondId = await CreateVersionWithMinimumReferenceAsync(
+            connection, $"TEST-UNIQUE-B-{Guid.NewGuid():N}", 1000, 400);
+        await using var forceSecondActive = connection.CreateCommand();
+        forceSecondActive.CommandText = """
+            UPDATE ref.frequencia_nome_versao
+            SET status='ATIVA', conteudo_sha256=CONVERT(BINARY(32), 0x42),
+                ativado_em=SYSDATETIMEOFFSET()
+            WHERE frequencia_nome_versao_id=@id;
+            """;
+        forceSecondActive.Parameters.AddWithValue("@id", secondId);
+        var duplicate = Assert.ThrowsAsync<SqlException>(async () => await forceSecondActive.ExecuteNonQueryAsync());
+        Assert.That(duplicate!.Number, Is.AnyOf(2601, 2627));
+        Assert.That(await Jornada.Linkage.Parameters.Worker.ActiveNameFrequencyReferenceQuery.HasActiveAsync(
+            new Jornada.Operational.Sql.OperationalSqlAdapter(connectionString)), Is.True);
+    }
+
     private static async Task InsertLinkageRunAsync(SqlConnection connection, Guid runId, Guid modelId)
     {
         await using var command = connection.CreateCommand();
