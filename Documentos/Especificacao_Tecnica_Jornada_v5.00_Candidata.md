@@ -1,3 +1,5 @@
+> **Emenda candidata 29/09/2026:** para identidade e linkage prevalecem as [decisões canônicas](../Solution/docs/Decisoes_Canonicas_Identidade_Linkage_20260929.md). Esta candidata não substitui a especificação formal publicada e ainda contém descrições técnicas do HEAD a adequar.
+
 # Especificação Técnica Jornada do Cidadão — Candidata v5.00
 
 **Status:** CANDIDATA TÉCNICA — NÃO PUBLICADA  
@@ -51,7 +53,7 @@ Nome de referência é regra de **apresentação**, não atributo canônico de i
 
 No Município de São Paulo, essa regra encontra base específica no **Decreto Municipal nº 58.228, de 16 de maio de 2018**, atualmente catalogado sem revogação expressa. O decreto estabelece a autodeclaração do nome social (art. 3º), restringe a identificação pelo registro civil aos sistemas internos de acesso restrito e aos casos absolutamente necessários (art. 4º, §§ 3º e 4º) e determina a incorporação do campo de nome social nos sistemas internos quando atualizados (art. 6º). Fonte oficial: `https://legislacao.prefeitura.sp.gov.br/decreto-58228-de-16-de-maio-de-2018/consolidado`.
 
-`nome_referencia` pertence a serving/atendimento e **não** participa de blocking, features, LLR, posterior, margem ou calibração. Nome civil, nome social e variantes históricas permanecem evidências nominais independentes conforme o contrato de resolução homologado. O scorer corrente não deve trocar o nome técnico do candidato pela referência de apresentação; eventual comparação de conjuntos de variantes exige nova versão calibrada do modelo.
+`nome_referencia` pertence a serving/atendimento e **não** participa de blocking, features, LLR, posterior, margem ou calibração. Nome civil, nome social e variantes históricas permanecem observações próprias com proveniência, mas **não são presumidas evidências estatísticas independentes**: blocking pode recuperar candidatos por nome social e o Calibrador testa concordância, divergência, ausência unilateral/bilateral e dependência entre civil/social, sem peso pré-fixado. O scorer corrente não deve trocar o nome técnico do candidato pela referência de apresentação; eventual comparação de conjuntos de variantes exige nova versão calibrada do modelo.
 
 A correção de identidade é governada e auditável; a plataforma não deve inferir titularidade institucionalmente controversa nem apagar a trilha histórica de agrupamentos, separações ou fusões.
 
@@ -62,6 +64,10 @@ Atos governados que alteram ou encerram uma decisão de identidade devem possuir
 `controle.api_evento` continua sendo trilha de acesso/telemetria HTTP. O CPF opcional de agente declarado pela origem e armazenado apenas como HMAC não é prova de autenticação individual e, portanto, não é usado como autoria canônica do ato de identidade. Se o ledger não puder ser persistido, a decisão governada deve falhar atomicamente.
 
 Quando houver confirmação humana, ela deve ser estruturada em apenas duas formas: `DOCUMENTO_VERIFICADO` ou `CONFIRMACAO_INSTITUCIONAL_SEM_DOCUMENTO`; evidência documental exige tipo de documento estruturado. Eventos que não constituem confirmação usam `evidencia_tipo = NULL`, e `evento_tipo` expressa a natureza operacional do ato. Texto livre (`ato_referencia`/`justificativa`) permanece contexto e não substitui a classificação.
+
+### 3.3 Atualização de decisão — divisão de UUID e V8 única (29/09/2026)
+
+A [decisão canônica de identidade e linkage](../Solution/docs/Decisoes_Canonicas_Identidade_Linkage_20260929.md) rege a candidata, sem efeito retroativo sobre a especificação v3.62 publicada. `initial_uuid` é origem imutável; `canonical_uuid` é a identidade corrente. Na divisão literal de UUID **sem CPF**, duas pessoas recebem **dois UUIDs canônicos distintos novos** (ou próprios anteriores comprovadamente admissíveis) e o UUID anterior fica histórico, sem sucessor único. Com CPF admitido, o titular conserva o UUID ancorado e o outro recebe sua própria âncora ou UUID novo. A V8 será o único algoritmo de decisão novo; retiram-se o veto demográfico fixo e alternativas operacionais V6/V7 após adequação de código. A ausência de nome social **não** recebe interpretação fixa: é hipótese a estimar/testar pelo Calibrador. Estas são **decisões de implementação pendente**, não descrição de funcionalidade já homologada.
 
 ## 4. Âncora CPF → UUID e ausência de CPF
 

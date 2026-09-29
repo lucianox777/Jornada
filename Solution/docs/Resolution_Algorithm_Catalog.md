@@ -1,3 +1,5 @@
+> **Catálogo físico com entradas legadas:** para **novos modelos** a [decisão canônica de 29/09/2026](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-01--somente-v8-como-contrato-executável-futuro) estabelece **somente V8**. Descrições V6/V7 abaixo indicam código/replay histórico ainda a migrar, não alternativas autorizadas para novo desenvolvimento. Não remover migrações/models persistidos antes do plano de compatibilidade.
+
 # Catálogo de algoritmos de resolução
 
 ## Regra normativa

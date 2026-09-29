@@ -1,3 +1,5 @@
+> **EMENDADO/HISTÓRICO (29/09/2026):** este arquivo registra a **implementação inicial da V8**; não constitui veto a novas hipóteses de ausência. A política vigente é [DC-LK-01/02/03](Decisoes_Canonicas_Identidade_Linkage_20260929.md): apenas V8 como destino, remoção pendente do guard demográfico fixo, e **ausência de nome social como hipótese calibrável** (não neutralização/penalidade presumida). Menções V6/V7 abaixo são de replay e testes do HEAD anterior, não decisões operacionais futuras.
+
 # Ausência neutra e contrato probabilístico V8
 
 ## Decisão

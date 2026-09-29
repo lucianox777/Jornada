@@ -1,3 +1,5 @@
+> **Fonte única de alteração corrente (29/09/2026):** [decisões canônicas de identidade/linkage](Decisoes_Canonicas_Identidade_Linkage_20260929.md). Esta diretriz permanece referência de produto, mas não define pesos estatísticos ou exceções de UUID concorrentes. Em caso de conflito aplica-se a decisão posterior, com implementação verificada separadamente.
+
 # Diretrizes consolidadas — identidade progressiva e apoio à decisão
 
 **Limite funcional do RN (linha 23):** [Requisitos de Negócio Jornada v1.1](../../Documentos/Requisitos/01_Requisitos_de_Negocio_Jornada_v1.1.md) — “a Jornada referencia, integra e informa; não concede benefício nem altera automaticamente o sistema finalístico”. Identidade e linkage são insumos revisáveis para decisão da Secretaria, sem escrita automática de concessão/negação no sistema finalístico.

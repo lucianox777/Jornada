@@ -1,3 +1,5 @@
+> **ATUALIZAÇÃO 29/09/2026:** para decisão de identidade/linkage, começar pelo [índice vigente](Indice_Decisoes_Vigentes.md) e [decisões canônicas](Decisoes_Canonicas_Identidade_Linkage_20260929.md). O inventário anterior de 28/09 é fotografia histórica; o [catálogo de vigência](Catalogo_Vigencia_Documental_20260929.md) evita aplicar snapshots como norma.
+
 # Índice do acervo — precedência e leitura mínima
 
 **Conferência:** 28/09/2026 (`master` até o PR #587). Nenhum documento histórico foi apagado ou declarado revogado por sua versão. Para mudanças posteriores, o HEAD, o CI e as issues prevalecem sobre esta fotografia; este índice organiza a consulta, não substitui auditoria individual dos arquivos.
