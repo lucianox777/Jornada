@@ -40,12 +40,13 @@ public sealed class Rf572ReferenceCompatibilityContractTests
         Assert.Multiple(() =>
         {
             Assert.That(precondition, Does.Contain("GenerateDraftIbgePrecondition.RequireActiveAsync"));
-            Assert.That(precondition, Does.Contain("HasActiveNameFrequencyReferenceAsync"));
+            Assert.That(precondition, Does.Contain("ActiveNameFrequencyReferenceQuery.HasActiveAsync"));
             Assert.That(precondition, Does.Not.Contain("NameFrequencySnapshotLoader"));
             Assert.That(precondition, Does.Not.Contain("EnsureCanonicalActiveAsync"));
-            Assert.That(source, Does.Contain("v.normalizacao_versao=@normalizacao"));
-            Assert.That(source, Does.Contain("v.manifest_schema_version=1"));
-            Assert.That(source, Does.Contain("DATALENGTH(v.conteudo_sha256)=32"));
+            var query = WorkerFile("ActiveNameFrequencyReferenceQuery.cs");
+            Assert.That(query, Does.Contain("v.normalizacao_versao=@normalizacao"));
+            Assert.That(query, Does.Contain("v.manifest_schema_version=1"));
+            Assert.That(query, Does.Contain("DATALENGTH(v.conteudo_sha256)=32"));
         });
     }
 }
