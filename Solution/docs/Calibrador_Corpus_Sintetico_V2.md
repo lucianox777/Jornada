@@ -19,6 +19,16 @@ Ele complementa, mas não substitui, o benchmark nominal IBGE. O benchmark IBGE 
 9. CNS nunca cria, funde ou seleciona UUID, nem mesmo no benchmark.
 10. Se CPF ou CNS forem usados como fonte de rótulo em uma avaliação, a própria variável e qualquer derivado ficam proibidos em blocking/candidate generation/scoring.
 
+## Distribuições demográficas obrigatórias da massa primária
+
+Para a avaliação sintética primária do linkage, a geração nominal deixa de usar uma única projeção nacional compartilhada entre pessoa e mãe:
+
+- **Pessoa:** `NOME/TODOS` e `SOBRENOME/TODOS` do município de São Paulo, código IBGE **3550308**, preservando todas as frequências publicadas e a política de cobertura/cauda do snapshot.
+- **Mãe:** prenome `NOME/FEMININO` em **Brasil** e sobrenome `SOBRENOME/TODOS` em **Brasil**.
+- **Nascimento:** sorteio por distribuição **diária** versionada de nascimentos. Ano+dias uniformes não são distribuição demográfica aceita. A referência diária deve registrar fonte, período, recorte, hash, cobertura e método de amostragem. Sem essa referência, falhar fechado no modo demográfico primário; o modo legado uniforme só pode permanecer explicitamente marcado como fixture de engenharia.
+
+O challenge set de `HARD_HOMONYM`, colisões e conflitos é camada separada e deliberadamente adversarial. A proporção desses casos não representa prevalência da população sintética primária.
+
 ## Implementação
 
 As regras históricas de `Solution/tools/calibrador/gen_corpus_v2.py` foram portadas para
@@ -33,9 +43,7 @@ observações por pessoa, cenários CNS, pesos e `m_exact`. Quando a ponte e o
 avaliador estiverem integralmente no caminho C#, o Python poderá ser aposentado
 sem perder a especificação das regras.
 
-A entrada nominal C# é a projeção `BRASIL_TOTAL` declarada em
-`data/reference/ibge-nomes-2022/projection-manifest.json`; hashes físico e canônico
-são verificados antes da geração.
+O gerador demográfico primário deve carregar projeções distintas por atributo: pessoa em São Paulo 3550308 e mãe no Brasil, conforme a seção anterior. A projeção histórica `BRASIL_TOTAL` permanece somente para replay/fixture legado enquanto a migração executável não for concluída. Todos os hashes físicos/canônicos e recortes precisam ser verificados antes da geração.
 
 Exemplo C#:
 
