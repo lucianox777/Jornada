@@ -157,7 +157,14 @@ public sealed class LinkageParametersWorker(
 
         try
         {
-            var version = await CreateGeneratingModelAsync(connection, modelId, algorithmVersion, normalizationVersion, samplePoolSize, workCt);
+            // Resolve antes de criar o modelo: ausência do primeiro bootstrap falha
+            // sem deixar modelo GERANDO. A fonte pode estar OBSOLETA/VALIDADA;
+            // os derivados PRONTA e seus hashes são imutáveis.
+            var ibgeReference = await PersistedIbgeBootstrapReferenceQuery.RequireAsync(
+                connection, ibgeNominalUSeed, ibgeNominalUPairCount, workCt);
+            var version = await CreateGeneratingModelAsync(
+                connection, modelId, algorithmVersion, normalizationVersion,
+                samplePoolSize, ibgeReference.Id, workCt);
             PopulationStatistics statistics;
             IReadOnlyList<IdentityTrainingPair> matchedPairs;
             IReadOnlyList<IdentityTrainingPair> unmatchedCandidatePairs;
@@ -230,7 +237,6 @@ public sealed class LinkageParametersWorker(
             // candidato-condicionada (inclusive por passe) não atinge suficiência explícita.
             // O scorer atual é pass-agnostic após a união, logo o u operacional convergente
             // é o da união do ruleset; os u por passe são persistidos como suporte/diagnóstico.
-            var ibgeReference = await IbgeNominalUReferenceReader.ReadActiveReferenceAsync(connection, workCt);
             var ibgePersonRef = await IbgeNominalUReferenceStore.RequireAsync(
                 connection, ibgeReference, "TODOS",
                 new IbgeNominalUBootstrapOptions(ibgeNominalUSeed, ibgeNominalUPairCount), workCt);
@@ -448,7 +454,7 @@ public sealed class LinkageParametersWorker(
             StringComparer.Ordinal);
     }
 
-    private async Task<int> CreateGeneratingModelAsync(SqlConnection connection, Guid modelId, string algorithmVersion, string normalizationVersion, int samplePoolSize, CancellationToken cancellationToken)
+    private async Task<int> CreateGeneratingModelAsync(SqlConnection connection, Guid modelId, string algorithmVersion, string normalizationVersion, int samplePoolSize, long ibgeReferenceId, CancellationToken cancellationToken)
     {
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         try
@@ -459,13 +465,14 @@ public sealed class LinkageParametersWorker(
                 EXEC @lock_result = sys.sp_getapplock @Resource = 'Jornada.Linkage.Parameters.Version', @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 60000;
                 IF @lock_result < 0 THROW 51009, 'Não foi possível obter lock para versionamento do modelo.', 1;
                 DECLARE @versao INT = (SELECT ISNULL(MAX(versao),0)+1 FROM identidade.modelo_linkage WITH (UPDLOCK,HOLDLOCK));
-                INSERT identidade.modelo_linkage(modelo_id,versao,status,algoritmo_versao,normalizacao_versao,deduplicacao_metodo,base_referencia,snapshot_referencia,registros_lidos,pessoas_unicas,gerado_em,ativado_em,snapshot_capturado_em,amostra_metodo,amostra_pool_tamanho,amostra_m_tamanho,amostra_u_tamanho,falha_resumo)
-                VALUES(@modelo_id,@versao,'GERANDO',@algoritmo,@normalizacao,'GOLD_PESSOA_UUID_PK','gold.pessoa',NULL,NULL,NULL,SYSDATETIMEOFFSET(),NULL,NULL,@amostra_metodo,@pool,NULL,NULL,NULL);
+                INSERT identidade.modelo_linkage(modelo_id,versao,status,algoritmo_versao,normalizacao_versao,deduplicacao_metodo,base_referencia,snapshot_referencia,registros_lidos,pessoas_unicas,gerado_em,ativado_em,snapshot_capturado_em,amostra_metodo,amostra_pool_tamanho,amostra_m_tamanho,amostra_u_tamanho,falha_resumo,frequencia_nome_versao_id)
+                VALUES(@modelo_id,@versao,'GERANDO',@algoritmo,@normalizacao,'GOLD_PESSOA_UUID_PK','gold.pessoa',NULL,NULL,NULL,SYSDATETIMEOFFSET(),NULL,NULL,@amostra_metodo,@pool,NULL,NULL,NULL,@ibge_ref);
                 SELECT @versao;
                 """, connection, transaction);
             command.Parameters.Add("@modelo_id", SqlDbType.UniqueIdentifier).Value = modelId;
             command.Parameters.Add("@algoritmo", SqlDbType.NVarChar, 80).Value = algorithmVersion;
             command.Parameters.Add("@normalizacao", SqlDbType.NVarChar, 80).Value = normalizationVersion;
+            command.Parameters.Add("@ibge_ref", SqlDbType.BigInt).Value = ibgeReferenceId;
             command.Parameters.Add("@amostra_metodo", SqlDbType.NVarChar, 80).Value = SqlServerSampleMethod;
             command.Parameters.Add("@pool", SqlDbType.Int).Value = samplePoolSize;
             var version = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
