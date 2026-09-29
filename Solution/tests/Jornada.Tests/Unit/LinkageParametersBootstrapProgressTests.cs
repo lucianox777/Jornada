@@ -41,8 +41,7 @@ public sealed class LinkageParametersBootstrapProgressTests
         Assert.Multiple(() =>
         {
             Assert.That(draft, Does.Contain("GenerateDraftIbgePrecondition.RequireActiveAsync"));
-            Assert.That(draft, Does.Contain("throw new InvalidOperationException"));
-            Assert.That(draft, Does.Contain("ENSURE_NAME_FREQUENCY_SNAPSHOT explícito"));
+            Assert.That(draft, Does.Contain("HasActiveNameFrequencyReferenceAsync"));
             Assert.That(draft, Does.Not.Contain("EnsureCanonicalActiveAsync"));
             Assert.That(draft, Does.Not.Contain("NameFrequencySnapshotLoader"));
         });
