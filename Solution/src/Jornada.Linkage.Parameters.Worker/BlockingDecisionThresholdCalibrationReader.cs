@@ -19,6 +19,7 @@ public static class BlockingDecisionThresholdCalibrationReader
         IReadOnlyCollection<LinkageBlockingPass> passes,
         string algorithmVersion,
         IReadOnlyDictionary<string, decimal> parameters,
+        NominalTermFrequencySnapshot? termFrequency,
         int seed,
         int validationBasisPoints,
         int testBasisPoints,
@@ -44,7 +45,8 @@ public static class BlockingDecisionThresholdCalibrationReader
             Guid.Empty,
             0,
             algorithmVersion,
-            parameters);
+            parameters,
+            termFrequency);
 
         await using var command = new SqlCommand(
             """
