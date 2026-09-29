@@ -264,9 +264,15 @@ public sealed class NameFrequencyReferenceSqlServerTests
     private static string RequireDedicatedReferenceTestConnection()
     {
         var connectionString = RequireIntegrationConnection();
-        var databaseName = new SqlConnectionStringBuilder(connectionString).InitialCatalog;
-        Assert.That(databaseName, Is.EqualTo("JornadaTest").IgnoreCase,
-            "Os ensaios que alteram a referência ATIVA exigem o banco descartável JornadaTest.");
+        var databaseName = new SqlConnectionStringBuilder(connectionString).InitialCatalog ?? string.Empty;
+        const string generatedPrefix = "JornadaIntegration_Test_";
+        var isolatedByFixture = databaseName.StartsWith(generatedPrefix, StringComparison.OrdinalIgnoreCase)
+            && Guid.TryParseExact(databaseName[generatedPrefix.Length..], "N", out _);
+        // A fixture de integração usa um banco GUID isolado por execução.
+        // A alternativa JornadaTest exige nome exato; JornadaLocal/Dev e nomes parecidos falham.
+        Assert.That(isolatedByFixture || databaseName.Equals("JornadaTest", StringComparison.OrdinalIgnoreCase),
+            Is.True,
+            "Os ensaios que alteram referência ATIVA exigem JornadaTest ou JornadaIntegration_Test_<GUID>.");
         return connectionString;
     }
 
