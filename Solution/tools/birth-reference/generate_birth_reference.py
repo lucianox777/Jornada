@@ -92,7 +92,7 @@ def read_sinasc(paths):
             if not residence_key:
                 raise ValueError(f'{path}: geografia de residência ausente; esperado município 3550308')
             for x in r:
-                residence=re.sub(r'\\D','',x[residence_key])
+                residence=re.sub(r'\D','',x[residence_key])
                 if residence != '3550308':
                     raise ValueError(f'{path}: registro fora da residência 3550308: {x[residence_key]!r}')
                 s=x[key].strip()
