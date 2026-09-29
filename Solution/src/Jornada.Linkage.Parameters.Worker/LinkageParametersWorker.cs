@@ -283,7 +283,7 @@ public sealed class LinkageParametersWorker(
             {
                 [LinkageParameterCatalog.TermFrequencyScoring] = 1m,
                 [LinkageParameterCatalog.TermFrequencyWeight] = 1m,
-                [LinkageParameterCatalog.TermFrequencyMinimumU] = 0.000001m,
+                [LinkageParameterCatalog.TermFrequencyMinimumU] = termFrequency.Snapshot.MinimumPublishedFrequency,
                 [LinkageParameterCatalog.TermFrequencyFirstTokenContract] = 1m
             };
 
