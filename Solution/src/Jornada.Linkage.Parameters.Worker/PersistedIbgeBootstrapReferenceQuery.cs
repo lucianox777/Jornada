@@ -17,12 +17,14 @@ public static class PersistedIbgeBootstrapReferenceQuery
         SqlConnection connection,
         int seed,
         int pairCount,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        SqlTransaction? transaction = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pairCount);
 
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = """
             SELECT v.frequencia_nome_versao_id,v.codigo,v.fonte,v.conteudo_sha256
             FROM ref.frequencia_nome_versao v
