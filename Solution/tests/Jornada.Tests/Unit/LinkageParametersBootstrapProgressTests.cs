@@ -40,12 +40,40 @@ public sealed class LinkageParametersBootstrapProgressTests
         var draft = program[draftStart..draftEnd];
         Assert.Multiple(() =>
         {
+            Assert.That(draft, Does.Contain("GenerateDraftIbgePrecondition.RequireActiveAsync"));
             Assert.That(draft, Does.Contain("HasActiveNameFrequencyReferenceAsync"));
-            Assert.That(draft, Does.Contain("throw new InvalidOperationException"));
-            Assert.That(draft, Does.Contain("ENSURE_NAME_FREQUENCY_SNAPSHOT explícito"));
             Assert.That(draft, Does.Not.Contain("EnsureCanonicalActiveAsync"));
             Assert.That(draft, Does.Not.Contain("NameFrequencySnapshotLoader"));
         });
+    }
+
+    [Test]
+    public void GenerateDraft_RejectsMissingIbgeBeforeStartingWorker()
+    {
+        var checkedReference = false;
+        var exception = Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Jornada.Linkage.Parameters.Worker.GenerateDraftIbgePrecondition.RequireActiveAsync(() =>
+            {
+                checkedReference = true;
+                return Task.FromResult(false);
+            }));
+        Assert.Multiple(() =>
+        {
+            Assert.That(checkedReference, Is.True);
+            Assert.That(exception!.Message, Does.Contain("referência IBGE ATIVA"));
+        });
+    }
+
+    [Test]
+    public async Task GenerateDraft_AllowsPreviouslyActiveIbgeWithoutLoading()
+    {
+        var checks = 0;
+        await Jornada.Linkage.Parameters.Worker.GenerateDraftIbgePrecondition.RequireActiveAsync(() =>
+        {
+            checks++;
+            return Task.FromResult(true);
+        });
+        Assert.That(checks, Is.EqualTo(1));
     }
 
     [Test]
