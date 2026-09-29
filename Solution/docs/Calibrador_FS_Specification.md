@@ -42,7 +42,7 @@ O Runner atual une/deduplica os passes e depois pontua sem transportar o passe d
 
 O IBGE é referência externa versionada de **bootstrap** para NOME e NOME_MAE. Seu snapshot é carregado explicitamente uma vez na preparação do ambiente, validado integralmente na carga e preservado para os modelos que o utilizaram. Não há recarga periódica automática nem revalidação integral em cada calibração.
 
-Antes de `GENERATE_DRAFT`, a verificação normal é leve: confirmar a existência de uma referência ativa previamente validada. Se ela estiver ausente, a geração falha de forma explícita (*fail-closed*), sem carregamento implícito ou fonte substituta. A integridade completa e o novo fingerprint são verificados somente na carga inicial ou em uma atualização explícita do snapshot. Uma alteração detectada na referência exige conferência de versão e hash antes de sua utilização.
+Na **primeira** preparação do ambiente, a carga única do snapshot IBGE exige integridade, compatibilidade e fingerprint auditáveis. Após esse bootstrap, `GENERATE_DRAFT` utiliza os parâmetros persistidos do modelo e os dados ingeridos da Jornada para calibrações posteriores; **não exige referência IBGE ativa**, não recarrega nem recalcula o snapshot. Se o primeiro bootstrap necessário ainda não ocorreu, falhar explicitamente; não transformar essa guarda inicial em dependência permanente. Mudanças futuras de referência demandariam nova decisão explícita, nunca atualização implícita.
 
 Cada modelo registra o identificador, a versão e o fingerprint do snapshot efetivamente utilizado. Snapshots anteriores são imutáveis e retidos para replay e auditoria, inclusive após a convergência para `u` empírico; uma nova referência ativa não modifica retroativamente modelos antigos. A referência IBGE não é verdade de identidade individual.
 
@@ -54,7 +54,7 @@ A troca para u candidato-condicionado acontece por suficiência observável, nun
 - os limites são configuração explícita e persistida no modelo;
 - a proveniência IBGE continua registrada mesmo quando o bootstrap deixa de ser aplicado.
 
-Enquanto qualquer requisito de suficiência não for atendido, o campo correspondente continua usando o bootstrap IBGE previamente carregado e validado. Quando atendido, o valor empírico estimado no universo do blocking substitui o bootstrap mediante critério medido e persistido, fonte, denominadores e proveniência explícitos. Trata-se de estados sucessivos de um único caminho governado de calibração, nunca de rota alternativa acionada por falha. Sem referência IBGE ativa, a geração de rascunho falha mesmo que exista estimativa empírica anterior; não há fallback. A exigência atual de suficiência da união e de todos os passes permanece até avaliação específica no Ensaio.
+O bootstrap IBGE é calculado **uma única vez** e seus parâmetros iniciais e proveniência ficam persistidos. As gerações seguintes não consultam nem exigem referência IBGE ativa: evoluem exclusivamente com evidências ingeridas da Jornada, observando suficiência e suporte do universo condicionado ao blocking. Se a evidência empírica ainda for insuficiente, o modelo conserva os parâmetros iniciais persistidos, sem recarregar o IBGE nem declarar convergência empírica inexistente. A exigência atual de suficiência da união e de todos os passes permanece até avaliação específica no Ensaio. Esta é a **decisão de arquitetura de 29/09/2026**, ainda dependente de adequação da implementação RF-052 (#602); não interpretar este texto como prova de que o Worker já a implementa.
 
 ## 5. Term frequency
 
