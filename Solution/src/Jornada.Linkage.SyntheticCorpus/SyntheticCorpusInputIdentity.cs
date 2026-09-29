@@ -12,7 +12,8 @@ public static class SyntheticCorpusInputIdentity
         ulong seed,
         IEnumerable<IbgeProjectionFile> files,
         SyntheticBrazilianNameErrorConfig? brazilianNameErrors = null,
-        SyntheticStratifiedErrorConfig? stratifiedErrors = null)
+        SyntheticStratifiedErrorConfig? stratifiedErrors = null,
+        IEnumerable<string>? additionalInputs = null)
     {
         ArgumentNullException.ThrowIfNull(files);
 
@@ -45,6 +46,12 @@ public static class SyntheticCorpusInputIdentity
                 .Append(file.CanonicalContentSha256.ToUpperInvariant()).Append('|')
                 .Append(file.RowCount.ToString(CultureInfo.InvariantCulture))
                 .Append('\n');
+        }
+
+        if (additionalInputs is not null)
+        {
+            foreach (var input in additionalInputs.OrderBy(x => x, StringComparer.Ordinal))
+                builder.Append("additional=").Append(input).Append('\n');
         }
 
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString()));
