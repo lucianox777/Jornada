@@ -90,9 +90,9 @@ else
 
     // A referência IBGE é pré-condição carregada explicitamente na preparação.
     // GENERATE_DRAFT faz somente a verificação leve; nunca carrega ou reativa.
-    if (operation == "GENERATE_DRAFT" && !await HasActiveNameFrequencyReferenceAsync(operationalSql))
-        throw new InvalidOperationException(
-            "GENERATE_DRAFT exige referência IBGE ATIVA carregada por ENSURE_NAME_FREQUENCY_SNAPSHOT explícito.");
+    if (operation == "GENERATE_DRAFT")
+        await GenerateDraftIbgePrecondition.RequireActiveAsync(
+            () => HasActiveNameFrequencyReferenceAsync(operationalSql));
 
     builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
 
