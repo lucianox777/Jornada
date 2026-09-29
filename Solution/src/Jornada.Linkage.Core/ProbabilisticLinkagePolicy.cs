@@ -46,6 +46,8 @@ internal static class LinkageModelPolicy
                     throw new InvalidOperationException($"V8 exige {LinkageParameterCatalog.NeutralMissingEvidenceScoring} habilitado.");
                 if (parameters.ContainsKey("M_NOME_MAE_MISSING") || parameters.ContainsKey("U_NOME_MAE_MISSING"))
                     throw new InvalidOperationException("V8 não admite probabilidades M/U para ausência; somente SUPPORT_*_MISSING diagnóstico.");
+                if (parameters.ContainsKey(LinkageParameterCatalog.NonUniqueDemographicExactGuard))
+                    throw new InvalidOperationException("V8 não admite SCORING_NON_UNIQUE_DEMOGRAPHIC_EXACT_GUARD_V1; homônimos exatos devem ser tratados pela evidência FS calibrada e pelos demais guards.");
             }
             else if (parameters.TryGetValue(LinkageParameterCatalog.NeutralMissingEvidenceScoring, out var neutralFlag) && neutralFlag >= 1m)
                 throw new InvalidOperationException("Modelos V6/V7 não admitem o contrato de ausência neutra V8.");
@@ -209,7 +211,11 @@ internal static class ProbabilisticLinkageDecisions
         if (best.Score < model.Threshold)
             return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId, "ABAIXO_T_LINKAGE");
 
-        var nonUniqueDemographicExactGuard = model.Parameters.TryGetValue(
+        var isV8 = string.Equals(
+            model.AlgorithmVersion,
+            LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
+            StringComparison.Ordinal);
+        var nonUniqueDemographicExactGuard = !isV8 && model.Parameters.TryGetValue(
             LinkageParameterCatalog.NonUniqueDemographicExactGuard,
             out var demographicGuardFlag) && demographicGuardFlag >= 1m;
         if (nonUniqueDemographicExactGuard && best.DemographicExactCollisionRisk)
