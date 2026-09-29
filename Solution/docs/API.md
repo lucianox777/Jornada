@@ -266,7 +266,7 @@ Não existe endpoint territorial da Jornada e não existem rotas da Jornada para
 
 ## Consulta cadastral de Pessoa
 
-- `GET /api/v1/pessoas/{uuid}`
+- `GET /api/v1/pessoas/{pessoaUuid}`
 - `POST /api/v1/pessoas/consulta`
 
 A consulta em lote aceita de 1 a 1000 UUIDs e aplica autorização atomicamente ao conjunto. O envelope estável retorna `pessoaUuid`, `dados`, `schemaRef` e `metadados`. `dados` continua validando contra o schema selecionado da Pessoa; `metadados` é interpretação da Gold e não campo cadastral da origem:
@@ -284,13 +284,13 @@ A consulta em lote aceita de 1 a 1000 UUIDs e aplica autorização atomicamente 
 }
 ```
 
-Não existem na Fase 1 endpoints `/pessoas/{uuid}/convergencia` ou `/pessoas/{uuid}/verificacoes`. Comparação cadastral assistida é evolução de leitura para fase posterior; conferências documentais são declaradas em `pessoas.jsonl` e seguem Bronze → Silver → Gold.
+Não existem na Fase 1 endpoints `/pessoas/{pessoaUuid}/convergencia` ou `/pessoas/{pessoaUuid}/verificacoes`. Comparação cadastral assistida é evolução de leitura para fase posterior; conferências documentais são declaradas em `pessoas.jsonl` e seguem Bronze → Silver → Gold.
 
 ## Histórico factual corrente
 
-- `GET /api/v1/pessoas/{uuid}/registros`
-- `GET /api/v1/pessoas/{uuid}/beneficios-concedidos`
-- `GET /api/v1/pessoas/{uuid}/servicos-prestados`
+- `GET /api/v1/pessoas/{pessoaUuid}/registros`
+- `GET /api/v1/pessoas/{pessoaUuid}/beneficios-concedidos`
+- `GET /api/v1/pessoas/{pessoaUuid}/servicos-prestados`
 
 As projeções especializadas retornam a versão lógica corrente de cada registro de origem. A trilha completa de versões é destinada a auditoria/BI de controle, não à superfície operacional padrão.
 
