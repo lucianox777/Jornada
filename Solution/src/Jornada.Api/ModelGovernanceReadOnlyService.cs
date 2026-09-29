@@ -32,6 +32,8 @@ internal sealed class ModelGovernanceReadOnlyService(IOperationalSqlAdapter sql)
         var history = await ReadRecentHistoryAsync(connection, ct);
         // A consulta restrita ocorre apenas na página DEV de governança, nunca no refresh do Monitor.
         var calibrationHistory = await ReadCalibrationHistoryAsync(connection, ct);
+        var bundleProvenance = await GovernanceBundleProvenanceReader.ReadAsync(
+            connection, active, draft, ct);
 
         // Fail closed if another calibration/promotion changes either side while
         // the independent SQL reads above were being executed.
@@ -59,7 +61,7 @@ internal sealed class ModelGovernanceReadOnlyService(IOperationalSqlAdapter sql)
             active, draft, evidence, history,
             "As métricas disponíveis comparam apenas passes de blocking sobre o treino rotulado. " +
             "Não incluem replay de Fellegi-Sunter, custos SQL pareados nem aprovação humana.")
-        { CalibrationHistory = calibrationHistory };
+        { CalibrationHistory = calibrationHistory, BundleProvenance = bundleProvenance };
     }
 
     private static async Task<List<GovernanceModel>> ReadModelsAsync(
@@ -296,6 +298,7 @@ internal sealed record ModelGovernanceView(
     IReadOnlyList<GovernanceEvent> RecentHistory, string Limitation)
 {
     public IReadOnlyList<GovernanceCalibrationHistoryItem> CalibrationHistory { get; init; } = [];
+    public IReadOnlyList<GovernanceBundleProvenance> BundleProvenance { get; init; } = [];
 }
 
 // Sem nomes, CPF, limiares, pares rotulados nem comparações entre corpora diferentes.
