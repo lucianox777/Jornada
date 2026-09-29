@@ -41,6 +41,43 @@ public sealed class LocalClusterDiagnosisContractTests
         });
     }
 
+    [TestCase("Documentos/ADR/ADR-002-calibrador-fs-u-condicionado.md")]
+    [TestCase("Solution/docs/Arquitetura_Identidade_Linkage.md")]
+    [TestCase("Solution/docs/Calibrador_FS_Specification.md")]
+    [TestCase("Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.md")]
+    public void NormativeIbgeDocuments_RequireActiveReferenceAndRejectFallback(string relativePath)
+    {
+        var root = FindRepositoryRoot();
+        var document = File.ReadAllText(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(document, Does.Contain("IBGE"));
+            Assert.That(document, Does.Contain("bootstrap"));
+            Assert.That(document, Does.Contain("GENERATE_DRAFT"));
+            Assert.That(document, Does.Contain("sem fonte substituta"));
+            Assert.That(document, Does.Not.Contain("bootstrap/fallback"));
+            Assert.That(document, Does.Not.Contain("fallback versionado"));
+        });
+    }
+
+    [Test]
+    public void HistoricalRf052_PreservesOriginalWordingButIdentifiesSupersedingRule()
+    {
+        var root = FindRepositoryRoot();
+        var historical = File.ReadAllText(Path.Combine(root, "Documentos", "Requisitos",
+            "Historico", "02_Requisitos_Funcionais_Jornada_Aditivo_v1.1.md"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(historical, Does.Contain("redação original de 09/09/2026"));
+            Assert.That(historical, Does.Contain("superada em 28/09/2026"));
+            Assert.That(historical, Does.Contain("Nota de atualização normativa"));
+            Assert.That(historical, Does.Contain("GENERATE_DRAFT deve falhar explicitamente"));
+            Assert.That(historical, Does.Contain("sem fonte substituta"));
+        });
+    }
+
     private static string FindRepositoryRoot()
     {
         var current = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
