@@ -30,3 +30,11 @@ Cada PR informa: (1) módulos/arquivos alterados; (2) contratos públicos, esque
 ## Critério de independência
 
 Duas PRs podem seguir em paralelo quando suas alterações não se sobrepõem e seus contratos consumidos permanecem estáveis. Arquivos distintos não garantem independência se ambos mudarem o mesmo esquema, protocolo, algoritmo, formato persistido ou pipeline de publicação. A ausência de conflito Git não substitui teste de integração.
+
+## Consolidação aprovada em 29/09/2026 — integração central
+
+A frente **integradora única** é proprietária de `.github/workflows/`, versões centrais de pacotes, migrations/manifests compartilhados e contratos transversais. As demais frentes evoluem superfícies exclusivas; conflitos de contrato passam pela integradora. A ordem é por prontidão real dos gates, com DT-10 por último. Não reiniciar Actions ainda ativas por timeout de consulta: acompanhar o mesmo run e verificar seus jobs. O GitHub não tem auto-merge nativo habilitado neste repositório; a integradora pode executar merge pela API somente após validar HEAD, gates aplicáveis, revisões, conflitos e dependências.
+
+**IBGE:** bootstrap inicial carregado uma vez, com integridade e proveniência auditáveis; calibrações posteriores derivam da ingestão da Jornada, sem exigir snapshot ativo a cada `GENERATE_DRAFT`. Preservar os contratos sintéticos atuais; contratos reais serão carregados no Ensaio. Preparar DEV isolado sem executar Ensaio integral até prontidão técnica; nunca resetar `JornadaLocal` ou sua referência preservada.
+
+**Documentação:** correções exclusivamente Markdown aprovadas pelo mantenedor podem ser aplicadas diretamente à `master`, sem aguardar a CI de código, após revisão de coerência e confirmação do commit. Isso **não** significa que um workflow GitHub existente deixará de disparar: otimização de triggers/path filters é alteração separada de CI, proprietária da integradora. Fluxos: [blocking e seleção de registro](Fluxos_Blocking_Selecao_Registro.md). Acompanhar [issue #614](https://github.com/lucianox777/Jornada/issues/614).
