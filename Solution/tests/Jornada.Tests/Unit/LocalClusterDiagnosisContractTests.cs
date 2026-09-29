@@ -45,7 +45,7 @@ public sealed class LocalClusterDiagnosisContractTests
     [TestCase("Solution/docs/Arquitetura_Identidade_Linkage.md")]
     [TestCase("Solution/docs/Calibrador_FS_Specification.md")]
     [TestCase("Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.md")]
-    public void NormativeIbgeDocuments_RequireActiveReferenceAndRejectFallback(string relativePath)
+    public void NormativeIbgeDocuments_RequireInitialBootstrapWithoutPermanentActiveReference(string relativePath)
     {
         var root = FindRepositoryRoot();
         var document = File.ReadAllText(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
@@ -55,7 +55,13 @@ public sealed class LocalClusterDiagnosisContractTests
             Assert.That(document, Does.Contain("IBGE"));
             Assert.That(document, Does.Contain("bootstrap"));
             Assert.That(document, Does.Contain("GENERATE_DRAFT"));
-            Assert.That(document, Does.Contain("fonte substituta"));
+            Assert.That(
+                document.Contains("uma única vez", StringComparison.OrdinalIgnoreCase) ||
+                document.Contains("carga única", StringComparison.OrdinalIgnoreCase),
+                Is.True,
+                "A documentação normativa deve explicitar que o bootstrap IBGE inicial não é dependência ativa de todo rascunho.");
+            Assert.That(document, Does.Not.Contain("é obrigatória para gerar rascunhos do Calibrador"));
+            Assert.That(document, Does.Not.Contain("sem referência ativa, GENERATE_DRAFT falha explicitamente"));
             Assert.That(document, Does.Not.Contain("bootstrap/fallback"));
             Assert.That(document, Does.Not.Contain("fallback versionado"));
         });

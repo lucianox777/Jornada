@@ -1,3 +1,5 @@
+> **Vigência 29/09/2026:** [decisões canônicas](Decisoes_Canonicas_Identidade_Linkage_20260929.md) prevalecem sobre regras legadas de guard exato, V6/V7 e nome social. A V8 atual não implementa todas essas decisões.
+
 # Calibrador Fellegi–Sunter — especificação corrente
 
 **Estado:** arquitetura técnica corrente. O corpus sintético/DEV prova engenharia, não homologação estatística municipal.
@@ -66,13 +68,13 @@ Se TF vier a entrar no FS, deve:
 
 - ser calibrada dentro do mesmo universo candidato;
 - ter peso/piso/versionamento explícitos;
-- não contornar guards de conflito/não-unicidade;
+- não contornar os guards de conflito e segurança **vigentes na V8 após retirada do veto demográfico fixo**;
 - não transformar ausência da referência IBGE em unicidade;
 - passar TRAIN/VALIDATION/TEST e validação adversarial.
 
 ## 6. Identificabilidade
 
-Nome completo + data de nascimento exatos não constituem chave única. A política corrente impede auto-resolução quando esse núcleo demográfico exato é a base da decisão probabilística.
+Nome completo + data de nascimento exatos não constituem chave única. **Decisão de 29/09/2026:** retirar da V8 o veto demográfico exato fixo; o FS deve decidir mediante distribuições e thresholds calibrados, com demais conflitos e gates preservados. A retirada **ainda não foi implementada** e exige teste adversarial de homônimos e reconferência (DT-14).
 
 `EXACT/EXACT/EXACT` pode ocorrer tanto em match quanto em homônimo total; nenhum threshold, DF ou TF resolve essa indistinguibilidade sem evidência adicional independente.
 
@@ -80,6 +82,10 @@ Nome completo + data de nascimento exatos não constituem chave única. A polít
 
 Abreviação é fenômeno do processo de registro. Um estado `ABBREV_COMPATIBLE` só pode entrar no LLR quando existirem m/u adequados ao canal de abreviação. Telefone, e-mail, CNS ou outros atributos podem ser avaliados como evidência adicional, mas presença no blocking não os promove automaticamente ao score.
 
-## 8. Promoção
+## 8. Experimentos nominais, sem pesos presumidos
+
+[DC-LK-03](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-03--núcleo-nominal-e-nome-social) fixa a hipótese de que a ausência unilateral de nome social **pode** sinalizar não-match; a ausência bilateral, concordância, divergência e comparação cruzada nome civil×social também precisam ser avaliadas. O Calibrador mede suporte por estado e estrato (Secretaria/sistema/período de coleta), estima m/u e dependência civil/social, avalia ganho em VALIDATION e audita em TEST. Não existe uma quarta evidência nominal independente pré-aprovada, peso nominal arbitrário nem presunção de neutralidade/penalização para nome social. Sem amostra que sustente efeito validado, o atributo continua como observação e feature de blocking. Alterar scorer aciona DT-14 e atualização de fingerprint/modelo.
+
+## 9. Promoção
 
 CI verde não equivale a homologação estatística. Antes de ativação probabilística real em HML/Produção continuam necessários corpus representativo, avaliação independente por estrato e aprovação institucional aplicável. A issue #31 concentra esse gate.

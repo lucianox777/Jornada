@@ -1,3 +1,5 @@
+> **Histórico de evidência de versões anteriores.** [Decisão canônica 29/09](Decisoes_Canonicas_Identidade_Linkage_20260929.md) retira o guard demográfico exato da V8 futura e torna V6/V7 históricos. Os cenários dirigidos que pressupõem `DemographicExactCollisionRisk` **não** conferem a política revisada; atualizar vetor/implementação independente e executar DT-14 após mudar scorer. Preservar resultados antigos sem utilizá-los para promover novo modelo.
+
 # Conferência independente da implementação do Linkage
 
 ## Escopo

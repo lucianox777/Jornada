@@ -1,3 +1,5 @@
+> **Decisões candidatas posteriores (29/09/2026):** [fonte única de identidade/linkage](../Solution/docs/Decisoes_Canonicas_Identidade_Linkage_20260929.md) e [catálogo de vigência documental](../Solution/docs/Catalogo_Vigencia_Documental_20260929.md). A candidata v5.00 e requisitos v1.1 serão reconciliados com estas decisões; a especificação v3.62 publicada, releases e evidências históricas são preservadas sem alteração retroativa.
+
 # Documentos da Jornada do Cidadão
 
 Este índice existe para evitar que snapshots históricos preservados no repositório sejam confundidos com os artefatos correntes. Ele **não cria uma nova release** e não substitui os documentos normativos, o DDL, os contratos ou `RELEASE_INFO.txt`.

@@ -1,3 +1,5 @@
+> **Leitura prioritária atualizada:** [decisões canônicas 29/09/2026](Decisoes_Canonicas_Identidade_Linkage_20260929.md), [índice de vigência](Indice_Decisoes_Vigentes.md) e [catálogo de todo o acervo](Catalogo_Vigencia_Documental_20260929.md). Terminologia correta: **UUID inicial** (`initial_uuid`), **UUID canônico** (`canonical_uuid`); não usar OID como sinônimo.
+
 # Guia de leitura por papel e glossário
 
 ## Guia por papel
