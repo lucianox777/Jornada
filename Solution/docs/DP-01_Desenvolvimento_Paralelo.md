@@ -13,7 +13,7 @@ Cada PR informa: (1) módulos/arquivos alterados; (2) contratos públicos, esque
 ## Frentes paralelas iniciais
 
 - **DT-02 / .NET 10:** SDK, TargetFramework, pacotes e compatibilidade de build; coordenar atualizações Dependabot e execução DT-14 antes de declarar paridade do scorer.
-- **RF-572 / referência IBGE:** concluir a PR #602, migração em banco legado, concorrência de troca da referência, testes SQL/C# e gates de GENERATE_DRAFT; não ativar modelos legados sem revalidação explícita.
+- **RF-052 / referência IBGE:** concluir a PR #602, migração em banco legado, concorrência de troca da referência, testes SQL/C# e gates de GENERATE_DRAFT; não ativar modelos legados sem revalidação explícita.
 - **Avaliação sintética:** corpus e gabarito independentes, famílias reservadas, métricas por estrato e conferência matemática; não alterar o scorer durante TEST congelado.
 - **Trilha 4:** reavaliação temporal de identidades e regressão multi-ondas; mudanças no contrato de identidade exigem sincronização com outras frentes.
 - **Documentação e diagramas:** podem evoluir em paralelo, desde que descrevam comportamento implementado ou sinalizem claramente o estado proposto.
