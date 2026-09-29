@@ -60,6 +60,7 @@ jobs:
           dotnet restore Jornada.sln --locked-mode
           find . -name packages.lock.json -not -path './.local/*' -print0 | sort -z | tar --null -T - -czf .local/nuget-lock/packages-locks.tar.gz
       - name: Upload NuGet lock evidence
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: nuget-lockfiles
