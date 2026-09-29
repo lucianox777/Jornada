@@ -84,8 +84,16 @@ internal static class GoldenReferenceVectorVerifier
             policyCount++;
         }
 
+        var guardCount = 0;
+        foreach (var vector in root.GetProperty("guardVectors").EnumerateArray())
+        {
+            VerifyGuardInput(vector);
+            guardCount++;
+        }
+
         Require(scoreCount >= 7 && nameCount >= 9
-            && birthCount == BirthDateSemanticEvidence.States.Count && policyCount >= 6,
+            && birthCount == BirthDateSemanticEvidence.States.Count
+            && policyCount >= 6 && guardCount >= 5,
             "REFERENCE_COVERAGE_INCOMPLETE");
         return new GoldenReferenceVerification(
             ReferenceVersion,
@@ -95,6 +103,7 @@ internal static class GoldenReferenceVectorVerifier
             nameCount,
             birthCount,
             policyCount,
+            guardCount,
             reviewStatus,
             "TECHNICAL_VECTORS_PASSED_NOT_SQL_EVIDENCE");
     }
@@ -331,6 +340,69 @@ internal static class GoldenReferenceVectorVerifier
             $"{id}:INDEPENDENT_POLICY");
     }
 
+    private static void VerifyGuardInput(JsonElement vector)
+    {
+        var id = Text(vector, "id");
+        var v8 = Text(vector, "algorithm") switch
+        {
+            "V6" => false,
+            "V8" => true,
+            _ => throw new InvalidDataException($"GOLDEN_VECTOR_MISMATCH:{id}:ALGORITHM")
+        };
+        var p = BaselineParameters(v8, 0.2m, 0.5m);
+        p[LinkageParameterCatalog.NonUniqueDemographicExactGuard] = 1m;
+        ValidateDistributions(p, v8);
+        var algorithm = v8
+            ? LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion
+            : LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion;
+        var model = LinkageModelPolicy.Create(ModelId, v8 ? 8 : 6, algorithm, p);
+        var observationData = vector.GetProperty("observation");
+        var candidateData = vector.GetProperty("candidate");
+
+        var leftName = TextOrNull(observationData, "name");
+        var rightName = TextOrNull(candidateData, "name");
+        var leftBirth = ReadBirth(observationData, "birth");
+        var rightBirth = ReadBirth(candidateData, "birth");
+        var leftMother = TextOrNull(observationData, "mother");
+        var rightMother = TextOrNull(candidateData, "mother");
+
+        var expectedName = Text(vector, "expectedName");
+        var expectedBirth = Text(vector, "expectedBirth");
+        var expectedCollision = vector.GetProperty("expectedCollisionRisk").GetBoolean();
+
+        var actualName = leftName is null || rightName is null
+            ? "MISSING_NEUTRAL"
+            : IdentityComparison.CompareName(
+                leftName,
+                rightName,
+                LinkageParameterCatalog.NameComparisonContractForAlgorithm(algorithm))
+                .ToString();
+        var actualBirth = leftBirth is null || rightBirth is null
+            ? "MISSING_NEUTRAL"
+            : BirthDateSemanticEvidence.Classify(leftBirth.Value, rightBirth.Value);
+
+        Require(actualName == expectedName && actualBirth == expectedBirth,
+            $"{id}:RAW_INPUT_COMPARATORS");
+        // Checagem algébrica independente de guard-input sobre os estados fixados.
+        Require(expectedCollision
+            == (expectedName == "EXACT"
+                && leftBirth is not null
+                && rightBirth is not null
+                && leftBirth == rightBirth),
+            $"{id}:ORACLE_GUARD_INPUT_INVALID");
+
+        var observation = new IdentityObservation(
+            null, null, leftName, leftBirth, leftMother);
+        var candidate = new LinkageCandidate(
+            SingleCandidateId, rightName, rightBirth, rightMother);
+        var ranked = ProbabilisticLinkageDecisions.Rank(
+            model, observation, [candidate]);
+        Require(ranked.Count == 1
+            && ranked[0].PessoaUuid == SingleCandidateId
+            && ranked[0].DemographicExactCollisionRisk == expectedCollision,
+            $"{id}:RUNTIME_GUARD_INPUT");
+    }
+
     private static Dictionary<string, decimal> BaselineParameters(
         bool v8, decimal prior, decimal threshold)
     {
@@ -457,5 +529,6 @@ internal sealed record GoldenReferenceVerification(
     int NameVectors,
     int BirthVectors,
     int PolicyVectors,
+    int GuardVectors,
     string HumanReview,
     string Status);
