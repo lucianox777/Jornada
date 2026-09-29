@@ -112,3 +112,25 @@ O endpoint `POST /api/v1/identidade/candidatos` em Development recupera candidat
 - **Implementado/registrado:** motor FS C# único; ruleset dinâmico no Runner; combinado V1 no Core e na busca semicega elegível; endpoint DEV; segregação técnica da Solução de Apoio às Secretarias.
 - **Decidido, ainda sujeito a implementação/aceite:** união D∪C no Runner e Calibrador, catálogo ampliado de grafias, V2 municipal, reavaliação temporal completa de RESOLVIDOS, seleção Gold integral por atributo e Ensaio único.
 - **Gates:** TRAIN estima `m/u` e seleciona regras; VALIDATION define fronteira e orçamento de FP pré-declarado; TEST apenas audita candidato congelado. `VALIDATE`/`ACTIVATE` são governados, sem promoção implícita. Conferência DT-14 em mudança de scorer/comparadores, migração .NET ou mudança significativa de threshold. CI verde não substitui validação estatística representativa (#31), Ensaio nem autorização institucional.
+
+## 5. Contratos por Secretaria, campos opcionais e dedução inicial dos índices
+
+**Decisão de 29/09/2026:** todos os atributos recebidos de uma Secretaria, inclusive os atributos usados pelo núcleo de identidade única (CPF, nome, nome da mãe, nascimento e identificadores de origem), **podem ser NULL no modelo de observação**. O contrato versionado de cada Secretaria decide quais campos são obrigatórios **na admissão daquela remessa**; não converter uma obrigatoriedade contratual em restrição global NOT NULL na identidade. `codigoPessoaOrigem` permanece opcional. Distinguir `NULL` (ausente), valor inválido, valor explicitamente divergente e atributo não fornecido pelo contrato. Uma remessa que viola seu contrato deve ser rejeitada ou colocada em pendência contratual com motivo auditável, não transformada em dado fictício. Observações admitidas com evidência insuficiente permanecem não resolvidas; ausência de CPF não é conflito, e ausência simultânea dos atributos não autoriza vínculo nem nova identidade automática.
+
+**IBGE e o índice inicial:** o snapshot censitário imutável, carregado uma vez antes da primeira Entrega, também alimenta a **dedução inicial da política de índices/projeções e passes de blocking**, não apenas o `u` nominal do FS. Usar marginais publicadas de prenomes e sobrenomes por presença para estimar seletividade de chaves e combinações, identificar blocos muito frequentes e planejar índices e passes complementares. A frequência censitária de sobrenome em qualquer posição **não** estima diretamente a frequência do último token, e o IBGE **não** fornece a distribuição conjunta pessoa+mãe+data: combinações iniciais são hipóteses calculadas e precisam de validação com corpus e ingestão real. Persistir regras, versão, método, recorte, manifesto/hash e métricas de origem. A partir da ingestão, atualizar/avaliar os índices e passes com distribuições observadas da Jornada, sem reler, revalidar ou recalcular o IBGE em cada geração. Mudança de política é versionada, medida em D/C/D∪C e submetida aos gates de recall, custo, `u` condicionado, rollback e ativação; não alterar silenciosamente modelos anteriores.
+
+```mermaid
+flowchart TD
+    A["Snapshot IBGE público, carga única e hash"] --> B["Marginais de prenomes e sobrenomes por presença"]
+    B --> C["Estimar seletividade e blocos frequentes; explicitar hipóteses"]
+    C --> D["Propor índices/projeções e passes iniciais versionados"]
+    D --> E["Testar recall, cardinalidade, custo e ausência de atributos"]
+    E --> F["Congelar política inicial governada"]
+    F --> G["Ingerir observações segundo contrato de cada Secretaria"]
+    G --> H["Medir distribuição e erros reais por atributo/estrato"]
+    H --> I["Propor evolução de índices e passes com dados Jornada"]
+    I --> J["VALIDATION/TEST, paridade, rollback e ativação"]
+    J --> G
+```
+
+**Elegibilidade com NULL:** um passe que exige mãe não é executado quando mãe está ausente; outro passe elegível continua. Sem atributos suficientes para qualquer passe, registrar `SEM_EVIDENCIA_PARA_BUSCA`/pendência governada, sem inventar CPF, nome, data ou vínculo. Índices SQL de busca devem tratar NULL sem equipará-lo a uma chave compartilhada entre pessoas; o contrato controla a entrada, enquanto o motor controla a suficiência de evidência para cada operação.
