@@ -67,6 +67,9 @@ public static class SyntheticCorpusMaterializer
             rng_version = Xoshiro256StarStar.AlgorithmVersion,
             frequency_sampler_version = SyntheticFrequencySampler.MethodVersion,
             date_corruption_version = SyntheticCorpusV2Rules.DateCorruptionVersion,
+            population_profile = source.Demographic is null
+                ? "LEGACY_ENGINEERING_FIXTURE"
+                : "DEMOGRAPHIC_PRIMARY_V1",
             seed = generation.Options.Seed,
             input_fingerprint_sha256 = inputFingerprintSha256.ToUpperInvariant(),
             reference_code = source.ReferenceCode,
@@ -78,6 +81,34 @@ public static class SyntheticCorpusMaterializer
         var manifestJson = JsonSerializer.Serialize(
             manifest,
             IndentedJsonOptions) + "\n";
+        if (source.Demographic is { } demographic)
+        {
+            var annotated = JsonNode.Parse(manifestJson)!.AsObject();
+            annotated["demographic_primary"] = JsonSerializer.SerializeToNode(new
+            {
+                mode = "DEMOGRAPHIC_PRIMARY_V1",
+                person_geography = demographic.PersonGeography,
+                person_source_path = demographic.PersonSourcePath,
+                person_source_physical_sha256 = demographic.PersonPhysicalSha256,
+                person_source_canonical_sha256 = demographic.PersonCanonicalContentSha256,
+                mother_first_geography = demographic.MotherFirstGeography,
+                mother_first_source_path = demographic.MotherFirstSourcePath,
+                mother_first_source_physical_sha256 = demographic.MotherFirstPhysicalSha256,
+                mother_first_source_canonical_sha256 = demographic.MotherFirstCanonicalContentSha256,
+                mother_surname_geography = demographic.MotherSurnameGeography,
+                mother_surname_source_path = demographic.MotherSurnameSourcePath,
+                mother_surname_source_physical_sha256 = demographic.MotherSurnamePhysicalSha256,
+                mother_surname_source_canonical_sha256 = demographic.MotherSurnameCanonicalContentSha256,
+                birth_schema_version = demographic.Birth.SchemaVersion,
+                birth_source = demographic.Birth.Source,
+                birth_reference_period = demographic.Birth.ReferencePeriod,
+                birth_geography = demographic.Birth.Geography,
+                birth_path = demographic.Birth.Path,
+                birth_sha256 = demographic.Birth.Sha256,
+                birth_row_count = demographic.Birth.RowCount
+            });
+            manifestJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
         if (generation.Options.BrazilianNameErrors is { } experimental)
         {
             var annotated = JsonNode.Parse(manifestJson)!.AsObject();
@@ -187,6 +218,9 @@ public static class SyntheticCorpusMaterializer
             generator_version = SyntheticCorpusInputIdentity.GeneratorVersion,
             ruleset_version = SyntheticCorpusV2Rules.RulesetVersion,
             rng_version = Xoshiro256StarStar.AlgorithmVersion,
+            population_profile = source.Demographic is null
+                ? "LEGACY_ENGINEERING_FIXTURE"
+                : "DEMOGRAPHIC_PRIMARY_V1",
             seed = generation.Options.Seed,
             people = generation.People.Count,
             observations = generation.Observations.Count,
@@ -240,6 +274,25 @@ public static class SyntheticCorpusMaterializer
         var truthJson = JsonSerializer.Serialize(
             truth,
             IndentedJsonOptions) + "\n";
+        if (source.Demographic is { } demographic)
+        {
+            var annotated = JsonNode.Parse(truthJson)!.AsObject();
+            annotated["demographic_primary"] = JsonSerializer.SerializeToNode(new
+            {
+                mode = "DEMOGRAPHIC_PRIMARY_V1",
+                person_geography = demographic.PersonGeography,
+                mother_first_geography = demographic.MotherFirstGeography,
+                mother_surname_geography = demographic.MotherSurnameGeography,
+                birth_schema_version = demographic.Birth.SchemaVersion,
+                birth_source = demographic.Birth.Source,
+                birth_reference_period = demographic.Birth.ReferencePeriod,
+                birth_geography = demographic.Birth.Geography,
+                birth_sha256 = demographic.Birth.Sha256,
+                birth_row_count = demographic.Birth.RowCount,
+                no_uniform_birth_fallback = true
+            });
+            truthJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
         if (generation.Options.BrazilianNameErrors is { } experimental)
         {
             // Somente no gabarito, inacessível ao calibrador antes do RASCUNHO.

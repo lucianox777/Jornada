@@ -49,7 +49,7 @@ if (string.Equals(args[0], "generate", StringComparison.Ordinal))
     var referenceRoot = ResolveReferenceRoot(values);
     var output = Get(values, "out") ?? Path.Combine(Environment.CurrentDirectory, "corpus-v2-csharp");
     var options = ParseCorpusOptions(values);
-    var loaded = await GenerateAsync(referenceRoot, options);
+    var loaded = await GenerateAsync(referenceRoot, options, values);
     var materialized = await SyntheticCorpusMaterializer.WriteAsync(
         output,
         loaded.Generation,
@@ -91,7 +91,7 @@ if (string.Equals(args[0], "generate-ingestion", StringComparison.Ordinal)
         throw new InvalidOperationException(
             $"Defina a variável de ambiente {keyEnvironment} com a chave de pseudonimização do ensaio.");
 
-    var loaded = await GenerateAsync(referenceRoot, options);
+    var loaded = await GenerateAsync(referenceRoot, options, values);
     var corpusDirectory = Path.Combine(output, "corpus");
     var ingestionDirectory = Path.Combine(output, "ingestion");
     await SyntheticCorpusMaterializer.WriteAsync(
@@ -267,14 +267,52 @@ static SyntheticCorpusOptions ParseCorpusOptions(IReadOnlyDictionary<string, str
 
 static async Task<(SyntheticCorpusGeneration Generation, SyntheticCorpusNominalSource Nominal, string InputFingerprint)> GenerateAsync(
     string referenceRoot,
-    SyntheticCorpusOptions options)
+    SyntheticCorpusOptions options,
+    IReadOnlyDictionary<string, string> values)
 {
     var manifest = await IbgeProjectionReader.ReadManifestAsync(referenceRoot);
-    var inputFingerprint = SyntheticCorpusInputIdentity.ComputeFingerprint(
-        options.Seed, manifest.Files, options.BrazilianNameErrors, options.StratifiedErrors);
-    var nominal = await SyntheticCorpusSourceLoader.LoadBrasilTotalAsync(referenceRoot, options);
-    var generation = new SyntheticCorpusGenerator(nominal.FirstNames, nominal.Surnames).Generate(options);
-    return (generation, nominal, inputFingerprint);
+    var profile = Get(values, "population-profile") ?? "legacy";
+    if (string.Equals(profile, "legacy", StringComparison.Ordinal))
+    {
+        var inputFingerprint = SyntheticCorpusInputIdentity.ComputeFingerprint(
+            options.Seed, manifest.Files, options.BrazilianNameErrors, options.StratifiedErrors);
+        var nominal = await SyntheticCorpusSourceLoader.LoadBrasilTotalAsync(referenceRoot, options);
+        var generation = new SyntheticCorpusGenerator(nominal.FirstNames, nominal.Surnames).Generate(options);
+        return (generation, nominal, inputFingerprint);
+    }
+
+    if (!string.Equals(profile, "demographic-primary", StringComparison.Ordinal))
+        throw new ArgumentException("population-profile deve ser legacy ou demographic-primary.");
+
+    var birthPath = GetRequired(values, "birth-daily-source");
+    var birth = await SyntheticDailyBirthDistribution.LoadAsync(birthPath);
+    var demographic = await SyntheticCorpusSourceLoader.LoadDemographicPrimaryAsync(referenceRoot, options);
+    var demographicFingerprint = SyntheticCorpusInputIdentity.ComputeFingerprint(
+        options.Seed,
+        manifest.Files,
+        options.BrazilianNameErrors,
+        options.StratifiedErrors,
+        new[]
+        {
+            $"population_profile=DEMOGRAPHIC_PRIMARY_V1",
+            $"person_geography=MUNICIPIO_SP_3550308",
+            $"mother_first_geography=BRASIL_FEMININO",
+            $"mother_surname_geography=BRASIL_TODOS",
+            $"birth_schema={birth.Provenance.SchemaVersion}",
+            $"birth_source={birth.Provenance.Source}",
+            $"birth_reference_period={birth.Provenance.ReferencePeriod}",
+            $"birth_geography={birth.Provenance.Geography}",
+            $"birth_sha256={birth.Provenance.Sha256}",
+            $"birth_rows={birth.Provenance.RowCount}"
+        });
+    var materializationSource = demographic.ToMaterializationSource(birth.Provenance);
+    var demographicGeneration = new SyntheticCorpusGenerator(
+        demographic.PersonFirstNames,
+        demographic.PersonSurnames,
+        demographic.MotherFirstNames,
+        demographic.MotherSurnames,
+        birth).Generate(options);
+    return (demographicGeneration, materializationSource, demographicFingerprint);
 }
 
 static int GetInt(IReadOnlyDictionary<string, string> values, string key, int fallback)
@@ -306,6 +344,8 @@ static void PrintUsage()
 
           Jornada.Linkage.SyntheticCorpus generate
             [--reference-root <dir>]
+            [--population-profile legacy|demographic-primary]
+            [--birth-daily-source <arquivo.json> (obrigatório em demographic-primary; sem fallback uniforme)]
             [--out <dir>]
             [--people <N>]
             [--seed <N>]
