@@ -864,8 +864,24 @@ public sealed class LinkageParametersWorker(
                    AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_DUAL_THRESHOLD_CONFLICT_FLOOR_V2' AND valor>=1)
                     THROW 51024, 'Modelo SQL Server V6 sem guarda de ambiguidade desacoplada de T_LINKAGE.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
-                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_NON_UNIQUE_DEMOGRAPHIC_EXACT_GUARD_V1' AND valor>=1)
-                    THROW 51026, 'Modelo SQL Server V6 sem guarda contra unicidade presumida de nome+nascimento exatos.', 1;
+                   AND EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_NON_UNIQUE_DEMOGRAPHIC_EXACT_GUARD_V1')
+                    THROW 51026, 'Modelo V8 não admite guarda demográfica fixa legada.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND EXISTS (
+                       SELECT req.nome FROM (VALUES
+                           ('SCORING_TERM_FREQUENCY_V1'),
+                           ('TERM_FREQUENCY_WEIGHT'),
+                           ('TERM_FREQUENCY_MIN_U'),
+                           ('TF_NOMINAL_FIRST_TOKEN_V1')) req(nome)
+                       WHERE NOT EXISTS(
+                           SELECT 1 FROM identidade.parametro_linkage p
+                           WHERE p.modelo_id=@modelo_id AND p.nome=req.nome AND p.valor>0))
+                    THROW 51028, 'Modelo V8 sem contrato TF completo.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND (
+                       NOT EXISTS(SELECT 1 FROM identidade.frequencia_linkage WHERE modelo_id=@modelo_id AND atributo=N'NOME_PRENOME')
+                       OR NOT EXISTS(SELECT 1 FROM identidade.frequencia_linkage WHERE modelo_id=@modelo_id AND atributo=N'NOME_MAE_PRENOME'))
+                    THROW 51029, 'Modelo V8 sem snapshot TF persistido de pessoa e mãe.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
                    AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='DUAL_THRESHOLD_CONFLICT_FLOOR' AND valor>=0 AND valor<=1)
                     THROW 51025, 'Modelo SQL Server V6 sem piso calibrado válido para segundo candidato.', 1;
@@ -910,6 +926,21 @@ public sealed class LinkageParametersWorker(
                         ('M_NASCIMENTO_SEMANTICO_EXACT'),('M_NASCIMENTO_SEMANTICO_DAY_MONTH_SWAP'),('M_NASCIMENTO_SEMANTICO_CENTURY_SHIFT'),('M_NASCIMENTO_SEMANTICO_ONE_DIGIT_ERROR'),('M_NASCIMENTO_SEMANTICO_TWO_DIGIT_ERROR'),('M_NASCIMENTO_SEMANTICO_PARTIAL_COMPONENT_AGREEMENT'),('M_NASCIMENTO_SEMANTICO_OTHER_DISAGREEMENT'),
                         ('U_NASCIMENTO_SEMANTICO_EXACT'),('U_NASCIMENTO_SEMANTICO_DAY_MONTH_SWAP'),('U_NASCIMENTO_SEMANTICO_CENTURY_SHIFT'),('U_NASCIMENTO_SEMANTICO_ONE_DIGIT_ERROR'),('U_NASCIMENTO_SEMANTICO_TWO_DIGIT_ERROR'),('U_NASCIMENTO_SEMANTICO_PARTIAL_COMPONENT_AGREEMENT'),('U_NASCIMENTO_SEMANTICO_OTHER_DISAGREEMENT')) req(nome)
                         WHERE NOT EXISTS (SELECT 1 FROM identidade.parametro_linkage p WHERE p.modelo_id=@modelo_id AND p.nome=req.nome)) THROW 51018, 'Modelo V5 validado sem distribuição semântica de nascimento completa.', 1;
+                    IF EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_NON_UNIQUE_DEMOGRAPHIC_EXACT_GUARD_V1')
+                        THROW 51030, 'Modelo V8 validado não pode reintroduzir guarda demográfica fixa.', 1;
+                    IF EXISTS (
+                        SELECT req.nome FROM (VALUES
+                            ('SCORING_TERM_FREQUENCY_V1'),
+                            ('TERM_FREQUENCY_WEIGHT'),
+                            ('TERM_FREQUENCY_MIN_U'),
+                            ('TF_NOMINAL_FIRST_TOKEN_V1')) req(nome)
+                        WHERE NOT EXISTS(
+                            SELECT 1 FROM identidade.parametro_linkage p
+                            WHERE p.modelo_id=@modelo_id AND p.nome=req.nome AND p.valor>0))
+                        THROW 51031, 'Modelo V8 validado sem contrato TF completo.', 1;
+                    IF NOT EXISTS(SELECT 1 FROM identidade.frequencia_linkage WHERE modelo_id=@modelo_id AND atributo=N'NOME_PRENOME')
+                       OR NOT EXISTS(SELECT 1 FROM identidade.frequencia_linkage WHERE modelo_id=@modelo_id AND atributo=N'NOME_MAE_PRENOME')
+                        THROW 51032, 'Modelo V8 validado sem snapshot TF persistido.', 1;
                 END
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset r WHERE r.modelo_id=@modelo_id AND EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id) AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe_campo rc WHERE rc.ruleset_id=rp.ruleset_id AND rc.passe_ordem=rp.passe_ordem))) THROW 51014, 'Modelo SQL Server validado sem ruleset dinâmico completo.', 1;
                 {DecisionCalibrationRateGateSql}
