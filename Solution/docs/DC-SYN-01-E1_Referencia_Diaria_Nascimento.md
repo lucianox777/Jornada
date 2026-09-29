@@ -35,11 +35,55 @@ O artefato materializado registra schema, fonte/período, geografia, linhas posi
 
 ## Tamanho do corpus demográfico primário
 
-O tamanho padrão é **9.596 pessoas**. A escolha usa o dimensionamento conservador de amostra para proporção, com **95% de confiança**, `p=0,5` e **margem de erro máxima de aproximadamente ±1 ponto percentual**; para a população municipal de São Paulo, a correção por população finita é pequena nessa ordem de grandeza.
+O tamanho padrão é **30.000 pessoas**. Este valor substitui a escolha anterior de 9.596. A motivação agora é operacional/estatística para o ensaio sintético: ampliar suporte nas caudas e nos estratos sem transformar o corpus primário em challenge set. **Não** se declara que 30.000 é uma amostra probabilística real da população paulistana nem que uma margem de erro amostral clássica valida o linkage.
 
-Esse cálculo justifica o tamanho do **corpus demográfico primário**, não a precisão de métricas em eventos raros nem a validação do linkage. Homônimos extremos, centenários, colisões maternas e demais eventos raros permanecem em challenge sets/estratos separados e não são artificialmente super-representados nos 9.596.
+A seed padrão permanece 42 e participa do fingerprint. `--people` continua disponível para ensaios explícitos de sensibilidade/escala; o padrão reprodutível desta decisão é 30.000.
 
-A seed padrão permanece 42 e participa do fingerprint, permitindo regeneração e comparação pareada. `--people` continua disponível para ensaios explícitos de sensibilidade/escala; alterar o tamanho não redefine silenciosamente o padrão.
+## Fontes públicas e proveniência
+
+### IBGE — Censo Demográfico 2022 / SIDRA 9514
+
+Fonte primária: Instituto Brasileiro de Geografia e Estatística (IBGE), Censo Demográfico 2022, tabela SIDRA **9514 — População residente, por sexo, idade e forma de declaração da idade**.
+
+- tabela: https://sidra.ibge.gov.br/tabela/9514
+- divulgação: Censo Demográfico 2022 — População por idade e sexo, resultados do universo;
+- período: 2022;
+- território usado: **Município de São Paulo, código IBGE 3550308**;
+- variável: população residente;
+- sexo: Total;
+- forma de declaração da idade: Total;
+- referência censitária usada pelo modelo: 01/08/2022;
+- população municipal publicada no Censo 2022: **11.451.999 pessoas**;
+- a tabela foi republicada/corrigida pelo IBGE em 22/12/2023 no conjunto de tabelas 1209, 9514 e 9515; o snapshot local deve registrar o hash do export efetivamente usado.
+
+O SIDRA fornece o **estoque populacional por idade**. Ele não fornece uma série diária de nascimentos. A transformação idade → data diária é, portanto, modelo declarado da Jornada: idade simples `k` recebe a janela de 12 meses correspondente e o peso é repartido deterministicamente pelos dias.
+
+A categoria `100 anos ou mais` é aberta. Qualquer decomposição interna é aproximação de modelagem e nunca deve ser descrita como idade simples observada pelo IBGE.
+
+### Secretaria Municipal da Saúde de São Paulo — SINASC
+
+Fonte primária: Secretaria Municipal da Saúde de São Paulo / Coordenação de Epidemiologia e Informação, **Sistema de Informações sobre Nascidos Vivos (SINASC)**.
+
+- página de dados abertos: https://prefeitura.sp.gov.br/web/saude/w/epidemiologia_e_informacao/nascidos_vivos/306422
+- página do sistema: https://prefeitura.sp.gov.br/saude/w/epidemiologia_e_informacao/nascidos_vivos/29569
+- notas técnicas: https://prefeitura.sp.gov.br/web/saude/w/tabnet/8241
+- dados preliminares: https://prefeitura.sp.gov.br/web/saude/w/epidemiologia_e_informacao/nascidos_vivos/312653
+- arquivos publicados: DBF, CSV e XLSX; a página de dados abertos lista séries anuais de 2006 a 2025 na consulta realizada em 29/09/2026;
+- fonte administrativa original: **Declaração de Nascido Vivo (DN)**, padronizada pelo Ministério da Saúde;
+- unidade selecionada para esta referência: nascidos vivos de **mães/parturientes residentes no Município de São Paulo**, independentemente do município de ocorrência do parto;
+- não usar a seleção “ocorridos no Município de São Paulo”, pois ela inclui partos de residentes de outros municípios e não representa a população residente pretendida.
+
+A própria SMS documenta que, desde 2007, a seleção de residentes recupera nascimentos de mães residentes em São Paulo independentemente do município de ocorrência, inclusive por retroalimentação. A SMS também declara que dados preliminares são um retrato na data de publicação e podem mudar por novos registros e procedimentos de qualidade até a edição final. Por isso, **cada snapshot SINASC usado deve ser congelado, datado e hasheado**; preliminar e final são proveniências distintas.
+
+O SINASC é usado somente para o trecho pós-corte censitário disponível no snapshot. Para uma data em ou após 01/08/2022 presente no SINASC selecionado, a contagem observada substitui o valor derivado da coorte censitária para aquele dia. Não há soma das duas fontes.
+
+### O que é dado e o que é modelo
+
+**Observado/publicado:** população residente por idade no Censo/SIDRA; registros/contagens de nascidos vivos do SINASC; código territorial; datas/períodos e situação do snapshot.
+
+**Modelado pela Jornada:** conversão da idade censitária em janela anual de nascimento; uniformidade intrajanela; rateio inteiro por maior resto; tratamento da cauda 100+ quando não houver idade simples oficial; composição temporal Censo + SINASC.
+
+Nenhuma dessas aproximações deve ser apresentada como estatística publicada pelo IBGE ou pela SMS.
 
 ## Gates
 
