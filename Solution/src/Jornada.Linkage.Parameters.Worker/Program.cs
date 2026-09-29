@@ -88,11 +88,19 @@ else
         return;
     }
 
-    // A referência IBGE é pré-condição carregada explicitamente na preparação.
-    // GENERATE_DRAFT faz somente a verificação leve; nunca carrega ou reativa.
+    // A primeira carga IBGE e seus derivados são pré-condição explícita do ambiente.
+    // GENERATE_DRAFT apenas comprova o bootstrap persistido; nunca carrega, reativa
+    // ou exige que a fonte original continue com status ATIVA.
     if (operation == "GENERATE_DRAFT")
-        await GenerateDraftIbgePrecondition.RequireActiveAsync(
-            () => ActiveNameFrequencyReferenceQuery.HasActiveAsync(operationalSql));
+    {
+        var seed = builder.Configuration.GetValue("LinkageParameters:IbgeNominalU:Seed", 20260917);
+        var pairs = Math.Clamp(
+            builder.Configuration.GetValue("LinkageParameters:IbgeNominalU:PairCount", 1_000_000),
+            10_000, 5_000_000);
+        await using var bootstrapConnection = await operationalSql.OpenAsync(CancellationToken.None);
+        _ = await PersistedIbgeBootstrapReferenceQuery.RequireAsync(
+            bootstrapConnection, seed, pairs, CancellationToken.None);
+    }
 
     builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
 
