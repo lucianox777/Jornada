@@ -81,6 +81,8 @@ A entrada SIDRA também falha fechado se, depois da precedência de idade simple
 
 Datas SINASC inválidas são erro fatal. Passar duas vezes conteúdo com o mesmo SHA-256 também é erro fatal. Cada arquivo SINASC declara individualmente `PATH|STATUS|SNAPSHOT_DATE|PERIOD_START|PERIOD_END`. Status (`FINAL` ou `PRELIMINARY`), data do snapshot, período coberto e SHA-256 são persistidos por fonte no manifesto. A data do snapshot deve ser igual ou posterior ao fim do período declarado e não pode estar no futuro. Todo nascimento precisa cair dentro do período declarado.
 
+A cobertura SINASC é **contínua e fail-closed**: quando SINASC é usado, o primeiro período começa exatamente em 01/08/2022; cada período seguinte começa no dia imediatamente posterior ao anterior; e o último termina exatamente em `--sinasc-cutoff`, que é persistido no modelo do manifesto. Início tardio, lacuna, sobreposição ou término diferente do corte são erro.
+
 Períodos de dois snapshots SINASC não podem se sobrepor, independentemente de status ou hash. Assim, uma edição preliminar e uma final da mesma competência não podem ser somadas; o operador deve escolher uma única proveniência. Conteúdo com SHA repetido continua sendo rejeitado adicionalmente.
 
 O SINASC é usado somente para o trecho pós-corte censitário disponível no snapshot. Para uma data em ou após 01/08/2022 presente no SINASC selecionado, a contagem observada substitui o valor derivado da coorte censitária para aquele dia. Não há soma das duas fontes.
@@ -95,7 +97,7 @@ Nenhuma dessas aproximações deve ser apresentada como estatística publicada p
 
 ## Gates
 
-Antes de tornar o snapshot padrão do perfil `demographic-primary`: materializar de exports oficiais congelados; validar hashes/totais; confirmar fail-closed que todo SINASC contado é residência de São Paulo (`355030`/`3550308`); rejeitar datas inválidas, snapshot duplicado e períodos sobrepostos; registrar estado/data/período/hash por snapshot; validar snapshotDate contra período e data corrente; reconciliar soma etária com `Total`; confirmar cobertura etária 0..99 + 100+; executar testes da ferramenta; carregar por `SyntheticDailyBirthDistribution.LoadAsync`; provar unicidade, positividade e determinismo; executar a suíte unitária; manter a issue #31 como gate separado para validação estatística real.
+Antes de tornar o snapshot padrão do perfil `demographic-primary`: materializar de exports oficiais congelados; validar hashes/totais; confirmar fail-closed que todo SINASC contado é residência de São Paulo (`355030`/`3550308`); rejeitar datas inválidas, snapshot duplicado, início tardio, lacunas e períodos sobrepostos; registrar estado/data/período/hash por snapshot; validar snapshotDate contra período e data corrente; reconciliar soma etária com `Total`; confirmar cobertura etária 0..99 + 100+; executar testes da ferramenta; carregar por `SyntheticDailyBirthDistribution.LoadAsync`; provar unicidade, positividade e determinismo; executar a suíte unitária; manter a issue #31 como gate separado para validação estatística real.
 
 ## Fora de escopo
 
