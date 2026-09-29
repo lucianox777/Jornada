@@ -15,7 +15,8 @@
       "publisher": "IBGE",
       "sourceUrl": "https://sidra.ibge.gov.br/tabela/9514",
       "variable": "Populacao residente",
-      "snapshotRule": "freeze exported file and record SHA-256"
+      "snapshotRule": "freeze exported file and record SHA-256",
+      "validation": "FAIL_CLOSED: ages 0..99 plus 100+ required; no overlap; age sum must equal declared Total"
     },
     {
       "kind": "SINASC_SP",
@@ -28,7 +29,17 @@
       "preliminaryDataUrl": "https://prefeitura.sp.gov.br/web/saude/w/epidemiologia_e_informacao/nascidos_vivos/312653",
       "selection": "residentes no Municipio de Sao Paulo, independentemente do municipio de ocorrencia",
       "administrativeSource": "Declaracao de Nascido Vivo (DN)",
-      "snapshotRule": "freeze publication snapshot; preliminary and final are distinct provenance"
+      "snapshotRule": "freeze publication snapshot; preliminary and final are distinct provenance",
+      "acceptedResidenceCodes": [
+        "355030",
+        "3550308"
+      ],
+      "validation": "FAIL_CLOSED: residence field required; invalid dates rejected; duplicate content hashes rejected",
+      "requiredMetadata": [
+        "publicationStatus: FINAL|PRELIMINARY",
+        "snapshotDate: YYYY-MM-DD",
+        "sha256"
+      ]
     }
   ],
   "outputSchema": "JORNADA_SYNTH_BIRTH_DAILY_V1",
