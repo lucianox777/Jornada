@@ -91,6 +91,21 @@ O catálogo também registra algoritmos que combinam saída de comparador com es
 
 O antigo resolvedor experimental `NOMINAL_DF_SPLINK_COMPATIBLE_V1` e o runner Python foram retirados antes de HML porque nunca integraram o runtime e criavam uma segunda fronteira sem resolver os casos de identificabilidade observados. A auditabilidade externa corrente é por exportação somente leitura de parâmetros/proveniência; a Jornada não reivindica validação externa por Splink enquanto não existir novamente um verificador externo independente.
 
+## Vocabulário operacional de decisão
+
+Os literais abaixo são **motivos observáveis de decisão** no runtime atual e devem ser tratados como contrato de auditoria enquanto existirem no código:
+
+| motivo | semântica |
+|---|---|
+| `EVIDENCIA_INSUFICIENTE_PARA_BLOCKING` | nenhum passe elegível conseguiu formar universo candidato suficiente; não equivale a ausência comprovada de identidade |
+| `ABAIXO_T_LINKAGE` | melhor candidato ficou abaixo de `T_LINKAGE` |
+| `DOIS_CANDIDATOS_ACIMA_T_LINKAGE` | caminho legado da guarda dual: segundo candidato também ficou acima de `T_LINKAGE` |
+| `SEGUNDO_CANDIDATO_ACIMA_PISO_CONFLITO` | segundo candidato ultrapassou o piso independente de conflito |
+| `MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE` | diferença em log-odds entre melhor e segundo candidato ficou abaixo da margem exigida |
+| `NUCLEO_DEMOGRAFICO_EXATO_NAO_UNICO` | motivo do guard demográfico fixo ainda presente no HEAD; a decisão canônica DC-LK-02 determina sua retirada da V8 em change-set próprio, com conferência e calibração antes de ativação |
+
+Não confundir motivos com **parâmetros do modelo**. `T_LINKAGE`, `CONFLICT_MARGIN_LOG_ODDS` e `DUAL_THRESHOLD_CONFLICT_FLOOR` são entradas persistidas da política de decisão, não códigos de resultado. Marcadores internos de versão/proveniência não precisam virar motivos públicos apenas por existirem como literais no código.
+
 ## Relação com o Calibrador
 
 Estar no catálogo autoriza experimentação; não implica promoção física nem uso operacional. O Calibrador pode medir projeções isoladas, interseções (`AND`) dentro de um passe e uniões (`OR`) entre passes, além de avaliar comparadores e limiares sobre o universo candidato. Combinações redundantes devem perder para alternativas equivalentes mais simples.
