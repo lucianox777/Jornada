@@ -10,6 +10,7 @@ public sealed class IdentityCompositionTests
     private static readonly Guid B = Guid.Parse("00000000-0000-0000-0000-000000000002");
     private static readonly Guid C = Guid.Parse("00000000-0000-0000-0000-000000000003");
     private static readonly Guid D = Guid.Parse("00000000-0000-0000-0000-000000000004");
+    private static readonly Guid E = Guid.Parse("00000000-0000-0000-0000-000000000005");
     private static readonly DateTimeOffset When = new(2026, 9, 8, 0, 0, 0, TimeSpan.Zero);
 
     private static IdentityCompositionMember Member(Guid id, Guid? target, long version = 1, Guid? anchor = null) =>
@@ -54,16 +55,19 @@ public sealed class IdentityCompositionTests
             Assert.That(merge.Changes, Has.Length.EqualTo(1));
             Assert.That(merge.HistoryToAppend, Has.Length.EqualTo(2));
         });
-        var split = IdentityCompositionPlanner.Prepare(merged,
-            Decision(IdentityCompositionOperation.SEPARACAO, merged, (A, A), (B, B)));
-        var separated = Apply(merged, split);
+        var splitRead = merged with { ReservedNewUuids = ImmutableArray.Create(C, D) };
+        var split = IdentityCompositionPlanner.Prepare(splitRead,
+            Decision(IdentityCompositionOperation.SEPARACAO, splitRead, (A, C), (B, D)));
+        var separated = Apply(splitRead, split);
         var historical = IdentityCompositionPlanner.ResolveHistorical(split.HistoryToAppend.Single(), separated.Members);
         Assert.Multiple(() =>
         {
             Assert.That(historical.State, Is.EqualTo(HistoricalReferenceState.AMBIGUA));
             Assert.That(historical.CanonicalUuid, Is.Null);
-            Assert.That(historical.Candidates, Is.EquivalentTo(new[] { A, B }));
-            Assert.That(IdentityCompositionPlanner.ResolveHistorical(merge.HistoryToAppend.Single(h => h.ReferenceUuid == B), separated.Members).CanonicalUuid, Is.EqualTo(B));
+            Assert.That(historical.Candidates, Is.EquivalentTo(new[] { C, D }));
+            Assert.That(IdentityCompositionPlanner.ResolveHistorical(
+                merge.HistoryToAppend.Single(h => h.ReferenceUuid == B), separated.Members).CanonicalUuid,
+                Is.EqualTo(D));
             Assert.That(separated.Members.Single(m => m.InitialUuid == B).Version, Is.EqualTo(3));
             Assert.That(original.Members.Single(m => m.InitialUuid == B).CanonicalUuid, Is.EqualTo(B));
         });
@@ -72,16 +76,19 @@ public sealed class IdentityCompositionTests
     [Test]
     public void Historical_membership_survives_later_reassociation_without_chasing_aliases()
     {
-        var read = Set(Member(A, A), Member(B, A), Member(C, C));
+        var read = Set(Member(A, A), Member(B, A), Member(C, C)) with
+        {
+            ReservedNewUuids = ImmutableArray.Create(D, E)
+        };
         var split = IdentityCompositionPlanner.Prepare(read,
-            Decision(IdentityCompositionOperation.SEPARACAO, read, (A, A), (B, B)));
+            Decision(IdentityCompositionOperation.SEPARACAO, read, (A, D), (B, E)));
         var after = Apply(read, split);
         var regroup = IdentityCompositionPlanner.Prepare(after,
             Decision(IdentityCompositionOperation.REASSOCIACAO, after, (B, C), (C, C)));
         after = Apply(after, regroup);
         var resolution = IdentityCompositionPlanner.ResolveHistorical(split.HistoryToAppend.Single(), after.Members);
         Assert.That(resolution.State, Is.EqualTo(HistoricalReferenceState.AMBIGUA));
-        Assert.That(resolution.Candidates, Is.EquivalentTo(new[] { A, C }));
+        Assert.That(resolution.Candidates, Is.EquivalentTo(new[] { D, C }));
     }
 
     [Test]
@@ -138,14 +145,41 @@ public sealed class IdentityCompositionTests
     }
 
     [Test]
-    public void New_destination_requires_an_explicit_reservation_and_preserves_original_uuid()
+    public void Fully_decided_unanchored_split_requires_new_or_already_admitted_destinations()
     {
         var read = Set(Member(A, A), Member(B, A));
-        var decision = Decision(IdentityCompositionOperation.SEPARACAO, read, (A, A), (B, D));
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionPlanner.Prepare(read, decision));
-        var plan = IdentityCompositionPlanner.Prepare(read with { ReservedNewUuids = ImmutableArray.Create(D) }, decision);
-        Assert.That(plan.Changes.Single().AfterUuid, Is.EqualTo(D));
-        Assert.That(plan.Changes.Single().InitialUuid, Is.EqualTo(B));
+        var usingOldReference = read with { ReservedNewUuids = ImmutableArray.Create(D) };
+        Assert.Throws<InvalidOperationException>(() => IdentityCompositionPlanner.Prepare(usingOldReference,
+            Decision(IdentityCompositionOperation.SEPARACAO, usingOldReference, (A, A), (B, D))));
+        Assert.Throws<InvalidOperationException>(() => IdentityCompositionPlanner.Prepare(read,
+            Decision(IdentityCompositionOperation.SEPARACAO, read, (A, A), (B, B))));
+
+        var reserved = read with { ReservedNewUuids = ImmutableArray.Create(C, D) };
+        var plan = IdentityCompositionPlanner.Prepare(reserved,
+            Decision(IdentityCompositionOperation.SEPARACAO, reserved, (A, C), (B, D)));
+        Assert.Multiple(() =>
+        {
+            Assert.That(plan.Changes, Has.Length.EqualTo(2));
+            Assert.That(plan.Changes.Single(x => x.InitialUuid == A).AfterUuid, Is.EqualTo(C));
+            Assert.That(plan.Changes.Single(x => x.InitialUuid == B).AfterUuid, Is.EqualTo(D));
+            Assert.That(plan.Changes.Select(x => x.InitialUuid), Is.EquivalentTo(new[] { A, B }));
+        });
+    }
+
+    [Test]
+    public void Cpf_anchored_split_preserves_anchor_and_allocates_other_destination()
+    {
+        var read = Set(Member(A, A, anchor: A), Member(B, A)) with
+        {
+            ReservedNewUuids = ImmutableArray.Create(D)
+        };
+        var plan = IdentityCompositionPlanner.Prepare(read,
+            Decision(IdentityCompositionOperation.SEPARACAO, read, (A, A), (B, D)));
+        Assert.Multiple(() =>
+        {
+            Assert.That(plan.Changes.Single(x => x.InitialUuid == B).AfterUuid, Is.EqualTo(D));
+            Assert.That(plan.Changes.Any(x => x.InitialUuid == A && x.AfterUuid != A), Is.False);
+        });
     }
 
     [Test]
