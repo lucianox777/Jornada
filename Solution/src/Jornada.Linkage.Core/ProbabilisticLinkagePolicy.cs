@@ -153,6 +153,13 @@ internal static class ProbabilisticLinkageDecisions
                     uniqueCandidates.Count,
                     observation.DataNascimento,
                     candidate.DataNascimento);
+                rawScore = ApplyTermFrequency(
+                    model,
+                    observation,
+                    candidate,
+                    nameState,
+                    motherNameState,
+                    rawScore);
                 var score = FellegiSunterScoring.ToContractScore(rawScore);
                 var demographicExactCollisionRisk =
                     nameState == NameComparisonState.EXACT &&
@@ -168,6 +175,65 @@ internal static class ProbabilisticLinkageDecisions
             .OrderByDescending(x => decisionEvidence ? x.LogOdds : x.Score)
             .ThenBy(x => x.PessoaUuid)
             .ToArray();
+    }
+
+    private static FellegiSunterRawScore ApplyTermFrequency(
+        LinkageModel model,
+        IdentityObservation observation,
+        LinkageCandidate candidate,
+        NameComparisonState? nameState,
+        NameComparisonState? motherNameState,
+        FellegiSunterRawScore raw)
+    {
+        var isV8 = string.Equals(
+            model.AlgorithmVersion,
+            LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
+            StringComparison.Ordinal);
+        if (!isV8
+            || !model.Parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyScoring, out var enabled)
+            || enabled < 1m)
+            return raw;
+
+        var snapshot = model.TermFrequency
+            ?? throw new InvalidOperationException("V8 com TF habilitado exige snapshot nominal persistido.");
+        var weight = model.Parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyWeight, out var configuredWeight)
+            ? configuredWeight
+            : throw new InvalidOperationException("V8 com TF habilitado exige TERM_FREQUENCY_WEIGHT.");
+        var minimumU = model.Parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyMinimumU, out var configuredMinimum)
+            ? configuredMinimum
+            : throw new InvalidOperationException("V8 com TF habilitado exige TERM_FREQUENCY_MIN_U.");
+
+        double adjustment = 0d;
+        if (nameState is { } ns
+            && snapshot.TryGetPersonFirstName(observation.NomeCompleto, out var leftName)
+            && snapshot.TryGetPersonFirstName(candidate.NomeCompleto, out var rightName))
+        {
+            adjustment += SplinkCompatibleTermFrequency.LogBayesAdjustment(
+                leftName,
+                rightName,
+                model.Parameters[$"U_NOME_{ns}"],
+                weight,
+                minimumU);
+        }
+
+        if (motherNameState is { } ms
+            && snapshot.TryGetMotherFirstName(observation.NomeMae, out var leftMother)
+            && snapshot.TryGetMotherFirstName(candidate.NomeMae, out var rightMother))
+        {
+            adjustment += SplinkCompatibleTermFrequency.LogBayesAdjustment(
+                leftMother,
+                rightMother,
+                model.Parameters[$"U_NOME_MAE_{ms}"],
+                weight,
+                minimumU);
+        }
+
+        if (adjustment == 0d)
+            return raw;
+
+        var logOdds = raw.LogOdds + adjustment;
+        var posterior = 1d / (1d + Math.Exp(-Math.Clamp(logOdds, -40d, 40d)));
+        return new FellegiSunterRawScore(posterior, logOdds);
     }
 
     internal static ProbabilisticLinkageDecision Resolve(LinkageModel model, IdentityObservation observation, IReadOnlyList<LinkageCandidate> candidates)
