@@ -15,3 +15,9 @@ A inicialização IBGE usa o bootstrap/caches existentes; a consulta histórica 
 ## Regressão
 
 A integração SQL existente `LinkageModelGovernanceLedgerTests` invoca a mesma leitura restrita e passa a checar o limite de 20 itens e os estados descritivos. O contrato da página e a separação de privilégios permanecem sob o gate da matriz de autorização. Nenhuma mudança de schema SQL, runtime do Runner, scoring, calibração ou regras de publicação nesta fatia.
+
+## Frente paralela de visualização — 29/09/2026
+
+[PR #616](https://github.com/lucianox777/Jornada/pull/616) implementa, isoladamente na página DEV read-only, linha do tempo dos até 20 modelos **já retornados** por `calibrationHistory`: versão/estado, data, referência IBGE vinculada, suporte m/u e evidência. Ordenação cronológica de apresentação, sem novo endpoint, SQL, autenticação, alteração de parâmetros ou promoção. **A referência IBGE vinculada não comprova nova carga a cada geração**; esta fatia não inventa a proveniência m/u ausente do payload nem presume que o primeiro item é o bootstrap inicial se modelos anteriores não estiverem nos 20 registros. Merge sujeito a gates no HEAD.
+
+**Paralelização aprovada:** (A) UI/histórico read-only com contrato atual, sem depender de alteração do Worker; (B) evolução separada do read model e da proveniência do bootstrap inicial IBGE, parâmetros m/u, thresholds, versões e fingerprints do bundle, com testes SQL e privacidade; (C) replay pareado FS/custos e dossiê DT-15; (D) aprovação individual e publicação atômica do bundle, dependentes de RBAC/IdP, gates SQL/Worker e coordenação do Runner. A–C podem progredir paralelamente em arquivos e branches distintos; D só é habilitada depois dos contratos e gates. O Monitor continua separado e somente leitura. **Não** alterar a CI compartilhada nem migrations em branches de UI.
