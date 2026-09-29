@@ -103,6 +103,8 @@ public sealed class NameFrequencySnapshotLoader(
 
         if (manifest is null || manifest.SchemaVersion != 1)
             throw new InvalidDataException("Manifesto de frequências ausente ou schemaVersion incompatível.");
+        if (!string.Equals(manifest.NormalizationVersion, IdentityComparison.NormalizationVersion, StringComparison.Ordinal))
+            throw new InvalidDataException("Versão de normalização do manifesto incompatível com o motor de identidade.");
         if (string.IsNullOrWhiteSpace(manifest.ReferenceCode) || manifest.ReferenceCode.Length > 80)
             throw new InvalidDataException("referenceCode inválido no manifesto.");
         if (manifest.Snapshot.Files.Count == 0)
@@ -358,8 +360,10 @@ public sealed class NameFrequencySnapshotLoader(
             long versionId;
             string? status;
             byte[]? existingHash;
+            string? existingNormalization;
+            int? existingSchema;
             await using (var read = new SqlCommand(
-                "SELECT frequencia_nome_versao_id,status,conteudo_sha256 FROM ref.frequencia_nome_versao WITH(UPDLOCK,HOLDLOCK) WHERE codigo=@codigo;",
+                "SELECT frequencia_nome_versao_id,status,conteudo_sha256,normalizacao_versao,manifest_schema_version FROM ref.frequencia_nome_versao WITH(UPDLOCK,HOLDLOCK) WHERE codigo=@codigo;",
                 connection,
                 transaction))
             {
@@ -370,37 +374,45 @@ public sealed class NameFrequencySnapshotLoader(
                     versionId = reader.GetInt64(0);
                     status = reader.GetString(1);
                     existingHash = reader.IsDBNull(2) ? null : (byte[])reader.GetValue(2);
+                    existingNormalization = reader.IsDBNull(3) ? null : reader.GetString(3);
+                    existingSchema = reader.IsDBNull(4) ? null : reader.GetInt32(4);
                 }
                 else
                 {
                     versionId = 0;
                     status = null;
                     existingHash = null;
+                    existingNormalization = null;
+                    existingSchema = null;
                 }
             }
 
             if (versionId != 0 && status != "CARREGANDO")
             {
-                if (existingHash is not null && existingHash.AsSpan().SequenceEqual(canonicalHash))
+                if (existingHash is not null && existingHash.AsSpan().SequenceEqual(canonicalHash)
+                    && string.Equals(existingNormalization, manifest.NormalizationVersion, StringComparison.Ordinal)
+                    && existingSchema == manifest.SchemaVersion)
                 {
                     await transaction.CommitAsync(cancellationToken);
                     logger.LogInformation("Snapshot {Version} já está publicado com o mesmo conteúdo; carga idempotente.", manifest.ReferenceCode);
                     return;
                 }
-                throw new InvalidOperationException($"Versão {manifest.ReferenceCode} já publicada com conteúdo diferente. Snapshot imutável não pode ser substituído.");
+                throw new InvalidOperationException($"Versão {manifest.ReferenceCode} já publicada com conteúdo ou metadados incompatíveis. Versão legada exige nova edição validada; snapshot imutável não pode ser substituído.");
             }
 
             if (versionId == 0)
             {
                 await using var create = new SqlCommand(
                     """
-                    INSERT ref.frequencia_nome_versao(codigo,fonte,edicao,data_referencia,publicado_em,status)
-                    VALUES(@codigo,@fonte,@edicao,@data,@publicado,'CARREGANDO');
+                    INSERT ref.frequencia_nome_versao(codigo,fonte,edicao,data_referencia,publicado_em,status,normalizacao_versao,manifest_schema_version)
+                    VALUES(@codigo,@fonte,@edicao,@data,@publicado,'CARREGANDO',@normalizacao,@schema);
                     SELECT CONVERT(BIGINT,SCOPE_IDENTITY());
                     """,
                     connection,
                     transaction);
                 create.Parameters.Add("@codigo", SqlDbType.NVarChar, 80).Value = manifest.ReferenceCode;
+                create.Parameters.Add("@normalizacao", SqlDbType.NVarChar, 80).Value = manifest.NormalizationVersion;
+                create.Parameters.Add("@schema", SqlDbType.Int).Value = manifest.SchemaVersion;
                 create.Parameters.Add("@fonte", SqlDbType.NVarChar, 200).Value = manifest.Source;
                 create.Parameters.Add("@edicao", SqlDbType.NVarChar, 120).Value = "Censo 2022 - Nomes no Brasil";
                 create.Parameters.Add("@data", SqlDbType.Date).Value = referenceDate.ToDateTime(TimeOnly.MinValue);
