@@ -142,6 +142,134 @@ public sealed class NameFrequencyReferenceSqlServerTests
             "Calibrador deve falhar fechado quando não existe referência ATIVA.");
     }
 
+
+    // Estado inconsistente criado deliberadamente apenas no banco descartável de integração:
+    // testa a consulta de GENERATE_DRAFT, não a procedure de publicação.
+    [TestCase("NOME")]
+    [TestCase("SOBRENOME")]
+    public async Task Draft_gate_rejects_incomplete_active_reference_in_SQL(string missingType)
+    {
+        var connectionString = RequireDedicatedReferenceTestConnection();
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260912_Frequencia_Nomes_Referencia.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260929_RF572_Frequencia_Nomes_Compatibilidade.sql"));
+
+        await using (var deactivate = connection.CreateCommand())
+        {
+            deactivate.CommandText = "UPDATE ref.frequencia_nome_versao SET status='OBSOLETA' WHERE status='ATIVA';";
+            await deactivate.ExecuteNonQueryAsync();
+        }
+
+        var id = await CreateVersionWithMinimumReferenceAsync(
+            connection, $"TEST-RF052-INCOMPLETE-{missingType}-{Guid.NewGuid():N}", 1000, 400);
+        try
+        {
+            // Inserção sintética de uma versão ATIVA fisicamente incompleta,
+            // sem alterar a regra de publicação que normalmente a rejeitaria.
+            await using (var corrupt = connection.CreateCommand())
+            {
+                corrupt.CommandText = """
+                    DELETE FROM ref.frequencia_nome
+                    WHERE frequencia_nome_versao_id=@id AND tipo=@tipo;
+                    UPDATE ref.frequencia_nome_versao
+                    SET conteudo_sha256=@sha, normalizacao_versao=@normalizacao,
+                        manifest_schema_version=1, status='ATIVA', ativado_em=SYSDATETIMEOFFSET()
+                    WHERE frequencia_nome_versao_id=@id AND status='CARREGANDO';
+                    """;
+                corrupt.Parameters.AddWithValue("@id", id);
+                corrupt.Parameters.AddWithValue("@tipo", missingType);
+                corrupt.Parameters.Add("@sha", System.Data.SqlDbType.Binary, 32).Value =
+                    Enumerable.Repeat((byte)0x52, 32).ToArray();
+                corrupt.Parameters.AddWithValue("@normalizacao",
+                    Jornada.Contracts.IdentityComparison.NormalizationVersion);
+                await corrupt.ExecuteNonQueryAsync();
+            }
+
+            var adapter = new Jornada.Operational.Sql.OperationalSqlAdapter(connectionString);
+            Assert.That(await Jornada.Linkage.Parameters.Worker.ActiveNameFrequencyReferenceQuery.HasActiveAsync(adapter),
+                Is.False, $"Uma ATIVA sem {missingType} não pode passar pelo gate.");
+            Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await Jornada.Linkage.Parameters.Worker.GenerateDraftIbgePrecondition.RequireActiveAsync(
+                    () => Jornada.Linkage.Parameters.Worker.ActiveNameFrequencyReferenceQuery.HasActiveAsync(adapter)));
+        }
+        finally
+        {
+            await using var cleanup = connection.CreateCommand();
+            cleanup.CommandText = """
+                UPDATE ref.frequencia_nome_versao SET status='OBSOLETA'
+                WHERE frequencia_nome_versao_id=@id AND status='ATIVA';
+                """;
+            cleanup.Parameters.AddWithValue("@id", id);
+            await cleanup.ExecuteNonQueryAsync();
+        }
+    }
+
+    [TestCase("NOME")]
+    [TestCase("SOBRENOME")]
+    public async Task Published_reference_blocks_post_publication_deletion(string protectedType)
+    {
+        var connectionString = RequireDedicatedReferenceTestConnection();
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260912_Frequencia_Nomes_Referencia.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260929_RF572_Frequencia_Nomes_Compatibilidade.sql"));
+
+        var id = await CreateVersionWithMinimumReferenceAsync(
+            connection, $"TEST-RF052-IMMUTABLE-{protectedType}-{Guid.NewGuid():N}", 1000, 400);
+        await using (var metadata = connection.CreateCommand())
+        {
+            metadata.CommandText = """
+                UPDATE ref.frequencia_nome_versao
+                SET normalizacao_versao=@normalizacao, manifest_schema_version=1
+                WHERE frequencia_nome_versao_id=@id AND status='CARREGANDO';
+                """;
+            metadata.Parameters.AddWithValue("@id", id);
+            metadata.Parameters.AddWithValue("@normalizacao",
+                Jornada.Contracts.IdentityComparison.NormalizationVersion);
+            await metadata.ExecuteNonQueryAsync();
+        }
+
+        await PublishAsync(connection, id, 0x52);
+        try
+        {
+            await using var remove = connection.CreateCommand();
+            remove.CommandText = """
+                DELETE FROM ref.frequencia_nome
+                WHERE frequencia_nome_versao_id=@id AND tipo=@tipo;
+                """;
+            remove.Parameters.AddWithValue("@id", id);
+            remove.Parameters.AddWithValue("@tipo", protectedType);
+            var error = Assert.ThrowsAsync<SqlException>(async () => await remove.ExecuteNonQueryAsync());
+            Assert.That(error!.Number, Is.EqualTo(51630));
+            Assert.That(await Jornada.Linkage.Parameters.Worker.ActiveNameFrequencyReferenceQuery.HasActiveAsync(
+                new Jornada.Operational.Sql.OperationalSqlAdapter(connectionString)), Is.True);
+        }
+        finally
+        {
+            await using var cleanup = connection.CreateCommand();
+            cleanup.CommandText = """
+                UPDATE ref.frequencia_nome_versao SET status='OBSOLETA'
+                WHERE frequencia_nome_versao_id=@id AND status='ATIVA';
+                """;
+            cleanup.Parameters.AddWithValue("@id", id);
+            await cleanup.ExecuteNonQueryAsync();
+        }
+    }
+
+    private static string RequireDedicatedReferenceTestConnection()
+    {
+        var connectionString = RequireIntegrationConnection();
+        var databaseName = new SqlConnectionStringBuilder(connectionString).InitialCatalog;
+        Assert.That(databaseName, Is.EqualTo("JornadaTest").IgnoreCase,
+            "Os ensaios que alteram a referência ATIVA exigem o banco descartável JornadaTest.");
+        return connectionString;
+    }
+
     private static async Task InsertLinkageRunAsync(SqlConnection connection, Guid runId, Guid modelId)
     {
         await using var command = connection.CreateCommand();
