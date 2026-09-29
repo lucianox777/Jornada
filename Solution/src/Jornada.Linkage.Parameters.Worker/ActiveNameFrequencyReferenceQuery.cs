@@ -1,4 +1,3 @@
-using Jornada.Contracts.IdentityComparison;
 using Jornada.Operational.Sql;
 
 namespace Jornada.Linkage.Parameters.Worker;
