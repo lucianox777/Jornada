@@ -26,7 +26,7 @@ O SIDRA publica `100 anos ou mais` sem decomposição interna. DC-SYN-01-E1 adot
 
 A partir de 01/08/2022 até `--post-census-cutoff`, inclusive, usa-se a taxa diária média da coorte censitária de idade zero. O total implícito do intervalo é arredondado e distribuído deterministicamente pelos dias. Não há consulta, dependência ou snapshot SINASC.
 
-A data de corte é parte da proveniência do artefato. Esta aproximação pressupõe estabilidade da taxa recente de nascimentos; não pretende reconstruir a natalidade diária real.
+A data de corte é parte da proveniência do artefato e deve estar no intervalo de 01/08/2022 até a data corrente da geração; corte futuro é rejeitado fail-closed. Esta aproximação pressupõe estabilidade da taxa recente de nascimentos; não pretende reconstruir a natalidade diária real.
 
 ## Proveniência e limitações
 
@@ -55,7 +55,7 @@ A seed padrão permanece 42 e participa do fingerprint. `--people` continua disp
 
 ## Gates
 
-Antes de tornar o snapshot padrão: congelar o export oficial SIDRA 9514; registrar e validar SHA-256; reconciliar idades com a linha `Total`; confirmar cobertura 0..99 + 100+; confirmar convenção 100–105; declarar o corte pós-Censo; executar os testes da ferramenta; carregar o JSON por `SyntheticDailyBirthDistribution.LoadAsync`; provar unicidade, positividade e determinismo; executar a suíte unitária. A issue #31 continua sendo gate separado para validação estatística real.
+Antes de tornar o snapshot padrão: congelar o export oficial SIDRA 9514; registrar e validar SHA-256; reconciliar idades com a linha `Total`; confirmar cobertura 0..99 + 100+; confirmar convenção 100–105; declarar o corte pós-Censo e rejeitar corte futuro; executar os testes da ferramenta; carregar o JSON por `SyntheticDailyBirthDistribution.LoadAsync`; provar unicidade, positividade e determinismo; executar a suíte unitária. A issue #31 continua sendo gate separado para validação estatística real.
 
 ## Fora de escopo
 
