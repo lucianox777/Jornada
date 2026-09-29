@@ -221,7 +221,7 @@ def main() -> int:
         root,
     )
 
-    dll = root / "src/Jornada.Linkage.SyntheticCorpus/bin/Release/net8.0/Jornada.Linkage.SyntheticCorpus.dll"
+    dll = root / "src/Jornada.Linkage.SyntheticCorpus/bin/Release/net10.0/Jornada.Linkage.SyntheticCorpus.dll"
     if not dll.exists():
         raise SystemExit(f"SYNTHETIC CORPUS EQUIVALENCE GATE: FAIL: DLL ausente: {dll}")
     run(
