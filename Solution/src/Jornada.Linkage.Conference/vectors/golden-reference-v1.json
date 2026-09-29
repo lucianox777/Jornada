@@ -11,7 +11,7 @@
     "reviewedAtUtc": null,
     "reviewReference": null
   },
-  "policy": "Fixture sintética sem PII. Esperados literais derivam de odds racionais, logaritmos naturais explicitados na documentação e arredondamento decimal de oito casas. Não reproduzir a partir de FellegiSunterScoring nem atualizar snapshots a partir do resultado operacional. Revisão humana obrigatória antes de declarar concluída.",
+  "policy": "Fixture sintética sem PII. Esperados literais derivam de odds racionais, logaritmos naturais explicitados na documentação e arredondamento decimal de oito casas. Não reproduzir a partir de FellegiSunterScoring nem atualizar snapshots a partir do resultado operacional. Revisão humana obrigatória antes de declarar concluída. Guard-input: casos G01–G05 usam entradas brutas sintéticas e fixam colisão esperada sem copiar o booleano do runtime.",
   "scoringVectors": [
     {
       "id": "N01_THRESHOLD_EQUAL",
@@ -382,7 +382,7 @@
       "left": "ABC",
       "right": "ABD",
       "expected": "MEDIUM",
-      "derivation": "Jaro=7/9; bônus Winkler prefixo 2 eleva a 37/45 aproximadamente 0,8222"
+      "derivation": "Jaro=(2/3+2/3+1)/3=7/9; bônus Winkler de prefixo 2 resulta 37/45≈0,82222222 (MEDIUM)."
     },
     {
       "id": "C06_LOW_V1",
@@ -398,7 +398,7 @@
       "left": "AAAAABBBBB",
       "right": "AAAAACCCCC",
       "expected": "LOW",
-      "derivation": "Jaro=2/3 (<0,7), suprime bônus Winkler; V1 seria aproximadamente 0,8"
+      "derivation": "Jaro=(5/10+5/10+1)/3=2/3<=0,7; V3 mantém 2/3 (LOW), enquanto V1 acrescenta 4*0,1*(1/3)=0,8."
     },
     {
       "id": "C08_PARTICLES_V2",
@@ -661,13 +661,13 @@
         {
           "id": "22222222-2222-4222-8222-222222222222",
           "name": "EXACT",
-          "mother": "HIGH",
+          "mother": "EXACT",
           "birthLeft": "1980-05-06",
           "birthRight": "1980-05-06",
           "collisionRisk": false,
-          "expectedTotalLlr": 3.4657359027997265,
-          "expectedLogOdds": 2.07944154,
-          "expectedPosterior": 0.88888889
+          "expectedTotalLlr": 4.1588830833596715,
+          "expectedLogOdds": 2.77258872,
+          "expectedPosterior": 0.94117647
         }
       ],
       "expected": {
@@ -677,7 +677,7 @@
         "resolvedId": null,
         "reason": "NUCLEO_DEMOGRAFICO_EXATO_NAO_UNICO"
       },
-      "derivation": "Melhor=16/17 >0,9, guarda demográfica precede conflito dual"
+      "derivation": "Ambos=16/17 > 0,9; guarda demográfica no primeiro candidato prevalece sobre o dual-threshold que também geraria CONFLITO."
     },
     {
       "id": "P06_THRESHOLD_PRECEDENCE",
@@ -709,6 +709,98 @@
         "reason": "ABAIXO_T_LINKAGE"
       },
       "derivation": "16/17 <0,95; threshold precede guarda demográfica"
+    }
+  ],
+  "guardVectors": [
+    {
+      "id": "G01_NORMALIZED_EXACT",
+      "algorithm": "V6",
+      "observation": {
+        "name": " José  da   Silva ",
+        "birth": "1980-05-06",
+        "mother": "MARIA SILVA"
+      },
+      "candidate": {
+        "name": "JOSE DA SILVA",
+        "birth": "1980-05-06",
+        "mother": "MARIA SILVA"
+      },
+      "expectedName": "EXACT",
+      "expectedBirth": "EXACT",
+      "expectedCollisionRisk": true,
+      "derivation": "Normalização remove diacríticos e colapsa espaços; nomes idênticos e nascimento idêntico ativam o guard-input."
+    },
+    {
+      "id": "G02_DIFFERENT_NAME",
+      "algorithm": "V6",
+      "observation": {
+        "name": "ANA",
+        "birth": "1980-05-06",
+        "mother": "MARIA SILVA"
+      },
+      "candidate": {
+        "name": "BIA",
+        "birth": "1980-05-06",
+        "mother": "MARIA SILVA"
+      },
+      "expectedName": "LOW",
+      "expectedBirth": "EXACT",
+      "expectedCollisionRisk": false,
+      "derivation": "Nomes sem correspondência exata; data idêntica isoladamente não gera colisão demográfica exata."
+    },
+    {
+      "id": "G03_DIFFERENT_BIRTH",
+      "algorithm": "V6",
+      "observation": {
+        "name": "ANA",
+        "birth": "1980-05-06",
+        "mother": "MARIA SILVA"
+      },
+      "candidate": {
+        "name": "ANA",
+        "birth": "1980-05-07",
+        "mother": "MARIA SILVA"
+      },
+      "expectedName": "EXACT",
+      "expectedBirth": "ONE_DIGIT_ERROR",
+      "expectedCollisionRisk": false,
+      "derivation": "Nome exato, mas nascimento com erro de um dígito; guarda não ativa."
+    },
+    {
+      "id": "G04_BIRTH_MISSING",
+      "algorithm": "V8",
+      "observation": {
+        "name": "ANA",
+        "birth": null,
+        "mother": null
+      },
+      "candidate": {
+        "name": "ANA",
+        "birth": "1980-05-06",
+        "mother": null
+      },
+      "expectedName": "EXACT",
+      "expectedBirth": "MISSING_NEUTRAL",
+      "expectedCollisionRisk": false,
+      "derivation": "Nascimento ausente impede colisão exata; V8 mantém evidência ausente neutra."
+    },
+    {
+      "id": "G05_OBSERVED_NAME_MISSING",
+      "algorithm": "V8",
+      "observation": {
+        "name": null,
+        "birth": "1980-05-06",
+        "mother": null
+      },
+      "candidate": {
+        "name": "ANA",
+        "birth": "1980-05-06",
+        "mother": null
+      },
+      "expectedName": "MISSING_NEUTRAL",
+      "expectedBirth": "EXACT",
+      "expectedCollisionRisk": false,
+      "derivation": "Nome ausente não pode ser EXACT; data sozinha não ativa a guarda."
     }
   ]
 }
