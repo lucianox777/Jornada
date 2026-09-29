@@ -6,6 +6,9 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// Carga, validação integral e reativação pertencem exclusivamente ao bootstrap explícito.</summary>
 public static class ActiveNameFrequencyReferenceQuery
 {
+    public static Task<bool> HasActiveAsync(IOperationalSqlAdapter operationalSql) =>
+        HasActiveAsync(operationalSql, Jornada.Contracts.IdentityComparison.NormalizationVersion);
+
     public static async Task<bool> HasActiveAsync(IOperationalSqlAdapter operationalSql, string normalizationVersion)
     {
         ArgumentNullException.ThrowIfNull(operationalSql);
