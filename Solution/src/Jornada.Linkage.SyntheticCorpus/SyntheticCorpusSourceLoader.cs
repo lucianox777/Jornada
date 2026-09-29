@@ -1,5 +1,20 @@
 namespace Jornada.Linkage.SyntheticCorpus;
 
+public sealed record SyntheticCorpusDemographicProvenance(
+    string PersonGeography,
+    string PersonSourcePath,
+    string PersonPhysicalSha256,
+    string PersonCanonicalContentSha256,
+    string MotherFirstGeography,
+    string MotherFirstSourcePath,
+    string MotherFirstPhysicalSha256,
+    string MotherFirstCanonicalContentSha256,
+    string MotherSurnameGeography,
+    string MotherSurnameSourcePath,
+    string MotherSurnamePhysicalSha256,
+    string MotherSurnameCanonicalContentSha256,
+    SyntheticDailyBirthProvenance Birth);
+
 public sealed record SyntheticCorpusNominalSource(
     SyntheticFrequencySampler FirstNames,
     SyntheticFrequencySampler Surnames,
@@ -9,7 +24,8 @@ public sealed record SyntheticCorpusNominalSource(
     string CanonicalContentSha256,
     long SourceRowCount,
     long FirstNameCount,
-    long SurnameCount);
+    long SurnameCount,
+    SyntheticCorpusDemographicProvenance? Demographic = null);
 
 
 public sealed record SyntheticCorpusDemographicNominalSource(
@@ -33,7 +49,34 @@ public sealed record SyntheticCorpusDemographicNominalSource(
     long PersonFirstNameCount,
     long PersonSurnameCount,
     long MotherFirstNameCount,
-    long MotherSurnameCount);
+    long MotherSurnameCount)
+{
+    public SyntheticCorpusNominalSource ToMaterializationSource(SyntheticDailyBirthProvenance birth)
+        => new(
+            PersonFirstNames,
+            PersonSurnames,
+            ReferenceCode,
+            PersonSourcePath,
+            PersonPhysicalSha256,
+            PersonCanonicalContentSha256,
+            PersonSourceRowCount,
+            PersonFirstNameCount,
+            PersonSurnameCount,
+            new SyntheticCorpusDemographicProvenance(
+                "MUNICIPIO_SP_3550308",
+                PersonSourcePath,
+                PersonPhysicalSha256,
+                PersonCanonicalContentSha256,
+                "BRASIL_FEMININO",
+                MotherFirstSourcePath,
+                MotherFirstPhysicalSha256,
+                MotherFirstCanonicalContentSha256,
+                "BRASIL_TODOS",
+                MotherSurnameSourcePath,
+                MotherSurnamePhysicalSha256,
+                MotherSurnameCanonicalContentSha256,
+                birth));
+}
 
 public static class SyntheticCorpusSourceLoader
 {
