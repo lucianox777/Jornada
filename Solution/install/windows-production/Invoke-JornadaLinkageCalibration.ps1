@@ -54,15 +54,9 @@ function Invoke-Parameters([string]$Operation, [Nullable[int]]$TargetVersion = $
     if ($LASTEXITCODE -ne 0) { throw "Linkage Parameters falhou em $Operation. ExitCode=$LASTEXITCODE" }
 }
 
-# A referência IBGE é bootstrap do ambiente. ENSURE retorna imediatamente quando o
-# snapshot canônico já está materializado e só executa a carga completa em banco novo.
-# Isso evita reler milhões de linhas a cada recalibração, mantendo fallback fail-closed.
-Invoke-Parameters 'ENSURE_NAME_FREQUENCY_SNAPSHOT'
-$activeReference = [int](Invoke-Scalar "SELECT COUNT(*) FROM ref.frequencia_nome_versao WHERE status='ATIVA' AND conteudo_sha256 IS NOT NULL;")
-if ($activeReference -ne 1) { throw "Calibração exige exatamente uma referência de frequências ATIVA; encontradas=$activeReference." }
-# Cache nominal em ref: no primeiro preparo materializa o Monte Carlo versionado;
-# nas proximas calibracoes apenas verifica a chave e reutiliza os estados.
-Invoke-Parameters 'ENSURE_IBGE_NOMINAL_U_REFERENCE'
+# O bootstrap IBGE é uma etapa única de preparação do ambiente. A geração abaixo
+# valida os derivados imutáveis já persistidos e falha fechado se o primeiro bootstrap
+# não existir; este wrapper não carrega, reativa nem recalcula a referência IBGE.
 
 # DT-15: a geração não autoriza promoção. Congelar a identidade do ATIVO-base
 # para avisar ao operador quando outra calibração/promocao alterar a base.

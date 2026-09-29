@@ -145,18 +145,21 @@ jobs:
           actual_fingerprint=$(sha256sum .local/schema/fingerprints/JornadaSchema370.txt | awk '{print $1}')
           test "$actual_fingerprint" = "$declared_fingerprint"
 
+          # O baseline deve sobreviver ao squash como ancestral, mas o candidato
+          # pós-RC pode acrescentar migrations. Os hashes declarados vinculam o HEAD
+          # corrente; a tag RC histórica continua usando technical-rc-gate.py no
+          # próprio checkout imutável da tag.
           git cat-file -e "${source_commit}^{commit}"
           git merge-base --is-ancestor "$source_commit" HEAD
-          git show "${source_commit}:Solution/database/migrations/manifest.txt" > /tmp/jornada-source-manifest.txt
-          source_manifest=$(python3 - <<'PY'
+          current_manifest=$(python3 - <<'PY'
           from pathlib import Path
           import hashlib
-          text = Path("/tmp/jornada-source-manifest.txt").read_bytes().decode("utf-8-sig")
+          text = Path("database/migrations/manifest.txt").read_bytes().decode("utf-8-sig")
           text = text.replace("\r\n", "\n").replace("\r", "\n")
           print(hashlib.sha256(text.encode("utf-8")).hexdigest())
           PY
           )
-          test "$source_manifest" = "$declared_manifest"
+          test "$current_manifest" = "$declared_manifest"
 
 
       - name: Prove incomplete schema is not promoted
