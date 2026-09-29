@@ -48,6 +48,7 @@ class T(unittest.TestCase):
   g.extend_post_census(a,365,g.date(2022,8,3)); g.extend_post_census(b,365,g.date(2022,8,3))
   self.assertEqual(a,b); self.assertEqual(sum(a.values()),3)
   with self.assertRaisesRegex(ValueError,'cutoff'): g.extend_post_census(defaultdict(int),365,g.date(2022,7,31))
+  with self.assertRaisesRegex(ValueError,'futuro'): g.extend_post_census(defaultdict(int),365,g.date(2026,9,30),today=g.date(2026,9,29))
  def test_apportion_conserves(self):
   self.assertEqual(g.apportion(3,2),[2,1]); self.assertEqual(sum(g.apportion(7,6)),7)
 if __name__=='__main__': unittest.main()
