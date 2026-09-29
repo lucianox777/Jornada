@@ -283,9 +283,14 @@ public sealed class NameFrequencyReferenceSqlServerTests
         var db = csb.InitialCatalog ?? string.Empty;
         // Este fixture publica/desativa versões da referência IBGE. Nunca usar
         // JornadaLocal, JornadaSyntheticDev nem outros bancos compartilhados.
+        var integrationPrefix = "JornadaIntegration_Test_";
+        var isIsolatedIntegrationDatabase =
+            db.StartsWith(integrationPrefix, StringComparison.OrdinalIgnoreCase) &&
+            Guid.TryParseExact(db[integrationPrefix.Length..], "N", out _);
         if (!db.Equals("JornadaTest", StringComparison.OrdinalIgnoreCase) &&
-            !db.StartsWith("JornadaTest_", StringComparison.OrdinalIgnoreCase))
-            Assert.Fail("Este fixture exige banco descartável JornadaTest (ou JornadaTest_*); JornadaLocal não é permitido.");
+            !db.StartsWith("JornadaTest_", StringComparison.OrdinalIgnoreCase) &&
+            !isIsolatedIntegrationDatabase)
+            Assert.Fail("Este fixture exige JornadaTest, JornadaTest_* ou JornadaIntegration_Test_<GUID> descartável; JornadaLocal não é permitido.");
         return connectionString!;
     }
 }
