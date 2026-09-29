@@ -20,7 +20,7 @@ public static class PersistedIbgeBootstrapReferenceQuery
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        if (pairCount <= 0) throw new ArgumentOutOfRangeException(nameof(pairCount));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pairCount);
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
