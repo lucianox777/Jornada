@@ -73,8 +73,10 @@ def census_daily(groups):
     if age_zero_weight is None: raise ValueError('SIDRA: peso da idade zero ausente')
     return d,total,age_zero_weight
 
-def extend_post_census(daily,age_zero_weight:int,cutoff:date):
+def extend_post_census(daily,age_zero_weight:int,cutoff:date, today:date|None=None):
     if cutoff < CENSUS_DATE: raise ValueError('cutoff não pode preceder 2022-08-01')
+    current_date=today or date.today()
+    if cutoff > current_date: raise ValueError(f'cutoff não pode estar no futuro: {cutoff.isoformat()} > {current_date.isoformat()}')
     # Declared approximation: repeat the age-zero average daily rate. Integer
     # largest-remainder allocation is deterministic and conserves the implied
     # total over the extrapolated interval.
