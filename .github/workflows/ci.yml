@@ -32,7 +32,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DOTNET_SDK_VERSION: '8.0.424'
+  DOTNET_SDK_VERSION: '10.0.100'
 
 jobs:
   dependency-lock:
@@ -47,7 +47,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
-          dotnet-version: '8.0.424'
+          dotnet-version: '10.0.100'
       - name: Generate and validate NuGet lock files on branches and PRs
         if: github.ref_type != 'tag'
         run: ./scripts/nuget-lock-bootstrap.sh
@@ -86,7 +86,7 @@ jobs:
           fetch-tags: true
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
-          dotnet-version: '8.0.424'
+          dotnet-version: '10.0.100'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -269,7 +269,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
-          dotnet-version: '8.0.424'
+          dotnet-version: '10.0.100'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -306,7 +306,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
-          dotnet-version: '8.0.424'
+          dotnet-version: '10.0.100'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -436,7 +436,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
-          dotnet-version: '8.0.424'
+          dotnet-version: '10.0.100'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -532,7 +532,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
-          dotnet-version: '8.0.424'
+          dotnet-version: '10.0.100'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -671,7 +671,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
-          dotnet-version: '8.0.424'
+          dotnet-version: '10.0.100'
       - name: Validate DDL upgrade and idempotency
         run: ./scripts/local-ddl-upgrade.sh
       - name: Upload DDL upgrade evidence
@@ -700,7 +700,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
-          dotnet-version: '8.0.424'
+          dotnet-version: '10.0.100'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -743,7 +743,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
-          dotnet-version: '8.0.424'
+          dotnet-version: '10.0.100'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -781,7 +781,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
-          dotnet-version: '8.0.424'
+          dotnet-version: '10.0.100'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
