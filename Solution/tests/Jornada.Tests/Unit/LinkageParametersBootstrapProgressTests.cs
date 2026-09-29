@@ -41,7 +41,7 @@ public sealed class LinkageParametersBootstrapProgressTests
         Assert.Multiple(() =>
         {
             Assert.That(draft, Does.Contain("GenerateDraftIbgePrecondition.RequireActiveAsync"));
-            Assert.That(draft, Does.Contain("HasActiveNameFrequencyReferenceAsync"));
+            Assert.That(draft, Does.Contain("ActiveNameFrequencyReferenceQuery.HasActiveAsync"));
             Assert.That(draft, Does.Not.Contain("EnsureCanonicalActiveAsync"));
             Assert.That(draft, Does.Not.Contain("NameFrequencySnapshotLoader"));
         });
@@ -102,16 +102,18 @@ public sealed class LinkageParametersBootstrapProgressTests
     [Test]
     public void DraftBootstrap_DoesNotAcceptActiveReferenceWithMissingMarginals()
     {
+        var query = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Solution", "src",
+            "Jornada.Linkage.Parameters.Worker", "ActiveNameFrequencyReferenceQuery.cs"));
         var program = File.ReadAllText(Path.Combine(
             FindRepositoryRoot(), "Solution", "src",
             "Jornada.Linkage.Parameters.Worker", "Program.cs"));
 
         Assert.Multiple(() =>
         {
-            Assert.That(program, Does.Contain("DATALENGTH(v.conteudo_sha256)=32"));
+            Assert.That(query, Does.Contain("DATALENGTH(v.conteudo_sha256)=32"));
             Assert.That(program, Does.Contain("n.tipo='NOME'"));
             Assert.That(program, Does.Contain("s.tipo='SOBRENOME'"));
-            Assert.That(program, Does.Contain("HasActiveNameFrequencyReferenceAsync"));
+            Assert.That(program, Does.Contain("ActiveNameFrequencyReferenceQuery.HasActiveAsync"));
         });
     }
 
