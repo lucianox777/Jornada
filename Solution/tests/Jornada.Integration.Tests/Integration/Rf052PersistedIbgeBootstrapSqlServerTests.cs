@@ -33,7 +33,7 @@ public sealed class Rf052PersistedIbgeBootstrapSqlServerTests
             }
 
             var persisted = await PersistedIbgeBootstrapReferenceQuery.RequireAsync(
-                connection, 20260917, 10_000, CancellationToken.None);
+                connection, 20260917, 10_000, CancellationToken.None, transaction);
             Assert.Multiple(() =>
             {
                 Assert.That(persisted.Id, Is.EqualTo(sourceId));
