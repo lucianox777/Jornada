@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - fix/rf-572-reference-compatibility
     tags:
       - '**'
   pull_request:
