@@ -32,6 +32,18 @@ public sealed class ProbabilisticV8NeutralMissingContractTests
     }
 
     [Test]
+    public void V8_rejects_fixed_demographic_exact_guard()
+    {
+        var p = Parameters();
+        p[LinkageParameterCatalog.NonUniqueDemographicExactGuard] = 1m;
+        Assert.That(
+            () => LinkageModelPolicy.Create(ModelId, 8,
+                LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion, p),
+            Throws.InvalidOperationException.With.Message.Contains(
+                "V8 não admite SCORING_NON_UNIQUE_DEMOGRAPHIC_EXACT_GUARD_V1"));
+    }
+
+    [Test]
     public void V8_valid_model_scores_missing_mother_without_evidence()
     {
         var p = Parameters();
