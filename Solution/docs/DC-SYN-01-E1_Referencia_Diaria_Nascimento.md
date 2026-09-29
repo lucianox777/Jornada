@@ -33,6 +33,14 @@ Datas SINASC válidas em ou após 01/08/2022 substituem o valor censitário deri
 
 O artefato materializado registra schema, fonte/período, geografia, linhas positivas e únicas, SHA-256 próprio e das entradas, método de conversão e tratamento de 100+, sem dependência de rede em runtime. O fingerprint do corpus já incorpora a proveniência da referência diária; mudar o snapshot muda a identidade reprodutível do corpus.
 
+## Tamanho do corpus demográfico primário
+
+O tamanho padrão é **9.596 pessoas**. A escolha usa o dimensionamento conservador de amostra para proporção, com **95% de confiança**, `p=0,5` e **margem de erro máxima de aproximadamente ±1 ponto percentual**; para a população municipal de São Paulo, a correção por população finita é pequena nessa ordem de grandeza.
+
+Esse cálculo justifica o tamanho do **corpus demográfico primário**, não a precisão de métricas em eventos raros nem a validação do linkage. Homônimos extremos, centenários, colisões maternas e demais eventos raros permanecem em challenge sets/estratos separados e não são artificialmente super-representados nos 9.596.
+
+A seed padrão permanece 42 e participa do fingerprint, permitindo regeneração e comparação pareada. `--people` continua disponível para ensaios explícitos de sensibilidade/escala; alterar o tamanho não redefine silenciosamente o padrão.
+
 ## Gates
 
 Antes de tornar o snapshot padrão do perfil `demographic-primary`: materializar de exports oficiais congelados; validar hashes/totais; executar testes da ferramenta; carregar por `SyntheticDailyBirthDistribution.LoadAsync`; provar unicidade, positividade e determinismo; executar a suíte unitária; manter a issue #31 como gate separado para validação estatística real.
