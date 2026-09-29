@@ -24,6 +24,15 @@ internal static class Program
                 return 0;
             }
 
+            if (options.VerifyGolden)
+            {
+                var report = GoldenReferenceVectorVerifier.Verify(
+                    options.GoldenVectorsPath!, options.ToleranceConfigPath!);
+                Console.WriteLine(JsonSerializer.Serialize(report, SummaryJson));
+                return options.RequireHumanReview && report.HumanReview != "REVIEWED"
+                    ? 3 : 0;
+            }
+
             var config = ImplementationConferenceToleranceConfiguration.Load(
                 options.ToleranceConfigPath!);
             var tolerance = config.ToContract();
@@ -75,6 +84,11 @@ internal static class Program
             Console.Error.WriteLine(ex.Code);
             return 4;
         }
+        catch (InvalidDataException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 4;
+        }
     }
 }
 
@@ -84,7 +98,10 @@ internal sealed record ConferenceOptions(
     string? ToleranceConfigPath,
     string? SourceRevision,
     int CommandTimeoutSeconds,
-    bool Help)
+    bool Help,
+    bool VerifyGolden,
+    bool RequireHumanReview,
+    string? GoldenVectorsPath)
 {
     internal static ConferenceOptions Parse(string[] args)
     {
@@ -93,7 +110,7 @@ internal sealed record ConferenceOptions(
         {
             var raw = args[i];
             if (raw is "--help" or "-h")
-                return new(null, null, null, null, 0, true);
+                return new(null, null, null, null, 0, true, false, false, null);
             if (!raw.StartsWith("--", StringComparison.Ordinal))
                 continue;
 
@@ -111,9 +128,19 @@ internal sealed record ConferenceOptions(
         string? Get(string name) =>
             values.TryGetValue(name, out var value) ? value : null;
 
+        var verifyGolden = values.ContainsKey("verify-golden");
+        var requireHumanReview = values.ContainsKey("require-human-review");
+        if (requireHumanReview && !verifyGolden)
+            throw new ArgumentException(
+                "--require-human-review exige --verify-golden.");
         var modelRaw = Get("model-id");
-        if (!Guid.TryParse(modelRaw, out var modelId) || modelId == Guid.Empty)
-            throw new ArgumentException("--model-id é obrigatório e deve ser UUID válido.");
+        Guid? modelId = null;
+        if (!verifyGolden)
+        {
+            if (!Guid.TryParse(modelRaw, out var parsed) || parsed == Guid.Empty)
+                throw new ArgumentException("--model-id é obrigatório e deve ser UUID válido.");
+            modelId = parsed;
+        }
 
         var timeout = 900;
         var timeoutRaw = Get("command-timeout-seconds");
@@ -138,15 +165,25 @@ internal sealed record ConferenceOptions(
                     "implementation-conference-tolerance.json"),
             Get("source-revision"),
             timeout,
-            false);
+            false,
+            verifyGolden,
+            requireHumanReview,
+            Get("golden-vectors") ?? Path.Combine(
+                "src", "Jornada.Linkage.Conference", "vectors",
+                "golden-reference-v1.json"));
     }
 
     internal const string Usage =
         """
         Jornada.Linkage.Conference — conferência governada da implementação
 
-        Obrigatório:
-          --model-id <uuid>                   modelo RASCUNHO a conferir
+        Modo governado:
+          --model-id <uuid>                   modelo RASCUNHO a conferir; SQL obrigatório
+
+        Modo offline independente, sem SQL/PII:
+          --verify-golden                     confere os oráculos literais versionados
+          --golden-vectors <arquivo.json>     padrão src/Jornada.Linkage.Conference/vectors/golden-reference-v1.json
+          --require-human-review              exige metadados de revisão assinados no manifesto
 
         Opções:
           --connection-string <sql>           ou ConnectionStrings__Jornada
@@ -154,7 +191,9 @@ internal sealed record ConferenceOptions(
           --source-revision <sha>             opcional; proveniência técnica
           --command-timeout-seconds <1..3600> padrão 900
 
-        O comando recusa execução governada enquanto a tolerância estiver UNFROZEN.
+        Os dois modos recusam execução se a tolerância não estiver FROZEN.
+        --verify-golden mede apenas os vetores técnicos; PENDING_HUMAN_REVIEW
+        não é aceite. Não persiste CONFORME em banco nem promove modelos.
         Não lê PII para compor o corpus: usa somente modelo/parâmetros e vetores sintéticos
         determinísticos de estados. Persiste somente evidência agregada append-only.
         Validação estatística representativa permanece separada na issue #31.
