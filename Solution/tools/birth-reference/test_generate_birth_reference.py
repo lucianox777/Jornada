@@ -21,11 +21,11 @@ class T(unittest.TestCase):
    no_geo=d/'no_geo.csv'
    with no_geo.open('w',encoding='utf-8',newline='') as f:
     w=csv.writer(f); w.writerow(['DTNASC']); w.writerow(['01082022'])
-   with self.assertRaisesRegex(ValueError,'geografia de residência ausente'): g.read_sinasc([{'path':no_geo,'publicationStatus':'FINAL','snapshotDate':'2026-09-29','periodStart':'2022-08-01','periodEnd':'2022-12-31'}])
+   with self.assertRaisesRegex(ValueError,'geografia de residência ausente'): g.read_sinasc([{'path':no_geo,'publicationStatus':'FINAL','snapshotDate':'2026-09-29','periodStart':'2022-08-01','periodEnd':'2022-12-31'}],g.date(2022,12,31))
    other=d/'other.csv'
    with other.open('w',encoding='utf-8',newline='') as f:
-    w=csv.writer(f); w.writerow(['DTNASC','CODMUNRES']); w.writerow(['01082022','3550308']); w.writerow(['02082022','3509502'],g.date(2022,12,31))
-   with self.assertRaisesRegex(ValueError,'fora da residência 3550308'): g.read_sinasc([{'path':other,'publicationStatus':'FINAL','snapshotDate':'2026-09-29','periodStart':'2022-08-01','periodEnd':'2022-12-31'}])
+    w=csv.writer(f); w.writerow(['DTNASC','CODMUNRES']); w.writerow(['01082022','3550308']); w.writerow(['02082022','3509502'])
+   with self.assertRaisesRegex(ValueError,'fora da residência 3550308'): g.read_sinasc([{'path':other,'publicationStatus':'FINAL','snapshotDate':'2026-09-29','periodStart':'2022-08-01','periodEnd':'2022-12-31'}],g.date(2022,12,31))
  def test_sidra_rejects_missing_interior_age(self):
   with tempfile.TemporaryDirectory() as td:
    p=Path(td)/'sidra.csv'
@@ -52,7 +52,7 @@ class T(unittest.TestCase):
      w=csv.writer(f); w.writerow(['DTNASC','CODMUNRES']); w.writerow([dt,'355030'])
    s1={'path':a,'publicationStatus':'FINAL','snapshotDate':'2026-09-29','periodStart':'2022-08-01','periodEnd':'2022-12-31'}
    s2={'path':b,'publicationStatus':'PRELIMINARY','snapshotDate':'2026-09-29','periodStart':'2022-09-01','periodEnd':'2023-01-31'}
-   with self.assertRaisesRegex(ValueError,'períodos sobrepostos'): g.read_sinasc([s1,s2],g.date(2023,1,31))
+   with self.assertRaisesRegex(ValueError,'lacuna ou sobreposição'): g.read_sinasc([s1,s2],g.date(2023,1,31))
    with self.assertRaises(Exception): g.parse_snapshot_arg(f'{a}|FINAL|2022-07-01|2022-08-01|2022-12-31')
    with self.assertRaises(Exception): g.parse_snapshot_arg(f'{a}|FINAL|2999-01-01|2022-08-01|2022-12-31')
  def test_sinasc_rejects_late_start_gap_and_wrong_cutoff(self):
