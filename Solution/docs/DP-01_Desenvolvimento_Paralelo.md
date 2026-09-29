@@ -30,3 +30,10 @@ Cada PR informa: (1) módulos/arquivos alterados; (2) contratos públicos, esque
 ## Critério de independência
 
 Duas PRs podem seguir em paralelo quando suas alterações não se sobrepõem e seus contratos consumidos permanecem estáveis. Arquivos distintos não garantem independência se ambos mudarem o mesmo esquema, protocolo, algoritmo, formato persistido ou pipeline de publicação. A ausência de conflito Git não substitui teste de integração.
+
+## Decisões de integração de 29/09/2026 — issue #614
+
+- **IBGE, somente bootstrap inicial:** carregar uma vez conforme as regras vigentes na primeira inicialização; persistir parâmetros e metadados auditáveis. A partir daí, calibrar exclusivamente com as ingestões governadas. RF-052 verifica integridade e compatibilidade da primeira carga; não deve exigir referência IBGE ativa, recarga ou consulta nominal para cada GENERATE_DRAFT posterior. A regressão precisa separar inicialização sem bootstrap de operação posterior ao bootstrap.
+- **Contratos:** preservar os contratos sintéticos atuais durante desenvolvimento e CI; usar contratos reais no Ensaio somente após prontidão técnica. Preparar scripts e checklist DEV, mas não condicionar merge ao ambiente DEV privado, nem executar limpeza no JornadaLocal.
+- **Propriedade por superfície:** a frente integradora é proprietária exclusiva de CI, manifest/migrations compartilhados, versões centrais de pacotes e contratos transversais; reconcilia as mudanças compartilhadas da #602 com #607. #602 cuida da RF-052 e worker, #611 dos testes de processo real após #602, #607 da migração .NET 10 e #610 da documentação IBGE. A #609 mantém a matriz do Plano; alterações de arquivo compartilhado só pela frente integradora ou após transferência explícita.
+- **Integração:** habilitar merge automático apenas para PR não draft, sem conflitos, com todas as verificações obrigatórias no HEAD exato, revisões e segurança satisfeitas. Revalidar dependentes após cada merge; não contornar falhas nem considerar checks de commits anteriores. DT-10 fica por último. A issue #614 é o registro de coordenação.
