@@ -75,9 +75,11 @@ Fonte primária: Secretaria Municipal da Saúde de São Paulo / Coordenação de
 
 A própria SMS documenta que, desde 2007, a seleção de residentes recupera nascimentos de mães residentes em São Paulo independentemente do município de ocorrência, inclusive por retroalimentação. A SMS também declara que dados preliminares são um retrato na data de publicação e podem mudar por novos registros e procedimentos de qualidade até a edição final. Por isso, **cada snapshot SINASC usado deve ser congelado, datado e hasheado**; preliminar e final são proveniências distintas.
 
-A ferramenta **falha fechado na geografia SINASC**: cada arquivo precisa expor campo de município de residência e todo registro contado deve declarar o código IBGE `3550308`. Arquivo sem esse campo ou contendo registro de outro município é rejeitado; não existe fallback para município de ocorrência nem presunção baseada no nome do arquivo. Esse gate é coberto por teste positivo, ausência de geografia e presença de registro não residente.
+A ferramenta **falha fechado na geografia SINASC**: cada arquivo precisa expor campo de município de residência e todo registro contado deve declarar São Paulo como `355030` (representação SINASC/DATASUS sem dígito verificador) ou `3550308` (código territorial IBGE completo). Essas duas formas são normalizadas para a mesma geografia; arquivo sem esse campo ou contendo registro de outro município é rejeitado; não existe fallback para município de ocorrência nem presunção baseada no nome do arquivo. Esse gate é coberto por teste positivo, ausência de geografia e presença de registro não residente.
 
-A entrada SIDRA também falha fechado se, depois da precedência de idade simples e do fallback por faixa, houver lacuna entre 0 e 99 anos ou faltar a categoria aberta 100+.
+A entrada SIDRA também falha fechado se, depois da precedência de idade simples e do fallback por faixa, houver lacuna entre 0 e 99 anos, sobreposição, faltar a categoria aberta 100+ ou a soma etária divergir da linha `Total`.
+
+Datas SINASC inválidas são erro fatal. Passar duas vezes conteúdo com o mesmo SHA-256 também é erro fatal. Toda execução com SINASC exige declarar `FINAL` ou `PRELIMINARY` e a data ISO do snapshot; esses metadados e o hash de cada arquivo são persistidos no manifesto. Isso impede que preliminar/final ou duas cópias idênticas sejam combinadas silenciosamente.
 
 O SINASC é usado somente para o trecho pós-corte censitário disponível no snapshot. Para uma data em ou após 01/08/2022 presente no SINASC selecionado, a contagem observada substitui o valor derivado da coorte censitária para aquele dia. Não há soma das duas fontes.
 
@@ -91,7 +93,7 @@ Nenhuma dessas aproximações deve ser apresentada como estatística publicada p
 
 ## Gates
 
-Antes de tornar o snapshot padrão do perfil `demographic-primary`: materializar de exports oficiais congelados; validar hashes/totais; confirmar fail-closed que todo SINASC contado é residência 3550308; confirmar cobertura etária 0..99 + 100+; executar testes da ferramenta; carregar por `SyntheticDailyBirthDistribution.LoadAsync`; provar unicidade, positividade e determinismo; executar a suíte unitária; manter a issue #31 como gate separado para validação estatística real.
+Antes de tornar o snapshot padrão do perfil `demographic-primary`: materializar de exports oficiais congelados; validar hashes/totais; confirmar fail-closed que todo SINASC contado é residência de São Paulo (`355030`/`3550308`); rejeitar datas inválidas e snapshot duplicado; registrar estado/data/hash do snapshot; reconciliar soma etária com `Total`; confirmar cobertura etária 0..99 + 100+; executar testes da ferramenta; carregar por `SyntheticDailyBirthDistribution.LoadAsync`; provar unicidade, positividade e determinismo; executar a suíte unitária; manter a issue #31 como gate separado para validação estatística real.
 
 ## Fora de escopo
 
