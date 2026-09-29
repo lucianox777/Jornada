@@ -26,10 +26,15 @@ public sealed class NominalTermFrequencySnapshot
     {
         this.personFirst = personFirst;
         this.motherFirst = motherFirst;
+        MinimumPublishedFrequency = personFirst.Values
+            .Concat(motherFirst.Values)
+            .DefaultIfEmpty(1m)
+            .Min();
     }
 
     public int PersonFirstNameCount => personFirst.Count;
     public int MotherFirstNameCount => motherFirst.Count;
+    public decimal MinimumPublishedFrequency { get; }
 
     public static NominalTermFrequencySnapshot Create(IEnumerable<NominalTermFrequencyEntry> entries)
     {
