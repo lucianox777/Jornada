@@ -99,7 +99,7 @@ def parse_snapshot_arg(value:str):
         raise argparse.ArgumentTypeError('snapshotDate SINASC não pode estar no futuro')
     return {'path':Path(path),'publicationStatus':status,'snapshotDate':snapshot_date.isoformat(),'periodStart':period_start.isoformat(),'periodEnd':period_end.isoformat()}
 
-def read_sinasc(snapshots):
+def read_sinasc(snapshots, expected_end=None):
     """Read SINASC rows and fail closed unless residence is explicitly MSP.
 
     Raw/open-data files are accepted only when a residence-municipality field
@@ -109,6 +109,21 @@ def read_sinasc(snapshots):
     d=defaultdict(int)
     seen_hashes=set()
     source_meta=[]
+    periods=[]
+    if snapshots and expected_end is None:
+        raise ValueError('SINASC: data de corte obrigatória')
+    if snapshots:
+        ordered=sorted(snapshots,key=lambda s:s['periodStart'])
+        if date.fromisoformat(ordered[0]['periodStart']) != CENSUS_DATE:
+            raise ValueError('SINASC: cobertura deve iniciar em 2022-08-01')
+        cursor=CENSUS_DATE
+        for s in ordered:
+            start=date.fromisoformat(s['periodStart']); end=date.fromisoformat(s['periodEnd'])
+            if start != cursor:
+                raise ValueError(f'SINASC: lacuna ou sobreposição; esperado início {cursor.isoformat()}, recebido {start.isoformat()}')
+            cursor=end+timedelta(days=1)
+        if cursor-timedelta(days=1) != expected_end:
+            raise ValueError(f'SINASC: cobertura termina em {(cursor-timedelta(days=1)).isoformat()}, corte declarado {expected_end.isoformat()}')
     periods=[]
     for snapshot in snapshots:
         start=date.fromisoformat(snapshot['periodStart']); end=date.fromisoformat(snapshot['periodEnd'])
@@ -159,17 +174,20 @@ def main(argv=None):
     p=argparse.ArgumentParser()
     p.add_argument('--sidra-9514',type=Path,required=True)
     p.add_argument('--sinasc',type=parse_snapshot_arg,action='append',default=[],metavar='PATH|STATUS|SNAPSHOT_DATE|PERIOD_START|PERIOD_END')
+    p.add_argument('--sinasc-cutoff',type=date.fromisoformat,help='fim inclusivo da cobertura SINASC (YYYY-MM-DD)')
     p.add_argument('--out',type=Path,required=True); p.add_argument('--manifest',type=Path,required=True)
     a=p.parse_args(argv)
     groups=read_sidra(a.sidra_9514)
     if not groups or groups[0][0]!=0 or not any(g[0]==100 for g in groups): raise SystemExit('SIDRA sem cobertura 0 e 100+ esperada')
     daily,census_total=census_daily(groups)
-    post,sinasc_meta=read_sinasc(a.sinasc)
+    if a.sinasc and a.sinasc_cutoff is None:
+        raise SystemExit('--sinasc exige --sinasc-cutoff')
+    post,sinasc_meta=read_sinasc(a.sinasc,a.sinasc_cutoff)
     for k,v in post.items(): daily[k]=v
     rows=[{'date':k.isoformat(),'births':v} for k,v in sorted(daily.items()) if v>0]
     obj={'schema_version':SCHEMA,'source':'IBGE_CENSO_2022_SIDRA_9514_PLUS_SINASC_SP','reference_period':'CENSO_2022_PLUS_SINASC_SNAPSHOT','geography':'MUNICIPIO_SAO_PAULO_3550308','rows':rows}
     a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(obj,ensure_ascii=False,separators=(',',':'))+'\n',encoding='utf-8')
-    manifest={'schemaVersion':1,'referenceCode':'SYNTH_BIRTH_SP_CENSO2022_SINASC_V1','output':{'path':a.out.name,'schemaVersion':SCHEMA,'sha256':sha(a.out),'rowCount':len(rows)},'sources':[{'kind':'IBGE_SIDRA_9514','path':str(a.sidra_9514),'sha256':sha(a.sidra_9514),'municipality':'3550308','referenceDate':'2022-08-01','populationWeight':census_total}]+[{'kind':'SINASC_SP','path':str(x['path']),'sha256':x['sha256'],'publicationStatus':x['publicationStatus'],'snapshotDate':x['snapshotDate'],'periodStart':x['periodStart'],'periodEnd':x['periodEnd'],'residenceMunicipality':'3550308','acceptedResidenceCodes':['355030','3550308']} for x in sinasc_meta],'model':{'censusAgeWindow':'idade k em 31/07/2022 => 01/08/(2021-k)..31/07/(2022-k)','withinWindow':'UNIFORM_DAY_LARGEST_REMAINDER','groupedAge':'UNIFORM_AGE_LARGEST_REMAINDER','centenarianTail':'100+ represented uniformly over ages 100..122; upper bound is a declared modelling cap, not an IBGE age distribution','postCensus':'observed SINASC date replaces census-derived value on/after 2022-08-01'},'runtimeNetworkDependency':False}
+    manifest={'schemaVersion':1,'referenceCode':'SYNTH_BIRTH_SP_CENSO2022_SINASC_V1','output':{'path':a.out.name,'schemaVersion':SCHEMA,'sha256':sha(a.out),'rowCount':len(rows)},'sources':[{'kind':'IBGE_SIDRA_9514','path':str(a.sidra_9514),'sha256':sha(a.sidra_9514),'municipality':'3550308','referenceDate':'2022-08-01','populationWeight':census_total}]+[{'kind':'SINASC_SP','path':str(x['path']),'sha256':x['sha256'],'publicationStatus':x['publicationStatus'],'snapshotDate':x['snapshotDate'],'periodStart':x['periodStart'],'periodEnd':x['periodEnd'],'residenceMunicipality':'3550308','acceptedResidenceCodes':['355030','3550308']} for x in sinasc_meta],'model':{'censusAgeWindow':'idade k em 31/07/2022 => 01/08/(2021-k)..31/07/(2022-k)','withinWindow':'UNIFORM_DAY_LARGEST_REMAINDER','groupedAge':'UNIFORM_AGE_LARGEST_REMAINDER','centenarianTail':'100+ represented uniformly over ages 100..122; upper bound is a declared modelling cap, not an IBGE age distribution','postCensus':'observed SINASC date replaces census-derived value on/after 2022-08-01','sinascCoverage':{'start':'2022-08-01','end':a.sinasc_cutoff.isoformat() if a.sinasc_cutoff else None,'policy':'CONTIGUOUS_FAIL_CLOSED'}},'runtimeNetworkDependency':False}
     a.manifest.parent.mkdir(parents=True,exist_ok=True); a.manifest.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     return 0
 if __name__=='__main__': raise SystemExit(main())
