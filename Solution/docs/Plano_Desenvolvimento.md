@@ -8,6 +8,8 @@
 
 **Instrumentação do item 1 — duas etapas experimentais:** o [diagnóstico D/C/D∪C](Linkage_Blocking_Parallel_Diagnostic.md) já calcula sobreposição e verdadeiros exclusivos no Avaliador sintético, com denominador comum e ledger agregado. A auditoria operacional somente leitura agora aceita a **opção explícita** `--blocking-pass-audit-compare-combined=true`: consulta índices reais para D, C e união na mesma amostra rotulada, mede contagens/sobreposição em uma instrução SQL e latências isoladas/consulta tagged. **Não** promove C, não altera FS, não comprova custo/recall representativo de SP ou SLA da união publicada. Seguir Trilha 4 em paralelo; usar os resultados como insumo para o Ensaio e não como autorização de produção.
 
+**Prioridade estatística revisada em 29/09/2026:** antes do Ensaio, a frente crítica é fechar a V8 como unidade coerente: **TF nominal obrigatório + retirada do guard demográfico fixo + orçamento de falso vínculo + DT-14 + nova calibração TRAIN/VALIDATION/TEST**. Não mesclar retirada isolada do guard. Em paralelo, corrigir o gerador demográfico primário (pessoa São Paulo 3550308, mãe Brasil/FEMININO + sobrenome Brasil/TODOS e nascimento por distribuição diária versionada), concluir RF-052/bootstrap persistido e retirar V6/V7 em change-set próprio após inventário/replay seguro. A proposta inicial de blocking por marginais é útil, mas não precede essas correções de risco nem bloqueia o Ensaio sozinha.
+
 **Status:** plano, não relatório de conclusão. Validar a situação de cada frente no código, PRs e Actions antes de afirmar que foi entregue.
 
 ### Três alterações estruturais abertas — controle explícito de execução (29/09/2026)

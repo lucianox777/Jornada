@@ -87,7 +87,11 @@ O catálogo também registra algoritmos que combinam saída de comparador com es
 |---|---|---|
 | `SPLINK_TERM_FREQUENCY_V1` | matemática de ajuste por term frequency reutilizável dentro do Fellegi–Sunter; em fuzzy usa a maior frequência dos lados, aceita peso e piso de u | `Jornada.Contracts/SplinkCompatibleTermFrequency.cs` |
 
-`SPLINK_TERM_FREQUENCY_V1` permanece como capacidade matemática, não como estágio de decisão. Ele não está habilitado automaticamente no scorer operacional. O modo `--export-calibration` de `Jornada.Linkage.Evaluation` usa essa implementação apenas para emitir vetores sintéticos de conformidade e exportar parâmetros/proveniência para auditoria externa; isso elimina código sem chamador sem transformar TF em evidência operacional. Qualquer adoção futura precisa ser calibrada no universo candidato do blocking, com peso/piso versionados e sem contornar guards de conflito ou não-unicidade.
+`SPLINK_TERM_FREQUENCY_V1` continua sendo matemática interna do Fellegi–Sunter, **não** um estágio DF. Pela decisão canônica de 29/09, ele deve ficar habilitado por padrão em novos modelos V8, com peso/piso, referência geográfica, cobertura e fingerprint persistidos/calibrados. O HEAD ainda não cumpre essa decisão: o exportador continua sendo somente leitura e o scorer operacional ainda não aplica TF. A adoção executável deve entrar junto da retirada do guard demográfico fixo e do orçamento de falso vínculo, não como remendo posterior.
+
+### Retirados
+
+`NOMINAL_DF_SPLINK_COMPATIBLE_V1` — **RETIRADO / NÃO DISPONÍVEL NO RUNTIME**. Não é alternativa ao TF da V8 e não deve ser reintroduzido.
 
 O antigo resolvedor experimental `NOMINAL_DF_SPLINK_COMPATIBLE_V1` e o runner Python foram retirados antes de HML porque nunca integraram o runtime e criavam uma segunda fronteira sem resolver os casos de identificabilidade observados. A auditabilidade externa corrente é por exportação somente leitura de parâmetros/proveniência; a Jornada não reivindica validação externa por Splink enquanto não existir novamente um verificador externo independente.
 
