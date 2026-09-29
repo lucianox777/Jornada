@@ -92,7 +92,7 @@ else
     // GENERATE_DRAFT faz somente a verificação leve; nunca carrega ou reativa.
     if (operation == "GENERATE_DRAFT")
         await GenerateDraftIbgePrecondition.RequireActiveAsync(
-            () => HasActiveNameFrequencyReferenceAsync(operationalSql, builder.Configuration.GetValue("LinkageParameters:NormalizationVersion", Jornada.Contracts.IdentityComparison.NormalizationVersion)!));
+            () => ActiveNameFrequencyReferenceQuery.HasActiveAsync(operationalSql, builder.Configuration.GetValue("LinkageParameters:NormalizationVersion", Jornada.Contracts.IdentityComparison.NormalizationVersion)!));
 
     builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
 
@@ -146,33 +146,3 @@ static async Task RunHostWithHeartbeatAsync(IHost host, string activity, TimeSpa
 
     await runTask;
 }
-
-static async Task<bool> HasActiveNameFrequencyReferenceAsync(IOperationalSqlAdapter operationalSql, string normalizationVersion)
-{
-    await using var connection = await operationalSql.OpenAsync(CancellationToken.None);
-    await using var command = connection.CreateCommand();
-    command.CommandText =
-        """
-        SELECT COUNT(*)
-        FROM ref.frequencia_nome_versao v
-        WHERE v.status='ATIVA'
-          AND DATALENGTH(v.conteudo_sha256)=32
-          AND v.normalizacao_versao=@normalizacao
-          AND v.manifest_schema_version=1
-          AND EXISTS (
-              SELECT 1 FROM ref.frequencia_nome n
-              WHERE n.frequencia_nome_versao_id=v.frequencia_nome_versao_id
-                AND n.tipo='NOME')
-          AND EXISTS (
-              SELECT 1 FROM ref.frequencia_nome s
-              WHERE s.frequencia_nome_versao_id=v.frequencia_nome_versao_id
-                AND s.tipo='SOBRENOME');
-        """;
-    var parameter = command.CreateParameter();
-    parameter.ParameterName = "@normalizacao";
-    parameter.Value = normalizationVersion;
-    command.Parameters.Add(parameter);
-    var value = await command.ExecuteScalarAsync(CancellationToken.None);
-    return Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture) == 1;
-}
-
