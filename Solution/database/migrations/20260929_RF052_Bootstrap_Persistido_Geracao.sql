@@ -36,6 +36,7 @@ BEGIN
    FROM inserted i
    LEFT JOIN deleted d ON d.modelo_id=i.modelo_id
    WHERE d.modelo_id IS NULL AND i.status=N'GERANDO'
+     AND i.algoritmo_versao=N'FELLEGI_SUNTER_DECISION_EVIDENCE_NEUTRAL_MISSING_V8'
      AND i.frequencia_nome_versao_id IS NULL)
    THROW 51639,'Geração de modelo exige referência explícita do bootstrap IBGE inicial persistido.',1;
 
@@ -44,6 +45,7 @@ BEGIN
    FROM inserted i
    LEFT JOIN deleted d ON d.modelo_id=i.modelo_id
    WHERE d.modelo_id IS NULL AND i.status=N'GERANDO'
+     AND i.algoritmo_versao=N'FELLEGI_SUNTER_DECISION_EVIDENCE_NEUTRAL_MISSING_V8'
      AND NOT EXISTS(
        SELECT 1
        FROM ref.frequencia_nome_versao v
