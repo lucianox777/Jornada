@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Linkage.Evaluation;
@@ -56,10 +57,11 @@ internal static class GoldenReferenceVectorVerifier
                 "HUMAN_REVIEW_METADATA_INCOMPLETE");
         }
 
+        var diagnostics = new List<GoldenReferenceNumericDiagnostic>();
         var scoreCount = 0;
         foreach (var vector in root.GetProperty("scoringVectors").EnumerateArray())
         {
-            VerifyScoring(vector, tolerance);
+            diagnostics.Add(VerifyScoring(vector, tolerance));
             scoreCount++;
         }
 
@@ -80,7 +82,7 @@ internal static class GoldenReferenceVectorVerifier
         var policyCount = 0;
         foreach (var vector in root.GetProperty("policyVectors").EnumerateArray())
         {
-            VerifyPolicy(vector, tolerance);
+            diagnostics.AddRange(VerifyPolicy(vector, tolerance));
             policyCount++;
         }
 
@@ -104,11 +106,13 @@ internal static class GoldenReferenceVectorVerifier
             birthCount,
             policyCount,
             guardCount,
+            RuntimeInformation.FrameworkDescription,
+            diagnostics,
             reviewStatus,
             "TECHNICAL_VECTORS_PASSED_NOT_SQL_EVIDENCE");
     }
 
-    private static void VerifyScoring(
+    private static GoldenReferenceNumericDiagnostic VerifyScoring(
         JsonElement vector,
         ImplementationConferenceToleranceContract tolerance)
     {
@@ -216,6 +220,14 @@ internal static class GoldenReferenceVectorVerifier
             && independentlyChecked.SameFinalDecision
             && independentlyChecked.IndependentDecision == expectedDecision,
             $"{id}:INDEPENDENT_CONFERENCE");
+        return Diagnostic(
+            id,
+            Number(expected, "totalLlr"),
+            canonical.Contributions.Sum(static x => x.LogLikelihoodRatio),
+            Number(expected, "logOdds"),
+            canonical.Score.LogOdds,
+            Number(expected, "posterior"),
+            canonical.Score.Posterior);
     }
 
     private static void VerifyName(JsonElement vector)
@@ -254,7 +266,7 @@ internal static class GoldenReferenceVectorVerifier
             $"{Text(vector, "id")}:BIRTH_STATE");
     }
 
-    private static void VerifyPolicy(
+    private static IReadOnlyList<GoldenReferenceNumericDiagnostic> VerifyPolicy(
         JsonElement vector,
         ImplementationConferenceToleranceContract tolerance)
     {
@@ -277,6 +289,7 @@ internal static class GoldenReferenceVectorVerifier
         var model = LinkageModelPolicy.Create(ModelId, 6, algorithm, p);
         var scores = new List<CandidateScore>();
         var inputs = new List<ImplementationConferenceCandidate>();
+        var diagnostics = new List<GoldenReferenceNumericDiagnostic>();
         foreach (var candidate in vector.GetProperty("candidates").EnumerateArray())
         {
             var candidateId = Guid.Parse(Text(candidate, "id"));
@@ -296,6 +309,12 @@ internal static class GoldenReferenceVectorVerifier
                 && actual.Contributions[1].State == Text(candidate, "mother")
                 && actual.Contributions[2].State == BirthDateSemanticEvidence.Exact,
                 $"{id}:CANDIDATE_SCORE:{candidateId}");
+            diagnostics.Add(Diagnostic(
+                id + "/" + candidateId.ToString("N"),
+                expLlr,
+                actual.Contributions.Sum(static x => x.LogLikelihoodRatio),
+                expLogOdds, actual.Score.LogOdds,
+                expPosterior, actual.Score.Posterior));
             var collision = candidate.GetProperty("collisionRisk").GetBoolean();
             scores.Add(new CandidateScore(
                 candidateId, actual.Score.Posterior, actual.Score.LogOdds, collision));
@@ -338,6 +357,7 @@ internal static class GoldenReferenceVectorVerifier
             && report.SameFinalDecision
             && report.IndependentDecision == expectedDecision,
             $"{id}:INDEPENDENT_POLICY");
+        return diagnostics;
     }
 
     private static void VerifyGuardInput(JsonElement vector)
@@ -402,6 +422,26 @@ internal static class GoldenReferenceVectorVerifier
             && ranked[0].DemographicExactCollisionRisk == expectedCollision,
             $"{id}:RUNTIME_GUARD_INPUT");
     }
+
+    private static GoldenReferenceNumericDiagnostic Diagnostic(
+        string id,
+        decimal expectedLlr,
+        decimal actualLlr,
+        decimal expectedLogOdds,
+        decimal actualLogOdds,
+        decimal expectedPosterior,
+        decimal actualPosterior) =>
+        new(
+            id,
+            expectedLlr,
+            actualLlr,
+            Math.Abs(expectedLlr - actualLlr),
+            expectedLogOdds,
+            actualLogOdds,
+            Math.Abs(expectedLogOdds - actualLogOdds),
+            expectedPosterior,
+            actualPosterior,
+            Math.Abs(expectedPosterior - actualPosterior));
 
     private static Dictionary<string, decimal> BaselineParameters(
         bool v8, decimal prior, decimal threshold)
@@ -530,5 +570,19 @@ internal sealed record GoldenReferenceVerification(
     int BirthVectors,
     int PolicyVectors,
     int GuardVectors,
+    string Runtime,
+    IReadOnlyList<GoldenReferenceNumericDiagnostic> NumericDiagnostics,
     string HumanReview,
     string Status);
+
+internal sealed record GoldenReferenceNumericDiagnostic(
+    string Id,
+    decimal ExpectedPairLlr,
+    decimal ActualPairLlr,
+    decimal AbsolutePairLlrDifference,
+    decimal ExpectedLogOdds,
+    decimal ActualLogOdds,
+    decimal AbsoluteLogOddsDifference,
+    decimal ExpectedPosterior,
+    decimal ActualPosterior,
+    decimal AbsolutePosteriorDifference);
