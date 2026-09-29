@@ -54,7 +54,7 @@ Fonte primária: Instituto Brasileiro de Geografia e Estatística (IBGE), Censo 
 - forma de declaração da idade: Total;
 - referência censitária usada pelo modelo: 01/08/2022;
 - população municipal publicada no Censo 2022: **11.451.999 pessoas**;
-- a tabela foi republicada/corrigida pelo IBGE em 22/12/2023 no conjunto de tabelas 1209, 9514 e 9515; o snapshot local deve registrar o hash do export efetivamente usado.
+- o IBGE disponibilizou versões corrigidas das tabelas 1209, 9514 e 9515 em 22/12/2023 por erro identificado em Abel Figueiredo (PA) e São Pedro da Água Branca (MA). Não se atribui essa correção aos dados de São Paulo; o snapshot local apenas deve identificar e hashear o export efetivamente usado.
 
 O SIDRA fornece o **estoque populacional por idade**. Ele não fornece uma série diária de nascimentos. A transformação idade → data diária é, portanto, modelo declarado da Jornada: idade simples `k` recebe a janela de 12 meses correspondente e o peso é repartido deterministicamente pelos dias.
 
@@ -68,12 +68,16 @@ Fonte primária: Secretaria Municipal da Saúde de São Paulo / Coordenação de
 - página do sistema: https://prefeitura.sp.gov.br/saude/w/epidemiologia_e_informacao/nascidos_vivos/29569
 - notas técnicas: https://prefeitura.sp.gov.br/web/saude/w/tabnet/8241
 - dados preliminares: https://prefeitura.sp.gov.br/web/saude/w/epidemiologia_e_informacao/nascidos_vivos/312653
-- arquivos publicados: DBF, CSV e XLSX; a página de dados abertos lista séries anuais de 2006 a 2025 na consulta realizada em 29/09/2026;
+- arquivos publicados: DBF, CSV e XLSX; a página oficial de dados abertos lista séries anuais de 2006 a 2025 na consulta de 29/09/2026; 2026 está publicado separadamente como preliminar e sujeito a alteração;
 - fonte administrativa original: **Declaração de Nascido Vivo (DN)**, padronizada pelo Ministério da Saúde;
 - unidade selecionada para esta referência: nascidos vivos de **mães/parturientes residentes no Município de São Paulo**, independentemente do município de ocorrência do parto;
 - não usar a seleção “ocorridos no Município de São Paulo”, pois ela inclui partos de residentes de outros municípios e não representa a população residente pretendida.
 
 A própria SMS documenta que, desde 2007, a seleção de residentes recupera nascimentos de mães residentes em São Paulo independentemente do município de ocorrência, inclusive por retroalimentação. A SMS também declara que dados preliminares são um retrato na data de publicação e podem mudar por novos registros e procedimentos de qualidade até a edição final. Por isso, **cada snapshot SINASC usado deve ser congelado, datado e hasheado**; preliminar e final são proveniências distintas.
+
+A ferramenta **falha fechado na geografia SINASC**: cada arquivo precisa expor campo de município de residência e todo registro contado deve declarar o código IBGE `3550308`. Arquivo sem esse campo ou contendo registro de outro município é rejeitado; não existe fallback para município de ocorrência nem presunção baseada no nome do arquivo. Esse gate é coberto por teste positivo, ausência de geografia e presença de registro não residente.
+
+A entrada SIDRA também falha fechado se, depois da precedência de idade simples e do fallback por faixa, houver lacuna entre 0 e 99 anos ou faltar a categoria aberta 100+.
 
 O SINASC é usado somente para o trecho pós-corte censitário disponível no snapshot. Para uma data em ou após 01/08/2022 presente no SINASC selecionado, a contagem observada substitui o valor derivado da coorte censitária para aquele dia. Não há soma das duas fontes.
 
@@ -87,7 +91,7 @@ Nenhuma dessas aproximações deve ser apresentada como estatística publicada p
 
 ## Gates
 
-Antes de tornar o snapshot padrão do perfil `demographic-primary`: materializar de exports oficiais congelados; validar hashes/totais; executar testes da ferramenta; carregar por `SyntheticDailyBirthDistribution.LoadAsync`; provar unicidade, positividade e determinismo; executar a suíte unitária; manter a issue #31 como gate separado para validação estatística real.
+Antes de tornar o snapshot padrão do perfil `demographic-primary`: materializar de exports oficiais congelados; validar hashes/totais; confirmar fail-closed que todo SINASC contado é residência 3550308; confirmar cobertura etária 0..99 + 100+; executar testes da ferramenta; carregar por `SyntheticDailyBirthDistribution.LoadAsync`; provar unicidade, positividade e determinismo; executar a suíte unitária; manter a issue #31 como gate separado para validação estatística real.
 
 ## Fora de escopo
 
