@@ -76,7 +76,8 @@ public static class LinkageParameterEstimator
             if (neutralMissingEvidenceV8)
                 result[LinkageParameterCatalog.NeutralMissingEvidenceScoring] = 1m;
             result[LinkageParameterCatalog.DualThresholdConflictGuard] = 1m;
-            result[LinkageParameterCatalog.NonUniqueDemographicExactGuard] = 1m;
+            if (!neutralMissingEvidenceV8)
+                result[LinkageParameterCatalog.NonUniqueDemographicExactGuard] = 1m;
             result[LinkageParameterCatalog.OrderedNameLlrMonotonicity] = 1m;
         }
 
