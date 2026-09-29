@@ -8,7 +8,7 @@ No network access is performed by this tool.
 from __future__ import annotations
 import argparse,csv,hashlib,json,re,sys
 from collections import defaultdict
-from datetime import date,timedelta
+from datetime import date,timedelta,datetime
 from pathlib import Path
 
 SCHEMA="JORNADA_SYNTH_BIRTH_DAILY_V1"
@@ -79,6 +79,26 @@ def census_daily(groups):
         total+=pop
     return d,total
 
+def parse_snapshot_arg(value:str):
+    # PATH|STATUS|SNAPSHOT_DATE|PERIOD_START|PERIOD_END
+    parts=value.split('|')
+    if len(parts)!=5:
+        raise argparse.ArgumentTypeError('SINASC deve ser PATH|FINAL|YYYY-MM-DD|YYYY-MM-DD|YYYY-MM-DD')
+    path,status,snapshot_s,start_s,end_s=parts
+    if status not in ('FINAL','PRELIMINARY'):
+        raise argparse.ArgumentTypeError('status SINASC deve ser FINAL ou PRELIMINARY')
+    try:
+        snapshot_date=date.fromisoformat(snapshot_s); period_start=date.fromisoformat(start_s); period_end=date.fromisoformat(end_s)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError('datas SINASC devem ser YYYY-MM-DD') from e
+    if period_start>period_end:
+        raise argparse.ArgumentTypeError('período SINASC invertido')
+    if snapshot_date<period_end:
+        raise argparse.ArgumentTypeError('snapshotDate SINASC não pode preceder o fim do período')
+    if snapshot_date>date.today():
+        raise argparse.ArgumentTypeError('snapshotDate SINASC não pode estar no futuro')
+    return {'path':Path(path),'publicationStatus':status,'snapshotDate':snapshot_date.isoformat(),'periodStart':period_start.isoformat(),'periodEnd':period_end.isoformat()}
+
 def read_sinasc(snapshots):
     """Read SINASC rows and fail closed unless residence is explicitly MSP.
 
@@ -89,7 +109,13 @@ def read_sinasc(snapshots):
     d=defaultdict(int)
     seen_hashes=set()
     source_meta=[]
+    periods=[]
     for snapshot in snapshots:
+        start=date.fromisoformat(snapshot['periodStart']); end=date.fromisoformat(snapshot['periodEnd'])
+        for prior_start,prior_end,prior_path in periods:
+            if start<=prior_end and prior_start<=end:
+                raise ValueError(f"SINASC: períodos sobrepostos: {prior_path} e {snapshot['path']}")
+        periods.append((start,end,snapshot['path']))
         path=snapshot['path']
         digest=sha(path)
         if digest in seen_hashes:
@@ -122,6 +148,8 @@ def read_sinasc(snapshots):
                     except ValueError: pass
                 if parsed is None:
                     raise ValueError(f'{path}: data de nascimento inválida: {s!r}')
+                if parsed < start or parsed > end:
+                    raise ValueError(f'{path}: nascimento {parsed.isoformat()} fora do período declarado {start.isoformat()}..{end.isoformat()}')
                 if parsed>=CENSUS_DATE: d[parsed]+=1
     return d,source_meta
 
@@ -130,27 +158,18 @@ def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest().upper()
 def main(argv=None):
     p=argparse.ArgumentParser()
     p.add_argument('--sidra-9514',type=Path,required=True)
-    p.add_argument('--sinasc',type=Path,nargs='*',default=[])
-    p.add_argument('--sinasc-status',choices=('FINAL','PRELIMINARY'))
-    p.add_argument('--sinasc-snapshot-date')
+    p.add_argument('--sinasc',type=parse_snapshot_arg,action='append',default=[],metavar='PATH|STATUS|SNAPSHOT_DATE|PERIOD_START|PERIOD_END')
     p.add_argument('--out',type=Path,required=True); p.add_argument('--manifest',type=Path,required=True)
     a=p.parse_args(argv)
     groups=read_sidra(a.sidra_9514)
     if not groups or groups[0][0]!=0 or not any(g[0]==100 for g in groups): raise SystemExit('SIDRA sem cobertura 0 e 100+ esperada')
     daily,census_total=census_daily(groups)
-    if a.sinasc and (not a.sinasc_status or not a.sinasc_snapshot_date):
-        raise SystemExit('--sinasc exige --sinasc-status e --sinasc-snapshot-date')
-    try:
-        snapshot_date=date.fromisoformat(a.sinasc_snapshot_date) if a.sinasc_snapshot_date else None
-    except ValueError as e:
-        raise SystemExit('--sinasc-snapshot-date deve ser YYYY-MM-DD') from e
-    snapshots=[{'path':x,'publicationStatus':a.sinasc_status,'snapshotDate':snapshot_date.isoformat()} for x in a.sinasc]
-    post,sinasc_meta=read_sinasc(snapshots)
+    post,sinasc_meta=read_sinasc(a.sinasc)
     for k,v in post.items(): daily[k]=v
     rows=[{'date':k.isoformat(),'births':v} for k,v in sorted(daily.items()) if v>0]
     obj={'schema_version':SCHEMA,'source':'IBGE_CENSO_2022_SIDRA_9514_PLUS_SINASC_SP','reference_period':'CENSO_2022_PLUS_SINASC_SNAPSHOT','geography':'MUNICIPIO_SAO_PAULO_3550308','rows':rows}
     a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(obj,ensure_ascii=False,separators=(',',':'))+'\n',encoding='utf-8')
-    manifest={'schemaVersion':1,'referenceCode':'SYNTH_BIRTH_SP_CENSO2022_SINASC_V1','output':{'path':a.out.name,'schemaVersion':SCHEMA,'sha256':sha(a.out),'rowCount':len(rows)},'sources':[{'kind':'IBGE_SIDRA_9514','path':str(a.sidra_9514),'sha256':sha(a.sidra_9514),'municipality':'3550308','referenceDate':'2022-08-01','populationWeight':census_total}]+[{'kind':'SINASC_SP','path':str(x['path']),'sha256':x['sha256'],'publicationStatus':x['publicationStatus'],'snapshotDate':x['snapshotDate'],'residenceMunicipality':'3550308','acceptedResidenceCodes':['355030','3550308']} for x in sinasc_meta],'model':{'censusAgeWindow':'idade k em 31/07/2022 => 01/08/(2021-k)..31/07/(2022-k)','withinWindow':'UNIFORM_DAY_LARGEST_REMAINDER','groupedAge':'UNIFORM_AGE_LARGEST_REMAINDER','centenarianTail':'100+ represented uniformly over ages 100..122; upper bound is a declared modelling cap, not an IBGE age distribution','postCensus':'observed SINASC date replaces census-derived value on/after 2022-08-01'},'runtimeNetworkDependency':False}
+    manifest={'schemaVersion':1,'referenceCode':'SYNTH_BIRTH_SP_CENSO2022_SINASC_V1','output':{'path':a.out.name,'schemaVersion':SCHEMA,'sha256':sha(a.out),'rowCount':len(rows)},'sources':[{'kind':'IBGE_SIDRA_9514','path':str(a.sidra_9514),'sha256':sha(a.sidra_9514),'municipality':'3550308','referenceDate':'2022-08-01','populationWeight':census_total}]+[{'kind':'SINASC_SP','path':str(x['path']),'sha256':x['sha256'],'publicationStatus':x['publicationStatus'],'snapshotDate':x['snapshotDate'],'periodStart':x['periodStart'],'periodEnd':x['periodEnd'],'residenceMunicipality':'3550308','acceptedResidenceCodes':['355030','3550308']} for x in sinasc_meta],'model':{'censusAgeWindow':'idade k em 31/07/2022 => 01/08/(2021-k)..31/07/(2022-k)','withinWindow':'UNIFORM_DAY_LARGEST_REMAINDER','groupedAge':'UNIFORM_AGE_LARGEST_REMAINDER','centenarianTail':'100+ represented uniformly over ages 100..122; upper bound is a declared modelling cap, not an IBGE age distribution','postCensus':'observed SINASC date replaces census-derived value on/after 2022-08-01'},'runtimeNetworkDependency':False}
     a.manifest.parent.mkdir(parents=True,exist_ok=True); a.manifest.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     return 0
 if __name__=='__main__': raise SystemExit(main())
