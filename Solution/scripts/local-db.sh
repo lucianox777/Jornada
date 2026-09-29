@@ -125,6 +125,8 @@ bootstrap() {
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260907_Cpf_Ancora.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260910_Schema_Consolidation_370.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260922_Processor_Lease_Heartbeat_Isolation.sql
+  # RF-572: metadados devem existir antes do init jornada-reference-bootstrap.
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260929_RF572_Frequencia_Nomes_Compatibilidade.sql
 
   # Perfil residente é autoridade de ambiente para superfícies DEV. O DDL canônico
   # permanece neutro; somente o provisionador local grava Development.
