@@ -61,4 +61,5 @@
 :r database/migrations/20260927_Linkage_Bronze_Captura_DT05.sql
 :r database/migrations/20260927_Remove_Modo_Carga_Inicial.sql
 :r database/migrations/20260928_Linkage_Neutral_Missing_V8.sql
-:r database/migrations/20260910_Schema_Consolidation_370.sql
+:r database/migrations/20260929_RF572_Frequencia_Nomes_Compatibilidade.sql
+database/migrations/20260910_Schema_Consolidation_370.sql
