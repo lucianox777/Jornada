@@ -89,3 +89,36 @@ O executável C# `Jornada.Linkage.Evaluation` oferece o comando `--dt15-compare-
 3. Página master `/governanca/modelos` com comparação atual×proposto proeminente, histórico resumido secundário, estados `COMPARAVEL`/`NAO_COMPARAVEL` e botões somente quando autorizados. Monitor mantém apenas link e sinalização read-only, sem mutações.
 4. Implementar aprovação humana verificável também nos caminhos CLI/Windows/automação de `VALIDATE` e `ACTIVATE`. E2E demonstra que o wrapper não contorna a decisão master, mudança do modelo ATIVO invalida dossiê, evidência divergente bloqueia promoção, rejeição mantém o modelo ATIVO e rollback é rastreável.
 5. Evidência de desempenho e qualidade do Ensaio como insumo posterior: versões dos modelos, D/C/D∪C, corpus e observações, custo/latência de comparação e avaliação por estrato. **Nenhum threshold de superioridade inventado**, nenhum replay sintético apresentado como medição municipal representativa e nenhuma certificação estatística automática (#31).
+
+## 6. Consolidação de 29/09/2026 — publicação manual e atômica do conjunto de regras
+
+**Decisão do mantenedor:** a nova calibração **não** publica automaticamente regras. O operador master examina a página de resultados, compara o bootstrap inicial IBGE com as calibrações posteriores e o ATIVO com o RASCUNHO, registra parecer individual e decide separadamente validar e ativar. O conjunto de **três artefatos de regras mencionados na discussão** deve ser publicado **junto e atomicamente**, nunca com versões mistas. **Os três nomes/caminhos exatos não foram confirmados nos documentos inspecionados**: inventariar o contrato real de parâmetros FS, passes/ruleset de blocking e política/guardas de decisão antes de fixar o manifesto ou afirmar que existem três arquivos físicos. Não confundir esse conjunto lógico com o ZIP de ingestão (`manifest.json`, `pessoas.jsonl`, `registros.jsonl`) nem com `config/release/configuration-bundle.json` da implantação.
+
+### Página de resultados e histórico
+
+A página master `/governanca/modelos` deve exibir o **marco inicial IBGE** como origem dos parâmetros `u` e da dedução inicial dos índices/passes, com data de carga única, hash, método, recorte e limitações; depois, a sequência de calibrações sobre dados **ingeridos da Jornada**, identificando fonte `m/u`, corpus, suporte por estado/estrato, versões de normalização, política de blocking, comparadores e decisão. O IBGE não fornece `m` diretamente; pares positivos confiáveis são sua fonte empírica, e estimativas sintéticas devem ser identificadas como hipóteses. O histórico já implementado na prévia DEV mostra até 20 modelos e referência IBGE; **a narrativa completa bootstrap → convergência e a decisão/publicação ainda não estão implementadas**. Não inferir ganho entre execuções históricas com corpora diferentes; destacar comparação pareada ATIVO × RASCUNHO com métricas e denominadores compatíveis.
+
+### Fluxo de promoção atômica
+
+```mermaid
+flowchart TD
+    A["Bootstrap IBGE único: u nominal + índices/passes iniciais"] --> B["Primeiro modelo em RASCUNHO"]
+    B --> C["Página master: evidência inicial, limites e histórico"]
+    D["Ingestão Jornada: pares positivos e candidatos não-match"] --> E["Nova calibração m/u e política de blocking"]
+    E --> F["Novo RASCUNHO + dossiê imutável"]
+    F --> G["Replay pareado ATIVO × RASCUNHO no mesmo corpus"]
+    G --> C
+    C --> H{"Decisão explícita do operador master"}
+    H -->|Manter| I["Registrar justificativa; ATIVO inalterado"]
+    H -->|Pedir evidência| J["Nova calibração ou teste; sem promoção"]
+    H -->|Aprovar| K["VALIDATE: gates + parecer vinculado ao hash"]
+    K --> L{"Todos os gates válidos e ATIVO-base inalterado?"}
+    L -->|Não| J
+    L -->|Sim| M["ACTIVATE: nova autorização individual"]
+    M --> N["Publicar atomicamente os três artefatos versionados"]
+    N --> O["Ledger append-only; histórico e rollback do conjunto"]
+```
+
+**Invariantes de publicação:** manifesto canônico com os três identificadores, versões, hashes e compatibilidade de modelo/normalização/projeção; validação de completude e assinatura antes da troca; lock transacional e checagem anti-TOCTOU do ATIVO-base; troca tudo-ou-nada; Runner e consumidores leem apenas uma versão coerente; rollback do conjunto completo, nunca de um arquivo isolado. Se a unidade real de publicação for SQL e não três arquivos, manter a mesma atomicidade lógica e documentar o mapeamento físico após inventário. Falha de gate, evidência ausente, decisão não registrada ou divergência de hash impedem publicação. O monitor segue somente leitura.
+
+**Estado de implementação:** decisão/documentação consolidada, **não** aceite de funcionalidade. A prévia DEV de histórico é somente leitura, e a proteção individual transacional de `VALIDATE`/`ACTIVATE` e a publicação atômica dos três artefatos exigem implementação e E2E. O wrapper atual parar em RASCUNHO não garante que os caminhos diretos de Worker/SQL estejam protegidos.
