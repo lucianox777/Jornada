@@ -281,8 +281,11 @@ public sealed class NameFrequencyReferenceSqlServerTests
         if (string.IsNullOrWhiteSpace(connectionString)) Assert.Ignore("Defina JORNADA_TEST_SQL_CONNECTION para executar testes SQL Server.");
         var csb = new SqlConnectionStringBuilder(connectionString);
         var db = csb.InitialCatalog ?? string.Empty;
-        if (!db.Contains("test", StringComparison.OrdinalIgnoreCase) && !db.Contains("dev", StringComparison.OrdinalIgnoreCase) && !db.Contains("local", StringComparison.OrdinalIgnoreCase))
-            Assert.Fail("Por segurança, o banco de integração deve conter 'Test', 'Dev' ou 'Local' no nome.");
+        // Este fixture publica/desativa versões da referência IBGE. Nunca usar
+        // JornadaLocal, JornadaSyntheticDev nem outros bancos compartilhados.
+        if (!db.Equals("JornadaTest", StringComparison.OrdinalIgnoreCase) &&
+            !db.StartsWith("JornadaTest_", StringComparison.OrdinalIgnoreCase))
+            Assert.Fail("Este fixture exige banco descartável JornadaTest (ou JornadaTest_*); JornadaLocal não é permitido.");
         return connectionString!;
     }
 }
