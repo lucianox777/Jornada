@@ -1,0 +1,714 @@
+{
+  "schemaVersion": 1,
+  "referenceVersion": "JORNADA_CONFERENCE_GOLDEN_V1_2026-09-29",
+  "sourceMasterSha": "12b1da84ac4ec0e6b977bb3123a9653dacb4f9eb",
+  "derivationMethod": "ALGEBRA_RATIONAL_ODDS_FIXED_LN_CONSTANTS_NO_OPERATIONAL_SCORER",
+  "toleranceVersion": "V1_2026-09-26",
+  "toleranceGitBlobSha": "ae2069070f99885c432542663767f658a3cc36a0",
+  "review": {
+    "status": "PENDING_HUMAN_REVIEW",
+    "reviewer": null,
+    "reviewedAtUtc": null,
+    "reviewReference": null
+  },
+  "policy": "Fixture sintética sem PII. Esperados literais derivam de odds racionais, logaritmos naturais explicitados na documentação e arredondamento decimal de oito casas. Não reproduzir a partir de FellegiSunterScoring nem atualizar snapshots a partir do resultado operacional. Revisão humana obrigatória antes de declarar concluída.",
+  "scoringVectors": [
+    {
+      "id": "N01_THRESHOLD_EQUAL",
+      "algorithm": "V6",
+      "prior": 0.2,
+      "threshold": 0.88888889,
+      "name": "EXACT",
+      "mother": "HIGH",
+      "birthLeft": "1980-05-06",
+      "birthRight": "1980-05-06",
+      "demographicGuard": false,
+      "collisionRisk": false,
+      "evidence": [
+        {
+          "field": "NOME",
+          "state": "EXACT",
+          "m": 0.8,
+          "u": 0.2,
+          "ratio": 4,
+          "expectedLlr": 1.3862943611198906
+        },
+        {
+          "field": "NOME_MAE",
+          "state": "HIGH",
+          "m": 0.2,
+          "u": 0.1,
+          "ratio": 2,
+          "expectedLlr": 0.6931471805599453
+        },
+        {
+          "field": "NASCIMENTO_SEMANTICO",
+          "state": "EXACT",
+          "m": 0.4,
+          "u": 0.1,
+          "ratio": 4,
+          "expectedLlr": 1.3862943611198906
+        }
+      ],
+      "expected": {
+        "priorLogOdds": -1.3862943611198906,
+        "totalLlr": 3.4657359027997265,
+        "logOdds": 2.07944154,
+        "posterior": 0.88888889,
+        "status": "RESOLVIDO",
+        "reason": null
+      },
+      "derivation": "odds_priores=1/4; LR=4*2*4=32; odds_posteriores=8; posterior=8/9; threshold arredondado inclusivo"
+    },
+    {
+      "id": "N02_THRESHOLD_ABOVE",
+      "algorithm": "V6",
+      "prior": 0.2,
+      "threshold": 0.8888889,
+      "name": "EXACT",
+      "mother": "HIGH",
+      "birthLeft": "1980-05-06",
+      "birthRight": "1980-05-06",
+      "demographicGuard": false,
+      "collisionRisk": false,
+      "evidence": [
+        {
+          "field": "NOME",
+          "state": "EXACT",
+          "m": 0.8,
+          "u": 0.2,
+          "ratio": 4,
+          "expectedLlr": 1.3862943611198906
+        },
+        {
+          "field": "NOME_MAE",
+          "state": "HIGH",
+          "m": 0.2,
+          "u": 0.1,
+          "ratio": 2,
+          "expectedLlr": 0.6931471805599453
+        },
+        {
+          "field": "NASCIMENTO_SEMANTICO",
+          "state": "EXACT",
+          "m": 0.4,
+          "u": 0.1,
+          "ratio": 4,
+          "expectedLlr": 1.3862943611198906
+        }
+      ],
+      "expected": {
+        "priorLogOdds": -1.3862943611198906,
+        "totalLlr": 3.4657359027997265,
+        "logOdds": 2.07944154,
+        "posterior": 0.88888889,
+        "status": "NAO_RESOLVIDO",
+        "reason": "ABAIXO_T_LINKAGE"
+      },
+      "derivation": "Mesmo 8/9, mas threshold excede o posterior arredondado em 0,00000001"
+    },
+    {
+      "id": "N03_MOTHER_MISSING_V6",
+      "algorithm": "V6",
+      "prior": 0.2,
+      "threshold": 0.4,
+      "name": "EXACT",
+      "mother": null,
+      "birthLeft": "1980-05-06",
+      "birthRight": "1980-06-05",
+      "demographicGuard": false,
+      "collisionRisk": false,
+      "evidence": [
+        {
+          "field": "NOME",
+          "state": "EXACT",
+          "m": 0.8,
+          "u": 0.2,
+          "ratio": 4,
+          "expectedLlr": 1.3862943611198906
+        },
+        {
+          "field": "NOME_MAE",
+          "state": "MISSING",
+          "m": 0.1,
+          "u": 0.2,
+          "ratio": 0.5,
+          "expectedLlr": -0.6931471805599453
+        },
+        {
+          "field": "NASCIMENTO_SEMANTICO",
+          "state": "DAY_MONTH_SWAP",
+          "m": 0.1,
+          "u": 0.1,
+          "ratio": 1,
+          "expectedLlr": 0
+        }
+      ],
+      "expected": {
+        "priorLogOdds": -1.3862943611198906,
+        "totalLlr": 0.6931471805599453,
+        "logOdds": -0.69314718,
+        "posterior": 0.33333333,
+        "status": "NAO_RESOLVIDO",
+        "reason": "ABAIXO_T_LINKAGE"
+      },
+      "derivation": "V6: odds=(1/4)*(4*1/2*1)=1/2; posterior=1/3; ausência materna contribui -ln(2)"
+    },
+    {
+      "id": "N04_MOTHER_MISSING_V8",
+      "algorithm": "V8",
+      "prior": 0.2,
+      "threshold": 0.4,
+      "name": "EXACT",
+      "mother": null,
+      "birthLeft": "1980-05-06",
+      "birthRight": "1980-06-05",
+      "demographicGuard": false,
+      "collisionRisk": false,
+      "evidence": [
+        {
+          "field": "NOME",
+          "state": "EXACT",
+          "m": 0.8,
+          "u": 0.2,
+          "ratio": 4,
+          "expectedLlr": 1.3862943611198906
+        },
+        {
+          "field": "NOME_MAE",
+          "state": "MISSING_NEUTRAL",
+          "m": null,
+          "u": null,
+          "ratio": null,
+          "expectedLlr": 0
+        },
+        {
+          "field": "NASCIMENTO_SEMANTICO",
+          "state": "DAY_MONTH_SWAP",
+          "m": 0.1,
+          "u": 0.1,
+          "ratio": 1,
+          "expectedLlr": 0
+        }
+      ],
+      "expected": {
+        "priorLogOdds": -1.3862943611198906,
+        "totalLlr": 1.3862943611198906,
+        "logOdds": 0,
+        "posterior": 0.5,
+        "status": "RESOLVIDO",
+        "reason": null
+      },
+      "derivation": "V8: odds=(1/4)*(4*1*1)=1; posterior=1/2; ausência materna neutra LLR=0"
+    },
+    {
+      "id": "N05_LOW_EVIDENCE",
+      "algorithm": "V6",
+      "prior": 0.2,
+      "threshold": 0.4,
+      "name": "LOW",
+      "mother": "LOW",
+      "birthLeft": "1980-05-06",
+      "birthRight": "1991-07-08",
+      "demographicGuard": false,
+      "collisionRisk": false,
+      "evidence": [
+        {
+          "field": "NOME",
+          "state": "LOW",
+          "m": 0.05,
+          "u": 0.4,
+          "ratio": 0.125,
+          "expectedLlr": -2.0794415416798357
+        },
+        {
+          "field": "NOME_MAE",
+          "state": "LOW",
+          "m": 0.2,
+          "u": 0.5,
+          "ratio": 0.4,
+          "expectedLlr": -0.9162907318741551
+        },
+        {
+          "field": "NASCIMENTO_SEMANTICO",
+          "state": "OTHER_DISAGREEMENT",
+          "m": 0.1,
+          "u": 0.2,
+          "ratio": 0.5,
+          "expectedLlr": -0.6931471805599453
+        }
+      ],
+      "expected": {
+        "priorLogOdds": -1.3862943611198906,
+        "totalLlr": -3.6888794541139363,
+        "logOdds": -5.07517382,
+        "posterior": 0.00621118,
+        "status": "NAO_RESOLVIDO",
+        "reason": "ABAIXO_T_LINKAGE"
+      },
+      "derivation": "LR=(1/8)*(2/5)*(1/2)=1/40; odds=(1/4)*(1/40)=1/160; posterior=1/161"
+    },
+    {
+      "id": "N06_DEMOGRAPHIC_GUARD",
+      "algorithm": "V6",
+      "prior": 0.2,
+      "threshold": 0.9,
+      "name": "EXACT",
+      "mother": "EXACT",
+      "birthLeft": "1980-05-06",
+      "birthRight": "1980-05-06",
+      "demographicGuard": true,
+      "collisionRisk": true,
+      "evidence": [
+        {
+          "field": "NOME",
+          "state": "EXACT",
+          "m": 0.8,
+          "u": 0.2,
+          "ratio": 4,
+          "expectedLlr": 1.3862943611198906
+        },
+        {
+          "field": "NOME_MAE",
+          "state": "EXACT",
+          "m": 0.4,
+          "u": 0.1,
+          "ratio": 4,
+          "expectedLlr": 1.3862943611198906
+        },
+        {
+          "field": "NASCIMENTO_SEMANTICO",
+          "state": "EXACT",
+          "m": 0.4,
+          "u": 0.1,
+          "ratio": 4,
+          "expectedLlr": 1.3862943611198906
+        }
+      ],
+      "expected": {
+        "priorLogOdds": -1.3862943611198906,
+        "totalLlr": 4.1588830833596715,
+        "logOdds": 2.77258872,
+        "posterior": 0.94117647,
+        "status": "CONFLITO",
+        "reason": "NUCLEO_DEMOGRAFICO_EXATO_NAO_UNICO"
+      },
+      "derivation": "LR=4^3=64; odds=16; posterior=16/17; guarda de colisão exata prevalece apesar de posterior acima de 0,9"
+    },
+    {
+      "id": "N07_EXTREME_PRIOR",
+      "algorithm": "V6",
+      "prior": 1e-7,
+      "threshold": 0.0000032,
+      "name": "EXACT",
+      "mother": "HIGH",
+      "birthLeft": "1980-05-06",
+      "birthRight": "1980-05-06",
+      "demographicGuard": false,
+      "collisionRisk": false,
+      "evidence": [
+        {
+          "field": "NOME",
+          "state": "EXACT",
+          "m": 0.8,
+          "u": 0.2,
+          "ratio": 4,
+          "expectedLlr": 1.3862943611198906
+        },
+        {
+          "field": "NOME_MAE",
+          "state": "HIGH",
+          "m": 0.2,
+          "u": 0.1,
+          "ratio": 2,
+          "expectedLlr": 0.6931471805599453
+        },
+        {
+          "field": "NASCIMENTO_SEMANTICO",
+          "state": "EXACT",
+          "m": 0.4,
+          "u": 0.1,
+          "ratio": 4,
+          "expectedLlr": 1.3862943611198906
+        }
+      ],
+      "expected": {
+        "priorLogOdds": -16.118095550958316,
+        "totalLlr": 3.4657359027997265,
+        "logOdds": -12.65235965,
+        "posterior": 0.0000032,
+        "status": "RESOLVIDO",
+        "reason": null
+      },
+      "derivation": "prior=1/10^7; odds=32/(9.999.999); posterior=32/10.000.031, arredondado a oito casas para 0,00000320"
+    }
+  ],
+  "nameVectors": [
+    {
+      "id": "C01_NORMALIZATION_V1",
+      "contract": "V1",
+      "left": " José  da   Silva ",
+      "right": "JOSE DA SILVA",
+      "expected": "EXACT",
+      "derivation": "Unicode NFD remove agudo; uppercase e colapso de espaços tornam strings idênticas"
+    },
+    {
+      "id": "C02_WHOLE_NAME_V1",
+      "contract": "V1",
+      "left": "MARIA SILVA X",
+      "right": "MARIA SILVA Y",
+      "expected": "HIGH",
+      "derivation": "12/13 caracteres coincidentes e prefixo inicial de quatro caracteres; JW acima de 0,92"
+    },
+    {
+      "id": "C03_TOKEN_GUARD_V2",
+      "contract": "V2",
+      "left": "MARIA SILVA X",
+      "right": "MARIA SILVA Y",
+      "expected": "LOW",
+      "derivation": "Token final X/Y possui Jaro=0; mínimo com JW da string completa=0"
+    },
+    {
+      "id": "C04_WHOLE_NAME_V3",
+      "contract": "V3",
+      "left": "MARIA SILVA X",
+      "right": "MARIA SILVA Y",
+      "expected": "HIGH",
+      "derivation": "Jaro da string completa > 0,7 e bônus de prefixo permitido"
+    },
+    {
+      "id": "C05_MEDIUM_V1",
+      "contract": "V1",
+      "left": "ABC",
+      "right": "ABD",
+      "expected": "MEDIUM",
+      "derivation": "Jaro=7/9; bônus Winkler prefixo 2 eleva a 37/45 aproximadamente 0,8222"
+    },
+    {
+      "id": "C06_LOW_V1",
+      "contract": "V1",
+      "left": "A",
+      "right": "Z",
+      "expected": "LOW",
+      "derivation": "Zero caracteres coincidentes"
+    },
+    {
+      "id": "C07_PREFIX_GATED_V3",
+      "contract": "V3",
+      "left": "AAAAABBBBB",
+      "right": "AAAAACCCCC",
+      "expected": "LOW",
+      "derivation": "Jaro=2/3 (<0,7), suprime bônus Winkler; V1 seria aproximadamente 0,8"
+    },
+    {
+      "id": "C08_PARTICLES_V2",
+      "contract": "V2",
+      "left": " ANA DE SOUZA ",
+      "right": "ANA DE SOUZA",
+      "expected": "EXACT",
+      "derivation": "Normalização de caixa/espaçamento sem alteração de identidade dos tokens"
+    },
+    {
+      "id": "C09_EMPTY_V1",
+      "contract": "V1",
+      "left": null,
+      "right": "ANA",
+      "expected": "LOW",
+      "derivation": "Comparação direta recebe string nula; ausência no scorer é tratada separadamente como estado neutro"
+    }
+  ],
+  "birthVectors": [
+    {
+      "id": "B01_EXACT",
+      "left": "1980-05-06",
+      "right": "1980-05-06",
+      "expected": "EXACT",
+      "derivation": "datas idênticas"
+    },
+    {
+      "id": "B02_DAY_MONTH_SWAP",
+      "left": "1980-05-06",
+      "right": "1980-06-05",
+      "expected": "DAY_MONTH_SWAP",
+      "derivation": "dia e mês trocados, ano igual, dia distinto do mês"
+    },
+    {
+      "id": "B03_CENTURY_SHIFT",
+      "left": "1980-05-06",
+      "right": "1880-05-06",
+      "expected": "CENTURY_SHIFT",
+      "derivation": "dia/mês idênticos, diferença exata de 100 anos"
+    },
+    {
+      "id": "B04_ONE_DIGIT",
+      "left": "1980-05-06",
+      "right": "1980-05-07",
+      "expected": "ONE_DIGIT_ERROR",
+      "derivation": "ddMMyyyy difere em um caractere"
+    },
+    {
+      "id": "B05_TWO_DIGIT",
+      "left": "1980-05-06",
+      "right": "1980-06-07",
+      "expected": "TWO_DIGIT_ERROR",
+      "derivation": "ddMMyyyy difere em dois caracteres; só o ano concorda"
+    },
+    {
+      "id": "B06_PARTIAL",
+      "left": "1980-05-06",
+      "right": "1979-05-06",
+      "expected": "PARTIAL_COMPONENT_AGREEMENT",
+      "derivation": "dia e mês concordam; ano difere em mais de um dígito"
+    },
+    {
+      "id": "B07_OTHER",
+      "left": "1980-05-06",
+      "right": "1991-07-08",
+      "expected": "OTHER_DISAGREEMENT",
+      "derivation": "sem componentes iguais e distância de dígitos >2"
+    }
+  ],
+  "policyVectors": [
+    {
+      "id": "P01_TWO_ABOVE_THRESHOLD",
+      "prior": 0.2,
+      "threshold": 0.85,
+      "margin": 0.05,
+      "dualThreshold": true,
+      "floorV2": false,
+      "floor": null,
+      "demographicGuard": false,
+      "candidates": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "name": "EXACT",
+          "mother": "HIGH",
+          "birthLeft": "1980-05-06",
+          "birthRight": "1980-05-06",
+          "collisionRisk": false,
+          "expectedTotalLlr": 3.4657359027997265,
+          "expectedLogOdds": 2.07944154,
+          "expectedPosterior": 0.88888889
+        },
+        {
+          "id": "22222222-2222-4222-8222-222222222222",
+          "name": "EXACT",
+          "mother": "HIGH",
+          "birthLeft": "1980-05-06",
+          "birthRight": "1980-05-06",
+          "collisionRisk": false,
+          "expectedTotalLlr": 3.4657359027997265,
+          "expectedLogOdds": 2.07944154,
+          "expectedPosterior": 0.88888889
+        }
+      ],
+      "expected": {
+        "status": "CONFLITO",
+        "bestId": "11111111-1111-4111-8111-111111111111",
+        "secondId": "22222222-2222-4222-8222-222222222222",
+        "resolvedId": null,
+        "reason": "DOIS_CANDIDATOS_ACIMA_T_LINKAGE"
+      },
+      "derivation": "Ambos odds=8, posterior=8/9 >=0,85; empate ordenado por UUID"
+    },
+    {
+      "id": "P02_SECOND_AT_CONFLICT_FLOOR",
+      "prior": 0.2,
+      "threshold": 0.85,
+      "margin": 0.05,
+      "dualThreshold": true,
+      "floorV2": true,
+      "floor": 0.8,
+      "demographicGuard": false,
+      "candidates": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "name": "EXACT",
+          "mother": "HIGH",
+          "birthLeft": "1980-05-06",
+          "birthRight": "1980-05-06",
+          "collisionRisk": false,
+          "expectedTotalLlr": 3.4657359027997265,
+          "expectedLogOdds": 2.07944154,
+          "expectedPosterior": 0.88888889
+        },
+        {
+          "id": "22222222-2222-4222-8222-222222222222",
+          "name": "EXACT",
+          "mother": "MEDIUM",
+          "birthLeft": "1980-05-06",
+          "birthRight": "1980-05-06",
+          "collisionRisk": false,
+          "expectedTotalLlr": 2.772588722239781,
+          "expectedLogOdds": 1.38629436,
+          "expectedPosterior": 0.8
+        }
+      ],
+      "expected": {
+        "status": "CONFLITO",
+        "bestId": "11111111-1111-4111-8111-111111111111",
+        "secondId": "22222222-2222-4222-8222-222222222222",
+        "resolvedId": null,
+        "reason": "SEGUNDO_CANDIDATO_ACIMA_PISO_CONFLITO"
+      },
+      "derivation": "Melhor=8/9, segundo=4/5 <0,85 mas exatamente no piso 0,8"
+    },
+    {
+      "id": "P03_MARGIN_EQUAL",
+      "prior": 0.2,
+      "threshold": 0.85,
+      "margin": 0.69314718,
+      "dualThreshold": false,
+      "floorV2": false,
+      "floor": null,
+      "demographicGuard": false,
+      "candidates": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "name": "EXACT",
+          "mother": "HIGH",
+          "birthLeft": "1980-05-06",
+          "birthRight": "1980-05-06",
+          "collisionRisk": false,
+          "expectedTotalLlr": 3.4657359027997265,
+          "expectedLogOdds": 2.07944154,
+          "expectedPosterior": 0.88888889
+        },
+        {
+          "id": "22222222-2222-4222-8222-222222222222",
+          "name": "EXACT",
+          "mother": "MEDIUM",
+          "birthLeft": "1980-05-06",
+          "birthRight": "1980-05-06",
+          "collisionRisk": false,
+          "expectedTotalLlr": 2.772588722239781,
+          "expectedLogOdds": 1.38629436,
+          "expectedPosterior": 0.8
+        }
+      ],
+      "expected": {
+        "status": "RESOLVIDO",
+        "bestId": "11111111-1111-4111-8111-111111111111",
+        "secondId": "22222222-2222-4222-8222-222222222222",
+        "resolvedId": "11111111-1111-4111-8111-111111111111",
+        "reason": null
+      },
+      "derivation": "Margem arredondada 2,07944154-1,38629436=0,69314718; regra usa < e igualdade não conflita"
+    },
+    {
+      "id": "P04_MARGIN_GREATER",
+      "prior": 0.2,
+      "threshold": 0.85,
+      "margin": 0.69314719,
+      "dualThreshold": false,
+      "floorV2": false,
+      "floor": null,
+      "demographicGuard": false,
+      "candidates": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "name": "EXACT",
+          "mother": "HIGH",
+          "birthLeft": "1980-05-06",
+          "birthRight": "1980-05-06",
+          "collisionRisk": false,
+          "expectedTotalLlr": 3.4657359027997265,
+          "expectedLogOdds": 2.07944154,
+          "expectedPosterior": 0.88888889
+        },
+        {
+          "id": "22222222-2222-4222-8222-222222222222",
+          "name": "EXACT",
+          "mother": "MEDIUM",
+          "birthLeft": "1980-05-06",
+          "birthRight": "1980-05-06",
+          "collisionRisk": false,
+          "expectedTotalLlr": 2.772588722239781,
+          "expectedLogOdds": 1.38629436,
+          "expectedPosterior": 0.8
+        }
+      ],
+      "expected": {
+        "status": "CONFLITO",
+        "bestId": "11111111-1111-4111-8111-111111111111",
+        "secondId": "22222222-2222-4222-8222-222222222222",
+        "resolvedId": null,
+        "reason": "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE"
+      },
+      "derivation": "Margem requerida 0,69314719 excede diferença observada 0,69314718 por 10^-8"
+    },
+    {
+      "id": "P05_GUARD_PRECEDENCE",
+      "prior": 0.2,
+      "threshold": 0.9,
+      "margin": 0.05,
+      "dualThreshold": true,
+      "floorV2": false,
+      "floor": null,
+      "demographicGuard": true,
+      "candidates": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "name": "EXACT",
+          "mother": "EXACT",
+          "birthLeft": "1980-05-06",
+          "birthRight": "1980-05-06",
+          "collisionRisk": true,
+          "expectedTotalLlr": 4.1588830833596715,
+          "expectedLogOdds": 2.77258872,
+          "expectedPosterior": 0.94117647
+        },
+        {
+          "id": "22222222-2222-4222-8222-222222222222",
+          "name": "EXACT",
+          "mother": "HIGH",
+          "birthLeft": "1980-05-06",
+          "birthRight": "1980-05-06",
+          "collisionRisk": false,
+          "expectedTotalLlr": 3.4657359027997265,
+          "expectedLogOdds": 2.07944154,
+          "expectedPosterior": 0.88888889
+        }
+      ],
+      "expected": {
+        "status": "CONFLITO",
+        "bestId": "11111111-1111-4111-8111-111111111111",
+        "secondId": "22222222-2222-4222-8222-222222222222",
+        "resolvedId": null,
+        "reason": "NUCLEO_DEMOGRAFICO_EXATO_NAO_UNICO"
+      },
+      "derivation": "Melhor=16/17 >0,9, guarda demográfica precede conflito dual"
+    },
+    {
+      "id": "P06_THRESHOLD_PRECEDENCE",
+      "prior": 0.2,
+      "threshold": 0.95,
+      "margin": 0.05,
+      "dualThreshold": true,
+      "floorV2": false,
+      "floor": null,
+      "demographicGuard": true,
+      "candidates": [
+        {
+          "id": "11111111-1111-4111-8111-111111111111",
+          "name": "EXACT",
+          "mother": "EXACT",
+          "birthLeft": "1980-05-06",
+          "birthRight": "1980-05-06",
+          "collisionRisk": true,
+          "expectedTotalLlr": 4.1588830833596715,
+          "expectedLogOdds": 2.77258872,
+          "expectedPosterior": 0.94117647
+        }
+      ],
+      "expected": {
+        "status": "NAO_RESOLVIDO",
+        "bestId": "11111111-1111-4111-8111-111111111111",
+        "secondId": null,
+        "resolvedId": null,
+        "reason": "ABAIXO_T_LINKAGE"
+      },
+      "derivation": "16/17 <0,95; threshold precede guarda demográfica"
+    }
+  ]
+}
