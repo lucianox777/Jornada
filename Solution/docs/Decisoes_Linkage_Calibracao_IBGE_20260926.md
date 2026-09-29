@@ -18,7 +18,7 @@ O wiring compartilhado do assert em `VALIDATE` e `ACTIVATE` foi verificado em c�
 
 A hipótese numérica de arredondamento ainda requer caracterização independente ampla, incluindo estados de probabilidade extrema, priors distintos e decisões na fronteira. Sem conferência governada real `CONFORME` no mesmo fingerprint e versão, não existe promoção demonstrada. Não aumentar o teto em resposta a resultado divergente. Referências: [conferência](Linkage_Implementation_Conference.md), [DT-01](Dividas_Tecnicas.md), [issue #387](https://github.com/lucianox777/Jornada/issues/387).
 
-## 2.1 Conferência externa Jornada × Splink — decisão consolidada de 26/09/2026
+**Atualização de prioridade (29/09/2026):** [avaliação sintética primária com gabarito](Decisao_Avaliacao_Sintetica_Primaria_20260929.md) substitui a exigência de execução do Splink como pré-condição do Ensaio. A seção 2.1 abaixo é preservada como contrato histórico/técnico para execução externa opcional; seus passos de aceite não são gates do Ensaio. Permanecem obrigatórios os gates governados DT-01/09/14 e a validação real #31 em seu escopo.\n\n## 2.1 Conferência externa Jornada × Splink — decisão consolidada de 26/09/2026
 
 **Fonte normativa única desta decisão: este documento;** [ADR-007](../../Documentos/ADR/ADR-007-conferencia-externa-splink-sem-python-operacional.md) é histórico e foi substituído por esta seção. A retirada do DF/Splink em 20/09 não revogou a necessidade de verificação empírica independente.
 
