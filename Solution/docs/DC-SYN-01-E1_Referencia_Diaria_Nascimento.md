@@ -6,32 +6,45 @@
 
 ## Decisão
 
-A geração sintética deixa de admitir uma distribuição uniforme implícita de datas de nascimento. A referência diária será um **snapshot local, imutável e versionado**, compatível com `JORNADA_SYNTH_BIRTH_DAILY_V1`, construído a partir de duas classes de evidência:
+A referência de `data_nascimento` do corpus `demographic-primary` usa **uma única fonte demográfica observada**: Censo Demográfico 2022 / SIDRA tabela 9514, município de São Paulo (3550308), sexo Total e forma de declaração da idade Total.
 
-1. **Censo 2022 / SIDRA 9514**, município de São Paulo (3550308), sexo Total e declaração de idade Total, para determinar o peso das coortes na data de referência do Censo (01/08/2022).
-2. **SINASC-SP por residência**, para datas observadas posteriores ao corte censitário quando houver snapshot oficial congelado e identificável.
+Não se usa SINASC nesta decisão. Para datas posteriores ao corte censitário, a Jornada prolonga até uma data de corte explícita a taxa diária média implícita da coorte de idade zero. Essa extensão é **modelo declarado**, não série observada de nascimentos.
 
-A ferramenta de construção é offline: recebe arquivos locais, produz JSON canônico e manifesto com SHA-256 e não consulta fonte remota em runtime. O gerador C# continua apenas consumindo o snapshot materializado e falha fechado quando ele não existe ou é inválido.
+A ferramenta é offline: recebe um export local congelado do SIDRA, produz JSON canônico e manifesto com SHA-256 e não consulta rede em runtime.
 
-## Conversão de idade censitária em janela de nascimento
+## Conversão da idade em data
 
-Para idade simples `k` em 01/08/2022, a janela de datas é `01/08/(2021-k) .. 31/07/(2022-k)`.
+Para idade simples `k` na referência censitária, a janela é `01/08/(2021-k) .. 31/07/(2022-k)`. O peso observado da idade é distribuído uniformemente pelos dias, com rateio inteiro determinístico por quociente/maior resto. O total é conservado.
 
-O peso censitário da idade é distribuído deterministicamente pelos dias da janela. A divisão inteira usa quociente e maior resto em ordem cronológica; portanto, conserva exatamente o total e é reproduzível. Faixas etárias são fallback; idades simples publicadas têm precedência.
+Idades simples têm precedência; faixa publicada só pode atuar como fallback. A entrada falha fechado se faltar qualquer idade 0..99, houver sobreposição, faltar `100 anos ou mais`, faltar a linha `Total` ou a soma etária divergir dela.
 
 ## Categoria aberta 100+
 
-A tabela 9514 publica `100 anos ou mais` como categoria aberta e não identifica sua distribuição interna. O projeto não registra decomposição 100, 101, 102... como observação do IBGE.
-
-Enquanto não houver fonte oficial mais granular, qualquer limite superior é **hipótese de modelagem declarada**. A ferramenta atual usa 122 somente como teto técnico explícito e registra isso no manifesto. A aproximação pode ser substituída sem alterar o contrato diário.
+O SIDRA publica `100 anos ou mais` sem decomposição interna. DC-SYN-01-E1 adota a convenção técnica simples **100 a 105 anos, uniforme entre as seis idades**. O teto 105 não é observação do IBGE e não deve ser interpretado como estimativa da distribuição real dos centenários; serve somente para transformar a categoria aberta em datas plausíveis no corpus sintético.
 
 ## Parte pós-Censo
 
-Datas SINASC válidas em ou após 01/08/2022 substituem o valor censitário derivado para o mesmo dia; não são somadas. Snapshots preliminares e finais não podem ser misturados silenciosamente. Cada entrada deve constar do manifesto com hash.
+A partir de 01/08/2022 até `--post-census-cutoff`, inclusive, usa-se a taxa diária média da coorte censitária de idade zero. O total implícito do intervalo é arredondado e distribuído deterministicamente pelos dias. Não há consulta, dependência ou snapshot SINASC.
 
-## Proveniência e reprodutibilidade
+A data de corte é parte da proveniência do artefato. Esta aproximação pressupõe estabilidade da taxa recente de nascimentos; não pretende reconstruir a natalidade diária real.
 
-O artefato materializado registra schema, fonte/período, geografia, linhas positivas e únicas, SHA-256 próprio e das entradas, método de conversão e tratamento de 100+, sem dependência de rede em runtime. O fingerprint do corpus já incorpora a proveniência da referência diária; mudar o snapshot muda a identidade reprodutível do corpus.
+## Proveniência e limitações
+
+### IBGE — Censo Demográfico 2022 / SIDRA 9514
+
+Fonte: Instituto Brasileiro de Geografia e Estatística (IBGE), Censo Demográfico 2022, tabela SIDRA **9514 — População residente, por sexo, idade e forma de declaração da idade**.
+
+- tabela: https://sidra.ibge.gov.br/tabela/9514
+- território: Município de São Paulo, código IBGE 3550308;
+- variável: população residente;
+- sexo: Total;
+- forma de declaração da idade: Total;
+- referência usada: 01/08/2022;
+- snapshot local deve registrar SHA-256 do export efetivamente usado.
+
+O SIDRA fornece estoque populacional por idade, não distribuição diária de nascimentos. São modelagens da Jornada: conversão idade→janela, uniformidade dentro da janela, convenção 100–105 e extrapolação pós-Censo.
+
+Limitações aceitas e declaradas: não se modelam dia da semana, feriados, concentração em datas convencionais como 01/01, nem associação entre geração/idade e distribuição de nomes. Essas limitações não são tratadas como estatística publicada pelo IBGE e podem ser exercitadas separadamente em famílias de desafio.
 
 ## Tamanho do corpus demográfico primário
 
@@ -39,65 +52,10 @@ O tamanho padrão é **30.000 pessoas**. Este valor substitui a escolha anterior
 
 A seed padrão permanece 42 e participa do fingerprint. `--people` continua disponível para ensaios explícitos de sensibilidade/escala; o padrão reprodutível desta decisão é 30.000.
 
-## Fontes públicas e proveniência
-
-### IBGE — Censo Demográfico 2022 / SIDRA 9514
-
-Fonte primária: Instituto Brasileiro de Geografia e Estatística (IBGE), Censo Demográfico 2022, tabela SIDRA **9514 — População residente, por sexo, idade e forma de declaração da idade**.
-
-- tabela: https://sidra.ibge.gov.br/tabela/9514
-- divulgação: Censo Demográfico 2022 — População por idade e sexo, resultados do universo;
-- período: 2022;
-- território usado: **Município de São Paulo, código IBGE 3550308**;
-- variável: população residente;
-- sexo: Total;
-- forma de declaração da idade: Total;
-- referência censitária usada pelo modelo: 01/08/2022;
-- população municipal publicada no Censo 2022: **11.451.999 pessoas**;
-- o IBGE disponibilizou versões corrigidas das tabelas 1209, 9514 e 9515 em 22/12/2023 por erro identificado em Abel Figueiredo (PA) e São Pedro da Água Branca (MA). Não se atribui essa correção aos dados de São Paulo; o snapshot local apenas deve identificar e hashear o export efetivamente usado.
-
-O SIDRA fornece o **estoque populacional por idade**. Ele não fornece uma série diária de nascimentos. A transformação idade → data diária é, portanto, modelo declarado da Jornada: idade simples `k` recebe a janela de 12 meses correspondente e o peso é repartido deterministicamente pelos dias.
-
-A categoria `100 anos ou mais` é aberta. Qualquer decomposição interna é aproximação de modelagem e nunca deve ser descrita como idade simples observada pelo IBGE.
-
-### Secretaria Municipal da Saúde de São Paulo — SINASC
-
-Fonte primária: Secretaria Municipal da Saúde de São Paulo / Coordenação de Epidemiologia e Informação, **Sistema de Informações sobre Nascidos Vivos (SINASC)**.
-
-- página de dados abertos: https://prefeitura.sp.gov.br/web/saude/w/epidemiologia_e_informacao/nascidos_vivos/306422
-- página do sistema: https://prefeitura.sp.gov.br/saude/w/epidemiologia_e_informacao/nascidos_vivos/29569
-- notas técnicas: https://prefeitura.sp.gov.br/web/saude/w/tabnet/8241
-- dados preliminares: https://prefeitura.sp.gov.br/web/saude/w/epidemiologia_e_informacao/nascidos_vivos/312653
-- arquivos publicados: DBF, CSV e XLSX; a página oficial de dados abertos lista séries anuais de 2006 a 2025 na consulta de 29/09/2026; 2026 está publicado separadamente como preliminar e sujeito a alteração;
-- fonte administrativa original: **Declaração de Nascido Vivo (DN)**, padronizada pelo Ministério da Saúde;
-- unidade selecionada para esta referência: nascidos vivos de **mães/parturientes residentes no Município de São Paulo**, independentemente do município de ocorrência do parto;
-- não usar a seleção “ocorridos no Município de São Paulo”, pois ela inclui partos de residentes de outros municípios e não representa a população residente pretendida.
-
-A própria SMS documenta que, desde 2007, a seleção de residentes recupera nascimentos de mães residentes em São Paulo independentemente do município de ocorrência, inclusive por retroalimentação. A SMS também declara que dados preliminares são um retrato na data de publicação e podem mudar por novos registros e procedimentos de qualidade até a edição final. Por isso, **cada snapshot SINASC usado deve ser congelado, datado e hasheado**; preliminar e final são proveniências distintas.
-
-A ferramenta **falha fechado na geografia SINASC**: cada arquivo precisa expor campo de município de residência e todo registro contado deve declarar São Paulo como `355030` (representação SINASC/DATASUS sem dígito verificador) ou `3550308` (código territorial IBGE completo). Essas duas formas são normalizadas para a mesma geografia; arquivo sem esse campo ou contendo registro de outro município é rejeitado; não existe fallback para município de ocorrência nem presunção baseada no nome do arquivo. Esse gate é coberto por teste positivo, ausência de geografia e presença de registro não residente.
-
-A entrada SIDRA também falha fechado se, depois da precedência de idade simples e do fallback por faixa, houver lacuna entre 0 e 99 anos, sobreposição, faltar a categoria aberta 100+ ou a soma etária divergir da linha `Total`.
-
-Datas SINASC inválidas são erro fatal. Passar duas vezes conteúdo com o mesmo SHA-256 também é erro fatal. Cada arquivo SINASC declara individualmente `PATH|STATUS|SNAPSHOT_DATE|PERIOD_START|PERIOD_END`. Status (`FINAL` ou `PRELIMINARY`), data do snapshot, período coberto e SHA-256 são persistidos por fonte no manifesto. A data do snapshot deve ser igual ou posterior ao fim do período declarado e não pode estar no futuro. Todo nascimento precisa cair dentro do período declarado.
-
-A cobertura SINASC é **contínua e fail-closed**: quando SINASC é usado, o primeiro período começa exatamente em 01/08/2022; cada período seguinte começa no dia imediatamente posterior ao anterior; e o último termina exatamente em `--sinasc-cutoff`, que é persistido no modelo do manifesto. Início tardio, lacuna, sobreposição ou término diferente do corte são erro.
-
-Períodos de dois snapshots SINASC não podem se sobrepor, independentemente de status ou hash. Assim, uma edição preliminar e uma final da mesma competência não podem ser somadas; o operador deve escolher uma única proveniência. Conteúdo com SHA repetido continua sendo rejeitado adicionalmente.
-
-O SINASC é usado somente para o trecho pós-corte censitário disponível no snapshot. Para uma data em ou após 01/08/2022 presente no SINASC selecionado, a contagem observada substitui o valor derivado da coorte censitária para aquele dia. Não há soma das duas fontes.
-
-### O que é dado e o que é modelo
-
-**Observado/publicado:** população residente por idade no Censo/SIDRA; registros/contagens de nascidos vivos do SINASC; código territorial; datas/períodos e situação do snapshot.
-
-**Modelado pela Jornada:** conversão da idade censitária em janela anual de nascimento; uniformidade intrajanela; rateio inteiro por maior resto; tratamento da cauda 100+ quando não houver idade simples oficial; composição temporal Censo + SINASC.
-
-Nenhuma dessas aproximações deve ser apresentada como estatística publicada pelo IBGE ou pela SMS.
 
 ## Gates
 
-Antes de tornar o snapshot padrão do perfil `demographic-primary`: materializar de exports oficiais congelados; validar hashes/totais; confirmar fail-closed que todo SINASC contado é residência de São Paulo (`355030`/`3550308`); rejeitar datas inválidas, snapshot duplicado, início tardio, lacunas e períodos sobrepostos; registrar estado/data/período/hash por snapshot; validar snapshotDate contra período e data corrente; reconciliar soma etária com `Total`; confirmar cobertura etária 0..99 + 100+; executar testes da ferramenta; carregar por `SyntheticDailyBirthDistribution.LoadAsync`; provar unicidade, positividade e determinismo; executar a suíte unitária; manter a issue #31 como gate separado para validação estatística real.
+Antes de tornar o snapshot padrão: congelar o export oficial SIDRA 9514; registrar e validar SHA-256; reconciliar idades com a linha `Total`; confirmar cobertura 0..99 + 100+; confirmar convenção 100–105; declarar o corte pós-Censo; executar os testes da ferramenta; carregar o JSON por `SyntheticDailyBirthDistribution.LoadAsync`; provar unicidade, positividade e determinismo; executar a suíte unitária. A issue #31 continua sendo gate separado para validação estatística real.
 
 ## Fora de escopo
 
