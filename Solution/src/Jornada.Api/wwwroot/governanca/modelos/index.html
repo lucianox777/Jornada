@@ -92,6 +92,11 @@
         <div class="table-wrap"><table><thead><tr><th>Versão</th><th>Operação</th><th>Novo estado</th><th>Data</th></tr></thead><tbody id="history"></tbody></table></div>
       </details>
     </section>
+    <section class="card" aria-labelledby="lifecycle-heading">
+      <h2 id="lifecycle-heading">Linha do tempo da calibração</h2>
+      <p class="muted small">Bootstrap inicial IBGE e modelos posteriores da Jornada. A referência associada ao modelo não prova recarga do IBGE. A fonte m/u só será identificada quando houver proveniência explícita.</p>
+      <div class="table-wrap"><table><thead><tr><th>Modelo</th><th>Referência</th><th>Data</th><th>Suporte m/u</th><th>Evidência</th></tr></thead><tbody id="timeline"></tbody></table></div>
+    </section>
     <section class="card secondary" aria-labelledby="calibration-history-heading">
       <details>
         <summary id="calibration-history-heading">Histórico agregado de calibração (até 20 modelos)</summary>
@@ -191,6 +196,23 @@
       td.colSpan = 4;
     }
   }
+  function showTimeline(rows) {
+    const node = byId('timeline'); node.replaceChildren();
+    const chronological = [...(rows || [])].reverse();
+    for (const item of chronological) {
+      const tr = node.appendChild(document.createElement('tr'));
+      const n = value => value === null || value === undefined ? 'Sem evidência' : String(value);
+      ['v' + item.version + ' · ' + item.modelStatus,
+        n(item.referenceCode) + ' · SHA: ' + n(item.referenceSha256),
+        asDate(item.generatedAt),
+        'm: ' + n(item.matchedPairSample) + ' / u: ' + n(item.candidateUnionUSample),
+        n(item.evaluatorEvidenceStatus)].forEach(value => append(tr,'td',value));
+    }
+    if (!chronological.length) {
+      const tr = node.appendChild(document.createElement('tr'));
+      append(tr,'td','Nenhum modelo disponível.').colSpan = 5;
+    }
+  }
   function showCalibrationHistory(rows) {
     const node = byId('calibrationHistory'); node.replaceChildren();
     for (const item of (rows || [])) {
@@ -231,6 +253,7 @@
       showModel(byId('draft'),data.draft,'draft');
       showComparison(data.comparison);
       showHistory(data.recentHistory);
+      showTimeline(data.calibrationHistory);
       showCalibrationHistory(data.calibrationHistory);
       byId('dashboard').hidden = false;
       setText(byId('message'),'Visão carregada. As decisões e a ativação permanecem indisponíveis.');
