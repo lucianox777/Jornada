@@ -41,7 +41,7 @@ O arquivo efetivo requer ACL/permissões do sistema operacional restritas à con
 dotnet run --project clients/Jornada.Integrador.CSharp -- --resultado <nome-exato-do-zip.zip> --config <integrador.config.json> --saida <resultado.json>
 ```
 
-**A CLI C# aceita somente o nome exato do ZIP**, não caminho local nem SHA-256 nesse comando. A rota do serviço `GET /api/v1/ingestao/resultados/{identificador}` admite nome do ZIP ou SHA-256 no servidor. O cliente consulta até `PROCESSADA`, `REJEITADA` ou `QUARENTENA` e salva o resultado. Não confundir recibo HTTP com processamento concluído.
+**A CLI C# aceita somente o nome exato do ZIP**, não caminho local nem SHA-256 nesse comando. A rota do serviço `GET /api/v1/ingestao/resultados/{nomeArquivo}` recebe o nome exato do ZIP; o placeholder legado `{identificador}` não integra mais o contrato do cliente. O cliente consulta até `PROCESSADA`, `REJEITADA` ou `QUARENTENA` e salva o resultado. Não confundir recibo HTTP com processamento concluído.
 
 O serviço `Solution/src/Jornada.Resultado.Api` valida `X-Jornada-Gestor` e `X-Jornada-Access-Key` na API principal, sem cadastrar outra credencial. O retorno inclui dados de rastreabilidade da entrega, lotes e tentativas, contagens e erros de ingestão, e separa itens ainda disponíveis de itens consolidados pela política de retenção. Não devolve CPF nem conteúdo cadastral. Após expurgo, os totais permanecem disponíveis via `ingestao.item_processado_resumo`, com aviso quando não existe mais detalhe integral item a item.
 
