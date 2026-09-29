@@ -390,6 +390,23 @@ public sealed class NameFrequencySnapshotLoader(
             if (versionId != 0 && status != "CARREGANDO")
             {
                 if (existingHash is not null && existingHash.AsSpan().SequenceEqual(canonicalHash)
+                    && existingNormalization is null && existingSchema is null)
+                {
+                    // Explicit LOAD has just verified every physical file, projection and canonical hash.
+                    // Upgrade only legacy metadata; never infer compatibility in ENSURE or GENERATE_DRAFT.
+                    await using var validateLegacy = new SqlCommand(
+                        "UPDATE ref.frequencia_nome_versao SET normalizacao_versao=@normalizacao,manifest_schema_version=@schema WHERE frequencia_nome_versao_id=@id AND normalizacao_versao IS NULL AND manifest_schema_version IS NULL AND conteudo_sha256=@hash;", connection, transaction);
+                    validateLegacy.Parameters.Add("@normalizacao", SqlDbType.NVarChar, 80).Value = manifest.NormalizationVersion;
+                    validateLegacy.Parameters.Add("@schema", SqlDbType.Int).Value = manifest.SchemaVersion;
+                    validateLegacy.Parameters.Add("@id", SqlDbType.BigInt).Value = versionId;
+                    validateLegacy.Parameters.Add("@hash", SqlDbType.Binary, 32).Value = canonicalHash;
+                    if (await validateLegacy.ExecuteNonQueryAsync(cancellationToken) != 1)
+                        throw new InvalidOperationException("Falha ao revalidar metadados da referencia legada.");
+                    await transaction.CommitAsync(cancellationToken);
+                    logger.LogInformation("Referencia legada {Version} revalidada explicitamente sem substituir seu conteudo.", manifest.ReferenceCode);
+                    return;
+                }
+                if (existingHash is not null && existingHash.AsSpan().SequenceEqual(canonicalHash)
                     && string.Equals(existingNormalization, manifest.NormalizationVersion, StringComparison.Ordinal)
                     && existingSchema == manifest.SchemaVersion)
                 {
