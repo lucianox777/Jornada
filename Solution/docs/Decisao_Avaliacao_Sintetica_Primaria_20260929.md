@@ -18,6 +18,15 @@ A **conferência matemática independente** permanece obrigatória conforme DT-0
 
 **Fronteira:** resultado sintético demonstra apenas os cenários modelados. Não declara representatividade de cadastros reais nem quita a issue #31; contratos institucionais, credenciais, controles de HML e autorização humana DT-15 permanecem independentes.
 
+
+## Robustez do corpus e independência da conferência
+
+- Publicar com cada resultado o manifesto versionado do gerador, parâmetros efetivos por perfil/Secretaria/estrato, seed, taxas nominais e observadas de erro, dependências entre erros, hashes e partições. Distinguir parâmetros baseados em evidência externa daqueles assumidos para exploração; ausência de taxas reais deve ser declarada, sem atribuir representatividade ao cenário.
+- Antes de executar TEST, fixar uma matriz de sensibilidade com intensidades de erro superiores às usadas no desenvolvimento, incluindo mãe ausente, CPF ausente/tardio, abreviação, transposição de data e erros compartilhados entre origens. Relatar métricas por cenário e estrato, sem agregar resultados de forma que esconda falsos vínculos.
+- Reservar uma família versionada de perturbações fora do desenho e da calibração do motor. Fixar sua especificação e seed antes da avaliação, manter seu gabarito independente e não reutilizar seus resultados para escolher threshold ou ajustar comparadores. Se passar a orientar desenvolvimento, reclassificá-la como validação e reservar outra família inédita para auditoria futura.
+- A conferência matemática obrigatória deve conter vetores com resultados esperados obtidos independentemente do scorer operacional, com proveniência, fórmula, valores intermediários e revisão documentadas. Cobrir comparadores/estados, m e u positivos, LLR, prior, threshold, guardas e decisões nas fronteiras. A paridade decimal × float64 complementa esses vetores, mas não demonstra por si só correção da fórmula. Registrar fingerprint e versão; mudanças relevantes exigem nova conferência conforme DT-14.
+- A família reservada testa robustez aos cenários inéditos modelados, não estima desempenho populacional nem substitui a validação representativa #31.
+
 ## Sequência de execução
 
 Trilha 4 e regressão multi-ondas → conferência matemática independente conforme gates existentes → avaliação sintética congelada e relatório por estrato → Ensaio único após os demais gates operacionais/institucionais aplicáveis → HML e validação real #31 em seus próprios critérios. O Splink pode ser executado posteriormente para diagnóstico sem bloquear essa sequência.
