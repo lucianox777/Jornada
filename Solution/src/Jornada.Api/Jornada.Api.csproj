@@ -6,7 +6,7 @@
     <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
     <ProjectReference Include="..\Jornada.Linkage.Runner\Jornada.Linkage.Runner.csproj" />
     <ProjectReference Include="..\Jornada.Ingestion\Jornada.Ingestion.csproj" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.7" />
   </ItemGroup>
   <!-- A API reutiliza o assembly do Runner, não seus arquivos de configuração/lock. -->
   <Target Name="ExcludeReferencedRunnerPublishContent" AfterTargets="ComputeFilesToPublish">
