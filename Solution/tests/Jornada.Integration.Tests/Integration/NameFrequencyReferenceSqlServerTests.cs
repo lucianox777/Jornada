@@ -142,6 +142,37 @@ public sealed class NameFrequencyReferenceSqlServerTests
             "Calibrador deve falhar fechado quando não existe referência ATIVA.");
     }
 
+    [Test]
+    public async Task GenerateDraft_SQL_gate_rejects_missing_reference_and_accepts_published_reference()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260912_Frequencia_Nomes_Referencia.sql"));
+
+        // Integration database only: no production or original JornadaLocal reset.
+        await using (var deactivate = connection.CreateCommand())
+        {
+            deactivate.CommandText = "UPDATE ref.frequencia_nome_versao SET status='OBSOLETA' WHERE status='ATIVA';";
+            await deactivate.ExecuteNonQueryAsync();
+        }
+
+        var adapter = new Jornada.Operational.Sql.OperationalSqlAdapter(connectionString);
+        Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Jornada.Linkage.Parameters.Worker.GenerateDraftIbgePrecondition.RequireActiveAsync(
+                () => Jornada.Linkage.Parameters.Worker.ActiveNameFrequencyReferenceQuery.HasActiveAsync(adapter)));
+
+        var code = $"TEST-DRAFT-GATE-{Guid.NewGuid():N}";
+        var versionId = await CreateVersionWithMinimumReferenceAsync(connection, code, 1000, 400);
+        await PublishAsync(connection, versionId, 0x42);
+
+        Assert.DoesNotThrowAsync(async () =>
+            await Jornada.Linkage.Parameters.Worker.GenerateDraftIbgePrecondition.RequireActiveAsync(
+                () => Jornada.Linkage.Parameters.Worker.ActiveNameFrequencyReferenceQuery.HasActiveAsync(adapter)));
+    }
+
     private static async Task InsertLinkageRunAsync(SqlConnection connection, Guid runId, Guid modelId)
     {
         await using var command = connection.CreateCommand();
