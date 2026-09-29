@@ -214,6 +214,8 @@ public sealed class LinkageParameterEstimatorTests
         Assert.Multiple(() =>
         {
             Assert.That(p[LinkageParameterCatalog.NeutralMissingEvidenceScoring], Is.EqualTo(1m));
+            Assert.That(p.ContainsKey(LinkageParameterCatalog.NonUniqueDemographicExactGuard), Is.False,
+                "V8 não pode persistir o veto demográfico fixo.");
             Assert.That(p.ContainsKey("M_NOME_MAE_MISSING"), Is.False);
             Assert.That(p.ContainsKey("U_NOME_MAE_MISSING"), Is.False);
             Assert.That(p["SUPPORT_M_NOME_MAE_MISSING"], Is.EqualTo(1m));
