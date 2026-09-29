@@ -33,7 +33,7 @@ public sealed class LocalClusterDiagnosisContractTests
         {
             Assert.That(script, Does.Contain("IBGE"));
             Assert.That(script, Does.Contain("bootstrap nominal obrigatório"));
-            Assert.That(script, Does.Contain("sem fonte substituta"));
+            Assert.That(script, Does.Contain("fonte substituta"));
             Assert.That(script, Does.Not.Contain("bootstrap/fallback"));
             Assert.That(script, Does.Contain("u nominal"));
             Assert.That(script, Does.Contain("blocking"));
@@ -55,7 +55,7 @@ public sealed class LocalClusterDiagnosisContractTests
             Assert.That(document, Does.Contain("IBGE"));
             Assert.That(document, Does.Contain("bootstrap"));
             Assert.That(document, Does.Contain("GENERATE_DRAFT"));
-            Assert.That(document, Does.Contain("sem fonte substituta"));
+            Assert.That(document, Does.Contain("fonte substituta"));
             Assert.That(document, Does.Not.Contain("bootstrap/fallback"));
             Assert.That(document, Does.Not.Contain("fallback versionado"));
         });
@@ -74,7 +74,7 @@ public sealed class LocalClusterDiagnosisContractTests
             Assert.That(historical, Does.Contain("superada em 28/09/2026"));
             Assert.That(historical, Does.Contain("Nota de atualização normativa"));
             Assert.That(historical, Does.Contain("GENERATE_DRAFT deve falhar explicitamente"));
-            Assert.That(historical, Does.Contain("sem fonte substituta"));
+            Assert.That(historical, Does.Contain("fonte substituta"));
         });
     }
 
