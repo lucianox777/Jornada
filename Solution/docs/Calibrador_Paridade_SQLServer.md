@@ -39,3 +39,8 @@ O fechamento é coberto por:
 7. testes de `BlockingRuleSetSearchConfiguration` preservando defaults, overrides válidos e rejeição de valores inválidos.
 
 Os valores finais de configuração do blocking continuam sujeitos à calibração representativa e à governança da issue #31; este fechamento trata somente da paridade técnica de geração/persistência.
+
+
+### RF-572 — compatibilidade da referência na geração
+
+`GENERATE_DRAFT` não carrega nem recalcula o snapshot: exige uma única referência ATIVA com hash de 32 bytes, NOME e SOBRENOME e metadados persistidos `normalizacao_versao` e `manifest_schema_version` compatíveis com o worker. O loader verifica arquivos físicos, projeção e hash canônico na carga explícita, rejeita manifesto com normalização incompatível e persiste os metadados na mesma transação de publicação. Versões legadas ficam com metadados NULL após a migração e não passam em ENSURE ou GENERATE_DRAFT até executar explicitamente `LOAD_NAME_FREQUENCY_SNAPSHOT` com o mesmo conteúdo canônico e manifesto compatível, que permite uma única revalidação dos metadados sem substituir os dados publicados. A verificação leve não detecta adulteração posterior dos dados; a proteção de imutabilidade SQL e as conferências integrais de carga/diagnóstico continuam necessárias.
