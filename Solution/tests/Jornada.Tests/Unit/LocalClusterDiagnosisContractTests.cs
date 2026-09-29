@@ -42,10 +42,30 @@ public sealed class LocalClusterDiagnosisContractTests
     }
 
     [TestCase("Documentos/ADR/ADR-002-calibrador-fs-u-condicionado.md")]
-    [TestCase("Solution/docs/Arquitetura_Identidade_Linkage.md")]
     [TestCase("Solution/docs/Calibrador_FS_Specification.md")]
+    public void CurrentIbgeNorms_RequireSingleBootstrapWithoutPerGenerationActiveReference(string relativePath)
+    {
+        var root = FindRepositoryRoot();
+        var document = File.ReadAllText(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(document, Does.Contain("IBGE"));
+            Assert.That(document, Does.Contain("uma única vez"));
+            Assert.That(document, Does.Contain("GENERATE_DRAFT"));
+            Assert.That(document, Does.Match(@"(?i)(sem exigir|não exige) referência IBGE ativa"));
+            Assert.That(document, Does.Match(@"(?i)(falha por ausência do primeiro bootstrap|primeiro bootstrap necessário ainda não ocorreu)"));
+            Assert.That(document, Does.Not.Contain("bootstrap/fallback"));
+            Assert.That(document, Does.Not.Contain("fallback versionado"));
+        });
+    }
+
+    // Estes dois documentos ainda trazem a regra histórica de snapshot ativo a cada
+    // geração. São inventariados, mas NÃO são aceitos por este teste como norma vigente.
+    // A atualização dos respectivos contratos pertence às frentes documentais próprias.
+    [TestCase("Solution/docs/Arquitetura_Identidade_Linkage.md")]
     [TestCase("Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.md")]
-    public void NormativeIbgeDocuments_RequireActiveReferenceAndRejectFallback(string relativePath)
+    public void PendingIbgeDocumentationReconciliation_RemainsInventoried(string relativePath)
     {
         var root = FindRepositoryRoot();
         var document = File.ReadAllText(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
@@ -55,9 +75,6 @@ public sealed class LocalClusterDiagnosisContractTests
             Assert.That(document, Does.Contain("IBGE"));
             Assert.That(document, Does.Contain("bootstrap"));
             Assert.That(document, Does.Contain("GENERATE_DRAFT"));
-            Assert.That(document, Does.Contain("fonte substituta"));
-            Assert.That(document, Does.Not.Contain("bootstrap/fallback"));
-            Assert.That(document, Does.Not.Contain("fallback versionado"));
         });
     }
 
