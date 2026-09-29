@@ -11,6 +11,10 @@ public sealed class SyntheticCorpusGenerator
 
     private readonly SyntheticFrequencySampler firstNames;
     private readonly SyntheticFrequencySampler surnames;
+    private readonly SyntheticFrequencySampler motherFirstNames;
+    private readonly SyntheticFrequencySampler motherSurnames;
+    private readonly SyntheticDailyBirthDistribution? dailyBirths;
+    private readonly bool demographicPrimary;
 
     public SyntheticCorpusGenerator(
         SyntheticFrequencySampler firstNames,
@@ -18,6 +22,25 @@ public sealed class SyntheticCorpusGenerator
     {
         this.firstNames = firstNames ?? throw new ArgumentNullException(nameof(firstNames));
         this.surnames = surnames ?? throw new ArgumentNullException(nameof(surnames));
+        motherFirstNames = this.firstNames;
+        motherSurnames = this.surnames;
+        dailyBirths = null;
+        demographicPrimary = false;
+    }
+
+    public SyntheticCorpusGenerator(
+        SyntheticFrequencySampler personFirstNames,
+        SyntheticFrequencySampler personSurnames,
+        SyntheticFrequencySampler motherFirstNames,
+        SyntheticFrequencySampler motherSurnames,
+        SyntheticDailyBirthDistribution dailyBirths)
+    {
+        firstNames = personFirstNames ?? throw new ArgumentNullException(nameof(personFirstNames));
+        surnames = personSurnames ?? throw new ArgumentNullException(nameof(personSurnames));
+        this.motherFirstNames = motherFirstNames ?? throw new ArgumentNullException(nameof(motherFirstNames));
+        this.motherSurnames = motherSurnames ?? throw new ArgumentNullException(nameof(motherSurnames));
+        this.dailyBirths = dailyBirths ?? throw new ArgumentNullException(nameof(dailyBirths));
+        demographicPrimary = true;
     }
 
     public SyntheticCorpusGeneration Generate(SyntheticCorpusOptions options)
@@ -116,17 +139,41 @@ public sealed class SyntheticCorpusGenerator
         if (SyntheticCorpusV2Rules.NextBernoulli(random, .18))
             first += " " + firstNames.Draw(random);
 
-        var motherFirst = firstNames.Draw(random);
-        var motherExtra = SyntheticCorpusV2Rules.NextBernoulli(random, .4)
-            ? surnames.Draw(random)
-            : null;
+        string motherFirst;
+        string? motherExtra;
+        string motherLast;
+        if (demographicPrimary)
+        {
+            motherFirst = motherFirstNames.Draw(random);
+            motherExtra = SyntheticCorpusV2Rules.NextBernoulli(random, .4)
+                ? motherSurnames.Draw(random)
+                : null;
+            motherLast = motherSurnames.Draw(random);
+        }
+        else
+        {
+            motherFirst = firstNames.Draw(random);
+            motherExtra = SyntheticCorpusV2Rules.NextBernoulli(random, .4)
+                ? surnames.Draw(random)
+                : null;
+            motherLast = surnameComponents[^1];
+        }
+
         var mother = motherFirst
             + (motherExtra is null ? string.Empty : " " + motherExtra)
             + " "
-            + surnameComponents[^1];
+            + motherLast;
 
-        var year = 1935 + random.NextInt32(2020 - 1935 + 1);
-        var birthDate = new DateOnly(year, 1, 1).AddDays(random.NextInt32(365));
+        DateOnly birthDate;
+        if (dailyBirths is not null)
+        {
+            birthDate = dailyBirths.Draw(random);
+        }
+        else
+        {
+            var year = 1935 + random.NextInt32(2020 - 1935 + 1);
+            birthDate = new DateOnly(year, 1, 1).AddDays(random.NextInt32(365));
+        }
 
         var correctionComponents = new List<double>();
         correctionComponents.AddRange(
@@ -136,8 +183,10 @@ public sealed class SyntheticCorpusGenerator
             surnameComponents
                 .Where(component => !SyntheticCorpusV2Rules.SurnameParticles.Contains(component, StringComparer.Ordinal))
                 .Select(surnames.Weight));
-        correctionComponents.Add(firstNames.Weight(motherFirst));
-        correctionComponents.Add(surnames.Weight(surnameComponents[^1]));
+        correctionComponents.Add(
+            (demographicPrimary ? motherFirstNames : firstNames).Weight(motherFirst));
+        correctionComponents.Add(
+            (demographicPrimary ? motherSurnames : surnames).Weight(motherLast));
 
         var evaluationWeight = 1.0;
         foreach (var correction in correctionComponents)
