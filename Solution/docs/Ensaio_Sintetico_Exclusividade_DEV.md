@@ -1,5 +1,7 @@
 # Exclusividade do Processor no ensaio sintético DEV
 
+
+> **Nota de vigência (29/09/2026):** os `20.000` deste documento pertencem ao ensaio DEV histórico de três ondas aqui descrito e **não** definem o tamanho padrão do corpus `demographic-primary`. O padrão vigente desse corpus é **30.000**, conforme [DC-SYN-01-E1](DC-SYN-01-E1_Referencia_Diaria_Nascimento.md). Os comandos abaixo são preservados como reprodução do ensaio específico.
 O ensaio de 20.000 pessoas em três ondas coloca os ZIPs gerados em uma
 **Bronze temporária local** configurada em `BronzeStorage__RootPath` somente
 para sua API e seu Processor. Em 22/09/2026 uma entrega entrou em
