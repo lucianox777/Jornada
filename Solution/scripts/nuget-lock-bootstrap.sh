@@ -14,6 +14,7 @@ dotnet restore Jornada.sln --use-lock-file --force-evaluate
 if ! git diff --quiet -- '**/packages.lock.json'; then
   echo "ERRO: force-evaluate alterou packages.lock.json versionado; atualize locks e proveniência." >&2
   git diff --stat -- '**/packages.lock.json' >&2
+  find . -name packages.lock.json -not -path './.local/*' -print0 | sort -z | tar --null -T - -czf "$OUT/packages-locks.tar.gz"
   echo "---- lockfile patch calculado pelo SDK ----" >&2
   git diff --no-ext-diff -- '**/packages.lock.json' >&2
   echo "---- fim do lockfile patch ----" >&2
