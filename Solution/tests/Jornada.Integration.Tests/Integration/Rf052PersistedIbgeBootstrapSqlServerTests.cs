@@ -1,3 +1,4 @@
+using System.Globalization;
 using Jornada.Linkage.Parameters.Worker;
 using Microsoft.Data.SqlClient;
 
@@ -67,7 +68,7 @@ public sealed class Rf052PersistedIbgeBootstrapSqlServerTests
                 connection, transaction))
             {
                 read.Parameters.AddWithValue("@id", modelId);
-                Assert.That(Convert.ToInt64(await read.ExecuteScalarAsync()), Is.EqualTo(sourceId));
+                Assert.That(Convert.ToInt64(await read.ExecuteScalarAsync(), CultureInfo.InvariantCulture), Is.EqualTo(sourceId));
             }
 
             var missingReference = Assert.ThrowsAsync<SqlException>(async () =>
@@ -157,7 +158,7 @@ public sealed class Rf052PersistedIbgeBootstrapSqlServerTests
             """, connection, transaction);
         command.Parameters.AddWithValue(
             "@codigo", PersistedIbgeBootstrapReferenceQuery.CanonicalReferenceCode);
-        return Convert.ToInt64(await command.ExecuteScalarAsync());
+        return Convert.ToInt64(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
     }
 
     private static async Task InsertReadyDerivedAsync(
