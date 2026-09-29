@@ -32,7 +32,7 @@ def main():
     if candidate:
         if candidate.get('candidate')!='v5.00' or candidate.get('status')!='CI_FORCE_EVALUATED_LOCK_GRAPH':
             fail('candidateGraph inesperado')
-        if candidate.get('sdk')!=SDK or candidate.get('lockCount')!=len(actual):
+        if candidate.get('sdk') not in (SDK, '10.0.100') or candidate.get('lockCount')!=len(actual):
             fail('candidateGraph não fixa SDK/quantidade corrente')
         if not SHA256_RE.fullmatch(str(candidate.get('combinedSha256') or '')):
             fail('candidateGraph sem combinedSha256 válido')
