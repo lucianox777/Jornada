@@ -1,0 +1,50 @@
+name: dt02-lock-refresh-once
+on:
+  push:
+    branches: [feat/dt02-net10-sdk-foundation]
+    paths:
+      - '.github/workflows/dt02-lock-refresh.yml'
+permissions:
+  contents: write
+jobs:
+  refresh:
+    if: github.repository == 'lucianox777/Jornada'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: true
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: '10.0.100'
+      - name: Regenerate exact SDK 10 locks and candidate provenance
+        working-directory: Solution
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(dotnet --version)" = '10.0.100'
+          dotnet restore Jornada.sln --use-lock-file --force-evaluate
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('.')
+          manifest=root/'config/release/nuget-lock-provenance.json'
+          data=json.loads(manifest.read_text())
+          locks=sorted(p for p in root.rglob('packages.lock.json') if not ({'.local','obj','bin'} & set(p.parts)))
+          rows=[{'path':p.as_posix(),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in locks]
+          combined=hashlib.sha256(('\n'.join(f"{r['sha256']}  {r['path']}" for r in rows)).encode()).hexdigest()
+          data['candidateGraph']={'candidate':'v5.00','status':'CI_FORCE_EVALUATED_LOCK_GRAPH','sdk':'10.0.100','lockCount':len(rows),'changedLockCount':len(rows),'combinedSha256':combined,'overrides':rows}
+          manifest.write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n')
+          print('Regenerated',len(rows),'locks; combined SHA256:',combined)
+          PY
+          python3 scripts/nuget-lock-gate.py --root .
+          python3 scripts/nuget-lock-provenance-gate.py --root .
+          dotnet restore Jornada.sln --locked-mode
+      - name: Commit only generated lock graph and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add 'Solution/**/packages.lock.json' Solution/config/release/nuget-lock-provenance.json
+          git diff --cached --quiet && exit 0
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'build(DT-02): commit SDK 10 NuGet lock graph and provenance'
+          git push origin HEAD:feat/dt02-net10-sdk-foundation
