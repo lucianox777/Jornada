@@ -111,8 +111,8 @@ public sealed class LinkageParametersBootstrapProgressTests
         Assert.Multiple(() =>
         {
             Assert.That(query, Does.Contain("DATALENGTH(v.conteudo_sha256)=32"));
-            Assert.That(program, Does.Contain("n.tipo='NOME'"));
-            Assert.That(program, Does.Contain("s.tipo='SOBRENOME'"));
+            Assert.That(query, Does.Contain("n.tipo='NOME'"));
+            Assert.That(query, Does.Contain("s.tipo='SOBRENOME'"));
             Assert.That(program, Does.Contain("ActiveNameFrequencyReferenceQuery.HasActiveAsync"));
         });
     }
