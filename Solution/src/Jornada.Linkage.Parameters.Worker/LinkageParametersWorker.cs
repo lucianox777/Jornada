@@ -274,12 +274,26 @@ public sealed class LinkageParametersWorker(
                 modelParameters,
                 candidatePrior);
 
+            var termFrequency = await NominalTermFrequencyReferenceStore.PrepareAsync(
+                connection,
+                ibgeReference.Id,
+                workCt);
+            modelParameters = new Dictionary<string, decimal>(
+                modelParameters, StringComparer.Ordinal)
+            {
+                [LinkageParameterCatalog.TermFrequencyScoring] = 1m,
+                [LinkageParameterCatalog.TermFrequencyWeight] = 1m,
+                [LinkageParameterCatalog.TermFrequencyMinimumU] = 0.000001m,
+                [LinkageParameterCatalog.TermFrequencyFirstTokenContract] = 1m
+            };
+
             var decisionCalibrationScenarios = await BlockingDecisionThresholdCalibrationReader.ReadAsync(
                 connection,
                 normalizationVersion,
                 blocking.Passes,
                 algorithmVersion,
                 modelParameters,
+                termFrequency.Snapshot,
                 decisionCalibrationSeed,
                 decisionValidationBasisPoints,
                 decisionTestBasisPoints,
@@ -306,7 +320,7 @@ public sealed class LinkageParametersWorker(
             var ruleSet = LinkageDynamicRuleSet.CreateWithPasses($"MODEL_{version}_BLOCKING_V1", algorithmVersion, blocking.Passes, persistedParameters);
             await PublishDraftModelAsync(
                 connection, modelId, corpusCapturedAtUtc, statistics, matchedPairs, unmatchedPairs.Count,
-                persistedParameters, ruleSet, ibgeReference, dt15Comparison, workCt);
+                persistedParameters, ruleSet, ibgeReference, termFrequency, dt15Comparison, workCt);
 
             logger.LogInformation(
                 "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; u_nome_blocking={UNameBlocking}; u_mae_blocking={UMotherBlocking}; abbrev_m_nome={AbbrevMName}; abbrev_u_ref_nome={AbbrevUName}; prior_ativo={ActivePrior}; prior_candidato_par={CandidatePairPrior}; prior_pares={CandidatePairs}; prior_recall={CandidateRecall}; T_calibrado={Threshold}; piso_segundo_candidato={ConflictFloor}; margem_logodds_calibrada={ConflictMargin}; pareto={ParetoCount}; val_fp={ValidationFp}; test_fp={TestFp}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
@@ -660,6 +674,7 @@ public sealed class LinkageParametersWorker(
         IReadOnlyDictionary<string, decimal> parameters,
         LinkageDynamicRuleSet ruleSet,
         IbgeNominalUReferenceInfo ibgeReference,
+        PreparedNominalTermFrequency termFrequency,
         Dt15BlockingPairDiagnosticResult dt15Comparison,
         CancellationToken cancellationToken)
     {
@@ -765,6 +780,8 @@ public sealed class LinkageParametersWorker(
                 await command.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            await NominalTermFrequencyReferenceStore.WriteAsync(
+                connection, transaction, modelId, termFrequency, cancellationToken);
             await LinkageRuleSetWriter.WriteAsync(connection, transaction, modelId, ruleSet, cancellationToken);
             var goldSnapshot = statistics.MaxGoldUpdatedAt is null
                 ? $"gold.pessoa;corpus_utc={corpusCapturedAtUtc:O}"
