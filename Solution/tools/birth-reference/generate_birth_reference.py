@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Generate the frozen JORNADA_SYNTH_BIRTH_DAILY_V1 reference (DC-SYN-01-E1).
+"""Generate JORNADA_SYNTH_BIRTH_DAILY_V1 from a frozen SIDRA 9514 snapshot.
 
-Inputs are deliberately local snapshots: a SIDRA 9514 CSV exported for municipality
-3550308 (sex=Total, age declaration=Total) and zero or more SINASC CSV snapshots.
-No network access is performed by this tool.
+DC-SYN-01-E1 deliberately uses one demographic source: Censo 2022 / SIDRA
+table 9514 for municipality 3550308, sex=Total, age declaration=Total.
+Post-Census dates are a declared extrapolation of the age-zero daily rate.
+No network access is performed.
 """
 from __future__ import annotations
-import argparse,csv,hashlib,json,re,sys
+import argparse,csv,hashlib,json,re
 from collections import defaultdict
-from datetime import date,timedelta,datetime
+from datetime import date,timedelta
 from pathlib import Path
 
 SCHEMA="JORNADA_SYNTH_BIRTH_DAILY_V1"
@@ -22,13 +23,11 @@ def _int(v:str)->int:
 def read_sidra(path:Path):
     rows=[]; declared_total=None
     with path.open(encoding='utf-8-sig',newline='') as f:
-        r=csv.DictReader(f)
-        for x in r:
+        for x in csv.DictReader(f):
             age=(x.get('Idade') or x.get('idade') or '').strip()
             val=x.get('Valor') or x.get('valor') or x.get('População residente') or x.get('Populacao residente')
             if not age or val in (None,'','-','...'): continue
-            if age.lower()=='total':
-                declared_total=_int(val); continue
+            if age.lower()=='total': declared_total=_int(val); continue
             if 'mes' in age.lower(): continue
             m=AGE_RE.match(age)
             if m:
@@ -36,20 +35,15 @@ def read_sidra(path:Path):
             m=RANGE_RE.match(age)
             if m:
                 rows.append((int(m.group('a')),int(m.group('b')),_int(val),age)); continue
-            if age.lower()=='100 anos ou mais': rows.append((100,122,_int(val),age)); continue
-    # Prefer simple ages; ranges are fallback only.
+            if age.lower()=='100 anos ou mais':
+                rows.append((100,105,_int(val),age)); continue
     simple={a:(v,label) for a,b,v,label in rows if b is None}
-    out=[]
-    covered=set(simple)
+    out=[]; covered=set(simple)
     for a,(v,label) in sorted(simple.items()): out.append((a,a,v,label))
     for a,b,v,label in rows:
         if b is None or all(i in covered for i in range(a,b+1)): continue
         out.append((a,b,v,label)); covered.update(range(a,b+1))
-    out=sorted(out)
-    # Fail closed: every age 0..99 must be represented exactly once after
-    # applying simple-age precedence/range fallback, and the open 100+ group
-    # must be present. Missing interior ages would silently bias the corpus.
-    covered=set()
+    out=sorted(out); covered=set()
     for a,b,_,_ in out:
         for age in range(a,b+1):
             if age in covered: raise ValueError(f'SIDRA: idade {age} coberta mais de uma vez')
@@ -58,10 +52,8 @@ def read_sidra(path:Path):
     if missing: raise ValueError(f'SIDRA: idades ausentes: {missing}')
     if 100 not in covered: raise ValueError('SIDRA: categoria 100 anos ou mais ausente')
     computed=sum(v for _,_,v,_ in out)
-    if declared_total is None:
-        raise ValueError('SIDRA: linha Total ausente')
-    if computed != declared_total:
-        raise ValueError(f'SIDRA: soma etária {computed} difere do Total {declared_total}')
+    if declared_total is None: raise ValueError('SIDRA: linha Total ausente')
+    if computed != declared_total: raise ValueError(f'SIDRA: soma etária {computed} difere do Total {declared_total}')
     return out
 
 def apportion(total:int,n:int):
@@ -69,125 +61,46 @@ def apportion(total:int,n:int):
     return [q+(i<r) for i in range(n)]
 
 def census_daily(groups):
-    d=defaultdict(int); total=0
+    d=defaultdict(int); total=0; age_zero_weight=None
     for a,b,pop,label in groups:
         ages=list(range(a,b+1)); age_weights=apportion(pop,len(ages))
         for age,w in zip(ages,age_weights):
+            if age==0: age_zero_weight=w
             start=date(2021-age,8,1); end=date(2022-age,7,31); days=(end-start).days+1
             for i,x in enumerate(apportion(w,days)):
                 if x: d[start+timedelta(days=i)]+=x
         total+=pop
-    return d,total
+    if age_zero_weight is None: raise ValueError('SIDRA: peso da idade zero ausente')
+    return d,total,age_zero_weight
 
-def parse_snapshot_arg(value:str):
-    # PATH|STATUS|SNAPSHOT_DATE|PERIOD_START|PERIOD_END
-    parts=value.split('|')
-    if len(parts)!=5:
-        raise argparse.ArgumentTypeError('SINASC deve ser PATH|FINAL|YYYY-MM-DD|YYYY-MM-DD|YYYY-MM-DD')
-    path,status,snapshot_s,start_s,end_s=parts
-    if status not in ('FINAL','PRELIMINARY'):
-        raise argparse.ArgumentTypeError('status SINASC deve ser FINAL ou PRELIMINARY')
-    try:
-        snapshot_date=date.fromisoformat(snapshot_s); period_start=date.fromisoformat(start_s); period_end=date.fromisoformat(end_s)
-    except ValueError as e:
-        raise argparse.ArgumentTypeError('datas SINASC devem ser YYYY-MM-DD') from e
-    if period_start>period_end:
-        raise argparse.ArgumentTypeError('período SINASC invertido')
-    if snapshot_date<period_end:
-        raise argparse.ArgumentTypeError('snapshotDate SINASC não pode preceder o fim do período')
-    if snapshot_date>date.today():
-        raise argparse.ArgumentTypeError('snapshotDate SINASC não pode estar no futuro')
-    return {'path':Path(path),'publicationStatus':status,'snapshotDate':snapshot_date.isoformat(),'periodStart':period_start.isoformat(),'periodEnd':period_end.isoformat()}
-
-def read_sinasc(snapshots, expected_end=None):
-    """Read SINASC rows and fail closed unless residence is explicitly MSP.
-
-    Raw/open-data files are accepted only when a residence-municipality field
-    proves that every counted row belongs to municipality 3550308. An input
-    that merely happens to contain births occurring in Sao Paulo is rejected.
-    """
-    d=defaultdict(int)
-    seen_hashes=set()
-    source_meta=[]
-    periods=[]
-    if snapshots and expected_end is None:
-        raise ValueError('SINASC: data de corte obrigatória')
-    if snapshots:
-        ordered=sorted(snapshots,key=lambda s:s['periodStart'])
-        if date.fromisoformat(ordered[0]['periodStart']) != CENSUS_DATE:
-            raise ValueError('SINASC: cobertura deve iniciar em 2022-08-01')
-        cursor=CENSUS_DATE
-        for s in ordered:
-            start=date.fromisoformat(s['periodStart']); end=date.fromisoformat(s['periodEnd'])
-            if start != cursor:
-                raise ValueError(f'SINASC: lacuna ou sobreposição; esperado início {cursor.isoformat()}, recebido {start.isoformat()}')
-            cursor=end+timedelta(days=1)
-        if cursor-timedelta(days=1) != expected_end:
-            raise ValueError(f'SINASC: cobertura termina em {(cursor-timedelta(days=1)).isoformat()}, corte declarado {expected_end.isoformat()}')
-    periods=[]
-    for snapshot in snapshots:
-        start=date.fromisoformat(snapshot['periodStart']); end=date.fromisoformat(snapshot['periodEnd'])
-        for prior_start,prior_end,prior_path in periods:
-            if start<=prior_end and prior_start<=end:
-                raise ValueError(f"SINASC: períodos sobrepostos: {prior_path} e {snapshot['path']}")
-        periods.append((start,end,snapshot['path']))
-        path=snapshot['path']
-        digest=sha(path)
-        if digest in seen_hashes:
-            raise ValueError(f'SINASC: snapshot duplicado: {path}')
-        seen_hashes.add(digest)
-        source_meta.append({**snapshot,'sha256':digest})
-        with path.open(encoding='utf-8-sig',newline='') as f:
-            r=csv.DictReader(f)
-            fields={x.lower():x for x in (r.fieldnames or [])}
-            key=next((fields[k] for k in ('dtnasc','data_nascimento','data nascimento') if k in fields),None)
-            if not key: raise ValueError(f'{path}: coluna de data de nascimento não encontrada')
-            residence_key=next((fields[k] for k in (
-                'codmunres','codmunresidencia','municipio residencia',
-                'município residência','municipio_residencia') if k in fields),None)
-            if not residence_key:
-                raise ValueError(f'{path}: geografia de residência ausente; esperado município 3550308')
-            for x in r:
-                residence=re.sub(r'\D','',x[residence_key])
-                # SINASC/DATASUS municipality variables commonly use the
-                # six-digit IBGE code without the check digit; official
-                # seven-digit IBGE representation is accepted as equivalent.
-                if residence not in ('355030','3550308'):
-                    raise ValueError(f'{path}: registro fora da residência 3550308: {x[residence_key]!r}')
-                s=x[key].strip()
-                parsed=None
-                for fmt in ('%d%m%Y','%d/%m/%Y','%Y-%m-%d'):
-                    try:
-                        from datetime import datetime
-                        parsed=datetime.strptime(s,fmt).date(); break
-                    except ValueError: pass
-                if parsed is None:
-                    raise ValueError(f'{path}: data de nascimento inválida: {s!r}')
-                if parsed < start or parsed > end:
-                    raise ValueError(f'{path}: nascimento {parsed.isoformat()} fora do período declarado {start.isoformat()}..{end.isoformat()}')
-                if parsed>=CENSUS_DATE: d[parsed]+=1
-    return d,source_meta
+def extend_post_census(daily,age_zero_weight:int,cutoff:date):
+    if cutoff < CENSUS_DATE: raise ValueError('cutoff não pode preceder 2022-08-01')
+    # Declared approximation: repeat the age-zero average daily rate. Integer
+    # largest-remainder allocation is deterministic and conserves the implied
+    # total over the extrapolated interval.
+    days=(cutoff-CENSUS_DATE).days+1
+    annual_days=365
+    implied_total=round(age_zero_weight*days/annual_days)
+    for i,w in enumerate(apportion(implied_total,days)):
+        if w: daily[CENSUS_DATE+timedelta(days=i)]=w
 
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest().upper()
 
 def main(argv=None):
     p=argparse.ArgumentParser()
     p.add_argument('--sidra-9514',type=Path,required=True)
-    p.add_argument('--sinasc',type=parse_snapshot_arg,action='append',default=[],metavar='PATH|STATUS|SNAPSHOT_DATE|PERIOD_START|PERIOD_END')
-    p.add_argument('--sinasc-cutoff',type=date.fromisoformat,help='fim inclusivo da cobertura SINASC (YYYY-MM-DD)')
+    p.add_argument('--post-census-cutoff',type=date.fromisoformat,required=True)
     p.add_argument('--out',type=Path,required=True); p.add_argument('--manifest',type=Path,required=True)
     a=p.parse_args(argv)
     groups=read_sidra(a.sidra_9514)
-    if not groups or groups[0][0]!=0 or not any(g[0]==100 for g in groups): raise SystemExit('SIDRA sem cobertura 0 e 100+ esperada')
-    daily,census_total=census_daily(groups)
-    if a.sinasc and a.sinasc_cutoff is None:
-        raise SystemExit('--sinasc exige --sinasc-cutoff')
-    post,sinasc_meta=read_sinasc(a.sinasc,a.sinasc_cutoff)
-    for k,v in post.items(): daily[k]=v
+    daily,census_total,age_zero_weight=census_daily(groups)
+    extend_post_census(daily,age_zero_weight,a.post_census_cutoff)
     rows=[{'date':k.isoformat(),'births':v} for k,v in sorted(daily.items()) if v>0]
-    obj={'schema_version':SCHEMA,'source':'IBGE_CENSO_2022_SIDRA_9514_PLUS_SINASC_SP','reference_period':'CENSO_2022_PLUS_SINASC_SNAPSHOT','geography':'MUNICIPIO_SAO_PAULO_3550308','rows':rows}
-    a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(obj,ensure_ascii=False,separators=(',',':'))+'\n',encoding='utf-8')
-    manifest={'schemaVersion':1,'referenceCode':'SYNTH_BIRTH_SP_CENSO2022_SINASC_V1','output':{'path':a.out.name,'schemaVersion':SCHEMA,'sha256':sha(a.out),'rowCount':len(rows)},'sources':[{'kind':'IBGE_SIDRA_9514','path':str(a.sidra_9514),'sha256':sha(a.sidra_9514),'municipality':'3550308','referenceDate':'2022-08-01','populationWeight':census_total}]+[{'kind':'SINASC_SP','path':str(x['path']),'sha256':x['sha256'],'publicationStatus':x['publicationStatus'],'snapshotDate':x['snapshotDate'],'periodStart':x['periodStart'],'periodEnd':x['periodEnd'],'residenceMunicipality':'3550308','acceptedResidenceCodes':['355030','3550308']} for x in sinasc_meta],'model':{'censusAgeWindow':'idade k em 31/07/2022 => 01/08/(2021-k)..31/07/(2022-k)','withinWindow':'UNIFORM_DAY_LARGEST_REMAINDER','groupedAge':'UNIFORM_AGE_LARGEST_REMAINDER','centenarianTail':'100+ represented uniformly over ages 100..122; upper bound is a declared modelling cap, not an IBGE age distribution','postCensus':'observed SINASC date replaces census-derived value on/after 2022-08-01','sinascCoverage':{'start':'2022-08-01','end':a.sinasc_cutoff.isoformat() if a.sinasc_cutoff else None,'policy':'CONTIGUOUS_FAIL_CLOSED'}},'runtimeNetworkDependency':False}
-    a.manifest.parent.mkdir(parents=True,exist_ok=True); a.manifest.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    obj={'schema_version':SCHEMA,'source':'IBGE_CENSO_2022_SIDRA_9514_DECLARED_EXTRAPOLATION','reference_period':f'CENSO_2022_PLUS_EXTRAPOLATION_TO_{a.post_census_cutoff.isoformat()}','geography':'MUNICIPIO_SAO_PAULO_3550308','rows':rows}
+    a.out.parent.mkdir(parents=True,exist_ok=True)
+    a.out.write_text(json.dumps(obj,ensure_ascii=False,separators=(',',':'))+'\n',encoding='utf-8')
+    manifest={'schemaVersion':1,'referenceCode':'SYNTH_BIRTH_SP_CENSO2022_E1_V1','output':{'path':a.out.name,'schemaVersion':SCHEMA,'sha256':sha(a.out),'rowCount':len(rows)},'sources':[{'kind':'IBGE_SIDRA_9514','path':str(a.sidra_9514),'sha256':sha(a.sidra_9514),'municipality':'3550308','sex':'Total','ageDeclaration':'Total','referenceDate':'2022-08-01','populationWeight':census_total}],'model':{'censusAgeWindow':'idade k em 31/07/2022 => 01/08/(2021-k)..31/07/(2022-k)','withinWindow':'UNIFORM_DAY_LARGEST_REMAINDER','groupedAge':'UNIFORM_AGE_LARGEST_REMAINDER','centenarianTail':'100+ represented uniformly over ages 100..105; declared technical convention, not an IBGE age distribution','postCensus':{'method':'AGE_ZERO_DAILY_RATE_EXTRAPOLATION','start':'2022-08-01','cutoff':a.post_census_cutoff.isoformat(),'ageZeroPopulation':age_zero_weight,'allocation':'UNIFORM_DAY_LARGEST_REMAINDER'}},'runtimeNetworkDependency':False}
+    a.manifest.parent.mkdir(parents=True,exist_ok=True)
+    a.manifest.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     return 0
 if __name__=='__main__': raise SystemExit(main())
