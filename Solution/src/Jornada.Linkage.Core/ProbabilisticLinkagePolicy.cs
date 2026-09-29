@@ -3,7 +3,8 @@ using Jornada.Contracts;
 namespace Jornada.Linkage.Runner;
 
 internal sealed record LinkageModel(Guid ModelId, int Version, string AlgorithmVersion,
-    IReadOnlyDictionary<string, decimal> Parameters, decimal Threshold, decimal ConflictMargin)
+    IReadOnlyDictionary<string, decimal> Parameters, decimal Threshold, decimal ConflictMargin,
+    NominalTermFrequencySnapshot? TermFrequency = null)
 {
     // Snapshot de cálculo: conversão única dos parâmetros persistidos.
     internal IReadOnlyDictionary<string, double> NumericParameters { get; } =
@@ -27,7 +28,12 @@ internal sealed record CandidateScore(Guid PessoaUuid, decimal Score, decimal Lo
 
 internal static class LinkageModelPolicy
 {
-    internal static LinkageModel Create(Guid modelId, int version, string algorithm, IReadOnlyDictionary<string, decimal> parameters)
+    internal static LinkageModel Create(
+        Guid modelId,
+        int version,
+        string algorithm,
+        IReadOnlyDictionary<string, decimal> parameters,
+        NominalTermFrequencySnapshot? termFrequency = null)
     {
         var missing = LinkageParameterCatalog.CoreScoringRequired.Where(x => !parameters.ContainsKey(x)).ToArray();
         if (missing.Length > 0) throw new InvalidOperationException($"Modelo incompleto. Parâmetros ausentes: {string.Join(", ", missing)}");
@@ -70,7 +76,9 @@ internal static class LinkageModelPolicy
         }
 
         var margin = decisionEvidence ? parameters[LinkageParameterCatalog.LogOddsConflictMargin] : parameters[LinkageParameterCatalog.ConflictMargin];
-        var model = new LinkageModel(modelId, version, algorithm, parameters, parameters[LinkageParameterCatalog.Threshold], margin);
+        var model = new LinkageModel(
+            modelId, version, algorithm, parameters,
+            parameters[LinkageParameterCatalog.Threshold], margin, termFrequency);
         _ = SupportsSemanticBirthScoring(model); _ = SupportsJointBirthScoring(model); _ = SupportsSingleBirthScoring(model); _ = SupportsBirthComponentScoring(model);
         return model;
     }
