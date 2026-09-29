@@ -45,7 +45,7 @@ public sealed class LocalClusterDiagnosisContractTests
     [TestCase("Solution/docs/Arquitetura_Identidade_Linkage.md")]
     [TestCase("Solution/docs/Calibrador_FS_Specification.md")]
     [TestCase("Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.md")]
-    public void NormativeIbgeDocuments_RequireActiveReferenceAndRejectFallback(string relativePath)
+    public void NormativeIbgeDocuments_RequireInitialBootstrapWithoutPermanentActiveReference(string relativePath)
     {
         var root = FindRepositoryRoot();
         var document = File.ReadAllText(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
