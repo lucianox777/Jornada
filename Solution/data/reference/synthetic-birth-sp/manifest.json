@@ -34,10 +34,11 @@
         "355030",
         "3550308"
       ],
-      "validation": "FAIL_CLOSED: residence field required; invalid dates rejected; duplicate content hashes rejected",
+      "validation": "FAIL_CLOSED: residence required; invalid/out-of-period dates rejected; overlapping periods rejected; duplicate hashes rejected; snapshotDate >= periodEnd and <= current date",
       "requiredMetadata": [
-        "publicationStatus: FINAL|PRELIMINARY",
-        "snapshotDate: YYYY-MM-DD",
+        "per-file publicationStatus: FINAL|PRELIMINARY",
+        "per-file snapshotDate: YYYY-MM-DD",
+        "per-file periodStart/periodEnd: YYYY-MM-DD",
         "sha256"
       ]
     }
