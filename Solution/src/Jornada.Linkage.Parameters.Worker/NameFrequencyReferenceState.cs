@@ -1,4 +1,5 @@
 using System.Data;
+using Jornada.Contracts;
 using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
@@ -30,10 +31,12 @@ internal static class NameFrequencyReferenceState
             long? versionId = null;
             string? status = null;
             byte[]? hash = null;
+            string? normalization = null;
+            int? schema = null;
 
             await using (var readCanonical = new SqlCommand(
                 """
-                SELECT frequencia_nome_versao_id,status,conteudo_sha256
+                SELECT frequencia_nome_versao_id,status,conteudo_sha256,normalizacao_versao,manifest_schema_version
                 FROM ref.frequencia_nome_versao WITH(UPDLOCK,HOLDLOCK)
                 WHERE codigo=@codigo;
                 """,
@@ -47,6 +50,8 @@ internal static class NameFrequencyReferenceState
                     versionId = reader.GetInt64(0);
                     status = reader.GetString(1);
                     hash = reader.IsDBNull(2) ? null : (byte[])reader.GetValue(2);
+                    normalization = reader.IsDBNull(3) ? null : reader.GetString(3);
+                    schema = reader.IsDBNull(4) ? null : reader.GetInt32(4);
                 }
             }
 
@@ -55,6 +60,9 @@ internal static class NameFrequencyReferenceState
                 await transaction.CommitAsync(cancellationToken);
                 return CanonicalNameFrequencyReferenceState.MissingOrLoading;
             }
+
+            if (!string.Equals(normalization, IdentityComparison.NormalizationVersion, StringComparison.Ordinal) || schema != 1)
+                throw new InvalidDataException($"Referencia IBGE {referenceCode} sem metadados de compatibilidade validados. Requer nova edicao e carga explicita.");
 
             if (status == "ATIVA")
             {
