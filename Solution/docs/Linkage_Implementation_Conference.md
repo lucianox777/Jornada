@@ -57,6 +57,57 @@ O arquivo `config/linkage/implementation-conference-tolerance.json` contém a to
 
 A decisão final deve permanecer **exatamente igual** independentemente da tolerância de LLR. Um desvio de LLR >0,01 ou qualquer mudança de decisão produz `DIVERGENTE`. O contrato não permite inferir nem relaxar a tolerância a partir de um primeiro resultado. Evidências `NAO_EXECUTADA` ainda podem decorrer de outras pré-condições (vetor inválido, modelo incompleto). Valores `TEST_ONLY_NOT_GOVERNANCE` em fixtures não substituem o arquivo versionado.
 
+## Vetores áureos independentes — DT-01/09/14 (proposta técnica de 29/09/2026)
+
+**Objetivo e separação dos gates.** O manifesto
+[\`golden-reference-v1.json\`](../src/Jornada.Linkage.Conference/vectors/golden-reference-v1.json)
+armazena **34 vetores com resultados literais**: sete de m/u, prior, LLR, posterior e threshold; nove de comparação nominal V1/V2/V3; sete dos estados semânticos de nascimento; seis de política de decisão com um ou dois candidatos; cinco de formação do guard-input a partir de atributos brutos sintéticos. O código
+[\`GoldenReferenceVectorVerifier\`](../src/Jornada.Linkage.Conference/GoldenReferenceVectorVerifier.cs)
+calcula o **observado** por meio da implementação operacional e o compara com o esperado declarado no JSON. Não consulta o scorer para gerar o esperado, não regrava o manifesto após falha, não usa amostragem IBGE/Splink e não promove modelos.
+
+Este é um **teste dirigido com oráculo independente por construção e revisão humana ainda pendente**, e não uma segunda implementação independente de toda a cadeia. A ferramenta governada V1 continua usando o avaliador separado de \`Jornada.Linkage.Evaluation\` sobre estados/guarda pré-computados; os novos vetores nominais e de guard-input são testes de contrato adicionais, **fora do escopo da evidência SQL governada existente**. Nada neste conjunto equivale à validação estatística representativa (#31). O PR #514 e sua evidência histórica não são reclassificados retroativamente.
+
+### Proveniência imutável e fórmula
+
+- Manifesto: \`schemaVersion=1\`, \`referenceVersion=JORNADA_CONFERENCE_GOLDEN_V1_2026-09-29\`, \`sourceMasterSha=12b1da84ac4ec0e6b977bb3123a9653dacb4f9eb\`; os casos são artificiais e não contêm dados identificadores de cidadãos.
+- Tolerância **congelada antes do replay**: \`V1_2026-09-26\`, \`FROZEN\`, LLR máximo \`0,01\`; blob Git do arquivo de tolerância da origem: \`ae2069070f99885c432542663767f658a3cc36a0\`. Este PR não modifica o arquivo nem relaxa o limite. O teste de oráculos usa adicionalmente \`10⁻¹²\` para valores **literais não arredondados** de LLR; score SQL mantém oito casas e decisão exata.
+- Derivação **não operacional**: para cada estado com probabilidades estritamente positivas, \`LR_i=m_i/u_i\`, \`LLR_i=ln(LR_i)\`, \`LLR_par=Σ LLR_i=ln(Π LR_i)\`, \`odds_priores=p/(1−p)\`, \`odds_posteriores=odds_priores×Π LR_i\`, \`posterior=odds_posteriores/(1+odds_posteriores)\`. Estados \`MISSING_NEUTRAL\` contribuem zero, sem inventar m/u. O manifesto contém **m, u, razão, contribuição LLR, prior em log-odds, LLR total, log-odds, posterior, estado e motivo esperados**, além da derivação por cenário.
+- Constantes independentes usadas nas expressões: \`ln 2=0,6931471805599453\`, \`ln 4=1,3862943611198906\`, \`ln 8=2,0794415416798359\`, \`ln 16=2,7725887222397812\`, \`ln 32=3,4657359027997265\`, \`ln 64=4,1588830833596715\`, \`ln(1/40)=−3,6888794541139363\`. O esperado persiste literal, não é reconstruído a partir do scorer ou atualizado automaticamente.
+
+Os valores centrais da matriz de cálculo, antes do arredondamento operacional, são:
+
+| Vetor | Odds iniciais | Produto m/u | Odds finais | Posterior racional | Resultado literal |
+|---|---:|---:|---:|---:|---|
+| N01 | 1/4 | 4×2×4 = 32 | 8 | 8/9 | \`RESOLVIDO\`, no threshold arredondado de 0,88888889 |
+| N02 | 1/4 | 32 | 8 | 8/9 | \`NAO_RESOLVIDO\`, threshold 0,88888890 |
+| N03 — mãe ausente V6 | 1/4 | 4×(1/2)×1 = 2 | 1/2 | 1/3 | \`NAO_RESOLVIDO\` |
+| N04 — mãe ausente V8 | 1/4 | 4×1×1 = 4 | 1 | 1/2 | \`RESOLVIDO\` |
+| N05 — três evidências fracas | 1/4 | (1/8)×(2/5)×(1/2) = 1/40 | 1/160 | 1/161 | \`NAO_RESOLVIDO\` |
+| N06 — guarda exata | 1/4 | 4×4×4 = 64 | 16 | 16/17 | \`CONFLITO\` por colisão demográfica |
+| N07 — prior extremo | 1/9.999.999 | 32 | 32/9.999.999 | 32/10.000.031 | \`RESOLVIDO\` com threshold 0,00000320 após arredondamento |
+
+**Comparadores nominais.** V1 usa Jaro-Winkler da string completa; V2 compara também os tokens de conteúdo posicionais e limita a similaridade pelo token mais fraco; V3 só concede bônus Winkler se Jaro for maior que 0,7. Os casos C01–C09 fixam normalização com diacríticos/espaços, estados \`EXACT/HIGH/MEDIUM/LOW\`, contraste nominal V1×V2 no último token, prefixo bloqueado em V3 e nulos. Nos exemplos de cálculo, \`ABC\`/\`ABD\` têm Jaro \`7/9\` e Winkler \`37/45≈0,822222\` (\`MEDIUM\`); \`AAAAABBBBB\`/\`AAAAACCCCC\` têm Jaro \`2/3\`, V1 \`0,8\` e V3 \`2/3\` (\`LOW\`). Os sete casos B01–B07 cobrem todos os estados de \`BirthDateSemanticEvidence\`, em especial troca dia/mês válida, século, erro de um/dois dígitos, concordância parcial e discordância restante.
+
+**Política e guardas.** P01 cobre empate por UUID e dois candidatos sobre threshold; P02, segundo exatamente no piso independente \`0,8\`; P03/P04, margem em log-odds exatamente igual à exigida e um centésimo de milionésimo acima; P05, precedência da guarda demográfica quando o dual-threshold também seria acionado; P06, precedência do threshold sobre a guarda. G01–G05 partem de **nomes e datas brutos** para verificar a formação do flag de colisão (nome normalizado exato **e** datas presentes/idênticas), incluindo nome diferente, nascimento diferente ou ausente e nome ausente. Os esperados são anotados no manifesto, não copiados do flag operacional.
+
+### Execução e interpretação
+
+No diretório \`Solution/\`, executar em cada runtime sob comparação, informando o SHA real da revisão:
+
+\`\`\`bash
+dotnet run --project src/Jornada.Linkage.Conference --configuration Release -- \
+  --verify-golden \
+  --golden-vectors src/Jornada.Linkage.Conference/vectors/golden-reference-v1.json \
+  --tolerance-config config/linkage/implementation-conference-tolerance.json \
+  --source-revision <SHA-real-do-commit>
+\`\`\`
+
+O modo \`--verify-golden\` é **offline**, dispensa \`--model-id\` e SQL, publica no stdout o hash SHA-256 do manifesto, o runtime e **18 diagnósticos numéricos por candidato** (sete de pontuação e onze dos seis cenários de política) com esperado, observado e diferenças de LLR/log-odds/posterior. Falhas de qualquer literal, estado ou decisão encerram com erro; a ausência de evidência SQL **não** é mascarada. O modo \`--require-human-review\` retorna estado não aprovável enquanto a revisão estiver pendente, sem inventar aprovação.
+
+**Registro de revisão humana:** \`PENDING_HUMAN_REVIEW\` nesta proposta; \`reviewer=null\`, \`reviewedAtUtc=null\` e \`reviewReference=null\`. Para aceitar a versão, um revisor humano deve conferir independentemente as razões e os estados, registrar sua identidade, data e referência verificável (p.ex., revisão da PR) e então alterar esses campos com novo commit. Verificação automatizada e aprovação de CI **não substituem** essa assinatura.
+
+**DT-02 obrigatória, não antecipada:** após o merge de .NET 10, executar o mesmo manifesto/tolerância no SHA integrado, guardar os dois JSONs de execução (.NET anterior e .NET 10), o hash do manifesto, o \`FrameworkDescription\`, os SHAs do scorer/comparadores e a revisão humana. Comparar cada um dos **18** diagnósticos, registrar \`ΔLLR\`, \`Δlog-odds\`, \`Δposterior\`, estados, ranking, UUIDs e motivo; divergência exige investigação, **não** alteração da tolerância para obter verde. Registrar a reexecução neste documento somente quando ocorrer; como DT-02 ainda está em desenvolvimento neste registro, **não há resultado pós-DT-02 alegado aqui**. Para modelos V8, permanece obrigatória a evidência governada individual antes de promover.
+
 ## Caracterização de fronteira DT-01 — conjunto artesanal, 26/09/2026
 
 **Resultado limitado: CONFORME** para os nove cenários dirigidos (onze pontuações de candidatos) e ensaio suplementar legado de cinco termos, conforme [PR #514](https://github.com/lucianox777/Jornada/pull/514) e [execução CI #36268242478](https://github.com/lucianox777/Jornada/actions/runs/36268242478). Esse resultado significa exclusivamente que o scorer operacional, alimentado por `decimal` e com cálculo intermediário em `double`, concordou com o avaliador C# float64 independente no LLR e na **decisão final integral** dos cenários escolhidos; não é prova para todos os valores possíveis.
