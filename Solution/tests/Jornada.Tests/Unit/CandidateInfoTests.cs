@@ -110,7 +110,8 @@ public sealed class CandidateInfoTests
             Assert.That(workflow, Does.Contain("fetch-depth: 0"));
             Assert.That(workflow, Does.Contain("git merge-base --is-ancestor"));
             Assert.That(workflow, Does.Contain("structural_fingerprint_sha256"));
-            Assert.That(workflow, Does.Contain("test \"$actual_fingerprint\" = \"$declared_fingerprint\""));\n            Assert.That(workflow, Does.Contain("test \"$current_manifest\" = \"$declared_manifest\""));
+            Assert.That(workflow, Does.Contain("test \"$actual_fingerprint\" = \"$declared_fingerprint\""));
+            Assert.That(workflow, Does.Contain("test \"$current_manifest\" = \"$declared_manifest\""));
             Assert.That(workflow, Does.Not.Contain("actions/runs/$ddl_run_id"));
             Assert.That(workflow, Does.Contain("CANDIDATE_INFO.json"));
         });
