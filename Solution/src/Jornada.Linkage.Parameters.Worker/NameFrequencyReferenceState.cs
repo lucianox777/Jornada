@@ -55,7 +55,7 @@ internal static class NameFrequencyReferenceState
                 }
             }
 
-            if (versionId is null || status == "CARREGANDO" || hash is null)
+            if (versionId is null || status == "CARREGANDO" || hash is not { Length: 32 })
             {
                 await transaction.CommitAsync(cancellationToken);
                 return CanonicalNameFrequencyReferenceState.MissingOrLoading;
@@ -144,7 +144,7 @@ internal static class NameFrequencyReferenceState
                 WHERE frequencia_nome_versao_id=@id
                   AND status<>'ATIVA'
                   AND status<>'CARREGANDO'
-                  AND conteudo_sha256 IS NOT NULL;
+                  AND DATALENGTH(conteudo_sha256)=32;
                 """,
                 connection,
                 transaction))
