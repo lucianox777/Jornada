@@ -8,6 +8,25 @@ using Microsoft.Data.SqlClient;
 
 const string Purpose = "DEV_HML_ONLY_NO_PUBLICATION";
 
+// Proposta inicial de blocking derivada SOMENTE das marginais públicas IBGE.
+// É diagnóstico não promocional: não acessa SQL, Gold/Silver nem grava ruleset/modelo.
+if (args.Length == 3 && args[0] == "--propose-ibge-initial-blocking")
+{
+    var source = await File.ReadAllTextAsync(Path.GetFullPath(args[1]));
+    var proposal = IbgeInitialBlockingProposal.Build(source);
+    var target = Path.GetFullPath(args[2]);
+    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+    await File.WriteAllTextAsync(target, proposal, new System.Text.UTF8Encoding(false));
+    await File.WriteAllTextAsync(target + ".sha256",
+        SplinkIbgeReplayContract.Sha(proposal) + "  " + Path.GetFileName(target) +
+        Environment.NewLine, new System.Text.UTF8Encoding(false));
+    Console.WriteLine("Proposta inicial IBGE de blocking gerada; diagnóstico apenas, sem promoção.");
+    return;
+}
+if (args.Contains("--propose-ibge-initial-blocking"))
+    throw new ArgumentException(
+        "--propose-ibge-initial-blocking <public-marginals.json> <proposal.json>.");
+
 // Strict offline comparison of two independently sampled reports over the SAME public marginals.
 if (args.Length == 5 && args[0] == "--compare-ibge-independent-u")
 {
