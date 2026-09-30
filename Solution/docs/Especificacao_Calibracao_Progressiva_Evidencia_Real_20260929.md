@@ -96,6 +96,36 @@ TEST audita um candidato já congelado. Não escolhe degradação, `m`, `u`, TF,
 
 Falha em TEST produz evidência de falha. Uma hipótese alterada exige nova rodada identificável; não se otimiza retrospectivamente sobre TEST observado.
 
+## 4.5 Persistência dos derivados IBGE na camada `ref`
+
+Todo dado, distribuição, snapshot ou artefato estatístico **materialmente derivado da referência IBGE** e necessário para reproduzir o bootstrap pertence à camada `ref`, seguindo o mesmo princípio das demais referências públicas externas da Jornada.
+
+Isso inclui, conforme o contrato da versão:
+
+- snapshot IBGE de origem;
+- projeções/marginais utilizadas;
+- derivados nominais de `u`;
+- distribuições ou parâmetros bootstrap derivados das transformações sintéticas cuja base de geração seja a referência IBGE;
+- manifesto do perfil de degradação;
+- seed, método, comparador e versão;
+- suportes necessários para reprodução;
+- hash do conteúdo de origem;
+- hash/fingerprint do resultado derivado.
+
+Esses artefatos são **imutáveis por versão**. Corrigir método, seed, perfil, comparador, recorte, conteúdo de origem ou algoritmo de derivação cria **nova versão em `ref`**; nunca atualiza semanticamente uma versão já utilizada por um modelo.
+
+O modelo de linkage não é proprietário desses dados e não deve manter uma cópia mutável que possa divergir da referência. Ele persiste a chave/fingerprint exatos da versão de `ref` usada em sua calibração.
+
+O padrão já existente de `ref.frequencia_nome_versao`, `ref.ibge_u_referencia` e `ref.v_ibge_u_referencia_pronta` deve ser preservado e estendido quando novos derivados forem necessários. A imutabilidade já exigida para a versão de frequências associada ao modelo é parte do mesmo invariante.
+
+A camada `ref` não significa que o bootstrap continuará participando dos modelos REAL. Quando ocorrer a transição descrita na seção 7, os artefatos IBGE/sintéticos permanecem em `ref` como **referência histórica reproduzível**, mas recebem peso estatístico zero na estimação do novo `m_real`.
+
+Em particular:
+
+> **Referência é imutável; modelo referencia a versão. Recalibrar não reescreve `ref`.**
+
+> **Deixar de usar o bootstrap em um modelo REAL não autoriza apagar a referência que explica modelos históricos.**
+
 ## 5. Evidência real determinada por CPF
 
 ### 5.1 Função do CPF
