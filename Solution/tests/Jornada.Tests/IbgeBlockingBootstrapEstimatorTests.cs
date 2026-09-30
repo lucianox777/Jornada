@@ -1,3 +1,5 @@
+using System.Globalization;
+using Jornada.Contracts;
 using Jornada.Linkage.Runner;
 
 namespace Jornada.Tests;
@@ -55,7 +57,7 @@ public sealed class IbgeBlockingBootstrapEstimatorTests
     public void NullMatrix_ProjectorNeverFabricatesKeys(string? name, string? surname, string? mother, string? date)
     {
         var fullName = name is null ? null : surname is null ? name : $"{name} {surname}";
-        var birth = date is null ? (DateOnly?)null : DateOnly.Parse(date);
+        var birth = date is null ? (DateOnly?)null : DateOnly.Parse(date, CultureInfo.InvariantCulture);
         var keys = BlockingProjectionKeyProjector.Project(fullName, mother, birth);
         if (fullName is null) Assert.That(keys.Any(k => k.Feature.StartsWith("name_", StringComparison.Ordinal) && !k.Feature.StartsWith("mother_", StringComparison.Ordinal)), Is.False);
         if (mother is null) Assert.That(keys.Any(k => k.Feature.StartsWith("mother_", StringComparison.Ordinal)), Is.False);
