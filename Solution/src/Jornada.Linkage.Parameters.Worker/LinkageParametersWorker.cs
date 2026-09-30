@@ -1015,7 +1015,20 @@ public sealed class LinkageParametersWorker(
         END;
         """;
 
-    private LinkageModelConfigurationBundle LoadModelConfigurationBundle()\n    {\n        var configured = configuration["LinkageParameters:ModelConfigurationBundlePath"]?.Trim();\n        var currentDirectoryPath = Path.GetFullPath(DefaultModelBundleRelativePath);\n        var applicationPath = Path.Combine(AppContext.BaseDirectory, DefaultModelBundleRelativePath);\n        var path = !string.IsNullOrWhiteSpace(configured)\n            ? configured\n            : File.Exists(Path.Combine(currentDirectoryPath, "model-config-bundle.json"))\n                ? currentDirectoryPath\n                : applicationPath;\n        return LinkageModelConfigurationBundleValidator.LoadAndValidate(path);\n    }\n\n    private ImplementationConferenceToleranceContract LoadPromotionConferenceTolerance()
+    private LinkageModelConfigurationBundle LoadModelConfigurationBundle()
+    {
+        var configured = configuration["LinkageParameters:ModelConfigurationBundlePath"]?.Trim();
+        var currentDirectoryPath = Path.GetFullPath(DefaultModelBundleRelativePath);
+        var applicationPath = Path.Combine(AppContext.BaseDirectory, DefaultModelBundleRelativePath);
+        var path = !string.IsNullOrWhiteSpace(configured)
+            ? configured
+            : File.Exists(Path.Combine(currentDirectoryPath, "model-config-bundle.json"))
+                ? currentDirectoryPath
+                : applicationPath;
+        return LinkageModelConfigurationBundleValidator.LoadAndValidate(path);
+    }
+
+    private ImplementationConferenceToleranceContract LoadPromotionConferenceTolerance()
     {
         var configured = configuration["LinkageParameters:ConferenceToleranceConfigPath"]?.Trim();
         var currentDirectoryPath = Path.GetFullPath(DefaultConferenceToleranceRelativePath);
