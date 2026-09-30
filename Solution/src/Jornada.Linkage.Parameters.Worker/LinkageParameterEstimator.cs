@@ -129,6 +129,26 @@ public static class LinkageParameterEstimator
         AddBinaryDistribution(result, "U_NASC_MES", unmatchedPairs.Select(p => p.LeftBirthDate.Month == p.RightBirthDate.Month), smoothingAlpha);
         AddBinaryDistribution(result, "M_NASC_ANO", matchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year), smoothingAlpha);
         AddBinaryDistribution(result, "U_NASC_ANO", unmatchedPairs.Select(p => p.LeftBirthDate.Year == p.RightBirthDate.Year), smoothingAlpha);
+
+        // Evidência complementar segue o mesmo princípio FS: frequências m/u aprendidas
+        // dos pares do calibrador. MISSING é suporte observável, mas não recebe peso.
+        foreach (var evidence in LedgerEvidenceFrequencyEstimator.Estimate(matchedPairs, unmatchedPairs, smoothingAlpha))
+        {
+            var code = evidence.Attribute;
+            result[$"SUPPORT_M_LEDGER_{code}_EXACT"] = evidence.MatchExact;
+            result[$"SUPPORT_M_LEDGER_{code}_DISAGREE"] = evidence.MatchDisagree;
+            result[$"SUPPORT_M_LEDGER_{code}_MISSING"] = evidence.MatchMissing;
+            result[$"SUPPORT_U_LEDGER_{code}_EXACT"] = evidence.NonMatchExact;
+            result[$"SUPPORT_U_LEDGER_{code}_DISAGREE"] = evidence.NonMatchDisagree;
+            result[$"SUPPORT_U_LEDGER_{code}_MISSING"] = evidence.NonMatchMissing;
+            if (evidence.MExact is decimal mExact && evidence.UExact is decimal uExact)
+            {
+                result[$"M_LEDGER_{code}_EXACT"] = mExact;
+                result[$"M_LEDGER_{code}_DISAGREE"] = 1m - mExact;
+                result[$"U_LEDGER_{code}_EXACT"] = uExact;
+                result[$"U_LEDGER_{code}_DISAGREE"] = 1m - uExact;
+            }
+        }
         return result;
     }
 

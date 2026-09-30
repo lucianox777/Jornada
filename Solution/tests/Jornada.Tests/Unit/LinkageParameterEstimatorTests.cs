@@ -249,4 +249,33 @@ public sealed class LinkageParameterEstimatorTests
         };
         return (matched, unmatched);
     }
+
+    [Test]
+    public void Estimate_PersistsLedgerMuOnlyWhenComparableInBothClasses()
+    {
+        var email = PersonResolutionAttributeCatalog.ContactEmail;
+        IdentityTrainingPair Pair(string? left, string? right) => new(
+            "Pessoa", new DateOnly(1990, 1, 1), "Mae",
+            "Pessoa", new DateOnly(1990, 1, 1), "Mae",
+            LeftResolutionValues: left is null ? null : [new(email, left)],
+            RightResolutionValues: right is null ? null : [new(email, right)]);
+
+        var parameters = LinkageParameterEstimator.Estimate(
+            [Pair("a@example.test", "a@example.test"), Pair("b@example.test", null)],
+            [Pair("c@example.test", "d@example.test"), Pair(null, "e@example.test")],
+            1000, 365, 1m, 0.95m, 0.03m,
+            neutralMissingEvidenceV8: true);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(parameters["SUPPORT_M_LEDGER_EMAIL_CONTATO_EXACT"], Is.EqualTo(1m));
+            Assert.That(parameters["SUPPORT_M_LEDGER_EMAIL_CONTATO_MISSING"], Is.EqualTo(1m));
+            Assert.That(parameters["SUPPORT_U_LEDGER_EMAIL_CONTATO_DISAGREE"], Is.EqualTo(1m));
+            Assert.That(parameters["SUPPORT_U_LEDGER_EMAIL_CONTATO_MISSING"], Is.EqualTo(1m));
+            Assert.That(parameters.ContainsKey("M_LEDGER_EMAIL_CONTATO_EXACT"), Is.True);
+            Assert.That(parameters.ContainsKey("U_LEDGER_EMAIL_CONTATO_EXACT"), Is.True);
+            Assert.That(parameters.ContainsKey("M_LEDGER_EMAIL_CONTATO_MISSING"), Is.False);
+            Assert.That(parameters.ContainsKey("U_LEDGER_EMAIL_CONTATO_MISSING"), Is.False);
+        });
+    }
 }
