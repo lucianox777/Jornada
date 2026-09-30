@@ -202,8 +202,11 @@ public static class LinkageCalibrationAuditRoundTrip
             || document.TermFrequency.ConformanceVectors is null)
             throw new InvalidDataException("Coleções estruturais obrigatórias ausentes.");
 
-        if (document.TermFrequency.RuntimeEnabled)
-            throw new InvalidDataException("O artefato de auditoria não pode declarar term frequency habilitada no runtime.");
+        var expectedTfRuntime = document.Parameters.Any(p =>
+            string.Equals(p.Name, LinkageParameterCatalog.TermFrequencyScoring, StringComparison.Ordinal)
+            && p.Value >= 1m);
+        if (document.TermFrequency.RuntimeEnabled != expectedTfRuntime)
+            throw new InvalidDataException("runtimeEnabled de term frequency diverge dos parâmetros persistidos do modelo.");
         if (!string.Equals(
                 document.TermFrequency.AlgorithmVersion,
                 SplinkCompatibleTermFrequency.AlgorithmVersion,
@@ -211,6 +214,8 @@ public static class LinkageCalibrationAuditRoundTrip
             throw new InvalidDataException("Versão da matemática de term frequency diverge do contrato corrente.");
         if (document.TermFrequency.PersistedModelFrequencyRows < 0)
             throw new InvalidDataException("Quantidade de frequências persistidas não pode ser negativa.");
+        if (expectedTfRuntime && document.TermFrequency.PersistedModelFrequencyRows <= 0)
+            throw new InvalidDataException("Modelo com TF habilitado precisa exportar frequências persistidas.");
 
         if (document.Model.NameFrequencyVersionId is long pinnedReferenceId)
         {
