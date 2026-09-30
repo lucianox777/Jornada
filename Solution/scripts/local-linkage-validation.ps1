@@ -1396,17 +1396,32 @@ $positiveSensitivity = if ($positiveTotal -eq 0) { [decimal]0 } else { [decimal]
 $negativeSpecificity = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeRejected / [decimal]$negativeTotal }
 $negativeFalseMatchRate = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeResolved / [decimal]$negativeTotal }
 
-# DC-SYN-01: HARD_HOMONYM é challenge adversarial, não amostra de prevalência.
-# Mantemos o resultado condicionado visível, mas ele não compõe a taxa/gate populacional.
-$hardHomonymScenario = @($negativeScenarioBreakdown | Where-Object { $_.scenario -eq 'HARD_HOMONYM' } | Select-Object -First 1)
-$populationNegativeScenarios = @($negativeScenarioBreakdown | Where-Object { $_.scenario -ne 'HARD_HOMONYM' })
+# DC-SYN-01: o gate opera por universo POPULATION x RESERVED_CHALLENGE.
+# Este fixture DEV legado ainda codifica a família reservada no nome do cenário; a tabela
+# abaixo é somente o adaptador do fixture para o contrato canônico ReservedFamily.
+# Nenhuma família reservada estima prevalência nem compõe a taxa/gate populacional.
+$reservedChallengeFamilies = [ordered]@{
+    HARD_HOMONYM = 'CHALLENGE_LEAVE_TRUTH_OUT_V1'
+}
+$reservedChallengeScenarios = @($negativeScenarioBreakdown | Where-Object { $reservedChallengeFamilies.Contains($_.scenario) })
+$populationNegativeScenarios = @($negativeScenarioBreakdown | Where-Object { -not $reservedChallengeFamilies.Contains($_.scenario) })
 $populationNegativeTotal = [int](($populationNegativeScenarios | Measure-Object -Property total -Sum).Sum)
 $populationNegativeResolved = [int](($populationNegativeScenarios | Measure-Object -Property resolvedFalseMatches -Sum).Sum)
 $populationNegativeRejected = $populationNegativeTotal - $populationNegativeResolved
 $populationNegativeSpecificity = if ($populationNegativeTotal -eq 0) { [decimal]0 } else { [decimal]$populationNegativeRejected / [decimal]$populationNegativeTotal }
 $populationNegativeFalseMatchRate = if ($populationNegativeTotal -eq 0) { [decimal]0 } else { [decimal]$populationNegativeResolved / [decimal]$populationNegativeTotal }
-$challengeHardHomonymTotal = if ($hardHomonymScenario.Count -eq 0) { 0 } else { [int]$hardHomonymScenario[0].total }
-$challengeHardHomonymResolved = if ($hardHomonymScenario.Count -eq 0) { 0 } else { [int]$hardHomonymScenario[0].resolvedFalseMatches }
+$reservedChallengeTotal = [int](($reservedChallengeScenarios | Measure-Object -Property total -Sum).Sum)
+$reservedChallengeResolved = [int](($reservedChallengeScenarios | Measure-Object -Property resolvedFalseMatches -Sum).Sum)
+$reservedChallengeBreakdown = @(
+    foreach ($scenario in $reservedChallengeScenarios) {
+        [ordered]@{
+            scenario = $scenario.scenario
+            reservedFamily = $reservedChallengeFamilies[$scenario.scenario]
+            total = [int]$scenario.total
+            resolvedAsMatch = [int]$scenario.resolvedFalseMatches
+        }
+    }
+)
 $resolvedDecisionTotal = $positiveCorrect + $positiveWrong + $negativeResolved
 $syntheticResolvedPpv = if ($resolvedDecisionTotal -eq 0) { $null } else { [decimal]$positiveCorrect / [decimal]$resolvedDecisionTotal }
 
@@ -1494,11 +1509,12 @@ $report = [ordered]@{
                 syntheticFalseMatchRate = [decimal]::Round($populationNegativeFalseMatchRate,6)
                 scenarios = $populationNegativeScenarios
             }
-            challengeHardHomonym = [ordered]@{
-                total = $challengeHardHomonymTotal
-                resolvedAsMatch = $challengeHardHomonymResolved
+            reservedChallenge = [ordered]@{
+                total = $reservedChallengeTotal
+                resolvedAsMatch = $reservedChallengeResolved
+                families = $reservedChallengeBreakdown
                 observationalOverlapWithPositiveExact = $observationalOverlapDetected
-                interpretation = 'Challenge adversarial condicionado: mede resistência/identificabilidade quando o núcleo observável coincide; não estima prevalência nem taxa populacional de falso vínculo.'
+                interpretation = 'Challenge adversarial condicionado por ReservedFamily: mede resistência/identificabilidade; não estima prevalência, não calibra m/u e não compõe a taxa/gate populacional.'
             }
         }
     }
@@ -1709,8 +1725,8 @@ if ($positiveWrong -ne 0) {
 if ($populationNegativeResolved -ne 0) {
     throw "DEV SAFETY GATE reprovado: houve $populationNegativeResolved falso(s) vínculo(s) resolvido(s) em $populationNegativeTotal negativos da partição populacional DC-SYN-01."
 }
-if ($challengeHardHomonymTotal -gt 0) {
-    Write-Host ("DC-SYN-01 CHALLENGE HARD_HOMONYM (diagnóstico, fora da taxa populacional): resolvidos={0}/{1}; sobreposição observável EXACT/EXACT/EXACT={2}" -f $challengeHardHomonymResolved,$challengeHardHomonymTotal,$observationalOverlapDetected) -ForegroundColor Yellow
+if ($reservedChallengeTotal -gt 0) {
+    Write-Host ("DC-SYN-01 RESERVED CHALLENGE (diagnóstico, fora da taxa populacional): resolvidos={0}/{1}; famílias={2}; sobreposição observável EXACT/EXACT/EXACT={3}" -f $reservedChallengeResolved,$reservedChallengeTotal,($reservedChallengeBreakdown.reservedFamily -join ','),$observationalOverlapDetected) -ForegroundColor Yellow
 }
 
 Write-Host 'LINKAGE INDEPENDENT VALIDATION DEV SAFETY GATES: OK' -ForegroundColor Green
