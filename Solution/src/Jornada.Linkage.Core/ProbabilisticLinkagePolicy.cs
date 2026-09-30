@@ -224,7 +224,7 @@ internal static class ProbabilisticLinkageDecisions
             : throw new InvalidOperationException("V8 com TF habilitado exige TERM_FREQUENCY_MIN_U.");
 
         double adjustment = 0d;
-        if (nameState is { } ns
+        if (nameState == NameComparisonState.EXACT
             && snapshot.TryGetPersonFirstName(observation.NomeCompleto, out var leftName)
             && snapshot.TryGetPersonFirstName(candidate.NomeCompleto, out var rightName))
         {
@@ -236,7 +236,7 @@ internal static class ProbabilisticLinkageDecisions
                 minimumU);
         }
 
-        if (motherNameState is { } ms
+        if (motherNameState == NameComparisonState.EXACT
             && snapshot.TryGetMotherFirstName(observation.NomeMae, out var leftMother)
             && snapshot.TryGetMotherFirstName(candidate.NomeMae, out var rightMother))
         {
