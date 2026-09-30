@@ -1,41 +1,32 @@
 {
-  "schemaVersion": 1,
-  "referenceCode": "SYNTH_BIRTH_SP_CENSO2022_E1_V1",
+  "schemaVersion": 2,
+  "referenceCode": "SYNTH_BIRTH_SP_PROJECTION2024_2026_E2_V1",
   "status": "GENERATED_BY_TOOL",
   "sourcePolicy": "LOCAL_IMMUTABLE_SNAPSHOT",
   "runtimeNetworkDependency": false,
-  "sources": [
-    {
-      "kind": "IBGE_SIDRA_9514",
-      "municipality": "3550308",
-      "sex": "Total",
-      "ageDeclaration": "Total",
-      "referenceDate": "2022-08-01",
-      "title": "Censo Demografico 2022 - Tabela 9514: Populacao residente, por sexo, idade e forma de declaracao da idade",
-      "publisher": "IBGE",
-      "sourceUrl": "https://sidra.ibge.gov.br/tabela/9514",
-      "variable": "Populacao residente",
-      "snapshotRule": "freeze exported file and record SHA-256",
-      "validation": "FAIL_CLOSED: ages 0..99 plus 100+ required; no overlap; age sum must equal declared Total"
-    }
-  ],
+  "sources": [{
+    "kind": "IBGE_PROJECAO_POPULACAO_REVISAO_2024",
+    "fileName": "projecoes_2024_tab1_idade_simples.xlsx",
+    "geography": "UF_SP",
+    "sex": "Total",
+    "referenceDate": "2026-07-01",
+    "publisher": "IBGE",
+    "sourceUrl": "https://ftp.ibge.gov.br/Projecao_da_Populacao/Projecao_da_Populacao_2024/projecoes_2024_tab1_idade_simples.xlsx",
+    "snapshotRule": "freeze official XLSX in immutable REF and record SHA-256",
+    "validation": "FAIL_CLOSED: SP + Total + 2026; ages 0..89 plus 90+; age sum must equal declared Total when present"
+  }],
   "outputSchema": "JORNADA_SYNTH_BIRTH_DAILY_V1",
   "model": {
-    "centenarianTail": "100+ => ages 100..105 uniformly; declared technical convention",
-    "postCensus": "extend age-zero daily rate from 2022-08-01 through explicit cutoff not later than generation date; future cutoff rejected fail-closed; declared approximation"
+    "referenceDate": "2026-07-01",
+    "ageWindow": "idade k => 02/07/(2026-k-1)..01/07/(2026-k)",
+    "withinWindow": "UNIFORM_DAY_LARGEST_REMAINDER",
+    "open90Plus": "geometric decay derived from population age 89 / age 88 in the same frozen workbook; no external demographic parameter",
+    "postCensus": "NONE"
   },
   "notes": [
-    "Single demographic source: IBGE Censo 2022 / SIDRA 9514.",
-    "SINASC intentionally not used by DC-SYN-01-E1; post-Census dates are declared extrapolation, not observed births.",
-    "Uniform day allocation does not model weekday, holidays or conventional dates such as 01/01.",
-    "100..105 is a declared technical convention for the open 100+ category, not an IBGE observation.",
-    "No remote source is consulted by the synthetic generator at runtime.",
-    "Post-Census cutoff must not be later than the generation date."
+    "The synthetic generator consumes the immutable daily reference and has no runtime IBGE/SIDRA dependency.",
+    "The projection is population stock by age at 01/07/2026, not observed births in 2026.",
+    "Uniform day allocation is a deterministic synthetic-data convention."
   ],
-  "corpus": {
-    "defaultPeople": 30000,
-    "seed": 42,
-    "purpose": "DEMOGRAPHIC_PRIMARY_SYNTHETIC_CALIBRATION",
-    "samplingClaim": "NOT_A_PROBABILITY_SAMPLE_OF_REAL_RESIDENTS"
-  }
+  "corpus": {"defaultPeople":30000,"seed":42,"purpose":"DEMOGRAPHIC_PRIMARY_SYNTHETIC_CALIBRATION","samplingClaim":"NOT_A_PROBABILITY_SAMPLE_OF_REAL_RESIDENTS"}
 }
