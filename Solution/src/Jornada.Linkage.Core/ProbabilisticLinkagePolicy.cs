@@ -52,19 +52,23 @@ internal static class LinkageModelPolicy
                     throw new InvalidOperationException($"V8 exige {LinkageParameterCatalog.NeutralMissingEvidenceScoring} habilitado.");
                 if (parameters.ContainsKey("M_NOME_MAE_MISSING") || parameters.ContainsKey("U_NOME_MAE_MISSING"))
                     throw new InvalidOperationException("V8 não admite probabilidades M/U para ausência; somente SUPPORT_*_MISSING diagnóstico.");
-                if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyScoring, out var tfEnabled) || tfEnabled < 1m)
-                    throw new InvalidOperationException($"V8 exige {LinkageParameterCatalog.TermFrequencyScoring} habilitado.");
-                if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyFirstTokenContract, out var tfContract) || tfContract < 1m)
-                    throw new InvalidOperationException($"V8 exige {LinkageParameterCatalog.TermFrequencyFirstTokenContract}.");
-                if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyWeight, out var tfWeight) || tfWeight <= 0m)
-                    throw new InvalidOperationException($"V8 exige {LinkageParameterCatalog.TermFrequencyWeight} positivo.");
-                if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyMinimumU, out var tfMinimumU)
-                    || tfMinimumU <= 0m || tfMinimumU > 1m)
-                    throw new InvalidOperationException($"V8 exige {LinkageParameterCatalog.TermFrequencyMinimumU} em (0,1].");
-                if (termFrequency is null || termFrequency.PersonFirstNameCount == 0 || termFrequency.MotherFirstNameCount == 0)
-                    throw new InvalidOperationException("V8 exige snapshot TF persistido de pessoa e mãe.");
-                if (parameters.ContainsKey(LinkageParameterCatalog.NonUniqueDemographicExactGuard))
-                    throw new InvalidOperationException("V8 não admite o guard demográfico fixo legado.");
+                var tfEnabled = parameters.TryGetValue(
+                    LinkageParameterCatalog.TermFrequencyScoring,
+                    out var tfFlag) && tfFlag >= 1m;
+                if (tfEnabled)
+                {
+                    if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyFirstTokenContract, out var tfContract) || tfContract < 1m)
+                        throw new InvalidOperationException($"V8 com TF exige {LinkageParameterCatalog.TermFrequencyFirstTokenContract}.");
+                    if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyWeight, out var tfWeight) || tfWeight <= 0m)
+                        throw new InvalidOperationException($"V8 com TF exige {LinkageParameterCatalog.TermFrequencyWeight} positivo.");
+                    if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyMinimumU, out var tfMinimumU)
+                        || tfMinimumU <= 0m || tfMinimumU > 1m)
+                        throw new InvalidOperationException($"V8 com TF exige {LinkageParameterCatalog.TermFrequencyMinimumU} em (0,1].");
+                    if (termFrequency is null || termFrequency.PersonFirstNameCount == 0 || termFrequency.MotherFirstNameCount == 0)
+                        throw new InvalidOperationException("V8 com TF exige snapshot nominal persistido de pessoa e mãe.");
+                    if (parameters.ContainsKey(LinkageParameterCatalog.NonUniqueDemographicExactGuard))
+                        throw new InvalidOperationException("Novo contrato V8 com TF não admite o guard demográfico fixo legado.");
+                }
             }
             else if (parameters.TryGetValue(LinkageParameterCatalog.NeutralMissingEvidenceScoring, out var neutralFlag) && neutralFlag >= 1m)
                 throw new InvalidOperationException("Modelos V6/V7 não admitem o contrato de ausência neutra V8.");
