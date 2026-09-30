@@ -24,8 +24,7 @@ public static class NominalTermFrequencyReferenceStore
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        if (referenceVersionId <= 0)
-            throw new ArgumentOutOfRangeException(nameof(referenceVersionId));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(referenceVersionId);
 
         await RequireCoverageAsync(connection, referenceVersionId, cancellationToken);
 
