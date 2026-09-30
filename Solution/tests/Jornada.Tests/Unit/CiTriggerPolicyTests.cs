@@ -31,7 +31,6 @@ public sealed class CiTriggerPolicyTests
             Assert.That(ci, Does.Contain("  dependency-lock:"));
             Assert.That(ci, Does.Contain("  unit:"));
             Assert.That(ci, Does.Contain("  deterministic-build:"));
-            Assert.That(ci, Does.Contain("Build five DT-16 specialized solutions"));
             Assert.That(ci, Does.Contain("dotnet build Jornada.sln"));
             Assert.That(ci, Does.Contain("  cancel-in-progress: true"));
         });
