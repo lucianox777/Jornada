@@ -5,7 +5,7 @@
 
 ## Decisão
 
-A fonte congelada é o arquivo oficial `projecoes_2024_tab1_idade_simples.xlsx`, Projeções da População do Brasil e Unidades da Federação 2000–2070, Revisão 2024. A seleção é **UF São Paulo, sexo Total, referência 01/07/2026**.
+A fonte oficial é o arquivo `projecoes_2024_tab1_idade_simples.xlsx` (SHA-256 `6E5C3D21A2E8FF50BADD7BE2785E1664B41A43277543BE541641B0CD802C3205`), Projeções da População do Brasil e Unidades da Federação 2000–2070, Revisão 2024. A seleção é **UF São Paulo, sexo Total (rótulo `Ambos` no XLSX), referência 01/07/2026**.
 
 O XLSX oficial pertence à camada REF imutável. A geração é offline e registra SHA-256 do arquivo efetivamente usado. O gerador sintético não consulta IBGE ou SIDRA em runtime.
 
@@ -15,7 +15,7 @@ Para idade simples `k`, a janela de nascimento é `02/07/(2026-k-1) .. 01/07/(20
 
 A entrada deve conter idades 0..89 e a categoria 90+. A categoria aberta 90+ é decomposta por decaimento geométrico cuja razão é derivada **do próprio snapshot**, pela razão população(89)/população(88); nenhum parâmetro demográfico externo é introduzido. O rateio conserva exatamente o total 90+.
 
-A ferramenta falha fechado se faltar SP, sexo Total, 2026, qualquer idade exigida ou 90+, se a razão necessária à cauda for inválida, ou se a soma etária divergir do Total publicado quando esse Total estiver presente.
+A ferramenta falha fechado se faltar SP, sexo Total (rótulo `Ambos` no XLSX), 2026, qualquer idade exigida ou 90+, se a razão necessária à cauda for inválida, ou se a soma etária divergir do Total publicado quando esse Total estiver presente.
 
 ## Mudança em relação à E1
 
