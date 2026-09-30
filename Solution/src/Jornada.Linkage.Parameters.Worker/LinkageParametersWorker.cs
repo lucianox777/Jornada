@@ -35,6 +35,7 @@ public sealed class LinkageParametersWorker(
     private const string SqlServerSampleMethod = "M_INTERGESTOR_U_BLOCKING_CONDITIONED_IBGE_BOOTSTRAP_V5";
     private static readonly string DefaultConferenceToleranceRelativePath =
         Path.Combine("config", "linkage", "implementation-conference-tolerance.json");
+    private static readonly string DefaultModelBundleRelativePath = Path.Combine("config", "linkage");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -154,6 +155,7 @@ public sealed class LinkageParametersWorker(
         using var workCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, pipelineLease.LostToken);
         var workCt = workCts.Token;
         var modelId = Guid.NewGuid();
+        var modelBundle = LoadModelConfigurationBundle();
 
         try
         {
@@ -164,7 +166,7 @@ public sealed class LinkageParametersWorker(
                 connection, ibgeNominalUSeed, ibgeNominalUPairCount, workCt);
             var version = await CreateGeneratingModelAsync(
                 connection, modelId, algorithmVersion, normalizationVersion,
-                samplePoolSize, ibgeReference.Id, workCt);
+                samplePoolSize, ibgeReference.Id, modelBundle, workCt);
             PopulationStatistics statistics;
             IReadOnlyList<IdentityTrainingPair> matchedPairs;
             IReadOnlyList<IdentityTrainingPair> unmatchedCandidatePairs;
@@ -469,7 +471,7 @@ public sealed class LinkageParametersWorker(
             StringComparer.Ordinal);
     }
 
-    private async Task<int> CreateGeneratingModelAsync(SqlConnection connection, Guid modelId, string algorithmVersion, string normalizationVersion, int samplePoolSize, long ibgeReferenceId, CancellationToken cancellationToken)
+    private async Task<int> CreateGeneratingModelAsync(SqlConnection connection, Guid modelId, string algorithmVersion, string normalizationVersion, int samplePoolSize, long ibgeReferenceId, LinkageModelConfigurationBundle modelBundle, CancellationToken cancellationToken)
     {
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         try
@@ -480,8 +482,8 @@ public sealed class LinkageParametersWorker(
                 EXEC @lock_result = sys.sp_getapplock @Resource = 'Jornada.Linkage.Parameters.Version', @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 60000;
                 IF @lock_result < 0 THROW 51009, 'Não foi possível obter lock para versionamento do modelo.', 1;
                 DECLARE @versao INT = (SELECT ISNULL(MAX(versao),0)+1 FROM identidade.modelo_linkage WITH (UPDLOCK,HOLDLOCK));
-                INSERT identidade.modelo_linkage(modelo_id,versao,status,algoritmo_versao,normalizacao_versao,deduplicacao_metodo,base_referencia,snapshot_referencia,registros_lidos,pessoas_unicas,gerado_em,ativado_em,snapshot_capturado_em,amostra_metodo,amostra_pool_tamanho,amostra_m_tamanho,amostra_u_tamanho,falha_resumo,frequencia_nome_versao_id)
-                VALUES(@modelo_id,@versao,'GERANDO',@algoritmo,@normalizacao,'GOLD_PESSOA_UUID_PK','gold.pessoa',NULL,NULL,NULL,SYSDATETIMEOFFSET(),NULL,NULL,@amostra_metodo,@pool,NULL,NULL,NULL,@ibge_ref);
+                INSERT identidade.modelo_linkage(modelo_id,versao,status,algoritmo_versao,normalizacao_versao,deduplicacao_metodo,base_referencia,snapshot_referencia,registros_lidos,pessoas_unicas,gerado_em,ativado_em,snapshot_capturado_em,amostra_metodo,amostra_pool_tamanho,amostra_m_tamanho,amostra_u_tamanho,falha_resumo,frequencia_nome_versao_id,model_config_bundle_version,model_config_bundle_fingerprint_sha256)
+                VALUES(@modelo_id,@versao,'GERANDO',@algoritmo,@normalizacao,'GOLD_PESSOA_UUID_PK','gold.pessoa',NULL,NULL,NULL,SYSDATETIMEOFFSET(),NULL,NULL,@amostra_metodo,@pool,NULL,NULL,NULL,@ibge_ref,@model_bundle_version,@model_bundle_fingerprint);
                 SELECT @versao;
                 """, connection, transaction);
             command.Parameters.Add("@modelo_id", SqlDbType.UniqueIdentifier).Value = modelId;
@@ -490,6 +492,8 @@ public sealed class LinkageParametersWorker(
             command.Parameters.Add("@ibge_ref", SqlDbType.BigInt).Value = ibgeReferenceId;
             command.Parameters.Add("@amostra_metodo", SqlDbType.NVarChar, 80).Value = SqlServerSampleMethod;
             command.Parameters.Add("@pool", SqlDbType.Int).Value = samplePoolSize;
+            command.Parameters.Add("@model_bundle_version", SqlDbType.NVarChar, 120).Value = modelBundle.BundleVersion;
+            command.Parameters.Add("@model_bundle_fingerprint", SqlDbType.Char, 64).Value = modelBundle.FingerprintSha256;
             var version = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
             await transaction.CommitAsync(cancellationToken);
             return version;
@@ -1010,6 +1014,19 @@ public sealed class LinkageParametersWorker(
                 THROW 51022, 'Calibração FS excedeu o limite de FP de VALIDATION/TEST.', 1;
         END;
         """;
+
+    private LinkageModelConfigurationBundle LoadModelConfigurationBundle()
+    {
+        var configured = configuration["LinkageParameters:ModelConfigurationBundlePath"]?.Trim();
+        var currentDirectoryPath = Path.GetFullPath(DefaultModelBundleRelativePath);
+        var applicationPath = Path.Combine(AppContext.BaseDirectory, DefaultModelBundleRelativePath);
+        var path = !string.IsNullOrWhiteSpace(configured)
+            ? configured
+            : File.Exists(Path.Combine(currentDirectoryPath, "model-config-bundle.json"))
+                ? currentDirectoryPath
+                : applicationPath;
+        return LinkageModelConfigurationBundleValidator.LoadAndValidate(path);
+    }
 
     private ImplementationConferenceToleranceContract LoadPromotionConferenceTolerance()
     {
