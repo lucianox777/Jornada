@@ -218,6 +218,14 @@ jobs:
             and ([.evidenceCatalog[] | select(.code=="ENDERECO_RESIDENCIAL")][0].currentRole == "INELIGIBLE_FOR_RESOLUTION")
             and ([.evidenceCatalog[] | select(.code=="REFERENCIA_TERRITORIAL")][0].currentRole == "INELIGIBLE_FOR_RESOLUTION")
             and ([.evidenceCatalog[] | select(.code=="ENDERECO_CASA_ABRIGO_SIGILOSA")][0].currentRole == "INELIGIBLE_FOR_RESOLUTION")
+            and .additionalEvidenceCalibration.purpose == "READ_ONLY_POST_BLOCKING_MU_ESTIMABILITY"
+            and .additionalEvidenceCalibration.universe == "POST_BLOCKING_CANDIDATE_PAIRS_WITH_GOLD_TRUTH"
+            and .additionalEvidenceCalibration.reservedChallengeExcludedFromPrevalence == true
+            and .additionalEvidenceCalibration.missingIsNeutral == true
+            and ([.additionalEvidenceCalibration.diagnostics[] | select(.code=="RG")][0].estimable == false)
+            and ([.additionalEvidenceCalibration.diagnostics[] | select(.code=="RG")][0].exactLogLikelihoodRatio == null)
+            and ([.additionalEvidenceCalibration.diagnostics[] | select(.code=="RG")][0].missingLogLikelihoodRatio == 0)
+            and ([.additionalEvidenceCalibration.diagnostics[] | select(.code=="TELEFONE_CONTATO")][0].promotionEligible == false)
           ' "$report" >/dev/null
           echo 'LINKAGE ADDITIONAL EVIDENCE READINESS CONTRACT: OK'
 
