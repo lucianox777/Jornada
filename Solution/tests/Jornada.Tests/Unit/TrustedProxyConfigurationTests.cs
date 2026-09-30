@@ -33,7 +33,7 @@ public sealed class TrustedProxyConfigurationTests
         {
             Assert.That(forwarded.KnownProxies, Is.Empty);
             Assert.That(forwarded.KnownIPNetworks.Count, Is.EqualTo(2));
-            Assert.That(forwarded.KnownIPNetworks[0].Prefix, Is.EqualTo(IPAddress.Parse("10.20.30.0")));
+            Assert.That(forwarded.KnownIPNetworks[0].BaseAddress, Is.EqualTo(IPAddress.Parse("10.20.30.0")));
             Assert.That(forwarded.KnownIPNetworks[0].PrefixLength, Is.EqualTo(24));
         });
     }
