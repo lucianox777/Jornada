@@ -294,7 +294,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
             activeModel.ModelId,
             activeModel.Version,
             activeModel.AlgorithmVersion,
-            counterfactualParameters);
+            counterfactualParameters,
+            activeModel.TermFrequency);
         var counterfactualRanking = ProbabilisticLinkageDecisions.Rank(
             counterfactualModel,
             observation,
