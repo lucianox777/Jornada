@@ -30,6 +30,18 @@ def read_ref(path:Path):
     if total!=EXPECTED_TOTAL: raise ValueError(f"IBGE REF: soma etaria {total} difere do Total congelado {EXPECTED_TOTAL}")
     return ages,total
 
+def read_tail_benchmark(path:Path):
+    rows={}
+    with path.open(encoding="utf-8-sig",newline="") as f:
+        for row in csv.DictReader(f):
+            try: metric=row["metric"]; value=int(row["value"])
+            except (KeyError,ValueError) as e: raise ValueError("IBGE benchmark: linha invalida") from e
+            if metric in rows: raise ValueError(f"IBGE benchmark: metrica duplicada: {metric}")
+            rows[metric]=value
+    expected={"population_total":CENSUS_SP_2022_TOTAL,"population_100_plus":CENSUS_SP_2022_100_PLUS}
+    if rows!=expected: raise ValueError(f"IBGE benchmark: conteudo diverge do congelado: {rows}")
+    return rows
+
 def apportion(total:int,weights):
     s=sum(weights)
     if total<0 or not weights or s<=0: raise ValueError("rateio invalido")
@@ -70,14 +82,15 @@ def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest().upper()
 def main(argv=None):
     p=argparse.ArgumentParser()
     p.add_argument("--ibge-ref",type=Path,required=True)
+    p.add_argument("--tail-benchmark",type=Path,required=True)
     p.add_argument("--out",type=Path,required=True); p.add_argument("--manifest",type=Path,required=True)
     a=p.parse_args(argv)
-    ages,total=read_ref(a.ibge_ref); daily,ratio=daily_distribution(ages)
+    ages,total=read_ref(a.ibge_ref); read_tail_benchmark(a.tail_benchmark); daily,ratio=daily_distribution(ages)
     if sum(daily.values())!=total: raise ValueError("IBGE REF: distribuicao diaria nao conserva o total")
     rows=[{"date":k.isoformat(),"births":v} for k,v in sorted(daily.items()) if v>0]
     obj={"schema_version":SCHEMA,"source":"IBGE_PROJECAO_POPULACAO_REVISAO_2024_REF","reference_period":"2026-07-01","geography":"UF_SP","rows":rows}
     a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(obj,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
-    manifest={"schemaVersion":2,"referenceCode":"SYNTH_BIRTH_SP_PROJECTION2024_2026_E2_V1","output":{"path":a.out.name,"schemaVersion":SCHEMA,"sha256":sha(a.out),"rowCount":len(rows)},"sources":[{"kind":"IBGE_PROJECAO_POPULACAO_REVISAO_2024","officialFileName":SOURCE_XLSX,"officialFileSha256":SOURCE_XLSX_SHA256,"refPath":str(a.ibge_ref),"refSha256":sha(a.ibge_ref),"geography":"UF_SP","sourceSexLabel":"Ambos","semanticSex":"Total","referenceDate":"2026-07-01","populationWeight":total}],"model":{"ageWindow":"idade k em 01/07/2026 => 02/07/(2026-k-1)..01/07/(2026-k)","withinWindow":"UNIFORM_DAY_LARGEST_REMAINDER","open90Plus":{"sourceAgeLabel":"90","semantic":"90+","method":"GEOMETRIC_DECAY_CALIBRATED_TO_SP_CENSO2022_100_PLUS","ratio":ratio,"ratioParameterSource":"CALIBRATED_TO_FROZEN_CENSO2022_SP_100_PLUS_SHARE","census2022SpPopulation":CENSUS_SP_2022_TOTAL,"census2022Sp100Plus":CENSUS_SP_2022_100_PLUS,"target2026Sp100Plus":round(total*CENSUS_SP_2022_100_PLUS/CENSUS_SP_2022_TOTAL),"maxSyntheticAge":MAX_SYNTHETIC_AGE,"maxSyntheticAgeParameterSource":"DC_SYN_01_E2_VERSIONED_PLAUSIBILITY_GUARD","maxSyntheticAgeSemantics":"NOT_IBGE_OBSERVATION_NOT_STRUCTURAL_LIMIT"}},"runtimeNetworkDependency":False}
+    manifest={"schemaVersion":2,"referenceCode":"SYNTH_BIRTH_SP_PROJECTION2024_2026_E2_V1","output":{"path":a.out.name,"schemaVersion":SCHEMA,"sha256":sha(a.out),"rowCount":len(rows)},"sources":[{"kind":"IBGE_PROJECAO_POPULACAO_REVISAO_2024","officialFileName":SOURCE_XLSX,"officialFileSha256":SOURCE_XLSX_SHA256,"refPath":str(a.ibge_ref),"refSha256":sha(a.ibge_ref),"geography":"UF_SP","sourceSexLabel":"Ambos","semanticSex":"Total","referenceDate":"2026-07-01","populationWeight":total},{"kind":"IBGE_CENSO_2022_SIDRA_9514_TAIL_BENCHMARK","refPath":str(a.tail_benchmark),"refSha256":sha(a.tail_benchmark),"geography":"UF_SP","sex":"Total","age":"100+","declaration":"Total","populationTotal":CENSUS_SP_2022_TOTAL,"population100Plus":CENSUS_SP_2022_100_PLUS,"role":"AUXILIARY_SHAPE_CALIBRATION_ONLY"}],"model":{"ageWindow":"idade k em 01/07/2026 => 02/07/(2026-k-1)..01/07/(2026-k)","withinWindow":"UNIFORM_DAY_LARGEST_REMAINDER","open90Plus":{"sourceAgeLabel":"90","semantic":"90+","method":"GEOMETRIC_DECAY_CALIBRATED_TO_SP_CENSO2022_100_PLUS","ratio":ratio,"ratioParameterSource":"CALIBRATED_TO_FROZEN_CENSO2022_SP_100_PLUS_SHARE","census2022SpPopulation":CENSUS_SP_2022_TOTAL,"census2022Sp100Plus":CENSUS_SP_2022_100_PLUS,"target2026Sp100Plus":round(total*CENSUS_SP_2022_100_PLUS/CENSUS_SP_2022_TOTAL),"maxSyntheticAge":MAX_SYNTHETIC_AGE,"maxSyntheticAgeParameterSource":"DC_SYN_01_E2_VERSIONED_PLAUSIBILITY_GUARD","maxSyntheticAgeSemantics":"NOT_IBGE_OBSERVATION_NOT_STRUCTURAL_LIMIT"}},"runtimeNetworkDependency":False}
     a.manifest.parent.mkdir(parents=True,exist_ok=True); a.manifest.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     return 0
 if __name__=="__main__": raise SystemExit(main())
