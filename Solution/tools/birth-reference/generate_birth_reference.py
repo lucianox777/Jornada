@@ -1,108 +1,96 @@
 #!/usr/bin/env python3
-"""Generate JORNADA_SYNTH_BIRTH_DAILY_V1 from a frozen SIDRA 9514 snapshot.
-
-DC-SYN-01-E1 deliberately uses one demographic source: Censo 2022 / SIDRA
-table 9514 for municipality 3550308, sex=Total, age declaration=Total.
-Post-Census dates are a declared extrapolation of the age-zero daily rate.
-No network access is performed.
-"""
+"""Generate JORNADA_SYNTH_BIRTH_DAILY_V1 from an immutable IBGE 2024 projection REF."""
 from __future__ import annotations
-import argparse,csv,hashlib,json,re
+import argparse,csv,hashlib,json,math
 from collections import defaultdict
 from datetime import date,timedelta
 from pathlib import Path
 
 SCHEMA="JORNADA_SYNTH_BIRTH_DAILY_V1"
-CENSUS_DATE=date(2022,8,1)
-AGE_RE=re.compile(r"^(?:Menos de 1 ano|(?P<age>\d+) anos?)$",re.I)
-RANGE_RE=re.compile(r"^(?P<a>\d+) a (?P<b>\d+) anos$",re.I)
+REFERENCE_DATE=date(2026,7,1)
+SOURCE_XLSX="projecoes_2024_tab1_idade_simples.xlsx"
+SOURCE_XLSX_SHA256="6E5C3D21A2E8FF50BADD7BE2785E1664B41A43277543BE541641B0CD802C3205"
+EXPECTED_TOTAL=46179008
+MAX_SYNTHETIC_AGE=115
+CENSUS_SP_2022_TOTAL=44411238
+CENSUS_SP_2022_100_PLUS=5095
 
-def _int(v:str)->int:
-    return int(v.strip().replace('.','').replace(' ',''))
+def read_ref(path:Path):
+    ages={}
+    with path.open(encoding="utf-8-sig",newline="") as f:
+        for row in csv.DictReader(f):
+            try: age=int(row["idade"]); pop=int(row["populacao"])
+            except (KeyError,ValueError) as e: raise ValueError("IBGE REF: linha idade/populacao invalida") from e
+            if age in ages: raise ValueError(f"IBGE REF: idade duplicada: {age}")
+            if not 0<=age<=90 or pop<=0: raise ValueError(f"IBGE REF: idade/populacao invalida: {age}/{pop}")
+            ages[age]=pop
+    missing=[a for a in range(91) if a not in ages]
+    if missing: raise ValueError(f"IBGE REF: idades ausentes: {missing}")
+    total=sum(ages.values())
+    if total!=EXPECTED_TOTAL: raise ValueError(f"IBGE REF: soma etaria {total} difere do Total congelado {EXPECTED_TOTAL}")
+    return ages,total
 
-def read_sidra(path:Path):
-    rows=[]; declared_total=None
-    with path.open(encoding='utf-8-sig',newline='') as f:
-        for x in csv.DictReader(f):
-            age=(x.get('Idade') or x.get('idade') or '').strip()
-            val=x.get('Valor') or x.get('valor') or x.get('População residente') or x.get('Populacao residente')
-            if not age or val in (None,'','-','...'): continue
-            if age.lower()=='total': declared_total=_int(val); continue
-            if 'mes' in age.lower(): continue
-            m=AGE_RE.match(age)
-            if m:
-                rows.append((0 if age.lower().startswith('menos') else int(m.group('age')),None,_int(val),age)); continue
-            m=RANGE_RE.match(age)
-            if m:
-                rows.append((int(m.group('a')),int(m.group('b')),_int(val),age)); continue
-            if age.lower()=='100 anos ou mais':
-                rows.append((100,105,_int(val),age)); continue
-    simple={a:(v,label) for a,b,v,label in rows if b is None}
-    out=[]; covered=set(simple)
-    for a,(v,label) in sorted(simple.items()): out.append((a,a,v,label))
-    for a,b,v,label in rows:
-        if b is None or all(i in covered for i in range(a,b+1)): continue
-        out.append((a,b,v,label)); covered.update(range(a,b+1))
-    out=sorted(out); covered=set()
-    for a,b,_,_ in out:
-        for age in range(a,b+1):
-            if age in covered: raise ValueError(f'SIDRA: idade {age} coberta mais de uma vez')
-            covered.add(age)
-    missing=[age for age in range(100) if age not in covered]
-    if missing: raise ValueError(f'SIDRA: idades ausentes: {missing}')
-    if 100 not in covered: raise ValueError('SIDRA: categoria 100 anos ou mais ausente')
-    computed=sum(v for _,_,v,_ in out)
-    if declared_total is None: raise ValueError('SIDRA: linha Total ausente')
-    if computed != declared_total: raise ValueError(f'SIDRA: soma etária {computed} difere do Total {declared_total}')
+def read_tail_benchmark(path:Path):
+    rows={}
+    with path.open(encoding="utf-8-sig",newline="") as f:
+        for row in csv.DictReader(f):
+            try: metric=row["metric"]; value=int(row["value"])
+            except (KeyError,ValueError) as e: raise ValueError("IBGE benchmark: linha invalida") from e
+            if metric in rows: raise ValueError(f"IBGE benchmark: metrica duplicada: {metric}")
+            rows[metric]=value
+    expected={"population_total":CENSUS_SP_2022_TOTAL,"population_100_plus":CENSUS_SP_2022_100_PLUS}
+    if rows!=expected: raise ValueError(f"IBGE benchmark: conteudo diverge do congelado: {rows}")
+    return rows
+
+def apportion(total:int,weights):
+    s=sum(weights)
+    if total<0 or not weights or s<=0: raise ValueError("rateio invalido")
+    raw=[total*w/s for w in weights]; out=[math.floor(x) for x in raw]
+    for i in sorted(range(len(raw)),key=lambda i:(-(raw[i]-out[i]),i))[:total-sum(out)]: out[i]+=1
     return out
 
-def apportion(total:int,n:int):
-    q,r=divmod(total,n)
-    return [q+(i<r) for i in range(n)]
+def expand_90_plus(ages):
+    # The projection publishes one open 90+ cell. Calibrate a smooth geometric
+    # disaggregation so its 100+ share matches the observed SP Censo 2022
+    # centenarian share, applied to the 2026 projected total. This uses Censo
+    # only to shape the open cell; the Projection remains the population stock.
+    target_100_plus=round(EXPECTED_TOTAL*CENSUS_SP_2022_100_PLUS/CENSUS_SP_2022_TOTAL)
+    n=MAX_SYNTHETIC_AGE-90+1
+    def allocate(r): return apportion(ages[90],[r**i for i in range(n)])
+    lo,hi=0.01,0.999
+    for _ in range(80):
+        mid=(lo+hi)/2
+        if sum(allocate(mid)[10:]) < target_100_plus: lo=mid
+        else: hi=mid
+    ratio=hi; allocated=allocate(ratio)
+    if sum(allocated[10:])!=target_100_plus:
+        raise ValueError("IBGE REF: calibracao 100+ nao converge ao benchmark congelado")
+    return [(90+i,v) for i,v in enumerate(allocated) if v],ratio
 
-def census_daily(groups):
-    d=defaultdict(int); total=0; age_zero_weight=None
-    for a,b,pop,label in groups:
-        ages=list(range(a,b+1)); age_weights=apportion(pop,len(ages))
-        for age,w in zip(ages,age_weights):
-            if age==0: age_zero_weight=w
-            start=date(2021-age,8,1); end=date(2022-age,7,31); days=(end-start).days+1
-            for i,x in enumerate(apportion(w,days)):
-                if x: d[start+timedelta(days=i)]+=x
-        total+=pop
-    if age_zero_weight is None: raise ValueError('SIDRA: peso da idade zero ausente')
-    return d,total,age_zero_weight
-
-def extend_post_census(daily,age_zero_weight:int,cutoff:date, today:date|None=None):
-    if cutoff < CENSUS_DATE: raise ValueError('cutoff não pode preceder 2022-08-01')
-    current_date=today or date.today()
-    if cutoff > current_date: raise ValueError(f'cutoff não pode estar no futuro: {cutoff.isoformat()} > {current_date.isoformat()}')
-    # Declared approximation: repeat the age-zero average daily rate. Integer
-    # largest-remainder allocation is deterministic and conserves the implied
-    # total over the extrapolated interval.
-    days=(cutoff-CENSUS_DATE).days+1
-    annual_days=365
-    implied_total=round(age_zero_weight*days/annual_days)
-    for i,w in enumerate(apportion(implied_total,days)):
-        if w: daily[CENSUS_DATE+timedelta(days=i)]=w
+def daily_distribution(ages):
+    daily=defaultdict(int); expanded=[(a,ages[a]) for a in range(90)]
+    tail,ratio=expand_90_plus(ages); expanded+=tail
+    for age,pop in expanded:
+        start=date(REFERENCE_DATE.year-age-1,7,2); end=date(REFERENCE_DATE.year-age,7,1)
+        days=(end-start).days+1
+        for i,w in enumerate(apportion(pop,[1]*days)):
+            if w: daily[start+timedelta(days=i)]+=w
+    return daily,ratio
 
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest().upper()
 
 def main(argv=None):
     p=argparse.ArgumentParser()
-    p.add_argument('--sidra-9514',type=Path,required=True)
-    p.add_argument('--post-census-cutoff',type=date.fromisoformat,required=True)
-    p.add_argument('--out',type=Path,required=True); p.add_argument('--manifest',type=Path,required=True)
+    p.add_argument("--ibge-ref",type=Path,required=True)
+    p.add_argument("--tail-benchmark",type=Path,required=True)
+    p.add_argument("--out",type=Path,required=True); p.add_argument("--manifest",type=Path,required=True)
     a=p.parse_args(argv)
-    groups=read_sidra(a.sidra_9514)
-    daily,census_total,age_zero_weight=census_daily(groups)
-    extend_post_census(daily,age_zero_weight,a.post_census_cutoff)
-    rows=[{'date':k.isoformat(),'births':v} for k,v in sorted(daily.items()) if v>0]
-    obj={'schema_version':SCHEMA,'source':'IBGE_CENSO_2022_SIDRA_9514_DECLARED_EXTRAPOLATION','reference_period':f'CENSO_2022_PLUS_EXTRAPOLATION_TO_{a.post_census_cutoff.isoformat()}','geography':'MUNICIPIO_SAO_PAULO_3550308','rows':rows}
-    a.out.parent.mkdir(parents=True,exist_ok=True)
-    a.out.write_text(json.dumps(obj,ensure_ascii=False,separators=(',',':'))+'\n',encoding='utf-8')
-    manifest={'schemaVersion':1,'referenceCode':'SYNTH_BIRTH_SP_CENSO2022_E1_V1','output':{'path':a.out.name,'schemaVersion':SCHEMA,'sha256':sha(a.out),'rowCount':len(rows)},'sources':[{'kind':'IBGE_SIDRA_9514','path':str(a.sidra_9514),'sha256':sha(a.sidra_9514),'municipality':'3550308','sex':'Total','ageDeclaration':'Total','referenceDate':'2022-08-01','populationWeight':census_total}],'model':{'censusAgeWindow':'idade k em 31/07/2022 => 01/08/(2021-k)..31/07/(2022-k)','withinWindow':'UNIFORM_DAY_LARGEST_REMAINDER','groupedAge':'UNIFORM_AGE_LARGEST_REMAINDER','centenarianTail':'100+ represented uniformly over ages 100..105; declared technical convention, not an IBGE age distribution','postCensus':{'method':'AGE_ZERO_DAILY_RATE_EXTRAPOLATION','start':'2022-08-01','cutoff':a.post_census_cutoff.isoformat(),'ageZeroPopulation':age_zero_weight,'allocation':'UNIFORM_DAY_LARGEST_REMAINDER'}},'runtimeNetworkDependency':False}
-    a.manifest.parent.mkdir(parents=True,exist_ok=True)
-    a.manifest.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    ages,total=read_ref(a.ibge_ref); read_tail_benchmark(a.tail_benchmark); daily,ratio=daily_distribution(ages)
+    if sum(daily.values())!=total: raise ValueError("IBGE REF: distribuicao diaria nao conserva o total")
+    rows=[{"date":k.isoformat(),"births":v} for k,v in sorted(daily.items()) if v>0]
+    obj={"schema_version":SCHEMA,"source":"IBGE_PROJECAO_POPULACAO_REVISAO_2024_REF","reference_period":"2026-07-01","geography":"UF_SP","rows":rows}
+    a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(obj,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
+    manifest={"schemaVersion":2,"referenceCode":"SYNTH_BIRTH_SP_PROJECTION2024_2026_E2_V1","output":{"path":a.out.name,"schemaVersion":SCHEMA,"sha256":sha(a.out),"rowCount":len(rows)},"sources":[{"kind":"IBGE_PROJECAO_POPULACAO_REVISAO_2024","officialFileName":SOURCE_XLSX,"officialFileSha256":SOURCE_XLSX_SHA256,"refPath":str(a.ibge_ref),"refSha256":sha(a.ibge_ref),"geography":"UF_SP","sourceSexLabel":"Ambos","semanticSex":"Total","referenceDate":"2026-07-01","populationWeight":total},{"kind":"IBGE_CENSO_2022_SIDRA_9514_TAIL_BENCHMARK","refPath":str(a.tail_benchmark),"refSha256":sha(a.tail_benchmark),"geography":"UF_SP","sex":"Total","age":"100+","declaration":"Total","populationTotal":CENSUS_SP_2022_TOTAL,"population100Plus":CENSUS_SP_2022_100_PLUS,"role":"AUXILIARY_SHAPE_CALIBRATION_ONLY"}],"model":{"ageWindow":"idade k em 01/07/2026 => 02/07/(2026-k-1)..01/07/(2026-k)","withinWindow":"UNIFORM_DAY_LARGEST_REMAINDER","open90Plus":{"sourceAgeLabel":"90","semantic":"90+","method":"GEOMETRIC_DECAY_CALIBRATED_TO_SP_CENSO2022_100_PLUS","ratio":ratio,"ratioParameterSource":"CALIBRATED_TO_FROZEN_CENSO2022_SP_100_PLUS_SHARE","census2022SpPopulation":CENSUS_SP_2022_TOTAL,"census2022Sp100Plus":CENSUS_SP_2022_100_PLUS,"target2026Sp100Plus":round(total*CENSUS_SP_2022_100_PLUS/CENSUS_SP_2022_TOTAL),"maxSyntheticAge":MAX_SYNTHETIC_AGE,"maxSyntheticAgeParameterSource":"DC_SYN_01_E2_VERSIONED_PLAUSIBILITY_GUARD","maxSyntheticAgeSemantics":"NOT_IBGE_OBSERVATION_NOT_STRUCTURAL_LIMIT"}},"runtimeNetworkDependency":False}
+    a.manifest.parent.mkdir(parents=True,exist_ok=True); a.manifest.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     return 0
-if __name__=='__main__': raise SystemExit(main())
+if __name__=="__main__": raise SystemExit(main())

@@ -1,36 +1,58 @@
 {
-  "schemaVersion": 1,
-  "referenceCode": "SYNTH_BIRTH_SP_CENSO2022_E1_V1",
-  "status": "GENERATED_BY_TOOL",
-  "sourcePolicy": "LOCAL_IMMUTABLE_SNAPSHOT",
+  "schemaVersion": 2,
+  "referenceCode": "SYNTH_BIRTH_SP_PROJECTION2024_2026_E2_V1",
+  "status": "FROZEN_REF",
+  "sourcePolicy": "LOCAL_IMMUTABLE_REF",
   "runtimeNetworkDependency": false,
   "sources": [
     {
-      "kind": "IBGE_SIDRA_9514",
-      "municipality": "3550308",
+      "kind": "IBGE_PROJECAO_POPULACAO_REVISAO_2024",
+      "officialFileName": "projecoes_2024_tab1_idade_simples.xlsx",
+      "officialFileSha256": "6E5C3D21A2E8FF50BADD7BE2785E1664B41A43277543BE541641B0CD802C3205",
+      "refPath": "ibge_projection_2024_sp_ambos_2026.csv",
+      "refSha256": "07B2E48B085E17AFD2990651769B151E34DD8DE1FE32A9B14A9B693ED39BD29B",
+      "geography": "UF_SP",
+      "sourceSexLabel": "Ambos",
+      "semanticSex": "Total",
+      "referenceDate": "2026-07-01",
+      "populationWeight": 46179008,
+      "validation": "91 rows: ages 0..89 plus source age 90 representing the workbook open tail; exact sum 46179008"
+    },
+    {
+      "kind": "IBGE_CENSO_2022_SIDRA_9514_TAIL_BENCHMARK",
+      "refPath": "ibge_censo_2022_sp_100_plus_benchmark.csv",
+      "refSha256": "D2ABE3BCE64D52F4A429EEA17C9892B8D1182F90F642B402085D19524C5909E3",
+      "geography": "UF_SP",
       "sex": "Total",
-      "ageDeclaration": "Total",
-      "referenceDate": "2022-08-01",
-      "title": "Censo Demografico 2022 - Tabela 9514: Populacao residente, por sexo, idade e forma de declaracao da idade",
-      "publisher": "IBGE",
-      "sourceUrl": "https://sidra.ibge.gov.br/tabela/9514",
-      "variable": "Populacao residente",
-      "snapshotRule": "freeze exported file and record SHA-256",
-      "validation": "FAIL_CLOSED: ages 0..99 plus 100+ required; no overlap; age sum must equal declared Total"
+      "age": "100+",
+      "declaration": "Total",
+      "populationTotal": 44411238,
+      "population100Plus": 5095,
+      "role": "AUXILIARY_SHAPE_CALIBRATION_ONLY"
     }
   ],
   "outputSchema": "JORNADA_SYNTH_BIRTH_DAILY_V1",
   "model": {
-    "centenarianTail": "100+ => ages 100..105 uniformly; declared technical convention",
-    "postCensus": "extend age-zero daily rate from 2022-08-01 through explicit cutoff not later than generation date; future cutoff rejected fail-closed; declared approximation"
+    "referenceDate": "2026-07-01",
+    "ageWindow": "idade k => 02/07/(2026-k-1)..01/07/(2026-k)",
+    "withinWindow": "UNIFORM_DAY_LARGEST_REMAINDER",
+    "open90Plus": {
+      "sourceAgeLabel": "90",
+      "semantic": "90+",
+      "method": "GEOMETRIC_DECAY_CALIBRATED_TO_SP_CENSO2022_100_PLUS",
+      "census2022SpShare100Plus": 0.00011472321487637881,
+      "target2026Sp100Plus": 5298,
+      "maxSyntheticAge": 115,
+      "maxSyntheticAgeParameterSource": "DC_SYN_01_E2_VERSIONED_PLAUSIBILITY_GUARD",
+      "maxSyntheticAgeSemantics": "NOT_IBGE_OBSERVATION_NOT_STRUCTURAL_LIMIT"
+    },
+    "postCensus": "NONE"
   },
   "notes": [
-    "Single demographic source: IBGE Censo 2022 / SIDRA 9514.",
-    "SINASC intentionally not used by DC-SYN-01-E1; post-Census dates are declared extrapolation, not observed births.",
-    "Uniform day allocation does not model weekday, holidays or conventional dates such as 01/01.",
-    "100..105 is a declared technical convention for the open 100+ category, not an IBGE observation.",
-    "No remote source is consulted by the synthetic generator at runtime.",
-    "Post-Census cutoff must not be later than the generation date."
+    "The immutable REF is the canonical SP/Ambos/2026 extraction from the official workbook supplied and SHA-256 verified.",
+    "The synthetic generator consumes only the immutable REF and has no runtime XLSX, IBGE or SIDRA dependency.",
+    "The projection is population stock by age at 01/07/2026, not observed births in 2026.",
+    "The Projection 2024 remains the stock source. SP Censo 2022 SIDRA 9514 is frozen only as an auxiliary 100+ shape benchmark for the open 90+ cell."
   ],
   "corpus": {
     "defaultPeople": 30000,

@@ -1,54 +1,59 @@
-import csv,json,tempfile,unittest
+import csv,tempfile,unittest
 from pathlib import Path
 import importlib.util
-P=Path(__file__).with_name('generate_birth_reference.py')
-spec=importlib.util.spec_from_file_location('g',P); g=importlib.util.module_from_spec(spec); spec.loader.exec_module(g)
+P=Path(__file__).with_name("generate_birth_reference.py")
+spec=importlib.util.spec_from_file_location("g",P); g=importlib.util.module_from_spec(spec); spec.loader.exec_module(g)
 
-def sidra(path, missing=None, total_delta=0, tail=6):
- with path.open('w',encoding='utf-8',newline='') as f:
-  w=csv.writer(f); total=365*100+tail+total_delta
-  w.writerow(['Idade','Valor']); w.writerow(['Total',str(total)])
-  w.writerow(['Menos de 1 ano','365'])
-  for i in range(1,100):
-   if i!=missing: w.writerow([f'{i} ano' if i==1 else f'{i} anos','365'])
-  w.writerow(['100 anos ou mais',str(tail)])
+def ref(path,missing=None,delta=0):
+    vals={i:100000-i*500 for i in range(90)}; vals[90]=200000
+    # tests that exercise read_ref temporarily bind the expected total to fixture total.
+    with path.open("w",encoding="utf-8",newline="") as f:
+        w=csv.writer(f,lineterminator="\n"); w.writerow(["idade","populacao"])
+        for i,v in vals.items():
+            if i!=missing: w.writerow([i,v+(delta if i==0 else 0)])
+    return vals
 
 class T(unittest.TestCase):
- def test_schema_hash_extrapolation_and_100_105(self):
+ def test_real_ref_contract(self):
+  p=P.parents[2]/"data/reference/synthetic-birth-sp/ibge_projection_2024_sp_ambos_2026.csv"
+  ages,total=g.read_ref(p)
+  self.assertEqual(len(ages),91); self.assertEqual(total,46179008)
+  self.assertEqual(ages[0],470019); self.assertEqual(ages[89],52654); self.assertEqual(ages[90],171261)
+ def test_fail_closed_missing_age(self):
   with tempfile.TemporaryDirectory() as td:
-   d=Path(td); s=d/'sidra.csv'; sidra(s)
-   out=d/'births.json'; man=d/'manifest.json'
-   self.assertEqual(g.main(['--sidra-9514',str(s),'--post-census-cutoff','2022-08-10','--out',str(out),'--manifest',str(man)]),0)
-   o=json.loads(out.read_text()); m=json.loads(man.read_text())
-   self.assertEqual(o['schema_version'],g.SCHEMA)
-   self.assertEqual(m['sources'][0]['populationWeight'],365*100+6)
-   self.assertEqual(m['model']['centenarianTail'].split(';')[0],'100+ represented uniformly over ages 100..105')
-   self.assertEqual(m['model']['postCensus']['cutoff'],'2022-08-10')
-   self.assertEqual(len(m['output']['sha256']),64)
-   rows={x['date']:x['births'] for x in o['rows']}
-   self.assertTrue(all(rows[g.CENSUS_DATE.isoformat()+'' ]>=0 for _ in [0]))
- def test_sidra_rejects_missing_age(self):
+   p=Path(td)/"x.csv"; vals=ref(p,57); old=g.EXPECTED_TOTAL; g.EXPECTED_TOTAL=sum(vals.values())
+   try:
+    with self.assertRaisesRegex(ValueError,"idades ausentes"): g.read_ref(p)
+   finally: g.EXPECTED_TOTAL=old
+ def test_fail_closed_total(self):
   with tempfile.TemporaryDirectory() as td:
-   p=Path(td)/'sidra.csv'; sidra(p,missing=57)
-   with self.assertRaisesRegex(ValueError,'idades ausentes'): g.read_sidra(p)
- def test_sidra_reconciles_total(self):
-  with tempfile.TemporaryDirectory() as td:
-   p=Path(td)/'sidra.csv'; sidra(p,total_delta=1)
-   with self.assertRaisesRegex(ValueError,'difere do Total'): g.read_sidra(p)
- def test_tail_is_100_105_and_conserved(self):
-  with tempfile.TemporaryDirectory() as td:
-   p=Path(td)/'sidra.csv'; sidra(p,tail=7)
-   groups=g.read_sidra(p); tail=[x for x in groups if x[0]==100][0]
-   self.assertEqual((tail[0],tail[1],tail[2]),(100,105,7))
-   daily,total,zero=g.census_daily(groups)
-   self.assertEqual(total,365*100+7); self.assertEqual(zero,365)
- def test_post_census_cutoff_and_determinism(self):
-  d={}; from collections import defaultdict
-  a=defaultdict(int); b=defaultdict(int)
-  g.extend_post_census(a,365,g.date(2022,8,3)); g.extend_post_census(b,365,g.date(2022,8,3))
-  self.assertEqual(a,b); self.assertEqual(sum(a.values()),3)
-  with self.assertRaisesRegex(ValueError,'cutoff'): g.extend_post_census(defaultdict(int),365,g.date(2022,7,31))
-  with self.assertRaisesRegex(ValueError,'futuro'): g.extend_post_census(defaultdict(int),365,g.date(2026,9,30),today=g.date(2026,9,29))
- def test_apportion_conserves(self):
-  self.assertEqual(g.apportion(3,2),[2,1]); self.assertEqual(sum(g.apportion(7,6)),7)
-if __name__=='__main__': unittest.main()
+   p=Path(td)/"x.csv"; vals=ref(p,delta=1); old=g.EXPECTED_TOTAL; g.EXPECTED_TOTAL=sum(vals.values())
+   try:
+    with self.assertRaisesRegex(ValueError,"difere do Total"): g.read_ref(p)
+   finally: g.EXPECTED_TOTAL=old
+ def test_tail_benchmark_contract(self):
+  p=P.parents[2]/"data/reference/synthetic-birth-sp/ibge_censo_2022_sp_100_plus_benchmark.csv"
+  rows=g.read_tail_benchmark(p)
+  self.assertEqual(rows["population_total"],44411238)
+  self.assertEqual(rows["population_100_plus"],5095)
+ def test_90_plus_decay_and_conservation(self):
+  p=P.parents[2]/"data/reference/synthetic-birth-sp/ibge_projection_2024_sp_ambos_2026.csv"
+  ages,total=g.read_ref(p); tail,r=g.expand_90_plus(ages)
+  self.assertEqual(sum(v for _,v in tail),171261)
+  self.assertAlmostEqual(r,0.70665,places=4)
+  self.assertEqual(sum(v for age,v in tail if age>=100),5298)
+  self.assertEqual(tail[0][0],90); self.assertEqual(tail[-1][0],g.MAX_SYNTHETIC_AGE)
+  self.assertTrue(all(90<=age<=g.MAX_SYNTHETIC_AGE for age,_ in tail))
+  self.assertTrue(all(tail[i][1]>=tail[i+1][1] for i in range(len(tail)-1)))
+  daily,_=g.daily_distribution(ages); self.assertEqual(sum(daily.values()),total)
+ def test_age_zero_window(self):
+  p=P.parents[2]/"data/reference/synthetic-birth-sp/ibge_projection_2024_sp_ambos_2026.csv"
+  ages,_=g.read_ref(p); daily,_=g.daily_distribution(ages)
+  self.assertIn(g.date(2025,7,2),daily); self.assertIn(g.date(2026,7,1),daily)
+ def test_schema_and_source_hash_are_frozen(self):
+  self.assertEqual(g.SCHEMA,"JORNADA_SYNTH_BIRTH_DAILY_V1")
+  self.assertEqual(g.MAX_SYNTHETIC_AGE,115)
+  self.assertEqual(g.CENSUS_SP_2022_TOTAL,44411238)
+  self.assertEqual(g.CENSUS_SP_2022_100_PLUS,5095)
+  self.assertEqual(g.SOURCE_XLSX_SHA256,"6E5C3D21A2E8FF50BADD7BE2785E1664B41A43277543BE541641B0CD802C3205")
+if __name__=="__main__": unittest.main()
