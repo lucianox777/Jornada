@@ -46,7 +46,8 @@ BEGIN
      CONVERT(VARCHAR(33),m.gerado_em,127) AS gerado_em,
      CONVERT(VARCHAR(33),m.snapshot_capturado_em,126) AS snapshot_capturado_em,
      m.amostra_metodo,m.amostra_pool_tamanho,m.amostra_m_tamanho,m.amostra_u_tamanho,
-     CONVERT(VARCHAR(36),m.frequencia_nome_versao_id) AS frequencia_nome_versao_id,\n     m.model_config_bundle_version,m.model_config_bundle_fingerprint_sha256
+     CONVERT(VARCHAR(36),m.frequencia_nome_versao_id) AS frequencia_nome_versao_id,
+     m.model_config_bundle_version,m.model_config_bundle_fingerprint_sha256
    FROM identidade.modelo_linkage m
    WHERE m.modelo_id=@modelo_id
    FOR JSON PATH,WITHOUT_ARRAY_WRAPPER,INCLUDE_NULL_VALUES);
