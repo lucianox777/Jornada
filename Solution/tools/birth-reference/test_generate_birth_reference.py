@@ -1,42 +1,46 @@
-import tempfile,unittest
+import csv,tempfile,unittest
 from pathlib import Path
-from unittest.mock import patch
 import importlib.util
 P=Path(__file__).with_name("generate_birth_reference.py")
 spec=importlib.util.spec_from_file_location("g",P); g=importlib.util.module_from_spec(spec); spec.loader.exec_module(g)
 
-def table(missing=None,total_delta=0,tail=100):
-    h=["UF","Sexo","Idade","2026"]; rows=[h]
-    vals={i:1000-i for i in range(90)}; vals[90]=tail
-    total=sum(vals.values())+total_delta
-    rows.append(["SP","Total","Total",str(total)])
-    for i in range(90):
-        if i!=missing: rows.append(["SP","Total",str(i),str(vals[i])])
-    rows.append(["SP","Total","90 anos ou mais",str(tail)])
-    return rows
+def ref(path,missing=None,delta=0):
+    vals={i:100000-i*500 for i in range(90)}; vals[90]=200000
+    # tests that exercise read_ref temporarily bind the expected total to fixture total.
+    with path.open("w",encoding="utf-8",newline="") as f:
+        w=csv.writer(f,lineterminator="\n"); w.writerow(["idade","populacao"])
+        for i,v in vals.items():
+            if i!=missing: w.writerow([i,v+(delta if i==0 else 0)])
+    return vals
 
 class T(unittest.TestCase):
- def read(self,rows):
-  with patch.object(g,"_xlsx_rows",return_value=iter(rows)):
-   return g.read_projection(Path(g.SOURCE_FILE))
- def test_reads_sp_total_2026_and_reconciles(self):
-  ages,total=self.read(table())
-  self.assertEqual(ages[0],1000); self.assertEqual(ages[89],911); self.assertEqual(ages[90],100)
-  self.assertEqual(sum(ages.values()),total)
+ def test_real_ref_contract(self):
+  p=P.parents[2]/"data/reference/synthetic-birth-sp/ibge_projection_2024_sp_ambos_2026.csv"
+  ages,total=g.read_ref(p)
+  self.assertEqual(len(ages),91); self.assertEqual(total,46179008)
+  self.assertEqual(ages[0],470019); self.assertEqual(ages[89],52654); self.assertEqual(ages[90],171261)
  def test_fail_closed_missing_age(self):
-  with self.assertRaisesRegex(ValueError,"idades ausentes"): self.read(table(missing=57))
+  with tempfile.TemporaryDirectory() as td:
+   p=Path(td)/"x.csv"; vals=ref(p,57); old=g.EXPECTED_TOTAL; g.EXPECTED_TOTAL=sum(vals.values())
+   try:
+    with self.assertRaisesRegex(ValueError,"idades ausentes"): g.read_ref(p)
+   finally: g.EXPECTED_TOTAL=old
  def test_fail_closed_total(self):
-  with self.assertRaisesRegex(ValueError,"difere do Total"): self.read(table(total_delta=1))
- def test_requires_official_filename(self):
-  with self.assertRaisesRegex(ValueError,"arquivo esperado"): list(g._xlsx_rows(Path("wrong.xlsx")))
- def test_90_plus_decay_comes_from_file(self):
-  ages,_=self.read(table(tail=250)); tail,r=g.expand_90_plus(ages)
-  self.assertAlmostEqual(r,ages[89]/ages[88]); self.assertEqual(sum(v for _,v in tail),250)
-  self.assertTrue(all(a>=90 for a,_ in tail))
- def test_age_window_and_total_are_conserved(self):
-  ages,total=self.read(table(tail=250)); daily,_=g.daily_distribution(ages)
-  self.assertEqual(sum(daily.values()),total)
+  with tempfile.TemporaryDirectory() as td:
+   p=Path(td)/"x.csv"; vals=ref(p,delta=1); old=g.EXPECTED_TOTAL; g.EXPECTED_TOTAL=sum(vals.values())
+   try:
+    with self.assertRaisesRegex(ValueError,"difere do Total"): g.read_ref(p)
+   finally: g.EXPECTED_TOTAL=old
+ def test_90_plus_decay_and_conservation(self):
+  p=P.parents[2]/"data/reference/synthetic-birth-sp/ibge_projection_2024_sp_ambos_2026.csv"
+  ages,total=g.read_ref(p); tail,r=g.expand_90_plus(ages)
+  self.assertAlmostEqual(r,52654/59998); self.assertEqual(sum(v for _,v in tail),171261)
+  daily,_=g.daily_distribution(ages); self.assertEqual(sum(daily.values()),total)
+ def test_age_zero_window(self):
+  p=P.parents[2]/"data/reference/synthetic-birth-sp/ibge_projection_2024_sp_ambos_2026.csv"
+  ages,_=g.read_ref(p); daily,_=g.daily_distribution(ages)
   self.assertIn(g.date(2025,7,2),daily); self.assertIn(g.date(2026,7,1),daily)
- def test_schema_unchanged(self):
+ def test_schema_and_source_hash_are_frozen(self):
   self.assertEqual(g.SCHEMA,"JORNADA_SYNTH_BIRTH_DAILY_V1")
+  self.assertEqual(g.SOURCE_XLSX_SHA256,"6E5C3D21A2E8FF50BADD7BE2785E1664B41A43277543BE541641B0CD802C3205")
 if __name__=="__main__": unittest.main()
