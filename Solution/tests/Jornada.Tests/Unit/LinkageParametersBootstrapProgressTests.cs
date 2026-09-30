@@ -93,7 +93,7 @@ public sealed class LinkageParametersBootstrapProgressTests
             Assert.That(migration, Does.Contain("referência explícita do bootstrap IBGE inicial persistido"));
             Assert.That(migration, Does.Contain("u.status=N'PRONTA'"));
             Assert.That(migration, Does.Not.Contain("WHERE status='ATIVA'"));
-            Assert.That(worker, Does.Contain("frequencia_nome_versao_id)"));
+            Assert.That(worker, Does.Contain("frequencia_nome_versao_id,model_config_bundle_version,model_config_bundle_fingerprint_sha256)"));
             Assert.That(worker, Does.Contain("@ibge_ref"));
             Assert.That(worker, Does.Contain("PersistedIbgeBootstrapReferenceQuery.RequireAsync"));
             Assert.That(worker, Does.Not.Contain("IbgeNominalUReferenceReader.ReadActiveReferenceAsync(connection, workCt)"));
