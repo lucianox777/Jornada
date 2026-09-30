@@ -118,7 +118,7 @@ public sealed class NameFrequencyCoverageSqlServerTests
                     inclui_periodo_nascimento,cobertura,ausencia_semantica,origem_endpoint)
                 VALUES
                     (@id,'NOME','MUNICIPIO',0,0,'PARCIAL','NAO_PUBLICADA_OU_SUPRIMIDA',N'snapshot:test'),
-                    (@id,'NOME','BRASIL',1,0,'COMPLETA','NAO_PUBLICADA_OU_SUPRIMIDA',N'snapshot:test');
+                    (@id,'NOME','BRASIL',1,1,'COMPLETA','NAO_PUBLICADA_OU_SUPRIMIDA',N'snapshot:test');
 
                 SELECT @id;
                 """;
