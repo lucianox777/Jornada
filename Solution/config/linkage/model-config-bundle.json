@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "bundleVersion": "LINKAGE_MODEL_CONFIG_BUNDLE_V1",
+  "components": {
+    "base": "model-base-catalog.json",
+    "blocking": "model-blocking-catalog.json",
+    "fs": "model-fs-catalog.json"
+  },
+  "fingerprintAlgorithm": "SHA256_CANONICAL_JSON_V1"
+}
