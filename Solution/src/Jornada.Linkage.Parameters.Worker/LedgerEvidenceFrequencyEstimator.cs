@@ -37,7 +37,9 @@ public static class LedgerEvidenceFrequencyEstimator
         var attributes = matchedPairs.Concat(unmatchedPairs)
             .SelectMany(static p => Values(p.LeftResolutionValues).Concat(Values(p.RightResolutionValues)))
             .Select(static v => ResolutionSourceField.Canonicalize(v.Attribute))
-            .Where(PersonResolutionAttributeCatalog.IsEligible)
+            .Where(static code => PersonResolutionContractCatalog.All.Any(field =>
+                string.Equals(ResolutionSourceField.Canonicalize(field.Code), code, StringComparison.Ordinal)
+                && field.EligibleForResolution))
             .Where(static code => code != PersonResolutionAttributeCatalog.FullName
                 && code != PersonResolutionAttributeCatalog.MotherName
                 && code != PersonResolutionAttributeCatalog.BirthDate)
@@ -102,7 +104,10 @@ public static class LedgerEvidenceFrequencyEstimator
         if (source.Length == 0)
             return new HashSet<string>(StringComparer.Ordinal);
 
-        if (!PersonResolutionAttributeCatalog.TryGet(attribute, out var contract))
+        var contract = PersonResolutionContractCatalog.All.FirstOrDefault(field =>
+            string.Equals(ResolutionSourceField.Canonicalize(field.Code), attribute, StringComparison.Ordinal)
+            && field.EligibleForResolution);
+        if (contract is null)
             return new HashSet<string>(StringComparer.Ordinal);
 
         return source
@@ -112,7 +117,7 @@ public static class LedgerEvidenceFrequencyEstimator
             .ToHashSet(StringComparer.Ordinal);
     }
 
-    private static string? CanonicalizeEvidenceValue(ResolutionAttributeSemantic semantic, string value)
+    private static string? CanonicalizeEvidenceValue(PersonResolutionSemantic semantic, string value)
     {
         if (string.IsNullOrWhiteSpace(value))
             return null;
@@ -121,9 +126,9 @@ public static class LedgerEvidenceFrequencyEstimator
         {
             return semantic switch
             {
-                ResolutionAttributeSemantic.Phone => ContactCanonicalization.NormalizeBrazilianPhoneV2(value),
-                ResolutionAttributeSemantic.Email => ContactCanonicalization.NormalizeEmailV2(value),
-                ResolutionAttributeSemantic.PersonName => IdentityComparison.NormalizeText(value),
+                PersonResolutionSemantic.Phone => ContactCanonicalization.NormalizeBrazilianPhoneV2(value),
+                PersonResolutionSemantic.Email => ContactCanonicalization.NormalizeEmailV2(value),
+                PersonResolutionSemantic.PersonName => IdentityComparison.NormalizeText(value),
                 _ => value.Trim()
             };
         }
