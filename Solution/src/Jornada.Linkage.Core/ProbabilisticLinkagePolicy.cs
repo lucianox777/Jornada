@@ -64,6 +64,9 @@ internal static class LinkageModelPolicy
                     if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyMinimumU, out var tfMinimumU)
                         || tfMinimumU <= 0m || tfMinimumU > 1m)
                         throw new InvalidOperationException($"V8 com TF exige {LinkageParameterCatalog.TermFrequencyMinimumU} em (0,1].");
+                    if (tfMinimumU > parameters["U_NOME_EXACT"]
+                        || tfMinimumU > parameters["U_NOME_MAE_EXACT"])
+                        throw new InvalidOperationException("Piso TF não pode superar o u_EXACT de nome ou nome da mãe.");
                     if (termFrequency is null || termFrequency.PersonFirstNameCount == 0 || termFrequency.MotherFirstNameCount == 0)
                         throw new InvalidOperationException("V8 com TF exige snapshot nominal persistido de pessoa e mãe.");
                     if (parameters.ContainsKey(LinkageParameterCatalog.NonUniqueDemographicExactGuard))
