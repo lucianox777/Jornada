@@ -148,10 +148,14 @@ public static class NominalTermFrequencyReferenceStore
             SELECT
                 SUM(CASE WHEN tipo=N'NOME' AND escopo_geografico=N'MUNICIPIO'
                               AND inclui_sexo=0 AND inclui_periodo_nascimento=0
-                              AND cobertura=N'COMPLETA' THEN 1 ELSE 0 END),
+                              AND cobertura IN(N'PARCIAL',N'COMPLETA')
+                              AND ausencia_semantica=N'NAO_PUBLICADA_OU_SUPRIMIDA'
+                              THEN 1 ELSE 0 END),
                 SUM(CASE WHEN tipo=N'NOME' AND escopo_geografico=N'BRASIL'
                               AND inclui_sexo=1 AND inclui_periodo_nascimento=0
-                              AND cobertura=N'COMPLETA' THEN 1 ELSE 0 END)
+                              AND cobertura=N'COMPLETA'
+                              AND ausencia_semantica=N'NAO_PUBLICADA_OU_SUPRIMIDA'
+                              THEN 1 ELSE 0 END)
             FROM ref.frequencia_nome_cobertura
             WHERE frequencia_nome_versao_id=@ref;
             """,
@@ -162,6 +166,6 @@ public static class NominalTermFrequencyReferenceStore
             || reader.IsDBNull(0) || reader.GetInt32(0) < 1
             || reader.IsDBNull(1) || reader.GetInt32(1) < 1)
             throw new InvalidOperationException(
-                "TF V8 exige cobertura COMPLETA de NOME/MUNICIPIO e NOME/BRASIL com sexo na referência fixada.");
+                "TF V8 exige cobertura municipal publicada de NOME e cobertura COMPLETA de NOME/BRASIL com sexo na referência fixada.");
     }
 }
