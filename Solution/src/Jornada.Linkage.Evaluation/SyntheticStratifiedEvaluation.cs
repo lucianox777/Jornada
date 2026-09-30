@@ -71,7 +71,7 @@ public sealed record SyntheticEvaluationSlice(
     SyntheticEvaluationCounts Counts,
     SyntheticEvaluationRates Rates);
 
-public sealed record SyntheticEvaluationReport(
+public sealed record SyntheticStratifiedEvaluationReport(
     string MethodVersion,
     long PopulationCases,
     long ReservedChallengeCases,
@@ -82,7 +82,7 @@ public static class SyntheticStratifiedEvaluator
 {
     public const string MethodVersion = "DC_SYN_01_STRATIFIED_METRICS_V1";
 
-    public static SyntheticEvaluationReport Evaluate(IEnumerable<SyntheticEvaluationTruthCase> source)
+    public static SyntheticStratifiedEvaluationReport Evaluate(IEnumerable<SyntheticEvaluationTruthCase> source)
     {
         ArgumentNullException.ThrowIfNull(source);
         var cases = source.ToArray();
@@ -91,7 +91,7 @@ public static class SyntheticStratifiedEvaluator
         var population = cases.Where(x => x.ReservedFamily is null).ToArray();
         var challenge = cases.Where(x => x.ReservedFamily is not null).ToArray();
 
-        return new SyntheticEvaluationReport(
+        return new SyntheticStratifiedEvaluationReport(
             MethodVersion,
             population.LongLength,
             challenge.LongLength,
@@ -197,7 +197,7 @@ public static class SyntheticStratifiedMetricConference
 
     public static void Confer(
         IEnumerable<SyntheticEvaluationTruthCase> source,
-        SyntheticEvaluationReport report)
+        SyntheticStratifiedEvaluationReport report)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(report);
