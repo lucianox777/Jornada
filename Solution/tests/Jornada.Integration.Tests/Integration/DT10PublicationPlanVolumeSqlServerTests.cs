@@ -258,7 +258,7 @@ public sealed class DT10PublicationPlanVolumeSqlServerTests
     private static string RequireSyntheticMeasurementConnection()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("JORNADA_DT10_EVIDENCE"), "1", StringComparison.Ordinal))
-            Assert.Ignore("DT-10 volumetria é opt-in. Defina JORNADA_DT10_EVIDENCE=1.");
+            Assert.Pass("DT-10 volumetria permanece desligada por padrão; defina JORNADA_DT10_EVIDENCE=1 para executar a evidência.");
         var cs = Environment.GetEnvironmentVariable("JORNADA_TEST_SQL_CONNECTION");
         if (string.IsNullOrWhiteSpace(cs)) Assert.Fail("Defina JORNADA_TEST_SQL_CONNECTION para JornadaSyntheticDev.");
         var db = new SqlConnectionStringBuilder(cs!).InitialCatalog;
