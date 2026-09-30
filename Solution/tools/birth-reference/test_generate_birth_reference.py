@@ -1,4 +1,4 @@
-import csv,tempfile,unittest
+import csv,hashlib,json,tempfile,unittest
 from pathlib import Path
 import importlib.util
 P=Path(__file__).with_name("generate_birth_reference.py")
@@ -46,6 +46,15 @@ class T(unittest.TestCase):
   self.assertTrue(all(90<=age<=g.MAX_SYNTHETIC_AGE for age,_ in tail))
   self.assertTrue(all(tail[i][1]>=tail[i+1][1] for i in range(len(tail)-1)))
   daily,_=g.daily_distribution(ages); self.assertEqual(sum(daily.values()),total)
+ def test_materialized_daily_ref(self):
+  p=P.parents[2]/"data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"
+  raw=p.read_bytes(); obj=json.loads(raw)
+  self.assertEqual(hashlib.sha256(raw).hexdigest().upper(),"8B8498EC2ABE7DCBFAFED1D361D2A3AFAFF77CAD5BCE29A5927DA517FC236A9B")
+  self.assertEqual(obj["schema_version"],g.SCHEMA)
+  self.assertEqual(len(obj["rows"]),39268)
+  self.assertEqual(sum(r["births"] for r in obj["rows"]),46179008)
+  self.assertEqual(obj["rows"][0]["date"],"1910-07-02")
+  self.assertEqual(obj["rows"][-1]["date"],"2026-07-01")
  def test_age_zero_window(self):
   p=P.parents[2]/"data/reference/synthetic-birth-sp/ibge_projection_2024_sp_ambos_2026.csv"
   ages,_=g.read_ref(p); daily,_=g.daily_distribution(ages)
