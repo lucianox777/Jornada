@@ -39,6 +39,42 @@ public sealed class ProbabilisticV8TermFrequencyTests
         });
     }
 
+    [TestCase("MARIA SILVA", "MARIA SILVAA", NameComparisonState.HIGH)]
+    [TestCase("MARIA SILVA", "MARIA VIOL", NameComparisonState.MEDIUM)]
+    [TestCase("JOSIANE SANTOS", "ELISA SANTOS", NameComparisonState.LOW)]
+    public void TF_is_neutral_outside_exact_name_state(
+        string observedName,
+        string candidateName,
+        NameComparisonState expectedState)
+    {
+        var parameters = Parameters(withTf: true);
+        var model = LinkageModelPolicy.Create(
+            ModelId, 9,
+            LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
+            parameters,
+            Snapshot());
+        var birth = new DateOnly(1980, 5, 6);
+        var actualState = IdentityComparison.CompareName(
+            observedName,
+            candidateName,
+            LinkageParameterCatalog.NameComparisonContractForAlgorithm(model.AlgorithmVersion));
+        Assert.That(actualState, Is.EqualTo(expectedState), "Fixture deve exercer o estado nominal declarado.");
+
+        var decision = ProbabilisticLinkageDecisions.Resolve(
+            model,
+            new IdentityObservation(null, "SEM_CPF", observedName, birth, null),
+            [new LinkageCandidate(Guid.NewGuid(), candidateName, birth, null)]);
+        var raw = FellegiSunterScoring.Calculate(
+            parameters,
+            expectedState,
+            null,
+            1,
+            birth,
+            birth);
+
+        Assert.That(decision.MelhorScore, Is.EqualTo(raw.Posterior));
+    }
+
     [Test]
     public void Missing_published_term_is_neutral_not_zero_frequency()
     {

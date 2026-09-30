@@ -186,17 +186,21 @@ public static class IndependentImplementationConference
 
         double total = 0d;
         total += PairAdjustment(
+            tf.NameState,
             tf.NameLeftFrequency,
             tf.NameRightFrequency,
             Required(parameters, "U_NOME_EXACT"));
         total += PairAdjustment(
+            tf.MotherNameState,
             tf.MotherLeftFrequency,
             tf.MotherRightFrequency,
             Required(parameters, "U_NOME_MAE_EXACT"));
         return total;
 
-        double PairAdjustment(decimal? left, decimal? right, decimal referenceU)
+        double PairAdjustment(string? state, decimal? left, decimal? right, decimal referenceU)
         {
+            if (!string.Equals(state, "EXACT", StringComparison.Ordinal))
+                return 0d;
             if (left is null && right is null)
                 return 0d;
             if (left is null || right is null)
@@ -397,8 +401,10 @@ public enum ImplementationConferenceStatus
 public sealed record ImplementationConferenceEvidence(string Evidence, string State);
 
 public sealed record ImplementationConferenceTermFrequency(
+    string? NameState,
     decimal? NameLeftFrequency,
     decimal? NameRightFrequency,
+    string? MotherNameState,
     decimal? MotherLeftFrequency,
     decimal? MotherRightFrequency);
 
