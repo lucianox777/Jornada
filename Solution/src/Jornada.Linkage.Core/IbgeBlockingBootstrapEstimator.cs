@@ -15,14 +15,16 @@ public static class IbgeBlockingBootstrapEstimator
     public const string EstimationKind = "MARGINAL_INDEPENDENCE_DIAGNOSTIC";
 
     public static BlockingBootstrapProposal Estimate(
-        long referencePopulation,
+        ReferencePopulationEvidence referencePopulationEvidence,
         string snapshotReferenceCode,
         string snapshotHash,
         IReadOnlyList<BootstrapPassInput> passes,
         FrequentKeyRule frequentKeyRule,
         SurnameParticlePolicy particlePolicy)
     {
-        if (referencePopulation <= 0) throw new ArgumentOutOfRangeException(nameof(referencePopulation));
+        ArgumentNullException.ThrowIfNull(referencePopulationEvidence);
+        referencePopulationEvidence.Validate();
+        var referencePopulation = referencePopulationEvidence.Population;
         if (string.IsNullOrWhiteSpace(snapshotReferenceCode)) throw new ArgumentException("Snapshot scope/reference code is required.", nameof(snapshotReferenceCode));
         if (!IsSha256(snapshotHash)) throw new ArgumentException("A valid SHA-256 snapshot hash is required.", nameof(snapshotHash));
         ArgumentNullException.ThrowIfNull(passes);
@@ -58,6 +60,8 @@ public static class IbgeBlockingBootstrapEstimator
             MethodVersion, Marker, EstimationKind, false,
             "Estimativa marginal sob independência; não mede a interseção real, não calibra o FS e não autoriza ativação de passes.",
             snapshotReferenceCode, snapshotHash.ToUpperInvariant(), referencePopulation,
+            referencePopulationEvidence.SourceMethod, referencePopulationEvidence.SourceRunId,
+            referencePopulationEvidence.CorpusFingerprintSha256,
             frequentKeyRule.Describe(), particlePolicy.ToString(), estimated, "");
         var canonical = JsonSerializer.Serialize(withoutFingerprint, JsonOptions);
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
@@ -112,6 +116,9 @@ public sealed record BlockingBootstrapProposal(
     string SnapshotReferenceCode,
     string SnapshotHashSha256,
     long ReferencePopulation,
+    string ReferencePopulationSourceMethod,
+    string ReferencePopulationSourceRunId,
+    string ReferencePopulationCorpusFingerprintSha256,
     string FrequentKeyRule,
     string SurnameParticlePolicy,
     IReadOnlyList<BootstrapPassEstimate> Passes,
@@ -176,3 +183,28 @@ public sealed record SnapshotVerification(
     string AggregateHashSha256,
     string PersonScope,
     string MotherScope);
+
+
+/// <summary>
+/// Evidência de N_ref derivada do corpus elegível observado pela execução do Calibrador.
+/// É metadado de dimensionamento do blocking: não participa de m/u, LLR, posterior ou threshold FS.
+/// </summary>
+public sealed record ReferencePopulationEvidence(
+    long Population,
+    string SourceMethod,
+    string SourceRunId,
+    string CorpusFingerprintSha256)
+{
+    public const string CalibratorCorpusMethod = "CALIBRATOR_ELIGIBLE_REFERENCE_CORPUS_V1";
+
+    public void Validate()
+    {
+        if (Population <= 0) throw new ArgumentOutOfRangeException(nameof(Population));
+        if (!string.Equals(SourceMethod, CalibratorCorpusMethod, StringComparison.Ordinal))
+            throw new ArgumentException("N_ref must be derived from the eligible Jornada corpus observed by the Calibrator.", nameof(SourceMethod));
+        if (string.IsNullOrWhiteSpace(SourceRunId))
+            throw new ArgumentException("Calibrator source run id is required.", nameof(SourceRunId));
+        if (string.IsNullOrWhiteSpace(CorpusFingerprintSha256) || CorpusFingerprintSha256.Length != 64 || !CorpusFingerprintSha256.All(Uri.IsHexDigit))
+            throw new ArgumentException("Calibrator corpus SHA-256 fingerprint is required.", nameof(CorpusFingerprintSha256));
+    }
+}
