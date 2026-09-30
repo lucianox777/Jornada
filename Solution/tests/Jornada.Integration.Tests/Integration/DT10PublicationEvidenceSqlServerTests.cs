@@ -340,7 +340,7 @@ public sealed class DT10PublicationEvidenceSqlServerTests
     private static string RequireSyntheticEvidenceConnection()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("JORNADA_DT10_EVIDENCE"), "1", StringComparison.Ordinal))
-            Assert.Ignore("DT-10 pesado/medição é opt-in. Defina JORNADA_DT10_EVIDENCE=1.");
+            Assert.Pass("DT-10 pesado/medição permanece desligado por padrão; defina JORNADA_DT10_EVIDENCE=1 para executar a evidência.");
         var cs = Environment.GetEnvironmentVariable("JORNADA_TEST_SQL_CONNECTION");
         if (string.IsNullOrWhiteSpace(cs)) Assert.Fail("Defina JORNADA_TEST_SQL_CONNECTION para JornadaSyntheticDev.");
         var db = new SqlConnectionStringBuilder(cs!).InitialCatalog;
