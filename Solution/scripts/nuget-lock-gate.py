@@ -47,10 +47,19 @@ def main() -> int:
         if data.get('version') != 1:
             raise SystemExit(f'ERRO: versão inesperada do lock: {lock.relative_to(root)}')
         deps=data.get('dependencies') or {}
-        # aceita net8.0 e chaves qualificadas como net8.0/win-x64, mas exige ao menos uma família net8.0
-        groups=[(k,v) for k,v in deps.items() if k == 'net8.0' or k.startswith('net8.0/')]
+        # O TFM esperado vem da propriedade compartilhada da Solution; evita congelar o gate em uma versão de runtime.
+        props = root / 'Directory.Build.props'
+        props_root = ET.parse(props).getroot()
+        target_framework = next(
+            (n.text.strip() for n in props_root.iter()
+             if n.tag.split('}')[-1] == 'TargetFramework' and n.text and n.text.strip()),
+            None,
+        )
+        if not target_framework:
+            raise SystemExit(f'ERRO: TargetFramework ausente em {props.relative_to(root)}')
+        groups=[(k,v) for k,v in deps.items() if k == target_framework or k.startswith(target_framework + '/')]
         if not groups:
-            raise SystemExit(f'ERRO: {lock.relative_to(root)} sem grupo net8.0')
+            raise SystemExit(f'ERRO: {lock.relative_to(root)} sem grupo {target_framework}')
         direct_found={}
         for _, group in groups:
             for name, entry in (group or {}).items():
@@ -83,7 +92,7 @@ def main() -> int:
     combined='\n'.join(f"{r['sha256']}  {r['lockFile']}" for r in rows).encode()
     summary={
         'schemaVersion':1,
-        'targetFramework':'net8.0',
+        'targetFramework':target_framework,
         'projectCount':len(rows),
         'combinedSha256':hashlib.sha256(combined).hexdigest(),
         'projects':rows,
