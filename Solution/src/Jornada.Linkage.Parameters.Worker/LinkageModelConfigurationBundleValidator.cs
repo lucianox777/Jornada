@@ -56,7 +56,9 @@ public static class LinkageModelConfigurationBundleValidator
         }
 
         Require(fsDoc.RootElement.GetProperty("missingLogLikelihoodRatio").GetDecimal() == 0m,
-            "MISSING deve permanecer neutro (LLR=0) no bundle V1.");
+            "MISSING deve permanecer neutro (LLR=0) no bundle.");
+
+        ValidateFsCalibrationSnapshot(fsDoc.RootElement);
 
         var canonical = string.Join("\n",
             CanonicalJson(baseDoc.RootElement),
@@ -70,6 +72,31 @@ public static class LinkageModelConfigurationBundleValidator
             blockingDoc.RootElement.GetProperty("catalogVersion").GetString()!,
             fsDoc.RootElement.GetProperty("catalogVersion").GetString()!,
             fingerprint);
+    }
+
+    private static void ValidateFsCalibrationSnapshot(JsonElement fs)
+    {
+        Require(fs.GetProperty("schemaVersion").GetInt32() >= 2,
+            "Snapshot FS deve usar schemaVersion >= 2.");
+        var calibration = fs.GetProperty("calibration");
+        Require(calibration.GetProperty("immutableSnapshot").GetBoolean(),
+            "Snapshot FS publicado deve ser imutável.");
+        Require(!string.IsNullOrWhiteSpace(calibration.GetProperty("kind").GetString()),
+            "Snapshot FS exige calibration.kind.");
+        Require(!string.IsNullOrWhiteSpace(calibration.GetProperty("source").GetString()),
+            "Snapshot FS exige calibration.source.");
+
+        var tf = fs.GetProperty("termFrequency");
+        Require(tf.GetProperty("referenceU").GetString() == "EXACT",
+            "TF deve manter u_EXACT como referência.");
+        var weights = tf.GetProperty("weights");
+        foreach (var state in new[] { "EXACT", "HIGH", "MEDIUM", "LOW" })
+        {
+            var weight = weights.GetProperty(state).GetDecimal();
+            Require(weight is >= 0m and <= 1m, $"Peso TF {state} deve estar em [0,1].");
+        }
+        Require(weights.GetProperty("EXACT").GetDecimal() == 1m,
+            "Bootstrap governado deve manter peso TF EXACT=1.");
     }
 
     private static string RequiredFile(JsonElement components, string name)
