@@ -307,7 +307,8 @@ public sealed class LinkageParametersWorker(
                 decisionValidationBasisPoints,
                 decisionTestBasisPoints,
                 maxFpValidationBasisPoints: maxFpValidationBp,
-                maxFpTestBasisPoints: maxFpTestBp);
+                maxFpTestBasisPoints: maxFpTestBp,
+                termFrequency: termFrequency.Snapshot);
             modelParameters = FsDecisionThresholdCalibrator.ApplySelected(
                 modelParameters,
                 decisionCalibration,
