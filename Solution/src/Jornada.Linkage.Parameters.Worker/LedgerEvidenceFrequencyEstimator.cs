@@ -1,3 +1,5 @@
+using Jornada.Contracts;
+
 namespace Jornada.Linkage.Parameters.Worker;
 
 public enum LedgerEvidenceState { Exact, Disagree, Missing }
