@@ -108,7 +108,7 @@ public sealed class DocumentationDriftContractTests
             .ToArray();
 
         Assert.That(projectPaths, Has.Length.EqualTo(21),
-            "A conferência DT-08 refere-se ao monólito de 21 projetos antes da migração física DT-16.");
+            "A conferência DT-08 refere-se ao monólito vigente de 21 projetos; a migração física da DT-16 foi revertida.");
         foreach (var project in projectPaths)
         {
             var projectFile = Path.Combine(sol, project);
