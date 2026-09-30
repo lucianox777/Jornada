@@ -39,6 +39,7 @@ public sealed class TechnicalDebtEvidenceDocumentationTests
             Assert.That(debts, Does.Contain("ACEITE TÉCNICO DEV CONCLUÍDO"));
             Assert.That(debts, Does.Contain("DT-05 concluiu seu aceite estreito"));
             Assert.That(debts, Does.Contain("DT-16 |"));
+            Assert.That(debts, Does.Contain("REVERTIDA (30/09/2026)"));
             Assert.That(debts, Does.Contain("| DT-13 | Entrega técnica concluída | Remover"));
             Assert.That(debts, Does.Contain("| DT-17 | Transversal | Matriz obrigatória"));
             Assert.That(debts, Does.Contain("PR #580"));

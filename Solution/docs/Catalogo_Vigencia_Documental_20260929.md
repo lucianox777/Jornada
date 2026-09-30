@@ -107,7 +107,7 @@
 | `Solution/docs/DT15_Governanca_Decisao_Modelo.md` | SUPORTE TÉCNICO/REVISÃO | Consulta contextual; em conflito prevalecem as decisões canônicas |
 | `Solution/docs/DT15_Historico_Calibracao_Readonly.md` | SUPORTE TÉCNICO/REVISÃO | Consulta contextual; em conflito prevalecem as decisões canônicas |
 | `Solution/docs/DT15_Replay_FS_Pareado_Sintetico.md` | SUPORTE TÉCNICO/REVISÃO | Consulta contextual; em conflito prevalecem as decisões canônicas |
-| `Solution/docs/DT16_Solutions_Baseline.md` | SUPORTE TÉCNICO/REVISÃO | Consulta contextual; em conflito prevalecem as decisões canônicas |
+| `Solution/docs/DT16_Solutions_Baseline.md` | HISTÓRICO/REVERTIDO | Registro da proposta e da reversão em 30/09/2026; não define arquitetura vigente |
 | `Solution/docs/DT17_Matriz_Regressao.md` | SUPORTE TÉCNICO/REVISÃO | Consulta contextual; em conflito prevalecem as decisões canônicas |
 | `Solution/docs/Ensaio_Cluster_Banco_Original.md` | SUPORTE TÉCNICO/REVISÃO | Consulta contextual; em conflito prevalecem as decisões canônicas |
 | `Solution/docs/Ensaio_Nominal_Conservador_PR573_20260927.md` | EVIDÊNCIA/SNAPSHOT | Registro datado, sem autoridade decisória futura |

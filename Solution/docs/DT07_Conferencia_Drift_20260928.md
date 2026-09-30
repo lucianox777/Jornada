@@ -20,6 +20,8 @@
 
 A etapa inicial de [DT-16 PR #580](https://github.com/lucianox777/Jornada/pull/580) acrescentou cinco solutions com pertencimento exclusivo dos mesmos 21 projetos, gate de cobertura e builds Release [CI #36409672890](https://github.com/lucianox777/Jornada/actions/runs/36409672890). A `Jornada.sln` monolítica permanece para compatibilidade; mudança física futura e CI especializado seguem [#576](https://github.com/lucianox777/Jornada/issues/576). DT-08 não obriga antecipar a DT-16.
 
+> **Atualização de 30/09/2026:** este parágrafo registra o estado histórico da conferência de 28/09. A DT-16 foi posteriormente revertida; as cinco solutions auxiliares e o gate específico foram removidos, sem migração física dos 21 projetos.
+
 ## Critério de aceite e reversibilidade
 
 [TechnicalDebtEvidenceDocumentationTests](../tests/Jornada.Tests/Unit/TechnicalDebtEvidenceDocumentationTests.cs) e [DocumentationDriftContractTests](../tests/Jornada.Tests/Unit/DocumentationDriftContractTests.cs) verificam o acordo entre texto e artefatos, inclusive origens de dados da release/RC, referências SQL e controles mínimos do scanner. A suíte unitária e os gates CI devem passar no **HEAD exato** da PR que introduz este documento, além das regressões preexistentes. Reabrir DT-07 somente se uma mudança real voltar a produzir drift; não encerrar #405, #378 ou #379 por inferência, nem reescrever o arquivo histórico de release.
