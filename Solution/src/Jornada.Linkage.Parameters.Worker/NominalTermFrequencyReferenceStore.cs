@@ -147,12 +147,11 @@ public static class NominalTermFrequencyReferenceStore
             """
             SELECT
                 SUM(CASE WHEN tipo=N'NOME' AND escopo_geografico=N'MUNICIPIO'
-                              AND inclui_sexo=0 AND inclui_periodo_nascimento=0
                               AND cobertura IN(N'PARCIAL',N'COMPLETA')
                               AND ausencia_semantica=N'NAO_PUBLICADA_OU_SUPRIMIDA'
                               THEN 1 ELSE 0 END),
                 SUM(CASE WHEN tipo=N'NOME' AND escopo_geografico=N'BRASIL'
-                              AND inclui_sexo=1 AND inclui_periodo_nascimento=0
+                              AND inclui_sexo=1
                               AND cobertura=N'COMPLETA'
                               AND ausencia_semantica=N'NAO_PUBLICADA_OU_SUPRIMIDA'
                               THEN 1 ELSE 0 END)
