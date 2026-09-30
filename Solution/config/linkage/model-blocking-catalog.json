@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "LINKAGE_BLOCKING_CATALOG_V1",
+  "projectionSchemaVersion": "PERSON_RESOLUTION_PROJECTION_V1",
+  "sourceAttributes": ["nome_completo", "nome_mae", "data_nascimento", "TELEFONE_CONTATO", "EMAIL_CONTATO", "NOME_SOCIAL"]
+}
