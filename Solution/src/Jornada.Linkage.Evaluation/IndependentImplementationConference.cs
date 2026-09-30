@@ -53,6 +53,14 @@ public static class IndependentImplementationConference
                 return NotExecuted(request, "INVALID_EVIDENCE_VECTOR_SHAPE");
         }
 
+        var tfRuntime = Enabled(request.Parameters, LinkageParameterCatalog.TermFrequencyScoring);
+        if (tfRuntime)
+        {
+            if (!Enabled(request.Parameters, LinkageParameterCatalog.TermFrequencyFirstTokenContract)
+                || request.Candidates.Any(static x => x.TermFrequency is null))
+                return NotExecuted(request, "TF_VECTOR_MISSING_OR_CONTRACT_DISABLED");
+        }
+
         var rows = new List<ImplementationConferenceCandidateResult>(request.Candidates.Count);
         try
         {
@@ -78,6 +86,11 @@ public static class IndependentImplementationConference
                         $"U_{evidence.Evidence}_{evidence.State}"));
                     totalLlr += Math.Log((double)m / (double)u);
                 }
+
+                if (tfRuntime)
+                    totalLlr += IndependentTermFrequencyAdjustment(
+                        request.Parameters,
+                        candidate.TermFrequency!);
 
                 var logOddsRaw = priorLogOdds + totalLlr;
                 var posteriorRaw = 1d / (1d + Math.Exp(-Math.Clamp(logOddsRaw, -40d, 40d)));
@@ -160,6 +173,48 @@ public static class IndependentImplementationConference
                 ? sameDecision ? null : "FINAL_DECISION_DIVERGENCE"
                 : "PAIR_LLR_DIVERGENCE",
             "NOT_ASSESSED_ISSUE_31");
+    }
+
+    private static double IndependentTermFrequencyAdjustment(
+        IReadOnlyDictionary<string, decimal> parameters,
+        ImplementationConferenceTermFrequency tf)
+    {
+        var weight = Required(parameters, LinkageParameterCatalog.TermFrequencyWeight);
+        var minimumU = Required(parameters, LinkageParameterCatalog.TermFrequencyMinimumU);
+        if (weight <= 0m || minimumU <= 0m || minimumU > 1m)
+            throw new InvalidDataException("Parâmetros TF inválidos na conferência independente.");
+
+        double total = 0d;
+        total += PairAdjustment(
+            tf.NameLeftFrequency,
+            tf.NameRightFrequency,
+            Required(parameters, "U_NOME_EXACT"));
+        total += PairAdjustment(
+            tf.MotherLeftFrequency,
+            tf.MotherRightFrequency,
+            Required(parameters, "U_NOME_MAE_EXACT"));
+        return total;
+
+        double PairAdjustment(decimal? left, decimal? right, decimal referenceU)
+        {
+            if (left is null && right is null)
+                return 0d;
+            if (left is null || right is null)
+                throw new InvalidDataException("Vetor TF unilateral é inválido.");
+
+            ValidateTfProbability(left.Value);
+            ValidateTfProbability(right.Value);
+            ValidateTfProbability(referenceU);
+            var effective = Math.Max(left.Value, right.Value);
+            effective = Math.Max(effective, minimumU);
+            return (double)weight * Math.Log((double)(referenceU / effective));
+        }
+    }
+
+    private static void ValidateTfProbability(decimal value)
+    {
+        if (value <= 0m || value > 1m)
+            throw new InvalidDataException("Frequência/probabilidade TF deve estar em (0,1].");
     }
 
     private static ImplementationConferenceDecision ResolveDecision(
@@ -341,6 +396,12 @@ public enum ImplementationConferenceStatus
 
 public sealed record ImplementationConferenceEvidence(string Evidence, string State);
 
+public sealed record ImplementationConferenceTermFrequency(
+    decimal? NameLeftFrequency,
+    decimal? NameRightFrequency,
+    decimal? MotherLeftFrequency,
+    decimal? MotherRightFrequency);
+
 public sealed record ImplementationConferenceCandidate(
     Guid CandidateId,
     int CanonicalRank,
@@ -348,7 +409,8 @@ public sealed record ImplementationConferenceCandidate(
     bool DemographicExactCollisionRisk,
     decimal CanonicalLogLikelihoodRatio,
     decimal CanonicalLogOdds,
-    decimal CanonicalPosterior);
+    decimal CanonicalPosterior,
+    ImplementationConferenceTermFrequency? TermFrequency = null);
 
 public sealed record ImplementationConferenceDecision(
     ResolutionStatus Status,

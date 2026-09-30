@@ -133,7 +133,7 @@ public sealed class CalibrationAuditExporter(SqlConnection connection, int comma
                 "does not create or activate a model",
                 "does not create linkage_run",
                 "does not write identity_map/vinculo_fonte or Gold",
-                "does not enable term frequency in the operational scorer"
+                "reports persisted term-frequency runtime state without changing it"
             ],
             Model: model,
             Parameters: parameters,
@@ -153,14 +153,20 @@ public sealed class CalibrationAuditExporter(SqlConnection connection, int comma
                     Rule: LinkageCalibrationAuditExchangePolicy.ComparisonStateMappingRule)),
             Blocking: new LinkageCalibrationAuditBlocking(rulesets, passes),
             TermFrequency: new LinkageCalibrationAuditTermFrequency(
-                RuntimeEnabled: false,
+                RuntimeEnabled: parameters.Any(p =>
+                    string.Equals(p.Name, LinkageParameterCatalog.TermFrequencyScoring, StringComparison.Ordinal)
+                    && p.Value >= 1m),
                 AlgorithmVersion: SplinkCompatibleTermFrequency.AlgorithmVersion,
                 PersistedModelFrequencyRows: persistedTfRows,
                 ReferenceSnapshot: frequencyVersion,
                 ReferenceCoverage: frequencyCoverage,
                 ConformanceVectors: TermFrequencyConformanceVectors(),
                 Interpretation:
-                    "Vetores sintéticos permitem conferir a matemática TF sem afirmar que TF está habilitada no scorer. A ativação continua condicionada à calibração/homologação da issue #31."));
+                    parameters.Any(p =>
+                        string.Equals(p.Name, LinkageParameterCatalog.TermFrequencyScoring, StringComparison.Ordinal)
+                        && p.Value >= 1m)
+                    ? "TF faz parte do scorer deste modelo; frequências são snapshot persistido e a exportação é somente leitura."
+                    : "TF não faz parte do scorer deste modelo histórico; vetores permanecem apenas para conferência matemática."));
     }
 
     private async Task<LinkageCalibrationAuditModel?> LoadModelAsync(Guid? requestedModelId, CancellationToken ct)

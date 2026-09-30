@@ -274,12 +274,26 @@ public sealed class LinkageParametersWorker(
                 modelParameters,
                 candidatePrior);
 
+            var termFrequency = await NominalTermFrequencyReferenceStore.PrepareAsync(
+                connection,
+                ibgeReference.Id,
+                workCt);
+            modelParameters = new Dictionary<string, decimal>(
+                modelParameters, StringComparer.Ordinal)
+            {
+                [LinkageParameterCatalog.TermFrequencyScoring] = 1m,
+                [LinkageParameterCatalog.TermFrequencyWeight] = 1m,
+                [LinkageParameterCatalog.TermFrequencyMinimumU] = termFrequency.Snapshot.MinimumPublishedFrequency,
+                [LinkageParameterCatalog.TermFrequencyFirstTokenContract] = 1m
+            };
+
             var decisionCalibrationScenarios = await BlockingDecisionThresholdCalibrationReader.ReadAsync(
                 connection,
                 normalizationVersion,
                 blocking.Passes,
                 algorithmVersion,
                 modelParameters,
+                termFrequency.Snapshot,
                 decisionCalibrationSeed,
                 decisionValidationBasisPoints,
                 decisionTestBasisPoints,
@@ -293,7 +307,8 @@ public sealed class LinkageParametersWorker(
                 decisionValidationBasisPoints,
                 decisionTestBasisPoints,
                 maxFpValidationBasisPoints: maxFpValidationBp,
-                maxFpTestBasisPoints: maxFpTestBp);
+                maxFpTestBasisPoints: maxFpTestBp,
+                termFrequency: termFrequency.Snapshot);
             modelParameters = FsDecisionThresholdCalibrator.ApplySelected(
                 modelParameters,
                 decisionCalibration,
@@ -306,7 +321,7 @@ public sealed class LinkageParametersWorker(
             var ruleSet = LinkageDynamicRuleSet.CreateWithPasses($"MODEL_{version}_BLOCKING_V1", algorithmVersion, blocking.Passes, persistedParameters);
             await PublishDraftModelAsync(
                 connection, modelId, corpusCapturedAtUtc, statistics, matchedPairs, unmatchedPairs.Count,
-                persistedParameters, ruleSet, ibgeReference, dt15Comparison, workCt);
+                persistedParameters, ruleSet, ibgeReference, termFrequency, dt15Comparison, workCt);
 
             logger.LogInformation(
                 "Modelo probabilístico v{Version} criado em RASCUNHO com ruleset {RuleSetVersion}. População={Population}; m={M}; u_candidatos={UCandidates}; u_condicionado_datas={UConditioned}; u_pool_ruleset={UPool}; IBGE_MC_pares={IbgePairs}; IBGE_ref={IbgeReference}; u_nome_blocking={UNameBlocking}; u_mae_blocking={UMotherBlocking}; abbrev_m_nome={AbbrevMName}; abbrev_u_ref_nome={AbbrevUName}; prior_ativo={ActivePrior}; prior_candidato_par={CandidatePairPrior}; prior_pares={CandidatePairs}; prior_recall={CandidateRecall}; T_calibrado={Threshold}; piso_segundo_candidato={ConflictFloor}; margem_logodds_calibrada={ConflictMargin}; pareto={ParetoCount}; val_fp={ValidationFp}; test_fp={TestFp}; corpus_capturado_em={CorpusCapturedAt:O}; amostra={SampleMethod}; pool={Pool}.",
@@ -660,6 +675,7 @@ public sealed class LinkageParametersWorker(
         IReadOnlyDictionary<string, decimal> parameters,
         LinkageDynamicRuleSet ruleSet,
         IbgeNominalUReferenceInfo ibgeReference,
+        PreparedNominalTermFrequency termFrequency,
         Dt15BlockingPairDiagnosticResult dt15Comparison,
         CancellationToken cancellationToken)
     {
@@ -765,6 +781,8 @@ public sealed class LinkageParametersWorker(
                 await command.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            await NominalTermFrequencyReferenceStore.WriteAsync(
+                connection, transaction, modelId, termFrequency, cancellationToken);
             await LinkageRuleSetWriter.WriteAsync(connection, transaction, modelId, ruleSet, cancellationToken);
             var goldSnapshot = statistics.MaxGoldUpdatedAt is null
                 ? $"gold.pessoa;corpus_utc={corpusCapturedAtUtc:O}"
@@ -847,8 +865,24 @@ public sealed class LinkageParametersWorker(
                    AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_DUAL_THRESHOLD_CONFLICT_FLOOR_V2' AND valor>=1)
                     THROW 51024, 'Modelo SQL Server V6 sem guarda de ambiguidade desacoplada de T_LINKAGE.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
-                   AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_NON_UNIQUE_DEMOGRAPHIC_EXACT_GUARD_V1' AND valor>=1)
-                    THROW 51026, 'Modelo SQL Server V6 sem guarda contra unicidade presumida de nome+nascimento exatos.', 1;
+                   AND EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_NON_UNIQUE_DEMOGRAPHIC_EXACT_GUARD_V1')
+                    THROW 51026, 'Modelo V8 não admite guarda demográfica fixa legada.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND EXISTS (
+                       SELECT req.nome FROM (VALUES
+                           ('SCORING_TERM_FREQUENCY_V1'),
+                           ('TERM_FREQUENCY_WEIGHT'),
+                           ('TERM_FREQUENCY_MIN_U'),
+                           ('TF_NOMINAL_FIRST_TOKEN_V1')) req(nome)
+                       WHERE NOT EXISTS(
+                           SELECT 1 FROM identidade.parametro_linkage p
+                           WHERE p.modelo_id=@modelo_id AND p.nome=req.nome AND p.valor>0))
+                    THROW 51028, 'Modelo V8 sem contrato TF completo.', 1;
+                IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
+                   AND (
+                       NOT EXISTS(SELECT 1 FROM identidade.frequencia_linkage WHERE modelo_id=@modelo_id AND atributo=N'NOME_PRENOME')
+                       OR NOT EXISTS(SELECT 1 FROM identidade.frequencia_linkage WHERE modelo_id=@modelo_id AND atributo=N'NOME_MAE_PRENOME'))
+                    THROW 51029, 'Modelo V8 sem snapshot TF persistido de pessoa e mãe.', 1;
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND @algoritmo_versao=@semantic_algorithm_version
                    AND NOT EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='DUAL_THRESHOLD_CONFLICT_FLOOR' AND valor>=0 AND valor<=1)
                     THROW 51025, 'Modelo SQL Server V6 sem piso calibrado válido para segundo candidato.', 1;
@@ -893,6 +927,21 @@ public sealed class LinkageParametersWorker(
                         ('M_NASCIMENTO_SEMANTICO_EXACT'),('M_NASCIMENTO_SEMANTICO_DAY_MONTH_SWAP'),('M_NASCIMENTO_SEMANTICO_CENTURY_SHIFT'),('M_NASCIMENTO_SEMANTICO_ONE_DIGIT_ERROR'),('M_NASCIMENTO_SEMANTICO_TWO_DIGIT_ERROR'),('M_NASCIMENTO_SEMANTICO_PARTIAL_COMPONENT_AGREEMENT'),('M_NASCIMENTO_SEMANTICO_OTHER_DISAGREEMENT'),
                         ('U_NASCIMENTO_SEMANTICO_EXACT'),('U_NASCIMENTO_SEMANTICO_DAY_MONTH_SWAP'),('U_NASCIMENTO_SEMANTICO_CENTURY_SHIFT'),('U_NASCIMENTO_SEMANTICO_ONE_DIGIT_ERROR'),('U_NASCIMENTO_SEMANTICO_TWO_DIGIT_ERROR'),('U_NASCIMENTO_SEMANTICO_PARTIAL_COMPONENT_AGREEMENT'),('U_NASCIMENTO_SEMANTICO_OTHER_DISAGREEMENT')) req(nome)
                         WHERE NOT EXISTS (SELECT 1 FROM identidade.parametro_linkage p WHERE p.modelo_id=@modelo_id AND p.nome=req.nome)) THROW 51018, 'Modelo V5 validado sem distribuição semântica de nascimento completa.', 1;
+                    IF EXISTS(SELECT 1 FROM identidade.parametro_linkage WHERE modelo_id=@modelo_id AND nome='SCORING_NON_UNIQUE_DEMOGRAPHIC_EXACT_GUARD_V1')
+                        THROW 51030, 'Modelo V8 validado não pode reintroduzir guarda demográfica fixa.', 1;
+                    IF EXISTS (
+                        SELECT req.nome FROM (VALUES
+                            ('SCORING_TERM_FREQUENCY_V1'),
+                            ('TERM_FREQUENCY_WEIGHT'),
+                            ('TERM_FREQUENCY_MIN_U'),
+                            ('TF_NOMINAL_FIRST_TOKEN_V1')) req(nome)
+                        WHERE NOT EXISTS(
+                            SELECT 1 FROM identidade.parametro_linkage p
+                            WHERE p.modelo_id=@modelo_id AND p.nome=req.nome AND p.valor>0))
+                        THROW 51031, 'Modelo V8 validado sem contrato TF completo.', 1;
+                    IF NOT EXISTS(SELECT 1 FROM identidade.frequencia_linkage WHERE modelo_id=@modelo_id AND atributo=N'NOME_PRENOME')
+                       OR NOT EXISTS(SELECT 1 FROM identidade.frequencia_linkage WHERE modelo_id=@modelo_id AND atributo=N'NOME_MAE_PRENOME')
+                        THROW 51032, 'Modelo V8 validado sem snapshot TF persistido.', 1;
                 END
                 IF @amostra_metodo=@sqlserver_amostra_metodo AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset r WHERE r.modelo_id=@modelo_id AND EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id) AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe rp WHERE rp.ruleset_id=r.ruleset_id AND NOT EXISTS(SELECT 1 FROM identidade.linkage_ruleset_passe_campo rc WHERE rc.ruleset_id=rp.ruleset_id AND rc.passe_ordem=rp.passe_ordem))) THROW 51014, 'Modelo SQL Server validado sem ruleset dinâmico completo.', 1;
                 {DecisionCalibrationRateGateSql}

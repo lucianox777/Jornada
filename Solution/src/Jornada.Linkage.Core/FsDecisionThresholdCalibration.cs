@@ -96,7 +96,8 @@ public static class FsDecisionThresholdCalibrator
         int maxMarginValues = 48,
         int maxConflictFloorValues = 64,
         int maxFpValidationBasisPoints = 0,
-        int maxFpTestBasisPoints = 0)
+        int maxFpTestBasisPoints = 0,
+        NominalTermFrequencySnapshot? termFrequency = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(algorithmVersion);
         ArgumentNullException.ThrowIfNull(baseParameters);
@@ -166,7 +167,7 @@ public static class FsDecisionThresholdCalibrator
                 threshold));
 
         var validationEvaluations = candidates
-            .Select(candidate => Evaluate(algorithmVersion, baseParameters, candidate, validation))
+            .Select(candidate => Evaluate(algorithmVersion, baseParameters, candidate, validation, termFrequency))
             .ToArray();
         var frontierEvaluations = CalibrationCandidatePareto.NonDominated(validationEvaluations);
         var candidateById = candidates.ToDictionary(static x => x.CandidateId, StringComparer.Ordinal);
@@ -175,7 +176,7 @@ public static class FsDecisionThresholdCalibrator
             .Select(validationEvaluation =>
             {
                 var candidate = candidateById[validationEvaluation.CandidateId];
-                var testEvaluation = Evaluate(algorithmVersion, baseParameters, candidate, test);
+                var testEvaluation = Evaluate(algorithmVersion, baseParameters, candidate, test, termFrequency);
                 return new FsDecisionThresholdFrozenEvaluation(
                     candidate,
                     validationEvaluation,
@@ -224,7 +225,7 @@ public static class FsDecisionThresholdCalibrator
                 .Select(candidate => new
                 {
                     Candidate = candidate,
-                    Validation = Evaluate(algorithmVersion, baseParameters, candidate, validation)
+                    Validation = Evaluate(algorithmVersion, baseParameters, candidate, validation, termFrequency)
                 })
                 .Where(x => SameDecisionMatrix(x.Validation, provisionalSelected.Validation))
                 .OrderBy(static x => x.Candidate.DualThresholdConflictFloor)
@@ -238,7 +239,7 @@ public static class FsDecisionThresholdCalibrator
             selected = new FsDecisionThresholdFrozenEvaluation(
                 canonical.Candidate,
                 canonical.Validation,
-                Evaluate(algorithmVersion, baseParameters, canonical.Candidate, test));
+                Evaluate(algorithmVersion, baseParameters, canonical.Candidate, test, termFrequency));
         }
 
         // The TEST split stays frozen and is used once for the safety gate. The
@@ -257,10 +258,12 @@ public static class FsDecisionThresholdCalibrator
             {
                 wrongPersonFp = Evaluate(
                     algorithmVersion, baseParameters, selected.Candidate,
-                    test.Where(static x => x.ExpectedResolvedUuid is not null).ToArray()).FalsePositive;
+                    test.Where(static x => x.ExpectedResolvedUuid is not null).ToArray(),
+                    termFrequency).FalsePositive;
                 leaveTruthOutFp = Evaluate(
                     algorithmVersion, baseParameters, selected.Candidate,
-                    test.Where(static x => x.ExpectedResolvedUuid is null).ToArray()).FalsePositive;
+                    test.Where(static x => x.ExpectedResolvedUuid is null).ToArray(),
+                    termFrequency).FalsePositive;
                 if (wrongPersonFp + leaveTruthOutFp != selected.Test.FalsePositive)
                     throw new InvalidOperationException("Auditoria agregada do safety gate TEST diverge da matriz congelada.");
             }
@@ -421,20 +424,22 @@ public static class FsDecisionThresholdCalibrator
         string algorithmVersion,
         IReadOnlyDictionary<string, decimal> baseParameters,
         FsDecisionThresholdCandidate candidate,
-        IReadOnlyList<FsDecisionCalibrationScenario> scenarios)
+        IReadOnlyList<FsDecisionCalibrationScenario> scenarios,
+        NominalTermFrequencySnapshot? termFrequency = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(algorithmVersion);
         ArgumentNullException.ThrowIfNull(baseParameters);
         ArgumentNullException.ThrowIfNull(candidate);
         ArgumentNullException.ThrowIfNull(scenarios);
-        return Evaluate(algorithmVersion, baseParameters, candidate, scenarios);
+        return Evaluate(algorithmVersion, baseParameters, candidate, scenarios, termFrequency);
     }
 
     private static CalibrationEvaluation Evaluate(
         string algorithmVersion,
         IReadOnlyDictionary<string, decimal> baseParameters,
         FsDecisionThresholdCandidate candidate,
-        IReadOnlyList<FsDecisionCalibrationScenario> scenarios)
+        IReadOnlyList<FsDecisionCalibrationScenario> scenarios,
+        NominalTermFrequencySnapshot? termFrequency)
     {
         var parameters = new Dictionary<string, decimal>(baseParameters, StringComparer.Ordinal)
         {
@@ -449,7 +454,8 @@ public static class FsDecisionThresholdCalibrator
             Guid.Empty,
             0,
             algorithmVersion,
-            parameters);
+            parameters,
+            termFrequency);
 
         long tp = 0, tn = 0, fp = 0, fn = 0, inconclusive = 0;
         foreach (var scenario in scenarios)

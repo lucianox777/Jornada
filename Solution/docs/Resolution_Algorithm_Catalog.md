@@ -87,7 +87,7 @@ O catálogo também registra algoritmos que combinam saída de comparador com es
 |---|---|---|
 | `SPLINK_TERM_FREQUENCY_V1` | matemática de ajuste por term frequency reutilizável dentro do Fellegi–Sunter; em fuzzy usa a maior frequência dos lados, aceita peso e piso de u | `Jornada.Contracts/SplinkCompatibleTermFrequency.cs` |
 
-`SPLINK_TERM_FREQUENCY_V1` continua sendo matemática interna do Fellegi–Sunter, **não** um estágio DF. Pela decisão canônica de 29/09, ele deve ficar habilitado por padrão em novos modelos V8, com peso/piso, referência geográfica, cobertura e fingerprint persistidos/calibrados. O HEAD ainda não cumpre essa decisão: o exportador continua sendo somente leitura e o scorer operacional ainda não aplica TF. A adoção executável deve entrar junto da retirada do guard demográfico fixo e do orçamento de falso vínculo, não como remendo posterior.
+`SPLINK_TERM_FREQUENCY_V1` é matemática interna do Fellegi–Sunter, **não** um estágio DF. Para novos modelos V8, o contrato executável exige `SCORING_TERM_FREQUENCY_V1`, peso/piso persistidos e snapshot por modelo em `identidade.frequencia_linkage`; pessoa usa o prenome publicado `NOME/TODOS` de São Paulo 3550308 e mãe usa prenome `NOME/FEMININO` Brasil. O ajuste não multiplica marginais de prenome e sobrenome como se fossem independentes. O mesmo snapshot entra no scorer e na calibração de threshold/margem, e o DT-14 recompõe TF de forma independente. Modelos históricos sem TF permanecem reproduzíveis até a migração segura de V6/V7.
 
 ### Retirados
 
@@ -106,7 +106,7 @@ Os literais abaixo são **motivos observáveis de decisão** no runtime atual e 
 | `DOIS_CANDIDATOS_ACIMA_T_LINKAGE` | caminho legado da guarda dual: segundo candidato também ficou acima de `T_LINKAGE` |
 | `SEGUNDO_CANDIDATO_ACIMA_PISO_CONFLITO` | segundo candidato ultrapassou o piso independente de conflito |
 | `MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE` | diferença em log-odds entre melhor e segundo candidato ficou abaixo da margem exigida |
-| `NUCLEO_DEMOGRAFICO_EXATO_NAO_UNICO` | motivo do guard demográfico fixo ainda presente no HEAD; a decisão canônica DC-LK-02 determina sua retirada da V8 em change-set próprio, com conferência e calibração antes de ativação |
+| `NUCLEO_DEMOGRAFICO_EXATO_NAO_UNICO` | motivo histórico do guard demográfico fixo; novos V8 com TF não admitem esse guard, enquanto replay/modelos históricos preservam sua semântica até migração segura |
 
 Não confundir motivos com **parâmetros do modelo**. `T_LINKAGE`, `CONFLICT_MARGIN_LOG_ODDS` e `DUAL_THRESHOLD_CONFLICT_FLOOR` são entradas persistidas da política de decisão, não códigos de resultado. Marcadores internos de versão/proveniência não precisam virar motivos públicos apenas por existirem como literais no código.
 

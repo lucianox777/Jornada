@@ -1,3 +1,4 @@
+using Jornada.Linkage.Parameters.Worker;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Tests.Integration;
@@ -81,6 +82,66 @@ public sealed class NameFrequencyCoverageSqlServerTests
             var ex = Assert.ThrowsAsync<SqlException>(async () => await mutate.ExecuteNonQueryAsync());
             Assert.That(ex!.Number, Is.EqualTo(51650));
         }
+    }
+
+    [Test]
+    public async Task Tf_store_accepts_municipal_partial_metadata_and_complete_national_sex_metadata()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Fase1.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260912_Frequencia_Nomes_Referencia.sql"));
+        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "migrations", "20260912_Frequencia_Nomes_Cobertura.sql"));
+
+        var code = $"TEST-TF-COVERAGE-{Guid.NewGuid():N}";
+        long versionId;
+        await using (var create = connection.CreateCommand())
+        {
+            create.CommandText = """
+                INSERT ref.frequencia_nome_versao(codigo,fonte,edicao,data_referencia,status)
+                VALUES(@codigo,N'IBGE - Censo Demográfico 2022 - Nomes no Brasil',N'Teste TF','2022-08-01','CARREGANDO');
+                DECLARE @id BIGINT=SCOPE_IDENTITY();
+
+                INSERT ref.frequencia_nome(
+                    frequencia_nome_versao_id,tipo,valor,valor_normalizado,sexo,periodo_nascimento,
+                    escopo_geografico,uf_codigo,municipio_codigo,frequencia)
+                VALUES
+                    (@id,'NOME',N'Maria',N'MARIA','TODOS','TODOS','MUNICIPIO','35','3550308',600),
+                    (@id,'NOME',N'Zuleica',N'ZULEICA','TODOS','TODOS','MUNICIPIO','35','3550308',10),
+                    (@id,'NOME',N'Ana',N'ANA','FEMININO','TODOS','BRASIL','00','0000000',500);
+
+                INSERT ref.frequencia_nome_cobertura(
+                    frequencia_nome_versao_id,tipo,escopo_geografico,inclui_sexo,
+                    inclui_periodo_nascimento,cobertura,ausencia_semantica,origem_endpoint)
+                VALUES
+                    (@id,'NOME','MUNICIPIO',0,0,'PARCIAL','NAO_PUBLICADA_OU_SUPRIMIDA',N'snapshot:test'),
+                    (@id,'NOME','BRASIL',1,1,'COMPLETA','NAO_PUBLICADA_OU_SUPRIMIDA',N'snapshot:test');
+
+                SELECT @id;
+                """;
+            create.Parameters.AddWithValue("@codigo", code);
+            versionId = Convert.ToInt64(
+                await create.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        var prepared = await NominalTermFrequencyReferenceStore.PrepareAsync(
+            connection,
+            versionId,
+            CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(prepared.Snapshot.PersonFirstNameCount, Is.EqualTo(2));
+            Assert.That(prepared.Snapshot.MotherFirstNameCount, Is.EqualTo(1));
+            Assert.That(prepared.Snapshot.TryGetPersonFirstName("MARIA SILVA", out var maria), Is.True);
+            Assert.That(maria, Is.EqualTo(decimal.Divide(600m, 610m)).Within(0.000000000001m));
+            Assert.That(prepared.Snapshot.TryGetMotherFirstName("ANA SOUZA", out var ana), Is.True);
+            Assert.That(ana, Is.EqualTo(1m));
+        });
     }
 
     private static string RequireIntegrationConnection()

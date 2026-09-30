@@ -150,10 +150,37 @@ public sealed class LinkageCalibrationAuditRoundTripTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(tfEx!.Message, Does.Contain("term frequency habilitada"));
+            Assert.That(tfEx!.Message, Does.Contain("runtimeEnabled"));
             Assert.That(algorithmEx!.Message, Does.Contain("Versão da matemática"));
             Assert.That(referenceEx!.Message, Does.Contain("versão fixada no modelo"));
         });
+    }
+
+    [Test]
+    public void Import_accepts_runtime_TF_when_parameters_and_persisted_rows_agree()
+    {
+        var sample = SampleDocument();
+        var parameters = sample.Parameters
+            .Concat(new[]
+            {
+                new LinkageCalibrationAuditParameter(LinkageParameterCatalog.TermFrequencyScoring, 1m),
+                new LinkageCalibrationAuditParameter(LinkageParameterCatalog.TermFrequencyWeight, 1m),
+                new LinkageCalibrationAuditParameter(LinkageParameterCatalog.TermFrequencyMinimumU, .0001m),
+                new LinkageCalibrationAuditParameter(LinkageParameterCatalog.TermFrequencyFirstTokenContract, 1m)
+            })
+            .ToArray();
+        var runtimeTf = sample with
+        {
+            Parameters = parameters,
+            TermFrequency = sample.TermFrequency with
+            {
+                RuntimeEnabled = true,
+                PersistedModelFrequencyRows = 42
+            }
+        };
+
+        Assert.DoesNotThrow(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(runtimeTf, JsonOptions)));
     }
 
     [Test]

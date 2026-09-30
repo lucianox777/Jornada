@@ -1395,6 +1395,18 @@ $conflictResolved = [int]$conf[4]
 $positiveSensitivity = if ($positiveTotal -eq 0) { [decimal]0 } else { [decimal]$positiveCorrect / [decimal]$positiveTotal }
 $negativeSpecificity = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeRejected / [decimal]$negativeTotal }
 $negativeFalseMatchRate = if ($negativeTotal -eq 0) { [decimal]0 } else { [decimal]$negativeResolved / [decimal]$negativeTotal }
+
+# DC-SYN-01: HARD_HOMONYM é challenge adversarial, não amostra de prevalência.
+# Mantemos o resultado condicionado visível, mas ele não compõe a taxa/gate populacional.
+$hardHomonymScenario = @($negativeScenarioBreakdown | Where-Object { $_.scenario -eq 'HARD_HOMONYM' } | Select-Object -First 1)
+$populationNegativeScenarios = @($negativeScenarioBreakdown | Where-Object { $_.scenario -ne 'HARD_HOMONYM' })
+$populationNegativeTotal = [int](($populationNegativeScenarios | Measure-Object -Property total -Sum).Sum)
+$populationNegativeResolved = [int](($populationNegativeScenarios | Measure-Object -Property resolvedFalseMatches -Sum).Sum)
+$populationNegativeRejected = $populationNegativeTotal - $populationNegativeResolved
+$populationNegativeSpecificity = if ($populationNegativeTotal -eq 0) { [decimal]0 } else { [decimal]$populationNegativeRejected / [decimal]$populationNegativeTotal }
+$populationNegativeFalseMatchRate = if ($populationNegativeTotal -eq 0) { [decimal]0 } else { [decimal]$populationNegativeResolved / [decimal]$populationNegativeTotal }
+$challengeHardHomonymTotal = if ($hardHomonymScenario.Count -eq 0) { 0 } else { [int]$hardHomonymScenario[0].total }
+$challengeHardHomonymResolved = if ($hardHomonymScenario.Count -eq 0) { 0 } else { [int]$hardHomonymScenario[0].resolvedFalseMatches }
 $resolvedDecisionTotal = $positiveCorrect + $positiveWrong + $negativeResolved
 $syntheticResolvedPpv = if ($resolvedDecisionTotal -eq 0) { $null } else { [decimal]$positiveCorrect / [decimal]$resolvedDecisionTotal }
 
@@ -1472,6 +1484,23 @@ $report = [ordered]@{
         plannedColliderAlignment = $negativePlannedColliderAlignment
         observedBestScoreStates = $negativeObservedBestScoreStates
         falseMatchDetails = $negativeFalseMatchDetails
+        dcSyn01Stratification = [ordered]@{
+            contract = 'DC_SYN_01_STRATIFIED_TRUTH_V1'
+            population = [ordered]@{
+                total = $populationNegativeTotal
+                resolvedFalseMatches = $populationNegativeResolved
+                rejectedOrConflict = $populationNegativeRejected
+                syntheticSpecificity = [decimal]::Round($populationNegativeSpecificity,6)
+                syntheticFalseMatchRate = [decimal]::Round($populationNegativeFalseMatchRate,6)
+                scenarios = $populationNegativeScenarios
+            }
+            challengeHardHomonym = [ordered]@{
+                total = $challengeHardHomonymTotal
+                resolvedAsMatch = $challengeHardHomonymResolved
+                observationalOverlapWithPositiveExact = $observationalOverlapDetected
+                interpretation = 'Challenge adversarial condicionado: mede resistência/identificabilidade quando o núcleo observável coincide; não estima prevalência nem taxa populacional de falso vínculo.'
+            }
+        }
     }
     combinedDecisionQuality = [ordered]@{
         resolvedDecisions = $resolvedDecisionTotal
@@ -1677,8 +1706,11 @@ Write-Host 'LINKAGE INDEPENDENT VALIDATION STRUCTURAL GATES: OK' -ForegroundColo
 if ($positiveWrong -ne 0) {
     throw "DEV SAFETY GATE reprovado: houve $positiveWrong resolução(ões) positiva(s) para UUID incorreto."
 }
-if ($negativeResolved -ne 0) {
-    throw "DEV SAFETY GATE reprovado: houve $negativeResolved falso(s) vínculo(s) resolvido(s) em $negativeTotal negativos independentes."
+if ($populationNegativeResolved -ne 0) {
+    throw "DEV SAFETY GATE reprovado: houve $populationNegativeResolved falso(s) vínculo(s) resolvido(s) em $populationNegativeTotal negativos da partição populacional DC-SYN-01."
+}
+if ($challengeHardHomonymTotal -gt 0) {
+    Write-Host ("DC-SYN-01 CHALLENGE HARD_HOMONYM (diagnóstico, fora da taxa populacional): resolvidos={0}/{1}; sobreposição observável EXACT/EXACT/EXACT={2}" -f $challengeHardHomonymResolved,$challengeHardHomonymTotal,$observationalOverlapDetected) -ForegroundColor Yellow
 }
 
 Write-Host 'LINKAGE INDEPENDENT VALIDATION DEV SAFETY GATES: OK' -ForegroundColor Green

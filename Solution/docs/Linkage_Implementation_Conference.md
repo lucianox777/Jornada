@@ -101,7 +101,7 @@ Esses estados são independentes da validação estatística representativa. O r
 
 ## Dados e privacidade
 
-O contrato da conferência recebe identificadores opacos de candidatos, estados comparativos, parâmetros do modelo e resultados canônicos. Não necessita nome, CPF, data de nascimento textual ou outros dados pessoais.
+O contrato da conferência recebe identificadores opacos de candidatos, estados comparativos, parâmetros do modelo e resultados canônicos. Nos cenários TF, recebe ainda frequências numéricas do snapshot persistido; os valores nominais usados para acionar o scorer ficam no orquestrador governado e não são persistidos na evidência agregada. CPF não participa da conferência.
 
 A evidência persistente por modelo é materializada em `auditoria.linkage_conferencia_evidencia` e permanece agregada, sem `candidate_id`, score par-a-par ou PII. O registro inclui hashes SHA-256 do request e do relatório, método/escopo, tolerância, contagens e diagnósticos agregados.
 
@@ -109,7 +109,7 @@ A evidência persistente por modelo é materializada em `auditoria.linkage_confe
 
 O schema contém:
 
-- `auditoria.sp_calcular_fingerprint_modelo_linkage`, que produz fingerprint SHA-256 canônico do snapshot decisório persistido (metadados estáveis, parâmetros, estatísticas e ruleset/passes/campos);
+- `auditoria.sp_calcular_fingerprint_modelo_linkage`, que produz fingerprint SHA-256 canônico do snapshot decisório persistido (metadados estáveis, parâmetros, estatísticas, ruleset/passes/campos e, quando presentes, as linhas de `identidade.frequencia_linkage`);
 - `auditoria.sp_registrar_conferencia_linkage`, que aceita somente modelo `RASCUNHO`, calcula esse fingerprint no ato do registro e persiste evidência agregada append-only;
 - `auditoria.sp_assert_conferencia_linkage_conforme`, que procura a evidência mais recente para o mesmo `modelo_id`, método e versão de tolerância, exige `CONFORME` e recomputa o fingerprint do snapshot; qualquer mutação posterior torna a evidência obsoleta e bloqueia o assert;
 - `auditoria.v_linkage_conferencia_evidencia`, superfície read-only de auditoria.
@@ -137,7 +137,7 @@ O comando:
 9. recalcula o fingerprint antes do registro;
 10. persiste somente o resumo agregado e hashes SHA-256.
 
-O corpus corrente contém **7 cenários e 208 candidatos sintéticos**: matriz completa de estados de nome/nome da mãe/nascimento, casos forte/fraco, missing, empate, guard-input e forte-versus-fraco. Datas usadas para produzir estados semânticos são valores sintéticos fixos em memória; nenhum registro de cidadão é consultado para montar o corpus.
+O corpus base contém **7 cenários e 208 candidatos sintéticos**: matriz completa de estados de nome/nome da mãe/nascimento, casos forte/fraco, missing, empate, guard-input e forte-versus-fraco. Para modelo V8 com TF habilitado, a ferramenta acrescenta dois cenários dirigidos (`TF_COMMON_EXACT` e `TF_RARE_EXACT`) escolhidos do snapshot de frequências persistido do próprio modelo; o avaliador independente recebe apenas as frequências e recompõe o ajuste por fórmula própria, sem chamar `SplinkCompatibleTermFrequency`. Datas usadas para produzir estados semânticos são valores sintéticos fixos em memória; nenhum registro de cidadão é consultado para montar o corpus.
 
 O hash do request e do relatório inclui o fingerprint do snapshot do modelo. Rerun byte-a-byte idêntico é idempotente e retorna o mesmo `evidencia_id`; mesmo hash com request/snapshot incompatível é recusado fail-closed.
 

@@ -211,9 +211,40 @@ internal static class GovernedImplementationConferenceCommand
                 parameters.Add(reader.GetString(0), reader.GetDecimal(1));
         }
 
+        var termFrequencyEntries = new List<NominalTermFrequencyEntry>();
+        await using (var command = new SqlCommand(
+            """
+            SELECT atributo,valor_normalizado,ocorrencias,populacao_referencia,frequencia
+            FROM identidade.frequencia_linkage WITH(HOLDLOCK)
+            WHERE modelo_id=@modelo_id
+            ORDER BY atributo,valor_normalizado;
+            """,
+            connection,
+            transaction)
+        {
+            CommandTimeout = commandTimeoutSeconds
+        })
+        {
+            command.Parameters.Add("@modelo_id", SqlDbType.UniqueIdentifier).Value = modelId;
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                termFrequencyEntries.Add(new NominalTermFrequencyEntry(
+                    reader.GetString(0),
+                    reader.GetString(1),
+                    reader.GetInt64(2),
+                    reader.GetInt64(3),
+                    reader.GetDecimal(4)));
+            }
+        }
+
+        var termFrequency = termFrequencyEntries.Count == 0
+            ? null
+            : NominalTermFrequencySnapshot.Create(termFrequencyEntries);
+
         try
         {
-            return LinkageModelPolicy.Create(modelId, version, algorithm, parameters);
+            return LinkageModelPolicy.Create(modelId, version, algorithm, parameters, termFrequency);
         }
         catch (InvalidOperationException ex)
         {
@@ -558,6 +589,30 @@ internal static class ImplementationConferenceCorpus
             ],
             tolerance));
 
+        if (model.Parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyScoring, out var tfEnabled)
+            && tfEnabled >= 1m)
+        {
+            var snapshot = model.TermFrequency
+                ?? throw new InvalidDataException("TF_CONFERENCE_SNAPSHOT_MISSING");
+            var common = snapshot.PersonFirstNames
+                .OrderByDescending(static x => x.Frequency)
+                .ThenBy(static x => x.ValueNormalized, StringComparer.Ordinal)
+                .First();
+            var rare = snapshot.PersonFirstNames
+                .OrderBy(static x => x.Frequency)
+                .ThenBy(static x => x.ValueNormalized, StringComparer.Ordinal)
+                .First();
+            var mother = snapshot.MotherFirstNames
+                .OrderByDescending(static x => x.Frequency)
+                .ThenBy(static x => x.ValueNormalized, StringComparer.Ordinal)
+                .First();
+
+            scenarios.Add(BuildTermFrequencyScenario(
+                "TF_COMMON_EXACT", model, common, mother, tolerance));
+            scenarios.Add(BuildTermFrequencyScenario(
+                "TF_RARE_EXACT", model, rare, mother, tolerance));
+        }
+
         return scenarios;
     }
 
@@ -628,7 +683,8 @@ internal static class ImplementationConferenceCorpus
                 x.DemographicExactCollisionRisk,
                 x.Breakdown.Contributions.Sum(static c => c.LogLikelihoodRatio),
                 x.Breakdown.Score.LogOdds,
-                x.Breakdown.Score.Posterior);
+                x.Breakdown.Score.Posterior,
+                NeutralTermFrequency(model, x.Breakdown));
         }).ToArray();
 
         return new NamedConferenceRequest(
@@ -639,6 +695,91 @@ internal static class ImplementationConferenceCorpus
                 model.AlgorithmVersion,
                 model.Parameters,
                 candidates,
+                new ImplementationConferenceDecision(
+                    decision.Status,
+                    decision.PessoaUuidResolvido,
+                    decision.MelhorCandidatoUuid,
+                    decision.SegundoCandidatoUuid,
+                    decision.Motivo),
+                tolerance));
+    }
+
+    private static ImplementationConferenceTermFrequency? NeutralTermFrequency(
+        LinkageModel model,
+        FellegiSunterScoreBreakdown breakdown)
+    {
+        if (!model.Parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyScoring, out var enabled)
+            || enabled < 1m)
+            return null;
+
+        var nameState = breakdown.Contributions.Single(static x =>
+            string.Equals(x.Evidence, "NOME", StringComparison.Ordinal)).State;
+        var motherState = breakdown.Contributions.Single(static x =>
+            string.Equals(x.Evidence, "NOME_MAE", StringComparison.Ordinal)).State;
+        var nameFrequency = string.Equals(nameState, "MISSING_NEUTRAL", StringComparison.Ordinal)
+            ? (decimal?)null
+            : model.Parameters["U_NOME_EXACT"];
+        var motherFrequency = string.Equals(motherState, "MISSING_NEUTRAL", StringComparison.Ordinal)
+            ? (decimal?)null
+            : model.Parameters["U_NOME_MAE_EXACT"];
+        return new ImplementationConferenceTermFrequency(
+            nameFrequency, nameFrequency, motherFrequency, motherFrequency);
+    }
+
+    private static NamedConferenceRequest BuildTermFrequencyScenario(
+        string name,
+        LinkageModel model,
+        NominalTermFrequencyValue person,
+        NominalTermFrequencyValue mother,
+        ImplementationConferenceToleranceContract tolerance)
+    {
+        var id = DeterministicCandidateId(name, 0);
+        var birth = new DateOnly(1980, 5, 6);
+        var observation = new IdentityObservation(
+            null, "CONFERENCE_NO_CPF",
+            person.ValueNormalized, birth, mother.ValueNormalized);
+        var candidate = new LinkageCandidate(
+            id, person.ValueNormalized, birth, mother.ValueNormalized);
+        var ranked = ProbabilisticLinkageDecisions.Rank(
+            model, observation, [candidate]).Single();
+        var decision = ProbabilisticLinkageDecisions.Resolve(
+            model, observation, [candidate]);
+        var breakdown = FellegiSunterScoring.CalculateWithBreakdown(
+            model.Parameters,
+            NameComparisonState.EXACT,
+            NameComparisonState.EXACT,
+            null,
+            birth,
+            birth);
+        var evidence = breakdown.Contributions
+            .Select(static contribution => new ImplementationConferenceEvidence(
+                contribution.Evidence,
+                contribution.State))
+            .ToArray();
+        var canonicalLlr = ranked.LogOdds - breakdown.PriorLogOdds;
+
+        return new NamedConferenceRequest(
+            name,
+            new ImplementationConferenceRequest(
+                model.ModelId,
+                model.Version,
+                model.AlgorithmVersion,
+                model.Parameters,
+                [
+                    new ImplementationConferenceCandidate(
+                        id,
+                        1,
+                        evidence,
+                        true,
+                        canonicalLlr,
+                        ranked.LogOdds,
+                        ranked.Score,
+                        new ImplementationConferenceTermFrequency(
+                            person.Frequency,
+                            person.Frequency,
+                            mother.Frequency,
+                            mother.Frequency))
+                ],
                 new ImplementationConferenceDecision(
                     decision.Status,
                     decision.PessoaUuidResolvido,

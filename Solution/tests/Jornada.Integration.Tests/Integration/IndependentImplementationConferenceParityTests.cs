@@ -256,6 +256,86 @@ public sealed class IndependentImplementationConferenceParityTests
     }
 
     [Test]
+    public void Independent_engine_matches_runtime_term_frequency_adjustment()
+    {
+        var parameters = Parameters();
+        parameters.Remove("M_NOME_MAE_MISSING");
+        parameters.Remove("U_NOME_MAE_MISSING");
+        parameters[LinkageParameterCatalog.NeutralMissingEvidenceScoring] = 1m;
+        parameters[LinkageParameterCatalog.TermFrequencyScoring] = 1m;
+        parameters[LinkageParameterCatalog.TermFrequencyWeight] = 1m;
+        parameters[LinkageParameterCatalog.TermFrequencyMinimumU] = .001m;
+        parameters[LinkageParameterCatalog.TermFrequencyFirstTokenContract] = 1m;
+
+        var snapshot = NominalTermFrequencySnapshot.Create(new[]
+        {
+            new NominalTermFrequencyEntry(
+                NominalTermFrequencySnapshot.PersonFirstNameAttribute,
+                "ZULEICA", 1, 1000, .001m),
+            new NominalTermFrequencyEntry(
+                NominalTermFrequencySnapshot.MotherFirstNameAttribute,
+                "ANA", 200, 1000, .2m)
+        });
+        var model = LinkageModelPolicy.Create(
+            ModelId, 8,
+            LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
+            parameters,
+            snapshot);
+
+        var candidateId = Guid.Parse("33333333-3333-4333-8333-333333333333");
+        var observation = new IdentityObservation(
+            null, "SEM_CPF", "ZULEICA", Birth, "ANA");
+        var candidate = new LinkageCandidate(
+            candidateId, "ZULEICA", Birth, "ANA");
+        var ranked = ProbabilisticLinkageDecisions.Rank(
+            model, observation, [candidate]).Single();
+        var decision = ProbabilisticLinkageDecisions.Resolve(
+            model, observation, [candidate]);
+        var breakdown = FellegiSunterScoring.CalculateWithBreakdown(
+            parameters,
+            NameComparisonState.EXACT,
+            NameComparisonState.EXACT,
+            null,
+            Birth,
+            Birth);
+        var request = new ImplementationConferenceRequest(
+            model.ModelId,
+            model.Version,
+            model.AlgorithmVersion,
+            parameters,
+            [
+                new ImplementationConferenceCandidate(
+                    candidateId,
+                    1,
+                    breakdown.Contributions
+                        .Select(x => new ImplementationConferenceEvidence(x.Evidence, x.State))
+                        .ToArray(),
+                    true,
+                    ranked.LogOdds - breakdown.PriorLogOdds,
+                    ranked.LogOdds,
+                    ranked.Score,
+                    new ImplementationConferenceTermFrequency(
+                        .001m, .001m, .2m, .2m))
+            ],
+            new ImplementationConferenceDecision(
+                decision.Status,
+                decision.PessoaUuidResolvido,
+                decision.MelhorCandidatoUuid,
+                decision.SegundoCandidatoUuid,
+                decision.Motivo),
+            TestTolerance);
+
+        var report = IndependentImplementationConference.Evaluate(request);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(report.Status, Is.EqualTo(ImplementationConferenceStatus.CONFORME));
+            Assert.That(report.SameFinalDecision, Is.True);
+            Assert.That(report.MaxObservedPairLlrDifference, Is.LessThanOrEqualTo(TestToleranceValue));
+        });
+    }
+
+    [Test]
     public void Governed_tolerance_configuration_is_frozen_before_engineering_conference()
     {
         var root = FindRepositoryRoot();
@@ -361,6 +441,7 @@ public sealed class IndependentImplementationConferenceParityTests
             Assert.That(source, Does.Not.Contain("ProbabilisticLinkageDecisions"));
             Assert.That(source, Does.Not.Contain("IdentityComparison"));
             Assert.That(source, Does.Not.Contain("BirthDateSemanticEvidence.Classify"));
+            Assert.That(source, Does.Not.Contain("SplinkCompatibleTermFrequency"));
             Assert.That(source, Does.Contain(
                 "ImplementationConferenceGovernanceContract.Scope"));
             Assert.That(governanceContract, Does.Contain(
