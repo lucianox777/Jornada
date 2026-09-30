@@ -89,14 +89,15 @@ public static class LinkageModelConfigurationBundleValidator
         var tf = fs.GetProperty("termFrequency");
         Require(tf.GetProperty("referenceU").GetString() == "EXACT",
             "TF deve manter u_EXACT como referência.");
-        var weights = tf.GetProperty("weights");
+        var calibration = tf.GetProperty("weightCalibration");
+        Require(calibration.GetProperty("source").GetString() == "GOLD",
+            "Pesos TF devem ser calibrados no Gold, não fixados pelo bootstrap.");
+        Require(calibration.GetProperty("publishedWeightsRequired").GetBoolean(),
+            "Snapshot FS operacional deve exigir pesos TF publicados pelo calibrador.");
+        var states = calibration.GetProperty("states").EnumerateArray()
+            .Select(static x => x.GetString()!).ToHashSet(StringComparer.Ordinal);
         foreach (var state in new[] { "EXACT", "HIGH", "MEDIUM", "LOW" })
-        {
-            var weight = weights.GetProperty(state).GetDecimal();
-            Require(weight is >= 0m and <= 1m, $"Peso TF {state} deve estar em [0,1].");
-        }
-        Require(weights.GetProperty("EXACT").GetDecimal() == 1m,
-            "Bootstrap governado deve manter peso TF EXACT=1.");
+            Require(states.Contains(state), $"Calibração TF deve cobrir o estado {state}.");
     }
 
     private static string RequiredFile(JsonElement components, string name)
