@@ -1,108 +1,131 @@
 #!/usr/bin/env python3
-"""Generate JORNADA_SYNTH_BIRTH_DAILY_V1 from a frozen SIDRA 9514 snapshot.
+"""Generate JORNADA_SYNTH_BIRTH_DAILY_V1 from the frozen IBGE 2024 population projection XLSX.
 
-DC-SYN-01-E1 deliberately uses one demographic source: Censo 2022 / SIDRA
-table 9514 for municipality 3550308, sex=Total, age declaration=Total.
-Post-Census dates are a declared extrapolation of the age-zero daily rate.
-No network access is performed.
+The tool is deliberately offline. It reads the official "populacao por sexo e idade
+simples" workbook, selects UF=SP, sexo=Total and 01/07/2026, validates ages 0..89
+plus 90+, and deterministically converts age stocks into birth-date weights.
 """
 from __future__ import annotations
-import argparse,csv,hashlib,json,re
+import argparse,hashlib,json,math,re,unicodedata,zipfile
 from collections import defaultdict
 from datetime import date,timedelta
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 SCHEMA="JORNADA_SYNTH_BIRTH_DAILY_V1"
-CENSUS_DATE=date(2022,8,1)
-AGE_RE=re.compile(r"^(?:Menos de 1 ano|(?P<age>\d+) anos?)$",re.I)
-RANGE_RE=re.compile(r"^(?P<a>\d+) a (?P<b>\d+) anos$",re.I)
+REFERENCE_DATE=date(2026,7,1)
+SOURCE_FILE="projecoes_2024_tab1_idade_simples.xlsx"
+NS="{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
-def _int(v:str)->int:
-    return int(v.strip().replace('.','').replace(' ',''))
+def norm(v):
+    s=unicodedata.normalize("NFKD",str(v or "")).encode("ascii","ignore").decode().lower().strip()
+    return re.sub(r"[^a-z0-9]+"," ",s).strip()
 
-def read_sidra(path:Path):
-    rows=[]; declared_total=None
-    with path.open(encoding='utf-8-sig',newline='') as f:
-        for x in csv.DictReader(f):
-            age=(x.get('Idade') or x.get('idade') or '').strip()
-            val=x.get('Valor') or x.get('valor') or x.get('População residente') or x.get('Populacao residente')
-            if not age or val in (None,'','-','...'): continue
-            if age.lower()=='total': declared_total=_int(val); continue
-            if 'mes' in age.lower(): continue
-            m=AGE_RE.match(age)
-            if m:
-                rows.append((0 if age.lower().startswith('menos') else int(m.group('age')),None,_int(val),age)); continue
-            m=RANGE_RE.match(age)
-            if m:
-                rows.append((int(m.group('a')),int(m.group('b')),_int(val),age)); continue
-            if age.lower()=='100 anos ou mais':
-                rows.append((100,105,_int(val),age)); continue
-    simple={a:(v,label) for a,b,v,label in rows if b is None}
-    out=[]; covered=set(simple)
-    for a,(v,label) in sorted(simple.items()): out.append((a,a,v,label))
-    for a,b,v,label in rows:
-        if b is None or all(i in covered for i in range(a,b+1)): continue
-        out.append((a,b,v,label)); covered.update(range(a,b+1))
-    out=sorted(out); covered=set()
-    for a,b,_,_ in out:
-        for age in range(a,b+1):
-            if age in covered: raise ValueError(f'SIDRA: idade {age} coberta mais de uma vez')
-            covered.add(age)
-    missing=[age for age in range(100) if age not in covered]
-    if missing: raise ValueError(f'SIDRA: idades ausentes: {missing}')
-    if 100 not in covered: raise ValueError('SIDRA: categoria 100 anos ou mais ausente')
-    computed=sum(v for _,_,v,_ in out)
-    if declared_total is None: raise ValueError('SIDRA: linha Total ausente')
-    if computed != declared_total: raise ValueError(f'SIDRA: soma etária {computed} difere do Total {declared_total}')
+def _xlsx_rows(path:Path):
+    if path.name != SOURCE_FILE:
+        raise ValueError(f"IBGE: arquivo esperado {SOURCE_FILE}, recebido {path.name}")
+    with zipfile.ZipFile(path) as z:
+        shared=[]
+        if "xl/sharedStrings.xml" in z.namelist():
+            root=ET.fromstring(z.read("xl/sharedStrings.xml"))
+            shared=["".join(t.text or "" for t in si.iter(NS+"t")) for si in root]
+        sheets=sorted(n for n in z.namelist() if re.fullmatch(r"xl/worksheets/sheet\d+\.xml",n))
+        if not sheets: raise ValueError("IBGE: XLSX sem planilha")
+        for sheet in sheets:
+            root=ET.fromstring(z.read(sheet))
+            for row in root.iter(NS+"row"):
+                vals=[]
+                for c in row.findall(NS+"c"):
+                    ref=c.get("r","A1"); col=0
+                    for ch in re.match(r"[A-Z]+",ref).group(0): col=col*26+ord(ch)-64
+                    while len(vals)<col: vals.append("")
+                    typ=c.get("t"); v=c.find(NS+"v")
+                    if typ=="inlineStr":
+                        x="".join(t.text or "" for t in c.iter(NS+"t"))
+                    elif v is None: x=""
+                    elif typ=="s": x=shared[int(v.text)]
+                    else: x=v.text or ""
+                    vals[col-1]=x
+                if any(str(x).strip() for x in vals): yield vals
+
+def _integer(v):
+    s=str(v).strip().replace(".","").replace(" ","")
+    if s.endswith(",0"): s=s[:-2]
+    return int(s)
+
+def read_projection(path:Path, year=2026):
+    rows=list(_xlsx_rows(path)); target=str(year)
+    for hi,h in enumerate(rows):
+        hh=[norm(x) for x in h]
+        age_i=next((i for i,x in enumerate(hh) if x=="idade"),None)
+        sex_i=next((i for i,x in enumerate(hh) if x=="sexo"),None)
+        geo_i=next((i for i,x in enumerate(hh) if x in {"uf","unidade da federacao","local","localidade"}),None)
+        year_i=next((i for i,x in enumerate(hh) if x=="ano"),None)
+        pop_i=next((i for i,x in enumerate(hh) if x in {"populacao","populacao projetada","valor"}),None)
+        wide_i=next((i for i,x in enumerate(hh) if x==target),None)
+        if age_i is None or sex_i is None or geo_i is None or (wide_i is None and (year_i is None or pop_i is None)): continue
+        ages={}; declared_total=None
+        for r in rows[hi+1:]:
+            def get(i): return r[i] if i is not None and i<len(r) else ""
+            geo,sex,age=norm(get(geo_i)),norm(get(sex_i)),norm(get(age_i))
+            if geo not in {"sp","sao paulo"} or sex not in {"total","ambos os sexos","ambos"}: continue
+            if wide_i is None and norm(get(year_i))!=target: continue
+            raw=get(wide_i if wide_i is not None else pop_i)
+            if str(raw).strip() in {"","-","..."}: continue
+            value=_integer(raw)
+            if age=="total": declared_total=value; continue
+            m=re.fullmatch(r"(\d+)(?: anos?)?",age)
+            if m and int(m.group(1))<=89: ages[int(m.group(1))]=value; continue
+            if age in {"90 ou mais","90 anos ou mais","90+"}: ages[90]=value
+        missing=[a for a in range(90) if a not in ages]
+        if missing: raise ValueError(f"IBGE: idades ausentes para SP/Total/{year}: {missing}")
+        if 90 not in ages: raise ValueError(f"IBGE: categoria 90+ ausente para SP/Total/{year}")
+        if declared_total is not None and sum(ages.values())!=declared_total:
+            raise ValueError(f"IBGE: soma etaria {sum(ages.values())} difere do Total {declared_total}")
+        return ages, declared_total or sum(ages.values())
+    raise ValueError(f"IBGE: estrutura SP/Total/{year} nao encontrada no XLSX")
+
+def apportion(total:int, weights):
+    s=sum(weights)
+    raw=[total*w/s for w in weights]; out=[math.floor(x) for x in raw]
+    for i in sorted(range(len(raw)),key=lambda i:(-(raw[i]-out[i]),i))[:total-sum(out)]: out[i]+=1
     return out
 
-def apportion(total:int,n:int):
-    q,r=divmod(total,n)
-    return [q+(i<r) for i in range(n)]
+def expand_90_plus(ages):
+    if ages[88]<=0 or ages[89]<=0: raise ValueError("IBGE: idades 88/89 invalidas para derivar cauda 90+")
+    ratio=ages[89]/ages[88]
+    if not 0<ratio<1: raise ValueError(f"IBGE: razao de decaimento 89/88 deve estar entre 0 e 1; obtido {ratio}")
+    n=max(1,math.ceil(math.log(0.5*(1-ratio)/ages[90],ratio)))
+    weights=[ratio**i for i in range(n)]
+    allocated=apportion(ages[90],weights)
+    return [(90+i,v) for i,v in enumerate(allocated) if v],ratio
 
-def census_daily(groups):
-    d=defaultdict(int); total=0; age_zero_weight=None
-    for a,b,pop,label in groups:
-        ages=list(range(a,b+1)); age_weights=apportion(pop,len(ages))
-        for age,w in zip(ages,age_weights):
-            if age==0: age_zero_weight=w
-            start=date(2021-age,8,1); end=date(2022-age,7,31); days=(end-start).days+1
-            for i,x in enumerate(apportion(w,days)):
-                if x: d[start+timedelta(days=i)]+=x
-        total+=pop
-    if age_zero_weight is None: raise ValueError('SIDRA: peso da idade zero ausente')
-    return d,total,age_zero_weight
-
-def extend_post_census(daily,age_zero_weight:int,cutoff:date, today:date|None=None):
-    if cutoff < CENSUS_DATE: raise ValueError('cutoff não pode preceder 2022-08-01')
-    current_date=today or date.today()
-    if cutoff > current_date: raise ValueError(f'cutoff não pode estar no futuro: {cutoff.isoformat()} > {current_date.isoformat()}')
-    # Declared approximation: repeat the age-zero average daily rate. Integer
-    # largest-remainder allocation is deterministic and conserves the implied
-    # total over the extrapolated interval.
-    days=(cutoff-CENSUS_DATE).days+1
-    annual_days=365
-    implied_total=round(age_zero_weight*days/annual_days)
-    for i,w in enumerate(apportion(implied_total,days)):
-        if w: daily[CENSUS_DATE+timedelta(days=i)]=w
+def daily_distribution(ages):
+    d=defaultdict(int)
+    expanded=[(a,ages[a]) for a in range(90)]
+    tail,ratio=expand_90_plus(ages); expanded+=tail
+    for age,pop in expanded:
+        start=date(REFERENCE_DATE.year-age-1,7,2); end=date(REFERENCE_DATE.year-age,7,1)
+        days=(end-start).days+1
+        for i,w in enumerate(apportion(pop,[1]*days)):
+            if w: d[start+timedelta(days=i)]+=w
+    return d,ratio
 
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest().upper()
 
 def main(argv=None):
     p=argparse.ArgumentParser()
-    p.add_argument('--sidra-9514',type=Path,required=True)
-    p.add_argument('--post-census-cutoff',type=date.fromisoformat,required=True)
-    p.add_argument('--out',type=Path,required=True); p.add_argument('--manifest',type=Path,required=True)
+    p.add_argument("--ibge-projection-xlsx",type=Path,required=True)
+    p.add_argument("--out",type=Path,required=True); p.add_argument("--manifest",type=Path,required=True)
     a=p.parse_args(argv)
-    groups=read_sidra(a.sidra_9514)
-    daily,census_total,age_zero_weight=census_daily(groups)
-    extend_post_census(daily,age_zero_weight,a.post_census_cutoff)
-    rows=[{'date':k.isoformat(),'births':v} for k,v in sorted(daily.items()) if v>0]
-    obj={'schema_version':SCHEMA,'source':'IBGE_CENSO_2022_SIDRA_9514_DECLARED_EXTRAPOLATION','reference_period':f'CENSO_2022_PLUS_EXTRAPOLATION_TO_{a.post_census_cutoff.isoformat()}','geography':'MUNICIPIO_SAO_PAULO_3550308','rows':rows}
+    ages,total=read_projection(a.ibge_projection_xlsx)
+    daily,ratio=daily_distribution(ages)
+    if sum(daily.values())!=total: raise ValueError("IBGE: distribuicao diaria nao conserva o total")
+    rows=[{"date":k.isoformat(),"births":v} for k,v in sorted(daily.items()) if v>0]
+    obj={"schema_version":SCHEMA,"source":"IBGE_PROJECAO_POPULACAO_REVISAO_2024","reference_period":"2026-07-01","geography":"UF_SP","rows":rows}
     a.out.parent.mkdir(parents=True,exist_ok=True)
-    a.out.write_text(json.dumps(obj,ensure_ascii=False,separators=(',',':'))+'\n',encoding='utf-8')
-    manifest={'schemaVersion':1,'referenceCode':'SYNTH_BIRTH_SP_CENSO2022_E1_V1','output':{'path':a.out.name,'schemaVersion':SCHEMA,'sha256':sha(a.out),'rowCount':len(rows)},'sources':[{'kind':'IBGE_SIDRA_9514','path':str(a.sidra_9514),'sha256':sha(a.sidra_9514),'municipality':'3550308','sex':'Total','ageDeclaration':'Total','referenceDate':'2022-08-01','populationWeight':census_total}],'model':{'censusAgeWindow':'idade k em 31/07/2022 => 01/08/(2021-k)..31/07/(2022-k)','withinWindow':'UNIFORM_DAY_LARGEST_REMAINDER','groupedAge':'UNIFORM_AGE_LARGEST_REMAINDER','centenarianTail':'100+ represented uniformly over ages 100..105; declared technical convention, not an IBGE age distribution','postCensus':{'method':'AGE_ZERO_DAILY_RATE_EXTRAPOLATION','start':'2022-08-01','cutoff':a.post_census_cutoff.isoformat(),'ageZeroPopulation':age_zero_weight,'allocation':'UNIFORM_DAY_LARGEST_REMAINDER'}},'runtimeNetworkDependency':False}
-    a.manifest.parent.mkdir(parents=True,exist_ok=True)
-    a.manifest.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    a.out.write_text(json.dumps(obj,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
+    manifest={"schemaVersion":2,"referenceCode":"SYNTH_BIRTH_SP_PROJECTION2024_2026_E2_V1","output":{"path":a.out.name,"schemaVersion":SCHEMA,"sha256":sha(a.out),"rowCount":len(rows)},"sources":[{"kind":"IBGE_PROJECAO_POPULACAO_REVISAO_2024","path":str(a.ibge_projection_xlsx),"fileName":SOURCE_FILE,"sha256":sha(a.ibge_projection_xlsx),"geography":"UF_SP","sex":"Total","referenceDate":"2026-07-01","populationWeight":total}],"model":{"ageWindow":"idade k em 01/07/2026 => 02/07/(2026-k-1)..01/07/(2026-k)","withinWindow":"UNIFORM_DAY_LARGEST_REMAINDER","open90Plus":{"method":"GEOMETRIC_DECAY_FROM_AGE_89_OVER_88","ratio":ratio,"externalDemographicParameter":False}},"runtimeNetworkDependency":False}
+    a.manifest.parent.mkdir(parents=True,exist_ok=True); a.manifest.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     return 0
-if __name__=='__main__': raise SystemExit(main())
+if __name__=="__main__": raise SystemExit(main())
