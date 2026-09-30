@@ -428,7 +428,10 @@ public sealed class SqlProbabilisticIdentityLinkage(
     {
         await using var connection = await operationalSql.OpenAsync(ct);
 
-        var command = new SqlCommand(
+        int? version = null;
+        string? algorithm = null;
+        var parameters = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        await using (var command = new SqlCommand(
             """
             SELECT m.modelo_id, m.versao, m.algoritmo_versao, p.nome, p.valor
             FROM identidade.modelo_linkage m
@@ -436,33 +439,63 @@ public sealed class SqlProbabilisticIdentityLinkage(
             WHERE m.modelo_id=@modelo_id
             ORDER BY p.nome;
             """,
-            connection);
-        command.Parameters.Add("@modelo_id", SqlDbType.UniqueIdentifier).Value = modelId;
-
-        int? version = null;
-        string? algorithm = null;
-        var parameters = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+            connection))
         {
-            version ??= reader.GetInt32(1);
-            algorithm ??= reader.GetString(2);
-            parameters[reader.GetString(3)] = reader.GetDecimal(4);
+            command.Parameters.Add("@modelo_id", SqlDbType.UniqueIdentifier).Value = modelId;
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                version ??= reader.GetInt32(1);
+                algorithm ??= reader.GetString(2);
+                parameters[reader.GetString(3)] = reader.GetDecimal(4);
+            }
         }
 
         if (version is null)
             throw new InvalidOperationException($"Modelo probabilístico {modelId} não encontrado.");
 
-        var model = LinkageModelPolicy.Create(modelId, version.Value, algorithm ?? "UNKNOWN", parameters);
+        var termFrequency = await LoadTermFrequencySnapshotAsync(connection, modelId, ct);
+        var model = LinkageModelPolicy.Create(
+            modelId, version.Value, algorithm ?? "UNKNOWN", parameters, termFrequency);
 
         logger.LogInformation(
-            "Modelo probabilístico carregado. ModeloId={ModelId}; Versão={Version}; Algoritmo={Algorithm}",
+            "Modelo probabilístico carregado. ModeloId={ModelId}; Versão={Version}; Algoritmo={Algorithm}; TFPessoa={TfPerson}; TFMae={TfMother}",
             model.ModelId,
             model.Version,
-            model.AlgorithmVersion);
+            model.AlgorithmVersion,
+            model.TermFrequency?.PersonFirstNameCount ?? 0,
+            model.TermFrequency?.MotherFirstNameCount ?? 0);
 
         return model;
+    }
+
+    private static async Task<NominalTermFrequencySnapshot?> LoadTermFrequencySnapshotAsync(
+        SqlConnection connection,
+        Guid modelId,
+        CancellationToken ct)
+    {
+        var entries = new List<NominalTermFrequencyEntry>();
+        await using var command = new SqlCommand(
+            """
+            SELECT atributo,valor_normalizado,ocorrencias,populacao_referencia,frequencia
+            FROM identidade.frequencia_linkage
+            WHERE modelo_id=@modelo_id
+            ORDER BY atributo,valor_normalizado;
+            """,
+            connection);
+        command.Parameters.Add("@modelo_id", SqlDbType.UniqueIdentifier).Value = modelId;
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            entries.Add(new NominalTermFrequencyEntry(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetInt64(2),
+                reader.GetInt64(3),
+                reader.GetDecimal(4)));
+        }
+
+        return entries.Count == 0 ? null : NominalTermFrequencySnapshot.Create(entries);
     }
 
     private async Task<IReadOnlyList<LinkageCandidate>> LoadCandidatesAsync(
