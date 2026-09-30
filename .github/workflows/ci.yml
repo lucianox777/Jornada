@@ -567,6 +567,52 @@ jobs:
           # continua 0,95 e não é relaxado para acomodar a calibração.
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -v SCALE_PEOPLE=5000 SCALE_PAIRED=4000 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 -i database/Jornada_Dev_SyntheticScale.sql
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -v SCALE_PEOPLE=5000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 -i database/Jornada_Dev_SyntheticScale_Diversify.sql
+      - name: Materialize E2 demographic-primary corpus (30000 / seed 42)
+        run: |
+          rm -rf .local/e2-demographic-primary
+          dotnet run --project src/Jornada.Linkage.SyntheticCorpus --configuration Release --no-build -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --out "$PWD/.local/e2-demographic-primary" \
+            --people 30000 \
+            --seed 42
+          python3 - <<'PY'
+          import csv, hashlib, json
+          from pathlib import Path
+          root=Path(".local/e2-demographic-primary")
+          manifest=json.loads((root/"generation-manifest.json").read_text())
+          truth=json.loads((root/"gabarito.json").read_text())
+          people=sum(1 for _ in open(root/"pessoas_verdade.csv",encoding="utf-8"))-1
+          observations=sum(1 for _ in open(root/"observacoes.csv",encoding="utf-8"))-1
+          assert manifest["population_profile"]=="DEMOGRAPHIC_PRIMARY_V1", manifest
+          assert manifest["seed"]==42, manifest
+          assert truth["people"]==30000==people, (truth["people"],people)
+          assert truth["observations"]==observations and observations>30000, (truth["observations"],observations)
+          d=manifest["demographic_primary"]
+          assert d["birth_sha256"]=="8B8498EC2ABE7DCBFAFED1D361D2A3AFAFF77CAD5BCE29A5927DA517FC236A9B", d
+          assert d["birth_row_count"]==39268, d
+          for o in manifest["outputs"]:
+              p=root/o["path"]
+              assert hashlib.sha256(p.read_bytes()).hexdigest().upper()==o["sha256"], o
+          print(json.dumps({
+              "people":people,
+              "observations":observations,
+              "input_fingerprint_sha256":manifest["input_fingerprint_sha256"],
+              "outputs":manifest["outputs"],
+              "birth_sha256":d["birth_sha256"],
+              "birth_row_count":d["birth_row_count"]
+          },sort_keys=True))
+          PY
+      - name: Upload E2 demographic-primary corpus evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2-demographic-primary-corpus
+          path: |
+            Solution/.local/e2-demographic-primary/generation-manifest.json
+            Solution/.local/e2-demographic-primary/gabarito.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Materialize canonical blocking projection for synthetic harness
         env:
           DOTNET_ENVIRONMENT: Development
