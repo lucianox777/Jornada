@@ -13,7 +13,7 @@ O XLSX oficial pertence à camada REF imutável. A geração é offline e regist
 
 Para idade simples `k`, a janela de nascimento é `02/07/(2026-k-1) .. 01/07/(2026-k)`. O peso da idade é distribuído uniformemente pelos dias da janela, com rateio inteiro determinístico e conservação do total.
 
-A entrada deve conter idades 0..89 e a categoria 90+. A categoria aberta 90+ é decomposta por decaimento geométrico cuja razão é derivada **do próprio snapshot**, pela razão população(89)/população(88); nenhum parâmetro demográfico externo é introduzido. O rateio conserva exatamente o total 90+.
+A entrada deve conter idades 0..89 e a categoria 90+. A categoria aberta 90+ é decomposta por decaimento geométrico cuja razão é derivada **do próprio snapshot**, pela razão população(89)/população(88). A decomposição sintética é limitada a **115 anos** como guarda versionada de plausibilidade contemporânea; esse limite **não é observação do IBGE, proibição cadastral ou limite estrutural**, e não se aplica a registros históricos de pessoas falecidas. O rateio por maior resto conserva exatamente o total publicado de 90+ entre 90 e 115 anos.
 
 A ferramenta falha fechado se faltar SP, sexo Total (rótulo `Ambos` no XLSX), 2026, qualquer idade exigida ou 90+, se a razão necessária à cauda for inválida, ou se a soma etária divergir do Total publicado quando esse Total estiver presente.
 
