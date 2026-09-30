@@ -315,7 +315,7 @@ public sealed class IndependentImplementationConferenceParityTests
                     ranked.LogOdds,
                     ranked.Score,
                     new ImplementationConferenceTermFrequency(
-                        .001m, .001m, .2m, .2m))
+                        "EXACT", .001m, .001m, "EXACT", .2m, .2m))
             ],
             new ImplementationConferenceDecision(
                 decision.Status,
