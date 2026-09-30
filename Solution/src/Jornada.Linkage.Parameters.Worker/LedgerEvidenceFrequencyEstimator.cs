@@ -36,9 +36,9 @@ public static class LedgerEvidenceFrequencyEstimator
 
         var attributes = matchedPairs.Concat(unmatchedPairs)
             .SelectMany(static p => Values(p.LeftResolutionValues).Concat(Values(p.RightResolutionValues)))
-            .Select(static v => ResolutionSourceField.Canonicalize(v.Attribute))
+             .Select(static v => v.Attribute.Trim())
             .Where(static code => PersonResolutionContractCatalog.All.Any(field =>
-                string.Equals(ResolutionSourceField.Canonicalize(field.Code), code, StringComparison.Ordinal)
+                string.Equals(field.Code, code, StringComparison.OrdinalIgnoreCase)
                 && field.EligibleForResolution))
             .Where(static code => code != PersonResolutionAttributeCatalog.FullName
                 && code != PersonResolutionAttributeCatalog.MotherName
