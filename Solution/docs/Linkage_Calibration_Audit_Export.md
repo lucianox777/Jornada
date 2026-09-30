@@ -38,7 +38,7 @@ O exportador não copia a tabela nominal de frequências linha a linha e não ex
 
 Os vetores TF são produzidos pela mesma implementação C# catalogada em `SplinkCompatibleTermFrequency`, incluindo casos comum/comum, raro/raro, raro/comum, piso e peso zero.
 
-A presença dos vetores **não habilita TF no scorer**. O JSON declara `runtimeEnabled=false`. Ativação operacional de term frequency continua sujeita à calibração no universo candidato, TRAIN/VALIDATION/TEST, avaliação por estrato e ao gate estatístico da issue #31.
+Os vetores, por si sós, **não habilitam TF**. O campo `runtimeEnabled` agora espelha o parâmetro persistido `SCORING_TERM_FREQUENCY_V1`: modelos históricos sem TF exportam `false`; novos V8 com TF persistido exportam `true` e exigem linhas de frequência associadas ao modelo. O exportador permanece somente leitura e não autoriza promoção; TRAIN/VALIDATION/TEST, orçamento de falso vínculo, DT-14 e a validação representativa da issue #31 continuam separados.
 
 ## Fronteira de segurança
 
@@ -78,7 +78,7 @@ A exportação é agora materializada como `LinkageCalibrationAuditDocument` tip
 
 O método corrente é `JORNADA_CALIBRATION_AUDIT_ROUNDTRIP_V1`.
 
-O importador é fail-closed: rejeita membros JSON desconhecidos, `schemaVersion/nature/purpose` divergentes, modelo fora de `ATIVO|VALIDADO`, diferença entre `statusAtExport` e o status do modelo, declaração de equivalência ao u aleatório padrão do Splink, mapeamento semântico indevidamente marcado como completo, lista de estados não bijetivos diferente do contrato, TF marcada como habilitada, proveniência nominal incompatível e passes associados a rulesets ausentes.
+O importador é fail-closed: rejeita membros JSON desconhecidos, `schemaVersion/nature/purpose` divergentes, modelo fora de `ATIVO|VALIDADO`, diferença entre `statusAtExport` e o status do modelo, declaração de equivalência ao u aleatório padrão do Splink, mapeamento semântico indevidamente marcado como completo, lista de estados não bijetivos diferente do contrato, divergência entre `runtimeEnabled` e os parâmetros TF persistidos, TF habilitado sem linhas de frequência, proveniência nominal incompatível e passes associados a rulesets ausentes.
 
 Rejeitar membros desconhecidos é deliberado: o round-trip não pode parecer conforme descartando silenciosamente um campo que o C# não entende. Como consequência, dados pessoais ou qualquer extensão não versionada inserida no JSON não são absorvidos silenciosamente pelo contrato v1.
 
