@@ -38,14 +38,7 @@ jobs:
   impact:
     runs-on: ubuntu-latest
     outputs:
-      any_dotnet: ${{ steps.classify.outputs.any_dotnet }}
-      run_unit: ${{ steps.classify.outputs.run_unit }}
-      run_deterministic: ${{ steps.classify.outputs.run_deterministic }}
-      run_security: ${{ steps.classify.outputs.run_security }}
-      run_integration: ${{ steps.classify.outputs.run_integration }}
-      run_harness: ${{ steps.classify.outputs.run_harness }}
-      run_ddl: ${{ steps.classify.outputs.run_ddl }}
-      run_e2e: ${{ steps.classify.outputs.run_e2e }}
+      run_full: ${{ steps.classify.outputs.run_full }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -61,7 +54,7 @@ jobs:
             git ls-files > changed-files.txt
           fi
           python3 Solution/scripts/ci-impact-classifier.py --files-from changed-files.txt --summary impact.json | tee impact.env
-          grep -E '^(any_dotnet|run_unit|run_deterministic|run_security|run_integration|run_harness|run_ddl|run_e2e)=' impact.env >> "$GITHUB_OUTPUT"
+          grep -E '^run_full=' impact.env >> "$GITHUB_OUTPUT"
       - run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -71,7 +64,7 @@ jobs:
 
   dependency-lock:
     needs: impact
-    if: needs.impact.outputs.any_dotnet == 'true'
+    if: needs.impact.outputs.run_full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -109,7 +102,7 @@ jobs:
 
   unit:
     needs: [impact, dependency-lock]
-    if: needs.impact.outputs.run_unit == 'true' && needs.dependency-lock.result == 'success'
+    if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -288,7 +281,7 @@ jobs:
 
   deterministic-build:
     needs: [impact, dependency-lock]
-    if: needs.impact.outputs.run_deterministic == 'true' && needs.dependency-lock.result == 'success'
+    if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -322,7 +315,7 @@ jobs:
 
   security-analysis:
     needs: [impact, dependency-lock]
-    if: needs.impact.outputs.run_security == 'true' && needs.dependency-lock.result == 'success'
+    if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -442,7 +435,7 @@ jobs:
 
   integration-sql:
     needs: [impact, dependency-lock]
-    if: needs.impact.outputs.run_integration == 'true' && needs.dependency-lock.result == 'success'
+    if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -531,7 +524,7 @@ jobs:
 
   harness-smoke:
     needs: [impact, dependency-lock]
-    if: needs.impact.outputs.run_harness == 'true' && needs.dependency-lock.result == 'success'
+    if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     defaults:
@@ -742,7 +735,7 @@ jobs:
 
   ddl-upgrade:
     needs: impact
-    if: needs.impact.outputs.run_ddl == 'true'
+    if: needs.impact.outputs.run_full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -772,7 +765,7 @@ jobs:
 
   e2e:
     needs: [impact, dependency-lock]
-    if: needs.impact.outputs.run_e2e == 'true' && needs.dependency-lock.result == 'success'
+    if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     defaults:
