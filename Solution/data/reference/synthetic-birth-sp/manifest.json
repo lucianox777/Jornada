@@ -1,9 +1,12 @@
 {
   "schemaVersion": 2,
   "referenceCode": "SYNTH_BIRTH_SP_PROJECTION2024_2026_E2_V1",
-  "status": "FROZEN_REF",
-  "sourcePolicy": "LOCAL_IMMUTABLE_REF",
-  "runtimeNetworkDependency": false,
+  "output": {
+    "path": "birth_daily_sp_projection2024_2026.json",
+    "schemaVersion": "JORNADA_SYNTH_BIRTH_DAILY_V1",
+    "sha256": "8B8498EC2ABE7DCBFAFED1D361D2A3AFAFF77CAD5BCE29A5927DA517FC236A9B",
+    "rowCount": 39268
+  },
   "sources": [
     {
       "kind": "IBGE_PROJECAO_POPULACAO_REVISAO_2024",
@@ -15,8 +18,7 @@
       "sourceSexLabel": "Ambos",
       "semanticSex": "Total",
       "referenceDate": "2026-07-01",
-      "populationWeight": 46179008,
-      "validation": "91 rows: ages 0..89 plus source age 90 representing the workbook open tail; exact sum 46179008"
+      "populationWeight": 46179008
     },
     {
       "kind": "IBGE_CENSO_2022_SIDRA_9514_TAIL_BENCHMARK",
@@ -31,33 +33,22 @@
       "role": "AUXILIARY_SHAPE_CALIBRATION_ONLY"
     }
   ],
-  "outputSchema": "JORNADA_SYNTH_BIRTH_DAILY_V1",
   "model": {
-    "referenceDate": "2026-07-01",
-    "ageWindow": "idade k => 02/07/(2026-k-1)..01/07/(2026-k)",
+    "ageWindow": "idade k em 01/07/2026 => 02/07/(2026-k-1)..01/07/(2026-k)",
     "withinWindow": "UNIFORM_DAY_LARGEST_REMAINDER",
     "open90Plus": {
       "sourceAgeLabel": "90",
       "semantic": "90+",
       "method": "GEOMETRIC_DECAY_CALIBRATED_TO_SP_CENSO2022_100_PLUS",
-      "census2022SpShare100Plus": 0.00011472321487637881,
+      "ratio": 0.7066500457917859,
+      "ratioParameterSource": "CALIBRATED_TO_FROZEN_CENSO2022_SP_100_PLUS_SHARE",
+      "census2022SpPopulation": 44411238,
+      "census2022Sp100Plus": 5095,
       "target2026Sp100Plus": 5298,
       "maxSyntheticAge": 115,
       "maxSyntheticAgeParameterSource": "DC_SYN_01_E2_VERSIONED_PLAUSIBILITY_GUARD",
       "maxSyntheticAgeSemantics": "NOT_IBGE_OBSERVATION_NOT_STRUCTURAL_LIMIT"
-    },
-    "postCensus": "NONE"
+    }
   },
-  "notes": [
-    "The immutable REF is the canonical SP/Ambos/2026 extraction from the official workbook supplied and SHA-256 verified.",
-    "The synthetic generator consumes only the immutable REF and has no runtime XLSX, IBGE or SIDRA dependency.",
-    "The projection is population stock by age at 01/07/2026, not observed births in 2026.",
-    "The Projection 2024 remains the stock source. SP Censo 2022 SIDRA 9514 is frozen only as an auxiliary 100+ shape benchmark for the open 90+ cell."
-  ],
-  "corpus": {
-    "defaultPeople": 30000,
-    "seed": 42,
-    "purpose": "DEMOGRAPHIC_PRIMARY_SYNTHETIC_CALIBRATION",
-    "samplingClaim": "NOT_A_PROBABILITY_SAMPLE_OF_REAL_RESIDENTS"
-  }
+  "runtimeNetworkDependency": false
 }
