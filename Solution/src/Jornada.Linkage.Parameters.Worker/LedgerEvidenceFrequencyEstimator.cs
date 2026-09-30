@@ -100,11 +100,39 @@ public static class LedgerEvidenceFrequencyEstimator
         if (source.Length == 0)
             return new HashSet<string>(StringComparer.Ordinal);
 
-        return ResolutionProjectionExecutor
-            .Project(BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan, source)
-            .Select(static key => key.Value)
+        if (!PersonResolutionAttributeCatalog.TryGet(attribute, out var contract))
+            return new HashSet<string>(StringComparer.Ordinal);
+
+        return source
+            .Select(value => CanonicalizeEvidenceValue(contract.Semantic, value.Value))
             .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(static value => value!)
             .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static string? CanonicalizeEvidenceValue(ResolutionAttributeSemantic semantic, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        try
+        {
+            return semantic switch
+            {
+                ResolutionAttributeSemantic.Phone => ContactCanonicalization.NormalizeBrazilianPhoneV2(value),
+                ResolutionAttributeSemantic.Email => ContactCanonicalization.NormalizeEmailV2(value),
+                ResolutionAttributeSemantic.PersonName => IdentityComparison.NormalizeText(value),
+                _ => value.Trim()
+            };
+        }
+        catch (InvalidDataException)
+        {
+            return null;
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
     }
 
     private static IEnumerable<ResolutionSourceValue> Values(
