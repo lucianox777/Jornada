@@ -40,8 +40,8 @@ public sealed class ProbabilisticV8TermFrequencyTests
     }
 
     [TestCase("MARIA SILVA", "MARIA SILVAA", NameComparisonState.HIGH)]
-    [TestCase("MARIA SILVA", "MARIA SIVLA", NameComparisonState.MEDIUM)]
-    [TestCase("MARIA SILVA", "MARIA COSTA", NameComparisonState.LOW)]
+    [TestCase("MARIA SILVA", "MARIA VIOL", NameComparisonState.MEDIUM)]
+    [TestCase("JOSIANE SANTOS", "ELISA SANTOS", NameComparisonState.LOW)]
     public void TF_is_neutral_outside_exact_name_state(
         string observedName,
         string candidateName,
