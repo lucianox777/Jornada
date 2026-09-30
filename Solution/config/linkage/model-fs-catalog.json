@@ -1,21 +1,21 @@
 {
   "schemaVersion": 2,
-  "catalogVersion": "LINKAGE_FS_CATALOG_V2_IBGE_BOOTSTRAP",
+  "catalogVersion": "LINKAGE_FS_CATALOG_V2_BOOTSTRAP_INPUT",
   "calibration": {
-    "kind": "BOOTSTRAP",
-    "source": "IBGE",
-    "immutableSnapshot": true
+    "kind": "BOOTSTRAP_INPUT",
+    "sources": ["IBGE", "GOLD"],
+    "immutableSnapshot": true,
+    "status": "INPUT"
   },
   "missingLogLikelihoodRatio": 0.0,
   "termFrequency": {
     "referenceU": "EXACT",
     "frequencySource": "IBGE",
     "minimumUParameter": "TERM_FREQUENCY_MIN_U",
-    "weights": {
-      "EXACT": 1.0,
-      "HIGH": 0.0,
-      "MEDIUM": 0.0,
-      "LOW": 0.0
+    "weightCalibration": {
+      "source": "GOLD",
+      "states": ["EXACT", "HIGH", "MEDIUM", "LOW"],
+      "publishedWeightsRequired": true
     }
   },
   "evidence": [
