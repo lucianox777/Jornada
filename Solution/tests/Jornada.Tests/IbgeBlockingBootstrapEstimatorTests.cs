@@ -7,6 +7,7 @@ namespace Jornada.Tests;
 public sealed class IbgeBlockingBootstrapEstimatorTests
 {
     private const string Hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    private static ReferencePopulationEvidence N(long n) => new(n, ReferencePopulationEvidence.CalibratorCorpusMethod, "cal-run-test", Hash);
 
     [Test]
     public void MariaSilvaStress_ExactIntersectionIsDiagnosticAndDeterministic()
@@ -22,8 +23,8 @@ public sealed class IbgeBlockingBootstrapEstimatorTests
                 new MarginalKeyProbability("birth:exact", 1d / 36525d, "DIAGNOSTIC_DATE_UNIFORM")
             }, "MARIA SILVA x MARIA SILVA; interseção exata primeiro.")
         };
-        var a = IbgeBlockingBootstrapEstimator.Estimate(10_000_000, "CENSO2022_NOMES_BRASIL_V1", Hash, passes, new FrequentKeyRule(.99), SurnameParticlePolicy.ExcludePortugueseParticles);
-        var b = IbgeBlockingBootstrapEstimator.Estimate(10_000_000, "CENSO2022_NOMES_BRASIL_V1", Hash, passes, new FrequentKeyRule(.99), SurnameParticlePolicy.ExcludePortugueseParticles);
+        var a = IbgeBlockingBootstrapEstimator.Estimate(N(10_000_000), "CENSO2022_NOMES_BRASIL_V1", Hash, passes, new FrequentKeyRule(.99), SurnameParticlePolicy.ExcludePortugueseParticles);
+        var b = IbgeBlockingBootstrapEstimator.Estimate(N(10_000_000), "CENSO2022_NOMES_BRASIL_V1", Hash, passes, new FrequentKeyRule(.99), SurnameParticlePolicy.ExcludePortugueseParticles);
 
         Assert.Multiple(() =>
         {
@@ -40,7 +41,7 @@ public sealed class IbgeBlockingBootstrapEstimatorTests
     {
         static BootstrapPassInput P(string id, BootstrapPassCategory c) =>
             new(id, c, new[] { new MarginalKeyProbability(id, .01, "scope") }, "reason");
-        var proposal = IbgeBlockingBootstrapEstimator.Estimate(1000, "ref", Hash,
+        var proposal = IbgeBlockingBootstrapEstimator.Estimate(N(1000), "ref", Hash,
             new[] { P("incomplete", BootstrapPassCategory.IncompleteRecovery), P("name", BootstrapPassCategory.NameVariant), P("date", BootstrapPassCategory.DateVariant), P("exact", BootstrapPassCategory.Exact) },
             new FrequentKeyRule(.75), SurnameParticlePolicy.Preserve);
         Assert.That(proposal.Passes.Select(x => x.PassId), Is.EqualTo(new[] { "exact", "date", "name", "incomplete" }));
@@ -82,7 +83,17 @@ public sealed class IbgeBlockingBootstrapEstimatorTests
     public void MissingSnapshotAndInvalidHash_FailClosed()
     {
         Assert.Throws<DirectoryNotFoundException>(() => IbgeBlockingSnapshotVerifier.Verify(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))));
-        Assert.Throws<ArgumentException>(() => IbgeBlockingBootstrapEstimator.Estimate(100, "ref", "bad", new[]
+        Assert.Throws<ArgumentException>(() => IbgeBlockingBootstrapEstimator.Estimate(N(100), "ref", "bad", new[]
+        {
+            new BootstrapPassInput("x", BootstrapPassCategory.Exact, new[] { new MarginalKeyProbability("x", .1, "scope") }, "r")
+        }, new FrequentKeyRule(.9), SurnameParticlePolicy.Preserve));
+    }
+
+    [Test]
+    public void NrefWithoutCalibratorProvenance_FailsClosed()
+    {
+        var invalid = new ReferencePopulationEvidence(100, "MANUAL", "run", Hash);
+        Assert.Throws<ArgumentException>(() => IbgeBlockingBootstrapEstimator.Estimate(invalid, "ref", Hash, new[]
         {
             new BootstrapPassInput("x", BootstrapPassCategory.Exact, new[] { new MarginalKeyProbability("x", .1, "scope") }, "r")
         }, new FrequentKeyRule(.9), SurnameParticlePolicy.Preserve));
@@ -91,7 +102,7 @@ public sealed class IbgeBlockingBootstrapEstimatorTests
     [Test]
     public void ImmutableJsonCarriesMethodNrefFingerprintAndWarning()
     {
-        var proposal = IbgeBlockingBootstrapEstimator.Estimate(1234, "ref", Hash, new[]
+        var proposal = IbgeBlockingBootstrapEstimator.Estimate(N(1234), "ref", Hash, new[]
         {
             new BootstrapPassInput("x", BootstrapPassCategory.Exact, new[] { new MarginalKeyProbability("x", .1, "scope") }, "r")
         }, new FrequentKeyRule(.9), SurnameParticlePolicy.Preserve);
@@ -101,6 +112,8 @@ public sealed class IbgeBlockingBootstrapEstimatorTests
             Assert.That(json, Does.Contain("NAO_PROMOCIONAL"));
             Assert.That(json, Does.Contain("MARGINAL_INDEPENDENCE_DIAGNOSTIC"));
             Assert.That(json, Does.Contain("1234"));
+            Assert.That(json, Does.Contain(ReferencePopulationEvidence.CalibratorCorpusMethod));
+            Assert.That(json, Does.Contain("cal-run-test"));
             Assert.That(json, Does.Contain(proposal.ResultFingerprintSha256));
         });
     }
