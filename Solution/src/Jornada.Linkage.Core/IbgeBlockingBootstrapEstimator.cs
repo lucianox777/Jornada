@@ -129,7 +129,7 @@ public sealed record FrequentKeyRule(double Quantile)
 {
     public double ResolveThreshold(IReadOnlyList<double> expectedCardinalities)
     {
-        if (Quantile is <= 0 or >= 1) throw new ArgumentOutOfRangeException(nameof(Quantile));
+        if (Quantile is <= 0 or >= 1) throw new ArgumentOutOfRangeException(nameof(expectedCardinalities), "Configured quantile must be strictly between 0 and 1.");
         if (expectedCardinalities.Count == 0) throw new ArgumentException("Distribution is empty.", nameof(expectedCardinalities));
         var ordered = expectedCardinalities.OrderBy(x => x).ToArray();
         var rank = (int)Math.Ceiling(Quantile * ordered.Length) - 1;
