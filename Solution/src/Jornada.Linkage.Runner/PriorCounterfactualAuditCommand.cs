@@ -309,7 +309,8 @@ internal static class PriorCounterfactualAuditCommand
             activeModel.ModelId,
             activeModel.Version,
             activeModel.AlgorithmVersion,
-            counterfactualParameters);
+            counterfactualParameters,
+            activeModel.TermFrequency);
 
         var noCandidateReason = string.IsNullOrWhiteSpace(row.PersistedReason)
             ? "SEM_CANDIDATO_NO_RULESET_BLOCKING"
