@@ -7,7 +7,7 @@
 
 Para a fila ativa de dívida técnica, consideram-se encerradas **DT-03, DT-04, DT-07, DT-08, DT-13 e DT-14**, nos escopos de aceite explicitamente registrados em suas linhas abaixo. Pendências externas ou evolutivas citadas nessas linhas (por exemplo, IdP/HML/PROD relacionado à DT-04) permanecem rastreadas separadamente e **não reabrem a dívida já aceita no seu escopo**. A **DT-16 permanece REVERTIDA**, não concluída, e não integra a fila ativa de entrega.
 
-Permanecem na fila ativa: **DT-01, DT-02, DT-05, DT-06, DT-09, DT-10, DT-11, DT-12, DT-15 e DT-17**, respeitando a decisão de executar a **DT-10 por último**.
+Permanecem na fila ativa: **DT-01, DT-02, DT-05, DT-06, DT-09, DT-10, DT-11, DT-12, DT-15 e DT-17**. A ordem vigente prioriza concluir o trabalho funcional em .NET 8, incluindo DT-10, antes do baseline E2E-A; depois executar DT-02 (.NET 10), E2E-B, DT-12 (limpeza) e E2E-C.
 
 ## Ordem proposta e critérios de aceite
 
@@ -58,6 +58,22 @@ A matriz transversal originalmente catalogada como DT-13 passa a **DT-17** porqu
 - Para testes de três ondas, usar `JornadaSyntheticDev`; preservar `JornadaLocal` e a referência IBGE. Não apresentar recall/precisão temporal como comprovados sem avaliador e evidência adequados.
 - Manter `codigoPessoaOrigem` opcional e `initial_uuid` como linhagem, nunca feature estatística.
 - Para cada item: registrar SHA-base, owner, issue/PR, testes executados, evidências, riscos, rollback e status real. Nenhum item desta tabela está declarado concluído por mera inclusão neste documento.
+
+### Sequência de estabilização e regressão — E2E-A/B/C e DT-17/A/B/C
+
+A documentação normativa precede a implementação: mudanças de arquitetura, ordem de execução e critérios de aceite devem ser registradas antes de alterar o código correspondente, para reduzir divergência entre contrato e implementação.
+
+A sequência vigente é:
+
+1. concluir o trabalho funcional pendente em **.NET 8**, incluindo **DT-10**;
+2. executar **E2E-A** no ambiente DEV/sintético isolado e consolidar **DT-17/A** como baseline, com HEAD/SHA, corpus e versões, resultados brutos, Actions e lacunas explícitas;
+3. executar **DT-02**, portando integralmente para **.NET 10**;
+4. repetir a mesma bateria como **E2E-B** e consolidar **DT-17/B**, comparando A × B e atribuindo qualquer diferença à migração ou registrando-a como lacuna;
+5. executar **DT-12**, a limpeza, somente após o baseline A e a prova B no .NET 10;
+6. repetir a bateria como **E2E-C** e consolidar **DT-17/C**, comparando A × B × C para demonstrar se a limpeza preservou o comportamento;
+7. encerrar **DT-17** somente após a consolidação C e o registro das diferenças justificadas e pendências externas.
+
+Cada consolidação DT-17 usa preferencialmente provas automáticas e reproduzíveis em DEV. Dependências exclusivas de HML/PROD/IdP que ainda não existam não são fabricadas nem bloqueiam artificialmente o estágio DEV: permanecem registradas como lacunas externas. **DT-17 não executa limpeza**; a remoção pertence à DT-12.
 
 ### Calibração por orçamento FP (DEV)
 
