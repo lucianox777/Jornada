@@ -11,7 +11,7 @@ Permanecem na fila ativa: **DT-01, DT-02, DT-05, DT-06, DT-09, DT-10, DT-11, DT-
 
 ## Ordem proposta e critérios de aceite
 
-**Decisão de execução atualizada em 30/09/2026:** manter `jornada-ci` sem divisão de jobs ou CI especializada; trabalhar em PRs incrementais e exigir os oito gates no HEAD exato antes de cada merge. **A DT-10 será a última entrega técnica** depois das demais correções aprováveis. A DT-16 foi **revertida**: o repositório volta a usar somente `Jornada.sln`; as cinco solutions especializadas, o gate de exclusividade e seus builds adicionais foram removidos. Não há migração física/CI especializado pendente na DT-16. Itens com decisão externa (identidade PRODAM, HML/Produção e políticas) continuam bloqueados até seus responsáveis deliberarem.
+**Decisão de execução atualizada em 30/09/2026:** manter `jornada-ci` sem divisão de jobs ou CI especializada; trabalhar em PRs incrementais. Gates técnicos integrais são exigidos no HEAD exato para mudanças substantivas de código/configuração/schema; PRs exclusivamente documentais usam validação documental leve e não ficam reféns da regressão técnica integral. **A DT-10 integra o fechamento funcional em .NET 8 antes do E2E-A/DT-17A**, conforme a sequência normativa abaixo. A DT-16 foi **revertida**: o repositório volta a usar somente `Jornada.sln`; as cinco solutions especializadas, o gate de exclusividade e seus builds adicionais foram removidos. Não há migração física/CI especializado pendente na DT-16. Itens com decisão externa (identidade PRODAM, HML/Produção e políticas) continuam bloqueados até seus responsáveis deliberarem.
 
 | ID | Prioridade | Dívida / ação | Critério verificável de aceite | Situação |
 |---|---|---|---|---|
