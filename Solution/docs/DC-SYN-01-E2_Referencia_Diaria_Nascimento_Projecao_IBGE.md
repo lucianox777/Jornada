@@ -13,13 +13,13 @@ O XLSX oficial pertence à camada REF imutável. A geração é offline e regist
 
 Para idade simples `k`, a janela de nascimento é `02/07/(2026-k-1) .. 01/07/(2026-k)`. O peso da idade é distribuído uniformemente pelos dias da janela, com rateio inteiro determinístico e conservação do total.
 
-A entrada deve conter idades 0..89 e a categoria 90+. A categoria aberta 90+ é decomposta por decaimento geométrico cuja razão é derivada **do próprio snapshot**, pela razão população(89)/população(88). A decomposição sintética é limitada a **115 anos** como guarda versionada de plausibilidade contemporânea; esse limite **não é observação do IBGE, proibição cadastral ou limite estrutural**, e não se aplica a registros históricos de pessoas falecidas. O rateio por maior resto conserva exatamente o total publicado de 90+ entre 90 e 115 anos.
+A entrada deve conter idades 0..89 e a categoria 90+. Como a Projeção 2024 publica 90+ como célula aberta, sua decomposição usa um **benchmark auxiliar oficial do Censo 2022 para a própria UF São Paulo**: Tabela SIDRA 9514, sexo Total, forma de declaração Total, 5.095 pessoas de 100 anos ou mais em 44.411.238 residentes. Esse percentual observado (≈0,01147%) é aplicado ao estoque projetado de 46.179.008 em 01/07/2026, produzindo alvo inteiro de **5.298 pessoas 100+** dentro da cauda. A razão geométrica da cauda 90–115 é então calibrada deterministicamente para atingir esse alvo, em vez de prolongar indefinidamente a razão 89/88. O Censo 2022 calibra somente a **forma interna** da célula aberta; o total populacional e o total 90+ continuam vindo da Projeção 2024. A decomposição permanece limitada a **115 anos**, decisão versionada desta E2; esse limite **não é observação do IBGE, proibição cadastral ou limite estrutural**, e não se aplica a registros históricos de pessoas falecidas. O rateio por maior resto conserva exatamente o total publicado de 90+.
 
 A ferramenta falha fechado se faltar SP, sexo Total (rótulo `Ambos` no XLSX), 2026, qualquer idade exigida ou 90+, se a razão necessária à cauda for inválida, ou se a soma etária divergir do Total publicado quando esse Total estiver presente.
 
 ## Mudança em relação à E1
 
-São removidos: SIDRA 9514, município 3550308, data censitária 01/08/2022, convenção uniforme 100–105 e extrapolação pós-Censo pela coorte de idade zero. Não há corte pós-Censo.
+São removidos como **fonte primária da distribuição**: SIDRA 9514 municipal, município 3550308, convenção uniforme 100–105 e extrapolação pós-Censo pela coorte de idade zero. A Tabela 9514 retorna apenas como benchmark auxiliar congelado de centenários da **UF São Paulo**, Censo 2022, para calibrar a forma da célula aberta 90+; não substitui a Projeção 2024 como estoque de referência. Não há corte pós-Censo.
 
 A referência representa **estoque populacional por idade em 01/07/2026**, não uma série observada de nascimentos. A uniformização dentro da janela anual é modelagem sintética declarada.
 
