@@ -69,6 +69,12 @@ O snapshot calibrado deve usar um único contrato corrente e conter os valores e
 
 Recalibração produz novo snapshot no mesmo schema lógico; o bundle seleciona atomicamente o snapshot vigente e seu fingerprint passa a integrar a identidade do modelo. O arquivo de entrada de bootstrap não pode, sozinho, ser tratado como prova de que os parâmetros calibrados do modelo foram congelados.
 
+### CI orientada ao impacto do diff
+
+A validação de PR deve executar os gates afetados pelo change-set, em vez de reconstruir e testar indiscriminadamente toda a solução. Um classificador único e versionado de impacto deve calcular, a partir do diff contra a base da PR, as superfícies afetadas (documentação, .NET/unit, SQL/DDL, integração, linkage/scorer, segurança, contratos/OpenAPI, dependências/toolchain e workflow/CI) e selecionar os gates correspondentes.
+
+A otimização é conservadora: alteração ambígua, arquivo não classificado, infraestrutura central, workflow, dependências, solution/project files, contratos compartilhados ou o próprio classificador força validação integral. `master`, tags/release e execução manual de acreditação continuam podendo exigir o conjunto integral. PR exclusivamente documental usa apenas validações documentais/estáticas pertinentes. Gates selecionados continuam obrigatórios e não podem ser convertidos em sucesso artificial; o relatório do classificador deve registrar arquivos alterados, superfícies ativadas e razão de cada gate executado ou dispensado.
+
 ### Sequência de estabilização e regressão — E2E-A/B/C e DT-17/A/B/C
 
 A documentação normativa precede a implementação: mudanças de arquitetura, ordem de execução e critérios de aceite devem ser registradas antes de alterar o código correspondente, para reduzir divergência entre contrato e implementação.
