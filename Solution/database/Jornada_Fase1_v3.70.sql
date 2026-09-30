@@ -63,4 +63,5 @@
 :r database/migrations/20260928_Linkage_Neutral_Missing_V8.sql
 :r database/migrations/20260929_RF052_Bootstrap_Persistido_Geracao.sql
 :r database/migrations/20260930_Linkage_TF_Conference_Fingerprint.sql
+:r database/migrations/20260930_Linkage_Z_Model_Config_Bundle_Fingerprint.sql
 :r database/migrations/20260910_Schema_Consolidation_370.sql
