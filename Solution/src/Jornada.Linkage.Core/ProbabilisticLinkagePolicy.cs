@@ -3,7 +3,8 @@ using Jornada.Contracts;
 namespace Jornada.Linkage.Runner;
 
 internal sealed record LinkageModel(Guid ModelId, int Version, string AlgorithmVersion,
-    IReadOnlyDictionary<string, decimal> Parameters, decimal Threshold, decimal ConflictMargin)
+    IReadOnlyDictionary<string, decimal> Parameters, decimal Threshold, decimal ConflictMargin,
+    NominalTermFrequencySnapshot? TermFrequency = null)
 {
     // Snapshot de cálculo: conversão única dos parâmetros persistidos.
     internal IReadOnlyDictionary<string, double> NumericParameters { get; } =
@@ -27,7 +28,12 @@ internal sealed record CandidateScore(Guid PessoaUuid, decimal Score, decimal Lo
 
 internal static class LinkageModelPolicy
 {
-    internal static LinkageModel Create(Guid modelId, int version, string algorithm, IReadOnlyDictionary<string, decimal> parameters)
+    internal static LinkageModel Create(
+        Guid modelId,
+        int version,
+        string algorithm,
+        IReadOnlyDictionary<string, decimal> parameters,
+        NominalTermFrequencySnapshot? termFrequency = null)
     {
         var missing = LinkageParameterCatalog.CoreScoringRequired.Where(x => !parameters.ContainsKey(x)).ToArray();
         if (missing.Length > 0) throw new InvalidOperationException($"Modelo incompleto. Parâmetros ausentes: {string.Join(", ", missing)}");
@@ -46,6 +52,19 @@ internal static class LinkageModelPolicy
                     throw new InvalidOperationException($"V8 exige {LinkageParameterCatalog.NeutralMissingEvidenceScoring} habilitado.");
                 if (parameters.ContainsKey("M_NOME_MAE_MISSING") || parameters.ContainsKey("U_NOME_MAE_MISSING"))
                     throw new InvalidOperationException("V8 não admite probabilidades M/U para ausência; somente SUPPORT_*_MISSING diagnóstico.");
+                if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyScoring, out var tfEnabled) || tfEnabled < 1m)
+                    throw new InvalidOperationException($"V8 exige {LinkageParameterCatalog.TermFrequencyScoring} habilitado.");
+                if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyFirstTokenContract, out var tfContract) || tfContract < 1m)
+                    throw new InvalidOperationException($"V8 exige {LinkageParameterCatalog.TermFrequencyFirstTokenContract}.");
+                if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyWeight, out var tfWeight) || tfWeight <= 0m)
+                    throw new InvalidOperationException($"V8 exige {LinkageParameterCatalog.TermFrequencyWeight} positivo.");
+                if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyMinimumU, out var tfMinimumU)
+                    || tfMinimumU <= 0m || tfMinimumU > 1m)
+                    throw new InvalidOperationException($"V8 exige {LinkageParameterCatalog.TermFrequencyMinimumU} em (0,1].");
+                if (termFrequency is null || termFrequency.PersonFirstNameCount == 0 || termFrequency.MotherFirstNameCount == 0)
+                    throw new InvalidOperationException("V8 exige snapshot TF persistido de pessoa e mãe.");
+                if (parameters.ContainsKey(LinkageParameterCatalog.NonUniqueDemographicExactGuard))
+                    throw new InvalidOperationException("V8 não admite o guard demográfico fixo legado.");
             }
             else if (parameters.TryGetValue(LinkageParameterCatalog.NeutralMissingEvidenceScoring, out var neutralFlag) && neutralFlag >= 1m)
                 throw new InvalidOperationException("Modelos V6/V7 não admitem o contrato de ausência neutra V8.");
@@ -70,7 +89,9 @@ internal static class LinkageModelPolicy
         }
 
         var margin = decisionEvidence ? parameters[LinkageParameterCatalog.LogOddsConflictMargin] : parameters[LinkageParameterCatalog.ConflictMargin];
-        var model = new LinkageModel(modelId, version, algorithm, parameters, parameters[LinkageParameterCatalog.Threshold], margin);
+        var model = new LinkageModel(
+            modelId, version, algorithm, parameters,
+            parameters[LinkageParameterCatalog.Threshold], margin, termFrequency);
         _ = SupportsSemanticBirthScoring(model); _ = SupportsJointBirthScoring(model); _ = SupportsSingleBirthScoring(model); _ = SupportsBirthComponentScoring(model);
         return model;
     }
@@ -145,6 +166,13 @@ internal static class ProbabilisticLinkageDecisions
                     uniqueCandidates.Count,
                     observation.DataNascimento,
                     candidate.DataNascimento);
+                rawScore = ApplyTermFrequency(
+                    model,
+                    observation,
+                    candidate,
+                    nameState,
+                    motherNameState,
+                    rawScore);
                 var score = FellegiSunterScoring.ToContractScore(rawScore);
                 var demographicExactCollisionRisk =
                     nameState == NameComparisonState.EXACT &&
@@ -160,6 +188,65 @@ internal static class ProbabilisticLinkageDecisions
             .OrderByDescending(x => decisionEvidence ? x.LogOdds : x.Score)
             .ThenBy(x => x.PessoaUuid)
             .ToArray();
+    }
+
+    private static FellegiSunterRawScore ApplyTermFrequency(
+        LinkageModel model,
+        IdentityObservation observation,
+        LinkageCandidate candidate,
+        NameComparisonState? nameState,
+        NameComparisonState? motherNameState,
+        FellegiSunterRawScore raw)
+    {
+        var isV8 = string.Equals(
+            model.AlgorithmVersion,
+            LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
+            StringComparison.Ordinal);
+        if (!isV8
+            || !model.Parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyScoring, out var enabled)
+            || enabled < 1m)
+            return raw;
+
+        var snapshot = model.TermFrequency
+            ?? throw new InvalidOperationException("V8 com TF habilitado exige snapshot nominal persistido.");
+        var weight = model.Parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyWeight, out var configuredWeight)
+            ? configuredWeight
+            : throw new InvalidOperationException("V8 com TF habilitado exige TERM_FREQUENCY_WEIGHT.");
+        var minimumU = model.Parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyMinimumU, out var configuredMinimum)
+            ? configuredMinimum
+            : throw new InvalidOperationException("V8 com TF habilitado exige TERM_FREQUENCY_MIN_U.");
+
+        double adjustment = 0d;
+        if (nameState is { } ns
+            && snapshot.TryGetPersonFirstName(observation.NomeCompleto, out var leftName)
+            && snapshot.TryGetPersonFirstName(candidate.NomeCompleto, out var rightName))
+        {
+            adjustment += SplinkCompatibleTermFrequency.LogBayesAdjustment(
+                leftName,
+                rightName,
+                model.Parameters[$"U_NOME_{ns}"],
+                weight,
+                minimumU);
+        }
+
+        if (motherNameState is { } ms
+            && snapshot.TryGetMotherFirstName(observation.NomeMae, out var leftMother)
+            && snapshot.TryGetMotherFirstName(candidate.NomeMae, out var rightMother))
+        {
+            adjustment += SplinkCompatibleTermFrequency.LogBayesAdjustment(
+                leftMother,
+                rightMother,
+                model.Parameters[$"U_NOME_MAE_{ms}"],
+                weight,
+                minimumU);
+        }
+
+        if (adjustment == 0d)
+            return raw;
+
+        var logOdds = raw.LogOdds + adjustment;
+        var posterior = 1d / (1d + Math.Exp(-Math.Clamp(logOdds, -40d, 40d)));
+        return new FellegiSunterRawScore(posterior, logOdds);
     }
 
     internal static ProbabilisticLinkageDecision Resolve(LinkageModel model, IdentityObservation observation, IReadOnlyList<LinkageCandidate> candidates)
