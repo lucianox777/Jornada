@@ -213,85 +213,97 @@
   "candidateGraph": {
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
-    "sourceCommit": "bcc94f548dc4cf778411452ff858c76980979ed8",
-    "githubRunId": "35755475367",
-    "sdk": "8.0.424",
-    "reason": "PR #433 compartilha a política de calibração de decisão com o evaluator via Jornada.Linkage.Core. O diagnóstico SDK 8.0.424 force-evaluate do run 35682617704 alterou exatamente os metadados ProjectReference de Evaluation e seus consumidores Conference/Integration; nenhum pacote externo mudou. PR #439 inclui agora referência direta ao evaluator no projeto de testes unitários; o SDK alterou somente o bloco ProjectReference do lock de Jornada.Tests, conforme dependency-lock run 35755475367. DT-04 inclui o projeto Jornada.Access.Security, os ProjectReference da Jornada.Api/Resultado.Api e os locks dos dois projetos de testes; o SDK 8.0.424 comprovou equivalência de grafo (ajuste apenas da quebra de linha do novo lock). Com Resultado.Api incluída na Solution, o SDK removeu as abstrações Microsoft.Extensions já satisfeitas pelo framework ASP.NET compartilhado do projeto novo; lock corrigido conforme diff do CI. PR #532: grafo atualizado pelo CI dependency-lock; hashes de três locks alterados. Gate 6 exclui os dois projetos da Solução de Apoio do inventário principal sem alterar hashes dos outros projetos.",
+    "sourceCommit": "586e37a9ea8ed6df5b16e66a53ecb74d2b36fee1",
+    "githubRunId": "36738161134",
+    "sdk": "10.0.100",
+    "reason": "DT-02: grafo candidato regenerado de forma determinística pelo dependency-lock no SDK .NET 10.0.100 após migração de TFM/pacotes. O atestado histórico v4.05/.NET 8 permanece imutável; estes hashes pertencem exclusivamente ao candidateGraph v5.00.",
     "lockCount": 21,
-    "changedLockCount": 18,
-    "combinedSha256": "e863dde07c68712310990266838d94520ca45b619273112b2cda5651fbfeb7c9",
+    "changedLockCount": 21,
+    "combinedSha256": "31281e85535ecfb662387f27b59d1155e4703e6ba5deeaa9b5384633027d8e62",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
-        "sha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9"
+        "sha256": "9e1b1ba8e689d3c0ce15a62d13dfbb7007eb18cf15fbb9d2567efd68adf29358"
       },
       {
         "path": "src/Jornada.Api/packages.lock.json",
-        "sha256": "6556e2c9a5b68a41f2fa78dc089732e9d5e6ba5267e1e6c1eabf497d8be88707"
+        "sha256": "5c01b197818a9d2935c0b7812f046f05c9547769546fff928d561771dcc98485"
       },
       {
         "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
-        "sha256": "da3310e03d551d957d6f5295f6344460ca1715d77018312e1893d2cc9b2e5793"
+        "sha256": "f82323cb2d71d01c5e15d02aed9c7f6884200f9eac02876c076e2bc6c752ecc1"
+      },
+      {
+        "path": "src/Jornada.Bronze.Storage/packages.lock.json",
+        "sha256": "a29c6aa8cfb81874ff8bb78dc369d7416f28c9b8cc47e99592bfc019b20c41eb"
       },
       {
         "path": "src/Jornada.Bronze.Verify/packages.lock.json",
-        "sha256": "f16e98037a393cff9bef5c40197db60e82f0df0366e3495d4567461b75df3477"
+        "sha256": "cf109eac46625561268cca7874c56be3ab25d2c4651aa048c31c8d4de85640d6"
+      },
+      {
+        "path": "src/Jornada.Contracts/packages.lock.json",
+        "sha256": "a29c6aa8cfb81874ff8bb78dc369d7416f28c9b8cc47e99592bfc019b20c41eb"
       },
       {
         "path": "src/Jornada.Ensaio/packages.lock.json",
-        "sha256": "6390dfb9d50e2fdb04d87e3217ba93ac3db1d3977328e9819f0d339d58023d72"
+        "sha256": "660d0c274ecd039c3ea77fc887685d17839439155eaaca76bd4329047356bfb7"
+      },
+      {
+        "path": "src/Jornada.Ingestion/packages.lock.json",
+        "sha256": "9e1b1ba8e689d3c0ce15a62d13dfbb7007eb18cf15fbb9d2567efd68adf29358"
       },
       {
         "path": "src/Jornada.Linkage.Conference/packages.lock.json",
-        "sha256": "73890091892b0d5e2304597f746b50591749a904fc6cb4f2094185d5d38e9de9"
+        "sha256": "e5b4495ee6a541f475450e7688c2a9e22810ee07a7cef854fcc2289a1fdfa20b"
       },
       {
         "path": "src/Jornada.Linkage.Core/packages.lock.json",
-        "sha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9"
+        "sha256": "9e1b1ba8e689d3c0ce15a62d13dfbb7007eb18cf15fbb9d2567efd68adf29358"
       },
       {
         "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
-        "sha256": "ccee100eb66c7be9edc81169896be7ed41a86f2b27eb5fd4147f2482d951df40"
+        "sha256": "468bc9b06c3f311537319306c5fda29f989e6769c8d39cbe84a4c9714d54ee21"
       },
       {
         "path": "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
-        "sha256": "1ad25dc21dd2faa0e50c140d3946da7815435f4816a01dd489452f6f0a578841"
+        "sha256": "60ff3f739ba93a5b28e8984829a11fe380482a5c075fc19dd46543ec41477a4b"
       },
       {
         "path": "src/Jornada.Linkage.Runner/packages.lock.json",
-        "sha256": "1ad25dc21dd2faa0e50c140d3946da7815435f4816a01dd489452f6f0a578841"
+        "sha256": "60ff3f739ba93a5b28e8984829a11fe380482a5c075fc19dd46543ec41477a4b"
       },
       {
         "path": "src/Jornada.Linkage.SyntheticCorpus/packages.lock.json",
-        "sha256": "37f341c42329dd0e4831ffcd31ca02a879685566b19e94b23464ebf38d129388"
+        "sha256": "230682764e47f98929b3a77d325c2a18db5b97a96dd1b356abe25212f96164ad"
       },
       {
         "path": "src/Jornada.Operational.Sql/packages.lock.json",
-        "sha256": "ff40971c9524193fddd81cc387a2349d30355dc25dc20728d15cdd360cc31c93"
+        "sha256": "ce128b05e62cfc3b341949a3e9f900bce8e5e078281f90489dd0355c3f8a1d57"
       },
       {
         "path": "src/Jornada.Operations.Maintenance.Worker/packages.lock.json",
-        "sha256": "da3310e03d551d957d6f5295f6344460ca1715d77018312e1893d2cc9b2e5793"
+        "sha256": "f82323cb2d71d01c5e15d02aed9c7f6884200f9eac02876c076e2bc6c752ecc1"
       },
       {
         "path": "src/Jornada.Pipeline.Coordination/packages.lock.json",
-        "sha256": "ecac8b942d58945defd1eef60c0909bc1c13e791274dcd3bbafcc43610cc607a"
+        "sha256": "70b537713ea661eac89b841dfa932eb931329da2e03e7d766a49fc74d46ddbe9"
       },
       {
         "path": "src/Jornada.Processor.Worker/packages.lock.json",
-        "sha256": "27ad575fbd6a92980930f08cdb93637f4cd3a8e32026cdff6b82d44f447cf333"
+        "sha256": "d543ee9a632cfe044fa7a4e373c9bae00879101e63bc91a30c09472cc01b14a8"
       },
       {
         "path": "src/Jornada.Resultado.Api/packages.lock.json",
-        "sha256": "7f8e85db8cde11711505c7a2555ab76250f93d0fe1b73a1c8e54e7d1ef7c151d"
+        "sha256": "cbb6b535377acfc3036ebacc8d7ddc8e505caa0e5418a8397e8d4f4564d77624"
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "9ec1c545963e9197db759cc0fe9940864994f20855dd7ae136a3d426dbee452a"
+        "sha256": "f8ad85931b2a08d5ae0b563272f44bd191de4198905b68783218e59996e7d775"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "633018b764a99332cc6fd8d5802ad704482c5769c55cd837abcc84f2b1a2d2d6"
+        "sha256": "ddc3931b7bd193eb25994daffb86d9bdf86623355eb347ba34ab8157eee1e290"
       }
     ]
   }
