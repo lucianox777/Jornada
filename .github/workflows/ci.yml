@@ -570,10 +570,17 @@ jobs:
       - name: Materialize E2 demographic-primary corpus (30000 / seed 42)
         run: |
           rm -rf .local/e2-demographic-primary
+          mkdir -p .local/e2-demographic-primary
+          python3 tools/birth-reference/generate_birth_reference.py \
+            --ibge-ref data/reference/synthetic-birth-sp/ibge_projection_2024_sp_ambos_2026.csv \
+            --tail-benchmark data/reference/synthetic-birth-sp/ibge_censo_2022_sp_100_plus_benchmark.csv \
+            --out .local/e2-demographic-primary/birth_daily_sp_projection2024_2026.json \
+            --manifest .local/e2-demographic-primary/birth-reference-manifest.json
+          test "$(sha256sum .local/e2-demographic-primary/birth_daily_sp_projection2024_2026.json | cut -d' ' -f1 | tr '[:lower:]' '[:upper:]')" = "8B8498EC2ABE7DCBFAFED1D361D2A3AFAFF77CAD5BCE29A5927DA517FC236A9B"
           dotnet run --project src/Jornada.Linkage.SyntheticCorpus --configuration Release --no-build -- generate \
             --reference-root "$PWD/data/reference/ibge-nomes-2022" \
             --population-profile demographic-primary \
-            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --birth-daily-source "$PWD/.local/e2-demographic-primary/birth_daily_sp_projection2024_2026.json" \
             --out "$PWD/.local/e2-demographic-primary" \
             --people 30000 \
             --seed 42
@@ -609,6 +616,7 @@ jobs:
         with:
           name: e2-demographic-primary-corpus
           path: |
+            Solution/.local/e2-demographic-primary/birth-reference-manifest.json
             Solution/.local/e2-demographic-primary/generation-manifest.json
             Solution/.local/e2-demographic-primary/gabarito.json
           if-no-files-found: error
