@@ -64,7 +64,7 @@ public sealed class IbgeBlockingBootstrapEstimatorTests
     [Test]
     public void DateMatrix_CombinedPlannerHandlesLeapTransposeNeighborAndFutureDeterministically()
     {
-        static IdentityObservation O(DateOnly d) => new(null, "MARIA SILVA", "MARIA SILVA", d);
+        static IdentityObservation O(DateOnly d) => new(null, "NAO_INFORMADO", "MARIA SILVA", d, "MARIA SILVA");
         var leap = CombinedIdentityCandidatePlanner.Plan(O(new DateOnly(2024, 2, 29)));
         var transpose = CombinedIdentityCandidatePlanner.Plan(O(new DateOnly(2024, 3, 4)));
         var future = CombinedIdentityCandidatePlanner.Plan(O(new DateOnly(2099, 1, 1)));
