@@ -1,32 +1,34 @@
 {
   "schemaVersion": 2,
   "referenceCode": "SYNTH_BIRTH_SP_PROJECTION2024_2026_E2_V1",
-  "status": "GENERATED_BY_TOOL",
-  "sourcePolicy": "LOCAL_IMMUTABLE_SNAPSHOT",
+  "status": "FROZEN_REF",
+  "sourcePolicy": "LOCAL_IMMUTABLE_REF",
   "runtimeNetworkDependency": false,
   "sources": [{
     "kind": "IBGE_PROJECAO_POPULACAO_REVISAO_2024",
-    "fileName": "projecoes_2024_tab1_idade_simples.xlsx",
+    "officialFileName": "projecoes_2024_tab1_idade_simples.xlsx",
+    "officialFileSha256": "6E5C3D21A2E8FF50BADD7BE2785E1664B41A43277543BE541641B0CD802C3205",
+    "refPath": "ibge_projection_2024_sp_ambos_2026.csv",
+    "refSha256": "07B2E48B085E17AFD2990651769B151E34DD8DE1FE32A9B14A9B693ED39BD29B",
     "geography": "UF_SP",
-    "sex": "Total",
+    "sourceSexLabel": "Ambos",
+    "semanticSex": "Total",
     "referenceDate": "2026-07-01",
-    "publisher": "IBGE",
-    "sourceUrl": "https://ftp.ibge.gov.br/Projecao_da_Populacao/Projecao_da_Populacao_2024/projecoes_2024_tab1_idade_simples.xlsx",
-    "snapshotRule": "freeze official XLSX in immutable REF and record SHA-256",
-    "validation": "FAIL_CLOSED: SP + Total + 2026; ages 0..89 plus 90+; age sum must equal declared Total when present"
+    "populationWeight": 46179008,
+    "validation": "91 rows: ages 0..89 plus source age 90 representing the workbook open tail; exact sum 46179008"
   }],
   "outputSchema": "JORNADA_SYNTH_BIRTH_DAILY_V1",
   "model": {
     "referenceDate": "2026-07-01",
     "ageWindow": "idade k => 02/07/(2026-k-1)..01/07/(2026-k)",
     "withinWindow": "UNIFORM_DAY_LARGEST_REMAINDER",
-    "open90Plus": "geometric decay derived from population age 89 / age 88 in the same frozen workbook; no external demographic parameter",
+    "open90Plus": "source age 90 is treated as 90+; geometric decay ratio population(89)/population(88), derived from the same immutable REF; no external demographic parameter",
     "postCensus": "NONE"
   },
   "notes": [
-    "The synthetic generator consumes the immutable daily reference and has no runtime IBGE/SIDRA dependency.",
-    "The projection is population stock by age at 01/07/2026, not observed births in 2026.",
-    "Uniform day allocation is a deterministic synthetic-data convention."
+    "The immutable REF is the canonical SP/Ambos/2026 extraction from the official workbook supplied and SHA-256 verified.",
+    "The synthetic generator consumes only the immutable REF and has no runtime XLSX, IBGE or SIDRA dependency.",
+    "The projection is population stock by age at 01/07/2026, not observed births in 2026."
   ],
   "corpus": {"defaultPeople":30000,"seed":42,"purpose":"DEMOGRAPHIC_PRIMARY_SYNTHETIC_CALIBRATION","samplingClaim":"NOT_A_PROBABILITY_SAMPLE_OF_REAL_RESIDENTS"}
 }
