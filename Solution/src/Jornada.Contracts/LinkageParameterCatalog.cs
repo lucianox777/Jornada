@@ -21,6 +21,10 @@ public static class LinkageParameterCatalog
     public const string DualThresholdConflictFloorV2 = "SCORING_DUAL_THRESHOLD_CONFLICT_FLOOR_V2";
     public const string DualThresholdConflictFloor = "DUAL_THRESHOLD_CONFLICT_FLOOR";
     public const string NonUniqueDemographicExactGuard = "SCORING_NON_UNIQUE_DEMOGRAPHIC_EXACT_GUARD_V1";
+    public const string TermFrequencyScoring = "SCORING_TERM_FREQUENCY_V1";
+    public const string TermFrequencyWeight = "TERM_FREQUENCY_WEIGHT";
+    public const string TermFrequencyMinimumU = "TERM_FREQUENCY_MIN_U";
+    public const string TermFrequencyFirstTokenContract = "TF_NOMINAL_FIRST_TOKEN_V1";
     public const string OrderedNameLlrMonotonicity = "MODEL_COHERENCE_ORDERED_NAME_LLR_V1";
     public const string NameComparisonPtBrContentTokenGuardV2 = "SCORING_NAME_PTBR_CONTENT_TOKEN_GUARD_V2";
     public const string AbbreviationCompatibilityDiagnosticV1 = "DIAG_ABBREV_COMPATIBLE_V1";
