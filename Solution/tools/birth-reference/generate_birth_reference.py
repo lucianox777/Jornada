@@ -12,6 +12,8 @@ SOURCE_XLSX="projecoes_2024_tab1_idade_simples.xlsx"
 SOURCE_XLSX_SHA256="6E5C3D21A2E8FF50BADD7BE2785E1664B41A43277543BE541641B0CD802C3205"
 EXPECTED_TOTAL=46179008
 MAX_SYNTHETIC_AGE=115
+CENSUS_SP_2022_TOTAL=44411238
+CENSUS_SP_2022_100_PLUS=5095
 
 def read_ref(path:Path):
     ages={}
@@ -36,15 +38,21 @@ def apportion(total:int,weights):
     return out
 
 def expand_90_plus(ages):
-    ratio=ages[89]/ages[88]
-    if not 0<ratio<1: raise ValueError(f"IBGE REF: razao 89/88 invalida: {ratio}")
-    # The source publishes one open 90+ cell. Use only the source-derived
-    # 89/88 ratio for relative weights, but bound the synthetic disaggregation
-    # to the repository's declared contemporary plausibility support. The cap
-    # is a modelling guard, not an IBGE observation; largest remainder keeps
-    # the complete published 90+ population.
-    weights=[ratio**i for i in range(MAX_SYNTHETIC_AGE-90+1)]
-    allocated=apportion(ages[90],weights)
+    # The projection publishes one open 90+ cell. Calibrate a smooth geometric
+    # disaggregation so its 100+ share matches the observed SP Censo 2022
+    # centenarian share, applied to the 2026 projected total. This uses Censo
+    # only to shape the open cell; the Projection remains the population stock.
+    target_100_plus=round(EXPECTED_TOTAL*CENSUS_SP_2022_100_PLUS/CENSUS_SP_2022_TOTAL)
+    n=MAX_SYNTHETIC_AGE-90+1
+    def allocate(r): return apportion(ages[90],[r**i for i in range(n)])
+    lo,hi=0.01,0.999
+    for _ in range(80):
+        mid=(lo+hi)/2
+        if sum(allocate(mid)[10:]) < target_100_plus: lo=mid
+        else: hi=mid
+    ratio=hi; allocated=allocate(ratio)
+    if sum(allocated[10:])!=target_100_plus:
+        raise ValueError("IBGE REF: calibracao 100+ nao converge ao benchmark congelado")
     return [(90+i,v) for i,v in enumerate(allocated) if v],ratio
 
 def daily_distribution(ages):
@@ -69,7 +77,7 @@ def main(argv=None):
     rows=[{"date":k.isoformat(),"births":v} for k,v in sorted(daily.items()) if v>0]
     obj={"schema_version":SCHEMA,"source":"IBGE_PROJECAO_POPULACAO_REVISAO_2024_REF","reference_period":"2026-07-01","geography":"UF_SP","rows":rows}
     a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(obj,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
-    manifest={"schemaVersion":2,"referenceCode":"SYNTH_BIRTH_SP_PROJECTION2024_2026_E2_V1","output":{"path":a.out.name,"schemaVersion":SCHEMA,"sha256":sha(a.out),"rowCount":len(rows)},"sources":[{"kind":"IBGE_PROJECAO_POPULACAO_REVISAO_2024","officialFileName":SOURCE_XLSX,"officialFileSha256":SOURCE_XLSX_SHA256,"refPath":str(a.ibge_ref),"refSha256":sha(a.ibge_ref),"geography":"UF_SP","sourceSexLabel":"Ambos","semanticSex":"Total","referenceDate":"2026-07-01","populationWeight":total}],"model":{"ageWindow":"idade k em 01/07/2026 => 02/07/(2026-k-1)..01/07/(2026-k)","withinWindow":"UNIFORM_DAY_LARGEST_REMAINDER","open90Plus":{"sourceAgeLabel":"90","semantic":"90+","method":"GEOMETRIC_DECAY_FROM_AGE_89_OVER_88","ratio":ratio,"decayRatioParameterSource":"FROZEN_IBGE_REF_AGE_89_OVER_88","maxSyntheticAge":MAX_SYNTHETIC_AGE,"maxSyntheticAgeParameterSource":"VERSIONED_REPOSITORY_PLAUSIBILITY_GUARD","maxSyntheticAgeSemantics":"NOT_IBGE_OBSERVATION_NOT_STRUCTURAL_LIMIT"}},"runtimeNetworkDependency":False}
+    manifest={"schemaVersion":2,"referenceCode":"SYNTH_BIRTH_SP_PROJECTION2024_2026_E2_V1","output":{"path":a.out.name,"schemaVersion":SCHEMA,"sha256":sha(a.out),"rowCount":len(rows)},"sources":[{"kind":"IBGE_PROJECAO_POPULACAO_REVISAO_2024","officialFileName":SOURCE_XLSX,"officialFileSha256":SOURCE_XLSX_SHA256,"refPath":str(a.ibge_ref),"refSha256":sha(a.ibge_ref),"geography":"UF_SP","sourceSexLabel":"Ambos","semanticSex":"Total","referenceDate":"2026-07-01","populationWeight":total}],"model":{"ageWindow":"idade k em 01/07/2026 => 02/07/(2026-k-1)..01/07/(2026-k)","withinWindow":"UNIFORM_DAY_LARGEST_REMAINDER","open90Plus":{"sourceAgeLabel":"90","semantic":"90+","method":"GEOMETRIC_DECAY_CALIBRATED_TO_SP_CENSO2022_100_PLUS","ratio":ratio,"ratioParameterSource":"CALIBRATED_TO_FROZEN_CENSO2022_SP_100_PLUS_SHARE","census2022SpPopulation":CENSUS_SP_2022_TOTAL,"census2022Sp100Plus":CENSUS_SP_2022_100_PLUS,"target2026Sp100Plus":round(total*CENSUS_SP_2022_100_PLUS/CENSUS_SP_2022_TOTAL),"maxSyntheticAge":MAX_SYNTHETIC_AGE,"maxSyntheticAgeParameterSource":"DC_SYN_01_E2_VERSIONED_PLAUSIBILITY_GUARD","maxSyntheticAgeSemantics":"NOT_IBGE_OBSERVATION_NOT_STRUCTURAL_LIMIT"}},"runtimeNetworkDependency":False}
     a.manifest.parent.mkdir(parents=True,exist_ok=True); a.manifest.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     return 0
 if __name__=="__main__": raise SystemExit(main())
