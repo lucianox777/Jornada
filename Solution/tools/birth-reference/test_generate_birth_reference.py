@@ -31,6 +31,11 @@ class T(unittest.TestCase):
    try:
     with self.assertRaisesRegex(ValueError,"difere do Total"): g.read_ref(p)
    finally: g.EXPECTED_TOTAL=old
+ def test_tail_benchmark_contract(self):
+  p=P.parents[2]/"data/reference/synthetic-birth-sp/ibge_censo_2022_sp_100_plus_benchmark.csv"
+  rows=g.read_tail_benchmark(p)
+  self.assertEqual(rows["population_total"],44411238)
+  self.assertEqual(rows["population_100_plus"],5095)
  def test_90_plus_decay_and_conservation(self):
   p=P.parents[2]/"data/reference/synthetic-birth-sp/ibge_projection_2024_sp_ambos_2026.csv"
   ages,total=g.read_ref(p); tail,r=g.expand_90_plus(ages)
