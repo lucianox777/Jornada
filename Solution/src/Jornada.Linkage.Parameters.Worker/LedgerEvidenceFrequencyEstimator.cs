@@ -97,15 +97,16 @@ public static class LedgerEvidenceFrequencyEstimator
         IReadOnlyList<ResolutionSourceValue>? values,
         string attribute)
     {
+        var canonicalAttribute = ResolutionSourceField.Canonicalize(attribute);
         var source = Values(values)
             .Where(v => string.Equals(
-                ResolutionSourceField.Canonicalize(v.Attribute), attribute, StringComparison.Ordinal))
+                ResolutionSourceField.Canonicalize(v.Attribute), canonicalAttribute, StringComparison.Ordinal))
             .ToArray();
         if (source.Length == 0)
             return new HashSet<string>(StringComparer.Ordinal);
 
         var contract = PersonResolutionContractCatalog.All.FirstOrDefault(field =>
-            string.Equals(ResolutionSourceField.Canonicalize(field.Code), attribute, StringComparison.Ordinal)
+            string.Equals(ResolutionSourceField.Canonicalize(field.Code), canonicalAttribute, StringComparison.Ordinal)
             && field.EligibleForResolution);
         if (contract is null)
             return new HashSet<string>(StringComparer.Ordinal);
