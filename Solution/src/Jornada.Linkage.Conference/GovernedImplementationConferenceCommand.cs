@@ -723,7 +723,7 @@ internal static class ImplementationConferenceCorpus
             ? (decimal?)null
             : model.Parameters["U_NOME_MAE_EXACT"];
         return new ImplementationConferenceTermFrequency(
-            nameFrequency, nameFrequency, motherFrequency, motherFrequency);
+            nameState, nameFrequency, nameFrequency, motherState, motherFrequency, motherFrequency);
     }
 
     private static NamedConferenceRequest BuildTermFrequencyScenario(
@@ -775,8 +775,10 @@ internal static class ImplementationConferenceCorpus
                         ranked.LogOdds,
                         ranked.Score,
                         new ImplementationConferenceTermFrequency(
+                            "EXACT",
                             person.Frequency,
                             person.Frequency,
+                            "EXACT",
                             mother.Frequency,
                             mother.Frequency))
                 ],
