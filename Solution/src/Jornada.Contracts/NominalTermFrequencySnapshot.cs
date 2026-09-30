@@ -7,6 +7,10 @@ public sealed record NominalTermFrequencyEntry(
     long PopulationReference,
     decimal Frequency);
 
+public sealed record NominalTermFrequencyValue(
+    string ValueNormalized,
+    decimal Frequency);
+
 /// <summary>
 /// Snapshot imutável das frequências nominais persistidas com o modelo.
 /// Não consulta IBGE/ref no hot path e não infere frequência ausente como zero.
@@ -35,6 +39,16 @@ public sealed class NominalTermFrequencySnapshot
     public int PersonFirstNameCount => personFirst.Count;
     public int MotherFirstNameCount => motherFirst.Count;
     public decimal MinimumPublishedFrequency { get; }
+
+    public IReadOnlyList<NominalTermFrequencyValue> PersonFirstNames =>
+        personFirst.OrderBy(static x => x.Key, StringComparer.Ordinal)
+            .Select(static x => new NominalTermFrequencyValue(x.Key, x.Value))
+            .ToArray();
+
+    public IReadOnlyList<NominalTermFrequencyValue> MotherFirstNames =>
+        motherFirst.OrderBy(static x => x.Key, StringComparer.Ordinal)
+            .Select(static x => new NominalTermFrequencyValue(x.Key, x.Value))
+            .ToArray();
 
     public static NominalTermFrequencySnapshot Create(IEnumerable<NominalTermFrequencyEntry> entries)
     {
