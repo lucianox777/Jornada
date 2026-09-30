@@ -15,6 +15,8 @@ namespace Jornada.Tests.Integration;
 [NonParallelizable]
 public sealed class DT10PublicationPlanVolumeSqlServerTests
 {
+    private static readonly JsonSerializerOptions EvidenceJsonOptions = new() { WriteIndented = true };
+
     [Test]
     public async Task Scalar_and_set_based_are_measured_relatively_at_growing_synthetic_volumes()
     {
@@ -60,7 +62,7 @@ public sealed class DT10PublicationPlanVolumeSqlServerTests
             absoluteCapacityClaim = false,
             generatedAtUtc = DateTimeOffset.UtcNow,
             measurements
-        }, new JsonSerializerOptions { WriteIndented = true });
+        }, EvidenceJsonOptions);
         var evidencePath = Path.Combine(TestContext.CurrentContext.WorkDirectory,
             $"dt10-plan-volume-{DateTime.UtcNow:yyyyMMddHHmmss}.json");
         await File.WriteAllTextAsync(evidencePath, json);
