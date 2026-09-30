@@ -18,6 +18,7 @@ public sealed record LinkageModelConfigurationBundle(
 public static class LinkageModelConfigurationBundleValidator
 {
     public const string FingerprintAlgorithm = "SHA256_CANONICAL_JSON_V1";
+    private static readonly JsonSerializerOptions CanonicalJsonOptions = new() { WriteIndented = false };
 
     public static LinkageModelConfigurationBundle LoadAndValidate(string directory)
     {
@@ -83,7 +84,7 @@ public static class LinkageModelConfigurationBundleValidator
         JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, file)));
 
     private static string CanonicalJson(JsonElement element) =>
-        JsonSerializer.Serialize(element, new JsonSerializerOptions { WriteIndented = false });
+        JsonSerializer.Serialize(element, CanonicalJsonOptions);
 
     private static void Require(bool condition, string message)
     {
