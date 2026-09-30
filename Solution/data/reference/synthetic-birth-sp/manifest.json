@@ -17,6 +17,18 @@
       "referenceDate": "2026-07-01",
       "populationWeight": 46179008,
       "validation": "91 rows: ages 0..89 plus source age 90 representing the workbook open tail; exact sum 46179008"
+    },
+    {
+      "kind": "IBGE_CENSO_2022_SIDRA_9514_TAIL_BENCHMARK",
+      "refPath": "ibge_censo_2022_sp_100_plus_benchmark.csv",
+      "refSha256": "D2ABE3BCE64D52F4A429EEA17C9892B8D1182F90F642B402085D19524C5909E3",
+      "geography": "UF_SP",
+      "sex": "Total",
+      "age": "100+",
+      "declaration": "Total",
+      "populationTotal": 44411238,
+      "population100Plus": 5095,
+      "role": "AUXILIARY_SHAPE_CALIBRATION_ONLY"
     }
   ],
   "outputSchema": "JORNADA_SYNTH_BIRTH_DAILY_V1",
@@ -27,10 +39,11 @@
     "open90Plus": {
       "sourceAgeLabel": "90",
       "semantic": "90+",
-      "method": "GEOMETRIC_DECAY_FROM_AGE_89_OVER_88_BOUNDED",
-      "decayRatioParameterSource": "FROZEN_IBGE_REF_AGE_89_OVER_88",
+      "method": "GEOMETRIC_DECAY_CALIBRATED_TO_SP_CENSO2022_100_PLUS",
+      "census2022SpShare100Plus": 0.00011472321487637881,
+      "target2026Sp100Plus": 5298,
       "maxSyntheticAge": 115,
-      "maxSyntheticAgeParameterSource": "VERSIONED_REPOSITORY_PLAUSIBILITY_GUARD",
+      "maxSyntheticAgeParameterSource": "DC_SYN_01_E2_VERSIONED_PLAUSIBILITY_GUARD",
       "maxSyntheticAgeSemantics": "NOT_IBGE_OBSERVATION_NOT_STRUCTURAL_LIMIT"
     },
     "postCensus": "NONE"
@@ -39,7 +52,7 @@
     "The immutable REF is the canonical SP/Ambos/2026 extraction from the official workbook supplied and SHA-256 verified.",
     "The synthetic generator consumes only the immutable REF and has no runtime XLSX, IBGE or SIDRA dependency.",
     "The projection is population stock by age at 01/07/2026, not observed births in 2026.",
-    "The 90+ synthetic disaggregation conserves the published open-cell total, uses the frozen 89/88 ratio for relative weights, and is bounded at age 115 by a versioned repository plausibility guard; 115 is not an IBGE observation or a structural/cadastral age limit."
+    "The Projection 2024 remains the stock source. SP Censo 2022 SIDRA 9514 is frozen only as an auxiliary 100+ shape benchmark for the open 90+ cell."
   ],
   "corpus": {
     "defaultPeople": 30000,
