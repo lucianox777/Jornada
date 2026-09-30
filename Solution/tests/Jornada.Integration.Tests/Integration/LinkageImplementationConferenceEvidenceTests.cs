@@ -105,6 +105,60 @@ public sealed class LinkageImplementationConferenceEvidenceTests
     }
 
     [Test]
+    public async Task Term_frequency_mutation_invalidates_conference_evidence_fingerprint()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareAsync(connectionString);
+
+        var modelId = Guid.NewGuid();
+        var version = 915000 + Random.Shared.Next(1, 40000);
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        await using (var insert = connection.CreateCommand())
+        {
+            insert.CommandText = """
+                INSERT identidade.modelo_linkage(
+                    modelo_id,versao,status,algoritmo_versao,normalizacao_versao,
+                    deduplicacao_metodo,base_referencia,gerado_em,amostra_metodo)
+                VALUES(
+                    @id,@versao,'RASCUNHO','TEST_GOVERNANCE_TF_V1','TEST_NORMALIZATION_V1',
+                    'TEST_ONLY','gold.pessoa',SYSDATETIMEOFFSET(),'TEST_ONLY');
+
+                INSERT identidade.frequencia_linkage(
+                    modelo_id,atributo,valor_normalizado,ocorrencias,
+                    populacao_referencia,frequencia)
+                VALUES(@id,N'NOME_PRENOME',N'MARIA',6,10,0.600000000000);
+                """;
+            insert.Parameters.AddWithValue("@id", modelId);
+            insert.Parameters.AddWithValue("@versao", version);
+            await insert.ExecuteNonQueryAsync();
+        }
+
+        await RegisterAsync(
+            connection, modelId, version, "CONFORME", 2, 0.0000005m, true, null, 20);
+        await AssertGateAsync(connection, modelId);
+
+        await using (var mutate = connection.CreateCommand())
+        {
+            mutate.CommandText = """
+                UPDATE identidade.frequencia_linkage
+                SET ocorrencias=5,frequencia=0.500000000000
+                WHERE modelo_id=@id
+                  AND atributo=N'NOME_PRENOME'
+                  AND valor_normalizado=N'MARIA';
+                """;
+            mutate.Parameters.AddWithValue("@id", modelId);
+            await mutate.ExecuteNonQueryAsync();
+        }
+
+        var stale = Assert.ThrowsAsync<SqlException>(async () =>
+            await AssertGateAsync(connection, modelId));
+        Assert.That(stale!.Number, Is.EqualTo(51989));
+    }
+
+    [Test]
     public async Task Divergent_evidence_without_primary_divergence_is_rejected()
     {
         var connectionString = RequireIntegrationConnection();
