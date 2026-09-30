@@ -56,7 +56,9 @@ public static class LinkageModelConfigurationBundleValidator
         }
 
         Require(fsDoc.RootElement.GetProperty("missingLogLikelihoodRatio").GetDecimal() == 0m,
-            "MISSING deve permanecer neutro (LLR=0) no bundle V1.");
+            "MISSING deve permanecer neutro (LLR=0) no bundle.");
+
+        ValidateFsCalibrationSnapshot(fsDoc.RootElement);
 
         var canonical = string.Join("\n",
             CanonicalJson(baseDoc.RootElement),
@@ -70,6 +72,36 @@ public static class LinkageModelConfigurationBundleValidator
             blockingDoc.RootElement.GetProperty("catalogVersion").GetString()!,
             fsDoc.RootElement.GetProperty("catalogVersion").GetString()!,
             fingerprint);
+    }
+
+    private static void ValidateFsCalibrationSnapshot(JsonElement fs)
+    {
+        Require(fs.GetProperty("schemaVersion").GetInt32() >= 2,
+            "Snapshot FS deve usar schemaVersion >= 2.");
+        var calibration = fs.GetProperty("calibration");
+        Require(calibration.GetProperty("immutableSnapshot").GetBoolean(),
+            "Snapshot FS publicado deve ser imutável.");
+        Require(!string.IsNullOrWhiteSpace(calibration.GetProperty("kind").GetString()),
+            "Snapshot FS exige calibration.kind.");
+        var sources = calibration.GetProperty("sources").EnumerateArray()
+            .Select(static x => x.GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Require(sources.Contains("IBGE") && sources.Contains("GOLD"),
+            "Bootstrap FS deve declarar IBGE e Gold como fontes de calibração.");
+        Require(calibration.GetProperty("status").GetString() == "INPUT",
+            "Catálogo FS versionado representa a entrada governada do bootstrap.");
+
+        var tf = fs.GetProperty("termFrequency");
+        Require(tf.GetProperty("referenceU").GetString() == "EXACT",
+            "TF deve manter u_EXACT como referência.");
+        var weightCalibration = tf.GetProperty("weightCalibration");
+        Require(weightCalibration.GetProperty("source").GetString() == "GOLD",
+            "Pesos TF devem ser calibrados no Gold, não fixados pelo bootstrap.");
+        Require(weightCalibration.GetProperty("publishedWeightsRequired").GetBoolean(),
+            "Snapshot FS operacional deve exigir pesos TF publicados pelo calibrador.");
+        var states = weightCalibration.GetProperty("states").EnumerateArray()
+            .Select(static x => x.GetString()!).ToHashSet(StringComparer.Ordinal);
+        foreach (var state in new[] { "EXACT", "HIGH", "MEDIUM", "LOW" })
+            Require(states.Contains(state), $"Calibração TF deve cobrir o estado {state}.");
     }
 
     private static string RequiredFile(JsonElement components, string name)

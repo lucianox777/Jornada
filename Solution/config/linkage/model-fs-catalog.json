@@ -1,10 +1,26 @@
 {
-  "schemaVersion": 1,
-  "catalogVersion": "LINKAGE_FS_CATALOG_V1",
+  "schemaVersion": 2,
+  "catalogVersion": "LINKAGE_FS_CATALOG_V2_BOOTSTRAP_INPUT",
+  "calibration": {
+    "kind": "BOOTSTRAP_INPUT",
+    "sources": ["IBGE", "GOLD"],
+    "immutableSnapshot": true,
+    "status": "INPUT"
+  },
   "missingLogLikelihoodRatio": 0.0,
+  "termFrequency": {
+    "referenceU": "EXACT",
+    "frequencySource": "IBGE",
+    "minimumUParameter": "TERM_FREQUENCY_MIN_U",
+    "weightCalibration": {
+      "source": "GOLD",
+      "states": ["EXACT", "HIGH", "MEDIUM", "LOW"],
+      "publishedWeightsRequired": true
+    }
+  },
   "evidence": [
-    { "attribute": "nome_completo", "states": ["EXACT", "PARTIAL", "DISAGREE", "MISSING"] },
-    { "attribute": "nome_mae", "states": ["EXACT", "PARTIAL", "DISAGREE", "MISSING"] },
+    { "attribute": "nome_completo", "states": ["EXACT", "HIGH", "MEDIUM", "LOW", "MISSING"] },
+    { "attribute": "nome_mae", "states": ["EXACT", "HIGH", "MEDIUM", "LOW", "MISSING"] },
     { "attribute": "data_nascimento", "states": ["EXACT", "DISAGREE", "MISSING"] },
     { "attribute": "TELEFONE_CONTATO", "states": ["EXACT", "DISAGREE", "MISSING"] },
     { "attribute": "EMAIL_CONTATO", "states": ["EXACT", "DISAGREE", "MISSING"] }

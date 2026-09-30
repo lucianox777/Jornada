@@ -17,7 +17,7 @@ public sealed class LinkageModelConfigurationBundleValidatorTests
             Assert.That(bundle.BundleVersion, Is.EqualTo("LINKAGE_MODEL_CONFIG_BUNDLE_V1"));
             Assert.That(bundle.BaseCatalogVersion, Is.EqualTo("LINKAGE_BASE_CATALOG_V1"));
             Assert.That(bundle.BlockingCatalogVersion, Is.EqualTo("LINKAGE_BLOCKING_CATALOG_V1"));
-            Assert.That(bundle.FsCatalogVersion, Is.EqualTo("LINKAGE_FS_CATALOG_V1"));
+            Assert.That(bundle.FsCatalogVersion, Is.EqualTo("LINKAGE_FS_CATALOG_V2_BOOTSTRAP_INPUT"));
             Assert.That(bundle.FingerprintSha256, Has.Length.EqualTo(64));
         });
     }
