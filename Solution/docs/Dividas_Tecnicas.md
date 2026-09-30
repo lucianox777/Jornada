@@ -59,6 +59,16 @@ A matriz transversal originalmente catalogada como DT-13 passa a **DT-17** porqu
 - Manter `codigoPessoaOrigem` opcional e `initial_uuid` como linhagem, nunca feature estatística.
 - Para cada item: registrar SHA-base, owner, issue/PR, testes executados, evidências, riscos, rollback e status real. Nenhum item desta tabela está declarado concluído por mera inclusão neste documento.
 
+### Contrato FS calibrado antes do E2E-A
+
+O catálogo FS de bootstrap é **entrada de calibração**, não o artefato final do modelo. Antes do E2E-A, o fluxo governado deve ser:
+
+`IBGE + Gold + catálogo FS de bootstrap → calibrador → snapshot FS calibrado completo e imutável → bundle/fingerprint → modelo`.
+
+O snapshot calibrado deve usar um único contrato corrente e conter os valores efetivamente publicados necessários para reproduzir o score FS, incluindo probabilidades/pesos por estado estimáveis, parâmetros de term frequency efetivamente selecionados e proveniência suficiente para distinguir frequências nominais IBGE da calibração baseada em Gold. `MISSING` permanece neutro (`LLR=0`) enquanto este for o contrato vigente. Não se preserva compatibilidade com formatos intermediários de desenvolvimento.
+
+Recalibração produz novo snapshot no mesmo schema lógico; o bundle seleciona atomicamente o snapshot vigente e seu fingerprint passa a integrar a identidade do modelo. O arquivo de entrada de bootstrap não pode, sozinho, ser tratado como prova de que os parâmetros calibrados do modelo foram congelados.
+
 ### Sequência de estabilização e regressão — E2E-A/B/C e DT-17/A/B/C
 
 A documentação normativa precede a implementação: mudanças de arquitetura, ordem de execução e critérios de aceite devem ser registradas antes de alterar o código correspondente, para reduzir divergência entre contrato e implementação.
