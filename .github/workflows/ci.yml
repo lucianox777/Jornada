@@ -552,8 +552,7 @@ jobs:
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/Jornada_Fase1_v3.70.sql
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/Jornada_Seed_Dev.sql
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/migrations/20260907_Cpf_Ancora.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/migrations/20260910_Schema_Consolidation_370.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/migrations/20260930_Linkage_Z_Model_Config_Bundle_Fingerprint.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/migrations/20260910_Schema_Consolidation_370.sql -i database/migrations/20260930_Linkage_Z_Model_Config_Bundle_Fingerprint.sql
           DOTNET_ENVIRONMENT=Development \
           LinkageParameters__Operation=LOAD_NAME_FREQUENCY_SNAPSHOT \
           NameFrequencySnapshot__ManifestPath="$PWD/data/reference/ibge-nomes-2022/manifest.json" \
