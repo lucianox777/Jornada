@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "referenceCode": "SYNTH_BIRTH_SP_CENSO2022_E1_V1",
+  "status": "GENERATED_BY_TOOL",
+  "sourcePolicy": "LOCAL_IMMUTABLE_SNAPSHOT",
+  "runtimeNetworkDependency": false,
+  "sources": [
+    {
+      "kind": "IBGE_SIDRA_9514",
+      "municipality": "3550308",
+      "sex": "Total",
+      "ageDeclaration": "Total",
+      "referenceDate": "2022-08-01",
+      "title": "Censo Demografico 2022 - Tabela 9514: Populacao residente, por sexo, idade e forma de declaracao da idade",
+      "publisher": "IBGE",
+      "sourceUrl": "https://sidra.ibge.gov.br/tabela/9514",
+      "variable": "Populacao residente",
+      "snapshotRule": "freeze exported file and record SHA-256",
+      "validation": "FAIL_CLOSED: ages 0..99 plus 100+ required; no overlap; age sum must equal declared Total"
+    }
+  ],
+  "outputSchema": "JORNADA_SYNTH_BIRTH_DAILY_V1",
+  "model": {
+    "centenarianTail": "100+ => ages 100..105 uniformly; declared technical convention",
+    "postCensus": "extend age-zero daily rate from 2022-08-01 through explicit cutoff not later than generation date; future cutoff rejected fail-closed; declared approximation"
+  },
+  "notes": [
+    "Single demographic source: IBGE Censo 2022 / SIDRA 9514.",
+    "SINASC intentionally not used by DC-SYN-01-E1; post-Census dates are declared extrapolation, not observed births.",
+    "Uniform day allocation does not model weekday, holidays or conventional dates such as 01/01.",
+    "100..105 is a declared technical convention for the open 100+ category, not an IBGE observation.",
+    "No remote source is consulted by the synthetic generator at runtime.",
+    "Post-Census cutoff must not be later than the generation date."
+  ],
+  "corpus": {
+    "defaultPeople": 30000,
+    "seed": 42,
+    "purpose": "DEMOGRAPHIC_PRIMARY_SYNTHETIC_CALIBRATION",
+    "samplingClaim": "NOT_A_PROBABILITY_SAMPLE_OF_REAL_RESIDENTS"
+  }
+}

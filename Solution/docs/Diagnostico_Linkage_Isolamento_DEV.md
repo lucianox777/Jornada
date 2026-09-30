@@ -1,5 +1,7 @@
 # Diagnósticos DEV/HML: isolamento de ondas e custo do Linkage
 
+
+> **Nota de vigência (29/09/2026):** os `20.000` deste documento pertencem ao ensaio DEV histórico de três ondas aqui descrito e **não** definem o tamanho padrão do corpus `demographic-primary`. O padrão vigente desse corpus é **30.000**, conforme [DC-SYN-01-E1](DC-SYN-01-E1_Referencia_Diaria_Nascimento.md). Os comandos abaixo são preservados como reprodução do ensaio específico.
 ## Guarda do ensaio sintético (#449)
 
 O `local-synthetic-calibration.ps1` usa Bronze temporária acessível apenas

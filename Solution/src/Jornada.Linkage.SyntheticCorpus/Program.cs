@@ -242,7 +242,7 @@ static string ResolveReferenceRoot(IReadOnlyDictionary<string, string> values)
 static SyntheticCorpusOptions ParseCorpusOptions(IReadOnlyDictionary<string, string> values)
 {
     var options = new SyntheticCorpusOptions(
-        People: GetInt(values, "people", 20_000),
+        People: GetInt(values, "people", 30_000),
         Seed: GetUlong(values, "seed", 42),
         ErrorProfile: Get(values, "error-profile") ?? "correlated",
         MinFrequency: GetLong(values, "min-freq", 20),
@@ -347,7 +347,7 @@ static void PrintUsage()
             [--population-profile legacy|demographic-primary]
             [--birth-daily-source <arquivo.json> (obrigatório em demographic-primary; sem fallback uniforme)]
             [--out <dir>]
-            [--people <N>]
+            [--people <N> (default 30000; corpus demografico primario)]
             [--seed <N>]
             [--error-profile clean|independent|correlated|field]
             [--min-freq <N>]
