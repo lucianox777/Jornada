@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using System.Data;
+using System.Globalization;
 using Jornada.Operational.Sql;
 
 namespace Jornada.Tests.Integration;
@@ -171,7 +172,7 @@ public sealed class DT10PublicationEvidenceSqlServerTests
             await using var state = connection.CreateCommand();
             state.Transaction = tx;
             state.CommandText = "SELECT XACT_STATE();";
-            Assert.That(Convert.ToInt32(await state.ExecuteScalarAsync()), Is.EqualTo(-1));
+            Assert.That(Convert.ToInt32(await state.ExecuteScalarAsync(), CultureInfo.InvariantCulture), Is.EqualTo(-1));
         }
         finally
         {
