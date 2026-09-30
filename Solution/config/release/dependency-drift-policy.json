@@ -19,7 +19,71 @@
       "from": null,
       "to": "5.2.2",
       "justification": "Novo orquestrador governado de conferência de Linkage precisa abrir transação SERIALIZABLE e chamar procedures de auditoria no SQL Server. Reutiliza exatamente Microsoft.Data.SqlClient 5.2.2 já congelado no grafo da solução; não introduz nova família nem upgrade."
+    },
+    {
+      "kind": "MAJOR",
+      "project": "Solution/src/Jornada.Api/Jornada.Api.csproj",
+      "package": "Microsoft.Data.SqlClient",
+      "from": "5.2.2",
+      "to": "6.1.7",
+      "justification": "DT-02: migração governada para .NET 10 LTS; atualização explícita do grafo NuGet necessária para compatibilidade com o runtime/SDK 10. Mantida sob dependency-drift gate e sujeita ao CI completo e à conferência independente DT-14."
+    },
+    {
+      "kind": "MAJOR",
+      "project": "Solution/src/Jornada.Bronze.Maintenance.Worker/Jornada.Bronze.Maintenance.Worker.csproj",
+      "package": "Microsoft.Data.SqlClient",
+      "from": "5.2.2",
+      "to": "6.1.7",
+      "justification": "DT-02: migração governada para .NET 10 LTS; atualização explícita do grafo NuGet necessária para compatibilidade com o runtime/SDK 10. Mantida sob dependency-drift gate e sujeita ao CI completo e à conferência independente DT-14."
+    },
+    {
+      "kind": "MAJOR",
+      "project": "Solution/src/Jornada.Bronze.Maintenance.Worker/Jornada.Bronze.Maintenance.Worker.csproj",
+      "package": "Microsoft.Extensions.Hosting",
+      "from": "8.0.1",
+      "to": "10.0.12",
+      "justification": "DT-02: migração governada para .NET 10 LTS; atualização explícita do grafo NuGet necessária para compatibilidade com o runtime/SDK 10. Mantida sob dependency-drift gate e sujeita ao CI completo e à conferência independente DT-14."
+    },
+    {
+      "kind": "MAJOR",
+      "project": "Solution/src/Jornada.Bronze.Verify/Jornada.Bronze.Verify.csproj",
+      "package": "Microsoft.Data.SqlClient",
+      "from": "5.2.2",
+      "to": "6.1.7",
+      "justification": "DT-02: migração governada para .NET 10 LTS; atualização explícita do grafo NuGet necessária para compatibilidade com o runtime/SDK 10. Mantida sob dependency-drift gate e sujeita ao CI completo e à conferência independente DT-14."
+    },
+    {
+      "kind": "MAJOR",
+      "project": "Solution/src/Jornada.Bronze.Verify/Jornada.Bronze.Verify.csproj",
+      "package": "Microsoft.Extensions.Configuration.EnvironmentVariables",
+      "from": "8.0.0",
+      "to": "10.0.12",
+      "justification": "DT-02: migração governada para .NET 10 LTS; atualização explícita do grafo NuGet necessária para compatibilidade com o runtime/SDK 10. Mantida sob dependency-drift gate e sujeita ao CI completo e à conferência independente DT-14."
+    },
+    {
+      "kind": "MAJOR",
+      "project": "Solution/src/Jornada.Bronze.Verify/Jornada.Bronze.Verify.csproj",
+      "package": "Microsoft.Extensions.Configuration.Json",
+      "from": "8.0.1",
+      "to": "10.0.12",
+      "justification": "DT-02: migração governada para .NET 10 LTS; atualização explícita do grafo NuGet necessária para compatibilidade com o runtime/SDK 10. Mantida sob dependency-drift gate e sujeita ao CI completo e à conferência independente DT-14."
+    },
+    {
+      "kind": "ADD",
+      "project": "Solution/src/Jornada.Linkage.Conference/Jornada.Linkage.Conference.csproj",
+      "package": "Microsoft.Data.SqlClient",
+      "from": null,
+      "to": "6.1.7",
+      "justification": "DT-02: migração governada para .NET 10 LTS; atualização explícita do grafo NuGet necessária para compatibilidade com o runtime/SDK 10. Mantida sob dependency-drift gate e sujeita ao CI completo e à conferência independente DT-14."
+    },
+    {
+      "kind": "MAJOR",
+      "project": "Solution/src/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.csproj",
+      "package": "Microsoft.Data.SqlClient",
+      "from": "5.2.2",
+      "to": "6.1.7",
+      "justification": "DT-02: migração governada para .NET 10 LTS; atualização explícita do grafo NuGet necessária para compatibilidade com o runtime/SDK 10. Mantida sob dependency-drift gate e sujeita ao CI completo e à conferência independente DT-14."
     }
   ],
-  "note": "Microsoft SQL Server é o único runtime relacional suportado pela candidata v5.00. PostgreSQL pertence a uma linha/projeto separado e não participa dos gates de release deste repositório. A adição direta de Microsoft.Data.SqlClient 5.2.2 em Jornada.Linkage.Conference explicita a fronteira SQL do novo orquestrador governado sem alterar a versão já congelada."
+  "note": "Microsoft SQL Server é o único runtime relacional suportado pela candidata v5.00. PostgreSQL pertence a uma linha/projeto separado e não participa dos gates de release deste repositório. A adição direta de Microsoft.Data.SqlClient 5.2.2 em Jornada.Linkage.Conference explicita a fronteira SQL do novo orquestrador governado sem alterar a versão já congelada. DT-02 adiciona somente mudanças major/adições explicitamente enumeradas e justificadas para a migração .NET 10; nenhuma aprovação genérica ou wildcard é permitida."
 }
