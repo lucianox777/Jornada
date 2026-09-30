@@ -513,6 +513,7 @@ jobs:
       JORNADA_SQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!Sql'
       JORNADA_TEST_SQL_CONNECTION: 'Server=localhost,1433;Database=JornadaSyntheticDev;User Id=sa;Password=Jornada_${{ github.run_id }}!Sql;TrustServerCertificate=true;Encrypt=false'
       JORNADA_DT10_EVIDENCE: '1'
+      JORNADA_TEST_SQL_USE_EXISTING_DATABASE: 'true'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
