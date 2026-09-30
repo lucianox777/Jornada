@@ -182,6 +182,52 @@ if ($all.Count -ne 1 -or $all[0]['total'] -ne 80) { throw 'Cobertura ALL inváli
 if ($posExact.Count -ne 1 -or $posExact[0]['total'] -ne 8) { throw 'Cobertura POS_EXACT inválida; esperado 8.' }
 if ($hard.Count -ne 1 -or $hard[0]['total'] -ne 10) { throw 'Cobertura NEG_HARD_HOMONYM inválida; esperado 10.' }
 
+
+function New-EvidenceCalibrationDiagnostic {
+    param(
+        [Parameter(Mandatory=$true)][string]$Code,
+        [Parameter(Mandatory=$true)][hashtable]$MatchSegment,
+        [Parameter(Mandatory=$true)][hashtable]$NonMatchSegment,
+        [Parameter(Mandatory=$true)][string]$ExactProperty,
+        [Parameter(Mandatory=$true)][string]$CandidatePresenceProperty
+    )
+
+    $mSource=[int]$MatchSegment['sourcePresent']
+    $mCandidate=[int]$MatchSegment[$CandidatePresenceProperty]
+    $mExact=[int]$MatchSegment[$ExactProperty]
+    $uSource=[int]$NonMatchSegment['sourcePresent']
+    $uCandidate=[int]$NonMatchSegment[$CandidatePresenceProperty]
+    $uExact=[int]$NonMatchSegment[$ExactProperty]
+
+    # O relatório legado não materializa ainda a interseção source∩candidate por par.
+    # Logo, presença marginal não é denominador válido para m/u. Falhamos fechados:
+    # somente publicamos LLR quando uma futura extração materializar comparablePairs.
+    return [ordered]@{
+        code=$Code
+        stateSpace=@('EXACT','DISAGREE','MISSING')
+        missingLogLikelihoodRatio=0.0
+        match=[ordered]@{sourcePresent=$mSource;candidatePresent=$mCandidate;exact=$mExact;comparablePairs=$null}
+        nonMatch=[ordered]@{sourcePresent=$uSource;candidatePresent=$uCandidate;exact=$uExact;comparablePairs=$null}
+        estimable=$false
+        mExact=$null
+        uExact=$null
+        exactLogLikelihoodRatio=$null
+        reason='COMPARABLE_PAIR_DENOMINATOR_NOT_MATERIALIZED'
+        promotionEligible=$false
+    }
+}
+
+$posAll=@($coverage | Where-Object { $_['segment'] -eq 'POS_ALL' })
+$negPopulation=@($coverage | Where-Object { $_['segment'] -eq 'NEG_ALL' })
+if ($posAll.Count -ne 1 -or $negPopulation.Count -ne 1) { throw 'Segmentos POS_ALL/NEG_ALL ausentes para diagnóstico de calibração.' }
+
+$additionalEvidenceCalibration=@(
+    New-EvidenceCalibrationDiagnostic -Code 'CNS' -MatchSegment $posAll[0]['cns'] -NonMatchSegment $negPopulation[0]['cns'] -ExactProperty 'exactAgreement' -CandidatePresenceProperty 'candidatePresent'
+    New-EvidenceCalibrationDiagnostic -Code 'RG' -MatchSegment $posAll[0]['rg'] -NonMatchSegment $negPopulation[0]['rg'] -ExactProperty 'exactAgreement' -CandidatePresenceProperty 'candidatePresent'
+    New-EvidenceCalibrationDiagnostic -Code 'TELEFONE_CONTATO' -MatchSegment $posAll[0]['telefoneContato'] -NonMatchSegment $negPopulation[0]['telefoneContato'] -ExactProperty 'exactCanonicalAgreement' -CandidatePresenceProperty 'candidateProjected'
+    New-EvidenceCalibrationDiagnostic -Code 'EMAIL_CONTATO' -MatchSegment $posAll[0]['emailContato'] -NonMatchSegment $negPopulation[0]['emailContato'] -ExactProperty 'exactCanonicalAgreement' -CandidatePresenceProperty 'candidateProjected'
+)
+
 $report=[ordered]@{
     generatedAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
     purpose='READ_ONLY_ADDITIONAL_IDENTITY_EVIDENCE_READINESS'
@@ -208,14 +254,22 @@ $report=[ordered]@{
         [ordered]@{code='ENDERECO_CASA_ABRIGO_SIGILOSA';kind='TRANSVERSAL';currentRole='INELIGIBLE_FOR_RESOLUTION';probabilisticScore=$false}
     )
     validationCoverage=$coverage
+    additionalEvidenceCalibration=[ordered]@{
+        purpose='READ_ONLY_POST_BLOCKING_MU_ESTIMABILITY'
+        universe='POST_BLOCKING_CANDIDATE_PAIRS_WITH_GOLD_TRUTH'
+        reservedChallengeExcludedFromPrevalence=$true
+        missingIsNeutral=$true
+        diagnostics=$additionalEvidenceCalibration
+        note='Nenhum m/u ou LLR é publicado a partir de presença marginal. A promoção exige denominador de pares comparáveis source∩candidate materializado e suporte suficiente em M e U.'
+    }
     conclusions=@(
         'O corpus DEV mede disponibilidade de evidência adicional; não estima prevalência municipal nem desempenho em produção.',
-        'Sem cobertura comparável em POS_EXACT e NEG_HARD_HOMONYM, não é possível medir ganho discriminativo de uma evidência neste corpus.',
+        'Sem denominador materializado de pares comparáveis em M e U, não é possível estimar m/u nem LLR; presença marginal não substitui a interseção source∩candidate.',
         'Telefone/e-mail/nome social já têm superfície de blocking, mas o score V6 atual não os utiliza como LLR.',
         'CNS/RG exigem validação e governança antes de qualquer mudança de papel.',
         'Endereço residencial, referência territorial e endereço de casa-abrigo permanecem fora da resolução de identidade.'
     )
-    recommendedNextGate='Criar cenários read-only com evidência independente somente após medir/garantir cobertura; calibrar m/u separado antes de qualquer alteração operacional do score.'
+    recommendedNextGate='Materializar pares comparáveis pós-blocking com verdade Gold, excluindo ReservedChallenge da prevalência; só então estimar m/u e LLR e testar ganho fora da amostra antes de qualquer alteração operacional do score.'
 }
 $report | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $ReportPath -Encoding UTF8
 
@@ -229,6 +283,7 @@ foreach ($row in $coverage) {
     $phone=$row['telefoneContato']; $email=$row['emailContato']; $social=$row['nomeSocial']
     Write-Host "$segment total=$total CPF=$($cpf['sourcePresent'])/$($cpf['candidatePresent']) CNS=$($cns['sourcePresent'])/$($cns['candidatePresent']) RG=$($rg['sourcePresent'])/$($rg['candidatePresent']) UUID_JORNADA=$($uuid['sourcePresent'])/$($uuid['candidatePresent']) telefone=$($phone['sourcePresent'])/$($phone['candidateProjected']) email=$($email['sourcePresent'])/$($email['candidateProjected']) nome_social=$($social['sourcePresent'])/$($social['candidateProjected'])"
 }
+Write-Host 'Calibração adicional: fail-closed enquanto o denominador source∩candidate por par não estiver materializado; MISSING LLR=0.'
 Write-Host 'Score probabilístico atual: NOME + NOME_MAE + DATA_NASCIMENTO.'
 Write-Host 'Telefone/e-mail/nome social: blocking/projeção sim; LLR V6 não.'
 Write-Host 'Endereço residencial/referência territorial/casa-abrigo: fora da resolução.'
