@@ -228,7 +228,7 @@ internal static class ProbabilisticLinkageDecisions
             adjustment += SplinkCompatibleTermFrequency.LogBayesAdjustment(
                 leftName,
                 rightName,
-                model.Parameters[$"U_NOME_{ns}"],
+                model.Parameters["U_NOME_EXACT"],
                 weight,
                 minimumU);
         }
@@ -240,7 +240,7 @@ internal static class ProbabilisticLinkageDecisions
             adjustment += SplinkCompatibleTermFrequency.LogBayesAdjustment(
                 leftMother,
                 rightMother,
-                model.Parameters[$"U_NOME_MAE_{ms}"],
+                model.Parameters["U_NOME_MAE_EXACT"],
                 weight,
                 minimumU);
         }
