@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "LINKAGE_BASE_CATALOG_V1",
+  "contractCatalogVersion": "PERSON_RESOLUTION_CONTRACT_CATALOG_V1",
+  "attributes": [
+    { "code": "nome_completo", "semantic": "PersonName", "multiValued": false },
+    { "code": "nome_mae", "semantic": "PersonName", "multiValued": false },
+    { "code": "data_nascimento", "semantic": "Date", "multiValued": false },
+    { "code": "TELEFONE_CONTATO", "semantic": "Phone", "multiValued": true },
+    { "code": "EMAIL_CONTATO", "semantic": "Email", "multiValued": true },
+    { "code": "NOME_SOCIAL", "semantic": "PersonName", "multiValued": false }
+  ]
+}
