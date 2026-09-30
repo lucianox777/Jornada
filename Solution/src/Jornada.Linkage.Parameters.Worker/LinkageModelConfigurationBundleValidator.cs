@@ -83,8 +83,12 @@ public static class LinkageModelConfigurationBundleValidator
             "Snapshot FS publicado deve ser imutável.");
         Require(!string.IsNullOrWhiteSpace(calibration.GetProperty("kind").GetString()),
             "Snapshot FS exige calibration.kind.");
-        Require(!string.IsNullOrWhiteSpace(calibration.GetProperty("source").GetString()),
-            "Snapshot FS exige calibration.source.");
+        var sources = calibration.GetProperty("sources").EnumerateArray()
+            .Select(static x => x.GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Require(sources.Contains("IBGE") && sources.Contains("GOLD"),
+            "Bootstrap FS deve declarar IBGE e Gold como fontes de calibração.");
+        Require(calibration.GetProperty("status").GetString() == "INPUT",
+            "Catálogo FS versionado representa a entrada governada do bootstrap.");
 
         var tf = fs.GetProperty("termFrequency");
         Require(tf.GetProperty("referenceU").GetString() == "EXACT",
