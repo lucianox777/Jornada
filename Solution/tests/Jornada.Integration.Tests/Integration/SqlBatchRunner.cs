@@ -58,6 +58,22 @@ internal static class SqlBatchRunner
         await ResetSessionAsync(connection, cancellationToken);
     }
 
+    public static async Task ExecuteFileWithSqlCmdVariablesAsync(
+        SqlConnection connection,
+        string path,
+        IReadOnlyDictionary<string, string> variables,
+        CancellationToken cancellationToken = default)
+    {
+        var script = await File.ReadAllTextAsync(path, cancellationToken);
+        foreach (var pair in variables)
+            script = script.Replace("$(" + pair.Key + ")", pair.Value, StringComparison.Ordinal);
+        if (Regex.IsMatch(script, @"\$\([A-Za-z0-9_]+\)"))
+            throw new InvalidOperationException($"Variável SQLCMD não resolvida em {Path.GetFileName(path)}.");
+
+        await ExecuteScriptTextAsync(connection, script, cancellationToken);
+        await ResetSessionAsync(connection, cancellationToken);
+    }
+
     private static async Task ResetSessionAsync(SqlConnection connection, CancellationToken cancellationToken)
     {
         using var resetSession = connection.CreateCommand();
@@ -68,6 +84,11 @@ internal static class SqlBatchRunner
     private static async Task ExecuteScriptAsync(SqlConnection connection, string path, CancellationToken cancellationToken)
     {
         var script = await File.ReadAllTextAsync(path, cancellationToken);
+        await ExecuteScriptTextAsync(connection, script, cancellationToken);
+    }
+
+    private static async Task ExecuteScriptTextAsync(SqlConnection connection, string script, CancellationToken cancellationToken)
+    {
         foreach (var batch in GoLine.Split(script))
         {
             if (string.IsNullOrWhiteSpace(batch)) continue;
