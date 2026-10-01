@@ -9,6 +9,10 @@ class CiImpactClassifierTests(unittest.TestCase):
         r=m.classify(["Solution/docs/Dividas_Tecnicas.md"])
         self.assertTrue(r["docs_only"]); self.assertFalse(r["run_full"])
 
+    def test_e2e_baseline_manifest_requires_full_ci(self):
+        r=m.classify(["Solution/docs/evidence/E2E_B_Baseline_20261001.yml"])
+        self.assertFalse(r["docs_only"]); self.assertTrue(r["run_full"]); self.assertFalse(r["run_dt10"])
+
     def test_any_code_requires_full_ci(self):
         r=m.classify(["Solution/src/Jornada.Api/Program.cs"])
         self.assertFalse(r["docs_only"]); self.assertTrue(r["run_full"])
