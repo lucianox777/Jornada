@@ -61,7 +61,8 @@ public sealed class Dt17RegressionMatrixContractTests
             "LACUNA: Ensaio integrado DT-17",
             "Nunca resetar `JornadaLocal`",
             "A separação da CI está excluída",
-            "a próxima etapa é E2E-A/DT-17A"
+            "E2E-A/DT-17A foi EXECUTADA",
+            "A próxima etapa é DT-02 (.NET 10)"
         })
             Assert.That(matrix, Does.Contain(required));
     }
