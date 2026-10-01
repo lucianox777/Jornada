@@ -8,6 +8,7 @@ on:
       - 'Solution/scripts/local-e2e.ps1'
       - 'Solution/docs/DT05_Assinatura_Semantica_V1.md'
       - 'Solution/docs/Dividas_Tecnicas.md'
+      - 'Solution/docs/evidence/E2E_*_Baseline_*.yml'
   workflow_dispatch:
 
 permissions:
