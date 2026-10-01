@@ -1,0 +1,39 @@
+JORNADA DO CIDADAO — NOTA DE ENGENHARIA v3.70
+Base normativa: v3.62
+Solution de engenharia: v3.70
+Schema funcional esperado: Base v3.62 / SolutionSchema v3.68
+
+Escopo: fechamento de deficits técnicos locais de evidência de execução, sem alteração normativa ou DDL funcional.
+
+1. Fault injection
+- testes FaultInjection ganham evidência TRX específica;
+- test-evidence-gate.py falha se houver erro, resultado desconhecido ou skip/não executado;
+- no CI SQL o usuário é sa, portanto falta de permissão para KILL não pode mascarar o teste crítico.
+
+2. Restore SQL + Bronze
+- local-backup-restore-drill agora valida origem, backup SQL CHECKSUM, restore SQL e restore do objeto Bronze;
+- injeta dois faults controlados após restore: objeto físico ausente e objeto adulterado;
+- Jornada.Bronze.Verify deve falhar fechado com MISSING e DIVERGENT respectivamente;
+- restaura o objeto íntegro e exige uma verificação final PASS;
+- bronze-restore-evidence-gate.py valida o report.json.
+
+3. Escala
+- local-scale passa a suportar restore NuGet locked em CI;
+- grava artefato latest e valida coerência estrutural com performance-evidence-gate.py;
+- o gate NÃO impõe thresholds de duração: limites reais continuam dependentes de HML/capacidade/SLA.
+
+4. Power BI
+- powerbi-static-gate.py valida 22 páginas PBIR, ordem, página ativa, ao menos um visual por página, JSON dos visuais, TMDL e fontes serving essenciais;
+- isso reduz regressões estruturais, mas não substitui Power BI Desktop/Gateway homologados.
+
+5. CI/promoção
+- integração SQL executa FaultInjection explicitamente e proíbe skips;
+- tags/workflow_dispatch executam bronze-restore-drill e scale-harness;
+- release-promotion depende desses dois jobs, além de locks, unit, integration, harness, upgrade e E2E;
+- technical-closure-gate deixa de exigir SOURCE_PROVENANCE antes de ela ser gerada. Quando presente no pacote, continua validando sua versão/hash; a verificação autoritativa permanece release-source-gate.py após build do bundle.
+
+Limites honestos desta montagem
+- runtime sem dotnet, Docker, SQL Server, PowerShell e resolução de api.nuget.org;
+- packages.lock.json não foram fabricados;
+- jobs novos foram validados estaticamente/sintaticamente e por self-tests de seus parsers, não executados contra SQL/.NET neste runtime;
+- calibração estatística, parâmetros operacionais, Gateway/Power BI Desktop e regras institucionais continuam dependentes de HML/dados/infraestrutura.
