@@ -19,7 +19,7 @@
         },
         {
           "name": "dotnet",
-          "exactVersion": "10.0.100"
+          "exactVersion": "10.0.112"
         },
         {
           "name": "bash",
@@ -41,7 +41,7 @@
         },
         {
           "name": "dotnet",
-          "exactVersion": "10.0.100"
+          "exactVersion": "10.0.112"
         }
       ],
       "requiredEnvironment": [
