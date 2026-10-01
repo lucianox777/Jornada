@@ -36,6 +36,7 @@ jobs:
           mkdir -p dt12-backup
           git show-ref | LC_ALL=C sort > dt12-backup/show-ref.txt
           git for-each-ref --format='%(refname) %(objectname)' refs/remotes/origin refs/tags | LC_ALL=C sort > dt12-backup/refs.txt
+
           git bundle create "dt12-backup/Jornada_DT12_pre_cleanup_${stamp}.bundle" --all
           bundle="$(find dt12-backup -name '*.bundle' -type f -print -quit)"
           git bundle verify "$bundle" 2>&1 | tee dt12-backup/bundle-verify.txt
@@ -43,62 +44,27 @@ jobs:
           git bundle list-heads "$bundle" | LC_ALL=C sort > dt12-backup/bundle-heads.txt
 
           awk '$1 ~ /^refs\/remotes\/origin\// && $1 != "refs/remotes/origin/HEAD" {print $2 " " $1}' dt12-backup/refs.txt | LC_ALL=C sort > dt12-backup/expected-remote-heads.txt
-          grep ' refs/remotes/origin/' dt12-backup/bundle-heads.txt | grep -v ' refs/remotes/origin/HEAD
-      - name: Test restoration from bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          bundle="$(find dt12-backup -name '*.bundle' -type f -print -quit)"
-          mkdir -p dt12-restore-test/repo.git
-          git -C dt12-restore-test/repo.git init --bare
-          git -C dt12-restore-test/repo.git fetch "$PWD/$bundle" '+refs/*:refs/*'
-          git -C dt12-restore-test/repo.git fsck --full
-          git -C dt12-restore-test/repo.git show-ref | LC_ALL=C sort > dt12-backup/restored-show-ref.txt
-          diff -u dt12-backup/bundle-heads.txt dt12-backup/restored-show-ref.txt
-          test -n "$(git -C dt12-restore-test/repo.git rev-parse refs/heads/master)"
-
-      - name: Upload temporary backup artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: Jornada-DT12-pre-cleanup-backup
-          path: dt12-backup/
-          if-no-files-found: error
-          retention-days: 7
- | LC_ALL=C sort > dt12-backup/bundled-remote-heads.txt
+          grep ' refs/remotes/origin/' dt12-backup/bundle-heads.txt | grep -v ' refs/remotes/origin/HEAD$' | LC_ALL=C sort > dt12-backup/bundled-remote-heads.txt
           diff -u dt12-backup/expected-remote-heads.txt dt12-backup/bundled-remote-heads.txt
 
           awk '$1 ~ /^refs\/tags\// {print $2 " " $1}' dt12-backup/refs.txt | LC_ALL=C sort > dt12-backup/expected-tags.txt
           grep ' refs/tags/' dt12-backup/bundle-heads.txt | LC_ALL=C sort > dt12-backup/bundled-tags.txt
           diff -u dt12-backup/expected-tags.txt dt12-backup/bundled-tags.txt
-          grep -q ' refs/heads/master
-      - name: Test restoration from bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          bundle="$(find dt12-backup -name '*.bundle' -type f -print -quit)"
-          mkdir dt12-restore-test
-          git clone "$bundle" dt12-restore-test/repo
-          git -C dt12-restore-test/repo fsck --full
-          test -n "$(git -C dt12-restore-test/repo rev-parse HEAD)"
-
-      - name: Upload temporary backup artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: Jornada-DT12-pre-cleanup-backup
-          path: dt12-backup/
-          if-no-files-found: error
-          retention-days: 7
- dt12-backup/bundle-heads.txt
+          grep -q ' refs/heads/master$' dt12-backup/bundle-heads.txt
 
       - name: Test restoration from bundle
         shell: bash
         run: |
           set -euo pipefail
           bundle="$(find dt12-backup -name '*.bundle' -type f -print -quit)"
-          mkdir dt12-restore-test
-          git clone "$bundle" dt12-restore-test/repo
-          git -C dt12-restore-test/repo fsck --full
-          test -n "$(git -C dt12-restore-test/repo rev-parse HEAD)"
+          repo="$PWD/dt12-restore-test/repo.git"
+          mkdir -p "$(dirname "$repo")"
+          git init --bare "$repo"
+          git -C "$repo" fetch "$PWD/$bundle" '+refs/*:refs/*'
+          git -C "$repo" fsck --full
+          git -C "$repo" show-ref | LC_ALL=C sort > dt12-backup/restored-show-ref.txt
+          diff -u dt12-backup/bundle-heads.txt dt12-backup/restored-show-ref.txt
+          test -n "$(git -C "$repo" rev-parse refs/heads/master)"
 
       - name: Upload temporary backup artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
