@@ -1,6 +1,6 @@
 # Supply chain / reprodutibilidade — engenharia v3.86
 
-Esta pasta registra os pins externos da referência técnica. O workflow usa GitHub Actions por commit SHA, .NET SDK `8.0.424` e SQL Server 2022 CU26 por digest OCI.
+Esta pasta registra os pins externos da referência técnica. O workflow usa GitHub Actions por commit SHA, .NET SDK `10.0.100` e SQL Server 2022 CU26 por digest OCI.
 
 ## NuGet
 
