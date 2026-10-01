@@ -7,6 +7,12 @@ dt12_precleanup:
     execution_record_pull_request: 678
     state: EXECUTADA
   destructive_changes_authorized_by_this_marker: false
+  backup_attempt: 2
+  require_all_remote_heads_in_bundle: true
+  previous_attempt:
+    artifact_id: 11182740401
+    valid_for_branch_cleanup: false
+    reason: "bundle continha apenas master e tags; refs/remotes/origin não foram empacotadas"
   required_before_cleanup:
     - git_bundle_created
     - git_bundle_verified
