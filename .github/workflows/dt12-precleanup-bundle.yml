@@ -63,7 +63,8 @@ jobs:
           git -C "$repo" fetch "$PWD/$bundle" '+refs/*:refs/*'
           git -C "$repo" fsck --full
           git -C "$repo" show-ref | LC_ALL=C sort > dt12-backup/restored-show-ref.txt
-          diff -u dt12-backup/bundle-heads.txt dt12-backup/restored-show-ref.txt
+          grep -v ' HEAD$' dt12-backup/bundle-heads.txt > dt12-backup/restorable-bundle-heads.txt
+          diff -u dt12-backup/restorable-bundle-heads.txt dt12-backup/restored-show-ref.txt
           test -n "$(git -C "$repo" rev-parse refs/heads/master)"
 
       - name: Upload temporary backup artifact
