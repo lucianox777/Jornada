@@ -1,0 +1,40 @@
+JORNADA DO CIDADÃO — NOTA DE ENGENHARIA v3.72
+Base normativa v3.62 / schema funcional v3.68
+
+Objetivo
+-------
+Fechar a parte local das dívidas de calibração e avaliação pós-medição sem inventar valores de HML.
+
+Implementado
+-----------
+1. config/hml/parameters.json
+   - contrato machine-readable dos parâmetros que dependem de HML/decisão;
+   - qualquer item APROVADO exige approvedValue, approvedAtUtc, approvedBy e evidência com artifact+SHA-256.
+
+2. config/hml/performance-baseline.json + performance-evidence-gate.py
+   - baseline permanece PENDENTE até medição homologada;
+   - quando APROVADO, o gate compara relatório real com limites por perfil;
+   - --require-baseline-approved torna a passagem fail-closed.
+
+3. config/hml/linkage-evaluation-policy.json + linkage-evaluation-evidence-gate.py
+   - valida blocking V1/V2 candidato e transportabilidade de m;
+   - política APROVADA pode fixar tamanho mínimo de amostra, recalls, expansão de candidatos e distâncias máximas;
+   - nenhuma execução promove V2 automaticamente; as únicas decisões são MANTER_V1 ou SUBMETER_V2_PARA_REVISAO_NORMATIVA.
+
+4. hml-config-gate.py / hml-readiness-gate.sh
+   - validação estrutural é executável em DEV/CI sem fingir aprovação;
+   - modo estrito exige matriz, baseline e política aprovados, além dos relatórios reais de performance e linkage.
+
+5. CI/harness
+   - CI valida os contratos HML em modo não estrito;
+   - local-scale usa o baseline versionado quando disponível;
+   - linkage-evaluation-smoke passa pelo novo evidence gate.
+
+Não resolvido artificialmente
+---------------------------
+- packages.lock.json: sem .NET/NuGet neste runtime;
+- execução SQL/.NET/Docker/Power BI: não executada neste runtime;
+- valores HML, thresholds, rate limits, retenção, watchdog e timeouts: continuam PENDENTE/CALIBRAR até evidência real;
+- promoção de blocking V2 ou decisão sobre transportabilidade de m: depende de amostra rotulada autorizada e decisão normativa.
+
+A versão é exclusivamente de engenharia; Base Normativa e schema permanecem 3.62/3.68.
