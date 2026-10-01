@@ -1,0 +1,56 @@
+name: DT-12 Pre-cleanup Git Bundle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    name: Create and verify pre-cleanup bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch all remote heads and tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --prune --force origin '+refs/heads/*:refs/remotes/origin/*'
+          git fetch --force --tags origin
+
+      - name: Create snapshot refs and bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          mkdir -p dt12-backup
+          git show-ref | LC_ALL=C sort > dt12-backup/show-ref.txt
+          git for-each-ref --format='%(refname) %(objectname)' refs/remotes/origin refs/tags | LC_ALL=C sort > dt12-backup/refs.txt
+          git bundle create "dt12-backup/Jornada_DT12_pre_cleanup_${stamp}.bundle" --branches --tags
+          bundle="$(find dt12-backup -name '*.bundle' -type f -print -quit)"
+          git bundle verify "$bundle" 2>&1 | tee dt12-backup/bundle-verify.txt
+          sha256sum "$bundle" | tee dt12-backup/SHA256SUMS.txt
+          git bundle list-heads "$bundle" > dt12-backup/bundle-heads.txt
+
+      - name: Test restoration from bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="$(find dt12-backup -name '*.bundle' -type f -print -quit)"
+          mkdir dt12-restore-test
+          git clone "$bundle" dt12-restore-test/repo
+          git -C dt12-restore-test/repo fsck --full
+          test -n "$(git -C dt12-restore-test/repo rev-parse HEAD)"
+
+      - name: Upload temporary backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jornada-DT12-pre-cleanup-backup
+          path: dt12-backup/
+          if-no-files-found: error
+          retention-days: 7
