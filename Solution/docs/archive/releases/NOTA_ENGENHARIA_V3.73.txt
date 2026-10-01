@@ -1,0 +1,15 @@
+Jornada do Cidadão — Nota de Engenharia v3.73
+
+Base normativa: v3.62
+Schema Solution: v3.68
+Natureza: engenharia/testes/evidência; sem alteração de DDL/schema funcional.
+
+Fechamentos locais desta release:
+1. RELEASE_EVIDENCE.json agrega e hasheia o conjunto completo de evidências exigido para promoção de tag.
+2. Property/fuzz tests determinísticos por seed exercitam CPF, TELEFONE_BR_CANONICO_V2, EMAIL_CANONICO_V2 e ZIP canônico.
+3. Testes SQL de replay verificam idempotência da recomposição Gold e invariantes globais de identidade.
+4. Framework versionado de Possibilidades inclui validação, engine determinístico, loader fail-closed, adaptador IPossibilityEvaluator e simulador de impacto/dry-run. O catálogo distribuído permanece PENDENTE e vazio; nenhuma elegibilidade institucional foi inventada.
+5. Massa sintética ganha colisões e deslocamentos de nascimento controlados por seed/parâmetros.
+6. Concorrência do gate de corpus ganha cenário determinístico com oito contendores simultâneos e prova de recuperação.
+
+Limites preservados: sem .NET/SQL Server/Docker/NuGet neste ambiente, os novos testes de runtime não são reportados como executados. packages.lock.json continuam dependentes de restore real. Regras concretas de Possibilidades continuam dependentes dos Gestores.
