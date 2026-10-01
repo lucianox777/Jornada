@@ -62,7 +62,7 @@ public sealed class Dt17RegressionMatrixContractTests
             "Nunca resetar `JornadaLocal`",
             "A separação da CI está excluída",
             "E2E-A/DT-17A foi EXECUTADA",
-            "A próxima etapa é DT-02 (.NET 10)"
+            "E2E-B/DT-17B foi EXECUTADA"
         })
             Assert.That(matrix, Does.Contain(required));
     }
