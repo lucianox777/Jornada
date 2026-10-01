@@ -1,0 +1,47 @@
+baseline:
+  id: E2E-A
+  dt: DT-17A
+  status: REQUESTED
+  requested_at: 2026-10-01
+  purpose: "Baseline técnico .NET 8 anterior à DT-02"
+  scope: "DEV sintético isolado; não é Ensaio HML/Produção"
+runtime:
+  solution: Solution/Jornada.sln
+  dotnet_sdk: 8.0.424
+corpus:
+  demographic_profile: DEMOGRAPHIC_PRIMARY_V1
+  people: 30000
+  seed: 42
+  birth_daily_source: Solution/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json
+  birth_daily_sha256: 8B8498EC2ABE7DCBFAFED1D361D2A3AFAFF77CAD5BCE29A5927DA517FC236A9B
+  birth_daily_rows: 39268
+isolation:
+  shared_jornada_local_reset_allowed: false
+  databases:
+    - JornadaE2E
+    - JornadaTest
+    - JornadaHarness
+    - JornadaSyntheticDev
+required_evidence:
+  jornada_ci_jobs:
+    - dependency-lock
+    - ddl-upgrade
+    - deterministic-build
+    - e2e
+    - unit
+    - security-analysis
+    - integration-sql
+    - harness-smoke
+  dt05_real_runner_cpf_late: true
+  no_skipped_as_success: true
+preconditions:
+  dt10:
+    state: CONCLUIDA_TECNICAMENTE
+    pull_request: 664
+    jornada_ci_run: 36858619309
+    evidence_artifact: dt10-evidence
+limitations:
+  - "Não comprova representatividade estatística populacional (#31)."
+  - "Não autoriza HML ou Produção."
+  - "Não constitui SLA de Produção."
+  - "Resultados e Actions do E2E-A só podem ser registrados após execução no HEAD exato."
