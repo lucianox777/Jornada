@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0.100 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.112 AS build
 WORKDIR /src
 
 # Mantém a resolução NuGet em uma camada independente do código-fonte. Assim,
