@@ -1,0 +1,53 @@
+baseline:
+  id: E2E-B
+  dt: DT-17B
+  status: REQUESTED
+  requested_at: 2026-10-01
+  purpose: "Baseline técnico .NET 10 posterior à DT-02 e anterior à DT-12"
+  scope: "DEV sintético isolado; não é Ensaio HML/Produção"
+runtime:
+  solution: Solution/Jornada.sln
+  target_framework: net10.0
+  dotnet_sdk: 10.0.112
+  aspnet_core: 10.0.12
+  sqlclient: 7.1.1
+corpus:
+  demographic_profile: DEMOGRAPHIC_PRIMARY_V1
+  people: 30000
+  seed: 42
+  birth_daily_source: Solution/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json
+  birth_daily_sha256: 8B8498EC2ABE7DCBFAFED1D361D2A3AFAFF77CAD5BCE29A5927DA517FC236A9B
+  birth_daily_rows: 39268
+isolation:
+  shared_jornada_local_reset_allowed: false
+  databases:
+    - JornadaE2E
+    - JornadaTest
+    - JornadaHarness
+    - JornadaSyntheticDev
+required_evidence:
+  jornada_ci_jobs:
+    - dependency-lock
+    - ddl-upgrade
+    - deterministic-build
+    - e2e
+    - unit
+    - security-analysis
+    - integration-sql
+    - harness-smoke
+  dt05_real_runner_cpf_late: true
+  linkage_independent_validation: true
+  no_skipped_as_success: true
+preconditions:
+  e2e_a:
+    state: EXECUTADA
+    pull_request: 666
+  dt02:
+    state: MERGED
+    pull_request: 668
+    master_commit: 205c53bade33657ed3280346d3ce9e267e4fc6eb
+limitations:
+  - "Não comprova representatividade estatística populacional (#31)."
+  - "Não autoriza HML ou Produção."
+  - "Não constitui SLA de Produção."
+  - "Resultados e Actions do E2E-B só podem ser registrados após execução no HEAD exato."
