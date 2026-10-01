@@ -104,7 +104,7 @@ public static class SyntheticCorpusSourceLoader
         var personRead = await IbgeProjectionReader.ReadFilteredAsync(
             referenceRoot,
             municipality,
-            row => row.Frequencia >= options.MinFrequency
+            row => row.Frequencia > 0
                 && string.Equals(row.MunicipioCodigo, "3550308", StringComparison.Ordinal)
                 && (string.Equals(row.Tipo, "NOME", StringComparison.Ordinal)
                     || string.Equals(row.Tipo, "SOBRENOME", StringComparison.Ordinal)),
@@ -112,14 +112,14 @@ public static class SyntheticCorpusSourceLoader
         var motherFirstRead = await IbgeProjectionReader.ReadFilteredAsync(
             referenceRoot,
             brazilSex,
-            row => row.Frequencia >= options.MinFrequency
+            row => row.Frequencia > 0
                 && string.Equals(row.Tipo, "NOME", StringComparison.Ordinal)
                 && string.Equals(row.Sexo, "FEMININO", StringComparison.Ordinal),
             cancellationToken);
         var motherSurnameRead = await IbgeProjectionReader.ReadFilteredAsync(
             referenceRoot,
             brazilTotal,
-            row => row.Frequencia >= options.MinFrequency
+            row => row.Frequencia > 0
                 && string.Equals(row.Tipo, "SOBRENOME", StringComparison.Ordinal),
             cancellationToken);
 
@@ -139,11 +139,11 @@ public static class SyntheticCorpusSourceLoader
             .ToArray();
 
         if (personFirst.Length == 0 || personSurname.Length == 0)
-            throw new InvalidDataException("Recorte municipal 3550308 não contém NOME/TODOS e SOBRENOME/TODOS após min_freq.");
+            throw new InvalidDataException("Recorte municipal 3550308 não contém NOME/TODOS e SOBRENOME/TODOS com frequência positiva publicada.");
         if (motherFirst.Length == 0)
-            throw new InvalidDataException("Brasil/FEMININO não contém prenomes maternos após min_freq.");
+            throw new InvalidDataException("Brasil/FEMININO não contém prenomes maternos com frequência positiva publicada.");
         if (motherSurname.Length == 0)
-            throw new InvalidDataException("Brasil/TODOS não contém sobrenomes maternos após min_freq.");
+            throw new InvalidDataException("Brasil/TODOS não contém sobrenomes maternos com frequência positiva publicada.");
 
         return new SyntheticCorpusDemographicNominalSource(
             new SyntheticFrequencySampler(personFirst, options.TailOversample, .25),
