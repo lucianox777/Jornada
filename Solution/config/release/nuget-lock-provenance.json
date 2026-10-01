@@ -213,85 +213,97 @@
   "candidateGraph": {
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
-    "sourceCommit": "bcc94f548dc4cf778411452ff858c76980979ed8",
-    "githubRunId": "35755475367",
-    "sdk": "8.0.424",
-    "reason": "PR #433 compartilha a política de calibração de decisão com o evaluator via Jornada.Linkage.Core. O diagnóstico SDK 8.0.424 force-evaluate do run 35682617704 alterou exatamente os metadados ProjectReference de Evaluation e seus consumidores Conference/Integration; nenhum pacote externo mudou. PR #439 inclui agora referência direta ao evaluator no projeto de testes unitários; o SDK alterou somente o bloco ProjectReference do lock de Jornada.Tests, conforme dependency-lock run 35755475367. DT-04 inclui o projeto Jornada.Access.Security, os ProjectReference da Jornada.Api/Resultado.Api e os locks dos dois projetos de testes; o SDK 8.0.424 comprovou equivalência de grafo (ajuste apenas da quebra de linha do novo lock). Com Resultado.Api incluída na Solution, o SDK removeu as abstrações Microsoft.Extensions já satisfeitas pelo framework ASP.NET compartilhado do projeto novo; lock corrigido conforme diff do CI. PR #532: grafo atualizado pelo CI dependency-lock; hashes de três locks alterados. Gate 6 exclui os dois projetos da Solução de Apoio do inventário principal sem alterar hashes dos outros projetos.",
+    "sourceCommit": "b6823b54e8fd099b6f63e008b0c5ad16272648d5",
+    "githubRunId": "36869870130",
+    "sdk": "10.0.100",
+    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; histórico v4.05/.NET 8 preservado separadamente.",
     "lockCount": 21,
-    "changedLockCount": 18,
-    "combinedSha256": "e863dde07c68712310990266838d94520ca45b619273112b2cda5651fbfeb7c9",
+    "changedLockCount": 21,
+    "combinedSha256": "d0934071010a5b348762c76227d3ed88277355bef6c2c9ed328faa6c381f1da0",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
-        "sha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9"
+        "sha256": "9e1b1ba8e689d3c0ce15a62d13dfbb7007eb18cf15fbb9d2567efd68adf29358"
       },
       {
         "path": "src/Jornada.Api/packages.lock.json",
-        "sha256": "6556e2c9a5b68a41f2fa78dc089732e9d5e6ba5267e1e6c1eabf497d8be88707"
+        "sha256": "ebe372e6026539746d5e5c8385023ca0f95c17918a496ca21449c509f2b71c0b"
       },
       {
         "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
-        "sha256": "da3310e03d551d957d6f5295f6344460ca1715d77018312e1893d2cc9b2e5793"
+        "sha256": "3ab926a9470ec3fbe638a11421754c7da07fbf4e7b58f4adb24df7c3c58ed19f"
+      },
+      {
+        "path": "src/Jornada.Bronze.Storage/packages.lock.json",
+        "sha256": "a29c6aa8cfb81874ff8bb78dc369d7416f28c9b8cc47e99592bfc019b20c41eb"
       },
       {
         "path": "src/Jornada.Bronze.Verify/packages.lock.json",
-        "sha256": "f16e98037a393cff9bef5c40197db60e82f0df0366e3495d4567461b75df3477"
+        "sha256": "f50bc30d93015f05b7ace911a1ae0d085a479893a9acd4bb43dde7201f217ceb"
+      },
+      {
+        "path": "src/Jornada.Contracts/packages.lock.json",
+        "sha256": "a29c6aa8cfb81874ff8bb78dc369d7416f28c9b8cc47e99592bfc019b20c41eb"
       },
       {
         "path": "src/Jornada.Ensaio/packages.lock.json",
-        "sha256": "6390dfb9d50e2fdb04d87e3217ba93ac3db1d3977328e9819f0d339d58023d72"
+        "sha256": "6372332004008513d6de457e86b004330fd7da1a924fce6c4e5dc64f1934205d"
+      },
+      {
+        "path": "src/Jornada.Ingestion/packages.lock.json",
+        "sha256": "9e1b1ba8e689d3c0ce15a62d13dfbb7007eb18cf15fbb9d2567efd68adf29358"
       },
       {
         "path": "src/Jornada.Linkage.Conference/packages.lock.json",
-        "sha256": "73890091892b0d5e2304597f746b50591749a904fc6cb4f2094185d5d38e9de9"
+        "sha256": "826fbaaa1a0930e8493e6c0e6cf4eceaa801a5249c998fd0e49c373506cc62b1"
       },
       {
         "path": "src/Jornada.Linkage.Core/packages.lock.json",
-        "sha256": "f72a73e27212cc91a94f7489fa26f6418195cd82f3528024f80035c246f981f9"
+        "sha256": "9e1b1ba8e689d3c0ce15a62d13dfbb7007eb18cf15fbb9d2567efd68adf29358"
       },
       {
         "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
-        "sha256": "ccee100eb66c7be9edc81169896be7ed41a86f2b27eb5fd4147f2482d951df40"
+        "sha256": "3cedd016390443c46182265ab66e805332f0fcaa493fd43845a955ac6eec14e9"
       },
       {
         "path": "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
-        "sha256": "1ad25dc21dd2faa0e50c140d3946da7815435f4816a01dd489452f6f0a578841"
+        "sha256": "1099e5e48a25cfb3f9ae1ae0ce1c61810df5dc0204cc35e25a5e4cc4101db4c5"
       },
       {
         "path": "src/Jornada.Linkage.Runner/packages.lock.json",
-        "sha256": "1ad25dc21dd2faa0e50c140d3946da7815435f4816a01dd489452f6f0a578841"
+        "sha256": "1099e5e48a25cfb3f9ae1ae0ce1c61810df5dc0204cc35e25a5e4cc4101db4c5"
       },
       {
         "path": "src/Jornada.Linkage.SyntheticCorpus/packages.lock.json",
-        "sha256": "37f341c42329dd0e4831ffcd31ca02a879685566b19e94b23464ebf38d129388"
+        "sha256": "230682764e47f98929b3a77d325c2a18db5b97a96dd1b356abe25212f96164ad"
       },
       {
         "path": "src/Jornada.Operational.Sql/packages.lock.json",
-        "sha256": "ff40971c9524193fddd81cc387a2349d30355dc25dc20728d15cdd360cc31c93"
+        "sha256": "dd195253bbe7bd84d79307816fd1f500e0918ab4992636a2ab58d81af2e711fd"
       },
       {
         "path": "src/Jornada.Operations.Maintenance.Worker/packages.lock.json",
-        "sha256": "da3310e03d551d957d6f5295f6344460ca1715d77018312e1893d2cc9b2e5793"
+        "sha256": "3ab926a9470ec3fbe638a11421754c7da07fbf4e7b58f4adb24df7c3c58ed19f"
       },
       {
         "path": "src/Jornada.Pipeline.Coordination/packages.lock.json",
-        "sha256": "ecac8b942d58945defd1eef60c0909bc1c13e791274dcd3bbafcc43610cc607a"
+        "sha256": "7dc8b6ae45057d5b198cecfecfa53e7e7b01889c6fb82c3f49ed178ac0aac5af"
       },
       {
         "path": "src/Jornada.Processor.Worker/packages.lock.json",
-        "sha256": "27ad575fbd6a92980930f08cdb93637f4cd3a8e32026cdff6b82d44f447cf333"
+        "sha256": "c40d2bd968ef8e40ef64b97fec792c4ae8b1356d633b937378f93b67cbbb5836"
       },
       {
         "path": "src/Jornada.Resultado.Api/packages.lock.json",
-        "sha256": "7f8e85db8cde11711505c7a2555ab76250f93d0fe1b73a1c8e54e7d1ef7c151d"
+        "sha256": "3625a0a945122fa63282e54b3b33f00a476547cab222b4c5ca2a818628038c56"
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "9ec1c545963e9197db759cc0fe9940864994f20855dd7ae136a3d426dbee452a"
+        "sha256": "28f4191f6585f90c2ca2fe2fc09316767a4023b03de5180826bf123ab8c028fc"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "633018b764a99332cc6fd8d5802ad704482c5769c55cd837abcc84f2b1a2d2d6"
+        "sha256": "d0a39e1e1ff7c1a737957c0f44672e04ee0dfcecac75941ae25930875a25b789"
       }
     ]
   }
