@@ -18,7 +18,7 @@ public sealed class TrustedProxyConfigurationTests
         {
             Assert.That(forwarded.ForwardLimit, Is.EqualTo(2));
             Assert.That(forwarded.RequireHeaderSymmetry, Is.True);
-            Assert.That(forwarded.KnownNetworks, Is.Empty);
+            Assert.That(forwarded.KnownIPNetworks, Is.Empty);
             Assert.That(forwarded.KnownProxies, Is.EquivalentTo(new[] { IPAddress.Parse("10.0.0.10"), IPAddress.Parse("10.0.0.11") }));
         });
     }
@@ -32,9 +32,9 @@ public sealed class TrustedProxyConfigurationTests
         Assert.Multiple(() =>
         {
             Assert.That(forwarded.KnownProxies, Is.Empty);
-            Assert.That(forwarded.KnownNetworks.Count, Is.EqualTo(2));
-            Assert.That(forwarded.KnownNetworks[0].Prefix, Is.EqualTo(IPAddress.Parse("10.20.30.0")));
-            Assert.That(forwarded.KnownNetworks[0].PrefixLength, Is.EqualTo(24));
+            Assert.That(forwarded.KnownIPNetworks.Count, Is.EqualTo(2));
+            Assert.That(forwarded.KnownIPNetworks[0].BaseAddress, Is.EqualTo(IPAddress.Parse("10.20.30.0")));
+            Assert.That(forwarded.KnownIPNetworks[0].PrefixLength, Is.EqualTo(24));
         });
     }
 
