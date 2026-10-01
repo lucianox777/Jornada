@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-SDK = '8.0.424'
+SDK = '10.0.100'
 EXPECTED_COUNT = 18
 MANIFEST = ROOT / 'config/release/nuget-lock-provenance.json'
 PROJECT = 'src/Jornada.Operational.Sql/packages.lock.json'
@@ -79,7 +79,7 @@ def fingerprint(data: bytes) -> str:
 
 def main() -> int:
     if run('dotnet', '--version').strip() != SDK:
-        fail('Active SDK must be exactly 8.0.424.')
+        fail(f'Active SDK must be exactly {SDK}.')
     if run('git', 'status', '--porcelain').strip():
         fail('Refresh requires a clean checkout.')
     before = locks()
@@ -142,7 +142,7 @@ def main() -> int:
     for row in manifest['locks']:
         row['sha256'] = row['sourceSha256'] = fingerprint(after[row['path']])
         if row['path'] in changes:
-            row['note'] = 'Projeto/lock regenerado e reproduzido pelo SDK 8.0.424; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.'
+            row['note'] = f'Projeto/lock regenerado e reproduzido pelo SDK {SDK}; somente grafo de ProjectReference alterado. Evidência: lockGraphRefresh.'
     MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
     run('python3', 'scripts/nuget-lock-provenance-gate.py', '--root', '.', '--summary', str(out / 'provenance-summary.json'))
     # --relative fixes the paths relative to Solution rather than the Git root.

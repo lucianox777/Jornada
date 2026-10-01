@@ -35,7 +35,7 @@ SQL_PORT="${JORNADA_SQL_PORT:-14333}"
 [[ -f "$ROOT/$BASELINE_REL" ]] || { echo "ERRO: baseline não encontrado: $BASELINE_REL" >&2; exit 2; }
 [[ -f "$ROOT/$BASELINE_SEED_REL" ]] || { echo "ERRO: seed do baseline não encontrado: $BASELINE_SEED_REL" >&2; exit 2; }
 [[ -f "$ROOT/$CURRENT_REL" ]] || { echo "ERRO: instalador corrente não encontrado: $CURRENT_REL" >&2; exit 2; }
-[[ "$(cd "$ROOT" && dotnet --version)" == "8.0.424" ]] || { echo "ERRO: SDK ativo deve ser exatamente 8.0.424 (global.json)." >&2; exit 2; }
+[[ "$(cd "$ROOT" && dotnet --version)" == "10.0.100" ]] || { echo "ERRO: SDK ativo deve ser exatamente 10.0.100 (global.json)." >&2; exit 2; }
 mkdir -p "$ROOT/.local/ddl-upgrade"
 
 compose(){ (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
@@ -74,7 +74,7 @@ build_progressive_backfill_runner(){
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

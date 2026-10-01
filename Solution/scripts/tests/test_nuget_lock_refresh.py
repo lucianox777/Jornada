@@ -23,7 +23,7 @@ PROJECTS[0] = OPERATIONAL
 
 
 def lock_data(extra=None, package_version='1.0.0'):
-    return (json.dumps({'version': 1, 'dependencies': {'net8.0': {
+    return (json.dumps({'version': 1, 'dependencies': {'net10.0': {
         'Example.Package': {'type': 'Direct', 'requested': f'[{package_version}, )',
                             'resolved': package_version, 'contentHash': 'fixed-content-hash'},
         **(extra or {})}}}, sort_keys=True) + '\n').encode()

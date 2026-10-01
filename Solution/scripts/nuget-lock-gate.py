@@ -47,10 +47,13 @@ def main() -> int:
         if data.get('version') != 1:
             raise SystemExit(f'ERRO: versão inesperada do lock: {lock.relative_to(root)}')
         deps=data.get('dependencies') or {}
-        # aceita net8.0 e chaves qualificadas como net8.0/win-x64, mas exige ao menos uma família net8.0
-        groups=[(k,v) for k,v in deps.items() if k == 'net8.0' or k.startswith('net8.0/')]
+        props=ET.parse(root/'Directory.Build.props').getroot()
+        target=(props.findtext('.//TargetFramework') or '').strip()
+        if not target:
+            raise SystemExit('ERRO: TargetFramework corrente ausente em Directory.Build.props')
+        groups=[(k,v) for k,v in deps.items() if k == target or k.startswith(target + '/')]
         if not groups:
-            raise SystemExit(f'ERRO: {lock.relative_to(root)} sem grupo net8.0')
+            raise SystemExit(f'ERRO: {lock.relative_to(root)} sem grupo {target}')
         direct_found={}
         for _, group in groups:
             for name, entry in (group or {}).items():
@@ -83,7 +86,7 @@ def main() -> int:
     combined='\n'.join(f"{r['sha256']}  {r['lockFile']}" for r in rows).encode()
     summary={
         'schemaVersion':1,
-        'targetFramework':'net8.0',
+        'targetFramework':target,
         'projectCount':len(rows),
         'combinedSha256':hashlib.sha256(combined).hexdigest(),
         'projects':rows,
