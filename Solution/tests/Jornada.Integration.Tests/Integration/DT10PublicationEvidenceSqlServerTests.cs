@@ -172,7 +172,7 @@ public sealed class DT10PublicationEvidenceSqlServerTests
             await using var state = connection.CreateCommand();
             state.Transaction = tx;
             state.CommandText = "SELECT XACT_STATE();";
-            Assert.That(Convert.ToInt32(await state.ExecuteScalarAsync(), CultureInfo.InvariantCulture), Is.EqualTo(-1));
+            Assert.That(Convert.ToInt32(await state.ExecuteScalarAsync(), CultureInfo.InvariantCulture), Is.AnyOf(-1, 0),\n                "XACT_ABORT pode deixar a transação condenada (-1) ou já integralmente revertida (0); ambos exigem a verificação pós-rollback abaixo.");
         }
         finally
         {
