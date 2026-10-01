@@ -119,6 +119,56 @@ public sealed class SyntheticDemographicPrimaryTests
     }
 
     [Test]
+    public async Task Loader_demographic_primary_preserves_all_positive_published_frequencies()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var files = new[]
+            {
+                await WriteProjectionAsync(root, "projection/municipio.ndjson.gz", "MUNICIPIO",
+                    """
+                    {"tipo":"NOME","valor":"CAUDA10","frequencia":10,"escopoGeografico":"MUNICIPIO","ufCodigo":"35","municipioCodigo":"3550308"}
+                    {"tipo":"NOME","valor":"CAUDA19","frequencia":19,"escopoGeografico":"MUNICIPIO","ufCodigo":"35","municipioCodigo":"3550308"}
+                    {"tipo":"SOBRENOME","valor":"RARO12","frequencia":12,"escopoGeografico":"MUNICIPIO","ufCodigo":"35","municipioCodigo":"3550308"}
+                    """),
+                await WriteProjectionAsync(root, "projection/sexo.ndjson.gz", "BRASIL_SEXO",
+                    """
+                    {"tipo":"NOME","valor":"MARIA","frequencia":20,"sexo":"FEMININO","escopoGeografico":"BRASIL"}
+                    """),
+                await WriteProjectionAsync(root, "projection/brasil.ndjson.gz", "BRASIL_TOTAL",
+                    """
+                    {"tipo":"SOBRENOME","valor":"SOUZA","frequencia":20,"escopoGeografico":"BRASIL"}
+                    """)
+            };
+            await File.WriteAllTextAsync(Path.Combine(root, "projection-manifest.json"), JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                referenceCode = "CENSO2022_NOMES_BRASIL_V1",
+                format = "NDJSON_UTF8_GZIP",
+                generatedFrom = "fixture",
+                files
+            }));
+
+            var source = await SyntheticCorpusSourceLoader.LoadDemographicPrimaryAsync(
+                root, new SyntheticCorpusOptions(People: 1, MinFrequency: 20));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(source.PersonFirstNameCount, Is.EqualTo(2),
+                    "demographic-primary não deve reaplicar o limiar nacional 20 sobre a fonte municipal publicada");
+                Assert.That(source.PersonSurnameCount, Is.EqualTo(1));
+                Assert.That(source.MotherFirstNameCount, Is.EqualTo(1));
+                Assert.That(source.MotherSurnameCount, Is.EqualTo(1));
+            });
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
     public void Daily_birth_distribution_fails_closed_on_missing_or_invalid_frequency()
     {
         Assert.ThrowsAsync<FileNotFoundException>(async () =>
