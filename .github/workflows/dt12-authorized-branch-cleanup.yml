@@ -1,0 +1,50 @@
+name: DT-12 Authorized Branch Cleanup
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'Solution/docs/evidence/DT12_Branch_Delete_Authorization_20261001.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dt12-authorized-branch-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Revalidate and delete authorized DT-12 branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact authorization commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Execute fail-closed DT-12 cleanup
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 Solution/scripts/dt12-branch-cleanup.py \
+            --repository "${GITHUB_REPOSITORY}" \
+            --candidate-file Solution/docs/DT12_Branch_Delete_Candidates_20261001.csv \
+            --expected-sha256 325a4b084f5aa4f4fb78fe0d4dc51fa157ec6c6048a8ae80143c03eb765f071b \
+            --expected-count 170 \
+            --authorization-file Solution/docs/evidence/DT12_Branch_Delete_Authorization_20261001.json \
+            --execute \
+            --report .local/dt12-cleanup/report.json
+
+      - name: Upload cleanup report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dt12-branch-cleanup-report
+          path: .local/dt12-cleanup/report.json
+          if-no-files-found: warn
+          retention-days: 90
