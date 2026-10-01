@@ -1,0 +1,11 @@
+{
+  "authorized": false,
+  "phrase": "DELETE_DT12_170_BRANCHES",
+  "candidate_sha256": "325a4b084f5aa4f4fb78fe0d4dc51fa157ec6c6048a8ae80143c03eb765f071b",
+  "candidate_count": 170,
+  "authorized_at": "FILL_ON_EXPLICIT_AUTHORIZATION",
+  "authorized_by": "FILL_ON_EXPLICIT_AUTHORIZATION",
+  "backup_workflow_run": 36907290133,
+  "backup_artifact_id": 11185565933,
+  "backup_artifact_digest": "sha256:11d3d69c3cdac418eb5128e5ed02d6da4af43ac4d2e88bc5ad792835cf8ecd0e"
+}
