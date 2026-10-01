@@ -37,7 +37,7 @@ Na ETAPA 0 não foi localizada prova citada inexistente entre os marcadores cont
 
 - **LACUNA: MARIA SOUZA / MARIA SOUZA LIMA / MARIA LIMA.** Homônimos/empates/guard pertencem à frente V8; não reinterpretar resultados aqui.
 - **LACUNA: DT-05 replay histórico NAS.** Replay Parquet/NAS permanece fora desta frente.
-- **LACUNA: DT-10 concorrência adversarial e rollback parcial.** PR #630; permanece separado.
+- **DT-10 RESOLVIDA (01/10/2026):** PR #664, `jornada-ci` #36858619309 e artefato `dt10-evidence` registram 4/4 testes sem skips para concorrência adversarial, conflito concorrente, rollback por falha injetada e plano/volumetria em `JornadaSyntheticDev`. A evidência integra a preparação do baseline E2E-A, sem alegar SLA de Produção.
 - **LACUNA: #539 / #378 compartilhamento institucional.** CI DEV não autoriza exposição institucional.
 - **LACUNA: #506 / #31 validação externa e representatividade.** CI sintético não substitui validação externa/real.
 - **LACUNA: Ensaio integrado DT-17.** Esta matriz não declara aceite integral de Ensaio/HML/Produção.
@@ -55,4 +55,4 @@ Testes SQL desta frente usam somente o banco sintético/isolado configurado pelo
 
 **Contratos/SQL afetados:** nenhum contrato, DDL, migration ou SQL de produção alterado; testes apenas leem contratos/DDL existentes. **Dependências:** DC-ID-01/DC-ID-02 e DC-LK-01 de 29/09. **Testes/gates:** os oito jobs do jornada-ci, contabilizados somente se executados. **Riscos:** testes de contrato estrutural podem detectar mudança legítima futura e exigir reconciliação documental; não corrigir produção nesta frente. **Rollback:** reverter documentação e arquivos de teste novos/ajustados.
 
-A separação da CI está excluída desta frente. DT-10 permanece última na sequência já definida.
+A separação da CI está excluída desta frente. A DT-10, que era a última entrega técnica antes do baseline, foi concluída em 01/10/2026; a próxima etapa é E2E-A/DT-17A.
