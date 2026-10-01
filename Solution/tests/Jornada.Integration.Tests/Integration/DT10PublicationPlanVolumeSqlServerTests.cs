@@ -267,6 +267,12 @@ public sealed class DT10PublicationPlanVolumeSqlServerTests
             ["SCALE_COLLISION_MODULO"] = "37",
             ["SCALE_BIRTH_SHIFT_MODULO"] = "29"
         });
+
+        var database = Jornada.Operational.Sql.OperationalDatabaseAdapterFactory.Create(
+            Jornada.Operational.Sql.OperationalDatabaseProviders.SqlServer,
+            connection.ConnectionString);
+        var store = new Jornada.Processor.Worker.ProgressiveIdentityOriginStore(database);
+        while (await store.BackfillPageAsync(1000) > 0) { }
     }
 
     private static async Task<ModelFixture> ReadModelAsync(SqlConnection connection)
