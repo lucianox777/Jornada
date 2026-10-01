@@ -217,10 +217,10 @@ public sealed class DT10PublicationEvidenceSqlServerTests
     {
         await using var exists = connection.CreateCommand();
         exists.CommandText = "SELECT CASE WHEN EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%') THEN 1 ELSE 0 END;";
-        if (Convert.ToInt32(await exists.ExecuteScalarAsync(), CultureInfo.InvariantCulture) == 1)
-            return;
+        var scaleExists = Convert.ToInt32(await exists.ExecuteScalarAsync(), CultureInfo.InvariantCulture) == 1;
 
-        await SqlBatchRunner.ExecuteFileWithSqlCmdVariablesAsync(
+        if (!scaleExists)
+            await SqlBatchRunner.ExecuteFileWithSqlCmdVariablesAsync(
             connection,
             Path.Combine(databaseDir, "Jornada_Dev_SyntheticScale.sql"),
             new Dictionary<string, string>(StringComparer.Ordinal)
