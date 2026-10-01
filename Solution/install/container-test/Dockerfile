@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0.424 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.401 AS build
 WORKDIR /src
 
 # Mantém a resolução NuGet em uma camada independente do código-fonte. Assim,
@@ -39,6 +39,11 @@ RUN dotnet restore src/Jornada.Api/Jornada.Api.csproj --locked-mode \
 
 COPY . .
 
+# O host/CI fixa SDK 10.0.112. A imagem oficial disponível para o mesmo runtime
+# .NET/ASP.NET Core 10.0.12 usa a feature band 10.0.4xx; o global.json do host
+# não pode bloquear o SDK 10.0.401 instalado nesta etapa de build.
+RUN rm -f global.json
+
 RUN dotnet publish src/Jornada.Api/Jornada.Api.csproj -c Release --no-restore -o /out/apps/Jornada.Api \
  && dotnet publish src/Jornada.Resultado.Api/Jornada.Resultado.Api.csproj -c Release --no-restore -o /out/apps/Jornada.Resultado.Api \
  && dotnet publish src/Jornada.Processor.Worker/Jornada.Processor.Worker.csproj -c Release --no-restore -o /out/apps/Jornada.Processor.Worker \
@@ -50,7 +55,7 @@ RUN dotnet publish src/Jornada.Api/Jornada.Api.csproj -c Release --no-restore -o
  && dotnet publish src/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.csproj -c Release --no-restore -o /out/tools/Jornada.Linkage.Evaluation \
  && dotnet publish src/Jornada.Linkage.Conference/Jornada.Linkage.Conference.csproj -c Release --no-restore -o /out/tools/Jornada.Linkage.Conference
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
 RUN apt-get update \
  && apt-get install -y --no-install-recommends jq curl procps \
  && rm -rf /var/lib/apt/lists/*

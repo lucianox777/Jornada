@@ -5,7 +5,7 @@ OUT="${2:-$ROOT/.local/deterministic-build}"
 mkdir -p "$OUT"
 manifest(){
   local target="$1"
-  (cd "$ROOT" && find src -type f \( -path '*/bin/Release/net8.0/*.dll' -o -path '*/bin/Release/net8.0/*.pdb' -o -path '*/bin/Release/net8.0/*.deps.json' -o -path '*/bin/Release/net8.0/*.runtimeconfig.json' \) -print0 | sort -z | xargs -0 sha256sum) > "$target"
+  (cd "$ROOT" && find src -type f \( -path '*/bin/Release/net10.0/*.dll' -o -path '*/bin/Release/net10.0/*.pdb' -o -path '*/bin/Release/net10.0/*.deps.json' -o -path '*/bin/Release/net10.0/*.runtimeconfig.json' \) -print0 | sort -z | xargs -0 sha256sum) > "$target"
   test -s "$target" || { echo 'DETERMINISTIC BUILD GATE: FAIL: nenhum artefato Release encontrado' >&2; exit 1; }
 }
 cd "$ROOT"

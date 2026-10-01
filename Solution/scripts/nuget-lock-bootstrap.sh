@@ -6,8 +6,9 @@ command -v dotnet >/dev/null 2>&1 || { echo "ERRO: dotnet não encontrado." >&2;
 command -v python3 >/dev/null 2>&1 || { echo "ERRO: python3 não encontrado." >&2; exit 2; }
 mkdir -p "$OUT"
 cd "$ROOT"
-dotnet --version | grep -Fx '8.0.424' >/dev/null || {
-  echo "ERRO: SDK ativo deve ser exatamente 8.0.424 (global.json)." >&2
+EXPECTED_SDK="$(python3 -c 'import json; print(json.load(open("global.json", encoding="utf-8-sig"))["sdk"]["version"])')"
+dotnet --version | grep -Fx "$EXPECTED_SDK" >/dev/null || {
+  echo "ERRO: SDK ativo deve ser exatamente $EXPECTED_SDK (global.json)." >&2
   exit 3
 }
 dotnet restore Jornada.sln --use-lock-file --force-evaluate

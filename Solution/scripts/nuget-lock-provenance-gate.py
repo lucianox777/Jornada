@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse, hashlib, json, re, xml.etree.ElementTree as ET
 from pathlib import Path
 
-RELEASE='v4.05'; SDK='8.0.424'; SOLUTION_SCHEMA='v3.70'
+RELEASE='v4.05'; HISTORICAL_SDK='8.0.424'; SOLUTION_SCHEMA='v3.70'
 ORIGIN='REGENERATED_OR_VERIFIED_V405_SDK_8_0_424'; STATUS='CI_FORCE_EVALUATE_AND_LOCK_GATE_PASS_V405'
 ASSURANCE='CI_REGENERATED_AND_REPRODUCIBLE_LOCK_GRAPH'; GRAPH='SDK_8_0_424_FORCE_EVALUATED_NO_DIFF_THEN_LOCKED_MODE'
 ATTESTED_LOCK_COUNT=18
@@ -21,18 +21,20 @@ def main():
     if env.get('nugetRestoreExecuted') is not True or env.get('dotnetAvailable') is not True: fail('proveniência v4.05 deve registrar regeneração real via dotnet')
     if data.get('assurance')!=ASSURANCE or data.get('currentGraphVerification')!=GRAPH or data.get('pendingLockCount')!=0: fail('assurance/grafo/pending inesperado')
     gen=data.get('lockGraphGeneration') or {}
-    if gen.get('sdk')!=SDK or gen.get('command')!='dotnet restore Jornada.sln --use-lock-file --force-evaluate': fail('geração de locks não fixa SDK/comando canônicos')
+    if gen.get('sdk')!=HISTORICAL_SDK or gen.get('command')!='dotnet restore Jornada.sln --use-lock-file --force-evaluate': fail('geração histórica de locks não fixa SDK/comando canônicos')
     if gen.get('nugetLockGate')!='PASS' or gen.get('lockCount')!=ATTESTED_LOCK_COUNT: fail('evidência histórica v4.05 incompleta')
 
     actual=sorted(p.relative_to(root).as_posix() for p in root.rglob('packages.lock.json') if '.local' not in p.parts and 'obj' not in p.parts and 'bin' not in p.parts)
     listed={r.get('path'):r for r in (data.get('locks') or []) if r.get('path')}
 
+    current_sdk=json.loads((root/'global.json').read_text(encoding='utf-8-sig')).get('sdk',{}).get('version')
+    if not current_sdk: fail('global.json sem sdk.version corrente')
     candidate=data.get('candidateGraph') or {}
     overrides={}
     if candidate:
         if candidate.get('candidate')!='v5.00' or candidate.get('status')!='CI_FORCE_EVALUATED_LOCK_GRAPH':
             fail('candidateGraph inesperado')
-        if candidate.get('sdk')!=SDK or candidate.get('lockCount')!=len(actual):
+        if candidate.get('sdk')!=current_sdk or candidate.get('lockCount')!=len(actual):
             fail('candidateGraph não fixa SDK/quantidade corrente')
         if not SHA256_RE.fullmatch(str(candidate.get('combinedSha256') or '')):
             fail('candidateGraph sem combinedSha256 válido')
@@ -92,13 +94,13 @@ def main():
                 if unexpected: fail(f'metadata Project divergente: {rel} -> {project_key}: {unexpected}')
 
     req='\n'.join(data.get('promotionRequirements') or [])
-    for token in ('8.0.424','--force-evaluate','nuget-lock-provenance-gate.py','--locked-mode','Unit + Integration da v4.05'):
+    for token in (HISTORICAL_SDK,'--force-evaluate','nuget-lock-provenance-gate.py','--locked-mode','Unit + Integration da v4.05'):
         if token not in req: fail(f'promoção não exige: {token}')
 
     summary={'status':'PASS','release':RELEASE,'solutionSchema':SOLUTION_SCHEMA,'lockCount':len(actual),
              'attestedLockCount':ATTESTED_LOCK_COUNT,'postReleaseAliases':POST_RELEASE_ALIASES,
              'candidateOverrideCount':len(overrides),'candidate':candidate.get('candidate') if candidate else None,
-             'sdk':SDK,'assurance':ASSURANCE}
+             'historicalSdk':HISTORICAL_SDK,'candidateSdk':current_sdk,'assurance':ASSURANCE}
     if a.summary:
         out=Path(a.summary);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(summary,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     print(f'NUGET LOCK PROVENANCE GATE: OK ({len(actual)} locks; {len(overrides)} overrides candidatos; histórico v4.05 preservado)')
