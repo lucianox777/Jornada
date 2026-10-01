@@ -1,0 +1,17 @@
+Jornada Fase 1 — Nota de Engenharia v3.84
+Base normativa: v3.62
+Solution Engenharia: v3.84
+Schema persistido esperado: Base 3.62 / SolutionSchema 3.68
+
+Escopo desta release:
+1. Completar a separação de dependências entre Unit e Integration.
+2. Remover Testcontainers.MsSql de Jornada.Tests.
+3. Reduzir Jornada.Integration.Tests a sete referências diretas comprovadas pelo uso de namespaces da suíte.
+4. Corrigir CI e scripts locais de FaultInjection/local-test para o projeto Integration dedicado.
+5. Endurecer o gate NuGet para exigir igualdade exata do conjunto Direct do lock com o .csproj.
+6. Registrar proveniência dos locks sem afirmar restore inexistente.
+
+Validação de runtime nesta montagem:
+- não executada, pois este ambiente não dispõe de .NET SDK nem Docker;
+- os locks de Jornada.Tests e Jornada.Integration.Tests foram podados por alcançabilidade a partir do grafo já presente na v3.83, sem inventar versões ou contentHash;
+- promoção de release continua condicionada a restore --locked-mode e às suítes reais do CI.
