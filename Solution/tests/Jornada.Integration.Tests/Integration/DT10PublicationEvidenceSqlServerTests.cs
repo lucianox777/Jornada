@@ -250,7 +250,7 @@ public sealed class DT10PublicationEvidenceSqlServerTests
                 linkage_run_id,modelo_id,modelo_versao,tipo_run,status,limite_solicitado,escopo_json,batch_size,max_parallelism,
                 pessoa_observacao_id_high_watermark,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,
                 sem_candidato_no_bloco,solicitado_por,motivo,correlation_id,iniciado_em)
-            VALUES(@run,@model,@version,N'BATCH',N'EXECUTANDO',@count,N'{"test":"dt10-evidence"}',@count,1,
+            VALUES(@run,@model,@version,N'FULL',N'EXECUTANDO',@count,N'{"test":"dt10-evidence"}',@count,1,
                    @high,@count,@count,@resolved,@unresolved,0,@noCandidate,N'CI',N'DT10 evidence',NEWID(),SYSUTCDATETIME());
             """;
         header.Parameters.AddWithValue("@run", run);
