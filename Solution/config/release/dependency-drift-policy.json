@@ -115,7 +115,31 @@
       "from": "5.2.2",
       "to": "7.1.1",
       "justification": "DT-02 migra o runtime para .NET 10 e atualiza Microsoft.Data.SqlClient 5.2.2 → 7.1.1 como mudança governada; regressão SQL/E2E permanece obrigatória antes do merge."
+    },
+    {
+      "kind": "MAJOR",
+      "project": "Solution/tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj",
+      "package": "Microsoft.AspNetCore.Mvc.Testing",
+      "from": "8.0.11",
+      "to": "10.0.12",
+      "justification": "DT-02 alinha o host de testes ASP.NET ao runtime .NET 10; a versão 8.x provocou incompatibilidade de PipeWriter no test host. Unit/OpenAPI e regressão HTTP permanecem obrigatórios antes do merge."
+    },
+    {
+      "kind": "ADD",
+      "project": "Solution/tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj",
+      "package": "Microsoft.Data.SqlClient.Extensions.Azure",
+      "from": null,
+      "to": "7.1.1",
+      "justification": "Microsoft.Data.SqlClient 7.x separa o provider Microsoft Entra/ActiveDirectoryAuthenticationProvider no pacote Extensions.Azure; a suíte Fabric opcional depende desse provider e os testes SQL/E2E permanecem obrigatórios."
+    },
+    {
+      "kind": "MAJOR",
+      "project": "Solution/tests/Jornada.Tests/Jornada.Tests.csproj",
+      "package": "Microsoft.AspNetCore.Mvc.Testing",
+      "from": "8.0.11",
+      "to": "10.0.12",
+      "justification": "DT-02 alinha o host de testes ASP.NET ao runtime .NET 10; a versão 8.x provocou incompatibilidade de PipeWriter no test host. Unit/OpenAPI e regressão HTTP permanecem obrigatórios antes do merge."
     }
   ],
-  "note": "DT-02 mantém SQL Server como único runtime relacional da candidata e governa explicitamente Microsoft.Data.SqlClient 5.2.2 → 7.1.1 em todas as referências diretas. Upgrades de NUnit/Test SDK permanecem fora deste escopo salvo incompatibilidade comprovada."
+  "note": "DT-02 mantém SQL Server como único runtime relacional da candidata, governa Microsoft.Data.SqlClient 5.2.2 → 7.1.1 e registra somente as compatibilidades adicionais comprovadas para .NET 10: Microsoft.AspNetCore.Mvc.Testing 10.0.12 nos testes e Microsoft.Data.SqlClient.Extensions.Azure 7.1.1 para o provider Entra. Upgrades de NUnit/Test SDK permanecem fora deste escopo salvo incompatibilidade comprovada."
 }
