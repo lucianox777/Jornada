@@ -1,0 +1,16 @@
+Jornada Fase 1 — Nota de Engenharia v3.83
+Base normativa: v3.62
+Solution Engenharia: v3.83
+Schema persistido esperado: Base 3.62 / SolutionSchema 3.68
+
+Escopo desta release:
+1. Restauração da estrutura canônica do pacote/repositório (`Solution/`, `.github/workflows`, arquivos de selagem).
+2. Criação do projeto `Jornada.Integration.Tests` e separação física da suíte Integration do projeto Unit.
+3. Preservação da infraestrutura Testcontainers.MsSql 4.14.0 / SQL Server 2022 CU26 da v3.82.
+4. Inclusão do Resumo Executivo solicitado.
+5. Inclusão dos documentos do Projeto de Integração de Benefícios e Serviços Sociais.
+6. Base Normativa e schema funcional não alterados.
+
+Validação de runtime nesta montagem:
+- não executada, pois este ambiente não dispõe de .NET SDK nem Docker;
+- validações estáticas, integridade do ZIP, hashes e proveniência são registradas no relatório de distribuição.
