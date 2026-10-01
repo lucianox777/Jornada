@@ -1,0 +1,9 @@
+NOTA DE CONVERGÊNCIA - BASE NORMATIVA v3.62 / SOLUTION v3.68
+
+A v3.68 não é uma simples continuação textual da v3.67. Ela converge duas linhas de trabalho:
+1) a v3.66, cujo fechamento foi descrito e auditado na conversa anterior, mas cujo ZIP binário exato não está materializado neste runtime;
+2) a v3.67 reconstruída, cujo ZIP está materializado e cuja implementação de identidade.sp_recompor_gold_pessoa é tecnicamente mais forte.
+
+Regra de conflito aplicada: a recomposição Gold da v3.67 prevalece. Os demais fechamentos conhecidos da v3.66 foram reimplementados e ampliados pelos déficits encontrados na própria auditoria da v3.66: EMAIL_CANONICO_V2, migração fail-closed, 51110-51116, ordem do 51114, readiness por versão exata e correção normativa do telefone.
+
+Rastreabilidade: nenhum SHA da v3.66 foi inventado. RELEASE_INFO.txt registra explicitamente que esse predecessor não está materializado. Para releases futuras foi acrescentado um gate de integridade de predecessor que falha quando um artefato declarado/materializado não corresponde ao SHA informado.
