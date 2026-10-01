@@ -2,6 +2,11 @@ name: DT-12 Pre-cleanup Git Bundle
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - 'Solution/docs/evidence/DT12_PreCleanup_Request_20261001.yml'
 
 permissions:
   contents: read
@@ -12,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -48,7 +53,7 @@ jobs:
           test -n "$(git -C dt12-restore-test/repo rev-parse HEAD)"
 
       - name: Upload temporary backup artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0 # v7.0.1
         with:
           name: Jornada-DT12-pre-cleanup-backup
           path: dt12-backup/
