@@ -55,13 +55,13 @@ public sealed class Dt17RegressionMatrixContractTests
             "NÃO EXECUTADA",
             "LACUNA: MARIA SOUZA / MARIA SOUZA LIMA / MARIA LIMA",
             "LACUNA: DT-05 replay histórico NAS",
-            "LACUNA: DT-10 concorrência adversarial e rollback parcial",
+            "DT-10 RESOLVIDA (01/10/2026)",
             "LACUNA: #539 / #378 compartilhamento institucional",
             "LACUNA: #506 / #31 validação externa e representatividade",
             "LACUNA: Ensaio integrado DT-17",
             "Nunca resetar `JornadaLocal`",
             "A separação da CI está excluída",
-            "DT-10 permanece última"
+            "a próxima etapa é E2E-A/DT-17A"
         })
             Assert.That(matrix, Does.Contain(required));
     }
