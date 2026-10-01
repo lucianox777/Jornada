@@ -1,0 +1,14 @@
+dt12_precleanup:
+  requested_at: 2026-10-01
+  purpose: "Criar, verificar e testar restauração do bundle Git antes de qualquer limpeza DT-12"
+  source_master: d9dc91d2dd9a248c4489fba7db7d00cd15fbf0fb
+  e2e_b:
+    pull_request: 677
+    execution_record_pull_request: 678
+    state: EXECUTADA
+  destructive_changes_authorized_by_this_marker: false
+  required_before_cleanup:
+    - git_bundle_created
+    - git_bundle_verified
+    - restore_test_passed
+    - refs_snapshot_preserved
