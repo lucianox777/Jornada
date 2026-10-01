@@ -1,0 +1,12 @@
+NOTA DE ENGENHARIA - BASE NORMATIVA v3.62 / SOLUTION v3.69
+
+Objetivo: fechar a pendencia tecnica de continuidade/reprodutibilidade entre releases sem alterar a semantica normativa ou o schema funcional da Jornada.
+
+1. A v3.68 selada e o predecessor direto da v3.69 e seu ZIP e verificado por SHA-256 em RELEASE_INFO.txt.
+2. A distribuicao passa a embarcar um Git bundle auto-contido com dois snapshots fonte encadeados: jornada-solution-v3.68 -> jornada-solution-v3.69.
+3. SOURCE_PROVENANCE.json registra commit, tree, quantidade de arquivos e SHA-256 do bundle. scripts/release-source-gate.py valida o bundle e, em repositorio real, exige que a tag de release aponte exatamente para HEAD e que a tag predecessora seja ancestral.
+4. O CI passa a tratar tags de release em modo fail-closed: packages.lock.json devem existir no Git e o restore usa --locked-mode; o bootstrap que gera locks permanece apenas para branches/PRs.
+5. A v3.69 nao altera o contrato de dados. O marcador funcional de schema continua Base 3.62 / SolutionSchema 3.68; engineering release e schema compatibility deixam de ser confundidos.
+
+LIMITES DO AMBIENTE DE MONTAGEM
+Nao ha SDK .NET, SQL Server, Docker, sqlcmd ou pwsh neste runtime. Assim, packages.lock.json e evidencias de build/test/SQL nao foram fabricados. O novo gate transforma essas ausencias em bloqueio de promocao de tag ate que sejam produzidas por ambiente confiavel.
