@@ -8,15 +8,30 @@ from __future__ import annotations
 import argparse, json
 from pathlib import Path
 
+DT10_PREFIXES = (
+    "Solution/tests/Jornada.Integration.Tests/Integration/DT10Publication",
+)
+DT10_EXACT = {
+    ".github/workflows/ci.yml",
+    "Solution/tests/Jornada.Integration.Tests/Integration/SqlBatchRunner.cs",
+    "Solution/tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj",
+    "Solution/database/Jornada_Dev_SyntheticScale.sql",
+    "Solution/database/migrations/20260910_Schema_Consolidation_370.sql",
+    "Solution/database/migrations/20260926_Linkage_Publicacao_Progressiva_Lote.sql",
+    "Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs",
+}
+
 def classify(paths: list[str]) -> dict:
-    normalized=[p.replace("\\","/").lstrip("./") for p in paths]
+    normalized=[(q[2:] if q.startswith("./") else q) for p in paths for q in [p.replace("\\","/")]]
     docs=[p for p in normalized if p.lower().startswith("solution/docs/") or p.lower().endswith((".md",".txt"))]
     substantive=[p for p in normalized if p not in docs]
     docs_only=bool(normalized) and not substantive
+    run_dt10=any(p in DT10_EXACT or p.startswith(DT10_PREFIXES) for p in normalized)
     return {
         "classification": "docs-only" if docs_only else "substantive",
         "docs_only": docs_only,
         "run_full": not docs_only,
+        "run_dt10": run_dt10,
         "paths": normalized,
         "docs": docs,
         "substantive": substantive,
@@ -35,6 +50,7 @@ def main():
     print(payload)
     print(f"docs_only={'true' if result['docs_only'] else 'false'}")
     print(f"run_full={'true' if result['run_full'] else 'false'}")
+    print(f"run_dt10={'true' if result['run_dt10'] else 'false'}")
 
 if __name__=="__main__":
     main()
