@@ -210,6 +210,28 @@ public sealed class DT10PublicationEvidenceSqlServerTests
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
         await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
+        await EnsureDt10ScaleAsync(connection, databaseDir);
+    }
+
+    private static async Task EnsureDt10ScaleAsync(SqlConnection connection, string databaseDir)
+    {
+        await using var exists = connection.CreateCommand();
+        exists.CommandText = "SELECT CASE WHEN EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%') THEN 1 ELSE 0 END;";
+        if (Convert.ToInt32(await exists.ExecuteScalarAsync(), CultureInfo.InvariantCulture) == 1)
+            return;
+
+        await SqlBatchRunner.ExecuteFileWithSqlCmdVariablesAsync(
+            connection,
+            Path.Combine(databaseDir, "Jornada_Dev_SyntheticScale.sql"),
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["SCALE_PEOPLE"] = "1000",
+                ["SCALE_PAIRED"] = "2",
+                ["SCALE_PENDING"] = "1000",
+                ["SCALE_SEED"] = "355",
+                ["SCALE_COLLISION_MODULO"] = "37",
+                ["SCALE_BIRTH_SHIFT_MODULO"] = "29"
+            });
     }
 
     private static async Task<PublishOutcome> PublishAsync(string cs, Guid run, Task gate)
