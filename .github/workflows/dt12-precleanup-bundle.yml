@@ -63,16 +63,7 @@ jobs:
           git -C "$repo" fetch "$PWD/$bundle" '+refs/*:refs/*'
           git -C "$repo" fsck --full
           git -C "$repo" show-ref | LC_ALL=C sort > dt12-backup/restored-show-ref.txt
-          grep -v ' HEAD          test -n "$(git -C "$repo" rev-parse refs/heads/master)"
-
-      - name: Upload temporary backup artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: Jornada-DT12-pre-cleanup-backup
-          path: dt12-backup/
-          if-no-files-found: error
-          retention-days: 7
- dt12-backup/bundle-heads.txt > dt12-backup/restorable-bundle-heads.txt
+          grep -v ' HEAD$' dt12-backup/bundle-heads.txt > dt12-backup/restorable-bundle-heads.txt
           diff -u dt12-backup/restorable-bundle-heads.txt dt12-backup/restored-show-ref.txt
           test -n "$(git -C "$repo" rev-parse refs/heads/master)"
 
