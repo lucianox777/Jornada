@@ -21,7 +21,7 @@ internal static class TrustedProxyConfiguration
         (options.KnownProxies?.Any(value => !string.IsNullOrWhiteSpace(value)) ?? false)
         || (options.KnownNetworks?.Any(value => !string.IsNullOrWhiteSpace(value)) ?? false);
 
-    internal static Microsoft.AspNetCore.HttpOverrides.IPNetwork ParseNetwork(string raw)
+    internal static System.Net.IPNetwork ParseNetwork(string raw)
     {
         var value = raw?.Trim() ?? string.Empty;
         var parts = value.Split('/', StringSplitOptions.TrimEntries);
@@ -30,7 +30,7 @@ internal static class TrustedProxyConfiguration
         var max = prefix.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? 32 : 128;
         if (prefixLength < 0 || prefixLength > max)
             throw new InvalidOperationException($"ReverseProxy:KnownNetworks contém prefixo CIDR inválido: '{raw}'.");
-        return new Microsoft.AspNetCore.HttpOverrides.IPNetwork(prefix, prefixLength);
+        return new System.Net.IPNetwork(prefix, prefixLength);
     }
 }
 
@@ -46,7 +46,7 @@ internal sealed class ConfigureTrustedForwardedHeaders(IOptions<TrustedProxyOpti
         options.RequireHeaderSymmetry = true;
 
         options.KnownProxies.Clear();
-        options.KnownNetworks.Clear();
+        options.KnownIPNetworks.Clear();
 
         foreach (var raw in configured.Value.KnownProxies ?? [])
         {
@@ -55,6 +55,6 @@ internal sealed class ConfigureTrustedForwardedHeaders(IOptions<TrustedProxyOpti
             options.KnownProxies.Add(address);
         }
         foreach (var raw in configured.Value.KnownNetworks ?? [])
-            options.KnownNetworks.Add(TrustedProxyConfiguration.ParseNetwork(raw));
+            options.KnownIPNetworks.Add(TrustedProxyConfiguration.ParseNetwork(raw));
     }
 }
