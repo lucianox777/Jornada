@@ -213,13 +213,13 @@
   "candidateGraph": {
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
-    "sourceCommit": "b6823b54e8fd099b6f63e008b0c5ad16272648d5",
-    "githubRunId": "36869870130",
+    "sourceCommit": "0f31c9fb694f8072d4695d9b57800dc17720fc7a",
+    "githubRunId": "36873587163",
     "sdk": "10.0.100",
-    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; histórico v4.05/.NET 8 preservado separadamente.",
+    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente.",
     "lockCount": 21,
     "changedLockCount": 21,
-    "combinedSha256": "d0934071010a5b348762c76227d3ed88277355bef6c2c9ed328faa6c381f1da0",
+    "combinedSha256": "b1807e110c35e43886cede4a6fc8d100c559f6686bb7ef4c6b9c93ed1c564560",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -299,11 +299,11 @@
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "28f4191f6585f90c2ca2fe2fc09316767a4023b03de5180826bf123ab8c028fc"
+        "sha256": "844cd8a4aff1a3d870ab2ebf47204a9d8e23aaf0353bc9a53c1d12742040b16a"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "d0a39e1e1ff7c1a737957c0f44672e04ee0dfcecac75941ae25930875a25b789"
+        "sha256": "4ce64ad36a28d96a22c76c7744cdb2a229ba460ba9b2ee8f45b134c19d99c95e"
       }
     ]
   }
