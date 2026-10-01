@@ -244,10 +244,21 @@ public sealed class DT10PublicationEvidenceSqlServerTests
 
             foreach (var id in ids)
             {
-                await using var ensure = connection.CreateCommand();
-                ensure.CommandText = "EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source_id;";
-                ensure.Parameters.AddWithValue("@source_id", id);
-                await ensure.ExecuteNonQueryAsync();
+                await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
+                try
+                {
+                    await using var ensure = connection.CreateCommand();
+                    ensure.Transaction = tx;
+                    ensure.CommandText = "EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source_id;";
+                    ensure.Parameters.AddWithValue("@source_id", id);
+                    await ensure.ExecuteNonQueryAsync();
+                    await tx.CommitAsync();
+                }
+                catch
+                {
+                    await tx.RollbackAsync();
+                    throw;
+                }
             }
         }
     }
