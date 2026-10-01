@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-SDK = '10.0.100'
+SDK = '10.0.112'
 EXPECTED_COUNT = 18
 MANIFEST = ROOT / 'config/release/nuget-lock-provenance.json'
 PROJECT = 'src/Jornada.Operational.Sql/packages.lock.json'
