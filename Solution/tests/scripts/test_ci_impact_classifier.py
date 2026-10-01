@@ -1,7 +1,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
-P=Path(__file__).resolve().parents[3]/"scripts"/"ci-impact-classifier.py"
+P=Path(__file__).resolve().parents[2]/"scripts"/"ci-impact-classifier.py"
 spec=importlib.util.spec_from_file_location("ci_impact",P); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 
 class CiImpactClassifierTests(unittest.TestCase):
