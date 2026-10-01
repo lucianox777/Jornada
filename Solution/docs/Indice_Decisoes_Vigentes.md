@@ -10,7 +10,7 @@
 | Calibrador, IBGE e promoção | [DC-LK-01/03; DC-OP-01](Decisoes_Canonicas_Identidade_Linkage_20260929.md) | IBGE bootstrap inicial uma vez, com proveniência; `m/u` calibrados no universo condicionado. [DT-15](DT15_Governanca_Decisao_Modelo.md) e [runbook](Runbook_Operacao.md) distinguem fluxo pretendido e gate hoje executável. |
 | Produto e requisitos candidatos | [Diretrizes](Diretrizes_Identidade_Progressiva_Apoio_Decisao.md), [Especificação v5.00 candidata](../../Documentos/Especificacao_Tecnica_Jornada_v5.00_Candidata.md) | A candidata ainda requer reconciliação editorial, técnica e publicação formal; [v3.62 publicada](../../Documentos/README.md) não é reescrita retroativamente. |
 | Corpus sintético — nascimento diário | [DC-SYN-01-E1](DC-SYN-01-E1_Referencia_Diaria_Nascimento.md) | Snapshot local imutável derivado somente do SIDRA 9514; conversão de coorte determinística; 100+ → 100–105 uniforme por convenção declarada; pós-01/08/2022 extrapola a taxa diária da coorte zero até corte explícito; SINASC não integra a E1; validação real #31 permanece separada. |
-| Plano, paralelismo e gates | [Plano](Plano_Desenvolvimento.md), [DP-01](DP-01_Desenvolvimento_Paralelo.md) | CI, migrations, contratos transversais: integração única; DT-10 concluída em 01/10/2026 e próximo marco E2E-A/DT-17A; issue #31 impede ativação real prematura. |
+| Plano, paralelismo e gates | [Plano](Plano_Desenvolvimento.md), [DP-01](DP-01_Desenvolvimento_Paralelo.md) | CI, migrations, contratos transversais: integração única; DT-10 e E2E-A/DT-17A concluídos em 01/10/2026; próximo marco DT-02 (.NET 10), seguido de E2E-B/DT-17B; issue #31 impede ativação real prematura. |
 
 ## Precedência, divergência e preservação
 
