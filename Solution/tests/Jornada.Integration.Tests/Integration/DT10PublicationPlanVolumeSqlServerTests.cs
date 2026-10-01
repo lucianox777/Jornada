@@ -268,11 +268,23 @@ public sealed class DT10PublicationPlanVolumeSqlServerTests
             ["SCALE_BIRTH_SHIFT_MODULO"] = "29"
         });
 
-        var database = Jornada.Operational.Sql.OperationalDatabaseAdapterFactory.Create(
-            Jornada.Operational.Sql.OperationalDatabaseProviders.SqlServer,
-            connection.ConnectionString);
-        var store = new Jornada.Processor.Worker.ProgressiveIdentityOriginStore(database);
-        while (await store.BackfillPageAsync(1000) > 0) { }
+        while (true)
+        {
+            await using var pending = connection.CreateCommand();
+            pending.CommandText = "SELECT TOP (1000) o.pessoa_origem_id FROM silver.pessoa_origem o LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE p.pessoa_origem_id IS NULL ORDER BY o.pessoa_origem_id;";
+            var ids = new List<long>();
+            await using (var reader = await pending.ExecuteReaderAsync())
+                while (await reader.ReadAsync()) ids.Add(reader.GetInt64(0));
+            if (ids.Count == 0) break;
+
+            foreach (var id in ids)
+            {
+                await using var ensure = connection.CreateCommand();
+                ensure.CommandText = "EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source_id;";
+                ensure.Parameters.AddWithValue("@source_id", id);
+                await ensure.ExecuteNonQueryAsync();
+            }
+        }
     }
 
     private static async Task<ModelFixture> ReadModelAsync(SqlConnection connection)
