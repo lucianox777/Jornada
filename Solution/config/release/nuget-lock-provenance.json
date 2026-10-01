@@ -215,7 +215,7 @@
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
     "sourceCommit": "0f31c9fb694f8072d4695d9b57800dc17720fc7a",
     "githubRunId": "36873587163",
-    "sdk": "10.0.100",
+    "sdk": "10.0.112",
     "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente.",
     "lockCount": 21,
     "changedLockCount": 21,
