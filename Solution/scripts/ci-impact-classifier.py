@@ -22,7 +22,7 @@ DT10_EXACT = {
 }
 
 def classify(paths: list[str]) -> dict:
-    normalized=[p.replace("\\","/").lstrip("./") for p in paths]
+    normalized=[(q[2:] if q.startswith("./") else q) for p in paths for q in [p.replace("\\","/")]]
     docs=[p for p in normalized if p.lower().startswith("solution/docs/") or p.lower().endswith((".md",".txt"))]
     substantive=[p for p in normalized if p not in docs]
     docs_only=bool(normalized) and not substantive
