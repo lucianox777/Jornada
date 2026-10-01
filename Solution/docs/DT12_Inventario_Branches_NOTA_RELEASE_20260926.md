@@ -165,3 +165,12 @@ A raiz contém `NOTA_CONVERGENCIA_V3.68.txt` e notas `NOTA_ENGENHARIA_*` até V4
 - `work/postgresql-linkage-v2-candidate-universe`
 
 **Decisão aguardada:** aprovação da política de retenção e autorização de uma futura etapa de verificação detalhada, sem qualquer remoção neste DT-12.
+
+## Recoleta e dry-run — 01/10/2026
+
+O inventário de 26/09 foi **recoletado** após E2E-B e a migração .NET 10. A fotografia vigente para decisão está em [DT12_DryRun_20261001.md](DT12_DryRun_20261001.md), com [inventário completo](DT12_Branch_DryRun_20261001.csv) e [lista nominal das 170 candidatas](DT12_Branch_Delete_Candidates_20261001.csv).
+
+O backup válido foi produzido pelo workflow `DT-12 Pre-cleanup Git Bundle`, run `36907290133`: 593 branches remotas reais foram comparadas nominalmente entre snapshot e bundle, 598 refs Git restauráveis foram recuperadas e `git fsck --full` passou. O PR #683 arquivou 60 arquivos `NOTA_*`/`RELEASE_v*.txt` em `Solution/docs/archive/releases/`, preservando os mesmos blobs. `RELEASE_INFO.txt` permaneceu na raiz por ser entrada ativa.
+
+A decisão destrutiva continua separada: **nenhuma branch foi removida**. A lista das 170 candidatas é um dry-run, não autorização. Antes de excluir, é obrigatório recoletar refs/PRs/tags e confirmar SHA imutável e ausência de novos bloqueios.
+
