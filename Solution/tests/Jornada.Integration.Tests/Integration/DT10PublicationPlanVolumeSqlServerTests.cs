@@ -28,6 +28,7 @@ public sealed class DT10PublicationPlanVolumeSqlServerTests
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
         await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, databaseDir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
+        await EnsureDt10ScaleAsync(connection, databaseDir);
 
         var model = await ReadModelAsync(connection);
         var sources = await ReadSourcesAsync(connection, volumes.Max());
@@ -195,7 +196,7 @@ public sealed class DT10PublicationPlanVolumeSqlServerTests
                     linkage_run_id,modelo_id,modelo_versao,tipo_run,status,limite_solicitado,escopo_json,batch_size,max_parallelism,
                     pessoa_observacao_id_high_watermark,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,
                     sem_candidato_no_bloco,solicitado_por,motivo,correlation_id,iniciado_em)
-                VALUES(@run,@model,@version,N'BATCH',N'EXECUTANDO',@count,N'{"test":"dt10-volume"}',@count,1,
+                VALUES(@run,@model,@version,N'FULL',N'EXECUTANDO',@count,N'{"test":"dt10-volume"}',@count,1,
                        @high,@count,@count,0,@count,0,@count,N'CI',N'DT10 relative measurement',NEWID(),SYSUTCDATETIME());
                 """;
             header.Parameters.AddWithValue("@run", run);
@@ -244,6 +245,57 @@ public sealed class DT10PublicationPlanVolumeSqlServerTests
         await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync()) rows.Add(new(reader.GetInt64(0), reader.GetInt64(1), reader.GetGuid(2)));
         return rows;
+    }
+
+
+    private static async Task EnsureDt10ScaleAsync(SqlConnection connection, string databaseDir)
+    {
+        await using var exists = connection.CreateCommand();
+        exists.CommandText = "SELECT CASE WHEN EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%') THEN 1 ELSE 0 END;";
+        var scaleExists = Convert.ToInt32(await exists.ExecuteScalarAsync(), CultureInfo.InvariantCulture) == 1;
+
+        if (!scaleExists)
+            await SqlBatchRunner.ExecuteFileWithSqlCmdVariablesAsync(
+            connection,
+            Path.Combine(databaseDir, "Jornada_Dev_SyntheticScale.sql"),
+            new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["SCALE_PEOPLE"] = "1000",
+            ["SCALE_PAIRED"] = "2",
+            ["SCALE_PENDING"] = "1000",
+            ["SCALE_SEED"] = "355",
+            ["SCALE_COLLISION_MODULO"] = "37",
+            ["SCALE_BIRTH_SHIFT_MODULO"] = "29"
+        });
+
+        while (true)
+        {
+            await using var pending = connection.CreateCommand();
+            pending.CommandText = "SELECT TOP (1000) o.pessoa_origem_id FROM silver.pessoa_origem o LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id WHERE p.pessoa_origem_id IS NULL ORDER BY o.pessoa_origem_id;";
+            var ids = new List<long>();
+            await using (var reader = await pending.ExecuteReaderAsync())
+                while (await reader.ReadAsync()) ids.Add(reader.GetInt64(0));
+            if (ids.Count == 0) break;
+
+            foreach (var id in ids)
+            {
+                await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
+                try
+                {
+                    await using var ensure = connection.CreateCommand();
+                    ensure.Transaction = tx;
+                    ensure.CommandText = "EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source_id;";
+                    ensure.Parameters.AddWithValue("@source_id", id);
+                    await ensure.ExecuteNonQueryAsync();
+                    await tx.CommitAsync();
+                }
+                catch
+                {
+                    await tx.RollbackAsync();
+                    throw;
+                }
+            }
+        }
     }
 
     private static async Task<ModelFixture> ReadModelAsync(SqlConnection connection)
