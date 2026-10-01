@@ -1,0 +1,30 @@
+JORNADA DO CIDADAO — NOTA DE ENGENHARIA v3.71
+Base normativa: v3.62
+Solution de engenharia: v3.71
+Schema funcional esperado: Base v3.62 / SolutionSchema v3.68
+
+Escopo: fechamento do hardening zero-skip da evidência de testes, sem alteração normativa, DDL ou contrato funcional.
+
+1. Assert.Ignore determinístico
+- JsonSchemaSubsetValidatorTests deixa de ignorar ausência do contrato Pessoa: a ausência agora falha a fixture.
+- DeliveryBronzeRetentionTests deixa de ignorar seed insuficiente: a fixture DEV deve possuir ao menos duas Entregas PROCESSADA.
+- technical-closure-gate inventaria todos os Assert.Ignore e aceita somente indisponibilidade ambiental explícita de JORNADA_TEST_SQL_CONNECTION ou permissão de KILL.
+
+2. Evidência Unit
+- job unit gera unit.trx;
+- test-evidence-gate.py exige zero Failed, zero resultado desconhecido e zero Skipped/NotExecuted/Inconclusive;
+- evidência e summary JSON são publicados mesmo em falha.
+
+3. Evidência Integration
+- job integration-sql gera integration.trx para a suíte Integration completa;
+- o mesmo gate --forbid-skipped é obrigatório antes da promoção;
+- FaultInjection continua com TRX dedicado e gate próprio, permitindo auditoria separada dos testes de KILL/LostToken.
+
+4. Política
+- execução local ad hoc ainda pode ignorar testes SQL quando a conexão não existe; isso não conta como evidência de release.
+- em CI de release, como a conexão SQL existe, nenhum teste Unit/Integration/FaultInjection pode desaparecer silenciosamente.
+
+Limites honestos desta montagem
+- runtime sem dotnet, Docker, SQL Server, PowerShell e resolução NuGet;
+- packages.lock.json não foram fabricados;
+- os novos caminhos CI foram validados por revisão estática/sintática e pelos gates existentes, não por execução .NET/SQL neste runtime.
