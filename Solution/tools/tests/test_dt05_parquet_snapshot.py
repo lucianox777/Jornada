@@ -42,6 +42,39 @@ class SnapshotTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 dt05.verify(root, third)
 
+    def test_candidate_state_contract_is_content_addressed_and_contains_no_pii_in_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "candidates.ndjson"
+            rows = [
+                {"candidate_uuid": "00000000-0000-0000-0000-000000000001", "nome_completo": "Pessoa Um", "data_nascimento": "1980-01-02", "nome_mae": "Mae Um", "estado_identidade": "REFERENCIA"},
+                {"candidate_uuid": "00000000-0000-0000-0000-000000000002", "nome_completo": "Pessoa Dois", "data_nascimento": None, "nome_mae": None, "estado_identidade": "REFERENCIA"},
+            ]
+            source.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+            versions = {"scorer_version": "s1", "ruleset_version": "r1", "model_version": "m1", "input_snapshot_id": "fixture-candidates"}
+            manifest_path = dt05.capture(root, source, "run-candidates", versions, 100, "candidate-state")
+            manifest_text = manifest_path.read_text(encoding="utf-8")
+            manifest = json.loads(manifest_text)
+            self.assertEqual(manifest["schema_version"], 2)
+            self.assertEqual(manifest["snapshot_kind"], "candidate-state")
+            self.assertEqual(manifest["key_field"], "candidate_uuid")
+            self.assertEqual(manifest["row_count"], 2)
+            self.assertNotIn("Pessoa Um", manifest_text)
+            self.assertNotIn("Mae Um", manifest_text)
+            self.assertEqual(dt05.verify(root, manifest_path)["rows"], 2)
+
+    def test_candidate_state_rejects_non_reference_and_contract_drift(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "invalid.ndjson"
+            source.write_text(json.dumps({
+                "candidate_uuid": "00000000-0000-0000-0000-000000000001",
+                "nome_completo": "Pessoa", "data_nascimento": None, "nome_mae": None,
+                "estado_identidade": "MESCLADA"
+            }) + "\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                dt05.capture(root, source, "run-invalid", {}, 10, "candidate-state")
+
     def test_reject_unsorted(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

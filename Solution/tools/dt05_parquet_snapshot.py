@@ -13,7 +13,9 @@ from pathlib import Path
 import tempfile
 from datetime import datetime, timezone
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+SUPPORTED_SCHEMA_VERSIONS = {1, 2}
+SNAPSHOT_KINDS = {"input-universe": "observation_key", "candidate-state": "candidate_uuid"}
 
 
 def canonical(value):
@@ -38,13 +40,16 @@ def atomic_bytes(path, payload):
             os.unlink(name)
 
 
-def capture(root, source, run_id, versions, chunk_size):
+def capture(root, source, run_id, versions, chunk_size, snapshot_kind="input-universe"):
     import pyarrow as pa
     import pyarrow.parquet as pq
 
     root = Path(root).resolve()
     if chunk_size < 1:
         raise ValueError("chunk_size must be positive")
+    if snapshot_kind not in SNAPSHOT_KINDS:
+        raise ValueError("unsupported snapshot_kind")
+    key_field = SNAPSHOT_KINDS[snapshot_kind]
     partitions = []
     rows = []
     total = 0
@@ -95,9 +100,15 @@ def capture(root, source, run_id, versions, chunk_size):
             if not line.strip():
                 continue
             row = json.loads(line)
-            key = row.get("observation_key")
+            key = row.get(key_field)
             if not isinstance(key, str) or not key:
-                raise ValueError("each row needs nonempty observation_key")
+                raise ValueError(f"each row needs nonempty {key_field}")
+            if snapshot_kind == "candidate-state":
+                if row.get("estado_identidade") != "REFERENCIA":
+                    raise ValueError("candidate-state accepts only REFERENCIA rows")
+                required_candidate_fields = {"candidate_uuid", "nome_completo", "data_nascimento", "nome_mae", "estado_identidade"}
+                if set(row) != required_candidate_fields:
+                    raise ValueError("candidate-state row must contain exactly the replay candidate contract fields")
             if previous_key is not None and key <= previous_key:
                 raise ValueError("input must be strictly sorted by unique observation_key")
             previous_key = key
@@ -107,6 +118,7 @@ def capture(root, source, run_id, versions, chunk_size):
     flush()
     manifest = {
         "schema_version": SCHEMA_VERSION, "run_id": run_id,
+        "snapshot_kind": snapshot_kind, "key_field": key_field,
         "captured_at_utc": datetime.now(timezone.utc).isoformat(),
         "versions": versions, "row_count": total, "partitions": partitions,
         "partition_set_sha256": sha256(canonical(partitions))
@@ -122,8 +134,12 @@ def capture(root, source, run_id, versions, chunk_size):
 def verify(root, manifest_path):
     root = Path(root).resolve()
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
-    if manifest["schema_version"] != SCHEMA_VERSION:
+    if manifest["schema_version"] not in SUPPORTED_SCHEMA_VERSIONS:
         raise ValueError("unsupported manifest version")
+    if manifest["schema_version"] >= 2:
+        kind = manifest.get("snapshot_kind")
+        if kind not in SNAPSHOT_KINDS or manifest.get("key_field") != SNAPSHOT_KINDS[kind]:
+            raise ValueError("invalid snapshot kind/key contract")
     if sha256(canonical(manifest["partitions"])) != manifest["partition_set_sha256"]:
         raise ValueError("partition set hash mismatch")
     total = 0
@@ -149,6 +165,7 @@ def main():
     capture_cmd.add_argument("--run-id", required=True)
     capture_cmd.add_argument("--versions-json", required=True, help="JSON with exact scorer/ruleset/model/input versions")
     capture_cmd.add_argument("--chunk-size", type=int, default=10000)
+    capture_cmd.add_argument("--snapshot-kind", choices=sorted(SNAPSHOT_KINDS), default="input-universe")
     verify_cmd = commands.add_parser("verify")
     verify_cmd.add_argument("--manifest", required=True)
     args = parser.parse_args()
@@ -157,7 +174,7 @@ def main():
         required = {"scorer_version", "ruleset_version", "model_version", "input_snapshot_id"}
         if not isinstance(versions, dict) or not required.issubset(versions) or any(not versions[k] for k in required):
             parser.error("versions-json requires scorer_version, ruleset_version, model_version, input_snapshot_id")
-        result = capture(args.root, args.input, args.run_id, versions, args.chunk_size)
+        result = capture(args.root, args.input, args.run_id, versions, args.chunk_size, args.snapshot_kind)
         print(json.dumps({"manifest": str(result)}))
     else:
         print(json.dumps(verify(args.root, args.manifest)))
