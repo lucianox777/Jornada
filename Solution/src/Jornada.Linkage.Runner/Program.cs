@@ -107,6 +107,7 @@ builder.Services.AddSingleton(sp => new Dt05ReplayManifestPublisher(
 builder.Services.AddSingleton(sp => new Dt05CandidateStateSnapshotPublisher(
     sp.GetRequiredService<IOperationalSqlAdapter>(), bronzeRoot));
 builder.Services.AddSingleton<Dt05ReplaySql>();
+builder.Services.AddSingleton(_ => new Dt05HistoricalCandidateStateVerifier(bronzeRoot));
 builder.Services.AddSingleton<IProbabilisticIdentityLinkage, SqlProbabilisticIdentityLinkage>();
 builder.Services.AddSingleton<IProbabilisticLinkageBatchRunner, ProbabilisticLinkageBatchRunner>();
 builder.Services.AddHostedService<LinkageRunnerWorker>();
