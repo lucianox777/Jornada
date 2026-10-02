@@ -25,7 +25,13 @@ fi
 args=(-S "$SERVER" -C -b -I)
 [[ -z "$USER_NAME" ]] || args+=(-U "$USER_NAME")
 sql(){ "$BIN" "${args[@]}" "$@"; }
-scalar(){ sql -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; $1" | tr -d '\r[:space:]'; }
+scalar(){
+  local query="$1"
+  local value
+  value="$(sql -d "$DB" -W -h -1 -Q "SET NOCOUNT ON; $query" | tr -d '\r' | sed '/^[[:space:]]*$/d' | tail -1 | xargs)"
+  [[ -n "$value" ]] || { echo "DT06: consulta escalar não retornou valor: $query" >&2; return 7; }
+  printf '%s\n' "$value"
+}
 OUT="$ROOT/.local/dt06-acceptance/$DB"
 mkdir -p "$OUT"
 MANIFEST="$ROOT/database/migrations/manifest.txt"
