@@ -20,7 +20,8 @@ public sealed record LinkageRunOptions(
     string? RequestedBy,
     string? Reason,
     Guid CorrelationId,
-    bool Publish)
+    bool Publish,
+    Guid? ReplaySourceRunId)
 {
     public static LinkageRunOptions Parse(string[] args)
     {
@@ -42,12 +43,17 @@ public sealed record LinkageRunOptions(
         // --publish=false pode ser usado para ensaio controlado.
         var publishDefault = mode != LinkageRunType.MODEL_VALIDATION;
         var publish = ParseBool(values, "publish", publishDefault);
+        var replaySourceRunId = ParseNullableGuid(values, "replay-source-run-id");
         if (mode == LinkageRunType.MODEL_VALIDATION && publish)
             throw new InvalidOperationException("MODEL_VALIDATION não pode publicar vínculos correntes.");
+        if (mode == LinkageRunType.REPLAY && replaySourceRunId is null)
+            throw new InvalidOperationException("REPLAY exige --replay-source-run-id para impedir fallback ao estado corrente.");
+        if (mode != LinkageRunType.REPLAY && replaySourceRunId is not null)
+            throw new InvalidOperationException("--replay-source-run-id é exclusivo do modo REPLAY.");
 
         return new LinkageRunOptions(
             mode, modelVersion, observationId, gestor, since, batchSize,
-            maxParallelism, maxRecords, requestedBy, reason, correlation, publish);
+            maxParallelism, maxRecords, requestedBy, reason, correlation, publish, replaySourceRunId);
     }
 
     public string ToScopeJson() => System.Text.Json.JsonSerializer.Serialize(new
@@ -57,7 +63,8 @@ public sealed record LinkageRunOptions(
         gestorCodigo = GestorCodigo,
         since = Since,
         maxRecords = MaxRecords,
-        publish = Publish
+        publish = Publish,
+        replaySourceRunId = ReplaySourceRunId
     });
 
     public static string Usage =>
@@ -76,6 +83,7 @@ public sealed record LinkageRunOptions(
           --reason <texto>                opcional
           --correlation-id <UUID>         opcional
           --publish true|false            padrão true; MODEL_VALIDATION exige false
+          --replay-source-run-id <UUID>   obrigatório em REPLAY; run histórico imutável de origem
 
         Exemplos:
           --mode INCREMENTAL --batch-size 20000 --max-parallelism 4
