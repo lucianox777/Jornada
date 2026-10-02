@@ -575,6 +575,7 @@
       "jornada.linkage.runner": {
         "type": "Project",
         "dependencies": {
+          "Jornada.Bronze.Storage": "[1.0.0, )",
           "Jornada.Contracts": "[1.0.0, )",
           "Jornada.Linkage.Core": "[1.0.0, )",
           "Jornada.Operational.Sql": "[1.0.0, )",

@@ -21,6 +21,8 @@ public sealed class ProbabilisticLinkageBatchRunner(
     IOperationalSqlAdapter operationalSql,
     IProbabilisticIdentityLinkage linkage,
     SqlPipelineCoordinator pipelineCoordinator,
+    Dt05ReplaySql replaySql,
+    Dt05ReplayManifestPublisher replayManifestPublisher,
     ILogger<ProbabilisticLinkageBatchRunner> logger) : IProbabilisticLinkageBatchRunner
 {
     public async Task<ProbabilisticLinkageRunSummary> RunAsync(
@@ -63,8 +65,30 @@ public sealed class ProbabilisticLinkageBatchRunner(
             // DT-05: pin the entire visible candidate corpus, not only selected run items.
             // This is opt-in until the immutable NAS manifest and replay verification are gated.
             if (configuration.GetValue("LinkageReplay:CaptureBronzeSources", false))
+            {
+                // DT-05 Marco B: nenhuma decisão pode ser pontuada antes de o universo lógico,
+                // as fontes físicas e as versões executáveis estarem vinculados de forma imutável.
                 await CaptureBronzeSourcesAsync(runId, workCt);
-
+                var preparation = await replaySql.ReadPreparationAsync(runId, workCt);
+                var inputSnapshotId = Dt05ReplayManifestPublisher.ComputeInputSnapshotId(
+                    preparation.HighWatermark, preparation.ObservationIds);
+                var ruleSetVersion = model.BlockingContract?.RuleSetVersion
+                    ?? throw new InvalidOperationException(
+                        "DT-05: modelo sem ruleset versionado não pode publicar manifesto de replay.");
+                var identity = new Dt05ReplayManifestIdentity(
+                    model.AlgorithmVersion,
+                    ruleSetVersion,
+                    $"modelo:{model.ModelId:D}:v{model.Version}",
+                    inputSnapshotId);
+                var manifest = await replayManifestPublisher.PublishAsync(
+                    runId, preparation.Pins, identity, workCt);
+                await replaySql.RegisterAsync(
+                    runId, manifest.LogicalPath, manifest.ManifestSha256,
+                    manifest.BronzeSetSha256, identity, workCt);
+                logger.LogInformation(
+                    "DT-05 replay manifest bound before scoring. RunId={RunId}; ManifestSha256={ManifestSha256}; InputSnapshotId={InputSnapshotId}.",
+                    runId, manifest.ManifestSha256, inputSnapshotId);
+            }
 
             if (request.Mode == LinkageRunType.INCREMENTAL
                 && universe.FreshPending + universe.Reevaluated != universe.Eligible)

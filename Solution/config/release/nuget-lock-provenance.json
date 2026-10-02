@@ -219,7 +219,7 @@
     "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente.",
     "lockCount": 21,
     "changedLockCount": 21,
-    "combinedSha256": "b1807e110c35e43886cede4a6fc8d100c559f6686bb7ef4c6b9c93ed1c564560",
+    "combinedSha256": "4f4549d9dc4994b1ce1d8d5ec0cce8d30b3eac678a78228632c83d9554ec1d26",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -227,7 +227,7 @@
       },
       {
         "path": "src/Jornada.Api/packages.lock.json",
-        "sha256": "ebe372e6026539746d5e5c8385023ca0f95c17918a496ca21449c509f2b71c0b"
+        "sha256": "5cf853a38eb046a5335d87917c94c45d66a0dee449b3f0b8f5e57ecd8542d6a5"
       },
       {
         "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
@@ -271,7 +271,7 @@
       },
       {
         "path": "src/Jornada.Linkage.Runner/packages.lock.json",
-        "sha256": "1099e5e48a25cfb3f9ae1ae0ce1c61810df5dc0204cc35e25a5e4cc4101db4c5"
+        "sha256": "8d261ede84e3dd6567dd0edb4617f4e5c73504eb9f5c11ceb41efdd5cdfa3b49"
       },
       {
         "path": "src/Jornada.Linkage.SyntheticCorpus/packages.lock.json",
@@ -299,11 +299,11 @@
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "844cd8a4aff1a3d870ab2ebf47204a9d8e23aaf0353bc9a53c1d12742040b16a"
+        "sha256": "fcff4d3cf820e0f7704e65c7628882347785a75893b201bc67a7aa54c10d515e"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "4ce64ad36a28d96a22c76c7744cdb2a229ba460ba9b2ee8f45b134c19d99c95e"
+        "sha256": "16fc6563a385a46143067b84dcfac9bdbf32f1b797249234e2b96ff95c1706a9"
       }
     ]
   }

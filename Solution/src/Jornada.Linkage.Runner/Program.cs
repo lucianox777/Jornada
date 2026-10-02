@@ -2,6 +2,7 @@ using Jornada.Operational.Sql;
 using Jornada.Contracts;
 using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Runner;
+using Jornada.Bronze.Storage;
 
 if (BlockingPassAuditCommand.IsRequested(args))
 {
@@ -93,6 +94,17 @@ builder.Services.AddSingleton(new SqlPipelineCoordinator(
     operationalSql,
     TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("PipelineCoordination:HeartbeatSeconds", 5))),
     TimeSpan.FromSeconds(Math.Max(1, builder.Configuration.GetValue("PipelineCoordination:ExclusiveIntentTimeoutSeconds", 5)))));
+var bronzeProvider = builder.Configuration["BronzeStorage:Provider"] ?? "FileSystem";
+if (!string.Equals(bronzeProvider, "FileSystem", StringComparison.OrdinalIgnoreCase))
+    throw new InvalidOperationException($"BronzeStorage:Provider não suportado pelo Runner: {bronzeProvider}.");
+var configuredBronzeRoot = builder.Configuration["BronzeStorage:RootPath"];
+var bronzeRoot = string.IsNullOrWhiteSpace(configuredBronzeRoot)
+    ? Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "data", "bronze"))
+    : Path.GetFullPath(configuredBronzeRoot);
+builder.Services.AddSingleton<IBronzeObjectStore>(_ => new FileSystemBronzeObjectStore(bronzeRoot));
+builder.Services.AddSingleton(sp => new Dt05ReplayManifestPublisher(
+    sp.GetRequiredService<IBronzeObjectStore>(), bronzeRoot));
+builder.Services.AddSingleton<Dt05ReplaySql>();
 builder.Services.AddSingleton<IProbabilisticIdentityLinkage, SqlProbabilisticIdentityLinkage>();
 builder.Services.AddSingleton<IProbabilisticLinkageBatchRunner, ProbabilisticLinkageBatchRunner>();
 builder.Services.AddHostedService<LinkageRunnerWorker>();

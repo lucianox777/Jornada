@@ -53,7 +53,9 @@ public sealed class TechnicalDebtEvidenceDocumentationTests
             Assert.That(plan, Does.Contain("implementação técnica DEV entregue"));
             Assert.That(plan, Does.Contain("matriz de regressão DT-17"));
             Assert.That(dt05, Does.Contain("aceite estreito"));
-            Assert.That(dt05, Does.Contain("Marco B permanece pendente"));
+            Assert.That(dt05, Does.Contain("DT-05 global ainda PARCIAL"));
+            Assert.That(dt05, Does.Contain("vínculo SQL create-once do manifesto NAS imutável já foi integrado no PR #700"));
+            Assert.That(dt05, Does.Contain("reconstrução histórica determinística e medição de custo/latência"));
             Assert.That(auth, Does.Contain("class JornadaAccessAuthenticationHandler"));
             Assert.That(api, Does.Contain("AddJornadaAccessSecurity()"));
             Assert.That(results, Does.Contain("AddJornadaAccessSecurity()"));
