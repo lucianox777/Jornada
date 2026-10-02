@@ -107,9 +107,12 @@ public sealed class Dt05HistoricalCandidateStateVerifier(string bronzeRoot)
         {
             using var group = reader.OpenRowGroupReader(groupIndex);
             var columns = new string?[fields.Length][];
+            var count = checked((int)group.RowCount);
             for (var i = 0; i < fields.Length; i++)
-                columns[i] = (await group.ReadColumnAsync(fields[i], ct)).Data.Cast<string?>().ToArray();
-            var count = columns[0].Length;
+            {
+                columns[i] = new string?[count];
+                await group.ReadAsync(fields[i], columns[i].AsMemory(), cancellationToken: ct);
+            }
             if (columns.Any(x => x.Length != count))
                 throw new InvalidDataException("DT-05: colunas Parquet históricas possuem cardinalidades divergentes.");
             for (var i = 0; i < count; i++)
