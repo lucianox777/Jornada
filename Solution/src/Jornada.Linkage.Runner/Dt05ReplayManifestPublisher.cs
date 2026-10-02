@@ -44,7 +44,7 @@ public sealed class Dt05ReplayManifestPublisher(IBronzeObjectStore bronze, strin
             refs.Add(new { objeto_chave = pin.ObjectKey, payload_sha256 = actual, bytes = length });
         }
 
-        var refsBytes = Canonical(refs);
+        var refsBytes = Canonicalize(refs);
         var bronzeSetSha = Sha256(refsBytes);
         var document = new {
             schema_version = 1,
@@ -60,7 +60,7 @@ public sealed class Dt05ReplayManifestPublisher(IBronzeObjectStore bronze, strin
             pin_contract = "identidade.sp_fixar_bronze_para_linkage/v1",
             parent = (object?)null
         };
-        var bytes = Canonical(document);
+        var bytes = Canonicalize(document);
         var manifestSha = Sha256(bytes);
         var logical = $"linkage-snapshots/v1/manifests/{runId:D}-{manifestSha}.json";
         var root = Path.GetFullPath(bronzeRoot);
@@ -95,9 +95,38 @@ public sealed class Dt05ReplayManifestPublisher(IBronzeObjectStore bronze, strin
         return "dt05-input-v1:sha256:" + Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
     }
 
-    private static byte[] Canonical<T>(T value) => JsonSerializer.SerializeToUtf8Bytes(value, new JsonSerializerOptions {
-        PropertyNamingPolicy = null, WriteIndented = false
-    });
+    internal static byte[] Canonicalize<T>(T value)
+    {
+        using var source = JsonDocument.Parse(JsonSerializer.SerializeToUtf8Bytes(value));
+        using var output = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(output, new JsonWriterOptions { Indented = false }))
+            WriteCanonical(writer, source.RootElement);
+        return output.ToArray();
+    }
+
+    private static void WriteCanonical(Utf8JsonWriter writer, JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                writer.WriteStartObject();
+                foreach (var property in element.EnumerateObject().OrderBy(x => x.Name, StringComparer.Ordinal))
+                {
+                    writer.WritePropertyName(property.Name);
+                    WriteCanonical(writer, property.Value);
+                }
+                writer.WriteEndObject();
+                break;
+            case JsonValueKind.Array:
+                writer.WriteStartArray();
+                foreach (var item in element.EnumerateArray()) WriteCanonical(writer, item);
+                writer.WriteEndArray();
+                break;
+            default:
+                element.WriteTo(writer);
+                break;
+        }
+    }
     private static string Sha256(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
     private static void Require(string value, string name)
     {
