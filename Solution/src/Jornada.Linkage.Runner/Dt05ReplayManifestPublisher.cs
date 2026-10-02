@@ -10,7 +10,8 @@ public sealed record Dt05BronzePin(string ObjectKey, string Sha256);
 public sealed record Dt05ReplayManifestIdentity(
     string ScorerVersion, string RuleSetVersion, string ModelVersion, string InputSnapshotId,
     string NormalizationVersion, string ResolutionCatalogVersion,
-    string ProjectionSchemaVersion, string ProjectionFingerprintSha256);
+    string ProjectionSchemaVersion, string ProjectionFingerprintSha256,
+    long CandidateReferenceCount, string CandidateSetSha256, long GovernanceEventHighWatermark);
 
 /// <summary>
 /// Publica o manifesto referencial DT-05 sem copiar payloads Bronze.
@@ -30,6 +31,11 @@ public sealed class Dt05ReplayManifestPublisher(IBronzeObjectStore bronze, strin
         Require(identity.ResolutionCatalogVersion, "resolution_catalog_version");
         Require(identity.ProjectionSchemaVersion, "projection_schema_version");
         RequireSha256(identity.ProjectionFingerprintSha256, "projection_fingerprint_sha256");
+        if (identity.CandidateReferenceCount < 0)
+            throw new InvalidOperationException("DT-05: candidatos_referencia não pode ser negativo.");
+        RequireSha256(identity.CandidateSetSha256, "candidatos_sha256");
+        if (identity.GovernanceEventHighWatermark < 0)
+            throw new InvalidOperationException("DT-05: governanca_evento_high_watermark não pode ser negativo.");
 
         var refs = new List<object>(pins.Count);
         foreach (var pin in pins.OrderBy(x => x.ObjectKey, StringComparer.Ordinal))
@@ -54,7 +60,7 @@ public sealed class Dt05ReplayManifestPublisher(IBronzeObjectStore bronze, strin
         var refsBytes = Canonicalize(refs);
         var bronzeSetSha = Sha256(refsBytes);
         var document = new {
-            schema_version = 2,
+            schema_version = 3,
             run_id = runId.ToString(),
             versions = new {
                 scorer_version = identity.ScorerVersion,
@@ -68,6 +74,11 @@ public sealed class Dt05ReplayManifestPublisher(IBronzeObjectStore bronze, strin
             },
             bronze_objects = refs,
             bronze_set_sha256 = bronzeSetSha,
+            governance = new {
+                candidatos_referencia = identity.CandidateReferenceCount,
+                candidatos_sha256 = identity.CandidateSetSha256,
+                governanca_evento_high_watermark = identity.GovernanceEventHighWatermark
+            },
             pin_contract = "identidade.sp_fixar_bronze_para_linkage/v1",
             parent = (object?)null
         };

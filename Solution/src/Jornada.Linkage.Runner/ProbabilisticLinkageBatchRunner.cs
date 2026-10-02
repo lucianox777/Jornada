@@ -93,7 +93,10 @@ public sealed class ProbabilisticLinkageBatchRunner(
                     IdentityComparison.NormalizationVersion,
                     PersonResolutionContractCatalog.CatalogVersion,
                     projection.ProjectionSchemaVersion,
-                    projection.ProjectionFingerprintSha256);
+                    projection.ProjectionFingerprintSha256,
+                    preparation.CandidateReferenceCount,
+                    preparation.CandidateSetSha256,
+                    preparation.GovernanceEventHighWatermark);
                 var manifest = await replayManifestPublisher.PublishAsync(
                     runId, preparation.Pins, identity, workCt);
                 await replaySql.RegisterAsync(
