@@ -30,4 +30,16 @@ public sealed class Dt05ReplayManifestPublisherTests
 
         Assert.That(Dt05ReplayManifestPublisher.ComputeInputSnapshotId(7, new long[] { 10, 20 }), Is.EqualTo(expected));
     }
+    [Test]
+    public void Canonical_json_sorts_object_keys_recursively_like_python_utility()
+    {
+        var bytes = Dt05ReplayManifestPublisher.Canonicalize(new {
+            z = 1,
+            a = new { y = "ç", b = true },
+            list = new[] { new { d = 4, c = 3 } }
+        });
+
+        Assert.That(Encoding.UTF8.GetString(bytes),
+            Is.EqualTo("{\"a\":{\"b\":true,\"y\":\"ç\"},\"list\":[{\"c\":3,\"d\":4}],\"z\":1}"));
+    }
 }
