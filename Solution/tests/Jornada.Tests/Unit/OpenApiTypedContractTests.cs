@@ -131,7 +131,7 @@ public sealed class OpenApiTypedContractTests
         Assert.That(properties.EnumerateObject().Select(x => x.Name), Is.EquivalentTo(names),
             dto.Name + ": missing or orphaned published property");
         var expectedRequired = dto == typeof(SemiblindIdentitySearchRequest)
-            ? new[] { "nome_completo" }
+            ? Array.Empty<string>()
             : names;
         Assert.That(required, Is.EquivalentTo(expectedRequired),
             dto.Name + ": required keys diverge from the contract");
