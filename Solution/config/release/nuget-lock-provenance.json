@@ -303,7 +303,7 @@
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "4ce64ad36a28d96a22c76c7744cdb2a229ba460ba9b2ee8f45b134c19d99c95e"
+        "sha256": "16fc6563a385a46143067b84dcfac9bdbf32f1b797249234e2b96ff95c1706a9"
       }
     ]
   }
