@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Jornada.Bronze.Storage;
 
@@ -99,7 +100,7 @@ public sealed class Dt05ReplayManifestPublisher(IBronzeObjectStore bronze, strin
     {
         using var source = JsonDocument.Parse(JsonSerializer.SerializeToUtf8Bytes(value));
         using var output = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(output, new JsonWriterOptions { Indented = false }))
+        using (var writer = new Utf8JsonWriter(output, new JsonWriterOptions { Indented = false, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
             WriteCanonical(writer, source.RootElement);
         return output.ToArray();
     }
