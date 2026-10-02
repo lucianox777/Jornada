@@ -299,7 +299,7 @@
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "844cd8a4aff1a3d870ab2ebf47204a9d8e23aaf0353bc9a53c1d12742040b16a"
+        "sha256": "fcff4d3cf820e0f7704e65c7628882347785a75893b201bc67a7aa54c10d515e"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
