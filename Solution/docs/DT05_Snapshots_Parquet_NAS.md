@@ -129,3 +129,14 @@ A regressão de publicação passa a criar, em transação isolada, um run real 
 
 
 **Correção de segurança e evidência do gate local (pós-#535):** `-VerifyLinkageRunner` combinado com `-AllowSharedDatabaseReset` agora falha no preflight, antes do reset. A evidência `.local/e2e/evidence.json` inclui `linkageRunner` (marcador do run, contagem de runs PUBLICADO e de resultados brutos) quando o estágio é solicitado; caso contrário, `null`. A execução opt-in com SQL Server e o ensaio de CPF tardio real tiveram comprovação no PR #540; os testes de replay histórico NAS seguem pendentes de comprovação.
+
+
+### Incremento Marco B — orquestração do manifesto pelo Runner (02/10/2026)
+
+O incremento em `feat/dt05-runner-replay-manifest` fecha a ordem fail-closed anterior ao score, ainda sob `LinkageReplay:CaptureBronzeSources=false` por padrão:
+
+`materializar universo → capturar pins → construir/verificar manifesto → registrar binding SQL em transação → score`.
+
+O `input_snapshot_id` passa a identificar o universo lógico congelado por algoritmo versionado `dt05-input-v1`: SHA-256 sobre o high-watermark e a sequência ordenada de `pessoa_observacao_id` de `linkage_run_item`. Ele não substitui `bronze_set_sha256`, que identifica separadamente o conjunto físico de fontes. O Runner reabre cada ZIP pinado, recalcula SHA-256 e tamanho antes de aceitar o objeto, gera JSON canônico com chaves ordenadas recursivamente (compatível com o utilitário Python), publica o manifesto create-only em `linkage-snapshots/v1/manifests/` e somente então chama `sp_registrar_manifesto_replay_linkage` em transação SQL curta. Modelo legado sem `RuleSetVersion` falha fechado nesse modo.
+
+Este incremento **não declara replay histórico completo**. Permanecem fora do aceite: congelamento das versões executáveis adicionais de parser/normalização e do estado de candidatos/governança necessário à reconstrução, concorrência de retenção/GC e recuperação, reconstrução histórica determinística e medição de custo/latência. A flag continua desligada por padrão até esses gates.
