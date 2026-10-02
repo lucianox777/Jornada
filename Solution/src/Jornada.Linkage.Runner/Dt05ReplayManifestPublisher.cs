@@ -8,7 +8,9 @@ namespace Jornada.Linkage.Runner;
 
 public sealed record Dt05BronzePin(string ObjectKey, string Sha256);
 public sealed record Dt05ReplayManifestIdentity(
-    string ScorerVersion, string RuleSetVersion, string ModelVersion, string InputSnapshotId);
+    string ScorerVersion, string RuleSetVersion, string ModelVersion, string InputSnapshotId,
+    string NormalizationVersion, string ResolutionCatalogVersion,
+    string ProjectionSchemaVersion, string ProjectionFingerprintSha256);
 
 /// <summary>
 /// Publica o manifesto referencial DT-05 sem copiar payloads Bronze.
@@ -24,6 +26,10 @@ public sealed class Dt05ReplayManifestPublisher(IBronzeObjectStore bronze, strin
         Require(identity.RuleSetVersion, "ruleset_version");
         Require(identity.ModelVersion, "model_version");
         Require(identity.InputSnapshotId, "input_snapshot_id");
+        Require(identity.NormalizationVersion, "normalization_version");
+        Require(identity.ResolutionCatalogVersion, "resolution_catalog_version");
+        Require(identity.ProjectionSchemaVersion, "projection_schema_version");
+        RequireSha256(identity.ProjectionFingerprintSha256, "projection_fingerprint_sha256");
 
         var refs = new List<object>(pins.Count);
         foreach (var pin in pins.OrderBy(x => x.ObjectKey, StringComparer.Ordinal))
@@ -48,13 +54,17 @@ public sealed class Dt05ReplayManifestPublisher(IBronzeObjectStore bronze, strin
         var refsBytes = Canonicalize(refs);
         var bronzeSetSha = Sha256(refsBytes);
         var document = new {
-            schema_version = 1,
+            schema_version = 2,
             run_id = runId.ToString(),
             versions = new {
                 scorer_version = identity.ScorerVersion,
                 ruleset_version = identity.RuleSetVersion,
                 model_version = identity.ModelVersion,
-                input_snapshot_id = identity.InputSnapshotId
+                input_snapshot_id = identity.InputSnapshotId,
+                normalization_version = identity.NormalizationVersion,
+                resolution_catalog_version = identity.ResolutionCatalogVersion,
+                projection_schema_version = identity.ProjectionSchemaVersion,
+                projection_fingerprint_sha256 = identity.ProjectionFingerprintSha256
             },
             bronze_objects = refs,
             bronze_set_sha256 = bronzeSetSha,
@@ -132,5 +142,11 @@ public sealed class Dt05ReplayManifestPublisher(IBronzeObjectStore bronze, strin
     private static void Require(string value, string name)
     {
         if (string.IsNullOrWhiteSpace(value)) throw new InvalidOperationException($"DT-05: {name} exato é obrigatório.");
+    }
+    private static void RequireSha256(string value, string name)
+    {
+        Require(value, name);
+        if (value.Length != 64 || value.Any(c => !Uri.IsHexDigit(c)))
+            throw new InvalidOperationException($"DT-05: {name} deve ser SHA-256 hexadecimal.");
     }
 }
