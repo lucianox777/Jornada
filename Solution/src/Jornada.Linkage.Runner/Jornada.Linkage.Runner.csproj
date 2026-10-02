@@ -7,5 +7,6 @@
     <ProjectReference Include="..\Jornada.Linkage.Core\Jornada.Linkage.Core.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
+    <PackageReference Include="Parquet.Net" Version="6.1.0" />
   </ItemGroup>
 </Project>

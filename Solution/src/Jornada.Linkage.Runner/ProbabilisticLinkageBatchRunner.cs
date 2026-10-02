@@ -23,6 +23,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
     SqlPipelineCoordinator pipelineCoordinator,
     Dt05ReplaySql replaySql,
     Dt05ReplayManifestPublisher replayManifestPublisher,
+    Dt05CandidateStateSnapshotPublisher candidateStateSnapshotPublisher,
     ILogger<ProbabilisticLinkageBatchRunner> logger) : IProbabilisticLinkageBatchRunner
 {
     public async Task<ProbabilisticLinkageRunSummary> RunAsync(
@@ -97,6 +98,11 @@ public sealed class ProbabilisticLinkageBatchRunner(
                     preparation.CandidateReferenceCount,
                     preparation.CandidateSetSha256,
                     preparation.GovernanceEventHighWatermark);
+                var candidateState = await candidateStateSnapshotPublisher.CaptureAsync(
+                    runId, preparation, identity, workCt);
+                logger.LogInformation(
+                    "DT-05 candidate-state frozen before scoring. RunId={RunId}; ManifestSha256={ManifestSha256}; Rows={Rows}.",
+                    runId, candidateState.ManifestSha256, candidateState.RowCount);
                 var manifest = await replayManifestPublisher.PublishAsync(
                     runId, preparation.Pins, identity, workCt);
                 await replaySql.RegisterAsync(

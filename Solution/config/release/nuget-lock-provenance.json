@@ -213,13 +213,13 @@
   "candidateGraph": {
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
-    "sourceCommit": "0f31c9fb694f8072d4695d9b57800dc17720fc7a",
-    "githubRunId": "36873587163",
+    "sourceCommit": "437b8d3c58e6be571395f53903d57be9e10bff06",
+    "githubRunId": "37069301886",
     "sdk": "10.0.112",
-    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente.",
+    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112.",
     "lockCount": 21,
     "changedLockCount": 21,
-    "combinedSha256": "4f4549d9dc4994b1ce1d8d5ec0cce8d30b3eac678a78228632c83d9554ec1d26",
+    "combinedSha256": "bf2d26a48c1d3a777653f87ccaae8875bf2f4c1a1f06e0a0825dd753d3d7cabe",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -227,7 +227,7 @@
       },
       {
         "path": "src/Jornada.Api/packages.lock.json",
-        "sha256": "5cf853a38eb046a5335d87917c94c45d66a0dee449b3f0b8f5e57ecd8542d6a5"
+        "sha256": "a5f45dee0bcdef2679f9deca9aa96ddbd8c17646ba1f6bf59a3c12e94b9c7d03"
       },
       {
         "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
@@ -271,7 +271,7 @@
       },
       {
         "path": "src/Jornada.Linkage.Runner/packages.lock.json",
-        "sha256": "8d261ede84e3dd6567dd0edb4617f4e5c73504eb9f5c11ceb41efdd5cdfa3b49"
+        "sha256": "fd539595ab635f675238f6fd38e8642fad6f7acc5b5ef3c7053e3205da66ff09"
       },
       {
         "path": "src/Jornada.Linkage.SyntheticCorpus/packages.lock.json",
@@ -299,11 +299,11 @@
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "fcff4d3cf820e0f7704e65c7628882347785a75893b201bc67a7aa54c10d515e"
+        "sha256": "6bfce0a99673cb2578459efe8f2a9f8fdb54b2be40a3d96e4529aa1fe84fd51c"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "16fc6563a385a46143067b84dcfac9bdbf32f1b797249234e2b96ff95c1706a9"
+        "sha256": "be0ac2b717981b87d080150355757e69a833392d43ffbe62d31952cf726bef0c"
       }
     ]
   }
