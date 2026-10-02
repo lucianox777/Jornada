@@ -52,7 +52,7 @@ O workflow exercita bootstrap local e `local-db.sh up` repetido sobre o mesmo vo
 
 ### Evidência DT-06 já existente
 
-`database/baselines/test-history-upgrade.sh` ensaia predecessor 3.65 com três migrations pré-aplicadas e SHA registrado, completa o ledger e repete o runner. `DT06_Exportar_Historico.sql` exporta ledger/sentinela para comparação; `DT06_Verificar_Schema_370.sql` exige 51 migrations, checksums válidos, `SolutionSchema=3.70` e objetos estruturais.
+`database/baselines/test-history-upgrade.sh` ensaia predecessor 3.65 com três migrations pré-aplicadas e SHA registrado, completa o ledger e repete o runner. `DT06_Exportar_Historico.sql` exporta ledger/sentinela para comparação; Naquele corte, `DT06_Verificar_Schema_370.sql` exigia 51 migrations, checksums válidos, `SolutionSchema=3.70` e objetos estruturais. A contagem é histórica e evolui com o manifesto; não deve ser usada como expectativa corrente.
 
 **Prova:** existe um caso reprodutível de histórico parcial e verificadores objetivos.
 
@@ -102,4 +102,4 @@ Qualquer divergência em clone histórico, preservação, verificação 3.70, id
 
 ## Estado da execução
 
-**NÃO EXECUTADO nesta alteração.** O novo cenário exige SQL Server com permissão de `BACKUP DATABASE`/`RESTORE DATABASE` e caminho de backup visível ao servidor. Não há resultado numérico inferido do código. O aceite integral da DT-06 permanece pendente até uma execução real produzir `.local/dt06-acceptance/<banco>/result.txt` com `DT06_ACCEPTANCE=OK`.
+**Estado no change-set que introduziu o ensaio:** NÃO EXECUTADO. A execução real posterior ocorreu em 02/10/2026 no PR #693: o job `ddl-upgrade` partiu do baseline 3.57, preservou três sentinelas sintéticas, executou backup com `CHECKSUM` + `RESTORE VERIFYONLY`, aplicou 60/60 migrations até `SolutionSchema=3.70`, verificou `DT06_VERIFY_OK`, reexecutou o upgrade de forma idempotente, restaurou o backup e comparou as invariantes/contagens históricas. A `jornada-ci` #37006326582 registrou `DT06_ACCEPTANCE=OK`; o aceite técnico DT-06 foi então encerrado. Os **60/60** são a contagem daquela execução, não uma constante do contrato: após a migration DT-05 do PR #700 o manifesto passou a 61 e o gate foi reexercitado no novo HEAD.
