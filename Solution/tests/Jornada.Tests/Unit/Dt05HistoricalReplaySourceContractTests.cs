@@ -10,7 +10,7 @@ public sealed class Dt05HistoricalReplaySourceContractTests
     public void Replay_sql_resolver_is_fail_closed_on_candidate_state_v3_binding()
     {
         var root = TestContext.CurrentContext.TestDirectory;
-        var path = Path.GetFullPath(Path.Combine(root, "..", "..", "..", "..", "src", "Jornada.Linkage.Runner", "Dt05ReplaySql.cs"));
+        var path = Path.GetFullPath(Path.Combine(root, "..", "..", "..", "..", "..", "src", "Jornada.Linkage.Runner", "Dt05ReplaySql.cs"));
         var sql = File.ReadAllText(path);
 
         Assert.Multiple(() =>
