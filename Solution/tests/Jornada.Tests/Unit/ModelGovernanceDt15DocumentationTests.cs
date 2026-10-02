@@ -40,7 +40,7 @@ public sealed class ModelGovernanceDt15DocumentationTests
             Assert.That(plan, Does.Contain("Governança humana [DT-15]"));
             Assert.That(monitor, Does.Contain("Fronteira com a [DT-15]"));
             Assert.That(monitor, Does.Contain("somente"));
-            Assert.That(runbook, Does.Contain("página master independente do Monitor"));
+            Assert.That(runbook, Does.Contain("prévia master independente do Monitor e somente leitura"));
             Assert.That(readme, Does.Contain("DT15_Governanca_Decisao_Modelo.md"));
         });
     }
