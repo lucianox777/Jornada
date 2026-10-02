@@ -219,7 +219,7 @@
     "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente.",
     "lockCount": 21,
     "changedLockCount": 21,
-    "combinedSha256": "b1807e110c35e43886cede4a6fc8d100c559f6686bb7ef4c6b9c93ed1c564560",
+    "combinedSha256": "5dd65c1288276d93897e2f640502298239afc5250547976d72f4cc9af01b940d",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -227,7 +227,7 @@
       },
       {
         "path": "src/Jornada.Api/packages.lock.json",
-        "sha256": "ebe372e6026539746d5e5c8385023ca0f95c17918a496ca21449c509f2b71c0b"
+        "sha256": "5cf853a38eb046a5335d87917c94c45d66a0dee449b3f0b8f5e57ecd8542d6a5"
       },
       {
         "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
