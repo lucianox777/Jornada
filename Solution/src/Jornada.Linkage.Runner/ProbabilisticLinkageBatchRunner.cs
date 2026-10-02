@@ -75,11 +75,24 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 var ruleSetVersion = model.BlockingContract?.RuleSetVersion
                     ?? throw new InvalidOperationException(
                         "DT-05: modelo sem ruleset versionado não pode publicar manifesto de replay.");
+                var projection = model.BlockingContract
+                    ?? throw new InvalidOperationException(
+                        "DT-05: modelo sem contrato de projeção não pode publicar manifesto de replay.");
+                PersonResolutionProjectionContract.ValidateSupported(
+                    projection.ProjectionSchemaVersion, projection.ProjectionFingerprintSha256);
+                if (string.IsNullOrWhiteSpace(projection.ProjectionSchemaVersion)
+                    || string.IsNullOrWhiteSpace(projection.ProjectionFingerprintSha256))
+                    throw new InvalidOperationException(
+                        "DT-05: modelo sem identidade exata da projeção não pode publicar manifesto de replay.");
                 var identity = new Dt05ReplayManifestIdentity(
                     model.AlgorithmVersion,
                     ruleSetVersion,
                     $"modelo:{model.ModelId:D}:v{model.Version}",
-                    inputSnapshotId);
+                    inputSnapshotId,
+                    IdentityComparison.NormalizationVersion,
+                    PersonResolutionContractCatalog.CatalogVersion,
+                    projection.ProjectionSchemaVersion,
+                    projection.ProjectionFingerprintSha256);
                 var manifest = await replayManifestPublisher.PublishAsync(
                     runId, preparation.Pins, identity, workCt);
                 await replaySql.RegisterAsync(
