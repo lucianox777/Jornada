@@ -140,12 +140,9 @@ public sealed class SqlProbabilisticIdentityLinkage(
         SemiblindIdentitySearchRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.Nome))
-            throw new ArgumentException("Nome obrigatório.", nameof(request));
-
         var active = await GetActiveModelAsync(cancellationToken);
         var snapshot = await GetOrLoadRuntimeSnapshotAsync(active.ModelId, cancellationToken);
-        var observation = new IdentityObservation(null, null, request.Nome.Trim(),
+        var observation = new IdentityObservation(null, null, request.Nome?.Trim(),
             request.DataNascimento, request.NomeMae?.Trim());
 
         // Sem nascimento usar somente os passes dinâmicos elegíveis. O combinado é adicional

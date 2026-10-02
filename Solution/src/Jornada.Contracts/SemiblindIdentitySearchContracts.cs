@@ -7,7 +7,7 @@ namespace Jornada.Contracts;
 /// A ausência de nascimento não deve ser interpretada como data aproximada.
 /// </summary>
 public sealed record SemiblindIdentitySearchRequest(
-    [property: JsonPropertyName("nome_completo")] string Nome,
+    [property: JsonPropertyName("nome_completo")] string? Nome,
     [property: JsonPropertyName("data_nascimento")] DateOnly? DataNascimento,
     [property: JsonPropertyName("nome_mae")] string? NomeMae);
 

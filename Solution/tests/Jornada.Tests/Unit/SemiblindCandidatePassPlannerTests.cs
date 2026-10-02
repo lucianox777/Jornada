@@ -38,6 +38,21 @@ public sealed class SemiblindCandidatePassPlannerTests
     }
 
     [Test]
+    public void Missing_person_name_keeps_eligible_mother_and_birth_pass()
+    {
+        var rules = LinkageDynamicRuleSet.CreateWithPasses("mother-year", "alg-test",
+            [LinkageBlockingPass.Create("mother-year",
+                [BlockingFeatureNames.MotherFirstName, BlockingFeatureNames.BirthYear])],
+            Array.Empty<KeyValuePair<string, decimal>>());
+        var observation = new IdentityObservation(null, "NAO_INFORMADO",
+            null, new DateOnly(1975, 2, 11), "Maria da Anunciacao dos Anjos");
+
+        var passes = SemiblindCandidatePassPlanner.Plan(rules, observation);
+
+        Assert.That(passes.Select(pass => pass.PassId), Is.EqualTo(new[] { "mother-year" }));
+    }
+
+    [Test]
     public void Without_eligible_dynamic_pass_or_birth_query_is_empty()
     {
         var onlyYear = LinkageDynamicRuleSet.CreateWithPasses("year-only", "alg-test",
