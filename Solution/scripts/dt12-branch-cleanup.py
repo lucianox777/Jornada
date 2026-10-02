@@ -23,6 +23,7 @@ AUTH_PHRASE = "DELETE_DT12_170_BRANCHES"
 DEFAULT_CANDIDATE = "Solution/docs/DT12_Branch_Delete_Candidates_20261001.csv"
 DEFAULT_AUTHORIZATION = "Solution/docs/evidence/DT12_Branch_Delete_Authorization_20261001.json"
 EXCLUDED_REFERENCE_FILES = {
+    "Solution/docs/DT12_Branches_20260926.csv",
     "Solution/docs/DT12_Branch_Delete_Candidates_20261001.csv",
     "Solution/docs/DT12_Branch_DryRun_20261001.csv",
     "Solution/docs/DT12_DryRun_20261001.md",

@@ -7,5 +7,6 @@
   "authorized_by": "lucianox777",
   "backup_workflow_run": 36907290133,
   "backup_artifact_id": 11185565933,
-  "backup_artifact_digest": "sha256:11d3d69c3cdac418eb5128e5ed02d6da4af43ac4d2e88bc5ad792835cf8ecd0e"
+  "backup_artifact_digest": "sha256:11d3d69c3cdac418eb5128e5ed02d6da4af43ac4d2e88bc5ad792835cf8ecd0e",
+  "retry_after_fail_closed_run": 36944050177
 }
