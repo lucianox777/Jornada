@@ -104,6 +104,8 @@ var bronzeRoot = string.IsNullOrWhiteSpace(configuredBronzeRoot)
 builder.Services.AddSingleton<IBronzeObjectStore>(_ => new FileSystemBronzeObjectStore(bronzeRoot));
 builder.Services.AddSingleton(sp => new Dt05ReplayManifestPublisher(
     sp.GetRequiredService<IBronzeObjectStore>(), bronzeRoot));
+builder.Services.AddSingleton(sp => new Dt05CandidateStateSnapshotPublisher(
+    sp.GetRequiredService<IOperationalSqlAdapter>(), bronzeRoot));
 builder.Services.AddSingleton<Dt05ReplaySql>();
 builder.Services.AddSingleton<IProbabilisticIdentityLinkage, SqlProbabilisticIdentityLinkage>();
 builder.Services.AddSingleton<IProbabilisticLinkageBatchRunner, ProbabilisticLinkageBatchRunner>();
