@@ -84,6 +84,12 @@ A migration `20261002_Linkage_Replay_Manifest_Binding_DT05.sql` introduz o regis
 
 **Marco B — replay histórico completo, escopo ampliado e aceite independente:** vincular transacionalmente ao `linkage_run_id` o manifesto NAS imutável e seu SHA-256, capturar versões executáveis de parser/normalização/scorer/ruleset, universo efetivo de candidatos e estado de governança/intervenções; verificar cadeia e bytes Bronze, concorrência GC/retenção, falhas e recuperação, replay determinístico e custo/latência em DEV. Nenhum gate do Marco B está implicitamente aprovado pela captura SQL do PR #522. O cache permanente permanece fora do desenho-alvo, dado o replay raro.
 
+## Incremento Marco B — orquestração automática antes do score (branch de implementação)
+
+O Runner passa a impor, quando `LinkageReplay:CaptureBronzeSources=true`, a ordem **materializar universo → capturar pins → construir/verificar manifesto → registrar binding SQL em transação → score**. O manifesto referencial é publicado create-only sob `linkage-snapshots/v1/manifests/`, reabre e recalcula o SHA-256 de cada ZIP Bronze pinado, calcula separadamente `bronze_set_sha256` e usa JSON canônico compatível com o utilitário Python. O `input_snapshot_id` V1 identifica deterministicamente o universo lógico pelo high-watermark e IDs ordenados de `linkage_run_item`; não é confundido com o conjunto físico Bronze. O binding usa a procedure do PR #700 em transação SQL curta somente após a publicação física; qualquer falha impede o início do score.
+
+Este incremento permanece **opt-in e desligado por padrão**. Ele não conclui o Marco B: parser/normalização e estado completo de governança/candidatos ainda precisam de congelamento executável suficiente para replay histórico, além dos ensaios de concorrência GC/retenção, recuperação, reconstrução determinística e custo/latência DEV. Modelos sem ruleset versionado falham fechado no modo de captura, em vez de receber versão sintética.
+
 **Regra documental:** atualizar a linha DT-05 em `Dividas_Tecnicas.md` e esta seção no mesmo PR de qualquer alteração de implementação/aceite DT-05. Registrar o commit e a evidência de CI, separando explicitamente implementado, testado e pendente; não chamar o marco B de concluído com base no marco A.
 
 
