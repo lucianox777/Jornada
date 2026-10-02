@@ -36,7 +36,23 @@ OUT="$ROOT/.local/dt06-acceptance/$DB"
 mkdir -p "$OUT"
 MANIFEST="$ROOT/database/migrations/manifest.txt"
 manifest_hash(){ sha256sum "$MANIFEST" | awk '{print $1}'; }
-invariants(){ sql -d "$DB" -i "$ROOT/database/Jornada_Upgrade_Invariants.sql" -y 0 -w 65535 | sed -n '/^[[:space:]]*{/,$p' | tr -d '\r\n'; }
+invariants(){
+  sql -d "$DB" -y 0 -w 65535 -Q "SET NOCOUNT ON;
+  DECLARE @snapshot nvarchar(max)=(
+    SELECT
+      (SELECT COUNT_BIG(*) FROM ref.gestor) AS [counts.gestor],
+      CASE WHEN OBJECT_ID(N'bronze.entrega',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM bronze.entrega) END AS [counts.bronzeEntrega],
+      CASE WHEN OBJECT_ID(N'bronze.entrega_arquivo',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM bronze.entrega_arquivo) END AS [counts.bronzeArquivo],
+      CASE WHEN OBJECT_ID(N'silver.pessoa_observacao',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM silver.pessoa_observacao) END AS [counts.silverPessoaObservacao],
+      CASE WHEN OBJECT_ID(N'identidade.pessoa',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM identidade.pessoa) END AS [counts.identidadePessoa],
+      CASE WHEN OBJECT_ID(N'identidade.identity_map',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM identidade.identity_map) END AS [counts.identityMap],
+      CASE WHEN OBJECT_ID(N'identidade.vinculo_fonte',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM identidade.vinculo_fonte) END AS [counts.vinculoFonte],
+      CASE WHEN OBJECT_ID(N'gold.pessoa',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM gold.pessoa) END AS [counts.goldPessoa],
+      CASE WHEN OBJECT_ID(N'gold.beneficio_concedido',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM gold.beneficio_concedido) END AS [counts.goldBeneficio],
+      CASE WHEN OBJECT_ID(N'gold.servico_prestado',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM gold.servico_prestado) END AS [counts.goldServico]
+    FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+  SELECT @snapshot;" | sed -n '/^[[:space:]]*{/,$p' | tr -d '\r\n'
+}
 historical_invariants(){
   sql -d "$DB" -y 0 -w 65535 -Q "SET NOCOUNT ON; SELECT
     (SELECT COUNT_BIG(*) FROM ref.gestor) AS [counts.gestor],
