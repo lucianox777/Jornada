@@ -82,7 +82,7 @@ public sealed class Dt05ReplaySql(IOperationalSqlAdapter sql)
 
     public async Task RegisterAsync(
         Guid runId, string logicalPath, string manifestSha256, string bronzeSetSha256,
-        Dt05ReplayManifestIdentity identity, CancellationToken ct)
+        Dt05ReplayManifestIdentity identity, Dt05CandidateStateSnapshot candidateState, CancellationToken ct)
     {
         await using var connection = await sql.OpenAsync(ct);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
@@ -97,7 +97,10 @@ public sealed class Dt05ReplaySql(IOperationalSqlAdapter sql)
                     @normalization_version=@normalization,@resolution_catalog_version=@catalog,
                     @projection_schema_version=@projection_schema,@projection_fingerprint_sha256=@projection_sha,
                     @candidatos_referencia=@candidate_count,@candidatos_sha256=@candidate_sha,
-                    @governanca_evento_high_watermark=@governance_hwm;
+                    @governanca_evento_high_watermark=@governance_hwm,
+                    @candidate_state_caminho_logico=@candidate_state_path,
+                    @candidate_state_manifesto_sha256=@candidate_state_manifest_sha,
+                    @candidate_state_partition_set_sha256=@candidate_state_partition_sha;
                 """, connection, transaction);
             command.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
             command.Parameters.Add("@path", SqlDbType.NVarChar, 1024).Value = logicalPath;
@@ -114,6 +117,9 @@ public sealed class Dt05ReplaySql(IOperationalSqlAdapter sql)
             command.Parameters.Add("@candidate_count", SqlDbType.BigInt).Value = identity.CandidateReferenceCount;
             command.Parameters.Add("@candidate_sha", SqlDbType.Char, 64).Value = identity.CandidateSetSha256;
             command.Parameters.Add("@governance_hwm", SqlDbType.BigInt).Value = identity.GovernanceEventHighWatermark;
+            command.Parameters.Add("@candidate_state_path", SqlDbType.NVarChar, 1024).Value = candidateState.ManifestLogicalPath;
+            command.Parameters.Add("@candidate_state_manifest_sha", SqlDbType.Char, 64).Value = candidateState.ManifestSha256;
+            command.Parameters.Add("@candidate_state_partition_sha", SqlDbType.Char, 64).Value = candidateState.PartitionSetSha256;
             await command.ExecuteNonQueryAsync(ct);
             await transaction.CommitAsync(ct);
         }
