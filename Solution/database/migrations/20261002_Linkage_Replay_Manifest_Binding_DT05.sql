@@ -10,6 +10,7 @@ BEGIN
      REFERENCES identidade.linkage_run(linkage_run_id),
    schema_version INT NOT NULL,
    caminho_logico NVARCHAR(1024) NOT NULL,
+   caminho_logico_sha256 AS CONVERT(BINARY(32),HASHBYTES('SHA2_256',CONVERT(VARBINARY(2048),caminho_logico))) PERSISTED,
    manifesto_sha256 CHAR(64) NOT NULL,
    bronze_set_sha256 CHAR(64) NOT NULL,
    scorer_version NVARCHAR(120) NOT NULL,
@@ -18,7 +19,7 @@ BEGIN
    input_snapshot_id NVARCHAR(200) NOT NULL,
    registrado_em DATETIMEOFFSET(7) NOT NULL
      CONSTRAINT DF_linkage_replay_manifesto_registrado_em DEFAULT SYSUTCDATETIME(),
-   CONSTRAINT UQ_linkage_replay_manifesto_caminho UNIQUE(caminho_logico),
+   CONSTRAINT UQ_linkage_replay_manifesto_caminho_sha UNIQUE(caminho_logico_sha256),
    CONSTRAINT UQ_linkage_replay_manifesto_sha UNIQUE(manifesto_sha256),
    CONSTRAINT CK_linkage_replay_manifesto_schema CHECK(schema_version=1),
    CONSTRAINT CK_linkage_replay_manifesto_sha CHECK(
