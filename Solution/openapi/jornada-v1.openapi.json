@@ -2954,12 +2954,11 @@
       },
       "SemiblindIdentitySearchRequest": {
         "type": "object",
-        "required": [
-          "nome_completo"
-        ],
+        "required": [],
         "properties": {
           "nome_completo": {
             "type": "string",
+            "nullable": true,
             "maxLength": 200,
             "minLength": 1
           },
