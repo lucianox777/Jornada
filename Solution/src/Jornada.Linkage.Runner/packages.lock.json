@@ -433,7 +433,10 @@
         "resolved": "9.0.18",
         "contentHash": "pxuHw/tQXaHMRXEaKzzgpoGO8VeTPIzHbnp0KclXp6js5wPHn7VaqSCa8yRTAsZDcZ2XuIEnXGM2MbRDJFLBog=="
       },
-      "jornada.bronze.storage": {\n        "type": "Project"\n      },\n      "jornada.contracts": {
+      "jornada.bronze.storage": {
+        "type": "Project"
+      },
+      "jornada.contracts": {
         "type": "Project"
       },
       "jornada.linkage.core": {
