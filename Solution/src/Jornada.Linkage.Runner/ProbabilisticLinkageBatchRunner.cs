@@ -69,6 +69,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 // DT-05 Marco B: nenhuma decisão pode ser pontuada antes de o universo lógico,
                 // as fontes físicas e as versões executáveis estarem vinculados de forma imutável.
                 await CaptureBronzeSourcesAsync(runId, workCt);
+                await replaySql.CaptureGovernanceStateAsync(runId, workCt);
                 var preparation = await replaySql.ReadPreparationAsync(runId, workCt);
                 var inputSnapshotId = Dt05ReplayManifestPublisher.ComputeInputSnapshotId(
                     preparation.HighWatermark, preparation.ObservationIds);
