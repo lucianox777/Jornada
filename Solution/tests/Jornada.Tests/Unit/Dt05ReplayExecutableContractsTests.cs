@@ -12,7 +12,7 @@ public sealed class Dt05ReplayExecutableContractsTests
     }
 
     [Test]
-    public void Schema_v2_requires_exact_executable_contract_identities()
+    public void Schema_v3_preserves_v2_executable_contract_identities()
     {
         var root = Root();
         var migration = File.ReadAllText(Path.Combine(root, "database", "migrations",
@@ -30,7 +30,7 @@ public sealed class Dt05ReplayExecutableContractsTests
             Assert.That(migration, Does.Contain("resolution_catalog_version"));
             Assert.That(migration, Does.Contain("projection_schema_version"));
             Assert.That(migration, Does.Contain("projection_fingerprint_sha256"));
-            Assert.That(publisher, Does.Contain("schema_version = 2"));
+            Assert.That(publisher, Does.Contain("schema_version = 3"));
             Assert.That(runner, Does.Contain("IdentityComparison.NormalizationVersion"));
             Assert.That(runner, Does.Contain("PersonResolutionContractCatalog.CatalogVersion"));
             Assert.That(runner, Does.Contain("PersonResolutionProjectionContract.ValidateSupported"));
