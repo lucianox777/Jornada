@@ -889,10 +889,10 @@ jobs:
         run: python -m pip install -r ../ApoioSecretarias/preparador/requirements.txt
       - name: Install locked NuGet graph
         run: tar -xzf .local/nuget-lock-input/packages-locks.tar.gz -C .
-      - name: Run HTTP-to-Gold end-to-end gate
+      - name: Run HTTP-to-Gold end-to-end gate via DT-11 runner
         env:
           JORNADA_E2E_LOCKED_RESTORE: 'true'
-        run: ./scripts/local-e2e.sh
+        run: python3 scripts/jornada-runner.py --profile e2e --allow-reset e2e
       - name: Upload E2E evidence and logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
