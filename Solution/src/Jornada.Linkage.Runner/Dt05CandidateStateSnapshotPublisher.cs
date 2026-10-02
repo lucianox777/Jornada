@@ -120,11 +120,11 @@ public sealed class Dt05CandidateStateSnapshotPublisher(
         }).ToArray();
         var logicalSha = Sha256(JoinCanonicalRows(logicalRows));
 
-        var candidateUuid = new DataField("candidate_uuid", typeof(string), false);
-        var nomeCompleto = new DataField("nome_completo", typeof(string), true);
-        var dataNascimento = new DataField("data_nascimento", typeof(string), true);
-        var nomeMae = new DataField("nome_mae", typeof(string), true);
-        var estadoIdentidade = new DataField("estado_identidade", typeof(string), false);
+        var candidateUuid = new DataField<string>("candidate_uuid", false);
+        var nomeCompleto = new DataField<string>("nome_completo", true);
+        var dataNascimento = new DataField<string>("data_nascimento", true);
+        var nomeMae = new DataField<string>("nome_mae", true);
+        var estadoIdentidade = new DataField<string>("estado_identidade", false);
         var schema = new ParquetSchema(candidateUuid, nomeCompleto, dataNascimento, nomeMae, estadoIdentidade);
         var temp = Path.Combine(root, "tmp", ".candidate-" + Guid.NewGuid().ToString("N") + ".parquet");
         try
@@ -134,11 +134,11 @@ public sealed class Dt05CandidateStateSnapshotPublisher(
                 schema, stream, new ParquetOptions { CompressionMethod = CompressionMethod.Zstd }, cancellationToken: ct))
             using (var group = writer.CreateRowGroup())
             {
-                await group.WriteColumnAsync(new DataColumn(candidateUuid, rows.Select(x => x.CandidateUuid).ToArray()), ct);
-                await group.WriteColumnAsync(new DataColumn(nomeCompleto, rows.Select(x => x.NomeCompleto).ToArray()), ct);
-                await group.WriteColumnAsync(new DataColumn(dataNascimento, rows.Select(x => x.DataNascimento).ToArray()), ct);
-                await group.WriteColumnAsync(new DataColumn(nomeMae, rows.Select(x => x.NomeMae).ToArray()), ct);
-                await group.WriteColumnAsync(new DataColumn(estadoIdentidade, rows.Select(x => x.EstadoIdentidade).ToArray()), ct);
+                await group.WriteAsync(candidateUuid, rows.Select(x => x.CandidateUuid).ToArray(), cancellationToken: ct);
+                await group.WriteAsync(nomeCompleto, rows.Select(x => x.NomeCompleto).ToArray(), cancellationToken: ct);
+                await group.WriteAsync(dataNascimento, rows.Select(x => x.DataNascimento).ToArray(), cancellationToken: ct);
+                await group.WriteAsync(nomeMae, rows.Select(x => x.NomeMae).ToArray(), cancellationToken: ct);
+                await group.WriteAsync(estadoIdentidade, rows.Select(x => x.EstadoIdentidade).ToArray(), cancellationToken: ct);
                 group.CompleteValidate();
             }
 
