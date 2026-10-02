@@ -34,7 +34,7 @@ jobs:
           python3 Solution/scripts/dt12-branch-cleanup.py \
             --repository "${GITHUB_REPOSITORY}" \
             --candidate-file Solution/docs/DT12_Branch_Delete_Candidates_20261001.csv \
-            --expected-sha256 325a4b084f5aa4f4fb78fe0d4dc51fa157ec6c6048a8ae80143c03eb765f071b \
+            --expected-sha256 4498830af899a7b3a9dda5f8ce1cc65306e22305d8a0a6fd3245199559b15fc4 \
             --expected-count 170 \
             --authorization-file Solution/docs/evidence/DT12_Branch_Delete_Authorization_20261001.json \
             --execute \
