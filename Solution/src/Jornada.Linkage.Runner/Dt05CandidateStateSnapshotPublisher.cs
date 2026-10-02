@@ -134,11 +134,11 @@ public sealed class Dt05CandidateStateSnapshotPublisher(
                 schema, stream, new ParquetOptions { CompressionMethod = CompressionMethod.Zstd }, cancellationToken: ct))
             using (var group = writer.CreateRowGroup())
             {
-                await group.WriteAsync(candidateUuid, (IReadOnlyCollection<string?>)rows.Select(x => (string?)x.CandidateUuid).ToArray(), cancellationToken: ct);
-                await group.WriteAsync(nomeCompleto, (IReadOnlyCollection<string?>)rows.Select(x => x.NomeCompleto).ToArray(), cancellationToken: ct);
-                await group.WriteAsync(dataNascimento, (IReadOnlyCollection<string?>)rows.Select(x => x.DataNascimento).ToArray(), cancellationToken: ct);
-                await group.WriteAsync(nomeMae, (IReadOnlyCollection<string?>)rows.Select(x => x.NomeMae).ToArray(), cancellationToken: ct);
-                await group.WriteAsync(estadoIdentidade, (IReadOnlyCollection<string?>)rows.Select(x => (string?)x.EstadoIdentidade).ToArray(), cancellationToken: ct);
+                await group.WriteAsync(candidateUuid, (IReadOnlyCollection<string?>)rows.Select(x => (string?)x.CandidateUuid).ToArray());
+                await group.WriteAsync(nomeCompleto, (IReadOnlyCollection<string?>)rows.Select(x => x.NomeCompleto).ToArray());
+                await group.WriteAsync(dataNascimento, (IReadOnlyCollection<string?>)rows.Select(x => x.DataNascimento).ToArray());
+                await group.WriteAsync(nomeMae, (IReadOnlyCollection<string?>)rows.Select(x => x.NomeMae).ToArray());
+                await group.WriteAsync(estadoIdentidade, (IReadOnlyCollection<string?>)rows.Select(x => (string?)x.EstadoIdentidade).ToArray());
                 group.CompleteValidate();
             }
 
