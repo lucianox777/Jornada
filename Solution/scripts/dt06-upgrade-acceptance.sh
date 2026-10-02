@@ -38,20 +38,46 @@ MANIFEST="$ROOT/database/migrations/manifest.txt"
 manifest_hash(){ sha256sum "$MANIFEST" | awk '{print $1}'; }
 invariants(){
   sql -d "$DB" -y 0 -w 65535 -Q "SET NOCOUNT ON;
-  DECLARE @snapshot nvarchar(max)=(
-    SELECT
-      (SELECT COUNT_BIG(*) FROM ref.gestor) AS [counts.gestor],
-      CASE WHEN OBJECT_ID(N'bronze.entrega',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM bronze.entrega) END AS [counts.bronzeEntrega],
-      CASE WHEN OBJECT_ID(N'bronze.entrega_arquivo',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM bronze.entrega_arquivo) END AS [counts.bronzeArquivo],
-      CASE WHEN OBJECT_ID(N'silver.pessoa_observacao',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM silver.pessoa_observacao) END AS [counts.silverPessoaObservacao],
-      CASE WHEN OBJECT_ID(N'identidade.pessoa',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM identidade.pessoa) END AS [counts.identidadePessoa],
-      CASE WHEN OBJECT_ID(N'identidade.identity_map',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM identidade.identity_map) END AS [counts.identityMap],
-      CASE WHEN OBJECT_ID(N'identidade.vinculo_fonte',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM identidade.vinculo_fonte) END AS [counts.vinculoFonte],
-      CASE WHEN OBJECT_ID(N'gold.pessoa',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM gold.pessoa) END AS [counts.goldPessoa],
-      CASE WHEN OBJECT_ID(N'gold.beneficio_concedido',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM gold.beneficio_concedido) END AS [counts.goldBeneficio],
-      CASE WHEN OBJECT_ID(N'gold.servico_prestado',N'U') IS NULL THEN -1 ELSE (SELECT COUNT_BIG(*) FROM gold.servico_prestado) END AS [counts.goldServico]
-    FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
-  SELECT @snapshot;" | sed -n '/^[[:space:]]*{/,$p' | tr -d '\r\n'
+  DECLARE
+    @bronzeEntrega bigint=-1,
+    @bronzeArquivo bigint=-1,
+    @silverPessoaObservacao bigint=-1,
+    @identidadePessoa bigint=-1,
+    @identityMap bigint=-1,
+    @vinculoFonte bigint=-1,
+    @goldPessoa bigint=-1,
+    @goldBeneficio bigint=-1,
+    @goldServico bigint=-1;
+  IF OBJECT_ID(N'bronze.entrega',N'U') IS NOT NULL
+    EXEC sys.sp_executesql N'SELECT @v=COUNT_BIG(*) FROM bronze.entrega;',N'@v bigint OUTPUT',@v=@bronzeEntrega OUTPUT;
+  IF OBJECT_ID(N'bronze.entrega_arquivo',N'U') IS NOT NULL
+    EXEC sys.sp_executesql N'SELECT @v=COUNT_BIG(*) FROM bronze.entrega_arquivo;',N'@v bigint OUTPUT',@v=@bronzeArquivo OUTPUT;
+  IF OBJECT_ID(N'silver.pessoa_observacao',N'U') IS NOT NULL
+    EXEC sys.sp_executesql N'SELECT @v=COUNT_BIG(*) FROM silver.pessoa_observacao;',N'@v bigint OUTPUT',@v=@silverPessoaObservacao OUTPUT;
+  IF OBJECT_ID(N'identidade.pessoa',N'U') IS NOT NULL
+    EXEC sys.sp_executesql N'SELECT @v=COUNT_BIG(*) FROM identidade.pessoa;',N'@v bigint OUTPUT',@v=@identidadePessoa OUTPUT;
+  IF OBJECT_ID(N'identidade.identity_map',N'U') IS NOT NULL
+    EXEC sys.sp_executesql N'SELECT @v=COUNT_BIG(*) FROM identidade.identity_map;',N'@v bigint OUTPUT',@v=@identityMap OUTPUT;
+  IF OBJECT_ID(N'identidade.vinculo_fonte',N'U') IS NOT NULL
+    EXEC sys.sp_executesql N'SELECT @v=COUNT_BIG(*) FROM identidade.vinculo_fonte;',N'@v bigint OUTPUT',@v=@vinculoFonte OUTPUT;
+  IF OBJECT_ID(N'gold.pessoa',N'U') IS NOT NULL
+    EXEC sys.sp_executesql N'SELECT @v=COUNT_BIG(*) FROM gold.pessoa;',N'@v bigint OUTPUT',@v=@goldPessoa OUTPUT;
+  IF OBJECT_ID(N'gold.beneficio_concedido',N'U') IS NOT NULL
+    EXEC sys.sp_executesql N'SELECT @v=COUNT_BIG(*) FROM gold.beneficio_concedido;',N'@v bigint OUTPUT',@v=@goldBeneficio OUTPUT;
+  IF OBJECT_ID(N'gold.servico_prestado',N'U') IS NOT NULL
+    EXEC sys.sp_executesql N'SELECT @v=COUNT_BIG(*) FROM gold.servico_prestado;',N'@v bigint OUTPUT',@v=@goldServico OUTPUT;
+  SELECT
+    (SELECT COUNT_BIG(*) FROM ref.gestor) AS [counts.gestor],
+    @bronzeEntrega AS [counts.bronzeEntrega],
+    @bronzeArquivo AS [counts.bronzeArquivo],
+    @silverPessoaObservacao AS [counts.silverPessoaObservacao],
+    @identidadePessoa AS [counts.identidadePessoa],
+    @identityMap AS [counts.identityMap],
+    @vinculoFonte AS [counts.vinculoFonte],
+    @goldPessoa AS [counts.goldPessoa],
+    @goldBeneficio AS [counts.goldBeneficio],
+    @goldServico AS [counts.goldServico]
+  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;" | sed -n '/^[[:space:]]*{/,$p' | tr -d '\r\n'
 }
 historical_invariants(){
   sql -d "$DB" -y 0 -w 65535 -Q "SET NOCOUNT ON; SELECT
