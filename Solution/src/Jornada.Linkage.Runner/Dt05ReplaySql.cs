@@ -8,8 +8,40 @@ public sealed record Dt05ReplayPreparation(
     long HighWatermark, IReadOnlyList<long> ObservationIds, IReadOnlyList<Dt05BronzePin> Pins,
     long CandidateReferenceCount, string CandidateSetSha256, long GovernanceEventHighWatermark);
 
+public sealed record Dt05HistoricalCandidateStateBinding(
+    Guid SourceRunId, string ManifestLogicalPath, string ManifestSha256,
+    string PartitionSetSha256, long CandidateReferenceCount, string CandidateSetSha256);
+
 public sealed class Dt05ReplaySql(IOperationalSqlAdapter sql)
 {
+    public async Task<Dt05HistoricalCandidateStateBinding> ReadHistoricalCandidateStateBindingAsync(Guid sourceRunId, CancellationToken ct)
+    {
+        await using var connection = await sql.OpenAsync(ct);
+        await using var command = new SqlCommand("""
+            SELECT m.candidate_state_caminho_logico,m.candidate_state_manifesto_sha256,
+                   m.candidate_state_partition_set_sha256,m.candidatos_referencia,m.candidatos_sha256
+              FROM identidade.linkage_replay_manifesto m
+             WHERE m.linkage_run_id=@run_id AND m.schema_version=3;
+            """, connection);
+        command.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = sourceRunId;
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct) || Enumerable.Range(0, 5).Any(reader.IsDBNull))
+            throw new InvalidOperationException("DT-05: run histórico não possui binding candidate-state v3 completo; replay recusado.");
+        var path = reader.GetString(0).Trim();
+        var manifestSha = reader.GetString(1).Trim().ToLowerInvariant();
+        var partitionSha = reader.GetString(2).Trim().ToLowerInvariant();
+        var count = reader.GetInt64(3);
+        var candidateSha = reader.GetString(4).Trim().ToLowerInvariant();
+        if (!path.StartsWith("linkage-snapshots/v1/candidate-state/manifests/", StringComparison.Ordinal)
+            || path.Contains("..", StringComparison.Ordinal) || Path.IsPathRooted(path)
+            || !IsSha256(manifestSha) || !IsSha256(partitionSha) || !IsSha256(candidateSha) || count < 0)
+            throw new InvalidDataException("DT-05: binding candidate-state histórico inválido; replay recusado.");
+        return new Dt05HistoricalCandidateStateBinding(sourceRunId, path, manifestSha, partitionSha, count, candidateSha);
+    }
+
+    private static bool IsSha256(string value) =>
+        value.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
+
     public async Task CaptureGovernanceStateAsync(Guid runId, CancellationToken ct)
     {
         await using var connection = await sql.OpenAsync(ct);
