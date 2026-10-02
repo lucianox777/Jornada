@@ -30,7 +30,10 @@ public sealed class Dt05CandidateStateSnapshotContractTests
             Assert.That(publisher, Does.Contain("estado_identidade=N'REFERENCIA'"));
             Assert.That(publisher, Does.Contain("Encoding.Unicode.GetBytes(canonical)"));
             Assert.That(publisher, Does.Contain("estado candidato mudou após a captura de governança"));
-            Assert.That(publisher, Does.Not.Contain("nome_completo = x.NomeCompleto").After("var document = new"));
+            var manifestStart = publisher.IndexOf("var document = new", StringComparison.Ordinal);
+            var manifestEnd = publisher.IndexOf("var manifestBytes", manifestStart, StringComparison.Ordinal);
+            var manifestSource = publisher[manifestStart..manifestEnd];
+            Assert.That(manifestSource, Does.Not.Contain("nome_completo").And.Not.Contain("nome_mae"));
             var governance = runner.IndexOf("CaptureGovernanceStateAsync", StringComparison.Ordinal);
             var candidateState = runner.IndexOf("candidateStateSnapshotPublisher.CaptureAsync", StringComparison.Ordinal);
             var manifest = runner.IndexOf("replayManifestPublisher.PublishAsync", StringComparison.Ordinal);
