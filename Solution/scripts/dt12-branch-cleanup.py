@@ -221,6 +221,10 @@ def ref_endpoint(branch: str) -> str:
     return "git/ref/heads/" + urllib.parse.quote(branch, safe="/")
 
 
+def delete_ref_endpoint(branch: str) -> str:
+    return "git/refs/heads/" + urllib.parse.quote(branch, safe="/")
+
+
 def delete_candidates(repository: str, token: str, candidates: list[dict[str, str]]) -> list[str]:
     deleted: list[str] = []
     for row in sorted(candidates, key=lambda x: x["branch"]):
@@ -233,7 +237,7 @@ def delete_candidates(repository: str, token: str, candidates: list[dict[str, st
                 f"TOCTOU guard blocked {name}: expected {expected}, current {current_sha}; "
                 f"{len(deleted)} branches had already been deleted"
             )
-        api_request(repository, ref_endpoint(name), token, method="DELETE")
+        api_request(repository, delete_ref_endpoint(name), token, method="DELETE")
         deleted.append(name)
     return deleted
 
