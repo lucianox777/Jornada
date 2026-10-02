@@ -1,0 +1,59 @@
+baseline:
+  id: E2E-C
+  dt: DT-17C
+  status: REQUESTED
+  requested_at: 2026-10-01
+  purpose: "Baseline técnico .NET 10 posterior à DT-12 para comparação A × B × C"
+  scope: "DEV sintético isolado; não é Ensaio HML/Produção"
+runtime:
+  solution: Solution/Jornada.sln
+  target_framework: net10.0
+  dotnet_sdk: 10.0.112
+  aspnet_core: 10.0.12
+  sqlclient: 7.1.1
+corpus:
+  demographic_profile: DEMOGRAPHIC_PRIMARY_V1
+  people: 30000
+  seed: 42
+  birth_daily_source: Solution/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json
+  birth_daily_sha256: 8B8498EC2ABE7DCBFAFED1D361D2A3AFAFF77CAD5BCE29A5927DA517FC236A9B
+  birth_daily_rows: 39268
+isolation:
+  shared_jornada_local_reset_allowed: false
+  databases:
+    - JornadaE2E
+    - JornadaTest
+    - JornadaHarness
+    - JornadaSyntheticDev
+required_evidence:
+  jornada_ci_jobs:
+    - dependency-lock
+    - ddl-upgrade
+    - deterministic-build
+    - e2e
+    - unit
+    - security-analysis
+    - integration-sql
+    - harness-smoke
+  dt05_real_runner_cpf_late: true
+  linkage_independent_validation: true
+  no_skipped_as_success: true
+preconditions:
+  e2e_a:
+    state: EXECUTADA
+    pull_request: 666
+  e2e_b:
+    state: EXECUTADA
+    pull_request: 677
+  dt12:
+    state: CLEANUP_SUCCEEDED
+    pull_request: 689
+    master_commit: 552ae33368d840c3ef0b5b7758e0ca1fbe99c8c0
+    cleanup_run: 36945815354
+    authorized_candidates: 170
+    remaining_candidates: 0
+limitations:
+  - "Não comprova representatividade estatística populacional (#31)."
+  - "Não autoriza HML ou Produção."
+  - "Não constitui SLA de Produção."
+  - "Resultados e Actions do E2E-C só podem ser registrados após execução no HEAD exato."
