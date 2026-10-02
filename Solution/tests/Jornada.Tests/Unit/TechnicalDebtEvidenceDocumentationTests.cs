@@ -41,7 +41,9 @@ public sealed class TechnicalDebtEvidenceDocumentationTests
             Assert.That(debts, Does.Contain("DT-16 |"));
             Assert.That(debts, Does.Contain("REVERTIDA (30/09/2026)"));
             Assert.That(debts, Does.Contain("| DT-13 | **CONCLUÍDA — técnica** | Remover"));
-            Assert.That(debts, Does.Contain("| DT-17 | Transversal | Matriz obrigatória"));
+            Assert.That(debts, Does.Contain("| DT-17 | **CONCLUÍDA — escopo técnico DEV** | Matriz obrigatória"));
+            Assert.That(debts, Does.Contain("| DT-12 | **CONCLUÍDA — técnica** | Higiene de branches e notas"));
+            Assert.That(debts, Does.Contain("Permanecem na fila ativa: **DT-01, DT-05, DT-06, DT-09, DT-11 e DT-15**"));
             Assert.That(debts, Does.Contain("PR #580"));
             Assert.That(debts, Does.Not.Contain("\\n| DT-"));
             Assert.That(state, Does.Contain("v5.00-rc.1"));

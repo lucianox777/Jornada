@@ -417,6 +417,8 @@ if sum_incremental != truth_union:
 print('Blocking pass audit: fan-out/recall/complementaridade/proveniência OK')
 PY
 
+bash "$ROOT/scripts/v8-governance-evidence.sh" "$OUT"
+
 "${PYTHON_CMD[@]}" "$ROOT/scripts/linkage-evaluation-evidence-gate.py" "$OUT/report.json" \
   --policy "$ROOT/config/hml/linkage-evaluation-policy.json" \
   --summary "$OUT/evidence-gate-summary.json"
@@ -431,6 +433,7 @@ semantic_sha256="$(tr -d '\r\n' < "$OUT/evaluation-semantic-sha256.txt")"
   echo "report_sha256=$(sha256sum "$OUT/report.json" | awk '{print $1}')"
   echo "candidate_ranking_audit_sha256=$(sha256sum "$OUT/candidate-ranking-audit.json" | awk '{print $1}')"
   echo "blocking_pass_audit_sha256=$(sha256sum "$OUT/blocking-pass-audit.json" | awk '{print $1}')"
+  echo "v8_governance_evidence_sha256=$(tr -d '\r\n' < "$OUT/v8-governance-evidence-sha256.txt")"
   echo "evaluation_semantic_sha256=$semantic_sha256"
   echo "evaluation_repeat_semantically_equal=true"
   echo "operational_fingerprint_unchanged=true"
