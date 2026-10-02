@@ -417,7 +417,7 @@ if sum_incremental != truth_union:
 print('Blocking pass audit: fan-out/recall/complementaridade/proveniência OK')
 PY
 
-"$ROOT/scripts/v8-governance-evidence.sh" "$OUT"
+bash "$ROOT/scripts/v8-governance-evidence.sh" "$OUT"
 
 "${PYTHON_CMD[@]}" "$ROOT/scripts/linkage-evaluation-evidence-gate.py" "$OUT/report.json" \
   --policy "$ROOT/config/hml/linkage-evaluation-policy.json" \
