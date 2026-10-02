@@ -49,6 +49,18 @@ class Dt12BranchCleanupTests(unittest.TestCase):
         )
         self.assertEqual({}, blockers)
 
+    def test_historical_dt12_inventory_is_not_an_active_reference(self):
+        branch = "feat/example-old-branch"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            historical = root / "Solution" / "docs" / "DT12_Branches_20260926.csv"
+            historical.parent.mkdir(parents=True)
+            historical.write_text(f"branch\n{branch}\n", encoding="utf-8")
+
+            hits = m.scan_active_references(root, {branch})
+
+        self.assertEqual({}, hits)
+
     def test_authorization_requires_exact_contract(self):
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / "auth.json"
