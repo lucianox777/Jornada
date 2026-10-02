@@ -16,7 +16,7 @@
       "status": "BOUND_FOR_TECHNICAL_RC",
       "source_commit": "be02e6044bc5322540673548d9abb947f1c90837",
       "canonical_ddl": "Solution/database/Jornada_Fase1_v3.70.sql",
-      "structural_fingerprint_sha256": "427b13cd770e160949811f1f6ebc830f0afc0d2c9645591f517b53849feef22f",
+      "structural_fingerprint_sha256": "fe555b9e3c76cbf95d37fd7ef2d1553fd8a9b7d4b615ecd4abe155b95eda141d",
       "structural_fingerprint_method": "SHA256_SORTED_METADATA_LINES_FROM_Jornada_Dev_DdlFingerprint.sql",
       "migration_manifest": "Solution/database/migrations/manifest.txt",
       "migration_manifest_sha256": "f59cf5026cf2826f2a222ae61081b8c00eae0134f668a0daab7b29d3d351facf",
