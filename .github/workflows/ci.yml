@@ -829,7 +829,15 @@ jobs:
           #!/usr/bin/env bash
           set -euo pipefail
           ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-          docker compose --env-file "$ROOT/.env" exec -T -w /workspace -e SQLCMDPASSWORD             sqlserver /opt/mssql-tools18/bin/sqlcmd "$@"
+          translated=()
+          for arg in "$@"; do
+            case "$arg" in
+              "$ROOT"/*) translated+=("/workspace/${arg#"$ROOT"/}") ;;
+              *) translated+=("$arg") ;;
+            esac
+          done
+          docker compose --env-file "$ROOT/.env" exec -T -w /workspace -e SQLCMDPASSWORD \
+            sqlserver /opt/mssql-tools18/bin/sqlcmd "${translated[@]}"
           SH
           chmod +x .local/dt06-bin/sqlcmd
           JORNADA_DT06_EVIDENCE=1 \
