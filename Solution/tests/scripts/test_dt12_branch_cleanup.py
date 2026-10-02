@@ -89,10 +89,15 @@ class Dt12BranchCleanupTests(unittest.TestCase):
             with self.assertRaises(m.CleanupError):
                 m.load_authorization(p, "abc", 170)
 
-    def test_ref_endpoint_preserves_branch_path(self):
+    def test_ref_endpoints_preserve_branch_path_and_http_contract(self):
+        branch = "feat/example/path"
         self.assertEqual(
             "git/ref/heads/feat/example/path",
-            m.ref_endpoint("feat/example/path"),
+            m.ref_endpoint(branch),
+        )
+        self.assertEqual(
+            "git/refs/heads/feat/example/path",
+            m.delete_ref_endpoint(branch),
         )
 
 
