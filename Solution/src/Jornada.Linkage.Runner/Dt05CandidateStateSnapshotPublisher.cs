@@ -132,13 +132,13 @@ public sealed class Dt05CandidateStateSnapshotPublisher(
             await using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             await using (var writer = await ParquetWriter.CreateAsync(
                 schema, stream, new ParquetOptions { CompressionMethod = CompressionMethod.Zstd }, cancellationToken: ct))
-            await using (var group = writer.CreateRowGroup())
+            using (var group = writer.CreateRowGroup())
             {
-                await group.WriteAsync(candidateUuid, rows.Select(x => x.CandidateUuid).ToArray(), cancellationToken: ct);
-                await group.WriteAsync(nomeCompleto, rows.Select(x => x.NomeCompleto).ToArray(), cancellationToken: ct);
-                await group.WriteAsync(dataNascimento, rows.Select(x => x.DataNascimento).ToArray(), cancellationToken: ct);
-                await group.WriteAsync(nomeMae, rows.Select(x => x.NomeMae).ToArray(), cancellationToken: ct);
-                await group.WriteAsync(estadoIdentidade, rows.Select(x => x.EstadoIdentidade).ToArray(), cancellationToken: ct);
+                await group.WriteAsync<string>(candidateUuid, rows.Select(x => x.CandidateUuid).ToArray(), cancellationToken: ct);
+                await group.WriteAsync<string>(nomeCompleto, rows.Select(x => x.NomeCompleto).ToArray(), cancellationToken: ct);
+                await group.WriteAsync<string>(dataNascimento, rows.Select(x => x.DataNascimento).ToArray(), cancellationToken: ct);
+                await group.WriteAsync<string>(nomeMae, rows.Select(x => x.NomeMae).ToArray(), cancellationToken: ct);
+                await group.WriteAsync<string>(estadoIdentidade, rows.Select(x => x.EstadoIdentidade).ToArray(), cancellationToken: ct);
                 group.CompleteValidate();
             }
 
