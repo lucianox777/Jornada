@@ -9,6 +9,26 @@ public sealed record Dt05ReplayPreparation(
 
 public sealed class Dt05ReplaySql(IOperationalSqlAdapter sql)
 {
+    public async Task CaptureGovernanceStateAsync(Guid runId, CancellationToken ct)
+    {
+        await using var connection = await sql.OpenAsync(ct);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        try
+        {
+            await using var command = new SqlCommand(
+                "EXEC identidade.sp_capturar_estado_governanca_linkage @linkage_run_id=@run_id;",
+                connection, transaction);
+            command.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+            await command.ExecuteNonQueryAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
     public async Task<Dt05ReplayPreparation> ReadPreparationAsync(Guid runId, CancellationToken ct)
     {
         await using var connection = await sql.OpenAsync(ct);
