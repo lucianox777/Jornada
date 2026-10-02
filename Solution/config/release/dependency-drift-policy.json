@@ -139,7 +139,15 @@
       "from": "8.0.11",
       "to": "10.0.12",
       "justification": "DT-02 alinha o host de testes ASP.NET ao runtime .NET 10; a versão 8.x provocou incompatibilidade de PipeWriter no test host. Unit/OpenAPI e regressão HTTP permanecem obrigatórios antes do merge."
+    },
+    {
+      "kind": "ADD",
+      "project": "Solution/src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj",
+      "package": "Parquet.Net",
+      "from": null,
+      "to": "6.1.0",
+      "justification": "DT-05 materializa o candidate-state imutável em Parquet/ZSTD antes do score para replay histórico; a dependência fica restrita ao Runner e permanece coberta por unit, E2E DT-05, deterministic-build e dependency-lock."
     }
   ],
-  "note": "DT-02 mantém SQL Server como único runtime relacional da candidata, governa Microsoft.Data.SqlClient 5.2.2 → 7.1.1 e registra somente as compatibilidades adicionais comprovadas para .NET 10: Microsoft.AspNetCore.Mvc.Testing 10.0.12 nos testes e Microsoft.Data.SqlClient.Extensions.Azure 7.1.1 para o provider Entra. Upgrades de NUnit/Test SDK permanecem fora deste escopo salvo incompatibilidade comprovada."
+  "note": "DT-02 mantém SQL Server como único runtime relacional da candidata, governa Microsoft.Data.SqlClient 5.2.2 → 7.1.1 e registra somente as compatibilidades adicionais comprovadas para .NET 10: Microsoft.AspNetCore.Mvc.Testing 10.0.12 nos testes e Microsoft.Data.SqlClient.Extensions.Azure 7.1.1 para o provider Entra. Upgrades de NUnit/Test SDK permanecem fora deste escopo salvo incompatibilidade comprovada. DT-05 autoriza Parquet.Net 6.1.0 exclusivamente no Jornada.Linkage.Runner para publicação do candidate-state imutável de replay."
 }
