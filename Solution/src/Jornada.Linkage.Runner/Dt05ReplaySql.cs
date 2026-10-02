@@ -1,0 +1,82 @@
+using System.Data;
+using Microsoft.Data.SqlClient;
+using Jornada.Operational.Sql;
+
+namespace Jornada.Linkage.Runner;
+
+public sealed record Dt05ReplayPreparation(
+    long HighWatermark, IReadOnlyList<long> ObservationIds, IReadOnlyList<Dt05BronzePin> Pins);
+
+public sealed class Dt05ReplaySql(IOperationalSqlAdapter sql)
+{
+    public async Task<Dt05ReplayPreparation> ReadPreparationAsync(Guid runId, CancellationToken ct)
+    {
+        await using var connection = await sql.OpenAsync(ct);
+        long highWatermark;
+        var ids = new List<long>();
+        var pins = new List<Dt05BronzePin>();
+
+        await using (var command = new SqlCommand("""
+            SELECT pessoa_observacao_id_high_watermark
+              FROM identidade.linkage_run
+             WHERE linkage_run_id=@run_id AND status=N'EXECUTANDO';
+            SELECT pessoa_observacao_id
+              FROM identidade.linkage_run_item
+             WHERE linkage_run_id=@run_id
+             ORDER BY pessoa_observacao_id;
+            SELECT objeto_chave,payload_sha256
+              FROM identidade.linkage_bronze_pin
+             WHERE linkage_run_id=@run_id
+             ORDER BY objeto_chave;
+            """, connection))
+        {
+            command.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct) || reader.IsDBNull(0))
+                throw new InvalidOperationException("DT-05: run ativo/high-watermark não encontrado.");
+            highWatermark = reader.GetInt64(0);
+            if (!await reader.NextResultAsync(ct))
+                throw new InvalidOperationException("DT-05: conjunto lógico do run ausente.");
+            while (await reader.ReadAsync(ct)) ids.Add(reader.GetInt64(0));
+            if (!await reader.NextResultAsync(ct))
+                throw new InvalidOperationException("DT-05: pins Bronze do run ausentes.");
+            while (await reader.ReadAsync(ct))
+                pins.Add(new Dt05BronzePin(reader.GetString(0), reader.GetString(1).Trim().ToLowerInvariant()));
+        }
+        if (pins.Count == 0) throw new InvalidOperationException("DT-05: nenhum pin Bronze capturado.");
+        return new Dt05ReplayPreparation(highWatermark, ids, pins);
+    }
+
+    public async Task RegisterAsync(
+        Guid runId, string logicalPath, string manifestSha256, string bronzeSetSha256,
+        Dt05ReplayManifestIdentity identity, CancellationToken ct)
+    {
+        await using var connection = await sql.OpenAsync(ct);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+        try
+        {
+            await using var command = new SqlCommand("""
+                EXEC identidade.sp_registrar_manifesto_replay_linkage
+                    @linkage_run_id=@run_id,@schema_version=1,@caminho_logico=@path,
+                    @manifesto_sha256=@manifest_sha,@bronze_set_sha256=@bronze_sha,
+                    @scorer_version=@scorer,@ruleset_version=@ruleset,
+                    @model_version=@model,@input_snapshot_id=@snapshot;
+                """, connection, transaction);
+            command.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+            command.Parameters.Add("@path", SqlDbType.NVarChar, 1024).Value = logicalPath;
+            command.Parameters.Add("@manifest_sha", SqlDbType.Char, 64).Value = manifestSha256;
+            command.Parameters.Add("@bronze_sha", SqlDbType.Char, 64).Value = bronzeSetSha256;
+            command.Parameters.Add("@scorer", SqlDbType.NVarChar, 120).Value = identity.ScorerVersion;
+            command.Parameters.Add("@ruleset", SqlDbType.NVarChar, 120).Value = identity.RuleSetVersion;
+            command.Parameters.Add("@model", SqlDbType.NVarChar, 120).Value = identity.ModelVersion;
+            command.Parameters.Add("@snapshot", SqlDbType.NVarChar, 200).Value = identity.InputSnapshotId;
+            await command.ExecuteNonQueryAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+}
