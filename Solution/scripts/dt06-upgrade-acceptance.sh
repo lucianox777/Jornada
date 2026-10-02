@@ -37,6 +37,13 @@ mkdir -p "$OUT"
 MANIFEST="$ROOT/database/migrations/manifest.txt"
 manifest_hash(){ sha256sum "$MANIFEST" | awk '{print $1}'; }
 invariants(){ sql -d "$DB" -i "$ROOT/database/Jornada_Upgrade_Invariants.sql" -y 0 -w 65535 | sed -n '/^[[:space:]]*{/,$p' | tr -d '\r\n'; }
+historical_invariants(){
+  sql -d "$DB" -y 0 -w 65535 -Q "SET NOCOUNT ON; SELECT
+    (SELECT COUNT_BIG(*) FROM ref.gestor) AS [counts.gestor],
+    (SELECT COUNT_BIG(*) FROM ref.gestor WHERE codigo IN(N'DT06_SENTINELA',N'DT06_MASSA_A',N'DT06_MASSA_B')) AS [counts.dt06Synthetic],
+    CONVERT(nvarchar(128),DATABASEPROPERTYEX(DB_NAME(),N'Collation')) AS [database.collation]
+  FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;" | sed -n '/^[[:space:]]*{/,$p' | tr -d '\r\n'
+}
 fingerprint(){ sql -d "$DB" -i "$ROOT/database/Jornada_Dev_DdlFingerprint.sql" -W -h -1 | sed '/^[[:space:]]*$/d' | sha256sum | awk '{print $1}'; }
 export_history(){ sql -d "$DB" -h -1 -W -s '|' -i "$ROOT/database/tests/DT06_Exportar_Historico.sql" | sed '/^[[:space:]]*$/d'; }
 
@@ -48,7 +55,7 @@ sql -d master -Q "CREATE DATABASE [$DB];"
 sql -d "$DB" -i "$ROOT/$BASELINE"
 sql -d "$DB" -Q "INSERT ref.gestor(codigo,nome,ativo) VALUES(N'DT06_SENTINELA',N'Gestor sintético DT06',1),(N'DT06_MASSA_A',N'Massa sintética A',1),(N'DT06_MASSA_B',N'Massa sintética B',0);"
 printf '%s\n' "$(manifest_hash)" > "$OUT/manifest-before.sha256"
-invariants > "$OUT/invariants-before.json"
+historical_invariants > "$OUT/invariants-before.json"
 sql -d "$DB" -Q "SET NOCOUNT ON; DECLARE @n bigint=(SELECT COUNT_BIG(*) FROM ref.gestor WHERE codigo IN(N'DT06_SENTINELA',N'DT06_MASSA_A',N'DT06_MASSA_B')); IF @n<>3 BEGIN RAISERROR('DT06: contagem sintética inicial divergente; observado=%d.',16,1,@n); RETURN; END;"
 printf '3\n' > "$OUT/synthetic-count-before.txt"
 
@@ -81,7 +88,7 @@ cmp -s "$OUT/manifest-after-first.sha256" "$OUT/manifest-after-second.sha256" ||
 
 # 5) Rollback operacional: restaura o backup pré-upgrade no MESMO banco sintético isolado.
 sql -d master -Q "ALTER DATABASE [$DB] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [$DB] FROM DISK=N'$BACKUP_PATH' WITH REPLACE,CHECKSUM; ALTER DATABASE [$DB] SET MULTI_USER;"
-invariants > "$OUT/invariants-after-restore.json"
+historical_invariants > "$OUT/invariants-after-restore.json"
 printf '%s\n' "$(manifest_hash)" > "$OUT/manifest-after-restore.sha256"
 sql -d "$DB" -Q "SET NOCOUNT ON; DECLARE @n bigint=(SELECT COUNT_BIG(*) FROM ref.gestor WHERE codigo IN(N'DT06_SENTINELA',N'DT06_MASSA_A',N'DT06_MASSA_B')); IF @n<>3 BEGIN RAISERROR('DT06: massa sintética divergiu após rollback; observado=%d.',16,1,@n); RETURN; END;"
 printf '3\n' > "$OUT/synthetic-count-after-restore.txt"
