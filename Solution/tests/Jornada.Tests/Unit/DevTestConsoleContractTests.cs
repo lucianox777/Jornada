@@ -8,7 +8,7 @@ public sealed class DevTestConsoleContractTests
     [Test]
     public void Console_is_separate_executable_with_independent_commands_and_navigable_runs()
     {
-        var root=Root();var program=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.DevConsole","Program.cs"));var script=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-command.ps1"));
+        var root=Root();var program=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.DevConsole","Program.cs"));var script=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-command.ps1"));var goldScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-gold-synthetic.ps1"));
         Assert.Multiple(()=>{
             Assert.That(program,Does.Contain("CommandCatalog.All"));
             Assert.That(program,Does.Contain("/api/commands/{command}/run"));
@@ -37,9 +37,11 @@ public sealed class DevTestConsoleContractTests
             Assert.That(launch,Does.Contain("Jornada.DevConsole.csproj"));
             Assert.That(launch,Does.Contain("\"Action\": \"Start\""));
             Assert.That(program,Does.Contain("nenhuma ação exige a anterior"));
-            Assert.That(script,Does.Contain("Jornada_Dev_LinkageValidation.sql"));
-            Assert.That(script,Does.Contain("FROM gold.pessoa"));
-            Assert.That(script,Does.Contain("gold-synthetic-records.json"));
+            Assert.That(program,Does.Contain("dev-console-gold-synthetic.ps1"));
+            Assert.That(goldScript,Does.Contain("Jornada_Dev_GoldSynthetic.sql"));
+            Assert.That(goldScript,Does.Contain("FROM gold.pessoa"));
+            Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
+            Assert.That(goldScript,Does.Not.Contain("Jornada_Dev_LinkageValidation.sql"));
             Assert.That(program,Does.Not.Contain("Jornada.Api"));
         });
     }
