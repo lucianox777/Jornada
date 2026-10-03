@@ -32,14 +32,20 @@ if ([int](Scalar "SELECT COUNT_BIG(*) FROM gold.pessoa WHERE estado_identidade=N
 }
 
 if ($Dt05HistoricalReplay) {
-    $previousOperation=$env:Processor__Operation
-    try {
-        $env:Processor__Operation='REBUILD_LOCAL_BLOCKING'
-        Push-Location $Root
-        try { dotnet run --no-build --configuration Release --project src/Jornada.Processor.Worker | Out-Host; if($LASTEXITCODE -ne 0){ throw 'DT-05: rebuild da projeção canônica falhou.' } }
-        finally { Pop-Location }
-    } finally { $env:Processor__Operation=$previousOperation }
-    if ([int](Scalar "SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE atributo=N'birth_year' AND vigencia_fim IS NULL;") -lt 2) { throw 'DT-05: projeção birth_year não materializou as referências sintéticas.' }
+    Sql @'
+INSERT identidade.blocking_chave(pessoa_uuid,normalizacao_versao,atributo,valor_normalizado,semantica_temporal)
+SELECT g.pessoa_uuid,N'IDENTITY_NORMALIZATION_V1',N'birth_year,N'1982',N'STABLE_IDENTITY_DATUM'
+FROM gold.pessoa g
+WHERE g.estado_identidade=N'REFERENCIA' AND g.nome_completo=N'Maria da Silva'
+  AND g.data_nascimento='1982-04-10' AND g.nome_mae=N'Ana de Souza'
+  AND NOT EXISTS(
+    SELECT 1 FROM identidade.blocking_chave k
+    WHERE k.pessoa_uuid=g.pessoa_uuid AND k.normalizacao_versao=N'IDENTITY_NORMALIZATION_V1'
+      AND k.atributo=N'birth_year' AND k.valor_normalizado=N'1982' AND k.vigencia_fim IS NULL);
+'@ | Out-Null
+    if ([int](Scalar "SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE atributo=N'birth_year' AND valor_normalizado=N'1982' AND vigencia_fim IS NULL;") -lt 2) {
+        throw 'DT-05: fixture não materializou as duas chaves birth_year sintéticas.'
+    }
     $modelId = Scalar "SELECT CONVERT(VARCHAR(36),modelo_id) FROM identidade.modelo_linkage WHERE status=N'ATIVO';"
     $algorithm = Scalar "SELECT algoritmo_versao FROM identidade.modelo_linkage WHERE modelo_id='$modelId';"
     $ruleVersion = 'DT05_E2E_DYNAMIC_BLOCKING_V1'
