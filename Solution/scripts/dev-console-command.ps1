@@ -13,13 +13,26 @@ function Invoke-Checked([string]$Exe,[string[]]$Arguments){
 
 switch($Action){
  'update-build' {
+   $started=Get-Date
+   Write-Host '=== Jornada DEV :: Atualizar e compilar ==='
+   Write-Host ('Início: '+$started.ToString('o'))
    $Repo=(Resolve-Path (Join-Path $Root '..')).Path
    Push-Location $Repo
    try {
+     Write-Host ('Repositório: '+$Repo)
+     Write-Host ('dotnet: '+$DotnetExe)
+     Write-Host ('SDK: '+((& $DotnetExe --version | Out-String).Trim()))
+     Write-Host 'Etapa 1/4: atualizando checkout...'
      Invoke-Checked git @('pull','--ff-only')
+     Write-Host 'Etapa 2/4: restaurando dependências em modo locked...'
      Invoke-Checked $DotnetExe @('restore','Solution/Jornada.sln','--locked-mode')
+     Write-Host 'Etapa 3/4: compilando Jornada.sln em Release...'
      Invoke-Checked $DotnetExe @('build','Solution/Jornada.sln','--no-restore','--configuration','Release')
+     Write-Host 'Etapa 4/4: registrando HEAD final...'
      Invoke-Checked git @('rev-parse','HEAD')
+     $elapsed=(Get-Date)-$started
+     Write-Host ('Concluído em '+[math]::Round($elapsed.TotalSeconds,2)+' s.')
+     Write-Host '=== SUCESSO: atualização e build concluídos ==='
    } finally { Pop-Location }
  }
  'gold-synthetic' {

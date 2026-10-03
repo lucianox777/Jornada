@@ -5,6 +5,7 @@ var builder=WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<ConsoleSession>();
 builder.Services.AddSingleton<RunStore>();
 builder.Services.AddSingleton<CommandExecutor>();
+builder.Services.AddSingleton<ManualZipExecutor>();
 var app=builder.Build();
 app.MapGet("/",()=>Results.Text(Page.Html,"text/html; charset=utf-8"));
 app.MapGet("/api/commands",async(RunStore s,CancellationToken ct)=>{
@@ -13,6 +14,7 @@ app.MapGet("/api/commands",async(RunStore s,CancellationToken ct)=>{
 });
 app.MapGet("/api/runs",async(RunStore s,CancellationToken ct)=>Results.Ok(await s.ListAsync(ct)));
 app.MapGet("/api/runs/{id:guid}",async(Guid id,RunStore s,CancellationToken ct)=>await s.GetAsync(id,ct) is { } r?Results.Ok(r):Results.NotFound());
+app.MapPost("/api/zip/manual",async(ManualZipRequest request,ManualZipExecutor exec,RunStore store,CancellationToken ct)=>{var run=await exec.RunAsync(request,ct);await store.SaveAsync(run,ct);return Results.Ok(run);});
 app.MapPost("/api/commands/{command}/run",async(string command,CommandExecutor exec,RunStore store,CancellationToken ct)=>{
     var definition=CommandCatalog.All.FirstOrDefault(x=>x.Id.Equals(command,StringComparison.OrdinalIgnoreCase));
     if(definition is null)return Results.NotFound();
@@ -21,7 +23,8 @@ app.MapPost("/api/commands/{command}/run",async(string command,CommandExecutor e
 app.Run();
 
 sealed record CommandDefinition(string Id,string Title,string Description,string? File,string? Arguments,string? ResultPath) { public bool Implemented => File is not null; public string? CommandLine => File is null ? null : $"{File} {Arguments}"; public string DisplayCommand => CommandLine ?? "Comando real ainda não mapeado."; }
-sealed record StepResult(string Command,int ExitCode,long DurationMs,string Output,string Error);
+sealed record StepResult(string Command,string WorkingDirectory,int ExitCode,long DurationMs,string Output,string Error,string? ResultPath);
+sealed record ManualZipRequest(string Gestor,string ManifestJson,string PessoasJsonl,string RegistrosJsonl);
 sealed record RunRecord(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,StepResult Step,IReadOnlyList<Dictionary<string,string?>> Records);
 sealed class ConsoleSession { public DateTimeOffset StartedAt { get; }=DateTimeOffset.UtcNow; }
 
@@ -41,7 +44,7 @@ static class CommandCatalog {
         new("blocking","Executar blocking","Gera candidatos para o linkage sem impor sequência com outros comandos.",null,null,null),
         new("linkage","Executar linkage","Executa o linkage probabilístico.",null,null,null),
         new("identity","Consolidar identidade","Executa a consolidação de identidade.",null,null,null),
-        new("gold-synthetic","Carregar Gold sintética","Carrega fixture sintética diretamente, sem exigir ingestão anterior.","pwsh","-NoProfile -File scripts/dev-console-command.ps1 -Action gold-synthetic",".local/dev-console/gold-synthetic-records.json"),
+        new("gold-synthetic","Carregar Gold sintética","Carrega fixture sintética diretamente, sem exigir ingestão, blocking, linkage ou modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-gold-synthetic.ps1",".local/dev-console/gold-synthetic-records.json"),
         new("gold","Gerar Gold","Executa ou inspeciona a geração da camada Gold.",null,null,null),
         new("replay","Executar replay","Executa um replay a partir das evidências disponíveis.",null,null,null),
         new("semiblind","Executar consulta semicega","Executa a consulta semicega de validação.",null,null,null),
@@ -55,7 +58,7 @@ sealed class CommandExecutor(IWebHostEnvironment env) {
     public async Task<RunRecord> RunAsync(CommandDefinition d,CancellationToken ct) {
         var started=DateTimeOffset.UtcNow; var root=FindSolutionRoot(env.ContentRootPath);
         if(!d.Implemented){
-            var pendingStep=new StepResult(d.DisplayCommand,-1,0,"","");
+            var pendingStep=new StepResult(d.DisplayCommand,root,-1,0,"","",null);
             return new RunRecord(Guid.NewGuid(),d.Id,d.Title,started,DateTimeOffset.UtcNow,"SEM EXECUTOR","Opção disponível; comando real ainda não mapeado.",pendingStep,Array.Empty<Dictionary<string,string?>>());
         }
         var sw=Stopwatch.StartNew();
@@ -63,10 +66,37 @@ sealed class CommandExecutor(IWebHostEnvironment env) {
         p.Start();var stdout=p.StandardOutput.ReadToEndAsync(ct);var stderr=p.StandardError.ReadToEndAsync(ct);await p.WaitForExitAsync(ct);sw.Stop();
         var records=new List<Dictionary<string,string?>>();
         if(d.ResultPath is not null){var path=Path.Combine(root,d.ResultPath);if(File.Exists(path)){using var doc=JsonDocument.Parse(await File.ReadAllTextAsync(path,ct));foreach(var row in doc.RootElement.EnumerateArray())records.Add(row.EnumerateObject().ToDictionary(x=>x.Name,x=>(string?)x.Value.ToString()));}}
-        var step=new StepResult(d.CommandLine!,p.ExitCode,sw.ElapsedMilliseconds,await stdout,await stderr);
-        var summary=records.Count>0?$"{records.Count} registro(s) no resultado.":p.ExitCode==0?"Comando concluído.":"Comando falhou; veja stdout/stderr.";
+        var resultPath=d.ResultPath is null?null:Path.GetFullPath(Path.Combine(root,d.ResultPath));
+        var step=new StepResult(d.CommandLine!,root,p.ExitCode,sw.ElapsedMilliseconds,await stdout,await stderr,resultPath);
+        var summary=records.Count>0?$"{records.Count} registro(s) no resultado. Resultado: {resultPath}":p.ExitCode==0?(resultPath is null?"Comando concluído; veja a saída detalhada.":$"Comando concluído. Resultado: {resultPath}"):$"Comando falhou (exit {p.ExitCode}); veja stdout/stderr.";
         return new RunRecord(Guid.NewGuid(),d.Id,d.Title,started,DateTimeOffset.UtcNow,p.ExitCode==0?"SUCESSO":"FALHA",summary,step,records);
     }
+    static string FindSolutionRoot(string start){for(var d=new DirectoryInfo(start);d is not null;d=d.Parent)if(File.Exists(Path.Combine(d.FullName,"Jornada.sln")))return d.FullName;throw new DirectoryNotFoundException("Jornada.sln não encontrado.");}
+}
+
+sealed class ManualZipExecutor(IWebHostEnvironment env) {
+    public async Task<RunRecord> RunAsync(ManualZipRequest request,CancellationToken ct) {
+        var started=DateTimeOffset.UtcNow; var root=FindSolutionRoot(env.ContentRootPath); var id=Guid.NewGuid();
+        if(string.IsNullOrWhiteSpace(request.Gestor))throw new ArgumentException("Gestor é obrigatório.");
+        using var manifest=JsonDocument.Parse(request.ManifestJson);
+        foreach(var line in SplitJsonl(request.PessoasJsonl)){using var doc=JsonDocument.Parse(line);}
+        foreach(var line in SplitJsonl(request.RegistrosJsonl)){using var doc=JsonDocument.Parse(line);}
+        var work=Path.Combine(root,".local","dev-console","manual-zip",id.ToString("N"));Directory.CreateDirectory(work);
+        await File.WriteAllTextAsync(Path.Combine(work,"manifest.json"),request.ManifestJson.Trim()+Environment.NewLine,ct);
+        await File.WriteAllTextAsync(Path.Combine(work,"pessoas.jsonl"),NormalizeJsonl(request.PessoasJsonl),ct);
+        await File.WriteAllTextAsync(Path.Combine(work,"registros.jsonl"),NormalizeJsonl(request.RegistrosJsonl),ct);
+        var python=OperatingSystem.IsWindows()?"python":"python3";
+        var psi=new ProcessStartInfo(python){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,UseShellExecute=false,CreateNoWindow=true};
+        psi.ArgumentList.Add(Path.Combine(root,"scripts","build-ingestion-fixture.py"));psi.ArgumentList.Add("--fixture");psi.ArgumentList.Add(work);psi.ArgumentList.Add("--gestor");psi.ArgumentList.Add(request.Gestor.Trim());psi.ArgumentList.Add("--output-dir");psi.ArgumentList.Add(work);
+        var sw=Stopwatch.StartNew();using var p=new Process{StartInfo=psi};p.Start();var stdout=p.StandardOutput.ReadToEndAsync(ct);var stderr=p.StandardError.ReadToEndAsync(ct);await p.WaitForExitAsync(ct);sw.Stop();
+        var output=(await stdout).Trim();var error=await stderr;var zip=p.ExitCode==0&&File.Exists(output)?Path.GetFullPath(output):null;
+        var cmd=$"{python} scripts/build-ingestion-fixture.py --fixture {work} --gestor {request.Gestor.Trim()} --output-dir {work}";
+        var step=new StepResult(cmd,root,p.ExitCode,sw.ElapsedMilliseconds,output,error,zip);
+        var summary=p.ExitCode==0?$"ZIP gerado. Resultado: {zip}":$"Falha ao gerar ZIP (exit {p.ExitCode}); veja stdout/stderr.";
+        return new RunRecord(id,"zip","Gerar ZIP de ingestão",started,DateTimeOffset.UtcNow,p.ExitCode==0?"SUCESSO":"FALHA",summary,step,Array.Empty<Dictionary<string,string?>>());
+    }
+    static IEnumerable<string> SplitJsonl(string text)=>text.Replace("\r","").Split('\n',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
+    static string NormalizeJsonl(string text)=>string.Join(Environment.NewLine,SplitJsonl(text))+(string.IsNullOrWhiteSpace(text)?"":Environment.NewLine);
     static string FindSolutionRoot(string start){for(var d=new DirectoryInfo(start);d is not null;d=d.Parent)if(File.Exists(Path.Combine(d.FullName,"Jornada.sln")))return d.FullName;throw new DirectoryNotFoundException("Jornada.sln não encontrado.");}
 }
 
@@ -80,10 +110,14 @@ sealed class RunStore(IWebHostEnvironment env,ConsoleSession session) {
 }
 
 static class Page { public const string Html="""
-<!doctype html><html lang=pt-BR><meta charset=utf-8><meta name=viewport content="width=device-width"><title>Jornada DEV Console</title><style>body{font:15px system-ui;margin:24px;background:#f5f6f8;color:#17202a}main{max-width:1100px;margin:auto}section{background:white;padding:16px;margin:14px 0;border:1px solid #ddd;border-radius:8px}button{padding:8px 12px}a{cursor:pointer;color:#075ca8}.run{border-top:1px solid #ddd;padding:12px 0}.cmd-title{display:flex;gap:12px;align-items:center;justify-content:space-between}.cmd-desc{margin:4px 0 6px}.cmd-line{display:block;color:#555;margin-top:3px}pre{white-space:pre-wrap;background:#111;color:#eee;padding:10px;overflow:auto}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #ddd;padding:6px;text-align:left}</style><main><h1>Jornada · Console DEV</h1><p>Comandos independentes. Execute somente o que quiser; nenhuma ação exige a anterior.</p><section><h2>Comandos</h2><div id=commands></div></section><section><h2>Execuções</h2><div id=runs></div></section><section id=detail hidden><h2>Resultado da execução</h2><div id=body></div></section></main><script>
-const esc=x=>String(x??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));async function j(u,o){let r=await fetch(u,o);if(!r.ok)throw Error(await r.text());return r.json()}
-async function load(){let cs=await j('/api/commands');commands.innerHTML=cs.map(c=>'<div class="run"><div class="cmd-title"><b>'+esc(c.title)+'</b><span><strong>executado '+c.runCount+' vez(es)</strong> <button onclick="go(\''+c.id+'\')">Executar</button></span></div><div class="cmd-desc">'+esc(c.description)+'</div><small class="cmd-line"><code>'+esc(c.displayCommand)+'</code></small></div>').join('');let rs=await j('/api/runs');runs.innerHTML=rs.length?rs.map(r=>'<div class=run><a onclick="openRun(\''+r.id+'\')"><b>'+esc(r.title)+'</b> · '+esc(r.status)+' · '+esc(r.startedAt)+'</a><br>'+esc(r.summary)+'</div>').join(''):'Nenhuma execução ainda.'}
-async function go(id){await j('/api/commands/'+id+'/run',{method:'POST'});await load()}
-async function openRun(id){let r=await j('/api/runs/'+id);detail.hidden=false;body.innerHTML='<p><b>'+esc(r.status)+'</b> · '+esc(r.summary)+'</p>'+(r.records.length?'<h3>Registros gerados</h3><table><tr>'+Object.keys(r.records[0]).map(k=>'<th>'+esc(k)+'</th>').join('')+'</tr>'+r.records.map(x=>'<tr>'+Object.values(x).map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('')+'</table>':'<p>Sem registros tabulares nesta execução.</p>')+'<details><summary>Comando e saída</summary><pre>'+esc(r.step.command)+'\\n\\n'+esc(r.step.output)+'\\n'+esc(r.step.error)+'</pre></details>';detail.scrollIntoView()}
+<!doctype html><html lang=pt-BR><meta charset=utf-8><meta name=viewport content="width=device-width"><title>Jornada DEV Console</title><style>body{font:15px system-ui;margin:24px;background:#f5f6f8;color:#17202a}main{max-width:1100px;margin:auto}section{background:white;padding:16px;margin:14px 0;border:1px solid #ddd;border-radius:8px}button{padding:8px 12px}button:disabled{cursor:wait;opacity:.72}a{cursor:pointer;color:#075ca8}.run{border-top:1px solid #ddd;padding:12px 0}.run.running{background:#fff8dd}.cmd-title{display:flex;gap:12px;align-items:center;justify-content:space-between}.cmd-desc{margin:4px 0 6px}.cmd-line{display:block;color:#555;margin-top:3px}.running-badge{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#8a5a00;margin-right:8px}.spinner{width:14px;height:14px;border:2px solid #d6a128;border-top-color:transparent;border-radius:50%;display:inline-block;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.spinner{animation:none;border-top-color:#d6a128}}pre{white-space:pre-wrap;background:#111;color:#eee;padding:10px;overflow:auto}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #ddd;padding:6px;text-align:left}.manual{margin-top:14px;padding:14px;border:1px solid #ddd;border-radius:8px;background:#fafafa}.manual label{display:block;font-weight:700;margin-top:10px}.manual input,.manual textarea{box-sizing:border-box;width:100%;padding:8px;font:14px ui-monospace,monospace}.manual textarea{min-height:110px}.result-path{padding:10px;background:#eef6ee;border:1px solid #b8d8b8;border-radius:6px;word-break:break-all}</style><main><h1>Jornada · Console DEV</h1><p>Comandos independentes. Execute somente o que quiser; nenhuma ação exige a anterior.</p><section><h2>Comandos</h2><div id=activity aria-live="polite"></div><div id=commands></div><div id=zipManual class=manual hidden><h3>Entrada manual para o ZIP</h3><p>Edite os dados que irão para <code>manifest.json</code>, <code>pessoas.jsonl</code> e <code>registros.jsonl</code>. Depois a Console gera o ZIP real.</p><label for=zipGestor>Gestor</label><input id=zipGestor value="SEHAB"><label for=zipManifest>manifest.json</label><textarea id=zipManifest>{"formatoVersao":2,"pessoaSchemaVersao":4,"codigoSistemaOrigem":"SEHAB","natureza":"BENEFICIO","codigoTipo":"AA01","tipoVersao":1,"dataReferencia":"2026-10-03T00:00:00-03:00"}</textarea><label for=zipPessoas>pessoas.jsonl</label><textarea id=zipPessoas>{"idPessoaEntrega":"PESSOA-MANUAL-001","cpf":null,"cpfAusenteMotivo":"NAO_INFORMADO_ORIGEM","nomeCompleto":"Maria Exemplo","dataNascimento":"1982-04-10","nomeMae":"Ana Exemplo","sourceTransactionId":"DEV-MANUAL-001","atributosTransversais":[]}</textarea><label for=zipRegistros>registros.jsonl</label><textarea id=zipRegistros>{"idPessoaEntrega":"PESSOA-MANUAL-001","codigoRegistroOrigem":"DEV-MANUAL-REG-001","operacao":"INCLUSAO","dataInicioConcessao":"2026-10-01","valorConcedido":600.0,"dataEventoConcessao":"2026-10-03","situacaoVigencia":"VIGENTE"}</textarea><p><button id=zipGenerate type=button>Gerar ZIP agora</button> <button id=zipCancel type=button>Fechar</button></p><div id=zipStatus aria-live="polite"></div></div></section><section><h2>Execuções</h2><div id=runs></div></section><section id=detail hidden><h2>Resultado da execução</h2><div id=body></div></section></main><script>
+const esc=x=>String(x??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));const running=new Set();let commandCache=[];async function j(u,o){let r=await fetch(u,o);if(!r.ok)throw Error(await r.text());return r.json()}
+function renderCommands(){activity.innerHTML=running.size?'<p><strong>'+running.size+' ação(ões) rodando agora.</strong></p>':'';commands.innerHTML=commandCache.map(c=>{let isRunning=running.has(c.id);let click=c.id==='zip'?'openZip()':"go('"+c.id+"')";let label=isRunning?'Rodando...':(c.id==='zip'?'Preencher dados':'Executar');return '<div class="run '+(isRunning?'running':'')+'"><div class="cmd-title"><b>'+esc(c.title)+'</b><span>'+(isRunning?'<span class="running-badge"><span class="spinner" aria-hidden="true"></span>RODANDO...</span>':'')+'<strong>executado '+c.runCount+' vez(es)</strong> <button '+(isRunning?'disabled aria-busy="true"':'')+' onclick="'+click+'">'+label+'</button></span></div><div class="cmd-desc">'+esc(c.description)+'</div><small class="cmd-line"><code>'+esc(c.displayCommand)+'</code></small></div>'}).join('')}
+async function load(){commandCache=await j('/api/commands');renderCommands();let rs=await j('/api/runs');runs.innerHTML=rs.length?rs.map(r=>'<div class=run><a onclick="openRun(\''+r.id+'\')"><b>'+esc(r.title)+'</b> · '+esc(r.status)+' · '+esc(r.startedAt)+'</a><br>'+esc(r.summary)+'</div>').join(''):'Nenhuma execução ainda.'}
+async function go(id){if(running.has(id))return;running.add(id);renderCommands();try{await j('/api/commands/'+id+'/run',{method:'POST'});}catch(e){alert('Falha ao executar: '+e.message);}finally{running.delete(id);await load()}}
+function openZip(){zipManual.hidden=false;zipManual.scrollIntoView({behavior:'smooth',block:'start'})}
+zipCancel.addEventListener('click',()=>zipManual.hidden=true);
+zipGenerate.addEventListener('click',async()=>{zipGenerate.disabled=true;zipStatus.textContent='Gerando ZIP...';try{let r=await j('/api/zip/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gestor:zipGestor.value,manifestJson:zipManifest.value,pessoasJsonl:zipPessoas.value,registrosJsonl:zipRegistros.value})});zipStatus.innerHTML='<p class="result-path"><b>ZIP gerado em:</b><br>'+esc(r.step.resultPath)+'</p>';await load();await openRun(r.id)}catch(e){zipStatus.textContent='Falha: '+e.message}finally{zipGenerate.disabled=false}});
+async function openRun(id){let r=await j('/api/runs/'+id);detail.hidden=false;let seconds=(Number(r.step.durationMs||0)/1000).toFixed(2);body.innerHTML='<p><b>'+esc(r.status)+'</b> · '+esc(r.summary)+'</p>'+(r.step.resultPath?'<p class="result-path"><b>Resultado salvo em:</b><br>'+esc(r.step.resultPath)+'</p>':'<p><b>Resultado:</b> esta ação não gerou arquivo; veja stdout/stderr.</p>')+'<p><b>Início:</b> '+esc(r.startedAt)+'<br><b>Fim:</b> '+esc(r.finishedAt)+'<br><b>Duração:</b> '+esc(seconds)+' s<br><b>Exit code:</b> '+esc(r.step.exitCode)+'<br><b>Diretório de trabalho:</b> <code>'+esc(r.step.workingDirectory)+'</code></p>'+(r.records.length?'<h3>Registros gerados</h3><table><tr>'+Object.keys(r.records[0]).map(k=>'<th>'+esc(k)+'</th>').join('')+'</tr>'+r.records.map(x=>'<tr>'+Object.values(x).map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join(''):'<p>Sem registros tabulares nesta execução.</p>')+'<h3>Comando executado</h3><pre>'+esc(r.step.command)+'</pre><h3>Saída padrão (stdout)</h3><pre>'+esc(r.step.output||'(sem saída)')+'</pre><h3>Erros/diagnóstico (stderr)</h3><pre>'+esc(r.step.error||'(sem stderr)')+'</pre>';detail.scrollIntoView()}
 load().catch(e=>{commands.innerHTML='<p>Falha ao carregar comandos: '+esc(e.message)+'</p>';runs.innerHTML='<p>Falha ao carregar execuções.</p>';console.error(e)})</script></html>
 """; }
