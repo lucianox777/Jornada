@@ -127,6 +127,27 @@ public sealed class BlockingProjectionSqlServerTests
         Assert.That(found.Select(candidate => candidate.NomeCompleto),
             Does.Contain("María Silva Teste"));
 
+        // #612: a ausência do nome da própria pessoa não é insuficiência universal.
+        // Este passe usa somente prenome materno + ano de nascimento e é executado na projeção SQL real.
+        var motherBirthRuleset = LinkageDynamicRuleSet.CreateWithPasses(
+            "INTEGRATION-SEMIBLIND-MOTHER-BIRTH", "INTEGRATION-TEST",
+            [LinkageBlockingPass.Create("mother-year",
+                [BlockingFeatureNames.MotherFirstName, BlockingFeatureNames.BirthYear])],
+            Array.Empty<KeyValuePair<string, decimal>>()) with
+        {
+            ProjectionSchemaVersion = PersonResolutionProjectionContract.SchemaVersion,
+            ProjectionFingerprintSha256 = PersonResolutionProjectionContract.FingerprintSha256
+        };
+        var noPersonName = new IdentityObservation(
+            null, "NAO_INFORMADO", null, new DateOnly(1991, 4, 13), "Ana Souza Teste");
+        var motherBirthPasses = SemiblindCandidatePassPlanner.Plan(motherBirthRuleset, noPersonName);
+        Assert.That(motherBirthPasses.Select(p => p.PassId), Is.EqualTo(new[] { "mother-year" }));
+        var foundWithoutPersonName = await BlockingProjectionCandidateLoader.LoadAsync(
+            connection, motherBirthRuleset, noPersonName, maxCandidates: 20, commandTimeoutSeconds: 60,
+            ct: CancellationToken.None, searchPasses: motherBirthPasses);
+        Assert.That(foundWithoutPersonName.Select(candidate => candidate.NomeCompleto),
+            Does.Contain("María Silva Teste"));
+
         var missing = new IdentityObservation(
             null, "NAO_INFORMADO", "Pessoa Inexistente No Corpus", null, null);
         var noMatches = await BlockingProjectionCandidateLoader.LoadAsync(

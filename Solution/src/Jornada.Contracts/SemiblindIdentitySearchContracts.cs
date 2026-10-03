@@ -27,7 +27,9 @@ public sealed record SemiblindIdentityCandidate(
 public sealed record SemiblindIdentitySearchResponse(
     Guid ConsultaId,
     IReadOnlyList<SemiblindIdentityCandidate> Candidatos,
-    [property: JsonPropertyName("nenhumDestes")] bool NenhumDestes = true);
+    [property: JsonPropertyName("nenhumDestes")] bool NenhumDestes = true,
+    [property: JsonPropertyName("busca_completa")] bool BuscaCompleta = true,
+    [property: JsonPropertyName("motivo_incompletude")] string? MotivoIncompletude = null);
 
 public interface ISemiblindIdentitySearchService
 {
@@ -41,8 +43,27 @@ public interface ISemiblindIdentitySearchService
 /// <summary>Projeção interna de candidatos; jamais serializar diretamente para o atendente.</summary>
 public sealed record SemiblindInternalCandidate(Guid PessoaUuid, string? Nome, DateOnly? DataNascimento, string? NomeMae);
 
+public static class SemiblindRetrievalReasons
+{
+    public const string NoEligiblePass = "SEM_PASSE_ELEGIVEL";
+    public const string FanoutLimitExceeded = "LIMITE_FANOUT_EXCEDIDO";
+    public const string Timeout = "TIMEOUT_RECUPERACAO";
+}
+
+public sealed record SemiblindCandidateRetrievalResult(
+    bool Completed,
+    IReadOnlyList<SemiblindInternalCandidate> Candidates,
+    string? IncompleteReason = null)
+{
+    public static SemiblindCandidateRetrievalResult Complete(IReadOnlyList<SemiblindInternalCandidate> candidates) =>
+        new(true, candidates);
+
+    public static SemiblindCandidateRetrievalResult Incomplete(string reason) =>
+        new(false, Array.Empty<SemiblindInternalCandidate>(), reason);
+}
+
 public interface ISemiblindCandidateRetriever
 {
-    Task<IReadOnlyList<SemiblindInternalCandidate>> RetrieveAsync(
+    Task<SemiblindCandidateRetrievalResult> RetrieveAsync(
         SemiblindIdentitySearchRequest request, CancellationToken cancellationToken);
 }

@@ -68,3 +68,15 @@ O PR #532 está integrado ao master e o PR #544 acrescentou a configuração `Se
 O procedimento de DEV sintético deve inicializar `JornadaSyntheticDev` pelo `scripts/local-db.ps1` ou `scripts/local-db.sh`, que grava o marcador residente. A verificação automatizada cobre flag desligada, banco de DEV comum, marcador ausente/incorreto e HML/Produção com a flag ligada. Os testes HTTP in-memory usam um gate simulado e validam autorização, auditoria e ausência de PII quando a busca é recusada; a política concreta do gate requer consulta SQL ao próprio banco.
 
 O CI do PR #543 anterior à reconciliação concluiu com sucesso, incluindo integração SQL e instalador Windows. A reconciliação com o PR #544 exige nova execução para este HEAD. A issue #539 permanece aberta como bloqueio de ativação com dados reais; #378 mantém a dependência da identidade corporativa.
+
+
+## Resultado de recuperação — #612
+
+A resposta distingue explicitamente a execução integral da recuperação da impossibilidade de executar uma busca seletiva:
+
+- `busca_completa=true` com `candidatos=[]`: os passes elegíveis foram executados dentro dos limites e nenhum candidato foi recuperado.
+- `busca_completa=false`: a ausência de candidatos **não** significa pessoa inexistente e não autoriza `NOVA_IDENTIDADE`. `motivo_incompletude` usa taxonomia estável: `SEM_PASSE_ELEGIVEL`, `LIMITE_FANOUT_EXCEDIDO` ou `TIMEOUT_RECUPERACAO`.
+
+O relatório de recuperação é anterior e separado do scorer FS. Fan-out/timeout não alteram score, thresholds ou decisão probabilística e não são mascarados por truncamento silencioso. A apresentação continua limitada e sujeita à autorização por Pessoa; UUID, CPF, LLR, posterior, score e posição de ranking não fazem parte do contrato externo.
+
+A ativação em HML/Produção continua proibida enquanto os gates institucionais de visibilidade e identidade corporativa não forem satisfeitos. Evidência sintética/IBGE serve para regressão técnica e calibração de engenharia, não substitui medição em corpus representativo autorizado.
