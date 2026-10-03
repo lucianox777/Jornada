@@ -31,6 +31,44 @@ if ([int](Scalar "SELECT COUNT_BIG(*) FROM gold.pessoa WHERE estado_identidade=N
     throw 'DT-05: a colisão sintética controlada exige exatamente duas referências equivalentes.'
 }
 
+if ($Dt05HistoricalReplay) {
+    $modelId = Scalar "SELECT CONVERT(VARCHAR(36),modelo_id) FROM identidade.modelo_linkage WHERE status=N'ATIVO';"
+    $algorithm = Scalar "SELECT algoritmo_versao FROM identidade.modelo_linkage WHERE modelo_id='$modelId';"
+    $ruleVersion = 'DT05_E2E_DYNAMIC_BLOCKING_V1'
+    $parameterRows = @(Sql "SELECT CONCAT(nome,N'|',CONVERT(VARCHAR(100),valor)) FROM identidade.parametro_linkage WHERE modelo_id='$modelId' ORDER BY nome;")
+    $canonical = "$ruleVersion``n$algorithm``n-``n-``nPASS``tP001``nF``tbirth_year``n"
+    foreach ($row in $parameterRows) {
+        $parts = $row.Split('|',2)
+        $value = [decimal]::Parse($parts[1],[Globalization.CultureInfo]::InvariantCulture)
+        $canonical += "P``t$($parts[0])``t$($value.ToString('G29',[Globalization.CultureInfo]::InvariantCulture))``n"
+    }
+    $sha = [Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($canonical))
+    $rulesetFingerprint = ([Convert]::ToHexString($sha)).ToLowerInvariant()
+    Sql @"
+DISABLE TRIGGER identidade.tr_linkage_ruleset_insert_status ON identidade.linkage_ruleset;
+DISABLE TRIGGER identidade.tr_linkage_ruleset_passe_guard ON identidade.linkage_ruleset_passe;
+DISABLE TRIGGER identidade.tr_linkage_ruleset_campo_guard ON identidade.linkage_ruleset_passe_campo;
+BEGIN TRY
+ INSERT identidade.linkage_ruleset(ruleset_id,modelo_id,ruleset_versao,algoritmo_versao,fingerprint_sha256,projection_schema_version,projection_fingerprint_sha256)
+ VALUES('$modelId','$modelId',N'$ruleVersion',N'$algorithm','$rulesetFingerprint',N'PERSON_RESOLUTION_PROJECTION_V2','d186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4');
+ INSERT identidade.linkage_ruleset_passe(ruleset_id,passe_ordem,passe_id) VALUES('$modelId',0,N'P001');
+ INSERT identidade.linkage_ruleset_passe_campo(ruleset_id,passe_ordem,campo_ordem,atributo) VALUES('$modelId',0,0,N'birth_year');
+END TRY
+BEGIN CATCH
+ ENABLE TRIGGER identidade.tr_linkage_ruleset_insert_status ON identidade.linkage_ruleset;
+ ENABLE TRIGGER identidade.tr_linkage_ruleset_passe_guard ON identidade.linkage_ruleset_passe;
+ ENABLE TRIGGER identidade.tr_linkage_ruleset_campo_guard ON identidade.linkage_ruleset_passe_campo;
+ THROW;
+END CATCH;
+ENABLE TRIGGER identidade.tr_linkage_ruleset_insert_status ON identidade.linkage_ruleset;
+ENABLE TRIGGER identidade.tr_linkage_ruleset_passe_guard ON identidade.linkage_ruleset_passe;
+ENABLE TRIGGER identidade.tr_linkage_ruleset_campo_guard ON identidade.linkage_ruleset_passe_campo;
+"@ | Out-Null
+    if ([int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_ruleset WHERE modelo_id='$modelId' AND fingerprint_sha256='$rulesetFingerprint';") -ne 1) {
+        throw 'DT-05: fixture não conseguiu anexar ruleset dinâmico íntegro ao modelo DEV isolado.'
+    }
+}
+
 $marker = [Guid]::NewGuid().ToString('N')
 $originCode = "DT05-CPF-LATE-$marker"
 $fixtureRoot = Join-Path $Out 'dt05-fixtures'
