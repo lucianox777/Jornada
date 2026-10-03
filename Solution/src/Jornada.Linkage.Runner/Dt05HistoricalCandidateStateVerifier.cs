@@ -98,7 +98,7 @@ public sealed class Dt05HistoricalCandidateStateVerifier(string bronzeRoot)
         var fields = reader.Schema.GetDataFields();
         var expected = new[] { "candidate_uuid", "nome_completo", "data_nascimento", "nome_mae", "estado_identidade" };
         if (fields.Length != expected.Length || !fields.Select(x => x.Name).SequenceEqual(expected, StringComparer.Ordinal)
-            || fields.Any(x => x.ClrType != typeof(string))
+            || fields.Any(x => x.ClrType != typeof(string) && x.ClrType != typeof(ReadOnlyMemory<char>))
             || fields[0].IsNullable || fields[4].IsNullable
             || !fields[1].IsNullable || !fields[2].IsNullable || !fields[3].IsNullable)
             throw new InvalidDataException(
