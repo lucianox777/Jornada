@@ -31,8 +31,8 @@ public sealed class DevTestConsoleContractTests
 
             Assert.That(runtime,Does.Contain("LiveExecutionService"));
             Assert.That(runtime,Does.Contain("ReadLineAsync"));
-            Assert.That(runtime,Does.Contain("live.Add("stdout""));
-            Assert.That(runtime,Does.Contain("live.Add("stderr""));
+            Assert.That(runtime,Does.Contain("live.Add(\"stdout\""));
+            Assert.That(runtime,Does.Contain("live.Add(\"stderr\""));
             Assert.That(runtime,Does.Contain("local-db.ps1 -Action up"));
             Assert.That(runtime,Does.Contain("local-db.ps1 -Action down"));
             Assert.That(runtime,Does.Contain("local-db.ps1 -Action clean"));
@@ -66,7 +66,7 @@ public sealed class DevTestConsoleContractTests
 
             var launch=File.ReadAllText(Path.Combine(root,"Solution","Jornada.slnLaunch"));
             Assert.That(launch,Does.Contain("Jornada.DevConsole.csproj"));
-            Assert.That(launch,Does.Contain(""Action": "Start""));
+            Assert.That(launch,Does.Contain("\"Action\": \"Start\""));
 
             Assert.That(program,Does.Not.Contain("Jornada.Api"));
         });
