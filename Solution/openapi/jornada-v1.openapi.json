@@ -3034,7 +3034,8 @@
             "description": "Indica se a recuperação elegível foi executada integralmente; false nunca equivale a zero candidatos."
           },
           "motivo_incompletude": {
-            "type": ["string", "null"],
+            "type": "string",
+            "nullable": true,
             "description": "Motivo tipado quando busca_completa=false; null quando a recuperação foi concluída."
           }
         }
