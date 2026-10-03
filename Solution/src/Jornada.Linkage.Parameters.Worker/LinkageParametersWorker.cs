@@ -897,6 +897,7 @@ public sealed class LinkageParametersWorker(
                     @metodo_versao=@conference_method_version,
                     @tolerancia_versao=@conference_tolerance_version,
                     @max_llr_par_permitido=@conference_max_llr;
+                EXEC auditoria.sp_assert_aprovacao_modelo_linkage @modelo_id=@modelo_id,@acao=N'VALIDATE';
                 UPDATE identidade.modelo_linkage SET status='VALIDADO' WHERE modelo_id=@modelo_id;
                 """, connection, transaction);
             command.Parameters.Add("@versao", SqlDbType.Int).Value = version;
@@ -954,6 +955,7 @@ public sealed class LinkageParametersWorker(
                     @metodo_versao=@conference_method_version,
                     @tolerancia_versao=@conference_tolerance_version,
                     @max_llr_par_permitido=@conference_max_llr;
+                EXEC auditoria.sp_assert_aprovacao_modelo_linkage @modelo_id=@modelo_id,@acao=N'ACTIVATE';
                 UPDATE identidade.modelo_linkage SET status='INATIVO' WHERE status='ATIVO' AND modelo_id<>@modelo_id;
                 UPDATE identidade.modelo_linkage SET status='ATIVO',ativado_em=SYSDATETIMEOFFSET() WHERE modelo_id=@modelo_id;
                 """, connection, transaction);
