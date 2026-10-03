@@ -214,12 +214,12 @@
     "candidate": "v5.00",
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
     "sourceCommit": "437b8d3c58e6be571395f53903d57be9e10bff06",
-    "githubRunId": "37069301886",
+    "githubRunId": "37138273004",
     "sdk": "10.0.112",
-    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112.",
-    "lockCount": 21,
-    "changedLockCount": 21,
-    "combinedSha256": "bf2d26a48c1d3a777653f87ccaae8875bf2f4c1a1f06e0a0825dd753d3d7cabe",
+    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112. Jornada.DevConsole foi adicionada como host DEV independente, sem PackageReference; o lock vazio foi force-evaluated no mesmo gate.",
+    "lockCount": 22,
+    "changedLockCount": 22,
+    "combinedSha256": "1ee37ddd6135c9e51ad3a36291eb78a1c59bcfc928eff42cecfd9852db41f5a7",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -228,6 +228,10 @@
       {
         "path": "src/Jornada.Api/packages.lock.json",
         "sha256": "a5f45dee0bcdef2679f9deca9aa96ddbd8c17646ba1f6bf59a3c12e94b9c7d03"
+      },
+      {
+        "path": "src/Jornada.DevConsole/packages.lock.json",
+        "sha256": "98540f8c8005e000cc83cffb4598281f61900a13426b470f1d1114c62b54a63d"
       },
       {
         "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
