@@ -32,6 +32,7 @@ internal sealed class ModelGovernanceReadOnlyService(IOperationalSqlAdapter sql)
         var history = await ReadRecentHistoryAsync(connection, ct);
         // A consulta restrita ocorre apenas na página DEV de governança, nunca no refresh do Monitor.
         var calibrationHistory = await ReadCalibrationHistoryAsync(connection, ct);
+        var dossiers = await ReadDecisionDossiersAsync(connection, draft?.ModelId, ct);
 
         // Fail closed if another calibration/promotion changes either side while
         // the independent SQL reads above were being executed.
@@ -58,8 +59,9 @@ internal sealed class ModelGovernanceReadOnlyService(IOperationalSqlAdapter sql)
             "NAO_HABILITADAS_SEM_IDP_LEDGER_DOSSIE_COMPLETO",
             active, draft, evidence, history,
             "As métricas disponíveis comparam apenas passes de blocking sobre o treino rotulado. " +
-            "Não incluem replay de Fellegi-Sunter, custos SQL pareados nem aprovação humana.")
-        { CalibrationHistory = calibrationHistory };
+            "A página expõe o ledger de dossiês e seu estado promocional; evidência sintética " +
+            "permanece não promovível e não substitui homologação representativa.")
+        { CalibrationHistory = calibrationHistory, DecisionDossiers = dossiers };
     }
 
     private static async Task<List<GovernanceModel>> ReadModelsAsync(
@@ -272,6 +274,39 @@ internal sealed class ModelGovernanceReadOnlyService(IOperationalSqlAdapter sql)
         return output;
     }
 
+    private static async Task<IReadOnlyList<GovernanceDecisionDossier>> ReadDecisionDossiersAsync(
+        SqlConnection connection, Guid? draft, CancellationToken ct)
+    {
+        if (draft is null) return [];
+        await using var command = new SqlCommand("""
+            SELECT TOP(8) d.dossie_id,d.estado,d.origem_evidencia,d.contrato_versao,
+                   CONVERT(VARCHAR(64),d.dossie_sha256,2),d.valido_ate,d.referencia_artefato,
+                   d.registrado_por,d.ocorrido_em,
+                   (SELECT COUNT_BIG(*) FROM auditoria.modelo_linkage_aprovacao a
+                     WHERE a.modelo_id=d.modelo_id AND a.dossie_sha256=d.dossie_sha256
+                       AND a.acao=N'VALIDATE') validate_approvals,
+                   (SELECT COUNT_BIG(*) FROM auditoria.modelo_linkage_aprovacao a
+                     WHERE a.modelo_id=d.modelo_id AND a.dossie_sha256=d.dossie_sha256
+                       AND a.acao=N'ACTIVATE') activate_approvals
+            FROM auditoria.modelo_linkage_dossie_decisao d
+            WHERE d.modelo_id=@model
+            ORDER BY d.modelo_linkage_dossie_decisao_id DESC;
+            """, connection) { CommandTimeout = 10 };
+        command.Parameters.Add("@model", SqlDbType.UniqueIdentifier).Value = draft.Value;
+        var output = new List<GovernanceDecisionDossier>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            output.Add(new GovernanceDecisionDossier(
+                reader.GetGuid(0), reader.GetString(1).Trim(), reader.GetString(2).Trim(),
+                reader.GetString(3).Trim(), reader.GetString(4).Trim().ToLowerInvariant(),
+                reader.GetValue(5).ToString() ?? "", reader.IsDBNull(6) ? null : reader.GetString(6),
+                reader.GetString(7), reader.GetValue(8).ToString() ?? "",
+                reader.GetInt64(9), reader.GetInt64(10),
+                reader.GetString(1).Trim()== "COMPLETO"
+                    && reader.GetValue(5) is DateTimeOffset until && until > DateTimeOffset.UtcNow));
+        return output;
+    }
+
     private static async Task<IReadOnlyList<GovernanceEvent>> ReadRecentHistoryAsync(
         SqlConnection connection, CancellationToken ct)
     {
@@ -296,7 +331,13 @@ internal sealed record ModelGovernanceView(
     IReadOnlyList<GovernanceEvent> RecentHistory, string Limitation)
 {
     public IReadOnlyList<GovernanceCalibrationHistoryItem> CalibrationHistory { get; init; } = [];
+    public IReadOnlyList<GovernanceDecisionDossier> DecisionDossiers { get; init; } = [];
 }
+
+internal sealed record GovernanceDecisionDossier(
+    Guid DossierId, string Status, string EvidenceOrigin, string ContractVersion,
+    string Sha256, string ValidUntil, string? ArtifactReference, string RegisteredBy,
+    string RegisteredAt, long ValidateApprovals, long ActivateApprovals, bool Promotable);
 
 // Sem nomes, CPF, limiares, pares rotulados nem comparações entre corpora diferentes.
 internal sealed record GovernanceCalibrationHistoryItem(
