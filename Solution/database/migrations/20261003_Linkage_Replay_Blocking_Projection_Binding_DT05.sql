@@ -9,6 +9,11 @@ BEGIN
    blocking_projection_partition_set_sha256 CHAR(64) NULL;
 END;
 GO
+IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'identidade.linkage_replay_manifesto') AND name=N'CK_linkage_replay_manifesto_schema')
+    ALTER TABLE identidade.linkage_replay_manifesto DROP CONSTRAINT CK_linkage_replay_manifesto_schema;
+ALTER TABLE identidade.linkage_replay_manifesto WITH CHECK
+    ADD CONSTRAINT CK_linkage_replay_manifesto_schema CHECK(schema_version IN(1,2,3,4));
+GO
 CREATE OR ALTER PROCEDURE identidade.sp_registrar_manifesto_replay_linkage
  @linkage_run_id UNIQUEIDENTIFIER,@schema_version INT,@caminho_logico NVARCHAR(1024),
  @manifesto_sha256 CHAR(64),@bronze_set_sha256 CHAR(64),@scorer_version NVARCHAR(120),
