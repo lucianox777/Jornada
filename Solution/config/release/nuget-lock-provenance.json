@@ -231,7 +231,7 @@
       },
       {
         "path": "src/Jornada.DevConsole/packages.lock.json",
-        "sha256": "98540f8c8005e000cc83cffb4598281f61900a13426b470f1d1114c62b54a63d"
+        "sha256": "a29c6aa8cfb81874ff8bb78dc369d7416f28c9b8cc47e99592bfc019b20c41eb"
       },
       {
         "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
