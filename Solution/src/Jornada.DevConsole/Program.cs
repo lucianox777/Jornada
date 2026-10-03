@@ -49,7 +49,7 @@ app.MapGet("/api/runs/{id:guid}/result",async(Guid id,RunStore store,IWebHostEnv
     var full=Path.GetFullPath(path);
     if(!full.StartsWith(root+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))return Results.BadRequest("Resultado fora da árvore da Solution.");
     var ext=Path.GetExtension(full).ToLowerInvariant();
-    var contentType=ext switch{".json"=>"application/json",".zip"=>"application/zip",".txt"=>"text/plain","text/csv"=>"text/csv",_=>"application/octet-stream"};
+    var contentType=ext switch{".json"=>"application/json",".zip"=>"application/zip",".txt"=>"text/plain",".csv"=>"text/csv",_=>"application/octet-stream"};
     return Results.File(full,contentType,fileDownloadName:ext==".zip"?Path.GetFileName(full):null,enableRangeProcessing:true);
 });
 
