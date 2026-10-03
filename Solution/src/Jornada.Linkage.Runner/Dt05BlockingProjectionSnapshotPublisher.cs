@@ -69,6 +69,7 @@ public sealed class Dt05BlockingProjectionSnapshotPublisher(IOperationalSqlAdapt
             while(await reader.ReadAsync(ct))
                 rows.Add(new(reader.GetGuid(0).ToString("D").ToLowerInvariant(),reader.GetString(1),
                     reader.GetString(2),reader.GetString(3),reader.GetString(4),reader.GetBoolean(5)));
+            await reader.CloseAsync();
             await transaction.CommitAsync(ct);
             return rows;
         } catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
