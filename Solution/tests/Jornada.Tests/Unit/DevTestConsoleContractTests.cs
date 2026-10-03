@@ -17,6 +17,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("Registros gerados"));
             Assert.That(program,Does.Contain("CountByCommandAsync"));
             Assert.That(program,Does.Contain("runCount"));
+            Assert.That(program,Does.Contain("ConsoleSession"));
+            Assert.That(program,Does.Contain("x.StartedAt>=session.StartedAt"));
             Assert.That(program,Does.Contain("Subir infraestrutura"));
             Assert.That(program,Does.Contain("Executar blocking"));
             Assert.That(program,Does.Contain("Executar linkage"));
