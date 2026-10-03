@@ -5,6 +5,7 @@ var builder=WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<ConsoleSession>();
 builder.Services.AddSingleton<RunStore>();
 builder.Services.AddSingleton<CommandExecutor>();
+builder.Services.AddSingleton<ManualZipExecutor>();
 var app=builder.Build();
 app.MapGet("/",()=>Results.Text(Page.Html,"text/html; charset=utf-8"));
 app.MapGet("/api/commands",async(RunStore s,CancellationToken ct)=>{
@@ -13,6 +14,7 @@ app.MapGet("/api/commands",async(RunStore s,CancellationToken ct)=>{
 });
 app.MapGet("/api/runs",async(RunStore s,CancellationToken ct)=>Results.Ok(await s.ListAsync(ct)));
 app.MapGet("/api/runs/{id:guid}",async(Guid id,RunStore s,CancellationToken ct)=>await s.GetAsync(id,ct) is { } r?Results.Ok(r):Results.NotFound());
+app.MapPost("/api/zip/manual",async(ManualZipRequest request,ManualZipExecutor exec,RunStore store,CancellationToken ct)=>{var run=await exec.RunAsync(request,ct);await store.SaveAsync(run,ct);return Results.Ok(run);});
 app.MapPost("/api/commands/{command}/run",async(string command,CommandExecutor exec,RunStore store,CancellationToken ct)=>{
     var definition=CommandCatalog.All.FirstOrDefault(x=>x.Id.Equals(command,StringComparison.OrdinalIgnoreCase));
     if(definition is null)return Results.NotFound();
@@ -21,7 +23,8 @@ app.MapPost("/api/commands/{command}/run",async(string command,CommandExecutor e
 app.Run();
 
 sealed record CommandDefinition(string Id,string Title,string Description,string? File,string? Arguments,string? ResultPath) { public bool Implemented => File is not null; public string? CommandLine => File is null ? null : $"{File} {Arguments}"; public string DisplayCommand => CommandLine ?? "Comando real ainda não mapeado."; }
-sealed record StepResult(string Command,int ExitCode,long DurationMs,string Output,string Error);
+sealed record StepResult(string Command,string WorkingDirectory,int ExitCode,long DurationMs,string Output,string Error,string? ResultPath);
+sealed record ManualZipRequest(string Gestor,string ManifestJson,string PessoasJsonl,string RegistrosJsonl);
 sealed record RunRecord(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,StepResult Step,IReadOnlyList<Dictionary<string,string?>> Records);
 sealed class ConsoleSession { public DateTimeOffset StartedAt { get; }=DateTimeOffset.UtcNow; }
 
@@ -55,7 +58,7 @@ sealed class CommandExecutor(IWebHostEnvironment env) {
     public async Task<RunRecord> RunAsync(CommandDefinition d,CancellationToken ct) {
         var started=DateTimeOffset.UtcNow; var root=FindSolutionRoot(env.ContentRootPath);
         if(!d.Implemented){
-            var pendingStep=new StepResult(d.DisplayCommand,-1,0,"","");
+            var pendingStep=new StepResult(d.DisplayCommand,root,-1,0,"","",null);
             return new RunRecord(Guid.NewGuid(),d.Id,d.Title,started,DateTimeOffset.UtcNow,"SEM EXECUTOR","Opção disponível; comando real ainda não mapeado.",pendingStep,Array.Empty<Dictionary<string,string?>>());
         }
         var sw=Stopwatch.StartNew();
@@ -63,10 +66,37 @@ sealed class CommandExecutor(IWebHostEnvironment env) {
         p.Start();var stdout=p.StandardOutput.ReadToEndAsync(ct);var stderr=p.StandardError.ReadToEndAsync(ct);await p.WaitForExitAsync(ct);sw.Stop();
         var records=new List<Dictionary<string,string?>>();
         if(d.ResultPath is not null){var path=Path.Combine(root,d.ResultPath);if(File.Exists(path)){using var doc=JsonDocument.Parse(await File.ReadAllTextAsync(path,ct));foreach(var row in doc.RootElement.EnumerateArray())records.Add(row.EnumerateObject().ToDictionary(x=>x.Name,x=>(string?)x.Value.ToString()));}}
-        var step=new StepResult(d.CommandLine!,p.ExitCode,sw.ElapsedMilliseconds,await stdout,await stderr);
-        var summary=records.Count>0?$"{records.Count} registro(s) no resultado.":p.ExitCode==0?"Comando concluído.":"Comando falhou; veja stdout/stderr.";
+        var resultPath=d.ResultPath is null?null:Path.GetFullPath(Path.Combine(root,d.ResultPath));
+        var step=new StepResult(d.CommandLine!,root,p.ExitCode,sw.ElapsedMilliseconds,await stdout,await stderr,resultPath);
+        var summary=records.Count>0?$"{records.Count} registro(s) no resultado. Resultado: {resultPath}":p.ExitCode==0?(resultPath is null?"Comando concluído; veja a saída detalhada.":$"Comando concluído. Resultado: {resultPath}"):$"Comando falhou (exit {p.ExitCode}); veja stdout/stderr.";
         return new RunRecord(Guid.NewGuid(),d.Id,d.Title,started,DateTimeOffset.UtcNow,p.ExitCode==0?"SUCESSO":"FALHA",summary,step,records);
     }
+    static string FindSolutionRoot(string start){for(var d=new DirectoryInfo(start);d is not null;d=d.Parent)if(File.Exists(Path.Combine(d.FullName,"Jornada.sln")))return d.FullName;throw new DirectoryNotFoundException("Jornada.sln não encontrado.");}
+}
+
+sealed class ManualZipExecutor(IWebHostEnvironment env) {
+    public async Task<RunRecord> RunAsync(ManualZipRequest request,CancellationToken ct) {
+        var started=DateTimeOffset.UtcNow; var root=FindSolutionRoot(env.ContentRootPath); var id=Guid.NewGuid();
+        if(string.IsNullOrWhiteSpace(request.Gestor))throw new ArgumentException("Gestor é obrigatório.");
+        using var manifest=JsonDocument.Parse(request.ManifestJson);
+        foreach(var line in SplitJsonl(request.PessoasJsonl))using var _=JsonDocument.Parse(line);
+        foreach(var line in SplitJsonl(request.RegistrosJsonl))using var _=JsonDocument.Parse(line);
+        var work=Path.Combine(root,".local","dev-console","manual-zip",id.ToString("N"));Directory.CreateDirectory(work);
+        await File.WriteAllTextAsync(Path.Combine(work,"manifest.json"),request.ManifestJson.Trim()+Environment.NewLine,ct);
+        await File.WriteAllTextAsync(Path.Combine(work,"pessoas.jsonl"),NormalizeJsonl(request.PessoasJsonl),ct);
+        await File.WriteAllTextAsync(Path.Combine(work,"registros.jsonl"),NormalizeJsonl(request.RegistrosJsonl),ct);
+        var python=OperatingSystem.IsWindows()?"python":"python3";
+        var psi=new ProcessStartInfo(python){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,UseShellExecute=false,CreateNoWindow=true};
+        psi.ArgumentList.Add(Path.Combine(root,"scripts","build-ingestion-fixture.py"));psi.ArgumentList.Add("--fixture");psi.ArgumentList.Add(work);psi.ArgumentList.Add("--gestor");psi.ArgumentList.Add(request.Gestor.Trim());psi.ArgumentList.Add("--output-dir");psi.ArgumentList.Add(work);
+        var sw=Stopwatch.StartNew();using var p=new Process{StartInfo=psi};p.Start();var stdout=p.StandardOutput.ReadToEndAsync(ct);var stderr=p.StandardError.ReadToEndAsync(ct);await p.WaitForExitAsync(ct);sw.Stop();
+        var output=(await stdout).Trim();var error=await stderr;var zip=p.ExitCode==0&&File.Exists(output)?Path.GetFullPath(output):null;
+        var cmd=$"{python} scripts/build-ingestion-fixture.py --fixture {work} --gestor {request.Gestor.Trim()} --output-dir {work}";
+        var step=new StepResult(cmd,root,p.ExitCode,sw.ElapsedMilliseconds,output,error,zip);
+        var summary=p.ExitCode==0?$"ZIP gerado. Resultado: {zip}":$"Falha ao gerar ZIP (exit {p.ExitCode}); veja stdout/stderr.";
+        return new RunRecord(id,"zip","Gerar ZIP de ingestão",started,DateTimeOffset.UtcNow,p.ExitCode==0?"SUCESSO":"FALHA",summary,step,Array.Empty<Dictionary<string,string?>>());
+    }
+    static IEnumerable<string> SplitJsonl(string text)=>text.Replace("\r","").Split('\n',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
+    static string NormalizeJsonl(string text)=>string.Join(Environment.NewLine,SplitJsonl(text))+(string.IsNullOrWhiteSpace(text)?"":Environment.NewLine);
     static string FindSolutionRoot(string start){for(var d=new DirectoryInfo(start);d is not null;d=d.Parent)if(File.Exists(Path.Combine(d.FullName,"Jornada.sln")))return d.FullName;throw new DirectoryNotFoundException("Jornada.sln não encontrado.");}
 }
 
