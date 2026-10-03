@@ -759,8 +759,10 @@ jobs:
 
           export LinkageParameters__ConferenceToleranceConfigPath="$TEST_CONFERENCE_TOLERANCE"
           export LinkageParameters__TargetVersion="$MODEL_VERSION"
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -Q "DECLARE @id uniqueidentifier; EXEC auditoria.sp_registrar_aprovacao_modelo_linkage @modelo_id=\'$MODEL_ID\',@acao=N\'VALIDATE\',@decisor=N\'CI_HARNESS\',@motivo=N\'Aprovação técnica explícita do harness CI para VALIDATE\',@aprovacao_id=@id OUTPUT;"
           export LinkageParameters__Operation=VALIDATE
           dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -Q "DECLARE @id uniqueidentifier; EXEC auditoria.sp_registrar_aprovacao_modelo_linkage @modelo_id=\'$MODEL_ID\',@acao=N\'ACTIVATE\',@decisor=N\'CI_HARNESS\',@motivo=N\'Aprovação técnica explícita do harness CI para ACTIVATE\',@aprovacao_id=@id OUTPUT;"
           export LinkageParameters__Operation=ACTIVATE
           dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
           echo "MODEL_VERSION=$MODEL_VERSION" >> "$GITHUB_ENV"
