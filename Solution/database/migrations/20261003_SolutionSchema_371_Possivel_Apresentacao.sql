@@ -136,3 +136,30 @@ SELECT a.apresentacao_id,a.pessoa_observacao_id,a.linkage_resultado_id,
 FROM identidade.linkage_apresentacao a
 JOIN identidade.linkage_apresentacao_candidato c ON c.apresentacao_id=a.apresentacao_id;
 GO
+
+CREATE OR ALTER PROCEDURE identidade.sp_selar_linkage_apresentacao_v1
+ @apresentacao_id UNIQUEIDENTIFIER
+AS
+BEGIN
+ SET NOCOUNT ON;
+ SET XACT_ABORT ON;
+
+ DECLARE @declarados TINYINT,@observados INT,@declarado CHAR(64),@calculado CHAR(64);
+ SELECT @declarados=quantidade_candidatos,@declarado=candidatos_fingerprint_sha256
+ FROM identidade.linkage_apresentacao WITH(UPDLOCK,HOLDLOCK)
+ WHERE apresentacao_id=@apresentacao_id;
+ IF @declarados IS NULL THROW 51874,'Apresentação inexistente.',1;
+
+ SELECT @observados=COUNT(*),
+        @calculado=LOWER(CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',
+          STRING_AGG(LOWER(CONVERT(NVARCHAR(36),candidato_uuid)),N'|')
+            WITHIN GROUP(ORDER BY ordem)),2))
+ FROM identidade.linkage_apresentacao_candidato WITH(HOLDLOCK)
+ WHERE apresentacao_id=@apresentacao_id;
+
+ IF @observados<>@declarados
+   THROW 51875,'Quantidade de candidatos persistidos diverge da apresentação.',1;
+ IF @calculado<>@declarado
+   THROW 51876,'Fingerprint do conjunto exibido diverge dos candidatos ordenados.',1;
+END;
+GO
