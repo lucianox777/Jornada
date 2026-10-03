@@ -50,7 +50,7 @@ jobs:
           chmod 600 .env
       - name: Three real Runner waves with actual synthetic late-CPF ingestion
         shell: pwsh
-        run: ./scripts/local-e2e.ps1 -VerifyLinkageRunner -Dt05CpfLate -AllowSyntheticReset
+        run: ./scripts/local-e2e.ps1 -VerifyLinkageRunner -Dt05CpfLate -Dt05HistoricalReplay -AllowSyntheticReset
       - name: Upload three-wave evidence, SQL assertions and logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -58,6 +58,7 @@ jobs:
           name: dt05-cpf-late-e2e-evidence
           path: |
             Solution/.local/e2e/dt05-cpf-late-evidence.json
+            Solution/.local/e2e/dt05-historical-replay-evidence.json
             Solution/.local/e2e/api.log
             Solution/.local/e2e/api.err.log
             Solution/.local/e2e/processor.log

@@ -31,6 +31,50 @@ if ([int](Scalar "SELECT COUNT_BIG(*) FROM gold.pessoa WHERE estado_identidade=N
     throw 'DT-05: a colisão sintética controlada exige exatamente duas referências equivalentes.'
 }
 
+if ($Dt05HistoricalReplay) {
+    Sql "INSERT identidade.blocking_chave(pessoa_uuid,normalizacao_versao,atributo,valor_normalizado,semantica_temporal) SELECT g.pessoa_uuid,N'IDENTITY_NORMALIZATION_V1',N'birth_year',N'1982',N'STABLE_IDENTITY_DATUM' FROM gold.pessoa g WHERE g.estado_identidade=N'REFERENCIA' AND g.nome_completo=N'Maria da Silva' AND g.data_nascimento='1982-04-10' AND g.nome_mae=N'Ana de Souza' AND NOT EXISTS(SELECT 1 FROM identidade.blocking_chave k WHERE k.pessoa_uuid=g.pessoa_uuid AND k.normalizacao_versao=N'IDENTITY_NORMALIZATION_V1' AND k.atributo=N'birth_year' AND k.valor_normalizado=N'1982' AND k.vigencia_fim IS NULL);" | Out-Null
+    if ([int](Scalar "SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE atributo=N'birth_year' AND valor_normalizado=N'1982' AND vigencia_fim IS NULL;") -lt 2) {
+        throw 'DT-05: fixture não materializou as duas chaves birth_year sintéticas.'
+    }
+    $modelId = Scalar "SELECT CONVERT(VARCHAR(36),modelo_id) FROM identidade.modelo_linkage WHERE status=N'ATIVO';"
+    $algorithm = Scalar "SELECT algoritmo_versao FROM identidade.modelo_linkage WHERE modelo_id='$modelId';"
+    $ruleVersion = 'DT05_E2E_DYNAMIC_BLOCKING_V1'
+    $parameterRows = @(Sql "SELECT CONCAT(nome,N'|',CONVERT(VARCHAR(100),valor)) FROM identidade.parametro_linkage WHERE modelo_id='$modelId' ORDER BY nome;")
+    [Reflection.Assembly]::LoadFrom((Join-Path $Root 'src/Jornada.Contracts/bin/Release/net10.0/Jornada.Contracts.dll')) | Out-Null
+    $pass = [Jornada.Contracts.LinkageBlockingPass]::Create('P001',[string[]]@('birth_year'))
+    $parameters = [System.Collections.Generic.List[System.Collections.Generic.KeyValuePair[string,decimal]]]::new()
+    foreach ($row in $parameterRows) {
+        $parts = $row.Split('|',2)
+        $value = [decimal]::Parse($parts[1],[Globalization.CultureInfo]::InvariantCulture)
+        $parameters.Add([System.Collections.Generic.KeyValuePair[string,decimal]]::new($parts[0],$value))
+    }
+    $rule = [Jornada.Contracts.LinkageDynamicRuleSet]::CreateWithPasses($ruleVersion,$algorithm,[Jornada.Contracts.LinkageBlockingPass[]]@($pass),$parameters)
+    $rulesetFingerprint = $rule.FingerprintSha256
+    Sql @"
+DISABLE TRIGGER identidade.tr_linkage_ruleset_insert_status ON identidade.linkage_ruleset;
+DISABLE TRIGGER identidade.tr_linkage_ruleset_passe_guard ON identidade.linkage_ruleset_passe;
+DISABLE TRIGGER identidade.tr_linkage_ruleset_campo_guard ON identidade.linkage_ruleset_passe_campo;
+BEGIN TRY
+ INSERT identidade.linkage_ruleset(ruleset_id,modelo_id,ruleset_versao,algoritmo_versao,fingerprint_sha256,projection_schema_version,projection_fingerprint_sha256)
+ VALUES('$modelId','$modelId',N'$ruleVersion',N'$algorithm','$rulesetFingerprint',N'PERSON_RESOLUTION_PROJECTION_V2','d186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4');
+ INSERT identidade.linkage_ruleset_passe(ruleset_id,passe_ordem,passe_id) VALUES('$modelId',0,N'P001');
+ INSERT identidade.linkage_ruleset_passe_campo(ruleset_id,passe_ordem,campo_ordem,atributo) VALUES('$modelId',0,0,N'birth_year');
+END TRY
+BEGIN CATCH
+ ENABLE TRIGGER identidade.tr_linkage_ruleset_insert_status ON identidade.linkage_ruleset;
+ ENABLE TRIGGER identidade.tr_linkage_ruleset_passe_guard ON identidade.linkage_ruleset_passe;
+ ENABLE TRIGGER identidade.tr_linkage_ruleset_campo_guard ON identidade.linkage_ruleset_passe_campo;
+ THROW;
+END CATCH;
+ENABLE TRIGGER identidade.tr_linkage_ruleset_insert_status ON identidade.linkage_ruleset;
+ENABLE TRIGGER identidade.tr_linkage_ruleset_passe_guard ON identidade.linkage_ruleset_passe;
+ENABLE TRIGGER identidade.tr_linkage_ruleset_campo_guard ON identidade.linkage_ruleset_passe_campo;
+"@ | Out-Null
+    if ([int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_ruleset WHERE modelo_id='$modelId' AND fingerprint_sha256='$rulesetFingerprint';") -ne 1) {
+        throw 'DT-05: fixture não conseguiu anexar ruleset dinâmico íntegro ao modelo DEV isolado.'
+    }
+}
+
 $marker = [Guid]::NewGuid().ToString('N')
 $originCode = "DT05-CPF-LATE-$marker"
 $fixtureRoot = Join-Path $Out 'dt05-fixtures'
@@ -123,6 +167,7 @@ $raw2 = Scalar "SELECT CONCAT(status,N'|',resultado_publicacao,N'|',status_publi
 if ($raw2 -ne $raw1) { throw "DT-05: ondas 1 e 2 divergiram antes da chegada do CPF: $raw1 / $raw2." }
 # Exigir igualdade dos DOZE campos da assinatura V1, não só dos três estados.
 $signatureFields = 'modelo_id,modelo_versao,status,motivo,resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,melhor_candidato_uuid,segundo_candidato_uuid,politica_publicacao_versao,pessoa_origem_id_publicado'
+$replaySemanticSignatureFields = 'modelo_id,modelo_versao,status,motivo,melhor_candidato_uuid,segundo_candidato_uuid'
 $semanticDifference = [int](Scalar "SELECT COUNT_BIG(*) FROM (SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave1.resultId) EXCEPT SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave2.resultId)) AS diferencas;")
 if ($semanticDifference -ne 0) { throw 'DT-05: os doze campos da assinatura V1 mudaram indevidamente na onda 2.' }
 if ([int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_transicao_semantica WHERE pessoa_observacao_id=$observationId;") -ne 1) {
@@ -196,4 +241,47 @@ $evidence = [ordered]@{
 $path = Join-Path $Out 'dt05-cpf-late-evidence.json'
 $evidence | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 $path
 Get-Content -Raw $path
+
+if ($Dt05HistoricalReplay) {
+    $replayReason = "$marker-HISTORICAL-REPLAY"
+    Push-Location $Root
+    try {
+        dotnet run --no-build --configuration Release --project src/Jornada.Linkage.Runner -- --mode REPLAY --replay-source-run-id $($wave1.runId) --requested-by DT05_HISTORICAL_REPLAY_E2E --reason $replayReason --publish false | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw 'DT-05: REPLAY histórico real falhou.' }
+    } finally { Pop-Location }
+    $replayRunId = Scalar "SELECT CONVERT(VARCHAR(36),linkage_run_id) FROM identidade.linkage_run WHERE solicitado_por=N'DT05_HISTORICAL_REPLAY_E2E' AND motivo=N'$replayReason';"
+    if (-not $replayRunId) { throw 'DT-05: run de replay histórico não foi persistido.' }
+    $sourceCount = [int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_run_item WHERE linkage_run_id='$($wave1.runId)';")
+    $replayCount = [int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_run_item WHERE linkage_run_id='$replayRunId';")
+    $universeDelta = [int](Scalar "SELECT COUNT_BIG(*) FROM (SELECT pessoa_observacao_id FROM identidade.linkage_run_item WHERE linkage_run_id='$($wave1.runId)' EXCEPT SELECT pessoa_observacao_id FROM identidade.linkage_run_item WHERE linkage_run_id='$replayRunId') d;")
+    if ($sourceCount -ne $replayCount -or $universeDelta -ne 0) { throw 'DT-05: REPLAY não reproduziu exatamente o universo do source run.' }
+    $replayResultId = [long](Scalar "SELECT linkage_resultado_id FROM identidade.linkage_resultado WHERE linkage_run_id='$replayRunId' AND pessoa_observacao_id=$observationId;")
+    if ($replayResultId -le 0) { throw 'DT-05: REPLAY não produziu resultado bruto para a observação histórica.' }
+    $resultDelta = [int](Scalar "SELECT COUNT_BIG(*) FROM (SELECT $replaySemanticSignatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave1.resultId) EXCEPT SELECT $replaySemanticSignatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$replayResultId) d;")
+    if ($resultDelta -ne 0) {
+        $signatureNames = $signatureFields -split ','
+        $diffParts = @()
+        foreach ($name in ($replaySemanticSignatureFields -split ',')) {
+            $sourceValue = Scalar "SELECT CONVERT(NVARCHAR(4000),[$name]) FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave1.resultId);"
+            $replayValue = Scalar "SELECT CONVERT(NVARCHAR(4000),[$name]) FROM identidade.linkage_resultado WHERE linkage_resultado_id=$replayResultId;"
+            if ([string]$sourceValue -ne [string]$replayValue) { $diffParts += "$name=source[$sourceValue]/replay[$replayValue]" }
+        }
+        throw "DT-05: resultado do REPLAY divergiu da assinatura V1 do source run: $($diffParts -join '; ')."
+    }
+    $replayPublicationCount = [int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_resultado WHERE linkage_run_id='$replayRunId' AND (resultado_publicacao IS NOT NULL OR pessoa_uuid_publicado IS NOT NULL OR status_publicacao IS NOT NULL OR motivo_publicacao IS NOT NULL OR politica_publicacao_versao IS NOT NULL OR pessoa_origem_id_publicado IS NOT NULL);")
+    if ($replayPublicationCount -ne 0) { throw 'DT-05: REPLAY executado com publish=false produziu efeitos de publicação.' }
+    $binding = [int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_replay_manifesto WHERE linkage_run_id='$($wave1.runId)' AND schema_version=4 AND candidate_state_manifesto_sha256 IS NOT NULL AND blocking_projection_manifesto_sha256 IS NOT NULL;")
+    if ($binding -ne 1) { throw 'DT-05: source run não possui binding v4 completo.' }
+    $replayEvidence = [ordered]@{
+        gate='DT05_HISTORICAL_REPLAY_DETERMINISM_E2E'; status='PASS'; generatedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')
+        githubRunId=$env:GITHUB_RUN_ID; gitSha=$env:GITHUB_SHA; database=$db
+        sourceRunId=$wave1.runId; replayRunId=$replayRunId; sourceUniverse=$sourceCount; replayUniverse=$replayCount
+        exactUniverse=$true; exactSemanticResult=$true; sourceManifestSchema=4
+        currentCorpusWasMutatedAfterSource=$true; replayPublishedOperationalEffects=$false
+    }
+    $replayPath=Join-Path $Out 'dt05-historical-replay-evidence.json'
+    $replayEvidence | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 $replayPath
+    Get-Content -Raw $replayPath
+    Write-Host 'DT-05 REPLAY HISTORICO DETERMINISTICO: PASS'
+}
 Write-Host 'DT-05 CPF TARDIO / RUNNER REAL: PASS'

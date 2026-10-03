@@ -2,6 +2,7 @@
     [switch]$AllowSharedDatabaseReset,
     [switch]$VerifyLinkageRunner,
     [switch]$Dt05CpfLate,
+    [switch]$Dt05HistoricalReplay,
     [switch]$AllowSyntheticReset
 )
 
@@ -34,6 +35,7 @@ $password = $vars['JORNADA_SQL_SA_PASSWORD']; if ([string]::IsNullOrWhiteSpace($
 $port = if ($vars['JORNADA_SQL_PORT']) { $vars['JORNADA_SQL_PORT'] } else { '14333' }
 $sharedDb = if ($vars['JORNADA_SQL_DATABASE']) { $vars['JORNADA_SQL_DATABASE'] } else { 'JornadaLocal' }
 if ($VerifyLinkageRunner -and $AllowSharedDatabaseReset) { throw 'VerifyLinkageRunner exige banco isolado.' }
+if ($Dt05HistoricalReplay -and -not $Dt05CpfLate) { throw 'DT-05 replay histórico exige também -Dt05CpfLate para produzir a fonte congelada.' }
 if ($Dt05CpfLate -and (-not $VerifyLinkageRunner -or -not $AllowSyntheticReset)) {
     throw 'DT-05 requer -VerifyLinkageRunner e -AllowSyntheticReset explícitos.'
 }
@@ -103,6 +105,7 @@ $env:BronzeStorage__Provider = 'FileSystem'
 $env:BronzeStorage__RootPath = (Join-Path $Out 'bronze')
 $env:IngestionStaging__RootPath = (Join-Path $Out 'staging')
 $env:Processor__PollingMilliseconds = '100'
+if ($Dt05HistoricalReplay) { $env:LinkageReplay__CaptureBronzeSources = 'true' }
 
 Push-Location $Root
 try {

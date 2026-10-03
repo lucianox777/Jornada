@@ -14,9 +14,27 @@ public sealed record Dt05HistoricalCandidateStateBinding(
 public sealed record Dt05HistoricalBlockingProjectionBinding(
     Guid SourceRunId, string ManifestLogicalPath, string ManifestSha256, string PartitionSetSha256,
     string NormalizationVersion, string ProjectionSchemaVersion, string ProjectionFingerprintSha256);
+public sealed record Dt05HistoricalRunIdentity(Guid SourceRunId, Guid ModelId, int ModelVersion, long ObservationHighWatermark);
+
 
 public sealed class Dt05ReplaySql(IOperationalSqlAdapter sql)
 {
+    public async Task<Dt05HistoricalRunIdentity> ReadHistoricalRunIdentityAsync(Guid sourceRunId, CancellationToken ct)
+    {
+        await using var connection=await sql.OpenAsync(ct);
+        await using var command=new SqlCommand("""
+            SELECT modelo_id,modelo_versao,pessoa_observacao_id_high_watermark,status
+              FROM identidade.linkage_run WHERE linkage_run_id=@run_id;
+            """,connection);
+        command.Parameters.Add("@run_id",SqlDbType.UniqueIdentifier).Value=sourceRunId;
+        await using var reader=await command.ExecuteReaderAsync(ct);
+        if(!await reader.ReadAsync(ct))
+            throw new InvalidOperationException("DT-05: source run histórico inexistente; replay recusado.");
+        if(!string.Equals(reader.GetString(3),"PUBLICADO",StringComparison.Ordinal))
+            throw new InvalidOperationException("DT-05: source run precisa estar PUBLICADO para replay determinístico.");
+        return new(sourceRunId,reader.GetGuid(0),reader.GetInt32(1),reader.GetInt64(2));
+    }
+
     public async Task<Dt05HistoricalBlockingProjectionBinding> ReadHistoricalBlockingProjectionBindingAsync(Guid sourceRunId, CancellationToken ct)
     {
         await using var connection=await sql.OpenAsync(ct);
@@ -49,12 +67,12 @@ public sealed class Dt05ReplaySql(IOperationalSqlAdapter sql)
             SELECT m.candidate_state_caminho_logico,m.candidate_state_manifesto_sha256,
                    m.candidate_state_partition_set_sha256,m.candidatos_referencia,m.candidatos_sha256
               FROM identidade.linkage_replay_manifesto m
-             WHERE m.linkage_run_id=@run_id AND m.schema_version=3;
+             WHERE m.linkage_run_id=@run_id AND m.schema_version IN (3,4);
             """, connection);
         command.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = sourceRunId;
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct) || Enumerable.Range(0, 5).Any(reader.IsDBNull))
-            throw new InvalidOperationException("DT-05: run histórico não possui binding candidate-state v3 completo; replay recusado.");
+            throw new InvalidOperationException("DT-05: run histórico não possui binding candidate-state v3/v4 completo; replay recusado.");
         var path = reader.GetString(0).Trim();
         var manifestSha = reader.GetString(1).Trim().ToLowerInvariant();
         var partitionSha = reader.GetString(2).Trim().ToLowerInvariant();

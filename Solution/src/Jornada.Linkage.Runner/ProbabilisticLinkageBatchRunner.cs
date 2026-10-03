@@ -49,9 +49,22 @@ public sealed class ProbabilisticLinkageBatchRunner(
         var workCt = workCts.Token;
 
         var started = DateTimeOffset.UtcNow;
-        var model = request.ModelVersion is int version
-            ? await linkage.GetModelByVersionAsync(version, workCt)
-            : await linkage.GetActiveModelAsync(workCt);
+        Dt05HistoricalRunIdentity? replayIdentity = null;
+        if (request.Mode == LinkageRunType.REPLAY)
+        {
+            if (request.ReplaySourceRunId is not Guid source)
+                throw new InvalidOperationException("DT-05: REPLAY exige source run imutável; fallback ao estado corrente recusado.");
+            replayIdentity = await replaySql.ReadHistoricalRunIdentityAsync(source, workCt);
+            if (request.ModelVersion is int requestedVersion && requestedVersion != replayIdentity.ModelVersion)
+                throw new InvalidOperationException("DT-05: --model-version diverge do modelo do source run; replay recusado.");
+        }
+        var model = replayIdentity is not null
+            ? await linkage.GetModelByVersionAsync(replayIdentity.ModelVersion, workCt)
+            : request.ModelVersion is int version
+                ? await linkage.GetModelByVersionAsync(version, workCt)
+                : await linkage.GetActiveModelAsync(workCt);
+        if (replayIdentity is not null && model.ModelId != replayIdentity.ModelId)
+            throw new InvalidOperationException("DT-05: identidade do modelo histórico diverge do source run; replay recusado.");
 
         if (request.Mode == LinkageRunType.REPLAY)
         {
@@ -91,7 +104,8 @@ public sealed class ProbabilisticLinkageBatchRunner(
             eligible = universe.Eligible;
             // DT-05: pin the entire visible candidate corpus, not only selected run items.
             // This is opt-in until the immutable NAS manifest and replay verification are gated.
-            if (configuration.GetValue("LinkageReplay:CaptureBronzeSources", false))
+            if (request.Mode != LinkageRunType.REPLAY
+                && configuration.GetValue("LinkageReplay:CaptureBronzeSources", false))
             {
                 // DT-05 Marco B: nenhuma decisão pode ser pontuada antes de o universo lógico,
                 // as fontes físicas e as versões executáveis estarem vinculados de forma imutável.
@@ -331,13 +345,28 @@ public sealed class ProbabilisticLinkageBatchRunner(
                     @high_watermark,0,0,0,0,0,0,@solicitado_por,@motivo,@correlation_id,@inicio);
 
                 DECLARE @top_limit BIGINT = COALESCE(@limite,2147483647);
-                INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)
-                SELECT @run_id,x.pessoa_observacao_id
-                FROM (
-                    SELECT TOP (@top_limit) po.pessoa_observacao_id
-                    {EligibleFromWhereSql()}
-                    ORDER BY po.pessoa_observacao_id
-                ) x;
+                IF @tipo_run=N'REPLAY'
+                BEGIN
+                    IF @replay_source_run_id IS NULL
+                        THROW 51988, 'DT-05: REPLAY sem source run.', 1;
+                    INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)
+                    SELECT @run_id,li.pessoa_observacao_id
+                    FROM identidade.linkage_run_item li
+                    WHERE li.linkage_run_id=@replay_source_run_id
+                    ORDER BY li.pessoa_observacao_id;
+                    IF @limite IS NOT NULL OR @obs IS NOT NULL OR @gestor IS NOT NULL OR @desde IS NOT NULL
+                        THROW 51989, 'DT-05: REPLAY histórico não aceita filtros que alterem o universo do source run.', 1;
+                END
+                ELSE
+                BEGIN
+                    INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)
+                    SELECT @run_id,x.pessoa_observacao_id
+                    FROM (
+                        SELECT TOP (@top_limit) po.pessoa_observacao_id
+                        {EligibleFromWhereSql()}
+                        ORDER BY po.pessoa_observacao_id
+                    ) x;
+                END;
 
                 DECLARE @elegiveis BIGINT = (SELECT COUNT_BIG(*) FROM identidade.linkage_run_item WHERE linkage_run_id=@run_id);
                 DECLARE @reavaliados BIGINT=0;
@@ -385,6 +414,8 @@ public sealed class ProbabilisticLinkageBatchRunner(
             command.Parameters.Add("@pessoa_observacao_id", SqlDbType.BigInt).Value = (object?)request.PessoaObservacaoId ?? DBNull.Value;
             command.Parameters.Add("@gestor_codigo", SqlDbType.NVarChar, 30).Value = (object?)request.GestorCodigo ?? DBNull.Value;
             command.Parameters.Add("@mode", SqlDbType.NVarChar, 30).Value = request.Mode.ToString();
+            command.Parameters.Add("@replay_source_run_id", SqlDbType.UniqueIdentifier).Value =
+                (object?)request.ReplaySourceRunId ?? DBNull.Value;
 
             await using var reader = await command.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct))

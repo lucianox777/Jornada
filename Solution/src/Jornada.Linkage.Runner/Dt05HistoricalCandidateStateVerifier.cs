@@ -98,8 +98,12 @@ public sealed class Dt05HistoricalCandidateStateVerifier(string bronzeRoot)
         var fields = reader.Schema.GetDataFields();
         var expected = new[] { "candidate_uuid", "nome_completo", "data_nascimento", "nome_mae", "estado_identidade" };
         if (fields.Length != expected.Length || !fields.Select(x => x.Name).SequenceEqual(expected, StringComparer.Ordinal)
-            || fields.Any(x => x.ClrType != typeof(string)))
-            throw new InvalidDataException("DT-05: schema físico Parquet candidate-state inválido.");
+            || fields.Any(x => x.ClrType != typeof(string) && x.ClrType != typeof(ReadOnlyMemory<char>))
+            || fields[0].IsNullable || fields[4].IsNullable
+            || !fields[1].IsNullable || !fields[2].IsNullable || !fields[3].IsNullable)
+            throw new InvalidDataException(
+                "DT-05: schema físico Parquet candidate-state inválido. Lido: " +
+                string.Join(", ", fields.Select(x => $"{x.Name}:{x.ClrType.FullName}:nullable={x.IsNullable}")));
 
         var rows = new List<Dt05HistoricalCandidate>();
         using var logical = new MemoryStream();
