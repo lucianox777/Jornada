@@ -43,7 +43,8 @@ public sealed record ProbabilisticLinkageRunRequest(
     string? RequestedBy,
     string? Reason,
     Guid CorrelationId,
-    bool Publish);
+    bool Publish,
+    Guid? ReplaySourceRunId = null);
 
 /// <summary>
 /// Resultado interno detalhado de uma observação. Persistem-se apenas os dois

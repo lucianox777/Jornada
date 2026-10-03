@@ -26,7 +26,8 @@ public sealed class LinkageRunnerWorker(
                 options.RequestedBy,
                 options.Reason,
                 options.CorrelationId,
-                options.Publish), stoppingToken);
+                options.Publish,
+                options.ReplaySourceRunId), stoppingToken);
 
             logger.LogInformation(
                 "Runner concluído. RunId={RunId}; Modelo={ModeloVersao}; Status={Status}; Avaliados={Avaliados}",

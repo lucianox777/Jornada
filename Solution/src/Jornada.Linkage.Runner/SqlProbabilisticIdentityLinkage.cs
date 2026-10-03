@@ -63,6 +63,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
     LinkageRunOptions? runOptions = null) : IProbabilisticIdentityLinkage, ISemiblindCandidateRetriever
 {
     private readonly ConcurrentDictionary<Guid, LinkageRuntimeSnapshot> runtimeCache = new();
+    private IReadOnlyList<Dt05HistoricalCandidate>? historicalCandidates;
+    private Guid? historicalCandidatesSourceRun;
 
     public async Task<ProbabilisticLinkageModelRef> GetActiveModelAsync(CancellationToken ct)
     {
@@ -111,6 +113,16 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
     internal async Task<LinkageModel> GetModelForDiagnosticsAsync(Guid modelId, CancellationToken ct) =>
         (await GetOrLoadRuntimeSnapshotAsync(modelId, ct)).Model;
+
+    public void UseHistoricalCandidates(Guid sourceRunId, IReadOnlyList<Dt05HistoricalCandidate> candidates)
+    {
+        if (runOptions?.Mode != LinkageRunType.REPLAY || runOptions.ReplaySourceRunId != sourceRunId)
+            throw new InvalidOperationException("DT-05: candidate-state histórico só pode ser instalado no REPLAY do run de origem exato.");
+        if (historicalCandidates is not null)
+            throw new InvalidOperationException("DT-05: candidate-state histórico já foi instalado neste processo.");
+        historicalCandidatesSourceRun = sourceRunId;
+        historicalCandidates = candidates ?? throw new ArgumentNullException(nameof(candidates));
+    }
 
     public async Task<ProbabilisticLinkageDecision> ResolveWithoutCpfAsync(
         IdentityObservation observation, Guid modeloId, CancellationToken ct)
@@ -504,6 +516,14 @@ public sealed class SqlProbabilisticIdentityLinkage(
         int? maxCandidatesOverride = null)
     {
         var model = snapshot.Model;
+        if (runOptions?.Mode == LinkageRunType.REPLAY)
+        {
+            if (runOptions.ReplaySourceRunId is not Guid expected
+                || historicalCandidatesSourceRun != expected || historicalCandidates is null)
+                throw new InvalidOperationException(
+                    "DT-05: REPLAY sem candidate-state histórico verificado; fallback para Gold recusado.");
+            return LoadHistoricalCandidates(observation, snapshot, historicalCandidates, maxCandidatesOverride);
+        }
         var maxCandidates = Math.Clamp(
             configuration.GetValue("ProbabilisticLinkage:MaxCandidatesPerBlock", 100000),
             1000, 1000000);
@@ -542,6 +562,47 @@ public sealed class SqlProbabilisticIdentityLinkage(
             maxCandidates,
             commandTimeoutSeconds,
             ct);
+    }
+
+    private IReadOnlyList<LinkageCandidate> LoadHistoricalCandidates(
+        IdentityObservation observation, LinkageRuntimeSnapshot snapshot,
+        IReadOnlyList<Dt05HistoricalCandidate> frozen, int? maxCandidatesOverride)
+    {
+        var maxCandidates = Math.Clamp(
+            configuration.GetValue("ProbabilisticLinkage:MaxCandidatesPerBlock", 100000), 1000, 1000000);
+        if (maxCandidatesOverride is { } synchronousLimit) maxCandidates = Math.Min(maxCandidates, synchronousLimit);
+
+        // Historical replay never touches Gold. The frozen candidate-state is filtered
+        // with the same deterministic birth-based semantics for legacy models. Dynamic
+        // blocking requires the separately frozen projection before it can be enabled.
+        if (snapshot.RuleSet is not null)
+            throw new InvalidOperationException(
+                "DT-05: replay histórico com ruleset dinâmico exige consumo da projeção de blocking congelada; fallback SQL recusado.");
+        if (observation.DataNascimento is not DateOnly birth) return Array.Empty<LinkageCandidate>();
+
+        var birthComponent = LinkageModelPolicy.SupportsBirthComponentScoring(snapshot.Model);
+        var result = frozen.Where(x => HistoricalBirthMatch(x.DataNascimento, birth, observation, birthComponent))
+            .OrderBy(x => x.PessoaUuid)
+            .Take(maxCandidates + 1)
+            .Select(x => new LinkageCandidate(x.PessoaUuid, x.NomeCompleto, x.DataNascimento, x.NomeMae))
+            .ToArray();
+        if (result.Length > maxCandidates)
+            throw new InvalidOperationException($"DT-05: candidate-state histórico excedeu MaxCandidatesPerBlock={maxCandidates}; replay recusado.");
+        return result;
+    }
+
+    private bool HistoricalBirthMatch(DateOnly? candidate, DateOnly birth, IdentityObservation observation, bool expanded)
+    {
+        if (candidate is null) return false;
+        if (candidate == birth) return true;
+        if (!expanded) return false;
+        var initialEligible = TryInitial(observation.NomeCompleto, out _) || TryInitial(observation.NomeMae, out _);
+        if (initialEligible && candidate.Value.Year == birth.Year && candidate.Value.Month == birth.Month) return true;
+        if (initialEligible && candidate.Value.Year == birth.Year && candidate.Value.Day == birth.Day) return true;
+        if (candidate.Value.Year == birth.Year && candidate.Value.Month == birth.Day && candidate.Value.Day == birth.Month) return true;
+        var tolerance = Math.Clamp(configuration.GetValue("ProbabilisticLinkage:BirthYearTolerance", 1), 0, 2);
+        return candidate.Value.Month == birth.Month && candidate.Value.Day == birth.Day
+            && Math.Abs(candidate.Value.Year - birth.Year) <= tolerance;
     }
 
     private async Task<IReadOnlyList<LinkageCandidate>> LoadLegacyCandidatesAsync(
