@@ -32,17 +32,7 @@ if ([int](Scalar "SELECT COUNT_BIG(*) FROM gold.pessoa WHERE estado_identidade=N
 }
 
 if ($Dt05HistoricalReplay) {
-    Sql @'
-INSERT identidade.blocking_chave(pessoa_uuid,normalizacao_versao,atributo,valor_normalizado,semantica_temporal)
-SELECT g.pessoa_uuid,N'IDENTITY_NORMALIZATION_V1',N'birth_year,N'1982',N'STABLE_IDENTITY_DATUM'
-FROM gold.pessoa g
-WHERE g.estado_identidade=N'REFERENCIA' AND g.nome_completo=N'Maria da Silva'
-  AND g.data_nascimento='1982-04-10' AND g.nome_mae=N'Ana de Souza'
-  AND NOT EXISTS(
-    SELECT 1 FROM identidade.blocking_chave k
-    WHERE k.pessoa_uuid=g.pessoa_uuid AND k.normalizacao_versao=N'IDENTITY_NORMALIZATION_V1'
-      AND k.atributo=N'birth_year' AND k.valor_normalizado=N'1982' AND k.vigencia_fim IS NULL);
-'@ | Out-Null
+    Sql "INSERT identidade.blocking_chave(pessoa_uuid,normalizacao_versao,atributo,valor_normalizado,semantica_temporal) SELECT g.pessoa_uuid,N'IDENTITY_NORMALIZATION_V1',N'birth_year',N'1982',N'STABLE_IDENTITY_DATUM' FROM gold.pessoa g WHERE g.estado_identidade=N'REFERENCIA' AND g.nome_completo=N'Maria da Silva' AND g.data_nascimento='1982-04-10' AND g.nome_mae=N'Ana de Souza' AND NOT EXISTS(SELECT 1 FROM identidade.blocking_chave k WHERE k.pessoa_uuid=g.pessoa_uuid AND k.normalizacao_versao=N'IDENTITY_NORMALIZATION_V1' AND k.atributo=N'birth_year' AND k.valor_normalizado=N'1982' AND k.vigencia_fim IS NULL);" | Out-Null
     if ([int](Scalar "SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE atributo=N'birth_year' AND valor_normalizado=N'1982' AND vigencia_fim IS NULL;") -lt 2) {
         throw 'DT-05: fixture não materializou as duas chaves birth_year sintéticas.'
     }
