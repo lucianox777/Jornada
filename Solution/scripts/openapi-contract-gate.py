@@ -17,6 +17,7 @@ REGISTERED_MODULES = {
     "mapprogressiveoriginapi": "ProgressiveOriginApi.cs",
     "mapoperationalmonitorapi": "OperationalMonitorApi.cs",
     "mapmodelgovernancereadonlyapi": "ModelGovernanceReadOnlyApi.cs",
+    "mapdevtestconsole": "DevTestConsoleApi.cs",
 }
 
 
@@ -81,6 +82,18 @@ def module_operations(program: Path, name: str) -> tuple[set[tuple[str, str]], l
             ("get", normalize_path(page_route.group(1))),
             ("get", normalize_path(status_route.group(1))),
         }, errors
+
+    if name == "mapdevtestconsole":
+        # Console operacional é deliberadamente DEV-only e nunca integra o OpenAPI público.
+        guard = ('if(!env.IsDevelopment()) return app;' in text)
+        definition = re.search(r'public\\s+static\\s+IEndpointRouteBuilder\\s+MapDevTestConsole\\s*\\(\\s*this\\s+IEndpointRouteBuilder\\s+app\\s*\\)', text)
+        if (not definition or not guard
+                or calls != ["mapget", "mapget", "mapget", "mapget", "mappost", "mappost"]
+                or 'app.MapGet(PageRoute' not in text
+                or 'app.MapPost("/api/dev/test/sessions"' not in text
+                or 'actions/update-build' not in text):
+            errors.append("módulo Console DEV contém mapeamento ou gate de ambiente inválido")
+        return set(), errors
 
     if name == "mapmodelgovernancereadonlyapi":
         # DT-15: master preview is strictly Development-only and has NO routes
