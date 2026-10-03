@@ -26,6 +26,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
     Dt05CandidateStateSnapshotPublisher candidateStateSnapshotPublisher,
     Dt05BlockingProjectionSnapshotPublisher blockingProjectionSnapshotPublisher,
     Dt05HistoricalCandidateStateVerifier historicalCandidateStateVerifier,
+    Dt05HistoricalBlockingProjectionVerifier historicalBlockingProjectionVerifier,
     ILogger<ProbabilisticLinkageBatchRunner> logger) : IProbabilisticLinkageBatchRunner
 {
     public async Task<ProbabilisticLinkageRunSummary> RunAsync(
@@ -61,6 +62,15 @@ public sealed class ProbabilisticLinkageBatchRunner(
             var binding = await replaySql.ReadHistoricalCandidateStateBindingAsync(sourceRunId, workCt);
             var verified = await historicalCandidateStateVerifier.VerifyAsync(binding, workCt);
             sqlLinkage.UseHistoricalCandidates(sourceRunId, verified.Candidates);
+            if(model.BlockingContract is not null)
+            {
+                var blockingBinding=await replaySql.ReadHistoricalBlockingProjectionBindingAsync(sourceRunId,workCt);
+                var blocking=await historicalBlockingProjectionVerifier.VerifyAsync(blockingBinding,workCt);
+                sqlLinkage.UseHistoricalBlockingProjection(sourceRunId,blocking.Rows);
+                logger.LogInformation(
+                    "DT-05 historical blocking projection verified. SourceRunId={SourceRunId}; ManifestSha256={ManifestSha256}; Rows={Rows}.",
+                    sourceRunId,blocking.ManifestSha256,blocking.RowCount);
+            }
             logger.LogInformation(
                 "DT-05 historical candidate-state verified. SourceRunId={SourceRunId}; ManifestSha256={ManifestSha256}; Rows={Rows}.",
                 sourceRunId, verified.ManifestSha256, verified.RowCount);
