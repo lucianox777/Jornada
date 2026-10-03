@@ -36,11 +36,11 @@ if ($Dt05HistoricalReplay) {
     $algorithm = Scalar "SELECT algoritmo_versao FROM identidade.modelo_linkage WHERE modelo_id='$modelId';"
     $ruleVersion = 'DT05_E2E_DYNAMIC_BLOCKING_V1'
     $parameterRows = @(Sql "SELECT CONCAT(nome,N'|',CONVERT(VARCHAR(100),valor)) FROM identidade.parametro_linkage WHERE modelo_id='$modelId' ORDER BY nome;")
-    $canonical = "$ruleVersion``n$algorithm``n-``n-``nPASS``tP001``nF``tbirth_year``n"
+    $canonical = "$ruleVersion`n$algorithm`n-`n-`nPASS`tP001`nF`tbirth_year`n"
     foreach ($row in $parameterRows) {
         $parts = $row.Split('|',2)
         $value = [decimal]::Parse($parts[1],[Globalization.CultureInfo]::InvariantCulture)
-        $canonical += "P``t$($parts[0])``t$($value.ToString('G29',[Globalization.CultureInfo]::InvariantCulture))``n"
+        $canonical += "P`t$($parts[0])`t$($value.ToString('G29',[Globalization.CultureInfo]::InvariantCulture))`n"
     }
     $sha = [Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($canonical))
     $rulesetFingerprint = ([Convert]::ToHexString($sha)).ToLowerInvariant()
