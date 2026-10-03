@@ -86,7 +86,7 @@ def module_operations(program: Path, name: str) -> tuple[set[tuple[str, str]], l
     if name == "mapdevtestconsole":
         # Console operacional é deliberadamente DEV-only e nunca integra o OpenAPI público.
         guard = ('if(!env.IsDevelopment()) return app;' in text)
-        definition = re.search(r'public\\s+static\\s+IEndpointRouteBuilder\\s+MapDevTestConsole\\s*\\(\\s*this\\s+IEndpointRouteBuilder\\s+app\\s*\\)', text)
+        definition = re.search(r'public\s+static\s+IEndpointRouteBuilder\s+MapDevTestConsole\s*\(\s*this\s+IEndpointRouteBuilder\s+app\s*\)', text)
         if (not definition or not guard
                 or calls != ["mapget", "mapget", "mapget", "mapget", "mappost", "mappost"]
                 or 'app.MapGet(PageRoute' not in text
