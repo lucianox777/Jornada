@@ -33,13 +33,16 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("ReadLineAsync"));
             Assert.That(runtime,Does.Contain("live.Add(\"stdout\""));
             Assert.That(runtime,Does.Contain("live.Add(\"stderr\""));
-            Assert.That(runtime,Does.Contain("local-db.ps1 -Action up"));
-            Assert.That(runtime,Does.Contain("local-db.ps1 -Action down"));
-            Assert.That(runtime,Does.Contain("local-db.ps1 -Action clean"));
+            Assert.That(runtime,Does.Contain("local-cluster.ps1 -Action up"));
+            Assert.That(runtime,Does.Contain("local-cluster.ps1 -Action clean"));
+            Assert.That(runtime,Does.Not.Contain("local-db.ps1 -Action down"));
             Assert.That(runtime,Does.Contain("dev-console-gold-synthetic.ps1"));
             Assert.That(runtime,Does.Contain("build-ingestion-fixture.py"));
             Assert.That(runtime,Does.Contain("manual-zip"));
-            Assert.That(runtime,Does.Not.Contain("session.StartedAt"));
+            Assert.That(runtime,Does.Contain("sessionStartedAt=DateTimeOffset.UtcNow"));
+            Assert.That(runtime,Does.Contain("Where(x=>x.StartedAt>=sessionStartedAt)"));
+            Assert.That(runtime,Does.Contain("JsonSerializerDefaults.Web"));
+            Assert.That(runtime,Does.Contain("JsonSerializer.Serialize(item,StreamJson)"));
 
             Assert.That(page,Does.Contain("🕘 Execuções"));
             Assert.That(page,Does.Contain("console-shell"));
@@ -58,6 +61,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localDb,Does.Contain("Start-Process -FilePath $dockerDesktopPath"));
             Assert.That(localDb,Does.Contain("Aguardando Docker Engine"));
             Assert.That(localDb,Does.Contain("Docker Engine pronto"));
+            Assert.That(runtime,Does.Contain("SQL Server, NAS, referência e NODE1/NODE2"));
 
             Assert.That(goldScript,Does.Contain("Jornada_Dev_GoldSynthetic.sql"));
             Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
