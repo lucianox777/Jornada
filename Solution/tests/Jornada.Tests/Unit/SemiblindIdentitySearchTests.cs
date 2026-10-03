@@ -9,9 +9,17 @@ public sealed class SemiblindIdentitySearchTests
 {
     private sealed class FakeRetriever(params SemiblindInternalCandidate[] candidates) : ISemiblindCandidateRetriever
     {
-        public Task<IReadOnlyList<SemiblindInternalCandidate>> RetrieveAsync(
+        public Task<SemiblindCandidateRetrievalResult> RetrieveAsync(
             SemiblindIdentitySearchRequest request, CancellationToken ct) =>
-            Task.FromResult<IReadOnlyList<SemiblindInternalCandidate>>(candidates);
+            Task.FromResult(SemiblindCandidateRetrievalResult.Complete(candidates));
+    }
+
+
+    private sealed class IncompleteRetriever(string reason) : ISemiblindCandidateRetriever
+    {
+        public Task<SemiblindCandidateRetrievalResult> RetrieveAsync(
+            SemiblindIdentitySearchRequest request, CancellationToken ct) =>
+            Task.FromResult(SemiblindCandidateRetrievalResult.Incomplete(reason));
     }
 
     private sealed class FakePolicy(Guid? denied = null) : IPolicyEngine
@@ -214,6 +222,35 @@ public sealed class SemiblindIdentitySearchTests
 
         Assert.That(response.Candidatos, Has.Count.EqualTo(1));
         Assert.That(response.Candidatos[0].Nome, Is.EqualTo(candidate.Nome));
+    }
+
+
+    [Test]
+    public async Task Complete_search_with_zero_candidates_is_explicitly_complete()
+    {
+        var service = new SemiblindIdentitySearchService(new FakeRetriever(), new FakePolicy());
+        var response = await service.SearchAsync(Context(),
+            new SemiblindIdentitySearchRequest("Pessoa inexistente", null, null),
+            Guid.NewGuid(), CancellationToken.None);
+
+        Assert.That(response.BuscaCompleta, Is.True);
+        Assert.That(response.MotivoIncompletude, Is.Null);
+        Assert.That(response.Candidatos, Is.Empty);
+    }
+
+    [TestCase(SemiblindRetrievalReasons.NoEligiblePass)]
+    [TestCase(SemiblindRetrievalReasons.FanoutLimitExceeded)]
+    [TestCase(SemiblindRetrievalReasons.Timeout)]
+    public async Task Incomplete_retrieval_is_not_reported_as_complete_zero_candidates(string reason)
+    {
+        var service = new SemiblindIdentitySearchService(new IncompleteRetriever(reason), new FakePolicy());
+        var response = await service.SearchAsync(Context(),
+            new SemiblindIdentitySearchRequest(null, null, "Maria"),
+            Guid.NewGuid(), CancellationToken.None);
+
+        Assert.That(response.BuscaCompleta, Is.False);
+        Assert.That(response.MotivoIncompletude, Is.EqualTo(reason));
+        Assert.That(response.Candidatos, Is.Empty);
     }
 
     [Test]
