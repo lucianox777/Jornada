@@ -24,7 +24,9 @@ app.MapGet("/api/runs/{id:guid}",async(Guid id,RunStore store,CancellationToken 
 
 app.MapPost("/api/commands/{command}/start",(string command,LiveExecutionService live)=>{
     var definition=CommandCatalog.All.FirstOrDefault(x=>x.Id.Equals(command,StringComparison.OrdinalIgnoreCase));
-    return definition is null?Results.NotFound():Results.Accepted($"/api/runs/{live.StartCommand(definition)}",new{id=live.LastStartedId});
+    if(definition is null)return Results.NotFound();
+    var id=live.StartCommand(definition);
+    return Results.Accepted($"/api/runs/{id}",new{id});
 });
 
 app.MapPost("/api/zip/manual/start",(ManualZipRequest request,LiveExecutionService live)=>{
