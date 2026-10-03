@@ -69,4 +69,5 @@
 :r database/migrations/20260929_RF052_Bootstrap_Persistido_Geracao.sql
 :r database/migrations/20260930_Linkage_TF_Conference_Fingerprint.sql
 :r database/migrations/20260930_Linkage_Z_Model_Config_Bundle_Fingerprint.sql
+:r database/migrations/20261002_DT15_Human_Model_Approval.sql
 :r database/migrations/20260910_Schema_Consolidation_370.sql
