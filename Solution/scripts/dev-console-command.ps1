@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][ValidateSet('update-build','gold-synthetic')][string]$Action)
+param([Parameter(Mandatory=$true)][ValidateSet('update-build','gold-synthetic','destroy')][string]$Action)
 $ErrorActionPreference='Stop'
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
@@ -34,6 +34,17 @@ switch($Action){
      Write-Host ('Concluído em '+[math]::Round($elapsed.TotalSeconds,2)+' s.')
      Write-Host '=== SUCESSO: atualização e build concluídos ==='
    } finally { Pop-Location }
+ }
+ 'destroy' {
+   Write-Host '=== Jornada DEV :: Destruir ambiente DEV ==='
+   Write-Host 'Etapa 1/3: encerrando containers e removendo volumes Docker...'
+   & (Join-Path $Root 'scripts/local-db.ps1') -Action clean
+   if($LASTEXITCODE -ne 0){throw "local-db clean falhou ($LASTEXITCODE)."}
+   Write-Host 'Etapa 2/3: removendo resultados locais gerados pela Console...'
+   $devLocal=Join-Path $Root '.local/dev-console'
+   if(Test-Path $devLocal){Remove-Item -LiteralPath $devLocal -Recurse -Force}
+   Write-Host 'Etapa 3/3: ambiente DEV limpo. O histórico da Console foi preservado.'
+   Write-Host '=== SUCESSO: ambiente DEV destruído ==='
  }
  'gold-synthetic' {
    $envFile=Join-Path $Root '.env';if(-not(Test-Path $envFile)){throw '.env ausente; suba a infraestrutura DEV antes de carregar a Gold sintética.'}
