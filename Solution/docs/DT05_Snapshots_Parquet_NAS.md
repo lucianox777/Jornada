@@ -186,3 +186,12 @@ O modo `REPLAY` propaga obrigatoriamente `--replay-source-run-id` até o contrat
 Nesse modo, o candidate loader **não consulta `gold.pessoa` e não possui fallback para o estado corrente**. Para modelos legados, o filtro de nascimento é aplicado sobre o candidate-state congelado preservando os passes históricos suportados. Para modelos com ruleset dinâmico, o replay falha fechado enquanto a projeção de blocking congelada não estiver conectada ao consumo histórico; isso evita reconstruir candidate UUIDs usando a projeção SQL corrente.
 
 Este incremento fecha o consumo histórico do estado candidato legado, mas não declara o Marco B completo. Restam conectar a projeção de blocking histórica para rulesets dinâmicos, comprovar replay determinístico ponta a ponta e executar ensaios de concorrência GC/retenção, recuperação e custo/latência DEV.
+
+
+## Incremento Marco B — projeção de blocking histórica consumível (03/10/2026)
+
+O manifesto de replay evolui para **schema v4** e passa a vincular create-once também o caminho lógico, SHA-256 do manifesto e `partition_set_sha256` da projeção de blocking congelada. O Runner verifica esse binding contra o objeto físico no NAS antes de qualquer score histórico.
+
+Para rulesets dinâmicos, o replay deixa de consultar `identidade.blocking_chave` corrente: os passes são executados em memória sobre a projeção histórica verificada, preservando `INTERSECT` entre cláusulas de um passe, `UNION` entre passes e semântica temporal das features. Os UUIDs resultantes são resolvidos exclusivamente contra o candidate-state histórico já verificado. Ausência, adulteração ou incompatibilidade do binding v4 falha fechado.
+
+Com isso, tanto candidate-state quanto candidate generation dinâmica deixam de depender do estado Gold/projeção corrente durante REPLAY. Permanecem como fechamento do Marco B a prova determinística ponta a ponta, ensaios de GC/retenção/recuperação e medição de custo/latência DEV.
