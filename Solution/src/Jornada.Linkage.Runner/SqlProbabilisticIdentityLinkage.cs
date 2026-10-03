@@ -177,7 +177,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
         var maxSynchronousCandidates = Math.Clamp(
             configuration.GetValue("SemiblindIdentitySearch:MaxCandidatesPerQuery", 10000), 5, 100000);
-        IReadOnlyList<IdentityCandidate> candidates;
+        IReadOnlyList<LinkageCandidate> candidates;
         try
         {
             candidates = await LoadCandidatesAsync(observation, snapshot, cancellationToken,
