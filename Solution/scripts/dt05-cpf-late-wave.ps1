@@ -196,4 +196,36 @@ $evidence = [ordered]@{
 $path = Join-Path $Out 'dt05-cpf-late-evidence.json'
 $evidence | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 $path
 Get-Content -Raw $path
+
+if ($Dt05HistoricalReplay) {
+    $replayReason = "$marker-HISTORICAL-REPLAY"
+    Push-Location $Root
+    try {
+        dotnet run --no-build --configuration Release --project src/Jornada.Linkage.Runner -- --mode REPLAY --replay-source-run-id $($wave1.runId) --requested-by DT05_HISTORICAL_REPLAY_E2E --reason $replayReason --publish false | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw 'DT-05: REPLAY histórico real falhou.' }
+    } finally { Pop-Location }
+    $replayRunId = Scalar "SELECT CONVERT(VARCHAR(36),linkage_run_id) FROM identidade.linkage_run WHERE solicitado_por=N'DT05_HISTORICAL_REPLAY_E2E' AND motivo=N'$replayReason';"
+    if (-not $replayRunId) { throw 'DT-05: run de replay histórico não foi persistido.' }
+    $sourceCount = [int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_run_item WHERE linkage_run_id='$($wave1.runId)';")
+    $replayCount = [int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_run_item WHERE linkage_run_id='$replayRunId';")
+    $universeDelta = [int](Scalar "SELECT COUNT_BIG(*) FROM (SELECT pessoa_observacao_id FROM identidade.linkage_run_item WHERE linkage_run_id='$($wave1.runId)' EXCEPT SELECT pessoa_observacao_id FROM identidade.linkage_run_item WHERE linkage_run_id='$replayRunId') d;")
+    if ($sourceCount -ne $replayCount -or $universeDelta -ne 0) { throw 'DT-05: REPLAY não reproduziu exatamente o universo do source run.' }
+    $replayResultId = [long](Scalar "SELECT linkage_resultado_id FROM identidade.linkage_resultado WHERE linkage_run_id='$replayRunId' AND pessoa_observacao_id=$observationId;")
+    if ($replayResultId -le 0) { throw 'DT-05: REPLAY não produziu resultado bruto para a observação histórica.' }
+    $resultDelta = [int](Scalar "SELECT COUNT_BIG(*) FROM (SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave1.resultId) EXCEPT SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$replayResultId) d;")
+    if ($resultDelta -ne 0) { throw 'DT-05: resultado do REPLAY divergiu da assinatura V1 do source run.' }
+    $binding = [int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_replay_manifesto WHERE linkage_run_id='$($wave1.runId)' AND schema_version=4 AND candidate_state_manifesto_sha256 IS NOT NULL AND blocking_projection_manifesto_sha256 IS NOT NULL;")
+    if ($binding -ne 1) { throw 'DT-05: source run não possui binding v4 completo.' }
+    $replayEvidence = [ordered]@{
+        gate='DT05_HISTORICAL_REPLAY_DETERMINISM_E2E'; status='PASS'; generatedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')
+        githubRunId=$env:GITHUB_RUN_ID; gitSha=$env:GITHUB_SHA; database=$db
+        sourceRunId=$wave1.runId; replayRunId=$replayRunId; sourceUniverse=$sourceCount; replayUniverse=$replayCount
+        exactUniverse=$true; exactSemanticResult=$true; sourceManifestSchema=4
+        currentCorpusWasMutatedAfterSource=$true; replayPublishedOperationalEffects=$false
+    }
+    $replayPath=Join-Path $Out 'dt05-historical-replay-evidence.json'
+    $replayEvidence | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 $replayPath
+    Get-Content -Raw $replayPath
+    Write-Host 'DT-05 REPLAY HISTORICO DETERMINISTICO: PASS'
+}
 Write-Host 'DT-05 CPF TARDIO / RUNNER REAL: PASS'
