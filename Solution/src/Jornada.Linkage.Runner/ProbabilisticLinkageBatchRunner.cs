@@ -104,7 +104,8 @@ public sealed class ProbabilisticLinkageBatchRunner(
             eligible = universe.Eligible;
             // DT-05: pin the entire visible candidate corpus, not only selected run items.
             // This is opt-in until the immutable NAS manifest and replay verification are gated.
-            if (configuration.GetValue("LinkageReplay:CaptureBronzeSources", false))
+            if (request.Mode != LinkageRunType.REPLAY
+                && configuration.GetValue("LinkageReplay:CaptureBronzeSources", false))
             {
                 // DT-05 Marco B: nenhuma decisão pode ser pontuada antes de o universo lógico,
                 // as fontes físicas e as versões executáveis estarem vinculados de forma imutável.
