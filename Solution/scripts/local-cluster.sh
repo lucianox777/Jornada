@@ -138,7 +138,9 @@ JSON
     --model-id "$model_id" \
     --tolerance-config "$conference_container" \
     --source-revision "LOCAL_CLUSTER_TEST"
+  sql_scalar "DECLARE @id uniqueidentifier; EXEC auditoria.sp_registrar_aprovacao_modelo_linkage @modelo_id=\'$model_id\',@acao=N\'VALIDATE\',@decisor=N\'LOCAL_CLUSTER_HARNESS\',@motivo=N\'Aprovação técnica explícita do harness local para VALIDATE\',@aprovacao_id=@id OUTPUT; SELECT CONVERT(varchar(36),@id);"
   compose exec -T jornada-node2 env LinkageParameters__ConferenceToleranceConfigPath="$conference_container" LinkageParameters__Operation=VALIDATE LinkageParameters__TargetVersion="$version" LinkageParameters__RunOnce=true dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
+  sql_scalar "DECLARE @id uniqueidentifier; EXEC auditoria.sp_registrar_aprovacao_modelo_linkage @modelo_id=\'$model_id\',@acao=N\'ACTIVATE\',@decisor=N\'LOCAL_CLUSTER_HARNESS\',@motivo=N\'Aprovação técnica explícita do harness local para ACTIVATE\',@aprovacao_id=@id OUTPUT; SELECT CONVERT(varchar(36),@id);"
   compose exec -T jornada-node2 env LinkageParameters__ConferenceToleranceConfigPath="$conference_container" LinkageParameters__Operation=ACTIVATE LinkageParameters__TargetVersion="$version" LinkageParameters__RunOnce=true dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
   active="$(sql_scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao=$version AND status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO';")"
   [[ "$active" == "1" ]] || { echo "Modelo v$version não ficou ATIVO como modelo calibrado." >&2; return 4; }
