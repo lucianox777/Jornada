@@ -19,7 +19,7 @@
       "structural_fingerprint_sha256": "3f77d3adb6286b2fe7ea028884e9199c9c7beb2e8d52d392c9006a9c92e91f19",
       "structural_fingerprint_method": "SHA256_SORTED_METADATA_LINES_FROM_Jornada_Dev_DdlFingerprint.sql",
       "migration_manifest": "Solution/database/migrations/manifest.txt",
-      "migration_manifest_sha256": "54ec7022109db5b301a1c9d4213f229675ac3bef167a05680543861e05bc808d",
+      "migration_manifest_sha256": "f509eeb94603a4d83fd173da6ae94c7b17a03a41903b76dccb6c7fd743dd2da0",
       "migration_manifest_hash_method": "SHA256_UTF8_LF",
       "rc_rule": "source_commit identifies a surviving ancestor baseline for the evolving post-RC candidate. structural_fingerprint_sha256 and migration_manifest_sha256 bind the executable DDL and manifest of the CURRENT candidate commit; they are recomputed by CI and need not equal the ancestor baseline after additive post-RC migrations. The immutable v5.00-rc.1 tag retains its own historical CANDIDATE_INFO and technical-rc gate.",
       "evidence_model": "CURRENT_CI_EXACT_HASH_BINDING_PLUS_ANCESTOR_BASELINE",
