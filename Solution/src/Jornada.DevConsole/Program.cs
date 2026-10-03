@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 
 var builder=WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton<ConsoleSession>();
 builder.Services.AddSingleton<RunStore>();
 builder.Services.AddSingleton<CommandExecutor>();
 var app=builder.Build();
@@ -23,6 +24,7 @@ app.Run();
 sealed record CommandDefinition(string Id,string Title,string Description,string? File,string? Arguments,string? ResultPath) { public bool Implemented => File is not null; public string? CommandLine => File is null ? null : $"{File} {Arguments}"; }
 sealed record StepResult(string Command,int ExitCode,long DurationMs,string Output,string Error);
 sealed record RunRecord(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,StepResult Step,IReadOnlyList<Dictionary<string,string?>> Records);
+sealed class ConsoleSession { public DateTimeOffset StartedAt { get; }=DateTimeOffset.UtcNow; }
 
 static class CommandCatalog {
     // Catálogo independente: qualquer comando pode ser executado a qualquer momento.
@@ -64,12 +66,12 @@ sealed class CommandExecutor(IWebHostEnvironment env) {
     static string FindSolutionRoot(string start){for(var d=new DirectoryInfo(start);d is not null;d=d.Parent)if(File.Exists(Path.Combine(d.FullName,"Jornada.sln")))return d.FullName;throw new DirectoryNotFoundException("Jornada.sln não encontrado.");}
 }
 
-sealed class RunStore(IWebHostEnvironment env) {
+sealed class RunStore(IWebHostEnvironment env,ConsoleSession session) {
     readonly string root=Path.Combine(env.ContentRootPath,".runs");
     static readonly JsonSerializerOptions Opt=new(JsonSerializerDefaults.Web){WriteIndented=true};
     public async Task SaveAsync(RunRecord run,CancellationToken ct){Directory.CreateDirectory(root);await File.WriteAllTextAsync(Path.Combine(root,$"{run.Id:N}.json"),JsonSerializer.Serialize(run,Opt),ct);}
     public async Task<RunRecord?> GetAsync(Guid id,CancellationToken ct){var p=Path.Combine(root,$"{id:N}.json");return File.Exists(p)?JsonSerializer.Deserialize<RunRecord>(await File.ReadAllTextAsync(p,ct),Opt):null;}
-    public async Task<IReadOnlyList<RunRecord>> ListAsync(CancellationToken ct){Directory.CreateDirectory(root);var xs=new List<RunRecord>();foreach(var p in Directory.EnumerateFiles(root,"*.json").OrderByDescending(File.GetLastWriteTimeUtc)){var x=JsonSerializer.Deserialize<RunRecord>(await File.ReadAllTextAsync(p,ct),Opt);if(x is not null)xs.Add(x);}return xs;}
+    public async Task<IReadOnlyList<RunRecord>> ListAsync(CancellationToken ct){Directory.CreateDirectory(root);var xs=new List<RunRecord>();foreach(var p in Directory.EnumerateFiles(root,"*.json").OrderByDescending(File.GetLastWriteTimeUtc)){var x=JsonSerializer.Deserialize<RunRecord>(await File.ReadAllTextAsync(p,ct),Opt);if(x is not null&&x.StartedAt>=session.StartedAt)xs.Add(x);}return xs;}
     public async Task<IReadOnlyDictionary<string,int>> CountByCommandAsync(CancellationToken ct)=>(await ListAsync(ct)).GroupBy(x=>x.Command,StringComparer.OrdinalIgnoreCase).ToDictionary(x=>x.Key,x=>x.Count(),StringComparer.OrdinalIgnoreCase);
 }
 
