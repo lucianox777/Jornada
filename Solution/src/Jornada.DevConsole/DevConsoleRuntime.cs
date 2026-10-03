@@ -16,6 +16,7 @@ sealed record StepResult(string Command,string WorkingDirectory,int ExitCode,lon
 sealed record ManualZipRequest(string Gestor,string ManifestJson,string PessoasJsonl,string RegistrosJsonl);
 sealed record RunRecord(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,StepResult Step,IReadOnlyList<Dictionary<string,string?>> Records);
 sealed record ConsoleEvent(long Seq,DateTimeOffset At,string Stream,string Text);
+sealed class ConsoleSession { public DateTimeOffset StartedAt { get; }=DateTimeOffset.UtcNow; }
 
 static class CommandCatalog
 {
@@ -40,7 +41,7 @@ static class CommandCatalog
         new("semiblind","Executar consulta semicega","Executa a consulta semicega de validação.",null,null,null),
         new("report","Gerar relatório","Produz o relatório da execução escolhida.",null,null,null),
         new("finish","Finalizar ambiente","Encerra os containers DEV sem apagar volumes nem o histórico da Console.","pwsh","-NoProfile -File scripts/local-db.ps1 -Action down",null),
-        new("destroy","Destruir ambiente DEV","Encerra a infraestrutura e remove os volumes locais do Docker.","pwsh","-NoProfile -File scripts/local-db.ps1 -Action clean",null)
+        new("destroy","Destruir ambiente DEV","Limpa o ambiente DEV: encerra containers, remove volumes Docker e apaga resultados locais gerados pela Console. O histórico de execuções é preservado.","pwsh","-NoProfile -File scripts/dev-console-command.ps1 -Action destroy",null)
     ];
 }
 
@@ -81,6 +82,7 @@ sealed class LiveExecution
 
 sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
 {
+    static readonly JsonSerializerOptions StreamJson=new(JsonSerializerDefaults.Web);
     readonly ConcurrentDictionary<Guid,LiveExecution> active=new();
 
     public bool Contains(Guid id)=>active.ContainsKey(id);
@@ -113,7 +115,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             foreach(var item in batch)
             {
                 cursor=item.Seq;
-                var json=JsonSerializer.Serialize(item);
+                var json=JsonSerializer.Serialize(item,StreamJson);
                 await response.WriteAsync($"id: {item.Seq}\ndata: {json}\n\n",ct);
             }
             if(batch.Count>0)await response.Body.FlushAsync(ct);
@@ -274,7 +276,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
     sealed record ProcessCapture(int ExitCode,string Output,string Error);
 }
 
-sealed class RunStore(IWebHostEnvironment env)
+sealed class RunStore(IWebHostEnvironment env,ConsoleSession session)
 {
     readonly string root=Path.Combine(env.ContentRootPath,".runs");
     static readonly JsonSerializerOptions Opt=new(JsonSerializerDefaults.Web){WriteIndented=true};
@@ -308,6 +310,7 @@ sealed class RunStore(IWebHostEnvironment env)
     }
 
     public async Task<IReadOnlyDictionary<string,int>> CountByCommandAsync(CancellationToken ct)=>
-        (await ListAsync(ct)).GroupBy(x=>x.Command,StringComparer.OrdinalIgnoreCase)
+        (await ListAsync(ct)).Where(x=>x.StartedAt>=session.StartedAt)
+            .GroupBy(x=>x.Command,StringComparer.OrdinalIgnoreCase)
             .ToDictionary(x=>x.Key,x=>x.Count(),StringComparer.OrdinalIgnoreCase);
 }
