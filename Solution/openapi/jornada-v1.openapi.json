@@ -3026,6 +3026,14 @@
           "nenhumDestes": {
             "type": "boolean",
             "description": "Disponibilidade da opção Nenhum destes, inclusive quando candidatos=[]"
+          },
+          "busca_completa": {
+            "type": "boolean",
+            "description": "Indica se a recuperação elegível foi executada integralmente; false nunca equivale a zero candidatos."
+          },
+          "motivo_incompletude": {
+            "type": ["string", "null"],
+            "description": "Motivo tipado quando busca_completa=false; null quando a recuperação foi concluída."
           }
         }
       }
