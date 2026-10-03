@@ -24,7 +24,9 @@ public sealed class Dt05HistoricalReplayConsumptionContractTests
             Assert.That(runner,Does.Contain("historicalCandidateStateVerifier.VerifyAsync"));
             Assert.That(runner,Does.Contain("UseHistoricalCandidates"));
             Assert.That(linkage,Does.Contain("REPLAY sem candidate-state histórico verificado; fallback para Gold recusado."));
-            Assert.That(linkage,Does.Contain("replay histórico com ruleset dinâmico exige consumo da projeção de blocking congelada"));
+            Assert.That(runner,Does.Contain("ReadHistoricalBlockingProjectionBindingAsync"));
+            Assert.That(runner,Does.Contain("historicalBlockingProjectionVerifier.VerifyAsync"));
+            Assert.That(linkage,Does.Contain("REPLAY dinâmico sem blocking-projection histórica verificada; fallback SQL recusado."));
         });
     }
 

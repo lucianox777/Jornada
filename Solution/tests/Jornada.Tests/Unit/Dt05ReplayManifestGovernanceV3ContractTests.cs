@@ -22,7 +22,7 @@ public sealed class Dt05ReplayManifestGovernanceV3ContractTests
             Assert.That(migration,Does.Contain("schema_version IN(1,2,3)"));
             Assert.That(migration,Does.Contain("linkage_replay_estado_governanca"));
             Assert.That(migration,Does.Contain("THROW 51985"));
-            Assert.That(sql,Does.Contain("@schema_version=3"));
+            Assert.That(sql,Does.Contain("@schema_version=4"));
             Assert.That(publisher,Does.Contain("schema_version = 3"));
             Assert.That(publisher,Does.Contain("candidatos_sha256 = identity.CandidateSetSha256"));
             var capture=runner.IndexOf("CaptureGovernanceStateAsync",StringComparison.Ordinal);

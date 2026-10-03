@@ -11,9 +11,37 @@ public sealed record Dt05ReplayPreparation(
 public sealed record Dt05HistoricalCandidateStateBinding(
     Guid SourceRunId, string ManifestLogicalPath, string ManifestSha256,
     string PartitionSetSha256, long CandidateReferenceCount, string CandidateSetSha256);
+public sealed record Dt05HistoricalBlockingProjectionBinding(
+    Guid SourceRunId, string ManifestLogicalPath, string ManifestSha256, string PartitionSetSha256,
+    string NormalizationVersion, string ProjectionSchemaVersion, string ProjectionFingerprintSha256);
 
 public sealed class Dt05ReplaySql(IOperationalSqlAdapter sql)
 {
+    public async Task<Dt05HistoricalBlockingProjectionBinding> ReadHistoricalBlockingProjectionBindingAsync(Guid sourceRunId, CancellationToken ct)
+    {
+        await using var connection=await sql.OpenAsync(ct);
+        await using var command=new SqlCommand("""
+            SELECT blocking_projection_caminho_logico,blocking_projection_manifesto_sha256,
+                   blocking_projection_partition_set_sha256,normalization_version,
+                   projection_schema_version,projection_fingerprint_sha256
+              FROM identidade.linkage_replay_manifesto
+             WHERE linkage_run_id=@run_id AND schema_version=4;
+            """,connection);
+        command.Parameters.Add("@run_id",SqlDbType.UniqueIdentifier).Value=sourceRunId;
+        await using var reader=await command.ExecuteReaderAsync(ct);
+        if(!await reader.ReadAsync(ct) || Enumerable.Range(0,6).Any(reader.IsDBNull))
+            throw new InvalidOperationException("DT-05: run histórico não possui binding blocking-projection v4 completo; replay recusado.");
+        var path=reader.GetString(0).Trim(); var manifest=reader.GetString(1).Trim().ToLowerInvariant();
+        var partitions=reader.GetString(2).Trim().ToLowerInvariant(); var normalization=reader.GetString(3).Trim();
+        var schema=reader.GetString(4).Trim(); var fingerprint=reader.GetString(5).Trim().ToLowerInvariant();
+        if(!path.StartsWith("linkage-snapshots/v1/blocking-projection/manifests/",StringComparison.Ordinal)
+           || path.Contains("..",StringComparison.Ordinal) || Path.IsPathRooted(path)
+           || !IsSha256(manifest)||!IsSha256(partitions)||!IsSha256(fingerprint)
+           || string.IsNullOrWhiteSpace(normalization)||string.IsNullOrWhiteSpace(schema))
+            throw new InvalidDataException("DT-05: binding blocking-projection histórico inválido; replay recusado.");
+        return new(sourceRunId,path,manifest,partitions,normalization,schema,fingerprint);
+    }
+
     public async Task<Dt05HistoricalCandidateStateBinding> ReadHistoricalCandidateStateBindingAsync(Guid sourceRunId, CancellationToken ct)
     {
         await using var connection = await sql.OpenAsync(ct);
@@ -114,7 +142,8 @@ public sealed class Dt05ReplaySql(IOperationalSqlAdapter sql)
 
     public async Task RegisterAsync(
         Guid runId, string logicalPath, string manifestSha256, string bronzeSetSha256,
-        Dt05ReplayManifestIdentity identity, Dt05CandidateStateSnapshot candidateState, CancellationToken ct)
+        Dt05ReplayManifestIdentity identity, Dt05CandidateStateSnapshot candidateState,
+        Dt05BlockingProjectionSnapshot blockingProjection, CancellationToken ct)
     {
         await using var connection = await sql.OpenAsync(ct);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
@@ -122,7 +151,7 @@ public sealed class Dt05ReplaySql(IOperationalSqlAdapter sql)
         {
             await using var command = new SqlCommand("""
                 EXEC identidade.sp_registrar_manifesto_replay_linkage
-                    @linkage_run_id=@run_id,@schema_version=3,@caminho_logico=@path,
+                    @linkage_run_id=@run_id,@schema_version=4,@caminho_logico=@path,
                     @manifesto_sha256=@manifest_sha,@bronze_set_sha256=@bronze_sha,
                     @scorer_version=@scorer,@ruleset_version=@ruleset,
                     @model_version=@model,@input_snapshot_id=@snapshot,
@@ -132,7 +161,10 @@ public sealed class Dt05ReplaySql(IOperationalSqlAdapter sql)
                     @governanca_evento_high_watermark=@governance_hwm,
                     @candidate_state_caminho_logico=@candidate_state_path,
                     @candidate_state_manifesto_sha256=@candidate_state_manifest_sha,
-                    @candidate_state_partition_set_sha256=@candidate_state_partition_sha;
+                    @candidate_state_partition_set_sha256=@candidate_state_partition_sha,
+                    @blocking_projection_caminho_logico=@blocking_path,
+                    @blocking_projection_manifesto_sha256=@blocking_manifest_sha,
+                    @blocking_projection_partition_set_sha256=@blocking_partition_sha;
                 """, connection, transaction);
             command.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
             command.Parameters.Add("@path", SqlDbType.NVarChar, 1024).Value = logicalPath;
@@ -152,6 +184,9 @@ public sealed class Dt05ReplaySql(IOperationalSqlAdapter sql)
             command.Parameters.Add("@candidate_state_path", SqlDbType.NVarChar, 1024).Value = candidateState.ManifestLogicalPath;
             command.Parameters.Add("@candidate_state_manifest_sha", SqlDbType.Char, 64).Value = candidateState.ManifestSha256;
             command.Parameters.Add("@candidate_state_partition_sha", SqlDbType.Char, 64).Value = candidateState.PartitionSetSha256;
+            command.Parameters.Add("@blocking_path", SqlDbType.NVarChar, 1024).Value = blockingProjection.ManifestLogicalPath;
+            command.Parameters.Add("@blocking_manifest_sha", SqlDbType.Char, 64).Value = blockingProjection.ManifestSha256;
+            command.Parameters.Add("@blocking_partition_sha", SqlDbType.Char, 64).Value = blockingProjection.PartitionSetSha256;
             await command.ExecuteNonQueryAsync(ct);
             await transaction.CommitAsync(ct);
         }

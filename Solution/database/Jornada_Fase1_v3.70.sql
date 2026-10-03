@@ -64,6 +64,7 @@
 :r database/migrations/20261002_Linkage_Replay_Governanca_DT05.sql
 :r database/migrations/20261002_Linkage_Replay_Manifest_Governanca_DT05.sql
 :r database/migrations/20261002_Linkage_Replay_Candidate_State_Binding_DT05.sql
+:r database/migrations/20261003_Linkage_Replay_Blocking_Projection_Binding_DT05.sql
 :r database/migrations/20260927_Remove_Modo_Carga_Inicial.sql
 :r database/migrations/20260928_Linkage_Neutral_Missing_V8.sql
 :r database/migrations/20260929_RF052_Bootstrap_Persistido_Geracao.sql
