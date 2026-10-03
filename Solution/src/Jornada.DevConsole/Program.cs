@@ -41,7 +41,7 @@ static class CommandCatalog {
         new("blocking","Executar blocking","Gera candidatos para o linkage sem impor sequência com outros comandos.",null,null,null),
         new("linkage","Executar linkage","Executa o linkage probabilístico.",null,null,null),
         new("identity","Consolidar identidade","Executa a consolidação de identidade.",null,null,null),
-        new("gold-synthetic","Carregar Gold sintética","Carrega fixture sintética diretamente, sem exigir ingestão anterior.","pwsh","-NoProfile -File scripts/dev-console-command.ps1 -Action gold-synthetic",".local/dev-console/gold-synthetic-records.json"),
+        new("gold-synthetic","Carregar Gold sintética","Carrega fixture sintética diretamente, sem exigir ingestão, blocking, linkage ou modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-gold-synthetic.ps1",".local/dev-console/gold-synthetic-records.json"),
         new("gold","Gerar Gold","Executa ou inspeciona a geração da camada Gold.",null,null,null),
         new("replay","Executar replay","Executa um replay a partir das evidências disponíveis.",null,null,null),
         new("semiblind","Executar consulta semicega","Executa a consulta semicega de validação.",null,null,null),
