@@ -121,6 +121,10 @@ public sealed class ModelGovernanceReadOnlyTests
             Assert.That(api, Does.Not.Contain("app.MapPost("));
             Assert.That(api, Does.Not.Contain("app.MapPut("));
             Assert.That(api, Does.Not.Contain("app.MapDelete("));
+            Assert.That(File.ReadAllText(Path.Combine(root, "Solution", "src", "Jornada.Api",
+                "ModelGovernanceReadOnlyService.cs")), Does.Contain("modelo_linkage_dossie_decisao"));
+            Assert.That(File.ReadAllText(Path.Combine(root, "Solution", "src", "Jornada.Api",
+                "ModelGovernanceReadOnlyService.cs")), Does.Contain("DecisionDossiers"));
             Assert.That(html, Does.Contain("Governança de modelos"));
             Assert.That(html, Does.Contain("Nenhuma consulta altera o modelo ATIVO"));
             Assert.That(html, Does.Contain("Credenciais não são gravadas no navegador"));

@@ -231,6 +231,35 @@ if ((args.Length is 5 or 7) && args[0] == "--dt15-compare-synthetic")
     await File.WriteAllTextAsync(path + ".sha256",
         sha + "  " + Path.GetFileName(path) + Environment.NewLine,
         new System.Text.UTF8Encoding(false));
+
+    // Persist the artifact identity as an explicitly non-promotable DEV dossier.
+    // Synthetic evidence can be inspected by governance but can never satisfy
+    // the COMPLETE dossier assertion used by VALIDATE/ACTIVATE.
+    await using (var register = new SqlCommand("""
+        DECLARE @dossie UNIQUEIDENTIFIER;
+        EXEC auditoria.sp_registrar_dossie_decisao_modelo_linkage
+             @modelo_id=@modelo_id,
+             @dossie_sha256=@sha,
+             @contrato_versao=@contrato,
+             @estado=N'INCOMPLETO',
+             @origem_evidencia=N'SINTETICA_DEV',
+             @valido_ate=@valido_ate,
+             @referencia_artefato=@referencia,
+             @registrado_por=N'Jornada.Linkage.Evaluation',
+             @dossie_id=@dossie OUTPUT;
+        """, sql))
+    {
+        register.CommandTimeout = 900;
+        register.Parameters.Add("@modelo_id", SqlDbType.UniqueIdentifier).Value = draftId;
+        register.Parameters.Add("@sha", SqlDbType.Binary, 32).Value = Convert.FromHexString(sha);
+        register.Parameters.Add("@contrato", SqlDbType.NVarChar, 80).Value =
+            Dt15SyntheticPairedComparison.MethodVersion;
+        register.Parameters.Add("@valido_ate", SqlDbType.DateTimeOffset).Value =
+            DateTimeOffset.UtcNow.AddHours(24);
+        register.Parameters.Add("@referencia", SqlDbType.NVarChar, 1000).Value =
+            Path.GetFileName(path);
+        await register.ExecuteNonQueryAsync();
+    }
     Console.WriteLine("DT-15 synthetic ACTIVE × DRAFT FS comparison: " + dossier.Status
         + "; output=" + path + "; SHA256=" + sha
         + "; engineering evidence only; never promotes or approves models.");

@@ -132,3 +132,17 @@ flowchart TD
 **Promoção:** o operador master examina na página ATIVO × RASCUNHO e histórico desde o bootstrap IBGE; decide explicitamente, com motivo e identidade individual. `VALIDATE` verifica gates técnicos, corpus/denominadores e integridade; `ACTIVATE` confirma de novo a aprovação, o hash global, a versão ATIVA-base e a compatibilidade dos consumidores. Publicar tudo-ou-nada; os jobs fixam o `modelo_id` no início, e uma janela de drain do linkage pode ser exigida até haver prova E2E de coexistência segura. Não parar API/ingestão/Monitor por padrão; suspender somente consumidores incompatíveis. Em caso de erro, manter o ATIVO anterior e registrar falha/rollback completo. Nunca combinar parâmetros novos com regras ou normalização antigas.
 
 **Lacunas de implementação:** manifesto/hash global cobrindo runtime e guardas, ledger de aprovação humana, proteção dos comandos diretos e ativação/drain testados em E2E. A publicação transacional atual de parâmetros + ruleset em RASCUNHO é evidência parcial, não certificação da troca completa. O documento [Calibrador — paridade SQL](Calibrador_Paridade_SQLServer.md) já registra a decisão vigente de bootstrap IBGE único; permanece como pendência de **código** remover no Worker a verificação legada de referência ativa em cada geração, com os testes fail-closed ali descritos.
+
+
+## 7. Estado após o fechamento técnico
+
+O fluxo implementado preserva uma fronteira deliberada entre **evidência técnica** e **autorização de promoção**:
+
+- o replay pareado sintético ATIVO × RASCUNHO gera artefato imutável com SHA-256 e registra esse SHA no ledger como `INCOMPLETO/SINTETICA_DEV`;
+- a página master DEV lê o ledger real de dossiês e expõe origem, estado, validade, SHA e aprovações separadas de `VALIDATE` e `ACTIVATE`, sem ganhar mutações;
+- `VALIDATE` e `ACTIVATE` continuam fail-closed: exigem aprovação humana distinta ligada ao mesmo `dossie_sha256`, fingerprint do modelo e ATIVO-base, revalidados dentro da transação;
+- evidência sintética não pode satisfazer `sp_assert_dossie_decisao_modelo_linkage`, porque o assert exige `COMPLETO`;
+- mudança do modelo, troca do ATIVO-base, expiração/incompletude do dossiê ou ausência da aprovação da ação bloqueiam promoção;
+- HML/PROD não recebem identidade fictícia nem promoção automática: a autorização institucional continua deny-by-default até integração real com IdP/RBAC e evidência representativa.
+
+Assim, a dívida de **bypass técnico e rastreabilidade da decisão** fica encerrada sem declarar que massa sintética equivale a validação municipal. A homologação HML/PROD é um gate operacional/institucional posterior e não pode ser simulada em DEV.

@@ -21,6 +21,7 @@ public sealed class Dt15HumanModelApprovalContractTests
             Assert.That(dossierBinding,Does.Contain("@dossie_sha256 BINARY(32)"));
             Assert.That(dossierBinding,Does.Contain("sp_assert_dossie_decisao_modelo_linkage"));
             Assert.That(dossierBinding,Does.Contain("aprovação humana não está vinculada a dossiê decisório"));
+            Assert.That(dossierBinding,Does.Contain("sp_assert_dossie_decisao_modelo_linkage"));
             Assert.That(worker,Does.Contain("sp_assert_aprovacao_modelo_linkage @modelo_id=@modelo_id,@acao=N'VALIDATE'"));
             Assert.That(worker,Does.Contain("sp_assert_aprovacao_modelo_linkage @modelo_id=@modelo_id,@acao=N'ACTIVATE'"));
         });
