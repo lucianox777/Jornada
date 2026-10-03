@@ -107,8 +107,8 @@ public sealed class DocumentationDriftContractTests
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        Assert.That(projectPaths, Has.Length.EqualTo(21),
-            "A conferência DT-08 refere-se ao monólito vigente de 21 projetos; a migração física da DT-16 foi revertida.");
+        Assert.That(projectPaths, Has.Length.EqualTo(22),
+            "A conferência DT-08 refere-se ao solução vigente de 22 projetos; a migração física da DT-16 foi revertida.");
         foreach (var project in projectPaths)
         {
             var projectFile = Path.Combine(sol, project);
