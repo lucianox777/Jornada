@@ -7,7 +7,7 @@ public sealed record DevTestStep(string Name,string Command,int ExitCode,long Du
 public sealed record DevTestExecution(Guid Id,string Action,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,IReadOnlyList<DevTestStep> Steps,Dictionary<string,string?> Parameters);
 public sealed record DevTestSession(Guid Id,DateTimeOffset StartedAt,string Name,Dictionary<string,string?> InitialParameters,List<DevTestExecution> Executions);
 
-public sealed class DevTestConsoleStore
+public sealed class DevTestConsoleStore : IDisposable
 {
     private readonly string _root;
     private readonly SemaphoreSlim _gate=new(1,1);
@@ -65,6 +65,7 @@ public sealed class DevTestConsoleStore
         await using(var stream=File.Create(temp)) await JsonSerializer.SerializeAsync(stream,session,JsonOptions,ct);
         File.Move(temp,path,true);
     }
+    public void Dispose()=>_gate.Dispose();
 }
 
 public sealed class DevTestCommandRunner
