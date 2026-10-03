@@ -1,6 +1,7 @@
 using System.Text.Json;
 
 var builder=WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton<ConsoleSession>();
 builder.Services.AddSingleton<RunStore>();
 builder.Services.AddSingleton<LiveExecutionService>();
 
