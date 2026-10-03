@@ -195,3 +195,12 @@ O manifesto de replay evolui para **schema v4** e passa a vincular create-once t
 Para rulesets dinâmicos, o replay deixa de consultar `identidade.blocking_chave` corrente: os passes são executados em memória sobre a projeção histórica verificada, preservando `INTERSECT` entre cláusulas de um passe, `UNION` entre passes e semântica temporal das features. Os UUIDs resultantes são resolvidos exclusivamente contra o candidate-state histórico já verificado. Ausência, adulteração ou incompatibilidade do binding v4 falha fechado.
 
 Com isso, tanto candidate-state quanto candidate generation dinâmica deixam de depender do estado Gold/projeção corrente durante REPLAY. Permanecem como fechamento do Marco B a prova determinística ponta a ponta, ensaios de GC/retenção/recuperação e medição de custo/latência DEV.
+
+
+## Prova determinística ponta a ponta do REPLAY histórico (03/10/2026)
+
+O modo `REPLAY` passa a derivar do `source_run_id` também a identidade exata do modelo e o universo de `linkage_run_item`. O source run precisa estar `PUBLICADO`; `--model-version` divergente, filtros de observação/Gestor/data/limite ou identidade de modelo incompatível falham fechado. O replay não recaptura estado corrente.
+
+O gate real `DT05_HISTORICAL_REPLAY_DETERMINISM_E2E` cria um source run com manifesto v4, candidate-state e blocking-projection congelados, altera depois o corpus pela onda real de CPF tardio e executa o Runner em `REPLAY --publish false`. O aceite exige igualdade exata do universo e dos doze campos da assinatura semântica V1 entre source e replay. Assim a prova é adversarial ao estado corrente: a mutação posterior existe, mas não pode alterar a decisão histórica.
+
+Essa prova continua sendo técnica DEV sobre massa sintética; não constitui SLA, validação estatística representativa ou autorização HML/Produção.
