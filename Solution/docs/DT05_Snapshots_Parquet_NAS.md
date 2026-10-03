@@ -177,3 +177,12 @@ Com o contrato físico v2 já congelado, o Runner passa a capturar automaticamen
 As partições são escritas nativamente pelo Runner em Parquet com ZSTD, publicadas create-only e endereçadas pelo SHA-256 dos bytes sob `linkage-snapshots/v1/objects/`. O manifesto específico de `candidate-state` contém somente versões, hashes, contagens e caminhos; `nome_completo`, `data_nascimento` e `nome_mae` permanecem exclusivamente dentro das partições Parquet no volume protegido. A dependência `Parquet.Net 6.1.0` é fixa e seu grafo deve ser produzido/validado pelo gate `dependency-lock`; lockfiles não são fabricados manualmente.
 
 **Limite deliberado:** esta fatia materializa o estado histórico físico antes do score, mas ainda não vincula `partition_set_sha256`/manifesto de candidate-state ao binding SQL v3 nem altera `BlockingProjectionCandidateLoader` para consumir o snapshot em replay. O Marco B permanece parcial até esses dois incrementos e os ensaios de reconstrução determinística, retenção/GC/recuperação e custo/latência DEV.
+
+
+## Incremento Marco B — consumo histórico fail-closed do candidate-state (03/10/2026)
+
+O modo `REPLAY` propaga obrigatoriamente `--replay-source-run-id` até o contrato do batch. Antes de materializar/pontuar o novo run, o Runner lê o binding v3 create-once do run de origem, verifica SHA-256 do manifesto candidate-state, partition-set, bytes/linhas/SHA físico e lógico dos Parquets e a identidade do conjunto de candidatos. Somente após essa verificação instala os candidatos congelados no scorer.
+
+Nesse modo, o candidate loader **não consulta `gold.pessoa` e não possui fallback para o estado corrente**. Para modelos legados, o filtro de nascimento é aplicado sobre o candidate-state congelado preservando os passes históricos suportados. Para modelos com ruleset dinâmico, o replay falha fechado enquanto a projeção de blocking congelada não estiver conectada ao consumo histórico; isso evita reconstruir candidate UUIDs usando a projeção SQL corrente.
+
+Este incremento fecha o consumo histórico do estado candidato legado, mas não declara o Marco B completo. Restam conectar a projeção de blocking histórica para rulesets dinâmicos, comprovar replay determinístico ponta a ponta e executar ensaios de concorrência GC/retenção, recuperação e custo/latência DEV.
