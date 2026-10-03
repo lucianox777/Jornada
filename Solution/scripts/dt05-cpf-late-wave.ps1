@@ -36,14 +36,16 @@ if ($Dt05HistoricalReplay) {
     $algorithm = Scalar "SELECT algoritmo_versao FROM identidade.modelo_linkage WHERE modelo_id='$modelId';"
     $ruleVersion = 'DT05_E2E_DYNAMIC_BLOCKING_V1'
     $parameterRows = @(Sql "SELECT CONCAT(nome,N'|',CONVERT(VARCHAR(100),valor)) FROM identidade.parametro_linkage WHERE modelo_id='$modelId' ORDER BY nome;")
-    $canonical = "$ruleVersion`n$algorithm`n-`n-`nPASS`tP001`nF`tbirth_year`n"
+    [Reflection.Assembly]::LoadFrom((Join-Path $Root 'src/Jornada.Contracts/bin/Release/net10.0/Jornada.Contracts.dll')) | Out-Null
+    $pass = [Jornada.Contracts.LinkageBlockingPass]::Create('P001',[string[]]@('birth_year'))
+    $parameters = [System.Collections.Generic.List[System.Collections.Generic.KeyValuePair[string,decimal]]]::new()
     foreach ($row in $parameterRows) {
         $parts = $row.Split('|',2)
         $value = [decimal]::Parse($parts[1],[Globalization.CultureInfo]::InvariantCulture)
-        $canonical += "P`t$($parts[0])`t$($value.ToString('G29',[Globalization.CultureInfo]::InvariantCulture))`n"
+        $parameters.Add([System.Collections.Generic.KeyValuePair[string,decimal]]::new($parts[0],$value))
     }
-    $sha = [Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($canonical))
-    $rulesetFingerprint = ([Convert]::ToHexString($sha)).ToLowerInvariant()
+    $rule = [Jornada.Contracts.LinkageDynamicRuleSet]::CreateWithPasses($ruleVersion,$algorithm,[Jornada.Contracts.LinkageBlockingPass[]]@($pass),$parameters)
+    $rulesetFingerprint = $rule.FingerprintSha256
     Sql @"
 DISABLE TRIGGER identidade.tr_linkage_ruleset_insert_status ON identidade.linkage_ruleset;
 DISABLE TRIGGER identidade.tr_linkage_ruleset_passe_guard ON identidade.linkage_ruleset_passe;
