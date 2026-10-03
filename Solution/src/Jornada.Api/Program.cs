@@ -78,6 +78,7 @@ builder.Services.AddSingleton<IngestionStagingStore>(_ =>
 builder.Services.AddSingleton(new ApiOperationalPaths(bronzeRoot, stagingRoot, bronzeConfigurationValid, stagingConfigurationValid));
 builder.Services.AddSingleton<ApiReadinessProbe>();
 builder.Services.AddHostedService<IngestionStagingCleanupWorker>();
+builder.Services.AddDevTestConsole(builder.Environment);
 
 if (builder.Environment.IsDevelopment())
 {
@@ -557,6 +558,8 @@ app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}/possibilidades", async (
         itens = await service.GetCompativeisAsync(context, canonicalUuid.Value, natureza, codigo, ct)
     });
 }).RequireRateLimiting("person-query").RequireAuthorization("jornada.possibilidades.read");
+
+app.MapDevTestConsole();
 
 app.Run();
 
