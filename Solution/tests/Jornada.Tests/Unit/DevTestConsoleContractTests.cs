@@ -33,6 +33,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("aria-busy=\"true\""));
             Assert.That(program,Does.Contain("running=new Set()"));
             Assert.That(program,Does.Contain("ação(ões) rodando agora"));
+            Assert.That(program,Does.Contain("Saída padrão (stdout)"));
+            Assert.That(program,Does.Contain("Erros/diagnóstico (stderr)"));
+            Assert.That(program,Does.Contain("Exit code:"));
+            Assert.That(program,Does.Contain("Duração:"));
             var launch=File.ReadAllText(Path.Combine(root,"Solution","Jornada.slnLaunch"));
             Assert.That(launch,Does.Contain("Jornada.DevConsole.csproj"));
             Assert.That(launch,Does.Contain("\"Action\": \"Start\""));
@@ -42,6 +46,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(goldScript,Does.Contain("FROM gold.pessoa"));
             Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
             Assert.That(goldScript,Does.Not.Contain("Jornada_Dev_LinkageValidation.sql"));
+            Assert.That(goldScript,Does.Contain("Etapa 1/4"));
+            Assert.That(goldScript,Does.Contain("Etapa 4/4"));
+            Assert.That(goldScript,Does.Contain("SQL Server container:"));
+            Assert.That(goldScript,Does.Contain("Registros:"));
+            Assert.That(script,Does.Contain("Etapa 1/4"));
+            Assert.That(script,Does.Contain("Etapa 4/4"));
+            Assert.That(script,Does.Contain("SDK:"));
             Assert.That(program,Does.Not.Contain("Jornada.Api"));
         });
     }
