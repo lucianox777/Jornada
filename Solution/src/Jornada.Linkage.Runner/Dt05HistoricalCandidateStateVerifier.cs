@@ -101,7 +101,9 @@ public sealed class Dt05HistoricalCandidateStateVerifier(string bronzeRoot)
             || fields.Any(x => x.ClrType != typeof(string))
             || fields[0].IsNullable || fields[4].IsNullable
             || !fields[1].IsNullable || !fields[2].IsNullable || !fields[3].IsNullable)
-            throw new InvalidDataException("DT-05: schema físico Parquet candidate-state inválido.");
+            throw new InvalidDataException(
+                "DT-05: schema físico Parquet candidate-state inválido. Lido: " +
+                string.Join(", ", fields.Select(x => $"{x.Name}:{x.ClrType.FullName}:nullable={x.IsNullable}")));
 
         var rows = new List<Dt05HistoricalCandidate>();
         using var logical = new MemoryStream();
