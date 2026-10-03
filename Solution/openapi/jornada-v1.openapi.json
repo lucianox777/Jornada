@@ -3008,7 +3008,9 @@
         "required": [
           "consultaId",
           "candidatos",
-          "nenhumDestes"
+          "nenhumDestes",
+          "busca_completa",
+          "motivo_incompletude"
         ],
         "additionalProperties": false,
         "properties": {
