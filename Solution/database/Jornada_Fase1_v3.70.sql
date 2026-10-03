@@ -75,4 +75,5 @@
 :r database/migrations/20261003_DT15_Decision_Dossier_Contract.sql
 :r database/migrations/20261003_DT15_Human_Approval_Dossier_Binding.sql
 :r database/migrations/20261003_SolutionSchema_371_Participantes_Divergencia.sql
+:r database/migrations/20261003_SolutionSchema_371_Possivel_Apresentacao.sql
 :r database/migrations/20260910_Schema_Consolidation_370.sql

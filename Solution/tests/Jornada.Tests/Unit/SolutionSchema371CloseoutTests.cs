@@ -42,12 +42,32 @@ public sealed class SolutionSchema371CloseoutTests
     }
 
     [Test]
+    public void Possible_presentation_is_append_only_minimal_and_threshold_free()
+    {
+        var sql=File.ReadAllText(Path.Combine(Root(),"Solution","database","migrations","20261003_SolutionSchema_371_Possivel_Apresentacao.sql"));
+        Assert.Multiple(() => {
+            Assert.That(sql,Does.Contain("apresentacao_id"));
+            Assert.That(sql,Does.Contain("NENHUM_DESTES"));
+            Assert.That(sql,Does.Contain("ordem BETWEEN 1 AND 5"));
+            Assert.That(sql,Does.Contain("sp_selar_linkage_apresentacao_v1"));
+            Assert.That(sql,Does.Contain("candidatos_fingerprint_sha256"));
+            Assert.That(sql,Does.Contain("append-only"));
+            Assert.That(sql,Does.Not.Contain("nome_mae").IgnoreCase);
+            Assert.That(sql,Does.Not.Contain("data_nascimento").IgnoreCase);
+            Assert.That(sql,Does.Not.Contain("limiar_inferior").IgnoreCase);
+            Assert.That(sql,Does.Not.Contain("threshold").IgnoreCase);
+        });
+    }
+
+    [Test]
     public void Manifest_runs_371_delta_before_schema_consolidation()
     {
         var lines=File.ReadAllLines(Path.Combine(Root(),"Solution","database","migrations","manifest.txt"));
         var delta=Array.IndexOf(lines,"migrations/20261003_SolutionSchema_371_Participantes_Divergencia.sql");
+        var possible=Array.IndexOf(lines,"migrations/20261003_SolutionSchema_371_Possivel_Apresentacao.sql");
         var consolidation=Array.IndexOf(lines,"migrations/20260910_Schema_Consolidation_370.sql");
         Assert.That(delta,Is.GreaterThanOrEqualTo(0));
-        Assert.That(consolidation,Is.GreaterThan(delta));
+        Assert.That(possible,Is.GreaterThan(delta));
+        Assert.That(consolidation,Is.GreaterThan(possible));
     }
 }
