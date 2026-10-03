@@ -167,6 +167,7 @@ $raw2 = Scalar "SELECT CONCAT(status,N'|',resultado_publicacao,N'|',status_publi
 if ($raw2 -ne $raw1) { throw "DT-05: ondas 1 e 2 divergiram antes da chegada do CPF: $raw1 / $raw2." }
 # Exigir igualdade dos DOZE campos da assinatura V1, não só dos três estados.
 $signatureFields = 'modelo_id,modelo_versao,status,motivo,resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,melhor_candidato_uuid,segundo_candidato_uuid,politica_publicacao_versao,pessoa_origem_id_publicado'
+$replaySemanticSignatureFields = 'modelo_id,modelo_versao,status,motivo,melhor_candidato_uuid,segundo_candidato_uuid'
 $semanticDifference = [int](Scalar "SELECT COUNT_BIG(*) FROM (SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave1.resultId) EXCEPT SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave2.resultId)) AS diferencas;")
 if ($semanticDifference -ne 0) { throw 'DT-05: os doze campos da assinatura V1 mudaram indevidamente na onda 2.' }
 if ([int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_transicao_semantica WHERE pessoa_observacao_id=$observationId;") -ne 1) {
@@ -256,17 +257,19 @@ if ($Dt05HistoricalReplay) {
     if ($sourceCount -ne $replayCount -or $universeDelta -ne 0) { throw 'DT-05: REPLAY não reproduziu exatamente o universo do source run.' }
     $replayResultId = [long](Scalar "SELECT linkage_resultado_id FROM identidade.linkage_resultado WHERE linkage_run_id='$replayRunId' AND pessoa_observacao_id=$observationId;")
     if ($replayResultId -le 0) { throw 'DT-05: REPLAY não produziu resultado bruto para a observação histórica.' }
-    $resultDelta = [int](Scalar "SELECT COUNT_BIG(*) FROM (SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave1.resultId) EXCEPT SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$replayResultId) d;")
+    $resultDelta = [int](Scalar "SELECT COUNT_BIG(*) FROM (SELECT $replaySemanticSignatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave1.resultId) EXCEPT SELECT $replaySemanticSignatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$replayResultId) d;")
     if ($resultDelta -ne 0) {
         $signatureNames = $signatureFields -split ','
         $diffParts = @()
-        foreach ($name in ($signatureFields -split ',')) {
+        foreach ($name in ($replaySemanticSignatureFields -split ',')) {
             $sourceValue = Scalar "SELECT CONVERT(NVARCHAR(4000),[$name]) FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave1.resultId);"
             $replayValue = Scalar "SELECT CONVERT(NVARCHAR(4000),[$name]) FROM identidade.linkage_resultado WHERE linkage_resultado_id=$replayResultId;"
             if ([string]$sourceValue -ne [string]$replayValue) { $diffParts += "$name=source[$sourceValue]/replay[$replayValue]" }
         }
         throw "DT-05: resultado do REPLAY divergiu da assinatura V1 do source run: $($diffParts -join '; ')."
     }
+    $replayPublicationCount = [int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_resultado WHERE linkage_run_id='$replayRunId' AND (resultado_publicacao IS NOT NULL OR pessoa_uuid_publicado IS NOT NULL OR status_publicacao IS NOT NULL OR motivo_publicacao IS NOT NULL OR politica_publicacao_versao IS NOT NULL OR pessoa_origem_id_publicado IS NOT NULL);")
+    if ($replayPublicationCount -ne 0) { throw 'DT-05: REPLAY executado com publish=false produziu efeitos de publicação.' }
     $binding = [int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_replay_manifesto WHERE linkage_run_id='$($wave1.runId)' AND schema_version=4 AND candidate_state_manifesto_sha256 IS NOT NULL AND blocking_projection_manifesto_sha256 IS NOT NULL;")
     if ($binding -ne 1) { throw 'DT-05: source run não possui binding v4 completo.' }
     $replayEvidence = [ordered]@{
