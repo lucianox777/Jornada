@@ -31,7 +31,7 @@ public sealed class Dt05CandidateStateSqlBindingContractTests
             Assert.That(sql, Does.Contain("candidateState.ManifestLogicalPath"));
             Assert.That(sql, Does.Contain("candidateState.ManifestSha256"));
             Assert.That(sql, Does.Contain("candidateState.PartitionSetSha256"));
-            Assert.That(runner, Does.Contain("identity, candidateState, workCt"));
+            Assert.That(runner, Does.Contain("identity, candidateState, blockingProjection, workCt"));
         });
     }
 }
