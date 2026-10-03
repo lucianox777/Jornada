@@ -39,9 +39,14 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("dev-console-gold-synthetic.ps1"));
             Assert.That(runtime,Does.Contain("build-ingestion-fixture.py"));
             Assert.That(runtime,Does.Contain("manual-zip"));
-            Assert.That(runtime,Does.Not.Contain("session.StartedAt"));
+            Assert.That(runtime,Does.Contain("session.StartedAt"));
+            Assert.That(runtime,Does.Contain("JsonSerializerDefaults.Web"));
+            Assert.That(runtime,Does.Contain("dev-console-command.ps1 -Action destroy"));
 
             Assert.That(page,Does.Contain("🕘 Execuções"));
+            Assert.That(page,Does.Contain("Console DEV / Comandos"));
+            Assert.That(page,Does.Contain("Execução / "));
+            Assert.That(page,Does.Contain("Number.isNaN(parsed.getTime())"));
             Assert.That(page,Does.Contain("console-shell"));
             Assert.That(page,Does.Contain("RODANDO..."));
             Assert.That(page,Does.Contain("new EventSource"));
@@ -63,6 +68,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
             Assert.That(goldScript,Does.Not.Contain("Jornada_Dev_LinkageValidation.sql"));
             Assert.That(commandScript,Does.Contain("SDK:"));
+            Assert.That(commandScript,Does.Contain("'destroy'"));
+            Assert.That(commandScript,Does.Contain("local-db.ps1"));
+            Assert.That(commandScript,Does.Contain("Remove-Item -LiteralPath $devLocal -Recurse -Force"));
+            Assert.That(commandScript,Does.Contain("histórico da Console foi preservado"));
 
             var launch=File.ReadAllText(Path.Combine(root,"Solution","Jornada.slnLaunch"));
             Assert.That(launch,Does.Contain("Jornada.DevConsole.csproj"));
