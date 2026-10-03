@@ -25,6 +25,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
     Dt05ReplayManifestPublisher replayManifestPublisher,
     Dt05CandidateStateSnapshotPublisher candidateStateSnapshotPublisher,
     Dt05BlockingProjectionSnapshotPublisher blockingProjectionSnapshotPublisher,
+    Dt05HistoricalCandidateStateVerifier historicalCandidateStateVerifier,
     ILogger<ProbabilisticLinkageBatchRunner> logger) : IProbabilisticLinkageBatchRunner
 {
     public async Task<ProbabilisticLinkageRunSummary> RunAsync(
@@ -50,6 +51,20 @@ public sealed class ProbabilisticLinkageBatchRunner(
         var model = request.ModelVersion is int version
             ? await linkage.GetModelByVersionAsync(version, workCt)
             : await linkage.GetActiveModelAsync(workCt);
+
+        if (request.Mode == LinkageRunType.REPLAY)
+        {
+            if (request.ReplaySourceRunId is not Guid sourceRunId)
+                throw new InvalidOperationException("DT-05: REPLAY exige source run imutável; fallback ao estado corrente recusado.");
+            if (linkage is not SqlProbabilisticIdentityLinkage sqlLinkage)
+                throw new InvalidOperationException("DT-05: implementação de linkage não suporta candidate-state histórico fail-closed.");
+            var binding = await replaySql.ReadHistoricalCandidateStateBindingAsync(sourceRunId, workCt);
+            var verified = await historicalCandidateStateVerifier.VerifyAsync(binding, workCt);
+            sqlLinkage.UseHistoricalCandidates(sourceRunId, verified.Candidates);
+            logger.LogInformation(
+                "DT-05 historical candidate-state verified. SourceRunId={SourceRunId}; ManifestSha256={ManifestSha256}; Rows={Rows}.",
+                sourceRunId, verified.ManifestSha256, verified.RowCount);
+        }
 
         var runId = Guid.NewGuid();
         long eligible = 0;
