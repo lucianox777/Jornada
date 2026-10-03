@@ -32,6 +32,14 @@ if ([int](Scalar "SELECT COUNT_BIG(*) FROM gold.pessoa WHERE estado_identidade=N
 }
 
 if ($Dt05HistoricalReplay) {
+    $previousOperation=$env:Processor__Operation
+    try {
+        $env:Processor__Operation='REBUILD_LOCAL_BLOCKING'
+        Push-Location $Root
+        try { dotnet run --no-build --configuration Release --project src/Jornada.Processor.Worker | Out-Host; if($LASTEXITCODE -ne 0){ throw 'DT-05: rebuild da projeção canônica falhou.' } }
+        finally { Pop-Location }
+    } finally { $env:Processor__Operation=$previousOperation }
+    if ([int](Scalar "SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE atributo=N'birth_year' AND vigencia_fim IS NULL;") -lt 2) { throw 'DT-05: projeção birth_year não materializou as referências sintéticas.' }
     $modelId = Scalar "SELECT CONVERT(VARCHAR(36),modelo_id) FROM identidade.modelo_linkage WHERE status=N'ATIVO';"
     $algorithm = Scalar "SELECT algoritmo_versao FROM identidade.modelo_linkage WHERE modelo_id='$modelId';"
     $ruleVersion = 'DT05_E2E_DYNAMIC_BLOCKING_V1'
