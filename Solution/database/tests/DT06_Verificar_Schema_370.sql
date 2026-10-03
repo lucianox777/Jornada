@@ -2,7 +2,7 @@
 SET NOCOUNT ON;
 IF OBJECT_ID(N'jornada.schema_migration',N'U') IS NULL
     THROW 51366, 'DT06: ledger ausente.', 1;
-IF (SELECT COUNT(*) FROM jornada.schema_migration) <> 70
+IF (SELECT COUNT(*) FROM jornada.schema_migration) <> 71
     THROW 51367, 'DT06: conjunto de migrations incompleto ou inesperado.', 1;
 IF EXISTS(SELECT 1 FROM jornada.schema_migration WHERE LEN(sha256)<>64 OR sha256 LIKE '%[^0-9a-f]%')
     THROW 51368, 'DT06: checksum inválido.', 1;
