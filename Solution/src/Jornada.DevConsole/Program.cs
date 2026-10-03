@@ -79,8 +79,8 @@ sealed class ManualZipExecutor(IWebHostEnvironment env) {
         var started=DateTimeOffset.UtcNow; var root=FindSolutionRoot(env.ContentRootPath); var id=Guid.NewGuid();
         if(string.IsNullOrWhiteSpace(request.Gestor))throw new ArgumentException("Gestor é obrigatório.");
         using var manifest=JsonDocument.Parse(request.ManifestJson);
-        foreach(var line in SplitJsonl(request.PessoasJsonl))using var _=JsonDocument.Parse(line);
-        foreach(var line in SplitJsonl(request.RegistrosJsonl))using var _=JsonDocument.Parse(line);
+        foreach(var line in SplitJsonl(request.PessoasJsonl)){using var doc=JsonDocument.Parse(line);}
+        foreach(var line in SplitJsonl(request.RegistrosJsonl)){using var doc=JsonDocument.Parse(line);}
         var work=Path.Combine(root,".local","dev-console","manual-zip",id.ToString("N"));Directory.CreateDirectory(work);
         await File.WriteAllTextAsync(Path.Combine(work,"manifest.json"),request.ManifestJson.Trim()+Environment.NewLine,ct);
         await File.WriteAllTextAsync(Path.Combine(work,"pessoas.jsonl"),NormalizeJsonl(request.PessoasJsonl),ct);
