@@ -65,6 +65,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
     private readonly ConcurrentDictionary<Guid, LinkageRuntimeSnapshot> runtimeCache = new();
     private IReadOnlyList<Dt05HistoricalCandidate>? historicalCandidates;
     private Guid? historicalCandidatesSourceRun;
+    private IReadOnlyList<Dt05HistoricalBlockingProjectionRow>? historicalBlockingProjection;
 
     public async Task<ProbabilisticLinkageModelRef> GetActiveModelAsync(CancellationToken ct)
     {
@@ -113,6 +114,13 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
     internal async Task<LinkageModel> GetModelForDiagnosticsAsync(Guid modelId, CancellationToken ct) =>
         (await GetOrLoadRuntimeSnapshotAsync(modelId, ct)).Model;
+
+    public void UseHistoricalBlockingProjection(Guid sourceRunId, IReadOnlyList<Dt05HistoricalBlockingProjectionRow> rows)
+    {
+        if(runOptions?.Mode!=LinkageRunType.REPLAY || runOptions.ReplaySourceRunId!=sourceRunId)
+            throw new InvalidOperationException("DT-05: blocking histórico só pode ser instalado no REPLAY exato.");
+        historicalBlockingProjection=rows ?? throw new ArgumentNullException(nameof(rows));
+    }
 
     public void UseHistoricalCandidates(Guid sourceRunId, IReadOnlyList<Dt05HistoricalCandidate> candidates)
     {
@@ -575,9 +583,23 @@ public sealed class SqlProbabilisticIdentityLinkage(
         // Historical replay never touches Gold. The frozen candidate-state is filtered
         // with the same deterministic birth-based semantics for legacy models. Dynamic
         // blocking requires the separately frozen projection before it can be enabled.
-        if (snapshot.RuleSet is not null)
-            throw new InvalidOperationException(
-                "DT-05: replay histórico com ruleset dinâmico exige consumo da projeção de blocking congelada; fallback SQL recusado.");
+        if (snapshot.RuleSet is { } historicalRuleSet)
+        {
+            if(historicalBlockingProjection is null)
+                throw new InvalidOperationException("DT-05: REPLAY dinâmico sem blocking-projection histórica verificada; fallback SQL recusado.");
+            var passes=BlockingRuleSetCandidatePlanner.Plan(historicalRuleSet,observation);
+            if(passes.Count==0) return Array.Empty<LinkageCandidate>();
+            var uuids=historicalBlockingProjection.Where(x=>x.Vigente
+                    && x.NormalizacaoVersao==historicalRuleSet.NormalizationVersion
+                    && passes.Any(p=>p.Attribute==x.Atributo && p.NormalizedValue==x.ValorNormalizado
+                        && p.TemporalSemantics==x.SemanticaTemporal))
+                .Select(x=>x.PessoaUuid).Distinct().OrderBy(x=>x).Take(maxCandidates+1).ToArray();
+            if(uuids.Length>maxCandidates) throw new InvalidOperationException(
+                $"DT-05: blocking histórico excedeu MaxCandidatesPerBlock={maxCandidates}; replay recusado.");
+            var byId=frozen.ToDictionary(x=>x.PessoaUuid);
+            return uuids.Where(byId.ContainsKey).Select(id=>byId[id])
+                .Select(x=>new LinkageCandidate(x.PessoaUuid,x.NomeCompleto,x.DataNascimento,x.NomeMae)).ToArray();
+        }
         if (observation.DataNascimento is not DateOnly birth) return Array.Empty<LinkageCandidate>();
 
         var birthComponent = LinkageModelPolicy.SupportsBirthComponentScoring(snapshot.Model);
