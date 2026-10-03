@@ -14,7 +14,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("/api/commands/{command}/run"));
             Assert.That(program,Does.Contain("/api/runs/{id:guid}"));
             Assert.That(program,Does.Contain("gold-synthetic"));
-            Assert.That(program,Does.Contain("Registros gerados"));
+            Assert.That(program,Does.Contain("Registros gerados"));\n            Assert.That(program,Does.Contain("CountByCommandAsync"));\n            Assert.That(program,Does.Contain("runCount"));\n            var launch=File.ReadAllText(Path.Combine(root,"Solution","Jornada.slnLaunch"));\n            Assert.That(launch,Does.Contain("Jornada.DevConsole.csproj"));\n            Assert.That(launch,Does.Contain("\\\"Action\\\": \\"Start\\\""));
             Assert.That(program,Does.Contain("nenhuma ação exige a anterior"));
             Assert.That(script,Does.Contain("Jornada_Dev_LinkageValidation.sql"));
             Assert.That(script,Does.Contain("FROM gold.pessoa"));
