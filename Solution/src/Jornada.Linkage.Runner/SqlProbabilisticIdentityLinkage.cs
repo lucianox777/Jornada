@@ -589,11 +589,23 @@ public sealed class SqlProbabilisticIdentityLinkage(
                 throw new InvalidOperationException("DT-05: REPLAY dinâmico sem blocking-projection histórica verificada; fallback SQL recusado.");
             var passes=BlockingRuleSetCandidatePlanner.Plan(historicalRuleSet,observation);
             if(passes.Count==0) return Array.Empty<LinkageCandidate>();
-            var uuids=historicalBlockingProjection.Where(x=>x.Vigente
-                    && x.NormalizacaoVersao==historicalRuleSet.NormalizationVersion
-                    && passes.Any(p=>p.Attribute==x.Atributo && p.NormalizedValue==x.ValorNormalizado
-                        && p.TemporalSemantics==x.SemanticaTemporal))
-                .Select(x=>x.PessoaUuid).Distinct().OrderBy(x=>x).Take(maxCandidates+1).ToArray();
+            var matching=new HashSet<Guid>();
+            foreach(var pass in passes)
+            {
+                HashSet<Guid>? passSet=null;
+                foreach(var clause in pass.Clauses)
+                {
+                    var stable=BlockingFeatureTemporalCatalog.Get(clause.Feature)
+                        == BlockingFeatureTemporalSemantics.StableIdentityDatum;
+                    var clauseSet=historicalBlockingProjection.Where(x=>x.NormalizacaoVersao==IdentityComparison.NormalizationVersion
+                            && x.Atributo==clause.Feature && clause.Values.Contains(x.ValorNormalizado)
+                            && (!stable || x.Vigente))
+                        .Select(x=>x.PessoaUuid).ToHashSet();
+                    if(passSet is null) passSet=clauseSet; else passSet.IntersectWith(clauseSet);
+                }
+                if(passSet is not null) matching.UnionWith(passSet);
+            }
+            var uuids=matching.OrderBy(x=>x).Take(maxCandidates+1).ToArray();
             if(uuids.Length>maxCandidates) throw new InvalidOperationException(
                 $"DT-05: blocking histórico excedeu MaxCandidatesPerBlock={maxCandidates}; replay recusado.");
             var byId=frozen.ToDictionary(x=>x.PessoaUuid);
