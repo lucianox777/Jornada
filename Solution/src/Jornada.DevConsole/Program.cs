@@ -16,9 +16,9 @@ app.MapPost("/api/commands/{command}/run",async(string command,CommandExecutor e
 });
 app.Run();
 
-record CommandDefinition(string Id,string Title,string Description,string File,string Arguments,string? ResultPath);
-record StepResult(string Command,int ExitCode,long DurationMs,string Output,string Error);
-record RunRecord(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,StepResult Step,IReadOnlyList<Dictionary<string,string?>> Records);
+sealed record CommandDefinition(string Id,string Title,string Description,string File,string Arguments,string? ResultPath);
+sealed record StepResult(string Command,int ExitCode,long DurationMs,string Output,string Error);
+sealed record RunRecord(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,StepResult Step,IReadOnlyList<Dictionary<string,string?>> Records);
 
 static class CommandCatalog {
     // Catálogo independente: qualquer comando pode ser executado a qualquer momento.
@@ -34,7 +34,7 @@ sealed class CommandExecutor(IWebHostEnvironment env) {
         using var p=new Process{StartInfo=new ProcessStartInfo(d.File,d.Arguments){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,UseShellExecute=false,CreateNoWindow=true}};
         p.Start();var stdout=p.StandardOutput.ReadToEndAsync(ct);var stderr=p.StandardError.ReadToEndAsync(ct);await p.WaitForExitAsync(ct);sw.Stop();
         var records=new List<Dictionary<string,string?>>();
-        if(d.ResultPath is not null){var path=Path.Combine(root,d.ResultPath);if(File.Exists(path)){using var doc=JsonDocument.Parse(await File.ReadAllTextAsync(path,ct));foreach(var row in doc.RootElement.EnumerateArray())records.Add(row.EnumerateObject().ToDictionary(x=>x.Name,x=>x.Value.ToString()));}}
+        if(d.ResultPath is not null){var path=Path.Combine(root,d.ResultPath);if(File.Exists(path)){using var doc=JsonDocument.Parse(await File.ReadAllTextAsync(path,ct));foreach(var row in doc.RootElement.EnumerateArray())records.Add(row.EnumerateObject().ToDictionary(x=>x.Name,x=>(string?)x.Value.ToString()));}}
         var step=new StepResult($"{d.File} {d.Arguments}",p.ExitCode,sw.ElapsedMilliseconds,await stdout,await stderr);
         var summary=records.Count>0?$"{records.Count} registro(s) no resultado.":p.ExitCode==0?"Comando concluído.":"Comando falhou; veja stdout/stderr.";
         return new RunRecord(Guid.NewGuid(),d.Id,d.Title,started,DateTimeOffset.UtcNow,p.ExitCode==0?"SUCESSO":"FALHA",summary,step,records);
