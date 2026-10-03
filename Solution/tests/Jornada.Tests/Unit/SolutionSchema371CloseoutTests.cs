@@ -42,6 +42,26 @@ public sealed class SolutionSchema371CloseoutTests
     }
 
     [Test]
+    public void Processor_runtime_publishes_identity_divergence_through_causal_v1_only()
+    {
+        var source=File.ReadAllText(Path.Combine(Root(),"Solution","src","Jornada.Processor.Worker","SqlProcessorRepository.Persistence.cs"));
+        var methodStart=source.IndexOf("private static async Task RecordIdentityDivergenceAsync",StringComparison.Ordinal);
+        var methodEnd=source.IndexOf("private static async Task RecordFactDivergenceAsync",methodStart,StringComparison.Ordinal);
+        Assert.That(methodStart,Is.GreaterThanOrEqualTo(0));
+        Assert.That(methodEnd,Is.GreaterThan(methodStart));
+        var method=source[methodStart..methodEnd];
+        Assert.Multiple(() => {
+            Assert.That(method,Does.Contain("qualidade.sp_registrar_divergencia_causal_v1"));
+            Assert.That(method,Does.Contain("CommandType.StoredProcedure"));
+            Assert.That(method,Does.Contain("@candidatos_json"));
+            Assert.That(method,Does.Not.Contain("INSERT qualidade.divergencia_gestor").IgnoreCase);
+            Assert.That(method,Does.Not.Contain("IF NOT EXISTS").IgnoreCase);
+            Assert.That(method,Does.Not.Contain("modelo_id").IgnoreCase);
+            Assert.That(method,Does.Not.Contain("score_melhor").IgnoreCase);
+        });
+    }
+
+    [Test]
     public void Possible_presentation_is_append_only_minimal_and_threshold_free()
     {
         var sql=File.ReadAllText(Path.Combine(Root(),"Solution","database","migrations","20261003_SolutionSchema_371_Possivel_Apresentacao.sql"));

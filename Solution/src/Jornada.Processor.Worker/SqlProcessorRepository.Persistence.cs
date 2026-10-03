@@ -577,14 +577,23 @@ internal sealed partial class SqlProcessorRepository
 
     private static async Task RecordIdentityDivergenceAsync(SqlConnection connection, SqlTransaction tx, long gestorId, long pessoaObservacaoId, string? codigoPessoaOrigem, string motivo, CancellationToken ct)
     {
-        await using var command=connection.CreateCommand(); command.Transaction=tx;
-        command.CommandText="""
-            IF NOT EXISTS(SELECT 1 FROM qualidade.divergencia_gestor WHERE gestor_id=@gestor AND pessoa_observacao_id=@obs AND tipo='DIVERGENCIA_IDENTIDADE' AND motivo=@motivo AND status='ABERTA')
-             INSERT qualidade.divergencia_gestor(gestor_id,tipo,motivo,pessoa_observacao_id,codigo_pessoa_origem,status) VALUES(@gestor,'DIVERGENCIA_IDENTIDADE',@motivo,@obs,@codigo,'ABERTA');
-            """;
-        command.Parameters.AddWithValue("@gestor",gestorId); command.Parameters.AddWithValue("@obs",pessoaObservacaoId);
-        command.Parameters.Add(new SqlParameter("@codigo",SqlDbType.NVarChar,255){Value=(object?)codigoPessoaOrigem ?? DBNull.Value});
-        command.Parameters.Add(new SqlParameter("@motivo",SqlDbType.NVarChar,120){Value=motivo});
+        // Toda publicação de divergência de identidade passa pelo fingerprint causal V1.
+        // O conjunto de candidatos é vazio neste caminho determinístico; score/modelo nunca
+        // participam da identidade causal, portanto um desfecho governado não renasce sem
+        // mudança material do conteudo_hash/motivo.
+        await using var command = connection.CreateCommand();
+        command.Transaction = tx;
+        command.CommandType = CommandType.StoredProcedure;
+        command.CommandText = "qualidade.sp_registrar_divergencia_causal_v1";
+        command.Parameters.AddWithValue("@gestor_id", gestorId);
+        command.Parameters.Add(new SqlParameter("@tipo", SqlDbType.NVarChar, 50) { Value = "DIVERGENCIA_IDENTIDADE" });
+        command.Parameters.Add(new SqlParameter("@motivo", SqlDbType.NVarChar, 120) { Value = motivo });
+        command.Parameters.AddWithValue("@pessoa_observacao_id", pessoaObservacaoId);
+        command.Parameters.Add(new SqlParameter("@registro_observacao_id", SqlDbType.BigInt) { Value = DBNull.Value });
+        command.Parameters.Add(new SqlParameter("@codigo_pessoa_origem", SqlDbType.NVarChar, 255) { Value = (object?)codigoPessoaOrigem ?? DBNull.Value });
+        command.Parameters.Add(new SqlParameter("@candidatos_json", SqlDbType.NVarChar, -1) { Value = "[]" });
+        command.Parameters.Add(new SqlParameter("@correlation_id", SqlDbType.UniqueIdentifier) { Value = DBNull.Value });
+        command.Parameters.Add(new SqlParameter("@divergencia_id", SqlDbType.BigInt) { Direction = ParameterDirection.Output });
         await command.ExecuteNonQueryAsync(ct);
     }
 
