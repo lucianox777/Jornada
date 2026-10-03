@@ -1,0 +1,11 @@
+[
+  {
+    "Name": "Jornada DEV Console",
+    "Projects": [
+      {
+        "Path": "src\\Jornada.DevConsole\\Jornada.DevConsole.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]
