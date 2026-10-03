@@ -558,6 +558,7 @@ app.MapGet("/api/v1/pessoas/{pessoaUuid:guid}/possibilidades", async (
     });
 }).RequireRateLimiting("person-query").RequireAuthorization("jornada.possibilidades.read");
 
+
 app.Run();
 
 

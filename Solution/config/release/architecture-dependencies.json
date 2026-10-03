@@ -115,6 +115,7 @@
     ],
     "Jornada.Access.Security": [
       "Jornada.Contracts"
-    ]
+    ],
+    "Jornada.DevConsole": []
   }
 }
