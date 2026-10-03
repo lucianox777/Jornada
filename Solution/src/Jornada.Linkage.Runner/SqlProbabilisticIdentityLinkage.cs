@@ -63,7 +63,6 @@ public sealed class SqlProbabilisticIdentityLinkage(
     LinkageRunOptions? runOptions = null) : IProbabilisticIdentityLinkage, ISemiblindCandidateRetriever
 {
     private readonly ConcurrentDictionary<Guid, LinkageRuntimeSnapshot> runtimeCache = new();
-    private readonly SemaphoreSlim historicalCandidateGate = new(1, 1);
     private IReadOnlyList<Dt05HistoricalCandidate>? historicalCandidates;
     private Guid? historicalCandidatesSourceRun;
 
@@ -592,7 +591,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
         return result;
     }
 
-    private static bool HistoricalBirthMatch(DateOnly? candidate, DateOnly birth, IdentityObservation observation, bool expanded)
+    private bool HistoricalBirthMatch(DateOnly? candidate, DateOnly birth, IdentityObservation observation, bool expanded)
     {
         if (candidate is null) return false;
         if (candidate == birth) return true;
