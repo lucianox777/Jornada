@@ -159,6 +159,7 @@ jobs:
           print(hashlib.sha256(text.encode("utf-8")).hexdigest())
           PY
           )
+          echo "Current migration manifest SHA-256: $current_manifest"
           test "$current_manifest" = "$declared_manifest"
 
 
