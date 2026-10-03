@@ -1,4 +1,10 @@
 @echo off
 setlocal
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0teste.ps1"
-exit /b %ERRORLEVEL%
+cd /d "%~dp0"
+where pwsh >nul 2>nul
+if %errorlevel%==0 (
+  pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0teste.ps1"
+) else (
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0teste.ps1"
+)
+exit /b %errorlevel%
