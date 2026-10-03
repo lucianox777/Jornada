@@ -29,6 +29,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("SEM EXECUTOR"));
             Assert.That(program,Does.Not.Contain("disabled title=\\\"Ainda sem executor implementado\\\""));
             Assert.That(program,Does.Contain("displayCommand"));
+            Assert.That(program,Does.Contain("RODANDO..."));
+            Assert.That(program,Does.Contain("aria-busy=\"true\""));
+            Assert.That(program,Does.Contain("running=new Set()"));
+            Assert.That(program,Does.Contain("ação(ões) rodando agora"));
             var launch=File.ReadAllText(Path.Combine(root,"Solution","Jornada.slnLaunch"));
             Assert.That(launch,Does.Contain("Jornada.DevConsole.csproj"));
             Assert.That(launch,Does.Contain("\"Action\": \"Start\""));
