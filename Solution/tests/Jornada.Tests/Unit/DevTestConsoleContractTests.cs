@@ -4,43 +4,22 @@ namespace Jornada.Tests.Unit;
 [Category("Unit")]
 public sealed class DevTestConsoleContractTests
 {
-    private static string Root()
-    {
-        var dir=new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
-        while(dir is not null && !Directory.Exists(Path.Combine(dir.FullName,"Solution"))) dir=dir.Parent;
-        return dir?.FullName ?? throw new DirectoryNotFoundException("Repository root not found.");
-    }
-
+    private static string Root(){var d=new DirectoryInfo(TestContext.CurrentContext.TestDirectory);while(d is not null&&!Directory.Exists(Path.Combine(d.FullName,"Solution")))d=d.Parent;return d?.FullName??throw new DirectoryNotFoundException();}
     [Test]
-    public void Console_is_development_only_cumulative_and_one_shot()
+    public void Console_is_separate_executable_with_independent_commands_and_navigable_runs()
     {
-        var api=File.ReadAllText(Path.Combine(Root(),"Solution","src","Jornada.Api","DevTestConsoleApi.cs"));
-        var runner=File.ReadAllText(Path.Combine(Root(),"Solution","src","Jornada.Api","DevTestConsole.cs"));
-        Assert.Multiple(() => {
-            Assert.That(api,Does.Contain("if(!env.IsDevelopment()) return app"));
-            Assert.That(api,Does.Contain("/api/dev/test/sessions"));
-            Assert.That(api,Does.Contain("actions/update-build"));
-            Assert.That(api,Does.Contain("Parâmetros ativos"));
-            Assert.That(api,Does.Contain("Histórico cumulativo"));
-            Assert.That(runner,Does.Contain("session.Executions.Add(execution)"));
-            Assert.That(runner,Does.Contain("git\",\"pull --ff-only"));
-            Assert.That(runner,Does.Contain("dotnet\",\"restore Solution/Jornada.sln --locked-mode"));
-            Assert.That(runner,Does.Contain("dotnet\",\"build Solution/Jornada.sln --no-restore --configuration Release"));
-            Assert.That(runner,Does.Not.Contain("while (true)"));
-            Assert.That(runner,Does.Not.Contain("PeriodicTimer"));
-        });
-    }
-
-    [Test]
-    public void Parameter_snapshot_masks_secret_material()
-    {
-        var api=File.ReadAllText(Path.Combine(Root(),"Solution","src","Jornada.Api","DevTestConsoleApi.cs"));
-        Assert.Multiple(() => {
-            Assert.That(api,Does.Contain("\"password\""));
-            Assert.That(api,Does.Contain("\"secret\""));
-            Assert.That(api,Does.Contain("\"token\""));
-            Assert.That(api,Does.Contain("\"connectionstrings\""));
-            Assert.That(api,Does.Contain("\"***\""));
+        var root=Root();var program=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.DevConsole","Program.cs"));var script=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-command.ps1"));
+        Assert.Multiple(()=>{
+            Assert.That(program,Does.Contain("CommandCatalog.All"));
+            Assert.That(program,Does.Contain("/api/commands/{command}/run"));
+            Assert.That(program,Does.Contain("/api/runs/{id:guid}"));
+            Assert.That(program,Does.Contain("gold-synthetic"));
+            Assert.That(program,Does.Contain("Registros gerados"));
+            Assert.That(program,Does.Contain("nenhuma ação exige a anterior"));
+            Assert.That(script,Does.Contain("Jornada_Dev_LinkageValidation.sql"));
+            Assert.That(script,Does.Contain("FROM gold.pessoa"));
+            Assert.That(script,Does.Contain("gold-synthetic-records.json"));
+            Assert.That(program,Does.Not.Contain("Jornada.Api"));
         });
     }
 }
