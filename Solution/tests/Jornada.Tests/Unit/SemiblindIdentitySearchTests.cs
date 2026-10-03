@@ -201,12 +201,30 @@ public sealed class SemiblindIdentitySearchTests
     }
 
     [Test]
-    public void Empty_name_is_rejected()
+    public async Task Missing_person_name_is_delegated_to_candidate_retriever()
+    {
+        var candidate = Candidate(1);
+        var service = new SemiblindIdentitySearchService(
+            new FakeRetriever(candidate), new FakePolicy());
+
+        var response = await service.SearchAsync(Context(),
+            new SemiblindIdentitySearchRequest(null, new DateOnly(1975, 2, 11),
+                "Maria da Anunciacao dos Anjos"),
+            Guid.NewGuid(), CancellationToken.None);
+
+        Assert.That(response.Candidatos, Has.Count.EqualTo(1));
+        Assert.That(response.Candidatos[0].Nome, Is.EqualTo(candidate.Nome));
+    }
+
+    [Test]
+    public async Task Empty_person_name_is_not_a_universal_validation_failure()
     {
         var service = new SemiblindIdentitySearchService(new FakeRetriever(), new FakePolicy());
-        Assert.ThrowsAsync<ArgumentException>(async () =>
-            await service.SearchAsync(Context(),
-                new SemiblindIdentitySearchRequest(" ", null, null),
-                Guid.NewGuid(), CancellationToken.None));
+
+        var response = await service.SearchAsync(Context(),
+            new SemiblindIdentitySearchRequest(" ", null, "Maria"),
+            Guid.NewGuid(), CancellationToken.None);
+
+        Assert.That(response.Candidatos, Is.Empty);
     }
 }

@@ -17,9 +17,8 @@ public sealed class SemiblindIdentitySearchService(ISemiblindCandidateRetriever 
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.Nome) || request.Nome.Length > 200
-            || request.NomeMae?.Length > 200)
-            throw new ArgumentException("Nome obrigatório e campos nominais limitados a 200 caracteres.");
+        if (request.Nome?.Length > 200 || request.NomeMae?.Length > 200)
+            throw new ArgumentException("Campos nominais limitados a 200 caracteres.");
 
         var retrieved = await retriever.RetrieveAsync(request, cancellationToken);
         // Autorização por pessoa ocorre ANTES de projetar qualquer atributo identificador.
