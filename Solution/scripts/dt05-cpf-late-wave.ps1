@@ -257,7 +257,17 @@ if ($Dt05HistoricalReplay) {
     $replayResultId = [long](Scalar "SELECT linkage_resultado_id FROM identidade.linkage_resultado WHERE linkage_run_id='$replayRunId' AND pessoa_observacao_id=$observationId;")
     if ($replayResultId -le 0) { throw 'DT-05: REPLAY não produziu resultado bruto para a observação histórica.' }
     $resultDelta = [int](Scalar "SELECT COUNT_BIG(*) FROM (SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave1.resultId) EXCEPT SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$replayResultId) d;")
-    if ($resultDelta -ne 0) { throw 'DT-05: resultado do REPLAY divergiu da assinatura V1 do source run.' }
+    if ($resultDelta -ne 0) {
+        $signatureNames = $signatureFields -split ','
+        $sourceSignature = Invoke-Sqlcmd -ServerInstance localhost -Database $db -Username sa -Password $saPassword -TrustServerCertificate -Query "SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$($wave1.resultId);"
+        $replaySignature = Invoke-Sqlcmd -ServerInstance localhost -Database $db -Username sa -Password $saPassword -TrustServerCertificate -Query "SELECT $signatureFields FROM identidade.linkage_resultado WHERE linkage_resultado_id=$replayResultId;"
+        $diff = foreach ($name in $signatureNames) {
+            $a = $sourceSignature.$name
+            $b = $replaySignature.$name
+            if ([string]$a -ne [string]$b) { "$name=source[$a]/replay[$b]" }
+        }
+        throw "DT-05: resultado do REPLAY divergiu da assinatura V1 do source run: $($diff -join '; ')."
+    }
     $binding = [int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_replay_manifesto WHERE linkage_run_id='$($wave1.runId)' AND schema_version=4 AND candidate_state_manifesto_sha256 IS NOT NULL AND blocking_projection_manifesto_sha256 IS NOT NULL;")
     if ($binding -ne 1) { throw 'DT-05: source run não possui binding v4 completo.' }
     $replayEvidence = [ordered]@{
