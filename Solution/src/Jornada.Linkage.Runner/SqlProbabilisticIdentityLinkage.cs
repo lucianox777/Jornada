@@ -156,7 +156,7 @@ public sealed class SqlProbabilisticIdentityLinkage(
     }
 
     /// <summary>Consulta síncrona sem publicação; usa exatamente o snapshot, blocking e ranking do Runner.</summary>
-    public async Task<IReadOnlyList<SemiblindInternalCandidate>> RetrieveAsync(
+    public async Task<SemiblindCandidateRetrievalResult> RetrieveAsync(
         SemiblindIdentitySearchRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -171,24 +171,37 @@ public sealed class SqlProbabilisticIdentityLinkage(
             ? SemiblindCandidatePassPlanner.Plan(rules, observation)
             : Array.Empty<BlockingCandidatePassLookup>();
         if (snapshot.RuleSet is not null && passes.Count == 0)
-            return Array.Empty<SemiblindInternalCandidate>();
+            return SemiblindCandidateRetrievalResult.Incomplete(SemiblindRetrievalReasons.NoEligiblePass);
         if (snapshot.RuleSet is null && observation.DataNascimento is null)
-            return Array.Empty<SemiblindInternalCandidate>();
+            return SemiblindCandidateRetrievalResult.Incomplete(SemiblindRetrievalReasons.NoEligiblePass);
 
         var maxSynchronousCandidates = Math.Clamp(
             configuration.GetValue("SemiblindIdentitySearch:MaxCandidatesPerQuery", 10000), 5, 100000);
-        var candidates = await LoadCandidatesAsync(observation, snapshot, cancellationToken,
-            passes, maxSynchronousCandidates);
+        IReadOnlyList<IdentityCandidate> candidates;
+        try
+        {
+            candidates = await LoadCandidatesAsync(observation, snapshot, cancellationToken,
+                passes, maxSynchronousCandidates);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("MaxCandidates", StringComparison.Ordinal))
+        {
+            return SemiblindCandidateRetrievalResult.Incomplete(SemiblindRetrievalReasons.FanoutLimitExceeded);
+        }
+        catch (SqlException ex) when (ex.Number == -2)
+        {
+            return SemiblindCandidateRetrievalResult.Incomplete(SemiblindRetrievalReasons.Timeout);
+        }
         var ranked = ProbabilisticLinkageDecisions.Rank(snapshot.Model, observation, candidates);
         var byId = candidates.GroupBy(candidate => candidate.PessoaUuid)
             .ToDictionary(group => group.Key, group => group.First());
         // O limite é aplicado APÓS o ranking interno; a apresentação neutra é feita na API.
         // Reservar opções internas para repor posições negadas pela autorização por Pessoa.
-        return ranked.Take(50).Select(score => byId[score.PessoaUuid])
+        var result = ranked.Take(50).Select(score => byId[score.PessoaUuid])
             .Select(candidate => new SemiblindInternalCandidate(
                 candidate.PessoaUuid, candidate.NomeCompleto,
                 candidate.DataNascimento, candidate.NomeMae))
             .ToArray();
+        return SemiblindCandidateRetrievalResult.Complete(result);
     }
 
     private static ProbabilisticLinkageDecision InsufficientEvidence(Guid modelId) =>
