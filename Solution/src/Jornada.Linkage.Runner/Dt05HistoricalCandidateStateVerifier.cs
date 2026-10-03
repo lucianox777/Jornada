@@ -1,11 +1,16 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text;
+using System.Globalization;
+using Parquet;
+using Parquet.Schema;
 
 namespace Jornada.Linkage.Runner;
 
+public sealed record Dt05HistoricalCandidate(Guid PessoaUuid, string? NomeCompleto, DateOnly? DataNascimento, string? NomeMae);
 public sealed record Dt05VerifiedCandidateState(
     Guid SourceRunId, string ManifestLogicalPath, string ManifestSha256,
-    string PartitionSetSha256, long RowCount, IReadOnlyList<string> PartitionLogicalPaths);
+    string PartitionSetSha256, long RowCount, IReadOnlyList<Dt05HistoricalCandidate> Candidates);
 
 /// <summary>
 /// Verifica a publicação candidate-state histórica antes de qualquer consumo.
@@ -47,7 +52,7 @@ public sealed class Dt05HistoricalCandidateStateVerifier(string bronzeRoot)
             throw new InvalidDataException("DT-05: partition_set_sha256 histórico diverge do binding.");
 
         long partitionRows = 0;
-        var paths = new List<string>();
+        var candidates = new List<Dt05HistoricalCandidate>();
         foreach (var partition in partitions.EnumerateArray())
         {
             var relative = partition.GetProperty("path").GetString()
@@ -69,15 +74,74 @@ public sealed class Dt05HistoricalCandidateStateVerifier(string bronzeRoot)
             RequireSha(bytes, expectedSha, $"partição {relative}");
             if (!relative.Equals($"objects/{expectedSha[..2]}/{expectedSha}.parquet", StringComparison.Ordinal))
                 throw new InvalidDataException("DT-05: path content-addressed da partição diverge do SHA físico.");
-            partitionRows = checked(partitionRows + rows);
-            paths.Add(objectLogical);
+            var partitionCandidates = await ReadPartitionAsync(objectPath, expectedLogicalSha!, rows, ct);
+            partitionRows = checked(partitionRows + partitionCandidates.Count);
+            candidates.AddRange(partitionCandidates);
         }
         if (partitionRows != rowCount)
             throw new InvalidDataException("DT-05: soma de rows das partições diverge do manifesto.");
+        var canonicalCandidates = string.Join('\n', candidates.Select(x => x.PessoaUuid.ToString("D").ToLowerInvariant() + "|REFERENCIA"));
+        var candidateSetSha = Convert.ToHexString(SHA256.HashData(Encoding.Unicode.GetBytes(canonicalCandidates))).ToLowerInvariant();
+        if (!string.Equals(candidateSetSha, binding.CandidateSetSha256, StringComparison.Ordinal))
+            throw new InvalidDataException("DT-05: candidatos_sha256 histórico diverge das linhas Parquet.");
 
         return new Dt05VerifiedCandidateState(
             binding.SourceRunId, binding.ManifestLogicalPath, binding.ManifestSha256,
-            binding.PartitionSetSha256, rowCount, paths);
+            binding.PartitionSetSha256, rowCount, candidates);
+    }
+
+
+    private static async Task<IReadOnlyList<Dt05HistoricalCandidate>> ReadPartitionAsync(
+        string path, string expectedLogicalSha, long expectedRows, CancellationToken ct)
+    {
+        await using var reader = await ParquetReader.CreateAsync(path, cancellationToken: ct);
+        var fields = reader.Schema.GetDataFields();
+        var expected = new[] { "candidate_uuid", "nome_completo", "data_nascimento", "nome_mae", "estado_identidade" };
+        if (fields.Length != expected.Length || !fields.Select(x => x.Name).SequenceEqual(expected, StringComparer.Ordinal)
+            || fields.Any(x => x.ClrType != typeof(string)))
+            throw new InvalidDataException("DT-05: schema físico Parquet candidate-state inválido.");
+
+        var rows = new List<Dt05HistoricalCandidate>();
+        using var logical = new MemoryStream();
+        for (var groupIndex = 0; groupIndex < reader.RowGroupCount; groupIndex++)
+        {
+            using var group = reader.OpenRowGroupReader(groupIndex);
+            var columns = new string?[fields.Length][];
+            var count = checked((int)group.RowCount);
+            for (var i = 0; i < fields.Length; i++)
+            {
+                columns[i] = new string?[count];
+                await group.ReadAsync(fields[i], columns[i].AsMemory(), cancellationToken: ct);
+            }
+            if (columns.Any(x => x.Length != count))
+                throw new InvalidDataException("DT-05: colunas Parquet históricas possuem cardinalidades divergentes.");
+            for (var i = 0; i < count; i++)
+            {
+                if (!Guid.TryParseExact(columns[0][i], "D", out var uuid)
+                    || !string.Equals(columns[0][i], uuid.ToString("D").ToLowerInvariant(), StringComparison.Ordinal)
+                    || !string.Equals(columns[4][i], "REFERENCIA", StringComparison.Ordinal))
+                    throw new InvalidDataException("DT-05: identidade de candidato histórica inválida.");
+                DateOnly? birth = null;
+                if (columns[2][i] is { } date)
+                {
+                    if (!DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+                        throw new InvalidDataException("DT-05: data_nascimento histórica inválida.");
+                    birth = parsed;
+                }
+                var canonical = Dt05ReplayManifestPublisher.Canonicalize(new {
+                    candidate_uuid = columns[0][i], nome_completo = columns[1][i],
+                    data_nascimento = columns[2][i], nome_mae = columns[3][i], estado_identidade = columns[4][i]
+                });
+                if (logical.Length > 0) logical.WriteByte((byte)'\n');
+                logical.Write(canonical);
+                rows.Add(new Dt05HistoricalCandidate(uuid, columns[1][i], birth, columns[3][i]));
+            }
+        }
+        if (rows.Count != expectedRows)
+            throw new InvalidDataException("DT-05: rows físicos da partição divergem do manifesto.");
+        if (!string.Equals(Sha256(logical.ToArray()), expectedLogicalSha, StringComparison.Ordinal))
+            throw new InvalidDataException("DT-05: logical_sha256 da partição histórica diverge das linhas.");
+        return rows;
     }
 
     private string ResolveUnderBronze(string logical, string requiredPrefix)
