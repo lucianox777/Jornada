@@ -24,7 +24,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("Executar linkage"));
             Assert.That(program,Does.Contain("Executar replay"));
             Assert.That(program,Does.Contain("Destruir ambiente DEV"));
-            Assert.That(program,Does.Contain("commandLine"));
+            Assert.That(program,Does.Contain("CommandLine"));
             Assert.That(program,Does.Contain("Comando real ainda não mapeado."));
             Assert.That(program,Does.Contain("SEM EXECUTOR"));
             Assert.That(program,Does.Not.Contain("disabled title=\\\"Ainda sem executor implementado\\\""));
