@@ -64,7 +64,7 @@ def check_job(source: str, name: str, suffix: str, expected_calls: int) -> None:
 
 def check(source: str) -> None:
     check_job(source, "integration-sql", "Sql", 6)
-    check_job(source, "harness-smoke", "HarnessSql", 13)
+    check_job(source, "harness-smoke", "HarnessSql", 15)
 
 
 def self_test(source: str) -> None:
