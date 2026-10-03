@@ -44,7 +44,10 @@ public sealed class TechnicalDebtEvidenceDocumentationTests
             Assert.That(debts, Does.Contain("| DT-17 | **CONCLUÍDA — escopo técnico DEV** | Matriz obrigatória"));
             Assert.That(debts, Does.Contain("| DT-12 | **CONCLUÍDA — técnica** | Higiene de branches e notas"));
             Assert.That(debts, Does.Contain("| DT-06 | **CONCLUÍDA — técnica** | Baseline das migrations"));
-            Assert.That(debts, Does.Contain("Permanecem na fila ativa: **DT-05 e DT-15**"));
+            Assert.That(debts, Does.Contain("Permanece na fila ativa: **DT-05**"));
+            Assert.That(debts, Does.Contain("| DT-15 | **CONCLUÍDA — governança técnica**"));
+            Assert.That(debts, Does.Contain("Evidência sintética nunca é promovível"));
+            Assert.That(debts, Does.Contain("permanece deny-by-default"));
             Assert.That(debts, Does.Contain("PR #580"));
             Assert.That(debts, Does.Not.Contain("\\n| DT-"));
             Assert.That(state, Does.Contain("v5.00-rc.1"));
