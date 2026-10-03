@@ -127,7 +127,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                     runId, preparation.Pins, identity, workCt);
                 await replaySql.RegisterAsync(
                     runId, manifest.LogicalPath, manifest.ManifestSha256,
-                    manifest.BronzeSetSha256, identity, candidateState, workCt);
+                    manifest.BronzeSetSha256, identity, candidateState, blockingProjection, workCt);
                 logger.LogInformation(
                     "DT-05 replay manifest bound before scoring. RunId={RunId}; ManifestSha256={ManifestSha256}; InputSnapshotId={InputSnapshotId}.",
                     runId, manifest.ManifestSha256, inputSnapshotId);
