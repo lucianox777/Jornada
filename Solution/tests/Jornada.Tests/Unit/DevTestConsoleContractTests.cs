@@ -33,6 +33,12 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("aria-busy=\"true\""));
             Assert.That(program,Does.Contain("running=new Set()"));
             Assert.That(program,Does.Contain("ação(ões) rodando agora"));
+            Assert.That(program,Does.Contain("/api/zip/manual"));
+            Assert.That(program,Does.Contain("Entrada manual para o ZIP"));
+            Assert.That(program,Does.Contain("pessoas.jsonl"));
+            Assert.That(program,Does.Contain("registros.jsonl"));
+            Assert.That(program,Does.Contain("Resultado salvo em:"));
+            Assert.That(program,Does.Contain("Diretório de trabalho:"));
             Assert.That(program,Does.Contain("Saída padrão (stdout)"));
             Assert.That(program,Does.Contain("Erros/diagnóstico (stderr)"));
             Assert.That(program,Does.Contain("Exit code:"));
