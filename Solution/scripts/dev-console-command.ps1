@@ -1,12 +1,26 @@
 param([Parameter(Mandatory=$true)][ValidateSet('update-build','gold-synthetic')][string]$Action)
 $ErrorActionPreference='Stop'
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-function Invoke-Checked([string]$Exe,[string[]]$Args){Write-Host ('# '+$Exe+' '+($Args -join ' '));& $Exe @Args;if($LASTEXITCODE -ne 0){throw "$Exe falhou ($LASTEXITCODE)."}}
+
+$LocalDotnet = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'Microsoft\dotnet\dotnet.exe' } else { $null }
+$DotnetExe = if ($LocalDotnet -and (Test-Path $LocalDotnet)) { $LocalDotnet } else { (Get-Command dotnet -ErrorAction Stop).Source }
+
+function Invoke-Checked([string]$Exe,[string[]]$Arguments){
+  Write-Host ('# '+$Exe+' '+($Arguments -join ' '))
+  & $Exe @Arguments
+  if($LASTEXITCODE -ne 0){throw "$Exe falhou ($LASTEXITCODE)."}
+}
+
 switch($Action){
  'update-build' {
    $Repo=(Resolve-Path (Join-Path $Root '..')).Path
    Push-Location $Repo
-   try { Invoke-Checked git @('pull','--ff-only'); Invoke-Checked dotnet @('restore','Solution/Jornada.sln','--locked-mode'); Invoke-Checked dotnet @('build','Solution/Jornada.sln','--no-restore','--configuration','Release'); Invoke-Checked git @('rev-parse','HEAD') } finally { Pop-Location }
+   try {
+     Invoke-Checked git @('pull','--ff-only')
+     Invoke-Checked $DotnetExe @('restore','Solution/Jornada.sln','--locked-mode')
+     Invoke-Checked $DotnetExe @('build','Solution/Jornada.sln','--no-restore','--configuration','Release')
+     Invoke-Checked git @('rev-parse','HEAD')
+   } finally { Pop-Location }
  }
  'gold-synthetic' {
    $envFile=Join-Path $Root '.env';if(-not(Test-Path $envFile)){throw '.env ausente; suba a infraestrutura DEV antes de carregar a Gold sintética.'}
