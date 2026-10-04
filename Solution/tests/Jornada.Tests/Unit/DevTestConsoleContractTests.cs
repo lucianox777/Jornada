@@ -64,7 +64,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("ListSummariesAsync"));
             Assert.That(runtime,Does.Contain("HeartbeatAsync"));
             Assert.That(runtime,Does.Contain("Processo ativo há"));
-            Assert.That(runtime,Does.Not.Contain("\"environment-status\""));
+            Assert.That(runtime,Does.Contain("\"environment-status\""));
+            Assert.That(runtime,Does.Contain("Status/health da infraestrutura"));
             Assert.That(runtime,Does.Contain(".Take(200)"));
 
             Assert.That(page,Does.Contain("🕘 Execuções"));
