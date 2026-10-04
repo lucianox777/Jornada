@@ -87,8 +87,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("(await ListSessionSummariesAsync(ct))"));
             Assert.That(runtime,Does.Contain("HeartbeatAsync"));
             Assert.That(runtime,Does.Contain("Processo ativo há"));
-            Assert.That(runtime,Does.Contain("\"environment-status\""));
-            Assert.That(runtime,Does.Contain("Status/health da infraestrutura"));
+            Assert.That(runtime,Does.Not.Contain("\"environment-status\""));
+            Assert.That(runtime,Does.Contain("Inclui o antigo Status/health da infraestrutura"));
+            Assert.That(opsScript,Does.Contain("[1/5] Status/health da infraestrutura"));
+            Assert.That(opsScript,Does.Contain("dev-console-infrastructure.ps1') -Action status"));
             Assert.That(runtime,Does.Contain(".Take(200)"));
             Assert.That(runtime,Does.Contain("summariesRoot"));
             Assert.That(runtime,Does.Contain("ReadLegacySummaryAsync"));

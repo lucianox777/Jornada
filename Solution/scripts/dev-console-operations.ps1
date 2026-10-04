@@ -95,7 +95,7 @@ function Get-DevCredential([string]$Gestor,[string]$RequiredScope){
 switch($Action){
     'system-status' {
         Write-Host '=== ESTADO GERAL DO SISTEMA ==='
-        Write-Host '[1/5] Containers e health/readiness'
+        Write-Host '[1/5] Status/health da infraestrutura (serviços Docker, containers/readiness e init one-shot de referência)'
         & (Join-Path $PSScriptRoot 'dev-console-infrastructure.ps1') -Action status
         if($LASTEXITCODE -ne 0){throw "Status da infraestrutura falhou ($LASTEXITCODE)."}
 
