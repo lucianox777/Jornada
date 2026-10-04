@@ -320,6 +320,14 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("execução one-shot"));
             Assert.That(opsScript,Does.Not.Contain("[string[]]$Args"));
             Assert.That(opsScript,Does.Contain("--mode','REPLAY"));
+            Assert.That(opsScript,Does.Contain("JOIN ingestao.lote l ON l.lote_id=po.lote_id"));
+            Assert.That(opsScript,Does.Contain("WHERE l.entrega_id='$entregaId' AND po.cpf IS NULL"));
+            Assert.That(opsScript,Does.Contain("--pessoa-observacao-id"));
+            Assert.That(opsScript,Does.Contain("dev-console-entrega:$entregaId"));
+            Assert.That(opsScript,Does.Contain("Backlog pendente de outras cargas não foi selecionado."));
+            Assert.That(runtime,Does.Contain("somente para as observações elegíveis da última entrega enviada pela Console DEV"));
+            Assert.That(runtime,Does.Contain("O backlog sintético global permanece intacto"));
+            Assert.That(runtime,Does.Contain("[\"infrastructure\",\"zip\"]"));
             Assert.That(page,Does.Contain("A tela mostra somente operações reais"));
             Assert.That(page,Does.Contain("Pré-requisitos:"));
             Assert.That(page,Does.Contain("dependencyNote"));
