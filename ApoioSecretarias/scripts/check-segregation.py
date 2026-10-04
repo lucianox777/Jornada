@@ -77,7 +77,18 @@ def audit(root: Path) -> list[str]:
     elif "Jornada.Integrador.CSharp" not in support_sln.read_text(encoding="utf-8"):
         errors.append("Transmissor ausente da Solução de Apoio")
 
-    # Runtime copies are allowed only when byte-identical to the support-owned contracts.\n    runtime_copy = root / "Solution/config/contracts/gestores/SEHAB"\n    support_copy = root / "ApoioSecretarias/config/contracts/gestores/SEHAB"\n    for support_file in support_copy.rglob("*.json"):\n        relative = support_file.relative_to(support_copy)\n        product_file = runtime_copy / relative\n        if not product_file.is_file():\n            errors.append(f"Cópia runtime SEHAB ausente: {product_file.relative_to(root)}")\n        elif product_file.read_bytes() != support_file.read_bytes():\n            errors.append(f"Cópia runtime SEHAB divergente: {product_file.relative_to(root)}")\n\n    main = inventory(root, MAIN_INVENTORY, errors)
+    # Runtime copies are allowed only when byte-identical to the support-owned contracts.
+    runtime_copy = root / "Solution/config/contracts/gestores/SEHAB"
+    support_copy = root / "ApoioSecretarias/config/contracts/gestores/SEHAB"
+    for support_file in support_copy.rglob("*.json"):
+        relative = support_file.relative_to(support_copy)
+        product_file = runtime_copy / relative
+        if not product_file.is_file():
+            errors.append(f"Cópia runtime SEHAB ausente: {product_file.relative_to(root)}")
+        elif product_file.read_bytes() != support_file.read_bytes():
+            errors.append(f"Cópia runtime SEHAB divergente: {product_file.relative_to(root)}")
+
+    main = inventory(root, MAIN_INVENTORY, errors)
     for entry in main:
         path = entry["path"].replace("\\", "/").lower()
         if path.startswith(SEHAB_SCHEMA_PREFIX) or path == SEHAB_AA01_METADATA:
