@@ -21,6 +21,10 @@ on:
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-cluster.sh'
+      - 'Solution/scripts/dev-console-initial-config.ps1'
+      - 'Solution/scripts/dev-console-contract-bundle.ps1'
+      - 'Solution/scripts/dev-console-html.ps1'
+      - 'Solution/scripts/local-test-dev-console-html-encoding.ps1'
       - 'Solution/scripts/test-cluster-sqlcmd-secret-transport.py'
       - 'Solution/scripts/local-cluster-readiness.ps1'
       - 'Solution/scripts/local-test-cluster-readiness-mock.ps1'
@@ -73,6 +77,10 @@ on:
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-cluster.sh'
+      - 'Solution/scripts/dev-console-initial-config.ps1'
+      - 'Solution/scripts/dev-console-contract-bundle.ps1'
+      - 'Solution/scripts/dev-console-html.ps1'
+      - 'Solution/scripts/local-test-dev-console-html-encoding.ps1'
       - 'Solution/scripts/test-cluster-sqlcmd-secret-transport.py'
       - 'Solution/scripts/local-cluster-readiness.ps1'
       - 'Solution/scripts/local-test-cluster-readiness-mock.ps1'
@@ -194,6 +202,10 @@ jobs:
         shell: powershell
         run: ./scripts/local-test-release-sql-probe-secret-transport.ps1
 
+      - name: Exercise Dev Console HTML encoding without alias h collision
+        shell: powershell
+        run: ./scripts/local-test-dev-console-html-encoding.ps1
+
   powershell-contract:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -262,7 +274,9 @@ jobs:
             'scripts/local-test-synthetic-isolation-safety.ps1',
             'scripts/local-linkage-operational-metrics.ps1',
             'scripts/local-synthetic-diagnostics.ps1',
-            'scripts/local-test-sqlcmd-secret-transport.ps1'
+            'scripts/local-test-sqlcmd-secret-transport.ps1',
+            'scripts/dev-console-html.ps1',
+            'scripts/local-test-dev-console-html-encoding.ps1'
           )
           foreach ($file in $files) {
             $bytes = [System.IO.File]::ReadAllBytes($file)
