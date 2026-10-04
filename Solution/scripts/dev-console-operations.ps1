@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet('reference-check','bronze-verify','ingest-latest','pipeline-status','blocking','calibrate-initial','calibrate','linkage','replay-latest','report')]
+    [ValidateSet('system-status','reference-check','bronze-verify','ingest-latest','pipeline-status','blocking','calibrate-initial','calibrate','linkage','replay-latest','report')]
     [string]$Action,
     [string]$ZipPath
 )
@@ -93,6 +93,41 @@ function Get-DevCredential([string]$Gestor,[string]$RequiredScope){
 }
 
 switch($Action){
+    'system-status' {
+        Write-Host '=== ESTADO GERAL DO SISTEMA ==='
+        Write-Host ''
+        Write-Host '[1/5] Containers e health/readiness'
+        & (Join-Path $PSScriptRoot 'dev-console-infrastructure.ps1') -Action status
+        if($LASTEXITCODE -ne 0){throw "Status da infraestrutura falhou ($LASTEXITCODE)."}
+
+        Write-Host ''
+        Write-Host '[2/5] SQL/schema'
+        $schemaCount=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM sys.schemas WHERE name IN (N'ingestao',N'bronze',N'silver',N'gold',N'identidade',N'ref');")
+        Write-Host "Schemas essenciais presentes: $schemaCount/6"
+        if($schemaCount -ne 6){throw "Schema incompleto: $schemaCount/6."}
+
+        Write-Host ''
+        Write-Host '[3/5] Referência IBGE'
+        & (Join-Path $PSScriptRoot 'local-check-ibge-reference.ps1') -NoStart
+        if($LASTEXITCODE -ne 0){throw "Quick check IBGE falhou ($LASTEXITCODE)."}
+
+        Write-Host ''
+        Write-Host '[4/5] Modelo de linkage'
+        $active=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO';")
+        Write-Host "Modelos calibrados ATIVOS: $active"
+        if($active -ne 1){throw "Esperado exatamente 1 modelo calibrado ATIVO; atual=$active."}
+
+        Write-Host ''
+        Write-Host '[5/5] Processos residentes'
+        Invoke-Compose @('exec','-T','jornada-node1','sh','-lc',"pgrep -af 'Jornada.Processor.Worker.dll' >/dev/null")
+        Invoke-Compose @('exec','-T','jornada-node2','sh','-lc',"pgrep -af 'Jornada.Processor.Worker.dll' >/dev/null")
+        Invoke-Compose @('exec','-T','jornada-node2','sh','-lc',"pgrep -af 'Jornada.Linkage.Runner.dll' >/dev/null")
+        Write-Host 'Processor: residente em NODE1/NODE2'
+        Write-Host 'Linkage Runner: residente em loop incremental no NODE2'
+        Write-Host ''
+        Write-Host 'ESTADO GERAL: OK'
+    }
+
     'reference-check' {
         Ensure-ClusterRunning
         Write-Host '# pwsh -NoProfile -File scripts/local-check-ibge-reference.ps1 -NoStart'
