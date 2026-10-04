@@ -360,11 +360,21 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         var records=new List<Dictionary<string,string?>>();
         if(relative is null)return records;
         var path=Path.Combine(root,relative);
-        if(!File.Exists(path))return records;
-        using var doc=JsonDocument.Parse(await File.ReadAllTextAsync(path));
-        if(doc.RootElement.ValueKind!=JsonValueKind.Array)return records;
-        foreach(var row in doc.RootElement.EnumerateArray())
-            records.Add(row.EnumerateObject().ToDictionary(x=>x.Name,x=>(string?)x.Value.ToString()));
+        if(!File.Exists(path)||!string.Equals(Path.GetExtension(path),".json",StringComparison.OrdinalIgnoreCase))return records;
+        try
+        {
+            using var doc=JsonDocument.Parse(await File.ReadAllTextAsync(path));
+            if(doc.RootElement.ValueKind!=JsonValueKind.Array)return records;
+            foreach(var row in doc.RootElement.EnumerateArray())
+            {
+                if(row.ValueKind!=JsonValueKind.Object)continue;
+                records.Add(row.EnumerateObject().ToDictionary(x=>x.Name,x=>(string?)x.Value.ToString()));
+            }
+        }
+        catch(JsonException)
+        {
+            // O artefato continua válido como arquivo mesmo quando não é uma lista JSON exibível.
+        }
         return records;
     }
 
@@ -437,16 +447,24 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
 sealed class RunStore(IWebHostEnvironment env)
 {
     readonly string root=Path.Combine(env.ContentRootPath,".runs");
+    readonly string summariesRoot=Path.Combine(env.ContentRootPath,".runs","summaries");
     readonly DateTimeOffset sessionStartedAt=DateTimeOffset.UtcNow;
     static readonly JsonSerializerOptions Opt=new(JsonSerializerDefaults.Web){WriteIndented=true};
 
     public async Task SaveAsync(RunRecord run,CancellationToken ct)
     {
         Directory.CreateDirectory(root);
+        Directory.CreateDirectory(summariesRoot);
         var target=Path.Combine(root,$"{run.Id:N}.json");
         var temp=target+".tmp";
         await File.WriteAllTextAsync(temp,JsonSerializer.Serialize(run,Opt),ct);
         File.Move(temp,target,true);
+
+        var summary=new RunSummary(run.Id,run.Command,run.Title,run.StartedAt,run.FinishedAt,run.Status,run.Summary);
+        var summaryTarget=Path.Combine(summariesRoot,$"{run.Id:N}.json");
+        var summaryTemp=summaryTarget+".tmp";
+        await File.WriteAllTextAsync(summaryTemp,JsonSerializer.Serialize(summary,Opt),ct);
+        File.Move(summaryTemp,summaryTarget,true);
     }
 
     public async Task<RunRecord?> GetAsync(Guid id,CancellationToken ct)
@@ -460,31 +478,66 @@ sealed class RunStore(IWebHostEnvironment env)
     public async Task<IReadOnlyList<RunSummary>> ListSummariesAsync(CancellationToken ct)
     {
         Directory.CreateDirectory(root);
+        Directory.CreateDirectory(summariesRoot);
         var xs=new List<RunSummary>();
-        foreach(var path in Directory.EnumerateFiles(root,"*.json")
+        foreach(var path in Directory.EnumerateFiles(root,"*.json",SearchOption.TopDirectoryOnly)
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .Take(200))
         {
             ct.ThrowIfCancellationRequested();
             try
             {
-                await using var stream=File.OpenRead(path);
-                using var doc=await JsonDocument.ParseAsync(stream,cancellationToken:ct);
-                var e=doc.RootElement;
-                if(!e.TryGetProperty("id",out var idElement)||!Guid.TryParse(idElement.GetString(),out var id))continue;
-                var command=e.TryGetProperty("command",out var commandElement)?commandElement.GetString()??"":"";
-                var title=e.TryGetProperty("title",out var titleElement)?titleElement.GetString()??command:command;
-                var status=e.TryGetProperty("status",out var statusElement)?statusElement.GetString()??"":"";
-                var summary=e.TryGetProperty("summary",out var summaryElement)?summaryElement.GetString()??"":"";
-                var started=e.TryGetProperty("startedAt",out var startedElement)&&startedElement.TryGetDateTimeOffset(out var startedAt)?startedAt:File.GetCreationTimeUtc(path);
-                var finished=e.TryGetProperty("finishedAt",out var finishedElement)&&finishedElement.TryGetDateTimeOffset(out var finishedAt)?finishedAt:started;
-                xs.Add(new RunSummary(id,command,title,started,finished,status,summary));
+                var idText=Path.GetFileNameWithoutExtension(path);
+                if(!Guid.TryParseExact(idText,"N",out var id))continue;
+                var summaryPath=Path.Combine(summariesRoot,$"{id:N}.json");
+                RunSummary? summary=null;
+                if(File.Exists(summaryPath))
+                    summary=JsonSerializer.Deserialize<RunSummary>(await File.ReadAllTextAsync(summaryPath,ct),Opt);
+                else
+                {
+                    summary=await ReadLegacySummaryAsync(path,ct);
+                    if(summary is not null)
+                        await File.WriteAllTextAsync(summaryPath,JsonSerializer.Serialize(summary,Opt),ct);
+                }
+                if(summary is not null)xs.Add(summary);
             }
             catch(JsonException){}
             catch(IOException){}
             catch(UnauthorizedAccessException){}
         }
         return xs;
+    }
+
+    static async Task<RunSummary?> ReadLegacySummaryAsync(string path,CancellationToken ct)
+    {
+        const int maxPrefixBytes=65536;
+        await using var stream=File.OpenRead(path);
+        var size=(int)Math.Min(maxPrefixBytes,stream.Length);
+        if(size<=0)return null;
+        var buffer=new byte[size];
+        var read=0;
+        while(read<size)
+        {
+            var n=await stream.ReadAsync(buffer.AsMemory(read,size-read),ct);
+            if(n==0)break;
+            read+=n;
+        }
+        var text=Encoding.UTF8.GetString(buffer,0,read);
+        var stepIndex=text.IndexOf(""step"",StringComparison.OrdinalIgnoreCase);
+        if(stepIndex<0)return null;
+        var comma=text.LastIndexOf(',',stepIndex);
+        if(comma<0)return null;
+        var header=text[..comma]+"}";
+        using var doc=JsonDocument.Parse(header);
+        var e=doc.RootElement;
+        if(!e.TryGetProperty("id",out var idElement)||!Guid.TryParse(idElement.GetString(),out var id))return null;
+        var command=e.TryGetProperty("command",out var commandElement)?commandElement.GetString()??"":"";
+        var title=e.TryGetProperty("title",out var titleElement)?titleElement.GetString()??command:command;
+        var status=e.TryGetProperty("status",out var statusElement)?statusElement.GetString()??"":"";
+        var summary=e.TryGetProperty("summary",out var summaryElement)?summaryElement.GetString()??"":"";
+        var started=e.TryGetProperty("startedAt",out var startedElement)&&startedElement.TryGetDateTimeOffset(out var startedAt)?startedAt:File.GetCreationTimeUtc(path);
+        var finished=e.TryGetProperty("finishedAt",out var finishedElement)&&finishedElement.TryGetDateTimeOffset(out var finishedAt)?finishedAt:started;
+        return new RunSummary(id,command,title,started,finished,status,summary);
     }
 
     public async Task<IReadOnlyDictionary<string,int>> CountByCommandAsync(CancellationToken ct)=>
