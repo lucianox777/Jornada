@@ -287,7 +287,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(clusterConfig,Does.Contain("\"LinkageRunner__PollingSeconds\": \"5\""));
             Assert.That(entrypoint,Does.Contain("LinkageRunner) echo"));
             Assert.That(entrypoint,Does.Contain("while true; do"));
-            Assert.That(entrypoint,Does.Contain("DEV_RESIDENT_RUNNER"));
+            Assert.That(clusterConfig,Does.Contain("DEV_RESIDENT_RUNNER"));
             Assert.That(entrypoint,Does.Contain("(.nodes // [])"));
             Assert.That(bootstrap,Does.Contain("restore $Solution --locked-mode"));
             Assert.That(bootstrap,Does.Contain("build $Solution --no-restore"));
