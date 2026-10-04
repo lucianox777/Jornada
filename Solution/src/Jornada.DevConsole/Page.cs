@@ -434,13 +434,13 @@ function renderFinal(run){
   const actions=[];
   if(run.step.resultPath){
     actions.push('<button class="primary" type="button" onclick="window.open(\'/api/runs/'+run.id+'/result\',\'_blank\')">Abrir resultado</button>');
-    if(String(run.step.resultPath).toLowerCase().endsWith('.json'))actions.push('<button class="secondary" type="button" onclick="window.open(\'/api/runs/'+run.id+'/result/html\',\'_blank\')">Visualizar JSON em HTML</button>');
+    if(String(run.step.resultPath).toLowerCase().endsWith('.json'))actions.push('<button class="secondary" type="button" onclick="window.open(\'/api/runs/'+run.id+'/result/html\',\'_blank\')">Visualização amigável</button>');
   }
   if(run.records?.length)actions.push('<button class="secondary" type="button" onclick="toggleRecords()">Ver dados do resultado ('+run.records.length+')</button>');
   actions.push('<button class="secondary" type="button" onclick="rerun()">Executar novamente</button>');
   const artifacts=run.step.artifacts||[];
   if(artifacts.length){
-    resultPath.innerHTML+=(resultPath.innerHTML?'':'')+'<div class="artifact-list"><b>Arquivos gerados:</b>'+artifacts.map((path,index)=>'<div class="artifact-item"><code>'+esc(path)+'</code><div class="result-actions"><button class="secondary" type="button" onclick="window.open(\'/api/runs/'+run.id+'/artifacts/'+index+'\',\'_blank\')">Abrir</button>'+(String(path).toLowerCase().endsWith('.json')?'<button class="secondary" type="button" onclick="window.open(\'/api/runs/'+run.id+'/artifacts/'+index+'/html\',\'_blank\')">Ver em HTML</button>':'')+'</div></div>').join('')+'</div>';
+    resultPath.innerHTML+=(resultPath.innerHTML?'':'')+'<div class="artifact-list"><b>Arquivos gerados:</b>'+artifacts.map((path,index)=>'<div class="artifact-item"><code>'+esc(path)+'</code><div class="result-actions"><button class="secondary" type="button" onclick="window.open(\'/api/runs/'+run.id+'/artifacts/'+index+'\',\'_blank\')">Abrir</button>'+(String(path).toLowerCase().endsWith('.json')?'<button class="secondary" type="button" onclick="window.open(\'/api/runs/'+run.id+'/artifacts/'+index+'/html\',\'_blank\')">Visualização amigável</button>':'')+'</div></div>').join('')+'</div>';
   }
   resultActions.innerHTML=actions.join('');
   if(run.records?.length){

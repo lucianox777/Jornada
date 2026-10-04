@@ -102,14 +102,7 @@ static IResult ServeArtifact(string path,IWebHostEnvironment env,bool html)
     {
         try
         {
-            using var doc=JsonDocument.Parse(File.ReadAllText(full));
-            var pretty=JsonSerializer.Serialize(doc.RootElement,DevConsoleJson.Pretty);
-            var encoded=System.Net.WebUtility.HtmlEncode(pretty);
-            var name=System.Net.WebUtility.HtmlEncode(Path.GetFileName(full));
-            var encodedPath=System.Net.WebUtility.HtmlEncode(full);
-            var htmlText="<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>"+name+"</title>"
-                +"<style>body{font-family:system-ui;margin:24px;color:#18212b}pre{background:#0b0f14;color:#d7e0ea;padding:16px;border-radius:8px;white-space:pre-wrap;overflow:auto}code{font-family:ui-monospace,Consolas,monospace}</style>"
-                +"</head><body><h1>"+name+"</h1><p><code>"+encodedPath+"</code></p><pre>"+encoded+"</pre></body></html>";
+            var htmlText=FriendlyJsonHtml.Render(full,File.ReadAllText(full));
             return Results.Text(htmlText,"text/html; charset=utf-8");
         }
         catch(JsonException ex){return Results.BadRequest($"JSON inválido: {ex.Message}");}

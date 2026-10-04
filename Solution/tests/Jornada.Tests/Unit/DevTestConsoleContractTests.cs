@@ -18,6 +18,7 @@ public sealed class DevTestConsoleContractTests
         var program=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.DevConsole","Program.cs"));
         var runtime=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.DevConsole","DevConsoleRuntime.cs"));
         var page=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.DevConsole","Page.cs"));
+        var friendlyHtml=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.DevConsole","FriendlyJsonHtml.cs"));
         var infraScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-infrastructure.ps1"));
         var opsScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-operations.ps1"));
         var goldScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-gold-synthetic.ps1"));
@@ -41,6 +42,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("/api/runs/{id:guid}/artifacts/{index:int}"));
             Assert.That(program,Does.Contain("/api/semiblind/template"));
             Assert.That(program,Does.Contain("/api/semiblind/search"));
+            Assert.That(program,Does.Contain("FriendlyJsonHtml.Render"));
+            Assert.That(friendlyHtml,Does.Contain(".grid{display:grid"));
+            Assert.That(friendlyHtml,Does.Contain(".table-wrap{overflow:auto"));
+            Assert.That(friendlyHtml,Does.Contain("Exibindo "));
+            Assert.That(friendlyHtml,Does.Contain("ID do modelo"));
+            Assert.That(friendlyHtml,Does.Contain("UUID da pessoa"));
+            Assert.That(friendlyHtml,Does.Not.Contain("<pre>"));
 
             Assert.That(runtime,Does.Contain("LiveExecutionService"));
             Assert.That(runtime,Does.Contain("ReadLineAsync"));
@@ -166,6 +174,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(bundleScript,Does.Contain("Garantir modelo bootstrap inicial (IBGE)"));
             Assert.That(bundleScript,Does.Contain("SEED_DEV_FIXO_NAO_TREINADO"));
             Assert.That(bundleScript,Does.Contain("BUNDLE_INFO.html"));
+            Assert.That(bundleScript,Does.Contain("Conteúdo incluído"));
+            Assert.That(bundleScript,Does.Contain("Fingerprint SHA-256"));
+            Assert.That(bundleScript,Does.Not.Contain("<pre>$escapedInfo</pre>"));
             Assert.That(bundleScript,Does.Contain("ARTEFATO: $ZipPath"));
             Assert.That(initialConfigScript,Does.Contain("configuration.json"));
             Assert.That(initialConfigScript,Does.Contain("configuration.html"));
@@ -174,6 +185,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(initialConfigScript,Does.Contain("activeLinkageModel=$modelState"));
             Assert.That(initialConfigScript,Does.Contain("modelo BOOTSTRAP inicial ATIVO"));
             Assert.That(initialConfigScript,Does.Contain("Resumo de status/health"));
+            Assert.That(initialConfigScript,Does.Contain("Modelo de linkage ativo"));
+            Assert.That(initialConfigScript,Does.Contain("Status dos serviços no momento da geração"));
+            Assert.That(initialConfigScript,Does.Not.Contain("<pre>$escaped</pre>"));
             Assert.That(infraScript,Does.Contain("dev-console-initial-config.ps1"));
             Assert.That(infraScript,Does.Contain("dev-console-operations.ps1"));
             Assert.That(infraScript,Does.Contain("-Action calibrate-initial"));
@@ -196,7 +210,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("Formulário HTML"));
             Assert.That(page,Does.Contain("JSON / JSONL"));
             Assert.That(page,Does.Contain("Atualizar exemplo da Gold"));
-            Assert.That(page,Does.Contain("Visualizar JSON em HTML"));
+            Assert.That(page,Does.Contain("Visualização amigável"));
+            Assert.That(page,Does.Not.Contain("Visualizar JSON em HTML"));
             Assert.That(page,Does.Contain("Arquivos gerados:"));
             Assert.That(page,Does.Contain("Consulta semicega · DEV sintético"));
             Assert.That(page,Does.Contain("Usar exemplo da Gold sintética"));
