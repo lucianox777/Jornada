@@ -119,9 +119,9 @@ switch($Action){
 
         Write-Host ''
         Write-Host '[5/5] Processos residentes'
-        Invoke-Compose @('exec','-T','jornada-node1','sh','-lc',"pgrep -af 'Jornada.Processor.Worker.dll' >/dev/null")
-        Invoke-Compose @('exec','-T','jornada-node2','sh','-lc',"pgrep -af 'Jornada.Processor.Worker.dll' >/dev/null")
-        Invoke-Compose @('exec','-T','jornada-node2','sh','-lc',"pgrep -af 'Jornada.Linkage.Runner.dll' >/dev/null")
+        Invoke-Compose @('exec','-T','jornada-node1','sh','-lc',"pgrep -af '[J]ornada.Processor.Worker.dll' >/dev/null")
+        Invoke-Compose @('exec','-T','jornada-node2','sh','-lc',"pgrep -af '[J]ornada.Processor.Worker.dll' >/dev/null")
+        Invoke-Compose @('exec','-T','jornada-node2','sh','-lc',"pgrep -af '[J]ornada.Linkage.Runner.dll' >/dev/null")
         Write-Host 'Processor: residente em NODE1/NODE2'
         Write-Host 'Linkage Runner: residente em loop incremental no NODE2'
         Write-Host ''
