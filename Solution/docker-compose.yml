@@ -83,8 +83,10 @@ services:
       - /bin/sh
       - -ec
       - |
+        echo "[reference-bootstrap] Iniciando ENSURE_NAME_FREQUENCY_SNAPSHOT..."
         dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
-        LinkageParameters__Operation=ENSURE_IBGE_NOMINAL_U_REFERENCE dotnet /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll
+        echo "[reference-bootstrap] Snapshot de frequência nominal concluído."
+        echo "[reference-bootstrap] ENSURE_IBGE_NOMINAL_U_REFERENCE será executado somente na calibração."
 
   jornada-node1:
     <<: *jornada-node-common
