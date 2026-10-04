@@ -7,7 +7,9 @@ $started=Get-Date
 Write-Host '=== Jornada DEV :: Carregar Gold sintética ==='
 Write-Host ('Início: '+$started.ToString('o'))
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$envFile=Join-Path $Root '.env'
+. (Join-Path $PSScriptRoot 'dev-console-env.ps1')
+$Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$envFile=$DevConsoleEnvFile
 Write-Host ('Solution: '+$Root)
 Write-Host ('Arquivo de ambiente: '+$envFile)
 if(-not(Test-Path $envFile)){throw '.env ausente; suba a infraestrutura DEV antes de carregar a Gold sintética.'}
