@@ -83,6 +83,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("!string.Equals(Path.GetExtension(path),\".json\""));
 
             Assert.That(page,Does.Contain("🕘 Execuções"));
+            Assert.That(page,Does.Contain("Console DEV / Comandos"));
+            Assert.That(page,Does.Contain("Execução / "));
+            Assert.That(page,Does.Contain("const breadcrumb=document.getElementById('breadcrumb')"));
+            Assert.That(page,Does.Contain("item.stream??item.Stream??'system'"));
+            Assert.That(page,Does.Contain("item.at??item.At??new Date().toISOString()"));
+            Assert.That(page,Does.Contain("Number.isNaN(parsed.getTime())"));
+            Assert.That(page,Does.Contain("(item.stream??item.Stream)==='status'"));
             Assert.That(page,Does.Contain("console-shell"));
             Assert.That(page,Does.Contain("RODANDO..."));
             Assert.That(page,Does.Contain("new EventSource"));
