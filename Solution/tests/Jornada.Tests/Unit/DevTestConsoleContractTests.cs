@@ -22,6 +22,7 @@ public sealed class DevTestConsoleContractTests
         var opsScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-operations.ps1"));
         var goldScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-gold-synthetic.ps1"));
         var localDb=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-db.ps1"));
+        var bootstrap=File.ReadAllText(Path.Combine(root,"Solution","teste.ps1"));
 
         Assert.Multiple(()=>{
             Assert.That(program,Does.Contain("/api/commands/{command}/start"));
@@ -86,6 +87,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("local-cluster.ps1"));
             Assert.That(opsScript,Does.Contain("--mode','REPLAY"));
             Assert.That(page,Does.Contain("A tela mostra somente operações reais"));
+            Assert.That(bootstrap,Does.Contain("restore $Solution --locked-mode"));
+            Assert.That(bootstrap,Does.Contain("build $Solution --no-restore"));
 
             var launch=File.ReadAllText(Path.Combine(root,"Solution","Jornada.slnLaunch"));
             Assert.That(launch,Does.Contain("Jornada.DevConsole.csproj"));
