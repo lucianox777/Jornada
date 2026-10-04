@@ -121,6 +121,14 @@ while IFS= read -r task_json; do
 
   name="$(jq -er '.name' <<<"$task_json")"
   component="$(jq -er '.component' <<<"$task_json")"
+
+  # A Console DEV pode tornar a transição Bronze -> Silver explícita. Isso não
+  # altera a topologia normal: somente o perfil .env.devconsole define a flag.
+  if [[ "$component" == "Processor" && "${JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR:-false}" == "true" ]]; then
+    echo "[$JORNADA_NODE_ID] SKIP $name (Processor): modo didático manual da Console DEV"
+    continue
+  fi
+
   dll="$(component_dll "$component")" || {
     echo "Componente residente desconhecido: $component" >&2
     exit 3
