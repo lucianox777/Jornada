@@ -9,7 +9,7 @@ sealed record CommandDefinition(string Id,string Title,string Description,string
     public string? CommandLine=>File is null?null:$"{File} {Arguments}";
     public string DisplayCommand=>Id=="zip"
         ?"Entrada manual → python scripts/build-ingestion-fixture.py"
-        :CommandLine??"Comando real ainda não mapeado.";
+        :CommandLine??"Operação parametrizada pela interface.";
 }
 
 sealed record StepResult(string Command,string WorkingDirectory,int ExitCode,long DurationMs,string Output,string Error,string? ResultPath);
@@ -35,7 +35,8 @@ static class CommandCatalog
         new("report","Diagnóstico do último linkage","Executa o diagnóstico real do último linkage publicado, incluindo modelo, thresholds, cobertura e qualidade sintética.","pwsh","-NoProfile -File scripts/local-cluster.ps1 -Action linkage-diagnose",null),
         new("environment-status","Status da infraestrutura","Mostra todos os serviços do compose, inclusive o init one-shot jornada-reference-bootstrap.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action status",null),
         new("finish","Finalizar e limpar ambiente","Encerra o cluster e remove containers, volumes e órfãos locais. Na próxima subida tudo é recriado automaticamente.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action clean",null)
-    ];}
+    ];
+}
 
 static class DevConsolePaths
 {
