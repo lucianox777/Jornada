@@ -21,6 +21,30 @@ foreach($required in @($clusterPath,$openApiPath,$contractsPath,$governancePath,
 }
 
 $cluster=Get-Content $clusterPath -Raw -Encoding UTF8 | ConvertFrom-Json
+
+$health=@()
+$envFile=Join-Path $Root '.env.devconsole'
+if(-not(Test-Path $envFile)){$envFile=Join-Path $Root '.env'}
+if(Test-Path $envFile){
+  Write-Host 'Consultando status/health atual dos serviços Docker...'
+  Push-Location $Root
+  try{
+    $raw=@(& docker compose --env-file $envFile ps --format json -a 2>$null)
+    if($LASTEXITCODE -eq 0 -and $raw.Count -gt 0){
+      $health=@(($raw -join "`n")|ConvertFrom-Json|ForEach-Object{
+        [ordered]@{
+          service=[string]$_.Service
+          name=[string]$_.Name
+          state=[string]$_.State
+          health=[string]$_.Health
+          status=[string]$_.Status
+          exitCode=if($_.ExitCode -ne $null){[int]$_.ExitCode}else{$null}
+        }
+      })
+    }
+  } finally {Pop-Location}
+}
+
 $config=[ordered]@{
   schemaVersion=1
   kind='JORNADA_DEV_INITIAL_CONFIGURATION'
@@ -47,6 +71,7 @@ $config=[ordered]@{
     sql='localhost:14333'
     nas='localhost:1445'
   }
+  runtimeHealth=$health
   note='Configuração inicial gerada na subida da infraestrutura. Não contém modelo de linkage ATIVO; após a calibração gere o bundle operacional de contratos/configurações.'
 }
 
@@ -77,6 +102,13 @@ $files=[ordered]@{
 }
 [IO.File]::WriteAllText($manifestPath,($files|ConvertTo-Json -Depth 10),[Text.UTF8Encoding]::new($false))
 
+if($health.Count -gt 0){
+  Write-Host 'Resumo de status/health:'
+  foreach($item in $health){
+    $healthText=if([string]::IsNullOrWhiteSpace($item.health)){'n/a'}else{$item.health}
+    Write-Host (" - {0}: state={1}; health={2}; status={3}; exit={4}" -f $item.service,$item.state,$healthText,$item.status,$item.exitCode)
+  }
+}
 Write-Host 'Configuração inicial gerada.'
 Write-Host "JSON: $jsonPath"
 Write-Host "HTML: $htmlPath"
