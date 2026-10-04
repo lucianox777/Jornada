@@ -108,6 +108,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("manifest.json"));
             Assert.That(page,Does.Contain("pessoas.jsonl"));
             Assert.That(page,Does.Contain("registros.jsonl"));
+            Assert.That(page,Does.Contain("Versão Pessoa utilizável"));
+            Assert.That(page,Does.Contain("zipPessoaSchemaVersao.value=t.pessoaSchemaVersao"));
+            Assert.That(page,Does.Contain("pessoaSchemaVersao:Number(zipPessoaSchemaVersao.value)"));
+            Assert.That(page,Does.Not.Contain("pessoaSchemaVersao:5"));
             Assert.That(page,Does.Contain("Resultado salvo em:"));
             Assert.That(page,Does.Contain("Ver dados do resultado"));
             Assert.That(page,Does.Contain("Executar novamente"));
@@ -140,6 +144,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("DependencyNote"));
             Assert.That(runtime,Does.Contain("GoldZipTemplateService"));
             Assert.That(runtime,Does.Contain("FROM gold.pessoa"));
+            Assert.That(runtime,Does.Contain("gpv.status IN('ATIVA','ENCERRADA')"));
+            Assert.That(runtime,Does.Contain("[\"pessoaSchemaVersao\"]=pessoaSchemaVersao"));
+            Assert.That(runtime,Does.Not.Contain("[\"pessoaSchemaVersao\"]=5"));
             Assert.That(runtime,Does.Not.Contain("new(\"initial-config\""));
             Assert.That(runtime,Does.Not.Contain("Gerar/ver configuração inicial"));
             Assert.That(runtime,Does.Contain("ARTEFATO:"));
