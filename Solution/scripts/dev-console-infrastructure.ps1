@@ -10,7 +10,8 @@ $Cluster=Join-Path $PSScriptRoot 'local-cluster.ps1'
 $EnvFile=Join-Path $Root '.env'
 
 function Invoke-Cluster([string]$ClusterAction,[switch]$NoBuild){
-    Write-Host "# pwsh -NoProfile -File scripts/local-cluster.ps1 -Action $ClusterAction$([string]::Concat($(if($NoBuild){' -NoBuild'}else{''})))"
+    $suffix=if($NoBuild){' -NoBuild'}else{''}
+    Write-Host "# pwsh -NoProfile -File scripts/local-cluster.ps1 -Action $ClusterAction$suffix"
     if($NoBuild){ & $Cluster -Action $ClusterAction -NoBuild }
     else { & $Cluster -Action $ClusterAction }
     if($LASTEXITCODE -ne 0){ throw "local-cluster.ps1 $ClusterAction falhou ($LASTEXITCODE)." }
