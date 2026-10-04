@@ -22,6 +22,7 @@ public sealed class DevTestConsoleContractTests
         var infraScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-infrastructure.ps1"));
         var opsScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-operations.ps1"));
         var goldScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-gold-synthetic.ps1"));
+        var goldAddScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-gold-add.ps1"));
         var localDb=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-db.ps1"));
         var bootstrap=File.ReadAllText(Path.Combine(root,"Solution","teste.ps1"));
         var goldSql=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Dev_GoldSynthetic.sql"));
@@ -63,7 +64,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("dev-console-infrastructure.ps1 -Action clean"));
             Assert.That(runtime,Does.Not.Contain("update-build"));
             Assert.That(runtime,Does.Not.Contain("Comando real ainda não mapeado."));
-            Assert.That(runtime,Does.Contain("dev-console-gold-synthetic.ps1"));
+            Assert.That(runtime,Does.Contain("dev-console-gold-add.ps1 -AdditionalPeople 5000"));
+            Assert.That(runtime,Does.Contain("Adicionar mais 5.000 registros"));
+            Assert.That(runtime,Does.Contain("30k → 35k → 40k"));
             Assert.That(runtime,Does.Contain("build-ingestion-fixture.py"));
             Assert.That(runtime,Does.Contain("Gerar e enviar ZIP de ingestão"));
             Assert.That(runtime,Does.Contain("Ver/alterar contratos de ingestão"));
@@ -157,7 +160,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("Consulta semicega"));
             Assert.That(runtime,Does.Contain("SemiblindDevService"));
             Assert.That(runtime,Does.Contain("JornadaSyntheticDev"));
-            Assert.That(runtime,Does.Contain("Não existe fallback para Gold real."));
+            Assert.That(runtime,Does.Contain("estritamente incremental"));
 
             Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
             Assert.That(goldScript,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
@@ -169,6 +172,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(goldScript,Does.Not.Contain("-y 0"));
             Assert.That(goldScript,Does.Not.Contain("Jornada_Dev_LinkageValidation.sql"));
             Assert.That(goldScript,Does.Not.Contain("Jornada_Dev_GoldSynthetic.sql"));
+            Assert.That(goldScript,Does.Contain("Docker Desktop/Engine não está em execução"));
+            Assert.That(goldAddScript,Does.Contain("[int]$AdditionalPeople=5000"));
+            Assert.That(goldAddScript,Does.Contain("$target=$before+$AdditionalPeople"));
+            Assert.That(goldAddScript,Does.Contain("SCALE_INCREMENTAL"));
+            Assert.That(goldAddScript,Does.Contain("Jornada_Dev_SyntheticScale_Diversify.sql"));
+            Assert.That(goldAddScript,Does.Contain("-Action blocking"));
+            Assert.That(goldAddScript,Does.Contain("Gold sintética expandida de $before para $after"));
             Assert.That(goldSql,Does.Contain("SET QUOTED_IDENTIFIER ON;"));
             Assert.That(goldSql,Does.Contain("SET ANSI_NULLS ON;"));
             Assert.That(goldSql,Does.Contain("SET ANSI_WARNINGS ON;"));
@@ -229,6 +239,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(infraScript,Does.Contain("Estado transitório da Console removido"));
             Assert.That(infraScript,Does.Contain("Histórico de execuções foi preservado"));
             Assert.That(localCluster,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
+            Assert.That(localCluster,Does.Contain("Assert-DockerEngineAvailable"));
+            Assert.That(localCluster,Does.Contain("Docker Desktop/Engine não está em execução"));
             Assert.That(localCluster,Does.Contain("Etapa cluster 1/6"));
             Assert.That(localCluster,Does.Contain("Show-ComposeFailureDiagnostics"));
             Assert.That(localCluster,Does.Contain("$composeExitCode=$LASTEXITCODE"));

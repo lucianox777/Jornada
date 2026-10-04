@@ -32,6 +32,11 @@ if([string]::IsNullOrWhiteSpace($password)){throw 'JORNADA_SQL_SA_PASSWORD ausen
 Write-Host ('Banco alvo: '+$db)
 $out=Join-Path $Root '.local/dev-console'
 New-Item -ItemType Directory -Force $out|Out-Null
+$dockerProbe=@(& docker info --format '{{.ServerVersion}}' 2>&1)
+if($LASTEXITCODE -ne 0){
+  $detail=($dockerProbe|Out-String).Trim()
+  throw "Docker Desktop/Engine não está em execução ou não está acessível. Inicie o Docker Desktop e tente novamente.$(if($detail){' Detalhe: '+$detail}else{''})"
+}
 Write-Host 'Etapa 1/5: verificando container SQL Server e banco sintético isolado...'
 
 $old=$env:SQLCMDPASSWORD
