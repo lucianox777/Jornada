@@ -251,6 +251,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("'system-status'"));
             Assert.That(opsScript,Does.Contain("ESTADO GERAL: OK"));
             Assert.That(opsScript,Does.Contain("Jornada.Linkage.Runner.dll"));
+            Assert.That(opsScript,Does.Contain("execução one-shot"));
             Assert.That(opsScript,Does.Not.Contain("[string[]]$Args"));
             Assert.That(opsScript,Does.Contain("--mode','REPLAY"));
             Assert.That(page,Does.Contain("A tela mostra somente operações reais"));
