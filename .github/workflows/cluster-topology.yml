@@ -132,7 +132,7 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:5080/api/v1/monitor/status -H "X-Jornada-Gestor: $gestor" -H "X-Jornada-Access-Key: $access_key" | jq -e '.monitor and .readiness' >/dev/null
           echo 'LOCAL MONITOR LOGIN / SYNTHETIC AUTHORIZED ACCESS: OK'
 
-      - name: Prove one-shot tools are not resident and DEV Linkage Runner is resident
+      - name: Prove one-shot binaries are installed but not resident
         shell: bash
         run: |
           docker compose --env-file .env exec -T jornada-node2 sh -lc '
@@ -145,11 +145,9 @@ jobs:
           '
           docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll --help >/dev/null
           docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/tools/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.dll --help >/dev/null
-          running=$(docker compose --env-file .env exec -T jornada-node2 sh -lc "ps -ef | grep -E 'Jornada.Linkage.Parameters.Worker|Jornada.Bronze.Verify|Jornada.Linkage.Evaluation' | grep -v grep || true")
+          running=$(docker compose --env-file .env exec -T jornada-node2 sh -lc "ps -ef | grep -E 'Jornada.Linkage.(Parameters.Worker|Runner)|Jornada.Bronze.Verify|Jornada.Linkage.Evaluation' | grep -v grep || true")
           test -z "$running"
-          docker compose --env-file .env exec -T jornada-node2 sh -lc 'test -s /data/node/linkage-runner-loop.pid && kill -0 $(cat /data/node/linkage-runner-loop.pid)'
-          docker compose --env-file .env exec -T jornada-node2 sh -lc 'test ! -e /data/node/linkage-runner.enabled'
-          echo 'ONE-SHOT TOOLS NOT RESIDENT; DEV LINKAGE RUNNER SUPERVISOR WAITING ON NODE2: OK'
+          echo 'ONE-SHOT TOOLS PRESENT, SUPPORT TRANSMITTER EXCLUDED, NOT RESIDENT: OK'
 
       - name: Prove Linkage is blocked before Calibrator
         shell: bash
