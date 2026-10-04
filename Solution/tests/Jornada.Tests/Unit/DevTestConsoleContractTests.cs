@@ -72,7 +72,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Not.Contain("Comando real ainda não mapeado."));
             Assert.That(runtime,Does.Contain("dev-console-gold-add.ps1 -AdditionalPeople 5000"));
             Assert.That(runtime,Does.Contain("Adicionar mais 5.000 registros"));
-            Assert.That(runtime,Does.Contain("30k → 35k → 40k"));
+            Assert.That(runtime,Does.Contain("Expande a Gold sintética DEV em blocos de 5.000"));
             Assert.That(runtime,Does.Contain("build-ingestion-fixture.py"));
             Assert.That(runtime,Does.Contain("new(\"zip\",\"Ingestão\""));
             Assert.That(runtime,Does.Contain("new(\"configuration\",\"Contratos e configurações\""));
@@ -109,7 +109,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("HeartbeatAsync"));
             Assert.That(runtime,Does.Contain("Processo ativo há"));
             Assert.That(runtime,Does.Not.Contain("\"environment-status\""));
-            Assert.That(runtime,Does.Contain("infraestrutura/health"));
+            Assert.That(runtime,Does.Contain("Diagnóstico read-only consolidado de infraestrutura, SQL/schema"));
             Assert.That(opsScript,Does.Contain("[1/7] Status/health da infraestrutura"));
             Assert.That(opsScript,Does.Contain("dev-console-infrastructure.ps1') -Action status"));
             Assert.That(opsScript,Does.Contain("[6/7] Bronze"));
@@ -344,9 +344,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("--pessoa-observacao-id"));
             Assert.That(opsScript,Does.Contain("dev-console-entrega:$entregaId"));
             Assert.That(opsScript,Does.Contain("Backlog pendente de outras cargas não foi selecionado."));
-            Assert.That(runtime,Does.Contain("somente para as observações elegíveis da última entrega enviada pela Console DEV"));
-            Assert.That(runtime,Does.Contain("O backlog sintético global permanece intacto"));
-            Assert.That(runtime,Does.Contain("[\"infrastructure\",\"zip\"]"));
+            Assert.That(runtime,Does.Contain("somente para as observações elegíveis da última Entrega"));
+            Assert.That(runtime,Does.Contain("Jornada.Linkage.Runner real no NODE2"));
+            Assert.That(runtime,Does.Contain("[\"silver\"]"));
             Assert.That(page,Does.Contain("Fluxo do dado"));
             Assert.That(page,Does.Contain("Pré-requisitos:"));
             Assert.That(page,Does.Contain("dependencyNote"));
