@@ -112,6 +112,17 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
   </section>
 </main>
 
+<dialog id="contractDialog">
+  <div class="dialog-head"><strong>Contratos de ingestão</strong><button class="secondary" type="button" onclick="contractDialog.close()">Fechar</button></div>
+  <div class="dialog-body">
+    <p>Visualize ou altere os arquivos JSON reais de <code>config/contracts</code>. O conteúdo é validado como JSON antes de salvar.</p>
+    <label>Arquivo<select id="contractPath" style="width:100%;padding:8px" onchange="loadContractFile()"></select></label>
+    <label>Conteúdo JSON<textarea id="contractContent" style="min-height:45vh"></textarea></label>
+    <div id="contractMessage" class="small"></div>
+  </div>
+  <div class="dialog-actions"><button class="secondary" type="button" onclick="contractDialog.close()">Cancelar</button><button class="primary" type="button" onclick="saveContractFile()">Validar e salvar</button></div>
+</dialog>
+
 <dialog id="zipDialog">
   <div class="dialog-head"><strong>Entrada manual para o ZIP</strong><button class="secondary" type="button" onclick="zipDialog.close()">Fechar</button></div>
   <div class="dialog-body">
@@ -231,13 +242,13 @@ async function loadCommands(){
   commandsCache=await api('/api/commands');
   const titleById=Object.fromEntries(commandsCache.map(x=>[x.id,x.title]));
   commands.innerHTML=commandsCache.map(c=>{
-    const label=c.id==='zip'?'Preencher dados':c.id==='semiblind'?'Consultar':'Executar';
+    const label=c.id==='zip'?'Preencher dados':c.id==='semiblind'?'Consultar':c.id==='contract-editor'?'Abrir':'Executar';
     const buttonClass=c.id==='finish'?'danger':'primary';
     const deps=(c.dependencies||[]).map(id=>titleById[id]||id);
     const dependency=deps.length||c.dependencyNote
       ?'<div class="dependency"><b>Pré-requisitos:</b> '+(deps.length?deps.map(esc).join(' → '):'nenhum obrigatório')+(c.dependencyNote?'<span class="dep-note">'+esc(c.dependencyNote)+'</span>':'')+'</div>'
       :'';
-    const action=c.id==='zip'?'openZipDialog()':c.id==='semiblind'?'openSemiblindDialog()':"startCommand('"+c.id+"')";
+    const action=c.id==='zip'?'openZipDialog()':c.id==='semiblind'?'openSemiblindDialog()':c.id==='contract-editor'?'openContractDialog()':"startCommand('"+c.id+"')";
     return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span><button class="'+buttonClass+'" type="button" onclick="'+action+'">'+label+'</button></div></div></div>'
   }).join('');
 }
@@ -246,6 +257,34 @@ async function startCommand(id){
   const command=commandsCache.find(x=>x.id===id);
   const response=await api('/api/commands/'+encodeURIComponent(id)+'/start',{method:'POST'});
   openLiveRun(response.id,command?.title||id,id);
+}
+
+
+async function openContractDialog(){
+  contractDialog.showModal();
+  contractMessage.textContent='Carregando contratos...';
+  try{
+    const files=await api('/api/contracts');
+    contractPath.innerHTML=files.map(p=>'<option value="'+esc(p)+'">'+esc(p)+'</option>').join('');
+    if(files.length)await loadContractFile();else contractMessage.textContent='Nenhum contrato JSON encontrado.';
+  }catch(e){contractMessage.textContent='Falha: '+e.message}
+}
+async function loadContractFile(){
+  if(!contractPath.value)return;
+  contractMessage.textContent='Carregando...';
+  try{
+    const file=await api('/api/contracts/file?path='+encodeURIComponent(contractPath.value));
+    contractContent.value=file.content;
+    contractMessage.textContent=file.path;
+  }catch(e){contractMessage.textContent='Falha: '+e.message}
+}
+async function saveContractFile(){
+  contractMessage.textContent='Validando e salvando...';
+  try{
+    JSON.parse(contractContent.value);
+    const file=await api('/api/contracts/file',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:contractPath.value,content:contractContent.value})});
+    contractMessage.textContent='Salvo: '+file.path;
+  }catch(e){contractMessage.textContent='Não foi salvo: '+e.message}
 }
 
 async function openSemiblindDialog(){
