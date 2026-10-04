@@ -60,6 +60,17 @@ if (PriorCounterfactualAuditCommand.IsRequested(args))
     return;
 }
 
+if (Dt05SnapshotMaintenanceCommand.IsRequested(args))
+{
+    var maintenanceBuilder = Host.CreateApplicationBuilder(args);
+    await Dt05SnapshotMaintenanceCommand.ExecuteAsync(
+        args,
+        maintenanceBuilder.Configuration,
+        maintenanceBuilder.Environment,
+        CancellationToken.None);
+    return;
+}
+
 if (args.Any(a => a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a.Equals("-h", StringComparison.OrdinalIgnoreCase)))
 {
     Console.WriteLine(LinkageRunOptions.Usage);
@@ -80,6 +91,11 @@ if (args.Any(a => a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a.Eq
     Console.WriteLine("  --blocking-pass-audit-labels <arquivo.csv>");
     Console.WriteLine("  --blocking-pass-audit-output <arquivo.json>");
     Console.WriteLine("  [--blocking-pass-audit-compare-combined true]  # D, C e D∪C; SQL real, somente leitura");
+    Console.WriteLine();
+    Console.WriteLine("Manutenção DT-05 de snapshots (audit read-only por padrão):");
+    Console.WriteLine("  --dt05-snapshot-maintenance-report <arquivo.json>");
+    Console.WriteLine("  [--dt05-snapshot-min-age-hours 24]");
+    Console.WriteLine("  [--dt05-snapshot-gc]  # remove somente órfãos/temp antigos; Development/Test");
     return;
 }
 
