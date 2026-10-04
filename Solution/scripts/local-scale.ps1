@@ -192,7 +192,7 @@ try {
 
   # DT-15 exige aprovação explícita também no harness de escala. A aprovação abaixo
   # é somente técnica/DEV e vinculada ao dossiê sintético do harness.
-  $validateApproval=Scalar @"
+  $validateApprovalSql=@"
 DECLARE @dossie uniqueidentifier,
         @aprovacao uniqueidentifier,
         @validade datetimeoffset(7)=DATEADD(hour,1,SYSDATETIMEOFFSET()),
@@ -216,6 +216,7 @@ EXEC auditoria.sp_registrar_aprovacao_modelo_linkage
      @aprovacao_id=@aprovacao OUTPUT;
 SELECT CONVERT(varchar(36),@aprovacao);
 "@
+  $validateApproval=Scalar $validateApprovalSql
   if($validateApproval -notmatch '^[0-9a-fA-F-]{36}'){throw 'Aprovação técnica VALIDATE do harness SCALE não foi registrada.'}
   Write-Host "Gate DT-15 SCALE DEV preparado para VALIDATE: aprovação técnica $validateApproval."
 
@@ -224,7 +225,7 @@ SELECT CONVERT(varchar(36),@aprovacao);
   dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
   if($LASTEXITCODE-ne 0){throw 'VALIDATE falhou'}
 
-  $activateApproval=Scalar @"
+  $activateApprovalSql=@"
 DECLARE @aprovacao uniqueidentifier,
         @sha binary(32)=HASHBYTES('SHA2_256',CONVERT(varbinary(max),'LOCAL_SCALE_TEST_DOSSIER'));
 EXEC auditoria.sp_registrar_aprovacao_modelo_linkage
@@ -236,6 +237,7 @@ EXEC auditoria.sp_registrar_aprovacao_modelo_linkage
      @aprovacao_id=@aprovacao OUTPUT;
 SELECT CONVERT(varchar(36),@aprovacao);
 "@
+  $activateApproval=Scalar $activateApprovalSql
   if($activateApproval -notmatch '^[0-9a-fA-F-]{36}'){throw 'Aprovação técnica ACTIVATE do harness SCALE não foi registrada.'}
   Write-Host "Gate DT-15 SCALE DEV preparado para ACTIVATE: aprovação técnica $activateApproval."
 
