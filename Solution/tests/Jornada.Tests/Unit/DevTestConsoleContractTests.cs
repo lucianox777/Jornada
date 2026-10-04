@@ -50,6 +50,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("StandardOutputEncoding=Encoding.UTF8"));
             Assert.That(runtime,Does.Contain("StandardErrorEncoding=Encoding.UTF8"));
             Assert.That(runtime,Does.Contain("result.ExitCode==0&&candidatePath is not null&&File.Exists(candidatePath)"));
+            Assert.That(runtime,Does.Contain("catch(JsonException)"));
+            Assert.That(runtime,Does.Contain("catch(NotSupportedException)"));
 
             Assert.That(page,Does.Contain("🕘 Execuções"));
             Assert.That(page,Does.Contain("console-shell"));
@@ -63,6 +65,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("Resultado salvo em:"));
             Assert.That(page,Does.Contain("Ver dados do resultado"));
             Assert.That(page,Does.Contain("Executar novamente"));
+            Assert.That(page,Does.Contain("Falha ao carregar o histórico."));
+            Assert.That(page,Does.Contain("history.textContent=\'Carregando...\'"));
 
             Assert.That(localDb,Does.Contain("iniciando Docker Desktop"));
             Assert.That(localDb,Does.Contain("Start-Process -FilePath $dockerDesktopPath"));
@@ -80,6 +84,10 @@ public sealed class DevTestConsoleContractTests
 
             Assert.That(goldScript,Does.Contain("Jornada_Dev_GoldSynthetic.sql"));
             Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
+            Assert.That(goldScript,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
+            Assert.That(goldScript,Does.Contain("$PSStyle.OutputRendering='PlainText'"));
+            Assert.That(goldScript,Does.Contain("-h -1 -y 0 -Q $q"));
+            Assert.That(goldScript,Does.Not.Contain("-W -h -1 -y 0"));
             Assert.That(goldScript,Does.Not.Contain("Jornada_Dev_LinkageValidation.sql"));
             Assert.That(goldSql,Does.Contain("SET QUOTED_IDENTIFIER ON;"));
             Assert.That(goldSql,Does.Contain("SET ANSI_NULLS ON;"));

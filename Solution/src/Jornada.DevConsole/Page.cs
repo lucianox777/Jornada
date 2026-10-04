@@ -160,11 +160,17 @@ async function showHome(){
 async function showHistory(){
   if(eventSource){eventSource.close();eventSource=null}
   switchView(historyView);
-  const runs=await api('/api/runs');
-  history.innerHTML=runs.length?runs.map(r=>{
-    const statusClass=String(r.status).replaceAll(' ','-');
-    return '<div class="history-item"><div><a href="#" onclick="openHistoryRun(\''+r.id+'\');return false"><span class="history-title">'+esc(r.title)+'</span></a><div class="history-meta">'+esc(new Date(r.startedAt).toLocaleString())+' · '+esc(r.summary)+'</div></div><div class="history-status '+esc(statusClass)+'">'+esc(r.status)+'</div></div>'
-  }).join(''):'Nenhuma execução registrada.';
+  history.textContent='Carregando...';
+  try{
+    const runs=await api('/api/runs');
+    history.innerHTML=runs.length?runs.map(r=>{
+      const statusClass=String(r.status).replaceAll(' ','-');
+      const started=r.startedAt?new Date(r.startedAt).toLocaleString():'data indisponível';
+      return '<div class="history-item"><div><a href="#" onclick="openHistoryRun(\''+r.id+'\');return false"><span class="history-title">'+esc(r.title||r.command||'Execução')+'</span></a><div class="history-meta">'+esc(started)+' · '+esc(r.summary||'')+'</div></div><div class="history-status '+esc(statusClass)+'">'+esc(r.status||'')+'</div></div>'
+    }).join(''):'Nenhuma execução registrada.';
+  }catch(e){
+    history.innerHTML='<div class="card"><b>Falha ao carregar o histórico.</b><div class="small">'+esc(e.message)+'</div></div>';
+  }
 }
 
 async function loadCommands(){
