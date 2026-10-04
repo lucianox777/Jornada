@@ -22,6 +22,13 @@ foreach($required in @($clusterPath,$openApiPath,$contractsPath,$governancePath,
 
 $cluster=Get-Content $clusterPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
+$modelStatePath=Join-Path $Root '.local/dev-console/initial-calibration.json'
+$modelState=$null
+if(Test-Path $modelStatePath){
+  try{$modelState=Get-Content $modelStatePath -Raw -Encoding UTF8 | ConvertFrom-Json}
+  catch{$modelState=$null}
+}
+
 $health=@()
 $envFile=Join-Path $Root '.env.devconsole'
 if(-not(Test-Path $envFile)){$envFile=Join-Path $Root '.env'}
@@ -72,7 +79,8 @@ $config=[ordered]@{
     nas='localhost:1445'
   }
   runtimeHealth=$health
-  note='Configuração inicial gerada na subida da infraestrutura. Não contém modelo de linkage ATIVO; após a calibração gere o bundle operacional de contratos/configurações.'
+  activeLinkageModel=$modelState
+  note='Configuração inicial gerada após a garantia do modelo BOOTSTRAP inicial ATIVO. O bundle operacional de contratos/configurações é gerado separadamente e se vincula ao modelo ATIVO corrente.'
 }
 
 $jsonPath=Join-Path $OutDir 'configuration.json'
