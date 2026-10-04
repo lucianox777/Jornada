@@ -127,8 +127,8 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
 
         if(!definition.Implemented||definition.File is null)
         {
-            live.Add("stderr","SEM EXECUTOR: comando real ainda não mapeado.");
-            var step=new StepResult(definition.DisplayCommand,root,-1,0,"","Comando real ainda não mapeado.",null);
+            live.Add("stderr","SEM EXECUTOR: operação sem executor configurado.");
+            var step=new StepResult(definition.DisplayCommand,root,-1,0,"","Operação sem executor configurado.",null);
             await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"SEM EXECUTOR","Opção disponível; comando real ainda não mapeado.",step,Array.Empty<Dictionary<string,string?>>()),live);
             return;
         }
