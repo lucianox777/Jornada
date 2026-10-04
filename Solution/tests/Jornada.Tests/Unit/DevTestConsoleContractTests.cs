@@ -68,7 +68,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Not.Contain("Comando real ainda não mapeado."));
             Assert.That(runtime,Does.Contain("dev-console-gold-add.ps1 -AdditionalPeople 5000"));
             Assert.That(runtime,Does.Contain("Adicionar mais 5.000 registros"));
-            Assert.That(runtime,Does.Contain("30k → 35k → 40k"));
+            Assert.That(runtime,Does.Contain("0 → 5k → 10k"));
             Assert.That(runtime,Does.Contain("build-ingestion-fixture.py"));
             Assert.That(runtime,Does.Contain("new(\"zip\",\"Ingestão\""));
             Assert.That(runtime,Does.Contain("new(\"configuration\",\"Contratos e configurações\""));
@@ -166,7 +166,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localDb,Does.Contain("Aguardando Docker Engine"));
             Assert.That(localDb,Does.Contain("Docker Engine pronto"));
             Assert.That(runtime,Does.Contain("modelo BOOTSTRAP inicial ATIVO, configuração inicial e bundle de contratos/configurações"));
-            Assert.That(runtime,Does.Contain("a preparação já garante a Gold inicial e o modelo BOOTSTRAP ATIVO."));
+            Assert.That(runtime,Does.Contain("a preparação garante o modelo BOOTSTRAP ATIVO e descarta o corpus usado exclusivamente na calibração."));
             Assert.That(runtime,Does.Contain("gerar deliberadamente uma nova versão após alterar massa/parâmetros"));
             Assert.That(runtime,Does.Contain("Environment.SpecialFolder.LocalApplicationData"));
             Assert.That(runtime,Does.Contain("Path.Combine(local,\"Jornada\",\"DevConsole\")"));
@@ -231,6 +231,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("local-cluster.ps1"));
             Assert.That(opsScript,Does.Contain("calibrate-initial"));
             Assert.That(opsScript,Does.Contain("Gold sintética completa de 30.000 pessoas"));
+            Assert.That(opsScript,Does.Contain("Jornada.BootstrapCorpusLifecycle"));
+            Assert.That(opsScript,Does.Contain("PENDING_DISCARD"));
+            Assert.That(opsScript,Does.Contain("bootstrap-corpus-lifecycle.ps1"));
+            Assert.That(opsScript,Does.Contain("operationalScalePeopleAfterBootstrap"));
             Assert.That(opsScript,Does.Contain("contract-config-bundle.zip"));
             Assert.That(opsScript,Does.Contain("NAO_ENCONTRADA_NO_AMBIENTE_ATUAL"));
             Assert.That(opsScript,Does.Contain("staleReceipt=$true"));
