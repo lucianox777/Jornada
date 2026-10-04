@@ -285,7 +285,8 @@ async function loadCommands(){
       actions='<button class="primary" type="button" onclick="startCommand(\'linkage\')">Executar</button>'
         +'<button class="secondary" type="button" onclick="startCommand(\'replay\',\'Executar replay do último run\')">Replay</button>';
     }else if(c.id==='configuration'){
-      actions='<button class="primary" type="button" onclick="openConfigurationDialog()">Abrir</button>';
+      actions='<button class="primary" type="button" onclick="openConfigurationDialog()">Abrir</button>'
+        +'<button class="secondary" type="button" onclick="startCommand(\'contract-bundle\',\'Gerar bundle de contratos e configurações\')">Gerar bundle</button>';
     }else if(c.id==='gold-synthetic'){
       actions='<button class="primary" type="button" onclick="startCommand(\'gold-synthetic\')">Adicionar 5.000</button>'
         +'<button class="secondary" type="button" onclick="startCommand(\'blocking\',\'Reconstruir blocking\')">Reconstruir blocking</button>';
