@@ -14,7 +14,7 @@ body{margin:0}
 button,input,textarea{font:inherit}
 button{cursor:pointer}
 header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #d9dee5;padding:14px 22px;display:flex;align-items:center;justify-content:space-between}
-header h1{font-size:20px;margin:0}
+header h1{font-size:20px;margin:0}.brand{display:flex;flex-direction:column;gap:2px}.breadcrumb{font-size:12px;color:#6c7784;font-weight:600}
 main{max-width:1180px;margin:0 auto;padding:22px}
 .toolbar{display:flex;gap:8px;align-items:center}
 .iconbtn{border:1px solid #cfd6df;background:#fff;border-radius:8px;padding:8px 12px}
@@ -72,7 +72,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
 </head>
 <body>
 <header>
-  <h1>Jornada · Console DEV</h1>
+  <div class="brand"><h1>Jornada · Console DEV</h1><div id="breadcrumb" class="breadcrumb">Console DEV / Comandos</div></div>
   <div class="toolbar">
     <button class="iconbtn" type="button" onclick="showHome()">⌂ Comandos</button>
     <button class="iconbtn" type="button" onclick="showHistory()">🕘 Execuções</button>
@@ -181,6 +181,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
 const esc=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const views=[homeView,consoleView,historyView];
 const historyList=document.getElementById('history');
+const breadcrumb=document.getElementById('breadcrumb');
 let commandsCache=[];
 let currentRunId=null;
 let currentCommandId=null;
@@ -193,20 +194,21 @@ async function api(url,options){
   return type.includes('application/json')?response.json():response.text();
 }
 
-function switchView(view){
+function switchView(view,label){
   for(const item of views)item.classList.toggle('hidden',item!==view);
+  breadcrumb.textContent='Console DEV / '+label;
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
 async function showHome(){
   if(eventSource){eventSource.close();eventSource=null}
-  switchView(homeView);
+  switchView(homeView,'Comandos');
   await loadCommands();
 }
 
 async function showHistory(){
   if(eventSource){eventSource.close();eventSource=null}
-  switchView(historyView);
+  switchView(historyView,'Execuções');
   historyList.textContent='Carregando...';
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),7000);
@@ -383,10 +385,14 @@ function resetConsole(title){
 }
 
 function appendConsole(item){
+  const stream=item.stream??item.Stream??'system';
+  const at=item.at??item.At??new Date().toISOString();
+  const text=item.text??item.Text??'';
   const line=document.createElement('div');
-  line.className='line '+esc(item.stream);
-  const time=new Date(item.at).toLocaleTimeString();
-  line.textContent='['+time+'] '+item.text;
+  line.className='line '+esc(stream);
+  const parsed=new Date(at);
+  const time=Number.isNaN(parsed.getTime())?'--:--:--':parsed.toLocaleTimeString();
+  line.textContent='['+time+'] '+text;
   terminal.appendChild(line);
   terminal.scrollTop=terminal.scrollHeight;
 }
@@ -396,12 +402,12 @@ function openLiveRun(id,title,commandId){
   currentRunId=id;
   currentCommandId=commandId;
   resetConsole(title);
-  switchView(consoleView);
+  switchView(consoleView,'Execução / '+title);
   eventSource=new EventSource('/api/runs/'+id+'/stream');
   eventSource.onmessage=async event=>{
     const item=JSON.parse(event.data);
     appendConsole(item);
-    if(item.stream==='status'){
+    if((item.stream??item.Stream)==='status'){
       eventSource.close();
       eventSource=null;
       await finishConsole(id);
@@ -459,7 +465,7 @@ async function openHistoryRun(id){
   const run=await api('/api/runs/'+id);
   if(eventSource){eventSource.close();eventSource=null}
   resetConsole(run.title);
-  switchView(consoleView);
+  switchView(consoleView,'Execução / '+run.title);
   appendConsole({at:run.startedAt,stream:'command',text:'> '+run.step.command});
   for(const line of String(run.step.output||'').split(/\r?\n/))if(line)appendConsole({at:run.startedAt,stream:'stdout',text:line});
   for(const line of String(run.step.error||'').split(/\r?\n/))if(line)appendConsole({at:run.finishedAt,stream:'stderr',text:line});
