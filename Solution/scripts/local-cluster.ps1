@@ -17,6 +17,15 @@ $LocalDb = Join-Path $PSScriptRoot 'local-db.ps1'
 $ClusterConfig = Join-Path $Root 'install\windows-production\Jornada.Cluster.Test.json'
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw 'Docker não encontrado no PATH.' }
+
+function Assert-DockerEngineAvailable {
+    $probe = @(& docker info --format '{{.ServerVersion}}' 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        $detail = ($probe | Out-String).Trim()
+        throw "Docker Desktop/Engine não está em execução ou não está acessível. Inicie o Docker Desktop e tente novamente.$(if($detail){" Detalhe: $detail"}else{''})"
+    }
+}
+Assert-DockerEngineAvailable
 if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
     if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile" }
     if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw 'Python 3 é necessário para gerar a credencial local.' }
