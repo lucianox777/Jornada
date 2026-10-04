@@ -74,7 +74,27 @@ UNION
 SELECT DISTINCT vc.pessoa_uuid
 FROM identidade.v_vinculo_corrente vc
 JOIN #observation o ON o.pessoa_observacao_id=vc.pessoa_observacao_id
-WHERE vc.pessoa_uuid IS NOT NULL;
+WHERE vc.pessoa_uuid IS NOT NULL
+UNION
+SELECT p.initial_uuid
+FROM identidade.pessoa_origem_progressiva p
+JOIN #origin o ON o.pessoa_origem_id=p.pessoa_origem_id
+WHERE p.initial_uuid IS NOT NULL
+UNION
+SELECT p.canonical_uuid
+FROM identidade.pessoa_origem_progressiva p
+JOIN #origin o ON o.pessoa_origem_id=p.pessoa_origem_id
+WHERE p.canonical_uuid IS NOT NULL
+UNION
+SELECT p.legacy_pessoa_uuid
+FROM identidade.pessoa_origem_progressiva p
+JOIN #origin o ON o.pessoa_origem_id=p.pessoa_origem_id
+WHERE p.legacy_pessoa_uuid IS NOT NULL
+UNION
+SELECT p.ultimo_destino_externo_uuid
+FROM identidade.pessoa_origem_progressiva p
+JOIN #origin o ON o.pessoa_origem_id=p.pessoa_origem_id
+WHERE p.ultimo_destino_externo_uuid IS NOT NULL;
 
 DECLARE @originCount BIGINT=(SELECT COUNT_BIG(*) FROM #origin);
 DECLARE @observationCount BIGINT=(SELECT COUNT_BIG(*) FROM #observation);
