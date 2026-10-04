@@ -42,9 +42,9 @@ sealed class LayerBrowserService(IWebHostEnvironment env)
     static readonly LayerDefinition Identity=new(
         "identity",
         "identidade.v_vinculo_corrente vc JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vc.pessoa_observacao_id JOIN ingestao.lote l ON l.lote_id=po.lote_id",
-        "vc.atualizado_em DESC,vc.pessoa_observacao_id",
-        ["entrega_id","pessoa_observacao_id","status","metodo_resolucao","pessoa_uuid","linkage_run_id","atualizado_em"],
-        ["l.entrega_id","vc.pessoa_observacao_id","vc.status","vc.metodo_resolucao","vc.pessoa_uuid","vc.linkage_run_id","vc.atualizado_em"]);
+        "vc.resolvido_em DESC,vc.pessoa_observacao_id",
+        ["entrega_id","pessoa_observacao_id","status","metodo_resolucao","pessoa_uuid","linkage_run_id","resolvido_em"],
+        ["l.entrega_id","vc.pessoa_observacao_id","vc.status","vc.metodo_resolucao","vc.pessoa_uuid","vc.linkage_run_id","vc.resolvido_em"]);
 
     public async Task<LayerPage> BrowseAsync(string layer,int page,int pageSize,string? search,CancellationToken ct)
     {
