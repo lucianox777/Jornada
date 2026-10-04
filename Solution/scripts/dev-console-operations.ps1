@@ -168,12 +168,13 @@ switch($Action){
 
     'calibrate-initial' {
         Ensure-ClusterRunning
-        $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM gold.pessoa;")
-        if($goldCount -le 0){throw 'Gold vazia. Carregue a Gold sintética de bootstrap ou processe uma ingestão até a Gold antes da calibração inicial.'}
+        if($db -ne 'JornadaSyntheticDev'){throw "Console DEV exige JornadaSyntheticDev; banco atual=$db."}
+        $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT vc.pessoa_uuid) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.status=N'RESOLVIDO';")
+        if($goldCount -ne 30000){throw "Calibração inicial exige a Gold sintética completa de 30.000 pessoas; atual=$goldCount. Execute Carregar Gold sintética (30.000)."}
         $activeCount=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO';")
         if($activeCount -gt 0){throw 'Já existe modelo ATIVO. Use Recalibrar e ativar para criar uma nova versão.'}
 
-        Write-Host "Gold disponível para calibração inicial: $goldCount pessoa(s)."
+        Write-Host "Gold sintética DEV disponível para calibração inicial: $goldCount pessoa(s)."
         Invoke-ClusterAction 'calibrate'
 
         $modelId=Invoke-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status=N'ATIVO' ORDER BY versao DESC;"
