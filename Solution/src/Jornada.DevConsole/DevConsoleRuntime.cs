@@ -523,7 +523,7 @@ sealed class RunStore(IWebHostEnvironment env)
             read+=n;
         }
         var text=Encoding.UTF8.GetString(buffer,0,read);
-        var stepIndex=text.IndexOf(""step"",StringComparison.OrdinalIgnoreCase);
+        var stepIndex=text.IndexOf("\"step\"",StringComparison.OrdinalIgnoreCase);
         if(stepIndex<0)return null;
         var comma=text.LastIndexOf(',',stepIndex);
         if(comma<0)return null;
