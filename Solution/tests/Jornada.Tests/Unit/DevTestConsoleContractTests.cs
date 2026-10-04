@@ -277,6 +277,11 @@ public sealed class DevTestConsoleContractTests
             Assert.That(devEnv,Does.Contain("JORNADA_LOCAL_SYNTHETIC_PEOPLE"));
             Assert.That(devEnv,Does.Contain("30000"));
             Assert.That(compose,Does.Contain("SemiblindIdentitySearch__Enabled"));
+            Assert.That(compose,Does.Contain("JORNADA_DEV_LINKAGE_RUNNER_LOOP"));
+            Assert.That(entrypoint,Does.Contain("JORNADA_DEV_LINKAGE_RUNNER_LOOP"));
+            Assert.That(entrypoint,Does.Contain("linkage-runner.enabled"));
+            Assert.That(entrypoint,Does.Contain("--mode INCREMENTAL"));
+            Assert.That(infraScript,Does.Contain("linkage-runner.enabled"));
             Assert.That(compose,Does.Contain("test-access-keys.json:/opt/jornada/config/security/test-access-keys.json:ro"));
             Assert.That(compose,Does.Contain("[reference-bootstrap] Iniciando ENSURE_NAME_FREQUENCY_SNAPSHOT"));
             Assert.That(compose,Does.Not.Contain("LinkageParameters__Operation=ENSURE_IBGE_NOMINAL_U_REFERENCE dotnet"));
