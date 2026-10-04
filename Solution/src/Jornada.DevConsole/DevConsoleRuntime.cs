@@ -5,12 +5,13 @@ using System.Text.Json;
 
 sealed record CommandDefinition(string Id,string Title,string Description,string? File,string? Arguments,string? ResultPath,string[] Dependencies,string? DependencyNote)
 {
-    public bool Implemented=>File is not null||Id is "zip" or "semiblind" or "contract-editor";
+    public bool Implemented=>File is not null||Id is "zip" or "semiblind" or "contract-editor" or "active-config-editor";
     public string? CommandLine=>File is null?null:$"{File} {Arguments}";
     public string DisplayCommand=>Id switch{
         "zip"=>"Entrada manual → build-ingestion-fixture.py → POST /api/v1/ingestao/entregas",
         "semiblind"=>"POST /api/v1/identidade/candidatos (DEV sintético)",
         "contract-editor"=>"config/contracts/**/*.json",
+        "active-config-editor"=>"config/**/*.json + install/windows-production/Jornada.Cluster.Test.json",
         _=>CommandLine??"Operação parametrizada pela interface."
     };
 }
@@ -36,6 +37,7 @@ static class CommandCatalog
         new("gold-synthetic","Carregar Gold sintética (30.000)","Materializa a Gold exclusivamente sintética da Console DEV com 30.000 pessoas; nomes e sobrenomes seguem a frequência pública IBGE versionada.","pwsh","-NoProfile -File scripts/dev-console-gold-synthetic.ps1",".local/dev-console/gold-synthetic-records.json",["infrastructure"],"Na Console DEV a Gold é sempre sintética. Não existe fallback para Gold real."),
         new("contract-bundle","Gerar bundle de contratos e configurações","Gera um ZIP operacional sem binários com OpenAPI, contratos JSON, configurações governadas e metadados do modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-contract-bundle.ps1",".local/dev-console/contract-config-bundle.zip",["infrastructure"],"A infraestrutura garante o BOOTSTRAP inicial ATIVO; o bundle sempre se vincula ao modelo ATIVO corrente."),
         new("contract-editor","Ver/alterar contratos de ingestão","Abre os arquivos JSON reais em config/contracts para consulta e edição validada antes da ingestão.",null,null,null,[], "Alterações são locais ao checkout DEV; o JSON é validado antes de salvar."),
+        new("active-config-editor","Ver/editar configurações ativas","Mostra os JSON de configuração usados pelo ambiente DEV, seus caminhos no checkout/runtime e permite edição em visão amigável ou JSON bruto.",null,null,null,[], "O caminho efetivo é exibido; alterações que exigem reinício são sinalizadas."),
         new("zip","Gerar e enviar ZIP de ingestão","Abre a entrada manual, gera o ZIP real e o envia na mesma execução para a API de ingestão em NODE1.",null,null,null,["contract-bundle"],"Usa exatamente o ZIP recém-gerado; o bundle de contratos/configurações continua sendo validado antes do envio."),
         new("ingestion","Reenviar último ZIP para ingestão","Reenvia manualmente o último ZIP já gerado para a API real em NODE1 usando a credencial sintética DEV correspondente ao Gestor.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest",".local/dev-console/last-ingestion.json",["contract-bundle","zip"],"Rotina de repetição/diagnóstico; o comando Gerar e enviar ZIP já faz o envio normal."),
         new("pipeline-status","Ver status da última ingestão","Consulta o recibo da última Entrega. Bronze, Silver, identidade e Gold são processados pelo Processor residente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action pipeline-status",".local/dev-console/last-ingestion-status.json",["zip"],"Gerar e enviar ZIP já produz o recibo usado por esta consulta."),
