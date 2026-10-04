@@ -29,8 +29,12 @@ $Version = (& $DotnetExe --version).Trim()
 if (-not $Version.StartsWith("10.")) { throw ".NET SDK 10.x obrigatorio. Encontrado: $Version" }
 
 Write-Host "Usando .NET $Version"
-Write-Host "Compilando Jornada.sln..."
-& $DotnetExe build $Solution
+Write-Host "Restaurando dependencias em modo locked..."
+& $DotnetExe restore $Solution --locked-mode
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Write-Host "Compilando Jornada.sln uma unica vez..."
+& $DotnetExe build $Solution --no-restore
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "Iniciando Jornada.DevConsole..."
