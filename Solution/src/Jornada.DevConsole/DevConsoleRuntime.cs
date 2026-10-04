@@ -380,19 +380,36 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         process.Start();
         var stdout=new StringBuilder();
         var stderr=new StringBuilder();
+        var started=Stopwatch.StartNew();
+        var lastOutputTicks=Stopwatch.GetTimestamp();
 
         async Task PumpAsync(StreamReader reader,StringBuilder sink,string stream)
         {
             while(await reader.ReadLineAsync() is { } line)
             {
                 sink.AppendLine(line);
+                Volatile.Write(ref lastOutputTicks,Stopwatch.GetTimestamp());
                 live.Add(stream,line);
+            }
+        }
+
+        async Task HeartbeatAsync()
+        {
+            while(!process.HasExited)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5));
+                if(process.HasExited)break;
+                var silent=Stopwatch.GetElapsedTime(Volatile.Read(ref lastOutputTicks));
+                if(silent<TimeSpan.FromSeconds(5))continue;
+                live.Add("system",$"⏳ Processo ativo há {started.Elapsed.TotalSeconds:0}s; sem nova saída há {silent.TotalSeconds:0}s. Aguardando...");
             }
         }
 
         var outTask=PumpAsync(process.StandardOutput,stdout,"stdout");
         var errTask=PumpAsync(process.StandardError,stderr,"stderr");
+        var heartbeatTask=HeartbeatAsync();
         await Task.WhenAll(outTask,errTask,process.WaitForExitAsync());
+        await heartbeatTask;
         return new ProcessCapture(process.ExitCode,stdout.ToString(),stderr.ToString());
     }
 
