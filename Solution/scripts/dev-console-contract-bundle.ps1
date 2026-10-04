@@ -107,9 +107,34 @@ $infoPath=Join-Path $Stage 'BUNDLE_INFO.json'
 $infoHtmlPath=Join-Path $Stage 'BUNDLE_INFO.html'
 $infoJson=$info | ConvertTo-Json -Depth 20
 [IO.File]::WriteAllText($infoPath,$infoJson,[Text.UTF8Encoding]::new($false))
-$escapedInfo=[System.Net.WebUtility]::HtmlEncode($infoJson)
+function H([object]$Value){[System.Net.WebUtility]::HtmlEncode([string]$Value)}
+$contentItems=($info.contents | ForEach-Object {"<li>$(H $_)</li>"}) -join ''
+$excludeItems=($info.excludes | ForEach-Object {"<li>$(H $_)</li>"}) -join ''
 $infoHtml=@"
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Jornada DEV - Bundle de contratos e configurações</title><style>body{font-family:system-ui;margin:24px;color:#17202a}pre{background:#0b0f14;color:#d7e0ea;padding:16px;border-radius:8px;white-space:pre-wrap}</style></head><body><h1>Bundle de contratos e configurações</h1><p><b>Modelo ATIVO:</b> v$version ($modelId)</p><pre>$escapedInfo</pre></body></html>
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Jornada DEV - Bundle de contratos e configurações</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#17202a;background:#f4f6f8}*{box-sizing:border-box}body{margin:0}
+.page{max-width:1100px;margin:0 auto;padding:28px}.header,.section{background:white;border:1px solid #dce2e8;border-radius:12px;padding:20px 22px;margin-bottom:16px}
+h1{margin:0 0 5px;font-size:1.55rem}h2{font-size:1.08rem;margin:0 0 14px}.muted{color:#697581}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.field{border:1px solid #e1e6eb;border-radius:9px;padding:12px 14px;overflow-wrap:anywhere}
+.field span{display:block;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;color:#697581;font-weight:700;margin-bottom:5px}.wide{grid-column:1/-1}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.88em}ul{margin:0;padding-left:22px}li{margin:6px 0}
+@media(max-width:700px){.page{padding:14px}.grid{grid-template-columns:1fr}}
+</style></head><body><main class="page">
+<section class="header"><h1>Bundle de contratos e configurações</h1><div class="muted">Gerado em $(H $info.generatedAt)</div></section>
+<section class="section"><h2>Identificação</h2><div class="grid">
+  <div class="field"><span>Tipo do bundle</span>$(H $info.bundleType)</div>
+  <div class="field"><span>Banco de dados</span>$(H $info.database)</div>
+  <div class="field"><span>Status do modelo</span><b>$(H $info.activeModel.status)</b></div>
+  <div class="field"><span>Versão do modelo</span><b>$(H $info.activeModel.version)</b></div>
+  <div class="field wide"><span>ID do modelo</span><code>$(H $info.activeModel.modelId)</code></div>
+  <div class="field"><span>Versão do model config bundle</span>$(H $info.activeModel.modelConfigBundleVersion)</div>
+  <div class="field wide"><span>Fingerprint SHA-256</span><code>$(H $info.activeModel.modelConfigBundleFingerprintSha256)</code></div>
+</div></section>
+<section class="section"><h2>Conteúdo incluído</h2><ul>$contentItems</ul></section>
+<section class="section"><h2>Conteúdo excluído</h2><ul>$excludeItems</ul></section>
+<section class="section"><p class="muted">Arquivo JSON correspondente: <code>$(H $infoPath)</code></p></section>
+</main></body></html>
 "@
 [IO.File]::WriteAllText($infoHtmlPath,$infoHtml,[Text.UTF8Encoding]::new($false))
 
