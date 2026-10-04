@@ -100,6 +100,7 @@ services:
     volumes:
       - ./install/windows-production/Jornada.Cluster.Test.json:/etc/jornada/Jornada.Cluster.Test.json:ro
       - ./config/security/test-access-keys.json:/opt/jornada/config/security/test-access-keys.json:ro
+      - ./config/contracts:/opt/jornada/config/contracts:ro
       - jornada_bronze:/data/bronze
       - jornada_staging_1:/data/staging
       - jornada_logs_1:/data/logs
@@ -122,6 +123,7 @@ services:
       - "5181:5081"
     volumes:
       - ./install/windows-production/Jornada.Cluster.Test.json:/etc/jornada/Jornada.Cluster.Test.json:ro
+      - ./config/contracts:/opt/jornada/config/contracts:ro
       - jornada_bronze:/data/bronze
       - jornada_staging_2:/data/staging
       - jornada_logs_2:/data/logs
