@@ -85,6 +85,7 @@ component_dll() {
     Processor) echo "/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll" ;;
     OperationsMaintenance) echo "/opt/jornada/apps/Jornada.Operations.Maintenance.Worker/Jornada.Operations.Maintenance.Worker.dll" ;;
     BronzeMaintenance) echo "/opt/jornada/apps/Jornada.Bronze.Maintenance.Worker/Jornada.Bronze.Maintenance.Worker.dll" ;;
+    LinkageRunner) echo "/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll" ;;
     *) return 1 ;;
   esac
 }
@@ -112,6 +113,10 @@ jornada_api_base_url="$(jq -er '.http.jornadaApiBaseUrl' "$CONFIG_PATH")"
 while IFS= read -r task_json; do
   enabled="$(jq -r '.enabled' <<<"$task_json")"
   [[ "$enabled" == "true" ]] || continue
+
+  if ! jq -e --arg node "$JORNADA_NODE_ID" '(.nodes // []) as $nodes | ($nodes|length)==0 or any($nodes[]; ascii_downcase == ($node|ascii_downcase))' <<<"$task_json" >/dev/null; then
+    continue
+  fi
 
   trigger_type="$(jq -r '.trigger.type' <<<"$task_json")"
   if [[ "$trigger_type" != "AtStartup" ]]; then
@@ -145,10 +150,21 @@ while IFS= read -r task_json; do
   workdir="$(dirname "$dll")"
 
   echo "[$JORNADA_NODE_ID] START $name ($component)"
-  (
-    cd "$workdir"
-    exec env "${env_args[@]}" dotnet "$dll" "${task_args[@]}"
-  ) &
+  if [[ "$component" == "LinkageRunner" ]]; then
+    (
+      cd "$workdir"
+      interval_ms="${LinkageRunner__PollingMilliseconds:-5000}"
+      while true; do
+        env "${env_args[@]}" dotnet "$dll" "${task_args[@]}" || echo "[$JORNADA_NODE_ID] $name ciclo falhou; nova tentativa em ${interval_ms}ms." >&2
+        sleep "$(awk "BEGIN { print $interval_ms / 1000 }")"
+      done
+    ) &
+  else
+    (
+      cd "$workdir"
+      exec env "${env_args[@]}" dotnet "$dll" "${task_args[@]}"
+    ) &
+  fi
   child_pids+=("$!")
   child_names+=("$name")
 done < <(jq -c '.tasks[]' "$CONFIG_PATH")
