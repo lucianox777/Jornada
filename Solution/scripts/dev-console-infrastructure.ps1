@@ -10,8 +10,10 @@ $ProgressPreference='SilentlyContinue'
 $OutputEncoding=[Text.UTF8Encoding]::new($false)
 if($PSVersionTable.PSVersion.Major -ge 7){$PSStyle.OutputRendering='PlainText'}
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'dev-console-env.ps1')
+$Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Cluster=Join-Path $PSScriptRoot 'local-cluster.ps1'
-$EnvFile=Join-Path $Root '.env'
+$EnvFile=$DevConsoleEnvFile
 
 function Invoke-Cluster([string]$ClusterAction,[switch]$NoBuild){
     $suffix=if($NoBuild){' -NoBuild'}else{''}
