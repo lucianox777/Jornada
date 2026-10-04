@@ -128,10 +128,20 @@ try {
         throw "E2E: contratos externos SEHAB não encontrados na Solução de Apoio: $supportContracts"
     }
     if (Test-Path -LiteralPath $targetContracts) {
-        throw 'E2E: contrato SEHAB já presente na solução principal; staging não sobrescreve arquivos existentes.'
+        $supportFiles = Get-ChildItem -LiteralPath $supportContracts -File -Recurse
+        foreach ($source in $supportFiles) {
+            $relative = [IO.Path]::GetRelativePath($supportContracts, $source.FullName)
+            $target = Join-Path $targetContracts $relative
+            if (-not (Test-Path -LiteralPath $target -PathType Leaf) -or
+                (Get-FileHash -LiteralPath $source.FullName -Algorithm SHA256).Hash -ne
+                (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash) {
+                throw "E2E: cópia runtime SEHAB diverge da fonte de apoio: $relative"
+            }
+        }
+    } else {
+        $stagedSehab = $targetContracts
+        Copy-Item -LiteralPath $supportContracts -Destination $targetContracts -Recurse
     }
-    $stagedSehab = $targetContracts
-    Copy-Item -LiteralPath $supportContracts -Destination $targetContracts -Recurse
     foreach ($relative in @('pessoa/v4/pessoa.schema.json', 'pessoa/v5/pessoa.schema.json')) {
         $sourceHash = (Get-FileHash -LiteralPath (Join-Path $supportContracts $relative) -Algorithm SHA256).Hash
         $stagedHash = (Get-FileHash -LiteralPath (Join-Path $targetContracts $relative) -Algorithm SHA256).Hash
