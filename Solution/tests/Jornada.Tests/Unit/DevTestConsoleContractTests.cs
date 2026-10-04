@@ -32,6 +32,8 @@ public sealed class DevTestConsoleContractTests
         var htmlHelperTest=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-test-dev-console-html-encoding.ps1"));
         var localCluster=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-cluster.ps1"));
         var devEnv=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-env.ps1"));
+        var lifecycleScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","bootstrap-corpus-lifecycle.ps1"));
+        var lifecycleSql=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_BootstrapCorpus_Discard.sql"));
         var compose=File.ReadAllText(Path.Combine(root,"Solution","docker-compose.yml"));
 
         Assert.Multiple(()=>{
@@ -354,6 +356,17 @@ public sealed class DevTestConsoleContractTests
             Assert.That(devEnv,Does.Contain("JornadaSyntheticDev"));
             Assert.That(devEnv,Does.Contain("JORNADA_LOCAL_SYNTHETIC_PEOPLE"));
             Assert.That(devEnv,Does.Contain("30000"));
+            Assert.That(lifecycleScript,Does.Contain("Development','Homologation','Production"));
+            Assert.That(lifecycleScript,Does.Contain("Homologation/Production exigem -EnvFile explícito"));
+            Assert.That(lifecycleScript,Does.Contain("Jornada_BootstrapCorpus_Discard.sql"));
+            Assert.That(lifecycleSql,Does.Contain("Jornada.BootstrapCorpusLifecycle"));
+            Assert.That(lifecycleSql,Does.Contain("PENDING_DISCARD"));
+            Assert.That(lifecycleSql,Does.Contain("codigo_pessoa_origem LIKE N'SCALE-%'"));
+            Assert.That(lifecycleSql,Does.Contain("modelo calibrado ATIVO"));
+            Assert.That(lifecycleSql,Does.Contain("identidade.parametro_linkage"));
+            Assert.That(lifecycleSql,Does.Contain("identidade.linkage_ruleset"));
+            Assert.That(lifecycleSql,Does.Contain("WITH CHECK CHECK CONSTRAINT"));
+            Assert.That(lifecycleSql,Does.Contain("N'DISCARDED'"));
             Assert.That(compose,Does.Contain("SemiblindIdentitySearch__Enabled"));
             Assert.That(compose,Does.Contain("test-access-keys.json:/opt/jornada/config/security/test-access-keys.json:ro"));
             Assert.That(compose,Does.Contain("[reference-bootstrap] Iniciando ENSURE_NAME_FREQUENCY_SNAPSHOT"));
