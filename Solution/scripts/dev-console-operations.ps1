@@ -327,7 +327,7 @@ switch($Action){
 
         $idsRaw=Invoke-SqlScalar "SELECT STRING_AGG(CONVERT(varchar(max),po.pessoa_observacao_id),',') WITHIN GROUP (ORDER BY po.pessoa_observacao_id) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE l.entrega_id='$entregaId' AND po.cpf IS NULL AND (vc.pessoa_observacao_id IS NULL OR vc.status IN(N'NAO_RESOLVIDO',N'CONFLITO') OR vc.metodo_resolucao=N'PENDENTE_PROBABILISTICO');"
         $observationIds=@()
-        if(-not[string]::IsNullOrWhiteSpace($idsRaw)){
+        if(-not [string]::IsNullOrWhiteSpace($idsRaw)){
             $observationIds=@($idsRaw.Split(',') | ForEach-Object {[long]$_.Trim()})
         }
         Write-Host "Linkage incremental da última entrega: $entregaId"
