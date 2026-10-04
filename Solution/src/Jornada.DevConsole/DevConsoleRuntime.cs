@@ -288,7 +288,9 @@ sealed class RunStore(IWebHostEnvironment env)
     public async Task<RunRecord?> GetAsync(Guid id,CancellationToken ct)
     {
         var path=Path.Combine(root,$"{id:N}.json");
-        return File.Exists(path)?JsonSerializer.Deserialize<RunRecord>(await File.ReadAllTextAsync(path,ct),Opt):null;
+        if(!File.Exists(path))return null;
+        try{return JsonSerializer.Deserialize<RunRecord>(await File.ReadAllTextAsync(path,ct),Opt);}
+        catch(JsonException){return null;}
     }
 
     public async Task<IReadOnlyList<RunRecord>> ListAsync(CancellationToken ct)
@@ -298,8 +300,19 @@ sealed class RunStore(IWebHostEnvironment env)
         foreach(var path in Directory.EnumerateFiles(root,"*.json").OrderByDescending(File.GetLastWriteTimeUtc))
         {
             ct.ThrowIfCancellationRequested();
-            var item=JsonSerializer.Deserialize<RunRecord>(await File.ReadAllTextAsync(path,ct),Opt);
-            if(item is not null)xs.Add(item);
+            try
+            {
+                var item=JsonSerializer.Deserialize<RunRecord>(await File.ReadAllTextAsync(path,ct),Opt);
+                if(item is not null)xs.Add(item);
+            }
+            catch(JsonException)
+            {
+                // Histórico legado/corrompido não pode impedir a listagem das demais execuções.
+            }
+            catch(NotSupportedException)
+            {
+                // Mantém compatibilidade com registros persistidos por versões anteriores da Console.
+            }
         }
         return xs;
     }
