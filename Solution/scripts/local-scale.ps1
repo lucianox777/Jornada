@@ -216,7 +216,33 @@ EXEC auditoria.sp_registrar_aprovacao_modelo_linkage
      @aprovacao_id=@aprovacao OUTPUT;
 SELECT CONVERT(varchar(36),@aprovacao);
 "@
-  if($validateApproval -notmatch '^[0-9a-fA-F-]{36}
+  if($validateApproval -notmatch '^[0-9a-fA-F-]{36}'){throw 'Aprovação técnica VALIDATE do harness SCALE não foi registrada.'}
+  Write-Host "Gate DT-15 SCALE DEV preparado para VALIDATE: aprovação técnica $validateApproval."
+
+  $env:LinkageParameters__Operation='VALIDATE'
+  $env:LinkageParameters__TargetVersion="$model"
+  dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
+  if($LASTEXITCODE-ne 0){throw 'VALIDATE falhou'}
+
+  $activateApproval=Scalar @"
+DECLARE @aprovacao uniqueidentifier,
+        @sha binary(32)=HASHBYTES('SHA2_256',CONVERT(varbinary(max),'LOCAL_SCALE_TEST_DOSSIER'));
+EXEC auditoria.sp_registrar_aprovacao_modelo_linkage
+     @modelo_id='$modelId',
+     @acao=N'ACTIVATE',
+     @dossie_sha256=@sha,
+     @decisor=N'LOCAL_SCALE_HARNESS',
+     @motivo=N'Aprovação técnica explícita do harness SCALE local para ACTIVATE',
+     @aprovacao_id=@aprovacao OUTPUT;
+SELECT CONVERT(varchar(36),@aprovacao);
+"@
+  if($activateApproval -notmatch '^[0-9a-fA-F-]{36}'){throw 'Aprovação técnica ACTIVATE do harness SCALE não foi registrada.'}
+  Write-Host "Gate DT-15 SCALE DEV preparado para ACTIVATE: aprovação técnica $activateApproval."
+
+  $env:LinkageParameters__Operation='ACTIVATE'
+  dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
+  if($LASTEXITCODE-ne 0){throw 'ACTIVATE falhou'}
+
   Write-Host "Auditando fan-out efetivo do ruleset calibrado em $blockingAuditLabelCount observações SCALE..."
   $labelQuery=@"
 WITH pend AS (
