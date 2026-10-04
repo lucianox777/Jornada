@@ -20,6 +20,7 @@ app.MapGet("/api/commands",async(RunStore store,CancellationToken ct)=>{
             "zip"=>counts.GetValueOrDefault("zip")+counts.GetValueOrDefault("ingestion")+counts.GetValueOrDefault("pipeline-status"),
             "linkage"=>counts.GetValueOrDefault("linkage")+counts.GetValueOrDefault("replay"),
             "gold-synthetic"=>counts.GetValueOrDefault("gold-synthetic")+counts.GetValueOrDefault("blocking"),
+            "configuration"=>counts.GetValueOrDefault("contract-bundle"),
             _=>counts.GetValueOrDefault(x.Id)
         }
     }));
