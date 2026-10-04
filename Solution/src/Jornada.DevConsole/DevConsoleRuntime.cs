@@ -5,26 +5,36 @@ using System.Text.Json;
 
 sealed record CommandDefinition(string Id,string Title,string Description,string? File,string? Arguments,string? ResultPath,string[] Dependencies,string? DependencyNote)
 {
-    public bool Implemented=>File is not null||Id=="zip";
+    public bool Implemented=>File is not null||Id is "zip" or "semiblind";
     public string? CommandLine=>File is null?null:$"{File} {Arguments}";
-    public string DisplayCommand=>Id=="zip"
-        ?"Entrada manual → python scripts/build-ingestion-fixture.py"
-        :CommandLine??"Operação parametrizada pela interface.";
+    public string DisplayCommand=>Id switch{
+        "zip"=>"Entrada manual → python scripts/build-ingestion-fixture.py",
+        "semiblind"=>"POST /api/v1/identidade/candidatos (DEV sintético)",
+        _=>CommandLine??"Operação parametrizada pela interface."
+    };
 }
 
-sealed record StepResult(string Command,string WorkingDirectory,int ExitCode,long DurationMs,string Output,string Error,string? ResultPath);
+sealed record StepResult(string Command,string WorkingDirectory,int ExitCode,long DurationMs,string Output,string Error,string? ResultPath,IReadOnlyList<string>? Artifacts=null);
 sealed record ManualZipRequest(string Gestor,string ManifestJson,string PessoasJsonl,string RegistrosJsonl);
 sealed record RunRecord(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,StepResult Step,IReadOnlyList<Dictionary<string,string?>> Records);
+sealed record RunSummary(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary);
 sealed record ConsoleEvent(long Seq,DateTimeOffset At,string Stream,string Text);
+
+static class DevConsoleJson
+{
+    public static readonly JsonSerializerOptions Pretty=new(JsonSerializerDefaults.Web){WriteIndented=true};
+    public static readonly JsonSerializerOptions Compact=new(JsonSerializerDefaults.Web);
+}
 
 static class CommandCatalog
 {
     // Cada ação é independente. Quando necessário, o próprio comando garante suas dependências locais.
     public static readonly CommandDefinition[] All=[
-        new("infrastructure","Subir infraestrutura e referências","Sobe o ambiente DEV completo: Docker, SQL Server, schema, NAS, bootstrap IBGE e NODE1/NODE2. Reusa a imagem jornada-node:test sem recompilar quando ela já existe.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null),
+        new("infrastructure","Subir infraestrutura e referências","Sobe o ambiente DEV completo: Docker, SQL Server, schema, NAS, bootstrap IBGE e NODE1/NODE2. Também gera a configuração inicial em JSON e HTML.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null),
+        new("initial-config","Gerar/ver configuração inicial","Regenera a configuração inicial da Console DEV em JSON e HTML e mostra os caminhos dos arquivos produzidos.","pwsh","-NoProfile -File scripts/dev-console-initial-config.ps1",".local/dev-console/initial-config/configuration.json",["infrastructure"],"A subida da infraestrutura já gera estes arquivos automaticamente; use este item para regenerar ou visualizar."),
         new("reference-check","Validar referência IBGE","Executa o quick check read-only da referência IBGE já materializada. O bootstrap/carga faz parte da infraestrutura básica.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action reference-check",null,["infrastructure"],"A infraestrutura é subida automaticamente se necessário."),
-        new("gold-synthetic","Carregar Gold sintética","Carrega uma Gold sintética de bootstrap para permitir a primeira calibração antes do recebimento de arquivos externos.","pwsh","-NoProfile -File scripts/dev-console-gold-synthetic.ps1",".local/dev-console/gold-synthetic-records.json",["infrastructure"],"Bootstrap DEV: pode ser substituída por Gold real quando ela já existir."),
-        new("initial-calibration","Calibração inicial a partir da Gold","Gera e ativa o primeiro modelo de linkage a partir da Gold existente. Recusa execução se a Gold estiver vazia ou se já houver modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate-initial",".local/dev-console/initial-calibration.json",["infrastructure","gold-synthetic"],"A dependência de Gold é semântica: serve Gold sintética ou Gold real. Blocking e referência IBGE são garantidos pelo fluxo de calibração."),
+        new("gold-synthetic","Carregar Gold sintética (30.000)","Materializa a Gold exclusivamente sintética da Console DEV com 30.000 pessoas; nomes e sobrenomes seguem a frequência pública IBGE versionada.","pwsh","-NoProfile -File scripts/dev-console-gold-synthetic.ps1",".local/dev-console/gold-synthetic-records.json",["infrastructure"],"Na Console DEV a Gold é sempre sintética. Não existe fallback para Gold real."),
+        new("initial-calibration","Calibração inicial a partir da Gold","Gera e ativa o primeiro modelo de linkage a partir da Gold sintética da Console DEV. Recusa execução se a Gold estiver vazia ou se já houver modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate-initial",".local/dev-console/initial-calibration.json",["infrastructure","gold-synthetic"],"Exige a Gold sintética de 30.000 pessoas e a referência IBGE ativa."),
         new("contract-bundle","Gerar bundle de contratos e configurações","Gera um ZIP operacional sem binários com OpenAPI, contratos JSON, configurações governadas e metadados do modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-contract-bundle.ps1",".local/dev-console/contract-config-bundle.zip",["initial-calibration"],"Exige modelo ATIVO para vincular o bundle ao fingerprint/configuração efetivamente calibrados."),
         new("zip","Gerar ZIP de ingestão","Abre a entrada manual e gera o ZIP real de ingestão.",null,null,null,["contract-bundle"],"A geração é local; o envio para a API só é permitido depois de existir o bundle de contratos/configurações."),
         new("ingestion","Enviar último ZIP para ingestão","Envia o último ZIP manual para a API real em NODE1 usando a credencial sintética DEV correspondente ao Gestor.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest",".local/dev-console/last-ingestion.json",["contract-bundle","zip"],"Falha fechado se o bundle de contratos/configurações ainda não tiver sido gerado."),
@@ -33,6 +43,7 @@ static class CommandCatalog
         new("blocking","Reconstruir blocking","Executa a reconstrução one-shot da projeção local de blocking sem recompilar nada.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action blocking",null,["gold-synthetic"],"Requer Gold disponível; pode ser Gold sintética ou real."),
         new("calibration","Recalibrar e ativar","Executa novo ciclo GENERATE_DRAFT → conferência → VALIDATE → ACTIVATE sobre uma Gold já existente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate",null,["initial-calibration"],"Use após a calibração inicial quando quiser gerar uma nova versão do modelo."),
         new("linkage","Executar linkage","Executa o Jornada.Linkage.Runner real no NODE2 usando o modelo calibrado ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action linkage",null,["initial-calibration"],"Aceita o modelo inicial ou uma recalibração posterior, desde que exista modelo ATIVO."),
+        new("semiblind","Consulta semicega","Consulta até cinco candidatos pela API real sem expor CPF, UUID ou score. O formulário usa uma pessoa sintética da Gold como exemplo.",null,null,null,["gold-synthetic","initial-calibration"],"Disponível somente no banco isolado JornadaSyntheticDev com a feature DEV habilitada."),
         new("replay","Executar replay do último run","Executa REPLAY real do último linkage PUBLICADO elegível, sem publicar o resultado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action replay-latest",null,["linkage"],"Exige pelo menos um linkage PUBLICADO não-REPLAY."),
         new("report","Diagnóstico do último linkage","Executa o diagnóstico real do último linkage publicado, incluindo modelo, thresholds, cobertura e qualidade sintética.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action report",null,["linkage"],null),
         new("environment-status","Status da infraestrutura","Mostra todos os serviços do compose, inclusive o init one-shot jornada-reference-bootstrap.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action status",null,[],null),
@@ -71,6 +82,124 @@ sealed class LiveExecution
     public void Complete()
     {
         lock(gate)Completed=true;
+    }
+}
+
+sealed record ZipTemplate(
+    string Source,
+    string PessoaUuid,
+    string Gestor,
+    string CodigoSistemaOrigem,
+    string CodigoTipo,
+    string NomeCompleto,
+    string DataNascimento,
+    string NomeMae,
+    string IdPessoaEntrega,
+    string CodigoRegistroOrigem,
+    string ManifestJson,
+    string PessoasJsonl,
+    string RegistrosJsonl);
+
+sealed class GoldZipTemplateService(IWebHostEnvironment env)
+{
+    public async Task<ZipTemplate> GetAsync(CancellationToken ct)
+    {
+        var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
+        var envFile=Path.Combine(root,".env.devconsole");
+        if(!File.Exists(envFile))throw new InvalidOperationException(".env.devconsole ausente. Suba a infraestrutura DEV primeiro.");
+        var vars=File.ReadAllLines(envFile)
+            .Select(x=>x.Trim())
+            .Where(x=>x.Length>0&&!x.StartsWith('#')&&x.Contains('='))
+            .Select(x=>x.Split('=',2))
+            .ToDictionary(x=>x[0].Trim(),x=>x[1].Trim(),StringComparer.OrdinalIgnoreCase);
+        var db=vars.TryGetValue("JORNADA_SQL_DATABASE",out var dbValue)&&!string.IsNullOrWhiteSpace(dbValue)?dbValue:"JornadaSyntheticDev";
+        if(!string.Equals(db,"JornadaSyntheticDev",StringComparison.Ordinal))throw new InvalidOperationException($"Console DEV exige JornadaSyntheticDev; banco atual={db}.");
+        if(!vars.TryGetValue("JORNADA_SQL_SA_PASSWORD",out var password)||string.IsNullOrWhiteSpace(password))
+            throw new InvalidOperationException("JORNADA_SQL_SA_PASSWORD ausente.");
+
+        var query="SET NOCOUNT ON; SELECT TOP(1) CONVERT(varchar(36),pessoa_uuid),REPLACE(REPLACE(nome_completo,'|',' '),CHAR(10),' '),CONVERT(varchar(10),data_nascimento,23),REPLACE(REPLACE(nome_mae,'|',' '),CHAR(10),' ') FROM gold.pessoa WHERE nome_completo IS NOT NULL AND data_nascimento IS NOT NULL AND nome_mae IS NOT NULL ORDER BY atualizado_em DESC,pessoa_uuid;";
+        var psi=new ProcessStartInfo("docker"){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8,UseShellExecute=false,CreateNoWindow=true};
+        psi.Environment["SQLCMDPASSWORD"]=password;
+        foreach(var arg in new[]{"compose","--env-file",envFile,"exec","-T","-e","SQLCMDPASSWORD","sqlserver","/opt/mssql-tools18/bin/sqlcmd","-S","localhost","-U","sa","-C","-b","-I","-d",db,"-W","-h","-1","-s","|","-w","65535","-Q",query})psi.ArgumentList.Add(arg);
+        using var process=new Process{StartInfo=psi};
+        process.Start();
+        var stdoutTask=process.StandardOutput.ReadToEndAsync(ct);
+        var stderrTask=process.StandardError.ReadToEndAsync(ct);
+        await process.WaitForExitAsync(ct);
+        var stdout=(await stdoutTask).Trim();
+        var stderr=await stderrTask;
+        if(process.ExitCode!=0)throw new InvalidOperationException($"Falha ao consultar Gold para exemplo do ZIP: {stderr.Trim()}");
+        var parts=stdout.Split('|',StringSplitOptions.TrimEntries);
+        if(parts.Length<4)throw new InvalidOperationException("Gold sintética não possui Pessoa completa para montar o exemplo.");
+        var uuid=parts[0];
+        var nome=parts[1];
+        var nascimento=parts[2];
+        var mae=parts[3];
+        if(string.IsNullOrWhiteSpace(uuid)||string.IsNullOrWhiteSpace(nome)||string.IsNullOrWhiteSpace(nascimento)||string.IsNullOrWhiteSpace(mae))
+            throw new InvalidOperationException("Gold retornou Pessoa incompleta para o exemplo.");
+
+        var suffix=uuid.Replace("-","",StringComparison.Ordinal).ToUpperInvariant()[..8];
+        var pessoaId=$"DEV-GOLD-{suffix}";
+        var registroId=$"DEV-GOLD-REG-{suffix}";
+        var gestor="SEHAB";
+        var sistema="SEHAB";
+        var tipo="AA01";
+        var today=DateTime.Today;
+        var manifest=new Dictionary<string,object?>{
+            ["formatoVersao"]=2,["pessoaSchemaVersao"]=4,["codigoSistemaOrigem"]=sistema,["natureza"]="BENEFICIO",["codigoTipo"]=tipo,["tipoVersao"]=1,
+            ["dataReferencia"]=DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:sszzz",System.Globalization.CultureInfo.InvariantCulture)
+        };
+        var pessoa=new Dictionary<string,object?>{
+            ["idPessoaEntrega"]=pessoaId,["cpf"]=null,["cpfAusenteMotivo"]="NAO_INFORMADO_ORIGEM",["nomeCompleto"]=nome,["dataNascimento"]=nascimento,["nomeMae"]=mae,
+            ["sourceTransactionId"]=$"DEV-GOLD-TX-{suffix}",["atributosTransversais"]=Array.Empty<object>()
+        };
+        var registro=new Dictionary<string,object?>{
+            ["idPessoaEntrega"]=pessoaId,["codigoRegistroOrigem"]=registroId,["operacao"]="INCLUSAO",["dataInicioConcessao"]=today.AddDays(-30).ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture),
+            ["valorConcedido"]=600.0m,["dataEventoConcessao"]=today.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture),["situacaoVigencia"]="VIGENTE"
+        };
+        return new ZipTemplate(
+            "gold.pessoa",uuid,gestor,sistema,tipo,nome,nascimento,mae,pessoaId,registroId,
+            JsonSerializer.Serialize(manifest,DevConsoleJson.Pretty),
+            JsonSerializer.Serialize(pessoa,DevConsoleJson.Compact),
+            JsonSerializer.Serialize(registro,DevConsoleJson.Compact));
+    }
+}
+
+sealed record SemiblindDevRequest(string Gestor,string? NomeCompleto,string? DataNascimento,string? NomeMae);
+sealed record SemiblindDevResponse(int StatusCode,string Json);
+
+sealed class SemiblindDevService(IWebHostEnvironment env,GoldZipTemplateService gold)
+{
+    public async Task<ZipTemplate> TemplateAsync(CancellationToken ct)=>await gold.GetAsync(ct);
+
+    public async Task<SemiblindDevResponse> SearchAsync(SemiblindDevRequest request,CancellationToken ct)
+    {
+        var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
+        var gestor=string.IsNullOrWhiteSpace(request.Gestor)?"SEHAB":request.Gestor.Trim().ToUpperInvariant();
+        var keysPath=Path.Combine(root,"config","security","test-access-keys.json");
+        using var keysDoc=JsonDocument.Parse(await File.ReadAllTextAsync(keysPath,ct));
+        var credential=keysDoc.RootElement.GetProperty("credentials").EnumerateArray()
+            .FirstOrDefault(x=>
+                string.Equals(x.GetProperty("type").GetString(),"GESTOR",StringComparison.Ordinal)&&
+                string.Equals(x.GetProperty("publicCode").GetString(),gestor,StringComparison.Ordinal)&&
+                x.GetProperty("scopes").EnumerateArray().Any(s=>string.Equals(s.GetString(),"jornada.identidade.busca.read",StringComparison.Ordinal)));
+        if(credential.ValueKind==JsonValueKind.Undefined)throw new InvalidOperationException($"Credencial sintética DEV para {gestor} sem scope jornada.identidade.busca.read.");
+
+        var accessKey=credential.GetProperty("accessKey").GetString()??throw new InvalidOperationException("Access key DEV ausente.");
+        var body=new Dictionary<string,object?>();
+        if(!string.IsNullOrWhiteSpace(request.NomeCompleto))body["nome_completo"]=request.NomeCompleto.Trim();
+        if(!string.IsNullOrWhiteSpace(request.DataNascimento))body["data_nascimento"]=request.DataNascimento.Trim();
+        if(!string.IsNullOrWhiteSpace(request.NomeMae))body["nome_mae"]=request.NomeMae.Trim();
+
+        using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(30)};
+        using var message=new HttpRequestMessage(HttpMethod.Post,"http://127.0.0.1:5080/api/v1/identidade/candidatos");
+        message.Headers.Add("X-Jornada-Gestor",gestor);
+        message.Headers.Add("X-Jornada-Access-Key",accessKey);
+        message.Content=new StringContent(JsonSerializer.Serialize(body,DevConsoleJson.Compact),Encoding.UTF8,"application/json");
+        using var response=await http.SendAsync(message,ct);
+        var json=await response.Content.ReadAsStringAsync(ct);
+        if(string.IsNullOrWhiteSpace(json))json="{}";
+        return new SemiblindDevResponse((int)response.StatusCode,json);
     }
 }
 
@@ -142,13 +271,14 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             var candidatePath=definition.ResultPath is null?null:Path.GetFullPath(Path.Combine(root,definition.ResultPath));
             var resultPath=result.ExitCode==0&&candidatePath is not null&&File.Exists(candidatePath)?candidatePath:null;
             var records=resultPath is null?Array.Empty<Dictionary<string,string?>>():await LoadRecordsAsync(definition.ResultPath,root);
+            var artifacts=ParseArtifacts(result.Output,root);
             if(resultPath is not null)live.Add("result",$"Resultado: {resultPath}");
             var summary=records.Count>0
                 ?$"{records.Count} registro(s) no resultado. Resultado: {resultPath}"
                 :result.ExitCode==0
                     ?(resultPath is null?"Comando concluído.":$"Comando concluído. Resultado: {resultPath}")
                     :$"Comando falhou (exit {result.ExitCode}).";
-            var step=new StepResult(definition.CommandLine!,root,result.ExitCode,sw.ElapsedMilliseconds,result.Output,result.Error,resultPath);
+            var step=new StepResult(definition.CommandLine!,root,result.ExitCode,sw.ElapsedMilliseconds,result.Output,result.Error,resultPath,artifacts);
             var status=result.ExitCode==0?"SUCESSO":"FALHA";
             live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,status,summary,step,records),live);
@@ -206,7 +336,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             var status=result.ExitCode==0?"SUCESSO":"FALHA";
             live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             var summary=result.ExitCode==0?$"ZIP gerado. Resultado: {zip}":$"Falha ao gerar ZIP (exit {result.ExitCode}).";
-            var step=new StepResult(command,root,result.ExitCode,sw.ElapsedMilliseconds,result.Output,result.Error,zip);
+            var step=new StepResult(command,root,result.ExitCode,sw.ElapsedMilliseconds,result.Output,result.Error,zip,zip is null?Array.Empty<string>():new[]{zip});
             await FinishAsync(new RunRecord(id,"zip","Gerar ZIP de ingestão",started,DateTimeOffset.UtcNow,status,summary,step,Array.Empty<Dictionary<string,string?>>()),live);
         }
         catch(Exception ex)
@@ -266,6 +396,22 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         return new ProcessCapture(process.ExitCode,stdout.ToString(),stderr.ToString());
     }
 
+    static IReadOnlyList<string> ParseArtifacts(string output,string root)
+    {
+        var items=new List<string>();
+        foreach(var line in output.Replace("\r","").Split('\n',StringSplitOptions.RemoveEmptyEntries))
+        {
+            const string marker="ARTEFATO:";
+            var index=line.IndexOf(marker,StringComparison.OrdinalIgnoreCase);
+            if(index<0)continue;
+            var raw=line[(index+marker.Length)..].Trim().Trim('"');
+            if(string.IsNullOrWhiteSpace(raw))continue;
+            var full=Path.IsPathRooted(raw)?Path.GetFullPath(raw):Path.GetFullPath(Path.Combine(root,raw));
+            if(File.Exists(full)&&!items.Contains(full,StringComparer.OrdinalIgnoreCase))items.Add(full);
+        }
+        return items;
+    }
+
     static IEnumerable<string> SplitJsonl(string text)=>text.Replace("\r","").Split('\n',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
     static string NormalizeJsonl(string text)=>string.Join(Environment.NewLine,SplitJsonl(text))+(string.IsNullOrWhiteSpace(text)?"":Environment.NewLine);
     sealed record ProcessCapture(int ExitCode,string Output,string Error);
@@ -294,32 +440,38 @@ sealed class RunStore(IWebHostEnvironment env)
         catch(JsonException){return null;}
     }
 
-    public async Task<IReadOnlyList<RunRecord>> ListAsync(CancellationToken ct)
+    public async Task<IReadOnlyList<RunSummary>> ListSummariesAsync(CancellationToken ct)
     {
         Directory.CreateDirectory(root);
-        var xs=new List<RunRecord>();
-        foreach(var path in Directory.EnumerateFiles(root,"*.json").OrderByDescending(File.GetLastWriteTimeUtc))
+        var xs=new List<RunSummary>();
+        foreach(var path in Directory.EnumerateFiles(root,"*.json")
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .Take(200))
         {
             ct.ThrowIfCancellationRequested();
             try
             {
-                var item=JsonSerializer.Deserialize<RunRecord>(await File.ReadAllTextAsync(path,ct),Opt);
-                if(item is not null)xs.Add(item);
+                await using var stream=File.OpenRead(path);
+                using var doc=await JsonDocument.ParseAsync(stream,cancellationToken:ct);
+                var e=doc.RootElement;
+                if(!e.TryGetProperty("id",out var idElement)||!Guid.TryParse(idElement.GetString(),out var id))continue;
+                var command=e.TryGetProperty("command",out var commandElement)?commandElement.GetString()??"":"";
+                var title=e.TryGetProperty("title",out var titleElement)?titleElement.GetString()??command:command;
+                var status=e.TryGetProperty("status",out var statusElement)?statusElement.GetString()??"":"";
+                var summary=e.TryGetProperty("summary",out var summaryElement)?summaryElement.GetString()??"":"";
+                var started=e.TryGetProperty("startedAt",out var startedElement)&&startedElement.TryGetDateTimeOffset(out var startedAt)?startedAt:File.GetCreationTimeUtc(path);
+                var finished=e.TryGetProperty("finishedAt",out var finishedElement)&&finishedElement.TryGetDateTimeOffset(out var finishedAt)?finishedAt:started;
+                xs.Add(new RunSummary(id,command,title,started,finished,status,summary));
             }
-            catch(JsonException)
-            {
-                // Histórico legado/corrompido não pode impedir a listagem das demais execuções.
-            }
-            catch(NotSupportedException)
-            {
-                // Mantém compatibilidade com registros persistidos por versões anteriores da Console.
-            }
+            catch(JsonException){}
+            catch(IOException){}
+            catch(UnauthorizedAccessException){}
         }
         return xs;
     }
 
     public async Task<IReadOnlyDictionary<string,int>> CountByCommandAsync(CancellationToken ct)=>
-        (await ListAsync(ct)).Where(x=>x.StartedAt>=sessionStartedAt)
+        (await ListSummariesAsync(ct)).Where(x=>x.StartedAt>=sessionStartedAt)
             .GroupBy(x=>x.Command,StringComparer.OrdinalIgnoreCase)
             .ToDictionary(x=>x.Key,x=>x.Count(),StringComparer.OrdinalIgnoreCase);
 }

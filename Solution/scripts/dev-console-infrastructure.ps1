@@ -5,9 +5,15 @@ param(
 )
 
 $ErrorActionPreference='Stop'
+$ProgressPreference='SilentlyContinue'
+[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
+$OutputEncoding=[Text.UTF8Encoding]::new($false)
+if($PSVersionTable.PSVersion.Major -ge 7){$PSStyle.OutputRendering='PlainText'}
+$Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'dev-console-env.ps1')
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Cluster=Join-Path $PSScriptRoot 'local-cluster.ps1'
-$EnvFile=Join-Path $Root '.env'
+$EnvFile=$DevConsoleEnvFile
 
 function Invoke-Cluster([string]$ClusterAction,[switch]$NoBuild){
     $suffix=if($NoBuild){' -NoBuild'}else{''}
@@ -39,6 +45,10 @@ switch($Action){
 
         Write-Host ''
         Write-Host 'Infraestrutura básica pronta: SQL Server + schema DEV + NAS + referência IBGE + NODE1/NODE2.'
+        Write-Host ''
+        Write-Host 'Gerando configuração inicial da Console DEV (JSON + HTML)...'
+        & (Join-Path $PSScriptRoot 'dev-console-initial-config.ps1')
+        if($LASTEXITCODE -ne 0){throw "Geração da configuração inicial falhou ($LASTEXITCODE)."}
         Write-Host 'O serviço jornada-reference-bootstrap é um init one-shot: Exited (0) significa CONCLUÍDO com sucesso, não falha.'
         Write-Host '# docker compose --env-file .env ps -a'
         Push-Location $Root

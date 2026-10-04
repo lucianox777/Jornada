@@ -5,7 +5,9 @@ $OutputEncoding=[Text.UTF8Encoding]::new($false)
 if($PSVersionTable.PSVersion.Major -ge 7){$PSStyle.OutputRendering='PlainText'}
 
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$EnvFile=Join-Path $Root '.env'
+. (Join-Path $PSScriptRoot 'dev-console-env.ps1')
+$Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$EnvFile=$DevConsoleEnvFile
 $OutDir=Join-Path $Root '.local/dev-console'
 $Stage=Join-Path $OutDir 'contract-config-bundle'
 $ZipPath=Join-Path $OutDir 'contract-config-bundle.zip'
@@ -100,7 +102,14 @@ $info=[ordered]@{
   excludes=@('config/security','test access keys','application binaries')
 }
 $infoPath=Join-Path $Stage 'BUNDLE_INFO.json'
-$info | ConvertTo-Json -Depth 20 | Set-Content -Encoding UTF8 $infoPath
+$infoHtmlPath=Join-Path $Stage 'BUNDLE_INFO.html'
+$infoJson=$info | ConvertTo-Json -Depth 20
+[IO.File]::WriteAllText($infoPath,$infoJson,[Text.UTF8Encoding]::new($false))
+$escapedInfo=[System.Net.WebUtility]::HtmlEncode($infoJson)
+$infoHtml=@"
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Jornada DEV - Bundle de contratos e configurações</title><style>body{font-family:system-ui;margin:24px;color:#17202a}pre{background:#0b0f14;color:#d7e0ea;padding:16px;border-radius:8px;white-space:pre-wrap}</style></head><body><h1>Bundle de contratos e configurações</h1><p><b>Modelo ATIVO:</b> v$version ($modelId)</p><pre>$escapedInfo</pre></body></html>
+"@
+[IO.File]::WriteAllText($infoHtmlPath,$infoHtml,[Text.UTF8Encoding]::new($false))
 
 $manifestLines=Get-ChildItem $Stage -Recurse -File |
   Sort-Object FullName |
@@ -120,3 +129,10 @@ Write-Host "Fingerprint do model config bundle: $fingerprint"
 Write-Host "Arquivos no bundle: $((Get-ChildItem $Stage -Recurse -File).Count)"
 Write-Host "SHA-256 ZIP: $zipHash"
 Write-Host "Resultado salvo em: $ZipPath"
+Write-Host "BUNDLE_INFO JSON: $infoPath"
+Write-Host "BUNDLE_INFO HTML: $infoHtmlPath"
+Write-Host "Manifesto SHA-256: $manifestPath"
+Write-Host "ARTEFATO: $ZipPath"
+Write-Host "ARTEFATO: $infoPath"
+Write-Host "ARTEFATO: $infoHtmlPath"
+Write-Host "ARTEFATO: $manifestPath"
