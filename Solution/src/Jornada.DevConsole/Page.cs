@@ -154,6 +154,29 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
   </div>
 </dialog>
 
+<dialog id="semiblindDialog">
+  <div class="dialog-head"><strong>Consulta semicega · DEV sintético</strong><button class="secondary" type="button" onclick="semiblindDialog.close()">Fechar</button></div>
+  <div class="dialog-body">
+    <p>Consulta a API real <code>POST /api/v1/identidade/candidatos</code>. A resposta mostra no máximo cinco opções e não expõe CPF, UUID ou score.</p>
+    <div class="tabs"><button class="secondary" type="button" onclick="loadSemiblindTemplate()">Usar exemplo da Gold sintética</button></div>
+    <div id="semiblindSource" class="small"></div>
+    <div class="form-grid">
+      <label>Gestor<input id="semiblindGestor" value="SEHAB"></label>
+      <label>Data de nascimento<input id="semiblindNascimento" type="date"></label>
+      <label>Nome completo<input id="semiblindNome"></label>
+      <label>Nome da mãe<input id="semiblindMae"></label>
+    </div>
+    <div id="semiblindResult" class="hidden">
+      <h3>Resultado</h3>
+      <pre id="semiblindJson" style="background:#0b0f14;color:#d7e0ea;padding:12px;border-radius:7px;white-space:pre-wrap;overflow:auto"></pre>
+    </div>
+  </div>
+  <div class="dialog-actions">
+    <button class="secondary" type="button" onclick="semiblindDialog.close()">Fechar</button>
+    <button class="primary" type="button" onclick="runSemiblindSearch()">Consultar</button>
+  </div>
+</dialog>
+
 <script>
 const esc=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const views=[homeView,consoleView,historyView];
@@ -200,13 +223,14 @@ async function loadCommands(){
   commandsCache=await api('/api/commands');
   const titleById=Object.fromEntries(commandsCache.map(x=>[x.id,x.title]));
   commands.innerHTML=commandsCache.map(c=>{
-    const label=c.id==='zip'?'Preencher dados':'Executar';
+    const label=c.id==='zip'?'Preencher dados':c.id==='semiblind'?'Consultar':'Executar';
     const buttonClass=c.id==='finish'?'danger':'primary';
     const deps=(c.dependencies||[]).map(id=>titleById[id]||id);
     const dependency=deps.length||c.dependencyNote
       ?'<div class="dependency"><b>Pré-requisitos:</b> '+(deps.length?deps.map(esc).join(' → '):'nenhum obrigatório')+(c.dependencyNote?'<span class="dep-note">'+esc(c.dependencyNote)+'</span>':'')+'</div>'
       :'';
-    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span><button class="'+buttonClass+'" type="button" onclick="'+(c.id==='zip'?'openZipDialog()':"startCommand('"+c.id+"')")+'">'+label+'</button></div></div></div>'
+    const action=c.id==='zip'?'openZipDialog()':c.id==='semiblind'?'openSemiblindDialog()':"startCommand('"+c.id+"')";
+    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span><button class="'+buttonClass+'" type="button" onclick="'+action+'">'+label+'</button></div></div></div>'
   }).join('');
 }
 
@@ -214,6 +238,43 @@ async function startCommand(id){
   const command=commandsCache.find(x=>x.id===id);
   const response=await api('/api/commands/'+encodeURIComponent(id)+'/start',{method:'POST'});
   openLiveRun(response.id,command?.title||id,id);
+}
+
+async function openSemiblindDialog(){
+  semiblindDialog.showModal();
+  semiblindResult.classList.add('hidden');
+  await loadSemiblindTemplate();
+}
+
+async function loadSemiblindTemplate(){
+  semiblindSource.textContent='Carregando pessoa sintética da Gold...';
+  try{
+    const t=await api('/api/semiblind/template');
+    semiblindGestor.value=t.gestor||'SEHAB';
+    semiblindNome.value=t.nomeCompleto||'';
+    semiblindNascimento.value=t.dataNascimento||'';
+    semiblindMae.value=t.nomeMae||'';
+    semiblindSource.textContent='Exemplo: '+t.source+' · pessoa sintética '+t.pessoaUuid;
+  }catch(e){
+    semiblindSource.textContent='Não foi possível carregar o exemplo: '+e.message;
+  }
+}
+
+async function runSemiblindSearch(){
+  semiblindJson.textContent='Consultando...';
+  semiblindResult.classList.remove('hidden');
+  try{
+    const body={
+      gestor:semiblindGestor.value,
+      nomeCompleto:semiblindNome.value,
+      dataNascimento:semiblindNascimento.value,
+      nomeMae:semiblindMae.value
+    };
+    const result=await api('/api/semiblind/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    semiblindJson.textContent=JSON.stringify(result,null,2);
+  }catch(e){
+    semiblindJson.textContent='Falha: '+e.message;
+  }
 }
 
 let zipMode='form';
