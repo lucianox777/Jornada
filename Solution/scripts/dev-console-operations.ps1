@@ -121,7 +121,8 @@ switch($Action){
             if(-not(Test-Path -LiteralPath $requested -PathType Leaf)){throw "ZIP informado não existe: $requested"}
             $zip=Get-Item -LiteralPath $requested
         }
-        if($zip.Name -notmatch '^ENTREGA_([^_]+)_.+_v2_([0-9a-fA-F]{64})\.zip
+        if($zip.Name -notmatch '^ENTREGA_([^_]+)_.+_v2_([0-9a-fA-F]{64})\.zip$'){throw "Nome de ZIP não canônico: $($zip.Name)"}
+        $gestor=$Matches[1]
         $sha=$Matches[2].ToLowerInvariant()
         $credential=Get-DevCredential $gestor 'jornada.ingestao.write'
         $uri='http://127.0.0.1:5080/api/v1/ingestao/entregas'
