@@ -230,23 +230,30 @@ FROM silver.pessoa_origem;
     }
 }
 function Ensure-SyntheticScale {
+    $expectedPeople = if ($vars['JORNADA_LOCAL_SYNTHETIC_PEOPLE']) { [long]$vars['JORNADA_LOCAL_SYNTHETIC_PEOPLE'] } else { 5000 }
+    $expectedPaired = if ($vars['JORNADA_LOCAL_SYNTHETIC_PAIRED']) { [long]$vars['JORNADA_LOCAL_SYNTHETIC_PAIRED'] } else { 5000 }
+    $expectedPending = if ($vars['JORNADA_LOCAL_SYNTHETIC_PENDING']) { [long]$vars['JORNADA_LOCAL_SYNTHETIC_PENDING'] } else { 1000 }
+    if($expectedPeople -lt 1000 -or $expectedPeople -gt 5000000){throw 'JORNADA_LOCAL_SYNTHETIC_PEOPLE fora do intervalo suportado.'}
+    if($expectedPaired -lt 2 -or $expectedPaired -gt $expectedPeople){throw 'JORNADA_LOCAL_SYNTHETIC_PAIRED inválido.'}
+    if($expectedPending -lt 1 -or $expectedPending -gt 2000000){throw 'JORNADA_LOCAL_SYNTHETIC_PENDING inválido.'}
+
     $counts = Get-SyntheticScaleCounts
     $canonicalTotal = [long]$counts['Sehab'] + [long]$counts['Smads'] + [long]$counts['Pending']
     if ($canonicalTotal -eq 0) {
         if ([long]$counts['ExtraFixtures'] -gt 0) {
             throw "Fixtures SCALE adicionais existem sem a massa canônica (extras=$($counts['ExtraFixtures'])). Execute .\scripts\local-db.ps1 reset."
         }
-        Write-Host 'Carregando corpus sintético local para calibração/linkage...'
-        Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-v', 'SCALE_PEOPLE=5000', 'SCALE_PAIRED=5000', 'SCALE_PENDING=1000', 'SCALE_SEED=355', 'SCALE_COLLISION_MODULO=37', 'SCALE_BIRTH_SHIFT_MODULO=29', '-i', 'database/Jornada_Dev_SyntheticScale.sql')
+        Write-Host "Carregando corpus sintético local para calibração/linkage: Gold=$expectedPeople, pares=$expectedPaired, pendentes=$expectedPending..."
+        Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-v', "SCALE_PEOPLE=$expectedPeople", "SCALE_PAIRED=$expectedPaired", "SCALE_PENDING=$expectedPending", 'SCALE_SEED=355', 'SCALE_COLLISION_MODULO=37', 'SCALE_BIRTH_SHIFT_MODULO=29', '-i', 'database/Jornada_Dev_SyntheticScale.sql')
         $counts = Get-SyntheticScaleCounts
     }
-    if ([long]$counts['Sehab'] -ne 5000 -or [long]$counts['Smads'] -ne 5000 -or [long]$counts['Pending'] -ne 1000) {
-        throw "Massa sintética local inconsistente: esperado SCALE-SEHAB=5000, SCALE-SMADS=5000, SCALE-PEND=1000; encontrado SEHAB=$($counts['Sehab']) SMADS=$($counts['Smads']) PEND=$($counts['Pending']) extras=$($counts['ExtraFixtures']). Execute .\scripts\local-db.ps1 reset."
+    if ([long]$counts['Sehab'] -ne $expectedPeople -or [long]$counts['Smads'] -ne $expectedPaired -or [long]$counts['Pending'] -ne $expectedPending) {
+        throw "Massa sintética local inconsistente: esperado SCALE-SEHAB=$expectedPeople, SCALE-SMADS=$expectedPaired, SCALE-PEND=$expectedPending; encontrado SEHAB=$($counts['Sehab']) SMADS=$($counts['Smads']) PEND=$($counts['Pending']) extras=$($counts['ExtraFixtures']). Execute .\scripts\local-db.ps1 reset."
     }
     if ([long]$counts['ExtraFixtures'] -gt 0) {
         Write-Host "Fixtures SCALE adicionais preservados fora da massa canônica: $($counts['ExtraFixtures'])."
     }
-    Write-Host 'Corpus sintético local pronto: 5000 pessoas Gold, 5000 pares corroborados e 1000 pendentes.'
+    Write-Host "Corpus sintético local pronto: $expectedPeople pessoas Gold, $expectedPaired pares corroborados e $expectedPending pendentes."
 }
 function Bootstrap {
     # Operações de criação/estado do próprio banco devem partir explicitamente de master.
@@ -272,7 +279,7 @@ function Bootstrap {
     # permanece neutro; somente o provisionador local grava Development.
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-Q', "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile') EXEC sys.sp_updateextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development';")
 
-    # O banco local canônico carrega o corpus de 5k por padrão. Harnesses que controlam
+    # O banco local canônico carrega a massa sintética configurada; o padrão histórico continua 5k. Harnesses que controlam
     # sua própria massa (por exemplo, escala) usam -NoSyntheticCorpus e carregam o corpus
     # explicitamente depois do reset, sem apagar ou duplicar dados SCALE.
     if (-not $NoSyntheticCorpus) {
