@@ -62,6 +62,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("result.ExitCode==0&&candidatePath is not null&&File.Exists(candidatePath)"));
             Assert.That(runtime,Does.Contain("catch(JsonException)"));
             Assert.That(runtime,Does.Contain("ListSummariesAsync"));
+            Assert.That(runtime,Does.Contain("HeartbeatAsync"));
+            Assert.That(runtime,Does.Contain("Processo ativo há"));
+            Assert.That(runtime,Does.Contain("\"environment-status\""));
+            Assert.That(runtime,Does.Contain("Status/health da infraestrutura"));
             Assert.That(runtime,Does.Contain(".Take(200)"));
 
             Assert.That(page,Does.Contain("🕘 Execuções"));
@@ -145,8 +149,17 @@ public sealed class DevTestConsoleContractTests
             Assert.That(initialConfigScript,Does.Contain("configuration.json"));
             Assert.That(initialConfigScript,Does.Contain("configuration.html"));
             Assert.That(initialConfigScript,Does.Contain("ARTEFATO: $jsonPath"));
+            Assert.That(initialConfigScript,Does.Contain("runtimeHealth=$health"));
+            Assert.That(initialConfigScript,Does.Contain("Resumo de status/health"));
             Assert.That(infraScript,Does.Contain("dev-console-initial-config.ps1"));
             Assert.That(localCluster,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
+            Assert.That(localCluster,Does.Contain("Etapa cluster 1/6"));
+            Assert.That(localCluster,Does.Contain("Show-ComposeFailureDiagnostics"));
+            Assert.That(localCluster,Does.Contain("Logs do jornada-reference-bootstrap"));
+            Assert.That(localCluster,Does.Contain("Ensure-SyntheticIbgeIdentityText"));
+            Assert.That(localCluster,Does.Contain("Pessoa Teste %"));
+            Assert.That(localCluster,Does.Contain("Jornada_Dev_SyntheticScale_Diversify.sql"));
+            Assert.That(localCluster,Does.Contain("nomes/nome da mãe amostrados pela frequência IBGE"));
             Assert.That(opsScript,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
             Assert.That(opsScript,Does.Contain("--mode','REPLAY"));
             Assert.That(page,Does.Contain("A tela mostra somente operações reais"));
@@ -164,6 +177,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(devEnv,Does.Contain("30000"));
             Assert.That(compose,Does.Contain("SemiblindIdentitySearch__Enabled"));
             Assert.That(compose,Does.Contain("test-access-keys.json:/opt/jornada/config/security/test-access-keys.json:ro"));
+            Assert.That(compose,Does.Contain("[reference-bootstrap] Iniciando ENSURE_NAME_FREQUENCY_SNAPSHOT"));
+            Assert.That(compose,Does.Not.Contain("LinkageParameters__Operation=ENSURE_IBGE_NOMINAL_U_REFERENCE dotnet"));
             Assert.That(bootstrap,Does.Contain("restore $Solution --locked-mode"));
             Assert.That(bootstrap,Does.Contain("build $Solution --no-restore"));
 

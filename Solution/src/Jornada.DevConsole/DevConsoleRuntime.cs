@@ -31,8 +31,8 @@ static class CommandCatalog
     // Cada ação é independente. Quando necessário, o próprio comando garante suas dependências locais.
     public static readonly CommandDefinition[] All=[
         new("infrastructure","Subir infraestrutura e referências","Sobe o ambiente DEV completo: Docker, SQL Server, schema, NAS, bootstrap IBGE e NODE1/NODE2. Também gera a configuração inicial em JSON e HTML.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null),
-        new("initial-config","Gerar/ver configuração inicial","Regenera a configuração inicial da Console DEV em JSON e HTML e mostra os caminhos dos arquivos produzidos.","pwsh","-NoProfile -File scripts/dev-console-initial-config.ps1",".local/dev-console/initial-config/configuration.json",["infrastructure"],"A subida da infraestrutura já gera estes arquivos automaticamente; use este item para regenerar ou visualizar."),
-        new("reference-check","Validar referência IBGE","Executa o quick check read-only da referência IBGE já materializada. O bootstrap/carga faz parte da infraestrutura básica.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action reference-check",null,["infrastructure"],"A infraestrutura é subida automaticamente se necessário."),
+        new("initial-config","Gerar/ver configuração inicial","Regenera sob demanda a configuração inicial em JSON/HTML e captura um snapshot de health. A infraestrutura gera isso automaticamente, mas a rotina manual é mantida para inspeção/regeneração.","pwsh","-NoProfile -File scripts/dev-console-initial-config.ps1",".local/dev-console/initial-config/configuration.json",["infrastructure"],"A subida da infraestrutura já gera estes arquivos automaticamente. O relatório inclui um snapshot de health, mas o comando Status/health continua disponível para consulta ao vivo."),
+        new("reference-check","Validar referência IBGE","Executa um quick check read-only da referência já materializada. É mantido como diagnóstico manual mesmo após o bootstrap automático da infraestrutura.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action reference-check",null,["infrastructure"],"A infraestrutura é subida automaticamente se necessário."),
         new("gold-synthetic","Carregar Gold sintética (30.000)","Materializa a Gold exclusivamente sintética da Console DEV com 30.000 pessoas; nomes e sobrenomes seguem a frequência pública IBGE versionada.","pwsh","-NoProfile -File scripts/dev-console-gold-synthetic.ps1",".local/dev-console/gold-synthetic-records.json",["infrastructure"],"Na Console DEV a Gold é sempre sintética. Não existe fallback para Gold real."),
         new("initial-calibration","Calibração inicial a partir da Gold","Gera e ativa o primeiro modelo de linkage a partir da Gold sintética da Console DEV. Recusa execução se a Gold estiver vazia ou se já houver modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate-initial",".local/dev-console/initial-calibration.json",["infrastructure","gold-synthetic"],"Exige a Gold sintética de 30.000 pessoas e a referência IBGE ativa."),
         new("contract-bundle","Gerar bundle de contratos e configurações","Gera um ZIP operacional sem binários com OpenAPI, contratos JSON, configurações governadas e metadados do modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-contract-bundle.ps1",".local/dev-console/contract-config-bundle.zip",["initial-calibration"],"Exige modelo ATIVO para vincular o bundle ao fingerprint/configuração efetivamente calibrados."),
@@ -40,13 +40,13 @@ static class CommandCatalog
         new("ingestion","Enviar último ZIP para ingestão","Envia o último ZIP manual para a API real em NODE1 usando a credencial sintética DEV correspondente ao Gestor.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest",".local/dev-console/last-ingestion.json",["contract-bundle","zip"],"Falha fechado se o bundle de contratos/configurações ainda não tiver sido gerado."),
         new("pipeline-status","Ver status da última ingestão","Consulta o recibo da última Entrega. Bronze, Silver, identidade e Gold são processados pelo Processor residente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action pipeline-status",".local/dev-console/last-ingestion-status.json",["ingestion"],null),
         new("bronze-verify","Verificar Bronze","Executa Jornada.Bronze.Verify no NODE2 contra as referências Bronze persistidas.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action bronze-verify",null,["ingestion"],"Pode ser executado antes, mas só terá conteúdo útil depois de uma ingestão."),
-        new("blocking","Reconstruir blocking","Executa a reconstrução one-shot da projeção local de blocking sem recompilar nada.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action blocking",null,["gold-synthetic"],"Requer Gold disponível; pode ser Gold sintética ou real."),
+        new("blocking","Reconstruir blocking","Executa manualmente a reconstrução one-shot da projeção local de blocking. A calibração também garante blocking, mas este comando é útil para diagnóstico/rebuild isolado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action blocking",null,["gold-synthetic"],"Requer Gold disponível; pode ser Gold sintética ou real."),
         new("calibration","Recalibrar e ativar","Executa novo ciclo GENERATE_DRAFT → conferência → VALIDATE → ACTIVATE sobre uma Gold já existente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate",null,["initial-calibration"],"Use após a calibração inicial quando quiser gerar uma nova versão do modelo."),
         new("linkage","Executar linkage","Executa o Jornada.Linkage.Runner real no NODE2 usando o modelo calibrado ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action linkage",null,["initial-calibration"],"Aceita o modelo inicial ou uma recalibração posterior, desde que exista modelo ATIVO."),
         new("semiblind","Consulta semicega","Consulta até cinco candidatos pela API real sem expor CPF, UUID ou score. O formulário usa uma pessoa sintética da Gold como exemplo.",null,null,null,["gold-synthetic","initial-calibration"],"Disponível somente no banco isolado JornadaSyntheticDev com a feature DEV habilitada."),
         new("replay","Executar replay do último run","Executa REPLAY real do último linkage PUBLICADO elegível, sem publicar o resultado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action replay-latest",null,["linkage"],"Exige pelo menos um linkage PUBLICADO não-REPLAY."),
         new("report","Diagnóstico do último linkage","Executa o diagnóstico real do último linkage publicado, incluindo modelo, thresholds, cobertura e qualidade sintética.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action report",null,["linkage"],null),
-        new("environment-status","Status da infraestrutura","Mostra todos os serviços do compose, inclusive o init one-shot jornada-reference-bootstrap.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action status",null,[],null),
+        new("environment-status","Status/health da infraestrutura","Mostra o estado atual dos serviços Docker e do init one-shot de referência. É diagnóstico manual; não substitui os gates automáticos de health/readiness da subida.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action status",null,[],null),
         new("finish","Finalizar e limpar ambiente","Encerra o cluster e remove containers, volumes e órfãos locais. Na próxima subida tudo é recriado automaticamente.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action clean",null,[],null)
     ];}
 
@@ -380,19 +380,36 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         process.Start();
         var stdout=new StringBuilder();
         var stderr=new StringBuilder();
+        var started=Stopwatch.StartNew();
+        var lastOutputTicks=Stopwatch.GetTimestamp();
 
         async Task PumpAsync(StreamReader reader,StringBuilder sink,string stream)
         {
             while(await reader.ReadLineAsync() is { } line)
             {
                 sink.AppendLine(line);
+                Volatile.Write(ref lastOutputTicks,Stopwatch.GetTimestamp());
                 live.Add(stream,line);
+            }
+        }
+
+        async Task HeartbeatAsync()
+        {
+            while(!process.HasExited)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5));
+                if(process.HasExited)break;
+                var silent=Stopwatch.GetElapsedTime(Volatile.Read(ref lastOutputTicks));
+                if(silent<TimeSpan.FromSeconds(5))continue;
+                live.Add("system",$"⏳ Processo ativo há {started.Elapsed.TotalSeconds:0}s; sem nova saída há {silent.TotalSeconds:0}s. Aguardando...");
             }
         }
 
         var outTask=PumpAsync(process.StandardOutput,stdout,"stdout");
         var errTask=PumpAsync(process.StandardError,stderr,"stderr");
+        var heartbeatTask=HeartbeatAsync();
         await Task.WhenAll(outTask,errTask,process.WaitForExitAsync());
+        await heartbeatTask;
         return new ProcessCapture(process.ExitCode,stdout.ToString(),stderr.ToString());
     }
 
