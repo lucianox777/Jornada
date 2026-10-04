@@ -8,7 +8,7 @@ sealed record CommandDefinition(string Id,string Title,string Description,string
     public bool Implemented=>File is not null||Id is "zip" or "semiblind";
     public string? CommandLine=>File is null?null:$"{File} {Arguments}";
     public string DisplayCommand=>Id switch{
-        "zip"=>"Entrada manual → python scripts/build-ingestion-fixture.py",
+        "zip"=>"Entrada manual → build-ingestion-fixture.py → POST /api/v1/ingestao/entregas",
         "semiblind"=>"POST /api/v1/identidade/candidatos (DEV sintético)",
         _=>CommandLine??"Operação parametrizada pela interface."
     };
@@ -30,19 +30,19 @@ static class CommandCatalog
 {
     // Cada ação é independente. Quando necessário, o próprio comando garante suas dependências locais.
     public static readonly CommandDefinition[] All=[
-        new("infrastructure","Subir infraestrutura e referências","Sobe o ambiente DEV completo: Docker, SQL Server, schema, NAS, bootstrap IBGE e NODE1/NODE2. Também gera a configuração inicial em JSON e HTML.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null),
+        new("infrastructure","Subir infraestrutura, referências e bootstrap","Sobe o ambiente DEV completo: Docker, SQL Server, schema, NAS, referência IBGE, NODE1/NODE2 e garante o modelo BOOTSTRAP inicial ATIVO. Também gera a configuração inicial em JSON e HTML.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null),
         new("initial-config","Gerar/ver configuração inicial","Regenera sob demanda a configuração inicial em JSON/HTML e captura um snapshot de health. A infraestrutura gera isso automaticamente, mas a rotina manual é mantida para inspeção/regeneração.","pwsh","-NoProfile -File scripts/dev-console-initial-config.ps1",".local/dev-console/initial-config/configuration.json",["infrastructure"],"A subida da infraestrutura já gera estes arquivos automaticamente. O relatório inclui um snapshot de health, mas o comando Status/health continua disponível para consulta ao vivo."),
         new("reference-check","Validar referência IBGE","Executa um quick check read-only da referência já materializada. É mantido como diagnóstico manual mesmo após o bootstrap automático da infraestrutura.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action reference-check",null,["infrastructure"],"A infraestrutura é subida automaticamente se necessário."),
         new("gold-synthetic","Carregar Gold sintética (30.000)","Materializa a Gold exclusivamente sintética da Console DEV com 30.000 pessoas; nomes e sobrenomes seguem a frequência pública IBGE versionada.","pwsh","-NoProfile -File scripts/dev-console-gold-synthetic.ps1",".local/dev-console/gold-synthetic-records.json",["infrastructure"],"Na Console DEV a Gold é sempre sintética. Não existe fallback para Gold real."),
-        new("initial-calibration","Calibração inicial a partir da Gold","Gera e ativa o primeiro modelo de linkage a partir da Gold sintética da Console DEV. Recusa execução se a Gold estiver vazia ou se já houver modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate-initial",".local/dev-console/initial-calibration.json",["infrastructure","gold-synthetic"],"Exige a Gold sintética de 30.000 pessoas e a referência IBGE ativa."),
-        new("contract-bundle","Gerar bundle de contratos e configurações","Gera um ZIP operacional sem binários com OpenAPI, contratos JSON, configurações governadas e metadados do modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-contract-bundle.ps1",".local/dev-console/contract-config-bundle.zip",["initial-calibration"],"Exige modelo ATIVO para vincular o bundle ao fingerprint/configuração efetivamente calibrados."),
-        new("zip","Gerar ZIP de ingestão","Abre a entrada manual e gera o ZIP real de ingestão.",null,null,null,["contract-bundle"],"A geração é local; o envio para a API só é permitido depois de existir o bundle de contratos/configurações."),
-        new("ingestion","Enviar último ZIP para ingestão","Envia o último ZIP manual para a API real em NODE1 usando a credencial sintética DEV correspondente ao Gestor.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest",".local/dev-console/last-ingestion.json",["contract-bundle","zip"],"Falha fechado se o bundle de contratos/configurações ainda não tiver sido gerado."),
-        new("pipeline-status","Ver status da última ingestão","Consulta o recibo da última Entrega. Bronze, Silver, identidade e Gold são processados pelo Processor residente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action pipeline-status",".local/dev-console/last-ingestion-status.json",["ingestion"],null),
+        new("initial-calibration","Garantir modelo bootstrap inicial (IBGE)","Garante de forma idempotente o primeiro modelo BOOTSTRAP ATIVO. Se ainda não existir, materializa a Gold sintética de 30.000 pessoas, usa a referência IBGE e executa calibração/validação/ativação DEV.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate-initial",".local/dev-console/initial-calibration.json",["infrastructure"],"A subida da infraestrutura já executa esta garantia automaticamente; o comando permanece para inspeção e reparo."),
+        new("contract-bundle","Gerar bundle de contratos e configurações","Gera um ZIP operacional sem binários com OpenAPI, contratos JSON, configurações governadas e metadados do modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-contract-bundle.ps1",".local/dev-console/contract-config-bundle.zip",["infrastructure"],"A infraestrutura garante o BOOTSTRAP inicial ATIVO; o bundle sempre se vincula ao modelo ATIVO corrente."),
+        new("zip","Gerar e enviar ZIP de ingestão","Abre a entrada manual, gera o ZIP real e o envia na mesma execução para a API de ingestão em NODE1.",null,null,null,["contract-bundle"],"Usa exatamente o ZIP recém-gerado; o bundle de contratos/configurações continua sendo validado antes do envio."),
+        new("ingestion","Reenviar último ZIP para ingestão","Reenvia manualmente o último ZIP já gerado para a API real em NODE1 usando a credencial sintética DEV correspondente ao Gestor.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest",".local/dev-console/last-ingestion.json",["contract-bundle","zip"],"Rotina de repetição/diagnóstico; o comando Gerar e enviar ZIP já faz o envio normal."),
+        new("pipeline-status","Ver status da última ingestão","Consulta o recibo da última Entrega. Bronze, Silver, identidade e Gold são processados pelo Processor residente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action pipeline-status",".local/dev-console/last-ingestion-status.json",["zip"],"Gerar e enviar ZIP já produz o recibo usado por esta consulta."),
         new("bronze-verify","Verificar Bronze","Executa Jornada.Bronze.Verify no NODE2 contra as referências Bronze persistidas.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action bronze-verify",null,["ingestion"],"Pode ser executado antes, mas só terá conteúdo útil depois de uma ingestão."),
         new("blocking","Reconstruir blocking","Executa manualmente a reconstrução one-shot da projeção local de blocking. A calibração também garante blocking, mas este comando é útil para diagnóstico/rebuild isolado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action blocking",null,["gold-synthetic"],"Requer Gold disponível; pode ser Gold sintética ou real."),
         new("calibration","Recalibrar e ativar","Executa novo ciclo GENERATE_DRAFT → conferência → VALIDATE → ACTIVATE sobre uma Gold já existente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate",null,["initial-calibration"],"Use após a calibração inicial quando quiser gerar uma nova versão do modelo."),
-        new("linkage","Executar linkage","Executa o Jornada.Linkage.Runner real no NODE2 usando o modelo calibrado ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action linkage",null,["initial-calibration"],"Aceita o modelo inicial ou uma recalibração posterior, desde que exista modelo ATIVO."),
+        new("linkage","Executar linkage","Executa o Jornada.Linkage.Runner real no NODE2 usando o modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action linkage",null,["infrastructure"],"A infraestrutura garante o BOOTSTRAP inicial ATIVO; uma recalibração posterior pode substituir esse modelo."),
         new("semiblind","Consulta semicega","Consulta até cinco candidatos pela API real sem expor CPF, UUID ou score. O formulário usa uma pessoa sintética da Gold como exemplo.",null,null,null,["gold-synthetic","initial-calibration"],"Disponível somente no banco isolado JornadaSyntheticDev com a feature DEV habilitada."),
         new("replay","Executar replay do último run","Executa REPLAY real do último linkage PUBLICADO elegível, sem publicar o resultado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action replay-latest",null,["linkage"],"Exige pelo menos um linkage PUBLICADO não-REPLAY."),
         new("report","Diagnóstico do último linkage","Executa o diagnóstico real do último linkage publicado, incluindo modelo, thresholds, cobertura e qualidade sintética.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action report",null,["linkage"],null),
@@ -57,6 +57,13 @@ static class DevConsolePaths
         for(var d=new DirectoryInfo(start);d is not null;d=d.Parent)
             if(File.Exists(Path.Combine(d.FullName,"Jornada.sln")))return d.FullName;
         throw new DirectoryNotFoundException("Jornada.sln não encontrado.");
+    }
+
+    public static string ApplicationDataRoot()
+    {
+        var local=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if(string.IsNullOrWhiteSpace(local))local=AppContext.BaseDirectory;
+        return Path.Combine(local,"Jornada","DevConsole");
     }
 }
 
@@ -326,18 +333,52 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             psi.ArgumentList.Add("--fixture");psi.ArgumentList.Add(work);
             psi.ArgumentList.Add("--gestor");psi.ArgumentList.Add(request.Gestor.Trim());
             psi.ArgumentList.Add("--output-dir");psi.ArgumentList.Add(work);
-            command=$"{python} scripts/build-ingestion-fixture.py --fixture \"{work}\" --gestor {request.Gestor.Trim()} --output-dir \"{work}\"";
-            live.Add("command",$"> {command}");
-            var result=await RunProcessAsync(psi,live);
+            var zipCommand=$"{python} scripts/build-ingestion-fixture.py --fixture \"{work}\" --gestor {request.Gestor.Trim()} --output-dir \"{work}\"";
+            command=zipCommand;
+            live.Add("command",$"> {zipCommand}");
+            var generated=await RunProcessAsync(psi,live);
+            var generatedOutput=generated.Output.Trim();
+            var zip=generated.ExitCode==0&&File.Exists(generatedOutput)?Path.GetFullPath(generatedOutput):null;
+            if(generated.ExitCode!=0||zip is null)
+            {
+                sw.Stop();
+                var summary=$"Falha ao gerar ZIP (exit {generated.ExitCode}).";
+                live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
+                var failedStep=new StepResult(command,root,generated.ExitCode,sw.ElapsedMilliseconds,generated.Output,generated.Error,null);
+                await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA",summary,failedStep,Array.Empty<Dictionary<string,string?>>()),live);
+                return;
+            }
+
+            live.Add("result",$"ZIP gerado: {zip}");
+            live.Add("stdout","ZIP validado. Enviando o mesmo arquivo para a API real de ingestão...");
+
+            var sendPsi=new ProcessStartInfo("pwsh"){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8,UseShellExecute=false,CreateNoWindow=true};
+            sendPsi.ArgumentList.Add("-NoProfile");
+            sendPsi.ArgumentList.Add("-File");
+            sendPsi.ArgumentList.Add(Path.Combine(root,"scripts","dev-console-operations.ps1"));
+            sendPsi.ArgumentList.Add("-Action");
+            sendPsi.ArgumentList.Add("ingest-latest");
+            sendPsi.ArgumentList.Add("-ZipPath");
+            sendPsi.ArgumentList.Add(zip);
+            var sendCommand=$"pwsh -NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest -ZipPath \"{zip}\"";
+            command=zipCommand+" && "+sendCommand;
+            live.Add("command",$"> {sendCommand}");
+            var sent=await RunProcessAsync(sendPsi,live);
             sw.Stop();
-            var output=result.Output.Trim();
-            var zip=result.ExitCode==0&&File.Exists(output)?Path.GetFullPath(output):null;
-            if(zip is not null)live.Add("result",$"ZIP gerado: {zip}");
-            var status=result.ExitCode==0?"SUCESSO":"FALHA";
+
+            var receiptCandidate=Path.Combine(root,".local","dev-console","last-ingestion.json");
+            var receipt=sent.ExitCode==0&&File.Exists(receiptCandidate)?Path.GetFullPath(receiptCandidate):null;
+            var combinedOutput=generated.Output+(generated.Output.EndsWith(Environment.NewLine,StringComparison.Ordinal)?"":Environment.NewLine)+sent.Output;
+            var combinedError=generated.Error+sent.Error;
+            var artifacts=new[]{zip}.Concat(ParseArtifacts(sent.Output,root)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var status=sent.ExitCode==0&&receipt is not null?"SUCESSO":"FALHA";
+            var summary=status=="SUCESSO"
+                ?$"ZIP gerado e enviado. Recibo: {receipt}"
+                :$"ZIP gerado, mas o envio falhou (exit {sent.ExitCode}). O ZIP foi preservado para diagnóstico/reenvio.";
+            var resultPath=status=="SUCESSO"?receipt:zip;
             live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
-            var summary=result.ExitCode==0?$"ZIP gerado. Resultado: {zip}":$"Falha ao gerar ZIP (exit {result.ExitCode}).";
-            var step=new StepResult(command,root,result.ExitCode,sw.ElapsedMilliseconds,result.Output,result.Error,zip,zip is null?Array.Empty<string>():new[]{zip});
-            await FinishAsync(new RunRecord(id,"zip","Gerar ZIP de ingestão",started,DateTimeOffset.UtcNow,status,summary,step,Array.Empty<Dictionary<string,string?>>()),live);
+            var step=new StepResult(command,root,sent.ExitCode,sw.ElapsedMilliseconds,combinedOutput,combinedError,resultPath,artifacts);
+            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,status,summary,step,Array.Empty<Dictionary<string,string?>>()),live);
         }
         catch(Exception ex)
         {
@@ -345,7 +386,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             live.Add("stderr",ex.ToString());
             live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             var step=new StepResult(command,root,-1,sw.ElapsedMilliseconds,"",ex.ToString(),null);
-            await FinishAsync(new RunRecord(id,"zip","Gerar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA","Falha ao gerar ZIP; veja o console.",step,Array.Empty<Dictionary<string,string?>>()),live);
+            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA","Falha ao gerar/enviar ZIP; veja o console.",step,Array.Empty<Dictionary<string,string?>>()),live);
         }
     }
 
@@ -446,10 +487,18 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
 
 sealed class RunStore(IWebHostEnvironment env)
 {
-    readonly string root=Path.Combine(env.ContentRootPath,".runs");
-    readonly string summariesRoot=Path.Combine(env.ContentRootPath,".runs","summaries");
+    readonly string root=Path.Combine(DevConsolePaths.ApplicationDataRoot(),"runs");
+    readonly string summariesRoot=Path.Combine(DevConsolePaths.ApplicationDataRoot(),"runs","summaries");
+    readonly string legacyRoot=Path.Combine(env.ContentRootPath,".runs");
     readonly DateTimeOffset sessionStartedAt=DateTimeOffset.UtcNow;
     static readonly JsonSerializerOptions Opt=new(JsonSerializerDefaults.Web){WriteIndented=true};
+
+    IEnumerable<string> RunRoots()
+    {
+        yield return root;
+        if(!string.Equals(Path.GetFullPath(legacyRoot),Path.GetFullPath(root),StringComparison.OrdinalIgnoreCase))
+            yield return legacyRoot;
+    }
 
     public async Task SaveAsync(RunRecord run,CancellationToken ct)
     {
@@ -469,43 +518,53 @@ sealed class RunStore(IWebHostEnvironment env)
 
     public async Task<RunRecord?> GetAsync(Guid id,CancellationToken ct)
     {
-        var path=Path.Combine(root,$"{id:N}.json");
-        if(!File.Exists(path))return null;
-        try{return JsonSerializer.Deserialize<RunRecord>(await File.ReadAllTextAsync(path,ct),Opt);}
-        catch(JsonException){return null;}
+        foreach(var runRoot in RunRoots())
+        {
+            var path=Path.Combine(runRoot,$"{id:N}.json");
+            if(!File.Exists(path))continue;
+            try{return JsonSerializer.Deserialize<RunRecord>(await File.ReadAllTextAsync(path,ct),Opt);}
+            catch(JsonException){return null;}
+        }
+        return null;
     }
 
     public async Task<IReadOnlyList<RunSummary>> ListSummariesAsync(CancellationToken ct)
     {
         Directory.CreateDirectory(root);
         Directory.CreateDirectory(summariesRoot);
-        var xs=new List<RunSummary>();
-        foreach(var path in Directory.EnumerateFiles(root,"*.json",SearchOption.TopDirectoryOnly)
+        var candidates=RunRoots()
+            .Where(Directory.Exists)
+            .SelectMany(runRoot=>Directory.EnumerateFiles(runRoot,"*.json",SearchOption.TopDirectoryOnly))
             .OrderByDescending(File.GetLastWriteTimeUtc)
-            .Take(200))
+            .Take(200)
+            .ToArray();
+        var byId=new Dictionary<Guid,RunSummary>();
+        foreach(var path in candidates)
         {
             ct.ThrowIfCancellationRequested();
             try
             {
                 var idText=Path.GetFileNameWithoutExtension(path);
                 if(!Guid.TryParseExact(idText,"N",out var id))continue;
-                var summaryPath=Path.Combine(summariesRoot,$"{id:N}.json");
+                var runRoot=Path.GetDirectoryName(path)!;
+                var summaryPath=Path.Combine(runRoot,"summaries",$"{id:N}.json");
                 RunSummary? summary=null;
                 if(File.Exists(summaryPath))
                     summary=JsonSerializer.Deserialize<RunSummary>(await File.ReadAllTextAsync(summaryPath,ct),Opt);
                 else
                 {
                     summary=await ReadLegacySummaryAsync(path,ct);
-                    if(summary is not null)
-                        await File.WriteAllTextAsync(summaryPath,JsonSerializer.Serialize(summary,Opt),ct);
+                    if(summary is not null&&string.Equals(runRoot,root,StringComparison.OrdinalIgnoreCase))
+                        await File.WriteAllTextAsync(Path.Combine(summariesRoot,$"{id:N}.json"),JsonSerializer.Serialize(summary,Opt),ct);
                 }
-                if(summary is not null)xs.Add(summary);
+                if(summary is not null&&(!byId.TryGetValue(id,out var previous)||summary.StartedAt>previous.StartedAt))
+                    byId[id]=summary;
             }
             catch(JsonException){}
             catch(IOException){}
             catch(UnauthorizedAccessException){}
         }
-        return xs;
+        return byId.Values.OrderByDescending(x=>x.StartedAt).Take(200).ToArray();
     }
 
     static async Task<RunSummary?> ReadLegacySummaryAsync(string path,CancellationToken ct)
