@@ -10,7 +10,9 @@ $ProgressPreference='SilentlyContinue'
 $OutputEncoding=[Text.UTF8Encoding]::new($false)
 if($PSVersionTable.PSVersion.Major -ge 7){$PSStyle.OutputRendering='PlainText'}
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$EnvFile=Join-Path $Root '.env'
+. (Join-Path $PSScriptRoot 'dev-console-env.ps1')
+$Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$EnvFile=$DevConsoleEnvFile
 $KeysFile=Join-Path $Root 'config/security/test-access-keys.json'
 $OutDir=Join-Path $Root '.local/dev-console'
 New-Item -ItemType Directory -Force $OutDir | Out-Null
