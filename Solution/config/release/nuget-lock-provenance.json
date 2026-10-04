@@ -216,10 +216,10 @@
     "sourceCommit": "437b8d3c58e6be571395f53903d57be9e10bff06",
     "githubRunId": "37138273004",
     "sdk": "10.0.112",
-    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112. Jornada.DevConsole foi adicionada como host DEV independente, sem PackageReference; o lock vazio foi force-evaluated no mesmo gate.",
+    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112. Jornada.DevConsole foi adicionada como host DEV independente, sem PackageReference; o lock vazio foi force-evaluated no mesmo gate. Atualização 2026-10-04: dependências de teste minor/patch e ações GitHub consolidadas; locks de testes regenerados pelo grafo corrente.",
     "lockCount": 22,
     "changedLockCount": 22,
-    "combinedSha256": "1ee37ddd6135c9e51ad3a36291eb78a1c59bcfc928eff42cecfd9852db41f5a7",
+    "combinedSha256": "47374e5f88fab440d8dc4a7b8c0996261f36d0f56ffb255b1c93a149075249e6",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -303,11 +303,11 @@
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "6bfce0a99673cb2578459efe8f2a9f8fdb54b2be40a3d96e4529aa1fe84fd51c"
+        "sha256": "a6aa865946462d48c5259b97efbd10ad50ade1feacd9a1db01ba279f17b80f5d"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "be0ac2b717981b87d080150355757e69a833392d43ffbe62d31952cf726bef0c"
+        "sha256": "3ac7bff866b58ec9a2063d02ce6af5fafb8152ef386893b7c9d667c3346343d1"
       }
     ]
   }
