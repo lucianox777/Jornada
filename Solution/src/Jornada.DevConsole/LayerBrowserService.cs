@@ -32,13 +32,29 @@ sealed class LayerBrowserService(IWebHostEnvironment env)
         ["entrega_id","nome_arquivo","content_type","objeto_chave","payload_sha256","tamanho_bytes","estado_armazenamento","recebido_em"],
         ["entrega_id","nome_arquivo","content_type","objeto_chave","payload_sha256","tamanho_bytes","estado_armazenamento","recebido_em"]);
 
+    static readonly LayerDefinition Silver=new(
+        "silver",
+        "silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id JOIN ingestao.entrega e ON e.entrega_id=l.entrega_id",
+        "po.source_as_of DESC,po.pessoa_observacao_id",
+        ["entrega_id","pessoa_observacao_id","codigo_pessoa_origem","cpf","nome_completo","data_nascimento","nome_mae","source_as_of"],
+        ["e.entrega_id","po.pessoa_observacao_id","po.codigo_pessoa_origem","po.cpf","po.nome_completo","po.data_nascimento","po.nome_mae","po.source_as_of"]);
+
+    static readonly LayerDefinition Identity=new(
+        "identity",
+        "identidade.v_vinculo_corrente vc JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=vc.pessoa_observacao_id JOIN ingestao.lote l ON l.lote_id=po.lote_id",
+        "vc.resolvido_em DESC,vc.pessoa_observacao_id",
+        ["entrega_id","pessoa_observacao_id","status","metodo_resolucao","pessoa_uuid","linkage_run_id","resolvido_em"],
+        ["l.entrega_id","vc.pessoa_observacao_id","vc.status","vc.metodo_resolucao","vc.pessoa_uuid","vc.linkage_run_id","vc.resolvido_em"]);
+
     public async Task<LayerPage> BrowseAsync(string layer,int page,int pageSize,string? search,CancellationToken ct)
     {
         var definition=(layer??string.Empty).Trim().ToLowerInvariant() switch
         {
             "gold"=>Gold,
             "bronze"=>Bronze,
-            _=>throw new ArgumentException("Camada deve ser 'bronze' ou 'gold'.")
+            "silver"=>Silver,
+            "identity"=>Identity,
+            _=>throw new ArgumentException("Camada deve ser 'bronze', 'silver', 'identity' ou 'gold'.")
         };
 
         page=Math.Max(1,page);

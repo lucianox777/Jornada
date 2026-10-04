@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet('system-status','reference-check','bronze-verify','ingest-latest','pipeline-status','blocking','calibrate-initial','calibrate','linkage','replay-latest','report')]
+    [ValidateSet('system-status','reference-check','bronze-verify','bronze-verify-latest','ingest-latest','pipeline-status','process-latest','blocking','calibrate-initial','calibrate','linkage','replay-latest','report')]
     [string]$Action,
     [string]$ZipPath
 )
@@ -113,11 +113,17 @@ switch($Action){
         Write-Host "Modelos calibrados ATIVOS: $active"
 
         Write-Host '[5/7] Processos e runners'
-        Invoke-Compose @('exec','-T','jornada-node1','sh','-lc',"pgrep -af '[J]ornada.Processor.Worker.dll' >/dev/null")
-        Invoke-Compose @('exec','-T','jornada-node2','sh','-lc',"pgrep -af '[J]ornada.Processor.Worker.dll' >/dev/null")
+        $manualProcessor=([string]$vars['JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR']).ToLowerInvariant() -eq 'true'
+        if($manualProcessor){
+            Invoke-Compose @('exec','-T','jornada-node2','sh','-lc',"test -f /opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll")
+            Write-Host 'Processor: execução manual one-shot no fluxo da Console DEV (ausência residente é esperada)'
+        }else{
+            Invoke-Compose @('exec','-T','jornada-node1','sh','-lc',"pgrep -af '[J]ornada.Processor.Worker.dll' >/dev/null")
+            Invoke-Compose @('exec','-T','jornada-node2','sh','-lc',"pgrep -af '[J]ornada.Processor.Worker.dll' >/dev/null")
+            Write-Host 'Processor: residente em NODE1/NODE2'
+        }
         Invoke-Compose @('exec','-T','jornada-node2','sh','-lc',"test -f /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll && test -f /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll")
         $residentRunner=(& docker compose --env-file $EnvFile exec -T jornada-node2 sh -lc "pgrep -af '[J]ornada.Linkage.Runner.dll' || true" | Out-String).Trim()
-        Write-Host 'Processor: residente em NODE1/NODE2'
         Write-Host 'Runners de calibração/linkage: disponíveis no NODE2 (execução one-shot)'
         if([string]::IsNullOrWhiteSpace($residentRunner)){Write-Host 'Linkage Runner residente: não (esperado)'}else{Write-Host "Linkage Runner em execução neste instante: $residentRunner"}
 
@@ -145,6 +151,30 @@ switch($Action){
     'bronze-verify' {
         Ensure-ClusterRunning
         Invoke-Compose @('exec','-T','jornada-node2','dotnet','/opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll','--minimum-count','0')
+    }
+
+    'bronze-verify-latest' {
+        Ensure-ClusterRunning
+        $last=Join-Path $OutDir 'last-ingestion.json'
+        if(-not(Test-Path $last)){throw 'Nenhuma ingestão registrada pela Console DEV.'}
+        $saved=Get-Content $last -Raw | ConvertFrom-Json
+        $entregaId=[string]$saved.receipt.entregaId
+        if([string]::IsNullOrWhiteSpace($entregaId)){$entregaId=[string]$saved.receipt.EntregaId}
+        if([string]::IsNullOrWhiteSpace($entregaId)){throw 'Recibo da última ingestão não contém entregaId.'}
+        $savedDb=[string]$saved.database
+        $exists=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM ingestao.entrega WHERE entrega_id='$entregaId';")
+        if(($savedDb -and $savedDb -ne $db) -or $exists -eq 0){throw 'A última ingestão não pertence ao ambiente DEV atual.'}
+
+        $containerReport="/tmp/jornada-bronze-verify-$entregaId.json"
+        $hostReport='.local/dev-console/last-bronze-verify.json'
+        Write-Host "Verificando objeto Bronze da Entrega $entregaId..."
+        Invoke-Compose @('exec','-T','jornada-node2','dotnet','/opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll','--entrega-id',$entregaId,'--minimum-count','1','--report',$containerReport)
+        Invoke-Compose @('cp',"jornada-node2:$containerReport",$hostReport)
+        Invoke-Compose @('exec','-T','jornada-node2','rm','-f',$containerReport)
+        $report=Join-Path $Root $hostReport
+        if(-not(Test-Path $report)){throw "Relatório Bronze não foi copiado para $report."}
+        Write-Host "Integridade Bronze da Entrega $entregaId: PASS"
+        Write-Host "ARTEFATO: $report"
     }
 
     'ingest-latest' {
@@ -248,6 +278,51 @@ switch($Action){
         }
     }
 
+    'process-latest' {
+        Ensure-ClusterRunning
+        $manualProcessor=([string]$vars['JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR']).ToLowerInvariant() -eq 'true'
+        if(-not $manualProcessor){throw 'O fluxo didático exige JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR=true. Suba a infraestrutura pela Console DEV antes de processar manualmente.'}
+
+        $last=Join-Path $OutDir 'last-ingestion.json'
+        if(-not(Test-Path $last)){throw 'Nenhuma ingestão registrada pela Console DEV.'}
+        $saved=Get-Content $last -Raw | ConvertFrom-Json
+        $entregaId=[string]$saved.receipt.entregaId
+        if([string]::IsNullOrWhiteSpace($entregaId)){$entregaId=[string]$saved.receipt.EntregaId}
+        if([string]::IsNullOrWhiteSpace($entregaId)){throw 'Recibo da última ingestão não contém entregaId.'}
+        $savedDb=[string]$saved.database
+        $exists=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM ingestao.entrega WHERE entrega_id='$entregaId';")
+        if(($savedDb -and $savedDb -ne $db) -or $exists -eq 0){throw 'A última ingestão não pertence ao ambiente DEV atual.'}
+
+        $status=Invoke-SqlScalar "SELECT status FROM ingestao.entrega WHERE entrega_id='$entregaId';"
+        if($status -eq 'PROCESSADA'){
+            $silver=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$entregaId';")
+            Write-Host "Entrega $entregaId já está PROCESSADA; Silver contém $silver observação(ões). Nenhum reprocessamento foi feito."
+            return
+        }
+        if($status -in @('REJEITADA','QUARENTENA')){throw "Entrega $entregaId está em estado terminal $status."}
+
+        $otherPending=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM ingestao.lote WHERE entrega_id<>'$entregaId' AND status IN(N'PENDENTE',N'VALIDANDO',N'PROCESSANDO');")
+        if($otherPending -ne 0){throw "Existem $otherPending lote(s) pendentes de outras Entregas. A execução one-shot foi recusada para não processar carga fora do fluxo atual."}
+        $targetPending=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM ingestao.lote WHERE entrega_id='$entregaId' AND status IN(N'PENDENTE',N'VALIDANDO',N'PROCESSANDO');")
+        if($targetPending -eq 0){throw "Entrega $entregaId não possui lote pendente para o Processor (status=$status)."}
+
+        $resident=@()
+        foreach($node in @('jornada-node1','jornada-node2')){
+            $found=(& docker compose --env-file $EnvFile exec -T $node sh -lc "pgrep -af '[J]ornada.Processor.Worker.dll' || true" | Out-String).Trim()
+            if(-not [string]::IsNullOrWhiteSpace($found)){$resident+=("${node}: $found")}
+        }
+        if($resident.Count -gt 0){throw "Processor residente detectado em modo manual: $($resident -join '; ')."}
+
+        Write-Host "Executando Jornada.Processor.Worker one-shot para a Entrega $entregaId..."
+        Invoke-Compose @('exec','-T','jornada-node2','env','Processor__Operation=PROCESS_UNTIL_IDLE','dotnet','/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll')
+
+        $final=Invoke-SqlScalar "SELECT status FROM ingestao.entrega WHERE entrega_id='$entregaId';"
+        $silverPeople=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$entregaId';")
+        $silverFacts=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.registro_observacao ro JOIN ingestao.lote l ON l.lote_id=ro.lote_id WHERE l.entrega_id='$entregaId';")
+        Write-Host "Processor concluiu: entrega=$entregaId; status=$final; pessoas_silver=$silverPeople; registros_silver=$silverFacts."
+        if($final -ne 'PROCESSADA'){throw "Processor one-shot terminou sem publicar PROCESSADA; estado final=$final."}
+    }
+
     'blocking' { Invoke-ClusterAction 'blocking' }
 
     'calibrate-initial' {
@@ -330,6 +405,10 @@ switch($Action){
         $exists=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM ingestao.entrega WHERE entrega_id='$entregaId';")
         if(($savedDb -and $savedDb -ne $db) -or $exists -eq 0){
             throw "A última ingestão não pertence ao ambiente atual ($db). Envie um novo ZIP antes de executar o linkage incremental."
+        }
+        $deliveryStatus=Invoke-SqlScalar "SELECT status FROM ingestao.entrega WHERE entrega_id='$entregaId';"
+        if($deliveryStatus -ne 'PROCESSADA'){
+            throw "Linkage exige a Entrega PROCESSADA; atual=$deliveryStatus. Execute primeiro 'Processar Bronze → Silver'."
         }
 
         $idsRaw=Invoke-SqlScalar "SELECT STRING_AGG(CONVERT(varchar(max),po.pessoa_observacao_id),',') WITHIN GROUP (ORDER BY po.pessoa_observacao_id) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE l.entrega_id='$entregaId' AND po.cpf IS NULL AND (vc.pessoa_observacao_id IS NULL OR vc.status IN(N'NAO_RESOLVIDO',N'CONFLITO') OR vc.metodo_resolucao=N'PENDENTE_PROBABILISTICO');"

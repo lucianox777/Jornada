@@ -6,13 +6,18 @@ using System.Text.Json;
 sealed record CommandDefinition(string Id,string Title,string Description,string? File,string? Arguments,string? ResultPath,string[] Dependencies,string? DependencyNote)
 {
     public bool Visible{get;init;}=true;
-    public bool Implemented=>File is not null||Id is "zip" or "semiblind" or "configuration" or "bronze";
+    public string Surface{get;init;}="flow";
+    public string Stage{get;init;}="";
+    public bool Implemented=>File is not null||Id is "zip" or "semiblind" or "configuration" or "bronze" or "silver" or "linkage" or "gold";
     public string? CommandLine=>File is null?null:$"{File} {Arguments}";
     public string DisplayCommand=>Id switch{
         "zip"=>"Entrada manual → build-ingestion-fixture.py → POST /api/v1/ingestao/entregas",
         "semiblind"=>"POST /api/v1/identidade/candidatos (DEV sintético)",
         "configuration"=>"config/contracts/**/*.json + config/**/*.json + install/windows-production/Jornada.Cluster.Test.json",
-        "bronze"=>"bronze.entrega_arquivo · leitura paginada e busca DEV",
+        "bronze"=>"bronze.entrega_arquivo · objeto físico + metadados + Jornada.Bronze.Verify",
+        "silver"=>"Jornada.Processor.Worker · Bronze → Silver em execução one-shot controlada pela Console DEV",
+        "linkage"=>"Jornada.Linkage.Runner · resolução probabilística one-shot da última entrega",
+        "gold"=>"gold.pessoa · estado publicado após Processor/Linkage",
         _=>CommandLine??"Operação parametrizada pela interface."
     };
 }
@@ -31,26 +36,46 @@ static class DevConsoleJson
 
 static class CommandCatalog
 {
-    // A ordem segue o uso operacional: preparação e uso frequente; alterações/recalibração;
-    // diagnóstico; encerramento. Ações auxiliares permanecem executáveis, mas não ocupam
-    // um cartão próprio quando fazem parte de uma operação de nível superior.
+    // A navegação principal segue a jornada real do dado. Ferramentas administrativas,
+    // diagnósticos e ensaios ficam em uma superfície separada para não esconder as
+    // transições Bronze → Silver → Identidade/Linkage → Gold.
     public static readonly CommandDefinition[] All=[
-        new("infrastructure","Subir infraestrutura, referências e bootstrap","Prepara o ambiente DEV completo: Docker, SQL Server, schema, NAS, referência IBGE, NODE1/NODE2, modelo BOOTSTRAP inicial ATIVO, configuração inicial e bundle de contratos/configurações.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null),
-        new("zip","Ingestão","Cria e envia uma nova entrega. No mesmo cartão também é possível acompanhar a última ingestão ou reenviar o último ZIP, sem misturar essas ações com administração interna do sistema.",null,null,null,["infrastructure"],"A preparação do ambiente gera o bundle exigido pela ingestão. Se contratos/configurações forem alterados depois, regenere o bundle em Contratos e configurações."),
-        new("bronze","Visualizar camada Bronze","Abre a visão paginada e somente leitura de bronze.entrega_arquivo, com um único campo de busca sobre todas as colunas exibidas.",null,null,null,["infrastructure"],"A visualização consulta o banco DEV atual e não altera objetos nem metadados da Bronze."),
-        new("semiblind","Consulta semicega","Consulta até cinco candidatos pela API real sem expor CPF, UUID ou score. O formulário usa uma pessoa sintética da Gold DEV como exemplo.",null,null,null,["infrastructure"],"Em DEV, a subida processa o corpus inicial, calibra o modelo e publica/preserva o domínio sintético na Gold; não ficam registros de bootstrap pendentes."),
-        new("linkage","Executar linkage","Executa o Jornada.Linkage.Runner real no NODE2 somente para as observações elegíveis da última entrega enviada pela Console DEV. O backlog sintético global permanece intacto; o replay do último run fica disponível como ação secundária no mesmo cartão.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action linkage",null,["infrastructure","zip"],"Envie um ZIP pela Console antes do linkage. A infraestrutura garante o BOOTSTRAP inicial ATIVO; uma recalibração posterior pode substituir esse modelo."),
-        new("configuration","Contratos e configurações","Acesso único às duas superfícies administrativas: contratos de ingestão e configurações ativas. Cada editor mantém sua validação e persistência próprias.",null,null,null,[], "Alterações são locais ao checkout DEV; configurações que exigem reinício continuam sinalizadas."),
-        new("gold-synthetic","Adicionar mais 5.000 registros","Adiciona 5.000 novas pessoas à Gold sintética DEV já publicada pelo bootstrap; execuções sucessivas expandem 30k → 35k → 40k, sem reset. O rebuild manual de blocking fica disponível como ação secundária.","pwsh","-NoProfile -File scripts/dev-console-gold-add.ps1 -AdditionalPeople 5000",".local/dev-console/gold-synthetic-add.json",["infrastructure"],"Somente DEV preserva/publica o domínio sintético de bootstrap. A carga incremental reconstrói o blocking automaticamente."),
-        new("calibration","Recalibrar e ativar","Executa novo ciclo GENERATE_DRAFT → conferência → VALIDATE → ACTIVATE sobre a Gold DEV corrente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate",null,["infrastructure"],"A preparação DEV já processa/publica a Gold sintética inicial e garante o modelo BOOTSTRAP ATIVO. Use esta ação apenas para uma nova versão deliberada."),
-        new("system-status","Estado geral do sistema","Diagnóstico read-only consolidado: infraestrutura/health, SQL/schema, referência IBGE, modelo ATIVO, Processor/runners, Bronze e diagnóstico do último linkage quando existir.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action system-status",null,["infrastructure"],"Concentra as verificações que antes apareciam como comandos separados; ausência de ingestão/linkage é reportada como não aplicável."),
-        new("finish","Finalizar e limpar ambiente","Encerra o cluster e remove containers, volumes e órfãos locais. Na próxima subida tudo é recriado automaticamente.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action clean",null,[],null),
+        new("infrastructure","Subir infraestrutura, referências e bootstrap","Prepara o ambiente DEV completo: Docker, SQL Server, schema, NAS, referência IBGE, NODE1/NODE2, modelo BOOTSTRAP inicial ATIVO, configuração inicial e bundle de contratos/configurações.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null)
+            {Stage="1 · Infraestrutura"},
+        new("zip","Ingestão","Cria e envia uma nova Entrega pela API. No modo didático da Console DEV, o Processor residente fica suspenso: o ZIP permanece na Bronze até a etapa Silver ser executada explicitamente.",null,null,null,["infrastructure"],"A infraestrutura gera o bundle exigido pela ingestão. Depois de enviar, confira a Bronze antes de processar.")
+            {Stage="2 · Ingestão"},
+        new("bronze","Bronze","Mostra os metadados e a localização lógica do objeto recebido e permite verificar a integridade física da última Entrega com Jornada.Bronze.Verify.",null,null,null,["zip"],"A verificação confere objeto, SHA-256 e tamanho. Ela não processa nem altera a Entrega.")
+            {Stage="3 · Bronze"},
+        new("silver","Silver · processar Bronze","Executa explicitamente o Jornada.Processor.Worker em modo one-shot para drenar somente a Entrega pendente da Console DEV e depois permite inspecionar silver.pessoa_observacao.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action process-latest",null,["bronze"],"A Console DEV desabilita o Processor residente para que esta transição seja visível e acionada pelo operador.")
+            {Stage="4 · Silver"},
+        new("linkage","Identidade e Linkage","Mostra a camada de vínculos correntes e executa o Jornada.Linkage.Runner real no NODE2 somente para as observações elegíveis da última Entrega. Replay continua disponível como ação secundária.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action linkage",null,["silver"],"Execute o Processor antes. Se a identidade determinística já resolveu tudo, o Runner informa que não há universo probabilístico para a Entrega.")
+            {Stage="5 · Identidade / Linkage"},
+        new("gold","Gold / Serving","Inspeciona o estado canônico publicado em gold.pessoa após as etapas de Processor e, quando necessário, Linkage. A visualização é somente leitura.",null,null,null,["silver"],"Para entregas SEM_CPF que dependem de resolução probabilística, execute Linkage antes de interpretar o estado final.")
+            {Stage="6 · Gold / Serving"},
+        new("finish","Finalizar e destruir ambiente","Encerra o cluster DEV e remove containers, volumes e órfãos locais. Na próxima subida, toda a infraestrutura é recriada automaticamente.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action clean",null,[],null)
+            {Stage="7 · Encerramento"},
+
+        new("system-status","Estado geral do sistema","Diagnóstico read-only consolidado de infraestrutura, SQL/schema, referência IBGE, modelo, componentes, Bronze e último linkage.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action system-status",null,["infrastructure"],"No modo didático, Processor residente ausente é esperado; o binário one-shot deve estar disponível.")
+            {Surface="tools",Stage="Verificações"},
+        new("reference-check","Verificar referência IBGE","Executa o quick check da referência nominal IBGE sem recriar a infraestrutura.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action reference-check",null,["infrastructure"],null)
+            {Surface="tools",Stage="Verificações"},
+        new("bronze-verify-all","Verificar Bronze completa","Executa Jornada.Bronze.Verify sobre todas as referências Bronze DISPONÍVEIS do ambiente atual.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action bronze-verify",null,["infrastructure"],"Para a Entrega corrente, use o botão Verificar integridade no cartão Bronze.")
+            {Surface="tools",Stage="Verificações"},
+        new("semiblind","Consulta semicega","Consulta até cinco candidatos pela API real sem expor CPF, UUID ou score. O formulário usa uma pessoa sintética da Gold DEV como exemplo.",null,null,null,["infrastructure"],null)
+            {Surface="tools",Stage="Consultas"},
+        new("configuration","Contratos e configurações","Administra contratos de ingestão e configurações ativas, preservando suas validações e persistências próprias.",null,null,null,[], "Alterações são locais ao checkout DEV; configurações que exigem reinício continuam sinalizadas.")
+            {Surface="tools",Stage="Administração"},
+        new("calibration","Recalibrar e ativar","Executa novo ciclo GENERATE_DRAFT → conferência → VALIDATE → ACTIVATE sobre a Gold DEV corrente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate",null,["infrastructure"],"Use apenas para criar deliberadamente uma nova versão de modelo.")
+            {Surface="tools",Stage="Modelo e massa"},
+        new("gold-synthetic","Adicionar mais 5.000 registros","Expande a Gold sintética DEV em blocos de 5.000 e reconstrói blocking automaticamente.","pwsh","-NoProfile -File scripts/dev-console-gold-add.ps1 -AdditionalPeople 5000",".local/dev-console/gold-synthetic-add.json",["infrastructure"],null)
+            {Surface="tools",Stage="Modelo e massa"},
 
         new("contract-bundle","Gerar bundle de contratos e configurações","Gera um ZIP operacional sem binários com OpenAPI, contratos JSON, configurações governadas e metadados do modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-contract-bundle.ps1",".local/dev-console/contract-config-bundle.zip",["infrastructure"],"Ação auxiliar de Contratos e configurações."){Visible=false},
         new("ingestion","Reenviar último ZIP para ingestão","Reenvia manualmente o último ZIP já gerado para a API real em NODE1 usando a credencial sintética DEV correspondente ao Gestor.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest",".local/dev-console/last-ingestion.json",["contract-bundle","zip"],"Ação auxiliar do cartão Ingestão."){Visible=false},
-        new("pipeline-status","Ver status da última ingestão","Consulta o recibo da última Entrega. Bronze, Silver, identidade e Gold são processados pelo Processor residente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action pipeline-status",".local/dev-console/last-ingestion-status.json",["zip"],"Ação auxiliar do cartão Ingestão."){Visible=false},
-        new("blocking","Reconstruir blocking","Executa manualmente a reconstrução one-shot da projeção local de blocking.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action blocking",null,["infrastructure"],"Ação auxiliar da massa Gold/recalibração."){Visible=false},
-        new("replay","Executar replay do último run","Executa REPLAY real do último linkage PUBLICADO elegível, sem publicar o resultado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action replay-latest",null,["linkage"],"Ação auxiliar do cartão Executar linkage."){Visible=false}
+        new("pipeline-status","Ver status da última ingestão","Consulta o recibo da última Entrega sem acionar processamento.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action pipeline-status",".local/dev-console/last-ingestion-status.json",["zip"],"Ação auxiliar da Ingestão."){Visible=false},
+        new("bronze-verify-latest","Verificar integridade da última Entrega","Executa Jornada.Bronze.Verify filtrado pelo entrega_id registrado pela Console DEV.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action bronze-verify-latest",".local/dev-console/last-bronze-verify.json",["zip"],"Ação auxiliar do cartão Bronze."){Visible=false},
+        new("blocking","Reconstruir blocking","Executa manualmente a reconstrução one-shot da projeção local de blocking.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action blocking",null,["infrastructure"],"Ferramenta técnica."){Visible=false},
+        new("replay","Executar replay do último run","Executa REPLAY real do último linkage PUBLICADO elegível, sem publicar o resultado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action replay-latest",null,["linkage"],"Ação auxiliar do cartão Linkage."){Visible=false}
     ];
 }
 

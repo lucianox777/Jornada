@@ -21,6 +21,7 @@ x-jornada-node-common: &jornada-node-common
     DOTNET_ENVIRONMENT: Development
     ASPNETCORE_ENVIRONMENT: Development
     SemiblindIdentitySearch__Enabled: "${JORNADA_SEMIBLIND_ENABLED:-false}"
+    JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR: "${JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR:-false}"
 
 services:
   sqlserver:

@@ -18,6 +18,7 @@ $map['JORNADA_SEMIBLIND_ENABLED']='true'
 $map['JORNADA_LOCAL_SYNTHETIC_PEOPLE']='30000'
 $map['JORNADA_LOCAL_SYNTHETIC_PAIRED']='30000'
 $map['JORNADA_LOCAL_SYNTHETIC_PENDING']='6000'
+$map['JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR']='true'
 
 $out=@('# Gerado automaticamente pela Jornada DEV Console. Somente dados sintéticos.')
 foreach($entry in $map.GetEnumerator()){$out+=("$($entry.Key)=$($entry.Value)")}
