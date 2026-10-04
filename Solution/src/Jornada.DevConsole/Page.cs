@@ -61,7 +61,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .dialog-body{padding:16px 18px;max-height:70vh;overflow:auto}
 .dialog-body label{display:block;font-weight:700;margin:12px 0 5px}
 .dialog-body input,.dialog-body textarea{width:100%;padding:8px;border:1px solid #cbd3dc;border-radius:6px;font:13px ui-monospace,SFMono-Regular,Consolas,monospace}
-.dialog-body textarea{min-height:110px}
+.dialog-body textarea{min-height:110px}.tabs{display:flex;gap:8px;margin:10px 0}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.form-grid label{margin:0}.form-grid input,.form-grid select{width:100%;padding:8px;border:1px solid #cbd3dc;border-radius:6px}.artifact-list{margin-top:10px;display:grid;gap:6px}.artifact-item{padding:8px 10px;border:1px solid #d9dee5;border-radius:6px;background:#fafafa;overflow-wrap:anywhere}@media(max-width:700px){.form-grid{grid-template-columns:1fr}}
 .dialog-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #dde2e8}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
@@ -115,15 +115,38 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
 <dialog id="zipDialog">
   <div class="dialog-head"><strong>Entrada manual para o ZIP</strong><button class="secondary" type="button" onclick="zipDialog.close()">Fechar</button></div>
   <div class="dialog-body">
-    <p>Edite os dados que irão para <code>manifest.json</code>, <code>pessoas.jsonl</code> e <code>registros.jsonl</code>. Depois a Console abre a tela de execução e mostra a geração do ZIP linha por linha.</p>
-    <label for="zipGestor">Gestor</label>
-    <input id="zipGestor" value="SEHAB">
-    <label for="zipManifest">manifest.json</label>
-    <textarea id="zipManifest">{"formatoVersao":2,"pessoaSchemaVersao":4,"codigoSistemaOrigem":"SEHAB","natureza":"BENEFICIO","codigoTipo":"AA01","tipoVersao":1,"dataReferencia":"2026-10-03T00:00:00-03:00"}</textarea>
-    <label for="zipPessoas">pessoas.jsonl</label>
-    <textarea id="zipPessoas">{"idPessoaEntrega":"PESSOA-MANUAL-001","cpf":null,"cpfAusenteMotivo":"NAO_INFORMADO_ORIGEM","nomeCompleto":"Maria Exemplo","dataNascimento":"1982-04-10","nomeMae":"Ana Exemplo","sourceTransactionId":"DEV-MANUAL-001","atributosTransversais":[]}</textarea>
-    <label for="zipRegistros">registros.jsonl</label>
-    <textarea id="zipRegistros">{"idPessoaEntrega":"PESSOA-MANUAL-001","codigoRegistroOrigem":"DEV-MANUAL-REG-001","operacao":"INCLUSAO","dataInicioConcessao":"2026-10-01","valorConcedido":600.0,"dataEventoConcessao":"2026-10-03","situacaoVigencia":"VIGENTE"}</textarea>
+    <p>Você pode preencher por formulário HTML ou editar diretamente JSON/JSONL. O exemplo é carregado da <code>gold.pessoa</code> para não distorcer nomes, nascimento e nome da mãe.</p>
+    <div class="tabs">
+      <button class="secondary" type="button" onclick="setZipMode('form')">Formulário HTML</button>
+      <button class="secondary" type="button" onclick="setZipMode('json')">JSON / JSONL</button>
+      <button class="secondary" type="button" onclick="loadGoldTemplate()">Atualizar exemplo da Gold</button>
+    </div>
+    <div id="zipTemplateSource" class="small"></div>
+
+    <div id="zipFormMode">
+      <div class="form-grid">
+        <label>Gestor<input id="zipGestor" value="SEHAB"></label>
+        <label>Sistema de origem<input id="zipSistema" value="SEHAB"></label>
+        <label>Tipo<input id="zipTipo" value="AA01"></label>
+        <label>ID pessoa na entrega<input id="zipPessoaId"></label>
+        <label>Nome completo<input id="zipNome"></label>
+        <label>Data de nascimento<input id="zipNascimento" type="date"></label>
+        <label>Nome da mãe<input id="zipMae"></label>
+        <label>Código do registro<input id="zipRegistroId"></label>
+        <label>Valor concedido<input id="zipValor" type="number" step="0.01" value="600"></label>
+        <label>Data do evento<input id="zipDataEvento" type="date"></label>
+        <label>Situação<select id="zipSituacao"><option>VIGENTE</option><option>ENCERRADO</option></select></label>
+      </div>
+    </div>
+
+    <div id="zipJsonMode" class="hidden">
+      <label for="zipManifest">manifest.json</label>
+      <textarea id="zipManifest"></textarea>
+      <label for="zipPessoas">pessoas.jsonl</label>
+      <textarea id="zipPessoas"></textarea>
+      <label for="zipRegistros">registros.jsonl</label>
+      <textarea id="zipRegistros"></textarea>
+    </div>
   </div>
   <div class="dialog-actions">
     <button class="secondary" type="button" onclick="zipDialog.close()">Cancelar</button>
@@ -183,7 +206,7 @@ async function loadCommands(){
     const dependency=deps.length||c.dependencyNote
       ?'<div class="dependency"><b>Pré-requisitos:</b> '+(deps.length?deps.map(esc).join(' → '):'nenhum obrigatório')+(c.dependencyNote?'<span class="dep-note">'+esc(c.dependencyNote)+'</span>':'')+'</div>'
       :'';
-    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span><button class="'+buttonClass+'" type="button" onclick="'+(c.id==='zip'?'zipDialog.showModal()':"startCommand('"+c.id+"')")+'">'+label+'</button></div></div></div>'
+    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span><button class="'+buttonClass+'" type="button" onclick="'+(c.id==='zip'?'openZipDialog()':"startCommand('"+c.id+"')")+'">'+label+'</button></div></div></div>'
   }).join('');
 }
 
@@ -193,7 +216,87 @@ async function startCommand(id){
   openLiveRun(response.id,command?.title||id,id);
 }
 
+let zipMode='form';
+
+function setZipMode(mode){
+  zipMode=mode;
+  if(mode==='json')syncFormToJson();
+  else syncJsonToForm();
+  zipFormMode.classList.toggle('hidden',mode!=='form');
+  zipJsonMode.classList.toggle('hidden',mode!=='json');
+}
+
+async function openZipDialog(){
+  zipDialog.showModal();
+  await loadGoldTemplate();
+  setZipMode('form');
+}
+
+async function loadGoldTemplate(){
+  zipTemplateSource.textContent='Carregando exemplo da Gold...';
+  try{
+    const t=await api('/api/zip/template');
+    zipGestor.value=t.gestor;
+    zipSistema.value=t.codigoSistemaOrigem;
+    zipTipo.value=t.codigoTipo;
+    zipPessoaId.value=t.idPessoaEntrega;
+    zipNome.value=t.nomeCompleto;
+    zipNascimento.value=t.dataNascimento;
+    zipMae.value=t.nomeMae;
+    zipRegistroId.value=t.codigoRegistroOrigem;
+    zipDataEvento.value=new Date().toISOString().slice(0,10);
+    zipManifest.value=t.manifestJson;
+    zipPessoas.value=t.pessoasJsonl;
+    zipRegistros.value=t.registrosJsonl;
+    zipTemplateSource.textContent='Exemplo obtido de '+t.source+' · pessoa '+t.pessoaUuid;
+  }catch(e){
+    zipTemplateSource.textContent='Não foi possível carregar exemplo da Gold: '+e.message;
+  }
+}
+
+function syncFormToJson(){
+  const now=new Date();
+  const ref=now.toISOString();
+  const manifest={
+    formatoVersao:2,pessoaSchemaVersao:4,codigoSistemaOrigem:zipSistema.value||zipGestor.value,
+    natureza:'BENEFICIO',codigoTipo:zipTipo.value||'AA01',tipoVersao:1,dataReferencia:ref
+  };
+  const pessoa={
+    idPessoaEntrega:zipPessoaId.value,cpf:null,cpfAusenteMotivo:'NAO_INFORMADO_ORIGEM',
+    nomeCompleto:zipNome.value,dataNascimento:zipNascimento.value,nomeMae:zipMae.value,
+    sourceTransactionId:'DEV-'+(zipPessoaId.value||'MANUAL'),atributosTransversais:[]
+  };
+  const registro={
+    idPessoaEntrega:zipPessoaId.value,codigoRegistroOrigem:zipRegistroId.value,operacao:'INCLUSAO',
+    dataInicioConcessao:zipDataEvento.value,valorConcedido:Number(zipValor.value||0),
+    dataEventoConcessao:zipDataEvento.value,situacaoVigencia:zipSituacao.value
+  };
+  zipManifest.value=JSON.stringify(manifest,null,2);
+  zipPessoas.value=JSON.stringify(pessoa);
+  zipRegistros.value=JSON.stringify(registro);
+}
+
+function syncJsonToForm(){
+  try{
+    const m=JSON.parse(zipManifest.value||'{}');
+    const p=JSON.parse((zipPessoas.value||'{}').split(/\r?\n/).filter(Boolean)[0]||'{}');
+    const r=JSON.parse((zipRegistros.value||'{}').split(/\r?\n/).filter(Boolean)[0]||'{}');
+    zipGestor.value=zipGestor.value||m.codigoSistemaOrigem||'SEHAB';
+    zipSistema.value=m.codigoSistemaOrigem||zipSistema.value;
+    zipTipo.value=m.codigoTipo||zipTipo.value;
+    zipPessoaId.value=p.idPessoaEntrega||zipPessoaId.value;
+    zipNome.value=p.nomeCompleto||zipNome.value;
+    zipNascimento.value=p.dataNascimento||zipNascimento.value;
+    zipMae.value=p.nomeMae||zipMae.value;
+    zipRegistroId.value=r.codigoRegistroOrigem||zipRegistroId.value;
+    zipValor.value=r.valorConcedido??zipValor.value;
+    zipDataEvento.value=r.dataEventoConcessao||zipDataEvento.value;
+    zipSituacao.value=r.situacaoVigencia||zipSituacao.value;
+  }catch{}
+}
+
 async function startZip(){
+  if(zipMode==='form')syncFormToJson();
   zipDialog.close();
   const payload={gestor:zipGestor.value,manifestJson:zipManifest.value,pessoasJsonl:zipPessoas.value,registrosJsonl:zipRegistros.value};
   const response=await api('/api/zip/manual/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -262,9 +365,16 @@ function renderFinal(run){
   runSummary.innerHTML='<b>'+esc(run.status)+'</b> · '+esc(run.summary)+'<br><span class="small">Duração: '+(Number(run.step.durationMs||0)/1000).toFixed(2)+' s · Exit code: '+esc(run.step.exitCode)+' · Diretório: '+esc(run.step.workingDirectory)+'</span>';
   resultPath.innerHTML=run.step.resultPath?'<div class="result-box"><b>Resultado salvo em:</b><br>'+esc(run.step.resultPath)+'</div>':'';
   const actions=[];
-  if(run.step.resultPath)actions.push('<button class="primary" type="button" onclick="window.open(\'/api/runs/'+run.id+'/result\',\'_blank\')">Abrir resultado</button>');
+  if(run.step.resultPath){
+    actions.push('<button class="primary" type="button" onclick="window.open(\'/api/runs/'+run.id+'/result\',\'_blank\')">Abrir resultado</button>');
+    if(String(run.step.resultPath).toLowerCase().endsWith('.json'))actions.push('<button class="secondary" type="button" onclick="window.open(\'/api/runs/'+run.id+'/result/html\',\'_blank\')">Visualizar JSON em HTML</button>');
+  }
   if(run.records?.length)actions.push('<button class="secondary" type="button" onclick="toggleRecords()">Ver dados do resultado ('+run.records.length+')</button>');
   actions.push('<button class="secondary" type="button" onclick="rerun()">Executar novamente</button>');
+  const artifacts=run.step.artifacts||[];
+  if(artifacts.length){
+    resultPath.innerHTML+=(resultPath.innerHTML?'':'')+'<div class="artifact-list"><b>Arquivos gerados:</b>'+artifacts.map((path,index)=>'<div class="artifact-item"><code>'+esc(path)+'</code><div class="result-actions"><button class="secondary" type="button" onclick="window.open(\'/api/runs/'+run.id+'/artifacts/'+index+'\',\'_blank\')">Abrir</button>'+(String(path).toLowerCase().endsWith('.json')?'<button class="secondary" type="button" onclick="window.open(\'/api/runs/'+run.id+'/artifacts/'+index+'/html\',\'_blank\')">Ver em HTML</button>':'')+'</div></div>').join('')+'</div>';
+  }
   resultActions.innerHTML=actions.join('');
   if(run.records?.length){
     recordsPanel.innerHTML='<h3>Dados do resultado</h3><table><tr>'+Object.keys(run.records[0]).map(k=>'<th>'+esc(k)+'</th>').join('')+'</tr>'+run.records.map(row=>'<tr>'+Object.values(row).map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('')+'</table>';
@@ -274,7 +384,7 @@ function renderFinal(run){
 function toggleRecords(){recordsPanel.classList.toggle('hidden')}
 
 async function rerun(){
-  if(currentCommandId==='zip'){zipDialog.showModal();return}
+  if(currentCommandId==='zip'){await openZipDialog();return}
   await startCommand(currentCommandId);
 }
 
