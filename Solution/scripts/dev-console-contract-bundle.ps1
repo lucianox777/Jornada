@@ -5,7 +5,9 @@ $OutputEncoding=[Text.UTF8Encoding]::new($false)
 if($PSVersionTable.PSVersion.Major -ge 7){$PSStyle.OutputRendering='PlainText'}
 
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$EnvFile=Join-Path $Root '.env'
+. (Join-Path $PSScriptRoot 'dev-console-env.ps1')
+$Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$EnvFile=$DevConsoleEnvFile
 $OutDir=Join-Path $Root '.local/dev-console'
 $Stage=Join-Path $OutDir 'contract-config-bundle'
 $ZipPath=Join-Path $OutDir 'contract-config-bundle.zip'
