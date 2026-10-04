@@ -31,7 +31,6 @@ static class CommandCatalog
     // Cada ação é independente. Quando necessário, o próprio comando garante suas dependências locais.
     public static readonly CommandDefinition[] All=[
         new("infrastructure","Subir infraestrutura, referências e bootstrap","Sobe o ambiente DEV completo: Docker, SQL Server, schema, NAS, referência IBGE, NODE1/NODE2 e garante o modelo BOOTSTRAP inicial ATIVO. Também gera a configuração inicial em JSON e HTML.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null),
-        new("initial-config","Gerar/ver configuração inicial","Regenera sob demanda a configuração inicial em JSON/HTML e captura um snapshot de health. A infraestrutura gera isso automaticamente, mas a rotina manual é mantida para inspeção/regeneração.","pwsh","-NoProfile -File scripts/dev-console-initial-config.ps1",".local/dev-console/initial-config/configuration.json",["infrastructure"],"A subida da infraestrutura já gera estes arquivos automaticamente. O relatório inclui um snapshot de health, mas o comando Status/health continua disponível para consulta ao vivo."),
         new("reference-check","Validar referência IBGE","Executa um quick check read-only da referência já materializada. É mantido como diagnóstico manual mesmo após o bootstrap automático da infraestrutura.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action reference-check",null,["infrastructure"],"A infraestrutura é subida automaticamente se necessário."),
         new("gold-synthetic","Carregar Gold sintética (30.000)","Materializa a Gold exclusivamente sintética da Console DEV com 30.000 pessoas; nomes e sobrenomes seguem a frequência pública IBGE versionada.","pwsh","-NoProfile -File scripts/dev-console-gold-synthetic.ps1",".local/dev-console/gold-synthetic-records.json",["infrastructure"],"Na Console DEV a Gold é sempre sintética. Não existe fallback para Gold real."),
         new("contract-bundle","Gerar bundle de contratos e configurações","Gera um ZIP operacional sem binários com OpenAPI, contratos JSON, configurações governadas e metadados do modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-contract-bundle.ps1",".local/dev-console/contract-config-bundle.zip",["infrastructure"],"A infraestrutura garante o BOOTSTRAP inicial ATIVO; o bundle sempre se vincula ao modelo ATIVO corrente."),
@@ -600,8 +599,14 @@ sealed class RunStore(IWebHostEnvironment env)
         return new RunSummary(id,command,title,started,finished,status,summary);
     }
 
+    public async Task<IReadOnlyList<RunSummary>> ListSessionSummariesAsync(CancellationToken ct)=>
+        (await ListSummariesAsync(ct))
+            .Where(x=>x.StartedAt>=sessionStartedAt)
+            .OrderByDescending(x=>x.StartedAt)
+            .ToArray();
+
     public async Task<IReadOnlyDictionary<string,int>> CountByCommandAsync(CancellationToken ct)=>
-        (await ListSummariesAsync(ct)).Where(x=>x.StartedAt>=sessionStartedAt)
+        (await ListSessionSummariesAsync(ct))
             .GroupBy(x=>x.Command,StringComparer.OrdinalIgnoreCase)
             .ToDictionary(x=>x.Key,x=>x.Count(),StringComparer.OrdinalIgnoreCase);
 }
