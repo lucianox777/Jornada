@@ -153,9 +153,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(initialConfigScript,Does.Contain("Resumo de status/health"));
             Assert.That(infraScript,Does.Contain("dev-console-initial-config.ps1"));
             Assert.That(localCluster,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
-            Assert.That(localCluster,Does.Contain("Etapa cluster 1/5"));
+            Assert.That(localCluster,Does.Contain("Etapa cluster 1/6"));
             Assert.That(localCluster,Does.Contain("Show-ComposeFailureDiagnostics"));
             Assert.That(localCluster,Does.Contain("Logs do jornada-reference-bootstrap"));
+            Assert.That(localCluster,Does.Contain("Ensure-SyntheticIbgeIdentityText"));
+            Assert.That(localCluster,Does.Contain("Pessoa Teste %"));
+            Assert.That(localCluster,Does.Contain("Jornada_Dev_SyntheticScale_Diversify.sql"));
+            Assert.That(localCluster,Does.Contain("nomes/nome da mãe amostrados pela frequência IBGE"));
             Assert.That(opsScript,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
             Assert.That(opsScript,Does.Contain("--mode','REPLAY"));
             Assert.That(page,Does.Contain("A tela mostra somente operações reais"));
