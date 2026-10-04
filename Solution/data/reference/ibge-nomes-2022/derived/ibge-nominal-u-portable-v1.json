@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "JORNADA_IBGE_NOMINAL_U_PORTABLE_V1",
+  "referenceCode": "CENSO2022_NOMES_BRASIL_V1",
+  "sourceContentSha256": "e3cc61bcc7fca353bb134ee32de4aa50a8da708827eac3750efc0e6ebca5e885",
+  "comparisonContract": "WholeNameJaroWinklerV1",
+  "personName": {
+    "firstNameSex": "TODOS",
+    "estimate": {
+      "methodVersion": "IBGE_NOMINAL_U_BOOTSTRAP_V1",
+      "jointConstructionVersion": "INDEPENDENT_FIRST_NAME_SURNAME_MARGINALS_V1",
+      "observationChannelVersion": "CLEAN_PUBLISHED_REFERENCE_NO_ERROR_CHANNEL_V1",
+      "seed": 20260917,
+      "pairCount": 1000000,
+      "firstNamePublishedOccurrences": 190383184,
+      "surnamePublishedOccurrences": 333496261,
+      "firstNameVocabularySize": 128458,
+      "surnameVocabularySize": 201601,
+      "analyticExactFirstNameProbability": 0.007034139796,
+      "analyticExactSurnameProbability": 0.020406402158,
+      "analyticExactSyntheticFullNameProbability": 0.000143541486,
+      "states": [
+        {
+          "state": "EXACT",
+          "support": 167,
+          "probability": 0.000167000000,
+          "standardError": 0.000012921769
+        },
+        {
+          "state": "HIGH",
+          "support": 341,
+          "probability": 0.000341000000,
+          "standardError": 0.000018463037
+        },
+        {
+          "state": "LOW",
+          "support": 985822,
+          "probability": 0.985822000000,
+          "standardError": 0.000118224297
+        },
+        {
+          "state": "MEDIUM",
+          "support": 13670,
+          "probability": 0.013670000000,
+          "standardError": 0.000116116886
+        }
+      ]
+    }
+  },
+  "motherName": {
+    "firstNameSex": "FEMININO",
+    "estimate": {
+      "methodVersion": "IBGE_NOMINAL_U_BOOTSTRAP_V1",
+      "jointConstructionVersion": "INDEPENDENT_FIRST_NAME_SURNAME_MARGINALS_V1",
+      "observationChannelVersion": "CLEAN_PUBLISHED_REFERENCE_NO_ERROR_CHANNEL_V1",
+      "seed": 20260918,
+      "pairCount": 1000000,
+      "firstNamePublishedOccurrences": 97754764,
+      "surnamePublishedOccurrences": 333496261,
+      "firstNameVocabularySize": 73361,
+      "surnameVocabularySize": 201601,
+      "analyticExactFirstNameProbability": 0.018610331537,
+      "analyticExactSurnameProbability": 0.020406402158,
+      "analyticExactSyntheticFullNameProbability": 0.000379769910,
+      "states": [
+        {
+          "state": "EXACT",
+          "support": 350,
+          "probability": 0.000350000000,
+          "standardError": 0.000018705013
+        },
+        {
+          "state": "HIGH",
+          "support": 783,
+          "probability": 0.000783000000,
+          "standardError": 0.000027971180
+        },
+        {
+          "state": "LOW",
+          "support": 968891,
+          "probability": 0.968891000000,
+          "standardError": 0.000173612298
+        },
+        {
+          "state": "MEDIUM",
+          "support": 29976,
+          "probability": 0.029976000000,
+          "standardError": 0.000170521082
+        }
+      ]
+    }
+  },
+  "artifactSha256": "228688904f012b068e5fbe2f1ca147b8cc08b392df760356b1be00b44c57ead9"
+}

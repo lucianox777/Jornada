@@ -124,9 +124,54 @@ dotnet run --project src/Jornada.Linkage.Conference --configuration Release --no
   --source-revision "LOCAL_SCALE_TEST"
 
 export LinkageParameters__ConferenceToleranceConfigPath="$TEST_CONFERENCE_TOLERANCE"
+
+# DT-15 exige aprovação explícita também no harness de escala. Esta aprovação é
+# estritamente técnica/DEV, vinculada ao dossiê sintético do próprio harness; não
+# representa aprovação humana/institucional de HML/PROD.
+VALIDATE_APPROVAL="$(scalar "
+DECLARE @dossie uniqueidentifier,
+        @aprovacao uniqueidentifier,
+        @validade datetimeoffset(7)=DATEADD(hour,1,SYSDATETIMEOFFSET()),
+        @sha binary(32)=HASHBYTES('SHA2_256',CONVERT(varbinary(max),'LOCAL_SCALE_TEST_DOSSIER'));
+EXEC auditoria.sp_registrar_dossie_decisao_modelo_linkage
+     @modelo_id='$MODEL_ID',
+     @dossie_sha256=@sha,
+     @contrato_versao=N'DT15_TEST_V1',
+     @estado=N'COMPLETO',
+     @origem_evidencia=N'SINTETICA_DEV',
+     @valido_ate=@validade,
+     @referencia_artefato=N'LOCAL_SCALE_TEST_DOSSIER',
+     @registrado_por=N'LOCAL_SCALE_HARNESS',
+     @dossie_id=@dossie OUTPUT;
+EXEC auditoria.sp_registrar_aprovacao_modelo_linkage
+     @modelo_id='$MODEL_ID',
+     @acao=N'VALIDATE',
+     @dossie_sha256=@sha,
+     @decisor=N'LOCAL_SCALE_HARNESS',
+     @motivo=N'Aprovação técnica explícita do harness SCALE local para VALIDATE',
+     @aprovacao_id=@aprovacao OUTPUT;
+SELECT CONVERT(varchar(36),@aprovacao);")"
+[[ "$VALIDATE_APPROVAL" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo "ERRO: aprovação técnica VALIDATE do harness SCALE não foi registrada." >&2; exit 4; }
+echo "Gate DT-15 SCALE DEV preparado para VALIDATE: aprovação técnica $VALIDATE_APPROVAL."
+
 export LinkageParameters__Operation=VALIDATE
 export LinkageParameters__TargetVersion="$MODEL_VERSION"
 dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
+
+ACTIVATE_APPROVAL="$(scalar "
+DECLARE @aprovacao uniqueidentifier,
+        @sha binary(32)=HASHBYTES('SHA2_256',CONVERT(varbinary(max),'LOCAL_SCALE_TEST_DOSSIER'));
+EXEC auditoria.sp_registrar_aprovacao_modelo_linkage
+     @modelo_id='$MODEL_ID',
+     @acao=N'ACTIVATE',
+     @dossie_sha256=@sha,
+     @decisor=N'LOCAL_SCALE_HARNESS',
+     @motivo=N'Aprovação técnica explícita do harness SCALE local para ACTIVATE',
+     @aprovacao_id=@aprovacao OUTPUT;
+SELECT CONVERT(varchar(36),@aprovacao);")"
+[[ "$ACTIVATE_APPROVAL" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo "ERRO: aprovação técnica ACTIVATE do harness SCALE não foi registrada." >&2; exit 4; }
+echo "Gate DT-15 SCALE DEV preparado para ACTIVATE: aprovação técnica $ACTIVATE_APPROVAL."
+
 export LinkageParameters__Operation=ACTIVATE
 dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
 

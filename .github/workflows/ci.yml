@@ -657,11 +657,23 @@ jobs:
           # Derivado versionado deve existir antes de gerar o corpus e o modelo.
           DOTNET_ENVIRONMENT=Development LinkageParameters__Operation=ENSURE_IBGE_NOMINAL_U_REFERENCE \
             dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
+          mkdir -p .local/ibge-u-portable
+          DOTNET_ENVIRONMENT=Development \
+          LinkageParameters__Operation=EXPORT_IBGE_NOMINAL_U_ARTIFACT \
+          LinkageParameters__IbgeNominalU__PortableArtifactOutputPath="$PWD/.local/ibge-u-portable/ibge-nominal-u-portable-v1.json" \
+            dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
           # 4.000 pares preservam cerca de 2.400 pessoas-base TRAIN sob holdout 60/20/20,
           # permitindo amostra m=2.000 sem reutilizar VALIDATION/TEST. O gate de recall
           # continua 0,95 e não é relaxado para acomodar a calibração.
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -v SCALE_PEOPLE=5000 SCALE_PAIRED=4000 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 -i database/Jornada_Dev_SyntheticScale.sql
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -v SCALE_PEOPLE=5000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 -i database/Jornada_Dev_SyntheticScale_Diversify.sql
+      - name: Upload portable IBGE nominal u artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ibge-nominal-u-portable
+          path: Solution/.local/ibge-u-portable/ibge-nominal-u-portable-v1.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Materialize E2 demographic-primary corpus (30000 / seed 42)
         run: |
           rm -rf .local/e2-demographic-primary
