@@ -165,6 +165,44 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
     }
 }
 
+sealed record SemiblindDevRequest(string Gestor,string? NomeCompleto,string? DataNascimento,string? NomeMae);
+sealed record SemiblindDevResponse(int StatusCode,string Json);
+
+sealed class SemiblindDevService(IWebHostEnvironment env,GoldZipTemplateService gold)
+{
+    public async Task<ZipTemplate> TemplateAsync(CancellationToken ct)=>await gold.GetAsync(ct);
+
+    public async Task<SemiblindDevResponse> SearchAsync(SemiblindDevRequest request,CancellationToken ct)
+    {
+        var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
+        var gestor=string.IsNullOrWhiteSpace(request.Gestor)?"SEHAB":request.Gestor.Trim().ToUpperInvariant();
+        var keysPath=Path.Combine(root,"config","security","test-access-keys.json");
+        using var keysDoc=JsonDocument.Parse(await File.ReadAllTextAsync(keysPath,ct));
+        var credential=keysDoc.RootElement.GetProperty("credentials").EnumerateArray()
+            .FirstOrDefault(x=>
+                string.Equals(x.GetProperty("type").GetString(),"GESTOR",StringComparison.Ordinal)&&
+                string.Equals(x.GetProperty("publicCode").GetString(),gestor,StringComparison.Ordinal)&&
+                x.GetProperty("scopes").EnumerateArray().Any(s=>string.Equals(s.GetString(),"jornada.identidade.busca.read",StringComparison.Ordinal)));
+        if(credential.ValueKind==JsonValueKind.Undefined)throw new InvalidOperationException($"Credencial sintética DEV para {gestor} sem scope jornada.identidade.busca.read.");
+
+        var accessKey=credential.GetProperty("accessKey").GetString()??throw new InvalidOperationException("Access key DEV ausente.");
+        var body=new Dictionary<string,object?>();
+        if(!string.IsNullOrWhiteSpace(request.NomeCompleto))body["nome_completo"]=request.NomeCompleto.Trim();
+        if(!string.IsNullOrWhiteSpace(request.DataNascimento))body["data_nascimento"]=request.DataNascimento.Trim();
+        if(!string.IsNullOrWhiteSpace(request.NomeMae))body["nome_mae"]=request.NomeMae.Trim();
+
+        using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(30)};
+        using var message=new HttpRequestMessage(HttpMethod.Post,"http://127.0.0.1:5080/api/v1/identidade/candidatos");
+        message.Headers.Add("X-Jornada-Gestor",gestor);
+        message.Headers.Add("X-Jornada-Access-Key",accessKey);
+        message.Content=new StringContent(JsonSerializer.Serialize(body,DevConsoleJson.Compact),Encoding.UTF8,"application/json");
+        using var response=await http.SendAsync(message,ct);
+        var json=await response.Content.ReadAsStringAsync(ct);
+        if(string.IsNullOrWhiteSpace(json))json="{}";
+        return new SemiblindDevResponse((int)response.StatusCode,json);
+    }
+}
+
 sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
 {
     static readonly JsonSerializerOptions StreamJson=new(JsonSerializerDefaults.Web);
