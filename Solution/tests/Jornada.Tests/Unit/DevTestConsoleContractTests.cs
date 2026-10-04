@@ -80,6 +80,10 @@ public sealed class DevTestConsoleContractTests
 
             Assert.That(goldScript,Does.Contain("Jornada_Dev_GoldSynthetic.sql"));
             Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
+            Assert.That(goldScript,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
+            Assert.That(goldScript,Does.Contain("$PSStyle.OutputRendering='PlainText'"));
+            Assert.That(goldScript,Does.Contain("-h -1 -y 0 -Q $q"));
+            Assert.That(goldScript,Does.Not.Contain("-W -h -1 -y 0"));
             Assert.That(goldScript,Does.Not.Contain("Jornada_Dev_LinkageValidation.sql"));
             Assert.That(goldSql,Does.Contain("SET QUOTED_IDENTIFIER ON;"));
             Assert.That(goldSql,Does.Contain("SET ANSI_NULLS ON;"));
