@@ -40,14 +40,16 @@ function Scalar([string]$Query){
   }
 }
 
-$activeCount=[int](Scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO';")
-if($activeCount -le 0){throw 'Nenhum modelo ATIVO. Execute primeiro Calibração inicial a partir da Gold.'}
+$eligible="status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO'"
+$activeCount=[int](Scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE $eligible;")
+if($activeCount -eq 0){throw 'Nenhum modelo calibrado ATIVO. O seed sintético não é válido para o bundle. Execute primeiro Calibração inicial a partir da Gold.'}
+if($activeCount -ne 1){throw "Quantidade inválida de modelos calibrados ATIVOS: $activeCount."}
 
-$modelId=Scalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status=N'ATIVO' ORDER BY versao DESC;"
-$version=[int](Scalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status=N'ATIVO' ORDER BY versao DESC;"
+$modelId=Scalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
+$version=[int](Scalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
 )
-$bundleVersion=Scalar "SELECT TOP(1) ISNULL(model_config_bundle_version,N'') FROM identidade.modelo_linkage WHERE status=N'ATIVO' ORDER BY versao DESC;"
-$fingerprint=Scalar "SELECT TOP(1) ISNULL(model_config_bundle_fingerprint_sha256,N'') FROM identidade.modelo_linkage WHERE status=N'ATIVO' ORDER BY versao DESC;"
+$bundleVersion=Scalar "SELECT TOP(1) ISNULL(model_config_bundle_version,N'') FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
+$fingerprint=Scalar "SELECT TOP(1) ISNULL(model_config_bundle_fingerprint_sha256,N'') FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
 
 if(Test-Path $Stage){Remove-Item -Recurse -Force $Stage}
 if(Test-Path $ZipPath){Remove-Item -Force $ZipPath}
