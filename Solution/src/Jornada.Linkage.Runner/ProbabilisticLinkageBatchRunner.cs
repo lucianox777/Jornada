@@ -836,9 +836,14 @@ public sealed class ProbabilisticLinkageBatchRunner(
     {
         await using var connection = await operationalSql.OpenAsync(ct);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        var commandTimeoutSeconds = Math.Max(1, configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900));
         try
         {
-            var command = new SqlCommand(
+            logger.LogInformation(
+                "Publicação linkage {RunId}: fase 1/4 - aplicando decisão progressiva e ledger semântico.",
+                runId);
+
+            var prepare = new SqlCommand(
                 $"""
                 DECLARE @lock_result INT;
                 EXEC @lock_result = sys.sp_getapplock
@@ -878,123 +883,92 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 SET status='PUBLICADO', finalizado_em=@fim, publicado_em=@fim
                 WHERE linkage_run_id=@run_id;
 
-                -- A view corrente só passa a enxergar o run após PUBLICADO.
-                -- Recompomos referência publicada e initial_uuid na mesma transação.
-                DECLARE @gold_uuid UNIQUEIDENTIFIER;
-                DECLARE gold_progressiva CURSOR LOCAL FAST_FORWARD FOR
-                    SELECT DISTINCT pessoa_uuid
-                    FROM (
-                        SELECT r.pessoa_uuid_publicado pessoa_uuid
-                        FROM identidade.linkage_resultado r
-                        WHERE r.linkage_run_id=@run_id
-                          AND r.pessoa_uuid_publicado IS NOT NULL
-                        UNION
-                        SELECT p.initial_uuid
-                        FROM identidade.linkage_resultado r
-                        JOIN silver.pessoa_observacao po
-                          ON po.pessoa_observacao_id=r.pessoa_observacao_id
-                        JOIN identidade.pessoa_origem_progressiva p
-                          ON p.pessoa_origem_id=po.pessoa_origem_id
-                        WHERE r.linkage_run_id=@run_id
-                    ) u
-                    WHERE pessoa_uuid IS NOT NULL;
+                -- Materializa uma única vez o conjunto de UUIDs afetados. As fases
+                -- seguintes permanecem na MESMA transação SERIALIZABLE, mas evitam
+                -- recompor Gold e blocking pessoa a pessoa.
+                SELECT u.pessoa_uuid
+                INTO #gold_progressiva
+                FROM (
+                    SELECT r.pessoa_uuid_publicado AS pessoa_uuid
+                    FROM identidade.linkage_resultado r
+                    WHERE r.linkage_run_id=@run_id
+                      AND r.pessoa_uuid_publicado IS NOT NULL
+                    UNION
+                    SELECT p.initial_uuid
+                    FROM identidade.linkage_resultado r
+                    JOIN silver.pessoa_observacao po
+                      ON po.pessoa_observacao_id=r.pessoa_observacao_id
+                    JOIN identidade.pessoa_origem_progressiva p
+                      ON p.pessoa_origem_id=po.pessoa_origem_id
+                    WHERE r.linkage_run_id=@run_id
+                      AND p.initial_uuid IS NOT NULL
+                ) u;
+                CREATE UNIQUE CLUSTERED INDEX IX_gold_progressiva_uuid
+                    ON #gold_progressiva(pessoa_uuid);
 
-                OPEN gold_progressiva;
-                FETCH NEXT FROM gold_progressiva INTO @gold_uuid;
-                WHILE @@FETCH_STATUS=0
-                BEGIN
-                    EXEC identidade.sp_recompor_gold_pessoa @pessoa_uuid=@gold_uuid;
-                    FETCH NEXT FROM gold_progressiva INTO @gold_uuid;
-                END;
-                CLOSE gold_progressiva;
-                DEALLOCATE gold_progressiva;
-
-                -- v3.45: o fato já existe independentemente da identidade. Ao publicar o linkage,
-                -- sincroniza-se somente a atribuição canônica materializada, sem reescrever o
-                -- sujeito declarado (origem/CPF snapshot) nem criar nova versão factual.
-                ;WITH afetadas AS (
-                    SELECT DISTINCT pessoa_observacao_id
-                    FROM identidade.linkage_resultado
-                    WHERE linkage_run_id=@run_id
-                ), corrente AS (
-                    SELECT a.pessoa_observacao_id,vc.pessoa_uuid,vc.status
-                    FROM afetadas a
-                    LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=a.pessoa_observacao_id
-                )
-                UPDATE b SET
-                    pessoa_uuid=CASE WHEN c.status='RESOLVIDO' THEN c.pessoa_uuid ELSE NULL END,
-                    estado_atribuicao_identidade=CASE WHEN c.status='RESOLVIDO' AND c.pessoa_uuid IS NOT NULL THEN 'ATRIBUIDA'
-                                                      WHEN c.status='CONFLITO' THEN 'CONFLITO_IDENTIDADE'
-                                                      ELSE 'PENDENTE_IDENTIDADE' END,
-                    atualizado_em=SYSDATETIMEOFFSET()
-                FROM gold.beneficio_concedido b
-                JOIN silver.registro_observacao ro ON ro.registro_observacao_id=b.registro_observacao_id
-                JOIN corrente c ON c.pessoa_observacao_id=ro.pessoa_observacao_id;
-
-                ;WITH afetadas AS (
-                    SELECT DISTINCT pessoa_observacao_id FROM identidade.linkage_resultado WHERE linkage_run_id=@run_id
-                ), corrente AS (
-                    SELECT a.pessoa_observacao_id,vc.pessoa_uuid,vc.status
-                    FROM afetadas a LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=a.pessoa_observacao_id
-                )
-                UPDATE s SET
-                    pessoa_uuid=CASE WHEN c.status='RESOLVIDO' THEN c.pessoa_uuid ELSE NULL END,
-                    estado_atribuicao_identidade=CASE WHEN c.status='RESOLVIDO' AND c.pessoa_uuid IS NOT NULL THEN 'ATRIBUIDA'
-                                                      WHEN c.status='CONFLITO' THEN 'CONFLITO_IDENTIDADE'
-                                                      ELSE 'PENDENTE_IDENTIDADE' END,
-                    atualizado_em=SYSDATETIMEOFFSET()
-                FROM gold.servico_prestado s
-                JOIN silver.registro_observacao ro ON ro.registro_observacao_id=s.registro_observacao_id
-                JOIN corrente c ON c.pessoa_observacao_id=ro.pessoa_observacao_id;
-
-                ;WITH afetadas AS (
-                    SELECT DISTINCT pessoa_observacao_id FROM identidade.linkage_resultado WHERE linkage_run_id=@run_id
-                ), corrente AS (
-                    SELECT a.pessoa_observacao_id,vc.pessoa_uuid,vc.status
-                    FROM afetadas a LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=a.pessoa_observacao_id
-                )
-                UPDATE ri SET
-                    pessoa_uuid=CASE WHEN c.status='RESOLVIDO' THEN c.pessoa_uuid ELSE NULL END,
-                    estado_atribuicao_identidade=CASE WHEN c.status='RESOLVIDO' AND c.pessoa_uuid IS NOT NULL THEN 'ATRIBUIDA'
-                                                      WHEN c.status='CONFLITO' THEN 'CONFLITO_IDENTIDADE'
-                                                      ELSE 'PENDENTE_IDENTIDADE' END,
-                    atualizado_em=SYSDATETIMEOFFSET()
-                FROM serving.registro_integrado ri
-                JOIN silver.registro_observacao ro ON ro.registro_observacao_id=ri.registro_observacao_id
-                JOIN corrente c ON c.pessoa_observacao_id=ro.pessoa_observacao_id;
+                SELECT DISTINCT r.pessoa_uuid_publicado AS pessoa_uuid
+                INTO #new_references
+                FROM identidade.linkage_resultado r
+                WHERE r.linkage_run_id=@run_id
+                  AND r.resultado_publicacao='NOVA_IDENTIDADE'
+                  AND r.pessoa_uuid_publicado IS NOT NULL;
+                CREATE UNIQUE CLUSTERED INDEX IX_new_references_uuid
+                    ON #new_references(pessoa_uuid);
                 """, connection, transaction)
             {
-                CommandTimeout = Math.Max(1, configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900))
+                CommandTimeout = commandTimeoutSeconds
             };
-            command.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
-            command.Parameters.Add("@avaliados", SqlDbType.BigInt).Value = evaluated;
-            command.Parameters.Add("@elegiveis", SqlDbType.BigInt).Value = eligible;
-            command.Parameters.Add("@fim", SqlDbType.DateTimeOffset).Value = finished;
-            await command.ExecuteNonQueryAsync(ct);
+            prepare.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+            prepare.Parameters.Add("@avaliados", SqlDbType.BigInt).Value = evaluated;
+            prepare.Parameters.Add("@elegiveis", SqlDbType.BigInt).Value = eligible;
+            prepare.Parameters.Add("@fim", SqlDbType.DateTimeOffset).Value = finished;
+            await prepare.ExecuteNonQueryAsync(ct);
 
-            // NOVA_IDENTIDADE cria uma referência que ainda não existia no corpus.
-            // Ela precisa ganhar blocking antes do commit para o próximo run poder encontrá-la.
+            logger.LogInformation(
+                "Publicação linkage {RunId}: fase 2/4 - recompondo Gold em lote.",
+                runId);
+            var recompose = new SqlCommand(
+                LinkagePublicationBatchSql.RecomposeAffectedGoldSql,
+                connection,
+                transaction)
+            {
+                CommandTimeout = commandTimeoutSeconds
+            };
+            await recompose.ExecuteNonQueryAsync(ct);
+
+            logger.LogInformation(
+                "Publicação linkage {RunId}: fase 3/4 - sincronizando fatos/Serving em lote.",
+                runId);
+            var serving = new SqlCommand(
+                LinkagePublicationBatchSql.RefreshServingAssignmentsSql,
+                connection,
+                transaction)
+            {
+                CommandTimeout = commandTimeoutSeconds
+            };
+            serving.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+            await serving.ExecuteNonQueryAsync(ct);
+
             var newReferences = new List<Guid>();
             await using (var projected = connection.CreateCommand())
             {
                 projected.Transaction = transaction;
-                projected.CommandText = """
-                    SELECT DISTINCT pessoa_uuid_publicado
-                    FROM identidade.linkage_resultado
-                    WHERE linkage_run_id=@run_id
-                      AND resultado_publicacao='NOVA_IDENTIDADE'
-                      AND pessoa_uuid_publicado IS NOT NULL;
-                    """;
-                projected.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+                projected.CommandText = "SELECT pessoa_uuid FROM #new_references ORDER BY pessoa_uuid;";
                 await using var reader = await projected.ExecuteReaderAsync(ct);
                 while (await reader.ReadAsync(ct))
                     newReferences.Add(reader.GetGuid(0));
             }
 
-            foreach (var uuid in newReferences)
-                await BlockingProjectionPersistence.RefreshSqlServerAsync(connection, transaction, uuid, ct);
+            logger.LogInformation(
+                "Publicação linkage {RunId}: fase 4/4 - atualizando blocking em lote para {ReferenceCount} novas referências.",
+                runId, newReferences.Count);
+            await BlockingProjectionPersistence.RefreshSqlServerBatchAsync(
+                connection, transaction, newReferences, ct);
 
             await transaction.CommitAsync(ct);
+            logger.LogInformation(
+                "Publicação linkage {RunId}: commit concluído.",
+                runId);
             return LinkageRunStatus.PUBLICADO;
         }
         catch
