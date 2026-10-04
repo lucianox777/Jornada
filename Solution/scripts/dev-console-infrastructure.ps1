@@ -46,6 +46,10 @@ switch($Action){
         Write-Host ''
         Write-Host 'Infraestrutura básica pronta: SQL Server + schema DEV + NAS + referência IBGE + NODE1/NODE2.'
         Write-Host ''
+        Write-Host 'Garantindo modelo BOOTSTRAP inicial ATIVO (IBGE + corpus sintético DEV)...'
+        & (Join-Path $PSScriptRoot 'dev-console-operations.ps1') -Action calibrate-initial
+        if($LASTEXITCODE -ne 0){throw "Garantia do modelo BOOTSTRAP inicial falhou ($LASTEXITCODE)."}
+        Write-Host ''
         Write-Host 'Gerando configuração inicial da Console DEV (JSON + HTML)...'
         & (Join-Path $PSScriptRoot 'dev-console-initial-config.ps1')
         if($LASTEXITCODE -ne 0){throw "Geração da configuração inicial falhou ($LASTEXITCODE)."}
