@@ -52,6 +52,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Not.Contain("Comando real ainda não mapeado."));
             Assert.That(runtime,Does.Contain("dev-console-gold-synthetic.ps1"));
             Assert.That(runtime,Does.Contain("build-ingestion-fixture.py"));
+            Assert.That(runtime,Does.Contain("Gerar e enviar ZIP de ingestão"));
+            Assert.That(runtime,Does.Contain("-ZipPath"));
             Assert.That(runtime,Does.Contain("manual-zip"));
             Assert.That(runtime,Does.Contain("sessionStartedAt=DateTimeOffset.UtcNow"));
             Assert.That(runtime,Does.Contain("Where(x=>x.StartedAt>=sessionStartedAt)"));
@@ -78,6 +80,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("new EventSource"));
             Assert.That(page,Does.Contain("Execuções anteriores"));
             Assert.That(page,Does.Contain("Entrada manual para o ZIP"));
+            Assert.That(page,Does.Contain("Gerar e enviar"));
             Assert.That(page,Does.Contain("manifest.json"));
             Assert.That(page,Does.Contain("pessoas.jsonl"));
             Assert.That(page,Does.Contain("registros.jsonl"));
@@ -85,7 +88,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("Ver dados do resultado"));
             Assert.That(page,Does.Contain("Executar novamente"));
             Assert.That(page,Does.Contain("Falha ao carregar o histórico."));
-            Assert.That(page,Does.Contain("history.textContent=\'Carregando...\'"));
+            Assert.That(page,Does.Contain("historyList.textContent=\'Carregando...\'"));
+            Assert.That(page,Does.Contain("const historyList=document.getElementById('history')"));
             Assert.That(page,Does.Contain("AbortController"));
             Assert.That(page,Does.Contain("excedeu 7 segundos"));
 
@@ -93,7 +97,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localDb,Does.Contain("Start-Process -FilePath $dockerDesktopPath"));
             Assert.That(localDb,Does.Contain("Aguardando Docker Engine"));
             Assert.That(localDb,Does.Contain("Docker Engine pronto"));
-            Assert.That(runtime,Does.Contain("SQL Server, schema, NAS, bootstrap IBGE e NODE1/NODE2"));
+            Assert.That(runtime,Does.Contain("SQL Server, schema, NAS, referência IBGE, NODE1/NODE2 e garante o modelo BOOTSTRAP inicial ATIVO"));
+            Assert.That(runtime,Does.Contain("Environment.SpecialFolder.LocalApplicationData"));
+            Assert.That(runtime,Does.Contain("Path.Combine(local,\"Jornada\",\"DevConsole\")"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action reference-check"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action ingest-latest"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action pipeline-status"));
@@ -102,7 +108,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action linkage"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action replay-latest"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action report"));
-            Assert.That(runtime,Does.Contain("Calibração inicial a partir da Gold"));
+            Assert.That(runtime,Does.Contain("Garantir modelo bootstrap inicial (IBGE)"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action calibrate-initial"));
             Assert.That(runtime,Does.Contain("Gerar bundle de contratos e configurações"));
             Assert.That(runtime,Does.Contain("dev-console-contract-bundle.ps1"));
@@ -147,7 +153,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("contract-config-bundle.zip"));
             Assert.That(opsScript,Does.Contain("NAO_ENCONTRADA_NO_AMBIENTE_ATUAL"));
             Assert.That(opsScript,Does.Contain("staleReceipt=$true"));
-            Assert.That(opsScript,Does.Contain("O seed sintético não libera linkage"));
+            Assert.That(opsScript,Does.Contain("O seed fixo não libera linkage"));
+            Assert.That(opsScript,Does.Contain("[string]$ZipPath"));
+            Assert.That(opsScript,Does.Contain("ZipPath deve apontar para um ZIP gerado pela Console DEV"));
+            Assert.That(opsScript,Does.Contain("CREATED_AND_ACTIVATED_BOOTSTRAP"));
             Assert.That(opsScript,Does.Contain("SEED_DEV_FIXO_NAO_TREINADO"));
             Assert.That(bundleScript,Does.Contain("JORNADA_DEV_CONTRACT_CONFIG_V1"));
             Assert.That(bundleScript,Does.Contain("config/contracts"));
@@ -161,8 +170,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(initialConfigScript,Does.Contain("configuration.html"));
             Assert.That(initialConfigScript,Does.Contain("ARTEFATO: $jsonPath"));
             Assert.That(initialConfigScript,Does.Contain("runtimeHealth=$health"));
+            Assert.That(initialConfigScript,Does.Contain("activeLinkageModel=$modelState"));
+            Assert.That(initialConfigScript,Does.Contain("modelo BOOTSTRAP inicial ATIVO"));
             Assert.That(initialConfigScript,Does.Contain("Resumo de status/health"));
             Assert.That(infraScript,Does.Contain("dev-console-initial-config.ps1"));
+            Assert.That(infraScript,Does.Contain("dev-console-operations.ps1"));
+            Assert.That(infraScript,Does.Contain("-Action calibrate-initial"));
+            Assert.That(infraScript,Does.Contain("modelo BOOTSTRAP inicial ATIVO"));
             Assert.That(infraScript,Does.Contain("Estado transitório da Console removido"));
             Assert.That(infraScript,Does.Contain("Histórico de execuções foi preservado"));
             Assert.That(localCluster,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
