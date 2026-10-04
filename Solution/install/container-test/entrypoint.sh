@@ -85,7 +85,6 @@ component_dll() {
     Processor) echo "/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll" ;;
     OperationsMaintenance) echo "/opt/jornada/apps/Jornada.Operations.Maintenance.Worker/Jornada.Operations.Maintenance.Worker.dll" ;;
     BronzeMaintenance) echo "/opt/jornada/apps/Jornada.Bronze.Maintenance.Worker/Jornada.Bronze.Maintenance.Worker.dll" ;;
-    LinkageRunner) echo "/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll" ;;
     *) return 1 ;;
   esac
 }
@@ -113,10 +112,6 @@ jornada_api_base_url="$(jq -er '.http.jornadaApiBaseUrl' "$CONFIG_PATH")"
 while IFS= read -r task_json; do
   enabled="$(jq -r '.enabled' <<<"$task_json")"
   [[ "$enabled" == "true" ]] || continue
-
-  if ! jq -e --arg node "$JORNADA_NODE_ID" '(.nodes // []) as $nodes | ($nodes|length)==0 or any($nodes[]; ascii_downcase == ($node|ascii_downcase))' <<<"$task_json" >/dev/null; then
-    continue
-  fi
 
   trigger_type="$(jq -r '.trigger.type' <<<"$task_json")"
   if [[ "$trigger_type" != "AtStartup" ]]; then
@@ -150,24 +145,29 @@ while IFS= read -r task_json; do
   workdir="$(dirname "$dll")"
 
   echo "[$JORNADA_NODE_ID] START $name ($component)"
-  if [[ "$component" == "LinkageRunner" ]]; then
-    (
-      cd "$workdir"
-      interval_seconds="${LinkageRunner__PollingSeconds:-5}"
-      while true; do
-        env "${env_args[@]}" dotnet "$dll" "${task_args[@]}" || echo "[$JORNADA_NODE_ID] $name ciclo falhou; nova tentativa em ${interval_seconds}s." >&2
-        sleep "$interval_seconds"
-      done
-    ) &
-  else
-    (
-      cd "$workdir"
-      exec env "${env_args[@]}" dotnet "$dll" "${task_args[@]}"
-    ) &
-  fi
+  (
+    cd "$workdir"
+    exec env "${env_args[@]}" dotnet "$dll" "${task_args[@]}"
+  ) &
   child_pids+=("$!")
   child_names+=("$name")
 done < <(jq -c '.tasks[]' "$CONFIG_PATH")
+
+if [[ "${JORNADA_DEV_LINKAGE_RUNNER_LOOP:-false}" == "true" ]]; then
+  runner_dll="/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll"
+  [[ -f "$runner_dll" ]] || { echo "Linkage Runner publicado ausente: $runner_dll" >&2; exit 3; }
+  echo "[$JORNADA_NODE_ID] START Jornada-LinkageRunner (INCREMENTAL loop)"
+  (
+    interval_seconds="${LinkageRunner__PollingSeconds:-5}"
+    while true; do
+      dotnet "$runner_dll" --mode INCREMENTAL --publish true --requested-by DEV_RESIDENT_RUNNER --reason resident-loop ||
+        echo "[$JORNADA_NODE_ID] Linkage Runner ciclo falhou; nova tentativa em ${interval_seconds}s." >&2
+      sleep "$interval_seconds"
+    done
+  ) &
+  child_pids+=("$!")
+  child_names+=("Jornada-LinkageRunner")
+fi
 
 if [[ "${#child_pids[@]}" -eq 0 ]]; then
   echo "Nenhuma tarefa AtStartup habilitada para $JORNADA_NODE_ID." >&2
