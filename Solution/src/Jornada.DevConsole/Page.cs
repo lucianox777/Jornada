@@ -139,6 +139,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
         <label>Gestor<input id="zipGestor" value="SEHAB"></label>
         <label>Sistema de origem<input id="zipSistema" value="SEHAB"></label>
         <label>Tipo<input id="zipTipo" value="AA01"></label>
+        <label>Versão Pessoa utilizável<input id="zipPessoaSchemaVersao" type="number" readonly></label>
         <label>ID pessoa na entrega<input id="zipPessoaId"></label>
         <label>Nome completo<input id="zipNome"></label>
         <label>Data de nascimento<input id="zipNascimento" type="date"></label>
@@ -347,6 +348,7 @@ async function loadGoldTemplate(){
     zipGestor.value=t.gestor;
     zipSistema.value=t.codigoSistemaOrigem;
     zipTipo.value=t.codigoTipo;
+    zipPessoaSchemaVersao.value=t.pessoaSchemaVersao;
     zipPessoaId.value=t.idPessoaEntrega;
     zipNome.value=t.nomeCompleto;
     zipNascimento.value=t.dataNascimento;
@@ -356,7 +358,7 @@ async function loadGoldTemplate(){
     zipManifest.value=t.manifestJson;
     zipPessoas.value=t.pessoasJsonl;
     zipRegistros.value=t.registrosJsonl;
-    zipTemplateSource.textContent='Exemplo obtido de '+t.source+' · pessoa '+t.pessoaUuid;
+    zipTemplateSource.textContent='Exemplo obtido de '+t.source+' · pessoa '+t.pessoaUuid+' · contrato Pessoa v'+t.pessoaSchemaVersao+' utilizável';
   }catch(e){
     zipTemplateSource.textContent='Não foi possível carregar exemplo da Gold: '+e.message;
   }
@@ -366,7 +368,7 @@ function syncFormToJson(){
   const now=new Date();
   const ref=now.toISOString();
   const manifest={
-    formatoVersao:2,pessoaSchemaVersao:5,codigoSistemaOrigem:zipSistema.value||zipGestor.value,
+    formatoVersao:2,pessoaSchemaVersao:Number(zipPessoaSchemaVersao.value),codigoSistemaOrigem:zipSistema.value||zipGestor.value,
     natureza:'BENEFICIO',codigoTipo:zipTipo.value||'AA01',tipoVersao:1,dataReferencia:ref
   };
   const pessoa={
@@ -392,6 +394,7 @@ function syncJsonToForm(){
     zipGestor.value=zipGestor.value||m.codigoSistemaOrigem||'SEHAB';
     zipSistema.value=m.codigoSistemaOrigem||zipSistema.value;
     zipTipo.value=m.codigoTipo||zipTipo.value;
+    zipPessoaSchemaVersao.value=m.pessoaSchemaVersao||zipPessoaSchemaVersao.value;
     zipPessoaId.value=p.idPessoaEntrega||zipPessoaId.value;
     zipNome.value=p.nomeCompleto||zipNome.value;
     zipNascimento.value=p.dataNascimento||zipNascimento.value;
