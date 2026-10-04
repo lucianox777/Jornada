@@ -37,8 +37,8 @@ public sealed class DevConsoleLayerBrowserContractTests
             Assert.That(page,Does.Contain("const layerPageSize=50"));
             Assert.That(page,Does.Contain("new URLSearchParams"));
             Assert.That(page,Does.Contain("Página '+data.page+' de '+data.totalPages"));
-            Assert.That(page,Does.Contain("openLayerDialog('gold')"));
-            Assert.That(page,Does.Contain("openLayerDialog('bronze')"));
+            Assert.That(page,Does.Contain("openLayerDialog(\\'gold\\')"));
+            Assert.That(page,Does.Contain("openLayerDialog(\\'bronze\\')"));
 
             Assert.That(browser,Does.Contain("\"gold.pessoa\""));
             Assert.That(browser,Does.Contain("\"bronze.entrega_arquivo\""));
