@@ -138,8 +138,9 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         {
             var result=await RunProcessAsync(definition.File,definition.Arguments!,root,live);
             sw.Stop();
-            var records=await LoadRecordsAsync(definition.ResultPath,root);
-            var resultPath=definition.ResultPath is null?null:Path.GetFullPath(Path.Combine(root,definition.ResultPath));
+            var candidatePath=definition.ResultPath is null?null:Path.GetFullPath(Path.Combine(root,definition.ResultPath));
+            var resultPath=result.ExitCode==0&&candidatePath is not null&&File.Exists(candidatePath)?candidatePath:null;
+            var records=resultPath is null?Array.Empty<Dictionary<string,string?>>():await LoadRecordsAsync(definition.ResultPath,root);
             if(resultPath is not null)live.Add("result",$"Resultado: {resultPath}");
             var summary=records.Count>0
                 ?$"{records.Count} registro(s) no resultado. Resultado: {resultPath}"
@@ -189,7 +190,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             live.Add("result",$"Entrada gravada em: {work}");
 
             var python=OperatingSystem.IsWindows()?"python":"python3";
-            var psi=new ProcessStartInfo(python){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,UseShellExecute=false,CreateNoWindow=true};
+            var psi=new ProcessStartInfo(python){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8,UseShellExecute=false,CreateNoWindow=true};
             psi.ArgumentList.Add(Path.Combine(root,"scripts","build-ingestion-fixture.py"));
             psi.ArgumentList.Add("--fixture");psi.ArgumentList.Add(work);
             psi.ArgumentList.Add("--gestor");psi.ArgumentList.Add(request.Gestor.Trim());
@@ -238,7 +239,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
 
     static async Task<ProcessCapture> RunProcessAsync(string file,string arguments,string root,LiveExecution live)
     {
-        var psi=new ProcessStartInfo(file,arguments){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,UseShellExecute=false,CreateNoWindow=true};
+        var psi=new ProcessStartInfo(file,arguments){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8,UseShellExecute=false,CreateNoWindow=true};
         return await RunProcessAsync(psi,live);
     }
 
