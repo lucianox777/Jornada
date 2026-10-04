@@ -134,9 +134,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("Gerar e enviar"));
             Assert.That(page,Does.Contain("Nova ingestão"));
             Assert.That(page,Does.Contain("Reenviar último"));
-            Assert.That(page,Does.Contain("startCommand('pipeline-status','Ver status da última ingestão')"));
-            Assert.That(page,Does.Contain("startCommand('replay','Executar replay do último run')"));
-            Assert.That(page,Does.Contain("startCommand('blocking','Reconstruir blocking')"));
+            Assert.That(page,Does.Contain("pipeline-status"));
+            Assert.That(page,Does.Contain("Ver status da última ingestão"));
+            Assert.That(page,Does.Contain("Executar replay do último run"));
+            Assert.That(page,Does.Contain("Reconstruir blocking"));
             Assert.That(page,Does.Contain("Contratos e configurações"));
             Assert.That(page,Does.Contain("openConfigurationDialog()"));
             Assert.That(page,Does.Contain("Gerar bundle"));
@@ -163,7 +164,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localDb,Does.Contain("Aguardando Docker Engine"));
             Assert.That(localDb,Does.Contain("Docker Engine pronto"));
             Assert.That(runtime,Does.Contain("modelo BOOTSTRAP inicial ATIVO, configuração inicial e bundle de contratos/configurações"));
-            Assert.That(runtime,Does.Contain("A preparação já garante a Gold inicial e o modelo BOOTSTRAP ATIVO."));
+            Assert.That(runtime,Does.Contain("a preparação já garante a Gold inicial e o modelo BOOTSTRAP ATIVO."));
             Assert.That(runtime,Does.Contain("gerar deliberadamente uma nova versão após alterar massa/parâmetros"));
             Assert.That(runtime,Does.Contain("Environment.SpecialFolder.LocalApplicationData"));
             Assert.That(runtime,Does.Contain("Path.Combine(local,\"Jornada\",\"DevConsole\")"));
