@@ -75,6 +75,89 @@ sealed class LiveExecution
     }
 }
 
+sealed record ZipTemplate(
+    string Source,
+    string PessoaUuid,
+    string Gestor,
+    string CodigoSistemaOrigem,
+    string CodigoTipo,
+    string NomeCompleto,
+    string DataNascimento,
+    string NomeMae,
+    string IdPessoaEntrega,
+    string CodigoRegistroOrigem,
+    string ManifestJson,
+    string PessoasJsonl,
+    string RegistrosJsonl);
+
+sealed class GoldZipTemplateService(IWebHostEnvironment env)
+{
+    public async Task<ZipTemplate> GetAsync(CancellationToken ct)
+    {
+        var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
+        var envFile=Path.Combine(root,".env");
+        if(!File.Exists(envFile))throw new InvalidOperationException(".env ausente. Suba a infraestrutura DEV primeiro.");
+        var vars=File.ReadAllLines(envFile)
+            .Select(x=>x.Trim())
+            .Where(x=>x.Length>0&&!x.StartsWith('#')&&x.Contains('='))
+            .Select(x=>x.Split('=',2))
+            .ToDictionary(x=>x[0].Trim(),x=>x[1].Trim(),StringComparer.OrdinalIgnoreCase);
+        var db=vars.TryGetValue("JORNADA_SQL_DATABASE",out var dbValue)&&!string.IsNullOrWhiteSpace(dbValue)?dbValue:"JornadaLocal";
+        if(!vars.TryGetValue("JORNADA_SQL_SA_PASSWORD",out var password)||string.IsNullOrWhiteSpace(password))
+            throw new InvalidOperationException("JORNADA_SQL_SA_PASSWORD ausente.");
+
+        var query="SET NOCOUNT ON; SELECT TOP(1) CONVERT(varchar(36),pessoa_uuid) pessoa_uuid,nome_completo,CONVERT(varchar(10),data_nascimento,23) data_nascimento,nome_mae FROM gold.pessoa WHERE estado_identidade=N'REFERENCIA' AND nome_completo IS NOT NULL AND data_nascimento IS NOT NULL AND nome_mae IS NOT NULL ORDER BY atualizado_em DESC,pessoa_uuid FOR JSON PATH,WITHOUT_ARRAY_WRAPPER;";
+        var psi=new ProcessStartInfo("docker"){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8,UseShellExecute=false,CreateNoWindow=true};
+        psi.Environment["SQLCMDPASSWORD"]=password;
+        foreach(var arg in new[]{"compose","--env-file",envFile,"exec","-T","-e","SQLCMDPASSWORD","sqlserver","/opt/mssql-tools18/bin/sqlcmd","-S","localhost","-U","sa","-C","-b","-d",db,"-h","-1","-y","0","-Q",query})psi.ArgumentList.Add(arg);
+        using var process=new Process{StartInfo=psi};
+        process.Start();
+        var stdoutTask=process.StandardOutput.ReadToEndAsync(ct);
+        var stderrTask=process.StandardError.ReadToEndAsync(ct);
+        await process.WaitForExitAsync(ct);
+        var stdout=(await stdoutTask).Trim();
+        var stderr=await stderrTask;
+        if(process.ExitCode!=0)throw new InvalidOperationException($"Falha ao consultar Gold para exemplo do ZIP: {stderr.Trim()}");
+        if(string.IsNullOrWhiteSpace(stdout))throw new InvalidOperationException("Gold não possui Pessoa REFERENCIA completa para montar o exemplo.");
+
+        using var doc=JsonDocument.Parse(stdout);
+        var row=doc.RootElement;
+        string Get(string name)=>row.TryGetProperty(name,out var v)?v.GetString()??"":""; 
+        var uuid=Get("pessoa_uuid");
+        var nome=Get("nome_completo");
+        var nascimento=Get("data_nascimento");
+        var mae=Get("nome_mae");
+        if(string.IsNullOrWhiteSpace(uuid)||string.IsNullOrWhiteSpace(nome)||string.IsNullOrWhiteSpace(nascimento)||string.IsNullOrWhiteSpace(mae))
+            throw new InvalidOperationException("Gold retornou Pessoa incompleta para o exemplo.");
+
+        var suffix=uuid.Replace("-","",StringComparison.Ordinal).ToUpperInvariant()[..8];
+        var pessoaId=$"DEV-GOLD-{suffix}";
+        var registroId=$"DEV-GOLD-REG-{suffix}";
+        var gestor="SEHAB";
+        var sistema="SEHAB";
+        var tipo="AA01";
+        var today=DateTime.Today;
+        var manifest=new Dictionary<string,object?>{
+            ["formatoVersao"]=2,["pessoaSchemaVersao"]=4,["codigoSistemaOrigem"]=sistema,["natureza"]="BENEFICIO",["codigoTipo"]=tipo,["tipoVersao"]=1,
+            ["dataReferencia"]=DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:sszzz")
+        };
+        var pessoa=new Dictionary<string,object?>{
+            ["idPessoaEntrega"]=pessoaId,["cpf"]=null,["cpfAusenteMotivo"]="NAO_INFORMADO_ORIGEM",["nomeCompleto"]=nome,["dataNascimento"]=nascimento,["nomeMae"]=mae,
+            ["sourceTransactionId"]=$"DEV-GOLD-TX-{suffix}",["atributosTransversais"]=Array.Empty<object>()
+        };
+        var registro=new Dictionary<string,object?>{
+            ["idPessoaEntrega"]=pessoaId,["codigoRegistroOrigem"]=registroId,["operacao"]="INCLUSAO",["dataInicioConcessao"]=today.AddDays(-30).ToString("yyyy-MM-dd"),
+            ["valorConcedido"]=600.0m,["dataEventoConcessao"]=today.ToString("yyyy-MM-dd"),["situacaoVigencia"]="VIGENTE"
+        };
+        var jsonOpt=new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true};
+        return new ZipTemplate(
+            "gold.pessoa",uuid,gestor,sistema,tipo,nome,nascimento,mae,pessoaId,registroId,
+            JsonSerializer.Serialize(manifest,jsonOpt),
+            JsonSerializer.Serialize(pessoa,jsonOpt),
+            JsonSerializer.Serialize(registro,jsonOpt));
+    }
+}
+
 sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
 {
     static readonly JsonSerializerOptions StreamJson=new(JsonSerializerDefaults.Web);
