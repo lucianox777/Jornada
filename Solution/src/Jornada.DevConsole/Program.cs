@@ -17,10 +17,8 @@ app.MapGet("/api/commands",async(RunStore store,CancellationToken ct)=>{
     }));
 });
 
-app.MapGet("/api/runs",async(RunStore store,CancellationToken ct)=>{
-    var runs=await store.ListAsync(ct);
-    return Results.Ok(runs.Take(200).Select(x=>new{x.Id,x.Command,x.Title,x.StartedAt,x.FinishedAt,x.Status,x.Summary}));
-});
+app.MapGet("/api/runs",async(RunStore store,CancellationToken ct)=>
+    Results.Ok(await store.ListSummariesAsync(ct)));
 
 app.MapGet("/api/runs/{id:guid}",async(Guid id,RunStore store,CancellationToken ct)=>
     await store.GetAsync(id,ct) is { } run?Results.Ok(run):Results.NotFound());
