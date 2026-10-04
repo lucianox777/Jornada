@@ -9,6 +9,27 @@ internal static class LinkagePublicationBatchSql
     internal const string RecomposeAffectedGoldSql = """
         SET NOCOUNT ON;
 
+        SELECT u.pessoa_uuid
+        INTO #gold_progressiva
+        FROM (
+            SELECT r.pessoa_uuid_publicado AS pessoa_uuid
+            FROM identidade.linkage_resultado r
+            WHERE r.linkage_run_id=@run_id
+              AND r.pessoa_uuid_publicado IS NOT NULL
+            UNION
+            SELECT p.initial_uuid
+            FROM identidade.linkage_resultado r
+            JOIN silver.pessoa_observacao po
+              ON po.pessoa_observacao_id=r.pessoa_observacao_id
+            JOIN identidade.pessoa_origem_progressiva p
+              ON p.pessoa_origem_id=po.pessoa_origem_id
+            WHERE r.linkage_run_id=@run_id
+              AND p.initial_uuid IS NOT NULL
+        ) u;
+
+        CREATE UNIQUE CLUSTERED INDEX IX_gold_progressiva_uuid
+            ON #gold_progressiva(pessoa_uuid);
+
         SELECT DISTINCT x.pessoa_uuid,x.pessoa_observacao_id
         INTO #gold_obs_ids
         FROM (
