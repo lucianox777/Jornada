@@ -150,6 +150,48 @@ function Ensure-LocalBlockingProjection {
     Invoke-Node2 -Command @('env','Processor__Operation=REBUILD_LOCAL_BLOCKING','dotnet','/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll')
 }
 
+function Ensure-SyntheticIbgeIdentityText {
+    $database = Get-EnvValue 'JORNADA_SQL_DATABASE'
+    if([string]::IsNullOrWhiteSpace($database)){$database='JornadaLocal'}
+    if($database -ne 'JornadaSyntheticDev'){
+        Write-Host "Diversificação IBGE automática ignorada: banco atual=$database (somente JornadaSyntheticDev)." -ForegroundColor DarkGray
+        return
+    }
+
+    $expectedRaw=Get-EnvValue 'JORNADA_LOCAL_SYNTHETIC_PEOPLE'
+    $expected=if([string]::IsNullOrWhiteSpace($expectedRaw)){30000}else{[int]$expectedRaw}
+    $placeholder=[long](Get-SqlScalar "SELECT COUNT_BIG(*) FROM gold.pessoa WHERE nome_completo LIKE N'Pessoa Teste %' OR nome_mae LIKE N'Mae Teste %' OR nome_mae LIKE N'Mãe Teste %';")
+    if($placeholder -eq 0){
+        Write-Host 'Identidades textuais sintéticas já estão diversificadas pela frequência IBGE.' -ForegroundColor Green
+        return
+    }
+
+    Write-Host "Encontrados $placeholder registros com nomes-placeholder. Aplicando distribuição marginal pública do IBGE..." -ForegroundColor Cyan
+    $password=Get-EnvValue 'JORNADA_SQL_SA_PASSWORD'
+    if([string]::IsNullOrWhiteSpace($password)){throw 'JORNADA_SQL_SA_PASSWORD ausente do ambiente DEV.'}
+
+    Push-Location $Root
+    try{
+        $previousPassword=$env:SQLCMDPASSWORD
+        try{
+            $env:SQLCMDPASSWORD=$password
+            $args=@('compose','--env-file',$EnvFile,'exec','-T','-e','SQLCMDPASSWORD','sqlserver','/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-C','-b','-I','-d',$database,'-v',"SCALE_PEOPLE=$expected",'SCALE_SEED=355','SCALE_COLLISION_MODULO=37','-i','/workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql')
+            Write-CommandLine 'docker' $args
+            & docker @args
+            if($LASTEXITCODE -ne 0){throw "Diversificação IBGE da massa sintética falhou ($LASTEXITCODE)."}
+        }
+        finally{
+            if($null -eq $previousPassword){Remove-Item Env:SQLCMDPASSWORD -ErrorAction SilentlyContinue}
+            else{$env:SQLCMDPASSWORD=$previousPassword}
+        }
+    }
+    finally{Pop-Location}
+
+    $remaining=[long](Get-SqlScalar "SELECT COUNT_BIG(*) FROM gold.pessoa WHERE nome_completo LIKE N'Pessoa Teste %' OR nome_mae LIKE N'Mae Teste %' OR nome_mae LIKE N'Mãe Teste %';")
+    if($remaining -gt 0){throw "Diversificação IBGE incompleta: ainda existem $remaining nomes-placeholder."}
+    Write-Host "Massa sintética pronta para testes: $expected pessoas com nomes/nome da mãe amostrados pela frequência IBGE." -ForegroundColor Green
+}
+
 function Wait-NodeReady([string]$Name, [string]$Url) {
     for ($i = 0; $i -lt 120; $i++) {
         try {
@@ -195,7 +237,7 @@ function Show-Endpoints {
 
 function Start-Nodes([switch]$Build) {
     Write-Host ''
-    Write-Host 'Etapa cluster 1/5: materializando/validando a referência IBGE...' -ForegroundColor Cyan
+    Write-Host 'Etapa cluster 1/6: materializando/validando a referência IBGE...' -ForegroundColor Cyan
     Write-Host 'Esta é a etapa mais longa na primeira execução. A Console continuará emitindo sinais de atividade enquanto ela roda.'
     $bootstrapArgs=@('up')
     if($Build){$bootstrapArgs+='--build'}else{$bootstrapArgs+='--no-build'}
@@ -204,23 +246,27 @@ function Start-Nodes([switch]$Build) {
     Write-Host 'Referência IBGE concluída (jornada-reference-bootstrap = exit 0).' -ForegroundColor Green
 
     Write-Host ''
-    Write-Host 'Etapa cluster 2/5: iniciando NODE1/NODE2 e NAS...' -ForegroundColor Cyan
+    Write-Host 'Etapa cluster 2/6: substituindo nomes-placeholder por identidades sintéticas plausíveis...' -ForegroundColor Cyan
+    Ensure-SyntheticIbgeIdentityText
+
+    Write-Host ''
+    Write-Host 'Etapa cluster 3/6: iniciando NODE1/NODE2 e NAS...' -ForegroundColor Cyan
     $args = @('up','-d')
     if ($Build) { $args += '--build' } else { $args += '--no-build' }
     $args += @('jornada-node1','jornada-node2')
     Invoke-Compose -ComposeArgs $args -Context 'subida de NODE1/NODE2'
 
     Write-Host ''
-    Write-Host 'Etapa cluster 3/5: aguardando readiness dos nós...' -ForegroundColor Cyan
+    Write-Host 'Etapa cluster 4/6: aguardando readiness dos nós...' -ForegroundColor Cyan
     Wait-NodeReady 'jornada-node1' 'http://127.0.0.1:5080/health/ready'
     Wait-NodeReady 'jornada-node2' 'http://127.0.0.1:5180/health/ready'
 
     Write-Host ''
-    Write-Host 'Etapa cluster 4/5: reconstruindo/verificando blocking local...' -ForegroundColor Cyan
+    Write-Host 'Etapa cluster 5/6: reconstruindo/verificando blocking local...' -ForegroundColor Cyan
     Ensure-LocalBlockingProjection
 
     Write-Host ''
-    Write-Host 'Etapa cluster 5/5: publicando endpoints e resumo do ambiente...' -ForegroundColor Cyan
+    Write-Host 'Etapa cluster 6/6: publicando endpoints e resumo do ambiente...' -ForegroundColor Cyan
     Show-Endpoints
 }
 
