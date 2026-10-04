@@ -4,6 +4,7 @@ var builder=WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<RunStore>();
 builder.Services.AddSingleton<LiveExecutionService>();
 builder.Services.AddSingleton<GoldZipTemplateService>();
+builder.Services.AddSingleton<SemiblindDevService>();
 
 var app=builder.Build();
 
@@ -32,6 +33,22 @@ app.MapPost("/api/commands/{command}/start",(string command,LiveExecutionService
 
 app.MapGet("/api/zip/template",async(GoldZipTemplateService service,CancellationToken ct)=>{
     try{return Results.Ok(await service.GetAsync(ct));}
+    catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
+});
+
+app.MapGet("/api/semiblind/template",async(SemiblindDevService service,CancellationToken ct)=>{
+    try{
+        var t=await service.TemplateAsync(ct);
+        return Results.Ok(new{gestor=t.Gestor,nomeCompleto=t.NomeCompleto,dataNascimento=t.DataNascimento,nomeMae=t.NomeMae,source=t.Source,pessoaUuid=t.PessoaUuid});
+    }
+    catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
+});
+
+app.MapPost("/api/semiblind/search",async(SemiblindDevRequest request,SemiblindDevService service,CancellationToken ct)=>{
+    try{
+        var result=await service.SearchAsync(request,ct);
+        return Results.Text(result.Json,"application/json; charset=utf-8",statusCode:result.StatusCode);
+    }
     catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
 });
 
