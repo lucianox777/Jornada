@@ -5,6 +5,10 @@ param(
 )
 
 $ErrorActionPreference='Stop'
+$ProgressPreference='SilentlyContinue'
+[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
+$OutputEncoding=[Text.UTF8Encoding]::new($false)
+if($PSVersionTable.PSVersion.Major -ge 7){$PSStyle.OutputRendering='PlainText'}
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $EnvFile=Join-Path $Root '.env'
 $KeysFile=Join-Path $Root 'config/security/test-access-keys.json'
