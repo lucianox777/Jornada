@@ -23,6 +23,7 @@ public sealed class DevTestConsoleContractTests
         var goldScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-gold-synthetic.ps1"));
         var localDb=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-db.ps1"));
         var bootstrap=File.ReadAllText(Path.Combine(root,"Solution","teste.ps1"));
+        var goldSql=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Dev_GoldSynthetic.sql"));
 
         Assert.Multiple(()=>{
             Assert.That(program,Does.Contain("/api/commands/{command}/start"));
@@ -46,6 +47,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("Where(x=>x.StartedAt>=sessionStartedAt)"));
             Assert.That(runtime,Does.Contain("JsonSerializerDefaults.Web"));
             Assert.That(runtime,Does.Contain("JsonSerializer.Serialize(item,StreamJson)"));
+            Assert.That(runtime,Does.Contain("StandardOutputEncoding=Encoding.UTF8"));
+            Assert.That(runtime,Does.Contain("StandardErrorEncoding=Encoding.UTF8"));
+            Assert.That(runtime,Does.Contain("result.ExitCode==0&&candidatePath is not null&&File.Exists(candidatePath)"));
 
             Assert.That(page,Does.Contain("🕘 Execuções"));
             Assert.That(page,Does.Contain("console-shell"));
@@ -77,6 +81,12 @@ public sealed class DevTestConsoleContractTests
             Assert.That(goldScript,Does.Contain("Jornada_Dev_GoldSynthetic.sql"));
             Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
             Assert.That(goldScript,Does.Not.Contain("Jornada_Dev_LinkageValidation.sql"));
+            Assert.That(goldSql,Does.Contain("SET QUOTED_IDENTIFIER ON;"));
+            Assert.That(goldSql,Does.Contain("SET ANSI_NULLS ON;"));
+            Assert.That(goldSql,Does.Contain("SET ANSI_WARNINGS ON;"));
+            Assert.That(goldSql,Does.Contain("SET ARITHABORT ON;"));
+            Assert.That(goldSql,Does.Contain("SET CONCAT_NULL_YIELDS_NULL ON;"));
+            Assert.That(goldSql,Does.Contain("SET NUMERIC_ROUNDABORT OFF;"));
             Assert.That(infraScript,Does.Contain("local-cluster.ps1"));
             Assert.That(infraScript,Does.Contain("-NoBuild"));
             Assert.That(infraScript,Does.Contain("jornada-reference-bootstrap"));
