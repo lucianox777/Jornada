@@ -243,7 +243,12 @@ function Start-Nodes([switch]$Build) {
     $bootstrapArgs=@('up')
     if($Build){$bootstrapArgs+='--build'}else{$bootstrapArgs+='--no-build'}
     $bootstrapArgs+='jornada-reference-bootstrap'
-    Invoke-Compose -ComposeArgs $bootstrapArgs -Context 'bootstrap da referência IBGE'
+    & docker compose --env-file $EnvFile @bootstrapArgs
+    $composeExitCode=$LASTEXITCODE
+    $bootstrapId=(& docker compose --env-file $EnvFile ps -aq jornada-reference-bootstrap | Out-String).Trim()
+    $bootstrapInfo=@(& docker inspect $bootstrapId | ConvertFrom-Json)[0]
+    if($null -eq $bootstrapInfo -or [int]$bootstrapInfo.State.ExitCode -ne 0){throw "Bootstrap da referência IBGE falhou (compose=$composeExitCode)."}
+    if($composeExitCode -ne 0){Write-Host "docker compose retornou $composeExitCode, mas o init terminou com exit 0; bootstrap concluído." -ForegroundColor Yellow}
     Write-Host 'Referência IBGE concluída (jornada-reference-bootstrap = exit 0).' -ForegroundColor Green
 
     Write-Host ''
