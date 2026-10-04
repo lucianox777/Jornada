@@ -81,8 +81,8 @@ public sealed class Dt05SnapshotMaintenanceTests
             """{"partitions":[{"path":"objects/aa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.parquet","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bytes":1}]}""");
 
         var maintenance = new Dt05SnapshotMaintenance(_root);
-        Assert.That(async () => await maintenance.ScanAsync(TimeSpan.FromHours(24), true, now),
-            Throws.TypeOf<FileNotFoundException>());
+        Assert.ThrowsAsync<FileNotFoundException>(async () =>
+            await maintenance.ScanAsync(TimeSpan.FromHours(24), true, now));
         Assert.That(File.Exists(orphan.Path), Is.True,
             "A descoberta de corrupção deve interromper a coleta antes de excluir qualquer órfão.");
     }
