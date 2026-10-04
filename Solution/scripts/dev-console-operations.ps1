@@ -312,7 +312,36 @@ switch($Action){
         if($eligibleActive -ne 1){
             throw "Executar linkage exige exatamente 1 modelo ATIVO; atual=$eligibleActive. A subida da infraestrutura deve garantir o BOOTSTRAP inicial (IBGE + corpus sintético). Execute novamente 'Subir infraestrutura, referências e bootstrap' para reparar/confirmar o estado. O seed fixo não libera linkage."
         }
-        Invoke-ClusterAction 'linkage'
+
+        $lastIngestion=Join-Path $OutDir 'last-ingestion.json'
+        if(-not(Test-Path $lastIngestion)){throw 'Nenhuma ingestão registrada pela Console DEV. Envie um ZIP antes de executar o linkage incremental.'}
+        $saved=Get-Content $lastIngestion -Raw | ConvertFrom-Json
+        $entregaId=[string]$saved.receipt.entregaId
+        if([string]::IsNullOrWhiteSpace($entregaId)){$entregaId=[string]$saved.receipt.EntregaId}
+        if([string]::IsNullOrWhiteSpace($entregaId)){throw 'Recibo da última ingestão não contém entregaId.'}
+        $savedDb=[string]$saved.database
+        $exists=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM ingestao.entrega WHERE entrega_id='$entregaId';")
+        if(($savedDb -and $savedDb -ne $db) -or $exists -eq 0){
+            throw "A última ingestão não pertence ao ambiente atual ($db). Envie um novo ZIP antes de executar o linkage incremental."
+        }
+
+        $idsRaw=Invoke-SqlScalar "SELECT STRING_AGG(CONVERT(varchar(max),po.pessoa_observacao_id),',') WITHIN GROUP (ORDER BY po.pessoa_observacao_id) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE l.entrega_id='$entregaId' AND po.cpf IS NULL AND (vc.pessoa_observacao_id IS NULL OR vc.status IN(N'NAO_RESOLVIDO',N'CONFLITO') OR vc.metodo_resolucao=N'PENDENTE_PROBABILISTICO');"
+        $observationIds=@()
+        if(-not[string]::IsNullOrWhiteSpace($idsRaw)){
+            $observationIds=@($idsRaw.Split(',') | ForEach-Object {[long]$_.Trim()})
+        }
+        Write-Host "Linkage incremental da última entrega: $entregaId"
+        Write-Host "Observações sem CPF elegíveis nesta entrega: $($observationIds.Count)"
+        if($observationIds.Count -eq 0){
+            Write-Host 'Nenhuma observação desta entrega exige linkage probabilístico; backlog sintético global preservado.'
+            return
+        }
+
+        foreach($observationId in $observationIds){
+            Write-Host "Processando pessoa_observacao_id=$observationId (escopo exclusivo da entrega $entregaId)..."
+            Invoke-Compose @('exec','-T','jornada-node2','dotnet','/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll','--mode','ON_DEMAND','--pessoa-observacao-id',([string]$observationId),'--publish','true','--requested-by','DEV_CONSOLE','--reason',"dev-console-entrega:$entregaId")
+        }
+        Write-Host "Linkage incremental concluído para $($observationIds.Count) observação(ões) da entrega $entregaId. Backlog pendente de outras cargas não foi selecionado."
     }
 
     'replay-latest' {
