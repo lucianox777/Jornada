@@ -37,6 +37,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("/api/zip/template"));
             Assert.That(program,Does.Contain("/api/runs/{id:guid}/result/html"));
             Assert.That(program,Does.Contain("/api/runs/{id:guid}/artifacts/{index:int}"));
+            Assert.That(program,Does.Contain("/api/semiblind/template"));
+            Assert.That(program,Does.Contain("/api/semiblind/search"));
 
             Assert.That(runtime,Does.Contain("LiveExecutionService"));
             Assert.That(runtime,Does.Contain("ReadLineAsync"));
@@ -57,7 +59,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("StandardErrorEncoding=Encoding.UTF8"));
             Assert.That(runtime,Does.Contain("result.ExitCode==0&&candidatePath is not null&&File.Exists(candidatePath)"));
             Assert.That(runtime,Does.Contain("catch(JsonException)"));
-            Assert.That(runtime,Does.Contain("catch(NotSupportedException)"));
+            Assert.That(runtime,Does.Contain("ListSummariesAsync"));
+            Assert.That(runtime,Does.Contain(".Take(200)"));
 
             Assert.That(page,Does.Contain("🕘 Execuções"));
             Assert.That(page,Does.Contain("console-shell"));
@@ -98,14 +101,21 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("initial-config"));
             Assert.That(runtime,Does.Contain("dev-console-initial-config.ps1"));
             Assert.That(runtime,Does.Contain("ARTEFATO:"));
+            Assert.That(runtime,Does.Contain("Consulta semicega"));
+            Assert.That(runtime,Does.Contain("SemiblindDevService"));
+            Assert.That(runtime,Does.Contain("JornadaSyntheticDev"));
+            Assert.That(runtime,Does.Contain("Não existe fallback para Gold real."));
 
-            Assert.That(goldScript,Does.Contain("Jornada_Dev_GoldSynthetic.sql"));
             Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
             Assert.That(goldScript,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
             Assert.That(goldScript,Does.Contain("$PSStyle.OutputRendering='PlainText'"));
-            Assert.That(goldScript,Does.Contain("-h -1 -y 0 -Q $q"));
-            Assert.That(goldScript,Does.Not.Contain("-W -h -1 -y 0"));
+            Assert.That(goldScript,Does.Contain("SCALE_PEOPLE=30000"));
+            Assert.That(goldScript,Does.Contain("Jornada_Dev_SyntheticScale_Diversify.sql"));
+            Assert.That(goldScript,Does.Contain("population-profile','demographic-primary"));
+            Assert.That(goldScript,Does.Contain("birth_daily_sp_projection2024_2026.json"));
+            Assert.That(goldScript,Does.Not.Contain("-y 0"));
             Assert.That(goldScript,Does.Not.Contain("Jornada_Dev_LinkageValidation.sql"));
+            Assert.That(goldScript,Does.Not.Contain("Jornada_Dev_GoldSynthetic.sql"));
             Assert.That(goldSql,Does.Contain("SET QUOTED_IDENTIFIER ON;"));
             Assert.That(goldSql,Does.Contain("SET ANSI_NULLS ON;"));
             Assert.That(goldSql,Does.Contain("SET ANSI_WARNINGS ON;"));
@@ -145,6 +155,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("Atualizar exemplo da Gold"));
             Assert.That(page,Does.Contain("Visualizar JSON em HTML"));
             Assert.That(page,Does.Contain("Arquivos gerados:"));
+            Assert.That(page,Does.Contain("Consulta semicega · DEV sintético"));
+            Assert.That(page,Does.Contain("Usar exemplo da Gold sintética"));
             Assert.That(bootstrap,Does.Contain("restore $Solution --locked-mode"));
             Assert.That(bootstrap,Does.Contain("build $Solution --no-restore"));
 
