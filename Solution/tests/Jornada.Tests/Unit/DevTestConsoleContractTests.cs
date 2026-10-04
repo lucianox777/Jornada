@@ -131,7 +131,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("SQL Server, schema, NAS, referência IBGE, NODE1/NODE2 e garante o modelo BOOTSTRAP inicial ATIVO"));
             Assert.That(runtime,Does.Contain("Environment.SpecialFolder.LocalApplicationData"));
             Assert.That(runtime,Does.Contain("Path.Combine(local,\"Jornada\",\"DevConsole\")"));
-            Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action reference-check"));
+            Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action system-status"));
+            Assert.That(runtime,Does.Contain("Estado geral do sistema"));
+            Assert.That(runtime,Does.Not.Contain("new(\"reference-check\",\"Validar referência IBGE\""));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action ingest-latest"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action pipeline-status"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action blocking"));
@@ -246,6 +248,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("[string[]]$ComposeArgs"));
             Assert.That(opsScript,Does.Contain("@ComposeArgs"));
             Assert.That(opsScript,Does.Contain("Invoke-Compose exige um subcomando"));
+            Assert.That(opsScript,Does.Contain("'system-status'"));
+            Assert.That(opsScript,Does.Contain("ESTADO GERAL: OK"));
+            Assert.That(opsScript,Does.Contain("Jornada.Linkage.Runner.dll"));
             Assert.That(opsScript,Does.Not.Contain("[string[]]$Args"));
             Assert.That(opsScript,Does.Contain("--mode','REPLAY"));
             Assert.That(page,Does.Contain("A tela mostra somente operações reais"));
