@@ -20,6 +20,7 @@ sealed record ConsoleEvent(long Seq,DateTimeOffset At,string Stream,string Text)
 static class DevConsoleJson
 {
     public static readonly JsonSerializerOptions Pretty=new(JsonSerializerDefaults.Web){WriteIndented=true};
+    public static readonly JsonSerializerOptions Compact=new(JsonSerializerDefaults.Web);
 }
 
 static class CommandCatalog
@@ -154,13 +155,11 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
             ["idPessoaEntrega"]=pessoaId,["codigoRegistroOrigem"]=registroId,["operacao"]="INCLUSAO",["dataInicioConcessao"]=today.AddDays(-30).ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture),
             ["valorConcedido"]=600.0m,["dataEventoConcessao"]=today.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture),["situacaoVigencia"]="VIGENTE"
         };
-        var prettyOpt=new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true};
-        var compactOpt=new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=false};
         return new ZipTemplate(
             "gold.pessoa",uuid,gestor,sistema,tipo,nome,nascimento,mae,pessoaId,registroId,
-            JsonSerializer.Serialize(manifest,prettyOpt),
-            JsonSerializer.Serialize(pessoa,compactOpt),
-            JsonSerializer.Serialize(registro,compactOpt));
+            JsonSerializer.Serialize(manifest,DevConsoleJson.Pretty),
+            JsonSerializer.Serialize(pessoa,DevConsoleJson.Compact),
+            JsonSerializer.Serialize(registro,DevConsoleJson.Compact));
     }
 }
 
