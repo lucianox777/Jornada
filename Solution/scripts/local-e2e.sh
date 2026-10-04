@@ -46,9 +46,12 @@ trap cleanup EXIT INT TERM
 support_contracts="$ROOT/../ApoioSecretarias/config/contracts/gestores/SEHAB"
 sehab_contracts="$ROOT/config/contracts/gestores/SEHAB"
 [[ -d "$support_contracts" ]] || { echo 'ERRO: contratos externos de teste não disponíveis.' >&2; exit 12; }
-[[ ! -e "$sehab_contracts" ]] || { echo 'ERRO: contrato SEHAB já presente na solução principal; não sobrescrever.' >&2; exit 12; }
-cp -R -- "$support_contracts" "$sehab_contracts"
-staged_sehab="$sehab_contracts"
+if [[ -e "$sehab_contracts" ]]; then
+  diff -qr -- "$support_contracts" "$sehab_contracts" >/dev/null || { echo 'ERRO: cópia runtime SEHAB diverge da fonte de apoio.' >&2; exit 12; }
+else
+  cp -R -- "$support_contracts" "$sehab_contracts"
+  staged_sehab="$sehab_contracts"
+fi
 
 # Compila uma vez para que API e Worker não disputem restore/build em paralelo.
 # Em CI, os packages.lock.json vêm do job dependency-lock e o restore deve ser estritamente bloqueado.

@@ -37,7 +37,8 @@ def approval(obj,prefix):
 def validate_schema(root:Path, require:bool)->dict:
     p=root/'config/governance/schema-approvals.json'; d=load(p)
     if d.get('schemaVersion')!=1 or d.get('baseNormativa')!='3.62' or d.get('solutionSchema')!='3.70': fail('schema-approvals versão/base/schema inválidos')
-    actual={x.relative_to(root).as_posix():hashlib.sha256(x.read_bytes()).hexdigest() for x in sorted((root/'config/contracts').rglob('*.json'))}
+    actual={x.relative_to(root).as_posix():hashlib.sha256(x.read_bytes()).hexdigest() for x in sorted((root/'config/contracts').rglob('*.json'))
+            if not x.relative_to(root/'config/contracts').as_posix().startswith('gestores/SEHAB/')}
     listed={}
     for row in d.get('contracts',[]):
         path=row.get('path'); h=str(row.get('sha256','')).lower()

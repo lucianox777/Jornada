@@ -54,9 +54,15 @@ class SegregationTests(unittest.TestCase):
     def test_isolated_layout_passes(self):
         self.assertEqual([], guard.audit(self.root))
 
-    def test_reintroduced_sehab_schema_fails(self):
+    def test_runtime_sehab_copy_must_match_support(self):
+        self.write("ApoioSecretarias/config/contracts/gestores/SEHAB/pessoa/v5/pessoa.schema.json", "{}")
+        self.write("Solution/config/contracts/gestores/SEHAB/pessoa/v5/pessoa.schema.json", "{\"different\":true}")
+        self.assert_rejects("Cópia runtime SEHAB divergente")
+
+    def test_runtime_sehab_copy_is_allowed_when_identical(self):
+        self.write("ApoioSecretarias/config/contracts/gestores/SEHAB/pessoa/v5/pessoa.schema.json", "{}")
         self.write("Solution/config/contracts/gestores/SEHAB/pessoa/v5/pessoa.schema.json", "{}")
-        self.assert_rejects("reintroduzido")
+        self.assertEqual([], guard.audit(self.root))
 
     def test_principal_inventory_contamination_fails(self):
         self.write("Solution/config/governance/schema-approvals.json",

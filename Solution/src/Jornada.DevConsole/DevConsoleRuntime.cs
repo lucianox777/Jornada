@@ -153,7 +153,7 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
         var tipo="AA01";
         var today=DateTime.Today;
         var manifest=new Dictionary<string,object?>{
-            ["formatoVersao"]=2,["pessoaSchemaVersao"]=4,["codigoSistemaOrigem"]=sistema,["natureza"]="BENEFICIO",["codigoTipo"]=tipo,["tipoVersao"]=1,
+            ["formatoVersao"]=2,["pessoaSchemaVersao"]=5,["codigoSistemaOrigem"]=sistema,["natureza"]="BENEFICIO",["codigoTipo"]=tipo,["tipoVersao"]=1,
             ["dataReferencia"]=DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:sszzz",System.Globalization.CultureInfo.InvariantCulture)
         };
         var pessoa=new Dictionary<string,object?>{
