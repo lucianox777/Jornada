@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet('reference-check','bronze-verify','ingest-latest','pipeline-status','blocking','calibrate','linkage','replay-latest','report')]
+    [ValidateSet('reference-check','bronze-verify','ingest-latest','pipeline-status','blocking','calibrate-initial','calibrate','linkage','replay-latest','report')]
     [string]$Action
 )
 
@@ -98,6 +98,9 @@ switch($Action){
 
     'ingest-latest' {
         Ensure-ClusterRunning
+        $contractBundle=Join-Path $OutDir 'contract-config-bundle.zip'
+        if(-not(Test-Path $contractBundle)){throw 'Bundle de contratos/configurações ausente. Execute primeiro Gerar bundle de contratos e configurações.'}
+        Write-Host "Bundle de contrato validado: $contractBundle"
         $manualRoot=Join-Path $OutDir 'manual-zip'
         if(-not(Test-Path $manualRoot)){throw 'Nenhum ZIP manual foi gerado ainda.'}
         $zip=Get-ChildItem $manualRoot -Recurse -File -Filter '*.zip' | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
@@ -156,6 +159,35 @@ switch($Action){
     }
 
     'blocking' { Invoke-ClusterAction 'blocking' }
+
+    'calibrate-initial' {
+        Ensure-ClusterRunning
+        $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM gold.pessoa;")
+        if($goldCount -le 0){throw 'Gold vazia. Carregue a Gold sintética de bootstrap ou processe uma ingestão até a Gold antes da calibração inicial.'}
+        $activeCount=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO';")
+        if($activeCount -gt 0){throw 'Já existe modelo ATIVO. Use Recalibrar e ativar para criar uma nova versão.'}
+
+        Write-Host "Gold disponível para calibração inicial: $goldCount pessoa(s)."
+        Invoke-ClusterAction 'calibrate'
+
+        $modelId=Invoke-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status=N'ATIVO' ORDER BY versao DESC;"
+        $version=[int](Invoke-SqlScalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status=N'ATIVO' ORDER BY versao DESC;")
+        $bundleVersion=Invoke-SqlScalar "SELECT TOP(1) ISNULL(model_config_bundle_version,N'') FROM identidade.modelo_linkage WHERE status=N'ATIVO' ORDER BY versao DESC;"
+        $fingerprint=Invoke-SqlScalar "SELECT TOP(1) ISNULL(model_config_bundle_fingerprint_sha256,N'') FROM identidade.modelo_linkage WHERE status=N'ATIVO' ORDER BY versao DESC;"
+        $result=[ordered]@{
+            generatedAt=(Get-Date).ToUniversalTime().ToString('o')
+            goldPeople=$goldCount
+            modelId=$modelId
+            version=$version
+            status='ATIVO'
+            modelConfigBundleVersion=$bundleVersion
+            modelConfigBundleFingerprintSha256=$fingerprint
+        }
+        $resultPath=Join-Path $OutDir 'initial-calibration.json'
+        $result | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $resultPath
+        Write-Host "Calibração inicial concluída. Modelo ATIVO v$version ($modelId)."
+        Write-Host "Resultado salvo em: $resultPath"
+    }
 
     'calibrate' { Invoke-ClusterAction 'calibrate' }
 
