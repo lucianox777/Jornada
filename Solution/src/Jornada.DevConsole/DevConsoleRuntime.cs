@@ -15,6 +15,7 @@ sealed record CommandDefinition(string Id,string Title,string Description,string
 sealed record StepResult(string Command,string WorkingDirectory,int ExitCode,long DurationMs,string Output,string Error,string? ResultPath,IReadOnlyList<string>? Artifacts=null);
 sealed record ManualZipRequest(string Gestor,string ManifestJson,string PessoasJsonl,string RegistrosJsonl);
 sealed record RunRecord(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,StepResult Step,IReadOnlyList<Dictionary<string,string?>> Records);
+sealed record RunSummary(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary);
 sealed record ConsoleEvent(long Seq,DateTimeOffset At,string Stream,string Text);
 
 static class DevConsoleJson
@@ -400,32 +401,38 @@ sealed class RunStore(IWebHostEnvironment env)
         catch(JsonException){return null;}
     }
 
-    public async Task<IReadOnlyList<RunRecord>> ListAsync(CancellationToken ct)
+    public async Task<IReadOnlyList<RunSummary>> ListSummariesAsync(CancellationToken ct)
     {
         Directory.CreateDirectory(root);
-        var xs=new List<RunRecord>();
-        foreach(var path in Directory.EnumerateFiles(root,"*.json").OrderByDescending(File.GetLastWriteTimeUtc))
+        var xs=new List<RunSummary>();
+        foreach(var path in Directory.EnumerateFiles(root,"*.json")
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .Take(200))
         {
             ct.ThrowIfCancellationRequested();
             try
             {
-                var item=JsonSerializer.Deserialize<RunRecord>(await File.ReadAllTextAsync(path,ct),Opt);
-                if(item is not null)xs.Add(item);
+                await using var stream=File.OpenRead(path);
+                using var doc=await JsonDocument.ParseAsync(stream,cancellationToken:ct);
+                var e=doc.RootElement;
+                if(!e.TryGetProperty("id",out var idElement)||!Guid.TryParse(idElement.GetString(),out var id))continue;
+                var command=e.TryGetProperty("command",out var commandElement)?commandElement.GetString()??"":"";
+                var title=e.TryGetProperty("title",out var titleElement)?titleElement.GetString()??command:command;
+                var status=e.TryGetProperty("status",out var statusElement)?statusElement.GetString()??"":"";
+                var summary=e.TryGetProperty("summary",out var summaryElement)?summaryElement.GetString()??"":"";
+                var started=e.TryGetProperty("startedAt",out var startedElement)&&startedElement.TryGetDateTimeOffset(out var startedAt)?startedAt:File.GetCreationTimeUtc(path);
+                var finished=e.TryGetProperty("finishedAt",out var finishedElement)&&finishedElement.TryGetDateTimeOffset(out var finishedAt)?finishedAt:started;
+                xs.Add(new RunSummary(id,command,title,started,finished,status,summary));
             }
-            catch(JsonException)
-            {
-                // Histórico legado/corrompido não pode impedir a listagem das demais execuções.
-            }
-            catch(NotSupportedException)
-            {
-                // Mantém compatibilidade com registros persistidos por versões anteriores da Console.
-            }
+            catch(JsonException){}
+            catch(IOException){}
+            catch(UnauthorizedAccessException){}
         }
         return xs;
     }
 
     public async Task<IReadOnlyDictionary<string,int>> CountByCommandAsync(CancellationToken ct)=>
-        (await ListAsync(ct)).Where(x=>x.StartedAt>=sessionStartedAt)
+        (await ListSummariesAsync(ct)).Where(x=>x.StartedAt>=sessionStartedAt)
             .GroupBy(x=>x.Command,StringComparer.OrdinalIgnoreCase)
             .ToDictionary(x=>x.Key,x=>x.Count(),StringComparer.OrdinalIgnoreCase);
 }
