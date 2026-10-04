@@ -1,5 +1,5 @@
 ﻿param(
-    [ValidateSet('up','reset','down','clean','status','logs','calibrate','linkage','linkage-diagnose')]
+    [ValidateSet('up','reset','down','clean','status','logs','blocking','calibrate','linkage','linkage-diagnose')]
     [string]$Action = 'up',
     [switch]$NoBuild
 )
@@ -367,6 +367,7 @@ switch ($Action) {
     'clean' { Invoke-Compose -ComposeArgs @('down','-v','--remove-orphans') }
     'status' { Invoke-Compose -ComposeArgs @('ps') }
     'logs' { Invoke-Compose -ComposeArgs @('logs','-f','jornada-node1','jornada-node2','jornada-nas') }
+    'blocking' { Ensure-LocalBlockingProjection }
     'calibrate' { Invoke-Calibration }
     'linkage' { Invoke-Linkage }
     'linkage-diagnose' { Show-LinkageDiagnosis }
