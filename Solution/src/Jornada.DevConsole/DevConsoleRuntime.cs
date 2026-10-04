@@ -105,21 +105,22 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
     public async Task<ZipTemplate> GetAsync(CancellationToken ct)
     {
         var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
-        var envFile=Path.Combine(root,".env");
-        if(!File.Exists(envFile))throw new InvalidOperationException(".env ausente. Suba a infraestrutura DEV primeiro.");
+        var envFile=Path.Combine(root,".env.devconsole");
+        if(!File.Exists(envFile))throw new InvalidOperationException(".env.devconsole ausente. Suba a infraestrutura DEV primeiro.");
         var vars=File.ReadAllLines(envFile)
             .Select(x=>x.Trim())
             .Where(x=>x.Length>0&&!x.StartsWith('#')&&x.Contains('='))
             .Select(x=>x.Split('=',2))
             .ToDictionary(x=>x[0].Trim(),x=>x[1].Trim(),StringComparer.OrdinalIgnoreCase);
-        var db=vars.TryGetValue("JORNADA_SQL_DATABASE",out var dbValue)&&!string.IsNullOrWhiteSpace(dbValue)?dbValue:"JornadaLocal";
+        var db=vars.TryGetValue("JORNADA_SQL_DATABASE",out var dbValue)&&!string.IsNullOrWhiteSpace(dbValue)?dbValue:"JornadaSyntheticDev";
+        if(!string.Equals(db,"JornadaSyntheticDev",StringComparison.Ordinal))throw new InvalidOperationException($"Console DEV exige JornadaSyntheticDev; banco atual={db}.");
         if(!vars.TryGetValue("JORNADA_SQL_SA_PASSWORD",out var password)||string.IsNullOrWhiteSpace(password))
             throw new InvalidOperationException("JORNADA_SQL_SA_PASSWORD ausente.");
 
-        var query="SET NOCOUNT ON; SELECT TOP(1) CONVERT(varchar(36),pessoa_uuid) pessoa_uuid,nome_completo,CONVERT(varchar(10),data_nascimento,23) data_nascimento,nome_mae FROM gold.pessoa WHERE estado_identidade=N'REFERENCIA' AND nome_completo IS NOT NULL AND data_nascimento IS NOT NULL AND nome_mae IS NOT NULL ORDER BY atualizado_em DESC,pessoa_uuid FOR JSON PATH,WITHOUT_ARRAY_WRAPPER;";
+        var query="SET NOCOUNT ON; SELECT TOP(1) CONVERT(varchar(36),pessoa_uuid),REPLACE(REPLACE(nome_completo,'|',' '),CHAR(10),' '),CONVERT(varchar(10),data_nascimento,23),REPLACE(REPLACE(nome_mae,'|',' '),CHAR(10),' ') FROM gold.pessoa WHERE nome_completo IS NOT NULL AND data_nascimento IS NOT NULL AND nome_mae IS NOT NULL ORDER BY atualizado_em DESC,pessoa_uuid;";
         var psi=new ProcessStartInfo("docker"){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8,UseShellExecute=false,CreateNoWindow=true};
         psi.Environment["SQLCMDPASSWORD"]=password;
-        foreach(var arg in new[]{"compose","--env-file",envFile,"exec","-T","-e","SQLCMDPASSWORD","sqlserver","/opt/mssql-tools18/bin/sqlcmd","-S","localhost","-U","sa","-C","-b","-d",db,"-h","-1","-y","0","-Q",query})psi.ArgumentList.Add(arg);
+        foreach(var arg in new[]{"compose","--env-file",envFile,"exec","-T","-e","SQLCMDPASSWORD","sqlserver","/opt/mssql-tools18/bin/sqlcmd","-S","localhost","-U","sa","-C","-b","-I","-d",db,"-W","-h","-1","-s","|","-w","65535","-Q",query})psi.ArgumentList.Add(arg);
         using var process=new Process{StartInfo=psi};
         process.Start();
         var stdoutTask=process.StandardOutput.ReadToEndAsync(ct);
@@ -128,15 +129,12 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
         var stdout=(await stdoutTask).Trim();
         var stderr=await stderrTask;
         if(process.ExitCode!=0)throw new InvalidOperationException($"Falha ao consultar Gold para exemplo do ZIP: {stderr.Trim()}");
-        if(string.IsNullOrWhiteSpace(stdout))throw new InvalidOperationException("Gold não possui Pessoa REFERENCIA completa para montar o exemplo.");
-
-        using var doc=JsonDocument.Parse(stdout);
-        var row=doc.RootElement;
-        string Get(string name)=>row.TryGetProperty(name,out var v)?v.GetString()??"":""; 
-        var uuid=Get("pessoa_uuid");
-        var nome=Get("nome_completo");
-        var nascimento=Get("data_nascimento");
-        var mae=Get("nome_mae");
+        var parts=stdout.Split('|',StringSplitOptions.TrimEntries);
+        if(parts.Length<4)throw new InvalidOperationException("Gold sintética não possui Pessoa completa para montar o exemplo.");
+        var uuid=parts[0];
+        var nome=parts[1];
+        var nascimento=parts[2];
+        var mae=parts[3];
         if(string.IsNullOrWhiteSpace(uuid)||string.IsNullOrWhiteSpace(nome)||string.IsNullOrWhiteSpace(nascimento)||string.IsNullOrWhiteSpace(mae))
             throw new InvalidOperationException("Gold retornou Pessoa incompleta para o exemplo.");
 
