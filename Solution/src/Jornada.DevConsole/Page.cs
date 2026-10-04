@@ -137,6 +137,18 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
   <div class="dialog-actions"><button class="secondary" type="button" onclick="activeConfigDialog.close()">Cancelar</button><button class="primary" type="button" onclick="saveActiveConfig()">Validar e salvar</button></div>
 </dialog>
 
+<dialog id="configurationDialog">
+  <div class="dialog-head"><strong>Contratos e configurações</strong><button class="secondary" type="button" onclick="configurationDialog.close()">Fechar</button></div>
+  <div class="dialog-body">
+    <p>Escolha o que deseja administrar. Contratos de ingestão e configurações ativas continuam com validações e persistência independentes.</p>
+    <div class="result-actions">
+      <button class="primary" type="button" onclick="openContractsFromConfiguration()">Contratos de ingestão</button>
+      <button class="primary" type="button" onclick="openActiveConfigFromConfiguration()">Configurações ativas</button>
+    </div>
+  </div>
+  <div class="dialog-actions"><button class="secondary" type="button" onclick="configurationDialog.close()">Fechar</button></div>
+</dialog>
+
 <dialog id="zipDialog">
   <div class="dialog-head"><strong>Entrada manual para o ZIP</strong><button class="secondary" type="button" onclick="zipDialog.close()">Fechar</button></div>
   <div class="dialog-body">
@@ -257,21 +269,51 @@ async function loadCommands(){
   commandsCache=await api('/api/commands');
   const titleById=Object.fromEntries(commandsCache.map(x=>[x.id,x.title]));
   commands.innerHTML=commandsCache.map(c=>{
-    const label=c.id==='zip'?'Preencher dados':c.id==='semiblind'?'Consultar':(c.id==='contract-editor'||c.id==='active-config-editor')?'Abrir':'Executar';
-    const buttonClass=c.id==='finish'?'danger':'primary';
     const deps=(c.dependencies||[]).map(id=>titleById[id]||id);
     const dependency=deps.length||c.dependencyNote
       ?'<div class="dependency"><b>Pré-requisitos:</b> '+(deps.length?deps.map(esc).join(' → '):'nenhum obrigatório')+(c.dependencyNote?'<span class="dep-note">'+esc(c.dependencyNote)+'</span>':'')+'</div>'
       :'';
-    const action=c.id==='zip'?'openZipDialog()':c.id==='semiblind'?'openSemiblindDialog()':c.id==='contract-editor'?'openContractDialog()':c.id==='active-config-editor'?'openActiveConfigDialog()':"startCommand('"+c.id+"')";
-    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span><button class="'+buttonClass+'" type="button" onclick="'+action+'">'+label+'</button></div></div></div>'
+
+    let actions='';
+    if(c.id==='zip'){
+      actions='<button class="primary" type="button" onclick="openZipDialog()">Nova ingestão</button>'
+        +'<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Status</button>'
+        +'<button class="secondary" type="button" onclick="startCommand(\'ingestion\',\'Reenviar último ZIP para ingestão\')">Reenviar último</button>';
+    }else if(c.id==='semiblind'){
+      actions='<button class="primary" type="button" onclick="openSemiblindDialog()">Consultar</button>';
+    }else if(c.id==='linkage'){
+      actions='<button class="primary" type="button" onclick="startCommand(\'linkage\')">Executar</button>'
+        +'<button class="secondary" type="button" onclick="startCommand(\'replay\',\'Executar replay do último run\')">Replay</button>';
+    }else if(c.id==='configuration'){
+      actions='<button class="primary" type="button" onclick="openConfigurationDialog()">Abrir</button>'
+        +'<button class="secondary" type="button" onclick="startCommand(\'contract-bundle\',\'Gerar bundle de contratos e configurações\')">Gerar bundle</button>';
+    }else if(c.id==='gold-synthetic'){
+      actions='<button class="primary" type="button" onclick="startCommand(\'gold-synthetic\')">Adicionar 5.000</button>'
+        +'<button class="secondary" type="button" onclick="startCommand(\'blocking\',\'Reconstruir blocking\')">Reconstruir blocking</button>';
+    }else{
+      const buttonClass=c.id==='finish'?'danger':'primary';
+      actions='<button class="'+buttonClass+'" type="button" onclick="startCommand(\''+c.id+'\')">Executar</button>';
+    }
+    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span>'+actions+'</div></div></div>'
   }).join('');
 }
 
-async function startCommand(id){
+async function startCommand(id,titleOverride){
   const command=commandsCache.find(x=>x.id===id);
   const response=await api('/api/commands/'+encodeURIComponent(id)+'/start',{method:'POST'});
-  openLiveRun(response.id,command?.title||id,id);
+  openLiveRun(response.id,titleOverride||command?.title||id,id);
+}
+
+function openConfigurationDialog(){
+  configurationDialog.showModal();
+}
+function openContractsFromConfiguration(){
+  configurationDialog.close();
+  openContractDialog();
+}
+function openActiveConfigFromConfiguration(){
+  configurationDialog.close();
+  openActiveConfigDialog();
 }
 
 
