@@ -50,6 +50,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("StandardOutputEncoding=Encoding.UTF8"));
             Assert.That(runtime,Does.Contain("StandardErrorEncoding=Encoding.UTF8"));
             Assert.That(runtime,Does.Contain("result.ExitCode==0&&candidatePath is not null&&File.Exists(candidatePath)"));
+            Assert.That(runtime,Does.Contain("catch(JsonException)"));
+            Assert.That(runtime,Does.Contain("catch(NotSupportedException)"));
 
             Assert.That(page,Does.Contain("🕘 Execuções"));
             Assert.That(page,Does.Contain("console-shell"));
@@ -63,6 +65,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("Resultado salvo em:"));
             Assert.That(page,Does.Contain("Ver dados do resultado"));
             Assert.That(page,Does.Contain("Executar novamente"));
+            Assert.That(page,Does.Contain("Falha ao carregar o histórico."));
+            Assert.That(page,Does.Contain("history.textContent=\'Carregando...\'"));
 
             Assert.That(localDb,Does.Contain("iniciando Docker Desktop"));
             Assert.That(localDb,Does.Contain("Start-Process -FilePath $dockerDesktopPath"));
