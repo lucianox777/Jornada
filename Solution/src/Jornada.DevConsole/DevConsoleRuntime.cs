@@ -5,11 +5,13 @@ using System.Text.Json;
 
 sealed record CommandDefinition(string Id,string Title,string Description,string? File,string? Arguments,string? ResultPath,string[] Dependencies,string? DependencyNote)
 {
-    public bool Implemented=>File is not null||Id=="zip";
+    public bool Implemented=>File is not null||Id is "zip" or "semiblind";
     public string? CommandLine=>File is null?null:$"{File} {Arguments}";
-    public string DisplayCommand=>Id=="zip"
-        ?"Entrada manual → python scripts/build-ingestion-fixture.py"
-        :CommandLine??"Operação parametrizada pela interface.";
+    public string DisplayCommand=>Id switch{
+        "zip"=>"Entrada manual → python scripts/build-ingestion-fixture.py",
+        "semiblind"=>"POST /api/v1/identidade/candidatos (DEV sintético)",
+        _=>CommandLine??"Operação parametrizada pela interface."
+    };
 }
 
 sealed record StepResult(string Command,string WorkingDirectory,int ExitCode,long DurationMs,string Output,string Error,string? ResultPath,IReadOnlyList<string>? Artifacts=null);
@@ -31,8 +33,8 @@ static class CommandCatalog
         new("infrastructure","Subir infraestrutura e referências","Sobe o ambiente DEV completo: Docker, SQL Server, schema, NAS, bootstrap IBGE e NODE1/NODE2. Também gera a configuração inicial em JSON e HTML.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null),
         new("initial-config","Gerar/ver configuração inicial","Regenera a configuração inicial da Console DEV em JSON e HTML e mostra os caminhos dos arquivos produzidos.","pwsh","-NoProfile -File scripts/dev-console-initial-config.ps1",".local/dev-console/initial-config/configuration.json",["infrastructure"],"A subida da infraestrutura já gera estes arquivos automaticamente; use este item para regenerar ou visualizar."),
         new("reference-check","Validar referência IBGE","Executa o quick check read-only da referência IBGE já materializada. O bootstrap/carga faz parte da infraestrutura básica.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action reference-check",null,["infrastructure"],"A infraestrutura é subida automaticamente se necessário."),
-        new("gold-synthetic","Carregar Gold sintética","Carrega uma Gold sintética de bootstrap para permitir a primeira calibração antes do recebimento de arquivos externos.","pwsh","-NoProfile -File scripts/dev-console-gold-synthetic.ps1",".local/dev-console/gold-synthetic-records.json",["infrastructure"],"Bootstrap DEV: pode ser substituída por Gold real quando ela já existir."),
-        new("initial-calibration","Calibração inicial a partir da Gold","Gera e ativa o primeiro modelo de linkage a partir da Gold existente. Recusa execução se a Gold estiver vazia ou se já houver modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate-initial",".local/dev-console/initial-calibration.json",["infrastructure","gold-synthetic"],"A dependência de Gold é semântica: serve Gold sintética ou Gold real. Blocking e referência IBGE são garantidos pelo fluxo de calibração."),
+        new("gold-synthetic","Carregar Gold sintética (30.000)","Materializa a Gold exclusivamente sintética da Console DEV com 30.000 pessoas; nomes e sobrenomes seguem a frequência pública IBGE versionada.","pwsh","-NoProfile -File scripts/dev-console-gold-synthetic.ps1",".local/dev-console/gold-synthetic-records.json",["infrastructure"],"Na Console DEV a Gold é sempre sintética. Não existe fallback para Gold real."),
+        new("initial-calibration","Calibração inicial a partir da Gold","Gera e ativa o primeiro modelo de linkage a partir da Gold sintética da Console DEV. Recusa execução se a Gold estiver vazia ou se já houver modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate-initial",".local/dev-console/initial-calibration.json",["infrastructure","gold-synthetic"],"Exige a Gold sintética de 30.000 pessoas e a referência IBGE ativa."),
         new("contract-bundle","Gerar bundle de contratos e configurações","Gera um ZIP operacional sem binários com OpenAPI, contratos JSON, configurações governadas e metadados do modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-contract-bundle.ps1",".local/dev-console/contract-config-bundle.zip",["initial-calibration"],"Exige modelo ATIVO para vincular o bundle ao fingerprint/configuração efetivamente calibrados."),
         new("zip","Gerar ZIP de ingestão","Abre a entrada manual e gera o ZIP real de ingestão.",null,null,null,["contract-bundle"],"A geração é local; o envio para a API só é permitido depois de existir o bundle de contratos/configurações."),
         new("ingestion","Enviar último ZIP para ingestão","Envia o último ZIP manual para a API real em NODE1 usando a credencial sintética DEV correspondente ao Gestor.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest",".local/dev-console/last-ingestion.json",["contract-bundle","zip"],"Falha fechado se o bundle de contratos/configurações ainda não tiver sido gerado."),
@@ -41,6 +43,7 @@ static class CommandCatalog
         new("blocking","Reconstruir blocking","Executa a reconstrução one-shot da projeção local de blocking sem recompilar nada.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action blocking",null,["gold-synthetic"],"Requer Gold disponível; pode ser Gold sintética ou real."),
         new("calibration","Recalibrar e ativar","Executa novo ciclo GENERATE_DRAFT → conferência → VALIDATE → ACTIVATE sobre uma Gold já existente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate",null,["initial-calibration"],"Use após a calibração inicial quando quiser gerar uma nova versão do modelo."),
         new("linkage","Executar linkage","Executa o Jornada.Linkage.Runner real no NODE2 usando o modelo calibrado ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action linkage",null,["initial-calibration"],"Aceita o modelo inicial ou uma recalibração posterior, desde que exista modelo ATIVO."),
+        new("semiblind","Consulta semicega","Consulta até cinco candidatos pela API real sem expor CPF, UUID ou score. O formulário usa uma pessoa sintética da Gold como exemplo.","",null,null,["gold-synthetic","initial-calibration"],"Disponível somente no banco isolado JornadaSyntheticDev com a feature DEV habilitada."),
         new("replay","Executar replay do último run","Executa REPLAY real do último linkage PUBLICADO elegível, sem publicar o resultado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action replay-latest",null,["linkage"],"Exige pelo menos um linkage PUBLICADO não-REPLAY."),
         new("report","Diagnóstico do último linkage","Executa o diagnóstico real do último linkage publicado, incluindo modelo, thresholds, cobertura e qualidade sintética.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action report",null,["linkage"],null),
         new("environment-status","Status da infraestrutura","Mostra todos os serviços do compose, inclusive o init one-shot jornada-reference-bootstrap.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action status",null,[],null),
