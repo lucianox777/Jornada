@@ -150,7 +150,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
   </div>
   <div class="dialog-actions">
     <button class="secondary" type="button" onclick="zipDialog.close()">Cancelar</button>
-    <button class="primary" type="button" onclick="startZip()">Gerar e executar</button>
+    <button class="primary" type="button" onclick="startZip()">Gerar e enviar</button>
   </div>
 </dialog>
 
@@ -180,6 +180,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
 <script>
 const esc=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const views=[homeView,consoleView,historyView];
+const historyList=document.getElementById('history');
 let commandsCache=[];
 let currentRunId=null;
 let currentCommandId=null;
@@ -206,19 +207,19 @@ async function showHome(){
 async function showHistory(){
   if(eventSource){eventSource.close();eventSource=null}
   switchView(historyView);
-  history.textContent='Carregando...';
+  historyList.textContent='Carregando...';
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),7000);
   try{
     const runs=await api('/api/runs',{signal:controller.signal});
-    history.innerHTML=runs.length?runs.map(r=>{
+    historyList.innerHTML=runs.length?runs.map(r=>{
       const statusClass=String(r.status).replaceAll(' ','-');
       const started=r.startedAt?new Date(r.startedAt).toLocaleString():'data indisponível';
       return '<div class="history-item"><div><a href="#" onclick="openHistoryRun(\''+r.id+'\');return false"><span class="history-title">'+esc(r.title||r.command||'Execução')+'</span></a><div class="history-meta">'+esc(started)+' · '+esc(r.summary||'')+'</div></div><div class="history-status '+esc(statusClass)+'">'+esc(r.status||'')+'</div></div>'
     }).join(''):'Nenhuma execução registrada.';
   }catch(e){
     const detail=e.name==='AbortError'?'A API de histórico excedeu 7 segundos. Reinicie a Console DEV e tente novamente.':e.message;
-    history.innerHTML='<div class="card"><b>Falha ao carregar o histórico.</b><div class="small">'+esc(detail)+'</div></div>';
+    historyList.innerHTML='<div class="card"><b>Falha ao carregar o histórico.</b><div class="small">'+esc(detail)+'</div></div>';
   }finally{
     clearTimeout(timeout);
   }
@@ -366,7 +367,7 @@ async function startZip(){
   zipDialog.close();
   const payload={gestor:zipGestor.value,manifestJson:zipManifest.value,pessoasJsonl:zipPessoas.value,registrosJsonl:zipRegistros.value};
   const response=await api('/api/zip/manual/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  openLiveRun(response.id,'Gerar ZIP de ingestão','zip');
+  openLiveRun(response.id,'Gerar e enviar ZIP de ingestão','zip');
 }
 
 function resetConsole(title){
