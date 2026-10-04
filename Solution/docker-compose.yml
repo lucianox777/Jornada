@@ -119,8 +119,6 @@ services:
     environment:
       <<: *jornada-node-environment
       JORNADA_NODE_ID: NODE2
-      JORNADA_DEV_LINKAGE_RUNNER_LOOP: "true"
-      LinkageRunner__PollingSeconds: "5"
     ports:
       - "5180:5080"
       - "5181:5081"
