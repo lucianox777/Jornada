@@ -98,6 +98,7 @@ sealed record ZipTemplate(
     string Gestor,
     string CodigoSistemaOrigem,
     string CodigoTipo,
+    int PessoaSchemaVersao,
     string NomeCompleto,
     string DataNascimento,
     string NomeMae,
@@ -124,7 +125,7 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
         if(!vars.TryGetValue("JORNADA_SQL_SA_PASSWORD",out var password)||string.IsNullOrWhiteSpace(password))
             throw new InvalidOperationException("JORNADA_SQL_SA_PASSWORD ausente.");
 
-        var query="SET NOCOUNT ON; SELECT TOP(1) CONVERT(varchar(36),pessoa_uuid),REPLACE(REPLACE(nome_completo,'|',' '),CHAR(10),' '),CONVERT(varchar(10),data_nascimento,23),REPLACE(REPLACE(nome_mae,'|',' '),CHAR(10),' ') FROM gold.pessoa WHERE nome_completo IS NOT NULL AND data_nascimento IS NOT NULL AND nome_mae IS NOT NULL ORDER BY atualizado_em DESC,pessoa_uuid;";
+        var query="SET NOCOUNT ON; SELECT TOP(1) CONVERT(varchar(36),p.pessoa_uuid),REPLACE(REPLACE(p.nome_completo,'|',' '),CHAR(10),' '),CONVERT(varchar(10),p.data_nascimento,23),REPLACE(REPLACE(p.nome_mae,'|',' '),CHAR(10),' '),CONVERT(varchar(10),v.versao) FROM gold.pessoa p CROSS JOIN (SELECT TOP(1) gpv.versao FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='SEHAB' AND g.ativo=1 AND gpv.status IN('ATIVA','ENCERRADA') ORDER BY CASE gpv.status WHEN 'ATIVA' THEN 0 ELSE 1 END,gpv.versao DESC) v WHERE p.nome_completo IS NOT NULL AND p.data_nascimento IS NOT NULL AND p.nome_mae IS NOT NULL ORDER BY p.atualizado_em DESC,p.pessoa_uuid;";
         var psi=new ProcessStartInfo("docker"){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8,UseShellExecute=false,CreateNoWindow=true};
         psi.Environment["SQLCMDPASSWORD"]=password;
         foreach(var arg in new[]{"compose","--env-file",envFile,"exec","-T","-e","SQLCMDPASSWORD","sqlserver","/opt/mssql-tools18/bin/sqlcmd","-S","localhost","-U","sa","-C","-b","-I","-d",db,"-W","-h","-1","-s","|","-w","65535","-Q",query})psi.ArgumentList.Add(arg);
@@ -137,11 +138,12 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
         var stderr=await stderrTask;
         if(process.ExitCode!=0)throw new InvalidOperationException($"Falha ao consultar Gold para exemplo do ZIP: {stderr.Trim()}");
         var parts=stdout.Split('|',StringSplitOptions.TrimEntries);
-        if(parts.Length<4)throw new InvalidOperationException("Gold sintética não possui Pessoa completa para montar o exemplo.");
+        if(parts.Length<5)throw new InvalidOperationException("Gold sintética ou contrato cadastral utilizável SEHAB não disponível para montar o exemplo.");
         var uuid=parts[0];
         var nome=parts[1];
         var nascimento=parts[2];
         var mae=parts[3];
+        if(!int.TryParse(parts[4],out var pessoaSchemaVersao)||pessoaSchemaVersao<1)throw new InvalidOperationException("Versão cadastral SEHAB utilizável inválida.");
         if(string.IsNullOrWhiteSpace(uuid)||string.IsNullOrWhiteSpace(nome)||string.IsNullOrWhiteSpace(nascimento)||string.IsNullOrWhiteSpace(mae))
             throw new InvalidOperationException("Gold retornou Pessoa incompleta para o exemplo.");
 
@@ -153,7 +155,7 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
         var tipo="AA01";
         var today=DateTime.Today;
         var manifest=new Dictionary<string,object?>{
-            ["formatoVersao"]=2,["pessoaSchemaVersao"]=5,["codigoSistemaOrigem"]=sistema,["natureza"]="BENEFICIO",["codigoTipo"]=tipo,["tipoVersao"]=1,
+            ["formatoVersao"]=2,["pessoaSchemaVersao"]=pessoaSchemaVersao,["codigoSistemaOrigem"]=sistema,["natureza"]="BENEFICIO",["codigoTipo"]=tipo,["tipoVersao"]=1,
             ["dataReferencia"]=DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:sszzz",System.Globalization.CultureInfo.InvariantCulture)
         };
         var pessoa=new Dictionary<string,object?>{
@@ -165,7 +167,7 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
             ["valorConcedido"]=600.0m,["dataEventoConcessao"]=today.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture),["situacaoVigencia"]="VIGENTE"
         };
         return new ZipTemplate(
-            "gold.pessoa",uuid,gestor,sistema,tipo,nome,nascimento,mae,pessoaId,registroId,
+            "gold.pessoa",uuid,gestor,sistema,tipo,pessoaSchemaVersao,nome,nascimento,mae,pessoaId,registroId,
             JsonSerializer.Serialize(manifest,DevConsoleJson.Pretty),
             JsonSerializer.Serialize(pessoa,DevConsoleJson.Compact),
             JsonSerializer.Serialize(registro,DevConsoleJson.Compact));
