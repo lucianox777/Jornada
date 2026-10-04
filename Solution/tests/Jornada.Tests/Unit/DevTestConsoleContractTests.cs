@@ -281,14 +281,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(compose,Does.Contain("test-access-keys.json:/opt/jornada/config/security/test-access-keys.json:ro"));
             Assert.That(compose,Does.Contain("[reference-bootstrap] Iniciando ENSURE_NAME_FREQUENCY_SNAPSHOT"));
             Assert.That(compose,Does.Not.Contain("LinkageParameters__Operation=ENSURE_IBGE_NOMINAL_U_REFERENCE dotnet"));
-            Assert.That(clusterConfig,Does.Contain("\"component\":\"LinkageRunner\""));
-            Assert.That(clusterConfig,Does.Contain("\"nodes\":[\"NODE2\"]"));
-            Assert.That(clusterConfig,Does.Contain("\"--mode\",\"INCREMENTAL\""));
-            Assert.That(clusterConfig,Does.Contain("\"LinkageRunner__PollingSeconds\": \"5\""));
-            Assert.That(entrypoint,Does.Contain("LinkageRunner) echo"));
+            Assert.That(clusterConfig,Does.Not.Contain("\"component\":\"LinkageRunner\""));
+            Assert.That(compose,Does.Contain("JORNADA_DEV_LINKAGE_RUNNER_LOOP"));
+            Assert.That(compose,Does.Contain("LinkageRunner__PollingSeconds"));
+            Assert.That(entrypoint,Does.Contain("JORNADA_DEV_LINKAGE_RUNNER_LOOP"));
             Assert.That(entrypoint,Does.Contain("while true; do"));
-            Assert.That(clusterConfig,Does.Contain("DEV_RESIDENT_RUNNER"));
-            Assert.That(entrypoint,Does.Contain("(.nodes // [])"));
+            Assert.That(entrypoint,Does.Contain("--mode INCREMENTAL"));
+            Assert.That(entrypoint,Does.Contain("DEV_RESIDENT_RUNNER"));
             Assert.That(bootstrap,Does.Contain("restore $Solution --locked-mode"));
             Assert.That(bootstrap,Does.Contain("build $Solution --no-restore"));
 
