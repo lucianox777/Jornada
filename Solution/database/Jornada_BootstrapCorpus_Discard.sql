@@ -81,20 +81,17 @@ FROM identidade.pessoa_origem_progressiva p
 JOIN #origin o ON o.pessoa_origem_id=p.pessoa_origem_id
 WHERE p.initial_uuid IS NOT NULL
 UNION
-SELECT p.canonical_uuid
-FROM identidade.pessoa_origem_progressiva p
-JOIN #origin o ON o.pessoa_origem_id=p.pessoa_origem_id
-WHERE p.canonical_uuid IS NOT NULL
-UNION
 SELECT p.legacy_pessoa_uuid
 FROM identidade.pessoa_origem_progressiva p
 JOIN #origin o ON o.pessoa_origem_id=p.pessoa_origem_id
-WHERE p.legacy_pessoa_uuid IS NOT NULL
-UNION
-SELECT p.ultimo_destino_externo_uuid
-FROM identidade.pessoa_origem_progressiva p
-JOIN #origin o ON o.pessoa_origem_id=p.pessoa_origem_id
-WHERE p.ultimo_destino_externo_uuid IS NOT NULL;
+WHERE p.legacy_pessoa_uuid IS NOT NULL;
+
+IF EXISTS(
+    SELECT 1
+    FROM identidade.vinculo_fonte vf
+    WHERE vf.pessoa_uuid IN(SELECT pessoa_uuid FROM #person)
+      AND vf.pessoa_observacao_id NOT IN(SELECT pessoa_observacao_id FROM #observation))
+    THROW 51948,'Identidade do corpus de bootstrap também está vinculada a observação não-bootstrap; descarte recusado.',1;
 
 DECLARE @originCount BIGINT=(SELECT COUNT_BIG(*) FROM #origin);
 DECLARE @observationCount BIGINT=(SELECT COUNT_BIG(*) FROM #observation);
