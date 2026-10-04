@@ -35,6 +35,8 @@ public sealed class DevTestConsoleContractTests
         var lifecycleScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","bootstrap-corpus-lifecycle.ps1"));
         var lifecycleSql=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_BootstrapCorpus_Discard.sql"));
         var compose=File.ReadAllText(Path.Combine(root,"Solution","docker-compose.yml"));
+        var processorProgram=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.Processor.Worker","Program.cs"));
+        var containerEntrypoint=File.ReadAllText(Path.Combine(root,"Solution","install","container-test","entrypoint.sh"));
 
         Assert.Multiple(()=>{
             Assert.That(program,Does.Contain("/api/commands/{command}/start"));
@@ -78,18 +80,19 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Not.Contain("new(\"active-config-editor\""));
             Assert.That(runtime,Does.Contain("Visible=false"));
             Assert.That(program,Does.Contain("CommandCatalog.All.Where(x=>x.Visible)"));
+            Assert.That(program,Does.Contain("x.Surface,x.Stage"));
             Assert.That(program,Does.Contain("\"zip\"=>counts.GetValueOrDefault(\"zip\")+counts.GetValueOrDefault(\"ingestion\")+counts.GetValueOrDefault(\"pipeline-status\")"));
             Assert.That(program,Does.Contain("\"linkage\"=>counts.GetValueOrDefault(\"linkage\")+counts.GetValueOrDefault(\"replay\")"));
             Assert.That(program,Does.Contain("\"gold-synthetic\"=>counts.GetValueOrDefault(\"gold-synthetic\")+counts.GetValueOrDefault(\"blocking\")"));
             Assert.That(program,Does.Contain("\"configuration\"=>counts.GetValueOrDefault(\"contract-bundle\")"));
             Assert.That(runtime.IndexOf("new(\"infrastructure\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"zip\"",StringComparison.Ordinal)));
-            Assert.That(runtime.IndexOf("new(\"zip\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"semiblind\"",StringComparison.Ordinal)));
-            Assert.That(runtime.IndexOf("new(\"semiblind\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"linkage\"",StringComparison.Ordinal)));
-            Assert.That(runtime.IndexOf("new(\"linkage\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"configuration\"",StringComparison.Ordinal)));
-            Assert.That(runtime.IndexOf("new(\"configuration\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"gold-synthetic\"",StringComparison.Ordinal)));
-            Assert.That(runtime.IndexOf("new(\"gold-synthetic\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"calibration\"",StringComparison.Ordinal)));
-            Assert.That(runtime.IndexOf("new(\"calibration\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"system-status\"",StringComparison.Ordinal)));
-            Assert.That(runtime.IndexOf("new(\"system-status\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"finish\"",StringComparison.Ordinal)));
+            Assert.That(runtime.IndexOf("new(\"zip\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"bronze\"",StringComparison.Ordinal)));
+            Assert.That(runtime.IndexOf("new(\"bronze\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"silver\"",StringComparison.Ordinal)));
+            Assert.That(runtime.IndexOf("new(\"silver\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"linkage\"",StringComparison.Ordinal)));
+            Assert.That(runtime.IndexOf("new(\"linkage\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"gold\"",StringComparison.Ordinal)));
+            Assert.That(runtime.IndexOf("new(\"gold\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"finish\"",StringComparison.Ordinal)));
+            Assert.That(runtime,Does.Contain("Surface=\"tools\""));
+            Assert.That(runtime,Does.Contain("Stage=\"Verificações\""));
             Assert.That(runtime,Does.Contain("-ZipPath"));
             Assert.That(runtime,Does.Contain("manual-zip"));
             Assert.That(runtime,Does.Contain("sessionStartedAt=DateTimeOffset.UtcNow"));
@@ -120,8 +123,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("Path.GetExtension(path)"));
             Assert.That(runtime,Does.Contain("!string.Equals(Path.GetExtension(path),\".json\""));
 
+            Assert.That(page,Does.Contain("🧰 Ferramentas"));
             Assert.That(page,Does.Contain("🕘 Execuções"));
-            Assert.That(page,Does.Contain("Console DEV / Comandos"));
+            Assert.That(page,Does.Contain("Console DEV / Fluxo do dado"));
+            Assert.That(page,Does.Contain("Ferramentas de verificação e administração"));
             Assert.That(page,Does.Contain("Execução / "));
             Assert.That(page,Does.Contain("const breadcrumb=document.getElementById('breadcrumb')"));
             Assert.That(page,Does.Contain("item.stream??item.Stream??'system'"));
@@ -140,6 +145,11 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("Reenviar último"));
             Assert.That(page,Does.Contain("pipeline-status"));
             Assert.That(page,Does.Contain("Ver status da última ingestão"));
+            Assert.That(page,Does.Contain("Processar Bronze → Silver"));
+            Assert.That(page,Does.Contain("Visualizar Silver"));
+            Assert.That(page,Does.Contain("Verificar integridade"));
+            Assert.That(page,Does.Contain("Executar Linkage Runner"));
+            Assert.That(page,Does.Contain("Visualizar identidade"));
             Assert.That(page,Does.Contain("Executar replay do último run"));
             Assert.That(page,Does.Contain("Reconstruir blocking"));
             Assert.That(page,Does.Contain("Contratos e configurações"));
@@ -168,14 +178,17 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localDb,Does.Contain("Aguardando Docker Engine"));
             Assert.That(localDb,Does.Contain("Docker Engine pronto"));
             Assert.That(runtime,Does.Contain("modelo BOOTSTRAP inicial ATIVO, configuração inicial e bundle de contratos/configurações"));
-            Assert.That(runtime,Does.Contain("Em DEV, a subida processa o corpus inicial, calibra o modelo e publica/preserva o domínio sintético na Gold; não ficam registros de bootstrap pendentes."));
-            Assert.That(runtime,Does.Contain("A preparação DEV já processa/publica a Gold sintética inicial e garante o modelo BOOTSTRAP ATIVO."));
+            Assert.That(runtime,Does.Contain("o Processor residente fica suspenso"));
+            Assert.That(runtime,Does.Contain("A Console DEV desabilita o Processor residente"));
             Assert.That(runtime,Does.Contain("Environment.SpecialFolder.LocalApplicationData"));
             Assert.That(runtime,Does.Contain("Path.Combine(local,\"Jornada\",\"DevConsole\")"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action system-status"));
             Assert.That(runtime,Does.Contain("Estado geral do sistema"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action ingest-latest"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action pipeline-status"));
+            Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action bronze-verify-latest"));
+            Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action process-latest"));
+            Assert.That(runtime,Does.Contain("Jornada.Processor.Worker"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action blocking"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action calibrate"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action linkage"));
@@ -198,7 +211,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("Consulta semicega"));
             Assert.That(runtime,Does.Contain("SemiblindDevService"));
             Assert.That(runtime,Does.Contain("JornadaSyntheticDev"));
-            Assert.That(runtime,Does.Contain("A carga incremental reconstrói o blocking automaticamente."));
+            Assert.That(runtime,Does.Contain("reconstrói blocking automaticamente"));
 
             Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
             Assert.That(goldScript,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
@@ -334,7 +347,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("somente para as observações elegíveis da última entrega enviada pela Console DEV"));
             Assert.That(runtime,Does.Contain("O backlog sintético global permanece intacto"));
             Assert.That(runtime,Does.Contain("[\"infrastructure\",\"zip\"]"));
-            Assert.That(page,Does.Contain("A tela mostra somente operações reais"));
+            Assert.That(page,Does.Contain("Fluxo do dado"));
             Assert.That(page,Does.Contain("Pré-requisitos:"));
             Assert.That(page,Does.Contain("dependencyNote"));
             Assert.That(page,Does.Contain("Formulário HTML"));
@@ -356,6 +369,20 @@ public sealed class DevTestConsoleContractTests
             Assert.That(devEnv,Does.Contain("JornadaSyntheticDev"));
             Assert.That(devEnv,Does.Contain("JORNADA_LOCAL_SYNTHETIC_PEOPLE"));
             Assert.That(devEnv,Does.Contain("30000"));
+            Assert.That(devEnv,Does.Contain("JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR"));
+            Assert.That(compose,Does.Contain("JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR"));
+            Assert.That(containerEntrypoint,Does.Contain("SKIP $name (Processor): modo didático manual da Console DEV"));
+            Assert.That(containerEntrypoint,Does.Contain("JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR"));
+            Assert.That(processorProgram,Does.Contain("PROCESS_UNTIL_IDLE"));
+            Assert.That(processorProgram,Does.Contain("Processor one-shot concluído"));
+            Assert.That(processorProgram,Does.Contain("processed >= 10_000"));
+            Assert.That(opsScript,Does.Contain("'bronze-verify-latest'"));
+            Assert.That(opsScript,Does.Contain("--entrega-id"));
+            Assert.That(opsScript,Does.Contain("last-bronze-verify.json"));
+            Assert.That(opsScript,Does.Contain("'process-latest'"));
+            Assert.That(opsScript,Does.Contain("Processor__Operation=PROCESS_UNTIL_IDLE"));
+            Assert.That(opsScript,Does.Contain("Existem $otherPending lote(s) pendentes de outras Entregas"));
+            Assert.That(opsScript,Does.Contain("Execute primeiro 'Processar Bronze → Silver'"));
             Assert.That(lifecycleScript,Does.Contain("Development','Homologation','Production"));
             Assert.That(lifecycleScript,Does.Contain("Homologation/Production exigem -EnvFile explícito"));
             Assert.That(lifecycleScript,Does.Contain("Jornada_BootstrapCorpus_Discard.sql"));
