@@ -60,7 +60,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .dialog-head{padding:14px 18px;border-bottom:1px solid #dde2e8;display:flex;justify-content:space-between;align-items:center}
 .dialog-body{padding:16px 18px;max-height:70vh;overflow:auto}
 .dialog-body label{display:block;font-weight:700;margin:12px 0 5px}
-.dialog-body input,.dialog-body textarea{width:100%;padding:8px;border:1px solid #cbd3dc;border-radius:6px;font:13px ui-monospace,SFMono-Regular,Consolas,monospace}
+.dialog-body input,.dialog-body textarea,.dialog-body select{width:100%;padding:8px;border:1px solid #cbd3dc;border-radius:6px;font:13px ui-monospace,SFMono-Regular,Consolas,monospace}
 .dialog-body textarea{min-height:110px}.tabs{display:flex;gap:8px;margin:10px 0}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.form-grid label{margin:0}.form-grid input,.form-grid select{width:100%;padding:8px;border:1px solid #cbd3dc;border-radius:6px}.artifact-list{margin-top:10px;display:grid;gap:6px}.artifact-item{padding:8px 10px;border:1px solid #d9dee5;border-radius:6px;background:#fafafa;overflow-wrap:anywhere}@media(max-width:700px){.form-grid{grid-template-columns:1fr}}
 .dialog-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #dde2e8}
 table{border-collapse:collapse;width:100%;font-size:13px}
@@ -121,6 +121,20 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
     <div id="contractMessage" class="small"></div>
   </div>
   <div class="dialog-actions"><button class="secondary" type="button" onclick="contractDialog.close()">Cancelar</button><button class="primary" type="button" onclick="saveContractFile()">Validar e salvar</button></div>
+</dialog>
+
+<dialog id="activeConfigDialog">
+  <div class="dialog-head"><strong>Configurações JSON ativas</strong><button class="secondary" type="button" onclick="activeConfigDialog.close()">Fechar</button></div>
+  <div class="dialog-body">
+    <p>Mostra o arquivo fonte e os caminhos efetivos usados pelo ambiente. Edite pela visão amigável ou pelo JSON bruto.</p>
+    <label>Arquivo<select id="activeConfigPath" onchange="loadActiveConfig()"></select></label>
+    <div id="activeConfigPaths" class="result-box"></div>
+    <div class="tabs"><button class="secondary" type="button" onclick="setActiveConfigMode('friendly')">Visualização amigável</button><button class="secondary" type="button" onclick="setActiveConfigMode('raw')">JSON bruto</button></div>
+    <div id="activeConfigFriendly"></div>
+    <div id="activeConfigRaw" class="hidden"><label>JSON<textarea id="activeConfigContent" style="min-height:42vh"></textarea></label></div>
+    <div id="activeConfigMessage" class="small"></div>
+  </div>
+  <div class="dialog-actions"><button class="secondary" type="button" onclick="activeConfigDialog.close()">Cancelar</button><button class="primary" type="button" onclick="saveActiveConfig()">Validar e salvar</button></div>
 </dialog>
 
 <dialog id="zipDialog">
@@ -243,13 +257,13 @@ async function loadCommands(){
   commandsCache=await api('/api/commands');
   const titleById=Object.fromEntries(commandsCache.map(x=>[x.id,x.title]));
   commands.innerHTML=commandsCache.map(c=>{
-    const label=c.id==='zip'?'Preencher dados':c.id==='semiblind'?'Consultar':c.id==='contract-editor'?'Abrir':'Executar';
+    const label=c.id==='zip'?'Preencher dados':c.id==='semiblind'?'Consultar':(c.id==='contract-editor'||c.id==='active-config-editor')?'Abrir':'Executar';
     const buttonClass=c.id==='finish'?'danger':'primary';
     const deps=(c.dependencies||[]).map(id=>titleById[id]||id);
     const dependency=deps.length||c.dependencyNote
       ?'<div class="dependency"><b>Pré-requisitos:</b> '+(deps.length?deps.map(esc).join(' → '):'nenhum obrigatório')+(c.dependencyNote?'<span class="dep-note">'+esc(c.dependencyNote)+'</span>':'')+'</div>'
       :'';
-    const action=c.id==='zip'?'openZipDialog()':c.id==='semiblind'?'openSemiblindDialog()':c.id==='contract-editor'?'openContractDialog()':"startCommand('"+c.id+"')";
+    const action=c.id==='zip'?'openZipDialog()':c.id==='semiblind'?'openSemiblindDialog()':c.id==='contract-editor'?'openContractDialog()':c.id==='active-config-editor'?'openActiveConfigDialog()':"startCommand('"+c.id+"')";
     return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span><button class="'+buttonClass+'" type="button" onclick="'+action+'">'+label+'</button></div></div></div>'
   }).join('');
 }
@@ -286,6 +300,82 @@ async function saveContractFile(){
     const file=await api('/api/contracts/file',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:contractPath.value,content:contractContent.value})});
     contractMessage.textContent='Salvo: '+file.path;
   }catch(e){contractMessage.textContent='Não foi salvo: '+e.message}
+}
+
+let activeConfigObject=null;
+let activeConfigMode='friendly';
+
+async function openActiveConfigDialog(){
+  activeConfigDialog.showModal();
+  activeConfigMessage.textContent='Carregando configurações...';
+  try{
+    const files=await api('/api/config/active');
+    activeConfigPath.innerHTML=files.map(f=>'<option value="'+esc(f.path)+'">'+esc(f.path)+'</option>').join('');
+    if(files.length)await loadActiveConfig();else activeConfigMessage.textContent='Nenhuma configuração JSON ativa encontrada.';
+  }catch(e){activeConfigMessage.textContent='Falha: '+e.message}
+}
+
+async function loadActiveConfig(){
+  if(!activeConfigPath.value)return;
+  activeConfigMessage.textContent='Carregando...';
+  try{
+    const file=await api('/api/config/active/file?path='+encodeURIComponent(activeConfigPath.value));
+    activeConfigObject=JSON.parse(file.content);
+    activeConfigContent.value=JSON.stringify(activeConfigObject,null,2);
+    const runtime=(file.runtimePaths||[]).length?(file.runtimePaths||[]).map(esc).join('<br>'):'sem caminho de container; consumido do checkout/processo';
+    activeConfigPaths.innerHTML='<b>Arquivo fonte:</b> <code>'+esc(file.fullPath)+'</code><br><b>Caminho relativo:</b> <code>'+esc(file.path)+'</code><br><b>Runtime:</b> <code>'+runtime+'</code><br><b>Aplicação:</b> '+(file.restartRequired?'exige reinício/recriação do serviço':'arquivo lido diretamente ou aplicado pelo fluxo correspondente');
+    renderActiveConfigFriendly();
+    setActiveConfigMode('friendly');
+    activeConfigMessage.textContent='JSON válido.';
+  }catch(e){activeConfigMessage.textContent='Falha: '+e.message}
+}
+
+function activeLeaves(value,path=[],out=[]){
+  if(value!==null&&typeof value==='object'){
+    if(Array.isArray(value))value.forEach((v,i)=>activeLeaves(v,path.concat(i),out));
+    else Object.keys(value).forEach(k=>activeLeaves(value[k],path.concat(k),out));
+  }else out.push({path,value});
+  return out;
+}
+
+function renderActiveConfigFriendly(){
+  const leaves=activeLeaves(activeConfigObject);
+  activeConfigFriendly.innerHTML=leaves.length?'<table><thead><tr><th>Chave</th><th>Valor</th><th>Tipo</th></tr></thead><tbody>'+leaves.map((x,i)=>'<tr><td><code>'+esc(x.path.join('.'))+'</code></td><td><input data-config-index="'+i+'" value="'+esc(x.value===null?'null':x.value)+'" onchange="updateActiveConfigLeaf('+i+',this.value)"></td><td>'+esc(x.value===null?'null':typeof x.value)+'</td></tr>').join('')+'</tbody></table>':'<div class="small">JSON sem valores escalares.</div>';
+}
+
+function updateActiveConfigLeaf(index,text){
+  const leaf=activeLeaves(activeConfigObject)[index];
+  if(!leaf)return;
+  let value=text;
+  if(leaf.value===null)value=text==='null'?null:text;
+  else if(typeof leaf.value==='number'){const n=Number(text);if(!Number.isNaN(n))value=n}
+  else if(typeof leaf.value==='boolean')value=String(text).toLowerCase()==='true';
+  let target=activeConfigObject;
+  for(let i=0;i<leaf.path.length-1;i++)target=target[leaf.path[i]];
+  target[leaf.path[leaf.path.length-1]]=value;
+  activeConfigContent.value=JSON.stringify(activeConfigObject,null,2);
+}
+
+function setActiveConfigMode(mode){
+  activeConfigMode=mode;
+  if(mode==='friendly'){
+    try{activeConfigObject=JSON.parse(activeConfigContent.value);renderActiveConfigFriendly()}catch(e){activeConfigMessage.textContent='JSON inválido: '+e.message;return}
+  }
+  activeConfigFriendly.classList.toggle('hidden',mode!=='friendly');
+  activeConfigRaw.classList.toggle('hidden',mode!=='raw');
+}
+
+async function saveActiveConfig(){
+  activeConfigMessage.textContent='Validando e salvando...';
+  try{
+    if(activeConfigMode==='raw')activeConfigObject=JSON.parse(activeConfigContent.value);
+    const content=JSON.stringify(activeConfigObject,null,2);
+    const file=await api('/api/config/active/file',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:activeConfigPath.value,content})});
+    activeConfigContent.value=file.content;
+    activeConfigObject=JSON.parse(file.content);
+    renderActiveConfigFriendly();
+    activeConfigMessage.textContent='Salvo: '+file.path+(file.restartRequired?' · reinicie/recrie o serviço para aplicar.':'');
+  }catch(e){activeConfigMessage.textContent='Não foi salvo: '+e.message}
 }
 
 async function openSemiblindDialog(){
@@ -500,6 +590,7 @@ function toggleRecords(){recordsPanel.classList.toggle('hidden')}
 
 async function rerun(){
   if(currentCommandId==='zip'){await openZipDialog();return}
+  if(currentCommandId==='active-config-editor'){await openActiveConfigDialog();return}
   await startCommand(currentCommandId);
 }
 
