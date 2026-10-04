@@ -5,6 +5,7 @@ builder.Services.AddSingleton<RunStore>();
 builder.Services.AddSingleton<LiveExecutionService>();
 builder.Services.AddSingleton<GoldZipTemplateService>();
 builder.Services.AddSingleton<SemiblindDevService>();
+builder.Services.AddSingleton<ContractFileService>();
 
 var app=builder.Build();
 
@@ -50,6 +51,14 @@ app.MapPost("/api/semiblind/search",async(SemiblindDevRequest request,SemiblindD
         return Results.Text(result.Json,"application/json; charset=utf-8",statusCode:result.StatusCode);
     }
     catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
+});
+
+app.MapGet("/api/contracts",(ContractFileService service)=>Results.Ok(service.List()));
+app.MapGet("/api/contracts/file",async(string path,ContractFileService service,CancellationToken ct)=>{
+    try{return Results.Ok(await service.GetAsync(path,ct));}catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
+});
+app.MapPut("/api/contracts/file",async(ContractSaveRequest request,ContractFileService service,CancellationToken ct)=>{
+    try{return Results.Ok(await service.SaveAsync(request,ct));}catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
 });
 
 app.MapPost("/api/zip/manual/start",(ManualZipRequest request,LiveExecutionService live)=>{
