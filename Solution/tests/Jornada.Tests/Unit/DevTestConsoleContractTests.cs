@@ -43,6 +43,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("/api/runs/{id:guid}/artifacts/{index:int}"));
             Assert.That(program,Does.Contain("/api/semiblind/template"));
             Assert.That(program,Does.Contain("/api/semiblind/search"));
+            Assert.That(program,Does.Contain("/api/contracts/file"));
+            Assert.That(program,Does.Contain("ContractFileService"));
             Assert.That(program,Does.Contain("FriendlyJsonHtml.Render"));
             Assert.That(friendlyHtml,Does.Contain(".grid{display:grid"));
             Assert.That(friendlyHtml,Does.Contain(".table-wrap{overflow:auto"));
@@ -62,6 +64,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("dev-console-gold-synthetic.ps1"));
             Assert.That(runtime,Does.Contain("build-ingestion-fixture.py"));
             Assert.That(runtime,Does.Contain("Gerar e enviar ZIP de ingestão"));
+            Assert.That(runtime,Does.Contain("Ver/alterar contratos de ingestão"));
+            Assert.That(runtime.IndexOf("contract-editor",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"zip\"",StringComparison.Ordinal)));
             Assert.That(runtime,Does.Contain("-ZipPath"));
             Assert.That(runtime,Does.Contain("manual-zip"));
             Assert.That(runtime,Does.Contain("sessionStartedAt=DateTimeOffset.UtcNow"));
@@ -240,6 +244,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Not.Contain("Visualizar JSON em HTML"));
             Assert.That(page,Does.Contain("Arquivos gerados:"));
             Assert.That(page,Does.Contain("Consulta semicega · DEV sintético"));
+            Assert.That(page,Does.Contain("Contratos de ingestão"));
+            Assert.That(page,Does.Contain("Validar e salvar"));
+            Assert.That(page,Does.Contain("openContractDialog()"));
             Assert.That(page,Does.Contain("Usar exemplo da Gold sintética"));
             Assert.That(devEnv,Does.Contain("JornadaSyntheticDev"));
             Assert.That(devEnv,Does.Contain("JORNADA_LOCAL_SYNTHETIC_PEOPLE"));
