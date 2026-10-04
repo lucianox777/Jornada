@@ -50,6 +50,10 @@ SELECT pessoa_origem_id FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIK
 
 IF NOT EXISTS(SELECT 1 FROM #origin)
 BEGIN
+    IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BootstrapCorpusLifecycle')
+        EXEC sys.sp_updateextendedproperty @name=N'Jornada.BootstrapCorpusLifecycle',@value=N'DISCARDED';
+    ELSE
+        EXEC sys.sp_addextendedproperty @name=N'Jornada.BootstrapCorpusLifecycle',@value=N'DISCARDED';
     SELECT @residentProfile AS environment_profile,@modelId AS active_model_id,@modelVersion AS active_model_version,
            CAST(0 AS BIGINT) AS bootstrap_origins_removed,N'ALREADY_DISCARDED' AS lifecycle_status;
     RETURN;
