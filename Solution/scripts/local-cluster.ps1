@@ -77,8 +77,13 @@ function Show-ComposeFailureDiagnostics {
     }
 
     Write-Host ''
-    Write-Host '--- Logs do jornada-reference-bootstrap (últimas 200 linhas) ---'
-    try { & docker compose --env-file $EnvFile logs --no-color --tail 200 jornada-reference-bootstrap } catch {}
+    if($Context -match '(?i)bootstrap|referência|reference'){
+        Write-Host '--- Logs do jornada-reference-bootstrap (últimas 200 linhas) ---'
+        try { & docker compose --env-file $EnvFile logs --no-color --tail 200 jornada-reference-bootstrap } catch {}
+    }else{
+        Write-Host '--- Logs do jornada-node2 (últimas 200 linhas) ---'
+        try { & docker compose --env-file $EnvFile logs --no-color --tail 200 jornada-node2 } catch {}
+    }
     Write-Host '=== Fim do diagnóstico automático ==='
     Write-Host ''
 }
@@ -151,8 +156,11 @@ function Invoke-SqlReport([string]$Query) {
 }
 
 function Invoke-Node2 {
-    param([Parameter(Mandatory=$true)][string[]]$Command)
-    Invoke-Compose -ComposeArgs (@('exec','-T','jornada-node2') + $Command)
+    param(
+        [Parameter(Mandatory=$true)][string[]]$Command,
+        [string]$Context='execução one-shot no NODE2'
+    )
+    Invoke-Compose -ComposeArgs (@('exec','-T','jornada-node2') + $Command) -Context $Context
 }
 
 function Ensure-LocalBlockingProjection {
@@ -435,7 +443,7 @@ function Invoke-Linkage {
     $version = Get-SqlScalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;"
     $modelId = Get-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;"
     Write-Host "Executando linkage com modelo calibrado ATIVO v$version / ModeloId=$modelId."
-    Invoke-Node2 -Command @('dotnet','/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll','--mode','ON_DEMAND','--publish','true','--requested-by','LOCAL_CLUSTER','--reason','manual-local-cluster')
+    Invoke-Node2 -Context 'execução/publicação do linkage' -Command @('dotnet','/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll','--mode','ON_DEMAND','--publish','true','--requested-by','LOCAL_CLUSTER','--reason','manual-local-cluster')
 }
 
 function Show-LinkageDiagnosis {
