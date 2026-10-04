@@ -147,8 +147,8 @@ jobs:
           docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/tools/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.dll --help >/dev/null
           running=$(docker compose --env-file .env exec -T jornada-node2 sh -lc "ps -ef | grep -E 'Jornada.Linkage.Parameters.Worker|Jornada.Bronze.Verify|Jornada.Linkage.Evaluation' | grep -v grep || true")
           test -z "$running"
-          docker compose --env-file .env exec -T jornada-node2 sh -lc "pgrep -af 'Jornada.Linkage.Runner.dll' >/dev/null"
-          if docker compose --env-file .env exec -T jornada-node1 sh -lc "pgrep -af 'Jornada.Linkage.Runner.dll' >/dev/null"; then
+          docker compose --env-file .env exec -T jornada-node2 sh -lc "pgrep -af '[J]ornada.Linkage.Runner.dll' >/dev/null"
+          if docker compose --env-file .env exec -T jornada-node1 sh -lc "pgrep -af '[J]ornada.Linkage.Runner.dll' >/dev/null"; then
             echo 'Linkage Runner DEV deve ser residente somente no NODE2.'
             exit 1
           fi
