@@ -93,12 +93,18 @@ else
             Console.WriteLine(
                 $"Artefato portátil IBGE nominal u não encontrado; executando Monte Carlo determinístico completo " +
                 $"uma vez (seed={seed}; pares={pairs}).");
-            _ = await IbgeNominalUReferenceStore.EnsureAsync(
-                referenceConnection, reference, "TODOS",
-                new IbgeNominalUBootstrapOptions(seed, pairs), CancellationToken.None);
-            _ = await IbgeNominalUReferenceStore.EnsureAsync(
-                referenceConnection, reference, "FEMININO",
-                new IbgeNominalUBootstrapOptions(unchecked(seed + 1), pairs), CancellationToken.None);
+            _ = await AwaitWithHeartbeatAsync(
+                IbgeNominalUReferenceStore.EnsureAsync(
+                    referenceConnection, reference, "TODOS",
+                    new IbgeNominalUBootstrapOptions(seed, pairs), CancellationToken.None),
+                "Monte Carlo IBGE NOME",
+                TimeSpan.FromSeconds(15));
+            _ = await AwaitWithHeartbeatAsync(
+                IbgeNominalUReferenceStore.EnsureAsync(
+                    referenceConnection, reference, "FEMININO",
+                    new IbgeNominalUBootstrapOptions(unchecked(seed + 1), pairs), CancellationToken.None),
+                "Monte Carlo IBGE NOME_MAE",
+                TimeSpan.FromSeconds(15));
         }
 
         var person = await IbgeNominalUReferenceStore.RequireAsync(
@@ -199,4 +205,20 @@ static async Task RunHostWithHeartbeatAsync(IHost host, string activity, TimeSpa
     }
 
     await runTask;
+}
+
+static async Task<T> AwaitWithHeartbeatAsync<T>(Task<T> task, string activity, TimeSpan interval)
+{
+    var startedAt = DateTimeOffset.UtcNow;
+    while (!task.IsCompleted)
+    {
+        var completed = await Task.WhenAny(task, Task.Delay(interval));
+        if (completed == task)
+            break;
+
+        var elapsed = DateTimeOffset.UtcNow - startedAt;
+        Console.WriteLine($"{activity} em andamento há {elapsed.TotalSeconds:N0}s; processo ativo, aguarde...");
+    }
+
+    return await task;
 }
