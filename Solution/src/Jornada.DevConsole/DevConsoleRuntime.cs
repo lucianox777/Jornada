@@ -5,13 +5,13 @@ using System.Text.Json;
 
 sealed record CommandDefinition(string Id,string Title,string Description,string? File,string? Arguments,string? ResultPath,string[] Dependencies,string? DependencyNote)
 {
-    public bool Implemented=>File is not null||Id is "zip" or "semiblind" or "contract-editor" or "active-config-editor";
+    public bool Visible{get;init;}=true;
+    public bool Implemented=>File is not null||Id is "zip" or "semiblind" or "configuration";
     public string? CommandLine=>File is null?null:$"{File} {Arguments}";
     public string DisplayCommand=>Id switch{
         "zip"=>"Entrada manual → build-ingestion-fixture.py → POST /api/v1/ingestao/entregas",
         "semiblind"=>"POST /api/v1/identidade/candidatos (DEV sintético)",
-        "contract-editor"=>"config/contracts/**/*.json",
-        "active-config-editor"=>"config/**/*.json + install/windows-production/Jornada.Cluster.Test.json",
+        "configuration"=>"config/contracts/**/*.json + config/**/*.json + install/windows-production/Jornada.Cluster.Test.json",
         _=>CommandLine??"Operação parametrizada pela interface."
     };
 }
@@ -30,26 +30,27 @@ static class DevConsoleJson
 
 static class CommandCatalog
 {
-    // Cada ação é independente. Quando necessário, o próprio comando garante suas dependências locais.
+    // A ordem segue o uso operacional: preparação e uso frequente; alterações/recalibração;
+    // diagnóstico; encerramento. Ações auxiliares permanecem executáveis, mas não ocupam
+    // um cartão próprio quando fazem parte de uma operação de nível superior.
     public static readonly CommandDefinition[] All=[
         new("infrastructure","Subir infraestrutura, referências e bootstrap","Sobe o ambiente DEV completo: Docker, SQL Server, schema, NAS, referência IBGE, NODE1/NODE2 e garante o modelo BOOTSTRAP inicial ATIVO. Também gera a configuração inicial em JSON e HTML.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null),
-        new("system-status","Estado geral do sistema","Diagnóstico read-only consolidado: status/health da infraestrutura (serviços Docker e init one-shot de referência), containers/readiness, SQL/schema, referência IBGE, modelo ATIVO, Processor e disponibilidade/estado dos runners.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action system-status",null,["infrastructure"],"Inclui o antigo Status/health da infraestrutura. Runners de calibração/linkage permanecem one-shot; este comando apenas reporta o estado."),
-        new("gold-synthetic","Adicionar mais 5.000 registros","Adiciona 5.000 novas pessoas à Gold sintética existente, preservando a base inicial de 30.000; execuções sucessivas expandem 30k → 35k → 40k, sem reset.","pwsh","-NoProfile -File scripts/dev-console-gold-add.ps1 -AdditionalPeople 5000",".local/dev-console/gold-synthetic-add.json",["infrastructure"],"A infraestrutura já materializa a Gold sintética inicial de 30.000 pessoas. Este comando é estritamente incremental e reconstrói o blocking após a expansão."),
         new("contract-bundle","Gerar bundle de contratos e configurações","Gera um ZIP operacional sem binários com OpenAPI, contratos JSON, configurações governadas e metadados do modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-contract-bundle.ps1",".local/dev-console/contract-config-bundle.zip",["infrastructure"],"A infraestrutura garante o BOOTSTRAP inicial ATIVO; o bundle sempre se vincula ao modelo ATIVO corrente."),
-        new("contract-editor","Ver/alterar contratos de ingestão","Abre os arquivos JSON reais em config/contracts para consulta e edição validada antes da ingestão.",null,null,null,[], "Alterações são locais ao checkout DEV; o JSON é validado antes de salvar."),
-        new("active-config-editor","Ver/editar configurações ativas","Mostra os JSON de configuração usados pelo ambiente DEV, seus caminhos no checkout/runtime e permite edição em visão amigável ou JSON bruto.",null,null,null,[], "O caminho efetivo é exibido; alterações que exigem reinício são sinalizadas."),
-        new("zip","Gerar e enviar ZIP de ingestão","Abre a entrada manual, gera o ZIP real e o envia na mesma execução para a API de ingestão em NODE1.",null,null,null,["contract-bundle"],"Usa exatamente o ZIP recém-gerado; o bundle de contratos/configurações continua sendo validado antes do envio."),
-        new("ingestion","Reenviar último ZIP para ingestão","Reenvia manualmente o último ZIP já gerado para a API real em NODE1 usando a credencial sintética DEV correspondente ao Gestor.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest",".local/dev-console/last-ingestion.json",["contract-bundle","zip"],"Rotina de repetição/diagnóstico; o comando Gerar e enviar ZIP já faz o envio normal."),
-        new("pipeline-status","Ver status da última ingestão","Consulta o recibo da última Entrega. Bronze, Silver, identidade e Gold são processados pelo Processor residente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action pipeline-status",".local/dev-console/last-ingestion-status.json",["zip"],"Gerar e enviar ZIP já produz o recibo usado por esta consulta."),
-        new("bronze-verify","Verificar Bronze","Executa Jornada.Bronze.Verify no NODE2 contra as referências Bronze persistidas.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action bronze-verify",null,["zip"],"Pode ser executado antes, mas só terá conteúdo útil depois de uma ingestão."),
-        new("blocking","Reconstruir blocking","Executa manualmente a reconstrução one-shot da projeção local de blocking. A calibração também garante blocking, mas este comando é útil para diagnóstico/rebuild isolado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action blocking",null,["gold-synthetic"],"Requer Gold disponível; pode ser Gold sintética ou real."),
-        new("calibration","Recalibrar e ativar","Executa novo ciclo GENERATE_DRAFT → conferência → VALIDATE → ACTIVATE sobre uma Gold já existente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate",null,["infrastructure","gold-synthetic"],"A infraestrutura já garante o BOOTSTRAP inicial ATIVO; use este comando somente para gerar deliberadamente uma nova versão do modelo."),
-        new("linkage","Executar linkage","Executa o Jornada.Linkage.Runner real no NODE2 usando o modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action linkage",null,["infrastructure"],"A infraestrutura garante o BOOTSTRAP inicial ATIVO; uma recalibração posterior pode substituir esse modelo."),
+        new("zip","Ingestão","Cria e envia uma nova entrega. No mesmo cartão também é possível acompanhar a última ingestão ou reenviar o último ZIP, sem misturar essas ações com administração interna do sistema.",null,null,null,["contract-bundle"],"O bundle de contratos/configurações é um pré-requisito separado e deve estar válido antes do envio."),
         new("semiblind","Consulta semicega","Consulta até cinco candidatos pela API real sem expor CPF, UUID ou score. O formulário usa uma pessoa sintética da Gold como exemplo.",null,null,null,["infrastructure","gold-synthetic"],"Disponível somente no banco isolado JornadaSyntheticDev com a feature DEV habilitada; a infraestrutura já garante o modelo BOOTSTRAP inicial ATIVO."),
-        new("replay","Executar replay do último run","Executa REPLAY real do último linkage PUBLICADO elegível, sem publicar o resultado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action replay-latest",null,["linkage"],"Exige pelo menos um linkage PUBLICADO não-REPLAY."),
-        new("report","Diagnóstico do último linkage","Executa o diagnóstico real do último linkage publicado, incluindo modelo, thresholds, cobertura e qualidade sintética.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action report",null,["linkage"],null),
-        new("finish","Finalizar e limpar ambiente","Encerra o cluster e remove containers, volumes e órfãos locais. Na próxima subida tudo é recriado automaticamente.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action clean",null,[],null)
-    ];}
+        new("linkage","Executar linkage","Executa o Jornada.Linkage.Runner real no NODE2 usando o modelo ATIVO. O replay do último run fica disponível como ação secundária no mesmo cartão.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action linkage",null,["infrastructure"],"A infraestrutura garante o BOOTSTRAP inicial ATIVO; uma recalibração posterior pode substituir esse modelo."),
+        new("configuration","Contratos e configurações","Acesso único às duas superfícies administrativas: contratos de ingestão e configurações ativas. Cada editor mantém sua validação e persistência próprias.",null,null,null,[], "Alterações são locais ao checkout DEV; configurações que exigem reinício continuam sinalizadas."),
+        new("gold-synthetic","Adicionar mais 5.000 registros","Adiciona 5.000 novas pessoas à Gold sintética existente, preservando a base inicial de 30.000; execuções sucessivas expandem 30k → 35k → 40k, sem reset. O rebuild manual de blocking fica disponível como ação secundária.","pwsh","-NoProfile -File scripts/dev-console-gold-add.ps1 -AdditionalPeople 5000",".local/dev-console/gold-synthetic-add.json",["infrastructure"],"A infraestrutura já materializa a Gold sintética inicial de 30.000 pessoas. A carga incremental reconstrói o blocking automaticamente."),
+        new("calibration","Recalibrar e ativar","Executa novo ciclo GENERATE_DRAFT → conferência → VALIDATE → ACTIVATE sobre uma Gold já existente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate",null,["infrastructure","gold-synthetic"],"A infraestrutura já garante o BOOTSTRAP inicial ATIVO; use este comando somente para gerar deliberadamente uma nova versão do modelo."),
+        new("system-status","Estado geral do sistema","Diagnóstico read-only consolidado: infraestrutura/health, SQL/schema, referência IBGE, modelo ATIVO, Processor/runners, Bronze e diagnóstico do último linkage quando existir.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action system-status",null,["infrastructure"],"Concentra as verificações que antes apareciam como comandos separados; ausência de ingestão/linkage é reportada como não aplicável."),
+        new("finish","Finalizar e limpar ambiente","Encerra o cluster e remove containers, volumes e órfãos locais. Na próxima subida tudo é recriado automaticamente.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action clean",null,[],null),
+
+        new("ingestion","Reenviar último ZIP para ingestão","Reenvia manualmente o último ZIP já gerado para a API real em NODE1 usando a credencial sintética DEV correspondente ao Gestor.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest",".local/dev-console/last-ingestion.json",["contract-bundle","zip"],"Ação auxiliar do cartão Ingestão."){Visible=false},
+        new("pipeline-status","Ver status da última ingestão","Consulta o recibo da última Entrega. Bronze, Silver, identidade e Gold são processados pelo Processor residente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action pipeline-status",".local/dev-console/last-ingestion-status.json",["zip"],"Ação auxiliar do cartão Ingestão."){Visible=false},
+        new("blocking","Reconstruir blocking","Executa manualmente a reconstrução one-shot da projeção local de blocking.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action blocking",null,["gold-synthetic"],"Ação auxiliar da massa Gold/recalibração."){Visible=false},
+        new("replay","Executar replay do último run","Executa REPLAY real do último linkage PUBLICADO elegível, sem publicar o resultado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action replay-latest",null,["linkage"],"Ação auxiliar do cartão Executar linkage."){Visible=false}
+    ];
+}
 
 static class DevConsolePaths
 {
