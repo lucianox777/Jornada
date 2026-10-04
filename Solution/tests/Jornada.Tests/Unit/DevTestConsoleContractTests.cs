@@ -232,6 +232,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localCluster,Does.Contain("Etapa cluster 1/6"));
             Assert.That(localCluster,Does.Contain("Show-ComposeFailureDiagnostics"));
             Assert.That(localCluster,Does.Contain("$composeExitCode=$LASTEXITCODE"));
+            Assert.That(localCluster,Does.Contain("docker inspect $bootstrapId | ConvertFrom-Json"));
+            Assert.That(localCluster,Does.Contain("init terminou com exit 0"));
+            Assert.That(localCluster,Does.Contain("Bootstrap da referência IBGE falhou (compose="));
             Assert.That(localCluster,Does.Contain("LOCAL_CLUSTER_TEST_DOSSIER"));
             Assert.That(localCluster,Does.Contain("sp_registrar_dossie_decisao_modelo_linkage"));
             Assert.That(localCluster,Does.Contain("@acao=N'VALIDATE'"));
