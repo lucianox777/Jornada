@@ -67,11 +67,11 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action reference-check"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action ingest-latest"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action pipeline-status"));
-            Assert.That(runtime,Does.Contain("local-cluster.ps1 -Action blocking"));
-            Assert.That(runtime,Does.Contain("local-cluster.ps1 -Action calibrate"));
-            Assert.That(runtime,Does.Contain("local-cluster.ps1 -Action linkage"));
+            Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action blocking"));
+            Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action calibrate"));
+            Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action linkage"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action replay-latest"));
-            Assert.That(runtime,Does.Contain("local-cluster.ps1 -Action linkage-diagnose"));
+            Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action report"));
 
             Assert.That(goldScript,Does.Contain("Jornada_Dev_GoldSynthetic.sql"));
             Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
@@ -82,6 +82,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("local-check-ibge-reference.ps1"));
             Assert.That(opsScript,Does.Contain("Jornada.Bronze.Verify"));
             Assert.That(opsScript,Does.Contain("jornada.ingestao.write"));
+            Assert.That(opsScript,Does.Contain("Ensure-ClusterRunning"));
+            Assert.That(opsScript,Does.Contain("local-cluster.ps1"));
             Assert.That(opsScript,Does.Contain("--mode','REPLAY"));
             Assert.That(page,Does.Contain("A tela mostra somente operações reais"));
 
