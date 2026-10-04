@@ -153,26 +153,6 @@ while IFS= read -r task_json; do
   child_names+=("$name")
 done < <(jq -c '.tasks[]' "$CONFIG_PATH")
 
-if [[ "${JORNADA_DEV_LINKAGE_RUNNER_LOOP:-false}" == "true" ]]; then
-  runner_dll="/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll"
-  [[ -f "$runner_dll" ]] || { echo "Linkage Runner publicado ausente: $runner_dll" >&2; exit 3; }
-  echo "[$JORNADA_NODE_ID] START Jornada-LinkageRunner (INCREMENTAL loop)"
-  (
-    interval_seconds="${LinkageRunner__PollingSeconds:-5}"
-    enable_marker="/data/node/linkage-runner.enabled"
-    while [[ ! -f "$enable_marker" ]]; do sleep 1; done
-    while true; do
-      dotnet "$runner_dll" --mode INCREMENTAL --publish true --requested-by DEV_RESIDENT_RUNNER --reason resident-loop ||
-        echo "[$JORNADA_NODE_ID] Linkage Runner ciclo falhou; nova tentativa em ${interval_seconds}s." >&2
-      sleep "$interval_seconds"
-    done
-  ) &
-  runner_loop_pid="$!"
-  child_pids+=("$runner_loop_pid")
-  child_names+=("Jornada-LinkageRunner")
-  echo "$runner_loop_pid" > /data/node/linkage-runner-loop.pid
-fi
-
 if [[ "${#child_pids[@]}" -eq 0 ]]; then
   echo "Nenhuma tarefa AtStartup habilitada para $JORNADA_NODE_ID." >&2
   exit 4
