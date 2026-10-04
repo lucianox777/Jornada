@@ -162,7 +162,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(bundleScript,Does.Contain("config/contracts"));
             Assert.That(bundleScript,Does.Contain("openapi/jornada-v1.openapi.json"));
             Assert.That(bundleScript,Does.Contain("MANIFEST.sha256"));
-            Assert.That(bundleScript,Does.Contain("Nenhum modelo calibrado ATIVO"));
+            Assert.That(bundleScript,Does.Contain("Nenhum modelo ATIVO"));
+            Assert.That(bundleScript,Does.Contain("Garantir modelo bootstrap inicial (IBGE)"));
             Assert.That(bundleScript,Does.Contain("SEED_DEV_FIXO_NAO_TREINADO"));
             Assert.That(bundleScript,Does.Contain("BUNDLE_INFO.html"));
             Assert.That(bundleScript,Does.Contain("ARTEFATO: $ZipPath"));
