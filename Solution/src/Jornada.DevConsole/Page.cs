@@ -63,6 +63,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .dialog-body input,.dialog-body textarea,.dialog-body select{width:100%;padding:8px;border:1px solid #cbd3dc;border-radius:6px;font:13px ui-monospace,SFMono-Regular,Consolas,monospace}
 .dialog-body textarea{min-height:110px}.tabs{display:flex;gap:8px;margin:10px 0}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.form-grid label{margin:0}.form-grid input,.form-grid select{width:100%;padding:8px;border:1px solid #cbd3dc;border-radius:6px}.artifact-list{margin-top:10px;display:grid;gap:6px}.artifact-item{padding:8px 10px;border:1px solid #d9dee5;border-radius:6px;background:#fafafa;overflow-wrap:anywhere}@media(max-width:700px){.form-grid{grid-template-columns:1fr}}
 .dialog-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #dde2e8}
+.layer-tools{display:flex;gap:8px;align-items:center;margin:10px 0}.layer-tools input{flex:1;padding:8px;border:1px solid #cbd3dc;border-radius:6px}.table-wrap{overflow:auto;max-height:50vh;border:1px solid #e0e5eb;border-radius:7px}.pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
 .back{margin-bottom:12px}
@@ -215,6 +216,31 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
   </div>
 </dialog>
 
+<dialog id="layerDialog">
+  <div class="dialog-head"><strong id="layerTitle">Camada</strong><button class="secondary" type="button" onclick="layerDialog.close()">Fechar</button></div>
+  <div class="dialog-body">
+    <p id="layerHelp">Visualização somente leitura.</p>
+    <div class="layer-tools">
+      <input id="layerSearch" type="search" placeholder="Buscar em qualquer coluna" onkeydown="if(event.key==='Enter'){event.preventDefault();applyLayerSearch()}">
+      <button class="primary" type="button" onclick="applyLayerSearch()">Buscar</button>
+      <button class="secondary" type="button" onclick="clearLayerSearch()">Limpar</button>
+    </div>
+    <div id="layerMeta" class="small">Carregando...</div>
+    <div class="table-wrap">
+      <table>
+        <thead id="layerHead"></thead>
+        <tbody id="layerBody"></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <button id="layerPrev" class="secondary" type="button" onclick="loadLayerPage(layerPage-1)">← Anterior</button>
+      <span id="layerPageLabel" class="small"></span>
+      <button id="layerNext" class="secondary" type="button" onclick="loadLayerPage(layerPage+1)">Próxima →</button>
+    </div>
+  </div>
+  <div class="dialog-actions"><button class="secondary" type="button" onclick="layerDialog.close()">Fechar</button></div>
+</dialog>
+
 <script>
 const esc=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const views=[homeView,consoleView,historyView];
@@ -224,6 +250,9 @@ let commandsCache=[];
 let currentRunId=null;
 let currentCommandId=null;
 let eventSource=null;
+let layerKind='gold';
+let layerPage=1;
+const layerPageSize=50;
 
 async function api(url,options){
   const response=await fetch(url,options);
@@ -279,6 +308,8 @@ async function loadCommands(){
       actions='<button class="primary" type="button" onclick="openZipDialog()">Nova ingestão</button>'
         +'<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Status</button>'
         +'<button class="secondary" type="button" onclick="startCommand(\'ingestion\',\'Reenviar último ZIP para ingestão\')">Reenviar último</button>';
+    }else if(c.id==='bronze'){
+      actions='<button class="primary" type="button" onclick="openLayerDialog(\'bronze\')">Visualizar Bronze</button>';
     }else if(c.id==='semiblind'){
       actions='<button class="primary" type="button" onclick="openSemiblindDialog()">Consultar</button>';
     }else if(c.id==='linkage'){
@@ -289,6 +320,7 @@ async function loadCommands(){
         +'<button class="secondary" type="button" onclick="startCommand(\'contract-bundle\',\'Gerar bundle de contratos e configurações\')">Gerar bundle</button>';
     }else if(c.id==='gold-synthetic'){
       actions='<button class="primary" type="button" onclick="startCommand(\'gold-synthetic\')">Adicionar 5.000</button>'
+        +'<button class="secondary" type="button" onclick="openLayerDialog(\'gold\')">Visualizar Gold</button>'
         +'<button class="secondary" type="button" onclick="startCommand(\'blocking\',\'Reconstruir blocking\')">Reconstruir blocking</button>';
     }else{
       const buttonClass=c.id==='finish'?'danger':'primary';
@@ -302,6 +334,57 @@ async function startCommand(id,titleOverride){
   const command=commandsCache.find(x=>x.id===id);
   const response=await api('/api/commands/'+encodeURIComponent(id)+'/start',{method:'POST'});
   openLiveRun(response.id,titleOverride||command?.title||id,id);
+}
+
+async function openLayerDialog(kind){
+  layerKind=kind==='bronze'?'bronze':'gold';
+  layerPage=1;
+  layerSearch.value='';
+  layerTitle.textContent=layerKind==='gold'?'Camada Gold · gold.pessoa':'Camada Bronze · bronze.entrega_arquivo';
+  layerHelp.textContent=layerKind==='gold'
+    ?'Visão paginada da Gold sintética. O único campo de busca procura o valor informado em qualquer coluna exibida.'
+    :'Visão paginada e somente leitura dos metadados da camada Bronze. O campo de busca procura em qualquer coluna exibida.';
+  layerDialog.showModal();
+  await loadLayerPage(1);
+}
+
+async function applyLayerSearch(){
+  await loadLayerPage(1);
+}
+
+async function clearLayerSearch(){
+  layerSearch.value='';
+  await loadLayerPage(1);
+}
+
+async function loadLayerPage(page){
+  layerPage=Math.max(1,page);
+  layerMeta.textContent='Carregando...';
+  layerHead.innerHTML='';
+  layerBody.innerHTML='<tr><td>Carregando...</td></tr>';
+  layerPrev.disabled=true;
+  layerNext.disabled=true;
+  try{
+    const params=new URLSearchParams({
+      page:String(layerPage),
+      pageSize:String(layerPageSize),
+      search:layerSearch.value.trim()
+    });
+    const data=await api('/api/layers/'+encodeURIComponent(layerKind)+'?'+params.toString());
+    layerPage=data.page;
+    layerHead.innerHTML='<tr>'+data.columns.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr>';
+    layerBody.innerHTML=data.rows.length
+      ?data.rows.map(row=>'<tr>'+row.map(value=>'<td>'+esc(value??'')+'</td>').join('')+'</tr>').join('')
+      :'<tr><td colspan="'+data.columns.length+'">Nenhum registro encontrado.</td></tr>';
+    layerMeta.textContent=data.total+' registro(s)'+(data.search?' · filtro: "'+data.search+'"':'')+' · '+data.pageSize+' por página';
+    layerPageLabel.textContent='Página '+data.page+' de '+data.totalPages;
+    layerPrev.disabled=data.page<=1;
+    layerNext.disabled=data.page>=data.totalPages;
+  }catch(e){
+    layerMeta.textContent='Falha: '+e.message;
+    layerBody.innerHTML='<tr><td>Não foi possível carregar a camada.</td></tr>';
+    layerPageLabel.textContent='';
+  }
 }
 
 function openConfigurationDialog(){
