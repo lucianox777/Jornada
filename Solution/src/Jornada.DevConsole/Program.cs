@@ -7,6 +7,7 @@ builder.Services.AddSingleton<GoldZipTemplateService>();
 builder.Services.AddSingleton<SemiblindDevService>();
 builder.Services.AddSingleton<ContractFileService>();
 builder.Services.AddSingleton<ActiveConfigFileService>();
+builder.Services.AddSingleton<LayerBrowserService>();
 
 var app=builder.Build();
 
@@ -66,6 +67,11 @@ app.MapGet("/api/contracts/file",async(string path,ContractFileService service,C
 });
 app.MapPut("/api/contracts/file",async(ContractSaveRequest request,ContractFileService service,CancellationToken ct)=>{
     try{return Results.Ok(await service.SaveAsync(request,ct));}catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
+});
+
+app.MapGet("/api/layers/{layer}",async(string layer,int page,int pageSize,string? search,LayerBrowserService service,CancellationToken ct)=>{
+    try{return Results.Ok(await service.BrowseAsync(layer,page,pageSize,search,ct));}
+    catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
 });
 
 app.MapGet("/api/config/active",(ActiveConfigFileService service)=>Results.Ok(service.List()));
