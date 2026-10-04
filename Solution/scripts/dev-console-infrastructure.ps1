@@ -50,6 +50,14 @@ switch($Action){
         & (Join-Path $PSScriptRoot 'dev-console-operations.ps1') -Action calibrate-initial
         if($LASTEXITCODE -ne 0){throw "Garantia do modelo BOOTSTRAP inicial falhou ($LASTEXITCODE)."}
         Write-Host ''
+        Write-Host 'Liberando Linkage Runner residente após o modelo BOOTSTRAP estar ATIVO...'
+        Push-Location $Root
+        try {
+            & docker compose --env-file $EnvFile exec -T jornada-node2 sh -lc 'touch /data/node/linkage-runner.enabled'
+            if($LASTEXITCODE -ne 0){throw "Não foi possível liberar o Linkage Runner residente ($LASTEXITCODE)."}
+        } finally { Pop-Location }
+        Write-Host 'Linkage Runner incremental liberado no NODE2; o supervisor continuará executando-o em loop.'
+        Write-Host ''
         Write-Host 'Gerando configuração inicial da Console DEV (JSON + HTML)...'
         & (Join-Path $PSScriptRoot 'dev-console-initial-config.ps1')
         if($LASTEXITCODE -ne 0){throw "Geração da configuração inicial falhou ($LASTEXITCODE)."}
