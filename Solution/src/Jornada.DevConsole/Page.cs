@@ -366,7 +366,7 @@ function syncFormToJson(){
   const now=new Date();
   const ref=now.toISOString();
   const manifest={
-    formatoVersao:2,pessoaSchemaVersao:4,codigoSistemaOrigem:zipSistema.value||zipGestor.value,
+    formatoVersao:2,pessoaSchemaVersao:5,codigoSistemaOrigem:zipSistema.value||zipGestor.value,
     natureza:'BENEFICIO',codigoTipo:zipTipo.value||'AA01',tipoVersao:1,dataReferencia:ref
   };
   const pessoa={
