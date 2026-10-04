@@ -69,7 +69,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Not.Contain("update-build"));
             Assert.That(runtime,Does.Not.Contain("Comando real ainda não mapeado."));
             Assert.That(runtime,Does.Contain("dev-console-gold-add.ps1 -AdditionalPeople 5000"));
-            Assert.That(runtime,Does.Contain("Adicionar mais 5.000 registros"));
+            Assert.That(runtime,Does.Contain("Adicionar 5.000 registros sintéticos"));
             Assert.That(runtime,Does.Contain("0 → 5k → 10k"));
             Assert.That(runtime,Does.Contain("build-ingestion-fixture.py"));
             Assert.That(runtime,Does.Contain("new(\"zip\",\"Ingestão\""));
