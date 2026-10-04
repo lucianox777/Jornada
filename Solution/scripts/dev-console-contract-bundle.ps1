@@ -42,7 +42,7 @@ function Scalar([string]$Query){
 
 $eligible="status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO'"
 $activeCount=[int](Scalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE $eligible;")
-if($activeCount -eq 0){throw 'Nenhum modelo ATIVO. A infraestrutura DEV deveria garantir o BOOTSTRAP inicial; execute Garantir modelo bootstrap inicial (IBGE).'}
+if($activeCount -eq 0){throw 'Nenhum modelo ATIVO. Execute novamente Subir infraestrutura, referências e bootstrap para garantir o BOOTSTRAP inicial.'}
 if($activeCount -ne 1){throw "Quantidade inválida de modelos calibrados ATIVOS: $activeCount."}
 
 $modelId=Scalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
