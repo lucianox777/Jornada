@@ -162,7 +162,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localDb,Does.Contain("Start-Process -FilePath $dockerDesktopPath"));
             Assert.That(localDb,Does.Contain("Aguardando Docker Engine"));
             Assert.That(localDb,Does.Contain("Docker Engine pronto"));
-            Assert.That(runtime,Does.Contain("SQL Server, schema, NAS, referência IBGE, NODE1/NODE2 e garante o modelo BOOTSTRAP inicial ATIVO"));
+            Assert.That(runtime,Does.Contain("modelo BOOTSTRAP inicial ATIVO, configuração inicial e bundle de contratos/configurações"));
+            Assert.That(runtime,Does.Contain("A preparação já garante a Gold inicial e o modelo BOOTSTRAP ATIVO."));
+            Assert.That(runtime,Does.Contain("gerar deliberadamente uma nova versão após alterar massa/parâmetros"));
             Assert.That(runtime,Does.Contain("Environment.SpecialFolder.LocalApplicationData"));
             Assert.That(runtime,Does.Contain("Path.Combine(local,\"Jornada\",\"DevConsole\")"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action system-status"));
