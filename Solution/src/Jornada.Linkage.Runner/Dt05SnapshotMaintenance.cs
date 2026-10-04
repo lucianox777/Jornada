@@ -262,7 +262,7 @@ public static class Dt05SnapshotMaintenanceCommand
             : Path.GetFullPath(configured);
 
         var report = await new Dt05SnapshotMaintenance(bronzeRoot)
-            .ScanAsync(TimeSpan.FromHours(ageHours), gc, cancellationToken: ct);
+            .ScanAsync(TimeSpan.FromHours(ageHours), gc, ct: ct);
 
         var fullReport = Path.GetFullPath(reportPath);
         Directory.CreateDirectory(Path.GetDirectoryName(fullReport)!);
