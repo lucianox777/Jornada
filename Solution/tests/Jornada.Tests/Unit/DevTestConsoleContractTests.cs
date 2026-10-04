@@ -12,7 +12,7 @@ public sealed class DevTestConsoleContractTests
     }
 
     [Test]
-    public void Console_has_live_terminal_persistent_history_manual_zip_and_real_local_infrastructure()
+    public void Console_has_live_terminal_session_history_manual_zip_and_real_local_infrastructure()
     {
         var root=Root();
         var program=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.DevConsole","Program.cs"));
@@ -34,6 +34,7 @@ public sealed class DevTestConsoleContractTests
         Assert.Multiple(()=>{
             Assert.That(program,Does.Contain("/api/commands/{command}/start"));
             Assert.That(program,Does.Contain("/api/runs/{id:guid}/stream"));
+            Assert.That(program,Does.Contain("ListSessionSummariesAsync(ct)"));
             Assert.That(program,Does.Contain("text/event-stream"));
             Assert.That(program,Does.Contain("/api/runs/{id:guid}/result"));
             Assert.That(program,Does.Contain("/api/zip/manual/start"));
@@ -72,6 +73,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("result.ExitCode==0&&candidatePath is not null&&File.Exists(candidatePath)"));
             Assert.That(runtime,Does.Contain("catch(JsonException)"));
             Assert.That(runtime,Does.Contain("ListSummariesAsync"));
+            Assert.That(runtime,Does.Contain("ListSessionSummariesAsync"));
+            Assert.That(runtime,Does.Contain("(await ListSessionSummariesAsync(ct))"));
             Assert.That(runtime,Does.Contain("HeartbeatAsync"));
             Assert.That(runtime,Does.Contain("Processo ativo há"));
             Assert.That(runtime,Does.Contain("\"environment-status\""));
@@ -93,7 +96,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("console-shell"));
             Assert.That(page,Does.Contain("RODANDO..."));
             Assert.That(page,Does.Contain("new EventSource"));
-            Assert.That(page,Does.Contain("Execuções anteriores"));
+            Assert.That(page,Does.Contain("Execuções desta sessão"));
+            Assert.That(page,Does.Contain("A lista começa vazia a cada inicialização da Console DEV"));
+            Assert.That(page,Does.Not.Contain("O histórico é persistido entre reinicializações da Console DEV."));
             Assert.That(page,Does.Contain("Entrada manual para o ZIP"));
             Assert.That(page,Does.Contain("Gerar e enviar"));
             Assert.That(page,Does.Contain("manifest.json"));
@@ -131,8 +136,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("DependencyNote"));
             Assert.That(runtime,Does.Contain("GoldZipTemplateService"));
             Assert.That(runtime,Does.Contain("FROM gold.pessoa"));
-            Assert.That(runtime,Does.Contain("initial-config"));
-            Assert.That(runtime,Does.Contain("dev-console-initial-config.ps1"));
+            Assert.That(runtime,Does.Not.Contain("new(\"initial-config\""));
+            Assert.That(runtime,Does.Not.Contain("Gerar/ver configuração inicial"));
             Assert.That(runtime,Does.Contain("ARTEFATO:"));
             Assert.That(runtime,Does.Contain("Consulta semicega"));
             Assert.That(runtime,Does.Contain("SemiblindDevService"));
@@ -187,6 +192,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(bundleScript,Does.Contain("Conteúdo incluído"));
             Assert.That(bundleScript,Does.Contain("Fingerprint SHA-256"));
             Assert.That(bundleScript,Does.Not.Contain("<pre>$escapedInfo</pre>"));
+            Assert.That(bundleScript,Does.Contain("function ConvertTo-HtmlEncodedText"));
+            Assert.That(bundleScript,Does.Not.Contain("function H([object]$Value)"));
             Assert.That(bundleScript,Does.Contain("ARTEFATO: $ZipPath"));
             Assert.That(initialConfigScript,Does.Contain("configuration.json"));
             Assert.That(initialConfigScript,Does.Contain("configuration.html"));
@@ -198,6 +205,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(initialConfigScript,Does.Contain("Modelo de linkage ativo"));
             Assert.That(initialConfigScript,Does.Contain("Status dos serviços no momento da geração"));
             Assert.That(initialConfigScript,Does.Not.Contain("<pre>$escaped</pre>"));
+            Assert.That(initialConfigScript,Does.Contain("function ConvertTo-HtmlEncodedText"));
+            Assert.That(initialConfigScript,Does.Not.Contain("function H([object]$Value)"));
             Assert.That(infraScript,Does.Contain("dev-console-initial-config.ps1"));
             Assert.That(infraScript,Does.Contain("dev-console-operations.ps1"));
             Assert.That(infraScript,Does.Contain("-Action calibrate-initial"));

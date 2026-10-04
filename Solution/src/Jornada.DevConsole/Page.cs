@@ -106,8 +106,8 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
 
   <section id="historyView" class="hidden">
     <button class="secondary back" type="button" onclick="showHome()">← Voltar aos comandos</button>
-    <h2>Execuções anteriores</h2>
-    <p class="small">O histórico é persistido entre reinicializações da Console DEV.</p>
+    <h2>Execuções desta sessão</h2>
+    <p class="small">A lista começa vazia a cada inicialização da Console DEV e mostra somente as execuções da sessão atual.</p>
     <div id="history">Carregando...</div>
   </section>
 </main>

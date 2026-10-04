@@ -19,7 +19,7 @@ app.MapGet("/api/commands",async(RunStore store,CancellationToken ct)=>{
 });
 
 app.MapGet("/api/runs",async(RunStore store,CancellationToken ct)=>
-    Results.Ok(await store.ListSummariesAsync(ct)));
+    Results.Ok(await store.ListSessionSummariesAsync(ct)));
 
 app.MapGet("/api/runs/{id:guid}",async(Guid id,RunStore store,CancellationToken ct)=>
     await store.GetAsync(id,ct) is { } run?Results.Ok(run):Results.NotFound());

@@ -107,9 +107,9 @@ $infoPath=Join-Path $Stage 'BUNDLE_INFO.json'
 $infoHtmlPath=Join-Path $Stage 'BUNDLE_INFO.html'
 $infoJson=$info | ConvertTo-Json -Depth 20
 [IO.File]::WriteAllText($infoPath,$infoJson,[Text.UTF8Encoding]::new($false))
-function H([object]$Value){[System.Net.WebUtility]::HtmlEncode([string]$Value)}
-$contentItems=($info.contents | ForEach-Object {"<li>$(H $_)</li>"}) -join ''
-$excludeItems=($info.excludes | ForEach-Object {"<li>$(H $_)</li>"}) -join ''
+function ConvertTo-HtmlEncodedText([object]$Value){[System.Net.WebUtility]::HtmlEncode([string]$Value)}
+$contentItems=($info.contents | ForEach-Object {"<li>$(ConvertTo-HtmlEncodedText $_)</li>"}) -join ''
+$excludeItems=($info.excludes | ForEach-Object {"<li>$(ConvertTo-HtmlEncodedText $_)</li>"}) -join ''
 $infoHtml=@"
 <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Jornada DEV - Bundle de contratos e configurações</title>
 <style>
@@ -121,19 +121,19 @@ h1{margin:0 0 5px;font-size:1.55rem}h2{font-size:1.08rem;margin:0 0 14px}.muted{
 code{font-family:ui-monospace,Consolas,monospace;font-size:.88em}ul{margin:0;padding-left:22px}li{margin:6px 0}
 @media(max-width:700px){.page{padding:14px}.grid{grid-template-columns:1fr}}
 </style></head><body><main class="page">
-<section class="header"><h1>Bundle de contratos e configurações</h1><div class="muted">Gerado em $(H $info.generatedAt)</div></section>
+<section class="header"><h1>Bundle de contratos e configurações</h1><div class="muted">Gerado em $(ConvertTo-HtmlEncodedText $info.generatedAt)</div></section>
 <section class="section"><h2>Identificação</h2><div class="grid">
-  <div class="field"><span>Tipo do bundle</span>$(H $info.bundleType)</div>
-  <div class="field"><span>Banco de dados</span>$(H $info.database)</div>
-  <div class="field"><span>Status do modelo</span><b>$(H $info.activeModel.status)</b></div>
-  <div class="field"><span>Versão do modelo</span><b>$(H $info.activeModel.version)</b></div>
-  <div class="field wide"><span>ID do modelo</span><code>$(H $info.activeModel.modelId)</code></div>
-  <div class="field"><span>Versão do model config bundle</span>$(H $info.activeModel.modelConfigBundleVersion)</div>
-  <div class="field wide"><span>Fingerprint SHA-256</span><code>$(H $info.activeModel.modelConfigBundleFingerprintSha256)</code></div>
+  <div class="field"><span>Tipo do bundle</span>$(ConvertTo-HtmlEncodedText $info.bundleType)</div>
+  <div class="field"><span>Banco de dados</span>$(ConvertTo-HtmlEncodedText $info.database)</div>
+  <div class="field"><span>Status do modelo</span><b>$(ConvertTo-HtmlEncodedText $info.activeModel.status)</b></div>
+  <div class="field"><span>Versão do modelo</span><b>$(ConvertTo-HtmlEncodedText $info.activeModel.version)</b></div>
+  <div class="field wide"><span>ID do modelo</span><code>$(ConvertTo-HtmlEncodedText $info.activeModel.modelId)</code></div>
+  <div class="field"><span>Versão do model config bundle</span>$(ConvertTo-HtmlEncodedText $info.activeModel.modelConfigBundleVersion)</div>
+  <div class="field wide"><span>Fingerprint SHA-256</span><code>$(ConvertTo-HtmlEncodedText $info.activeModel.modelConfigBundleFingerprintSha256)</code></div>
 </div></section>
 <section class="section"><h2>Conteúdo incluído</h2><ul>$contentItems</ul></section>
 <section class="section"><h2>Conteúdo excluído</h2><ul>$excludeItems</ul></section>
-<section class="section"><p class="muted">Arquivo JSON correspondente: <code>$(H $infoPath)</code></p></section>
+<section class="section"><p class="muted">Arquivo JSON correspondente: <code>$(ConvertTo-HtmlEncodedText $infoPath)</code></p></section>
 </main></body></html>
 "@
 [IO.File]::WriteAllText($infoHtmlPath,$infoHtml,[Text.UTF8Encoding]::new($false))

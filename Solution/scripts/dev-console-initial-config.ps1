@@ -90,17 +90,17 @@ $manifestPath=Join-Path $OutDir 'files.json'
 $json=$config | ConvertTo-Json -Depth 20
 [IO.File]::WriteAllText($jsonPath,$json,[Text.UTF8Encoding]::new($false))
 
-function H([object]$Value){[System.Net.WebUtility]::HtmlEncode([string]$Value)}
+function ConvertTo-HtmlEncodedText([object]$Value){[System.Net.WebUtility]::HtmlEncode([string]$Value)}
 $modelHtml=if($null -ne $modelState){
 @"
 <div class="grid">
-  <div class="field"><span>ID do modelo</span><code>$(H $modelState.modelId)</code></div>
-  <div class="field"><span>Versão</span><b>$(H $modelState.version)</b></div>
-  <div class="field"><span>Status</span><b>$(H $modelState.status)</b></div>
-  <div class="field"><span>Papel</span>$(H $modelState.modelRole)</div>
-  <div class="field"><span>Referência bootstrap</span>$(H $modelState.bootstrapReference)</div>
-  <div class="field"><span>Pessoas Gold</span>$(H $modelState.goldPeople)</div>
-  <div class="field wide"><span>Método da amostra</span>$(H $modelState.sampleMethod)</div>
+  <div class="field"><span>ID do modelo</span><code>$(ConvertTo-HtmlEncodedText $modelState.modelId)</code></div>
+  <div class="field"><span>Versão</span><b>$(ConvertTo-HtmlEncodedText $modelState.version)</b></div>
+  <div class="field"><span>Status</span><b>$(ConvertTo-HtmlEncodedText $modelState.status)</b></div>
+  <div class="field"><span>Papel</span>$(ConvertTo-HtmlEncodedText $modelState.modelRole)</div>
+  <div class="field"><span>Referência bootstrap</span>$(ConvertTo-HtmlEncodedText $modelState.bootstrapReference)</div>
+  <div class="field"><span>Pessoas Gold</span>$(ConvertTo-HtmlEncodedText $modelState.goldPeople)</div>
+  <div class="field wide"><span>Método da amostra</span>$(ConvertTo-HtmlEncodedText $modelState.sampleMethod)</div>
 </div>
 "@
 }else{'<p class="muted">Modelo ativo não disponível neste snapshot.</p>'}
@@ -108,7 +108,7 @@ $modelHtml=if($null -ne $modelState){
 $healthRows=if($health.Count -gt 0){
   ($health | ForEach-Object {
     $healthText=if([string]::IsNullOrWhiteSpace($_.health)){'n/a'}else{[string]$_.health}
-    "<tr><td>$(H $_.service)</td><td>$(H $_.state)</td><td>$(H $healthText)</td><td>$(H $_.status)</td><td>$(H $_.exitCode)</td></tr>"
+    "<tr><td>$(ConvertTo-HtmlEncodedText $_.service)</td><td>$(ConvertTo-HtmlEncodedText $_.state)</td><td>$(ConvertTo-HtmlEncodedText $healthText)</td><td>$(ConvertTo-HtmlEncodedText $_.status)</td><td>$(ConvertTo-HtmlEncodedText $_.exitCode)</td></tr>"
   }) -join ''
 }else{'<tr><td colspan="5" class="muted">Nenhum serviço Docker encontrado no momento da geração.</td></tr>'}
 
@@ -125,31 +125,31 @@ code{font-family:ui-monospace,Consolas,monospace;font-size:.88em}table{width:100
 @media(max-width:700px){.page{padding:14px}.grid{grid-template-columns:1fr}}
 </style></head>
 <body><main class="page">
-<section class="header"><h1>Jornada DEV - Configuração inicial</h1><div class="muted">Gerado em $(H $config.generatedAt)</div></section>
+<section class="header"><h1>Jornada DEV - Configuração inicial</h1><div class="muted">Gerado em $(ConvertTo-HtmlEncodedText $config.generatedAt)</div></section>
 <section class="section"><h2>Identificação</h2><div class="grid">
-  <div class="field"><span>Ambiente</span>$(H $config.environment)</div>
-  <div class="field"><span>Schema da solução</span>$(H $config.solutionSchema)</div>
-  <div class="field"><span>Versão do bundle</span>$(H $config.clusterConfiguration.configurationBundleVersion)</div>
-  <div class="field"><span>Schema do documento</span>$(H $config.schemaVersion)</div>
+  <div class="field"><span>Ambiente</span>$(ConvertTo-HtmlEncodedText $config.environment)</div>
+  <div class="field"><span>Schema da solução</span>$(ConvertTo-HtmlEncodedText $config.solutionSchema)</div>
+  <div class="field"><span>Versão do bundle</span>$(ConvertTo-HtmlEncodedText $config.clusterConfiguration.configurationBundleVersion)</div>
+  <div class="field"><span>Schema do documento</span>$(ConvertTo-HtmlEncodedText $config.schemaVersion)</div>
 </div></section>
 <section class="section"><h2>Serviços</h2><div class="grid">
-  <div class="field"><span>NODE1</span><code>$(H $config.runtime.node1)</code></div>
-  <div class="field"><span>NODE2</span><code>$(H $config.runtime.node2)</code></div>
-  <div class="field"><span>SQL Server</span><code>$(H $config.runtime.sql)</code></div>
-  <div class="field"><span>NAS</span><code>$(H $config.runtime.nas)</code></div>
+  <div class="field"><span>NODE1</span><code>$(ConvertTo-HtmlEncodedText $config.runtime.node1)</code></div>
+  <div class="field"><span>NODE2</span><code>$(ConvertTo-HtmlEncodedText $config.runtime.node2)</code></div>
+  <div class="field"><span>SQL Server</span><code>$(ConvertTo-HtmlEncodedText $config.runtime.sql)</code></div>
+  <div class="field"><span>NAS</span><code>$(ConvertTo-HtmlEncodedText $config.runtime.nas)</code></div>
 </div></section>
 <section class="section"><h2>Modelo de linkage ativo</h2>$modelHtml</section>
 <section class="section"><h2>Status dos serviços no momento da geração</h2><div style="overflow:auto"><table><thead><tr><th>Serviço</th><th>Estado</th><th>Health</th><th>Status</th><th>Exit code</th></tr></thead><tbody>$healthRows</tbody></table></div></section>
 <section class="section"><h2>Fontes de configuração</h2><div class="grid">
-  <div class="field wide"><span>Cluster</span><code>$(H $config.clusterConfiguration.source)</code></div>
-  <div class="field wide"><span>OpenAPI</span><code>$(H $config.contracts.openApi)</code></div>
-  <div class="field wide"><span>JSON Schemas</span><code>$(H $config.contracts.jsonSchemas)</code></div>
-  <div class="field"><span>Governança</span><code>$(H $config.governedConfiguration.governance)</code></div>
-  <div class="field"><span>Linkage</span><code>$(H $config.governedConfiguration.linkage)</code></div>
-  <div class="field"><span>Operações</span><code>$(H $config.governedConfiguration.operations)</code></div>
-  <div class="field"><span>Possibilidades</span><code>$(H $config.governedConfiguration.possibilities)</code></div>
+  <div class="field wide"><span>Cluster</span><code>$(ConvertTo-HtmlEncodedText $config.clusterConfiguration.source)</code></div>
+  <div class="field wide"><span>OpenAPI</span><code>$(ConvertTo-HtmlEncodedText $config.contracts.openApi)</code></div>
+  <div class="field wide"><span>JSON Schemas</span><code>$(ConvertTo-HtmlEncodedText $config.contracts.jsonSchemas)</code></div>
+  <div class="field"><span>Governança</span><code>$(ConvertTo-HtmlEncodedText $config.governedConfiguration.governance)</code></div>
+  <div class="field"><span>Linkage</span><code>$(ConvertTo-HtmlEncodedText $config.governedConfiguration.linkage)</code></div>
+  <div class="field"><span>Operações</span><code>$(ConvertTo-HtmlEncodedText $config.governedConfiguration.operations)</code></div>
+  <div class="field"><span>Possibilidades</span><code>$(ConvertTo-HtmlEncodedText $config.governedConfiguration.possibilities)</code></div>
 </div></section>
-<section class="section"><h2>Observação</h2><p>$(H $config.note)</p><p class="muted">Arquivo JSON correspondente: <code>$(H $jsonPath)</code></p></section>
+<section class="section"><h2>Observação</h2><p>$(ConvertTo-HtmlEncodedText $config.note)</p><p class="muted">Arquivo JSON correspondente: <code>$(ConvertTo-HtmlEncodedText $jsonPath)</code></p></section>
 </main></body></html>
 "@
 [IO.File]::WriteAllText($htmlPath,$html,[Text.UTF8Encoding]::new($false))
