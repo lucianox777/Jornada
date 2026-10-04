@@ -181,7 +181,7 @@ function Ensure-SyntheticIbgeIdentityText {
             if($LASTEXITCODE -ne 0){throw "Diversificação IBGE da massa sintética falhou ($LASTEXITCODE)."}
         }
         finally{
-            if($null -eq $previousPassword){Remove-Item Env:SQLCMDPASSWORD -ErrorAction SilentlyContinue}
+            if($null -eq $previousPassword){[Environment]::SetEnvironmentVariable('SQLCMDPASSWORD',$null,'Process')}
             else{$env:SQLCMDPASSWORD=$previousPassword}
         }
     }
