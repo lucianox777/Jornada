@@ -63,8 +63,10 @@ else
         return;
     }
 
-    // Derivado IBGE nominal versionado. Explicitamente requerido na preparacao
-    // do ambiente; nao e tarefa residente, nem reexecuta MC em cache hit.
+    // Derivado IBGE nominal versionado. Primeiro tenta importar o artefato portátil
+    // pré-calculado da mesma fonte/método/seed/PairCount. Somente builds sem esse
+    // artefato recaem no Monte Carlo completo; bancos DEV novos não repetem milhões
+    // de comparações para uma referência pública congelada.
     if (operation == IbgeNominalUReferenceStore.EnsureOperation)
     {
         await using var referenceConnection =
@@ -75,16 +77,60 @@ else
         var pairs = Math.Clamp(
             builder.Configuration.GetValue("LinkageParameters:IbgeNominalU:PairCount", 1_000_000),
             10_000, 5_000_000);
-        var person = await IbgeNominalUReferenceStore.EnsureAsync(
+        var artifactPath = builder.Configuration.GetValue<string?>(
+            "LinkageParameters:IbgeNominalU:PortableArtifactPath");
+
+        var imported = await IbgeNominalUPortableArtifactStore.TryImportAsync(
+            referenceConnection, reference, seed, pairs, artifactPath, CancellationToken.None);
+        if (imported)
+        {
+            Console.WriteLine(
+                $"Bootstrap nominal IBGE restaurado do artefato portátil validado; " +
+                $"origem={reference.Code}; seed={seed}; pares={pairs}; sem Monte Carlo.");
+        }
+        else
+        {
+            Console.WriteLine(
+                $"Artefato portátil IBGE nominal u não encontrado; executando Monte Carlo determinístico completo " +
+                $"uma vez (seed={seed}; pares={pairs}).");
+            _ = await IbgeNominalUReferenceStore.EnsureAsync(
+                referenceConnection, reference, "TODOS",
+                new IbgeNominalUBootstrapOptions(seed, pairs), CancellationToken.None);
+            _ = await IbgeNominalUReferenceStore.EnsureAsync(
+                referenceConnection, reference, "FEMININO",
+                new IbgeNominalUBootstrapOptions(unchecked(seed + 1), pairs), CancellationToken.None);
+        }
+
+        var person = await IbgeNominalUReferenceStore.RequireAsync(
             referenceConnection, reference, "TODOS",
             new IbgeNominalUBootstrapOptions(seed, pairs), CancellationToken.None);
-        var mother = await IbgeNominalUReferenceStore.EnsureAsync(
+        var mother = await IbgeNominalUReferenceStore.RequireAsync(
             referenceConnection, reference, "FEMININO",
             new IbgeNominalUBootstrapOptions(unchecked(seed + 1), pairs), CancellationToken.None);
         Console.WriteLine(
             $"Referencias u nominais prontas: origem={reference.Code}; " +
             $"NOME={person.Id}/{person.ResultSha256}; " +
             $"NOME_MAE={mother.Id}/{mother.ResultSha256}; seed={seed}; pares={pairs}.");
+        return;
+    }
+
+    if (operation == IbgeNominalUPortableArtifactStore.ExportOperation)
+    {
+        await using var referenceConnection =
+            await operationalSql.OpenAsync(CancellationToken.None);
+        var reference = await IbgeNominalUReferenceReader.ReadActiveReferenceAsync(
+            referenceConnection, CancellationToken.None);
+        var seed = builder.Configuration.GetValue("LinkageParameters:IbgeNominalU:Seed", 20260917);
+        var pairs = Math.Clamp(
+            builder.Configuration.GetValue("LinkageParameters:IbgeNominalU:PairCount", 1_000_000),
+            10_000, 5_000_000);
+        var output = builder.Configuration.GetValue<string?>(
+            "LinkageParameters:IbgeNominalU:PortableArtifactOutputPath")
+            ?? throw new InvalidOperationException(
+                "LinkageParameters:IbgeNominalU:PortableArtifactOutputPath é obrigatório para exportar o artefato.");
+        var exported = await IbgeNominalUPortableArtifactStore.ExportPersistedAsync(
+            referenceConnection, reference, seed, pairs, output, CancellationToken.None);
+        Console.WriteLine($"Artefato portátil IBGE nominal u exportado: {exported}");
         return;
     }
 
