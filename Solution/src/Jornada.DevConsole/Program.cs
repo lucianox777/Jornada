@@ -6,6 +6,7 @@ builder.Services.AddSingleton<LiveExecutionService>();
 builder.Services.AddSingleton<GoldZipTemplateService>();
 builder.Services.AddSingleton<SemiblindDevService>();
 builder.Services.AddSingleton<ContractFileService>();
+builder.Services.AddSingleton<ActiveConfigFileService>();
 
 var app=builder.Build();
 
@@ -58,6 +59,14 @@ app.MapGet("/api/contracts/file",async(string path,ContractFileService service,C
     try{return Results.Ok(await service.GetAsync(path,ct));}catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
 });
 app.MapPut("/api/contracts/file",async(ContractSaveRequest request,ContractFileService service,CancellationToken ct)=>{
+    try{return Results.Ok(await service.SaveAsync(request,ct));}catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
+});
+
+app.MapGet("/api/config/active",(ActiveConfigFileService service)=>Results.Ok(service.List()));
+app.MapGet("/api/config/active/file",async(string path,ActiveConfigFileService service,CancellationToken ct)=>{
+    try{return Results.Ok(await service.GetAsync(path,ct));}catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
+});
+app.MapPut("/api/config/active/file",async(ActiveConfigSaveRequest request,ActiveConfigFileService service,CancellationToken ct)=>{
     try{return Results.Ok(await service.SaveAsync(request,ct));}catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
 });
 
