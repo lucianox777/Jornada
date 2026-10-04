@@ -153,10 +153,10 @@ while IFS= read -r task_json; do
   if [[ "$component" == "LinkageRunner" ]]; then
     (
       cd "$workdir"
-      interval_ms="${LinkageRunner__PollingMilliseconds:-5000}"
+      interval_seconds="${LinkageRunner__PollingSeconds:-5}"
       while true; do
-        env "${env_args[@]}" dotnet "$dll" "${task_args[@]}" || echo "[$JORNADA_NODE_ID] $name ciclo falhou; nova tentativa em ${interval_ms}ms." >&2
-        sleep "$(awk "BEGIN { print $interval_ms / 1000 }")"
+        env "${env_args[@]}" dotnet "$dll" "${task_args[@]}" || echo "[$JORNADA_NODE_ID] $name ciclo falhou; nova tentativa em ${interval_seconds}s." >&2
+        sleep "$interval_seconds"
       done
     ) &
   else
