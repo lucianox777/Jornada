@@ -24,7 +24,7 @@ main{max-width:1180px;margin:0 auto;padding:22px}
 .command-head{display:flex;justify-content:space-between;gap:16px;align-items:center}
 .command-title{font-weight:700;font-size:16px}
 .command-desc{margin:6px 0;color:#45515e}
-.command-line{display:block;color:#6b7580;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
+.command-line{display:block;color:#6b7580;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}.dependency{margin-top:8px;padding:8px 10px;border-left:3px solid #d69b22;background:#fff8e6;color:#5f4a15;font-size:13px}.dependency code{font-size:12px}.dep-note{display:block;margin-top:3px;color:#746434}
 .command-actions{display:flex;gap:10px;align-items:center;white-space:nowrap}
 .count{color:#66717d;font-size:13px}
 .primary{background:#1463d7;color:#fff;border:1px solid #1463d7;border-radius:7px;padding:8px 13px}
@@ -175,10 +175,15 @@ async function showHistory(){
 
 async function loadCommands(){
   commandsCache=await api('/api/commands');
+  const titleById=Object.fromEntries(commandsCache.map(x=>[x.id,x.title]));
   commands.innerHTML=commandsCache.map(c=>{
     const label=c.id==='zip'?'Preencher dados':'Executar';
     const buttonClass=c.id==='finish'?'danger':'primary';
-    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small></div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span><button class="'+buttonClass+'" type="button" onclick="'+(c.id==='zip'?'zipDialog.showModal()':"startCommand('"+c.id+"')")+'">'+label+'</button></div></div></div>'
+    const deps=(c.dependencies||[]).map(id=>titleById[id]||id);
+    const dependency=deps.length||c.dependencyNote
+      ?'<div class="dependency"><b>Pré-requisitos:</b> '+(deps.length?deps.map(esc).join(' → '):'nenhum obrigatório')+(c.dependencyNote?'<span class="dep-note">'+esc(c.dependencyNote)+'</span>':'')+'</div>'
+      :'';
+    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span><button class="'+buttonClass+'" type="button" onclick="'+(c.id==='zip'?'zipDialog.showModal()':"startCommand('"+c.id+"')")+'">'+label+'</button></div></div></div>'
   }).join('');
 }
 

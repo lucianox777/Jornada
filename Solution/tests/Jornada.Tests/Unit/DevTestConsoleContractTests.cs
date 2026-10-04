@@ -24,6 +24,7 @@ public sealed class DevTestConsoleContractTests
         var localDb=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-db.ps1"));
         var bootstrap=File.ReadAllText(Path.Combine(root,"Solution","teste.ps1"));
         var goldSql=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Dev_GoldSynthetic.sql"));
+        var bundleScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-contract-bundle.ps1"));
 
         Assert.Multiple(()=>{
             Assert.That(program,Does.Contain("/api/commands/{command}/start"));
@@ -81,6 +82,12 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action linkage"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action replay-latest"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action report"));
+            Assert.That(runtime,Does.Contain("Calibração inicial a partir da Gold"));
+            Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action calibrate-initial"));
+            Assert.That(runtime,Does.Contain("Gerar bundle de contratos e configurações"));
+            Assert.That(runtime,Does.Contain("dev-console-contract-bundle.ps1"));
+            Assert.That(runtime,Does.Contain("Dependencies"));
+            Assert.That(runtime,Does.Contain("DependencyNote"));
 
             Assert.That(goldScript,Does.Contain("Jornada_Dev_GoldSynthetic.sql"));
             Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
@@ -103,8 +110,18 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("jornada.ingestao.write"));
             Assert.That(opsScript,Does.Contain("Ensure-ClusterRunning"));
             Assert.That(opsScript,Does.Contain("local-cluster.ps1"));
+            Assert.That(opsScript,Does.Contain("calibrate-initial"));
+            Assert.That(opsScript,Does.Contain("Gold vazia."));
+            Assert.That(opsScript,Does.Contain("contract-config-bundle.zip"));
+            Assert.That(bundleScript,Does.Contain("JORNADA_DEV_CONTRACT_CONFIG_V1"));
+            Assert.That(bundleScript,Does.Contain("config/contracts"));
+            Assert.That(bundleScript,Does.Contain("openapi/jornada-v1.openapi.json"));
+            Assert.That(bundleScript,Does.Contain("MANIFEST.sha256"));
+            Assert.That(bundleScript,Does.Contain("Nenhum modelo ATIVO"));
             Assert.That(opsScript,Does.Contain("--mode','REPLAY"));
             Assert.That(page,Does.Contain("A tela mostra somente operações reais"));
+            Assert.That(page,Does.Contain("Pré-requisitos:"));
+            Assert.That(page,Does.Contain("dependencyNote"));
             Assert.That(bootstrap,Does.Contain("restore $Solution --locked-mode"));
             Assert.That(bootstrap,Does.Contain("build $Solution --no-restore"));
 
