@@ -6,12 +6,13 @@ using System.Text.Json;
 sealed record CommandDefinition(string Id,string Title,string Description,string? File,string? Arguments,string? ResultPath,string[] Dependencies,string? DependencyNote)
 {
     public bool Visible{get;init;}=true;
-    public bool Implemented=>File is not null||Id is "zip" or "semiblind" or "configuration";
+    public bool Implemented=>File is not null||Id is "zip" or "semiblind" or "configuration" or "bronze";
     public string? CommandLine=>File is null?null:$"{File} {Arguments}";
     public string DisplayCommand=>Id switch{
         "zip"=>"Entrada manual → build-ingestion-fixture.py → POST /api/v1/ingestao/entregas",
         "semiblind"=>"POST /api/v1/identidade/candidatos (DEV sintético)",
         "configuration"=>"config/contracts/**/*.json + config/**/*.json + install/windows-production/Jornada.Cluster.Test.json",
+        "bronze"=>"bronze.entrega_arquivo · leitura paginada e busca DEV",
         _=>CommandLine??"Operação parametrizada pela interface."
     };
 }
@@ -36,6 +37,7 @@ static class CommandCatalog
     public static readonly CommandDefinition[] All=[
         new("infrastructure","Subir infraestrutura, referências e bootstrap","Prepara o ambiente DEV completo: Docker, SQL Server, schema, NAS, referência IBGE, NODE1/NODE2, modelo BOOTSTRAP inicial ATIVO, configuração inicial e bundle de contratos/configurações.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null),
         new("zip","Ingestão","Cria e envia uma nova entrega. No mesmo cartão também é possível acompanhar a última ingestão ou reenviar o último ZIP, sem misturar essas ações com administração interna do sistema.",null,null,null,["infrastructure"],"A preparação do ambiente gera o bundle exigido pela ingestão. Se contratos/configurações forem alterados depois, regenere o bundle em Contratos e configurações."),
+        new("bronze","Visualizar camada Bronze","Abre a visão paginada e somente leitura de bronze.entrega_arquivo, com um único campo de busca sobre todas as colunas exibidas.",null,null,null,["infrastructure"],"A visualização consulta o banco DEV atual e não altera objetos nem metadados da Bronze."),
         new("semiblind","Consulta semicega","Consulta até cinco candidatos pela API real sem expor CPF, UUID ou score. O formulário usa uma pessoa sintética da Gold como exemplo.",null,null,null,["infrastructure"],"Disponível somente no banco isolado JornadaSyntheticDev com a feature DEV habilitada; a preparação já garante a Gold inicial e o modelo BOOTSTRAP ATIVO."),
         new("linkage","Executar linkage","Executa o Jornada.Linkage.Runner real no NODE2 usando o modelo ATIVO. O replay do último run fica disponível como ação secundária no mesmo cartão.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action linkage",null,["infrastructure"],"A infraestrutura garante o BOOTSTRAP inicial ATIVO; uma recalibração posterior pode substituir esse modelo."),
         new("configuration","Contratos e configurações","Acesso único às duas superfícies administrativas: contratos de ingestão e configurações ativas. Cada editor mantém sua validação e persistência próprias.",null,null,null,[], "Alterações são locais ao checkout DEV; configurações que exigem reinício continuam sinalizadas."),
