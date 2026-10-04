@@ -28,6 +28,8 @@ public sealed class DevTestConsoleContractTests
         var goldSql=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Dev_GoldSynthetic.sql"));
         var bundleScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-contract-bundle.ps1"));
         var initialConfigScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-initial-config.ps1"));
+        var htmlHelper=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-html.ps1"));
+        var htmlHelperTest=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-test-dev-console-html-encoding.ps1"));
         var localCluster=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-cluster.ps1"));
         var devEnv=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-env.ps1"));
         var compose=File.ReadAllText(Path.Combine(root,"Solution","docker-compose.yml"));
@@ -251,7 +253,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(bundleScript,Does.Contain("Conteúdo incluído"));
             Assert.That(bundleScript,Does.Contain("Fingerprint SHA-256"));
             Assert.That(bundleScript,Does.Not.Contain("<pre>$escapedInfo</pre>"));
-            Assert.That(bundleScript,Does.Contain("function ConvertTo-HtmlEncodedText"));
+            Assert.That(bundleScript,Does.Contain("dev-console-html.ps1"));
+            Assert.That(bundleScript,Does.Contain("ConvertTo-DevConsoleHtmlText"));
+            Assert.That(bundleScript,Does.Not.Contain("function ConvertTo-HtmlEncodedText"));
             Assert.That(bundleScript,Does.Not.Contain("function H([object]$Value)"));
             Assert.That(bundleScript,Does.Contain("ARTEFATO: $ZipPath"));
             Assert.That(initialConfigScript,Does.Contain("configuration.json"));
@@ -264,7 +268,14 @@ public sealed class DevTestConsoleContractTests
             Assert.That(initialConfigScript,Does.Contain("Modelo de linkage ativo"));
             Assert.That(initialConfigScript,Does.Contain("Status dos serviços no momento da geração"));
             Assert.That(initialConfigScript,Does.Not.Contain("<pre>$escaped</pre>"));
-            Assert.That(initialConfigScript,Does.Contain("function ConvertTo-HtmlEncodedText"));
+            Assert.That(initialConfigScript,Does.Contain("dev-console-html.ps1"));
+            Assert.That(initialConfigScript,Does.Contain("ConvertTo-DevConsoleHtmlText"));
+            Assert.That(initialConfigScript,Does.Not.Contain("function ConvertTo-HtmlEncodedText"));
+            Assert.That(htmlHelper,Does.Contain("function ConvertTo-DevConsoleHtmlText"));
+            Assert.That(htmlHelper,Does.Contain("HtmlEncode"));
+            Assert.That(htmlHelperTest,Does.Contain("57E6D8EB-42B0-49CB-8EC8-206A377B0BC5"));
+            Assert.That(htmlHelperTest,Does.Contain("Get-Alias -Name h"));
+            Assert.That(htmlHelperTest,Does.Contain("DEV CONSOLE HTML ENCODER / ALIAS h: OK"));
             Assert.That(initialConfigScript,Does.Not.Contain("function H([object]$Value)"));
             Assert.That(infraScript,Does.Contain("dev-console-initial-config.ps1"));
             Assert.That(infraScript,Does.Contain("dev-console-contract-bundle.ps1"));
