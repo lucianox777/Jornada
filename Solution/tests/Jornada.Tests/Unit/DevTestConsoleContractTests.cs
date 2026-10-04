@@ -366,6 +366,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(lifecycleSql,Does.Contain("identidade.parametro_linkage"));
             Assert.That(lifecycleSql,Does.Contain("identidade.linkage_ruleset"));
             Assert.That(lifecycleSql,Does.Contain("WITH CHECK CHECK CONSTRAINT"));
+            Assert.That(lifecycleSql,Does.Contain("também está vinculada a observação não-bootstrap"));
             Assert.That(lifecycleSql,Does.Contain("N'DISCARDED'"));
             Assert.That(compose,Does.Contain("SemiblindIdentitySearch__Enabled"));
             Assert.That(compose,Does.Contain("test-access-keys.json:/opt/jornada/config/security/test-access-keys.json:ro"));
