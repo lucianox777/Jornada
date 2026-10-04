@@ -31,12 +31,14 @@ $db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'Jornad
 $password=$vars['JORNADA_SQL_SA_PASSWORD']
 if([string]::IsNullOrWhiteSpace($password)){throw 'JORNADA_SQL_SA_PASSWORD ausente.'}
 
-function Invoke-Compose([string[]]$Args){
-    Write-Host ('# docker compose --env-file .env '+($Args -join ' '))
+function Invoke-Compose([Parameter(ValueFromRemainingArguments=$true)][string[]]$ComposeArgs){
+    if($ComposeArgs.Count -eq 0){throw "Invoke-Compose exige um subcomando do Docker Compose."}
+    Write-Host ('# docker compose --env-file .env '+($ComposeArgs -join ' '))
     Push-Location $Root
     try {
-        & docker compose --env-file $EnvFile @Args
-        if($LASTEXITCODE -ne 0){throw "docker compose falhou ($LASTEXITCODE)."}
+        & docker compose --env-file $EnvFile @ComposeArgs
+        $composeExitCode=$LASTEXITCODE
+        if($composeExitCode -ne 0){throw "docker compose falhou ($composeExitCode)."}
     } finally { Pop-Location }
 }
 
