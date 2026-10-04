@@ -20,6 +20,7 @@ main{max-width:1180px;margin:0 auto;padding:22px}
 .iconbtn{border:1px solid #cfd6df;background:#fff;border-radius:8px;padding:8px 12px}
 .hero{margin-bottom:16px}
 .hero p{color:#5d6875}
+.stage{margin:18px 0 26px}.stage-head{display:flex;align-items:center;gap:10px;margin:0 0 8px}.stage-head h3{margin:0;font-size:17px}.stage-index{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;color:#66717d;background:#e9edf2;border-radius:999px;padding:4px 8px}.flow-note{padding:10px 12px;border:1px solid #cfdceb;background:#f6f9fd;border-radius:8px;color:#44515f;font-size:13px;margin-bottom:14px}
 .card{background:#fff;border:1px solid #d9dee5;border-radius:10px;padding:15px;margin:10px 0}
 .command-head{display:flex;justify-content:space-between;gap:16px;align-items:center}
 .command-title{font-weight:700;font-size:16px}
@@ -73,23 +74,33 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
 </head>
 <body>
 <header>
-  <div class="brand"><h1>Jornada · Console DEV</h1><div id="breadcrumb" class="breadcrumb">Console DEV / Comandos</div></div>
+  <div class="brand"><h1>Jornada · Console DEV</h1><div id="breadcrumb" class="breadcrumb">Console DEV / Fluxo do dado</div></div>
   <div class="toolbar">
-    <button class="iconbtn" type="button" onclick="showHome()">⌂ Comandos</button>
+    <button class="iconbtn" type="button" onclick="showHome()">⌂ Fluxo</button>
+    <button class="iconbtn" type="button" onclick="showTools()">🧰 Ferramentas</button>
     <button class="iconbtn" type="button" onclick="showHistory()">🕘 Execuções</button>
   </div>
 </header>
 <main>
   <section id="homeView">
     <div class="hero">
-      <h2>Comandos</h2>
-      <p>A tela mostra somente operações reais. A infraestrutura já inclui schema e referência IBGE; Bronze → Silver → identidade → Gold são etapas do Processor residente, acompanhadas pelo status da ingestão.</p>
+      <h2>Fluxo do dado</h2>
+      <p>A Console acompanha a mesma jornada da aplicação: infraestrutura → ingestão → Bronze → Silver → identidade/Linkage → Gold/Serving → encerramento.</p>
+      <div class="flow-note">No perfil DEV didático, o Processor residente é suspenso. A Entrega permanece na Bronze até você acionar explicitamente <b>Processar Bronze → Silver</b>.</div>
     </div>
     <div id="commands">Carregando...</div>
   </section>
 
+  <section id="toolsView" class="hidden">
+    <div class="hero">
+      <h2>Ferramentas de verificação e administração</h2>
+      <p>Diagnósticos, conferências, consulta semicega, contratos/configurações, calibração e massa sintética ficam separados do fluxo principal.</p>
+    </div>
+    <div id="toolsCommands">Carregando...</div>
+  </section>
+
   <section id="consoleView" class="hidden">
-    <button class="secondary back" type="button" onclick="showHome()">← Voltar aos comandos</button>
+    <button class="secondary back" type="button" onclick="showHome()">← Voltar ao fluxo</button>
     <div class="console-shell">
       <div class="console-top">
         <span id="consoleTitle" class="console-title">Execução</span>
@@ -106,7 +117,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
   </section>
 
   <section id="historyView" class="hidden">
-    <button class="secondary back" type="button" onclick="showHome()">← Voltar aos comandos</button>
+    <button class="secondary back" type="button" onclick="showHome()">← Voltar ao fluxo</button>
     <h2>Execuções desta sessão</h2>
     <p class="small">A lista começa vazia a cada inicialização da Console DEV e mostra somente as execuções da sessão atual.</p>
     <div id="history">Carregando...</div>
@@ -243,7 +254,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
 
 <script>
 const esc=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const views=[homeView,consoleView,historyView];
+const views=[homeView,toolsView,consoleView,historyView];
 const historyList=document.getElementById('history');
 const breadcrumb=document.getElementById('breadcrumb');
 let commandsCache=[];
@@ -269,8 +280,14 @@ function switchView(view,label){
 
 async function showHome(){
   if(eventSource){eventSource.close();eventSource=null}
-  switchView(homeView,'Comandos');
-  await loadCommands();
+  switchView(homeView,'Fluxo do dado');
+  await loadCommands('flow');
+}
+
+async function showTools(){
+  if(eventSource){eventSource.close();eventSource=null}
+  switchView(toolsView,'Ferramentas');
+  await loadCommands('tools');
 }
 
 async function showHistory(){
@@ -294,10 +311,20 @@ async function showHistory(){
   }
 }
 
-async function loadCommands(){
+async function loadCommands(surface='flow'){
   commandsCache=await api('/api/commands');
   const titleById=Object.fromEntries(commandsCache.map(x=>[x.id,x.title]));
-  commands.innerHTML=commandsCache.map(c=>{
+  const target=surface==='tools'?toolsCommands:commands;
+  const selected=commandsCache.filter(c=>(c.surface||'flow')===surface);
+  const groups=[];
+  for(const c of selected){
+    const stage=c.stage||'Outros';
+    let group=groups.find(x=>x.stage===stage);
+    if(!group){group={stage,items:[]};groups.push(group)}
+    group.items.push(c);
+  }
+
+  const renderCard=c=>{
     const deps=(c.dependencies||[]).map(id=>titleById[id]||id);
     const dependency=deps.length||c.dependencyNote
       ?'<div class="dependency"><b>Pré-requisitos:</b> '+(deps.length?deps.map(esc).join(' → '):'nenhum obrigatório')+(c.dependencyNote?'<span class="dep-note">'+esc(c.dependencyNote)+'</span>':'')+'</div>'
@@ -309,12 +336,20 @@ async function loadCommands(){
         +'<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Status</button>'
         +'<button class="secondary" type="button" onclick="startCommand(\'ingestion\',\'Reenviar último ZIP para ingestão\')">Reenviar último</button>';
     }else if(c.id==='bronze'){
-      actions='<button class="primary" type="button" onclick="openLayerDialog(\'bronze\')">Visualizar Bronze</button>';
+      actions='<button class="primary" type="button" onclick="openLayerDialog(\'bronze\')">Visualizar Bronze</button>'
+        +'<button class="secondary" type="button" onclick="startCommand(\'bronze-verify-latest\',\'Verificar integridade da última Entrega\')">Verificar integridade</button>';
+    }else if(c.id==='silver'){
+      actions='<button class="primary" type="button" onclick="startCommand(\'silver\',\'Processar Bronze → Silver\')">Processar Bronze → Silver</button>'
+        +'<button class="secondary" type="button" onclick="openLayerDialog(\'silver\')">Visualizar Silver</button>'
+        +'<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Status</button>';
+    }else if(c.id==='linkage'){
+      actions='<button class="primary" type="button" onclick="startCommand(\'linkage\',\'Executar Linkage Runner\')">Executar Linkage Runner</button>'
+        +'<button class="secondary" type="button" onclick="openLayerDialog(\'identity\')">Visualizar identidade</button>'
+        +'<button class="secondary" type="button" onclick="startCommand(\'replay\',\'Executar replay do último run\')">Replay</button>';
+    }else if(c.id==='gold'){
+      actions='<button class="primary" type="button" onclick="openLayerDialog(\'gold\')">Visualizar Gold</button>';
     }else if(c.id==='semiblind'){
       actions='<button class="primary" type="button" onclick="openSemiblindDialog()">Consultar</button>';
-    }else if(c.id==='linkage'){
-      actions='<button class="primary" type="button" onclick="startCommand(\'linkage\')">Executar</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'replay\',\'Executar replay do último run\')">Replay</button>';
     }else if(c.id==='configuration'){
       actions='<button class="primary" type="button" onclick="openConfigurationDialog()">Abrir</button>'
         +'<button class="secondary" type="button" onclick="startCommand(\'contract-bundle\',\'Gerar bundle de contratos e configurações\')">Gerar bundle</button>';
@@ -326,7 +361,14 @@ async function loadCommands(){
       const buttonClass=c.id==='finish'?'danger':'primary';
       actions='<button class="'+buttonClass+'" type="button" onclick="startCommand(\''+c.id+'\')">Executar</button>';
     }
-    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span>'+actions+'</div></div></div>'
+    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span>'+actions+'</div></div></div>';
+  };
+
+  target.innerHTML=groups.map(g=>{
+    const split=g.stage.split(' · ');
+    const badge=split.length>1?'<span class="stage-index">'+esc(split[0])+'</span>':'';
+    const title=split.length>1?split.slice(1).join(' · '):g.stage;
+    return '<section class="stage"><div class="stage-head">'+badge+'<h3>'+esc(title)+'</h3></div>'+g.items.map(renderCard).join('')+'</section>';
   }).join('');
 }
 
@@ -337,13 +379,17 @@ async function startCommand(id,titleOverride){
 }
 
 async function openLayerDialog(kind){
-  layerKind=kind==='bronze'?'bronze':'gold';
+  layerKind=['bronze','silver','identity','gold'].includes(kind)?kind:'gold';
   layerPage=1;
   layerSearch.value='';
-  layerTitle.textContent=layerKind==='gold'?'Camada Gold · gold.pessoa':'Camada Bronze · bronze.entrega_arquivo';
-  layerHelp.textContent=layerKind==='gold'
-    ?'Visão paginada da Gold sintética. O único campo de busca procura o valor informado em qualquer coluna exibida.'
-    :'Visão paginada e somente leitura dos metadados da camada Bronze. O campo de busca procura em qualquer coluna exibida.';
+  const labels={
+    bronze:['Camada Bronze · bronze.entrega_arquivo','Metadados e localização lógica dos objetos originais recebidos. Visualização somente leitura.'],
+    silver:['Camada Silver · silver.pessoa_observacao','Observações normalizadas materializadas pelo Jornada.Processor.Worker. Visualização somente leitura.'],
+    identity:['Identidade · identidade.v_vinculo_corrente','Estado corrente de resolução das observações, incluindo método e run de linkage quando aplicável.'],
+    gold:['Camada Gold · gold.pessoa','Estado canônico publicado das Pessoas. O campo de busca procura em qualquer coluna exibida.']
+  };
+  layerTitle.textContent=labels[layerKind][0];
+  layerHelp.textContent=labels[layerKind][1];
   layerDialog.showModal();
   await loadLayerPage(1);
 }
@@ -731,7 +777,7 @@ async function openHistoryRun(id){
   renderFinal(run);
 }
 
-loadCommands().catch(e=>commands.textContent='Falha ao carregar comandos: '+e.message);
+loadCommands('flow').catch(e=>commands.textContent='Falha ao carregar o fluxo: '+e.message);
 </script>
 </body>
 </html>
