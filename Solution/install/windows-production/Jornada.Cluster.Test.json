@@ -54,7 +54,7 @@
   "runtime": {
     "environment": {
       "Processor__PollingMilliseconds": "1000",
-      "LinkageRunner__PollingMilliseconds": "5000"
+      "LinkageRunner__PollingSeconds": "5"
     }
   },
   "taskAccount": {"user": "SYSTEM", "passwordEnvironmentVariable": ""},
