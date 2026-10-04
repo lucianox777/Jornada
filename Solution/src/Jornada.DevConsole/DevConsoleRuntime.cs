@@ -17,6 +17,11 @@ sealed record ManualZipRequest(string Gestor,string ManifestJson,string PessoasJ
 sealed record RunRecord(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,StepResult Step,IReadOnlyList<Dictionary<string,string?>> Records);
 sealed record ConsoleEvent(long Seq,DateTimeOffset At,string Stream,string Text);
 
+static class DevConsoleJson
+{
+    public static readonly JsonSerializerOptions Pretty=new(JsonSerializerDefaults.Web){WriteIndented=true};
+}
+
 static class CommandCatalog
 {
     // Cada ação é independente. Quando necessário, o próprio comando garante suas dependências locais.
