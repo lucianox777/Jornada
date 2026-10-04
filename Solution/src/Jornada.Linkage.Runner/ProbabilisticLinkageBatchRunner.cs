@@ -883,37 +883,9 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 SET status='PUBLICADO', finalizado_em=@fim, publicado_em=@fim
                 WHERE linkage_run_id=@run_id;
 
-                -- Materializa uma única vez o conjunto de UUIDs afetados. As fases
-                -- seguintes permanecem na MESMA transação SERIALIZABLE, mas evitam
-                -- recompor Gold e blocking pessoa a pessoa.
-                SELECT u.pessoa_uuid
-                INTO #gold_progressiva
-                FROM (
-                    SELECT r.pessoa_uuid_publicado AS pessoa_uuid
-                    FROM identidade.linkage_resultado r
-                    WHERE r.linkage_run_id=@run_id
-                      AND r.pessoa_uuid_publicado IS NOT NULL
-                    UNION
-                    SELECT p.initial_uuid
-                    FROM identidade.linkage_resultado r
-                    JOIN silver.pessoa_observacao po
-                      ON po.pessoa_observacao_id=r.pessoa_observacao_id
-                    JOIN identidade.pessoa_origem_progressiva p
-                      ON p.pessoa_origem_id=po.pessoa_origem_id
-                    WHERE r.linkage_run_id=@run_id
-                      AND p.initial_uuid IS NOT NULL
-                ) u;
-                CREATE UNIQUE CLUSTERED INDEX IX_gold_progressiva_uuid
-                    ON #gold_progressiva(pessoa_uuid);
-
-                SELECT DISTINCT r.pessoa_uuid_publicado AS pessoa_uuid
-                INTO #new_references
-                FROM identidade.linkage_resultado r
-                WHERE r.linkage_run_id=@run_id
-                  AND r.resultado_publicacao='NOVA_IDENTIDADE'
-                  AND r.pessoa_uuid_publicado IS NOT NULL;
-                CREATE UNIQUE CLUSTERED INDEX IX_new_references_uuid
-                    ON #new_references(pessoa_uuid);
+                -- As fases seguintes permanecem na MESMA transação SERIALIZABLE.
+                -- Cada comando materializa localmente apenas o conjunto que usa,
+                -- evitando depender de escopo de #temp entre RPCs SqlClient.
                 """, connection, transaction)
             {
                 CommandTimeout = commandTimeoutSeconds
@@ -934,6 +906,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
             {
                 CommandTimeout = commandTimeoutSeconds
             };
+            recompose.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
             await recompose.ExecuteNonQueryAsync(ct);
 
             logger.LogInformation(
@@ -953,7 +926,15 @@ public sealed class ProbabilisticLinkageBatchRunner(
             await using (var projected = connection.CreateCommand())
             {
                 projected.Transaction = transaction;
-                projected.CommandText = "SELECT pessoa_uuid FROM #new_references ORDER BY pessoa_uuid;";
+                projected.CommandText = """
+                    SELECT DISTINCT pessoa_uuid_publicado
+                    FROM identidade.linkage_resultado
+                    WHERE linkage_run_id=@run_id
+                      AND resultado_publicacao='NOVA_IDENTIDADE'
+                      AND pessoa_uuid_publicado IS NOT NULL
+                    ORDER BY pessoa_uuid_publicado;
+                    """;
+                projected.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
                 await using var reader = await projected.ExecuteReaderAsync(ct);
                 while (await reader.ReadAsync(ct))
                     newReferences.Add(reader.GetGuid(0));
