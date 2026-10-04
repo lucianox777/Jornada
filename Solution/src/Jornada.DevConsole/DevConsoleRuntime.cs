@@ -9,7 +9,7 @@ sealed record CommandDefinition(string Id,string Title,string Description,string
     public string? CommandLine=>File is null?null:$"{File} {Arguments}";
     public string DisplayCommand=>Id=="zip"
         ?"Entrada manual → python scripts/build-ingestion-fixture.py"
-        :CommandLine??"Comando real ainda não mapeado.";
+        :CommandLine??"Operação parametrizada pela interface.";
 }
 
 sealed record StepResult(string Command,string WorkingDirectory,int ExitCode,long DurationMs,string Output,string Error,string? ResultPath);
@@ -21,26 +21,20 @@ static class CommandCatalog
 {
     // Cada ação é independente. Quando necessário, o próprio comando garante suas dependências locais.
     public static readonly CommandDefinition[] All=[
-        new("update-build","Atualizar e compilar","Atualiza o checkout e compila a solução real.","pwsh","-NoProfile -File scripts/dev-console-command.ps1 -Action update-build",null),
-        new("infrastructure","Subir infraestrutura","Inicia Docker Desktop automaticamente quando necessário e sobe o cluster DEV completo (SQL Server, NAS, referência e NODE1/NODE2).","pwsh","-NoProfile -File scripts/local-cluster.ps1 -Action up",null),
-        new("schema","Aplicar schema","Garante a infraestrutura local e aplica/reaplica o schema DEV idempotente.","pwsh","-NoProfile -File scripts/local-db.ps1 -Action up",null),
-        new("ibge","Carregar referência IBGE","Prepara a referência IBGE usada pelo linkage.",null,null,null),
-        new("calibration","Calibrar e ativar","Executa a calibração e a ativação da configuração escolhida.",null,null,null),
-        new("source-data","Carregar dados de origem","Prepara dados de origem para os cenários de desenvolvimento.",null,null,null),
+        new("infrastructure","Subir infraestrutura e referências","Sobe o ambiente DEV completo: Docker, SQL Server, schema, NAS, bootstrap IBGE e NODE1/NODE2. Reusa a imagem jornada-node:test sem recompilar quando ela já existe.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null),
+        new("reference-check","Validar referência IBGE","Executa o quick check read-only da referência IBGE já materializada. O bootstrap/carga faz parte da infraestrutura básica.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action reference-check",null),
         new("zip","Gerar ZIP de ingestão","Abre a entrada manual e gera o ZIP real de ingestão.",null,null,null),
-        new("ingestion","Executar ingestão","Executa a entrada de dados pela ingestão.",null,null,null),
-        new("bronze","Processar Bronze","Executa ou inspeciona a etapa Bronze.",null,null,null),
-        new("silver","Processar Silver","Executa ou inspeciona a etapa Silver.",null,null,null),
-        new("blocking","Executar blocking","Gera candidatos para o linkage sem impor sequência com outros comandos.",null,null,null),
-        new("linkage","Executar linkage","Executa o linkage probabilístico.",null,null,null),
-        new("identity","Consolidar identidade","Executa a consolidação de identidade.",null,null,null),
+        new("ingestion","Enviar último ZIP para ingestão","Envia o último ZIP manual para a API real em NODE1 usando a credencial sintética DEV correspondente ao Gestor.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest",".local/dev-console/last-ingestion.json"),
+        new("pipeline-status","Ver status da última ingestão","Consulta o recibo da última Entrega. Bronze, Silver, identidade e Gold são processados pelo Processor residente; não existem quatro comandos one-shot independentes.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action pipeline-status",".local/dev-console/last-ingestion-status.json"),
+        new("bronze-verify","Verificar Bronze","Executa Jornada.Bronze.Verify no NODE2 contra as referências Bronze persistidas.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action bronze-verify",null),
+        new("blocking","Reconstruir blocking","Executa a reconstrução one-shot da projeção local de blocking sem recompilar nada.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action blocking",null),
+        new("calibration","Calibrar e ativar","Executa o ciclo real GENERATE_DRAFT → conferência → VALIDATE → ACTIVATE no cluster local.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate",null),
+        new("linkage","Executar linkage","Executa o Jornada.Linkage.Runner real no NODE2 usando o modelo calibrado ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action linkage",null),
+        new("replay","Executar replay do último run","Executa REPLAY real do último linkage PUBLICADO elegível, sem publicar o resultado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action replay-latest",null),
         new("gold-synthetic","Carregar Gold sintética","Carrega fixture sintética diretamente, sem exigir ingestão, blocking, linkage ou modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-gold-synthetic.ps1",".local/dev-console/gold-synthetic-records.json"),
-        new("gold","Gerar Gold","Executa ou inspeciona a geração da camada Gold.",null,null,null),
-        new("replay","Executar replay","Executa um replay a partir das evidências disponíveis.",null,null,null),
-        new("semiblind","Executar consulta semicega","Executa a consulta semicega de validação.",null,null,null),
-        new("report","Gerar relatório","Produz o relatório da execução escolhida.",null,null,null),
-        new("finish","Finalizar ambiente","Encerra o cluster DEV e remove volumes/orfãos locais; o histórico da Console permanece.","pwsh","-NoProfile -File scripts/local-cluster.ps1 -Action clean",null),
-        new("destroy","Destruir ambiente DEV","Encerra o cluster DEV e remove volumes/orfãos locais do Docker.","pwsh","-NoProfile -File scripts/local-cluster.ps1 -Action clean",null)
+        new("report","Diagnóstico do último linkage","Executa o diagnóstico real do último linkage publicado, incluindo modelo, thresholds, cobertura e qualidade sintética.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action report",null),
+        new("environment-status","Status da infraestrutura","Mostra todos os serviços do compose, inclusive o init one-shot jornada-reference-bootstrap.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action status",null),
+        new("finish","Finalizar e limpar ambiente","Encerra o cluster e remove containers, volumes e órfãos locais. Na próxima subida tudo é recriado automaticamente.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action clean",null)
     ];
 }
 
@@ -133,8 +127,8 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
 
         if(!definition.Implemented||definition.File is null)
         {
-            live.Add("stderr","SEM EXECUTOR: comando real ainda não mapeado.");
-            var step=new StepResult(definition.DisplayCommand,root,-1,0,"","Comando real ainda não mapeado.",null);
+            live.Add("stderr","SEM EXECUTOR: operação sem executor configurado.");
+            var step=new StepResult(definition.DisplayCommand,root,-1,0,"","Operação sem executor configurado.",null);
             await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"SEM EXECUTOR","Opção disponível; comando real ainda não mapeado.",step,Array.Empty<Dictionary<string,string?>>()),live);
             return;
         }

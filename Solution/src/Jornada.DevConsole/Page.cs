@@ -82,7 +82,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
   <section id="homeView">
     <div class="hero">
       <h2>Comandos</h2>
-      <p>Cada ação é independente. Ao executar, abre um console ao vivo com o comando real, stdout, stderr e o resultado final.</p>
+      <p>A tela mostra somente operações reais. A infraestrutura já inclui schema e referência IBGE; Bronze → Silver → identidade → Gold são etapas do Processor residente, acompanhadas pelo status da ingestão.</p>
     </div>
     <div id="commands">Carregando...</div>
   </section>
@@ -171,7 +171,7 @@ async function loadCommands(){
   commandsCache=await api('/api/commands');
   commands.innerHTML=commandsCache.map(c=>{
     const label=c.id==='zip'?'Preencher dados':'Executar';
-    const buttonClass=c.id==='destroy'?'danger':'primary';
+    const buttonClass=c.id==='finish'?'danger':'primary';
     return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small></div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span><button class="'+buttonClass+'" type="button" onclick="'+(c.id==='zip'?'zipDialog.showModal()':"startCommand('"+c.id+"')")+'">'+label+'</button></div></div></div>'
   }).join('');
 }
