@@ -1,5 +1,8 @@
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
+[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
+$OutputEncoding=[Text.UTF8Encoding]::new($false)
+if($PSVersionTable.PSVersion.Major -ge 7){$PSStyle.OutputRendering='PlainText'}
 $started=Get-Date
 Write-Host '=== Jornada DEV :: Carregar Gold sintética ==='
 Write-Host ('Início: '+$started.ToString('o'))
@@ -38,7 +41,7 @@ try {
   Write-Host 'Etapa 3/4: consultando exatamente os registros da fixture...'
 
   $q="SET NOCOUNT ON; SELECT CONVERT(varchar(36),pessoa_uuid) pessoa_uuid,nome_completo,CONVERT(varchar(10),data_nascimento,23) data_nascimento,nome_mae,estado_identidade FROM gold.pessoa WHERE pessoa_uuid IN ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb001','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb002','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb003','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb004','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb005') ORDER BY pessoa_uuid FOR JSON PATH;"
-  $json=& docker compose --env-file $envFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -W -h -1 -y 0 -Q $q
+  $json=& docker compose --env-file $envFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d $db -h -1 -y 0 -Q $q
   if($LASTEXITCODE -ne 0){throw 'Consulta dos registros Gold falhou.'}
 
   $out=Join-Path $Root '.local/dev-console'
