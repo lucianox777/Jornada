@@ -25,6 +25,8 @@ public sealed class DevTestConsoleContractTests
         var bootstrap=File.ReadAllText(Path.Combine(root,"Solution","teste.ps1"));
         var goldSql=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Dev_GoldSynthetic.sql"));
         var bundleScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-contract-bundle.ps1"));
+        var initialConfigScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-initial-config.ps1"));
+        var localCluster=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-cluster.ps1"));
 
         Assert.Multiple(()=>{
             Assert.That(program,Does.Contain("/api/commands/{command}/start"));
@@ -32,6 +34,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("text/event-stream"));
             Assert.That(program,Does.Contain("/api/runs/{id:guid}/result"));
             Assert.That(program,Does.Contain("/api/zip/manual/start"));
+            Assert.That(program,Does.Contain("/api/zip/template"));
+            Assert.That(program,Does.Contain("/api/runs/{id:guid}/result/html"));
+            Assert.That(program,Does.Contain("/api/runs/{id:guid}/artifacts/{index:int}"));
 
             Assert.That(runtime,Does.Contain("LiveExecutionService"));
             Assert.That(runtime,Does.Contain("ReadLineAsync"));
@@ -88,6 +93,11 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("dev-console-contract-bundle.ps1"));
             Assert.That(runtime,Does.Contain("Dependencies"));
             Assert.That(runtime,Does.Contain("DependencyNote"));
+            Assert.That(runtime,Does.Contain("GoldZipTemplateService"));
+            Assert.That(runtime,Does.Contain("FROM gold.pessoa"));
+            Assert.That(runtime,Does.Contain("initial-config"));
+            Assert.That(runtime,Does.Contain("dev-console-initial-config.ps1"));
+            Assert.That(runtime,Does.Contain("ARTEFATO:"));
 
             Assert.That(goldScript,Does.Contain("Jornada_Dev_GoldSynthetic.sql"));
             Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
@@ -118,10 +128,23 @@ public sealed class DevTestConsoleContractTests
             Assert.That(bundleScript,Does.Contain("openapi/jornada-v1.openapi.json"));
             Assert.That(bundleScript,Does.Contain("MANIFEST.sha256"));
             Assert.That(bundleScript,Does.Contain("Nenhum modelo ATIVO"));
+            Assert.That(bundleScript,Does.Contain("BUNDLE_INFO.html"));
+            Assert.That(bundleScript,Does.Contain("ARTEFATO: $ZipPath"));
+            Assert.That(initialConfigScript,Does.Contain("configuration.json"));
+            Assert.That(initialConfigScript,Does.Contain("configuration.html"));
+            Assert.That(initialConfigScript,Does.Contain("ARTEFATO: $jsonPath"));
+            Assert.That(infraScript,Does.Contain("dev-console-initial-config.ps1"));
+            Assert.That(localCluster,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
+            Assert.That(opsScript,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
             Assert.That(opsScript,Does.Contain("--mode','REPLAY"));
             Assert.That(page,Does.Contain("A tela mostra somente operações reais"));
             Assert.That(page,Does.Contain("Pré-requisitos:"));
             Assert.That(page,Does.Contain("dependencyNote"));
+            Assert.That(page,Does.Contain("Formulário HTML"));
+            Assert.That(page,Does.Contain("JSON / JSONL"));
+            Assert.That(page,Does.Contain("Atualizar exemplo da Gold"));
+            Assert.That(page,Does.Contain("Visualizar JSON em HTML"));
+            Assert.That(page,Does.Contain("Arquivos gerados:"));
             Assert.That(bootstrap,Does.Contain("restore $Solution --locked-mode"));
             Assert.That(bootstrap,Does.Contain("build $Solution --no-restore"));
 
