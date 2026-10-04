@@ -41,6 +41,71 @@ try {
   $scaleCount=[int]((& docker compose --env-file $envFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -W -h -1 -Q "SET NOCOUNT ON; SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-SEHAB-%';" | Where-Object { $_.Trim() } | Select-Object -Last 1).Trim())
   if($scaleCount -ne $expected){throw "Massa sintética DEV inválida: encontrados=$scaleCount; esperados=$expected. Execute Subir infraestrutura e referências."}
 
+  Write-Host 'Gerando datas de nascimento pela distribuição demográfica sintética versionada de SP...'
+  $corpusDir=Join-Path $out 'demographic-primary-30000'
+  if(Test-Path $corpusDir){Remove-Item -Recurse -Force $corpusDir}
+  $generatorArgs=@(
+    'run','--project','src/Jornada.Linkage.SyntheticCorpus','--configuration','Release','--no-build','--','generate',
+    '--reference-root',(Join-Path $Root 'data/reference/ibge-nomes-2022'),
+    '--population-profile','demographic-primary',
+    '--birth-daily-source',(Join-Path $Root 'data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json'),
+    '--out',$corpusDir,'--people','30000','--seed','42','--error-profile','correlated'
+  )
+  & dotnet @generatorArgs
+  if($LASTEXITCODE -ne 0){throw "Gerador demográfico falhou ($LASTEXITCODE)."}
+  $birthRows=@(Import-Csv (Join-Path $corpusDir 'pessoas_verdade.csv'))
+  if($birthRows.Count -ne $expected){throw "Distribuição de nascimento retornou $($birthRows.Count) pessoas; esperado=$expected."}
+
+  $stage='dbo.__dev_console_birth_stage'
+  $stageInit="IF OBJECT_ID('$stage','U') IS NOT NULL DROP TABLE $stage; CREATE TABLE $stage(n bigint NOT NULL PRIMARY KEY,nascimento date NOT NULL);"
+  & docker compose --env-file $envFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -Q $stageInit
+  if($LASTEXITCODE -ne 0){throw 'Criação do staging de datas falhou.'}
+  for($offset=0;$offset -lt $birthRows.Count;$offset+=500){
+    $last=[Math]::Min($offset+499,$birthRows.Count-1)
+    $values=[Collections.Generic.List[string]]::new()
+    for($i=$offset;$i -le $last;$i++){
+      $n=$i+1
+      $date=[string]$birthRows[$i].data_nascimento
+      $values.Add("($n,CONVERT(date,'$date',23))")
+    }
+    $batch="INSERT $stage(n,nascimento) VALUES "+($values -join ',')+';'
+    & docker compose --env-file $envFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -Q $batch
+    if($LASTEXITCODE -ne 0){throw "Carga do staging de datas falhou no offset $offset."}
+  }
+  $applyBirths=@"
+;WITH truth AS (
+ SELECT TRY_CONVERT(bigint,RIGHT(o.codigo_pessoa_origem,10)) n,vc.pessoa_uuid
+ FROM silver.pessoa_observacao o
+ JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id
+ WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.status=N'RESOLVIDO'
+)
+UPDATE g SET data_nascimento=b.nascimento,atualizado_em=SYSUTCDATETIME()
+FROM gold.pessoa g JOIN truth t ON t.pessoa_uuid=g.pessoa_uuid JOIN $stage b ON b.n=t.n;
+UPDATE o SET data_nascimento=b.nascimento
+FROM silver.pessoa_observacao o JOIN $stage b ON b.n=TRY_CONVERT(bigint,RIGHT(o.codigo_pessoa_origem,10))
+WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%';
+UPDATE o SET data_nascimento=CASE
+ WHEN b.n%29=0 AND DAY(b.nascimento)<=12 AND DAY(b.nascimento)<>MONTH(b.nascimento) THEN DATEFROMPARTS(YEAR(b.nascimento),DAY(b.nascimento),MONTH(b.nascimento))
+ WHEN b.n%31=0 AND DAY(b.nascimento) BETWEEN 2 AND 27 THEN DATEADD(DAY,CASE WHEN DAY(b.nascimento)%10 IN(0,9) THEN -1 ELSE 1 END,b.nascimento)
+ ELSE b.nascimento END
+FROM silver.pessoa_observacao o JOIN $stage b ON b.n=TRY_CONVERT(bigint,RIGHT(o.codigo_pessoa_origem,10))
+WHERE o.codigo_pessoa_origem LIKE N'SCALE-SMADS-%';
+;WITH p AS (
+ SELECT o.pessoa_observacao_id,TRY_CONVERT(bigint,RIGHT(o.codigo_pessoa_origem,10)) n,
+        ((TRY_CONVERT(bigint,RIGHT(o.codigo_pessoa_origem,10))-1)%30000)+1 truth_n
+ FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%'
+)
+UPDATE o SET data_nascimento=CASE
+ WHEN p.n%10=0 THEN DATEADD(DAY,CONVERT(int,p.n%365),CONVERT(date,'1900-01-01'))
+ WHEN p.n%29=0 AND DAY(b.nascimento)<=12 AND DAY(b.nascimento)<>MONTH(b.nascimento) THEN DATEFROMPARTS(YEAR(b.nascimento),DAY(b.nascimento),MONTH(b.nascimento))
+ WHEN p.n%31=0 AND DAY(b.nascimento) BETWEEN 2 AND 27 THEN DATEADD(DAY,CASE WHEN DAY(b.nascimento)%10 IN(0,9) THEN -1 ELSE 1 END,b.nascimento)
+ ELSE b.nascimento END
+FROM silver.pessoa_observacao o JOIN p ON p.pessoa_observacao_id=o.pessoa_observacao_id JOIN $stage b ON b.n=p.truth_n;
+DROP TABLE $stage;
+"@
+  & docker compose --env-file $envFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -Q $applyBirths
+  if($LASTEXITCODE -ne 0){throw 'Aplicação da distribuição demográfica de nascimento falhou.'}
+
   Write-Host 'Etapa 3/5: aplicando nomes/sobrenomes conforme frequências IBGE ativas...'
   & docker compose --env-file $envFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -v SCALE_PEOPLE=30000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 -i /workspace/database/Jornada_Dev_SyntheticScale_Diversify.sql
   if($LASTEXITCODE -ne 0){throw "Diversificação IBGE falhou ($LASTEXITCODE)."}
@@ -63,7 +128,7 @@ try {
   $resultPath=Join-Path $out 'gold-synthetic-records.json'
   [IO.File]::WriteAllText($resultPath,($records|ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))
   $profilePath=Join-Path $out 'gold-synthetic-profile.json'
-  $profile=[ordered]@{syntheticOnly=$true;database=$db;people=$expected;nameDistribution='IBGE Censo 2022 - frequência publicada';birthDistribution='SCALE DEV determinística; projeção demográfica versionada permanece evidência separada';seed=355;generatedAt=(Get-Date).ToUniversalTime().ToString('o')}
+  $profile=[ordered]@{syntheticOnly=$true;database=$db;people=$expected;nameDistribution='IBGE Censo 2022 - frequência publicada';birthDistribution='DEMOGRAPHIC_PRIMARY_V1 / projeção diária sintética versionada de nascimentos de SP';seed=355;generatedAt=(Get-Date).ToUniversalTime().ToString('o')}
   [IO.File]::WriteAllText($profilePath,($profile|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
   Write-Host 'Etapa 5/5: resultados persistidos.'
   Write-Host ('Arquivo JSON: '+$resultPath)
