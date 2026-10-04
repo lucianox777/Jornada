@@ -216,10 +216,10 @@
     "sourceCommit": "437b8d3c58e6be571395f53903d57be9e10bff06",
     "githubRunId": "37138273004",
     "sdk": "10.0.112",
-    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112. Jornada.DevConsole foi adicionada como host DEV independente, sem PackageReference; o lock vazio foi force-evaluated no mesmo gate. Atualização 2026-10-04: dependências de teste compatíveis e ações GitHub consolidadas; NUnit 4.6.1 foi descartado após ambiguidade de overloads em Assert.* e mantido em 4.2.2; locks regenerados pelo grafo corrente.",
+    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112. Jornada.DevConsole foi adicionada como host DEV independente, sem PackageReference; o lock vazio foi force-evaluated no mesmo gate. Atualização 2026-10-04: dependências de teste compatíveis e ações GitHub consolidadas; NUnit 4.6.1 foi descartado após ambiguidade de overloads em Assert.* e mantido em 4.2.2; locks regenerados pelo grafo corrente. Atualização 2026-10-04: Microsoft.NET.Test.Sdk 18.10.1 e NUnit3TestAdapter 6.3.0 aplicados aos projetos de teste, mantendo NUnit 4.2.2.",
     "lockCount": 22,
     "changedLockCount": 22,
-    "combinedSha256": "8a54e3e8dadab6899882cc9bbf6bf6115a5ee021c6d90e3a5d9c85c4eec3f979",
+    "combinedSha256": "6af55bd54d76b5bd2859c72d98aca1dd1bca7af12e725cc8fa2d9aa34bb5b25e",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -303,11 +303,11 @@
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "03b20cac9b978eeb3b8a4590d1695be32503039491d63ba2a57e418a32ddc8f0"
+        "sha256": "25f6ffc96ceba14bffb51e46390d7dd9d1c0902d772574ebc12fbcc943147034"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "d549a118571ae34d981f3d6592e5171f339bd51695a2ec319b3a00197d3a8d6c"
+        "sha256": "1b2ff2c2e5ceec3983c74afb1745321fab3db52a9cdff99f2162b5057c713973"
       }
     ]
   }
