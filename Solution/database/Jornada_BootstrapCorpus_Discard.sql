@@ -25,6 +25,12 @@ IF @expectedProfile NOT IN(N'Development',N'Homologation',N'Production')
 IF @residentProfile<>@expectedProfile
     THROW 51941,'Perfil residente diverge do perfil explicitamente autorizado para o descarte.',1;
 
+DECLARE @lifecycle NVARCHAR(40)=ISNULL(CONVERT(NVARCHAR(40),(
+    SELECT value FROM sys.extended_properties
+    WHERE class=0 AND name=N'Jornada.BootstrapCorpusLifecycle')),N'');
+IF @lifecycle<>N'PENDING_DISCARD'
+    THROW 51947,'Corpus não está marcado explicitamente como PENDING_DISCARD; descarte recusado.',1;
+
 DECLARE @activeModels BIGINT=(
     SELECT COUNT_BIG(*) FROM identidade.modelo_linkage
     WHERE status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO');
@@ -164,6 +170,11 @@ BEGIN TRY
         THROW 51945,'Parâmetros do modelo foram alterados durante o descarte.',1;
     IF (SELECT COUNT_BIG(*) FROM identidade.linkage_ruleset WHERE modelo_id=@modelId)<>@rulesetCount
         THROW 51946,'Ruleset do modelo foi alterado durante o descarte.',1;
+
+    IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BootstrapCorpusLifecycle')
+        EXEC sys.sp_updateextendedproperty @name=N'Jornada.BootstrapCorpusLifecycle',@value=N'DISCARDED';
+    ELSE
+        EXEC sys.sp_addextendedproperty @name=N'Jornada.BootstrapCorpusLifecycle',@value=N'DISCARDED';
 
     COMMIT TRANSACTION;
 
