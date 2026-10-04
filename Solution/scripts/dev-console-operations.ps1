@@ -309,7 +309,7 @@ switch($Action){
         $resident=@()
         foreach($node in @('jornada-node1','jornada-node2')){
             $found=(& docker compose --env-file $EnvFile exec -T $node sh -lc "pgrep -af '[J]ornada.Processor.Worker.dll' || true" | Out-String).Trim()
-            if(-not [string]::IsNullOrWhiteSpace($found)){$resident+=("$node: $found")}
+            if(-not [string]::IsNullOrWhiteSpace($found)){$resident+=("${node}: $found")}
         }
         if($resident.Count -gt 0){throw "Processor residente detectado em modo manual: $($resident -join '; ')."}
 
