@@ -67,6 +67,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("\"environment-status\""));
             Assert.That(runtime,Does.Contain("Status/health da infraestrutura"));
             Assert.That(runtime,Does.Contain(".Take(200)"));
+            Assert.That(runtime,Does.Contain("summariesRoot"));
+            Assert.That(runtime,Does.Contain("ReadLegacySummaryAsync"));
+            Assert.That(runtime,Does.Contain("Path.GetExtension(path)"));
+            Assert.That(runtime,Does.Contain("!string.Equals(Path.GetExtension(path),\".json\""));
 
             Assert.That(page,Does.Contain("🕘 Execuções"));
             Assert.That(page,Does.Contain("console-shell"));
@@ -82,6 +86,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("Executar novamente"));
             Assert.That(page,Does.Contain("Falha ao carregar o histórico."));
             Assert.That(page,Does.Contain("history.textContent=\'Carregando...\'"));
+            Assert.That(page,Does.Contain("AbortController"));
+            Assert.That(page,Does.Contain("excedeu 7 segundos"));
 
             Assert.That(localDb,Does.Contain("iniciando Docker Desktop"));
             Assert.That(localDb,Does.Contain("Start-Process -FilePath $dockerDesktopPath"));
@@ -139,11 +145,16 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("calibrate-initial"));
             Assert.That(opsScript,Does.Contain("Gold sintética completa de 30.000 pessoas"));
             Assert.That(opsScript,Does.Contain("contract-config-bundle.zip"));
+            Assert.That(opsScript,Does.Contain("NAO_ENCONTRADA_NO_AMBIENTE_ATUAL"));
+            Assert.That(opsScript,Does.Contain("staleReceipt=$true"));
+            Assert.That(opsScript,Does.Contain("O seed sintético não libera linkage"));
+            Assert.That(opsScript,Does.Contain("SEED_DEV_FIXO_NAO_TREINADO"));
             Assert.That(bundleScript,Does.Contain("JORNADA_DEV_CONTRACT_CONFIG_V1"));
             Assert.That(bundleScript,Does.Contain("config/contracts"));
             Assert.That(bundleScript,Does.Contain("openapi/jornada-v1.openapi.json"));
             Assert.That(bundleScript,Does.Contain("MANIFEST.sha256"));
-            Assert.That(bundleScript,Does.Contain("Nenhum modelo ATIVO"));
+            Assert.That(bundleScript,Does.Contain("Nenhum modelo calibrado ATIVO"));
+            Assert.That(bundleScript,Does.Contain("SEED_DEV_FIXO_NAO_TREINADO"));
             Assert.That(bundleScript,Does.Contain("BUNDLE_INFO.html"));
             Assert.That(bundleScript,Does.Contain("ARTEFATO: $ZipPath"));
             Assert.That(initialConfigScript,Does.Contain("configuration.json"));
@@ -152,6 +163,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(initialConfigScript,Does.Contain("runtimeHealth=$health"));
             Assert.That(initialConfigScript,Does.Contain("Resumo de status/health"));
             Assert.That(infraScript,Does.Contain("dev-console-initial-config.ps1"));
+            Assert.That(infraScript,Does.Contain("Estado transitório da Console removido"));
+            Assert.That(infraScript,Does.Contain("Histórico de execuções foi preservado"));
             Assert.That(localCluster,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
             Assert.That(localCluster,Does.Contain("Etapa cluster 1/6"));
             Assert.That(localCluster,Does.Contain("Show-ComposeFailureDiagnostics"));

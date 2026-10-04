@@ -59,6 +59,12 @@ switch($Action){
     }
     'clean' {
         Invoke-Cluster 'clean'
+        $stateDir=Join-Path $Root '.local/dev-console'
+        if(Test-Path $stateDir){
+            Remove-Item -Recurse -Force $stateDir
+            Write-Host "Estado transitório da Console removido: $stateDir"
+        }
+        Write-Host 'Histórico de execuções foi preservado; recibos, bundles, ZIPs e artefatos ligados ao ambiente foram limpos.'
         Write-Host 'Ambiente DEV destruído: containers, volumes e órfãos locais removidos.'
         Write-Host 'Na próxima subida, a infraestrutura será recriada automaticamente.'
     }

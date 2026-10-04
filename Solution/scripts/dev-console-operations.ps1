@@ -132,6 +132,7 @@ switch($Action){
         $envelope=[ordered]@{
             zip=$zip.FullName
             gestor=$gestor
+            database=$db
             receivedAt=(Get-Date).ToUniversalTime().ToString('o')
             receipt=$receipt
         }
@@ -149,6 +150,28 @@ switch($Action){
         if([string]::IsNullOrWhiteSpace($entregaId)){$entregaId=[string]$saved.receipt.EntregaId}
         if([string]::IsNullOrWhiteSpace($entregaId)){throw 'Recibo da última ingestão não contém entregaId.'}
         $gestor=[string]$saved.gestor
+        $savedDb=[string]$saved.database
+        $statusPath=Join-Path $OutDir 'last-ingestion-status.json'
+        $exists=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM ingestao.entrega WHERE entrega_id='$entregaId';")
+        if(($savedDb -and $savedDb -ne $db) -or $exists -eq 0){
+            $stale=[ordered]@{
+                entregaId=$entregaId
+                gestor=$gestor
+                databaseAtual=$db
+                databaseDoRecibo=$savedDb
+                status='NAO_ENCONTRADA_NO_AMBIENTE_ATUAL'
+                staleReceipt=$true
+                message='O recibo pertence a uma execução anterior/ambiente reinicializado. Envie um novo ZIP antes de consultar o status.'
+                checkedAt=(Get-Date).ToUniversalTime().ToString('o')
+            }
+            $stale | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $statusPath
+            Write-Host "Recibo anterior detectado: entrega $entregaId não existe no banco atual $db."
+            Write-Host 'Nenhuma chamada HTTP foi feita para evitar um 404 enganoso.'
+            Write-Host "Resultado salvo em: $statusPath"
+            Write-Host "ARTEFATO: $statusPath"
+            return
+        }
+
         $credential=Get-DevCredential $gestor 'jornada.ingestao.status'
         $uri="http://127.0.0.1:5080/api/v1/ingestao/entregas/$entregaId"
         Write-Host "# GET $uri"
@@ -159,9 +182,9 @@ switch($Action){
         $response=Invoke-WebRequest -UseBasicParsing -Method Get -Uri $uri -Headers $headers
         Write-Host "HTTP $([int]$response.StatusCode)"
         Write-Host $response.Content
-        $statusPath=Join-Path $OutDir 'last-ingestion-status.json'
         $response.Content | Set-Content -Encoding UTF8 $statusPath
         Write-Host "Resultado salvo em: $statusPath"
+        Write-Host "ARTEFATO: $statusPath"
     }
 
     'blocking' { Invoke-ClusterAction 'blocking' }
@@ -171,16 +194,17 @@ switch($Action){
         if($db -ne 'JornadaSyntheticDev'){throw "Console DEV exige JornadaSyntheticDev; banco atual=$db."}
         $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT vc.pessoa_uuid) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.status=N'RESOLVIDO';")
         if($goldCount -ne 30000){throw "Calibração inicial exige a Gold sintética completa de 30.000 pessoas; atual=$goldCount. Execute Carregar Gold sintética (30.000)."}
-        $activeCount=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO';")
-        if($activeCount -gt 0){throw 'Já existe modelo ATIVO. Use Recalibrar e ativar para criar uma nova versão.'}
+        $eligible="status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO'"
+        $activeCount=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE $eligible;")
+        if($activeCount -gt 0){throw 'Já existe modelo calibrado ATIVO. Use Recalibrar e ativar para criar uma nova versão.'}
 
         Write-Host "Gold sintética DEV disponível para calibração inicial: $goldCount pessoa(s)."
         Invoke-ClusterAction 'calibrate'
 
-        $modelId=Invoke-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status=N'ATIVO' ORDER BY versao DESC;"
-        $version=[int](Invoke-SqlScalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status=N'ATIVO' ORDER BY versao DESC;")
-        $bundleVersion=Invoke-SqlScalar "SELECT TOP(1) ISNULL(model_config_bundle_version,N'') FROM identidade.modelo_linkage WHERE status=N'ATIVO' ORDER BY versao DESC;"
-        $fingerprint=Invoke-SqlScalar "SELECT TOP(1) ISNULL(model_config_bundle_fingerprint_sha256,N'') FROM identidade.modelo_linkage WHERE status=N'ATIVO' ORDER BY versao DESC;"
+        $modelId=Invoke-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
+        $version=[int](Invoke-SqlScalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;")
+        $bundleVersion=Invoke-SqlScalar "SELECT TOP(1) ISNULL(model_config_bundle_version,N'') FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
+        $fingerprint=Invoke-SqlScalar "SELECT TOP(1) ISNULL(model_config_bundle_fingerprint_sha256,N'') FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
         $result=[ordered]@{
             generatedAt=(Get-Date).ToUniversalTime().ToString('o')
             goldPeople=$goldCount
@@ -198,7 +222,14 @@ switch($Action){
 
     'calibrate' { Invoke-ClusterAction 'calibrate' }
 
-    'linkage' { Invoke-ClusterAction 'linkage' }
+    'linkage' {
+        Ensure-ClusterRunning
+        $eligibleActive=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO';")
+        if($eligibleActive -ne 1){
+            throw "Executar linkage exige exatamente 1 modelo calibrado ATIVO; atual=$eligibleActive. Na Console DEV execute primeiro 'Calibração inicial a partir da Gold' (ou 'Recalibrar e ativar' se já houver histórico). O seed sintético não libera linkage."
+        }
+        Invoke-ClusterAction 'linkage'
+    }
 
     'replay-latest' {
         Ensure-ClusterRunning
