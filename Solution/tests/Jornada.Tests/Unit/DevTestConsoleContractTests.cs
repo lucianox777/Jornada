@@ -233,6 +233,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localCluster,Does.Contain("Jornada_Dev_SyntheticScale_Diversify.sql"));
             Assert.That(localCluster,Does.Contain("nomes/nome da mãe amostrados pela frequência IBGE"));
             Assert.That(opsScript,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
+            Assert.That(opsScript,Does.Contain("[string[]]$ComposeArgs"));
+            Assert.That(opsScript,Does.Contain("@ComposeArgs"));
+            Assert.That(opsScript,Does.Contain("Invoke-Compose exige um subcomando"));
+            Assert.That(opsScript,Does.Not.Contain("[string[]]$Args"));
             Assert.That(opsScript,Does.Contain("--mode','REPLAY"));
             Assert.That(page,Does.Contain("A tela mostra somente operações reais"));
             Assert.That(page,Does.Contain("Pré-requisitos:"));
