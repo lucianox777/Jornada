@@ -27,6 +27,8 @@ if($db -ne 'JornadaSyntheticDev'){throw "Console DEV aceita somente JornadaSynth
 $password=$vars['JORNADA_SQL_SA_PASSWORD']
 if([string]::IsNullOrWhiteSpace($password)){throw 'JORNADA_SQL_SA_PASSWORD ausente.'}
 Write-Host ('Banco alvo: '+$db)
+$out=Join-Path $Root '.local/dev-console'
+New-Item -ItemType Directory -Force $out|Out-Null
 Write-Host 'Etapa 1/5: verificando container SQL Server e banco sintético isolado...'
 
 $old=$env:SQLCMDPASSWORD
