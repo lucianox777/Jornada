@@ -63,7 +63,7 @@ function Show-ComposeFailureDiagnostics {
             $cid=(& docker compose --env-file $EnvFile ps -aq $service 2>$null | Out-String).Trim()
             if([string]::IsNullOrWhiteSpace($cid)){continue}
             $state=(& docker inspect --format 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}} started={{.State.StartedAt}} finished={{.State.FinishedAt}}' $cid 2>$null | Out-String).Trim()
-            Write-Host "$service: $state"
+            Write-Host "${service}: $state"
         } catch {}
     }
 
