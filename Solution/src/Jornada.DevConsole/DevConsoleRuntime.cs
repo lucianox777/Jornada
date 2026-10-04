@@ -370,14 +370,16 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             var receipt=sent.ExitCode==0&&File.Exists(receiptCandidate)?Path.GetFullPath(receiptCandidate):null;
             var combinedOutput=generated.Output+(generated.Output.EndsWith(Environment.NewLine,StringComparison.Ordinal)?"":Environment.NewLine)+sent.Output;
             var combinedError=generated.Error+sent.Error;
-            var artifacts=new[]{zip}.Concat(ParseArtifacts(sent.Output,root)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var artifacts=new List<string>{zip!};
+            artifacts.AddRange(ParseArtifacts(sent.Output,root));
+            var distinctArtifacts=artifacts.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             var status=sent.ExitCode==0&&receipt is not null?"SUCESSO":"FALHA";
             var summary=status=="SUCESSO"
                 ?$"ZIP gerado e enviado. Recibo: {receipt}"
                 :$"ZIP gerado, mas o envio falhou (exit {sent.ExitCode}). O ZIP foi preservado para diagnóstico/reenvio.";
             var resultPath=status=="SUCESSO"?receipt:zip;
             live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
-            var step=new StepResult(command,root,sent.ExitCode,sw.ElapsedMilliseconds,combinedOutput,combinedError,resultPath,artifacts);
+            var step=new StepResult(command,root,sent.ExitCode,sw.ElapsedMilliseconds,combinedOutput,combinedError,resultPath,distinctArtifacts);
             await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,status,summary,step,Array.Empty<Dictionary<string,string?>>()),live);
         }
         catch(Exception ex)
