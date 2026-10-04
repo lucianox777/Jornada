@@ -15,8 +15,9 @@ public sealed class RetiredInitialLoadModeScriptTests
         Assert.That(migration, Does.Contain(
             "DROP TABLE IF EXISTS controle.modo_carga_inicial"));
 
-        // The synthetic E2E must stage the externally owned SEHAB schemas only
-        // while the isolated API/Processor run is active, then delete the copy.
+        // The synthetic E2E may use the committed runtime copy only when it is
+        // byte-identical to the externally owned SEHAB schemas; temporary staging
+        // remains supported when the copy is absent.
         var localE2e = File.ReadAllText(Path.Combine(
             root, "Solution", "scripts", "local-e2e.ps1"));
         Assert.Multiple(() =>
@@ -24,7 +25,7 @@ public sealed class RetiredInitialLoadModeScriptTests
             Assert.That(localE2e, Does.Contain("ApoioSecretarias/config/contracts/gestores/SEHAB"));
             Assert.That(localE2e, Does.Contain("Get-FileHash"));
             Assert.That(localE2e, Does.Contain("Remove-Item -LiteralPath $stagedSehab"));
-            Assert.That(localE2e, Does.Contain("staging não sobrescreve arquivos existentes"));
+            Assert.That(localE2e, Does.Contain("cópia runtime SEHAB diverge da fonte de apoio"));
         });
 
         foreach (var name in new[]
