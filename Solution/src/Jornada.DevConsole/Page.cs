@@ -207,15 +207,20 @@ async function showHistory(){
   if(eventSource){eventSource.close();eventSource=null}
   switchView(historyView);
   history.textContent='Carregando...';
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),7000);
   try{
-    const runs=await api('/api/runs');
+    const runs=await api('/api/runs',{signal:controller.signal});
     history.innerHTML=runs.length?runs.map(r=>{
       const statusClass=String(r.status).replaceAll(' ','-');
       const started=r.startedAt?new Date(r.startedAt).toLocaleString():'data indisponível';
       return '<div class="history-item"><div><a href="#" onclick="openHistoryRun(\''+r.id+'\');return false"><span class="history-title">'+esc(r.title||r.command||'Execução')+'</span></a><div class="history-meta">'+esc(started)+' · '+esc(r.summary||'')+'</div></div><div class="history-status '+esc(statusClass)+'">'+esc(r.status||'')+'</div></div>'
     }).join(''):'Nenhuma execução registrada.';
   }catch(e){
-    history.innerHTML='<div class="card"><b>Falha ao carregar o histórico.</b><div class="small">'+esc(e.message)+'</div></div>';
+    const detail=e.name==='AbortError'?'A API de histórico excedeu 7 segundos. Reinicie a Console DEV e tente novamente.':e.message;
+    history.innerHTML='<div class="card"><b>Falha ao carregar o histórico.</b><div class="small">'+esc(detail)+'</div></div>';
+  }finally{
+    clearTimeout(timeout);
   }
 }
 
