@@ -156,7 +156,7 @@ th{position:sticky;top:0;background:#f2f5f7;z-index:1;white-space:nowrap}tr:last
             return;
         }
 
-        var first=array[0];
+        var first=array.EnumerateArray().First();
         if(first.ValueKind==JsonValueKind.Object)
         {
             RenderObjectArrayTable(b,array,count);
