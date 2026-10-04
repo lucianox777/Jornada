@@ -27,6 +27,8 @@ public sealed class DevTestConsoleContractTests
         var bundleScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-contract-bundle.ps1"));
         var initialConfigScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-initial-config.ps1"));
         var localCluster=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-cluster.ps1"));
+        var devEnv=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-env.ps1"));
+        var compose=File.ReadAllText(Path.Combine(root,"Solution","docker-compose.yml"));
 
         Assert.Multiple(()=>{
             Assert.That(program,Does.Contain("/api/commands/{command}/start"));
@@ -131,7 +133,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("Ensure-ClusterRunning"));
             Assert.That(opsScript,Does.Contain("local-cluster.ps1"));
             Assert.That(opsScript,Does.Contain("calibrate-initial"));
-            Assert.That(opsScript,Does.Contain("Gold vazia."));
+            Assert.That(opsScript,Does.Contain("Gold sintética completa de 30.000 pessoas"));
             Assert.That(opsScript,Does.Contain("contract-config-bundle.zip"));
             Assert.That(bundleScript,Does.Contain("JORNADA_DEV_CONTRACT_CONFIG_V1"));
             Assert.That(bundleScript,Does.Contain("config/contracts"));
@@ -157,6 +159,11 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("Arquivos gerados:"));
             Assert.That(page,Does.Contain("Consulta semicega · DEV sintético"));
             Assert.That(page,Does.Contain("Usar exemplo da Gold sintética"));
+            Assert.That(devEnv,Does.Contain("JornadaSyntheticDev"));
+            Assert.That(devEnv,Does.Contain("JORNADA_LOCAL_SYNTHETIC_PEOPLE"));
+            Assert.That(devEnv,Does.Contain("30000"));
+            Assert.That(compose,Does.Contain("SemiblindIdentitySearch__Enabled"));
+            Assert.That(compose,Does.Contain("test-access-keys.json:/opt/jornada/config/security/test-access-keys.json:ro"));
             Assert.That(bootstrap,Does.Contain("restore $Solution --locked-mode"));
             Assert.That(bootstrap,Does.Contain("build $Solution --no-restore"));
 
