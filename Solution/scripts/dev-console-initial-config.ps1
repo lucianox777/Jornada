@@ -81,3 +81,6 @@ Write-Host 'Configuração inicial gerada.'
 Write-Host "JSON: $jsonPath"
 Write-Host "HTML: $htmlPath"
 Write-Host "Manifesto de caminhos: $manifestPath"
+Write-Host "ARTEFATO: $jsonPath"
+Write-Host "ARTEFATO: $htmlPath"
+Write-Host "ARTEFATO: $manifestPath"
