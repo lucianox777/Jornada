@@ -149,12 +149,13 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
             ["idPessoaEntrega"]=pessoaId,["codigoRegistroOrigem"]=registroId,["operacao"]="INCLUSAO",["dataInicioConcessao"]=today.AddDays(-30).ToString("yyyy-MM-dd"),
             ["valorConcedido"]=600.0m,["dataEventoConcessao"]=today.ToString("yyyy-MM-dd"),["situacaoVigencia"]="VIGENTE"
         };
-        var jsonOpt=new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true};
+        var prettyOpt=new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true};
+        var compactOpt=new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=false};
         return new ZipTemplate(
             "gold.pessoa",uuid,gestor,sistema,tipo,nome,nascimento,mae,pessoaId,registroId,
-            JsonSerializer.Serialize(manifest,jsonOpt),
-            JsonSerializer.Serialize(pessoa,jsonOpt),
-            JsonSerializer.Serialize(registro,jsonOpt));
+            JsonSerializer.Serialize(manifest,prettyOpt),
+            JsonSerializer.Serialize(pessoa,compactOpt),
+            JsonSerializer.Serialize(registro,compactOpt));
     }
 }
 
