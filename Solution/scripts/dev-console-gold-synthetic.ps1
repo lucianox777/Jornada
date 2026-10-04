@@ -7,6 +7,9 @@ $started=Get-Date
 Write-Host '=== Jornada DEV :: Carregar Gold sintética (30.000, nomes IBGE) ==='
 Write-Host ('Início: '+$started.ToString('o'))
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$RepoRoot=(Resolve-Path (Join-Path $Root '..')).Path
+$localDotnet=if($env:LOCALAPPDATA){Join-Path $env:LOCALAPPDATA 'Microsoft\dotnet\dotnet.exe'}else{$null}
+$dotnetExe=if($localDotnet -and (Test-Path $localDotnet)){$localDotnet}else{(Get-Command dotnet -ErrorAction Stop).Source}
 . (Join-Path $PSScriptRoot 'dev-console-env.ps1')
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $envFile=$DevConsoleEnvFile
@@ -47,13 +50,15 @@ try {
   $corpusDir=Join-Path $out 'demographic-primary-30000'
   if(Test-Path $corpusDir){Remove-Item -Recurse -Force $corpusDir}
   $generatorArgs=@(
-    'run','--project','src/Jornada.Linkage.SyntheticCorpus','--configuration','Release','--no-build','--','generate',
+    'run','--project',(Join-Path $Root 'src/Jornada.Linkage.SyntheticCorpus'),'--configuration','Release','--no-build','--','generate',
     '--reference-root',(Join-Path $Root 'data/reference/ibge-nomes-2022'),
     '--population-profile','demographic-primary',
     '--birth-daily-source',(Join-Path $Root 'data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json'),
     '--out',$corpusDir,'--people','30000','--seed','42','--error-profile','correlated'
   )
-  & dotnet @generatorArgs
+  Push-Location $RepoRoot
+  try{ & $dotnetExe @generatorArgs }
+  finally{ Pop-Location }
   if($LASTEXITCODE -ne 0){throw "Gerador demográfico falhou ($LASTEXITCODE)."}
   $birthRows=@(Import-Csv (Join-Path $corpusDir 'pessoas_verdade.csv'))
   if($birthRows.Count -ne $expected){throw "Distribuição de nascimento retornou $($birthRows.Count) pessoas; esperado=$expected."}
